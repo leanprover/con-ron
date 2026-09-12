@@ -50,3 +50,8 @@ run extract-check "$root/scripts/extract.sh" --check
 run lake-build    env -C "$root/proof" lake build
 
 echo "gates: all $n OK"
+
+# The standing progress report (DESIGN.md §7), printed after a green run so
+# every landing shows where the port and the proof stand.
+echo
+python3 "$root/scripts/progress.py" --summary

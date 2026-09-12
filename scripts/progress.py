@@ -17,7 +17,8 @@ Two groups: the verified core (`ConLeche/Kernel`, `ConLeche/Cached`) and the
 cherries (`ConLeche/Frontend` without the parser's equivalence proofs,
 `Main.lean`).  Plus the size of the Rust, the generated Lean and the proofs.
 
-Usage: scripts/progress.py [--md]      (run from anywhere in the repo)
+Usage: scripts/progress.py [--md | --summary]   (run from anywhere in the repo)
+`--summary` prints only the totals (what scripts/gates.sh shows).
 """
 import os
 import re
@@ -110,6 +111,7 @@ def walk(root, ext):
 
 def main(argv):
     md = "--md" in argv
+    summary = "--summary" in argv
     items, cites, _malformed, _markers = P.collect([os.path.join(REPO, r) for r in RUST_ROOTS])
     lemmas = refine_lemmas()
 
@@ -139,7 +141,10 @@ def main(argv):
             tot[0] += len(lines); tot[1] += len(defl); tot[2] += len(tr); tot[3] += len(ve)
         rows.sort(key=lambda r: -r[2])
         pct = lambda a, b: ("%3d%%" % (100 * a // b)) if b else "  -"
-        if md:
+        if summary:
+            print("%-58s to translate %6d  translated %6d (%s)  verified %6d (%s)"
+                  % (title, tot[1], tot[2], pct(tot[2], tot[1]).strip(), tot[3], pct(tot[3], tot[1]).strip()))
+        elif md:
             print("### %s\n" % title)
             print("| file | raw | to translate | translated | verified |")
             print("|---|---:|---:|---:|---:|")
@@ -169,7 +174,10 @@ def main(argv):
     n_items = sum(1 for it in items if it.kind == "fn")
     n_lemmas = len(lemmas)
     pin = (P.current_submodule_commit() or "?")[:8]
-    if md:
+    if summary:
+        print("Rust core %d lines (%d fns) | unverified crates %d | generated Lean %d | proofs %d (%d _refines) | pin %s"
+              % (rust, n_items, rust_unverified, gen, proofs, n_lemmas, pin))
+    elif md:
         print("### Sizes\n")
         print("| what | lines |\n|---|---:|")
         print("| Rust, verified core (`crates/con-ron-core`) | %d |" % rust)
