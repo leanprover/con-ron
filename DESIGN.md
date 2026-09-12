@@ -140,12 +140,17 @@ So the pure port mostly buys policy freedom, a smaller prize than it looks.
 **Keep the door open: bodies over wrappers.**  The pure checker
 (`Kernel/Core.lean`) is written against a record of closures (`CoreFns`,
 the "knot"); the cached checker ties it with memo wrappers
-(`CoreFnsI`/`coreKnotI`, `memoEI`/`memoBI`).  The port keeps that split:
-the *bodies* are ported from `Kernel/Core.lean` as functions taking the
-recursive calls as an explicit parameter set (Rust has no cheap closures
-under Aeneas, so the knot is closed by a mutually recursive block of
-wrappers that carry the fuel and the memo lookups), and the memo wrappers
-are ported from `Cached/CoreC.lean` as a separate layer.  A later move to
+(`CoreFnsI`/`coreKnotI`, `memoEI`/`memoBI`).  The port keeps that split
+*textually*, not parametrically: the bodies are ported from
+`Kernel/Core.lean` as plain functions `whnf_core_body(fuel, st, fe, e)`
+that call the *wrapper* functions by name, and the wrappers
+(`whnf_core(fuel, …)`: fuel check, memo probe, call the body at
+`fuel - 1`, memo insert) are ported from `Cached/CoreC.lean` into a
+separate module — one mutually recursive block of plain functions.  A
+trait-based knot (bodies generic over a `CoreFns` trait, the wrapper
+struct implementing it) is ruled out: Aeneas rejects a function mutually
+recursive with a trait implementation ("mixed-recursive declaration
+groups", seen in the task #1 spike), and closures are out by §3.4.  A later move to
 Rust-native caching is then one new wrapper layer plus a Rust-world proof
 "wrappers refine the pure bodies", with the bodies, their lemmas and the
 provenance untouched; the pure-level main theorem it needs
