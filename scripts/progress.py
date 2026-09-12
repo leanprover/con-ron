@@ -106,6 +106,17 @@ def refine_lemmas():
     return out
 
 
+def lemma_for(lemmas, module, fn):
+    """A lemma `fn_refines` counts for Rust module `m` if it sits in
+    `Refine/<M>.lean` or in a themed sibling `Refine/<M><Suffix>.lean`
+    (`ExprOpsSpine.lean` for `expr_ops`), or in a directory file
+    `Refine/<M>/<File>.lean` (not scanned here; keep names flat)."""
+    for lm, lf in lemmas:
+        if lf == fn and lm.startswith(module):
+            return True
+    return False
+
+
 def rust_module_of(item):
     base = os.path.basename(item.file)
     return base[:-3].lower().replace("_", "") if base.endswith(".rs") else base
@@ -142,7 +153,7 @@ def main(argv):
     cited = {}    # path -> [Cite]
     proved = {}   # path -> [Cite]
     for it in items:
-        has_lemma = (rust_module_of(it), it.name()) in lemmas
+        has_lemma = lemma_for(lemmas, rust_module_of(it), it.name())
         for c in it.cites:
             if c is None:
                 continue
