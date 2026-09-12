@@ -95,7 +95,6 @@ use con_ron::driver::Heartbeat;
 use con_ron::driver::PhaseObserver;
 use con_ron::driver::STACK_BYTES;
 use con_ron_dump::parse_decls_file;
-use con_ron_dump::parse_pins;
 use con_ron_dump::peak_rss_kb;
 
 /// con-leche: Main.lean:791-1039 usage
@@ -103,7 +102,8 @@ use con_ron_dump::peak_rss_kb;
 /// synopsis is `con-ron`'s minus the frontend's flags, plus the dump reader's
 /// own (`--taint-skipped`, `--stats`, `--parse-only`).
 const USAGE: &str = "\
-usage: con-ron-check [--verified|--trusted] [--pins FILE] [--taint-skipped N]
+usage: con-ron-check [--verified|--trusted] [--pins FILE|--no-pins]
+                     [--taint-skipped N]
                      [--progress[=<stride>]] [--jobs=<n>]
                      [--no-mark-persistent] [--stats] [--stats-every N]
                      [--parse-only] [--quiet] FILE.decls
@@ -125,6 +125,9 @@ struct Args {
     mode: CheckMode,
     mode_tag: &'static str,
     pins: Option<String>,
+    /// `--no-pins` (task #43): the empty pin list, i.e. the pin loop's `[]`
+    /// arm.  A test override; the default is the core's embedded text.
+    no_pins: bool,
     taint_skipped: u64,
     /// `--progress[=<stride>]`: the shared heartbeat's stride; 0 is no flag.
     progress: u64,
@@ -147,6 +150,7 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
     let mut path: Option<String> = None;
     let mut mode_verified = true;
     let mut pins: Option<String> = None;
+    let mut no_pins = false;
     let mut taint_skipped: u64 = 0;
     let mut progress: u64 = 0;
     let mut stats = false;
@@ -186,6 +190,7 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
                 }
                 pins = Some(argv[i].clone());
             }
+            "--no-pins" => no_pins = true,
             "--taint-skipped" => {
                 i += 1;
                 if i >= argv.len() {
@@ -244,6 +249,7 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
                 "--trusted"
             },
             pins,
+            no_pins,
             taint_skipped,
             progress,
             stats,
@@ -442,24 +448,16 @@ fn run(args: &Args) -> u8 {
         after_a: None,
     };
     obs.hb.parse_done(ds.len(), 0, 0);
-    // The pin list (§3.6's parameter).  No `--pins` is the empty list, i.e.
-    // the pin loop's `[]` arm; a `Nat.div`/`Nat.mod` stream then declines.
+    // The pin list.  The default is the core's own embedded text, decoded by
+    // the core (task #43); `--pins FILE` and `--no-pins` are the test
+    // overrides (`driver::pins_for_run`).
     let t_pins0 = Instant::now();
-    let pins: Vec<NatOpPinSet> = match &args.pins {
-        None => Vec::new(),
-        Some(p) => match std::fs::read_to_string(p) {
-            Err(e) => {
-                eprintln!("con-ron: {}: {}", p, e);
-                return 3;
-            }
-            Ok(text) => match parse_pins(&text) {
-                Err(e) => {
-                    eprintln!("con-ron: {}: {}", p, e);
-                    return 3;
-                }
-                Ok(ps) => ps,
-            },
-        },
+    let pins: Vec<NatOpPinSet> = match driver::pins_for_run(&args.pins, args.no_pins) {
+        Ok(ps) => ps,
+        Err(e) => {
+            eprintln!("con-ron: {}", e);
+            return 3;
+        }
     };
     let t_pins = t_pins0.elapsed();
     let t1 = Instant::now();

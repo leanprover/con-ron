@@ -3,7 +3,8 @@
 //!
 //! ```text
 //! con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
-//!         [--progress[=<stride>]] [--pins FILE] [--dump-decls OUT] FILE.ndjson
+//!         [--progress[=<stride>]] [--pins FILE|--no-pins]
+//!         [--dump-decls OUT] FILE.ndjson
 //! con-ron --help
 //! ```
 //!
@@ -51,14 +52,18 @@
 //!   non-atomic `Rc` counts with no runtime mark to clear
 //!   (`driver::mark_persistent_note`).  It is accepted rather than rejected so
 //!   that a script measuring both checkers can pass it to both.
-//! * `--pins FILE` is con-ron's own, and is DESIGN.md §3.6's pin-list
-//!   parameter (task #31): con-leche carries `natOpPinSets` as kernel data
-//!   computed at elaboration time, and the port takes it as an argument of
-//!   `check_decls`.  Without the flag the list is empty, which is the `[]` arm
-//!   of the pin loop — a `Nat.div`/`Nat.mod` stream then declines with
-//!   "unsupported Nat.div/mod spelling", exactly as con-leche does for a
-//!   stream matching no variant.  `scripts/diff-e2e.sh` passes the dump
-//!   `scripts/dump-fixtures.sh` writes.
+//! * `--pins FILE` and `--no-pins` are con-ron's own and are **test
+//!   overrides** (task #43).  The pin list is no longer something the driver
+//!   supplies: `natOpPinSets` is an embedded text constant *inside the verified
+//!   core* (`kernel::pins_text::PINS_TEXT`) which the core itself decodes
+//!   (`kernel::pins_decode::decode_embedded`), so a plain run checks with
+//!   con-leche's own pins and nothing is read from outside.  `--pins FILE`
+//!   reads a `con-ron-pins/1` dump through the unverified reader instead
+//!   (task #31's arrangement, which `scripts/diff-e2e.sh --pins` still
+//!   exercises), and `--no-pins` is the empty list, i.e. the pin loop's `[]`
+//!   arm — a `Nat.div`/`Nat.mod` stream then declines with "unsupported
+//!   Nat.div/mod spelling", exactly as con-leche does for a stream matching no
+//!   variant.
 //! * `--dump-decls OUT` is con-ron's own too: it writes the parsed
 //!   `Vec<DeclC>` in the `con-ron-decls/1` format (task #10's specification,
 //!   task #19's byte-exact writer) and exits without folding.  That is the
@@ -78,7 +83,6 @@ use std::time::Instant;
 
 use con_ron_core::cached::installed;
 use con_ron_core::kernel::env::CheckMode;
-use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 
 use con_ron::driver;
 use con_ron::driver::Heartbeat;
@@ -100,7 +104,8 @@ use con_ron::frontend::prelude;
 /// that differ and the one piece of `Main.lean` that is not ported.
 const USAGE: &str = "\
 usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
-               [--progress[=<stride>]] [--pins FILE] [--dump-decls OUT]
+               [--progress[=<stride>]] [--pins FILE|--no-pins]
+               [--dump-decls OUT]
                FILE.ndjson
        con-ron --help
 
@@ -142,10 +147,14 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
                     ('install failed at', 'check failed at') and the summary
                     still prints.  Bare --progress is stride 1; a stride that
                     is not a decimal numeral, or 0, is a usage error.
-  --pins FILE       con-ron's own: the `con-ron-pins/1` dump of con-leche's
-                    `natOpPinSets` (DESIGN.md §3.6, task #31).  Without it
-                    the pin list is empty and a Nat.div/Nat.mod stream
-                    declines.
+  --pins FILE       con-ron's own, FOR TESTING: read the pin list from a
+                    `con-ron-pins/1` dump instead of the core's own embedded
+                    text (task #43), through the UNVERIFIED reader.
+  --no-pins         con-ron's own, FOR TESTING: the empty pin list, the pin
+                    loop's `[]` arm, under which a Nat.div/Nat.mod stream
+                    declines.  Neither flag is needed for a normal run: the
+                    pins are con-leche's `natOpPinSets`, embedded in the
+                    verified core and decoded by it.
   --dump-decls OUT  con-ron's own: write the parsed declaration list in the
                     `con-ron-decls/1` format and exit, without folding.
   --help            print this text on STDOUT and exit 0, in any argument
@@ -191,6 +200,9 @@ struct Args {
     jobs: Option<u64>,
     no_mark: bool,
     pins: Option<String>,
+    /// `--no-pins` (task #43): the empty pin list, the pin loop's `[]` arm.  A
+    /// test override; the default is the core's own embedded text.
+    no_pins: bool,
     dump_decls: Option<String>,
     bad: Option<String>,
 }
@@ -207,6 +219,7 @@ fn parse_args(argv: &[String]) -> Args {
         jobs: None,
         no_mark: false,
         pins: None,
+        no_pins: false,
         dump_decls: None,
         bad: None,
     };
@@ -232,6 +245,7 @@ fn parse_args(argv: &[String]) -> Args {
             "--trusted" => a.verified = false,
             "--progress" => a.progress = 1,
             "--no-mark-persistent" => a.no_mark = true,
+            "--no-pins" => a.no_pins = true,
             "--pins" => {
                 i += 1;
                 if i >= argv.len() {
@@ -288,19 +302,6 @@ fn parse_args(argv: &[String]) -> Args {
 /// at each of its environment gates.
 fn env_is(k: &str, v: &str) -> bool {
     std::env::var(k).ok().as_deref() == Some(v)
-}
-
-/// con-leche: none — DESIGN.md §3.6's pin-list parameter of `check_decls`
-/// (task #31): con-leche's `natOpPinSets` is kernel data computed at
-/// elaboration time, and the port takes it as runtime data.
-fn read_pins(path: &Option<String>) -> Result<Vec<NatOpPinSet>, String> {
-    match path {
-        None => Ok(Vec::new()),
-        Some(p) => {
-            let text = std::fs::read_to_string(p).map_err(|e| format!("{}: {}", p, e))?;
-            con_ron_dump::parse_pins(&text).map_err(|e| format!("{}: {}", p, e))
-        }
-    }
 }
 
 /// con-leche: Main.lean:493-788 checkMain
@@ -458,7 +459,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
         );
         return 0;
     }
-    let pins = match read_pins(&a.pins) {
+    let pins = match driver::pins_for_run(&a.pins, a.no_pins) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("con-ron: {}", e);

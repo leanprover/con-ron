@@ -83,6 +83,7 @@ use con_ron_core::kernel::env::Env;
 use con_ron_core::kernel::fenv;
 use con_ron_core::kernel::fenv::FEnv;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
+use con_ron_core::kernel::pins_decode;
 
 use crate::frontend::export::name_str;
 
@@ -130,6 +131,45 @@ pub fn message(e: &CheckError) -> String {
     cps.iter()
         .map(|c| char::from_u32(*c).unwrap_or('\u{fffd}'))
         .collect()
+}
+
+/// con-leche: none — `checkDecls`' pin argument, which con-leche does not have
+/// **The pin list a run checks with** (task #43).  con-leche bakes
+/// `natOpPinSets` into `checkDivModPin`; the port carries the same value as an
+/// *embedded text constant inside the verified core*
+/// (`kernel::pins_text::PINS_TEXT`) and decodes it with a verified decoder
+/// (`kernel::pins_decode::decode_embedded`), so a run of either binary uses
+/// con-leche's own pins with nothing supplied from outside.  That is the
+/// default, and the theorem's `pins` argument is that closed term
+/// (`proof/ConRon/Refine/Pins.lean`).
+///
+/// The two overrides are **for testing only** and neither is a con-leche
+/// spelling: `--pins FILE` reads a `con-ron-pins/1` dump through the
+/// *unverified* reader (task #31's arrangement, kept so that a differential
+/// sweep can hand the checker a pin list the embedded one is not, e.g. after a
+/// con-leche bump and before `scripts/gen-pins.sh` runs), and `--no-pins` is
+/// the empty list, which is what exercises the pin loop's `[]` arm
+/// (`scripts/diff-fixtures.sh --no-pins`).
+pub fn pins_for_run(
+    over: &Option<String>,
+    no_pins: bool,
+) -> Result<Vec<NatOpPinSet>, String> {
+    if no_pins {
+        return Ok(Vec::new());
+    }
+    match over {
+        Some(p) => {
+            let text = std::fs::read_to_string(p).map_err(|e| format!("{}: {}", p, e))?;
+            con_ron_dump::parse_pins(&text).map_err(|e| format!("{}: {}", p, e))
+        }
+        None => match pins_decode::decode_embedded() {
+            Ok(ps) => Ok(ps),
+            // Unreachable unless the crate was built with a text
+            // `scripts/gen-pins.sh` did not write: exit 3, an internal
+            // failure, never a verdict on the input.
+            Err(e) => Err(format!("embedded pin text: {}", message(&e))),
+        },
+    }
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:44-48 ValueKind.word

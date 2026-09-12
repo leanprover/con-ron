@@ -18,4 +18,5 @@ import ConRon.Refine.Expr
 import ConRon.Refine.HashMap
 import ConRon.Refine.Nat
 import ConRon.Refine.BasisTables
+import ConRon.Refine.Pins
 import ConRon.Dump.Read

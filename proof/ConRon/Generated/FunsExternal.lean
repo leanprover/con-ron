@@ -56,3 +56,19 @@ def alloc.rc.Rc.Insts.CoreCloneClone.clone
   core.alloc.AllocatorClone A) (x : alloc.rc.Rc T) :
   Result (alloc.rc.Rc T) := ok x
 
+/- The fifth hole, and the only one that is not an `Rc` operation (task #43).
+   It is **not** a trust assumption: Aeneas models `Str` as `Slice U8`
+   (`Aeneas/Std/StringDef.lean`), so the bytes of a `&str` *are* the value, and
+   `as_bytes` is the identity.  `kernel::pins_decode::decode_embedded` is the
+   only caller — `PINS_TEXT.as_bytes()`, the embedded pin text handed to the
+   byte decoder — and the hole exists because Rust offers no other way to index
+   a `&str`: the alternative, a `b"..."` byte constant, extracts to a
+   532 456-element array literal that Lean cannot elaborate (DESIGN.md,
+   task #43's measurement). -/
+/-- [core::str::{str}::as_bytes]:
+    Source: '/rustc/library/core/src/str/mod.rs', lines 514:4-514:41
+    Name pattern: [core::str::{str}::as_bytes]
+    Visibility: public -/
+@[rust_fun "core::str::{str}::as_bytes"]
+def core.str.Str.as_bytes (s : Str) : Result (Slice Std.U8) := ok s
+

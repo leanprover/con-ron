@@ -3,7 +3,8 @@
 # every fixture, against con-leche's pinned expectation.
 #
 #   usage: scripts/diff-e2e.sh [--trusted] [--verbose] [--timeout=SECS]
-#                              [--only=REGEX] [--no-pins] [--progress]
+#                              [--only=REGEX] [--no-pins|--pins-file]
+#                              [--progress]
 #
 # This is `scripts/diff-fixtures.sh` (task #28) one step further up: that
 # script runs `con-ron-check` on the *dump* con-leche's frontend produced, so
@@ -26,10 +27,12 @@
 #     rejects before the fold has no dump at all, so `diff-fixtures.sh`
 #     SKIPS 33 fixtures.  Here they are checked like any other.
 #
-# `--pins` (on by default, `--no-pins` to drop it) is DESIGN.md §3.6's
-# pin-list parameter, read from `$OUT/pins.dump` as `diff-fixtures.sh` reads
-# it; without it the 17 fixtures that define `Nat.div` decline for an empty
-# pin table.
+# The PIN LIST needs no argument since task #43: `natOpPinSets` is an embedded
+# text constant inside the verified core and the core decodes it, so a plain
+# run uses con-leche's own pins.  `--no-pins` passes the empty list, under which
+# the 17 fixtures that define `Nat.div` decline (task #28's numbers), and
+# `--pins-file` reads `$OUT/pins.dump` through the unverified reader instead
+# (task #31's arrangement, kept as a test route).
 #
 # Since task #39 the IN-PROCESS MODELLER is ported, so the 23 fixtures that
 # used to be reported `INMODEL` are checked like any other; the row exists
@@ -54,6 +57,7 @@ MODE=--verified
 verbose=0
 only=""
 use_pins=1
+from_file=0
 progress=""
 
 for a in "$@"; do
@@ -61,10 +65,11 @@ for a in "$@"; do
     --trusted) MODE=--trusted ;;
     --verbose) verbose=1 ;;
     --no-pins) use_pins=0 ;;
+    --pins-file) from_file=1 ;;
     --progress) progress=--progress=1000 ;;
     --timeout=*) TO=${a#--timeout=} ;;
     --only=*) only=${a#--only=} ;;
-    *) echo "usage: $0 [--trusted] [--verbose] [--no-pins] [--progress] [--timeout=SECS] [--only=REGEX]" >&2; exit 2 ;;
+    *) echo "usage: $0 [--trusted] [--verbose] [--no-pins|--pins-file] [--progress] [--timeout=SECS] [--only=REGEX]" >&2; exit 2 ;;
   esac
 done
 
@@ -79,12 +84,18 @@ if [ ! -d "$ARENA_DIR/good" ]; then
   tar -xzf "$CL/tests/arena/lean-arena-tests.tar.gz" -C "$ARENA_DIR" || exit 3
 fi
 
+# The pin list.  Since task #43 the default needs NO argument: the pins are an
+# embedded text constant inside the verified core, decoded by the core.
+# `--no-pins` still reproduces task #28's numbers (the empty list), and
+# `--pins-file` still exercises task #31's unverified file reader.
 pinargs=""
-if [ "$use_pins" -eq 1 ]; then
+if [ "$use_pins" -eq 0 ]; then
+  pinargs="--no-pins"
+elif [ "$from_file" -eq 1 ]; then
   if [ -f "$OUT/pins.dump" ]; then
     pinargs="--pins $OUT/pins.dump"
   else
-    echo "diff-e2e: $OUT/pins.dump missing; run scripts/dump-fixtures.sh (or pass --no-pins)" >&2
+    echo "diff-e2e: $OUT/pins.dump missing; run scripts/dump-fixtures.sh" >&2
     exit 3
   fi
 fi
@@ -158,7 +169,7 @@ done <"$CL/tests/annot-expected.txt"
 
 t1=$(date +%s)
 echo
-echo "diff-e2e ($MODE${pinargs:+, with pins}): $total fixtures"
+echo "diff-e2e ($MODE, pins ${pinargs:-embedded}): $total fixtures"
 echo "  agree               $agree"
 echo "  DIFFER              $differ"
 echo "  needs the modeller  $inmodel   (task #39 ported it; expected 0)"

@@ -17,6 +17,8 @@ pub mod inductives;
 pub mod level;
 pub mod name;
 pub mod nat_op_pins;
+pub mod pins_decode;
+pub mod pins_text;
 pub mod prop_read;
 pub mod prop_when;
 pub mod std_axioms;
