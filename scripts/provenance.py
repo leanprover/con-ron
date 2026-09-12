@@ -50,6 +50,7 @@ CITE_RE = re.compile(
 )
 NONE_RE = re.compile(r"^none\b")
 MARKER_RE = re.compile(r"^\s*///\s*con-leche:\s*CHANGED\b")
+MODULE_NONE_RE = re.compile(r"^\s*//!\s*con-leche:\s*none\b")
 
 
 def marker(old, item):
@@ -485,8 +486,18 @@ def cmd_check(args):
                   % (c.where(), c.path, c.range, head, c.decl))
             findings += 1
 
+    # A whole module with no Lean counterpart (one that replaces a runtime
+    # primitive: `nat.rs`, `hashmap.rs`) says so once, in its module doc:
+    #     //! con-leche: none — <why>
+    # and every item in it is exempt from the per-item requirement.
+    module_none = set()
+    for f in {it.file for it in items}:
+        for line in open(f, encoding="utf-8"):
+            if MODULE_NONE_RE.match(line):
+                module_none.add(f)
+                break
     for it in items:
-        if not it.cites:
+        if not it.cites and it.file not in module_none:
             print("UNCITED %s:%d — `%s %s` has no `con-leche:` line"
                   % (rel(it.file), it.lineno, it.kind, it.name()))
             findings += 1

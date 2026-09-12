@@ -1,3 +1,5 @@
+//! con-leche: none — replaces the runtime's `Nat` (GMP); no Lean source to cite.
+//!
 //! `ron::Nat` — the arbitrary-precision natural number that replaces Lean's
 //! runtime `Nat` (DESIGN.md §3.3).  Lean's `Nat` is GMP behind a small-int
 //! fast path; nothing of that is in con-ron's trusted base, so the checker

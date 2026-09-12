@@ -118,12 +118,41 @@ Lean side by con-leche's `Verify/Cached/*`.  Any deviation in memo behaviour
 allowed only where they are *semantically transparent by a local lemma*
 (§3.2, pointer fast paths).
 
-The pure checker (`Kernel/Core.lean`) is written against a record of
-closures (`CoreFns`, the "knot"); the cached checker ties it with memo
-wrappers.  Rust has no cheap closures under Aeneas, so the port closes the
-knot: the cached functions are one mutually recursive block with the fuel as
-an explicit argument.  The refinement lemma is stated against
-`(coreKnotI mode fe fuel).whnf` etc., which unfolds one level per fuel step.
+**Cached, not pure — and why (maintainer's question, 2026-09-12).**  The
+alternative was to port the *pure* fueled checker and prove whatever
+caching the Rust does sound in the Rust world.  That decouples Rust
+performance work from con-leche's memo policy, but it re-proves con-leche's
+hardest tier (memo soundness at every fuel, the install/check phase split
+with prefix views; ≈ 8–15k lines of genuinely hard proof) before the first
+Rust-side theorem exists.  The cached port reuses that tier through the
+exact-state relation `abs st' = lean st'` at the price of mirroring
+con-leche's memo *policy* (tables, keys, flush points, the 32M cap) — a
+Rust caching change that alters the hit/miss pattern must be mirrored
+upstream.  What the constraint does **not** forbid, because the relation
+is on abstract state: pointer fast paths (§3.2), hash-consing/interning
+(structural equality O(1), a memo keyed by node id behaves exactly like a
+structurally keyed one), arenas, non-atomic `Rc`, a better hash map,
+parallel phase B.  What neither option allows is the C++ kernel's
+address-keyed caches: Aeneas has no addresses, so such a cache cannot be
+modeled at all; interning is the modelable substitute under both options.
+So the pure port mostly buys policy freedom, a smaller prize than it looks.
+
+**Keep the door open: bodies over wrappers.**  The pure checker
+(`Kernel/Core.lean`) is written against a record of closures (`CoreFns`,
+the "knot"); the cached checker ties it with memo wrappers
+(`CoreFnsI`/`coreKnotI`, `memoEI`/`memoBI`).  The port keeps that split:
+the *bodies* are ported from `Kernel/Core.lean` as functions taking the
+recursive calls as an explicit parameter set (Rust has no cheap closures
+under Aeneas, so the knot is closed by a mutually recursive block of
+wrappers that carry the fuel and the memo lookups), and the memo wrappers
+are ported from `Cached/CoreC.lean` as a separate layer.  A later move to
+Rust-native caching is then one new wrapper layer plus a Rust-world proof
+"wrappers refine the pure bodies", with the bodies, their lemmas and the
+provenance untouched; the pure-level main theorem it needs
+(`model_exists` for `checkDeclsPure`) is a small upstream addition, since
+`no_proof_of_False_pure` already exists.  The refinement lemma for a
+wrapper is stated against `(coreKnotI mode fe fuel).whnf` etc., which
+unfolds one level per fuel step.
 
 ### 3.2 Terms are `Rc` trees, modeled as their contents
 

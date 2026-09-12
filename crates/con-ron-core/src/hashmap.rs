@@ -1,3 +1,5 @@
+//! con-leche: none — replaces `Std.HashMap`; no Lean source to cite.
+//!
 //! `ron::HashMap<K, V>` — the port's replacement for `Std.HashMap` (DESIGN.md
 //! §3.3).  Aeneas has no model of `std::collections`, so the memo tables of
 //! `ConLeche/Cached/StateC.lean` (`whnfC`, `inferC`, `instC`, …) are backed by
