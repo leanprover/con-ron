@@ -13,6 +13,7 @@ pub mod env;
 pub mod expr;
 pub mod expr_ops;
 pub mod fenv;
+pub mod inductives;
 pub mod level;
 pub mod name;
 pub mod nat_op_pins;

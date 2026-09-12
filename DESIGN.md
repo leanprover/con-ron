@@ -4508,6 +4508,268 @@ Rule for the next porter, now with five witnesses: **any `if <gate> { Ok(x) }
 else { <state-touching call> }` whose result is then matched must be two tail
 calls.** `lake build` gave no error at all this time — task #18's `¬`-in-value
 lesson held.
+### Task #25 — The inductive routes (2026-09-12, Opus under Fable)
+
+P1.5.  All ten files of `ConLeche/Kernel/Inductives/` (3 983 lines, 152
+top-level declarations, 0 covered) ported as
+`crates/con-ron-core/src/kernel/inductives/`, plus the inductive-route stages
+of `ConLeche/Cached/CheckerC.lean` — which is what the shipped binary runs on
+an inductive block.  The crate now has **both** install routes for an
+inductive declaration: the *direct* (fixpoint) route, which checks a block
+against the reference kernels' own inductive-declaration checks and
+**generates** its recursor, and the *modeled* route, which checks every member
+against the in-process modeller's `_model` artifacts.
+
+**Nine modules, one per Lean file** (`kernel/inductives/mod.rs` lists them):
+`struct_parts`, `sum_parts`, `native_parts` (the pure recognition and
+generation layer), `struct_install`, `sum_install`, `native_install` (the
+direct route's stages), `modeled` (the modeled route), `inductives_c` (the two
+cached drivers), and `checker_local` (see below).  The three `*InstallF.lean`
+files have **no module of their own** — deviation 1 below.
+
+#### Three deviations that apply to the whole directory
+
+They are recorded once in `mod.rs` rather than on 300 items.
+
+1. **One spelling of the environment: `fe: &FEnv`** — task #18's deviation 3,
+   now cashed in at scale.  con-leche writes each install stage *twice*, over
+   `Env` (`*Install.lean`, the pure fueled checker the verification tier
+   reasons about) and over the index (`*InstallF.lean`, what the executable
+   runs); the two differ only in `env.find?` versus `fe.find?` and in
+   `⟨ci :: env.consts⟩` versus `fe.push ci`.  The port has **one function per
+   pair, carrying both citations**, so `StructInstallF`, `SumInstallF` and
+   `NativeInstallF` are covered 5/5, 8/8 and 5/5 without a Rust file, and
+   `Modeled.lean`'s stages carry their `Kernel/DeclCheck.lean` `*F` twin as a
+   second citation.  That is 18 Lean declarations the next task does not have
+   to port.
+2. **`CheckerOps` is dissolved into direct wrapper calls.**  The whole
+   declaration checker is written once against a record of five closures plus
+   the `orElse` combinator; §3.4 forbids closures and §3.1's knot rule forbids
+   a trait in a recursion, so `ops.whnf env d e` is
+   `core_c::whnf(mode, core_k::check_fuel(), st, fe, d, &e)` — the wrapper, by
+   name, at exactly the fuel `sharedOpsC` passes (`coreKnotI mode fe
+   checkFuel`).  `ops.ensureSort` is `core_k::ensure_sort`; `orElse` is not
+   reached from these routes (its one caller is the Nat-op pin gate).
+3. **`StructWalkers` is dissolved too.**  `StructInstallF.lean:50-71` passes
+   the direct install's two whole-tree traversals as a record of closures so
+   that the cached driver can supply memoised twins
+   (`Cached/CheckerC.lean:52` `structWalkersC`).  Both walkers the port has
+   *are* memoised — `core_k::consts_resolve` is the one spelling of
+   `Expr.constsResolve`/`constsResolveF`/`constsResolveFC`, and
+   `struct_parts::struct_proj_bodies` of
+   `structProjBodies`/`structProjBodiesC` — and con-leche's own
+   `structWalkersC_eq_plain` says the record is the specification.  So the
+   record is gone, the walkers are called by name, and because their memos are
+   per-call and local **no memo policy is touched**.
+
+#### `checker_local`: what a route needs from the checker family
+
+The install routes sit *on top of* `Kernel/CheckerBase.lean` and
+`Kernel/DeclCheck.lean`, which are task #24's `kernel/checker*.rs`.  Rather
+than stub anything, this task put **exactly what an inductive route needs, and
+nothing else**, into `kernel/inductives/checker_local.rs`, each item with its
+citation: `unwrapOr`, `openPisAtFvars`/`openPisAtFvarsF`, `domsMatchAux` (with
+the `DomView` dictionary its `g` argument becomes), `checkConstantVal`,
+`checkTypedList`/`checkAnnotList`/`checkDefEqList`, `isEqHead`/`eqHeadLevel`,
+`Env.findCV?`, `checkProjShape`, `checkProjRule`, and the derived
+`DecidableEq`s of `Kernel/Env.lean`'s stored-constant records.  Task #24's
+unification is a move plus a `use`; no caller spells a body.
+
+Two items are owed elsewhere and say so:
+
+* **`Expr.allLevelParamsDefined`** (`Kernel/Level.lean:256-339`, the fourth
+  `@[csimp]` family of the port) belongs in `kernel/level.rs` — task #13
+  recorded it as still owed and this task is its first consumer, so it lives
+  in `checker_local` for now.
+* **`eqA`**, the annotated pinned equality former, is task #22's
+  `kernel/basis_tables.rs`.  Four sites need the guard
+  `env.find? eqName = some eqA` (`checkIndRecs`, `checkProjLookups`,
+  `checkEtaThm`, `checkUnitThm`), two of them in a pure `Bool`, so a monadic
+  "run the annotation pass now" is not available.  The pin is therefore spelled
+  out — and **`eqA = eqRaw`, which is a fact, not an assumption**: `eqA` is
+  `#annotate_basis`'s output, i.e. `annotateCore .verified` applied to
+  `eqRaw`'s type, and every binder of `∀ {α : Sort u} (a b : α), Prop` has a
+  codomain that is a `Sort` or a `∀` whose datum is already `.never`, so
+  `annotPwPi`'s head-symbol reader answers `.never` at all three — the parse
+  placeholder the raw pin carries.  A **test** runs `core_c::annotate` on the
+  pin and compares, so a change upstream breaks a test rather than a verdict.
+
+#### The generated recursor, built in the cited order node for node
+
+`checkNativeRec` generates the recursor's type and compares it with the
+stream's by one closed `isDefEq`; `nativeRulesOk` compares the stream's rule
+*bodies* with the generated ones by **structural equality**.  So a deviation in
+`native_parts`' generators would not merely change a term the refinement proof
+has to relate — it would change a *verdict*.  Every generator therefore
+reproduces con-leche's construction order exactly: the same `liftLooseBVars`
+amounts and cutoffs at the same points, the same binder data
+(`Level.zeronessOf ℓ` on every generated binder, `.never` on the motive's own),
+the same append order in every argument spine.  Lean's truncated `Nat`
+subtraction is `expr_ops::sub_nat` at every `nF - 1 - i`, using
+`(a - b) - c = a - (b + c)`.
+
+One consequence worth recording: **the annotation pass is the identity on the
+generated recursor type**, which is why the `isDefEq` against the stream's
+annotated recursor takes the syntactic fast path.  `pwWritten` is "not
+`.never`", so every binder the generator datums with `zeronessOf ℓ` is *kept*
+by `checkConstantVal`'s `annotate`, and the two `.never` binders
+(`structMotiveTyI`'s own `(t : T p⃗ ı⃗)`, whose codomain is a `Sort`) are
+recomputed to `.never`.  The `check_native_installs_a_nat_like_block` test is
+that fact end to end.
+
+**The two higher-order arguments are monomorphised** (task #18's pattern 1):
+`structIhApp`, `structRuleBodyR`, `structIhPis`, `structMinorTyR` and
+`structRecRhsR` take `teleOf : Nat → List (Expr × BinderMeta)` and
+`idxOf : Nat → List Expr`, and *every* con-leche call site passes
+`structFieldTeleOf cty nP nF` / `structFieldIdxOf cty nP nF` — the same three
+values the caller already holds.  The port passes those three and calls the two
+readers by name; a one-method trait would put a dictionary inside the
+generators' recursion for no gain.  `checkSumInd`'s `capsOf : InductiveShape →
+IndCaps`, by contrast, *is* a one-method trait (`sum_install::CapsOf`, with
+`native_install::NativeCapsAt { is_rec }` its one implementation), because it
+is not in a recursion and because the parametricity is what the verification
+tier uses.
+
+#### `fenv::dup`: four copies of the index, per block
+
+con-leche's index is persistent — `fe.push` and `fe.restrictTo` leave their
+argument intact because the runtime shares the `Std.HashMap` field — and task
+#14 chose linear threading instead (by value, returned), which is exact and
+`O(1)` wherever a caller needs *one* view at a time.  Four sites in these
+routes need **two** views at once, and they are the only ones in the
+directory:
+
+* `check_native_pass` hands an index to `check_sum_ind` (which pushes the
+  former onto it) while `check_native` keeps the pre-block index for the second
+  pass and for `check_native_tail`;
+* `check_native_rec` builds `feR = fe.push (.recInfo cvRa … [])` — a
+  *temporary* view in which the generated rules are scope-checked — while
+  `check_native_tail` keeps `fe₂` for the rules and the table;
+* `check_ind_recs` holds **three** views: the block-member environment `env₂`
+  that every iota check's `env'` lookups go to, the fully provisioned
+  `envSelf` that `provisionRecs` built on top of it, and the fold's
+  accumulator, which starts as `env₂` and grows.
+
+Each takes `fenv::dup` (task #14's copy: the index is rebuilt with
+`mk_fenv_go`, the constants themselves stay shared).  That is `O(|env|)` **two
+to four times per inductive block**, not per term — it is the price task #14's
+option 3 named, and the `Rc<HashMap>` index it foreclosed removes it without
+touching the model, because `abs` reads the index through `find` either way.
+
+#### The `flushC` policy is exact
+
+`Cached/CheckerC.lean`'s inductive stages "mirror their
+`Kernel/Checker.lean` counterparts clause by clause; the differences are
+exactly: `flushC` at environment transitions, `FEnv.push` maintaining the
+index, and *every* environment lookup routed through the index".  The port has
+one spelling of the index already (deviation 1), so what `inductives_c.rs`
+adds is the **flush policy** — the one thing §3.1 insists must be mirrored,
+because a flush changes the memo hit/miss pattern.  Three stages were *split*
+in `native_install`/`modeled` so that the flush lands exactly where the cited
+`flushC` does, with one body serving both the pure and the cached spelling:
+
+* `check_native_pass` → `check_native_pass_former` + `check_native_pass_ctors`
+  (the flush is between `checkSumIndF` and `checkSumCtorsF`);
+* `check_native_tail` → `check_native_tail_guards` + `check_native_cons` +
+  `check_native_install` (the flush is after `consSumCtorsF`, before
+  `checkNativeRecF`);
+* `provision_recs` → `provision_recs_step` + the fold (the flush is per
+  recursor).
+
+So **no memo policy differs from the executed Lean** in this task, and the
+task-#18 note owed to `CoreC.lean`'s interned bodies stays the only open one.
+
+#### Constructs that do not survive transliteration
+
+Beyond the three global ones, and all a-priori except the six in the next
+section:
+
+1. **The three `@[csimp]` families of `StructParts.lean` are one Rust function
+   each** (task #13's pattern), and so is `NativeInstall.lean`'s fourth
+   (`Expr.mentionsFvar`) and `Level.lean`'s fifth
+   (`Expr.allLevelParamsDefined`): the port implements the `*Fast` member and
+   cites the `*Go` walk, the logical `def` and the `@[csimp]` lemma.  The
+   plain `def`s are ported too, unmemoized and uncalled
+   (`has_loose_bvar`, `has_loose_bvar_b_spec`, `mentions_const_spec`,
+   `mentions_fvar_spec`, `all_level_params_defined_spec`,
+   `open_pis_at_fvars_spec`), so the gate stays in step with their source
+   (task #11's `beqRecursive` rule) and so the tests can compare the two.
+   Each memo is a `&mut HashMap` created in the wrapper, as in task #13; each
+   walk's miss branch is a *second* function (`*_node`), because the probe's
+   borrow has to die before the descent mutates the map (task #14's rule).
+   **`mentionsConstGo` and `allLevelParamsDefinedGo` do not short-circuit** —
+   the cited code walks both children even when the first answers, so that the
+   memo it hands back holds both answers — and the port keeps that;
+   `mentionsFvarGo` and `hasLooseBVarBGo` *do*, and the port keeps that too.
+2. **`structProjGuards` is implemented as `structProjGuardsFast`**: the `nF`
+   `structUsedLater` answers first, through one shared `hasLooseBVarBGo` memo,
+   then the fold — O(nF) telescope walks where the pure definition asks once
+   per pair `j < i < nF`.  The `@[csimp]` lemma is what lets the port do that
+   and still refine the definition the model's stage tables consume.
+3. **`NativeParts` spells Lean's `extends InductiveShape` as a field `shape`.**
+   Lean's structure extension gives a `toInductiveShape` projection; the port
+   has a field and every reader goes through it (`p.shape.cv_t` for `p.cvT`).
+4. **`NativePass (E : Type)` loses its type parameter** — it is `Env` at the
+   pure install and `FEnv` at the cached mirror, and deviation 1 leaves one.
+5. **The four `Name → Name` arguments are `NameToName` dictionaries**
+   (task #9's pattern, task #13's `expr_ops::NameToName`): `BlockRename`
+   (`fun n => if blockNames.contains n then n.str "_model" else n`, shared by
+   `checkMemberVal` and `checkIndRecs`), `ProjBack`, `ProjFwd`, and
+   `domsMatchAux`'s `g` as `DomIdent`/`DomProjFwd`.  All four capture their
+   Lean closure's captured values by shared reference, and three of them are
+   region-parameterised structs — the second, third and fourth in the crate
+   after task #13's `level::SubstZ`, and Aeneas translated all of them without
+   complaint.
+6. **`sumSplit` is one flat five-component tuple** instead of Lean's nested
+   `Option (List _ × ConstantVal × Nat × Nat × List RecRule)`, and it is an
+   *index* recursion over the block, which is what lets `nativeShape?` and
+   `nativeRecPinOk` spell `sumSplit rest` as `sum_split_from(block, 1, …)`
+   with no tail copy.
+7. **The two one-element list patterns of `checkModeled`** (`match
+   block.filter indInfo, block.filter ctorInfo with | [.indInfo cvT _],
+   [.ctorInfo cvC nP nF] =>`) become `single_ind_ctor`, one pass that counts
+   both kinds and remembers the first of each: a `Vec` has no such pattern and
+   two `filter`s would copy the block twice.
+8. **`inst_pins` is two functions.**  con-leche writes one `map` whose
+   function either applies the block renaming or does not; a single Rust
+   function would take it as `Option<&BlockRename>` and Aeneas rejects a
+   nested borrow outright (*"Nested borrows are not supported yet"*), so the
+   port has `inst_pins_renamed` and `inst_pins_plain`.
+9. **`Array` twins are the same function.**  `checkStructDomsAtFA`,
+   `checkStructFieldSortsIFA` and `domsMatchAuxA` exist because positional
+   `List` indexing is linear per access; the port has one list type, so each
+   is its list twin with a second citation (their `*_eq` lemmas at
+   `List.toArray` are the licence).
+10. **`List` → `Vec` with `*_from` helpers**, as ever, and every `&&`/`∧`
+    cascade is an `if` nest (task #3's pattern 9).  The cited *arm order* is
+    preserved everywhere it is load-bearing — `recPositivity`'s
+    negative-before-unsupported cascade, `nativeOpenedOk`'s per-kind match,
+    `checkIotaThm`'s pin sequence, and `structPartsCore?`'s
+    large-before-small eliminator reading.
+
+#### The seven Aeneas errors, and their fixes
+
+Charon succeeded on the first run (2.14 s from a clean build; the `.llbc` is
+88 MB).  Aeneas gave **six** errors on the first run and **one** more after the
+first round of fixes; all seven are task #14's single shape — *a borrow taken
+from a shared structure, consumed into a scalar or a monadic value, and then
+joined with a branch that re-borrows or mutates the same structure* — and all
+seven fixes are the rule task #14 wrote down: **never hold a container's
+borrow across a branch that touches the container; factor the test.**
+
+| where | Aeneas said | the factored test |
+|---|---|---|
+| `native_parts::native_shape` | *Could not match the contexts* | `native_shape_names_ok` (the three reserved-name exclusions and the constructors' guard) |
+| `native_parts::native_shape` (round 2) | *Could not match the contexts* | `struct_parts::level_is_prop` (`Level.isEquiv s .zero == some true`), now the one spelling for all three recognisers |
+| `struct_parts::struct_parts_core` | *Internal error, please file an issue* | `struct_parts_small_ok` (the small-eliminator branch's guard, `struct_parts_large`'s twin) |
+| `native_install::check_native_tail_guards` | *Unreachable* | `elim_restriction_violated` (official's `elim_only_at_universe_zero`) |
+| `native_install::check_native_rec` | *Could not match the contexts* | `term_scoped` (`allLevelParamsDefined && resolve && looseBVarsBounded 0 && !hasFvar`), now shared with `check_native_rules` |
+| `modeled::check_iota_rule_fire` | *Internal error, please file an issue* | task #18's rule: the two firing branches **tail-call** `iota_rule_stored` instead of joining on a `CheckM RecRuleFire` |
+| `modeled::inst_pins` | *Nested borrows are not supported yet* | deviation 8 above |
+
+Every one of the fixes is an improvement on its own terms — each factored test
+is a named thing the Lean already names — so nothing was contorted to please
+the tool.  After them: **zero errors, zero warnings.**
 
 #### Numbers
 
@@ -4677,6 +4939,121 @@ the strongest single signal here: they drive `whnf`, `whnfCore`, `infer`,
 `defeq` and `annotate` end to end through the wrappers, and the wrappers now
 call entirely different bodies.  One line of them moved —
 `core_k::unfold_definition` is `core_c::unfold_definition_i`.
+| Lean ported: all ten `Inductives/*.lean` | **3 983** lines, **152** declarations |
+| plus the inductive stages of `Cached/CheckerC.lean` | 9 blocks |
+| plus what `CheckerBase.lean`/`DeclCheck.lean`/`Level.lean` owe (`checker_local`) | 30 blocks |
+| Rust, extracted part (raw / code) | **10 272 / 8 033** (2.0× the Lean's 3 983) |
+| — `native_parts` / `modeled` / `native_install` | 1 667 / 2 770 / 1 409 raw |
+| — `struct_parts` / `checker_local` / `sum_install` | 1 273 / 1 340 / 939 raw |
+| — `inductives_c` / `struct_install` / `sum_parts` / `mod` | 419 / 207 / 174 / 74 raw |
+| Rust, `#[cfg(test)]` part (16 tests) | 892 raw |
+| Rust items Charon sees | **319** (306 `fn`, 6 `struct`, 2 `enum`, 3 `trait`, 2 `impl`) |
+| generated `Types.lean` | 583 → **698** (+115: `InductiveShape`, `StructParts`, `NativeParts`, `NativePass`, `RecFieldKind` and the five dictionaries) |
+| generated `Funs.lean` | 21 213 → **34 601** (+13 388) |
+| `TypesExternal_Template.lean` / `FunsExternal_Template.lean` | 25 / 54 — **unchanged**: exactly the four `Rc` axioms and the `Rc` type (§3.2's standing gate) |
+| `charon cargo --preset=aeneas` wall (clean build) | **2.14 s** (the `.llbc` is 88 MB) |
+| `aeneas -backend lean -split-files -loops-to-rec` | **22.95 s** wall (22.18 s self-reported) |
+| `partial_fixpoint` (whole crate / this task) | 226 → **336** (+110) |
+| `mutual` blocks in `Funs.lean` | 3 → **7**: the four new ones are the four memoized walks' `*_go`/`*_node` pairs (2 functions each, 130-191 lines).  **The install stages are in none of them** — the routes are a chain, not a cycle, and Aeneas's SCC decomposition says so |
+| `mutual` blocks in `Types.lean` | 3 — unchanged |
+| `lake build` of `ConRon.Generated.Funs` | **61 s** (from scratch; 38 s at task #18) |
+| `cargo test` | 105 → **121** green, warning-free |
+| `scripts/provenance.py check` | green — **1 161** items, **1 126** citations, all current at pin 3e004805 |
+
+The 2.0× Rust→Lean code ratio is the best in the port so far (task #18's
+`core_k` was 3.3×, task #13's `expr_ops` 3.7×): these files are mostly
+*syntactic* — `if` nests over `Expr` shapes and `Vec` index recursions — so
+the two things that inflated the earlier modules, `const […]: [u32; N]`
+messages and explicit `match` on every `Result`, are diluted by real content.
+The generated Lean is 1.3× the Rust code.
+
+#### Tests
+
+Sixteen (`#[cfg(test)]`, invisible to Charon), all environments hand-built.
+
+`native_install` (6).  **The `Nat`-like block, end to end**: `N : Sort 1`,
+`Nz : N`, `Ns : N → N` and the *generated* `N.rec` at a fresh elimination
+parameter — which is what an export carries, since the elaborator generated it
+— installs, with the former, both constructors and the ruled recursor stored,
+the rules `plain` and `paramsBlind`, and no projection table (two constructors
+is not structure-like).  That one test exercises the whole route: the
+recogniser, `nativeCounts?`, the former's telescope, the constructors with
+official's positivity walk as a normalisation, the classification, the
+recursor generated and `isDefEq`'d against the stream's, `nativeRulesOk`'s
+structural comparison of the rule bodies, and `nativeRulePrefixOk`'s
+comparison of the rule's λ prefix against the stream's own recursor type.
+**The classification** reads `[[], [.recursive]]` off that block and
+`nativeIsRec` reads `true` off that.  **The `Eq`-like indexed family**:
+`Q : A → Prop` with `Qmk : ∀ (a : A), Q a` installs — one constructor, one
+index, a `Prop` result and a large eliminator, i.e. the subsingleton case where
+a non-propositional field is admitted *exactly because it is one of the
+residual's index expressions* (`Eq`'s rule, `checkStructFieldSortsI`) — and
+earns no capability and no table, because an index is not structure-like.
+**A non-positive occurrence is rejected, not declined**: `W` with a
+constructor field `(W → W) → W` comes out `.invalid`, from `normPosDom`,
+before the recursor stage would look at the stub recursor the block carries —
+which is con-leche task #220's point, that the type and the constructors are
+checked first.  **A mutual block is not this route's**: two type formers, and
+separately two recursors, are refused by `sumSplit` outright (and so is a
+block not headed by a type former), which is what routes them to the modeled
+path.  **`mentionsFvar`** agrees with its `fvarLeaves` specification through
+annotations, binders and a `.proj`.
+
+`struct_parts` (3).  The three de Bruijn spines at the indices the cited
+definitions name (`structPsAt`, the field spine, `structProjPs`), with
+`structCtorSpine = structCtorSpineAt` at `o = 1` and `structElimLevel` at both
+eliminators.  The two memoized walks against their specifications on a term
+with sharing, binders and a `.proj`, and `replacePisPw`/`pisToLamsPw` keeping
+the domain and resetting the datum.  **The projection table's bodies and
+guards** for `C : ∀ (p : A) (f0 : p) (f1 : f0), T p`: the bodies are the field
+domains with the earlier fields replaced by the subject's projections
+(`bodies[1] = .proj T 0 (bvar 0)`), field `0` *is* used later and field `1` is
+not, and field `1`'s guard is its own sort joined with field `0`'s.
+
+`modeled` (3).  The public↔model renaming is a bijection on the block's names
+— which is what `checkProjTy`'s roundtrip pin turns into a check — and fixes
+everything else, including a projection index past `nF`.  Official's
+structure-likeness gate (`ctorTargetsFam`) accepts `T p⃗` and rejects `T p⃗ i⃗`
+(the `SigmaHom` ruling).  The four model-artifact names
+(`R._model.iota_12`, `R._model.proj_0.iota`, `R._model.eta`,
+`R._model.unitlike`) and the block filters `checkIndDeclSF` reads, including
+`single_ind_ctor` falling to the general arm at a second constructor.
+
+`checker_local` (4).  **`eqA` really is `eqRaw`** (above): the annotation pass
+is the identity on the pin, and `eq_basis_pinned` accepts the pin, rejects the
+same constant without its K capability, and rejects an empty environment.
+`openPisAtFvars` opens a two-binder telescope at `0`/`1` with each fvar
+carrying its instantiated domain, declines a short one, and agrees with the
+specification walk.  `allLevelParamsDefined` reads the *binder data* too, as
+the cited definition does.
+
+#### Deliberately not ported
+
+`Inductives/*` goes 0/152 → **147/152**.  The five uncovered are:
+
+* `MentionsFvarMemoInv` (`NativeInstall.lean:195`), `LooseBVarMemoInv`
+  (`StructParts.lean:416`) and `MentionsMemoInv` (`StructParts.lean:796`) —
+  the three memos' `Prop`-valued invariants, which are proof-only: they are
+  the *specification* the `@[csimp]` lemma is proved against, and the port
+  implements the `*Fast` member the lemma licenses;
+* `StructParts.lean:23`, which the coverage locator reads as a declaration
+  named `declaration,` — a line of the module docstring, not a declaration;
+* and that is all: every executable `def` of all ten files is ported,
+  including the ones nothing on the shipped path calls (`Expr.hasLooseBVar`,
+  `structParts`/`structShape`/`structPartsCore?` — whose simple-structure
+  route con-leche deleted at its task #210 Part C and whose one reader is the
+  out-of-core in-process modeller — `structProjResidP`, `sumSplit`'s pure
+  form, `structRuleBody`, `mentionsConst`'s and `mentionsFvar`'s plain
+  walks), so that the gate stays in step with its source and the next task
+  finds them waiting.
+
+The 20 `@[simp]` projection equations of `InductiveShape.withSort`,
+`NativeParts.complete` and `NativeParts.withKinds`, `withSort_self`,
+`nativeCaps_sortZ`, `indBlockCaps_sortZ`, `structUsedLaterGo_spec`,
+`structUsedLaterList_spec`, `foldlCongrMem`, the six `Expr.mentionsFvar_*`
+congruences and the `*Go_spec`/`*_eq_*Fast` theorems are cited on the items
+they govern rather than ported: they are the spec this port will be proved
+against.
 
 #### Coverage
 
@@ -4960,3 +5337,40 @@ specification tier into a file of its own once a second consumer appears
 recommendation 3.  The emitter needs nothing further: it already handles
 `fvar`, `letE`, `proj`, both literal kinds, `RecRuleFire.nested`, `ProjTable`
 and `defnInfo`/`thmInfo`/`projInfo`, none of which the basis blocks use.
+577/1018 covered (56.7 %), 441 uncovered** — up from **382/1018 (37.5 %)**,
++195.  Per file: **`Inductives/Modeled.lean` 23/23**,
+**`Inductives/NativeParts.lean` 34/34**,
+**`Inductives/NativeInstall.lean` 20/21**,
+**`Inductives/NativeInstallF.lean` 5/5**,
+**`Inductives/StructParts.lean` 33/36**,
+**`Inductives/StructInstall.lean` 2/2**,
+**`Inductives/StructInstallF.lean` 5/5**,
+**`Inductives/SumInstall.lean` 14/14**,
+**`Inductives/SumInstallF.lean` 8/8**,
+**`Inductives/SumParts.lean` 3/3**; and the three files this task borrowed
+from moved too — `CheckerBase.lean`, `DeclCheck.lean` and `Cached/CheckerC.lean`
+each gained the blocks `checker_local`/`modeled`/`inductives_c` cite.
+
+#### Notes for the neighbouring tasks
+
+* **Task #24** (`kernel/checker*.rs`, `cached/checker_c.rs`): the `*F` twins of
+  `Kernel/DeclCheck.lean` that belong to the modeled route are **already
+  ported**, in `kernel/inductives/modeled.rs`, each as the second citation of
+  its `Modeled.lean` twin — `checkMemberValF`, `checkIotaThmF`,
+  `nestedRuleShapeF`, `checkIotaThmNF`, `checkIotaRuleF`, `checkIotaRulesF`,
+  `checkProjLookupsF`, `checkProjTyF`, `checkProjIotaF`, `checkEtaThmF`,
+  `checkUnitThmF`, `ctorResidualOkF`, `indBlockCapsF` — and so are
+  `checkConstantValF` and `checkProjRuleF` (in `checker_local`).  What that
+  task owes the routes is the *unification*: move `checker_local`'s 40 items
+  into its own modules and turn `checker_local` into a set of `use`s.  Its
+  entry points into this directory are `inductives_c::check_native_s` (a
+  recognised direct block, `Cached/ParsedC.lean:239`) and
+  `inductives_c::check_ind_decl_s` (everything else).
+* **Task #22** (`kernel/basis_tables.rs`): `checker_local::eq_a` is the
+  annotated `Eq` pin spelled by hand, with a test that the annotation pass
+  reproduces it.  When `basisA` lands, `eq_a` becomes a `use` and the test
+  moves with it.
+* **Task #13's leftover**: `Expr.allLevelParamsDefined` and its `*Go`/`*Fast`
+  are now ported (in `checker_local`); `Expr.allLevelParamsDefined`'s
+  `LPMemoInv` stays uncovered as the other memo invariants do.  Moving them to
+  `kernel/level.rs` closes the `Level.lean` gap task #13 recorded.

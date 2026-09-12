@@ -42,6 +42,9 @@
 //! `Core.lean` citation beside the `CoreC.lean` one) and `core_k` keeps the
 //! readers, pins and shape guards they call.  See both modules' notes and
 //! DESIGN.md's task #23.
+//! | `core_k` | `ConLeche/Kernel/Core.lean` (the bodies; `core` is a Rust prelude crate name) |
+//! | `core_c` | `ConLeche/Cached/CoreC.lean` (the six memoizing wrappers that tie the knot) |
+//! | `inductives` | `ConLeche/Kernel/Inductives/*` (the two install routes for an inductive block; its own `mod.rs` has the sub-map and the three directory-wide deviations) |
 
 pub mod cached;
 pub mod kernel;
