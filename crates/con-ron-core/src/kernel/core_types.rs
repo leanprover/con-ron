@@ -89,7 +89,7 @@ pub type CheckM<T> = Result<T, CheckError>;
 /// is how the port spells a Lean string *literal*: an error message here, a
 /// `Name` component in `env::proj_fn_name` (`"proj"`), and so on.
 pub fn code_points(codes: &[u32]) -> Vec<u32> {
-    code_points_from(codes, 0, Vec::new())
+    code_points_from(codes, 0, Vec::with_capacity(codes.len()))
 }
 
 /// con-leche: none — the index recursion behind `code_points`
@@ -126,7 +126,7 @@ pub fn internal(m: Vec<u32>) -> CheckError {
 /// con-leche: none — a `Vec<u32>` copy; Lean's `String` is shared by value
 /// The code-point copy a reused message needs.
 pub fn str_copy(s: &Vec<u32>) -> Vec<u32> {
-    code_points_from(s, 0, Vec::new())
+    code_points_from(s, 0, Vec::with_capacity(s.len()))
 }
 
 /// con-leche: none — the `dup` of `CheckError`, which Lean's value semantics hides

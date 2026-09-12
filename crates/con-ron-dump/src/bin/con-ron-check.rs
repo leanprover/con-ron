@@ -9,7 +9,7 @@
 //!
 //! ```text
 //! con-ron-check [--verified|--trusted] [--pins FILE] [--taint-skipped N]
-//!               [--stats] [--quiet] FILE.decls
+//!               [--stats] [--stats-every N] [--quiet] FILE.decls
 //! ```
 //!
 //! The verdict vocabulary and the exit codes are con-leche's
@@ -61,6 +61,7 @@ use std::time::Instant;
 
 use con_ron_core::cached::installed;
 use con_ron_core::cached::parsed_c::DeclC;
+use con_ron_core::cached::parsed_c::PendingCheck;
 use con_ron_core::cached::state_c;
 use con_ron_core::cached::state_c::CState;
 use con_ron_core::kernel::core_types::CheckError;
@@ -68,12 +69,14 @@ use con_ron_core::kernel::env;
 use con_ron_core::kernel::env::CheckMode;
 use con_ron_core::kernel::env::Env;
 use con_ron_core::kernel::fenv;
+use con_ron_core::kernel::fenv::FEnv;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_dump::parse_decls;
 use con_ron_dump::parse_pins;
 
 const USAGE: &str = "usage: con-ron-check [--verified|--trusted] [--pins FILE] \
-                     [--taint-skipped N] [--stats] [--quiet] FILE.decls";
+                     [--taint-skipped N] [--stats] [--stats-every N] [--quiet] \
+                     FILE.decls";
 
 /// con-leche reserves 1 GiB of stack per checking worker; the fold's
 /// recursion depth is the term DAG's, so the port needs the same.
@@ -87,6 +90,9 @@ struct Args {
     pins: Option<String>,
     taint_skipped: u64,
     stats: bool,
+    /// `--stats-every N`: report the map sizes every `N` declarations in each
+    /// phase (0 = only at the phase boundary).
+    stats_every: u64,
     quiet: bool,
 }
 
@@ -129,6 +135,7 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
     let mut pins: Option<String> = None;
     let mut taint_skipped: u64 = 0;
     let mut stats = false;
+    let mut stats_every: u64 = 0;
     let mut quiet = false;
     let mut i = 0usize;
     while i < argv.len() {
@@ -137,6 +144,16 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
             "--verified" => mode_verified = true,
             "--trusted" => mode_verified = false,
             "--stats" => stats = true,
+            "--stats-every" => {
+                i += 1;
+                if i >= argv.len() {
+                    return Err("--stats-every needs a number".to_string());
+                }
+                match argv[i].parse::<u64>() {
+                    Ok(n) => stats_every = n,
+                    Err(_) => return Err(format!("not a number: {}", argv[i])),
+                }
+            }
             "--quiet" => quiet = true,
             "--pins" => {
                 i += 1;
@@ -156,7 +173,12 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
                 }
             }
             _ => {
-                if a.starts_with("--pins=") {
+                if a.starts_with("--stats-every=") {
+                    match a["--stats-every=".len()..].parse::<u64>() {
+                        Ok(n) => stats_every = n,
+                        Err(_) => return Err(format!("not a number: {}", a)),
+                    }
+                } else if a.starts_with("--pins=") {
                     pins = Some(a["--pins=".len()..].to_string());
                 } else if a.starts_with("--taint-skipped=") {
                     match a["--taint-skipped=".len()..].parse::<u64>() {
@@ -191,6 +213,7 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
             pins,
             taint_skipped,
             stats,
+            stats_every,
             quiet,
         }),
     }
@@ -221,31 +244,100 @@ fn stats_line(st: &CState) -> String {
     )
 }
 
+/// The process's current resident set, in KB, from `/proc/self/statm` (page
+/// counts) — the periodic report's memory column.  Zero where the file is not
+/// readable.
+fn rss_kb() -> u64 {
+    match std::fs::read_to_string("/proc/self/statm") {
+        Err(_) => 0,
+        Ok(t) => {
+            let mut it = t.split_whitespace();
+            let _total = it.next();
+            match it.next() {
+                None => 0,
+                Some(pages) => pages.parse::<u64>().unwrap_or(0) * 4,
+            }
+        }
+    }
+}
+
+/// The `FEnv` sizes beside the `CState` ones: the index, the constant list
+/// and (phase A) the pending-check list.
+fn fenv_line(fe: &FEnv, pend: usize) -> String {
+    format!(
+        "  fenv idx={} consts={} visible_below={} pending={} rss={}KB",
+        fe.idx.len(),
+        fe.env.consts.len(),
+        fe.visible_below,
+        pend,
+        rss_kb()
+    )
+}
+
 /// `installed::check_decls`' body with the phase boundary visible, so
-/// `--stats` can report the install phase's memo state: the fold, the sizes,
-/// then the record walk.  The verdict is `check_decls`' — this *is* its body
-/// (`ConLeche/Cached/Installed.lean:407-411`), which is why the flag changes
-/// no outcome.
+/// `--stats` can report the install phase's memo state, and with the two
+/// folds spelled out here so `--stats-every N` can report every `N`
+/// declarations.  The verdict is `check_decls`' — this *is* its body
+/// (`ConLeche/Cached/Installed.lean:407-411`), step for step
+/// (`annot_decl_step` per record in phase A, `check_pending` from a fresh
+/// `CState` per record in phase B), which is why the flags change no
+/// outcome.
 fn check_decls_with_stats(
     mode: &CheckMode,
     pins: &Vec<NatOpPinSet>,
     ds: &Vec<DeclC>,
+    every: u64,
 ) -> (Result<Env, (CheckError, u64)>, String) {
     let mut st: CState = state_c::cstate_new();
-    match installed::annot_decl_fold_from(
-        mode,
-        pins,
-        &mut st,
-        (0, fenv::mk_fenv(env::empty()), Vec::new()),
-        ds,
-        0,
-    ) {
-        Err(e) => (Err(e), stats_line(&st)),
-        Ok(p) => {
-            let line = format!("{} records={}", stats_line(&st), p.2.len());
-            (installed::check_decls_phase_b(mode, p.1, p.2), line)
+    let mut p: (u64, FEnv, Vec<PendingCheck>) = (0, fenv::mk_fenv(env::empty()), Vec::new());
+    let mut i: usize = 0;
+    while i < ds.len() {
+        match installed::annot_decl_step(mode, pins, &mut st, p, &ds[i]) {
+            Err(e) => return (Err(e), stats_line(&st)),
+            Ok(q) => p = q,
+        }
+        i += 1;
+        if every > 0 && (i as u64) % every == 0 {
+            eprintln!(
+                "  [A {}/{}]\n{}\n{}",
+                i,
+                ds.len(),
+                stats_line(&st),
+                fenv_line(&p.1, p.2.len())
+            );
         }
     }
+    let line = format!("{} records={}", stats_line(&st), p.2.len());
+    if every > 0 {
+        eprintln!(
+            "  [A done]\n{}\n{}",
+            stats_line(&st),
+            fenv_line(&p.1, p.2.len())
+        );
+    }
+    // Phase B, `installed::check_pending_list`'s walk: a fresh `CState` per
+    // record, the index threaded through.
+    let pend: Vec<PendingCheck> = p.2;
+    let mut fe: FEnv = p.1;
+    let mut j: usize = 0;
+    while j < pend.len() {
+        let mut stb: CState = state_c::cstate_new();
+        match installed::check_pending(mode, &mut stb, fe, &pend[j]) {
+            Err(e) => return (Err((e, pend[j].pos)), stats_line(&stb)),
+            Ok(fe2) => fe = fe2,
+        }
+        j += 1;
+        if every > 0 && (j as u64) % every == 0 {
+            eprintln!(
+                "  [B {}/{}]\n{}\n{}",
+                j,
+                pend.len(),
+                stats_line(&stb),
+                fenv_line(&fe, pend.len() - j)
+            );
+        }
+    }
+    (Ok(fe.env), line)
 }
 
 /// The whole run, on the big-stack thread: parse, fold, verdict.  Returns the
@@ -266,6 +358,10 @@ fn run(args: &Args) -> u8 {
             return 3;
         }
     };
+    // The dump text is 165 MB for `Init` and nothing reads it again: the
+    // records own every `Name`, `Level` and `Expr` the reader built.  Holding
+    // it through the fold was 165 MB of the run's peak (task #32).
+    drop(text);
     let t_parse = t0.elapsed();
     // The pin list (§3.6's parameter).  No `--pins` is the empty list, i.e.
     // the pin loop's `[]` arm; a `Nat.div`/`Nat.mod` stream then declines.
@@ -288,8 +384,8 @@ fn run(args: &Args) -> u8 {
     };
     let t_pins = t_pins0.elapsed();
     let t1 = Instant::now();
-    let (r, stats) = if args.stats {
-        let (r, s) = check_decls_with_stats(&args.mode, &pins, &ds);
+    let (r, stats) = if args.stats || args.stats_every > 0 {
+        let (r, s) = check_decls_with_stats(&args.mode, &pins, &ds, args.stats_every);
         (r, Some(s))
     } else {
         (installed::check_decls(&args.mode, &pins, &ds), None)

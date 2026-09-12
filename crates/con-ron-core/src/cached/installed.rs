@@ -650,11 +650,32 @@ pub fn check_pending_list(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:398-403 checkPendingList
-/// The cited `List` recursion at `pend[i..]`.  The **fresh `CState` per
-/// record** is the cited `{}`: `checkPending mode fe pc {}`, so no memo
-/// crosses from one record's check to the next (§3.1's memo policy — a
-/// record is checked at its own prefix view, where another record's entries
-/// would be unsound).
+/// The cited `checkPending mode fe pc {}`: one record's check from its own
+/// **fresh `CState`**, so no memo crosses from one record's check to the next
+/// (§3.1's memo policy — a record is checked at its own prefix view, where
+/// another record's entries would be unsound).
+///
+/// Why this is a function of its own and not a `let` in the walk below (task
+/// #32): the Lean's `{}` is consumed by the run and the run's state is
+/// *dropped* at the end of the record; in Rust a `let mut st` in the walk's
+/// body outlives the walk's recursive call — the frame owns it — so every
+/// record's memo tables would stay alive until the whole of phase B is over.
+/// That is what made `Init` grow to 21 GB where con-leche peaks at 481 MB.
+/// A `CState` created inside this function is dropped when it returns, i.e.
+/// before the next record is looked at, which is the Lean's lifetime exactly.
+/// No memo *policy* changes: the state is fresh per record either way.
+pub fn check_pending_fresh(
+    mode: &CheckMode,
+    fe: FEnv,
+    pc: &PendingCheck,
+) -> CheckCM<FEnv> {
+    let mut st: CState = state_c::cstate_new();
+    check_pending(mode, &mut st, fe, pc)
+}
+
+/// con-leche: ConLeche/Cached/Installed.lean:398-403 checkPendingList
+/// The cited `List` recursion at `pend[i..]`, one record per step through
+/// `check_pending_fresh` (the cited `checkPending … {}`).
 pub fn check_pending_list_from(
     mode: &CheckMode,
     fe: FEnv,
@@ -664,8 +685,7 @@ pub fn check_pending_list_from(
     if i >= pend.len() {
         Ok(fe)
     } else {
-        let mut st: CState = state_c::cstate_new();
-        match check_pending(mode, &mut st, fe, &pend[i]) {
+        match check_pending_fresh(mode, fe, &pend[i]) {
             Err(err) => Err((err, pend[i].pos)),
             Ok(fe2) => check_pending_list_from(mode, fe2, pend, i + 1),
         }
