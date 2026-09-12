@@ -31,12 +31,15 @@
 //! | `in_model::mutual` | `ConLeche/Frontend/InModel/Mutual.lean` |
 //! | `in_model::nested` | `ConLeche/Frontend/InModel/Nested.lean` |
 //! | `driver` | `Main.lean` (the shared driver: the phases, the flags, the verdict) |
+//! | `pool` | `Main.lean:213-328` (phase B on a pool of check workers) |
 //! | `src/bin/con-ron.rs` | `Main.lean` (the raw-stream front door) |
 //! | `src/bin/con-ron-check.rs` | `Main.lean` (the same driver on a `con-ron-decls/1` dump) |
 //!
-//! **Four things are deliberately not here**, and every one of them is a
+//! **Three things are deliberately not here**, and every one of them is a
 //! `scripts/provenance-skip.txt` entry with its reason (§3.7 — the skip file
-//! is the machine-readable index of these notes):
+//! is the machine-readable index of these notes).  The fourth, `Main.lean`'s
+//! **worker pool**, is here since task #48: `pool` is `checkOne`,
+//! `checkWorker`, `mergeResults` and `checkPool`, and `--jobs=<n>` runs it.
 //!
 //! 1. **`ConLeche/Frontend/ExportWrite.lean`** (the checker's own *annotated*
 //!    NDJSON writer) is not needed: it is an output path (`lake exe
@@ -51,15 +54,8 @@
 //!    declaration that *specifies* it beside the `Fast` one it ports; what is
 //!    skipped is the reference-only half — the `NRes` reader monad and the
 //!    twenty-odd field tables `Fast.lean` inlines into its slot loops.
-//! 4. **`Main.lean`'s worker pool** (`checkOne`, `checkWorker`,
-//!    `mergeResults`, `checkPool`): phase B is sequential here until the
-//!    core's handle is thread-shareable (§3.2's `Rc` is not `Send`; task #44
-//!    priced the `std::sync::Arc` swap at +14.7 % wall on `core`, and
-//!    con-leche sidesteps atomic counts with a Lean-runtime mark the port has
-//!    no equivalent of).  `--jobs=<n>` is validated exactly as
-//!    con-leche validates it and then not acted on; `driver`'s module note
-//!    has the rest.
 
 pub mod driver;
 pub mod frontend;
 pub mod in_model;
+pub mod pool;

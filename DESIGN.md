@@ -217,6 +217,15 @@ immortal sentinel (§3's "Decisions of 2026-09-12"), which is what the same
 day's no-`unsafe`-where-`std`-suffices ruling rejects.  Peak RSS is unchanged
 (`Rc` and `Arc` carry the same two-word header).
 
+**What the ~15 % bought, measured** (task #48, the pool): `init`'s **check
+phase** goes 56.6 s → 13.2 s at 8 workers (**4.3×**) and 8.2 s at 16 (**6.9×**)
+at an instruction count flat to 0.8 %, and the whole binary 64.3 s → 20.2 s →
+16.2 s.  The atomic counts are what keeps that short of linear — cycles grow
+2.3× from one worker to sixteen for the same instructions, which is con-leche's
+`markPersistent` argument seen from the side that has no mark (task #48's entry
+has the table, and the `Rc`-for-scratch split remains the way to get the 13 %
+back).
+
 `triomphe::Arc` is not a third way out: it is 8 bytes smaller per node (a
 48-byte `ExprNode` block against 56, −3.8 % peak RSS) but **slower than
 either**, +17 % instructions and +20 % wall on `core`.  The task-#44 entry has
@@ -523,7 +532,13 @@ does, task #44 priced it at ~15 % wall single-threaded, and the maintainer's
 decision is to pay that — `P = std::sync::Arc` since task #45 (§3.2), with
 no `mark_persistent` and no sentinel.  The design above stays written down as
 the fallback if the 15 % is ever felt enough to want it back, and §3.2's
-`ron::ptr::P` paragraph is where the choice lives; it is one line.  *Pins*: embedded as a `con-ron-pins/1` text
+`ron::ptr::P` paragraph is where the choice lives; it is one line.  **Landed as
+task #48**: `crates/con-ron/src/pool.rs` is `checkPool` and its three helpers,
+the workers share the term DAG and the constant records through `P` and take
+one `fenv::dup` of the *index* each (the port's `restrict_to` is a by-value
+record update, so a shared index is the one thing it cannot hand out), and the
+results are merged by record index and walked in record order, which is what
+makes the verdict the sequential walk's at every `--jobs`.  *Pins*: embedded as a `con-ron-pins/1` text
 constant in the core, decoded at start by a decoder in the core; the
 theorem states `pins = decode PINS_TEXT` and Lean establishes
 `decode PINS_TEXT = natOpPinSets` as a closed computation (task #43
@@ -10133,3 +10148,227 @@ Aeneas:
 `scripts/gates.sh`: all 7 OK.  The progress line afterwards reads
 `verified 957 (6%)` of the 13 719 verified-core Lean lines, and
 `proofs 21392 (207 _refines)`.
+### Task #48 — The parallel check phase (2026-09-12, Opus under Fable)
+
+P4.2's headline item and `scripts/provenance-skip.txt`'s one **owed** entry:
+`Main.lean`'s worker pool, which every task since #40 has been listed as
+pending a decision.  Task #45 took that decision (`P = std::sync::Arc`, every
+core type `Send + Sync`, asserted at compile time by
+`crates/con-ron-core/tests/send_sync.rs`), so this task spends what it bought.
+
+**What landed** (`crates/con-ron/`, one new module, no change to
+`con-ron-core`):
+
+| file | con-leche | what |
+|---|---|---|
+| `src/pool.rs` (new, 428) | `Main.lean:213-328` | `check_one`, `check_worker`, `merge_results`, `check_pool`, and `collect_checks` (`Installed.lean:360-383`) |
+| `src/driver.rs` (914 → 1054) | `Main.lean:330-449` | `jobs` threaded into `check_decls_driver`; `workers_for`, `default_jobs`, `JOBS_DEFAULT_CAP`; two new `PhaseObserver` methods |
+| `src/bin/con-ron.rs` | `Main.lean` | `--jobs=<n>` acted on, the capped default, the usage text |
+| `src/bin/con-ron-check.rs` | `Main.lean` | `--jobs=<n>` acted on here too (it was validated and discarded) |
+| `scripts/diff-e2e.sh` | — | `--jobs=N` sweeps all 348 fixtures on the pool; the default pass is `--jobs=1`, the sequential reference |
+
+`con-ron-core` is **byte-identical** to before this task, so no `Refine/*`
+lemma, no generated Lean and no extraction gate is touched: the pool is outside
+§1's theorem by construction, as it is in con-leche (`OVERVIEW.md` §0/§2 — "the
+transfer theorem is untouched").
+
+#### The guarantee, and how it is tested rather than argued
+
+The pool is con-leche's, mechanism for mechanism: **one record per atomic
+claim** off one shared counter (a cluster of heavy declarations spreads over the
+pool instead of serialising inside a claimed range — the only item that can
+strand it is the single largest check), a worker's results kept in the worker's
+own array, the arrays **merged by record index** into one table, and the table
+**walked in record order**.  So the verdict, and the declaration a rejection
+names, are the sequential walk's at every `--jobs`, and the failing record is
+the first in *fold* order whatever the workers' timing.  Determinism on a
+failure is con-leche's argument too: a worker that fails record `f` lowers a
+shared `limit` to `f`, every value the limit can hold is `m` or a failing index
+hence `>= f`, so no record below `f` is ever skipped and the table is complete
+below the first failure.  Nothing needs an ordering stronger than `Relaxed`: a
+stale `limit` can only be too large, i.e. can only cause work that could have
+been skipped, and the results themselves travel through the `join`.
+
+`pool_reports_the_first_failure_at_every_jobs` is that promise as a test — a
+list whose records 2 **and** 4 both fail reports record 2 at 1, 2, 3, 4 and 8
+workers — and it needs no environment at all: a record with declared type
+`Sort 1` and value `Sort u` checks iff `u` is `Sort 0`, so the walk is what is
+under test and not the checker.  At scale, `scripts/diff-e2e.sh --jobs=4` reads
+**348 agree, 0 differ** exactly as the `--jobs=1` pass does.
+
+#### One deviation, and it is `fenv::restrict_to`'s
+
+con-leche's workers share the installed `FEnv` and take
+`fe.restrictTo pc.vis` per record, which is `O(1)` because the Lean runtime
+shares the `Std.HashMap` field.  The port's `restrict_to` is the same record
+update but **by value** (task #6's linear threading), and `kernel/fenv.rs`'s
+module note says in so many words that this "forecloses the *parallel* phase B
+§3.1 contemplates, where several workers hold different views of one index at
+once".  The resolution is **one `fenv::dup` per worker**, taken on the worker's
+own thread and threaded through every record it claims (`check_pending` lowers
+the bound and restores it, exactly as in the sequential lane).  What is
+*shared* is what the memory is in — the term DAG and the `P<ConstantInfo>`
+records, through `P = Arc`, which is what made the pool possible; what is
+*copied* is one table of handles per worker, `O(|env|)` **once per worker**, and
+the measured cost of it is **~35-40 MB of resident set per worker** (con-leche's
+own note says "about 25 MB per worker", for its per-worker memo heaps).  A
+failed record consumes the worker's view, so a worker re-`dup`s lazily — at most
+once, since after a failure every later claim of that worker is above the limit
+it just lowered.
+
+Two smaller ones: at `--jobs=1` phase B runs on the calling thread (con-leche
+task #269 moves it to a dedicated one, which is a finding about Lean's
+per-thread mimalloc heaps and the main thread's post-install fragmentation; the
+port has one heap for the process and already runs the whole fold on one spawned
+big-stack thread), and on a *pooled* failure `--stats` reports an empty memo
+state, because the failing record's state belongs to the worker that built it
+and is gone by the join.
+
+#### `--jobs`'s default is capped, and the arithmetic is written down
+
+con-leche's default is one worker per hardware thread, and
+`_tmp/corpus/baseline.md`'s last row is what that does on this 96-thread
+machine: **exit 134**, `failed to create thread`, because every worker reserves
+~1 GiB of address space for its stack.  The port keeps the rule and caps it —
+`min(hardware threads, driver::JOBS_DEFAULT_CAP = 16)` — while an explicit
+`--jobs=<n>` is obeyed to the letter, so a measurement can still ask for 96.
+The constant's note carries the budget a caller under `ulimit -v` needs:
+
+```text
+address space >= 3 x (the checker's resident set) + 1 GiB per worker
+```
+
+which is what every run below was budgeted with (`init`: 3 GB + 1.1 GB per
+worker; `core`: 8 GB + 1.1 GB).  The *resident* cost of a worker is the `dup`
+above, two orders of magnitude smaller than its stack reservation.
+
+The heartbeat is con-leche's as well: `check <done>/<M> <kind> <name>` comes
+from the **claiming worker**, off a shared done-counter bumped once per
+completed record, printed under a mutex — and only on the heartbeat lane, which
+is the port's spelling of the cited `stride > 0` guard inside `checkOne` (the
+new `PhaseObserver::wants_check_lines`).  The `done:` summary's worker count is
+now the count phase B actually ran on (`PhaseObserver::phase_b_workers`,
+`max(1, min(jobs, M))`), so a stream with fewer pending checks than `--jobs`
+asked for says so instead of reporting the request.
+
+#### Measurements
+
+`con-ron --verified --jobs=<j> _tmp/corpus/init.ndjson` (58 002 fold records,
+**accepted 57972** at every count), `perf stat -e instructions:u,cycles:u` +
+`/usr/bin/env time -v`, three runs per configuration, `ulimit -v` per the
+arithmetic above.  The machine was shared throughout (load average 6-11), which
+is what the spreads are for; artefacts in `_tmp/t48/`.
+
+| jobs | wall (mean) | wall (range) | speedup | `instructions:u` | `cycles:u` | peak RSS |
+|---:|---:|---|---:|---:|---:|---:|
+| 1 | 64.32 s | 63.72–64.75 (1.6 %) | 1.00× | 540.92 G | 282.0 G | 912 MB |
+| 2 | 42.52 s | 41.09–45.07 (9.4 %) | 1.51× | 544.63 G | 332.5 G | 1 002 MB |
+| 4 | 28.05 s | 27.89–28.21 (1.1 %) | 2.29× | 544.73 G | 396.6 G | 1 077 MB |
+| 8 | 20.18 s | 20.16–20.21 (0.2 %) | 3.19× | 544.94 G | 487.2 G | 1 193 MB |
+| 16 | 16.15 s | 15.90–16.40 (3.1 %) | 3.98× | 545.34 G | 652.5 G | 1 507 MB |
+
+**The instruction count is flat**, which is the measurement's own check: +0.69 %
+from one worker to two (the per-worker `dup`s and the atomic claims) and +0.13 %
+more from two to sixteen.  Everything else in the table is cycles.
+
+**The pool's own number is the check phase**, which `--progress` prices
+separately (one run each, same binary):
+
+| | parse | install | **check** | total | check speedup |
+|---|---:|---:|---:|---:|---:|
+| `init`, jobs=1 | 1.09 s | 5.42 s | **56.60 s** | 63.11 s | — |
+| `init`, jobs=8 | 1.11 s | 5.58 s | **13.19 s** | 19.88 s | **4.29×** |
+| `init`, jobs=16 | 1.10 s | 5.68 s | **8.17 s** | 14.95 s | **6.93×** |
+
+so the whole-run 3.98× at 16 workers is Amdahl on a 6.8 s serial head, not the
+pool: phase B itself is 6.9× on 16 threads.
+
+**Against con-leche** (`_tmp/corpus/baseline.md`, same machine, same export):
+
+| | con-leche | con-ron | |
+|---|---:|---:|---|
+| `init` `--jobs=1` wall | 59.36 s | 64.32 s | 1.08× |
+| `init` `--jobs=8` wall | 12.43 s | 20.18 s | 1.62× |
+| `init` `--jobs=1` instructions | 586.2 G | 540.9 G | **0.92×** |
+| `init` `--jobs=8` instructions | 587.5 G | 544.9 G | **0.93×** |
+| `init` `--jobs=8` peak RSS | 711 MB | 1 193 MB | 1.68× |
+| `init` j1→j8 speedup | 4.78× | 3.19× | |
+
+**The port retires 7-8 % fewer instructions and is 8 % slower at one worker and
+62 % slower at eight.**  The gap that opens with the worker count is the atomic
+reference counting, and this table is the measurement con-leche's
+`markPersistent` comment predicts from the other side: con-leche marks the
+installed graph persistent at the phase boundary and stops counting it
+altogether (worth 18-32 % of its pool wall by its own `--no-mark-persistent`
+row), while every `P` in con-ron is an atomic read-modify-write in every lane.
+The port's own cycle column shows the same thing without a comparison: 282 G at
+one worker, 652 G at sixteen, **2.31× the cycles for 1.008× the instructions**.
+So `--no-mark-persistent`'s note in `driver.rs` is updated — it used to say the
+port's counts are "non-atomic `Rc` counts", which stopped being true at task
+#45 — and the way back is still task #44's second one, a type-level split of the
+handle (`Arc` for what crosses threads, `Rc` for per-declaration scratch), not a
+flag.
+
+`core` (165 449 fold records, **accepted 163391**, one run each):
+
+| | wall | parse | install | check | `instructions:u` | `cycles:u` | peak RSS |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| jobs=1 | 157.89 s | 2.65 s | 46.92 s | 106.82 s | 1 163.5 G | 695.0 G | 2 399 MB |
+| jobs=8 | 74.40 s | 2.62 s | 48.00 s | **22.26 s** | 1 172.1 G | 1 008.1 G | 2 873 MB |
+
+**4.80× on the check phase**, 2.12× on the run — and the reason the run's figure
+is so much worse is the finding worth carrying forward: on `core` the *install*
+phase is 46.9 s, **30 % of the single-worker wall** (on `init` it is 8.6 %), and
+phase A is sequential by construction (it is the fold).  con-leche's `core`
+rows are 149.64 s / 43.40 s at 1 179.7 G / 1 182.7 G instructions, so the same
+two statements hold there: 0.99× the instructions, 1.71× the wall at eight
+workers.
+
+#### Gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | **all 7 OK** (`cargo build`, `cargo test`, lint, provenance, `gen-pins --check`, `extract.sh --check`, `lake build` 337 s) |
+| `cargo test` (`-D warnings`) | **239 pass, 2 ignored** — 5 new (4 in `pool`, 1 in `driver`) |
+| `scripts/lint-rust-style.sh` | green (scoped to `con-ron-core`, which is untouched) |
+| `scripts/provenance.py check` | 2 101 items, 2 230 citations, all current at pin `3e004805` |
+| `scripts/provenance.py coverage` | `TOTAL 911/911 covered (100.0 %)`, **0 findings**, 95 deliberately skipped |
+| `scripts/extract.sh --check` | clean (`con-ron-core` byte-identical) |
+| `cd proof && lake build` | clean |
+| `scripts/diff-e2e.sh --timeout=60` | **348 agree, 0 differ**, 0 timed out |
+| `scripts/diff-e2e.sh --timeout=60 --jobs=4` | **348 agree, 0 differ**, 0 timed out |
+| `scripts/diff-fixtures.sh --timeout=60` | **315 agree, 0 differ**, 33 skipped |
+| cherries (`scripts/progress.py`) | **7 718 of 7 718 Lean lines (100 %)**, 71 of them the pool's, newly translated rather than skipped |
+
+Nothing under `proof/` or `crates/con-ron-core/` is in the diff, which is why
+the last three of those are cheap: the pool is above the theorem, and the
+extraction gate is confirming a crate this task did not touch.
+
+#### Left for next time
+
+* **`kernel/fenv.rs`'s module note is now wrong in one sentence** — "the one
+  design this forecloses is the *parallel* phase B" — and the fix was written
+  and then *reverted* here on purpose, with a finding attached: the generated
+  Lean carries `Source: 'crates/…', lines A:0-B:1` comments, so editing a
+  **comment** in `con-ron-core` moves five lines of
+  `Generated/{Types,Funs}.lean` and turns a doc fix into a regenerate plus a
+  full re-elaboration of the proof tier (and, in a parallel worktree, a
+  needless conflict over generated files).  The sentence belongs in the next
+  task that touches the core for a real reason; it should point at `pool.rs`'s
+  module note.  The general lesson is worth §3.5's attention: `extract.sh
+  --check` is sensitive to comment motion in the crate, so a comment-only
+  change to `con-ron-core` is never free.
+* **Phase A is the ceiling now.**  `core` spends 30 % of its single-worker wall
+  in the install fold, `init` 8.6 %, and no pool can touch it.  The two known
+  items in it are `fenv::dup` in the inductive routes (task #34's overlay
+  design) and `fenv::push`'s front insertion.
+* **The `Rc`/`Arc` split** (task #44's second way out) is now measurable rather
+  than speculative: the pool's cycle growth above is exactly what it would buy
+  back.
+* **Mathlib end to end** (P4.2's other half), which wants the machine to
+  itself: con-leche's rows are 1 228 s / 337 s at 12.8 T instructions and
+  8.6/9.1 GB, and the port's budget at 8 workers is ~26 GB of address space by
+  the arithmetic above.
+* `con-leche`'s `--no-mark-persistent` A/B has no counterpart to measure here,
+  and `CON_LECHE_ROUTE_TRACE` is still the only unported `Main.lean`
+  environment switch.

@@ -40,19 +40,21 @@
 //!
 //! **Four flags differ from con-leche's, and say so here.**
 //!
-//! * `--jobs=<n>` is **accepted and validated but not acted on**: the check
-//!   phase is sequential in this build.  con-leche's thread pool waits on a
-//!   thread-shareable handle, whose price task #44 measured (DESIGN.md;
-//!   `driver`'s note), so a
-//!   run prints `con-ron: --jobs=<n> accepted; the check phase is sequential
-//!   in this build` and the `--progress` summary says `1 worker` — no log can
-//!   mistake a sequential run for a pooled one.
+//! * `--jobs=<n>` is con-leche's flag and does con-leche's thing (task #48):
+//!   `n` workers claim records off a shared counter in phase B
+//!   (`con_ron::pool`), `--jobs=1` is the plain loop with no counter, and the
+//!   verdict is the sequential walk's at every `n`.  What differs is the
+//!   **default**: con-leche's is one worker per hardware thread, which on a
+//!   96-thread machine asks for 96 GiB of address space and aborts under
+//!   `ulimit -v`, so the port caps its default at
+//!   `driver::JOBS_DEFAULT_CAP` and that constant's note has the arithmetic.
 //! * `--no-mark-persistent` is **accepted and a no-op**, and a run that passes
 //!   it says why: the mark it turns off is a Lean-runtime reference-counting
-//!   device (`Runtime.markPersistent`), and the port's counts are its own
-//!   non-atomic `Rc` counts with no runtime mark to clear
-//!   (`driver::mark_persistent_note`).  It is accepted rather than rejected so
-//!   that a script measuring both checkers can pass it to both.
+//!   device (`Runtime.markPersistent`), and the port's counts are
+//!   `std::sync::Arc` counts — atomic by type, in every lane, with no runtime
+//!   mark to clear (`driver::mark_persistent_note`).  It is accepted rather
+//!   than rejected so that a script measuring both checkers can pass it to
+//!   both.
 //! * `--pins FILE` and `--no-pins` are con-ron's own and are **test
 //!   overrides** (task #43).  The pin list is no longer something the driver
 //!   supplies: `natOpPinSets` is an embedded text constant *inside the verified
@@ -118,18 +120,26 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
   --trusted         the unverified mode: the SAME checker bodies at the mode
                     with the certification-only work switched off.  An accept
                     in this mode is outside the theorem.
-  --jobs=<n>        ACCEPTED AND VALIDATED, then not acted on: the check phase
-                    is sequential in this build, and the --progress summary
-                    says `1 worker` whatever <n> was.  The pool needs a
-                    thread-shareable handle, whose price task #44 measured
-                    (DESIGN.md); 0 or a non-numeral is a usage error, as in
-                    con-leche.
+  --jobs=<n>        the check phase's worker count: <n> workers claim records
+                    one at a time off a shared counter, and --jobs=1 runs the
+                    plain loop with no counter and no result table.  The
+                    verdict, and the declaration a rejection names, are the
+                    same at every <n>: the results are walked in RECORD order,
+                    so the first failing record in fold order is the one
+                    reported.  Each worker reserves 1 GiB of address space for
+                    its stack, so a run under `ulimit -v` needs 3x the
+                    checker's resident set plus a gigabyte per worker; the
+                    DEFAULT is one worker per hardware thread capped at 16 for
+                    that reason (con-leche's uncapped default aborts on a
+                    96-thread machine).  0 or a non-numeral is a usage error,
+                    as in con-leche.
   --no-mark-persistent
                     ACCEPTED AND A NO-OP: the mark it turns off is a
                     Lean-runtime reference-counting device
                     (Runtime.markPersistent), and this program's counts are
-                    its own non-atomic Rc counts with no runtime mark to
-                    clear.  A run that passes it says so on stderr.
+                    std::sync::Arc counts -- atomic by type, in every lane,
+                    with no runtime mark to clear.  A run that passes it says
+                    so on stderr.
   --progress[=<stride>]
                     opt-in progress heartbeat on STDERR, one line shape per
                     phase:
@@ -138,7 +148,7 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
                       con-ron: install done: <N>/<N> ..., <M> checks pending t=<s>s
                       con-ron: check <done>/<M> <kind> <name> t=<s>s
                       con-ron: check done: <M>/<M> t=<s>s
-                      con-ron: done: parse <p>s, install <i>s, check <c>s, 1 worker
+                      con-ron: done: parse <p>s, install <i>s, check <c>s, <n> workers
                     An install line is printed BEFORE every <stride>-th
                     declaration is installed (<i> is its FOLD position, which
                     the stream's record index sits near but not at a fixed
@@ -189,7 +199,7 @@ recognisers on the environment the step sees, which is a second dispatch of
 the fold, not a print); CON_LECHE_INMODEL_DUMP, the debug splice of the
 generated records into a copy of the input — it is written through
 con-leche's annotated-NDJSON writer (`Frontend/ExportWrite.lean`), an output
-path this checker does not have; and the worker pool of --jobs (above).";
+path this checker does not have.";
 
 /// con-leche: Main.lean:1041-1055 Args
 /// What the command line asked for.  `no_mark` is here, as con-leche's
@@ -481,8 +491,12 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // calls `check_decls` itself, a heartbeat run calls the same body with the
     // boundary visible (`driver::check_decls_driver`), and the verdict below
     // is printed from an accept of `check_decls` and from nothing else.
-    let verdict = if a.progress > 0 {
-        driver::check_decls_driver(&mode, &pins, &parsed.decls, &mut hb)
+    let jobs: u64 = match a.jobs {
+        Some(n) => n,
+        None => driver::default_jobs(),
+    };
+    let verdict = if a.progress > 0 || jobs > 1 {
+        driver::check_decls_driver(&mode, &pins, &parsed.decls, jobs, &mut hb)
     } else {
         installed::check_decls(&mode, &pins, &parsed.decls)
     };
@@ -558,13 +572,6 @@ fn main() -> ExitCode {
     if a.files.len() != 1 {
         eprintln!("{}", USAGE);
         return ExitCode::from(3);
-    }
-    if let Some(n) = a.jobs {
-        eprintln!(
-            "con-ron: --jobs={} accepted; the check phase is sequential in this build \
-             (a pool needs a thread-shareable handle; see DESIGN.md task #44)",
-            n
-        );
     }
     if a.no_mark {
         eprintln!("con-ron: {}", driver::mark_persistent_note());

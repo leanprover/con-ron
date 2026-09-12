@@ -73,7 +73,6 @@ ConLeche/Cached/Installed.lean checkRecord Runs `checkPending` and throws its va
 ConLeche/Cached/Installed.lean CheckedRecord `{ k : Nat // GroupChecked … }` — a `Nat` at run time, a proof at compile time; evidence plumbing, as `InstallRun`.
 ConLeche/Cached/Installed.lean RecordResult A worker's `Except (CheckError × Nat) (CheckedRecord …)`; evidence plumbing, as `InstallRun`.
 ConLeche/Cached/Installed.lean checkRecordResult `checkRecord` tagged as a worker result; evidence plumbing, as `InstallRun`.
-ConLeche/Cached/Installed.lean collectChecks Assembles a table of those proofs in record order; its verdict is `checkPendingList`'s, which is ported as `check_pending_list`.
 
 # ---------------------------------------------------------------------------
 # The address-keyed apparatus of `Expr.beq`, superseded by task #30's memo
@@ -108,14 +107,6 @@ ConLeche/Kernel/Name.lean ofLeanName Conversion from `Lean.Name`, used by con-le
 # `ConLeche/Frontend/**` and `Main.lean` is ported, so with these entries the
 # cherries ledger closes at 100 % of what is to be ported.
 # ---------------------------------------------------------------------------
-
-# The parallel check phase.  `--jobs=<n>` is validated exactly as con-leche
-# validates it and then not acted on; the four declarations below are the pool
-# itself, and porting them needs a decision the project has not taken.
-Main.lean checkOne parallel phase B: pending a thread-shareable handle in the core, priced by task #44 (task #40)
-Main.lean checkWorker parallel phase B: pending a thread-shareable handle in the core, priced by task #44 (task #40)
-Main.lean mergeResults parallel phase B: pending a thread-shareable handle in the core, priced by task #44 (task #40)
-Main.lean checkPool parallel phase B: pending a thread-shareable handle in the core, priced by task #44 (task #40)
 
 # The checker's own ANNOTATED NDJSON writer and the debug splice built on it:
 # output paths (`lake exe con-leche-annot` writes the `tests/annot` fixtures,
