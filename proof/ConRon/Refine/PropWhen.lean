@@ -1794,6 +1794,115 @@ theorem wf_shape {pw : prop_when.PropWhen} (h : PropWhenWF pw) : WFShape pw := b
   | inter _ _ h iha ihb => exact (inter_shape iha ihb h).1
   | bind_z hf _ h ihf ihpw => exact bind_z_wf ihpw (fun n hn r hr => ihf n hn r hr) h
 
+/-! ## Reflexivity (task #20)
+
+`kernel::expr`'s `beq` keeps a pointer fast path at every level of the descent,
+and DESIGN.md §3.2's transparency obligation for it is that the model's walk is
+*reflexive*.  A `lam`/`forallE` node's `BinderMeta` is one of that descent's
+leaves, so `prop_when::beq` owes the same lemma. -/
+
+theorem names_beq_from_refl {ps : alloc.vec.Vec name.Name} (hps : NamesWF ps) :
+    ∀ k : Nat, ∀ i : Std.Usize, ps.val.length - i.val ≤ k →
+      prop_when.names_beq_from ps ps i = ok true := by
+  intro k
+  induction k with
+  | zero =>
+    intro i hk
+    rw [prop_when.names_beq_from.eq_def]
+    simp only []
+    rw [if_pos (show i ≥ alloc.vec.Vec.len ps by scalar_tac),
+      if_pos (show i ≥ alloc.vec.Vec.len ps by scalar_tac)]
+  | succ k ih =>
+    intro i hk
+    rw [prop_when.names_beq_from.eq_def]
+    simp only []
+    by_cases hi : i.val ≥ ps.val.length
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len ps by scalar_tac),
+        if_pos (show i ≥ alloc.vec.Vec.len ps by scalar_tac)]
+    · have hlt : i.val < ps.val.length := by scalar_tac
+      have hmax : i.val + 1 ≤ Std.Usize.max := by have := ps.slice.property; scalar_tac
+      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
+      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec ps i hlt)
+      subst hyv
+      rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ps by scalar_tac),
+        if_neg (show ¬ i ≥ alloc.vec.Vec.len ps by scalar_tac),
+        if_neg (show ¬ i ≥ alloc.vec.Vec.len ps by scalar_tac)]
+      simp only [alloc.vec.Vec.index_slice_index, hy, hw, bind_tc_ok,
+        Name.name_beq_refl (hps _ (List.getElem_mem hlt)), if_true]
+      exact ih w (by scalar_tac)
+
+/-- `prop_when::beq` is reflexive on well-formed data. -/
+theorem beq_refl {pw : prop_when.PropWhen} (h : PropWhenWF pw) :
+    prop_when.beq pw pw = ok true := by
+  have hs := wf_shape h
+  obtain ⟨r⟩ := pw
+  rw [prop_when.beq]
+  cases r with
+  | Never => rfl
+  | Always => rfl
+  | One p =>
+    exact Name.name_beq_refl (hs.namesWF p (by simp [reprList]))
+  | Two p q =>
+    simp only [prop_when.equiv_r,
+      Name.name_beq_refl (hs.namesWF p (by simp [reprList])), bind_tc_ok, if_true]
+    exact Name.name_beq_refl (hs.namesWF q (by simp [reprList]))
+  | Many ps =>
+    simp only [prop_when.equiv_r, prop_when.names_beq]
+    exact names_beq_from_refl (fun n hn => hs.namesWF n (by simpa [reprList] using hn))
+      ps.val.length 0#usize (by scalar_tac)
+
+/-! ## `absPropWhen` is injective on well-formed data (task #20)
+
+`kernel::expr` needs it: a `lam`/`forallE` node stores a `BinderMeta`, so
+`absExpr`'s injectivity -- and through it `expr::beq`'s exactness, which rests
+on the stored hash word being a function of the abstraction -- comes down to
+this.  The proof is `wfShape_toList` plus the fact that among the four
+non-`Never` representations the parameter list determines the constructor
+(which is what the `Many` length clause of `WFShape` is for). -/
+
+theorem names_list_inj {l m : List name.Name} (hl : ∀ n ∈ l, NameWF n)
+    (hm : ∀ n ∈ m, NameWF n) (h : l.map absName = m.map absName) : l = m := by
+  induction l generalizing m with
+  | nil => cases m <;> simp_all
+  | cons x xs ih =>
+    cases m with
+    | nil => simp at h
+    | cons y ys =>
+      simp only [List.map_cons, List.cons.injEq] at h
+      rw [Name.absName_injective (hl x (by simp)) (hm y (by simp)) h.1,
+        ih (fun n hn => hl n (by simp [hn])) (fun n hn => hm n (by simp [hn])) h.2]
+
+theorem absPropWhen_injective {a b : prop_when.PropWhen}
+    (ha : PropWhenWF a) (hb : PropWhenWF b) (hab : absPropWhen a = absPropWhen b) :
+    a = b := by
+  obtain ⟨ra⟩ := a
+  obtain ⟨rb⟩ := b
+  have sa := wf_shape ha
+  have sb := wf_shape hb
+  by_cases hna : ra = .Never
+  · have hnb : rb = .Never := by
+      apply repr_never_of_abs_never
+      rw [← hab, absPropWhen_never (by simpa using hna)]
+    rw [hna, hnb]
+  · have hnb : rb ≠ .Never := by
+      intro hc
+      exact hna (repr_never_of_abs_never (by rw [hab, absPropWhen_never (by simpa using hc)]))
+    have hlists : reprList ra = reprList rb :=
+      names_list_inj sa.namesWF sb.namesWF (by
+        have h1 := wfShape_toList sa
+        have h2 := wfShape_toList sb
+        simp only [] at h1 h2
+        rw [← h1, ← h2, hab])
+    have hmanya := sa.2.2
+    have hmanyb := sb.2.2
+    simp only [prop_when.PropWhen.mk.injEq]
+    cases ra <;> cases rb <;>
+      simp_all [reprList, prop_when.PropWhenRepr.Many.injEq]
+    all_goals
+      first
+      | exact alloc.vec.Vec.ext _ _ hlists
+      | (rw [← hlists] at hmanyb; simp at hmanyb)
+
 /-! ## The refinement statements, under the `ConRon/Refine/README.md` names
 
 `ConRon.Generated.kernel.prop_when.<fn>` is refined by

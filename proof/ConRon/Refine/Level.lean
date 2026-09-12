@@ -1387,6 +1387,62 @@ theorem is_equiv_refines' {l r : level.Level} (hl : LevelWF l) (hr : LevelWF r) 
     simp only [if_true] at h
     simpa using h
 
+/-! ## `levelsHaveParam` (task #20)
+
+Left unproved at tasks #5 and #17 because nothing then consumed it;
+`kernel::expr`'s `mk_const` does -- the `.const` node's level-param bit *is*
+`levelsHaveParam us` (`Expr.lean:369`, `hasLP_const`).  The shape is task #5's
+index-loop one: the conclusion is stated on `List.drop i`, so that `i = 0`
+collapses to the whole list. -/
+
+theorem levels_have_param_from_refines {us : alloc.vec.Vec level.Level} :
+    ∀ k : Nat, ∀ (i : Std.Usize) (b : Bool), us.val.length - i.val ≤ k →
+      level.levels_have_param_from us i = ok b →
+      b = ConLeche.levelsHaveParam ((us.val.drop i.val).map absLevel) := by
+  intro k
+  induction k with
+  | zero =>
+    intro i b hk h
+    rw [level.levels_have_param_from.eq_def] at h; simp only [] at h
+    rw [if_pos (show i >= alloc.vec.Vec.len us by scalar_tac), Result.ok.injEq] at h
+    rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]
+    rfl
+  | succ k ih =>
+    intro i b hk h
+    rw [level.levels_have_param_from.eq_def] at h; simp only [] at h
+    by_cases hi : i.val ≥ us.val.length
+    · rw [if_pos (show i >= alloc.vec.Vec.len us by scalar_tac), Result.ok.injEq] at h
+      rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]
+      rfl
+    · rw [if_neg (show ¬ i >= alloc.vec.Vec.len us by scalar_tac)] at h
+      have hlt : i.val < us.val.length := by scalar_tac
+      have hmax : i.val + 1 ≤ Std.Usize.max := by have := us.slice.property; scalar_tac
+      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
+      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec us i hlt)
+      subst hyv
+      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw,
+        Result.ok.injEq, exists_eq_left'] at h
+      obtain ⟨b0, hb0, h⟩ := h
+      have hb0' := level_has_param_refines' _ _ hb0
+      rw [List.drop_eq_getElem_cons hlt, List.map_cons, ConLeche.levelsHaveParam, ← hb0']
+      cases hc : b0
+      · simp only [hc, Bool.false_eq_true, if_false, bind_tc_ok] at h
+        simp only [Bool.false_or]
+        have hrec := ih w b (by scalar_tac) h
+        rw [hwv] at hrec
+        exact hrec
+      · simp only [hc, if_true, Result.ok.injEq] at h
+        simp only [Bool.true_or]
+        exact h.symm
+
+/-- `level::levels_have_param` refines `levelsHaveParam`. -/
+theorem levels_have_param_refines {us : alloc.vec.Vec level.Level} {b : Bool}
+    (h : level.levels_have_param us = ok b) :
+    b = ConLeche.levelsHaveParam (absLevels us) := by
+  rw [level.levels_have_param] at h
+  have := levels_have_param_from_refines us.val.length 0#usize b (by scalar_tac) h
+  simpa [absLevels] using this
+
 /-! ## The task-#5 statements, under the `ConRon/Refine/README.md` names
 
 `ConRon.Generated.level.<fn>` is refined by `ConRon.Refine.Level.<fn>_refines`;
