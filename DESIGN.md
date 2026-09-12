@@ -2009,3 +2009,247 @@ family are **not in this file** — they live in `ConLeche/Kernel/ExprOps.lean`
 #9's 51/1018 (5.0 %).  `Expr.lean` goes 8/42 → **30/42**, and the twelve
 uncovered are exactly the memo apparatus listed above, so the ledger agrees
 with the prose once more.
+
+### Task #13 — `ExprOps` (2026-09-12, Opus under Fable)
+
+P1.3.  `ConLeche/Kernel/ExprOps.lean` (2 753 lines, 82 declarations, 0
+covered) ported as `crates/con-ron-core/src/expr_ops.rs`.  Charon and Aeneas
+both succeeded on the **first** run again, with zero iteration and zero
+errors; the generated Lean is in `_tmp/core-lean/` (gitignored, not
+elaborated — P2).
+
+**What is in it.**  All **70** executable `def`s of the file, as 87 Rust
+functions: the three substitution walks (`instantiate1`, `instantiateList`,
+`instantiate1Lift`), the two shift walks (`liftLooseBVars`, `lowerBVars`),
+`resetMeta`, `renameConsts`, the two abstraction walks (`abstract1`,
+`abstractRange`), the spine and telescope family (`getAppFn`, `getAppArgs`,
+`mkAppN`, `stripLams`/`stripPis`, `piResult`, `instPis`,
+`instPisAt`/`instLamsAt` and their one-pass `*F` twins, `fvarTypeD`,
+`instSpine`, `recRulePlain`, `pisToLams`, `replacePiBody`, `piArity`,
+`resultSort`, `instPisAtLift`), the leaf predicates (`sizeB`, `sizeF`,
+`fvarLeaves`, `wscopedB`, `isLam`, `lamPw`, `forallPw`, `exprPtrBEq`), and
+the derived-field block — `bvarBound`, `fvarRange`, their memoized twins
+`bvarBoundGo`/`bvarBoundMemo` and `fvarRangeGo`/`fvarRangeMemo`, and the
+exact accessors `bvarB`/`fvarB` with `looseBVarsBounded`/`hasFvar` reading
+them.
+
+**The `@[csimp]` families are one Rust function each, and the lemma is the
+transparency argument.**  con-leche writes eleven of these walks twice — a
+plain structural `def` that every proof consumes, and a memoized
+`*Go`/`*Fast` pair that a `@[csimp]` lemma substitutes into compiled code.
+The port implements the **`*Fast`** member, because that is what con-leche
+*executes* (§3.1 is about the executed program), and each such Rust item
+carries three or four citations: the `*Go` walk it transliterates, the
+logical `def` it stands for, the `*Fast` wrapper, and the `@[csimp]` lemma.
+That lemma is exactly the deviation note's argument: it is a kernel-checked
+equation `@f = @fFast`, so the Rust function refines the logical definition
+by the same equation and no proof downstream ever sees the memo.  Two of the
+eleven — `hasFvar` and `looseBVarsBounded` — have a `*Fast` member that is
+not a walk at all but the `O(1)` packed-word read, `fvarB != 0` and
+`bvarB ≤ k`; those are one-line Rust functions whose citations are the walk,
+the field read and the lemma chain (`bvarB_eq`, `looseBVarsBounded_iff`).
+
+**Memos are `&mut` parameters, and that is what makes the generated Lean
+match.**  Every memo in `ExprOps.lean` is *local*: created empty inside the
+`*Fast` wrapper and dropped on return, because the answer also depends on
+parameters that are not in the key (`v`, `vs`, `amount`, `d`, `f`,
+`ks`/`us`).  The port creates a `crate::hashmap::HashMap` in the wrapper and
+hands it down as `&mut`.  §3.4 reserves `&mut` for the state parameter — and
+the memo *is* this walk's state; more to the point, Aeneas's back-end
+translates a `&mut` parameter into a threaded return, so
+`instantiate1_go (v memo e d) : Result (Expr × HashMap …)` comes out with
+con-leche's own signature `instantiate1Go v memo e d : Expr × Std.HashMap …`
+rather than an `&mut`-shaped artefact.  No memo in this file lives in
+`CState`; those are `ConLeche/Cached/*`'s business (`ExprOpsC.lean`, 0/37
+covered, a later task).
+
+The key type `(Expr × Nat)` becomes a two-field `ExprNatKey` with its own
+`Hashable`/`Eq2` dictionaries (task #7's traits), standing for Lean's derived
+`instHashableProd`/`instBEqProd`; the node half of the equality is
+`Expr.beq`, so §3.2's pointer and packed-word fast paths sit inside the
+memo's key comparison, as they do for `Name` and `Level`.
+
+**`bvarB`/`fvarB`: the saturation boundary is the whole point.**
+`Expr.bvarBRaw`/`fvarBRaw` (task #11) are 15-bit fields that saturate at
+`satRange = 32767`; `bvarB`/`fvarB` stay *exact* by falling back, on the
+saturated branch alone, to a memoized recomputation of the same recurrence.
+The port is the cited `if r == satRange then memo else r` character for
+character, so nothing downstream grows a saturation guard — `bvarB_eq` and
+`fvarB_eq` remain plain equations with the spec functions.  The spec
+functions `bvarBound`/`fvarRange` are ported too, unmemoized and uncalled,
+so that the gate stays in step with their source (task #11's `beqRecursive`
+rule).  Their `body.bvarBound - 1` is Lean's *truncated* `Nat` subtraction,
+which on `u64` would underflow into an Aeneas `fail`: hence the module's one
+new helper, `sub_nat`.  It is used in exactly three places — that `- 1`,
+`instSpine`'s `t - 1` and `recRulePlain`'s `mI - 1 - k`; everywhere else the
+Lean arm carries a guard (`i > d`, `i ≥ c + amount`, `j - d ≥ vs.length`)
+that makes the direct subtraction safe, and the port subtracts directly.
+
+**`instantiateLevelParams` came with it, and three `Level.lean` gaps closed.**
+`Expr.instLPGo`/`instLPFast` are *in* `ExprOps.lean`, but the logical
+definition they replace (`Expr.instantiateLevelParams`) is spelled in
+`Kernel/Level.lean:232-249` for import order, and it needs
+`Level.zeronessOf` (`:185`) and `Level.substPW` (`:197`) — the two blocks
+task #3 deferred *only* because `PropWhen` did not exist yet.  Rather than
+port half a family, the task filled those two into `src/level.rs`, where
+their file belongs, and put the `Expr` operation in `expr_ops.rs`.
+`substPW`'s function argument is task #9's pattern again: a one-method
+`NameToPw` dictionary, here `level::SubstZ<'a>` holding `ks`/`vs` by shared
+reference — **the first region-parameterised dictionary struct in the crate,
+and Aeneas translated it with no complaint** (it appears in `Types.lean` as
+an ordinary two-field structure).  `renameConsts`'s `f : Name → Name` is the
+same pattern, `expr_ops::NameToName`.  `Level.hasParam` (`:2399`) is not a
+new function — it is the spec recurrence of `Expr.levelHasParam`, which task
+#3 already ported as `level::level_has_param`, so it gained a second
+citation there rather than a duplicate.  Still owed to a `Level.lean`
+completion task: `Expr.allLevelParamsDefined` (`:256`) with its `LPMemoInv`,
+`*Go` and `*Fast` (4 declarations).
+
+**Constructs that do not survive transliteration, and their replacements**
+(all a-priori, as in tasks #3, #6, #7, #9 and #11 — nothing was
+error-driven).
+
+1. **`match memo[k]? with` needs an owning probe.**  Rust's borrow checker
+   keeps the map borrowed for the whole `match` when the scrutinee is
+   `memo.get(&k)`, and every `none` arm needs the map *mutably*.  The three
+   `memo*_get` helpers return an owned `Option<Expr>`/`Option<u64>` (an `Rc`
+   bump for a hit), which ends the borrow at the probe.  A Rust artefact with
+   no Lean content; the generated Lean is the cited `getElem?` either way.
+2. **Identity arms return an `Rc` bump.**  `| .fvar idx ty => (.fvar idx ty,
+   memo)` *rebuilds* a node in Lean; the port returns `expr::dup(e)`.  The
+   same value, because `expr.rs`'s smart constructors are functions — and it
+   is what keeps the DAG shared, which is why these walks are memoized at
+   all.
+3. **Lean's cons, three ways.**  `stripLams`/`stripPis`/`instPisAt`/
+   `instLamsAt` cons the binder on the way *out* of the recursion; a `Vec`
+   has no cons, so the port accumulates on the way *in* and gets the same
+   outermost-first list.  `getAppArgs`'s `getAppArgs f ++ [a]` becomes a
+   push *after* the recursive call — same order, one pass instead of a list
+   per spine node.  `fvarLeaves`'s `++` becomes the same accumulator.  Only
+   `instPisAtFGo`/`instLamsAtFGo` genuinely need a *front* cons (`a :: acc`,
+   and `acc`'s order is what `instantiateList` reads), so `cons_expr`
+   rebuilds the accumulator: `O(|acc|)` pointer copies per binder against
+   Lean's `O(1)`, on a list with one entry per telescope binder.  The `*F`
+   walks' actual point — one *tree* traversal per domain instead of one per
+   argument — is untouched.
+4. **`instantiateList`'s pure walk is genuinely called**, so both members of
+   that family are ported: `instantiateListGo`'s `.bvar` arm defers to it,
+   and its `vs.take (j - d)` is a `Vec` copy (`take_exprs`).
+5. **`Option.map` over a closure** (`(stripLams k b).map fun (bs, e) => …`,
+   and the same in `stripPis`, `instPisAt`, `instLamsAt`, `instPisAtFGo`,
+   `instLamsAtFGo`, `pisToLams`, `replacePiBody`) → an explicit
+   `match … { Some(r) => …, None => None }`.  §3.4 forbids closures;
+   `pisToLams` and `replacePiBody` keep the build-on-the-way-out shape,
+   because there is nothing to accumulate.
+6. **`recRulePlain`'s list comparison.**  `dom.getAppArgs.take cnP ==
+   (List.range cnP).map (fun k => .bvar (mI - 1 - k))` is a closure, a
+   `take`, a `range` and a list `==`; it becomes one index recursion
+   (`rec_rule_args_eq`) whose "ran out of arguments" arm reproduces the
+   length mismatch a short `List.take` would produce.  Its `&&` cascade
+   becomes an `if` nest (task #3's pattern 9), as do `wscopedB`'s.
+7. **`withPtrEq`** in `exprPtrBEq` → `ptr_eq` then `beq`, with `ptr_eq`
+   modeled as `false` (§3.2).  The obligation is `Expr.beq`'s reflexivity,
+   which is what con-leche's own `(fun h => by subst h; simp)` discharges.
+8. **A `Vec<(u64, Expr)>` for `List (Nat × Expr)`** (`fvarLeaves`) and
+   `Vec<(Expr, BinderMeta)>` for the binder lists; Charon translates the
+   tuples as ordinary products.
+
+**Numbers.**
+
+| | |
+|---|---|
+| Lean ported: 70 cited `def` blocks of `ExprOps.lean` | 972 raw / **746 code** |
+| plus 3 blocks of `Level.lean` (`zeronessOf`, `substPW`, `instantiateLevelParams`) | 40 raw / **25 code** |
+| `src/expr_ops.rs`, extracted part (raw / code) | 1 913 / **1 348** (1.7× the Lean code) |
+| `src/expr_ops.rs`, `#[cfg(test)]` part (18 tests) | 573 / 477 |
+| `src/level.rs` delta (`zeronessOf`, `substPW`, `SubstZ`, one citation) | +64 / −5 |
+| generated `_tmp/core-lean/Types.lean` (whole crate) | 289 (14 of them `expr_ops`) |
+| generated `_tmp/core-lean/Funs.lean` (whole crate) | **9 096** (5 007 of them `expr_ops`, 3.7× its Rust code) |
+| `TypesExternal_Template.lean` / `FunsExternal_Template.lean` | 25 / 54 |
+| `charon cargo --preset=aeneas` wall (after `cargo clean`) | **0.47 s** |
+| `aeneas -backend lean -dest _tmp/core-lean -split-files -loops-to-rec` | **4.49 s** (4.23 s self-reported) |
+| items translated (whole crate) | 314 transparent fns, 26 opaque, 5 globals, 12 trait decls (9 emitted), 27 trait impls (17 emitted) |
+| `partial_fixpoint` (whole crate / `expr_ops`) | **109** / **41** |
+| `mutual` blocks | 1 in `Funs.lean` (still task #3's 8-function `leq_core` knot, 313 lines) — `expr_ops` adds **none**, every recursion is self-recursion; 3 in `Types.lean`, `expr_ops` adds none |
+| external holes | **exactly the four `Rc` axioms of §3.2** — `new`, `clone`, `deref`, `ptr_eq`.  The 26 opaque functions are all `core`/`alloc` primitives Aeneas already models; `expr_ops` adds nothing to the list |
+
+`cargo build`/`cargo test` warning-free, **71/71** green (53 from tasks
+#6-#11 + 18 new); `scripts/lint-rust-style.sh crates/con-ron-core/src`
+clean; `scripts/provenance.py check` green — 428 items, 309 citations, all
+current at pin 3e004805.
+
+The 3.7× Rust→Lean line ratio (against 1.8× for `expr.rs`) is task #11's
+ten-constructor `match` phenomenon, squared: each of the eight memoized
+walks matches on ten constructors *twice* — once for the memo-skipping
+leaves, once inside the `none` branch — and Charon expands every wildcard
+arm, so a 60-line Rust walk comes out as roughly 300 lines of Lean.  It is
+mechanical noise, not complexity: the `partial_fixpoint` count (41 for 87
+functions) and the absence of any new `mutual` block say the knot did not
+grow.
+
+**Tests** (`#[cfg(test)]`, invisible to Charon, so closures and loops are
+allowed).  Eighteen.  `instantiate1` at, above and below the cursor and
+under a binder; **an `instantiate1`/`abstract1` round trip on a DAG whose
+`shared` subterm occurs three times** (so the memo is exercised), checked
+back to the original term and with `hasFvar` true on the opened form and
+false on the closed one; `instantiateList` as the fold of `instantiate1`,
+with the pure and the memoized walk agreeing; `abstractRange` closing a
+two-variable block outermost-first, bumping the cursor under a binder and
+leaving an out-of-range index alone; `liftLooseBVars`/`lowerBVars` inverse
+outside the window; `instantiate1Lift` shifting an *open* replacement where
+`instantiate1` would not.  **The saturation boundary on synthetic data
+words** — `expr.rs`'s smart constructors cannot produce a saturated word
+without 32 767 real binders, so the tests build `ExprNode`s with a
+hand-packed word: 32 766 still reads as the field, 32 767 sends `bvarB` to
+the memoized walk and comes back with the *exact* answer (5 for `bvar 4`, 7
+for `fvar 6`), and a saturated `lam` over a saturated `bvar 9` descends
+correctly; an eleven-term battery has `bvarBoundMemo = bvarBound`,
+`fvarRangeMemo = fvarRange` and both field reads equal to their spec.
+**`hasLooseBVar` under binders** — `looseBVarsBounded` at `bvar 0`/`bvar 1`
+under zero, one and two binders, with a binder's *domain* correctly outside
+the binder, `letE` binding only its body, `proj` binding nothing, and closed
+terms bounded by 0.  **`getAppFn`/`getAppArgs` on a five-argument
+application**, with `mkAppN` rebuilding the spine and a non-application
+giving itself and an empty list.  Telescopes: `stripPis` at the right and
+the wrong arity, `piResult`, `piArity`, `instPis`/`instPisAt`/`instPisAtF`
+agreeing on the same three arguments, `instLamsAt`/`instLamsAtF` agreeing
+and both failing (through the sequential fall-back) on too many arguments,
+`pisToLams` and `replacePiBody` round-tripped through
+`stripLams`/`piResult`, `resultSort`.  `instSpine`, `fvarTypeD`, `sub_nat`'s
+truncation, and `recRulePlain` on a canonical rule, a non-canonical one and
+both arity guards.  `renameConsts` renaming through `fvar` annotations and
+binders but **not** a `.proj`'s structure name; `resetMeta` clearing every
+binder datum; `instantiateLevelParams` substituting a sort, a constant's
+level list *and* a binder's prop-ness datum (`zeronessOf 1 = never`),
+leaving a `hasLP`-negative term untouched, with `hasLevelParam` agreeing
+with the flag throughout; `sizeB`/`sizeF` differing exactly on `fvar`
+annotations, `fvarLeaves` hereditary, `wscopedB` on an index and on an
+annotation's index, `isLam`/`lamPw`/`forallPw`, and `exprPtrBEq` on shared,
+rebuilt and different terms.
+
+**Deliberately not ported** (recorded so the next task does not re-derive
+it): the **eleven memo invariants** — `Inst1MemoInv` (`:61`), `InstLMemoInv`
+(`:248`), `LiftMemoInv` (`:411`), `ResetMemoInv` (`:562`), `RenameMemoInv`
+(`:981`), `MemoBInv` (`:1495`), `MemoFInv` (`:1616`), `Abs1MemoInv`
+(`:1770`), `LowerMemoInv` (`:1993`), `Inst1LMemoInv` (`:2203`), `ILPMemoInv`
+(`:2544`) — and their `empty`/`insert` lemmas: they are `Prop`s ("every
+recorded answer is the real one"), Charon erases `Prop`s, and they are
+exactly the invariants the Rust-side refinement proof will restate about
+`crate::hashmap` memos; and **every `theorem`** — the eleven `*Go_spec`
+soundness lemmas, the eleven `@[csimp]` equations (each *cited* on the item
+it licenses), `sizeB_instantiate1`, `looseBVarsBounded_iff`,
+`hasFvar_eq_false_iff`, `fvarRange_bne_zero`, `bvarBRaw_exact`,
+`fvarBRaw_exact`, `bvarB_eq`/`fvarB_eq`, the three `*_of_*_le` cutoff
+lemmas, and the `Level`/`PropWhen`/`Expr` has-param shortcut lemmas at
+`:2408-2727`.  These are the *spec* this port will be proved against.
+
+**Coverage** (`scripts/provenance.py coverage | tail -3`), con-leche
+3e004805: **TOTAL 146/1018 covered (14.3 %), 872 uncovered** — up from task
+#11's 73/1018 (7.2 %), the biggest single jump so far.  `ExprOps.lean` goes
+0/82 → **70/82**; the twelve uncovered are the eleven memo invariants above
+plus one **ledger false positive**: `install` at `:964` is the phrase
+"inductive install" inside a column-0 `/-!` module docstring, which
+`top_level_decls` reads as a declaration.  (Worth a one-line fix in
+`scripts/provenance.py` when someone is next in there; it is cosmetic and
+affects no `check`.)  `Level.lean` goes 18/25 → **21/25**, the four
+remaining being `Expr.allLevelParamsDefined` and its memoized twin.

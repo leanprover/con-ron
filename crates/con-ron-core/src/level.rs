@@ -19,6 +19,8 @@ use crate::hashmap::Eq2;
 use crate::hashmap::Hashable;
 use crate::name;
 use crate::name::Name;
+use crate::prop_when;
+use crate::prop_when::PropWhen;
 use std::rc::Rc;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
@@ -140,7 +142,11 @@ pub fn is_one_kind(u: &Level) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:114-122 levelHasParam
-/// `levelHasParam`.
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2399-2406 Level.hasParam
+/// `levelHasParam`.  The second citation is the same recurrence written as
+/// the *spec* function `Level.hasParam` in `ExprOps.lean`; the cited file's
+/// `levelHasParam_eq` (`:2524-2527`) is the equation between them, so one
+/// Rust function stands for both (task #13).
 pub fn level_has_param(u: &Level) -> bool {
     match &u.0.kind {
         LevelKind::Zero => false,
@@ -510,10 +516,58 @@ pub fn is_non_zero(u: &Level) -> bool {
     }
 }
 
-/* Not ported here: `Level.zeronessOf` (Level.lean:190) and `Level.substPW`
-   (:205) need `PropWhen`, and `Expr.instantiateLevelParams` (:234),
-   `Expr.allLevelParamsDefined` (:256) and its memoized twin (:300) need
-   `Expr` — neither type is in this spike. */
+/// con-leche: ConLeche/Kernel/Level.lean:185-195 zeronessOf
+/// `Level.zeronessOf`: the zero-ness datum of a level — a `max` is zero iff
+/// both sides are (`inter`), an `imax` iff its right side is.  Filled in at
+/// task #13: task #3 deferred it only because `PropWhen` did not exist yet.
+pub fn zeroness_of(l: &Level) -> PropWhen {
+    match &l.0.kind {
+        LevelKind::Zero => prop_when::if_all_zero(Vec::new()),
+        LevelKind::Succ(_) => prop_when::never(),
+        LevelKind::Param(n) => {
+            let mut ps: Vec<Name> = Vec::new();
+            ps.push(name::dup(n));
+            prop_when::if_all_zero(ps)
+        }
+        LevelKind::Max(a, b) => prop_when::inter(&zeroness_of(a), &zeroness_of(b)),
+        LevelKind::Imax(_, b) => zeroness_of(b),
+    }
+}
+
+/// con-leche: none — replaces the `fun n => zeronessOf (subst.go ks vs n)` of `substPW`
+/// The one-method dictionary that stands for `substPW`'s function argument
+/// (task #9's pattern 1; DESIGN.md §3.4 forbids closures).  It captures the
+/// two substitution lists by shared reference, which is what Lean's closure
+/// captures by value.
+pub struct SubstZ<'a> {
+    pub ks: &'a Vec<Name>,
+    pub vs: &'a Vec<Level>,
+}
+
+/// con-leche: none — the `fun n => zeronessOf (subst.go ks vs n)` of `substPW`
+/// The cited closure's body.
+impl<'a> prop_when::NameToPw for SubstZ<'a> {
+    /// con-leche: none — the `fun n => zeronessOf (subst.go ks vs n)` of `substPW`
+    fn apply(&self, n: &Name) -> PropWhen {
+        zeroness_of(&subst_go(self.ks, self.vs, 0, n))
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Level.lean:197-207 substPW
+/// `Level.substPW`: push a level-parameter substitution through a zero-ness
+/// datum.  Canonical on output, because `PropWhen.bindZ` is.  Filled in at
+/// task #13 alongside `zeroness_of`; `crate::expr_ops`'s
+/// `instantiate_level_params` is its one caller, as con-leche's
+/// `instantiateLevelParams` is.
+pub fn subst_pw(ks: &Vec<Name>, vs: &Vec<Level>, pw: &PropWhen) -> PropWhen {
+    prop_when::bind_z(&SubstZ { ks: ks, vs: vs }, pw)
+}
+
+/* Not ported here: `Expr.instantiateLevelParams` (Level.lean:234) and
+   `Expr.allLevelParamsDefined` (:256) with its memoized twin (:300) are
+   `Expr` operations spelled in this file for import order; the first is in
+   `crate::expr_ops` (task #13), the other two are owed to the `Level.lean`
+   completion task. */
 
 /// con-leche: ConLeche/Kernel/Level.lean:213-216 Name.nodup
 /// `Name.nodup`.

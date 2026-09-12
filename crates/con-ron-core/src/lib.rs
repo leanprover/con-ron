@@ -13,8 +13,10 @@
 //! | `level` | `ConLeche/Kernel/Expr.lean` (Level part), `Kernel/Level.lean` |
 //! | `prop_when` | `ConLeche/Kernel/PropWhen.lean` |
 //! | `expr` | `ConLeche/Kernel/Expr.lean` (everything but the `Level` part) |
+//! | `expr_ops` | `ConLeche/Kernel/ExprOps.lean` |
 
 pub mod expr;
+pub mod expr_ops;
 pub mod hashmap;
 pub mod level;
 pub mod name;
