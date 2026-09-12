@@ -68,6 +68,7 @@
 //!   tail and the "position 0 means an incomplete tail" contract are
 //!   con-leche's.
 
+use std::rc::Rc;
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
 
@@ -472,7 +473,7 @@ pub fn parse_expr_entry_d(st: &mut StateD, i: u64, r: &ExprRec) -> Result<(), Li
                 st_expr(st, *ty)?,
                 st_expr(st, *bd)?,
                 BinderMeta {
-                    pw: parse_pw_d(st, pw)?,
+                    pw: Rc::new(parse_pw_d(st, pw)?),
                 },
             ),
             None,
@@ -482,7 +483,7 @@ pub fn parse_expr_entry_d(st: &mut StateD, i: u64, r: &ExprRec) -> Result<(), Li
                 st_expr(st, *ty)?,
                 st_expr(st, *bd)?,
                 BinderMeta {
-                    pw: parse_pw_d(st, pw)?,
+                    pw: Rc::new(parse_pw_d(st, pw)?),
                 },
             ),
             None,
@@ -500,9 +501,9 @@ pub fn parse_expr_entry_d(st: &mut StateD, i: u64, r: &ExprRec) -> Result<(), Li
                 Ok(n) => n,
                 Err(e) => return merr(format!("malformed natVal literal: {}", e)),
             };
-            (expr::lit(Literal::NatVal(n)), None)
+            (expr::lit(Literal::NatVal(Rc::new(n))), None)
         }
-        ExprRec::StrVal(s) => (expr::lit(Literal::StrVal(s.clone())), None),
+        ExprRec::StrVal(s) => (expr::lit(Literal::StrVal(Rc::new(s.clone()))), None),
     };
     // the child scan runs only once a tolerated axiom has put something in
     // the table: an entry can be tainted only below one
