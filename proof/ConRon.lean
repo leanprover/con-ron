@@ -1,7 +1,14 @@
 /-
-con-ron's proof library.  Today it holds the task-#3 scale spike only; the
-generated core, the abstraction tier and the refinement lemmas land here as
-P2/P3 of DESIGN.md §5 proceed.
+con-ron's proof library: the Aeneas model of `crates/con-ron-core`
+(`ConRon.Generated`, produced by `scripts/extract.sh`), the refinement tier
+being grown on top of it (`ConRon.Refine`), and the `DeclC` dump of §3.6.
+
+The task-#3/#5 spike (`ConRon.Spike.LevelName`) is *not* imported here: it
+carries its own copy of the `Rc` model of §3.2, and two top-level
+`alloc.rc.Rc`s cannot live in one import graph.  It is a second library root
+(`ConRonSpike` in `lakefile.toml`) and a plain `lake build` still elaborates
+it.
 -/
-import ConRon.Spike.LevelName
+import ConRon.Generated
+import ConRon.Refine.Smoke
 import ConRon.Dump.Read

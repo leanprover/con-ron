@@ -1,5 +1,5 @@
 name = "con-ron"
-defaultTargets = ["ConRon"]
+defaultTargets = ["ConRon", "ConRonSpike"]
 
 # con-leche, the Lean checker this port refines (DESIGN.md §1).  Pinned as a
 # submodule; `lake build` only elaborates the modules we actually import.
@@ -17,6 +17,17 @@ path = "../_tmp/aeneas-lean"
 [[lean_lib]]
 name = "ConRon"
 roots = ["ConRon"]
+
+# The task-#3/#5 spike is a *second* root, not part of `ConRon`, because it
+# carries its own copy of the `Rc` model: `ConRon/Spike/LevelName/
+# TypesExternal.lean` and `ConRon/Generated/TypesExternal.lean` both declare
+# the top-level `alloc.rc.Rc`, so they cannot sit in one import graph
+# ("environment already contains 'alloc.rc.Rc'").  Two library roots keeps
+# both elaborating under a plain `lake build` while keeping them apart
+# (DESIGN.md, task #12).
+[[lean_lib]]
+name = "ConRonSpike"
+roots = ["ConRon.Spike.LevelName"]
 
 # The `DeclC` dump (DESIGN.md §3.6, task #10): runs con-leche's frontend on an
 # export and writes the parsed `List DeclC` in the `con-ron-decls/1` format
