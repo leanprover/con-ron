@@ -173,10 +173,12 @@ def gPw (pw : PropWhen) : G String := do
   modify fun st => { st with pws := st.pws.insert pw v }
   return v
 
-/-- A `BinderMeta` literal, inline. -/
+/-- A `BinderMeta`, inline.  Task #38 put the datum behind a handle, so the
+port builds one through `expr::binder_meta` rather than with a struct
+literal. -/
 def gBinderMeta (m : BinderMeta) : G String := do
   let p ← gPw m.pw
-  return s!"BinderMeta {lb} pw: {p} {rb}"
+  return s!"expr::binder_meta({p})"
 
 /-! ## Expressions
 
@@ -227,10 +229,10 @@ def gEmitExpr (e : Expr) : G Unit := do
       pure s!"expr::let_e(expr::dup(&{tv}), expr::dup(&{vv}), expr::dup(&{bv}))"
     | .lit (.natVal k) => do
       let kv ← gNat k
-      pure s!"expr::lit(Literal::NatVal({kv}))"
+      pure s!"expr::lit(expr::literal_nat({kv}))"
     | .lit (.strVal s) => do
       let sv ← gStr s
-      pure s!"expr::lit(Literal::StrVal({sv}))"
+      pure s!"expr::lit(expr::literal_str({sv}))"
     | .proj sn i s => do
       let nv ← gName sn; let sv ← eid s
       pure s!"expr::proj(name::dup(&{nv}), {i}, expr::dup(&{sv}))"

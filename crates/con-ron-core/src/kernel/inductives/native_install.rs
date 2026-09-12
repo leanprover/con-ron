@@ -1428,9 +1428,7 @@ mod tests {
 
     /// The parse placeholder every exported binder carries.
     fn raw() -> BinderMeta {
-        BinderMeta {
-            pw: prop_when::never(),
-        }
+        expr::binder_meta(prop_when::never())
     }
 
     fn cv(n: Name, lps: Vec<Name>, ty: Expr) -> ConstantVal {

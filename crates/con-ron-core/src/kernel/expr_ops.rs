@@ -518,12 +518,12 @@ pub fn reset_meta_go(memo: &mut HashMap<Expr, Expr>, e: &Expr) -> Expr {
                     ExprKind::Lam(ty, body, _) => {
                         let t: Expr = reset_meta_go(memo, ty);
                         let b: Expr = reset_meta_go(memo, body);
-                        expr::lam(t, b, BinderMeta { pw: prop_when::never() })
+                        expr::lam(t, b, expr::binder_meta(prop_when::never()))
                     }
                     ExprKind::ForallE(ty, body, _) => {
                         let t: Expr = reset_meta_go(memo, ty);
                         let b: Expr = reset_meta_go(memo, body);
-                        expr::forall_e(t, b, BinderMeta { pw: prop_when::never() })
+                        expr::forall_e(t, b, expr::binder_meta(prop_when::never()))
                     }
                     ExprKind::LetE(ty, val, body) => {
                         let t: Expr = reset_meta_go(memo, ty);
@@ -1471,7 +1471,7 @@ pub fn pis_to_lams(k: u64, e: &Expr, body: &Expr) -> Option<Expr> {
                 Some(b) => Some(expr::lam(
                     expr::dup(ty),
                     b,
-                    BinderMeta { pw: prop_when::never() },
+                    expr::binder_meta(prop_when::never()),
                 )),
                 None => None,
             },
@@ -1855,12 +1855,12 @@ pub fn instantiate_level_params_go(
                         ExprKind::Lam(ty, body, m) => {
                             let t: Expr = instantiate_level_params_go(ks, us, memo, ty);
                             let b: Expr = instantiate_level_params_go(ks, us, memo, body);
-                            expr::lam(t, b, BinderMeta { pw: level::subst_pw(ks, us, &m.pw) })
+                            expr::lam(t, b, expr::binder_meta(level::subst_pw(ks, us, &m.pw)))
                         }
                         ExprKind::ForallE(ty, body, m) => {
                             let t: Expr = instantiate_level_params_go(ks, us, memo, ty);
                             let b: Expr = instantiate_level_params_go(ks, us, memo, body);
-                            expr::forall_e(t, b, BinderMeta { pw: level::subst_pw(ks, us, &m.pw) })
+                            expr::forall_e(t, b, expr::binder_meta(level::subst_pw(ks, us, &m.pw)))
                         }
                         ExprKind::LetE(ty, val, body) => {
                             let t: Expr = instantiate_level_params_go(ks, us, memo, ty);
@@ -2102,7 +2102,6 @@ mod tests {
     use crate::kernel::expr::Expr;
     use crate::kernel::expr::ExprKind;
     use crate::kernel::expr::ExprNode;
-    use crate::kernel::expr::Literal;
     use crate::kernel::expr_ops;
     use crate::kernel::expr_ops::NameToName;
     use crate::kernel::level;
@@ -2118,7 +2117,7 @@ mod tests {
     }
 
     fn bm_never() -> BinderMeta {
-        BinderMeta { pw: prop_when::never() }
+        expr::binder_meta(prop_when::never())
     }
 
     fn cst(s: &str) -> Expr {
@@ -2326,7 +2325,7 @@ mod tests {
             expr::fvar(4, cst("T")),
             cst("c"),
             expr::sort(level::zero()),
-            expr::lit(Literal::NatVal(nat::from_u64(7))),
+            expr::lit(expr::literal_nat(nat::from_u64(7))),
             expr::dup(&shared),
             lam(expr::dup(&shared), expr::dup(&shared)),
             pi(expr::dup(&shared), expr::bvar(0)),
@@ -2562,7 +2561,7 @@ mod tests {
     fn reset_meta_clears_every_binder_datum() {
         let mut ps: Vec<Name> = Vec::new();
         ps.push(nm("u"));
-        let bm = BinderMeta { pw: prop_when::if_all_zero(ps) };
+        let bm = expr::binder_meta(prop_when::if_all_zero(ps));
         let e: Expr = expr::fvar(
             0,
             expr::forall_e(cst("A"), expr::lam(cst("B"), cst("C"), bm), bm_never()),
@@ -2596,7 +2595,7 @@ mod tests {
         us.push(level::succ(level::zero()));
         let mut ps: Vec<Name> = Vec::new();
         ps.push(nm("u"));
-        let bm = BinderMeta { pw: prop_when::if_all_zero(ps) };
+        let bm = expr::binder_meta(prop_when::if_all_zero(ps));
         let e: Expr = expr::forall_e(
             expr::sort(level::param(nm("u"))),
             cst_at("C", &["u"]),
@@ -2613,7 +2612,7 @@ mod tests {
                 v.push(level::succ(level::zero()));
                 v
             }),
-            BinderMeta { pw: prop_when::never() },
+            expr::binder_meta(prop_when::never()),
         );
         assert!(expr::beq(&got, &want));
         assert!(!expr::has_lp(&got));
@@ -2684,7 +2683,7 @@ mod tests {
         let pi = expr::forall_e(
             expr::sort(level::zero()),
             expr::bvar(0),
-            BinderMeta { pw: prop_when::if_all_zero(qs) },
+            expr::binder_meta(prop_when::if_all_zero(qs)),
         );
         assert!(expr_ops::all_level_params_defined_fast(&ps, &pi));
         assert!(!expr_ops::all_level_params_defined_fast(&Vec::new(), &pi));

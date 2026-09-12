@@ -444,6 +444,12 @@ theorem names_hash_from_aux (ps : alloc.vec.Vec name.Name) :
   repeat' (first | step | split)
   all_goals simp_all
 
+/-- The binder datum's constructor (task #38: the datum is behind a handle,
+so the generated table builds one through `expr::binder_meta` instead of a
+struct literal). -/
+@[local step] theorem expr_binder_meta_spec (pw : prop_when.PropWhen) :
+    expr.binder_meta pw ⦃ m => m = ⟨pw⟩ ⦄ := by unfold expr.binder_meta; step*
+
 @[local step] theorem expr_lam_spec (ty b : expr.Expr) (m : expr.BinderMeta) :
     expr.lam ty b m ⦃ e => ∃ h, e = .mk (.mk h (.Lam ty b m)) ⦄ := by
   unfold expr.lam

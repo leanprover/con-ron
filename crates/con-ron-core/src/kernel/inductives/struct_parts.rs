@@ -183,9 +183,7 @@ pub fn replace_pis_pw(pw: &PropWhen, k: u64, e: &Expr, b: &Expr) -> Option<Expr>
                 Some(r) => Some(expr::forall_e(
                     expr::dup(ty),
                     r,
-                    BinderMeta {
-                        pw: prop_when::dup(pw),
-                    },
+                    expr::binder_meta(prop_when::dup(pw)),
                 )),
                 None => None,
             },
@@ -207,9 +205,7 @@ pub fn pis_to_lams_pw(pw: &PropWhen, k: u64, e: &Expr, b: &Expr) -> Option<Expr>
                 Some(r) => Some(expr::lam(
                     expr::dup(ty),
                     r,
-                    BinderMeta {
-                        pw: prop_when::dup(pw),
-                    },
+                    expr::binder_meta(prop_when::dup(pw)),
                 )),
                 None => None,
             },
@@ -277,9 +273,7 @@ pub fn struct_motive_ty_i(
     let body = expr::forall_e(
         struct_fam_i(t, lps, n_p, n_idx, 0, 0),
         expr::sort(level::dup(l)),
-        BinderMeta {
-            pw: prop_when::never(),
-        },
+        expr::binder_meta(prop_when::never()),
     );
     replace_pis_pw(&prop_when::never(), n_idx, itele, &body)
 }
@@ -1264,9 +1258,7 @@ mod tests {
     }
 
     fn raw() -> BinderMeta {
-        BinderMeta {
-            pw: prop_when::never(),
-        }
+        expr::binder_meta(prop_when::never())
     }
 
     fn bvars(xs: &Vec<Expr>) -> Vec<u64> {

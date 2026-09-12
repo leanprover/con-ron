@@ -74,7 +74,6 @@
 
 use crate::kernel::env::ProjEntry;
 use crate::kernel::expr;
-use crate::kernel::expr::BinderMeta;
 use crate::kernel::expr::Expr;
 use crate::kernel::expr::ExprKind;
 use crate::kernel::expr_ops;
@@ -896,7 +895,7 @@ pub fn inst_level_params_go(
                     ExprKind::Lam(ty, body, m) => {
                         let t: Expr = inst_level_params_go(ks, us, memo, ty);
                         let b: Expr = inst_level_params_go(ks, us, memo, body);
-                        expr::lam(t, b, BinderMeta { pw: level::subst_pw(ks, us, &m.pw) })
+                        expr::lam(t, b, expr::binder_meta(level::subst_pw(ks, us, &m.pw)))
                     }
                     ExprKind::ForallE(ty, body, m) => {
                         let t: Expr = inst_level_params_go(ks, us, memo, ty);
@@ -904,7 +903,7 @@ pub fn inst_level_params_go(
                         expr::forall_e(
                             t,
                             b,
-                            BinderMeta { pw: level::subst_pw(ks, us, &m.pw) },
+                            expr::binder_meta(level::subst_pw(ks, us, &m.pw)),
                         )
                     }
                     ExprKind::LetE(ty, val, body) => {
@@ -1469,7 +1468,7 @@ mod tests {
     }
 
     fn never() -> BinderMeta {
-        BinderMeta { pw: prop_when::never() }
+        expr::binder_meta(prop_when::never())
     }
 
     /// **The memo of `instantiate1Go` is hit exactly where con-leche's is.**
@@ -1623,7 +1622,7 @@ mod tests {
         let lp = expr::forall_e(
             expr::sort(level::param(nm("u"))),
             expr::bvar(0),
-            BinderMeta { pw: prop_when::never() },
+            expr::binder_meta(prop_when::never()),
         );
         assert!(expr::has_lp(&lp));
         assert!(expr::beq(

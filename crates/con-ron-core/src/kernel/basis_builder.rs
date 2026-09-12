@@ -112,9 +112,7 @@ pub fn cnst(n: Name, us: Vec<Level>) -> Expr {
 /// prop-ness".  Lean writes it inline as an anonymous-constructor literal in
 /// `pi`/`piI`/`piA`/`lm`/`lmI`.
 pub fn never_meta() -> BinderMeta {
-    BinderMeta {
-        pw: prop_when::never(),
-    }
+    expr::binder_meta(prop_when::never())
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:85-88 BasisDSL.pi

@@ -746,7 +746,7 @@ mod tests {
     use crate::kernel::env;
     use crate::kernel::env::{ConstantInfo, ConstantVal};
     use crate::kernel::expr;
-    use crate::kernel::expr::{BinderMeta, Expr};
+    use crate::kernel::expr::Expr;
     use crate::kernel::fenv;
     use crate::kernel::level;
     use crate::kernel::name;
@@ -797,7 +797,7 @@ mod tests {
     }
 
     fn rewrite_pw(e: &Expr) -> Expr {
-        let m = BinderMeta { pw: prop_when::if_all_zero(Vec::new()) };
+        let m = expr::binder_meta(prop_when::if_all_zero(Vec::new()));
         match &e.0.kind {
             expr::ExprKind::ForallE(t, b, _) => expr::forall_e(rewrite_pw(t), rewrite_pw(b), m),
             expr::ExprKind::Lam(t, b, _) => expr::lam(rewrite_pw(t), rewrite_pw(b), m),
@@ -821,7 +821,7 @@ mod tests {
             &name::mk_str(std_axioms::iff_name(), vec![105, 110, 116, 114, 111])
         ));
         // the raw pins carry the parse placeholder on every binder
-        let m = BinderMeta { pw: prop_when::never() };
+        let m = expr::binder_meta(prop_when::never());
         assert!(expr::binder_meta_beq(&basis_builder::never_meta(), &m));
         // the `Iff` guard: right type, wrong arity
         let cv_ii = env::to_constant_val(&std_axioms::iff_intro_raw());

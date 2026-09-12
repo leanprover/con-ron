@@ -48,7 +48,11 @@
 //! words** (`beq_key`, a field read each).  The key is a filter either way —
 //! a stored pair is verified by *identity* on both components (`ptr_eq`,
 //! i.e. `Rc::ptr_eq`), as con-leche verifies it (`probeHit`) — so a collision
-//! between distinct pairs costs an entry, never an answer.
+//! between distinct pairs costs an entry, never an answer.  A *hash* key
+//! collides where an address key does not, and the objects it collides on are
+//! the ones the memo exists for, so each key holds a **bucket** of pairs
+//! rather than one (task #38; `BeqMap`'s note has the fixture that forced
+//! it).
 //!
 //! **The trust argument (DESIGN.md §3.2).**  `ptr_eq` is modeled as `false`,
 //! so `probe_hit` is `false` at *every* probe in the model: the memo is a
@@ -94,8 +98,25 @@ use std::rc::Rc;
 /// con-leche: ConLeche/Kernel/Expr.lean:93-104 BinderMeta
 /// The one datum a binder carries: the codomain prop-ness annotation, which
 /// the untrusted annotate pass writes and the checker validates.
+///
+/// **The datum is behind a handle** (task #38).  A `PropWhen` is 24 bytes by
+/// value (`PropWhenRepr::Many(Vec<Name>)` sets the width), and a binder datum
+/// sits *inside* `ExprKind::Lam`/`ForallE`, so those two arms were the widest
+/// of the ten and set `ExprNode`'s size for all of them — 56 bytes, 72 in an
+/// `Rc` block, 86 % of the reader's resident set at Mathlib scale (task #36).
+/// Behind an `Rc` the arm is three words.  `Rc<T>` is modeled as `T`
+/// (DESIGN.md §3.2), so `absBinderMeta` is unchanged up to the erasure and
+/// `binder_meta_dup` becomes a reference bump.
 pub struct BinderMeta {
-    pub pw: PropWhen,
+    pub pw: Rc<PropWhen>,
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:93-104 BinderMeta
+/// The cited structure's anonymous constructor, which is where the handle of
+/// the note above is taken: every caller hands over a `PropWhen` by value, as
+/// the Lean constructor does.
+pub fn binder_meta(pw: PropWhen) -> BinderMeta {
+    BinderMeta { pw: Rc::new(pw) }
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:93-104 BinderMeta
@@ -118,16 +139,37 @@ pub fn binder_meta_hash(m: &BinderMeta) -> u64 {
 /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
 /// Share a binder datum.
 pub fn binder_meta_dup(m: &BinderMeta) -> BinderMeta {
-    BinderMeta { pw: prop_when::dup(&m.pw) }
+    BinderMeta { pw: Rc::clone(&m.pw) }
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:108-112 Literal
 /// The two literals.  Deviation (DESIGN.md §3.3): `natVal`'s `Nat` is
 /// `crate::ron::nat::Nat`, the crate's own bignum, and `strVal`'s `String` is a
 /// `Vec<u32>` of code points.
+///
+/// **Both payloads are behind a handle** (task #38, and the note on
+/// `BinderMeta`): a `Vec` header is 24 bytes, so an inline `Literal` was 32
+/// and `ExprKind::Lit` was one of the two arms that kept `ExprNode` wide once
+/// the binder datum had shrunk.  Behind `Rc`s the literal is two words.  Every
+/// *pattern* is unchanged — `Rc<T>` derefs to `T`, and `Rc<T>` is modeled as
+/// `T` (DESIGN.md §3.2), so `absLiteral` is unchanged up to the erasure;
+/// building one goes through `literal_nat`/`literal_str` below.
 pub enum Literal {
-    NatVal(nat::Nat),
-    StrVal(Vec<u32>),
+    NatVal(Rc<nat::Nat>),
+    StrVal(Rc<Vec<u32>>),
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:108-112 Literal
+/// `Literal.natVal`, taking its bignum by value as the cited constructor
+/// does; the handle of the note above is taken here.
+pub fn literal_nat(n: nat::Nat) -> Literal {
+    Literal::NatVal(Rc::new(n))
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:108-112 Literal
+/// `Literal.strVal`, taking its code points by value.
+pub fn literal_str(s: Vec<u32>) -> Literal {
+    Literal::StrVal(Rc::new(s))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:108-112 Literal
@@ -157,13 +199,16 @@ pub fn literal_hash(l: &Literal) -> u64 {
 /// Share a literal.  The `Nat` copies its limbs, the string its code points.
 pub fn literal_dup(l: &Literal) -> Literal {
     match l {
-        Literal::NatVal(n) => Literal::NatVal(nat::clone(n)),
-        Literal::StrVal(s) => Literal::StrVal(str_copy(s)),
+        Literal::NatVal(n) => Literal::NatVal(Rc::clone(n)),
+        Literal::StrVal(s) => Literal::StrVal(Rc::clone(s)),
     }
 }
 
 /// con-leche: none — a `Vec<u32>` copy; Lean's strings are shared values (DESIGN.md §3.3)
-/// The entry point of the index recursion below.
+/// The entry point of the index recursion below.  Since task #38 put a
+/// literal's code points behind a handle, `literal_dup` is a reference bump
+/// and this is the crate's plain `Vec<u32>` copy, kept for the callers that
+/// own their string (`core_types::str_copy` is the same walk on a message).
 pub fn str_copy(s: &Vec<u32>) -> Vec<u32> {
     str_copy_from(s, 0, Vec::new())
 }
@@ -281,12 +326,18 @@ pub fn sat_pred(x: u64) -> u64 {
 /// The ten constructors of `inductive Expr`; the cited
 /// `@[computed_field] data` word sits in `ExprNode` (DESIGN.md §3.2).
 /// Deviation: the `Nat` indices are `u64` (§3.3), and `const`'s `List Level`
-/// is a `Vec<Level>`.
+/// is a `Vec<Level>` *behind a handle* — see `BinderMeta`'s note and task #38:
+/// a `Vec` header is 24 bytes, so an inline `(Name, Vec<Level>)` was 32 and
+/// this arm was, with `Lit`, what kept the node wide once the binder datum had
+/// shrunk.  Three arms now set the width at 24 bytes (`Lam`, `ForallE`,
+/// `LetE`, `Proj`), which is `ExprNode` = 40 and an `Rc` block of 56.
+/// `Rc<Vec<Level>>` is modeled as `Vec Level` (§3.2), so nothing the
+/// abstraction or a pattern says about `us` changes.
 pub enum ExprKind {
     Bvar(u64),
     Fvar(u64, Expr),
     Sort(Level),
-    Const(Name, Vec<Level>),
+    Const(Name, Rc<Vec<Level>>),
     App(Expr, Expr),
     Lam(Expr, Expr, BinderMeta),
     ForallE(Expr, Expr, BinderMeta),
@@ -367,7 +418,7 @@ pub fn mk_const(n: Name, us: Vec<Level>) -> Expr {
         name::mix_hash(name::hash_data(&n), level::levels_hash(&us)),
     ));
     let d: u64 = pack_data(h, 0, 0, level::levels_have_param(&us));
-    Expr(Rc::new(ExprNode { data: d, kind: ExprKind::Const(n, us) }))
+    Expr(Rc::new(ExprNode { data: d, kind: ExprKind::Const(n, Rc::new(us)) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -567,11 +618,43 @@ pub fn ptr_eq(a: &Expr, b: &Expr) -> bool {
 /// `InferLamEntry` is).
 pub type EqPair = (Expr, Expr);
 
+/// con-leche: ConLeche/Kernel/Expr.lean:739-749 EqPair
+/// All the pairs stored under one key — see `BeqMap`.  A `Vec`, walked by an
+/// index like every other list in the port (DESIGN.md §3.4).
+pub type BeqBucket = Vec<EqPair>;
+
 /// con-leche: ConLeche/Kernel/Expr.lean:755-756 BeqMap
-/// The memo, keyed by `beq_key`: one slot per key, last write wins, as the
-/// cited `Std.HashMap` does.  `ron::HashMap` is the crate's own table
-/// (DESIGN.md §3.3), verified at task #16.
-pub type BeqMap = HashMap<u64, EqPair>;
+/// The memo, keyed by `beq_key`, with **a bucket of pairs per key**.
+/// `ron::HashMap` is the crate's own table (DESIGN.md §3.3), verified at task
+/// #16; the cited `Std.HashMap` holds one entry per key because con-leche's
+/// key is the pair of *addresses*, which distinguishes what this port's key
+/// cannot.
+///
+/// **Why a bucket** (task #38, found by task #37).  `beq_key` mixes the two
+/// stored *hash words*, so structurally equal but pointer-distinct objects
+/// share a key by construction — and those are exactly the objects the memo
+/// exists for.  One slot per key then makes a node that is compared against
+/// two partners in turn evict its own entry on every visit:
+/// `tests/e2e/tower_beqpair.ndjson` (con-leche's own fixture for this,
+/// `mk_tower_fixtures.py`'s `mk_beqpair`) compares a shared tower `S` with an
+/// alternating pair `P_{k+1} = g P_k Q_k P_k`, `Q_{k+1} = g Q_k P_k Q_k`,
+/// which asks `(S,P)`, `(S,Q)`, `(S,P)` at every level; the `(S,Q)` walk
+/// overwrote what the `(S,P)` walk had proved, nothing below stayed memoised
+/// and the comparison was `3^n` — it does not finish at depth 40
+/// (`beq_on_the_beqpair_towers_is_memoised` reproduces it in one function).
+/// With a bucket both partners stay, `probe_hit` verifies each candidate by
+/// `ptr_eq` on both components exactly as before, and the level costs two
+/// entries instead of an eviction.
+///
+/// **The §3.2 trust argument is untouched**, because nothing about what an
+/// entry *means* changed: `ptr_eq` is `false` in the model, so a probe is
+/// `false` whatever the bucket holds and the model still writes the table and
+/// never reads it; in the binary a candidate is accepted only when it *is*
+/// the two objects being compared, and only completed `true`s are appended.
+/// A bucket cannot outgrow the walk that fills it: an entry is one
+/// proved-equal pair of distinct objects with the same hash word, so the
+/// memo's total size is bounded by the comparisons the descent has completed.
+pub type BeqMap = HashMap<u64, BeqBucket>;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:758-765 Expr.beqKey
 /// The memo key of a pair, packed into one word.
@@ -589,11 +672,11 @@ pub fn beq_key(ha: u64, hb: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:804-816 Expr.probeHit
-/// Does the entry at `key` identify the pair `(a, b)`?  The stored objects,
-/// tested by *identity*, are the verification — con-leche's stored addresses
-/// are the filter that the key has become.  A `true` here is `a = b` because
-/// the entry was written by a completed `true` of this same walk on these
-/// same two objects (the module note's trust argument).
+/// Does the key's bucket hold the pair `(a, b)`?  The stored objects, tested
+/// by *identity*, are the verification — con-leche's stored addresses are the
+/// filter that the key has become.  A `true` here is `a = b` because the
+/// entry was written by a completed `true` of this same walk on these same
+/// two objects (the module note's trust argument).
 ///
 /// In the model `ptr_eq` is `false` (DESIGN.md §3.2), so this is `false` at
 /// every probe and the memo is never read: the model's descent is the plain
@@ -601,13 +684,39 @@ pub fn beq_key(ha: u64, hb: u64) -> u64 {
 pub fn probe_hit(m: &BeqMap, key: u64, a: &Expr, b: &Expr) -> bool {
     match m.get(&key) {
         None => false,
-        Some(p) => {
-            if ptr_eq(&p.0, a) {
-                ptr_eq(&p.1, b)
-            } else {
-                false
-            }
-        }
+        Some(ps) => probe_hit_from(ps, 0, a, b),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:804-816 Expr.probeHit
+/// The index recursion behind `probe_hit`: the bucket's candidates, each
+/// verified by `ptr_eq` on both components (task #38 — con-leche's single
+/// entry per key is its addresses' doing, see `BeqMap`).  No loops
+/// (DESIGN.md §3.4).  A bucket holds proved-equal pairs only, so the first
+/// candidate whose two components are *these* two objects answers; the scan
+/// is over pairs whose hash words collide with theirs, of which a real
+/// comparison has a handful.
+pub fn probe_hit_from(ps: &Vec<EqPair>, i: usize, a: &Expr, b: &Expr) -> bool {
+    if i >= ps.len() {
+        false
+    } else if pair_is(&ps[i], a, b) {
+        true
+    } else {
+        probe_hit_from(ps, i + 1, a, b)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:804-816 Expr.probeHit
+/// One candidate of the bucket: is this stored pair *these* two objects?
+/// The cited `probeHit`'s two `withPtrAddr` tests, on the pair rather than on
+/// the entry's two address fields.  Its own function so that `probe_hit_from`
+/// indexes the bucket once and the model's arm is one `bool` (the
+/// `levels_beq_from` shape, task #11).
+pub fn pair_is(p: &EqPair, a: &Expr, b: &Expr) -> bool {
+    if ptr_eq(&p.0, a) {
+        ptr_eq(&p.1, b)
+    } else {
+        false
     }
 }
 
@@ -771,13 +880,42 @@ pub fn beq_finish(
 
 /// con-leche: ConLeche/Kernel/Expr.lean:818-949 Expr.beqGo
 /// `beqGo`'s `finish`, the write-back: record a completed `true` at a
-/// recursive node under that node's own key.  Its own function so that the
-/// table's `mut` binding is one line long and `beq_go`'s arms stay
-/// expressions (the accumulator goes in and comes back out by value, task
-/// #6's rule).
+/// recursive node in its key's bucket (task #38 — the bucket is `BeqMap`'s
+/// note).  Its own function so that the table's `mut` binding is short and
+/// `beq_go`'s arms stay expressions (the accumulator goes in and comes back
+/// out by value, task #6's rule).
+///
+/// **The insert comes first on purpose.**  `insert` hands back what the key
+/// held, so the common case — a key with no bucket yet, which is almost every
+/// write, since a bucket of two needs two proved-equal pairs of distinct
+/// objects whose hash words agree — is *one* table operation, exactly as it
+/// was before the bucket.  Only when there was a bucket does `beq_extend`
+/// below run, and putting the growing case in a table lookup of its own is
+/// what keeps the write-back's cost where task #30 measured it (a
+/// `remove`-then-`insert` on every write cost 11 % of `core`'s instructions,
+/// because `ron::HashMap::remove` rebuilds its chain).
 pub fn beq_record(m: BeqMap, key: u64, a: &Expr, b: &Expr) -> BeqMap {
     let mut m: BeqMap = m;
-    m.insert(key, (dup(a), dup(b)));
+    let mut ps: BeqBucket = Vec::new();
+    ps.push((dup(a), dup(b)));
+    let old: Option<BeqBucket> = m.insert(key, ps);
+    match old {
+        None => m,
+        Some(v) => beq_extend(m, key, v, a, b),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:818-949 Expr.beqGo
+/// The growing half of the write-back: the key already held `old`, so the
+/// bucket becomes `old` with the new pair appended and the one-element bucket
+/// `beq_record` has just stored is replaced by it.  `insert` on a key the
+/// table holds writes the value in place, so nothing is lost and no chain is
+/// rebuilt.
+pub fn beq_extend(m: BeqMap, key: u64, old: BeqBucket, a: &Expr, b: &Expr) -> BeqMap {
+    let mut m: BeqMap = m;
+    let mut ps: BeqBucket = old;
+    ps.push((dup(a), dup(b)));
+    m.insert(key, ps);
     m
 }
 
@@ -999,7 +1137,6 @@ mod tests {
     use crate::kernel::expr::BinderMeta;
     use crate::kernel::expr::Expr;
     use crate::kernel::expr::ExprKind;
-    use crate::kernel::expr::Literal;
     use crate::ron::hashmap::Eq2;
     use crate::ron::hashmap::HashMap;
     use crate::ron::hashmap::Hashable;
@@ -1022,7 +1159,7 @@ mod tests {
 
     /// `BinderMeta` with the `never` datum — the parser's default.
     fn bm_never() -> BinderMeta {
-        BinderMeta { pw: prop_when::never() }
+        expr::binder_meta(prop_when::never())
     }
 
     /// `BinderMeta` claiming "prop when these parameters are zero".
@@ -1031,7 +1168,7 @@ mod tests {
         for s in ps {
             v.push(nm(s));
         }
-        BinderMeta { pw: prop_when::if_all_zero(v) }
+        expr::binder_meta(prop_when::if_all_zero(v))
     }
 
     /// A representative battery of terms, each built from scratch.
@@ -1062,8 +1199,8 @@ mod tests {
             expr::bvar(2),
             expr::bvar(0),
         ));
-        v.push(expr::lit(Literal::NatVal(nat::from_u64(42))));
-        v.push(expr::lit(Literal::StrVal(cps("hello"))));
+        v.push(expr::lit(expr::literal_nat(nat::from_u64(42))));
+        v.push(expr::lit(expr::literal_str(cps("hello"))));
         v.push(expr::proj(nm("Prod"), 1, expr::bvar(0)));
         v
     }
@@ -1189,7 +1326,7 @@ mod tests {
         assert_eq!(expr::fvar_b_raw(&p), expr::fvar_b_raw(&a));
         assert_eq!(expr::has_lp(&p), expr::has_lp(&a));
         // `lit` is closed.
-        let li = expr::lit(Literal::NatVal(nat::from_u64(7)));
+        let li = expr::lit(expr::literal_nat(nat::from_u64(7)));
         assert_eq!(expr::bvar_b_raw(&li), 0);
         assert_eq!(expr::fvar_b_raw(&li), 0);
         assert!(!expr::has_lp(&li));
@@ -1300,20 +1437,20 @@ mod tests {
         ));
         // Literals.
         assert!(expr::beq(
-            &expr::lit(Literal::NatVal(nat::from_u64(5))),
-            &expr::lit(Literal::NatVal(nat::from_u64(5)))
+            &expr::lit(expr::literal_nat(nat::from_u64(5))),
+            &expr::lit(expr::literal_nat(nat::from_u64(5)))
         ));
         assert!(!expr::beq(
-            &expr::lit(Literal::NatVal(nat::from_u64(5))),
-            &expr::lit(Literal::NatVal(nat::from_u64(6)))
+            &expr::lit(expr::literal_nat(nat::from_u64(5))),
+            &expr::lit(expr::literal_nat(nat::from_u64(6)))
         ));
         assert!(!expr::beq(
-            &expr::lit(Literal::StrVal(cps("a"))),
-            &expr::lit(Literal::StrVal(cps("b")))
+            &expr::lit(expr::literal_str(cps("a"))),
+            &expr::lit(expr::literal_str(cps("b")))
         ));
         assert!(!expr::beq(
-            &expr::lit(Literal::NatVal(nat::zero())),
-            &expr::lit(Literal::StrVal(Vec::new()))
+            &expr::lit(expr::literal_nat(nat::zero())),
+            &expr::lit(expr::literal_str(Vec::new()))
         ));
         // `proj`: the structure name and the field index.
         assert!(!expr::beq(
@@ -1416,6 +1553,54 @@ mod tests {
         assert!(!expr::beq(&a, &deep));
     }
 
+    /// `g x y z` as `vendor/con-leche/scripts/mk_tower_fixtures.py`'s
+    /// `g3` builds it: a three-argument application spine.
+    fn g3(x: Expr, y: Expr, z: Expr) -> Expr {
+        let g = expr::mk_const(nm("G"), Vec::new());
+        expr::app(expr::app(expr::app(g, x), y), z)
+    }
+
+    /// `vendor/con-leche/tests/e2e/tower_beqpair.ndjson`, in Rust
+    /// (task #38).  Three structurally equal towers: a **shared** chain
+    /// `S_{k+1} = g S_k S_k S_k` (one object per level) and an
+    /// **alternating** pair `P_{k+1} = g P_k Q_k P_k`,
+    /// `Q_{k+1} = g Q_k P_k Q_k`.  Comparing `S_n` with `P_n` asks
+    /// `(S,P)`, `(S,Q)`, `(S,P)` one level down — and it is the *third*
+    /// query that decides whether the memo works: with one pair per key
+    /// (all three towers hash alike, so all three pairs share a key) the
+    /// `(S,Q)` walk evicts the `(S,P)` entry the first walk left, nothing
+    /// below stays memoised, and the comparison is `3^n`.  With a bucket
+    /// both partners stay and it is two entries a level.
+    fn beqpair_towers(k: u64) -> (Expr, Expr, Expr) {
+        let mut s: Expr = expr::mk_const(nm("Nat.zero"), Vec::new());
+        let mut p: Expr = expr::mk_const(nm("Nat.zero"), Vec::new());
+        let mut q: Expr = expr::mk_const(nm("Nat.zero"), Vec::new());
+        let mut i: u64 = 0;
+        while i < k {
+            let s2 = g3(expr::dup(&s), expr::dup(&s), expr::dup(&s));
+            let p2 = g3(expr::dup(&p), expr::dup(&q), expr::dup(&p));
+            let q2 = g3(expr::dup(&q), expr::dup(&p), expr::dup(&q));
+            s = s2;
+            p = p2;
+            q = q2;
+            i += 1;
+        }
+        (s, p, q)
+    }
+
+    #[test]
+    fn beq_on_the_beqpair_towers_is_memoised() {
+        let (s, p, q) = beqpair_towers(40);
+        assert!(!expr::ptr_eq(&s, &p));
+        assert_eq!(expr::data(&s), expr::data(&p));
+        assert_eq!(expr::data(&s), expr::data(&q));
+        // Both orientations, as the fixture carries both: which side the
+        // checker keys on is not the fixture's business.
+        assert!(expr::beq(&s, &p));
+        assert!(expr::beq(&p, &s));
+        assert!(expr::beq(&p, &q));
+    }
+
     #[test]
     fn probe_hit_verifies_by_identity_not_by_structure() {
         // The trust argument in one test: an entry is read back only for
@@ -1427,7 +1612,7 @@ mod tests {
         let key = expr::beq_key(expr::hash(&a), expr::hash(&b));
         let mut m: expr::BeqMap = HashMap::new();
         assert!(!expr::probe_hit(&m, key, &a, &b));
-        m.insert(key, (expr::dup(&a), expr::dup(&b)));
+        m.insert(key, vec![(expr::dup(&a), expr::dup(&b))]);
         assert!(expr::probe_hit(&m, key, &a, &b));
         // Same key (the word is the same), different objects: no hit.
         let a2 = expr::app(expr::bvar(0), expr::bvar(1));
@@ -1438,6 +1623,14 @@ mod tests {
         assert!(!expr::probe_hit(&m, key, &b, &a));
         // A key nothing was stored under: no hit.
         assert!(!expr::probe_hit(&m, key ^ 1, &a, &b));
+        // The bucket (task #38): a second pair under the same key does not
+        // displace the first, and both are found — which is what keeps a
+        // node compared against two partners in turn memoised.
+        let m2 = expr::beq_record(m, key, &a2, &b);
+        assert_eq!(m2.len(), 1, "one key");
+        assert!(expr::probe_hit(&m2, key, &a2, &b));
+        assert!(expr::probe_hit(&m2, key, &a, &b));
+        assert!(!expr::probe_hit(&m2, key, &a2, &a2));
         // `beq_key` is a function of the two words and mixes them, so the
         // two sides are not interchangeable.
         assert_eq!(expr::beq_key(3, 5), expr::beq_key(3, 5));
@@ -1500,7 +1693,7 @@ mod tests {
         assert!(!expr::beq_recursive(&expr::bvar(0)));
         assert!(!expr::beq_recursive(&ty));
         assert!(!expr::beq_recursive(&expr::mk_const(nm("Nat"), Vec::new())));
-        assert!(!expr::beq_recursive(&expr::lit(Literal::NatVal(nat::zero()))));
+        assert!(!expr::beq_recursive(&expr::lit(expr::literal_nat(nat::zero()))));
     }
 
     #[test]
@@ -1530,11 +1723,11 @@ mod tests {
         assert!(!expr::binder_meta_beq(&m1, &bm_never()));
         let d = expr::binder_meta_dup(&m1);
         assert!(expr::binder_meta_beq(&m1, &d));
-        let l = Literal::StrVal(cps("héllo"));
+        let l = expr::literal_str(cps("héllo"));
         let l2 = expr::literal_dup(&l);
         assert!(expr::literal_beq(&l, &l2));
         assert_eq!(expr::literal_hash(&l), expr::literal_hash(&l2));
-        let n = Literal::NatVal(nat::from_u64(1 << 40));
+        let n = expr::literal_nat(nat::from_u64(1 << 40));
         let n2 = expr::literal_dup(&n);
         assert!(expr::literal_beq(&n, &n2));
         assert_eq!(expr::literal_hash(&n), expr::literal_hash(&n2));

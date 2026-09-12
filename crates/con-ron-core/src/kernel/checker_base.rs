@@ -736,7 +736,7 @@ mod tests {
     }
 
     fn never_meta() -> BinderMeta {
-        BinderMeta { pw: prop_when::never() }
+        expr::binder_meta(prop_when::never())
     }
 
     fn ax(n: Name, ty: Expr) -> ConstantInfo {
