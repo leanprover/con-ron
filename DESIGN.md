@@ -530,7 +530,8 @@ by module once types exist; **in progress**)
 4. `Core` (whnfCore/whnf/infer/defeq/annotate knot) + `Cached/CoreC` memos.
 5. `Checker`/`DeclCheck`, `StdAxioms`, `TrustAxioms`, Nat-op pins, basis
    tables (generated), `Inductives/*`, `Installed` (`check_decls`).
-6. `con-ron-dump` (Lean, task #10 ✔) + Rust reader; differential test runner.
+6. `con-ron-dump` (Lean, task #10 ✔) + Rust reader (task #19 ✔,
+   `crates/con-ron-dump`); differential test runner.
    Gate: every fixture verdict identical to con-leche; Mathlib export
    accepted; style lint clean.
 
@@ -2751,3 +2752,167 @@ plus one **ledger false positive**: `install` at `:964` is the phrase
 `scripts/provenance.py` when someone is next in there; it is cosmetic and
 affects no `check`.)  `Level.lean` goes 18/25 → **21/25**, the four
 remaining being `Expr.allLevelParamsDefined` and its memoized twin.
+### Task #19 — The Rust reader for `con-ron-decls/1` (2026-09-12, Opus under Fable)
+
+P1.6's Rust half.  Task #10 gave the `DeclC` dump a format, a Lean writer, a
+Lean reader and a corpus sweep; this task gives it the reader the Rust side
+actually needs, in a **new, unverified** crate `crates/con-ron-dump`
+(`parse_decls`, plus a writer and a `con-ron-dump-check` binary), added to the
+workspace `members`.  With it, `crates/con-ron-core`'s types can be populated
+from exactly the declarations con-leche's checker sees, with no Rust parser and
+no reimplementation of the frontend's rewrites (§3.6).
+
+**What landed** (2 535 lines, `crates/con-ron-dump/`):
+
+| file | what |
+|---|---|
+| `src/lib.rs` | `parse_decls : &str -> Result<Vec<DeclC>, String>`, `parse_decls_counted`, the string codec (`unescape`, `is_valid_char`), `Counts`, and the crate's tests |
+| `src/write.rs` | `dump_decls : &[DeclC] -> String` — a transliteration of `Write.lean`, emission order included, so the round trip is *byte*-exact |
+| `src/natdec.rs` | decimal ↔ `ron::Nat`, the one scalar the core has no codec for |
+| `src/dag.rs` | `census` — how many *distinct* heap nodes a declaration list reaches |
+| `src/bin/con-ron-dump-check.rs` | the checker: parse, DAG census, optional `--roundtrip`, counts, non-zero exit on any failure |
+| `scripts/dump-check-fixtures.sh` | run it over every dump `scripts/dump-fixtures.sh` produced |
+
+**The crate is outside the verified core, and says so.**  Charon never sees it,
+no refinement lemma mentions it, and §3.4's Aeneas subset does not apply — it
+uses `for`/`while`, `?`, `std::collections`, closures and `derive(Debug)`
+freely.  `scripts/lint-rust-style.sh` is invoked on `crates/con-ron-core/src`
+only, `scripts/provenance.py`'s `DEFAULT_ROOTS` is the same path, and
+`scripts/extract.sh` names `crates/con-ron-core` explicitly, so all three gates
+were already scoped away from it and needed no change.  `scripts/gates.sh`
+needed none either: its `cargo build`/`cargo test` run at the workspace
+manifest, so the new member is covered by the existing two gates (a separate
+`cargo test -p con-ron-dump` would be redundant).  What the crate does *not*
+use is `unsafe` — there is none; `dag.rs` hashes and compares `Rc::as_ptr`
+values but never dereferences one.
+
+**Nothing was added to `con-ron-core`.**  The core's public API turned out to
+be exactly sufficient: every node is built through `name::{anonymous, mk_str,
+mk_num}`, `level::{zero, succ, max, imax, param}`, `prop_when::{never,
+if_all_zero}`, `expr::{mk_bvar, fvar, sort, mk_const, app, lam, forall_e,
+let_e, lit, proj}`, the `env` records are plain `pub` structs and enums, and
+the `*_dup` family supplies the `Rc` clone at every backward reference.  For
+the writer's interning tables the core's own dictionary API was enough too —
+`name::hash_data`/`name::beq`, `level::hash_data`/`level::beq`,
+`expr::hash`/`expr::beq`, `prop_when::hash_pw`/`prop_when::beq` — wrapped in
+four one-line newtypes so `std::collections::HashMap` can use the *core's*
+notion of equality, which is what makes the interning agree with
+`Write.lean`'s `Std.HashMap`.  `ron::Nat` has no decimal parser and did not get
+one: `natdec` works on `Nat::limbs` (`pub`) with `u128` intermediates, nineteen
+digits at a time, and re-enters the core only at `nat::norm`.
+
+**The two properties FORMAT.md §6 asks for, and how they are pinned.**
+
+1. *The DAG stays a DAG.*  The reader is nine `Vec`s that only ever grow by
+   one; each `N`/`L`/`W`/`E` record allocates once and every later reference is
+   a cloned `Rc` handle.  A byte-identical re-dump does **not** prove this —
+   `write.rs` interns by value, so it would collapse a tree expansion back into
+   the same bytes — so `dag::census` counts distinct `Rc::as_ptr` values
+   reachable from the declarations and `con-ron-dump-check` requires that to
+   equal the file's `N`/`L`/`E` record counts.  It does, on all 318 dumps read.
+2. *Computed fields are recomputed.*  The smart constructors are the only way a
+   node is made here, so `NameNode::hash`, `LevelNode::hash` and
+   `ExprNode::data` come from the children by the port's own recurrences.  The
+   hash bits of `data` differ from Lean's by design (task #3, note 6) and
+   nothing compares them.
+
+**Fixture results** (`scripts/dump-check-fixtures.sh`, over the 315 dumps
+`scripts/dump-fixtures.sh` writes; the other 33 fixtures have no declaration
+list, task #10):
+
+| | |
+|---|---|
+| dumps read | **315** |
+| parse failures | **0** |
+| DAG exact (distinct nodes == record counts) | **315 / 315** |
+| re-dump byte-identical to the input | **315 / 315** |
+| total bytes | 6 905 866 |
+| declarations | **12 397** (axiom 36, defn 5 851, thm 2 718, opaque 12, basis 1 890, ind 1 890; 6 514 block `ConstantInfo`s) |
+| interned N / L / W / E | **18 530 / 2 265 / 668 / 332 140** |
+| numbered V / R / C / P / I | 15 131 / 2 715 / 1 917 / **0** / 6 514 |
+| parse time, all 315 | **0.07 s** |
+| re-dump time, all 315 | 0.09 s |
+| wall, whole sweep | **0.20 s** |
+
+Every one of those counts is **identical to task #10's Lean-side census**,
+which is the real content of the table: two independently written readers agree
+on the id-space sizes of 6.9 MB of dumps, and the Rust one reproduces the
+writer's bytes.  `P = 0` confirms task #10's surprise 3 — no `ProjTable`
+reaches a dump — so the `P` record and the `projInfo`/`axiomInfo`/`defnInfo`/
+`thmInfo` block constructors, plus `fvar`, `RecRuleFire.plain`/`.nested`,
+`natVal` bignums and non-placeholder `RecRule` fields, are covered by a
+hand-built *kitchen sink* unit test instead (every `DeclC` constructor, every
+`ConstantInfo` constructor, every `ExprKind`, every `LevelKind`, both
+`Literal`s, all three hints, all three fires, all six basis kinds), which
+round-trips byte-for-byte twice over.
+
+**Scale** (the three fixtures `arena.sh` does not itself run; the Lean column
+is task #10's `read`, re-measured here on the same machine):
+
+| dump | bytes | E nodes | Lean read | **Rust parse** | Rust re-dump |
+|---|---|---|---|---|---|
+| `good/perf/grind-ring-5` | 4 265 323 | 182 307 | 149 ms | **32.6 ms** | 51.3 ms |
+| `good/init-prelude` | 1 293 237 | 55 862 | 48 ms | **11.7 ms** | 15.6 ms |
+| `good/perf/app-lam` | 479 915 | 24 446 | 16 ms | **3.1 ms** | 5.1 ms |
+
+So the Rust reader is **4.1–5.1× faster** than the Lean one and runs at roughly
+**130 MB/s**, which retires task #10's note that "reading is the slow half": at
+that rate a Mathlib-scale dump is seconds, not minutes, and reading will not be
+what bounds the differential test runner.  A `String` allocation per token is
+what Lean was paying; `str::split(' ')` over a borrowed line pays nothing.
+
+**Five notes for whoever wires the core's `check_decls` to this.**
+
+1. **The reader needs no worklist.**  FORMAT.md §2's invariant — every
+   reference strictly backwards — means the `E` records arrive topologically
+   sorted, so the reader is a flat loop with no recursion over the term at all.
+   Only the *writer* needs task #10's explicit stack, and `write.rs` reproduces
+   it exactly (`(e, false)` visit / `(e, true)` emit, children pushed in
+   constructor order so the last child is emitted first) because a single
+   deviation there changes every `E` id and the round trip stops being
+   byte-exact.  That fragility is the point: it is what makes the round trip a
+   test of the *whole* format rather than of parsing alone.
+2. **`if_all_zero` on a canonical list is the identity** — task #9's
+   normalisation and FORMAT.md §4's "`ps` is already canonical" do not fight.
+   Checked directly (`canonical_list_renormalises_to_itself`): a list out of
+   `to_list` is strictly sorted under `name_lt`, duplicate-free, and feeding it
+   back gives a datum equal under `beq` with the same `hash_pw`.  Also pinned
+   there: `never` is **not** `if_all_zero []` (task #10, surprise 6).
+3. **Unbounded vs machine-word `Nat`s split exactly where §3.3 says.**  Only
+   `Literal.natVal` is read as a `ron::Nat`; the `bvar`/`fvar`/`proj` indices,
+   `Name.num`'s component and every count are `u64`, and an overflow is a
+   *reader* failure naming its line ("does not fit a 64-bit index"), never a
+   silent truncation.  A test pins both halves of that on the same 23-digit
+   literal.
+4. **Two deliberate departures from `Read.lean`**, both tested: a literal byte
+   inside a string field must be printable non-backslash ASCII (the Lean reader
+   accepts any non-`\` character there; the format never emits one, so
+   rejecting it is FORMAT.md §6's loud failure), while the degenerate escape
+   `\;` — no hex digits, i.e. `U+0000` — is accepted exactly as `Read.lean`
+   accepts it, to avoid inventing a stricter dialect than the format's own
+   validator.
+5. **`DeclC` derives nothing**, `Debug` included (task #10's note), so
+   `Result::unwrap_err`/`expect_err` are unavailable on a parse result; the
+   tests use a hand-written `perr` helper.  Any future assertion over a `DeclC`
+   has to go through a structural comparison the consumer spells out itself, as
+   `ConRon/Dump/Main.lean` does on the Lean side.
+
+**Left for next time.**  The differential runner itself — feeding the parsed
+list to `check_decls` and comparing verdicts with con-leche — waits on
+P1.4/P1.5, which are not ported yet; `con-ron-dump-check` is deliberately
+verdict-free and says only "the bytes and the graph are right".  No
+Mathlib-scale dump exists in the tree to read (task #10's gap, unchanged).  And
+`scripts/dump-check-fixtures.sh` is *not* in `scripts/gates.sh`: it needs the
+`proof/` Lean build and the arena tarball, which the gate deliberately does not
+require — it is the P1.6 gate's script, run by hand until the verdict
+comparison joins it.
+
+**Time.** ~25 min wall.  The single longest step was the Lean build of `lake
+exe con-ron-dump` (~8 min, after pointing the worktree's `proof/.lake/packages`
+at the main checkout's mathlib tree and copying its `vendor/con-leche/.lake`
+build, without which it is a mathlib clone away); `scripts/dump-fixtures.sh
+--no-check` took 45 s and the Rust sweep 0.2 s.  The Rust compiled
+warning-free on the first `cargo build`; one real bug showed up in testing — a
+missing `i += 1` in `unescape`'s literal-byte branch, an infinite loop that the
+string-codec round-trip test caught as a 4 GiB allocation — and nothing else.
+`scripts/gates.sh`: all 6 OK.
