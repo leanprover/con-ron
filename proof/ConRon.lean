@@ -14,4 +14,5 @@ import ConRon.Refine.Abs
 import ConRon.Refine.Name
 import ConRon.Refine.Level
 import ConRon.Refine.PropWhen
+import ConRon.Refine.HashMap
 import ConRon.Dump.Read

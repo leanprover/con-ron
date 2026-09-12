@@ -530,7 +530,8 @@ by module once types exist; **in progress**)
 4. `Core` (whnfCore/whnf/infer/defeq/annotate knot) + `Cached/CoreC` memos.
 5. `Checker`/`DeclCheck`, `StdAxioms`, `TrustAxioms`, Nat-op pins, basis
    tables (generated), `Inductives/*`, `Installed` (`check_decls`).
-6. `con-ron-dump` (Lean, task #10 ✔) + Rust reader; differential test runner.
+6. `con-ron-dump` (Lean, task #10 ✔) + Rust reader (task #19 ✔,
+   `crates/con-ron-dump`); differential test runner.
    Gate: every fixture verdict identical to con-leche; Mathlib export
    accepted; style lint clean.
 
@@ -2966,3 +2967,335 @@ them, or §3.2 exempts them).  The spike's eight unproved leftovers
 `levels_hash`, `levels_have_param`, the three string-shape predicates) are
 still unproved — they were not stated at task #5 either, and they are all
 instances of the patterns above.
+
+### Task #19 — The Rust reader for `con-ron-decls/1` (2026-09-12, Opus under Fable)
+
+P1.6's Rust half.  Task #10 gave the `DeclC` dump a format, a Lean writer, a
+Lean reader and a corpus sweep; this task gives it the reader the Rust side
+actually needs, in a **new, unverified** crate `crates/con-ron-dump`
+(`parse_decls`, plus a writer and a `con-ron-dump-check` binary), added to the
+workspace `members`.  With it, `crates/con-ron-core`'s types can be populated
+from exactly the declarations con-leche's checker sees, with no Rust parser and
+no reimplementation of the frontend's rewrites (§3.6).
+
+**What landed** (2 535 lines, `crates/con-ron-dump/`):
+
+| file | what |
+|---|---|
+| `src/lib.rs` | `parse_decls : &str -> Result<Vec<DeclC>, String>`, `parse_decls_counted`, the string codec (`unescape`, `is_valid_char`), `Counts`, and the crate's tests |
+| `src/write.rs` | `dump_decls : &[DeclC] -> String` — a transliteration of `Write.lean`, emission order included, so the round trip is *byte*-exact |
+| `src/natdec.rs` | decimal ↔ `ron::Nat`, the one scalar the core has no codec for |
+| `src/dag.rs` | `census` — how many *distinct* heap nodes a declaration list reaches |
+| `src/bin/con-ron-dump-check.rs` | the checker: parse, DAG census, optional `--roundtrip`, counts, non-zero exit on any failure |
+| `scripts/dump-check-fixtures.sh` | run it over every dump `scripts/dump-fixtures.sh` produced |
+
+**The crate is outside the verified core, and says so.**  Charon never sees it,
+no refinement lemma mentions it, and §3.4's Aeneas subset does not apply — it
+uses `for`/`while`, `?`, `std::collections`, closures and `derive(Debug)`
+freely.  `scripts/lint-rust-style.sh` is invoked on `crates/con-ron-core/src`
+only, `scripts/provenance.py`'s `DEFAULT_ROOTS` is the same path, and
+`scripts/extract.sh` names `crates/con-ron-core` explicitly, so all three gates
+were already scoped away from it and needed no change.  `scripts/gates.sh`
+needed none either: its `cargo build`/`cargo test` run at the workspace
+manifest, so the new member is covered by the existing two gates (a separate
+`cargo test -p con-ron-dump` would be redundant).  What the crate does *not*
+use is `unsafe` — there is none; `dag.rs` hashes and compares `Rc::as_ptr`
+values but never dereferences one.
+
+**Nothing was added to `con-ron-core`.**  The core's public API turned out to
+be exactly sufficient: every node is built through `name::{anonymous, mk_str,
+mk_num}`, `level::{zero, succ, max, imax, param}`, `prop_when::{never,
+if_all_zero}`, `expr::{mk_bvar, fvar, sort, mk_const, app, lam, forall_e,
+let_e, lit, proj}`, the `env` records are plain `pub` structs and enums, and
+the `*_dup` family supplies the `Rc` clone at every backward reference.  For
+the writer's interning tables the core's own dictionary API was enough too —
+`name::hash_data`/`name::beq`, `level::hash_data`/`level::beq`,
+`expr::hash`/`expr::beq`, `prop_when::hash_pw`/`prop_when::beq` — wrapped in
+four one-line newtypes so `std::collections::HashMap` can use the *core's*
+notion of equality, which is what makes the interning agree with
+`Write.lean`'s `Std.HashMap`.  `ron::Nat` has no decimal parser and did not get
+one: `natdec` works on `Nat::limbs` (`pub`) with `u128` intermediates, nineteen
+digits at a time, and re-enters the core only at `nat::norm`.
+
+**The two properties FORMAT.md §6 asks for, and how they are pinned.**
+
+1. *The DAG stays a DAG.*  The reader is nine `Vec`s that only ever grow by
+   one; each `N`/`L`/`W`/`E` record allocates once and every later reference is
+   a cloned `Rc` handle.  A byte-identical re-dump does **not** prove this —
+   `write.rs` interns by value, so it would collapse a tree expansion back into
+   the same bytes — so `dag::census` counts distinct `Rc::as_ptr` values
+   reachable from the declarations and `con-ron-dump-check` requires that to
+   equal the file's `N`/`L`/`E` record counts.  It does, on all 318 dumps read.
+2. *Computed fields are recomputed.*  The smart constructors are the only way a
+   node is made here, so `NameNode::hash`, `LevelNode::hash` and
+   `ExprNode::data` come from the children by the port's own recurrences.  The
+   hash bits of `data` differ from Lean's by design (task #3, note 6) and
+   nothing compares them.
+
+**Fixture results** (`scripts/dump-check-fixtures.sh`, over the 315 dumps
+`scripts/dump-fixtures.sh` writes; the other 33 fixtures have no declaration
+list, task #10):
+
+| | |
+|---|---|
+| dumps read | **315** |
+| parse failures | **0** |
+| DAG exact (distinct nodes == record counts) | **315 / 315** |
+| re-dump byte-identical to the input | **315 / 315** |
+| total bytes | 6 905 866 |
+| declarations | **12 397** (axiom 36, defn 5 851, thm 2 718, opaque 12, basis 1 890, ind 1 890; 6 514 block `ConstantInfo`s) |
+| interned N / L / W / E | **18 530 / 2 265 / 668 / 332 140** |
+| numbered V / R / C / P / I | 15 131 / 2 715 / 1 917 / **0** / 6 514 |
+| parse time, all 315 | **0.07 s** |
+| re-dump time, all 315 | 0.09 s |
+| wall, whole sweep | **0.20 s** |
+
+Every one of those counts is **identical to task #10's Lean-side census**,
+which is the real content of the table: two independently written readers agree
+on the id-space sizes of 6.9 MB of dumps, and the Rust one reproduces the
+writer's bytes.  `P = 0` confirms task #10's surprise 3 — no `ProjTable`
+reaches a dump — so the `P` record and the `projInfo`/`axiomInfo`/`defnInfo`/
+`thmInfo` block constructors, plus `fvar`, `RecRuleFire.plain`/`.nested`,
+`natVal` bignums and non-placeholder `RecRule` fields, are covered by a
+hand-built *kitchen sink* unit test instead (every `DeclC` constructor, every
+`ConstantInfo` constructor, every `ExprKind`, every `LevelKind`, both
+`Literal`s, all three hints, all three fires, all six basis kinds), which
+round-trips byte-for-byte twice over.
+
+**Scale** (the three fixtures `arena.sh` does not itself run; the Lean column
+is task #10's `read`, re-measured here on the same machine):
+
+| dump | bytes | E nodes | Lean read | **Rust parse** | Rust re-dump |
+|---|---|---|---|---|---|
+| `good/perf/grind-ring-5` | 4 265 323 | 182 307 | 149 ms | **32.6 ms** | 51.3 ms |
+| `good/init-prelude` | 1 293 237 | 55 862 | 48 ms | **11.7 ms** | 15.6 ms |
+| `good/perf/app-lam` | 479 915 | 24 446 | 16 ms | **3.1 ms** | 5.1 ms |
+
+So the Rust reader is **4.1–5.1× faster** than the Lean one and runs at roughly
+**130 MB/s**, which retires task #10's note that "reading is the slow half": at
+that rate a Mathlib-scale dump is seconds, not minutes, and reading will not be
+what bounds the differential test runner.  A `String` allocation per token is
+what Lean was paying; `str::split(' ')` over a borrowed line pays nothing.
+
+**Five notes for whoever wires the core's `check_decls` to this.**
+
+1. **The reader needs no worklist.**  FORMAT.md §2's invariant — every
+   reference strictly backwards — means the `E` records arrive topologically
+   sorted, so the reader is a flat loop with no recursion over the term at all.
+   Only the *writer* needs task #10's explicit stack, and `write.rs` reproduces
+   it exactly (`(e, false)` visit / `(e, true)` emit, children pushed in
+   constructor order so the last child is emitted first) because a single
+   deviation there changes every `E` id and the round trip stops being
+   byte-exact.  That fragility is the point: it is what makes the round trip a
+   test of the *whole* format rather than of parsing alone.
+2. **`if_all_zero` on a canonical list is the identity** — task #9's
+   normalisation and FORMAT.md §4's "`ps` is already canonical" do not fight.
+   Checked directly (`canonical_list_renormalises_to_itself`): a list out of
+   `to_list` is strictly sorted under `name_lt`, duplicate-free, and feeding it
+   back gives a datum equal under `beq` with the same `hash_pw`.  Also pinned
+   there: `never` is **not** `if_all_zero []` (task #10, surprise 6).
+3. **Unbounded vs machine-word `Nat`s split exactly where §3.3 says.**  Only
+   `Literal.natVal` is read as a `ron::Nat`; the `bvar`/`fvar`/`proj` indices,
+   `Name.num`'s component and every count are `u64`, and an overflow is a
+   *reader* failure naming its line ("does not fit a 64-bit index"), never a
+   silent truncation.  A test pins both halves of that on the same 23-digit
+   literal.
+4. **Two deliberate departures from `Read.lean`**, both tested: a literal byte
+   inside a string field must be printable non-backslash ASCII (the Lean reader
+   accepts any non-`\` character there; the format never emits one, so
+   rejecting it is FORMAT.md §6's loud failure), while the degenerate escape
+   `\;` — no hex digits, i.e. `U+0000` — is accepted exactly as `Read.lean`
+   accepts it, to avoid inventing a stricter dialect than the format's own
+   validator.
+5. **`DeclC` derives nothing**, `Debug` included (task #10's note), so
+   `Result::unwrap_err`/`expect_err` are unavailable on a parse result; the
+   tests use a hand-written `perr` helper.  Any future assertion over a `DeclC`
+   has to go through a structural comparison the consumer spells out itself, as
+   `ConRon/Dump/Main.lean` does on the Lean side.
+
+**Left for next time.**  The differential runner itself — feeding the parsed
+list to `check_decls` and comparing verdicts with con-leche — waits on
+P1.4/P1.5, which are not ported yet; `con-ron-dump-check` is deliberately
+verdict-free and says only "the bytes and the graph are right".  No
+Mathlib-scale dump exists in the tree to read (task #10's gap, unchanged).  And
+`scripts/dump-check-fixtures.sh` is *not* in `scripts/gates.sh`: it needs the
+`proof/` Lean build and the arena tarball, which the gate deliberately does not
+require — it is the P1.6 gate's script, run by hand until the verdict
+comparison joins it.
+
+**Time.** ~25 min wall.  The single longest step was the Lean build of `lake
+exe con-ron-dump` (~8 min, after pointing the worktree's `proof/.lake/packages`
+at the main checkout's mathlib tree and copying its `vendor/con-leche/.lake`
+build, without which it is a mathlib clone away); `scripts/dump-fixtures.sh
+--no-check` took 45 s and the Rust sweep 0.2 s.  The Rust compiled
+warning-free on the first `cargo build`; one real bug showed up in testing — a
+missing `i += 1` in `unescape`'s literal-byte branch, an infinite loop that the
+string-codec round-trip test caught as a 4 GiB allocation — and nothing else.
+`scripts/gates.sh`: all 6 OK.
+
+### Task #16 — `ron::HashMap` proved (2026-09-12, Opus under Fable)
+
+P3.1's first half: `proof/ConRon/Refine/HashMap.lean` proves the abstract-map
+specification of task #7 on the generated model
+`ConRon.Generated.ron.hashmap.*`.  Generic in `K V`, with the generated
+class dictionaries `HashableInst`/`Eq2Inst` as ordinary parameters, **no
+`sorry`, no Rust change**, `scripts/gates.sh` all 6 OK, the file warning-free
+under `lake env lean`.  (This task merged `master` — the `ron::`/`kernel::`
+module nesting of commits 3051ebe/d22d956 — and retargeted every statement to
+`ron.hashmap.*`; the generated tree came from the merge unchanged and
+`extract.sh --check` passes.)
+
+**Size.**
+
+| | |
+|---|---|
+| `ConRon/Refine/HashMap.lean` | **1 428** lines (44 of them the header rationale) |
+| declarations | 79 (10 `@[local simp]`) |
+| Rust `src/ron/hashmap.rs`, extracted part (code lines, task #7) | 241 |
+| generated `ron.hashmap.*` in `Funs.lean` | ≈360 (plus 30 in `Types.lean`) |
+| `lake env lean` on the file (cold, oleans present) | **6 s** |
+| largest proofs | `insert_no_resize_spec` 135, `move_elements_spec` 116, `remove_refines` 114, `clear_slots_spec` 57, `move_elements_from_list_spec` 49, `try_resize_spec` 48 |
+
+So **≈5.9 proof lines per extracted Rust line** — well above task #5's 2.2 for
+`Level`/`Name`, and the reason is structural: this file has no con-leche
+counterpart to refine *against*, so it carries its own abstract theory (an
+association-list layer, a permutation layer, a `Vec`/`slotsFlat` layer) before
+the first law.  Lines 1–415 are that reusable infrastructure; the nine public
+laws plus growth are lines 415–1400.
+
+**Two departures from the tutorial** (`vendor/aeneas/tests/lean/Hashmap/
+Properties.lean`), both of which paid for themselves:
+
+1. **`toFun` is hash-free.**  The tutorial's `lookup` *is* the bucket lookup
+   (`slots[hash k % len].lookup k`), which forces every law to carry the hash
+   computation.  Ours is `toFun m k = lookupK (al_v m) k`, the lookup in the
+   flattened list of all buckets; `Inv.slot_inv` is the only place the hash
+   appears, and `toFun_eq_bucket` (12 lines) is the single bridge between the
+   two views.  Consequence: **not one hypothesis about `hash64` anywhere** —
+   it may fail and it may be constant.  `bucketAt` is never computed with;
+   the only property used is that it is a *function* (`Result.ok_injective`
+   on two calls at the same key), which is why §3.2's hash divergence is
+   verdict-neutral for the memo tables.  `Inv.slot_inv` is phrased in the
+   only direction needed — "if the computed bucket of `k` is `i`, and `k`
+   lives in bucket `j`, then `i.val = j`" — so no `Usize` is ever built from
+   a `Nat` index and **the file contains no arithmetic about `bucket_index`
+   at all** (no `UScalar.cast`, no `%`, no "power of two divides `2^bits`").
+2. **The bucket/rest decomposition is by permutation, not by position.**
+   `al_v_perm_rest : (s.map alv).flatten ~ alv s[i]! ++ restOf s i` and
+   `al_v_set_perm_rest` for the table with bucket `i` replaced, where
+   `restOf s i = ((s.map alv).set i []).flatten`.  Because keys are `Nodup`,
+   `lookupK` is permutation-invariant (`lookupK_perm`), so **one permutation
+   carries lookup, length and nodup simultaneously**.  `insert`/`remove` then
+   reduce to `alv a ↦ alv a ++ [(k,v)]` resp. `alv a ↦ eraseK (alv a) k` on
+   one bucket, against an untouched `restOf`.  The tutorial instead threads
+   four separate `∀ key v, … lookup … = some v → …` implications through
+   every lemma; the permutation formulation is what shrank
+   `move_elements_from_list` from the tutorial's 90 lines to 49 and
+   `move_elements` from its ~120 to 116 *including* the halving walk.
+
+**What is proved.**  `Inv` (capacity a power of two `≥ 32`; every key in the
+bucket its hash selects; keys globally `Nodup`; `num_entries = |al_v|`) and:
+`new_refines`, `with_capacity_refines`, `len_refines` (both as `|al_v m|` and
+as `(support m).card`, with `mem_support_iff : k ∈ support m ↔ (toFun m k).isSome`),
+`is_empty_refines`, `get_refines`, `contains_key_refines`, `insert_refines`
+(`toFun m' = Function.update (toFun m) k (some v) ∧ old = toFun m k`),
+`remove_refines` (the same with `none`), `clear_refines`; plus the private
+helpers `list_{get,insert,remove}_spec`, `allocate_slots_spec`,
+`pow2_at_least_spec`, `clear_slots_spec`, `insert_no_resize_spec`,
+`move_elements_from_list_spec`, `move_elements_spec`, `try_resize_spec`.
+Naming: the nine public entry points are `<fn>_refines` per
+`ConRon/Refine/README.md`; the private Rust helpers are `<fn>_spec`.
+The bridge `Rel m s absK absV := ∀ k, (toFun m k).map absV = s[absK k]?` has
+`Rel_empty` / `Rel_get` / `Rel_insert` / `Rel_remove` against Lean core's
+`Std.HashMap.getElem?_{empty,insert,erase}`, needing `Function.Injective absK`
+and `LawfulBEq K'` for the two updating ones and nothing for the others.
+`#guard_msgs in #print axioms insert_refines` / `get_refines` closes the file:
+`[propext, Classical.choice, Quot.sound]`, nothing else.
+
+**Hard spots, in order of pain.**
+
+1. **The generated `let (a, index_mut_back) ← Vec::index_mut …` blocks `simp`.**
+   After one `bind_eq_ok_iff` rewrite the hypothesis is `(let (a,b) := p; …) =
+   ok v`; `simp only [bind_eq_ok_iff]`, `dsimp only`, `split`,
+   `simp only [Function.uncurry]` and `beta_reduce` *all* fail on it — the
+   equation's LHS is the `let`, not the `bind`, and the pattern-`let` Aeneas
+   emits is not iota-reducible by any of them (it is reducible only
+   definitionally).  **The fix, and the pattern to reuse: apply the lemma as a
+   term, `replace h := bind_eq_ok_iff.mp h`** — the *unifier* whnf's through
+   the `let` where `simp` will not.  Same trick for `Result.ok_injective h`,
+   and a `have h2 : <explicitly written reduced form> := h` where several
+   pattern-`let`s stack (`move_elements`' `core.mem.replace`).  Note the
+   term-level form peels exactly **one** bind, so a run of `let x ← e` needs
+   one `obtain` per level, whereas `simp only [bind_eq_ok_iff]` peels all of
+   them up to the first pattern-`let`.  This cost about an hour and will
+   recur in every `&mut`-carrying function in the port; it belongs in the
+   planned `ConRon/Refine/Basic.lean`.
+2. **Extracting the result fields.**  `Result.ok_injective h : (old, X) =
+   (old', m')` with `X` a structure literal: `congrArg Prod.fst` leaves an
+   unreduced `(old, m').1`, so `rw` cannot use it.  Always give the projection
+   a type ascription — `have e1 : old = old0 := (congrArg Prod.fst e).symm`,
+   `have es : m'.slots = … := (congrArg (fun z => (Prod.snd z).slots) e).symm`
+   — which forces the defeq check and yields a usable equation.  Writing the
+   structure literal itself is best avoided: a multi-field
+   `{ num_entries := …, …, slots := … }` inside a `do` block inside a
+   hypothesis type is a **parse error** in this Lean (`unexpected identifier;
+   expected '}'` at the last field), while the same literal at top level
+   parses fine.
+3. **`subst` eats the wrong variable.**  `subst (h : old = old0)` eliminates
+   `old0` or `old` depending on which is the more recent fvar; twice it removed
+   the *statement's* variable and made the goal unmentionable.  Cheap to
+   recover from but worth knowing: prefer `rw [e1, e2]` on the goal.
+4. **The halving walks are genuinely easier than the linear ones.**  Task #7
+   worried that `allocate_slots`/`clear_slots`/`move_elements` splitting their
+   index range in half would complicate the proofs.  It does not: each is one
+   `Nat.strong_induction_on` on `hi - lo`, and the frame condition
+   ("`slots'` agrees with `slots` outside `[lo,hi)`") composes trivially
+   across the two halves, where the tutorial's `i → i+1` loop needs a
+   `∀ j < i, slots[j] = Nil` accumulator threaded through.  `slotsFlat s lo n
+   = (((s.drop lo).take n).map alv).flatten` with `List.take_add` gives the
+   range split in one `rw`.
+5. **`UScalar` forward lemmas.**  Aeneas's `*_equiv` lemmas are stated over
+   `(x + y).match`, so `rw [h]` fails when `h : x * y = ok z` (the lemma says
+   `UScalar.mul x y`); `rw [show UScalar.mul x y = ok z from h]` fixes it.
+   `UScalar.div` has no `_equiv` at all — only `div_bv_spec`, which is the
+   *existence* direction — so `uscalar_div_eq` is proved by hand via the
+   `y.bv = 0` case split.  Four such lemmas (`add`/`sub`/`mul`/`div`) are all
+   the scalar reasoning the module needs, and `max_load` was **dropped from
+   `Inv`** once it became clear nothing depends on it (the resize threshold
+   only decides *whether* to grow, never what the map means), which removed
+   `max_load_for` from the proof burden entirely.
+
+**The `Eq2` hypothesis, and its generalisation.**  `Eq2Spec Eq2Inst := ∀ a b,
+Eq2Inst.eq2 a b = ok (decide (a = b))` — `eq2` is decidable equality on `K`.
+That is what the `u64`-keyed memo tables of `Cached/StateC.lean` need.  The
+`ExprC`-keyed ones will want the abstract version, "`eq2 a b = ok (decide
+(absK a = absK b))` for an abstraction `absK`": every proof below goes through
+with `=` replaced by the kernel of `absK` at the cost of carrying a setoid
+instead of `[DecidableEq K]`, and the header records this.  Doing it now would
+have bought nothing testable, so it is deferred to the first client.
+
+**How much of the tutorial transferred.**  The *strategy* transferred
+completely — `AList.v`/`al_v`, `slot_t_inv`, "the table is one association
+list", the order of the lemmas — and reading it first was worth several hours.
+Not one *proof script* transferred: the tutorial is written in Aeneas's
+`⦃ ⦄`/`step`/`grind` idiom and ours reasons forward from `f x = ok y`, exactly
+the split task #5 recorded ("the `⦃ ⦄`/`step` tier and the refinement tier are
+two different proof styles").  So: **the tutorial is a specification document
+for us, not a proof library.**  Its `Properties.lean` is 1 086 lines for a
+`Usize`-keyed map with a `&mut`-walking `remove`; ours is 1 428 for a generic
+key with two trait dictionaries, an extra `with_capacity`/`is_empty`, a
+by-value `remove`, the `Std.HashMap` bridge and an axiom gate — i.e. the same
+order, which is the useful calibration for the rest of P3.
+
+**Left for next time.**  `ConRon/Refine/Basic.lean` now has a clear charter:
+`bind_eq_ok_iff` plus the four `uscalar_*_eq` lemmas plus the
+`bind_eq_ok_iff.mp`-as-a-term idiom of hard spot 1 are needed by every module
+and are currently duplicated between `Refine/HashMap.lean` and (in part)
+`Spike/LevelName/Refine.lean`.  `Rel_len` (task #7's list) is *not* provable
+from `Rel` alone — `Rel` constrains `s` only on the image of `absK`, so
+`s.size` is not determined; a client that needs it must relate the key sets,
+and that is the right place to state it.  `is_empty`, `contains_key` and
+`support` are proved but unused.  `saturated` *is* covered — `insert`'s
+"overloaded and saturated" arm and `try_resize`'s "cannot double" arm both
+preserve `Inv` and `toFun` — but it remains unexercised at runtime (task #7's
+open item (b)), so nothing checks that the two agree on a real table.

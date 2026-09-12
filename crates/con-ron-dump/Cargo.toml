@@ -1,0 +1,15 @@
+[package]
+name = "con-ron-dump"
+version = "0.1.0"
+edition = "2021"
+description = "Reader and writer for the `con-ron-decls/1` dump format; UNVERIFIED tooling outside the Aeneas subset (DESIGN.md §3.6, tasks #10 and #19)"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "con-ron-dump-check"
+path = "src/bin/con-ron-dump-check.rs"
+
+[dependencies]
+con-ron-core = { path = "../con-ron-core" }

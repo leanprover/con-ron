@@ -1,6 +1,13 @@
 [workspace]
 resolver = "2"
-members = ["crates/con-ron-core"]
+# `con-ron-core` is the verified core (DESIGN.md §3.4: the Aeneas subset, the
+# style lint, the provenance gate, the extraction).  `con-ron-dump` is
+# *unverified* tooling -- the `con-ron-decls/1` reader of §3.6 (task #19) --
+# which Charon never sees and which `scripts/extract.sh`,
+# `scripts/lint-rust-style.sh` and `scripts/provenance.py` are all scoped away
+# from; it is in the workspace so that `cargo build`/`cargo test`, i.e.
+# `scripts/gates.sh`, cover it.
+members = ["crates/con-ron-core", "crates/con-ron-dump"]
 
 # The Aeneas model of the code is the checked-arithmetic one (an overflow is
 # a `fail`), so the shipped binary must check too, or the model would not
