@@ -677,3 +677,220 @@ import-line rewrite from `spikes/level-name/lean/` into
 script will own it in P2).  There is no freshness gate on the committed
 generated Lean yet, and no `#print axioms` gate — but the census above is
 clean today and is the baseline for that gate.
+
+### Task #7 — `ron::HashMap` (2026-09-12, Opus under Fable)
+
+P1.1 of §5: `crates/con-ron-core/src/hashmap.rs`, the chained-bucket hash map
+that replaces `Std.HashMap` in the port (§3.3).  Charon and Aeneas both
+succeeded on the **first** run; the only iteration was a Rust-side one (stack
+depth, below), not a translation failure.
+
+**Design.**  The Aeneas tutorial's *verified* hash map
+(`vendor/aeneas/tests/src/hashmap.rs`, proofs in
+`vendor/aeneas/tests/lean/Hashmap/Properties.lean`) is the template, kept
+close enough that its `slot_t_inv` / `al_v` / `lookup` development transfers:
+buckets are an association-list enum `AList<K, V> = Cons(K, V, Box<AList>) |
+Nil` over a `Vec<AList<K, V>>`, beside `num_entries`, a `max_load` threshold
+and a `saturated` flag.  Bucket counts are powers of two starting at 32,
+doubling when `num_entries > max_load` with `max_load = capacity / 4 * 3`
+(dividing first is exact and cannot overflow, so the load factor costs no
+proof obligation).  `Vec<Vec<(K, V)>>` was rejected: Aeneas models `Vec::push`
+and indexing but not `Vec::remove`/`pop`, so removal would need a new external
+hole; on the `AList` it is a structural recursion.
+
+Keys go through two traits *of our own*, `Hashable { fn hash64(&self) -> u64 }`
+and `Eq2 { fn eq2(&self, other: &Self) -> bool }`.
+
+**`Eq2` vs `PartialEq`, measured.**  A throwaway spike (two identical list
+searches, one bounded by a user trait, one by `PartialEq`; `_tmp/eqspike/`)
+put the two side by side in generated Lean:
+
+| | user trait | `PartialEq` |
+|---|---|---|
+| trait structure | `structure Eq2 (Self : Type)`, one field `eq2` | `core.cmp.PartialEq (Self Rhs : Type)`, fields `eq` **and** `ne` (`Aeneas/Std/Core/Cmp.lean:12`) |
+| dictionary in every signature | `(Eq2Inst : hashmap.Eq2 K)` | `(corecmpPartialEqInst : core.cmp.PartialEq K K)` |
+| extra items per key type | none | a `core::marker::StructuralPartialEq` instance from `#[derive]` |
+| the `eq` we get | ours, so the §3.2 pointer/hash fast paths are *in* it | `derive`d structural equality, which for the real key types descends into `Rc` and `Vec` through std impls we would then have to model (`alloc.vec.partial_eq.PartialEqVec.eq`) |
+
+`Eq2` wins on all four counts, and the last one is decisive: `ExprC` keys are
+`Rc` trees whose equality must be the fast-path one.  **Decision: `Eq2`.**
+(`derive(PartialEq)` on a plain struct does flatten nicely into a single
+`if`-chain — that was worth checking — but it is the wrong `eq` for us.)
+
+**Numbers.**
+
+| | |
+|---|---|
+| Rust `src/hashmap.rs`, extracted part (raw / code) | 405 / 241 |
+| Rust `#[cfg(test)]` part (9 tests, raw / code) | 311 / 265 |
+| generated `lean/Types.lean` | 49 |
+| generated `lean/Funs.lean` | **408** (1.7× the extracted Rust) |
+| `TypesExternal_Template.lean` / `FunsExternal_Template.lean` | **not emitted — no external holes** |
+| `charon cargo --preset=aeneas` wall | 0.14 s |
+| `aeneas -backend lean -split-files -loops-to-rec` wall | 0.54 s (0.38 s self-reported) |
+| items | 28 transparent fns, 14 opaque, 5 globals, 6 trait decls (3 translated), 10 trait impls (3 translated) |
+| `partial_fixpoint` | **8** (`pow2_at_least`, `list_get`, `list_insert`, `list_remove`, `allocate_slots`, `clear_slots`, `move_elements`, `move_elements_from_list`) |
+| `mutual` blocks | **0** |
+
+The 14 opaque functions are all Aeneas builtins (`Vec::push`/`with_capacity`/
+`len`/`index`/`index_mut`, `core::mem::replace`, the scalar casts): this module
+adds **no** external model of its own, unlike `Rc` in task #3.
+
+`cargo build`/`cargo test` warning-free, 9/9 green;
+`scripts/lint-rust-style.sh crates/con-ron-core/src` clean.  The generated
+Lean was *not* elaborated (that is P2's business).
+
+**Constructs that do not survive transliteration, and their replacements.**
+The tutorial's file is written with `while`/`loop` throughout and extracted
+with `-loops-to-rec`; §3.4 wants the recursion written out, which is where
+most of these come from.
+
+1. **Every loop → explicit recursion.**  `allocate_slots`, `clear`,
+   `insert_in_list`, `move_elements`, `move_elements_from_list`,
+   `contains_key_in_list`, `get_in_list`, `get_mut_in_list` and
+   `remove_from_list` are the tutorial's loops; ours are named recursive
+   functions, so the generated Lean has *named* `partial_fixpoint` definitions
+   instead of Aeneas's anonymous `loop` functions — which is also why there is
+   one `partial_fixpoint` per source function and no `mutual` block.
+2. **The three walks over the slot vector split their index range in half**
+   (`allocate_slots(n) = allocate_slots(n/2); allocate_slots(n - n/2)`;
+   `clear_slots(lo, hi)` and `move_elements(lo, hi)` recurse on `[lo, mid)`
+   and `[mid, hi)`).  **This was the one real iteration in the task**: the
+   obvious `i → i+1` recursion is linear in the bucket count and the
+   differential test blew the 2 MiB test-thread stack at ~16k buckets — a
+   32M-entry `instC` wants 2^26 buckets, so a linear walk is not merely
+   inelegant, it is unshippable in an unoptimised build.  Halving makes them
+   `log2 n` deep (≤ 64) at no cost in the model; the refinement lemma becomes
+   an induction on `hi - lo` instead of on `len - i`.  The per-bucket
+   recursions stay linear in the bucket length, which is O(1) under any hash
+   that spreads (`differential_constant_hash` is the degenerate case and is
+   deliberately kept small).
+3. **`remove_from_list` is by value**, `AList<K,V> → (AList<K,V>, Option<V>)`,
+   not the tutorial's `&mut` walk: that one needs `std::mem::replace` plus an
+   `unreachable!()` in an arm the borrow checker cannot see is impossible, and
+   §3.4 forbids `unreachable!`.  By value it is a pure list function — the
+   nicest `partial_fixpoint` in the file — at the cost of rebuilding the
+   `Box` spine up to the removed entry.
+4. **`next_power_of_two` → `pow2_at_least(n, cap, fuel)`**, a fuel-carrying
+   doubling recursion (fuel 64) that saturates rather than overflowing.
+   Intrinsics like `usize::next_power_of_two` are not modeled.
+5. **The bucket index is computed in `u64`**: `((h % (n as u64)) as usize)`
+   rather than `(h as usize) % n`.  Both casts are then exact and the model
+   reads `h % n` over the naturals; the other order would need "`n` is a power
+   of two dividing `2^usize::BITS`" to say the same thing.  Cost: one extra
+   `UScalar.cast` in the Lean, which is total.
+6. **`&&` avoided**, per task #3: `if self.num_entries > self.max_load { if
+   !self.saturated { … } }` instead of the tutorial's `&&`.
+7. **Hold the slot borrow across the call.**  `remove`'s first draft wrote
+   `mem::replace(&mut self.slots[i], Nil)` and later `self.slots[i] = rest`,
+   which generates *two* `Vec.index_mut` round trips; binding
+   `let slot = &mut self.slots[i]` once and using `*slot = rest` generates
+   one.  Worth doing everywhere a slot is read and written in one function.
+8. `#[derive(Clone, Copy)]` on key types is confined to `#[cfg(test)]`; the
+   extracted part derives nothing at all.
+
+**No iteration API, verified.**  `grep -n "fold\|toList\|keys\|forM"
+vendor/con-leche/ConLeche/Cached/*.lean vendor/con-leche/ConLeche/Kernel/FEnv.lean`
+(`FEnv.lean` does not exist — `FEnv` lives in `Cached/StateC.lean`) returns
+only `foldlM`s over `List DeclC` / `Array PendingCheck` / `List Level`,
+`Array.toList` on the pending array, and prose containing "unfold"/"fold" —
+**not one iteration of a `Std.HashMap`**.  A census of every memo field
+(`ienv`, `constTyAt`, `constValAt`, `ruleRhsAt`, `whnfCoreC`, `whnfC`,
+`inferC`, `inferIOC`, `defeqC`, `annotC`, `lsimpC`, `lnzC`, `eqvC`, `instC`)
+finds exactly `getElem?`, `insert`, one `size` (`Cached/StateC.lean:197`, the
+32M `instCCapC` cap) and resets to `{}`.  So `get` + `insert` + `len` +
+`clear` is the whole surface con-leche needs; `remove`, `contains_key`,
+`is_empty` and `with_capacity` are there for the frontend and for a complete,
+testable API.  **If a later module needs to iterate, that is a design change
+to bring back here, not an API to bolt on.**
+
+**Tests** (`#[cfg(test)]`, exempt from §3.4).  A `Vec<(u64,u64)>`
+association-list oracle and a xorshift64 PRNG drive four randomized
+differential runs — 20 000 operations each over dense keys, over sparse keys
+(forcing ~9 growths), and with periodic `clear`s, plus 8 000 over a key whose
+hash has only four values and 4 000 over a key whose `hash64` is **constant
+zero** (the whole map in one bucket, rehashed into one bucket on every
+growth).  Each step compares `insert`/`remove`/`get`/`contains_key`/`len`/
+`is_empty` against the oracle and every run ends with a full key-space sweep.
+Plus `basic_ops` (replace semantics, reuse after `clear`),
+`with_capacity_rounds_up_to_a_power_of_two`,
+`growth_rehashes_and_keeps_every_binding` and
+`remove_then_reinsert_across_a_growth`.
+
+**Proposed proof spec** (P2; the abstract-map relation to `Std.HashMap`).
+The model is the tutorial's, generalised to a generic key:
+
+```lean
+def AList.v      : hashmap.AList K V → List (K × V)
+def HashMap.v    (m : hashmap.HashMap K V) : List (List (K × V)) := m.slots.val.map AList.v
+def HashMap.al_v (m) : List (K × V) := m.v.flatten
+def HashMap.toFun (m) (k : K) : Option V :=              -- THE abstract map
+  ((m.slots.val[hash_mod_key k m.slots.val.length]!).v).lookupBy E.eq k
+```
+
+with an invariant `inv m` transliterated from `Hashmap/Properties.lean`:
+`0 < m.slots.val.length`; every key sits in the bucket its hash selects
+(`slot_t_inv`); keys pairwise distinct up to `eq2` (`distinct_keys`);
+`m.num_entries.val = m.al_v.length`; and `inv_load` (`max_load = capacity / 4
+* 3`, `capacity` a power of two `≥ 32`) — the load part is needed only to
+discharge the arithmetic and to preserve `inv`, it never enters the laws.
+
+Side conditions on the two dictionaries, as hypotheses (`Eq2Spec`,
+`HashableSpec`): `eq2` never fails and decides a given equivalence
+(`eq2 k k' = ok true ↔ absK k = absK k'`, plus reflexivity, symmetry,
+transitivity), and `hash64` never fails.  **Nothing else is assumed about
+`hash64`** — the laws hold for *any* hash function, the constant one included,
+because `inv` records which bucket a key is in.  That is what makes §3.2's
+"our `mixHash`/string hash differs from Lean's" verdict-neutral for the memo
+tables.
+
+The laws, in the exact-result-on-success shape of task #5 (`ok` on the Rust
+side implies the equation; a `fail` claims nothing — the accept-direction of
+§1):
+
+```lean
+theorem new_spec           : HashMap.new K V = ok m → inv m ∧ m.toFun = fun _ => none ∧ m.al_v = []
+theorem with_capacity_spec : HashMap.with_capacity K V c = ok m → inv m ∧ m.toFun = fun _ => none
+theorem len_spec           : inv m → HashMap.len m = ok n → n.val = m.al_v.length
+theorem is_empty_spec      : inv m → HashMap.is_empty m = ok b → (b ↔ m.toFun = fun _ => none)
+theorem get_spec           : inv m → HashMap.get … m k = ok r → r = m.toFun k
+theorem contains_key_spec  : inv m → HashMap.contains_key … m k = ok b → b = (m.toFun k).isSome
+theorem insert_spec        : inv m → HashMap.insert … m k v = ok (old, m') →
+                               inv m' ∧ old = m.toFun k ∧
+                               (∀ k', m'.toFun k' = if E.eq k k' then some v else m.toFun k') ∧
+                               m'.al_v.length = m.al_v.length + (if old.isSome then 0 else 1)
+theorem remove_spec        : inv m → HashMap.remove … m k = ok (old, m') →
+                               inv m' ∧ old = m.toFun k ∧
+                               (∀ k', m'.toFun k' = if E.eq k k' then none else m.toFun k') ∧
+                               m'.al_v.length = m.al_v.length - (if old.isSome then 1 else 0)
+theorem clear_spec         : inv m → HashMap.clear m = ok m' → inv m' ∧ m'.toFun = fun _ => none
+```
+
+and the bridge to con-leche, which is all the rest of the port ever uses:
+
+```lean
+def Rel (m : hashmap.HashMap K V) (M : Std.HashMap K' V') : Prop :=
+  ∀ k, (m.toFun k).map absV = M[absK k]?
+
+theorem Rel_new    : HashMap.new K V = ok m → Rel m {}
+theorem Rel_get    : Rel m M → HashMap.get … m k = ok r → r.map absV = M[absK k]?
+theorem Rel_insert : Rel m M → HashMap.insert … m k v = ok (old, m') → Rel m' (M.insert (absK k) (absV v))
+theorem Rel_remove : Rel m M → HashMap.remove … m k = ok (old, m') → Rel m' (M.erase (absK k))
+theorem Rel_clear  : Rel m M → HashMap.clear m = ok m' → Rel m' {}
+theorem Rel_len    : Rel m M → inv m → HashMap.len m = ok n → n.val = M.size
+```
+
+`Rel_len` additionally needs `absK` injective on the keys in play (§3.5's
+`NameWF`/`NodeWF` hypotheses already give that); every other law is free of
+it.  The first block's proofs are the tutorial's, edited for the generic key
+and the halved slot walks; the second block is then bookkeeping against
+`Std.HashMap.getElem?_insert` / `getElem?_erase` / `size_insert`.
+
+**Open items.**  (a) The workspace has no `[profile.release] overflow-checks =
+true`; the Aeneas model treats every `+`/`-`/`*` as checked, so the release
+binary must too, or the model does not describe it.  One line in the workspace
+`Cargo.toml`, to land with the first release build.  (b) `saturated` is never
+exercised — a table that big cannot be allocated on this machine — so its
+branch is covered only by the `pow2_at_least` unit assertions.  (c) The four
+per-bucket recursions are still linear in the bucket length; a pathological
+bucket would show up as a stack overflow, not a wrong answer.
