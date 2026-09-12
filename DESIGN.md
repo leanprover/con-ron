@@ -6895,3 +6895,240 @@ family in one line:
   still what blocks the `Init`/`Mathlib` instruction comparison.
 * **Mathlib scale** (P1.8 proper), which is now unblocked on the `beq` side.
 * A `--trusted` sweep.
+
+### Task #32 — Why `Init` blew up: memo policy and environment copies (2026-09-12, Opus under Fable)
+
+The first scale run (P1.8) aborted: `con-ron-check --pins … init.decls`
+died with `memory allocation of 72 bytes failed` at the 22 GB address-space
+cap after 159 s and 953 G instructions, max RSS 21.0 GB, where con-leche
+accepts the same export in 586 G / 59 s / 481 MB.  Four causes, each found
+by measurement, each fixed; `Init` is now **accepted** at 933 G / 108 s /
+1.06 GB (1.59× con-leche's instructions, 2.2× its RSS), and `core`
+(Init+Std+Lean, 165 449 records) at 2 202 G / 488 s / 2.71 GB (1.87× /
+2.18×).
+
+#### 0. The instrument: `--stats-every N`
+
+`con-ron-check --stats` printed the 14 `CState` map sizes once, after phase
+A.  It now takes `--stats-every N` as well, which spells out
+`check_decls`' two folds in the driver — `installed::annot_decl_step` per
+record in phase A, `installed::check_pending` from a fresh `CState` per
+record in phase B — and prints, every `N` records, the 14 map sizes, the
+`FEnv` sizes (`idx`, `consts`, `visible_below`), the pending count and the
+process's RSS (`/proc/self/statm`).  It is the same body as
+`installed::check_decls` (`Installed.lean:407-411`) step for step, so the
+flag changes no verdict; the *iterative* spelling is also what first showed
+where the memory went (§1).
+
+**The memo policy was already exact, and that is the first finding.**  The
+periodic report over all 58 002 records shows only the tables
+`CState.flushed` (`StateC.lean:394-398`) *keeps* growing — `ienv` to
+57 384, `lsimpC`/`eqvC` to 89/82 — while the ten environment-dependent ones
+never hold more than a few thousand entries and are empty at almost every
+sample.  Phase A runs one `CState` across all records with `flushC` exactly
+where `Installed.lean:126,154,240`, `ParsedC.lean:261`,
+`CheckerC.lean:108-227` put it; phase B takes a fresh `{}` per record.  So
+no map grows where con-leche's does not, and the 40× memory was **not** a
+memo-policy bug.
+
+#### 1. Phase B kept every record's `CState` alive (21.0 GB → 1.2 GB)
+
+`checkPendingList` (`Installed.lean:398-403`) is
+
+```lean
+| pc :: rest => match checkPending mode fe pc {} with
+  | .ok _ => checkPendingList fe rest
+  | .error e => .error (e, pc.pos)
+```
+
+— the `{}` is consumed by the run and the run's state is **dropped** before
+the walk continues.  The port's `check_pending_list_from` had
+
+```rust
+let mut st: CState = state_c::cstate_new();
+match check_pending(mode, &mut st, fe, &pend[i]) {
+    Ok(fe2) => check_pending_list_from(mode, fe2, pend, i + 1),  // st still owned here
+```
+
+and in Rust the frame owns `st` *across* that recursive call: all 57 362
+per-record memo states — their `Expr` keys and the freshly instantiated
+terms they memoize — stayed alive until the whole of phase B was over.
+That is the 21 GB, and it is why the driver's iterative fold (which drops
+its state each iteration) finished the very same computation in 1.21 GB.
+
+Fix: `installed::check_pending_fresh(mode, fe, pc)` owns the fresh
+`CState`, so it is dropped when that function returns — the Lean's lifetime
+exactly — and the walk calls it.  No policy changes: the state is fresh per
+record either way.  A one-function change, and `Init` completes.
+
+Instructions were unaffected (1 091 G both ways): the cost was ownership,
+not work.
+
+#### 2. `flushC` walked the bucket array (1 091 G → 954 G)
+
+`CState.flushed` is ten `:= {}`.  The port wrote ten `HashMap::clear()`
+calls, documented as "same state transformer, no reallocation" — but
+`clear` is `O(capacity)`: it walks every bucket.  Phase A's single `CState`
+keeps whatever capacity the hardest declaration so far forced
+(`whnfCoreC`), and **every later flush pays it again**; with a flush per
+declaration and per environment transition inside one,
+`HashMap<Expr, Expr>::clear_slots` was the single hottest function in the
+`Init` profile (6.6% of cycles), with two more `clear_slots`
+instantiations behind it (8.1% together).
+
+Fix: `state_c::flushed` assigns `HashMap::new()` to each of the ten fields,
+which is the cited `{}` *literally* — a fresh empty table, the old one
+dropped — and allocates nothing to walk.  Same for the `instC` cap
+(`StateC.lean:186-199`, `inst_list_m_reset_at`), where the Lean is
+`if mp.size < instCCapC then mp else {}`.  −12.5% of `Init`'s
+instructions.  `ron::hashmap`'s `clear` keeps its implementation and its
+proof (`clear_refines`); it simply has no caller in the core any more.
+
+#### 3. The copy helpers reallocated while they grew (954 G → 933 G, and −165 MB)
+
+Every `*_copy`/`code_points` entry point started its accumulator at
+`Vec::new()` and pushed, so a copy of *n* elements cost `log2 n`
+reallocations: `realloc` was 2.5% and `memmove` 2.2% of `Init`'s
+instructions.  Nine entry points now start at `Vec::with_capacity(len)` —
+`core_types::code_points`/`str_copy`, `env::levels_copy`/`exprs_copy`/
+`rec_rules_copy`/`constant_infos_copy`, `expr_ops::take_exprs`/`cons_expr`/
+`levels_copy` — which is what `ron::hashmap`'s own table allocation already
+did and is the same resulting `Vec`.  −3.2% on the 20 000-record prefix.
+
+The driver also held the 165 MB dump text alive through the fold, for
+nothing: the records own every `Name`, `Level` and `Expr` the reader built.
+`drop(text)` after `parse_decls` took `Init`'s peak from 1.24 GB to
+1.06 GB.
+
+Measured and **rejected**: `MIN_CAPACITY` 32 → 8 in `ron::hashmap` (Lean's
+`Std.HashMap.empty` is 8 buckets) costs 0.5% *more* — fewer buckets, more
+collisions; and glibc malloc tuning (`MALLOC_TRIM_THRESHOLD_`,
+`MALLOC_TOP_PAD_`, `MALLOC_ARENA_MAX=1`) buys 6% of wall time and 0.2% of
+instructions, i.e. it moves cache behaviour, not work.
+
+#### 4. The cached tier ran the *pure* tier's scope guard (core: 3 014 G → 2 202 G)
+
+`Init`'s profile does not show it, but `core`'s does: `core_k::fab_scope_ok`
+13.5% and `expr_ops::fvar_leaves_go` 12.7% — 26% of the run in the
+stuck-major rescue's scope guard.  The three rescue branches of
+`core_c::major_to_ctor_*_i` called `core_k::fab_scope_ok`, which is the port
+of the **pure** guard (`Kernel/Core.lean:1274-1456`,
+`fab.wscopedB depth && fab.looseBVarsBounded 0 &&
+fab.fvarLeaves.all (major.fvarLeaves.contains ·)`).  The cached twin
+`majorToCtorI` (`CoreC.lean:543-670`) runs
+
+```lean
+ExprC.wscopedB depth fab && ExprC.looseBVarsBounded 0 fab
+  && ExprC.leafGuard fab major
+```
+
+where every member is `ExprOpsC`'s: `wscopedB` is one **memoized** DAG walk
+(`ExprOpsC.lean:652-679`) and `leafGuard` (`:747-748`) short-circuits on
+`!fab.hasFvar`, collects the base leaves through a `seen` map and memoizes
+the subset test itself (`:717-742`).  A memo the cited code has and the port
+did not is exactly what DESIGN.md §3.1 forbids.
+
+The port already *had* both twins in `cached::expr_ops_c` (task #26 ported
+them) — they had no caller.  `core_c::fab_scope_ok_i` is now the cited
+conjunction, and the three branches call it; `core_k::fab_scope_ok` stays as
+the pure tier's port.  `core` drops 27% of its instructions and 0.7 GB.
+`Init` is unchanged to 0.02% — the rescue barely fires there, which is why
+the first corpus run did not show the mistake.
+
+#### The numbers
+
+`perf stat -e instructions:u`, `/usr/bin/time -v`, `ulimit -v 22000000`,
+release build with `overflow-checks`, artefacts in `_tmp/corpus/cr-{init,core}-j1-t32.*`
+and `_tmp/t32/`.
+
+| `init` (58 002 records) | verdict | instructions:u | wall | peak RSS |
+|---|---|---|---|---|
+| before (task #29's binary) | **abort** at the 22 GB cap | 953 G | 159 s | 21.0 GB |
+| §1 phase-B state dropped | accepted | 1 091 G | 119 s | 1.23 GB |
+| §2 `flushC` = fresh tables | accepted | 954 G | 108 s | 1.24 GB |
+| §3 `with_capacity`, text dropped | accepted | 933 G | 108 s | 1.06 GB |
+| §4 cached scope guard | accepted | **933 G** | **110 s** | **1.06 GB** |
+| con-leche `--jobs=1` | accepted | 586 G | 59 s | 0.48 GB |
+
+| `core` (165 449 records) | verdict | instructions:u | wall | peak RSS |
+|---|---|---|---|---|
+| after §1-§3 | accepted | 3 014 G | 520 s | 3.40 GB |
+| after §4 | accepted | **2 202 G** | **488 s** | **2.71 GB** |
+| con-leche `--jobs=1` | accepted | 1 180 G | 150 s | 1.24 GB |
+
+Both targets are met: instructions within 2× of con-leche (1.59× on `init`,
+1.87× on `core`), RSS within 4× (2.2× on both).  Mathlib was not run.
+
+#### What the profile still says, in order
+
+`perf record -e instructions:u` on `core` after the four fixes
+(`_tmp/t32/core-fix4.idata`):
+
+* **glibc malloc/free, ~33%** (`__libc_malloc2` 13.7%, `_int_free_chunk`
+  10.4%, `_int_malloc` 3.2%, `malloc_consolidate` 2.4%, …).  Lean allocates
+  small objects from its own free lists; we go to `malloc` for every `Expr`
+  node, every `AList` cons and every memo table.  The port cannot change
+  the *count* much without changing con-leche's policy, so the lever is the
+  allocator — a `#[global_allocator]` in the unverified binary crate, which
+  would need a vendored allocator (the workspace has zero dependencies
+  today).
+* **`expr::beq_go` 14.2%** — structural equality on memo keys.  This is
+  task #30's `beq` pair memo / hash-consing lane; it is the biggest single
+  function left.
+* **`HashMap::allocate_slots` 6.3%** — the per-call memo tables
+  (`instantiate1`, `instantiateList`, `abstract1`, … each take a fresh `{}`,
+  as con-leche does).  Ours costs one 1 280-byte allocation plus a 63-call
+  halving recursion pushing 32 `Nil`s; Lean's `{}` is one 8-slot array.  A
+  leaf `while` loop (§3.4 permits one) or a lazily allocated table would
+  take most of it, at the price of re-proving `allocate_slots_spec` (26
+  lines) or relaxing `Inv.min_cap` (a redesign of the proved map).
+* **The two `fenv::dup`s, ~10% and growing with `|env|`.**
+  `native_install`'s module note names them: `check_native_pass_former` and
+  `check_native_rec_rules` each need a *second* view of the index, and the
+  port's linear `FEnv` gives it by rebuilding the whole index —
+  `O(|env|)` twice per inductive block.  At 176 130 constants that is
+  `mk_fenv_go` 0.9% + the index map's `move_elements_from_list` 2.8% +
+  `insert_no_resize` 1.5% + `insert` 0.8% + `constant_info_dup` 1.2% +
+  `constant_info_name` 0.9% + `prop_when::append_from` 1.6%, and it is why
+  `core`'s ratio to con-leche (1.87×) is worse than `init`'s (1.59×):
+  con-leche needs 7.1 M instructions per declaration on `core` against
+  10.1 M on `init`, we need 13.3 M against 16.1 M.  The fix task #14
+  foresaw is `idx: Rc<HashMap<…>>` with `push` moving to an install-phase
+  type that owns the map; it does not touch the model (`abs` reads the index
+  through `find` either way) but it does change `FEnv`'s API, so it is a
+  design step, not a patch.
+* `fenv::push`'s `consts.insert(0, ci)` is `O(|env|)` too, but
+  `__memmove_avx512` is 8.3% *including* every `Vec` copy in the run, so the
+  newest-first list is not worth a representation change yet.
+* **Memory**: the driver materialises all 165 449 records before checking,
+  so `core`'s 2.71 GB is mostly the parsed `Expr` DAG (6.1 M nodes for
+  `init` alone).  con-leche's frontend streams.  A streaming reader is a
+  driver change, invisible to the core.
+
+#### Tests
+
+No new unit tests: every change is either a lifetime (§1), a spelling of
+`{}` (§2), a capacity hint (§3) or a rewiring to functions task #26 already
+tested (§4).  The evidence is the corpus and the existing 170:
+
+| gate | result |
+|---|---|
+| `cargo test` | 170/170 (153 unit + 4 integration + 13 in `con-ron-dump`), warning-free at `-D warnings` |
+| `scripts/lint-rust-style.sh` | clean |
+| `scripts/provenance.py check` | green — 1 548 items, 1 651 citations at pin 3e004805 (one new item, `core_c::fab_scope_ok_i`, with three citations) |
+| `scripts/extract.sh --check` | fresh; externals still exactly **1 type, 4 `Rc` fns** |
+| `cd proof && lake build` | 2 115 jobs, zero errors — no proof needed a change |
+| `scripts/diff-fixtures.sh --timeout=60` | 307 agree, **0 differ**, 8 do not finish, 33 skipped |
+| `init`, `core` | accepted, at the numbers above |
+
+#### Left for next time
+
+* **The `Rc<HashMap>` index** (the ~10% above, growing with `|env|`): the
+  one remaining *superlinear* item, and the reason `core` is relatively
+  worse than `init`.
+* **`beq_go`** (14%) — task #30.
+* **The allocator** (~33%): a vendored `#[global_allocator]` for the
+  unverified binary, or a lazily allocated `ron::HashMap` table.
+* Mathlib (691 123 declarations, con-leche 12 817 G / 1 228 s / 8.6 GB):
+  at `core`'s ratio that is ~24 T instructions and ~19 GB, i.e. the address
+  cap is the binding constraint — run it only after the index change.

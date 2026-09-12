@@ -478,7 +478,7 @@ pub fn inst_list_m(s: &mut CState, e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
 pub fn inst_list_m_reset_at(s: &mut CState, cap: usize) {
     if s.inst_c.len() < cap {
     } else {
-        s.inst_c.clear();
+        s.inst_c = HashMap::new();
     }
 }
 
@@ -958,21 +958,31 @@ pub fn rule_rhs_at_m(
 /// survive.
 ///
 /// Deviation: the cited function is `CState → CState`; here it mutates the
-/// state in place, because `CState` is the `&mut` state parameter of §3.4
-/// and `clear` keeps the bucket allocation (`hashmap.rs`'s `clear` is
-/// documented as exactly this `{ s with … := {} }`).  Same state
-/// transformer, no reallocation.
+/// state in place, because `CState` is the `&mut` state parameter of §3.4.
+/// Each field gets a **fresh empty table**, which is the cited `:= {}`
+/// literally: `HashMap::new()` is `Std.HashMap.empty`'s counterpart, and the
+/// old table is dropped.
+///
+/// Task #32 replaced ten `clear()` calls by these ten assignments.  `clear`
+/// empties the buckets in place and *keeps* the allocation, so a flush cost
+/// `O(capacity)` — and the capacity a table reaches inside one hard
+/// declaration is paid again by every later flush of phase A's single
+/// `CState`.  On `Init` that bucket walk was the single hottest function in
+/// the profile (`HashMap<Expr, Expr>::clear_slots`, 6.6% of cycles).  The
+/// cited `{}` allocates nothing to walk, so the assignment is both faster
+/// and the more faithful reading; no memo policy changes — the tables are
+/// empty afterwards either way.
 pub fn flushed(s: &mut CState) {
-    s.const_ty_at.clear();
-    s.const_val_at.clear();
-    s.rule_rhs_at.clear();
-    s.whnf_core_c.clear();
-    s.whnf_c.clear();
-    s.infer_c.clear();
-    s.infer_io_c.clear();
-    s.defeq_c.clear();
-    s.annot_c.clear();
-    s.inst_c.clear();
+    s.const_ty_at = HashMap::new();
+    s.const_val_at = HashMap::new();
+    s.rule_rhs_at = HashMap::new();
+    s.whnf_core_c = HashMap::new();
+    s.whnf_c = HashMap::new();
+    s.infer_c = HashMap::new();
+    s.infer_io_c = HashMap::new();
+    s.defeq_c = HashMap::new();
+    s.annot_c = HashMap::new();
+    s.inst_c = HashMap::new();
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:400 flushC

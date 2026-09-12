@@ -1241,6 +1241,39 @@ pub fn stuck_irrel_i(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:679 wscopedB
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:747-748 leafGuard
+/// The **cached tier's** scope guard, run by all three rescue branches on
+/// their fabrication: the cited
+/// `ExprC.wscopedB depth fab && ExprC.looseBVarsBounded 0 fab &&
+/// ExprC.leafGuard fab major`, in that order.
+///
+/// Every member here is `ExprOpsC`'s, i.e. the memoized twin:
+/// `expr_ops_c::wscoped_b` is one memoized DAG walk where the pure
+/// `expr_ops::wscoped_b` is a tree walk, and `expr_ops_c::leaf_guard` is the
+/// cited `leafGuard` — `hasFvar`-short-circuited, the base leaves collected
+/// through a `seen` map and the subset test itself memoized — where the pure
+/// tier compares two `fvarLeaves` lists elementwise.
+/// `looseBVarsBounded` is the `O(1)` `bvarB` read in both tiers, so the pure
+/// spelling is the cited one.
+///
+/// Task #32: the three branches called `core_k::fab_scope_ok`, the **pure**
+/// tier's guard (`Kernel/Core.lean`'s `majorToCtor`), which is a memo policy
+/// the cited cached code does not have (DESIGN.md §3.1).  On the `core`
+/// corpus that mistake was 26% of the run's instructions
+/// (`core_k::fab_scope_ok` 13.5%, `expr_ops::fvar_leaves_go` 12.7%);
+/// `core_k::fab_scope_ok` stays where it is as the pure tier's port.
+pub fn fab_scope_ok_i(fab: &Expr, major: &Expr, depth: u64) -> bool {
+    if !expr_ops_c::wscoped_b(depth, fab) {
+        false
+    } else if !expr_ops::loose_bvars_bounded(0, fab) {
+        false
+    } else {
+        expr_ops_c::leaf_guard(fab, major)
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
 /// con-leche: ConLeche/Kernel/Core.lean:1274-1456 majorToCtor
 /// Stuck-major rescue (`to_cnstr_when_K` and `to_cnstr_when_structure` in
 /// the official kernel): a recursor's major premise that does not whnf to a
@@ -1339,7 +1372,7 @@ pub fn major_to_ctor_k_i(
                         let params = expr_ops::take_exprs(&targs, cn_p as usize);
                         let h = expr::mk_const(name::dup(&rl.ctor), env::levels_copy(ust));
                         let fab = state_c::mk_app_n_m(h, &params);
-                        if !core_k::fab_scope_ok(&fab, major, depth) {
+                        if !fab_scope_ok_i(&fab, major, depth) {
                             Ok(expr::dup(major))
                         } else {
                             let cert = if env::certs(mode) {
@@ -1465,7 +1498,7 @@ pub fn major_to_ctor_eta_i(
                         let h =
                             expr::mk_const(name::dup(&caps.eta_ctor), env::levels_copy(ust));
                         let fab = state_c::mk_app_n_m(h, &spine);
-                        if !core_k::fab_scope_ok(&fab, major, depth) {
+                        if !fab_scope_ok_i(&fab, major, depth) {
                             Ok(expr::dup(major))
                         } else {
                             let cert = if env::certs(mode) {
@@ -1567,7 +1600,7 @@ pub fn major_to_ctor_and_i(
                         let spine = core_k::append_exprs(env::exprs_copy(&targs), &projs);
                         let h = expr::mk_const(name::dup(&rl.ctor), env::levels_copy(ust));
                         let fab = state_c::mk_app_n_m(h, &spine);
-                        if !core_k::fab_scope_ok(&fab, major, depth) {
+                        if !fab_scope_ok_i(&fab, major, depth) {
                             Ok(expr::dup(major))
                         } else {
                             let cert = if env::certs(mode) {

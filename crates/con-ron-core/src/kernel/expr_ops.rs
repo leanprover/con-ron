@@ -167,7 +167,7 @@ pub fn exprs_copy_upto(xs: &Vec<Expr>, k: usize, i: usize, mut out: Vec<Expr>) -
 /// con-leche: none — `List.take` over a `Vec<Expr>`
 /// `xs.take k`, the entry point of the index recursion above.
 pub fn take_exprs(xs: &Vec<Expr>, k: usize) -> Vec<Expr> {
-    exprs_copy_upto(xs, k, 0, Vec::new())
+    exprs_copy_upto(xs, k, 0, Vec::with_capacity(k))
 }
 
 /// con-leche: none — the `a :: acc` of `instPisAtFGo`/`instLamsAtFGo`
@@ -177,7 +177,7 @@ pub fn take_exprs(xs: &Vec<Expr>, k: usize) -> Vec<Expr> {
 /// domain instead of one per argument — while the list itself stays tiny
 /// (one entry per telescope binder).
 pub fn cons_expr(a: &Expr, acc: &Vec<Expr>) -> Vec<Expr> {
-    let mut out: Vec<Expr> = Vec::new();
+    let mut out: Vec<Expr> = Vec::with_capacity(acc.len() + 1);
     out.push(expr::dup(a));
     exprs_copy_upto(acc, acc.len(), 0, out)
 }
@@ -196,7 +196,7 @@ pub fn levels_copy_from(us: &Vec<Level>, i: usize, mut out: Vec<Level>) -> Vec<L
 /// con-leche: none — the `us` a rebuilt `.const` node carries over unchanged
 /// A `Vec<Level>` copy; Lean's lists are shared values (DESIGN.md §3.3).
 pub fn levels_copy(us: &Vec<Level>) -> Vec<Level> {
-    levels_copy_from(us, 0, Vec::new())
+    levels_copy_from(us, 0, Vec::with_capacity(us.len()))
 }
 
 // ---------------------------------------------------------------------------

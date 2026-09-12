@@ -137,7 +137,7 @@ pub fn io_skip(m: &CheckMode, pw: &PropWhen) -> bool {
 /// con-leche: none — a `Vec<Level>` copy; Lean's `List Level` is shared by value
 /// The entry point of the index recursion below (task #9's `*_from` pattern).
 pub fn levels_copy(us: &Vec<Level>) -> Vec<Level> {
-    levels_copy_from(us, 0, Vec::new())
+    levels_copy_from(us, 0, Vec::with_capacity(us.len()))
 }
 
 /// con-leche: none — the index recursion behind `levels_copy`
@@ -155,7 +155,7 @@ pub fn levels_copy_from(us: &Vec<Level>, i: usize, out: Vec<Level>) -> Vec<Level
 /// con-leche: none — a `Vec<Expr>` copy; Lean's `Array Expr` is shared by value
 /// The entry point of the index recursion below.
 pub fn exprs_copy(es: &Vec<Expr>) -> Vec<Expr> {
-    exprs_copy_from(es, 0, Vec::new())
+    exprs_copy_from(es, 0, Vec::with_capacity(es.len()))
 }
 
 /// con-leche: none — the index recursion behind `exprs_copy`
@@ -509,7 +509,7 @@ pub enum ConstantInfo {
 /// con-leche: none — a `Vec<RecRule>` copy; Lean's `List RecRule` is shared by value
 /// The entry point of the index recursion below.
 pub fn rec_rules_copy(rs: &Vec<RecRule>) -> Vec<RecRule> {
-    rec_rules_copy_from(rs, 0, Vec::new())
+    rec_rules_copy_from(rs, 0, Vec::with_capacity(rs.len()))
 }
 
 /// con-leche: none — the index recursion behind `rec_rules_copy`
@@ -557,7 +557,7 @@ pub fn constant_info_dup(c: &ConstantInfo) -> ConstantInfo {
 /// con-leche: none — a `Vec<ConstantInfo>` copy; Lean's `List ConstantInfo` is shared by value
 /// The entry point of the index recursion below.
 pub fn constant_infos_copy(cs: &Vec<ConstantInfo>) -> Vec<ConstantInfo> {
-    constant_infos_copy_from(cs, 0, Vec::new())
+    constant_infos_copy_from(cs, 0, Vec::with_capacity(cs.len()))
 }
 
 /// con-leche: none — the index recursion behind `constant_infos_copy`
