@@ -27,35 +27,6 @@ namespace ConRon.Generated
 structure core.alloc.AllocatorClone (Self : Type) where
   cloneCloneInst : core.clone.Clone Self
 
-/-- Trait declaration: [con_ron_core::hashmap::Hashable]
-    Source: 'crates/con-ron-core/src/hashmap.rs', lines 48:0-50:1
-    Visibility: public -/
-structure hashmap.Hashable (Self : Type) where
-  hash64 : Self → Result Std.U64
-
-/-- Trait declaration: [con_ron_core::hashmap::Eq2]
-    Source: 'crates/con-ron-core/src/hashmap.rs', lines 63:0-65:1
-    Visibility: public -/
-structure hashmap.Eq2 (Self : Type) where
-  eq2 : Self → Self → Result Bool
-
-/-- [con_ron_core::hashmap::AList]
-    Source: 'crates/con-ron-core/src/hashmap.rs', lines 82:0-85:1
-    Visibility: public -/
-@[discriminant isize]
-inductive hashmap.AList (K : Type) (V : Type) where
-| Cons : K → V → hashmap.AList K V → hashmap.AList K V
-| Nil : hashmap.AList K V
-
-/-- [con_ron_core::hashmap::HashMap]
-    Source: 'crates/con-ron-core/src/hashmap.rs', lines 92:0-101:1
-    Visibility: public -/
-structure hashmap.HashMap (K : Type) (V : Type) where
-  num_entries : Std.Usize
-  max_load : Std.Usize
-  saturated : Bool
-  slots : alloc.vec.Vec (hashmap.AList K V)
-
 mutual
 
 /-- [con_ron_core::name::NameKind]
@@ -100,6 +71,51 @@ def name.Name._0 (x : name.Name) := match x with | name.Name.mk x1 => x1
 @[simp]
 theorem name.Name._0._simpLemma_ (_0 : alloc.rc.Rc name.NameNode) :
   (name.Name.mk _0)._0 = _0 := by rfl
+
+/-- [con_ron_core::prop_when::PropWhenRepr]
+    Source: 'crates/con-ron-core/src/prop_when.rs', lines 264:0-270:1 -/
+@[discriminant isize]
+inductive prop_when.PropWhenRepr where
+| Never : prop_when.PropWhenRepr
+| Always : prop_when.PropWhenRepr
+| One : name.Name → prop_when.PropWhenRepr
+| Two : name.Name → name.Name → prop_when.PropWhenRepr
+| Many : alloc.vec.Vec name.Name → prop_when.PropWhenRepr
+
+/-- [con_ron_core::prop_when::PropWhen]
+    Source: 'crates/con-ron-core/src/prop_when.rs', lines 278:0-280:1
+    Visibility: public -/
+structure prop_when.PropWhen where
+  repr : prop_when.PropWhenRepr
+
+/-- [con_ron_core::expr::BinderMeta]
+    Source: 'crates/con-ron-core/src/expr.rs', lines 42:0-44:1
+    Visibility: public -/
+structure expr.BinderMeta where
+  pw : prop_when.PropWhen
+
+/-- [con_ron_core::nat::Nat]
+    Source: 'crates/con-ron-core/src/nat.rs', lines 57:0-59:1
+    Visibility: public -/
+structure nat.Nat where
+  limbs : alloc.vec.Vec Std.U64
+
+/-- [con_ron_core::expr::Literal]
+    Source: 'crates/con-ron-core/src/expr.rs', lines 73:0-76:1
+    Visibility: public -/
+@[discriminant isize]
+inductive expr.Literal where
+| NatVal : nat.Nat → expr.Literal
+| StrVal : alloc.vec.Vec Std.U32 → expr.Literal
+
+/-- [con_ron_core::nat::Cmp]
+    Source: 'crates/con-ron-core/src/nat.rs', lines 64:0-68:1
+    Visibility: public -/
+@[discriminant isize]
+inductive nat.Cmp where
+| Lt : nat.Cmp
+| Eq : nat.Cmp
+| Gt : nat.Cmp
 
 mutual
 
@@ -148,20 +164,86 @@ def level.Level._0 (x : level.Level) := match x with | level.Level.mk x1 => x1
 theorem level.Level._0._simpLemma_ (_0 : alloc.rc.Rc level.LevelNode) :
   (level.Level.mk _0)._0 = _0 := by rfl
 
-/-- [con_ron_core::nat::Nat]
-    Source: 'crates/con-ron-core/src/nat.rs', lines 57:0-59:1
-    Visibility: public -/
-structure nat.Nat where
-  limbs : alloc.vec.Vec Std.U64
+mutual
 
-/-- [con_ron_core::nat::Cmp]
-    Source: 'crates/con-ron-core/src/nat.rs', lines 64:0-68:1
+/-- [con_ron_core::expr::ExprKind]
+    Source: 'crates/con-ron-core/src/expr.rs', lines 229:0-240:1
     Visibility: public -/
 @[discriminant isize]
-inductive nat.Cmp where
-| Lt : nat.Cmp
-| Eq : nat.Cmp
-| Gt : nat.Cmp
+inductive expr.ExprKind where
+| Bvar : Std.U64 → expr.ExprKind
+| Fvar : Std.U64 → expr.Expr → expr.ExprKind
+| «Sort» : level.Level → expr.ExprKind
+| Const : name.Name → alloc.vec.Vec level.Level → expr.ExprKind
+| App : expr.Expr → expr.Expr → expr.ExprKind
+| Lam : expr.Expr → expr.Expr → expr.BinderMeta → expr.ExprKind
+| ForallE : expr.Expr → expr.Expr → expr.BinderMeta → expr.ExprKind
+| LetE : expr.Expr → expr.Expr → expr.Expr → expr.ExprKind
+| Lit : expr.Literal → expr.ExprKind
+| Proj : name.Name → Std.U64 → expr.Expr → expr.ExprKind
+
+/-- [con_ron_core::expr::ExprNode]
+    Source: 'crates/con-ron-core/src/expr.rs', lines 245:0-248:1
+    Visibility: public -/
+inductive expr.ExprNode where
+| mk : Std.U64 → expr.ExprKind → expr.ExprNode
+
+/-- [con_ron_core::expr::Expr]
+    Source: 'crates/con-ron-core/src/expr.rs', lines 253:0-253:34
+    Visibility: public -/
+inductive expr.Expr where
+| mk : alloc.rc.Rc expr.ExprNode → expr.Expr
+
+end
+
+def expr.ExprNode.data (x : expr.ExprNode) :=
+  match x with | expr.ExprNode.mk x1 _ => x1
+
+def expr.ExprNode.kind (x : expr.ExprNode) :=
+  match x with | expr.ExprNode.mk _ x1 => x1
+
+@[simp]
+theorem expr.ExprNode.data._simpLemma_ (data : Std.U64) (kind : expr.ExprKind)
+  : (expr.ExprNode.mk data kind).data = data := by rfl
+
+@[simp]
+theorem expr.ExprNode.kind._simpLemma_ (data : Std.U64) (kind : expr.ExprKind)
+  : (expr.ExprNode.mk data kind).kind = kind := by rfl
+
+def expr.Expr._0 (x : expr.Expr) := match x with | expr.Expr.mk x1 => x1
+
+@[simp]
+theorem expr.Expr._0._simpLemma_ (_0 : alloc.rc.Rc expr.ExprNode) :
+  (expr.Expr.mk _0)._0 = _0 := by rfl
+
+/-- Trait declaration: [con_ron_core::hashmap::Hashable]
+    Source: 'crates/con-ron-core/src/hashmap.rs', lines 48:0-50:1
+    Visibility: public -/
+structure hashmap.Hashable (Self : Type) where
+  hash64 : Self → Result Std.U64
+
+/-- Trait declaration: [con_ron_core::hashmap::Eq2]
+    Source: 'crates/con-ron-core/src/hashmap.rs', lines 63:0-65:1
+    Visibility: public -/
+structure hashmap.Eq2 (Self : Type) where
+  eq2 : Self → Self → Result Bool
+
+/-- [con_ron_core::hashmap::AList]
+    Source: 'crates/con-ron-core/src/hashmap.rs', lines 82:0-85:1
+    Visibility: public -/
+@[discriminant isize]
+inductive hashmap.AList (K : Type) (V : Type) where
+| Cons : K → V → hashmap.AList K V → hashmap.AList K V
+| Nil : hashmap.AList K V
+
+/-- [con_ron_core::hashmap::HashMap]
+    Source: 'crates/con-ron-core/src/hashmap.rs', lines 92:0-101:1
+    Visibility: public -/
+structure hashmap.HashMap (K : Type) (V : Type) where
+  num_entries : Std.Usize
+  max_load : Std.Usize
+  saturated : Bool
+  slots : alloc.vec.Vec (hashmap.AList K V)
 
 /-- [con_ron_core::prop_when::Ordering]
     Source: 'crates/con-ron-core/src/prop_when.rs', lines 74:0-78:1
@@ -171,22 +253,6 @@ inductive prop_when.Ordering where
 | Lt : prop_when.Ordering
 | Eq : prop_when.Ordering
 | Gt : prop_when.Ordering
-
-/-- [con_ron_core::prop_when::PropWhenRepr]
-    Source: 'crates/con-ron-core/src/prop_when.rs', lines 264:0-270:1 -/
-@[discriminant isize]
-inductive prop_when.PropWhenRepr where
-| Never : prop_when.PropWhenRepr
-| Always : prop_when.PropWhenRepr
-| One : name.Name → prop_when.PropWhenRepr
-| Two : name.Name → name.Name → prop_when.PropWhenRepr
-| Many : alloc.vec.Vec name.Name → prop_when.PropWhenRepr
-
-/-- [con_ron_core::prop_when::PropWhen]
-    Source: 'crates/con-ron-core/src/prop_when.rs', lines 278:0-280:1
-    Visibility: public -/
-structure prop_when.PropWhen where
-  repr : prop_when.PropWhenRepr
 
 /-- Trait declaration: [con_ron_core::prop_when::Valuation]
     Source: 'crates/con-ron-core/src/prop_when.rs', lines 513:0-517:1

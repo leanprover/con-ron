@@ -32,6 +32,1349 @@ def alloc.alloc.Global.Insts.CoreAllocAllocatorClone :
   cloneCloneInst := core.core.clone.CloneGlobal
 }
 
+/-- [con_ron_core::name::str_eq_from]:
+    Source: 'crates/con-ron-core/src/name.rs', lines 139:0-147:1
+    Visibility: public -/
+def name.str_eq_from
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len a
+  if i >= i1
+  then ok true
+  else
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) a i
+    let i3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) b i
+    if i2 != i3
+    then ok false
+    else let i4 ← i + 1#usize
+         name.str_eq_from a b i4
+partial_fixpoint
+
+/-- [con_ron_core::name::str_eq]:
+    Source: 'crates/con-ron-core/src/name.rs', lines 129:0-135:1
+    Visibility: public -/
+def name.str_eq
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) : Result Bool := do
+  let i := alloc.vec.Vec.len a
+  let i1 := alloc.vec.Vec.len b
+  if i != i1
+  then ok false
+  else name.str_eq_from a b 0#usize
+
+/-- [con_ron_core::name::ptr_eq]:
+    Source: 'crates/con-ron-core/src/name.rs', lines 123:0-125:1
+    Visibility: public -/
+def name.ptr_eq (a : name.Name) (b : name.Name) : Result Bool := do
+  alloc.rc.Rc.ptr_eq Global a._0 b._0
+
+/-- [con_ron_core::name::hash_data]:
+    Source: 'crates/con-ron-core/src/name.rs', lines 86:0-88:1
+    Visibility: public -/
+def name.hash_data (n : name.Name) : Result Std.U64 := do
+  let nn ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global n._0
+  ok nn.hash
+
+/-- [con_ron_core::name::beq]:
+    Source: 'crates/con-ron-core/src/name.rs', lines 156:0-169:1
+    Visibility: public -/
+def name.beq (a : name.Name) (b : name.Name) : Result Bool := do
+  let b1 ← name.ptr_eq a b
+  if b1
+  then ok true
+  else
+    let i ← name.hash_data a
+    let i1 ← name.hash_data b
+    if i != i1
+    then ok false
+    else
+      let nn ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
+      let nn1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+      match nn.kind with
+      | name.NameKind.Anonymous =>
+        match nn1.kind with
+        | name.NameKind.Anonymous => ok true
+        | name.NameKind.Str _ _ => ok false
+        | name.NameKind.Num _ _ => ok false
+      | name.NameKind.Str p s =>
+        match nn1.kind with
+        | name.NameKind.Anonymous => ok false
+        | name.NameKind.Str q t =>
+          let b2 ← name.beq p q
+          if b2
+          then name.str_eq s t
+          else ok false
+        | name.NameKind.Num _ _ => ok false
+      | name.NameKind.Num p m =>
+        match nn1.kind with
+        | name.NameKind.Anonymous => ok false
+        | name.NameKind.Str _ _ => ok false
+        | name.NameKind.Num q n =>
+          let b2 ← name.beq p q
+          if b2
+          then lift (core.cmp.impls.PartialEqU64.eq m n)
+          else ok false
+partial_fixpoint
+
+/-- [con_ron_core::prop_when::names_beq_from]:
+    Source: 'crates/con-ron-core/src/prop_when.rs', lines 310:0-320:1
+    Visibility: public -/
+def prop_when.names_beq_from
+  (ps : alloc.vec.Vec name.Name) (qs : alloc.vec.Vec name.Name) (i : Std.Usize)
+  :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len ps
+  if i >= i1
+  then
+    let i2 := alloc.vec.Vec.len qs
+    if i >= i2
+    then ok true
+    else
+      let i3 := alloc.vec.Vec.len ps
+      if i >= i3
+      then ok false
+      else
+        let i4 := alloc.vec.Vec.len qs
+        if i >= i4
+        then ok false
+        else
+          let n ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              name.Name) ps i
+          let n1 ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              name.Name) qs i
+          let b ← name.beq n n1
+          if b
+          then let i5 ← i + 1#usize
+               prop_when.names_beq_from ps qs i5
+          else ok false
+  else
+    let i2 := alloc.vec.Vec.len ps
+    if i >= i2
+    then ok false
+    else
+      let i3 := alloc.vec.Vec.len qs
+      if i >= i3
+      then ok false
+      else
+        let n ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice name.Name)
+            ps i
+        let n1 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice name.Name)
+            qs i
+        let b ← name.beq n n1
+        if b
+        then let i4 ← i + 1#usize
+             prop_when.names_beq_from ps qs i4
+        else ok false
+partial_fixpoint
+
+/-- [con_ron_core::prop_when::names_beq]:
+    Source: 'crates/con-ron-core/src/prop_when.rs', lines 324:0-326:1
+    Visibility: public -/
+def prop_when.names_beq
+  (ps : alloc.vec.Vec name.Name) (qs : alloc.vec.Vec name.Name) :
+  Result Bool
+  := do
+  prop_when.names_beq_from ps qs 0#usize
+
+/-- [con_ron_core::prop_when::equiv_r]:
+    Source: 'crates/con-ron-core/src/prop_when.rs', lines 332:0-343:1 -/
+def prop_when.equiv_r
+  (x : prop_when.PropWhenRepr) (y : prop_when.PropWhenRepr) : Result Bool := do
+  match x with
+  | prop_when.PropWhenRepr.Never =>
+    match y with
+    | prop_when.PropWhenRepr.Never => ok true
+    | prop_when.PropWhenRepr.Always => ok false
+    | prop_when.PropWhenRepr.One _ => ok false
+    | prop_when.PropWhenRepr.Two _ _ => ok false
+    | prop_when.PropWhenRepr.Many _ => ok false
+  | prop_when.PropWhenRepr.Always =>
+    match y with
+    | prop_when.PropWhenRepr.Never => ok false
+    | prop_when.PropWhenRepr.Always => ok true
+    | prop_when.PropWhenRepr.One _ => ok false
+    | prop_when.PropWhenRepr.Two _ _ => ok false
+    | prop_when.PropWhenRepr.Many _ => ok false
+  | prop_when.PropWhenRepr.One a =>
+    match y with
+    | prop_when.PropWhenRepr.Never => ok false
+    | prop_when.PropWhenRepr.Always => ok false
+    | prop_when.PropWhenRepr.One b => name.beq a b
+    | prop_when.PropWhenRepr.Two _ _ => ok false
+    | prop_when.PropWhenRepr.Many _ => ok false
+  | prop_when.PropWhenRepr.Two a b =>
+    match y with
+    | prop_when.PropWhenRepr.Never => ok false
+    | prop_when.PropWhenRepr.Always => ok false
+    | prop_when.PropWhenRepr.One _ => ok false
+    | prop_when.PropWhenRepr.Two c d =>
+      let b1 ← name.beq a c
+      if b1
+      then name.beq b d
+      else ok false
+    | prop_when.PropWhenRepr.Many _ => ok false
+  | prop_when.PropWhenRepr.Many ps =>
+    match y with
+    | prop_when.PropWhenRepr.Never => ok false
+    | prop_when.PropWhenRepr.Always => ok false
+    | prop_when.PropWhenRepr.One _ => ok false
+    | prop_when.PropWhenRepr.Two _ _ => ok false
+    | prop_when.PropWhenRepr.Many qs => prop_when.names_beq ps qs
+
+/-- [con_ron_core::prop_when::beq]:
+    Source: 'crates/con-ron-core/src/prop_when.rs', lines 351:0-353:1
+    Visibility: public -/
+def prop_when.beq
+  (a : prop_when.PropWhen) (b : prop_when.PropWhen) : Result Bool := do
+  prop_when.equiv_r a.repr b.repr
+
+/-- [con_ron_core::expr::binder_meta_beq]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 49:0-51:1
+    Visibility: public -/
+def expr.binder_meta_beq
+  (a : expr.BinderMeta) (b : expr.BinderMeta) : Result Bool := do
+  prop_when.beq a.pw b.pw
+
+/-- [con_ron_core::name::mix_hash]:
+    Source: 'crates/con-ron-core/src/name.rs', lines 47:0-54:1
+    Visibility: public -/
+def name.mix_hash (h : Std.U64) (k : Std.U64) : Result Std.U64 := do
+  let k1 ← lift (core.num.U64.wrapping_mul k 14313749767032793493#u64)
+  let i ← k1 >>> 47#i32
+  let k2 ← lift (k1 ^^^ i)
+  let k3 ← lift (k2 ^^^ 14313749767032793493#u64)
+  let h1 ← lift (h ^^^ k3)
+  ok (core.num.U64.wrapping_mul h1 14313749767032793493#u64)
+
+/-- [con_ron_core::prop_when::names_hash_from]:
+    Source: 'crates/con-ron-core/src/prop_when.rs', lines 357:0-363:1
+    Visibility: public -/
+def prop_when.names_hash_from
+  (ps : alloc.vec.Vec name.Name) (i : Std.Usize) (acc : Std.U64) :
+  Result Std.U64
+  := do
+  let i1 := alloc.vec.Vec.len ps
+  if i >= i1
+  then ok acc
+  else
+    let i2 ← i + 1#usize
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice name.Name) ps
+        i
+    let i3 ← name.hash_data n
+    let i4 ← name.mix_hash acc i3
+    prop_when.names_hash_from ps i2 i4
+partial_fixpoint
+
+/-- [con_ron_core::prop_when::hash_repr]:
+    Source: 'crates/con-ron-core/src/prop_when.rs', lines 374:0-385:1 -/
+def prop_when.hash_repr (r : prop_when.PropWhenRepr) : Result Std.U64 := do
+  match r with
+  | prop_when.PropWhenRepr.Never => ok 0#u64
+  | prop_when.PropWhenRepr.Always => ok 1#u64
+  | prop_when.PropWhenRepr.One p =>
+    let i ← name.hash_data p
+    name.mix_hash 2#u64 i
+  | prop_when.PropWhenRepr.Two p q =>
+    let i ← name.hash_data p
+    let i1 ← name.mix_hash 3#u64 i
+    let i2 ← name.hash_data q
+    name.mix_hash i1 i2
+  | prop_when.PropWhenRepr.Many ps =>
+    let i ← prop_when.names_hash_from ps 0#usize 7#u64
+    name.mix_hash 4#u64 i
+
+/-- [con_ron_core::prop_when::hash_pw]:
+    Source: 'crates/con-ron-core/src/prop_when.rs', lines 391:0-393:1
+    Visibility: public -/
+def prop_when.hash_pw (pw : prop_when.PropWhen) : Result Std.U64 := do
+  prop_when.hash_repr pw.repr
+
+/-- [con_ron_core::expr::binder_meta_hash]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 59:0-61:1
+    Visibility: public -/
+def expr.binder_meta_hash (m : expr.BinderMeta) : Result Std.U64 := do
+  let i ← prop_when.hash_pw m.pw
+  name.mix_hash 0#u64 i
+
+/-- [con_ron_core::prop_when::of_repr]:
+    Source: 'crates/con-ron-core/src/prop_when.rs', lines 284:0-286:1 -/
+def prop_when.of_repr
+  (r : prop_when.PropWhenRepr) : Result prop_when.PropWhen := do
+  ok { repr := r }
+
+/-- [con_ron_core::name::dup]:
+    Source: 'crates/con-ron-core/src/name.rs', lines 115:0-117:1
+    Visibility: public -/
+def name.dup (n : name.Name) : Result name.Name := do
+  let r ←
+    alloc.rc.Rc.Insts.CoreCloneClone.clone
+      alloc.alloc.Global.Insts.CoreAllocAllocatorClone n._0
+  ok (name.Name.mk r)
+
+/-- [con_ron_core::prop_when::append_from]:
+    Source: 'crates/con-ron-core/src/prop_when.rs', lines 174:0-182:1
+    Visibility: public -/
+def prop_when.append_from
+  (xs : alloc.vec.Vec name.Name) (k : Std.Usize)
+  (out : alloc.vec.Vec name.Name) :
+  Result (alloc.vec.Vec name.Name)
+  := do
+  let i := alloc.vec.Vec.len xs
+  if k >= i
+  then ok out
+  else
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice name.Name) xs
+        k
+    let n1 ← name.dup n
+    let out1 ← alloc.vec.Vec.push out n1
+    let i1 ← k + 1#usize
+    prop_when.append_from xs i1 out1
+partial_fixpoint
+
+/-- [con_ron_core::prop_when::names_copy]:
+    Source: 'crates/con-ron-core/src/prop_when.rs', lines 186:0-188:1
+    Visibility: public -/
+def prop_when.names_copy
+  (xs : alloc.vec.Vec name.Name) : Result (alloc.vec.Vec name.Name) := do
+  prop_when.append_from xs 0#usize (alloc.vec.Vec.new name.Name)
+
+/-- [con_ron_core::prop_when::dup]:
+    Source: 'crates/con-ron-core/src/prop_when.rs', lines 291:0-301:1
+    Visibility: public -/
+def prop_when.dup (pw : prop_when.PropWhen) : Result prop_when.PropWhen := do
+  match pw.repr with
+  | prop_when.PropWhenRepr.Never =>
+    prop_when.of_repr prop_when.PropWhenRepr.Never
+  | prop_when.PropWhenRepr.Always =>
+    prop_when.of_repr prop_when.PropWhenRepr.Always
+  | prop_when.PropWhenRepr.One p =>
+    let n ← name.dup p
+    prop_when.of_repr (prop_when.PropWhenRepr.One n)
+  | prop_when.PropWhenRepr.Two p q =>
+    let n ← name.dup p
+    let n1 ← name.dup q
+    prop_when.of_repr (prop_when.PropWhenRepr.Two n n1)
+  | prop_when.PropWhenRepr.Many ps =>
+    let v ← prop_when.names_copy ps
+    prop_when.of_repr (prop_when.PropWhenRepr.Many v)
+
+/-- [con_ron_core::expr::binder_meta_dup]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 65:0-67:1
+    Visibility: public -/
+def expr.binder_meta_dup (m : expr.BinderMeta) : Result expr.BinderMeta := do
+  let pw ← prop_when.dup m.pw
+  ok { pw }
+
+/-- [con_ron_core::nat::limb]:
+    Source: 'crates/con-ron-core/src/nat.rs', lines 112:0-118:1 -/
+def nat.limb (v : alloc.vec.Vec Std.U64) (i : Std.Usize) : Result Std.U64 := do
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) v i
+  else ok 0#u64
+
+/-- [con_ron_core::nat::cmp_from]:
+    Source: 'crates/con-ron-core/src/nat.rs', lines 187:0-201:1 -/
+def nat.cmp_from
+  (a : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec Std.U64) (k : Std.Usize) :
+  Result nat.Cmp
+  := do
+  if k = 0#usize
+  then ok nat.Cmp.Eq
+  else
+    let i ← k - 1#usize
+    let x ← nat.limb a i
+    let y ← nat.limb b i
+    if x < y
+    then ok nat.Cmp.Lt
+    else if x > y
+         then ok nat.Cmp.Gt
+         else nat.cmp_from a b i
+partial_fixpoint
+
+/-- [con_ron_core::nat::cmp]:
+    Source: 'crates/con-ron-core/src/nat.rs', lines 174:0-184:1
+    Visibility: public -/
+def nat.cmp (a : nat.Nat) (b : nat.Nat) : Result nat.Cmp := do
+  let la := alloc.vec.Vec.len a.limbs
+  let lb := alloc.vec.Vec.len b.limbs
+  if la < lb
+  then ok nat.Cmp.Lt
+  else if la > lb
+       then ok nat.Cmp.Gt
+       else nat.cmp_from a.limbs b.limbs la
+
+/-- [con_ron_core::nat::beq]:
+    Source: 'crates/con-ron-core/src/nat.rs', lines 204:0-210:1
+    Visibility: public -/
+def nat.beq (a : nat.Nat) (b : nat.Nat) : Result Bool := do
+  let c ← nat.cmp a b
+  match c with
+  | nat.Cmp.Lt => ok false
+  | nat.Cmp.Eq => ok true
+  | nat.Cmp.Gt => ok false
+
+/-- [con_ron_core::expr::literal_beq]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 80:0-86:1
+    Visibility: public -/
+def expr.literal_beq (a : expr.Literal) (b : expr.Literal) : Result Bool := do
+  match a with
+  | expr.Literal.NatVal m =>
+    match b with
+    | expr.Literal.NatVal n => nat.beq m n
+    | expr.Literal.StrVal _ => ok false
+  | expr.Literal.StrVal s =>
+    match b with
+    | expr.Literal.NatVal _ => ok false
+    | expr.Literal.StrVal t => name.str_eq s t
+
+/-- [con_ron_core::nat::hash64_from]:
+    Source: 'crates/con-ron-core/src/nat.rs', lines 661:0-667:1 -/
+def nat.hash64_from
+  (v : alloc.vec.Vec Std.U64) (i : Std.Usize) (acc : Std.U64) :
+  Result Std.U64
+  := do
+  let i1 := alloc.vec.Vec.len v
+  if i >= i1
+  then ok acc
+  else
+    let i2 ← i + 1#usize
+    let i3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) v i
+    let i4 ← lift (acc ^^^ i3)
+    let i5 ← lift (core.num.U64.wrapping_mul i4 1099511628211#u64)
+    nat.hash64_from v i2 i5
+partial_fixpoint
+
+/-- [con_ron_core::nat::hash64]:
+    Source: 'crates/con-ron-core/src/nat.rs', lines 657:0-659:1
+    Visibility: public -/
+def nat.hash64 (a : nat.Nat) : Result Std.U64 := do
+  nat.hash64_from a.limbs 0#usize 14695981039346656037#u64
+
+/-- [con_ron_core::name::str_hash_from]:
+    Source: 'crates/con-ron-core/src/name.rs', lines 69:0-75:1
+    Visibility: public -/
+def name.str_hash_from
+  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) (acc : Std.U64) :
+  Result Std.U64
+  := do
+  let i1 := alloc.vec.Vec.len s
+  if i >= i1
+  then ok acc
+  else
+    let i2 ← i + 1#usize
+    let i3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let i4 ← lift (UScalar.cast .U64 i3)
+    let i5 ← name.mix_hash acc i4
+    name.str_hash_from s i2 i5
+partial_fixpoint
+
+/-- [con_ron_core::name::str_hash]:
+    Source: 'crates/con-ron-core/src/name.rs', lines 63:0-65:1
+    Visibility: public -/
+def name.str_hash (s : alloc.vec.Vec Std.U32) : Result Std.U64 := do
+  name.str_hash_from s 0#usize 11#u64
+
+/-- [con_ron_core::expr::literal_hash]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 94:0-99:1
+    Visibility: public -/
+def expr.literal_hash (l : expr.Literal) : Result Std.U64 := do
+  match l with
+  | expr.Literal.NatVal n => let i ← nat.hash64 n
+                             name.mix_hash 0#u64 i
+  | expr.Literal.StrVal s => let i ← name.str_hash s
+                             name.mix_hash 1#u64 i
+
+/-- [con_ron_core::nat::copy_from]:
+    Source: 'crates/con-ron-core/src/nat.rs', lines 134:0-144:1 -/
+def nat.copy_from
+  (v : alloc.vec.Vec Std.U64) (i : Std.Usize) («end» : Std.Usize)
+  (out : alloc.vec.Vec Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if i >= «end»
+  then ok out
+  else
+    let i1 := alloc.vec.Vec.len v
+    if i >= i1
+    then ok out
+    else
+      let i2 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) v i
+      let out1 ← alloc.vec.Vec.push out i2
+      let i3 ← i + 1#usize
+      nat.copy_from v i3 «end» out1
+partial_fixpoint
+
+/-- [con_ron_core::nat::clone]:
+    Source: 'crates/con-ron-core/src/nat.rs', lines 164:0-166:1
+    Visibility: public -/
+def nat.clone (a : nat.Nat) : Result nat.Nat := do
+  let i := alloc.vec.Vec.len a.limbs
+  let v ← nat.copy_from a.limbs 0#usize i (alloc.vec.Vec.new Std.U64)
+  ok { limbs := v }
+
+/-- [con_ron_core::expr::str_copy_from]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 119:0-127:1
+    Visibility: public -/
+def expr.str_copy_from
+  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) (out : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let i1 := alloc.vec.Vec.len s
+  if i >= i1
+  then ok out
+  else
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let out1 ← alloc.vec.Vec.push out i2
+    let i3 ← i + 1#usize
+    expr.str_copy_from s i3 out1
+partial_fixpoint
+
+/-- [con_ron_core::expr::str_copy]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 112:0-114:1
+    Visibility: public -/
+def expr.str_copy
+  (s : alloc.vec.Vec Std.U32) : Result (alloc.vec.Vec Std.U32) := do
+  expr.str_copy_from s 0#usize (alloc.vec.Vec.new Std.U32)
+
+/-- [con_ron_core::expr::literal_dup]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 103:0-108:1
+    Visibility: public -/
+def expr.literal_dup (l : expr.Literal) : Result expr.Literal := do
+  match l with
+  | expr.Literal.NatVal n => let n1 ← nat.clone n
+                             ok (expr.Literal.NatVal n1)
+  | expr.Literal.StrVal s =>
+    let v ← expr.str_copy s
+    ok (expr.Literal.StrVal v)
+
+/-- [con_ron_core::expr::sat_range]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 136:0-138:1
+    Visibility: public -/
+def expr.sat_range : Result Std.U64 := do
+  ok 32767#u64
+
+/-- [con_ron_core::expr::max_u64]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 142:0-148:1
+    Visibility: public -/
+def expr.max_u64 (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
+  if a < b
+  then ok b
+  else ok a
+
+/-- [con_ron_core::expr::pack_data]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 155:0-161:1
+    Visibility: public -/
+def expr.pack_data
+  (h : Std.U64) (b : Std.U64) (f : Std.U64) (lp : Bool) : Result Std.U64 := do
+  let t ← if lp
+            then ok 1#u64
+            else ok 0#u64
+  let hs ← lift (core.num.U64.wrapping_mul h 4294967296#u64)
+  let bs ← lift (core.num.U64.wrapping_mul b 65536#u64)
+  let fs ← lift (core.num.U64.wrapping_mul f 2#u64)
+  let i ← lift (core.num.U64.wrapping_add hs bs)
+  let i1 ← lift (core.num.U64.wrapping_add i fs)
+  ok (core.num.U64.wrapping_add i1 t)
+
+/-- [con_ron_core::expr::hash_of_data]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 165:0-167:1
+    Visibility: public -/
+def expr.hash_of_data (w : Std.U64) : Result Std.U64 := do
+  w / 4294967296#u64
+
+/-- [con_ron_core::expr::bvar_of_data]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 171:0-173:1
+    Visibility: public -/
+def expr.bvar_of_data (w : Std.U64) : Result Std.U64 := do
+  let i ← w / 65536#u64
+  i % 32768#u64
+
+/-- [con_ron_core::expr::fvar_of_data]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 177:0-179:1
+    Visibility: public -/
+def expr.fvar_of_data (w : Std.U64) : Result Std.U64 := do
+  let i ← w / 2#u64
+  i % 32768#u64
+
+/-- [con_ron_core::expr::lp_of_data]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 183:0-185:1
+    Visibility: public -/
+def expr.lp_of_data (w : Std.U64) : Result Bool := do
+  let i ← w % 2#u64
+  ok (i = 1#u64)
+
+/-- [con_ron_core::expr::hash32]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 189:0-191:1
+    Visibility: public -/
+def expr.hash32 (w : Std.U64) : Result Std.U64 := do
+  w % 4294967296#u64
+
+/-- [con_ron_core::expr::sat_succ]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 198:0-204:1
+    Visibility: public -/
+def expr.sat_succ (n : Std.U64) : Result Std.U64 := do
+  if n >= 32766#u64
+  then ok 32767#u64
+  else n + 1#u64
+
+/-- [con_ron_core::expr::sat_pred]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 210:0-218:1
+    Visibility: public -/
+def expr.sat_pred (x : Std.U64) : Result Std.U64 := do
+  if x = 32767#u64
+  then ok 32767#u64
+  else if x = 0#u64
+       then ok 0#u64
+       else x - 1#u64
+
+/-- [con_ron_core::expr::data]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 257:0-259:1
+    Visibility: public -/
+def expr.data (e : expr.Expr) : Result Std.U64 := do
+  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  ok en.data
+
+/-- [con_ron_core::expr::dup]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 263:0-265:1
+    Visibility: public -/
+def expr.dup (e : expr.Expr) : Result expr.Expr := do
+  let r ←
+    alloc.rc.Rc.Insts.CoreCloneClone.clone
+      alloc.alloc.Global.Insts.CoreAllocAllocatorClone e._0
+  ok (expr.Expr.mk r)
+
+/-- [con_ron_core::name::nat_hash]:
+    Source: 'crates/con-ron-core/src/name.rs', lines 80:0-82:1
+    Visibility: public -/
+def name.nat_hash (n : Std.U64) : Result Std.U64 := do
+  ok n
+
+/-- [con_ron_core::expr::bvar]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 270:0-274:1
+    Visibility: public -/
+def expr.bvar (i : Std.U64) : Result expr.Expr := do
+  let i1 ← name.nat_hash i
+  let i2 ← name.mix_hash 3#u64 i1
+  let h ← expr.hash32 i2
+  let i3 ← expr.sat_succ i
+  let d ← expr.pack_data h i3 0#u64 false
+  let r ← alloc.rc.Rc.new (expr.ExprNode.mk d (expr.ExprKind.Bvar i))
+  ok (expr.Expr.mk r)
+
+/-- [con_ron_core::expr::fvar]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 280:0-288:1
+    Visibility: public -/
+def expr.fvar (idx : Std.U64) (ty : expr.Expr) : Result expr.Expr := do
+  let dt ← expr.data ty
+  let i ← name.nat_hash idx
+  let i1 ← expr.hash_of_data dt
+  let i2 ← name.mix_hash i i1
+  let i3 ← name.mix_hash 5#u64 i2
+  let h ← expr.hash32 i3
+  let i4 ← expr.sat_succ idx
+  let b ← expr.lp_of_data dt
+  let d ← expr.pack_data h 0#u64 i4 b
+  let r ← alloc.rc.Rc.new (expr.ExprNode.mk d (expr.ExprKind.Fvar idx ty))
+  ok (expr.Expr.mk r)
+
+/-- [con_ron_core::level::hash_data]:
+    Source: 'crates/con-ron-core/src/level.rs', lines 49:0-51:1
+    Visibility: public -/
+def level.hash_data (u : level.Level) : Result Std.U64 := do
+  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
+  ok ln.hash
+
+/-- [con_ron_core::level::level_hash]:
+    Source: 'crates/con-ron-core/src/level.rs', lines 172:0-174:1
+    Visibility: public -/
+def level.level_hash (u : level.Level) : Result Std.U64 := do
+  level.hash_data u
+
+/-- [con_ron_core::level::level_has_param]:
+    Source: 'crates/con-ron-core/src/level.rs', lines 144:0-152:1
+    Visibility: public -/
+def level.level_has_param (u : level.Level) : Result Bool := do
+  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
+  match ln.kind with
+  | level.LevelKind.Zero => ok false
+  | level.LevelKind.Succ v => level.level_has_param v
+  | level.LevelKind.Max a b =>
+    let b1 ← level.level_has_param a
+    if b1
+    then ok true
+    else level.level_has_param b
+  | level.LevelKind.Imax a b =>
+    let b1 ← level.level_has_param a
+    if b1
+    then ok true
+    else level.level_has_param b
+  | level.LevelKind.Param _ => ok true
+partial_fixpoint
+
+/-- [con_ron_core::expr::sort]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 293:0-297:1
+    Visibility: public -/
+def expr.sort (u : level.Level) : Result expr.Expr := do
+  let i ← level.level_hash u
+  let i1 ← name.mix_hash 7#u64 i
+  let h ← expr.hash32 i1
+  let b ← level.level_has_param u
+  let d ← expr.pack_data h 0#u64 0#u64 b
+  let r ← alloc.rc.Rc.new (expr.ExprNode.mk d (expr.ExprKind.Sort u))
+  ok (expr.Expr.mk r)
+
+/-- [con_ron_core::level::levels_hash_from]:
+    Source: 'crates/con-ron-core/src/level.rs', lines 184:0-190:1
+    Visibility: public -/
+def level.levels_hash_from
+  (us : alloc.vec.Vec level.Level) (i : Std.Usize) : Result Std.U64 := do
+  let i1 := alloc.vec.Vec.len us
+  if i >= i1
+  then ok 13#u64
+  else
+    let l ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice level.Level)
+        us i
+    let i2 ← level.level_hash l
+    let i3 ← i + 1#usize
+    let i4 ← level.levels_hash_from us i3
+    name.mix_hash i2 i4
+partial_fixpoint
+
+/-- [con_ron_core::level::levels_hash]:
+    Source: 'crates/con-ron-core/src/level.rs', lines 178:0-180:1
+    Visibility: public -/
+def level.levels_hash (us : alloc.vec.Vec level.Level) : Result Std.U64 := do
+  level.levels_hash_from us 0#usize
+
+/-- [con_ron_core::level::levels_have_param_from]:
+    Source: 'crates/con-ron-core/src/level.rs', lines 162:0-168:1
+    Visibility: public -/
+def level.levels_have_param_from
+  (us : alloc.vec.Vec level.Level) (i : Std.Usize) : Result Bool := do
+  let i1 := alloc.vec.Vec.len us
+  if i >= i1
+  then ok false
+  else
+    let l ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice level.Level)
+        us i
+    let b ← level.level_has_param l
+    if b
+    then ok true
+    else let i2 ← i + 1#usize
+         level.levels_have_param_from us i2
+partial_fixpoint
+
+/-- [con_ron_core::level::levels_have_param]:
+    Source: 'crates/con-ron-core/src/level.rs', lines 156:0-158:1
+    Visibility: public -/
+def level.levels_have_param
+  (us : alloc.vec.Vec level.Level) : Result Bool := do
+  level.levels_have_param_from us 0#usize
+
+/-- [con_ron_core::expr::mk_const]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 303:0-310:1
+    Visibility: public -/
+def expr.mk_const
+  (n : name.Name) (us : alloc.vec.Vec level.Level) : Result expr.Expr := do
+  let i ← name.hash_data n
+  let i1 ← level.levels_hash us
+  let i2 ← name.mix_hash i i1
+  let i3 ← name.mix_hash 11#u64 i2
+  let h ← expr.hash32 i3
+  let b ← level.levels_have_param us
+  let d ← expr.pack_data h 0#u64 0#u64 b
+  let r ← alloc.rc.Rc.new (expr.ExprNode.mk d (expr.ExprKind.Const n us))
+  ok (expr.Expr.mk r)
+
+/-- [con_ron_core::expr::app]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 315:0-329:1
+    Visibility: public -/
+def expr.app (f : expr.Expr) (a : expr.Expr) : Result expr.Expr := do
+  let df ← expr.data f
+  let da ← expr.data a
+  let i ← expr.hash_of_data df
+  let i1 ← expr.hash_of_data da
+  let i2 ← name.mix_hash i i1
+  let i3 ← name.mix_hash 17#u64 i2
+  let h ← expr.hash32 i3
+  let i4 ← expr.bvar_of_data df
+  let i5 ← expr.bvar_of_data da
+  let i6 ← expr.max_u64 i4 i5
+  let i7 ← expr.fvar_of_data df
+  let i8 ← expr.fvar_of_data da
+  let i9 ← expr.max_u64 i7 i8
+  let b ← expr.lp_of_data df
+  let b1 ← if b
+             then ok true
+             else expr.lp_of_data da
+  let d ← expr.pack_data h i6 i9 b1
+  let r ← alloc.rc.Rc.new (expr.ExprNode.mk d (expr.ExprKind.App f a))
+  ok (expr.Expr.mk r)
+
+/-- [con_ron_core::prop_when::has_params]:
+    Source: 'crates/con-ron-core/src/prop_when.rs', lines 566:0-572:1
+    Visibility: public -/
+def prop_when.has_params (pw : prop_when.PropWhen) : Result Bool := do
+  match pw.repr with
+  | prop_when.PropWhenRepr.Never => ok false
+  | prop_when.PropWhenRepr.Always => ok false
+  | prop_when.PropWhenRepr.One _ => ok true
+  | prop_when.PropWhenRepr.Two _ _ => ok true
+  | prop_when.PropWhenRepr.Many _ => ok true
+
+/-- [con_ron_core::expr::lam]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 335:0-352:1
+    Visibility: public -/
+def expr.lam
+  (ty : expr.Expr) (body : expr.Expr) (m : expr.BinderMeta) :
+  Result expr.Expr
+  := do
+  let dt ← expr.data ty
+  let db ← expr.data body
+  let i ← expr.hash_of_data dt
+  let i1 ← expr.hash_of_data db
+  let i2 ← prop_when.hash_pw m.pw
+  let i3 ← name.mix_hash i1 i2
+  let i4 ← name.mix_hash i i3
+  let i5 ← name.mix_hash 19#u64 i4
+  let h ← expr.hash32 i5
+  let i6 ← expr.bvar_of_data dt
+  let i7 ← expr.bvar_of_data db
+  let i8 ← expr.sat_pred i7
+  let i9 ← expr.max_u64 i6 i8
+  let i10 ← expr.fvar_of_data dt
+  let i11 ← expr.fvar_of_data db
+  let i12 ← expr.max_u64 i10 i11
+  let b ← expr.lp_of_data dt
+  let b1 ←
+    if b
+    then ok true
+    else
+      do
+      let b2 ← expr.lp_of_data db
+      if b2
+      then ok true
+      else prop_when.has_params m.pw
+  let d ← expr.pack_data h i9 i12 b1
+  let r ← alloc.rc.Rc.new (expr.ExprNode.mk d (expr.ExprKind.Lam ty body m))
+  ok (expr.Expr.mk r)
+
+/-- [con_ron_core::expr::forall_e]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 356:0-373:1
+    Visibility: public -/
+def expr.forall_e
+  (ty : expr.Expr) (body : expr.Expr) (m : expr.BinderMeta) :
+  Result expr.Expr
+  := do
+  let dt ← expr.data ty
+  let db ← expr.data body
+  let i ← expr.hash_of_data dt
+  let i1 ← expr.hash_of_data db
+  let i2 ← prop_when.hash_pw m.pw
+  let i3 ← name.mix_hash i1 i2
+  let i4 ← name.mix_hash i i3
+  let i5 ← name.mix_hash 23#u64 i4
+  let h ← expr.hash32 i5
+  let i6 ← expr.bvar_of_data dt
+  let i7 ← expr.bvar_of_data db
+  let i8 ← expr.sat_pred i7
+  let i9 ← expr.max_u64 i6 i8
+  let i10 ← expr.fvar_of_data dt
+  let i11 ← expr.fvar_of_data db
+  let i12 ← expr.max_u64 i10 i11
+  let b ← expr.lp_of_data dt
+  let b1 ←
+    if b
+    then ok true
+    else
+      do
+      let b2 ← expr.lp_of_data db
+      if b2
+      then ok true
+      else prop_when.has_params m.pw
+  let d ← expr.pack_data h i9 i12 b1
+  let r ←
+    alloc.rc.Rc.new (expr.ExprNode.mk d (expr.ExprKind.ForallE ty body m))
+  ok (expr.Expr.mk r)
+
+/-- [con_ron_core::expr::let_e]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 378:0-399:1
+    Visibility: public -/
+def expr.let_e
+  (ty : expr.Expr) (value : expr.Expr) (body : expr.Expr) :
+  Result expr.Expr
+  := do
+  let dt ← expr.data ty
+  let dv ← expr.data value
+  let db ← expr.data body
+  let i ← expr.hash_of_data dt
+  let i1 ← expr.hash_of_data dv
+  let i2 ← expr.hash_of_data db
+  let i3 ← name.mix_hash i1 i2
+  let i4 ← name.mix_hash i i3
+  let i5 ← name.mix_hash 29#u64 i4
+  let h ← expr.hash32 i5
+  let i6 ← expr.bvar_of_data dt
+  let i7 ← expr.bvar_of_data dv
+  let i8 ← expr.max_u64 i6 i7
+  let i9 ← expr.bvar_of_data db
+  let i10 ← expr.sat_pred i9
+  let i11 ← expr.max_u64 i8 i10
+  let i12 ← expr.fvar_of_data dt
+  let i13 ← expr.fvar_of_data dv
+  let i14 ← expr.max_u64 i12 i13
+  let i15 ← expr.fvar_of_data db
+  let i16 ← expr.max_u64 i14 i15
+  let b ← expr.lp_of_data dt
+  let b1 ←
+    if b
+    then ok true
+    else
+      do
+      let b2 ← expr.lp_of_data dv
+      if b2
+      then ok true
+      else expr.lp_of_data db
+  let d ← expr.pack_data h i11 i16 b1
+  let r ←
+    alloc.rc.Rc.new (expr.ExprNode.mk d (expr.ExprKind.LetE ty value body))
+  ok (expr.Expr.mk r)
+
+/-- [con_ron_core::expr::lit]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 404:0-408:1
+    Visibility: public -/
+def expr.lit (l : expr.Literal) : Result expr.Expr := do
+  let i ← expr.literal_hash l
+  let i1 ← name.mix_hash 31#u64 i
+  let h ← expr.hash32 i1
+  let d ← expr.pack_data h 0#u64 0#u64 false
+  let r ← alloc.rc.Rc.new (expr.ExprNode.mk d (expr.ExprKind.Lit l))
+  ok (expr.Expr.mk r)
+
+/-- [con_ron_core::expr::proj]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 413:0-427:1
+    Visibility: public -/
+def expr.proj
+  (struct_name : name.Name) (idx : Std.U64) (e : expr.Expr) :
+  Result expr.Expr
+  := do
+  let de ← expr.data e
+  let i ← name.hash_data struct_name
+  let i1 ← name.nat_hash idx
+  let i2 ← expr.hash_of_data de
+  let i3 ← name.mix_hash i1 i2
+  let i4 ← name.mix_hash i i3
+  let i5 ← name.mix_hash 37#u64 i4
+  let h ← expr.hash32 i5
+  let i6 ← expr.bvar_of_data de
+  let i7 ← expr.fvar_of_data de
+  let b ← expr.lp_of_data de
+  let d ← expr.pack_data h i6 i7 b
+  let r ←
+    alloc.rc.Rc.new (expr.ExprNode.mk d (expr.ExprKind.Proj struct_name idx e))
+  ok (expr.Expr.mk r)
+
+/-- [con_ron_core::expr::hash]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 435:0-437:1
+    Visibility: public -/
+def expr.hash (e : expr.Expr) : Result Std.U64 := do
+  let i ← expr.data e
+  expr.hash_of_data i
+
+/-- [con_ron_core::expr::has_lp]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 442:0-444:1
+    Visibility: public -/
+def expr.has_lp (e : expr.Expr) : Result Bool := do
+  let i ← expr.data e
+  expr.lp_of_data i
+
+/-- [con_ron_core::expr::bvar_b_raw]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 452:0-454:1
+    Visibility: public -/
+def expr.bvar_b_raw (e : expr.Expr) : Result Std.U64 := do
+  let i ← expr.data e
+  expr.bvar_of_data i
+
+/-- [con_ron_core::expr::fvar_b_raw]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 458:0-460:1
+    Visibility: public -/
+def expr.fvar_b_raw (e : expr.Expr) : Result Std.U64 := do
+  let i ← expr.data e
+  expr.fvar_of_data i
+
+/-- [con_ron_core::expr::beq_recursive]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 471:0-481:1
+    Visibility: public -/
+def expr.beq_recursive (e : expr.Expr) : Result Bool := do
+  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | expr.ExprKind.Bvar _ => ok false
+  | expr.ExprKind.Fvar _ _ => ok true
+  | expr.ExprKind.Sort _ => ok false
+  | expr.ExprKind.Const _ _ => ok false
+  | expr.ExprKind.App _ _ => ok true
+  | expr.ExprKind.Lam _ _ _ => ok true
+  | expr.ExprKind.ForallE _ _ _ => ok true
+  | expr.ExprKind.LetE _ _ _ => ok true
+  | expr.ExprKind.Lit _ => ok false
+  | expr.ExprKind.Proj _ _ _ => ok true
+
+/-- [con_ron_core::expr::ptr_eq]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 487:0-489:1
+    Visibility: public -/
+def expr.ptr_eq (a : expr.Expr) (b : expr.Expr) : Result Bool := do
+  alloc.rc.Rc.ptr_eq Global a._0 b._0
+
+/-- [con_ron_core::level::ptr_eq]:
+    Source: 'crates/con-ron-core/src/level.rs', lines 96:0-98:1
+    Visibility: public -/
+def level.ptr_eq (a : level.Level) (b : level.Level) : Result Bool := do
+  alloc.rc.Rc.ptr_eq Global a._0 b._0
+
+/-- [con_ron_core::level::beq]:
+    Source: 'crates/con-ron-core/src/level.rs', lines 105:0-120:1
+    Visibility: public -/
+def level.beq (a : level.Level) (b : level.Level) : Result Bool := do
+  let b1 ← level.ptr_eq a b
+  if b1
+  then ok true
+  else
+    let i ← level.hash_data a
+    let i1 ← level.hash_data b
+    if i != i1
+    then ok false
+    else
+      let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
+      let ln1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+      match ln.kind with
+      | level.LevelKind.Zero =>
+        match ln1.kind with
+        | level.LevelKind.Zero => ok true
+        | level.LevelKind.Succ _ => ok false
+        | level.LevelKind.Max _ _ => ok false
+        | level.LevelKind.Imax _ _ => ok false
+        | level.LevelKind.Param _ => ok false
+      | level.LevelKind.Succ u =>
+        match ln1.kind with
+        | level.LevelKind.Zero => ok false
+        | level.LevelKind.Succ v => level.beq u v
+        | level.LevelKind.Max _ _ => ok false
+        | level.LevelKind.Imax _ _ => ok false
+        | level.LevelKind.Param _ => ok false
+      | level.LevelKind.Max u1 v1 =>
+        match ln1.kind with
+        | level.LevelKind.Zero => ok false
+        | level.LevelKind.Succ _ => ok false
+        | level.LevelKind.Max u2 v2 =>
+          let b2 ← level.beq u1 u2
+          if b2
+          then level.beq v1 v2
+          else ok false
+        | level.LevelKind.Imax _ _ => ok false
+        | level.LevelKind.Param _ => ok false
+      | level.LevelKind.Imax u1 v1 =>
+        match ln1.kind with
+        | level.LevelKind.Zero => ok false
+        | level.LevelKind.Succ _ => ok false
+        | level.LevelKind.Max _ _ => ok false
+        | level.LevelKind.Imax u2 v2 =>
+          let b2 ← level.beq u1 u2
+          if b2
+          then level.beq v1 v2
+          else ok false
+        | level.LevelKind.Param _ => ok false
+      | level.LevelKind.Param n =>
+        match ln1.kind with
+        | level.LevelKind.Zero => ok false
+        | level.LevelKind.Succ _ => ok false
+        | level.LevelKind.Max _ _ => ok false
+        | level.LevelKind.Imax _ _ => ok false
+        | level.LevelKind.Param m => name.beq n m
+partial_fixpoint
+
+/-- [con_ron_core::expr::levels_beq_from]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 503:0-511:1
+    Visibility: public -/
+def expr.levels_beq_from
+  (ls : alloc.vec.Vec level.Level) (rs : alloc.vec.Vec level.Level)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len ls
+  if i >= i1
+  then ok true
+  else
+    let l ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice level.Level)
+        ls i
+    let l1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice level.Level)
+        rs i
+    let b ← level.beq l l1
+    if b
+    then let i2 ← i + 1#usize
+         expr.levels_beq_from ls rs i2
+    else ok false
+partial_fixpoint
+
+/-- [con_ron_core::expr::levels_beq]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 493:0-499:1
+    Visibility: public -/
+def expr.levels_beq
+  (ls : alloc.vec.Vec level.Level) (rs : alloc.vec.Vec level.Level) :
+  Result Bool
+  := do
+  let i := alloc.vec.Vec.len ls
+  let i1 := alloc.vec.Vec.len rs
+  if i != i1
+  then ok false
+  else expr.levels_beq_from ls rs 0#usize
+
+/-- [con_ron_core::expr::beq_go]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 529:0-607:1
+    Visibility: public -/
+def expr.beq_go (a : expr.Expr) (b : expr.Expr) : Result Bool := do
+  let b1 ← expr.ptr_eq a b
+  if b1
+  then ok true
+  else
+    let i ← expr.data a
+    let i1 ← expr.data b
+    if i != i1
+    then ok false
+    else
+      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
+      let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+      match en.kind with
+      | expr.ExprKind.Bvar i2 =>
+        match en1.kind with
+        | expr.ExprKind.Bvar j => lift (core.cmp.impls.PartialEqU64.eq i2 j)
+        | expr.ExprKind.Fvar _ _ => ok false
+        | expr.ExprKind.Sort _ => ok false
+        | expr.ExprKind.Const _ _ => ok false
+        | expr.ExprKind.App _ _ => ok false
+        | expr.ExprKind.Lam _ _ _ => ok false
+        | expr.ExprKind.ForallE _ _ _ => ok false
+        | expr.ExprKind.LetE _ _ _ => ok false
+        | expr.ExprKind.Lit _ => ok false
+        | expr.ExprKind.Proj _ _ _ => ok false
+      | expr.ExprKind.Fvar i2 t =>
+        match en1.kind with
+        | expr.ExprKind.Bvar _ => ok false
+        | expr.ExprKind.Fvar j u =>
+          let b2 ← lift (core.cmp.impls.PartialEqU64.eq i2 j)
+          if b2
+          then expr.beq_go t u
+          else ok false
+        | expr.ExprKind.Sort _ => ok false
+        | expr.ExprKind.Const _ _ => ok false
+        | expr.ExprKind.App _ _ => ok false
+        | expr.ExprKind.Lam _ _ _ => ok false
+        | expr.ExprKind.ForallE _ _ _ => ok false
+        | expr.ExprKind.LetE _ _ _ => ok false
+        | expr.ExprKind.Lit _ => ok false
+        | expr.ExprKind.Proj _ _ _ => ok false
+      | expr.ExprKind.Sort u =>
+        match en1.kind with
+        | expr.ExprKind.Bvar _ => ok false
+        | expr.ExprKind.Fvar _ _ => ok false
+        | expr.ExprKind.Sort v => level.beq u v
+        | expr.ExprKind.Const _ _ => ok false
+        | expr.ExprKind.App _ _ => ok false
+        | expr.ExprKind.Lam _ _ _ => ok false
+        | expr.ExprKind.ForallE _ _ _ => ok false
+        | expr.ExprKind.LetE _ _ _ => ok false
+        | expr.ExprKind.Lit _ => ok false
+        | expr.ExprKind.Proj _ _ _ => ok false
+      | expr.ExprKind.Const n us =>
+        match en1.kind with
+        | expr.ExprKind.Bvar _ => ok false
+        | expr.ExprKind.Fvar _ _ => ok false
+        | expr.ExprKind.Sort _ => ok false
+        | expr.ExprKind.Const m vs =>
+          let b2 ← name.beq n m
+          if b2
+          then expr.levels_beq us vs
+          else ok false
+        | expr.ExprKind.App _ _ => ok false
+        | expr.ExprKind.Lam _ _ _ => ok false
+        | expr.ExprKind.ForallE _ _ _ => ok false
+        | expr.ExprKind.LetE _ _ _ => ok false
+        | expr.ExprKind.Lit _ => ok false
+        | expr.ExprKind.Proj _ _ _ => ok false
+      | expr.ExprKind.App f x =>
+        match en1.kind with
+        | expr.ExprKind.Bvar _ => ok false
+        | expr.ExprKind.Fvar _ _ => ok false
+        | expr.ExprKind.Sort _ => ok false
+        | expr.ExprKind.Const _ _ => ok false
+        | expr.ExprKind.App g y =>
+          let b2 ← expr.beq_go f g
+          if b2
+          then expr.beq_go x y
+          else ok false
+        | expr.ExprKind.Lam _ _ _ => ok false
+        | expr.ExprKind.ForallE _ _ _ => ok false
+        | expr.ExprKind.LetE _ _ _ => ok false
+        | expr.ExprKind.Lit _ => ok false
+        | expr.ExprKind.Proj _ _ _ => ok false
+      | expr.ExprKind.Lam t1 b11 m1 =>
+        match en1.kind with
+        | expr.ExprKind.Bvar _ => ok false
+        | expr.ExprKind.Fvar _ _ => ok false
+        | expr.ExprKind.Sort _ => ok false
+        | expr.ExprKind.Const _ _ => ok false
+        | expr.ExprKind.App _ _ => ok false
+        | expr.ExprKind.Lam t2 b2 m2 =>
+          let b3 ← expr.binder_meta_beq m1 m2
+          if b3
+          then
+            let b4 ← expr.beq_go t1 t2
+            if b4
+            then expr.beq_go b11 b2
+            else ok false
+          else ok false
+        | expr.ExprKind.ForallE _ _ _ => ok false
+        | expr.ExprKind.LetE _ _ _ => ok false
+        | expr.ExprKind.Lit _ => ok false
+        | expr.ExprKind.Proj _ _ _ => ok false
+      | expr.ExprKind.ForallE t1 b11 m1 =>
+        match en1.kind with
+        | expr.ExprKind.Bvar _ => ok false
+        | expr.ExprKind.Fvar _ _ => ok false
+        | expr.ExprKind.Sort _ => ok false
+        | expr.ExprKind.Const _ _ => ok false
+        | expr.ExprKind.App _ _ => ok false
+        | expr.ExprKind.Lam _ _ _ => ok false
+        | expr.ExprKind.ForallE t2 b2 m2 =>
+          let b3 ← expr.binder_meta_beq m1 m2
+          if b3
+          then
+            let b4 ← expr.beq_go t1 t2
+            if b4
+            then expr.beq_go b11 b2
+            else ok false
+          else ok false
+        | expr.ExprKind.LetE _ _ _ => ok false
+        | expr.ExprKind.Lit _ => ok false
+        | expr.ExprKind.Proj _ _ _ => ok false
+      | expr.ExprKind.LetE t1 v1 b11 =>
+        match en1.kind with
+        | expr.ExprKind.Bvar _ => ok false
+        | expr.ExprKind.Fvar _ _ => ok false
+        | expr.ExprKind.Sort _ => ok false
+        | expr.ExprKind.Const _ _ => ok false
+        | expr.ExprKind.App _ _ => ok false
+        | expr.ExprKind.Lam _ _ _ => ok false
+        | expr.ExprKind.ForallE _ _ _ => ok false
+        | expr.ExprKind.LetE t2 v2 b2 =>
+          let b3 ← expr.beq_go t1 t2
+          if b3
+          then
+            let b4 ← expr.beq_go v1 v2
+            if b4
+            then expr.beq_go b11 b2
+            else ok false
+          else ok false
+        | expr.ExprKind.Lit _ => ok false
+        | expr.ExprKind.Proj _ _ _ => ok false
+      | expr.ExprKind.Lit l1 =>
+        match en1.kind with
+        | expr.ExprKind.Bvar _ => ok false
+        | expr.ExprKind.Fvar _ _ => ok false
+        | expr.ExprKind.Sort _ => ok false
+        | expr.ExprKind.Const _ _ => ok false
+        | expr.ExprKind.App _ _ => ok false
+        | expr.ExprKind.Lam _ _ _ => ok false
+        | expr.ExprKind.ForallE _ _ _ => ok false
+        | expr.ExprKind.LetE _ _ _ => ok false
+        | expr.ExprKind.Lit l2 => expr.literal_beq l1 l2
+        | expr.ExprKind.Proj _ _ _ => ok false
+      | expr.ExprKind.Proj s1 i11 e1 =>
+        match en1.kind with
+        | expr.ExprKind.Bvar _ => ok false
+        | expr.ExprKind.Fvar _ _ => ok false
+        | expr.ExprKind.Sort _ => ok false
+        | expr.ExprKind.Const _ _ => ok false
+        | expr.ExprKind.App _ _ => ok false
+        | expr.ExprKind.Lam _ _ _ => ok false
+        | expr.ExprKind.ForallE _ _ _ => ok false
+        | expr.ExprKind.LetE _ _ _ => ok false
+        | expr.ExprKind.Lit _ => ok false
+        | expr.ExprKind.Proj s2 i2 e2 =>
+          let b2 ← name.beq s1 s2
+          if b2
+          then
+            let b3 ← lift (core.cmp.impls.PartialEqU64.eq i11 i2)
+            if b3
+            then expr.beq_go e1 e2
+            else ok false
+          else ok false
+partial_fixpoint
+
+/-- [con_ron_core::expr::beq]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 617:0-619:1
+    Visibility: public -/
+def expr.beq (a : expr.Expr) (b : expr.Expr) : Result Bool := do
+  expr.beq_go a b
+
+/-- [con_ron_core::expr::bvar_pool_size]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 628:0-630:1
+    Visibility: public -/
+def expr.bvar_pool_size : Result Std.U64 := do
+  ok 4096#u64
+
+/-- [con_ron_core::expr::mk_bvar]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 652:0-654:1
+    Visibility: public -/
+def expr.mk_bvar (i : Std.U64) : Result expr.Expr := do
+  expr.bvar i
+
+/-- [con_ron_core::expr::{impl con_ron_core::hashmap::Hashable for con_ron_core::expr::Expr}::hash64]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 692:4-694:5
+    Visibility: public -/
+def expr.Expr.Insts.Con_ron_coreHashmapHashable.hash64
+  (self : expr.Expr) : Result Std.U64 := do
+  expr.hash self
+
+/-- Trait implementation: [con_ron_core::expr::{impl con_ron_core::hashmap::Hashable for con_ron_core::expr::Expr}]
+    Source: 'crates/con-ron-core/src/expr.rs', lines 689:0-695:1 -/
+@[reducible]
+def expr.Expr.Insts.Con_ron_coreHashmapHashable : hashmap.Hashable expr.Expr
+  := {
+  hash64 := expr.Expr.Insts.Con_ron_coreHashmapHashable.hash64
+}
+
+/-- [con_ron_core::expr::{impl con_ron_core::hashmap::Eq2 for con_ron_core::expr::Expr}::eq2]:
+    Source: 'crates/con-ron-core/src/expr.rs', lines 705:4-707:5
+    Visibility: public -/
+def expr.Expr.Insts.Con_ron_coreHashmapEq2.eq2
+  (self : expr.Expr) (other : expr.Expr) : Result Bool := do
+  expr.beq self other
+
+/-- Trait implementation: [con_ron_core::expr::{impl con_ron_core::hashmap::Eq2 for con_ron_core::expr::Expr}]
+    Source: 'crates/con-ron-core/src/expr.rs', lines 702:0-708:1 -/
+@[reducible]
+def expr.Expr.Insts.Con_ron_coreHashmapEq2 : hashmap.Eq2 expr.Expr := {
+  eq2 := expr.Expr.Insts.Con_ron_coreHashmapEq2.eq2
+}
+
 /-- [con_ron_core::hashmap::{impl con_ron_core::hashmap::Hashable for u64}::hash64]:
     Source: 'crates/con-ron-core/src/hashmap.rs', lines 69:4-71:5
     Visibility: public -/
@@ -419,30 +1762,12 @@ def hashmap.HashMap.remove
     let v := index_mut_back rest
     ok (removed, { self with num_entries := i3, slots := v })
 
-/-- [con_ron_core::level::hash_data]:
-    Source: 'crates/con-ron-core/src/level.rs', lines 49:0-51:1
-    Visibility: public -/
-def level.hash_data (u : level.Level) : Result Std.U64 := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
-  ok ln.hash
-
 /-- [con_ron_core::level::zero]:
     Source: 'crates/con-ron-core/src/level.rs', lines 55:0-57:1
     Visibility: public -/
 def level.zero : Result level.Level := do
   let r ← alloc.rc.Rc.new (level.LevelNode.mk 1#u64 level.LevelKind.Zero)
   ok (level.Level.mk r)
-
-/-- [con_ron_core::name::mix_hash]:
-    Source: 'crates/con-ron-core/src/name.rs', lines 47:0-54:1
-    Visibility: public -/
-def name.mix_hash (h : Std.U64) (k : Std.U64) : Result Std.U64 := do
-  let k1 ← lift (core.num.U64.wrapping_mul k 14313749767032793493#u64)
-  let i ← k1 >>> 47#i32
-  let k2 ← lift (k1 ^^^ i)
-  let k3 ← lift (k2 ^^^ 14313749767032793493#u64)
-  let h1 ← lift (h ^^^ k3)
-  ok (core.num.U64.wrapping_mul h1 14313749767032793493#u64)
 
 /-- [con_ron_core::level::succ]:
     Source: 'crates/con-ron-core/src/level.rs', lines 61:0-64:1
@@ -475,13 +1800,6 @@ def level.imax (u : level.Level) (v : level.Level) : Result level.Level := do
   let r ← alloc.rc.Rc.new (level.LevelNode.mk h (level.LevelKind.Imax u v))
   ok (level.Level.mk r)
 
-/-- [con_ron_core::name::hash_data]:
-    Source: 'crates/con-ron-core/src/name.rs', lines 86:0-88:1
-    Visibility: public -/
-def name.hash_data (n : name.Name) : Result Std.U64 := do
-  let nn ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global n._0
-  ok nn.hash
-
 /-- [con_ron_core::level::param]:
     Source: 'crates/con-ron-core/src/level.rs', lines 82:0-85:1
     Visibility: public -/
@@ -499,152 +1817,6 @@ def level.dup (u : level.Level) : Result level.Level := do
     alloc.rc.Rc.Insts.CoreCloneClone.clone
       alloc.alloc.Global.Insts.CoreAllocAllocatorClone u._0
   ok (level.Level.mk r)
-
-/-- [con_ron_core::level::ptr_eq]:
-    Source: 'crates/con-ron-core/src/level.rs', lines 96:0-98:1
-    Visibility: public -/
-def level.ptr_eq (a : level.Level) (b : level.Level) : Result Bool := do
-  alloc.rc.Rc.ptr_eq Global a._0 b._0
-
-/-- [con_ron_core::name::str_eq_from]:
-    Source: 'crates/con-ron-core/src/name.rs', lines 139:0-147:1
-    Visibility: public -/
-def name.str_eq_from
-  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) (i : Std.Usize) :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len a
-  if i >= i1
-  then ok true
-  else
-    let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) a i
-    let i3 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) b i
-    if i2 != i3
-    then ok false
-    else let i4 ← i + 1#usize
-         name.str_eq_from a b i4
-partial_fixpoint
-
-/-- [con_ron_core::name::str_eq]:
-    Source: 'crates/con-ron-core/src/name.rs', lines 129:0-135:1
-    Visibility: public -/
-def name.str_eq
-  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) : Result Bool := do
-  let i := alloc.vec.Vec.len a
-  let i1 := alloc.vec.Vec.len b
-  if i != i1
-  then ok false
-  else name.str_eq_from a b 0#usize
-
-/-- [con_ron_core::name::ptr_eq]:
-    Source: 'crates/con-ron-core/src/name.rs', lines 123:0-125:1
-    Visibility: public -/
-def name.ptr_eq (a : name.Name) (b : name.Name) : Result Bool := do
-  alloc.rc.Rc.ptr_eq Global a._0 b._0
-
-/-- [con_ron_core::name::beq]:
-    Source: 'crates/con-ron-core/src/name.rs', lines 156:0-169:1
-    Visibility: public -/
-def name.beq (a : name.Name) (b : name.Name) : Result Bool := do
-  let b1 ← name.ptr_eq a b
-  if b1
-  then ok true
-  else
-    let i ← name.hash_data a
-    let i1 ← name.hash_data b
-    if i != i1
-    then ok false
-    else
-      let nn ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
-      let nn1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
-      match nn.kind with
-      | name.NameKind.Anonymous =>
-        match nn1.kind with
-        | name.NameKind.Anonymous => ok true
-        | name.NameKind.Str _ _ => ok false
-        | name.NameKind.Num _ _ => ok false
-      | name.NameKind.Str p s =>
-        match nn1.kind with
-        | name.NameKind.Anonymous => ok false
-        | name.NameKind.Str q t =>
-          let b2 ← name.beq p q
-          if b2
-          then name.str_eq s t
-          else ok false
-        | name.NameKind.Num _ _ => ok false
-      | name.NameKind.Num p m =>
-        match nn1.kind with
-        | name.NameKind.Anonymous => ok false
-        | name.NameKind.Str _ _ => ok false
-        | name.NameKind.Num q n =>
-          let b2 ← name.beq p q
-          if b2
-          then lift (core.cmp.impls.PartialEqU64.eq m n)
-          else ok false
-partial_fixpoint
-
-/-- [con_ron_core::level::beq]:
-    Source: 'crates/con-ron-core/src/level.rs', lines 105:0-120:1
-    Visibility: public -/
-def level.beq (a : level.Level) (b : level.Level) : Result Bool := do
-  let b1 ← level.ptr_eq a b
-  if b1
-  then ok true
-  else
-    let i ← level.hash_data a
-    let i1 ← level.hash_data b
-    if i != i1
-    then ok false
-    else
-      let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
-      let ln1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
-      match ln.kind with
-      | level.LevelKind.Zero =>
-        match ln1.kind with
-        | level.LevelKind.Zero => ok true
-        | level.LevelKind.Succ _ => ok false
-        | level.LevelKind.Max _ _ => ok false
-        | level.LevelKind.Imax _ _ => ok false
-        | level.LevelKind.Param _ => ok false
-      | level.LevelKind.Succ u =>
-        match ln1.kind with
-        | level.LevelKind.Zero => ok false
-        | level.LevelKind.Succ v => level.beq u v
-        | level.LevelKind.Max _ _ => ok false
-        | level.LevelKind.Imax _ _ => ok false
-        | level.LevelKind.Param _ => ok false
-      | level.LevelKind.Max u1 v1 =>
-        match ln1.kind with
-        | level.LevelKind.Zero => ok false
-        | level.LevelKind.Succ _ => ok false
-        | level.LevelKind.Max u2 v2 =>
-          let b2 ← level.beq u1 u2
-          if b2
-          then level.beq v1 v2
-          else ok false
-        | level.LevelKind.Imax _ _ => ok false
-        | level.LevelKind.Param _ => ok false
-      | level.LevelKind.Imax u1 v1 =>
-        match ln1.kind with
-        | level.LevelKind.Zero => ok false
-        | level.LevelKind.Succ _ => ok false
-        | level.LevelKind.Max _ _ => ok false
-        | level.LevelKind.Imax u2 v2 =>
-          let b2 ← level.beq u1 u2
-          if b2
-          then level.beq v1 v2
-          else ok false
-        | level.LevelKind.Param _ => ok false
-      | level.LevelKind.Param n =>
-        match ln1.kind with
-        | level.LevelKind.Zero => ok false
-        | level.LevelKind.Succ _ => ok false
-        | level.LevelKind.Max _ _ => ok false
-        | level.LevelKind.Imax _ _ => ok false
-        | level.LevelKind.Param m => name.beq n m
-partial_fixpoint
 
 /-- [con_ron_core::level::is_zero_kind]:
     Source: 'crates/con-ron-core/src/level.rs', lines 126:0-131:1
@@ -669,92 +1841,6 @@ def level.is_one_kind (u : level.Level) : Result Bool := do
   | level.LevelKind.Max _ _ => ok false
   | level.LevelKind.Imax _ _ => ok false
   | level.LevelKind.Param _ => ok false
-
-/-- [con_ron_core::level::level_has_param]:
-    Source: 'crates/con-ron-core/src/level.rs', lines 144:0-152:1
-    Visibility: public -/
-def level.level_has_param (u : level.Level) : Result Bool := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
-  match ln.kind with
-  | level.LevelKind.Zero => ok false
-  | level.LevelKind.Succ v => level.level_has_param v
-  | level.LevelKind.Max a b =>
-    let b1 ← level.level_has_param a
-    if b1
-    then ok true
-    else level.level_has_param b
-  | level.LevelKind.Imax a b =>
-    let b1 ← level.level_has_param a
-    if b1
-    then ok true
-    else level.level_has_param b
-  | level.LevelKind.Param _ => ok true
-partial_fixpoint
-
-/-- [con_ron_core::level::levels_have_param_from]:
-    Source: 'crates/con-ron-core/src/level.rs', lines 162:0-168:1
-    Visibility: public -/
-def level.levels_have_param_from
-  (us : alloc.vec.Vec level.Level) (i : Std.Usize) : Result Bool := do
-  let i1 := alloc.vec.Vec.len us
-  if i >= i1
-  then ok false
-  else
-    let l ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice level.Level)
-        us i
-    let b ← level.level_has_param l
-    if b
-    then ok true
-    else let i2 ← i + 1#usize
-         level.levels_have_param_from us i2
-partial_fixpoint
-
-/-- [con_ron_core::level::levels_have_param]:
-    Source: 'crates/con-ron-core/src/level.rs', lines 156:0-158:1
-    Visibility: public -/
-def level.levels_have_param
-  (us : alloc.vec.Vec level.Level) : Result Bool := do
-  level.levels_have_param_from us 0#usize
-
-/-- [con_ron_core::level::level_hash]:
-    Source: 'crates/con-ron-core/src/level.rs', lines 172:0-174:1
-    Visibility: public -/
-def level.level_hash (u : level.Level) : Result Std.U64 := do
-  level.hash_data u
-
-/-- [con_ron_core::level::levels_hash_from]:
-    Source: 'crates/con-ron-core/src/level.rs', lines 184:0-190:1
-    Visibility: public -/
-def level.levels_hash_from
-  (us : alloc.vec.Vec level.Level) (i : Std.Usize) : Result Std.U64 := do
-  let i1 := alloc.vec.Vec.len us
-  if i >= i1
-  then ok 13#u64
-  else
-    let l ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice level.Level)
-        us i
-    let i2 ← level.level_hash l
-    let i3 ← i + 1#usize
-    let i4 ← level.levels_hash_from us i3
-    name.mix_hash i2 i4
-partial_fixpoint
-
-/-- [con_ron_core::level::levels_hash]:
-    Source: 'crates/con-ron-core/src/level.rs', lines 178:0-180:1
-    Visibility: public -/
-def level.levels_hash (us : alloc.vec.Vec level.Level) : Result Std.U64 := do
-  level.levels_hash_from us 0#usize
-
-/-- [con_ron_core::name::dup]:
-    Source: 'crates/con-ron-core/src/name.rs', lines 115:0-117:1
-    Visibility: public -/
-def name.dup (n : name.Name) : Result name.Name := do
-  let r ←
-    alloc.rc.Rc.Insts.CoreCloneClone.clone
-      alloc.alloc.Global.Insts.CoreAllocAllocatorClone n._0
-  ok (name.Name.mk r)
 
 /-- [con_ron_core::level::subst_go]:
     Source: 'crates/con-ron-core/src/level.rs', lines 207:0-215:1
@@ -1706,37 +2792,6 @@ def level.Level.Insts.Con_ron_coreHashmapEq2 : hashmap.Eq2 level.Level := {
   eq2 := level.Level.Insts.Con_ron_coreHashmapEq2.eq2
 }
 
-/-- [con_ron_core::name::str_hash_from]:
-    Source: 'crates/con-ron-core/src/name.rs', lines 69:0-75:1
-    Visibility: public -/
-def name.str_hash_from
-  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) (acc : Std.U64) :
-  Result Std.U64
-  := do
-  let i1 := alloc.vec.Vec.len s
-  if i >= i1
-  then ok acc
-  else
-    let i2 ← i + 1#usize
-    let i3 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
-    let i4 ← lift (UScalar.cast .U64 i3)
-    let i5 ← name.mix_hash acc i4
-    name.str_hash_from s i2 i5
-partial_fixpoint
-
-/-- [con_ron_core::name::str_hash]:
-    Source: 'crates/con-ron-core/src/name.rs', lines 63:0-65:1
-    Visibility: public -/
-def name.str_hash (s : alloc.vec.Vec Std.U32) : Result Std.U64 := do
-  name.str_hash_from s 0#usize 11#u64
-
-/-- [con_ron_core::name::nat_hash]:
-    Source: 'crates/con-ron-core/src/name.rs', lines 80:0-82:1
-    Visibility: public -/
-def name.nat_hash (n : Std.U64) : Result Std.U64 := do
-  ok n
-
 /-- [con_ron_core::name::anonymous]:
     Source: 'crates/con-ron-core/src/name.rs', lines 92:0-94:1
     Visibility: public -/
@@ -1842,14 +2897,6 @@ def nat.is_zero (a : nat.Nat) : Result Bool := do
   let i := alloc.vec.Vec.len a.limbs
   ok (i = 0#usize)
 
-/-- [con_ron_core::nat::limb]:
-    Source: 'crates/con-ron-core/src/nat.rs', lines 112:0-118:1 -/
-def nat.limb (v : alloc.vec.Vec Std.U64) (i : Std.Usize) : Result Std.U64 := do
-  let i1 := alloc.vec.Vec.len v
-  if i < i1
-  then alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) v i
-  else ok 0#u64
-
 /-- [con_ron_core::nat::sig_len]:
     Source: 'crates/con-ron-core/src/nat.rs', lines 122:0-130:1 -/
 def nat.sig_len
@@ -1865,27 +2912,6 @@ def nat.sig_len
     else nat.sig_len v i
 partial_fixpoint
 
-/-- [con_ron_core::nat::copy_from]:
-    Source: 'crates/con-ron-core/src/nat.rs', lines 134:0-144:1 -/
-def nat.copy_from
-  (v : alloc.vec.Vec Std.U64) (i : Std.Usize) («end» : Std.Usize)
-  (out : alloc.vec.Vec Std.U64) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  if i >= «end»
-  then ok out
-  else
-    let i1 := alloc.vec.Vec.len v
-    if i >= i1
-    then ok out
-    else
-      let i2 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) v i
-      let out1 ← alloc.vec.Vec.push out i2
-      let i3 ← i + 1#usize
-      nat.copy_from v i3 «end» out1
-partial_fixpoint
-
 /-- [con_ron_core::nat::norm]:
     Source: 'crates/con-ron-core/src/nat.rs', lines 149:0-157:1
     Visibility: public -/
@@ -1897,55 +2923,6 @@ def nat.norm (limbs : alloc.vec.Vec Std.U64) : Result nat.Nat := do
   else
     let v ← nat.copy_from limbs 0#usize s (alloc.vec.Vec.new Std.U64)
     ok { limbs := v }
-
-/-- [con_ron_core::nat::clone]:
-    Source: 'crates/con-ron-core/src/nat.rs', lines 164:0-166:1
-    Visibility: public -/
-def nat.clone (a : nat.Nat) : Result nat.Nat := do
-  let i := alloc.vec.Vec.len a.limbs
-  let v ← nat.copy_from a.limbs 0#usize i (alloc.vec.Vec.new Std.U64)
-  ok { limbs := v }
-
-/-- [con_ron_core::nat::cmp_from]:
-    Source: 'crates/con-ron-core/src/nat.rs', lines 187:0-201:1 -/
-def nat.cmp_from
-  (a : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec Std.U64) (k : Std.Usize) :
-  Result nat.Cmp
-  := do
-  if k = 0#usize
-  then ok nat.Cmp.Eq
-  else
-    let i ← k - 1#usize
-    let x ← nat.limb a i
-    let y ← nat.limb b i
-    if x < y
-    then ok nat.Cmp.Lt
-    else if x > y
-         then ok nat.Cmp.Gt
-         else nat.cmp_from a b i
-partial_fixpoint
-
-/-- [con_ron_core::nat::cmp]:
-    Source: 'crates/con-ron-core/src/nat.rs', lines 174:0-184:1
-    Visibility: public -/
-def nat.cmp (a : nat.Nat) (b : nat.Nat) : Result nat.Cmp := do
-  let la := alloc.vec.Vec.len a.limbs
-  let lb := alloc.vec.Vec.len b.limbs
-  if la < lb
-  then ok nat.Cmp.Lt
-  else if la > lb
-       then ok nat.Cmp.Gt
-       else nat.cmp_from a.limbs b.limbs la
-
-/-- [con_ron_core::nat::beq]:
-    Source: 'crates/con-ron-core/src/nat.rs', lines 204:0-210:1
-    Visibility: public -/
-def nat.beq (a : nat.Nat) (b : nat.Nat) : Result Bool := do
-  let c ← nat.cmp a b
-  match c with
-  | nat.Cmp.Lt => ok false
-  | nat.Cmp.Eq => ok true
-  | nat.Cmp.Gt => ok false
 
 /-- [con_ron_core::nat::ble]:
     Source: 'crates/con-ron-core/src/nat.rs', lines 213:0-219:1
@@ -2488,30 +3465,6 @@ def nat.xor (a : nat.Nat) (b : nat.Nat) : Result nat.Nat := do
   let v ← nat.xor_from a.limbs b.limbs 0#usize n (alloc.vec.Vec.new Std.U64)
   nat.norm v
 
-/-- [con_ron_core::nat::hash64_from]:
-    Source: 'crates/con-ron-core/src/nat.rs', lines 661:0-667:1 -/
-def nat.hash64_from
-  (v : alloc.vec.Vec Std.U64) (i : Std.Usize) (acc : Std.U64) :
-  Result Std.U64
-  := do
-  let i1 := alloc.vec.Vec.len v
-  if i >= i1
-  then ok acc
-  else
-    let i2 ← i + 1#usize
-    let i3 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) v i
-    let i4 ← lift (acc ^^^ i3)
-    let i5 ← lift (core.num.U64.wrapping_mul i4 1099511628211#u64)
-    nat.hash64_from v i2 i5
-partial_fixpoint
-
-/-- [con_ron_core::nat::hash64]:
-    Source: 'crates/con-ron-core/src/nat.rs', lines 657:0-659:1
-    Visibility: public -/
-def nat.hash64 (a : nat.Nat) : Result Std.U64 := do
-  nat.hash64_from a.limbs 0#usize 14695981039346656037#u64
-
 /-- [con_ron_core::prop_when::ord_then]:
     Source: 'crates/con-ron-core/src/prop_when.rs', lines 82:0-87:1
     Visibility: public -/
@@ -2644,34 +3597,6 @@ def prop_when.name_lt (a : name.Name) (b : name.Name) : Result Bool := do
   | prop_when.Ordering.Eq => ok false
   | prop_when.Ordering.Gt => ok false
 
-/-- [con_ron_core::prop_when::append_from]:
-    Source: 'crates/con-ron-core/src/prop_when.rs', lines 174:0-182:1
-    Visibility: public -/
-def prop_when.append_from
-  (xs : alloc.vec.Vec name.Name) (k : Std.Usize)
-  (out : alloc.vec.Vec name.Name) :
-  Result (alloc.vec.Vec name.Name)
-  := do
-  let i := alloc.vec.Vec.len xs
-  if k >= i
-  then ok out
-  else
-    let n ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice name.Name) xs
-        k
-    let n1 ← name.dup n
-    let out1 ← alloc.vec.Vec.push out n1
-    let i1 ← k + 1#usize
-    prop_when.append_from xs i1 out1
-partial_fixpoint
-
-/-- [con_ron_core::prop_when::names_copy]:
-    Source: 'crates/con-ron-core/src/prop_when.rs', lines 186:0-188:1
-    Visibility: public -/
-def prop_when.names_copy
-  (xs : alloc.vec.Vec name.Name) : Result (alloc.vec.Vec name.Name) := do
-  prop_when.append_from xs 0#usize (alloc.vec.Vec.new name.Name)
-
 /-- [con_ron_core::prop_when::merge_from]:
     Source: 'crates/con-ron-core/src/prop_when.rs', lines 200:0-230:1
     Visibility: public -/
@@ -2750,193 +3675,6 @@ partial_fixpoint
 def prop_when.canon
   (ps : alloc.vec.Vec name.Name) : Result (alloc.vec.Vec name.Name) := do
   prop_when.canon_from ps 0#usize
-
-/-- [con_ron_core::prop_when::of_repr]:
-    Source: 'crates/con-ron-core/src/prop_when.rs', lines 284:0-286:1 -/
-def prop_when.of_repr
-  (r : prop_when.PropWhenRepr) : Result prop_when.PropWhen := do
-  ok { repr := r }
-
-/-- [con_ron_core::prop_when::dup]:
-    Source: 'crates/con-ron-core/src/prop_when.rs', lines 291:0-301:1
-    Visibility: public -/
-def prop_when.dup (pw : prop_when.PropWhen) : Result prop_when.PropWhen := do
-  match pw.repr with
-  | prop_when.PropWhenRepr.Never =>
-    prop_when.of_repr prop_when.PropWhenRepr.Never
-  | prop_when.PropWhenRepr.Always =>
-    prop_when.of_repr prop_when.PropWhenRepr.Always
-  | prop_when.PropWhenRepr.One p =>
-    let n ← name.dup p
-    prop_when.of_repr (prop_when.PropWhenRepr.One n)
-  | prop_when.PropWhenRepr.Two p q =>
-    let n ← name.dup p
-    let n1 ← name.dup q
-    prop_when.of_repr (prop_when.PropWhenRepr.Two n n1)
-  | prop_when.PropWhenRepr.Many ps =>
-    let v ← prop_when.names_copy ps
-    prop_when.of_repr (prop_when.PropWhenRepr.Many v)
-
-/-- [con_ron_core::prop_when::names_beq_from]:
-    Source: 'crates/con-ron-core/src/prop_when.rs', lines 310:0-320:1
-    Visibility: public -/
-def prop_when.names_beq_from
-  (ps : alloc.vec.Vec name.Name) (qs : alloc.vec.Vec name.Name) (i : Std.Usize)
-  :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len ps
-  if i >= i1
-  then
-    let i2 := alloc.vec.Vec.len qs
-    if i >= i2
-    then ok true
-    else
-      let i3 := alloc.vec.Vec.len ps
-      if i >= i3
-      then ok false
-      else
-        let i4 := alloc.vec.Vec.len qs
-        if i >= i4
-        then ok false
-        else
-          let n ←
-            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-              name.Name) ps i
-          let n1 ←
-            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-              name.Name) qs i
-          let b ← name.beq n n1
-          if b
-          then let i5 ← i + 1#usize
-               prop_when.names_beq_from ps qs i5
-          else ok false
-  else
-    let i2 := alloc.vec.Vec.len ps
-    if i >= i2
-    then ok false
-    else
-      let i3 := alloc.vec.Vec.len qs
-      if i >= i3
-      then ok false
-      else
-        let n ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice name.Name)
-            ps i
-        let n1 ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice name.Name)
-            qs i
-        let b ← name.beq n n1
-        if b
-        then let i4 ← i + 1#usize
-             prop_when.names_beq_from ps qs i4
-        else ok false
-partial_fixpoint
-
-/-- [con_ron_core::prop_when::names_beq]:
-    Source: 'crates/con-ron-core/src/prop_when.rs', lines 324:0-326:1
-    Visibility: public -/
-def prop_when.names_beq
-  (ps : alloc.vec.Vec name.Name) (qs : alloc.vec.Vec name.Name) :
-  Result Bool
-  := do
-  prop_when.names_beq_from ps qs 0#usize
-
-/-- [con_ron_core::prop_when::equiv_r]:
-    Source: 'crates/con-ron-core/src/prop_when.rs', lines 332:0-343:1 -/
-def prop_when.equiv_r
-  (x : prop_when.PropWhenRepr) (y : prop_when.PropWhenRepr) : Result Bool := do
-  match x with
-  | prop_when.PropWhenRepr.Never =>
-    match y with
-    | prop_when.PropWhenRepr.Never => ok true
-    | prop_when.PropWhenRepr.Always => ok false
-    | prop_when.PropWhenRepr.One _ => ok false
-    | prop_when.PropWhenRepr.Two _ _ => ok false
-    | prop_when.PropWhenRepr.Many _ => ok false
-  | prop_when.PropWhenRepr.Always =>
-    match y with
-    | prop_when.PropWhenRepr.Never => ok false
-    | prop_when.PropWhenRepr.Always => ok true
-    | prop_when.PropWhenRepr.One _ => ok false
-    | prop_when.PropWhenRepr.Two _ _ => ok false
-    | prop_when.PropWhenRepr.Many _ => ok false
-  | prop_when.PropWhenRepr.One a =>
-    match y with
-    | prop_when.PropWhenRepr.Never => ok false
-    | prop_when.PropWhenRepr.Always => ok false
-    | prop_when.PropWhenRepr.One b => name.beq a b
-    | prop_when.PropWhenRepr.Two _ _ => ok false
-    | prop_when.PropWhenRepr.Many _ => ok false
-  | prop_when.PropWhenRepr.Two a b =>
-    match y with
-    | prop_when.PropWhenRepr.Never => ok false
-    | prop_when.PropWhenRepr.Always => ok false
-    | prop_when.PropWhenRepr.One _ => ok false
-    | prop_when.PropWhenRepr.Two c d =>
-      let b1 ← name.beq a c
-      if b1
-      then name.beq b d
-      else ok false
-    | prop_when.PropWhenRepr.Many _ => ok false
-  | prop_when.PropWhenRepr.Many ps =>
-    match y with
-    | prop_when.PropWhenRepr.Never => ok false
-    | prop_when.PropWhenRepr.Always => ok false
-    | prop_when.PropWhenRepr.One _ => ok false
-    | prop_when.PropWhenRepr.Two _ _ => ok false
-    | prop_when.PropWhenRepr.Many qs => prop_when.names_beq ps qs
-
-/-- [con_ron_core::prop_when::beq]:
-    Source: 'crates/con-ron-core/src/prop_when.rs', lines 351:0-353:1
-    Visibility: public -/
-def prop_when.beq
-  (a : prop_when.PropWhen) (b : prop_when.PropWhen) : Result Bool := do
-  prop_when.equiv_r a.repr b.repr
-
-/-- [con_ron_core::prop_when::names_hash_from]:
-    Source: 'crates/con-ron-core/src/prop_when.rs', lines 357:0-363:1
-    Visibility: public -/
-def prop_when.names_hash_from
-  (ps : alloc.vec.Vec name.Name) (i : Std.Usize) (acc : Std.U64) :
-  Result Std.U64
-  := do
-  let i1 := alloc.vec.Vec.len ps
-  if i >= i1
-  then ok acc
-  else
-    let i2 ← i + 1#usize
-    let n ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice name.Name) ps
-        i
-    let i3 ← name.hash_data n
-    let i4 ← name.mix_hash acc i3
-    prop_when.names_hash_from ps i2 i4
-partial_fixpoint
-
-/-- [con_ron_core::prop_when::hash_repr]:
-    Source: 'crates/con-ron-core/src/prop_when.rs', lines 374:0-385:1 -/
-def prop_when.hash_repr (r : prop_when.PropWhenRepr) : Result Std.U64 := do
-  match r with
-  | prop_when.PropWhenRepr.Never => ok 0#u64
-  | prop_when.PropWhenRepr.Always => ok 1#u64
-  | prop_when.PropWhenRepr.One p =>
-    let i ← name.hash_data p
-    name.mix_hash 2#u64 i
-  | prop_when.PropWhenRepr.Two p q =>
-    let i ← name.hash_data p
-    let i1 ← name.mix_hash 3#u64 i
-    let i2 ← name.hash_data q
-    name.mix_hash i1 i2
-  | prop_when.PropWhenRepr.Many ps =>
-    let i ← prop_when.names_hash_from ps 0#usize 7#u64
-    name.mix_hash 4#u64 i
-
-/-- [con_ron_core::prop_when::hash_pw]:
-    Source: 'crates/con-ron-core/src/prop_when.rs', lines 391:0-393:1
-    Visibility: public -/
-def prop_when.hash_pw (pw : prop_when.PropWhen) : Result Std.U64 := do
-  prop_when.hash_repr pw.repr
 
 /-- [con_ron_core::prop_when::{impl con_ron_core::hashmap::Hashable for con_ron_core::prop_when::PropWhen}::hash64]:
     Source: 'crates/con-ron-core/src/prop_when.rs', lines 401:4-403:5
@@ -3142,17 +3880,6 @@ def prop_when.is_never (pw : prop_when.PropWhen) : Result Bool := do
   | prop_when.PropWhenRepr.One _ => ok false
   | prop_when.PropWhenRepr.Two _ _ => ok false
   | prop_when.PropWhenRepr.Many _ => ok false
-
-/-- [con_ron_core::prop_when::has_params]:
-    Source: 'crates/con-ron-core/src/prop_when.rs', lines 566:0-572:1
-    Visibility: public -/
-def prop_when.has_params (pw : prop_when.PropWhen) : Result Bool := do
-  match pw.repr with
-  | prop_when.PropWhenRepr.Never => ok false
-  | prop_when.PropWhenRepr.Always => ok false
-  | prop_when.PropWhenRepr.One _ => ok true
-  | prop_when.PropWhenRepr.Two _ _ => ok true
-  | prop_when.PropWhenRepr.Many _ => ok true
 
 /-- [con_ron_core::prop_when::all_contained_from]:
     Source: 'crates/con-ron-core/src/prop_when.rs', lines 576:0-584:1
