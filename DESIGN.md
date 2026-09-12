@@ -9971,3 +9971,165 @@ rebuild after the model files change.
 * `AENEAS_FINDINGS.md`'s two `alloc.rc.Rc` notes are left as written: they
   record findings against Aeneas at the time, and the spike whose model they
   describe is still compiled at `std::rc::Rc`.
+
+### Task #47 — `ExprOps` refined (task #21 resumed) (2026-09-12, Opus under Fable)
+
+`CORE_PLAN.md` step 3's first half: the refinement of
+`crates/con-ron-core/src/kernel/expr_ops.rs`, **all 90 functions, sorry-free**.
+Task #21's WIP on `parked/task-21-exprops-refine` was merged into a branch off
+current master, adapted to the model master had moved to (tasks #34, #35, #38,
+#41, #45), completed, and consolidated from eight files into five.
+
+#### 1. What the parked work was, and what broke in it
+
+The parked branch carried 9 003 lines in eight files — `ExprOps.lean` (the
+memo foundation + `instantiate1`), and `ExprOps{Abs1,BvarB,Fast,Lift,List,Meta,
+Spine}.lean`; `Spine` was finished by a sub-agent, the others were partial.  It
+merged cleanly (the branch already had master up to `5ea0757`, and master's
+changes since touched no `ExprOps*` file).  What then failed to elaborate fell
+into exactly **five** classes, all of them model drift, none of them a hole in
+an argument:
+
+1. **`alloc.rc.Rc` → `alloc.sync.Arc` (task #45)** — 389 uses of the simp
+   lemma `rc_deref_eq`, now `arc_deref_eq`.  A `sed`.
+2. **`AList`'s optional tail (task #41)** — `AList.Cons`' third field is an
+   `Option (AList K V)`, so `AList` is a *nested* inductive and `induction ls
+   with | Nil | Cons` is refused.  The three bucket walks of `ExprOps.lean`'s
+   no-`Inv` memo layer (`list_get_mem`, `list_insert_pres`,
+   `move_elements_from_list_pres`) were re-cased on master's own
+   `HashMap.AList.recTail` — three cases (`nil`, `last`, `cons`) instead of two
+   — with `HashMap.alv_cons`/`alvO_some` where the old proofs rewrote with
+   `alv`'s equation.
+3. **Lazy slot allocation (task #35)** — `HashMap.get` now answers `none` at
+   once on an unallocated table (one `split at h` added), `HashMap.new` returns
+   a table with *no buckets* (`new_al_v` is now immediate rather than a
+   `new_with_capacity_pow2` fact), and `HashMap.insert` begins with
+   `ensure_slots`.  The last one needed a genuine new lemma,
+   `ensure_slots_pres`: `ensure_slots` either leaves the table alone or replaces
+   an empty bucket vector by a longer one of empty buckets, so every recorded
+   entry of the result was already recorded — and, in keeping with this file's
+   deliberate departure from task #16's `toFun` bridge, it needs no `Inv`.
+4. **The repacked node (task #38)** — `BinderMeta.pw` is an `Arc<PropWhen>`, so
+   every place that used to write the binder datum inline now calls
+   `expr::binder_meta`.  That is one extra bind in five walks.  Stated once as a
+   `simp` lemma (`binder_meta_eq : expr.binder_meta pw = ok ⟨pw⟩`, the pointer
+   wrapper being the identity) it collapses inside the `simp only
+   [arc_deref_eq, bind_tc_ok, node_kind]` step every walk already runs.
+5. **Pre-sized accumulators (task #34)** — `Vec::with_capacity` where the port
+   used `Vec::new`; `with_capacity` *is* `new` in the Aeneas model, so one more
+   `simp` lemma (`with_capacity_val`) and two extra binds destructured.
+
+Two proofs were broken independently of the model: `ExprOpsFast.lean`'s two
+`*F` wrappers rewrote with `ConLeche.Expr.instPisAtF`, whose body matches on
+`instPisAtFGo [] args e` — a scrutinee `rw` cannot see, so `rw [f]` had no
+equation to use.  Both now case on the scrutinee first and unfold with
+`f.eq_def`, which is also the honest shape: `none` is the arm where the port
+falls back to the sequential `inst_pis_at`, exactly as the cited definition
+does.
+
+#### 2. What was missing, and was written here
+
+Seven of the 90 functions had no lemma at all, and three wrapper lemmas were
+absent although their memoized walks were proved:
+
+* `abstract1_refines`, `lower_bvars_refines`, `instantiate1_lift_refines` — the
+  `memo := ∅` wrappers of `abstract1_go`/`lower_bvars_go`/
+  `instantiate1_lift_go`, each six lines through `new_memo_inv` (the third was
+  already *used* by `inst_pis_at_lift_from_refines`, which is how the gap
+  showed).
+* **the `allLevelParamsDefined` family** (`Kernel/Level.lean:251-268`, memoized
+  at `:299`, `@[csimp]` at `:409`): `bool_and`/`bool_and3` (the port's `&&` as a
+  *call* — task #18's rule that a gated result whose arms rejoin must become
+  one — so plain `Bool` equations), `memo_b_get` (the `Bool` twin of
+  `memo_n_get`), `levels_all_params_defined` (an index loop, stated on
+  `us.drop i` in the task-#5 shape), the specification walk
+  `all_level_params_defined`, the node-keyed memoized walk
+  `all_level_params_defined_go`, and the `*_fast` wrapper.  The walk's
+  memo-skipping leaves are `Bvar`/`Sort`/`Const`/`Lit`, exactly the cited
+  Lean's, and the other six arms instantiate the foundation's `MemoInv` at
+  `KWF := ExprWF`, `absK := absExpr`, `V := Bool`.
+* `level::all_params_defined`, which belongs to `level.rs` but has no lemma
+  there and only this one caller, so its refinement was written next to it —
+  the same judgement task #13 made for `zeroness_of`/`subst_pw`.
+
+#### 3. The five files
+
+Task #21's eight files were consolidated into `ExprOps.lean` plus four themed
+ones, in a linear import chain `ExprOps → Fields → Subst → Spine` with `Meta`
+beside them:
+
+| file | lines | thms | contents |
+|---|---|---|---|
+| `ExprOps.lean` | 1 177 | 42 | the foundation: the memo facts with **no `Eq2Spec` and no `Inv`** (`get_mem`, `insert_pres` through `ensure_slots`/resize, `MemoInv.empty/hit/set`), the two key types and their `KeyExact`, the four owning probes, the shared `Vec`/scalar plumbing and the `Vec` copies, and `instantiate1` |
+| `ExprOpsFields.lean` | 1 737 | 18 | `size_b`/`size_f`, `wscoped_b`, the `bvar_bound`/`fvar_range` spec walks and memoized twins, the packed-word accessors `bvar_b`/`fvar_b`, `loose_bvars_bounded`, `has_fvar`, `abstract_range`, `lift_loose_bvars` |
+| `ExprOpsSubst.lean` | 2 126 | 23 | `instantiate_list` (spec, walk, `*_fast`), `take_exprs`, `abstract1`, `lower_bvars`, `instantiate1_lift`, `inst_pis_at_lift` |
+| `ExprOpsSpine.lean` | 1 965 | 39 | the spine readers, `strip_pis`/`strip_lams`, the `inst_pis_at`/`inst_lams_at`/`inst_spine` cascade and its one-pass `*_f` twins, `rec_rule_plain`, `pis_to_lams`, `replace_pi_body` |
+| `ExprOpsMeta.lean` | 2 440 | 28 | `reset_meta`, `rename_consts`, the `level::zeroness_of`/`subst_pw` bridge, `levels_subst`/`instantiate_level_params`, the leaf readers, `fvar_leaves`, and the `allLevelParamsDefined` family |
+
+**9 445 proof lines for 2 098 Rust lines — 4.5 lines of proof per line of
+port**, 150 theorems and 21 definitions, `sorry`-free.  (For comparison: task
+#20's `Expr` was 2 686 proof lines on 1 060 Rust lines, 2.5:1.  The ratio here
+is worse because every walk is a ten-constructor induction *and* a memo
+argument, and because Charon duplicates a memoized walk's inner `match` once
+per outer arm.)
+
+The consolidation removed seven duplicate names that the split had forced —
+`sub_nat_val`, `usize_cast_u64_val`, `absExprs_push`, `absExprs_drop_cons`,
+`exprs_copy_upto_val`, `levels_copy_from_val`, `levels_copy_val` — by moving
+the shared plumbing and the `Vec` copies into the foundation, and it deleted
+`ExprOpsFast.lean`'s four `*_local` duplicates of the sequential
+`inst_pis_at`/`inst_lams_at` lemmas (which is what that file's own module note
+asked for: "duplicates to be reconciled at merge").  Only `absExprs_drop_cons`
+survives twice, under two names: the `getElem?` form and the `i < length` form
+(`absExprs_drop_cons_lt`).
+
+#### 4. What carried it
+
+* **The memo layer without `Eq2Spec`.**  Task #21's one design decision is the
+  reason the whole file goes through: `toFun` is a lookup by *Lean* equality, so
+  every task-#16 lemma about it assumes `eq2` decides equality on the whole key
+  type, while `expr::beq` is exact only on **well-formed** nodes.  The entry-list
+  view (`HashMap.al_v`) needs no such assumption — a hit returns a value that is
+  *in* the table under an `eq2`-equal key, an insert adds nothing but its own
+  pair — and `MemoInv`'s own clause "every recorded key is well formed" is what
+  makes `beq`'s exactness apply at exactly the pairs the walks compare.  This is
+  the shape the `Cached/*` memos of `CORE_PLAN.md` step 5 should reuse.
+* **`ExprWF` as the induction.**  Every structural refinement inducts on the
+  `ExprWF` derivation, never on the function (Aeneas's `partial_fixpoint`
+  definitions give no recursor): the derivation supplies both the node's shape
+  (through the `Expr.*_inv` smart-constructor lemmas) and the children's
+  well-formedness in one step.
+* **`node_kind`/`arc_deref_eq`/`binder_meta_eq` as one `simp only` list.**  The
+  three lemmas that spell out the pointer model turn each of Charon's ten-arm
+  `match en.kind` blocks into the single arm the case is about, which is what
+  keeps a 400-line generated walk to a 300-line proof.
+
+#### 5. Axiom census
+
+`#guard_msgs in #print axioms` pins four lemmas at **`[propext,
+Classical.choice, Quot.sound]`** and nothing else — no `sorryAx`, nothing from
+Aeneas:
+
+* `instantiate1_refines` (`ExprOps.lean`) — the memo through
+  `HashMap.insert`'s resize, `expr::beq`'s exactness, the ten smart
+  constructors;
+* `abstract_range_refines` and `bvar_b_refines` (`ExprOpsFields.lean`) — the
+  bulk abstraction, and the one lemma that reads the *packed word* and falls
+  back to the memoized walk at saturation;
+* `instantiate_level_params_refines` (`ExprOpsMeta.lean`, task #21's own pin).
+
+#### 6. Notes for whoever does step 5
+
+* `ExprOpsC` (the memoised twins in `cached/expr_ops_c.rs`) is the other half of
+  `CORE_PLAN.md` step 3 and is *not* done here: it needs `StateRel` from step 2.
+  Every statement it needs exists — the twins compute the same functions, so the
+  work is threading `StateRel` through the same walks.
+* `Refine/Abs.lean` was deliberately **not** touched (another agent was adding
+  `absConstantInfo` there): `absBinders`/`BindersWF`, `absLeaves`/`LeavesWF` and
+  the `Vec`-of-pairs plumbing live in the `ExprOps*` files that use them.  If a
+  later task needs them from `Env`/`State`, move them then.
+* The three `sorry`s in `Refine/Pins.lean` are task #43's, untouched.
+
+`scripts/gates.sh`: all 7 OK.  The progress line afterwards reads
+`verified 957 (6%)` of the 13 719 verified-core Lean lines, and
+`proofs 21392 (207 _refines)`.

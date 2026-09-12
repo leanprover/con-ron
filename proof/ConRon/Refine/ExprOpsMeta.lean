@@ -64,7 +64,7 @@ theorem reset_meta_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro memo memo' r hm h
     rw [expr_ops.reset_meta_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -74,7 +74,7 @@ theorem reset_meta_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro memo memo' r hm h
     rw [expr_ops.reset_meta_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -84,7 +84,7 @@ theorem reset_meta_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro memo memo' r hm h
     rw [expr_ops.reset_meta_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -94,7 +94,7 @@ theorem reset_meta_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro memo memo' r hm h
     rw [expr_ops.reset_meta_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -105,7 +105,7 @@ theorem reset_meta_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro memo memo' r hm h
     rw [expr_ops.reset_meta_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     cases o with
     | some w =>
@@ -148,7 +148,7 @@ theorem reset_meta_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro memo memo' r hm h
     rw [expr_ops.reset_meta_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     cases o with
     | some w =>
@@ -194,7 +194,7 @@ theorem reset_meta_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro memo memo' r hm h
     rw [expr_ops.reset_meta_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     cases o with
     | some w =>
@@ -213,6 +213,8 @@ theorem reset_meta_go_refines {e : expr.Expr} (he : ExprWF e) :
       obtain ⟨p2, hb, hgo⟩ := bind_eq_ok_iff.mp hgo
       obtain ⟨b, memo3⟩ := p2
       obtain ⟨pw, hpw, hgo⟩ := bind_eq_ok_iff.mp hgo
+      -- task #38: the binder datum goes through `expr::binder_meta`.
+      simp only [binder_meta_eq, bind_tc_ok] at hgo
       obtain ⟨r1, hlam, hgo⟩ := bind_eq_ok_iff.mp hgo
       have eg := Result.ok_injective (α := ron.hashmap.HashMap expr.Expr _ × _) hgo
       have eg1 : memo1 = memo3 := (congrArg Prod.fst eg).symm
@@ -242,7 +244,7 @@ theorem reset_meta_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro memo memo' r hm h
     rw [expr_ops.reset_meta_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     cases o with
     | some w =>
@@ -261,6 +263,8 @@ theorem reset_meta_go_refines {e : expr.Expr} (he : ExprWF e) :
       obtain ⟨p2, hb, hgo⟩ := bind_eq_ok_iff.mp hgo
       obtain ⟨b, memo3⟩ := p2
       obtain ⟨pw, hpw, hgo⟩ := bind_eq_ok_iff.mp hgo
+      -- task #38: the binder datum goes through `expr::binder_meta`.
+      simp only [binder_meta_eq, bind_tc_ok] at hgo
       obtain ⟨r1, hfa, hgo⟩ := bind_eq_ok_iff.mp hgo
       have eg := Result.ok_injective (α := ron.hashmap.HashMap expr.Expr _ × _) hgo
       have eg1 : memo1 = memo3 := (congrArg Prod.fst eg).symm
@@ -290,7 +294,7 @@ theorem reset_meta_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro memo memo' r hm h
     rw [expr_ops.reset_meta_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     cases o with
     | some w' =>
@@ -339,7 +343,7 @@ theorem reset_meta_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro memo memo' r hm h
     rw [expr_ops.reset_meta_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     cases o with
     | some w =>
@@ -399,53 +403,10 @@ theorem reset_meta_refines {e r : expr.Expr} (he : ExprWF e)
 
 `levels_copy` is the port's stand-in for "the `us` a rebuilt `.const` node
 carries over unchanged"; in the model a `Vec` copy is the *same list*, because
-`level::dup` is the identity (`Rc::clone`, DESIGN.md §3.2), so the helper below
-is an equation between vectors rather than a refinement lemma. -/
-
-/-- `expr_ops::levels_copy_from` appends the rest of the levels: the `Vec`
-copy of task #13's deviation 2, in the model the identity (`level::dup` is
-`Rc::clone`).  Same shape and proof as `PropWhen.append_from_val`. -/
-theorem levels_copy_from_val (us : alloc.vec.Vec level.Level) :
-    ∀ k : Nat, ∀ (i : Std.Usize) (out r : alloc.vec.Vec level.Level),
-      us.length - i.val ≤ k → expr_ops.levels_copy_from us i out = ok r →
-      r.val = out.val ++ us.val.drop i.val := by
-  intro k
-  induction k with
-  | zero =>
-    intro i out r hk h
-    rw [expr_ops.levels_copy_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len us by scalar_tac)] at h
-    simp only [Result.ok.injEq] at h; subst h
-    rw [List.drop_eq_nil_of_le (show us.val.length ≤ i.val by scalar_tac)]
-    simp
-  | succ k ih =>
-    intro i out r hk h
-    rw [expr_ops.levels_copy_from.eq_def] at h; simp only [] at h
-    by_cases hle : i.val ≥ us.val.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len us by scalar_tac)] at h
-      simp only [Result.ok.injEq] at h; subst h
-      rw [List.drop_eq_nil_of_le (show us.val.length ≤ i.val by scalar_tac)]
-      simp
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len us by scalar_tac)] at h
-      have hi : i.val < us.val.length := by scalar_tac
-      have hmax : i.val + 1 ≤ Std.Usize.max := by have := us.slice.property; scalar_tac
-      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec us i hi)
-      subst hyv
-      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw, level_dup_eq,
-        Result.ok.injEq, exists_eq_left'] at h
-      obtain ⟨out1, hout1, h⟩ := h
-      rw [ih w out1 r (by scalar_tac) h, vec_push_val hout1,
-        List.drop_eq_getElem_cons hi, hwv]
-      simp
-
-/-- `expr_ops::levels_copy` is the identity in the model. -/
-theorem levels_copy_val {us r : alloc.vec.Vec level.Level}
-    (h : expr_ops.levels_copy us = ok r) : r.val = us.val := by
-  rw [expr_ops.levels_copy] at h
-  have hv := levels_copy_from_val us us.length 0#usize (alloc.vec.Vec.new level.Level) r
-    (by scalar_tac) h
-  simpa [alloc.vec.Vec.new] using hv
+`level::dup` is the identity (`Rc::clone`, DESIGN.md §3.2), so its helper is an
+equation between vectors rather than a refinement lemma; it lives in the
+foundation (`ExprOps.lean`'s `levels_copy_from_val`/`levels_copy_val`), which is
+where the spine group needs it too. -/
 
 /-- con-leche's `RenameMemoInv` (`ExprOps.lean:981`), as the `Q` of `MemoInv`:
 it mentions the *abstract* renaming `g`, which is what the dictionary
@@ -476,7 +437,7 @@ theorem rename_consts_go_refines {F : Type} {inst : expr_ops.NameToName F} {f : 
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro memo memo' r hm h
     rw [expr_ops.rename_consts_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -486,7 +447,7 @@ theorem rename_consts_go_refines {F : Type} {inst : expr_ops.NameToName F} {f : 
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro memo memo' r hm h
     rw [expr_ops.rename_consts_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -496,7 +457,7 @@ theorem rename_consts_go_refines {F : Type} {inst : expr_ops.NameToName F} {f : 
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro memo memo' r hm h
     rw [expr_ops.rename_consts_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -506,7 +467,7 @@ theorem rename_consts_go_refines {F : Type} {inst : expr_ops.NameToName F} {f : 
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro memo memo' r hm h
     rw [expr_ops.rename_consts_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨n2, hn2, us2, hus2, r0, hmk, hr, hmm⟩ := h
     subst hr; subst hmm
@@ -523,7 +484,7 @@ theorem rename_consts_go_refines {F : Type} {inst : expr_ops.NameToName F} {f : 
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro memo memo' r hm h
     rw [expr_ops.rename_consts_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     cases o with
     | some w =>
@@ -566,7 +527,7 @@ theorem rename_consts_go_refines {F : Type} {inst : expr_ops.NameToName F} {f : 
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro memo memo' r hm h
     rw [expr_ops.rename_consts_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     cases o with
     | some w =>
@@ -612,7 +573,7 @@ theorem rename_consts_go_refines {F : Type} {inst : expr_ops.NameToName F} {f : 
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro memo memo' r hm h
     rw [expr_ops.rename_consts_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     cases o with
     | some w =>
@@ -659,7 +620,7 @@ theorem rename_consts_go_refines {F : Type} {inst : expr_ops.NameToName F} {f : 
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro memo memo' r hm h
     rw [expr_ops.rename_consts_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     cases o with
     | some w =>
@@ -706,7 +667,7 @@ theorem rename_consts_go_refines {F : Type} {inst : expr_ops.NameToName F} {f : 
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro memo memo' r hm h
     rw [expr_ops.rename_consts_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     cases o with
     | some w' =>
@@ -755,7 +716,7 @@ theorem rename_consts_go_refines {F : Type} {inst : expr_ops.NameToName F} {f : 
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro memo memo' r hm h
     rw [expr_ops.rename_consts_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     cases o with
     | some w =>
@@ -838,7 +799,7 @@ theorem zeroness_of_refines {l : level.Level} (hl : LevelWF l) :
     subst hu
     intro pw h
     rw [level.zeroness_of.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, level_node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, level_node_kind] at h
     refine ⟨?_, PropWhen.if_all_zero_wf (fun n hn => by simp at hn) h⟩
     rw [PropWhen.if_all_zero_refines (fun n hn => by simp at hn) h]
     simp [ConLeche.Level.zeronessOf, absNames, alloc.vec.Vec.new]
@@ -847,7 +808,7 @@ theorem zeroness_of_refines {l : level.Level} (hl : LevelWF l) :
     subst hu
     intro pw h
     rw [level.zeroness_of.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, level_node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, level_node_kind] at h
     exact ⟨by rw [PropWhen.never_refines h]; simp [ConLeche.Level.zeronessOf],
       PropWhen.never_wf h⟩
   | @max a b u ha hb h1 iha ihb =>
@@ -855,7 +816,7 @@ theorem zeroness_of_refines {l : level.Level} (hl : LevelWF l) :
     subst hu
     intro pw h
     rw [level.zeroness_of.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, level_node_kind, bind_eq_ok_iff] at h
+    simp only [arc_deref_eq, bind_tc_ok, level_node_kind, bind_eq_ok_iff] at h
     obtain ⟨pa, hpa, pb, hpb, hinter⟩ := h
     obtain ⟨habsa, hwfa⟩ := iha pa hpa
     obtain ⟨habsb, hwfb⟩ := ihb pb hpb
@@ -866,7 +827,7 @@ theorem zeroness_of_refines {l : level.Level} (hl : LevelWF l) :
     subst hu
     intro pw h
     rw [level.zeroness_of.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, level_node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, level_node_kind] at h
     obtain ⟨habsb, hwfb⟩ := ihb pw h
     exact ⟨by rw [habsb]; simp [ConLeche.Level.zeronessOf], hwfb⟩
   | @param n u hn h1 =>
@@ -874,7 +835,7 @@ theorem zeroness_of_refines {l : level.Level} (hl : LevelWF l) :
     subst hu
     intro pw h
     rw [level.zeroness_of.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, level_node_kind, bind_eq_ok_iff, name_dup_eq] at h
+    simp only [arc_deref_eq, bind_tc_ok, level_node_kind, bind_eq_ok_iff, name_dup_eq] at h
     obtain ⟨ps, hps, h⟩ := h
     have hpsv : ps.val = [n] := by
       rw [vec_push_val hps]; simp [alloc.vec.Vec.new]
@@ -1052,7 +1013,7 @@ theorem instantiate_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true, rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff,
+      simp only [if_true, arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff,
         Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨c, hc, hr, hmm⟩ := h
       subst hr; subst hmm
@@ -1073,7 +1034,7 @@ theorem instantiate_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true, rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff,
+      simp only [if_true, arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff,
         Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨l1, hl1, c, hc, hr, hmm⟩ := h
       subst hr; subst hmm
@@ -1096,7 +1057,7 @@ theorem instantiate_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true, rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff,
+      simp only [if_true, arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff,
         Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨l, hl, c, hc, hr, hmm⟩ := h
       subst hr; subst hmm
@@ -1119,7 +1080,7 @@ theorem instantiate_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true, rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff,
+      simp only [if_true, arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff,
         name_dup_eq, Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨v, hv, c, hc, hr, hmm⟩ := h
       subst hr; subst hmm
@@ -1141,7 +1102,7 @@ theorem instantiate_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true, rc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [if_true, arc_deref_eq, bind_tc_ok, node_kind] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w =>
@@ -1194,7 +1155,7 @@ theorem instantiate_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true, rc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [if_true, arc_deref_eq, bind_tc_ok, node_kind] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w =>
@@ -1250,7 +1211,7 @@ theorem instantiate_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true, rc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [if_true, arc_deref_eq, bind_tc_ok, node_kind] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w =>
@@ -1270,6 +1231,8 @@ theorem instantiate_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         obtain ⟨p2, hbb, hgo⟩ := bind_eq_ok_iff.mp hgo
         obtain ⟨b1, memo3⟩ := p2
         obtain ⟨pw, hpw, hgo⟩ := bind_eq_ok_iff.mp hgo
+        -- task #38: the binder datum goes through `expr::binder_meta`.
+        simp only [binder_meta_eq, bind_tc_ok] at hgo
         obtain ⟨r1, hlam, hgo⟩ := bind_eq_ok_iff.mp hgo
         have eg := Result.ok_injective (α := ron.hashmap.HashMap expr.Expr _ × _) hgo
         have eg1 : memo1 = memo3 := (congrArg Prod.fst eg).symm
@@ -1308,7 +1271,7 @@ theorem instantiate_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true, rc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [if_true, arc_deref_eq, bind_tc_ok, node_kind] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w =>
@@ -1328,6 +1291,8 @@ theorem instantiate_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         obtain ⟨p2, hbb, hgo⟩ := bind_eq_ok_iff.mp hgo
         obtain ⟨b1, memo3⟩ := p2
         obtain ⟨pw, hpw, hgo⟩ := bind_eq_ok_iff.mp hgo
+        -- task #38: the binder datum goes through `expr::binder_meta`.
+        simp only [binder_meta_eq, bind_tc_ok] at hgo
         obtain ⟨r1, hfa, hgo⟩ := bind_eq_ok_iff.mp hgo
         have eg := Result.ok_injective (α := ron.hashmap.HashMap expr.Expr _ × _) hgo
         have eg1 : memo1 = memo3 := (congrArg Prod.fst eg).symm
@@ -1366,7 +1331,7 @@ theorem instantiate_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true, rc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [if_true, arc_deref_eq, bind_tc_ok, node_kind] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w' =>
@@ -1425,7 +1390,7 @@ theorem instantiate_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true, rc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [if_true, arc_deref_eq, bind_tc_ok, node_kind] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w =>
@@ -1501,7 +1466,7 @@ theorem is_lam_refines {e : expr.Expr} {b : Bool} (h : expr_ops.is_lam e = ok b)
     b = ConLeche.Expr.isLam (absExpr e) := by
   obtain ⟨⟨d, k⟩⟩ := e
   rw [expr_ops.is_lam.eq_def] at h
-  simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+  simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
   cases k <;>
     simp only [Result.ok.injEq] at h <;>
     rw [← h] <;>
@@ -1513,7 +1478,7 @@ theorem lam_pw_refines {e : expr.Expr} {o : Option prop_when.PropWhen}
     o.map absPropWhen = ConLeche.Expr.lamPw (absExpr e) := by
   obtain ⟨⟨d, k⟩⟩ := e
   rw [expr_ops.lam_pw.eq_def] at h
-  simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+  simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
   cases k with
   | Lam ty bo m =>
     simp only [bind_eq_ok_iff] at h
@@ -1533,7 +1498,7 @@ theorem forall_pw_refines {e : expr.Expr} {o : Option prop_when.PropWhen}
     o.map absPropWhen = ConLeche.Expr.forallPw (absExpr e) := by
   obtain ⟨⟨d, k⟩⟩ := e
   rw [expr_ops.forall_pw.eq_def] at h
-  simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+  simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
   cases k with
   | ForallE ty bo m =>
     simp only [bind_eq_ok_iff] at h
@@ -1575,40 +1540,40 @@ theorem has_level_param_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro b h
     rw [expr_ops.has_level_param.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.hasLevelParam]
   | @lit l e hl h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro b h
     rw [expr_ops.has_level_param.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.hasLevelParam]
   | @sort u e hu h1 =>
     obtain ⟨d1, bb, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro b h
     rw [expr_ops.has_level_param.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     rw [Level.level_has_param_refines h, ConLeche.Expr.Expr.levelHasParam_eq]
     simp [ConLeche.Expr.hasLevelParam]
   | @mk_const n us e hn hus h1 =>
     obtain ⟨d1, bb, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro b h
     rw [expr_ops.has_level_param.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     rw [Level.levels_have_param_refines h, ConLeche.Expr.Expr.levelsHaveParam_eq]
     simp [ConLeche.Expr.hasLevelParam]
   | @fvar idx ty e hty h1 ih =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro b h
     rw [expr_ops.has_level_param.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     rw [ih b h]
     simp [ConLeche.Expr.hasLevelParam]
   | @app f a e hf ha h1 ihf iha =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro b h
     rw [expr_ops.has_level_param.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
     obtain ⟨b1, hb1, h⟩ := h
     rw [ihf b1 hb1] at h
     cases hc : (absExpr f).hasLevelParam with
@@ -1624,7 +1589,7 @@ theorem has_level_param_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro b h
     rw [expr_ops.has_level_param.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
     obtain ⟨b1, hb1, h⟩ := h
     rw [ihty b1 hb1] at h
     cases hc : (absExpr ty).hasLevelParam with
@@ -1651,7 +1616,7 @@ theorem has_level_param_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro b h
     rw [expr_ops.has_level_param.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
     obtain ⟨b1, hb1, h⟩ := h
     rw [ihty b1 hb1] at h
     cases hc : (absExpr ty).hasLevelParam with
@@ -1678,7 +1643,7 @@ theorem has_level_param_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro b h
     rw [expr_ops.has_level_param.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
     obtain ⟨b1, hb1, h⟩ := h
     rw [ihty b1 hb1] at h
     cases hc : (absExpr ty).hasLevelParam with
@@ -1705,7 +1670,7 @@ theorem has_level_param_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro b h
     rw [expr_ops.has_level_param.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     rw [ih b h]
     simp [ConLeche.Expr.hasLevelParam]
 
@@ -1734,35 +1699,35 @@ theorem fvar_leaves_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro out r hout h
     rw [expr_ops.fvar_leaves_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
     subst h
     exact ⟨by simp [ConLeche.Expr.fvarLeaves], hout⟩
   | @sort u e hu h1 =>
     obtain ⟨d1, bb, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro out r hout h
     rw [expr_ops.fvar_leaves_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
     subst h
     exact ⟨by simp [ConLeche.Expr.fvarLeaves], hout⟩
   | @mk_const n us e hn hus h1 =>
     obtain ⟨d1, bb, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro out r hout h
     rw [expr_ops.fvar_leaves_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
     subst h
     exact ⟨by simp [ConLeche.Expr.fvarLeaves], hout⟩
   | @lit l e hl h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro out r hout h
     rw [expr_ops.fvar_leaves_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
     subst h
     exact ⟨by simp [ConLeche.Expr.fvarLeaves], hout⟩
   | @fvar idx ty e hty h1 ih =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro out r hout h
     rw [expr_ops.fvar_leaves_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
     obtain ⟨e1, hd1, out1, hpush, hrec⟩ := h
     rw [Expr.dup_eq hd1] at hpush
     have hout1 : LeavesWF out1 := by
@@ -1781,7 +1746,7 @@ theorem fvar_leaves_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro out r hout h
     rw [expr_ops.fvar_leaves_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
     obtain ⟨out2, h2, hrec⟩ := h
     obtain ⟨habs2, hwf2⟩ := ihf out out2 hout h2
     obtain ⟨habs3, hwf3⟩ := iha out2 r hwf2 hrec
@@ -1792,7 +1757,7 @@ theorem fvar_leaves_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro out r hout h
     rw [expr_ops.fvar_leaves_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
     obtain ⟨out2, h2, hrec⟩ := h
     obtain ⟨habs2, hwf2⟩ := ihty out out2 hout h2
     obtain ⟨habs3, hwf3⟩ := ihbo out2 r hwf2 hrec
@@ -1803,7 +1768,7 @@ theorem fvar_leaves_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro out r hout h
     rw [expr_ops.fvar_leaves_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
     obtain ⟨out2, h2, hrec⟩ := h
     obtain ⟨habs2, hwf2⟩ := ihty out out2 hout h2
     obtain ⟨habs3, hwf3⟩ := ihbo out2 r hwf2 hrec
@@ -1814,7 +1779,7 @@ theorem fvar_leaves_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro out r hout h
     rw [expr_ops.fvar_leaves_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
     obtain ⟨out2, h2, out3, h3, hrec⟩ := h
     obtain ⟨habs2, hwf2⟩ := ihty out out2 hout h2
     obtain ⟨habs3, hwf3⟩ := ihw out2 out3 hwf2 h3
@@ -1826,7 +1791,7 @@ theorem fvar_leaves_go_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro out r hout h
     rw [expr_ops.fvar_leaves_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨habs, hwf⟩ := ih out r hout h
     refine ⟨?_, hwf⟩
     rw [habs]
@@ -1841,6 +1806,623 @@ theorem fvar_leaves_refines {e : expr.Expr} {r : alloc.vec.Vec (Std.U64 × expr.
   obtain ⟨habs, hwf⟩ := fvar_leaves_go_refines he _ r
     (by intro p hp; simp [alloc.vec.Vec.new] at hp) h
   exact ⟨by rw [habs]; simp [absLeaves, alloc.vec.Vec.new], hwf⟩
+
+/-! ## `allLevelParamsDefined` (`Kernel/Level.lean:251-268`, memoized at `:299`)
+
+The last family of `expr_ops.rs`: the specification walk, its two `Vec` loops,
+and the node-keyed memoized walk that con-leche's `@[csimp]` equation
+(`Level.lean:409-412`) swaps in.  `level::all_params_defined` belongs to
+`level.rs` and has no lemma there; its only caller is this family, so its
+refinement is stated here, exactly as task #13 put `level::zeroness_of` and
+`level::subst_pw` in this file.
+
+`bool_and`/`bool_and3` are the port's `&&` *as a call* (task #18's rule: a
+gated result whose arms rejoin must become a call, or Aeneas cannot match the
+contexts), so they are total and get plain equations rather than
+`ok`-hypothesis lemmas. -/
+
+/-- `expr_ops::bool_and` is `&&`. -/
+@[simp] theorem bool_and_val (a b : Bool) : expr_ops.bool_and a b = ok (a && b) := by
+  rw [expr_ops.bool_and]; cases a <;> simp
+
+/-- `expr_ops::bool_and3` is `&&` at three operands, left-associated as Lean's
+`a && b && c` is. -/
+@[simp] theorem bool_and3_val (a b c : Bool) :
+    expr_ops.bool_and3 a b c = ok (a && b && c) := by
+  rw [expr_ops.bool_and3]; simp
+
+/-- `expr_ops::memo_b_get` is `HashMap.get` on a hit (task #13's deviation 1:
+the owning probe, so the map's borrow ends before the miss branch inserts).
+The `Bool` twin of `memo_n_get_hit`. -/
+theorem memo_b_get_hit {m : ron.hashmap.HashMap expr.Expr Bool}
+    {k : expr.Expr} {r : Bool} (h : expr_ops.memo_b_get m k = ok (some r)) :
+    ron.hashmap.HashMap.get expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+      expr.Expr.Insts.Con_ron_coreRonHashmapEq2 m k = ok (some r) := by
+  rw [expr_ops.memo_b_get] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨o, hget, h⟩ := h
+  cases o with
+  | none => simp at h
+  | some w => simp only [Result.ok.injEq, Option.some.injEq] at h; rw [hget, h]
+
+/-- `level::all_params_defined` refines `Level.allParamsDefined`
+(`Kernel/Level.lean:39-44`).  The `.param` arm is `name::contains`, which is
+exact only on well-formed names, hence the `LevelWF` hypothesis. -/
+theorem all_params_defined_refines {params : alloc.vec.Vec name.Name}
+    (hpar : NamesWF params) :
+    ∀ (u : level.Level), LevelWF u → ∀ b,
+      level.all_params_defined params u = ok b →
+      b = ConLeche.Level.allParamsDefined (absNames params) (absLevel u) := by
+  intro u
+  induction u using Level.ind' with
+  | zero h =>
+    intro hu b hb
+    rw [level.all_params_defined.eq_def] at hb
+    simp only [arc_deref_eq, bind_tc_ok, level_node_kind, Result.ok.injEq] at hb
+    rw [← hb]; simp [ConLeche.Level.allParamsDefined]
+  | param h n =>
+    intro hu b hb
+    rw [level.all_params_defined.eq_def] at hb
+    simp only [arc_deref_eq, bind_tc_ok, level_node_kind] at hb
+    rw [Name.contains_refines hpar (Level.LevelWF.param_inv hu) hb]
+    simp [ConLeche.Level.allParamsDefined]
+  | succ h x ih =>
+    intro hu b hb
+    rw [level.all_params_defined.eq_def] at hb
+    simp only [arc_deref_eq, bind_tc_ok, level_node_kind] at hb
+    rw [ih (Level.LevelWF.succ_inv hu) b hb]
+    simp [ConLeche.Level.allParamsDefined]
+  | max h x y ih1 ih2 =>
+    intro hu b hb
+    rw [level.all_params_defined.eq_def] at hb
+    simp only [arc_deref_eq, bind_tc_ok, level_node_kind] at hb
+    obtain ⟨hx, hy⟩ := Level.LevelWF.max_inv hu
+    obtain ⟨b1, hb1, hb⟩ := bind_eq_ok_iff.mp hb
+    cases b1 with
+    | false =>
+      simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at hb
+      have e1 := ih1 hx false hb1
+      simp [ConLeche.Level.allParamsDefined, ← e1, ← hb]
+    | true =>
+      simp only [if_true] at hb
+      have e1 := ih1 hx true hb1
+      have e2 := ih2 hy b hb
+      simp [ConLeche.Level.allParamsDefined, ← e1, e2]
+  | imax h x y ih1 ih2 =>
+    intro hu b hb
+    rw [level.all_params_defined.eq_def] at hb
+    simp only [arc_deref_eq, bind_tc_ok, level_node_kind] at hb
+    obtain ⟨hx, hy⟩ := Level.LevelWF.imax_inv hu
+    obtain ⟨b1, hb1, hb⟩ := bind_eq_ok_iff.mp hb
+    cases b1 with
+    | false =>
+      simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at hb
+      have e1 := ih1 hx false hb1
+      simp [ConLeche.Level.allParamsDefined, ← e1, ← hb]
+    | true =>
+      simp only [if_true] at hb
+      have e1 := ih1 hx true hb1
+      have e2 := ih2 hy b hb
+      simp [ConLeche.Level.allParamsDefined, ← e1, e2]
+
+/-- **`expr_ops::levels_all_params_defined` refines `List.all`** of
+`Level.allParamsDefined` over the suffix `us.drop i` (task #3's index-loop
+pattern; `i = 0` collapses to the whole list). -/
+theorem levels_all_params_defined_refines {params : alloc.vec.Vec name.Name}
+    (hpar : NamesWF params) {us : alloc.vec.Vec level.Level} (hus : LevelsWF us) :
+    ∀ k : Nat, ∀ (i : Std.Usize) (b : Bool), us.val.length - i.val ≤ k →
+      expr_ops.levels_all_params_defined params us i = ok b →
+      b = ((us.val.drop i.val).map absLevel).all
+            (ConLeche.Level.allParamsDefined (absNames params)) := by
+  intro k
+  induction k with
+  | zero =>
+    intro i b hk h
+    rw [expr_ops.levels_all_params_defined.eq_def] at h; simp only [] at h
+    rw [if_pos (show i >= alloc.vec.Vec.len us by scalar_tac), Result.ok.injEq] at h
+    rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]
+    rfl
+  | succ k ih =>
+    intro i b hk h
+    rw [expr_ops.levels_all_params_defined.eq_def] at h; simp only [] at h
+    by_cases hi : i.val ≥ us.val.length
+    · rw [if_pos (show i >= alloc.vec.Vec.len us by scalar_tac), Result.ok.injEq] at h
+      rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]
+      rfl
+    · rw [if_neg (show ¬ i >= alloc.vec.Vec.len us by scalar_tac)] at h
+      have hlt : i.val < us.val.length := by scalar_tac
+      have hmax : i.val + 1 ≤ Std.Usize.max := by have := us.slice.property; scalar_tac
+      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
+      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec us i hlt)
+      subst hyv
+      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw,
+        Result.ok.injEq, exists_eq_left'] at h
+      obtain ⟨b0, hb0, h⟩ := h
+      have hb0' := all_params_defined_refines hpar _ (hus _ (List.getElem_mem hlt)) b0 hb0
+      rw [List.drop_eq_getElem_cons hlt, List.map_cons, List.all_cons, ← hb0']
+      cases b0 with
+      | false =>
+        simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+        simp only [Bool.false_and]
+        exact h.symm
+      | true =>
+        simp only [if_true, bind_tc_ok] at h
+        simp only [Bool.true_and]
+        have hrec := ih w b (by scalar_tac) h
+        rw [hwv] at hrec
+        exact hrec
+
+/-- **`expr_ops::all_level_params_defined` refines
+`Expr.allLevelParamsDefined`** (`Kernel/Level.lean:256-268`): the specification
+walk -- ported and uncalled, as task #11's `beqRecursive` rule asks -- which is
+also the answer the memoized walk's leaf arms go through. -/
+theorem all_level_params_defined_refines {params : alloc.vec.Vec name.Name}
+    (hpar : NamesWF params) {e : expr.Expr} (he : ExprWF e) :
+    ∀ b, expr_ops.all_level_params_defined params e = ok b →
+      b = ConLeche.Expr.allLevelParamsDefined (absNames params) (absExpr e) := by
+  induction he with
+  | @bvar i e h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
+    intro b h
+    rw [expr_ops.all_level_params_defined.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+    rw [← h]; simp [ConLeche.Expr.allLevelParamsDefined]
+  | @lit l e hl h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
+    intro b h
+    rw [expr_ops.all_level_params_defined.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+    rw [← h]; simp [ConLeche.Expr.allLevelParamsDefined]
+  | @sort u e hu h1 =>
+    obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.sort_inv h1
+    intro b h
+    rw [expr_ops.all_level_params_defined.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    rw [all_params_defined_refines hpar u hu b h]
+    simp [ConLeche.Expr.allLevelParamsDefined]
+  | @mk_const n us e hn hus h1 =>
+    obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
+    intro b h
+    rw [expr_ops.all_level_params_defined.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    rw [levels_all_params_defined_refines hpar hus us.val.length 0#usize b
+      (by scalar_tac) h]
+    simp [ConLeche.Expr.allLevelParamsDefined, absLevels]
+  | @fvar idx ty e hty h1 ih =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
+    intro b h
+    rw [expr_ops.all_level_params_defined.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    rw [ih b h]; simp [ConLeche.Expr.allLevelParamsDefined]
+  | @proj s i x e hs hx h1 ih =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
+    intro b h
+    rw [expr_ops.all_level_params_defined.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    rw [ih b h]; simp [ConLeche.Expr.allLevelParamsDefined]
+  | @app f a e hf ha h1 ihf iha =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
+    intro b h
+    rw [expr_ops.all_level_params_defined.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    cases b1 with
+    | false =>
+      simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+      have e1 := ihf false hb1
+      simp [ConLeche.Expr.allLevelParamsDefined, ← e1, ← h]
+    | true =>
+      simp only [if_true] at h
+      have e1 := ihf true hb1
+      have e2 := iha b h
+      simp [ConLeche.Expr.allLevelParamsDefined, ← e1, e2]
+  | @let_e ty v bo e hty hv hbo h1 iht ihv ihb =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
+    intro b h
+    rw [expr_ops.all_level_params_defined.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    cases b1 with
+    | false =>
+      simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+      have e1 := iht false hb1
+      simp [ConLeche.Expr.allLevelParamsDefined, ← e1, ← h]
+    | true =>
+      simp only [if_true] at h
+      have e1 := iht true hb1
+      obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+      cases b2 with
+      | false =>
+        simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+        have e2 := ihv false hb2
+        simp [ConLeche.Expr.allLevelParamsDefined, ← e1, ← e2, ← h]
+      | true =>
+        simp only [if_true] at h
+        have e2 := ihv true hb2
+        have e3 := ihb b h
+        simp [ConLeche.Expr.allLevelParamsDefined, ← e1, ← e2, e3]
+  | @lam ty bo m e hty hbo hm h1 iht ihb =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
+    intro b h
+    rw [expr_ops.all_level_params_defined.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    cases b1 with
+    | false =>
+      simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+      have e1 := iht false hb1
+      simp [ConLeche.Expr.allLevelParamsDefined, ← e1, ← h]
+    | true =>
+      simp only [if_true] at h
+      have e1 := iht true hb1
+      obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+      cases b2 with
+      | false =>
+        simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+        have e2 := ihb false hb2
+        simp [ConLeche.Expr.allLevelParamsDefined, ← e1, ← e2, ← h]
+      | true =>
+        simp only [if_true] at h
+        have e2 := ihb true hb2
+        have e3 := PropWhen.params_defined_refines hpar hm h
+        simp [ConLeche.Expr.allLevelParamsDefined, ← e1, ← e2, e3]
+  | @forall_e ty bo m e hty hbo hm h1 iht ihb =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
+    intro b h
+    rw [expr_ops.all_level_params_defined.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    cases b1 with
+    | false =>
+      simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+      have e1 := iht false hb1
+      simp [ConLeche.Expr.allLevelParamsDefined, ← e1, ← h]
+    | true =>
+      simp only [if_true] at h
+      have e1 := iht true hb1
+      obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+      cases b2 with
+      | false =>
+        simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+        have e2 := ihb false hb2
+        simp [ConLeche.Expr.allLevelParamsDefined, ← e1, ← e2, ← h]
+      | true =>
+        simp only [if_true] at h
+        have e2 := ihb true hb2
+        have e3 := PropWhen.params_defined_refines hpar hm h
+        simp [ConLeche.Expr.allLevelParamsDefined, ← e1, ← e2, e3]
+
+/-- con-leche's `LPMemoInv` (`Kernel/Level.lean:283`), as the `Q` of `MemoInv`:
+every recorded answer is the real one.  The value is a `Bool`, so there is no
+well-formedness half. -/
+def LPQ (ps : List ConLeche.Name) : ConLeche.Expr → Bool → Prop :=
+  fun k r => r = ConLeche.Expr.allLevelParamsDefined ps k
+
+/-- **`expr_ops::all_level_params_defined_go` refines
+`Expr.allLevelParamsDefined`** (con-leche's `allLevelParamsDefinedGo`
+`Kernel/Level.lean:300-332`, soundness `allLevelParamsDefinedGo_spec` `:335`).
+The memo-skipping leaves are `Bvar`/`Sort`/`Const`/`Lit`, exactly as the cited
+Lean's are; the other six arms probe the node-keyed memo and record their
+answer, and `bool_and`/`bool_and3` are where the Lean's `&&` went. -/
+theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
+    (hpar : NamesWF params) {e : expr.Expr} (he : ExprWF e) :
+    ∀ (memo memo' : ron.hashmap.HashMap expr.Expr Bool) (r : Bool),
+      MemoInv ExprWF absExpr (LPQ (absNames params)) memo →
+      expr_ops.all_level_params_defined_go params memo e = ok (r, memo') →
+      r = ConLeche.Expr.allLevelParamsDefined (absNames params) (absExpr e) ∧
+        MemoInv ExprWF absExpr (LPQ (absNames params)) memo' := by
+  induction he with
+  | @bvar i e h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
+    intro memo memo' r hm h
+    rw [expr_ops.all_level_params_defined_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨hr, hmm⟩ := h
+    subst hr; subst hmm
+    exact ⟨by simp [ConLeche.Expr.allLevelParamsDefined], hm⟩
+  | @lit l e hl h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
+    intro memo memo' r hm h
+    rw [expr_ops.all_level_params_defined_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨hr, hmm⟩ := h
+    subst hr; subst hmm
+    exact ⟨by simp [ConLeche.Expr.allLevelParamsDefined], hm⟩
+  | @sort u e hu h1 =>
+    obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.sort_inv h1
+    intro memo memo' r hm h
+    rw [expr_ops.all_level_params_defined_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨hr, hmm⟩ := h
+    subst hr; subst hmm
+    refine ⟨?_, hm⟩
+    rw [all_params_defined_refines hpar u hu b1 hb1]
+    simp [ConLeche.Expr.allLevelParamsDefined]
+  | @mk_const n us e hn hus h1 =>
+    obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
+    intro memo memo' r hm h
+    rw [expr_ops.all_level_params_defined_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨hr, hmm⟩ := h
+    subst hr; subst hmm
+    refine ⟨?_, hm⟩
+    rw [levels_all_params_defined_refines hpar hus us.val.length 0#usize b1
+      (by scalar_tac) hb1]
+    simp [ConLeche.Expr.allLevelParamsDefined, absLevels]
+  | @fvar idx ty e hty h1 ih =>
+    have hwfe : ExprWF e := ExprWF.fvar hty h1
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
+    intro memo memo' r hm h
+    rw [expr_ops.all_level_params_defined_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    cases o with
+    | some w =>
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have e1 : r = w := (congrArg Prod.fst e0).symm
+      have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+      subst e1; subst e2
+      have hhit := MemoInv.hit (KWF := ExprWF) (absK := absExpr)
+        (Q := LPQ (absNames params)) expr_key_exact hm hwfe (memo_b_get_hit ho)
+      exact ⟨hhit, hm⟩
+    | none =>
+      obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨memo1, r0⟩ := q
+      obtain ⟨p1, ht, hgo⟩ := bind_eq_ok_iff.mp hgo
+      obtain ⟨b1, memo2⟩ := p1
+      have eg := Result.ok_injective (α := ron.hashmap.HashMap expr.Expr Bool × _) hgo
+      have eg1 : memo1 = memo2 := (congrArg Prod.fst eg).symm
+      have eg2 : r0 = b1 := (congrArg Prod.snd eg).symm
+      subst eg1; subst eg2
+      obtain ⟨habs2, hm2⟩ := ih memo memo1 r0 hm ht
+      obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨oldv, memo3⟩ := p3
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have e1' : r = r0 := (congrArg Prod.fst e0).symm
+      have e2' : memo' = memo3 := (congrArg Prod.snd e0).symm
+      subst e1'; subst e2'
+      have hans : LPQ (absNames params)
+          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Fvar idx ty)))) r := by
+        simp [LPQ, ConLeche.Expr.allLevelParamsDefined, habs2]
+      refine ⟨hans, ?_⟩
+      rw [Expr.dup_eq hd1] at hins
+      exact MemoInv.set expr_key_exact hm2 hwfe hans hins
+  | @proj s i x e hs hx h1 ih =>
+    have hwfe : ExprWF e := ExprWF.proj hs hx h1
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
+    intro memo memo' r hm h
+    rw [expr_ops.all_level_params_defined_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    cases o with
+    | some w =>
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have e1 : r = w := (congrArg Prod.fst e0).symm
+      have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+      subst e1; subst e2
+      have hhit := MemoInv.hit (KWF := ExprWF) (absK := absExpr)
+        (Q := LPQ (absNames params)) expr_key_exact hm hwfe (memo_b_get_hit ho)
+      exact ⟨hhit, hm⟩
+    | none =>
+      obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨memo1, r0⟩ := q
+      obtain ⟨p1, ht, hgo⟩ := bind_eq_ok_iff.mp hgo
+      obtain ⟨b1, memo2⟩ := p1
+      have eg := Result.ok_injective (α := ron.hashmap.HashMap expr.Expr Bool × _) hgo
+      have eg1 : memo1 = memo2 := (congrArg Prod.fst eg).symm
+      have eg2 : r0 = b1 := (congrArg Prod.snd eg).symm
+      subst eg1; subst eg2
+      obtain ⟨habs2, hm2⟩ := ih memo memo1 r0 hm ht
+      obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨oldv, memo3⟩ := p3
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have e1' : r = r0 := (congrArg Prod.fst e0).symm
+      have e2' : memo' = memo3 := (congrArg Prod.snd e0).symm
+      subst e1'; subst e2'
+      have hans : LPQ (absNames params)
+          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Proj s i x)))) r := by
+        simp [LPQ, ConLeche.Expr.allLevelParamsDefined, habs2]
+      refine ⟨hans, ?_⟩
+      rw [Expr.dup_eq hd1] at hins
+      exact MemoInv.set expr_key_exact hm2 hwfe hans hins
+  | @app f a e hf ha h1 ihf iha =>
+    have hwfe : ExprWF e := ExprWF.app hf ha h1
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
+    intro memo memo' r hm h
+    rw [expr_ops.all_level_params_defined_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bool_and_val] at h
+    obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    cases o with
+    | some w =>
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have e1 : r = w := (congrArg Prod.fst e0).symm
+      have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+      subst e1; subst e2
+      have hhit := MemoInv.hit (KWF := ExprWF) (absK := absExpr)
+        (Q := LPQ (absNames params)) expr_key_exact hm hwfe (memo_b_get_hit ho)
+      exact ⟨hhit, hm⟩
+    | none =>
+      obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨memo1, r0⟩ := q
+      obtain ⟨p1, hff, hgo⟩ := bind_eq_ok_iff.mp hgo
+      obtain ⟨b1, memo2⟩ := p1
+      obtain ⟨p2, haa, hgo⟩ := bind_eq_ok_iff.mp hgo
+      obtain ⟨b2, memo3⟩ := p2
+      have eg := Result.ok_injective (α := ron.hashmap.HashMap expr.Expr Bool × _) hgo
+      have eg1 : memo1 = memo3 := (congrArg Prod.fst eg).symm
+      have eg2 : r0 = (b1 && b2) := (congrArg Prod.snd eg).symm
+      subst eg1
+      obtain ⟨habs1, hm2⟩ := ihf memo memo2 b1 hm hff
+      obtain ⟨habs2, hm3⟩ := iha memo2 memo1 b2 hm2 haa
+      obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨p4, hins, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨oldv, memo4⟩ := p4
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have e1' : r = r0 := (congrArg Prod.fst e0).symm
+      have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
+      subst e1'; subst e2'
+      have hans : LPQ (absNames params)
+          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.App f a)))) r := by
+        simp [LPQ, ConLeche.Expr.allLevelParamsDefined, eg2, habs1, habs2]
+      refine ⟨hans, ?_⟩
+      rw [Expr.dup_eq hd1] at hins
+      exact MemoInv.set expr_key_exact hm3 hwfe hans hins
+  | @lam ty bo m e hty hbo hbm h1 iht ihb =>
+    have hwfe : ExprWF e := ExprWF.lam hty hbo hbm h1
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
+    intro memo memo' r hm h
+    rw [expr_ops.all_level_params_defined_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bool_and3_val] at h
+    obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    cases o with
+    | some w =>
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have e1 : r = w := (congrArg Prod.fst e0).symm
+      have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+      subst e1; subst e2
+      have hhit := MemoInv.hit (KWF := ExprWF) (absK := absExpr)
+        (Q := LPQ (absNames params)) expr_key_exact hm hwfe (memo_b_get_hit ho)
+      exact ⟨hhit, hm⟩
+    | none =>
+      obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨memo1, r0⟩ := q
+      obtain ⟨p1, htt, hgo⟩ := bind_eq_ok_iff.mp hgo
+      obtain ⟨b1, memo2⟩ := p1
+      obtain ⟨p2, hbb, hgo⟩ := bind_eq_ok_iff.mp hgo
+      obtain ⟨b2, memo3⟩ := p2
+      obtain ⟨b3, hpd, hgo⟩ := bind_eq_ok_iff.mp hgo
+      have eg := Result.ok_injective (α := ron.hashmap.HashMap expr.Expr Bool × _) hgo
+      have eg1 : memo1 = memo3 := (congrArg Prod.fst eg).symm
+      have eg2 : r0 = (b1 && b2 && b3) := (congrArg Prod.snd eg).symm
+      subst eg1
+      obtain ⟨habs1, hm2⟩ := iht memo memo2 b1 hm htt
+      obtain ⟨habs2, hm3⟩ := ihb memo2 memo1 b2 hm2 hbb
+      have habs3 := PropWhen.params_defined_refines hpar hbm hpd
+      obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨p4, hins, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨oldv, memo4⟩ := p4
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have e1' : r = r0 := (congrArg Prod.fst e0).symm
+      have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
+      subst e1'; subst e2'
+      have hans : LPQ (absNames params)
+          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Lam ty bo m)))) r := by
+        simp [LPQ, ConLeche.Expr.allLevelParamsDefined, eg2, habs1, habs2, habs3]
+      refine ⟨hans, ?_⟩
+      rw [Expr.dup_eq hd1] at hins
+      exact MemoInv.set expr_key_exact hm3 hwfe hans hins
+  | @forall_e ty bo m e hty hbo hbm h1 iht ihb =>
+    have hwfe : ExprWF e := ExprWF.forall_e hty hbo hbm h1
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
+    intro memo memo' r hm h
+    rw [expr_ops.all_level_params_defined_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bool_and3_val] at h
+    obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    cases o with
+    | some w =>
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have e1 : r = w := (congrArg Prod.fst e0).symm
+      have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+      subst e1; subst e2
+      have hhit := MemoInv.hit (KWF := ExprWF) (absK := absExpr)
+        (Q := LPQ (absNames params)) expr_key_exact hm hwfe (memo_b_get_hit ho)
+      exact ⟨hhit, hm⟩
+    | none =>
+      obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨memo1, r0⟩ := q
+      obtain ⟨p1, htt, hgo⟩ := bind_eq_ok_iff.mp hgo
+      obtain ⟨b1, memo2⟩ := p1
+      obtain ⟨p2, hbb, hgo⟩ := bind_eq_ok_iff.mp hgo
+      obtain ⟨b2, memo3⟩ := p2
+      obtain ⟨b3, hpd, hgo⟩ := bind_eq_ok_iff.mp hgo
+      have eg := Result.ok_injective (α := ron.hashmap.HashMap expr.Expr Bool × _) hgo
+      have eg1 : memo1 = memo3 := (congrArg Prod.fst eg).symm
+      have eg2 : r0 = (b1 && b2 && b3) := (congrArg Prod.snd eg).symm
+      subst eg1
+      obtain ⟨habs1, hm2⟩ := iht memo memo2 b1 hm htt
+      obtain ⟨habs2, hm3⟩ := ihb memo2 memo1 b2 hm2 hbb
+      have habs3 := PropWhen.params_defined_refines hpar hbm hpd
+      obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨p4, hins, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨oldv, memo4⟩ := p4
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have e1' : r = r0 := (congrArg Prod.fst e0).symm
+      have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
+      subst e1'; subst e2'
+      have hans : LPQ (absNames params)
+          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.ForallE ty bo m)))) r := by
+        simp [LPQ, ConLeche.Expr.allLevelParamsDefined, eg2, habs1, habs2, habs3]
+      refine ⟨hans, ?_⟩
+      rw [Expr.dup_eq hd1] at hins
+      exact MemoInv.set expr_key_exact hm3 hwfe hans hins
+  | @let_e ty v bo e hty hv hbo h1 iht ihv ihb =>
+    have hwfe : ExprWF e := ExprWF.let_e hty hv hbo h1
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
+    intro memo memo' r hm h
+    rw [expr_ops.all_level_params_defined_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bool_and3_val] at h
+    obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    cases o with
+    | some w =>
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have e1 : r = w := (congrArg Prod.fst e0).symm
+      have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+      subst e1; subst e2
+      have hhit := MemoInv.hit (KWF := ExprWF) (absK := absExpr)
+        (Q := LPQ (absNames params)) expr_key_exact hm hwfe (memo_b_get_hit ho)
+      exact ⟨hhit, hm⟩
+    | none =>
+      obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨memo1, r0⟩ := q
+      obtain ⟨p1, htt, hgo⟩ := bind_eq_ok_iff.mp hgo
+      obtain ⟨b1, memo2⟩ := p1
+      obtain ⟨p2, hvv, hgo⟩ := bind_eq_ok_iff.mp hgo
+      obtain ⟨b2, memo3⟩ := p2
+      obtain ⟨p3, hbb, hgo⟩ := bind_eq_ok_iff.mp hgo
+      obtain ⟨b3, memo4⟩ := p3
+      have eg := Result.ok_injective (α := ron.hashmap.HashMap expr.Expr Bool × _) hgo
+      have eg1 : memo1 = memo4 := (congrArg Prod.fst eg).symm
+      have eg2 : r0 = (b1 && b2 && b3) := (congrArg Prod.snd eg).symm
+      subst eg1
+      obtain ⟨habs1, hm2⟩ := iht memo memo2 b1 hm htt
+      obtain ⟨habs2, hm3⟩ := ihv memo2 memo3 b2 hm2 hvv
+      obtain ⟨habs3, hm4⟩ := ihb memo3 memo1 b3 hm3 hbb
+      obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨p5, hins, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨oldv, memo5⟩ := p5
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have e1' : r = r0 := (congrArg Prod.fst e0).symm
+      have e2' : memo' = memo5 := (congrArg Prod.snd e0).symm
+      subst e1'; subst e2'
+      have hans : LPQ (absNames params)
+          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.LetE ty v bo)))) r := by
+        simp [LPQ, ConLeche.Expr.allLevelParamsDefined, eg2, habs1, habs2, habs3]
+      refine ⟨hans, ?_⟩
+      rw [Expr.dup_eq hd1] at hins
+      exact MemoInv.set expr_key_exact hm4 hwfe hans hins
+
+/-- **`expr_ops::all_level_params_defined_fast` refines
+`Expr.allLevelParamsDefined`** -- the `@[csimp]` equation of
+`Kernel/Level.lean:409-412`, proved here through the walk's own lemma with the
+fresh memo satisfying `LPMemoInv` vacuously. -/
+theorem all_level_params_defined_fast_refines {params : alloc.vec.Vec name.Name}
+    {e : expr.Expr} {b : Bool} (hpar : NamesWF params) (he : ExprWF e)
+    (h : expr_ops.all_level_params_defined_fast params e = ok b) :
+    b = ConLeche.Expr.allLevelParamsDefined (absNames params) (absExpr e) := by
+  rw [expr_ops.all_level_params_defined_fast] at h
+  obtain ⟨memo, hnew, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨p, hgo, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b0, memo'⟩ := p
+  have hb : b0 = b := Result.ok_injective h
+  subst hb
+  exact (all_level_params_defined_go_refines hpar he memo memo' b0
+    (new_memo_inv hnew) hgo).1
 
 end ConRon.Refine.ExprOps
 

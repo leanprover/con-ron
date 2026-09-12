@@ -37,6 +37,24 @@ open ConRon.Generated ConRon.Generated.kernel
 
 namespace ConRon.Refine.ExprOps
 
+/-! ## Two plumbing steps the repacked node added (task #38)
+
+`BinderMeta.pw` is an `Arc<PropWhen>` since the node was repacked to 48 bytes,
+so every place that used to write the binder datum inline now calls the smart
+constructor `expr::binder_meta`; and the `Vec` accumulators are pre-sized
+(`Vec::with_capacity`, task #34).  Both are the identity in the model, and both
+are stated as `simp` lemmas so that the bind they add collapses inside the
+`simp only [arc_deref_eq, bind_tc_ok, …]` step every walk below already runs. -/
+
+/-- `expr::binder_meta` is the pointer wrapper, i.e. the identity. -/
+@[simp] theorem binder_meta_eq (pw : prop_when.PropWhen) :
+    expr.binder_meta pw = ok ⟨pw⟩ := by
+  simp [expr.binder_meta]
+
+/-- `Vec::with_capacity` is `Vec::new` in the model: an empty list. -/
+@[simp] theorem with_capacity_val {α : Type} (c : Std.Usize) :
+    (alloc.vec.Vec.with_capacity α c).val = [] := rfl
+
 /-! ## Memo tables as entry lists
 
 The facts every memoized walk below uses, about any key type and with no
@@ -52,9 +70,18 @@ dictionary declares equal. -/
 theorem list_get_mem {ls : ron.hashmap.AList K V} {k : K} {r : V}
     (h : ron.hashmap.list_get Eq2Inst ls k = ok (some r)) :
     ∃ k', (k', r) ∈ HashMap.alv ls ∧ Eq2Inst.eq2 k' k = ok true := by
-  induction ls with
-  | Nil => rw [ron.hashmap.list_get.eq_def] at h; simp at h
-  | Cons ckey cval tl ih =>
+  induction ls using HashMap.AList.recTail with
+  | nil => rw [ron.hashmap.list_get.eq_def] at h; simp at h
+  | last ckey cval =>
+    rw [ron.hashmap.list_get.eq_def] at h
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨b, hb, h⟩ := h
+    cases b with
+    | false => simp at h
+    | true =>
+      simp only [if_true, Result.ok.injEq, Option.some.injEq] at h
+      exact ⟨ckey, by rw [HashMap.alv_cons, ← h]; exact List.mem_cons_self, hb⟩
+  | cons ckey cval tl ih =>
     rw [ron.hashmap.list_get.eq_def] at h
     simp only [bind_eq_ok_iff] at h
     obtain ⟨b, hb, h⟩ := h
@@ -62,10 +89,11 @@ theorem list_get_mem {ls : ron.hashmap.AList K V} {k : K} {r : V}
     | false =>
       simp only [Bool.false_eq_true, if_false] at h
       obtain ⟨k', hmem, heq⟩ := ih h
-      exact ⟨k', by rw [HashMap.alv]; exact List.mem_cons_of_mem _ hmem, heq⟩
+      exact ⟨k', by rw [HashMap.alv_cons]; exact List.mem_cons_of_mem _ (by simpa only [HashMap.alvO_some] using hmem),
+        heq⟩
     | true =>
       simp only [if_true, Result.ok.injEq, Option.some.injEq] at h
-      exact ⟨ckey, by rw [HashMap.alv, ← h]; exact List.mem_cons_self, hb⟩
+      exact ⟨ckey, by rw [HashMap.alv_cons, ← h]; exact List.mem_cons_self, hb⟩
 
 /-- **A memo hit returns a recorded entry.**  No `Eq2Spec`, no `Inv`: the
 value comes back with a key that is really in the table. -/
@@ -73,6 +101,9 @@ theorem get_mem {m : ron.hashmap.HashMap K V} {k : K} {r : V}
     (h : ron.hashmap.HashMap.get HashableInst Eq2Inst m k = ok (some r)) :
     ∃ k', (k', r) ∈ HashMap.al_v m ∧ Eq2Inst.eq2 k' k = ok true := by
   rw [ron.hashmap.HashMap.get] at h
+  -- task #35: an unallocated table (no buckets at all) answers `none` at once.
+  split at h
+  · simp at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨_, -, i2, -, a, hidx, hget⟩ := h
   obtain ⟨hlt, rfl⟩ := HashMap.vec_index_eq hidx
@@ -99,18 +130,16 @@ theorem list_insert_pres {R : K → V → Prop} (hc : Compat Eq2Inst R)
     (hls : ∀ p ∈ HashMap.alv ls, R p.1 p.2) (hnew : R k v)
     (h : ron.hashmap.list_insert Eq2Inst ls k v = ok (old, ls')) :
     ∀ p ∈ HashMap.alv ls', R p.1 p.2 := by
-  induction ls generalizing old ls' with
-  | Nil =>
+  induction ls using HashMap.AList.recTail generalizing old ls' with
+  | nil =>
     rw [ron.hashmap.list_insert.eq_def] at h
     simp only [Result.ok.injEq, Prod.mk.injEq] at h
-    rw [← h.2, HashMap.alv, HashMap.alv]
+    rw [← h.2, HashMap.alv_cons]
     intro p hp
-    simp only [List.mem_singleton] at hp
+    simp only [HashMap.alvO_none, List.mem_singleton] at hp
     rw [hp]; exact hnew
-  | Cons ckey cval tl ih =>
-    have hhd : R ckey cval := hls (ckey, cval) (by rw [HashMap.alv]; exact List.mem_cons_self)
-    have htl : ∀ p ∈ HashMap.alv tl, R p.1 p.2 := fun p hp =>
-      hls p (by rw [HashMap.alv]; exact List.mem_cons_of_mem _ hp)
+  | last ckey cval =>
+    have hhd : R ckey cval := hls (ckey, cval) (by rw [HashMap.alv_cons]; exact List.mem_cons_self)
     rw [ron.hashmap.list_insert.eq_def] at h
     simp only [bind_eq_ok_iff] at h
     obtain ⟨b, hb, h⟩ := h
@@ -120,11 +149,41 @@ theorem list_insert_pres {R : K → V → Prop} (hc : Compat Eq2Inst R)
       simp at h
       obtain ⟨-, hls'⟩ := h
       subst hls'
-      rw [HashMap.alv]
+      rw [HashMap.alv_cons]
+      intro p hp
+      simp only [HashMap.alvO_none, List.mem_singleton] at hp
+      rw [hp]; exact hc k ckey v cval hnew hhd hb
+    | false =>
+      simp only [Bool.false_eq_true, if_false] at h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨-, hls'⟩ := h
+      subst hls'
+      rw [HashMap.alv_cons]
+      intro p hp
+      simp only [HashMap.alvO_some, HashMap.alv_cons, HashMap.alvO_none,
+        List.mem_cons, List.mem_singleton] at hp
+      rcases hp with hp | hp | hp
+      · rw [hp]; exact hhd
+      · rw [hp]; exact hnew
+      · exact absurd hp (by simp)
+  | cons ckey cval tl ih =>
+    have hhd : R ckey cval := hls (ckey, cval) (by rw [HashMap.alv_cons]; exact List.mem_cons_self)
+    have htl : ∀ p ∈ HashMap.alv tl, R p.1 p.2 := fun p hp =>
+      hls p (by rw [HashMap.alv_cons]; exact List.mem_cons_of_mem _ (by simpa only [HashMap.alvO_some] using hp))
+    rw [ron.hashmap.list_insert.eq_def] at h
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨b, hb, h⟩ := h
+    cases b with
+    | true =>
+      simp only [if_true, core.mem.replace] at h
+      simp at h
+      obtain ⟨-, hls'⟩ := h
+      subst hls'
+      rw [HashMap.alv_cons]
       intro p hp
       rcases List.mem_cons.1 hp with hp | hp
       · rw [hp]; exact hc k ckey v cval hnew hhd hb
-      · exact htl p hp
+      · exact htl p (by simpa only [HashMap.alvO_some] using hp)
     | false =>
       simp only [Bool.false_eq_true, if_false] at h
       replace h := bind_eq_ok_iff.mp h
@@ -133,11 +192,11 @@ theorem list_insert_pres {R : K → V → Prop} (hc : Compat Eq2Inst R)
       simp at h
       obtain ⟨-, hls'⟩ := h
       subst hls'
-      rw [HashMap.alv]
+      rw [HashMap.alv_cons]
       intro p hp
       rcases List.mem_cons.1 hp with hp | hp
       · rw [hp]; exact hhd
-      · exact ih htl hrec p hp
+      · exact ih htl hrec p (by simpa only [HashMap.alvO_some] using hp)
 
 /-- Entries of a table whose bucket `i` was replaced: everything is either in
 the new bucket or in some other bucket of the old table. -/
@@ -191,21 +250,32 @@ theorem move_elements_from_list_pres {R : K → V → Prop} (hc : Compat Eq2Inst
       (∀ p ∈ HashMap.al_v nt', R p.1 p.2) ∧
         nt'.slots.val.length = nt.slots.val.length := by
   intro ls
-  induction ls with
-  | Nil =>
+  induction ls using HashMap.AList.recTail with
+  | nil =>
     intro nt nt' _ hnt h
     rw [ron.hashmap.HashMap.move_elements_from_list.eq_def] at h
     rw [← Result.ok_injective h]
     exact ⟨hnt, rfl⟩
-  | Cons k v tl ih =>
+  | last k v =>
     intro nt nt' hls hnt h
     rw [ron.hashmap.HashMap.move_elements_from_list.eq_def] at h
     simp only [bind_eq_ok_iff] at h
     obtain ⟨⟨o, nt1⟩, hins, hrec⟩ := h
-    have hhd : R k v := hls (k, v) (by rw [HashMap.alv]; exact List.mem_cons_self)
+    have hhd : R k v := hls (k, v) (by rw [HashMap.alv_cons]; exact List.mem_cons_self)
     obtain ⟨h1, h2⟩ := insert_no_resize_pres hc hnt hhd hins
-    obtain ⟨h3, h4⟩ := ih nt1 nt'
-      (fun p hp => hls p (by rw [HashMap.alv]; exact List.mem_cons_of_mem _ hp)) h1 hrec
+    rw [← Result.ok_injective hrec]
+    exact ⟨h1, h2⟩
+  | cons k v tl ih =>
+    intro nt nt' hls hnt h
+    rw [ron.hashmap.HashMap.move_elements_from_list.eq_def] at h
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨⟨o, nt1⟩, hins, hrec⟩ := h
+    have hhd : R k v := hls (k, v) (by rw [HashMap.alv_cons]; exact List.mem_cons_self)
+    obtain ⟨h1, h2⟩ := insert_no_resize_pres hc hnt hhd hins
+    have htl : ∀ p ∈ HashMap.alv tl, R p.1 p.2 := fun p hp =>
+      hls p (by rw [HashMap.alv_cons]
+                exact List.mem_cons_of_mem _ (by simpa only [HashMap.alvO_some] using hp))
+    obtain ⟨h3, h4⟩ := ih nt1 nt' htl h1 hrec
     exact ⟨h3, by rw [h4, h2]⟩
 
 theorem move_elements_pres {R : K → V → Prop} (hc : Compat Eq2Inst R) (N : Nat) :
@@ -298,6 +368,28 @@ theorem try_resize_pres {R : K → V → Prop} (hc : Compat Eq2Inst R)
     rw [HashMap.al_v_congr eslots]
     exact hm
 
+/-- `ensure_slots` (task #35's lazy allocation) either leaves the table alone
+or replaces an *empty* bucket vector by a longer one of empty buckets: either
+way every recorded entry of the result was already recorded.  This is the one
+step `insert` gained since task #21, and it needs no `Inv`. -/
+theorem ensure_slots_pres {R : K → V → Prop} {m m' : ron.hashmap.HashMap K V}
+    (hm : ∀ p ∈ HashMap.al_v m, R p.1 p.2)
+    (h : ron.hashmap.HashMap.ensure_slots m = ok m') :
+    ∀ p ∈ HashMap.al_v m', R p.1 p.2 := by
+  rw [ron.hashmap.HashMap.ensure_slots] at h
+  split at h
+  · obtain ⟨t, ht, hok⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hts, -, -⟩ := HashMap.new_with_capacity_pow2_spec ht
+    have hslots : m'.slots = t.slots :=
+      (congrArg (fun z : ron.hashmap.HashMap K V => z.slots) (Result.ok_injective hok)).symm
+    have hnil : HashMap.al_v m' = [] := by
+      refine HashMap.al_v_eq_nil_of_slots_nil (fun j hj => ?_)
+      rw [hslots, hts, HashMap.getElem!_replicate_nil]
+    rw [hnil]; simp
+  · have eslots : m'.slots = m.slots :=
+      (congrArg (fun z : ron.hashmap.HashMap K V => z.slots) (Result.ok_injective h)).symm
+    rw [HashMap.al_v_congr eslots]; exact hm
+
 /-- **An insert records its own pair and nothing else.**  No `Eq2Spec`, no
 `Inv`; the resize is covered because it only moves recorded entries. -/
 theorem insert_pres {R : K → V → Prop} (hc : Compat Eq2Inst R)
@@ -307,8 +399,9 @@ theorem insert_pres {R : K → V → Prop} (hc : Compat Eq2Inst R)
     (h : ron.hashmap.HashMap.insert HashableInst Eq2Inst m k v = ok (old, m')) :
     ∀ p ∈ HashMap.al_v m', R p.1 p.2 := by
   rw [ron.hashmap.HashMap.insert] at h
+  obtain ⟨m0, hens, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨⟨old0, m1⟩, hins, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨h1, -⟩ := insert_no_resize_pres hc hm hnew hins
+  obtain ⟨h1, -⟩ := insert_no_resize_pres hc (ensure_slots_pres hm hens) hnew hins
   have h2 : (if m1.num_entries > m1.max_load then
         (if m1.saturated then ok (old0, m1)
          else do
@@ -479,13 +572,13 @@ theorem expr_nat_key_eq {e : expr.Expr} {d : Std.U64} {k : expr_ops.ExprNatKey}
 
 /-- A fresh memo table is empty (`ron::hashmap::HashMap::new`; the `Inv` half
 of `HashMap.new_refines` is not needed, so neither is a `Hashable`
-dictionary). -/
+dictionary).  Since task #35 a fresh table has *no buckets at all*, so this is
+immediate. -/
 theorem new_al_v {K V : Type} {m : ron.hashmap.HashMap K V}
     (h : ron.hashmap.HashMap.new K V = ok m) : HashMap.al_v m = [] := by
   rw [ron.hashmap.HashMap.new] at h
-  obtain ⟨hs, -, -⟩ := HashMap.new_with_capacity_pow2_spec h
-  refine HashMap.al_v_eq_nil_of_slots_nil (fun j hj => ?_)
-  rw [hs, HashMap.getElem!_replicate_nil]
+  rw [← Result.ok_injective h]
+  simp [HashMap.al_v, alloc.vec.Vec.new]
 
 /-- A fresh memo satisfies every invariant of this file (`*MemoInv.empty`). -/
 theorem new_memo_inv {K V A : Type} {KWF : K → Prop} {absK : K → A} {Q : A → V → Prop}
@@ -534,7 +627,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     split at h
     · rename_i hid
       have hv' : i.val = d.val := by scalar_tac
@@ -570,7 +663,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -580,7 +673,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -590,7 +683,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -600,7 +693,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -611,7 +704,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk
@@ -659,7 +752,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk
@@ -710,7 +803,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk
@@ -761,7 +854,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk
@@ -813,7 +906,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [rc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk
@@ -874,4 +967,210 @@ theorem instantiate1_refines {e v r : expr.Expr} {d : Std.U64} (he : ExprWF e)
     instantiate1_go_refines hv he memo memo' d r0 (new_memo_inv hnew) hgo
   exact ⟨habs, hwf⟩
 
+/-! ## Plumbing for the `Vec` walks -/
+
+/-- `expr_ops::sub_nat` is Lean's truncated `Nat` subtraction (task #13's one
+new helper: the cited Lean subtracts without a guard, which would underflow on
+a `u64`). -/
+theorem sub_nat_val {a b r : Std.U64} (h : expr_ops.sub_nat a b = ok r) :
+    r.val = a.val - b.val := by
+  rw [expr_ops.sub_nat] at h
+  split at h
+  · rw [HashMap.uscalar_sub_eq h]
+  · rename_i hge
+    have hle : a.val ≤ b.val := by scalar_tac
+    rw [← Result.ok_injective h]
+    have : ((0#u64 : Std.U64)).val = 0 := by scalar_tac
+    omega
+
+/-- A `usize`-to-`u64` cast is the identity in the model: `usize` is never
+wider than 64 bits (`System.Platform.numBits_eq`). -/
+theorem usize_cast_u64_val (x : Std.Usize) :
+    (Std.UScalar.cast .U64 x).val = x.val := by
+  refine Std.UScalar.cast_val_mod_pow_greater_numBits_eq _ _ ?_
+  rw [UScalarTy.Usize_numBits_eq, UScalarTy.U64_numBits_eq]
+  rcases System.Platform.numBits_eq with h | h <;> omega
+
+/-- A `u64`-to-`usize` cast is the identity on values that fit a `usize` --
+which is what an in-range index is. -/
+theorem u64_cast_usize_val {x : Std.U64} (h : x.val ≤ Std.Usize.max) :
+    (Std.UScalar.cast .Usize x).val = x.val := by
+  refine Std.UScalar.cast_val_mod_pow_of_inBounds_eq _ _ ?_
+  have hpos : 0 < 2 ^ UScalarTy.Usize.numBits := Nat.two_pow_pos _
+  have hmax : Std.Usize.max < 2 ^ UScalarTy.Usize.numBits := by
+    simp only [Std.Usize.max, Std.Usize.numBits]
+    omega
+  omega
+
+/-- The empty `Vec` abstracts to the empty list. -/
+@[simp] theorem absExprs_new : absExprs (alloc.vec.Vec.new expr.Expr) = [] := rfl
+
+/-- The empty `Vec` is well formed. -/
+theorem exprsWF_new : ExprsWF (alloc.vec.Vec.new expr.Expr) := by
+  intro e he; simp at he
+
+/-- `absExprs` of a push. -/
+theorem absExprs_push {v w : alloc.vec.Vec expr.Expr} {x : expr.Expr}
+    (h : alloc.vec.Vec.push v x = ok w) :
+    absExprs w = absExprs v ++ [absExpr x] := by
+  rw [absExprs, absExprs, vec_push_val h, List.map_append]; rfl
+
+/-- `ExprsWF` of a push. -/
+theorem exprsWF_push {v w : alloc.vec.Vec expr.Expr} {x : expr.Expr}
+    (hv : ExprsWF v) (hx : ExprWF x) (h : alloc.vec.Vec.push v x = ok w) :
+    ExprsWF w := by
+  intro e he
+  rw [vec_push_val h] at he
+  rcases List.mem_append.1 he with h1 | h1
+  · exact hv e h1
+  · simp only [List.mem_singleton] at h1; rw [h1]; exact hx
+
+/-- `Vec::index` without an `Inhabited` instance on the element type (the
+`getElem!` form of `HashMap.vec_index_eq` is unavailable for `expr::Expr`). -/
+theorem vec_index_getElem? {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize} {x : α}
+    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok x) :
+    v.val[i.val]? = some x := by
+  rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize] at h
+  rcases hi : v.val[i.val]? with _ | y
+  · rw [show v[i.val]? = v.val[i.val]? from rfl, hi] at h; simp at h
+  · rw [show v[i.val]? = v.val[i.val]? from rfl, hi] at h
+    exact congrArg some (Result.ok_injective h)
+
+/-- Indexing a well-formed `Vec<Expr>`: the entry is well formed, and the
+abstracted list's `drop` peels it off. -/
+theorem vec_index_expr {args : alloc.vec.Vec expr.Expr} {i : Std.Usize} {x : expr.Expr}
+    (hargs : ExprsWF args)
+    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice expr.Expr) args i
+      = ok x) :
+    i.val < args.val.length ∧ ExprWF x ∧
+      (absExprs args).drop i.val = absExpr x :: (absExprs args).drop (i.val + 1) := by
+  have hg := vec_index_getElem? h
+  have hlt : i.val < args.val.length := by
+    by_contra hc
+    rw [List.getElem?_eq_none (by omega)] at hg; simp at hg
+  have hx : args.val[i.val] = x := by
+    rw [List.getElem?_eq_getElem hlt] at hg; exact Option.some_injective _ hg
+  refine ⟨hlt, hargs x (by rw [← hx]; exact List.getElem_mem hlt), ?_⟩
+  rw [absExprs, List.drop_eq_getElem_cons (by simpa using hlt), List.getElem_map, hx]
+
+/-! ## The `Vec` copies
+
+`levels_copy` and `cons_expr` have no Lean counterpart at all: they are the
+`Vec` copies that stand for Lean's shared lists (task #13's deviation 3), so
+their lemmas are *raw* `Vec` equations -- the copy is the same list, because
+`level::dup` and `expr::dup` are the identity in the model (DESIGN.md §3.2) --
+and the abstraction equation follows by `congrArg`. -/
+
+/-- The index recursion behind `levels_copy`: the entries from `i` on, appended
+to `out`.  Raw `Vec` values, not abstractions. -/
+theorem levels_copy_from_val (N : Nat) :
+    ∀ (us : alloc.vec.Vec level.Level) (i : Std.Usize)
+      (out r : alloc.vec.Vec level.Level),
+      us.val.length - i.val = N →
+      expr_ops.levels_copy_from us i out = ok r →
+      r.val = out.val ++ us.val.drop i.val := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro us i out r hN h
+    rw [expr_ops.levels_copy_from.eq_def] at h
+    dsimp only at h
+    split at h
+    · rename_i hge
+      have hlen : us.val.length ≤ i.val := by
+        have := alloc.vec.Vec.len_val us; scalar_tac
+      rw [← Result.ok_injective h, List.drop_eq_nil_of_le hlen]
+      simp
+    · simp only [bind_eq_ok_iff] at h
+      obtain ⟨x, hidx, c, hdup, out1, hpush, i2, hi2, hrec⟩ := h
+      have hg := vec_index_getElem? hidx
+      have hlt : i.val < us.val.length := by
+        by_contra hc
+        rw [List.getElem?_eq_none (by omega)] at hg; simp at hg
+      have hx : us.val[i.val] = x := by
+        rw [List.getElem?_eq_getElem hlt] at hg; exact Option.some_injective _ hg
+      have hcx : c = x := Result.ok_injective (hdup.symm.trans (level_dup_eq x))
+      subst hcx
+      have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+      rw [ih (us.val.length - i2.val) (by omega) us i2 out1 r rfl hrec,
+        vec_push_val hpush, hi2v,
+        List.drop_eq_getElem_cons hlt, hx]
+      simp
+
+/-- `expr_ops::levels_copy` copies a `Vec<Level>`: the same list. -/
+theorem levels_copy_val {us r : alloc.vec.Vec level.Level}
+    (h : expr_ops.levels_copy us = ok r) : r.val = us.val := by
+  rw [expr_ops.levels_copy] at h
+  rw [levels_copy_from_val _ us 0#usize _ r rfl h]
+  -- task #34 pre-sizes the accumulator: `with_capacity` is `new` in the model.
+  simp [alloc.vec.Vec.with_capacity, show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+
+/-- The index recursion behind `take_exprs`/`cons_expr`: the entries of `xs`
+from `i` up to `k`, appended to `out`. -/
+theorem exprs_copy_upto_val (N : Nat) :
+    ∀ (xs : alloc.vec.Vec expr.Expr) (k i : Std.Usize)
+      (out r : alloc.vec.Vec expr.Expr),
+      k.val - i.val = N →
+      expr_ops.exprs_copy_upto xs k i out = ok r →
+      r.val = out.val ++ (xs.val.drop i.val).take (k.val - i.val) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro xs k i out r hN h
+    rw [expr_ops.exprs_copy_upto.eq_def] at h
+    dsimp only at h
+    split at h
+    · rename_i hge
+      have : k.val ≤ i.val := by scalar_tac
+      rw [← Result.ok_injective h, show k.val - i.val = 0 by omega]
+      simp
+    · split at h
+      · rename_i hge hge2
+        have hlen : xs.val.length ≤ i.val := by
+          have := alloc.vec.Vec.len_val xs; scalar_tac
+        rw [← Result.ok_injective h, List.drop_eq_nil_of_le hlen]
+        simp
+      · rename_i hge hge2
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨x, hidx, c, hdup, out1, hpush, i2, hi2, hrec⟩ := h
+        have hg := vec_index_getElem? hidx
+        have hlt : i.val < xs.val.length := by
+          have := alloc.vec.Vec.len_val xs
+          by_contra hc
+          rw [List.getElem?_eq_none (by omega)] at hg; simp at hg
+        have hx : xs.val[i.val] = x := by
+          rw [List.getElem?_eq_getElem hlt] at hg; exact Option.some_injective _ hg
+        have hcx : c = x := Expr.dup_eq hdup
+        subst hcx
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hki : k.val - i.val = (k.val - i2.val) + 1 := by scalar_tac
+        rw [ih (k.val - i2.val) (by omega) xs k i2 out1 r rfl hrec,
+          vec_push_val hpush, hi2v, List.drop_eq_getElem_cons hlt, hx, hki]
+        simp [hi2v]
+
+/-- `expr_ops::cons_expr` is Lean's `a :: acc` (task #13's deviation 3: a `Vec`
+has no cheap cons, so the accumulator is rebuilt). -/
+theorem cons_expr_val {a : expr.Expr} {acc r : alloc.vec.Vec expr.Expr}
+    (h : expr_ops.cons_expr a acc = ok r) : r.val = a :: acc.val := by
+  rw [expr_ops.cons_expr] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨i1, hi1, c, hdup, out, hpush, hrec⟩ := h
+  rw [Expr.dup_eq hdup] at hpush
+  rw [exprs_copy_upto_val _ acc (alloc.vec.Vec.len acc) 0#usize out r rfl hrec,
+    vec_push_val hpush, alloc.vec.Vec.len_val,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+  simp [alloc.vec.Vec.with_capacity]
+
+
 end ConRon.Refine.ExprOps
+
+/-! ## Axiom census (DESIGN.md §5, the P3 gate)
+
+`instantiate1_refines` is the file's headline lemma and the deepest chain in it
+-- the `(node, cursor)` memo through `HashMap.insert`'s resize, `expr::beq`'s
+exactness on well-formed nodes, and the ten smart constructors -- so it is the
+one worth pinning. -/
+
+/--
+info: 'ConRon.Refine.ExprOps.instantiate1_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms ConRon.Refine.ExprOps.instantiate1_refines

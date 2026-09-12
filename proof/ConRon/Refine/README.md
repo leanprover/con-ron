@@ -50,7 +50,7 @@ verbatim -- `Name.lean` and `Level.lean` are the spike's `Refine.lean` with
 else.  (Task #12's two-lemma `Smoke.lean` was folded into `Level.lean`'s
 `zero_refines` / `succ_refines` at task #17 and deleted.)
 
-## What is here (tasks #17 and #20, P3.3)
+## What is here (tasks #17, #20 and #47, P3.3)
 
 | file | contents |
 |---|---|
@@ -61,9 +61,12 @@ else.  (Task #12's two-lemma `Smoke.lean` was folded into `Level.lean`'s
 | `Nat.lean` | `ron::nat` (task #15), plus (task #20) `cmp`/`beq` reflexivity |
 | `HashMap.lean` | `ron::hashmap` (task #16) |
 | `Expr.lean` | `kernel::expr` (task #20): the packed word (`pack_bits`, the `*_val` readings, `wf_data`), the ten smart constructors, the three exact accessors, `beq_recursive`, `levels_beq`, the copies, `absExpr`'s injectivity, and `beq`'s reflexivity and exactness |
+| `ExprOps.lean` | `kernel::expr_ops`'s **foundation** (tasks #21/#47): the memo facts (`get_mem`, `insert_pres`, `MemoInv` and its `empty`/`hit`/`set`), the two key types and their `KeyExact`, the four owning probes, the shared `Vec`/scalar plumbing and `Vec` copies, and `instantiate1` |
+| `ExprOpsFields.lean` | the derived fields: `size_b`/`size_f`, `wscoped_b`, the `bvar_bound`/`fvar_range` spec walks and their memoized twins, the exact accessors `bvar_b`/`fvar_b`, `loose_bvars_bounded`, `has_fvar`, `abstract_range` and `lift_loose_bvars` |
+| `ExprOpsSubst.lean` | the substitutions: `instantiate_list` (spec, memoized walk and `*_fast`), `take_exprs`, `abstract1`, `lower_bvars`, `instantiate1_lift` and `inst_pis_at_lift` |
+| `ExprOpsSpine.lean` | the spine and the telescopes: `get_app_fn`/`get_app_args`/`mk_app_n`, `pi_result`/`pi_arity`/`result_sort`/`fvar_type_d`, `strip_pis`/`strip_lams`, the `inst_pis_at`/`inst_lams_at`/`inst_spine` cascade and its one-pass `*_f` twins, `rec_rule_plain`, `pis_to_lams`, `replace_pi_body` |
+| `ExprOpsMeta.lean` | the metadata: `reset_meta`, `rename_consts`, the `level::zeroness_of`/`level::subst_pw` bridge, `levels_subst`/`instantiate_level_params`, the leaf readers (`is_lam`, `lam_pw`, `forall_pw`, `has_level_param`, `expr_ptr_beq`), `fvar_leaves`, and the `all_level_params_defined` family |
 
 ## Not yet here
 
-`level::zeroness_of` and `level::subst_pw` (added at task #13, the
-`Level`-to-`PropWhen` bridge), `kernel::expr_ops`, `kernel::env`,
-`kernel::fenv` and everything above them.
+`kernel::env`, `kernel::fenv` and everything above them.
