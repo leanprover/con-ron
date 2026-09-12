@@ -237,7 +237,16 @@ scripts/                 setup-aeneas-lean.sh, extract.sh, lint-rust-style.sh,
                          dump-decls, diff-test
 ```
 
-Refinement lemma shape (accept direction, forward reasoning from `ok`):
+Refinement lemma shape — **exact result on success** (task #5): a Rust
+function that returns `ok y` computes *exactly* what the Lean function
+computes on the abstracted inputs; nothing is claimed when Rust fails.
+Exactness is needed because Boolean and `Option Bool` outcomes feed
+branches on both sides; the accept-direction statement of §1 is a corollary
+of exactness at every level.  Stored derived data (hash words) is governed
+by a hereditary well-formedness predicate (`NameWF`, `LevelWF`, `NodeWF`:
+the word equals the model's own hash formula of the children, code points
+are valid `Char`s), preserved by every constructor, under which `abs` is
+injective and `beq` is exact.  Forward reasoning from `ok`:
 
 ```lean
 theorem whnf_refines (fuel st e st' r) (hwf : StateWF st)
