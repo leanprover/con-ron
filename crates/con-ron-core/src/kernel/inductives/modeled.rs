@@ -26,6 +26,8 @@
 
 use crate::cached::core_c;
 use crate::cached::state_c::CState;
+use crate::kernel::basis_pins;
+use crate::kernel::checker_base;
 use crate::kernel::core_k;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckM;
@@ -39,8 +41,7 @@ use crate::kernel::expr_ops;
 use crate::kernel::expr_ops::NameToName;
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
-use crate::kernel::inductives::checker_local;
-use crate::kernel::inductives::checker_local::{DomIdent, DomView};
+use crate::kernel::checker_base::{DomIdent, DomView};
 use crate::kernel::inductives::struct_parts;
 use crate::kernel::level;
 use crate::kernel::level::Level;
@@ -169,7 +170,7 @@ pub fn find_proj_fn_slot(t: &Name, n_f: u64, n: &Name, j: u64) -> Option<u64> {
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:513-563 checkProjIota
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:797-836 checkProjIotaF
 /// `domsMatchAux (fun _ e => e.renameConsts (projFwd T ctorName nF))`, the one
-/// non-identity binder view in the port (`checker_local::DomView`).
+/// non-identity binder view in the port (`checker_base::DomView`).
 pub struct DomProjFwd<'a> {
     pub t: &'a Name,
     pub ctor: &'a Name,
@@ -401,25 +402,25 @@ pub fn iota_stmt_open(
         105, 111, 116, 97, 32, 115, 116, 97, 116, 101, 109, 101, 110, 116, 32, 110, 111, 116,
         32, 97, 110, 32, 101, 113, 110, 32, 32, 32,
     ];
-    match checker_local::find_cv(fe2, &iota_thm_name(cv_name, j)) {
+    match checker_base::find_cv(fe2, &iota_thm_name(cv_name, j)) {
         None => Err(core_types::not_implemented(core_types::code_points(&M_MISS))),
         Some(cvt) => {
             if !prop_when::names_beq(&cvt.level_params, lps) {
                 Err(core_types::not_implemented(core_types::code_points(&M_LPS)))
             } else {
-                match checker_local::open_pis_at_fvars(r_p + cn_f, &cvt.ty, 0) {
+                match checker_base::open_pis_at_fvars_f(r_p + cn_f, &cvt.ty, 0) {
                     None => Err(core_types::not_implemented(core_types::code_points(
                         &M_SHAPE,
                     ))),
                     Some(q) => {
                         let head: Expr = expr_ops::get_app_fn(&q.1);
                         let targs: Vec<Expr> = expr_ops::get_app_args(&q.1);
-                        if !checker_local::is_eq_head(&head) {
+                        if !checker_base::is_eq_head(&head) {
                             Err(core_types::not_implemented(core_types::code_points(&M_EQ)))
                         } else if targs.len() != 3 {
                             Err(core_types::not_implemented(core_types::code_points(&M_EQ)))
                         } else {
-                            Ok((q.0, targs, checker_local::eq_head_level(&head)))
+                            Ok((q.0, targs, checker_base::eq_head_level(&head)))
                         }
                     }
                 }
@@ -451,7 +452,7 @@ pub fn iota_lhs_prefix_ok(
     } else if largs.len() as u64 != m_i + 1 {
         false
     } else {
-        struct_parts::exprs_beq(
+        expr::exprs_beq(
             &expr_ops::take_exprs(largs, r_p as usize),
             &expr_ops::take_exprs(fvs, r_p as usize),
         )
@@ -586,7 +587,7 @@ pub fn check_iota_thm_ctor(
                     );
                     let ctor_idx: Vec<Expr> =
                         core_k::drop_exprs(&cres_args, cn_p as usize);
-                    match checker_local::check_def_eq_list(
+                    match checker_base::check_def_eq_list(
                         mode,
                         st,
                         fe_self,
@@ -596,10 +597,10 @@ pub fn check_iota_thm_ctor(
                     ) {
                         Err(err) => Err(err),
                         Ok(()) => {
-                            let x_doms: Vec<Expr> = checker_local::fvar_types_of(x_fvs);
+                            let x_doms: Vec<Expr> = checker_base::fvar_types(x_fvs);
                             let c_doms: Vec<Expr> =
                                 core_k::drop_exprs(&cq.0, cn_p as usize);
-                            match checker_local::check_def_eq_list(
+                            match checker_base::check_def_eq_list(
                                 mode,
                                 st,
                                 fe_self,
@@ -619,8 +620,8 @@ pub fn check_iota_thm_ctor(
                                         )),
                                         Some(rq) => {
                                             let p_doms: Vec<Expr> =
-                                                checker_local::fvar_types_of(&prefix);
-                                            match checker_local::check_def_eq_list(
+                                                checker_base::fvar_types(&prefix);
+                                            match checker_base::check_def_eq_list(
                                                 mode,
                                                 st,
                                                 fe_self,
@@ -687,15 +688,15 @@ pub fn check_iota_thm_frames(
         105, 111, 116, 97, 32, 115, 116, 97, 116, 101, 109, 101, 110, 116, 32, 109, 105, 115,
         109, 97, 116, 99, 104, 32,
     ];
-    match checker_local::open_pis_at_fvars(r_p, ty_a, 0) {
+    match checker_base::open_pis_at_fvars_f(r_p, ty_a, 0) {
         None => Err(core_types::not_implemented(core_types::code_points(&M_RTELE))),
         Some(pq) => {
             let p_head: Vec<Expr> = expr_ops::take_exprs(&pq.0, cn_p as usize);
             match expr_ops::inst_pis_at(&p_head, &cvj.ty) {
                 None => Err(core_types::not_implemented(core_types::code_points(&M_CTELE))),
                 Some(cq) => {
-                    let p_doms: Vec<Expr> = checker_local::fvar_types_of(&p_head);
-                    match checker_local::check_def_eq_list(
+                    let p_doms: Vec<Expr> = checker_base::fvar_types(&p_head);
+                    match checker_base::check_def_eq_list(
                         mode,
                         st,
                         fe_self,
@@ -704,7 +705,7 @@ pub fn check_iota_thm_frames(
                         &cq.0,
                     ) {
                         Err(err) => Err(err),
-                        Ok(()) => match checker_local::open_pis_at_fvars(cn_f, &cq.1, r_p) {
+                        Ok(()) => match checker_base::open_pis_at_fvars_f(cn_f, &cq.1, r_p) {
                             None => Err(core_types::not_implemented(
                                 core_types::code_points(&M_CTELE),
                             )),
@@ -717,8 +718,8 @@ pub fn check_iota_thm_frames(
                                     )),
                                     Some(lq) => {
                                         let f_doms: Vec<Expr> =
-                                            checker_local::fvar_types_of(&frame);
-                                        match checker_local::check_def_eq_list(
+                                            checker_base::fvar_types(&frame);
+                                        match checker_base::check_def_eq_list(
                                             mode,
                                             st,
                                             fe_self,
@@ -828,7 +829,7 @@ pub fn pins_wf_from(
         false
     } else if !core_k::consts_resolve(fe_self, &pins[i]) {
         false
-    } else if !checker_local::all_level_params_defined(lps, &pins[i]) {
+    } else if !expr_ops::all_level_params_defined_fast(lps, &pins[i]) {
         false
     } else {
         pins_wf_from(fe_self, lps, r_p, pins, i + 1)
@@ -876,19 +877,19 @@ pub fn nested_rule_shape(
                                 lower_all(k, &args, cn_p as usize, 0, Vec::new());
                             if args.len() as u64 != cn_p + k {
                                 None
-                            } else if !struct_parts::exprs_beq(
+                            } else if !expr::exprs_beq(
                                 &expr_ops::take_exprs(&args, cn_p as usize),
                                 &lift_all_0(k, &pins, 0, Vec::new()),
                             ) {
                                 None
-                            } else if !struct_parts::exprs_beq(
+                            } else if !expr::exprs_beq(
                                 &core_k::drop_exprs(&args, cn_p as usize),
                                 &struct_parts::field_spine(k),
                             ) {
                                 None
                             } else if !pins_wf_from(fe_self, lps, r_p, &pins, 0) {
                                 None
-                            } else if !checker_local::levels_defined_from(lps, lvls, 0) {
+                            } else if !expr_ops::levels_all_params_defined(lps, lvls, 0) {
                                 None
                             } else {
                                 Some((env::levels_copy(lvls), pins))
@@ -1130,7 +1131,7 @@ pub fn check_iota_thm_n_ctor(
                     expr_ops::sub_nat(m_i, r_p) as usize,
                 );
                 let ctor_idx: Vec<Expr> = core_k::drop_exprs(&cres_args, cn_p as usize);
-                match checker_local::check_def_eq_list(
+                match checker_base::check_def_eq_list(
                     mode,
                     st,
                     fe_self,
@@ -1140,9 +1141,9 @@ pub fn check_iota_thm_n_ctor(
                 ) {
                     Err(err) => Err(err),
                     Ok(()) => {
-                        let x_doms: Vec<Expr> = checker_local::fvar_types_of(x_fvs);
+                        let x_doms: Vec<Expr> = checker_base::fvar_types(x_fvs);
                         let c_doms: Vec<Expr> = core_k::drop_exprs(&cq.0, cn_p as usize);
-                        match checker_local::check_def_eq_list(
+                        match checker_base::check_def_eq_list(
                             mode,
                             st,
                             fe_self,
@@ -1161,8 +1162,8 @@ pub fn check_iota_thm_n_ctor(
                                     )),
                                     Some(rq) => {
                                         let p_doms: Vec<Expr> =
-                                            checker_local::fvar_types_of(&prefix);
-                                        match checker_local::check_def_eq_list(
+                                            checker_base::fvar_types(&prefix);
+                                        match checker_base::check_def_eq_list(
                                             mode,
                                             st,
                                             fe_self,
@@ -1234,12 +1235,12 @@ pub fn check_iota_thm_n_frames(
         105, 111, 116, 97, 32, 115, 116, 97, 116, 101, 109, 101, 110, 116, 32, 109, 105, 115,
         109, 97, 116, 99, 104, 32,
     ];
-    match checker_local::open_pis_at_fvars(r_p, ty_a, 0) {
+    match checker_base::open_pis_at_fvars_f(r_p, ty_a, 0) {
         None => Err(core_types::not_implemented(core_types::code_points(&M_RTELE))),
         Some(pq) => {
             let prefix_p: Vec<Expr> = expr_ops::take_exprs(&pq.0, r_p as usize);
             let pins_p: Vec<Expr> = inst_pins_plain(pins, &prefix_p, r_p, 0, Vec::new());
-            match checker_local::check_annot_list(mode, st, fe_self, r_p + cn_f, &pins_p) {
+            match checker_base::check_annot_list(mode, st, fe_self, r_p + cn_f, &pins_p) {
                 Err(err) => Err(err),
                 Ok(()) => {
                     let inst_ty: Expr = expr_ops::instantiate_level_params(
@@ -1252,7 +1253,7 @@ pub fn check_iota_thm_n_frames(
                             &M_CTELE,
                         ))),
                         Some(cq) => {
-                            match checker_local::check_typed_list(
+                            match checker_base::check_typed_list(
                                 mode,
                                 st,
                                 fe_self,
@@ -1262,7 +1263,7 @@ pub fn check_iota_thm_n_frames(
                             ) {
                                 Err(err) => Err(err),
                                 Ok(()) => {
-                                    match checker_local::open_pis_at_fvars(
+                                    match checker_base::open_pis_at_fvars_f(
                                         cn_f, &cq.1, r_p,
                                     ) {
                                         None => Err(core_types::not_implemented(
@@ -1295,10 +1296,10 @@ pub fn check_iota_thm_n_frames(
                                                     }
                                                     Some(lq) => {
                                                         let f_doms: Vec<Expr> =
-                                                            checker_local::fvar_types_of(
+                                                            checker_base::fvar_types(
                                                                 &frame,
                                                             );
-                                                        match checker_local::check_def_eq_list(
+                                                        match checker_base::check_def_eq_list(
                                                             mode,
                                                             st,
                                                             fe_self,
@@ -1435,7 +1436,7 @@ pub fn check_iota_rule(
                 match core_c::annotate(mode, core_k::check_fuel(), st, fe_self, 0, &r.rhs) {
                     Err(err) => Err(err),
                     Ok(rhs_a) => {
-                        if !checker_local::all_level_params_defined(lps, &rhs_a) {
+                        if !expr_ops::all_level_params_defined_fast(lps, &rhs_a) {
                             Err(core_types::invalid(core_types::code_points(&M_LPS)))
                         } else if !core_k::consts_resolve(fe_self, &rhs_a) {
                             Err(core_types::invalid(core_types::code_points(&M_RESOLVE)))
@@ -1633,7 +1634,7 @@ pub fn check_member_val(
         104, 32, 32, 32, 32, 32, 32, 32,
     ];
     let f = BlockRename { block_names };
-    match checker_local::check_constant_val(mode, st, fe2, cv) {
+    match checker_base::check_constant_val(mode, st, fe2, cv) {
         Err(err) => Err(err),
         Ok(cv_a) => {
             if level::name_is_model_suffix(&cv_a.name) {
@@ -1842,7 +1843,7 @@ pub fn check_ind_recs(
     ];
     if recs.len() == 0 {
         Ok(fe2)
-    } else if !checker_local::eq_basis_pinned(&fe2) {
+    } else if !basis_pins::eq_basis_pinned(&fe2) {
         Err(core_types::not_implemented(core_types::code_points(&M_EQ)))
     } else {
         let f = BlockRename { block_names };
@@ -1936,7 +1937,7 @@ pub fn check_proj_lookups(
                             Err(core_types::not_implemented(core_types::code_points(
                                 &M_PARENT,
                             )))
-                        } else if !checker_local::eq_basis_pinned(fe2) {
+                        } else if !basis_pins::eq_basis_pinned(fe2) {
                             Err(core_types::not_implemented(core_types::code_points(&M_EQ)))
                         } else {
                             Ok((cq.0, dq.0))
@@ -1996,7 +1997,7 @@ pub fn check_proj_ty(
     } else {
         let wf = if expr_ops::loose_bvars_bounded(0, &pty) {
             if !expr_ops::has_fvar(&pty) {
-                checker_local::all_level_params_defined(lps, &pty)
+                expr_ops::all_level_params_defined_fast(lps, &pty)
             } else {
                 false
             }
@@ -2074,7 +2075,7 @@ pub fn check_proj_iota(
                                 ctor: ctor_name,
                                 n_f,
                             };
-                            if !checker_local::doms_match_aux(
+                            if !checker_base::doms_match_aux(
                                 &view, &sq.0, &cq.0, 0, 0, n_p + n_f,
                             ) {
                                 Err(core_types::not_implemented(core_types::code_points(
@@ -2162,21 +2163,21 @@ pub fn check_proj_iota_body(
     };
     if !shaped {
         Err(core_types::not_implemented(core_types::code_points(&M_SHAPE)))
-    } else if !checker_local::is_eq_head(&head) {
+    } else if !checker_base::is_eq_head(&head) {
         Err(core_types::not_implemented(core_types::code_points(&M_HEAD)))
     } else if !expr::beq(&args[1], &lhs_s) {
         Err(core_types::not_implemented(core_types::code_points(&M_REDEX)))
     } else if !expr::beq(&args[2], &expr::bvar(expr_ops::sub_nat(n_f, 1 + i))) {
         Err(core_types::not_implemented(core_types::code_points(&M_FIELD)))
     } else {
-        match checker_local::open_pis_at_fvars(depth, &tcv.ty, 0) {
+        match checker_base::open_pis_at_fvars_f(depth, &tcv.ty, 0) {
             None => Err(core_types::not_implemented(core_types::code_points(&M_TELE))),
             Some(oq) => {
                 let targs_o: Vec<Expr> = expr_ops::get_app_args(&oq.1);
                 let alpha: Expr = arg_get_d(&targs_o, 0);
                 let l: Expr = arg_get_d(&targs_o, 1);
                 let r: Expr = arg_get_d(&targs_o, 2);
-                let l_a: Level = checker_local::eq_head_level(&head);
+                let l_a: Level = checker_base::eq_head_level(&head);
                 check_iota_sides_ty(mode, st, fe_self, depth, &alpha, &l, &r, &l_a)
             }
         }
@@ -2212,13 +2213,13 @@ pub fn check_proj_fn(
             let mcv: ConstantVal = lq.1;
             match check_proj_ty(&fe2, t, ctor_name, lps, &mcv.ty, n_p, n_f) {
                 Err(err) => Err(err),
-                Ok(pty) => match checker_local::check_proj_shape(&pty, &cvj.ty, n_p, n_f) {
+                Ok(pty) => match checker_base::check_proj_shape(&pty, &cvj.ty, n_p, n_f) {
                     Err(err) => Err(err),
                     Ok(()) => {
                         if i >= n_f {
                             Err(core_types::invalid(core_types::code_points(&M_RANGE)))
                         } else {
-                            match checker_local::check_proj_rule(
+                            match checker_base::check_proj_rule(
                                 mode, st, &fe2, &pty, &cvj, lps, n_p, n_f, i,
                             ) {
                                 Err(err) => Err(err),
@@ -2349,7 +2350,7 @@ pub fn check_eta_thm(
             Some(dt) => match core_k::defn_probe(fe2, &model_of(ctor_name)) {
                 None => false,
                 Some(dc) => {
-                    if !checker_local::eq_basis_pinned(fe2) {
+                    if !basis_pins::eq_basis_pinned(fe2) {
                         false
                     } else if !prop_when::names_beq(&tcv.level_params, lps) {
                         false
@@ -2391,7 +2392,7 @@ pub fn check_eta_thm_shape(
         Some(sq) => match expr_ops::strip_pis(n_p, tty_m) {
             None => false,
             Some(mq) => {
-                if !checker_local::doms_match_aux(&DomIdent, &sq.0, &mq.0, 0, 0, n_p) {
+                if !checker_base::doms_match_aux(&DomIdent, &sq.0, &mq.0, 0, 0, n_p) {
                     false
                 } else if (n_p as usize) >= sq.0.len() {
                     false
@@ -2407,7 +2408,7 @@ pub fn check_eta_thm_shape(
                         let args: Vec<Expr> = expr_ops::get_app_args(&sq.1);
                         if args.len() != 3 {
                             false
-                        } else if !checker_local::is_eq_head(&head) {
+                        } else if !checker_base::is_eq_head(&head) {
                             false
                         } else if !expr::beq(&args[1], &expr::bvar(0)) {
                             false
@@ -2426,7 +2427,7 @@ pub fn check_eta_thm_shape(
                             } else if !env::tt_checks(mode) {
                                 true
                             } else {
-                                let l_a: Level = checker_local::eq_head_level(&head);
+                                let l_a: Level = checker_base::eq_head_level(&head);
                                 expr::beq(&mq.1, &expr::sort(l_a))
                             }
                         }
@@ -2454,7 +2455,7 @@ pub fn check_unit_thm(
         Some(tcv) => match core_k::defn_probe(fe2, &model_of(t)) {
             None => false,
             Some(dt) => {
-                if !checker_local::eq_basis_pinned(fe2) {
+                if !basis_pins::eq_basis_pinned(fe2) {
                     false
                 } else if !prop_when::names_beq(&tcv.level_params, lps) {
                     false
@@ -2484,7 +2485,7 @@ pub fn check_unit_thm_shape(
         Some(sq) => match expr_ops::strip_pis(n_p, tty_m) {
             None => false,
             Some(mq) => {
-                if !checker_local::doms_match_aux(&DomIdent, &sq.0, &mq.0, 0, 0, n_p) {
+                if !checker_base::doms_match_aux(&DomIdent, &sq.0, &mq.0, 0, 0, n_p) {
                     false
                 } else if (n_p as usize + 1) >= sq.0.len() {
                     false
@@ -2507,7 +2508,7 @@ pub fn check_unit_thm_shape(
                         let args: Vec<Expr> = expr_ops::get_app_args(&sq.1);
                         if args.len() != 3 {
                             false
-                        } else if !checker_local::is_eq_head(&head) {
+                        } else if !checker_base::is_eq_head(&head) {
                             false
                         } else if !expr::beq(&args[1], &expr::bvar(1)) {
                             false
@@ -2523,7 +2524,7 @@ pub fn check_unit_thm_shape(
                             } else if !env::tt_checks(mode) {
                                 true
                             } else {
-                                let l_a: Level = checker_local::eq_head_level(&head);
+                                let l_a: Level = checker_base::eq_head_level(&head);
                                 expr::beq(&mq.1, &expr::sort(l_a))
                             }
                         }

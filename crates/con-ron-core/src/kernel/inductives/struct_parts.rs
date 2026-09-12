@@ -60,28 +60,6 @@ pub fn params_of_from(lps: &Vec<Name>, i: usize, out: Vec<Level>) -> Vec<Level> 
     }
 }
 
-/// con-leche: none — a `List Expr` structural `==` over a `Vec<Expr>`
-/// The list equality the recognisers' `==` conjuncts spell (`Expr.beq`
-/// componentwise, after the lengths).  Entry point of the recursion below.
-pub fn exprs_beq(xs: &Vec<Expr>, ys: &Vec<Expr>) -> bool {
-    if xs.len() == ys.len() {
-        exprs_beq_from(xs, ys, 0)
-    } else {
-        false
-    }
-}
-
-/// con-leche: none — the index recursion behind `exprs_beq`
-pub fn exprs_beq_from(xs: &Vec<Expr>, ys: &Vec<Expr>, i: usize) -> bool {
-    if i >= xs.len() {
-        true
-    } else if expr::beq(&xs[i], &ys[i]) {
-        exprs_beq_from(xs, ys, i + 1)
-    } else {
-        false
-    }
-}
-
 // ---------------------------------------------------------------------------
 // The generators (`StructParts.lean:82-211`)
 // ---------------------------------------------------------------------------
@@ -271,7 +249,7 @@ pub fn struct_ctor_resid_ok(
     if expr::beq(&head, &expected) {
         let args: Vec<Expr> = expr_ops::get_app_args(cbody);
         if args.len() as u64 == n_p + n_idx {
-            exprs_beq(
+            expr::exprs_beq(
                 &expr_ops::take_exprs(&args, n_p as usize),
                 &struct_ps_at(o, n_p),
             )

@@ -18,7 +18,6 @@ use crate::kernel::expr::Expr;
 use crate::kernel::expr_ops;
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
-use crate::kernel::inductives::checker_local;
 use crate::kernel::inductives::struct_parts;
 use crate::kernel::level::Level;
 use crate::kernel::name;
@@ -104,7 +103,7 @@ pub fn proj_bodies_scoped_from(
         true
     } else if expr_ops::has_fvar(&bodies[i]) {
         false
-    } else if !checker_local::all_level_params_defined(lps, &bodies[i]) {
+    } else if !expr_ops::all_level_params_defined_fast(lps, &bodies[i]) {
         false
     } else if !core_k::consts_resolve(fe, &bodies[i]) {
         false

@@ -19,13 +19,13 @@
 
 use crate::cached::state_c;
 use crate::cached::state_c::CState;
+use crate::kernel::basis_pins;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckM;
 use crate::kernel::env;
 use crate::kernel::env::{CheckMode, ConstantInfo, ConstantVal, IndCaps};
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
-use crate::kernel::inductives::checker_local;
 use crate::kernel::inductives::modeled;
 use crate::kernel::inductives::native_install;
 use crate::kernel::inductives::native_install::NativePass;
@@ -126,7 +126,7 @@ pub fn check_ind_recs_s(
     ];
     if recs.len() == 0 {
         Ok(fe2)
-    } else if !checker_local::eq_basis_pinned(&fe2) {
+    } else if !basis_pins::eq_basis_pinned(&fe2) {
         Err(core_types::not_implemented(core_types::code_points(&M_EQ)))
     } else {
         let f = modeled::BlockRename { block_names };
@@ -216,7 +216,7 @@ pub fn check_ind_decl_s(
     ];
     let recs: Vec<ConstantInfo> = modeled::filter_recs(block, true);
     let nonrecs: Vec<ConstantInfo> = modeled::filter_recs(block, false);
-    if !checker_local::block_rec_suffix_ok(block) {
+    if !env::block_rec_suffix_ok(block) {
         Err(core_types::not_implemented(core_types::code_points(&M_ORDER)))
     } else {
         let block_names: Vec<Name> = modeled::block_names_of(block);

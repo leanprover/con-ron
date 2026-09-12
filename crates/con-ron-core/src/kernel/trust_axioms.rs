@@ -348,16 +348,13 @@ pub fn reduce_stored_ok(fe: &FEnv, c: &Name) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:177-184 reduceElemOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:288-294 reduceElemOkF
 /// The element-inductive shape an `ofReduce*` axiom needs: the pinned `Nat`
-/// basis (`basis_pins`' stub, see that module) resp. a standardly-shaped
+/// basis (`basis_pins::nat_basis_pinned`, which is the cited
+/// `decide (env.find? natName = some natA)`) resp. a standardly-shaped
 /// stored `Bool`.
 pub fn reduce_elem_ok(fe: &FEnv, c: &Name) -> bool {
     if name::beq(c, &reduce_nat_name()) {
-        match fenv::find(fe, &basis_names::nat_name()) {
-            Some(ci) => basis_pins::is_pinned_nat_basis(ci),
-            None => false,
-        }
+        basis_pins::nat_basis_pinned(fe)
     } else {
         match fenv::find(fe, &core_k::bool_name()) {
             Some(ConstantInfo::IndInfo(cv_b, _)) => {
@@ -377,7 +374,7 @@ pub fn reduce_elem_ok(fe: &FEnv, c: &Name) -> bool {
 /// (`checker::check_reduce_pin`), the fact the model consumes here.
 pub fn of_reduce_ax_ok(fe: &FEnv, cv_a: &ConstantVal) -> bool {
     let c: Name = of_reduce_op(&cv_a.name);
-    if std_axioms::eq_basis_pinned(fe) {
+    if basis_pins::eq_basis_pinned(fe) {
         if reduce_elem_ok(fe, &c) {
             if reduce_stored_ok(fe, &c) {
                 std_axioms::matches_pin_fast(cv_a, &of_reduce_pin_a(&cv_a.name))

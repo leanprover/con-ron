@@ -172,7 +172,7 @@ pub fn rec_fam_ok(t: &Name, lps: &Vec<Name>, n_p: u64, n_idx: u64, o: u64, e: &E
     if expr::beq(&head, &expected) {
         let args: Vec<Expr> = expr_ops::get_app_args(e);
         if args.len() as u64 == n_p + n_idx {
-            if struct_parts::exprs_beq(
+            if expr::exprs_beq(
                 &expr_ops::take_exprs(&args, n_p as usize),
                 &struct_parts::struct_ps_at(o, n_p),
             ) {
@@ -233,7 +233,7 @@ pub fn rec_positivity(
                 if expr::beq(&head, &expected) {
                     let args: Vec<Expr> = expr_ops::get_app_args(e);
                     let shape_ok = if args.len() as u64 == n_p + n_idx {
-                        struct_parts::exprs_beq(
+                        expr::exprs_beq(
                             &expr_ops::take_exprs(&args, n_p as usize),
                             &struct_parts::struct_ps_at(o + k, n_p),
                         )
