@@ -113,6 +113,7 @@
 //!    the `instC` key is — is the cited one.  The `Array` accumulators
 //!    (`inferSpineI`, the telescope loops) push, as in the Lean.
 
+use crate::cached::expr_ops_c;
 use crate::cached::state_c;
 use crate::cached::state_c::CState;
 use crate::kernel::basis_names;
@@ -469,16 +470,18 @@ pub fn def_eq_list_i_from(
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:220-222 piResidualM
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:785-787 piResidual
 /// con-leche: ConLeche/Kernel/Core.lean:862-867 piResidual
 /// `piResidualM`, the tenth `*M` wrapper: `pure (ExprC.piResidual e args)`.
-/// It lives here, at its one call site, rather than in `state_c`, because
-/// the operation it wraps is `Core.lean`'s `piResidual` — `Cached/ExprOpsC`'s
-/// `piResidualAcc` is the bulk form of the same function and is not ported
-/// (that file's `Kernel` original is `expr_ops`), so a `state_c` wrapper
-/// would have to reach back into `core_k`.  Body is `pure e`, hence no state
-/// parameter (task #14's rule 9).
+/// It lives here, at its one call site, rather than in `state_c`, for the
+/// reason `state_c`'s module note gives.  The wrapped operation is
+/// `Cached/ExprOpsC`'s **bulk** form (task #26): one memoised pass that
+/// peels the whole argument list and substitutes once, where
+/// `core_k::pi_residual` — the cited `Core.lean` original, still ported and
+/// still the spec — peels and instantiates one binder at a time.  Body is
+/// `pure e`, hence no state parameter (task #14's rule 9).
 pub fn pi_residual_m(e: &Expr, args: &Vec<Expr>) -> Option<Expr> {
-    core_k::pi_residual(e, args)
+    expr_ops_c::pi_residual(e, args)
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:211-221 iotaIndexOkI

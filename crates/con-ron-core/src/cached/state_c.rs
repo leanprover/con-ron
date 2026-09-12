@@ -68,9 +68,9 @@
 //!   citation there — duplicating them verbatim would be gratuitous;
 //! * `bvarBoundM` and eight of the nine `*M` syntactic wrappers are
 //!   `pure (<a syntactic operation>)`, so they are state-free named
-//!   functions here, forwarding to `kernel::expr_ops` (see the block
-//!   comment below).  `instListM` is the one that is genuinely stateful —
-//!   it owns the `instC` memo and its 32 000 000-entry bound;
+//!   functions here, forwarding to `crate::cached::expr_ops_c` (see the
+//!   block comment below).  `instListM` is the one that is genuinely
+//!   stateful — it owns the `instC` memo and its 32 000 000-entry bound;
 //! * `piResidualM` is in `cached::core_c`, at its one call site: the
 //!   operation it wraps is `Core.lean`'s `piResidual`, so a wrapper here
 //!   would have to reach back into `core_k`;
@@ -80,11 +80,14 @@
 //!   the memoized DAG walk `constsResolveFCGo`/`constsResolveFC` — is here.
 //!
 //! `Cached/ExprOpsC.lean`, whose `ExprC` operations the `*M` wrappers wrap,
-//! is **not** ported: its `Kernel/ExprOps.lean` original is (as
-//! `kernel::expr_ops`), and the twins compute the same values — con-leche's
-//! own `ExprOpsC` docstrings say so, the twins differing by memoising the
-//! DAG walk, which `expr_ops`' `*_go` memo tables already do.
+//! is `crate::cached::expr_ops_c` (task #26).  The wrappers call **it**, not
+//! `kernel::expr_ops`: the twins compute the same values, but not with the
+//! same memo policy — the `ExprC` walks carry a derived-field cutoff at the
+//! head, memoise only the compound nodes, and keep the live prefix out of the
+//! bulk key — and DESIGN.md §3.1 makes the policy, not just the value,
+//! binding.
 
+use crate::cached::expr_ops_c;
 use crate::kernel::core_k;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckError;
@@ -393,12 +396,15 @@ pub fn peel_fuel() -> u64 {
 // refinement tier states one lemma per name, and three of them
 // (`inst_list_rev_m`, `pi_residual_m`, `inst_list_m`) are not aliases at all.
 //
-// **The wrapped operation is `kernel::expr_ops`'s.**  The Lean wraps
-// `Cached/ExprOpsC.lean`'s `ExprC` twins; that file is not ported (its
-// `Kernel/ExprOps.lean` original is, as `expr_ops`), and the twins compute
-// the same values — con-leche's own `ExprOpsC` docstrings say so ("not as a
-// *computation*": the twins differ by memoising the DAG walk, which the port
-// already does, `expr_ops`'s `*_go` memo tables).
+// **The wrapped operation is `cached::expr_ops_c`'s** (task #26).  The Lean
+// wraps `Cached/ExprOpsC.lean`'s `ExprC` twins, and they are what these
+// wrappers call.  They compute the same values as `kernel::expr_ops`' — that
+// is `ConLeche/Verify/Cached/OpsC.lean`'s subject — but not by the same memo
+// policy, and con-leche's own `ExprOpsC` docstring is emphatic that the
+// difference is a *computation* and not a value ("not as a *computation*":
+// `Expr.instantiateList`'s `bvar` arm re-traverses the replacement, so a
+// DAG-shared field type came back as a fresh tree copy).  §3.1 binds the
+// policy, so each wrapper below names the `ExprC` twin it runs.
 
 /// con-leche: ConLeche/Cached/StateC.lean:176-177 bvarBoundM
 /// The per-node loose-bvar bound — an `O(1)` field read (`Expr.bvarB`).
@@ -407,10 +413,12 @@ pub fn bvar_bound_m(e: &Expr) -> u64 {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:181-184 inst1M
-/// `Expr.instantiate1`; the identity — the same node, by reference — when
-/// the target has no loose bvar at or above the cursor.
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:275-277 instantiate1
+/// `ExprC.instantiate1`; the identity — the same node, by reference — when
+/// the target has no loose bvar at or above the cursor (the cited
+/// `bvarB ≤ d` cutoff, which `expr_ops::instantiate1` does not have).
 pub fn inst1_m(e: &Expr, v: &Expr, d: u64) -> Expr {
-    expr_ops::instantiate1(e, v, d)
+    expr_ops_c::instantiate1(e, v, d)
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:186-199 instListM
@@ -429,11 +437,12 @@ pub fn inst_c_probe(s: &CState, key: &(Expr, Vec<Expr>, u64)) -> Option<Expr> {
 /// `e.bvarB ≤ d` identity (no key is built and nothing is cached), the
 /// probe, and on a miss the entry-bound reset followed by the insert.
 ///
-/// The wrapped walk is `expr_ops::instantiate_list_fast` — the *executed*
-/// `instantiateList` (`ExprOps.lean:371-378`, identified with the pure walk
-/// by a `@[csimp]` theorem), which is the one memoized DAG pass
-/// `ExprOpsC.instantiateList` is; the pure `instantiate_list` beside it in
-/// `expr_ops` is the same value at `vs.length` traversals.
+/// The wrapped walk is `expr_ops_c::instantiate_list` — the cited
+/// `ExprC.instantiateList`, one memoised DAG pass whose key is `(node,
+/// cursor)` with the live prefix `k` carried outside it, whose `bvar` arm
+/// re-enters at the replacement under a *fresh* table, and whose head cutoff
+/// returns the node itself.  `expr_ops::instantiate_list_fast` is the same
+/// value (`Verify/Cached/OpsC.lean`) at a different memo policy.
 ///
 /// `instCCapC` is 32 000 000 (`inst_c_cap_c`); the cited `let mp := if
 /// mp.size < instCCapC then mp else {}` drops the *whole* map when it is
@@ -451,7 +460,7 @@ pub fn inst_list_m(s: &mut CState, e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
             Some(r) => r,
             None => {
                 inst_list_m_reset(s);
-                let r = expr_ops::instantiate_list_fast(e, vs, d);
+                let r = expr_ops_c::instantiate_list(e, vs, d);
                 s.inst_c.insert(key, expr::dup(&r));
                 r
             }
@@ -481,73 +490,56 @@ pub fn inst_list_m_reset(s: &mut CState) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:201-205 instListRevM
-/// `xs.reverse` as a `Vec` (Lean's `Array` is reversed by the indexing of
-/// `instantiateRevGo`, which the port spells as the reversal itself).
-pub fn rev_exprs(vs: &Vec<Expr>) -> Vec<Expr> {
-    rev_exprs_from(vs, vs.len(), Vec::new())
-}
-
-/// con-leche: ConLeche/Cached/StateC.lean:201-205 instListRevM
-/// The downward index recursion behind `rev_exprs`.
-pub fn rev_exprs_from(vs: &Vec<Expr>, k: usize, out: Vec<Expr>) -> Vec<Expr> {
-    if k == 0 || k > vs.len() {
-        out
-    } else {
-        let mut out = out;
-        out.push(expr::dup(&vs[k - 1]));
-        rev_exprs_from(vs, k - 1, out)
-    }
-}
-
-/// con-leche: ConLeche/Cached/StateC.lean:201-205 instListRevM
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:441-445 instantiateRev
 /// **Bulk instantiation on a reversed accumulator array**, deliberately not
-/// memoized.  The cited `ExprC.instantiateRev e vs d` indexes the array from
-/// its end (`instantiateRevGo`'s `vs[vs.size - 1 - (i - d)]` where
+/// memoized in `CState`.  `ExprC.instantiateRev` indexes the array from its
+/// end (`instantiateRevGo`'s `vs[vs.size - 1 - (i - d)]` where
 /// `instantiateListGo` reads `vs[i - d]`, at every depth including its own
-/// `bvar` re-entry), i.e. it is `instantiateList` on the reversed spine.  The
-/// two short-circuits (`vs.size = 0` and `e.bvarB ≤ d`) are the cited ones,
-/// and they are what keeps the reversal off the hot path; the walk is the
-/// executed `instantiate_list_fast`, as in `inst_list_m`.
+/// `bvar` re-entry), which is what the port now spells outright; while
+/// `ExprOpsC` was unported this wrapper reversed the spine and ran the
+/// `instantiateList` walk instead — the same value, but one `Vec` copy per
+/// call that the cited code does not make, and its own two short-circuits are
+/// `instantiate_rev`'s own.
 pub fn inst_list_rev_m(e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
-    if vs.len() == 0 {
-        expr::dup(e)
-    } else if expr_ops::bvar_b(e) <= d {
-        expr::dup(e)
-    } else {
-        expr_ops::instantiate_list_fast(e, &rev_exprs(vs), d)
-    }
+    expr_ops_c::instantiate_rev(e, vs, d)
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:207-208 abstract1M
-/// `Expr.abstract1` at the binder cursor `0`.
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:510-512 abstract1
+/// `ExprC.abstract1` at the binder cursor `0` (the cited `(k : Nat := 0)`
+/// default, which Rust has no spelling for).
 pub fn abstract1_m(e: &Expr, d: u64) -> Expr {
-    expr_ops::abstract1(e, d, 0)
+    expr_ops_c::abstract1(e, d, 0)
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:210-211 abstractRangeM
-/// `Expr.abstractRange` at the binder cursor `0`.
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:569-574 abstractRange
+/// `ExprC.abstractRange` at the binder cursor `0`.
 pub fn abstract_range_m(e: &Expr, d: u64, k: u64) -> Expr {
-    expr_ops::abstract_range(e, d, k, 0)
+    expr_ops_c::abstract_range(e, d, k, 0)
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:213-214 mkAppNM
-/// `Expr.mkAppN`.  Deviation: the head is taken by value, as `mk_app_n`'s
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:78-81 mkAppN
+/// `ExprC.mkAppN`.  Deviation: the head is taken by value, as `mk_app_n`'s
 /// own signature has it (the spine is built onto it).
 pub fn mk_app_n_m(f: Expr, args: &Vec<Expr>) -> Expr {
-    expr_ops::mk_app_n(f, args)
+    expr_ops_c::mk_app_n(f, args)
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:216-218 instSpineM
-/// `Expr.instSpine`.
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:757-761 instSpine
+/// `ExprC.instSpine`: the one bulk pass when the spine spans the telescope
+/// context, the `instantiate1` chain otherwise.
 pub fn inst_spine_m(args: &Vec<Expr>, t: u64, e: &Expr) -> Expr {
-    expr_ops::inst_spine(args, t, e)
+    expr_ops_c::inst_spine(args, t, e)
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:224-226 instLevelParamsM
-/// `Expr.instLevelParams`.
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:619-621 instLevelParams
+/// `ExprC.instLevelParams`.
 pub fn inst_level_params_m(ks: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> Expr {
-    expr_ops::instantiate_level_params(ks, us, e)
+    expr_ops_c::inst_level_params(ks, us, e)
 }
 
 // ---------------------------------------------------------------------------
