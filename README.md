@@ -6,7 +6,9 @@ consistency-proven Lean checker, together with a Lean proof (via
 the Lean one — so con-leche's main theorem covers the Rust binary, with the
 Lean runtime out of the trusted base.
 
-See `DESIGN.md` for the design, plan, and work log.
+See `DESIGN.md` for the design, plan, and work log, and `AENEAS_FINDINGS.md`
+for what this port learned about Charon and Aeneas (bugs, limitations,
+workarounds, scale numbers) — collected for their maintainers.
 
 ## Setup
 
