@@ -9205,7 +9205,12 @@ threading, nor a push/pop that remembers the displaced entry, removes the
 second owned copy.  What removes it is a *sharable* index, and both routes to
 one are outside this task: `Rc<HashMap>` needs `Rc::get_mut`/`make_mut`, a
 fifth and sixth external hole (§3.2 budgets four and the extraction gate counts
-them); a persistent map is a new proved container.  The measured shape of the
+them); a persistent map is a new proved container.  §3's own-`Rc` decision
+(landed while this task ran, for the thread pool) changes the price of the
+first route rather than the argument: a hand-written count that is opaque to
+Charon is where a `make_mut` could live without a new *model* hole, so the
+index-sharing design should be reconsidered *together* with that type rather
+than against `alloc::rc`.  The measured shape of the
 cost is why it now matters: the rebuild is `blocks × |env|`, which is exactly
 the superlinear term §0's three corpora exhibit.  A cheaper down payment that
 *is* local — a `HashMap::copy` that walks the slots linearly instead of
