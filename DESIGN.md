@@ -1312,3 +1312,185 @@ those three files is precisely the spike's own "Not ported here" lists
   lines.  It has no idea about `/* … */` block comments containing braces
   or about macro bodies; neither appears in the port today, and both would
   show up as a wrong item list rather than silently.
+
+### Task #9 — `Name`/`Level` into the crate; `PropWhen` (2026-09-12, Opus under Fable)
+
+P1.2 (first half).  `spikes/level-name/src/{name,level}.rs` copied into
+`crates/con-ron-core/src/` — the spike directory is untouched, it is task
+#3's recorded evidence; the crate copies are the living code — and
+`ConLeche/Kernel/PropWhen.lean` ported as `src/prop_when.rs`.  Charon and
+Aeneas both succeeded on the **first** run again, with zero iteration; the
+generated Lean is in `_tmp/core-lean/` (gitignored, not elaborated — P2).
+
+**What the two moved modules gained.**  `pub mod name; pub mod level;` in
+`lib.rs` and its module-map table, plus the four `crate::hashmap`
+dictionaries the memo tables will key with: `impl Hashable for Name`
+(`Name.hashData`, the stored word), `impl Eq2 for Name` (`Name.beq`, with
+its pointer and hash fast paths), and the same two for `Level` — citing
+con-leche's own `instance : Hashable Name` (`Name.lean:47-49`),
+`instance : BEq Name` (`:88`) and their `Level` twins (`Expr.lean:55-57`,
+`:86`).  This is where task #7's `Eq2`-over-`PartialEq` decision pays: the
+instance *is* `beq`, so the §3.2 fast paths are inside the map's key
+equality rather than beside it.  The spike's 13 unit tests came along,
+split by subject (1 in `name.rs`, 12 in `level.rs`) and joined by one new
+test per module that the dictionaries are exactly `hash_data` and `beq`.
+
+**The representation decision: mirror all five constructors.**
+`PropWhen.lean` seals a five-constructor `private inductive PropWhenRepr`
+(`never | always | one p | two p q (p < q) | many ps (Sorted ps ∧ 2 <
+ps.length)`) inside a one-field `structure PropWhen` whose constructor and
+field are `private`.  The port does the same: a module-private
+`enum PropWhenRepr` inside a `pub struct PropWhen` with a private field.
+Rust's module privacy is exactly Lean's seal — outside `prop_when` the type
+can be held and passed but neither built nor matched, so the smart
+constructor `if_all_zero` is the only way in and the canonical-form
+invariant cannot be dodged.
+
+The alternative the task offered — `Never | Always | Params(Vec<Name>)`
+with the sorted invariant — was rejected because it does not keep the
+*operations* one-to-one, which is what §3.1 buys and what the refinement
+proof spends its budget on.  Each of `holds`, `inter`, `bind_z`,
+`params_defined`, `to_list`, `has_params`, `hash_repr` and `equiv_r`
+dispatches on the five constructors in the Lean's own arm order, so each
+Rust arm refines one Lean arm by `rfl`.  Collapsing to one list
+constructor turns every one of those five-way matches into a `List.all` /
+`merge` computation that is merely *provably* equal to the arm it stands
+for: about five lemmas per operation, some thirty in all, bought for
+nothing.  It would also discard what the constructors are *for* —
+con-leche's census (`PropWhen.lean:360`) found 605 492 data with no
+parameter, 123 332 with one, 16 with two and **none** longer, so
+`always`/`one`/`two` are 100 % of the real traffic and touch no list cell at
+all.  The proof-carrying fields are erased, as every Lean proof field is
+under Charon; they come back as the Lean-side well-formedness predicate
+§3.5 already uses for `NameWF`/`NodeWF`, under which `to_list` is the
+canonical representative of the parameter set and `beq` is equality.
+
+**Name ordering, as asked: it is con-leche's own.**  `Name.cmp` is defined
+*in* `PropWhen.lean` (`:75-85`, there is no order on `Name` elsewhere in the
+tree): the structural lexicographic order, constructor order `anonymous <
+str < num`, then the prefix, then the payload with the core `Ord` instances.
+Ported literally, nine arms for nine arms, with `Ordering.then` as
+`ord_then`, `compare : String → String → Ordering` as `str_compare` (Lean's
+`String.compare` is `compareOfLessAndEq`, i.e. the lexicographic order of the
+code-point lists, `Init/Data/Ord/String.lean:32` — so on the `Vec<u32>` of
+§3.3 it is a first-difference walk in which a proper prefix is smaller) and
+`compare : Nat → Nat → Ordering` as `nat_compare` on the `u64` payload.  A
+unit test pins irreflexivity, asymmetry, transitivity, trichotomy,
+`cmp a b = .eq ↔ Name.beq a b` and the three ordering clauses.
+
+**Numbers.**
+
+| | |
+|---|---|
+| Lean ported (`PropWhen.lean`, 1 094 lines): 24 cited blocks | 232 raw / **114 code** |
+| `src/prop_when.rs`, extracted part (raw / code) | 670 / **361** (3.2× the Lean code) |
+| `src/prop_when.rs`, `#[cfg(test)]` part (7 tests) | 282 / 222 |
+| `src/name.rs` (extracted raw / test raw) | 231 / 34 |
+| `src/level.rs` (extracted raw / test raw) | 620 / 191 |
+| generated `_tmp/core-lean/Types.lean` (whole crate) | 203 (41 of them `prop_when`) |
+| generated `_tmp/core-lean/Funs.lean` (whole crate) | **3 318** (805 of them `prop_when`, 2.2× its Rust code) |
+| `TypesExternal_Template.lean` / `FunsExternal_Template.lean` | 25 / 54 |
+| `charon cargo --preset=aeneas` wall (after `cargo clean`) | **0.30 s** |
+| `aeneas -backend lean -dest _tmp/core-lean -split-files -loops-to-rec` | **1.38 s** (1.20 s self-reported) |
+| items translated (whole crate) | 182 transparent fns, 25 opaque, 5 globals, 11 trait decls (8 emitted), 22 trait impls (12 emitted) |
+| `partial_fixpoint` (whole crate / `prop_when`) | **64** / **10** |
+| `mutual` blocks | 1 in `Funs.lean` (task #3's 8-function `leq_core` knot, 313 lines), 2 in `Types.lean` — `prop_when` adds **none**, every recursion is self-recursion |
+| external holes | **exactly the four `Rc` axioms of §3.2** — `new`, `clone`, `deref`, `ptr_eq`.  `prop_when` adds nothing; the 25 opaque functions are all `core`/`alloc` primitives Aeneas already models |
+
+`cargo build`/`cargo test` warning-free, **40/40** green (13 moved from the
+spike + 2 new dictionary tests + 7 new `prop_when` tests + the 18 of tasks
+#6/#7); `scripts/lint-rust-style.sh crates/con-ron-core/src`
+clean; `scripts/provenance.py check` green — 282 items, 154 citations, all
+current at pin 3e004805.
+
+**Constructs that do not survive transliteration, and their replacements**
+(all a-priori, as in tasks #3, #6 and #7 — nothing was error-driven).
+
+1. **A Lean function *argument*.**  `holds (φ : Name → Nat)` and
+   `bindZ (f : Name → PropWhen)` take functions; §3.4 forbids closures.  Each
+   becomes a one-method trait the caller implements — `trait Valuation { fn
+   value_at(&self, n: &Name) -> u64 }` and `trait NameToPw { fn apply(&self,
+   n: &Name) -> PropWhen }` — i.e. task #7's `Eq2`/`Hashable` pattern, which
+   Aeneas renders as a `structure` with one field and threads as a dictionary.
+   `Level.substPW` (`Level.lean:205`, not ported yet) will be the one
+   `NameToPw` implementation the checker needs.  **This is the pattern for
+   every higher-order argument in the rest of the port**, including the
+   `CoreFns` knot of §3.1.
+2. **A sealed representation.**  Lean's `private inductive` + `private
+   ofRepr ::` is Rust's module-private `enum` + private struct field.  No
+   ceremony needed, and Charon translates private items fine (they are in the
+   `.llbc` and in `Funs.lean`, `of_repr` and `equiv_r` included).
+3. **Proof fields are erased.**  `two p q (h : p < q)` becomes `Two(Name,
+   Name)`; the invariant is owed by the smart constructors and stated on the
+   Lean side.  `name_lt` is ported anyway (from the `LT Name` instance) —
+   nothing executed calls it, but the invariant is written with it.
+4. **`List` recursion → index-carrying `*_from` helpers** (the task-#3
+   pattern), 8 of them: `str_compare_from`, `append_from`, `merge_from`,
+   `canon_from`, `names_beq_from`, `names_hash_from`, `all_zero_from`,
+   `all_contained_from`.  `merge` needs *two* indices and an accumulator,
+   because it walks two lists at once and conses on the way out; the
+   accumulator is passed by value and returned (task #6's rule — §3.4
+   reserves `&mut` for the state parameter).  `canon`'s `List.foldr` is the
+   recursion that merges `ps[i]` into the canonical form of `ps[i+1..]`.
+5. **Lean's sharing costs a copy.**  `merge`'s `| [], bs => bs` hands back a
+   list; a `Vec` has to copy the tail (`append_from`), and `to_list` of a
+   `many` returns an owned copy rather than the list it holds.  The `Name`s
+   themselves are still shared (`name::dup` is an `Rc` bump).
+6. **List patterns over a `Vec`.**  `ofSorted`/`ifAllZero` dispatch on `[]`,
+   `[p]`, `[p, q]`, longer; Rust cannot pattern-match a `Vec`, so they are
+   `ps.len() == 0/1/2` `if` chains.  A list that is *consumed* into a datum is
+   taken by value (so `of_sorted`'s `many` arm **moves** the vector instead of
+   re-consing it); a list that is only *read* comes in by reference.
+7. **`hash'` is the derived `Hashable PropWhenRepr`**, which is "the
+   constructor index, then `mixHash` folded over the fields"
+   (`Lean/Elab/Deriving/Hashable.lean:50`; checked against the real elaborator
+   output on v4.33.0).  Two deviations, both free by §3.2: the derived
+   instance also folds the *erased proof* fields (verified: it really does
+   emit `hash h` for `h : p < q`), which do not exist here, and `List.hash`'s
+   seed and fold (`foldl mixHash 7`, `Init/Data/Hashable.lean:37`) are
+   transliterated over our own name hashes, which already differ from Lean's.
+   What the hash must be is a function of the *value* — which canonicity makes
+   a function of the parameter *set*, and that is what the test asserts.
+8. **`two'` has no Rust spelling** for the prime: `two_prime`.
+   `PropWhen.hash'` is `hash_pw`, and `toList?` is `to_list_opt` (`?` is not a
+   Rust identifier character either).
+9. **`Ordering` is our own three-value enum**, a sibling of `nat::Cmp` rather
+   than the same type: they are two different Lean types (`Ordering` vs. the
+   `beq`/`ble`/`blt` triple of §3.3's bignum) and they never meet.
+
+**Deliberately not ported** (recorded so the next task does not re-derive
+it): `PropWhen.Sorted` (`:201`, a `Prop` — the representation invariant; it
+is *cited* on `PropWhenRepr`, where it belongs, and is destined for the
+Lean-side `PropWhenWF`), `casesZ` (`:651`, a dependent eliminator: proof
+machinery with no executable content), `reprPrec'` and its `Repr` instance
+(`:672`, rendering only — §3.1 says message strings need not match), the
+`Inhabited` instance (`:475`), and every `theorem` — the whole law battery
+from `:992` on, which is the *spec* this port will be proved against.
+
+**Tests** (`#[cfg(test)]`, invisible to Charon, so closures and loops are
+allowed).  Seven, one per group of laws con-leche's own docstrings state,
+each checked over a fixed 5-7 element battery of data that covers all five
+constructors: `Name.cmp` is a strict total order and agrees with `Name.beq`
+at `.eq` (`:159-186`); `canon` sorts, deduplicates and is idempotent
+(`canon_canon`), and `toList (ifAllZero ps) = canon ps`; **canonicity** —
+membership-equal lists give `beq`-equal data with equal hashes
+(`ifAllZero_eq_iff`, `eq_iff_holds`); `holds` on `never`/`always`/parameter
+sets plus `isNever`/`hasParams` (`:702-780`); `inter` is commutative,
+idempotent, associative, has `ifAllZero []` as a two-sided unit, is absorbed
+by `never`, and satisfies `holds_inter` at every pair of the battery
+(`:876-1047`); `paramsDefined_inter_of`; and `bindZ` — `bindZ_unit`
+(`n ↦ ifAllZero [n]` reproduces the datum, the datum half of
+`Level.substPW_self`), `bindZ_inter`, `bindZ_go_append`, and a substitution
+to `never` propagating.
+
+**Coverage** (`scripts/provenance.py coverage | tail -3`), con-leche
+3e004805: **TOTAL 51/1018 covered (5.0 %), 967 uncovered** — up from task
+#8's 29/1018 (2.8 %).  Per file: `Name.lean` 3/5, `Expr.lean` 8/42,
+`Level.lean` 18/25, **`PropWhen.lean` 22/24** — the two uncovered being
+exactly `casesZ` and `reprPrec'` above, so the ledger again agrees with the
+prose.
+
+**Note for P2.**  `_tmp/core-lean/` is now the *whole crate* in four files
+(`Types.lean` 203, `Funs.lean` 3 318, two templates).  `charon cargo` is
+still a no-op on a warm cargo cache (task #7), so `cargo clean` comes first;
+the `.llbc` still lands at the workspace root.

@@ -11,6 +11,10 @@
 //! | `hashmap` | `Std.HashMap` |
 //! | `name` | `ConLeche/Kernel/Name.lean` |
 //! | `level` | `ConLeche/Kernel/Expr.lean` (Level part), `Kernel/Level.lean` |
+//! | `prop_when` | `ConLeche/Kernel/PropWhen.lean` |
 
 pub mod hashmap;
+pub mod level;
+pub mod name;
 pub mod nat;
+pub mod prop_when;
