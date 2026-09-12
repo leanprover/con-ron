@@ -527,7 +527,8 @@ by module once types exist; **in progress**)
 2. Types: `Name`, `Level`, `PropWhen`, `Expr`/`Node` + smart constructors,
    `Literal`, `Env`/`FEnv`/`ConstantInfo`, `CState`, `DeclC`.
 3. `ExprOps`, `Level` ops, `PropWhen` ops.
-4. `Core` (whnfCore/whnf/infer/defeq/annotate knot) + `Cached/CoreC` memos.
+4. `Core` (whnfCore/whnf/infer/defeq/annotate knot) + `Cached/CoreC` memos
+   (tasks #18, #23).  ✔
 5. `Checker`/`DeclCheck`, `StdAxioms`, `TrustAxioms`, Nat-op pins, basis
    tables (generated), `Inductives/*`, `Installed` (`check_decls`).
 6. `con-ron-dump` (Lean, task #10 ✔) + Rust reader (task #19 ✔,
@@ -4219,6 +4220,233 @@ Beyond the collapses above, and all a-priori except the `bool_and` one:
 10. **`ValueKind`/`ValueGroup` were already ported** (task #14 took the three
     seam records); `checker_split.rs` holds only the three functions, and
     `ValueKind.word` stays unported (message rendering).
+### Task #23 — `CoreC.lean`: the cached bodies and level memos; the knot ties them (2026-09-12, Opus under Fable)
+
+P1.4's second half, and the reconciliation task #18 flagged: the rest of
+`ConLeche/Cached/CoreC.lean` (2 091 lines, 80 declarations, 3 covered) ported
+into `crates/con-ron-core/src/cached/core_c.rs`, the `Cached/StateC.lean`
+leftovers of task #14 closed in `cached/state_c.rs`, and **the knot re-pointed
+at the cached bodies**.  The crate's executed checker core is now the one
+con-leche executes, memo policy included.
+
+#### The reconciliation, concretely
+
+Task #18 tied `CoreC.lean`'s six wrappers to `Kernel/Core.lean`'s bodies.
+Those bodies compare levels with `Level.isEquiv`, instantiate stored constants
+with `instantiateLevelParams` and substitute with `instantiate1` — so
+`lsimpC`, `lnzC`, `eqvC`, `instC`, `ienv`, `constTyAt`, `constValAt` and
+`ruleRhsAt` stayed **empty however much work the checker did**.  §3.1 forbids
+exactly that ("the same memo tables with the same keys, inserted and cleared
+at the same points"), and task #18 recorded it as the port's one memo-policy
+deviation.  It is gone.  Per map, who writes it now:
+
+| map | written by |
+|---|---|
+| `whnfCoreC` `whnfC` `inferC` `inferIOC` `annotC` `defeqC` | the six wrappers (`memoEI`, `memoBI`) — unchanged |
+| `lsimpC` `lnzC` `eqvC` | `state_c::is_equiv_l_m`/`simplify_l_m`/`is_non_zero_l_m`, reached from every `isEquivLM`/`isEquivListLM` site in `core_c` |
+| `instC` | `state_c::inst_list_m`, reached from `iota_certs_i_aux` and `beta_peel_i` — the two bulk-substitution sites.  The four telescope loops use `instListRevM`, which the Lean leaves **unmemoized on purpose**, so they write nothing here |
+| `ienv` `constTyAt` `constValAt` `ruleRhsAt` | `state_c::const_ty_at_m`/`const_val_at_m`/`rule_rhs_at_m`, reached from every stored-constant read |
+
+Two `Level.isEquiv` sites stay **deliberately unmemoized because the Lean's
+are**: `inferBodyI`'s `.proj` clause (`CoreC.lean:1370-1377`) and
+`ProjEntry.fireOk`.  Keeping them off `eqvC` *is* the policy.  A unit test
+pins the reconciliation directly (`the_level_memos_are_written_by_the_core`):
+one `defeq` of `Sort (max u u)` against `Sort u` fills `eqvC` and `lsimpC`,
+and the second comparison of the same pair writes nothing.
+
+#### The dead-code decision: the pure bodies left the crate
+
+`CoreC.lean` has its own twin of **every** `Kernel/Core.lean` block that makes
+up the knot, and it is the twins the executed checker runs.  So
+every `Core.lean` body the twins supersede is **no longer in the crate**: 84
+functions (the 77 that threaded `&mut CState` plus `unfold_definition`,
+`infer_const`, `infer_forall_check`, `params_subst(_from)`, `pins_subst_from`
+and `rec_fire_comparands`) were deleted from `core_k.rs`, and their
+`Core.lean` citations are now the **second `con-leche:` line** on the twin in
+`core_c.rs`.  The rule, and why it is not task #18's "port the dead leaves
+anyway":
+
+> a superseded body *threads the same knot*, so keeping it would put a second
+> copy of the whole mutually recursive block into `Funs.lean` — 84 more
+> `partial_fixpoint` definitions and ~6 000 more generated lines for
+> functions nothing executes.  A superseded **pure leaf** costs one small
+> definition, so those stay, exactly as task #18's eleven do.
+
+Four such leaves are dead and kept: `beta_gate_fires` (the pure β gate; the
+cached sites read `mode.betaSkip`), `eta_projs`/`eta_projs_from` (superseded
+by `proj_apps_i`, but `etaFabArgs`/`etaFabArgsE` are written against them and
+are dead in the Lean too) and `consts_resolve` (whose memoized `ExprC` twin is
+`state_c::consts_resolve_fc`).  What stays in `core_k.rs` is everything the
+cached bodies *call*: the syntactic readers, the pinned name tables and
+`Nat`-op pin sets, the install-time rule bits, the shape conjunctions
+(`struct_eta_shape_ok`, `unit_shape_ok`, `proj_fire_shape_ok`, `fab_scope_ok`),
+the pure inference-clause pieces, the four loop budgets, the `Vec` helpers and
+the owning environment probes.  `core_k.rs` therefore went **5 883 → 2 714**
+extracted lines, and `Kernel/Core.lean` stayed **130/130 covered** — better
+than task #18's 129/130, because `core_c::infer_at_i` now cites `CoreFns` and
+`CoreFns.ioView` as well as their `I`-twins.
+
+#### Where the cached bodies are a different *algorithm*
+
+Most twins are the spec body with the operations swapped.  Five are not, and
+the port follows `CoreC.lean` rather than `Core.lean`:
+
+1. **Bulk beta** (`whnf_app_i`/`beta_peel_i`, con-leche's task #50): the
+   argument loop consumes the whole spine, batching consecutive λ binders into
+   **one** `instListM` instead of a chained `instantiate1` per redex.
+2. **The head-normalization loop** (`whnf_core_step_i`/`whnf_core_loop_i`,
+   task #106): every *reduction* step is iteration on the loop's own budget
+   (`whnfCoreLoopFuel`, whose only consumer task #18 left waiting), so a chain
+   no longer charges the shared recursion-depth budget one unit per step.  A
+   unit test pins it: `(λ x. (λ y. y) x) a` head-normalizes at `fuel = 3`.
+3. **Bulk telescope consumption** (`infer_spine_i`/`infer_spine_io_i`, task
+   #50): the Π-telescope is walked against the whole spine with deferred
+   substitution.  This replaces task #18's `infer_app`/`infer_app_io`/
+   `infer_app_cert` split.
+4. **Binder-telescope loops** (`infer_lams_i`/`infer_pis_i`,
+   `annotate_lams_i`/`annotate_pis_i`, task #72): a whole binder chain is
+   peeled with only the domains substituted on the way in, the leaf is
+   inferred or annotated once on the bulk-opened body, and the chain is
+   rebuilt with one `abstractRangeM` per domain.  The λ *annotation* loop is
+   taken only on a bvar-closed node (`bvarBoundM e = 0`); otherwise the spec's
+   chained clause runs, which is `annotate_lam_chain_i`.
+5. **`ensureSortI` returns the level** and `iotaRecI` reads its rule's
+   right-hand side through `ruleRhsAtM` rather than instantiating it.
+
+`inferBodyIOI` keeps the **chained** ∀/λ clauses on purpose (looping the io
+lane would owe con-leche's whole loop-identification walk family a second,
+io-graded instance), so the io body overrides exactly three clauses and
+delegates the rest to `inferBodyI` — which is why `infer_body_i` carries the
+`io: bool` grade flag that *is* `CoreFnsI.ioView`.
+
+#### Constructs that do not survive transliteration
+
+Beyond task #18's four global deviations (all still in force; `&mut CState`
+now appears in no `core_k` function at all, which is the measure of what
+moved):
+
+1. **`certAtI`/`certUnlessI` are spelled out at their sites.**  Both take the
+   certificate as a `CheckCM Bool` *argument*, i.e. a closure (§3.4); each
+   site is `if env::certs(mode) { <the certificate> } else { Ok(true) }`
+   (resp. `if env::certs(mode) || keep`), which is the cited `@[inline] def`
+   after inlining.  There are **nine** such sites, and per `CoreC.lean`'s own
+   docstring that list *is* what the trusted core omits beyond group A: the
+   two in `struct_eta_cert_steps_i`, one in `struct_unit_steps_i`, three in
+   the `majorToCtorI` branches, one in `k_type_and_irrel_i`, and the parameter
+   comparison and the ι certificate family in `iota_rec_checks_i` /
+   `iota_rec_telescopes_i`.  This is also a *behavioural* difference from the
+   `Core.lean` bodies, which ran several of those certificates
+   unconditionally.
+2. **`annotateBindersOutI`'s `mk` node constructor is an `is_forall` flag**,
+   as task #18's `annotate_binder` already had it, and `pw?.map (fun _ => …)`
+   is `annot_pw_thread_i`.
+3. **`List` accumulators are `Vec`s.**  `iotaCertsIAux`'s and `betaPeelI`'s
+   `arg :: acc` is `expr_ops::cons_expr`, an `O(n)` copy where Lean's cons is
+   `O(1)`; the list's *value* — which is what the `instC` key is — is the
+   cited one.  The `Array` accumulators (`inferSpineI`, the telescope loops)
+   are `Vec`s taken by value and pushed, as in the Lean.  A `List` stack
+   becomes a `Vec` whose **last** element is the innermost binder, walked
+   downwards by a remaining-entry count `p`.
+4. **`Tn`/`T` and `_nI`/`_cI`/`_jI` collapse to one parameter.**  They are the
+   retired arena's interned/raw name split, which con-leche's task #198
+   collapsed but left in the signatures (`let Tn ← pure T`, `_nI` with a
+   leading underscore).  `projAppsI`, `constTyAtM`, `constValAtM` and
+   `ruleRhsAtM` each lose one or two arguments.
+5. **The seven named concrete cores are not ported, and that is not an
+   omission.**  `whnfCoreBodyPC`…`defeqBodyTC` are *definitions, not clones*:
+   each is one of the bodies at a literal mode.  The port's mode is a runtime
+   `&CheckMode`, so `whnf_core_body_i(&CheckMode::Verified, …)` **is**
+   `whnfCoreBodyPC`; a Rust alias per mode would be seven dead functions with
+   no content.  That is the whole of `CoreC.lean`'s 73/80.
+
+#### `StateC.lean` completed: 14/38 → 38/38
+
+Task #14 left five groups "needs `expr_ops` or `Kernel/Basis`".  All are
+closed, but not all in `state_c.rs`, and the split is a finding:
+
+* **the seven `*C` index guards** (`isUnitLikeTyC`, `isCtorAppC`, `headHintC`,
+  `unfoldableHeadC`, `sameConstHeadsC`, `rawNatLitC?`, `etaCtorShapeC`) are
+  *the same function* as `Kernel/Core.lean`'s originals, because the port
+  already reads the environment through `FEnv` (task #18's deviation 3).  They
+  are `core_k`'s, with a second citation there.  So are `litToCtorIfNatI` and
+  `annotBinderMetaI`, whose twins are the spec's under a `pure`, and
+  `ProjEntry.typeAtI`, which is `typeAt`'s formula verbatim.  Duplicating any
+  of them would have been gratuitous — one spelling, two citations, §3.1.
+* **`bvarBoundM` and eight of the nine `*M` wrappers** are
+  `pure (<a syntactic operation>)`.  Task #14's rule 9 says such an action is
+  "the plain Rust function"; the *reason* it gives is the dead state
+  parameter, so they are named, state-free functions here forwarding to
+  `expr_ops` — `CoreC.lean` calls them by these names and the refinement tier
+  wants one lemma per name.  One of the eight is not an alias at all:
+  `inst_list_rev_m` reverses the accumulator, because `instantiateRevGo`'s
+  `vs[vs.size - 1 - (i - d)]` is `instantiateListGo`'s `vs[i - d]` on the
+  reversed array, at every depth including its own `bvar` re-entry.  Both bulk
+  wrappers run the *executed* walk, `instantiate_list_fast` (`ExprOps.lean`'s
+  `@[csimp]`-identified memoized DAG pass), not the pure `instantiate_list`
+  beside it.
+* **`instListM` is the one genuinely stateful wrapper**: it owns `instC` and
+  the 32 000 000-entry cap.  The cap decision is `inst_list_m_reset_at(s,
+  cap)`, with `inst_list_m_reset` passing `instCCapC` — the bound is a
+  parameter *so the reset has a unit test* without allocating 32M entries.
+* **`piResidualM` — the tenth wrapper — lives in `core_c.rs`**, at its one
+  call site: the operation it wraps is `Core.lean`'s `piResidual` (whose
+  `ExprOpsC` twin `piResidualAcc` is the bulk form of the same function), so a
+  `state_c` wrapper would have to reach back into `core_k`.
+* `storedTyIdxM`/`storedValIdxM`/`constTyAtM`/`constValAtM`/`ruleRhsAtM` and
+  the memoized DAG walk `constsResolveFCGo`/`constsResolveFC` are here, with
+  their probes.
+
+`Cached/ExprOpsC.lean` is **not** ported (its `Kernel/ExprOps.lean` original
+is, as `expr_ops`): the twins compute the same values, differing by memoising
+the DAG walk, which `expr_ops`' own `*_go` memo tables already do.
+con-leche's `ExprOpsC` docstrings say exactly this ("not as a
+*computation*").  Two of its declarations are cited anyway, on the two Rust
+items that *are* their port (`ProjEntry.typeAtI`, `instantiateRev`), so the
+file reads 2/37 rather than 0/37.
+
+#### The pointer-identity sites (§3.2)
+
+`CConstE`'s tag validation is the one new family.  `storedTyIdxM` and
+`storedValIdxM` validate with `Expr.exprPtrBEq`, which is *structural*
+equality with a physical-equality shortcut (`ExprOps.lean:2382-2388`), and
+`expr_ops::expr_ptr_beq` is that composition with the shortcut modeled `false`
+(§3.2's standing treatment, discharged there by the reflexivity of
+`Expr.beq`).  So the model takes the `beq` branch and answers exactly what the
+program answers — and the branch is unobservable anyway: `ent.ty` is by
+construction the conversion of `ent.tyE`, and `ExprC = Expr` since con-leche's
+task #198, so the conversion is the identity and both arms return the same
+value.  A unit test pins all three outcomes (validating tag, structurally
+equal rebuilt tag, different value).  Nothing else in this task reads pointer
+identity: the memo keys go through `expr::beq`, whose own fast path §3.2
+already covers, and `beqPtr` on `Name`/`Level` is untouched.
+
+#### The six Aeneas errors, and the two rules they confirm
+
+Charon succeeded on the first run.  Aeneas gave **four** errors, then two
+more after the first round of fixes — all six the two shapes the port already
+knows, and all six fixed by a-priori-legal restructuring:
+
+* **A borrow from the index, consumed into a scalar, then joined with a
+  branch that touches the state** (task #14's rule) — `proj_cert_i`'s
+  `.ctorInfo` test and `infer_const_i`'s two-field read, *"Internal error,
+  please file an issue"*.  Fixed by lifting each into its own function
+  (`is_ctor_stored_i`, `const_shape_probe_i`), where the borrow dies at the
+  call boundary.
+* **A gated certificate whose two arms rejoin** (task #18's rule, met three
+  times) — `infer_spine_io_i`'s `mode.ioSkip` gate in *both* its arms, and
+  `annotate_binders_out_i`'s `pw?.map` and `mk` node choice, all *"Could not
+  match the contexts"*.  The `mk` choice and the `map` became their own
+  functions (`annot_node_i`, `annot_pw_thread_i`); the io gate became **two
+  tail calls**, the skip arm continuing the walk directly and the certifying
+  arm continuing it behind the certificate.  The duplication is the price
+  task #18 already paid in `infer_app_io`, and here it is a *better* reading
+  of the Lean: the skip arm never builds `dom'`, which is the point of the
+  licence.
+
+Rule for the next porter, now with five witnesses: **any `if <gate> { Ok(x) }
+else { <state-touching call> }` whose result is then matched must be two tail
+calls.** `lake build` gave no error at all this time — task #18's `¬`-in-value
+lesson held.
 
 #### Numbers
 
@@ -4336,6 +4564,58 @@ against `checkDeclsPure`.  Flagged in `checker_c.rs`'s module doc.
   `structProjBodiesC`, `structWalkersC`), all on the same family; listed in
   `checker_c.rs` so the next porter does not re-derive them.  `opE`/`opB`/`opS`
   are the collapse, above.
+| Lean ported: 64 cited blocks of `Cached/CoreC.lean` | 1 655 raw / **1 411 code** |
+| plus 16 blocks of `Cached/StateC.lean` | 151 raw / **140 code** |
+| `src/cached/core_c.rs`, extracted part (raw / code) | 325 → **5 176 / 3 965** (2.8× the Lean code) |
+| `src/cached/core_c.rs`, `#[cfg(test)]` part (8 tests) | 0 → **393 / 296** |
+| `src/cached/state_c.rs`, extracted / tests | 574 → **1 107 / 611** · 225 → 231 |
+| `src/kernel/core_k.rs`, extracted / tests | 5 883 → **2 714 / 1 886** · 494 → 498 |
+| generated `Types.lean` | 583 → **583** — no type added or removed; the 83 changed lines are Aeneas reordering the declarations because the module dependency graph moved (the two new `abbrev`s, `InferLamEntry` and `AnnotBinderEntry`, are erased) |
+| generated `Funs.lean` | 21 205 → **24 896** (+3 691) |
+| `TypesExternal_Template.lean` / `FunsExternal_Template.lean` | 25 / 54 — **unchanged** |
+| `charon cargo --preset=aeneas` wall | **1.32 s** (the `.llbc` is 42 MB) |
+| `aeneas -backend lean -split-files -loops-to-rec` | **16.8 s** (16.2 s self-reported) |
+| `partial_fixpoint` (whole crate) | 226 → **251** (+25) |
+| `mutual` blocks in `Funs.lean` | 3 → **4**: task #3's 8-function `leq_core` knot (328 lines), **the core knot — 84 functions, 6 324 lines**, the annotation telescope block (11 functions, 493 lines) and `consts_resolve_fc_go` (2 functions, 85 lines) |
+| `mutual` blocks in `Types.lean` | 3 — unchanged |
+| `lake build` of `ConRon.Generated.Funs` (from scratch) | **61 s** (38 s at task #18) |
+| external holes | **exactly the four `Rc` axioms of §3.2** and the `Rc` type |
+
+The core knot's SCC grew from 75 to **84** functions while `Funs.lean` grew
+only 18 %: the cached bodies are longer than the pure ones but there is now
+only *one* copy of them.  `annotate`'s block grew 5 → 11 functions — the four
+annotation telescope loops joined it — and it is still a separate SCC, which
+remains the correct decomposition (nothing in the reduction/inference/equality
+cycle calls `annotate`).
+
+`cargo build`/`cargo test` warning-free, **113/113** green (105 from tasks
+#6-#18 + 8 new); `scripts/lint-rust-style.sh crates/con-ron-core/src` clean;
+`scripts/provenance.py check` green — 903 items, 892 citations, all current at
+pin 3e004805; `scripts/gates.sh` all six OK.
+
+#### Tests
+
+Eight new (`#[cfg(test)]` in `core_c.rs`, invisible to Charon), on the same
+hand-built axiom environment `core_k`'s eight use (`A : Sort 1`, `a : A`,
+`f : ∀ (_ : A), A`).  **One per new map, each checking a write *and* a hit**:
+`lsimpC`/`eqvC` (the reconciliation's headline, above), `instC` written by a β
+step and hit by the same `(body, args, cursor)` triple, `constTyAt` written by
+`infer` of a constant and hit by a second `constTyAtM` (with the unknown-name
+`.internal` throw writing nothing), and `ienv` with its three tag outcomes.
+Plus the `instC` **cap reset** through `inst_list_m_reset_at` at a small bound
+(under it the memo survives, at it the map is dropped whole, and the
+production bound is still `instCCapC`); the five expression memos still
+hitting and `inferIOC` still kept apart from `inferC`; the fuel-zero throws of
+all six wrappers with nothing cached on the way; and the two new algorithms —
+the head-normalization loop reducing a two-redex chain in one knot level, and
+the binder-telescope loops peeling and rebuilding `λ (x : A). λ (y : A). y`
+into `∀ (_ : A), ∀ (_ : A), A`.
+
+The eight `core_k` tests of task #18 are unchanged and still green, which is
+the strongest single signal here: they drive `whnf`, `whnfCore`, `infer`,
+`defeq` and `annotate` end to end through the wrappers, and the wrappers now
+call entirely different bodies.  One line of them moved —
+`core_k::unfold_definition` is `core_c::unfold_definition_i`.
 
 #### Coverage
 
@@ -4363,3 +4643,23 @@ installs call *below* `CheckerOps` is already here: `checkConstantVal`,
 `checkEtaThm`, `checkUnitThm`, `indBlockCaps`, `openPisAtFvars(F)`,
 `domsMatchAux`, `checkTypedList`, `checkAnnotList`, `checkDefEqList`,
 `unwrapOr`, `isEqHead`, `eqHeadLevel`, `piResultSort`, `findCV`.
+479/1018 covered (47.1 %), 539 uncovered** — up from **382/1018 (37.5 %)**.
+Per file: **`CoreC.lean` 3/80 → 73/80**, **`StateC.lean` 14/38 → 38/38**,
+**`Core.lean` 129/130 → 130/130**, `ExprOpsC.lean` 0/37 → 2/37, everything
+else unchanged.
+
+`CoreC.lean`'s seven uncovered declarations are exactly the named concrete
+cores (`whnfCoreBodyPC`, `inferBodyPC`, `defeqBodyPC`, `annotateBodyPC`,
+`whnfCoreBodyTC`, `inferBodyTC`, `defeqBodyTC`) — mode instantiations of
+bodies that are ported, with a runtime mode parameter, as §5 above explains.
+Everything else executable in the file is ported, including `certAtI`/
+`certUnlessI` (spelled out at their nine sites, cited there) and the four
+`@[simp]` theorems about them, which are spec.
+
+**Note for the next task.**  The knot is now complete and faithful, so
+`whnf_refines` can be stated against `coreKnotI mode (abs fe) fuel` with no
+memo-policy caveat.  The two `Level.isEquiv` sites that stay off `eqvC` are
+the only thing a memo-policy lemma has to special-case, and both are the
+Lean's own.  `Cached/ExprOpsC.lean` (37 declarations) is the next
+`Cached/` file with real content; its `Kernel` original is ported, so the work
+there is the identification lemmas, not a port.
