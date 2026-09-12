@@ -1,5 +1,5 @@
-//! `con-ron-check` — run the ported checker over a `con-ron-decls/1` dump and
-//! print con-leche's verdict.
+//! `con-ron-check` — the same driver as `con-ron`, over a `con-ron-decls/1`
+//! dump instead of a raw stream.
 //!
 //! The driver half of DESIGN.md §3.6's differential seam (task #28).  The
 //! dump is the *parsed* declaration list con-leche's own frontend produced
@@ -9,18 +9,24 @@
 //!
 //! ```text
 //! con-ron-check [--verified|--trusted] [--pins FILE] [--taint-skipped N]
-//!               [--stats] [--stats-every N] [--parse-only] [--quiet] FILE.decls
+//!               [--progress[=<stride>]] [--jobs=<n>] [--no-mark-persistent]
+//!               [--stats] [--stats-every N] [--parse-only] [--quiet]
+//!               FILE.decls
 //! ```
 //!
-//! The verdict vocabulary and the exit codes are con-leche's
-//! (`vendor/con-leche/OVERVIEW.md` §0, `Main.lean:48-51,744-788`):
+//! **Everything from the parsed list on is `con_ron::driver`** (task #40),
+//! shared with the `con-ron` binary: the exit-code mapping, the declaration
+//! label, the two phase loops, the `--progress` heartbeat, the taint-skip rule
+//! and the verdict lines.  Before task #40 this file carried its own copy of
+//! each; the taint-skip rule *decides an exit code*, so two copies of it was
+//! one too many.  What is this binary's own is the dump reader, the memory
+//! report and the `--stats` instrumentation.
 //!
-//! | exit | verdict |
-//! |---|---|
-//! | 0 | `accepted N declarations` — every declaration checked |
-//! | 1 | `rejected` — `CheckError.invalid`: a declaration is invalid |
-//! | 2 | `declined` — `CheckError.notImplemented`, or the taint-skip rule |
-//! | 3 | error — `CheckError.internal`, bad usage, malformed dump |
+//! The verdict vocabulary and the exit codes are con-leche's
+//! (`vendor/con-leche/OVERVIEW.md` §0, `Main.lean:48-51,744-788`): 0 accepted,
+//! 1 rejected, 2 declined, 3 usage/malformed/internal, with `driver`'s module
+//! note for the table and for the two conventions that are not exit codes (an
+//! out-of-memory abort, and a panic).
 //!
 //! Three details this driver mirrors deliberately:
 //!
@@ -29,7 +35,9 @@
 //!   tolerated axioms is still a decline — "uses of tolerated axioms are
 //!   never accepted".  The skip count is frontend state and is **not** in the
 //!   dump (task #10's surprise 9), so it is a parameter here,
-//!   `--taint-skipped N`; the core (`check_decls`) must not know the rule.
+//!   `--taint-skipped N`, and the rule itself is `driver::verdict_accept`,
+//!   which the `con-ron` binary reaches with its own frontend's count.  The
+//!   core (`check_decls`) must not know the rule.
 //! * **`N` counts declaration records.**  con-leche subtracts its built-in
 //!   prelude and the generated inductive model records from `decls.size`; the
 //!   dump has already absorbed the prelude, so `N` here is the dump's record
@@ -52,6 +60,13 @@
 //! sound for the accept direction (§1), and 17 of the corpus's fixtures turn
 //! on it.
 //!
+//! `--progress`, `--jobs=<n>` and `--no-mark-persistent` mean here exactly
+//! what they mean in the `con-ron` binary, because they are the same code:
+//! the heartbeat's line shapes are `OVERVIEW.md` §0's, `--jobs` is validated
+//! and then not acted on (phase B is sequential until the `Rc`/`Arc`
+//! decision), and the persistent mark has no Rust counterpart to switch off.
+//! The retired con-leche spellings are hard errors here too.
+//!
 //! Two flags exist for the memory budget (DESIGN.md task #36).
 //! `--parse-only` stops after the reader, which is how the parse half of the
 //! budget is measured on its own; and every run reports the peak resident set
@@ -60,9 +75,9 @@
 //! dump itself is never held: `parse_decls_file` streams it line by line, so
 //! the 3 GB of Mathlib text is not part of either number.
 //!
-//! The fold runs on a thread with a **1 GiB stack**: `check_decls`, like
-//! con-leche's, is deep recursion over the term DAG, and con-leche reserves
-//! 1 GiB per worker for exactly this.
+//! The fold runs on a thread with a **1 GiB stack** (`driver::STACK_BYTES`):
+//! `check_decls`, like con-leche's, is deep recursion over the term DAG, and
+//! con-leche reserves 1 GiB per worker for exactly this.
 
 use std::process::ExitCode;
 use std::time::Instant;
@@ -70,27 +85,40 @@ use std::time::Instant;
 use con_ron_core::cached::installed;
 use con_ron_core::cached::parsed_c::DeclC;
 use con_ron_core::cached::parsed_c::PendingCheck;
-use con_ron_core::cached::state_c;
 use con_ron_core::cached::state_c::CState;
-use con_ron_core::kernel::core_types::CheckError;
-use con_ron_core::kernel::env;
 use con_ron_core::kernel::env::CheckMode;
-use con_ron_core::kernel::env::Env;
-use con_ron_core::kernel::fenv;
 use con_ron_core::kernel::fenv::FEnv;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
+
+use con_ron::driver;
+use con_ron::driver::Heartbeat;
+use con_ron::driver::PhaseObserver;
+use con_ron::driver::STACK_BYTES;
 use con_ron_dump::parse_decls_file;
 use con_ron_dump::parse_pins;
 use con_ron_dump::peak_rss_kb;
 
-const USAGE: &str = "usage: con-ron-check [--verified|--trusted] [--pins FILE] \
-                     [--taint-skipped N] [--stats] [--stats-every N] \
-                     [--parse-only] [--quiet] FILE.decls";
+/// con-leche: Main.lean:791-1039 usage
+/// The usage text.  §3.1: message strings need not match; this binary's
+/// synopsis is `con-ron`'s minus the frontend's flags, plus the dump reader's
+/// own (`--taint-skipped`, `--stats`, `--parse-only`).
+const USAGE: &str = "\
+usage: con-ron-check [--verified|--trusted] [--pins FILE] [--taint-skipped N]
+                     [--progress[=<stride>]] [--jobs=<n>]
+                     [--no-mark-persistent] [--stats] [--stats-every N]
+                     [--parse-only] [--quiet] FILE.decls
 
-/// con-leche reserves 1 GiB of stack per checking worker; the fold's
-/// recursion depth is the term DAG's, so the port needs the same.
-const STACK_BYTES: usize = 1 << 30;
+  the same driver as `con-ron`, reading a `con-ron-decls/1` dump instead of a
+  raw lean4export stream.  --taint-skipped N supplies the frontend state the
+  dump does not carry (a clean fold over a stream with skips is a DECLINE).
+  --jobs=<n> is validated and not acted on (phase B is sequential);
+  --no-mark-persistent is accepted and a no-op (the mark is a Lean-runtime
+  reference-counting device).  Every retired con-leche spelling is a hard
+  error naming its replacement.
 
+exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.";
+
+/// con-leche: Main.lean:1041-1055 Args
 /// What the command line asked for.
 struct Args {
     path: String,
@@ -98,6 +126,8 @@ struct Args {
     mode_tag: &'static str,
     pins: Option<String>,
     taint_skipped: u64,
+    /// `--progress[=<stride>]`: the shared heartbeat's stride; 0 is no flag.
+    progress: u64,
     stats: bool,
     /// `--stats-every N`: report the map sizes every `N` declarations in each
     /// phase (0 = only at the phase boundary).
@@ -109,44 +139,16 @@ struct Args {
     quiet: bool,
 }
 
-/// A `CheckError`'s message, as con-leche would print it: the payload is a
-/// `Vec<u32>` of code points (`core_types`' stringless errors, §3.4).
-fn message(e: &CheckError) -> String {
-    let cps: &Vec<u32> = match e {
-        CheckError::NotImplemented(m) => m,
-        CheckError::Invalid(m) => m,
-        CheckError::Internal(m) => m,
-    };
-    cps.iter()
-        .map(|c| char::from_u32(*c).unwrap_or('\u{fffd}'))
-        .collect()
-}
-
-/// `ConLeche.CheckError.exitCode` (`vendor/con-leche/Main.lean:48-51`):
-/// `notImplemented` declines (2), `invalid` rejects (1), `internal` errors
-/// (3).
-fn exit_code(e: &CheckError) -> u8 {
-    match e {
-        CheckError::NotImplemented(_) => 2,
-        CheckError::Invalid(_) => 1,
-        CheckError::Internal(_) => 3,
-    }
-}
-
-/// The verdict word `OVERVIEW.md` §0 tabulates against each code.
-fn verdict_word(code: u8) -> &'static str {
-    match code {
-        1 => "rejected",
-        2 => "declined",
-        _ => "error",
-    }
-}
-
+/// con-leche: Main.lean:1057-1149 parseArgs
+/// The argument parse.  The retired spellings go through
+/// `driver::retired_flag`, so both binaries reject the same thirteen with the
+/// same messages; `--progress`/`--jobs` go through the same validators.
 fn parse_args(argv: &[String]) -> Result<Args, String> {
     let mut path: Option<String> = None;
     let mut mode_verified = true;
     let mut pins: Option<String> = None;
     let mut taint_skipped: u64 = 0;
+    let mut progress: u64 = 0;
     let mut stats = false;
     let mut stats_every: u64 = 0;
     let mut parse_only = false;
@@ -154,11 +156,18 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
     let mut i = 0usize;
     while i < argv.len() {
         let a = argv[i].as_str();
+        if let Some(m) = driver::retired_flag(a) {
+            return Err(m);
+        }
         match a {
             "--verified" => mode_verified = true,
             "--trusted" => mode_verified = false,
             "--stats" => stats = true,
             "--parse-only" => parse_only = true,
+            "--progress" => progress = 1,
+            // Accepted and a no-op, with `driver::mark_persistent_note`'s
+            // reason; `main` prints it.
+            "--no-mark-persistent" => {}
             "--stats-every" => {
                 i += 1;
                 if i >= argv.len() {
@@ -187,16 +196,25 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
                     Err(_) => return Err(format!("not a number: {}", argv[i])),
                 }
             }
+            "--jobs" => {
+                return Err("--jobs takes a worker count: --jobs=<n>".to_string());
+            }
             _ => {
-                if a.starts_with("--stats-every=") {
-                    match a["--stats-every=".len()..].parse::<u64>() {
+                if let Some(v) = a.strip_prefix("--progress=") {
+                    progress = driver::progress_stride(v)?;
+                } else if let Some(v) = a.strip_prefix("--jobs=") {
+                    // Validated exactly as con-leche validates it, then not
+                    // acted on: phase B is sequential.
+                    driver::jobs_count(v)?;
+                } else if let Some(v) = a.strip_prefix("--stats-every=") {
+                    match v.parse::<u64>() {
                         Ok(n) => stats_every = n,
                         Err(_) => return Err(format!("not a number: {}", a)),
                     }
-                } else if a.starts_with("--pins=") {
-                    pins = Some(a["--pins=".len()..].to_string());
-                } else if a.starts_with("--taint-skipped=") {
-                    match a["--taint-skipped=".len()..].parse::<u64>() {
+                } else if let Some(v) = a.strip_prefix("--pins=") {
+                    pins = Some(v.to_string());
+                } else if let Some(v) = a.strip_prefix("--taint-skipped=") {
+                    match v.parse::<u64>() {
                         Ok(n) => taint_skipped = n,
                         Err(_) => return Err(format!("not a number: {}", a)),
                     }
@@ -227,6 +245,7 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
             },
             pins,
             taint_skipped,
+            progress,
             stats,
             stats_every,
             parse_only,
@@ -235,9 +254,9 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
     }
 }
 
-/// The `CState` field sizes after phase A, for `--stats`: the memo tables the
-/// flush does not empty are the interesting ones (`ienv` and the three
-/// level-operation memos, `state_c::flushed`).
+/// con-leche: none — the `CState` field sizes after a phase, for `--stats`:
+/// the memo tables the flush does not empty are the interesting ones (`ienv`
+/// and the three level-operation memos, `state_c::flushed`).
 fn stats_line(st: &CState) -> String {
     format!(
         "  cstate ienv={} constTyAt={} constValAt={} ruleRhsAt={} \
@@ -260,9 +279,10 @@ fn stats_line(st: &CState) -> String {
     )
 }
 
-/// The process's current resident set, in KB, from `/proc/self/statm` (page
-/// counts) — the periodic report's memory column.  Zero where the file is not
-/// readable.
+/// con-leche: none — the process's current resident set, in KB, from
+/// `/proc/self/statm` (page counts): the periodic report's memory column.
+/// Zero where the file is not readable.  Deliberately *not* `peak_rss_kb`,
+/// which is `VmHWM` and is what the two budget numbers report.
 fn rss_kb() -> u64 {
     match std::fs::read_to_string("/proc/self/statm") {
         Err(_) => 0,
@@ -277,8 +297,8 @@ fn rss_kb() -> u64 {
     }
 }
 
-/// The `FEnv` sizes beside the `CState` ones: the index, the constant list
-/// and (phase A) the pending-check list.
+/// con-leche: none — the `FEnv` sizes beside the `CState` ones: the index, the
+/// constant list and (phase A) the pending-check list.
 fn fenv_line(fe: &FEnv, pend: usize) -> String {
     format!(
         "  fenv idx={} consts={} visible_below={} pending={} rss={}KB",
@@ -290,82 +310,101 @@ fn fenv_line(fe: &FEnv, pend: usize) -> String {
     )
 }
 
-/// `installed::check_decls`' body with the phase boundary visible, so
-/// `--stats` can report the install phase's memo state, and with the two
-/// folds spelled out here so `--stats-every N` can report every `N`
-/// declarations.  The verdict is `check_decls`' — this *is* its body
-/// (`ConLeche/Cached/Installed.lean:407-411`), step for step
-/// (`annot_decl_step` per record in phase A, `check_pending` from a fresh
-/// `CState` per record in phase B), which is why the flags change no
-/// outcome.
-fn check_decls_with_stats(
-    mode: &CheckMode,
-    pins: &Vec<NatOpPinSet>,
-    ds: &Vec<DeclC>,
+/// con-leche: Main.lean:160-174 checkHeartbeat
+/// **`--stats`/`--stats-every` as a `PhaseObserver`**, beside the heartbeat it
+/// wraps: the two flags print different lines at the same points of the same
+/// loop (`driver::check_decls_driver`), so this observer forwards every event
+/// to the `Heartbeat` and then prints its own.  `after_a` is the phase-A
+/// summary line `--stats` reports at the end of the run, captured at the
+/// boundary because the phase-A `CState` is gone by then.
+struct Stats {
+    hb: Heartbeat,
     every: u64,
-) -> (Result<Env, (CheckError, u64)>, String) {
-    let mut st: CState = state_c::cstate_new();
-    let mut p: (u64, FEnv, Vec<PendingCheck>) = (0, fenv::mk_fenv(env::empty()), Vec::new());
-    let mut i: usize = 0;
-    while i < ds.len() {
-        match installed::annot_decl_step(mode, pins, &mut st, p, &ds[i]) {
-            Err(e) => return (Err(e), stats_line(&st)),
-            Ok(q) => p = q,
-        }
-        i += 1;
-        if every > 0 && (i as u64) % every == 0 {
-            eprintln!(
-                "  [A {}/{}]\n{}\n{}",
-                i,
-                ds.len(),
-                stats_line(&st),
-                fenv_line(&p.1, p.2.len())
-            );
-        }
-    }
-    let line = format!("{} records={}", stats_line(&st), p.2.len());
-    if every > 0 {
-        eprintln!(
-            "  [A done]\n{}\n{}",
-            stats_line(&st),
-            fenv_line(&p.1, p.2.len())
-        );
-    }
-    // Phase B, `installed::check_pending_list`'s walk: a fresh `CState` per
-    // record, the index threaded through.
-    let pend: Vec<PendingCheck> = p.2;
-    let mut fe: FEnv = p.1;
-    let mut j: usize = 0;
-    while j < pend.len() {
-        let mut stb: CState = state_c::cstate_new();
-        match installed::check_pending(mode, &mut stb, fe, &pend[j]) {
-            Err(e) => return (Err((e, pend[j].pos)), stats_line(&stb)),
-            Ok(fe2) => fe = fe2,
-        }
-        j += 1;
-        if every > 0 && (j as u64) % every == 0 {
-            eprintln!(
-                "  [B {}/{}]\n{}\n{}",
-                j,
-                pend.len(),
-                stats_line(&stb),
-                fenv_line(&fe, pend.len() - j)
-            );
-        }
-    }
-    (Ok(fe.env), line)
+    after_a: Option<String>,
 }
 
+/// con-leche: Main.lean:160-174 checkHeartbeat
+/// The forwarding observer.
+impl PhaseObserver for Stats {
+    /// con-leche: Main.lean:67-158 installLoop
+    /// The heartbeat's install line.
+    fn install_before(&mut self, pos: u64, total: usize, d: &DeclC) {
+        self.hb.install_before(pos, total, d);
+    }
+
+    /// con-leche: Main.lean:67-158 installLoop
+    /// `[A <i>/<N>]` with the memo state and the index, every `every`
+    /// declarations.
+    fn install_after(&mut self, done: usize, total: usize, st: &CState, fe: &FEnv, pend: usize) {
+        self.hb.install_after(done, total, st, fe, pend);
+        if self.every > 0 && (done as u64) % self.every == 0 {
+            eprintln!(
+                "  [A {}/{}]\n{}\n{}",
+                done,
+                total,
+                stats_line(st),
+                fenv_line(fe, pend)
+            );
+        }
+    }
+
+    /// con-leche: Main.lean:330-449 checkDeclsIO
+    /// Phase A failed: the heartbeat's line, and the memo state it failed in
+    /// (which is what `--stats` reports in place of the phase-A summary the
+    /// boundary never reached).
+    fn install_failed(&mut self, pos: u64, total: usize, st: &CState) {
+        self.hb.install_failed(pos, total, st);
+        self.after_a = Some(stats_line(st));
+    }
+
+    /// con-leche: Main.lean:330-449 checkDeclsIO
+    /// The boundary: the heartbeat's line, `[A done]`, and the phase-A
+    /// summary `--stats` prints at the end.
+    fn install_done(&mut self, total: usize, pend: usize, st: &CState, fe: &FEnv) {
+        self.hb.install_done(total, pend, st, fe);
+        self.after_a = Some(format!("{} records={}", stats_line(st), pend));
+        if self.every > 0 {
+            eprintln!("  [A done]\n{}\n{}", stats_line(st), fenv_line(fe, pend));
+        }
+    }
+
+    /// con-leche: Main.lean:160-174 checkHeartbeat
+    /// The heartbeat's check line, and `[B <done>/<M>]`.
+    fn check_after(&mut self, done: usize, m: usize, pc: &PendingCheck, st: &CState, fe: &FEnv) {
+        self.hb.check_after(done, m, pc, st, fe);
+        if self.every > 0 && (done as u64) % self.every == 0 {
+            eprintln!(
+                "  [B {}/{}]\n{}\n{}",
+                done,
+                m,
+                stats_line(st),
+                fenv_line(fe, m - done)
+            );
+        }
+    }
+
+    /// con-leche: Main.lean:330-449 checkDeclsIO
+    /// Phase B failed: the heartbeat's line, and the record's memo state.
+    fn check_failed(&mut self, pos: u64, st: &CState) {
+        self.hb.check_failed(pos, st);
+        self.after_a = Some(stats_line(st));
+    }
+
+    /// con-leche: Main.lean:330-449 checkDeclsIO
+    /// Every check passed.
+    fn check_done(&mut self, m: usize) {
+        self.hb.check_done(m);
+    }
+}
+
+/// con-leche: Main.lean:493-788 checkMain
 /// The whole run, on the big-stack thread: parse, fold, verdict.  Returns the
 /// exit code.
 fn run(args: &Args) -> u8 {
     let t0 = Instant::now();
     // The dump is *streamed* (task #36): the reader takes it one line at a
     // time and never holds the text, so `Init`'s 165 MB and Mathlib's 3.06 GB
-    // are not part of the run's peak at all.  Task #32 had already dropped
-    // the text before the fold; the file is now never a `String` to begin
-    // with, which also removes the `Vec<&str>` line index that used to be
-    // 1.7 GB of Mathlib's parse.
+    // are not part of the run's peak at all.
     let ds: Vec<DeclC> = match parse_decls_file(&args.path) {
         Ok((ds, _)) => ds,
         Err(e) => {
@@ -376,7 +415,11 @@ fn run(args: &Args) -> u8 {
     let t_parse = t0.elapsed();
     let rss_parse = peak_rss_kb();
     if args.parse_only {
-        println!("con-ron: parsed {} declarations ({})", ds.len(), args.mode_tag);
+        println!(
+            "con-ron: parsed {} declarations ({})",
+            ds.len(),
+            args.mode_tag
+        );
         if !args.quiet {
             eprintln!(
                 "  records {} parse {:.3}s peak RSS after parse {} MB",
@@ -387,6 +430,18 @@ fn run(args: &Args) -> u8 {
         }
         return 0;
     }
+    // ONE driver: the heartbeat's `parse done` line prices this binary's own
+    // parse (the dump reader) exactly as `con-ron`'s prices the stream's, and
+    // the fold below is `check_decls`' body either way.  A run with no flag
+    // calls `check_decls` itself and comes through no observer at all.  The
+    // `0`s are the prelude counts: the dump has already absorbed the prelude,
+    // so there is none to subtract (the module note's second bullet).
+    let mut obs = Stats {
+        hb: Heartbeat::new(args.progress, t0),
+        every: args.stats_every,
+        after_a: None,
+    };
+    obs.hb.parse_done(ds.len(), 0, 0);
     // The pin list (§3.6's parameter).  No `--pins` is the empty list, i.e.
     // the pin loop's `[]` arm; a `Nat.div`/`Nat.mod` stream then declines.
     let t_pins0 = Instant::now();
@@ -408,46 +463,25 @@ fn run(args: &Args) -> u8 {
     };
     let t_pins = t_pins0.elapsed();
     let t1 = Instant::now();
-    let (r, stats) = if args.stats || args.stats_every > 0 {
-        let (r, s) = check_decls_with_stats(&args.mode, &pins, &ds, args.stats_every);
-        (r, Some(s))
+    let observed = args.progress > 0 || args.stats || args.stats_every > 0;
+    let r = if observed {
+        driver::check_decls_driver(&args.mode, &pins, &ds, &mut obs)
     } else {
-        (installed::check_decls(&args.mode, &pins, &ds), None)
+        installed::check_decls(&args.mode, &pins, &ds)
     };
     let t_check = t1.elapsed();
     let code: u8 = match &r {
-        Ok(_) => {
-            // `Main.lean:749-753`: an accepting fold over a stream with
-            // taint skips is a DECLINE, never an accept.
-            if args.taint_skipped > 0 {
-                eprintln!(
-                    "con-ron: declined ({} declarations checked, {} skipped for \
-                     tolerated axioms) ({})",
-                    ds.len(),
-                    args.taint_skipped,
-                    args.mode_tag
-                );
-                2
-            } else {
-                println!(
-                    "con-ron: accepted {} declarations ({})",
-                    ds.len(),
-                    args.mode_tag
-                );
-                0
-            }
-        }
-        Err((e, pos)) => {
-            let code = exit_code(e);
-            eprintln!(
-                "con-ron: {}: {} [at fold position {}] ({})",
-                verdict_word(code),
-                message(e),
-                pos,
-                args.mode_tag
-            );
-            code
-        }
+        // `Main.lean:749-753` through `driver::verdict_accept`: an accepting
+        // fold over a stream with taint skips is a DECLINE, never an accept.
+        // The detail is the frontend's and the dump does not carry it, so
+        // only the count is printed here.
+        Ok(_) => driver::verdict_accept(
+            ds.len() as u64,
+            args.taint_skipped as usize,
+            None,
+            args.mode_tag,
+        ),
+        Err((e, pos)) => driver::verdict_failure(&ds, e, *pos, None, args.mode_tag, t0),
     };
     if !args.quiet {
         let consts: usize = match &r {
@@ -473,18 +507,23 @@ fn run(args: &Args) -> u8 {
             rss_parse / 1024,
             peak_rss_kb() / 1024
         );
-        if let Some(s) = stats {
+        if let Some(s) = &obs.after_a {
             eprintln!("{}", s);
         }
     }
     code
 }
 
+/// con-leche: Main.lean:1151-1183 main
+/// The entry point: one big-stack thread, and a panic on it is exit 3.
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     if argv.iter().any(|a| a == "-h" || a == "--help") {
         println!("{}", USAGE);
         return ExitCode::SUCCESS;
+    }
+    if argv.iter().any(|a| a == "--no-mark-persistent") {
+        eprintln!("con-ron: {}", driver::mark_persistent_note());
     }
     let args = match parse_args(&argv) {
         Ok(a) => a,

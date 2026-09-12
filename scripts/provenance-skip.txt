@@ -93,9 +93,6 @@ ConLeche/Kernel/Expr.lean ptrDec Identity decided by the pointer test; `expr::pt
 # theorem never reads a message, so messages need not match)
 # ---------------------------------------------------------------------------
 
-ConLeche/Cached/ParsedC.lean msSecs Milliseconds rendered as `s.d` seconds for the driver's progress line.
-ConLeche/Cached/ParsedC.lean declCLabel A parsed declaration's display label (`Main.declCName`'s shared spelling).
-ConLeche/Kernel/CheckerSplit.lean ValueKind.word The kind's word ("definition"/"theorem"/"opaque") in `checkDecl`'s type-mismatch message.
 ConLeche/Kernel/Checker.lean divModAttemptReason What a Nat-op pin variant failed on, for the decline message; the pure instantiations always report the `none` text.
 ConLeche/Kernel/Name.lean toString A `Name`'s display string, for messages and the driver's output.
 ConLeche/Kernel/PropWhen.lean reprPrec' The `Repr` instance's renderer, kept byte-identical for `#eval (repr …)` of a stored pin.
@@ -105,4 +102,57 @@ ConLeche/Kernel/PropWhen.lean reprPrec' The `Repr` instance's renderer, kept byt
 # ---------------------------------------------------------------------------
 
 ConLeche/Kernel/Name.lean ofLeanName Conversion from `Lean.Name`, used by con-leche's elaboration-time code (the pins, the tests); the Rust core has no `Lean.Name`.
-ConLeche/Kernel/Basis.lean BasisKind.decls The RAW block dispatcher, which nothing in con-leche's implementation reads (a grep of `Kernel/` and `Cached/` finds no use): the installation stores the ANNOTATED blocks, `BasisKind.declsA`, which is `kernel::basis_tables::basis_decls_a`, and the individual raw pins are compared one by one in `std_axioms`/`trust_axioms`/`basis_pins`.
+
+# ---------------------------------------------------------------------------
+# The cherries' residue (§5 P4.1; tasks #37, #39, #40).  Everything else of
+# `ConLeche/Frontend/**` and `Main.lean` is ported, so with these entries the
+# cherries ledger closes at 100 % of what is to be ported.
+# ---------------------------------------------------------------------------
+
+# The parallel check phase.  `--jobs=<n>` is validated exactly as con-leche
+# validates it and then not acted on; the four declarations below are the pool
+# itself, and porting them needs a decision the project has not taken.
+Main.lean checkOne parallel phase B: pending the Rc/Arc decision (task #40)
+Main.lean checkWorker parallel phase B: pending the Rc/Arc decision (task #40)
+Main.lean mergeResults parallel phase B: pending the Rc/Arc decision (task #40)
+Main.lean checkPool parallel phase B: pending the Rc/Arc decision (task #40)
+
+# The checker's own ANNOTATED NDJSON writer and the debug splice built on it:
+# output paths (`lake exe con-leche-annot` writes the `tests/annot` fixtures,
+# `CON_LECHE_INMODEL_DUMP` a copy of the input with the generated records
+# spliced in), not something a checker reads.  con-ron reads those fixtures
+# like any other stream; `crates/con-ron/src/lib.rs`'s module note has the
+# argument (task #37 for the writer, task #39 for the splice).
+ConLeche/Frontend/ExportWrite.lean * An output format, not a checking path: the checker's own annotated-NDJSON writer, which con-ron has no counterpart of (it reads the `tests/annot` fixtures it produces like any other stream).
+ConLeche/Frontend/InModelDump.lean * `CON_LECHE_INMODEL_DUMP`'s debug splice, written through `ExportWrite.lean`'s writer: the same output path, one layer up (`in_model`'s module note).
+
+# `Scan/Naive.lean` is the reference recogniser: the SPECIFICATION every item
+# of `frontend::scan_fast` cites beside the `Fast.lean` declaration it ports
+# (task #37, and P4.3's optional refinement).  What is skipped is its
+# reference-only half — the reader monad it is written in, and the field
+# tables `Fast.lean` inlines into its per-object slot loops, which the Rust
+# recogniser therefore has no declaration for either.  `naiveObjLoop` and
+# `naiveListLoop`, the two the port DOES factor out, are cited.
+ConLeche/Frontend/Scan/Naive.lean NRes The reference recogniser's reader-monad result (remaining input plus value); `scan_fast` threads an index into a byte slice, so there is no monad to port.
+ConLeche/Frontend/Scan/Naive.lean NRes.rest The `rest` projection of that result.
+ConLeche/Frontend/Scan/Naive.lean NRes.map The `map` of that result.
+ConLeche/Frontend/Scan/Naive.lean naiveObject The generic object reader over `NRes`; `Fast.lean` writes one slot loop per object and `scan_fast` ports those (`next_member`, `scan_obj_list_loop`).
+ConLeche/Frontend/Scan/Naive.lean strNameFields A field table of the reference reader, inlined into `Fast.lean`'s slot loop and so into `scan_fast`'s.
+ConLeche/Frontend/Scan/Naive.lean numNameFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean appFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean binderFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean letFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean constFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean projFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean ruleFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean indRecFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean indTypeFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean indCtorFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean DeclFields The record-shape table of a declaration line, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean cvSlots The `ConstantVal` slot table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean axiomFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean defFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean thmFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean opaqueFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean quotFields A field table, as `strNameFields`.
+ConLeche/Frontend/Scan/Naive.lean indFields A field table, as `strNameFields`.

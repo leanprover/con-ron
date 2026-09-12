@@ -81,7 +81,7 @@ taint_of() { # taint_of <fixture>
   esac
 }
 
-cargo build --release -p con-ron-dump >"$root/_tmp/diff-fixtures-build.log" 2>&1 || {
+cargo build --release -p con-ron >"$root/_tmp/diff-fixtures-build.log" 2>&1 || {
   echo "diff-fixtures: cargo build failed, see _tmp/diff-fixtures-build.log" >&2; exit 3; }
 BIN="$root/target/release/con-ron-check"
 [ -x "$BIN" ] || { echo "diff-fixtures: $BIN is not executable" >&2; exit 3; }

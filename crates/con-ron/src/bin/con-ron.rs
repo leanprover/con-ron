@@ -1,27 +1,35 @@
-//! `con-ron` — con-leche's `Main.lean`: the command-line driver.
+//! `con-ron` — con-leche's `Main.lean`: the command-line driver, on a **raw**
+//! lean4export stream.
 //!
 //! ```text
-//! con-ron [--verified|--trusted] [--jobs=<n>] [--progress[=<stride>]]
-//!         [--pins FILE] [--dump-decls OUT] FILE.ndjson
+//! con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
+//!         [--progress[=<stride>]] [--pins FILE] [--dump-decls OUT] FILE.ndjson
 //! con-ron --help
 //! ```
 //!
-//! It reads a **raw** lean4export NDJSON file and checks the declarations in
-//! order: the built-in prelude is prepended (`frontend::prelude`), the stream
-//! is parsed line by line off the handle (`frontend::export_c`), the
-//! Nat-operation ground is hoisted and the projection functions rewritten,
-//! and the resulting `Vec<DeclC>` goes to `con_ron_core::cached::installed::
-//! check_decls` — the fold DESIGN.md §1's main theorem is about.
+//! It reads the file and checks the declarations in order: the built-in
+//! prelude is prepended (`frontend::prelude`), the stream is parsed line by
+//! line off the handle (`frontend::export_c`), mutual and nested inductive
+//! blocks get their `_model` family generated in process (`in_model`), the
+//! Nat-operation ground is hoisted and the projection functions rewritten, and
+//! the resulting `Vec<DeclC>` goes to the driver — `con_ron::driver`, which is
+//! `con_ron_core::cached::installed::check_decls`' body with the phase
+//! boundary visible, the fold DESIGN.md §1's main theorem is about.
+//!
+//! **This binary is the one true driver** (task #40): everything from the
+//! parsed list on — the exit-code mapping, the two phase loops, the
+//! `--progress` heartbeat, the taint-skip rule, the verdict lines — lives in
+//! `con_ron::driver` and is shared with `con-ron-check`, which is the same
+//! driver reading a `con-ron-decls/1` dump instead of a stream.  What is here
+//! is this binary's own front matter: the flags, the prelude, the parse, the
+//! receipts.
 //!
 //! Exit codes are con-leche's (`vendor/con-leche/Main.lean:15-31`, its
-//! `OVERVIEW.md` §0):
-//!
-//! | exit | verdict |
-//! |---|---|
-//! | 0 | all declarations accepted |
-//! | 1 | a declaration was rejected as invalid |
-//! | 2 | the checker declined: it positively detected a feature it does not support |
-//! | 3 | bad usage, malformed input, or an internal failure of unclear cause |
+//! `OVERVIEW.md` §0): 0 accepted, 1 rejected, 2 declined, 3
+//! usage/malformed/internal.  `driver`'s module note has the table, and the
+//! two conventions that are not exit codes — out of memory (con-leche's
+//! exit 1 is a Lean-runtime panic the port cannot reproduce: a Rust allocation
+//! failure aborts, which a shell reports as 134) and a panic, which is 3.
 //!
 //! **NO TEMPORARY FILES** (con-leche task #180).  The checker writes nothing
 //! outside its own stdout/stderr — and `--dump-decls OUT`, which is con-ron's
@@ -29,13 +37,20 @@
 //! forward, 4 MiB at a time, so a Mathlib-scale export never materialises
 //! anywhere.
 //!
-//! **Three flags differ from con-leche's, and say so here.**
+//! **Four flags differ from con-leche's, and say so here.**
 //!
-//! * `--jobs=<n>` is **accepted and validated but ignored**: the check phase
-//!   is sequential in this build.  con-leche's thread pool is DESIGN.md §1's
-//!   last cherry and is not part of task #37; a run prints
-//!   `con-ron: --jobs=<n> accepted; the check phase is sequential in this
-//!   build` so no log can mistake a sequential run for a pooled one.
+//! * `--jobs=<n>` is **accepted and validated but not acted on**: the check
+//!   phase is sequential in this build.  con-leche's thread pool waits on the
+//!   `Rc`/`Arc` decision (DESIGN.md's milestone entry; `driver`'s note), so a
+//!   run prints `con-ron: --jobs=<n> accepted; the check phase is sequential
+//!   in this build` and the `--progress` summary says `1 worker` — no log can
+//!   mistake a sequential run for a pooled one.
+//! * `--no-mark-persistent` is **accepted and a no-op**, and a run that passes
+//!   it says why: the mark it turns off is a Lean-runtime reference-counting
+//!   device (`Runtime.markPersistent`), and the port's counts are its own
+//!   non-atomic `Rc` counts with no runtime mark to clear
+//!   (`driver::mark_persistent_note`).  It is accepted rather than rejected so
+//!   that a script measuring both checkers can pass it to both.
 //! * `--pins FILE` is con-ron's own, and is DESIGN.md §3.6's pin-list
 //!   parameter (task #31): con-leche carries `natOpPinSets` as kernel data
 //!   computed at elaboration time, and the port takes it as an argument of
@@ -50,30 +65,27 @@
 //!   oracle of `scripts/diff-frontend.sh`: the bytes must equal the Lean
 //!   frontend's.
 //!
-//! The retired con-leche spellings (`--yolo`, `--pre`, `--core`,
-//! `--install-only`, `--check-range`, `--infer-only`) are hard errors here
-//! too, for con-leche's reason: a verdict's provenance must be readable off
-//! the invocation.
+//! Every retired con-leche spelling — `--set-model[=p|=r]`, `--no-model`,
+//! `--tt-model`, `--yolo`, `--infer-only`, `--pre`, `--core[=<c>]`,
+//! `--install-only`, `--check-range[=<r>]` — is a hard error here too, with
+//! the message naming its replacement, for con-leche's reason: a verdict's
+//! provenance must be readable off the invocation, so a retired spelling is
+//! never a silent alias (`driver::retired_flag`).
 
 use std::io::Write;
 use std::process::ExitCode;
 use std::time::Instant;
 
 use con_ron_core::cached::installed;
-use con_ron_core::cached::parsed_c::DeclC;
-use con_ron_core::cached::parsed_c::PendingCheck;
-use con_ron_core::cached::state_c;
-use con_ron_core::cached::state_c::CState;
-use con_ron_core::kernel::core_types::CheckError;
-use con_ron_core::kernel::env;
 use con_ron_core::kernel::env::CheckMode;
-use con_ron_core::kernel::env::Env;
-use con_ron_core::kernel::fenv;
-use con_ron_core::kernel::fenv::FEnv;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 
+use con_ron::driver;
+use con_ron::driver::Heartbeat;
+use con_ron::driver::STACK_BYTES;
 use con_ron::frontend::export::{name_str, taint_detail, taint_summary, FrontendError};
 use con_ron::frontend::export_c::{self, ParseResultD};
+use con_ron::frontend::nat_op_ground::{decl_names, NameKey};
 use con_ron::frontend::prelude;
 
 // The global allocator is `con-ron-dump`'s (task #35's mimalloc, declared by
@@ -82,42 +94,68 @@ use con_ron::frontend::prelude;
 // the `con-ron-pins/1` reader of `--pins`.  So `con-ron` declares none, and
 // `cargo build --no-default-features` gives glibc `malloc` back to both.
 
-/// con-leche: none — the Lean runtime's per-thread stack reservation, which
-/// `Main.lean`'s `--jobs` note measures at 1 GiB per worker.  The fold's
-/// recursion depth is the term DAG's, and so is the frontend's
-/// (`canon_expr_eq_fast`, `occurs_const_go`), so the whole run is on one.
-const STACK_BYTES: usize = 1 << 30;
-
 /// con-leche: Main.lean:791-1039 usage
 /// The usage text.  DESIGN.md §3.1: message strings need not match, and this
-/// one deliberately does not — it documents the three flags that differ (the
-/// module note) and the one piece of `Main.lean` that is not ported.
+/// one deliberately does not — it is con-leche's synopsis plus the four flags
+/// that differ and the one piece of `Main.lean` that is not ported.
 const USAGE: &str = "\
-usage: con-ron [--verified|--trusted] [--jobs=<n>] [--progress[=<stride>]]
-               [--pins FILE] [--dump-decls OUT] FILE.ndjson
+usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
+               [--progress[=<stride>]] [--pins FILE] [--dump-decls OUT]
+               FILE.ndjson
        con-ron --help
 
-  --verified        the default, and the mode the main theorem is about.
-  --trusted         the unverified mode: the same checker bodies at the
-                    mode with the certificate checks off.
-  --jobs=<n>        ACCEPTED AND IGNORED in this build: the check phase is
-                    sequential (con-leche's thread pool is not ported yet).
-                    A decimal numeral of at least 1; 0 and a non-numeral are
-                    usage errors, as in con-leche.
+  --verified        the default, and the mode the main theorem is about: if
+                    the declaration fold accepts a stream in this mode, the
+                    environment holds no constant whose type is False
+                    (ConLeche.no_proof_of_False, and DESIGN.md §1's
+                    conron.no_proof_of_False for the port).
+  --trusted         the unverified mode: the SAME checker bodies at the mode
+                    with the certification-only work switched off.  An accept
+                    in this mode is outside the theorem.
+  --jobs=<n>        ACCEPTED AND VALIDATED, then not acted on: the check phase
+                    is sequential in this build, and the --progress summary
+                    says `1 worker` whatever <n> was.  con-leche's pool waits
+                    on the Rc/Arc decision (DESIGN.md); 0 or a non-numeral is
+                    a usage error, as in con-leche.
+  --no-mark-persistent
+                    ACCEPTED AND A NO-OP: the mark it turns off is a
+                    Lean-runtime reference-counting device
+                    (Runtime.markPersistent), and this program's counts are
+                    its own non-atomic Rc counts with no runtime mark to
+                    clear.  A run that passes it says so on stderr.
   --progress[=<stride>]
-                    one stderr line per <stride> declarations of each phase;
-                    bare --progress is stride 1, which announces every
-                    declaration before installing it, so a run that dies
-                    names the declaration it died in.
+                    opt-in progress heartbeat on STDERR, one line shape per
+                    phase:
+                      con-ron: parse done: <N> fold records ... t=<s>s
+                      con-ron: install <i>/<N> <decl> t=<s>s
+                      con-ron: install done: <N>/<N> ..., <M> checks pending t=<s>s
+                      con-ron: check <done>/<M> <kind> <name> t=<s>s
+                      con-ron: check done: <M>/<M> t=<s>s
+                      con-ron: done: parse <p>s, install <i>s, check <c>s, 1 worker
+                    An install line is printed BEFORE every <stride>-th
+                    declaration is installed (<i> is its FOLD position, which
+                    the stream's record index sits near but not at a fixed
+                    offset above), so a run that dies in the install phase
+                    names the declaration it died in on its last line.  A
+                    check line is printed AFTER every <stride>-th COMPLETED
+                    check.  On a failure the phase's closing line says so
+                    ('install failed at', 'check failed at') and the summary
+                    still prints.  Bare --progress is stride 1; a stride that
+                    is not a decimal numeral, or 0, is a usage error.
   --pins FILE       con-ron's own: the `con-ron-pins/1` dump of con-leche's
                     `natOpPinSets` (DESIGN.md §3.6, task #31).  Without it
                     the pin list is empty and a Nat.div/Nat.mod stream
                     declines.
   --dump-decls OUT  con-ron's own: write the parsed declaration list in the
                     `con-ron-decls/1` format and exit, without folding.
-  --help            this text.
+  --help            print this text on STDOUT and exit 0, in any argument
+                    position; no input is read.
 
 exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
+An out-of-memory condition is NEITHER: con-leche's exit 1 for it is the Lean
+runtime's own panic, and this program instead aborts the way Rust aborts on a
+failed allocation ('memory allocation of <n> bytes failed', SIGABRT, which a
+shell reports as 134).  A panic is exit 3.
 
 environment (con-leche's):
   CON_LECHE_INMODEL=0          turn the in-process modeller off; a mutual or
@@ -128,114 +166,30 @@ environment (con-leche's):
   CON_LECHE_PROJREC_TRACE      name each rewritten projection function
   CON_LECHE_VERBOSE            print the environment's constant count
 
-NOT PORTED: CON_LECHE_INMODEL_DUMP, the debug splice of the generated
-records into a copy of the input — it is written through con-leche's
-annotated-NDJSON writer (`Frontend/ExportWrite.lean`), an output path this
-checker does not have.";
+RETIRED FLAGS.  --set-model, --set-model=p, --set-model=r, --no-model,
+--tt-model, --yolo, --infer-only, --pre, --core, --core=<c>, --install-only,
+--check-range and --check-range=<r> are never silent aliases: each is
+rejected with a message naming what stands in its place, and the run exits 3
+without reading the input, so a verdict's provenance is readable off the
+invocation.
 
-/// con-leche: Main.lean:48-51 ConLeche.CheckError.exitCode
-fn exit_code(e: &CheckError) -> u8 {
-    match e {
-        CheckError::NotImplemented(_) => 2,
-        CheckError::Invalid(_) => 1,
-        CheckError::Internal(_) => 3,
-    }
-}
-
-/// con-leche: none — rendering a `CheckError`'s payload, which
-/// `core_types` carries as a `Vec<u32>` of code points (DESIGN.md §3.4) where
-/// Lean carries a `String`.
-fn message(e: &CheckError) -> String {
-    let cps: &Vec<u32> = match e {
-        CheckError::NotImplemented(m) => m,
-        CheckError::Invalid(m) => m,
-        CheckError::Internal(m) => m,
-    };
-    cps.iter()
-        .map(|c| char::from_u32(*c).unwrap_or('\u{fffd}'))
-        .collect()
-}
-
-/// con-leche: ConLeche/Cached/ParsedC.lean:249-257 declCLabel
-/// con-leche: Main.lean:61-65 declCName
-/// A parsed declaration's display label.  DESIGN.md §3.7's skip list keeps it
-/// out of the verified core as driver-only rendering ("the theorem never reads
-/// a message"), so the driver carries it.  Deviation: `basisDecl` renders as
-/// `basis` rather than `basis block <repr k>` (the port has no `Repr`).
-fn decl_label(d: &DeclC) -> String {
-    let (kind, n) = match d {
-        DeclC::AxiomDecl(cv) => ("axiom", Some(name_str(&cv.name))),
-        DeclC::DefnDecl(cv, _, _) => ("def", Some(name_str(&cv.name))),
-        DeclC::ThmDecl(cv, _) => ("thm", Some(name_str(&cv.name))),
-        DeclC::OpaqueDecl(cv, _) => ("opaque", Some(name_str(&cv.name))),
-        DeclC::BasisDecl(_) => ("basis", None),
-        DeclC::IndDecl(block, _) => (
-            "inductive",
-            block
-                .first()
-                .map(|ci| name_str(&env::constant_info_name(ci))),
-        ),
-    };
-    match n {
-        Some(n) => format!("{} {}", kind, n),
-        None => kind.to_string(),
-    }
-}
-
-/// con-leche: ConLeche/Cached/ParsedC.lean:245-247 msSecs
-/// Milliseconds as seconds.  Also a deliberate skip in the core.  Deviation:
-/// three decimals rather than con-leche's one.
-fn ms_secs(ms: u128) -> String {
-    format!("{}.{:03}", ms / 1000, ms % 1000)
-}
-
-/// con-leche: Main.lean:451-466 progressStride
-/// The progress heartbeat's stride: no flag is off; bare `--progress` is
-/// stride 1.  A value that is not a decimal numeral, and `0` — the flag asking
-/// for no heartbeat — are usage errors, per the provenance discipline the
-/// retired spellings follow: a run's output must be readable off its
-/// invocation, never silently degraded.
-fn progress_stride(v: &str) -> Result<u64, String> {
-    match v.parse::<u64>() {
-        Ok(0) => Err("--progress takes a declaration stride of at least 1 \
-                      (a decimal numeral); omit the flag for no heartbeat"
-            .to_string()),
-        Ok(n) => Ok(n),
-        Err(_) => Err(format!(
-            "--progress takes a declaration stride \
-             (a decimal numeral of at least 1), got {:?}",
-            v
-        )),
-    }
-}
-
-/// con-leche: Main.lean:468-491 jobsCount
-/// The worker count: a decimal numeral of at least 1.  Validated exactly as
-/// con-leche validates it, and then ignored — the check phase is sequential in
-/// this build (the module note).
-fn jobs_count(v: &str) -> Result<u64, String> {
-    match v.parse::<u64>() {
-        Ok(0) => Err("--jobs takes a worker count of at least 1 \
-                      (a decimal numeral); omit the flag for one worker per \
-                      hardware thread"
-            .to_string()),
-        Ok(n) => Ok(n),
-        Err(_) => Err(format!(
-            "--jobs takes a worker count \
-             (a decimal numeral of at least 1), got {:?}",
-            v
-        )),
-    }
-}
+NOT PORTED: CON_LECHE_ROUTE_TRACE, the install-route audit (it reads the
+recognisers on the environment the step sees, which is a second dispatch of
+the fold, not a print); CON_LECHE_INMODEL_DUMP, the debug splice of the
+generated records into a copy of the input — it is written through
+con-leche's annotated-NDJSON writer (`Frontend/ExportWrite.lean`), an output
+path this checker does not have; and the worker pool of --jobs (above).";
 
 /// con-leche: Main.lean:1041-1055 Args
-/// What the command line asked for.  `noMark` is not here: it turns off the
-/// pool's persistent mark, and there is no pool.
+/// What the command line asked for.  `no_mark` is here, as con-leche's
+/// `noMark` is, because the flag is accepted — it just has nothing to turn
+/// off (`driver::mark_persistent_note`).
 struct Args {
     files: Vec<String>,
     verified: bool,
     progress: u64,
     jobs: Option<u64>,
+    no_mark: bool,
     pins: Option<String>,
     dump_decls: Option<String>,
     bad: Option<String>,
@@ -243,13 +197,15 @@ struct Args {
 
 /// con-leche: Main.lean:1057-1149 parseArgs
 /// The argument parse.  The retired spellings are hard errors, not silently
-/// ignored: a verdict's provenance must be readable off the invocation.
+/// ignored (`driver::retired_flag` holds all thirteen with their messages):
+/// a verdict's provenance must be readable off the invocation.
 fn parse_args(argv: &[String]) -> Args {
     let mut a = Args {
         files: Vec::new(),
         verified: true,
         progress: 0,
         jobs: None,
+        no_mark: false,
         pins: None,
         dump_decls: None,
         bad: None,
@@ -257,6 +213,15 @@ fn parse_args(argv: &[String]) -> Args {
     let mut i = 0usize;
     while i < argv.len() {
         let s = argv[i].as_str();
+        // The FIRST bad argument is the one reported, as con-leche's fold
+        // reports the first `bad` it set.
+        if let Some(m) = driver::retired_flag(s) {
+            if a.bad.is_none() {
+                a.bad = Some(m);
+            }
+            i += 1;
+            continue;
+        }
         let bad = |m: String, a: &mut Args| {
             if a.bad.is_none() {
                 a.bad = Some(m);
@@ -266,32 +231,7 @@ fn parse_args(argv: &[String]) -> Args {
             "--verified" => a.verified = true,
             "--trusted" => a.verified = false,
             "--progress" => a.progress = 1,
-            "--no-mark-persistent" => {}
-            "--yolo" => bad(
-                "--yolo is retired; the cert-skipping lane is --trusted".to_string(),
-                &mut a,
-            ),
-            "--infer-only" => bad(
-                "--infer-only is retired; its discipline is part of --trusted, and the \
-                 certified mode is --verified (default)"
-                    .to_string(),
-                &mut a,
-            ),
-            "--pre" => bad(
-                "--pre is retired; there is no preprocessor — every input is a raw \
-                 lean4export stream"
-                    .to_string(),
-                &mut a,
-            ),
-            "--core" => bad(
-                "--core is retired; there is one core and one expression representation"
-                    .to_string(),
-                &mut a,
-            ),
-            "--install-only" | "--check-range" => bad(
-                format!("{} is retired; the split install/check driver was arena machinery", s),
-                &mut a,
-            ),
+            "--no-mark-persistent" => a.no_mark = true,
             "--pins" => {
                 i += 1;
                 if i >= argv.len() {
@@ -319,12 +259,12 @@ fn parse_args(argv: &[String]) -> Args {
             ),
             _ => {
                 if let Some(v) = s.strip_prefix("--progress=") {
-                    match progress_stride(v) {
+                    match driver::progress_stride(v) {
                         Ok(n) => a.progress = n,
                         Err(m) => bad(m, &mut a),
                     }
                 } else if let Some(v) = s.strip_prefix("--jobs=") {
-                    match jobs_count(v) {
+                    match driver::jobs_count(v) {
                         Ok(n) => a.jobs = Some(n),
                         Err(m) => bad(m, &mut a),
                     }
@@ -332,8 +272,6 @@ fn parse_args(argv: &[String]) -> Args {
                     a.pins = Some(v.to_string());
                 } else if let Some(v) = s.strip_prefix("--dump-decls=") {
                     a.dump_decls = Some(v.to_string());
-                } else if s.starts_with("--core=") || s.starts_with("--check-range=") {
-                    bad(format!("{} is retired", s), &mut a);
                 } else if s.starts_with('-') {
                     bad(format!("unknown option {}", s), &mut a);
                 } else {
@@ -352,73 +290,6 @@ fn env_is(k: &str, v: &str) -> bool {
     std::env::var(k).ok().as_deref() == Some(v)
 }
 
-/// con-leche: Main.lean:67-158 installLoop
-/// con-leche: Main.lean:176-206 checkLoop
-/// con-leche: Main.lean:330-449 checkDeclsIO
-/// con-leche: ConLeche/Cached/Installed.lean:405-411 checkDecls
-/// `check_decls`' body with the phase boundary visible, so `--progress` can
-/// announce each declaration of phase A before it is installed and each
-/// completed check of phase B.  The verdict is `check_decls`' — this IS its
-/// body, step for step, which is why the flag changes no outcome and why ONE
-/// loop serves the plain run and the heartbeat alike.
-///
-/// Three deviations from `checkDeclsIO`: the `Prop`-indexed driver evidence
-/// (`InstallRun`, `GroupChecked`, `FullyChecked`) is not ported — DESIGN.md
-/// §3.7's skip list has that family, and `installed.rs`'s module note says
-/// why; there is no thread pool (`checkPool`), so phase B is the sequential
-/// `checkLoop`; and phase B runs on the same thread as phase A rather than a
-/// dedicated one (con-leche task #269's allocator finding, which is about
-/// Lean's per-thread heaps).
-fn check_decls_progress(
-    mode: &CheckMode,
-    pins: &Vec<NatOpPinSet>,
-    ds: &Vec<DeclC>,
-    stride: u64,
-    t0: Instant,
-) -> Result<Env, (CheckError, u64)> {
-    let mut st: CState = state_c::cstate_new();
-    let mut p: (u64, FEnv, Vec<PendingCheck>) = (0, fenv::mk_fenv(env::empty()), Vec::new());
-    let total = ds.len();
-    let mut i = 0usize;
-    while i < total {
-        if stride > 0 && p.0 % stride == 0 {
-            eprintln!(
-                "con-ron: install {}/{} {} t={}s",
-                p.0,
-                total,
-                decl_label(&ds[i]),
-                ms_secs(t0.elapsed().as_millis())
-            );
-        }
-        match installed::annot_decl_step(mode, pins, &mut st, p, &ds[i]) {
-            Err(e) => return Err(e),
-            Ok(q) => p = q,
-        }
-        i += 1;
-    }
-    let pend: Vec<PendingCheck> = p.2;
-    let mut fe: FEnv = p.1;
-    let n_pend = pend.len();
-    let mut j = 0usize;
-    while j < n_pend {
-        let mut stb: CState = state_c::cstate_new();
-        match installed::check_pending(mode, &mut stb, fe, &pend[j]) {
-            Err(e) => return Err((e, pend[j].pos)),
-            Ok(fe2) => fe = fe2,
-        }
-        j += 1;
-        if stride > 0 && (j as u64) % stride == 0 {
-            eprintln!(
-                "con-ron: check {}/{} t={}s",
-                j,
-                n_pend,
-                ms_secs(t0.elapsed().as_millis())
-            );
-        }
-    }
-    Ok(fe.env)
-}
-
 /// con-leche: none — DESIGN.md §3.6's pin-list parameter of `check_decls`
 /// (task #31): con-leche's `natOpPinSets` is kernel data computed at
 /// elaboration time, and the port takes it as runtime data.
@@ -434,8 +305,9 @@ fn read_pins(path: &Option<String>) -> Result<Vec<NatOpPinSet>, String> {
 
 /// con-leche: Main.lean:493-788 checkMain
 /// con-leche: Main.lean:53-59 parseInput
-/// The real driver: the prelude, the streaming parse, the receipts, the fold
-/// and the verdict line.  `--dump-decls` returns before the fold.
+/// The real driver's front matter: the retired environment gates, the
+/// prelude, the streaming parse, the receipts, then `driver` for the fold and
+/// the verdict.  `--dump-decls` returns before the fold.
 fn check_main(a: &Args, file: &str) -> u8 {
     let t0 = Instant::now();
     let mode_tag = if a.verified {
@@ -448,10 +320,20 @@ fn check_main(a: &Args, file: &str) -> u8 {
     } else {
         CheckMode::Trusted
     };
+    // The retired environment variables are hard errors, not silently
+    // ignored, for the retired flags' reason.
     if env_is("CON_LECHE_NO_PROOF_CERTS", "1") {
         eprintln!(
             "con-ron: CON_LECHE_NO_PROOF_CERTS is retired; the cert-skipping \
              measurement lane is the --trusted mode"
+        );
+        return 3;
+    }
+    if env_is("CON_LECHE_INFER_ONLY", "1") {
+        eprintln!(
+            "con-ron: CON_LECHE_INFER_ONLY is retired; the infer-only internal \
+             discipline is part of the --trusted mode, and the certified mode is \
+             --verified, the default"
         );
         return 3;
     }
@@ -504,6 +386,18 @@ fn check_main(a: &Args, file: &str) -> u8 {
         }
         Ok(Ok(r)) => r,
     };
+    // the in-process modeller's receipt
+    if !parsed.in_modelled.is_empty() {
+        let names: Vec<String> = parsed.in_modelled.iter().map(name_str).collect();
+        eprintln!(
+            "con-ron: {} inductive blocks modelled in-process: {} ({} generated \
+             records, checked by the fold as declarations and not counted as records \
+             of the file)",
+            parsed.in_modelled.len(),
+            names.join(", "),
+            parsed.gen_records
+        );
+    }
     // the census (`CON_LECHE_INMODEL_CENSUS=1`): every mutual/nested block's
     // outcome, then stop — the parse only, no fold.  Exit 2, never 0: the
     // census stops after the parse, so nothing is claimed about the stream.
@@ -571,25 +465,24 @@ fn check_main(a: &Args, file: &str) -> u8 {
             return 3;
         }
     };
-    if a.progress > 0 {
-        eprintln!(
-            "con-ron: parse done: {} fold records — {} declarations after the {} \
-             built-in prelude records ({} stream copies of prelude records dropped) \
-             t={}s",
-            parsed.decls.len(),
-            parsed.decls.len() as u64 - parsed.prelude_count,
-            parsed.prelude_count,
-            parsed.prelude_dropped,
-            ms_secs(t_parse.as_millis())
-        );
-    }
-    let t1 = Instant::now();
+    // The heartbeat's first line: the parse is done, and the fold is about to
+    // start on this many records.  The two phases print their own lines and
+    // the summary closes the run (`driver::Heartbeat`).
+    let mut hb = Heartbeat::new(a.progress, t0);
+    hb.parse_done(
+        parsed.decls.len(),
+        parsed.prelude_count,
+        parsed.prelude_dropped,
+    );
+    // ONE driver, and the heartbeat is printed between its steps: a plain run
+    // calls `check_decls` itself, a heartbeat run calls the same body with the
+    // boundary visible (`driver::check_decls_driver`), and the verdict below
+    // is printed from an accept of `check_decls` and from nothing else.
     let verdict = if a.progress > 0 {
-        check_decls_progress(&mode, &pins, &parsed.decls, a.progress, t0)
+        driver::check_decls_driver(&mode, &pins, &parsed.decls, &mut hb)
     } else {
         installed::check_decls(&mode, &pins, &parsed.decls)
     };
-    let t_check = t1.elapsed();
     // **The headline number is the STREAM's declaration-record count**: the
     // records the fold consumed minus the built-in prelude's, plus the stream
     // records dropped as identical copies of prelude records (they ARE
@@ -599,27 +492,15 @@ fn check_main(a: &Args, file: &str) -> u8 {
     let stream_records = parsed.decls.len() as u64 - parsed.prelude_count
         + parsed.prelude_dropped
         - parsed.gen_records;
-    let code = match &verdict {
+    match &verdict {
         Ok(envr) => {
-            // A DECLINED stream never says "accepted": declarations using
-            // tolerated axioms were skipped at parse, so nothing tainted was
-            // checked or installed, and a clean run over the rest is still not
-            // an acceptance of the stream.
-            if parsed.taint_skipped.is_empty() {
-                println!(
-                    "con-ron: accepted {} declarations ({})",
-                    stream_records, mode_tag
-                );
-            } else {
-                eprintln!(
-                    "con-ron: declined ({} declarations checked, {} skipped for \
-                     tolerated axioms) ({}): {}",
-                    stream_records,
-                    parsed.taint_skipped.len(),
-                    mode_tag,
-                    taint_detail(&parsed.taint_skipped)
-                );
-            }
+            let detail = taint_detail(&parsed.taint_skipped);
+            let code = driver::verdict_accept(
+                stream_records,
+                parsed.taint_skipped.len(),
+                Some(&detail),
+                mode_tag,
+            );
             if std::env::var("CON_LECHE_VERBOSE").is_ok() {
                 eprintln!(
                     "con-ron: environment: {} constants from {} fold records \
@@ -630,28 +511,19 @@ fn check_main(a: &Args, file: &str) -> u8 {
                     parsed.prelude_dropped
                 );
             }
-            if parsed.taint_skipped.is_empty() {
-                0
-            } else {
-                2
-            }
+            code
         }
         Err((e, i)) => {
-            // `i` is the FOLD position, and it is NOT the stream's
-            // declaration-record index: the parse folds the four `quot`
-            // records into one `basisDecl` and drops a few others.  The
-            // declaration NAME on the line is the portable handle.
-            let loc = match parsed.decls.get(*i as usize) {
-                Some(d) => format!(" [at {}, fold position {}]", decl_label(d), i),
-                None => format!(" [at fold position {}]", i),
-            };
-            eprintln!(
-                "con-ron: {}{} ({}) t={}s",
-                message(e),
-                loc,
-                mode_tag,
-                ms_secs(t0.elapsed().as_millis())
-            );
+            // A record the in-process modeller generated: the file has no
+            // position for it, so the BLOCK it models is the handle.
+            let owner = parsed.decls.get(*i as usize).and_then(|d| {
+                decl_names(d)
+                    .into_iter()
+                    .find_map(|n| parsed.gen_owner.get(&NameKey(n)).map(name_str))
+            });
+            let code = driver::verdict_failure(&parsed.decls, e, *i, owner, mode_tag, t0);
+            // On a stream that also FAILED, the skips are reported beside the
+            // failure and the failure's own exit code stands.
             if !parsed.taint_skipped.is_empty() {
                 eprintln!(
                     "con-ron: declined: {} ({})",
@@ -659,24 +531,15 @@ fn check_main(a: &Args, file: &str) -> u8 {
                     mode_tag
                 );
             }
-            exit_code(e)
+            code
         }
-    };
-    if a.progress > 0 {
-        eprintln!(
-            "con-ron: done: parse {}s check {}s total {}s",
-            ms_secs(t_parse.as_millis()),
-            ms_secs(t_check.as_millis()),
-            ms_secs(t0.elapsed().as_millis())
-        );
     }
-    code
 }
 
 /// con-leche: Main.lean:1151-1183 main
 /// The entry point.  The checker runs IN THIS PROCESS (con-leche task #230
 /// removed the out-of-memory supervisor that used to re-exec it), on one
-/// big-stack thread.
+/// big-stack thread; a panic on it is exit 3, never a verdict.
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     if argv.iter().any(|s| s == "--help") {
@@ -696,9 +559,12 @@ fn main() -> ExitCode {
     if let Some(n) = a.jobs {
         eprintln!(
             "con-ron: --jobs={} accepted; the check phase is sequential in this build \
-             (con-leche's thread pool is not ported yet)",
+             (con-leche's thread pool waits on the Rc/Arc decision)",
             n
         );
+    }
+    if a.no_mark {
+        eprintln!("con-ron: {}", driver::mark_persistent_note());
     }
     let file = a.files[0].clone();
     let h = std::thread::Builder::new()

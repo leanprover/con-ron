@@ -557,6 +557,13 @@ declaration *is* cited after all is `REDUNDANT`, and either makes `coverage`
 exit non-zero.  What is neither cited nor listed is still `uncovered`, which
 is the ledger's only honest resting state for work that is owed.
 
+Those two findings are checked for **every** entry, including the ones whose
+file lies outside `COVERAGE_GLOBS` — `Main.lean` and `ConLeche/Frontend/**`,
+the *cherries*, whose ledger is `scripts/progress.py`'s second table.  An
+entry the walk did not reach is validated against the file it names instead
+(task #40): the printed `TOTAL` stays the verified core's, and the list is
+checked wherever it points, which is where it is longest.
+
 Five kinds of thing are on the list, and each entry says which: elaboration-time
 meta code (`BasisGen.lean`'s `#annotate_basis`, `trustPinEnv` — the Rust core
 has no elaborator, so it carries the *results*); the proof-tier and mode-gated
@@ -755,8 +762,14 @@ measured.
    of the parsed list, generated `_model` records included, is byte-identical
    to the Lean frontend's on all 315 fixtures that have one and on
    `_tmp/corpus/{init,core}.ndjson`, with 0 differing, and the binary's exit
-   code agrees with con-leche's expectation on 348 of 348.  What is left of
-   this item is the **thread pool**.
+   code agrees with con-leche's expectation on 348 of 348.  **Task #40 closed
+   the ledger**: the `--progress` heartbeat, the thirteen retired-flag
+   rejections, `--no-mark-persistent`, the OOM/exit-code conventions and the
+   taint-skip rule are ported, `con_ron::driver` is the one driver both
+   binaries run, and the cherries read **100 % of what is to be ported**
+   (7 647 of 7 647 Lean lines).  What is left of this item is the **thread
+   pool**, which is `scripts/provenance-skip.txt`'s only owed entry and waits
+   on the `Rc`/`Arc` decision.
 2. Perf comparison against con-leche and the official kernel (PERF.md).
 3. Optional: parser refinement against con-leche's naive reference parser.
    Task #37 wrote the statement down: every item of `frontend::scan_fast`
@@ -8780,3 +8793,252 @@ same run conditions): accepted 693 195; `instructions:u` **12 797 G**
 **1 967 s** (1.60×, unchanged), max RSS **15.97 GB** (1.86×, from 2.18×).
 Equal instructions and 1.6× the wall time is a memory-traffic signature;
 task #41 profiles cycles and cache misses at `core` scale.
+### Task #40 — The driver: progress, flags, one driver for both binaries (2026-09-12, Opus under Fable)
+
+P4.1's last item but one, and the one that closes the **cherries** ledger.
+Tasks #37 and #39 ported `Main.lean`'s front matter — the parse, the prelude,
+the hoist, the rewrite, the modeller — and left what sits *above*
+`check_decls`: the progress heartbeat, the retired-flag discipline,
+`--no-mark-persistent`, the out-of-memory convention, and the one driver rule
+that decides an exit code, the taint skip.  Worse, that rule existed **twice**
+— task #28 put it in `con-ron-check` off a `--taint-skipped N` parameter, task
+#37 put it in `con-ron` off the frontend's own datum — and two copies of a rule
+that decides a verdict is one copy too many.  This task ports the rest and
+makes the two binaries one driver.
+
+**What landed** (`crates/con-ron/`, 868 lines of new module, 85 of them
+tests):
+
+| file | con-leche | what |
+|---|---|---|
+| `src/driver.rs` (new, 868) | `Main.lean` above `check_decls` | the shared driver: rendering, flag values, the retired table, the two phase loops, the heartbeat, the verdict |
+| `src/bin/con-ron.rs` (720 → 586) | `Main.lean` | the raw-stream front door; the driver's pieces deleted from it, the modeller's receipt and the retired `CON_LECHE_INFER_ONLY` gate added |
+| `src/bin/con-ron-check.rs` (moved here, 513 → 550) | `Main.lean` | the same driver on a `con-ron-decls/1` dump, its `--stats` reporting now a `PhaseObserver` |
+
+`con-ron-check` **moved from `crates/con-ron-dump` to `crates/con-ron`**,
+because the shared driver cannot live in the dump crate (`con-ron` already
+depends on it, so the other direction is a cycle).  The binary's name and its
+`target/release/con-ron-check` path are unchanged; the one script that built it
+by package (`scripts/diff-fixtures.sh`'s `cargo build -p con-ron-dump`) now
+builds `-p con-ron`.
+
+#### The heartbeat, and the seam that makes one loop serve three callers
+
+`OVERVIEW.md` §0's six line shapes are ported exactly, with `con-leche: `
+replaced by `con-ron: `.  Measured on `_tmp/corpus/init.ndjson`
+(`--verified --jobs=1 --pins … --progress=20000`, `ulimit -v 2600000`):
+
+```text
+con-ron: parse done: 58002 fold records — 57994 declarations after the 8 built-in prelude records (8 stream copies of prelude records dropped) t=1.050s (parse 1.050s)
+con-ron: install 20000/58002 thm Lean.Grind.Linarith.Poly.combine.induct_unfolding t=4.633s
+con-ron: install done: 58002/58002 declarations installed, 57362 checks pending t=6.432s (install 5.382s)
+con-ron: check 20000/57362 definition String.Slice.Pattern.SearchStep._sizeOf_inst t=25.672s
+con-ron: check done: 57362/57362 t=58.326s (check 51.894s)
+con-ron: done: parse 1.050s, install 5.382s, check 51.894s, 1 worker t=58.326s
+con-ron: accepted 57972 declarations (--verified)
+```
+
+`57972` is task #39's and `_tmp/corpus/baseline.md`'s count to the digit, and
+58.3 s is inside #39's 59.7 s, so the heartbeat costs nothing measurable.
+What the run *says* that no earlier one could is where the time goes: **parse
+1.8 %, install 9.2 %, check 89.0 %** — which is the argument for the pool
+written in the port's own numbers, and the reason the pool is the next task
+rather than an optimisation.
+
+Three details are con-leche's and were easy to get wrong:
+
+1. **Phase A announces before, phase B reports after.**  An install line is
+   printed *before* the declaration is installed, so a run that dies — an OOM,
+   a timeout, a `SIGKILL` — names on its last line the declaration it died in;
+   a check line is printed *after* the check completes, so "a check that is
+   running is not on any line, the gap between two lines is where it sits".
+2. **`<i>` is the fold position, not the record index.**  The parse folds the
+   basis and `quot` blocks, drops taint-skipped records and *adds* the
+   modeller's, so the two drift by a stream-dependent amount (`init`: 58 002
+   fold records against 57 972 stream declarations).  Calibrate by NAME.
+3. **The check line names the record**, `<kind> <name>` off `pend[k].vg` —
+   which needed `ValueKind.word`, a declaration DESIGN.md §3.7 had on the skip
+   list as driver-only rendering.  It is ported now, in the driver, exactly
+   where `msSecs` and `declCLabel` went; all three came off the skip list, and
+   con-leche makes the same split for the same reason (`declCLabel` lives
+   beside the checker "because the progress heartbeat's compiled hook prints it
+   too, and the two must never drift apart").
+
+The seam is `driver::PhaseObserver`, a trait whose seven methods all default to
+nothing.  con-leche prints its heartbeat from inside `installLoop`/`checkLoop`
+because printing is in `IO` there; the port's loops are pure over a `&mut O`,
+so `con-ron`'s `Heartbeat` and `con-ron-check`'s `Stats` (the
+`--stats`/`--stats-every` reporter, which forwards to a `Heartbeat` and then
+prints its own lines) are two implementations of one loop instead of two copies
+of it.  `driver::check_decls_driver` is that loop, and it IS `check_decls`'
+body step for step — `annot_decl_step` per record in phase A, `check_pending`
+from a fresh `CState` per record in phase B — which is why the flag changes no
+verdict.  A run with no flag calls `installed::check_decls` itself and comes
+through no observer at all.
+
+**The flag is tested as a no-op at scale, not argued to be one**:
+`scripts/diff-e2e.sh --timeout=60` reads **348 agree, 0 differ**, and with
+`--progress` it reads **348 agree, 0 differ** again.
+
+#### The retired flags, and the two that are accepted instead
+
+All **thirteen** spellings of `Main.lean`'s RETIRED FLAGS paragraph are
+rejected with a message naming what stands in its place, from one table
+(`driver::retired_flag`) both binaries consult, and each exits 3 without
+reading the input.  Task #37 had six of them and generic messages for two; the
+seven new ones are `--set-model`, `--set-model=p`, `--set-model=r`,
+`--no-model`, `--tt-model`, and the `=`-carrying `--core=<c>` and
+`--check-range=<r>`, which used to answer a bare "X is retired".  The rule is
+con-leche's and is about *the port's* verdicts too: a verdict's provenance must
+be readable off the invocation, so a retired spelling is never a silent alias.
+`every_retired_spelling_names_its_replacement` pins all thirteen and asserts
+that the eight live spellings — three of which are prefixes of retired ones —
+are not caught by it.
+
+Two flags go the other way, and for the same discipline:
+
+* **`--jobs=<n>` is validated and not acted on**, as at task #37, but the
+  `--progress` summary now says `1 worker` whatever `<n>` was.  That line is
+  the one place a log could have been made to lie about the lane, so it
+  reports the port's own truth.
+* **`--no-mark-persistent` is accepted and a no-op, and a run that passes it
+  says why.**  con-leche's mark is `unsafe Runtime.markPersistent` on the
+  installed environment at the phase boundary: the graph is read-only from
+  there on, handing it to a worker task makes the **Lean runtime** mark it
+  multi-threaded, and every reference count on it then becomes an atomic
+  read-modify-write on cache lines every worker touches — worth 18–32 % of
+  wall time on the pool.  Every word of that is about the Lean runtime's
+  counting.  The port's counts are its own `Rc`s (§3.2), non-atomic *by type*,
+  with no runtime-owned mark to set and nothing to switch off; an `Rc` graph
+  handed across threads is a compile error, not a slower program.  So the flag
+  is accepted — a script that measures both checkers passes it to both — and
+  prints `the persistent mark is a Lean-runtime reference-counting device
+  (Runtime.markPersistent), and the port's counts are non-atomic Rc counts with
+  no runtime mark to clear`.  Rejecting it would have been the wrong answer: it
+  is not a retired spelling, it is a switch for a device this program does not
+  have.
+
+#### Out of memory is not an exit code here, and con-leche's is
+
+`Main.lean` documents OOM as **exit 1**: the Lean runtime's
+`lean_internal_panic_out_of_memory` prints `INTERNAL PANIC: out of memory` and
+calls `exit(1)`, uncatchable in process, so the stderr message is what tells it
+from a reject.  The port cannot reproduce that, and pretending otherwise would
+be the worst of the options.  A Rust allocation failure goes to
+`alloc::handle_alloc_error`, which prints `memory allocation of <n> bytes
+failed` and **aborts** — `SIGABRT`, which a shell reports as **134**, never 1 —
+and an exhausted address space (`ulimit -v`) or a blown 1 GiB stack aborts the
+same way.  So the two checkers' OOM *codes* differ by construction, a
+differential sweep must read the stderr line rather than the code, and nothing
+in the port can narrow the gap, because catching an abort would mean surviving
+the allocation that failed.  `driver`'s module note says all of this where a
+reader of the code will find it.
+
+What the port *does* guarantee is the other half: **a panic is exit 3.**  The
+fold runs on a spawned 1 GiB-stack thread, so a panic on it — a `debug`
+overflow, an index out of range — comes back as a `join` error and both
+binaries turn that into 3, "an internal failure of unclear cause", never a
+verdict on the input.
+
+#### The taint-skip rule, once
+
+`driver::verdict_accept` is the rule and the accept line together: a clean fold
+over a stream whose frontend *skipped* declarations for a tolerated axiom is
+still a decline (con-leche's user directive of 2026-08-24, "uses of tolerated
+axioms are never accepted"), and a declined stream never says "accepted".
+`con-ron` reaches it with its own frontend's `taint_skipped` and its detail
+string; `con-ron-check` with `--taint-skipped N` and no detail, because the
+count is frontend state the dump does not carry (task #10's surprise 9).  It
+must not live in the core, which accepts the list it is given and knows nothing
+of what the frontend dropped — and now it lives in exactly one place above it.
+`diff-fixtures.sh` reads **315 agree, 0 differ, 33 skipped**, so the three
+fixtures the rule is load-bearing for (`sorry_use`, `tolerated_axiom_use`,
+`taint_skip_continue`) still land on con-leche's code through the shared
+spelling.
+
+#### The cherries ledger, closed
+
+```text
+== Cherries (ConLeche/Frontend without Scan/Equiv, Main.lean)
+Main.lean                          1184     1000     1000 100%        71 skipped
+ConLeche/Frontend/Scan/Fast.lean   2637     2408     2408 100%
+…
+TOTAL                              9802     7647     7647 100%       446 skipped
+```
+
+**7 647 of 7 647 (100 %)**, up from 7 632 of 8 093 (94 %).  The move is 15 Lean
+lines newly cited (`checkHeartbeat`) and 446 lines moved from *uncovered* to
+*deliberately skipped*, each with its reason in
+`scripts/provenance-skip.txt` — which §3.7 makes the machine-readable index of
+the module notes that argue them, so the entries and
+`crates/con-ron/src/lib.rs`'s "four things deliberately not here" are the same
+list:
+
+* **the pool** — `checkOne`, `checkWorker`, `mergeResults`, `checkPool` (71
+  Lean lines), reason `parallel phase B: pending the Rc/Arc decision (task
+  #40)`.  This is the ledger's one **owed** entry: it is not a decision that
+  the port will never have a pool, it is a decision the project has not taken.
+* **`Frontend/ExportWrite.lean`** (169) and **`Frontend/InModelDump.lean`**
+  (42) — the annotated-NDJSON writer and the debug splice built on it: output
+  formats, not checking paths (task #37's and #39's notes).
+* **`Frontend/Scan/Naive.lean`'s reference-only half** (164) — the `NRes`
+  reader monad and the twenty field tables `Fast.lean` inlines into its slot
+  loops, which the Rust recogniser therefore has no declaration for either.
+  The other 474 lines of the file *are* cited: every `scan_fast` item names its
+  `naive*` specification beside the `Fast` declaration it ports, which is
+  P4.3's statement.
+
+Three entries came **off** the list in the same move — `msSecs`, `declCLabel`
+and `ValueKind.word`, all three now ported in `driver.rs` — and one more,
+`BasisKind.decls`, which `frontend::basis_raw` had cited since task #37 without
+anyone noticing, because `coverage` could not see it.  Which is the last
+finding:
+
+**`coverage`'s skip validation was blind outside its own globs.**  `STALE` and
+`REDUNDANT` were reported only for entries the walk over
+`ConLeche/{Kernel,Cached}` reached, so the four `Main.lean` entries this task
+added came out `STALE` while the three cited-but-skipped ones stayed quiet.
+Every unused key is now validated against the file it *names*
+(`scripts/provenance.py`, §3.7's new paragraph): the printed `TOTAL` stays the
+verified core's, and the list is checked wherever it points — which is where it
+is longest.
+
+#### Gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | all 6 OK (`cargo build`, `cargo test`, lint, provenance, `extract.sh --check`, `lake build`) |
+| `cargo test` | **227 pass, 1 ignored** (task #37's exponential measurement), warning-free — **4** new tests in `driver` |
+| `scripts/lint-rust-style.sh` | green, and untouched: scoped to `crates/con-ron-core/src` |
+| `scripts/provenance.py check` | 2 022 items, 2 213 citations, all current at pin `3e004805` |
+| `scripts/provenance.py coverage` | `TOTAL 910/910 covered (100.0 %), 0 uncovered, 96 deliberately skipped`, **0 findings** |
+| `scripts/extract.sh --check` | clean (`con-ron-core` untouched — not one file of it changed) |
+| `cd proof && lake build` | clean |
+| `scripts/diff-e2e.sh --timeout=60` | **348 agree, 0 differ**, 0 timeouts — and **348 agree, 0 differ** again with `--progress` |
+| `scripts/diff-fixtures.sh --timeout=60` | **315 agree, 0 differ**, 33 skipped |
+| `scripts/diff-frontend.sh` | **315 byte-identical, 0 differ**, 33 no dump |
+| cherries (`scripts/progress.py`) | **7 647 of 7 647 Lean lines translated (100 %)**, up from 94 % |
+| `init.ndjson` end to end | accepted **57972** (`baseline.md`'s number), 58.3 s, no regression on task #39's 59.7 s |
+
+`con-ron-core` is byte-identical to before this task, so the extraction gate is
+trivially green and no `Refine/*` lemma is touched: everything here is outside
+§1's theorem by construction, as the CLI is in con-leche.
+
+#### Left for next time
+
+* **The thread pool** (`checkPool`, `IO.asTask`, the shared claim counter),
+  P4.1's last piece and the ledger's one owed entry.  It needs the `Rc`/`Arc`
+  decision first (§3.2: `Rc` is not `Send`; con-leche sidesteps atomic counts
+  with a runtime mark the port has no equivalent of), and the numbers above
+  price the prize: phase B is **89 % of `init`'s wall time**, and con-leche's
+  `--jobs=8` Mathlib row is 337 s against its own 1 228 s at `-j1`.
+  `PhaseObserver` was written with it in mind — `check_after` takes the
+  completed *count*, so it is monotone whichever worker finished, which is
+  con-leche's reason for the same shape.
+* **The full Mathlib run** of the whole binary against
+  `_tmp/corpus/baseline.md` (P4.2), which wants the machine to itself.
+* **`CON_LECHE_ROUTE_TRACE`**, the only `Main.lean` environment switch still
+  unported and the only one that is not merely a print: it runs the recognisers
+  on the environment the step sees, i.e. a second dispatch of the fold.  It is
+  named in `con-ron --help`'s NOT PORTED paragraph and is not on the skip list,
+  because the declaration it lives in (`installLoop`) *is* ported.
