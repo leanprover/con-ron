@@ -591,6 +591,11 @@ by module once types exist; **in progress**)
 * `cargo build` and `cargo test` warning-free; `scripts/lint-rust-style.sh`
   clean; `proof/` builds sorry-free on master (no `sorry`, no new axioms
   beyond Aeneas's library, whose axiom footprint is pinned).
+* `scripts/progress.py [--md]` is the standing quantitative report: per
+  con-leche implementation file, Lean lines to translate (definitional
+  blocks), translated (cited by a Rust item) and verified (cited by a Rust
+  item that has its `_refines` lemma), plus the sizes of the Rust, the
+  generated Lean and the proofs.  Task-log entries quote its totals.
 * Commit often.  The maintainer pushes and opens PRs (see `CLAUDE.md`).
 * Fable designs and states theorems and reviews; Opus agents port, extract,
   prove and measure.  Delegate anything mechanical.
