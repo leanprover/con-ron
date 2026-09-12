@@ -2222,3 +2222,274 @@ file in the tree); `scripts/gates.sh` is the whole gate and a CI job is one
 line calling it.  The `#print axioms` census of tasks #4/#5 is still checked
 by hand rather than by a `#guard_msgs` in a file `lake build` elaborates — the
 generated model is axiom-free today, and that is the baseline for such a gate.
+### Task #14 — Environment and state types (2026-09-12, Opus under Fable)
+
+P1.2's second half: the *types* the checker is written against, and their
+small operations.  Five new modules — `core_types`, `env`, `fenv`,
+`state_c`, `parsed_c` — covering `ConLeche/Kernel/Core.lean:45-59`, all of
+`Kernel/Env.lean`, all of `Kernel/FEnv.lean`, the state half of
+`Cached/StateC.lean`, and the three declaration records
+(`Cached/ParsedC.lean`'s `DeclC`, `Kernel/CheckerSplit.lean`'s
+`ValueKind`/`ValueGroup`, `Cached/Installed.lean`'s `PendingCheck`).  Charon
+succeeded on the first run; **Aeneas did not**, for the first time in the
+port — five errors, all borrow-shaped, all fixed by a-priori-legal
+restructuring (below).  The generated Lean is in `_tmp/core-lean/`
+(gitignored, not elaborated — P2).
+
+**The `String` decision, measured** (`_tmp/strspike`, a throwaway crate run
+through `charon`+`aeneas`).  `CheckError`'s three payloads are `Vec<u32>`
+code points, as DESIGN.md §3.3 has every other string in the core.  The task
+asked for the comparison rather than the assumption, and it is decisive:
+
+| payload | `Types.lean` | constructing it |
+|---|---|---|
+| `String` | `String → ErrS` — Lean's own `String`, fine | `String::from("…")` emits the axiom `alloc.string.String.Insts.CoreConvertFromShared0Str.from : Str → Result String`; `String::new()` emits `alloc.string.String.new` — **a fifth external hole either way** |
+| `&'static str` | `Str → ErrR`, fine | Aeneas **fails**: *"There should be no bottoms in the value"*, and the constructor comes out `sorry` |
+| `Vec<u32>` | `alloc.vec.Vec Std.U32 → ErrV` | `Vec::new`, a `[u32; N]` const, `Array.to_slice` and a slice walk: **no hole at all** |
+
+§3.2's standing gate is that the external templates hold exactly the four
+`Rc` axioms, so a string-shaped fifth is not free — and §3.1 already says
+message strings need not match, because the theorem never reads them.  So
+the idiom for a throw site is a `const M_…: [u32; N]` of ASCII code points
+beside it and `core_types::code_points(&M_…)`; the same helper is how the
+port spells *any* Lean string literal, `env::proj_fn_name`'s `"proj"`
+included.  `CheckM α = Except CheckError` is `Result<T, CheckError>`
+(`pub type CheckM<T>`, erased before Charon), `CheckCM α = StateT CState
+CheckM α` is `fn(…, &mut CState) -> CheckCM<A>`, and `x ← m; k x` is an
+explicit `match` because §3.4 forbids `?`.
+
+**The `FEnv` sharing decision: linear threading, not `Rc`.**  In the Lean,
+`restrictTo` is `{ fe with visibleBelow := k }` and `push` a three-field
+rebuild; both are `O(1)` *because the runtime shares the `Std.HashMap`
+field*, and both leave their argument intact.  Three options were on the
+table.
+
+1. `idx: Rc<HashMap<…>>` — `restrict_to` is then two `Rc::clone`s, but
+   `push` has no way to mutate the map: `Rc::get_mut`/`make_mut`/
+   `try_unwrap` are all outside §3.4's `Rc` whitelist, and `env: Env` would
+   need its own `Rc` too or the `Vec<ConstantInfo>` copy defeats the point.
+2. `restrict_to(&mut FEnv, k)` — `O(1)` and minimal, but §3.4 reserves
+   `&mut` for the state parameter and an `FEnv` is not state.
+3. **Both by value, returned** — `restrict_to(fe: FEnv, k) -> FEnv` and
+   `push(fe: FEnv, ci) -> FEnv`.  This is literally the cited record update
+   (a move plus one field), `O(1)`, no clone, no `Rc`, no `&mut`, and it is
+   task #6's own rule for accumulators.
+
+**(3) is what landed.**  The *semantics* are the Lean's exactly —
+`find(&restrict_to(fe, k), n) = (fe.restrictTo k).find? n` — and what
+changes is only that the caller no longer holds the pre-restriction value
+and must restore the bound instead of keeping two views.  That is enough
+here because of §1/§3.6's phase split: in the Rust port phase A is
+*finished* before any check runs, so pushes and restrictions never
+interleave, and phase B needs exactly one view at a time (it lowers the
+bound for a record and raises it back).  The one design this forecloses is
+the *parallel* phase B §3.1 contemplates, where several workers hold
+different views of one index at once; that is a one-field change when it
+comes (`idx: Rc<HashMap<…>>`, with `push` moving to an install-phase type
+that owns the map outright) and it does not touch the model, because `abs`
+reads the index through `find` either way.  A separate `fenv::dup` exists
+for the harness and the tests, and rebuilds the index with `mk_fenv_go`
+rather than copying it entry by entry — `crate::hashmap` has no iteration
+API by design, and the rebuild *is* the definition of the counters.
+
+**Lookups return a borrow.**  `Env.find?`/`FEnv.find?` are
+`Option<&ConstantInfo>`, not `Option<ConstantInfo>`: Lean shares the stored
+record, and a Rust copy would be `O(size)` per lookup (task #9's "Lean's
+sharing costs a copy").  For the same reason `ConstantInfo.name` and
+`.type` are spelled as direct matches instead of going through
+`toConstantVal`, which is ported faithfully but copies a `Vec<Name>`.
+
+**Constructs that do not survive transliteration, and their replacements.**
+
+1. **`type` is a Rust keyword**, so `ConstantVal.type` is `ConstantVal.ty`
+   (task #6's modulo rule).  `opaque`/`abbrev`, which the Lean writes in
+   `«»`, are ordinary Rust identifiers and keep their names.
+2. **Field defaults do not exist in Rust.**  `RecRule`'s five
+   install-computed fields and all eight of `IndCaps`' become explicit
+   constructors, `env::rec_rule_parsed` and `env::ind_caps_default` — which
+   is also where the two task-#10 surprises are pinned in code and in a
+   test: every parsed rule is `ctorParams = 0`, `fire = .inert`,
+   `k = eta = paramsBlind = false`, and `IndCaps.sortZ` defaults to
+   `ifAllZero []` ("zero at every valuation"), **not** `.never`.
+3. **`default : Expr`.**  `ProjTable.entry`'s `bodies.getD i default` needs
+   the value task #11 deliberately did not port; `env::default_expr` is the
+   derived `Inhabited` (`Expr.lean:403`), i.e. the first constructor at its
+   arguments' defaults, `.bvar 0`.  `guards.getD i .zero` is the other
+   `getD`.
+4. **Six `List` recursions became index-carrying helpers** (task #3's
+   pattern): `find_from` (the `List.find?` with its predicate inlined),
+   `ind_params_ok_from`, `recs_form_suffix_from`/`all_rec_info_from`,
+   `mk_fenv_go`, `tower_slots_all_f_from`/`rec_slots_all_f_from` (the
+   `(List.range nF).all`s), `subst_level_trees_from`
+   (`is_equiv_list_l_m_from` is the seventh, see 7 below).  Five `*_copy`
+   helpers stand for what Lean's value semantics gives free:
+   `levels_copy`, `exprs_copy`, `rec_rules_copy`, `constant_infos_copy`,
+   `core_types::code_points`.
+5. **`Env.consts` is a `Vec` in the Lean's own newest-first order**, so
+   `push`'s `ci :: fe.env.consts` is a front insertion, `O(n)` where Lean's
+   is `O(1)`.  Deliberate and documented: the list is on no hot path (every
+   lookup goes through the index; `consts` is read by `mk_fenv` and by the
+   driver's final environment), and keeping the order is what makes an
+   index counter "the position counted from the bottom".
+6. **Tuple memo keys carry hand-written derived instances.**  Five
+   `Hashable`/`Eq2` pairs — `(Name, Vec<Level>)`, `(Name, Name,
+   Vec<Level>)`, `(Expr, Expr)`, `(Level, Level)`, `(Expr, Vec<Expr>,
+   u64)` — spelling Lean's derived ones: `Hashable (α × β)` is
+   `mixHash (hash a) (hash b)` (`Init/Data/Hashable.lean:18`) and a Lean
+   triple is `(a, (b, c))`, so a three-component key hashes **right-nested**,
+   not as a flat fold; `Hashable (List α)` is `foldl mixHash 7` (`:37`),
+   which is emphatically *not* con-leche's own `levelsHash` (seed 13, right
+   fold — that one hashes a `.const` node's level list, the memo key uses
+   the derived instance); `Hashable Nat` is `UInt64.ofNat`, i.e. exactly
+   `hashmap.rs`'s identity `impl Hashable for u64`.  A unit test pins the
+   two fold shapes and asserts `levels_list_hash ≠ levelsHash`.
+7. **`isEquivListLM`'s arm order is load-bearing.**  The cited three-arm
+   `List` recursion answers `some false` on a length mismatch only *after*
+   walking the common prefix, so a `none` from an earlier pair still wins;
+   a length pre-check would be a different function.  The index version
+   tests `i >= ls.len() && i >= rs.len()` / both in range / else.
+8. **con-leche's linear-update discipline has no Rust counterpart.**  `let
+   mp := s.instC; let s := { s with instC := {} }; … mp.insert …` detaches a
+   component so Lean's runtime sees a unique reference; `s.inst_c.insert(…)`
+   on a `&mut CState` *is* that in-place update, so the dance is dropped and
+   the insertions kept.  `CState.flushed` is `&mut` for the same reason
+   (`CState` is the state parameter §3.4 reserves it for) and uses
+   `HashMap::clear`, which task #7 documented as exactly this `{ s with … :=
+   {} }`, keeping the bucket allocation.
+9. **A `CheckCM` action whose body is `pure e` is the plain Rust function
+   `e`** — the state argument would be dead weight and dead Lean.  That is
+   `peel_fuel` (= `peelFuel` and `peelFuelM`) and `subst_level_trees`
+   (= `substLevelTreesM`).
+
+**Aeneas needed three iterations' worth of restructuring — the first
+error-driven change in the port.**  The first run gave five errors in five
+functions, two distinct: *"Could not match the contexts"* and *"Internal
+error, please file an issue"*.  All five shared one shape — **a borrow taken
+from a shared structure, consumed into a scalar, and then joined with a
+branch that re-borrows or mutates the same structure**:
+
+* `env::ind_params_ok_from` and `fenv::rec_slots_all_f_from` computed `let
+  ok = match &block[i] { … }` / `let ok = match find(fe, …) { … }` and then
+  branched on `ok` before recursing.  Fix: lift the per-element test into
+  its own function (`ind_params_ok_one`, `rec_slot_ok`) and make the caller
+  `if helper(…) { recurse } else { false }`, so the borrow dies inside the
+  callee.  `rec_slot_ok` also stopped matching `Some(ConstantInfo::RecInfo
+  (..))` through the `Option<&…>` and calls `env::is_rec_info` instead,
+  which is the cited arm anyway.
+* `state_c::simplify_l_m`, `is_non_zero_l_m` and `is_equiv_l_m` probed the
+  memo with `match s.<map>.get(k) { Some(r) => Some(dup(r)), None => None }`
+  where `s : &mut CState`, then wrote to `s` in the miss branch.  Fix: three
+  probe functions over a **shared** state borrow (`lsimp_probe`,
+  `lnz_probe`, `eqv_probe`), so the map's borrow ends at the call boundary.
+
+Both fixes are improvements on their own terms — the probe functions are the
+Lean's `s.lsimpC[u]?` as a named thing, and the per-element tests are the
+`List.all` predicate as a named thing — so nothing was contorted to please
+the tool.  After them: **zero errors, zero warnings.**  Worth recording for
+the next porter: this is the first module set in which a `&mut`-threaded
+state meets a `&`-returning container API, and the rule that came out of it
+is *never hold a container's borrow across a branch that touches the
+container* — factor the probe.
+
+**Numbers.**
+
+| | |
+|---|---|
+| Lean ported (64 cited blocks over 7 files) | 432 raw / **398 code** |
+| — `Kernel/Core.lean` 1 block / `Kernel/Env.lean` 37 / `Kernel/FEnv.lean` 9 | 15 / 259 / 34 raw |
+| — `Cached/StateC.lean` 13 / `Cached/ParsedC.lean` 1 / `CheckerSplit.lean` 2 / `Installed.lean` 1 | 104 / 7 / 9 / 4 raw |
+| `src/core_types.rs` extracted (raw / code) | 167 / **58** |
+| `src/env.rs` extracted (raw / code) | 890 / **555** |
+| `src/fenv.rs` extracted (raw / code) | 250 / **117** |
+| `src/state_c.rs` extracted (raw / code) | 569 / **294** |
+| `src/parsed_c.rs` extracted (raw / code) | 91 / **36** |
+| the five together, extracted / `#[cfg(test)]` | 1 967 / 795 raw; **1 060 code** (2.7× the Lean code) |
+| generated `Types.lean` (whole crate) | **506** (253 of them this task's: `env` 150, `parsed_c` 53, `state_c` 33, `core_types` 9, `fenv` 8) |
+| generated `Funs.lean` (whole crate) | **5 693** (1 650 of them this task's: `env` 735, `state_c` 652, `fenv` 162, `core_types` 91, `parsed_c` 10) |
+| `TypesExternal_Template.lean` / `FunsExternal_Template.lean` | 25 / 54 — **unchanged** |
+| `charon cargo --preset=aeneas` wall (after `cargo clean`) | **0.45 s** |
+| `aeneas -backend lean -dest _tmp/core-lean -split-files -loops-to-rec` | **2.22 s** (2.01 s self-reported) |
+| items translated (whole crate) | 408 declarations, 333 transparent fns, 31 opaque, 7 globals, 11 trait decls (8 emitted), 35 trait impls (24 emitted) |
+| `partial_fixpoint` (whole crate / this task) | **85** / **18** (`env` 9, `state_c` 5, `fenv` 3, `core_types` 1) |
+| `mutual` blocks | 1 in `Funs.lean` (still task #3's 8-function `leq_core` knot), 3 in `Types.lean` — this task adds **none**; every recursion is self-recursion and every new type is a flat record or enum |
+| external holes | **exactly the four `Rc` axioms of §3.2** — `new`, `clone`, `deref`, `ptr_eq`, plus the `Rc` type axiom.  Nothing `String`-shaped; the 31 opaque functions are all `core`/`alloc` primitives Aeneas already models, and this task adds none |
+
+`cargo build`/`cargo test` warning-free, **75/75** green (53 from tasks
+#6-#11 + 22 new); `scripts/lint-rust-style.sh crates/con-ron-core/src`
+clean; `scripts/provenance.py check` green — 472 items, 325 citations, all
+current at pin 3e004805.
+
+**Tests** (22, `#[cfg(test)]`, invisible to Charon).  `core_types`: the
+code-point copy, `beq` separating kind from payload, and the `CheckM`
+convention as a worked `Ok`/`Err` function.  `env`: the five mode accessors
+at both constructors (and that `certs`, `verifiedChecks` and `betaGate`
+agree everywhere, `Env.lean:97-101`) plus `betaSkip`/`ioSkip` at a `.never`
+and a non-`.never` datum; `ReducibilityHint.lt` as the order `opaque <
+regular h < abbrev` with its overlapping arms checked in both directions,
+and `sameRegular` only at equal heights; `piSortTeleLen?` at 0/1/2 binders
+and at a non-sort residual; `indParamsOk`'s one-sidedness (a too-short
+telescope rejects, a constructor's declared count must match, an unfoldable
+residual passes); the reserved names distinct and both of the shape
+`Name.isProjFnShape` rejects; `Env.find?` newest-first and the two direct
+accessors agreeing with `toConstantVal`; `ProjTable.entry` in range and at
+both `getD` defaults, `findProj?` keyed on `projTableName` and `none` beyond
+`numFields`, and a table's header being `Sort 1` under the reserved name;
+`recsFormSuffix` on four tag patterns; and the `dup`s, including the two
+task-#10 placeholder facts.  `fenv`: `mkFEnv` hiding nothing and agreeing
+with `Env.find?`; push/restrict — three pushes, `mkFEnv_push` (pushing is
+building afresh), the prefix views at `k = 0, 2, 3`, the bound restored, and
+`dup` preserving bound and answers; **shadowing** — the newest binding wins
+in the index as in the list, and the shadowed one is what the prefix view
+hides; `findProj?`/`towerSlotsAllF`/`recSlotsAllF` at and beyond their
+counts.  `state_c`: a **tuple-key map round trip on all five key shapes**
+(structurally equal keys hit, component-permuted and truncated ones miss,
+the `instC` depth is part of the key); the derived list hash being the
+seed-7 left fold and differing from `levelsHash`; **`CState.flushed`** —
+all ten environment-dependent maps emptied, `ienv` and the three
+level-operation memos surviving with their entries intact; and the level
+memo wrappers agreeing with `level::simplify`/`is_non_zero`/`is_equiv`/
+`is_equiv_list`, hitting on the second call, and `l == r` answering `some
+true` **without writing a cache entry**.  `parsed_c`: a `DeclC` list whose
+`indDecl` block satisfies `recsFormSuffix` and `indParamsOk`, and a
+`PendingCheck` carrying the seam.
+
+**Skipped, "needs expr_ops"** (they read `ConLeche/Kernel/ExprOps.lean`,
+which a concurrent task is porting as `src/expr_ops.rs`): `StateC.lean`'s seven
+environment-index guards `isUnitLikeTyC`, `isCtorAppC`, `headHintC`,
+`unfoldableHeadC`, `sameConstHeadsC`, `rawNatLitC?`, `etaCtorShapeC`
+(`ExprC.getAppFn`, `Expr.getAppArgs`, and the pinned basis names of
+`Kernel/Basis.lean`); `bvarBoundM` (`Expr.bvarB`, the *exact* accessor);
+the nine syntactic wrappers `inst1M`, `instListM`, `instListRevM`,
+`abstract1M`, `abstractRangeM`, `mkAppNM`, `instSpineM`, `piResidualM`,
+`instLevelParamsM`; the two lazy stored-constant conversions `storedTyIdxM`
+and `storedValIdxM` (`Expr.exprPtrBEq`) and, through them, `constTyAtM`,
+`constValAtM`, `ruleRhsAtM`; and the memoized DAG walk
+`constsResolveFCGo`/`constsResolveFC`.  `instCCapC` and the `instC` map
+*are* here, because they are state.  From `FEnv.lean`: `andRescueSlotsF`
+(`andRescueSlotsOf`, `Kernel/Core.lean`) and the four indexed guard twins
+`natLitSupportedF`, `strLitSupportedF`, `natOpGuardF`, `natOpStoredF`
+(`natIndOk`, `stringTyOk`, … and the pinned names, `Kernel/Basis.lean`).
+
+**Deliberately not ported** (recorded so the next task does not re-derive
+it): `Env.lean`'s `blockRecSuffixDec` (`:737`, the substituted `Decidable`
+instance — the tag pass `recsFormSuffix` it delegates to *is* ported) and
+its three `theorem`s (`compareParams_plain`, `compareParams_nested`, the
+`recsFormSuffix_iff` pair) — the spec this port will be proved against;
+`Core.lean`'s `instance : ToString CheckError` (`:53-57`, rendering only)
+and `CoreFns`/`CoreFns.ioView` (`:61-96`, the record of closures — §3.1 ties
+that knot with a mutually recursive block of wrappers, so it is not a type
+this task can carry); `CheckerSplit.lean`'s `ValueKind.word` (`:45-48`,
+a message string); every `deriving Repr`, `Inhabited` and `DecidableEq` on
+the `Env.lean` records — con-leche uses the derived equality only in `Prop`s
+and in the decision it substitutes away, and the executable comparisons the
+checker does (`Name.beq`, `Expr.beq`, `sameRegular`'s `==`) are ported.
+`DeclC` derives nothing in con-leche either, deliberately (task #10).
+
+**Coverage** (`scripts/provenance.py coverage | tail -3`), con-leche
+3e004805: **TOTAL 139/1018 covered (13.7 %), 879 uncovered** — up from task
+#11's 73/1018 (7.2 %), the largest single jump so far.  Per file:
+**`Env.lean` 37/38** (the one uncovered is exactly `blockRecSuffixDec`),
+`FEnv.lean` 9/14 (the five needing `Core`/`Basis`), `StateC.lean` 12/38
+(the 26 needing `ExprOps`/`Basis`), `CheckerSplit.lean` 2/6,
+`ParsedC.lean` 1/10, `Installed.lean` 1/21, `Core.lean` 2/130 — so the
+ledger agrees with the prose in every file.
