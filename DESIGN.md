@@ -250,6 +250,9 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
 
 ```
 crates/con-ron-core/     the verified core (checkDecls and below)
+  src/kernel/*.rs        one module per ConLeche/Kernel/*.lean
+  src/cached/*.rs        one module per ConLeche/Cached/*.lean
+  src/ron/*.rs           nat, hashmap — replacements for runtime primitives
 crates/con-ron/          CLI, parser, frontend rewrites, thread pool
 proof/                   Lake project: requires con-leche + aeneas (task #4)
   lakefile.toml          two path `require`s; `lean_lib ConRon` and a second
@@ -343,6 +346,18 @@ declaration lists, byte-identity of a re-dump, and agreement of
 `checkDecls .verified` on both.  `scripts/dump-fixtures.sh` sweeps the whole
 corpus and additionally compares each verdict against con-leche's pinned
 `tests/{arena,e2e,annot}-expected.txt`.
+
+**Module nesting is load-bearing (task #14 follow-up).**  Aeneas prints
+every reference unqualified inside the crate's Lean namespace, so a Rust
+*local* — a field or a parameter — named like a module (`env`, `name`,
+`expr`) shadows the module in the generated Lean (`env.Env.find` became a
+projection off the parameter `env`).  Nesting the modules one level
+(`kernel::name`, `cached::state_c`, `ron::nat`) makes every generated
+reference start with a segment no local is ever called, and mirrors
+con-leche's directory tree.  Generated names are therefore
+`ConRon.Generated.kernel.level.leq_core`; the refinement tier follows
+(`ConRon/Refine/README.md`).  Worth an upstream report: Aeneas could
+qualify with `_root_` or the namespace.
 
 ### 3.7 Provenance: keeping the port in sync with con-leche
 

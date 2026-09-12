@@ -47,17 +47,17 @@
 //! `ConLeche/Kernel/Core.lean`, neither of which is ported yet.  They are
 //! this file's only omissions.
 
-use crate::env;
-use crate::env::ConstantInfo;
-use crate::env::Env;
-use crate::env::ProjEntry;
-use crate::hashmap::HashMap;
-use crate::name::Name;
+use crate::kernel::env;
+use crate::kernel::env::ConstantInfo;
+use crate::kernel::env::Env;
+use crate::kernel::env::ProjEntry;
+use crate::ron::hashmap::HashMap;
+use crate::kernel::name::Name;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:44-49 FEnv
 /// The spec environment together with a name index whose lookup function
-/// agrees with `Env.find?`.  Deviations: `Std.HashMap` is `crate::hashmap`
+/// agrees with `Env.find?`.  Deviations: `Std.HashMap` is `crate::ron::hashmap`
 /// (§3.3), and the two `Nat`s — the per-entry installation counter and
 /// `visibleBelow` — are `u64` (§3.3).
 pub struct FEnv {
@@ -235,7 +235,7 @@ pub fn rec_slot_ok(fe: &FEnv, n: &Name) -> bool {
 /// environment across a run, and the tests want two views alive at once.
 ///
 /// The index is rebuilt with `mk_fenv_go` rather than copied entry by entry:
-/// `crate::hashmap` has no iteration API (by design — its module note), and
+/// `crate::ron::hashmap` has no iteration API (by design — its module note), and
 /// the rebuild is the definition of the counters anyway.  `visible_below` is
 /// carried over unchanged, so a copy of a restricted view is that restricted
 /// view.
@@ -250,14 +250,14 @@ pub fn dup(fe: &FEnv) -> FEnv {
 
 #[cfg(test)]
 mod tests {
-    use crate::env;
-    use crate::env::ConstantInfo;
-    use crate::env::ConstantVal;
-    use crate::expr;
-    use crate::fenv;
-    use crate::level;
-    use crate::name;
-    use crate::name::Name;
+    use crate::kernel::env;
+    use crate::kernel::env::ConstantInfo;
+    use crate::kernel::env::ConstantVal;
+    use crate::kernel::expr;
+    use crate::kernel::fenv;
+    use crate::kernel::level;
+    use crate::kernel::name;
+    use crate::kernel::name::Name;
 
     fn nm(s: &str) -> Name {
         let cps: Vec<u32> = s.chars().map(|c| c as u32).collect();

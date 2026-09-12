@@ -21,11 +21,11 @@
 //! fields are at their parse placeholders (task #10, surprise 2;
 //! `env::rec_rule_parsed`, `env::ind_caps_default`).
 
-use crate::env::BasisKind;
-use crate::env::ConstantInfo;
-use crate::env::ConstantVal;
-use crate::env::ReducibilityHint;
-use crate::expr::Expr;
+use crate::kernel::env::BasisKind;
+use crate::kernel::env::ConstantInfo;
+use crate::kernel::env::ConstantVal;
+use crate::kernel::env::ReducibilityHint;
+use crate::kernel::expr::Expr;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:55-61 DeclC
@@ -91,17 +91,17 @@ pub struct PendingCheck {
 
 #[cfg(test)]
 mod tests {
-    use crate::env;
-    use crate::env::BasisKind;
-    use crate::env::ConstantInfo;
-    use crate::env::ConstantVal;
-    use crate::expr;
-    use crate::level;
-    use crate::name;
-    use crate::name::Name;
-    use crate::parsed_c;
-    use crate::parsed_c::DeclC;
-    use crate::parsed_c::ValueKind;
+    use crate::kernel::env;
+    use crate::kernel::env::BasisKind;
+    use crate::kernel::env::ConstantInfo;
+    use crate::kernel::env::ConstantVal;
+    use crate::kernel::expr;
+    use crate::kernel::level;
+    use crate::kernel::name;
+    use crate::kernel::name::Name;
+    use crate::cached::parsed_c;
+    use crate::cached::parsed_c::DeclC;
+    use crate::cached::parsed_c::ValueKind;
 
     fn nm(s: &str) -> Name {
         let cps: Vec<u32> = s.chars().map(|c| c as u32).collect();

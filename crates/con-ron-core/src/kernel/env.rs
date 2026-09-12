@@ -28,16 +28,16 @@
 //! Level` in the Lean; the port does not inherit the asymmetry (task #10,
 //! surprise 8) — both are `Vec`s.
 
-use crate::core_types;
-use crate::expr;
-use crate::expr::Expr;
-use crate::expr::ExprKind;
-use crate::level;
-use crate::level::Level;
-use crate::name;
-use crate::name::Name;
-use crate::prop_when;
-use crate::prop_when::PropWhen;
+use crate::kernel::core_types;
+use crate::kernel::expr;
+use crate::kernel::expr::Expr;
+use crate::kernel::expr::ExprKind;
+use crate::kernel::level;
+use crate::kernel::level::Level;
+use crate::kernel::name;
+use crate::kernel::name::Name;
+use crate::kernel::prop_when;
+use crate::kernel::prop_when::PropWhen;
 use std::vec::Vec;
 
 // ---------------------------------------------------------------------------
@@ -890,17 +890,17 @@ pub fn all_rec_info_from(block: &Vec<ConstantInfo>, i: usize) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::env;
-    use crate::env::BasisKind;
-    use crate::env::CheckMode;
-    use crate::env::ConstantInfo;
-    use crate::env::ConstantVal;
-    use crate::env::ReducibilityHint;
-    use crate::expr;
-    use crate::level;
-    use crate::name;
-    use crate::name::Name;
-    use crate::prop_when;
+    use crate::kernel::env;
+    use crate::kernel::env::BasisKind;
+    use crate::kernel::env::CheckMode;
+    use crate::kernel::env::ConstantInfo;
+    use crate::kernel::env::ConstantVal;
+    use crate::kernel::env::ReducibilityHint;
+    use crate::kernel::expr;
+    use crate::kernel::level;
+    use crate::kernel::name;
+    use crate::kernel::name::Name;
+    use crate::kernel::prop_when;
 
     fn nm(s: &str) -> Name {
         let cps: Vec<u32> = s.chars().map(|c| c as u32).collect();

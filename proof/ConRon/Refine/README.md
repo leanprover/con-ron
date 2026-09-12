@@ -9,14 +9,14 @@ the task-#3 spike.  `ConRon/Spike/LevelName/` stays where it is: it is task
 
 | thing | where it lives | how it is named |
 |---|---|---|
-| a ported Rust function `<module>::<fn>` | generated, `ConRon/Generated/Funs.lean` | `ConRon.Generated.<module>.<fn>` |
+| a ported Rust function `<module>::<fn>` | generated, `ConRon/Generated/Funs.lean` | `ConRon.Generated.<dir>.<module>.<fn>` |
 | a ported Rust type `<module>::<Type>` | generated, `ConRon/Generated/Types.lean` | `ConRon.Generated.<module>.<Type>` |
 | its refinement lemma | `ConRon/Refine/<Module>.lean` | `ConRon.Refine.<Module>.<fn>_refines` |
 | the abstraction function for `<module>::<Type>` | `ConRon/Refine/Abs.lean` (P3) | `abs<Type>` |
 | the well-formedness predicate for `<module>::<Type>` | `ConRon/Refine/Abs.lean` (P3) | `<Type>WF` |
 
 `<Module>` is the Rust module name in `UpperCamelCase` (`level` → `Level`,
-`prop_when` → `PropWhen`), so `ConRon.Generated.level.simplify` is refined by
+`prop_when` → `PropWhen`), so `ConRon.Generated.kernel.level.simplify` is refined by
 `ConRon.Refine.Level.simplify_refines` in `ConRon/Refine/Level.lean`.  Helper
 lemmas that are not *the* refinement of a function keep a descriptive name
 (`level_zero_inv`, `str_eq_refl`, …), exactly as in the spike.

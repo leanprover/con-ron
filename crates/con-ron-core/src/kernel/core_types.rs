@@ -59,7 +59,7 @@
 //! `code_points` is the port's general spelling of a Lean string literal —
 //! `env::proj_fn_name`'s `"proj"` goes through it too.
 
-use crate::name;
+use crate::kernel::name;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Kernel/Core.lean:47-51 CheckError
@@ -167,8 +167,8 @@ pub fn beq(a: &CheckError, b: &CheckError) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::core_types;
-    use crate::core_types::CheckError;
+    use crate::kernel::core_types;
+    use crate::kernel::core_types::CheckError;
 
     /// An ASCII message, spelled the way a throw site spells one.
     const M_DUP: [u32; 9] = [

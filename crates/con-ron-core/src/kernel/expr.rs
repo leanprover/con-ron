@@ -3,7 +3,7 @@
 //! The `Level` half of that file (lines 35-139: the `Level` inductive, its
 //! `Hashable`/`BEq` instances, `levelHasParam`, `levelsHaveParam`,
 //! `levelHash` and `levelsHash`) was ported at task #3 and lives in
-//! `crate::level`; this module is everything from `BinderMeta` on.
+//! `crate::kernel::level`; this module is everything from `BinderMeta` on.
 //!
 //! Conventions, as in `name.rs` and `level.rs`: an `Expr` is an `Rc` tree
 //! whose node stores the `@[computed_field] data` word, written by the smart
@@ -21,15 +21,15 @@
 //! Lean's `UInt64` `+`/`*` wrap: the port must be bit-exact here, since the
 //! word is what `beq` rejects on and what the memo tables bucket by.
 
-use crate::hashmap::Eq2;
-use crate::hashmap::Hashable;
-use crate::level;
-use crate::level::Level;
-use crate::name;
-use crate::name::Name;
-use crate::nat;
-use crate::prop_when;
-use crate::prop_when::PropWhen;
+use crate::ron::hashmap::Eq2;
+use crate::ron::hashmap::Hashable;
+use crate::kernel::level;
+use crate::kernel::level::Level;
+use crate::kernel::name;
+use crate::kernel::name::Name;
+use crate::ron::nat;
+use crate::kernel::prop_when;
+use crate::kernel::prop_when::PropWhen;
 use std::rc::Rc;
 
 // ---------------------------------------------------------------------------
@@ -68,7 +68,7 @@ pub fn binder_meta_dup(m: &BinderMeta) -> BinderMeta {
 
 /// con-leche: ConLeche/Kernel/Expr.lean:108-112 Literal
 /// The two literals.  Deviation (DESIGN.md §3.3): `natVal`'s `Nat` is
-/// `crate::nat::Nat`, the crate's own bignum, and `strVal`'s `String` is a
+/// `crate::ron::nat::Nat`, the crate's own bignum, and `strVal`'s `String` is a
 /// `Vec<u32>` of code points.
 pub enum Literal {
     NatVal(nat::Nat),
@@ -671,19 +671,19 @@ pub fn mk_bvar(i: u64) -> Expr {
    * `deriving Inhabited` on `Expr` and `instance : Inhabited BinderMeta`
      (:106): Lean needs a default for `Array.get!`-style partiality; the port
      does not, since `Vec` indexing is checked in the model.
-   * the `Level` half (:35-139) — ported at task #3, in `crate::level`.
+   * the `Level` half (:35-139) — ported at task #3, in `crate::kernel::level`.
    * the accessors this file's docstring points at but does not contain
      (`Expr.bvarB`, `Expr.fvarB`, `bvarBoundMemo`, `fvarRangeMemo`, and the
      `isApp`/`getAppFn` family) live in `Kernel/ExprOps.lean`, a later
      task. */
 
 // ---------------------------------------------------------------------------
-// The hash-map dictionaries (`crate::hashmap`'s own traits, task #7)
+// The hash-map dictionaries (`crate::ron::hashmap`'s own traits, task #7)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Expr.lean:435-440 _
 /// The cited `instance : Hashable Expr := ⟨Expr.hash⟩`, as the key
-/// dictionary of `crate::hashmap` — what `memoE`/`memoB` and every other
+/// dictionary of `crate::ron::hashmap` — what `memoE`/`memoB` and every other
 /// `Expr`-keyed table will probe with.  Deviation: `Hashable` is our own
 /// one-method trait rather than Lean's class (task #7).
 impl Hashable for Expr {
@@ -696,7 +696,7 @@ impl Hashable for Expr {
 
 /// con-leche: ConLeche/Kernel/Expr.lean:983 _
 /// The cited `instance : BEq Expr := ⟨Expr.beq⟩`, as the key dictionary of
-/// `crate::hashmap`.  Deviation: `Eq2` is our own one-method trait rather
+/// `crate::ron::hashmap`.  Deviation: `Eq2` is our own one-method trait rather
 /// than `core::cmp::PartialEq` — which is exactly what lets the instance be
 /// `beq` with its pointer and computed-word fast paths (task #7).
 impl Eq2 for Expr {
@@ -709,19 +709,19 @@ impl Eq2 for Expr {
 
 #[cfg(test)]
 mod tests {
-    use crate::expr;
-    use crate::expr::BinderMeta;
-    use crate::expr::Expr;
-    use crate::expr::ExprKind;
-    use crate::expr::Literal;
-    use crate::hashmap::Eq2;
-    use crate::hashmap::Hashable;
-    use crate::level;
-    use crate::level::Level;
-    use crate::name;
-    use crate::name::Name;
-    use crate::nat;
-    use crate::prop_when;
+    use crate::kernel::expr;
+    use crate::kernel::expr::BinderMeta;
+    use crate::kernel::expr::Expr;
+    use crate::kernel::expr::ExprKind;
+    use crate::kernel::expr::Literal;
+    use crate::ron::hashmap::Eq2;
+    use crate::ron::hashmap::Hashable;
+    use crate::kernel::level;
+    use crate::kernel::level::Level;
+    use crate::kernel::name;
+    use crate::kernel::name::Name;
+    use crate::ron::nat;
+    use crate::kernel::prop_when;
 
     /// A single `str` component under `anonymous` — `nm("foo")` is `` `foo ``.
     fn nm(s: &str) -> Name {

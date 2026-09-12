@@ -19,14 +19,6 @@
 //! | `state_c` | `ConLeche/Cached/StateC.lean` |
 //! | `parsed_c` | `ConLeche/Cached/ParsedC.lean`, plus the two seam records of `Cached/Installed.lean` and `Kernel/CheckerSplit.lean` |
 
-pub mod core_types;
-pub mod env;
-pub mod expr;
-pub mod fenv;
-pub mod hashmap;
-pub mod level;
-pub mod name;
-pub mod nat;
-pub mod parsed_c;
-pub mod prop_when;
-pub mod state_c;
+pub mod cached;
+pub mod kernel;
+pub mod ron;

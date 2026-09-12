@@ -6,7 +6,7 @@
 //! con-leche's task #198 removed the cached tier's second expression type:
 //! `ExprC` *is* `ConLeche.Expr`, one node type with one `BEq` and one
 //! `Hashable` (task #10, surprise 1).  So every `ExprC`-typed field below is
-//! `crate::expr::Expr`, and DESIGN.md §3.1's "one Rust module per Lean file"
+//! `crate::kernel::expr::Expr`, and DESIGN.md §3.1's "one Rust module per Lean file"
 //! must not be read as licensing a second expression module.
 //!
 //! ## The monad
@@ -71,16 +71,16 @@
 //! `constsResolveFCGo`/`constsResolveFC`.  `instCCapC` and the `instC` map
 //! itself *are* here, because they are state.
 
-use crate::core_types::CheckError;
-use crate::expr;
-use crate::expr::Expr;
-use crate::hashmap::Eq2;
-use crate::hashmap::HashMap;
-use crate::hashmap::Hashable;
-use crate::level;
-use crate::level::Level;
-use crate::name;
-use crate::name::Name;
+use crate::kernel::core_types::CheckError;
+use crate::kernel::expr;
+use crate::kernel::expr::Expr;
+use crate::ron::hashmap::Eq2;
+use crate::ron::hashmap::HashMap;
+use crate::ron::hashmap::Hashable;
+use crate::kernel::level;
+use crate::kernel::level::Level;
+use crate::kernel::name;
+use crate::kernel::name::Name;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Cached/StateC.lean:166 CheckCM
@@ -569,16 +569,16 @@ pub fn record_c_const(
 
 #[cfg(test)]
 mod tests {
-    use crate::expr;
-    use crate::expr::Expr;
-    use crate::hashmap::Eq2;
-    use crate::hashmap::HashMap;
-    use crate::hashmap::Hashable;
-    use crate::level;
-    use crate::level::Level;
-    use crate::name;
-    use crate::name::Name;
-    use crate::state_c;
+    use crate::kernel::expr;
+    use crate::kernel::expr::Expr;
+    use crate::ron::hashmap::Eq2;
+    use crate::ron::hashmap::HashMap;
+    use crate::ron::hashmap::Hashable;
+    use crate::kernel::level;
+    use crate::kernel::level::Level;
+    use crate::kernel::name;
+    use crate::kernel::name::Name;
+    use crate::cached::state_c;
 
     fn nm(s: &str) -> Name {
         let cps: Vec<u32> = s.chars().map(|c| c as u32).collect();

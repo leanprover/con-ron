@@ -58,11 +58,11 @@
 //! `theorem` — the whole law battery from `:992` on, which is the *spec*
 //! this port will be proved against, not code.
 
-use crate::hashmap::Eq2;
-use crate::hashmap::Hashable;
-use crate::name;
-use crate::name::Name;
-use crate::name::NameKind;
+use crate::ron::hashmap::Eq2;
+use crate::ron::hashmap::Hashable;
+use crate::kernel::name;
+use crate::kernel::name::Name;
+use crate::kernel::name::NameKind;
 
 // ---------------------------------------------------------------------------
 // A strict total order on names (`PropWhen.lean:56-187`)
@@ -394,7 +394,7 @@ pub fn hash_pw(pw: &PropWhen) -> u64 {
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:461 _
 /// The cited `instance : Hashable PropWhen := ⟨hash'⟩`, as the key
-/// dictionary of `crate::hashmap` (task #7).
+/// dictionary of `crate::ron::hashmap` (task #7).
 impl Hashable for PropWhen {
     /// con-leche: ConLeche/Kernel/PropWhen.lean:457-459 PropWhen.hash'
     /// `hash'`.
@@ -405,7 +405,7 @@ impl Hashable for PropWhen {
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:455 _
 /// The cited `instance : DecidableEq PropWhen := decEq`, as the key
-/// dictionary of `crate::hashmap` (task #7).
+/// dictionary of `crate::ron::hashmap` (task #7).
 impl Eq2 for PropWhen {
     /// con-leche: ConLeche/Kernel/PropWhen.lean:449-453 PropWhen.decEq
     /// `decEq`.
@@ -670,11 +670,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::hashmap::Eq2;
-    use crate::hashmap::Hashable;
-    use crate::name;
-    use crate::name::Name;
-    use crate::prop_when::{
+    use crate::ron::hashmap::Eq2;
+    use crate::ron::hashmap::Hashable;
+    use crate::kernel::name;
+    use crate::kernel::name::Name;
+    use crate::kernel::prop_when::{
         beq, bind_z, bind_z_go, canon, dup, has_params, hash_pw, holds, if_all_zero, inter,
         is_never, name_cmp, name_lt, names_beq, never, params_defined, to_list, to_list_opt,
         NameToPw, Ordering, PropWhen, Valuation,

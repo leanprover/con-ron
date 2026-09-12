@@ -49,13 +49,13 @@ def absString (s : alloc.vec.Vec Std.U32) : String :=
 /- `ConLeche/Kernel/Name.lean:34` -- the Rust `Name` tree as a `ConLeche.Name`. -/
 mutual
 
-def absName : name.Name → ConLeche.Name
+def absName : kernel.name.Name → ConLeche.Name
   | .mk nd => absNameNode nd
 
-def absNameNode : name.NameNode → ConLeche.Name
+def absNameNode : kernel.name.NameNode → ConLeche.Name
   | .mk _hash k => absNameKind k
 
-def absNameKind : name.NameKind → ConLeche.Name
+def absNameKind : kernel.name.NameKind → ConLeche.Name
   | .Anonymous => .anonymous
   | .Str pre s => .str (absName pre) (absString s)
   | .Num pre n => .num (absName pre) n.val
@@ -66,13 +66,13 @@ end
 `ConLeche.Level`. -/
 mutual
 
-def absLevel : level.Level → ConLeche.Level
+def absLevel : kernel.level.Level → ConLeche.Level
   | .mk nd => absLevelNode nd
 
-def absLevelNode : level.LevelNode → ConLeche.Level
+def absLevelNode : kernel.level.LevelNode → ConLeche.Level
   | .mk _hash k => absLevelKind k
 
-def absLevelKind : level.LevelKind → ConLeche.Level
+def absLevelKind : kernel.level.LevelKind → ConLeche.Level
   | .Zero => .zero
   | .Succ u => .succ (absLevel u)
   | .Max u v => .max (absLevel u) (absLevel v)
@@ -88,18 +88,18 @@ exactly what con-leche's constructor builds on the abstracted arguments.
 Nothing is claimed when the Rust side fails. -/
 
 /-- `ConLeche/Kernel/Expr.lean` -- `level::zero` refines `Level.zero`. -/
-theorem level_zero_refines {u : level.Level} (h : level.zero = ok u) :
+theorem level_zero_refines {u : kernel.level.Level} (h : kernel.level.zero = ok u) :
     absLevel u = ConLeche.Level.zero := by
-  simp [level.zero] at h
+  simp [kernel.level.zero] at h
   subst h
   rw [absLevel, absLevelNode, absLevelKind]
 
 /-- `ConLeche/Kernel/Expr.lean` -- `level::succ` refines `Level.succ`.  This is
 the one that goes through the hash plumbing (`level.hash_data`, `mix_hash`)
 and the `Rc` model, so it exercises the whole generated pipeline. -/
-theorem level_succ_refines {a u : level.Level} (h : level.succ a = ok u) :
+theorem level_succ_refines {a u : kernel.level.Level} (h : kernel.level.succ a = ok u) :
     absLevel u = ConLeche.Level.succ (absLevel a) := by
-  simp [level.succ, level.hash_data] at h
+  simp [kernel.level.succ, kernel.level.hash_data] at h
   obtain ⟨_, _, rfl⟩ := h
   rw [absLevel, absLevelNode, absLevelKind]
 

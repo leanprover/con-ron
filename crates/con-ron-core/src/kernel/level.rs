@@ -3,7 +3,7 @@
 //!
 //! Brought into the crate at task #9 from `spikes/level-name/src/level.rs`,
 //! which stays untouched as task #3's recorded evidence; this copy is the
-//! living code, and it additionally carries the `crate::hashmap`
+//! living code, and it additionally carries the `crate::ron::hashmap`
 //! dictionaries (`Hashable`, `Eq2`) at the end of the file.
 //!
 //! Conventions, as in `name.rs`: `Level`s are `Rc` trees with the
@@ -15,10 +15,10 @@
 //! `succ` peeled off a level, so overflow means a pathological input and, in
 //! the Aeneas model, a `fail` — harmless for the accept direction.
 
-use crate::hashmap::Eq2;
-use crate::hashmap::Hashable;
-use crate::name;
-use crate::name::Name;
+use crate::ron::hashmap::Eq2;
+use crate::ron::hashmap::Hashable;
+use crate::kernel::name;
+use crate::kernel::name::Name;
 use std::rc::Rc;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
@@ -591,12 +591,12 @@ pub fn name_is_proj_fn_shape(n: &Name) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// The hash-map dictionaries (`crate::hashmap`'s own traits, task #7)
+// The hash-map dictionaries (`crate::ron::hashmap`'s own traits, task #7)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Expr.lean:55-57 _
 /// The cited `instance : Hashable Level := ⟨Level.hashData⟩`, as the key
-/// dictionary of `crate::hashmap` — this is what the `lsimpC`, `lnzC` and
+/// dictionary of `crate::ron::hashmap` — this is what the `lsimpC`, `lnzC` and
 /// `eqvC` memo tables will probe with.
 impl Hashable for Level {
     /// con-leche: ConLeche/Kernel/Expr.lean:55-57 _
@@ -608,7 +608,7 @@ impl Hashable for Level {
 
 /// con-leche: ConLeche/Kernel/Expr.lean:86 _
 /// The cited `instance : BEq Level := ⟨Level.beq⟩`, as the key dictionary of
-/// `crate::hashmap`.  Deviation: `Eq2` is our own one-method trait, so the
+/// `crate::ron::hashmap`.  Deviation: `Eq2` is our own one-method trait, so the
 /// instance is `beq` with its pointer and hash fast paths (DESIGN.md §3.2).
 impl Eq2 for Level {
     /// con-leche: ConLeche/Kernel/Expr.lean:76-79 Level.beq
@@ -620,12 +620,12 @@ impl Eq2 for Level {
 
 #[cfg(test)]
 mod tests {
-    use crate::hashmap::Eq2;
-    use crate::hashmap::Hashable;
-    use crate::level;
-    use crate::level::Level;
-    use crate::name;
-    use crate::name::Name;
+    use crate::ron::hashmap::Eq2;
+    use crate::ron::hashmap::Hashable;
+    use crate::kernel::level;
+    use crate::kernel::level::Level;
+    use crate::kernel::name;
+    use crate::kernel::name::Name;
 
     /// A single `str` component under `anonymous`.
     fn nm(s: &str) -> Name {

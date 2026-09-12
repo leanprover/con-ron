@@ -2,7 +2,7 @@
 //!
 //! Brought into the crate at task #9 from `spikes/level-name/src/name.rs`,
 //! which stays untouched as task #3's recorded evidence; this copy is the
-//! living code, and it additionally carries the `crate::hashmap`
+//! living code, and it additionally carries the `crate::ron::hashmap`
 //! dictionaries (`Hashable`, `Eq2`) at the end of the file.
 //!
 //! Representation notes (DESIGN.md §3.2, §3.3):
@@ -15,8 +15,8 @@
 //!   returns owned `Name`s, because Rust cannot pattern-match through an
 //!   `Rc` and therefore cannot give back a borrowed subterm.
 
-use crate::hashmap::Eq2;
-use crate::hashmap::Hashable;
+use crate::ron::hashmap::Eq2;
+use crate::ron::hashmap::Hashable;
 use std::rc::Rc;
 
 /// con-leche: ConLeche/Kernel/Name.lean:26-45 Name
@@ -201,12 +201,12 @@ pub fn singleton(n: &Name) -> Vec<Name> {
      reads it. */
 
 // ---------------------------------------------------------------------------
-// The hash-map dictionaries (`crate::hashmap`'s own traits, task #7)
+// The hash-map dictionaries (`crate::ron::hashmap`'s own traits, task #7)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Name.lean:47-49 _
 /// The cited `instance : Hashable Name := ⟨Name.hashData⟩`, as the key
-/// dictionary of `crate::hashmap`.  Deviation: `Hashable` is our own
+/// dictionary of `crate::ron::hashmap`.  Deviation: `Hashable` is our own
 /// one-method trait rather than Lean's class (task #7).
 impl Hashable for Name {
     /// con-leche: ConLeche/Kernel/Name.lean:47-49 _
@@ -218,7 +218,7 @@ impl Hashable for Name {
 
 /// con-leche: ConLeche/Kernel/Name.lean:88 _
 /// The cited `instance : BEq Name := ⟨Name.beq⟩`, as the key dictionary of
-/// `crate::hashmap`.  Deviation: `Eq2` is our own one-method trait rather
+/// `crate::ron::hashmap`.  Deviation: `Eq2` is our own one-method trait rather
 /// than `core::cmp::PartialEq` — which is exactly what lets the instance be
 /// `beq` with its pointer and hash fast paths (DESIGN.md §3.2, task #7).
 impl Eq2 for Name {
@@ -231,10 +231,10 @@ impl Eq2 for Name {
 
 #[cfg(test)]
 mod tests {
-    use crate::hashmap::Eq2;
-    use crate::hashmap::Hashable;
-    use crate::name;
-    use crate::name::Name;
+    use crate::ron::hashmap::Eq2;
+    use crate::ron::hashmap::Hashable;
+    use crate::kernel::name;
+    use crate::kernel::name::Name;
 
     /// A single `str` component under `anonymous` — `nm("foo")` is `` `foo ``.
     pub fn nm(s: &str) -> Name {
