@@ -42,6 +42,39 @@
 //! invariant of `ConRon/Refine/HashMap.lean` gained an unallocated case
 //! (`Inv.pow2`/`Inv.min_cap` are now conditional on `0 < slots.length`).
 //!
+//! **The tail of a bucket is optional** (task #41, a sixth deviation from the
+//! tutorial's file).  `AList::Cons`' third field is an
+//! `Option<Box<AList<K, V>>>` where the tutorial's is a `Box<AList<K, V>>`.
+//! The tutorial's shape ends every chain in `Cons(.., Box::new(Nil))`, i.e.
+//! **one heap block per entry whose whole content is `Nil`** — the port's
+//! single biggest port artefact by cycles: `core`'s profile spent 11 % of its
+//! cycles allocating, freeing and walking those blocks (the index rebuild of
+//! `fenv::mk_fenv_go` inserts ~176k of them per `fenv::dup`, and every memo
+//! insert makes one).  With an optional tail a one-entry bucket allocates
+//! nothing at all — the entry sits inline in the slot, as it already did —
+//! and a chain of `m` entries costs `m - 1` blocks instead of `m`.  Nothing
+//! else moves: the slot type, the bucket a key lands in, the order within a
+//! bucket and the abstract map are all unchanged, and `Option<Box<T>>` is one
+//! word (the null-pointer niche), so no type grew.  In the model the field is
+//! `Option (AList K V)` (`Box` erases, §3.2), which makes `AList` a *nested*
+//! inductive: `ConRon/Refine/HashMap.lean` therefore carries its own
+//! induction principle `AList.recTail` (Lean's `induction` tactic declines a
+//! nested type), and `alv` and the three `list_*` specs gained the third
+//! case.  Measured on `core`: −10.1 % instructions, −11.3 % wall.
+//!
+//! **The bucket index is a mask** (task #41).  `bucket_index` is
+//! `h & (n - 1)` where it was `h % n`.  `Inv` says a non-empty slot vector's
+//! length is a power of two, and for those the two are the *same number* —
+//! not merely the same bucket — so no key moves.  The proof did not need a
+//! line: `ConRon/Refine/HashMap.lean` treats `bucket_index` as a black box
+//! (`bucketAt`, "the proofs never look inside it"), the invariant says only
+//! that a key sits where *this* function puts it, and the `i < len` a slot
+//! access needs comes from the access having succeeded.  A 64-bit `div`
+//! costs ~20 stalled cycles and sat on every `get`, `insert` and `remove` of
+//! the hottest tables; measured on `core`: −0.8 % instructions, −2.3 % wall.
+//! Both operations fail on `n = 0` (a division by zero there, an underflow
+//! here), which is why the callers' `slots.len() == 0` guard stays.
+//!
 //! **Recursion depth.**  Nothing here recurses once per bucket: the three
 //! walks over the slot vector (`allocate_slots`, `clear_slots`,
 //! `move_elements`) split their index range in half, so they are `log2 n`
@@ -94,10 +127,14 @@ impl Eq2 for u64 {
     }
 }
 
-/// A bucket: an association list.
+/// A bucket: an association list whose **tail is optional**, so that a
+/// one-entry bucket owns no heap block at all (the module note has the
+/// measurement; the tutorial's `Box<AList<K, V>>` ends every chain in a block
+/// holding `Nil`).  `Nil` is still the empty bucket, which lives inline in
+/// the slot vector.
 /// Source: `vendor/aeneas/tests/src/hashmap.rs:24` (`AList`).
 pub enum AList<K, V> {
-    Cons(K, V, Box<AList<K, V>>),
+    Cons(K, V, Option<Box<AList<K, V>>>),
     Nil,
 }
 
@@ -132,16 +169,23 @@ const LOAD_DEN: usize = 4;
 /// `MIN_CAPACITY` reaches the maximum in fewer than this many steps.
 const POW2_FUEL: usize = 64;
 
-/// The bucket a hash selects, among `n` buckets (`n > 0`).
+/// The bucket a hash selects, among `n` buckets (`n > 0`, a power of two).
 ///
-/// Both casts are exact and the result is `h % n` over the naturals: `n as
-/// u64` widens (a `usize` has at most 64 bits) and `h % (n as u64) < n <=
-/// usize::MAX`, so the truncation back to `usize` is the identity.  Computing
-/// `(h as usize) % n` instead would need "`n` is a power of two dividing
-/// `2^usize::BITS`" to say the same thing.
+/// `h & (n - 1)` is `h % n` for a power-of-two `n` (the module note has the
+/// measurement that replaced the `%`), and `Inv` gives every allocated table
+/// that shape — though the proof never needs the equation: it reads this
+/// function only through itself.  The callers' `slots.len() == 0` guard is
+/// what keeps `n - 1` from underflowing, as it kept `%` from dividing by
+/// zero.
+///
+/// Both casts are exact: `n as u64` widens (a `usize` has at most 64 bits)
+/// and `h & (n as u64 - 1) < n <= usize::MAX`, so the truncation back to
+/// `usize` is the identity.  Computing `(h as usize) & (n - 1)` instead would
+/// need "`n` is a power of two dividing `2^usize::BITS`" to say the same
+/// thing.
 fn bucket_index(h: u64, n: usize) -> usize {
     let n64 = n as u64;
-    let i = h % n64;
+    let i = h & (n64 - 1);
     i as usize
 }
 
@@ -180,7 +224,10 @@ where
             if ckey.eq2(key) {
                 Some(cvalue)
             } else {
-                list_get(&**tl, key)
+                match tl {
+                    None => None,
+                    Some(b) => list_get(&**b, key),
+                }
             }
         }
     }
@@ -195,7 +242,7 @@ where
 {
     match ls {
         AList::Nil => {
-            *ls = AList::Cons(key, value, Box::new(AList::Nil));
+            *ls = AList::Cons(key, value, None);
             None
         }
         AList::Cons(ckey, cvalue, tl) => {
@@ -203,13 +250,24 @@ where
                 let old = core::mem::replace(cvalue, value);
                 Some(old)
             } else {
-                list_insert(&mut **tl, key, value)
+                match tl {
+                    None => {
+                        *tl = Some(Box::new(AList::Cons(key, value, None)));
+                        None
+                    }
+                    Some(b) => list_insert(&mut **b, key, value),
+                }
             }
         }
     }
 }
 
 /// Remove a key from a bucket: returns the bucket without it and the value.
+/// With the optional tail (task #41) the found-entry arm hands back the tail
+/// itself (`Nil` if there is none), and the walk arm rebuilds the node around
+/// the shortened rest — which may be `Cons(.., Some(Nil))`, a shape `alv`
+/// does not distinguish from `Cons(.., None)`; nothing normalises it, because
+/// the checker never removes (see the note on the missing iteration API).
 /// Taken and returned by value, unlike
 /// `vendor/aeneas/tests/src/hashmap.rs:265` (`remove_from_list`), whose
 /// `&mut` walk needs `std::mem::replace` and an `unreachable!()` arm.
@@ -221,10 +279,18 @@ where
         AList::Nil => (AList::Nil, None),
         AList::Cons(ckey, cvalue, tl) => {
             if ckey.eq2(key) {
-                (*tl, Some(cvalue))
+                match tl {
+                    None => (AList::Nil, Some(cvalue)),
+                    Some(b) => (*b, Some(cvalue)),
+                }
             } else {
-                let (rest, removed) = list_remove(*tl, key);
-                (AList::Cons(ckey, cvalue, Box::new(rest)), removed)
+                match tl {
+                    None => (AList::Cons(ckey, cvalue, None), None),
+                    Some(b) => {
+                        let (rest, removed) = list_remove(*b, key);
+                        (AList::Cons(ckey, cvalue, Some(Box::new(rest))), removed)
+                    }
+                }
             }
         }
     }
@@ -432,7 +498,10 @@ where
             AList::Nil => (),
             AList::Cons(k, v, tl) => {
                 let _ = ntable.insert_no_resize(k, v);
-                HashMap::move_elements_from_list(ntable, *tl)
+                match tl {
+                    None => (),
+                    Some(bx) => HashMap::move_elements_from_list(ntable, *bx),
+                }
             }
         }
     }

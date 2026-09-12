@@ -9042,3 +9042,246 @@ trivially green and no `Refine/*` lemma is touched: everything here is outside
   on the environment the step sees, i.e. a second dispatch of the fold.  It is
   named in `con-ron --help`'s NOT PORTED paragraph and is not on the skip list,
   because the declaration it lives in (`installLoop`) *is* ported.
+
+### Task #41 — Where the cycles go (2026-09-12, Opus under Fable)
+
+P1.8's wall-time question: Mathlib ran 1.00× con-leche's *instructions* in
+1.60× its *wall*, so the cycles were going into memory traffic, not work.  The
+brief listed five hypotheses; the profile named a sixth, which turned out to
+be the answer: **every hash-map entry owned a heap block whose whole content
+was `AList::Nil`** — the shape inherited from the Aeneas tutorial's verified
+map.  Two semantics-neutral changes to `ron::HashMap` (the optional bucket
+tail and a masked bucket index) are **−10.1 % instructions and −12.6 % of
+`core`'s wall time**, and they put con-ron *below* con-leche on instructions
+on both corpora.
+
+#### 0. Re-measure first: the brief's `core` numbers were four tasks stale
+
+Everything here is one quiet machine (AMD EPYC 9455, 48 cores, 4 NUMA nodes),
+one heavy process at a time, `ulimit -v` per the brief, `--verified --stats
+--pins _tmp/dump-fixtures/pins.dump`, artefacts in `_tmp/t41/`.  con-leche is
+its **own** `lake build` of the pinned submodule (`3e004805`), measured on the
+same machine in the same session, which is why its rows differ from task #29's
+(`core` 115 s here against 150 s there, `init` 54 s against 59 s: task #29's
+runs shared the machine).  The brief's "488 s on `core`" is the pre-#34
+binary; tasks #34–#38 had already taken `core` to 153 s.
+
+| `core` (165 449 records) | con-leche `-j1` | con-ron, before | con-ron, after |
+|---|---:|---:|---:|
+| wall | 115.4 s | 152.7 s (1.32×) | **134.4 s (1.16×)** |
+| `instructions:u` | 1 179.6 G | 1 284.6 G (1.09×) | **1 155.2 G (0.98×)** |
+| `cycles:u` | 507.8 G | 671.5 G (1.32×) | **588.8 G (1.16×)** |
+| IPC | 2.32 | 1.91 | **1.96** |
+| `cache-misses:u` | 1.97 G | 4.69 G (2.38×) | 4.02 G (2.04×) |
+| `dTLB-load-misses:u` | 28.5 M | 53.8 M | 31.6 M |
+| `page-faults` | 170 k | 797 k | 719 k |
+| peak RSS | 1 243 MB | 2 121 MB | 2 109 MB |
+
+| `init` (58 002 records) | con-leche `-j1` | con-ron, before | con-ron, after |
+|---|---:|---:|---:|
+| wall | 54.0 s | 61.5 s (1.14×) | **55.7 s (1.03×)** |
+| `instructions:u` | 586.2 G | 617.4 G (1.05×) | **565.9 G (0.97×)** |
+| `cycles:u` | 237.8 G | 270.5 G | **244.1 G (1.03×)** |
+| `cache-misses:u` | 0.83 G | 1.16 G | 1.02 G |
+| peak RSS | 481 MB | 821 MB | 816 MB |
+
+The two corpora together say what the Mathlib row said: **the gap grows with
+the environment**, 1.03× on `init`, 1.16× on `core`, 1.60× on Mathlib, while
+the instruction ratio is flat and below 1.  Whatever is left is superlinear in
+`|env|`, and §2(f) names it.
+
+#### 1. The profile (`perf record -F 199`, `--no-children --sort sym`)
+
+`core`, cycles, before → after.  Groups, because single symbols mislead once
+the denominator moves:
+
+| group | before | after |
+|---|---:|---:|
+| **the `FEnv` index rebuild** (`mk_fenv_go`, `list_insert`/`insert_no_resize`/`allocate_slots`/`move_elements_from_list` at `Name`, the `AList<Name, …>` drop glue, `name::beq`, `constant_infos_copy_from`) | ~18 % | **17.6 %** (16.4 % of samples have `mk_fenv_go` on the stack) |
+| **`HashMap::allocate_slots`** (4 instantiations: `ExprNatKey` 6.3, the `beq` pair memo 5.9, `Expr→Expr` 1.9, `Expr→bool` 0.8) | 12.2 % | **14.8 %** (the same absolute cost against a smaller total) |
+| **the allocator** (`_mi_page_malloc_zero`, `mi_free`, `mi_*_aligned`, `__rust_alloc`) | 10.6 % | **6.3 %** |
+| `Rc<ExprNode>` drop (`drop_slow` + the `ExprKind` drop glue) | 5.0 % | 4.5 % |
+| `expr::beq*` | 5.6 % | 5.6 % |
+| `Name`s rebuilt from string literals (`code_points_from` + `name::mk_str`) | 3.3 % | 3.2 % |
+
+Two instruction-level readings decided what to do.  `allocate_slots`' cycles
+are **87 % on one instruction** — the 32-byte `AList::Nil` store into a
+freshly allocated, cache-cold slot array (1 KB per table); and
+`insert_no_resize`'s hottest instruction was the one after `div %rcx`.
+
+#### 2. The hypotheses, one verdict each
+
+**(a) allocator / memo-table churn.**  Confirmed as a cost, *not* as a lever
+any further.  mimalloc's own code is 6–10 % of cycles and `allocate_slots` is
+another 12–15 %; both are "memo tables being born and dying", and task #35's
+lazy slots already took the dead ones.  Re-measured the cheap knob task #35
+left open, `MIN_CAPACITY` 32 → 8: **worse**, −0.5 % instructions but +0.9 %
+cycles and +3 % cache misses (150.9 s against 149.1 s) — the tables that *do*
+fill then pay 8→16→32 rehashes.  Reverted.  The remaining lever is the
+*number* of tables, which is con-leche's memo policy (§3.1) and so an upstream
+question.
+
+**(b) pointer chasing through `Rc<ExprNode>`; the data word's cache line.**
+`data` is already the node's first field (task #38), so the packed word and
+the first handle share a line — but the `Rc` block is 56 bytes, and with
+mimalloc's 56-byte bin only 2 of every 8 blocks have their 40-byte payload
+inside one 64-byte line.  Measured the fix that costs no model change,
+`#[repr(align(16))]` on `ExprNode` (block 64 bytes, one line, always):
+**134.7 s against 135.4 s and −1.6 % cache misses, with peak RSS unchanged** —
+inside the run-to-run noise, so **not taken**.  Reverted.
+
+**(c) `HashMap` bucket chains.**  **The answer, at a fraction of the price the
+brief budgeted.**  The brief priced open addressing or a `Vec` per bucket; what
+the profile actually indicted was one `Box`: `list_insert`'s `Nil` arm wrote
+`Cons(key, value, Box::new(AList::Nil))`, so **every entry in every table
+owned a 32–48-byte heap block containing nothing but `Nil`** — a malloc, a
+free, a drop-glue visit and a cache miss each, on ~176k entries per
+`fenv::dup` and on every memo insert.  `AList::Cons`' tail is now
+`Option<Box<AList<K, V>>>`: a one-entry bucket allocates *nothing* (the entry
+was already inline in the slot), a chain of `m` costs `m − 1` blocks, and
+`Option<Box<T>>` is one word by the null-pointer niche, so no type grew.  The
+slot type, the bucket a key lands in, the order inside a bucket and the
+abstract map are all unchanged.  Measured alone on `core`: **−10.1 %
+instructions, −11.3 % wall, −11 % cache misses, −32 % dTLB misses**.  No
+open-addressing rewrite was needed, and task #16's proof survived as described
+in §4.
+
+**(d) `Vec` reallocation in the `*_from` accumulators.**  Not a factor:
+`RawVecInner::grow_amortized` + `finish_grow` are 0.64 % of `core`'s cycles
+together, and the accumulators that matter already pre-size (`with_capacity`,
+tasks #32/#34).  No change.
+
+**(e) THP / page faults / allocator env knobs.**  Measured, not assumed, three
+ways.  `MIMALLOC_ALLOW_LARGE_OS_PAGES=1`: **worse** (158.8 s against 153.8 s,
+*more* dTLB misses — the kernel is in `madvise` mode and mimalloc's huge-page
+path does not pay off here).  `MIMALLOC_PURGE_DELAY=-1` (never decommit a
+freed page): **−2.5 % wall (132.0 s against 135.4 s), −97 % page faults
+(19.7 k against 769 k), −89 % dTLB-load-misses (4.1 M against 36.5 M), −8 %
+cache misses, +31 MB peak RSS** — the memo tables' birth and death cycle the
+same pages through `madvise(DONTNEED)` and back.  Both knobs together: nothing
+beyond the purge one.  **Not baked in**, deliberately: the win is 2.5 % on
+`core` while the cost is unbounded RSS growth exactly where the port is
+already 1.7–2.2× con-leche (Mathlib at 18.8 GB), and the brief forbids the
+Mathlib run that would price it.  It is a documented knob
+(`MIMALLOC_PURGE_DELAY=-1` in the environment) and a two-line change if the
+maintainer wants it as the default (`libmimalloc-sys::mi_option_set`; the
+crate does not export that option's constant, so it would go in by number —
+one more reason to leave it to a measured Mathlib decision).
+
+**(f) what the profile added.**  Two items, one taken.
+
+*Taken: the bucket index was a hardware division.*  `bucket_index` was `h % n`
+with a runtime `n` — a 64-bit `div`, ~20 stalled cycles, on **every** `get`,
+`insert` and `remove`.  `Inv` says an allocated table's slot count is a power
+of two, and for those `h & (n - 1)` is the *same number*, so no key moves:
+**−0.8 % instructions, −2.3 % wall** on `core`, and the proof needed **no**
+line (§4).
+
+*Not taken, and now the largest single item: `fenv::dup`'s `O(|env|)` index
+rebuild, 17.6 % of `core`'s cycles.*  This is task #34's "left for next time",
+and this task closes the design question it left open, negatively: **two of
+the six `dup` sites cannot be pushed/popped at all.**
+`modeled::check_ind_recs` (and its cached twin in `inductives_c`) holds
+*three* views of one index at once, and two of them **diverge** — `envSelf` is
+`env₂` plus every recursor rule-less, the fold's accumulator is `env₂` plus
+the recursors *with* their rules, one at a time — so no amount of ownership
+threading, nor a push/pop that remembers the displaced entry, removes the
+second owned copy.  What removes it is a *sharable* index, and both routes to
+one are outside this task: `Rc<HashMap>` needs `Rc::get_mut`/`make_mut`, a
+fifth and sixth external hole (§3.2 budgets four and the extraction gate counts
+them); a persistent map is a new proved container.  The measured shape of the
+cost is why it now matters: the rebuild is `blocks × |env|`, which is exactly
+the superlinear term §0's three corpora exhibit.  A cheaper down payment that
+*is* local — a `HashMap::copy` that walks the slots linearly instead of
+re-hashing 176k entries into a cold 8 MB table — would cut the constant (no
+hash, no mask, no chain search, no load check, and a linear rather than random
+write pattern) at the price of one new proved function
+(`toFun (copy m) = toFun m` plus `Inv`); it does not change the asymptotics.
+
+*Also visible, and cheap to fix later: 3.2 % of `core`'s cycles rebuild
+`Name`s from string literals* — `basis_names::nat_name`,
+`core_k::nat_div_mod_names`, `core_k::is_nat_bin_op`, `env::proj_table_name`
+and `env::constant_info_name` each allocate a fresh `Vec<u32>` and
+`Rc<NameNode>` per call, where con-leche's top-level `def` is built once at
+module init.  The port cannot cache one (no statics in the Aeneas subset, and
+a field in `CState` would be a state deviation), but the *comparisons* need
+not build anything: a `name_eq_str(n, &[u32])` against the literal is
+semantically equal by a local lemma and allocates nothing.
+
+#### 3. What landed
+
+Two changes, both in `crates/con-ron-core/src/ron/hashmap.rs`, both
+semantics-neutral in the sense §3.1 cares about (the abstract map, the bucket a
+key lands in and the order inside a bucket are unchanged, so no probe that hit
+before misses now):
+
+1. `AList::Cons(K, V, Option<Box<AList<K, V>>>)` — the optional tail, with
+   `list_get`, `list_insert`, `list_remove` and `move_elements_from_list`
+   matching the extra arm.  `list_remove` deliberately does **not** normalise
+   `Cons(.., Some(Nil))` back to `Cons(.., None)`: `alv` does not distinguish
+   them and the checker never removes (`HashMap::remove` has no caller outside
+   the module, as the module note's "no iteration API" paragraph predicts).
+2. `bucket_index(h, n) = h & (n - 1)`.
+
+The module note carries both, with the measurements and the reason neither is a
+memo-policy change.  Nothing else in the crate moved, so `con-ron`'s driver
+(task #40's lane) and `con-ron-dump` are untouched.
+
+#### 4. What the proof needed (`proof/ConRon/Refine/HashMap.lean`, +112/−18)
+
+The mask needed **nothing**: `bucketAt`'s docstring already said "the proofs
+never look inside it", `Inv.slot_inv` only says a key sits where *this*
+function puts it, and the `i < slots.len()` a slot access needs comes from the
+access having succeeded (`vec_index_eq`), not from `h % n < n`.
+
+The optional tail makes `AList` a **nested** inductive (`Option (AList K V)`,
+since `Box` erases, §3.2), and Lean's `induction` tactic declines those — "does
+not support the type … because it is a nested inductive type".  Five items, and
+nothing else in the 1 400-line file moved:
+
+| item | what |
+|---|---|
+| `AList.recTail` | the three-case induction principle the equation compiler *does* accept (`Nil`, `Cons k v none`, `Cons k v (some tl)`) — exactly the three arms the generated code matches on |
+| `alv` | gained the one-entry case |
+| `alvO` | `alv` on a *tail*: the missing tail is the empty list.  This is what keeps **`alv_cons` stated for an arbitrary tail** — `alv (Cons k v tl) = (k, v) :: alvO tl` — and with it every downstream proof that rewrites with it, which is why the churn stopped at the bucket layer |
+| `list_get_spec`, `list_insert_spec`, `list_remove_spec`, `move_elements_from_list_spec` | `induction ls using AList.recTail`, each new `last` case proved alongside the `cons` case it mirrors |
+| `list_remove_spec`'s `cons` case | one `simp only [alvO_some] at hnd`, where the `Nodup` hypothesis now arrives as `alvO (some tl)` |
+
+**No `sorry` and no lemma weakened**: the two `#guard_msgs` axiom censuses at
+the bottom of the file still read `[propext, Classical.choice, Quot.sound]`, so
+a `sorryAx` is a build error rather than a silent regression.  `Refine/Abs.lean`
+and every other `Refine/*` file are byte-identical (`Refine/Expr.lean` names
+the `beq` memo's type but never its buckets).
+
+#### Gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | all 6 OK (`cargo build`, `cargo test`, lint, provenance, `extract.sh --check`, `lake build`) |
+| `cargo test` | 227/227 (158 core + 50 + 15 + 4, one ignored), warning-free under `-D warnings` |
+| `scripts/provenance.py check` | green — 2 022 items, 2 213 citations at pin 3e004805 |
+| `scripts/extract.sh` | zero Aeneas errors, zero warnings; externals still exactly **1 type, 4 `Rc` fns**, both templates byte-identical |
+| `cd proof && lake build` | 2 108 jobs, zero errors, no `ConRon` warning; axiom censuses unchanged |
+| `scripts/diff-fixtures.sh --timeout=60` | **315 agree, 0 differ**, 0 timed out, 33 skipped, 9 s |
+| `core` / `init` | accepted 165 449 / 58 002 at §0's numbers |
+
+Mathlib was not run (the brief says not to).  Projecting §0's `core` ratios
+onto the milestone row — the costs removed are per-entry and per-table, and
+Mathlib has more of both — the expectation is ≈11 T instructions and ≈1 700 s
+at unchanged RSS, with the `fenv::dup` term still setting the remaining gap.
+
+#### Left for next time
+
+* **`fenv::dup`, 17.6 % of `core` and the port's only superlinear term.**
+  §2(f) has the negative result (two sites need two divergent owned views) and
+  the two designs that answer it: a sharable index (a fifth/sixth `Rc` hole, or
+  a persistent map as a new proved container) for the asymptotics, or
+  `HashMap::copy` for the constant.
+* **`allocate_slots`, 14.8 %** — 87 % of it one cold 32-byte store per bucket.
+  `MIN_CAPACITY` is measured out (§2a); what is left is fewer tables (upstream
+  memo policy) or an 8-byte empty slot, which would trade §2(c)'s win back.
+* **The `Name` literals, 3.2 %** (§2f), the cheapest item on this list.
+* **`MIMALLOC_PURGE_DELAY=-1`**, worth 2.5 % on `core` and two orders of
+  magnitude on the page-fault count, once someone can price its RSS on Mathlib.
+* The parallel check phase, unchanged in priority: con-leche's `--jobs=8`
+  Mathlib row is 337 s against 1 228 s at `-j1`.

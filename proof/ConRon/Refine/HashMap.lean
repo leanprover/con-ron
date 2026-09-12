@@ -36,6 +36,20 @@ new `0 < length` hypothesis comes from.  Nothing about the *abstract* map
 changed: an unallocated table denotes `∅`, which is what a `MIN_CAPACITY`
 table of empty buckets denoted.
 
+**The optional bucket tail** (task #41).  `AList.Cons`' third field is an
+`Option (AList K V)`: the port stopped paying a heap block per entry to hold
+the `Nil` that ended every chain (`ron/hashmap.rs`'s module note has the
+measurement).  That makes `AList` a *nested* inductive, which Lean's
+`induction` tactic declines, so this file carries its own three-case
+induction principle `AList.recTail`, `alv` gained the one-entry case and a
+companion `alvO` on tails (which is what keeps `alv_cons` stated for an
+arbitrary tail, and with it every proof that rewrites with it), and the four
+bucket walks induct with `using AList.recTail`.  Nothing else moved: the
+abstract map, the invariant and every statement in this file are the same
+text.  The same task's other change — `bucket_index` is `h & (n - 1)` where
+it was `h % n` — needed **no** proof at all, because `bucketAt` is a black
+box here (see its docstring).
+
 The one semantic hypothesis is `Eq2Spec Eq2Inst` — `eq2` is decidable equality
 on the key type.  The natural generalisation (and the one the `ExprC` keys of
 §3.2 will want) is "`eq2 a b = ok (decide (absK a = absK b))` for an
@@ -180,16 +194,47 @@ theorem lookupK_perm {l₁ l₂ : List (K × V)} (hp : l₁.Perm l₂)
 omit [DecidableEq K] in
 instance : Inhabited (ron.hashmap.AList K V) := ⟨.Nil⟩
 
+omit [DecidableEq K] in
+/-- **The induction principle of a bucket** (task #41).  `AList.Cons`' tail is
+an `Option (AList K V)` since the port stopped allocating a heap block per
+entry to hold a `Nil` (`ron/hashmap.rs`'s module note), which makes `AList` a
+*nested* inductive — and Lean's `induction` tactic declines those ("does not
+support the type ... because it is a nested inductive type").  The recursion
+below is the one the equation compiler does accept, and the three `list_*`
+specs and `move_elements_from_list_spec` use it through `induction ... using`;
+its three cases are exactly the three arms the generated code matches on. -/
+theorem AList.recTail {motive : ron.hashmap.AList K V → Prop}
+    (nil : motive .Nil)
+    (last : ∀ k v, motive (.Cons k v none))
+    (cons : ∀ k v tl, motive tl → motive (.Cons k v (some tl))) :
+    ∀ l : ron.hashmap.AList K V, motive l
+  | .Nil => nil
+  | .Cons k v none => last k v
+  | .Cons k v (some tl) => cons k v tl (AList.recTail nil last cons tl)
+
 /-- A bucket as an association list. -/
 def alv : ron.hashmap.AList K V → List (K × V)
-  | .Cons k v tl => (k, v) :: alv tl
+  | .Cons k v none => [(k, v)]
+  | .Cons k v (some tl) => (k, v) :: alv tl
   | .Nil => []
+
+/-- A bucket *tail* as an association list: the missing tail is the empty one.
+This is what keeps `alv_cons` stated for an arbitrary tail, and with it every
+proof below that rewrites with it. -/
+def alvO : Option (ron.hashmap.AList K V) → List (K × V)
+  | none => []
+  | some l => alv l
 
 omit [DecidableEq K] in
 @[local simp] theorem alv_nil : alv (ron.hashmap.AList.Nil : ron.hashmap.AList K V) = [] := rfl
 omit [DecidableEq K] in
-@[local simp] theorem alv_cons (k : K) (v : V) (tl : ron.hashmap.AList K V) :
-    alv (ron.hashmap.AList.Cons k v tl) = (k, v) :: alv tl := rfl
+@[local simp] theorem alvO_none : alvO (none : Option (ron.hashmap.AList K V)) = [] := rfl
+omit [DecidableEq K] in
+@[local simp] theorem alvO_some (l : ron.hashmap.AList K V) : alvO (some l) = alv l := rfl
+omit [DecidableEq K] in
+@[local simp] theorem alv_cons (k : K) (v : V) (tl : Option (ron.hashmap.AList K V)) :
+    alv (ron.hashmap.AList.Cons k v tl) = (k, v) :: alvO tl := by
+  cases tl <;> rfl
 omit [DecidableEq K] in
 /-- The default bucket is the empty one: this is what `slots[j]!` gives outside
 the range, which is *every* `j` on an unallocated table (task #35). -/
@@ -242,9 +287,19 @@ def toFun (m : ron.hashmap.HashMap K V) (k : K) : Option V := lookupK (al_v m) k
 theorem list_get_spec (heq : Eq2Spec Eq2Inst) {ls : ron.hashmap.AList K V} {k : K}
     {r : Option V} (h : ron.hashmap.list_get Eq2Inst ls k = ok r) :
     r = lookupK (alv ls) k := by
-  induction ls with
-  | Nil => rw [ron.hashmap.list_get.eq_def] at h; simp at h; simp [← h]
-  | Cons ckey cval tl ih =>
+  induction ls using AList.recTail with
+  | nil => rw [ron.hashmap.list_get.eq_def] at h; simp at h; simp [← h]
+  | last ckey cval =>
+    rw [ron.hashmap.list_get.eq_def] at h
+    simp [Eq2Spec] at heq
+    simp [heq] at h
+    by_cases hk : ckey = k
+    · rw [if_pos hk] at h
+      simp [hk, ← Result.ok_injective h]
+    · rw [if_neg hk] at h
+      simp at h
+      simp [hk, ← h]
+  | cons ckey cval tl ih =>
     rw [ron.hashmap.list_get.eq_def] at h
     simp [Eq2Spec] at heq
     simp [heq] at h
@@ -264,14 +319,32 @@ theorem list_insert_spec (heq : Eq2Spec Eq2Inst) {ls : ron.hashmap.AList K V} {k
     (∀ k', lookupK (alv ls') k' = if k' = k then some v else lookupK (alv ls) k') ∧
     (old = none → alv ls' = alv ls ++ [(k, v)]) := by
   simp [Eq2Spec] at heq
-  induction ls generalizing old ls' with
-  | Nil =>
+  induction ls using AList.recTail generalizing old ls' with
+  | nil =>
     rw [ron.hashmap.list_insert.eq_def] at h
     simp at h
     obtain ⟨rfl, rfl⟩ := h
     refine ⟨rfl, by simp, ?_, by simp⟩
     intro k'; by_cases hk : k' = k <;> simp [hk, eq_comm (a := k)]
-  | Cons ckey cval tl ih =>
+  | last ckey cval =>
+    rw [ron.hashmap.list_insert.eq_def] at h
+    simp [heq] at h
+    by_cases hk : ckey = k
+    · rw [if_pos hk] at h
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      refine ⟨by simp [hk], by simp, ?_, by simp⟩
+      intro k'
+      by_cases hk' : k' = k <;> simp [hk, hk', eq_comm (a := k)]
+    · rw [if_neg hk] at h
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      refine ⟨by simp [hk], by simp, ?_, by simp⟩
+      intro k'
+      by_cases hk' : k' = k
+      · simp [hk', hk]
+      · simp [hk', Ne.symm hk']
+  | cons ckey cval tl ih =>
     rw [ron.hashmap.list_insert.eq_def] at h
     simp [heq] at h
     by_cases hk : ckey = k
@@ -357,12 +430,26 @@ theorem list_remove_spec (heq : Eq2Spec Eq2Inst) {ls : ron.hashmap.AList K V} {k
     (h : ron.hashmap.list_remove Eq2Inst ls k = ok (ls', old)) :
     old = lookupK (alv ls) k ∧ alv ls' = eraseK (alv ls) k := by
   simp [Eq2Spec] at heq
-  induction ls generalizing ls' old with
-  | Nil => rw [ron.hashmap.list_remove.eq_def] at h; simp at h; simp [← h.1, ← h.2]
-  | Cons ckey cval tl ih =>
+  induction ls using AList.recTail generalizing ls' old with
+  | nil => rw [ron.hashmap.list_remove.eq_def] at h; simp at h; simp [← h.1, ← h.2]
+  | last ckey cval =>
+    rw [ron.hashmap.list_remove.eq_def] at h
+    simp [heq] at h
+    by_cases hk : ckey = k
+    · rw [if_pos hk] at h
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      subst hk
+      simp
+    · rw [if_neg hk] at h
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      simp [hk]
+  | cons ckey cval tl ih =>
     rw [ron.hashmap.list_remove.eq_def] at h
     simp [heq] at h
     rw [alv_cons, List.map_cons, List.nodup_cons] at hnd
+    simp only [alvO_some] at hnd
     by_cases hk : ckey = k
     · rw [if_pos hk] at h
       simp at h
@@ -528,7 +615,7 @@ theorem get_refines (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m) {k : K}
   rw [ron.hashmap.HashMap.get] at h
   split at h
   · -- The unallocated table of `new` (task #35): it binds nothing, and
-    -- `bucket_index` is never reached (it would divide by zero).
+    -- `bucket_index` is never reached (its `n - 1` would underflow).
     rename_i h0
     have hav : al_v m = [] := by simp [al_v, vec_len_eq_zero_iff.mp h0]
     rw [← Result.ok_injective h]; simp [toFun, hav]
@@ -1102,14 +1189,28 @@ theorem move_elements_from_list_spec (heq : Eq2Spec Eq2Inst) :
       nt'.slots.val.length = nt.slots.val.length ∧
       nt'.max_load = nt.max_load ∧ nt'.saturated = nt.saturated := by
   intro ls
-  induction ls with
-  | Nil =>
+  induction ls using AList.recTail with
+  | nil =>
     intro nt nt' hinv _ _ h
     rw [ron.hashmap.HashMap.move_elements_from_list.eq_def] at h
     simp only at h
     rw [← Result.ok_injective h]
     exact ⟨hinv, by simp, rfl, rfl, rfl⟩
-  | Cons k v tl ih =>
+  | last k v =>
+    intro nt nt' hinv hnd hdisj h
+    rw [ron.hashmap.HashMap.move_elements_from_list.eq_def] at h
+    simp only at h
+    obtain ⟨q, hins, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨o, nt1⟩ := q
+    obtain ⟨hinv1, hold, htf, hlen1, hml1, hsat1, -, hperm1⟩ :=
+      insert_no_resize_spec heq hinv hins
+    have hknt : k ∉ (al_v nt).map Prod.fst := hdisj (k, v) (by simp)
+    have honone : o = none := by
+      rw [hold, toFun]; exact lookupK_eq_none_of_not_mem hknt
+    have P1 : (al_v nt1).Perm ((k, v) :: al_v nt) := hperm1 honone
+    rw [← Result.ok_injective h]
+    exact ⟨hinv1, by simpa using P1, hlen1, hml1, hsat1⟩
+  | cons k v tl ih =>
     intro nt nt' hinv hnd hdisj h
     rw [ron.hashmap.HashMap.move_elements_from_list.eq_def] at h
     simp only at h
