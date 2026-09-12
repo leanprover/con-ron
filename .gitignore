@@ -1,0 +1,9 @@
+/target/
+**/target/
+.lake/
+**/.lake/
+_tmp/
+.direnv/
+*.llbc
+result
+result-*
