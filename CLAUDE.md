@@ -21,5 +21,10 @@ section for every task you land.
   regenerate it with `scripts/extract.sh` whenever `crates/con-ron-core`
   changes, and commit the result in the same commit.
 * Large artifacts (exports, scratch builds) go to `_tmp/` (gitignored).
-  Use `timeout` on every checker run and `ulimit -v` when a run may OOM.
+  Use `timeout` on every checker run and **always** `ulimit -v` on a checker
+  run: this machine kills the whole user session at 50 GB.  The limit for a
+  con-ron run is at most 3× what con-leche needs on the same input
+  (`_tmp/corpus/baseline.md`: `Init` 0.5 GB, `Init+Std+Lean` 1.3 GB, Mathlib
+  8.6 GB); if con-ron exceeds it, that is a bug to investigate and fix before
+  running anything larger — never raise the limit instead.
 * Commit often; the maintainer pushes and opens PRs.
