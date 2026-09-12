@@ -255,7 +255,7 @@ theorem kernel.expr.Expr._0._simpLemma_ (_0 : alloc.rc.Rc kernel.expr.ExprNode)
   : (kernel.expr.Expr.mk _0)._0 = _0 := by rfl
 
 /-- [con_ron_core::ron::hashmap::AList]
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 82:0-85:1
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 99:0-102:1
     Visibility: public -/
 @[discriminant isize]
 inductive ron.hashmap.AList (K : Type) (V : Type) where
@@ -263,13 +263,13 @@ inductive ron.hashmap.AList (K : Type) (V : Type) where
 | Nil : ron.hashmap.AList K V
 
 /-- Trait declaration: [con_ron_core::ron::hashmap::Eq2]
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 63:0-65:1
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 80:0-82:1
     Visibility: public -/
 structure ron.hashmap.Eq2 (Self : Type) where
   eq2 : Self → Self → Result Bool
 
 /-- [con_ron_core::ron::hashmap::HashMap]
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 92:0-101:1
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 111:0-120:1
     Visibility: public -/
 structure ron.hashmap.HashMap (K : Type) (V : Type) where
   num_entries : Std.Usize
@@ -278,7 +278,7 @@ structure ron.hashmap.HashMap (K : Type) (V : Type) where
   slots : alloc.vec.Vec (ron.hashmap.AList K V)
 
 /-- Trait declaration: [con_ron_core::ron::hashmap::Hashable]
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 48:0-50:1
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 65:0-67:1
     Visibility: public -/
 structure ron.hashmap.Hashable (Self : Type) where
   hash64 : Self → Result Std.U64

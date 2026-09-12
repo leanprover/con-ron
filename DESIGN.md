@@ -234,7 +234,11 @@ Both are written in the crate and verified:
   with a `trait Hashable { fn hash64(&self) -> u64 }` (the stored hash for
   terms, names and levels) and `PartialEq`.  Spec: an abstract partial map
   (`Std.HashMap` on the Lean side, related by "same lookup function").
-  The Aeneas tutorial's verified hash map is the template.
+  The Aeneas tutorial's verified hash map is the template.  **`new` allocates
+  no buckets at all**, and the first `insert` allocates `MIN_CAPACITY` of them
+  (task #35): the checker makes thousands of memo tables per declaration that
+  never see an insert, and a table's capacity is invisible to the abstract map
+  it refines, so the invariant merely gained an unallocated case.
 * `ron::Nat` — a single `Vec<u64>` of little-endian limbs, normalised (no
   trailing zero limb; `0` is the empty vector), **not** the
   `Small(u64) | Big(Vec<u64>)` enum this section first proposed: one
@@ -7469,3 +7473,207 @@ with `blocks × |env|`.
   task #30's lane.
 * The allocator, ~33 % (a vendored `#[global_allocator]` in the unverified
   binary crate).
+
+### Task #35 — Lazy memo allocation and the allocator (2026-09-12, Opus under Fable)
+
+Task #34's "left for next time" named the two largest items of `Init`'s
+profile — `ron::HashMap::allocate_slots` at ~17 % and glibc `malloc`/`free` at
+~33 % — and this task took both.  Together they are **−22.0 % of `Init`'s
+instructions and −37 % of its wall time**, which puts con-ron within 2.4 % of
+con-leche's instruction count on `Init` (600.1 G against 586 G) where task #34
+left it 31 % behind.
+
+#### 1. `ron::HashMap::new` allocates nothing
+
+con-leche's memo tables are `{}`, i.e. `Std.HashMap.empty`, and the port's
+`ron::HashMap::new` answered that with `MIN_CAPACITY` = 32 `AList::Nil`
+buckets: one `Vec::with_capacity(32)` plus the `log2 32`-deep `allocate_slots`
+recursion that pushes them.  The checker makes one such table **per call** in
+several places — the `*Fast` walks' `seen` maps, `beq`'s pair memo
+(`kernel::expr`, task #30), the per-record `CState`s — and the overwhelming
+majority never see an insert, so 32 buckets were allocated, walked and dropped
+for nothing.
+
+`new` now builds `HashMap { num_entries: 0, max_load: 0, saturated: false,
+slots: Vec::new() }` — no allocation at all — and one new private function,
+`ensure_slots`, gives an unallocated table its `MIN_CAPACITY` buckets on the
+first `insert`.  `get`, `contains_key` and `remove` carry a
+`self.slots.len() == 0` guard (they must: `bucket_index` would divide by
+zero), `len`, `is_empty` and `clear` were already correct on an empty `slots`,
+and `with_capacity` is unchanged — task #34's pre-sized `mk_fenv` table still
+allocates eagerly, which is what it wants.
+
+**This is not a memo-policy change in the sense of §3.1.**  The abstract map
+of a fresh table is `∅` whether or not buckets are allocated, so the table the
+port creates is still exactly the one con-leche's `{}` denotes; no probe that
+hit before misses now and none that missed hits.  It is the same argument that
+made task #34's `with_capacity` pre-sizing free, in the other direction.
+What it *does* change is the **model**, because the generated Lean changed.
+
+#### 2. What the proof needed (`proof/ConRon/Refine/HashMap.lean`, task #16)
+
+`slots = []` is now a reachable state, so `Inv` has a case for it.  Of the
+five fields, only the two capacity ones needed anything: they became
+conditional,
+
+```lean
+  pow2    : 0 < m.slots.val.length → ∃ e, m.slots.val.length = 2 ^ e
+  min_cap : 0 < m.slots.val.length → 32 ≤ m.slots.val.length
+```
+
+and the other three hold on the unallocated table *as they stand* —
+`slot_inv` is vacuous (`m.slots.val[j]!` is the default `Nil` for every `j`,
+the new `alv_default` simp lemma), `al_v m` is `[]`, `num_entries` is `0`.
+The implication form (rather than a disjunction, or a two-case `Inv`) is what
+kept the churn mechanical: every consumer that *preserves* the length —
+`clear_refines`, `insert_no_resize_spec`, `remove_refines`,
+`Inv_of_slots_eq` — still discharges its two goals with the unchanged
+`rw [hlen]; exact hinv.pow2`.
+
+Five items are new or changed, and nothing else in the file moved:
+
+| item | what |
+|---|---|
+| `vec_len_eq_zero_iff` | `Vec.len v = 0#usize ↔ v.val = []` — the guards test the left side, the proofs want the right |
+| `unallocated_inv` | `slots = [] → num_entries = 0 → Inv ∧ al_v = [] ∧ toFun = ∅`; `new_refines` is two `rfl`s on top of it |
+| `ensure_slots_spec` | `Inv`, **`0 < slots.length`**, and `al_v`/`num_entries`/`saturated` unchanged |
+| `try_resize_spec` | gained the hypothesis `0 < m.slots.val.length` — it is the one operation that needs the table allocated, since `0` doubled is `0`.  `insert_refines` supplies it from `ensure_slots_spec` |
+| `get_refines`, `remove_refines` | each opens with the guard branch: an unallocated table denotes `∅`, so `None` is the right answer and `Function.update (fun _ => none) k none` is `fun _ => none` |
+
+`insert_refines` threads `ensure_slots_spec` first and rewrites its `toFun`
+through `htf0 : toFun m0 = toFun m`.  **No `sorry`, and no lemma weakened**:
+the axiom census at the bottom of the file is unchanged (`propext`,
+`Classical.choice`, `Quot.sound`), and it is a `#guard_msgs`, so a `sorryAx`
+sneaking in is a build error rather than a silent regression.  Total: +140/−13
+lines in `Refine/HashMap.lean`, about an hour, and no other proof file
+mentions `ron::HashMap` yet (the memo proofs that will are P3's).
+
+#### 3. The allocator: `mimalloc`, in the unverified crate only
+
+`#[global_allocator]` now sits in `crates/con-ron-dump/src/lib.rs`, so the two
+binaries that link it (`con-ron-check`, `con-ron-dump-check`) get it and
+nothing else does.  **The model is untouched by the allocator, and this is not
+a hole**: Charon extracts `crates/con-ron-core` alone and the allocator is not
+an item of that crate; the Aeneas model has no heap at all (`Rc`, `Box` and
+`Vec` are modeled by their contents, §3.2), so `proof/ConRon/Generated/*` is
+byte-identical whichever allocator is linked.  Nor can it change a verdict:
+an allocator decides only *where* bytes go, and the core reads no address —
+`ptr_eq` compares identity, not order, and is modeled as `false` anyway.
+
+Both candidates were available over the network (`cargo add` works in this
+sandbox) and both were measured.  `mimalloc` is the default;
+`--no-default-features` gives glibc `malloc` back and
+`--no-default-features --features jemalloc` selects `tikv-jemallocator`.
+`ALLOCATOR` is a `pub const` naming the choice so a measurement can be traced
+to a build.
+
+This is the same lever task #32 measured as *worthless* — glibc's tunables
+(`MALLOC_TRIM_THRESHOLD_`, `MALLOC_TOP_PAD_`, `MALLOC_ARENA_MAX=1`) bought
+0.2 % of instructions — and the difference is the point: the win is not in
+glibc's *policy* but in its `malloc`/`free` fast path, which a
+size-class-and-free-list allocator replaces outright.
+
+#### 4. The numbers
+
+`perf stat -e instructions:u`, `/usr/bin/time -v`, release build with
+`overflow-checks`, `--pins _tmp/dump-fixtures/pins.dump`, artefacts in
+`_tmp/t35/`.  The maintainer's Mathlib run held one core throughout, which is
+why instructions, not wall time, is the measure (as in task #34).
+
+| `init` (58 002 records) | verdict | instructions:u | wall | peak RSS |
+|---|---|---|---|---|
+| before (task #34's binary) | accepted | 769.5 G | 96 s | 1 032.9 MB |
+| + lazy slots | accepted | 722.1 G | 92 s | 1 021.0 MB |
+| + `mimalloc` (**the default**) | accepted | **600.1 G** | **60 s** | **1 006.0 MB** |
+| + `jemalloc` instead | accepted | 604.9 G | 58 s | 1 010.8 MB |
+| con-leche `--jobs=1` (task #29) | accepted | 586 G | 59 s | 481 MB |
+
+Lazy slots alone are **−6.2 %**; the allocator on top is another **−16.9 %**;
+together **−22.0 %** instructions, −37 % wall, −2.6 % RSS.  The ratio to
+con-leche on `init` goes 1.31× → **1.024×** in instructions and 1.63× → 1.02×
+in wall time.  `jemalloc` is 0.8 % more instructions and 4.8 MB more RSS than
+`mimalloc` but 2 s less wall; instructions decided it, and the feature is
+there for the other choice.
+
+The `perf record -e instructions:u` profiles of the same three binaries
+(`_tmp/t35/prof-{base,lazy,mi}.data`), as a share of each run and as absolute
+instructions (share × that run's total), which is the only way a shrinking
+denominator can be read:
+
+| group | before | + lazy slots | + `mimalloc` |
+|---|---|---|---|
+| `HashMap::*::allocate_slots` (4 instantiations) | 19.1 % / 147 G | 15.7 % / 113 G | 19.4 % / 116 G |
+| the allocator (`malloc`/`free`/`mi_*` and their helpers) | 41.8 % / **322 G** | 43.5 % / 314 G | 19.6 % / **118 G** |
+| all of `ron::hashmap` | 34.8 % / 268 G | 31.6 % / 228 G | 42.7 % / 256 G |
+| `expr::beq*` | 3.9 % / 30 G | 4.4 % / 32 G | 5.2 % / 31 G |
+
+Two readings, and one caveat.
+
+* **Lazy slots** took `allocate_slots` from 147 G to 113 G (−23 %) and all of
+  `ron::hashmap` from 268 G to 228 G: the extra 6 G beyond the direct saving is
+  the allocator traffic and the `AList` drop glue the dead tables were
+  generating.
+* **`mimalloc`** took the allocator path from 314 G to 118 G, **−63 %** — by
+  far the largest single change either task has produced.
+* The caveat: symbol shares are *not* comparable across the allocator switch.
+  `mimalloc`'s fast path inlines into its callers, so work that glibc booked
+  under `__libc_malloc2` is booked under `ron::hashmap::*` and the drop glue
+  instead; that, not a regression, is why "all of `ron::hashmap`" reads higher
+  in the last column.  The totals in the previous table are the honest
+  measure.
+
+**`allocate_slots` is still the biggest core item** — 116 G, 19.4 % — and it
+is no longer the *dead* tables: it is the 32 `Vec::push`es a table that really
+does get an insert pays on its first one.  Task #32 measured `MIN_CAPACITY`
+32 → 8 as 0.5 % *worse*, but it measured it when every table paid the
+allocation whether it was used or not; now that only used tables allocate, and
+now that `ExprNatKey`'s and the pair memo's tables are 15 of those 19 points,
+that trade deserves re-measuring (it costs `Inv.min_cap`'s `32` and
+`new_refines`' exponent, nothing structural).
+
+#### 5. What was *not* measured, and why
+
+`core.decls` was skipped: `pgrep -x con-ron-check` found the maintainer's
+Mathlib run still going at the one check the brief allows, and the brief says
+not to wait.  Both changes should be worth *more* there than on `init` —
+`core`'s profile has the same two items with bigger shares — so the `init`
+numbers are the conservative half of the story.
+
+A note on the memory cap.  `ulimit -v` limits *address space*, not RSS, and
+`init`'s 1.03 GB peak RSS needs ~2.2 GB of address space (glibc's freed-but-
+retained arenas): the pre-change binary dies at `ulimit -v 1500000` and at
+`-v 2000000` with `memory allocation of 64 bytes failed`.  All the runs above
+therefore used `ulimit -v 3000000`, which is still well under the brief's own
+4 GB cap for the much larger `core`, and the figure the 3×-of-con-leche budget
+is about — peak RSS, 1.006 GB against con-leche's 481 MB — is met with room to
+spare and *improved* by this task.  Worth pinning down when the `core` and
+Mathlib caps are next set: the two units are not interchangeable.
+
+#### Gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | all 6 OK (`cargo build`, `cargo test`, lint, provenance, `extract.sh --check`, `lake build`) |
+| `cargo test` | 174/174 (157 unit + 4 integration + 13 in `con-ron-dump`), warning-free — one new test, `new_allocates_nothing_and_insert_allocates` |
+| `scripts/provenance.py check` | green — 1 566 items, 1 730 citations at pin 3e004805 (`ensure_slots` is covered by `ron/hashmap.rs`'s `//! con-leche: none`) |
+| `scripts/extract.sh` | zero Aeneas errors, zero warnings; externals still exactly **1 type, 4 `Rc` fns**, both templates byte-identical |
+| `cd proof && lake build` | 2 108 jobs, zero errors, no `ConRon` warning; `Refine/HashMap.lean` re-proved, axiom census unchanged |
+| `scripts/diff-fixtures.sh --timeout=60` | **315 agree, 0 differ**, 0 timed out, 33 skipped, 9 s |
+| `init` | accepted at the numbers above |
+
+#### Left for next time
+
+* **`allocate_slots` and the allocator are now tied at ~19 % each**, and both
+  are the same phenomenon: memo tables being born and dying.  Two levers, in
+  order of cheapness: re-measure `MIN_CAPACITY` 32 → 8 (see the profile note
+  above), and cut the *number* of tables — `ExprNatKey`'s table and `beq`'s
+  pair memo together are 15 of the 19 points, and both are per-call tables
+  con-leche creates as `{}`, so making them longer-lived is a §3.1 memo-policy
+  question for upstream, not a Rust-side one.
+* **The allocation traffic itself**: arena/interning for `ExprNode` (§3.2
+  lists hash-consing as allowed by the exact-state relation) and the
+  `Vec<Name>`/`Vec<Level>` copies the `dup`s still make.
+* **`fenv::dup`'s `O(|env|)`** — task #34's borrow-the-index design, unchanged
+  in priority.
+* `expr::beq_go` + `beq` + `beq_record`, task #30's lane.
+* `core.decls` and Mathlib at these numbers, once the machine is free.

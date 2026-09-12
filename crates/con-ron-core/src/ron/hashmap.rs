@@ -25,6 +25,23 @@
 //!   does;
 //! * bucket counts are powers of two and grow by doubling.
 //!
+//! **Lazy allocation** (task #35, a fifth deviation from the tutorial's file).
+//! `new` allocates *nothing*: `slots` is the empty `Vec`, and the first
+//! `insert` calls `ensure_slots` to put `MIN_CAPACITY` buckets there.  The
+//! checker builds thousands of memo tables per declaration that never see an
+//! insert — the `*Fast` walks' tables, `beq`'s pair memo, the per-record
+//! `CState`s — and a 32-bucket array each made `HashMap::allocate_slots` 17 %
+//! of `Init`'s instructions (task #34's profile).  `get`, `contains_key` and
+//! `remove` therefore carry a `slots.len() == 0` guard: they answer `None`
+//! without computing a bucket index (which would divide by zero), and `len`,
+//! `is_empty` and `clear` are already correct on an empty `slots`.  This is
+//! **not** a memo-policy change in the sense of DESIGN.md §3.1: the abstract
+//! map of a fresh table is `∅` either way, so it is the same table
+//! con-leche's `{}` denotes — exactly as `with_capacity`'s larger table is
+//! (task #34's pre-sizing).  What it does change is the *model*: the
+//! invariant of `ConRon/Refine/HashMap.lean` gained an unallocated case
+//! (`Inv.pow2`/`Inv.min_cap` are now conditional on `0 < slots.length`).
+//!
 //! **Recursion depth.**  Nothing here recurses once per bucket: the three
 //! walks over the slot vector (`allocate_slots`, `clear_slots`,
 //! `move_elements`) split their index range in half, so they are `log2 n`
@@ -85,9 +102,11 @@ pub enum AList<K, V> {
 }
 
 /// A hash map with chained buckets.  Invariants (the Lean side of them is
-/// `Hashmap/Properties.lean`'s `inv`): `slots.len()` is a power of two and at
-/// least `MIN_CAPACITY`; every key sits in the bucket its hash selects; keys
-/// are pairwise distinct; `num_entries` is the total number of pairs.
+/// `ConRon/Refine/HashMap.lean`'s `Inv`): `slots.len()` is *either zero* — the
+/// unallocated table `new` returns, see the note on lazy allocation at the top
+/// of the file — or a power of two and at least `MIN_CAPACITY`; every key sits
+/// in the bucket its hash selects; keys are pairwise distinct; `num_entries`
+/// is the total number of pairs.
 /// Source: `vendor/aeneas/tests/src/hashmap.rs:46` (`HashMap`).
 pub struct HashMap<K, V> {
     /// The number of entries in the table.
@@ -100,8 +119,9 @@ pub struct HashMap<K, V> {
     slots: Vec<AList<K, V>>,
 }
 
-/// The smallest (and initial) bucket count.  A power of two, and a multiple
-/// of `LOAD_DEN`, so `max_load_for` never rounds.
+/// The smallest *allocated* bucket count (`new`'s table has none at all; see
+/// the note on lazy allocation at the top of the file).  A power of two, and a
+/// multiple of `LOAD_DEN`, so `max_load_for` never rounds.
 const MIN_CAPACITY: usize = 32;
 
 /// The load factor, `LOAD_NUM / LOAD_DEN` = 3/4.
@@ -242,10 +262,36 @@ impl<K, V> HashMap<K, V> {
         }
     }
 
-    /// An empty map with `MIN_CAPACITY` buckets.
+    /// An empty map that has **not allocated its buckets yet**: `slots` is the
+    /// empty `Vec`, and the first `insert` calls `ensure_slots` (task #35).
+    /// Unlike the tutorial's `new`, this allocates nothing at all — the
+    /// checker creates thousands of memo tables per declaration that never see
+    /// an insert (`*Fast` walks, `beq`'s pair memo, the per-record `CState`s),
+    /// and a `MIN_CAPACITY` bucket array each was 17 % of `Init`'s
+    /// `allocate_slots` bill.  The abstract map is `∅` either way, so this is
+    /// not a memo-policy change (DESIGN.md §3.1).
     /// Source: `vendor/aeneas/tests/src/hashmap.rs:85` (`new`).
     pub fn new() -> HashMap<K, V> {
-        HashMap::new_with_capacity_pow2(MIN_CAPACITY)
+        HashMap {
+            num_entries: 0,
+            max_load: 0,
+            saturated: false,
+            slots: Vec::new(),
+        }
+    }
+
+    /// Give an unallocated table (`new`'s) its initial `MIN_CAPACITY` buckets;
+    /// a no-op on a table that already has some.  Called by `insert`, which is
+    /// the only operation that needs a bucket to write into: `get`,
+    /// `contains_key` and `remove` answer `None` on an unallocated table
+    /// without touching `slots`.
+    /// Source: none in the tutorial's file (it allocates in `new`).
+    fn ensure_slots(&mut self) {
+        if self.slots.len() == 0 {
+            let table = HashMap::new_with_capacity_pow2(MIN_CAPACITY);
+            self.max_load = table.max_load;
+            self.slots = table.slots;
+        }
     }
 
     /// An empty map sized so that `capacity` buckets are available (rounded
@@ -294,11 +340,16 @@ impl<K, V> HashMap<K, V>
 where
     K: Hashable + Eq2,
 {
-    /// The value bound to `key`, if any.
+    /// The value bound to `key`, if any.  The guard is the unallocated table
+    /// of `new`: it binds nothing, and `bucket_index` would divide by zero.
     /// Source: `vendor/aeneas/tests/src/hashmap.rs:248` (`get`).
     pub fn get(&self, key: &K) -> Option<&V> {
-        let i = bucket_index(key.hash64(), self.slots.len());
-        list_get(&self.slots[i], key)
+        if self.slots.len() == 0 {
+            None
+        } else {
+            let i = bucket_index(key.hash64(), self.slots.len());
+            list_get(&self.slots[i], key)
+        }
     }
 
     /// Whether `key` is bound.
@@ -313,6 +364,7 @@ where
     /// Bind `key` to `value`, returning the previous value if there was one.
     /// Source: `vendor/aeneas/tests/src/hashmap.rs:140` (`insert`).
     pub fn insert(&mut self, key: K, value: V) -> Option<V> {
+        self.ensure_slots();
         let old = self.insert_no_resize(key, value);
         if self.num_entries > self.max_load {
             if !self.saturated {
@@ -385,21 +437,26 @@ where
         }
     }
 
-    /// Unbind `key`, returning the value it was bound to.
+    /// Unbind `key`, returning the value it was bound to.  The guard is
+    /// `get`'s: an unallocated table binds nothing.
     /// Source: `vendor/aeneas/tests/src/hashmap.rs:296` (`remove`).
     pub fn remove(&mut self, key: &K) -> Option<V> {
-        let i = bucket_index(key.hash64(), self.slots.len());
-        // One `&mut` on the slot, held across the call: indexing twice would
-        // generate two `Vec.index_mut` round trips in the Lean.
-        let slot = &mut self.slots[i];
-        let ls = core::mem::replace(slot, AList::Nil);
-        let (rest, removed) = list_remove(ls, key);
-        *slot = rest;
-        match removed {
-            None => None,
-            Some(v) => {
-                self.num_entries -= 1;
-                Some(v)
+        if self.slots.len() == 0 {
+            None
+        } else {
+            let i = bucket_index(key.hash64(), self.slots.len());
+            // One `&mut` on the slot, held across the call: indexing twice
+            // would generate two `Vec.index_mut` round trips in the Lean.
+            let slot = &mut self.slots[i];
+            let ls = core::mem::replace(slot, AList::Nil);
+            let (rest, removed) = list_remove(ls, key);
+            *slot = rest;
+            match removed {
+                None => None,
+                Some(v) => {
+                    self.num_entries -= 1;
+                    Some(v)
+                }
             }
         }
     }
@@ -532,6 +589,42 @@ mod tests {
         // Usable after a clear.
         assert_eq!(m.insert(8, 81), None);
         assert_eq!(m.get(&8), Some(&81));
+    }
+
+    /// Task #35: `new` allocates no buckets, every read answers on the empty
+    /// `slots`, and the first `insert` is what allocates.
+    #[test]
+    fn new_allocates_nothing_and_insert_allocates() {
+        let mut m: HashMap<u64, u64> = HashMap::new();
+        assert_eq!(m.slots.len(), 0);
+        // Reads and removes on an unallocated table.
+        assert_eq!(m.get(&7), None);
+        assert!(!m.contains_key(&7));
+        assert_eq!(m.remove(&7), None);
+        assert_eq!(m.len(), 0);
+        assert!(m.is_empty());
+        // `clear` keeps it unallocated.
+        m.clear();
+        assert_eq!(m.slots.len(), 0);
+        assert!(m.is_empty());
+        assert_eq!(m.get(&7), None);
+        // The first insert allocates, and the table then behaves as before.
+        assert_eq!(m.insert(7, 70), None);
+        assert_eq!(m.slots.len(), MIN_CAPACITY);
+        assert_eq!(m.max_load, max_load_for(MIN_CAPACITY));
+        assert_eq!(m.get(&7), Some(&70));
+        assert_eq!(m.len(), 1);
+        // A second insert does not reallocate.
+        assert_eq!(m.insert(8, 80), None);
+        assert_eq!(m.slots.len(), MIN_CAPACITY);
+        // `clear` on an allocated table keeps the allocation (con-leche's
+        // `{ s with instC := {} }`).
+        m.clear();
+        assert_eq!(m.slots.len(), MIN_CAPACITY);
+        assert!(m.is_empty());
+        // `with_capacity` still allocates eagerly.
+        let w: HashMap<u64, u64> = HashMap::with_capacity(100);
+        assert_eq!(w.slots.len(), 128);
     }
 
     #[test]

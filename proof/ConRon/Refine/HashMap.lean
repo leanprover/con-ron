@@ -24,6 +24,18 @@ Two deliberate departures from the tutorial:
   `Nodup`, `lookupK` is permutation-invariant, so one perm carries lookup,
   length and nodup at once.
 
+**The unallocated table** (task #35).  `ron::HashMap::new` allocates no
+buckets at all — the checker builds thousands of memo tables that never see an
+insert — so `slots = []` is a reachable state and `Inv` has a case for it: the
+two capacity fields `pow2`/`min_cap` are conditional on
+`0 < m.slots.val.length`, `new_refines` goes through `unallocated_inv` instead
+of `empty_table_inv`, `get_refines` and `remove_refines` each open with the
+`slots.len() == 0` branch (`vec_len_eq_zero_iff`), and `insert_refines`
+threads the new `ensure_slots_spec`, which is also where `try_resize_spec`'s
+new `0 < length` hypothesis comes from.  Nothing about the *abstract* map
+changed: an unallocated table denotes `∅`, which is what a `MIN_CAPACITY`
+table of empty buckets denoted.
+
 The one semantic hypothesis is `Eq2Spec Eq2Inst` — `eq2` is decidable equality
 on the key type.  The natural generalisation (and the one the `ExprC` keys of
 §3.2 will want) is "`eq2 a b = ok (decide (absK a = absK b))` for an
@@ -178,6 +190,10 @@ omit [DecidableEq K] in
 omit [DecidableEq K] in
 @[local simp] theorem alv_cons (k : K) (v : V) (tl : ron.hashmap.AList K V) :
     alv (ron.hashmap.AList.Cons k v tl) = (k, v) :: alv tl := rfl
+omit [DecidableEq K] in
+/-- The default bucket is the empty one: this is what `slots[j]!` gives outside
+the range, which is *every* `j` on an unallocated table (task #35). -/
+@[local simp] theorem alv_default : alv (default : ron.hashmap.AList K V) = [] := rfl
 
 /-- The whole table as one association list: the buckets, flattened. -/
 def al_v (m : ron.hashmap.HashMap K V) : List (K × V) := (m.slots.val.map alv).flatten
@@ -190,11 +206,20 @@ def bucketAt (HashableInst : ron.hashmap.Hashable K) (n : Std.Usize) (k : K) :
   ron.hashmap.bucket_index h n
 
 /-- The table invariant: the capacity is a power of two of at least
-`MIN_CAPACITY`, every key sits in the bucket its hash selects, keys are
-pairwise distinct, and `num_entries` counts the entries. -/
+`MIN_CAPACITY` *or zero*, every key sits in the bucket its hash selects, keys
+are pairwise distinct, and `num_entries` counts the entries.
+
+The zero case is the **unallocated** table `ron::HashMap::new` returns since
+task #35: `slots` is the empty `Vec` and the first `insert` allocates
+(`ensure_slots`).  Hence the two capacity fields are conditional on
+`0 < m.slots.val.length`, and the other three need no change — `slot_inv` is
+vacuous when `slots` is empty (`m.slots.val[j]!` is then the default `Nil`),
+`al_v m` is `[]`, and `num_entries` is `0`.  Only `try_resize_spec`, which
+doubles the capacity, has to *know* the table is allocated; every other
+consumer either preserves the length or is on the allocating path. -/
 structure Inv (HashableInst : ron.hashmap.Hashable K) (m : ron.hashmap.HashMap K V) : Prop where
-  pow2 : ∃ e, m.slots.val.length = 2 ^ e
-  min_cap : 32 ≤ m.slots.val.length
+  pow2 : 0 < m.slots.val.length → ∃ e, m.slots.val.length = 2 ^ e
+  min_cap : 0 < m.slots.val.length → 32 ≤ m.slots.val.length
   slot_inv : ∀ (j : Nat) (i : Std.Usize) (k : K),
       k ∈ (alv m.slots.val[j]!).map Prod.fst →
       bucketAt HashableInst (alloc.vec.Vec.len m.slots) k = ok i → i.val = j
@@ -383,6 +408,21 @@ theorem vec_index_mut_eq {α : Type} [Inhabited α] {v : alloc.vec.Vec α} {i : 
   exact ⟨h1, hxy.1 ▸ h2, hxy.2.symm⟩
 
 omit [DecidableEq K] in
+/-- A `Vec` is empty exactly when its `len` is `0`.  The `slots.len() == 0`
+guards of `get`, `remove` and `ensure_slots` (task #35) test the left-hand
+side; every proof below wants the right-hand one. -/
+theorem vec_len_eq_zero_iff {α : Type} {v : alloc.vec.Vec α} :
+    alloc.vec.Vec.len v = 0#usize ↔ v.val = [] := by
+  constructor
+  · intro h
+    apply List.eq_nil_of_length_eq_zero
+    have hv : (alloc.vec.Vec.len v).val = 0 := by rw [h]; rfl
+    simpa using hv
+  · intro h
+    have hv : (alloc.vec.Vec.len v).val = 0 := by simp [h]
+    scalar_tac
+
+omit [DecidableEq K] in
 theorem vec_push_eq {α : Type} {v v' : alloc.vec.Vec α} {x : α}
     (h : alloc.vec.Vec.push v x = ok v') : v'.val = v.val ++ [x] := by
   rw [alloc.vec.Vec.push] at h
@@ -486,6 +526,12 @@ theorem get_refines (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m) {k : K}
     {r : Option V} (h : ron.hashmap.HashMap.get HashableInst Eq2Inst m k = ok r) :
     r = toFun m k := by
   rw [ron.hashmap.HashMap.get] at h
+  split at h
+  · -- The unallocated table of `new` (task #35): it binds nothing, and
+    -- `bucket_index` is never reached (it would divide by zero).
+    rename_i h0
+    have hav : al_v m = [] := by simp [al_v, vec_len_eq_zero_iff.mp h0]
+    rw [← Result.ok_injective h]; simp [toFun, hav]
   simp only [bind_eq_ok_iff] at h
   obtain ⟨hk, hhash, i2, hbi, a, hidx, hget⟩ := h
   have hb : bucketAt HashableInst (alloc.vec.Vec.len m.slots) k = ok i2 := by
@@ -609,17 +655,78 @@ theorem empty_table_inv {c : Std.Usize} {m : ron.hashmap.HashMap K V}
   obtain ⟨hs, hn, -⟩ := new_with_capacity_pow2_spec h
   have hav : al_v m = [] := by simp [al_v, hs]
   refine ⟨⟨?_, ?_, ?_, ?_, ?_⟩, hav, fun k => by simp [toFun, hav]⟩
-  · rw [hs]; simpa using hc2
-  · rw [hs]; simpa using hc32
+  · intro _; rw [hs]; simpa using hc2
+  · intro _; rw [hs]; simpa using hc32
   · intro j i k hk _
     rw [hs, getElem!_replicate_nil] at hk; simp at hk
+  · rw [hav]; simp
+  · rw [hav, hn]; simp
+
+/-- An unallocated table — `slots = []` — satisfies `Inv`, and denotes `∅`.
+This is `new`'s table since task #35 (the module note of `ron/hashmap.rs`):
+`pow2` and `min_cap` are the two fields the empty capacity needs the
+`0 < length` guard for, and the other three hold outright. -/
+theorem unallocated_inv (hs : m.slots.val = []) (hn : m.num_entries.val = 0) :
+    Inv HashableInst m ∧ al_v m = [] ∧ ∀ k, toFun m k = none := by
+  have hav : al_v m = [] := by simp [al_v, hs]
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_⟩, hav, fun k => by simp [toFun, hav]⟩
+  · intro hpos; rw [hs] at hpos; simp at hpos
+  · intro hpos; rw [hs] at hpos; simp at hpos
+  · intro j i k hk _
+    rw [hs] at hk; simp at hk
   · rw [hav]; simp
   · rw [hav, hn]; simp
 
 theorem new_refines (h : ron.hashmap.HashMap.new K V = ok m) :
     Inv HashableInst m ∧ al_v m = [] ∧ ∀ k, toFun m k = none := by
   rw [ron.hashmap.HashMap.new] at h
-  exact empty_table_inv ⟨5, by simp [ron.hashmap.MIN_CAPACITY]⟩ (by simp [ron.hashmap.MIN_CAPACITY]) h
+  have hm := Result.ok_injective h
+  refine unallocated_inv (HashableInst := HashableInst) ?_ ?_
+  · rw [← hm]; rfl
+  · rw [← hm]; rfl
+
+omit [DecidableEq K] in
+/-- `ensure_slots` gives an unallocated table its buckets and leaves an
+allocated one alone; either way the abstract map, the entry count and the
+`saturated` flag are untouched, and the result *is* allocated — which is the
+hypothesis `try_resize_spec` needs. -/
+theorem ensure_slots_spec (hinv : Inv HashableInst m) {m' : ron.hashmap.HashMap K V}
+    (h : ron.hashmap.HashMap.ensure_slots m = ok m') :
+    Inv HashableInst m' ∧ 0 < m'.slots.val.length ∧ al_v m' = al_v m ∧
+      m'.num_entries = m.num_entries ∧ m'.saturated = m.saturated := by
+  rw [ron.hashmap.HashMap.ensure_slots] at h
+  split at h
+  · -- The table had no buckets: it is `∅`, and the fresh table is `∅` too.
+    rename_i h0
+    have hs : m.slots.val = [] := vec_len_eq_zero_iff.mp h0
+    have hav : al_v m = [] := by simp [al_v, hs]
+    have hn : m.num_entries.val = 0 := by rw [hinv.entries, hav]; simp
+    obtain ⟨t, ht, hok⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hts, htn, -⟩ := new_with_capacity_pow2_spec ht
+    have hm := Result.ok_injective hok
+    have hslots : m'.slots = t.slots := by rw [← hm]
+    have hent : m'.num_entries = m.num_entries := by rw [← hm]
+    have hsat : m'.saturated = m.saturated := by rw [← hm]
+    have hlen : m'.slots.val.length = 32 := by
+      rw [hslots, hts]; simp [ron.hashmap.MIN_CAPACITY]
+    have hav' : al_v m' = [] := by
+      rw [al_v, hslots, hts]; simp
+    refine ⟨⟨?_, ?_, ?_, ?_, ?_⟩, by omega, by rw [hav, hav'], hent, hsat⟩
+    · intro _; exact ⟨5, by simp [hlen]⟩
+    · intro _; omega
+    · intro j i k hk _
+      rw [hslots, hts, getElem!_replicate_nil] at hk; simp at hk
+    · rw [hav']; simp
+    · rw [hav', hent, hn]; simp
+  · -- Already allocated: nothing moves.
+    rename_i h0
+    have hm := Result.ok_injective h
+    subst hm
+    have hpos : 0 < m.slots.val.length := by
+      rcases Nat.eq_zero_or_pos m.slots.val.length with hz | hp
+      · exact absurd (vec_len_eq_zero_iff.mpr (List.eq_nil_of_length_eq_zero hz)) h0
+      · exact hp
+    exact ⟨hinv, hpos, rfl, rfl, rfl⟩
 
 omit [DecidableEq K] in
 theorem pow2_at_least_spec (F : Nat) :
@@ -1165,8 +1272,11 @@ theorem Inv_of_slots_eq {m₁ m₂ : ron.hashmap.HashMap K V} (h₁ : Inv Hashab
   nodup := by rw [al_v_congr hs]; exact h₁.nodup
   entries := he
 
+/-- `try_resize` is the one operation that needs the table to be *allocated*:
+it doubles `slots.len()`, and `0` doubled is still `0`.  `insert` supplies
+`hpos` from `ensure_slots_spec` (task #35). -/
 theorem try_resize_spec (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m)
-    {m' : ron.hashmap.HashMap K V}
+    (hpos : 0 < m.slots.val.length) {m' : ron.hashmap.HashMap K V}
     (h : ron.hashmap.HashMap.try_resize HashableInst Eq2Inst m = ok m') :
     Inv HashableInst m' ∧ ∀ k, toFun m' k = toFun m k := by
   rw [ron.hashmap.HashMap.try_resize] at h
@@ -1185,9 +1295,9 @@ theorem try_resize_spec (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m)
       alloc.vec.Vec.len_val _
     have hcap2v : cap2.val = m.slots.val.length * 2 := by
       rw [uscalar_mul_eq hcap2, hcapv, show (2#usize : Std.Usize).val = 2 by scalar_tac]
-    obtain ⟨e0, he0⟩ := hinv.pow2
+    obtain ⟨e0, he0⟩ := hinv.pow2 hpos
     obtain ⟨hinvnt, hnil, -⟩ := empty_table_inv (HashableInst := HashableInst)
-      ⟨e0 + 1, by rw [hcap2v, he0]; ring⟩ (by rw [hcap2v]; have := hinv.min_cap; omega) hnt
+      ⟨e0 + 1, by rw [hcap2v, he0]; ring⟩ (by rw [hcap2v]; have := hinv.min_cap hpos; omega) hnt
     have hflat : slotsFlat m.slots.val 0 ((alloc.vec.Vec.len m.slots).val - 0) = al_v m := by
       rw [hcapv, Nat.sub_zero, al_v]
       exact slotsFlat_all _
@@ -1219,11 +1329,18 @@ theorem insert_refines (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m)
     Inv HashableInst m' ∧ old = toFun m k ∧
     toFun m' = Function.update (toFun m) k (some v) := by
   rw [ron.hashmap.HashMap.insert] at h
+  -- `insert` allocates first (task #35): the table `insert_no_resize` writes
+  -- into is `m0`, which denotes the same map as `m` and *is* allocated.
+  obtain ⟨m0, hens, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hinv0, hpos0, hav0, -, -⟩ := ensure_slots_spec hinv hens
+  have htf0 : toFun m0 = toFun m := by funext k'; rw [toFun, toFun, hav0]
   obtain ⟨q, hins, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨old0, m1⟩ := q
-  obtain ⟨hinv1, hold, htf, -, -, -, -, -⟩ := insert_no_resize_spec heq hinv hins
+  obtain ⟨hinv1, hold0, htf, hlen1, -, -, -, -⟩ := insert_no_resize_spec heq hinv0 hins
+  have hold : old0 = toFun m k := by rw [hold0, htf0]
+  have hpos1 : 0 < m1.slots.val.length := by rw [hlen1]; exact hpos0
   have hupd : toFun m1 = Function.update (toFun m) k (some v) := by
-    funext k'; rw [htf k', Function.update_apply]
+    funext k'; rw [htf k', htf0, Function.update_apply]
   have h2 : (if m1.num_entries > m1.max_load then
         (if m1.saturated then ok (old0, m1)
          else do
@@ -1238,7 +1355,7 @@ theorem insert_refines (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m)
       rw [e1, e2]
       exact ⟨hinv1, hold, hupd⟩
     · obtain ⟨m2, hres, hok⟩ := bind_eq_ok_iff.mp h2
-      obtain ⟨hinv2, htf2⟩ := try_resize_spec heq hinv1 hres
+      obtain ⟨hinv2, htf2⟩ := try_resize_spec heq hinv1 hpos1 hres
       have e := Result.ok_injective hok
       have e1 : old = old0 := (congrArg Prod.fst e).symm
       have e2 : m' = m2 := (congrArg Prod.snd e).symm
@@ -1259,6 +1376,16 @@ theorem remove_refines (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m)
     Inv HashableInst m' ∧ old = toFun m k ∧
     toFun m' = Function.update (toFun m) k none := by
   rw [ron.hashmap.HashMap.remove] at h
+  split at h
+  · -- The unallocated table of `new` (task #35), exactly as in `get`.
+    rename_i h0
+    have hav : al_v m = [] := by simp [al_v, vec_len_eq_zero_iff.mp h0]
+    have e := Result.ok_injective h
+    have e1 : old = none := (congrArg Prod.fst e).symm
+    have e2 : m' = m := (congrArg Prod.snd e).symm
+    subst e1; subst e2
+    refine ⟨hinv, by simp [toFun, hav], ?_⟩
+    funext k'; simp [toFun, hav, Function.update_apply]
   simp only [bind_eq_ok_iff] at h
   obtain ⟨hw, hhash, i2, hbi, p, hidx, h⟩ := h
   obtain ⟨slot, back⟩ := p

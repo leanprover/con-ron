@@ -57,6 +57,46 @@
 //! topologically sorted, so the reader needs no worklist either — the writer's
 //! is enough).
 
+// ---------------------------------------------------------------------------
+// The global allocator (task #35).
+//
+// glibc `malloc`/`free` was a third of `init`'s instructions (task #34's
+// profile: `__libc_malloc2` 15.1 %, `_int_free_chunk` 11.7 %, plus the
+// surrounding glue), and the checker's traffic is exactly what a modern
+// thread-caching allocator is built for: millions of small, short-lived
+// `Rc<Node>`s, `Vec`s and `AList` cells on one thread.
+//
+// This attribute lives **here**, in the unverified `con-ron-dump` crate, and
+// therefore applies to the two binaries that link it.  It is invisible to the
+// verified core: Charon extracts `con-ron-core` alone, the allocator is not a
+// Rust item of that crate, and the Aeneas model has no heap to begin with
+// (`Rc`/`Box`/`Vec` are modeled by their contents, DESIGN.md §3.2), so
+// `proof/ConRon/Generated/*` is byte-identical whichever allocator is chosen.
+// It cannot change the verdict either: the allocator only decides *where*
+// bytes go, and the core reads no address (`ptr_eq` aside, which compares
+// identity, not order).
+//
+// `mimalloc` is the default (it measured best on `init`);
+// `--no-default-features` restores glibc `malloc`, and
+// `--no-default-features --features jemalloc` selects jemalloc.
+#[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+#[global_allocator]
+static GLOBAL_ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
+#[cfg(feature = "jemalloc")]
+#[global_allocator]
+static GLOBAL_ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
+/// The name of the allocator this build uses, for `--version`-style output and
+/// for the task-log numbers to be reproducible.
+pub const ALLOCATOR: &str = if cfg!(feature = "jemalloc") {
+    "jemalloc"
+} else if cfg!(feature = "mimalloc") {
+    "mimalloc"
+} else {
+    "system"
+};
+
 use con_ron_core::cached::parsed_c::DeclC;
 use con_ron_core::kernel::env;
 use con_ron_core::kernel::env::BasisKind;

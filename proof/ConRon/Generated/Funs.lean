@@ -48,7 +48,7 @@ def cached.checker_c.or_else_step
     ok (cached.checker_c.OrElseStep.Continue (some e))
 
 /-- [con_ron_core::ron::hashmap::list_get]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 153:0-167:1 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 173:0-187:1 -/
 def ron.hashmap.list_get
   {K : Type} {V : Type} (Eq2Inst : ron.hashmap.Eq2 K)
   (ls : ron.hashmap.AList K V) (key : K) :
@@ -64,7 +64,7 @@ def ron.hashmap.list_get
 partial_fixpoint
 
 /-- [con_ron_core::ron::hashmap::bucket_index]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 122:0-126:1 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 142:0-146:1 -/
 def ron.hashmap.bucket_index
   (h : Std.U64) (n : Std.Usize) : Result Std.Usize := do
   let n64 ← lift (UScalar.cast .U64 n)
@@ -72,20 +72,24 @@ def ron.hashmap.bucket_index
   ok (UScalar.cast .Usize i)
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::get]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 299:4-302:5
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 346:4-353:5
     Visibility: public -/
 def ron.hashmap.HashMap.get
   {K : Type} {V : Type} (HashableInst : ron.hashmap.Hashable K) (Eq2Inst :
   ron.hashmap.Eq2 K) (self : ron.hashmap.HashMap K V) (key : K) :
   Result (Option V)
   := do
-  let i ← HashableInst.hash64 key
-  let i1 := alloc.vec.Vec.len self.slots
-  let i2 ← ron.hashmap.bucket_index i i1
-  let a ←
-    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-      (ron.hashmap.AList K V)) self.slots i2
-  ron.hashmap.list_get Eq2Inst a key
+  let i := alloc.vec.Vec.len self.slots
+  if i = 0#usize
+  then ok none
+  else
+    let i1 ← HashableInst.hash64 key
+    let i2 := alloc.vec.Vec.len self.slots
+    let i3 ← ron.hashmap.bucket_index i1 i2
+    let a ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (ron.hashmap.AList K V)) self.slots i3
+    ron.hashmap.list_get Eq2Inst a key
 
 /-- [con_ron_core::kernel::name::str_eq_from]:
     Source: 'crates/con-ron-core/src/kernel/name.rs', lines 139:0-147:1
@@ -358,7 +362,7 @@ def kernel.env.levels_copy
   kernel.env.levels_copy_from us 0#usize v
 
 /-- [con_ron_core::ron::hashmap::list_insert]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 172:0-190:1 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 192:0-210:1 -/
 def ron.hashmap.list_insert
   {K : Type} {V : Type} (Eq2Inst : ron.hashmap.Eq2 K)
   (ls : ron.hashmap.AList K V) (key : K) (value : V) :
@@ -379,7 +383,7 @@ def ron.hashmap.list_insert
 partial_fixpoint
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::insert_no_resize]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 327:4-337:5 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 379:4-389:5 -/
 def ron.hashmap.HashMap.insert_no_resize
   {K : Type} {V : Type} (HashableInst : ron.hashmap.Hashable K) (Eq2Inst :
   ron.hashmap.Eq2 K) (self : ron.hashmap.HashMap K V) (key : K) (value : V) :
@@ -401,7 +405,7 @@ def ron.hashmap.HashMap.insert_no_resize
               ok (old, { self with slots := v })
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::move_elements_from_list]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 378:4-386:5 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 430:4-438:5 -/
 def ron.hashmap.HashMap.move_elements_from_list
   {K : Type} {V : Type} (HashableInst : ron.hashmap.Hashable K) (Eq2Inst :
   ron.hashmap.Eq2 K) (ntable : ron.hashmap.HashMap K V)
@@ -417,7 +421,7 @@ def ron.hashmap.HashMap.move_elements_from_list
 partial_fixpoint
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::move_elements]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 356:4-373:5 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 408:4-425:5 -/
 def ron.hashmap.HashMap.move_elements
   {K : Type} {V : Type} (HashableInst : ron.hashmap.Hashable K) (Eq2Inst :
   ron.hashmap.Eq2 K) (ntable : ron.hashmap.HashMap K V)
@@ -451,7 +455,7 @@ def ron.hashmap.HashMap.move_elements
 partial_fixpoint
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::allocate_slots]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 219:4-230:5 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 239:4-250:5 -/
 def ron.hashmap.HashMap.allocate_slots
   {K : Type} {V : Type} (slots : alloc.vec.Vec (ron.hashmap.AList K V))
   (n : Std.Usize) :
@@ -470,21 +474,21 @@ def ron.hashmap.HashMap.allocate_slots
 partial_fixpoint
 
 /-- [con_ron_core::ron::hashmap::LOAD_DEN]
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 109:0-109:26 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 129:0-129:26 -/
 @[global_simps, irreducible] def ron.hashmap.LOAD_DEN : Std.Usize := 4#usize
 
 /-- [con_ron_core::ron::hashmap::LOAD_NUM]
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 108:0-108:26 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 128:0-128:26 -/
 @[global_simps, irreducible] def ron.hashmap.LOAD_NUM : Std.Usize := 3#usize
 
 /-- [con_ron_core::ron::hashmap::max_load_for]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 131:0-134:1 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 151:0-154:1 -/
 def ron.hashmap.max_load_for (capacity : Std.Usize) : Result Std.Usize := do
   let q ← capacity / ron.hashmap.LOAD_DEN
   q * ron.hashmap.LOAD_NUM
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::new_with_capacity_pow2]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 235:4-243:5 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 255:4-263:5 -/
 def ron.hashmap.HashMap.new_with_capacity_pow2
   (K : Type) (V : Type) (capacity : Std.Usize) :
   Result (ron.hashmap.HashMap K V)
@@ -495,7 +499,7 @@ def ron.hashmap.HashMap.new_with_capacity_pow2
   ok { num_entries := 0#usize, max_load := i, saturated := false, slots }
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::try_resize]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 341:4-351:5 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 393:4-403:5 -/
 def ron.hashmap.HashMap.try_resize
   {K : Type} {V : Type} (HashableInst : ron.hashmap.Hashable K) (Eq2Inst :
   ron.hashmap.Eq2 K) (self : ron.hashmap.HashMap K V) :
@@ -513,24 +517,44 @@ def ron.hashmap.HashMap.try_resize
     ok { self with max_load := ntable1.max_load, slots := ntable1.slots }
   else ok { self with saturated := true }
 
+/-- [con_ron_core::ron::hashmap::MIN_CAPACITY]
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 125:0-125:31 -/
+@[global_simps, irreducible]
+def ron.hashmap.MIN_CAPACITY : Std.Usize := 32#usize
+
+/-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::ensure_slots]:
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 289:4-295:5 -/
+def ron.hashmap.HashMap.ensure_slots
+  {K : Type} {V : Type} (self : ron.hashmap.HashMap K V) :
+  Result (ron.hashmap.HashMap K V)
+  := do
+  let i := alloc.vec.Vec.len self.slots
+  if i = 0#usize
+  then
+    let table ←
+      ron.hashmap.HashMap.new_with_capacity_pow2 K V ron.hashmap.MIN_CAPACITY
+    ok { self with max_load := table.max_load, slots := table.slots }
+  else ok self
+
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::insert]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 315:4-323:5
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 366:4-375:5
     Visibility: public -/
 def ron.hashmap.HashMap.insert
   {K : Type} {V : Type} (HashableInst : ron.hashmap.Hashable K) (Eq2Inst :
   ron.hashmap.Eq2 K) (self : ron.hashmap.HashMap K V) (key : K) (value : V) :
   Result ((Option V) × (ron.hashmap.HashMap K V))
   := do
-  let (old, self1) ←
-    ron.hashmap.HashMap.insert_no_resize HashableInst Eq2Inst self key value
-  if self1.num_entries > self1.max_load
+  let self1 ← ron.hashmap.HashMap.ensure_slots self
+  let (old, self2) ←
+    ron.hashmap.HashMap.insert_no_resize HashableInst Eq2Inst self1 key value
+  if self2.num_entries > self2.max_load
   then
-    if self1.saturated
-    then ok (old, self1)
+    if self2.saturated
+    then ok (old, self2)
     else
-      let self2 ← ron.hashmap.HashMap.try_resize HashableInst Eq2Inst self1
-      ok (old, self2)
-  else ok (old, self1)
+      let self3 ← ron.hashmap.HashMap.try_resize HashableInst Eq2Inst self2
+      ok (old, self3)
+  else ok (old, self2)
 
 /-- [con_ron_core::kernel::core_types::internal]:
     Source: 'crates/con-ron-core/src/kernel/core_types.rs', lines 122:0-124:1
@@ -844,17 +868,18 @@ def cached.state_c.const_val_at_probe
   | some r => let e ← kernel.expr.dup r
               ok (some e)
 
-/-- [con_ron_core::ron::hashmap::MIN_CAPACITY]
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 105:0-105:31 -/
-@[global_simps, irreducible]
-def ron.hashmap.MIN_CAPACITY : Std.Usize := 32#usize
-
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::new]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 247:4-249:5
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 274:4-281:5
     Visibility: public -/
 def ron.hashmap.HashMap.new
   (K : Type) (V : Type) : Result (ron.hashmap.HashMap K V) := do
-  ron.hashmap.HashMap.new_with_capacity_pow2 K V ron.hashmap.MIN_CAPACITY
+  ok
+    {
+      num_entries := 0#usize,
+      max_load := 0#usize,
+      saturated := false,
+      slots := (alloc.vec.Vec.new (ron.hashmap.AList K V))
+    }
 
 /-- [con_ron_core::kernel::expr::proj_head_beq]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 869:0-875:1
@@ -883,28 +908,28 @@ def kernel.expr.const_beq
   else ok false
 
 /-- [con_ron_core::ron::hashmap::{impl con_ron_core::ron::hashmap::Eq2 for u64}::eq2]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 75:4-77:5
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 92:4-94:5
     Visibility: public -/
 def U64.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : Std.U64) (other : Std.U64) : Result Bool := do
   ok (self = other)
 
 /-- Trait implementation: [con_ron_core::ron::hashmap::{impl con_ron_core::ron::hashmap::Eq2 for u64}]
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 74:0-78:1 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 91:0-95:1 -/
 @[reducible]
 def U64.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2 Std.U64 := {
   eq2 := U64.Insts.Con_ron_coreRonHashmapEq2.eq2
 }
 
 /-- [con_ron_core::ron::hashmap::{impl con_ron_core::ron::hashmap::Hashable for u64}::hash64]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 69:4-71:5
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 86:4-88:5
     Visibility: public -/
 def U64.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : Std.U64) : Result Std.U64 := do
   ok self
 
 /-- Trait implementation: [con_ron_core::ron::hashmap::{impl con_ron_core::ron::hashmap::Hashable for u64}]
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 67:0-72:1 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 84:0-89:1 -/
 @[reducible]
 def U64.Insts.Con_ron_coreRonHashmapHashable : ron.hashmap.Hashable Std.U64
   := {
@@ -10252,7 +10277,7 @@ def cached.state_c.inst_list_rev_m
   cached.expr_ops_c.instantiate_rev e vs d
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::len]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 260:4-262:5
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 306:4-308:5
     Visibility: public -/
 def ron.hashmap.HashMap.len
   {K : Type} {V : Type} (self : ron.hashmap.HashMap K V) :
@@ -27063,7 +27088,7 @@ def kernel.inductives.native_install.check_native_rules
 partial_fixpoint
 
 /-- [con_ron_core::ron::hashmap::pow2_at_least]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 139:0-149:1 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 159:0-169:1 -/
 def ron.hashmap.pow2_at_least
   (n : Std.Usize) (cap : Std.Usize) (fuel : Std.Usize) : Result Std.Usize := do
   if fuel = 0#usize
@@ -27082,11 +27107,11 @@ def ron.hashmap.pow2_at_least
 partial_fixpoint
 
 /-- [con_ron_core::ron::hashmap::POW2_FUEL]
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 113:0-113:28 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 133:0-133:28 -/
 @[global_simps, irreducible] def ron.hashmap.POW2_FUEL : Std.Usize := 64#usize
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::with_capacity]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 253:4-256:5
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 299:4-302:5
     Visibility: public -/
 def ron.hashmap.HashMap.with_capacity
   (K : Type) (V : Type) (capacity : Std.Usize) :
@@ -51141,7 +51166,7 @@ def kernel.type_checker.infer_type_io
   cached.core_c.infer_io mode i st fe depth e
 
 /-- [con_ron_core::ron::hashmap::list_remove]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 196:0-211:1 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 216:0-231:1 -/
 def ron.hashmap.list_remove
   {K : Type} {V : Type} (Eq2Inst : ron.hashmap.Eq2 K)
   (ls : ron.hashmap.AList K V) (key : K) :
@@ -51159,14 +51184,14 @@ def ron.hashmap.list_remove
 partial_fixpoint
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::is_empty]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 265:4-267:5
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 311:4-313:5
     Visibility: public -/
 def ron.hashmap.HashMap.is_empty
   {K : Type} {V : Type} (self : ron.hashmap.HashMap K V) : Result Bool := do
   ok (self.num_entries = 0#usize)
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::clear_slots]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 279:4-290:5 -/
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 325:4-336:5 -/
 def ron.hashmap.HashMap.clear_slots
   {K : Type} {V : Type} (slots : alloc.vec.Vec (ron.hashmap.AList K V))
   (lo : Std.Usize) (hi : Std.Usize) :
@@ -51190,7 +51215,7 @@ def ron.hashmap.HashMap.clear_slots
 partial_fixpoint
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::clear]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 272:4-276:5
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 318:4-322:5
     Visibility: public -/
 def ron.hashmap.HashMap.clear
   {K : Type} {V : Type} (self : ron.hashmap.HashMap K V) :
@@ -51201,7 +51226,7 @@ def ron.hashmap.HashMap.clear
   ok { self with num_entries := 0#usize, slots := v }
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::contains_key]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 306:4-311:5
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 357:4-362:5
     Visibility: public -/
 def ron.hashmap.HashMap.contains_key
   {K : Type} {V : Type} (HashableInst : ron.hashmap.Hashable K) (Eq2Inst :
@@ -51214,27 +51239,31 @@ def ron.hashmap.HashMap.contains_key
   | some _ => ok true
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::remove]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 390:4-405:5
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 443:4-462:5
     Visibility: public -/
 def ron.hashmap.HashMap.remove
   {K : Type} {V : Type} (HashableInst : ron.hashmap.Hashable K) (Eq2Inst :
   ron.hashmap.Eq2 K) (self : ron.hashmap.HashMap K V) (key : K) :
   Result ((Option V) × (ron.hashmap.HashMap K V))
   := do
-  let i ← HashableInst.hash64 key
-  let i1 := alloc.vec.Vec.len self.slots
-  let i2 ← ron.hashmap.bucket_index i i1
-  let (slot, index_mut_back) ←
-    alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
-      (ron.hashmap.AList K V)) self.slots i2
-  let (ls, _) := core.mem.replace slot ron.hashmap.AList.Nil
-  let (rest, removed) ← ron.hashmap.list_remove Eq2Inst ls key
-  match removed with
-  | none => let v := index_mut_back rest
-            ok (none, { self with slots := v })
-  | some _ =>
-    let i3 ← self.num_entries - 1#usize
-    let v := index_mut_back rest
-    ok (removed, { self with num_entries := i3, slots := v })
+  let i := alloc.vec.Vec.len self.slots
+  if i = 0#usize
+  then ok (none, self)
+  else
+    let i1 ← HashableInst.hash64 key
+    let i2 := alloc.vec.Vec.len self.slots
+    let i3 ← ron.hashmap.bucket_index i1 i2
+    let (slot, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        (ron.hashmap.AList K V)) self.slots i3
+    let (ls, _) := core.mem.replace slot ron.hashmap.AList.Nil
+    let (rest, removed) ← ron.hashmap.list_remove Eq2Inst ls key
+    match removed with
+    | none => let v := index_mut_back rest
+              ok (none, { self with slots := v })
+    | some _ =>
+      let i4 ← self.num_entries - 1#usize
+      let v := index_mut_back rest
+      ok (removed, { self with num_entries := i4, slots := v })
 
 end ConRon.Generated

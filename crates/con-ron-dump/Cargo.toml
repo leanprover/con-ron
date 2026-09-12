@@ -17,3 +17,18 @@ path = "src/bin/con-ron-check.rs"
 
 [dependencies]
 con-ron-core = { path = "../con-ron-core" }
+# The global allocator of the *unverified* binaries only (task #35; the
+# allocator is invisible to Charon, so the Lean model of the core is
+# untouched).  `mimalloc` is the default because it measured best on `init`;
+# see `src/lib.rs` for the `#[global_allocator]` and DESIGN.md task #35 for
+# the numbers.
+mimalloc = { version = "0.1.52", optional = true }
+tikv-jemallocator = { version = "0.7.0", optional = true }
+
+[features]
+# `mimalloc` wins on `init`, so it is the default; `--no-default-features`
+# gives glibc `malloc` back, and `--no-default-features --features jemalloc`
+# selects jemalloc.
+default = ["mimalloc"]
+mimalloc = ["dep:mimalloc"]
+jemalloc = ["dep:tikv-jemallocator"]
