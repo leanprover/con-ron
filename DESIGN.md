@@ -1849,3 +1849,163 @@ equality at all, so `ConRon/Dump/Main.lean` spells one out structurally.
 tree); the numbers above extrapolate to roughly 1 s of writing per 100 MB of
 NDJSON.  The Rust reader is P1.6's other half, and `ConRon/Dump/FORMAT.md` §6
 is its checklist.
+### Task #11 — `Expr` (2026-09-12, Opus under Fable)
+
+P1.2 (second half).  `ConLeche/Kernel/Expr.lean` from `BinderMeta` on —
+the `Level` half (`:35-139`) was task #3's and lives in `src/level.rs` —
+ported as `crates/con-ron-core/src/expr.rs`.  Charon and Aeneas both
+succeeded on the **first** run again, with zero iteration and zero errors;
+the generated Lean is in `_tmp/core-lean/` (gitignored, not elaborated —
+P2).
+
+**What is in it.**  `BinderMeta` and `Literal` with their `deriving`
+instances spelled out; the seven data-word helpers (`satRange`, `packData`,
+`hashOfData`, `bvarOfData`, `fvarOfData`, `lpOfData`, `hash32`, `satSucc`,
+`satPred`); the ten-constructor `Expr` with its `@[computed_field] data`
+formula as ten smart constructors; the four packed-word accessors (`hash`,
+`hasLP`, `bvarBRaw`, `fvarBRaw`); `beqRecursive`; the structural equality;
+`bvarPoolSize`/`mkBvar`; and the `Hashable`/`Eq2` dictionaries that make an
+`Expr` a hash-map key.  26 cited blocks, 346 raw / **214 code** Lean lines.
+
+**The data word is bit-exact, and that decided the arithmetic.**
+`packData`'s `h * 2^32 + b * 2^16 + f * 2 + lp` is Lean `UInt64`
+arithmetic, i.e. *wrapping*; Rust's `*`/`+` are checked, and Aeneas models a
+checked overflow as `fail`.  The port therefore uses `wrapping_mul` /
+`wrapping_add` (`core.num.U64.wrapping_add` is the one std primitive this
+module adds to the crate's list, and Aeneas models it —
+`Std/Scalar/WrappingOps/Add.lean`).  `satSucc` is the one helper that is
+*not* a literal transliteration: Lean's `min (n + 1) satRange` is on a
+`Nat`, and on the `u64` of §3.3 the `n + 1` would overflow at `u64::MAX`, so
+the saturation test comes first (`if n >= 32766 then 32767 else n + 1`) —
+the same function of the same value for every `u64`, and one that cannot
+fail.  Everything else (`/ 4294967296`, `/ 65536 % 32768`, `% 2 == 1`) is
+the Lean character for character; the tests pin the roundtrip and the
+reserved bit 31.
+
+**`bvarPool`: not ported, and the deviation is free.**  `bvarPool` is a
+closed top-level `def : Array Expr` that Lean's runtime builds once at
+module initialization and marks persistent (`lean_mark_persistent`), so
+`mkBvar i` hands out a borrowed pooled node below 4 096.  Rust has no such
+thing inside the Aeneas subset: a `static`/`const` cannot allocate an `Rc`
+tree, and the lazy alternatives (`OnceLock`, `lazy_static`, an `unsafe`
+mutable `static`) are all outside §3.4 — and Charon would in any case have
+to model a global whose value is an allocation performed before `main`.
+Threading a pool through the checker's state instead would change every
+signature below it for a pure allocation win.  con-leche's own
+`mkBvar_eq` (`:1033`, `@[simp]`) is the transparency argument that makes
+dropping it free: `mkBvar i = .bvar i`, so the pooled and the fresh node are
+the same *value* and no statement anywhere changes.  `mk_bvar` is therefore
+`bvar`, citing `bvarPool`, `mkBvar` and `mkBvar_eq` together, and
+`bvar_pool_size` is kept for the record.  The saving can come back in P1.6
+as a Rust-side arena without touching the model, because the model is
+`.bvar i` either way.
+
+**`beq`: the pointer/word/descent triple, without the pair memo** — §3.2's
+standing ruling, now cashed in.  `beqGo`'s memo apparatus (`EqPair`,
+`EqPair.dflt`, `BeqMap`, `beqKey`, `beqBudget`, `BeqRes`, `BeqOut`,
+`BeqOut.mk`, `withAddr`, `ptrDec`, `probeHit`, `beqDec` — 12 declarations)
+is **not** ported, and with it go the `fuel`/`map` parameters, the
+`Squash` quotient and the `Decidable`-valued result; `beqMemo` and `beq`
+collapse into one `beq` over one `beq_go`.  What is left is exactly what
+§3.2 licenses and what the official kernel's `expr_eq_fn` does without a
+cache: `Rc::ptr_eq` → the computed-word compare → the constructor descent in
+the cited arm order, with the pointer fast path kept at *every* level as in
+`name::beq` and `level::beq`.  Aeneas has no addresses, so the memo is not
+merely inconvenient but unmodelable; if measurement wants it back it returns
+as one opaque function with a trust argument, not as this function's
+parameters.  `beqRecursive` is ported anyway (nine lines, nothing calls it)
+so that the gate stays in step with its source.
+
+**Constructs that do not survive transliteration, and their replacements**
+(all a-priori, as in tasks #3, #6, #7 and #9 — nothing was error-driven).
+
+1. **`const` is a Rust keyword**, so the `.const` smart constructor is
+   `mk_const`; the other nine keep their constructor's name.  (Task #6's
+   `modulo` rule.)
+2. **`max` on `UInt64`.**  Lean's `max` goes through `Ord UInt64`, which is
+   not in the subset; `max_u64` is the two-line `if`.  It appears seven
+   times in the `data` formula.
+3. **The `@[computed_field]` is the smart constructors' business**, as for
+   `Name` and `Level` (§3.2): each of the ten writes its own arm of the
+   cited `data` equation into `ExprNode::data`, and nothing else ever does.
+4. **Two `List` recursions** became index-carrying `*_from` helpers (the
+   task-#3 pattern): `levels_beq_from` (the `us == vs` of the `.const` arm —
+   `Level.isEquivList` is the *equivalence*, not this) and `str_copy_from`
+   (a `Vec<u32>` copy, with the accumulator passed by value and returned per
+   task #6's rule).
+5. **`deriving DecidableEq`/`Hashable` are spelled out.**  `binder_meta_beq`
+   goes through `PropWhen.decEq` rather than a derived structural walk, and
+   `literal_hash` is the derived shape (constructor index, then `mixHash`
+   folded over the fields — `Lean/Elab/Deriving/Hashable.lean:50`, task #9's
+   reading) over the crate's own `Nat` and string hashes, which already
+   differ from Lean's.  §3.2 makes that free.
+6. **Charon expands the wildcard arm.**  `beq_go`'s single `_ => false`
+   becomes nine explicit `ok false` arms inside each of the ten
+   constructor matches, so 78 lines of Rust come out as 181 lines of Lean.
+   Harmless, and the same phenomenon as task #3's `&&` expansion — but it
+   means a ten-constructor pairwise match is the module's whole size story.
+
+**Numbers.**
+
+| | |
+|---|---|
+| Lean ported (26 cited blocks of `Expr.lean`) | 346 raw / **214 code** |
+| `src/expr.rs`, extracted part (raw / code) | 709 / **404** (1.9× the Lean code) |
+| `src/expr.rs`, `#[cfg(test)]` part (13 tests) | 449 / 375 |
+| generated `_tmp/core-lean/Types.lean` (whole crate) | 269 (76 of them `expr`) |
+| generated `_tmp/core-lean/Funs.lean` (whole crate) | **4 045** (727 of them `expr`, 1.8× its Rust code) |
+| `TypesExternal_Template.lean` / `FunsExternal_Template.lean` | 25 / 54 |
+| `charon cargo --preset=aeneas` wall (after `cargo clean`) | **0.34 s** |
+| `aeneas -backend lean -dest _tmp/core-lean -split-files -loops-to-rec` | **1.95 s** (1.76 s self-reported) |
+| items translated (whole crate) | 226 transparent fns, 26 opaque, 5 globals, 11 trait decls (8 emitted), 24 trait impls (14 emitted) |
+| `partial_fixpoint` (whole crate / `expr`) | **67** / **3** (`beq_go`, `levels_beq_from`, `str_copy_from`) |
+| `mutual` blocks | 1 in `Funs.lean` (still task #3's 8-function `leq_core` knot, 313 lines) — `expr` adds **none**; 3 in `Types.lean`, of which `expr` adds one (`ExprKind`/`ExprNode`/`Expr`) |
+| external holes | **exactly the four `Rc` axioms of §3.2** — `new`, `clone`, `deref`, `ptr_eq`.  The 26 opaque functions are all `core`/`alloc` primitives Aeneas already models; `expr` adds one to the list, `core.num.U64.wrapping_add` |
+
+`cargo build`/`cargo test` warning-free, **53/53** green (40 from tasks
+#6-#9 + 13 new); `scripts/lint-rust-style.sh crates/con-ron-core/src`
+clean; `scripts/provenance.py check` green — 333 items, 200 citations, all
+current at pin 3e004805.
+
+**Tests** (`#[cfg(test)]`, invisible to Charon).  Thirteen: the packed
+word's roundtrip over 6 × 6 × 6 × 2 field combinations, with bit 31
+asserted clear and `hashOfData ∘ packData = hash32` checked against a
+too-wide hash; `satSucc`/`satPred` at 0, 1, 32 764-32 767, 10^6 and
+`u64::MAX`, with every stored range asserted `< 2^15`; **`bvarB` saturation**
+— exact at 0, 4 095, 32 765, pinned at 32 766 and above, and a `lam` over a
+saturated body staying saturated while a `lam` over `.bvar 5`/`​.bvar 0`
+gives 5/0 (and the `fvar` range doing the same without descending into the
+annotation); the range and `hasLP` recurrences constructor by constructor;
+**`beq` on shared and on unshared-but-equal DAGs** — every term of a
+14-element battery against its own `dup` (pointer path) and against a
+from-scratch rebuild of the whole battery (14 × 14, equal exactly on the
+diagonal), plus a self-sharing DAG against its fully expanded tree and
+three one-node perturbations of it; `beq` separating every constructor and
+every field, including `lam` vs `forallE` at identical fields and a
+`const`'s level list by length and by entry; **hash equality of
+structurally equal terms built separately** — the battery's `data`, `hash`,
+`hasLP` and both ranges pairwise equal, no collision within the battery, and
+a shared subterm's word equal to its rebuilt twin's; the `Hashable`/`Eq2`
+dictionaries being `hash` and `beq`; `beqRecursive`'s six constructors;
+`mkBvar = bvar` at 0, 1, 4 095, 4 096, 10^5; and the `BinderMeta`/`Literal`
+helpers (canonicity makes `{u,v}` and `{v,u}` one datum with one hash).
+
+**Deliberately not ported** (recorded so the next task does not re-derive
+it): the twelve memo declarations above; every `theorem` — the packing
+roundtrip (`:210-283`), the constructor-wise range and `hasLP` equations
+(`:450-675`), `beqMemo_eq` (`:965`), `mkBvar_eq` (`:1033`) — plus the
+`@[csimp]` lemma `beq_eq_beqMemo` (`:980`) and the `LawfulBEq Expr` instance
+(`:986`), which are the *spec* this port will be proved against; `deriving
+Repr` and the `Repr` instances (rendering only, §3.1); `deriving Inhabited`
+on `Expr` and `instance : Inhabited BinderMeta` (`:106`), since `Vec`
+indexing is checked in the model and the port needs no `Array.get!` default.
+Note that `Expr.bvarB`/`Expr.fvarB` (the *exact* accessors, which fall back
+to a memoized walk on the saturated branch) and the whole `isApp`/`getAppFn`
+family are **not in this file** — they live in `ConLeche/Kernel/ExprOps.lean`
+(82 declarations, 0 covered), a later task.
+
+**Coverage** (`scripts/provenance.py coverage | tail -3`), con-leche
+3e004805: **TOTAL 73/1018 covered (7.2 %), 945 uncovered** — up from task
+#9's 51/1018 (5.0 %).  `Expr.lean` goes 8/42 → **30/42**, and the twelve
+uncovered are exactly the memo apparatus listed above, so the ledger agrees
+with the prose once more.
