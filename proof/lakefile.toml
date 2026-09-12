@@ -17,3 +17,10 @@ path = "../_tmp/aeneas-lean"
 [[lean_lib]]
 name = "ConRon"
 roots = ["ConRon"]
+
+# The `DeclC` dump (DESIGN.md §3.6, task #10): runs con-leche's frontend on an
+# export and writes the parsed `List DeclC` in the `con-ron-decls/1` format
+# (`ConRon/Dump/FORMAT.md`), then reads it back and compares.
+[[lean_exe]]
+name = "con-ron-dump"
+root = "ConRon.Dump.Main"

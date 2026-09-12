@@ -303,13 +303,27 @@ bind in the Rust model and rewriting the Lean side.
 ### 3.6 Differential testing before any proof
 
 A Lean executable in `proof/` (importing con-leche's frontend) dumps the
-parsed `List DeclC` of any export in a simple binary format; the Rust core
+parsed `List DeclC` of any export in a simple text format; the Rust core
 reads it and runs `check_decls`.  Verdicts (and, for definitions, the stored
 annotated terms) are compared against con-leche on its full fixture corpus
-(`tests/e2e`, `tests/arena`, `tests/annot`; 225 streams) and on a Mathlib
+(`tests/e2e`, `tests/arena`, `tests/annot`; 348 streams) and on a Mathlib
 export.  This decouples the core port from the Rust parser and catches port
 mistakes at the function they happen in; a finer oracle (dumping
 `whnf`/`infer` call pairs from con-leche) is added if debugging demands it.
+
+**The tool is `lake exe con-ron-dump`** (task #10), root
+`proof/ConRon/Dump/Main.lean`, with the writer in `ConRon/Dump/Write.lean`,
+the Lean reader in `ConRon/Dump/Read.lean` and the format specified in
+`proof/ConRon/Dump/FORMAT.md` (`con-ron-decls/1`: line-oriented text, one
+dense id space per node kind so the term DAG is written once, in the spirit
+of `lean4export`'s records).  It runs con-leche's frontend exactly as
+`vendor/con-leche/Main.lean` does — `Frontend.builtinPreludeE` then
+`Frontend.parseExportStreamD` with the in-process modeller on — writes the
+dump, reads it back **in Lean**, and checks structural equality of the two
+declaration lists, byte-identity of a re-dump, and agreement of
+`checkDecls .verified` on both.  `scripts/dump-fixtures.sh` sweeps the whole
+corpus and additionally compares each verdict against con-leche's pinned
+`tests/{arena,e2e,annot}-expected.txt`.
 
 ### 3.7 Provenance: keeping the port in sync with con-leche
 
@@ -1685,3 +1699,145 @@ note in §3.4; and `is_equiv_list`, `is_zero`, `is_non_zero`,
 `all_params_defined`, `name_nodup`, `levels_hash`, `levels_have_param` and the
 three string-shape predicates are ported but unproved — Fable did not state
 them, and they are all instances of the patterns above.
+### Task #10 — The `DeclC` dump (`con-ron-decls/1`) (2026-09-12, Opus under Fable)
+
+P1.6's Lean half (§3.6, now updated to name the tool): con-leche's own
+frontend produces the `List DeclC` that `checkDecls` consumes, and this task
+gives that list a file format, a writer, a Lean reader and a round-trip
+harness — so the Rust core can be exercised without a Rust parser and without
+a Rust reimplementation of the frontend's rewrites.
+
+**What landed.**  `proof/ConRon/Dump/FORMAT.md` (the specification),
+`Write.lean` (`dumpDecls : List DeclC → String`), `Read.lean`
+(`parseDecls : String → Except String (List DeclC)`), `Main.lean` +
+`[[lean_exe]] con-ron-dump`, and `scripts/dump-fixtures.sh` (the corpus
+sweep).  `lake build` is clean and the format's string codec carries its own
+`#guard` self-tests.
+
+**The format**, in one paragraph.  Line-oriented ASCII, first line
+`con-ron-decls/1`, last line `end <declCount>`, fields separated by one
+space.  **Nine id spaces** — `N` name, `L` level, `W` propwhen, `E` expr, `V`
+constval, `R` recrule, `C` indcaps, `P` projtable, `I` constinfo — each dense
+from `0`, each record's id equal to the number of records of its kind already
+seen, every reference pointing backwards.  A reader is therefore one forward
+pass pushing onto nine `Vec`s, with no fixups: that is the property the Rust
+side is being handed.  `N`/`L`/`W`/`E` are *interned* (a hash map from value
+to id), which is what keeps con-leche's term DAG a DAG instead of exploding
+into a tree; the other five are merely numbered.  `D` records carry no id —
+their order is the payload.  Nats are decimal and unbounded, bools are
+`0`/`1`, strings are a code-point count plus a text in which every code point
+outside printable non-backslash ASCII is `\<lowercase-hex>;` — one escape
+form, no spaces in the result, so a record still splits on spaces and the
+empty string is a trailing space.  The dump is the *value*, not the
+representation: the three `@[computed_field]`s (`Name.hashData`,
+`Level.hashData`, `Expr.data`) are never written, and the Rust reader
+recomputes them.
+
+**Fixture results** (`scripts/dump-fixtures.sh`, the enumeration of
+`vendor/con-leche/tests/arena.sh` — the three expectation files, the gzipped
+e2e streams gunzipped, the arena tarball extracted to `_tmp/arena-tests`):
+
+| | |
+|---|---|
+| fixtures (arena 138 + e2e 195 + annot 15) | **348** |
+| round trip exact (structural equality, byte-identical re-dump, same `checkDecls .verified` verdict on both lists) | **315** |
+| round trip failures | **0** |
+| no declaration list (frontend declines 9, rejects 23, one truncated stream) | 33 |
+| `verdict-exit` vs `tests/{arena,e2e,annot}-expected.txt` | **348 agree, 0 differ** |
+| whole sweep, two `checkDecls` runs per fixture | **24.6 s** wall |
+| total dump bytes | 6 905 866 |
+| declarations / names / levels / propwhens / expr nodes, summed | 12 397 / 18 530 / 2 265 / 668 / 332 140 |
+
+The 33 fixtures with no declaration list are exactly the streams con-leche
+itself never folds — the arena `bad/tutorial/0{48..55,59,71},1{16,17,38}`
+inductive-validation rejects, the e2e `ind_*_bad` redundant-field rejects, the
+`ind_nest_*`/`tower_*`/`ind_unsafe` declines and `malformed_midstream` — and
+each is reported with its frontend reason, never hidden.
+
+**Scale** (the two large arena fixtures `arena.sh` does not itself run, plus
+the largest e2e stream):
+
+| input | bytes in | decls | expr nodes | dump bytes | parse | **write** | read | `checkDecls` |
+|---|---|---|---|---|---|---|---|---|
+| `good/perf/grind-ring-5` | 10 184 724 | 2 212 | 182 307 | 4 265 323 | 34 ms | **55 ms** | 148 ms | 114 ms |
+| `good/init-prelude` | 3 714 854 | 1 803 | 55 862 | 1 293 237 | 14 ms | **19 ms** | 48 ms | 25 ms |
+| `e2e/presieve_ofarrows_cone` | 1 272 397 | 534 | 20 792 | 455 885 | 7 ms | **7 ms** | 17 ms | 9 ms |
+| `good/perf/app-lam` (the deep-term workload) | 1 276 513 | 27 | 24 446 | 479 915 | 5 ms | **6 ms** | 16 ms | 9 ms |
+
+So the dump is **0.35–0.42×** the NDJSON it comes from, and **`String`
+concatenation is fast enough**: the writer is an `Array String` line buffer
+joined by a left fold, which is amortized linear because Lean's
+`lean_string_append` grows a uniquely-referenced string in place (~78 MB/s
+here).  No `ByteArray` writer and no handle writer was needed.  Reading is the
+slow half (2.7× the write), which is `String.splitOn` allocating a token list
+per line; a Rust reader will not have that problem.
+
+**What surprised us about `DeclC`** — the list the Rust port must not get
+wrong:
+
+1. **`ExprC` *is* `ConLeche.Expr`** (con-leche tasks #172 B3a / #198): the
+   cached tier's second expression type and the separate `ConstantValC` are
+   both gone.  One node type, one `BEq`, one `Hashable` — and §3.1's "one Rust
+   module per Lean file" must not be read as licensing a second.
+2. **`indDecl` carries the *installed* `ConstantInfo`**, not a parse-level
+   type, so a parsed declaration transitively contains `IndCaps`, `RecRule`
+   (with `RecRuleFire`) and `ProjTable`.  Five `RecRule` fields —
+   `ctorParams`, `fire`, `k`, `eta`, `paramsBlind` — are *install*-computed
+   and carry parse placeholders.  The census over all 348 fixtures confirms
+   it: every one of the 2 715 parsed rules has `ctorParams = 0`,
+   `fire = .inert`, `k = eta = paramsBlind = false`, and every one of the
+   1 917 parsed `IndCaps` is the all-default record.  **The dump writes them
+   anyway**, because a dump is a `List DeclC` and nothing below it may assume
+   the frontend's habits.
+3. **The parsed sub-language is a strict subset, and that is a testing gap,
+   not a licence.**  Over 332 140 expression nodes the corpus produces **zero
+   `fvar`** nodes, and over 6 514 `ConstantInfo`s **zero** `axiomInfo`,
+   `defnInfo`, `thmInfo` or `projInfo` inside an `indDecl` block (only
+   `indInfo` 1 917, `ctorInfo` 2 645, `recInfo` 1 952) — so `ProjTable` never
+   appears in a dump at all.  The Rust reader must still implement them: they
+   are constructors of the type `check_decls` takes.
+4. **`BinderMeta` has exactly one field**, `pw : PropWhen`; the display
+   `BinderInfo` was deleted (con-leche task #205).  A Rust `Binder` struct
+   with a binder-info field would be a silent divergence in hashing and
+   equality.
+5. **`PropWhen` is opaque *and* canonical.**  Its representation is `private`
+   (`never | always | one | two | many`, the last two carrying sortedness
+   proofs) and the only public producers are `never` and `ifAllZero`, which
+   **sort and deduplicate by `Name.cmp`** — a structural lexicographic order
+   (`anonymous < str < num`, prefix first, then the payload) defined in
+   `Kernel/PropWhen.lean` and nowhere else in the tree.  The dump goes through
+   `toList?`/`ifAllZero`, and the Rust port must implement `Name.cmp` and
+   normalise in its own constructor: equality *and hashing* of the datum are
+   equality of the parameter set, and a non-canonical value breaks both.
+6. **`IndCaps.sortZ` defaults to `ifAllZero []`**, which reads "zero at every
+   valuation", not to `never`.  A Rust `Default` that picks the other one
+   changes the structure-η rescue's guard.
+7. **Unbounded `Nat`s reach the term layer**: `Literal.natVal` obviously, and
+   `Name.num`'s component in principle (as for the `bvar`/`fvar`/`proj`
+   indices).  §3.3's split — `ron::Nat` for the literal, `u64` for the indices
+   — is what the reader has to implement, with an overflow a Rust-side
+   failure.
+8. **`ProjTable.bodies` is an `Array Expr` while `guards` is a `List Level`**;
+   the format writes both as counted lists, and the Rust struct should not
+   inherit the asymmetry.
+9. **The taint-skip decline lives *above* `checkDecls`.**  Three fixtures
+   (`sorry_use`, `tolerated_axiom_use`, `taint_skip_continue`) are pinned at
+   exit 2 while `checkDecls .verified` *accepts*: con-leche's driver declines
+   after an accepting fold when the frontend skipped a declaration for a
+   tolerated axiom (`Main.lean`, the `taintSkipped.isEmpty` branch).  The
+   harness reproduces that rule to keep its `verdict-exit` comparable; the
+   Rust CLI (P4) will have to as well, and the *core* must not.
+
+**Two implementation notes.**  The writer's `Expr` walk is an explicit
+worklist (`Array (Expr × Bool)`, visit/emit), not recursion: `app-lam` reaches
+term depths in the thousands and a recursive writer is a stack overflow
+waiting for a bigger export.  And the round-trip comparison goes through
+`BEq Expr` — con-leche's `Expr.beq`, which `@[csimp]` substitutes by the
+memoised pointer-and-hash-guarded `Expr.beqMemo` — never through the derived
+`DecidableEq`, which is an `O(tree)` walk on a shared DAG; `DeclC` derives no
+equality at all, so `ConRon/Dump/Main.lean` spells one out structurally.
+
+**Left for next time.**  No Mathlib-scale export was run (there is none in the
+tree); the numbers above extrapolate to roughly 1 s of writing per 100 MB of
+NDJSON.  The Rust reader is P1.6's other half, and `ConRon/Dump/FORMAT.md` §6
+is its checklist.
