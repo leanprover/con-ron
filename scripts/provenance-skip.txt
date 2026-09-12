@@ -112,10 +112,10 @@ ConLeche/Kernel/Name.lean ofLeanName Conversion from `Lean.Name`, used by con-le
 # The parallel check phase.  `--jobs=<n>` is validated exactly as con-leche
 # validates it and then not acted on; the four declarations below are the pool
 # itself, and porting them needs a decision the project has not taken.
-Main.lean checkOne parallel phase B: pending the Rc/Arc decision (task #40)
-Main.lean checkWorker parallel phase B: pending the Rc/Arc decision (task #40)
-Main.lean mergeResults parallel phase B: pending the Rc/Arc decision (task #40)
-Main.lean checkPool parallel phase B: pending the Rc/Arc decision (task #40)
+Main.lean checkOne parallel phase B: pending a thread-shareable handle in the core, priced by task #44 (task #40)
+Main.lean checkWorker parallel phase B: pending a thread-shareable handle in the core, priced by task #44 (task #40)
+Main.lean mergeResults parallel phase B: pending a thread-shareable handle in the core, priced by task #44 (task #40)
+Main.lean checkPool parallel phase B: pending a thread-shareable handle in the core, priced by task #44 (task #40)
 
 # The checker's own ANNOTATED NDJSON writer and the debug splice built on it:
 # output paths (`lake exe con-leche-annot` writes the `tests/annot` fixtures,

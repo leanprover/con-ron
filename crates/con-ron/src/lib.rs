@@ -53,9 +53,10 @@
 //!    twenty-odd field tables `Fast.lean` inlines into its slot loops.
 //! 4. **`Main.lean`'s worker pool** (`checkOne`, `checkWorker`,
 //!    `mergeResults`, `checkPool`): phase B is sequential here until the
-//!    `Rc`/`Arc` decision (DESIGN.md's milestone entry — §3.2's `Rc` is not
-//!    `Send`, and con-leche sidesteps atomic counts with a Lean-runtime mark
-//!    the port has no equivalent of).  `--jobs=<n>` is validated exactly as
+//!    core's handle is thread-shareable (§3.2's `Rc` is not `Send`; task #44
+//!    priced the `std::sync::Arc` swap at +14.7 % wall on `core`, and
+//!    con-leche sidesteps atomic counts with a Lean-runtime mark the port has
+//!    no equivalent of).  `--jobs=<n>` is validated exactly as
 //!    con-leche validates it and then not acted on; `driver`'s module note
 //!    has the rest.
 

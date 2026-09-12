@@ -210,9 +210,10 @@ pub fn progress_stride(v: &str) -> Result<u64, String> {
 /// con-leche: Main.lean:468-491 jobsCount
 /// The worker count: a decimal numeral of at least 1.  Validated exactly as
 /// con-leche validates it, and then **not acted on** — phase B is sequential
-/// here until the `Rc`/`Arc` decision (DESIGN.md's milestone entry; §3.2's
-/// `Rc` is not `Send`, and con-leche sidesteps atomic counts with a device the
-/// port does not have — see `mark_persistent_note`).  `0` and a non-numeral
+/// here until the core's handle is thread-shareable (§3.2's `Rc` is not
+/// `Send`; task #44 priced the `std::sync::Arc` swap at +14.7 % wall on
+/// `core`, and con-leche sidesteps atomic counts with a device the port does
+/// not have — see `mark_persistent_note`).  `0` and a non-numeral
 /// are usage errors (exit 3), as in con-leche, so a script that lowers the
 /// count for an address-space limit behaves the same against both binaries.
 pub fn jobs_count(v: &str) -> Result<u64, String> {
@@ -323,6 +324,11 @@ pub fn retired_flag(s: &str) -> Option<String> {
 /// accepted — a script that measures both checkers passes it to both — and
 /// does nothing, and a run that passes it says so rather than letting a log
 /// read as an A/B lane that was never run.
+///
+/// The number above is worth keeping beside task #44's: making the port's
+/// handles atomic outright (`ron::ptr::P = std::sync::Arc`, which is what a
+/// pool needs and what the mark is con-leche's way of *avoiding*) costs
+/// +14.7 % wall on `core` at one worker.
 pub fn mark_persistent_note() -> &'static str {
     "--no-mark-persistent accepted and ignored: the persistent mark is a Lean-runtime \
      reference-counting device (Runtime.markPersistent), and the port's counts are \
@@ -414,7 +420,7 @@ pub trait PhaseObserver {
 /// 2. **There is no pool** (`checkPool`): phase B is the sequential
 ///    `checkLoop` whatever `--jobs` said.  §3.7's skip list carries
 ///    `checkOne`/`checkWorker`/`mergeResults`/`checkPool` with the reason —
-///    the `Rc`/`Arc` decision.
+///    the core's handle is not yet thread-shareable (task #44).
 /// 3. Phase B runs on the same thread as phase A rather than a dedicated one.
 ///    con-leche task #269's finding is about Lean's per-thread mimalloc heaps
 ///    and the main thread's fragmentation after the install; the port's

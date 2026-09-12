@@ -60,7 +60,7 @@
 //! ## Conventions
 //!
 //! As `expr_ops`: terms in by shared reference and out owned with an explicit
-//! `dup` (an `Rc` bump) wherever Lean returns a subterm unchanged; `Nat` is
+//! `dup` (a `P` bump) wherever Lean returns a subterm unchanged; `Nat` is
 //! `u64` (§3.3); `List`/`Array` is a `Vec` walked by an index helper
 //! (`*_from`); a memo is a `crate::ron::hashmap::HashMap` passed as `&mut`,
 //! which Aeneas's back-end turns back into the cited threaded `(result, memo)`

@@ -254,7 +254,7 @@ theorem bvar_inv {i : Std.U64} {e : expr.Expr} (h : expr.bvar i = ok e) :
       bvarBits e = min (i.val + 1) ConLeche.satRange ∧ fvarBits e = 0 ∧
       lpBit e = false := by
   rw [expr.bvar.eq_def] at h
-  simp only [bind_eq_ok_iff, rc_new_eq, Result.ok.injEq] at h
+  simp only [bind_eq_ok_iff, ptr_new_eq, Result.ok.injEq] at h
   obtain ⟨_, -, _, -, _, -, i3, hi3, d, hd, _, hnd, he⟩ := h
   subst hnd; subst he
   have hs := sat_succ_val hi3
@@ -266,7 +266,7 @@ theorem fvar_inv {idx : Std.U64} {ty e : expr.Expr} (h : expr.fvar idx ty = ok e
     ∃ d, e = .mk (.mk d (.Fvar idx ty)) ∧ bvarBits e = 0 ∧
       fvarBits e = min (idx.val + 1) ConLeche.satRange ∧ lpBit e = lpBit ty := by
   rw [expr.fvar.eq_def] at h
-  simp only [bind_eq_ok_iff, rc_new_eq, data_eq, Result.ok.injEq] at h
+  simp only [bind_eq_ok_iff, ptr_new_eq, data_eq, Result.ok.injEq] at h
   obtain ⟨dt, hdt, _, -, _, -, _, -, _, -, _, -, i4, hi4, bb, hbb, d, hd, _, hnd, he⟩ := h
   subst hdt; subst hnd; subst he
   have hs := sat_succ_val hi4
@@ -278,7 +278,7 @@ theorem sort_inv {u : level.Level} {e : expr.Expr} (h : expr.sort u = ok e) :
     ∃ d b, level.level_has_param u = ok b ∧ e = .mk (.mk d (.«Sort» u)) ∧
       bvarBits e = 0 ∧ fvarBits e = 0 ∧ lpBit e = b := by
   rw [expr.sort.eq_def] at h
-  simp only [bind_eq_ok_iff, rc_new_eq, Result.ok.injEq] at h
+  simp only [bind_eq_ok_iff, ptr_new_eq, Result.ok.injEq] at h
   obtain ⟨_, -, _, -, _, -, bb, hbb, d, hd, _, hnd, he⟩ := h
   subst hnd; subst he
   obtain ⟨b1, b2, b3⟩ := node_bits (k := .«Sort» u) (by scalar_tac) (by scalar_tac) hd
@@ -289,7 +289,7 @@ theorem mk_const_inv {n : name.Name} {us : alloc.vec.Vec level.Level} {e : expr.
     ∃ d b, level.levels_have_param us = ok b ∧ e = .mk (.mk d (.Const n us)) ∧
       bvarBits e = 0 ∧ fvarBits e = 0 ∧ lpBit e = b := by
   rw [expr.mk_const.eq_def] at h
-  simp only [bind_eq_ok_iff, rc_new_eq, Result.ok.injEq] at h
+  simp only [bind_eq_ok_iff, ptr_new_eq, Result.ok.injEq] at h
   obtain ⟨_, -, _, -, _, -, _, -, _, -, bb, hbb, d, hd, _, rfl, _, hnd, he⟩ := h
   subst hnd; subst he
   obtain ⟨b1, b2, b3⟩ := node_bits (k := .Const n us) (by scalar_tac) (by scalar_tac) hd
@@ -301,7 +301,7 @@ theorem app_inv {f a e : expr.Expr} (h : expr.app f a = ok e) :
       fvarBits e = max (fvarBits f) (fvarBits a) ∧
       lpBit e = (lpBit f || lpBit a) := by
   rw [expr.app.eq_def] at h
-  simp only [bind_eq_ok_iff, rc_new_eq, data_eq, Result.ok.injEq] at h
+  simp only [bind_eq_ok_iff, ptr_new_eq, data_eq, Result.ok.injEq] at h
   obtain ⟨df, hdf, da, hda, _, -, _, -, _, -, _, -, _, -,
     i4, hi4, i5, hi5, i6, hi6, i7, hi7, i8, hi8, i9, hi9, bb, hbb, b1, hb1, d, hd,
     _, hnd, he⟩ := h
@@ -408,7 +408,7 @@ theorem lam_inv {ty bo : expr.Expr} {m : expr.BinderMeta} {e : expr.Expr}
       ∀ hp, prop_when.has_params m.pw = ok hp →
         lpBit e = (lpBit ty || lpBit bo || hp) := by
   rw [expr.lam.eq_def] at h
-  simp only [bind_eq_ok_iff, rc_new_eq, rc_deref_eq, data_eq, Result.ok.injEq] at h
+  simp only [bind_eq_ok_iff, ptr_new_eq, rc_deref_eq, data_eq, Result.ok.injEq] at h
   obtain ⟨dt, hdt, db, hdb, _, -, _, -, _, rfl, _, -, _, -, _, -, _, -, _, -,
     i9, hi9, i10, hi10, i11, hi11, i12, hi12, i13, hi13, i14, hi14, i15, hi15,
     bt, hbt, b1, hb1, d, hd, _, hnd, he⟩ := h
@@ -425,7 +425,7 @@ theorem forall_e_inv {ty bo : expr.Expr} {m : expr.BinderMeta} {e : expr.Expr}
       ∀ hp, prop_when.has_params m.pw = ok hp →
         lpBit e = (lpBit ty || lpBit bo || hp) := by
   rw [expr.forall_e.eq_def] at h
-  simp only [bind_eq_ok_iff, rc_new_eq, rc_deref_eq, data_eq, Result.ok.injEq] at h
+  simp only [bind_eq_ok_iff, ptr_new_eq, rc_deref_eq, data_eq, Result.ok.injEq] at h
   obtain ⟨dt, hdt, db, hdb, _, -, _, -, _, rfl, _, -, _, -, _, -, _, -, _, -,
     i9, hi9, i10, hi10, i11, hi11, i12, hi12, i13, hi13, i14, hi14, i15, hi15,
     bt, hbt, b1, hb1, d, hd, _, hnd, he⟩ := h
@@ -440,7 +440,7 @@ theorem let_e_inv {ty v bo e : expr.Expr} (h : expr.let_e ty v bo = ok e) :
       fvarBits e = max (max (fvarBits ty) (fvarBits v)) (fvarBits bo) ∧
       lpBit e = (lpBit ty || lpBit v || lpBit bo) := by
   rw [expr.let_e.eq_def] at h
-  simp only [bind_eq_ok_iff, rc_new_eq, data_eq, Result.ok.injEq] at h
+  simp only [bind_eq_ok_iff, ptr_new_eq, data_eq, Result.ok.injEq] at h
   obtain ⟨dt, hdt, dv, hdv, db, hdb, _, -, _, -, _, -, _, -, _, -, _, -, _, -,
     i6, hi6, i7, hi7, i8, hi8, i9, hi9, i10, hi10, i11, hi11,
     i12, hi12, i13, hi13, i14, hi14, i15, hi15, i16, hi16,
@@ -492,7 +492,7 @@ theorem lit_inv {l : expr.Literal} {e : expr.Expr} (h : expr.lit l = ok e) :
     ∃ d, e = .mk (.mk d (.Lit l)) ∧ bvarBits e = 0 ∧ fvarBits e = 0 ∧
       lpBit e = false := by
   rw [expr.lit.eq_def] at h
-  simp only [bind_eq_ok_iff, rc_new_eq, Result.ok.injEq] at h
+  simp only [bind_eq_ok_iff, ptr_new_eq, Result.ok.injEq] at h
   obtain ⟨_, -, _, -, _, -, d, hd, _, hnd, he⟩ := h
   subst hnd; subst he
   obtain ⟨b1, b2, b3⟩ := node_bits (k := .Lit l) (by scalar_tac) (by scalar_tac) hd
@@ -503,7 +503,7 @@ theorem proj_inv {s : name.Name} {idx : Std.U64} {x e : expr.Expr}
     ∃ d, e = .mk (.mk d (.Proj s idx x)) ∧ bvarBits e = bvarBits x ∧
       fvarBits e = fvarBits x ∧ lpBit e = lpBit x := by
   rw [expr.proj.eq_def] at h
-  simp only [bind_eq_ok_iff, rc_new_eq, data_eq, Result.ok.injEq] at h
+  simp only [bind_eq_ok_iff, ptr_new_eq, data_eq, Result.ok.injEq] at h
   obtain ⟨de, hde, _, -, _, -, _, -, _, -, _, -, _, -, _, -,
     i6, hi6, i7, hi7, bt, hbt, d, hd, _, hnd, he⟩ := h
   subst hde; subst hnd; subst he
@@ -723,7 +723,7 @@ theorem fvar_b_raw_refines {e : expr.Expr} {r : Std.U64} (hwf : ExprWF e)
 /-- `expr::dup` is the identity in the model (`Rc::clone` is; DESIGN.md §3.2). -/
 theorem dup_eq {e c : expr.Expr} (h : expr.dup e = ok c) : c = e := by
   obtain ⟨r⟩ := e
-  simp only [expr.dup, rc_clone_eq, bind_tc_ok, Result.ok.injEq] at h
+  simp only [expr.dup, ptr_clone_eq, bind_tc_ok, Result.ok.injEq] at h
   exact h.symm
 
 /-- `expr::ptr_eq` is `false` in the model, so the model always takes the slow
@@ -780,16 +780,16 @@ whose model is the identity, where it used to be a `Nat` limb copy and a
 theorem literal_dup_eq {l c : expr.Literal} (h : expr.literal_dup l = ok c) : c = l := by
   cases l with
   | NatVal n =>
-    simp only [expr.literal_dup, rc_clone_eq, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr.literal_dup, ptr_clone_eq, bind_tc_ok, Result.ok.injEq] at h
     exact h.symm
   | StrVal s =>
-    simp only [expr.literal_dup, rc_clone_eq, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr.literal_dup, ptr_clone_eq, bind_tc_ok, Result.ok.injEq] at h
     exact h.symm
 
 /-- `expr::binder_meta_dup` is the identity in the model. -/
 theorem binder_meta_dup_eq {m c : expr.BinderMeta} (h : expr.binder_meta_dup m = ok c) :
     c = m := by
-  simp only [expr.binder_meta_dup, rc_clone_eq, bind_tc_ok, Result.ok.injEq] at h
+  simp only [expr.binder_meta_dup, ptr_clone_eq, bind_tc_ok, Result.ok.injEq] at h
   exact h.symm
 
 /-! ## The derived equalities on the leaf data -/

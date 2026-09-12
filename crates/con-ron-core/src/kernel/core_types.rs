@@ -43,7 +43,7 @@
 //!   `alloc.string.String.Insts.CoreConvertFromShared0Str.from : Str →
 //!   Result String` into `FunsExternal_Template.lean`, and `String::new()`
 //!   emits `alloc.string.String.new`.  DESIGN.md §3.2's standing gate is
-//!   that the external templates hold exactly the four `Rc` axioms, so a
+//!   that the external templates hold exactly the four pointer axioms, so a
 //!   fifth, string-shaped one is not free.
 //! * A `&'static str` payload is worse: Aeneas fails outright on a string
 //!   literal (*"There should be no bottoms in the value"*) and emits a

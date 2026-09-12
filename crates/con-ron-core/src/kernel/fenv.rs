@@ -20,7 +20,7 @@
 //! The port therefore takes **both by value and returns them** — the linear
 //! threading task #6 established for accumulators (§3.4 reserves `&mut` for
 //! the state parameter).  `restrict_to(fe, k)` is then literally the cited
-//! record update: a move plus one field, `O(1)`, no clone, no `Rc`; `push(fe,
+//! record update: a move plus one field, `O(1)`, no clone, no handle bump; `push(fe,
 //! ci)` is the cited rebuild, `O(1)` amortised.  The *semantics* are the
 //! Lean's exactly — `find(&restrict_to(fe, k), n)` is
 //! `(fe.restrictTo k).find? n` — what changes is only that the caller no
@@ -35,7 +35,7 @@
 //! design this forecloses is the *parallel* phase B §3.1 contemplates, where
 //! several workers hold different views of one index at once.
 //!
-//! ## What `dup` costs, and why the index is not `Rc<HashMap>` (task #34)
+//! ## What `dup` costs, and why the index is not `P<HashMap>` (task #34)
 //!
 //! The one place a *second* view is unavoidable is the inductive install
 //! routes, which hold two or three views of one index at once
@@ -44,14 +44,14 @@
 //! costs and what the alternatives cost:
 //!
 //! * `Init` takes 1 000-odd `dup`s over 7.8 M index entries, against **80 M
-//!   `find`s**.  Any *shared* index — `Rc<HashMap<…>>` with a copy on push, an
+//!   `find`s**.  Any *shared* index — `P<HashMap<…>>` with a copy on push, an
 //!   overlay chain, a persistent trie — pays on `find` (a deeper probe, at
-//!   80 M calls) more than it saves on `dup` (7.8 M entries); and `Rc`'s
+//!   80 M calls) more than it saves on `dup` (7.8 M entries); and `P`'s
 //!   allowed API (§3.2: `new`/`clone`/`deref`/`ptr_eq`, no `make_mut`) has no
 //!   way to extend a shared map in place at all.  `find` being ten times the
 //!   traffic is why the flat owned map stays.
 //! * What task #34 did instead is make the copied entry cheap: the stored
-//!   record is **shared** (`Rc<ConstantInfo>`, `env::Env`'s deviation), so
+//!   record is **shared** (`P<ConstantInfo>`, `env::Env`'s deviation), so
 //!   `push` and `mk_fenv_go` bump a pointer where they copied a record and
 //!   the index no longer holds a second copy of the whole environment; and
 //!   `mk_fenv_go` pre-sizes the table, so an index build no longer rehashes
@@ -78,7 +78,7 @@ use crate::kernel::env::Env;
 use crate::kernel::env::ProjEntry;
 use crate::ron::hashmap::HashMap;
 use crate::kernel::name::Name;
-use std::rc::Rc;
+use crate::ron::ptr::P;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:44-49 FEnv
@@ -86,11 +86,11 @@ use std::vec::Vec;
 /// agrees with `Env.find?`.  Deviations: `Std.HashMap` is `crate::ron::hashmap`
 /// (§3.3); the two `Nat`s — the per-entry installation counter and
 /// `visibleBelow` — are `u64` (§3.3); and the stored record is *shared* with
-/// `env.consts` rather than copied into the index (`Rc<ConstantInfo>`, the
+/// `env.consts` rather than copied into the index (`P<ConstantInfo>`, the
 /// `env::Env` deviation: the Lean's one record, reached from two places).
 pub struct FEnv {
     pub env: Env,
-    pub idx: HashMap<Name, (u64, Rc<ConstantInfo>)>,
+    pub idx: HashMap<Name, (u64, P<ConstantInfo>)>,
     /// Entries with counter `< visible_below` are visible; also the next
     /// counter `push` hands out.
     pub visible_below: u64,
@@ -112,9 +112,9 @@ pub struct FEnv {
 /// way up through `log n` capacities (`move_elements_from_list` was 0.54 % of
 /// `Init` before task #34).  And the record is shared, not copied.
 pub fn mk_fenv_go(
-    cs: &Vec<Rc<ConstantInfo>>,
+    cs: &Vec<P<ConstantInfo>>,
     i: usize,
-) -> (u64, HashMap<Name, (u64, Rc<ConstantInfo>)>) {
+) -> (u64, HashMap<Name, (u64, P<ConstantInfo>)>) {
     if i >= cs.len() {
         (0, HashMap::with_capacity(cs.len()))
     } else {
@@ -190,7 +190,7 @@ pub fn restrict_to(fe: FEnv, k: u64) -> FEnv {
 pub fn push(fe: FEnv, ci: ConstantInfo) -> FEnv {
     let mut consts = fe.env.consts;
     let mut idx = fe.idx;
-    let rc: Rc<ConstantInfo> = env::constant_info_share(ci);
+    let rc: P<ConstantInfo> = env::constant_info_share(ci);
     idx.insert(
         env::constant_info_name(&rc),
         (fe.visible_below, env::constant_info_rc_dup(&rc)),
@@ -283,7 +283,7 @@ pub fn rec_slot_ok(fe: &FEnv, n: &Name) -> bool {
 /// the rebuild is the definition of the counters anyway.  `visible_below` is
 /// carried over unchanged, so a copy of a restricted view is that restricted
 /// view.  Since task #34 neither half of the copy touches a record: the list
-/// copy is `n` `Rc` bumps and the rebuild inserts those same `Rc`s into a
+/// copy is `n` `P` bumps and the rebuild inserts those same handles into a
 /// pre-sized table (the module note has the measurement that kept the index a
 /// flat owned map instead of a shared one).
 pub fn dup(fe: &FEnv) -> FEnv {

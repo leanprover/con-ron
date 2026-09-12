@@ -104,7 +104,7 @@ pub trait Hashable {
 /// two-method structure (`core.cmp.PartialEq Self Rhs` with `eq` and `ne`,
 /// `Aeneas/Std/Core/Cmp.lean:12`), `#[derive(PartialEq)]` additionally emits a
 /// `core::marker::StructuralPartialEq` impl, and the derived `eq` for the real
-/// key types would descend into `Rc` and `Vec` through std impls we would then
+/// key types would descend into `P` and `Vec` through std impls we would then
 /// have to model.  `Eq2` is a one-parameter, one-method structure whose
 /// instance we write ourselves — including the pointer/hash fast paths of
 /// §3.2.  (Measured on a spike: `Eq2 K` + `Eq2Inst.eq2` versus

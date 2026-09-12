@@ -101,7 +101,7 @@
 //!   interpolation — DESIGN.md §3.1: message strings need not match, the
 //!   theorem never reads them.
 //! * **A pattern's fields are copied into owned locals** (`expr::dup`, an
-//!   `Rc` bump) wherever they outlive the `match`; this is what Lean's value
+//!   `P` bump) wherever they outlive the `match`; this is what Lean's value
 //!   semantics gives for free, and it is task #14's rule against holding a
 //!   borrow across a state-touching branch.
 
@@ -133,7 +133,7 @@ use std::vec::Vec;
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — `List.drop` on a `Vec`; Lean's list tail is shared
-/// `xs.drop k`, as a fresh `Vec` of `Rc` bumps.
+/// `xs.drop k`, as a fresh `Vec` of `P` bumps.
 pub fn drop_exprs(xs: &Vec<Expr>, k: usize) -> Vec<Expr> {
     drop_exprs_from(xs, k, Vec::new())
 }

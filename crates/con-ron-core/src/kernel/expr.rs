@@ -5,7 +5,7 @@
 //! `levelHash` and `levelsHash`) was ported at task #3 and lives in
 //! `crate::kernel::level`; this module is everything from `BinderMeta` on.
 //!
-//! Conventions, as in `name.rs` and `level.rs`: an `Expr` is an `Rc` tree
+//! Conventions, as in `name.rs` and `level.rs`: an `Expr` is a `P` tree
 //! whose node stores the `@[computed_field] data` word, written by the smart
 //! constructors below and by nothing else (DESIGN.md §3.2); arguments come in
 //! by shared reference and results go out owned; Lean's `List` is a `Vec`
@@ -47,7 +47,7 @@
 //! Aeneas cannot model at all; this port keys it by the two stored **hash
 //! words** (`beq_key`, a field read each).  The key is a filter either way —
 //! a stored pair is verified by *identity* on both components (`ptr_eq`,
-//! i.e. `Rc::ptr_eq`), as con-leche verifies it (`probeHit`) — so a collision
+//! i.e. `ptr::ptr_eq`), as con-leche verifies it (`probeHit`) — so a collision
 //! between distinct pairs costs an entry, never an answer.  A *hash* key
 //! collides where an address key does not, and the objects it collides on are
 //! the ones the memo exists for, so each key holds a **bucket** of pairs
@@ -67,7 +67,7 @@
 //! the binary and the model agree, for the same reason and by the same
 //! reflexivity obligation that makes the pointer fast path transparent.
 //! Nothing here is opaque: the table is `ron::HashMap`, verified at task #16,
-//! and the external holes stay exactly §3.2's four `Rc` axioms.
+//! and the external holes stay exactly §3.2's four pointer axioms.
 //!
 //! **`beqBudget` is not ported.**  con-leche materialises the table only
 //! after 4 096 nodes, because in Lean the table's allocation and its
@@ -89,7 +89,8 @@ use crate::kernel::name::Name;
 use crate::ron::nat;
 use crate::kernel::prop_when;
 use crate::kernel::prop_when::PropWhen;
-use std::rc::Rc;
+use crate::ron::ptr;
+use crate::ron::ptr::P;
 
 // ---------------------------------------------------------------------------
 // Binder metadata and literals (`Expr.lean:93-112`)
@@ -103,12 +104,12 @@ use std::rc::Rc;
 /// value (`PropWhenRepr::Many(Vec<Name>)` sets the width), and a binder datum
 /// sits *inside* `ExprKind::Lam`/`ForallE`, so those two arms were the widest
 /// of the ten and set `ExprNode`'s size for all of them — 56 bytes, 72 in an
-/// `Rc` block, 86 % of the reader's resident set at Mathlib scale (task #36).
-/// Behind an `Rc` the arm is three words.  `Rc<T>` is modeled as `T`
+/// `P` block, 86 % of the reader's resident set at Mathlib scale (task #36).
+/// Behind a handle the arm is three words.  `P<T>` is modeled as `T`
 /// (DESIGN.md §3.2), so `absBinderMeta` is unchanged up to the erasure and
 /// `binder_meta_dup` becomes a reference bump.
 pub struct BinderMeta {
-    pub pw: Rc<PropWhen>,
+    pub pw: P<PropWhen>,
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:93-104 BinderMeta
@@ -116,7 +117,7 @@ pub struct BinderMeta {
 /// the note above is taken: every caller hands over a `PropWhen` by value, as
 /// the Lean constructor does.
 pub fn binder_meta(pw: PropWhen) -> BinderMeta {
-    BinderMeta { pw: Rc::new(pw) }
+    BinderMeta { pw: ptr::new(pw) }
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:93-104 BinderMeta
@@ -139,7 +140,7 @@ pub fn binder_meta_hash(m: &BinderMeta) -> u64 {
 /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
 /// Share a binder datum.
 pub fn binder_meta_dup(m: &BinderMeta) -> BinderMeta {
-    BinderMeta { pw: Rc::clone(&m.pw) }
+    BinderMeta { pw: ptr::clone(&m.pw) }
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:108-112 Literal
@@ -150,26 +151,26 @@ pub fn binder_meta_dup(m: &BinderMeta) -> BinderMeta {
 /// **Both payloads are behind a handle** (task #38, and the note on
 /// `BinderMeta`): a `Vec` header is 24 bytes, so an inline `Literal` was 32
 /// and `ExprKind::Lit` was one of the two arms that kept `ExprNode` wide once
-/// the binder datum had shrunk.  Behind `Rc`s the literal is two words.  Every
-/// *pattern* is unchanged — `Rc<T>` derefs to `T`, and `Rc<T>` is modeled as
+/// the binder datum had shrunk.  Behind handles the literal is two words.  Every
+/// *pattern* is unchanged — `P<T>` derefs to `T`, and `P<T>` is modeled as
 /// `T` (DESIGN.md §3.2), so `absLiteral` is unchanged up to the erasure;
 /// building one goes through `literal_nat`/`literal_str` below.
 pub enum Literal {
-    NatVal(Rc<nat::Nat>),
-    StrVal(Rc<Vec<u32>>),
+    NatVal(P<nat::Nat>),
+    StrVal(P<Vec<u32>>),
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:108-112 Literal
 /// `Literal.natVal`, taking its bignum by value as the cited constructor
 /// does; the handle of the note above is taken here.
 pub fn literal_nat(n: nat::Nat) -> Literal {
-    Literal::NatVal(Rc::new(n))
+    Literal::NatVal(ptr::new(n))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:108-112 Literal
 /// `Literal.strVal`, taking its code points by value.
 pub fn literal_str(s: Vec<u32>) -> Literal {
-    Literal::StrVal(Rc::new(s))
+    Literal::StrVal(ptr::new(s))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:108-112 Literal
@@ -199,8 +200,8 @@ pub fn literal_hash(l: &Literal) -> u64 {
 /// Share a literal.  The `Nat` copies its limbs, the string its code points.
 pub fn literal_dup(l: &Literal) -> Literal {
     match l {
-        Literal::NatVal(n) => Literal::NatVal(Rc::clone(n)),
-        Literal::StrVal(s) => Literal::StrVal(Rc::clone(s)),
+        Literal::NatVal(n) => Literal::NatVal(ptr::clone(n)),
+        Literal::StrVal(s) => Literal::StrVal(ptr::clone(s)),
     }
 }
 
@@ -330,14 +331,14 @@ pub fn sat_pred(x: u64) -> u64 {
 /// a `Vec` header is 24 bytes, so an inline `(Name, Vec<Level>)` was 32 and
 /// this arm was, with `Lit`, what kept the node wide once the binder datum had
 /// shrunk.  Three arms now set the width at 24 bytes (`Lam`, `ForallE`,
-/// `LetE`, `Proj`), which is `ExprNode` = 40 and an `Rc` block of 56.
-/// `Rc<Vec<Level>>` is modeled as `Vec Level` (§3.2), so nothing the
+/// `LetE`, `Proj`), which is `ExprNode` = 40 and a `P` block of 56.
+/// `P<Vec<Level>>` is modeled as `Vec Level` (§3.2), so nothing the
 /// abstraction or a pattern says about `us` changes.
 pub enum ExprKind {
     Bvar(u64),
     Fvar(u64, Expr),
     Sort(Level),
-    Const(Name, Rc<Vec<Level>>),
+    Const(Name, P<Vec<Level>>),
     App(Expr, Expr),
     Lam(Expr, Expr, BinderMeta),
     ForallE(Expr, Expr, BinderMeta),
@@ -357,9 +358,9 @@ pub struct ExprNode {
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// con-leche: ConLeche/Cached/ExprC.lean:102-109 ExprC
-/// A kernel expression, as an `Rc` tree — Lean's value semantics made
+/// A kernel expression, as a `P` tree — Lean's value semantics made
 /// sharing (DESIGN.md §3.2).
-pub struct Expr(pub Rc<ExprNode>);
+pub struct Expr(pub P<ExprNode>);
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// The cached `@[computed_field] data`, an `O(1)` field read.
@@ -367,10 +368,10 @@ pub fn data(e: &Expr) -> u64 {
     e.0.data
 }
 
-/// con-leche: none — the `Rc` bump that Lean's value semantics hides (DESIGN.md §3.2)
+/// con-leche: none — the `P` bump that Lean's value semantics hides (DESIGN.md §3.2)
 /// Share a term.
 pub fn dup(e: &Expr) -> Expr {
-    Expr(Rc::clone(&e.0))
+    Expr(ptr::clone(&e.0))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -379,7 +380,7 @@ pub fn dup(e: &Expr) -> Expr {
 pub fn bvar(i: u64) -> Expr {
     let h: u64 = hash32(name::mix_hash(3, name::nat_hash(i)));
     let d: u64 = pack_data(h, sat_succ(i), 0, false);
-    Expr(Rc::new(ExprNode { data: d, kind: ExprKind::Bvar(i) }))
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Bvar(i) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -394,7 +395,7 @@ pub fn fvar(idx: u64, ty: Expr) -> Expr {
         name::mix_hash(name::nat_hash(idx), hash_of_data(dt)),
     ));
     let d: u64 = pack_data(h, 0, sat_succ(idx), lp_of_data(dt));
-    Expr(Rc::new(ExprNode { data: d, kind: ExprKind::Fvar(idx, ty) }))
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Fvar(idx, ty) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -404,7 +405,7 @@ pub fn fvar(idx: u64, ty: Expr) -> Expr {
 pub fn sort(u: Level) -> Expr {
     let h: u64 = hash32(name::mix_hash(7, level::level_hash(&u)));
     let d: u64 = pack_data(h, 0, 0, level::level_has_param(&u));
-    Expr(Rc::new(ExprNode { data: d, kind: ExprKind::Sort(u) }))
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Sort(u) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -418,7 +419,7 @@ pub fn mk_const(n: Name, us: Vec<Level>) -> Expr {
         name::mix_hash(name::hash_data(&n), level::levels_hash(&us)),
     ));
     let d: u64 = pack_data(h, 0, 0, level::levels_have_param(&us));
-    Expr(Rc::new(ExprNode { data: d, kind: ExprKind::Const(n, Rc::new(us)) }))
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Const(n, ptr::new(us)) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -438,7 +439,7 @@ pub fn app(f: Expr, a: Expr) -> Expr {
         max_u64(fvar_of_data(df), fvar_of_data(da)),
         lp_of_data(df) || lp_of_data(da),
     );
-    Expr(Rc::new(ExprNode { data: d, kind: ExprKind::App(f, a) }))
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::App(f, a) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -462,7 +463,7 @@ pub fn lam(ty: Expr, body: Expr, m: BinderMeta) -> Expr {
         max_u64(fvar_of_data(dt), fvar_of_data(db)),
         lp_of_data(dt) || lp_of_data(db) || prop_when::has_params(&m.pw),
     );
-    Expr(Rc::new(ExprNode { data: d, kind: ExprKind::Lam(ty, body, m) }))
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Lam(ty, body, m) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -484,7 +485,7 @@ pub fn forall_e(ty: Expr, body: Expr, m: BinderMeta) -> Expr {
         max_u64(fvar_of_data(dt), fvar_of_data(db)),
         lp_of_data(dt) || lp_of_data(db) || prop_when::has_params(&m.pw),
     );
-    Expr(Rc::new(ExprNode { data: d, kind: ExprKind::ForallE(ty, body, m) }))
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::ForallE(ty, body, m) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -511,7 +512,7 @@ pub fn let_e(ty: Expr, value: Expr, body: Expr) -> Expr {
         max_u64(max_u64(fvar_of_data(dt), fvar_of_data(dv)), fvar_of_data(db)),
         lp_of_data(dt) || lp_of_data(dv) || lp_of_data(db),
     );
-    Expr(Rc::new(ExprNode { data: d, kind: ExprKind::LetE(ty, value, body) }))
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::LetE(ty, value, body) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -521,7 +522,7 @@ pub fn let_e(ty: Expr, value: Expr, body: Expr) -> Expr {
 pub fn lit(l: Literal) -> Expr {
     let h: u64 = hash32(name::mix_hash(31, literal_hash(&l)));
     let d: u64 = pack_data(h, 0, 0, false);
-    Expr(Rc::new(ExprNode { data: d, kind: ExprKind::Lit(l) }))
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Lit(l) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -538,7 +539,7 @@ pub fn proj(struct_name: Name, idx: u64, e: Expr) -> Expr {
         ),
     ));
     let d: u64 = pack_data(h, bvar_of_data(de), fvar_of_data(de), lp_of_data(de));
-    Expr(Rc::new(ExprNode {
+    Expr(ptr::new(ExprNode {
         data: d,
         kind: ExprKind::Proj(struct_name, idx, e),
     }))
@@ -604,7 +605,7 @@ pub fn beq_recursive(e: &Expr) -> bool {
 /// `false` in the generated Lean (DESIGN.md §3.2), where the reflexivity of
 /// the walk is what discharges the fast path.
 pub fn ptr_eq(a: &Expr, b: &Expr) -> bool {
-    Rc::ptr_eq(&a.0, &b.0)
+    ptr::ptr_eq(&a.0, &b.0)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:739-749 EqPair
@@ -613,7 +614,7 @@ pub fn ptr_eq(a: &Expr, b: &Expr) -> bool {
 /// *addresses* (con-leche's cheap probe filter — here the key does that job)
 /// and the *proof* `fst = snd`.  What is left is the pair itself, which is
 /// what `probe_hit` verifies against, and holding it is what keeps the two
-/// `Rc`s alive, hence their identity theirs, for the life of the comparison.
+/// handles alive, hence their identity theirs, for the life of the comparison.
 /// The alias is erased before Charon sees anything (as `cached::core_c`'s
 /// `InferLamEntry` is).
 pub type EqPair = (Expr, Expr);
@@ -1056,7 +1057,7 @@ pub fn bvar_pool_size() -> u64 {
 /// **Deviation: the pool is not ported.**  `bvarPool` is a closed top-level
 /// `def` of type `Array Expr` that Lean's runtime builds once at module
 /// initialization and marks persistent.  Rust has no such thing inside the
-/// Aeneas subset: a `static`/`const` cannot allocate an `Rc` tree, and the
+/// Aeneas subset: a `static`/`const` cannot allocate a `P` tree, and the
 /// lazy alternatives (`OnceLock`, `lazy_static`, an `unsafe` mutable
 /// `static`) are all outside DESIGN.md §3.4 — and Charon would in any case
 /// have to model a global whose value is an allocation performed before
@@ -1512,7 +1513,7 @@ mod tests {
     }
 
     /// A shared "tower": `d 0 = bvar 0`, `d (k+1) = app (d k) (d k)` with
-    /// *one* `Rc` per level, so `d k` is `2^k` nodes as a tree and `k+1`
+    /// *one* node per level, so `d k` is `2^k` nodes as a tree and `k+1`
     /// nodes as a DAG.  These are task #28's eight blow-up fixtures in one
     /// line, and the reason the pair memo exists.
     fn tower(k: u64) -> Expr {

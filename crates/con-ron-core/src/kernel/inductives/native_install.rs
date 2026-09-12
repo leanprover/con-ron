@@ -24,7 +24,7 @@
 //! Both take `fenv::dup` (task #14's copy: the index is rebuilt with
 //! `mk_fenv_go`, the constants themselves stay shared).  That is `O(|env|)`
 //! **twice per inductive block**, not per term; it is the price task #14's
-//! option 3 named, and the `Rc<HashMap>` index it foreclosed removes it
+//! option 3 named, and the `P<HashMap>` index it foreclosed removes it
 //! without touching the model, because `abs` reads the index through `find`
 //! either way.
 

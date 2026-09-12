@@ -2361,7 +2361,7 @@ pub fn beta_peel_i(
 /// what made the `Nat.brecOn` grind of `Std.Time…toDays._proof_1` exhaust
 /// `checkFuel`).
 ///
-/// Deviations: the identity arms hand back an `Rc` bump (`expr::dup`) where
+/// Deviations: the identity arms hand back a `P` bump (`expr::dup`) where
 /// the Lean rebuilds the node; the `.letE`/`.bvar` arms are the cited throws
 /// with their messages as `const` code points; and the continuation is the
 /// budget `n` (see `whnf_app_i`).  The `.proj` arm's five-conjunct fire
@@ -5499,7 +5499,7 @@ mod tests {
     /// cached conversion when the entry's `Expr` tag is the very object the
     /// environment holds, and with the environment's own term otherwise.
     /// The fast path is observable here because the test records a *marked*
-    /// conversion under the right tag; the model of `Rc::ptr_eq` is `false`,
+    /// conversion under the right tag; the model of `ptr::ptr_eq` is `false`,
     /// so the model takes the slow path and gets the environment's term —
     /// which in the real program is the same value, since `ExprC = Expr` and
     /// the conversion is the identity.

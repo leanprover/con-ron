@@ -36,7 +36,7 @@
 //! file's; none of them appears here.)
 //!
 //! Conventions, as in `expr.rs`: terms come in by shared reference and go
-//! out owned, with an explicit `dup` (an `Rc` bump) wherever Lean returns a
+//! out owned, with an explicit `dup` (a `P` bump) wherever Lean returns a
 //! subterm or an unchanged node; Lean's `List` is a `Vec` walked by an index
 //! helper (`*_from`, DESIGN.md §3.4); the `Nat` indices and cutoffs are
 //! `u64` (§3.3), with `sub_nat` for the truncated subtractions Lean's `Nat`
@@ -93,7 +93,7 @@ pub struct ExprNatKey {
 }
 
 /// con-leche: none — the memo key of `Std.HashMap (Expr × Nat) Expr`
-/// Build a key, taking the node by an `Rc` bump.
+/// Build a key, taking the node by a `P` bump.
 pub fn expr_nat_key(e: &Expr, d: u64) -> ExprNatKey {
     ExprNatKey { e: expr::dup(e), d: d }
 }
@@ -154,7 +154,7 @@ pub fn memo_n_get(memo: &HashMap<Expr, u64>, k: &Expr) -> Option<u64> {
 /// con-leche: none — `List.take`/`List.append` over a `Vec<Expr>`
 /// The first `k` entries of `xs`, appended to `out`.  Lean's lists are
 /// shared, a `Vec` has to copy — task #9's deviation 5; the entries
-/// themselves stay shared (`expr::dup` is an `Rc` bump).
+/// themselves stay shared (`expr::dup` is a `P` bump).
 pub fn exprs_copy_upto(xs: &Vec<Expr>, k: usize, i: usize, mut out: Vec<Expr>) -> Vec<Expr> {
     if i >= k || i >= xs.len() {
         out
@@ -213,7 +213,7 @@ pub fn levels_copy(us: &Vec<Level>) -> Vec<Level> {
 /// Deviation: the memo is a `&mut` parameter rather than Lean's threaded
 /// `(Expr, Std.HashMap …)` pair — Aeneas's back-end turns the one into the
 /// other (module doc).  The identity arms (`.fvar idx ty`, `.sort u`, …)
-/// rebuild a node in Lean and return an `Rc` bump here: the same value,
+/// rebuild a node in Lean and return a `P` bump here: the same value,
 /// because `expr.rs`'s smart constructors are functions.
 pub fn instantiate1_go(v: &Expr, memo: &mut HashMap<ExprNatKey, Expr>, e: &Expr, d: u64) -> Expr {
     match &e.0.kind {
@@ -2110,7 +2110,7 @@ mod tests {
     use crate::kernel::name::Name;
     use crate::ron::nat;
     use crate::kernel::prop_when;
-    use std::rc::Rc;
+    use crate::ron::ptr;
 
     fn nm(s: &str) -> Name {
         name::mk_str(name::anonymous(), s.chars().map(|c| c as u32).collect())
@@ -2272,7 +2272,7 @@ mod tests {
     /// saturated word without 32 767 real binders, so the test synthesises
     /// the word directly — which is exactly the boundary logic under test.
     fn with_word(kind: ExprKind, b: u64, f: u64) -> Expr {
-        Expr(Rc::new(ExprNode {
+        Expr(ptr::new(ExprNode {
             data: expr::pack_data(0, b, f, false),
             kind: kind,
         }))

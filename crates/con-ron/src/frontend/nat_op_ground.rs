@@ -35,7 +35,7 @@ use con_ron_core::cached::parsed_c::DeclC;
 use con_ron_core::kernel::core_k;
 use con_ron_core::kernel::env::ConstantInfo;
 use con_ron_core::kernel::expr;
-use con_ron_core::kernel::expr::{Expr, ExprKind};
+use con_ron_core::kernel::expr::{Expr, ExprKind, ExprNode};
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 
@@ -73,7 +73,7 @@ pub struct ExprKey(pub Expr);
 impl std::hash::Hash for ExprKey {
     /// con-leche: none — the node's address as the hash.
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write_usize(std::rc::Rc::as_ptr(&self.0 .0) as usize);
+        state.write_usize(&*self.0 .0 as *const ExprNode as usize);
     }
 }
 
@@ -82,7 +82,7 @@ impl PartialEq for ExprKey {
     /// con-leche: none — `Expr.beqPtr` without the structural fallback (the
     /// struct's note says why).
     fn eq(&self, other: &ExprKey) -> bool {
-        std::rc::Rc::as_ptr(&self.0 .0) == std::rc::Rc::as_ptr(&other.0 .0)
+        &*self.0 .0 as *const ExprNode == &*other.0 .0 as *const ExprNode
     }
 }
 

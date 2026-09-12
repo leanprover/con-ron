@@ -9,7 +9,8 @@
 //! records — one `N`, `L` or `E` record, one allocation, every later reference a
 //! cloned `Rc` handle.
 //!
-//! The walk therefore compares pointers, via `Rc::as_ptr`.  Raw pointers are
+//! The walk therefore compares pointers, taken through `Deref` (so they
+//! follow `ron::ptr`'s alias, task #44).  Raw pointers are
 //! only ever hashed and compared here, never dereferenced, so there is no
 //! `unsafe` — and none is allowed in this crate (see the crate docs).
 //!
@@ -17,7 +18,6 @@
 //! depth reaches the thousands.  `Name` and `Level` are shallow and recur.
 
 use std::collections::HashSet;
-use std::rc::Rc;
 
 use con_ron_core::cached::parsed_c::DeclC;
 use con_ron_core::kernel::env::ConstantInfo;
@@ -57,7 +57,7 @@ struct Walk {
 
 impl Walk {
     fn name(&mut self, x: &Name) {
-        if !self.names.insert(Rc::as_ptr(&x.0)) {
+        if !self.names.insert(&*x.0 as *const NameNode) {
             return;
         }
         match &x.0.kind {
@@ -74,7 +74,7 @@ impl Walk {
     }
 
     fn level(&mut self, u: &Level) {
-        if !self.levels.insert(Rc::as_ptr(&u.0)) {
+        if !self.levels.insert(&*u.0 as *const LevelNode) {
             return;
         }
         match &u.0.kind {
@@ -104,7 +104,7 @@ impl Walk {
     fn expr(&mut self, root: &Expr) {
         let mut stack: Vec<Expr> = vec![expr::dup(root)];
         while let Some(e) = stack.pop() {
-            if !self.exprs.insert(Rc::as_ptr(&e.0)) {
+            if !self.exprs.insert(&*e.0 as *const ExprNode) {
                 continue;
             }
             match &e.0.kind {

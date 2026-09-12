@@ -31,14 +31,14 @@
 //! already uses for `NameWF`/`NodeWF`, under which `to_list` is canonical and
 //! `beq` is equality.
 //!
-//! Conventions, as in `name.rs` and `level.rs`: `Name`s are `Rc` trees taken
+//! Conventions, as in `name.rs` and `level.rs`: `Name`s are `P` trees taken
 //! by shared reference and returned owned (`name::dup` for every share);
 //! Lean's `List Name` is a `Vec<Name>` walked by an index (`*_from` helpers,
 //! never a loop); a list that is *consumed* into a datum is passed by value
 //! and a list that is *read* by reference (task #6's accumulator rule).
 //!
-//! `PropWhen` itself is **not** behind an `Rc`: four of the five
-//! constructors hold no heap cell beyond the names' own `Rc`s, and by the
+//! `PropWhen` itself is **not** behind a handle: four of the five
+//! constructors hold no heap cell beyond the names' own handles, and by the
 //! census the fifth never occurs, so `dup` is a shallow value copy — which is
 //! also what Lean's value semantics gives.
 //!
@@ -286,7 +286,7 @@ fn of_repr(r: PropWhenRepr) -> PropWhen {
 }
 
 /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-/// Share a datum.  Shallow: the names are `Rc`s, and only the `Many` arm —
+/// Share a datum.  Shallow: the names are handles, and only the `Many` arm —
 /// which the census says never occurs — copies a list spine.
 pub fn dup(pw: &PropWhen) -> PropWhen {
     match &pw.repr {

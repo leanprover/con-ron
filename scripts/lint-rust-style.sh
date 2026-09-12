@@ -27,6 +27,6 @@ check "? operator" '\)\?[;.) ]|\)\?$'
 check "loops (use recursion; -loops-to-rec only in leaf helpers)" '^\s*(while|for|loop)\b'
 check "unsafe" '\bunsafe\b'
 check "std::collections" 'std::collections'
-check "Rc API beyond new/clone/deref/ptr_eq" 'Rc::(get_mut|make_mut|downgrade|try_unwrap|into_raw|from_raw|strong_count|weak_count)|RefCell|Cell<'
+check "P/Rc/Arc API beyond new/clone/deref/ptr_eq" '\b(P|Rc|Arc)::(get_mut|make_mut|downgrade|try_unwrap|into_raw|from_raw|as_ptr|strong_count|weak_count|increment_strong_count|decrement_strong_count)|RefCell|Cell<'
 check "panics as control flow" '\b(panic!|unwrap\(\)|expect\(|unreachable!|todo!|unimplemented!)'
 exit $fail

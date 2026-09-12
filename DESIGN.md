@@ -176,6 +176,39 @@ def alloc.rc.Rc.clone (x : Rc T) : Result (Rc T) := ok x
 def alloc.rc.Rc.ptr_eq (a b : Rc T) : Result Bool := ok false
 ```
 
+**The crate names the pointer once, as `ron::ptr::P` (task #44).**  Every
+handle in the core is `P<T>`, and every use of it goes through the four
+operations this section allows: `ron::ptr::new`, `ron::ptr::clone`,
+`ron::ptr::ptr_eq` and `Deref` (`*p`, `p.field`, `match &*p`).  The concrete
+counted pointer is therefore a **one-line choice** — `std::rc::Rc`,
+`std::sync::Arc`, `triomphe::Arc` — and task #44 checked that all three come
+out of Charon as *one* external type with *exactly* these four holes, so the
+templates, the extraction gate's count and the hand-written models move with
+the alias and nothing else does.  The three wrappers Charon sees
+(`ron.ptr.new`/`clone`/`ptr_eq`, each one call to the external it renames) are
+made invisible to the proofs by four `simp` lemmas in `Refine/Abs.lean`;
+`deref` is *not* wrapped, because 400-odd generated call sites read through it
+and a crate function in front of them buys nothing.
+
+**`P` is `std::rc::Rc`, and the price of `Arc` is written down (task #44).**
+The parallel check phase wants the installed environment shared by workers,
+which wants `Send + Sync`, which `Rc` is not.  Making the handle atomic is
+sound, model-free and needs no `unsafe` — `std::sync::Arc` erases to `Arc T :=
+T` with the same four definitions, and with it `Name`, `Level`, `Expr`, `Env`,
+`FEnv` and `CState` are all `Send + Sync` with **nothing else in the core in
+the way** (the eight errors the `Rc` build gives name only the four `Rc<…>`
+node types: no `Cell`, no `RefCell`, no raw pointer).  What it costs, measured
+single-threaded on a quiet machine, is **+14.7 % wall on `core`** and +17.2 %
+on `init` at an *unchanged* instruction count — atomic read-modify-writes are
+stalls, not work.  That is over the 10 % the task budgeted, so the alias stays
+`Rc` and the trade is the maintainer's to make: pay ~15 % at one worker for a
+pool worth ~3.5× (con-leche's `--jobs=8` Mathlib row), or keep `Rc` and buy
+`Send`/`Sync` with the `unsafe impl` + immortal-sentinel design of §3's
+"Decisions of 2026-09-12".  `triomphe::Arc` is not a third way out: it is 8
+bytes smaller per node (a 48-byte `ExprNode` block against 56, −3.8 % peak
+RSS) but **slower than either**, +17 % instructions and +20 % wall on `core`.
+The task-#44 entry has the table.
+
 `@[reducible]` is load-bearing: without it Lean's automatic `SizeOf`
 derivation for the mutually recursive node types does not unfold the alias
 and fails (task #4).
@@ -441,7 +474,12 @@ whose sentinel value means immortal (`clone`/`drop` skip it), a
 invariant that workers only read immortal nodes and create thread-local
 ones.  It is opaque to Charon and keeps the four-hole model (`Rc T = T`,
 plus `mark_persistent` as the identity); the single count also takes the
-node from 56 to 48 bytes.  *Pins*: embedded as a `con-ron-pins/1` text
+node from 56 to 48 bytes.  **Superseded in part by the ruling of the same
+day and by task #44's measurement**: no `unsafe impl` where `std` or a
+common crate does the job, and `std::sync::Arc` does — at +14.7 % wall on
+`core`, which is what makes this design a live alternative rather than a
+dead one.  §3.2's `ron::ptr::P` paragraph is where the choice now lives,
+and it is one line.  *Pins*: embedded as a `con-ron-pins/1` text
 constant in the core, decoded at start by a decoder in the core; the
 theorem states `pins = decode PINS_TEXT` and Lean establishes
 `decode PINS_TEXT = natOpPinSets` as a closed computation (task #43
@@ -9306,3 +9344,243 @@ at unchanged RSS, with the `fenv::dup` term still setting the remaining gap.
   magnitude on the page-fault count, once someone can price its RSS on Mathlib.
 * The parallel check phase, unchanged in priority: con-leche's `--jobs=8`
   Mathlib row is 337 s against 1 228 s at `-j1`.
+
+### Task #44 — `Rc` vs `Arc` measured; the pointer alias (2026-09-12, Opus under Fable)
+
+The parallel check phase needs the installed environment shared by workers,
+which needs the core's handle to be `Send + Sync`, which `Rc` is not.  §3's
+first sketch bought that with an `unsafe impl` on a hand-written counted
+pointer; the maintainer's ruling of 2026-09-12 is that `std` or a common crate
+does it instead where it can.  `std::sync::Arc` can, at **zero cost in the
+model, zero `unsafe` and zero proof lines** — and **+14.7 % wall on `core`**,
+which is over the 10 % this task was given to spend.  So the alias landed, the
+numbers are below, and acting on the decision is now one line.
+
+#### 1. `ron::ptr` — one type, three wrappers, and a `Deref` left alone
+
+`crates/con-ron-core/src/ron/ptr.rs` is new and holds exactly
+
+```rust
+pub type P<T> = std::rc::Rc<T>;
+pub fn new<T>(x: T) -> P<T>                  { P::new(x) }
+pub fn clone<T>(p: &P<T>) -> P<T>            { P::clone(p) }
+pub fn ptr_eq<T>(a: &P<T>, b: &P<T>) -> bool { P::ptr_eq(a, b) }
+```
+
+and every `use std::rc::Rc` in `con-ron-core` is gone: the five files that had
+one (`kernel/{name,level,expr,env,fenv}.rs`) import `ron::ptr::P` instead, and
+the 46 `Rc::new`/`Rc::clone`/`Rc::ptr_eq`/`Rc<…>` sites became `ptr::*`/`P<…>`
+mechanically.  **`deref` is deliberately not wrapped**: the port reads through
+a handle by `&*p`, `p.field` and `match &*p`, which is whatever `P`'s `Deref`
+impl is, and a crate function in front of ~450 generated call sites buys
+nothing and would restructure `Funs.lean` everywhere.
+
+The two dependent crates went through the alias too, and that is where the
+change was not purely textual:
+
+* `con-ron`'s frontend built two core values by hand — `BinderMeta { pw:
+  Rc::new(…) }` and `Literal::NatVal(Rc::new(n))` — where the core has had
+  `expr::binder_meta`, `expr::literal_nat` and `expr::literal_str` since task
+  #38.  It calls those now, so the frontend names no pointer at all.
+* the two **pointer-identity** sites outside the core (`con-ron`'s `ExprKey`
+  hash/eq for the ground-term table, task #37; `con-ron-dump`'s `dag::census`,
+  task #19) used `Rc::as_ptr`.  `as_ptr` is not one of §3.2's four operations,
+  and putting it in `ron::ptr` would have made a **fifth external hole** that
+  the extraction gate counts.  They take the address through `Deref` instead —
+  `&*e.0 as *const ExprNode` — which is the same address, follows the alias,
+  and adds no API.
+* `con-ron-dump`'s `--sizes` report modeled `Rc`'s block as `#[repr(C)] {
+  strong, weak, value }`.  The header width is now a local
+  `trait CountHeader { const WORDS: usize; }` with one impl per candidate
+  pointer, so `--sizes` follows the alias with no edit there either.  A
+  `HEADER_WORDS` constant in the *core* would have been simpler, was tried, and
+  was dropped: nothing in the core reads it, and §3.4 does not want items in the
+  verified crate that exist for the tooling (the same reason there is no
+  `nat_op_pin_sets()`).
+
+`scripts/lint-rust-style.sh`'s pointer-API check now reads `\b(P|Rc|Arc)::` and
+covers `as_ptr`, `increment_strong_count` and `decrement_strong_count` as well,
+so the excluded API is gated whichever of the three the alias names.
+
+#### 2. What Charon and Aeneas emit for each of the three
+
+Each candidate was run through `charon cargo --preset=aeneas` and `aeneas
+-backend lean -split-files -loops-to-rec`: **zero errors and zero warnings**
+each time, and each produced templates holding **exactly one type and four
+functions**.
+
+| alias | external type | the four | note |
+|---|---|---|---|
+| `std::rc::Rc` | `alloc.rc.Rc` | `new`, `ptr_eq`, `Clone::clone`, `Deref::deref` | the shipped model |
+| `std::sync::Arc` | `alloc.sync.Arc` | the same four, same signatures | the model is a rename: `alloc.rc.Rc` → `alloc.sync.Arc` |
+| `triomphe::Arc` | `triomphe.arc.Arc` | the same four, **without** the allocator parameter | opaque cleanly: no `triomphe` body reaches `Funs.lean` |
+
+So the swap really is one line in `ron/ptr.rs` plus a rename in the two
+hand-written external files.  `triomphe`'s is the *tidiest* of the three models
+(no `Global` and no `core.alloc.AllocatorClone` argument, since its `Arc` is not
+allocator-generic), which is worth recording in case its performance ever
+changes.
+
+What the *crate's own* generated Lean gained is three wrappers and 28 call
+sites through them (`ron.ptr.new` 21, `ron.ptr.clone` 4, `ron.ptr.ptr_eq` 3);
+`deref`'s ~450 sites are untouched, and both `*_Template.lean` files are
+**byte-identical**.
+
+What the proof tier needed is **three `simp` lemmas, two `step` specs, and a
+rename in 14 `simp only` lists**:
+
+* `ptr_new_eq`, `ptr_clone_eq`, `ptr_ptr_eq_eq` in `Refine/Abs.lean`, each
+  `rfl`, beside the `rc_*` ones they delegate to (which stay, as the model of
+  the external the wrapper calls; `rc_deref_eq` is still the one doing the
+  work, at 434 generated sites);
+* `ptr_new_spec` and `ptr_clone_spec` in `Refine/BasisTables.lean`, the `step`
+  form of the first two;
+* in `Refine/Expr.lean`, the ten `simp only [bind_eq_ok_iff, rc_new_eq, …]` in
+  the smart-constructor inversion lemmas and the four `rc_clone_eq` in the
+  `dup` lemmas name `ptr_*_eq` now.  That is a *rename inside a simp set* and
+  nothing else — no lemma statement, no tactic, no obligation moved, and the
+  `#guard_msgs` axiom censuses are unchanged.
+
+Every other `Refine/*` file is byte-identical, `Refine/Abs.lean`'s `absExpr`
+included: a wrapper around an erased handle is still erased.  **The trap worth
+recording** is that `lake build 2>&1 | tail -40` reports *`tail`'s* exit status,
+so the first run of this task's proof build looked green while
+`ConRon.Refine.Expr` was failing with eight `subst` errors and three `sorryAx`
+censuses.  Redirect to a file and check `$?`; `scripts/gates.sh` does this
+correctly and is what caught it.
+
+#### 3. The measurements
+
+One quiet machine (AMD EPYC 9455), one heavy process at a time, `perf stat -e
+instructions:u,cycles:u` + `/usr/bin/env time -v`, `ulimit -v` per the brief
+(3 GB `init`, 5 GB `core`), `con-ron-check --verified --pins
+_tmp/dump-fixtures/pins.dump`, artefacts in `_tmp/t44/`.  All three binaries
+**accept** both corpora (58 002 and 165 449 declarations).  The `Rc` column
+reproduces task #41's "after" row to within 0.1 % on instructions and 0.2 % on
+wall, which is the check that the alias itself is free.
+
+`init` (58 002 records):
+
+| | `Rc` | `std::sync::Arc` | `triomphe::Arc` |
+|---|---:|---:|---:|
+| `instructions:u` | 565.88 G | 564.94 G (1.00×) | 618.62 G (1.09×) |
+| `cycles:u` | 244.33 G | 286.86 G (1.17×) | 291.30 G (1.19×) |
+| wall | 55.66 s | 65.25 s (**+17.2 %**) | 66.14 s (+18.8 %) |
+| check phase alone | 54.63 s | 64.17 s (+17.5 %) | 65.04 s (+19.1 %) |
+| peak RSS | 828 MB | 827 MB | 794 MB (−4.1 %) |
+
+`core` (165 449 records):
+
+| | `Rc` | `std::sync::Arc` | `triomphe::Arc` |
+|---|---:|---:|---:|
+| `instructions:u` | 1 155.23 G | 1 153.96 G (1.00×) | 1 348.60 G (1.17×) |
+| `cycles:u` | 591.93 G | 678.83 G (1.15×) | 711.71 G (1.20×) |
+| IPC | 1.95 | 1.70 | 1.89 |
+| wall | 134.56 s | 154.30 s (**+14.7 %**) | 161.71 s (+20.2 %) |
+| check phase alone | 132.03 s | 151.54 s (+14.8 %) | 159.03 s (+20.5 %) |
+| peak RSS | 2 152 MB | 2 162 MB | 2 071 MB (−3.8 %) |
+
+Node sizes (`con-ron-dump-check --sizes`).  The inline `size` column is
+**identical** for all three — a handle is one word everywhere — so only the
+heap block moves:
+
+| block | `Rc` / `std::sync::Arc` | `triomphe::Arc` |
+|---|---:|---:|
+| `ExprNode` (the one multiplied by 103 M at Mathlib scale) | 56 B | **48 B** |
+| `NameNode` | 56 B | 48 B |
+| `LevelNode` | 48 B | 40 B |
+| `PropWhen` (behind a binder handle) | 40 B | 32 B |
+
+**The brief's expectation is confirmed exactly.**  `std::sync::Arc` costs
+*nothing* in instructions (−0.1 % on both corpora: the atomic instruction
+replaces the plain one one-for-one) and 15–17 % in cycles and wall.  The whole
+penalty is stall — `lock inc`/`lock dec` on the node's first cache line, on
+every `expr::dup`, every `fenv::dup` element and every node drop — and it shows
+as IPC falling from 1.95 to 1.70 on `core`.  The penalty is *smaller* on the
+bigger corpus (14.7 % against 17.2 %), which fits task #41's picture: `core`
+already spends more of its cycles waiting on memory it cannot avoid, so the
+atomics have relatively less headroom to take.
+
+`triomphe::Arc` is the surprise, and a negative one: it is atomic *and* 8 bytes
+leaner per node, but it costs **+17 % instructions** on `core` (+9 % on `init`)
+where `std::sync::Arc` costs none, and ends up the slowest of the three.  The
+cause was not chased — the measurement is enough to rule it out as "the small
+atomic pointer", and 3.8 % of peak RSS is not worth 20 % of wall.  It stays in
+this table, not in `Cargo.toml`.
+
+#### 4. `Send`/`Sync`, and what does *not* block it
+
+With `pub type P<T> = std::sync::Arc<T>` the compile-only probe
+
+```rust
+fn assert_send_sync<T: Send + Sync>() {}
+assert_send_sync::<Name>();  assert_send_sync::<Level>();
+assert_send_sync::<Expr>();  assert_send_sync::<Env>();
+assert_send_sync::<FEnv>();  assert_send_sync::<CState>();
+```
+
+compiles and passes.  Under `Rc` it fails, and **every one of the errors names
+an `Rc`** — `Rc<ExprNode>`, `Rc<NameNode>`, `Rc<LevelNode>`, `Rc<ConstantInfo>`
+— so the answer to "does anything else in the core block the pool" is **no**:
+no `Cell`, no `RefCell`, no raw pointer, no handle outside the alias.  (§3.4's
+lint already forbids `Cell`/`RefCell`; this is the independent confirmation, and
+it also confirms the sweep above left no `std::rc::Rc` behind.)  The probe is
+**not committed**, because it cannot compile with the alias as shipped; it is
+four lines, quoted in `ron/ptr.rs`'s module note for the pool task to paste
+after the swap.
+
+#### 5. The decision, and the ways out
+
+`Arc`'s `core` penalty is 14.7 %, over the 10 % budget, so **`P` stays
+`std::rc::Rc`** and the choice goes up.  The alias stays in place either way —
+that was the deliverable — so acting on the decision is editing one line and
+renaming `alloc.rc.Rc` → `alloc.sync.Arc` in the two hand-written external
+files.  The trade, stated plainly:
+
+* **Pay it.**  ~15 % at one worker for a pool con-leche measures at 3.5×
+  (Mathlib `--jobs=8` 337 s against 1 228 s at `-j1`).  In wall-clock terms
+  that is not close: 15 % single-threaded is the price of admission to a 3.5×
+  device, and it costs no `unsafe`, no model change and no proof line.  What
+  the 10 % budget was protecting is the other side — it is *permanent* overhead
+  on every `-j1` run, including the differential corpus and CI.
+* **Or take §3's `unsafe` design.**  The core's own single-count pointer with an
+  immortal sentinel, `mark_persistent` at the phase boundary, `unsafe impl Send
+  + Sync` on the invariant that workers only read immortal nodes.  That keeps
+  the `-j1` cost at zero and *also* takes the node to 48 bytes — and it is
+  exactly the `unsafe impl` the same day's ruling is against, plus a
+  trust-argument paragraph and a fifth external hole (`mark_persistent`, the
+  identity).  triomphe's column says the 48 bytes on their own are not the
+  reason to do it.
+
+A third option this task did *not* price, because it needs the pool to exist
+first: `Arc` only where sharing crosses threads (the installed `Env`/`FEnv` and
+the terms reachable from them) and `Rc` for the per-declaration scratch a worker
+allocates and drops.  §3.2's model does not care — two aliases are two external
+types and eight holes, still no `unsafe` — but the split runs through `Expr`, so
+it is a type-level split of the term representation and not a one-line change.
+Worth revisiting only if the pool lands on `Arc` and the 15 % is felt.
+
+#### Gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | all 6 OK (`cargo build`, `cargo test`, lint, provenance, `extract.sh --check`, `lake build`) |
+| `cargo test` | 227/227, warning-free under `-D warnings` (3 ignored: task #37's exponential-pair fixture, plus `ron/ptr.rs`'s two ````ignore```` doc blocks) |
+| `scripts/provenance.py check` | green — 2 026 items, 2 213 citations at pin 3e004805 |
+| `scripts/extract.sh` | zero Aeneas errors, zero warnings; externals still exactly **1 type, 4 fns**, both templates byte-identical |
+| `cd proof && lake build` | 2 108 jobs, zero errors, **zero `ConRon` warnings**; `Refine/*` unchanged apart from the five new pointer lemmas and 14 simp-set renames; axiom censuses unchanged |
+| `scripts/diff-fixtures.sh --timeout=60` | **315 agree, 0 differ**, 0 timed out, 33 skipped, 9 s |
+| `core` / `init` | accepted 165 449 / 58 002 at §3's `Rc` column |
+
+Mathlib was not run: one measurement process at a time, and the brief scopes
+this task to `init` and `core`.
+
+#### Left for next time
+
+* **The decision above.**  Nothing else in this task is blocked on it; the pool
+  task is.
+* If the answer is `Arc`, the pool task inherits §4's probe (paste it, it
+  passes) and should re-measure `--jobs=8` before believing the 3.5×: the port
+  has no `mark_persistent`, so its workers pay the atomics con-leche's mark
+  removes, and con-leche's own `--no-mark-persistent` row prices that at 18–32 %
+  of pool wall.

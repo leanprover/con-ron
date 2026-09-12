@@ -176,6 +176,12 @@ set_option backward.do.legacy true
     (x : T) : alloc.rc.Rc.Insts.CoreCloneClone.clone i x ⦃ r => r = x ⦄ := by
   rw [rc_clone_eq]; exact .ret rfl
 
+@[local step] theorem ptr_new_spec {T : Type} (x : T) :
+    ron.ptr.new x ⦃ r => r = x ⦄ := by rw [ptr_new_eq]; exact .ret rfl
+
+@[local step] theorem ptr_clone_spec {T : Type} (x : T) :
+    ron.ptr.clone x ⦃ r => r = x ⦄ := by rw [ptr_clone_eq]; exact .ret rfl
+
 @[simp] theorem expr_dup_eq (e : expr.Expr) : expr.dup e = ok e := by
   cases e; simp [expr.dup]
 

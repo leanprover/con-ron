@@ -63,7 +63,7 @@
 //! `--progress`, `--jobs=<n>` and `--no-mark-persistent` mean here exactly
 //! what they mean in the `con-ron` binary, because they are the same code:
 //! the heartbeat's line shapes are `OVERVIEW.md` §0's, `--jobs` is validated
-//! and then not acted on (phase B is sequential until the `Rc`/`Arc`
+//! and then not acted on (phase B is sequential until the pointer
 //! decision), and the persistent mark has no Rust counterpart to switch off.
 //! The retired con-leche spellings are hard errors here too.
 //!

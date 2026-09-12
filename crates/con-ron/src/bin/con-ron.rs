@@ -40,8 +40,9 @@
 //! **Four flags differ from con-leche's, and say so here.**
 //!
 //! * `--jobs=<n>` is **accepted and validated but not acted on**: the check
-//!   phase is sequential in this build.  con-leche's thread pool waits on the
-//!   `Rc`/`Arc` decision (DESIGN.md's milestone entry; `driver`'s note), so a
+//!   phase is sequential in this build.  con-leche's thread pool waits on a
+//!   thread-shareable handle, whose price task #44 measured (DESIGN.md;
+//!   `driver`'s note), so a
 //!   run prints `con-ron: --jobs=<n> accepted; the check phase is sequential
 //!   in this build` and the `--progress` summary says `1 worker` — no log can
 //!   mistake a sequential run for a pooled one.
@@ -114,9 +115,10 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
                     in this mode is outside the theorem.
   --jobs=<n>        ACCEPTED AND VALIDATED, then not acted on: the check phase
                     is sequential in this build, and the --progress summary
-                    says `1 worker` whatever <n> was.  con-leche's pool waits
-                    on the Rc/Arc decision (DESIGN.md); 0 or a non-numeral is
-                    a usage error, as in con-leche.
+                    says `1 worker` whatever <n> was.  The pool needs a
+                    thread-shareable handle, whose price task #44 measured
+                    (DESIGN.md); 0 or a non-numeral is a usage error, as in
+                    con-leche.
   --no-mark-persistent
                     ACCEPTED AND A NO-OP: the mark it turns off is a
                     Lean-runtime reference-counting device
@@ -559,7 +561,7 @@ fn main() -> ExitCode {
     if let Some(n) = a.jobs {
         eprintln!(
             "con-ron: --jobs={} accepted; the check phase is sequential in this build \
-             (con-leche's thread pool waits on the Rc/Arc decision)",
+             (a pool needs a thread-shareable handle; see DESIGN.md task #44)",
             n
         );
     }

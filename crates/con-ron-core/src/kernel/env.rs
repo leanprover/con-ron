@@ -21,7 +21,7 @@
 //!   pinned-basis guards that compare a whole stored `ConstantInfo`**
 //!   (`env.find? eqName = some eqA`, `env.find? natName = some natA`; see
 //!   `crate::kernel::basis_pins`).  §3.4 forbids the `derive`, and a derived
-//!   `PartialEq` would compare the `Rc` trees structurally with no pointer
+//!   `PartialEq` would compare the `P` trees structurally with no pointer
 //!   fast path, so the instances are spelled out as the `*_beq` family
 //!   below, componentwise in the cited field order, over the crate's own
 //!   `name::beq`/`expr::beq`/`level::beq`/`prop_when::beq` (§3.2).
@@ -29,7 +29,7 @@
 //!   `==` inside `sameRegular`.
 //! * **An explicit `*_dup` per type** rather than `#[derive(Clone)]`, as
 //!   `nat.rs`/`name.rs`/`expr.rs` do.  A `dup` of a `Name`, `Level`, `Expr`
-//!   or `PropWhen` is an `Rc` bump; a `dup` of a record copies its `Vec`s.
+//!   or `PropWhen` is a `P` bump; a `dup` of a record copies its `Vec`s.
 //!
 //! `ProjTable.bodies` is an `Array Expr` and `ProjTable.guards` a `List
 //! Level` in the Lean; the port does not inherit the asymmetry (task #10,
@@ -45,7 +45,8 @@ use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
 use crate::kernel::prop_when::PropWhen;
-use std::rc::Rc;
+use crate::ron::ptr;
+use crate::ron::ptr::P;
 use std::vec::Vec;
 
 // ---------------------------------------------------------------------------
@@ -63,7 +64,7 @@ pub enum CheckMode {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:69-72 CheckMode
-/// The `Rc`-free copy of a two-constructor enum.
+/// The handle-free copy of a two-constructor enum.
 pub fn check_mode_dup(m: &CheckMode) -> CheckMode {
     match m {
         CheckMode::Verified => CheckMode::Verified,
@@ -160,7 +161,7 @@ pub fn exprs_copy(es: &Vec<Expr>) -> Vec<Expr> {
 }
 
 /// con-leche: none — the index recursion behind `exprs_copy`
-/// Each element is an `Rc` bump; only the spine is copied.
+/// Each element is a `P` bump; only the spine is copied.
 pub fn exprs_copy_from(es: &Vec<Expr>, i: usize, out: Vec<Expr>) -> Vec<Expr> {
     if i >= es.len() {
         out
@@ -185,7 +186,7 @@ pub struct ConstantVal {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:197-201 ConstantVal
-/// The record copy: two `Rc` bumps and one `Vec<Name>` spine.
+/// The record copy: two `P` bumps and one `Vec<Name>` spine.
 pub fn constant_val_dup(cv: &ConstantVal) -> ConstantVal {
     ConstantVal {
         name: name::dup(&cv.name),
@@ -557,19 +558,19 @@ pub fn constant_info_dup(c: &ConstantInfo) -> ConstantInfo {
 
 /// con-leche: none — an `Env.consts` copy; Lean's `List ConstantInfo` is shared by value
 /// The entry point of the index recursion below.  Since task #34 the elements
-/// are shared (`Env`'s deviation), so this is `n` `Rc` bumps, not `n` record
+/// are shared (`Env`'s deviation), so this is `n` `P` bumps, not `n` record
 /// copies.
-pub fn constant_infos_copy(cs: &Vec<Rc<ConstantInfo>>) -> Vec<Rc<ConstantInfo>> {
+pub fn constant_infos_copy(cs: &Vec<P<ConstantInfo>>) -> Vec<P<ConstantInfo>> {
     constant_infos_copy_from(cs, 0, Vec::with_capacity(cs.len()))
 }
 
 /// con-leche: none — the index recursion behind `constant_infos_copy`
 /// The accumulator is passed by value and returned.
 pub fn constant_infos_copy_from(
-    cs: &Vec<Rc<ConstantInfo>>,
+    cs: &Vec<P<ConstantInfo>>,
     i: usize,
-    out: Vec<Rc<ConstantInfo>>,
-) -> Vec<Rc<ConstantInfo>> {
+    out: Vec<P<ConstantInfo>>,
+) -> Vec<P<ConstantInfo>> {
     if i >= cs.len() {
         out
     } else {
@@ -1079,19 +1080,19 @@ pub fn constant_info_type(c: &ConstantInfo) -> Expr {
 /// counters are positions counted from the *bottom* of this list
 /// (`fenv::mk_fenv_go`).
 ///
-/// Deviation (task #34): the element is `Rc<ConstantInfo>`, DESIGN.md §3.2's
-/// `Rc` around the *stored record*, because the Lean's one record is reached
+/// Deviation (task #34): the element is `P<ConstantInfo>`, DESIGN.md §3.2's
+/// `P` around the *stored record*, because the Lean's one record is reached
 /// from two places — this list and `FEnv.idx` — and the runtime shares it.
-/// `Rc` erases to its content in the model (`§3.2`), so `abs` reads
-/// `Vec (Rc ConstantInfo)` exactly as it read `Vec ConstantInfo`; what the
+/// `P` erases to its content in the model (`§3.2`), so `abs` reads
+/// `Vec (P ConstantInfo)` exactly as it read `Vec ConstantInfo`; what the
 /// sharing buys is that `fenv::push` no longer copies the record and
 /// `fenv::dup`/`mk_fenv_go` clone a pointer where they copied a record.
 pub struct Env {
-    pub consts: Vec<Rc<ConstantInfo>>,
+    pub consts: Vec<P<ConstantInfo>>,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:627-629 Env
-/// The record copy — `Rc` bumps, not record copies (the `Env` deviation).
+/// The record copy — `P` bumps, not record copies (the `Env` deviation).
 pub fn env_dup(e: &Env) -> Env {
     Env {
         consts: constant_infos_copy(&e.consts),
@@ -1104,17 +1105,17 @@ pub fn empty() -> Env {
     Env { consts: Vec::new() }
 }
 
-/// con-leche: none — `Rc::new` on a record about to be stored (DESIGN.md §3.2)
+/// con-leche: none — `ptr::new` on a record about to be stored (DESIGN.md §3.2)
 /// The record handed to the environment, shared: `Env.consts` and `FEnv.idx`
-/// hold the same `Rc`, as Lean's runtime holds the same object.
-pub fn constant_info_share(c: ConstantInfo) -> Rc<ConstantInfo> {
-    Rc::new(c)
+/// hold the same `P`, as Lean's runtime holds the same object.
+pub fn constant_info_share(c: ConstantInfo) -> P<ConstantInfo> {
+    ptr::new(c)
 }
 
-/// con-leche: none — the `Rc` bump that Lean's value semantics hides (DESIGN.md §3.2)
+/// con-leche: none — the `P` bump that Lean's value semantics hides (DESIGN.md §3.2)
 /// A second reference to a stored record.
-pub fn constant_info_rc_dup(c: &Rc<ConstantInfo>) -> Rc<ConstantInfo> {
-    Rc::clone(c)
+pub fn constant_info_rc_dup(c: &P<ConstantInfo>) -> P<ConstantInfo> {
+    ptr::clone(c)
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:627-629 Env
@@ -1134,8 +1135,8 @@ pub fn env_of(cs: &Vec<ConstantInfo>) -> Env {
 pub fn env_of_from(
     cs: &Vec<ConstantInfo>,
     i: usize,
-    out: Vec<Rc<ConstantInfo>>,
-) -> Vec<Rc<ConstantInfo>> {
+    out: Vec<P<ConstantInfo>>,
+) -> Vec<P<ConstantInfo>> {
     if i >= cs.len() {
         out
     } else {
@@ -1160,7 +1161,7 @@ pub fn find<'a>(env: &'a Env, n: &Name) -> Option<&'a ConstantInfo> {
 /// The index recursion the cited `List.find?` becomes (task #3's pattern);
 /// the predicate is inlined because §3.4 forbids closures.
 pub fn find_from<'a>(
-    cs: &'a Vec<Rc<ConstantInfo>>,
+    cs: &'a Vec<P<ConstantInfo>>,
     i: usize,
     n: &Name,
 ) -> Option<&'a ConstantInfo> {

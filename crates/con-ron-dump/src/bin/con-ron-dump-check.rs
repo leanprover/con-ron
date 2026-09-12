@@ -378,7 +378,8 @@ fn main() -> ExitCode {
         }
     }
     if sizes {
-        println!("node sizes (bytes; `heap` includes Rc's two reference counts)");
+        println!("node sizes (bytes; `heap` includes the reference counts in front \
+             of a `ron::ptr::P` node)");
         for r in node_sizes() {
             println!(
                 "  {:<30} size {:>3}{}",

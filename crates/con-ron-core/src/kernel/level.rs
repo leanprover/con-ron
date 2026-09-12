@@ -6,7 +6,7 @@
 //! living code, and it additionally carries the `crate::ron::hashmap`
 //! dictionaries (`Hashable`, `Eq2`) at the end of the file.
 //!
-//! Conventions, as in `name.rs`: `Level`s are `Rc` trees with the
+//! Conventions, as in `name.rs`: `Level`s are `P` trees with the
 //! `@[computed_field] hashData` stored in the node; arguments come in by
 //! shared reference and results go out owned; Lean's `List` becomes `Vec`
 //! walked by an index (DESIGN.md §3.3, §3.4 — no loops).
@@ -21,7 +21,8 @@ use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
 use crate::kernel::prop_when::PropWhen;
-use std::rc::Rc;
+use crate::ron::ptr;
+use crate::ron::ptr::P;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
 /// The five constructors of `inductive Level`; the cached hash sits in
@@ -43,8 +44,8 @@ pub struct LevelNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
-/// A universe level, as an `Rc` tree.
-pub struct Level(pub Rc<LevelNode>);
+/// A universe level, as a `P` tree.
+pub struct Level(pub P<LevelNode>);
 
 /// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
 /// The cached hash, an `O(1)` field read.
@@ -55,48 +56,48 @@ pub fn hash_data(u: &Level) -> u64 {
 /// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
 /// `Level.zero`, hash `1`.
 pub fn zero() -> Level {
-    Level(Rc::new(LevelNode { hash: 1, kind: LevelKind::Zero }))
+    Level(ptr::new(LevelNode { hash: 1, kind: LevelKind::Zero }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
 /// `Level.succ`, hash `mixHash 3 u.hashData`.
 pub fn succ(u: Level) -> Level {
     let h: u64 = name::mix_hash(3, hash_data(&u));
-    Level(Rc::new(LevelNode { hash: h, kind: LevelKind::Succ(u) }))
+    Level(ptr::new(LevelNode { hash: h, kind: LevelKind::Succ(u) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
 /// `Level.max`, hash `mixHash 5 (mixHash u.hashData v.hashData)`.
 pub fn max(u: Level, v: Level) -> Level {
     let h: u64 = name::mix_hash(5, name::mix_hash(hash_data(&u), hash_data(&v)));
-    Level(Rc::new(LevelNode { hash: h, kind: LevelKind::Max(u, v) }))
+    Level(ptr::new(LevelNode { hash: h, kind: LevelKind::Max(u, v) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
 /// `Level.imax`, hash `mixHash 7 (mixHash u.hashData v.hashData)`.
 pub fn imax(u: Level, v: Level) -> Level {
     let h: u64 = name::mix_hash(7, name::mix_hash(hash_data(&u), hash_data(&v)));
-    Level(Rc::new(LevelNode { hash: h, kind: LevelKind::Imax(u, v) }))
+    Level(ptr::new(LevelNode { hash: h, kind: LevelKind::Imax(u, v) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
 /// `Level.param`, hash `mixHash 11 (hash n)`.
 pub fn param(n: Name) -> Level {
     let h: u64 = name::mix_hash(11, name::hash_data(&n));
-    Level(Rc::new(LevelNode { hash: h, kind: LevelKind::Param(n) }))
+    Level(ptr::new(LevelNode { hash: h, kind: LevelKind::Param(n) }))
 }
 
-/// con-leche: none — the `Rc` bump that Lean's value semantics hides (DESIGN.md §3.2)
+/// con-leche: none — the `P` bump that Lean's value semantics hides (DESIGN.md §3.2)
 /// Share a level.
 pub fn dup(u: &Level) -> Level {
-    Level(Rc::clone(&u.0))
+    Level(ptr::clone(&u.0))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:60-67 Level.beqPtr
 /// The pointer test behind the cited `withPtrEq`; modeled as `false` in
 /// the generated Lean (DESIGN.md §3.2).
 pub fn ptr_eq(a: &Level, b: &Level) -> bool {
-    Rc::ptr_eq(&a.0, &b.0)
+    ptr::ptr_eq(&a.0, &b.0)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:60-67 Level.beqPtr
@@ -123,7 +124,7 @@ pub fn beq(a: &Level, b: &Level) -> bool {
 
 /// con-leche: ConLeche/Kernel/Level.lean:64-77 simplify
 /// `l = .zero` as a constructor test: Lean writes the decidable equality
-/// inline in the cited `imax` arm (and in `isZero`); on an `Rc` tree the
+/// inline in the cited `imax` arm (and in `isZero`); on a `P` tree the
 /// constructor test is the same predicate without an allocation.
 pub fn is_zero_kind(u: &Level) -> bool {
     match &u.0.kind {
@@ -332,7 +333,7 @@ pub fn rest(fuel: u64, l: &Level, r: &Level, diff: i64) -> Option<bool> {
 
 /// con-leche: ConLeche/Kernel/Level.lean:110-120 imaxRules
 /// Is this level `.imax _ (.param _)`?  Deviation: Lean matches the nested
-/// constructor directly; Rust cannot look through the `Rc`, so the cited
+/// constructor directly; Rust cannot look through the handle, so the cited
 /// pattern becomes this predicate plus a re-destructuring helper below.
 pub fn is_imax_param(u: &Level) -> bool {
     match &u.0.kind {

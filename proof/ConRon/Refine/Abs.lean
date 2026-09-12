@@ -59,6 +59,18 @@ are `rfl` because `ConRon/Generated/FunsExternal.lean` models
 @[simp] theorem rc_ptr_eq_eq {T : Type} (A : Type) (x y : T) :
     alloc.rc.Rc.ptr_eq (T := T) A x y = ok false := rfl
 
+/- The crate names its shared pointer once, as `ron::ptr::P` (task #44), so
+that the concrete counted pointer behind it is a one-line choice.  The three
+wrappers Charon sees are each one call to the external above, hence each is
+the same identity (`ptr_eq`: the same `false`); the generated code calls
+*these*, and these three `simp` lemmas are what make the handle invisible to
+the proofs exactly as before the alias existed (`deref` is not wrapped, so
+`rc_deref_eq` above is still the one doing the work). -/
+@[simp] theorem ptr_new_eq {T : Type} (x : T) : ron.ptr.new x = ok x := rfl
+@[simp] theorem ptr_clone_eq {T : Type} (x : T) : ron.ptr.clone x = ok x := rfl
+@[simp] theorem ptr_ptr_eq_eq {T : Type} (x y : T) :
+    ron.ptr.ptr_eq (T := T) x y = ok false := rfl
+
 @[simp] theorem level_dup_eq (u : level.Level) : level.dup u = ok u := by
   cases u; simp [level.dup]
 

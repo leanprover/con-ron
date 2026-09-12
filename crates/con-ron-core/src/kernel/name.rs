@@ -6,18 +6,19 @@
 //! dictionaries (`Hashable`, `Eq2`) at the end of the file.
 //!
 //! Representation notes (DESIGN.md §3.2, §3.3):
-//! * a `Name` is an `Rc` tree; the `@[computed_field] hashData` of the Lean
+//! * a `Name` is a `P` tree; the `@[computed_field] hashData` of the Lean
 //!   inductive is the stored `NameNode::hash`, written by the smart
 //!   constructors below and by nothing else;
 //! * strings are `Vec<u32>` code points, not `String`: the checker only ever
 //!   compares and hashes them, and Aeneas's `String` support is thin;
 //! * every function takes its `Name` arguments by shared reference and
 //!   returns owned `Name`s, because Rust cannot pattern-match through an
-//!   `Rc` and therefore cannot give back a borrowed subterm.
+//!   a handle and therefore cannot give back a borrowed subterm.
 
 use crate::ron::hashmap::Eq2;
 use crate::ron::hashmap::Hashable;
-use std::rc::Rc;
+use crate::ron::ptr;
+use crate::ron::ptr::P;
 
 /// con-leche: ConLeche/Kernel/Name.lean:26-45 Name
 /// The three constructors of `inductive Name`; the cached hash they carry
@@ -37,9 +38,9 @@ pub struct NameNode {
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:26-45 Name
-/// A hierarchical name: an `Rc` tree, Lean's value semantics made sharing
+/// A hierarchical name: a `P` tree, Lean's value semantics made sharing
 /// (DESIGN.md §3.2).
-pub struct Name(pub Rc<NameNode>);
+pub struct Name(pub P<NameNode>);
 
 /// con-leche: none — Lean's `mixHash`, a runtime primitive, not a con-leche definition
 /// Lean's `mixHash`, i.e. the runtime's `lean_uint64_mix_hash`
@@ -90,7 +91,7 @@ pub fn hash_data(n: &Name) -> u64 {
 /// con-leche: ConLeche/Kernel/Name.lean:26-45 Name
 /// `Name.anonymous`, hash `1723`.
 pub fn anonymous() -> Name {
-    Name(Rc::new(NameNode { hash: 1723, kind: NameKind::Anonymous }))
+    Name(ptr::new(NameNode { hash: 1723, kind: NameKind::Anonymous }))
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:26-45 Name
@@ -99,7 +100,7 @@ pub fn anonymous() -> Name {
 /// elaborator writes for you.
 pub fn mk_str(pre: Name, s: Vec<u32>) -> Name {
     let h: u64 = mix_hash(mix_hash(1, hash_data(&pre)), str_hash(&s));
-    Name(Rc::new(NameNode { hash: h, kind: NameKind::Str(pre, s) }))
+    Name(ptr::new(NameNode { hash: h, kind: NameKind::Str(pre, s) }))
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:26-45 Name
@@ -107,13 +108,13 @@ pub fn mk_str(pre: Name, s: Vec<u32>) -> Name {
 /// equation `mixHash (mixHash 2 p.hashData) (hash n)`.
 pub fn mk_num(pre: Name, n: u64) -> Name {
     let h: u64 = mix_hash(mix_hash(2, hash_data(&pre)), nat_hash(n));
-    Name(Rc::new(NameNode { hash: h, kind: NameKind::Num(pre, n) }))
+    Name(ptr::new(NameNode { hash: h, kind: NameKind::Num(pre, n) }))
 }
 
-/// con-leche: none — the `Rc` bump that Lean's value semantics hides (DESIGN.md §3.2)
+/// con-leche: none — the `P` bump that Lean's value semantics hides (DESIGN.md §3.2)
 /// Share a name.
 pub fn dup(n: &Name) -> Name {
-    Name(Rc::clone(&n.0))
+    Name(ptr::clone(&n.0))
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:51-59 Name.beqPtr
@@ -121,7 +122,7 @@ pub fn dup(n: &Name) -> Name {
 /// `false` in the generated Lean (DESIGN.md §3.2), where Lean discharges
 /// `withPtrEq`'s obligation instead.
 pub fn ptr_eq(a: &Name, b: &Name) -> bool {
-    Rc::ptr_eq(&a.0, &b.0)
+    ptr::ptr_eq(&a.0, &b.0)
 }
 
 /// con-leche: none — `String` equality; strings are `Vec<u32>` code points here (DESIGN.md §3.3)

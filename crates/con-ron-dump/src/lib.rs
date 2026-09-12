@@ -109,6 +109,7 @@ pub const ALLOCATOR: &str = if cfg!(feature = "jemalloc") {
 };
 
 use con_ron_core::cached::parsed_c::DeclC;
+use con_ron_core::ron::ptr::P;
 use con_ron_core::kernel::env;
 use con_ron_core::kernel::env::BasisKind;
 use con_ron_core::kernel::env::ConstantInfo;
@@ -267,15 +268,39 @@ impl Counts {
 // What a node weighs (task #36)
 // ---------------------------------------------------------------------------
 
-/// `Rc<T>`'s heap block: the two reference counts in front of the value
-/// (`alloc::rc::RcInner`, `#[repr(C)] { strong, weak, value }`).  This is a
-/// *model* of that private type, used only to report a size — nothing is
-/// allocated through it and no pointer is cast to it.
+/// How many machine words a counted pointer's heap block carries in front of
+/// the value.  One impl per pointer the core may be aliased to
+/// (`ron::ptr::P`, task #44), so `--sizes` follows the alias with no edit
+/// here: two words for `std::rc::Rc` and `std::sync::Arc` (a strong and a
+/// weak count), one for a single-count pointer.  This is a *fact about the
+/// standard library's layout*, restated here because the block type is
+/// private; nothing reads it but the size report.
+trait CountHeader {
+    const WORDS: usize;
+}
+
+impl<T> CountHeader for std::rc::Rc<T> {
+    const WORDS: usize = 2;
+}
+
+impl<T> CountHeader for std::sync::Arc<T> {
+    const WORDS: usize = 2;
+}
+
+/// `P<T>`'s heap block: the reference counts in front of the value
+/// (`alloc::rc::RcInner`/`alloc::sync::ArcInner`, `#[repr(C)] { strong,
+/// weak, value }`).  This is a *model* of that private type, used only to
+/// report a size — nothing is allocated through it and no pointer is cast to
+/// it.  The header width is the alias's own, so swapping `ron::ptr::P`
+/// (task #44) moves the reported node size with it.
+/// The header width of the alias in force.  Not generic in the payload: the
+/// counts sit in front of any `T`.
+const P_HEADER_WORDS: usize = <P<u8> as CountHeader>::WORDS;
+
 #[repr(C)]
 #[allow(dead_code)]
-struct RcBlock<T> {
-    strong: usize,
-    weak: usize,
+struct PBlock<T> {
+    header: [usize; P_HEADER_WORDS],
     value: T,
 }
 
@@ -303,14 +328,14 @@ pub fn node_sizes() -> Vec<NodeSize> {
         NodeSize {
             what,
             size: std::mem::size_of::<T>(),
-            heap: if rc { std::mem::size_of::<RcBlock<T>>() } else { 0 },
+            heap: if rc { std::mem::size_of::<PBlock<T>>() } else { 0 },
         }
     }
     vec![
         row::<ExprNode>("ExprNode (data + kind)", true),
         row::<ExprKind>("  ExprKind", false),
         row::<(Expr, Expr)>("    app payload", false),
-        row::<(Name, std::rc::Rc<Vec<Level>>)>("    const payload", false),
+        row::<(Name, P<Vec<Level>>)>("    const payload", false),
         row::<Literal>("    lit payload", false),
         row::<(Expr, Expr, BinderMeta)>("    lam/forallE payload", false),
         row::<(Expr, Expr, Expr)>("    letE payload", false),
@@ -332,7 +357,7 @@ pub fn node_sizes() -> Vec<NodeSize> {
 /// `E` record.  Separate from [`node_sizes`] so the binaries can multiply it
 /// by the record count without searching the table.
 pub fn expr_node_bytes() -> usize {
-    std::mem::size_of::<RcBlock<ExprNode>>()
+    std::mem::size_of::<PBlock<ExprNode>>()
 }
 
 /// The peak resident set of this process in KB, `VmHWM` from
@@ -1924,7 +1949,7 @@ mod tests {
         assert_eq!(std::mem::size_of::<Literal>(), 16);
         assert_eq!(std::mem::size_of::<ExprKind>(), 32);
         assert_eq!(std::mem::size_of::<ExprNode>(), 40);
-        assert_eq!(expr_node_bytes(), 56);
+        assert_eq!(expr_node_bytes(), 8 * P_HEADER_WORDS + 40);
         assert_eq!(std::mem::size_of::<NameNode>(), 40);
         assert_eq!(std::mem::size_of::<LevelNode>(), 32);
         // the id tables cost one machine word per record, the `Rc` handle

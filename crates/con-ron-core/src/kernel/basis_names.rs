@@ -11,10 +11,10 @@
 //! **Lean's `def` is a value, Rust's is a function.**  Each cited `def` is a
 //! closed top-level `Name`, built once at module initialization by Lean's
 //! runtime and marked persistent.  The Aeneas subset has no such thing (task
-//! #11's `bvarPool` note: a `static` cannot allocate an `Rc` tree and the
+//! #11's `bvarPool` note: a `static` cannot allocate a `P` tree and the
 //! lazy alternatives are outside DESIGN.md §3.4), so each name is a
 //! *function* that rebuilds its `Name` — the same value, at the cost of one
-//! `Rc` allocation per call.  The interned checker looks names up through
+//! `P` allocation per call.  The interned checker looks names up through
 //! `FEnv`'s index, so no comparison sees the difference; the saving can come
 //! back in P1.6 as a pinned-name table in `CState` without touching the
 //! model, because the model is the built name either way.
