@@ -32,6 +32,7 @@ use crate::cached::core_c;
 use crate::cached::state_c::CState;
 use crate::kernel::checker_base;
 use crate::kernel::core_k;
+use crate::kernel::decl_check;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckM;
 use crate::kernel::env;
@@ -317,7 +318,7 @@ pub fn mentions_fvar(q: u64, e: &Expr) -> bool {
 pub fn all_resolve_from(fe0: &FEnv, es: &Vec<Expr>, i: usize) -> bool {
     if i >= es.len() {
         true
-    } else if core_k::consts_resolve(fe0, &es[i]) {
+    } else if decl_check::consts_resolve_f_fast(fe0, &es[i]) {
         all_resolve_from(fe0, es, i + 1)
     } else {
         false
@@ -333,7 +334,7 @@ pub fn all_annots_resolve_from(fe0: &FEnv, fvs: &Vec<Expr>, i: usize) -> bool {
         true
     } else {
         let dom: Expr = expr_ops::fvar_type_d(&fvs[i]);
-        if core_k::consts_resolve(fe0, &dom) {
+        if decl_check::consts_resolve_f_fast(fe0, &dom) {
             all_annots_resolve_from(fe0, fvs, i + 1)
         } else {
             false
@@ -476,7 +477,7 @@ pub fn native_opened_fields_from(
     } else {
         let dom: Expr = expr_ops::fvar_type_d(&x_fvs[i as usize]);
         let ok = match native_parts::kind_get_d(ks, i) {
-            RecFieldKind::Ordinary => core_k::consts_resolve(fe0, &dom),
+            RecFieldKind::Ordinary => decl_check::consts_resolve_f_fast(fe0, &dom),
             RecFieldKind::Recursive => native_opened_recursive(
                 fe0, t, lps, n_p, n_idx, fvs_p, x_fvs, xrest, i, &dom,
             ),
@@ -656,7 +657,7 @@ pub fn check_native_rules(
 /// `if`).
 pub fn term_scoped(fe: &FEnv, lps: &Vec<Name>, e: &Expr) -> bool {
     if expr_ops::all_level_params_defined_fast(lps, e) {
-        if core_k::consts_resolve(fe, e) {
+        if decl_check::consts_resolve_f_fast(fe, e) {
             if expr_ops::loose_bvars_bounded(0, e) {
                 !expr_ops::has_fvar(e)
             } else {

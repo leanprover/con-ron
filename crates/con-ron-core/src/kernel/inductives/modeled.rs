@@ -29,6 +29,7 @@ use crate::cached::state_c::CState;
 use crate::kernel::basis_pins;
 use crate::kernel::checker_base;
 use crate::kernel::core_k;
+use crate::kernel::decl_check;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckM;
 use crate::kernel::env;
@@ -827,7 +828,7 @@ pub fn pins_wf_from(
         false
     } else if !expr_ops::loose_bvars_bounded(r_p, &pins[i]) {
         false
-    } else if !core_k::consts_resolve(fe_self, &pins[i]) {
+    } else if !decl_check::consts_resolve_f_fast(fe_self, &pins[i]) {
         false
     } else if !expr_ops::all_level_params_defined_fast(lps, &pins[i]) {
         false
@@ -1438,7 +1439,7 @@ pub fn check_iota_rule(
                     Ok(rhs_a) => {
                         if !expr_ops::all_level_params_defined_fast(lps, &rhs_a) {
                             Err(core_types::invalid(core_types::code_points(&M_LPS)))
-                        } else if !core_k::consts_resolve(fe_self, &rhs_a) {
+                        } else if !decl_check::consts_resolve_f_fast(fe_self, &rhs_a) {
                             Err(core_types::invalid(core_types::code_points(&M_RESOLVE)))
                         } else if expr_ops::strip_lams(r_p + cn_f, &rhs_a).is_none() {
                             Err(core_types::not_implemented(core_types::code_points(
@@ -1992,7 +1993,7 @@ pub fn check_proj_ty(
     let round: Expr = expr_ops::rename_consts(&fwd, &pty);
     if !expr::beq(&round, mty) {
         Err(core_types::not_implemented(core_types::code_points(&M_ROUND)))
-    } else if !core_k::consts_resolve(fe2, &pty) {
+    } else if !decl_check::consts_resolve_f_fast(fe2, &pty) {
         Err(core_types::not_implemented(core_types::code_points(&M_RES)))
     } else {
         let wf = if expr_ops::loose_bvars_bounded(0, &pty) {

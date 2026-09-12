@@ -36,6 +36,7 @@ use crate::kernel::basis_names;
 use crate::kernel::core_k;
 use crate::kernel::core_types;
 use crate::kernel::core_types::{CheckError, CheckM};
+use crate::kernel::decl_check;
 use crate::kernel::env;
 use crate::kernel::env::{CheckMode, ConstantVal};
 use crate::kernel::expr;
@@ -95,6 +96,15 @@ pub fn check_constant_val(
 /// record update `{ cv with type := type }`.  Split off so the annotation's
 /// state-threading call is a tail call and the two guard groups do not join
 /// on a borrowed state (task #18's rule for gated certificates).
+///
+/// The resolution guard is the **memoized** walk
+/// (`decl_check::consts_resolve_f_fast`), because the cited
+/// `checkConstantValF` says `type.constsResolveF fe` and `constsResolveF` is
+/// `@[csimp]`-swapped for `constsResolveFFast`
+/// (`DeclCheck.lean:197-204`); the pure `core_k::consts_resolve` this used to
+/// call is the *spec* of that value and re-traverses a DAG-shared type as a
+/// tree, which does not finish on con-leche task #215's `tower_struct`
+/// (task #30 found it there, once the `beq` pair memo stopped hiding it).
 pub fn check_constant_val_after_annot(
     mode: &CheckMode,
     st: &mut CState,
@@ -104,7 +114,7 @@ pub fn check_constant_val_after_annot(
 ) -> CheckM<ConstantVal> {
     if !expr_ops::all_level_params_defined_fast(&cv.level_params, &ty) {
         Err(core_types::invalid({ const M: [u32; 37] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
-    } else if !core_k::consts_resolve(fe, &ty) {
+    } else if !decl_check::consts_resolve_f_fast(fe, &ty) {
         Err(core_types::invalid({ const M: [u32; 24] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
     } else {
         match type_checker::infer_type_core(mode, st, fe, 0, &ty) {
@@ -573,7 +583,7 @@ pub fn check_proj_rule(
 /// (task #3's pattern 9).
 pub fn proj_rule_wf(fe: &FEnv, rhs_a: &Expr, lps: &Vec<Name>) -> bool {
     if expr_ops::all_level_params_defined_fast(lps, rhs_a) {
-        if core_k::consts_resolve(fe, rhs_a) {
+        if decl_check::consts_resolve_f_fast(fe, rhs_a) {
             if expr_ops::loose_bvars_bounded(0, rhs_a) {
                 !expr_ops::has_fvar(rhs_a)
             } else {

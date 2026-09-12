@@ -1369,11 +1369,27 @@ theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
 /-! ## `beq`
 
 `beq_go` is the official kernel's descent: pointer identity, then the computed
-word (a mismatch *is* an inequality), then the constructor cases.  The pointer
-test is `false` in the model (DESIGN.md §3.2), so the model always takes the
-slow path; the word guard is what needs `absExpr`'s injectivity, and every arm
-of the descent has the same shape -- one comparison, then the rest -- which
-`guard_step` handles once. -/
+word (a mismatch *is* an inequality), then -- since task #30 -- the pair memo's
+probe, then the constructor cases (`beq_arm`), then the write-back.  The
+pointer test is `false` in the model (DESIGN.md §3.2), so the model always
+takes the slow path; the word guard is what needs `absExpr`'s injectivity, and
+every arm of the descent has the same shape -- one comparison, then the rest --
+which `guard_step` and its state-threading twins handle once.
+
+**The memo is dead in the model, and that is the whole of task #30's proof
+obligation.**  A probe verifies a stored pair by *identity* (`expr::probe_hit`
+tests `ptr_eq` on both components), and `ptr_eq` is `false` here, so the probe
+misses whatever the table holds (`probe_hit_false`) -- no fact about the table
+is ever needed, not even `ron::HashMap`'s invariant.  The write-back changes
+the table and not the decision (`beq_finish_fst`).  So `beq_go` is its frame
+around `beq_arm` (`beq_go_arm` peels it once) and the hundred-case constructor
+induction below is about `beq_arm`, the memo-free descent -- word for word the
+one task #20 proved, with the table carried along as state no case looks at.
+The binary side of the argument (a hit repeats what this same walk produced
+for those same two objects) is the module note of `kernel/expr.rs`. -/
+
+/-- The memo table `beq_go` threads (`expr::BeqMap`). -/
+abbrev BeqMap := ron.hashmap.HashMap Std.U64 (expr.Expr × expr.Expr)
 
 theorem u64_decide_val (i j : Std.U64) : decide (i = j) = decide (i.val = j.val) := by
   by_cases hc : i = j
@@ -1410,16 +1426,218 @@ theorem guard_step {P Q : Prop} [Decidable P] [Decidable Q] {c : Bool}
     rw [hrest c h]
     simp [hp]
 
+/-- A memo probe never hits in the model: it verifies a stored pair by
+identity and `expr::ptr_eq` is `false` (DESIGN.md §3.2).  Note what the
+statement does *not* assume -- nothing at all about the table, in particular
+not `ron::HashMap`'s invariant: both branches of the probe answer `false`
+whatever `get` returned.  This is the model half of task #30's trust
+argument. -/
+theorem probe_hit_false {m : BeqMap} {key : Std.U64} {a b : expr.Expr} {r : Bool}
+    (h : expr.probe_hit m key a b = ok r) : r = false := by
+  rw [expr.probe_hit] at h
+  obtain ⟨o, -, h⟩ := bind_eq_ok_iff.mp h
+  cases o with
+  | none => simpa using h.symm
+  | some q =>
+    obtain ⟨p1, p2⟩ := q
+    simp only [ptr_eq_eq, bind_tc_ok, Bool.false_eq_true, if_false] at h
+    simpa using h.symm
+
+/-- The write-back (con-leche's `finish`) changes the table, never the
+decision. -/
+theorem beq_finish_fst {r rc : Bool} {m : BeqMap} {key : Std.U64}
+    {a b : expr.Expr} {rm : Bool × BeqMap}
+    (h : expr.beq_finish r m rc key a b = ok rm) : rm.1 = r := by
+  rw [expr.beq_finish] at h
+  cases r with
+  | false =>
+    simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+    rw [← h]
+  | true =>
+    cases rc with
+    | false =>
+      simp only [if_true, Bool.false_eq_true, if_false, Result.ok.injEq] at h
+      rw [← h]
+    | true =>
+      simp only [if_true] at h
+      obtain ⟨m', -, h⟩ := bind_eq_ok_iff.mp h
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+
+/-- **The frame peeled, once.**  On a pair whose stored words agree, `beq_go`
+is `beq_arm`'s own decision: the identity test is `false`, the word guard
+passes, the probe misses (`probe_hit_false`) and the write-back passes the
+`Bool` through (`beq_finish_fst`).  Everything below therefore reasons about
+`beq_arm`. -/
+theorem beq_go_arm {a b : expr.Expr} {m : BeqMap} {rm : Bool × BeqMap}
+    (h : expr.beq_go m a b = ok rm) (hd : dataOf a = dataOf b) :
+    ∃ rm' : Bool × BeqMap, expr.beq_arm m a b = ok rm' ∧ rm'.1 = rm.1 := by
+  rw [expr.beq_go.eq_def] at h
+  simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok, hd,
+    bne_self_eq_false] at h
+  obtain ⟨rc, -, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i3, -, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨key, -, h⟩ := bind_eq_ok_iff.mp h
+  cases rc with
+  | true =>
+    simp only [if_true] at h
+    obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+    rw [probe_hit_false hb2] at h
+    simp only [Bool.false_eq_true, if_false] at h
+    obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r1, m1⟩ := q
+    exact ⟨(r1, m1), hq, (beq_finish_fst h).symm⟩
+  | false =>
+    simp only [Bool.false_eq_true, if_false] at h
+    obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r1, m1⟩ := q
+    exact ⟨(r1, m1), hq, (beq_finish_fst h).symm⟩
+
+/-- A non-recursive arm: one test, then the table unchanged. -/
+theorem pure_step {test : Result Bool} {m : BeqMap} {rm : Bool × BeqMap} {v : Bool}
+    (htest : ∀ y, test = ok y → y = v)
+    (h : (do let y ← test; ok (y, m)) = ok rm) : rm.1 = v := by
+  obtain ⟨y, hy, h⟩ := bind_eq_ok_iff.mp h
+  simp only [Result.ok.injEq] at h
+  rw [← h]
+  exact htest y hy
+
+/-- The `.fvar`/`.proj` arms: a field test decides the arm, then one recursive
+call (`expr::beq_when`). -/
+theorem when_step {P Q : Prop} [Decidable P] [Decidable Q] {test : Result Bool}
+    {m : BeqMap} {x y : expr.Expr} {rm : Bool × BeqMap}
+    (htest : ∀ c, test = ok c → c = decide P)
+    (hrest : ∀ (m : BeqMap) (rm : Bool × BeqMap),
+        expr.beq_go m x y = ok rm → rm.1 = decide Q)
+    (h : (do let c ← test; expr.beq_when m c x y) = ok rm) :
+    rm.1 = decide (P ∧ Q) := by
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  have e := htest c hc
+  rw [expr.beq_when] at h
+  cases c with
+  | false =>
+    simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+    rw [← h]
+    have hnp : ¬ P := of_decide_eq_false e.symm
+    simp [hnp]
+  | true =>
+    simp only [if_true] at h
+    have hp : P := of_decide_eq_true e.symm
+    rw [hrest m rm h]
+    simp [hp]
+
+/-- The `.app` arm: the two children in order, aborting on the first `false`
+(`expr::beq_both`). -/
+theorem both_step {P Q : Prop} [Decidable P] [Decidable Q] {m : BeqMap}
+    {x1 y1 x2 y2 : expr.Expr} {rm : Bool × BeqMap}
+    (h1 : ∀ (m : BeqMap) (rm : Bool × BeqMap),
+        expr.beq_go m x1 y1 = ok rm → rm.1 = decide P)
+    (h2 : ∀ (m : BeqMap) (rm : Bool × BeqMap),
+        expr.beq_go m x2 y2 = ok rm → rm.1 = decide Q)
+    (h : expr.beq_both m x1 y1 x2 y2 = ok rm) : rm.1 = decide (P ∧ Q) := by
+  rw [expr.beq_both] at h
+  obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r1, m1⟩ := q
+  have e : r1 = decide P := h1 m (r1, m1) hq
+  cases r1 with
+  | false =>
+    have h' : (ok (false, m1) : Result (Bool × BeqMap)) = ok rm := h
+    simp only [Result.ok.injEq] at h'
+    rw [← h']
+    have hnp : ¬ P := of_decide_eq_false e.symm
+    simp [hnp]
+  | true =>
+    have h' : expr.beq_go m1 x2 y2 = ok rm := h
+    have hp : P := of_decide_eq_true e.symm
+    rw [h2 m1 rm h']
+    simp [hp]
+
+/-- The `.lam`/`.forallE` arms: the binder datum decides the arm, then the
+domain and the body (`expr::beq_both_when`). -/
+theorem both_when_step {P Q R : Prop} [Decidable P] [Decidable Q] [Decidable R]
+    {test : Result Bool} {m : BeqMap} {x1 y1 x2 y2 : expr.Expr}
+    {rm : Bool × BeqMap}
+    (htest : ∀ c, test = ok c → c = decide P)
+    (h1 : ∀ (m : BeqMap) (rm : Bool × BeqMap),
+        expr.beq_go m x1 y1 = ok rm → rm.1 = decide Q)
+    (h2 : ∀ (m : BeqMap) (rm : Bool × BeqMap),
+        expr.beq_go m x2 y2 = ok rm → rm.1 = decide R)
+    (h : (do let c ← test; expr.beq_both_when m c x1 y1 x2 y2) = ok rm) :
+    rm.1 = decide (P ∧ Q ∧ R) := by
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  have e := htest c hc
+  rw [expr.beq_both_when] at h
+  cases c with
+  | false =>
+    simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+    rw [← h]
+    have hnp : ¬ P := of_decide_eq_false e.symm
+    simp [hnp]
+  | true =>
+    simp only [if_true] at h
+    have hp : P := of_decide_eq_true e.symm
+    rw [both_step h1 h2 h]
+    simp [hp]
+
+/-- The `.letE` arm: the type, the value, the body (`expr::beq_three`). -/
+theorem three_step {P Q R : Prop} [Decidable P] [Decidable Q] [Decidable R]
+    {m : BeqMap} {x1 y1 x2 y2 x3 y3 : expr.Expr} {rm : Bool × BeqMap}
+    (h1 : ∀ (m : BeqMap) (rm : Bool × BeqMap),
+        expr.beq_go m x1 y1 = ok rm → rm.1 = decide P)
+    (h2 : ∀ (m : BeqMap) (rm : Bool × BeqMap),
+        expr.beq_go m x2 y2 = ok rm → rm.1 = decide Q)
+    (h3 : ∀ (m : BeqMap) (rm : Bool × BeqMap),
+        expr.beq_go m x3 y3 = ok rm → rm.1 = decide R)
+    (h : expr.beq_three m x1 y1 x2 y2 x3 y3 = ok rm) :
+    rm.1 = decide (P ∧ Q ∧ R) := by
+  rw [expr.beq_three] at h
+  obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r1, m1⟩ := q
+  have e : r1 = decide P := h1 m (r1, m1) hq
+  cases r1 with
+  | false =>
+    have h' : (ok (false, m1) : Result (Bool × BeqMap)) = ok rm := h
+    simp only [Result.ok.injEq] at h'
+    rw [← h']
+    have hnp : ¬ P := of_decide_eq_false e.symm
+    simp [hnp]
+  | true =>
+    have h' : expr.beq_both m1 x2 y2 x3 y3 = ok rm := h
+    have hp : P := of_decide_eq_true e.symm
+    rw [both_step h2 h3 h']
+    simp [hp]
+
+/-- The `.const` arm's `n == m && us == vs`, as its own function
+(`expr::const_beq`). -/
+theorem const_beq_refines {n n2 : name.Name} {us vs : alloc.vec.Vec level.Level}
+    {c : Bool} (hn : NameWF n) (hn2 : NameWF n2) (hus : LevelsWF us)
+    (hvs : LevelsWF vs) (h : expr.const_beq n us n2 vs = ok c) :
+    c = decide (absName n = absName n2 ∧ absLevels us = absLevels vs) := by
+  rw [expr.const_beq] at h
+  exact guard_step (fun y hy => Name.beq_refines hn hn2 hy)
+    (fun y hy => levels_beq_refines hus hvs hy) h
+
+/-- The `.proj` arm's `s == s' && i == i'` (`expr::proj_head_beq`). -/
+theorem proj_head_beq_refines {s1 s2 : name.Name} {i1 i2 : Std.U64} {c : Bool}
+    (hs1 : NameWF s1) (hs2 : NameWF s2)
+    (h : expr.proj_head_beq s1 i1 s2 i2 = ok c) :
+    c = decide (absName s1 = absName s2 ∧ i1.val = i2.val) := by
+  rw [expr.proj_head_beq] at h
+  exact guard_step (fun y hy => Name.beq_refines hs1 hs2 hy)
+    (fun y hy => u64_eq_test hy) h
+
 /-- The word guard, once and for all: a stored-word mismatch *is* an
 inequality, because `absExpr` is injective on well-formed nodes. -/
-theorem beq_go_data_ne {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) {c : Bool}
-    (h : expr.beq_go a b = ok c) (hne : dataOf a ≠ dataOf b) :
-    c = decide (absExpr a = absExpr b) := by
+theorem beq_go_data_ne {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b)
+    {m : BeqMap} {rm : Bool × BeqMap}
+    (h : expr.beq_go m a b = ok rm) (hne : dataOf a ≠ dataOf b) :
+    rm.1 = decide (absExpr a = absExpr b) := by
   rw [expr.beq_go.eq_def] at h
   simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok] at h
   rw [if_pos (show (dataOf a != dataOf b) = true by simpa using hne),
     Result.ok.injEq] at h
-  rw [← h]
+  subst h
   refine (decide_eq_false ?_).symm
   intro hc
   exact hne (by rw [absExpr_injective ha hb hc])
@@ -1432,916 +1650,829 @@ the ninety off-diagonal ones are closed by the fact that `absExpr` maps the ten
 kinds onto the ten con-leche constructors, and the word guard is discharged once
 and for all by `beq_go_data_ne`. -/
 theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
-    ∀ b, ExprWF b → ∀ c, expr.beq_go a b = ok c →
-      c = decide (absExpr a = absExpr b) := by
+    ∀ b, ExprWF b → ∀ (m : BeqMap) (rm : Bool × BeqMap),
+      expr.beq_go m a b = ok rm → rm.1 = decide (absExpr a = absExpr b) := by
   induction ha with
   | @bvar i1 e1 h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := bvar_inv h1
-    intro b hb c h
+    intro b hb m rm h
     rcases eq_or_ne d1 (dataOf b) with hdd | hdd
     case inr => exact beq_go_data_ne (ExprWF.bvar h1) hb h (by simpa using hdd)
+    obtain ⟨rm, h, hrm⟩ := beq_go_arm h (by simpa using hdd)
+    rw [← hrm]
     cases hb with
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, bne_self_eq_false] at h
-      rw [u64_eq_test h]
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_] at h
+      rw [pure_step (fun y hy => u64_eq_test hy) h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
   | @fvar idx1 ty1 e1 hty1 h1 ih1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := fvar_inv h1
-    intro b hb c h
+    intro b hb m rm h
     rcases eq_or_ne d1 (dataOf b) with hdd | hdd
     case inr => exact beq_go_data_ne (ExprWF.fvar hty1 h1) hb h (by simpa using hdd)
+    obtain ⟨rm, h, hrm⟩ := beq_go_arm h (by simpa using hdd)
+    rw [← hrm]
     cases hb with
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, bne_self_eq_false] at h
-      rw [guard_step (P := idx1.val = idx2.val) (Q := absExpr ty1 = absExpr ty2)
-        (fun y hy => u64_eq_test hy) (fun y hy => ih1 ty2 hty2 y hy) h]
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_] at h
+      rw [when_step (P := idx1.val = idx2.val) (Q := absExpr ty1 = absExpr ty2)
+        (fun y hy => u64_eq_test hy) (fun m rm hr => ih1 ty2 hty2 m rm hr) h]
       simp only [absExpr_mk, absExprKind, ConLeche.Expr.fvar.injEq]
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
   | @sort u1 e1 hu1 h1 =>
     obtain ⟨d1, _, -, rfl, -, -, -⟩ := sort_inv h1
-    intro b hb c h
+    intro b hb m rm h
     rcases eq_or_ne d1 (dataOf b) with hdd | hdd
     case inr => exact beq_go_data_ne (ExprWF.sort hu1 h1) hb h (by simpa using hdd)
+    obtain ⟨rm, h, hrm⟩ := beq_go_arm h (by simpa using hdd)
+    rw [← hrm]
     cases hb with
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, bne_self_eq_false] at h
-      rw [Level.beq_refines hu1 hu2 h]
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_] at h
+      rw [pure_step (fun y hy => Level.beq_refines hu1 hu2 hy) h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
   | @mk_const n1 us1 e1 hn1 hus1 h1 =>
     obtain ⟨d1, _, -, rfl, -, -, -⟩ := mk_const_inv h1
-    intro b hb c h
+    intro b hb m rm h
     rcases eq_or_ne d1 (dataOf b) with hdd | hdd
     case inr => exact beq_go_data_ne (ExprWF.mk_const hn1 hus1 h1) hb h (by simpa using hdd)
+    obtain ⟨rm, h, hrm⟩ := beq_go_arm h (by simpa using hdd)
+    rw [← hrm]
     cases hb with
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, bne_self_eq_false] at h
-      rw [guard_step (P := absName n1 = absName n2)
-        (Q := absLevels us1 = absLevels us2)
-        (fun y hy => Name.beq_refines hn1 hn2 hy)
-        (fun y hy => levels_beq_refines hus1 hus2 hy) h]
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_] at h
+      rw [pure_step (fun y hy => const_beq_refines hn1 hn2 hus1 hus2 hy) h]
       simp only [absExpr_mk, absExprKind, ConLeche.Expr.const.injEq]
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
   | @app f1 a1 e1 hf1 ha1 h1 ihf1 iha1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := app_inv h1
-    intro b hb c h
+    intro b hb m rm h
     rcases eq_or_ne d1 (dataOf b) with hdd | hdd
     case inr => exact beq_go_data_ne (ExprWF.app hf1 ha1 h1) hb h (by simpa using hdd)
+    obtain ⟨rm, h, hrm⟩ := beq_go_arm h (by simpa using hdd)
+    rw [← hrm]
     cases hb with
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, bne_self_eq_false] at h
-      rw [guard_step (P := absExpr f1 = absExpr f2) (Q := absExpr a1 = absExpr a2)
-        (fun y hy => ihf1 f2 hf2 y hy) (fun y hy => iha1 a2 ha2 y hy) h]
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_] at h
+      rw [both_step (P := absExpr f1 = absExpr f2) (Q := absExpr a1 = absExpr a2)
+        (fun m rm hr => ihf1 f2 hf2 m rm hr) (fun m rm hr => iha1 a2 ha2 m rm hr) h]
       simp only [absExpr_mk, absExprKind, ConLeche.Expr.app.injEq]
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
   | @lam ty1 bo1 m1 e1 hty1 hbo1 hm1 h1 ihty1 ihbo1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := lam_inv h1
-    intro b hb c h
+    intro b hb m rm h
     rcases eq_or_ne d1 (dataOf b) with hdd | hdd
     case inr => exact beq_go_data_ne (ExprWF.lam hty1 hbo1 hm1 h1) hb h (by simpa using hdd)
+    obtain ⟨rm, h, hrm⟩ := beq_go_arm h (by simpa using hdd)
+    rw [← hrm]
     cases hb with
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, bne_self_eq_false] at h
-      rw [guard_step (P := absBinderMeta m1 = absBinderMeta m2)
-        (Q := absExpr ty1 = absExpr ty2 ∧ absExpr bo1 = absExpr bo2)
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_] at h
+      rw [both_when_step (P := absBinderMeta m1 = absBinderMeta m2)
+        (Q := absExpr ty1 = absExpr ty2) (R := absExpr bo1 = absExpr bo2)
         (fun y hy => binder_meta_beq_refines hm1 hm2 hy)
-        (fun y hy => guard_step (P := absExpr ty1 = absExpr ty2)
-        (Q := absExpr bo1 = absExpr bo2)
-        (fun z hz => ihty1 ty2 hty2 z hz) (fun z hz => ihbo1 bo2 hbo2 z hz) hy) h]
+        (fun m rm hr => ihty1 ty2 hty2 m rm hr)
+        (fun m rm hr => ihbo1 bo2 hbo2 m rm hr) h]
       simp only [absExpr_mk, absExprKind, ConLeche.Expr.lam.injEq, decide_eq_decide]
       tauto
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
   | @forall_e ty1 bo1 m1 e1 hty1 hbo1 hm1 h1 ihty1 ihbo1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := forall_e_inv h1
-    intro b hb c h
+    intro b hb m rm h
     rcases eq_or_ne d1 (dataOf b) with hdd | hdd
     case inr => exact beq_go_data_ne (ExprWF.forall_e hty1 hbo1 hm1 h1) hb h (by simpa using hdd)
+    obtain ⟨rm, h, hrm⟩ := beq_go_arm h (by simpa using hdd)
+    rw [← hrm]
     cases hb with
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, bne_self_eq_false] at h
-      rw [guard_step (P := absBinderMeta m1 = absBinderMeta m2)
-        (Q := absExpr ty1 = absExpr ty2 ∧ absExpr bo1 = absExpr bo2)
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_] at h
+      rw [both_when_step (P := absBinderMeta m1 = absBinderMeta m2)
+        (Q := absExpr ty1 = absExpr ty2) (R := absExpr bo1 = absExpr bo2)
         (fun y hy => binder_meta_beq_refines hm1 hm2 hy)
-        (fun y hy => guard_step (P := absExpr ty1 = absExpr ty2)
-        (Q := absExpr bo1 = absExpr bo2)
-        (fun z hz => ihty1 ty2 hty2 z hz) (fun z hz => ihbo1 bo2 hbo2 z hz) hy) h]
+        (fun m rm hr => ihty1 ty2 hty2 m rm hr)
+        (fun m rm hr => ihbo1 bo2 hbo2 m rm hr) h]
       simp only [absExpr_mk, absExprKind, ConLeche.Expr.forallE.injEq, decide_eq_decide]
       tauto
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
   | @let_e ty1 v1 bo1 e1 hty1 hv1 hbo1 h1 ihty1 ihv1 ihbo1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := let_e_inv h1
-    intro b hb c h
+    intro b hb m rm h
     rcases eq_or_ne d1 (dataOf b) with hdd | hdd
     case inr => exact beq_go_data_ne (ExprWF.let_e hty1 hv1 hbo1 h1) hb h (by simpa using hdd)
+    obtain ⟨rm, h, hrm⟩ := beq_go_arm h (by simpa using hdd)
+    rw [← hrm]
     cases hb with
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, bne_self_eq_false] at h
-      rw [guard_step (P := absExpr ty1 = absExpr ty2)
-        (Q := absExpr v1 = absExpr v2 ∧ absExpr bo1 = absExpr bo2)
-        (fun y hy => ihty1 ty2 hty2 y hy)
-        (fun y hy => guard_step (P := absExpr v1 = absExpr v2)
-        (Q := absExpr bo1 = absExpr bo2)
-        (fun z hz => ihv1 v2 hv2 z hz) (fun z hz => ihbo1 bo2 hbo2 z hz) hy) h]
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_] at h
+      rw [three_step (P := absExpr ty1 = absExpr ty2)
+        (Q := absExpr v1 = absExpr v2) (R := absExpr bo1 = absExpr bo2)
+        (fun m rm hr => ihty1 ty2 hty2 m rm hr)
+        (fun m rm hr => ihv1 v2 hv2 m rm hr)
+        (fun m rm hr => ihbo1 bo2 hbo2 m rm hr) h]
       simp only [absExpr_mk, absExprKind, ConLeche.Expr.letE.injEq]
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
   | @lit l1 e1 hl1 h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := lit_inv h1
-    intro b hb c h
+    intro b hb m rm h
     rcases eq_or_ne d1 (dataOf b) with hdd | hdd
     case inr => exact beq_go_data_ne (ExprWF.lit hl1 h1) hb h (by simpa using hdd)
+    obtain ⟨rm, h, hrm⟩ := beq_go_arm h (by simpa using hdd)
+    rw [← hrm]
     cases hb with
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, bne_self_eq_false] at h
-      rw [literal_beq_refines hl1 hl2 h]
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_] at h
+      rw [pure_step (fun y hy => literal_beq_refines hl1 hl2 hy) h]
       simp only [absExpr_mk, absExprKind, ConLeche.Expr.lit.injEq]
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
   | @proj s1 i1 x1 e1 hs1 hx1 h1 ih1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := proj_inv h1
-    intro b hb c h
+    intro b hb m rm h
     rcases eq_or_ne d1 (dataOf b) with hdd | hdd
     case inr => exact beq_go_data_ne (ExprWF.proj hs1 hx1 h1) hb h (by simpa using hdd)
+    obtain ⟨rm, h, hrm⟩ := beq_go_arm h (by simpa using hdd)
+    rw [← hrm]
     cases hb with
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, ite_self, Result.ok.injEq] at h
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
-      rw [expr.beq_go.eq_def] at h
-      simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok,
-        dataOf_mk, rc_deref_eq, expr.Expr._0._simpLemma_,
-        expr.ExprNode.kind._simpLemma_, bne_self_eq_false] at h
-      rw [guard_step (P := absName s1 = absName s2)
-        (Q := i1.val = i2.val ∧ absExpr x1 = absExpr x2)
-        (fun y hy => Name.beq_refines hs1 hs2 hy)
-        (fun y hy => guard_step (P := i1.val = i2.val)
+      rw [expr.beq_arm.eq_def] at h
+      simp only [rc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+        expr.ExprNode.kind._simpLemma_] at h
+      rw [when_step (P := absName s1 = absName s2 ∧ i1.val = i2.val)
         (Q := absExpr x1 = absExpr x2)
-        (fun z hz => u64_eq_test hz) (fun z hz => ih1 x2 hx2 z hz) hy) h]
-      simp only [absExpr_mk, absExprKind, ConLeche.Expr.proj.injEq]
+        (fun y hy => proj_head_beq_refines hs1 hs2 hy)
+        (fun m rm hr => ih1 x2 hx2 m rm hr) h]
+      simp only [absExpr_mk, absExprKind, ConLeche.Expr.proj.injEq, decide_eq_decide]
+      tauto
 
 /-! ## Reflexivity: the pointer fast path is transparent
 
@@ -2392,53 +2523,58 @@ theorem binder_meta_beq_refl {m : expr.BinderMeta} (hm : BinderMetaWF m) :
     expr.binder_meta_beq m m = ok true := by
   rw [expr.binder_meta_beq]; exact PropWhen.beq_refl hm
 
-theorem beq_go_refl {e : expr.Expr} (h : ExprWF e) : expr.beq_go e e = ok true := by
-  induction h with
-  | @bvar i e h =>
-    obtain ⟨d, rfl, -, -, -⟩ := bvar_inv h
-    rw [expr.beq_go.eq_def]; simp
-  | @fvar idx ty e hty h ih =>
-    obtain ⟨d, rfl, -, -, -⟩ := fvar_inv h
-    rw [expr.beq_go.eq_def]; simp [ih]
-  | @sort u e hu h =>
-    obtain ⟨d, _, -, rfl, -, -, -⟩ := sort_inv h
-    rw [expr.beq_go.eq_def]; simp [Level.level_beq_refl hu]
-  | @mk_const n us e hn hus h =>
-    obtain ⟨d, _, -, rfl, -, -, -⟩ := mk_const_inv h
-    rw [expr.beq_go.eq_def]; simp [Name.name_beq_refl hn, levels_beq_refl hus]
-  | @app f a e hf ha h ihf iha =>
-    obtain ⟨d, rfl, -, -, -⟩ := app_inv h
-    rw [expr.beq_go.eq_def]; simp [ihf, iha]
-  | @lam ty bo m e hty hbo hm h ihty ihbo =>
-    obtain ⟨d, rfl, -, -, -⟩ := lam_inv h
-    rw [expr.beq_go.eq_def]; simp [binder_meta_beq_refl hm, ihty, ihbo]
-  | @forall_e ty bo m e hty hbo hm h ihty ihbo =>
-    obtain ⟨d, rfl, -, -, -⟩ := forall_e_inv h
-    rw [expr.beq_go.eq_def]; simp [binder_meta_beq_refl hm, ihty, ihbo]
-  | @let_e ty v bo e hty hv hbo h ihty ihv ihbo =>
-    obtain ⟨d, rfl, -, -, -⟩ := let_e_inv h
-    rw [expr.beq_go.eq_def]; simp [ihty, ihv, ihbo]
-  | @lit l e hl h =>
-    obtain ⟨d, rfl, -, -, -⟩ := lit_inv h
-    rw [expr.beq_go.eq_def]; simp [literal_beq_refl hl]
-  | @proj s i x e hs hx h ih =>
-    obtain ⟨d, rfl, -, -, -⟩ := proj_inv h
-    rw [expr.beq_go.eq_def]; simp [Name.name_beq_refl hs, ih]
+/-- **Reflexivity, the transparency obligation of DESIGN.md §3.2** — in the
+forward shape this development uses everywhere (task #5: *exact result on
+success*).  The real program answers `true` on `beq e e` by the pointer test;
+the model takes the slow path, and this says the slow path cannot answer
+anything else.
+
+Task #30 note: the *stronger* form task #20 had here, `expr.beq_go e e =
+ok true`, additionally said that the descent **cannot fail**.  With the pair
+memo threaded through it, that now also asserts that `ron::HashMap`'s `get`
+and `insert` cannot fail — the *totality* half of task #16, which the
+forward-style development of §3.5 does not have for any function (every
+`*_refines` in `proof/` reasons from `f x = ok y`).  So the statement is the
+forward one, and it is a corollary of `beq_go_abs` rather than a second
+hundred-case induction.  Nothing else in `proof/` used the strong form. -/
+theorem beq_go_refl {e : expr.Expr} (h : ExprWF e) {m : BeqMap}
+    {rm : Bool × BeqMap} (hr : expr.beq_go m e e = ok rm) : rm.1 = true := by
+  simpa using beq_go_abs h e h m rm hr
 
 /-! ## The public statements, under the `ConRon/Refine/README.md` names -/
 
-/-- `expr::beq` is reflexive on well-formed terms: the real program's pointer
-fast path answers what the model's descent answers (DESIGN.md §3.2). -/
-theorem beq_refl {e : expr.Expr} (h : ExprWF e) : expr.beq e e = ok true := by
-  rw [expr.beq]; exact beq_go_refl h
-
 /-- `expr::beq` -- and the `Eq2` dictionary that *is* it -- decides equality of
 the abstracted terms **exactly**: the `Bool` the Rust returns is the `Bool`
-con-leche's `Expr.beq` returns (`= decide (· = ·)`, `Expr.lean:975`). -/
+con-leche's `Expr.beq` returns (`= decide (· = ·)`, `Expr.lean:975`).
+Task #30: `expr::beq` allocates the pair memo and calls the descent, whose
+decision is the memo-free one (`beq_go_abs`, and `probe_hit_false` for why the
+memo never enters it). -/
 theorem beq_refines {a b : expr.Expr} {c : Bool} (ha : ExprWF a) (hb : ExprWF b)
     (h : expr.beq a b = ok c) : c = decide (absExpr a = absExpr b) := by
   rw [expr.beq] at h
-  exact beq_go_abs ha b hb c h
+  simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok] at h
+  by_cases hd : dataOf a = dataOf b
+  · rw [if_neg (show ¬ (dataOf a != dataOf b) = true by simp [hd])] at h
+    obtain ⟨m, -, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨rm, hrm, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r, m'⟩ := rm
+    have h' : (ok r : Result Bool) = ok c := h
+    simp only [Result.ok.injEq] at h'
+    rw [← h']
+    exact beq_go_abs ha b hb m (r, m') hrm
+  · rw [if_pos (show (dataOf a != dataOf b) = true by simpa using hd),
+      Result.ok.injEq] at h
+    rw [← h]
+    refine (decide_eq_false ?_).symm
+    intro hc
+    exact hd (by rw [absExpr_injective ha hb hc])
+
+/-- `expr::beq` is reflexive on well-formed terms: the real program's pointer
+fast path answers what the model's descent answers (DESIGN.md §3.2).  Forward
+shape since task #30 — see `beq_go_refl`. -/
+theorem beq_refl {e : expr.Expr} (h : ExprWF e) {c : Bool}
+    (hc : expr.beq e e = ok c) : c = true := by
+  simpa using beq_refines h h hc
 
 /-- The same fact as con-leche states it: `Expr.beq` is `decide (· = ·)`. -/
 theorem beq_exact {a b : expr.Expr} {c : Bool} (ha : ExprWF a) (hb : ExprWF b)
@@ -2467,9 +2603,9 @@ theorem eq2_refines {a b : expr.Expr} {c : Bool} (ha : ExprWF a) (hb : ExprWF b)
 /-- The `Eq2` dictionary is reflexive (the `Hashable`/`Eq2` pair is what
 `ron::hashmap` needs of a key: equal keys hash equally, which is immediate
 here since both are functions of the node). -/
-theorem eq2_refl {e : expr.Expr} (h : ExprWF e) :
-    expr.Expr.Insts.Con_ron_coreRonHashmapEq2.eq2 e e = ok true := by
-  rw [eq2_eq]; exact beq_refl h
+theorem eq2_refl {e : expr.Expr} (h : ExprWF e) {c : Bool}
+    (hc : expr.Expr.Insts.Con_ron_coreRonHashmapEq2.eq2 e e = ok c) : c = true := by
+  rw [eq2_eq] at hc; exact beq_refl h hc
 
 /-! ## What has no refinement lemma, and why
 

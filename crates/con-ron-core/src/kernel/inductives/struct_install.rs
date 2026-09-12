@@ -10,6 +10,7 @@
 use crate::cached::core_c;
 use crate::cached::state_c::CState;
 use crate::kernel::core_k;
+use crate::kernel::decl_check;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckM;
 use crate::kernel::env;
@@ -88,9 +89,12 @@ pub fn check_struct_doms_at(
 /// The projection table's own body-scoping guard, which is the one place the
 /// **walkers record** shows through: `w.resolve fe b` and
 /// `w.projBodies T nP nF cty`.  The port calls the two walkers by name —
-/// `core_k::consts_resolve` and `struct_parts::struct_proj_bodies`, both
-/// memoized — because con-leche's `structWalkersC_eq_plain` says the record is
-/// the specification (`super`'s module note 3).  The `(List.range nF).all` of
+/// `decl_check::consts_resolve_f_fast` and
+/// `struct_parts::struct_proj_bodies`, both memoized — because con-leche's
+/// `structWalkersC_eq_plain` says the record is the specification (`super`'s
+/// module note 3).  (Task #30 fixed the first of the two: it named the
+/// `Expr`-tree *spec* `core_k::consts_resolve`, which does not finish on a
+/// DAG-shared body.)  The `(List.range nF).all` of
 /// the cited `unless`.
 pub fn proj_bodies_scoped_from(
     fe: &FEnv,
@@ -105,7 +109,7 @@ pub fn proj_bodies_scoped_from(
         false
     } else if !expr_ops::all_level_params_defined_fast(lps, &bodies[i]) {
         false
-    } else if !core_k::consts_resolve(fe, &bodies[i]) {
+    } else if !decl_check::consts_resolve_f_fast(fe, &bodies[i]) {
         false
     } else if !expr_ops::loose_bvars_bounded(n_p + 1, &bodies[i]) {
         false

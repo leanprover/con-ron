@@ -20,8 +20,53 @@
 //! The packed word's arithmetic is transliterated with `wrapping_*`, because
 //! Lean's `UInt64` `+`/`*` wrap: the port must be bit-exact here, since the
 //! word is what `beq` rejects on and what the memo tables bucket by.
+//!
+//! # The structural-equality pair memo, and why it needs no new hole
+//!
+//! (con-leche's own argument for the memo is `Expr.lean:678-728`, the
+//! `Expr.beq` module note, and `Expr.lean:767-773`, `beqBudget`; the
+//! citation lines proper are on the items below, since a `//!` one would
+//! cover the whole file and switch the per-item gate off.)
+//!
+//! `beq_go` carries con-leche's pair memo (`EqPair`, `BeqMap`, `beqKey`,
+//! `probeHit` and `beqGo`'s write-back, `Expr.lean:744-949`), which task #11
+//! left out and task #28 measured the need for: eight fixture streams compare
+//! two pointer-distinct copies of a depth-60 shared tower, where an
+//! unmemoised descent is `O(tree)` on `2^60` nodes and does not finish.  One
+//! thing changes.  con-leche keys the table by the two **addresses**, which
+//! Aeneas cannot model at all; this port keys it by the two stored **hash
+//! words** (`beq_key`, a field read each).  The key is a filter either way —
+//! a stored pair is verified by *identity* on both components (`ptr_eq`,
+//! i.e. `Rc::ptr_eq`), as con-leche verifies it (`probeHit`) — so a collision
+//! between distinct pairs costs an entry, never an answer.
+//!
+//! **The trust argument (DESIGN.md §3.2).**  `ptr_eq` is modeled as `false`,
+//! so `probe_hit` is `false` at *every* probe in the model: the memo is a
+//! state that is written and never read, and the model's `beq` is exactly the
+//! structural descent `Refine/Expr.lean` proves exact.  In the binary a probe
+//! hits only when the stored pair is *the very two objects* being compared —
+//! the entry holds them, so their identity stays theirs for the life of the
+//! comparison — and that entry was written by a **completed `true`** of this
+//! same deterministic walk on those same two objects (a `false` aborts the
+//! comparison at every level, so no unequal pair is ever stored).  A hit
+//! therefore repeats an answer this walk has already produced for that pair;
+//! the binary and the model agree, for the same reason and by the same
+//! reflexivity obligation that makes the pointer fast path transparent.
+//! Nothing here is opaque: the table is `ron::HashMap`, verified at task #16,
+//! and the external holes stay exactly §3.2's four `Rc` axioms.
+//!
+//! **`beqBudget` is not ported.**  con-leche materialises the table only
+//! after 4 096 nodes, because in Lean the table's allocation and its
+//! reference-count traffic cost "a third of `init-prelude`" on the
+//! comparisons that a pointer test or the computed word decides outright.
+//! Here `beq` performs those two guards *before* it allocates anything
+//! (which is what the cited `beqMemo = withPtrEq a b (fun _ => a.data ==
+//! b.data && …)` does), so a decided-outright comparison allocates no
+//! table at all and the budget has nothing left to buy; task #30's numbers
+//! (DESIGN.md) are the measurement that says so.
 
 use crate::ron::hashmap::Eq2;
+use crate::ron::hashmap::HashMap;
 use crate::ron::hashmap::Hashable;
 use crate::kernel::level;
 use crate::kernel::level::Level;
@@ -464,10 +509,11 @@ pub fn fvar_b_raw(e: &Expr) -> u64 {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Expr.lean:729-737 Expr.beqRecursive
-/// `true` for the nodes whose comparison recurses.  In con-leche this is the
-/// pair memo's gate; here nothing reads it (the memo is not ported, see
-/// `beq_go`), but it is one line and keeping it in step with its source is
-/// what a later measurement would start from.
+/// `true` for the nodes whose comparison recurses, i.e. the pair memo's
+/// gate: a `bvar`, `sort`, `const` or `lit` pair is decided without a
+/// descent, so an entry for it can never save a walk and every one of them
+/// would cost a probe and a write — and leaves are the majority of the nodes
+/// of a real term.  `beq_go` consults and writes the memo only here.
 pub fn beq_recursive(e: &Expr) -> bool {
     match &e.0.kind {
         ExprKind::Fvar(_, _) => true,
@@ -486,6 +532,61 @@ pub fn beq_recursive(e: &Expr) -> bool {
 /// the walk is what discharges the fast path.
 pub fn ptr_eq(a: &Expr, b: &Expr) -> bool {
     Rc::ptr_eq(&a.0, &b.0)
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:739-749 EqPair
+/// A memo entry: the pair of objects a completed descent proved equal.
+/// Deviations, both of them things Rust has not got: the two stored
+/// *addresses* (con-leche's cheap probe filter — here the key does that job)
+/// and the *proof* `fst = snd`.  What is left is the pair itself, which is
+/// what `probe_hit` verifies against, and holding it is what keeps the two
+/// `Rc`s alive, hence their identity theirs, for the life of the comparison.
+/// The alias is erased before Charon sees anything (as `cached::core_c`'s
+/// `InferLamEntry` is).
+pub type EqPair = (Expr, Expr);
+
+/// con-leche: ConLeche/Kernel/Expr.lean:755-756 BeqMap
+/// The memo, keyed by `beq_key`: one slot per key, last write wins, as the
+/// cited `Std.HashMap` does.  `ron::HashMap` is the crate's own table
+/// (DESIGN.md §3.3), verified at task #16.
+pub type BeqMap = HashMap<u64, EqPair>;
+
+/// con-leche: ConLeche/Kernel/Expr.lean:758-765 Expr.beqKey
+/// The memo key of a pair, packed into one word.
+///
+/// **Deviation (the one change the port makes to the memo, see the module
+/// note).**  con-leche mixes the two *addresses*, which Aeneas cannot model;
+/// this mixes the two stored *hash words*, which are field reads.  Either
+/// way the packing need not be injective — `probe_hit` verifies the stored
+/// pair itself — so a collision between distinct pairs costs an entry, never
+/// an answer.  The cited `&&& 0x3FFFFFFFFFFFFFFF` goes with the `Nat` it
+/// existed for (Lean wants a tagged scalar below `2^62`; a `u64` is one),
+/// and the multiplication wraps as the cited `USize` one does (task #11).
+pub fn beq_key(ha: u64, hb: u64) -> u64 {
+    ha ^ hb.wrapping_mul(0x9E3779B97F4A7C15)
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:804-816 Expr.probeHit
+/// Does the entry at `key` identify the pair `(a, b)`?  The stored objects,
+/// tested by *identity*, are the verification — con-leche's stored addresses
+/// are the filter that the key has become.  A `true` here is `a = b` because
+/// the entry was written by a completed `true` of this same walk on these
+/// same two objects (the module note's trust argument).
+///
+/// In the model `ptr_eq` is `false` (DESIGN.md §3.2), so this is `false` at
+/// every probe and the memo is never read: the model's descent is the plain
+/// structural one, which is the whole point of keying by the hash words.
+pub fn probe_hit(m: &BeqMap, key: u64, a: &Expr, b: &Expr) -> bool {
+    match m.get(&key) {
+        None => false,
+        Some(p) => {
+            if ptr_eq(&p.0, a) {
+                ptr_eq(&p.1, b)
+            } else {
+                false
+            }
+        }
+    }
 }
 
 /// con-leche: none — `List Level` equality (`us == vs` in `beqGo`'s `.const` arm)
@@ -537,111 +638,242 @@ pub fn exprs_beq_from(xs: &Vec<Expr>, ys: &Vec<Expr>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:818-949 Expr.beqGo
-/// The structural descent, in the official kernel's shape: pointer identity,
-/// then the computed word (a mismatch *is* an inequality), then the
-/// constructor cases in the cited arm order.
+/// The memoised structural descent, in the cited shape: pointer identity,
+/// then the computed word (a mismatch *is* an inequality), then the memo
+/// probe, then the constructor cases in the cited arm order, then the
+/// write-back of a completed `true` at a recursive node (con-leche's
+/// `finish`).  A `false` aborts the comparison at every level, so only
+/// proved-equal pairs are ever stored — as in the official kernel's
+/// `expr_eq_fn`.
 ///
-/// **Deviation (DESIGN.md §3.2, the standing ruling).**  con-leche's
-/// address-keyed pair memo is *not* ported: `EqPair`, `BeqMap`, `beqKey`,
-/// `beqBudget`, `BeqRes`/`BeqOut`, `withAddr`, `ptrDec`, `probeHit` and the
-/// `finish` write-back all fall away, and with them the `fuel` and `map`
-/// parameters and the `Decidable`-valued result.  Aeneas has no addresses,
-/// so an address-keyed cache cannot be modeled at all; what is left is
-/// exactly the three steps above, which is what §3.2 licenses.  The pointer
-/// fast path is kept at every level of the descent, as in `name::beq` and
-/// `level::beq`, and its transparency is the reflexivity obligation §3.2
-/// states.  Should measurement want the pair memo back, it returns as one
-/// opaque function with a trust argument, not as this function's parameters.
-pub fn beq_go(a: &Expr, b: &Expr) -> bool {
+/// **Deviations (task #30; the module note holds the trust argument).**
+/// The memo is keyed by the two stored hash words rather than by the two
+/// addresses (`beq_key`) and a probe verifies the stored pair by identity
+/// (`probe_hit`), so in the model — where `ptr_eq` is `false` — the table is
+/// written and never read and this is the plain structural descent.  Gone
+/// with Lean's proof plumbing: `BeqRes`/`BeqOut`/`BeqOut.mk` and the
+/// `Squash` quotient (the result is a `bool`, not a `Decidable (a = b)`),
+/// `withAddr`/`ptrDec` (`ptr_eq` above), `EqPair.dflt` (`get` returns an
+/// `Option`) and the `fuel`/`beqBudget` pair (the module note: `beq`'s two
+/// guards run before the table is allocated, so there is nothing left for a
+/// budget to save).  The pointer fast path is kept at every level, as in
+/// `name::beq` and `level::beq`, and its transparency is the reflexivity
+/// obligation of DESIGN.md §3.2.
+///
+/// The table goes in and comes back out **by value**, as the cited `map`
+/// does and as task #6's accumulator rule says; a `&mut` parameter is the
+/// same thing in the generated Lean (`Result (Bool × BeqMap)` either way),
+/// but Aeneas cannot join the two branches of an arm's `if` when one of them
+/// reborrows the table and the shared borrows of `a` and `b` are still live
+/// ("Could not match the contexts", measured on the `fvar` arm).
+pub fn beq_go(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
+    if ptr_eq(a, b) {
+        (true, m)
+    } else if data(a) != data(b) {
+        (false, m)
+    } else {
+        let rec: bool = beq_recursive(a);
+        let key: u64 = beq_key(hash(a), hash(b));
+        if rec && probe_hit(&m, key, a, b) {
+            (true, m)
+        } else {
+            let rm: (bool, BeqMap) = beq_arm(m, a, b);
+            beq_finish(rm.0, rm.1, rec, key, a, b)
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:818-949 Expr.beqGo
+/// `beqGo`'s constructor cases, in the cited arm order: the ten diagonal
+/// pairs and the wildcard, each one expression (the helpers below are why —
+/// see `beq_when`).  Its own function for two reasons.  It is where the
+/// *specification* lives: `beq_go`'s wrapper — identity, the computed word,
+/// the probe and the write-back — is a fixed frame around it, so
+/// `Refine/Expr.lean` peels the frame once (`beq_go_arm`) and the
+/// hundred-case constructor induction is about this function, which is the
+/// memo-free descent task #11 proved.  And Aeneas otherwise *duplicates* the
+/// whole match, once per branch of `if rec`.
+pub fn beq_arm(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
+    match (&a.0.kind, &b.0.kind) {
+        (ExprKind::Bvar(i), ExprKind::Bvar(j)) => (i == j, m),
+        (ExprKind::Fvar(i, t), ExprKind::Fvar(j, u)) => beq_when(m, i == j, t, u),
+        (ExprKind::Sort(u), ExprKind::Sort(v)) => (level::beq(u, v), m),
+        (ExprKind::Const(n, us), ExprKind::Const(n2, vs)) => (const_beq(n, us, n2, vs), m),
+        (ExprKind::App(f, x), ExprKind::App(g, y)) => beq_both(m, f, g, x, y),
+        (ExprKind::Lam(t1, b1, m1), ExprKind::Lam(t2, b2, m2)) => {
+            beq_both_when(m, binder_meta_beq(m1, m2), t1, t2, b1, b2)
+        }
+        (ExprKind::ForallE(t1, b1, m1), ExprKind::ForallE(t2, b2, m2)) => {
+            beq_both_when(m, binder_meta_beq(m1, m2), t1, t2, b1, b2)
+        }
+        (ExprKind::LetE(t1, v1, b1), ExprKind::LetE(t2, v2, b2)) => {
+            beq_three(m, t1, t2, v1, v2, b1, b2)
+        }
+        (ExprKind::Lit(l1), ExprKind::Lit(l2)) => (literal_beq(l1, l2), m),
+        (ExprKind::Proj(s1, i1, e1), ExprKind::Proj(s2, i2, e2)) => {
+            beq_when(m, proj_head_beq(s1, *i1, s2, *i2), e1, e2)
+        }
+        _ => (false, m),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:818-949 Expr.beqGo
+/// `beqGo`'s `finish`: a completed `true` at a recursive node is recorded,
+/// everything else passes through.
+///
+/// Two shapes this function is deliberately *not*.  It is a tail call rather
+/// than a `let` followed by a branch on the arm's `(bool, BeqMap)`, which is
+/// what Aeneas's `simplify_let_branching` pass raises an internal error on;
+/// and it takes the decision and the table as two parameters rather than the
+/// pair, because a pattern-matching `let` on a tuple parameter comes out as a
+/// `match` in the generated Lean that no `simp` set of `Refine/Expr.lean`
+/// sees through.
+pub fn beq_finish(
+    r: bool,
+    m: BeqMap,
+    rec: bool,
+    key: u64,
+    a: &Expr,
+    b: &Expr,
+) -> (bool, BeqMap) {
+    if r {
+        if rec {
+            (true, beq_record(m, key, a, b))
+        } else {
+            (true, m)
+        }
+    } else {
+        (false, m)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:818-949 Expr.beqGo
+/// `beqGo`'s `finish`, the write-back: record a completed `true` at a
+/// recursive node under that node's own key.  Its own function so that the
+/// table's `mut` binding is one line long and `beq_go`'s arms stay
+/// expressions (the accumulator goes in and comes back out by value, task
+/// #6's rule).
+pub fn beq_record(m: BeqMap, key: u64, a: &Expr, b: &Expr) -> BeqMap {
+    let mut m: BeqMap = m;
+    m.insert(key, (dup(a), dup(b)));
+    m
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:818-949 Expr.beqGo
+/// The cited `.fvar`/`.proj` arms' shape: a field comparison that decides
+/// the arm on its own, then the one recursive call.
+///
+/// **Why this is a function and not an `if` inside the arm** (the shape task
+/// #11 had): Aeneas cannot join the two branches of an `if` inside an arm of
+/// the *pair* match when one of them consumes the memo through a call taking
+/// borrows out of both `a` and `b` and the other does not — "Could not match
+/// the contexts", measured on the `fvar` arm both with `&mut BeqMap` and
+/// with the table by value.  With the children as plain parameters the join
+/// is between two `(bool, BeqMap)`s and no loan tree of `a` or `b` is live,
+/// which Aeneas handles (`state_c::consts_resolve_fc_node` is the
+/// single-scrutinee precedent).  The five helpers below are the same
+/// `beqGo` arms, one call deeper.
+pub fn beq_when(m: BeqMap, cond: bool, x: &Expr, y: &Expr) -> (bool, BeqMap) {
+    if cond {
+        beq_go(m, x, y)
+    } else {
+        (false, m)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:818-949 Expr.beqGo
+/// The cited `.app` arm: the two children in order, aborting on the first
+/// `false` (which is what keeps an unequal pair out of the memo).
+pub fn beq_both(m: BeqMap, x1: &Expr, y1: &Expr, x2: &Expr, y2: &Expr) -> (bool, BeqMap) {
+    let (r1, m1): (bool, BeqMap) = beq_go(m, x1, y1);
+    if r1 {
+        beq_go(m1, x2, y2)
+    } else {
+        (false, m1)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:818-949 Expr.beqGo
+/// The cited `.lam`/`.forallE` arms: the binder datum decides the arm, then
+/// the domain and the body.
+pub fn beq_both_when(
+    m: BeqMap,
+    cond: bool,
+    x1: &Expr,
+    y1: &Expr,
+    x2: &Expr,
+    y2: &Expr,
+) -> (bool, BeqMap) {
+    if cond {
+        beq_both(m, x1, y1, x2, y2)
+    } else {
+        (false, m)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:818-949 Expr.beqGo
+/// The cited `.letE` arm: the type, the value, the body.
+pub fn beq_three(
+    m: BeqMap,
+    x1: &Expr,
+    y1: &Expr,
+    x2: &Expr,
+    y2: &Expr,
+    x3: &Expr,
+    y3: &Expr,
+) -> (bool, BeqMap) {
+    let (r1, m1): (bool, BeqMap) = beq_go(m, x1, y1);
+    if r1 {
+        beq_both(m1, x2, y2, x3, y3)
+    } else {
+        (false, m1)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:818-949 Expr.beqGo
+/// The cited `.const` arm's `n == m && us == vs`, as one `bool` so that the
+/// arm is a single expression (see `beq_when`).  Neither conjunct recurses.
+pub fn const_beq(n: &Name, us: &Vec<Level>, n2: &Name, vs: &Vec<Level>) -> bool {
+    if name::beq(n, n2) {
+        levels_beq(us, vs)
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:818-949 Expr.beqGo
+/// The cited `.proj` arm's `s == s' && i == i'`, the part that decides the
+/// arm before its one recursive call (see `beq_when`).
+pub fn proj_head_beq(s1: &Name, i1: u64, s2: &Name, i2: u64) -> bool {
+    if name::beq(s1, s2) {
+        i1 == i2
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:950-952 Expr.beqDec
+/// con-leche: ConLeche/Kernel/Expr.lean:955-960 Expr.beqMemo
+/// con-leche: ConLeche/Kernel/Expr.lean:972-976 Expr.beq
+/// `Expr.beqMemo` is the *executed* `Expr.beq` (`@[csimp]`-substituted):
+/// the pointer test, the computed-word test, then `beqDec`, which is the
+/// descent from a fresh state.  The memo is therefore **local to this
+/// call** — a comparison never sees another one's entries, which is what
+/// makes "the entry holds the two objects" true for the life of the
+/// comparison (the module note) — and the two guards run *first*, so a
+/// comparison decided by identity or by the word allocates no table at all.
+/// That placement is the cited `withPtrEq a b (fun _ => a.data == b.data &&
+/// …)`, and it is what the port has instead of `beqBudget`.
+pub fn beq(a: &Expr, b: &Expr) -> bool {
     if ptr_eq(a, b) {
         true
     } else if data(a) != data(b) {
         false
     } else {
-        match (&a.0.kind, &b.0.kind) {
-            (ExprKind::Bvar(i), ExprKind::Bvar(j)) => i == j,
-            (ExprKind::Fvar(i, t), ExprKind::Fvar(j, u)) => {
-                if i == j {
-                    beq_go(t, u)
-                } else {
-                    false
-                }
-            }
-            (ExprKind::Sort(u), ExprKind::Sort(v)) => level::beq(u, v),
-            (ExprKind::Const(n, us), ExprKind::Const(m, vs)) => {
-                if name::beq(n, m) {
-                    levels_beq(us, vs)
-                } else {
-                    false
-                }
-            }
-            (ExprKind::App(f, x), ExprKind::App(g, y)) => {
-                if beq_go(f, g) {
-                    beq_go(x, y)
-                } else {
-                    false
-                }
-            }
-            (ExprKind::Lam(t1, b1, m1), ExprKind::Lam(t2, b2, m2)) => {
-                if binder_meta_beq(m1, m2) {
-                    if beq_go(t1, t2) {
-                        beq_go(b1, b2)
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            }
-            (ExprKind::ForallE(t1, b1, m1), ExprKind::ForallE(t2, b2, m2)) => {
-                if binder_meta_beq(m1, m2) {
-                    if beq_go(t1, t2) {
-                        beq_go(b1, b2)
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            }
-            (ExprKind::LetE(t1, v1, b1), ExprKind::LetE(t2, v2, b2)) => {
-                if beq_go(t1, t2) {
-                    if beq_go(v1, v2) {
-                        beq_go(b1, b2)
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            }
-            (ExprKind::Lit(l1), ExprKind::Lit(l2)) => literal_beq(l1, l2),
-            (ExprKind::Proj(s1, i1, e1), ExprKind::Proj(s2, i2, e2)) => {
-                if name::beq(s1, s2) {
-                    if i1 == i2 {
-                        beq_go(e1, e2)
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            }
-            _ => false,
-        }
+        let m: BeqMap = HashMap::new();
+        let (r, _m): (bool, BeqMap) = beq_go(m, a, b);
+        r
     }
-}
-
-/// con-leche: ConLeche/Kernel/Expr.lean:955-960 Expr.beqMemo
-/// con-leche: ConLeche/Kernel/Expr.lean:972-976 Expr.beq
-/// `Expr.beqMemo` is the *executed* `Expr.beq` (`@[csimp]`-substituted):
-/// pointer test, computed-word test, then the descent.  Deviation: the
-/// descent is the memo-free `beq_go` above, and `beqDec`, `beqBudget` and
-/// the `Decidable`-valued plumbing are gone with it; `beq_go` opens with the
-/// same two guards, so this is the cited composition with the state
-/// threading erased.
-pub fn beq(a: &Expr, b: &Expr) -> bool {
-    beq_go(a, b)
 }
 
 // ---------------------------------------------------------------------------
@@ -680,13 +912,18 @@ pub fn mk_bvar(i: u64) -> Expr {
 }
 
 /* Not ported from `Expr.lean` (DESIGN.md §3.2 and §3.1):
-   * the pair memo and everything that exists only for it — `EqPair` (:744),
-     `EqPair.dflt` (:753), `BeqMap` (:756), `beqKey` (:764), `beqBudget`
-     (:773), `BeqRes` (:777), `BeqOut` (:786), `BeqOut.mk` (:788),
-     `withAddr` (:795), `ptrDec` (:801), `probeHit` (:809) and `beqDec`
-     (:952).  §3.2's standing ruling: Aeneas has no addresses, so an
-     address-keyed cache cannot be modeled.  (`bvarPool` is dropped too, but
-     it is *cited* on `mk_bvar` above, where its deviation is argued.)
+   * what exists only for Lean's proof plumbing or for addresses, now that
+     task #30 has ported the memo itself (`EqPair`, `BeqMap`, `beqKey`,
+     `probeHit` above, and `beqDec` cited on `beq`): `EqPair.dflt` (:753) —
+     `get` returns an `Option`, so a probe needs no default; `BeqRes`
+     (:777), `BeqOut` (:786) and `BeqOut.mk` (:788) — the `Squash`ed
+     `Decidable (a = b)` is a `bool` here; `withAddr` (:795) and `ptrDec`
+     (:801) — `expr::ptr_eq` is both, and `withPtrAddr`'s subsingleton side
+     condition is what the `Squash` existed for; and `beqBudget` (:773) —
+     the module note: `beq`'s two guards run before the table is allocated,
+     so the budget has nothing left to buy (task #30 measured it).
+     (`bvarPool` is dropped too, but it is *cited* on `mk_bvar` above, where
+     its deviation is argued.)
    * every `theorem` — the packing roundtrip (:210-283), the
      constructor-wise range and `hasLP` equations (:450-675), `beqMemo_eq`
      (:965), `mkBvar_eq` (:1033) — plus the `@[csimp]` lemma
@@ -741,6 +978,7 @@ mod tests {
     use crate::kernel::expr::ExprKind;
     use crate::kernel::expr::Literal;
     use crate::ron::hashmap::Eq2;
+    use crate::ron::hashmap::HashMap;
     use crate::ron::hashmap::Hashable;
     use crate::kernel::level;
     use crate::kernel::level::Level;
@@ -1111,6 +1349,104 @@ mod tests {
         assert!(a.eq2(&b));
         assert!(!a.eq2(&c));
         assert_eq!(a.hash64(), expr::hash(&b));
+    }
+
+    /// A shared "tower": `d 0 = bvar 0`, `d (k+1) = app (d k) (d k)` with
+    /// *one* `Rc` per level, so `d k` is `2^k` nodes as a tree and `k+1`
+    /// nodes as a DAG.  These are task #28's eight blow-up fixtures in one
+    /// line, and the reason the pair memo exists.
+    fn tower(k: u64) -> Expr {
+        if k == 0 {
+            expr::bvar(0)
+        } else {
+            let d = tower(k - 1);
+            expr::app(expr::dup(&d), d)
+        }
+    }
+
+    #[test]
+    fn beq_on_two_rebuilt_dag_towers_is_memoised() {
+        // Two independently built towers: pointer-distinct at every level,
+        // so the pointer fast path never fires and only the memo keeps the
+        // descent off the 2^60-node tree.  Without it this test does not
+        // finish (task #28 measured 300 s+ on the same shape).
+        let a = tower(60);
+        let b = tower(60);
+        assert!(!expr::ptr_eq(&a, &b));
+        assert_eq!(expr::data(&a), expr::data(&b));
+        assert!(expr::beq(&a, &b));
+        // The `Eq2` dictionary is the memoised `beq`, so a hash-map key
+        // comparison is memoised too.
+        assert!(a.eq2(&b));
+        // A one-node change at the *root* of the tower is rejected by the
+        // word guard; a change at the bottom aborts the descent at the
+        // first mismatching child, which is why `false` needs no memo.
+        let a1 = tower(59);
+        let perturbed = expr::app(expr::dup(&a1), expr::app(expr::bvar(1), expr::bvar(0)));
+        assert!(!expr::beq(&a, &perturbed));
+        let mut deep: Expr = expr::bvar(1);
+        let mut i: u64 = 0;
+        while i < 60 {
+            deep = expr::app(expr::dup(&deep), deep);
+            i += 1;
+        }
+        assert!(!expr::beq(&a, &deep));
+    }
+
+    #[test]
+    fn probe_hit_verifies_by_identity_not_by_structure() {
+        // The trust argument in one test: an entry is read back only for
+        // the very objects it was stored for.  A structurally equal but
+        // pointer-distinct rebuild does *not* hit, which is why the model —
+        // where `ptr_eq` is `false` — never reads the table at all.
+        let a = expr::app(expr::bvar(0), expr::bvar(1));
+        let b = expr::app(expr::bvar(0), expr::bvar(1));
+        let key = expr::beq_key(expr::hash(&a), expr::hash(&b));
+        let mut m: expr::BeqMap = HashMap::new();
+        assert!(!expr::probe_hit(&m, key, &a, &b));
+        m.insert(key, (expr::dup(&a), expr::dup(&b)));
+        assert!(expr::probe_hit(&m, key, &a, &b));
+        // Same key (the word is the same), different objects: no hit.
+        let a2 = expr::app(expr::bvar(0), expr::bvar(1));
+        assert_eq!(expr::hash(&a2), expr::hash(&a));
+        assert!(!expr::probe_hit(&m, key, &a2, &b));
+        assert!(!expr::probe_hit(&m, key, &a, &a2));
+        // Swapped sides: the stored pair is ordered, as con-leche's is.
+        assert!(!expr::probe_hit(&m, key, &b, &a));
+        // A key nothing was stored under: no hit.
+        assert!(!expr::probe_hit(&m, key ^ 1, &a, &b));
+        // `beq_key` is a function of the two words and mixes them, so the
+        // two sides are not interchangeable.
+        assert_eq!(expr::beq_key(3, 5), expr::beq_key(3, 5));
+        assert_ne!(expr::beq_key(3, 5), expr::beq_key(5, 3));
+    }
+
+    #[test]
+    fn beq_go_records_only_recursive_nodes_and_only_true() {
+        // `beq_recursive` is the memo's gate and a `false` is never stored.
+        let m: expr::BeqMap = HashMap::new();
+        let l1 = expr::bvar(7);
+        let l2 = expr::bvar(7);
+        let (r, m) = expr::beq_go(m, &l1, &l2);
+        assert!(r);
+        assert_eq!(m.len(), 0, "a leaf pair is never recorded");
+        let a = expr::app(expr::bvar(0), expr::bvar(1));
+        let b = expr::app(expr::bvar(0), expr::bvar(1));
+        let (r, m) = expr::beq_go(m, &a, &b);
+        assert!(r);
+        assert_eq!(m.len(), 1, "one entry: the `app` pair, not its leaves");
+        assert!(expr::probe_hit(
+            &m,
+            expr::beq_key(expr::hash(&a), expr::hash(&b)),
+            &a,
+            &b
+        ));
+        // A completed `false` stores nothing.
+        let m2: expr::BeqMap = HashMap::new();
+        let c = expr::app(expr::bvar(0), expr::bvar(2));
+        let (r2, m2) = expr::beq_go(m2, &a, &c);
+        assert!(!r2);
+        assert_eq!(m2.len(), 0);
     }
 
     // -----------------------------------------------------------------------
