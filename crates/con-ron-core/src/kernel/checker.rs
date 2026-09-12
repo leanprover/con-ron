@@ -1605,7 +1605,7 @@ mod tests {
     use crate::kernel::core_types::CheckError;
     use crate::kernel::env;
     use crate::kernel::env::{
-        CheckMode, ConstantInfo, ConstantVal, Declaration, Env, ReducibilityHint,
+        CheckMode, ConstantInfo, ConstantVal, Declaration, ReducibilityHint,
     };
     use crate::kernel::expr;
     use crate::kernel::expr::{BinderMeta, Expr};
@@ -1637,7 +1637,7 @@ mod tests {
         let mut consts: Vec<ConstantInfo> = Vec::new();
         consts.push(ax(nm("a"), expr::dup(&a_ty)));
         consts.push(ax(nm("A"), expr::sort(level::succ(level::zero()))));
-        fenv::mk_fenv(Env { consts })
+        fenv::mk_fenv(env::env_of(&consts))
     }
 
     fn is_invalid(e: &CheckError) -> bool {

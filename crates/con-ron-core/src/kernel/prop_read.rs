@@ -206,7 +206,7 @@ pub fn is_proof_fast(fe: &FEnv, a: &Expr) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::kernel::env;
-    use crate::kernel::env::{ConstantInfo, ConstantVal, Env};
+    use crate::kernel::env::{ConstantInfo, ConstantVal};
     use crate::kernel::expr;
     use crate::kernel::expr::BinderMeta;
     use crate::kernel::fenv;
@@ -257,7 +257,7 @@ mod tests {
             ty: expr::sort(level::succ(level::zero())),
             level_params: Vec::new(),
         })); // A : Sort 1
-        fenv::mk_fenv(Env { consts })
+        fenv::mk_fenv(env::env_of(&consts))
     }
 
     #[test]

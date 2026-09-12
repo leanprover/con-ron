@@ -719,7 +719,7 @@ mod tests {
     use crate::kernel::basis_names;
     use crate::kernel::checker_base;
     use crate::kernel::core_types::CheckError;
-    use crate::kernel::env::{CheckMode, ConstantInfo, ConstantVal, Env};
+    use crate::kernel::env::{CheckMode, ConstantInfo, ConstantVal};
     use crate::kernel::expr;
     use crate::kernel::expr::{BinderMeta, Expr};
     use crate::kernel::fenv;
@@ -758,7 +758,7 @@ mod tests {
         ));
         consts.push(ax(nm("a"), expr::dup(&a_ty)));
         consts.push(ax(nm("A"), expr::sort(level::succ(level::zero()))));
-        fenv::mk_fenv(Env { consts })
+        fenv::mk_fenv(crate::kernel::env::env_of(&consts))
     }
 
     fn is_invalid(e: &CheckError) -> bool {

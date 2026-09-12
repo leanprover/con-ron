@@ -1413,7 +1413,7 @@ mod tests {
     use super::*;
     use crate::cached::state_c;
     use crate::kernel::core_types::CheckError;
-    use crate::kernel::env::{Env, RecRule};
+    use crate::kernel::env::RecRule;
     use crate::kernel::inductives::native_parts::RecFieldKind;
 
     fn nm(s: &str) -> Name {
@@ -1564,7 +1564,7 @@ mod tests {
         assert!(p.shape.large, "a fresh elimination parameter is the large eliminator");
         assert!(!native_raw_rec(&p), "the syntactic reading needs one constructor");
 
-        let fe: FEnv = fenv::mk_fenv(Env { consts: Vec::new() });
+        let fe: FEnv = fenv::mk_fenv(env::empty());
         let mut st: CState = state_c::cstate_new();
         let mode = CheckMode::Verified;
         match check_native(&mode, &mut st, &fe, &p) {
@@ -1680,7 +1680,7 @@ mod tests {
 
         let mut consts: Vec<ConstantInfo> = Vec::new();
         consts.push(ax(name::dup(&a), sort1()));
-        let fe: FEnv = fenv::mk_fenv(Env { consts });
+        let fe: FEnv = fenv::mk_fenv(env::env_of(&consts));
         let mut st: CState = state_c::cstate_new();
         let mode = CheckMode::Verified;
         match check_native(&mode, &mut st, &fe, &p) {
@@ -1738,7 +1738,7 @@ mod tests {
         // the recogniser pins nothing of the recursor's *type* (con-leche task
         // #220), so this stub is admitted and the positivity reject comes out
         // before the recursor stage would look at it
-        let fe: FEnv = fenv::mk_fenv(Env { consts: Vec::new() });
+        let fe: FEnv = fenv::mk_fenv(env::empty());
         let mut st: CState = state_c::cstate_new();
         let mode = CheckMode::Verified;
         match check_native(&mode, &mut st, &fe, &p) {

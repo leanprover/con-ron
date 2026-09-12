@@ -5305,7 +5305,7 @@ mod tests {
     use crate::cached::state_c;
     use crate::cached::state_c::CState;
     use crate::kernel::core_k;
-    use crate::kernel::env::{CheckMode, ConstantInfo, ConstantVal, Env};
+    use crate::kernel::env::{CheckMode, ConstantInfo, ConstantVal};
     use crate::kernel::expr;
     use crate::kernel::expr::{BinderMeta, Expr};
     use crate::kernel::fenv;
@@ -5358,7 +5358,7 @@ mod tests {
         ));
         consts.push(ax(nm(97), expr::dup(&ty)));
         consts.push(ax(nm(65), expr::sort(level::succ(level::zero()))));
-        fenv::mk_fenv(Env { consts })
+        fenv::mk_fenv(crate::kernel::env::env_of(&consts))
     }
 
     fn lp(c: u32) -> Level {

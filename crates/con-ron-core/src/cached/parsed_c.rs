@@ -774,7 +774,6 @@ mod tests {
     use crate::kernel::env::CheckMode;
     use crate::kernel::env::ConstantInfo;
     use crate::kernel::env::ConstantVal;
-    use crate::kernel::env::Env;
     use crate::kernel::env::ReducibilityHint;
     use crate::kernel::expr;
     use crate::kernel::expr::{BinderMeta, Expr};
@@ -845,7 +844,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
         // a duplicate: `a` is already stored
         let mut consts: Vec<ConstantInfo> = Vec::new();
         consts.push(ConstantInfo::AxiomInfo(cvt("a", sort1())));
-        let fe: FEnv = fenv::mk_fenv(Env { consts });
+        let fe: FEnv = fenv::mk_fenv(env::env_of(&consts));
         let mut st: CState = state_c::cstate_new();
         match parsed_c::check_constant_val_c(&mode, &mut st, &fe, &cvt("a", sort1())) {
             Ok(_) => panic!("a duplicate declaration must not check"),
@@ -1003,7 +1002,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
         state_c::record_c_const(&mut st, nm("k"), sort1(), sort1(), None);
         let mut consts: Vec<ConstantInfo> = Vec::new();
         consts.push(ConstantInfo::AxiomInfo(cvt("k", sort1())));
-        let fe_k: FEnv = fenv::mk_fenv(Env { consts });
+        let fe_k: FEnv = fenv::mk_fenv(env::env_of(&consts));
         match parsed_c::check_decl_step_c(
             &mode,
             &no_pins(),

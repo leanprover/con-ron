@@ -33,10 +33,35 @@
 //! the two operations never interleave, and phase B needs exactly one view at
 //! a time — it lowers the bound for a record and raises it back.  The one
 //! design this forecloses is the *parallel* phase B §3.1 contemplates, where
-//! several workers hold different views of one index at once.  That is a
-//! one-field change when it comes — `idx: Rc<HashMap<…>>`, with `push` moving
-//! to an install-phase type that owns the map outright — and it does not
-//! touch the model, because `abs` reads the index through `find` either way.
+//! several workers hold different views of one index at once.
+//!
+//! ## What `dup` costs, and why the index is not `Rc<HashMap>` (task #34)
+//!
+//! The one place a *second* view is unavoidable is the inductive install
+//! routes, which hold two or three views of one index at once
+//! (`inductives::native_install`, `inductives::modeled`); they take `dup`,
+//! which rebuilds the index with `mk_fenv_go`.  Task #34 measured what that
+//! costs and what the alternatives cost:
+//!
+//! * `Init` takes 1 000-odd `dup`s over 7.8 M index entries, against **80 M
+//!   `find`s**.  Any *shared* index — `Rc<HashMap<…>>` with a copy on push, an
+//!   overlay chain, a persistent trie — pays on `find` (a deeper probe, at
+//!   80 M calls) more than it saves on `dup` (7.8 M entries); and `Rc`'s
+//!   allowed API (§3.2: `new`/`clone`/`deref`/`ptr_eq`, no `make_mut`) has no
+//!   way to extend a shared map in place at all.  `find` being ten times the
+//!   traffic is why the flat owned map stays.
+//! * What task #34 did instead is make the copied entry cheap: the stored
+//!   record is **shared** (`Rc<ConstantInfo>`, `env::Env`'s deviation), so
+//!   `push` and `mk_fenv_go` bump a pointer where they copied a record and
+//!   the index no longer holds a second copy of the whole environment; and
+//!   `mk_fenv_go` pre-sizes the table, so an index build no longer rehashes
+//!   its way up through `log n` capacities.
+//! * `dup` is still `O(|env|)`, so the *superlinear* item is smaller, not
+//!   gone.  Removing it needs the install routes to stop asking for a second
+//!   *owned* view — an overlay that borrows the installed index and hands the
+//!   block's constants back as a delta, folded into the owner at `O(block)` —
+//!   which is a change to those routes' shape, not to this file.  DESIGN.md's
+//!   task #34 records the measurement and the design.
 //!
 //! ## What is *not* here
 //!
@@ -53,16 +78,19 @@ use crate::kernel::env::Env;
 use crate::kernel::env::ProjEntry;
 use crate::ron::hashmap::HashMap;
 use crate::kernel::name::Name;
+use std::rc::Rc;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:44-49 FEnv
 /// The spec environment together with a name index whose lookup function
 /// agrees with `Env.find?`.  Deviations: `Std.HashMap` is `crate::ron::hashmap`
-/// (§3.3), and the two `Nat`s — the per-entry installation counter and
-/// `visibleBelow` — are `u64` (§3.3).
+/// (§3.3); the two `Nat`s — the per-entry installation counter and
+/// `visibleBelow` — are `u64` (§3.3); and the stored record is *shared* with
+/// `env.consts` rather than copied into the index (`Rc<ConstantInfo>`, the
+/// `env::Env` deviation: the Lean's one record, reached from two places).
 pub struct FEnv {
     pub env: Env,
-    pub idx: HashMap<Name, (u64, ConstantInfo)>,
+    pub idx: HashMap<Name, (u64, Rc<ConstantInfo>)>,
     /// Entries with counter `< visible_below` are visible; also the next
     /// counter `push` hands out.
     pub visible_below: u64,
@@ -75,18 +103,26 @@ pub struct FEnv {
 /// The `u64` component is the running counter, so the build stays linear
 /// (the tail's length is returned, not recomputed).
 ///
-/// Deviation: the cited `List` recursion is the index recursion of task #3 —
+/// Deviations: the cited `List` recursion is the index recursion of task #3 —
 /// `mk_fenv_go(cs, i)` is the cited function applied to `cs[i..]`, so the
-/// entry point below passes `0`.
-pub fn mk_fenv_go(cs: &Vec<ConstantInfo>, i: usize) -> (u64, HashMap<Name, (u64, ConstantInfo)>) {
+/// entry point below passes `0`.  The base case's `∅` is
+/// `HashMap::with_capacity(cs.len())` rather than `HashMap::new()` — the same
+/// empty table (task #7 documented the capacity as invisible to the abstract
+/// map), sized for the inserts that follow, so a build no longer rehashes its
+/// way up through `log n` capacities (`move_elements_from_list` was 0.54 % of
+/// `Init` before task #34).  And the record is shared, not copied.
+pub fn mk_fenv_go(
+    cs: &Vec<Rc<ConstantInfo>>,
+    i: usize,
+) -> (u64, HashMap<Name, (u64, Rc<ConstantInfo>)>) {
     if i >= cs.len() {
-        (0, HashMap::new())
+        (0, HashMap::with_capacity(cs.len()))
     } else {
         let p = mk_fenv_go(cs, i + 1);
         let mut m = p.1;
         m.insert(
             env::constant_info_name(&cs[i]),
-            (p.0, env::constant_info_dup(&cs[i])),
+            (p.0, env::constant_info_rc_dup(&cs[i])),
         );
         (p.0 + 1, m)
     }
@@ -144,19 +180,22 @@ pub fn restrict_to(fe: FEnv, k: u64) -> FEnv {
 /// Deviations: the record is taken by value and returned (the module note),
 /// and `ci :: fe.env.consts` is `Vec::insert(0, ci)` — the port keeps
 /// `Env.consts`' newest-first order, so the cons is a front insertion, `O(n)`
-/// where Lean's is `O(1)`.  The environment list is *not* on any hot path:
-/// every lookup goes through the index, and `consts` is read only by
-/// `mk_fenv` and by the driver's final environment.  The constant is stored
-/// twice (list and index) where Lean shares one value, hence the
-/// `constant_info_dup`.
+/// where Lean's is `O(1)`.  Since task #34 the element moved is a *pointer*,
+/// so the front insertion moves eight bytes per constant; the list is on no
+/// hot path either way (every lookup goes through the index, and `consts` is
+/// read only by `mk_fenv`, by `dup` and by the driver's final environment).
+/// The constant is stored **once** and reached from both the list and the
+/// index, as Lean's runtime stores it (`env::constant_info_share`); before
+/// task #34 the index held a `constant_info_dup` of it.
 pub fn push(fe: FEnv, ci: ConstantInfo) -> FEnv {
     let mut consts = fe.env.consts;
     let mut idx = fe.idx;
+    let rc: Rc<ConstantInfo> = env::constant_info_share(ci);
     idx.insert(
-        env::constant_info_name(&ci),
-        (fe.visible_below, env::constant_info_dup(&ci)),
+        env::constant_info_name(&rc),
+        (fe.visible_below, env::constant_info_rc_dup(&rc)),
     );
-    consts.insert(0, ci);
+    consts.insert(0, rc);
     FEnv {
         env: Env { consts },
         idx,
@@ -243,7 +282,10 @@ pub fn rec_slot_ok(fe: &FEnv, n: &Name) -> bool {
 /// `crate::ron::hashmap` has no iteration API (by design — its module note), and
 /// the rebuild is the definition of the counters anyway.  `visible_below` is
 /// carried over unchanged, so a copy of a restricted view is that restricted
-/// view.
+/// view.  Since task #34 neither half of the copy touches a record: the list
+/// copy is `n` `Rc` bumps and the rebuild inserts those same `Rc`s into a
+/// pre-sized table (the module note has the measurement that kept the index a
+/// flat owned map instead of a shared one).
 pub fn dup(fe: &FEnv) -> FEnv {
     let p = mk_fenv_go(&fe.env.consts, 0);
     FEnv {
@@ -280,9 +322,7 @@ mod tests {
     /// `mkFEnv` hides nothing, and its `find?` is `Env.find?`.
     #[test]
     fn mk_fenv_hides_nothing() {
-        let e = env::Env {
-            consts: vec![ax("c"), ax("b"), ax("a")],
-        };
+        let e = env::env_of(&vec![ax("c"), ax("b"), ax("a")]);
         let fe = fenv::mk_fenv(env::env_dup(&e));
         assert_eq!(fe.visible_below, 3);
         for n in ["a", "b", "c"] {
