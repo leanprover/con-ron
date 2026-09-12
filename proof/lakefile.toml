@@ -51,3 +51,11 @@ root = "ConRon.Dump.Main"
 [[lean_exe]]
 name = "con-ron-gen-tables"
 root = "ConRon.Gen.Main"
+
+# The `Nat`-operation pin dump (DESIGN.md §3.6's runtime-data decision, task
+# #31): writes `ConLeche.natOpPinSets` in the `con-ron-pins/1` format
+# (`ConRon/Dump/FORMAT.md` §7) and reads it back.  `con-ron-check --pins FILE`
+# is what consumes the result.
+[[lean_exe]]
+name = "con-ron-dump-pins"
+root = "ConRon.Dump.Pins"

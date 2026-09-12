@@ -353,7 +353,10 @@ dump, reads it back **in Lean**, and checks structural equality of the two
 declaration lists, byte-identity of a re-dump, and agreement of
 `checkDecls .verified` on both.  `scripts/dump-fixtures.sh` sweeps the whole
 corpus and additionally compares each verdict against con-leche's pinned
-`tests/{arena,e2e,annot}-expected.txt`.
+`tests/{arena,e2e,annot}-expected.txt`, and writes the corpus's one pin dump
+(`lake exe con-ron-dump-pins`, root `ConRon/Dump/Pins.lean`, format
+`con-ron-pins/1`) that `scripts/diff-fixtures.sh` passes to every
+`con-ron-check` run.
 
 **Module nesting is load-bearing (task #14 follow-up).**  Aeneas prints
 every reference unqualified inside the crate's Lean namespace, so a Rust
@@ -367,19 +370,25 @@ con-leche's directory tree.  Generated names are therefore
 (`ConRon/Refine/README.md`).  Worth an upstream report: Aeneas could
 qualify with `_root_` or the namespace.
 
-**The Nat-op pin sets are runtime data (decision, task #22).**  Encoding
-the ~20k-node pin sets as generated Rust overwhelms rustc and Charon, and
-the alternative hypothesis `abs tables = natOpPinSets` cannot be
-discharged without `native_decide`.  Neither is needed: con-leche checks
-every pin by `isDefEq` against the stream's own definition and checks the
-certificate proofs as theorems against the hand-pinned `divModCertStmts`
-(149 nodes, generated source, proved), so the pin list is a *hint* that
-affects completeness, never soundness.  The Rust `check_decls` therefore
-takes the pin list as a parameter (the driver embeds the dump of
-con-leche's `natOpPinSets` and parses it with the unverified reader), and
-the theorem is stated against a con-leche `checkDecls` that takes the same
-parameter — which asks for a small upstream change: make `natOpPinSets`
-an argument of `checkDecls` (`checkDecls mode pins ds`, with the shipped
+**The Nat-op pin sets are runtime data (decision, task #22; landed end to
+end in task #31).**  Encoding the ~26.5k-node pin sets as generated Rust
+overwhelms rustc and Charon, and the alternative hypothesis
+`abs tables = natOpPinSets` cannot be discharged without `native_decide`.
+Neither is needed: con-leche checks every pin by `isDefEq` against the
+stream's own definition and checks the certificate proofs as theorems
+against the hand-pinned `divModCertStmts` (149 nodes, generated source,
+proved), so the pin list is a *hint* that affects completeness, never
+soundness.  The Rust `check_decls` therefore takes the pin list as a
+parameter, threaded from `cached::installed::check_decls` through
+`annotDeclStep`/`checkDeclC` to `checker::check_div_mod_pin_loop`
+(`kernel/nat_op_pins.rs` declares the record and nothing else — there is no
+`nat_op_pin_sets()` constant, §3.4), and the unverified driver reads
+con-leche's own `natOpPinSets` out of a **`con-ron-pins/1` dump**, a sibling
+of `con-ron-decls/1` written by `lake exe con-ron-dump-pins` and specified in
+`proof/ConRon/Dump/FORMAT.md` §7 (`con-ron-check --pins FILE`).  The theorem
+is stated against a con-leche `checkDecls` that takes the same parameter —
+which asks for a small upstream change: make `natOpPinSets` an argument of
+`checkDecls` (`checkDecls mode pins ds`, with the shipped
 `checkDecls mode ds := checkDecls mode natOpPinSets ds`) and check that
 `model_exists` is parametric in it.  Until that lands, the pin-loop
 refinement is stated with `abs pins = natOpPinSets` as a hypothesis and
@@ -6431,3 +6440,213 @@ port has had.
   input.
 * A `--trusted` sweep: the mode and its expectation overrides are implemented
   and spot-checked, but the full sweep has not been run.
+
+### Task #31 — Nat-op pins as runtime data, end to end (2026-09-12, Opus under Fable)
+
+P1.8's data half.  §3.6 ruled the `Nat`-operation pin sets *runtime data* in
+task #22, and task #28 left three halves missing: no dump con-leche could
+write, no Rust reader, and `check_decls`' `pins` parameter not threaded to the
+pin loop.  All three land here, and **the 17 fixtures that declined for the
+empty pin table now give con-leche's exit code**: 290 agree → **307**, 17
+differ → **0**.
+
+#### 1. A sibling format, `con-ron-pins/1`, not a record of `con-ron-decls/1`
+
+The choice was this task's to make, and it is a sibling file
+(`proof/ConRon/Dump/FORMAT.md` §7).  Three reasons, in order of weight:
+
+* **A pin variant describes a toolchain, not a stream.**  The same three
+  variants apply to all 348 fixtures.  As a record of the declaration dump
+  their 26 512 `E` records would be copied into *every* fixture dump — 348 ×
+  532 KB of identical bytes — and re-parsed before every verdict, including on
+  the 331 streams that never mention `Nat.div`.
+* **The driver already takes them separately.**  `con-ron-check --pins FILE`
+  is task #28's flag; a file argument is exactly what it wants.
+* **`con-ron-decls/1` does not move.**  Task #10's byte-identity round trip
+  over the whole corpus stays valid as it stands, and so do the 315 committed
+  dumps.
+
+What the two files share is the *record grammar*, verbatim: the same
+`E`/`N`/`L`/`W` records, the same interning, the same escape, the same
+"ids are dense and backward-only" invariant, the same footer rule.  Both
+readers are therefore **one function with a payload flag** — `RState.pins` in
+Lean, `Reader::pins` in Rust — which swaps the payload record (`S` for `D`)
+and what the footer counts, and makes the *wrong* payload record an error
+rather than a silently ignored line.  An `S` record carries no id, for `D`'s
+reason: the record **is** the payload, and its position in the file is its
+position in `natOpPinSets`, which is the order the install gate tries the
+variants in.
+
+```
+S <len> <text> <expr>×8 (<k> <expr>*)×8
+    toolchain  the eight pins  the eight proof lists
+```
+
+| what | where |
+|---|---|
+| writer | `ConRon/Dump/Write.lean` (`pinsHeader`, `wPinSet`, `dumpPins`) |
+| Lean reader | `ConRon/Dump/Read.lean` (`RState.pinSets`/`.pins`, the `S` arm, `parsePins`) |
+| harness | `ConRon/Dump/Pins.lean` + `[[lean_exe]] con-ron-dump-pins` |
+| Rust reader | `crates/con-ron-dump/src/lib.rs` (`parse_pins`; `run_lines` is now shared with `parse_decls`) |
+| Rust writer | `crates/con-ron-dump/src/write.rs` (`dump_pins`) — for the byte-identity test |
+| consumers | `con-ron-check --pins FILE`, `con-ron-dump-check --roundtrip` |
+
+#### 2. The threading, and the deleted stub
+
+`kernel/nat_op_pins.rs`' `nat_op_pin_sets()` stub (task #24's stub 1) is
+**gone**; the module declares the record and nothing else — §3.4 forbids the
+global and the data is not code.  `pins : &Vec<NatOpPinSet>` now runs,
+immediately after `mode`, through the whole chain:
+
+```
+installed::check_decls → annot_decl_fold_from → annot_decl_step → annot_step_c
+  → annot_step_{defn,opaque,other}_c → parsed_c::check_decl_step_c
+  → check_decl_c → check_defn_decl_c → check_defn_pins_c
+  → checker::check_defn_pins → check_defn_div_mod_pin → check_div_mod_pin
+  → check_div_mod_pin_loop          (variants := pins)
+```
+
+and through the pure lane too (`checker::check_decl`, `check_defn_decl`,
+`check_decls_pure{,_from}`), which `checkDeclsPure` and the `model_exists`
+capstone need.  Fourteen signatures grew one argument; **no body moved**.  The
+deviation note §3.6 asks for sits on `check_div_mod_pin`, where the global was
+read, and is referred to from each function above it: con-leche bakes
+`natOpPinSets` (`Kernel/NatOpPins.lean:61`) into `checkDivModPin`, the port
+takes it as a parameter because the table cannot be generated as Rust
+(task #22: Charon OOMs) and does not have to be — every pin is re-checked by
+`isDefEq` against the stream's own stored value and every certificate against
+the hand-pinned `div_mod_cert_stmts`, so a wrong list costs a decline and
+never an accept.  The upstream ask is unchanged: `checkDecls mode pins ds`.
+
+#### 3. The dump, measured
+
+`lake exe con-ron-dump-pins _tmp/dump-fixtures/pins.dump`:
+
+| | |
+|---|---|
+| `S` records | 3 — `lean4:v4.33.0`, `lean4:v4.34.0-rc2`, `lean4-nightly:nightly-2026-09-10` |
+| `N` / `L` / `W` / `E` records | 200 / 3 / 1 / **26 512** — task #22's interned census, to the node |
+| proof blobs per variant | 3 div, 3 mod, 2 each for `gcd`/`land`/`lor`/`xor`/`shiftLeft`/`shiftRight` |
+| lines / bytes | 26 721 / **532 456** |
+| Lean write / read-back | **10 ms** / **18 ms**; round trip exact (structural through `Expr.beqMemo`, and a byte-identical re-dump) |
+| Rust `parse_pins` / `dump_pins` | **20.9 ms** / 37.5 ms; the re-dump is **byte-identical to Lean's file**, and the DAG is **exact** (26 512 distinct heap nodes for 26 512 `E` records) |
+| `con-ron-check --pins`, per run | **5 ms** (265 of 288 runs; 6 ms ×16, 7 ms ×7) |
+| two consecutive `con-ron-dump-pins` runs | byte-identical (the format is deterministic, §1) |
+
+The DAG check is where the pins earn their own census function
+(`dag::census_pins`): as a *tree* the v4.33.0 variant is 5.1 M nodes against
+20 183 in the DAG (task #22), so a reader that lost the sharing would be
+caught here and nowhere else — a byte-identical re-dump would not catch it,
+because the writer re-interns by value.
+
+5 ms per run is 3 % of the 315-fixture sweep's checking time; it is paid once
+per `con-ron-check` invocation, not per declaration, and it is why the
+per-fixture dumps stay pin-free (§1).
+
+#### 4. The sweep
+
+`scripts/dump-fixtures.sh` writes the pin dump once, up front, and **fails the
+run** if it cannot: every verdict below would then be taken against the wrong
+pin list.  `scripts/diff-fixtures.sh` passes `--pins $OUT/pins.dump` to every
+`con-ron-check` run, and `--no-pins` reproduces task #28's numbers.
+
+```
+scripts/diff-fixtures.sh --timeout=60, --verified, all 348 fixtures:
+
+diff-fixtures (--verified, with pins): 348 fixtures, 307 agree, 0 differ,
+  33 skipped (no declaration list), 8 timed out, 490s
+```
+
+**The 17 are closed.**  `nat_div_declined`, `nat_divmod_ok`, `nat_gcd_ok`,
+`nat_land_ok`, `nat_land_cone`, `nat_lor_ok`, `nat_xor_ok`,
+`nat_shiftleft_ok`, `nat_shiftright_ok`, `nat_log2_ok`, `natop_order`,
+`natop_before_eq`, `natop_before_ble`, `let_rec_rhs`, `str_lit`, `str_proj`
+and `presieve_ofarrows_cone` all accept, as con-leche does.  The only streams
+that still print "no pin variant matched" are the seven `nat_*_perturbed`
+ones, **pinned at 2 precisely because no variant may match them** — so the pin
+loop's `[]` arm is still exercised, on the streams it exists for.
+
+The 8 remaining non-finishers are the `tower_*` fixtures of task #28 §5c —
+`beq` with no pair memo, untouched by this task, and still the *only* thing in
+the corpus that does not finish.
+
+One knock-on worth recording: `sorry_use` used to decline *inside* the fold
+for the empty pin table, so only two of the three taint fixtures actually
+depended on the driver's taint-skip rule.  Its fold now accepts and the rule
+is what declines it — all three do, which is `diff-fixtures.sh`' comment
+corrected.
+
+One infrastructure fix the concurrent worktrees forced: `diff-fixtures.sh`
+reads each run's exit code back out of its log, so two sweeps sharing one
+`_tmp` (sibling git worktrees do, when `_tmp` is a symlink) can each read the
+other's line.  The log path is now `LOG`-overridable and the numbers above are
+from a run with a private one.
+
+#### Numbers
+
+| | |
+|---|---|
+| `kernel/nat_op_pins.rs` | the stub deleted, the record kept: 64 lines, all of it the record and the parameter note |
+| threading | 14 functions in `kernel/checker.rs`, `cached/parsed_c.rs`, `cached/installed.rs`, one parameter each |
+| `proof/ConRon/Dump/Write.lean` / `Read.lean` | +63 / +56 |
+| `proof/ConRon/Dump/Pins.lean` (new) | 122 |
+| `proof/ConRon/Dump/FORMAT.md` | +71 (the §7 specification) |
+| `crates/con-ron-dump` (unverified) | +218 `lib.rs` (reader + 3 tests), +72 `write.rs`, +32 `dag.rs`, +86 `con-ron-dump-check.rs`, +38 `con-ron-check.rs` |
+| generated `Types.lean` | **736 — unchanged**; `NatOpPinSet` only *moves*, ahead of its new users |
+| generated `Funs.lean` | 50 944 → **50 970** (+26: fourteen signatures one argument wider, one stub gone) |
+| `TypesExternal_Template.lean` / `FunsExternal_Template.lean` | 25 / 54 — **unchanged**, still exactly the four `Rc` axioms and the `Rc` type |
+| `partial_fixpoint` | **408 — unchanged** |
+| `mutual` blocks in `Funs.lean` / `Types.lean` | **13 / 3 — unchanged** |
+| `charon cargo --preset=aeneas` | **3.9 s** |
+| `aeneas -backend lean -split-files -loops-to-rec` | **33.2 s, zero errors, zero warnings** |
+| `cd proof && lake build` | **2 115 jobs, zero errors** |
+| `cargo test` | **170/170** green (153 unit + 4 integration + 13 in `con-ron-dump`), warning-free at `-D warnings` |
+| `scripts/provenance.py check` | green — 1 546 items, 1 647 citations at pin 3e004805 (was 1 478 / 1 592 before task #30's and this task's work) |
+| `scripts/provenance.py coverage` | **851/1006 (84.6 %) — unchanged**: the stub's citation goes, the record's stays |
+| `scripts/diff-fixtures.sh --timeout=60` | 348 fixtures: **307 agree, 0 differ, 8 do not finish (task #28 §5c), 33 skipped**, 490 s |
+
+`scripts/lint-rust-style.sh crates/con-ron-core/src` clean; `scripts/gates.sh`
+all 6 OK.  The progress lines it prints:
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)           to translate  13987  translated  13049 (93%)  verified    498 (3%)
+Cherries (ConLeche/Frontend without Scan/Equiv, Main.lean) to translate   8132  translated      0 (0%)  verified      0 (0%)
+Rust core 40655 lines (1371 fns) | unverified crates 3421 | generated Lean 51879 | proofs 11247 (121 _refines) | pin 3e004805
+```
+
+**`differ` is now zero.**  For the first time every fixture that has a
+declaration list and finishes gives con-leche's own exit code.
+
+#### Tests
+
+* Three new Rust unit tests in `con_ron_dump` (10 → 13): a two-variant pin
+  dump round-trips *and* re-dumps byte-identically *and* keeps its sharing
+  (`dag::census_pins` against the record count); the empty pin list is
+  `"con-ron-pins/1\nend 0\n"`; and the two payloads do not mix — an `S` in a
+  declaration dump, a `D` in a pin dump, each reader on the other's header,
+  and a footer count that disagrees, all rejected with the line number.
+  (`unwrap_err` is unavailable — neither `DeclC` nor `NatOpPinSet` derives
+  `Debug`, §3.4 — so the tests go through a small `*_err` helper.)
+* `con-ron-dump-check` now reads a `con-ron-pins/1` file too, recognised by
+  its header: that is the cross-check of the Rust reader against Lean's writer
+  on the real 532 KB file, and it is exact.
+* `lake exe con-ron-dump-pins` is the Lean round trip over
+  `ConLeche.natOpPinSets` itself, which is the "check equality with the value"
+  half.
+* The corpus: 307 fixture verdicts, 17 of them new.
+
+#### Left for next time
+
+* **The `beq` pair memo** (§5c): the eight tower fixtures are now the *only*
+  divergence class left — a fifth external hole with a trust argument, or
+  hash-consing.  A design step.
+* **The upstream ask** is now concrete and minimal: `checkDecls mode pins ds`
+  with the shipped `checkDecls mode ds := checkDecls mode natOpPinSets ds`,
+  and `model_exists` parametric in `pins`.  Until it lands the pin-loop
+  refinement carries `abs pins = natOpPinSets` as a hypothesis (§3.6) and the
+  corollary is conditional.
+* **A freshness gate** in the spirit of con-leche's `tests/pindump.sh`:
+  `con-ron-dump-pins` prints the per-variant blob counts and the record
+  census, which is the datum such a check would compare after a submodule
+  bump.
+* A `--trusted` sweep with the pins in, and Mathlib scale (P1.8 proper).

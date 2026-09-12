@@ -10,6 +10,11 @@ It is deliberately a *single forward pass* with no fixups: every id space is an
 `Array` that grows by one per record, and every reference is an index into an
 array that is already long enough.  The Rust reader is meant to be this
 function with `Vec` for `Array`.
+
+`parsePins` (task #31) reads the sibling format `con-ron-pins/1` (FORMAT.md
+§7, the `Nat`-operation pin variants) and is *the same function*: the record
+grammar below the payload is identical, so `RState.pins` is the flag that
+swaps the payload record (`S` for `D`) and what the footer counts.
 -/
 import ConRon.Dump.Write
 
@@ -32,6 +37,14 @@ structure RState where
   tables : Array ProjTable := #[]
   infos : Array ConstantInfo := #[]
   decls : Array DeclC := #[]
+  /-- The `con-ron-pins/1` payload (`FORMAT.md` §7).  A file has one payload
+  kind or the other, never both. -/
+  pinSets : Array NatOpPinSet := #[]
+  /-- Which file is being read: `false` a `con-ron-decls/1` dump (payload
+  `D`), `true` a `con-ron-pins/1` one (payload `S`).  The flag is what makes
+  the shared record grammar reject the wrong payload record and the footer
+  count the right thing. -/
+  pins : Bool := false
   toks : Array String := #[]
   pos : Nat := 0
   lineNo : Nat := 0
@@ -237,7 +250,13 @@ def fireTok : R RecRuleFire := do
 
 /-- Read one record, assuming its kind letter has already been consumed. -/
 def parseRecord (kind : String) : R Unit := do
-  if kind == "N" then
+  -- A file has ONE payload kind (`FORMAT.md` §7): the header decided which,
+  -- so the other one's record is an error rather than an ignored line.
+  if kind == "D" && (← get).pins then
+    rerr "a declaration record 'D' in a con-ron-pins/1 dump"
+  else if kind == "S" && !(← get).pins then
+    rerr "a pin-set record 'S' in a con-ron-decls/1 dump"
+  else if kind == "N" then
     expectId (← get).names.size "name"
     let t ← nextTok
     let v ← if t == "a" then pure Name.anonymous
@@ -357,6 +376,29 @@ def parseRecord (kind : String) : R Unit := do
       else if t == "p" then do pure (ConstantInfo.projInfo (← tableRef))
       else rerr ("unknown constinfo record '" ++ t ++ "'")
     modify fun st => { st with infos := st.infos.push v }
+  else if kind == "S" then
+    let toolchain ← strTok
+    let divPin ← exprRef
+    let modPin ← exprRef
+    let gcdPin ← exprRef
+    let landPin ← exprRef
+    let lorPin ← exprRef
+    let xorPin ← exprRef
+    let shiftLeftPin ← exprRef
+    let shiftRightPin ← exprRef
+    let divProofs ← listTok exprRef
+    let modProofs ← listTok exprRef
+    let gcdProofs ← listTok exprRef
+    let landProofs ← listTok exprRef
+    let lorProofs ← listTok exprRef
+    let xorProofs ← listTok exprRef
+    let shiftLeftProofs ← listTok exprRef
+    let shiftRightProofs ← listTok exprRef
+    let v : NatOpPinSet :=
+      { toolchain, divPin, modPin, gcdPin, landPin, lorPin, xorPin,
+        shiftLeftPin, shiftRightPin, divProofs, modProofs, gcdProofs,
+        landProofs, lorProofs, xorProofs, shiftLeftProofs, shiftRightProofs }
+    modify fun st => { st with pinSets := st.pinSets.push v }
   else if kind == "D" then
     let t ← nextTok
     let v ← if t == "a" then do pure (DeclC.axiomDecl (← cvRef))
@@ -390,9 +432,11 @@ partial def runLines : List String → R Unit
       if kind == "end" then
         let n ← natTok
         let st ← get
-        if n != st.decls.size then
+        let want := if st.pins then st.pinSets.size else st.decls.size
+        let what := if st.pins then " pin sets read" else " declarations read"
+        if n != want then
           rerr ("footer count " ++ toString n ++ " ≠ the "
-            ++ toString st.decls.size ++ " declarations read")
+            ++ toString want ++ what)
         else if st.pos != st.toks.size then rerr "trailing fields in the footer"
         else if ls.any (fun x => !x.isEmpty) then rerr "content after the footer"
         else return ()
@@ -413,5 +457,19 @@ def parseDecls (s : String) : Except String (List DeclC) :=
       match (runLines rest).run { lineNo := 1 } with
       | .error e => Except.error e
       | .ok (_, st) => Except.ok st.decls.toList
+
+/-- **The pin reader** (`FORMAT.md` §7).  The inverse of `dumpPins`: the same
+forward pass over the same record grammar, with `S` for the payload and the
+footer counting pin sets. -/
+def parsePins (s : String) : Except String (List NatOpPinSet) :=
+  match s.splitOn "\n" with
+  | [] => Except.error "empty input"
+  | hdr :: rest =>
+    if hdr != pinsHeader then
+      Except.error ("bad header: expected '" ++ pinsHeader ++ "', got '" ++ hdr ++ "'")
+    else
+      match (runLines rest).run { lineNo := 1, pins := true } with
+      | .error e => Except.error e
+      | .ok (_, st) => Except.ok st.pinSets.toList
 
 end ConRon.Dump

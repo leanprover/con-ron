@@ -13,6 +13,11 @@ Reader (Lean, the format's validator): `ConRon/Dump/Read.lean`
 (`parseDecls : String → Except String (List DeclC)`).
 Round-trip harness: `ConRon/Dump/Main.lean` (`lake exe con-ron-dump`).
 
+A **sibling format, `con-ron-pins/1`**, carries the `Nat`-operation pin
+variants (§7).  It shares everything below the payload record — the shape, the
+id spaces, the escape, the `N`/`L`/`W`/`E` records — with this one, so read §§
+1-3 and the `N`/`L`/`W`/`E` parts of §4 as specifying both.
+
 ## 1. Shape
 
 Text, line-oriented, ASCII-only, deterministic (the same `List DeclC` always
@@ -262,3 +267,69 @@ recursion: con-leche's terms are deep enough (spines of tens of thousands of
 4. **Strings are code points, not bytes.**
 5. **`PropWhen` arrives canonical**; keep it so.
 6. **The install-computed `RecRule` fields are placeholders in a dump.**
+
+## 7. `con-ron-pins/1` — the `Nat`-operation pin dump
+
+DESIGN.md §3.6 rules the `Nat`-operation pin sets **runtime data**: encoding
+`ConLeche.natOpPinSets` (`ConLeche/Kernel/NatOpPins.lean:61`) as generated
+Rust is 26 512 nodes that Charon OOMs on, and the list is a *hint list* — every
+pin is re-checked by `isDefEq` against the stream's own stored value and every
+certificate proof is kernel-checked against the hand-pinned `divModCertStmts`
+— so the Rust core takes it as a parameter of `check_decls` and the unverified
+driver reads it from a file.  This is that file.
+
+```
+con-ron-pins/1         <- the version header, the whole first line
+<record>               <- N / L / W / E exactly as in §4, then the S records
+...
+end <setCount>         <- the footer; <setCount> = the number of `S` records
+```
+
+Writer: `ConRon/Dump/Write.lean` (`dumpPins : List NatOpPinSet → String`).
+Reader (Lean): `ConRon/Dump/Read.lean` (`parsePins`).  Round-trip harness:
+`ConRon/Dump/Pins.lean` (`lake exe con-ron-dump-pins`).  Rust reader:
+`crates/con-ron-dump/src/lib.rs` (`parse_pins`), writer `write.rs`
+(`dump_pins`), consumer `con-ron-check --pins FILE`.
+
+**Why a sibling file and not a record of `con-ron-decls/1`** (task #31's
+choice).  A pin variant describes a *toolchain*, not a stream: the same three
+variants apply to all 348 fixtures, and their 26 512 `E` records would be
+copied into every fixture dump — 348 × 532 KB of the same bytes, and 26 512
+nodes of parse work before every verdict, on the 331 streams that never define
+`Nat.div`.  The driver already takes the pins as a separate argument
+(`--pins FILE`), the two files have disjoint lifetimes (a pin dump is rewritten
+when con-leche's `pins/` moves, a fixture dump when the fixture does), and
+keeping `con-ron-decls/1` untouched keeps task #10's byte-identity round trip
+over the whole corpus valid as it stands.  What the two share is the *record
+grammar*, verbatim: the same `E` id space discipline, the same interning, the
+same escape, the same footer rule, and the same single-forward-pass reader
+(the Lean and Rust readers are one function each with a payload flag).
+
+A file has **one** payload kind: an `S` record in a `con-ron-decls/1` dump and
+a `D` record in a `con-ron-pins/1` one are both errors, and the footer counts
+whichever payload the header announced.
+
+### Pin variants — `ConLeche/Kernel/NatOpPinSet.lean:30`
+
+```
+S <len> <text> <expr> <expr> <expr> <expr> <expr> <expr> <expr> <expr>
+        toolchain  div    mod    gcd   land   lor    xor    shl    shr
+  <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>*
+  divProofs   modProofs   gcdProofs   landProofs  lorProofs   xorProofs   shlProofs   shrProofs
+```
+
+(one line, the wrap above is presentation).  `S` records carry **no id**, for
+`D`'s reason: the record *is* the payload, and its position in the file is its
+position in `natOpPinSets`, which is the order `checkDivModPinLoop` tries the
+variants in.  The eight pins come first and the eight counted proof lists
+follow, in the field order of the structure; `<len> <text>` is the toolchain
+string (§3), which the decline message names and nothing else reads.
+
+### The census, at con-leche 3e004805
+
+| | |
+|---|---|
+| `S` records | 3 (`v4.33.0`, `v4.34.0-rc2`, `nightly-2026-09-10`) |
+| `N` / `L` / `W` / `E` records | 200 / 3 / 1 / 26 512 |
+| proof blobs per variant | 3 div, 3 mod, 2 each for `gcd`/`land`/`lor`/`xor`/`shiftLeft`/`shiftRight` |
+| lines / bytes | 26 721 / 532 456 |

@@ -4,6 +4,9 @@
 #
 #   usage: scripts/diff-fixtures.sh [--trusted] [--verbose] [--stats]
 #                                   [--timeout=SECS] [--only=REGEX]
+#                                   [--no-pins]
+#
+# `OUT=<dir>` picks the dump directory, `LOG=<file>` the run log.
 #
 # Inputs
 #   * the dumps `scripts/dump-fixtures.sh` wrote (task #10), one per fixture
@@ -15,7 +18,13 @@
 #     declaration name and no fold position in them (so the position
 #     `con-ron-check` prints is compared against nothing here);
 #   * `vendor/con-leche/tests/trusted-expected.txt` ("<exit> <suite>
-#     <fixture>"), the `--trusted` overrides, read only for `--trusted`.
+#     <fixture>"), the `--trusted` overrides, read only for `--trusted`;
+#   * the `Nat`-operation pin dump `$OUT/pins.dump` that `dump-fixtures.sh`
+#     wrote (task #31), handed to every run as `--pins`: it is DESIGN.md
+#     §3.6's pin-list parameter of `check_decls`, and without it the 17
+#     fixtures that define `Nat.div` decline for an empty pin table.
+#     `--no-pins` runs without it, which is what reproduces task #28's
+#     numbers.
 #
 # For each expectation line the dump is run through `con-ron-check` and the
 # exit code compared.  A fixture with no dump is SKIPPED with a note: those
@@ -46,23 +55,25 @@ MODE=--verified
 verbose=0
 stats=0
 only=""
+use_pins=1
 for a in "$@"; do
   case "$a" in
     --trusted) MODE=--trusted ;;
     --verbose) verbose=1 ;;
     --stats) stats=1 ;;
+    --no-pins) use_pins=0 ;;
     --timeout=*) TO=${a#--timeout=} ;;
     --only=*) only=${a#--only=} ;;
-    *) echo "usage: scripts/diff-fixtures.sh [--trusted] [--verbose] [--stats] [--timeout=SECS] [--only=REGEX]" >&2; exit 2 ;;
+    *) echo "usage: scripts/diff-fixtures.sh [--trusted] [--verbose] [--stats] [--no-pins] [--timeout=SECS] [--only=REGEX]" >&2; exit 2 ;;
   esac
 done
 
 # The streams whose frontend skipped declarations for a tolerated axiom, and
 # the skip count con-leche reports for each.  Their verdict is 2 by the driver
 # rule above even though the fold accepts; task #10's surprise 9 pinned the
-# same three.  `tolerated_axiom_use` and `taint_skip_continue` really do
-# depend on the rule here; `sorry_use` declines earlier, in the fold, for the
-# empty Nat-operation pin table.
+# same three.  All three really do depend on the rule here — with the pins in
+# (task #31) `sorry_use`'s fold accepts too, where before it declined inside
+# the fold for the empty Nat-operation pin table.
 taint_of() { # taint_of <fixture>
   case "$1" in
     sorry_use.ndjson|tolerated_axiom_use.ndjson|taint_skip_continue.ndjson) echo 1 ;;
@@ -81,7 +92,22 @@ if [ ! -d "$OUT" ] || [ -z "$(find "$OUT" -name '*.decls' -print -quit 2>/dev/nu
     echo "diff-fixtures: dump-fixtures.sh failed" >&2; exit 3; }
 fi
 
-log="$root/_tmp/diff-fixtures.log"
+# The pin list (task #31).  One file for the whole corpus; `--no-pins` drops it.
+PINS="${PINS:-$OUT/pins.dump}"
+pinargs=""
+if [ "$use_pins" -eq 1 ]; then
+  if [ -f "$PINS" ]; then
+    pinargs="--pins $PINS"
+  else
+    echo "diff-fixtures: $PINS missing; run scripts/dump-fixtures.sh (or pass --no-pins)" >&2
+    exit 3
+  fi
+fi
+
+# The per-run log.  Overridable, because the loop reads the exit code back out
+# of it: two runs sharing one `_tmp` (sibling git worktrees do, when `_tmp` is
+# a symlink) would interleave their lines and each could read the other's.
+log="${LOG:-$root/_tmp/diff-fixtures.log}"
 : >"$log"
 
 total=0; agree=0; differ=0; skipped=0; timedout=0
@@ -117,7 +143,7 @@ run_suite() { # run_suite <suite> <expected-file>
     taint=$(taint_of "$fix")
     {
       echo "=== $suite/$fix (expect $want)"
-      timeout "$TO" "$BIN" "$MODE" --taint-skipped "$taint" \
+      timeout "$TO" "$BIN" "$MODE" $pinargs --taint-skipped "$taint" \
         $( [ "$stats" -eq 1 ] && echo --stats ) "$dump"
       echo "  exit $?"
     } >>"$log" 2>&1
@@ -142,6 +168,6 @@ run_suite e2e vendor/con-leche/tests/e2e-expected.txt
 run_suite annot vendor/con-leche/tests/annot-expected.txt
 t1=$(date +%s)
 
-echo "diff-fixtures ($MODE): $total fixtures, $agree agree, $differ differ, $skipped skipped (no declaration list), $timedout timed out, $((t1 - t0))s"
+echo "diff-fixtures ($MODE${pinargs:+, with pins}): $total fixtures, $agree agree, $differ differ, $skipped skipped (no declaration list), $timedout timed out, $((t1 - t0))s"
 echo "  log: $log"
 [ "$differ" -eq 0 ] && [ "$timedout" -eq 0 ]

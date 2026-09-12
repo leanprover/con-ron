@@ -21963,7 +21963,7 @@ def cached.state_c.consts_resolve_fc
   ok b
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c_after_annot::M#1]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 176:34-176:171 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 178:34-178:171 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c_after_annot.M_1
   : Array Std.U32 24#usize :=
@@ -21974,7 +21974,7 @@ def cached.installed.annot_constant_val_c_after_annot.M_1
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c_after_annot::M]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 174:34-174:233 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 176:34-176:233 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c_after_annot.M
   : Array Std.U32 37#usize :=
@@ -21987,7 +21987,7 @@ def cached.installed.annot_constant_val_c_after_annot.M
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c_after_annot]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 168:0-185:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 170:0-187:1
     Visibility: public -/
 def cached.installed.annot_constant_val_c_after_annot
   (fe : kernel.fenv.FEnv) (cv : kernel.env.ConstantVal)
@@ -22021,7 +22021,7 @@ def cached.installed.annot_constant_val_c_after_annot
     ok (core.result.Result.Err ce)
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c::M#5]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 153:34-153:208 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 155:34-155:208 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c.M_5 : Array Std.U32 32#usize :=
   Array.make 32#usize [
@@ -22032,7 +22032,7 @@ def cached.installed.annot_constant_val_c.M_5 : Array Std.U32 32#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c::M#4]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 151:34-151:188 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 153:34-153:188 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c.M_4 : Array Std.U32 28#usize :=
   Array.make 28#usize [
@@ -22043,7 +22043,7 @@ def cached.installed.annot_constant_val_c.M_4 : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c::M#3]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 149:34-149:265 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 151:34-151:265 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c.M_3 : Array Std.U32 44#usize :=
   Array.make 44#usize [
@@ -22056,7 +22056,7 @@ def cached.installed.annot_constant_val_c.M_3 : Array Std.U32 44#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c::M#2]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 147:34-147:172 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 149:34-149:172 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c.M_2 : Array Std.U32 24#usize :=
   Array.make 24#usize [
@@ -22066,7 +22066,7 @@ def cached.installed.annot_constant_val_c.M_2 : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c::M#1]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 145:34-145:146 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 147:34-147:146 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c.M_1 : Array Std.U32 19#usize :=
   Array.make 19#usize [
@@ -22076,7 +22076,7 @@ def cached.installed.annot_constant_val_c.M_1 : Array Std.U32 19#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c::M]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 143:34-143:155 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 145:34-145:155 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c.M : Array Std.U32 21#usize :=
   Array.make 21#usize [
@@ -22086,7 +22086,7 @@ def cached.installed.annot_constant_val_c.M : Array Std.U32 21#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 136:0-160:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 138:0-162:1
     Visibility: public -/
 def cached.installed.annot_constant_val_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -22175,7 +22175,7 @@ def cached.state_c.record_c_const
   ok { s with ienv := hm }
 
 /-- [con_ron_core::cached::installed::annot_val_c_record]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 248:0-254:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 250:0-256:1
     Visibility: public -/
 def cached.installed.annot_val_c_record
   (jv : kernel.expr.Expr) (record : Bool) :
@@ -22187,7 +22187,7 @@ def cached.installed.annot_val_c_record
   else ok none
 
 /-- [con_ron_core::cached::installed::annot_val_c_after_annot::M#1]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 230:34-230:175 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 232:34-232:175 -/
 @[global_simps, irreducible]
 def cached.installed.annot_val_c_after_annot.M_1 : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -22198,7 +22198,7 @@ def cached.installed.annot_val_c_after_annot.M_1 : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_val_c_after_annot::M]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 228:34-228:237 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 230:34-230:237 -/
 @[global_simps, irreducible]
 def cached.installed.annot_val_c_after_annot.M : Array Std.U32 38#usize :=
   Array.make 38#usize [
@@ -22210,7 +22210,7 @@ def cached.installed.annot_val_c_after_annot.M : Array Std.U32 38#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_val_c_after_annot]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 219:0-241:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 221:0-243:1
     Visibility: public -/
 def cached.installed.annot_val_c_after_annot
   (st : cached.state_c.CState) (fe : kernel.fenv.FEnv)
@@ -22244,7 +22244,7 @@ def cached.installed.annot_val_c_after_annot
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::cached::installed::annot_val_c::M#1]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 205:34-205:212 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 207:34-207:212 -/
 @[global_simps, irreducible]
 def cached.installed.annot_val_c.M_1 : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -22256,7 +22256,7 @@ def cached.installed.annot_val_c.M_1 : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_val_c::M]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 203:34-203:192 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 205:34-205:192 -/
 @[global_simps, irreducible]
 def cached.installed.annot_val_c.M : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -22267,7 +22267,7 @@ def cached.installed.annot_val_c.M : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_val_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 193:0-212:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 195:0-214:1
     Visibility: public -/
 def cached.installed.annot_val_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -22337,7 +22337,7 @@ def cached.state_c.flush_c
   cached.state_c.flushed s
 
 /-- [con_ron_core::cached::installed::annot_value_c_tail]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 278:0-291:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 280:0-293:1
     Visibility: public -/
 def cached.installed.annot_value_c_tail
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -22353,7 +22353,7 @@ def cached.installed.annot_value_c_tail
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::cached::installed::annot_value_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 260:0-273:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 262:0-275:1
     Visibility: public -/
 def cached.installed.annot_value_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -40180,7 +40180,7 @@ def kernel.env.ind_params_ok
   kernel.env.ind_params_ok_from n_p block 0#usize
 
 /-- [con_ron_core::cached::parsed_c::check_ind_decl_c::M]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 718:34-718:193 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 722:34-722:193 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_ind_decl_c.M : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -40191,7 +40191,7 @@ def cached.parsed_c.check_ind_decl_c.M : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_ind_decl_c]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 705:0-720:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 709:0-724:1
     Visibility: public -/
 def cached.parsed_c.check_ind_decl_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -40214,7 +40214,7 @@ def cached.parsed_c.check_ind_decl_c
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::checker::install_basis_decl::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 93:34-93:155 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 94:34-94:155 -/
 @[global_simps, irreducible]
 def kernel.checker.install_basis_decl.M : Array Std.U32 21#usize :=
   Array.make 21#usize [
@@ -40224,7 +40224,7 @@ def kernel.checker.install_basis_decl.M : Array Std.U32 21#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::install_basis_decl]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 91:0-97:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 92:0-98:1
     Visibility: public -/
 def kernel.checker.install_basis_decl
   (fe : kernel.fenv.FEnv) (ci : kernel.env.ConstantInfo) :
@@ -40243,7 +40243,7 @@ def kernel.checker.install_basis_decl
        ok (core.result.Result.Ok f)
 
 /-- [con_ron_core::kernel::checker::install_basis_decls]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1495:0-1504:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1516:0-1525:1
     Visibility: public -/
 def kernel.checker.install_basis_decls
   (fe : kernel.fenv.FEnv) (decls : alloc.vec.Vec kernel.env.ConstantInfo)
@@ -40267,7 +40267,7 @@ def kernel.checker.install_basis_decls
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker::check_basis_decl::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1483:50-1483:276 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1504:50-1504:276 -/
 @[global_simps, irreducible]
 def kernel.checker.check_basis_decl.M : Array Std.U32 43#usize :=
   Array.make 43#usize [
@@ -41065,7 +41065,7 @@ def kernel.basis_tables.basis_decls_a
   | kernel.env.BasisKind.QuotK => kernel.basis_tables.basis_decls_quot
 
 /-- [con_ron_core::kernel::checker::check_basis_decl]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1479:0-1490:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1500:0-1511:1
     Visibility: public -/
 def kernel.checker.check_basis_decl
   (fe : kernel.fenv.FEnv) (kind : kernel.env.BasisKind) :
@@ -41100,7 +41100,7 @@ def kernel.checker.check_basis_decl
       ok (core.result.Result.Err ce)
 
 /-- [con_ron_core::cached::parsed_c::check_basis_decl_c]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 683:0-685:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 687:0-689:1
     Visibility: public -/
 def cached.parsed_c.check_basis_decl_c
   (fe : kernel.fenv.FEnv) (kind : kernel.env.BasisKind) :
@@ -42429,7 +42429,7 @@ def kernel.std_axioms.tolerated_axiom_names
   alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n1
 
 /-- [con_ron_core::cached::parsed_c::check_axiom_decl_c::M#3]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 668:50-668:157 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 672:50-672:157 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_axiom_decl_c.M_3 : Array Std.U32 18#usize :=
   Array.make 18#usize [
@@ -42439,7 +42439,7 @@ def cached.parsed_c.check_axiom_decl_c.M_3 : Array Std.U32 18#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_axiom_decl_c::M#2]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 664:50-664:208 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 668:50-668:208 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_axiom_decl_c.M_2 : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -42450,7 +42450,7 @@ def cached.parsed_c.check_axiom_decl_c.M_2 : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_axiom_decl_c::M#1]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 659:54-659:290 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 663:54-663:290 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_axiom_decl_c.M_1 : Array Std.U32 44#usize :=
   Array.make 44#usize [
@@ -42463,7 +42463,7 @@ def cached.parsed_c.check_axiom_decl_c.M_1 : Array Std.U32 44#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_axiom_decl_c::M]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 644:54-644:249 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 648:54-648:249 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_axiom_decl_c.M : Array Std.U32 36#usize :=
   Array.make 36#usize [
@@ -42475,7 +42475,7 @@ def cached.parsed_c.check_axiom_decl_c.M : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_constant_val_c_after_annot::M#1]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 220:34-220:171 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 221:34-221:171 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_constant_val_c_after_annot.M_1
   : Array Std.U32 24#usize :=
@@ -42486,7 +42486,7 @@ def cached.parsed_c.check_constant_val_c_after_annot.M_1
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_constant_val_c_after_annot::M]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 218:34-218:233 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 219:34-219:233 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_constant_val_c_after_annot.M
   : Array Std.U32 37#usize :=
@@ -42499,7 +42499,7 @@ def cached.parsed_c.check_constant_val_c_after_annot.M
     ]
 
 /-- [con_ron_core::cached::parsed_c::op_s_ix_c]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 155:0-163:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 156:0-164:1
     Visibility: public -/
 def cached.parsed_c.op_s_ix_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -42510,7 +42510,7 @@ def cached.parsed_c.op_s_ix_c
   kernel.type_checker.ensure_sort_core mode st fe d i
 
 /-- [con_ron_core::cached::parsed_c::check_constant_val_c_after_annot]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 210:0-237:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 211:0-238:1
     Visibility: public -/
 def cached.parsed_c.check_constant_val_c_after_annot
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -42553,7 +42553,7 @@ def cached.parsed_c.check_constant_val_c_after_annot
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::cached::parsed_c::check_constant_val_c::M#5]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 195:34-195:208 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 196:34-196:208 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_constant_val_c.M_5 : Array Std.U32 32#usize :=
   Array.make 32#usize [
@@ -42564,7 +42564,7 @@ def cached.parsed_c.check_constant_val_c.M_5 : Array Std.U32 32#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_constant_val_c::M#4]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 193:34-193:188 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 194:34-194:188 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_constant_val_c.M_4 : Array Std.U32 28#usize :=
   Array.make 28#usize [
@@ -42575,7 +42575,7 @@ def cached.parsed_c.check_constant_val_c.M_4 : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_constant_val_c::M#3]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 191:34-191:265 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 192:34-192:265 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_constant_val_c.M_3 : Array Std.U32 44#usize :=
   Array.make 44#usize [
@@ -42588,7 +42588,7 @@ def cached.parsed_c.check_constant_val_c.M_3 : Array Std.U32 44#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_constant_val_c::M#2]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 189:34-189:172 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 190:34-190:172 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_constant_val_c.M_2 : Array Std.U32 24#usize :=
   Array.make 24#usize [
@@ -42598,7 +42598,7 @@ def cached.parsed_c.check_constant_val_c.M_2 : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_constant_val_c::M#1]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 187:34-187:146 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 188:34-188:146 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_constant_val_c.M_1 : Array Std.U32 19#usize :=
   Array.make 19#usize [
@@ -42608,7 +42608,7 @@ def cached.parsed_c.check_constant_val_c.M_1 : Array Std.U32 19#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_constant_val_c::M]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 185:34-185:155 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 186:34-186:155 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_constant_val_c.M : Array Std.U32 21#usize :=
   Array.make 21#usize [
@@ -42618,7 +42618,7 @@ def cached.parsed_c.check_constant_val_c.M : Array Std.U32 21#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_constant_val_c]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 178:0-202:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 179:0-203:1
     Visibility: public -/
 def cached.parsed_c.check_constant_val_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -42690,7 +42690,7 @@ def cached.parsed_c.check_constant_val_c
           ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::cached::parsed_c::check_axiom_decl_c]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 615:0-672:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 619:0-676:1
     Visibility: public -/
 def cached.parsed_c.check_axiom_decl_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -42905,7 +42905,7 @@ def kernel.trust_axioms.reduce_cert_var
   kernel.expr.fvar 0#u64 e
 
 /-- [con_ron_core::kernel::checker::check_reduce_identity::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1204:43-1204:296 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1216:43-1216:296 -/
 @[global_simps, irreducible]
 def kernel.checker.check_reduce_identity.M : Array Std.U32 48#usize :=
   Array.make 48#usize [
@@ -42918,7 +42918,7 @@ def kernel.checker.check_reduce_identity.M : Array Std.U32 48#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_reduce_identity]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1189:0-1208:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1201:0-1220:1
     Visibility: public -/
 def kernel.checker.check_reduce_identity
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -42944,7 +42944,7 @@ def kernel.checker.check_reduce_identity
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::kernel::checker::check_reduce_pin_pre::M#2]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1176:70-1176:296 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1188:70-1188:296 -/
 @[global_simps, irreducible]
 def kernel.checker.check_reduce_pin_pre.M_2 : Array Std.U32 42#usize :=
   Array.make 42#usize [
@@ -42957,7 +42957,7 @@ def kernel.checker.check_reduce_pin_pre.M_2 : Array Std.U32 42#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_reduce_pin_pre::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1156:42-1156:404 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1168:42-1168:404 -/
 @[global_simps, irreducible]
 def kernel.checker.check_reduce_pin_pre.M_1 : Array Std.U32 71#usize :=
   Array.make 71#usize [
@@ -42973,7 +42973,7 @@ def kernel.checker.check_reduce_pin_pre.M_1 : Array Std.U32 71#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_reduce_pin_pre::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1154:42-1154:280 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1166:42-1166:280 -/
 @[global_simps, irreducible]
 def kernel.checker.check_reduce_pin_pre.M : Array Std.U32 45#usize :=
   Array.make 45#usize [
@@ -42986,7 +42986,7 @@ def kernel.checker.check_reduce_pin_pre.M : Array Std.U32 45#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_reduce_pin_pre]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1146:0-1185:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1158:0-1197:1
     Visibility: public -/
 def kernel.checker.check_reduce_pin_pre
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -43034,7 +43034,7 @@ def kernel.checker.check_reduce_pin_pre
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::checker::check_reduce_pin::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1129:42-1129:280 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1141:42-1141:280 -/
 @[global_simps, irreducible]
 def kernel.checker.check_reduce_pin.M : Array Std.U32 45#usize :=
   Array.make 45#usize [
@@ -43047,7 +43047,7 @@ def kernel.checker.check_reduce_pin.M : Array Std.U32 45#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_reduce_pin]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1120:0-1139:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1132:0-1151:1
     Visibility: public -/
 def kernel.checker.check_reduce_pin
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -43073,7 +43073,7 @@ def kernel.checker.check_reduce_pin
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::cached::parsed_c::check_opaque_val_c_after_annot::M#2]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 472:50-472:181 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 473:50-473:181 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_opaque_val_c_after_annot.M_2
   : Array Std.U32 23#usize :=
@@ -43084,7 +43084,7 @@ def cached.parsed_c.check_opaque_val_c_after_annot.M_2
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_opaque_val_c_after_annot::M#1]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 452:34-452:175 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 453:34-453:175 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_opaque_val_c_after_annot.M_1
   : Array Std.U32 25#usize :=
@@ -43096,7 +43096,7 @@ def cached.parsed_c.check_opaque_val_c_after_annot.M_1
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_opaque_val_c_after_annot::M]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 450:34-450:237 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 451:34-451:237 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_opaque_val_c_after_annot.M
   : Array Std.U32 38#usize :=
@@ -43109,7 +43109,7 @@ def cached.parsed_c.check_opaque_val_c_after_annot.M
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_opaque_val_c_after_annot]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 441:0-478:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 442:0-479:1
     Visibility: public -/
 def cached.parsed_c.check_opaque_val_c_after_annot
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -43165,7 +43165,7 @@ def cached.parsed_c.check_opaque_val_c_after_annot
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::cached::parsed_c::check_opaque_val_c::M#1]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 430:34-430:212 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 431:34-431:212 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_opaque_val_c.M_1 : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -43177,7 +43177,7 @@ def cached.parsed_c.check_opaque_val_c.M_1 : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_opaque_val_c::M]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 428:34-428:192 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 429:34-429:192 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_opaque_val_c.M : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -43188,7 +43188,7 @@ def cached.parsed_c.check_opaque_val_c.M : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_opaque_val_c]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 419:0-437:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 420:0-438:1
     Visibility: public -/
 def cached.parsed_c.check_opaque_val_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -43220,7 +43220,7 @@ def cached.parsed_c.check_opaque_val_c
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::cached::parsed_c::check_opaque_decl_c]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 583:0-606:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 587:0-610:1
     Visibility: public -/
 def cached.parsed_c.check_opaque_decl_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -43248,7 +43248,7 @@ def cached.parsed_c.check_opaque_decl_c
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::cached::parsed_c::check_thm_val_c_checked::M#2]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 407:50-407:187 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 408:50-408:187 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_thm_val_c_checked.M_2 : Array Std.U32 24#usize :=
   Array.make 24#usize [
@@ -43258,7 +43258,7 @@ def cached.parsed_c.check_thm_val_c_checked.M_2 : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_thm_val_c_checked::M#1]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 384:34-384:175 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 385:34-385:175 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_thm_val_c_checked.M_1 : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -43269,7 +43269,7 @@ def cached.parsed_c.check_thm_val_c_checked.M_1 : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_thm_val_c_checked::M]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 382:34-382:237 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 383:34-383:237 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_thm_val_c_checked.M : Array Std.U32 38#usize :=
   Array.make 38#usize [
@@ -43281,7 +43281,7 @@ def cached.parsed_c.check_thm_val_c_checked.M : Array Std.U32 38#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_thm_val_c_checked]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 372:0-413:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 373:0-414:1
     Visibility: public -/
 def cached.parsed_c.check_thm_val_c_checked
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -43335,7 +43335,7 @@ def cached.parsed_c.check_thm_val_c_checked
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::cached::parsed_c::check_thm_val_c_witness::M#1]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 358:34-358:212 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 359:34-359:212 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_thm_val_c_witness.M_1 : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -43347,7 +43347,7 @@ def cached.parsed_c.check_thm_val_c_witness.M_1 : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_thm_val_c_witness::M]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 356:34-356:192 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 357:34-357:192 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_thm_val_c_witness.M : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -43358,7 +43358,7 @@ def cached.parsed_c.check_thm_val_c_witness.M : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_thm_val_c_witness]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 347:0-365:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 348:0-366:1
     Visibility: public -/
 def cached.parsed_c.check_thm_val_c_witness
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -43391,7 +43391,7 @@ def cached.parsed_c.check_thm_val_c_witness
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::cached::parsed_c::check_thm_val_c::M]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 336:50-336:245 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 337:50-337:245 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_thm_val_c.M : Array Std.U32 36#usize :=
   Array.make 36#usize [
@@ -43403,7 +43403,7 @@ def cached.parsed_c.check_thm_val_c.M : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_thm_val_c]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 318:0-342:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 319:0-343:1
     Visibility: public -/
 def cached.parsed_c.check_thm_val_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -43435,7 +43435,7 @@ def cached.parsed_c.check_thm_val_c
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::cached::parsed_c::check_thm_decl_c]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 564:0-575:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 568:0-579:1
     Visibility: public -/
 def cached.parsed_c.check_thm_decl_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -43953,7 +43953,7 @@ def kernel.core_k.subst_const0
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker::nat_eqs_subst_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1361:0-1378:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1382:0-1399:1
     Visibility: public -/
 def kernel.checker.nat_eqs_subst_from
   (n : kernel.name.Name) (value2 : kernel.expr.Expr)
@@ -43976,7 +43976,7 @@ def kernel.checker.nat_eqs_subst_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker::nat_eqs_subst]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1355:0-1357:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1376:0-1378:1
     Visibility: public -/
 def kernel.checker.nat_eqs_subst
   (n : kernel.name.Name) (value2 : kernel.expr.Expr)
@@ -43987,7 +43987,7 @@ def kernel.checker.nat_eqs_subst
     (kernel.expr.Expr × kernel.expr.Expr))
 
 /-- [con_ron_core::kernel::checker::check_structural_nat_pin::M#2]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1344:62-1344:254 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1365:62-1365:254 -/
 @[global_simps, irreducible]
 def kernel.checker.check_structural_nat_pin.M_2 : Array Std.U32 36#usize :=
   Array.make 36#usize [
@@ -43999,7 +43999,7 @@ def kernel.checker.check_structural_nat_pin.M_2 : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_structural_nat_pin::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1330:47-1330:235 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1351:47-1351:235 -/
 @[global_simps, irreducible]
 def kernel.checker.check_structural_nat_pin.M_1 : Array Std.U32 35#usize :=
   Array.make 35#usize [
@@ -44011,7 +44011,7 @@ def kernel.checker.check_structural_nat_pin.M_1 : Array Std.U32 35#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_structural_nat_pin::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1327:42-1327:293 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1348:42-1348:293 -/
 @[global_simps, irreducible]
 def kernel.checker.check_structural_nat_pin.M : Array Std.U32 48#usize :=
   Array.make 48#usize [
@@ -44024,7 +44024,7 @@ def kernel.checker.check_structural_nat_pin.M : Array Std.U32 48#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::certify_nat_eqs_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 334:0-355:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 335:0-356:1
     Visibility: public -/
 def kernel.checker.certify_nat_eqs_from
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -44053,7 +44053,7 @@ def kernel.checker.certify_nat_eqs_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker::certify_nat_eqs]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 323:0-330:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 324:0-331:1
     Visibility: public -/
 def kernel.checker.certify_nat_eqs
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -44065,7 +44065,7 @@ def kernel.checker.certify_nat_eqs
   kernel.checker.certify_nat_eqs_from mode st fe eqs 0#usize
 
 /-- [con_ron_core::kernel::checker::check_structural_nat_pin]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1317:0-1351:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1338:0-1372:1
     Visibility: public -/
 def kernel.checker.check_structural_nat_pin
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -44117,15 +44117,8 @@ def kernel.checker.check_structural_nat_pin
     let ce ← kernel.core_types.not_implemented v
     ok (core.result.Result.Err ce, st)
 
-/-- [con_ron_core::kernel::nat_op_pins::nat_op_pin_sets]:
-    Source: 'crates/con-ron-core/src/kernel/nat_op_pins.rs', lines 65:0-67:1
-    Visibility: public -/
-def kernel.nat_op_pins.nat_op_pin_sets
-  : Result (alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet) := do
-  ok (alloc.vec.Vec.new kernel.nat_op_pins.NatOpPinSet)
-
 /-- [con_ron_core::kernel::checker::check_div_mod_pin::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1085:47-1085:221 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1097:47-1097:221 -/
 @[global_simps, irreducible]
 def kernel.checker.check_div_mod_pin.M_1 : Array Std.U32 32#usize :=
   Array.make 32#usize [
@@ -44136,7 +44129,7 @@ def kernel.checker.check_div_mod_pin.M_1 : Array Std.U32 32#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_div_mod_pin::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1082:42-1082:233 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1094:42-1094:233 -/
 @[global_simps, irreducible]
 def kernel.checker.check_div_mod_pin.M : Array Std.U32 35#usize :=
   Array.make 35#usize [
@@ -44148,7 +44141,7 @@ def kernel.checker.check_div_mod_pin.M : Array Std.U32 35#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_div_mod_pin_loop::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1046:42-1046:329 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1048:42-1048:329 -/
 @[global_simps, irreducible]
 def kernel.checker.check_div_mod_pin_loop.M : Array Std.U32 56#usize :=
   Array.make 56#usize [
@@ -44209,7 +44202,7 @@ def kernel.core_k.subst_const_all
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker::hyps_subst_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 808:0-822:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 809:0-823:1
     Visibility: public -/
 def kernel.checker.hyps_subst_from
   (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
@@ -44231,7 +44224,7 @@ def kernel.checker.hyps_subst_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker::hyps_subst]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 802:0-804:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 803:0-805:1
     Visibility: public -/
 def kernel.checker.hyps_subst
   (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
@@ -44242,7 +44235,7 @@ def kernel.checker.hyps_subst
     kernel.expr.Expr)
 
 /-- [con_ron_core::kernel::checker::hyps_resolve]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 784:0-798:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 785:0-799:1
     Visibility: public -/
 def kernel.checker.hyps_resolve
   (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
@@ -44266,7 +44259,7 @@ def kernel.checker.hyps_resolve
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker::div_mod_cert_guard]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 757:0-779:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 758:0-780:1
     Visibility: public -/
 def kernel.checker.div_mod_cert_guard
   (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
@@ -44301,28 +44294,28 @@ def kernel.checker.div_mod_cert_guard
   else ok false
 
 /-- [con_ron_core::kernel::checker::cert_nat_ty]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 412:0-414:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 413:0-415:1
     Visibility: public -/
 def kernel.checker.cert_nat_ty : Result kernel.expr.Expr := do
   let n ← kernel.basis_names.nat_name
   kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
 
 /-- [con_ron_core::kernel::checker::cert_y]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 424:0-426:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 425:0-427:1
     Visibility: public -/
 def kernel.checker.cert_y : Result kernel.expr.Expr := do
   let e ← kernel.checker.cert_nat_ty
   kernel.expr.fvar 1#u64 e
 
 /-- [con_ron_core::kernel::checker::cert_x]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 418:0-420:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 419:0-421:1
     Visibility: public -/
 def kernel.checker.cert_x : Result kernel.expr.Expr := do
   let e ← kernel.checker.cert_nat_ty
   kernel.expr.fvar 0#u64 e
 
 /-- [con_ron_core::kernel::checker::div_mod_cert_applied]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 733:0-748:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 734:0-749:1
     Visibility: public -/
 def kernel.checker.div_mod_cert_applied
   (proof_s : kernel.expr.Expr) (hyps : alloc.vec.Vec kernel.expr.Expr) :
@@ -44361,7 +44354,7 @@ def kernel.checker.div_mod_cert_applied
     else ok base
 
 /-- [con_ron_core::kernel::checker::check_div_mod_certs_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 847:0-890:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 848:0-891:1
     Visibility: public -/
 def kernel.checker.check_div_mod_certs_from
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -44473,7 +44466,7 @@ def kernel.checker.check_div_mod_certs_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker::check_div_mod_certs]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 832:0-842:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 833:0-843:1
     Visibility: public -/
 def kernel.checker.check_div_mod_certs
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -44487,7 +44480,7 @@ def kernel.checker.check_div_mod_certs
     0#usize
 
 /-- [con_ron_core::kernel::checker::cert_hyp2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 722:0-727:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 723:0-728:1
     Visibility: public -/
 def kernel.checker.cert_hyp2
   (h1 : kernel.expr.Expr) (h2 : kernel.expr.Expr) :
@@ -44497,21 +44490,21 @@ def kernel.checker.cert_hyp2
   alloc.vec.Vec.push hs h2
 
 /-- [con_ron_core::kernel::checker::cert_hyp1]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 714:0-718:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 715:0-719:1
     Visibility: public -/
 def kernel.checker.cert_hyp1
   (h : kernel.expr.Expr) : Result (alloc.vec.Vec kernel.expr.Expr) := do
   alloc.vec.Vec.push (alloc.vec.Vec.new kernel.expr.Expr) h
 
 /-- [con_ron_core::kernel::checker::cert_zero]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 444:0-446:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 445:0-447:1
     Visibility: public -/
 def kernel.checker.cert_zero : Result kernel.expr.Expr := do
   let n ← kernel.basis_names.nat_zero_name
   kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
 
 /-- [con_ron_core::kernel::checker::cert_base_rhs]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 704:0-710:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 705:0-711:1
     Visibility: public -/
 def kernel.checker.cert_base_rhs
   (c : kernel.name.Name) : Result kernel.expr.Expr := do
@@ -44522,7 +44515,7 @@ def kernel.checker.cert_base_rhs
   else kernel.checker.cert_x
 
 /-- [con_ron_core::kernel::checker::cert_sub2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 651:0-653:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 652:0-654:1
     Visibility: public -/
 def kernel.checker.cert_sub2
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -44530,7 +44523,7 @@ def kernel.checker.cert_sub2
   kernel.core_k.nat_eq_ap2 n a b
 
 /-- [con_ron_core::kernel::checker::cert_op2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 501:0-503:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 502:0-504:1
     Visibility: public -/
 def kernel.checker.cert_op2
   (c : kernel.name.Name) (a : kernel.expr.Expr) (b : kernel.expr.Expr) :
@@ -44539,7 +44532,7 @@ def kernel.checker.cert_op2
   kernel.core_k.nat_eq_ap2 c a b
 
 /-- [con_ron_core::kernel::checker::cert_rec_rhs]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 693:0-700:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 694:0-701:1
     Visibility: public -/
 def kernel.checker.cert_rec_rhs
   (c : kernel.name.Name) : Result kernel.expr.Expr := do
@@ -44554,7 +44547,7 @@ def kernel.checker.cert_rec_rhs
   else ok step
 
 /-- [con_ron_core::kernel::checker::cert_div2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 663:0-665:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 664:0-666:1
     Visibility: public -/
 def kernel.checker.cert_div2
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -44562,7 +44555,7 @@ def kernel.checker.cert_div2
   kernel.core_k.nat_eq_ap2 n a b
 
 /-- [con_ron_core::kernel::checker::cert_one]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 432:0-434:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 433:0-435:1
     Visibility: public -/
 def kernel.checker.cert_one : Result kernel.expr.Expr := do
   let n ← kernel.basis_names.nat_zero_name
@@ -44570,14 +44563,14 @@ def kernel.checker.cert_one : Result kernel.expr.Expr := do
   kernel.core_k.nat_eq_s e
 
 /-- [con_ron_core::kernel::checker::cert_two]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 438:0-440:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 439:0-441:1
     Visibility: public -/
 def kernel.checker.cert_two : Result kernel.expr.Expr := do
   let e ← kernel.checker.cert_one
   kernel.core_k.nat_eq_s e
 
 /-- [con_ron_core::kernel::checker::cert_halves]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 682:0-688:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 683:0-689:1
     Visibility: public -/
 def kernel.checker.cert_halves
   (c : kernel.name.Name) : Result kernel.expr.Expr := do
@@ -44589,7 +44582,7 @@ def kernel.checker.cert_halves
   kernel.checker.cert_op2 c e2 e4
 
 /-- [con_ron_core::kernel::checker::cert_mul2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 675:0-677:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 676:0-678:1
     Visibility: public -/
 def kernel.checker.cert_mul2
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -44597,7 +44590,7 @@ def kernel.checker.cert_mul2
   kernel.core_k.nat_eq_ap2 n a b
 
 /-- [con_ron_core::kernel::checker::cert_add2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 669:0-671:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 670:0-672:1
     Visibility: public -/
 def kernel.checker.cert_add2
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -44605,7 +44598,7 @@ def kernel.checker.cert_add2
   kernel.core_k.nat_eq_ap2 n a b
 
 /-- [con_ron_core::kernel::checker::cert_mod2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 657:0-659:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 658:0-660:1
     Visibility: public -/
 def kernel.checker.cert_mod2
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -44613,7 +44606,7 @@ def kernel.checker.cert_mod2
   kernel.core_k.nat_eq_ap2 n a b
 
 /-- [con_ron_core::kernel::checker::cert_eq_n]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 485:0-496:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 486:0-497:1
     Visibility: public -/
 def kernel.checker.cert_eq_n
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -44626,7 +44619,7 @@ def kernel.checker.cert_eq_n
   kernel.expr.app e3 b
 
 /-- [con_ron_core::kernel::checker::cert_eq_b]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 470:0-481:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 471:0-482:1
     Visibility: public -/
 def kernel.checker.cert_eq_b
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -44640,7 +44633,7 @@ def kernel.checker.cert_eq_b
   kernel.expr.app e3 b
 
 /-- [con_ron_core::kernel::checker::cert_ble2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 464:0-466:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 465:0-467:1
     Visibility: public -/
 def kernel.checker.cert_ble2
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -44648,21 +44641,21 @@ def kernel.checker.cert_ble2
   kernel.core_k.nat_eq_ap2 n a b
 
 /-- [con_ron_core::kernel::checker::cert_b_false]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 456:0-458:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 457:0-459:1
     Visibility: public -/
 def kernel.checker.cert_b_false : Result kernel.expr.Expr := do
   let n ← kernel.core_k.bool_false_name
   kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
 
 /-- [con_ron_core::kernel::checker::cert_b_true]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 450:0-452:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 451:0-453:1
     Visibility: public -/
 def kernel.checker.cert_b_true : Result kernel.expr.Expr := do
   let n ← kernel.core_k.bool_true_name
   kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
 
 /-- [con_ron_core::kernel::checker::div_mod_cert_stmts]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 510:0-647:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 511:0-648:1
     Visibility: public -/
 def kernel.checker.div_mod_cert_stmts
   (c : kernel.name.Name) :
@@ -44880,7 +44873,7 @@ def kernel.checker.div_mod_cert_stmts
               alloc.vec.Vec.push out1 (v2, e20)
 
 /-- [con_ron_core::kernel::checker::div_mod_cert_proofs]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 387:0-405:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 388:0-406:1
     Visibility: public -/
 def kernel.checker.div_mod_cert_proofs
   (ps : kernel.nat_op_pins.NatOpPinSet) (c : kernel.name.Name) :
@@ -44923,7 +44916,7 @@ def kernel.checker.div_mod_cert_proofs
               else kernel.env.exprs_copy ps.mod_proofs
 
 /-- [con_ron_core::kernel::checker::div_mod_decl_pin]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 364:0-382:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 365:0-383:1
     Visibility: public -/
 def kernel.checker.div_mod_decl_pin
   (ps : kernel.nat_op_pins.NatOpPinSet) (c : kernel.name.Name) :
@@ -44966,7 +44959,7 @@ def kernel.checker.div_mod_decl_pin
               else kernel.expr.dup ps.mod_pin
 
 /-- [con_ron_core::kernel::checker::check_div_mod_pin_at]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 992:0-1021:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 993:0-1022:1
     Visibility: public -/
 def kernel.checker.check_div_mod_pin_at
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -44993,7 +44986,7 @@ def kernel.checker.check_div_mod_pin_at
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::kernel::checker::div_mod_certs_guard_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 965:0-980:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 966:0-981:1
     Visibility: public -/
 def kernel.checker.div_mod_certs_guard_from
   (stmts : alloc.vec.Vec ((alloc.vec.Vec kernel.expr.Expr) ×
@@ -45025,7 +45018,7 @@ def kernel.checker.div_mod_certs_guard_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker::div_mod_certs_guard]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 951:0-960:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 952:0-961:1
     Visibility: public -/
 def kernel.checker.div_mod_certs_guard
   (ps : kernel.nat_op_pins.NatOpPinSet) (fe : kernel.fenv.FEnv)
@@ -45037,7 +45030,7 @@ def kernel.checker.div_mod_certs_guard
   kernel.checker.div_mod_certs_guard_from v v1 fe c ann_val 0#usize
 
 /-- [con_ron_core::kernel::checker::div_mod_pin_guard]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 932:0-943:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 933:0-944:1
     Visibility: public -/
 def kernel.checker.div_mod_pin_guard
   (ps : kernel.nat_op_pins.NatOpPinSet) (fe : kernel.fenv.FEnv)
@@ -45061,7 +45054,7 @@ def kernel.checker.div_mod_pin_guard
   else ok false
 
 /-- [con_ron_core::kernel::checker::check_div_mod_pin_loop]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1036:0-1061:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1038:0-1063:1
     Visibility: public -/
 def kernel.checker.check_div_mod_pin_loop
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -45123,7 +45116,7 @@ def kernel.env.constant_info_type
     kernel.expr.sort l1
 
 /-- [con_ron_core::kernel::checker::bool_ctor_typed]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 918:0-926:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 919:0-927:1
     Visibility: public -/
 def kernel.checker.bool_ctor_typed
   (fe2 : kernel.fenv.FEnv) (n : kernel.name.Name) : Result Bool := do
@@ -45137,7 +45130,7 @@ def kernel.checker.bool_ctor_typed
     kernel.expr.beq e e1
 
 /-- [con_ron_core::kernel::checker::div_mod_env_guard]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 898:0-910:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 899:0-911:1
     Visibility: public -/
 def kernel.checker.div_mod_env_guard
   (fe2 : kernel.fenv.FEnv) (c : kernel.name.Name) : Result Bool := do
@@ -45163,11 +45156,13 @@ def kernel.checker.div_mod_env_guard
   else ok false
 
 /-- [con_ron_core::kernel::checker::check_div_mod_pin]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1074:0-1105:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1085:0-1117:1
     Visibility: public -/
 def kernel.checker.check_div_mod_pin
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (k_pre : Std.U64) (c : kernel.name.Name) :
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (fe : kernel.fenv.FEnv) (k_pre : Std.U64)
+  (c : kernel.name.Name) :
   Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
@@ -45184,9 +45179,9 @@ def kernel.checker.check_div_mod_pin
     | some t =>
       let (_, value2, _) := t
       let fe_pre ← kernel.fenv.restrict_to fe k_pre
-      let v ← kernel.nat_op_pins.nat_op_pin_sets
       let (r, st1) ←
-        kernel.checker.check_div_mod_pin_loop mode st fe_pre c value2 v 0#usize
+        kernel.checker.check_div_mod_pin_loop mode st fe_pre c value2 pins
+          0#usize
       match r with
       | core.result.Result.Ok _ =>
         let f ← kernel.fenv.restrict_to fe_pre fe.visible_below
@@ -45199,26 +45194,30 @@ def kernel.checker.check_div_mod_pin
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::checker::check_defn_div_mod_pin]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1299:0-1311:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1319:0-1332:1
     Visibility: public -/
 def kernel.checker.check_defn_div_mod_pin
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe2 : kernel.fenv.FEnv) (k_pre : Std.U64) (n : kernel.name.Name) :
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (fe2 : kernel.fenv.FEnv) (k_pre : Std.U64)
+  (n : kernel.name.Name) :
   Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
   let v ← kernel.core_k.nat_div_mod_names
   let b ← kernel.name.contains v n
   if b
-  then kernel.checker.check_div_mod_pin mode st fe2 k_pre n
+  then kernel.checker.check_div_mod_pin mode pins st fe2 k_pre n
   else ok (core.result.Result.Ok fe2, st)
 
 /-- [con_ron_core::kernel::checker::check_defn_pins]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1280:0-1295:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1298:0-1314:1
     Visibility: public -/
 def kernel.checker.check_defn_pins
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe2 : kernel.fenv.FEnv) (k_pre : Std.U64) (n : kernel.name.Name) :
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (fe2 : kernel.fenv.FEnv) (k_pre : Std.U64)
+  (n : kernel.name.Name) :
   Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
@@ -45230,23 +45229,25 @@ def kernel.checker.check_defn_pins
       kernel.checker.check_structural_nat_pin mode st fe2 k_pre n
     match r with
     | core.result.Result.Ok fe3 =>
-      kernel.checker.check_defn_div_mod_pin mode st1 fe3 k_pre n
+      kernel.checker.check_defn_div_mod_pin mode pins st1 fe3 k_pre n
     | core.result.Result.Err _ => ok (r, st1)
-  else kernel.checker.check_defn_div_mod_pin mode st fe2 k_pre n
+  else kernel.checker.check_defn_div_mod_pin mode pins st fe2 k_pre n
 
 /-- [con_ron_core::cached::parsed_c::check_defn_pins_c]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 552:0-560:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 555:0-564:1
     Visibility: public -/
 def cached.parsed_c.check_defn_pins_c
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe2 : kernel.fenv.FEnv) (k_pre : Std.U64) (n : kernel.name.Name) :
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (fe2 : kernel.fenv.FEnv) (k_pre : Std.U64)
+  (n : kernel.name.Name) :
   Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
-  kernel.checker.check_defn_pins mode st fe2 k_pre n
+  kernel.checker.check_defn_pins mode pins st fe2 k_pre n
 
 /-- [con_ron_core::cached::parsed_c::check_defn_val_c_after_annot::M#2]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 306:50-306:202 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 307:50-307:202 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_defn_val_c_after_annot.M_2
   : Array Std.U32 27#usize :=
@@ -45258,7 +45259,7 @@ def cached.parsed_c.check_defn_val_c_after_annot.M_2
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_defn_val_c_after_annot::M#1]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 282:34-282:175 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 283:34-283:175 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_defn_val_c_after_annot.M_1
   : Array Std.U32 25#usize :=
@@ -45270,7 +45271,7 @@ def cached.parsed_c.check_defn_val_c_after_annot.M_1
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_defn_val_c_after_annot::M]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 280:34-280:237 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 281:34-281:237 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_defn_val_c_after_annot.M : Array Std.U32 38#usize :=
   Array.make 38#usize [
@@ -45282,7 +45283,7 @@ def cached.parsed_c.check_defn_val_c_after_annot.M : Array Std.U32 38#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_defn_val_c_after_annot]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 270:0-312:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 271:0-313:1
     Visibility: public -/
 def cached.parsed_c.check_defn_val_c_after_annot
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -45340,7 +45341,7 @@ def cached.parsed_c.check_defn_val_c_after_annot
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::cached::parsed_c::check_defn_val_c::M#1]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 255:34-255:212 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 256:34-256:212 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_defn_val_c.M_1 : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -45352,7 +45353,7 @@ def cached.parsed_c.check_defn_val_c.M_1 : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_defn_val_c::M]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 253:34-253:192 -/
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 254:34-254:192 -/
 @[global_simps, irreducible]
 def cached.parsed_c.check_defn_val_c.M : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -45363,7 +45364,7 @@ def cached.parsed_c.check_defn_val_c.M : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::cached::parsed_c::check_defn_val_c]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 243:0-262:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 244:0-263:1
     Visibility: public -/
 def cached.parsed_c.check_defn_val_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -45397,12 +45398,14 @@ def cached.parsed_c.check_defn_val_c
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::cached::parsed_c::check_defn_decl_c]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 514:0-538:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 516:0-541:1
     Visibility: public -/
 def cached.parsed_c.check_defn_decl_c
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (cv : kernel.env.ConstantVal)
-  (value : kernel.expr.Expr) (hint : kernel.env.ReducibilityHint) :
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (fe : kernel.fenv.FEnv)
+  (cv : kernel.env.ConstantVal) (value : kernel.expr.Expr)
+  (hint : kernel.env.ReducibilityHint) :
   Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
@@ -45418,7 +45421,7 @@ def cached.parsed_c.check_defn_decl_c
         cached.parsed_c.check_defn_val_c mode st1 fe cv_a jty value hint
       match r1 with
       | core.result.Result.Ok fe2 =>
-        cached.parsed_c.check_defn_pins_c mode st2 fe2 fe.visible_below
+        cached.parsed_c.check_defn_pins_c mode pins st2 fe2 fe.visible_below
           cv_a.name
       | core.result.Result.Err _ => ok (r1, st2)
     else
@@ -45430,18 +45433,20 @@ def cached.parsed_c.check_defn_decl_c
           cached.parsed_c.check_defn_val_c mode st1 fe cv_a jty value hint
         match r1 with
         | core.result.Result.Ok fe2 =>
-          cached.parsed_c.check_defn_pins_c mode st2 fe2 fe.visible_below
+          cached.parsed_c.check_defn_pins_c mode pins st2 fe2 fe.visible_below
             cv_a.name
         | core.result.Result.Err _ => ok (r1, st2)
       else cached.parsed_c.check_defn_val_c mode st1 fe cv_a jty value hint
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::cached::parsed_c::check_decl_c]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 484:0-500:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 485:0-502:1
     Visibility: public -/
 def cached.parsed_c.check_decl_c
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (pd : cached.parsed_c.DeclC) :
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (fe : kernel.fenv.FEnv)
+  (pd : cached.parsed_c.DeclC) :
   Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
@@ -45449,7 +45454,7 @@ def cached.parsed_c.check_decl_c
   | cached.parsed_c.DeclC.AxiomDecl cv =>
     cached.parsed_c.check_axiom_decl_c mode st fe cv
   | cached.parsed_c.DeclC.DefnDecl cv value hint =>
-    cached.parsed_c.check_defn_decl_c mode st fe cv value hint
+    cached.parsed_c.check_defn_decl_c mode pins st fe cv value hint
   | cached.parsed_c.DeclC.ThmDecl cv value =>
     cached.parsed_c.check_thm_decl_c mode st fe cv value
   | cached.parsed_c.DeclC.OpaqueDecl cv value =>
@@ -45461,35 +45466,39 @@ def cached.parsed_c.check_decl_c
     cached.parsed_c.check_ind_decl_c mode st fe block n_p
 
 /-- [con_ron_core::cached::parsed_c::check_decl_step_c]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 727:0-735:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 731:0-740:1
     Visibility: public -/
 def cached.parsed_c.check_decl_step_c
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (pd : cached.parsed_c.DeclC) :
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (fe : kernel.fenv.FEnv)
+  (pd : cached.parsed_c.DeclC) :
   Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
   let st1 ← cached.state_c.flush_c st
-  cached.parsed_c.check_decl_c mode st1 fe pd
+  cached.parsed_c.check_decl_c mode pins st1 fe pd
 
 /-- [con_ron_core::cached::installed::annot_step_other_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 494:0-505:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 499:0-511:1
     Visibility: public -/
 def cached.installed.annot_step_other_c
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (pend : alloc.vec.Vec cached.parsed_c.PendingCheck)
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (fe : kernel.fenv.FEnv)
+  (pend : alloc.vec.Vec cached.parsed_c.PendingCheck)
   (pd : cached.parsed_c.DeclC) :
   Result ((core.result.Result (kernel.fenv.FEnv × (alloc.vec.Vec
     cached.parsed_c.PendingCheck)) kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
-  let (r, st1) ← cached.parsed_c.check_decl_step_c mode st fe pd
+  let (r, st1) ← cached.parsed_c.check_decl_step_c mode pins st fe pd
   match r with
   | core.result.Result.Ok fe2 => ok (core.result.Result.Ok (fe2, pend), st1)
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::cached::installed::annot_step_opaque_c_push]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 468:0-488:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 473:0-493:1
     Visibility: public -/
 def cached.installed.annot_step_opaque_c_push
   (i : Std.U64) (fe : kernel.fenv.FEnv)
@@ -45509,11 +45518,13 @@ def cached.installed.annot_step_opaque_c_push
   ok (fe2, pend1)
 
 /-- [con_ron_core::cached::installed::annot_step_opaque_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 446:0-464:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 450:0-469:1
     Visibility: public -/
 def cached.installed.annot_step_opaque_c
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState) (i : Std.U64)
-  (fe : kernel.fenv.FEnv) (pend : alloc.vec.Vec cached.parsed_c.PendingCheck)
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (i : Std.U64) (fe : kernel.fenv.FEnv)
+  (pend : alloc.vec.Vec cached.parsed_c.PendingCheck)
   (pd : cached.parsed_c.DeclC) (cv : kernel.env.ConstantVal)
   (value : kernel.expr.Expr) :
   Result ((core.result.Result (kernel.fenv.FEnv × (alloc.vec.Vec
@@ -45523,7 +45534,7 @@ def cached.installed.annot_step_opaque_c
   let v ← kernel.trust_axioms.reduce_op_names
   let b ← kernel.name.contains v cv.name
   if b
-  then cached.installed.annot_step_other_c mode st fe pend pd
+  then cached.installed.annot_step_other_c mode pins st fe pend pd
   else
     let (r, st1) ← cached.installed.annot_value_c mode st fe cv value false
     match r with
@@ -45534,7 +45545,7 @@ def cached.installed.annot_step_opaque_c
     | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::cached::installed::annot_step_thm_c_push]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 413:0-439:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 417:0-443:1
     Visibility: public -/
 def cached.installed.annot_step_thm_c_push
   (st : cached.state_c.CState) (i : Std.U64) (fe : kernel.fenv.FEnv)
@@ -45560,7 +45571,7 @@ def cached.installed.annot_step_thm_c_push
   ok ((fe2, pend1), st1)
 
 /-- [con_ron_core::cached::installed::annot_step_thm_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 393:0-407:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 397:0-411:1
     Visibility: public -/
 def cached.installed.annot_step_thm_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState) (i : Std.U64)
@@ -45581,7 +45592,7 @@ def cached.installed.annot_step_thm_c
   | core.result.Result.Err err => ok (core.result.Result.Err err, st2)
 
 /-- [con_ron_core::cached::installed::annot_step_defn_c_push]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 356:0-384:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 360:0-388:1
     Visibility: public -/
 def cached.installed.annot_step_defn_c_push
   (i : Std.U64) (fe : kernel.fenv.FEnv)
@@ -45604,11 +45615,13 @@ def cached.installed.annot_step_defn_c_push
   ok (fe2, pend1)
 
 /-- [con_ron_core::cached::installed::annot_step_defn_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 328:0-349:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 331:0-353:1
     Visibility: public -/
 def cached.installed.annot_step_defn_c
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState) (i : Std.U64)
-  (fe : kernel.fenv.FEnv) (pend : alloc.vec.Vec cached.parsed_c.PendingCheck)
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (i : Std.U64) (fe : kernel.fenv.FEnv)
+  (pend : alloc.vec.Vec cached.parsed_c.PendingCheck)
   (pd : cached.parsed_c.DeclC) (cv : kernel.env.ConstantVal)
   (value : kernel.expr.Expr) (hint : kernel.env.ReducibilityHint) :
   Result ((core.result.Result (kernel.fenv.FEnv × (alloc.vec.Vec
@@ -45618,12 +45631,12 @@ def cached.installed.annot_step_defn_c
   let v ← kernel.core_k.nat_op_names
   let b ← kernel.name.contains v cv.name
   if b
-  then cached.installed.annot_step_other_c mode st fe pend pd
+  then cached.installed.annot_step_other_c mode pins st fe pend pd
   else
     let v1 ← kernel.core_k.nat_div_mod_names
     let b1 ← kernel.name.contains v1 cv.name
     if b1
-    then cached.installed.annot_step_other_c mode st fe pend pd
+    then cached.installed.annot_step_other_c mode pins st fe pend pd
     else
       let (r, st1) ← cached.installed.annot_value_c mode st fe cv value true
       match r with
@@ -45634,11 +45647,13 @@ def cached.installed.annot_step_defn_c
       | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::cached::installed::annot_step_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 304:0-322:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 306:0-325:1
     Visibility: public -/
 def cached.installed.annot_step_c
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState) (i : Std.U64)
-  (fe : kernel.fenv.FEnv) (pend : alloc.vec.Vec cached.parsed_c.PendingCheck)
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (i : Std.U64) (fe : kernel.fenv.FEnv)
+  (pend : alloc.vec.Vec cached.parsed_c.PendingCheck)
   (pd : cached.parsed_c.DeclC) :
   Result ((core.result.Result (kernel.fenv.FEnv × (alloc.vec.Vec
     cached.parsed_c.PendingCheck)) kernel.core_types.CheckError) ×
@@ -45646,23 +45661,25 @@ def cached.installed.annot_step_c
   := do
   match pd with
   | cached.parsed_c.DeclC.AxiomDecl _ =>
-    cached.installed.annot_step_other_c mode st fe pend pd
+    cached.installed.annot_step_other_c mode pins st fe pend pd
   | cached.parsed_c.DeclC.DefnDecl cv value hint =>
-    cached.installed.annot_step_defn_c mode st i fe pend pd cv value hint
+    cached.installed.annot_step_defn_c mode pins st i fe pend pd cv value hint
   | cached.parsed_c.DeclC.ThmDecl cv value =>
     cached.installed.annot_step_thm_c mode st i fe pend cv value
   | cached.parsed_c.DeclC.OpaqueDecl cv value =>
-    cached.installed.annot_step_opaque_c mode st i fe pend pd cv value
+    cached.installed.annot_step_opaque_c mode pins st i fe pend pd cv value
   | cached.parsed_c.DeclC.BasisDecl _ =>
-    cached.installed.annot_step_other_c mode st fe pend pd
+    cached.installed.annot_step_other_c mode pins st fe pend pd
   | cached.parsed_c.DeclC.IndDecl _ _ =>
-    cached.installed.annot_step_other_c mode st fe pend pd
+    cached.installed.annot_step_other_c mode pins st fe pend pd
 
 /-- [con_ron_core::cached::installed::annot_decl_step]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 515:0-526:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 521:0-533:1
     Visibility: public -/
 def cached.installed.annot_decl_step
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState)
   (p : (Std.U64 × kernel.fenv.FEnv × (alloc.vec.Vec
   cached.parsed_c.PendingCheck))) (pd : cached.parsed_c.DeclC) :
   Result ((core.result.Result (Std.U64 × kernel.fenv.FEnv × (alloc.vec.Vec
@@ -45670,7 +45687,7 @@ def cached.installed.annot_decl_step
     × cached.state_c.CState)
   := do
   let (i, f, v) := p
-  let (r, st1) ← cached.installed.annot_step_c mode st i f v pd
+  let (r, st1) ← cached.installed.annot_step_c mode pins st i f v pd
   match r with
   | core.result.Result.Ok q =>
     let i1 ← i + 1#u64
@@ -45689,7 +45706,7 @@ def kernel.checker_split.is_thm
   | cached.parsed_c.ValueKind.Opaque => ok false
 
 /-- [con_ron_core::cached::installed::check_pending_tail::M]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 623:50-623:204 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 630:50-630:204 -/
 @[global_simps, irreducible]
 def cached.installed.check_pending_tail.M : Array Std.U32 28#usize :=
   Array.make 28#usize [
@@ -45700,7 +45717,7 @@ def cached.installed.check_pending_tail.M : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::check_pending_tail]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 606:0-629:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 613:0-636:1
     Visibility: public -/
 def cached.installed.check_pending_tail
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -45729,7 +45746,7 @@ def cached.installed.check_pending_tail
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::cached::installed::check_pending_value::M]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 592:46-592:241 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 599:46-599:241 -/
 @[global_simps, irreducible]
 def cached.installed.check_pending_value.M : Array Std.U32 36#usize :=
   Array.make 36#usize [
@@ -45741,7 +45758,7 @@ def cached.installed.check_pending_value.M : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::check_pending_value]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 566:0-599:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 573:0-606:1
     Visibility: public -/
 def cached.installed.check_pending_value
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -45778,7 +45795,7 @@ def cached.installed.check_pending_value
     cached.installed.check_pending_tail mode st fe_v k pc e
 
 /-- [con_ron_core::cached::installed::check_pending]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 542:0-558:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 549:0-565:1
     Visibility: public -/
 def cached.installed.check_pending
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -45839,7 +45856,7 @@ def cached.state_c.cstate_new : Result cached.state_c.CState := do
     }
 
 /-- [con_ron_core::cached::installed::check_pending_list_from]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 651:0-666:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 658:0-673:1
     Visibility: public -/
 def cached.installed.check_pending_list_from
   (mode : kernel.env.CheckMode) (fe : kernel.fenv.FEnv)
@@ -45864,7 +45881,7 @@ def cached.installed.check_pending_list_from
 partial_fixpoint
 
 /-- [con_ron_core::cached::installed::check_pending_list]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 637:0-643:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 644:0-650:1
     Visibility: public -/
 def cached.installed.check_pending_list
   (mode : kernel.env.CheckMode) (fe : kernel.fenv.FEnv)
@@ -45888,10 +45905,12 @@ def kernel.env.empty : Result kernel.env.Env := do
   ok { consts := (alloc.vec.Vec.new kernel.env.ConstantInfo) }
 
 /-- [con_ron_core::cached::installed::annot_decl_fold_from]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 720:0-735:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 728:0-744:1
     Visibility: public -/
 def cached.installed.annot_decl_fold_from
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState)
   (p : (Std.U64 × kernel.fenv.FEnv × (alloc.vec.Vec
   cached.parsed_c.PendingCheck))) (ds : alloc.vec.Vec cached.parsed_c.DeclC)
   (i : Std.Usize) :
@@ -45906,16 +45925,16 @@ def cached.installed.annot_decl_fold_from
     let dc ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
         cached.parsed_c.DeclC) ds i
-    let (r, st1) ← cached.installed.annot_decl_step mode st p dc
+    let (r, st1) ← cached.installed.annot_decl_step mode pins st p dc
     match r with
     | core.result.Result.Ok q =>
       let i2 ← i + 1#usize
-      cached.installed.annot_decl_fold_from mode st1 q ds i2
+      cached.installed.annot_decl_fold_from mode pins st1 q ds i2
     | core.result.Result.Err _ => ok (r, st1)
 partial_fixpoint
 
 /-- [con_ron_core::cached::installed::check_decls_phase_b]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 702:0-711:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 710:0-719:1
     Visibility: public -/
 def cached.installed.check_decls_phase_b
   (mode : kernel.env.CheckMode) (fe : kernel.fenv.FEnv)
@@ -45929,7 +45948,7 @@ def cached.installed.check_decls_phase_b
   | core.result.Result.Err err => ok (core.result.Result.Err err)
 
 /-- [con_ron_core::cached::installed::check_decls]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 680:0-697:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 688:0-705:1
     Visibility: public -/
 def cached.installed.check_decls
   (mode : kernel.env.CheckMode)
@@ -45942,8 +45961,8 @@ def cached.installed.check_decls
   let e ← kernel.env.empty
   let f ← kernel.fenv.mk_fenv e
   let (r, _) ←
-    cached.installed.annot_decl_fold_from mode st (0#u64, f, alloc.vec.Vec.new
-      cached.parsed_c.PendingCheck) ds 0#usize
+    cached.installed.annot_decl_fold_from mode pins st (0#u64, f,
+      alloc.vec.Vec.new cached.parsed_c.PendingCheck) ds 0#usize
   match r with
   | core.result.Result.Ok p =>
     let (_, f1, v) := p
@@ -45951,7 +45970,7 @@ def cached.installed.check_decls
   | core.result.Result.Err err => ok (core.result.Result.Err err)
 
 /-- [con_ron_core::cached::parsed_c::value_kind_dup]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 113:0-119:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 114:0-120:1
     Visibility: public -/
 def cached.parsed_c.value_kind_dup
   (k : cached.parsed_c.ValueKind) : Result cached.parsed_c.ValueKind := do
@@ -46086,7 +46105,7 @@ def kernel.basis_names.and_intro_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::checker::check_defn_val_after_annot::M#2]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 156:50-156:202 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 157:50-157:202 -/
 @[global_simps, irreducible]
 def kernel.checker.check_defn_val_after_annot.M_2 : Array Std.U32 27#usize :=
   Array.make 27#usize [
@@ -46097,7 +46116,7 @@ def kernel.checker.check_defn_val_after_annot.M_2 : Array Std.U32 27#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_defn_val_after_annot::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 139:34-139:175 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 140:34-140:175 -/
 @[global_simps, irreducible]
 def kernel.checker.check_defn_val_after_annot.M_1 : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -46108,7 +46127,7 @@ def kernel.checker.check_defn_val_after_annot.M_1 : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_defn_val_after_annot::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 137:34-137:237 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 138:34-138:237 -/
 @[global_simps, irreducible]
 def kernel.checker.check_defn_val_after_annot.M : Array Std.U32 38#usize :=
   Array.make 38#usize [
@@ -46120,7 +46139,7 @@ def kernel.checker.check_defn_val_after_annot.M : Array Std.U32 38#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_defn_val_after_annot]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 128:0-162:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 129:0-163:1
     Visibility: public -/
 def kernel.checker.check_defn_val_after_annot
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -46174,7 +46193,7 @@ def kernel.checker.check_defn_val_after_annot
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::checker::check_defn_val::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 115:34-115:212 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 116:34-116:212 -/
 @[global_simps, irreducible]
 def kernel.checker.check_defn_val.M_1 : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -46186,7 +46205,7 @@ def kernel.checker.check_defn_val.M_1 : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_defn_val::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 113:34-113:192 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 114:34-114:192 -/
 @[global_simps, irreducible]
 def kernel.checker.check_defn_val.M : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -46197,7 +46216,7 @@ def kernel.checker.check_defn_val.M : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_defn_val]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 104:0-122:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 105:0-123:1
     Visibility: public -/
 def kernel.checker.check_defn_val
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -46229,7 +46248,7 @@ def kernel.checker.check_defn_val
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::checker::check_thm_val_checked::M#2]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 249:50-249:187 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 250:50-250:187 -/
 @[global_simps, irreducible]
 def kernel.checker.check_thm_val_checked.M_2 : Array Std.U32 24#usize :=
   Array.make 24#usize [
@@ -46239,7 +46258,7 @@ def kernel.checker.check_thm_val_checked.M_2 : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_thm_val_checked::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 233:34-233:175 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 234:34-234:175 -/
 @[global_simps, irreducible]
 def kernel.checker.check_thm_val_checked.M_1 : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -46250,7 +46269,7 @@ def kernel.checker.check_thm_val_checked.M_1 : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_thm_val_checked::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 231:34-231:237 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 232:34-232:237 -/
 @[global_simps, irreducible]
 def kernel.checker.check_thm_val_checked.M : Array Std.U32 38#usize :=
   Array.make 38#usize [
@@ -46262,7 +46281,7 @@ def kernel.checker.check_thm_val_checked.M : Array Std.U32 38#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_thm_val_checked]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 222:0-255:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 223:0-256:1
     Visibility: public -/
 def kernel.checker.check_thm_val_checked
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -46311,7 +46330,7 @@ def kernel.checker.check_thm_val_checked
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::checker::check_thm_val_witness::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 209:34-209:212 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 210:34-210:212 -/
 @[global_simps, irreducible]
 def kernel.checker.check_thm_val_witness.M_1 : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -46323,7 +46342,7 @@ def kernel.checker.check_thm_val_witness.M_1 : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_thm_val_witness::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 207:34-207:192 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 208:34-208:192 -/
 @[global_simps, irreducible]
 def kernel.checker.check_thm_val_witness.M : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -46334,7 +46353,7 @@ def kernel.checker.check_thm_val_witness.M : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_thm_val_witness]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 199:0-216:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 200:0-217:1
     Visibility: public -/
 def kernel.checker.check_thm_val_witness
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -46366,7 +46385,7 @@ def kernel.checker.check_thm_val_witness
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::checker::check_thm_val::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 188:50-188:245 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 189:50-189:245 -/
 @[global_simps, irreducible]
 def kernel.checker.check_thm_val.M : Array Std.U32 36#usize :=
   Array.make 36#usize [
@@ -46378,7 +46397,7 @@ def kernel.checker.check_thm_val.M : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_thm_val]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 171:0-194:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 172:0-195:1
     Visibility: public -/
 def kernel.checker.check_thm_val
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -46411,7 +46430,7 @@ def kernel.checker.check_thm_val
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::kernel::checker::check_opaque_val_after_annot::M#2]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 308:50-308:181 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 309:50-309:181 -/
 @[global_simps, irreducible]
 def kernel.checker.check_opaque_val_after_annot.M_2 : Array Std.U32 23#usize :=
   Array.make 23#usize [
@@ -46421,7 +46440,7 @@ def kernel.checker.check_opaque_val_after_annot.M_2 : Array Std.U32 23#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_opaque_val_after_annot::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 295:34-295:175 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 296:34-296:175 -/
 @[global_simps, irreducible]
 def kernel.checker.check_opaque_val_after_annot.M_1 : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -46432,7 +46451,7 @@ def kernel.checker.check_opaque_val_after_annot.M_1 : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_opaque_val_after_annot::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 293:34-293:237 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 294:34-294:237 -/
 @[global_simps, irreducible]
 def kernel.checker.check_opaque_val_after_annot.M : Array Std.U32 38#usize :=
   Array.make 38#usize [
@@ -46444,7 +46463,7 @@ def kernel.checker.check_opaque_val_after_annot.M : Array Std.U32 38#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_opaque_val_after_annot]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 285:0-314:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 286:0-315:1
     Visibility: public -/
 def kernel.checker.check_opaque_val_after_annot
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -46497,7 +46516,7 @@ def kernel.checker.check_opaque_val_after_annot
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::checker::check_opaque_val::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 273:34-273:212 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 274:34-274:212 -/
 @[global_simps, irreducible]
 def kernel.checker.check_opaque_val.M_1 : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -46509,7 +46528,7 @@ def kernel.checker.check_opaque_val.M_1 : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_opaque_val::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 271:34-271:192 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 272:34-272:192 -/
 @[global_simps, irreducible]
 def kernel.checker.check_opaque_val.M : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -46520,7 +46539,7 @@ def kernel.checker.check_opaque_val.M : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_opaque_val]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 263:0-280:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 264:0-281:1
     Visibility: public -/
 def kernel.checker.check_opaque_val
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -46552,7 +46571,7 @@ def kernel.checker.check_opaque_val
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::checker::check_ind_decl::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1532:34-1532:193 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1553:34-1553:193 -/
 @[global_simps, irreducible]
 def kernel.checker.check_ind_decl.M_1 : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -46563,7 +46582,7 @@ def kernel.checker.check_ind_decl.M_1 : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_ind_decl::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1530:42-1530:320 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1551:42-1551:320 -/
 @[global_simps, irreducible]
 def kernel.checker.check_ind_decl.M : Array Std.U32 54#usize :=
   Array.make 54#usize [
@@ -46577,7 +46596,7 @@ def kernel.checker.check_ind_decl.M : Array Std.U32 54#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_ind_decl]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1519:0-1534:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1540:0-1555:1
     Visibility: public -/
 def kernel.checker.check_ind_decl
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -46600,7 +46619,7 @@ def kernel.checker.check_ind_decl
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::checker::check_axiom_decl::M#3]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1462:50-1462:157 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1483:50-1483:157 -/
 @[global_simps, irreducible]
 def kernel.checker.check_axiom_decl.M_3 : Array Std.U32 18#usize :=
   Array.make 18#usize [
@@ -46610,7 +46629,7 @@ def kernel.checker.check_axiom_decl.M_3 : Array Std.U32 18#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_axiom_decl::M#2]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1458:50-1458:208 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1479:50-1479:208 -/
 @[global_simps, irreducible]
 def kernel.checker.check_axiom_decl.M_2 : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -46621,7 +46640,7 @@ def kernel.checker.check_axiom_decl.M_2 : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_axiom_decl::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1453:54-1453:290 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1474:54-1474:290 -/
 @[global_simps, irreducible]
 def kernel.checker.check_axiom_decl.M_1 : Array Std.U32 44#usize :=
   Array.make 44#usize [
@@ -46634,7 +46653,7 @@ def kernel.checker.check_axiom_decl.M_1 : Array Std.U32 44#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_axiom_decl::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1445:54-1445:249 -/
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1466:54-1466:249 -/
 @[global_simps, irreducible]
 def kernel.checker.check_axiom_decl.M : Array Std.U32 36#usize :=
   Array.make 36#usize [
@@ -46646,7 +46665,7 @@ def kernel.checker.check_axiom_decl.M : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker::check_constant_val_borrowed]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1263:0-1270:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1279:0-1286:1
     Visibility: public -/
 def kernel.checker.check_constant_val_borrowed
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -46657,7 +46676,7 @@ def kernel.checker.check_constant_val_borrowed
   kernel.checker_base.check_constant_val mode st fe cv
 
 /-- [con_ron_core::kernel::checker::check_axiom_decl]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1430:0-1466:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1451:0-1487:1
     Visibility: public -/
 def kernel.checker.check_axiom_decl
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -46756,7 +46775,7 @@ def kernel.checker.check_axiom_decl
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::kernel::checker::check_opaque_decl]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1398:0-1419:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1419:0-1440:1
     Visibility: public -/
 def kernel.checker.check_opaque_decl
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -46782,7 +46801,7 @@ def kernel.checker.check_opaque_decl
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::kernel::checker::check_thm_decl]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1382:0-1393:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1403:0-1414:1
     Visibility: public -/
 def kernel.checker.check_thm_decl
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -46798,12 +46817,14 @@ def kernel.checker.check_thm_decl
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::kernel::checker::check_defn_decl]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1242:0-1258:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1257:0-1274:1
     Visibility: public -/
 def kernel.checker.check_defn_decl
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (cv : kernel.env.ConstantVal)
-  (value : kernel.expr.Expr) (hint : kernel.env.ReducibilityHint) :
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (fe : kernel.fenv.FEnv)
+  (cv : kernel.env.ConstantVal) (value : kernel.expr.Expr)
+  (hint : kernel.env.ReducibilityHint) :
   Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
@@ -46813,16 +46834,19 @@ def kernel.checker.check_defn_decl
     let (r1, st2) ← kernel.checker.check_defn_val mode st1 fe cv_a value hint
     match r1 with
     | core.result.Result.Ok fe2 =>
-      kernel.checker.check_defn_pins mode st2 fe2 fe.visible_below cv_a.name
+      kernel.checker.check_defn_pins mode pins st2 fe2 fe.visible_below
+        cv_a.name
     | core.result.Result.Err _ => ok (r1, st2)
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::kernel::checker::check_decl]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1221:0-1237:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1234:0-1251:1
     Visibility: public -/
 def kernel.checker.check_decl
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (d : kernel.env.Declaration) :
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (fe : kernel.fenv.FEnv)
+  (d : kernel.env.Declaration) :
   Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
@@ -46830,7 +46854,7 @@ def kernel.checker.check_decl
   | kernel.env.Declaration.AxiomDecl cv =>
     kernel.checker.check_axiom_decl mode st fe cv
   | kernel.env.Declaration.DefnDecl cv value hint =>
-    kernel.checker.check_defn_decl mode st fe cv value hint
+    kernel.checker.check_defn_decl mode pins st fe cv value hint
   | kernel.env.Declaration.ThmDecl cv value =>
     kernel.checker.check_thm_decl mode st fe cv value
   | kernel.env.Declaration.OpaqueDecl cv value =>
@@ -46842,12 +46866,13 @@ def kernel.checker.check_decl
     kernel.checker.check_ind_decl mode st fe block n_p
 
 /-- [con_ron_core::kernel::checker::check_decls_pure_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1550:0-1565:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1572:0-1588:1
     Visibility: public -/
 def kernel.checker.check_decls_pure_from
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (ds : alloc.vec.Vec kernel.env.Declaration)
-  (i : Std.Usize) :
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (fe : kernel.fenv.FEnv)
+  (ds : alloc.vec.Vec kernel.env.Declaration) (i : Std.Usize) :
   Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
@@ -46858,26 +46883,27 @@ def kernel.checker.check_decls_pure_from
     let d ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
         kernel.env.Declaration) ds i
-    let (r, st1) ← kernel.checker.check_decl mode st fe d
+    let (r, st1) ← kernel.checker.check_decl mode pins st fe d
     match r with
     | core.result.Result.Ok fe2 =>
       let i2 ← i + 1#usize
-      kernel.checker.check_decls_pure_from mode st1 fe2 ds i2
+      kernel.checker.check_decls_pure_from mode pins st1 fe2 ds i2
     | core.result.Result.Err _ => ok (r, st1)
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker::check_decls_pure]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1540:0-1546:1
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1561:0-1568:1
     Visibility: public -/
 def kernel.checker.check_decls_pure
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (ds : alloc.vec.Vec kernel.env.Declaration) :
+  (mode : kernel.env.CheckMode)
+  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
+  (st : cached.state_c.CState) (ds : alloc.vec.Vec kernel.env.Declaration) :
   Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
   let e ← kernel.env.empty
   let f ← kernel.fenv.mk_fenv e
-  kernel.checker.check_decls_pure_from mode st f ds 0#usize
+  kernel.checker.check_decls_pure_from mode pins st f ds 0#usize
 
 /-- [con_ron_core::kernel::checker_base::unwrap_or]:
     Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 461:0-466:1

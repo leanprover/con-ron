@@ -491,8 +491,30 @@ structure kernel.expr_ops.ExprNatKey where
   e : kernel.expr.Expr
   d : Std.U64
 
+/-- [con_ron_core::kernel::nat_op_pins::NatOpPinSet]
+    Source: 'crates/con-ron-core/src/kernel/nat_op_pins.rs', lines 46:0-64:1
+    Visibility: public -/
+structure kernel.nat_op_pins.NatOpPinSet where
+  toolchain : alloc.vec.Vec Std.U32
+  div_pin : kernel.expr.Expr
+  mod_pin : kernel.expr.Expr
+  gcd_pin : kernel.expr.Expr
+  land_pin : kernel.expr.Expr
+  lor_pin : kernel.expr.Expr
+  xor_pin : kernel.expr.Expr
+  shift_left_pin : kernel.expr.Expr
+  shift_right_pin : kernel.expr.Expr
+  div_proofs : alloc.vec.Vec kernel.expr.Expr
+  mod_proofs : alloc.vec.Vec kernel.expr.Expr
+  gcd_proofs : alloc.vec.Vec kernel.expr.Expr
+  land_proofs : alloc.vec.Vec kernel.expr.Expr
+  lor_proofs : alloc.vec.Vec kernel.expr.Expr
+  xor_proofs : alloc.vec.Vec kernel.expr.Expr
+  shift_left_proofs : alloc.vec.Vec kernel.expr.Expr
+  shift_right_proofs : alloc.vec.Vec kernel.expr.Expr
+
 /-- [con_ron_core::cached::parsed_c::ValueKind]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 105:0-109:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 106:0-110:1
     Visibility: public -/
 @[discriminant isize]
 inductive cached.parsed_c.ValueKind where
@@ -501,7 +523,7 @@ inductive cached.parsed_c.ValueKind where
 | Opaque : cached.parsed_c.ValueKind
 
 /-- [con_ron_core::cached::parsed_c::ValueGroup]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 127:0-131:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 128:0-132:1
     Visibility: public -/
 structure cached.parsed_c.ValueGroup where
   kind : cached.parsed_c.ValueKind
@@ -509,7 +531,7 @@ structure cached.parsed_c.ValueGroup where
   jv : kernel.expr.Expr
 
 /-- [con_ron_core::cached::parsed_c::PendingCheck]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 141:0-145:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 142:0-146:1
     Visibility: public -/
 structure cached.parsed_c.PendingCheck where
   vg : cached.parsed_c.ValueGroup
@@ -529,7 +551,7 @@ inductive kernel.env.BasisKind where
 | QuotK : kernel.env.BasisKind
 
 /-- [con_ron_core::cached::parsed_c::DeclC]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 91:0-98:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 92:0-99:1
     Visibility: public -/
 @[discriminant isize]
 inductive cached.parsed_c.DeclC where
@@ -658,28 +680,6 @@ structure kernel.inductives.modeled.ProjBack where
     Visibility: public -/
 structure kernel.inductives.modeled.BlockRename where
   block_names : alloc.vec.Vec kernel.name.Name
-
-/-- [con_ron_core::kernel::nat_op_pins::NatOpPinSet]
-    Source: 'crates/con-ron-core/src/kernel/nat_op_pins.rs', lines 38:0-56:1
-    Visibility: public -/
-structure kernel.nat_op_pins.NatOpPinSet where
-  toolchain : alloc.vec.Vec Std.U32
-  div_pin : kernel.expr.Expr
-  mod_pin : kernel.expr.Expr
-  gcd_pin : kernel.expr.Expr
-  land_pin : kernel.expr.Expr
-  lor_pin : kernel.expr.Expr
-  xor_pin : kernel.expr.Expr
-  shift_left_pin : kernel.expr.Expr
-  shift_right_pin : kernel.expr.Expr
-  div_proofs : alloc.vec.Vec kernel.expr.Expr
-  mod_proofs : alloc.vec.Vec kernel.expr.Expr
-  gcd_proofs : alloc.vec.Vec kernel.expr.Expr
-  land_proofs : alloc.vec.Vec kernel.expr.Expr
-  lor_proofs : alloc.vec.Vec kernel.expr.Expr
-  xor_proofs : alloc.vec.Vec kernel.expr.Expr
-  shift_left_proofs : alloc.vec.Vec kernel.expr.Expr
-  shift_right_proofs : alloc.vec.Vec kernel.expr.Expr
 
 /-- [con_ron_core::kernel::env::Declaration]
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 874:0-881:1

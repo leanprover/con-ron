@@ -48,11 +48,13 @@ use con_ron_core::kernel::level::LevelKind;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::name::NameKind;
+use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_core::kernel::prop_when;
 use con_ron_core::kernel::prop_when::PropWhen;
 
 use crate::natdec;
 use crate::HEADER;
+use crate::PINS_HEADER;
 
 // ---------------------------------------------------------------------------
 // Scalars
@@ -169,6 +171,7 @@ struct Writer {
     n_p: usize,
     n_i: usize,
     n_d: usize,
+    n_s: usize,
 }
 
 impl Writer {
@@ -185,6 +188,7 @@ impl Writer {
             n_p: 0,
             n_i: 0,
             n_d: 0,
+            n_s: 0,
         }
     }
 
@@ -524,6 +528,59 @@ impl Writer {
         self.emit(&format!("D {}", body));
         self.n_d += 1;
     }
+
+    /// An `S` record (FORMAT.md §7) has no id, for `D`'s reason.  The eight
+    /// pins are emitted first and the eight proof lists after, in the field
+    /// order of `NatOpPinSet`, which is what `Write.lean`'s `wPinSet` does.
+    fn w_pin_set(&mut self, s: &NatOpPinSet) {
+        let dv = self.w_expr(&s.div_pin);
+        let md = self.w_expr(&s.mod_pin);
+        let gc = self.w_expr(&s.gcd_pin);
+        let la = self.w_expr(&s.land_pin);
+        let lo = self.w_expr(&s.lor_pin);
+        let xo = self.w_expr(&s.xor_pin);
+        let sl = self.w_expr(&s.shift_left_pin);
+        let sr = self.w_expr(&s.shift_right_pin);
+        let dvp = self.w_expr_list(&s.div_proofs);
+        let mdp = self.w_expr_list(&s.mod_proofs);
+        let gcp = self.w_expr_list(&s.gcd_proofs);
+        let lap = self.w_expr_list(&s.land_proofs);
+        let lop = self.w_expr_list(&s.lor_proofs);
+        let xop = self.w_expr_list(&s.xor_proofs);
+        let slp = self.w_expr_list(&s.shift_left_proofs);
+        let srp = self.w_expr_list(&s.shift_right_proofs);
+        let line = format!(
+            "S {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}",
+            str_field(&s.toolchain),
+            dv,
+            md,
+            gc,
+            la,
+            lo,
+            xo,
+            sl,
+            sr,
+            id_list(&dvp),
+            id_list(&mdp),
+            id_list(&gcp),
+            id_list(&lap),
+            id_list(&lop),
+            id_list(&xop),
+            id_list(&slp),
+            id_list(&srp)
+        );
+        self.emit(&line);
+        self.n_s += 1;
+    }
+
+    /// The ids of a counted `Expr` list, emitted left to right (`mapM wExpr`).
+    fn w_expr_list(&mut self, es: &[Expr]) -> Vec<usize> {
+        let mut out: Vec<usize> = Vec::new();
+        for e in es {
+            out.push(self.w_expr(e));
+        }
+        out
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -539,6 +596,21 @@ pub fn dump_decls(ds: &[DeclC]) -> String {
         w.w_decl(d);
     }
     let n = w.n_d;
+    w.emit(&format!("end {}", n));
+    w.buf
+}
+
+/// **The pin writer** (FORMAT.md §7).  `dump_pins(&parse_pins(text)?)` is
+/// `text`, byte for byte, for the `con-ron-pins/1` dump `lake exe
+/// con-ron-dump-pins` produces — which is how `con-ron-dump-check
+/// --roundtrip` tests the pin reader without the Lean side.
+pub fn dump_pins(ss: &[NatOpPinSet]) -> String {
+    let mut w = Writer::new();
+    w.emit(PINS_HEADER);
+    for s in ss {
+        w.w_pin_set(s);
+    }
+    let n = w.n_s;
     w.emit(&format!("end {}", n));
     w.buf
 }

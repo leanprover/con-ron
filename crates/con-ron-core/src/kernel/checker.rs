@@ -48,8 +48,10 @@
 //!   `kernel::basis_tables`, generated from con-leche's own
 //!   `BasisKind.declsA` (task #22), and the two pins compared as whole
 //!   `ConstantInfo`s are `kernel::basis_pins` over that table (task #27).
-//!   The pin variants `checkDivModPinLoop` walks are still
-//!   `kernel::nat_op_pins`' empty stub, so that loop declines.
+//!   The pin variants `checkDivModPinLoop` walks are the `pins` **parameter**
+//!   threaded down from `cached::installed::check_decls` (DESIGN.md §3.6,
+//!   task #31), where the cited code reads the global `natOpPinSets`; an
+//!   empty list is the loop's `[]` arm, i.e. a decline.
 
 use crate::cached::checker_c;
 use crate::cached::checker_c::OrElseStep;
@@ -73,7 +75,6 @@ use crate::kernel::fenv::FEnv;
 use crate::kernel::level;
 use crate::kernel::name;
 use crate::kernel::name::Name;
-use crate::kernel::nat_op_pins;
 use crate::kernel::nat_op_pins::NatOpPinSet;
 use crate::kernel::std_axioms;
 use crate::kernel::trust_axioms;
@@ -1025,8 +1026,9 @@ pub fn check_div_mod_pin_at(
 /// **The variant loop**: the first variant whose guards pass and whose
 /// attempt succeeds enables the fast path; every other outcome moves on to
 /// the next variant, and when none is left the stream DECLINES.  The cited
-/// `List NatOpPinSet` recursion is an index recursion over
-/// `nat_op_pin_sets()`, and the `tried : List String` accumulator is dropped
+/// `List NatOpPinSet` recursion is an index recursion over the pin list
+/// `check_decls` was given (task #31; the cited code reads the global
+/// `natOpPinSets`), and the `tried : List String` accumulator is dropped
 /// (module note 2).
 ///
 /// **This is the port's one error-recovery point**: the `ops.orElse` call is
@@ -1071,8 +1073,18 @@ pub fn check_div_mod_pin_loop(
 /// Deviation (module note 1): the two environments are one index at two
 /// visibility bounds, so this takes the index by value at the extended bound
 /// and hands it back there, where the Lean returns `Unit`.
+/// **Deviation (DESIGN.md §3.6, task #31): `pins` is a parameter.**  con-leche
+/// bakes `natOpPinSets` (`ConLeche/Kernel/NatOpPins.lean:61`) into
+/// `checkDivModPin` as a global constant; the port threads the list from
+/// `check_decls` instead, because the ~26 500-node table cannot be generated
+/// as Rust (Charon OOMs on it, task #22) and it is a *hint* list — every pin
+/// is re-checked by `isDefEq` against the stream's own stored value and every
+/// certificate against the hand-pinned `div_mod_cert_stmts`, so a wrong list
+/// costs a decline and never an accept.  The upstream change this asks for is
+/// `checkDecls mode pins ds`.
 pub fn check_div_mod_pin(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe: FEnv,
     k_pre: u64,
@@ -1092,7 +1104,7 @@ pub fn check_div_mod_pin(
                     &fe_pre,
                     c,
                     &value2,
-                    &nat_op_pins::nat_op_pin_sets(),
+                    pins,
                     0,
                 );
                 match r {
@@ -1217,16 +1229,18 @@ pub fn check_reduce_identity(
 /// arm stays a tail call.
 ///
 /// Deviation: the environment in and out is the *index* (task #18's deviation
-/// 3), taken by value and returned (task #14's `FEnv` ruling).
+/// 3), taken by value and returned (task #14's `FEnv` ruling).  `pins` is
+/// `check_div_mod_pin`'s parameter, threaded (task #31).
 pub fn check_decl(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe: FEnv,
     d: &Declaration,
 ) -> CheckM<FEnv> {
     match d {
         Declaration::DefnDecl(cv, value, hint) => {
-            check_defn_decl(mode, st, fe, cv, value, hint)
+            check_defn_decl(mode, pins, st, fe, cv, value, hint)
         }
         Declaration::ThmDecl(cv, value) => check_thm_decl(mode, st, fe, cv, value),
         Declaration::OpaqueDecl(cv, value) => check_opaque_decl(mode, st, fe, cv, value),
@@ -1238,9 +1252,11 @@ pub fn check_decl(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:419-562 checkDecl
 /// The `.defnDecl` arm: the common constant check, the value check, then the
-/// two pinned-`Nat` gates.
+/// two pinned-`Nat` gates.  `pins` is `check_div_mod_pin`'s parameter,
+/// threaded (task #31).
 pub fn check_defn_decl(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe: FEnv,
     cv: &ConstantVal,
@@ -1252,7 +1268,7 @@ pub fn check_defn_decl(
         Err(err) => Err(err),
         Ok(cv_a) => match check_defn_val(mode, st, fe, &cv_a, value, hint) {
             Err(err) => Err(err),
-            Ok(fe2) => check_defn_pins(mode, st, fe2, k_pre, &cv_a.name),
+            Ok(fe2) => check_defn_pins(mode, pins, st, fe2, k_pre, &cv_a.name),
         },
     }
 }
@@ -1277,8 +1293,11 @@ pub fn check_constant_val_borrowed(
 /// replaced by its stored value — certifying after insertion would let the
 /// operation's own fast path discharge its all-literal equations vacuously.
 /// **WF-recursive `Nat` pins** (`Nat.div`/`Nat.mod`): `check_div_mod_pin`.
+///
+/// `pins` is `check_div_mod_pin`'s parameter, threaded (task #31).
 pub fn check_defn_pins(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe2: FEnv,
     k_pre: u64,
@@ -1287,24 +1306,26 @@ pub fn check_defn_pins(
     if name::contains(&core_k::nat_op_names(), n) {
         match check_structural_nat_pin(mode, st, fe2, k_pre, n) {
             Err(err) => Err(err),
-            Ok(fe3) => check_defn_div_mod_pin(mode, st, fe3, k_pre, n),
+            Ok(fe3) => check_defn_div_mod_pin(mode, pins, st, fe3, k_pre, n),
         }
     } else {
-        check_defn_div_mod_pin(mode, st, fe2, k_pre, n)
+        check_defn_div_mod_pin(mode, pins, st, fe2, k_pre, n)
     }
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:419-562 checkDecl
-/// The `natDivModNames.contains` gate of the `.defnDecl` arm.
+/// The `natDivModNames.contains` gate of the `.defnDecl` arm.  `pins` is
+/// `check_div_mod_pin`'s parameter, threaded (task #31).
 pub fn check_defn_div_mod_pin(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe2: FEnv,
     k_pre: u64,
     n: &Name,
 ) -> CheckM<FEnv> {
     if name::contains(&core_k::nat_div_mod_names(), n) {
-        check_div_mod_pin(mode, st, fe2, k_pre, n)
+        check_div_mod_pin(mode, pins, st, fe2, k_pre, n)
     } else {
         Ok(fe2)
     }
@@ -1539,16 +1560,18 @@ pub fn check_ind_decl(
 /// environment, and the `CState` the memoizing knot needs is the caller's.
 pub fn check_decls_pure(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     ds: &Vec<Declaration>,
 ) -> CheckM<FEnv> {
-    check_decls_pure_from(mode, st, fenv::mk_fenv(env::empty()), ds, 0)
+    check_decls_pure_from(mode, pins, st, fenv::mk_fenv(env::empty()), ds, 0)
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:564-567 checkDeclsPure
 /// The cited `foldlM` as an index recursion threading the index by value.
 pub fn check_decls_pure_from(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe: FEnv,
     ds: &Vec<Declaration>,
@@ -1557,15 +1580,24 @@ pub fn check_decls_pure_from(
     if i >= ds.len() {
         Ok(fe)
     } else {
-        match check_decl(mode, st, fe, &ds[i]) {
+        match check_decl(mode, pins, st, fe, &ds[i]) {
             Err(err) => Err(err),
-            Ok(fe2) => check_decls_pure_from(mode, st, fe2, ds, i + 1),
+            Ok(fe2) => check_decls_pure_from(mode, pins, st, fe2, ds, i + 1),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+
+    /// The empty pin list, i.e. the `[]` arm of
+    /// `checker::check_div_mod_pin_loop` (DESIGN.md §3.6: the list is a
+    /// parameter, and the driver is what reads con-leche's own).  No test
+    /// here defines a pin-certified `Nat` operation, so the arm is never
+    /// reached and the list is only the parameter.
+    fn no_pins() -> Vec<NatOpPinSet> {
+        Vec::new()
+    }
     use crate::cached::state_c;
     use crate::cached::state_c::CState;
     use crate::kernel::checker;
@@ -1582,7 +1614,7 @@ mod tests {
     use crate::kernel::level;
     use crate::kernel::name;
     use crate::kernel::name::Name;
-    use crate::kernel::nat_op_pins;
+    use crate::kernel::nat_op_pins::NatOpPinSet;
     use crate::kernel::prop_when;
     use crate::kernel::std_axioms;
 
@@ -1639,7 +1671,7 @@ mod tests {
             expr::sort(level::succ(level::zero())),
             ReducibilityHint::Abbrev,
         );
-        match checker::check_decl(&mode, &mut st, env_aa(), &bad) {
+        match checker::check_decl(&mode, &no_pins(), &mut st, env_aa(), &bad) {
             Ok(_) => panic!("`d : A := Sort 1` must not check"),
             Err(e) => assert!(is_invalid(&e), "a type mismatch is a reject, not a decline"),
         }
@@ -1650,7 +1682,7 @@ mod tests {
             expr::mk_const(nm("a"), Vec::new()),
             ReducibilityHint::Abbrev,
         );
-        match checker::check_decl(&mode, &mut st2, env_aa(), &good) {
+        match checker::check_decl(&mode, &no_pins(), &mut st2, env_aa(), &good) {
             Ok(fe2) => {
                 match fenv::find(&fe2, &nm("d")) {
                     Some(ConstantInfo::DefnInfo(cvd, value, _)) => {
@@ -1672,7 +1704,7 @@ mod tests {
             expr::mk_const(nm("a"), Vec::new()),
             ReducibilityHint::Abbrev,
         );
-        match checker::check_decl(&mode, &mut st3, env_aa(), &dup) {
+        match checker::check_decl(&mode, &no_pins(), &mut st3, env_aa(), &dup) {
             Ok(_) => panic!("a duplicate definition must not check"),
             Err(e) => assert!(is_invalid(&e)),
         }
@@ -1698,7 +1730,7 @@ mod tests {
         let a_ty = expr::mk_const(nm("A"), Vec::new());
         let mut st: CState = state_c::cstate_new();
         let wrong = Declaration::AxiomDecl(cv(std_axioms::propext_name(), expr::dup(&a_ty)));
-        match checker::check_decl(&mode, &mut st, env_aa(), &wrong) {
+        match checker::check_decl(&mode, &no_pins(), &mut st, env_aa(), &wrong) {
             Ok(_) => panic!("a mis-shaped `propext` must never be installed"),
             Err(e) => assert!(
                 is_not_implemented(&e),
@@ -1708,14 +1740,14 @@ mod tests {
         let mut st2: CState = state_c::cstate_new();
         let wrong_choice =
             Declaration::AxiomDecl(cv(std_axioms::choice_name(), expr::dup(&a_ty)));
-        match checker::check_decl(&mode, &mut st2, env_aa(), &wrong_choice) {
+        match checker::check_decl(&mode, &no_pins(), &mut st2, env_aa(), &wrong_choice) {
             Ok(_) => panic!("a mis-shaped `Classical.choice` must never be installed"),
             Err(e) => assert!(is_not_implemented(&e)),
         }
         // an axiom that is neither pinned nor tolerated is a decline too
         let mut st3: CState = state_c::cstate_new();
         let other = Declaration::AxiomDecl(cv(nm("myAxiom"), expr::dup(&a_ty)));
-        match checker::check_decl(&mode, &mut st3, env_aa(), &other) {
+        match checker::check_decl(&mode, &no_pins(), &mut st3, env_aa(), &other) {
             Ok(_) => panic!("a non-standard axiom must not be installed"),
             Err(e) => assert!(is_not_implemented(&e)),
         }
@@ -1723,7 +1755,7 @@ mod tests {
         // the environment comes back unchanged
         let mut st4: CState = state_c::cstate_new();
         let sorry_ax = Declaration::AxiomDecl(cv(nm("sorryAx"), expr::dup(&a_ty)));
-        match checker::check_decl(&mode, &mut st4, env_aa(), &sorry_ax) {
+        match checker::check_decl(&mode, &no_pins(), &mut st4, env_aa(), &sorry_ax) {
             Ok(fe) => {
                 assert!(fenv::find(&fe, &nm("sorryAx")).is_none());
                 assert_eq!(fe.visible_below, 2);
@@ -1815,7 +1847,7 @@ mod tests {
         let mode = CheckMode::Verified;
         let fe = env_aa();
         let mut st: CState = state_c::cstate_new();
-        let variants: Vec<nat_op_pins::NatOpPinSet> = nat_op_pins::nat_op_pin_sets();
+        let variants: Vec<NatOpPinSet> = no_pins();
         assert_eq!(variants.len(), 0);
         let value = expr::mk_const(nm("a"), Vec::new());
         match checker::check_div_mod_pin_loop(
@@ -1838,7 +1870,7 @@ mod tests {
     fn check_decls_pure_folds_in_order() {
         let mode = CheckMode::Verified;
         let mut st: CState = state_c::cstate_new();
-        match checker::check_decls_pure(&mode, &mut st, &Vec::new()) {
+        match checker::check_decls_pure(&mode, &no_pins(), &mut st, &Vec::new()) {
             Ok(fe) => {
                 assert_eq!(fe.env.consts.len(), 0);
                 assert_eq!(fe.visible_below, 0);
@@ -1859,7 +1891,7 @@ mod tests {
         ));
         // the first record is a non-standard axiom, so the fold declines at
         // it — which is the checker's own verdict, and it stops the fold
-        match checker::check_decls_pure(&mode, &mut st2, &ds) {
+        match checker::check_decls_pure(&mode, &no_pins(), &mut st2, &ds) {
             Ok(_) => panic!("`A` is a non-standard axiom and must decline"),
             Err(e) => assert!(is_not_implemented(&e)),
         }

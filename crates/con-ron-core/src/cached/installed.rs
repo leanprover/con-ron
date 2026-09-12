@@ -70,14 +70,16 @@
 //!    `pend[i..]`.
 //! 4. **`check_decls` takes the pin list as a parameter** (§3.6's task-#22
 //!    ruling): `pins : Vec NatOpPinSet` is data, not code, and the upstream
-//!    change the ruling asks for is `checkDecls mode pins ds`.  The
-//!    parameter is *not yet threaded* to the pin loop: the chain from here to
-//!    `checker::check_div_mod_pin_loop` runs through ten functions in
-//!    `parsed_c` and `kernel::checker`, and `kernel::nat_op_pins`' stub
-//!    (empty, task #24's stub 1) is what the loop still reads.  The API is
-//!    final, so the threading is a mechanical follow-up that changes no
-//!    caller of `check_decls`; until it lands a `Nat.div`/`Nat.mod` stream
-//!    declines, which is sound for the accept direction (§1).
+//!    change the ruling asks for is `checkDecls mode pins ds`, where the
+//!    cited code reads the global `natOpPinSets`.  Task #31 threaded it all
+//!    the way down — `annot_decl_fold_from` → `annot_decl_step` →
+//!    `annot_step_c` → `parsed_c::check_decl_step_c` → … →
+//!    `checker::check_div_mod_pin_loop`, whose `variants` it *is* — and
+//!    deleted `kernel::nat_op_pins`' empty stub.  An **empty** list is still
+//!    the loop's `[]` arm, i.e. a `Nat.div`/`Nat.mod` stream declines, which
+//!    is sound for the accept direction (§1); the driver
+//!    (`con-ron-check --pins FILE`) is what supplies con-leche's own list,
+//!    read from a `con-ron-pins/1` dump.
 //! 5. **Message strings** are the cited ones minus their interpolated names
 //!    (§3.1: the theorem never reads them), spelled as `core_types`' code
 //!    points — the same texts `parsed_c` and `kernel::checker_split` use, so
@@ -303,6 +305,7 @@ pub fn annot_value_c_tail(
 /// fewer.
 pub fn annot_step_c(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     i: u64,
     fe: FEnv,
@@ -311,13 +314,13 @@ pub fn annot_step_c(
 ) -> CheckCM<(FEnv, Vec<PendingCheck>)> {
     match pd {
         DeclC::DefnDecl(cv, value, hint) => {
-            annot_step_defn_c(mode, st, i, fe, pend, pd, cv, value, hint)
+            annot_step_defn_c(mode, pins, st, i, fe, pend, pd, cv, value, hint)
         }
         DeclC::ThmDecl(cv, value) => annot_step_thm_c(mode, st, i, fe, pend, cv, value),
         DeclC::OpaqueDecl(cv, value) => {
-            annot_step_opaque_c(mode, st, i, fe, pend, pd, cv, value)
+            annot_step_opaque_c(mode, pins, st, i, fe, pend, pd, cv, value)
         }
-        _ => annot_step_other_c(mode, st, fe, pend, pd),
+        _ => annot_step_other_c(mode, pins, st, fe, pend, pd),
     }
 }
 
@@ -327,6 +330,7 @@ pub fn annot_step_c(
 /// annotated, installed, and recorded as pending.
 pub fn annot_step_defn_c(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     i: u64,
     fe: FEnv,
@@ -339,7 +343,7 @@ pub fn annot_step_defn_c(
     if name::contains(&core_k::nat_op_names(), &cv.name)
         || name::contains(&core_k::nat_div_mod_names(), &cv.name)
     {
-        annot_step_other_c(mode, st, fe, pend, pd)
+        annot_step_other_c(mode, pins, st, fe, pend, pd)
     } else {
         match annot_value_c(mode, st, &fe, cv, value, true) {
             Err(err) => Err(err),
@@ -445,6 +449,7 @@ pub fn annot_step_thm_c_push(
 /// value being a discarded witness — and recorded as pending.
 pub fn annot_step_opaque_c(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     i: u64,
     fe: FEnv,
@@ -454,7 +459,7 @@ pub fn annot_step_opaque_c(
     value: &Expr,
 ) -> CheckCM<(FEnv, Vec<PendingCheck>)> {
     if name::contains(&trust_axioms::reduce_op_names(), &cv.name) {
-        annot_step_other_c(mode, st, fe, pend, pd)
+        annot_step_other_c(mode, pins, st, fe, pend, pd)
     } else {
         match annot_value_c(mode, st, &fe, cv, value, false) {
             Err(err) => Err(err),
@@ -493,12 +498,13 @@ pub fn annot_step_opaque_c_push(
 /// blocks and the pinned branches are checked in full at their install.
 pub fn annot_step_other_c(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe: FEnv,
     pend: Vec<PendingCheck>,
     pd: &DeclC,
 ) -> CheckCM<(FEnv, Vec<PendingCheck>)> {
-    match parsed_c::check_decl_step_c(mode, st, fe, pd) {
+    match parsed_c::check_decl_step_c(mode, pins, st, fe, pd) {
         Err(err) => Err(err),
         Ok(fe2) => Ok((fe2, pend)),
     }
@@ -514,12 +520,13 @@ pub fn annot_step_other_c(
 /// cited `p.1` is `p.0` here and the error is `(err, p.0)`.
 pub fn annot_decl_step(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     p: (u64, FEnv, Vec<PendingCheck>),
     pd: &DeclC,
 ) -> Result<(u64, FEnv, Vec<PendingCheck>), (CheckError, u64)> {
     let i: u64 = p.0;
-    match annot_step_c(mode, st, i, p.1, p.2, pd) {
+    match annot_step_c(mode, pins, st, i, p.1, p.2, pd) {
         Err(err) => Err((err, i)),
         Ok(q) => Ok((i + 1, q.0, q.1)),
     }
@@ -676,16 +683,17 @@ pub fn check_pending_list_from(
 /// the binary's driver runs.
 ///
 /// Deviation 4 (the module note): `pins` is the `Nat`-operation pin list,
-/// §3.6's parameter, and is not yet threaded to the pin loop.
+/// §3.6's parameter, threaded from here through `annot_decl_step` to
+/// `checker::check_div_mod_pin_loop` (task #31).
 pub fn check_decls(
     mode: &CheckMode,
     pins: &Vec<NatOpPinSet>,
     ds: &Vec<DeclC>,
 ) -> Result<Env, (CheckError, u64)> {
-    let _ = pins;
     let mut st: CState = state_c::cstate_new();
     match annot_decl_fold_from(
         mode,
+        pins,
         &mut st,
         (0, fenv::mk_fenv(env::empty()), Vec::new()),
         ds,
@@ -719,6 +727,7 @@ pub fn check_decls_phase_b(
 /// the steps.
 pub fn annot_decl_fold_from(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     p: (u64, FEnv, Vec<PendingCheck>),
     ds: &Vec<DeclC>,
@@ -727,9 +736,9 @@ pub fn annot_decl_fold_from(
     if i >= ds.len() {
         Ok(p)
     } else {
-        match annot_decl_step(mode, st, p, &ds[i]) {
+        match annot_decl_step(mode, pins, st, p, &ds[i]) {
             Err(err) => Err(err),
-            Ok(q) => annot_decl_fold_from(mode, st, q, ds, i + 1),
+            Ok(q) => annot_decl_fold_from(mode, pins, st, q, ds, i + 1),
         }
     }
 }
@@ -887,6 +896,7 @@ mod tests {
         let mut st = state_c::cstate_new();
         match installed::annot_decl_fold_from(
             &CheckMode::Verified,
+            &no_pins(),
             &mut st,
             (0, fenv::mk_fenv(env::empty()), Vec::new()),
             &ds,
@@ -925,6 +935,7 @@ mod tests {
         let mut st = state_c::cstate_new();
         match installed::annot_decl_fold_from(
             &CheckMode::Verified,
+            &no_pins(),
             &mut st,
             (0, fenv::mk_fenv(env::empty()), Vec::new()),
             &ds,

@@ -13,6 +13,12 @@
 # from the three expectation files, with the gzipped e2e streams gunzipped to
 # scratch and the arena tarball extracted to $ARENA_DIR.
 #
+# It also writes, ONCE, the `Nat`-operation pin dump `$OUT/pins.dump`
+# (`lake exe con-ron-dump-pins`, task #31): the pin variants are per toolchain,
+# not per stream, so one file serves the whole corpus and
+# `scripts/diff-fixtures.sh` hands it to every `con-ron-check` run with
+# `--pins`.  Without it 17 fixtures decline for the empty pin table.
+#
 # A frontend DECLINE or INVALID is reported, never hidden: those fixtures get
 # no round trip (there is no declaration list) and are counted separately.
 #
@@ -24,6 +30,7 @@ root="$PWD"
 
 CL="$root/vendor/con-leche"
 BIN="$root/proof/.lake/build/bin/con-ron-dump"
+PINBIN="$root/proof/.lake/build/bin/con-ron-dump-pins"
 OUT="${OUT:-$root/_tmp/dump-fixtures}"
 ARENA_DIR="${ARENA_DIR:-$root/_tmp/arena-tests}"
 TO=600
@@ -38,7 +45,15 @@ for a in "$@"; do
 done
 
 [ -x "$BIN" ] || { echo "error: $BIN missing (cd proof && lake build con-ron-dump)" >&2; exit 2; }
+[ -x "$PINBIN" ] || { echo "error: $PINBIN missing (cd proof && lake build con-ron-dump-pins)" >&2; exit 2; }
 mkdir -p "$OUT"
+
+# The pin dump, once for the whole corpus (task #31).  Its own round trip is
+# checked by the tool; a failure here is fatal, because every verdict below
+# would then be taken against the wrong pin list.
+pins_rc=0
+timeout "$TO" "$PINBIN" "$OUT/pins.dump" || pins_rc=$?
+[ "$pins_rc" = 0 ] || { echo "error: con-ron-dump-pins failed (exit $pins_rc)" >&2; exit 2; }
 
 if [ ! -d "$ARENA_DIR/good" ]; then
   echo "extracting the vendored arena snapshot to $ARENA_DIR" >&2

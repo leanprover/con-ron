@@ -7,17 +7,28 @@ one dense id space per record kind, shared nodes written once.  The Rust core
 reads the result; `ConRon/Dump/Read.lean` reads it back in Lean, which is what
 validates the format before any Rust exists.
 
+`dumpPins : List NatOpPinSet → String` (task #31) writes the sibling format
+`con-ron-pins/1` (FORMAT.md §7) with the same monad and the same interning
+tables, so an `E` id means the same thing in both files.
+
 Nothing here is a theorem: this is a test and porting tool.
 -/
 import ConLeche.Cached.ParsedC
+import ConLeche.Kernel.NatOpPinSet
 
 namespace ConRon.Dump
 
 open ConLeche
 open ConLeche.Cached
 
-/-- The version header, the whole first line of a dump. -/
+/-- The version header, the whole first line of a declaration dump. -/
 def header : String := "con-ron-decls/1"
+
+/-- The version header of the **sibling** pin dump (`FORMAT.md` §7).  The two
+files share every record kind below the payload — `N`, `L`, `W`, `E`, the
+escape, the id invariant — and differ in the header, the payload record (`S`
+instead of `D`) and what the footer counts. -/
+def pinsHeader : String := "con-ron-pins/1"
 
 /-! ## Scalars -/
 
@@ -91,6 +102,7 @@ structure WState where
   nP : Nat := 0
   nI : Nat := 0
   nD : Nat := 0
+  nS : Nat := 0
 
 /-- The writer's monad. -/
 abbrev W := StateM WState
@@ -369,5 +381,59 @@ def joinLines (a : Array String) : String :=
 con-ron-dump`). -/
 def dumpDecls (ds : List DeclC) : String :=
   joinLines (dumpState ds).buf
+
+/-! ## The pin dump (`con-ron-pins/1`)
+
+`natOpPinSets` is not a declaration list, so it gets a sibling file rather
+than a record of `con-ron-decls/1`: the pins are per *toolchain*, dumped once,
+and copying their 26 512 `E` records into each of the 348 fixture dumps would
+be absurd.  Everything below the payload is the same format, so the writer is
+the same monad and the same interning tables — an `E` id in a pin dump means
+exactly what it means in a declaration dump. -/
+
+/-- `NatOpPinSet` (`ConLeche/Kernel/NatOpPinSet.lean:30-49`).  No id, for `D`'s
+reason: the record *is* the payload and its position in the file is the
+position in `natOpPinSets`, which is the order the install gate tries the
+variants in.  The eight pins come first, then the eight counted proof lists,
+in the field order of the structure. -/
+def wPinSet (s : NatOpPinSet) : W Unit := do
+  let dv ← wExpr s.divPin
+  let md ← wExpr s.modPin
+  let gc ← wExpr s.gcdPin
+  let la ← wExpr s.landPin
+  let lo ← wExpr s.lorPin
+  let xo ← wExpr s.xorPin
+  let sl ← wExpr s.shiftLeftPin
+  let sr ← wExpr s.shiftRightPin
+  let dvp ← s.divProofs.mapM wExpr
+  let mdp ← s.modProofs.mapM wExpr
+  let gcp ← s.gcdProofs.mapM wExpr
+  let lap ← s.landProofs.mapM wExpr
+  let lop ← s.lorProofs.mapM wExpr
+  let xop ← s.xorProofs.mapM wExpr
+  let slp ← s.shiftLeftProofs.mapM wExpr
+  let srp ← s.shiftRightProofs.mapM wExpr
+  emit ("S " ++ strField s.toolchain
+    ++ " " ++ toString dv ++ " " ++ toString md ++ " " ++ toString gc
+    ++ " " ++ toString la ++ " " ++ toString lo ++ " " ++ toString xo
+    ++ " " ++ toString sl ++ " " ++ toString sr
+    ++ " " ++ idList dvp ++ " " ++ idList mdp ++ " " ++ idList gcp
+    ++ " " ++ idList lap ++ " " ++ idList lop ++ " " ++ idList xop
+    ++ " " ++ idList slp ++ " " ++ idList srp)
+  modify fun st => { st with nS := st.nS + 1 }
+
+/-- The whole pin dump as the writer's final state (the line buffer plus the
+per-kind counts the harness reports). -/
+def dumpPinsState (ss : List NatOpPinSet) : WState :=
+  (do
+    emit pinsHeader
+    ss.forM wPinSet
+    emit ("end " ++ toString (← get).nS) : W Unit).run {} |>.2
+
+/-- **The pin writer.**  `parsePins (dumpPins ss)` is `.ok ss`
+(`ConRon/Dump/Read.lean`; checked on `ConLeche.natOpPinSets` by `lake exe
+con-ron-dump-pins`). -/
+def dumpPins (ss : List NatOpPinSet) : String :=
+  joinLines (dumpPinsState ss).buf
 
 end ConRon.Dump

@@ -44,6 +44,13 @@
 //!   loud failure FORMAT.md §6 wants.  The degenerate escape `\;` (no hex
 //!   digits, i.e. `U+0000`) is accepted exactly as `Read.lean` accepts it.
 //!
+//! The sibling format **`con-ron-pins/1`** (FORMAT.md §7) is read by
+//! [`parse_pins`], and it is the same function: the record grammar below the
+//! payload is identical, so the reader carries a `pins` flag that swaps the
+//! payload record (`S` for `D`) and what the footer counts.  Its consumer is
+//! `con-ron-check --pins FILE`, which hands the `Vec<NatOpPinSet>` to
+//! `check_decls` as DESIGN.md §3.6's pin-list *parameter*.
+//!
 //! The reader is one forward pass: nine `Vec`s that only ever grow by one, and
 //! every reference an index into a `Vec` that is already long enough.  No
 //! fixups, no cycles, no recursion over the term (the `E` records are already
@@ -68,6 +75,7 @@ use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
+use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_core::kernel::prop_when;
 use con_ron_core::kernel::prop_when::PropWhen;
 use con_ron_core::ron::nat::Nat;
@@ -77,10 +85,15 @@ pub mod natdec;
 pub mod write;
 
 pub use write::dump_decls;
+pub use write::dump_pins;
 
-/// The version header, the whole first line of a dump (`Write.lean`'s
-/// `header`).
+/// The version header, the whole first line of a declaration dump
+/// (`Write.lean`'s `header`).
 pub const HEADER: &str = "con-ron-decls/1";
+
+/// The version header of the sibling pin dump (`Write.lean`'s `pinsHeader`,
+/// FORMAT.md §7).
+pub const PINS_HEADER: &str = "con-ron-pins/1";
 
 // ---------------------------------------------------------------------------
 // String fields
@@ -170,6 +183,8 @@ pub struct Counts {
     pub ind_decls: usize,
     /// The `ConstantInfo`s summed over every `indDecl` block.
     pub block_infos: usize,
+    /// `con-ron-pins/1` only: the `S` records, i.e. the pin variants.
+    pub pin_sets: usize,
 }
 
 impl Counts {
@@ -208,6 +223,13 @@ struct Reader<'a> {
     tables: Vec<ProjTable>,
     infos: Vec<ConstantInfo>,
     decls: Vec<DeclC>,
+    /// The `con-ron-pins/1` payload (FORMAT.md §7).  A file has one payload
+    /// kind or the other, never both.
+    pin_sets: Vec<NatOpPinSet>,
+    /// Which file is being read: `false` a `con-ron-decls/1` dump (payload
+    /// `D`), `true` a `con-ron-pins/1` one (payload `S`).  `Read.lean`'s
+    /// `RState.pins`.
+    pins: bool,
     toks: Vec<&'a str>,
     pos: usize,
     line_no: usize,
@@ -226,6 +248,8 @@ impl<'a> Reader<'a> {
             tables: Vec::new(),
             infos: Vec::new(),
             decls: Vec::new(),
+            pin_sets: Vec::new(),
+            pins: false,
             toks: Vec::new(),
             pos: 0,
             line_no: 1,
@@ -799,8 +823,60 @@ impl<'a> Reader<'a> {
         Ok(())
     }
 
+    /// `S` — `ConLeche/Kernel/NatOpPinSet.lean:30` (FORMAT.md §7).  No id,
+    /// for `D`'s reason: the record is the payload, and its position in the
+    /// file is its position in `natOpPinSets`, which is the order
+    /// `check_div_mod_pin_loop` tries the variants in.
+    fn record_pin_set(&mut self) -> Result<(), String> {
+        let toolchain = self.string()?;
+        let div_pin = self.expr_ref()?;
+        let mod_pin = self.expr_ref()?;
+        let gcd_pin = self.expr_ref()?;
+        let land_pin = self.expr_ref()?;
+        let lor_pin = self.expr_ref()?;
+        let xor_pin = self.expr_ref()?;
+        let shift_left_pin = self.expr_ref()?;
+        let shift_right_pin = self.expr_ref()?;
+        let div_proofs = self.expr_list()?;
+        let mod_proofs = self.expr_list()?;
+        let gcd_proofs = self.expr_list()?;
+        let land_proofs = self.expr_list()?;
+        let lor_proofs = self.expr_list()?;
+        let xor_proofs = self.expr_list()?;
+        let shift_left_proofs = self.expr_list()?;
+        let shift_right_proofs = self.expr_list()?;
+        self.pin_sets.push(NatOpPinSet {
+            toolchain,
+            div_pin,
+            mod_pin,
+            gcd_pin,
+            land_pin,
+            lor_pin,
+            xor_pin,
+            shift_left_pin,
+            shift_right_pin,
+            div_proofs,
+            mod_proofs,
+            gcd_proofs,
+            land_proofs,
+            lor_proofs,
+            xor_proofs,
+            shift_left_proofs,
+            shift_right_proofs,
+        });
+        Ok(())
+    }
+
     /// Read one record, its kind letter already consumed.
     fn record(&mut self, kind: &str) -> Result<(), String> {
+        // A file has ONE payload kind (FORMAT.md §7): the header decided
+        // which, so the other one's record is an error, not an ignored line.
+        if kind == "D" && self.pins {
+            return self.err("a declaration record 'D' in a con-ron-pins/1 dump".to_string());
+        }
+        if kind == "S" && !self.pins {
+            return self.err("a pin-set record 'S' in a con-ron-decls/1 dump".to_string());
+        }
         match kind {
             "N" => self.record_name(),
             "L" => self.record_level(),
@@ -812,7 +888,18 @@ impl<'a> Reader<'a> {
             "P" => self.record_table(),
             "I" => self.record_info(),
             "D" => self.record_decl(),
+            "S" => self.record_pin_set(),
             _ => self.err(format!("unknown record kind '{}'", kind)),
+        }
+    }
+
+    /// The payload count the footer must agree with: declarations in a
+    /// `con-ron-decls/1` dump, pin variants in a `con-ron-pins/1` one.
+    fn payload_len(&self) -> usize {
+        if self.pins {
+            self.pin_sets.len()
+        } else {
+            self.decls.len()
         }
     }
 
@@ -827,6 +914,7 @@ impl<'a> Reader<'a> {
             caps: self.caps.len(),
             tables: self.tables.len(),
             infos: self.infos.len(),
+            pin_sets: self.pin_sets.len(),
             ..Counts::default()
         };
         c.tally_decls(&self.decls);
@@ -852,19 +940,47 @@ pub fn parse_decls(text: &str) -> Result<Vec<DeclC>, String> {
 
 /// [`parse_decls`] plus the record census `con-ron-dump-check` prints.
 pub fn parse_decls_counted(text: &str) -> Result<(Vec<DeclC>, Counts), String> {
+    let (r, counts) = run_lines(text, HEADER, false)?;
+    Ok((r.decls, counts))
+}
+
+/// **The pin reader** (FORMAT.md §7).  The inverse of [`dump_pins`] and of
+/// `Write.lean`'s `dumpPins`: the `Vec<NatOpPinSet>` that
+/// `con-ron-check --pins FILE` hands to `check_decls` as its pin-list
+/// parameter (DESIGN.md §3.6).
+pub fn parse_pins(text: &str) -> Result<Vec<NatOpPinSet>, String> {
+    let (ps, _) = parse_pins_counted(text)?;
+    Ok(ps)
+}
+
+/// [`parse_pins`] plus the record census.
+pub fn parse_pins_counted(text: &str) -> Result<(Vec<NatOpPinSet>, Counts), String> {
+    let (r, counts) = run_lines(text, PINS_HEADER, true)?;
+    Ok((r.pin_sets, counts))
+}
+
+/// `Read.lean`'s `runLines`, shared by both drivers: check the header, then a
+/// single forward pass over the records, stopping at the `end` footer, whose
+/// count is the payload's (`Reader::payload_len`).
+fn run_lines<'a>(
+    text: &'a str,
+    header: &str,
+    pins: bool,
+) -> Result<(Reader<'a>, Counts), String> {
     let mut lines = text.split('\n');
     let hdr = match lines.next() {
         Some(h) => h,
         None => return Err("empty input".to_string()),
     };
-    if hdr != HEADER {
+    if hdr != header {
         return Err(format!(
             "bad header: expected '{}', got '{}'",
-            HEADER, hdr
+            header, hdr
         ));
     }
     let rest: Vec<&str> = lines.collect();
     let mut r = Reader::new();
+    r.pins = pins;
     let mut saw_footer = false;
     for (k, line) in rest.iter().enumerate() {
         r.line_no = k + 2;
@@ -882,11 +998,12 @@ pub fn parse_decls_counted(text: &str) -> Result<(Vec<DeclC>, Counts), String> {
         let kind = r.next_tok()?;
         if kind == "end" {
             let n = r.count()?;
-            if n != r.decls.len() {
+            if n != r.payload_len() {
                 return r.err(format!(
-                    "footer count {} != the {} declarations read",
+                    "footer count {} != the {} {} read",
                     n,
-                    r.decls.len()
+                    r.payload_len(),
+                    if pins { "pin sets" } else { "declarations" }
                 ));
             }
             if r.pos != r.toks.len() {
@@ -905,7 +1022,7 @@ pub fn parse_decls_counted(text: &str) -> Result<(Vec<DeclC>, Counts), String> {
         return r.err("the dump has no 'end' footer".to_string());
     }
     let counts = r.counts();
-    Ok((r.decls, counts))
+    Ok((r, counts))
 }
 
 // ---------------------------------------------------------------------------
@@ -932,6 +1049,99 @@ mod tests {
             level_params: Vec::new(),
             ty: expr::sort(level::zero()),
         }
+    }
+
+    /// The error of a failed parse.  `unwrap_err` is unavailable: neither
+    /// `DeclC` nor `NatOpPinSet` derives `Debug` (DESIGN.md §3.4).
+    fn decls_err(text: &str) -> String {
+        match parse_decls(text) {
+            Ok(_) => panic!("this dump must not parse"),
+            Err(e) => e,
+        }
+    }
+
+    fn pins_err(text: &str) -> String {
+        match parse_pins(text) {
+            Ok(_) => panic!("this dump must not parse"),
+            Err(e) => e,
+        }
+    }
+
+    /// A pin variant whose eight pins and sixteen proof blobs are distinct
+    /// terms, plus one node deliberately *shared* between two of them: the
+    /// sharing is what FORMAT.md §7 is for, so the round trip has to keep it.
+    fn a_pin_set(tag: &str) -> NatOpPinSet {
+        let shared = expr::app(
+            expr::mk_const(nm("Nat.rec"), Vec::new()),
+            expr::mk_const(nm("Nat.zero"), Vec::new()),
+        );
+        let p = |i: u64| expr::app(expr::dup(&shared), expr::bvar(i));
+        NatOpPinSet {
+            toolchain: cps(tag),
+            div_pin: p(0),
+            mod_pin: p(1),
+            gcd_pin: p(2),
+            land_pin: p(3),
+            lor_pin: p(4),
+            xor_pin: p(5),
+            shift_left_pin: p(6),
+            shift_right_pin: p(7),
+            div_proofs: vec![p(8), p(9)],
+            mod_proofs: vec![p(10)],
+            gcd_proofs: Vec::new(),
+            land_proofs: vec![p(11)],
+            lor_proofs: vec![p(12)],
+            xor_proofs: vec![p(13)],
+            shift_left_proofs: vec![p(14)],
+            shift_right_proofs: vec![expr::dup(&shared)],
+        }
+    }
+
+    // --- `con-ron-pins/1` (FORMAT.md §7) -----------------------------------
+
+    #[test]
+    fn a_pin_dump_round_trips() {
+        let ss = vec![a_pin_set("lean4:v4.33.0"), a_pin_set("lean4-nightly")];
+        let text = dump_pins(&ss);
+        assert!(text.starts_with("con-ron-pins/1\n"));
+        assert!(text.ends_with("end 2\n"));
+        let (back, counts) = parse_pins_counted(&text).unwrap();
+        assert_eq!(counts.pin_sets, 2);
+        assert_eq!(back.len(), 2);
+        // byte-identical re-dump: every id, every list length, every escape
+        assert_eq!(dump_pins(&back), text);
+        // and the sharing survived — the census counts heap nodes
+        let cen = dag::census_pins(&back);
+        assert_eq!(cen.exprs, counts.exprs);
+        assert_eq!(back[0].toolchain, cps("lean4:v4.33.0"));
+        assert_eq!(back[0].gcd_proofs.len(), 0);
+        assert_eq!(back[0].div_proofs.len(), 2);
+    }
+
+    #[test]
+    fn an_empty_pin_list_round_trips() {
+        let text = dump_pins(&Vec::new());
+        assert_eq!(text, "con-ron-pins/1\nend 0\n");
+        assert_eq!(parse_pins(&text).unwrap().len(), 0);
+    }
+
+    /// A file has one payload kind: the header decides, and the wrong payload
+    /// record is an error rather than a silently ignored line.
+    #[test]
+    fn the_two_payloads_do_not_mix() {
+        // an `S` record in a declaration dump
+        let bad = "con-ron-decls/1\nS 0  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\nend 0\n";
+        assert!(decls_err(bad).contains("con-ron-decls/1 dump"), "{}", decls_err(bad));
+        // a `D` record in a pin dump
+        let bad = "con-ron-pins/1\nD b nat\nend 0\n";
+        assert!(pins_err(bad).contains("con-ron-pins/1 dump"), "{}", pins_err(bad));
+        // each reader rejects the other's header
+        assert!(parse_pins(&dump_decls(&Vec::new())).is_err());
+        assert!(parse_decls(&dump_pins(&Vec::new())).is_err());
+        // and the footer counts the pin sets
+        let ss = vec![a_pin_set("t")];
+        let text = dump_pins(&ss).replace("end 1", "end 2");
+        assert!(pins_err(&text).contains("pin sets read"), "{}", pins_err(&text));
     }
 
     // --- the string codec, mirroring `Read.lean`'s `#guard`s ---------------

@@ -41,13 +41,16 @@
 //!   expectation files do not record it, so `scripts/diff-fixtures.sh`
 //!   compares it only against another con-ron run.
 //!
-//! `--pins FILE` is the §3.6 pin-list parameter.  It is accepted and
-//! reported, but no pins-dump *reader* exists yet (con-leche's
-//! `pins/*.json` is `con-leche-natop-pins/3`, a different format from
-//! `con-ron-decls/1`), and `check_decls`' `pins` argument is not yet threaded
-//! to the pin loop either (`cached::installed`'s deviation 4), so the run is
-//! the empty pin list whatever the flag says: a `Nat.div`/`Nat.mod` stream
-//! declines.  Both halves are task #22's.
+//! `--pins FILE` is the §3.6 pin-list parameter, live since task #31: the
+//! file is a `con-ron-pins/1` dump of con-leche's own `natOpPinSets`
+//! (`lake exe con-ron-dump-pins`, `proof/ConRon/Dump/FORMAT.md` §7), read by
+//! `con_ron_dump::parse_pins` and handed to `check_decls(mode, pins, ds)`,
+//! which threads it to `checker::check_div_mod_pin_loop`.  Without the flag
+//! the pin list is **empty**, which is the `[]` arm of the loop: a
+//! `Nat.div`/`Nat.mod` stream then declines with "unsupported Nat.div/mod
+//! spelling", exactly as con-leche does for a stream matching no variant —
+//! sound for the accept direction (§1), and 17 of the corpus's fixtures turn
+//! on it.
 //!
 //! The fold runs on a thread with a **1 GiB stack**: `check_decls`, like
 //! con-leche's, is deep recursion over the term DAG, and con-leche reserves
@@ -67,6 +70,7 @@ use con_ron_core::kernel::env::Env;
 use con_ron_core::kernel::fenv;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_dump::parse_decls;
+use con_ron_dump::parse_pins;
 
 const USAGE: &str = "usage: con-ron-check [--verified|--trusted] [--pins FILE] \
                      [--taint-skipped N] [--stats] [--quiet] FILE.decls";
@@ -224,11 +228,13 @@ fn stats_line(st: &CState) -> String {
 /// no outcome.
 fn check_decls_with_stats(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     ds: &Vec<DeclC>,
 ) -> (Result<Env, (CheckError, u64)>, String) {
     let mut st: CState = state_c::cstate_new();
     match installed::annot_decl_fold_from(
         mode,
+        pins,
         &mut st,
         (0, fenv::mk_fenv(env::empty()), Vec::new()),
         ds,
@@ -261,18 +267,29 @@ fn run(args: &Args) -> u8 {
         }
     };
     let t_parse = t0.elapsed();
-    if let Some(p) = &args.pins {
-        eprintln!(
-            "con-ron: warning: --pins {} ignored — no pins-dump reader yet, and \
-             check_decls' pin list is not threaded to the pin loop (DESIGN.md \
-             §3.6, task #22); running with the empty pin list",
-            p
-        );
-    }
-    let pins: Vec<NatOpPinSet> = Vec::new();
+    // The pin list (§3.6's parameter).  No `--pins` is the empty list, i.e.
+    // the pin loop's `[]` arm; a `Nat.div`/`Nat.mod` stream then declines.
+    let t_pins0 = Instant::now();
+    let pins: Vec<NatOpPinSet> = match &args.pins {
+        None => Vec::new(),
+        Some(p) => match std::fs::read_to_string(p) {
+            Err(e) => {
+                eprintln!("con-ron: {}: {}", p, e);
+                return 3;
+            }
+            Ok(text) => match parse_pins(&text) {
+                Err(e) => {
+                    eprintln!("con-ron: {}: {}", p, e);
+                    return 3;
+                }
+                Ok(ps) => ps,
+            },
+        },
+    };
+    let t_pins = t_pins0.elapsed();
     let t1 = Instant::now();
     let (r, stats) = if args.stats {
-        let (r, s) = check_decls_with_stats(&args.mode, &ds);
+        let (r, s) = check_decls_with_stats(&args.mode, &pins, &ds);
         (r, Some(s))
     } else {
         (installed::check_decls(&args.mode, &pins, &ds), None)
@@ -318,10 +335,13 @@ fn run(args: &Args) -> u8 {
             Err(_) => 0,
         };
         eprintln!(
-            "  records {} constants {} parse {:.3}s check {:.3}s total {:.3}s",
+            "  records {} constants {} pin sets {} parse {:.3}s pins {:.3}s \
+             check {:.3}s total {:.3}s",
             ds.len(),
             consts,
+            pins.len(),
             t_parse.as_secs_f64(),
+            t_pins.as_secs_f64(),
             t_check.as_secs_f64(),
             t0.elapsed().as_secs_f64()
         );

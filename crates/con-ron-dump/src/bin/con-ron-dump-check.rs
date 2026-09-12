@@ -6,8 +6,14 @@
 //! any of the core's checker is wired up:
 //!
 //! ```text
-//! con-ron-dump-check [--roundtrip] [--quiet] <dump.decls>...
+//! con-ron-dump-check [--roundtrip] [--quiet] <dump.decls|dump.pins>...
 //! ```
+//!
+//! A `con-ron-pins/1` file (FORMAT.md §7) is recognised by its header and
+//! goes through `parse_pins_counted`/`dump_pins` instead, with the same two
+//! checks.  That is the cross-check of the pin reader against Lean's writer:
+//! `lake exe con-ron-dump-pins` produces the file, and this tool says whether
+//! the Rust side reads it back node for node and byte for byte.
 //!
 //! Per file it prints the record census — declarations by kind, interned nodes
 //! per id space, bytes — and checks two things beyond "it parsed":
@@ -28,10 +34,14 @@ use std::time::Instant;
 
 use con_ron_dump::dag;
 use con_ron_dump::dump_decls;
+use con_ron_dump::dump_pins;
 use con_ron_dump::parse_decls_counted;
+use con_ron_dump::parse_pins_counted;
 use con_ron_dump::Counts;
+use con_ron_dump::PINS_HEADER;
 
-const USAGE: &str = "usage: con-ron-dump-check [--roundtrip] [--quiet] <dump>...";
+const USAGE: &str =
+    "usage: con-ron-dump-check [--roundtrip] [--quiet] <dump.decls|dump.pins>...";
 
 /// The running totals across all the files on the command line.
 #[derive(Default)]
@@ -63,6 +73,7 @@ fn add(a: &mut Counts, b: &Counts) {
     a.basis_decls += b.basis_decls;
     a.ind_decls += b.ind_decls;
     a.block_infos += b.block_infos;
+    a.pin_sets += b.pin_sets;
 }
 
 /// Where the two strings first differ, as a `line:column` plus the two lines.
@@ -116,6 +127,10 @@ fn check_one(path: &str, roundtrip: bool, quiet: bool, t: &mut Totals) -> bool {
             return false;
         }
     };
+
+    if text.starts_with(PINS_HEADER) {
+        return check_pins(path, &text, roundtrip, quiet, t);
+    }
 
     let t0 = Instant::now();
     let (ds, counts) = match parse_decls_counted(&text) {
@@ -197,6 +212,72 @@ fn check_one(path: &str, roundtrip: bool, quiet: bool, t: &mut Totals) -> bool {
     true
 }
 
+/// A `con-ron-pins/1` file: the same two checks on the `S` payload.  The
+/// bytes are already read and known to be ASCII.
+fn check_pins(path: &str, text: &str, roundtrip: bool, quiet: bool, t: &mut Totals) -> bool {
+    let t0 = Instant::now();
+    let (ss, counts) = match parse_pins_counted(text) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("FAIL {}: {}", path, e);
+            t.failed += 1;
+            return false;
+        }
+    };
+    let parse_ms = t0.elapsed().as_secs_f64() * 1e3;
+    t.parse_ms += parse_ms;
+    add(&mut t.counts, &counts);
+
+    let cen = dag::census_pins(&ss);
+    if cen.names != counts.names || cen.levels != counts.levels || cen.exprs != counts.exprs {
+        eprintln!(
+            "FAIL {}: the pins are not the dump\'s DAG -- reached {} name / {} level / {} expr \
+             nodes, the file has {} / {} / {} records",
+            path, cen.names, cen.levels, cen.exprs, counts.names, counts.levels, counts.exprs
+        );
+        t.failed += 1;
+        return false;
+    }
+
+    let mut write_ms = 0.0;
+    if roundtrip {
+        let t1 = Instant::now();
+        let again = dump_pins(&ss);
+        write_ms = t1.elapsed().as_secs_f64() * 1e3;
+        t.write_ms += write_ms;
+        if again != text {
+            eprintln!(
+                "FAIL {}: the re-dump differs from the input at {}",
+                path,
+                first_difference(text, &again)
+            );
+            t.failed += 1;
+            return false;
+        }
+    }
+
+    t.ok += 1;
+    if !quiet {
+        println!(
+            "OK   {}  {} B  pin sets {}  N{} L{} W{} E{}  DAG exact  parse {:.1} ms{}",
+            path,
+            text.len(),
+            counts.pin_sets,
+            counts.names,
+            counts.levels,
+            counts.pws,
+            counts.exprs,
+            parse_ms,
+            if roundtrip {
+                format!("  write {:.1} ms  round trip EXACT", write_ms)
+            } else {
+                String::new()
+            }
+        );
+    }
+    true
+}
+
 fn main() -> ExitCode {
     let mut roundtrip = false;
     let mut quiet = false;
@@ -240,6 +321,9 @@ fn main() -> ExitCode {
         c.ind_decls
     );
     println!("  block infos       {}", c.block_infos);
+    if c.pin_sets > 0 {
+        println!("pin sets            {}", c.pin_sets);
+    }
     println!("interned  names     {}   (all DAG-exact: one allocation per record)", c.names);
     println!("          levels    {}", c.levels);
     println!("          propwhens {}", c.pws);

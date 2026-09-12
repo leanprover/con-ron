@@ -77,6 +77,7 @@ use crate::kernel::level;
 use crate::kernel::level::Level;
 use crate::kernel::name;
 use crate::kernel::name::Name;
+use crate::kernel::nat_op_pins::NatOpPinSet;
 use crate::kernel::prop_when;
 use crate::kernel::std_axioms;
 use crate::kernel::trust_axioms;
@@ -483,13 +484,14 @@ pub fn check_opaque_val_c_after_annot(
 /// (task #18's rule for a gated cascade).
 pub fn check_decl_c(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe: FEnv,
     pd: &DeclC,
 ) -> CheckCM<FEnv> {
     match pd {
         DeclC::DefnDecl(cv, value, hint) => {
-            check_defn_decl_c(mode, st, fe, cv, value, hint)
+            check_defn_decl_c(mode, pins, st, fe, cv, value, hint)
         }
         DeclC::ThmDecl(cv, value) => check_thm_decl_c(mode, st, fe, cv, value),
         DeclC::OpaqueDecl(cv, value) => check_opaque_decl_c(mode, st, fe, cv, value),
@@ -513,6 +515,7 @@ pub fn check_decl_c(
 /// not a second value.
 pub fn check_defn_decl_c(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe: FEnv,
     cv: &ConstantVal,
@@ -528,7 +531,7 @@ pub fn check_defn_decl_c(
             {
                 match check_defn_val_c(mode, st, fe, &cv_a, &jty, value, hint) {
                     Err(err) => Err(err),
-                    Ok(fe2) => check_defn_pins_c(mode, st, fe2, k_pre, &cv_a.name),
+                    Ok(fe2) => check_defn_pins_c(mode, pins, st, fe2, k_pre, &cv_a.name),
                 }
             } else {
                 check_defn_val_c(mode, st, fe, &cv_a, &jty, value, hint)
@@ -551,12 +554,13 @@ pub fn check_defn_decl_c(
 /// record, and the slots are `kernel::type_checker`'s by name.
 pub fn check_defn_pins_c(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe2: FEnv,
     k_pre: u64,
     n: &Name,
 ) -> CheckCM<FEnv> {
-    checker::check_defn_pins(mode, st, fe2, k_pre, n)
+    checker::check_defn_pins(mode, pins, st, fe2, k_pre, n)
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:158-241 checkDeclC
@@ -726,12 +730,13 @@ pub fn check_ind_decl_c(
 /// three level-operation memos survive (`state_c::flushed`).
 pub fn check_decl_step_c(
     mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe: FEnv,
     pd: &DeclC,
 ) -> CheckCM<FEnv> {
     state_c::flush_c(st);
-    check_decl_c(mode, st, fe, pd)
+    check_decl_c(mode, pins, st, fe, pd)
 }
 
 /* Not ported from `ParsedC.lean` (DESIGN.md §3.1: message strings need not
@@ -748,6 +753,15 @@ pub fn check_decl_step_c(
 
 #[cfg(test)]
 mod tests {
+
+    /// The empty pin list, i.e. the `[]` arm of
+    /// `checker::check_div_mod_pin_loop` (DESIGN.md §3.6: the list is a
+    /// parameter, and the driver is what reads con-leche's own).  No test
+    /// here defines a pin-certified `Nat` operation, so the arm is never
+    /// reached and the list is only the parameter.
+    fn no_pins() -> Vec<NatOpPinSet> {
+        Vec::new()
+    }
     use crate::cached::parsed_c;
     use crate::cached::parsed_c::DeclC;
     use crate::cached::parsed_c::ValueKind;
@@ -769,6 +783,7 @@ mod tests {
     use crate::kernel::level;
     use crate::kernel::name;
     use crate::kernel::name::Name;
+use crate::kernel::nat_op_pins::NatOpPinSet;
     use crate::kernel::prop_when;
 
     fn nm(s: &str) -> Name {
@@ -991,6 +1006,7 @@ mod tests {
         let fe_k: FEnv = fenv::mk_fenv(Env { consts });
         match parsed_c::check_decl_step_c(
             &mode,
+            &no_pins(),
             &mut st,
             fe_k,
             &DeclC::AxiomDecl(cvt("k", sort1())),
@@ -1017,6 +1033,7 @@ mod tests {
         let mut st_i: CState = state_c::cstate_new();
         match parsed_c::check_decl_c(
             &mode,
+            &no_pins(),
             &mut st_i,
             empty_fenv(),
             &DeclC::IndDecl(good_block, 0),
@@ -1032,6 +1049,7 @@ mod tests {
         assert!(!env::ind_params_ok(3, &bad_block));
         match parsed_c::check_decl_c(
             &mode,
+            &no_pins(),
             &mut st2,
             empty_fenv(),
             &DeclC::IndDecl(bad_block, 3),
@@ -1045,6 +1063,7 @@ mod tests {
         let mut st3: CState = state_c::cstate_new();
         match parsed_c::check_decl_c(
             &mode,
+            &no_pins(),
             &mut st3,
             empty_fenv(),
             &DeclC::AxiomDecl(cvt("myAxiom", sort1())),

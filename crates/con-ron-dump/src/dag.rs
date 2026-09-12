@@ -36,6 +36,7 @@ use con_ron_core::kernel::level::LevelNode;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::name::NameKind;
 use con_ron_core::kernel::name::NameNode;
+use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_core::kernel::prop_when;
 use con_ron_core::kernel::prop_when::PropWhen;
 
@@ -229,6 +230,37 @@ pub fn census(ds: &[DeclC]) -> Census {
     let mut w = Walk::default();
     for d in ds {
         w.decl(d);
+    }
+    Census {
+        names: w.names.len(),
+        levels: w.levels.len(),
+        exprs: w.exprs.len(),
+    }
+}
+
+/// The same census for a `con-ron-pins/1` payload (FORMAT.md §7).  A pin
+/// variant is where the sharing matters most: as a *tree* the v4.33.0 variant
+/// is 5.1 M nodes against 20 183 in the DAG (DESIGN.md task #22), so a reader
+/// that lost the sharing would be found here and nowhere else.
+pub fn census_pins(ss: &[NatOpPinSet]) -> Census {
+    let mut w = Walk::default();
+    for s in ss {
+        w.expr(&s.div_pin);
+        w.expr(&s.mod_pin);
+        w.expr(&s.gcd_pin);
+        w.expr(&s.land_pin);
+        w.expr(&s.lor_pin);
+        w.expr(&s.xor_pin);
+        w.expr(&s.shift_left_pin);
+        w.expr(&s.shift_right_pin);
+        w.exprs_of(&s.div_proofs);
+        w.exprs_of(&s.mod_proofs);
+        w.exprs_of(&s.gcd_proofs);
+        w.exprs_of(&s.land_proofs);
+        w.exprs_of(&s.lor_proofs);
+        w.exprs_of(&s.xor_proofs);
+        w.exprs_of(&s.shift_left_proofs);
+        w.exprs_of(&s.shift_right_proofs);
     }
     Census {
         names: w.names.len(),
