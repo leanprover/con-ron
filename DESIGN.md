@@ -750,12 +750,13 @@ measured.
 1. Rust parser (NDJSON, streaming), prelude, Nat-op reordering, projection
    rewrite, in-process inductive modeller, CLI with con-leche's exit codes,
    thread pool for the check phase.  **The parser, the prelude, the hoist, the
-   projection rewrite and the CLI landed as `crates/con-ron` (task #37)**: the
-   dump of the parsed list is byte-identical to the Lean frontend's on 289
-   fixtures with 0 differing, and the binary's exit code agrees with
-   con-leche's expectation on 324 of 348 with 0 differing.  What is left of
-   this item is the **in-process modeller** (task #38, 26 fixtures and
-   `init.ndjson` waiting on it) and the **thread pool**.
+   projection rewrite and the CLI landed as `crates/con-ron` (task #37); the
+   in-process modeller as `crates/con-ron/src/in_model` (task #39)**: the dump
+   of the parsed list, generated `_model` records included, is byte-identical
+   to the Lean frontend's on all 315 fixtures that have one and on
+   `_tmp/corpus/{init,core}.ndjson`, with 0 differing, and the binary's exit
+   code agrees with con-leche's expectation on 348 of 348.  What is left of
+   this item is the **thread pool**.
 2. Perf comparison against con-leche and the official kernel (PERF.md).
 3. Optional: parser refinement against con-leche's naive reference parser.
    Task #37 wrote the statement down: every item of `frontend::scan_fast`
@@ -8522,3 +8523,253 @@ find, and why the end-to-end confirmation belongs to its `.ndjson` route
   out of the common write.  Three more lines of Lean, and no change to any
   statement.
 * The `E` id table's 0.25 GB of `Vec` slack (task #36's item, untouched).
+
+### Task #39 — The in-process modeller (2026-09-12, Opus under Fable)
+
+P4.1's second half, and the last piece of the frontend.  Task #37 gave con-ron
+a front door but stopped at one door inside it: at the point con-leche calls
+`InModel.generate` — the `InModel.wants` test on a **mutual or nested**
+inductive block — the port declined the stream, naming the block.  That
+decline is gone.  `crates/con-ron/src/in_model/` is the port of
+`ConLeche/Frontend/InModel{,/Kit,/Mutual,/Nested}.lean` (2 436 Lean lines, all
+`partial def`s; the construction is a port of lean-inductive-models), and
+`frontend::export_c` now generates, pushes and books the `_model` family of
+every such block, so the block installs through the modeled route as it does
+in con-leche.
+
+**What landed** (6 096 lines of code + 322 of tests, `crates/con-ron/`):
+
+| file | con-leche | Lean | Rust |
+|---|---|---|---|
+| `src/in_model/mod.rs` | `Frontend/InModel.lean` | 48 | 56 |
+| `src/in_model/kit.rs` | `Frontend/InModel/Kit.lean` | 613 | 1 000 |
+| `src/in_model/mutual.rs` | `Frontend/InModel/Mutual.lean` | 456 | 1 098 |
+| `src/in_model/nested.rs` | `Frontend/InModel/Nested.lean` | 1 319 | 3 942 |
+
+plus the wiring in `frontend/export_c.rs`: the three `StateD` fields task #37
+left out (`const_types`, `heights`, `ind_blocks`), `note_decl` (with
+`note_decl_entries`/`note_entries`), `block_rec_of`, `note_gen_names`, and the
+generator call at `process_line_core_d`'s modeller point.  `InModelDump.lean`
+is **not** ported and needs no successor: it is `CON_LECHE_INMODEL_DUMP`'s
+debug splice, written through `Frontend/ExportWrite.lean`'s `ExportWriter` —
+the one source file task #37 deliberately left out, an output format rather
+than something a checker reads.  `StateD.inModelGen`, which exists only to
+feed it, stays unported with it.
+
+#### The oracle: it is byte identity again, and it held at once
+
+The generated model terms have to be *structurally identical* to con-leche's,
+and the frontend oracle says so directly: `--dump-decls` writes the whole
+declaration list, generated records included, and its nine id spaces are dense
+and assigned in the writer's walk order, so one differing binder anywhere
+moves every later id.
+
+| | task #37 | now |
+|---|---|---|
+| fixtures | 348 | 348 |
+| **byte-identical to the Lean dump** | 289 | **315** |
+| **differing** | 0 | **0** |
+| needed the modeller | 26 | **0** |
+| no Lean dump (con-leche's own frontend declines or rejects them) | 33 | 33 |
+| timed out | 1 | **0** (task #38 fixed it) |
+| bytes compared | 4 990 283 | **6 905 866** |
+
+315 is every fixture that *has* a dump to compare.  `scripts/diff-e2e.sh`, the
+whole-binary differential, is likewise complete: **348 of 348 exit codes
+agree, 0 differ**, where #37 had 324 agreeing and 23 declined for the missing
+modeller.
+
+The scale corpus is the same test at three orders of magnitude, and
+`--corpus` now runs both rows (it used to run `init` alone, since `core` could
+not be compared before the modeller either):
+
+| stream | bytes compared | blocks modelled | generated records | dump |
+|---|---|---|---|---|
+| `_tmp/corpus/init.ndjson` | 165 127 796 | 1 (`Lean.Syntax`) | 30 | **byte-identical** |
+| `_tmp/corpus/core.ndjson` | 344 024 887 | 45 | 2 058 | **byte-identical** |
+
+Two rungs, two fixtures, two first tries: the ten mutual fixtures compared
+byte-identical the first time `gen_mutual` compiled, and the fifteen nested
+ones the first time `gen_nested` did.  That is not luck but the shape of the
+task — everything the generator emits is `Expr` arithmetic over de Bruijn
+frames, so a frame off by one shows up on the first fixture and a frame that
+is right is right everywhere.
+
+#### End to end, and what the modeller costs
+
+`con-ron --verified --jobs=1 --pins …`, under `ulimit -v 2600000`/`5000000`,
+on a machine with another agent's work on it:
+
+| export | verdict | con-leche's verdict | parse+model | check | total | peak RSS | con-leche's total / RSS |
+|---|---|---|---|---|---|---|---|
+| `init` | accepted **57972** declarations | accepted 57972 | 1.051 s | 58.674 s | 59.729 s | 886 MB | 59.36 s / 481 MB |
+| `core` | accepted **163391** declarations | accepted 163391 | 2.567 s | 154.965 s | 157.536 s | 2 414 MB | 149.64 s / 1 243 MB |
+
+The declaration counts are `_tmp/corpus/baseline.md`'s to the digit, and they
+are the first end-to-end *accepts* con-ron has produced on the scale corpus
+from a raw export: #37 could only decline these two streams.  RSS is 1.84× and
+1.94× con-leche's, inside CLAUDE.md's 3× budget.
+
+The modeller's own share is small, and `CON_LECHE_INMODEL_CENSUS=1` (which
+stops after the parse) against `CON_LECHE_INMODEL=0 CON_LECHE_INMODEL_CENSUS=1`
+(which stops after the parse *without* modelling) measures it:
+
+| export | parse | parse + model | model | RSS parse | RSS parse + model |
+|---|---|---|---|---|---|
+| `init` | 1.281 s | 1.344 s | **0.06 s** for 1 block / 30 records | 542 MB | 541 MB |
+| `core` | 2.853 s | 3.050 s | **0.20 s** for 45 blocks / 2 058 records | 1 134 MB | 1 275 MB |
+
+So 45 model families cost 0.2 s and 141 MB — 0.13 % of the run's wall and 6 %
+of its peak.  What is *not* free is the declaration table the sort inferer
+reads: `const_types` and `ind_blocks` hold every declaration's type and every
+inductive block's shape for the whole run, and they are in **both** columns
+above, so the table above does not price them.  Task #37 declined to port them
+for exactly that reason and was right to, at the time; they are the parse's one
+memory cost that scales with the *stream* rather than with the DAG, and there
+is no way to run the sort inferer without them (con-leche pays the same).  The
+absolute numbers moved down rather than up since #37 measured (init's parse
+peak 587 → 542 MB, core's 1 183 → 1 275 MB) because task #38's repacked term
+node landed in between and saved more than these tables cost.
+
+#### Structure, and the seven deviations worth naming
+
+1. **`ConstTable`, `heights` and `blocks` are `&dyn Fn`.**  con-leche's `Ctx`
+   carries three Lean functions, and both generators build *overlays* over
+   them — `tbl'` adds the block's own generated types for the projection
+   artifacts' sort inference, `hOf` the heights of the definitions emitted so
+   far.  A Lean function argument makes that free; a trait object is the Rust
+   spelling of the same thing, and this crate is outside §3.4's Aeneas subset.
+2. **Every memo is keyed by the node's ADDRESS**, where con-leche's
+   `Std.HashMap Expr _` keys by value.  A memo answer here is a function of
+   the node, so an address key is a strictly coarser dedupe of the same
+   answers — and it keeps `expr::beq` off the probe path.  That is task #37's
+   finding applied prophylactically: `specFamGo`, `specAllGo`, `substParams`,
+   `mentionsAnyGo` and `maxHeightGo` are exactly the walks con-leche wrote the
+   `tower_*` fixtures for, and a value-keyed memo would have put `beq` on
+   every probe of a depth-60 shared tower.  (`nat_op_ground::ExprKey`, task
+   #37's, is reused verbatim.)
+3. **Nat subtraction is `saturating_sub`** throughout (`kit::sub`).  The
+   generators are written in de Bruijn arithmetic — `nF - 1 - i`,
+   `M - 1 - m`, `args.length - nIdx`, `o2 - M - n` — and Lean's `Nat` truncates
+   where Rust's `u64` wraps in release and panics in debug.  Every one of the
+   ~120 subtractions goes through `sub`, so an out-of-range index gives
+   con-leche's `0` and the fold rejects the record, rather than the port
+   producing a different term or dying.
+4. **`genNested`'s ~40 local `let f := fun …` definitions become methods of a
+   `Gen` record**, and the iota proof's five (`uOf`, `eOf`, `carrOf`, `rOf`,
+   `ihApp`, plus `stmtAt`/`nest`/`goT`) methods of an `Iota` one.  Lean closes
+   them over `genNested`'s locals for free and lets them call each other and
+   recurse; Rust closures cannot do both, so the captured locals are the
+   struct's fields and each closure is a method with the same name and the
+   same arguments.  This is the single largest reason `nested.rs` is 3.0× its
+   Lean (`kit.rs` is 1.6×, `mutual.rs` 2.4×).
+5. **The generalisation state of the iota proof is a slice.**  `stmtAt` takes
+   `zs`/`hs` as `&[Option<Expr>]` indexed by field position where con-leche
+   passes `Nat → Option Expr`; every caller indexes below `nF`, so the slice
+   is the same function tabulated, and `nest`'s two rebuilds of it are two
+   `Vec`s instead of two closures over closures.
+6. **`note_gen` is split in two.**  `push_gen_d` takes the `DeclC` by value
+   (it is pushed into the state) and whether it *was* pushed — con-leche's
+   `st'.decls.size > before` — is known only afterwards, when the record is
+   gone.  `note_gen_names` takes the names read off it beforehand; `note_gen`
+   is kept as the one-argument form the citation names.
+7. **`Kit.recTy`/`recRhs`'s four-component tuples become `kit::KCtor`**
+   (`proj_rec`'s deviation 3, same reason: `·.2.2.2` is not something to
+   transliterate).
+
+#### Three dead expressions in the cited Lean, dropped
+
+Reading 2 436 lines of `partial def` closely turns up three places where
+con-leche computes something and throws it away, all of them harmless and all
+of them silencing an unused-variable warning rather than doing work:
+
+* `Nested.lean:300-301` — `if pins.any (fun p => (stripAllPis p).1.length > 0 && false) then throw "unreachable"`.
+  The `&& false` makes the predicate constantly false, so the `throw` is
+  unreachable by construction.  Not ported.
+* `Nested.lean:546` — `let _ := groupOf`, the only use of a `groupOf` defined
+  twelve lines earlier.  Neither is ported.
+* `Nested.lean:717` and `1270-1272` — `let _ := D` in `unpackMinors`, and a
+  `fd.liftLooseBVars (o2 + 1 - 1) 1 |> … |> fun _ => fd.liftLooseBVars o2 1`
+  pipeline in the projection motive whose first two stages are discarded.
+  The port keeps only the value: `lift_loose_bvars(o2, 1, fd)`.
+
+#### What needed a bound, and what did not
+
+The brief asked what in the `partial def`s needed one.  The answer is
+**nothing that con-leche does not already bound itself**, and the reason is
+worth writing down:
+
+* `sortCeil` is the one `partial def` in the family that is *not* structural —
+  it walks up a type tower and down a `∀` telescope — and con-leche already
+  gives it a fuel, 128 at `idxSort`'s call.  The port carries the same
+  constant.  A stream that exhausts it declines, naming the index whose sort
+  no ceiling bounds (task #227's residual).
+* every other recursion — `specFamGo`, `specAllGo`, `substParams`,
+  `mentionsAnyGo`, `maxHeightGo`, `inferTy`, `congrChain`, `nest`, `goT`,
+  `minorsPis`/`minorsLams`, `ihPis` — is structural on the term or on a list
+  whose length is a field count, and the memo turns the term walks into DAG
+  walks.  Their depth is the term DAG's, which the binary's 1 GiB stack
+  reservation (task #37's `STACK_BYTES`) already covers: it is the same bound
+  the fold and `canon_expr_eq_fast` run under.
+* `betaHead` and `freshLevelName.go` are the two that *could* diverge in
+  principle — a self-application and an exhausted name space respectively —
+  and both diverge in con-leche too.  Adding a bound would have turned a hang
+  into a *decline*, i.e. a verdict divergence from the reference on an input
+  neither implementation can handle; the port therefore transliterates them
+  and says so here.
+
+#### Two notes for whoever continues
+
+1. **The three `StateD` fields are the modeller's only interface to the
+   parse, and `note_decl` is where they are filled.**  It runs on every
+   record `push_decl` actually pushes (con-leche's `.inl (noteDecl … d)`), the
+   built-in prelude included via `state_d_init` — and the prelude fold had to
+   collect its entries *first*, because in Rust the fold would borrow the
+   state it writes into, where Lean's value semantics make
+   `prelude.decls.foldl noteDecl st` two objects.
+2. **The `INMODEL` row of both differential scripts is retired but not
+   removed.**  It now greps for the literal "the in-process modeller is not
+   ported" and is expected to read 0; a generator *decline* counts as `other`
+   and reddens the run, which is what makes the 26 modeller fixtures a gate
+   rather than a skip list.  Both scripts' headers say so.
+
+#### Gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | all 6 OK (`cargo build`, `cargo test`, lint, provenance, `extract.sh --check`, `lake build`) |
+| `cargo test` | **223 pass, 1 ignored** (task #37's exponential measurement), warning-free — **13** new tests: 8 unit in `in_model::kit`, 5 in `in_model` that run the three rungs on con-leche's own `inmodel_{mutual,nested,groups}.ndjson` |
+| `scripts/lint-rust-style.sh` | green, and untouched: scoped to `crates/con-ron-core/src` |
+| `scripts/provenance.py check` | 1 978 items, 2 171 citations, all current at pin `3e004805` |
+| `scripts/extract.sh --check` | clean (`con-ron-core` untouched) |
+| `cd proof && lake build` | clean |
+| `scripts/diff-frontend.sh` | **315 byte-identical, 0 differ**, 0 INMODEL, 33 no dump, 0 timeouts |
+| `scripts/diff-frontend.sh --corpus` | `init` and `core` both **byte-identical** (509 MB of dump) |
+| `scripts/diff-e2e.sh --timeout=60` | **348 agree, 0 differ**, 0 INMODEL, 0 timeouts |
+| cherries (`scripts/progress.py`) | **7 632 of 8 093 Lean lines translated (94 %)**, up from 68 % |
+
+The two differential scripts are still not in `scripts/gates.sh`, for the
+reason tasks #19, #28 and #37 give: they need the Lean dumps and the arena
+tarball, which the gate deliberately does not require.
+
+#### Left for next time
+
+* **The full Mathlib run**, which is now askable for the first time: the whole
+  binary on the 6 GB export against `_tmp/corpus/baseline.md`'s 12.8 T
+  instructions and 8.6 GB.  Mathlib has mutual and nested blocks by the
+  thousand, so this task is what unblocks it — and the declaration table of
+  the note above is the thing to watch, since it is the one part of the parse
+  whose size is the stream's rather than the DAG's.
+* **The thread pool** for the check phase (`--jobs`), P4.1's last piece and
+  the whole of the 2.4× the `--jobs=8` baseline rows show.
+* The residual coverage the generators decline, which is now exactly
+  con-leche's residual and nothing more: infinitary nesting, a container group
+  cycle (B4's own limit), a `Prop` block with a large eliminator, an index
+  domain no ceiling bounds, and `Nested.lean`'s KNOWN GAP (a member whose index
+  *domain* mentions a parameter gets an `_impl.rec` the fold rejects).  None of
+  the 348 fixtures and neither corpus stream hits any of them; the gap is
+  con-leche's to close first.
+* **The frontend's refinement against `Scan/Naive.lean`** (P4.3, optional) is
+  unchanged by this task: the modeller is untrusted by construction — a wrong
+  record is rejected or declined by the fold, never accepted — so there is no
+  `_refines` lemma owed here and never will be.

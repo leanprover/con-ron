@@ -16,8 +16,10 @@
 #     enumerates them: from `vendor/con-leche/tests/{arena,e2e,annot}
 #     -expected.txt`, with the gzipped e2e streams gunzipped and the arena
 #     tarball extracted to `$ARENA_DIR`;
-#   * `--corpus` adds `_tmp/corpus/init.ndjson` against `_tmp/corpus/init.decls`
-#     (task #29's scale corpus), which is not in the fixture enumeration.
+#   * `--corpus` adds `_tmp/corpus/{init,core}.ndjson` against their
+#     `.decls` (task #29's scale corpus), which are not in the fixture
+#     enumeration.  Give them room: `ulimit -v 2600000` for `init` and
+#     `5000000` for `core`.
 #
 # Byte identity is the whole test.  It is a strong one: the dump's nine id
 # spaces are dense and assigned in the writer's own walk order, so a single
@@ -29,18 +31,14 @@
 # streams con-leche's own frontend declines or rejects before the fold (task
 # #10), so there is no declaration list to compare.
 #
-# A fixture con-ron declines because it needs the IN-PROCESS MODELLER is
-# reported as `INMODEL` and counted separately: the modeller is task #38, and
-# `frontend::export_c` declines at exactly the point con-leche calls it.
+# Since task #39 the IN-PROCESS MODELLER is ported, so the dump of a mutual or
+# nested block's stream contains its generated `_model` family and is compared
+# like any other: the `INMODEL` row exists only to catch a regression that
+# reintroduces the "not ported" decline, and is expected to read 0.  A
+# generator DECLINE (`in-process model of <T>: <why>`) counts as `other` and
+# reddens the run, which is what makes the 26 modeller fixtures a gate.
 #
-# ONE fixture is expected to TIME OUT, and it is a finding rather than a flake:
-# `e2e/tower_beqpair.ndjson` is exponential in `con-ron-core`'s `expr::beq`,
-# whose pair memo is keyed on the two nodes' hash words (task #11's deviation)
-# where con-leche keys it on their addresses.  DESIGN.md's task-#37 entry has
-# the measurement and the options; until it is fixed, pass `--timeout=40` to
-# keep the sweep short.
-#
-# A run is otherwise green when `differ` and `other` are both zero.
+# A run is green when `differ`, `other` and `timed out` are all zero.
 set -u
 cd "$(dirname "$0")/.."
 root="$PWD"
@@ -117,7 +115,7 @@ one() { # one <suite> <label> <stream-path>
       fi
       ;;
     2)
-      if printf '%s' "$out" | grep -q "task #38"; then
+      if printf '%s' "$out" | grep -q "the in-process modeller is not ported"; then
         inmodel=$((inmodel + 1))
         echo "INMODEL $suite/$label: $(printf '%s' "$out" | head -1)"
       else
@@ -155,18 +153,20 @@ while read -r exp rel; do
   one annot "$rel" "$CL/tests/annot/$rel"
 done <"$CL/tests/annot-expected.txt"
 
-# `_tmp/corpus/init.ndjson` (task #29), which is not a fixture.  `Init`
-# declares `Lean.Syntax`, a NESTED block, so con-leche's own dump has that
-# block's generated `_model` family in it and con-ron declines the stream:
-# the row is reported INMODEL until task #38.
+# `_tmp/corpus/{init,core}.ndjson` (task #29), which are not fixtures.  `Init`
+# declares `Lean.Syntax` and `Init+Std+Lean` 45 mutual/nested blocks, so
+# con-leche's own dumps have those blocks' generated `_model` families in them:
+# these two rows are the modeller's scale gate (task #39).
 if [ "$corpus" -eq 1 ]; then
-  if [ -f "$CORPUS/init.ndjson" ] && [ -f "$CORPUS/init.decls" ]; then
-    mkdir -p "$OUT/corpus"
-    cp -n "$CORPUS/init.decls" "$OUT/corpus/init.ndjson.decls" 2>/dev/null || true
-    one corpus "init.ndjson" "$CORPUS/init.ndjson"
-  else
-    echo "diff-frontend: no $CORPUS/init.{ndjson,decls}; run scripts/corpus.sh" >&2
-  fi
+  for c in init core; do
+    if [ -f "$CORPUS/$c.ndjson" ] && [ -f "$CORPUS/$c.decls" ]; then
+      mkdir -p "$OUT/corpus"
+      cp -n "$CORPUS/$c.decls" "$OUT/corpus/$c.ndjson.decls" 2>/dev/null || true
+      one corpus "$c.ndjson" "$CORPUS/$c.ndjson"
+    else
+      echo "diff-frontend: no $CORPUS/$c.{ndjson,decls}; run scripts/corpus.sh" >&2
+    fi
+  done
 fi
 
 t1=$(date +%s)
@@ -174,7 +174,7 @@ echo
 echo "diff-frontend: $total fixtures"
 echo "  byte-identical      $same"
 echo "  DIFFER              $differ"
-echo "  needs the modeller  $inmodel   (task #38; declined at the parse)"
+echo "  needs the modeller  $inmodel   (task #39 ported it; expected 0)"
 echo "  no Lean dump        $skipped   (con-leche's frontend declined or rejected them)"
 echo "  timed out           $timedout"
 echo "  other errors        $other"

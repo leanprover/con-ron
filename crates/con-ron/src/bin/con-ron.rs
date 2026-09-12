@@ -91,7 +91,7 @@ const STACK_BYTES: usize = 1 << 30;
 /// con-leche: Main.lean:791-1039 usage
 /// The usage text.  DESIGN.md §3.1: message strings need not match, and this
 /// one deliberately does not — it documents the three flags that differ (the
-/// module note) and the modeller that is not ported.
+/// module note) and the one piece of `Main.lean` that is not ported.
 const USAGE: &str = "\
 usage: con-ron [--verified|--trusted] [--jobs=<n>] [--progress[=<stride>]]
                [--pins FILE] [--dump-decls OUT] FILE.ndjson
@@ -120,18 +120,18 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--progress[=<stride>]]
 exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
 
 environment (con-leche's):
-  CON_LECHE_INMODEL=0          turn the in-process modeller off (it is not
-                               ported — see below — so this only changes a
-                               decline at the parse into one at the install)
+  CON_LECHE_INMODEL=0          turn the in-process modeller off; a mutual or
+                               nested block is then pushed bare and the FOLD
+                               declines it, having found no route
   CON_LECHE_INMODEL_CENSUS=1   report every mutual/nested block's outcome
                                after the parse and stop (exit 2)
   CON_LECHE_PROJREC_TRACE      name each rewritten projection function
   CON_LECHE_VERBOSE            print the environment's constant count
 
-NOT PORTED YET (con-ron task #38): the in-process modeller, which generates
-a `_model` family for every mutual or nested inductive block.  A stream with
-such a block is DECLINED at the parse, naming the block; use
-CON_LECHE_INMODEL_CENSUS=1 to list them.";
+NOT PORTED: CON_LECHE_INMODEL_DUMP, the debug splice of the generated
+records into a copy of the input — it is written through con-leche's
+annotated-NDJSON writer (`Frontend/ExportWrite.lean`), an output path this
+checker does not have.";
 
 /// con-leche: Main.lean:48-51 ConLeche.CheckError.exitCode
 fn exit_code(e: &CheckError) -> u8 {

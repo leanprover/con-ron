@@ -26,23 +26,25 @@
 //! | `frontend::nat_op_ground` | `ConLeche/Frontend/NatOpGround.lean` |
 //! | `frontend::export_c` | `ConLeche/Frontend/ExportC.lean` |
 //! | `frontend::prelude` | `ConLeche/Frontend/Prelude.lean` |
+//! | `in_model` | `ConLeche/Frontend/InModel.lean` |
+//! | `in_model::kit` | `ConLeche/Frontend/InModel/Kit.lean` |
+//! | `in_model::mutual` | `ConLeche/Frontend/InModel/Mutual.lean` |
+//! | `in_model::nested` | `ConLeche/Frontend/InModel/Nested.lean` |
 //! | `src/bin/con-ron.rs` | `Main.lean` |
 //!
-//! **Three things are deliberately not here** (task #37's boundary):
+//! **Three things are deliberately not here**:
 //!
-//! 1. **The in-process modeller** (`ConLeche/Frontend/InModel/*`, 2.5 k lines)
-//!    is task #38.  A stream whose inductive block is mutual or nested is
-//!    *declined* at exactly the point con-leche would call
-//!    `InModel.generate` — `export_c::process_line_core_d`'s
-//!    `InModel.wants` test — with a message naming the block.  Nothing
-//!    silently differs: such a stream gets exit 2 and says why.
-//! 2. **`ConLeche/Frontend/ExportWrite.lean`** (the checker's own *annotated*
+//! 1. **`ConLeche/Frontend/ExportWrite.lean`** (the checker's own *annotated*
 //!    NDJSON writer) is not needed: it is an output path (`lake exe
 //!    con-leche-annot` writes the `tests/annot` fixtures), not something the
 //!    checker reads.  con-ron reads those fixtures like any other stream.
+//! 2. **`ConLeche/Frontend/InModelDump.lean`**, the `CON_LECHE_INMODEL_DUMP`
+//!    debug splice, which is built on that writer and is likewise not on the
+//!    checking path (`in_model`'s module note).
 //! 3. **`ConLeche/Frontend/Scan/Naive.lean` and `Scan/Equiv*.lean`** are the
 //!    reference recogniser and the `@[csimp]` equivalence proof.  There is one
 //!    Rust recogniser (`scan_fast`), and each of its items cites the `Naive`
 //!    declaration that *specifies* it beside the `Fast` one it ports.
 
 pub mod frontend;
+pub mod in_model;

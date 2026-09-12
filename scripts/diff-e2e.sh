@@ -31,17 +31,17 @@
 # it; without it the 17 fixtures that define `Nat.div` decline for an empty
 # pin table.
 #
-# A fixture con-ron declines because it needs the IN-PROCESS MODELLER is
-# reported `INMODEL` and counted separately (task #38).
+# Since task #39 the IN-PROCESS MODELLER is ported, so the 23 fixtures that
+# used to be reported `INMODEL` are checked like any other; the row exists
+# only to catch a regression that reintroduces the "not ported" decline, and
+# is expected to read 0.
 #
-# ONE fixture is expected to TIME OUT, and it is a finding rather than a flake:
-# `e2e/tower_beqpair.ndjson` is exponential in `con-ron-core`'s `expr::beq`,
-# whose pair memo is keyed on the two nodes' hash words (task #11's deviation)
-# where con-leche keys it on their addresses.  DESIGN.md's task-#37 entry has
-# the measurement and the options; until it is fixed, pass `--timeout=60` to
-# keep the sweep short.
+# Nothing is expected to time out: `e2e/tower_beqpair.ndjson`, the one fixture
+# that used to (task #37's `expr::beq` finding), finishes since task #38's
+# repacked term node.  `--timeout=60` keeps a regression from stalling the
+# sweep.
 #
-# A run is otherwise green when `differ` and `other` are both zero.
+# A run is green when `differ`, `other` and `timed out` are all zero.
 set -u
 cd "$(dirname "$0")/.."
 root="$PWD"
@@ -121,7 +121,7 @@ one() { # one <suite> <label> <stream> <expected-exit>
   elif [ "$rc" = "$want" ]; then
     agree=$((agree + 1))
     [ "$verbose" -eq 1 ] && echo "ok      $suite/$label ($rc)"
-  elif [ "$rc" = 2 ] && printf '%s' "$out" | grep -q "task #38"; then
+  elif [ "$rc" = 2 ] && printf '%s' "$out" | grep -q "the in-process modeller is not ported"; then
     inmodel=$((inmodel + 1))
     echo "INMODEL $suite/$label: con-leche expects $want; the block needs the modeller"
   else
@@ -161,7 +161,7 @@ echo
 echo "diff-e2e ($MODE${pinargs:+, with pins}): $total fixtures"
 echo "  agree               $agree"
 echo "  DIFFER              $differ"
-echo "  needs the modeller  $inmodel   (task #38)"
+echo "  needs the modeller  $inmodel   (task #39 ported it; expected 0)"
 echo "  timed out           $timedout"
 echo "  other errors        $other"
 echo "  $((t1 - t0))s; log: $log"

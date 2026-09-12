@@ -16,41 +16,32 @@
 //! `parse_result_of_state`), and the projection-function rewrite
 //! (`proj_rec`).
 //!
-//! ## What task #37 does NOT do: the in-process modeller
+//! ## The in-process modeller (task #39)
 //!
 //! con-leche generates a `_model` family for every **mutual or nested**
-//! inductive block at parse time (`ConLeche/Frontend/InModel/*`, 2.5 k lines)
-//! and pushes it ahead of the block, which then installs through the modeled
-//! route.  That is task #38.  Here, `process_line_core_d` reaches exactly the
-//! point where con-leche calls `InModel.generate` — the `InModel.wants` test,
-//! ported as `in_model_wants` — and **declines** the stream, naming the block
-//! and saying that the modeller is not ported.  Consequences, all of them
-//! visible rather than silent:
+//! inductive block at parse time and pushes it ahead of the block, which then
+//! installs through the modeled route.  `process_line_core_d` does that here:
+//! at the point `InModel.wants` (ported as `in_model_wants`) says yes it
+//! builds the `BlockRec` (`block_rec_of`), calls `in_model::generate`, pushes
+//! the records it returns through `push_gen_d` and books each of them with
+//! `note_gen_names`, and only then pushes the block.  A generator decline is
+//! the run's decline, naming the class.
 //!
-//! * a stream with a mutual or nested block exits 2 with that message
-//!   (`scripts/diff-frontend.sh` and `scripts/diff-e2e.sh` list those
-//!   fixtures as skipped, and `_tmp/corpus/init.ndjson` is one of them —
-//!   `Lean.Syntax` is nested);
-//! * `CON_LECHE_INMODEL_CENSUS=1` still works and is the way to enumerate
-//!   which blocks of a stream need #38: each is reported `inmodel declined
-//!   <T>: the in-process modeller is not ported (con-ron task #38)` and the
-//!   run exits 2 after the parse, as con-leche's census does;
-//! * `CON_LECHE_INMODEL=0` also works and means what it means in con-leche:
-//!   the block is pushed bare and the *fold* declines it at the install,
-//!   having found no route.
+//! Three `StateD` fields exist for it and for nothing else — `const_types`
+//! and `heights` (the sort inferer's and the generated definitions' hint
+//! source, filled by `note_decl` at every push) and `ind_blocks` (the nested
+//! rung's container shapes, filled at every inductive record).  They hold
+//! every declaration's type in a hash map for the whole run, which is the
+//! parse's one memory cost that scales with the stream rather than with the
+//! DAG; con-leche pays it for the same reason.  `inModelGen`, the fourth, is
+//! **not** ported: it feeds `CON_LECHE_INMODEL_DUMP` alone, whose writer
+//! (`Frontend/ExportWrite.lean`) con-ron does not have (`in_model`'s note).
 //!
-//! Four `StateD` fields con-leche carries only to feed the modeller are
-//! therefore **not** ported: `constTypes` and `heights` (the sort inferer's
-//! and the generated definitions' hint source), `indBlocks` (the nested
-//! rung's container shapes) and `inModelGen` (the `CON_LECHE_INMODEL_DUMP`
-//! debug gate).  `noteDecl` and `blockRecOf` exist only to fill them and are
-//! not ported either — they have no other reader anywhere in con-leche, so
-//! nothing in #37's scope changes, and keeping them would hold every
-//! declaration's type in a hash map for the whole run (at Mathlib scale, for
-//! nothing).  Task #38 adds all six with the modeller they belong to.
-//! `push_gen_d`, `note_gen` and `note_proj_iota` ARE ported, because they are
-//! the modeller's *interface* to the parse state and #38 should only have to
-//! call them; they are unreachable until it does.
+//! `CON_LECHE_INMODEL=0` means what it means in con-leche: the block is
+//! pushed bare and the *fold* declines it at the install, having found no
+//! route.  `CON_LECHE_INMODEL_CENSUS=1` records a generator decline and
+//! pushes the block bare instead of declining the parse, so one parse lists
+//! every block's outcome.
 //!
 //! ## Other deviations
 //!
@@ -95,6 +86,7 @@ use crate::frontend::export::{
 use crate::frontend::nat_op_ground::{decl_names, hoist_nat_op_ground, NameKey};
 use crate::frontend::proj_rec;
 use crate::frontend::scan_fast;
+use crate::in_model;
 use crate::frontend::scan_types::{
     id_table_get, id_table_insert, id_table_singleton, scan_err_render, CVRec, DeclRec, ExprRec,
     HintsRec, IdTable, IndCtorRec, IndRecRec, IndTypeRec, LevelRec, LineRec, NameRec, PwRec,
@@ -246,8 +238,17 @@ pub struct StateD {
     /// structure-like owners the projection rewrite serves, by type name
     pub proj_owners: HashMap<NameKey, proj_rec::ProjRecOwner>,
     /// field sorts, by artifact iota name `T._model.proj_i.iota` (the
-    /// in-process modeller's own, and only those) — always empty until #38
+    /// in-process modeller's own, and only those)
     pub proj_levels: HashMap<NameKey, Level>,
+    /// the declared types of every declaration pushed so far (the prelude's
+    /// included), by name: the in-process modeller's sort inferer reads them
+    pub const_types: HashMap<NameKey, (Vec<Name>, Expr)>,
+    /// the definitional heights of the definitions pushed so far (the hints
+    /// of the generated definitions are computed from them)
+    pub heights: HashMap<NameKey, u64>,
+    /// the parsed inductive blocks, by member type name (the in-process
+    /// modeller's nested rung reads a container's shape off it)
+    pub ind_blocks: HashMap<NameKey, std::rc::Rc<in_model::mutual::BlockRec>>,
     /// the `PUnit` basis block has been parsed
     pub punit_seen: bool,
     /// projection functions rewritten so far (names, for the driver's trace)
@@ -256,7 +257,7 @@ pub struct StateD {
     pub prelude: PreludeIx,
     /// in-process modelling of mutual/nested blocks is on
     pub in_model: bool,
-    /// the blocks modelled in-process, in stream order — always empty until #38
+    /// the blocks modelled in-process, in stream order
     pub in_modelled: Vec<Name>,
     /// how many records the in-process modeller GENERATED and pushed
     pub gen_records: u64,
@@ -274,15 +275,15 @@ pub struct StateD {
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:878-885 StateD.init
 /// The initial parse state over a prelude: `PUnit` counts as seen for the
-/// projection rewrite when the prelude installs it.  con-leche also folds
-/// `noteDecl` over the prelude's records to seed the modeller's declaration
-/// table; that table is task #38's (the module note).
+/// projection rewrite when the prelude installs it, and `note_decl` is folded
+/// over the prelude's records to seed the modeller's declaration table (the
+/// prelude's `Nat`, `Eq`, `PUnit`, … are constants the sort inferer meets).
 pub fn state_d_init(prelude: PreludeIx, in_model: bool, census: bool) -> StateD {
     let punit_seen = prelude
         .basis
         .iter()
         .any(|k| basis_kind_beq(k, &BasisKind::PunitK));
-    StateD {
+    let mut st = StateD {
         names: id_table_singleton(name::anonymous()),
         levels: id_table_singleton(level::zero()),
         exprs: crate::frontend::scan_types::id_table_empty(),
@@ -292,6 +293,9 @@ pub fn state_d_init(prelude: PreludeIx, in_model: bool, census: bool) -> StateD 
         taint_skipped: Vec::new(),
         proj_owners: HashMap::new(),
         proj_levels: HashMap::new(),
+        const_types: HashMap::new(),
+        heights: HashMap::new(),
+        ind_blocks: HashMap::new(),
         punit_seen,
         proj_rewrites: Vec::new(),
         prelude,
@@ -303,20 +307,99 @@ pub fn state_d_init(prelude: PreludeIx, in_model: bool, census: bool) -> StateD 
         in_model_census: census,
         in_model_declined: Vec::new(),
         prelude_dropped: 0,
+    };
+    // `prelude.decls.foldl noteDecl`: the entries are collected first because
+    // they are read out of the state the fold writes into (Lean's value
+    // semantics make the fold's argument a separate object).
+    let mut es: Vec<(Name, Vec<Name>, Expr, Option<u64>)> = Vec::new();
+    for d in st.prelude.decls.iter() {
+        for e in note_decl_entries(d) {
+            es.push(e);
+        }
     }
+    note_entries(&mut st, es);
+    st
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:203-220 noteDecl
+/// The constants one pushed declaration declares, with their level
+/// parameters, declared types and (for a definition) definitional height:
+/// the cited `cvs`.
+pub fn note_decl_entries(d: &DeclC) -> Vec<(Name, Vec<Name>, Expr, Option<u64>)> {
+    let one = |cv: &ConstantVal, h: Option<u64>| -> Vec<(Name, Vec<Name>, Expr, Option<u64>)> {
+        vec![(
+            name::dup(&cv.name),
+            cv.level_params.iter().map(name::dup).collect(),
+            expr::dup(&cv.ty),
+            h,
+        )]
+    };
+    match d {
+        DeclC::AxiomDecl(cv) => one(cv, None),
+        DeclC::DefnDecl(cv, _, h) => one(cv, Some(in_model::kit::hint_height(h))),
+        DeclC::ThmDecl(cv, _) => one(cv, None),
+        DeclC::OpaqueDecl(cv, _) => one(cv, None),
+        DeclC::BasisDecl(k) => basis_raw::basis_decls(k)
+            .iter()
+            .map(|ci| {
+                let cv = env::to_constant_val(ci);
+                (
+                    name::dup(&cv.name),
+                    cv.level_params.iter().map(name::dup).collect(),
+                    expr::dup(&cv.ty),
+                    None,
+                )
+            })
+            .collect(),
+        DeclC::IndDecl(block, _) => block
+            .iter()
+            .map(|ci| {
+                let cv = env::to_constant_val(ci);
+                (
+                    name::dup(&cv.name),
+                    cv.level_params.iter().map(name::dup).collect(),
+                    expr::dup(&cv.ty),
+                    None,
+                )
+            })
+            .collect(),
+    }
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:203-220 noteDecl
+/// The insert half of `noteDecl`: the cited `cvs.foldl` over `constTypes`
+/// and `heights`.
+pub fn note_entries(st: &mut StateD, es: Vec<(Name, Vec<Name>, Expr, Option<u64>)>) {
+    for (n, lps, ty, h) in es {
+        if let Some(hv) = h {
+            st.heights.insert(NameKey(name::dup(&n)), hv);
+        }
+        st.const_types.insert(NameKey(n), (lps, ty));
+    }
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:203-220 noteDecl
+/// Record a pushed declaration's constants in the declaration table
+/// (`const_types`, `heights`).
+pub fn note_decl(st: &mut StateD, d: &DeclC) {
+    let es = note_decl_entries(d);
+    note_entries(st, es);
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:222-239 pushDecl
 /// **The prelude dedupe**, at every declaration push: a basis block the
 /// prelude holds is dropped by kind; a record under a prelude name is dropped
 /// when it is the same declaration (`decl_same_canon`) and declines the stream
-/// when it differs.
+/// when it differs.  Every record that is actually pushed goes through
+/// `note_decl` (the cited `.inl (noteDecl … d)`), which is what feeds the
+/// modeller's declaration table.
 pub fn push_decl(st: &mut StateD, d: DeclC) -> Result<(), LineErr> {
     match &d {
         DeclC::BasisDecl(k) => {
             if st.prelude.basis.iter().any(|p| basis_kind_beq(p, k)) {
                 st.prelude_dropped += 1;
             } else {
+                note_decl(st, &d);
                 st.decls.push(d);
             }
             Ok(())
@@ -327,6 +410,7 @@ pub fn push_decl(st: &mut StateD, d: DeclC) -> Result<(), LineErr> {
                 .find_map(|n| st.prelude.by_name.get(&NameKey(name::dup(&n))).map(|i| (n, *i)));
             match hit {
                 None => {
+                    note_decl(st, &d);
                     st.decls.push(d);
                     Ok(())
                 }
@@ -601,10 +685,20 @@ pub fn push_gen_d(st: &mut StateD, d: DeclC) -> Result<(), LineErr> {
 /// Book a record the in-process modeller generated for block `T0`: a
 /// declaration of the FOLD, never a record of the file, so the driver's
 /// headline count subtracts it and a failure at it is reported with the block
-/// it models.  Unreachable until task #38.
+/// it models.
 pub fn note_gen(st: &mut StateD, d: &DeclC, t0: &Name) {
+    note_gen_names(st, decl_names(d), t0);
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:400-408 noteGen
+/// `note_gen` at the record's names already in hand.  The call site needs
+/// this half: `push_gen_d` takes the `DeclC` by value (it is pushed into the
+/// state), and whether it pushed — the cited `st'.decls.size > before` — is
+/// known only afterwards, when the record is gone.  con-leche reads `d.names`
+/// at that point because a Lean value is still there to read.
+pub fn note_gen_names(st: &mut StateD, names: Vec<Name>, t0: &Name) {
     st.gen_records += 1;
-    for n in decl_names(d) {
+    for n in names {
         st.gen_owner.insert(NameKey(n), name::dup(t0));
     }
 }
@@ -636,6 +730,61 @@ pub fn parse_rule_d(st: &StateD, ru: &RuleRec) -> Result<env::RecRule, LineErr> 
         ru.nfields,
         get_decl_d(st, ru.rhs)?,
     ))
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:423-447 blockRecOf
+/// The export's shape data of an inductive record, for the in-process
+/// modeller.
+pub fn block_rec_of(
+    st: &StateD,
+    types: &[IndTypeRec],
+    ctors: &[IndCtorRec],
+    recs: &[IndRecRec],
+) -> Result<in_model::mutual::BlockRec, LineErr> {
+    let mut ts: Vec<in_model::mutual::IndTypeRec> = Vec::new();
+    for t in types {
+        let mut cs: Vec<Name> = Vec::new();
+        for c in &t.ctors {
+            cs.push(st_name(st, *c)?);
+        }
+        ts.push(in_model::mutual::IndTypeRec {
+            cv: parse_cv_d(st, &t.cv)?,
+            n_p: t.num_params,
+            n_idx: t.num_indices,
+            ctors: cs,
+            is_rec: t.is_rec,
+            is_reflexive: t.is_reflexive,
+            num_nested: t.num_nested,
+        });
+    }
+    let mut cts: Vec<in_model::mutual::IndCtorRec> = Vec::new();
+    for c in ctors {
+        cts.push(in_model::mutual::IndCtorRec {
+            cv: parse_cv_d(st, &c.cv)?,
+            n_p: c.num_params,
+            n_f: c.num_fields,
+        });
+    }
+    let mut rcs: Vec<in_model::mutual::IndRecRec> = Vec::new();
+    for r in recs {
+        let mut rules: Vec<env::RecRule> = Vec::new();
+        for ru in &r.rules {
+            rules.push(parse_rule_d(st, ru)?);
+        }
+        rcs.push(in_model::mutual::IndRecRec {
+            cv: parse_cv_d(st, &r.cv)?,
+            n_p: r.num_params,
+            n_m: r.num_motives,
+            nm: r.num_minors,
+            n_i: r.num_indices,
+            rules,
+        });
+    }
+    Ok(in_model::mutual::BlockRec {
+        types: ts,
+        ctors: cts,
+        recs: rcs,
+    })
 }
 
 /// con-leche: ConLeche/Frontend/InModel.lean:35-38 wants
@@ -1065,22 +1214,68 @@ pub fn process_ind_decl_d(
         }
         return push_decl(st, DeclC::BasisDecl(k));
     }
-    // THE IN-PROCESS MODELLER's point.  con-leche generates the `_model`
-    // family here and pushes it ahead of the block; con-ron declines (task
-    // #37's boundary, this module's note).
+    // THE IN-PROCESS MODELLER (the ONLY model source, and the only one there
+    // IS — a stream `_model` record is an ordinary declaration and is never
+    // consulted): a mutual or nested block gets its `_model` family generated
+    // here and pushed ahead of it; the block then installs through the modeled
+    // route.  A generator decline is the run's decline, naming the class (the
+    // residual: infinitary nesting, a `Prop` block with a large eliminator).
     let t0 = match block_names.first() {
         Some(n) => name::dup(n),
         None => name::anonymous(),
     };
+    let b = std::rc::Rc::new(block_rec_of(st, tys, &cts, rcs)?);
+    for t in b.types.iter() {
+        st.ind_blocks
+            .insert(NameKey(name::dup(&t.cv.name)), std::rc::Rc::clone(&b));
+    }
     if st.in_model && in_model_wants(tys) {
-        let why = "the in-process modeller is not ported (con-ron task #38); \
-                   the block is mutual or nested"
-            .to_string();
-        if st.in_model_census {
-            st.in_model_declined.push((name::dup(&t0), why));
-            return push_decl(st, DeclC::IndDecl(block, n_pd));
+        let gen = {
+            let const_types = &st.const_types;
+            let heights = &st.heights;
+            let ind_blocks = &st.ind_blocks;
+            let tbl = |n: &Name| -> Option<(Vec<Name>, Expr)> {
+                const_types.get(&NameKey(name::dup(n))).map(|(lps, ty)| {
+                    (lps.iter().map(name::dup).collect(), expr::dup(ty))
+                })
+            };
+            let hs = |n: &Name| -> u64 {
+                *heights.get(&NameKey(name::dup(n))).unwrap_or(&0)
+            };
+            let bl = |n: &Name| -> Option<&in_model::mutual::BlockRec> {
+                ind_blocks.get(&NameKey(name::dup(n))).map(|r| &**r)
+            };
+            let ctx = in_model::mutual::Ctx {
+                tbl: &tbl,
+                heights: &hs,
+                blocks: &bl,
+            };
+            in_model::generate(&ctx, &b)
+        };
+        match gen {
+            Err(why) => {
+                if st.in_model_census {
+                    st.in_model_declined.push((name::dup(&t0), why));
+                    return push_decl(st, DeclC::IndDecl(block, n_pd));
+                }
+                return declined(format!("in-process model of {}: {}", name_str(&t0), why));
+            }
+            Ok(gen) => {
+                for d in gen {
+                    // a generated record is a declaration of the FOLD and not
+                    // a record of the file: booked here, so the verdict line
+                    // reports the file's own count
+                    let before = st.decls.len();
+                    let names = decl_names(&d);
+                    push_gen_d(st, d)?;
+                    if st.decls.len() > before {
+                        note_gen_names(st, names, &t0);
+                    }
+                }
+                st.in_modelled.push(name::dup(&t0));
+                return push_decl(st, DeclC::IndDecl(block, n_pd));
+            }
         }
-        return declined(format!("in-process model of {}: {}", name_str(&t0), why));
     }
     push_decl(st, DeclC::IndDecl(block, n_pd))
 }
@@ -1468,8 +1663,9 @@ mod tests {
         }
     }
 
-    /// A mutual block reaches the modeller point and declines there, naming
-    /// the block — task #37's boundary.
+    /// A mutual block reaches the modeller and the modeller declines it,
+    /// naming the block AND the class: this one has no recursors, so the
+    /// generator's own shape check is what refuses it (task #39).
     #[test]
     fn a_mutual_block_declines_at_the_modeller_point() {
         // two type formers `T : Type` and `U : Type`, one constructor each,
@@ -1499,7 +1695,11 @@ mod tests {
         match parse(s) {
             Err(FrontendError::Unsupported(w)) => {
                 assert!(w.starts_with("in-process model of T:"), "{}", w);
-                assert!(w.contains("task #38"), "{}", w);
+                assert!(
+                    w.contains("recursor count differs from member count"),
+                    "{}",
+                    w
+                );
             }
             other => panic!("{:?}", other.err()),
         }
