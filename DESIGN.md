@@ -2916,3 +2916,170 @@ warning-free on the first `cargo build`; one real bug showed up in testing — a
 missing `i += 1` in `unescape`'s literal-byte branch, an infinite loop that the
 string-codec round-trip test caught as a 4 GiB allocation — and nothing else.
 `scripts/gates.sh`: all 6 OK.
+
+### Task #16 — `ron::HashMap` proved (2026-09-12, Opus under Fable)
+
+P3.1's first half: `proof/ConRon/Refine/HashMap.lean` proves the abstract-map
+specification of task #7 on the generated model
+`ConRon.Generated.ron.hashmap.*`.  Generic in `K V`, with the generated
+class dictionaries `HashableInst`/`Eq2Inst` as ordinary parameters, **no
+`sorry`, no Rust change**, `scripts/gates.sh` all 6 OK, the file warning-free
+under `lake env lean`.  (This task merged `master` — the `ron::`/`kernel::`
+module nesting of commits 3051ebe/d22d956 — and retargeted every statement to
+`ron.hashmap.*`; the generated tree came from the merge unchanged and
+`extract.sh --check` passes.)
+
+**Size.**
+
+| | |
+|---|---|
+| `ConRon/Refine/HashMap.lean` | **1 428** lines (44 of them the header rationale) |
+| declarations | 79 (10 `@[local simp]`) |
+| Rust `src/ron/hashmap.rs`, extracted part (code lines, task #7) | 241 |
+| generated `ron.hashmap.*` in `Funs.lean` | ≈360 (plus 30 in `Types.lean`) |
+| `lake env lean` on the file (cold, oleans present) | **6 s** |
+| largest proofs | `insert_no_resize_spec` 135, `move_elements_spec` 116, `remove_refines` 114, `clear_slots_spec` 57, `move_elements_from_list_spec` 49, `try_resize_spec` 48 |
+
+So **≈5.9 proof lines per extracted Rust line** — well above task #5's 2.2 for
+`Level`/`Name`, and the reason is structural: this file has no con-leche
+counterpart to refine *against*, so it carries its own abstract theory (an
+association-list layer, a permutation layer, a `Vec`/`slotsFlat` layer) before
+the first law.  Lines 1–415 are that reusable infrastructure; the nine public
+laws plus growth are lines 415–1400.
+
+**Two departures from the tutorial** (`vendor/aeneas/tests/lean/Hashmap/
+Properties.lean`), both of which paid for themselves:
+
+1. **`toFun` is hash-free.**  The tutorial's `lookup` *is* the bucket lookup
+   (`slots[hash k % len].lookup k`), which forces every law to carry the hash
+   computation.  Ours is `toFun m k = lookupK (al_v m) k`, the lookup in the
+   flattened list of all buckets; `Inv.slot_inv` is the only place the hash
+   appears, and `toFun_eq_bucket` (12 lines) is the single bridge between the
+   two views.  Consequence: **not one hypothesis about `hash64` anywhere** —
+   it may fail and it may be constant.  `bucketAt` is never computed with;
+   the only property used is that it is a *function* (`Result.ok_injective`
+   on two calls at the same key), which is why §3.2's hash divergence is
+   verdict-neutral for the memo tables.  `Inv.slot_inv` is phrased in the
+   only direction needed — "if the computed bucket of `k` is `i`, and `k`
+   lives in bucket `j`, then `i.val = j`" — so no `Usize` is ever built from
+   a `Nat` index and **the file contains no arithmetic about `bucket_index`
+   at all** (no `UScalar.cast`, no `%`, no "power of two divides `2^bits`").
+2. **The bucket/rest decomposition is by permutation, not by position.**
+   `al_v_perm_rest : (s.map alv).flatten ~ alv s[i]! ++ restOf s i` and
+   `al_v_set_perm_rest` for the table with bucket `i` replaced, where
+   `restOf s i = ((s.map alv).set i []).flatten`.  Because keys are `Nodup`,
+   `lookupK` is permutation-invariant (`lookupK_perm`), so **one permutation
+   carries lookup, length and nodup simultaneously**.  `insert`/`remove` then
+   reduce to `alv a ↦ alv a ++ [(k,v)]` resp. `alv a ↦ eraseK (alv a) k` on
+   one bucket, against an untouched `restOf`.  The tutorial instead threads
+   four separate `∀ key v, … lookup … = some v → …` implications through
+   every lemma; the permutation formulation is what shrank
+   `move_elements_from_list` from the tutorial's 90 lines to 49 and
+   `move_elements` from its ~120 to 116 *including* the halving walk.
+
+**What is proved.**  `Inv` (capacity a power of two `≥ 32`; every key in the
+bucket its hash selects; keys globally `Nodup`; `num_entries = |al_v|`) and:
+`new_refines`, `with_capacity_refines`, `len_refines` (both as `|al_v m|` and
+as `(support m).card`, with `mem_support_iff : k ∈ support m ↔ (toFun m k).isSome`),
+`is_empty_refines`, `get_refines`, `contains_key_refines`, `insert_refines`
+(`toFun m' = Function.update (toFun m) k (some v) ∧ old = toFun m k`),
+`remove_refines` (the same with `none`), `clear_refines`; plus the private
+helpers `list_{get,insert,remove}_spec`, `allocate_slots_spec`,
+`pow2_at_least_spec`, `clear_slots_spec`, `insert_no_resize_spec`,
+`move_elements_from_list_spec`, `move_elements_spec`, `try_resize_spec`.
+Naming: the nine public entry points are `<fn>_refines` per
+`ConRon/Refine/README.md`; the private Rust helpers are `<fn>_spec`.
+The bridge `Rel m s absK absV := ∀ k, (toFun m k).map absV = s[absK k]?` has
+`Rel_empty` / `Rel_get` / `Rel_insert` / `Rel_remove` against Lean core's
+`Std.HashMap.getElem?_{empty,insert,erase}`, needing `Function.Injective absK`
+and `LawfulBEq K'` for the two updating ones and nothing for the others.
+`#guard_msgs in #print axioms insert_refines` / `get_refines` closes the file:
+`[propext, Classical.choice, Quot.sound]`, nothing else.
+
+**Hard spots, in order of pain.**
+
+1. **The generated `let (a, index_mut_back) ← Vec::index_mut …` blocks `simp`.**
+   After one `bind_eq_ok_iff` rewrite the hypothesis is `(let (a,b) := p; …) =
+   ok v`; `simp only [bind_eq_ok_iff]`, `dsimp only`, `split`,
+   `simp only [Function.uncurry]` and `beta_reduce` *all* fail on it — the
+   equation's LHS is the `let`, not the `bind`, and the pattern-`let` Aeneas
+   emits is not iota-reducible by any of them (it is reducible only
+   definitionally).  **The fix, and the pattern to reuse: apply the lemma as a
+   term, `replace h := bind_eq_ok_iff.mp h`** — the *unifier* whnf's through
+   the `let` where `simp` will not.  Same trick for `Result.ok_injective h`,
+   and a `have h2 : <explicitly written reduced form> := h` where several
+   pattern-`let`s stack (`move_elements`' `core.mem.replace`).  Note the
+   term-level form peels exactly **one** bind, so a run of `let x ← e` needs
+   one `obtain` per level, whereas `simp only [bind_eq_ok_iff]` peels all of
+   them up to the first pattern-`let`.  This cost about an hour and will
+   recur in every `&mut`-carrying function in the port; it belongs in the
+   planned `ConRon/Refine/Basic.lean`.
+2. **Extracting the result fields.**  `Result.ok_injective h : (old, X) =
+   (old', m')` with `X` a structure literal: `congrArg Prod.fst` leaves an
+   unreduced `(old, m').1`, so `rw` cannot use it.  Always give the projection
+   a type ascription — `have e1 : old = old0 := (congrArg Prod.fst e).symm`,
+   `have es : m'.slots = … := (congrArg (fun z => (Prod.snd z).slots) e).symm`
+   — which forces the defeq check and yields a usable equation.  Writing the
+   structure literal itself is best avoided: a multi-field
+   `{ num_entries := …, …, slots := … }` inside a `do` block inside a
+   hypothesis type is a **parse error** in this Lean (`unexpected identifier;
+   expected '}'` at the last field), while the same literal at top level
+   parses fine.
+3. **`subst` eats the wrong variable.**  `subst (h : old = old0)` eliminates
+   `old0` or `old` depending on which is the more recent fvar; twice it removed
+   the *statement's* variable and made the goal unmentionable.  Cheap to
+   recover from but worth knowing: prefer `rw [e1, e2]` on the goal.
+4. **The halving walks are genuinely easier than the linear ones.**  Task #7
+   worried that `allocate_slots`/`clear_slots`/`move_elements` splitting their
+   index range in half would complicate the proofs.  It does not: each is one
+   `Nat.strong_induction_on` on `hi - lo`, and the frame condition
+   ("`slots'` agrees with `slots` outside `[lo,hi)`") composes trivially
+   across the two halves, where the tutorial's `i → i+1` loop needs a
+   `∀ j < i, slots[j] = Nil` accumulator threaded through.  `slotsFlat s lo n
+   = (((s.drop lo).take n).map alv).flatten` with `List.take_add` gives the
+   range split in one `rw`.
+5. **`UScalar` forward lemmas.**  Aeneas's `*_equiv` lemmas are stated over
+   `(x + y).match`, so `rw [h]` fails when `h : x * y = ok z` (the lemma says
+   `UScalar.mul x y`); `rw [show UScalar.mul x y = ok z from h]` fixes it.
+   `UScalar.div` has no `_equiv` at all — only `div_bv_spec`, which is the
+   *existence* direction — so `uscalar_div_eq` is proved by hand via the
+   `y.bv = 0` case split.  Four such lemmas (`add`/`sub`/`mul`/`div`) are all
+   the scalar reasoning the module needs, and `max_load` was **dropped from
+   `Inv`** once it became clear nothing depends on it (the resize threshold
+   only decides *whether* to grow, never what the map means), which removed
+   `max_load_for` from the proof burden entirely.
+
+**The `Eq2` hypothesis, and its generalisation.**  `Eq2Spec Eq2Inst := ∀ a b,
+Eq2Inst.eq2 a b = ok (decide (a = b))` — `eq2` is decidable equality on `K`.
+That is what the `u64`-keyed memo tables of `Cached/StateC.lean` need.  The
+`ExprC`-keyed ones will want the abstract version, "`eq2 a b = ok (decide
+(absK a = absK b))` for an abstraction `absK`": every proof below goes through
+with `=` replaced by the kernel of `absK` at the cost of carrying a setoid
+instead of `[DecidableEq K]`, and the header records this.  Doing it now would
+have bought nothing testable, so it is deferred to the first client.
+
+**How much of the tutorial transferred.**  The *strategy* transferred
+completely — `AList.v`/`al_v`, `slot_t_inv`, "the table is one association
+list", the order of the lemmas — and reading it first was worth several hours.
+Not one *proof script* transferred: the tutorial is written in Aeneas's
+`⦃ ⦄`/`step`/`grind` idiom and ours reasons forward from `f x = ok y`, exactly
+the split task #5 recorded ("the `⦃ ⦄`/`step` tier and the refinement tier are
+two different proof styles").  So: **the tutorial is a specification document
+for us, not a proof library.**  Its `Properties.lean` is 1 086 lines for a
+`Usize`-keyed map with a `&mut`-walking `remove`; ours is 1 428 for a generic
+key with two trait dictionaries, an extra `with_capacity`/`is_empty`, a
+by-value `remove`, the `Std.HashMap` bridge and an axiom gate — i.e. the same
+order, which is the useful calibration for the rest of P3.
+
+**Left for next time.**  `ConRon/Refine/Basic.lean` now has a clear charter:
+`bind_eq_ok_iff` plus the four `uscalar_*_eq` lemmas plus the
+`bind_eq_ok_iff.mp`-as-a-term idiom of hard spot 1 are needed by every module
+and are currently duplicated between `Refine/HashMap.lean` and (in part)
+`Spike/LevelName/Refine.lean`.  `Rel_len` (task #7's list) is *not* provable
+from `Rel` alone — `Rel` constrains `s` only on the image of `absK`, so
+`s.size` is not determined; a client that needs it must relate the key sets,
+and that is the right place to state it.  `is_empty`, `contains_key` and
+`support` are proved but unused.  `saturated` *is* covered — `insert`'s
+"overloaded and saturated" arm and `try_resize`'s "cannot double" arm both
+preserve `Inv` and `toFun` — but it remains unexercised at runtime (task #7's
+open item (b)), so nothing checks that the two agree on a real table.
