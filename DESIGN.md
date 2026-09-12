@@ -3482,3 +3482,193 @@ makes for the spike.
 and `bitwise_block` belong in the shared `ConRon/Refine/Basic.lean` that task
 #5 asked for; `ron::HashMap` (the other half of P3.1) will want the same loop
 skeleton.
+
+### Task #20 — `Expr` refined (2026-09-12, Opus under Fable)
+
+P3.3's second part: `crates/con-ron-core/src/kernel/expr.rs` is refined on its
+generated model, in `proof/ConRon/Refine/Expr.lean`.  Every ported item of the
+module has a lemma except the three hash producers and the `Hashable`
+dictionary, which §3.2 exempts (see below).  `sorry`-free, elaborating with
+**zero output** under `lake env lean`, `scripts/gates.sh` green, **no Rust
+change** (`crates/` untouched, `extract.sh --check` passes unchanged).
+
+**Size.**
+
+| file | lines | declarations | `lake env lean` |
+|---|---|---|---|
+| `Refine/Expr.lean` | **2 509** | 104 | 9.4 s |
+| `Refine/Abs.lean` | 435 (+88) | 53 | 1.7 s |
+| `Refine/Level.lean` | 1 560 (+56) | 76 | 5.3 s |
+| `Refine/PropWhen.lean` | 2 013 (+109) | 102 | 5.0 s |
+| `Refine/Nat.lean` | 2 307 (+47) | 108 | — |
+
+For comparison: `kernel/expr.rs` is 1 158 raw lines (709 extracted, 449
+`#[cfg(test)]` — 404 code lines by task #11's count) and the generated
+`kernel.expr` part of `Funs.lean` is ≈757 lines.  So **6.2 proof lines per Rust
+code line** — above `prop_when`'s 5.3 (task #17) and for the same identifiable,
+non-general reason: *two* 10×10 case analyses (below).
+
+**The data word, and why the observed bits are provable.**  This is the one
+module where the port's stored word and con-leche's `@[computed_field] data`
+must agree bit for bit, and only on the **non-hash** bits: `mixHash` is opaque
+in Lean and the port hashes its own bignums and strings anyway (§3.2).  The
+proof never looks at a hash value; it goes by the *shape* of `packData`, which
+is the same arithmetic on both sides:
+
+* `pack_val` puts the port's `wrapping_mul`/`wrapping_add` chain in normal form
+  (`h % 2^32 * 2^32 + b * 2^16 + f * 2 + lp`) and `pack_bits` reads the three
+  observed fields back out of it — `b`, `f`, `lp` whenever the two range fields
+  fit in 15 bits, **whatever `h` is**.  That is con-leche's
+  `bvarOfData_pack`/`fvarOfData_pack`/`lpOfData_pack` on the other side.
+* `wf_data : ExprWF e → bvarBits e = (absExpr e).bvarBRaw ∧ fvarBits e =
+  (absExpr e).fvarBRaw ∧ lpBit e = (absExpr e).hasLP` then runs the two
+  recurrences in lock step over the `ExprWF` derivation: ten cases, each one
+  `pack_bits` beside the matching one of con-leche's thirty `@[simp]`
+  constructor equations (`bvarBRaw_app`, `hasLP_lam`, …).  Those equations are
+  *public and already proved* upstream, which is what made this cheap (72
+  lines); had they not existed the same 30 facts would have had to be
+  re-derived through `packData` here.
+* the three observed readers are then one line each:
+  `bvar_b_raw_refines : ExprWF e → expr.bvar_b_raw e = ok r → r.val =
+  (absExpr e).bvarBRaw`, and the same for `fvar_b_raw` and `has_lp`.
+  `expr::hash` gets **no** lemma, by §3.2.
+
+Three port-side lemmas carry the arithmetic and are worth reusing:
+`wrapping_mul_val`/`wrapping_add_val` (`.val = … % 2^64`, via
+`UScalar.wrapping_*_bv_eq` and `BitVec.toNat_*`), and **five one-line
+`@[simp]` lemmas naming the `u64` literals' `.val`** (`val_2_32`, `val_2_16`,
+…).  Without those, `omega` sees `h.val * (4294967296#u64).val` as a *product
+of two unknowns* and fails; with them every packing goal is linear and `omega`
+closes it.  That is the single most useful thing this task learned about the
+scalar model.
+
+**`absExpr`'s injectivity is what makes `beq` exact, and it needs the whole
+word.**  `absExpr` drops the `data` field, so the completeness half of
+`beq_exact` — the word guard `data a ≠ data b → false` must not reject an
+abs-equal pair — needs the *hash* bits too to be a function of the
+abstraction.  They are, for §3.5's reason and with no hash formula in sight: a
+well-formed node *is* what a smart constructor built from its children, a
+smart constructor is a function, so equal children give an equal node
+(`Result.ok_injective`).  `beq_go_data_ne` is that argument, discharged **once**
+rather than in each of the hundred arms.
+
+**Cost driver: the two 10×10 case analyses.**  `absExpr_injective` (394 lines)
+and `beq_go_abs` (918) are 100 constructor pairs each and together are **52 %
+of the file**; both were generated from a table by a Python script with ten
+distinct diagonal bodies and one off-diagonal body.  The pattern that made the
+off-diagonals free:
+
+* injectivity: `obtain ⟨d2, rfl, …⟩ := <c>_inv h2; simp at hab` — `absExpr`
+  maps the ten kinds onto ten *different* con-leche constructors, so `simp`
+  closes the goal by constructor disjointness;
+* `beq_go`: both branches of the word guard yield `ok false` once the kinds are
+  concrete, so `simp only [… , ite_self, Result.ok.injEq] at h; rw [← h]; simp`
+  is the whole arm.
+
+For the ten diagonals, **`guard_step` is the leverage**: every arm of
+`beq_go`'s descent has the shape `let y ← <test>; if y then <rest> else false`,
+and
+
+```lean
+theorem guard_step (htest : ∀ y, test = ok y → y = decide P)
+    (hrest : ∀ y, rest = ok y → y = decide Q)
+    (h : (do let y ← test; if y = true then rest else ok false) = ok c) :
+    c = decide (P ∧ Q)
+```
+
+turns each into one term, nested twice for `lam`/`forallE`/`letE`/`proj`.  Its
+conclusion lands on con-leche's `<ctor>.injEq` verbatim for seven of the ten;
+`lam`/`forallE` need `decide_eq_decide` + `tauto` because con-leche orders the
+conjuncts `type ∧ body ∧ m` while the port tests `m` first.  **Recommendation
+for `defEq` and the other two-scrutinee walks: write `guard_step` (or its
+`Option`/state-monad analogue) before the case table, not after.**
+
+**Reflexivity, and what it cost elsewhere.**  §3.2's transparency obligation
+for the pointer fast path is `beq e e = ok true` *in the model* — a totality
+claim, not a corollary of exactness — so it needs the same for every leaf of
+the descent.  `level::beq` and `name::beq` already had theirs (task #5); this
+task added `ron::nat`'s (`limb_ok`, `cmp_from_refl`, `cmp_refl`, `beq_refl`,
+47 lines in `Refine/Nat.lean`) and `prop_when::beq`'s (`names_beq_from_refl`,
+`beq_refl`, in `Refine/PropWhen.lean`), plus `levels_beq_refl` and
+`literal_beq_refl` here.  Exactness, by contrast, needs **no** reflexivity
+anywhere: the false direction goes through injectivity, not through "beq a a".
+
+**Three additions outside `Refine/Expr.lean`**, each a fact about its own
+module and put where the README's naming rule says it belongs:
+
+1. `Refine/Level.lean`: `levels_have_param_refines` (+ its `*_from` loop) —
+   listed as an unproved leftover by tasks #5 and #17, and needed because a
+   `.const` node's level-param bit *is* `levelsHaveParam us`.
+2. `Refine/PropWhen.lean`: `absPropWhen_injective` (+ `names_list_inj`) —
+   a `lam` node stores a `BinderMeta`, so `absExpr`'s injectivity reduces to
+   it.  The proof is `wfShape_toList` plus "among the four non-`Never`
+   representations the parameter list determines the constructor", which is
+   exactly what task #17's `Many` length clause was for; 22 of the 25 cases go
+   by `simp_all`, the other three by the list length or `Vec.ext`.
+3. `Refine/Nat.lean` and `Refine/PropWhen.lean`: the reflexivity lemmas above.
+
+**Hard spots, in the order they bit.**
+
+1. **`omega` and machine-word literals** — the `val_*` lemmas above.  Two
+   hours of the task; the symptom is a counterexample listing
+   `g := ↑↑h * ↑↑4294967296#u64` as an atom.
+2. **`rcases`'s `-` pattern *clears* a hypothesis and cascades.**  Discarding a
+   generated-code binder's *value* with `-` silently removed the `pack_data`
+   equation that depended on it (`Unknown identifier hd` at the next line).
+   **Rule for the rest of the port: in an `obtain` over a generated function
+   body, use `_` for witnesses and `-` only for proofs.**
+3. **The `if`-under-`max` bound.**  `satPred`'s `if b = satRange then …` sits
+   inside a `max`, where neither `split` nor `split_ifs` reaches it; the fix is
+   a standalone `satPred_lt` lemma stated with `ConLeche.satRange` *unexpanded*
+   so that the atom `omega` sees matches on both sides.  Expanding `satRange`
+   to `32767` in one place and not the other is what made the first three
+   attempts fail — and it is also task #17's item 9 ("`rw` fails under
+   `decide`") in a new costume: `rw [if_pos]` on a `Nat` equality whose
+   `Decidable` instance still mentions `satRange` is a motive error.
+4. **`level_has_param`/`levels_have_param` are called *unconditionally* but
+   `has_params` is not.**  `sort_inv`/`mk_const_inv` can therefore hand out the
+   leaf call as an existential, while `lam_inv`/`forall_e_inv` must take it as
+   a hypothesis (`∀ hp, has_params m.pw = ok hp → lpBit e = …`) because the
+   port's `||` chain short-circuits and never calls it when the type or the
+   body already has a level param.  `has_params_ok` (a five-arm `match`, hence
+   total) is what supplies the witness in `wf_data`.
+5. `expr::beq_recursive` needed `expr.Expr._0._simpLemma_` *and*
+   `expr.ExprNode.kind._simpLemma_` before the match would reduce; the
+   deref-then-project idiom of every generated accessor needs both.
+
+**The lemma inventory** (`_refines`-named per `ConRon/Refine/README.md`):
+`bvar`, `fvar`, `sort`, `mk_const`, `app`, `lam`, `forall_e`, `let_e`, `lit`,
+`proj` (each with `*_wf` and `*_inv`), `mk_bvar`, `bvar_pool_size`, `has_lp`,
+`bvar_b_raw`, `fvar_b_raw`, `beq_recursive`, `levels_beq` (+ `*_from`),
+`literal_beq`, `binder_meta_beq`, `beq` (`beq_refines` = `beq_exact`),
+`eq2`; plus `data_eq`, `dup_eq`, `ptr_eq_eq`, `str_copy_eq`/`str_copy_from_val`,
+`literal_dup_eq`, `binder_meta_dup_eq`, the word helpers' `*_val` lemmas,
+`wf_data`, `absExpr_injective`, `absLiteral_inj`, `absBinderMeta_inj`,
+`absLevels_inj`, and the reflexivity chain.  No lemma, by §3.2: `expr::hash`,
+`binder_meta_hash`, `literal_hash` and the `Hashable` dictionary — a hash value
+only picks a memo bucket, which §3.3's abstract-map relation does not see.
+`#guard_msgs in #print axioms` on `app_refines`, `beq_exact` and
+`bvar_b_raw_refines` is the committed gate at the end of the file: `propext`,
+`Classical.choice`, `Quot.sound` and nothing else.
+
+**Extrapolation, updated.**  Task #5 said 2.2 proof lines per Rust line, task
+#17 measured 5.3 on `prop_when`, this task 6.2 on `expr` — but the trend is an
+artefact of *arity*, not of depth: strip the two 10×10 tables (1 312 lines) and
+the rest of `Expr.lean` is 1 197 lines for 404 Rust code lines, i.e. **3.0** —
+in task #5's range.  The practical rule this suggests for §4's estimate: budget
+a module at ≈3 proof lines per Rust code line **plus ≈1 line per ordered pair
+of constructors it matches on two scrutinees at once**.  `defEq` remains the
+place to watch, and it now has `guard_step` and a working recipe for a
+hundred-arm table waiting for it.
+
+**Left for next time.**  `expr::beq_recursive` is proved but nothing calls it
+(as in Rust); `bvar_pool_size` likewise.  `levels_hash`, `name_lt` and the
+other hash producers stay unproved by §3.2.  The shared
+`ConRon/Refine/Basic.lean` that tasks #5 and #15 asked for is still not
+factored out — `bind_eq_ok_iff` and friends now live in three places
+(`Abs.lean` globally, `Nat.lean` and `HashMap.lean` locally), and `guard_step`,
+`node_bits`, the `val_*` literals and the `*_from`-loop skeleton all belong in
+it; that is a 30-minute task and the next module to need them is
+`kernel::expr_ops` (82 declarations, the `isApp`/`getAppFn` family and the
+exact `bvarB`/`fvarB` accessors that fall back to a memoised walk — the first
+consumers of `wf_data`).

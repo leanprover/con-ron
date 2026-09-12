@@ -23,6 +23,7 @@ What the abstractions forget, in the order DESIGN.md §3.3 lists it:
   a `Nat` here.
 -/
 import ConRon.Generated
+import ConRon.Refine.Nat
 import ConLeche.Kernel.Level
 
 open Aeneas Aeneas.Std Result
@@ -177,6 +178,47 @@ def absPropWhenRepr : prop_when.PropWhenRepr → ConLeche.PropWhen
 def absPropWhen (pw : prop_when.PropWhen) : ConLeche.PropWhen :=
   absPropWhenRepr pw.repr
 
+/-- `ConLeche/Kernel/Expr.lean:108-112` -- the two literals.  `natVal`'s `Nat`
+is the crate's own bignum (`ConRon/Refine/Nat.lean`'s `toNat`) and `strVal`'s
+`String` a `Vec<u32>` of code points (DESIGN.md §3.3). -/
+def absLiteral : expr.Literal → ConLeche.Literal
+  | .NatVal n => .natVal (Nat.toNat n)
+  | .StrVal s => .strVal (absString s)
+
+/-- `ConLeche/Kernel/Expr.lean:93-104` -- the one datum a binder carries. -/
+def absBinderMeta (m : expr.BinderMeta) : ConLeche.BinderMeta :=
+  { pw := absPropWhen m.pw }
+
+/- `ConLeche/Kernel/Expr.lean:285-403` -- the Rust `Expr` tree as a
+`ConLeche.Expr`.  The `@[computed_field] data` word is *dropped*: it is a
+function of the value on the con-leche side, and `ExprWF` below is what pins
+the port's stored word to it (`ConRon/Refine/Expr.lean`'s `wf_data`). -/
+mutual
+
+def absExpr : expr.Expr → ConLeche.Expr
+  | .mk nd => absExprNode nd
+
+def absExprNode : expr.ExprNode → ConLeche.Expr
+  | .mk _data k => absExprKind k
+
+def absExprKind : expr.ExprKind → ConLeche.Expr
+  | .Bvar i => .bvar i.val
+  | .Fvar idx ty => .fvar idx.val (absExpr ty)
+  | .«Sort» u => .sort (absLevel u)
+  | .Const n us => .const (absName n) (absLevels us)
+  | .App f a => .app (absExpr f) (absExpr a)
+  | .Lam ty b m => .lam (absExpr ty) (absExpr b) (absBinderMeta m)
+  | .ForallE ty b m => .forallE (absExpr ty) (absExpr b) (absBinderMeta m)
+  | .LetE ty v b => .letE (absExpr ty) (absExpr v) (absExpr b)
+  | .Lit l => .lit (absLiteral l)
+  | .Proj s i e => .proj (absName s) i.val (absExpr e)
+
+end
+
+/-- A `Vec<Expr>` as a `List ConLeche.Expr`. -/
+def absExprs (es : alloc.vec.Vec expr.Expr) : List ConLeche.Expr :=
+  es.val.map absExpr
+
 @[simp] theorem absName_mk (h : Std.U64) (k : name.NameKind) :
     absName (.mk (.mk h k)) = absNameKind k := by rw [absName, absNameNode]
 
@@ -186,7 +228,11 @@ def absPropWhen (pw : prop_when.PropWhen) : ConLeche.PropWhen :=
 @[simp] theorem absPropWhen_mk (r : prop_when.PropWhenRepr) :
     absPropWhen (.mk r) = absPropWhenRepr r := rfl
 
-attribute [simp] absNameKind absLevelKind absPropWhenRepr
+@[simp] theorem absExpr_mk (d : Std.U64) (k : expr.ExprKind) :
+    absExpr (.mk (.mk d k)) = absExprKind k := by rw [absExpr, absExprNode]
+
+attribute [simp] absNameKind absLevelKind absPropWhenRepr absExprKind absLiteral
+attribute [simp] absBinderMeta
 
 /-! ## Smart-constructor shapes
 
@@ -285,6 +331,46 @@ inductive PropWhenWF : prop_when.PropWhen → Prop where
   | bind_z {F : Type} {inst : prop_when.NameToPw F} {f : F} {pw c} :
       (∀ n, NameWF n → ∀ r, inst.apply f n = ok r → PropWhenWF r) →
       PropWhenWF pw → prop_when.bind_z inst f pw = ok c → PropWhenWF c
+
+/-- A `Vec<Level>` all of whose entries are well formed. -/
+def LevelsWF (us : alloc.vec.Vec level.Level) : Prop := ∀ u ∈ us.val, LevelWF u
+
+/-- A binder datum is well formed when its `PropWhen` is. -/
+def BinderMetaWF (m : expr.BinderMeta) : Prop := PropWhenWF m.pw
+
+/-- A literal is well formed when its payload is: the bignum normalised
+(`ron::nat`'s invariant), the string a sequence of valid code points. -/
+def LiteralWF : expr.Literal → Prop
+  | .NatVal n => Nat.NatWF n
+  | .StrVal s => StrWF s
+
+/-- `ConLeche/Kernel/Expr.lean:285-403` -- the hereditary invariant of the
+packed `data` word, in the task-#5 shape: an **inductive** predicate whose
+constructors are the port's own smart constructors, one per `Expr`
+constructor (`mk_const` is spelled with the prefix because `const` is a Rust
+keyword; `mk_bvar` is `bvar`, its pool not being ported -- task #11).  It says
+"this node is what the smart constructor built", which pins the stored word to
+the children without any proof naming a hash formula; `ConRon/Refine/Expr.lean`
+turns it into the *statement* the readers need (`wf_data`: the observed bits of
+the port's word are con-leche's `bvarBRaw`/`fvarBRaw`/`hasLP`) and into
+injectivity of `absExpr`, which is what makes `beq` exact. -/
+inductive ExprWF : expr.Expr → Prop where
+  | bvar {i e} : expr.bvar i = ok e → ExprWF e
+  | fvar {idx ty e} : ExprWF ty → expr.fvar idx ty = ok e → ExprWF e
+  | sort {u e} : LevelWF u → expr.sort u = ok e → ExprWF e
+  | mk_const {n us e} : NameWF n → LevelsWF us → expr.mk_const n us = ok e → ExprWF e
+  | app {f a e} : ExprWF f → ExprWF a → expr.app f a = ok e → ExprWF e
+  | lam {ty b m e} : ExprWF ty → ExprWF b → BinderMetaWF m →
+      expr.lam ty b m = ok e → ExprWF e
+  | forall_e {ty b m e} : ExprWF ty → ExprWF b → BinderMetaWF m →
+      expr.forall_e ty b m = ok e → ExprWF e
+  | let_e {ty v b e} : ExprWF ty → ExprWF v → ExprWF b →
+      expr.let_e ty v b = ok e → ExprWF e
+  | lit {l e} : LiteralWF l → expr.lit l = ok e → ExprWF e
+  | proj {s i x e} : NameWF s → ExprWF x → expr.proj s i x = ok e → ExprWF e
+
+/-- A `Vec<Expr>` all of whose entries are well formed. -/
+def ExprsWF (es : alloc.vec.Vec expr.Expr) : Prop := ∀ e ∈ es.val, ExprWF e
 
 /-! ## Structural induction principles
 
