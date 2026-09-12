@@ -432,6 +432,22 @@ the corollary is conditional; the basis blocks are *not* hints (their
 denotations are pinned by the model), so they stay generated source
 (`kernel/basis_tables.rs`, proved in `Refine/BasisTables.lean`).
 
+**Decisions of 2026-09-12 (maintainer's questions).**  *Parallel check
+phase*: con-leche's own device — the installed environment is marked
+persistent once at the phase boundary and shared read-only by the
+workers.  Rust equivalent: the core's own `Rc` type with a single count
+whose sentinel value means immortal (`clone`/`drop` skip it), a
+`mark_persistent` walk at the boundary, and `Send`/`Sync` declared on the
+invariant that workers only read immortal nodes and create thread-local
+ones.  It is opaque to Charon and keeps the four-hole model (`Rc T = T`,
+plus `mark_persistent` as the identity); the single count also takes the
+node from 56 to 48 bytes.  *Pins*: embedded as a `con-ron-pins/1` text
+constant in the core, decoded at start by a decoder in the core; the
+theorem states `pins = decode PINS_TEXT` and Lean establishes
+`decode PINS_TEXT = natOpPinSets` as a closed computation (task #43
+measures whether the kernel can do it directly or via the round-trip
+theorem).  The runtime-data paragraph above is superseded.
+
 ### 3.7 Provenance: keeping the port in sync with con-leche
 
 con-leche keeps moving.  The proofs catch drift eventually — a changed
