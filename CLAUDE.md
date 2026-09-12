@@ -11,7 +11,8 @@ section for every task you land.
   a doc comment naming its source line.  `vendor/aeneas` holds the Aeneas
   docs (`documentation/*.md`, `documentation/skills/*`) and its Lean library.
 * Rust style rules for Aeneas are in `DESIGN.md` §3.4 and enforced by
-  `scripts/lint-rust-style.sh`.
+  `scripts/lint-rust-style.sh` and `scripts/provenance.py check`
+  (DESIGN.md §3.7).
 * Large artifacts (exports, scratch builds) go to `_tmp/` (gitignored).
   Use `timeout` on every checker run and `ulimit -v` when a run may OOM.
 * Commit often; the maintainer pushes and opens PRs.

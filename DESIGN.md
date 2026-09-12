@@ -274,6 +274,117 @@ export.  This decouples the core port from the Rust parser and catches port
 mistakes at the function they happen in; a finer oracle (dumping
 `whnf`/`infer` call pairs from con-leche) is added if debugging demands it.
 
+### 3.7 Provenance: keeping the port in sync with con-leche
+
+con-leche keeps moving.  The proofs catch drift eventually — a changed
+Lean function breaks its `_refines` lemma — but only for the verified
+core, only after a full proof build, and without saying *which* Rust
+function to look at.  The port therefore carries its own provenance,
+checked by a gate in the spirit of con-leche's `tests/overview-links.sh`:
+the cited text becomes a committed fact, and a change to it is an alert
+naming the consumer.
+
+**The annotation.**  Every Rust item Charon sees (`fn`, `struct`, `enum`,
+`impl` block, `const`) carries at least one doc line of the form
+
+```
+/// con-leche: ConLeche/Kernel/Level.lean:82-89 leqCore
+```
+
+— the file, the line range at the pinned submodule commit, and the Lean
+declaration the range holds.  Several lines are allowed when a Rust item merges or splits Lean ones
+(a `*_from` index helper cites the `List` recursion it replaces; the
+four-function `imax_rules` cascade all cite `imaxRules`).  A Rust item
+with no Lean counterpart says so and why:
+
+```
+/// con-leche: none — replaces the runtime's `Nat`; spec in proof/…/NatSpec.lean
+```
+
+Deliberate deviations from the cited code (task #3's seven patterns, a
+closed knot, an omitted pair memo) are described in the doc comment
+below the citation, so a reader of the Rust sees the delta without
+opening the Lean.
+
+**The gate**, `scripts/provenance.py`, is a pure source-tree check
+(milliseconds, no build) with three modes:
+
+* `check` — every annotation's range exists in `vendor/con-leche` at the
+  pinned commit and its first non-attribute line declares the named Lean
+  constant; every Charon-visible Rust item in `crates/*/src` (outside
+  `#[cfg(test)]`) carries an annotation; and no `CHANGED` marker line
+  (below) is left in the tree.  Fails naming the offenders.  Runs in CI
+  and before every commit of a port task.
+* `update [--old <commit>]` — the bump workflow.  After the submodule
+  moves, for every annotation: take the cited text at the *old* pin
+  (`git show <old>:<path>` at the cited range) and the block located by
+  name in the file at the *new* pin (a top-level block from its
+  `def`/`theorem`/`inductive`/`structure`/`instance`/… keyword,
+  attributes included, to the next column-0 declaration).  Identical →
+  rewrite the line numbers in place, silently, and report *moved*.
+  Different → rewrite the range to the located block, insert right after
+  the citation the marker line
+
+  ```
+  /// con-leche: CHANGED since <oldcommit> — re-port, re-test, re-prove <item>_refines, then delete this line
+  ```
+
+  and print the unified diff old→new headed `CHANGED <path> <decl> →
+  re-port <rust item>, re-run differential tests, re-prove <rust
+  item>_refines`.  Not found → *gone*, with a marker too.  `<old>`
+  defaults to the submodule commit recorded in `HEAD` when the bump is
+  uncommitted, else must be given.
+
+  Reconciliation is deleting the marker line — there is no `accept`
+  mode.  `check` stays red while any marker remains, so a bump cannot
+  land half-reconciled.
+* `coverage` — the port ledger: every top-level definition in con-leche's
+  implementation modules (`ConLeche/Kernel/**`, `ConLeche/Cached/**`;
+  later `Frontend/**`, `Main.lean`) that no annotation cites, per file
+  with counts, and the total covered/uncovered.  Printed, not committed
+  (it churns); task-log entries quote the totals as progress.
+
+**Why no hashes.**  The pin is the single source of truth: a citation is
+`(path, range, name)` and the text it denotes is fixed by the submodule
+commit; `update` diffs pins, and the only churn is line numbers on moved
+items, rewritten mechanically, plus marker lines exactly where work is
+owed.
+
+**What it does not do.**  It does not judge whether the port still
+matches — that is the differential tests and the proofs; it says *what
+moved and what changed*, and for the unverified frontend it is the only
+sync signal there is.
+
+**Implementation notes** (task #8).  `--roots DIR…` overrides the
+default `crates/con-ron-core/src spikes/level-name/src`; the default
+list is a constant at the top of the script.  Three details the design
+above leaves open, settled by the implementation:
+
+* *Name resolution.*  A citation's `<decl>` may be spelled with or
+  without the namespace the Lean file opens (`Level.leqCore` ≍
+  `leqCore`), and a `where` clause is cited as the dotted child of its
+  parent (`subst.go` resolves to `subst`'s block, which contains it).
+  The locator therefore runs three passes — exact, then namespace-suffix,
+  then parent-prefix — rather than one loose match: a single pass lets
+  `Name.beqPtr` bind to the `Name` inductive, which is wrong and was the
+  first bug the spike conversion found.
+* *Block boundaries.*  Beyond the design's stopper list, `mutual`,
+  `open`, `variable`, `attribute` and `/-!` at column 0 also end a
+  block; trailing blank lines are trimmed.  `instance : C T := …` has no
+  name to cite, so the decl `_` skips the name check (the range still
+  pins the text).
+* *What counts as a Rust item.*  Items nested inside a function body
+  belong to that function and are not separately required to cite;
+  `#[cfg(test)]` and `mod tests` blocks are skipped by brace depth, as
+  in `scripts/lint-rust-style.sh`.
+* *`update` is idempotent.*  Its comparison is "old pin's cited range vs
+  new pin's located block", so a second run for the same bump would see
+  ranges it has already rewritten.  When that comparison fails it falls
+  back to the old pin's block *for the same declaration*; that can only
+  turn a spurious `CHANGED` into a `MOVED` (if the text really changed,
+  neither text matches), and it never adds a second marker to a citation
+  that already carries one.
+
 ## 4. Sizing
 
 From the census of con-leche at 3e004805 (implementation only):
@@ -1099,3 +1210,76 @@ exercised — a table that big cannot be allocated on this machine — so its
 branch is covered only by the `pow2_at_least` unit assertions.  (c) The four
 per-bucket recursions are still linear in the bucket length; a pathological
 bucket would show up as a stack overflow, not a wrong answer.
+### Task #8 — The provenance gate (2026-09-12, Opus under Fable)
+
+**What landed.**  `scripts/provenance.py` (§3.7), python3 stdlib only, no
+build, ~0.3 s over the whole con-leche tree.  `check` / `update [--old]` /
+`coverage`, all taking `--roots DIR…`; exit 0 clean, 1 findings, 2 usage or
+IO.  CLAUDE.md now names it beside the style lint.  The spike's 69
+Charon-visible items in `spikes/level-name/src` carry 56 citations and 15
+`none —` lines; `check` is green and `update` is a no-op against the pin.
+
+**How the conversion went.**  The spike's old `/// ConLeche/Kernel/X.lean:NNN
+— …` lines became citations of whole declaration blocks, located by name with
+the script's own locator.  Two things fell out of it:
+
+* the three-pass locator (§3.7 implementation notes): with one loose
+  match, `Name.beqPtr` and `Level.beqPtr` bound to the `Name`/`Level`
+  inductives, because a `where`-clause rule that lets `subst` answer to
+  `subst.go` also lets `Name` answer to `Name.beqPtr`;
+* the rewrite makes the *deviation* the body of each doc comment.  The
+  citation carries the location, so the prose no longer repeats it and says
+  only what differs from the Lean — "Deviation: Lean's `fuel + 1` pattern is
+  the `fuel == 0` test plus `fuel - 1`, and its `diff : Int` is an `i64`".
+
+The bump workflow was exercised for real by checking the submodule out at
+`41b3bfdb` (two commits back, where `Level.lean` sits 4 lines earlier and
+`Expr.lean` 1) and running `update --old <pin>`: 45 *moved* (rewritten
+silently), 10 already at the right lines, 0 *gone*.  A hand-edited
+`defaultFuel` then produced the *changed* alert with its unified diff and the
+marker line in `level.rs`; `check` went red naming that line, and green again
+when the line was deleted.  Re-running `update` twice more changed nothing
+and added no second marker.  Restored afterwards.
+
+**Coverage baseline (P1 ledger, con-leche 3e004805).**
+
+| tree | files | covered | uncovered |
+|---|---|---|---|
+| `ConLeche/Kernel/**` | 42 | 29 | 774 |
+| `ConLeche/Cached/**` | 7 | 0 | 215 |
+| **total** | **49** | **29 / 1018 (2.8 %)** | **989** |
+
+The 29 are `Name.lean` 3/5, `Expr.lean` 8/42 (the `Level` half only) and
+`Level.lean` 18/25 — exactly the spike's scope.  The uncovered remainder in
+those three files is precisely the spike's own "Not ported here" lists
+(`ofLeanName`, `toString`, `zeronessOf`, `substPW`, the four
+`Expr.*LevelParams*` and `LPMemoInv`), so the ledger agrees with the prose.
+
+**Limitations of the locator, noticed while building it.**
+
+* It finds a declaration by *name*, so a rename reads as *gone* and a
+  rename-plus-move cannot be distinguished from a deletion — the operator
+  re-points the citation by hand.  Two declarations of the same name in one
+  file (a `private` shadow, or the same name in two `namespace` blocks) bind
+  to the first.
+* Block extension is column-0 lexical, not syntactic: a declaration whose
+  body contains a column-0 line (a multi-line `/- … -/` whose interior
+  starts at column 0, a `deriving` continuation) can end early, and a
+  `mutual` block's members are cited individually (each stops at the next
+  `/--`), which is what the spike wants but means the `mutual`/`end` frame
+  itself belongs to no citation.
+* A citation to an anonymous `instance : C T` has no name to relocate by;
+  `_` as the decl silences the name check but `update` cannot move it.
+* Because there is no hash, `check` cannot see a *changed* declaration on
+  its own — only `update`, run at the bump, can.  The gate's guarantee is
+  therefore "every bump goes through `update`", which is a workflow rule,
+  not something the source can enforce.  What `check` does enforce is that
+  no bump lands half-reconciled: a `CHANGED` marker is a hard failure.
+* `coverage` counts `def`/`abbrev`/`inductive`/`structure`/`class`/
+  `instance`/`opaque` and skips `theorem`/`lemma`/`example`, so an
+  implementation written as a `theorem` (none today) would be invisible to
+  the ledger; anonymous instances need a `_` citation to be marked.
+* The Rust scanner is a brace counter over `//`- and literal-stripped
+  lines.  It has no idea about `/* … */` block comments containing braces
+  or about macro bodies; neither appears in the port today, and both would
+  show up as a wrong item list rather than silently.

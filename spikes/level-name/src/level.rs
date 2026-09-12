@@ -14,7 +14,9 @@ use crate::name;
 use crate::name::Name;
 use std::rc::Rc;
 
-/// ConLeche/Kernel/Expr.lean:40 — `inductive Level`.
+/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// The five constructors of `inductive Level`; the cached hash sits in
+/// `LevelNode` (DESIGN.md §3.2).
 pub enum LevelKind {
     Zero,
     Succ(Level),
@@ -23,65 +25,76 @@ pub enum LevelKind {
     Param(Name),
 }
 
-/// The heap node of a `Level`: the cached hash
-/// (ConLeche/Kernel/Expr.lean:48) beside the constructor data.
+/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// The heap node of a `Level`: the cited inductive's `@[computed_field]
+/// hashData` beside the constructor data.
 pub struct LevelNode {
     pub hash: u64,
     pub kind: LevelKind,
 }
 
-/// ConLeche/Kernel/Expr.lean:40 — a universe level.
+/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// A universe level, as an `Rc` tree.
 pub struct Level(pub Rc<LevelNode>);
 
-/// ConLeche/Kernel/Expr.lean:48 — the cached hash, an `O(1)` field read.
+/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// The cached hash, an `O(1)` field read.
 pub fn hash_data(u: &Level) -> u64 {
     u.0.hash
 }
 
-/// ConLeche/Kernel/Expr.lean:49 — `Level.zero`, hash `1`.
+/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// `Level.zero`, hash `1`.
 pub fn zero() -> Level {
     Level(Rc::new(LevelNode { hash: 1, kind: LevelKind::Zero }))
 }
 
-/// ConLeche/Kernel/Expr.lean:50 — `Level.succ`, hash `mixHash 3 u.hashData`.
+/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// `Level.succ`, hash `mixHash 3 u.hashData`.
 pub fn succ(u: Level) -> Level {
     let h: u64 = name::mix_hash(3, hash_data(&u));
     Level(Rc::new(LevelNode { hash: h, kind: LevelKind::Succ(u) }))
 }
 
-/// ConLeche/Kernel/Expr.lean:51 — `Level.max`,
-/// hash `mixHash 5 (mixHash u.hashData v.hashData)`.
+/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// `Level.max`, hash `mixHash 5 (mixHash u.hashData v.hashData)`.
 pub fn max(u: Level, v: Level) -> Level {
     let h: u64 = name::mix_hash(5, name::mix_hash(hash_data(&u), hash_data(&v)));
     Level(Rc::new(LevelNode { hash: h, kind: LevelKind::Max(u, v) }))
 }
 
-/// ConLeche/Kernel/Expr.lean:52 — `Level.imax`,
-/// hash `mixHash 7 (mixHash u.hashData v.hashData)`.
+/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// `Level.imax`, hash `mixHash 7 (mixHash u.hashData v.hashData)`.
 pub fn imax(u: Level, v: Level) -> Level {
     let h: u64 = name::mix_hash(7, name::mix_hash(hash_data(&u), hash_data(&v)));
     Level(Rc::new(LevelNode { hash: h, kind: LevelKind::Imax(u, v) }))
 }
 
-/// ConLeche/Kernel/Expr.lean:53 — `Level.param`, hash `mixHash 11 (hash n)`.
+/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// `Level.param`, hash `mixHash 11 (hash n)`.
 pub fn param(n: Name) -> Level {
     let h: u64 = name::mix_hash(11, name::hash_data(&n));
     Level(Rc::new(LevelNode { hash: h, kind: LevelKind::Param(n) }))
 }
 
-/// Share a level (the `Rc` bump that Lean's value semantics hides).
+/// con-leche: none — the `Rc` bump that Lean's value semantics hides (DESIGN.md §3.2)
+/// Share a level.
 pub fn dup(u: &Level) -> Level {
     Level(Rc::clone(&u.0))
 }
 
-/// The pointer test behind `withPtrEq` (ConLeche/Kernel/Expr.lean:65).
+/// con-leche: ConLeche/Kernel/Expr.lean:60-67 Level.beqPtr
+/// The pointer test behind the cited `withPtrEq`; modeled as `false` in
+/// the generated Lean (DESIGN.md §3.2).
 pub fn ptr_eq(a: &Level, b: &Level) -> bool {
     Rc::ptr_eq(&a.0, &b.0)
 }
 
-/// ConLeche/Kernel/Expr.lean:65 — `Level.beqPtr`, the *executed* `Level.beq`
-/// (line 79, `@[csimp]`-substituted line 86): pointer, cached hash,
-/// structural walk, with the pointer fast path kept at every level.
+/// con-leche: ConLeche/Kernel/Expr.lean:60-67 Level.beqPtr
+/// con-leche: ConLeche/Kernel/Expr.lean:76-79 Level.beq
+/// `Level.beqPtr` is the *executed* `Level.beq` (`@[csimp]`-substituted):
+/// pointer, cached hash, structural walk.  Deviation: the pointer fast
+/// path is kept at every level of the descent.
 pub fn beq(a: &Level, b: &Level) -> bool {
     if ptr_eq(a, b) {
         true
@@ -99,9 +112,10 @@ pub fn beq(a: &Level, b: &Level) -> bool {
     }
 }
 
-/// `l = .zero` as a constructor test.  Lean writes the decidable equality
-/// (`Level.lean:69`, `:173`); on an `Rc` tree the constructor test is the
-/// same predicate without an allocation.
+/// con-leche: ConLeche/Kernel/Level.lean:64-77 simplify
+/// `l = .zero` as a constructor test: Lean writes the decidable equality
+/// inline in the cited `imax` arm (and in `isZero`); on an `Rc` tree the
+/// constructor test is the same predicate without an allocation.
 pub fn is_zero_kind(u: &Level) -> bool {
     match &u.0.kind {
         LevelKind::Zero => true,
@@ -109,7 +123,8 @@ pub fn is_zero_kind(u: &Level) -> bool {
     }
 }
 
-/// `l = .succ .zero` as a constructor test (ConLeche/Kernel/Level.lean:69).
+/// con-leche: ConLeche/Kernel/Level.lean:64-77 simplify
+/// `l = .succ .zero` as a constructor test, from the same `imax` arm.
 pub fn is_one_kind(u: &Level) -> bool {
     match &u.0.kind {
         LevelKind::Succ(v) => is_zero_kind(v),
@@ -117,7 +132,8 @@ pub fn is_one_kind(u: &Level) -> bool {
     }
 }
 
-/// ConLeche/Kernel/Expr.lean:118 — `levelHasParam`.
+/// con-leche: ConLeche/Kernel/Expr.lean:114-122 levelHasParam
+/// `levelHasParam`.
 pub fn level_has_param(u: &Level) -> bool {
     match &u.0.kind {
         LevelKind::Zero => false,
@@ -128,12 +144,14 @@ pub fn level_has_param(u: &Level) -> bool {
     }
 }
 
-/// ConLeche/Kernel/Expr.lean:125 — `levelsHaveParam`.
+/// con-leche: ConLeche/Kernel/Expr.lean:124-127 levelsHaveParam
+/// `levelsHaveParam`.
 pub fn levels_have_param(us: &Vec<Level>) -> bool {
     levels_have_param_from(us, 0)
 }
 
-/// The index recursion behind `levels_have_param` (Lean's list recursion).
+/// con-leche: ConLeche/Kernel/Expr.lean:124-127 levelsHaveParam
+/// The index recursion the cited `List` recursion becomes (DESIGN.md §3.3).
 pub fn levels_have_param_from(us: &Vec<Level>, i: usize) -> bool {
     if i >= us.len() {
         false
@@ -142,17 +160,20 @@ pub fn levels_have_param_from(us: &Vec<Level>, i: usize) -> bool {
     }
 }
 
-/// ConLeche/Kernel/Expr.lean:134 — `levelHash`.
+/// con-leche: ConLeche/Kernel/Expr.lean:129-134 levelHash
+/// `levelHash`.
 pub fn level_hash(u: &Level) -> u64 {
     hash_data(u)
 }
 
-/// ConLeche/Kernel/Expr.lean:137 — `levelsHash`.
+/// con-leche: ConLeche/Kernel/Expr.lean:136-139 levelsHash
+/// `levelsHash`.
 pub fn levels_hash(us: &Vec<Level>) -> u64 {
     levels_hash_from(us, 0)
 }
 
-/// The index recursion behind `levels_hash`.
+/// con-leche: ConLeche/Kernel/Expr.lean:136-139 levelsHash
+/// The index recursion the cited `List` recursion becomes.
 pub fn levels_hash_from(us: &Vec<Level>, i: usize) -> u64 {
     if i >= us.len() {
         13
@@ -161,7 +182,8 @@ pub fn levels_hash_from(us: &Vec<Level>, i: usize) -> u64 {
     }
 }
 
-/// ConLeche/Kernel/Level.lean:28 — `Level.subst`.
+/// con-leche: ConLeche/Kernel/Level.lean:26-37 subst
+/// `Level.subst`.
 pub fn subst(ks: &Vec<Name>, vs: &Vec<Level>, u: &Level) -> Level {
     match &u.0.kind {
         LevelKind::Zero => zero(),
@@ -172,8 +194,9 @@ pub fn subst(ks: &Vec<Name>, vs: &Vec<Level>, u: &Level) -> Level {
     }
 }
 
-/// ConLeche/Kernel/Level.lean:35 — `Level.subst.go`, the parallel walk down
-/// the two lists, here by a shared index.
+/// con-leche: ConLeche/Kernel/Level.lean:26-37 subst.go
+/// The cited `where go` clause: the parallel walk down the two lists,
+/// here by a shared index.
 pub fn subst_go(ks: &Vec<Name>, vs: &Vec<Level>, i: usize, n: &Name) -> Level {
     if i >= ks.len() || i >= vs.len() {
         param(name::dup(n))
@@ -184,7 +207,8 @@ pub fn subst_go(ks: &Vec<Name>, vs: &Vec<Level>, i: usize, n: &Name) -> Level {
     }
 }
 
-/// ConLeche/Kernel/Level.lean:40 — `Level.allParamsDefined`.
+/// con-leche: ConLeche/Kernel/Level.lean:39-44 allParamsDefined
+/// `Level.allParamsDefined`.
 pub fn all_params_defined(params: &Vec<Name>, u: &Level) -> bool {
     match &u.0.kind {
         LevelKind::Zero => true,
@@ -195,7 +219,8 @@ pub fn all_params_defined(params: &Vec<Name>, u: &Level) -> bool {
     }
 }
 
-/// ConLeche/Kernel/Level.lean:50 — `Level.isNeverZero`.
+/// con-leche: ConLeche/Kernel/Level.lean:46-55 isNeverZero
+/// `Level.isNeverZero`.
 pub fn is_never_zero(u: &Level) -> bool {
     match &u.0.kind {
         LevelKind::Zero => false,
@@ -206,7 +231,8 @@ pub fn is_never_zero(u: &Level) -> bool {
     }
 }
 
-/// ConLeche/Kernel/Level.lean:58 — `Level.combining`.
+/// con-leche: ConLeche/Kernel/Level.lean:57-62 combining
+/// `Level.combining`.
 pub fn combining(l: &Level, r: &Level) -> Level {
     match (&l.0.kind, &r.0.kind) {
         (LevelKind::Zero, _) => dup(r),
@@ -216,7 +242,8 @@ pub fn combining(l: &Level, r: &Level) -> Level {
     }
 }
 
-/// ConLeche/Kernel/Level.lean:65 — `Level.simplify`.
+/// con-leche: ConLeche/Kernel/Level.lean:64-77 simplify
+/// `Level.simplify`.
 pub fn simplify(u: &Level) -> Level {
     match &u.0.kind {
         LevelKind::Zero => zero(),
@@ -239,8 +266,9 @@ pub fn simplify(u: &Level) -> Level {
     }
 }
 
-/// ConLeche/Kernel/Level.lean:82 — `Level.leqCore`.  Lean's `fuel + 1`
-/// pattern is the `fuel == 0` test plus `fuel - 1`.
+/// con-leche: ConLeche/Kernel/Level.lean:81-88 leqCore
+/// `Level.leqCore`.  Deviation: Lean's `fuel + 1` pattern is the
+/// `fuel == 0` test plus `fuel - 1`, and its `diff : Int` is an `i64`.
 pub fn leq_core(fuel: u64, l: &Level, r: &Level, diff: i64) -> Option<bool> {
     if fuel == 0 {
         None
@@ -253,8 +281,9 @@ pub fn leq_core(fuel: u64, l: &Level, r: &Level, diff: i64) -> Option<bool> {
     }
 }
 
-/// ConLeche/Kernel/Level.lean:91 — `Level.rest`, nanoda's case order.  Rust's
-/// `match` is first-match like Lean's, so the arms are in the same order.
+/// con-leche: ConLeche/Kernel/Level.lean:90-108 rest
+/// `Level.rest`, nanoda's case order.  Rust's `match` is first-match like
+/// Lean's, so the arms are in the same order.
 pub fn rest(fuel: u64, l: &Level, r: &Level, diff: i64) -> Option<bool> {
     match (&l.0.kind, &r.0.kind) {
         (LevelKind::Param(a), LevelKind::Param(x)) => Some(name::beq(a, x) && diff >= 0),
@@ -288,9 +317,10 @@ pub fn rest(fuel: u64, l: &Level, r: &Level, diff: i64) -> Option<bool> {
     }
 }
 
-/// Is this level `.imax _ (.param _)`?  Lean matches the nested constructor
-/// directly; Rust cannot look through the `Rc`, so the pattern becomes this
-/// predicate plus a re-destructuring helper below.
+/// con-leche: ConLeche/Kernel/Level.lean:110-120 imaxRules
+/// Is this level `.imax _ (.param _)`?  Deviation: Lean matches the nested
+/// constructor directly; Rust cannot look through the `Rc`, so the cited
+/// pattern becomes this predicate plus a re-destructuring helper below.
 pub fn is_imax_param(u: &Level) -> bool {
     match &u.0.kind {
         LevelKind::Imax(_, b) => match &b.0.kind {
@@ -301,8 +331,9 @@ pub fn is_imax_param(u: &Level) -> bool {
     }
 }
 
-/// ConLeche/Kernel/Level.lean:112 — `Level.imaxRules`.  The six arms are a
-/// cascade because the Lean arms interleave the two sides (`_, .imax _
+/// con-leche: ConLeche/Kernel/Level.lean:110-120 imaxRules
+/// `Level.imaxRules`.  Deviation: the six arms are a cascade of four Rust
+/// functions because the Lean arms interleave the two sides (`_, .imax _
 /// (.param p)` comes *before* `.imax a (.imax x y), _`).
 pub fn imax_rules(fuel: u64, l: &Level, r: &Level, diff: i64) -> Option<bool> {
     if is_imax_param(l) {
@@ -314,7 +345,8 @@ pub fn imax_rules(fuel: u64, l: &Level, r: &Level, diff: i64) -> Option<bool> {
     }
 }
 
-/// `imaxRules` arm 1: `.imax _ (.param p), _ => byCases fuel p l r diff`.
+/// con-leche: ConLeche/Kernel/Level.lean:110-120 imaxRules
+/// Arm 1: `.imax _ (.param p), _ => byCases fuel p l r diff`.
 pub fn by_cases_left(fuel: u64, l: &Level, r: &Level, diff: i64) -> Option<bool> {
     match &l.0.kind {
         LevelKind::Imax(_, b) => match &b.0.kind {
@@ -325,7 +357,8 @@ pub fn by_cases_left(fuel: u64, l: &Level, r: &Level, diff: i64) -> Option<bool>
     }
 }
 
-/// `imaxRules` arm 2: `_, .imax _ (.param p) => byCases fuel p l r diff`.
+/// con-leche: ConLeche/Kernel/Level.lean:110-120 imaxRules
+/// Arm 2: `_, .imax _ (.param p) => byCases fuel p l r diff`.
 pub fn by_cases_right(fuel: u64, l: &Level, r: &Level, diff: i64) -> Option<bool> {
     match &r.0.kind {
         LevelKind::Imax(_, b) => match &b.0.kind {
@@ -336,7 +369,8 @@ pub fn by_cases_right(fuel: u64, l: &Level, r: &Level, diff: i64) -> Option<bool
     }
 }
 
-/// `imaxRules` arms 3-7: distribute a nested `max`/`imax` under an `imax`.
+/// con-leche: ConLeche/Kernel/Level.lean:110-120 imaxRules
+/// Arms 3-7: distribute a nested `max`/`imax` under an `imax`.
 pub fn imax_rules_distrib(fuel: u64, l: &Level, r: &Level, diff: i64) -> Option<bool> {
     match &l.0.kind {
         LevelKind::Imax(a, b) => match &b.0.kind {
@@ -354,7 +388,8 @@ pub fn imax_rules_distrib(fuel: u64, l: &Level, r: &Level, diff: i64) -> Option<
     }
 }
 
-/// `imaxRules` arms 5-7, on the right-hand side.
+/// con-leche: ConLeche/Kernel/Level.lean:110-120 imaxRules
+/// Arms 5-7, on the right-hand side.
 pub fn imax_rules_distrib_right(fuel: u64, l: &Level, r: &Level, diff: i64) -> Option<bool> {
     match &r.0.kind {
         LevelKind::Imax(x, y) => match &y.0.kind {
@@ -372,7 +407,8 @@ pub fn imax_rules_distrib_right(fuel: u64, l: &Level, r: &Level, diff: i64) -> O
     }
 }
 
-/// ConLeche/Kernel/Level.lean:123 — `Level.byCases`.
+/// con-leche: ConLeche/Kernel/Level.lean:122-130 byCases
+/// `Level.byCases`.
 pub fn by_cases(fuel: u64, p: &Name, l: &Level, r: &Level, diff: i64) -> Option<bool> {
     let ks: Vec<Name> = name::singleton(p);
     let vz: Vec<Level> = singleton(zero());
@@ -390,24 +426,28 @@ pub fn by_cases(fuel: u64, p: &Name, l: &Level, r: &Level, diff: i64) -> Option<
     }
 }
 
-/// A one-element level list (`[.zero]`, `[.succ (.param p)]` in `byCases`).
+/// con-leche: none — a one-element `Vec` for the `[.zero]` / `[.succ (.param p)]` literals in `byCases`
+/// A one-element level list.
 pub fn singleton(u: Level) -> Vec<Level> {
     let mut v: Vec<Level> = Vec::new();
     v.push(u);
     v
 }
 
-/// ConLeche/Kernel/Level.lean:136 — `Level.defaultFuel`.
+/// con-leche: ConLeche/Kernel/Level.lean:134-136 defaultFuel
+/// `Level.defaultFuel`.
 pub fn default_fuel() -> u64 {
     10000
 }
 
-/// ConLeche/Kernel/Level.lean:139 — `Level.leq`.
+/// con-leche: ConLeche/Kernel/Level.lean:138-140 leq
+/// `Level.leq`.
 pub fn leq(l: &Level, r: &Level) -> Option<bool> {
     leq_core(default_fuel(), &simplify(l), &simplify(r), 0)
 }
 
-/// ConLeche/Kernel/Level.lean:158 — `Level.isEquiv`.
+/// con-leche: ConLeche/Kernel/Level.lean:142-161 isEquiv
+/// `Level.isEquiv`.
 pub fn is_equiv(l: &Level, r: &Level) -> Option<bool> {
     if beq(l, r) {
         Some(true)
@@ -422,12 +462,15 @@ pub fn is_equiv(l: &Level, r: &Level) -> Option<bool> {
     }
 }
 
-/// ConLeche/Kernel/Level.lean:165 — `Level.isEquivList`.
+/// con-leche: ConLeche/Kernel/Level.lean:163-169 isEquivList
+/// `Level.isEquivList`.
 pub fn is_equiv_list(ls: &Vec<Level>, rs: &Vec<Level>) -> Option<bool> {
     is_equiv_list_from(ls, rs, 0)
 }
 
-/// The index recursion behind `is_equiv_list`; a length mismatch is `false`.
+/// con-leche: ConLeche/Kernel/Level.lean:163-169 isEquivList
+/// The index recursion the cited `List` recursion becomes; a length
+/// mismatch is `false`.
 pub fn is_equiv_list_from(ls: &Vec<Level>, rs: &Vec<Level>, i: usize) -> Option<bool> {
     if i >= ls.len() && i >= rs.len() {
         Some(true)
@@ -442,12 +485,14 @@ pub fn is_equiv_list_from(ls: &Vec<Level>, rs: &Vec<Level>, i: usize) -> Option<
     }
 }
 
-/// ConLeche/Kernel/Level.lean:173 — `Level.isZero`.
+/// con-leche: ConLeche/Kernel/Level.lean:171-173 isZero
+/// `Level.isZero`.
 pub fn is_zero(l: &Level) -> bool {
     is_zero_kind(&simplify(l))
 }
 
-/// ConLeche/Kernel/Level.lean:178 — `Level.isNonZero`.
+/// con-leche: ConLeche/Kernel/Level.lean:175-183 isNonZero
+/// `Level.isNonZero`.
 pub fn is_non_zero(u: &Level) -> bool {
     match &u.0.kind {
         LevelKind::Zero => false,
@@ -463,12 +508,15 @@ pub fn is_non_zero(u: &Level) -> bool {
    `Expr.allLevelParamsDefined` (:256) and its memoized twin (:300) need
    `Expr` — neither type is in this spike. */
 
-/// ConLeche/Kernel/Level.lean:214 — `Name.nodup`.
+/// con-leche: ConLeche/Kernel/Level.lean:213-216 Name.nodup
+/// `Name.nodup`.
 pub fn name_nodup(ns: &Vec<Name>) -> bool {
     name_nodup_from(ns, 0)
 }
 
-/// The index recursion behind `name_nodup`: Lean tests the *tail*.
+/// con-leche: ConLeche/Kernel/Level.lean:213-216 Name.nodup
+/// The index recursion the cited `List` recursion becomes: Lean tests the
+/// *tail*, so this one starts at `i + 1`.
 pub fn name_nodup_from(ns: &Vec<Name>, i: usize) -> bool {
     if i >= ns.len() {
         true
@@ -479,9 +527,9 @@ pub fn name_nodup_from(ns: &Vec<Name>, i: usize) -> bool {
     }
 }
 
-/// ConLeche/Kernel/Level.lean:219 — `Name.isModelSuffix`, i.e. `.str _
-/// "_model"`.  String literals become explicit code-point tests (no loop, no
-/// allocation).
+/// con-leche: ConLeche/Kernel/Level.lean:218-221 Name.isModelSuffix
+/// `Name.isModelSuffix`, i.e. `.str _ "_model"`.  Deviation: string
+/// literals become explicit code-point tests (no loop, no allocation).
 pub fn name_is_model_suffix(n: &Name) -> bool {
     match &n.0.kind {
         name::NameKind::Str(_, s) => is_model_str(s),
@@ -489,7 +537,8 @@ pub fn name_is_model_suffix(n: &Name) -> bool {
     }
 }
 
-/// `s == "_model"` on code points.
+/// con-leche: none — the `"_model"` string literal of `Name.isModelSuffix`, spelled out over code points
+/// `s == "_model"`.
 pub fn is_model_str(s: &Vec<u32>) -> bool {
     s.len() == 6
         && s[0] == 95
@@ -500,11 +549,13 @@ pub fn is_model_str(s: &Vec<u32>) -> bool {
         && s[5] == 108
 }
 
+/// con-leche: none — the `"proj"` string literal of `Name.isProjFnShape`
 /// `s == "proj"` on code points.
 pub fn is_proj_str(s: &Vec<u32>) -> bool {
     s.len() == 4 && s[0] == 112 && s[1] == 114 && s[2] == 111 && s[3] == 106
 }
 
+/// con-leche: none — the `"projTable"` string literal of `Name.isProjFnShape`
 /// `s == "projTable"` on code points.
 pub fn is_proj_table_str(s: &Vec<u32>) -> bool {
     s.len() == 9
@@ -519,8 +570,9 @@ pub fn is_proj_table_str(s: &Vec<u32>) -> bool {
         && s[8] == 101
 }
 
-/// ConLeche/Kernel/Level.lean:227 — `Name.isProjFnShape`, i.e.
-/// `.num (.str _ "proj") _` or `.num (.str _ "projTable") _`.
+/// con-leche: ConLeche/Kernel/Level.lean:223-230 Name.isProjFnShape
+/// `Name.isProjFnShape`, i.e. `.num (.str _ "proj") _` or
+/// `.num (.str _ "projTable") _`.
 pub fn name_is_proj_fn_shape(n: &Name) -> bool {
     match &n.0.kind {
         name::NameKind::Num(p, _) => match &p.0.kind {
