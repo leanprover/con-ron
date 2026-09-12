@@ -25,37 +25,37 @@ open ConRon.Generated
 @[rust_fun "core::str::{str}::as_bytes"]
 axiom core.str.Str.as_bytes : Str → Result (Slice Std.U8)
 
-/-- [alloc::rc::{alloc::rc::Rc<T>}::new]:
-    Source: '/rustc/library/alloc/src/rc.rs', lines 423:4-423:33
-    Name pattern: [alloc::rc::{alloc::rc::Rc<@T>}::new]
+/-- [alloc::sync::{alloc::sync::Arc<T>}::new]:
+    Source: '/rustc/library/alloc/src/sync.rs', lines 437:4-437:33
+    Name pattern: [alloc::sync::{alloc::sync::Arc<@T>}::new]
     Visibility: public -/
-@[rust_fun "alloc::rc::{alloc::rc::Rc<@T>}::new"]
-axiom alloc.rc.Rc.new {T : Type} : T → Result (alloc.rc.Rc T)
+@[rust_fun "alloc::sync::{alloc::sync::Arc<@T>}::new"]
+axiom alloc.sync.Arc.new {T : Type} : T → Result (alloc.sync.Arc T)
 
-/-- [alloc::rc::{alloc::rc::Rc<T>}::ptr_eq]:
-    Source: '/rustc/library/alloc/src/rc.rs', lines 2025:4-2025:52
-    Name pattern: [alloc::rc::{alloc::rc::Rc<@T>}::ptr_eq]
+/-- [alloc::sync::{alloc::sync::Arc<T>}::ptr_eq]:
+    Source: '/rustc/library/alloc/src/sync.rs', lines 2172:4-2172:52
+    Name pattern: [alloc::sync::{alloc::sync::Arc<@T>}::ptr_eq]
     Visibility: public -/
-@[rust_fun "alloc::rc::{alloc::rc::Rc<@T>}::ptr_eq"]
-axiom alloc.rc.Rc.ptr_eq
-  {T : Type} (A : Type) : alloc.rc.Rc T → alloc.rc.Rc T → Result Bool
+@[rust_fun "alloc::sync::{alloc::sync::Arc<@T>}::ptr_eq"]
+axiom alloc.sync.Arc.ptr_eq
+  {T : Type} (A : Type) : alloc.sync.Arc T → alloc.sync.Arc T → Result Bool
 
-/-- [alloc::rc::{impl core::ops::deref::Deref<T> for alloc::rc::Rc<T>}::deref]:
-    Source: '/rustc/library/alloc/src/rc.rs', lines 2440:4-2440:25
-    Name pattern: [alloc::rc::{core::ops::deref::Deref<alloc::rc::Rc<@T>, @T>}::deref]
+/-- [alloc::sync::{impl core::clone::Clone for alloc::sync::Arc<T>}::clone]:
+    Source: '/rustc/library/alloc/src/sync.rs', lines 2405:4-2405:32
+    Name pattern: [alloc::sync::{core::clone::Clone<alloc::sync::Arc<@T>>}::clone]
     Visibility: public -/
-@[rust_fun
-  "alloc::rc::{core::ops::deref::Deref<alloc::rc::Rc<@T>, @T>}::deref"]
-axiom alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref
-  {T : Type} (A : Type) : alloc.rc.Rc T → Result T
-
-/-- [alloc::rc::{impl core::clone::Clone for alloc::rc::Rc<T>}::clone]:
-    Source: '/rustc/library/alloc/src/rc.rs', lines 2524:4-2524:27
-    Name pattern: [alloc::rc::{core::clone::Clone<alloc::rc::Rc<@T>>}::clone]
-    Visibility: public -/
-@[rust_fun "alloc::rc::{core::clone::Clone<alloc::rc::Rc<@T>>}::clone"]
-axiom alloc.rc.Rc.Insts.CoreCloneClone.clone
+@[rust_fun "alloc::sync::{core::clone::Clone<alloc::sync::Arc<@T>>}::clone"]
+axiom alloc.sync.Arc.Insts.CoreCloneClone.clone
   {T : Type} {A : Type} (coreallocAllocatorCloneInst :
   core.alloc.AllocatorClone A) :
-  alloc.rc.Rc T → Result (alloc.rc.Rc T)
+  alloc.sync.Arc T → Result (alloc.sync.Arc T)
+
+/-- [alloc::sync::{impl core::ops::deref::Deref<T> for alloc::sync::Arc<T>}::deref]:
+    Source: '/rustc/library/alloc/src/sync.rs', lines 2453:4-2453:25
+    Name pattern: [alloc::sync::{core::ops::deref::Deref<alloc::sync::Arc<@T>, @T>}::deref]
+    Visibility: public -/
+@[rust_fun
+  "alloc::sync::{core::ops::deref::Deref<alloc::sync::Arc<@T>, @T>}::deref"]
+axiom alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref
+  {T : Type} (A : Type) : alloc.sync.Arc T → Result T
 

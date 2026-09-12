@@ -38,7 +38,7 @@ deletion of this section and of the `open ConRon.Refine.T22` below, with
 no name to reconcile: nothing outside this file refers to them.
 
 They are the only shape the statements below need — the plain structural
-map that forgets the `Rc` sharing and the cached `data` word, exactly as
+map that forgets the `Arc` sharing and the cached `data` word, exactly as
 `absName`/`absLevel` in `Abs.lean` do. -/
 
 namespace T22
@@ -163,18 +163,18 @@ which is exactly the totality the table needs and no more. -/
 set_option backward.isDefEq.respectTransparency false
 set_option backward.do.legacy true
 
-/-! ### The `Rc` model and the plumbing -/
+/-! ### The `Arc` model and the plumbing -/
 
-@[local step] theorem rc_new_spec {T : Type} (x : T) :
-    alloc.rc.Rc.new x ⦃ r => r = x ⦄ := by rw [rc_new_eq]; exact .ret rfl
+@[local step] theorem arc_new_spec {T : Type} (x : T) :
+    alloc.sync.Arc.new x ⦃ r => r = x ⦄ := by rw [arc_new_eq]; exact .ret rfl
 
-@[local step] theorem rc_deref_spec {T : Type} (A : Type) (x : T) :
-    alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref A x ⦃ r => r = x ⦄ := by
-  rw [rc_deref_eq]; exact .ret rfl
+@[local step] theorem arc_deref_spec {T : Type} (A : Type) (x : T) :
+    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref A x ⦃ r => r = x ⦄ := by
+  rw [arc_deref_eq]; exact .ret rfl
 
-@[local step] theorem rc_clone_spec {T A : Type} (i : core.alloc.AllocatorClone A)
-    (x : T) : alloc.rc.Rc.Insts.CoreCloneClone.clone i x ⦃ r => r = x ⦄ := by
-  rw [rc_clone_eq]; exact .ret rfl
+@[local step] theorem arc_clone_spec {T A : Type} (i : core.alloc.AllocatorClone A)
+    (x : T) : alloc.sync.Arc.Insts.CoreCloneClone.clone i x ⦃ r => r = x ⦄ := by
+  rw [arc_clone_eq]; exact .ret rfl
 
 @[local step] theorem ptr_new_spec {T : Type} (x : T) :
     ron.ptr.new x ⦃ r => r = x ⦄ := by rw [ptr_new_eq]; exact .ret rfl
@@ -310,27 +310,27 @@ theorem level_has_param_aux : ∀ u : level.Level, level.level_has_param u ⦃ _
   induction u using Level.ind' with
   | zero h =>
     rw [level.level_has_param.eq_def]
-    simp only [rc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_]
     exact .ret trivial
   | succ h v ihv =>
     rw [level.level_has_param.eq_def]
-    simp only [rc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_]
     exact ihv
   | max h a b iha ihb =>
     rw [level.level_has_param.eq_def]
-    simp only [rc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_]
     apply WP.spec_bind iha; intro x _; split <;> [exact .ret trivial; exact ihb]
   | imax h a b iha ihb =>
     rw [level.level_has_param.eq_def]
-    simp only [rc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_]
     apply WP.spec_bind iha; intro x _; split <;> [exact .ret trivial; exact ihb]
   | param h n =>
     rw [level.level_has_param.eq_def]
-    simp only [rc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_]
     exact .ret trivial
 

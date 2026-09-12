@@ -731,7 +731,7 @@ theorem by_cases_left_refines {fuel : Std.U64} (hQ : LeqCoreSpec fuel)
   intro h
   obtain ⟨hh, a, hh2, p, rfl⟩ := is_imax_param_true hb1
   rw [level.by_cases_left.eq_def] at h
-  simp only [rc_deref_eq, bind_tc_ok, level.LevelNode.kind._simpLemma_,
+  simp only [arc_deref_eq, bind_tc_ok, level.LevelNode.kind._simpLemma_,
     level.Level._0._simpLemma_] at h
   simp only [absLevel_mk, absLevelKind]
   rw [ConLeche.Level.imaxRules]
@@ -745,7 +745,7 @@ theorem by_cases_right_refines {fuel : Std.U64} (hQ : LeqCoreSpec fuel)
   intro h
   obtain ⟨hh, a, hh2, p, rfl⟩ := is_imax_param_true hb2
   rw [level.by_cases_right.eq_def] at h
-  simp only [rc_deref_eq, bind_tc_ok, level.LevelNode.kind._simpLemma_,
+  simp only [arc_deref_eq, bind_tc_ok, level.LevelNode.kind._simpLemma_,
     level.Level._0._simpLemma_] at h
   simp only [absLevel_mk, absLevelKind]
   rw [ConLeche.Level.imaxRules]
@@ -1542,7 +1542,7 @@ theorem is_equiv_refines {l r : level.Level} {o : Option Bool}
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
-Nothing from Aeneas's library, nothing from the `Rc` models, no `sorry`:
+Nothing from Aeneas's library, nothing from the `Arc` models, no `sorry`:
 the three standard Lean axioms only. -/
 
 /-- info: 'ConRon.Refine.Level.leq_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/

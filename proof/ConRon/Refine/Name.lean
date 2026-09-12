@@ -351,7 +351,7 @@ theorem mk_num_refines {pre m n} (h : name.mk_num pre m = ok n) :
     absName n = .num (absName pre) m.val := by
   obtain ⟨hh, rfl⟩ := mk_num_inv h; simp
 
-/-- `name::dup` is the identity in the model (DESIGN.md §3.2: `Rc::clone`). -/
+/-- `name::dup` is the identity in the model (DESIGN.md §3.2: `Arc::clone`). -/
 theorem dup_refines {n m : name.Name} (h : name.dup n = ok m) :
     absName m = absName n := by rw [name_dup_eq] at h; rw [← Result.ok_injective h]
 
@@ -375,7 +375,7 @@ theorem beq_refines {a b : name.Name} {c : Bool} (ha : NameWF a) (hb : NameWF b)
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
-Nothing from Aeneas's library, nothing from the `Rc` models, nothing from
+Nothing from Aeneas's library, nothing from the `Arc` models, nothing from
 con-leche beyond Lean's own three. -/
 
 /--

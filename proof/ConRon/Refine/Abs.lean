@@ -13,7 +13,7 @@ i.e. nothing, since this file `open`s `ConRon.Generated`).  `absPropWhen` and
 `PropWhenWF` are new.
 
 What the abstractions forget, in the order DESIGN.md §3.3 lists it:
-* the `Rc` indirection -- `alloc.rc.Rc T` *is* `T` in the model
+* the `Arc` indirection -- `alloc.sync.Arc T` *is* `T` in the model
   (`ConRon/Generated/TypesExternal.lean`), so there is nothing to peel;
 * the cached hash word (`NameNode.hash`, `LevelNode.hash`): con-leche keeps it
   in a `@[computed_field]`, which is a function of the value and invisible to
@@ -35,9 +35,9 @@ namespace ConRon.Refine
 
 The local `simp` set of task #5, verbatim.  With it, `rw [f.eq_def] at h;
 simp at h` turns an entire Rust function body into a nest of existentials and
-disjunctions in one step, `if`/`match` splits included.  The four `Rc` lemmas
+disjunctions in one step, `if`/`match` splits included.  The four `Arc` lemmas
 are `rfl` because `ConRon/Generated/FunsExternal.lean` models
-`Rc::new`/`deref`/`clone` as the identity and `Rc::ptr_eq` as `false`
+`Arc::new`/`deref`/`clone` as the identity and `Arc::ptr_eq` as `false`
 (DESIGN.md §3.2). -/
 
 @[simp] theorem bind_eq_ok_iff {α β : Type} {e : Result α} {f : α → Result β} {v : β} :
@@ -51,13 +51,13 @@ are `rfl` because `ConRon/Generated/FunsExternal.lean` models
 
 @[simp] theorem lift_eq {α : Type} (x : α) : Aeneas.Std.lift x = ok x := rfl
 
-@[simp] theorem rc_new_eq {T : Type} (x : T) : alloc.rc.Rc.new x = ok x := rfl
-@[simp] theorem rc_deref_eq {T : Type} (A : Type) (x : T) :
-    alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref A x = ok x := rfl
-@[simp] theorem rc_clone_eq {T A : Type} (i : core.alloc.AllocatorClone A) (x : T) :
-    alloc.rc.Rc.Insts.CoreCloneClone.clone i x = ok x := rfl
-@[simp] theorem rc_ptr_eq_eq {T : Type} (A : Type) (x y : T) :
-    alloc.rc.Rc.ptr_eq (T := T) A x y = ok false := rfl
+@[simp] theorem arc_new_eq {T : Type} (x : T) : alloc.sync.Arc.new x = ok x := rfl
+@[simp] theorem arc_deref_eq {T : Type} (A : Type) (x : T) :
+    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref A x = ok x := rfl
+@[simp] theorem arc_clone_eq {T A : Type} (i : core.alloc.AllocatorClone A) (x : T) :
+    alloc.sync.Arc.Insts.CoreCloneClone.clone i x = ok x := rfl
+@[simp] theorem arc_ptr_eq_eq {T : Type} (A : Type) (x y : T) :
+    alloc.sync.Arc.ptr_eq (T := T) A x y = ok false := rfl
 
 /- The crate names its shared pointer once, as `ron::ptr::P` (task #44), so
 that the concrete counted pointer behind it is a one-line choice.  The three
@@ -65,7 +65,7 @@ wrappers Charon sees are each one call to the external above, hence each is
 the same identity (`ptr_eq`: the same `false`); the generated code calls
 *these*, and these three `simp` lemmas are what make the handle invisible to
 the proofs exactly as before the alias existed (`deref` is not wrapped, so
-`rc_deref_eq` above is still the one doing the work). -/
+`arc_deref_eq` above is still the one doing the work). -/
 @[simp] theorem ptr_new_eq {T : Type} (x : T) : ron.ptr.new x = ok x := rfl
 @[simp] theorem ptr_clone_eq {T : Type} (x : T) : ron.ptr.clone x = ok x := rfl
 @[simp] theorem ptr_ptr_eq_eq {T : Type} (x y : T) :
@@ -389,7 +389,7 @@ def ExprsWF (es : alloc.vec.Vec expr.Expr) : Prop := ∀ e ∈ es.val, ExprWF e
 Aeneas's `partial_fixpoint` definitions give no induction principle of their
 own, so **every structural refinement is an induction on the argument, not on
 the function** — either on one of these two recursors or on the `LevelWF`
-derivation when the proof needs the WF hypotheses in step.  They skip the `Rc`
+derivation when the proof needs the WF hypotheses in step.  They skip the `Arc`
 and the node layer of the port's three-type mutual inductive. -/
 
 /-- Structural induction on the port's `Level` tree. -/
@@ -423,7 +423,7 @@ and the node layer of the port's three-type mutual inductive. -/
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
-The file's own theorems are the smart-constructor shapes and the `Rc`/`Vec`
+The file's own theorems are the smart-constructor shapes and the `Arc`/`Vec`
 plumbing; nothing here reaches past Lean's own three axioms. -/
 
 /--
