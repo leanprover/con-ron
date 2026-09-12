@@ -23,6 +23,7 @@
 //! | `parsed_c` | `ConLeche/Cached/ParsedC.lean`, plus the two seam records of `Cached/Installed.lean` and `Kernel/CheckerSplit.lean` |
 //! | `core_k` | `ConLeche/Kernel/Core.lean` (the bodies; `core` is a Rust prelude crate name) |
 //! | `core_c` | `ConLeche/Cached/CoreC.lean` (the six memoizing wrappers that tie the knot) |
+//! | `inductives` | `ConLeche/Kernel/Inductives/*` (the two install routes for an inductive block; its own `mod.rs` has the sub-map and the three directory-wide deviations) |
 
 pub mod cached;
 pub mod kernel;

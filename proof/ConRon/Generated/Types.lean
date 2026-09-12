@@ -574,6 +574,121 @@ inductive kernel.env.Declaration where
 structure kernel.expr_ops.NameToName (Self : Type) where
   rename : Self → kernel.name.Name → Result kernel.name.Name
 
+/-- Trait declaration: [con_ron_core::kernel::inductives::checker_local::DomView]
+    Source: 'crates/con-ron-core/src/kernel/inductives/checker_local.rs', lines 143:0-146:1
+    Visibility: public -/
+structure kernel.inductives.checker_local.DomView (Self : Type) where
+  view : Self → Std.U64 → kernel.expr.Expr → Result kernel.expr.Expr
+
+/-- [con_ron_core::kernel::inductives::checker_local::DomIdent]
+    Source: 'crates/con-ron-core/src/kernel/inductives/checker_local.rs', lines 151:0-151:20
+    Visibility: public -/
+@[reducible]
+def kernel.inductives.checker_local.DomIdent := Unit
+
+/-- [con_ron_core::kernel::inductives::modeled::BlockRename]
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 77:0-79:1
+    Visibility: public -/
+structure kernel.inductives.modeled.BlockRename where
+  block_names : alloc.vec.Vec kernel.name.Name
+
+/-- [con_ron_core::kernel::inductives::modeled::DomProjFwd]
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 173:0-177:1
+    Visibility: public -/
+structure kernel.inductives.modeled.DomProjFwd where
+  t : kernel.name.Name
+  ctor : kernel.name.Name
+  n_f : Std.U64
+
+/-- [con_ron_core::kernel::inductives::modeled::ProjFwd]
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 134:0-138:1
+    Visibility: public -/
+structure kernel.inductives.modeled.ProjFwd where
+  t : kernel.name.Name
+  ctor : kernel.name.Name
+  n_f : Std.U64
+
+/-- [con_ron_core::kernel::inductives::modeled::ProjBack]
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 96:0-100:1
+    Visibility: public -/
+structure kernel.inductives.modeled.ProjBack where
+  t : kernel.name.Name
+  ctor : kernel.name.Name
+  n_f : Std.U64
+
+/-- [con_ron_core::kernel::inductives::sum_parts::InductiveShape]
+    Source: 'crates/con-ron-core/src/kernel/inductives/sum_parts.rs', lines 28:0-39:1
+    Visibility: public -/
+structure kernel.inductives.sum_parts.InductiveShape where
+  cv_t : kernel.env.ConstantVal
+  ctors : alloc.vec.Vec (kernel.env.ConstantVal × Std.U64)
+  n_p : Std.U64
+  n_idx : Std.U64
+  cv_r : kernel.env.ConstantVal
+  elim : kernel.name.Name
+  res_sort : kernel.level.Level
+  rhss : alloc.vec.Vec kernel.expr.Expr
+  large : Bool
+  is_prop : Bool
+
+/-- [con_ron_core::kernel::inductives::native_parts::RecFieldKind]
+    Source: 'crates/con-ron-core/src/kernel/inductives/native_parts.rs', lines 62:0-68:1
+    Visibility: public -/
+@[discriminant isize]
+inductive kernel.inductives.native_parts.RecFieldKind where
+| Ordinary : kernel.inductives.native_parts.RecFieldKind
+| Recursive : kernel.inductives.native_parts.RecFieldKind
+| Reflexive : kernel.inductives.native_parts.RecFieldKind
+| Negative : kernel.inductives.native_parts.RecFieldKind
+| Unsupported : kernel.inductives.native_parts.RecFieldKind
+
+/-- [con_ron_core::kernel::inductives::native_parts::NativeParts]
+    Source: 'crates/con-ron-core/src/kernel/inductives/native_parts.rs', lines 481:0-485:1
+    Visibility: public -/
+structure kernel.inductives.native_parts.NativeParts where
+  shape : kernel.inductives.sum_parts.InductiveShape
+  kinds : alloc.vec.Vec (alloc.vec.Vec
+    kernel.inductives.native_parts.RecFieldKind)
+  rec_pinned : Bool
+
+/-- [con_ron_core::kernel::inductives::native_install::NativePass]
+    Source: 'crates/con-ron-core/src/kernel/inductives/native_install.rs', lines 906:0-912:1
+    Visibility: public -/
+structure kernel.inductives.native_install.NativePass where
+  env1 : kernel.fenv.FEnv
+  cv_ta : kernel.env.ConstantVal
+  p : kernel.inductives.native_parts.NativeParts
+  ctors_a : alloc.vec.Vec (kernel.env.ConstantVal × Std.U64)
+  sortss : alloc.vec.Vec (alloc.vec.Vec kernel.level.Level)
+
+/-- Trait declaration: [con_ron_core::kernel::inductives::sum_install::CapsOf]
+    Source: 'crates/con-ron-core/src/kernel/inductives/sum_install.rs', lines 39:0-42:1
+    Visibility: public -/
+structure kernel.inductives.sum_install.CapsOf (Self : Type) where
+  caps_of : Self → kernel.inductives.sum_parts.InductiveShape → Result
+    kernel.env.IndCaps
+
+/-- [con_ron_core::kernel::inductives::native_install::NativeCapsAt]
+    Source: 'crates/con-ron-core/src/kernel/inductives/native_install.rs', lines 109:0-111:1
+    Visibility: public -/
+structure kernel.inductives.native_install.NativeCapsAt where
+  is_rec : Bool
+
+/-- [con_ron_core::kernel::inductives::struct_parts::StructParts]
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 323:0-334:1
+    Visibility: public -/
+structure kernel.inductives.struct_parts.StructParts where
+  cv_t : kernel.env.ConstantVal
+  cv_c : kernel.env.ConstantVal
+  n_p : Std.U64
+  n_f : Std.U64
+  cv_r : kernel.env.ConstantVal
+  elim : kernel.name.Name
+  res_sort : kernel.level.Level
+  rhs : kernel.expr.Expr
+  large : Bool
+  is_prop : Bool
+
 /-- Trait declaration: [con_ron_core::kernel::prop_when::Valuation]
     Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 513:0-517:1
     Visibility: public -/

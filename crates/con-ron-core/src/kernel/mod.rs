@@ -6,6 +6,7 @@ pub mod env;
 pub mod expr;
 pub mod expr_ops;
 pub mod fenv;
+pub mod inductives;
 pub mod level;
 pub mod name;
 pub mod prop_read;
