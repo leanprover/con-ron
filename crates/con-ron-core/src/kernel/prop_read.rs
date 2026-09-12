@@ -221,15 +221,11 @@ mod tests {
     }
 
     fn prop_meta() -> BinderMeta {
-        BinderMeta {
-            pw: prop_when::if_all_zero(Vec::new()),
-        }
+        expr::binder_meta(prop_when::if_all_zero(Vec::new()))
     }
 
     fn never_meta() -> BinderMeta {
-        BinderMeta {
-            pw: prop_when::never(),
-        }
+        expr::binder_meta(prop_when::never())
     }
 
     /// `P : Sort 0` (a proposition) and `A : Sort 1` (data), as axioms, plus

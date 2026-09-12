@@ -2781,9 +2781,7 @@ mod tests {
     }
 
     fn raw() -> BinderMeta {
-        BinderMeta {
-            pw: prop_when::never(),
-        }
+        expr::binder_meta(prop_when::never())
     }
 
     /// **The public↔model renaming is a bijection on the block's names**, which

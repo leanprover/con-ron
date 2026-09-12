@@ -803,7 +803,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
     }
 
     fn never() -> BinderMeta {
-        BinderMeta { pw: prop_when::never() }
+        expr::binder_meta(prop_when::never())
     }
 
     /// `Sort 1`, the type of `Sort 0`.

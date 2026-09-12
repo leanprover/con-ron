@@ -247,9 +247,7 @@ mod tests {
                     expr::ExprKind::ForallE(d, b, _) => expr::forall_e(
                         expr::dup(d),
                         expr::dup(b),
-                        expr::BinderMeta {
-                            pw: prop_when::if_all_zero(ns),
-                        },
+                        expr::binder_meta(prop_when::if_all_zero(ns)),
                     ),
                     _ => expr::dup(&cv.ty),
                 };

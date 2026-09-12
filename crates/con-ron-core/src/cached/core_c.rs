@@ -245,7 +245,7 @@ pub fn reduce_nat_i(
                     match whnf(mode, fuel, st, fe, depth, b) {
                         Err(err) => Err(err),
                         Ok(wa) => match core_k::raw_nat_lit(&wa) {
-                            Some(n) => Ok(Some(expr::lit(Literal::NatVal(nat::add(
+                            Some(n) => Ok(Some(expr::lit(expr::literal_nat(nat::add(
                                 &n,
                                 &nat::one(),
                             ))))),
@@ -4062,7 +4062,7 @@ pub fn defeq_struct_i(
         (ExprKind::Lit(Literal::NatVal(nn)), ExprKind::App(f, x)) => {
             match core_k::succ_of(nn, f) {
                 Some(k) => {
-                    let lk = expr::lit(Literal::NatVal(k));
+                    let lk = expr::lit(expr::literal_nat(k));
                     defeq(mode, fuel, st, fe, depth, &lk, x)
                 }
                 None => stuck_irrel_i(mode, fuel, st, fe, depth, a, b),
@@ -4071,7 +4071,7 @@ pub fn defeq_struct_i(
         (ExprKind::App(f, x), ExprKind::Lit(Literal::NatVal(nn))) => {
             match core_k::succ_of(nn, f) {
                 Some(k) => {
-                    let lk = expr::lit(Literal::NatVal(k));
+                    let lk = expr::lit(expr::literal_nat(k));
                     defeq(mode, fuel, st, fe, depth, x, &lk)
                 }
                 None => stuck_irrel_i(mode, fuel, st, fe, depth, a, b),
@@ -4881,7 +4881,7 @@ pub fn annotate_lam_chain_i(
                     };
                     match pw {
                         Err(err) => Err(err),
-                        Ok(p) => Ok(expr::lam(ty2, b_abs, BinderMeta { pw: p })),
+                        Ok(p) => Ok(expr::lam(ty2, b_abs, expr::binder_meta(p))),
                     }
                 }
             }
@@ -5323,15 +5323,11 @@ mod tests {
     }
 
     fn never_meta() -> BinderMeta {
-        BinderMeta {
-            pw: prop_when::never(),
-        }
+        expr::binder_meta(prop_when::never())
     }
 
     fn prop_meta() -> BinderMeta {
-        BinderMeta {
-            pw: prop_when::if_all_zero(Vec::new()),
-        }
+        expr::binder_meta(prop_when::if_all_zero(Vec::new()))
     }
 
     fn ax(n: Name, ty: Expr) -> ConstantInfo {

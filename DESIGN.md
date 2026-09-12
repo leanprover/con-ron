@@ -199,14 +199,20 @@ hit repeats a deterministic result).
 **The pair memo, as it actually landed (task #30).**  Measurement demanded it
 (task #28: eight fixtures do not finish), and it turned out **not** to need an
 opaque function, hence not the fifth external hole this section budgeted for.
-The memo is a plain `ron::HashMap<u64, (Expr, Expr)>` whose key is a mix of
-the two *stored hash words* — a field read each, where con-leche mixes the two
-addresses — and whose stored pair is verified on a probe by `ptr_eq` on both
-components, exactly as con-leche's `probeHit` does.  Since `ptr_eq` is `false`
+The memo is a plain `ron::HashMap<u64, Vec<(Expr, Expr)>>` whose key is a mix
+of the two *stored hash words* — a field read each, where con-leche mixes the
+two addresses — and whose stored pairs are verified on a probe by `ptr_eq` on
+both components, exactly as con-leche's `probeHit` does.  **A key holds a
+bucket of pairs and not one pair** (task #38, found by task #37): a hash key
+collides precisely on the structurally equal, pointer-distinct objects the
+memo exists for, so one slot per key let a node compared against two partners
+in turn evict its own entry on every visit, and con-leche's own fixture for
+that shape (`tests/e2e/tower_beqpair.ndjson`) went from `O(DAG)` to `3^n`.
+Since `ptr_eq` is `false`
 here, **the model writes the table and never reads it**: `beq_go` is the plain
-structural descent, and the refinement proof needs one extra lemma
-(`probe_hit_false`) and no fact about the table at all — not even
-`ron::HashMap`'s invariant.  In the binary a probe hits only when the stored
+structural descent, and the refinement proof needs two extra lemmas
+(`probe_hit_false` and the bucket scan behind it) and no fact about the table
+at all — not even `ron::HashMap`'s invariant.  In the binary a probe hits only when the stored
 pair *is* the two objects being compared (the entry holds them, so their
 identity stays theirs) and only completed `true`s are stored, so a hit repeats
 an answer this same deterministic walk already produced for that pair.  That
@@ -7890,3 +7896,282 @@ token vectors.
 * `con-ron-check --stats-every`'s `rss_kb` still reads *current* RSS from
   `/proc/self/statm` (the periodic column wants that); the two new numbers are
   `VmHWM` from `peak_rss_kb`.  Two functions, on purpose.
+
+### Task #38 — 48-byte term nodes (2026-09-12, Opus under Fable)
+
+P1.8's last reader item, and the one task #36 left as *the* core-type
+question: `ExprNode`'s heap block was **72 bytes**, 7.42 GB of Mathlib's
+9.20 GB parse peak, and 85 % of the nodes that pay it are `app`s that need
+16.  The block is now **56 bytes** — the `init` parse peaks at 476 MB instead
+of 548, `core` at 924 instead of 1 108, `init` end to end at 839 MB instead
+of 977 and `core` at 2 175 instead of 2 506 — and `Refine/Abs.lean` is
+**byte-identical**, because `Rc<T>` erases to `T` (§3.2) and every handle this
+task added is erased with it.
+
+It is 56 and not the 48 the brief asked for, and §3 says exactly why: three
+`ExprKind` arms are 24 bytes for reasons no handle removes cheaply.  Task
+#36's §4 table, which promised 48, had forgotten that `letE` and `proj` are
+24-byte arms too; the honest saving of this repacking is 16 bytes a node, not
+24.
+
+A **second, unrelated change rode along** at the coordinator's request, in the
+same file: task #37 found that the `beq` pair memo (task #30) does not work on
+the one fixture con-leche wrote for it, because the port keys it on hash words
+where con-leche keys on addresses.  §7 below is that fix — a bucket per key —
+reported separately because it is a correctness change, not a layout one.
+
+#### 1. The layout, before and after
+
+Three payloads were wider than the three-handle arms and so set `ExprKind`'s
+width for all ten; each went behind an `Rc`, which is one word:
+
+| `ExprKind` arm | payload before | payload after |
+|---|---|---|
+| `bvar(u64)`, `sort(Level)` | 8 | 8 |
+| `fvar(u64, Expr)`, `app(Expr, Expr)` | 16 | 16 |
+| **`const(Name, Vec<Level>)`** | **32** | **16** — `Rc<Vec<Level>>` |
+| **`lit(Literal)`** | **32** | **16** — `Rc<Nat>`/`Rc<Vec<u32>>` inside |
+| **`lam`/`forallE(Expr, Expr, BinderMeta)`** | **40** | **24** — `Rc<PropWhen>` |
+| `letE(Expr, Expr, Expr)` | 24 | 24 |
+| `proj(Name, u64, Expr)` | 24 | 24 |
+| `BinderMeta` | 24 | 8 |
+| `Literal` | 32 | 16 |
+| `ExprKind` (widest arm + discriminant) | 48 | **32** |
+| `ExprNode` (`data: u64` + `kind`) | 56 | **40** |
+| its `Rc` block (+ two counts) | 72 | **56** |
+
+Three things did *not* change, on purpose: the packed `data` word and every
+accessor's semantics (the smart constructors changed internally only), the
+**arm structure** — `ExprKind::Const(n, us)` is still a two-field pattern,
+because the handle is around the `Vec` and not around the pair, and `us`
+derefs to a `&Vec<Level>` at each of the port's 106 read sites — and the
+nested literal patterns, `ExprKind::Lit(Literal::NatVal(n))` still binding
+because the handles are *inside* `Literal`.  That is what kept the proof diff
+at one `Rc` step per unfolded constructor: boxing the whole `Literal` would
+have forced `match &**l` inside `core_c`'s pair matches and restructured the
+generated match trees.
+
+`literal_dup` and `binder_meta_dup` are now reference bumps (`Rc::clone`)
+where they were a limb copy, a `Vec<u32>` copy and a `PropWhen` copy —
+cheaper in the binary *and* one step shorter in the model, where `Rc::clone`
+is the identity outright.  Building a datum goes through three new
+constructors, `expr::binder_meta`, `expr::literal_nat` and
+`expr::literal_str`, which is where the handles are taken.
+
+#### 2. The reader shares the binder data (`con-ron-dump`)
+
+A handle is only free if the datum behind it is shared, and for
+`lam`/`forallE` it is: the dump's `W` id space holds **3 records for `init`, 4
+for Mathlib**, so `Reader::bm_ref` hands every binder an `Rc::clone` of one of
+a handful of entries and the parse allocates no `PropWhen` at all.
+`Tables::pws` is a `Vec<BinderMeta>` now; `pw_ref` — which a `V` record's
+`sortZ` still wants by value — copies out of the handle, on the rare side
+(710 364 `V` records against 13.4 M binders at Mathlib scale).
+`node_sizes()` and `the_node_sizes_are_what_the_accounting_assumes` were
+updated to the real arm types, and gained the `letE`/`proj` rows that would
+have caught task #36's arithmetic slip.
+
+#### 3. The accounting, and why 56 and not 48
+
+`awk '$1=="E"{c[$3]++}'` over the three dumps, with the `E` totals task #36
+quotes:
+
+| kind | `init` | `core` | Mathlib |
+|---|---|---|---|
+| `app` | 5 223 210 | 9 585 883 | 88 022 053 |
+| `lam` | 539 042 | 1 534 956 | 8 069 579 |
+| `forallE` | 301 502 | 906 103 | 5 327 163 |
+| `const` | 57 033 | 162 407 | 1 391 293 |
+| `letE` | 11 372 | 53 995 | 228 415 |
+| `proj` | 3 412 | 16 256 | 34 867 |
+| `lit` (str + nat) | 2 081 | 13 360 | 23 766 |
+| `sort`, `bvar`, `fvar` | 265 | 612 | 2 087 |
+| **total `E`** | **6 137 917** | **12 273 572** | **103 099 223** |
+
+so the ledger is 16 bytes off every node, against one 40-byte `Rc` block per
+`const` node (a `Vec` header and two counts) and one per literal payload:
+
+| | `init` | `core` | Mathlib |
+|---|---|---|---|
+| nodes, −16 B each | −98.2 MB | −196.4 MB | −1 649.6 MB |
+| `const` level lists, +40 B each | +2.3 MB | +6.5 MB | +55.7 MB |
+| literal payloads, +40 B each | +0.1 MB | +0.5 MB | +1.0 MB |
+| binder data (3, 4, 4 of them, shared) | ~0 | ~0 | ~0 |
+| **predicted** | **−95.8 MB** | **−189.4 MB** | **−1 592.9 MB** |
+| **measured** (`--parse-only` peak, ×3 runs, identical) | **−72 MB** | **−184 MB** | not run |
+
+`core`'s columns agree; `init`'s measured saving is 24 MB short of the
+accounting, which is mimalloc keeping slack per page and not the terms (the
+accounting is the payload, and 56-byte blocks pack differently from 72-byte
+ones).  Mathlib was not run — the maintainer's is in progress — so its column
+is a projection: a parse peak of **7.6 GB** instead of 9.20.
+
+**Why the last 8 bytes are not worth taking.**  `ExprNode` is 40 = 8 (`data`)
++ 8 (discriminant) + 24 (widest arm), and *three* arms are that 24:
+`lam`/`forallE` (two handles and the datum's), `letE` (three handles) and
+`proj` (a name, a `u64`, a handle).  Rust gives an enum with ten
+data-carrying variants a full 8-byte tag — there is no niche to fill — so a
+48-byte block means a handle for those three arms too.  At Mathlib scale that
+buys 8 B × 103.1 M = 825 MB and costs a 40-byte block per binder
+(13 396 742 of them, 536 MB), per `letE` (9 MB) and per `proj` (1.4 MB):
+**net 278 MB**, 3 % of the parse peak, in exchange for a pointer chase on the
+checker's hottest arm and for changing `ExprKind`'s arm structure — which is
+the abstraction, 187 binder pattern sites in the port and a constructor case
+in every `beq`/`ExprOps` proof.  That is the trade this task declines.
+
+#### 4. Measured
+
+`/usr/bin/env time -v` and `perf stat -e instructions:u`, `ulimit -v` per the
+brief (3 GB `init`, 5 GB `core`), `--pins _tmp/dump-fixtures/pins.dump`,
+"before" being the task-#36 binary built from the same tree
+(`_tmp/task38/before-*`).  **The machine was busy throughout** with the
+maintainer's Mathlib run, so wall times are not comparable between columns
+and instructions are the measurement of record (§7).
+
+| run | before | after |
+|---|---|---|
+| `dump-check --parse-only` `init` | 548 MB | **476 MB** |
+| `dump-check --parse-only` `core` | 1 108 MB | **924 MB** |
+| `con-ron-check` `init`, peak after parse | 549 MB | **476 MB** |
+| `con-ron-check` `init`, peak after check | 977 MB | **839 MB** |
+| `con-ron-check` `init`, instructions | 596.94 G | 617.19 G (+3.4 %) |
+| `con-ron-check` `core`, peak after parse | 1 106 MB | **925 MB** |
+| `con-ron-check` `core`, peak after check | 2 506 MB | **2 175 MB** |
+| `con-ron-check` `core`, instructions | 1 215.55 G | 1 284.55 G (+5.7 %) |
+
+Both runs still **accept** (58 002 and 165 449 declarations, `--verified`).
+`core`'s end-to-end peak is 1.75× con-leche's 1 243 MB and `init`'s 1.74×
+its 481 MB, both well inside §7's 3×.  The instruction rise splits in two,
+and §7 owns the larger half: the **repacking** alone is +1.2 % on `init`
+(604.08 G) and +0.5 % on `core` (1 221.47 G), measured on the same binaries
+before the memo change — the extra `Rc::new` the checker's own `mk_const`
+does, and one load on each `us`/`m.pw` read, against `binder_meta_dup` and
+`literal_dup` no longer copying — and the **memo's bucket** is the other
++2.2 % and +5.2 %.
+
+#### 5. What it took in the model and the proof
+
+* **`Refine/Abs.lean`: no change at all.**  `alloc.rc.Rc T` is a
+  `@[reducible] def` for `T` (§3.2), so `BinderMeta.pw : Rc PropWhen` *is* a
+  `PropWhen`, `Const`'s second field is a `Vec Level` and
+  `Literal.NatVal`'s is a `Nat`.  `absBinderMeta`, `absExprKind`,
+  `absLiteral`, `BinderMetaWF`, `LiteralWF` and every `ExprWF` constructor are
+  the same text.
+* **`Refine/Expr.lean`: one `Rc` step per unfolded constructor.**
+  `mk_const_inv` gained one existential (`Rc::new(us)`, consumed as `rfl`);
+  `lam_inv` and `forall_e_inv` gained the `m.pw` deref (one pair, `rfl`, and
+  `rc_deref_eq` in their `simp only` set, without which the equation is not
+  an equation yet); `literal_beq_refines`, `binder_meta_beq_refines`,
+  `literal_beq_refl` and `binder_meta_beq_refl` gained
+  `rc_deref_eq, bind_tc_ok` in theirs; `literal_dup_eq` and
+  `binder_meta_dup_eq` got *shorter* (`rc_clone_eq, bind_tc_ok` and
+  `exact h.symm`, where they used to identify a copy through
+  `Nat.clone_refines`/`str_copy_eq`/`PropWhen.dup_eq`).
+  **No lemma is weakened and nothing is `sorry`ed**: every statement is the
+  one that was there before, and `beq_exact`/`bvar_b_raw_refines` still
+  `#guard_msgs` their axiom census as `[propext, Classical.choice,
+  Quot.sound]`.
+* **`Refine/BasisTables.lean`: one `@[local step]` spec**,
+  `expr_binder_meta_spec`, because the generated table now builds a datum
+  through a function rather than with a struct literal.  Everything else
+  discharged itself: its `rc_new_spec`/`rc_deref_spec`/`rc_clone_spec` steps
+  already cover the new `Rc` traffic.
+* `expr::str_copy`/`str_copy_from` and their two lemmas stay, though
+  `literal_dup` no longer calls them: they are the crate's `Vec<u32>` copy and
+  the walk is proved.
+
+#### 6. The generator
+
+`basis_tables.rs` is generated (§3.7, task #22), so the two constructor
+spellings moved in `proof/ConRon/Gen/Emit.lean` instead:
+`BinderMeta { pw: … }` → `expr::binder_meta(…)` and
+`Literal::NatVal/StrVal(…)` → `expr::literal_nat/str(…)`, 84 lines of the
+generated file, plus one dropped `use` in `Gen/Main.lean`'s preamble (the file
+no longer names the type).  Regeneration is still a fixed point.
+
+#### 7. The `beq` pair memo needed a bucket (folded in from task #37)
+
+Task #37 found, while wiring the `.ndjson` frontend, that the pair memo task
+#30 landed does not *work* on the one fixture con-leche wrote for it:
+`vendor/con-leche/tests/e2e/tower_beqpair.ndjson` does not terminate.  The
+cause is the port's one deviation from con-leche's memo, and §3.2 states it:
+the key mixes the two **stored hash words**, where con-leche mixes the two
+**addresses**.  A hash key collides exactly on structurally equal,
+pointer-distinct objects — which is to say on the objects the memo exists
+for — so with one pair per key a node compared against two partners in turn
+evicts its own entry on every visit.  con-leche's fixture is built to do
+precisely that (`scripts/mk_tower_fixtures.py`'s `mk_beqpair`, whose note
+explains why it takes **three** arguments to bite): a shared tower
+`S_{k+1} = g S_k S_k S_k` against an alternating pair
+`P_{k+1} = g P_k Q_k P_k`, `Q_{k+1} = g Q_k P_k Q_k` asks `(S,P)`, `(S,Q)`,
+`(S,P)` one level down, and the third query finds the entry the second wrote.
+`3^n`, at n = 40.
+
+**The fix is a bucket**, inside the Aeneas subset, with §3.2's argument
+untouched:
+
+* `BeqMap` is `ron::HashMap<u64, Vec<(Expr, Expr)>>`.  `probe_hit` walks the
+  key's bucket (`probe_hit_from`, an index recursion like every other list
+  walk in the port) and verifies each candidate with `pair_is` — `ptr_eq` on
+  both components, exactly as before and exactly as `probeHit` does.
+* `beq_record` **inserts first and extends second**: `insert` hands back what
+  the key held, so the common case — a key with no bucket yet, which is nearly
+  every write, since a bucket of two needs two proved-equal pairs of distinct
+  objects whose hash words agree — is *one* table operation, as it was before
+  the bucket, and only a real collision runs `beq_extend`.  The
+  `remove`-then-`insert` spelling this replaced cost **11 % of `core`'s
+  instructions** (1 355.57 G against 1 221.47 G), because
+  `ron::HashMap::remove` rebuilds its chain; the shipped one costs 2.2 % on
+  `init`.  The memo is still local to the top-level `beq`, whose two guards
+  run before any table exists.
+* **The trust argument does not move**, because what an entry *means* has not
+  changed: in the model `ptr_eq` is `false`, so every candidate misses and the
+  table is written and never read; in the binary a candidate is accepted only
+  when it *is* the two objects being compared, and only completed `true`s are
+  appended.  A bucket cannot outgrow the walk that fills it — an entry is one
+  proved-equal pair of distinct objects whose hash words agree — so the memo
+  stays bounded by the comparisons the descent has completed.
+* In the proof `probe_hit_false` keeps its statement *verbatim* and is proved
+  through two new lemmas: `pair_is_false` (one candidate misses, `ptr_eq`
+  being `false`) and `probe_hit_from_false` (the scan misses for **any**
+  bucket, by the measure induction the port's index recursions all use).  No
+  fact about the table is needed, still not even `ron::HashMap`'s invariant,
+  and `beq_arm`, `beq_go_arm`, `beq_finish_fst` and the hundred-case
+  constructor induction are untouched.
+
+`beq_on_the_beqpair_towers_is_memoised` is the fixture as a unit test: it
+builds `S`, `P`, `Q` at depth 40 and asserts both orientations of `beq`, and
+it does not finish before the change (measured: still running after 60 s)
+against under a millisecond after it.
+`probe_hit_verifies_by_identity_not_by_structure` gained the bucket half (a
+second pair under the same key displaces nothing, and both are found).  The
+*dumped* form of the fixture cannot show the bug and never could: the Lean
+writer interns `E` records by value, so the three towers collapse to one id
+and the reader hands out one shared object — which is why this is task #37's
+find, and why the end-to-end confirmation belongs to its `.ndjson` route
+(`scripts/diff-e2e.sh`, not in this worktree).
+
+#### Gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | all 6 OK (`cargo build`, `cargo test`, lint, provenance, `extract.sh --check`, `lake build`) |
+| `cargo test` | 177/177, warning-free — one new test |
+| `scripts/lint-rust-style.sh` | green — no `Rc` API beyond §3.2's four, the new derefs being coercions |
+| `scripts/provenance.py check` | 1 573 items, 1 737 citations, all current at pin `3e004805` (seven new items: the three constructors, `BeqBucket`, `pair_is`, `probe_hit_from`, `beq_extend`) |
+| `scripts/extract.sh` | `Types.lean` +20/−20 (three types gained a handle), `Funs.lean` one `deref`/`new` step per site; **externals still exactly 1 type and 4 fns** |
+| zero Aeneas errors | yes (`extract.sh` is clean, and `lake build` elaborates the output) |
+| `scripts/diff-fixtures.sh --timeout=60` | **315 agree, 0 differ**, 0 timed out, 33 skipped |
+| `scripts/dump-check-fixtures.sh` | 316 dumps, 0 failures, DAG exact, round trip byte-identical |
+
+#### Left for next time
+
+* **The full Mathlib run** — the parse should now peak at 7.6 GB of the 26 GB
+  budget, leaving the fold 18 GB.
+* The last 8 bytes of the node, if §3's 278 MB ever outweighs the arm
+  structure.
+* The memo's remaining 2.2 %: the bucket's first pair could live *inline* in
+  the entry (`(EqPair, Vec<EqPair>)`), which would take the `Vec`'s allocation
+  out of the common write.  Three more lines of Lean, and no change to any
+  statement.
+* The `E` id table's 0.25 GB of `Vec` slack (task #36's item, untouched).

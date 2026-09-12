@@ -290,7 +290,7 @@ theorem mk_const_inv {n : name.Name} {us : alloc.vec.Vec level.Level} {e : expr.
       bvarBits e = 0 ∧ fvarBits e = 0 ∧ lpBit e = b := by
   rw [expr.mk_const.eq_def] at h
   simp only [bind_eq_ok_iff, rc_new_eq, Result.ok.injEq] at h
-  obtain ⟨_, -, _, -, _, -, _, -, _, -, bb, hbb, d, hd, _, hnd, he⟩ := h
+  obtain ⟨_, -, _, -, _, -, _, -, _, -, bb, hbb, d, hd, _, rfl, _, hnd, he⟩ := h
   subst hnd; subst he
   obtain ⟨b1, b2, b3⟩ := node_bits (k := .Const n us) (by scalar_tac) (by scalar_tac) hd
   exact ⟨d, bb, hbb, rfl, by rw [b1]; rfl, by rw [b2]; rfl, b3⟩
@@ -408,8 +408,8 @@ theorem lam_inv {ty bo : expr.Expr} {m : expr.BinderMeta} {e : expr.Expr}
       ∀ hp, prop_when.has_params m.pw = ok hp →
         lpBit e = (lpBit ty || lpBit bo || hp) := by
   rw [expr.lam.eq_def] at h
-  simp only [bind_eq_ok_iff, rc_new_eq, data_eq, Result.ok.injEq] at h
-  obtain ⟨dt, hdt, db, hdb, _, -, _, -, _, -, _, -, _, -, _, -, _, -,
+  simp only [bind_eq_ok_iff, rc_new_eq, rc_deref_eq, data_eq, Result.ok.injEq] at h
+  obtain ⟨dt, hdt, db, hdb, _, -, _, -, _, rfl, _, -, _, -, _, -, _, -, _, -,
     i9, hi9, i10, hi10, i11, hi11, i12, hi12, i13, hi13, i14, hi14, i15, hi15,
     bt, hbt, b1, hb1, d, hd, _, hnd, he⟩ := h
   subst hdt; subst hdb; subst hnd; subst he
@@ -425,8 +425,8 @@ theorem forall_e_inv {ty bo : expr.Expr} {m : expr.BinderMeta} {e : expr.Expr}
       ∀ hp, prop_when.has_params m.pw = ok hp →
         lpBit e = (lpBit ty || lpBit bo || hp) := by
   rw [expr.forall_e.eq_def] at h
-  simp only [bind_eq_ok_iff, rc_new_eq, data_eq, Result.ok.injEq] at h
-  obtain ⟨dt, hdt, db, hdb, _, -, _, -, _, -, _, -, _, -, _, -, _, -,
+  simp only [bind_eq_ok_iff, rc_new_eq, rc_deref_eq, data_eq, Result.ok.injEq] at h
+  obtain ⟨dt, hdt, db, hdb, _, -, _, -, _, rfl, _, -, _, -, _, -, _, -, _, -,
     i9, hi9, i10, hi10, i11, hi11, i12, hi12, i13, hi13, i14, hi14, i15, hi15,
     bt, hbt, b1, hb1, d, hd, _, hnd, he⟩ := h
   subst hdt; subst hdb; subst hnd; subst he
@@ -773,28 +773,24 @@ theorem str_copy_eq {s r : alloc.vec.Vec Std.U32} (h : expr.str_copy s = ok r) :
     (by scalar_tac) h
   exact alloc.vec.Vec.ext _ _ (by simpa [alloc.vec.Vec.new] using this)
 
-/-- `expr::literal_dup` is the identity in the model. -/
+/-- `expr::literal_dup` is the identity in the model -- and since task #38 put
+both payloads behind a handle it is so *on the nose*: a `dup` is `Rc::clone`,
+whose model is the identity, where it used to be a `Nat` limb copy and a
+`Vec<u32>` copy that `Nat.clone_refines`/`str_copy_eq` had to identify. -/
 theorem literal_dup_eq {l c : expr.Literal} (h : expr.literal_dup l = ok c) : c = l := by
   cases l with
   | NatVal n =>
-    simp only [expr.literal_dup, bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨n1, hn1, rfl⟩ := h
-    rw [expr.Literal.NatVal.injEq]
-    obtain ⟨v⟩ := n
-    exact ron.nat.Nat.mk.injEq .. ▸ alloc.vec.Vec.ext _ _ (Nat.clone_refines hn1).1
+    simp only [expr.literal_dup, rc_clone_eq, bind_tc_ok, Result.ok.injEq] at h
+    exact h.symm
   | StrVal s =>
-    simp only [expr.literal_dup, bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨v, hv, rfl⟩ := h
-    rw [expr.Literal.StrVal.injEq]
-    exact str_copy_eq hv
+    simp only [expr.literal_dup, rc_clone_eq, bind_tc_ok, Result.ok.injEq] at h
+    exact h.symm
 
 /-- `expr::binder_meta_dup` is the identity in the model. -/
 theorem binder_meta_dup_eq {m c : expr.BinderMeta} (h : expr.binder_meta_dup m = ok c) :
     c = m := by
-  simp only [expr.binder_meta_dup, bind_eq_ok_iff, Result.ok.injEq] at h
-  obtain ⟨pw, hpw, rfl⟩ := h
-  rw [expr.BinderMeta.mk.injEq]
-  exact PropWhen.dup_eq hpw
+  simp only [expr.binder_meta_dup, rc_clone_eq, bind_tc_ok, Result.ok.injEq] at h
+  exact h.symm
 
 /-! ## The derived equalities on the leaf data -/
 
@@ -806,7 +802,7 @@ theorem literal_beq_refines {a b : expr.Literal} {c : Bool}
   | NatVal m =>
     cases b with
     | NatVal n =>
-      simp only [expr.literal_beq] at h
+      simp only [expr.literal_beq, rc_deref_eq, bind_tc_ok] at h
       rw [Nat.beq_refines ha hb h]
       simp
     | StrVal t =>
@@ -818,7 +814,7 @@ theorem literal_beq_refines {a b : expr.Literal} {c : Bool}
       simp only [expr.literal_beq, Result.ok.injEq] at h
       rw [← h]; simp
     | StrVal t =>
-      simp only [expr.literal_beq] at h
+      simp only [expr.literal_beq, rc_deref_eq, bind_tc_ok] at h
       rw [Name.str_eq_refines ha hb h]
       simp
 
@@ -827,7 +823,7 @@ theorem binder_meta_beq_refines {a b : expr.BinderMeta} {c : Bool}
     (ha : BinderMetaWF a) (hb : BinderMetaWF b)
     (h : expr.binder_meta_beq a b = ok c) :
     c = decide (absBinderMeta a = absBinderMeta b) := by
-  rw [expr.binder_meta_beq] at h
+  simp only [expr.binder_meta_beq, rc_deref_eq, bind_tc_ok] at h
   rw [PropWhen.beq_refines ha hb h]
   simp [absBinderMeta]
 
@@ -1388,8 +1384,12 @@ one task #20 proved, with the table carried along as state no case looks at.
 The binary side of the argument (a hit repeats what this same walk produced
 for those same two objects) is the module note of `kernel/expr.rs`. -/
 
-/-- The memo table `beq_go` threads (`expr::BeqMap`). -/
-abbrev BeqMap := ron.hashmap.HashMap Std.U64 (expr.Expr × expr.Expr)
+/-- The memo table `beq_go` threads (`expr::BeqMap`): a **bucket** of pairs
+per key since task #38, because a key of the two *hash words* collides on
+exactly the structurally equal, pointer-distinct objects the memo is for.
+Nothing in the model reads it either way. -/
+abbrev BeqMap :=
+  ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (expr.Expr × expr.Expr))
 
 theorem u64_decide_val (i j : Std.U64) : decide (i = j) = decide (i.val = j.val) := by
   by_cases hc : i = j
@@ -1432,16 +1432,54 @@ statement does *not* assume -- nothing at all about the table, in particular
 not `ron::HashMap`'s invariant: both branches of the probe answer `false`
 whatever `get` returned.  This is the model half of task #30's trust
 argument. -/
+theorem pair_is_false {p : expr.Expr × expr.Expr} {a b : expr.Expr} {r : Bool}
+    (h : expr.pair_is p a b = ok r) : r = false := by
+  rw [expr.pair_is] at h
+  obtain ⟨p1, p2⟩ := p
+  simp only [ptr_eq_eq, bind_tc_ok, Bool.false_eq_true, if_false] at h
+  simpa using h.symm
+
+/-- The bucket scan of task #38's memo, by the measure induction every index
+recursion in this development uses (DESIGN.md §3.5: induct on the argument,
+not on the function).  Every candidate misses, so the scan runs off the end
+and answers `false` -- and it says so for *any* bucket, which is why the
+model still needs no fact about the table. -/
+theorem probe_hit_from_false {a b : expr.Expr}
+    {ps : alloc.vec.Vec (expr.Expr × expr.Expr)} :
+    ∀ k : Nat, ∀ (i : Std.Usize) (r : Bool),
+      ps.val.length - i.val ≤ k → expr.probe_hit_from ps i a b = ok r →
+      r = false := by
+  intro k
+  induction k with
+  | zero =>
+    intro i r hk h
+    rw [expr.probe_hit_from.eq_def] at h; simp only [] at h
+    rw [if_pos (show i >= alloc.vec.Vec.len ps by scalar_tac), Result.ok.injEq] at h
+    exact h.symm
+  | succ k ih =>
+    intro i r hk h
+    rw [expr.probe_hit_from.eq_def] at h; simp only [] at h
+    by_cases hi : i.val ≥ ps.val.length
+    · rw [if_pos (show i >= alloc.vec.Vec.len ps by scalar_tac), Result.ok.injEq] at h
+      exact h.symm
+    · rw [if_neg (show ¬ i >= alloc.vec.Vec.len ps by scalar_tac)] at h
+      have hlt : i.val < ps.val.length := by scalar_tac
+      have hmax : i.val + 1 ≤ Std.Usize.max := by have := ps.slice.property; scalar_tac
+      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
+      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff] at h
+      obtain ⟨p, -, c, hc, h⟩ := h
+      rw [pair_is_false hc] at h
+      simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff, hw,
+        Result.ok.injEq, exists_eq_left'] at h
+      exact ih w r (by scalar_tac) h
+
 theorem probe_hit_false {m : BeqMap} {key : Std.U64} {a b : expr.Expr} {r : Bool}
     (h : expr.probe_hit m key a b = ok r) : r = false := by
   rw [expr.probe_hit] at h
   obtain ⟨o, -, h⟩ := bind_eq_ok_iff.mp h
   cases o with
   | none => simpa using h.symm
-  | some q =>
-    obtain ⟨p1, p2⟩ := q
-    simp only [ptr_eq_eq, bind_tc_ok, Bool.false_eq_true, if_false] at h
-    simpa using h.symm
+  | some ps => exact probe_hit_from_false ps.val.length 0#usize r (by scalar_tac) h
 
 /-- The write-back (con-leche's `finish`) changes the table, never the
 decision. -/
@@ -2516,12 +2554,15 @@ theorem levels_beq_refl {ls : alloc.vec.Vec level.Level} (hls : LevelsWF ls) :
 theorem literal_beq_refl {l : expr.Literal} (hl : LiteralWF l) :
     expr.literal_beq l l = ok true := by
   cases l with
-  | NatVal n => rw [expr.literal_beq]; exact Nat.beq_refl n
-  | StrVal s => rw [expr.literal_beq]; exact Name.str_eq_refl s
+  | NatVal n =>
+    rw [expr.literal_beq]; simp only [rc_deref_eq, bind_tc_ok]; exact Nat.beq_refl n
+  | StrVal s =>
+    rw [expr.literal_beq]; simp only [rc_deref_eq, bind_tc_ok]; exact Name.str_eq_refl s
 
 theorem binder_meta_beq_refl {m : expr.BinderMeta} (hm : BinderMetaWF m) :
     expr.binder_meta_beq m m = ok true := by
-  rw [expr.binder_meta_beq]; exact PropWhen.beq_refl hm
+  rw [expr.binder_meta_beq]; simp only [rc_deref_eq, bind_tc_ok]
+  exact PropWhen.beq_refl hm
 
 /-- **Reflexivity, the transparency obligation of DESIGN.md §3.2** — in the
 forward shape this development uses everywhere (task #5: *exact result on

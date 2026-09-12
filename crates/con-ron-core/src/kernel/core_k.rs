@@ -536,7 +536,7 @@ pub fn nat_lit_to_constructor(n: &Nat) -> Expr {
     } else {
         expr::app(
             expr::mk_const(basis_names::nat_succ_name(), Vec::new()),
-            expr::lit(Literal::NatVal(nat::pred(n))),
+            expr::lit(expr::literal_nat(nat::pred(n))),
         )
     }
 }
@@ -798,7 +798,7 @@ pub fn str_lit_cons_from(s: &Vec<u32>, i: usize, acc: Expr) -> Expr {
         let c: u32 = s[i - 1];
         let ch = expr::app(
             expr::mk_const(basis_names::char_of_nat_name(), Vec::new()),
-            expr::lit(Literal::NatVal(nat::from_u64(c as u64))),
+            expr::lit(expr::literal_nat(nat::from_u64(c as u64))),
         );
         let cell = expr::app(
             expr::app(
@@ -1569,42 +1569,42 @@ pub fn nat_op_equations(d: u64, c: &Name) -> Vec<(Expr, Expr)> {
 ///   Rust *reject*, which is sound for the accept direction (DESIGN.md §1).
 pub fn nat_op_result(c: &Name, a: &Nat, b: &Nat) -> Option<Expr> {
     if name::beq(c, &nat_pred_name()) {
-        Some(expr::lit(Literal::NatVal(nat::pred(a))))
+        Some(expr::lit(expr::literal_nat(nat::pred(a))))
     } else if name::beq(c, &nat_add_name()) {
-        Some(expr::lit(Literal::NatVal(nat::add(a, b))))
+        Some(expr::lit(expr::literal_nat(nat::add(a, b))))
     } else if name::beq(c, &nat_sub_name()) {
-        Some(expr::lit(Literal::NatVal(nat::sub(a, b))))
+        Some(expr::lit(expr::literal_nat(nat::sub(a, b))))
     } else if name::beq(c, &nat_mul_name()) {
-        Some(expr::lit(Literal::NatVal(nat::mul(a, b))))
+        Some(expr::lit(expr::literal_nat(nat::mul(a, b))))
     } else if name::beq(c, &nat_pow_name()) {
         if nat::blt(&nat::from_u64(16777216), b) {
             None
         } else {
             match nat::to_u64(b) {
-                Some(e) => Some(expr::lit(Literal::NatVal(nat::pow(a, e)))),
+                Some(e) => Some(expr::lit(expr::literal_nat(nat::pow(a, e)))),
                 None => None,
             }
         }
     } else if name::beq(c, &nat_div_name()) {
-        Some(expr::lit(Literal::NatVal(nat::div(a, b))))
+        Some(expr::lit(expr::literal_nat(nat::div(a, b))))
     } else if name::beq(c, &nat_mod_name()) {
-        Some(expr::lit(Literal::NatVal(nat::modulo(a, b))))
+        Some(expr::lit(expr::literal_nat(nat::modulo(a, b))))
     } else if name::beq(c, &nat_gcd_name()) {
-        Some(expr::lit(Literal::NatVal(nat::gcd(a, b))))
+        Some(expr::lit(expr::literal_nat(nat::gcd(a, b))))
     } else if name::beq(c, &nat_land_name()) {
-        Some(expr::lit(Literal::NatVal(nat::land(a, b))))
+        Some(expr::lit(expr::literal_nat(nat::land(a, b))))
     } else if name::beq(c, &nat_lor_name()) {
-        Some(expr::lit(Literal::NatVal(nat::lor(a, b))))
+        Some(expr::lit(expr::literal_nat(nat::lor(a, b))))
     } else if name::beq(c, &nat_xor_name()) {
-        Some(expr::lit(Literal::NatVal(nat::xor(a, b))))
+        Some(expr::lit(expr::literal_nat(nat::xor(a, b))))
     } else if name::beq(c, &nat_shift_left_name()) {
         match nat::to_u64(b) {
-            Some(k) => Some(expr::lit(Literal::NatVal(nat::shift_left(a, k)))),
+            Some(k) => Some(expr::lit(expr::literal_nat(nat::shift_left(a, k)))),
             None => None,
         }
     } else if name::beq(c, &nat_shift_right_name()) {
         match nat::to_u64(b) {
-            Some(k) => Some(expr::lit(Literal::NatVal(nat::shift_right(a, k)))),
+            Some(k) => Some(expr::lit(expr::literal_nat(nat::shift_right(a, k)))),
             None => None,
         }
     } else if name::beq(c, &nat_beq_name()) {
@@ -2626,7 +2626,7 @@ pub fn annot_binder_meta(pw: Option<PropWhen>, mb: &BinderMeta) -> BinderMeta {
             if pw_written(&mb.pw) {
                 expr::binder_meta_dup(mb)
             } else {
-                BinderMeta { pw: p }
+                expr::binder_meta(p)
             }
         }
         None => expr::binder_meta_dup(mb),
@@ -2742,15 +2742,11 @@ mod tests {
     /// The `.never` binder datum ("the codomain sort is nonzero at every
     /// valuation"), which is what a `Sort 1`-valued binder validates to.
     fn never_meta() -> BinderMeta {
-        BinderMeta {
-            pw: prop_when::never(),
-        }
+        expr::binder_meta(prop_when::never())
     }
 
     fn prop_meta() -> BinderMeta {
-        BinderMeta {
-            pw: prop_when::if_all_zero(Vec::new()),
-        }
+        expr::binder_meta(prop_when::if_all_zero(Vec::new()))
     }
 
     fn ax(n: Name, ty: Expr) -> ConstantInfo {
@@ -3097,7 +3093,6 @@ mod tests {
     #[test]
     fn the_nat_literal_fast_path() {
         use crate::kernel::env::ReducibilityHint;
-        use crate::kernel::expr::Literal;
         use crate::ron::nat;
         let nat_ty = expr::mk_const(basis_names::nat_name(), Vec::new());
         let mut consts: Vec<ConstantInfo> = Vec::new();
@@ -3148,7 +3143,7 @@ mod tests {
         assert!(core_k::nat_op_guard(&fe, &core_k::nat_add_name()));
         assert!(core_k::nat_op_stored_ok(&fe, &core_k::nat_add_name()));
         let mode = CheckMode::Verified;
-        let lit = |k: u64| expr::lit(Literal::NatVal(nat::from_u64(k)));
+        let lit = |k: u64| expr::lit(expr::literal_nat(nat::from_u64(k)));
         let sum = expr::app(
             expr::app(
                 expr::mk_const(core_k::nat_add_name(), Vec::new()),

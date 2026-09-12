@@ -143,7 +143,6 @@ def basisHeader : Array String := #[
   "use crate::kernel::env::RecRule;",
   "use crate::kernel::env::RecRuleFire;",
   "use crate::kernel::expr;",
-  "use crate::kernel::expr::BinderMeta;",
   "use crate::kernel::level;",
   "use crate::kernel::level::Level;",
   "use crate::kernel::name;",

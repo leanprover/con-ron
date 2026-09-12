@@ -1608,7 +1608,7 @@ mod tests {
         CheckMode, ConstantInfo, ConstantVal, Declaration, ReducibilityHint,
     };
     use crate::kernel::expr;
-    use crate::kernel::expr::{BinderMeta, Expr};
+    use crate::kernel::expr::Expr;
     use crate::kernel::fenv;
     use crate::kernel::fenv::FEnv;
     use crate::kernel::level;
@@ -1786,7 +1786,7 @@ mod tests {
     /// for what the annotation pass computes, and the only thing it changes
     /// in a `letE`-free pin.
     fn repw(e: &Expr) -> Expr {
-        let m = BinderMeta { pw: prop_when::if_all_zero(Vec::new()) };
+        let m = expr::binder_meta(prop_when::if_all_zero(Vec::new()));
         match &e.0.kind {
             expr::ExprKind::ForallE(t, b, _) => expr::forall_e(repw(t), repw(b), m),
             expr::ExprKind::Lam(t, b, _) => expr::lam(repw(t), repw(b), m),

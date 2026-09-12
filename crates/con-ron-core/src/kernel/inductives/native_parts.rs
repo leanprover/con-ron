@@ -609,9 +609,7 @@ pub fn struct_tele_at_from(
         let mut out = out;
         out.push((
             dom,
-            BinderMeta {
-                pw: prop_when::dup(pw),
-            },
+            expr::binder_meta(prop_when::dup(pw)),
         ));
         struct_tele_at_from(n_f, o, i, l, pw, tele, k + 1, out)
     }
@@ -794,9 +792,7 @@ pub fn struct_ih_pis(
         expr::forall_e(
             dom,
             rest,
-            BinderMeta {
-                pw: prop_when::dup(pw),
-            },
+            expr::binder_meta(prop_when::dup(pw)),
         )
     }
 }
@@ -895,9 +891,7 @@ pub fn struct_minors_pis_r(
                 Some(rest) => Some(expr::forall_e(
                     mty,
                     rest,
-                    BinderMeta {
-                        pw: prop_when::dup(pw),
-                    },
+                    expr::binder_meta(prop_when::dup(pw)),
                 )),
                 None => None,
             },
@@ -934,9 +928,7 @@ pub fn struct_minors_lams_r(
                 Some(rest) => Some(expr::lam(
                     mty,
                     rest,
-                    BinderMeta {
-                        pw: prop_when::dup(pw),
-                    },
+                    expr::binder_meta(prop_when::dup(pw)),
                 )),
                 None => None,
             },
@@ -978,9 +970,7 @@ pub fn struct_rec_ty_r(
                 let major_body: Expr = expr::forall_e(
                     struct_parts::struct_fam_i(t, lps, n_p, n_idx, n + 1, 0),
                     expr_ops::mk_app_n(expr::bvar(n_idx + n + 1), &margs),
-                    BinderMeta {
-                        pw: prop_when::dup(&pw),
-                    },
+                    expr::binder_meta(prop_when::dup(&pw)),
                 );
                 let itele: Expr = expr_ops::lift_loose_bvars(n + 1, 0, &q.1);
                 match struct_parts::replace_pis_pw(&pw, n_idx, &itele, &major_body) {
@@ -990,9 +980,7 @@ pub fn struct_rec_ty_r(
                                 let body: Expr = expr::forall_e(
                                     motive_ty,
                                     minors,
-                                    BinderMeta {
-                                        pw: prop_when::dup(&pw),
-                                    },
+                                    expr::binder_meta(prop_when::dup(&pw)),
                                 );
                                 struct_parts::replace_pis_pw(&pw, n_p, tty, &body)
                             }
@@ -1048,9 +1036,7 @@ pub fn struct_rec_rhs_r(
                                         let lam: Expr = expr::lam(
                                             motive_ty,
                                             minors,
-                                            BinderMeta {
-                                                pw: prop_when::dup(&pw),
-                                            },
+                                            expr::binder_meta(prop_when::dup(&pw)),
                                         );
                                         struct_parts::pis_to_lams_pw(&pw, n_p, tty, &lam)
                                     }

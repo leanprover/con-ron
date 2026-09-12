@@ -1333,9 +1333,7 @@ mod tests {
     fn pi_sort_tele_len_counts_binders() {
         let s = expr::sort(level::zero());
         assert_eq!(env::pi_sort_tele_len(&s), Some(0));
-        let m = expr::BinderMeta {
-            pw: prop_when::never(),
-        };
+        let m = expr::binder_meta(prop_when::never());
         let p1 = expr::forall_e(expr::dup(&s), expr::dup(&s), expr::binder_meta_dup(&m));
         assert_eq!(env::pi_sort_tele_len(&p1), Some(1));
         let p2 = expr::forall_e(expr::dup(&s), expr::dup(&p1), expr::binder_meta_dup(&m));
@@ -1350,9 +1348,7 @@ mod tests {
     #[test]
     fn ind_params_ok_is_one_sided() {
         let s = expr::sort(level::zero());
-        let m = expr::BinderMeta {
-            pw: prop_when::never(),
-        };
+        let m = expr::binder_meta(prop_when::never());
         let mut former = cv("T");
         former.ty = expr::forall_e(expr::dup(&s), expr::dup(&s), expr::binder_meta_dup(&m));
         let block = vec![

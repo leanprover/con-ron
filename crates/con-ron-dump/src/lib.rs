@@ -290,12 +290,14 @@ pub struct NodeSize {
 }
 
 /// **What the reader's terms weigh, per node** (`con-ron-dump-check --sizes`,
-/// DESIGN.md task #36).  The interesting number is `ExprNode`'s `heap`: at
-/// Mathlib scale it is multiplied by 103 M.  It is printed rather than
-/// asserted-and-forgotten because shrinking it is a *core-type* question
-/// (`ExprKind`'s widest variant sets the padding every `app` node pays), and
-/// the core is off limits to this crate; the test below pins today's numbers
-/// so that a repacking shows up as a diff with its saving attached.
+/// DESIGN.md tasks #36 and #38).  The interesting number is `ExprNode`'s
+/// `heap`: at Mathlib scale it is multiplied by 103 M.  Task #38 repacked the
+/// core types this measures — the binder datum, a `const`'s level list and a
+/// literal's payload each went behind an `Rc` — so the widest `ExprKind` arm
+/// is 24 bytes (`lam`/`forallE`, `letE`, `proj` all are) and the block is 56
+/// rather than 72.  The rows are the *real* arm types, and the test below
+/// pins them, so a further repacking shows up as a diff with its saving
+/// attached.
 pub fn node_sizes() -> Vec<NodeSize> {
     fn row<T>(what: &'static str, rc: bool) -> NodeSize {
         NodeSize {
@@ -308,14 +310,16 @@ pub fn node_sizes() -> Vec<NodeSize> {
         row::<ExprNode>("ExprNode (data + kind)", true),
         row::<ExprKind>("  ExprKind", false),
         row::<(Expr, Expr)>("    app payload", false),
-        row::<(Name, Vec<Level>)>("    const payload", false),
+        row::<(Name, std::rc::Rc<Vec<Level>>)>("    const payload", false),
         row::<Literal>("    lit payload", false),
         row::<(Expr, Expr, BinderMeta)>("    lam/forallE payload", false),
+        row::<(Expr, Expr, Expr)>("    letE payload", false),
+        row::<(Name, u64, Expr)>("    proj payload", false),
         row::<NameNode>("NameNode (hash + kind)", true),
         row::<NameKind>("  NameKind", false),
         row::<LevelNode>("LevelNode (hash + kind)", true),
         row::<LevelKind>("  LevelKind", false),
-        row::<PropWhen>("PropWhen (inline, in a binder)", false),
+        row::<PropWhen>("PropWhen (behind a binder's handle)", true),
         row::<Vec<u32>>("Vec<u32> (a string's header)", false),
         row::<Nat>("Nat (limb Vec header)", false),
         row::<DeclC>("DeclC", false),
@@ -365,7 +369,10 @@ pub fn peak_rss_kb() -> u64 {
 struct Tables {
     names: Vec<Name>,
     levels: Vec<Level>,
-    pws: Vec<PropWhen>,
+    /// The `W` space, as binder data: the datum is behind a handle since task
+    /// #38, so a `lam`/`forallE` record shares the entry (`bm_ref`) instead
+    /// of copying a `PropWhen` per binder node.
+    pws: Vec<BinderMeta>,
     exprs: Vec<Expr>,
     cvs: Vec<ConstantVal>,
     rules: Vec<RecRule>,
@@ -560,10 +567,28 @@ impl<'s, 'l> Rec<'s, 'l> {
         }
     }
 
+    /// A `W` reference as a `PropWhen` *value* — what a `V` record's `sortZ`
+    /// field wants.  The table holds binder data (see `bm_ref`), so this
+    /// copies out of the handle; a dump has a few hundred thousand `V`
+    /// records against a hundred million binders, so this is the rare side.
     fn pw_ref(&mut self) -> Result<PropWhen, String> {
         let i = self.count()?;
         if i < self.st.pws.len() {
-            Ok(prop_when::dup(&self.st.pws[i]))
+            Ok(prop_when::dup(&self.st.pws[i].pw))
+        } else {
+            self.err(format!("propwhen id {} is not defined yet", i))
+        }
+    }
+
+    /// A `W` reference as a binder datum: since task #38 that is a handle, so
+    /// a `lam`/`forallE` node *shares* the table's datum instead of copying
+    /// it.  The `W` space is tiny — 3 records for `init`, 4 for Mathlib — so
+    /// every binder in a dump points at one of a handful of `PropWhen`s and
+    /// the parse allocates none of its own.
+    fn bm_ref(&mut self) -> Result<BinderMeta, String> {
+        let i = self.count()?;
+        if i < self.st.pws.len() {
+            Ok(expr::binder_meta_dup(&self.st.pws[i]))
         } else {
             self.err(format!("propwhen id {} is not defined yet", i))
         }
@@ -780,7 +805,7 @@ impl<'s, 'l> Rec<'s, 'l> {
         } else {
             return self.err(format!("unknown propwhen record '{}'", t));
         };
-        self.st.pws.push(v);
+        self.st.pws.push(expr::binder_meta(v));
         Ok(())
     }
 
@@ -812,13 +837,13 @@ impl<'s, 'l> Rec<'s, 'l> {
         } else if t == "l" {
             let ty = self.expr_ref()?;
             let b = self.expr_ref()?;
-            let pw = self.pw_ref()?;
-            expr::lam(ty, b, BinderMeta { pw })
+            let m = self.bm_ref()?;
+            expr::lam(ty, b, m)
         } else if t == "f" {
             let ty = self.expr_ref()?;
             let b = self.expr_ref()?;
-            let pw = self.pw_ref()?;
-            expr::forall_e(ty, b, BinderMeta { pw })
+            let m = self.bm_ref()?;
+            expr::forall_e(ty, b, m)
         } else if t == "t" {
             let ty = self.expr_ref()?;
             let val = self.expr_ref()?;
@@ -826,10 +851,10 @@ impl<'s, 'l> Rec<'s, 'l> {
             expr::let_e(ty, val, b)
         } else if t == "n" {
             let n = self.nat_big()?;
-            expr::lit(Literal::NatVal(n))
+            expr::lit(expr::literal_nat(n))
         } else if t == "g" {
             let s = self.string()?;
-            expr::lit(Literal::StrVal(s))
+            expr::lit(expr::literal_str(s))
         } else if t == "p" {
             let sn = self.name_ref()?;
             let i = self.nat()?;
@@ -1571,19 +1596,15 @@ mod tests {
                     expr::mk_bvar(1),
                     expr::let_e(
                         expr::sort(level::zero()),
-                        expr::lit(Literal::NatVal(big)),
+                        expr::lit(expr::literal_nat(big)),
                         expr::proj(nm("S"), 2, expr::mk_bvar(0)),
                     ),
-                    BinderMeta {
-                        pw: prop_when::never(),
-                    },
+                    expr::binder_meta(prop_when::never()),
                 ),
-                BinderMeta {
-                    pw: prop_when::dup(&pw),
-                },
+                expr::binder_meta(prop_when::dup(&pw)),
             ),
         );
-        let with_fvar = expr::fvar(7, expr::lit(Literal::StrVal(cps("a b\\c\n∀"))));
+        let with_fvar = expr::fvar(7, expr::lit(expr::literal_str(cps("a b\\c\n∀"))));
         let tbl = ProjTable {
             struct_name: nm("S"),
             level_params: vec![nm("u"), nm("v")],
@@ -1658,7 +1679,7 @@ mod tests {
                 ReducibilityHint::Regular(0),
             ),
             DeclC::ThmDecl(cv("t1"), expr::dup(&with_fvar)),
-            DeclC::OpaqueDecl(cv("o1"), expr::lit(Literal::StrVal(Vec::new()))),
+            DeclC::OpaqueDecl(cv("o1"), expr::lit(expr::literal_str(Vec::new()))),
             DeclC::BasisDecl(BasisKind::EqK),
             DeclC::BasisDecl(BasisKind::NatK),
             DeclC::BasisDecl(BasisKind::PunitK),
@@ -1882,19 +1903,28 @@ mod tests {
         for r in node_sizes() {
             eprintln!("{:<32} size {:>3}  rc block {:>3}", r.what, r.size, r.heap);
         }
-        // An `ExprKind` is as wide as its widest variant, which is
-        // `lam`/`forallE`: two handles plus a `BinderMeta`, and a
-        // `BinderMeta` is a `PropWhen` *by value* — 24 bytes, since
-        // `PropWhenRepr::Many(Vec<Name>)` is 24 and the other four arms hide
-        // in the `Vec`'s niche.  So 40 bytes of payload, 48 with the
-        // discriminant, 56 with the cached `data` word and 72 of heap once
-        // `Rc`'s two counts are in front — and 85 % of the nodes are `app`,
-        // which would need 16.
+        // An `ExprKind` is as wide as its widest variant.  Before task #38
+        // that was `lam`/`forallE`, whose `BinderMeta` was a `PropWhen` *by
+        // value* — 24 bytes, since `PropWhenRepr::Many(Vec<Name>)` is 24 and
+        // the other four arms hide in the `Vec`'s niche — so 40 bytes of
+        // payload, 48 with the discriminant, 56 with the cached `data` word
+        // and 72 of heap once `Rc`'s two counts were in front, while 85 % of
+        // the nodes are `app`, which needs 16.
+        //
+        // With the binder datum, a `const`'s level list and a literal's two
+        // payloads behind handles, **three** arms are the widest and all are
+        // 24 bytes: `lam`/`forallE` (two handles and the datum's), `letE`
+        // (three handles) and `proj` (a name, a `u64` and a handle).  24 + 8
+        // of discriminant is 32, + 8 of `data` is 40, + 16 of counts is 56.
+        // Going below that means a handle for those three arms too, which
+        // buys 8 bytes a node and costs a 40-byte block per binder — see
+        // DESIGN.md's task-#38 entry for why that is not worth it.
         assert_eq!(std::mem::size_of::<PropWhen>(), 24);
-        assert_eq!(std::mem::size_of::<BinderMeta>(), 24);
-        assert_eq!(std::mem::size_of::<ExprKind>(), 48);
-        assert_eq!(std::mem::size_of::<ExprNode>(), 56);
-        assert_eq!(expr_node_bytes(), 72);
+        assert_eq!(std::mem::size_of::<BinderMeta>(), 8);
+        assert_eq!(std::mem::size_of::<Literal>(), 16);
+        assert_eq!(std::mem::size_of::<ExprKind>(), 32);
+        assert_eq!(std::mem::size_of::<ExprNode>(), 40);
+        assert_eq!(expr_node_bytes(), 56);
         assert_eq!(std::mem::size_of::<NameNode>(), 40);
         assert_eq!(std::mem::size_of::<LevelNode>(), 32);
         // the id tables cost one machine word per record, the `Rc` handle
