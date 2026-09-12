@@ -8207,3 +8207,33 @@ require.
 * **The parser's refinement against `Scan/Naive.lean`** (P4.3, optional): every
   item of `scan_fast` already cites its `naive*` specification, so the
   statement to prove is written down.
+
+### Milestone — Mathlib accepted by the Rust checker (2026-09-12, Fable)
+
+`con-ron-check --pins … _tmp/corpus/mathlib.decls` at master `b72b734`
+(tasks #1–#37: after the reader streaming of #36, before the node
+repacking of #38), release build with mimalloc, `ulimit -v 26 GB`
+(3× con-leche), one thread:
+
+| Mathlib, `--verified` | con-leche `-j1` | con-ron |
+|---|---:|---:|
+| verdict | accepted 691 123 | accepted 693 195 |
+| `instructions:u` | 12 816 G | **12 410 G** (0.97×) |
+| wall | 1 228 s | 1 947 s (1.59×) |
+| max RSS | 8.60 GB | 18.78 GB (2.18×) |
+
+Same verdict on all of Mathlib.  The count differs by exactly the 2 072
+in-process model records: the dump carries them as fold declarations
+indistinguishable from stream records (task #29's census), and the verdict
+line counts stream records; the standalone `con-ron` binary (task #37)
+has the distinction.  Fewer instructions than con-leche but 1.6× the wall
+time at equal instruction count is memory traffic: the 72-byte term node
+(task #36's accounting; task #38 repacks it to 48) and the reader's tables.
+The earlier 90-minute timeout was the pre-#34 binary under a buffered
+stdout; `--stats-every` output now flushes.
+
+Wall-time ranking for the next steps: node size (#38), then the
+`allocate_slots`/memo-table churn (#35's remaining 113 G), then the
+parallel check phase (con-leche's `--jobs=8` is 337 s), which needs a
+decision on `Rc` vs `Arc` in the core (§3.2: `Rc` is not `Send`; con-leche
+sidesteps atomic counts by marking the installed environment persistent).
