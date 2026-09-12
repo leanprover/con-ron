@@ -1883,6 +1883,182 @@ pub fn instantiate_level_params(ks: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> Ex
     instantiate_level_params_go(ks, us, &mut memo, e)
 }
 
+// ---------------------------------------------------------------------------
+// `allLevelParamsDefined` (`Level.lean:251-412`), the second `Expr` operation
+// spelled in `Kernel/Level.lean` for import order (task #13's note).  Task
+// #24 needed it — `checkConstantVal` asks it of every declaration's type —
+// and task #13 had left it owed.
+// ---------------------------------------------------------------------------
+
+/// con-leche: none — an owning probe of a `Bool`-valued memo
+/// As `memo_e_get`/`memo_n_get`: `match memo[k]?` needs the map's borrow to
+/// end before the miss branch mutates it (task #13's pattern 1).
+pub fn memo_b_get(memo: &HashMap<Expr, bool>, k: &Expr) -> Option<bool> {
+    match memo.get(k) {
+        Some(r) => Some(*r),
+        None => None,
+    }
+}
+
+/// con-leche: none — the `&&` of a memoized walk's `(b₁ && b₂, memo)` result
+/// **The conjunction as a call, not as a branch.**  Aeneas cannot match the
+/// contexts when an arm of a `&mut`-threaded `match` ends in an `if` (or in a
+/// short-circuiting `&&`, which is one) and the arms then join on the memo
+/// insert — task #18's rule that a gated result whose arms rejoin must become
+/// a call.  Both operands are computed before the call, so the memo is
+/// threaded through every recursion exactly as the cited Lean threads it; a
+/// short-circuit here would be a memo-policy deviation (DESIGN.md §3.1),
+/// not just a shape one.
+pub fn bool_and(a: bool, b: bool) -> bool {
+    if a {
+        b
+    } else {
+        false
+    }
+}
+
+/// con-leche: none — the `b₁ && b₂ && b₃` of a three-way memoized walk arm
+/// As `bool_and`, at three operands.
+pub fn bool_and3(a: bool, b: bool, c: bool) -> bool {
+    bool_and(bool_and(a, b), c)
+}
+
+/// con-leche: ConLeche/Kernel/Level.lean:251-268 Expr.allLevelParamsDefined
+/// Are all level parameters occurring in `e` among `params`?  Binder
+/// prop-ness data included (con-leche task #161): their parameters are level
+/// parameters of the term, and `instantiateLevelParams`' composition law
+/// needs them covered exactly as it needs the levels'.
+///
+/// **The specification**; the executed walk is `*_fast` below (`@[csimp]`).
+/// Ported and uncalled, as task #11's `beqRecursive` rule asks.
+pub fn all_level_params_defined(params: &Vec<Name>, e: &Expr) -> bool {
+    match &e.0.kind {
+        ExprKind::Bvar(_) => true,
+        ExprKind::Fvar(_, t) => all_level_params_defined(params, t),
+        ExprKind::Sort(u) => level::all_params_defined(params, u),
+        ExprKind::Const(_, us) => levels_all_params_defined(params, us, 0),
+        ExprKind::App(f, a) => {
+            if all_level_params_defined(params, f) {
+                all_level_params_defined(params, a)
+            } else {
+                false
+            }
+        }
+        ExprKind::Lam(t, b, m) => {
+            if all_level_params_defined(params, t) {
+                if all_level_params_defined(params, b) {
+                    prop_when::params_defined(params, &m.pw)
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }
+        ExprKind::ForallE(t, b, m) => {
+            if all_level_params_defined(params, t) {
+                if all_level_params_defined(params, b) {
+                    prop_when::params_defined(params, &m.pw)
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }
+        ExprKind::LetE(t, v, b) => {
+            if all_level_params_defined(params, t) {
+                if all_level_params_defined(params, v) {
+                    all_level_params_defined(params, b)
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }
+        ExprKind::Lit(_) => true,
+        ExprKind::Proj(_, _, sub) => all_level_params_defined(params, sub),
+    }
+}
+
+/// con-leche: none — `us.all (Level.allParamsDefined params)` of the `.const` arm
+/// `List.all` over a `Vec<Level>` as an index recursion (task #3's pattern).
+pub fn levels_all_params_defined(params: &Vec<Name>, us: &Vec<Level>, i: usize) -> bool {
+    if i >= us.len() {
+        true
+    } else if level::all_params_defined(params, &us[i]) {
+        levels_all_params_defined(params, us, i + 1)
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Level.lean:299-332 Expr.allLevelParamsDefinedGo
+/// con-leche: ConLeche/Kernel/Level.lean:251-268 Expr.allLevelParamsDefined
+/// The memoized walk: the recursor-generation checks and `checkConstantVal`
+/// ask it of a whole declaration type, and a tree walk does not finish on a
+/// DAG-shared field type (con-leche task #215's `tower_struct`).  Keyed by
+/// the node and dropped after each call, because the answer depends on
+/// `params`; the leaf arms answer through the spec walk, as the Lean's do.
+pub fn all_level_params_defined_go(
+    params: &Vec<Name>,
+    memo: &mut HashMap<Expr, bool>,
+    e: &Expr,
+) -> bool {
+    match &e.0.kind {
+        ExprKind::Bvar(_) => true,
+        ExprKind::Sort(u) => level::all_params_defined(params, u),
+        ExprKind::Const(_, us) => levels_all_params_defined(params, us, 0),
+        ExprKind::Lit(_) => true,
+        _ => match memo_b_get(memo, e) {
+            Some(r) => r,
+            None => {
+                let r: bool = match &e.0.kind {
+                    ExprKind::Fvar(_, t) => all_level_params_defined_go(params, memo, t),
+                    ExprKind::App(f, a) => {
+                        let b1: bool = all_level_params_defined_go(params, memo, f);
+                        let b2: bool = all_level_params_defined_go(params, memo, a);
+                        bool_and(b1, b2)
+                    }
+                    ExprKind::Lam(t, b, m) => {
+                        let b1: bool = all_level_params_defined_go(params, memo, t);
+                        let b2: bool = all_level_params_defined_go(params, memo, b);
+                        let b3: bool = prop_when::params_defined(params, &m.pw);
+                        bool_and3(b1, b2, b3)
+                    }
+                    ExprKind::ForallE(t, b, m) => {
+                        let b1: bool = all_level_params_defined_go(params, memo, t);
+                        let b2: bool = all_level_params_defined_go(params, memo, b);
+                        let b3: bool = prop_when::params_defined(params, &m.pw);
+                        bool_and3(b1, b2, b3)
+                    }
+                    ExprKind::LetE(t, v, b) => {
+                        let b1: bool = all_level_params_defined_go(params, memo, t);
+                        let b2: bool = all_level_params_defined_go(params, memo, v);
+                        let b3: bool = all_level_params_defined_go(params, memo, b);
+                        bool_and3(b1, b2, b3)
+                    }
+                    ExprKind::Proj(_, _, sub) => all_level_params_defined_go(params, memo, sub),
+                    _ => all_level_params_defined(params, e),
+                };
+                memo.insert(expr::dup(e), r);
+                r
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Level.lean:405-407 Expr.allLevelParamsDefinedFast
+/// con-leche: ConLeche/Kernel/Level.lean:409-412 Expr.allLevelParamsDefined_eq_allLevelParamsDefinedFast
+/// The executed `allLevelParamsDefined` (one memoized DAG walk).  The cited
+/// `@[csimp]` lemma is the kernel-checked equation with the spec walk, so
+/// nothing downstream ever sees the memo (task #13's `@[csimp]` rule).
+pub fn all_level_params_defined_fast(params: &Vec<Name>, e: &Expr) -> bool {
+    let mut memo: HashMap<Expr, bool> = HashMap::new();
+    all_level_params_defined_go(params, &mut memo, e)
+}
+
 /* Not ported from `ExprOps.lean` (DESIGN.md §3.1: the `theorem`s are the
    spec this port will be proved against, not part of it):
 

@@ -565,9 +565,9 @@ pub fn subst_pw(ks: &Vec<Name>, vs: &Vec<Level>, pw: &PropWhen) -> PropWhen {
 
 /* Not ported here: `Expr.instantiateLevelParams` (Level.lean:234) and
    `Expr.allLevelParamsDefined` (:256) with its memoized twin (:300) are
-   `Expr` operations spelled in this file for import order; the first is in
-   `crate::kernel::expr_ops` (task #13), the other two are owed to the `Level.lean`
-   completion task. */
+   `Expr` operations spelled in this file for import order; all three are in
+   `crate::kernel::expr_ops` (the first at task #13, the other two at task
+   #24, where `checkConstantVal` first needed them). */
 
 /// con-leche: ConLeche/Kernel/Level.lean:213-216 Name.nodup
 /// `Name.nodup`.
