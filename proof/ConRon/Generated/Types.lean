@@ -151,7 +151,7 @@ structure ron.nat.Nat where
   limbs : alloc.vec.Vec Std.U64
 
 /-- [con_ron_core::kernel::expr::Literal]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 118:0-121:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 128:0-131:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.expr.Literal where
@@ -175,7 +175,7 @@ structure kernel.prop_when.PropWhen where
   repr : kernel.prop_when.PropWhenRepr
 
 /-- [con_ron_core::kernel::expr::BinderMeta]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 87:0-89:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 97:0-99:1
     Visibility: public -/
 structure kernel.expr.BinderMeta where
   pw : kernel.prop_when.PropWhen
@@ -183,7 +183,7 @@ structure kernel.expr.BinderMeta where
 mutual
 
 /-- [con_ron_core::kernel::expr::ExprKind]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 274:0-285:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 285:0-296:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.expr.ExprKind where
@@ -218,13 +218,13 @@ inductive kernel.expr.ExprKind where
   kernel.expr.ExprKind
 
 /-- [con_ron_core::kernel::expr::ExprNode]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 290:0-293:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 302:0-305:1
     Visibility: public -/
 inductive kernel.expr.ExprNode where
 | mk : Std.U64 → kernel.expr.ExprKind → kernel.expr.ExprNode
 
 /-- [con_ron_core::kernel::expr::Expr]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 298:0-298:34
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 311:0-311:34
     Visibility: public -/
 inductive kernel.expr.Expr where
 | mk : alloc.rc.Rc kernel.expr.ExprNode → kernel.expr.Expr

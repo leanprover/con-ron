@@ -40,6 +40,10 @@ DEFAULT_ROOTS = [
 CON_LECHE = "vendor/con-leche"
 COVERAGE_GLOBS = ["ConLeche/Kernel", "ConLeche/Cached"]
 
+# The allowlist of declarations that are deliberately NOT ported (task #33):
+# `<path> <decl> <reason>` lines, `<decl>` possibly `*` for a whole file.
+SKIP_FILE = "scripts/provenance-skip.txt"
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # ---------------------------------------------------------------- annotations
@@ -420,11 +424,17 @@ def extend_block(lines, i):
             j -= 1
             continue
         if s.rstrip().endswith("-/") and not s.startswith("/-!"):
-            # multi-line doc comment: walk back to its opener
+            # A multi-line comment ends here: walk back to its opener, and
+            # take it only if that opener is this declaration's own doc
+            # comment (`/--`).  A `/-! … -/` section header belongs to no
+            # declaration — walking through it would swallow the *previous*
+            # declaration's doc comment and make two blocks overlap
+            # (`Frontend/InModel/Kit.lean`'s `sortOf`/`sortCeil`, task #33).
             k = j
-            while k >= 0 and not lines[k].startswith("/--"):
+            while k >= 0 and not (lines[k].startswith("/--")
+                                  or lines[k].startswith("/-!")):
                 k -= 1
-            if k >= 0:
+            if k >= 0 and lines[k].startswith("/--"):
                 a = k
                 j = k - 1
                 continue
@@ -747,13 +757,48 @@ def rust_item_of(cite):
     return rel(cite.rust_file)
 
 
+def load_skips():
+    """The deliberate-skip allowlist: ({(path, decl): reason}, malformed).
+
+    A `<path> <decl> <reason>` line says the declaration is not to be ported
+    and why; `<decl>` may be `*` for the whole file.  A line with no reason is
+    malformed — the reason is the point of the file (DESIGN.md §3.7)."""
+    skips, bad = {}, []
+    full = os.path.join(REPO, SKIP_FILE)
+    if not os.path.exists(full):
+        return skips, bad
+    with open(full, encoding="utf-8") as f:
+        for i, raw in enumerate(f):
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(None, 2)
+            if len(parts) < 3 or not parts[2].strip():
+                bad.append((i + 1, line))
+                continue
+            path, decl, reason = parts[0], parts[1], parts[2].strip()
+            if (path, decl) in skips:
+                bad.append((i + 1, line + "  [duplicate]"))
+                continue
+            skips[(path, decl)] = reason
+    return skips, bad
+
+
 def cmd_coverage(args):
     _, cites, _, _ = collect(args.roots)
     by_file = {}
     for c in cites:
         by_file.setdefault(c.path, []).append(c)
+    skips, bad = load_skips()
+    findings = 0
 
-    total = covered = 0
+    for lineno, line in bad:
+        print("MALFORMED %s:%d — a skip needs `<path> <decl> <reason>`: %s"
+              % (SKIP_FILE, lineno, line))
+        findings += 1
+
+    used = set()
+    total = covered = skipped = 0
     for path in lean_files_for_coverage():
         lines = lean_text(path)
         if lines is None:
@@ -763,21 +808,86 @@ def cmd_coverage(args):
         if not decls:
             continue
         mine = by_file.get(path, [])
-        miss = []
+        miss, skips_here, redundant = [], [], []
+        ncov = 0
         for ln, kw, nm in decls:
             hit = any(c.a <= ln <= c.b or names_compatible(nm, c.decl) for c in mine)
+            key = (path, nm) if (path, nm) in skips else (
+                (path, "*") if (path, "*") in skips else None)
+            if key:
+                used.add(key)
             if hit:
                 covered += 1
+                ncov += 1
+                total += 1
+                if key:
+                    redundant.append("%s %s:%d — skipped (%s) but cited"
+                                     % (nm, path, ln,
+                                        "file-wide" if key[1] == "*" else "by name"))
+            elif key:
+                skipped += 1
+                skips_here.append((nm, ln, key))
             else:
                 miss.append("%s %s:%d" % (nm, path, ln))
-            total += 1
-        print("%-46s %3d/%-3d covered" % (path, len(decls) - len(miss), len(decls)))
+                total += 1
+        port = len(decls) - len(skips_here)
+        print("%-46s %3d/%-3d covered%s"
+              % (path, ncov, port,
+                 ("   %3d skipped" % len(skips_here)) if skips_here else ""))
         for m in miss:
             print("    uncovered %s" % m)
+        # A file-wide skip is reported once, with the names it covers; a
+        # per-declaration one with its own reason.
+        wide = [nm for (nm, _ln, key) in skips_here if key[1] == "*"]
+        if wide:
+            print("    skipped   %s * (%d declarations) — %s"
+                  % (path, len(wide), skips[(path, "*")]))
+        for nm, ln, key in skips_here:
+            if key[1] != "*":
+                print("    skipped   %s %s:%d — %s" % (nm, path, ln, skips[key]))
+        for r in redundant:
+            print("    REDUNDANT %s" % r)
+        findings += len(redundant)
+
+    for key, reason in sorted(skips.items()):
+        if key not in used:
+            print("STALE %s — `%s %s` names no declaration of that file"
+                  % (SKIP_FILE, key[0], key[1]))
+            findings += 1
+
     pct = (100.0 * covered / total) if total else 0.0
-    print("TOTAL %d/%d covered (%.1f%%), %d uncovered"
-          % (covered, total, pct, total - covered))
+    print("TOTAL %d/%d covered (%.1f%%), %d uncovered, %d deliberately "
+          "skipped (%s)"
+          % (covered, total, pct, total - covered, skipped, SKIP_FILE))
+    if findings:
+        print("%d skip-list finding(s)." % findings)
+        return 1
     return 0
+
+
+def cmd_locate(args):
+    """Print the canonical citation body for each named declaration.
+
+    `locate <path> <decl>…` is the locator `update` uses, exposed so that a
+    *generator* can write citations no hand ever edits: `proof/ConRon/Gen`
+    calls it for the raw pins each generated basis block is computed from, so
+    the emitted `/// con-leche:` ranges are exactly the blocks `update` would
+    relocate to and regeneration is a fixed point (task #33)."""
+    lines = lean_text(args.path)
+    if lines is None:
+        print("error: %s is not in %s" % (args.path, CON_LECHE), file=sys.stderr)
+        return 2
+    rc = 0
+    for decl in args.decls:
+        loc = locate_decl(lines, decl)
+        if loc is None:
+            print("NOTFOUND %s %s" % (args.path, decl), file=sys.stderr)
+            rc = 1
+            continue
+        a, b = loc
+        rng = str(a) if a == b else "%d-%d" % (a, b)
+        print("%s:%s %s" % (args.path, rng, decl))
+    return rc
 
 
 def main(argv):
@@ -794,6 +904,9 @@ def main(argv):
     up.add_argument("--old", default=None,
                     help="the con-leche commit the citations were written against")
     sub.add_parser("coverage", parents=[common])
+    lc = sub.add_parser("locate", parents=[common])
+    lc.add_argument("path", help="a con-leche-relative Lean path")
+    lc.add_argument("decls", nargs="+", help="the declarations to locate")
     args = p.parse_args(argv)
     if args.roots is None:
         args.roots = list(DEFAULT_ROOTS)
@@ -805,7 +918,7 @@ def main(argv):
               % CON_LECHE, file=sys.stderr)
         return 2
     return {"check": cmd_check, "update": cmd_update,
-            "coverage": cmd_coverage}[args.cmd](args)
+            "coverage": cmd_coverage, "locate": cmd_locate}[args.cmd](args)
 
 
 if __name__ == "__main__":

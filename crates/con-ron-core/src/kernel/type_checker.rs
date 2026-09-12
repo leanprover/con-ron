@@ -31,6 +31,17 @@
 //!    `env : Env` parameter is `fe: &FEnv`, and `sharedOpsC` ignores its own
 //!    `Env` argument for exactly that reason (`annotate _ d e := …`).
 //!
+//! **`sharedOpsC`'s three entry points are these functions** (task #33).
+//! `Cached/CheckerC.lean`'s `opE` (`:68-71`), `opB` (`:73-75`) and `opS`
+//! (`:77-79`) are the bodies the executable's `CheckerOps` instance is built
+//! from — `opE mode fe pick d e = pick (coreKnotI mode fe checkFuel) d e`,
+//! and `opB`/`opS` the same at `.defeq` and at `ensureSortI`.  `opE` is
+//! higher-order in `pick` (§3.4 forbids the closure), so the port has it
+//! four times over, once per pick: `whnf_core`, `whnf`, `infer_type_core` and
+//! `annotate_core` each cite it, `is_def_eq_core` cites `opB` and
+//! `ensure_sort_core` cites `opS`.  That is the whole of `opE`/`opB`/`opS`;
+//! nothing of them is left over.
+//!
 //! **`CheckerOps` itself is cited, not ported.**  It is a higher-order record
 //! of the knot's operations; §3.1's knot rule forbids a trait in the
 //! recursion and §3.4 forbids closures, so a function that the Lean writes
@@ -51,6 +62,7 @@ use crate::kernel::level::Level;
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:27-29 whnfCore
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:57-66 fueledOps
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:68-69 pureOps
+/// con-leche: ConLeche/Cached/CheckerC.lean:68-71 opE
 /// con-leche: ConLeche/Cached/CheckerC.lean:81-96 sharedOpsC
 /// Head normalization without delta, at `checkFuel` (`CheckerOps.whnf`'s
 /// sibling; the record's `whnf` slot is `whnf` below).
@@ -66,6 +78,7 @@ pub fn whnf_core(
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:31-33 whnf
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
+/// con-leche: ConLeche/Cached/CheckerC.lean:68-71 opE
 /// The full reduction loop, at `checkFuel` — `CheckerOps.whnf`.
 pub fn whnf(mode: &CheckMode, st: &mut CState, fe: &FEnv, depth: u64, e: &Expr) -> CheckM<Expr> {
     core_c::whnf(mode, core_k::check_fuel(), st, fe, depth, e)
@@ -73,6 +86,7 @@ pub fn whnf(mode: &CheckMode, st: &mut CState, fe: &FEnv, depth: u64, e: &Expr) 
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:35-38 inferTypeCore
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
+/// con-leche: ConLeche/Cached/CheckerC.lean:68-71 opE
 /// Full-grade type inference at `checkFuel`: the declaration front door's
 /// entry — official's `infer_type_core(e, infer_only = false)`, and
 /// `CheckerOps.inferType`.
@@ -102,6 +116,7 @@ pub fn infer_type_io(
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:48-50 isDefEqCore
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
+/// con-leche: ConLeche/Cached/CheckerC.lean:73-75 opB
 /// Definitional equality at `checkFuel` — `CheckerOps.isDefEq`.
 pub fn is_def_eq_core(
     mode: &CheckMode,
@@ -116,6 +131,7 @@ pub fn is_def_eq_core(
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:52-54 annotateCore
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
+/// con-leche: ConLeche/Cached/CheckerC.lean:68-71 opE
 /// The annotation pass at `checkFuel` — `CheckerOps.annotate`.
 pub fn annotate_core(
     mode: &CheckMode,
@@ -129,6 +145,7 @@ pub fn annotate_core(
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:56-58 ensureSortCore
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
+/// con-leche: ConLeche/Cached/CheckerC.lean:77-79 opS
 /// `ensureSort` over the knot at `checkFuel` — `CheckerOps.ensureSort`, and
 /// `ensureSortI`'s executed spelling (`core_c::ensure_sort_i`, task #23).
 pub fn ensure_sort_core(

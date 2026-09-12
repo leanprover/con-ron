@@ -5,13 +5,22 @@ Three numbers per con-leche implementation file, in *Lean lines*:
 
   to translate   lines inside definitional top-level blocks (`def`, `abbrev`,
                  `inductive`, `structure`, `class`, `instance`, `opaque` — not
-                 `theorem`s, not proof-only helpers we cannot tell apart, so this
-                 slightly overcounts what must be ported);
-  translated     of those, the lines some Rust item cites
-                 (`/// con-leche: path:A-B decl`, scripts/provenance.py);
-  verified       of those, the lines cited by a Rust item `f` in module `m`
-                 for which `proof/ConRon/Refine/<M>.lean` states
-                 `theorem f_refines` (the §3.5 exact-result lemma).
+                 `theorem`s), MINUS the blocks of the declarations
+                 `scripts/provenance-skip.txt` lists as deliberately not
+                 ported, each with its reason (task #33);
+  translated     of those, the blocks of the declarations some Rust item
+                 cites (`/// con-leche: path:A-B decl`, scripts/provenance.py
+                 `coverage`'s own predicate: a citation whose range contains
+                 the declaration's line, or whose name is the declaration's);
+  verified       of those, the blocks of the declarations cited by a Rust item
+                 `f` in module `m` for which `proof/ConRon/Refine/<M>.lean`
+                 states `theorem f_refines` (the §3.5 exact-result lemma);
+  skipped        the blocks of the deliberate skips, reported separately.
+
+The unit of the ledger is a *declaration* (as in `coverage`); the line counts
+weight it by the size of its block, doc comment included.  So a citation that
+names a declaration credits the whole declaration, which is what makes the two
+reports agree.
 
 Two groups: the verified core (`ConLeche/Kernel`, `ConLeche/Cached`) and the
 cherries (`ConLeche/Frontend` without the parser's equivalence proofs,
@@ -32,10 +41,11 @@ REPO = P.REPO
 CORE_GLOBS = ["ConLeche/Kernel", "ConLeche/Cached"]
 CHERRY_GLOBS = ["ConLeche/Frontend", "Main.lean"]
 CHERRY_EXCLUDE = re.compile(r"ConLeche/Frontend/Scan/Equiv")
-# Not executed by the shipped path, so not to be ported: elaboration-time
-# meta code and the proof-tier mode variants of the core bodies (census,
-# task #1; DESIGN.md §4).
-CORE_EXCLUDE = re.compile(r"ConLeche/Kernel/(BasisGen|CoreGated|CheckerGated|CoreIO)\.lean$")
+# What is not to be ported is no longer a regex here: it is
+# `scripts/provenance-skip.txt`, one `path decl reason` line per declaration
+# (task #33).  The four wholly-skipped files — `BasisGen`, `CoreGated`,
+# `CheckerGated`, `CoreIO` — are `*` entries in it, so they show up in the
+# table with 0 to translate and their declarations counted as skipped.
 RUST_ROOTS = ["crates/con-ron-core/src"]
 REFINE_DIR = "proof/ConRon/Refine"
 GENERATED_DIR = "proof/ConRon/Generated"
@@ -57,15 +67,21 @@ def lean_files(globs):
     return sorted(set(out))
 
 
-def definitional_lines(lines):
-    """Set of 1-based line numbers inside definitional top-level blocks."""
-    got = set()
-    for lineno, kw, _name in P.top_level_decls(lines):
+def definitional_blocks(lines):
+    """[(name, lineno, set of 1-based lines)] per definitional top-level block."""
+    got = []
+    for lineno, kw, name in P.top_level_decls(lines):
         if kw not in P.DEFINITIONAL:
             continue
         a, b = P.extend_block(lines, lineno - 1)
-        got.update(range(a, b + 1))
+        got.append((name, lineno, set(range(a, b + 1))))
     return got
+
+
+def covered_by(name, lineno, cites):
+    """`coverage`'s predicate: does any of `cites` claim this declaration?"""
+    return any(c.a <= lineno <= c.b or P.names_compatible(name, c.decl)
+               for c in cites)
 
 
 def refine_lemmas():
@@ -115,56 +131,78 @@ def main(argv):
     items, cites, _malformed, _markers = P.collect([os.path.join(REPO, r) for r in RUST_ROOTS])
     lemmas = refine_lemmas()
 
-    translated = {}  # path -> set(lines)
-    verified = {}
+    # Citations per con-leche file, and the subset that belongs to a Rust item
+    # with its `_refines` lemma.
+    cited = {}    # path -> [Cite]
+    proved = {}   # path -> [Cite]
     for it in items:
         has_lemma = (rust_module_of(it), it.name()) in lemmas
         for c in it.cites:
             if c is None:
                 continue
-            translated.setdefault(c.path, set()).update(range(c.a, c.b + 1))
+            cited.setdefault(c.path, []).append(c)
             if has_lemma:
-                verified.setdefault(c.path, set()).update(range(c.a, c.b + 1))
+                proved.setdefault(c.path, []).append(c)
+
+    skips, bad = P.load_skips()
+    for lineno, line in bad:
+        print("MALFORMED %s:%d — a skip needs `<path> <decl> <reason>`: %s"
+              % (P.SKIP_FILE, lineno, line), file=sys.stderr)
 
     def report(title, globs, exclude=None):
         rows = []
-        tot = [0, 0, 0, 0]
+        tot = [0, 0, 0, 0, 0]
         for path in lean_files(globs):
             if exclude and exclude.search(path):
                 continue
             full = os.path.join(REPO, P.CON_LECHE, path)
             lines = open(full, encoding="utf-8").read().split("\n")
-            defl = definitional_lines(lines)
-            tr = translated.get(path, set()) & defl
-            ve = verified.get(path, set()) & defl
-            rows.append((path, len(lines), len(defl), len(tr), len(ve)))
-            tot[0] += len(lines); tot[1] += len(defl); tot[2] += len(tr); tot[3] += len(ve)
+            cs, ps = cited.get(path, []), proved.get(path, [])
+            d = t = v = sk = 0
+            for name, lineno, blk in definitional_blocks(lines):
+                if (path, name) in skips or (path, "*") in skips:
+                    sk += len(blk)
+                    continue
+                d += len(blk)
+                if covered_by(name, lineno, cs):
+                    t += len(blk)
+                if covered_by(name, lineno, ps):
+                    v += len(blk)
+            rows.append((path, len(lines), d, t, v, sk))
+            tot[0] += len(lines); tot[1] += d; tot[2] += t; tot[3] += v; tot[4] += sk
         rows.sort(key=lambda r: -r[2])
         pct = lambda a, b: ("%3d%%" % (100 * a // b)) if b else "  -"
         if summary:
-            print("%-58s to translate %6d  translated %6d (%s)  verified %6d (%s)"
-                  % (title, tot[1], tot[2], pct(tot[2], tot[1]).strip(), tot[3], pct(tot[3], tot[1]).strip()))
+            print("%-58s to translate %6d  translated %6d (%s)  verified %6d (%s)  skipped %5d"
+                  % (title, tot[1], tot[2], pct(tot[2], tot[1]).strip(), tot[3],
+                     pct(tot[3], tot[1]).strip(), tot[4]))
         elif md:
             print("### %s\n" % title)
-            print("| file | raw | to translate | translated | verified |")
-            print("|---|---:|---:|---:|---:|")
-            for p, raw, d, t, v in rows:
-                if d == 0:
+            print("| file | raw | to translate | translated | verified | skipped |")
+            print("|---|---:|---:|---:|---:|---:|")
+            for p, raw, d, t, v, sk in rows:
+                if d == 0 and sk == 0:
                     continue
-                print("| `%s` | %d | %d | %d (%s) | %d (%s) |" % (p, raw, d, t, pct(t, d), v, pct(v, d)))
-            print("| **total** | %d | **%d** | **%d (%s)** | **%d (%s)** |\n"
-                  % (tot[0], tot[1], tot[2], pct(tot[2], tot[1]), tot[3], pct(tot[3], tot[1])))
+                print("| `%s` | %d | %d | %d (%s) | %d (%s) | %d |"
+                      % (p, raw, d, t, pct(t, d), v, pct(v, d), sk))
+            print("| **total** | %d | **%d** | **%d (%s)** | **%d (%s)** | **%d** |\n"
+                  % (tot[0], tot[1], tot[2], pct(tot[2], tot[1]), tot[3],
+                     pct(tot[3], tot[1]), tot[4]))
         else:
             print("== %s" % title)
-            print("%-52s %6s %8s %14s %14s" % ("file", "raw", "to-xlat", "translated", "verified"))
-            for p, raw, d, t, v in rows:
-                if d == 0:
+            print("%-52s %6s %8s %14s %14s %8s"
+                  % ("file", "raw", "to-xlat", "translated", "verified", "skipped"))
+            for p, raw, d, t, v, sk in rows:
+                if d == 0 and sk == 0:
                     continue
-                print("%-52s %6d %8d %8d %s %8d %s" % (p, raw, d, t, pct(t, d), v, pct(v, d)))
-            print("%-52s %6d %8d %8d %s %8d %s\n" % ("TOTAL", tot[0], tot[1], tot[2], pct(tot[2], tot[1]), tot[3], pct(tot[3], tot[1])))
+                print("%-52s %6d %8d %8d %s %8d %s %8d"
+                      % (p, raw, d, t, pct(t, d), v, pct(v, d), sk))
+            print("%-52s %6d %8d %8d %s %8d %s %8d\n"
+                  % ("TOTAL", tot[0], tot[1], tot[2], pct(tot[2], tot[1]), tot[3],
+                     pct(tot[3], tot[1]), tot[4]))
         return tot
 
-    core = report("Verified core (ConLeche/Kernel, ConLeche/Cached)", CORE_GLOBS, CORE_EXCLUDE)
+    core = report("Verified core (ConLeche/Kernel, ConLeche/Cached)", CORE_GLOBS)
     cherry = report("Cherries (ConLeche/Frontend without Scan/Equiv, Main.lean)", CHERRY_GLOBS, CHERRY_EXCLUDE)
 
     rust = count_lines(walk("crates/con-ron-core/src", ".rs"))

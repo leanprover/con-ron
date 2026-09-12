@@ -256,7 +256,7 @@ def kernel.name.dup (n : kernel.name.Name) : Result kernel.name.Name := do
   ok (kernel.name.Name.mk r)
 
 /-- [con_ron_core::kernel::expr::dup]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 308:0-310:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 321:0-323:1
     Visibility: public -/
 def kernel.expr.dup (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
   let r ←
@@ -705,7 +705,7 @@ def kernel.level.beq
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::levels_beq_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 604:0-612:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 626:0-634:1
     Visibility: public -/
 def kernel.expr.levels_beq_from
   (ls : alloc.vec.Vec kernel.level.Level)
@@ -730,7 +730,7 @@ def kernel.expr.levels_beq_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::levels_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 594:0-600:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 616:0-622:1
     Visibility: public -/
 def kernel.expr.levels_beq
   (ls : alloc.vec.Vec kernel.level.Level)
@@ -855,7 +855,7 @@ def ron.hashmap.HashMap.new
   ron.hashmap.HashMap.new_with_capacity_pow2 K V ron.hashmap.MIN_CAPACITY
 
 /-- [con_ron_core::kernel::expr::proj_head_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 847:0-853:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 869:0-875:1
     Visibility: public -/
 def kernel.expr.proj_head_beq
   (s1 : kernel.name.Name) (i1 : Std.U64) (s2 : kernel.name.Name) (i2 : Std.U64)
@@ -868,7 +868,7 @@ def kernel.expr.proj_head_beq
   else ok false
 
 /-- [con_ron_core::kernel::expr::const_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 836:0-842:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 858:0-864:1
     Visibility: public -/
 def kernel.expr.const_beq
   (n : kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
@@ -910,7 +910,7 @@ def U64.Insts.Con_ron_coreRonHashmapHashable : ron.hashmap.Hashable Std.U64
 }
 
 /-- [con_ron_core::kernel::expr::beq_record]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 756:0-760:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 778:0-782:1
     Visibility: public -/
 def kernel.expr.beq_record
   (m : ron.hashmap.HashMap Std.U64 (kernel.expr.Expr × kernel.expr.Expr))
@@ -925,7 +925,7 @@ def kernel.expr.beq_record
   ok m1
 
 /-- [con_ron_core::kernel::expr::beq_finish]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 731:0-748:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 753:0-770:1
     Visibility: public -/
 def kernel.expr.beq_finish
   (r : Bool)
@@ -943,14 +943,14 @@ def kernel.expr.beq_finish
   else ok (false, m)
 
 /-- [con_ron_core::kernel::expr::ptr_eq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 533:0-535:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 555:0-557:1
     Visibility: public -/
 def kernel.expr.ptr_eq
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
   alloc.rc.Rc.ptr_eq Global a._0 b._0
 
 /-- [con_ron_core::kernel::expr::probe_hit]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 579:0-590:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 601:0-612:1
     Visibility: public -/
 def kernel.expr.probe_hit
   (m : ron.hashmap.HashMap Std.U64 (kernel.expr.Expr × kernel.expr.Expr))
@@ -970,14 +970,14 @@ def kernel.expr.probe_hit
     else ok false
 
 /-- [con_ron_core::kernel::expr::beq_key]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 565:0-567:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 587:0-589:1
     Visibility: public -/
 def kernel.expr.beq_key (ha : Std.U64) (hb : Std.U64) : Result Std.U64 := do
   let i ← lift (core.num.U64.wrapping_mul hb 11400714819323198485#u64)
   ok (ha ^^^ i)
 
 /-- [con_ron_core::kernel::expr::beq_recursive]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 517:0-527:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 539:0-549:1
     Visibility: public -/
 def kernel.expr.beq_recursive (e : kernel.expr.Expr) : Result Bool := do
   let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
@@ -994,20 +994,20 @@ def kernel.expr.beq_recursive (e : kernel.expr.Expr) : Result Bool := do
   | kernel.expr.ExprKind.Proj _ _ _ => ok true
 
 /-- [con_ron_core::kernel::expr::data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 302:0-304:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 315:0-317:1
     Visibility: public -/
 def kernel.expr.data (e : kernel.expr.Expr) : Result Std.U64 := do
   let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
   ok en.data
 
 /-- [con_ron_core::kernel::expr::hash_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 210:0-212:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 220:0-222:1
     Visibility: public -/
 def kernel.expr.hash_of_data (w : Std.U64) : Result Std.U64 := do
   w / 4294967296#u64
 
 /-- [con_ron_core::kernel::expr::hash]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 480:0-482:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 502:0-504:1
     Visibility: public -/
 def kernel.expr.hash (e : kernel.expr.Expr) : Result Std.U64 := do
   let i ← kernel.expr.data e
@@ -1065,7 +1065,7 @@ def ron.nat.beq (a : ron.nat.Nat) (b : ron.nat.Nat) : Result Bool := do
   | ron.nat.Cmp.Gt => ok false
 
 /-- [con_ron_core::kernel::expr::literal_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 125:0-131:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 135:0-141:1
     Visibility: public -/
 def kernel.expr.literal_beq
   (a : kernel.expr.Literal) (b : kernel.expr.Literal) : Result Bool := do
@@ -1201,7 +1201,7 @@ def kernel.prop_when.beq
   kernel.prop_when.equiv_r a.repr b.repr
 
 /-- [con_ron_core::kernel::expr::binder_meta_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 94:0-96:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 104:0-106:1
     Visibility: public -/
 def kernel.expr.binder_meta_beq
   (a : kernel.expr.BinderMeta) (b : kernel.expr.BinderMeta) : Result Bool := do
@@ -1210,7 +1210,7 @@ def kernel.expr.binder_meta_beq
 mutual
 
 /-- [con_ron_core::kernel::expr::beq_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 669:0-684:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 691:0-706:1
     Visibility: public -/
 def kernel.expr.beq_go
   (m : ron.hashmap.HashMap Std.U64 (kernel.expr.Expr × kernel.expr.Expr))
@@ -1245,7 +1245,7 @@ def kernel.expr.beq_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_arm]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 696:0-718:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 718:0-740:1
     Visibility: public -/
 def kernel.expr.beq_arm
   (m : ron.hashmap.HashMap Std.U64 (kernel.expr.Expr × kernel.expr.Expr))
@@ -1395,7 +1395,7 @@ def kernel.expr.beq_arm
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_when]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 776:0-782:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 798:0-804:1
     Visibility: public -/
 def kernel.expr.beq_when
   (m : ron.hashmap.HashMap Std.U64 (kernel.expr.Expr × kernel.expr.Expr))
@@ -1409,7 +1409,7 @@ def kernel.expr.beq_when
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_both]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 787:0-794:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 809:0-816:1
     Visibility: public -/
 def kernel.expr.beq_both
   (m : ron.hashmap.HashMap Std.U64 (kernel.expr.Expr × kernel.expr.Expr))
@@ -1425,7 +1425,7 @@ def kernel.expr.beq_both
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_both_when]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 799:0-812:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 821:0-834:1
     Visibility: public -/
 def kernel.expr.beq_both_when
   (m : ron.hashmap.HashMap Std.U64 (kernel.expr.Expr × kernel.expr.Expr))
@@ -1440,7 +1440,7 @@ def kernel.expr.beq_both_when
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_three]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 816:0-831:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 838:0-853:1
     Visibility: public -/
 def kernel.expr.beq_three
   (m : ron.hashmap.HashMap Std.U64 (kernel.expr.Expr × kernel.expr.Expr))
@@ -1458,7 +1458,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::kernel::expr::beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 867:0-877:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 889:0-899:1
     Visibility: public -/
 def kernel.expr.beq
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
@@ -1477,7 +1477,7 @@ def kernel.expr.beq
       ok r
 
 /-- [con_ron_core::kernel::expr_ops::expr_ptr_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1739:0-1745:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1747:0-1753:1
     Visibility: public -/
 def kernel.expr_ops.expr_ptr_beq
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
@@ -1528,14 +1528,14 @@ def cached.state_c.stored_val_idx_m
          ok (e2, s)
 
 /-- [con_ron_core::kernel::expr::lp_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 228:0-230:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 238:0-240:1
     Visibility: public -/
 def kernel.expr.lp_of_data (w : Std.U64) : Result Bool := do
   let i ← w % 2#u64
   ok (i = 1#u64)
 
 /-- [con_ron_core::kernel::expr::has_lp]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 487:0-489:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 509:0-511:1
     Visibility: public -/
 def kernel.expr.has_lp (e : kernel.expr.Expr) : Result Bool := do
   let i ← kernel.expr.data e
@@ -2190,7 +2190,7 @@ def kernel.level.subst
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::levels_subst_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1785:0-1798:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1793:0-1806:1
     Visibility: public -/
 def kernel.expr_ops.levels_subst_from
   (ks : alloc.vec.Vec kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
@@ -2212,7 +2212,7 @@ def kernel.expr_ops.levels_subst_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::levels_subst]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1802:0-1804:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1810:0-1812:1
     Visibility: public -/
 def kernel.expr_ops.levels_subst
   (ks : alloc.vec.Vec kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
@@ -2223,14 +2223,14 @@ def kernel.expr_ops.levels_subst
     kernel.level.Level)
 
 /-- [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::kernel::expr::Expr}::eq2]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 968:4-970:5
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 991:4-993:5
     Visibility: public -/
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : kernel.expr.Expr) (other : kernel.expr.Expr) : Result Bool := do
   kernel.expr.beq self other
 
 /-- Trait implementation: [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::kernel::expr::Expr}]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 965:0-971:1 -/
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 988:0-994:1 -/
 @[reducible]
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   kernel.expr.Expr := {
@@ -2238,14 +2238,14 @@ def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::kernel::expr::Expr}::hash64]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 955:4-957:5
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 978:4-980:5
     Visibility: public -/
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : kernel.expr.Expr) : Result Std.U64 := do
   kernel.expr.hash self
 
 /-- Trait implementation: [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::kernel::expr::Expr}]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 952:0-958:1 -/
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 975:0-981:1 -/
 @[reducible]
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable kernel.expr.Expr := {
@@ -2276,27 +2276,27 @@ def kernel.name.nat_hash (n : Std.U64) : Result Std.U64 := do
   ok n
 
 /-- [con_ron_core::kernel::expr::hash32]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 234:0-236:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 244:0-246:1
     Visibility: public -/
 def kernel.expr.hash32 (w : Std.U64) : Result Std.U64 := do
   w % 4294967296#u64
 
 /-- [con_ron_core::kernel::expr::fvar_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 222:0-224:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 232:0-234:1
     Visibility: public -/
 def kernel.expr.fvar_of_data (w : Std.U64) : Result Std.U64 := do
   let i ← w / 2#u64
   i % 32768#u64
 
 /-- [con_ron_core::kernel::expr::bvar_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 216:0-218:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 226:0-228:1
     Visibility: public -/
 def kernel.expr.bvar_of_data (w : Std.U64) : Result Std.U64 := do
   let i ← w / 65536#u64
   i % 32768#u64
 
 /-- [con_ron_core::kernel::expr::pack_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 200:0-206:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 210:0-216:1
     Visibility: public -/
 def kernel.expr.pack_data
   (h : Std.U64) (b : Std.U64) (f : Std.U64) (lp : Bool) : Result Std.U64 := do
@@ -2311,7 +2311,7 @@ def kernel.expr.pack_data
   ok (core.num.U64.wrapping_add i1 t)
 
 /-- [con_ron_core::kernel::expr::proj]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 458:0-472:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 480:0-494:1
     Visibility: public -/
 def kernel.expr.proj
   (struct_name : kernel.name.Name) (idx : Std.U64) (e : kernel.expr.Expr) :
@@ -2335,7 +2335,7 @@ def kernel.expr.proj
   ok (kernel.expr.Expr.mk r)
 
 /-- [con_ron_core::kernel::expr::sat_pred]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 255:0-263:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 265:0-273:1
     Visibility: public -/
 def kernel.expr.sat_pred (x : Std.U64) : Result Std.U64 := do
   if x = 32767#u64
@@ -2345,7 +2345,7 @@ def kernel.expr.sat_pred (x : Std.U64) : Result Std.U64 := do
        else x - 1#u64
 
 /-- [con_ron_core::kernel::expr::max_u64]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 187:0-193:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 197:0-203:1
     Visibility: public -/
 def kernel.expr.max_u64 (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
   if a < b
@@ -2353,7 +2353,7 @@ def kernel.expr.max_u64 (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
   else ok a
 
 /-- [con_ron_core::kernel::expr::let_e]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 423:0-444:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 443:0-464:1
     Visibility: public -/
 def kernel.expr.let_e
   (ty : kernel.expr.Expr) (value : kernel.expr.Expr) (body : kernel.expr.Expr)
@@ -2456,7 +2456,7 @@ def kernel.prop_when.hash_pw
   kernel.prop_when.hash_repr pw.repr
 
 /-- [con_ron_core::kernel::expr::forall_e]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 401:0-418:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 420:0-437:1
     Visibility: public -/
 def kernel.expr.forall_e
   (ty : kernel.expr.Expr) (body : kernel.expr.Expr)
@@ -2496,7 +2496,7 @@ def kernel.expr.forall_e
   ok (kernel.expr.Expr.mk r)
 
 /-- [con_ron_core::kernel::expr::lam]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 380:0-397:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 398:0-415:1
     Visibility: public -/
 def kernel.expr.lam
   (ty : kernel.expr.Expr) (body : kernel.expr.Expr)
@@ -2536,7 +2536,7 @@ def kernel.expr.lam
   ok (kernel.expr.Expr.mk r)
 
 /-- [con_ron_core::kernel::expr::app]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 360:0-374:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 377:0-391:1
     Visibility: public -/
 def kernel.expr.app
   (f : kernel.expr.Expr) (a : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -2643,7 +2643,7 @@ def kernel.level.levels_have_param
   kernel.level.levels_have_param_from us 0#usize
 
 /-- [con_ron_core::kernel::expr::mk_const]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 348:0-355:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 364:0-371:1
     Visibility: public -/
 def kernel.expr.mk_const
   (n : kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level) :
@@ -2662,7 +2662,7 @@ def kernel.expr.mk_const
   ok (kernel.expr.Expr.mk r)
 
 /-- [con_ron_core::kernel::expr::sort]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 338:0-342:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 353:0-357:1
     Visibility: public -/
 def kernel.expr.sort (u : kernel.level.Level) : Result kernel.expr.Expr := do
   let i ← kernel.level.level_hash u
@@ -2675,7 +2675,7 @@ def kernel.expr.sort (u : kernel.level.Level) : Result kernel.expr.Expr := do
   ok (kernel.expr.Expr.mk r)
 
 /-- [con_ron_core::kernel::expr::sat_succ]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 243:0-249:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 253:0-259:1
     Visibility: public -/
 def kernel.expr.sat_succ (n : Std.U64) : Result Std.U64 := do
   if n >= 32766#u64
@@ -2683,7 +2683,7 @@ def kernel.expr.sat_succ (n : Std.U64) : Result Std.U64 := do
   else n + 1#u64
 
 /-- [con_ron_core::kernel::expr::fvar]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 325:0-333:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 339:0-347:1
     Visibility: public -/
 def kernel.expr.fvar
   (idx : Std.U64) (ty : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -3497,7 +3497,7 @@ def kernel.name.contains
   kernel.name.contains_from ns 0#usize n
 
 /-- [con_ron_core::kernel::expr::bvar]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 315:0-319:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 328:0-332:1
     Visibility: public -/
 def kernel.expr.bvar (i : Std.U64) : Result kernel.expr.Expr := do
   let i1 ← kernel.name.nat_hash i
@@ -3637,7 +3637,7 @@ def kernel.expr_ops.pi_result
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::binder_meta_dup]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 110:0-112:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 120:0-122:1
     Visibility: public -/
 def kernel.expr.binder_meta_dup
   (m : kernel.expr.BinderMeta) : Result kernel.expr.BinderMeta := do
@@ -3774,14 +3774,14 @@ def kernel.expr_ops.fvar_range_memo
   ok i
 
 /-- [con_ron_core::kernel::expr::fvar_b_raw]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 503:0-505:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 525:0-527:1
     Visibility: public -/
 def kernel.expr.fvar_b_raw (e : kernel.expr.Expr) : Result Std.U64 := do
   let i ← kernel.expr.data e
   kernel.expr.fvar_of_data i
 
 /-- [con_ron_core::kernel::expr::sat_range]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 181:0-183:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 191:0-193:1
     Visibility: public -/
 def kernel.expr.sat_range : Result Std.U64 := do
   ok 32767#u64
@@ -3922,7 +3922,7 @@ def ron.nat.hash64 (a : ron.nat.Nat) : Result Std.U64 := do
   ron.nat.hash64_from a.limbs 0#usize 14695981039346656037#u64
 
 /-- [con_ron_core::kernel::expr::literal_hash]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 139:0-144:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 149:0-154:1
     Visibility: public -/
 def kernel.expr.literal_hash (l : kernel.expr.Literal) : Result Std.U64 := do
   match l with
@@ -3934,7 +3934,7 @@ def kernel.expr.literal_hash (l : kernel.expr.Literal) : Result Std.U64 := do
     kernel.name.mix_hash 1#u64 i
 
 /-- [con_ron_core::kernel::expr::lit]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 449:0-453:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 470:0-474:1
     Visibility: public -/
 def kernel.expr.lit (l : kernel.expr.Literal) : Result kernel.expr.Expr := do
   let i ← kernel.expr.literal_hash l
@@ -8748,7 +8748,7 @@ def kernel.expr_ops.expr_nat_key
   ok { e := e1, d }
 
 /-- [con_ron_core::kernel::expr::mk_bvar]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 910:0-912:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 933:0-935:1
     Visibility: public -/
 def kernel.expr.mk_bvar (i : Std.U64) : Result kernel.expr.Expr := do
   kernel.expr.bvar i
@@ -9714,7 +9714,7 @@ def kernel.expr_ops.bvar_bound_memo
   ok i
 
 /-- [con_ron_core::kernel::expr::bvar_b_raw]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 497:0-499:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 519:0-521:1
     Visibility: public -/
 def kernel.expr.bvar_b_raw (e : kernel.expr.Expr) : Result Std.U64 := do
   let i ← kernel.expr.data e
@@ -12665,7 +12665,7 @@ def kernel.expr_ops.loose_bvars_bounded
   ok (i <= k)
 
 /-- [con_ron_core::kernel::expr_ops::memo_b_get]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1896:0-1901:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1904:0-1909:1
     Visibility: public -/
 def kernel.expr_ops.memo_b_get
   (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (k : kernel.expr.Expr) :
@@ -21610,7 +21610,7 @@ def kernel.level.all_params_defined
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::levels_all_params_defined]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1987:0-1995:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1995:0-2003:1
     Visibility: public -/
 def kernel.expr_ops.levels_all_params_defined
   (params : alloc.vec.Vec kernel.name.Name)
@@ -21633,7 +21633,7 @@ def kernel.expr_ops.levels_all_params_defined
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::bool_and]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1912:0-1918:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1920:0-1926:1
     Visibility: public -/
 def kernel.expr_ops.bool_and (a : Bool) (b : Bool) : Result Bool := do
   if a
@@ -21782,7 +21782,7 @@ def kernel.core_k.check_fuel : Result Std.U64 := do
   ok 100000#u64
 
 /-- [con_ron_core::kernel::type_checker::annotate_core]:
-    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 120:0-128:1
+    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 136:0-144:1
     Visibility: public -/
 def kernel.type_checker.annotate_core
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -23085,7 +23085,7 @@ def kernel.inductives.native_install.ctor_names
     (alloc.vec.Vec.new kernel.name.Name)
 
 /-- [con_ron_core::kernel::inductives::struct_parts::memo_eb_get]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1142:0-1147:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1147:0-1152:1
     Visibility: public -/
 def kernel.inductives.struct_parts.memo_eb_get
   (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (k : kernel.expr.Expr) :
@@ -23100,7 +23100,7 @@ def kernel.inductives.struct_parts.memo_eb_get
   | some _ => ok o
 
 /-- [con_ron_core::kernel::inductives::struct_parts::mentions_const_spec]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1093:0-1138:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1098:0-1143:1
     Visibility: public -/
 def kernel.inductives.struct_parts.mentions_const_spec
   (t : kernel.name.Name) (e : kernel.expr.Expr) : Result Bool := do
@@ -23146,7 +23146,7 @@ partial_fixpoint
 mutual
 
 /-- [con_ron_core::kernel::inductives::struct_parts::mentions_const_go]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1158:0-1173:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1163:0-1178:1
     Visibility: public -/
 def kernel.inductives.struct_parts.mentions_const_go
   (t : kernel.name.Name) (memo : ron.hashmap.HashMap kernel.expr.Expr Bool)
@@ -23242,7 +23242,7 @@ def kernel.inductives.struct_parts.mentions_const_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::inductives::struct_parts::mentions_const_node]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1180:0-1232:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1185:0-1237:1
     Visibility: public -/
 def kernel.inductives.struct_parts.mentions_const_node
   (t : kernel.name.Name) (memo : ron.hashmap.HashMap kernel.expr.Expr Bool)
@@ -23313,7 +23313,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::kernel::inductives::struct_parts::mentions_const]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1240:0-1243:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1245:0-1248:1
     Visibility: public -/
 def kernel.inductives.struct_parts.mentions_const
   (t : kernel.name.Name) (e : kernel.expr.Expr) : Result Bool := do
@@ -24473,7 +24473,7 @@ def kernel.expr_ops.instantiate1_lift
   ok e1
 
 /-- [con_ron_core::kernel::inductives::struct_parts::struct_proj_bodies_go]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1043:0-1064:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1048:0-1069:1
     Visibility: public -/
 def kernel.inductives.struct_parts.struct_proj_bodies_go
   (t : kernel.name.Name) (k : Std.U64) (i : Std.U64) (e : kernel.expr.Expr)
@@ -24530,7 +24530,7 @@ def kernel.inductives.struct_parts.struct_proj_ps
     (alloc.vec.Vec.new kernel.expr.Expr)
 
 /-- [con_ron_core::kernel::expr_ops::inst_pis_at_lift_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1717:0-1729:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1725:0-1737:1
     Visibility: public -/
 def kernel.expr_ops.inst_pis_at_lift_from
   (args : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize)
@@ -24563,7 +24563,7 @@ def kernel.expr_ops.inst_pis_at_lift_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::inst_pis_at_lift]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1711:0-1713:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1718:0-1720:1
     Visibility: public -/
 def kernel.expr_ops.inst_pis_at_lift
   (args : alloc.vec.Vec kernel.expr.Expr) (e : kernel.expr.Expr) :
@@ -24572,7 +24572,7 @@ def kernel.expr_ops.inst_pis_at_lift
   kernel.expr_ops.inst_pis_at_lift_from args 0#usize e
 
 /-- [con_ron_core::kernel::inductives::struct_parts::struct_proj_bodies]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1078:0-1083:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1083:0-1088:1
     Visibility: public -/
 def kernel.inductives.struct_parts.struct_proj_bodies
   (t : kernel.name.Name) (n_p : Std.U64) (n_f : Std.U64)
@@ -24659,7 +24659,7 @@ def kernel.inductives.struct_install.proj_fn_family_free_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::all_level_params_defined]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1934:0-1983:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1942:0-1991:1
     Visibility: public -/
 def kernel.expr_ops.all_level_params_defined
   (params : alloc.vec.Vec kernel.name.Name) (e : kernel.expr.Expr) :
@@ -24711,7 +24711,7 @@ def kernel.expr_ops.all_level_params_defined
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::bool_and3]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1922:0-1924:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1930:0-1932:1
     Visibility: public -/
 def kernel.expr_ops.bool_and3
   (a : Bool) (b : Bool) (c : Bool) : Result Bool := do
@@ -24719,7 +24719,7 @@ def kernel.expr_ops.bool_and3
   kernel.expr_ops.bool_and b1 c
 
 /-- [con_ron_core::kernel::expr_ops::all_level_params_defined_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2004:0-2050:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2012:0-2058:1
     Visibility: public -/
 def kernel.expr_ops.all_level_params_defined_go
   (params : alloc.vec.Vec kernel.name.Name)
@@ -25189,7 +25189,7 @@ def kernel.expr_ops.all_level_params_defined_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::all_level_params_defined_fast]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2057:0-2060:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2065:0-2068:1
     Visibility: public -/
 def kernel.expr_ops.all_level_params_defined_fast
   (params : alloc.vec.Vec kernel.name.Name) (e : kernel.expr.Expr) :
@@ -27305,7 +27305,7 @@ def kernel.inductives.native_install.check_native_rec.REC
   Array.make 3#usize [ 114#u32, 101#u32, 99#u32 ]
 
 /-- [con_ron_core::kernel::type_checker::ensure_sort_core]:
-    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 134:0-142:1
+    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 151:0-159:1
     Visibility: public -/
 def kernel.type_checker.ensure_sort_core
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -27317,7 +27317,7 @@ def kernel.type_checker.ensure_sort_core
   cached.core_c.ensure_sort_i mode i st fe depth e
 
 /-- [con_ron_core::kernel::type_checker::infer_type_core]:
-    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 79:0-87:1
+    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 93:0-101:1
     Visibility: public -/
 def kernel.type_checker.infer_type_core
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -28967,7 +28967,7 @@ def kernel.inductives.native_install.all_resolve_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::exprs_beq_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 630:0-638:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 652:0-660:1
     Visibility: public -/
 def kernel.expr.exprs_beq_from
   (xs : alloc.vec.Vec kernel.expr.Expr) (ys : alloc.vec.Vec kernel.expr.Expr)
@@ -28992,7 +28992,7 @@ def kernel.expr.exprs_beq_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::exprs_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 620:0-626:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 642:0-648:1
     Visibility: public -/
 def kernel.expr.exprs_beq
   (xs : alloc.vec.Vec kernel.expr.Expr) (ys : alloc.vec.Vec kernel.expr.Expr) :
@@ -34050,7 +34050,7 @@ def kernel.env.constant_info_beq
     | kernel.env.ConstantInfo.ProjInfo t2 => kernel.env.proj_table_beq t1 t2
 
 /-- [con_ron_core::kernel::basis_tables::basis_decls_eq]:
-    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 39:0-176:1
+    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 50:0-187:1
     Visibility: public -/
 def kernel.basis_tables.basis_decls_eq
   : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
@@ -36422,7 +36422,7 @@ def kernel.checker_base.check_proj_rule_certs.M : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::kernel::type_checker::is_def_eq_core]:
-    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 106:0-115:1
+    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 121:0-130:1
     Visibility: public -/
 def kernel.type_checker.is_def_eq_core
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -37269,7 +37269,7 @@ def
 }
 
 /-- [con_ron_core::kernel::expr::str_copy_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 164:0-172:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 174:0-182:1
     Visibility: public -/
 def kernel.expr.str_copy_from
   (s : alloc.vec.Vec Std.U32) (i : Std.Usize) (out : alloc.vec.Vec Std.U32) :
@@ -37287,14 +37287,14 @@ def kernel.expr.str_copy_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::str_copy]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 157:0-159:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 167:0-169:1
     Visibility: public -/
 def kernel.expr.str_copy
   (s : alloc.vec.Vec Std.U32) : Result (alloc.vec.Vec Std.U32) := do
   kernel.expr.str_copy_from s 0#usize (alloc.vec.Vec.new Std.U32)
 
 /-- [con_ron_core::kernel::expr::literal_dup]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 148:0-153:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 158:0-163:1
     Visibility: public -/
 def kernel.expr.literal_dup
   (l : kernel.expr.Literal) : Result kernel.expr.Literal := do
@@ -37307,7 +37307,7 @@ def kernel.expr.literal_dup
     ok (kernel.expr.Literal.StrVal v)
 
 /-- [con_ron_core::kernel::expr_ops::instantiate_level_params_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1820:0-1875:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1828:0-1883:1
     Visibility: public -/
 def kernel.expr_ops.instantiate_level_params_go
   (ks : alloc.vec.Vec kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
@@ -37815,7 +37815,7 @@ def kernel.expr_ops.instantiate_level_params_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::instantiate_level_params]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1881:0-1884:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1889:0-1892:1
     Visibility: public -/
 def kernel.expr_ops.instantiate_level_params
   (ks : alloc.vec.Vec kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
@@ -40763,7 +40763,7 @@ def kernel.checker.check_basis_decl.M : Array Std.U32 43#usize :=
     ]
 
 /-- [con_ron_core::kernel::basis_tables::basis_decls_quot]:
-    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 522:0-783:1
+    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 593:0-854:1
     Visibility: public -/
 def kernel.basis_tables.basis_decls_quot
   : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
@@ -41072,7 +41072,7 @@ def kernel.basis_tables.basis_decls_quot
     { «name» := n10, level_params := ns35, ty := e90 })
 
 /-- [con_ron_core::kernel::basis_tables::basis_decls_false]:
-    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 468:0-519:1
+    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 522:0-573:1
     Visibility: public -/
 def kernel.basis_tables.basis_decls_false
   : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
@@ -41145,7 +41145,7 @@ def kernel.basis_tables.basis_decls_false
     (alloc.vec.Vec.new kernel.env.RecRule))
 
 /-- [con_ron_core::kernel::basis_tables::basis_decls_empty]:
-    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 413:0-465:1
+    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 458:0-510:1
     Visibility: public -/
 def kernel.basis_tables.basis_decls_empty
   : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
@@ -41220,7 +41220,7 @@ def kernel.basis_tables.basis_decls_empty
     (alloc.vec.Vec.new kernel.env.RecRule))
 
 /-- [con_ron_core::kernel::basis_tables::basis_decls_punit]:
-    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 321:0-410:1
+    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 357:0-446:1
     Visibility: public -/
 def kernel.basis_tables.basis_decls_punit
   : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
@@ -41334,7 +41334,7 @@ def kernel.basis_tables.basis_decls_punit
     { «name» := n7, level_params := ns31, ty := e13 } 2#u64 2#u64 rs0)
 
 /-- [con_ron_core::kernel::basis_tables::basis_decls_nat]:
-    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 179:0-318:1
+    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 204:0-343:1
     Visibility: public -/
 def kernel.basis_tables.basis_decls_nat
   : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
@@ -41533,7 +41533,7 @@ def kernel.basis_tables.basis_decls_nat
     { «name» := n7, level_params := ns4, ty := e25 } 3#u64 3#u64 rs01)
 
 /-- [con_ron_core::kernel::basis_tables::basis_decls_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 786:0-795:1
+    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 857:0-866:1
     Visibility: public -/
 def kernel.basis_tables.basis_decls_a
   (k : kernel.env.BasisKind) :
@@ -49490,7 +49490,7 @@ def kernel.env.find_proj
       else ok none
 
 /-- [con_ron_core::kernel::expr::binder_meta_hash]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 104:0-106:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 114:0-116:1
     Visibility: public -/
 def kernel.expr.binder_meta_hash
   (m : kernel.expr.BinderMeta) : Result Std.U64 := do
@@ -49498,7 +49498,7 @@ def kernel.expr.binder_meta_hash
   kernel.name.mix_hash 0#u64 i
 
 /-- [con_ron_core::kernel::expr::bvar_pool_size]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 886:0-888:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 908:0-910:1
     Visibility: public -/
 def kernel.expr.bvar_pool_size : Result Std.U64 := do
   ok 4096#u64
@@ -49838,7 +49838,7 @@ def kernel.expr_ops.fvar_range (e : kernel.expr.Expr) : Result Std.U64 := do
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::has_level_param]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1762:0-1781:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1770:0-1789:1
     Visibility: public -/
 def kernel.expr_ops.has_level_param (e : kernel.expr.Expr) : Result Bool := do
   let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
@@ -50699,7 +50699,7 @@ def kernel.inductives.struct_parts.has_loose_bvar_b_spec
 partial_fixpoint
 
 /-- [con_ron_core::kernel::inductives::struct_parts::nat_sub]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1248:0-1250:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 1253:0-1255:1
     Visibility: public -/
 def kernel.inductives.struct_parts.nat_sub
   (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
@@ -51010,7 +51010,7 @@ def kernel.trust_axioms.reduce_elem_name
   else kernel.core_k.bool_name
 
 /-- [con_ron_core::kernel::type_checker::whnf_core]:
-    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 57:0-65:1
+    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 69:0-77:1
     Visibility: public -/
 def kernel.type_checker.whnf_core
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -51022,7 +51022,7 @@ def kernel.type_checker.whnf_core
   cached.core_c.whnf_core mode i st fe depth e
 
 /-- [con_ron_core::kernel::type_checker::whnf]:
-    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 70:0-72:1
+    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 83:0-85:1
     Visibility: public -/
 def kernel.type_checker.whnf
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -51034,7 +51034,7 @@ def kernel.type_checker.whnf
   cached.core_c.whnf mode i st fe depth e
 
 /-- [con_ron_core::kernel::type_checker::infer_type_io]:
-    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 93:0-101:1
+    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 107:0-115:1
     Visibility: public -/
 def kernel.type_checker.infer_type_io
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)

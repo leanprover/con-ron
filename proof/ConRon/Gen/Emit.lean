@@ -352,12 +352,14 @@ def gConstantInfo : ConstantInfo → G String
 /-- Run a body emitter and return its lines. -/
 def runBody (act : G Unit) : Array String := (act.run {}).2.out
 
-/-- A `fn <name>() -> Vec<ConstantInfo>` whose body builds `cis`. -/
-def gDeclsFn (name doc : String) (cis : List ConstantInfo) : Array String :=
+/-- A `fn <name>() -> Vec<ConstantInfo>` whose body builds `cis`, under the
+doc block `doc` (its `/// con-leche:` citations included — task #33). -/
+def gDeclsFn (name : String) (doc : Array String) (cis : List ConstantInfo) :
+    Array String :=
   let body := runBody do
     let vs ← cis.mapM gConstantInfo
     let out ← gVec "out" "ConstantInfo" vs
     line s!"{out}"
-  #[doc, s!"pub fn {name}() -> Vec<ConstantInfo> {lb}"] ++ body ++ #["}", ""]
+  doc ++ #[s!"pub fn {name}() -> Vec<ConstantInfo> {lb}"] ++ body ++ #["}", ""]
 
 end ConRon.Gen

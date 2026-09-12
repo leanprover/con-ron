@@ -483,8 +483,18 @@ opening the Lean.
 * `coverage` — the port ledger: every top-level definition in con-leche's
   implementation modules (`ConLeche/Kernel/**`, `ConLeche/Cached/**`;
   later `Frontend/**`, `Main.lean`) that no annotation cites, per file
-  with counts, and the total covered/uncovered.  Printed, not committed
-  (it churns); task-log entries quote the totals as progress.
+  with counts, and the total covered/uncovered/skipped.  Printed, not
+  committed (it churns); task-log entries quote the totals as progress.
+  The denominator is *what is to be ported*: the declarations
+  `scripts/provenance-skip.txt` lists as deliberately not ported are
+  counted and reported separately (see **The deliberate skips** below).
+* `locate <path> <decl>…` — print the canonical citation body
+  (`<path>:<a>-<b> <decl>`) of each named declaration, i.e. the block
+  `update` would relocate to.  It exists so that a *generator* can write
+  citations no hand ever edits: `proof/ConRon/Gen/Main.lean` asks it for
+  the raw pins each generated basis block is computed from, so the
+  emitted `/// con-leche:` ranges are the gate's own and regeneration is
+  a fixed point (task #33).
 
 **Module-level annotations** (task #8 for `none`, task #22 for the citation
 form).  A `//!` line covers the whole file and exempts every item in it from
@@ -512,6 +522,38 @@ that, a column-0 *phrase* in prose reads as a definition — `ExprOps.lean`'s
 "inductive install" became a `def install` in the ledger (task #13 noted it);
 twelve such phantoms across `Kernel/` disappeared when the skip went in, taking
 the declaration total from 1 018 to 1 006.
+
+**The deliberate skips** (task #33).  A con-leche declaration the port will
+*never* have is not a hole in the ledger, but it must be *named* as such:
+`scripts/provenance-skip.txt` is the allowlist, one line per declaration,
+
+```
+<con-leche path> <declaration> <reason>
+```
+
+with `*` as the declaration for a whole file, and the reason mandatory (a skip
+with no reason is reported `MALFORMED`).  `coverage` subtracts the skips from
+the denominator and reports them separately — `TOTAL 906/906 covered
+(100.0 %), 0 uncovered, 100 deliberately skipped` — and `scripts/progress.py`
+does the same in Lean lines, with a `skipped` column.  The list cannot rot
+quietly: a skip that names no declaration of its file is `STALE`, one whose
+declaration *is* cited after all is `REDUNDANT`, and either makes `coverage`
+exit non-zero.  What is neither cited nor listed is still `uncovered`, which
+is the ledger's only honest resting state for work that is owed.
+
+Five kinds of thing are on the list, and each entry says which: elaboration-time
+meta code (`BasisGen.lean`'s `#annotate_basis`, `trustPinEnv` — the Rust core
+has no elaborator, so it carries the *results*); the proof-tier and mode-gated
+variants of bodies the port has once (`CoreGated`, `CheckerGated`, `CoreIO`,
+`pureFns`, `CoreC.lean`'s seven `*PC`/`*TC` instantiations); `Prop`s and
+proof-carrying apparatus (the sixteen `*MemoInv`s, `Installed.lean`'s
+`InstallRun`/`GroupChecked`/`collectChecks` family, `PropWhen.casesZ`);
+the address-keyed apparatus of `Expr.beq` that §3.2's pointer axioms replace;
+and driver-only rendering (`msSecs`, `declCLabel`, `ValueKind.word`,
+`divModAttemptReason`, `Name.toString`, `reprPrec'` — §3.1: the theorem never
+reads a message).  The long argument for each lives in the Rust module note of
+the module that would have held it; the skip file is the machine-readable index
+of those notes.
 
 **Why no hashes.**  The pin is the single source of truth: a citation is
 `(path, range, name)` and the text it denotes is fixed by the submodule
@@ -572,6 +614,17 @@ From the census of con-leche at 3e004805 (implementation only):
 
 Expect ~1.2× that in Rust, ~2–3× in generated Lean, and a proof tier of the
 same order as con-leche's `Verify/Cached/*` (≈ 20k lines).
+
+**What of the core is actually to be ported** (task #33).  Of the 1 006
+top-level definitions of `Kernel/` and `Cached/` — 14 350 Lean lines of
+definitional blocks — **906 (13 694 lines) are to be ported and are, 100 %**;
+the remaining **100 (656 lines) are deliberately not ported**, each named with
+its reason in `scripts/provenance-skip.txt` (§3.7): elaboration-time meta
+code, the proof-tier and mode-gated variants of bodies the port has once,
+`Prop`s and proof-carrying apparatus, the address-keyed `Expr.beq` apparatus
+§3.2 replaces, and driver-only message rendering.  So the port's remaining
+work on the core is the *proofs* (900 of those lines are covered by a
+`_refines` lemma), not the translation.
 
 **Measured (P0, tasks #3–#10):** Lean → Rust 2.5×, Rust → generated Lean
 2.6×; Charon + Aeneas about 1.5 s per 1 000 Rust lines, zero iterations
@@ -715,9 +768,15 @@ measured.
   beyond Aeneas's library, whose axiom footprint is pinned).
 * `scripts/progress.py [--md]` is the standing quantitative report: per
   con-leche implementation file, Lean lines to translate (definitional
-  blocks), translated (cited by a Rust item) and verified (cited by a Rust
-  item that has its `_refines` lemma), plus the sizes of the Rust, the
-  generated Lean and the proofs.  Task-log entries quote its totals.
+  blocks, minus the deliberate skips of `scripts/provenance-skip.txt`),
+  translated (the blocks of the declarations a Rust item cites), verified
+  (those cited by a Rust item that has its `_refines` lemma) and skipped,
+  plus the sizes of the Rust, the generated Lean and the proofs.  The unit
+  is a *declaration*, as in `provenance.py coverage`, and the line counts
+  weight it by the size of its block (task #33 made the two agree: a
+  citation that names a declaration credits the whole declaration, so a
+  narrow range on a long doc comment no longer reads as a gap).  Task-log
+  entries quote its totals.
 * Commit often.  The maintainer pushes and opens PRs (see `CLAUDE.md`).
 * Fable designs and states theorems and reviews; Opus agents port, extract,
   prove and measure.  Delegate anything mechanical.
@@ -7132,3 +7191,103 @@ tested (§4).  The evidence is the corpus and the existing 170:
 * Mathlib (691 123 declarations, con-leche 12 817 G / 1 228 s / 8.6 GB):
   at `core`'s ratio that is ~24 T instructions and ~19 GB, i.e. the address
   cap is the binding constraint — run it only after the index change.
+
+### Task #33 — The ledger closed: citations completed, deliberate skips listed (2026-09-12, Opus under Fable)
+
+P1's closing task.  The port ledger read **906/1 006 declarations, 93 % of the
+core's Lean lines translated**; the gap was not missing code but missing
+*bookkeeping* — declarations the Rust does translate without saying so, and
+declarations the port will never have without anyone having written down why.
+Both halves are now closed, and the two reports agree.
+
+#### 1. The four families that were translated but uncited
+
+| family | where it was | how it is cited now |
+|---|---|---|
+| the **raw basis pins** — `Basis/{Eq,Nat,PUnit,Empty,False,Quot}.lean`, 34 declarations, 0 % covered | implemented by the *generated* `kernel/basis_tables.rs`, whose only citation was the module-level `BasisA.lean:50-57 BasisKind.declsA` | the generator emits them: `proof/ConRon/Gen/Main.lean` now carries, per block, the `*A` names and the raw declarations `#annotate_basis` computes them from, and writes one `/// con-leche:` line per raw declaration on the block function |
+| `Cached/ExprC.lean`'s `ExprC` + ten `mk*` aliases (11) | `abbrev ExprC := ConLeche.Expr` and ten `@[inline]` constructor aliases — literally `kernel/expr.rs`'s constructors | a second citation on each of the ten (`ExprKind`/`ExprNode`/`Expr` cite the `abbrev`), plus a module-note paragraph saying the file *is* this file |
+| `Cached/CheckerC.lean`'s `instPisAtLiftC`, `structProjBodiesGoC` (2) | the same walks at `ExprC.instantiate1Lift`, which since con-leche's task #172 B3a *is* `Expr.instantiate1Lift` | second citations on `expr_ops::inst_pis_at_lift{,_from}` and `struct_parts::struct_proj_bodies_go`, following `struct_proj_bodies`' existing precedent |
+| `Cached/CheckerC.lean`'s `opE`, `opB`, `opS` (3) | collapsed into `kernel/type_checker.rs`: `opE` is higher-order in its `pick` (§3.4 forbids the closure), so the port has it four times over, once per pick | `opE` on `whnf_core`/`whnf`/`infer_type_core`/`annotate_core`, `opB` on `is_def_eq_core`, `opS` on `ensure_sort_core`, with the reckoning in the module note |
+
+Nothing in class (c) — **no executable code was found missing**.  The 50
+declarations these citations cover were all already ported; what was missing
+was the line saying so.
+
+**The generator asks the gate where the lines are.**  A generated file must
+not carry hand-maintained line numbers: `provenance.py update` would rewrite
+them and the next regeneration would revert it.  So `provenance.py` grew a
+fourth mode, `locate <path> <decl>…`, which prints the canonical citation body
+(`<path>:<a>-<b> <decl>`) — the same block `update` relocates to, from the same
+locator — and `Gen/Main.lean` shells out to it while emitting.  Regeneration is
+therefore a **fixed point** (verified: two runs byte-identical, and again after
+the `extend_block` fix below), and a con-leche bump is reconciled for this file
+by re-running `lake exe con-ron-gen-tables`.
+
+#### 2. `scripts/provenance-skip.txt`: 100 declarations, each with its reason
+
+The allowlist is `<con-leche path> <declaration> <reason>` lines, `*` for a
+whole file, reason mandatory (§3.7).  `coverage` subtracts them from the
+denominator and reports them separately; it also reports a skip that names no
+declaration (`STALE`), one whose declaration is cited after all (`REDUNDANT`)
+and one with no reason (`MALFORMED`), and exits non-zero on any of the three —
+so the list cannot rot quietly.  `check`'s semantics are untouched.
+
+| group | n | why |
+|---|---:|---|
+| elaboration-time meta code | 34 | `BasisGen.lean`'s `#annotate_basis`/`#annotate_pins` elaborators and their `Qq` quotations (33, one `*` entry), `TrustAxioms.trustPinEnv`.  The Rust core has no elaborator; it carries the *results* (`basis_tables.rs`, the annotated pins) |
+| proof-tier and mode-gated variants | 22 | `CoreGated` (9), `CoreIO` (3), `CheckerGated` (2) as `*` entries; `TypeChecker.pureFns`; `CoreC.lean`'s seven `*PC`/`*TC` bodies, which are the port's runtime-`&CheckMode` bodies at a literal mode |
+| `Prop`s and proof-carrying apparatus | 29 | the sixteen `*MemoInv`s (`ExprOps` 11, `Level`, `DeclCheck`, `NativeInstall`, `StructParts` 2), `Installed.lean`'s twelve-member `InstallRun`/`GroupChecked`/`FullyChecked`/`collectChecks` family, `PropWhen.casesZ` |
+| the address-keyed `Expr.beq` apparatus | 7 | `EqPair.dflt`, `beqBudget`, `BeqRes`, `BeqOut`, `BeqOut.mk`, `withAddr`, `ptrDec` — superseded by task #30's hash-keyed, pointer-verified memo and §3.2's `Rc` axioms |
+| driver-only rendering | 6 | `msSecs`, `declCLabel`, `ValueKind.word`, `divModAttemptReason`, `Name.toString`, `PropWhen.reprPrec'` — `String`-valued, on no verdict path (§3.1) |
+| host bridge, and one dead declaration | 2 | `Name.ofLeanName` (no `Lean.Name` in Rust); `BasisKind.decls`, the RAW block dispatcher, which **nothing** in con-leche's `Kernel/`/`Cached/` reads — the installation stores `declsA` |
+
+Every entry's long argument already lived in the Rust module note of the
+module that would have held it; the file is the machine-readable index of
+those notes, and §3.7 now says so.
+
+#### 3. The two reports made to agree
+
+`coverage` counts *declarations*; `progress.py` counted *lines inside cited
+ranges*, and the two disagreed badly — `Env.lean` was 38/38 declarations but
+60 % of lines, because a citation names a declaration's code and not its
+40-line doc comment.  `progress.py` now uses `coverage`'s own predicate per
+declaration and weights it by the whole block: a named declaration credits its
+whole block.  That is what closes the last 7 % of the core, and it is the
+honest measure — the ledger's unit is a declaration, the lines are its weight.
+Two consequences: `verified` rose too (632 → **900** lines), and
+`CORE_EXCLUDE` is gone, its four files being `*` entries in the skip file.
+
+One locator bug fell out of the audit: `extend_block`'s backward walk over a
+closing `-/` looked for a `/--` opener and walked *through* a `/-! … -/`
+section header, swallowing the previous declaration's doc comment — two blocks
+overlapped (`Frontend/InModel/Kit.lean`'s `sortOf`/`sortCeil`).  Fixed by
+stopping at `/-!`; no core file was affected (the cherry total drops 8 135 →
+8 093), no citation moved, and the generated citations are unchanged.
+
+#### Numbers
+
+| gate | result |
+|---|---|
+| `scripts/provenance.py check` | green — **1 561 items, 1 728 citations** (was 1 548 / 1 651) at pin 3e004805 |
+| `scripts/provenance.py coverage` | **TOTAL 906/906 covered (100.0 %), 0 uncovered, 100 deliberately skipped** (was 856/1 006, 85.1 %) |
+| `scripts/progress.py`, verified core | to translate **13 694**, translated **13 694 (100 %)**, verified **900 (6 %)**, skipped **656** — was 13 987 / 13 085 (93 %) / 632 (4 %) |
+| per-file | **every file of `Kernel/` and `Cached/` is 100 % translated**; `Basis/{Eq,Nat,PUnit,Empty,False,Quot}.lean` are also 100 % *verified* (`BasisTables.lean`'s six `basis_decls_*_refines`) |
+| `cargo test` | **173/173** (156 unit + 4 integration + 13 in `con-ron-dump`), warning-free at `-D warnings` |
+| `scripts/lint-rust-style.sh` | clean (the generated file needed no exemption) |
+| `scripts/extract.sh --check` | fresh after regeneration; the diff is **only `Source:` line comments** (101 lines) — no model changed, externals still exactly 1 type + 4 `Rc` fns |
+| `cd proof && lake build` | green, 324 s |
+| `scripts/diff-fixtures.sh --timeout=60` | **315 agree, 0 differ**, 33 skipped |
+| `lake exe con-ron-gen-tables` | `basis_tables.rs` +77/−6 lines: **41 `/// con-leche:` citation lines** (one `BasisKind.declsA` plus the raw pins, per block) and their prose; byte-identical on re-run |
+
+#### Left for next time
+
+* The ledger is now a *proof* ledger: the core is 100 % translated and 6 %
+  verified, so `progress.py`'s `verified` column is the only one with room
+  left.  The 1 384 Rust functions carry 123 `_refines` lemmas.
+* `Frontend/` and `Main.lean` (8 093 lines to translate, 0 % — the cherries of
+  §5 P4) have no skip entries yet; when they are ported, the driver-only
+  rules the core deliberately refuses (`Main.lean`'s taint-skip decline,
+  `cached/installed.rs`'s note) belong in the same file.
+* `coverage`'s non-zero exit on a rotten skip list is not in
+  `scripts/gates.sh`; adding it is a one-line change once the list has
+  survived a con-leche bump.

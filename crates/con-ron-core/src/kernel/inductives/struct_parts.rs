@@ -1035,11 +1035,16 @@ pub fn struct_proj_guards_from(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:748-766 structProjBodiesGo
+/// con-leche: ConLeche/Cached/CheckerC.lean:37-43 structProjBodiesGoC
 /// The projection bodies' one walk of the constructor telescope: field `i`'s
 /// domain is body `i`, and the field is replaced by the subject's projection
 /// `.proj T i (bvar 0)` before the walk continues.  Lean conses `fdom` on the
 /// way out; the port pushes it on the way in, which is the same
 /// outermost-first list (task #13's pattern 3).
+///
+/// The cached driver's walker (`structProjBodiesGoC`, the second citation) is
+/// the same walk at `ExprC.instantiate1Lift`, which is this substitution
+/// (`structProjBodiesC_eq`); `struct_proj_bodies` below records the ruling.
 pub fn struct_proj_bodies_go(
     t: &Name,
     k: u64,

@@ -35,7 +35,18 @@ use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
 
-/// The annotated `eq` block (`BasisKind.declsA .eqK`).
+/// con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:22-28 eqRaw
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:30-36 eqReflRaw
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:38-42 eqRecMotive
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:44-61 eqRecRaw
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:63-64 eqBasis
+/// The annotated `eq` block (`BasisKind.declsA .eqK` = [eqA, eqReflA, eqRecA]).
+///
+/// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 3
+/// constants from the 5 raw declarations cited above, while
+/// `ConLeche/Kernel/BasisA.lean` elaborates; this function is that value,
+/// emitted as source (the module note).
 pub fn basis_decls_eq() -> Vec<ConstantInfo> {
     let n0 = name::anonymous();
     let mut s0: Vec<u32> = Vec::new();  // "Eq"
@@ -175,7 +186,21 @@ pub fn basis_decls_eq() -> Vec<ConstantInfo> {
     out0
 }
 
-/// The annotated `nat` block (`BasisKind.declsA .natK`).
+/// con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:21-22 natT
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-26 natRaw
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:28-30 natZeroRaw
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:32-34 natSuccRaw
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:36-37 natRecMotive
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:39-44 natRecSucc
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:46-65 natRecRaw
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:67-68 natBasis
+/// The annotated `nat` block (`BasisKind.declsA .natK` = [natA, natZeroA, natSuccA, natRecA]).
+///
+/// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 4
+/// constants from the 8 raw declarations cited above, while
+/// `ConLeche/Kernel/BasisA.lean` elaborates; this function is that value,
+/// emitted as source (the module note).
 pub fn basis_decls_nat() -> Vec<ConstantInfo> {
     let n0 = name::anonymous();
     let mut s0: Vec<u32> = Vec::new();  // "Nat"
@@ -317,7 +342,18 @@ pub fn basis_decls_nat() -> Vec<ConstantInfo> {
     out0
 }
 
-/// The annotated `punit` block (`BasisKind.declsA .punitK`).
+/// con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
+/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:24-29 punitRaw
+/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:31-33 punitUnitRaw
+/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:35-37 punitRecMotive
+/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:39-50 punitRecRaw
+/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:52-53 punitBasis
+/// The annotated `punit` block (`BasisKind.declsA .punitK` = [punitA, punitUnitA, punitRecA]).
+///
+/// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 3
+/// constants from the 5 raw declarations cited above, while
+/// `ConLeche/Kernel/BasisA.lean` elaborates; this function is that value,
+/// emitted as source (the module note).
 pub fn basis_decls_punit() -> Vec<ConstantInfo> {
     let n0 = name::anonymous();
     let mut s0: Vec<u32> = Vec::new();  // "PUnit"
@@ -409,7 +445,16 @@ pub fn basis_decls_punit() -> Vec<ConstantInfo> {
     out0
 }
 
-/// The annotated `empty` block (`BasisKind.declsA .emptyK`).
+/// con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
+/// con-leche: ConLeche/Kernel/Basis/Empty.lean:21-23 emptyRaw
+/// con-leche: ConLeche/Kernel/Basis/Empty.lean:25-32 emptyRecRaw
+/// con-leche: ConLeche/Kernel/Basis/Empty.lean:34-35 emptyBasis
+/// The annotated `empty` block (`BasisKind.declsA .emptyK` = [emptyA, emptyRecA]).
+///
+/// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 2
+/// constants from the 3 raw declarations cited above, while
+/// `ConLeche/Kernel/BasisA.lean` elaborates; this function is that value,
+/// emitted as source (the module note).
 pub fn basis_decls_empty() -> Vec<ConstantInfo> {
     let n0 = name::anonymous();
     let mut s0: Vec<u32> = Vec::new();  // "Empty"
@@ -464,7 +509,16 @@ pub fn basis_decls_empty() -> Vec<ConstantInfo> {
     out0
 }
 
-/// The annotated `false` block (`BasisKind.declsA .falseK`).
+/// con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
+/// con-leche: ConLeche/Kernel/Basis/False.lean:38-40 falseRaw
+/// con-leche: ConLeche/Kernel/Basis/False.lean:42-49 falseRecRaw
+/// con-leche: ConLeche/Kernel/Basis/False.lean:51-52 falseBasis
+/// The annotated `false` block (`BasisKind.declsA .falseK` = [falseA, falseRecA]).
+///
+/// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 2
+/// constants from the 3 raw declarations cited above, while
+/// `ConLeche/Kernel/BasisA.lean` elaborates; this function is that value,
+/// emitted as source (the module note).
 pub fn basis_decls_false() -> Vec<ConstantInfo> {
     let n0 = name::anonymous();
     let mut s0: Vec<u32> = Vec::new();  // "False"
@@ -518,7 +572,24 @@ pub fn basis_decls_false() -> Vec<ConstantInfo> {
     out0
 }
 
-/// The annotated `quot` block (`BasisKind.declsA .quotK`).
+/// con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:26-28 quotRel
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:30-34 quotRaw
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:36-42 quotMkRaw
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:44-45 quotLiftF
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:47-53 quotLiftH
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:55-72 quotLiftRaw
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:74-77 quotIndMotive
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:79-83 quotIndMk
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:85-100 quotIndRaw
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:102-114 quotSoundRaw
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:116-118 quotBasis
+/// The annotated `quot` block (`BasisKind.declsA .quotK` = [quotA, quotMkA, quotLiftA, quotIndA, quotSoundA]).
+///
+/// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 5
+/// constants from the 11 raw declarations cited above, while
+/// `ConLeche/Kernel/BasisA.lean` elaborates; this function is that value,
+/// emitted as source (the module note).
 pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     let n0 = name::anonymous();
     let mut s0: Vec<u32> = Vec::new();  // "Quot"

@@ -24,11 +24,91 @@ namespace ConRon.Gen
 
 open ConLeche
 
+/-- One basis block: the kind, its `BasisKind` constructor, the Rust function
+name, the `*A` names of `BasisKind.declsA`'s arm, the raw-pin module and the
+declarations in it the annotation pass consumes.
+
+The last two fields are what the generated citations are made of (task #33):
+`basis_decls_<nm>` translates `BasisKind.declsA .<nm>K`, whose value
+`#annotate_basis` computes from exactly these raw definitions, so those are
+the con-leche lines the function is ported from — and with them the ledger
+(`scripts/provenance.py coverage`) reaches every declaration of
+`ConLeche/Kernel/Basis/*.lean`, which no hand-written Rust translates. -/
+structure Block where
+  kind : BasisKind
+  ctor : String
+  nm : String
+  aNames : List String
+  file : String
+  raw : List String
+
 /-- The basis blocks, with the Rust function name for each. -/
-def basisBlocks : List (BasisKind × String × String) :=
-  [(.eqK, "EqK", "eq"), (.natK, "NatK", "nat"), (.punitK, "PunitK", "punit"),
-   (.emptyK, "EmptyK", "empty"), (.falseK, "FalseK", "false"),
-   (.quotK, "QuotK", "quot")]
+def basisBlocks : List Block :=
+  [{ kind := .eqK, ctor := "EqK", nm := "eq",
+     aNames := ["eqA", "eqReflA", "eqRecA"],
+     file := "ConLeche/Kernel/Basis/Eq.lean",
+     raw := ["eqRaw", "eqReflRaw", "eqRecMotive", "eqRecRaw", "eqBasis"] },
+   { kind := .natK, ctor := "NatK", nm := "nat",
+     aNames := ["natA", "natZeroA", "natSuccA", "natRecA"],
+     file := "ConLeche/Kernel/Basis/Nat.lean",
+     raw := ["natT", "natRaw", "natZeroRaw", "natSuccRaw", "natRecMotive",
+             "natRecSucc", "natRecRaw", "natBasis"] },
+   { kind := .punitK, ctor := "PunitK", nm := "punit",
+     aNames := ["punitA", "punitUnitA", "punitRecA"],
+     file := "ConLeche/Kernel/Basis/PUnit.lean",
+     raw := ["punitRaw", "punitUnitRaw", "punitRecMotive", "punitRecRaw",
+             "punitBasis"] },
+   { kind := .emptyK, ctor := "EmptyK", nm := "empty",
+     aNames := ["emptyA", "emptyRecA"],
+     file := "ConLeche/Kernel/Basis/Empty.lean",
+     raw := ["emptyRaw", "emptyRecRaw", "emptyBasis"] },
+   { kind := .falseK, ctor := "FalseK", nm := "false",
+     aNames := ["falseA", "falseRecA"],
+     file := "ConLeche/Kernel/Basis/False.lean",
+     raw := ["falseRaw", "falseRecRaw", "falseBasis"] },
+   { kind := .quotK, ctor := "QuotK", nm := "quot",
+     aNames := ["quotA", "quotMkA", "quotLiftA", "quotIndA", "quotSoundA"],
+     file := "ConLeche/Kernel/Basis/Quot.lean",
+     raw := ["quotRel", "quotRaw", "quotMkRaw", "quotLiftF", "quotLiftH",
+             "quotLiftRaw", "quotIndMotive", "quotIndMk", "quotIndRaw",
+             "quotSoundRaw", "quotBasis"] }]
+
+/-- The citation bodies of `decls` in `file`, from the gate's own locator
+(`scripts/provenance.py locate`, task #33).
+
+The ranges are not written here: they are asked of the gate, which is the
+single source of truth for what block a declaration's name denotes
+(DESIGN.md §3.7).  So a regenerated file carries exactly the ranges
+`provenance.py update` would relocate to — regeneration is a fixed point,
+and a con-leche bump is reconciled by re-running the generator. -/
+def locate (file : String) (decls : List String) : IO (List String) := do
+  let out ← IO.Process.output
+    { cmd := "python3",
+      args := #["../scripts/provenance.py", "locate", file] ++ decls.toArray }
+  if out.exitCode != 0 then
+    throw <| IO.userError
+      s!"provenance.py locate {file} failed ({out.exitCode}): {out.stderr}"
+  return (out.stdout.splitOn "\n").filterMap fun l =>
+    if l.isEmpty then none else some l
+
+/-- One block function's doc block: the two `con-leche:` citation groups
+(the `BasisKind.declsA` arm this function is, and the raw pins its value is
+annotated from) and the prose naming the `*A` constants it holds. -/
+def blockDoc (b : Block) : IO (Array String) := do
+  let armCite ← locate "ConLeche/Kernel/BasisA.lean" ["BasisKind.declsA"]
+  let rawCites ← locate b.file b.raw
+  let cites : List String :=
+    (armCite ++ rawCites).map fun c => "/// con-leche: " ++ c
+  let prose : List String :=
+    [s!"/// The annotated `{b.nm}` block (`BasisKind.declsA .{b.nm}K` = \
+[{String.intercalate ", " b.aNames}]).",
+     "///",
+     s!"/// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those \
+{b.aNames.length}",
+     s!"/// constants from the {b.raw.length} raw declarations cited above, while",
+     "/// `ConLeche/Kernel/BasisA.lean` elaborates; this function is that value,",
+     "/// emitted as source (the module note)."]
+  return (cites ++ prose).toArray
 
 /-- The generated file's module header: the module-level `con-leche:`
 citation (DESIGN.md §3.7) and the imports the bodies need. -/
@@ -76,17 +156,17 @@ def basisDispatch : Array String :=
   #["/// The annotated constants of one basis block, in dependency order.",
     "pub fn basis_decls_a(k: &BasisKind) -> Vec<ConstantInfo> {",
     "    match k {"]
-  ++ (basisBlocks.map fun (_, ctor, nm) =>
-        s!"        BasisKind::{ctor} => basis_decls_{nm}(),").toArray
+  ++ (basisBlocks.map fun b =>
+        s!"        BasisKind::{b.ctor} => basis_decls_{b.nm}(),").toArray
   ++ #["    }", "}", ""]
 
 /-- The whole generated file. -/
-def basisTables : String :=
-  let fns := basisBlocks.flatMap fun (k, _, nm) =>
-    (gDeclsFn s!"basis_decls_{nm}"
-      s!"/// The annotated `{nm}` block (`BasisKind.declsA .{nm}K`)."
-      (BasisKind.declsA k)).toList
-  String.intercalate "\n" ((basisHeader.toList ++ fns ++ basisDispatch.toList)) ++ "\n"
+def basisTables : IO String := do
+  let fns ← basisBlocks.flatMapM fun b => do
+    let doc ← blockDoc b
+    return (gDeclsFn s!"basis_decls_{b.nm}" doc (BasisKind.declsA b.kind)).toList
+  return String.intercalate "\n"
+    (basisHeader.toList ++ fns ++ basisDispatch.toList) ++ "\n"
 
 /-! ## The census
 
@@ -108,8 +188,9 @@ def pinSetAct (s : NatOpPinSet) : G Unit := do
   return ()
 
 def census : String :=
-  let basis := basisBlocks.map fun (k, _, nm) =>
-    s!"basis {nm}: " ++ censusOf (do let _ ← (BasisKind.declsA k).mapM gConstantInfo; return ())
+  let basis := basisBlocks.map fun b =>
+    s!"basis {b.nm}: "
+      ++ censusOf (do let _ ← (BasisKind.declsA b.kind).mapM gConstantInfo; return ())
   let pins := natOpPinSets.map fun s => s!"pinset {s.toolchain}: " ++ censusOf (pinSetAct s)
   String.intercalate "\n" (basis ++ pins)
 
@@ -148,10 +229,11 @@ def main (args : List String) : IO UInt32 := do
   match args with
   | [] => do
     let out := "../crates/con-ron-core/src/kernel/basis_tables.rs"
-    IO.FS.writeFile out basisTables
-    IO.println s!"wrote {out} ({basisTables.length} chars)"
+    let text ← basisTables
+    IO.FS.writeFile out text
+    IO.println s!"wrote {out} ({text.length} chars)"
     return 0
-  | ["--stdout"] => do IO.print basisTables; return 0
+  | ["--stdout"] => do IO.print (← basisTables); return 0
   | ["--count"] => do IO.println census; return 0
   | ["--pins", i, out] => do
     match i.toNat?, natOpPinSets[i.toNat?.getD 0]? with

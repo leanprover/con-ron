@@ -1705,14 +1705,22 @@ pub fn fvar_b(e: &Expr) -> u64 {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2365-2378 instPisAtLift
+/// con-leche: ConLeche/Cached/CheckerC.lean:31-35 instPisAtLiftC
 /// Instantiate the leading `∀`-binders at *open* arguments, by the general
 /// capture-avoiding substitution.  The `i = 0` wrapper of the recursion
 /// below.
+///
+/// The cached driver's walker (`instPisAtLiftC`, the second citation) differs
+/// only in taking `ExprC.instantiate1Lift` where this takes
+/// `Expr.instantiate1Lift`; since con-leche's task #172 B3a there is one
+/// expression type, so the port has one spelling (as for
+/// `struct_parts::struct_proj_bodies`, whose Lean twin calls this one).
 pub fn inst_pis_at_lift(args: &Vec<Expr>, e: &Expr) -> Option<Expr> {
     inst_pis_at_lift_from(args, 0, e)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2365-2378 instPisAtLift
+/// con-leche: ConLeche/Cached/CheckerC.lean:31-35 instPisAtLiftC
 /// The index recursion behind `inst_pis_at_lift`.
 pub fn inst_pis_at_lift_from(args: &Vec<Expr>, i: usize, e: &Expr) -> Option<Expr> {
     if i >= args.len() {
