@@ -1,0 +1,19 @@
+name = "con-ron"
+defaultTargets = ["ConRon"]
+
+# con-leche, the Lean checker this port refines (DESIGN.md §1).  Pinned as a
+# submodule; `lake build` only elaborates the modules we actually import.
+[[require]]
+name = "con-leche"
+path = "../vendor/con-leche"
+
+# The Aeneas Lean library, patched onto v4.33.0 by
+# `scripts/setup-aeneas-lean.sh` (DESIGN.md, task #2).  The path is outside the
+# git tree on purpose: the copy is a build artifact, so it lives in `_tmp/`.
+[[require]]
+name = "aeneas"
+path = "../_tmp/aeneas-lean"
+
+[[lean_lib]]
+name = "ConRon"
+roots = ["ConRon"]

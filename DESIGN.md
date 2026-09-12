@@ -134,12 +134,16 @@ then carries an arena and its monotonicity, and `abs` depends on state) or
 external models
 
 ```lean
-def alloc.rc.Rc (T : Type) := T                 -- TypesExternal.lean
+@[reducible] def alloc.rc.Rc (T : Type) := T     -- TypesExternal.lean
 def alloc.rc.Rc.new  (x : T) : Result (Rc T) := ok x
 def alloc.rc.Rc.deref (x : Rc T) : Result T   := ok x
 def alloc.rc.Rc.clone (x : Rc T) : Result (Rc T) := ok x
 def alloc.rc.Rc.ptr_eq (a b : Rc T) : Result Bool := ok false
 ```
+
+`@[reducible]` is load-bearing: without it Lean's automatic `SizeOf`
+derivation for the mutually recursive node types does not unfold the alias
+and fails (task #4).
 
 The first four are the same model Aeneas already uses for `Box`; they are
 faithful because the port never uses `Rc::get_mut`, `make_mut`, weak
@@ -213,16 +217,24 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
 ```
 crates/con-ron-core/     the verified core (checkDecls and below)
 crates/con-ron/          CLI, parser, frontend rewrites, thread pool
-proof/                   Lake project: requires con-leche + aeneas
-  Generated/             Aeneas output (committed, regenerated)
-  Models/                TypesExternal.lean, FunsExternal.lean (Rc, ...)
-  Abs/                   abstraction functions + NodeWF invariant
-  Refine/                one lemma per ported function, same file split
-  Main.lean              check_decls_refines, conron.no_proof_of_False
+proof/                   Lake project: requires con-leche + aeneas (task #4)
+  lakefile.toml          two path `require`s; one `lean_lib ConRon`
+  ConRon.lean            the library root, imports everything below
+  ConRon/
+    Generated/           Aeneas output (committed, regenerated)
+    Models/              TypesExternal.lean, FunsExternal.lean (Rc, ...)
+    Abs/                 abstraction functions + NodeWF invariant
+    Refine/              one lemma per ported function, same file split
+    Main.lean            check_decls_refines, conron.no_proof_of_False
+    Spike/LevelName/     the task-#3 spike, elaborated (task #4)
 vendor/con-leche         submodule, pinned (3e004805)
 vendor/aeneas            submodule, pinned (505b6ca3) — same rev as flake.nix
+_tmp/aeneas-lean/        gitignored: vendor/aeneas/backends/lean + the v4.33
+                         patch, built; produced by setup-aeneas-lean.sh, and
+                         `require`d by path from proof/
 spikes/                  feasibility experiments, kept as evidence
-scripts/                 extract.sh, lint-rust-style.sh, dump-decls, diff-test
+scripts/                 setup-aeneas-lean.sh, extract.sh, lint-rust-style.sh,
+                         dump-decls, diff-test
 ```
 
 Refinement lemma shape (accept direction, forward reasoning from `ok`):
@@ -532,3 +544,127 @@ its successor lands.  The patched library is produced by
 `scripts/setup-aeneas-lean.sh` (copy + `patch`) into a gitignored
 location the proof project `require`s by path; a fork carrying the patch
 would be the tidier long-term home if the stopgap outlives a month.
+
+### Task #4 — The `proof/` project scaffold; `Level`/`Name` generated code elaborates (2026-09-12, Opus under Fable)
+
+P0.4 of §5, and the second half of what task #2 left open: a Lake project
+that `require`s both con-leche and the patched Aeneas library, with the
+task-#3 spike's generated Lean brought in, the `Rc` holes of §3.2 filled and
+the first two abstraction functions written.  **Everything elaborates**,
+sorry-free, with **no axioms beyond `propext`/`Classical.choice`/`Quot.sound`
+— the four `Rc` holes are now `def`s, so the generated model is axiom-free.**
+
+**`scripts/setup-aeneas-lean.sh`** produces `_tmp/aeneas-lean/`: a copy of
+`vendor/aeneas/backends/lean` with `spikes/toolchain/aeneas-433.patch`
+applied and `lake update` run.  Idempotent by a fingerprint stamp over every
+source byte plus the patch, and it keeps the existing `.lake/` across a
+re-run (rebuilding Mathlib's dependents is minutes).  `patch --dry-run`
+first: if the submodule ever moves under the patch the script exits non-zero
+with "does not apply cleanly" rather than producing a half-patched tree.
+The existing `_tmp/aeneas-lean-433/` from task #2 was verified byte-identical
+to a fresh copy+patch and moved into place, so no Mathlib rebuild was needed.
+
+**The `require` lines that worked** (`proof/lakefile.toml`; Lake accepts a
+relative path pointing outside the workspace, and the `_tmp` gitignore is
+irrelevant to it — no `proof/.aeneas-lean/` fallback was needed):
+
+```toml
+[[require]]
+name = "con-leche"
+path = "../vendor/con-leche"
+
+[[require]]
+name = "aeneas"
+path = "../_tmp/aeneas-lean"
+```
+
+(The package name really is `con-leche`; Lake writes it back into the
+manifest as `«con-leche»`.)  One `lean_lib ConRon` with `roots = ["ConRon"]`.
+
+**One trick worth keeping.**  Lake puts *git* dependencies under the **root**
+package's `.lake/packages`, so a naive `proof/` would clone and build its own
+Mathlib beside the one task #2 already built for `_tmp/aeneas-lean`.  Step 5
+of the setup script makes `proof/.lake/packages` a symlink to
+`_tmp/aeneas-lean/.lake/packages`; both roots resolve Mathlib to the same rev
+(the `v4.33.0` tag the patched lakefile asks for), so one checkout and one set
+of oleans serve both.  `lake update` in `proof/` then downloaded nothing
+("No files to download") and `lake build` replayed all 2037 Aeneas jobs from
+the existing build tree.  `proof/lake-manifest.json` is committed.
+
+**What the generated files needed.**  `Types.lean` and `Funs.lean` are the
+task-#3 output verbatim except for the `import` lines (`LevelName.Types` →
+`ConRon.Spike.LevelName.Types`); a `diff` modulo those is empty.  The Aeneas
+`namespace level_name` is kept as generated.  No Aeneas CLI flag had to be
+added and `aeneas` was not re-run.
+
+**The one place §3.2's model needed more: `@[reducible]`.**  With the
+literal `def alloc.rc.Rc (T : Type) := T`, `Types.lean` fails with
+
+```
+failed to generate `SizeOf` instance for `NameKind`: type mismatch
+failed to generate `SizeOf` instance for `LevelKind`: type mismatch
+```
+
+The mutual inductive itself is accepted — Lean unfolds the alias to find the
+recursive occurrence behind `alloc.rc.Rc name.NameNode` — but the automatic
+`SizeOf` derivation will not, and builds an ill-typed instance.  `@[reducible]
+def` fixes it with no other change; `abbrev` and a one-field `structure` were
+both checked and work too, and the reducible `def` is the smallest edit to
+§3.2 (and the only one that keeps `Rc T` *definitionally* `T`, so `absName`
+can pattern-match straight through it).  Note this is the opposite of the
+advice in Aeneas's own `Vec` (`Aeneas/Std/Vec.lean:22`, "we *do not* want to
+mark `Vec` as reducible"): `Vec` wraps a `Slice` and the positivity checker is
+the problem there; here the alias is the point.  **§3.2 is amended to
+`@[reducible] def alloc.rc.Rc (T : Type) : Type := T`.**  The other three
+models are exactly as §3.2 writes them (`new`/`deref`/`clone` = `ok x`,
+`ptr_eq _ _ = ok false`); the `@[rust_type]`/`@[rust_fun]` attributes the
+templates carry are kept — they are ordinary attributes of the Aeneas Lean
+library and need no extraction machinery.
+
+**`ConRon/Spike/LevelName/Abs.lean`** defines `absString`, `absName`,
+`absLevel` (each a three-way `mutual` over the `Kind`/`Node`/wrapper triple
+the port's `Rc` tree is; structural recursion goes through the reducible `Rc`
+without help) and `absLevels`.  It forgets the `Rc`, the cached hash word,
+and the machine-word representations: `Vec<u32>` code points become a
+`String` by `String.ofList ∘ map Char.ofNat` (`List.asString` is deprecated in
+4.33) and a `u64` index becomes a `Nat` by Aeneas's `UScalar.val`.
+Definitions only; the theorems are Fable's next task.
+
+**Numbers** (this machine, Mathlib and Aeneas already built):
+
+| | |
+|---|---|
+| `lake build`, everything warm (no-op) | **3.4 s** |
+| `lake build` after `rm -rf proof/.lake/build` | **9.6 s** |
+| `lake build` after also `rm -rf vendor/con-leche/.lake/build` | **11.2 s** (6 con-leche modules: `Kernel.Name` 0.33 s, `PropWhen` 1.1 s, `Expr` 1.7 s, `Level` 3.5 s) |
+| `Types.lean` (122 lines) | 1.4 s |
+| `TypesExternal.lean` / `FunsExternal.lean` | 1.2 s each |
+| **`Funs.lean` (1 354 lines, 25 `partial_fixpoint`, one 8-function `mutual`)** | **2.4 s** |
+| ... of which loading the Aeneas + Mathlib oleans | 1.2 s (a file with only `Funs.lean`'s three imports takes 1.19 s) |
+| ... so net elaboration of `Funs.lean` | **≈ 1.2 s** |
+| `Abs.lean` | 1.2 s |
+
+Lean's own profiler on `Funs.lean`: import 0.95 s, "process pre-definitions"
+(the `partial_fixpoint` machinery) 0.33 s, type checking 0.19 s, typeclass
+inference 0.17 s, compilation (LCNF, three passes) 0.29 s, elaboration
+0.05 s.  **That is ~0.9 ms of net elaboration per generated line**, and the
+`partial_fixpoint` block is not where the time goes.  A naive linear
+extrapolation of §4's ≈145k generated Lean lines gives ~2 minutes of pure
+elaboration for the whole core, plus a ~1.2 s import tax per file — so
+**§6's risk 1 looks like a file-count problem, not an elaboration-cost
+problem**, as long as the mutual blocks stay near this size.  The one number
+this task still does not have is a `partial_fixpoint` block of hundreds of
+functions; the knot (P1.4) is where that gets measured, and splitting it at
+fuel boundaries stays the fallback.
+
+**Two small 4.33 frictions in hand-written code** (neither touches the
+generated files): `⟨cs⟩` no longer builds a `String` from a `List Char` (the
+constructor is `String.ofByteArray` now), and `List.asString` is deprecated in
+favour of `String.ofList`.
+
+**Left for next time.** `scripts/extract.sh` does not exist yet, so the
+import-line rewrite from `spikes/level-name/lean/` into
+`proof/ConRon/Spike/LevelName/` was done by hand (a two-line `sed`; the
+script will own it in P2).  There is no freshness gate on the committed
+generated Lean yet, and no `#print axioms` gate — but the census above is
+clean today and is the baseline for that gate.
