@@ -376,3 +376,127 @@ by module once types exist)
   §3.2 builds on.
 * Decisions §3.1–3.6 taken; plan §5.  Open: toolchain (task #2), lemma
   shape (task #3), scale numbers (task #4).
+
+### Task #3 — Scale spike: `Name` and `Level` through Aeneas (2026-09-12, Opus)
+
+P0.5 of §5: `ConLeche/Kernel/Name.lean`, the `Level` part of
+`ConLeche/Kernel/Expr.lean` (lines 40-139) and `ConLeche/Kernel/Level.lean`
+(lines 24-232) ported for real in the §3.1-§3.4 style, extracted, measured.
+`spikes/level-name/`; generated Lean left in `spikes/level-name/lean/`
+(not elaborated — the Aeneas Lean library is not built yet, task #2).
+
+**Numbers.**
+
+| | |
+|---|---|
+| Lean ported (raw / code lines) | 366 / 197 |
+| Rust port `src/name.rs` + `src/level.rs` (raw / code) | 702 / 502 (**2.5×** the Lean) |
+| Rust tests `src/lib.rs` (13 tests, not extracted) | 200 |
+| generated `lean/Types.lean` | 122 |
+| generated `lean/Funs.lean` | 1 354 (**2.6×** the Rust, 6.9× the Lean) |
+| generated `lean/TypesExternal_Template.lean` / `FunsExternal_Template.lean` | 25 / 54 |
+| `charon cargo --preset=aeneas` wall | **0.20 s** (incl. the `cargo` rebuild) |
+| `aeneas -backend lean -split-files -loops-to-rec` wall | **1.14 s** (0.96 s self-reported) |
+| items translated | 63 transparent fns, 18 opaque, 4 trait decls, 4 trait impls |
+| `partial_fixpoint` | **25** |
+| `mutual` blocks | 1 in `Funs.lean` (8 fns: `leq_core`, `rest`, `imax_rules`, `by_cases_left/right`, `imax_rules_distrib`, `imax_rules_distrib_right`, `by_cases`; 313 lines), 2 in `Types.lean` (3 types each) |
+| external holes | exactly the four `Rc` axioms of §3.2 — `new`, `clone`, `deref`, `ptr_eq`.  Nothing else is opaque. |
+
+`cargo build`/`cargo test` warning-free, 13/13 green;
+`scripts/lint-rust-style.sh spikes/level-name/src` clean.
+
+**Charon and Aeneas both succeeded on the first run, with no iteration.**
+That is the headline: the subset was known from `spikes/rc-fuel` (task #1) and
+staying inside it was a matter of writing the port a certain way.  The
+adjustments below are therefore *a-priori* transliteration choices, not
+error-driven fixes; each is a place where the Lean cannot be written down
+literally in Rust.
+
+**Constructs that do not survive transliteration, and their replacements.**
+
+1. **Nested constructor patterns through an `Rc`.**  `Level.imaxRules` matches
+   `.imax _ (.param p)`; Rust cannot pattern-match through `Rc` (or through the
+   `Level(Rc<LevelNode>)` newtype), and `if let` chains are not in edition 2021.
+   Replaced by a predicate `is_imax_param` plus re-destructuring helpers.  The
+   Lean arms also *interleave* the two scrutinees (`_, .imax _ (.param p)` comes
+   before `.imax a (.imax x y), _`), so a single nested `match` would silently
+   reorder them: `imaxRules` became a four-function cascade
+   (`imax_rules` → `by_cases_left` / `by_cases_right` / `imax_rules_distrib` →
+   `imax_rules_distrib_right`) that preserves the Lean arm order exactly.  The
+   helpers' unreachable arms return `None`, which is Lean's own fall-through.
+   This is the only structural deviation in the port.
+2. **Recursion over a Lean `List`.**  `Vec` has no cons pattern; every
+   list recursion became an index-carrying helper (`*_from(xs, i, …)`) with the
+   public function as the `i = 0` wrapper: `str_hash`, `str_eq`, `contains`,
+   `levels_have_param`, `levels_hash`, `subst.go`, `isEquivList`, `Name.nodup`.
+3. **`do`-notation over `Option`** (`if ← leqCore …`) → an explicit three-way
+   `match` on `None` / `Some(false)` / `Some(true)`.  §3.4 forbids `?`, and the
+   explicit match is what keeps the generated Lean shaped like the source.
+4. **Decidable equality against a literal constructor** (`ls = .zero`,
+   `ls = .succ .zero`, `simplify l = .zero`) → constructor predicates
+   `is_zero_kind` / `is_one_kind`; building the right-hand side would allocate.
+5. **String literals in patterns** (`.str _ "_model"`, `.num (.str _ "proj") _`)
+   → explicit code-point comparisons (`s.len() == 6 && s[0] == 95 && …`), since
+   strings are `Vec<u32>` (§3.3) and the subset has no literal for that.
+6. **`mixHash`** is Lean's runtime `lean_uint64_mix_hash`
+   (`~/.elan/toolchains/…/include/lean/lean.h:2036`, a MurmurHash2 mix step),
+   transliterated with `wrapping_mul`, which Aeneas models
+   (`Std/Scalar/WrappingOps/Mul.lean`).  **`hash : String → UInt64`** could not
+   be: `lean_string_hash` is only *declared* in the shipped header and hashes
+   UTF-8 bytes, which `Vec<u32>` code points are not.  Ours is a `mix_hash` fold
+   over code points.  Verdict-neutral by §3.2 (`mixHash` is opaque in the
+   proofs, the hash guard in `beq` is provably redundant, and hash values only
+   move memo entries between buckets) — but it means the Rust and Lean hash
+   *values* differ, so no differential test may compare them.
+7. **Ownership.**  Lean's value semantics vs Rust's: the port takes its tree
+   arguments by shared reference and returns owned trees ("borrow in, own out"),
+   with an explicit `dup` (= `Rc::clone`) wherever Lean returns a subterm
+   (`subst.go`, `combining`).  A function cannot return a borrowed subterm
+   because it lives behind the `Rc`.
+8. `vec![x]` (a macro that expands through `box`) avoided in favour of
+   `Vec::new()` + `push` (`name::singleton`, `level::singleton`).
+9. **`&&` in a condition is expanded by Charon** into nested `if`s: `leq_core`'s
+   `is_zero_kind(l) && diff >= 0` became a four-way `if` nest in `Funs.lean`,
+   duplicating the `else` branch three times.  Harmless but noisy, and it grows
+   multiplicatively with the number of conjuncts.
+
+**Deliberately not ported** (recorded so the next task does not re-derive it):
+`Name.ofLeanName` (frontend), `Name.toString` (error messages only — §3.1 says
+strings need not match), `Level.zeronessOf` / `Level.substPW` (need `PropWhen`),
+and everything from `Level.lean:234` on (`Expr.instantiateLevelParams`,
+`Expr.allLevelParamsDefined` and its memoized twin — need `Expr`).
+
+**Proposed additions to §3.4** (all exercised here):
+
+* Every `List` recursion becomes `Vec` + an index-carrying `*_from` helper; the
+  public function is the `i = 0` wrapper.  The refinement lemma is then an
+  induction on `len - i`.
+* Nested constructor patterns through an `Rc` become a predicate plus a
+  re-destructuring helper.  When the Lean arms interleave two scrutinees, the
+  cascade must preserve the Lean arm order, and each helper's impossible arms
+  return the Lean fall-through value.
+* Comparison against a literal constructor is a constructor predicate, never a
+  rebuilt right-hand side.
+* Lean string literals in patterns become explicit code-point tests.
+* "Borrow in, own out", with an explicit `dup` for every `Rc::clone`.
+* Prefer an explicit `if` nest over an `&&`/`||` chain wherever the Lean has a
+  nest: Charon expands the short-circuit anyway, and the explicit form keeps the
+  generated Lean aligned with the source.
+* `#[cfg(test)]` modules are exempt from the style rules — Charon never sees
+  them.  `scripts/lint-rust-style.sh` now stops at the first `#[cfg(test)]`, and
+  its closure regex no longer fires on `||` (it required only *some* text
+  between the bars; a closure has at least one parameter character).
+
+**Assessment.**  Aeneas is at ~15 ms per function and produces Lean that reads
+like the Rust (same names, same branch structure, `Result`-monadic binds).
+Linear extrapolation of these ratios to the ≈22k-line verified core: ≈55k Rust
+lines and ≈145k generated Lean lines, with Aeneas itself well under a minute —
+so §6's risk 1 is not about Aeneas's throughput.  What is still untested is
+Lean *elaborating* a `partial_fixpoint` mutual block much larger than the
+8-function one here; that is task #2/#4's business, and the fallback (splitting
+the knot at fuel boundaries, §6) stays on the table.
+
+The port was mechanical.  Roughly 80% of it is a direct one-to-one rewrite; the
+remaining 20% is the seven patterns above, each applied the same way every time.
+A second agent given these rules should be able to port a module without design
+decisions.
