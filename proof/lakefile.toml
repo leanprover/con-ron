@@ -14,6 +14,14 @@ path = "../vendor/con-leche"
 name = "aeneas"
 path = "../_tmp/aeneas-lean"
 
+# Task #22's finding: Aeneas's `step` tactic and its `@[step]` lemmas unify
+# with `⦃ ⦄` goals only under the two `backward.*` options task #2's patch
+# sets on the *aeneas* package; a downstream package does not inherit them.
+# Set project-wide so every proof file may use `step`.
+[leanOptions]
+weak.backward.isDefEq.respectTransparency = false
+weak.backward.do.legacy = true
+
 [[lean_lib]]
 name = "ConRon"
 roots = ["ConRon"]
@@ -35,3 +43,11 @@ roots = ["ConRon.Spike.LevelName"]
 [[lean_exe]]
 name = "con-ron-dump"
 root = "ConRon.Dump.Main"
+
+# The build-time table generator (DESIGN.md §5 P1.5, task #22): prints Rust
+# source that rebuilds con-leche's elaboration-time tables
+# (`BasisKind.declsA`, later the Nat-op pin variants) with the crate's own
+# smart constructors, into `crates/con-ron-core/src/kernel/basis_tables.rs`.
+[[lean_exe]]
+name = "con-ron-gen-tables"
+root = "ConRon.Gen.Main"

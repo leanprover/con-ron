@@ -44,38 +44,45 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # ---------------------------------------------------------------- annotations
 
-ANNOT_RE = re.compile(r"^\s*///\s*con-leche:\s*(?P<body>.*?)\s*$")
+# An annotation is `/// con-leche: …` on an item, or `//! con-leche: …` on a
+# whole module (`MODULE_ANNOT_RE` is the same line, used to recognise the
+# module-wide form; see `cmd_check`).  A module-level line may be `none` (a
+# module with no Lean counterpart, `nat.rs`) or a *citation* (a generated
+# module that is one Lean declaration's value, `basis_tables.rs`, task #22);
+# either way it covers every item in the file.
+ANNOT_RE = re.compile(r"^\s*(?P<pfx>//[/!])\s*con-leche:\s*(?P<body>.*?)\s*$")
+MODULE_ANNOT_RE = re.compile(r"^\s*//!\s*con-leche:\s*(?P<body>.*?)\s*$")
 CITE_RE = re.compile(
     r"^(?P<path>[^\s:]+):(?P<a>\d+)(?:-(?P<b>\d+))?\s+(?P<decl>\S+)$"
 )
 NONE_RE = re.compile(r"^none\b")
-MARKER_RE = re.compile(r"^\s*///\s*con-leche:\s*CHANGED\b")
-MODULE_NONE_RE = re.compile(r"^\s*//!\s*con-leche:\s*none\b")
+MARKER_RE = re.compile(r"^\s*//[/!]\s*con-leche:\s*CHANGED\b")
 
 
-def marker(old, item):
-    return ("/// con-leche: CHANGED since %s — re-port, re-test, re-prove "
-            "%s_refines, then delete this line" % (old[:8], item))
+def marker(old, item, pfx="///"):
+    return ("%s con-leche: CHANGED since %s — re-port, re-test, re-prove "
+            "%s_refines, then delete this line" % (pfx, old[:8], item))
 
 
 class Cite:
     """One `con-leche:` doc line: where it sits, and what it claims."""
 
-    def __init__(self, rust_file, lineno, path, a, b, decl):
+    def __init__(self, rust_file, lineno, path, a, b, decl, pfx="///"):
         self.rust_file = rust_file  # absolute path of the .rs file
         self.lineno = lineno  # 1-based line of the annotation
         self.path = path  # con-leche-relative Lean path
         self.a = a
         self.b = b
         self.decl = decl
+        self.pfx = pfx  # `///` (an item's) or `//!` (a whole module's)
 
     @property
     def range(self):
         return str(self.a) if self.a == self.b else "%d-%d" % (self.a, self.b)
 
     def render(self, indent):
-        return "%s/// con-leche: %s:%s %s" % (
-            indent, self.path, self.range, self.decl)
+        return "%s%s con-leche: %s:%s %s" % (
+            indent, self.pfx, self.path, self.range, self.decl)
 
     def where(self):
         return "%s:%d" % (rel(self.rust_file), self.lineno)
@@ -187,7 +194,7 @@ def scan_rust_file(path):
                         a = int(c.group("a"))
                         b = int(c.group("b")) if c.group("b") else a
                         cites.append(Cite(path, lineno, c.group("path"), a, b,
-                                          c.group("decl")))
+                                          c.group("decl"), m.group("pfx")))
                     else:
                         cites.append(("malformed", path, lineno, body))
 
@@ -310,9 +317,43 @@ def lean_text(path, old=None):
     return out.split("\n")
 
 
-def decl_name_at(lines, i):
+def comment_lines(lines):
+    """The indices of lines inside a `/- … -/` block comment (`/-!` and `/--`
+    included), openers and closers counted as inside.
+
+    Without this a column-0 *phrase* in a module docstring reads as a
+    declaration: `ExprOps.lean`'s `/-!` block says "inductive install", which
+    the ledger counted as a `def` named `install` (task #13's one false
+    positive).  A docstring is not a declaration."""
+    inside = set()
+    depth = 0
+    for i, line in enumerate(lines):
+        started = depth > 0
+        j, n = 0, len(line)
+        while j < n - 1:
+            two = line[j:j + 2]
+            if depth == 0 and two == "--":
+                break  # a line comment: `-/` inside it is not a closer
+            if two == "/-":
+                depth += 1
+                j += 2
+                continue
+            if two == "-/":
+                if depth:
+                    depth -= 1
+                j += 2
+                continue
+            j += 1
+        if started or depth > 0:
+            inside.add(i)
+    return inside
+
+
+def decl_name_at(lines, i, skip=None):
     """(keyword, name) if column-0 line `i` starts a declaration."""
     if lines[i][:1].isspace() or not lines[i]:
+        return None
+    if skip is not None and i in skip:
         return None
     m = DECL_RE.match(lines[i])
     if not m:
@@ -343,7 +384,8 @@ def locate_decl(lines, decl):
 
     The block runs from the declaration's own attributes and doc comment to
     the line before the next column-0 line that starts something new."""
-    decls = [(i, decl_name_at(lines, i)) for i in range(len(lines))]
+    skip = comment_lines(lines)
+    decls = [(i, decl_name_at(lines, i, skip)) for i in range(len(lines))]
     decls = [(i, g[1]) for (i, g) in decls if g]
     xs = decl.split(".")
 
@@ -423,8 +465,9 @@ DEFINITIONAL = ("def", "abbrev", "inductive", "structure", "class", "instance",
 def top_level_decls(lines):
     """[(lineno, kw, name)] for every column-0 definition in the file."""
     out = []
+    skip = comment_lines(lines)
     for i, line in enumerate(lines):
-        got = decl_name_at(lines, i)
+        got = decl_name_at(lines, i, skip)
         if got:
             out.append((i + 1, got[0], got[1]))
     return out
@@ -486,18 +529,23 @@ def cmd_check(args):
                   % (c.where(), c.path, c.range, head, c.decl))
             findings += 1
 
-    # A whole module with no Lean counterpart (one that replaces a runtime
-    # primitive: `nat.rs`, `hashmap.rs`) says so once, in its module doc:
-    #     //! con-leche: none — <why>
-    # and every item in it is exempt from the per-item requirement.
-    module_none = set()
+    # A module-level annotation covers the whole file, and every item in it is
+    # then exempt from the per-item requirement.  Two forms (DESIGN.md §3.7):
+    #     //! con-leche: none — <why>           a module with no Lean
+    #                                           counterpart (`nat.rs`)
+    #     //! con-leche: <path>:<range> <decl>  a *generated* module that is
+    #                                           one Lean declaration's value
+    #                                           (`basis_tables.rs`, task #22)
+    # The citation form is checked exactly like an item's (it is in `cites`);
+    # what the module form adds is the exemption.
+    module_annot = set()
     for f in {it.file for it in items}:
         for line in open(f, encoding="utf-8"):
-            if MODULE_NONE_RE.match(line):
-                module_none.add(f)
+            if MODULE_ANNOT_RE.match(line):
+                module_annot.add(f)
                 break
     for it in items:
-        if not it.cites and it.file not in module_none:
+        if not it.cites and it.file not in module_annot:
             print("UNCITED %s:%d — `%s %s` has no `con-leche:` line"
                   % (rel(it.file), it.lineno, it.kind, it.name()))
             findings += 1
@@ -609,7 +657,7 @@ def cmd_update(args):
                   % (c.where(), c.path, item))
             if not has_marker(c):
                 edits.setdefault(c.rust_file, []).append(
-                    (c.lineno, None, [marker(old, item)]))
+                    (c.lineno, None, [marker(old, item, c.pfx)]))
             findings += 1
             continue
 
@@ -623,7 +671,7 @@ def cmd_update(args):
                   % (c.where(), c.decl, c.path, item))
             if not has_marker(c):
                 edits.setdefault(c.rust_file, []).append(
-                    (c.lineno, None, [marker(old, item)]))
+                    (c.lineno, None, [marker(old, item, c.pfx)]))
             findings += 1
             continue
         na, nb = loc
@@ -658,7 +706,8 @@ def cmd_update(args):
                 tofile="%s:%d-%d@current" % (c.path, na, nb), lineterm=""):
             print("  " + dl)
         edits.setdefault(c.rust_file, []).append(
-            (c.lineno, newcite.render, [] if has_marker(c) else [marker(old, item)]))
+            (c.lineno, newcite.render,
+             [] if has_marker(c) else [marker(old, item, c.pfx)]))
         findings += 1
 
     rewrite(edits)

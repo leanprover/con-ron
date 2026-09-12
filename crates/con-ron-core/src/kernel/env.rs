@@ -240,6 +240,7 @@ pub fn rec_rule_dup(r: &RecRule) -> RecRule {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:259-292 RecRule
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:117-121 BasisDSL.rule
 /// A rule at the cited *parse placeholders* — the Lean's field defaults
 /// `ctorParams := 0`, `fire := .inert`, `k := eta := paramsBlind := false`,
 /// which a parsed stream always carries (task #10's census: all 2 715 parsed
