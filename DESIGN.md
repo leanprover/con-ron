@@ -593,6 +593,26 @@ by module once types exist; **in progress**)
    Gate: every fixture verdict identical to con-leche; Mathlib export
    accepted; style lint clean.
 
+**Priority ruling (maintainer, 2026-09-12): translation to 100 % and the
+checker running on the fixture corpus come first; the proof tier (P3)
+waits.**  *"No point starting the proof effort when we can find behavioral
+divergences another way (or before we find out if the performance is
+acceptable)."*  Consequences: items 7–8 below are the critical path; the
+`ExprOps` refinement (task #21) is parked on branch
+`parked/task-21-exprops-refine` with its WIP; no new P3 task is started
+until the differential run is green and Mathlib-scale performance is
+measured.
+
+7. `Installed.lean` (`check_decls`, the install and check phases) and a
+   `con-ron-check` binary (unverified crate) that reads a dump and prints
+   con-leche's verdict line with its exit codes; `scripts/diff-fixtures.sh`
+   compares every fixture's verdict (and error position) with con-leche's
+   expectation files.
+8. Performance: a Mathlib export (`lean4export` at the project toolchain),
+   con-leche and con-ron side by side — instructions (`perf stat`), wall
+   time, peak RSS; then the `beq` pair memo and other opt-ins of §3.2 only
+   if measurement demands them.
+
 **P2 — extraction** (Opus; **done 2026-09-12**, task #12)
 1. `scripts/extract.sh`; `proof/` Lake project builds the generated Lean
    with the `Rc` models; freshness gate (`extract.sh --check`) in
