@@ -243,15 +243,15 @@ theorem name_cmp_refines_aux {a : name.Name} (ha : NameWF a) :
     obtain ⟨⟨h2, kb⟩⟩ := b
     cases kb with
     | Anonymous =>
-      simp only [rc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Str q t =>
-      simp only [rc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Num q k =>
-      simp only [rc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
   | @str pre s n hpre hs hmk ih =>
@@ -261,15 +261,15 @@ theorem name_cmp_refines_aux {a : name.Name} (ha : NameWF a) :
     obtain ⟨⟨h2, kb⟩⟩ := b
     cases kb with
     | Anonymous =>
-      simp only [rc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Num q k =>
-      simp only [rc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Str q t =>
-      simp only [rc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, bind_eq_ok_iff] at hc
       obtain ⟨o1, ho1, o2, ho2, hthen⟩ := hc
       obtain ⟨hq, ht, hqt⟩ : NameWF q ∧ StrWF t ∧ True := by
@@ -296,15 +296,15 @@ theorem name_cmp_refines_aux {a : name.Name} (ha : NameWF a) :
     obtain ⟨⟨h2, kb⟩⟩ := b
     cases kb with
     | Anonymous =>
-      simp only [rc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Str q t =>
-      simp only [rc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Num q k =>
-      simp only [rc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, bind_eq_ok_iff] at hc
       obtain ⟨o1, ho1, o2, ho2, hthen⟩ := hc
       have hq : NameWF q := by
@@ -575,7 +575,7 @@ def reprList : prop_when.PropWhenRepr → List name.Name
 @[simp] theorem of_repr_eq (r : prop_when.PropWhenRepr) :
     prop_when.of_repr r = ok { repr := r } := rfl
 
-/-- `prop_when::dup` is the identity in the model: `Rc::clone` is, and a
+/-- `prop_when::dup` is the identity in the model: `Arc::clone` is, and a
 `Vec` copy has the same list (DESIGN.md §3.2). -/
 theorem dup_eq {pw c : prop_when.PropWhen} (h : prop_when.dup pw = ok c) : c = pw := by
   obtain ⟨r⟩ := pw
@@ -1988,7 +1988,7 @@ theorem beq_refines {a b c} (ha : PropWhenWF a) (hb : PropWhenWF b)
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
-Nothing from Aeneas's library, nothing from the `Rc` models, no `sorry`, and
+Nothing from Aeneas's library, nothing from the `Arc` models, no `sorry`, and
 **no `import all`**: `absPropWhen` and every statement here go through
 con-leche's public `never`/`ifAllZero`/`toList` API. -/
 

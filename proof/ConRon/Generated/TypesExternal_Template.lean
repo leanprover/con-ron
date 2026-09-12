@@ -16,10 +16,10 @@ set_option maxHeartbeats 1000000
 /- You can set the `maxRecDepth` value with the `-max-recdepth` CLI option -/
 set_option maxRecDepth 2048
 
-/-- [alloc::rc::Rc]
-    Source: '/rustc/library/alloc/src/rc.rs', lines 324:0-327:1
-    Name pattern: [alloc::rc::Rc]
+/-- [alloc::sync::Arc]
+    Source: '/rustc/library/alloc/src/sync.rs', lines 274:0-277:1
+    Name pattern: [alloc::sync::Arc]
     Visibility: public -/
-@[rust_type "alloc::rc::Rc"]
-axiom alloc.rc.Rc (T : Type) : Type
+@[rust_type "alloc::sync::Arc"]
+axiom alloc.sync.Arc (T : Type) : Type
 

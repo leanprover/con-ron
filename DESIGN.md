@@ -88,7 +88,7 @@ Alternatives and why not:
 | **Port without proof** | differential testing only.  This is phase P1's deliverable anyway and the fallback if the proof effort stalls; it already buys implementation diversity. |
 
 **What the Rust binary's trusted base becomes**: rustc + LLVM + the parts of
-`std` we use (`Vec`, `Rc`, `String`), Charon, Aeneas and its hand-written
+`std` we use (`Vec`, `Arc`, `String`), Charon, Aeneas and its hand-written
 `std` models (`Vec`, scalars), our own three external models (§3.2), the
 Lean kernel checking the proof, and the unverified Rust frontend.  Out: the
 Lean runtime, GMP, Lean's compiler.  Aeneas itself is not verified (its
@@ -131,7 +131,8 @@ Rust caching change that alters the hit/miss pattern must be mirrored
 upstream.  What the constraint does **not** forbid, because the relation
 is on abstract state: pointer fast paths (§3.2), hash-consing/interning
 (structural equality O(1), a memo keyed by node id behaves exactly like a
-structurally keyed one), arenas, non-atomic `Rc`, a better hash map,
+structurally keyed one), arenas, the choice of counted pointer (§3.2), a
+better hash map,
 parallel phase B.  What neither option allows is the C++ kernel's
 address-keyed caches: Aeneas has no addresses, so such a cache cannot be
 modeled at all; interning is the modelable substitute under both options.
@@ -159,21 +160,21 @@ provenance untouched; the pure-level main theorem it needs
 wrapper is stated against `(coreKnotI mode fe fuel).whnf` etc., which
 unfolds one level per fuel step.
 
-### 3.2 Terms are `Rc` trees, modeled as their contents
+### 3.2 Terms are counted-pointer trees, modeled as their contents
 
 con-leche's terms are persistent trees with sharing (a DAG through the Lean
 runtime's reference counting); every hot path relies on O(1) sharing.  The
 options were an index arena (fully inside Aeneas's subset, but every lemma
-then carries an arena and its monotonicity, and `abs` depends on state) or
-`Rc<Node>` with a hand-written model.  Decision: **`Rc<Node>`**, with the
-external models
+then carries an arena and its monotonicity, and `abs` depends on state) or a
+counted `P<Node>` with a hand-written model.  Decision: **`P<Node>`**, with
+the external models
 
 ```lean
-@[reducible] def alloc.rc.Rc (T : Type) := T     -- TypesExternal.lean
-def alloc.rc.Rc.new  (x : T) : Result (Rc T) := ok x
-def alloc.rc.Rc.deref (x : Rc T) : Result T   := ok x
-def alloc.rc.Rc.clone (x : Rc T) : Result (Rc T) := ok x
-def alloc.rc.Rc.ptr_eq (a b : Rc T) : Result Bool := ok false
+@[reducible] def alloc.sync.Arc (T : Type) := T   -- TypesExternal.lean
+def alloc.sync.Arc.new  (x : T) : Result (Arc T) := ok x
+def alloc.sync.Arc.deref (x : Arc T) : Result T   := ok x
+def alloc.sync.Arc.clone (x : Arc T) : Result (Arc T) := ok x
+def alloc.sync.Arc.ptr_eq (a b : Arc T) : Result Bool := ok false
 ```
 
 **The crate names the pointer once, as `ron::ptr::P` (task #44).**  Every
@@ -190,31 +191,54 @@ made invisible to the proofs by four `simp` lemmas in `Refine/Abs.lean`;
 `deref` is *not* wrapped, because 400-odd generated call sites read through it
 and a crate function in front of them buys nothing.
 
-**`P` is `std::rc::Rc`, and the price of `Arc` is written down (task #44).**
-The parallel check phase wants the installed environment shared by workers,
-which wants `Send + Sync`, which `Rc` is not.  Making the handle atomic is
-sound, model-free and needs no `unsafe` — `std::sync::Arc` erases to `Arc T :=
-T` with the same four definitions, and with it `Name`, `Level`, `Expr`, `Env`,
-`FEnv` and `CState` are all `Send + Sync` with **nothing else in the core in
-the way** (the eight errors the `Rc` build gives name only the four `Rc<…>`
-node types: no `Cell`, no `RefCell`, no raw pointer).  What it costs, measured
-single-threaded on a quiet machine, is **+14.7 % wall on `core`** and +17.2 %
-on `init` at an *unchanged* instruction count — atomic read-modify-writes are
-stalls, not work.  That is over the 10 % the task budgeted, so the alias stays
-`Rc` and the trade is the maintainer's to make: pay ~15 % at one worker for a
-pool worth ~3.5× (con-leche's `--jobs=8` Mathlib row), or keep `Rc` and buy
-`Send`/`Sync` with the `unsafe impl` + immortal-sentinel design of §3's
-"Decisions of 2026-09-12".  `triomphe::Arc` is not a third way out: it is 8
-bytes smaller per node (a 48-byte `ExprNode` block against 56, −3.8 % peak
-RSS) but **slower than either**, +17 % instructions and +20 % wall on `core`.
-The task-#44 entry has the table.
+**`P = std::sync::Arc`, and the ~15 % is bought deliberately (maintainer's
+decision, 2026-09-12; landed as task #45).**  The parallel check phase wants
+the installed environment shared by workers, which wants `Send + Sync`, which
+`Rc` is not.  Making the handle atomic is sound, model-free and needs no
+`unsafe`: `std::sync::Arc` erases to `Arc T := T` with the same four
+definitions — the model cannot tell an atomic count from a plain one — and
+with it `Name`, `Level`, `Expr`, `Env`, `FEnv` and `CState` are all
+`Send + Sync` with **nothing else in the core in the way** (the eight errors
+the `Rc` build gives name only the four `P<…>` node types: no `Cell`, no
+`RefCell`, no raw pointer).  `crates/con-ron-core/tests/send_sync.rs` asserts
+exactly that, at compile time, so the property cannot rot before the pool
+exists.
+
+What it costs, measured single-threaded: **+13.0 % wall and cycles on `core`**
+and **+16.9 % on `init`** at an *unchanged* instruction count (−0.1 % on both;
+task #44's table says +14.7 % / +17.2 % from its own pair of runs, which is
+the same number within this machine's noise) — an atomic read-modify-write is
+the same instruction count and a stall, and it shows as IPC falling from 1.94
+to 1.71 on `core`.  That is over the 10 % task #44 was given to spend, so the
+trade went to the maintainer, and the ruling is to **pay it**: ~15 % at one
+worker for a pool con-leche measures at ~3.5× (its `--jobs=8` Mathlib row),
+against an `unsafe impl Send + Sync` on a hand-written pointer with an
+immortal sentinel (§3's "Decisions of 2026-09-12"), which is what the same
+day's no-`unsafe`-where-`std`-suffices ruling rejects.  Peak RSS is unchanged
+(`Rc` and `Arc` carry the same two-word header).
+
+`triomphe::Arc` is not a third way out: it is 8 bytes smaller per node (a
+48-byte `ExprNode` block against 56, −3.8 % peak RSS) but **slower than
+either**, +17 % instructions and +20 % wall on `core`.  The task-#44 entry has
+the full table and the two ways back; task #45's has the before/after pair.
+
+**Going back to `Rc` is one line plus a rename, and deliberately not a cargo
+feature.**  `crates/con-ron-core/src/ron/ptr.rs`'s alias line is the choice;
+the other half is spelling `alloc.sync.Arc` as `alloc.rc.Rc` in the two
+hand-written model files and in the `arc_*` lemma names that mention it
+(`Refine/Abs.lean`, `Refine/BasisTables.lean`, and the `simp only` lists that
+cite them).  A feature flag cannot do this: the hole is modeled *by name*, the
+model files are hand-written, and `scripts/extract.sh` checks them against the
+template Charon emits for whichever alias is actually compiled — so the two
+configurations are two source states, one of which is documented in
+`ptr.rs`'s module note.
 
 `@[reducible]` is load-bearing: without it Lean's automatic `SizeOf`
 derivation for the mutually recursive node types does not unfold the alias
 and fails (task #4).
 
 The first four are the same model Aeneas already uses for `Box`; they are
-faithful because the port never uses `Rc::get_mut`, `make_mut`, weak
+faithful because the port never uses `Arc::get_mut`, `make_mut`, weak
 pointers or interior mutability (a `grep` gate enforces this).
 
 **`ptr_eq` is modeled as `false`**, so the model always takes the slow path.
@@ -305,8 +329,8 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
   groups); no closures; no `?` in the core (explicit `match` keeps the
   generated Lean shaped like con-leche's `do` blocks); no `loop`/`while`
   except in leaf helpers (Aeneas `-loops-to-rec`); no generic instantiated
-  with `&mut`; no `unsafe`; no `std::collections`; no `Rc` API beyond
-  `new/clone/deref/ptr_eq`; `&mut` only for the state parameter.
+  with `&mut`; no `unsafe`; no `std::collections`; no counted-pointer API
+  beyond `new/clone/deref/ptr_eq`; `&mut` only for the state parameter.
 * Recursion carries the same explicit fuel as the Lean side.
 * Errors: `enum CheckError { NotImplemented(..), Invalid(..), Internal(..) }`
   in `Result<T, CheckError>`; panics are never used for control flow.
@@ -336,7 +360,7 @@ proof/                   Lake project: requires con-leche + aeneas (task #4)
                          scripts/extract.sh; namespace `ConRon.Generated`)
       Types.lean         generated — never edit
       Funs.lean          generated — never edit
-      TypesExternal.lean       hand-written: the `Rc` model of §3.2
+      TypesExternal.lean       hand-written: the `Arc` model of §3.2
       FunsExternal.lean        hand-written: `new`/`deref`/`clone`/`ptr_eq`
       *_Template.lean    regenerated statement of which holes exist; not
                          imported (they declare the same names as `axiom`s)
@@ -349,9 +373,11 @@ proof/                   Lake project: requires con-leche + aeneas (task #4)
                          `con-ron-gen-tables` exe that writes
                          `crates/con-ron-core/src/kernel/basis_tables.rs`
     Spike/LevelName/     the task-#3 spike, elaborated (task #4), a *second*
-                         library root: it carries its own copy of the `Rc`
-                         model, and two top-level `alloc.rc.Rc` cannot live
-                         in one import graph
+                         library root: it carries its own copy of the §3.2
+                         pointer model (still `alloc.rc.Rc`: its crate was
+                         compiled at `std::rc::Rc`) and its own `Types`/
+                         `Funs` under the same names, which cannot live in
+                         one import graph with the core's
 vendor/con-leche         submodule, pinned (3e004805)
 vendor/aeneas            submodule, pinned (505b6ca3) — same rev as flake.nix
 _tmp/aeneas-lean/        gitignored: vendor/aeneas/backends/lean + the v4.33
@@ -474,12 +500,13 @@ whose sentinel value means immortal (`clone`/`drop` skip it), a
 invariant that workers only read immortal nodes and create thread-local
 ones.  It is opaque to Charon and keeps the four-hole model (`Rc T = T`,
 plus `mark_persistent` as the identity); the single count also takes the
-node from 56 to 48 bytes.  **Superseded in part by the ruling of the same
-day and by task #44's measurement**: no `unsafe impl` where `std` or a
-common crate does the job, and `std::sync::Arc` does — at +14.7 % wall on
-`core`, which is what makes this design a live alternative rather than a
-dead one.  §3.2's `ron::ptr::P` paragraph is where the choice now lives,
-and it is one line.  *Pins*: embedded as a `con-ron-pins/1` text
+node from 56 to 48 bytes.  **Superseded**: the same day's ruling is no
+`unsafe impl` where `std` or a common crate does the job, `std::sync::Arc`
+does, task #44 priced it at ~15 % wall single-threaded, and the maintainer's
+decision is to pay that — `P = std::sync::Arc` since task #45 (§3.2), with
+no `mark_persistent` and no sentinel.  The design above stays written down as
+the fallback if the 15 % is ever felt enough to want it back, and §3.2's
+`ron::ptr::P` paragraph is where the choice lives; it is one line.  *Pins*: embedded as a `con-ron-pins/1` text
 constant in the core, decoded at start by a decoder in the core; the
 theorem states `pins = decode PINS_TEXT` and Lean establishes
 `decode PINS_TEXT = natOpPinSets` as a closed computation (task #43
@@ -822,8 +849,9 @@ measured.
    taint-skip rule are ported, `con_ron::driver` is the one driver both
    binaries run, and the cherries read **100 % of what is to be ported**
    (7 647 of 7 647 Lean lines).  What is left of this item is the **thread
-   pool**, which is `scripts/provenance-skip.txt`'s only owed entry and waits
-   on the `Rc`/`Arc` decision.
+   pool**, which is `scripts/provenance-skip.txt`'s only owed entry; the
+   `Rc`/`Arc` decision it waited on is settled (§3.2: `P = std::sync::Arc`,
+   task #45).
 2. Perf comparison against con-leche and the official kernel (PERF.md).
 3. Optional: parser refinement against con-leche's naive reference parser.
    Task #37 wrote the statement down: every item of `frontend::scan_fast`
@@ -843,7 +871,7 @@ measured.
    mirroring rule is what keeps it mechanical.  Watch for places where the
    Lean code's structure is not expressible in Aeneas's subset (closures,
    monad-polymorphic bodies) and record each deviation with its lemma.
-4. **Performance of the Rust port** (own hash map, `Rc` traffic, no
+4. **Performance of the Rust port** (own hash map, pointer traffic, no
    pair-memo for `beq`).  Mitigation: measure on Mathlib in P1; the
    optimisations that break mirroring are opt-in and documented.
 5. **Aeneas/Charon bugs** surfacing mid-port.  Mitigation: keep to the
@@ -9584,3 +9612,125 @@ this task to `init` and `core`.
   has no `mark_persistent`, so its workers pay the atomics con-leche's mark
   removes, and con-leche's own `--no-mark-persistent` row prices that at 18–32 %
   of pool wall.
+
+### Task #45 — `P = Arc` (2026-09-12, Opus under Fable)
+
+The maintainer's decision on task #44's trade: **pay the ~15 % single-threaded
+for a safe, `unsafe`-free parallel check phase.**  `crates/con-ron-core/src/ron/
+ptr.rs`'s alias is `std::sync::Arc` now, and this entry is the before/after
+measured on the same machine, the same binaries apart from that one line.
+
+#### 1. What changed — one line, two model files, seven lemma names
+
+* **`ron/ptr.rs`**: `pub type P<T> = std::sync::Arc<T>;`.  The module note now
+  carries the `Rc` configuration as the documented alternative (the one line
+  *plus* the rename below), and says why it is **not** a cargo feature: the
+  hole is modeled *by name* in two hand-written Lean files, and
+  `scripts/extract.sh` checks them against the template Charon emits for
+  whichever alias is compiled — a feature would have to select between two
+  hand-written files, which nothing checks.  Nothing else in any crate moved:
+  task #44 had already routed every handle through `ron::ptr`.
+* **The two hand-written models** are the same four definitions under the new
+  hole name: `alloc.rc.Rc` → `alloc.sync.Arc`, `rc.rs` → `sync.rs` in the
+  `Source:`/`Name pattern:` lines, and `clone` before `deref` because that is
+  the order the `Arc` template emits them in.  `extract.sh` still reports
+  **1 type, 4 fns** and Aeneas still emits zero errors and zero warnings.
+* **The proof tier**: `alloc.rc.Rc` → `alloc.sync.Arc` in statements, and the
+  seven lemma names that spelled the model out renamed `rc_*` → `arc_*` (four
+  `simp` lemmas in `Refine/Abs.lean`, three `@[local step]` specs in
+  `Refine/BasisTables.lean`), which carries through the ~130 `simp only
+  [arc_deref_eq, …]` lists in `Refine/{Expr,Level,PropWhen,BasisTables}.lean`.
+  The `ptr_*` wrapper lemmas task #44 added are untouched — they are about
+  `ron.ptr.*`, not about the external.  **No statement, tactic or obligation
+  changed**, and the axiom censuses are unchanged: an atomic count and a plain
+  one erase to the same `T`.
+* **A compile-only test**, `crates/con-ron-core/tests/send_sync.rs`: task #44's
+  probe, now committed because it compiles.  `assert_send_sync::<T>()` for
+  `Expr`, `FEnv`, `CState`, `Env`, `Name`, `Level`, `ConstantInfo`.  It is the
+  regression guard on the alias *and* on the state: swap `P` back to `Rc` and
+  it fails with eight errors naming only `Rc<…>` node types.
+
+**One surprise, worth recording.**  The rename moved 1 087 lines of
+`Generated/Funs.lean`, not the ~30 the hole names account for: Aeneas derives a
+fresh variable's basename from its *type*, so every `let r ← …` binding a
+handle is now `let a ← …` (`r` from `Rc`, `a` from `Arc`).  It is pure
+renaming — the proofs did not notice, because they name hypotheses themselves
+— but it means the generated diff of a pointer swap is not small, and a review
+of it has to be told that.
+
+#### 2. Measurements — before (`Rc`) against after (`Arc`)
+
+Same machine, one heavy process at a time, `perf stat -e
+instructions:u,cycles:u` + `/usr/bin/env time -v`, `ulimit -v` 3 GB on `init`
+and 5 GB on `core`, `con-ron-check --verified --pins
+_tmp/dump-fixtures/pins.dump`; artefacts in `_tmp/t45/`.  Both binaries accept
+58 002 and 165 449 declarations.  `init` is three runs each (mean, with the
+range); `core` is one run each, the second of two pairs — see the noise note.
+
+`init` (58 002 records, 3 runs each):
+
+| | `Rc` | `Arc` | |
+|---|---:|---:|---|
+| `instructions:u` | 565.95 G | 565.04 G | **0.998×** |
+| `cycles:u` | 246.71 G | 287.40 G | 1.165× |
+| wall (mean) | 56.06 s | 65.55 s | **+16.9 %** |
+| wall (range) | 55.84–56.33 s | 65.12–65.77 s | spread 0.9 % / 1.0 % |
+| peak RSS | 854 MB | 854 MB | — |
+
+`core` (165 449 records):
+
+| | `Rc` | `Arc` | |
+|---|---:|---:|---|
+| `instructions:u` | 1 155.19 G | 1 153.96 G | **0.999×** |
+| `cycles:u` | 595.91 G | 673.44 G | 1.130× |
+| IPC | 1.94 | 1.71 | |
+| wall | 135.58 s | 153.21 s | **+13.0 %** |
+| check phase alone | 133.02 s | 150.38 s | +13.1 % |
+| peak RSS | 2 210 MB | 2 207 MB | — |
+
+**The instruction count confirms the mechanism and the measurement.**  It is
+unchanged to 0.1 % on both corpora — the atomic read-modify-write replaces the
+plain one one-for-one — and it reproduces task #44's figures to 0.02 %
+(565.88/565.95 G and 1 155.23/1 155.19 G), which is the check that nothing else
+moved between the two tasks.  The whole penalty is stall, and IPC shows it.
+
+**Wall time is noisier than task #44's report suggests, and that is the lesson
+for the next measurer.**  The first `core` pair gave +22.6 % (135.02 s →
+165.56 s, cycles 593.67 → 711.60 G) because another agent's `lake build`
+started during the `Arc` run — load average 14 against 1.  The `Rc` run of that
+pair is within 0.4 % of the clean one, so the contamination is entirely in the
+`Arc` column: a single-run comparison can be wrong by 10 points here without
+looking wrong.  The paired re-run under a quiet machine gives +13.0 %, task #44
+got +14.7 % from its own pair, and the honest statement is **13–15 % on `core`
+and ~17 % on `init`**.  `instructions:u` did not move by 0.1 % across any of
+it, which is exactly why CLAUDE.md makes it the measure of record.
+
+#### Gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | all 6 OK (`cargo build`, `cargo test`, lint, provenance, `extract.sh --check`, `lake build`) |
+| `cargo test` | 228/228 (one more than task #44: `send_sync.rs`), warning-free under `-D warnings` |
+| `scripts/extract.sh` | zero Aeneas errors, zero warnings; externals **1 type, 4 fns** |
+| `cd proof && lake build` | 2 108 jobs, zero errors, **zero `ConRon` warnings** |
+| `scripts/diff-fixtures.sh --timeout=60` | **315 agree, 0 differ**, 0 timed out, 33 skipped, 10 s |
+| `scripts/diff-e2e.sh` | **348/348 agree**, 0 differ, 0 timed out |
+| `init` / `core` | accepted 58 002 / 165 449 |
+
+The stale-olean trap the brief warned about is real and the fix is the brief's:
+`rm proof/.lake/build/lib/lean/ConRon/Generated/Types.*` before the first
+rebuild after the model files change.
+
+#### Left for next time
+
+* **The pool** (`scripts/provenance-skip.txt`'s only owed entry).  It inherits
+  `tests/send_sync.rs` as a standing fact and should re-measure `--jobs=8`
+  before believing con-leche's 3.5×: the port has no `mark_persistent`, so its
+  workers pay atomics con-leche's mark removes, and con-leche's own
+  `--no-mark-persistent` row prices that at 18–32 % of pool wall.
+* The split alias (`Arc` for what crosses threads, `Rc` for per-declaration
+  scratch) that task #44 priced at "needs the pool first" is still the way to
+  get the 13 % back, and still a type-level split of `Expr` rather than a line.
+* `AENEAS_FINDINGS.md`'s two `alloc.rc.Rc` notes are left as written: they
+  record findings against Aeneas at the time, and the spike whose model they
+  describe is still compiled at `std::rc::Rc`.

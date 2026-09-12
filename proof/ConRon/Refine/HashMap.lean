@@ -1646,7 +1646,7 @@ end ConRon.Refine.HashMap
 
 /-! ## Axiom census
 
-Nothing but Lean's own three axioms: no `sorry`, nothing from the `Rc` model
+Nothing but Lean's own three axioms: no `sorry`, nothing from the `Arc` model
 (DESIGN.md §3.2), no assumption about `hash64`. -/
 
 /-- info: 'ConRon.Refine.HashMap.insert_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/

@@ -2293,7 +2293,7 @@ theorem gcd_refines : ∀ (N : Nat) (a b c : ron.nat.Nat), toNat a = N → NatWF
 
 Committed gate (task #5's convention): the three representative operations
 depend on nothing beyond Lean's three classical axioms — no `sorry`, nothing
-from Aeneas's library, nothing from the hand-written `Rc` model. -/
+from Aeneas's library, nothing from the hand-written `Arc` model. -/
 
 /-- info: 'ConRon.Refine.Nat.add_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms add_refines

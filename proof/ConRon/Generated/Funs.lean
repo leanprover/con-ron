@@ -128,11 +128,11 @@ def kernel.name.str_eq
   else kernel.name.str_eq_from a b 0#usize
 
 /-- [con_ron_core::ron::ptr::ptr_eq]:
-    Source: 'crates/con-ron-core/src/ron/ptr.rs', lines 98:0-100:1
+    Source: 'crates/con-ron-core/src/ron/ptr.rs', lines 109:0-111:1
     Visibility: public -/
 def ron.ptr.ptr_eq
-  {T : Type} (a : alloc.rc.Rc T) (b : alloc.rc.Rc T) : Result Bool := do
-  alloc.rc.Rc.ptr_eq Global a b
+  {T : Type} (a : alloc.sync.Arc T) (b : alloc.sync.Arc T) : Result Bool := do
+  alloc.sync.Arc.ptr_eq Global a b
 
 /-- [con_ron_core::kernel::name::ptr_eq]:
     Source: 'crates/con-ron-core/src/kernel/name.rs', lines 124:0-126:1
@@ -145,7 +145,7 @@ def kernel.name.ptr_eq
     Source: 'crates/con-ron-core/src/kernel/name.rs', lines 87:0-89:1
     Visibility: public -/
 def kernel.name.hash_data (n : kernel.name.Name) : Result Std.U64 := do
-  let nn ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global n._0
+  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
   ok nn.hash
 
 /-- [con_ron_core::kernel::name::beq]:
@@ -162,8 +162,8 @@ def kernel.name.beq
     if i != i1
     then ok false
     else
-      let nn ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
-      let nn1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+      let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a._0
+      let nn1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b._0
       match nn.kind with
       | kernel.name.NameKind.Anonymous =>
         match nn1.kind with
@@ -234,10 +234,10 @@ def kernel.fenv.find
   match o with
   | none => ok none
   | some e =>
-    let (i, r) := e
+    let (i, a) := e
     if i < fe.visible_below
     then
-      let ci ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global r
+      let ci ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a
       ok (some ci)
     else ok none
 
@@ -264,25 +264,26 @@ def cached.core_c.defn_lp_count
     | kernel.env.ConstantInfo.ProjInfo _ => ok none
 
 /-- [con_ron_core::ron::ptr::clone]:
-    Source: 'crates/con-ron-core/src/ron/ptr.rs', lines 90:0-92:1
+    Source: 'crates/con-ron-core/src/ron/ptr.rs', lines 101:0-103:1
     Visibility: public -/
-def ron.ptr.clone {T : Type} (p : alloc.rc.Rc T) : Result (alloc.rc.Rc T) := do
-  alloc.rc.Rc.Insts.CoreCloneClone.clone
+def ron.ptr.clone
+  {T : Type} (p : alloc.sync.Arc T) : Result (alloc.sync.Arc T) := do
+  alloc.sync.Arc.Insts.CoreCloneClone.clone
     alloc.alloc.Global.Insts.CoreAllocAllocatorClone p
 
 /-- [con_ron_core::kernel::name::dup]:
     Source: 'crates/con-ron-core/src/kernel/name.rs', lines 116:0-118:1
     Visibility: public -/
 def kernel.name.dup (n : kernel.name.Name) : Result kernel.name.Name := do
-  let r ← ron.ptr.clone n._0
-  ok (kernel.name.Name.mk r)
+  let a ← ron.ptr.clone n._0
+  ok (kernel.name.Name.mk a)
 
 /-- [con_ron_core::kernel::expr::dup]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 373:0-375:1
     Visibility: public -/
 def kernel.expr.dup (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let r ← ron.ptr.clone e._0
-  ok (kernel.expr.Expr.mk r)
+  let a ← ron.ptr.clone e._0
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr_ops::get_app_args_go]:
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1056:0-1065:1
@@ -291,7 +292,7 @@ def kernel.expr_ops.get_app_args_go
   (e : kernel.expr.Expr) (out : alloc.vec.Vec kernel.expr.Expr) :
   Result (alloc.vec.Vec kernel.expr.Expr)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok out
   | kernel.expr.ExprKind.Fvar _ _ => ok out
@@ -320,7 +321,7 @@ def kernel.expr_ops.get_app_args
     Visibility: public -/
 def kernel.expr_ops.get_app_fn
   (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => kernel.expr.dup e
   | kernel.expr.ExprKind.Fvar _ _ => kernel.expr.dup e
@@ -338,8 +339,8 @@ partial_fixpoint
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 92:0-94:1
     Visibility: public -/
 def kernel.level.dup (u : kernel.level.Level) : Result kernel.level.Level := do
-  let r ← ron.ptr.clone u._0
-  ok (kernel.level.Level.mk r)
+  let a ← ron.ptr.clone u._0
+  ok (kernel.level.Level.mk a)
 
 /-- [con_ron_core::kernel::env::levels_copy_from]:
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 147:0-155:1
@@ -685,7 +686,7 @@ def kernel.level.ptr_eq
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 52:0-54:1
     Visibility: public -/
 def kernel.level.hash_data (u : kernel.level.Level) : Result Std.U64 := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global u._0
   ok ln.hash
 
 /-- [con_ron_core::kernel::level::beq]:
@@ -702,8 +703,8 @@ def kernel.level.beq
     if i != i1
     then ok false
     else
-      let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
-      let ln1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+      let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a._0
+      let ln1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b._0
       match ln.kind with
       | kernel.level.LevelKind.Zero =>
         match ln1.kind with
@@ -1086,7 +1087,7 @@ def kernel.expr.beq_key (ha : Std.U64) (hb : Std.U64) : Result Std.U64 := do
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 591:0-601:1
     Visibility: public -/
 def kernel.expr.beq_recursive (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok true
@@ -1103,7 +1104,7 @@ def kernel.expr.beq_recursive (e : kernel.expr.Expr) : Result Bool := do
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 367:0-369:1
     Visibility: public -/
 def kernel.expr.data (e : kernel.expr.Expr) : Result Std.U64 := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   ok en.data
 
 /-- [con_ron_core::kernel::expr::hash_of_data]:
@@ -1179,16 +1180,16 @@ def kernel.expr.literal_beq
   | kernel.expr.Literal.NatVal m =>
     match b with
     | kernel.expr.Literal.NatVal n =>
-      let n1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m
-      let n2 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global n
+      let n1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m
+      let n2 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n
       ron.nat.beq n1 n2
     | kernel.expr.Literal.StrVal _ => ok false
   | kernel.expr.Literal.StrVal s =>
     match b with
     | kernel.expr.Literal.NatVal _ => ok false
     | kernel.expr.Literal.StrVal t =>
-      let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global s
-      let v1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global t
+      let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global s
+      let v1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global t
       kernel.name.str_eq v v1
 
 /-- [con_ron_core::kernel::prop_when::names_beq_from]:
@@ -1317,8 +1318,8 @@ def kernel.prop_when.beq
     Visibility: public -/
 def kernel.expr.binder_meta_beq
   (a : kernel.expr.BinderMeta) (b : kernel.expr.BinderMeta) : Result Bool := do
-  let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a.pw
-  let pw1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b.pw
+  let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a.pw
+  let pw1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b.pw
   kernel.prop_when.beq pw pw1
 
 mutual
@@ -1367,8 +1368,8 @@ def kernel.expr.beq_arm
   Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr
     × kernel.expr.Expr))))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
-  let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a._0
+  let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar i =>
     match en1.kind with
@@ -1417,8 +1418,8 @@ def kernel.expr.beq_arm
     | kernel.expr.ExprKind.Fvar _ _ => ok (false, m)
     | kernel.expr.ExprKind.Sort _ => ok (false, m)
     | kernel.expr.ExprKind.Const n2 vs =>
-      let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
-      let v1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global vs
+      let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
+      let v1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global vs
       let b1 ← kernel.expr.const_beq n v n2 v1
       ok (b1, m)
     | kernel.expr.ExprKind.App _ _ => ok (false, m)
@@ -1794,8 +1795,8 @@ def kernel.prop_when.name_cmp
   (a : kernel.name.Name) (b : kernel.name.Name) :
   Result kernel.prop_when.Ordering
   := do
-  let nn ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
-  let nn1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a._0
+  let nn1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b._0
   match nn.kind with
   | kernel.name.NameKind.Anonymous =>
     match nn1.kind with
@@ -2142,7 +2143,7 @@ def kernel.prop_when.bind_z
     Visibility: public -/
 def kernel.level.zeroness_of
   (l : kernel.level.Level) : Result kernel.prop_when.PropWhen := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global l._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global l._0
   match ln.kind with
   | kernel.level.LevelKind.Zero =>
     kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
@@ -2159,10 +2160,10 @@ def kernel.level.zeroness_of
 partial_fixpoint
 
 /-- [con_ron_core::ron::ptr::new]:
-    Source: 'crates/con-ron-core/src/ron/ptr.rs', lines 84:0-86:1
+    Source: 'crates/con-ron-core/src/ron/ptr.rs', lines 95:0-97:1
     Visibility: public -/
-def ron.ptr.new {T : Type} (x : T) : Result (alloc.rc.Rc T) := do
-  alloc.rc.Rc.new x
+def ron.ptr.new {T : Type} (x : T) : Result (alloc.sync.Arc T) := do
+  alloc.sync.Arc.new x
 
 /-- [con_ron_core::kernel::level::param]:
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 85:0-88:1
@@ -2170,9 +2171,9 @@ def ron.ptr.new {T : Type} (x : T) : Result (alloc.rc.Rc T) := do
 def kernel.level.param (n : kernel.name.Name) : Result kernel.level.Level := do
   let i ← kernel.name.hash_data n
   let h ← kernel.name.mix_hash 11#u64 i
-  let r ←
+  let a ←
     ron.ptr.new (kernel.level.LevelNode.mk h (kernel.level.LevelKind.Param n))
-  ok (kernel.level.Level.mk r)
+  ok (kernel.level.Level.mk a)
 
 /-- [con_ron_core::kernel::level::subst_go]:
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 214:0-222:1
@@ -2246,9 +2247,9 @@ def kernel.level.imax
   let i1 ← kernel.level.hash_data v
   let i2 ← kernel.name.mix_hash i i1
   let h ← kernel.name.mix_hash 7#u64 i2
-  let r ←
+  let a ←
     ron.ptr.new (kernel.level.LevelNode.mk h (kernel.level.LevelKind.Imax u v))
-  ok (kernel.level.Level.mk r)
+  ok (kernel.level.Level.mk a)
 
 /-- [con_ron_core::kernel::level::max]:
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 71:0-74:1
@@ -2261,9 +2262,9 @@ def kernel.level.max
   let i1 ← kernel.level.hash_data v
   let i2 ← kernel.name.mix_hash i i1
   let h ← kernel.name.mix_hash 5#u64 i2
-  let r ←
+  let a ←
     ron.ptr.new (kernel.level.LevelNode.mk h (kernel.level.LevelKind.Max u v))
-  ok (kernel.level.Level.mk r)
+  ok (kernel.level.Level.mk a)
 
 /-- [con_ron_core::kernel::level::succ]:
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 64:0-67:1
@@ -2272,17 +2273,17 @@ def kernel.level.succ
   (u : kernel.level.Level) : Result kernel.level.Level := do
   let i ← kernel.level.hash_data u
   let h ← kernel.name.mix_hash 3#u64 i
-  let r ←
+  let a ←
     ron.ptr.new (kernel.level.LevelNode.mk h (kernel.level.LevelKind.Succ u))
-  ok (kernel.level.Level.mk r)
+  ok (kernel.level.Level.mk a)
 
 /-- [con_ron_core::kernel::level::zero]:
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 58:0-60:1
     Visibility: public -/
 def kernel.level.zero : Result kernel.level.Level := do
-  let r ←
+  let a ←
     ron.ptr.new (kernel.level.LevelNode.mk 1#u64 kernel.level.LevelKind.Zero)
-  ok (kernel.level.Level.mk r)
+  ok (kernel.level.Level.mk a)
 
 /-- [con_ron_core::kernel::level::subst]:
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 201:0-209:1
@@ -2292,7 +2293,7 @@ def kernel.level.subst
   (u : kernel.level.Level) :
   Result kernel.level.Level
   := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global u._0
   match ln.kind with
   | kernel.level.LevelKind.Zero => kernel.level.zero
   | kernel.level.LevelKind.Succ l =>
@@ -2449,10 +2450,10 @@ def kernel.expr.proj
   let i7 ← kernel.expr.fvar_of_data de
   let b ← kernel.expr.lp_of_data de
   let d ← kernel.expr.pack_data h i6 i7 b
-  let r ←
+  let a ←
     ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Proj
       struct_name idx e))
-  ok (kernel.expr.Expr.mk r)
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr::sat_pred]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 311:0-319:1
@@ -2512,10 +2513,10 @@ def kernel.expr.let_e
       then ok true
       else kernel.expr.lp_of_data db
   let d ← kernel.expr.pack_data h i11 i16 b1
-  let r ←
+  let a ←
     ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.LetE ty value
       body))
-  ok (kernel.expr.Expr.mk r)
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::prop_when::has_params]:
     Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 566:0-572:1
@@ -2587,7 +2588,7 @@ def kernel.expr.forall_e
   let db ← kernel.expr.data body
   let i ← kernel.expr.hash_of_data dt
   let i1 ← kernel.expr.hash_of_data db
-  let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+  let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
   let i2 ← kernel.prop_when.hash_pw pw
   let i3 ← kernel.name.mix_hash i1 i2
   let i4 ← kernel.name.mix_hash i i3
@@ -2611,10 +2612,10 @@ def kernel.expr.forall_e
       then ok true
       else kernel.prop_when.has_params pw
   let d ← kernel.expr.pack_data h i9 i12 b1
-  let r ←
+  let a ←
     ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.ForallE ty
       body m))
-  ok (kernel.expr.Expr.mk r)
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr::lam]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 450:0-467:1
@@ -2628,7 +2629,7 @@ def kernel.expr.lam
   let db ← kernel.expr.data body
   let i ← kernel.expr.hash_of_data dt
   let i1 ← kernel.expr.hash_of_data db
-  let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+  let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
   let i2 ← kernel.prop_when.hash_pw pw
   let i3 ← kernel.name.mix_hash i1 i2
   let i4 ← kernel.name.mix_hash i i3
@@ -2652,10 +2653,10 @@ def kernel.expr.lam
       then ok true
       else kernel.prop_when.has_params pw
   let d ← kernel.expr.pack_data h i9 i12 b1
-  let r ←
+  let a ←
     ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Lam ty body
       m))
-  ok (kernel.expr.Expr.mk r)
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr::app]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 429:0-443:1
@@ -2680,9 +2681,9 @@ def kernel.expr.app
              then ok true
              else kernel.expr.lp_of_data da
   let d ← kernel.expr.pack_data h i6 i9 b1
-  let r ←
+  let a1 ←
     ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.App f a))
-  ok (kernel.expr.Expr.mk r)
+  ok (kernel.expr.Expr.mk a1)
 
 /-- [con_ron_core::kernel::level::level_hash]:
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 179:0-181:1
@@ -2721,7 +2722,7 @@ def kernel.level.levels_hash
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 151:0-159:1
     Visibility: public -/
 def kernel.level.level_has_param (u : kernel.level.Level) : Result Bool := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global u._0
   match ln.kind with
   | kernel.level.LevelKind.Zero => ok false
   | kernel.level.LevelKind.Succ v => kernel.level.level_has_param v
@@ -2778,10 +2779,10 @@ def kernel.expr.mk_const
   let h ← kernel.expr.hash32 i3
   let b ← kernel.level.levels_have_param us
   let d ← kernel.expr.pack_data h 0#u64 0#u64 b
-  let r ← ron.ptr.new us
-  let r1 ←
-    ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Const n r))
-  ok (kernel.expr.Expr.mk r1)
+  let a ← ron.ptr.new us
+  let a1 ←
+    ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Const n a))
+  ok (kernel.expr.Expr.mk a1)
 
 /-- [con_ron_core::kernel::expr::sort]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 405:0-409:1
@@ -2792,9 +2793,9 @@ def kernel.expr.sort (u : kernel.level.Level) : Result kernel.expr.Expr := do
   let h ← kernel.expr.hash32 i1
   let b ← kernel.level.level_has_param u
   let d ← kernel.expr.pack_data h 0#u64 0#u64 b
-  let r ←
+  let a ←
     ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Sort u))
-  ok (kernel.expr.Expr.mk r)
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr::sat_succ]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 299:0-305:1
@@ -2818,17 +2819,17 @@ def kernel.expr.fvar
   let i4 ← kernel.expr.sat_succ idx
   let b ← kernel.expr.lp_of_data dt
   let d ← kernel.expr.pack_data h 0#u64 i4 b
-  let r ←
+  let a ←
     ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Fvar idx ty))
-  ok (kernel.expr.Expr.mk r)
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr::binder_meta]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 119:0-121:1
     Visibility: public -/
 def kernel.expr.binder_meta
   (pw : kernel.prop_when.PropWhen) : Result kernel.expr.BinderMeta := do
-  let r ← ron.ptr.new pw
-  ok { pw := r }
+  let a ← ron.ptr.new pw
+  ok { pw := a }
 
 /-- [con_ron_core::cached::expr_ops_c::inst_level_params_go]:
     Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 867:0-925:1
@@ -2846,7 +2847,7 @@ def cached.expr_ops_c.inst_level_params_go
     let o ← kernel.expr_ops.memo_e_get memo e
     match o with
     | none =>
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
       let (memo1, r) ←
         match en.kind with
         | kernel.expr.ExprKind.Bvar _ =>
@@ -2867,7 +2868,7 @@ def cached.expr_ops_c.inst_level_params_go
         | kernel.expr.ExprKind.Const n vs =>
           do
           let n1 ← kernel.name.dup n
-          let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global vs
+          let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global vs
           let v1 ← kernel.expr_ops.levels_subst ks us v
           let r1 ← kernel.expr.mk_const n1 v1
           ok (memo, r1)
@@ -2885,7 +2886,7 @@ def cached.expr_ops_c.inst_level_params_go
             cached.expr_ops_c.inst_level_params_go ks us memo ty
           let (b1, memo3) ←
             cached.expr_ops_c.inst_level_params_go ks us memo2 body
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let pw1 ← kernel.level.subst_pw ks us pw
           let bm ← kernel.expr.binder_meta pw1
           let r1 ← kernel.expr.lam t b1 bm
@@ -2896,7 +2897,7 @@ def cached.expr_ops_c.inst_level_params_go
             cached.expr_ops_c.inst_level_params_go ks us memo ty
           let (b1, memo3) ←
             cached.expr_ops_c.inst_level_params_go ks us memo2 body
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let pw1 ← kernel.level.subst_pw ks us pw
           let bm ← kernel.expr.binder_meta pw1
           let r1 ← kernel.expr.forall_e t b1 bm
@@ -3042,14 +3043,14 @@ def cached.core_c.unfold_definition_i
     kernel.core_types.CheckError) × cached.state_c.CState)
   := do
   let f ← kernel.expr_ops.get_app_fn e
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok (core.result.Result.Ok none, st)
   | kernel.expr.ExprKind.Fvar _ _ => ok (core.result.Result.Ok none, st)
   | kernel.expr.ExprKind.Sort _ => ok (core.result.Result.Ok none, st)
   | kernel.expr.ExprKind.Const n us =>
     let n1 ← kernel.name.dup n
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let us1 ← kernel.env.levels_copy v
     let o ← cached.core_c.defn_lp_count fe n1
     match o with
@@ -3227,9 +3228,9 @@ def kernel.name.mk_num
   let i1 ← kernel.name.mix_hash 2#u64 i
   let i2 ← kernel.name.nat_hash n
   let h ← kernel.name.mix_hash i1 i2
-  let r ←
+  let a ←
     ron.ptr.new (kernel.name.NameNode.mk h (kernel.name.NameKind.Num pre n))
-  ok (kernel.name.Name.mk r)
+  ok (kernel.name.Name.mk a)
 
 /-- [con_ron_core::kernel::name::str_hash_from]:
     Source: 'crates/con-ron-core/src/kernel/name.rs', lines 70:0-76:1
@@ -3267,9 +3268,9 @@ def kernel.name.mk_str
   let i1 ← kernel.name.mix_hash 1#u64 i
   let i2 ← kernel.name.str_hash s
   let h ← kernel.name.mix_hash i1 i2
-  let r ←
+  let a ←
     ron.ptr.new (kernel.name.NameNode.mk h (kernel.name.NameKind.Str pre s))
-  ok (kernel.name.Name.mk r)
+  ok (kernel.name.Name.mk a)
 
 /-- [con_ron_core::kernel::env::PROJ_TABLE_STR]
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 978:0-978:76 -/
@@ -3352,7 +3353,7 @@ def kernel.prop_read.residual_pw
   match e with
   | none => ok none
   | some r =>
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global r._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global r._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -3376,7 +3377,7 @@ def kernel.prop_read.peel_never_pis
   then let e1 ← kernel.expr.dup e
        ok (some e1)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -3385,7 +3386,7 @@ def kernel.prop_read.peel_never_pis
     | kernel.expr.ExprKind.App _ _ => ok none
     | kernel.expr.ExprKind.Lam _ _ _ => ok none
     | kernel.expr.ExprKind.ForallE _ b m =>
-      let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+      let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
       let b1 ← kernel.prop_when.is_never pw
       if b1
       then let i ← k - 1#u64
@@ -3403,7 +3404,7 @@ def kernel.prop_read.head_type_pw
   (fe : kernel.fenv.FEnv) (e : kernel.expr.Expr) (n : Std.U64) :
   Result (Option kernel.prop_when.PropWhen)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok none
   | kernel.expr.ExprKind.Fvar _ ty =>
@@ -3411,7 +3412,7 @@ def kernel.prop_read.head_type_pw
     kernel.prop_read.residual_pw o
   | kernel.expr.ExprKind.Sort _ => ok none
   | kernel.expr.ExprKind.Const i us =>
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i1 := alloc.vec.Vec.len v
     let o ← kernel.prop_read.stored_cv_at fe i i1
     match o with
@@ -3435,7 +3436,7 @@ def kernel.prop_read.head_type_pw
     Source: 'crates/con-ron-core/src/kernel/prop_read.rs', lines 59:0-64:1
     Visibility: public -/
 def kernel.prop_read.num_args (e : kernel.expr.Expr) : Result Std.U64 := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok 0#u64
   | kernel.expr.ExprKind.Fvar _ _ => ok 0#u64
@@ -3458,7 +3459,7 @@ def kernel.prop_read.type_sort_pw
   (fe : kernel.fenv.FEnv) (t : kernel.expr.Expr) :
   Result (Option kernel.prop_when.PropWhen)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global t._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global t._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let e ← kernel.expr_ops.get_app_fn t
@@ -3484,7 +3485,7 @@ def kernel.prop_read.type_sort_pw
     let i ← kernel.prop_read.num_args t
     kernel.prop_read.head_type_pw fe e i
   | kernel.expr.ExprKind.ForallE _ _ m =>
-    let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+    let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
     let pw1 ← kernel.prop_when.dup pw
     ok (some pw1)
   | kernel.expr.ExprKind.LetE _ _ _ =>
@@ -3507,7 +3508,7 @@ def kernel.prop_read.head_proof_pw
   (fe : kernel.fenv.FEnv) (e : kernel.expr.Expr) :
   Result (Option kernel.prop_when.PropWhen)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok none
   | kernel.expr.ExprKind.Fvar _ ty => kernel.prop_read.type_sort_pw fe ty
@@ -3515,7 +3516,7 @@ def kernel.prop_read.head_proof_pw
     let pw ← kernel.prop_when.never
     ok (some pw)
   | kernel.expr.ExprKind.Const c us =>
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i := alloc.vec.Vec.len v
     let o ← kernel.prop_read.stored_cv_at fe c i
     match o with
@@ -3545,7 +3546,7 @@ def kernel.prop_read.proof_pw
   (fe : kernel.fenv.FEnv) (a : kernel.expr.Expr) :
   Result (Option kernel.prop_when.PropWhen)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let e ← kernel.expr_ops.get_app_fn a
@@ -3563,7 +3564,7 @@ def kernel.prop_read.proof_pw
     let e ← kernel.expr_ops.get_app_fn a
     kernel.prop_read.head_proof_pw fe e
   | kernel.expr.ExprKind.Lam _ _ m =>
-    let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+    let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
     let pw1 ← kernel.prop_when.dup pw
     ok (some pw1)
   | kernel.expr.ExprKind.ForallE _ _ _ =>
@@ -3643,9 +3644,9 @@ def kernel.expr.bvar (i : Std.U64) : Result kernel.expr.Expr := do
   let h ← kernel.expr.hash32 i2
   let i3 ← kernel.expr.sat_succ i
   let d ← kernel.expr.pack_data h i3 0#u64 false
-  let r ←
+  let a ←
     ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Bvar i))
-  ok (kernel.expr.Expr.mk r)
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::env::default_expr]:
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 465:0-467:1
@@ -3760,7 +3761,7 @@ def kernel.fenv.tower_slots_all_f
     Visibility: public -/
 def kernel.expr_ops.pi_result
   (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => kernel.expr.dup e
   | kernel.expr.ExprKind.Fvar _ _ => kernel.expr.dup e
@@ -3779,8 +3780,8 @@ partial_fixpoint
     Visibility: public -/
 def kernel.expr.binder_meta_dup
   (m : kernel.expr.BinderMeta) : Result kernel.expr.BinderMeta := do
-  let r ← ron.ptr.clone m.pw
-  ok { pw := r }
+  let a ← ron.ptr.clone m.pw
+  ok { pw := a }
 
 /-- [con_ron_core::kernel::expr_ops::strip_pis_go]:
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1208:0-1224:1
@@ -3795,7 +3796,7 @@ def kernel.expr_ops.strip_pis_go
   then let e1 ← kernel.expr.dup e
        ok (some (out, e1))
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -3852,7 +3853,7 @@ def kernel.expr_ops.fvar_range_go
   let o ← kernel.expr_ops.memo_n_get memo e
   match o with
   | none =>
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     let (memo1, r) ←
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ => ok (memo, 0#u64)
@@ -3946,7 +3947,7 @@ def kernel.expr_ops.has_fvar (e : kernel.expr.Expr) : Result Bool := do
     Visibility: public -/
 def kernel.expr_ops.lam_pw
   (e : kernel.expr.Expr) : Result (Option kernel.prop_when.PropWhen) := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok none
   | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -3954,7 +3955,7 @@ def kernel.expr_ops.lam_pw
   | kernel.expr.ExprKind.Const _ _ => ok none
   | kernel.expr.ExprKind.App _ _ => ok none
   | kernel.expr.ExprKind.Lam _ _ m =>
-    let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+    let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
     let pw1 ← kernel.prop_when.dup pw
     ok (some pw1)
   | kernel.expr.ExprKind.ForallE _ _ _ => ok none
@@ -3966,7 +3967,7 @@ def kernel.expr_ops.lam_pw
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 996:0-1001:1
     Visibility: public -/
 def kernel.expr_ops.is_lam (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -4066,11 +4067,11 @@ def ron.nat.hash64 (a : ron.nat.Nat) : Result Std.U64 := do
 def kernel.expr.literal_hash (l : kernel.expr.Literal) : Result Std.U64 := do
   match l with
   | kernel.expr.Literal.NatVal n =>
-    let n1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global n
+    let n1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n
     let i ← ron.nat.hash64 n1
     kernel.name.mix_hash 0#u64 i
   | kernel.expr.Literal.StrVal s =>
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global s
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global s
     let i ← kernel.name.str_hash v
     kernel.name.mix_hash 1#u64 i
 
@@ -4082,17 +4083,17 @@ def kernel.expr.lit (l : kernel.expr.Literal) : Result kernel.expr.Expr := do
   let i1 ← kernel.name.mix_hash 31#u64 i
   let h ← kernel.expr.hash32 i1
   let d ← kernel.expr.pack_data h 0#u64 0#u64 false
-  let r ←
+  let a ←
     ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Lit l))
-  ok (kernel.expr.Expr.mk r)
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr::literal_nat]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 166:0-168:1
     Visibility: public -/
 def kernel.expr.literal_nat
   (n : ron.nat.Nat) : Result kernel.expr.Literal := do
-  let r ← ron.ptr.new n
-  ok (kernel.expr.Literal.NatVal r)
+  let a ← ron.ptr.new n
+  ok (kernel.expr.Literal.NatVal a)
 
 /-- [con_ron_core::kernel::env::PROJ_STR]
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 974:0-974:48 -/
@@ -4311,10 +4312,10 @@ def kernel.level.singleton
     Source: 'crates/con-ron-core/src/kernel/name.rs', lines 93:0-95:1
     Visibility: public -/
 def kernel.name.anonymous : Result kernel.name.Name := do
-  let r ←
+  let a ←
     ron.ptr.new (kernel.name.NameNode.mk 1723#u64
       kernel.name.NameKind.Anonymous)
-  ok (kernel.name.Name.mk r)
+  ok (kernel.name.Name.mk a)
 
 /-- [con_ron_core::kernel::basis_names::char_name::S]
     Source: 'crates/con-ron-core/src/kernel/basis_names.rs', lines 186:4-186:43 -/
@@ -4373,7 +4374,7 @@ def kernel.core_k.string_of_list_ty_ok
     let i := alloc.vec.Vec.len cv.level_params
     if i = 0#usize
     then
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global cv.ty._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global cv.ty._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ => ok false
       | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -4382,38 +4383,41 @@ def kernel.core_k.string_of_list_ty_ok
       | kernel.expr.ExprKind.App _ _ => ok false
       | kernel.expr.ExprKind.Lam _ _ _ => ok false
       | kernel.expr.ExprKind.ForallE dom body _ =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global dom._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global dom._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ => ok false
         | kernel.expr.ExprKind.Fvar _ _ => ok false
         | kernel.expr.ExprKind.Sort _ => ok false
         | kernel.expr.ExprKind.Const _ _ => ok false
         | kernel.expr.ExprKind.App hd arg =>
-          let en2 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global body._0
+          let en2 ←
+            alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global body._0
           match en2.kind with
           | kernel.expr.ExprKind.Bvar _ => ok false
           | kernel.expr.ExprKind.Fvar _ _ => ok false
           | kernel.expr.ExprKind.Sort _ => ok false
           | kernel.expr.ExprKind.Const c2 us2 =>
-            let en3 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global hd._0
+            let en3 ←
+              alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global hd._0
             match en3.kind with
             | kernel.expr.ExprKind.Bvar _ => ok false
             | kernel.expr.ExprKind.Fvar _ _ => ok false
             | kernel.expr.ExprKind.Sort _ => ok false
             | kernel.expr.ExprKind.Const l1 us1 =>
               let en4 ←
-                alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global arg._0
+                alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global arg._0
               match en4.kind with
               | kernel.expr.ExprKind.Bvar _ => ok false
               | kernel.expr.ExprKind.Fvar _ _ => ok false
               | kernel.expr.ExprKind.Sort _ => ok false
               | kernel.expr.ExprKind.Const c1 us_c =>
-                let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us2
+                let v ←
+                  alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us2
                 let i1 := alloc.vec.Vec.len v
                 if i1 = 0#usize
                 then
                   let v1 ←
-                    alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us_c
+                    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us_c
                   let i2 := alloc.vec.Vec.len v1
                   if i2 = 0#usize
                   then
@@ -4422,7 +4426,7 @@ def kernel.core_k.string_of_list_ty_ok
                     if b
                     then
                       let v2 ←
-                        alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us1
+                        alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us1
                       let l ← kernel.level.zero
                       let v3 ← kernel.level.singleton l
                       let b1 ← kernel.expr.levels_beq v2 v3
@@ -4494,7 +4498,7 @@ def kernel.core_k.char_of_nat_ty_ok
     let i := alloc.vec.Vec.len cv.level_params
     if i = 0#usize
     then
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global cv.ty._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global cv.ty._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ => ok false
       | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -4503,23 +4507,25 @@ def kernel.core_k.char_of_nat_ty_ok
       | kernel.expr.ExprKind.App _ _ => ok false
       | kernel.expr.ExprKind.Lam _ _ _ => ok false
       | kernel.expr.ExprKind.ForallE dom body _ =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global dom._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global dom._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ => ok false
         | kernel.expr.ExprKind.Fvar _ _ => ok false
         | kernel.expr.ExprKind.Sort _ => ok false
         | kernel.expr.ExprKind.Const c1 us1 =>
-          let en2 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global body._0
+          let en2 ←
+            alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global body._0
           match en2.kind with
           | kernel.expr.ExprKind.Bvar _ => ok false
           | kernel.expr.ExprKind.Fvar _ _ => ok false
           | kernel.expr.ExprKind.Sort _ => ok false
           | kernel.expr.ExprKind.Const c2 us2 =>
-            let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us1
+            let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us1
             let i1 := alloc.vec.Vec.len v
             if i1 = 0#usize
             then
-              let v1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us2
+              let v1 ←
+                alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us2
               let i2 := alloc.vec.Vec.len v1
               if i2 = 0#usize
               then
@@ -4557,39 +4563,39 @@ def kernel.core_k.list_cons_tail_ok
   (p : kernel.name.Name) :
   Result Bool
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global d3._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global d3._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
   | kernel.expr.ExprKind.Sort _ => ok false
   | kernel.expr.ExprKind.Const _ _ => ok false
   | kernel.expr.ExprKind.App h1 a1 =>
-    let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b3._0
+    let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b3._0
     match en1.kind with
     | kernel.expr.ExprKind.Bvar _ => ok false
     | kernel.expr.ExprKind.Fvar _ _ => ok false
     | kernel.expr.ExprKind.Sort _ => ok false
     | kernel.expr.ExprKind.Const _ _ => ok false
     | kernel.expr.ExprKind.App h2 a2 =>
-      let en2 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a1._0
+      let en2 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a1._0
       match en2.kind with
       | kernel.expr.ExprKind.Bvar i =>
         match i with
         | 1#uscalar =>
-          let en3 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a2._0
+          let en3 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a2._0
           match en3.kind with
           | kernel.expr.ExprKind.Bvar i1 =>
             match i1 with
             | 2#uscalar =>
               let en4 ←
-                alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global h1._0
+                alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global h1._0
               match en4.kind with
               | kernel.expr.ExprKind.Bvar _ => ok false
               | kernel.expr.ExprKind.Fvar _ _ => ok false
               | kernel.expr.ExprKind.Sort _ => ok false
               | kernel.expr.ExprKind.Const l1 us1 =>
                 let en5 ←
-                  alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global h2._0
+                  alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global h2._0
                 match en5.kind with
                 | kernel.expr.ExprKind.Bvar _ => ok false
                 | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -4611,12 +4617,13 @@ def kernel.core_k.list_cons_tail_ok
                       if b2
                       then
                         let v ←
-                          alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us1
+                          alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global
+                            us1
                         let b4 ← kernel.expr.levels_beq v want
                         if b4
                         then
                           let v1 ←
-                            alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global
+                            alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global
                               us2
                           kernel.expr.levels_beq v1 want
                         else ok false
@@ -4681,7 +4688,7 @@ def kernel.core_k.list_cons_ty_ok
       let p ←
         alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
           kernel.name.Name) cv.level_params 0#usize
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global cv.ty._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global cv.ty._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ => ok false
       | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -4690,12 +4697,12 @@ def kernel.core_k.list_cons_ty_ok
       | kernel.expr.ExprKind.App _ _ => ok false
       | kernel.expr.ExprKind.Lam _ _ _ => ok false
       | kernel.expr.ExprKind.ForallE d1 b1 _ =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global d1._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global d1._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ => ok false
         | kernel.expr.ExprKind.Fvar _ _ => ok false
         | kernel.expr.ExprKind.Sort u1 =>
-          let en2 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b1._0
+          let en2 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b1._0
           match en2.kind with
           | kernel.expr.ExprKind.Bvar _ => ok false
           | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -4704,13 +4711,14 @@ def kernel.core_k.list_cons_ty_ok
           | kernel.expr.ExprKind.App _ _ => ok false
           | kernel.expr.ExprKind.Lam _ _ _ => ok false
           | kernel.expr.ExprKind.ForallE d2 b2 _ =>
-            let en3 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global d2._0
+            let en3 ←
+              alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global d2._0
             match en3.kind with
             | kernel.expr.ExprKind.Bvar i1 =>
               match i1 with
               | 0#uscalar =>
                 let en4 ←
-                  alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b2._0
+                  alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b2._0
                 match en4.kind with
                 | kernel.expr.ExprKind.Bvar _ => ok false
                 | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -4763,7 +4771,7 @@ def kernel.core_k.list_nil_ty_ok
       let p ←
         alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
           kernel.name.Name) cv.level_params 0#usize
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global cv.ty._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global cv.ty._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ => ok false
       | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -4772,25 +4780,27 @@ def kernel.core_k.list_nil_ty_ok
       | kernel.expr.ExprKind.App _ _ => ok false
       | kernel.expr.ExprKind.Lam _ _ _ => ok false
       | kernel.expr.ExprKind.ForallE dom body _ =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global dom._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global dom._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ => ok false
         | kernel.expr.ExprKind.Fvar _ _ => ok false
         | kernel.expr.ExprKind.Sort u1 =>
-          let en2 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global body._0
+          let en2 ←
+            alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global body._0
           match en2.kind with
           | kernel.expr.ExprKind.Bvar _ => ok false
           | kernel.expr.ExprKind.Fvar _ _ => ok false
           | kernel.expr.ExprKind.Sort _ => ok false
           | kernel.expr.ExprKind.Const _ _ => ok false
           | kernel.expr.ExprKind.App hd arg =>
-            let en3 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global arg._0
+            let en3 ←
+              alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global arg._0
             match en3.kind with
             | kernel.expr.ExprKind.Bvar i1 =>
               match i1 with
               | 0#uscalar =>
                 let en4 ←
-                  alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global hd._0
+                  alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global hd._0
                 match en4.kind with
                 | kernel.expr.ExprKind.Bvar _ => ok false
                 | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -4807,7 +4817,7 @@ def kernel.core_k.list_nil_ty_ok
                     if b1
                     then
                       let v ←
-                        alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us1
+                        alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us1
                       let l3 ← kernel.level.param n
                       let v1 ← kernel.level.singleton l3
                       kernel.expr.levels_beq v v1
@@ -4861,7 +4871,7 @@ def kernel.core_k.list_ty_ok
       let p ←
         alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
           kernel.name.Name) cv.level_params 0#usize
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global cv.ty._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global cv.ty._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ => ok false
       | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -4870,12 +4880,13 @@ def kernel.core_k.list_ty_ok
       | kernel.expr.ExprKind.App _ _ => ok false
       | kernel.expr.ExprKind.Lam _ _ _ => ok false
       | kernel.expr.ExprKind.ForallE dom body _ =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global dom._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global dom._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ => ok false
         | kernel.expr.ExprKind.Fvar _ _ => ok false
         | kernel.expr.ExprKind.Sort u1 =>
-          let en2 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global body._0
+          let en2 ←
+            alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global body._0
           match en2.kind with
           | kernel.expr.ExprKind.Bvar _ => ok false
           | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -4959,7 +4970,7 @@ def kernel.core_k.nat_succ_ok
       let i := alloc.vec.Vec.len cv.level_params
       if i = 0#usize
       then
-        let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global cv.ty._0
+        let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global cv.ty._0
         match en.kind with
         | kernel.expr.ExprKind.Bvar _ => ok false
         | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -4968,24 +4979,26 @@ def kernel.core_k.nat_succ_ok
         | kernel.expr.ExprKind.App _ _ => ok false
         | kernel.expr.ExprKind.Lam _ _ _ => ok false
         | kernel.expr.ExprKind.ForallE dom body _ =>
-          let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global dom._0
+          let en1 ←
+            alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global dom._0
           match en1.kind with
           | kernel.expr.ExprKind.Bvar _ => ok false
           | kernel.expr.ExprKind.Fvar _ _ => ok false
           | kernel.expr.ExprKind.Sort _ => ok false
           | kernel.expr.ExprKind.Const c1 us1 =>
             let en2 ←
-              alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global body._0
+              alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global body._0
             match en2.kind with
             | kernel.expr.ExprKind.Bvar _ => ok false
             | kernel.expr.ExprKind.Fvar _ _ => ok false
             | kernel.expr.ExprKind.Sort _ => ok false
             | kernel.expr.ExprKind.Const c2 us2 =>
-              let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us1
+              let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us1
               let i1 := alloc.vec.Vec.len v
               if i1 = 0#usize
               then
-                let v1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us2
+                let v1 ←
+                  alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us2
                 let i2 := alloc.vec.Vec.len v1
                 if i2 = 0#usize
                 then
@@ -5227,13 +5240,13 @@ def kernel.core_k.str_lit_supported (fe : kernel.fenv.FEnv) : Result Bool := do
     Visibility: public -/
 def kernel.core_k.str_expansion_fires
   (fe : kernel.fenv.FEnv) (f : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
   | kernel.expr.ExprKind.Sort _ => ok false
   | kernel.expr.ExprKind.Const c us =>
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i := alloc.vec.Vec.len v
     if i = 0#usize
     then
@@ -5311,13 +5324,13 @@ def kernel.core_k.succ_of
   if b
   then ok none
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
     | kernel.expr.ExprKind.Sort _ => ok none
     | kernel.expr.ExprKind.Const c us =>
-      let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+      let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
       let i := alloc.vec.Vec.len v
       if i = 0#usize
       then
@@ -5449,13 +5462,13 @@ def kernel.level.default_fuel : Result Std.U64 := do
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 338:0-346:1
     Visibility: public -/
 def kernel.level.is_imax_param (u : kernel.level.Level) : Result Bool := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global u._0
   match ln.kind with
   | kernel.level.LevelKind.Zero => ok false
   | kernel.level.LevelKind.Succ _ => ok false
   | kernel.level.LevelKind.Max _ _ => ok false
   | kernel.level.LevelKind.Imax _ b =>
-    let ln1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+    let ln1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b._0
     match ln1.kind with
     | kernel.level.LevelKind.Zero => ok false
     | kernel.level.LevelKind.Succ _ => ok false
@@ -5471,8 +5484,8 @@ def kernel.level.combining
   (l : kernel.level.Level) (r : kernel.level.Level) :
   Result kernel.level.Level
   := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global l._0
-  let ln1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global r._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global l._0
+  let ln1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global r._0
   match ln.kind with
   | kernel.level.LevelKind.Zero => kernel.level.dup r
   | kernel.level.LevelKind.Succ a =>
@@ -5556,7 +5569,7 @@ partial_fixpoint
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 129:0-134:1
     Visibility: public -/
 def kernel.level.is_zero_kind (u : kernel.level.Level) : Result Bool := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global u._0
   match ln.kind with
   | kernel.level.LevelKind.Zero => ok true
   | kernel.level.LevelKind.Succ _ => ok false
@@ -5568,7 +5581,7 @@ def kernel.level.is_zero_kind (u : kernel.level.Level) : Result Bool := do
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 138:0-143:1
     Visibility: public -/
 def kernel.level.is_one_kind (u : kernel.level.Level) : Result Bool := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global u._0
   match ln.kind with
   | kernel.level.LevelKind.Zero => ok false
   | kernel.level.LevelKind.Succ v => kernel.level.is_zero_kind v
@@ -5581,7 +5594,7 @@ def kernel.level.is_one_kind (u : kernel.level.Level) : Result Bool := do
     Visibility: public -/
 def kernel.level.simplify
   (u : kernel.level.Level) : Result kernel.level.Level := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global u._0
   match ln.kind with
   | kernel.level.LevelKind.Zero => kernel.level.zero
   | kernel.level.LevelKind.Succ l =>
@@ -5602,7 +5615,7 @@ def kernel.level.simplify
       if b1
       then ok rs
       else
-        let ln1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global rs._0
+        let ln1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global rs._0
         match ln1.kind with
         | kernel.level.LevelKind.Zero => kernel.level.zero
         | kernel.level.LevelKind.Succ _ => kernel.level.combining ls rs
@@ -5671,8 +5684,8 @@ def kernel.level.rest
   (diff : Std.I64) :
   Result (Option Bool)
   := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global l._0
-  let ln1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global r._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global l._0
+  let ln1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global r._0
   match ln.kind with
   | kernel.level.LevelKind.Zero =>
     match ln1.kind with
@@ -5792,13 +5805,13 @@ def kernel.level.by_cases_left
   (diff : Std.I64) :
   Result (Option Bool)
   := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global l._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global l._0
   match ln.kind with
   | kernel.level.LevelKind.Zero => ok none
   | kernel.level.LevelKind.Succ _ => ok none
   | kernel.level.LevelKind.Max _ _ => ok none
   | kernel.level.LevelKind.Imax _ b =>
-    let ln1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+    let ln1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b._0
     match ln1.kind with
     | kernel.level.LevelKind.Zero => ok none
     | kernel.level.LevelKind.Succ _ => ok none
@@ -5816,13 +5829,13 @@ def kernel.level.by_cases_right
   (diff : Std.I64) :
   Result (Option Bool)
   := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global r._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global r._0
   match ln.kind with
   | kernel.level.LevelKind.Zero => ok none
   | kernel.level.LevelKind.Succ _ => ok none
   | kernel.level.LevelKind.Max _ _ => ok none
   | kernel.level.LevelKind.Imax _ b =>
-    let ln1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+    let ln1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b._0
     match ln1.kind with
     | kernel.level.LevelKind.Zero => ok none
     | kernel.level.LevelKind.Succ _ => ok none
@@ -5840,7 +5853,7 @@ def kernel.level.imax_rules_distrib
   (diff : Std.I64) :
   Result (Option Bool)
   := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global l._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global l._0
   match ln.kind with
   | kernel.level.LevelKind.Zero =>
     kernel.level.imax_rules_distrib_right fuel l r diff
@@ -5849,7 +5862,7 @@ def kernel.level.imax_rules_distrib
   | kernel.level.LevelKind.Max _ _ =>
     kernel.level.imax_rules_distrib_right fuel l r diff
   | kernel.level.LevelKind.Imax a b =>
-    let ln1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+    let ln1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b._0
     match ln1.kind with
     | kernel.level.LevelKind.Zero =>
       kernel.level.imax_rules_distrib_right fuel l r diff
@@ -5886,13 +5899,13 @@ def kernel.level.imax_rules_distrib_right
   (diff : Std.I64) :
   Result (Option Bool)
   := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global r._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global r._0
   match ln.kind with
   | kernel.level.LevelKind.Zero => ok none
   | kernel.level.LevelKind.Succ _ => ok none
   | kernel.level.LevelKind.Max _ _ => ok none
   | kernel.level.LevelKind.Imax x y =>
-    let ln1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global y._0
+    let ln1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global y._0
     match ln1.kind with
     | kernel.level.LevelKind.Zero => ok none
     | kernel.level.LevelKind.Succ _ => ok none
@@ -6430,7 +6443,7 @@ def kernel.core_k.unit_shape_ok
 def kernel.core_k.eta_ctor_shape
   (fe : kernel.fenv.FEnv) (a : kernel.expr.Expr) : Result Bool := do
   let f ← kernel.expr_ops.get_app_fn a
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -7622,7 +7635,7 @@ def kernel.core_k.nat_op_result
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1313:0-1318:1
     Visibility: public -/
 def kernel.core_k.is_sort (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -7639,7 +7652,7 @@ def kernel.core_k.is_sort (e : kernel.expr.Expr) : Result Bool := do
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1340:0-1345:1
     Visibility: public -/
 def kernel.core_k.is_lam_k (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -7656,7 +7669,7 @@ def kernel.core_k.is_lam_k (e : kernel.expr.Expr) : Result Bool := do
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1331:0-1336:1
     Visibility: public -/
 def kernel.core_k.is_forall (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -7673,7 +7686,7 @@ def kernel.core_k.is_forall (e : kernel.expr.Expr) : Result Bool := do
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1322:0-1327:1
     Visibility: public -/
 def kernel.core_k.is_lit (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -7691,7 +7704,7 @@ def kernel.core_k.is_lit (e : kernel.expr.Expr) : Result Bool := do
     Visibility: public -/
 def kernel.core_k.quick_pair
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -7708,13 +7721,13 @@ def kernel.core_k.quick_pair
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1281:0-1292:1
     Visibility: public -/
 def kernel.core_k.is_bool_true (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
   | kernel.expr.ExprKind.Sort _ => ok false
   | kernel.expr.ExprKind.Const c us =>
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i := alloc.vec.Vec.len v
     if i = 0#usize
     then let n ← kernel.core_k.bool_true_name
@@ -7782,13 +7795,13 @@ def kernel.core_k.str_lit_to_constructor
     Visibility: public -/
 def kernel.core_k.raw_nat_lit
   (e : kernel.expr.Expr) : Result (Option ron.nat.Nat) := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok none
   | kernel.expr.ExprKind.Fvar _ _ => ok none
   | kernel.expr.ExprKind.Sort _ => ok none
   | kernel.expr.ExprKind.Const c us =>
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i := alloc.vec.Vec.len v
     if i = 0#usize
     then
@@ -7806,7 +7819,7 @@ def kernel.core_k.raw_nat_lit
   | kernel.expr.ExprKind.Lit l =>
     match l with
     | kernel.expr.Literal.NatVal n =>
-      let n1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global n
+      let n1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n
       let n2 ← ron.nat.clone n1
       ok (some n2)
     | kernel.expr.Literal.StrVal _ => ok none
@@ -7837,7 +7850,7 @@ def kernel.core_k.lit_to_ctor_if_nat
   (fe : kernel.fenv.FEnv) (e : kernel.expr.Expr) :
   Result kernel.expr.Expr
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => kernel.expr.dup e
   | kernel.expr.ExprKind.Fvar _ _ => kernel.expr.dup e
@@ -7853,7 +7866,7 @@ def kernel.core_k.lit_to_ctor_if_nat
       let b ← kernel.core_k.nat_lit_supported fe
       if b
       then
-        let n1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global n
+        let n1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n
         kernel.core_k.nat_lit_to_constructor n1
       else kernel.expr.dup e
     | kernel.expr.Literal.StrVal _ => kernel.expr.dup e
@@ -7864,14 +7877,14 @@ def kernel.core_k.lit_to_ctor_if_nat
     Visibility: public -/
 def kernel.core_k.same_const_heads
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
   | kernel.expr.ExprKind.Sort _ => ok false
   | kernel.expr.ExprKind.Const _ _ => ok false
   | kernel.expr.ExprKind.App f1 _ =>
-    let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+    let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b._0
     match en1.kind with
     | kernel.expr.ExprKind.Bvar _ => ok false
     | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -7880,13 +7893,13 @@ def kernel.core_k.same_const_heads
     | kernel.expr.ExprKind.App f2 _ =>
       let g1 ← kernel.expr_ops.get_app_fn f1
       let g2 ← kernel.expr_ops.get_app_fn f2
-      let en2 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global g1._0
+      let en2 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global g1._0
       match en2.kind with
       | kernel.expr.ExprKind.Bvar _ => ok false
       | kernel.expr.ExprKind.Fvar _ _ => ok false
       | kernel.expr.ExprKind.Sort _ => ok false
       | kernel.expr.ExprKind.Const n1 _ =>
-        let en3 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global g2._0
+        let en3 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global g2._0
         match en3.kind with
         | kernel.expr.ExprKind.Bvar _ => ok false
         | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -7958,7 +7971,7 @@ def kernel.core_k.head_hint
   Result kernel.env.ReducibilityHint
   := do
   let f ← kernel.expr_ops.get_app_fn e
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok kernel.env.ReducibilityHint.Opaque
   | kernel.expr.ExprKind.Fvar _ _ => ok kernel.env.ReducibilityHint.Opaque
@@ -7982,7 +7995,7 @@ def kernel.core_k.head_hint
 def kernel.core_k.unfoldable_head
   (fe : kernel.fenv.FEnv) (e : kernel.expr.Expr) : Result Bool := do
   let f ← kernel.expr_ops.get_app_fn e
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -7995,7 +8008,7 @@ def kernel.core_k.unfoldable_head
       match ci with
       | kernel.env.ConstantInfo.AxiomInfo _ => ok false
       | kernel.env.ConstantInfo.DefnInfo cv _ _ =>
-        let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+        let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
         let i := alloc.vec.Vec.len v
         let i1 := alloc.vec.Vec.len cv.level_params
         ok (i = i1)
@@ -8071,7 +8084,7 @@ def kernel.core_k.is_punit_ind (fe : kernel.fenv.FEnv) : Result Bool := do
     Visibility: public -/
 def kernel.core_k.is_unit_like_ty
   (fe : kernel.fenv.FEnv) (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -8124,7 +8137,7 @@ def kernel.core_k.is_ctor_info
 def kernel.core_k.is_ctor_app
   (fe : kernel.fenv.FEnv) (e : kernel.expr.Expr) : Result Bool := do
   let f ← kernel.expr_ops.get_app_fn e
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -8953,7 +8966,7 @@ def cached.expr_ops_c.abstract_range_go
   then let r ← kernel.expr.dup e
        ok (r, memo)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => let r ← kernel.expr.dup e
                                      ok (r, memo)
@@ -9429,7 +9442,7 @@ def cached.expr_ops_c.abstract1_go
   then let r ← kernel.expr.dup e
        ok (r, memo)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => let r ← kernel.expr.dup e
                                      ok (r, memo)
@@ -9837,7 +9850,7 @@ def kernel.expr_ops.bvar_bound_go
   let o ← kernel.expr_ops.memo_n_get memo e
   match o with
   | none =>
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     let (memo1, r) ←
       match en.kind with
       | kernel.expr.ExprKind.Bvar i => do
@@ -9936,7 +9949,7 @@ def cached.expr_ops_c.instantiate_rev_go
     then let r ← kernel.expr.dup e
          ok (r, memo)
     else
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar i1 =>
         if i1 < d
@@ -10625,7 +10638,7 @@ def cached.expr_ops_c.instantiate_list_go
     then let r ← kernel.expr.dup e
          ok (r, memo)
     else
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar i1 =>
         if i1 < d
@@ -11151,7 +11164,7 @@ def cached.expr_ops_c.instantiate1_go
   then let r ← kernel.expr.dup e
        ok (r, memo)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar i1 =>
       if i1 = d
@@ -11964,7 +11977,7 @@ def cached.core_c.infer_proj_at_i
   Result (core.result.Result kernel.expr.Expr kernel.core_types.CheckError)
   := do
   let f ← kernel.expr_ops.get_app_fn te
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let s ← lift (Array.to_slice cached.core_c.infer_proj_at_i.M_NOENTRY)
@@ -11991,7 +12004,7 @@ def cached.core_c.infer_proj_at_i
       ok (core.result.Result.Err ce)
     | some entry =>
       let targs ← kernel.expr_ops.get_app_args te
-      let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+      let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
       cached.core_c.proj_type_at_checked_i entry sn t v targs pe
   | kernel.expr.ExprKind.App _ _ =>
     let s ← lift (Array.to_slice cached.core_c.infer_proj_at_i.M_NOENTRY)
@@ -12251,7 +12264,7 @@ def cached.core_c.infer_lams_prev_pw_i
       let (_, bm) ←
         alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
           (kernel.expr.Expr × kernel.expr.BinderMeta)) stk i2
-      let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global bm.pw
+      let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global bm.pw
       kernel.prop_when.dup pw
   | some pw => ok pw
 
@@ -12313,7 +12326,7 @@ def cached.core_c.infer_lams_out_i
       if b
       then
         let (e, bm) := ent
-        let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global bm.pw
+        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global bm.pw
         let b1 ← kernel.prop_when.beq pw prev_pw
         if b1
         then
@@ -12333,7 +12346,7 @@ def cached.core_c.infer_lams_out_i
         let ty_abs ← cached.state_c.abstract_range_m e d j
         let bm1 ← kernel.expr.binder_meta_dup bm
         let node ← kernel.expr.forall_e ty_abs cur bm1
-        let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global bm.pw
+        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global bm.pw
         let pw1 ← kernel.prop_when.dup pw
         let i2 ← kernel.expr_ops.sub_nat j 1#u64
         cached.core_c.infer_lams_out_i mode d stk i1 i2 node pw1
@@ -12546,12 +12559,12 @@ def kernel.level.is_proj_str (s : alloc.vec.Vec Std.U32) : Result Bool := do
     Visibility: public -/
 def kernel.level.name_is_proj_fn_shape
   (n : kernel.name.Name) : Result Bool := do
-  let nn ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global n._0
+  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
   match nn.kind with
   | kernel.name.NameKind.Anonymous => ok false
   | kernel.name.NameKind.Str _ _ => ok false
   | kernel.name.NameKind.Num p _ =>
-    let nn1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global p._0
+    let nn1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global p._0
     match nn1.kind with
     | kernel.name.NameKind.Anonymous => ok false
     | kernel.name.NameKind.Str _ s =>
@@ -12799,7 +12812,7 @@ def cached.core_c.rec_arity_probe
     Visibility: public -/
 def cached.core_c.iota_num_args
   (e : kernel.expr.Expr) (n : Std.U64) : Result Std.U64 := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok n
   | kernel.expr.ExprKind.Fvar _ _ => ok n
@@ -12821,7 +12834,7 @@ partial_fixpoint
 def cached.core_c.iota_arity_ok
   (fe : kernel.fenv.FEnv) (e : kernel.expr.Expr) : Result Bool := do
   let f ← kernel.expr_ops.get_app_fn e
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -12836,7 +12849,7 @@ def cached.core_c.iota_arity_ok
       let i3 ← i1 + 1#u64
       if i = i3
       then
-        let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+        let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
         let i4 := alloc.vec.Vec.len v
         ok (i4 = i2)
       else ok false
@@ -12923,7 +12936,7 @@ def cached.expr_ops_c.leaves_sub_go
     let o ← kernel.expr_ops.memo_b_get memo e
     match o with
     | none =>
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
       let (memo1, r) ←
         match en.kind with
         | kernel.expr.ExprKind.Bvar _ => ok (memo, true)
@@ -13047,7 +13060,7 @@ def cached.expr_ops_c.fvar_leaves_go
         ron.hashmap.HashMap.insert
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen e1 ()
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ => ok (acc, seen1)
       | kernel.expr.ExprKind.Fvar idx ty =>
@@ -13143,7 +13156,7 @@ def cached.expr_ops_c.wscoped_b_go
     let o ← cached.expr_ops_c.memo_b1_get memo key
     match o with
     | none =>
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
       let (memo1, r) ←
         match en.kind with
         | kernel.expr.ExprKind.Bvar _ => ok (memo, true)
@@ -13338,7 +13351,7 @@ def cached.expr_ops_c.pi_residual_acc
   then let e1 ← cached.expr_ops_c.instantiate_list e acc 0#u64
        ok (some e1)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       let i2 := alloc.vec.Vec.len acc
@@ -13407,20 +13420,20 @@ def cached.core_c.reduce_nat_i
   Result ((core.result.Result (Option kernel.expr.Expr)
     kernel.core_types.CheckError) × cached.state_c.CState)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok (core.result.Result.Ok none, st)
   | kernel.expr.ExprKind.Fvar _ _ => ok (core.result.Result.Ok none, st)
   | kernel.expr.ExprKind.Sort _ => ok (core.result.Result.Ok none, st)
   | kernel.expr.ExprKind.Const _ _ => ok (core.result.Result.Ok none, st)
   | kernel.expr.ExprKind.App f b =>
-    let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+    let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
     match en1.kind with
     | kernel.expr.ExprKind.Bvar _ => ok (core.result.Result.Ok none, st)
     | kernel.expr.ExprKind.Fvar _ _ => ok (core.result.Result.Ok none, st)
     | kernel.expr.ExprKind.Sort _ => ok (core.result.Result.Ok none, st)
     | kernel.expr.ExprKind.Const c us =>
-      let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+      let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
       let i := alloc.vec.Vec.len v
       if i = 0#usize
       then
@@ -13449,13 +13462,13 @@ def cached.core_c.reduce_nat_i
         else ok (core.result.Result.Ok none, st)
       else ok (core.result.Result.Ok none, st)
     | kernel.expr.ExprKind.App g a =>
-      let en2 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global g._0
+      let en2 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global g._0
       match en2.kind with
       | kernel.expr.ExprKind.Bvar _ => ok (core.result.Result.Ok none, st)
       | kernel.expr.ExprKind.Fvar _ _ => ok (core.result.Result.Ok none, st)
       | kernel.expr.ExprKind.Sort _ => ok (core.result.Result.Ok none, st)
       | kernel.expr.ExprKind.Const c us =>
-        let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+        let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
         let i := alloc.vec.Vec.len v
         if i != 0#usize
         then ok (core.result.Result.Ok none, st)
@@ -13598,7 +13611,7 @@ def cached.core_c.iota_certs_i_aux
   if i >= i1
   then ok (core.result.Result.Ok true, st)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global ty._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ty._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       let i2 := alloc.vec.Vec.len acc
@@ -13622,7 +13635,7 @@ def cached.core_c.iota_certs_i_aux
       let acc2 ← kernel.expr_ops.cons_expr e acc
       if lic
       then
-        let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mb.pw
+        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
         let b ← kernel.prop_when.is_never pw
         if b
         then
@@ -13798,13 +13811,13 @@ def cached.core_c.defeq_spine_i
   := do
   let fa ← kernel.expr_ops.get_app_fn a
   let fb ← kernel.expr_ops.get_app_fn b
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global fa._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global fa._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok (core.result.Result.Ok false, st)
   | kernel.expr.ExprKind.Fvar _ _ => ok (core.result.Result.Ok false, st)
   | kernel.expr.ExprKind.Sort _ => ok (core.result.Result.Ok false, st)
   | kernel.expr.ExprKind.Const n us =>
-    let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global fb._0
+    let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global fb._0
     match en1.kind with
     | kernel.expr.ExprKind.Bvar _ => ok (core.result.Result.Ok false, st)
     | kernel.expr.ExprKind.Fvar _ _ => ok (core.result.Result.Ok false, st)
@@ -13819,8 +13832,8 @@ def cached.core_c.defeq_spine_i
         let i1 := alloc.vec.Vec.len args_b
         if i = i1
         then
-          let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
-          let v1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us2
+          let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
+          let v1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us2
           let (o, st1) ← cached.state_c.is_equiv_list_l_m st v v1
           match o with
           | none => ok (core.result.Result.Ok false, st1)
@@ -13896,7 +13909,7 @@ def cached.core_c.prop_legs_i
     let (r1, st2) ← cached.core_c.whnf mode fuel st1 fe depth tta
     match r1 with
     | core.result.Result.Ok wtta =>
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global wtta._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global wtta._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ => ok (core.result.Result.Ok false, st2)
       | kernel.expr.ExprKind.Fvar _ _ => ok (core.result.Result.Ok false, st2)
@@ -13916,7 +13929,7 @@ def cached.core_c.prop_legs_i
               match r5 with
               | core.result.Result.Ok wttb =>
                 let en1 ←
-                  alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global wttb._0
+                  alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global wttb._0
                 match en1.kind with
                 | kernel.expr.ExprKind.Bvar _ =>
                   ok (core.result.Result.Ok false, st6)
@@ -14083,7 +14096,7 @@ def cached.core_c.struct_eta_cert_with_i
     cached.state_c.CState)
   := do
   let fa ← kernel.expr_ops.get_app_fn a
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global fa._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global fa._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok (core.result.Result.Ok false, st)
   | kernel.expr.ExprKind.Fvar _ _ => ok (core.result.Result.Ok false, st)
@@ -14102,7 +14115,7 @@ def cached.core_c.struct_eta_cert_with_i
       then ok (core.result.Result.Ok false, st)
       else
         let ftb ← kernel.expr_ops.get_app_fn wtb
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global ftb._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ftb._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ => ok (core.result.Result.Ok false, st)
         | kernel.expr.ExprKind.Fvar _ _ => ok (core.result.Result.Ok false, st)
@@ -14114,12 +14127,12 @@ def cached.core_c.struct_eta_cert_with_i
           | some p =>
             let (cvt, caps) := p
             let targs ← kernel.expr_ops.get_app_args wtb
-            let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us2
+            let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us2
             let b1 ←
               kernel.core_k.struct_eta_shape_ok fe c v targs cvc cvt caps t1
             if b1
             then
-              let v1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+              let v1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
               cached.core_c.struct_eta_cert_steps_i mode fuel st fe depth c v1
                 v aargs targs b cvc cvt caps t1
             else ok (core.result.Result.Ok false, st)
@@ -14303,7 +14316,7 @@ def cached.core_c.struct_unit_cert_i
     match r1 with
     | core.result.Result.Ok wta =>
       let f ← kernel.expr_ops.get_app_fn wta
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ => ok (core.result.Result.Ok false, st2)
       | kernel.expr.ExprKind.Fvar _ _ => ok (core.result.Result.Ok false, st2)
@@ -14315,7 +14328,7 @@ def cached.core_c.struct_unit_cert_i
         | some p =>
           let (cvt, caps) := p
           let targs ← kernel.expr_ops.get_app_args wta
-          let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us2
+          let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us2
           let b1 ← kernel.core_k.unit_shape_ok t v targs cvt caps
           if b1
           then
@@ -14391,7 +14404,7 @@ def cached.core_c.eta_cert_i
     let (r1, st2) ← cached.core_c.whnf mode fuel st1 fe depth tb
     match r1 with
     | core.result.Result.Ok wtb =>
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global wtb._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global wtb._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ => ok (core.result.Result.Ok false, st2)
       | kernel.expr.ExprKind.Fvar _ _ => ok (core.result.Result.Ok false, st2)
@@ -14401,7 +14414,7 @@ def cached.core_c.eta_cert_i
       | kernel.expr.ExprKind.Lam _ _ _ => ok (core.result.Result.Ok false, st2)
       | kernel.expr.ExprKind.ForallE ty2 _ m2 =>
         let ty21 ← kernel.expr.dup ty2
-        let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m2.pw
+        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m2.pw
         let pw2 ← kernel.prop_when.dup pw
         let (r2, st3) ← cached.core_c.defeq mode fuel st2 fe depth ty21 ty1
         match r2 with
@@ -14447,7 +14460,7 @@ def cached.core_c.eta_cert_body_i
       let b2 ← kernel.env.verified_checks mode
       if b2
       then
-        let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m1.pw
+        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m1.pw
         let b3 ← kernel.prop_when.beq pw pw2
         if b3
         then ok (r, st1)
@@ -14528,7 +14541,7 @@ def cached.core_c.major_to_ctor_i
         let (cvj, cn_p, _) := t
         let res ← kernel.expr_ops.pi_result cvj.ty
         let head ← kernel.expr_ops.get_app_fn res
-        let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+        let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
         match en.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let e ← kernel.expr.dup major
@@ -14601,7 +14614,7 @@ def cached.core_c.major_to_ctor_k_i
   match r with
   | core.result.Result.Ok tmaj =>
     let head ← kernel.expr_ops.get_app_fn tmaj
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       let e ← kernel.expr.dup major
@@ -14618,7 +14631,7 @@ def cached.core_c.major_to_ctor_k_i
       if b
       then
         let i := alloc.vec.Vec.len cvj.level_params
-        let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global ust
+        let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ust
         let i1 := alloc.vec.Vec.len v
         if i != i1
         then let e ← kernel.expr.dup major
@@ -14765,7 +14778,7 @@ def cached.core_c.major_to_ctor_eta_i
   match r with
   | core.result.Result.Ok tmaj =>
     let head ← kernel.expr_ops.get_app_fn tmaj
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       let e ← kernel.expr.dup major
@@ -14787,7 +14800,7 @@ def cached.core_c.major_to_ctor_eta_i
         then let e ← kernel.expr.dup major
              ok (core.result.Result.Ok e, st1)
         else
-          let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global ust
+          let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ust
           let i2 := alloc.vec.Vec.len v
           let i3 := alloc.vec.Vec.len cvt.level_params
           if i2 != i3
@@ -14917,7 +14930,7 @@ def cached.core_c.major_to_ctor_and_i
   match r with
   | core.result.Result.Ok tmaj =>
     let head ← kernel.expr_ops.get_app_fn tmaj
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       let e ← kernel.expr.dup major
@@ -14940,7 +14953,7 @@ def cached.core_c.major_to_ctor_and_i
              ok (core.result.Result.Ok e, st1)
         else
           let i2 := alloc.vec.Vec.len cvj.level_params
-          let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global ust
+          let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ust
           let i3 := alloc.vec.Vec.len v
           if i2 != i3
           then
@@ -15027,7 +15040,7 @@ def cached.core_c.lit_major_to_ctor_i
   Result ((core.result.Result kernel.expr.Expr kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let e1 ← kernel.core_k.lit_to_ctor_if_nat fe e
@@ -15062,7 +15075,7 @@ def cached.core_c.lit_major_to_ctor_i
       let b ← kernel.core_k.str_lit_supported fe
       if b
       then
-        let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global s
+        let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global s
         let c ← kernel.core_k.str_lit_to_constructor v
         cached.core_c.whnf mode fuel st fe depth c
       else let e1 ← kernel.expr.dup e
@@ -15081,7 +15094,7 @@ def cached.core_c.proj_lit_to_ctor_i
   Result ((core.result.Result kernel.expr.Expr kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let e1 ← kernel.expr.dup e
@@ -15116,7 +15129,7 @@ def cached.core_c.proj_lit_to_ctor_i
       let b ← kernel.core_k.str_lit_supported fe
       if b
       then
-        let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global s
+        let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global s
         let c ← kernel.core_k.str_lit_to_constructor v
         cached.core_c.whnf mode fuel st fe depth c
       else let e1 ← kernel.expr.dup e
@@ -15172,7 +15185,7 @@ def cached.core_c.iota_rec_i
     kernel.core_types.CheckError) × cached.state_c.CState)
   := do
   let f ← kernel.expr_ops.get_app_fn e
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok (core.result.Result.Ok none, st)
   | kernel.expr.ExprKind.Fvar _ _ => ok (core.result.Result.Ok none, st)
@@ -15189,7 +15202,7 @@ def cached.core_c.iota_rec_i
       let i2 ← m_i + 1#u64
       if i1 = i2
       then
-        let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+        let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
         let i3 := alloc.vec.Vec.len v
         let i4 := alloc.vec.Vec.len cv.level_params
         if i3 = i4
@@ -15226,7 +15239,7 @@ def cached.core_c.iota_rec_rule_i
     kernel.core_types.CheckError) × cached.state_c.CState)
   := do
   let fj ← kernel.expr_ops.get_app_fn major
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global fj._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global fj._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok (core.result.Result.Ok none, st)
   | kernel.expr.ExprKind.Fvar _ _ => ok (core.result.Result.Ok none, st)
@@ -15260,7 +15273,7 @@ def cached.core_c.iota_rec_rule_i
             let ce ← kernel.core_types.not_implemented v
             ok (core.result.Result.Err ce, st)
           else
-            let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global usj
+            let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global usj
             cached.core_c.iota_rec_checks_i mode fuel st fe depth c cj cv cvj
               m_i r_p rl us v args margs major
   | kernel.expr.ExprKind.App _ _ => ok (core.result.Result.Ok none, st)
@@ -15480,7 +15493,7 @@ def cached.core_c.whnf_app_i
   then let e ← kernel.expr.dup v
        ok (core.result.Result.Ok e, st)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global v._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global v._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       let e ← kernel.expr.dup v
@@ -15640,7 +15653,7 @@ def cached.core_c.whnf_app_i
     | kernel.expr.ExprKind.Lam ty body mb =>
       let ty1 ← kernel.expr.dup ty
       let body1 ← kernel.expr.dup body
-      let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mb.pw
+      let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
       let b ← kernel.env.beta_skip mode pw
       if b
       then
@@ -15819,7 +15832,7 @@ def cached.core_c.beta_peel_i
     let (e2, st1) ← cached.state_c.inst_list_m st t acc 0#u64
     cached.core_c.whnf_core_loop_i mode fuel st1 fe depth n e2
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global t._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global t._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       let (e2, st1) ← cached.state_c.inst_list_m st t acc 0#u64
@@ -15864,7 +15877,7 @@ def cached.core_c.beta_peel_i
     | kernel.expr.ExprKind.Lam ty body mb =>
       let ty1 ← kernel.expr.dup ty
       let body1 ← kernel.expr.dup body
-      let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mb.pw
+      let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
       let b ← kernel.env.beta_skip mode pw
       if b
       then
@@ -15945,7 +15958,7 @@ def cached.core_c.whnf_core_step_i
   Result ((core.result.Result kernel.expr.Expr kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let s ← lift (Array.to_slice cached.core_c.whnf_core_step_i.M_BVAR)
@@ -16016,7 +16029,7 @@ def cached.core_c.whnf_core_proj_i
     ok (core.result.Result.Ok e1, st)
   | some entry =>
     let f ← kernel.expr_ops.get_app_fn e2
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       let n1 ← kernel.name.dup sn
@@ -16035,7 +16048,7 @@ def cached.core_c.whnf_core_proj_i
       ok (core.result.Result.Ok e1, st)
     | kernel.expr.ExprKind.Const c us =>
       let args ← kernel.expr_ops.get_app_args e2
-      let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+      let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
       let b ← kernel.core_k.proj_fire_shape_ok entry c i v args
       if b
       then
@@ -16201,7 +16214,7 @@ def cached.core_c.ensure_sort_i
   let (r, st1) ← cached.core_c.whnf mode fuel st fe depth e
   match r with
   | core.result.Result.Ok w =>
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       let s ← lift (Array.to_slice cached.core_c.ensure_sort_i.M)
@@ -16286,14 +16299,14 @@ def cached.core_c.infer_spine_i
     let e ← cached.state_c.inst_list_rev_m ty acc 0#u64
     ok (core.result.Result.Ok e, st)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global ty._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ty._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       let ty2 ← cached.state_c.inst_list_rev_m ty acc 0#u64
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_i.M_FN)
@@ -16374,7 +16387,7 @@ def cached.core_c.infer_spine_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_i.M_FN)
@@ -16455,7 +16468,7 @@ def cached.core_c.infer_spine_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_i.M_FN)
@@ -16536,7 +16549,7 @@ def cached.core_c.infer_spine_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_i.M_FN)
@@ -16617,7 +16630,7 @@ def cached.core_c.infer_spine_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_i.M_FN)
@@ -16698,7 +16711,7 @@ def cached.core_c.infer_spine_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_i.M_FN)
@@ -16806,7 +16819,7 @@ def cached.core_c.infer_spine_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_i.M_FN)
@@ -16887,7 +16900,7 @@ def cached.core_c.infer_spine_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_i.M_FN)
@@ -16968,7 +16981,7 @@ def cached.core_c.infer_spine_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_i.M_FN)
@@ -17063,14 +17076,14 @@ def cached.core_c.infer_spine_io_i
     let e ← cached.state_c.inst_list_rev_m ty acc 0#u64
     ok (core.result.Result.Ok e, st)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global ty._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ty._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       let ty2 ← cached.state_c.inst_list_rev_m ty acc 0#u64
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_io_i.M_FN)
@@ -17105,7 +17118,7 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mt.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
           let pw1 ← kernel.prop_when.dup pw
           let b ← kernel.env.io_skip mode pw1
           if b
@@ -17152,7 +17165,7 @@ def cached.core_c.infer_spine_io_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_io_i.M_FN)
@@ -17187,7 +17200,7 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mt.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
           let pw1 ← kernel.prop_when.dup pw
           let b ← kernel.env.io_skip mode pw1
           if b
@@ -17234,7 +17247,7 @@ def cached.core_c.infer_spine_io_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_io_i.M_FN)
@@ -17269,7 +17282,7 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mt.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
           let pw1 ← kernel.prop_when.dup pw
           let b ← kernel.env.io_skip mode pw1
           if b
@@ -17316,7 +17329,7 @@ def cached.core_c.infer_spine_io_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_io_i.M_FN)
@@ -17351,7 +17364,7 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mt.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
           let pw1 ← kernel.prop_when.dup pw
           let b ← kernel.env.io_skip mode pw1
           if b
@@ -17398,7 +17411,7 @@ def cached.core_c.infer_spine_io_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_io_i.M_FN)
@@ -17433,7 +17446,7 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mt.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
           let pw1 ← kernel.prop_when.dup pw
           let b ← kernel.env.io_skip mode pw1
           if b
@@ -17480,7 +17493,7 @@ def cached.core_c.infer_spine_io_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_io_i.M_FN)
@@ -17515,7 +17528,7 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mt.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
           let pw1 ← kernel.prop_when.dup pw
           let b ← kernel.env.io_skip mode pw1
           if b
@@ -17559,7 +17572,7 @@ def cached.core_c.infer_spine_io_i
       | core.result.Result.Err _ => ok (r, st1)
     | kernel.expr.ExprKind.ForallE dom body mt =>
       let body1 ← kernel.expr.dup body
-      let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mt.pw
+      let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
       let b ← kernel.env.io_skip mode pw
       if b
       then
@@ -17590,7 +17603,7 @@ def cached.core_c.infer_spine_io_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_io_i.M_FN)
@@ -17625,7 +17638,7 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mt.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
           let pw1 ← kernel.prop_when.dup pw
           let b ← kernel.env.io_skip mode pw1
           if b
@@ -17672,7 +17685,7 @@ def cached.core_c.infer_spine_io_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_io_i.M_FN)
@@ -17707,7 +17720,7 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mt.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
           let pw1 ← kernel.prop_when.dup pw
           let b ← kernel.env.io_skip mode pw1
           if b
@@ -17754,7 +17767,7 @@ def cached.core_c.infer_spine_io_i
       let (r, st1) ← cached.core_c.whnf mode fuel st fe depth ty2
       match r with
       | core.result.Result.Ok w =>
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ← lift (Array.to_slice cached.core_c.infer_spine_io_i.M_FN)
@@ -17789,7 +17802,7 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mt.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
           let pw1 ← kernel.prop_when.dup pw
           let b ← kernel.env.io_skip mode pw1
           if b
@@ -17918,7 +17931,7 @@ def cached.core_c.infer_lams_leaf_sort_i
     let (r1, st2) ← cached.core_c.whnf mode fuel st1 fe dk btt
     match r1 with
     | core.result.Result.Ok wbtt =>
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global wbtt._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global wbtt._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ =>
         let s ←
@@ -17943,7 +17956,7 @@ def cached.core_c.infer_lams_leaf_sort_i
           let (_, bm) ←
             alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
               (kernel.expr.Expr × kernel.expr.BinderMeta)) stk i2
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global bm.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global bm.pw
           let b ← kernel.prop_when.beq pv pw
           if b
           then ok (core.result.Result.Ok (), st2)
@@ -18013,7 +18026,7 @@ def cached.core_c.infer_lams_i
   if peel = 0#u64
   then cached.core_c.infer_lams_leaf_i mode fuel st fe d t k fvs stk
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global t._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global t._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       cached.core_c.infer_lams_leaf_i mode fuel st fe d t k fvs stk
@@ -18082,7 +18095,7 @@ def cached.core_c.infer_pis_leaf_i
     let (r1, st2) ← cached.core_c.whnf mode fuel st1 fe i bt
     match r1 with
     | core.result.Result.Ok wbt =>
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global wbt._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global wbt._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ =>
         let s ← lift (Array.to_slice cached.core_c.infer_pis_leaf_i.M)
@@ -18157,7 +18170,7 @@ def cached.core_c.infer_pis_i
   if peel = 0#u64
   then cached.core_c.infer_pis_leaf_i mode fuel st fe d t k fvs stk
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global t._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global t._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       cached.core_c.infer_pis_leaf_i mode fuel st fe d t k fvs stk
@@ -18173,7 +18186,7 @@ def cached.core_c.infer_pis_i
       cached.core_c.infer_pis_leaf_i mode fuel st fe d t k fvs stk
     | kernel.expr.ExprKind.ForallE ty body mb =>
       let body1 ← kernel.expr.dup body
-      let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mb.pw
+      let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
       let pw1 ← kernel.prop_when.dup pw
       let tyo ← cached.state_c.inst_list_rev_m ty fvs 0#u64
       let i ← d + k
@@ -18183,7 +18196,8 @@ def cached.core_c.infer_pis_i
         let (r1, st2) ← cached.core_c.whnf mode fuel st1 fe i tty
         match r1 with
         | core.result.Result.Ok wtty =>
-          let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global wtty._0
+          let en1 ←
+            alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global wtty._0
           match en1.kind with
           | kernel.expr.ExprKind.Bvar _ =>
             let s ← lift (Array.to_slice cached.core_c.infer_pis_i.M)
@@ -18259,7 +18273,7 @@ def cached.core_c.infer_body_i
   Result ((core.result.Result kernel.expr.Expr kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let s ← lift (Array.to_slice cached.core_c.infer_body_i.M_BVAR)
@@ -18275,7 +18289,7 @@ def cached.core_c.infer_body_i
     let e1 ← kernel.expr.sort l1
     ok (core.result.Result.Ok e1, st)
   | kernel.expr.ExprKind.Const n us =>
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     cached.core_c.infer_const_i st fe n v
   | kernel.expr.ExprKind.App _ _ =>
     let h ← kernel.expr_ops.get_app_fn e
@@ -18323,7 +18337,7 @@ def cached.core_c.infer_forall_i
     let (r1, st2) ← cached.core_c.whnf mode fuel st1 fe depth tty
     match r1 with
     | core.result.Result.Ok wtty =>
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global wtty._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global wtty._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ =>
         let s ← lift (Array.to_slice cached.core_c.infer_forall_i.M)
@@ -18340,7 +18354,7 @@ def cached.core_c.infer_forall_i
         let e ← kernel.expr.dup ty
         let fv ← kernel.expr.fvar depth e
         let fvs ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.expr.Expr) fv
-        let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mb.pw
+        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
         let pw1 ← kernel.prop_when.dup pw
         let stk ←
           alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.level.Level ×
@@ -18454,7 +18468,7 @@ def cached.core_c.infer_body_io_i
   Result ((core.result.Result kernel.expr.Expr kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     cached.core_c.infer_body_i mode fuel st fe depth e true
@@ -18501,7 +18515,7 @@ def cached.core_c.infer_forall_io_i
     let (r1, st2) ← cached.core_c.whnf mode fuel st1 fe depth tty
     match r1 with
     | core.result.Result.Ok wtty =>
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global wtty._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global wtty._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ =>
         let s ← lift (Array.to_slice cached.core_c.infer_forall_io_i.M)
@@ -18530,7 +18544,7 @@ def cached.core_c.infer_forall_io_i
             then
               let pw ← kernel.level.zeroness_of v
               let pw1 ←
-                alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mb.pw
+                alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
               let b1 ← kernel.prop_when.beq pw pw1
               if b1
               then
@@ -18645,7 +18659,7 @@ def cached.core_c.infer_lam_cod_io_i
       match r1 with
       | core.result.Result.Ok vb =>
         let pw ← kernel.level.zeroness_of vb
-        let pw1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mb.pw
+        let pw1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
         let b ← kernel.prop_when.beq pw pw1
         if b
         then ok (core.result.Result.Ok (), st2)
@@ -18658,7 +18672,7 @@ def cached.core_c.infer_lam_cod_io_i
       | core.result.Result.Err err => ok (core.result.Result.Err err, st2)
     | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
   | some pw_i =>
-    let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mb.pw
+    let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
     let b ← kernel.prop_when.beq pw pw_i
     if b
     then ok (core.result.Result.Ok (), st)
@@ -18949,8 +18963,8 @@ def cached.core_c.defeq_struct_i
   Result ((core.result.Result Bool kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
-  let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a._0
+  let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     match en1.kind with
@@ -19064,8 +19078,8 @@ def cached.core_c.defeq_struct_i
       let b1 ← kernel.name.beq n1 n2
       if b1
       then
-        let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us1
-        let v1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us2
+        let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us1
+        let v1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us2
         let (eq, st1) ← cached.state_c.is_equiv_list_l_m st v v1
         let r ← kernel.core_k.lift_fueled eq
         match r with
@@ -19096,7 +19110,7 @@ def cached.core_c.defeq_struct_i
     | kernel.expr.ExprKind.Lit l =>
       match l with
       | kernel.expr.Literal.NatVal nn =>
-        let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us1
+        let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us1
         let i := alloc.vec.Vec.len v
         if i = 0#usize
         then
@@ -19104,7 +19118,7 @@ def cached.core_c.defeq_struct_i
           let b1 ← kernel.name.beq n1 n
           if b1
           then
-            let n2 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global nn
+            let n2 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global nn
             let b2 ← ron.nat.is_zero n2
             ok (core.result.Result.Ok b2, st)
           else cached.core_c.stuck_irrel_i mode fuel st fe depth a b
@@ -19144,7 +19158,7 @@ def cached.core_c.defeq_struct_i
     | kernel.expr.ExprKind.Lit l =>
       match l with
       | kernel.expr.Literal.NatVal nn =>
-        let n ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global nn
+        let n ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global nn
         let o ← kernel.core_k.succ_of n f
         match o with
         | none => cached.core_c.stuck_irrel_i mode fuel st fe depth a b
@@ -19156,7 +19170,7 @@ def cached.core_c.defeq_struct_i
         let b1 ← kernel.core_k.str_expansion_fires fe f
         if b1
         then
-          let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global s
+          let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global s
           let c ← kernel.core_k.str_lit_to_constructor v
           cached.core_c.defeq mode fuel st fe depth a c
         else cached.core_c.stuck_irrel_i mode fuel st fe depth a b
@@ -19351,7 +19365,7 @@ def cached.core_c.defeq_struct_i
     | kernel.expr.ExprKind.Const c us =>
       match l1 with
       | kernel.expr.Literal.NatVal nn =>
-        let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+        let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
         let i := alloc.vec.Vec.len v
         if i = 0#usize
         then
@@ -19359,7 +19373,7 @@ def cached.core_c.defeq_struct_i
           let b1 ← kernel.name.beq c n
           if b1
           then
-            let n1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global nn
+            let n1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global nn
             let b2 ← ron.nat.is_zero n1
             ok (core.result.Result.Ok b2, st)
           else cached.core_c.stuck_irrel_i mode fuel st fe depth a b
@@ -19369,7 +19383,7 @@ def cached.core_c.defeq_struct_i
     | kernel.expr.ExprKind.App f x =>
       match l1 with
       | kernel.expr.Literal.NatVal nn =>
-        let n ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global nn
+        let n ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global nn
         let o ← kernel.core_k.succ_of n f
         match o with
         | none => cached.core_c.stuck_irrel_i mode fuel st fe depth a b
@@ -19381,7 +19395,7 @@ def cached.core_c.defeq_struct_i
         let b1 ← kernel.core_k.str_expansion_fires fe f
         if b1
         then
-          let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global s
+          let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global s
           let c ← kernel.core_k.str_lit_to_constructor v
           cached.core_c.defeq mode fuel st fe depth c b
         else cached.core_c.stuck_irrel_i mode fuel st fe depth a b
@@ -19484,8 +19498,10 @@ def cached.core_c.defeq_binders_i
           let b4 ← kernel.env.verified_checks mode
           if b4
           then
-            let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m1.pw
-            let pw1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m2.pw
+            let pw ←
+              alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m1.pw
+            let pw1 ←
+              alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m2.pw
             let b5 ← kernel.prop_when.beq pw pw1
             if b5
             then ok (core.result.Result.Ok true, st2)
@@ -20073,7 +20089,7 @@ def kernel.core_k.annot_binder_meta
   match pw with
   | none => kernel.expr.binder_meta_dup mb
   | some p =>
-    let pw1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mb.pw
+    let pw1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
     let b ← kernel.core_k.pw_written pw1
     if b
     then kernel.expr.binder_meta_dup mb
@@ -20101,7 +20117,7 @@ def cached.core_c.annot_pw_thread_i
   match pw with
   | none => ok none
   | some _ =>
-    let pw1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mb.pw
+    let pw1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
     let pw2 ← kernel.prop_when.dup pw1
     ok (some pw2)
 
@@ -20191,7 +20207,7 @@ def cached.core_c.annotate_pis_i
   if peel = 0#u64
   then cached.core_c.annotate_pis_leaf_i mode fuel st fe d t k fvs stk
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global t._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global t._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       cached.core_c.annotate_pis_leaf_i mode fuel st fe d t k fvs stk
@@ -20272,7 +20288,7 @@ def cached.core_c.annotate_lams_i
   if peel = 0#u64
   then cached.core_c.annotate_lams_leaf_i mode fuel st fe d t k fvs stk
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global t._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global t._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       cached.core_c.annotate_lams_leaf_i mode fuel st fe d t k fvs stk
@@ -20319,7 +20335,7 @@ def cached.core_c.annotate_body_i
   Result ((core.result.Result kernel.expr.Expr kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let e1 ← kernel.expr.dup e
@@ -20456,7 +20472,7 @@ def cached.core_c.annotate_lam_chain_i
     match r1 with
     | core.result.Result.Ok body2 =>
       let b_abs ← cached.state_c.abstract1_m body2 depth
-      let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global mb.pw
+      let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
       let b ← kernel.core_k.pw_written pw
       let (st3, pw1) ←
         if b
@@ -20542,7 +20558,7 @@ def cached.core_c.annotate_proj_i
     match r1 with
     | core.result.Result.Ok te =>
       let f ← kernel.expr_ops.get_app_fn te
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ =>
         let s ←
@@ -20673,7 +20689,7 @@ def cached.core_c.is_prop_type_i
     Visibility: public -/
 def cached.expr_ops_c.get_app_fn
   (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => kernel.expr.dup e
   | kernel.expr.ExprKind.Fvar _ _ => kernel.expr.dup e
@@ -20694,7 +20710,7 @@ def cached.expr_ops_c.get_app_args_acc
   (e : kernel.expr.Expr) (acc : alloc.vec.Vec kernel.expr.Expr) :
   Result (alloc.vec.Vec kernel.expr.Expr)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok acc
   | kernel.expr.ExprKind.Fvar _ _ => ok acc
@@ -20728,7 +20744,7 @@ def kernel.expr_ops.lift_loose_bvars_go
   Result (kernel.expr.Expr × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey
     kernel.expr.Expr))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar i =>
     if i >= c
@@ -21174,7 +21190,7 @@ def cached.expr_ops_c.instantiate1_lift_b
   then let e1 ← kernel.expr.dup e
        ok (some e1, fuel)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar i1 =>
       if i1 = d
@@ -21241,7 +21257,7 @@ def cached.expr_ops_c.instantiate1_lift_b_compound
   :
   Result ((Option kernel.expr.Expr) × Std.U64)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let e1 ← kernel.expr.dup e
@@ -21337,7 +21353,7 @@ def cached.expr_ops_c.instantiate1_lift_go
   then let r ← kernel.expr.dup e
        ok (r, memo)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar i1 =>
       if i1 = d
@@ -21844,7 +21860,7 @@ def kernel.level.all_params_defined
   (params : alloc.vec.Vec kernel.name.Name) (u : kernel.level.Level) :
   Result Bool
   := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global u._0
   match ln.kind with
   | kernel.level.LevelKind.Zero => ok true
   | kernel.level.LevelKind.Succ l => kernel.level.all_params_defined params l
@@ -21908,7 +21924,7 @@ def cached.expr_ops_c.all_level_params_defined_go
     let o ← kernel.expr_ops.memo_b_get memo e
     match o with
     | none =>
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
       let (memo1, r) ←
         match en.kind with
         | kernel.expr.ExprKind.Bvar _ => ok (memo, true)
@@ -21923,7 +21939,7 @@ def cached.expr_ops_c.all_level_params_defined_go
           ok (memo, r1)
         | kernel.expr.ExprKind.Const _ us =>
           do
-          let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+          let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
           let r1 ← kernel.expr_ops.levels_all_params_defined params v 0#usize
           ok (memo, r1)
         | kernel.expr.ExprKind.App f a =>
@@ -21932,13 +21948,13 @@ def cached.expr_ops_c.all_level_params_defined_go
           ok (memo2, r1)
         | kernel.expr.ExprKind.Lam ty body m =>
           do
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let (r1, memo2) ←
             cached.expr_ops_c.alpd_binder params memo ty body pw
           ok (memo2, r1)
         | kernel.expr.ExprKind.ForallE ty body m =>
           do
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let (r1, memo2) ←
             cached.expr_ops_c.alpd_binder params memo ty body pw
           ok (memo2, r1)
@@ -22184,7 +22200,7 @@ def cached.state_c.consts_resolve_fc_node
   (e : kernel.expr.Expr) :
   Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok (true, memo)
   | kernel.expr.ExprKind.Fvar _ ty =>
@@ -22860,7 +22876,7 @@ def kernel.inductives.native_parts.pi_binders_go
   Result ((alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta)) ×
     kernel.expr.Expr)
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => let e1 ← kernel.expr.dup e
                                    ok (out, e1)
@@ -22910,7 +22926,7 @@ def kernel.inductives.native_parts.native_counts
   Result (Option (Std.U64 × Std.U64))
   := do
   let (v, e) ← kernel.inductives.native_parts.pi_binders cv_t.ty
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let i := alloc.vec.Vec.len cs
@@ -23132,7 +23148,7 @@ def kernel.inductives.native_parts.native_shape
                 do
                 let (_, e) := tq
                 let en ←
-                  alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+                  alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
                 match en.kind with
                 | kernel.expr.ExprKind.Bvar _ => kernel.level.zero
                 | kernel.expr.ExprKind.Fvar _ _ => kernel.level.zero
@@ -23358,7 +23374,7 @@ def kernel.inductives.struct_parts.memo_eb_get
     Visibility: public -/
 def kernel.inductives.struct_parts.mentions_const_spec
   (t : kernel.name.Name) (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ ty =>
@@ -23407,7 +23423,7 @@ def kernel.inductives.struct_parts.mentions_const_go
   (e : kernel.expr.Expr) :
   Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok (false, memo)
   | kernel.expr.ExprKind.Fvar _ _ =>
@@ -23503,7 +23519,7 @@ def kernel.inductives.struct_parts.mentions_const_node
   (e : kernel.expr.Expr) :
   Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let b2 ← kernel.inductives.struct_parts.mentions_const_spec t e
@@ -23823,7 +23839,7 @@ def kernel.expr_ops.rec_rule_plain
       | none => ok false
       | some r =>
         let (_, e) := r
-        let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+        let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
         match en.kind with
         | kernel.expr.ExprKind.Bvar _ => ok false
         | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -23855,7 +23871,7 @@ def kernel.core_k.rec_rule_eta_of
     let (cvj, _, _) := t
     let res ← kernel.expr_ops.pi_result cvj.ty
     let head ← kernel.expr_ops.get_app_fn res
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok false
     | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -23896,7 +23912,7 @@ def kernel.core_k.rec_rule_k_of
     let (cvj, _, cn_f) := t
     let res ← kernel.expr_ops.pi_result cvj.ty
     let head ← kernel.expr_ops.get_app_fn res
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok false
     | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -24107,7 +24123,7 @@ def kernel.inductives.struct_parts.has_loose_bvar_b_go
   if i1 <= i
   then ok (false, memo)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar j => ok (i = j, memo)
     | kernel.expr.ExprKind.Fvar _ _ => ok (false, memo)
@@ -24179,7 +24195,7 @@ def kernel.inductives.struct_parts.has_loose_bvar_b_node
   (e : kernel.expr.Expr) :
   Result (Bool × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey Bool))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok (false, memo)
   | kernel.expr.ExprKind.Fvar _ _ => ok (false, memo)
@@ -24305,7 +24321,7 @@ def kernel.expr_ops.instantiate1_lift_go
   then let r ← kernel.expr.dup e
        ok (r, memo)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar i1 =>
       if i1 = d
@@ -24737,7 +24753,7 @@ def kernel.inductives.struct_parts.struct_proj_bodies_go
   if k = 0#u64
   then ok (some out)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -24796,7 +24812,7 @@ def kernel.expr_ops.inst_pis_at_lift_from
   then let e1 ← kernel.expr.dup e
        ok (some e1)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -24919,14 +24935,14 @@ def kernel.expr_ops.all_level_params_defined
   (params : alloc.vec.Vec kernel.name.Name) (e : kernel.expr.Expr) :
   Result Bool
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok true
   | kernel.expr.ExprKind.Fvar _ t =>
     kernel.expr_ops.all_level_params_defined params t
   | kernel.expr.ExprKind.Sort u => kernel.level.all_params_defined params u
   | kernel.expr.ExprKind.Const _ us =>
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     kernel.expr_ops.levels_all_params_defined params v 0#usize
   | kernel.expr.ExprKind.App f a =>
     let b ← kernel.expr_ops.all_level_params_defined params f
@@ -24940,7 +24956,7 @@ def kernel.expr_ops.all_level_params_defined
       let b2 ← kernel.expr_ops.all_level_params_defined params b
       if b2
       then
-        let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
         kernel.prop_when.params_defined params pw
       else ok false
     else ok false
@@ -24951,7 +24967,7 @@ def kernel.expr_ops.all_level_params_defined
       let b2 ← kernel.expr_ops.all_level_params_defined params b
       if b2
       then
-        let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
         kernel.prop_when.params_defined params pw
       else ok false
     else ok false
@@ -24985,7 +25001,7 @@ def kernel.expr_ops.all_level_params_defined_go
   (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (e : kernel.expr.Expr) :
   Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok (true, memo)
   | kernel.expr.ExprKind.Fvar _ _ =>
@@ -25025,7 +25041,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let b3 ← kernel.prop_when.params_defined params pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
@@ -25035,7 +25051,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let b3 ← kernel.prop_when.params_defined params pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
@@ -25069,7 +25085,7 @@ def kernel.expr_ops.all_level_params_defined_go
     let r ← kernel.level.all_params_defined params u
     ok (r, memo)
   | kernel.expr.ExprKind.Const _ us =>
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let r ← kernel.expr_ops.levels_all_params_defined params v 0#usize
     ok (r, memo)
   | kernel.expr.ExprKind.App _ _ =>
@@ -25109,7 +25125,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let b3 ← kernel.prop_when.params_defined params pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
@@ -25119,7 +25135,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let b3 ← kernel.prop_when.params_defined params pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
@@ -25186,7 +25202,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let b3 ← kernel.prop_when.params_defined params pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
@@ -25196,7 +25212,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let b3 ← kernel.prop_when.params_defined params pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
@@ -25263,7 +25279,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let b3 ← kernel.prop_when.params_defined params pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
@@ -25273,7 +25289,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let b3 ← kernel.prop_when.params_defined params pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
@@ -25340,7 +25356,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let b3 ← kernel.prop_when.params_defined params pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
@@ -25350,7 +25366,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let b3 ← kernel.prop_when.params_defined params pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
@@ -25418,7 +25434,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let b3 ← kernel.prop_when.params_defined params pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
@@ -25428,7 +25444,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let b3 ← kernel.prop_when.params_defined params pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
@@ -25476,7 +25492,7 @@ def kernel.expr_ops.all_level_params_defined_fast
     Visibility: public -/
 def kernel.core_k.consts_resolve
   (fe : kernel.fenv.FEnv) (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok true
   | kernel.expr.ExprKind.Fvar _ ty => kernel.core_k.consts_resolve fe ty
@@ -25532,7 +25548,7 @@ def kernel.decl_check.consts_resolve_f_go
   (e : kernel.expr.Expr) :
   Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let r ← kernel.core_k.consts_resolve fe e
@@ -26012,8 +26028,8 @@ partial_fixpoint
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1117:0-1119:1
     Visibility: public -/
 def kernel.env.constant_info_rc_dup
-  (c : alloc.rc.Rc kernel.env.ConstantInfo) :
-  Result (alloc.rc.Rc kernel.env.ConstantInfo)
+  (c : alloc.sync.Arc kernel.env.ConstantInfo) :
+  Result (alloc.sync.Arc kernel.env.ConstantInfo)
   := do
   ron.ptr.clone c
 
@@ -26022,7 +26038,7 @@ def kernel.env.constant_info_rc_dup
     Visibility: public -/
 def kernel.env.constant_info_share
   (c : kernel.env.ConstantInfo) :
-  Result (alloc.rc.Rc kernel.env.ConstantInfo)
+  Result (alloc.sync.Arc kernel.env.ConstantInfo)
   := do
   ron.ptr.new c
 
@@ -26049,14 +26065,14 @@ def kernel.fenv.push
   Result kernel.fenv.FEnv
   := do
   let rc ← kernel.env.constant_info_share ci
-  let ci1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global rc
+  let ci1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global rc
   let n ← kernel.env.constant_info_name ci1
-  let r ← kernel.env.constant_info_rc_dup rc
+  let a ← kernel.env.constant_info_rc_dup rc
   let (_, idx) ←
     ron.hashmap.HashMap.insert
       kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
       kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 fe.idx n
-      (fe.visible_below, r)
+      (fe.visible_below, a)
   let consts ← alloc.vec.Vec.insert fe.env.consts 0#usize rc
   let i ← fe.visible_below + 1#u64
   ok { env := { consts }, idx, visible_below := i }
@@ -26439,7 +26455,7 @@ def kernel.inductives.struct_parts.replace_pis_pw
   then let e1 ← kernel.expr.dup b
        ok (some e1)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -26934,7 +26950,7 @@ def kernel.inductives.struct_parts.pis_to_lams_pw
   then let e1 ← kernel.expr.dup b
        ok (some e1)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -27379,9 +27395,10 @@ def ron.hashmap.HashMap.with_capacity
     Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 114:0-129:1
     Visibility: public -/
 def kernel.fenv.mk_fenv_go
-  (cs : alloc.vec.Vec (alloc.rc.Rc kernel.env.ConstantInfo)) (i : Std.Usize) :
+  (cs : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)) (i : Std.Usize)
+  :
   Result (Std.U64 × (ron.hashmap.HashMap kernel.name.Name (Std.U64 ×
-    (alloc.rc.Rc kernel.env.ConstantInfo))))
+    (alloc.sync.Arc kernel.env.ConstantInfo))))
   := do
   let i1 := alloc.vec.Vec.len cs
   if i >= i1
@@ -27389,21 +27406,21 @@ def kernel.fenv.mk_fenv_go
     let i2 := alloc.vec.Vec.len cs
     let hm ←
       ron.hashmap.HashMap.with_capacity kernel.name.Name (Std.U64 ×
-        (alloc.rc.Rc kernel.env.ConstantInfo)) i2
+        (alloc.sync.Arc kernel.env.ConstantInfo)) i2
     ok (0#u64, hm)
   else
     let i2 ← i + 1#usize
     let (i3, m) ← kernel.fenv.mk_fenv_go cs i2
-    let r ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.rc.Rc
-        kernel.env.ConstantInfo)) cs i
-    let ci ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global r
+    let a ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (alloc.sync.Arc kernel.env.ConstantInfo)) cs i
+    let ci ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a
     let n ← kernel.env.constant_info_name ci
-    let r1 ← kernel.env.constant_info_rc_dup r
+    let a1 ← kernel.env.constant_info_rc_dup a
     let (_, m1) ←
       ron.hashmap.HashMap.insert
         kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
-        kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 m n (i3, r1)
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 m n (i3, a1)
     let i4 ← i3 + 1#u64
     ok (i4, m1)
 partial_fixpoint
@@ -27412,19 +27429,19 @@ partial_fixpoint
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 569:0-581:1
     Visibility: public -/
 def kernel.env.constant_infos_copy_from
-  (cs : alloc.vec.Vec (alloc.rc.Rc kernel.env.ConstantInfo)) (i : Std.Usize)
-  (out : alloc.vec.Vec (alloc.rc.Rc kernel.env.ConstantInfo)) :
-  Result (alloc.vec.Vec (alloc.rc.Rc kernel.env.ConstantInfo))
+  (cs : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)) (i : Std.Usize)
+  (out : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)) :
+  Result (alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo))
   := do
   let i1 := alloc.vec.Vec.len cs
   if i >= i1
   then ok out
   else
-    let r ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.rc.Rc
-        kernel.env.ConstantInfo)) cs i
-    let r1 ← kernel.env.constant_info_rc_dup r
-    let out1 ← alloc.vec.Vec.push out r1
+    let a ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (alloc.sync.Arc kernel.env.ConstantInfo)) cs i
+    let a1 ← kernel.env.constant_info_rc_dup a
+    let out1 ← alloc.vec.Vec.push out a1
     let i2 ← i + 1#usize
     kernel.env.constant_infos_copy_from cs i2 out1
 partial_fixpoint
@@ -27433,11 +27450,12 @@ partial_fixpoint
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 563:0-565:1
     Visibility: public -/
 def kernel.env.constant_infos_copy
-  (cs : alloc.vec.Vec (alloc.rc.Rc kernel.env.ConstantInfo)) :
-  Result (alloc.vec.Vec (alloc.rc.Rc kernel.env.ConstantInfo))
+  (cs : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)) :
+  Result (alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo))
   := do
   let i := alloc.vec.Vec.len cs
-  let v := alloc.vec.Vec.with_capacity (alloc.rc.Rc kernel.env.ConstantInfo) i
+  let v :=
+    alloc.vec.Vec.with_capacity (alloc.sync.Arc kernel.env.ConstantInfo) i
   kernel.env.constant_infos_copy_from cs 0#usize v
 
 /-- [con_ron_core::kernel::env::env_dup]:
@@ -28071,7 +28089,7 @@ def kernel.inductives.sum_install.exprs_contains
     Visibility: public -/
 def kernel.expr_ops.fvar_type_d
   (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => kernel.expr.dup e
   | kernel.expr.ExprKind.Fvar _ ty => kernel.expr.dup ty
@@ -28213,7 +28231,7 @@ def kernel.expr_ops.reset_meta_go
   Result (kernel.expr.Expr × (ron.hashmap.HashMap kernel.expr.Expr
     kernel.expr.Expr))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => let r ← kernel.expr.dup e
                                    ok (r, memo)
@@ -28749,7 +28767,7 @@ def kernel.expr_ops.strip_lams_go
   then let e1 ← kernel.expr.dup e
        ok (some (out, e1))
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -29008,7 +29026,7 @@ def kernel.inductives.native_install.check_native_tail_guards.M_ELIM
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 238:0-246:1
     Visibility: public -/
 def kernel.level.is_never_zero (u : kernel.level.Level) : Result Bool := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global u._0
   match ln.kind with
   | kernel.level.LevelKind.Zero => ok false
   | kernel.level.LevelKind.Succ _ => ok true
@@ -29060,7 +29078,7 @@ def kernel.inductives.native_install.mentions_fvar_go
   (e : kernel.expr.Expr) :
   Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok (false, memo)
   | kernel.expr.ExprKind.Fvar _ _ =>
@@ -29136,7 +29154,7 @@ def kernel.inductives.native_install.mentions_fvar_node
   (e : kernel.expr.Expr) :
   Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok (false, memo)
   | kernel.expr.ExprKind.Fvar idx ty =>
@@ -29305,7 +29323,7 @@ def kernel.expr_ops.instantiate_list
   (e : kernel.expr.Expr) (vs : alloc.vec.Vec kernel.expr.Expr) (d : Std.U64) :
   Result kernel.expr.Expr
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar j =>
     if j < d
@@ -29366,7 +29384,7 @@ def kernel.expr_ops.instantiate_list_go
   Result (kernel.expr.Expr × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey
     kernel.expr.Expr))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let r ← kernel.expr_ops.instantiate_list e vs d
@@ -29771,7 +29789,7 @@ def kernel.checker_base.open_pis_at_fvars_f_go
     let e1 ← kernel.expr_ops.instantiate_list_fast e acc 0#u64
     ok (some (alloc.vec.Vec.new kernel.expr.Expr, e1))
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -29809,7 +29827,7 @@ def kernel.expr_ops.instantiate1_go
   Result (kernel.expr.Expr × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey
     kernel.expr.Expr))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar i =>
     if i = d
@@ -30206,7 +30224,7 @@ def kernel.checker_base.open_pis_at_fvars
     let e1 ← kernel.expr.dup e
     ok (some (alloc.vec.Vec.new kernel.expr.Expr, e1))
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -30913,7 +30931,7 @@ def kernel.expr_ops.abstract1_go
   then let r ← kernel.expr.dup e
        ok (r, memo)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar i1 =>
       let r ← kernel.expr.bvar i1
@@ -31328,7 +31346,7 @@ def kernel.inductives.sum_install.norm_pos_dom
         let b1 ← kernel.inductives.struct_parts.mentions_const t w
         if b1
         then
-          let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+          let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
           match en.kind with
           | kernel.expr.ExprKind.Bvar _ => ok (r, st1)
           | kernel.expr.ExprKind.Fvar _ _ => ok (r, st1)
@@ -31387,7 +31405,7 @@ def kernel.inductives.sum_install.norm_field_doms
   then let e1 ← kernel.expr.dup e
        ok (core.result.Result.Ok (out, e1), st)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       let s ←
@@ -32161,7 +32179,7 @@ def kernel.inductives.native_parts.rec_positivity
   (n_idx : Std.U64) (o : Std.U64) (e : kernel.expr.Expr) (k : Std.U64) :
   Result kernel.inductives.native_parts.RecFieldKind
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let b ← kernel.inductives.struct_parts.mentions_const t e
@@ -32201,7 +32219,7 @@ def kernel.inductives.native_parts.rec_positivity
           else ok kernel.inductives.native_parts.RecFieldKind.Negative
         else ok kernel.inductives.native_parts.RecFieldKind.Negative
       else
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           ok kernel.inductives.native_parts.RecFieldKind.Unsupported
@@ -32265,7 +32283,7 @@ def kernel.inductives.native_parts.rec_positivity
           else ok kernel.inductives.native_parts.RecFieldKind.Negative
         else ok kernel.inductives.native_parts.RecFieldKind.Negative
       else
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           ok kernel.inductives.native_parts.RecFieldKind.Unsupported
@@ -32329,7 +32347,7 @@ def kernel.inductives.native_parts.rec_positivity
           else ok kernel.inductives.native_parts.RecFieldKind.Negative
         else ok kernel.inductives.native_parts.RecFieldKind.Negative
       else
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           ok kernel.inductives.native_parts.RecFieldKind.Unsupported
@@ -32393,7 +32411,7 @@ def kernel.inductives.native_parts.rec_positivity
           else ok kernel.inductives.native_parts.RecFieldKind.Negative
         else ok kernel.inductives.native_parts.RecFieldKind.Negative
       else
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           ok kernel.inductives.native_parts.RecFieldKind.Unsupported
@@ -32457,7 +32475,7 @@ def kernel.inductives.native_parts.rec_positivity
           else ok kernel.inductives.native_parts.RecFieldKind.Negative
         else ok kernel.inductives.native_parts.RecFieldKind.Negative
       else
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           ok kernel.inductives.native_parts.RecFieldKind.Unsupported
@@ -32521,7 +32539,7 @@ def kernel.inductives.native_parts.rec_positivity
           else ok kernel.inductives.native_parts.RecFieldKind.Negative
         else ok kernel.inductives.native_parts.RecFieldKind.Negative
       else
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           ok kernel.inductives.native_parts.RecFieldKind.Unsupported
@@ -32592,7 +32610,7 @@ def kernel.inductives.native_parts.rec_positivity
           else ok kernel.inductives.native_parts.RecFieldKind.Negative
         else ok kernel.inductives.native_parts.RecFieldKind.Negative
       else
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           ok kernel.inductives.native_parts.RecFieldKind.Unsupported
@@ -32656,7 +32674,7 @@ def kernel.inductives.native_parts.rec_positivity
           else ok kernel.inductives.native_parts.RecFieldKind.Negative
         else ok kernel.inductives.native_parts.RecFieldKind.Negative
       else
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           ok kernel.inductives.native_parts.RecFieldKind.Unsupported
@@ -32720,7 +32738,7 @@ def kernel.inductives.native_parts.rec_positivity
           else ok kernel.inductives.native_parts.RecFieldKind.Negative
         else ok kernel.inductives.native_parts.RecFieldKind.Negative
       else
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           ok kernel.inductives.native_parts.RecFieldKind.Unsupported
@@ -33194,7 +33212,7 @@ def kernel.inductives.sum_install.whnf_telescope
   | core.result.Result.Ok w =>
     if n = 0#u64
     then
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ =>
         let s ←
@@ -33263,7 +33281,7 @@ def kernel.inductives.sum_install.whnf_telescope
         let ce ← kernel.core_types.invalid v
         ok (core.result.Result.Err ce, st1)
     else
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global w._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global w._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ =>
         let s ←
@@ -33387,7 +33405,7 @@ def kernel.inductives.sum_install.check_sum_tele
     kernel.inductives.sum_install.check_sum_tele_whnf mode st fe cv n cv_ta0
   | some q =>
     let (_, e) := q
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ =>
       kernel.inductives.sum_install.check_sum_tele_whnf mode st fe cv n cv_ta0
@@ -33860,13 +33878,13 @@ def kernel.inductives.modeled.model_of
     Visibility: public -/
 def kernel.checker_base.eq_head_level
   (e : kernel.expr.Expr) : Result kernel.level.Level := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => kernel.level.zero
   | kernel.expr.ExprKind.Fvar _ _ => kernel.level.zero
   | kernel.expr.ExprKind.Sort _ => kernel.level.zero
   | kernel.expr.ExprKind.Const _ us =>
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i := alloc.vec.Vec.len v
     if i = 1#usize
     then
@@ -33886,13 +33904,13 @@ def kernel.checker_base.eq_head_level
     Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 392:0-403:1
     Visibility: public -/
 def kernel.checker_base.is_eq_head (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
   | kernel.expr.ExprKind.Sort _ => ok false
   | kernel.expr.ExprKind.Const c us =>
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i := alloc.vec.Vec.len v
     if i = 1#usize
     then let n ← kernel.basis_names.eq_name
@@ -34946,7 +34964,7 @@ def kernel.inductives.modeled.check_eta_thm
 def kernel.core_k.pi_result_z
   (e : kernel.expr.Expr) : Result kernel.prop_when.PropWhen := do
   let r ← kernel.expr_ops.pi_result e
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global r._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global r._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
@@ -34973,7 +34991,7 @@ def kernel.core_k.pi_result_z
     Visibility: public -/
 def kernel.core_k.pi_result_is_prop (e : kernel.expr.Expr) : Result Bool := do
   let r ← kernel.expr_ops.pi_result e
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global r._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global r._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -35301,7 +35319,7 @@ def kernel.inductives.modeled.check_proj_iota_body
     if i1 = 3#usize
     then
       do
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
       let b ←
         match en.kind with
         | kernel.expr.ExprKind.Bvar _ => ok false
@@ -35309,7 +35327,7 @@ def kernel.inductives.modeled.check_proj_iota_body
         | kernel.expr.ExprKind.Sort _ => ok false
         | kernel.expr.ExprKind.Const _ us =>
           do
-          let v2 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+          let v2 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
           let i2 := alloc.vec.Vec.len v2
           ok (i2 = 1#usize)
         | kernel.expr.ExprKind.App _ _ => ok false
@@ -35555,7 +35573,7 @@ def kernel.expr_ops.rename_consts_go
   Result (kernel.expr.Expr × (ron.hashmap.HashMap kernel.expr.Expr
     kernel.expr.Expr))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => let r ← kernel.expr.dup e
                                    ok (r, memo)
@@ -35642,7 +35660,7 @@ def kernel.expr_ops.rename_consts_go
                                    ok (r, memo)
   | kernel.expr.ExprKind.Const n us =>
     let n1 ← NameToNameInst.rename f n
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let v1 ← kernel.expr_ops.levels_copy v
     let r ← kernel.expr.mk_const n1 v1
     ok (r, memo)
@@ -36534,7 +36552,7 @@ def kernel.expr_ops.pis_to_lams
   then let e1 ← kernel.expr.dup body
        ok (some e1)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -36573,7 +36591,7 @@ def kernel.expr_ops.inst_lams_at_f_go
     let e1 ← kernel.expr_ops.instantiate_list_fast e acc 0#u64
     ok (some (out, e1))
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -36608,7 +36626,7 @@ def kernel.expr_ops.inst_lams_at_from
   then let e1 ← kernel.expr.dup e
        ok (some (out, e1))
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -36669,7 +36687,7 @@ def kernel.expr_ops.inst_pis_at_f_go
     let e1 ← kernel.expr_ops.instantiate_list_fast e acc 0#u64
     ok (some (out, e1))
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -36704,7 +36722,7 @@ def kernel.expr_ops.inst_pis_at_from
   then let e1 ← kernel.expr.dup e
        ok (some (out, e1))
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -37322,7 +37340,7 @@ def kernel.checker_base.check_proj_shape
         ok (core.result.Result.Err ce)
       else
         let f ← kernel.expr_ops.get_app_fn cbody
-        let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+        let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
         match en.kind with
         | kernel.expr.ExprKind.Bvar _ =>
           let s ←
@@ -37648,11 +37666,11 @@ def kernel.expr.literal_dup
   (l : kernel.expr.Literal) : Result kernel.expr.Literal := do
   match l with
   | kernel.expr.Literal.NatVal n =>
-    let r ← ron.ptr.clone n
-    ok (kernel.expr.Literal.NatVal r)
+    let a ← ron.ptr.clone n
+    ok (kernel.expr.Literal.NatVal a)
   | kernel.expr.Literal.StrVal s =>
-    let r ← ron.ptr.clone s
-    ok (kernel.expr.Literal.StrVal r)
+    let a ← ron.ptr.clone s
+    ok (kernel.expr.Literal.StrVal a)
 
 /-- [con_ron_core::kernel::expr_ops::instantiate_level_params_go]:
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1828:0-1883:1
@@ -37667,7 +37685,7 @@ def kernel.expr_ops.instantiate_level_params_go
   let b ← kernel.expr.has_lp e
   if b
   then
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar i => let r ← kernel.expr.bvar i
                                      ok (r, memo)
@@ -37709,7 +37727,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
             let pw1 ← kernel.level.subst_pw ks us pw
             let bm ← kernel.expr.binder_meta pw1
             let r1 ← kernel.expr.lam t b1 bm
@@ -37720,7 +37738,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
             let pw1 ← kernel.level.subst_pw ks us pw
             let bm ← kernel.expr.binder_meta pw1
             let r1 ← kernel.expr.forall_e t b1 bm
@@ -37760,7 +37778,7 @@ def kernel.expr_ops.instantiate_level_params_go
       ok (r, memo)
     | kernel.expr.ExprKind.Const n vs =>
       let n1 ← kernel.name.dup n
-      let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global vs
+      let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global vs
       let v1 ← kernel.expr_ops.levels_subst ks us v
       let r ← kernel.expr.mk_const n1 v1
       ok (r, memo)
@@ -37802,7 +37820,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
             let pw1 ← kernel.level.subst_pw ks us pw
             let bm ← kernel.expr.binder_meta pw1
             let r1 ← kernel.expr.lam t b1 bm
@@ -37813,7 +37831,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
             let pw1 ← kernel.level.subst_pw ks us pw
             let bm ← kernel.expr.binder_meta pw1
             let r1 ← kernel.expr.forall_e t b1 bm
@@ -37885,7 +37903,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
             let pw1 ← kernel.level.subst_pw ks us pw
             let bm ← kernel.expr.binder_meta pw1
             let r1 ← kernel.expr.lam t b1 bm
@@ -37896,7 +37914,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
             let pw1 ← kernel.level.subst_pw ks us pw
             let bm ← kernel.expr.binder_meta pw1
             let r1 ← kernel.expr.forall_e t b1 bm
@@ -37968,7 +37986,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
             let pw1 ← kernel.level.subst_pw ks us pw
             let bm ← kernel.expr.binder_meta pw1
             let r1 ← kernel.expr.lam t b1 bm
@@ -37979,7 +37997,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
             let pw1 ← kernel.level.subst_pw ks us pw
             let bm ← kernel.expr.binder_meta pw1
             let r1 ← kernel.expr.forall_e t b1 bm
@@ -38051,7 +38069,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
             let pw1 ← kernel.level.subst_pw ks us pw
             let bm ← kernel.expr.binder_meta pw1
             let r1 ← kernel.expr.lam t b1 bm
@@ -38062,7 +38080,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
             let pw1 ← kernel.level.subst_pw ks us pw
             let bm ← kernel.expr.binder_meta pw1
             let r1 ← kernel.expr.forall_e t b1 bm
@@ -38138,7 +38156,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
             let pw1 ← kernel.level.subst_pw ks us pw
             let bm ← kernel.expr.binder_meta pw1
             let r1 ← kernel.expr.lam t b1 bm
@@ -38149,7 +38167,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
             let pw1 ← kernel.level.subst_pw ks us pw
             let bm ← kernel.expr.binder_meta pw1
             let r1 ← kernel.expr.forall_e t b1 bm
@@ -38813,7 +38831,7 @@ def kernel.expr_ops.lower_bvars_go
   then let r ← kernel.expr.dup e
        ok (r, memo)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar i2 =>
       if i2 >= i1
@@ -39287,7 +39305,7 @@ def kernel.inductives.modeled.nested_rule_shape
     | none => ok none
     | some tq =>
       let (_, e) := tq
-      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
       match en.kind with
       | kernel.expr.ExprKind.Bvar _ => ok none
       | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -39297,7 +39315,7 @@ def kernel.inductives.modeled.nested_rule_shape
       | kernel.expr.ExprKind.Lam _ _ _ => ok none
       | kernel.expr.ExprKind.ForallE dom _ _ =>
         let head ← kernel.expr_ops.get_app_fn dom
-        let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global head._0
+        let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
         match en1.kind with
         | kernel.expr.ExprKind.Bvar _ => ok none
         | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -39335,7 +39353,7 @@ def kernel.inductives.modeled.nested_rule_shape
                 if b3
                 then
                   let v4 ←
-                    alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global lvls
+                    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global lvls
                   let b4 ←
                     kernel.expr_ops.levels_all_params_defined lps v4 0#usize
                   if b4
@@ -39596,7 +39614,7 @@ def kernel.inductives.modeled.check_iota_thm_n
             let (_, e1) := bq
             let rhead ← kernel.expr_ops.get_app_fn e1
             let en ←
-              alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global rhead._0
+              alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global rhead._0
             match en.kind with
             | kernel.expr.ExprKind.Bvar _ =>
               let s ←
@@ -40421,7 +40439,7 @@ def kernel.level.is_model_str (s : alloc.vec.Vec Std.U32) : Result Bool := do
     Visibility: public -/
 def kernel.level.name_is_model_suffix
   (n : kernel.name.Name) : Result Bool := do
-  let nn ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global n._0
+  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
   match nn.kind with
   | kernel.name.NameKind.Anonymous => ok false
   | kernel.name.NameKind.Str _ s => kernel.level.is_model_str s
@@ -40969,7 +40987,7 @@ def kernel.inductives.inductives_c.check_ind_decl_s
     Visibility: public -/
 def kernel.env.pi_sort_tele_len
   (e : kernel.expr.Expr) : Result (Option Std.U64) := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok none
   | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -42086,8 +42104,8 @@ def kernel.trust_axioms.reduce_nat_name : Result kernel.name.Name := do
     Visibility: public -/
 def kernel.std_axioms.erase_pw_eq
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
-  let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a._0
+  let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar i =>
     match en1.kind with
@@ -42137,8 +42155,8 @@ def kernel.std_axioms.erase_pw_eq
       let b1 ← kernel.name.beq n n2
       if b1
       then
-        let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
-        let v1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us2
+        let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
+        let v1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us2
         kernel.expr.levels_beq v v1
       else ok false
     | kernel.expr.ExprKind.App _ _ => ok false
@@ -44855,13 +44873,13 @@ def kernel.core_k.subst_const0
   (n : kernel.name.Name) (r : kernel.expr.Expr) (e : kernel.expr.Expr) :
   Result kernel.expr.Expr
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => kernel.expr.dup e
   | kernel.expr.ExprKind.Fvar _ _ => kernel.expr.dup e
   | kernel.expr.ExprKind.Sort _ => kernel.expr.dup e
   | kernel.expr.ExprKind.Const c us =>
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i := alloc.vec.Vec.len v
     if i = 0#usize
     then
@@ -45090,13 +45108,13 @@ def kernel.core_k.subst_const_all
   (n : kernel.name.Name) (r : kernel.expr.Expr) (e : kernel.expr.Expr) :
   Result kernel.expr.Expr
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => kernel.expr.dup e
   | kernel.expr.ExprKind.Fvar _ _ => kernel.expr.dup e
   | kernel.expr.ExprKind.Sort _ => kernel.expr.dup e
   | kernel.expr.ExprKind.Const c us =>
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i := alloc.vec.Vec.len v
     if i = 0#usize
     then
@@ -46843,7 +46861,7 @@ def kernel.fenv.mk_fenv (env : kernel.env.Env) : Result kernel.fenv.FEnv := do
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1104:0-1106:1
     Visibility: public -/
 def kernel.env.empty : Result kernel.env.Env := do
-  ok { consts := (alloc.vec.Vec.new (alloc.rc.Rc kernel.env.ConstantInfo)) }
+  ok { consts := (alloc.vec.Vec.new (alloc.sync.Arc kernel.env.ConstantInfo)) }
 
 /-- [con_ron_core::cached::installed::annot_decl_fold_from]:
     Source: 'crates/con-ron-core/src/cached/installed.rs', lines 748:0-764:1
@@ -46948,7 +46966,7 @@ def cached.state_c.lnz_probe
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 510:0-518:1
     Visibility: public -/
 def kernel.level.is_non_zero (u : kernel.level.Level) : Result Bool := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
+  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global u._0
   match ln.kind with
   | kernel.level.LevelKind.Zero => ok false
   | kernel.level.LevelKind.Succ _ => ok true
@@ -47863,7 +47881,7 @@ def kernel.checker_base.unwrap_or
 def kernel.checker_base.pi_result_sort
   (e : kernel.expr.Expr) : Result (Option kernel.level.Level) := do
   let r ← kernel.expr_ops.pi_result e
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global r._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global r._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok none
   | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -48334,7 +48352,7 @@ def kernel.core_k.pi_result_never_zero
   Result Bool
   := do
   let r ← kernel.expr_ops.pi_result e
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global r._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global r._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -48414,7 +48432,7 @@ def kernel.core_k.nat_op_ty_pinned
   let b ← kernel.name.beq c n1
   if b
   then
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global ty._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ty._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok false
     | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -48431,7 +48449,7 @@ def kernel.core_k.nat_op_ty_pinned
     | kernel.expr.ExprKind.Lit _ => ok false
     | kernel.expr.ExprKind.Proj _ _ _ => ok false
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global ty._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ty._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok false
     | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -48440,7 +48458,7 @@ def kernel.core_k.nat_op_ty_pinned
     | kernel.expr.ExprKind.App _ _ => ok false
     | kernel.expr.ExprKind.Lam _ _ _ => ok false
     | kernel.expr.ExprKind.ForallE dom inner _ =>
-      let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global inner._0
+      let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global inner._0
       match en1.kind with
       | kernel.expr.ExprKind.Bvar _ => ok false
       | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -48492,7 +48510,7 @@ def kernel.core_k.pi_residual_from
   then let e1 ← kernel.expr.dup e
        ok (some e1)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -48603,7 +48621,7 @@ def kernel.core_k.eta_fab_args_e
     Visibility: public -/
 def kernel.expr_ops.wscoped_b
   (d : Std.U64) (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok true
   | kernel.expr.ExprKind.Fvar idx ty =>
@@ -48647,7 +48665,7 @@ def kernel.expr_ops.fvar_leaves_go
   (e : kernel.expr.Expr) (out : alloc.vec.Vec (Std.U64 × kernel.expr.Expr)) :
   Result (alloc.vec.Vec (Std.U64 × kernel.expr.Expr))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok out
   | kernel.expr.ExprKind.Fvar idx ty =>
@@ -48852,7 +48870,7 @@ def kernel.core_k.infer_proj_at
   Result (core.result.Result kernel.expr.Expr kernel.core_types.CheckError)
   := do
   let f ← kernel.expr_ops.get_app_fn te
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ =>
     let s ← lift (Array.to_slice kernel.core_k.infer_proj_at.M_NOENTRY)
@@ -48879,7 +48897,7 @@ def kernel.core_k.infer_proj_at
       ok (core.result.Result.Err ce)
     | some entry =>
       let targs ← kernel.expr_ops.get_app_args te
-      let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+      let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
       kernel.core_k.proj_type_at_checked entry sn t v targs pe
   | kernel.expr.ExprKind.App _ _ =>
     let s ← lift (Array.to_slice kernel.core_k.infer_proj_at.M_NOENTRY)
@@ -49177,34 +49195,34 @@ def kernel.decl_check.eq_spine3
   Result (Option (kernel.level.Level × kernel.expr.Expr × kernel.expr.Expr ×
     kernel.expr.Expr))
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok none
   | kernel.expr.ExprKind.Fvar _ _ => ok none
   | kernel.expr.ExprKind.Sort _ => ok none
   | kernel.expr.ExprKind.Const _ _ => ok none
   | kernel.expr.ExprKind.App f1 rhs_c =>
-    let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f1._0
+    let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f1._0
     match en1.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
     | kernel.expr.ExprKind.Sort _ => ok none
     | kernel.expr.ExprKind.Const _ _ => ok none
     | kernel.expr.ExprKind.App f2 lhs_c =>
-      let en2 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f2._0
+      let en2 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f2._0
       match en2.kind with
       | kernel.expr.ExprKind.Bvar _ => ok none
       | kernel.expr.ExprKind.Fvar _ _ => ok none
       | kernel.expr.ExprKind.Sort _ => ok none
       | kernel.expr.ExprKind.Const _ _ => ok none
       | kernel.expr.ExprKind.App f3 ty_slot =>
-        let en3 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global f3._0
+        let en3 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global f3._0
         match en3.kind with
         | kernel.expr.ExprKind.Bvar _ => ok none
         | kernel.expr.ExprKind.Fvar _ _ => ok none
         | kernel.expr.ExprKind.Sort _ => ok none
         | kernel.expr.ExprKind.Const c us =>
-          let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+          let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
           let i := alloc.vec.Vec.len v
           if i = 1#usize
           then
@@ -49886,8 +49904,8 @@ def kernel.env.declaration_name
     Visibility: public -/
 def kernel.env.env_of_from
   (cs : alloc.vec.Vec kernel.env.ConstantInfo) (i : Std.Usize)
-  (out : alloc.vec.Vec (alloc.rc.Rc kernel.env.ConstantInfo)) :
-  Result (alloc.vec.Vec (alloc.rc.Rc kernel.env.ConstantInfo))
+  (out : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)) :
+  Result (alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo))
   := do
   let i1 := alloc.vec.Vec.len cs
   if i >= i1
@@ -49897,8 +49915,8 @@ def kernel.env.env_of_from
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
         kernel.env.ConstantInfo) cs i
     let ci1 ← kernel.env.constant_info_dup ci
-    let r ← kernel.env.constant_info_share ci1
-    let out1 ← alloc.vec.Vec.push out r
+    let a ← kernel.env.constant_info_share ci1
+    let out1 ← alloc.vec.Vec.push out a
     let i2 ← i + 1#usize
     kernel.env.env_of_from cs i2 out1
 partial_fixpoint
@@ -49909,7 +49927,8 @@ partial_fixpoint
 def kernel.env.env_of
   (cs : alloc.vec.Vec kernel.env.ConstantInfo) : Result kernel.env.Env := do
   let i := alloc.vec.Vec.len cs
-  let v := alloc.vec.Vec.with_capacity (alloc.rc.Rc kernel.env.ConstantInfo) i
+  let v :=
+    alloc.vec.Vec.with_capacity (alloc.sync.Arc kernel.env.ConstantInfo) i
   let v1 ← kernel.env.env_of_from cs 0#usize v
   ok { consts := v1 }
 
@@ -49917,7 +49936,7 @@ def kernel.env.env_of
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1163:0-1175:1
     Visibility: public -/
 def kernel.env.find_from
-  (cs : alloc.vec.Vec (alloc.rc.Rc kernel.env.ConstantInfo)) (i : Std.Usize)
+  (cs : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)) (i : Std.Usize)
   (n : kernel.name.Name) :
   Result (Option kernel.env.ConstantInfo)
   := do
@@ -49925,15 +49944,15 @@ def kernel.env.find_from
   if i >= i1
   then ok none
   else
-    let r ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.rc.Rc
-        kernel.env.ConstantInfo)) cs i
-    let ci ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global r
+    let a ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (alloc.sync.Arc kernel.env.ConstantInfo)) cs i
+    let ci ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a
     let n1 ← kernel.env.constant_info_name ci
     let b ← kernel.name.beq n1 n
     if b
     then
-      let ci1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global r
+      let ci1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a
       ok (some ci1)
     else let i2 ← i + 1#usize
          kernel.env.find_from cs i2 n
@@ -49978,7 +49997,7 @@ def kernel.env.find_proj
     Visibility: public -/
 def kernel.expr.binder_meta_hash
   (m : kernel.expr.BinderMeta) : Result Std.U64 := do
-  let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+  let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
   let i ← kernel.prop_when.hash_pw pw
   kernel.name.mix_hash 0#u64 i
 
@@ -49987,8 +50006,8 @@ def kernel.expr.binder_meta_hash
     Visibility: public -/
 def kernel.expr.literal_str
   (s : alloc.vec.Vec Std.U32) : Result kernel.expr.Literal := do
-  let r ← ron.ptr.new s
-  ok (kernel.expr.Literal.StrVal r)
+  let a ← ron.ptr.new s
+  ok (kernel.expr.Literal.StrVal a)
 
 /-- [con_ron_core::kernel::expr::str_copy_from]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 220:0-228:1
@@ -50025,7 +50044,7 @@ def kernel.expr.bvar_pool_size : Result Std.U64 := do
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 733:0-746:1
     Visibility: public -/
 def kernel.expr_ops.size_b (e : kernel.expr.Expr) : Result Std.U64 := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok 1#u64
   | kernel.expr.ExprKind.Fvar _ _ => ok 1#u64
@@ -50066,7 +50085,7 @@ def kernel.expr_ops.abstract_range
   (e : kernel.expr.Expr) (d : Std.U64) (k : Std.U64) (c : Std.U64) :
   Result kernel.expr.Expr
   := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar i => kernel.expr.bvar i
   | kernel.expr.ExprKind.Fvar idx _ =>
@@ -50116,7 +50135,7 @@ partial_fixpoint
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 878:0-891:1
     Visibility: public -/
 def kernel.expr_ops.size_f (e : kernel.expr.Expr) : Result Std.U64 := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok 1#u64
   | kernel.expr.ExprKind.Fvar _ ty =>
@@ -50157,7 +50176,7 @@ partial_fixpoint
     Visibility: public -/
 def kernel.expr_ops.forall_pw
   (e : kernel.expr.Expr) : Result (Option kernel.prop_when.PropWhen) := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok none
   | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -50166,7 +50185,7 @@ def kernel.expr_ops.forall_pw
   | kernel.expr.ExprKind.App _ _ => ok none
   | kernel.expr.ExprKind.Lam _ _ _ => ok none
   | kernel.expr.ExprKind.ForallE _ _ m =>
-    let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+    let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
     let pw1 ← kernel.prop_when.dup pw
     ok (some pw1)
   | kernel.expr.ExprKind.LetE _ _ _ => ok none
@@ -50186,7 +50205,7 @@ def kernel.expr_ops.inst_pis_from
   then let e1 ← kernel.expr.dup e
        ok (some e1)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -50226,7 +50245,7 @@ def kernel.expr_ops.replace_pi_body
   then let e1 ← kernel.expr.dup b
        ok (some e1)
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok none
     | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -50253,7 +50272,7 @@ partial_fixpoint
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1502:0-1507:1
     Visibility: public -/
 def kernel.expr_ops.pi_arity (e : kernel.expr.Expr) : Result Std.U64 := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok 0#u64
   | kernel.expr.ExprKind.Fvar _ _ => ok 0#u64
@@ -50274,7 +50293,7 @@ partial_fixpoint
     Visibility: public -/
 def kernel.expr_ops.result_sort
   (e : kernel.expr.Expr) : Result (Option kernel.level.Level) := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok none
   | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -50293,7 +50312,7 @@ partial_fixpoint
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1531:0-1549:1
     Visibility: public -/
 def kernel.expr_ops.bvar_bound (e : kernel.expr.Expr) : Result Std.U64 := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar i => i + 1#u64
   | kernel.expr.ExprKind.Fvar _ _ => ok 0#u64
@@ -50328,7 +50347,7 @@ partial_fixpoint
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1556:0-1572:1
     Visibility: public -/
 def kernel.expr_ops.fvar_range (e : kernel.expr.Expr) : Result Std.U64 := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok 0#u64
   | kernel.expr.ExprKind.Fvar idx _ => idx + 1#u64
@@ -50360,13 +50379,13 @@ partial_fixpoint
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1770:0-1789:1
     Visibility: public -/
 def kernel.expr_ops.has_level_param (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar _ => ok false
   | kernel.expr.ExprKind.Fvar _ ty => kernel.expr_ops.has_level_param ty
   | kernel.expr.ExprKind.Sort u => kernel.level.level_has_param u
   | kernel.expr.ExprKind.Const _ us =>
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     kernel.level.levels_have_param v
   | kernel.expr.ExprKind.App f a =>
     let b ← kernel.expr_ops.has_level_param f
@@ -50382,7 +50401,7 @@ def kernel.expr_ops.has_level_param (e : kernel.expr.Expr) : Result Bool := do
       if b1
       then ok true
       else
-        let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
         kernel.prop_when.has_params pw
   | kernel.expr.ExprKind.ForallE ty body m =>
     let b ← kernel.expr_ops.has_level_param ty
@@ -50393,7 +50412,7 @@ def kernel.expr_ops.has_level_param (e : kernel.expr.Expr) : Result Bool := do
       if b1
       then ok true
       else
-        let pw ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global m.pw
+        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
         kernel.prop_when.has_params pw
   | kernel.expr.ExprKind.LetE ty val body =>
     let b ← kernel.expr_ops.has_level_param ty
@@ -50702,7 +50721,7 @@ def kernel.inductives.struct_parts.struct_shape_motive
     let (e, _) ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
         (kernel.expr.Expr × kernel.expr.BinderMeta)) rbs i2
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok false
     | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -50711,7 +50730,7 @@ def kernel.inductives.struct_parts.struct_shape_motive
     | kernel.expr.ExprKind.App _ _ => ok false
     | kernel.expr.ExprKind.Lam _ _ _ => ok false
     | kernel.expr.ExprKind.ForallE mmaj cod _ =>
-      let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global cod._0
+      let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global cod._0
       match en1.kind with
       | kernel.expr.ExprKind.Bvar _ => ok false
       | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -50810,7 +50829,7 @@ def kernel.inductives.struct_parts.struct_shape
   | none => ok false
   | some tq =>
     let (_, e) := tq
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar _ => ok false
     | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -51033,7 +51052,7 @@ def kernel.inductives.struct_parts.struct_parts_core
               | some q =>
                 let (_, e) := q
                 let en ←
-                  alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+                  alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
                 match en.kind with
                 | kernel.expr.ExprKind.Bvar _ => ok none
                 | kernel.expr.ExprKind.Fvar _ _ => ok none
@@ -51132,7 +51151,7 @@ partial_fixpoint
     Visibility: public -/
 def kernel.inductives.struct_parts.has_loose_bvar
   (i : Std.U64) (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar j => ok (i = j)
   | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -51182,7 +51201,7 @@ def kernel.inductives.struct_parts.has_loose_bvar_b_spec
   if i1 <= i
   then ok false
   else
-    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
     match en.kind with
     | kernel.expr.ExprKind.Bvar j => ok (i = j)
     | kernel.expr.ExprKind.Fvar _ _ => ok false
@@ -51439,7 +51458,7 @@ def kernel.prop_when.holds
     Visibility: public -/
 def kernel.std_axioms.erase_pw
   (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   match en.kind with
   | kernel.expr.ExprKind.Bvar i => kernel.expr.bvar i
   | kernel.expr.ExprKind.Fvar i ty =>
@@ -51450,7 +51469,7 @@ def kernel.std_axioms.erase_pw
     kernel.expr.sort l
   | kernel.expr.ExprKind.Const n us =>
     let n1 ← kernel.name.dup n
-    let v ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global us
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let v1 ← kernel.env.levels_copy v
     kernel.expr.mk_const n1 v1
   | kernel.expr.ExprKind.App f a =>

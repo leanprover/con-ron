@@ -67,7 +67,7 @@ inductive kernel.name.NameNode where
     Source: 'crates/con-ron-core/src/kernel/name.rs', lines 43:0-43:33
     Visibility: public -/
 inductive kernel.name.Name where
-| mk : alloc.rc.Rc kernel.name.NameNode → kernel.name.Name
+| mk : alloc.sync.Arc kernel.name.NameNode → kernel.name.Name
 
 end
 
@@ -91,8 +91,8 @@ def kernel.name.Name._0 (x : kernel.name.Name) :=
   match x with | kernel.name.Name.mk x1 => x1
 
 @[simp]
-theorem kernel.name.Name._0._simpLemma_ (_0 : alloc.rc.Rc kernel.name.NameNode)
-  : (kernel.name.Name.mk _0)._0 = _0 := by rfl
+theorem kernel.name.Name._0._simpLemma_ (_0 : alloc.sync.Arc
+  kernel.name.NameNode) : (kernel.name.Name.mk _0)._0 = _0 := by rfl
 
 mutual
 
@@ -117,7 +117,7 @@ inductive kernel.level.LevelNode where
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 48:0-48:35
     Visibility: public -/
 inductive kernel.level.Level where
-| mk : alloc.rc.Rc kernel.level.LevelNode → kernel.level.Level
+| mk : alloc.sync.Arc kernel.level.LevelNode → kernel.level.Level
 
 end
 
@@ -141,7 +141,7 @@ def kernel.level.Level._0 (x : kernel.level.Level) :=
   match x with | kernel.level.Level.mk x1 => x1
 
 @[simp]
-theorem kernel.level.Level._0._simpLemma_ (_0 : alloc.rc.Rc
+theorem kernel.level.Level._0._simpLemma_ (_0 : alloc.sync.Arc
   kernel.level.LevelNode) : (kernel.level.Level.mk _0)._0 = _0 := by rfl
 
 /-- [con_ron_core::ron::nat::Nat]
@@ -155,8 +155,8 @@ structure ron.nat.Nat where
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.expr.Literal where
-| NatVal : alloc.rc.Rc ron.nat.Nat → kernel.expr.Literal
-| StrVal : alloc.rc.Rc (alloc.vec.Vec Std.U32) → kernel.expr.Literal
+| NatVal : alloc.sync.Arc ron.nat.Nat → kernel.expr.Literal
+| StrVal : alloc.sync.Arc (alloc.vec.Vec Std.U32) → kernel.expr.Literal
 
 /-- [con_ron_core::kernel::prop_when::PropWhenRepr]
     Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 264:0-270:1 -/
@@ -178,7 +178,7 @@ structure kernel.prop_when.PropWhen where
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 111:0-113:1
     Visibility: public -/
 structure kernel.expr.BinderMeta where
-  pw : alloc.rc.Rc kernel.prop_when.PropWhen
+  pw : alloc.sync.Arc kernel.prop_when.PropWhen
 
 mutual
 
@@ -192,7 +192,7 @@ inductive kernel.expr.ExprKind where
 | «Sort» : kernel.level.Level → kernel.expr.ExprKind
 | Const :
   kernel.name.Name →
-  alloc.rc.Rc (alloc.vec.Vec kernel.level.Level) →
+  alloc.sync.Arc (alloc.vec.Vec kernel.level.Level) →
   kernel.expr.ExprKind
 | App : kernel.expr.Expr → kernel.expr.Expr → kernel.expr.ExprKind
 | Lam :
@@ -227,7 +227,7 @@ inductive kernel.expr.ExprNode where
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 363:0-363:33
     Visibility: public -/
 inductive kernel.expr.Expr where
-| mk : alloc.rc.Rc kernel.expr.ExprNode → kernel.expr.Expr
+| mk : alloc.sync.Arc kernel.expr.ExprNode → kernel.expr.Expr
 
 end
 
@@ -251,8 +251,8 @@ def kernel.expr.Expr._0 (x : kernel.expr.Expr) :=
   match x with | kernel.expr.Expr.mk x1 => x1
 
 @[simp]
-theorem kernel.expr.Expr._0._simpLemma_ (_0 : alloc.rc.Rc kernel.expr.ExprNode)
-  : (kernel.expr.Expr.mk _0)._0 = _0 := by rfl
+theorem kernel.expr.Expr._0._simpLemma_ (_0 : alloc.sync.Arc
+  kernel.expr.ExprNode) : (kernel.expr.Expr.mk _0)._0 = _0 := by rfl
 
 /-- [con_ron_core::ron::hashmap::AList]
     Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 136:0-139:1
@@ -388,14 +388,14 @@ inductive kernel.env.ConstantInfo where
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1090:0-1092:1
     Visibility: public -/
 structure kernel.env.Env where
-  consts : alloc.vec.Vec (alloc.rc.Rc kernel.env.ConstantInfo)
+  consts : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)
 
 /-- [con_ron_core::kernel::fenv::FEnv]
     Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 91:0-97:1
     Visibility: public -/
 structure kernel.fenv.FEnv where
   env : kernel.env.Env
-  idx : ron.hashmap.HashMap kernel.name.Name (Std.U64 × (alloc.rc.Rc
+  idx : ron.hashmap.HashMap kernel.name.Name (Std.U64 × (alloc.sync.Arc
     kernel.env.ConstantInfo))
   visible_below : Std.U64
 

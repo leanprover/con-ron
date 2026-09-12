@@ -42,9 +42,9 @@ carries over to `ConRon.Generated` by renaming `level_name.` to
   standing in for the real program's fast path.
 
 The types the predicates are written over are *definitionally the same shape*
-in both places (`Name.mk : Rc NameNode → Name`, `NameNode.mk : U64 →
+in both places (`Name.mk : Arc NameNode → Name`, `NameNode.mk : U64 →
 NameKind → NameNode`, the five `LevelKind` constructors), and both sit on the
-same hand-written `Rc` model, so the statements and the proof scripts transfer
+same hand-written pointer model, so the statements and the proof scripts transfer
 verbatim -- `Name.lean` and `Level.lean` are the spike's `Refine.lean` with
 `level_name.` dropped and the four `Name` helpers qualified, and nothing
 else.  (Task #12's two-lemma `Smoke.lean` was folded into `Level.lean`'s
