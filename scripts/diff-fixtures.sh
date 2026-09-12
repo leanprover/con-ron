@@ -149,9 +149,14 @@ run_suite() { # run_suite <suite> <expected-file>
     fi
     # The taint-skip driver rule: the count is frontend state, not in the dump.
     taint=$(taint_of "$fix")
+    # `--jobs=1` on purpose: this sweep is the CHECKER's differential and the
+    # sequential walk is its reference, so the run must take the lane that
+    # calls the core's `check_decls` itself (task #48 made the DEFAULT the
+    # pool, as con-leche's is).  `scripts/diff-e2e.sh --jobs=N` is where the
+    # pool is swept.
     {
       echo "=== $suite/$fix (expect $want)"
-      timeout "$TO" "$BIN" "$MODE" $pinargs --taint-skipped "$taint" \
+      timeout "$TO" "$BIN" "$MODE" --jobs=1 $pinargs --taint-skipped "$taint" \
         $( [ "$stats" -eq 1 ] && echo --stats ) "$dump"
       echo "  exit $?"
     } >>"$log" 2>&1
