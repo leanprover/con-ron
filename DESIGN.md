@@ -3299,3 +3299,186 @@ and that is the right place to state it.  `is_empty`, `contains_key` and
 "overloaded and saturated" arm and `try_resize`'s "cannot double" arm both
 preserve `Inv` and `toFun` — but it remains unexercised at runtime (task #7's
 open item (b)), so nothing checks that the two agree on a real table.
+### Task #15 — `ron::Nat` proved (2026-09-12, Opus under Fable)
+
+P3.1's first half: `proof/ConRon/Refine/Nat.lean` proves the bignum of task
+#6 correct against Lean's `Nat`, on the *generated* model
+(`ConRon.Generated.ron.nat.*`).  Every operation con-leche's `natOpResult`
+and `natOpBody` need (`Kernel/Core.lean:628-655`) has an exact-result lemma,
+plus `beq`/`ble`/`blt`/`is_zero`/`to_u64`/`from_u64`/`clone`, the
+normalisation invariant and its injectivity.  `lake build` is clean of errors
+**and warnings**, `scripts/gates.sh` is green, and no `sorry` is left.
+
+**Sizes.**
+
+| | |
+|---|---|
+| `Refine/Nat.lean` | **2 261** lines, 110 declarations, 19 `*_refines` on public ops |
+| Rust proved (`src/ron/nat.rs`, code lines before `mod tests`) | 439 |
+| generated Lean for `ron::nat` (48 `def`s in `Funs.lean`) | ≈ 420 |
+| `lake env lean ConRon/Refine/Nat.lean`, warm | **8 s** |
+
+So **≈ 5.1 proof lines per Rust line**, more than task #5's 2.2 — the bignum
+is arithmetic-heavy rather than branchy, and the cost sits in the `Nat`
+lemmas, not in the monadic plumbing.
+
+**The statements.**  `limbsToNat : List U64 → Nat` is the little-endian
+value, `toNat a = limbsToNat a.limbs.val`, and the invariant is a plain
+`Prop`, **not** an inductive:
+
+```lean
+def LimbsWF (l : List U64) : Prop := ∀ x, l.getLast? = some x → x.val ≠ 0
+def NatWF (a : ron.nat.Nat) : Prop := LimbsWF a.limbs.val
+theorem toNat_inj : NatWF a → NatWF b → toNat a = toNat b → a = b
+```
+
+Task #5 made `NameWF`/`LevelWF` *inductive* (constructors = the port's smart
+constructors) because a stored hash word has no equation of its own.  `Nat`
+has no stored derived data, so the invariant is the single equation "no
+trailing zero limb", and the `Prop` form is strictly better: it is preserved
+by `norm`, which is the only place that re-establishes it, and `toNat_inj` is
+a two-line induction rather than a constructor argument.  **Amendment to
+§3.5**: the inductive-WF rule is about *stored derived data*; for a type
+whose invariant is an equation on the representation, a `Prop` is right.
+
+Every operation lemma has the §3.5 shape, e.g.
+
+```lean
+theorem add_refines (h : ron.nat.add a b = ok c) :
+    toNat c = toNat a + toNat b ∧ NatWF c
+theorem div_refines (ha : NatWF a) (hb : NatWF b) (h : ron.nat.div a b = ok c) :
+    toNat c = toNat a / toNat b ∧ NatWF c
+theorem land_refines (h : ron.nat.land a b = ok c) :
+    toNat c = Nat.land (toNat a) (toNat b) ∧ NatWF c
+```
+
+`add`/`mul`/`pow`/`lor`/`xor`/`shift_left`/`shift_right`/`land` need **no**
+`NatWF` hypothesis (they are value-level); `sub`/`pred`/`cmp`/`beq`/`ble`/
+`blt`/`div`/`modulo`/`gcd`/`is_zero`/`to_u64` do, because they branch on limb
+*length*, and length only decides the numeric order under normalisation.
+Lean's zero-divisor conventions come out for free: `div_mod`'s early exit
+returns `(zero, clone a)`, which is `a / 0 = 0` and `a % 0 = a`.  Committed
+gate at the end of the file: `#guard_msgs in #print axioms` for
+`add_refines`, `div_refines`, `land_refines` — `[propext, Classical.choice,
+Quot.sound]` and nothing else.
+
+**What carried the proofs.**
+
+* **One loop shape, seventeen times.**  Every `*_from` helper is proved as
+  `∀ (d : Nat) (i : Usize) …, n.val - i.val ≤ d → f … = ok w → <invariant>`
+  by induction on the *fuel* `d`, with the `i ≥ n` case factored out as a
+  local `have base : …` used by both the `zero` case and the `¬ i < n` branch
+  of the `succ` case.  That is the reusable skeleton; `copy_from`, `sig_len`,
+  `add_from`, `sub_from`, `and_from`, `or_from`, `xor_from`, `push_zeros`,
+  `shl_bits_from`, `shr_bits_from`, `skip_index`, `shl1_from`,
+  `mul_u64_from`, `mul_from`, `rev_copy_from`, `dm_bits`, `dm_limbs` are all
+  instances, 20–90 lines each.
+* **`seg v i n = limbsToNat ((v.drop i).take (n - i))`**, the value of the
+  limb window the loop still has to consume, with three lemmas
+  (`seg_of_le`, `seg_succ`, `seg_full`) and two more for the `0`-based case
+  (`seg_zero_succ`, `seg_zero_mod`).  Because `nat::limb` reads `0` past the
+  end, `seg` needs no length side condition, and `seg_full` collapses the
+  top-level call to `toNat a` given a single `≤`.
+* **The `*_step_arith` trick.**  Each induction step is one equation in `Nat`
+  whose only content is "the word-level fact, scaled by `2^(64 |out|)`".
+  `linarith` cannot scale a hypothesis by a *variable* coefficient, so each
+  family gets a three-line pure-arithmetic lemma (`add_step_arith`,
+  `sub_step_arith`, `shl_step_arith` — the last reused for `mul_u64_from` and
+  `shl1_from`) proved by a `calc` of `ring` steps with one `rw [hw]` in the
+  middle.  This is the single highest-leverage idea in the file: it turns
+  every loop step into `exact shl_step_arith _ … hIH hword`.
+* **The bit operations are one lemma.**  `bitwise_block` — for any `f` with
+  `f false false = false`, `Nat.bitwise f (x + 2^m * A) (y + 2^m * B) =
+  Nat.bitwise f x y + 2^m * Nat.bitwise f A B` given `x, y < 2^m` — is five
+  lines from `Nat.eq_of_testBit_eq`, `Nat.testBit_bitwise` and
+  `Nat.testBit_two_pow_mul_add`, and `land`/`lor`/`xor` are its three
+  instances at `m = 64`, *by definitional unfolding* (`Nat.land = bitwise
+  and`).  The same lemma, at `m = bits` and `m = 64 - bits`, gives the
+  `lo ||| hi = lo + hi` disjointness both shift loops need (`lor_disjoint`,
+  `lor_disjoint'`), and `lor_one_of_even` for the quotient-bit accumulator.
+  Only `land` needs more: its window is the *shorter* operand, so
+  `land_mod_two_pow` ("the bits above the window are `0` on one side") plus
+  `seg_zero_mod` bridge it.  `bv_decide`/`bv_tac` were never used.
+* **Shifts are arithmetic, not bits.**  `Nat.shiftLeft a k = a * 2^k` and
+  `Nat.shiftRight a k = a / 2^k`, so the only bit-level facts are the
+  per-limb `shl_word` / `shr_word` (`x * 2^bits % 2^64` and `x / 2^bits`
+  reassembled), six lines each from `two_pow_split` +
+  `Nat.mul_mod_mul_left` + `Nat.mod_add_div`.
+* **Division is the standard restoring invariant, stated twice.**  `dm_bits`
+  carries `ql = (qacc·2^j + (rem·2^j + x % 2^j) / b) % 2^64 ∧
+  r = (rem·2^j + x % 2^j) % b` — the `% 2^64` absorbs the wrapping
+  `qacc <<< 1`, the only place a machine word would overflow — and
+  `dm_limbs` carries `rem = (a / 2^(64 i)) % b` plus "the quotient limbs
+  produced so far are `(a / b) % 2^(64 i)`, most significant first".  The two
+  glue facts are `a / 2^(64 (i-1)) = a[i-1] + 2^64 · (a / 2^(64 i))` (from
+  `limbsToNat_drop`) and `(a/b)/2^k = (a/2^k)/b` (`Nat.div_div_eq_div_mul`
+  twice); `Nat.mod_mul` (`n % (a*b) = n % a + a * (n / a % b)`) does the
+  limb-assembly bookkeeping.  `sub_from`'s invariant is existential in the
+  *borrow out* (`∃ bo ≤ 1, W + P·(Sb + borrow) = O + P·(Sa + 2^(64(n-i))·bo)`)
+  so that no case analysis is needed inside the loop; `sub` then kills
+  `bo = 1` from `limbsToNat w < 2^(64 |w|)`.
+* **`pow` and `gcd` are strong induction on a `Nat` measure**, not on the
+  function: `pow` on `e.val` (via `e / 2 < e`), `gcd` on `toNat a` (via
+  `toNat b % toNat a < toNat a`, which needs `modulo_refines` first — so the
+  file order is `div_mod → div/modulo → gcd`).  No `dspec`, no
+  admissibility, no `partial_fixpoint` reasoning anywhere, exactly as in
+  task #5.
+
+**What was awkward in the generated code.**
+
+1. **Tuple-returning `core` intrinsics defeat `simp only`.**  Charon turns
+   `let (s, c) = x.overflowing_add(y)` into
+   `bind e (fun p => match p with | (s, c) => …)`.  `bind_eq_ok_iff` fires
+   once and then `simp only` is stuck: the matcher's scrutinee is a
+   *variable*, and neither `simp only []` nor `dsimp only` nor `split at h`
+   reduces it.  Two escapes, both used:
+   * for `overflowing_add`/`overflowing_sub`, **unfold the `UScalar`
+     definition first** (`simp only [Std.core.num.U64.overflowing_add,
+     Std.UScalar.overflowing_add] at h`) — the pair becomes a literal
+     constructor, and a subsequent *full* `simp at h` reduces the whole body
+     to the bit-vector level, where `add_carry_word` / `sub_borrow_word`
+     absorb it in ten lines each;
+   * for the port's own tuple returns (`dm_bits`, `dm_limbs`, `div_mod`),
+     `obtain ⟨p, hp, h⟩ := h; obtain ⟨ql, r⟩ := p` and then **`replace h :
+     <the body, spelled out> := h`** — the matcher on a constructor is
+     *definitionally* the body, so a type ascription passes.  Three lines per
+     tuple bind, completely predictable.
+
+   Recommendation for the rest of the port: prefer a `struct` return over a
+   Rust tuple in new code; where a tuple is natural (`div_mod`), the
+   `replace` idiom is the fix.
+2. **`Vec::push` can fail** (capacity check), so `push_eq_ok_iff` is an `iff`
+   whose left conjunct is the capacity disjunction.  Keeping it an `iff`
+   (rather than a one-directional lemma) is what lets one `simp only` unfold
+   a whole loop body; the conjunct is discarded with `⟨-, hout1⟩` in every
+   use.
+3. **`have i1 := v.len; if …` blocks `split`** — task #5's item 3, hit again
+   in `skip_index` and `rev_copy_from`; `simp only [] at h` first.
+4. `simp` *re-folds* `l.take n ++ [l[n]]` into `l.take (n+1)`, so
+   `rev_copy_from`'s last step has to finish with an explicit
+   `rw [List.reverse_append, List.reverse_singleton, List.singleton_append]`
+   instead of `simp`.
+5. `Nat.land`/`Nat.lor`/`Nat.xor` are *definitionally* `_ &&& _` and friends,
+   but `Nat.testBit_and` etc. are stated about the notation, so `simp` needs
+   a `nat_land_eq : Nat.land x y = x &&& y := rfl` bridge to see them — and
+   `ring` treats the two forms as different atoms.
+
+**No Rust change was needed.**  `crates/` is untouched and
+`scripts/extract.sh --check` passes unchanged.  The one thing that would have
+made the proof shorter is item 1 (u128 arithmetic instead of
+`overflowing_add`, as `mul_u64_from` already does), and it was deliberately
+*not* done: the current code is proved, and changing it would cost a
+regeneration for a cosmetic gain.
+
+**Merged `master`** (nested crate modules, 3051ebe/d22d956) into this
+worktree before finishing.  The generated model came from `master` already,
+so retargeting the proof was `nat.` → `ron.nat.` in `Refine/Nat.lean` and
+nothing else — the same "renaming alone" claim `ConRon/Refine/README.md`
+makes for the spike.
+
+**Left for next time.**  `hash64` has no lemma (verdict-neutral, §3.2), and
+`one`/`zero`/`cmp_from`/`norm` are proved but only used internally.  The
+`*_step_arith` + fuel-induction skeleton, `push_eq_ok_iff`/`lift_eq_ok_iff`
+and `bitwise_block` belong in the shared `ConRon/Refine/Basic.lean` that task
+#5 asked for; `ron::HashMap` (the other half of P3.1) will want the same loop
+skeleton.
