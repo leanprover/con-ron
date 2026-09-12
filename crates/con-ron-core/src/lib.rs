@@ -12,6 +12,8 @@
 //! | `name` | `ConLeche/Kernel/Name.lean` |
 //! | `level` | `ConLeche/Kernel/Expr.lean` (Level part), `Kernel/Level.lean` |
 //! | `prop_when` | `ConLeche/Kernel/PropWhen.lean` |
+//! | `prop_read` | `ConLeche/Kernel/PropRead.lean` |
+//! | `basis_names` | `ConLeche/Kernel/Basis/Names.lean` |
 //! | `expr` | `ConLeche/Kernel/Expr.lean` (everything but the `Level` part) |
 //! | `core_types` | `ConLeche/Kernel/Core.lean:45-59` (`CheckError`, `CheckM`) |
 //! | `expr_ops` | `ConLeche/Kernel/ExprOps.lean` |
@@ -19,6 +21,8 @@
 //! | `fenv` | `ConLeche/Kernel/FEnv.lean` |
 //! | `state_c` | `ConLeche/Cached/StateC.lean` |
 //! | `parsed_c` | `ConLeche/Cached/ParsedC.lean`, plus the two seam records of `Cached/Installed.lean` and `Kernel/CheckerSplit.lean` |
+//! | `core_k` | `ConLeche/Kernel/Core.lean` (the bodies; `core` is a Rust prelude crate name) |
+//! | `core_c` | `ConLeche/Cached/CoreC.lean` (the six memoizing wrappers that tie the knot) |
 
 pub mod cached;
 pub mod kernel;

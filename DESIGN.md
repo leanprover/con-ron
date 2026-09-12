@@ -2751,3 +2751,335 @@ plus one **ledger false positive**: `install` at `:964` is the phrase
 `scripts/provenance.py` when someone is next in there; it is cosmetic and
 affects no `check`.)  `Level.lean` goes 18/25 → **21/25**, the four
 remaining being `Expr.allLevelParamsDefined` and its memoized twin.
+
+### Task #18 — `Core.lean`: the bodies and the knot (2026-09-12, Opus under Fable)
+
+P1.4's first half: `ConLeche/Kernel/Core.lean` (2 906 lines, 130 top-level
+declarations, 2 covered) ported as `crates/con-ron-core/src/kernel/core_k.rs`,
+and **the knot closed** — the six memoizing wrappers of
+`ConLeche/Cached/CoreC.lean` (`memoEI`, `memoBI`, `coreKnotI`) as
+`src/cached/core_c.rs`.  The crate now has a runnable checker core: `whnf`,
+`whnfCore`, `infer`, `inferIO`, `defeq`, `annotate`.
+
+Two dependency files came with it rather than half a family (task #13's rule):
+`ConLeche/Kernel/PropRead.lean` as `src/kernel/prop_read.rs` (11 declarations —
+`propIrrel`'s and the annotation pass's head-symbol readers are its only
+consumers) and `ConLeche/Kernel/Basis/Names.lean` as
+`src/kernel/basis_names.rs` (25 pinned names, which every literal guard, the
+`PUnit` unit-like pin, the `And`-only η rescue and the `reservedBasisNames`
+exclusions read).
+
+**The module is `core_k`, not `core`** (the task offered either): `core` is a
+Rust prelude crate name, so `crate::kernel::core` would shadow it for every
+`use` inside the crate.  The `k` is for *kernel*, con-leche's
+`ConLeche.Kernel.Core`.
+
+#### The knot, concretely
+
+`Kernel/Core.lean` writes every core function *once*, as a non-recursive body
+over a record `CoreFns m` of the six entry points; `coreKnot` (`:2866`) and
+`coreKnotI` (`CoreC.lean:1916`) tie it with fuel.  §3.1's "bodies over
+wrappers" ruling is now cashed in, and it is exactly as cheap as the design
+claimed:
+
+* a body drops the record and gains `fuel: u64`;
+  `whnf_core_body(mode, fuel, st, fe, d, e)` is the Lean body applied to
+  `coreKnot … fuel`;
+* where the Lean writes `r.whnf d x`, the Rust writes
+  `core_c::whnf(mode, fuel, st, fe, d, &x)` — the **wrapper, by name**;
+* a wrapper is `fuel = 0 → .internal "fuel exhausted: …"`, else memo probe,
+  else the body at `fuel - 1`, then the memo insert.  So the Rust's `fuel`
+  *is* the Lean's knot level, and `coreKnotI`'s `fuel + 1` arm is the
+  `fuel - 1` in the wrapper.
+
+Aeneas put the whole thing in **one `mutual` block of 75 functions** (3 940
+lines of `Funs.lean`) plus a second, 5-function one for `annotate` — which is
+the correct SCC decomposition and a fact worth recording: `annotate` *calls*
+`infer`/`defeq` but nothing in the reduction/inference/equality cycle calls
+`annotate` (only `isPropType` does, and that is the driver's entry, not the
+knot's).  No trait and no closure is in the recursion, so the spike's
+"mixed-recursive declaration groups" failure never arose.
+
+Four global deviations follow from the closed knot; they are recorded once, in
+the module doc, rather than on 200 items.
+
+1. **`mode: &CheckMode` is threaded explicitly.**  The Lean knot closes over
+   the mode, so a body that reads no mode takes none; the Rust wrappers are
+   plain functions, so every function that (transitively) calls one carries
+   `mode` — `reduce_nat`, `iota_certs`, `def_eq_list` included.
+2. **`st: &mut CState` is threaded through bodies that touch no memo.**  The
+   maps are the wrappers' business; a body needs `st` only to hand it on.
+   Aeneas turns the `&mut` into a threaded return, so the generated Lean
+   carries con-leche's own `StateT CState` shape.
+3. **The environment is the index.**  `Kernel/Core.lean`'s bodies take
+   `env : Env`; the executed checker reads through `FEnv` and con-leche writes
+   five `F`-twins for exactly that (`FEnv.lean:98-153`).  The port has one
+   spelling, `fe: &FEnv` with `fenv::find`/`fenv::find_proj`, so
+   `natLitSupported`/`natLitSupportedF`, `strLitSupported`/`strLitSupportedF`,
+   `natOpGuard`/`natOpGuardF`, `natOpStoredOk`/`natOpStoredF` and
+   `andRescueSlotsOf`/`andRescueSlots`/`andRescueSlotsF` are **one Rust
+   function with two or three citations** each.  `FEnv.lean` therefore goes
+   9/14 → **14/14** without a line of new code in `fenv.rs` beyond two extra
+   citations (`towerSlotsAll`, `recSlotsAll`, whose F-twins task #14 already
+   ported).
+4. **`CoreFns.ioView` is a `bool` flag.**  `inferBodyIO` recurses through
+   `r.infer`, which the knot binds to the *io* slot (`coreKnot`'s
+   `CoreFns.ioView`).  The two inference bodies are byte-identical except in
+   the λ and application clauses, so the port shares the other clauses and
+   passes the grade as `io: bool` to `infer_at`, which is `core_c::infer_io`
+   or `core_c::infer`.  That flag is the port's `ioView`.
+
+**Which bodies the wrappers tie.**  The wrappers memoize `core_k`'s bodies,
+i.e. `Kernel/Core.lean`'s.  con-leche's executed checker memoizes
+`CoreC.lean`'s *interned* twins (`whnfCoreBodyI` … `annotateBodyI`), which
+also swap `Level.isEquiv` for the `eqvC`-memoized `isEquivLM`, `instantiate1`
+for `inst1M`, and so on.  Those are task #19's, and the swap is a change of
+six call sites in `core_c.rs`; until then the level-operation memos
+(`lsimpC`/`lnzC`/`eqvC`) stay untouched by the core, which is a *memo-policy*
+deviation from the executed Lean and is the one thing §3.1 asks to be flagged:
+it must be reconciled when `CoreC.lean`'s bodies land, before any
+`whnf_refines` is stated against `coreKnotI`.
+
+#### The one Aeneas error, and the one Lean error
+
+Charon succeeded on the first run.  Aeneas gave **one** error, and `lake
+build` then gave **one**; both were a-priori-legal shapes elsewhere in the
+port, and both fixes are improvements.
+
+* **Aeneas: *"Could not match the contexts"* in `infer_app_io`** — the io
+  application site, `unless mt.pw.isNever do (let ta ← r.infer a; unless ←
+  r.defeq ta ty do throw); pure (body.instantiate1 a)`.  The guard is a branch
+  whose two arms carry different borrow contexts (one binds `ta` and threads
+  the state, the other does neither) and then *join* on the shared reduct.
+  Factoring the certificate into a `CheckM<bool>` — task #14's fix — was **not
+  enough**: the join is the problem, not the borrow's scope.  What works is
+  the shape con-leche's own `betaGateFires` docstring asks for, a **pure early
+  return**: the skip arm returns `body.instantiate1 a` directly and the
+  certifying arm is a whole function (`infer_app_cert`) that returns the
+  reduct itself.  Nothing joins.  The price is the reduct written twice — and
+  `whnf_core_app` already has that duplication for the β gate, where the Lean
+  spells the early return itself.  Rule for the next porter: *a gated
+  certificate whose two arms rejoin on a shared result must be split into two
+  tail calls, not two `Bool`s.*
+* **Lean: `failed to synthesize Decidable closed`** in `defeq_lits`.  A `!` in
+  a **value** position comes out of Aeneas as Lean's *propositional* `¬`
+  (`b : Bool` coerces to `b = true`), which is fine when it is immediately
+  the result of a `Bool`-typed function (the `decide` coercion finds its
+  instance) but not when it is `let`-bound and a later `if` reads it — there
+  the binding's type is inferred as `Prop`.  `let closed = !a'.hasFvar &&
+  !b'.hasFvar` was the only such site; it is an `if` nest now, and
+  `pw_written` and `prop_read::not_proof_fast` were converted too so that no
+  `¬` from this task's code reaches the model.  (One `¬` remains in
+  `Funs.lean`, from `env::rec_rule_compare_params`, where it is a return
+  value and elaborates.)
+* **A fifth external hole, caught and removed.**  `Vec::is_empty` has no
+  Aeneas model and emitted `alloc.vec.Vec.is_empty` into
+  `FunsExternal_Template.lean`.  Every `xs.is_empty()` in the new code is
+  `xs.len() == 0`, and §3.2's standing gate holds: the templates are **exactly
+  the four `Rc` axioms and the `Rc` type**.  (`Option::is_some` is modeled and
+  costs nothing.)
+
+#### Constructs that do not survive transliteration, and their replacements
+
+Beyond the four global ones above, and all a-priori except where noted:
+
+1. **`liftFueled` is monomorphic at `Option Bool`.**  Every one of its call
+   sites lifts a `Level.isEquiv`/`isEquivList`, and every one passes the same
+   `what = "level comparison"`, so both the type parameter and the string
+   argument are gone.
+2. **`whnfStep`/`defeqStep`'s continuation is the loop's step budget.**  The
+   Lean abstracts `k : Expr → m Expr` (resp. `Bool → Expr → Expr → m Bool`) so
+   that the body's lemma is proven once; §3.4 forbids closures.  The port
+   takes the continuation's *budget* `n` and spells `k x` as
+   `whnf_loop(…, n, x)` — which is precisely what
+   `whnfLoop (n+1) = whnfStep … (whnfLoop … n)` passes.  **Both functions
+   survive**, and so does the loop/step split the refinement bridge reasons
+   about.
+3. **`defeqStep`'s twenty-deep `if … else` nest is five functions**
+   (`defeq_step` → `defeq_after_whnf` → `defeq_lits` → `defeq_delta` →
+   `defeq_delta_both`/`defeq_unfold_both` → `defeq_struct`), one per cited
+   stage, so every `else` arm stays a tail position.  `structEtaCertWith`,
+   `majorToCtor` and `iotaRec` are split the same way (`*_shape_ok` for the
+   syntactic conjunction block, `*_steps`/`*_checks` for the state-touching
+   cascade).  The arm *order* is preserved everywhere — it is load-bearing in
+   `defeqStep`'s structural match (literal-versus-constructor-form before the
+   general stuck arms, the one-sided λ η arms after the binder congruences)
+   and in `iotaCerts`/`isEquivListLM`.
+4. **`defeqStep`'s structural match is one `match` on the constructor pair**,
+   as `expr::beq_go` is; the two `.lit … , .app …` arms read their inner
+   `match nn, f with | k+1, .const c [] => …` through `succ_of`, and the two
+   string arms their `cO = stringOfListName ∧ usO = [] ∧ strLitSupported`
+   through `str_expansion_fires`.
+5. **`natOpEquations`' four local lambdas** (`s`, `ap1`, `ap2`, and the `let`
+   block's `x`/`y`/`z`/`bT`/`bF`) are three named builder functions plus
+   locals: `nat_eq_s`, `nat_eq_ap1`, `nat_eq_ap2`.
+6. **`natOpResult` on `ron::Nat`.**  `pow`'s `b > 16777216` blow-up bound is
+   the audit's S2 mirror, and the port narrows the exponent to `u64` *behind*
+   the bound (`nat::pow` takes a machine exponent).  `shiftLeft`/`shiftRight`
+   answer `None` when the shift amount exceeds `u64` — Lean would compute and
+   die; declining where Lean succeeds can only make the Rust *reject*, which
+   is sound for the accept direction (§1).
+7. **`projModelName`'s `toString i`** needs a decimal rendering of a `Nat`,
+   which the runtime supplies in Lean: `nat_to_dec` is the two-arm recursion
+   that produces it (`0` → `"0"`, most significant digit first).
+8. **Five owning environment probes** (`defn_probe`, `ctor_probe`,
+   `ind_probe`, `rec_probe`, `lp_empty`) stand for the Lean's
+   `some (.defnInfo cv v hint)` / `.ctorInfo` / `.indInfo` / `.recInfo`
+   destructurings.  They are task #14's rule made routine: the index's borrow
+   dies at the call boundary and the caller works on the copies Lean's value
+   semantics hands its pattern variables.  `rec_probe` copies the rule list
+   spine-wise, because `iotaRec` reads it after several state-touching calls.
+9. **`majorToCtor`'s `_recName` is dropped** — it is unused in the Lean too
+   (hence its underscore), so `prepare_major` passes one argument fewer.
+10. **`Nat` `def`s are Rust `fn`s.**  Every pinned name (`natName`,
+    `natPredName`, `boolTrueName`, the 25 of `Basis/Names.lean`) is a closed
+    top-level value Lean builds once at module initialization and marks
+    persistent; the Aeneas subset has no such thing (task #11's `bvarPool`
+    note), so each is a function that rebuilds its `Name` — the same value at
+    one `Rc` allocation per call.  A pinned-name table in `CState` can buy it
+    back in P1.6 without touching the model.
+11. **`List` → `Vec` with `*_from` helpers**, as ever: `iota_certs`,
+    `def_eq_list`, `pi_residual`, `struct_eta_proj_certs`, `eta_projs`,
+    `and_rescue_slots`, `nat_op_deps`, `rules_find`, `params_subst`,
+    `pins_subst`, `str_lit_cons` (the `foldr` of `strLitToConstructor`, walked
+    downwards from the end), `nat_to_dec`, `fvar_leaves_subset`.
+    `List.take`/`.drop`/`++`/`.reverse` copy a `Vec` spine (`drop_exprs`,
+    `append_exprs`, `rev_append_exprs`, `expr_singleton`, and `expr_ops`'s
+    `take_exprs`).
+12. **`match memo[k]?` is an owning probe** in `core_c` too (task #13's
+    pattern): six of them, one per `CState` map, over a *shared* state borrow.
+    con-leche's linear-update dance (`let mp := get' st; let st := set' st ∅;
+    set' st (mp.insert e r)`) is dropped, as task #14 ruled: `st.<map>.insert`
+    on a `&mut CState` *is* that in-place update.
+13. **`ProjEntry.fireOk` is called where the Lean inlines it.**  `inferBody`'s
+    and `inferBodyIO`'s `.proj` clauses spell the two tests of `fireOk`
+    (`if structSort is Prop then the field must be too`) out again; the port
+    calls `proj_entry_fire_ok`, which is the same `Bool`, and throws exactly
+    where it is `false`.
+
+#### Numbers
+
+| | |
+|---|---|
+| Lean ported: 123 cited blocks of `Kernel/Core.lean` | 2 611 raw / **1 361 code** |
+| plus `Kernel/PropRead.lean` 10 blocks / `Kernel/Basis/Names.lean` 25 | 99 / 68 raw |
+| plus `Cached/CoreC.lean` 3 blocks (`memoEI`, `memoBI`, `coreKnotI`) | 104 raw / **52 code** |
+| `src/kernel/core_k.rs`, extracted part (raw / code) | 5 883 / **4 520** (3.3× the Lean code) |
+| `src/kernel/core_k.rs`, `#[cfg(test)]` part (8 tests) | 494 / 425 |
+| `src/cached/core_c.rs` (raw / code) | 325 / **220** |
+| `src/kernel/prop_read.rs` extracted / tests | 205 / 123 · 125 / 103 |
+| `src/kernel/basis_names.rs` extracted / tests | 240 / 126 · 34 / 26 |
+| generated `Types.lean` | **583 — unchanged**; the four new modules declare no type |
+| generated `Funs.lean` | 11 516 → **21 205** (+9 689: `core_k` 8 615, `basis_names` 411, `core_c` 386, `prop_read` 285) |
+| `TypesExternal_Template.lean` / `FunsExternal_Template.lean` | 25 / 54 — **unchanged** |
+| `charon cargo --preset=aeneas` wall (after `cargo clean`) | **1.13 s** (the `.llbc` is 33 MB) |
+| `aeneas -backend lean -split-files -loops-to-rec` | **13.98 s** (13.51 s self-reported) |
+| `partial_fixpoint` (whole crate / this task) | 127 → **226** (+99: `core_k` 91, `core_c` 6, `prop_read` 2) |
+| `mutual` blocks in `Funs.lean` | 1 → **3**: task #3's 8-function `leq_core` knot (328 lines), **the core knot — 75 functions, 3 940 lines**, and `annotate`'s 5-function block (284 lines) |
+| `mutual` blocks in `Types.lean` | 3 — unchanged |
+| `lake build` of `ConRon.Generated.Funs` (from scratch) | **38 s** |
+| external holes | **exactly the four `Rc` axioms of §3.2** — `new`, `clone`, `deref`, `ptr_eq`, plus the `Rc` type.  `Vec::is_empty` briefly made a fifth; see above |
+
+`cargo build`/`cargo test` warning-free, **105/105** green (93 from tasks
+#6-#14 + 12 new); `scripts/lint-rust-style.sh crates/con-ron-core/src` clean;
+`scripts/provenance.py check` green — 835 items, 732 citations, all current at
+pin 3e004805; `scripts/gates.sh` all six OK.
+
+The 3.3× Rust→Lean code ratio is a third messages, a third `if` nests and a
+third the wrapper plumbing: 37 throw sites carry their message as a
+`const […]: [u32; N]` of code points (task #14's idiom, ~150 lines), every
+`∧`/`&&` conjunction is an `if` nest (task #3's pattern 9), and every wrapper
+call is an explicit `match` on `Result` because §3.4 forbids `?`.  The
+generated Lean is 1.9× the Rust code, well below `expr_ops`' 3.7× — the
+constructor-pair matches that inflated that module appear here only in
+`defeq_struct`.
+
+#### Tests
+
+Twelve (`#[cfg(test)]`, invisible to Charon).  All environments are built by
+hand from **axioms and `Sort`/Π/λ/app terms** — a `Nat`-like inductive is far
+too big for a unit test, and none of these paths needs one.
+
+`core_k` (8): **β** — `whnf` of `(λ (x : A). x) a` with the per-redex
+certificate actually running (the λ's datum is not `.never`, so
+`betaGateFires` is false and `inferIO a ≡ A` is checked), the same reduct with
+the gate firing, and `whnfCore` alone doing it (β is not delta).  **`infer` of
+a λ is a Π** — `λ (x : Sort 1). x` gives `∀ (_ : Sort 1), Sort 1` with the
+`.never` datum validated at the innermost binder, a wrong datum *declining*
+(`notImplemented`, never a reject), and `Sort 1 : Sort 2`.  **η** — `defeq`
+equates `λ (x : A). f x` with `f` in both directions, separates two distinct
+axioms, and takes the syntactic fast path on a repeated term.  **Fuel zero** —
+all six wrappers throw `.internal`, `defeq` too (not even a syntactic hit
+answers), nothing is cached on the way, and a β redex at `fuel = 2` exhausts
+*inside*.  **The memo** — after one `whnf` the `whnfC`/`whnfCoreC` maps are
+non-empty, a second call answers the same term and **writes nothing** (all
+five map sizes unchanged), and the same for `defeqC` under `memoBI`'s pair
+key.  **`annotate`** — the placeholder `.never` is recomputed to the real
+datum, `infer` then validates the pass's own output, and a genuine
+`ifAllZero` input annotation survives (`pwWritten`).  **The syntactic
+readers** — nothing unfolds without a stored definition, the literal guards
+fail without the basis, `Bool.true` is the *bare* constant (a levelled one is
+not), `quickPair` at the four same-constructor pairs and two negatives,
+`sameConstHeads` needing applications on both sides, the three op-name tables'
+sizes, `natOpDeps` reflexive and empty off the sixteen, `natOpEquations`'
+four `beq` equations, `nat_to_dec` at 0 and 1207, and the four fuel constants.
+**The `Nat` fast path end to end** — with `Nat`, `Nat.zero`, `Nat.succ` and a
+stored `Nat.add`, `whnf` folds `Nat.add 2 3` to the literal `5` and packs
+`Nat.succ (lit 4)` to `lit 5`; `natLitSupported`, `natOpStored`, `natOpGuard`
+and `natOpStoredOk` all pass on that environment; `rawNatLit?` reads a literal
+and `Nat.zero` and nothing else; `natLitToConstructor` at both arms; a literal
+types as `Nat`; and `pow` at exponent `2^24 + 1` declines instead of
+computing.
+
+`prop_read` (2): `peelNeverPis` passing a `.never` binder and blocked by a
+non-`.never` one, `numArgs` on a spine, and the readers separating `h : P`
+with `P : Sort 0` (definitely a proof) from `a : A` with `A : Sort 1`
+(definitely not), with an unknown constant answering neither, a ∀'s datum read
+off its binder, a sort's `.never`, an unapplied λ's own datum, and the probe's
+level-count mismatch.
+
+`basis_names` (2): the nineteen reserved names pairwise distinct, and the
+shapes the pins rely on (`punitRecName = rec_of punitName`, distinct heads,
+structural rebuild equality).
+
+#### Deliberately not ported
+
+`Core.lean` goes 2/130 → **129/130**.  The one uncovered declaration is
+`CoreFns.ioView` (`:94`), and it is uncovered *because* §3.1's knot has no
+record to view: its content is the `io: bool` flag of `infer_at` (deviation 4
+above), which cites `CoreFns` itself.  Also skipped, and recorded so the next
+task does not re-derive it:
+
+* `instance : ToString CheckError` (`:53-57`) — rendering only; task #14
+  already recorded it with the `CheckError` half of the file.
+* `structure CoreFns` (`:66-92`) — cited, not ported as a type: §3.1 ties the
+  knot with plain mutually recursive functions.
+* `coreKnot` (`:2866-2900`) — cited on `core_c.rs`'s six wrappers, which are
+  `coreKnotI`'s.
+* the twelve `@[simp] theorem`s about `recRuleBits` (`:1545-1586`) and
+  `projFnRule` (`:1596-1613`) — field-projection equations, i.e. the *spec*
+  this port will be proved against.
+
+Everything else executable in the file is ported, the eleven functions nothing
+in the core calls included (`piResultNeverZero`, `etaFabArgs`, `natOpNames`,
+`natOpGuard`, `natOpStoredOk`, `natOpEquations`, `substConst0`,
+`substConstAll`, `whnfCoreLoopFuel`, `annotBinderMeta`, `projModelName`), so
+that the provenance gate stays in step with its source (task #11's
+`beqRecursive` rule) and so that the install path (`Kernel/Checker.lean`,
+which is what calls most of them) finds them waiting.
+
+#### Coverage
+
+`scripts/provenance.py coverage | tail -3`, con-leche 3e004805: **TOTAL
+382/1018 covered (37.5 %), 636 uncovered** — up from **212/1018 (20.8 %)** at
+this branch's merge base, the largest single jump in the port so far (+170).
+Per file: **`Core.lean` 129/130**, **`FEnv.lean` 14/14**, **`PropRead.lean`
+10/10**, **`Basis/Names.lean` 25/25**, `CoreC.lean` 0/80 → **3/80** (the three
+knot declarations), `StateC.lean` 14/38, everything else unchanged.  So the
+ledger agrees with the prose in every file.
+
+**Note for task #19.**  `CoreC.lean`'s remaining 77 declarations are the
+interned bodies and their telescope loops; the six wrappers are already here
+and they are the only place that names a body, so the swap is six call sites.
+The memo-policy reconciliation of the level operations (above) belongs to that
+task, and so does `whnfCoreLoopFuel`'s only consumer.
