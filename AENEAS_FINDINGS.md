@@ -361,6 +361,21 @@ so a substantial performance refactor needed **zero** proof changes (#34).  #4
   `#print axioms` is exactly `[propext, Classical.choice, Quot.sound]`, nothing from the Aeneas
   library.  We pin that with `#guard_msgs in #print axioms` per file.  #4, #5, #15, #16, #20
 
+### 3.8 A `&str` constant carries `decide +native` (task #43)
+
+A Rust `const TEXT: &str = "…"` extracts to one Lean string literal
+wrapped by the library's `toStr`, whose bound is discharged with
+`decide +native`; `#print axioms` on the constant therefore lists the
+native-decide axiom (`Lean.ofReduceBool`), before any proof touches it.
+For a project that pins its axiom footprint this makes every string
+constant unusable in a theorem statement.  A `b"…"` constant avoids it
+but becomes a 532 456-element array literal (Aeneas 169 s, Lean out of
+memory).  Separately, Lean's kernel reduces string literals
+quadratically (27 s at 1 KB, >300 s at 8 KB), so a closed computation
+over an embedded text of any real size is out of reach with or without
+the axiom.  Ask: discharge `toStr`'s bound without `decide +native`
+(a `by decide` with the length as a literal, or an `ofNat` proof term).
+
 ## 4. Scale numbers
 
 Data points on a crate an order of magnitude larger than the test suite.  One machine (96
