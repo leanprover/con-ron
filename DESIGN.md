@@ -8773,3 +8773,10 @@ tarball, which the gate deliberately does not require.
   unchanged by this task: the modeller is untrusted by construction — a wrong
   record is rejected or declined by the fold, never accepted — so there is no
   `_refines` lemma owed here and never will be.
+
+**Update after task #38** (master `04e9f25`, repacked node + memo buckets,
+same run conditions): accepted 693 195; `instructions:u` **12 797 G**
+(1.00× con-leche; +3.1 % from the handles' extra indirection), wall
+**1 967 s** (1.60×, unchanged), max RSS **15.97 GB** (1.86×, from 2.18×).
+Equal instructions and 1.6× the wall time is a memory-traffic signature;
+task #41 profiles cycles and cache misses at `core` scale.
