@@ -2724,7 +2724,7 @@ mod tests {
     use crate::kernel::basis_names;
     use crate::kernel::core_k;
     use crate::kernel::core_types::CheckError;
-    use crate::kernel::env::{CheckMode, ConstantInfo, ConstantVal, Env};
+    use crate::kernel::env::{CheckMode, ConstantInfo, ConstantVal};
     use crate::kernel::expr;
     use crate::kernel::expr::{BinderMeta, Expr, ExprKind};
     use crate::kernel::fenv;
@@ -2773,7 +2773,7 @@ mod tests {
         ));
         consts.push(ax(nm(97), expr::dup(&a_ty)));
         consts.push(ax(nm(65), expr::sort(level::succ(level::zero()))));
-        fenv::mk_fenv(Env { consts })
+        fenv::mk_fenv(crate::kernel::env::env_of(&consts))
     }
 
     fn a_ty() -> Expr {
@@ -3142,7 +3142,7 @@ mod tests {
             },
             crate::kernel::env::ind_caps_default(),
         ));
-        let fe = fenv::mk_fenv(Env { consts });
+        let fe = fenv::mk_fenv(crate::kernel::env::env_of(&consts));
         assert!(core_k::nat_lit_supported(&fe));
         assert!(core_k::nat_op_stored(&fe, &core_k::nat_add_name()));
         assert!(core_k::nat_op_guard(&fe, &core_k::nat_add_name()));

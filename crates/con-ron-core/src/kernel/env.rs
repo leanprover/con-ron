@@ -45,6 +45,7 @@ use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
 use crate::kernel::prop_when::PropWhen;
+use std::rc::Rc;
 use std::vec::Vec;
 
 // ---------------------------------------------------------------------------
@@ -554,24 +555,26 @@ pub fn constant_info_dup(c: &ConstantInfo) -> ConstantInfo {
     }
 }
 
-/// con-leche: none — a `Vec<ConstantInfo>` copy; Lean's `List ConstantInfo` is shared by value
-/// The entry point of the index recursion below.
-pub fn constant_infos_copy(cs: &Vec<ConstantInfo>) -> Vec<ConstantInfo> {
+/// con-leche: none — an `Env.consts` copy; Lean's `List ConstantInfo` is shared by value
+/// The entry point of the index recursion below.  Since task #34 the elements
+/// are shared (`Env`'s deviation), so this is `n` `Rc` bumps, not `n` record
+/// copies.
+pub fn constant_infos_copy(cs: &Vec<Rc<ConstantInfo>>) -> Vec<Rc<ConstantInfo>> {
     constant_infos_copy_from(cs, 0, Vec::with_capacity(cs.len()))
 }
 
 /// con-leche: none — the index recursion behind `constant_infos_copy`
 /// The accumulator is passed by value and returned.
 pub fn constant_infos_copy_from(
-    cs: &Vec<ConstantInfo>,
+    cs: &Vec<Rc<ConstantInfo>>,
     i: usize,
-    out: Vec<ConstantInfo>,
-) -> Vec<ConstantInfo> {
+    out: Vec<Rc<ConstantInfo>>,
+) -> Vec<Rc<ConstantInfo>> {
     if i >= cs.len() {
         out
     } else {
         let mut out = out;
-        out.push(constant_info_dup(&cs[i]));
+        out.push(constant_info_rc_dup(&cs[i]));
         constant_infos_copy_from(cs, i + 1, out)
     }
 }
@@ -1075,12 +1078,20 @@ pub fn constant_info_type(c: &ConstantInfo) -> Expr {
 /// irrelevant for lookup; it is kept anyway, because `FEnv`'s installation
 /// counters are positions counted from the *bottom* of this list
 /// (`fenv::mk_fenv_go`).
+///
+/// Deviation (task #34): the element is `Rc<ConstantInfo>`, DESIGN.md §3.2's
+/// `Rc` around the *stored record*, because the Lean's one record is reached
+/// from two places — this list and `FEnv.idx` — and the runtime shares it.
+/// `Rc` erases to its content in the model (`§3.2`), so `abs` reads
+/// `Vec (Rc ConstantInfo)` exactly as it read `Vec ConstantInfo`; what the
+/// sharing buys is that `fenv::push` no longer copies the record and
+/// `fenv::dup`/`mk_fenv_go` clone a pointer where they copied a record.
 pub struct Env {
-    pub consts: Vec<ConstantInfo>,
+    pub consts: Vec<Rc<ConstantInfo>>,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:627-629 Env
-/// The record copy.
+/// The record copy — `Rc` bumps, not record copies (the `Env` deviation).
 pub fn env_dup(e: &Env) -> Env {
     Env {
         consts: constant_infos_copy(&e.consts),
@@ -1091,6 +1102,47 @@ pub fn env_dup(e: &Env) -> Env {
 /// The empty environment; the starting point of every checker run.
 pub fn empty() -> Env {
     Env { consts: Vec::new() }
+}
+
+/// con-leche: none — `Rc::new` on a record about to be stored (DESIGN.md §3.2)
+/// The record handed to the environment, shared: `Env.consts` and `FEnv.idx`
+/// hold the same `Rc`, as Lean's runtime holds the same object.
+pub fn constant_info_share(c: ConstantInfo) -> Rc<ConstantInfo> {
+    Rc::new(c)
+}
+
+/// con-leche: none — the `Rc` bump that Lean's value semantics hides (DESIGN.md §3.2)
+/// A second reference to a stored record.
+pub fn constant_info_rc_dup(c: &Rc<ConstantInfo>) -> Rc<ConstantInfo> {
+    Rc::clone(c)
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:627-629 Env
+/// An `Env` over records that are not shared yet — `⟨cs⟩` where the Lean's
+/// `cs` is already a list of stored records.  The entry point of the index
+/// recursion below; it is how the basis tables and the tests build an
+/// environment from a plain record list.
+pub fn env_of(cs: &Vec<ConstantInfo>) -> Env {
+    Env {
+        consts: env_of_from(cs, 0, Vec::with_capacity(cs.len())),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:627-629 Env
+/// The index recursion behind `env_of`: `cs[i..]`, each record shared, pushed
+/// onto the accumulator in the cited order.
+pub fn env_of_from(
+    cs: &Vec<ConstantInfo>,
+    i: usize,
+    out: Vec<Rc<ConstantInfo>>,
+) -> Vec<Rc<ConstantInfo>> {
+    if i >= cs.len() {
+        out
+    } else {
+        let mut out = out;
+        out.push(constant_info_share(constant_info_dup(&cs[i])));
+        env_of_from(cs, i + 1, out)
+    }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:636-637 Env.find?
@@ -1107,7 +1159,11 @@ pub fn find<'a>(env: &'a Env, n: &Name) -> Option<&'a ConstantInfo> {
 /// con-leche: ConLeche/Kernel/Env.lean:636-637 Env.find?
 /// The index recursion the cited `List.find?` becomes (task #3's pattern);
 /// the predicate is inlined because §3.4 forbids closures.
-pub fn find_from<'a>(cs: &'a Vec<ConstantInfo>, i: usize, n: &Name) -> Option<&'a ConstantInfo> {
+pub fn find_from<'a>(
+    cs: &'a Vec<Rc<ConstantInfo>>,
+    i: usize,
+    n: &Name,
+) -> Option<&'a ConstantInfo> {
     if i >= cs.len() {
         None
     } else if name::beq(&constant_info_name(&cs[i]), n) {
@@ -1332,12 +1388,10 @@ mod tests {
 
     #[test]
     fn env_find_is_newest_first() {
-        let e = env::Env {
-            consts: vec![
+        let e = env::env_of(&vec![
                 ConstantInfo::AxiomInfo(cv("b")),
                 ConstantInfo::AxiomInfo(cv("a")),
-            ],
-        };
+            ]);
         assert!(env::find(&e, &nm("a")).is_some());
         assert!(env::find(&e, &nm("b")).is_some());
         assert!(env::find(&e, &nm("c")).is_none());
@@ -1381,9 +1435,7 @@ mod tests {
         assert!(level::beq(&e9.field_sort, &level::zero()));
         // the environment lookup is keyed on `projTableName`, and is `none`
         // beyond `numFields`
-        let e = env::Env {
-            consts: vec![ConstantInfo::ProjInfo(tbl)],
-        };
+        let e = env::env_of(&vec![ConstantInfo::ProjInfo(tbl)]);
         assert!(env::find_proj(&e, &t, 0).is_some());
         assert!(env::find_proj(&e, &t, 2).is_none());
         assert!(env::find_proj(&e, &nm("T"), 0).is_none());
@@ -1445,9 +1497,7 @@ mod tests {
         assert!(name::beq(&env::declaration_name(&d), &name::anonymous()));
         let d2 = env::Declaration::ThmDecl(cv("t"), expr::bvar(0));
         assert!(name::beq(&env::declaration_name(&d2), &nm("t")));
-        let e = env::Env {
-            consts: vec![ConstantInfo::AxiomInfo(cv("x"))],
-        };
+        let e = env::env_of(&vec![ConstantInfo::AxiomInfo(cv("x"))]);
         assert_eq!(env::env_dup(&e).consts.len(), 1);
         assert!(matches!(
             env::basis_kind_dup(&BasisKind::QuotK),

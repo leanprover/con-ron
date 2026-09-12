@@ -744,7 +744,7 @@ mod tests {
     use crate::kernel::basis_builder;
     use crate::kernel::basis_pins;
     use crate::kernel::env;
-    use crate::kernel::env::{ConstantInfo, ConstantVal, Env};
+    use crate::kernel::env::{ConstantInfo, ConstantVal};
     use crate::kernel::expr;
     use crate::kernel::expr::{BinderMeta, Expr};
     use crate::kernel::fenv;
@@ -827,11 +827,11 @@ mod tests {
         let cv_ii = env::to_constant_val(&std_axioms::iff_intro_raw());
         let mut consts: Vec<ConstantInfo> = Vec::new();
         consts.push(ConstantInfo::CtorInfo(env::constant_val_dup(&cv_ii), 1, 2));
-        let fe_bad = fenv::mk_fenv(Env { consts });
+        let fe_bad = fenv::mk_fenv(env::env_of(&consts));
         assert!(!std_axioms::iff_intro_pinned(&fe_bad));
         let mut consts2: Vec<ConstantInfo> = Vec::new();
         consts2.push(ConstantInfo::CtorInfo(env::constant_val_dup(&cv_ii), 2, 2));
-        let fe_ok = fenv::mk_fenv(Env { consts: consts2 });
+        let fe_ok = fenv::mk_fenv(env::env_of(&consts2));
         assert!(std_axioms::iff_intro_pinned(&fe_ok));
         // …and the pinned `Eq` basis is not there, so `stdAxiomOk` still says
         // no (`basis_pins`' stub; task #22 supplies the table)

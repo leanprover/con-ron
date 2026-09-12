@@ -131,7 +131,7 @@ mod tests {
     use crate::cached::state_c;
     use crate::cached::state_c::CState;
     use crate::kernel::core_k;
-    use crate::kernel::env::{CheckMode, ConstantVal, Env, IndCaps};
+    use crate::kernel::env::{CheckMode, ConstantVal, IndCaps};
     use crate::kernel::expr;
     use crate::kernel::name;
     use crate::kernel::name::Name;
@@ -147,7 +147,7 @@ mod tests {
     /// pin carries.  (Task #25's test, moved here with the pin.)
     #[test]
     fn eq_a_is_annotated() {
-        let fe: FEnv = fenv::mk_fenv(Env { consts: Vec::new() });
+        let fe: FEnv = fenv::mk_fenv(env::empty());
         let mut st: CState = state_c::cstate_new();
         let mode = CheckMode::Verified;
         let pin = eq_a();
@@ -192,7 +192,7 @@ mod tests {
     fn eq_basis_pinned_reads_the_store() {
         let mut consts: Vec<ConstantInfo> = Vec::new();
         consts.push(eq_a());
-        let fe: FEnv = fenv::mk_fenv(Env { consts });
+        let fe: FEnv = fenv::mk_fenv(env::env_of(&consts));
         assert!(eq_basis_pinned(&fe));
         let mut consts2: Vec<ConstantInfo> = Vec::new();
         let ty = env::constant_info_type(&eq_a());
@@ -207,10 +207,10 @@ mod tests {
             },
             caps,
         ));
-        let fe2: FEnv = fenv::mk_fenv(Env { consts: consts2 });
+        let fe2: FEnv = fenv::mk_fenv(env::env_of(&consts2));
         assert!(!eq_basis_pinned(&fe2));
         // and an empty environment has no pin
-        let fe3: FEnv = fenv::mk_fenv(Env { consts: Vec::new() });
+        let fe3: FEnv = fenv::mk_fenv(env::empty());
         assert!(!eq_basis_pinned(&fe3));
         assert!(!nat_basis_pinned(&fe3));
     }

@@ -7291,3 +7291,181 @@ stopping at `/-!`; no core file was affected (the cherry total drops 8 135 →
 * `coverage`'s non-zero exit on a rotten skip list is not in
   `scripts/gates.sh`; adding it is a one-line change once the list has
   survived a con-leche bump.
+
+### Task #34 — O(1) environment views: what the profile actually asked for (2026-09-12, Opus under Fable)
+
+The brief was to make `FEnv`'s views `O(1)` as con-leche's are: share the
+index through `Rc`, keep phase A's `push` on an owned `FEnv`, and hand phase B
+a shared view whose `restrict_to` is a struct copy.  **The first thing task
+#34 found is that the premise does not hold**, in two ways, and the second is
+what the measurement says to do instead.
+
+#### 0. Phase B is already `O(1)`; the two `dup`s are in phase A
+
+`installed::check_pending` threads the index linearly — it takes the value at
+the installed bound, calls `fenv::restrict_to`, and hands it back at the bound
+it came in at — so phase B's per-record view *is* the cited field update and
+has been since task #14.  There is nothing at the phase boundary to win.
+
+The `fenv::dup`s task #32's profile named are in **phase A**: they are inside
+the inductive install routes, which run from `annot_decl_step` →
+`parsed_c::check_decl_step_c`.  There are six call sites and they belong to
+the two routes' recursor/former stages —
+`native_install::check_native_pass_former` and `check_native_rec_rules`,
+`modeled::check_ind_recs` and its cached twin `inductives_c::check_ind_recs_s`
+— each needing a *second* (in `check_ind_recs` a second and a third) view of
+one index while the fold's accumulator grows.  So "share only at the phase
+boundary" would have left the cost exactly where it was: pushes and second
+views interleave, per inductive block, throughout phase A.
+
+#### 1. The measurement that rules out every shared-index design
+
+Instrumented counters on `Init` (58 002 records, 59 967 constants):
+
+| on `Init` | count |
+|---|---|
+| `fenv::dup` calls | **1 22x** (the last report before the run ended is `dups=1220`) |
+| index entries those `dup`s rebuild | **13.6 M** |
+| `fenv::find` calls | **~80 M** (7.3 M in phase A, the rest in phase B) |
+
+`find` is **six times** the traffic of the whole index-rebuild bill.  That
+settles the design question the brief left open:
+
+* `idx: Rc<HashMap<…>>` cannot work at all inside §3.2's four-hole budget —
+  `Rc::get_mut`/`make_mut` are outside the allowed API, so a shared map can
+  never be extended, and `push` would have to copy it (`O(n)` **per
+  constant**, worse than today by a factor of the constant count).
+* Every design that *does* give `O(1)` sharing puts something in front of
+  `find`: an overlay (`Rc`-shared base + owned top) makes `find` two probes
+  and grows the overlay without bound unless it is consolidated, and
+  consolidating is the `O(n)` rebuild again; a level chain (`split` moving the
+  owner's map into an `Rc` and starting a fresh top) grows one level per
+  inductive block, so `find` walks 1 200 maps; the logarithmic-method fix for
+  that leaves `O(log n)` ≈ 16 probes.  At 80 M calls, adding ~50 instructions
+  to `find` costs 4 G instructions — as much as the entire remaining `dup`
+  bill.  A persistent hash trie is the same trade with a nicer constant and a
+  new proved container.
+
+So **the flat owned map stays**, and what task #34 did is make the copied
+entry cheap and the copy itself unavoidable-but-small.
+
+#### 2. What landed: the stored record is shared, and the index build is pre-sized
+
+1. **`Rc<ConstantInfo>` in both `Env.consts` and `FEnv.idx`** (`env::Env`'s
+   new deviation note).  con-leche's `FEnv.push` is
+   `⟨⟨ci :: fe.env.consts⟩, fe.idx.insert ci.name (fe.visibleBelow, ci), …⟩` —
+   *one* `ci`, reached from the list and from the index, because the runtime
+   shares the object.  The port stored it twice and paid a
+   `env::constant_info_dup` for the second copy (task #14 recorded that as a
+   deviation).  Now `fenv::push` calls `env::constant_info_share`
+   (`Rc::new`) once and `env::constant_info_rc_dup` (`Rc::clone`) for the
+   index, `mk_fenv_go` clones the pointer, and `env_dup` (i.e.
+   `constant_infos_copy`) is `n` reference bumps instead of `n` record copies.
+   `fenv::find` reaches the record through `Rc`'s `deref`.
+
+   **This removes a deviation rather than adding one.**  §3.2's model has
+   `Rc T` *reducible to* `T`, so the generated Lean's
+   `Vec (Rc ConstantInfo)` and `HashMap Name (U64 × Rc ConstantInfo)` abstract
+   exactly as `Vec ConstantInfo` and `HashMap Name (U64 × ConstantInfo)` did;
+   `abs` is unchanged, the four `Rc` holes are unchanged (the extraction still
+   reports "1 type, 4 fns"), and no proof needed a line.
+2. **`mk_fenv_go` pre-sizes the table**: its base case is
+   `HashMap::with_capacity(cs.len())` where it was `HashMap::new()`.  That is
+   the same `∅` — task #7 fixed that a `ron::HashMap`'s capacity is invisible
+   to the abstract map it refines, and task #32 already used
+   `Vec::with_capacity` the same way — but an index build no longer rehashes
+   its way up through `log n` capacities.  `HashMap<Name, …>::
+   move_elements_from_list` was the single biggest item of the index path,
+   0.54 % of `Init`; it is now 0.04 %.
+3. A new `env::env_of` (an index recursion over a plain record list) is how
+   the tests and the basis paths build an `Env` now that the list holds
+   shared records; `Env { consts: … }` outside `env.rs`/`fenv.rs` is gone.
+
+**Deliberately *not* done**, and why: the `Env.consts` order flip the brief
+contemplated ("store newest-last, search `find` from the end").  Once the
+element is an `Rc`, `Vec::insert(0, rc)` moves eight bytes per constant, which
+does not show in the profile; and the flip would cost the faithfulness the
+newest-first order buys — con-leche's `Env.consts` *is* newest-first, `abs`
+maps it to the Lean list with no `reverse`, and `FEnv`'s counters are
+positions from the bottom of exactly that list.  The `Vec` is essentially
+"only ever read through the index" (the second half of the brief's own
+condition): `mk_fenv`, `dup` and the driver's final environment are its only
+readers.
+
+#### 3. The numbers
+
+`perf stat -e instructions:u`, `/usr/bin/time -v`, release build with
+`overflow-checks`, `--pins _tmp/dump-fixtures/pins.dump`, artefacts in
+`_tmp/t34/`.  A Mathlib run of the *previous* binary was occupying one core
+throughout, which is why instructions, not wall time, is the measure.
+
+| `init` (58 002 records) | verdict | instructions:u | wall | peak RSS |
+|---|---|---|---|---|
+| before (task #33's binary) | accepted | 802.2 G | 108 s | 1 055.7 MB |
+| after (task #34) | accepted | **769.5 G** | **96 s** | **1 033.8 MB** |
+| con-leche `--jobs=1` (task #29) | accepted | 586 G | 59 s | 481 MB |
+
+**−4.1 % instructions, −11 % wall, −2 % RSS**, and the ratio to con-leche on
+`init` goes 1.37× → 1.31×.  The index path in the `perf` profile:
+
+| symbol | before | after |
+|---|---|---|
+| `HashMap<Name, (U64, …)>::move_elements_from_list` | 0.54 % | 0.04 % |
+| `…::allocate_slots` (the pre-sized table) | 0.00 % | 0.29 % |
+| `…::insert` + `insert_no_resize` + `list_insert` | 0.33 % | 0.17 % |
+| `env::constant_info_dup` | 0.12 % | — |
+| `env::rec_rules_copy_from` (inside it) | 0.10 % | — |
+| `env::constant_infos_copy_from` (in `env_dup`) | 0.09 % | 0.09 % |
+| `fenv::mk_fenv_go` | 0.15 % | 0.04 % |
+| index path, direct (all of the above plus the `AList` drop glue and `constant_info_name`) | **1.49 %** | **0.78 %** |
+
+The remaining 3.4 points of the 4.1 % are the allocator, which the 13.6 M
+record copies and their `Vec<Name>`s were feeding: `__libc_malloc2` 15.88 % →
+15.10 % and `_int_free_chunk` 13.19 % → 11.73 % *of a total that itself fell*,
+i.e. −9 % and −15 % in absolute instructions.
+
+#### Gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | all 6 OK (`cargo build`, `cargo test`, lint, provenance, `extract.sh --check`, `lake build`) |
+| `cargo test` | 173/173 (156 unit + 4 integration + 13 in `con-ron-dump`), warning-free |
+| `scripts/provenance.py check` | green — 1 565 items, 1 730 citations at pin 3e004805 |
+| `scripts/extract.sh` | zero Aeneas errors, zero warnings; externals still exactly **1 type, 4 `Rc` fns**, both templates byte-identical |
+| `cd proof && lake build` | 2 108 jobs, zero errors — **no proof changed**, `Refine/*` untouched |
+| `scripts/diff-fixtures.sh --timeout=60` | **315 agree, 0 differ**, 0 timed out, 33 skipped |
+| `init` | accepted at the numbers above |
+
+`core` and Mathlib were not re-run: the maintainer's Mathlib run held the
+machine, and the brief scoped the measurement to `init` and the fixtures.  On
+`core` the same change should be worth more than on `init` — task #32 measured
+the index path at ~10 % there, against ~1.4 % here, because `dup`'s bill grows
+with `blocks × |env|`.
+
+#### Left for next time
+
+* **The `dup`s themselves are still `O(|env|)`** — smaller by 2-3×, not gone,
+  and still the port's only superlinear term.  The one design that removes
+  them without touching `find` is to stop asking the install routes for a
+  second *owned* view: an `FEnv` view that **borrows** the installed index and
+  carries the block's own pushes as a short overlay, with the block returning
+  its constants as a *delta* that the owner folds in at `O(block)`.  That is a
+  change to `native_install`/`modeled`/`sum_install`'s shape (and a lifetime
+  inside `FEnv`, which task #14's `&'static str` experience says Aeneas may
+  refuse), so it is a design step of its own, not a patch to `fenv.rs`.
+  A cheaper down payment: `check_native_rec_rules`' `dup` — the one site whose
+  second view is exactly `fe` plus a single push — can go away exactly, with a
+  `push`/`pop` pair that remembers the entry the push displaced
+  (`ron::HashMap::insert` already returns it) and the local law
+  `pop (push fe ci) = fe`.  That kills one of the native route's two `dup`s.
+* **`HashMap::allocate_slots`, ~17 % of `Init`** (8.8 % for the
+  `u64 → (Expr, Expr)` `beq` table, 6.9 % for `ExprNatKey`, 1.8 % for
+  `Expr → Expr`, 0.6 % for `Expr → Bool`): the per-call memo
+  tables con-leche allocates as `{}`.  This is now much the largest single
+  item in the profile — bigger than task #32's estimate from `core` — and the
+  lever is the one task #32 named: a lazily allocated `ron::HashMap` table, at
+  the price of relaxing `Inv.min_cap` in the proved map.
+* `expr::beq_go` + `beq` + `beq_record`, 3.5 % on `init` (14 % on `core`) —
+  task #30's lane.
+* The allocator, ~33 % (a vendored `#[global_allocator]` in the unverified
+  binary crate).

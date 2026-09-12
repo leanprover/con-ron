@@ -19,7 +19,7 @@ use con_ron_core::kernel::basis_pins;
 use con_ron_core::kernel::basis_tables;
 use con_ron_core::kernel::checker;
 use con_ron_core::kernel::env;
-use con_ron_core::kernel::env::{BasisKind, ConstantInfo, ConstantVal, Env, IndCaps};
+use con_ron_core::kernel::env::{BasisKind, ConstantInfo, ConstantVal, IndCaps};
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::fenv;
 use con_ron_core::kernel::fenv::FEnv;
@@ -37,7 +37,7 @@ fn install_all() -> FEnv {
         BasisKind::FalseK,
         BasisKind::QuotK,
     ];
-    let mut fe: FEnv = fenv::mk_fenv(Env { consts: Vec::new() });
+    let mut fe: FEnv = fenv::mk_fenv(env::empty());
     for k in kinds.iter() {
         fe = match checker::check_basis_decl(fe, k) {
             Ok(fe2) => fe2,
@@ -153,7 +153,7 @@ fn the_pinned_eq_predicate_reads_the_installed_constant() {
     // quotient block declines rather than installing (DESIGN.md §1)
     let mut consts: Vec<ConstantInfo> = Vec::new();
     consts.push(perturbed);
-    let fe_bad: FEnv = fenv::mk_fenv(Env { consts });
+    let fe_bad: FEnv = fenv::mk_fenv(env::env_of(&consts));
     assert!(!basis_pins::eq_basis_pinned(&fe_bad));
     assert!(checker::check_basis_decl(fe_bad, &BasisKind::QuotK).is_err());
 }
