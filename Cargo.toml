@@ -1,3 +1,9 @@
 [workspace]
 resolver = "2"
 members = ["crates/con-ron-core"]
+
+# The Aeneas model of the code is the checked-arithmetic one (an overflow is
+# a `fail`), so the shipped binary must check too, or the model would not
+# describe it (task #7).
+[profile.release]
+overflow-checks = true
