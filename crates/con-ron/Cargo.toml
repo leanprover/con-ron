@@ -1,0 +1,22 @@
+[package]
+name = "con-ron"
+version = "0.1.0"
+edition = "2021"
+description = "The con-ron frontend and CLI: the lean4export NDJSON parser and the pure stream transformations con-leche's `Main.lean` runs before `checkDecls`.  UNVERIFIED tooling outside the Aeneas subset (DESIGN.md §1, task #37)"
+
+[lib]
+name = "con_ron"
+path = "src/lib.rs"
+
+[[bin]]
+name = "con-ron"
+path = "src/bin/con-ron.rs"
+
+[dependencies]
+con-ron-core = { path = "../con-ron-core" }
+# `con-ron-dump` is linked for two things: the `con-ron-decls/1` writer of
+# `--dump-decls` (task #19) and the `con-ron-pins/1` reader of `--pins`
+# (task #31).  Its `#[global_allocator]` — task #35's mimalloc — comes with it
+# and serves this binary too; a program may declare only one, which is why
+# `con-ron` declares none.
+con-ron-dump = { path = "../con-ron-dump" }

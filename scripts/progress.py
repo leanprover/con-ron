@@ -46,7 +46,13 @@ CHERRY_EXCLUDE = re.compile(r"ConLeche/Frontend/Scan/Equiv")
 # (task #33).  The four wholly-skipped files — `BasisGen`, `CoreGated`,
 # `CheckerGated`, `CoreIO` — are `*` entries in it, so they show up in the
 # table with 0 to translate and their declarations counted as skipped.
-RUST_ROOTS = ["crates/con-ron-core/src"]
+# The citation roots the ledger reads.  `crates/con-ron/src` joined at task
+# #37 so the *cherries* table starts counting: it is the unverified frontend,
+# so nothing in it will ever have a `_refines` lemma, and the "verified"
+# column of the cherries rows stays 0 by construction.  The `Rust core` size
+# line below still counts `CORE_RUST_ROOT` alone.
+RUST_ROOTS = ["crates/con-ron-core/src", "crates/con-ron/src"]
+CORE_RUST_ROOT = "crates/con-ron-core/src"
 REFINE_DIR = "proof/ConRon/Refine"
 GENERATED_DIR = "proof/ConRon/Generated"
 
@@ -205,11 +211,13 @@ def main(argv):
     core = report("Verified core (ConLeche/Kernel, ConLeche/Cached)", CORE_GLOBS)
     cherry = report("Cherries (ConLeche/Frontend without Scan/Equiv, Main.lean)", CHERRY_GLOBS, CHERRY_EXCLUDE)
 
-    rust = count_lines(walk("crates/con-ron-core/src", ".rs"))
+    rust = count_lines(walk(CORE_RUST_ROOT, ".rs"))
     rust_unverified = count_lines(walk("crates", ".rs")) - rust
     gen = count_lines(walk(GENERATED_DIR, ".lean"))
     proofs = count_lines(walk(REFINE_DIR, ".lean"))
-    n_items = sum(1 for it in items if it.kind == "fn")
+    core_dir = os.path.join(REPO, CORE_RUST_ROOT)
+    n_items = sum(1 for it in items
+                  if it.kind == "fn" and it.file.startswith(core_dir))
     n_lemmas = len(lemmas)
     pin = (P.current_submodule_commit() or "?")[:8]
     if summary:

@@ -283,6 +283,10 @@ crates/con-ron-core/     the verified core (checkDecls and below)
   src/cached/*.rs        one module per ConLeche/Cached/*.lean
   src/ron/*.rs           nat, hashmap — replacements for runtime primitives
 crates/con-ron/          CLI, parser, frontend rewrites, thread pool
+  src/frontend/*.rs      one module per ConLeche/Frontend/*.lean (task #37),
+                         plus basis_raw.rs — the *raw* pins the frontend
+                         matches a stream against (task #37 deviation 4)
+  src/bin/con-ron.rs     Main.lean: the driver and its exit codes
 proof/                   Lake project: requires con-leche + aeneas (task #4)
   lakefile.toml          two path `require`s; `lean_lib ConRon` and a second
                          root `lean_lib ConRonSpike` (task #12)
@@ -317,7 +321,9 @@ _tmp/aeneas-lean/        gitignored: vendor/aeneas/backends/lean + the v4.33
 spikes/                  feasibility experiments, kept as evidence
 scripts/                 gates.sh (run it before every commit), extract.sh,
                          setup-aeneas-lean.sh, lint-rust-style.sh,
-                         provenance.py, dump-fixtures.sh, diff-test
+                         provenance.py, dump-fixtures.sh, diff-fixtures.sh,
+                         diff-frontend.sh (the frontend's byte-exact oracle)
+                         and diff-e2e.sh (the whole binary), task #37
 ```
 
 **`scripts/gates.sh` is the one command every task runs before committing**
@@ -734,12 +740,20 @@ measured.
    its own sorry-free library).
    Gate: main theorems sorry-free; axiom census pinned.
 
-**P4 — cherries** (Opus)
+**P4 — cherries** (Opus; **in progress**)
 1. Rust parser (NDJSON, streaming), prelude, Nat-op reordering, projection
    rewrite, in-process inductive modeller, CLI with con-leche's exit codes,
-   thread pool for the check phase.
+   thread pool for the check phase.  **The parser, the prelude, the hoist, the
+   projection rewrite and the CLI landed as `crates/con-ron` (task #37)**: the
+   dump of the parsed list is byte-identical to the Lean frontend's on 289
+   fixtures with 0 differing, and the binary's exit code agrees with
+   con-leche's expectation on 324 of 348 with 0 differing.  What is left of
+   this item is the **in-process modeller** (task #38, 26 fixtures and
+   `init.ndjson` waiting on it) and the **thread pool**.
 2. Perf comparison against con-leche and the official kernel (PERF.md).
 3. Optional: parser refinement against con-leche's naive reference parser.
+   Task #37 wrote the statement down: every item of `frontend::scan_fast`
+   cites the `Scan/Naive.lean` declaration that specifies it.
 
 ## 6. Risks
 
@@ -7677,3 +7691,312 @@ Mathlib caps are next set: the two units are not interchangeable.
   in priority.
 * `expr::beq_go` + `beq` + `beq_record`, task #30's lane.
 * `core.decls` and Mathlib at these numbers, once the machine is free.
+
+### Task #37 — The Rust frontend: parser and stream transformations (2026-09-12, Opus under Fable)
+
+P4.1's first half.  con-ron was a checker without a front door: every
+declaration it had ever seen came out of a `con-ron-decls/1` dump that
+con-leche's own Lean frontend had produced (tasks #10, #19).  This task gives
+it the frontend — the lean4export NDJSON recogniser and the pure stream
+transformations `Main.lean` runs before `checkDecls` — in a **new, unverified
+crate `crates/con-ron`** (library + the `con-ron` binary), so the binary reads
+a raw export and prints con-leche's verdict.  §1 puts every one of those
+pieces outside the main theorem, and they stay outside it.
+
+**What landed** (8 055 lines, `crates/con-ron/`):
+
+| file | con-leche | lines |
+|---|---|---|
+| `src/frontend/scan_types.rs` | `Frontend/Scan/Types.lean` (414) | 419 |
+| `src/frontend/scan_fast.rs` | `Frontend/Scan/Fast.lean` (2 637), spec `Scan/Naive.lean` | 2 848 |
+| `src/frontend/export.rs` | `Frontend/Export.lean` (425) | 386 |
+| `src/frontend/basis_raw.rs` | `Kernel/Basis{,/Eq,/Nat,/PUnit,/Empty,/False,/Quot}.lean` | 802 |
+| `src/frontend/proj_rec.rs` | `Frontend/ProjRec.lean` (373) | 643 |
+| `src/frontend/nat_op_ground.rs` | `Frontend/NatOpGround.lean` (164) | 488 |
+| `src/frontend/export_c.rs` | `Frontend/ExportC.lean` (1 006) | 1 573 |
+| `src/frontend/prelude.rs` | `Frontend/Prelude.lean` (74) | 119 |
+| `src/bin/con-ron.rs` | `Main.lean` (1 183) | 718 |
+
+plus `scripts/diff-frontend.sh` (the byte-exact oracle), `scripts/diff-e2e.sh`
+(the whole-binary differential) and two one-line root additions
+(`provenance.py`'s `DEFAULT_ROOTS`, `progress.py`'s `RUST_ROOTS`).
+
+#### The oracle, and what it found
+
+`scripts/diff-frontend.sh` runs `con-ron --dump-decls OUT FILE.ndjson` on every
+fixture and demands **byte identity** with the dump con-leche's Lean frontend
+wrote for it (`_tmp/dump-fixtures/**/*.decls`, task #10).  That is a strong
+test, not a smoke test: the dump's nine id spaces are dense and assigned in the
+writer's own walk order, so one divergence anywhere — one interning decision,
+one binder's `pw`, one `IndCaps` default, one hoist tie-break, one prelude
+dedupe, one `Name.cmp` inside `PropWhen` — moves every later id and the files
+differ from that byte on.
+
+| | |
+|---|---|
+| rows (348 fixtures + `_tmp/corpus/init.ndjson`) | **349** |
+| **byte-identical to the Lean dump** | **289** |
+| **differing** | **0** |
+| needs the in-process modeller (task #38) | 26 |
+| no Lean dump to compare (con-leche's own frontend declines or rejects them) | 33 |
+| timed out (`tower_beqpair`, the finding below) | 1 |
+| bytes compared / wall | 4 990 283 / 47 s |
+
+`scripts/diff-e2e.sh` then runs the *binary* — parse, prelude, hoist, rewrite,
+fold, verdict, exit code — against `tests/{arena,e2e,annot}-expected.txt`:
+
+| | |
+|---|---|
+| fixtures | **348** |
+| **exit code agrees with con-leche's expectation** | **324** |
+| **differs** | **0** |
+| needs the modeller (task #38) | 23 |
+| timed out (`tower_beqpair`) | 1 |
+| wall, whole sweep | 70 s |
+
+The 23 are the 26 above less the three whose *expectation* is 2 anyway, where
+con-ron's decline agrees with con-leche by accident of the exit code.  This
+sweep supersedes `diff-fixtures.sh` on two counts (which is why it is a
+separate script rather than a flag): the taint-skip decline is now the
+frontend's own datum instead of a hand-maintained `taint_of` table, and the 33
+fixtures with no declaration list are *checked* instead of skipped.
+
+#### The finding: `expr::beq`'s memo key is exponential on `tower_beqpair`
+
+One fixture does not finish, and the reason is in **`con-ron-core`**, not in
+the frontend.  `tests/e2e/tower_beqpair.ndjson` (con-leche task #240) carries a
+shared ternary tower `S = g S S S` and an alternating pair `P = g P Q P` /
+`Q = g Q P Q`; all three are structurally equal, so `Expr.hash` is the same at
+every level.  Task #11's one deviation in the `beq` pair memo — the key mixes
+the two nodes' **hash words**, because Aeneas cannot model addresses, where
+con-leche mixes their **addresses** — therefore gives all three pairings ONE
+key per level.  `probe_hit` verifies the stored pair by identity, misses, and
+the walk is re-done: three full sub-walks per level.  Measured
+(`beq_on_the_tower_pair_is_exponential`, an `#[ignore]`d test in
+`nat_op_ground.rs` that builds the towers and times `expr::beq`):
+
+| depth | 6 | 8 | 10 | 12 | 14 |
+|---|---|---|---|---|---|
+| `expr::beq` | 22 µs | 137 µs | 1.09 ms | 9.5 ms | 90.8 ms |
+
+a clean **×2.9 per level**, i.e. `3^depth`; the fixture's depth is 60.  Task
+#11's note says a key collision "costs an entry, never an answer" — it costs
+the answer's *time*, and here unboundedly.
+
+**Why no earlier task saw it, and why this one does.**  Every `Expr` con-ron
+had ever been handed came out of a `con-ron-decls/1` dump, and the Lean writer
+**interns by value**, so `S`, `P` and `Q` arrive as ONE node and the pairing
+never happens; task #30's "eight tower fixtures accept in under a second" was
+measured on exactly those collapsed dumps.  A Rust frontend builds the
+stream's own DAG, in which they are three distinct nodes — which is what
+con-leche's frontend builds too.  So this is a real divergence from con-leche's
+behaviour on a real input, found the first time the port was given an input
+con-leche's frontend had not pre-chewed.  It is out of this task's scope
+(`con-ron-core` is off limits here); it is the first item of "left for next
+time", and `crates/con-ron`'s test module `beq_pair_finding` carries the
+demonstration so a fix has something to point at.
+
+The same shape bit the frontend once, and there the fix was local: a
+`HashSet<ExprKey>` keyed by VALUE (con-leche's `Std.HashSet ExprC`) calls
+`Expr.beq` on every probe whose truncated hash matches, so it puts `beq` on
+pairs that are *not* equal — and an unequal comparison is never memoised at
+all.  `nat_op_ground::ExprKey` is therefore keyed by the node's **address**
+(hashed and compared, never dereferenced, no `unsafe`), which is a strictly
+coarser dedupe of a DAG whose nodes are distinct objects by construction; its
+doc comment carries the argument.  That is what `used_consts_go` and
+`occurs_const_go` use.
+
+#### Structure, and the five deviations worth naming
+
+1. **`keyAt` is a slice compare.**  `Fast.lean` classifies a key by its first
+   byte and its length and then compares the rest with an unrolled chain of
+   byte literals (`lit1`…`lit10`, con-leche task #264) because a Lean string
+   literal in that position is a heap object.  Rust has no such cost, so
+   `key_at` matches the key's byte slice against `b"…"` patterns — which is
+   `keyOf`/`keyTable` of `Naive.lean` at `Fast.lean`'s speed — and carries the
+   citations of `keyAt` and of all ten `litN` helpers.
+2. **The slot loop is factored out once** (`next_member`), as `naiveObjLoop`
+   factors it in the *specification*, instead of being written out per object
+   as `Fast.lean` does; and the four `[{…}, …]` list loops are one generic
+   `scan_obj_list_loop`, as `naiveListLoop` is.  Each `scan_*_loop` is still
+   its own function with its own `seen` bits and its own required mask, so it
+   lines up with its Lean twin key for key.  `Scan/Naive.lean` is the
+   specification of the whole module and every item cites its `naive*`
+   counterpart beside its `Fast` one.
+3. **Numbers are `u64`.**  `readNat`/`readNat64`/`readNatAt` collapse into one
+   `read_nat_at` that fails with a new `ErrTag::IndexOverflow` rather than
+   growing into a bignum; only `natVal` is unbounded, and it keeps its decimal
+   digits through the syntax record and becomes a `ron::Nat` in `export_c`
+   through `con_ron_dump::natdec`.  That is task #19's split, one layer earlier.
+4. **The raw basis pins are in this crate** (`basis_raw.rs`).  con-ron-core
+   carries the *annotated* blocks (`basis_tables`, task #22) and those are the
+   wrong ones to match a stream against: `ConstantInfo.canon` resets binder
+   metadata and `IndCaps` but compares a recursor rule's install-computed
+   fields verbatim, and the annotated `Nat.rec` rule carries `ctorParams = 2`,
+   `k = true`, `paramsBlind = true` where a parsed one carries the
+   placeholders.  A stream's `Nat` block would never match its pin — a verdict
+   divergence, not a cosmetic one.  The module's test asserts exactly that: the
+   six blocks have the annotated tables' member names in the same order, and
+   four of the six fail `canonEq` against them.  con-leche splits the same two
+   modules for the same reason (`Kernel/Basis.lean` sits *below* `TypeChecker`,
+   `Kernel/BasisA.lean` above).  Should a later task need the raw pins inside
+   the verified core, the module moves there unchanged.
+5. **`M (StateD ⊕ RecordVerdict)` becomes `Result<(), LineErr>`** over a
+   `&mut StateD`: one error channel with two arms instead of a monad over a
+   sum, and the state threaded by mutable reference instead of returned.
+   con-leche threads it linearly for the reason Rust's `&mut` gives for free
+   (`ExportC.lean`'s task-#78 note: a handler that closes over the state holds
+   it at RC 2 and every insert inside copies it).
+
+#### What is skipped, and where the skip is
+
+**The in-process modeller** (`Frontend/InModel/*`, 2 440 lines) is task #38.
+`export_c::process_ind_decl_d` reaches exactly the point where con-leche calls
+`InModel.generate` — the `InModel.wants` test, ported as `in_model_wants` off
+the scan records (its two fields, `types.length` and `numNested`, are the scan
+record's own, so neither `BlockRec` nor `blockRecOf` is needed yet) — and
+declines with `in-process model of <T>: the in-process modeller is not ported
+(con-ron task #38); the block is mutual or nested`.  Nothing is silent:
+
+* such a stream exits 2 with that message, and both differential scripts count
+  it in its own `INMODEL` row;
+* `CON_LECHE_INMODEL_CENSUS=1` still works and is how to enumerate the blocks
+  a stream needs #38 for — `init.ndjson` has 1 (`Lean.Syntax`), `core.ndjson`
+  has 45;
+* `CON_LECHE_INMODEL=0` means what it means in con-leche: the block is pushed
+  bare and the *fold* declines it at the install, having found no route.
+
+`init.ndjson` is therefore an `INMODEL` row rather than an accept: con-leche's
+own dump of it contains `Lean.Syntax`'s 30 generated `_model` records, so byte
+identity is not even askable before #38.  The fixture rows prove the parse on
+289 streams instead.
+
+Four `StateD` fields exist only to feed the modeller and are **not** ported:
+`constTypes` and `heights` (the sort inferer's and the generated definitions'
+hint source), `indBlocks` (the nested rung's container shapes) and `inModelGen`
+(`CON_LECHE_INMODEL_DUMP`'s debug gate); `noteDecl` and `blockRecOf` exist only
+to fill them and are not ported either.  They have no other reader anywhere in
+con-leche, so nothing in this task's scope changes, and keeping them would hold
+every declaration's type in a hash map for the whole run — at Mathlib scale,
+for nothing.  `pushGenD`, `noteGen` and `noteProjIota` ARE ported, because they
+are the modeller's *interface* to the parse state and #38 should only have to
+call them.
+
+**`Frontend/ExportWrite.lean` is not needed** and is the one source file on the
+task's list that got no port: it is the checker's own *annotated* NDJSON
+writer, the output path `lake exe con-leche-annot` uses to produce the
+`tests/annot` fixtures, not something a checker reads.  con-ron reads those
+fixtures like any other stream — all 15 of them are byte-identical rows above.
+
+**`ProjRec.lean` is ported but cannot fire yet**, and that is con-leche's own
+rule rather than a shortcut.  The rewrite needs the field's elimination level,
+which is not syntactic in the projection's codomain: it is read off the
+artifact `T._model.proj_i.iota`, and since con-leche task #219 the ONLY source
+of that artifact is the in-process modeller.  So `proj_levels` is empty until
+#38 and `proj_rewrite_d` always answers `None` — "no artifact, no rewrite", the
+declaration stays as parsed and declines as before.  What *does* run on every
+inductive record of every stream is the owner census (`proj_rec_owners`, with
+`occurs_const_fast` over every constructor binder domain), and its recognisers
+are unit-tested.
+
+**Two Rust-side deliberate absences in the binary**: `--jobs=<n>` is validated
+exactly as con-leche validates it and then **ignored** — the check phase is
+sequential, and a run says so on stderr rather than letting a log mistake it
+for a pooled one — and the `Prop`-indexed driver evidence (`InstallRun`,
+`GroupChecked`, `FullyChecked`) that `checkDeclsIO` carries is not ported,
+which is §3.7's existing skip for that family.  Two flags are con-ron's own:
+`--pins FILE` (§3.6's pin-list parameter, task #31, because con-leche computes
+`natOpPinSets` at elaboration time and the port takes it as data) and
+`--dump-decls OUT` (the oracle above).
+
+#### Scale
+
+`CON_LECHE_INMODEL_CENSUS=1` stops after the parse, which is how the parse is
+timed on a stream whose blocks the modeller would want.  Under
+`ulimit -v 2600000`/`5000000` (1 GiB of that is the thread's stack
+reservation), on a machine with another agent's Mathlib run on it:
+
+| export | bytes | lines | decl records | parse | peak RSS | con-leche's whole run (`_tmp/corpus/baseline.md`) |
+|---|---|---|---|---|---|---|
+| `init.ndjson` | 347 714 179 | 6 490 422 | 57 977 | **1.29 s** | 587 MB | 59.4 s, 481 MB |
+| `core.ndjson` | 747 809 047 | 13 229 044 | 163 396 | **3.07 s** | 1 183 MB | 149.6 s, 1 243 MB |
+
+So the recogniser runs at **250–270 MB/s** and the resident set is the parsed
+`DeclC` graph, not a copy of the input: the reader asks the handle for 4 MiB at
+a time, carries at most one incomplete line into the next chunk, and never
+seeks, re-opens or asks for the file's size — so the source may be a pipe, and
+con-leche task #180's "no temporary files, anywhere" holds.
+`chunking_does_not_change_the_parse` pins the chunk boundary at chunk sizes 1,
+2, 7, 8, 13 and 64 bytes.  For comparison, the Lean frontend needs 18.7 s and
+2 425 MB to parse and write `init` (task #29's `dumps.md`), and con-leche's
+whole `init` run fits in 481 MB — so the parse is inside CLAUDE.md's 3× budget
+on both rows.
+
+Mathlib's 6 GB export was **not** parsed: another agent's Mathlib measurement
+had the machine, and CLAUDE.md allows one heavy run at a time.  It is the third
+item of "left for next time".
+
+#### Two notes for whoever continues
+
+1. **The prelude is the frontend's own integration test, and it passed
+   first.**  `frontend::prelude`'s two tests parse the committed
+   `pins/leanprover-lean4-v4.33.0.prelude.ndjson` through the whole chain and
+   assert that all six pinned basis blocks came out as `basisDecl`s and that
+   `Bool` and `And` came out as ordinary inductive records.  That exercises the
+   byte recogniser, the index tables, the smart constructors, `canonEq` and
+   `basis_raw` together, and it was green before any fixture was run — which is
+   why the first fixture compared byte-identical on the first try.
+2. **`scripts/gates.sh` needed no change.**  `cargo build`/`cargo test` run at
+   the workspace manifest, so the new member is covered; `lint-rust-style.sh`
+   is invoked on `crates/con-ron-core/src` only and `extract.sh` names that
+   crate explicitly, so both are already scoped away from the unverified
+   frontend.  What DID change is the two citation roots — `provenance.py`'s
+   `DEFAULT_ROOTS` and `progress.py`'s `RUST_ROOTS` — because §3.7's `update`
+   mode is the only sync signal the frontend will ever have.  The cherries
+   table consequently starts counting: **5 525 of 8 093 Lean lines translated
+   (68 %)**, the residue being `InModel/*` (2 057), `ExportWrite` (169),
+   `Scan/Naive`'s reference-only half (164) and `Main.lean`'s pool (86).
+   One more thing needed saying out loud: `con-ron` declares no
+   `#[global_allocator]`, because it links `con-ron-dump` (for the dump writer
+   and the pin reader) and that crate already declares task #35's mimalloc —
+   two in one program is a hard link error, which is how this was found.
+
+#### Gates
+
+| gate | result |
+|---|---|
+| `cargo build` (`-D warnings`) | clean |
+| `cargo test` (`-D warnings`) | 207 pass, 1 ignored (the exponential measurement), 0 fail; 33 of them new |
+| `scripts/lint-rust-style.sh` | clean (scoped to `con-ron-core`) |
+| `scripts/provenance.py check` | 1 828 items, 2 035 citations, all current at the pin |
+| `scripts/extract.sh --check` | clean (`con-ron-core` untouched) |
+| `cd proof && lake build` | clean |
+| `scripts/diff-frontend.sh --corpus` | **289 byte-identical, 0 differ**, 26 INMODEL, 33 no dump, 1 timeout |
+| `scripts/diff-e2e.sh` | **324 agree, 0 differ**, 23 INMODEL, 1 timeout |
+
+Neither differential script is in `scripts/gates.sh`, for the reason
+`dump-check-fixtures.sh` and `diff-fixtures.sh` are not (tasks #19, #28): both
+need the Lean dumps and the arena tarball, which the gate deliberately does not
+require.
+
+#### Left for next time
+
+* **`expr::beq_key`'s hash-word key is exponential on `tower_beqpair`** (the
+  finding above).  The fix is in `con-ron-core` and has to stay inside the
+  Aeneas subset, so it is not "use the address": the honest options are a memo
+  entry that holds a *list* of pairs per key (so a probe miss does not evict
+  the entry that would have hit) or recording completed `false`s as well —
+  both are §3.1 memo-policy questions with a `Refine/Expr.lean` obligation
+  attached.  Until then `tower_beqpair` is the port's one known
+  non-terminating fixture, and both differential scripts report it as a
+  timeout rather than hiding it.
+* **The in-process modeller** (task #38): `InModel/{Kit,Mutual,Nested}.lean`,
+  2 440 Lean lines, the 26 INMODEL fixtures and `init.ndjson` as its gate.  The
+  four state fields and two functions it needs are named above.
+* **Mathlib's parse**, and then the whole binary on Mathlib against
+  `_tmp/corpus/baseline.md`'s 12.8 T instructions — which is the P4.2
+  comparison and wants the machine to itself.
+* **The thread pool** for the check phase (`--jobs`), P4.1's last piece.
+* **The parser's refinement against `Scan/Naive.lean`** (P4.3, optional): every
+  item of `scan_fast` already cites its `naive*` specification, so the
+  statement to prove is written down.

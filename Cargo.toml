@@ -6,8 +6,13 @@ resolver = "2"
 # which Charon never sees and which `scripts/extract.sh`,
 # `scripts/lint-rust-style.sh` and `scripts/provenance.py` are all scoped away
 # from; it is in the workspace so that `cargo build`/`cargo test`, i.e.
-# `scripts/gates.sh`, cover it.
-members = ["crates/con-ron-core", "crates/con-ron-dump"]
+# `scripts/gates.sh`, cover it.  `con-ron` is the *frontend* and the CLI
+# (task #37): the lean4export parser and the pure stream transformations of
+# con-leche's `ConLeche/Frontend/*` and `Main.lean`, which §1 puts outside the
+# theorem.  It is unverified like `con-ron-dump` and outside the style lint and
+# the extraction for the same reason, but it IS inside `provenance.py`'s roots:
+# the citation gate is the only sync signal the frontend will ever have (§3.7).
+members = ["crates/con-ron-core", "crates/con-ron-dump", "crates/con-ron"]
 
 # The Aeneas model of the code is the checked-arithmetic one (an overflow is
 # a `fail`), so the shipped binary must check too, or the model would not
