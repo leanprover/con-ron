@@ -18,7 +18,11 @@ import ConRon.Refine.Level
 import ConRon.Refine.PropWhen
 import ConRon.Refine.Expr
 import ConRon.Refine.HashMap
+import ConRon.Refine.HashMapWF
 import ConRon.Refine.Nat
+import ConRon.Refine.Env
+import ConRon.Refine.FEnv
+import ConRon.Refine.State
 import ConRon.Refine.BasisTables
 import ConRon.Refine.Pins
 import ConRon.Dump.Read

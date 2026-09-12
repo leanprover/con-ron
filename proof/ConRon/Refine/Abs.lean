@@ -25,6 +25,7 @@ What the abstractions forget, in the order DESIGN.md §3.3 lists it:
 import ConRon.Generated
 import ConRon.Refine.Nat
 import ConLeche.Kernel.Level
+import ConLeche.Kernel.Env
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
@@ -103,6 +104,29 @@ theorem vec_push_val {α : Type} {v w : alloc.vec.Vec α} {x : α}
   · simp only [Result.ok.injEq] at h
     subst h; simp
   · simp at h
+
+/-! ## Decidable equality of the generated key types
+
+`ron::HashMap`'s abstract map (`ConRon/Refine/HashMap.lean`) is a partial
+*function* `toFun : HashMap K V → K → Option V`, and its definition — like
+`Inv` and `Eq2Fwd` — needs `DecidableEq K`.  For the memo tables' concrete key
+types the instance has to be supplied, and `deriving instance DecidableEq`
+cannot: `name.Name`/`level.Level`/`expr.Expr` are three-type mutual inductives
+whose recursive occurrences sit behind the `@[reducible] def alloc.sync.Arc`
+of DESIGN.md §3.2, and the deriving handler does not look through it
+("failed to synthesize `Decidable (a = b)`").
+
+They are therefore the classical instances.  **Nothing is lost and nothing is
+executed**: every occurrence is inside a `Prop` (`decide (a = b)` in `Eq2Fwd`,
+the `if k' = k` of `lookupK`), the port's *own* decision procedure is
+`name::beq`/`expr::beq` and is what the refinement lemmas are about, and
+`Classical.choice` is already one of the three axioms the tier's census
+allows. -/
+
+noncomputable instance : DecidableEq name.Name := Classical.decEq _
+noncomputable instance : DecidableEq level.Level := Classical.decEq _
+noncomputable instance : DecidableEq expr.Expr := Classical.decEq _
+noncomputable instance : DecidableEq prop_when.PropWhen := Classical.decEq _
 
 /-! ## The abstraction functions -/
 
@@ -420,6 +444,221 @@ and the node layer of the port's three-type mutual inductive. -/
     (motive_3 := motive)
     anonymous (fun p s hp h => str h p s hp) (fun p m hp h => num h p m hp)
     (fun h _k hk => hk h) (fun _ hnd => hnd) n
+
+/-! ## The environment records (task #46)
+
+`kernel::env`'s seven stored-constant records, its two little enums and the
+environment itself.  These came here from `ConRon/Refine/BasisTables.lean`'s
+temporary `T22` namespace (task #22 wrote them there because `Abs.lean` had
+nothing above `Expr` yet, and said so in a note); the `T22` namespace is gone
+and this is the one copy.
+
+None of them carries derived data, so none needs a smart constructor: a
+record's abstraction is its fields' abstractions, and its well-formedness
+(below) is its fields' well-formedness.  The one asymmetry `abs` has to see is
+`ProjTable`: con-leche's `bodies` is an `Array Expr` while its `guards` is a
+`List Level`, and the port has a `Vec` for both (task #10, surprise 8).  The
+`P` around a stored `ConstantInfo` (task #34's sharing) is invisible:
+`alloc.sync.Arc T` *is* `T` in the model, so `absConstantInfos` reads
+`Vec (P ConstantInfo)` exactly as it reads `Vec ConstantInfo`. -/
+
+/-- `ConLeche/Kernel/Env.lean:197` — `ConstantVal` (the port's `ty` is the
+Lean's `type`; `type` is a Rust keyword). -/
+def absConstantVal (cv : env.ConstantVal) : ConLeche.ConstantVal :=
+  ⟨absName cv.name, absNames cv.level_params, absExpr cv.ty⟩
+
+/-- `ConLeche/Kernel/Env.lean:315` — `ReducibilityHint`. -/
+def absHint : env.ReducibilityHint → ConLeche.ReducibilityHint
+  | .Opaque => .opaque
+  | .Abbrev => .abbrev
+  | .Regular h => .regular h.val
+
+/-- `ConLeche/Kernel/Env.lean:243` — `RecRuleFire`. -/
+def absFire : env.RecRuleFire → ConLeche.RecRuleFire
+  | .Inert => .inert
+  | .Plain => .plain
+  | .Nested us es => .nested (absLevels us) (absExprs es)
+
+/-- `ConLeche/Kernel/Env.lean:259` — `RecRule`. -/
+def absRecRule (r : env.RecRule) : ConLeche.RecRule where
+  ctor := absName r.ctor
+  nfields := r.nfields.val
+  ctorParams := r.ctor_params.val
+  fire := absFire r.fire
+  rhs := absExpr r.rhs
+  k := r.k
+  eta := r.eta
+  paramsBlind := r.params_blind
+
+/-- A `Vec<RecRule>` as the Lean's `List RecRule` (`recInfo`'s `rules`). -/
+def absRecRules (rs : alloc.vec.Vec env.RecRule) : List ConLeche.RecRule :=
+  rs.val.map absRecRule
+
+/-- `ConLeche/Kernel/Env.lean:362` — `IndCaps`. -/
+def absIndCaps (c : env.IndCaps) : ConLeche.IndCaps where
+  eta := c.eta
+  etaCtor := absName c.eta_ctor
+  etaParams := c.eta_params.val
+  etaFields := c.eta_fields.val
+  unitlike := c.unitlike
+  unitParams := c.unit_params.val
+  ruleK := c.rule_k
+  sortZ := absPropWhen c.sort_z
+
+/-- `ConLeche/Kernel/Env.lean:411` — `ProjTable`.  The Lean's `bodies` is an
+`Array Expr` while its `guards` is a `List Level`; the port has a `Vec` for
+both (task #10, surprise 8), so only this abstraction sees the asymmetry. -/
+def absProjTable (t : env.ProjTable) : ConLeche.ProjTable where
+  structName := absName t.struct_name
+  levelParams := absNames t.level_params
+  numParams := t.num_params.val
+  ctor := absName t.ctor
+  numFields := t.num_fields.val
+  structSort := absLevel t.struct_sort
+  bodies := (absExprs t.bodies).toArray
+  guards := absLevels t.guards
+  off := t.off.val
+
+/-- `ConLeche/Kernel/Env.lean:447` — `ProjEntry`, the per-field view of a
+table (what `env::find_proj` and `fenv::find_proj` return). -/
+def absProjEntry (e : env.ProjEntry) : ConLeche.ProjEntry where
+  structName := absName e.struct_name
+  idx := e.idx.val
+  levelParams := absNames e.level_params
+  numParams := e.num_params.val
+  ctor := absName e.ctor
+  numFields := e.num_fields.val
+  body := absExpr e.body
+  fieldSort := absLevel e.field_sort
+  structSort := absLevel e.struct_sort
+  off := e.off.val
+
+/-- `ConLeche/Kernel/Env.lean:471` — `ConstantInfo`. -/
+def absConstantInfo : env.ConstantInfo → ConLeche.ConstantInfo
+  | .AxiomInfo cv => .axiomInfo (absConstantVal cv)
+  | .DefnInfo cv v h => .defnInfo (absConstantVal cv) (absExpr v) (absHint h)
+  | .ThmInfo cv v => .thmInfo (absConstantVal cv) (absExpr v)
+  | .IndInfo cv c => .indInfo (absConstantVal cv) (absIndCaps c)
+  | .CtorInfo cv np nf => .ctorInfo (absConstantVal cv) np.val nf.val
+  | .RecInfo cv mi rp rs =>
+    .recInfo (absConstantVal cv) mi.val rp.val (rs.val.map absRecRule)
+  | .ProjInfo t => .projInfo (absProjTable t)
+
+/-- A `Vec<ConstantInfo>` as a `List ConLeche.ConstantInfo`.  Also the reading
+of `Env.consts`' `Vec<P<ConstantInfo>>`: `P` is the identity in the model. -/
+def absConstantInfos (cs : alloc.vec.Vec env.ConstantInfo) :
+    List ConLeche.ConstantInfo :=
+  cs.val.map absConstantInfo
+
+/-- `ConLeche/Kernel/Env.lean:627` — `Env`.  A *function*, not a relation:
+`Env.consts` is a list on both sides, in the same (newest-first) order. -/
+def absEnv (e : env.Env) : ConLeche.Env := ⟨absConstantInfos e.consts⟩
+
+/-- `ConLeche/Kernel/Env.lean:69` — `CheckMode`. -/
+def absMode : env.CheckMode → ConLeche.CheckMode
+  | .Verified => .verified
+  | .Trusted => .trusted
+
+/-- `ConLeche/Kernel/Env.lean:352` — `BasisKind`. -/
+def absBasisKind : env.BasisKind → ConLeche.BasisKind
+  | .EqK => .eqK
+  | .NatK => .natK
+  | .PunitK => .punitK
+  | .EmptyK => .emptyK
+  | .FalseK => .falseK
+  | .QuotK => .quotK
+
+/-- `ConLeche/Kernel/Env.lean:499` — `Declaration`, a declaration presented to
+the checker. -/
+def absDeclaration : env.Declaration → ConLeche.Declaration
+  | .AxiomDecl cv => .axiomDecl (absConstantVal cv)
+  | .DefnDecl cv v h => .defnDecl (absConstantVal cv) (absExpr v) (absHint h)
+  | .ThmDecl cv v => .thmDecl (absConstantVal cv) (absExpr v)
+  | .OpaqueDecl cv v => .opaqueDecl (absConstantVal cv) (absExpr v)
+  | .BasisDecl k => .basisDecl (absBasisKind k)
+  | .IndDecl block nP => .indDecl (absConstantInfos block) nP.val
+
+/- These are deliberately **not** in the plumbing `simp` set: task #22's
+`BasisTables.lean` drives its 192-node `step*` proof with `simp only
+[absBasisKind]` and friends at the end, and a global `simp` attribute makes
+those calls no-ops ("`simp` made no progress").  Each client unfolds the one it
+needs by name. -/
+
+/-! ## Well-formedness of the environment records (task #46)
+
+Hereditary, in the task-#17 style: a record is well formed when its fields
+are.  There is no *inductive* predicate to write here — that shape belongs to
+types with derived data (`Name`, `Level`, `Expr`, `PropWhen`), whose stored
+hash word a smart constructor pins; none of `env`'s records has any, so the
+predicate is the conjunction of its fields' and is what makes
+`absConstantInfo` injective (`ConRon/Refine/Env.lean`'s
+`absConstantInfo_injective`) and hence the `*_beq` family exact.
+
+`ReducibilityHint` and `BasisKind` carry only machine words and need no
+clause; `CheckMode` likewise. -/
+
+/-- `ConstantVal`: a well-formed name, level-parameter list and type. -/
+def ConstantValWF (cv : env.ConstantVal) : Prop :=
+  NameWF cv.name ∧ NamesWF cv.level_params ∧ ExprWF cv.ty
+
+/-- `RecRuleFire`: `.nested`'s stored level and pin lists. -/
+def RecRuleFireWF : env.RecRuleFire → Prop
+  | .Inert => True
+  | .Plain => True
+  | .Nested us es => LevelsWF us ∧ ExprsWF es
+
+/-- `RecRule`: the constructor name, the firing mode and the right-hand side
+(the five counters and bits are machine words). -/
+def RecRuleWF (r : env.RecRule) : Prop :=
+  NameWF r.ctor ∧ RecRuleFireWF r.fire ∧ ExprWF r.rhs
+
+/-- A `Vec<RecRule>` all of whose entries are well formed. -/
+def RecRulesWF (rs : alloc.vec.Vec env.RecRule) : Prop := ∀ r ∈ rs.val, RecRuleWF r
+
+/-- `IndCaps`: the η constructor's name and the result-sort zero-ness datum. -/
+def IndCapsWF (c : env.IndCaps) : Prop :=
+  NameWF c.eta_ctor ∧ PropWhenWF c.sort_z
+
+/-- `ProjTable`: every stored name, the structure's sort, the field bodies and
+the per-field guard levels. -/
+def ProjTableWF (t : env.ProjTable) : Prop :=
+  NameWF t.struct_name ∧ NamesWF t.level_params ∧ NameWF t.ctor ∧
+  LevelWF t.struct_sort ∧ ExprsWF t.bodies ∧ LevelsWF t.guards
+
+/-- `ProjEntry`: the per-field view's own fields. -/
+def ProjEntryWF (e : env.ProjEntry) : Prop :=
+  NameWF e.struct_name ∧ NamesWF e.level_params ∧ NameWF e.ctor ∧
+  ExprWF e.body ∧ LevelWF e.field_sort ∧ LevelWF e.struct_sort
+
+/-- `ConstantInfo`: the hereditary invariant of a stored constant, one clause
+per constructor in the cited field order. -/
+def ConstantInfoWF : env.ConstantInfo → Prop
+  | .AxiomInfo cv => ConstantValWF cv
+  | .DefnInfo cv v _ => ConstantValWF cv ∧ ExprWF v
+  | .ThmInfo cv v => ConstantValWF cv ∧ ExprWF v
+  | .IndInfo cv c => ConstantValWF cv ∧ IndCapsWF c
+  | .CtorInfo cv _ _ => ConstantValWF cv
+  | .RecInfo cv _ _ rs => ConstantValWF cv ∧ RecRulesWF rs
+  | .ProjInfo t => ProjTableWF t
+
+/-- A `Vec<ConstantInfo>` — or a `Vec<P<ConstantInfo>>`, the same type in the
+model — all of whose entries are well formed. -/
+def ConstantInfosWF (cs : alloc.vec.Vec env.ConstantInfo) : Prop :=
+  ∀ c ∈ cs.val, ConstantInfoWF c
+
+/-- `Env`: every stored constant is well formed.  This is the invariant the
+checker's fold maintains (`fenv::push` extends it by one constant) and what
+every lookup hands its caller. -/
+def EnvWF (e : env.Env) : Prop := ConstantInfosWF e.consts
+
+/-- `Declaration`: the hereditary invariant of a presented declaration. -/
+def DeclarationWF : env.Declaration → Prop
+  | .AxiomDecl cv => ConstantValWF cv
+  | .DefnDecl cv v _ => ConstantValWF cv ∧ ExprWF v
+  | .ThmDecl cv v => ConstantValWF cv ∧ ExprWF v
+  | .OpaqueDecl cv v => ConstantValWF cv ∧ ExprWF v
+  | .BasisDecl _ => True
+  | .IndDecl block _ => ConstantInfosWF block
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 

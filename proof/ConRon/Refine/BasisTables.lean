@@ -29,104 +29,13 @@ open ConRon.Generated ConRon.Generated.kernel
 
 namespace ConRon.Refine
 
-/-! ## TEMPORARY — the `Expr`-and-above abstraction functions
+/- The `Expr`-and-above abstraction functions (`absConstantVal`,
+   `absHint`, `absFire`, `absRecRule`, `absIndCaps`, `absProjTable`,
+   `absConstantInfo`, `absConstantInfos`, `absBasisKind`) lived here in a
+   nested `T22` namespace until task #46 moved them to
+   `ConRon/Refine/Abs.lean`, as task #22's note said they would.  They are
+   in scope unqualified: this file is inside `namespace ConRon.Refine`. -/
 
-**To be deleted on merge with task #20**, which puts `absExpr` and the
-`env` record abstractions in `ConRon/Refine/Abs.lean`.  They live in the
-nested namespace `ConRon.Refine.T22` so that the merge is a mechanical
-deletion of this section and of the `open ConRon.Refine.T22` below, with
-no name to reconcile: nothing outside this file refers to them.
-
-They are the only shape the statements below need — the plain structural
-map that forgets the `Arc` sharing and the cached `data` word, exactly as
-`absName`/`absLevel` in `Abs.lean` do. -/
-
-namespace T22
-
-/- `absLiteral`, `absExpr`, `absExprNode`, `absExprKind`, `absExprs` were local
-   copies here until task #20 landed; they now come from `Refine/Abs.lean`. -/
-
-/-- `ConLeche/Kernel/Env.lean:197` — `ConstantVal` (the port's `ty` is the
-Lean's `type`; `type` is a Rust keyword). -/
-def absConstantVal (cv : env.ConstantVal) : ConLeche.ConstantVal :=
-  ⟨absName cv.name, absNames cv.level_params, absExpr cv.ty⟩
-
-/-- `ConLeche/Kernel/Env.lean:362` — `IndCaps`. -/
-def absIndCaps (c : env.IndCaps) : ConLeche.IndCaps where
-  eta := c.eta
-  etaCtor := absName c.eta_ctor
-  etaParams := c.eta_params.val
-  etaFields := c.eta_fields.val
-  unitlike := c.unitlike
-  unitParams := c.unit_params.val
-  ruleK := c.rule_k
-  sortZ := absPropWhen c.sort_z
-
-/-- `ConLeche/Kernel/Env.lean:243` — `RecRuleFire`. -/
-def absFire : env.RecRuleFire → ConLeche.RecRuleFire
-  | .Inert => .inert
-  | .Plain => .plain
-  | .Nested us es => .nested (absLevels us) (absExprs es)
-
-/-- `ConLeche/Kernel/Env.lean:259` — `RecRule`. -/
-def absRecRule (r : env.RecRule) : ConLeche.RecRule where
-  ctor := absName r.ctor
-  nfields := r.nfields.val
-  ctorParams := r.ctor_params.val
-  fire := absFire r.fire
-  rhs := absExpr r.rhs
-  k := r.k
-  eta := r.eta
-  paramsBlind := r.params_blind
-
-/-- `ConLeche/Kernel/Env.lean:315` — `ReducibilityHint`. -/
-def absHint : env.ReducibilityHint → ConLeche.ReducibilityHint
-  | .Opaque => .opaque
-  | .Abbrev => .abbrev
-  | .Regular h => .regular h.val
-
-/-- `ConLeche/Kernel/Env.lean:411` — `ProjTable`.  The Lean's `bodies` is an
-`Array Expr` while its `guards` is a `List Level`; the port has a `Vec` for
-both (task #10, surprise 8), so only this abstraction sees the asymmetry. -/
-def absProjTable (t : env.ProjTable) : ConLeche.ProjTable where
-  structName := absName t.struct_name
-  levelParams := absNames t.level_params
-  numParams := t.num_params.val
-  ctor := absName t.ctor
-  numFields := t.num_fields.val
-  structSort := absLevel t.struct_sort
-  bodies := (absExprs t.bodies).toArray
-  guards := absLevels t.guards
-  off := t.off.val
-
-/-- `ConLeche/Kernel/Env.lean:471` — `ConstantInfo`. -/
-def absConstantInfo : env.ConstantInfo → ConLeche.ConstantInfo
-  | .AxiomInfo cv => .axiomInfo (absConstantVal cv)
-  | .DefnInfo cv v h => .defnInfo (absConstantVal cv) (absExpr v) (absHint h)
-  | .ThmInfo cv v => .thmInfo (absConstantVal cv) (absExpr v)
-  | .IndInfo cv c => .indInfo (absConstantVal cv) (absIndCaps c)
-  | .CtorInfo cv np nf => .ctorInfo (absConstantVal cv) np.val nf.val
-  | .RecInfo cv mi rp rs =>
-    .recInfo (absConstantVal cv) mi.val rp.val (rs.val.map absRecRule)
-  | .ProjInfo t => .projInfo (absProjTable t)
-
-/-- A `Vec<ConstantInfo>` as a `List ConLeche.ConstantInfo`. -/
-def absConstantInfos (cs : alloc.vec.Vec env.ConstantInfo) :
-    List ConLeche.ConstantInfo :=
-  cs.val.map absConstantInfo
-
-/-- `ConLeche/Kernel/Env.lean:352` — `BasisKind`. -/
-def absBasisKind : env.BasisKind → ConLeche.BasisKind
-  | .EqK => .eqK
-  | .NatK => .natK
-  | .PunitK => .punitK
-  | .EmptyK => .emptyK
-  | .FalseK => .falseK
-  | .QuotK => .quotK
-
-end T22
-
-open T22
 
 /-- The Rust core's basis table for `k`, abstracted: the generated function
 runs in `Result` (every smart constructor does, because `Vec::push` and the
@@ -138,8 +47,9 @@ def absBasisDecls (k : env.BasisKind) : Result (List ConLeche.ConstantInfo) :=
 /-! ## TEMPORARY — specifications for the smart constructors
 
 **To be moved to `ConRon/Refine/Abs.lean` (or its own file) when the rest of
-the tier grows**, and kept in `T22` until then for the same reason as the
-`abs` functions above.
+the tier grows** — they are `⦃ ⦄` specifications, a different proof style from
+the rest of the tier, so unlike the `abs` functions above (which task #46 did
+move) they have no client yet outside this file.
 
 These are the first `⦃ ⦄` *specifications* in the project — Aeneas's Hoare
 triples, which say "this call succeeds and its result satisfies …".  Every
