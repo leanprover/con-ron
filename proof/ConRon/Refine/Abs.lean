@@ -323,4 +323,27 @@ and the node layer of the port's three-type mutual inductive. -/
     anonymous (fun p s hp h => str h p s hp) (fun p m hp h => num h p m hp)
     (fun h _k hk => hk h) (fun _ hnd => hnd) n
 
+/-! ## Axiom census (DESIGN.md §5, the P3 gate)
+
+The file's own theorems are the smart-constructor shapes and the `Rc`/`Vec`
+plumbing; nothing here reaches past Lean's own three axioms. -/
+
+/--
+info: 'ConRon.Refine.mk_str_inv' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms mk_str_inv
+
+/--
+info: 'ConRon.Refine.level_param_inv' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms level_param_inv
+
+/--
+info: 'ConRon.Refine.vec_push_val' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms vec_push_val
+
 end ConRon.Refine
