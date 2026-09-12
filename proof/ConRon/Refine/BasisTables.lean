@@ -43,40 +43,8 @@ map that forgets the `Rc` sharing and the cached `data` word, exactly as
 
 namespace T22
 
-/-- `ConLeche/Kernel/Expr.lean:107` — a literal. -/
-def absLiteral : expr.Literal → ConLeche.Literal
-  | .NatVal n => .natVal (ConRon.Refine.Nat.toNat n)
-  | .StrVal s => .strVal (absString s)
-
-/-! `ConLeche/Kernel/Expr.lean:285` — the Rust `Expr` tree as a
-`ConLeche.Expr`.  The stored `data` word is forgotten: it is a function of
-the children (DESIGN.md §3.2), and the smart constructors are what put it
-there. -/
-mutual
-
-def absExpr : expr.Expr → ConLeche.Expr
-  | .mk nd => absExprNode nd
-
-def absExprNode : expr.ExprNode → ConLeche.Expr
-  | .mk _data k => absExprKind k
-
-def absExprKind : expr.ExprKind → ConLeche.Expr
-  | .Bvar i => .bvar i.val
-  | .Fvar idx ty => .fvar idx.val (absExpr ty)
-  | .«Sort» u => .sort (absLevel u)
-  | .Const n us => .const (absName n) (absLevels us)
-  | .App f a => .app (absExpr f) (absExpr a)
-  | .Lam ty b m => .lam (absExpr ty) (absExpr b) ⟨absPropWhen m.pw⟩
-  | .ForallE ty b m => .forallE (absExpr ty) (absExpr b) ⟨absPropWhen m.pw⟩
-  | .LetE ty v b => .letE (absExpr ty) (absExpr v) (absExpr b)
-  | .Lit l => .lit (absLiteral l)
-  | .Proj n i s => .proj (absName n) i.val (absExpr s)
-
-end
-
-/-- A `Vec<Expr>` as a `List ConLeche.Expr`. -/
-def absExprs (es : alloc.vec.Vec expr.Expr) : List ConLeche.Expr :=
-  es.val.map absExpr
+/- `absLiteral`, `absExpr`, `absExprNode`, `absExprKind`, `absExprs` were local
+   copies here until task #20 landed; they now come from `Refine/Abs.lean`. -/
 
 /-- `ConLeche/Kernel/Env.lean:197` — `ConstantVal` (the port's `ty` is the
 Lean's `type`; `type` is a Rust keyword). -/
