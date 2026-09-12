@@ -611,7 +611,11 @@ measured.
 8. Performance: a Mathlib export (`lean4export` at the project toolchain),
    con-leche and con-ron side by side — instructions (`perf stat`), wall
    time, peak RSS; then the `beq` pair memo and other opt-ins of §3.2 only
-   if measurement demands them.
+   if measurement demands them.  **The corpus and con-leche's half of the
+   comparison are done** (task #29, `scripts/corpus.sh`): three exports
+   (`Init`, `Init Std Lean`, `Mathlib`), their `con-ron-decls/1` dumps and
+   con-leche's verdicts and costs, in `_tmp/corpus/`; the number to beat is
+   **12.8 T instructions:u and 8.6 GB for Mathlib**.
 
 **P2 — extraction** (Opus; **done 2026-09-12**, task #12)
 1. `scripts/extract.sh`; `proof/` Lake project builds the generated Lean
@@ -5394,3 +5398,195 @@ each gained the blocks `checker_local`/`modeled`/`inductives_c` cite.
   are now ported (in `checker_local`); `Expr.allLevelParamsDefined`'s
   `LPMemoInv` stays uncovered as the other memo invariants do.  Moving them to
   `kernel/level.rs` closes the `Level.lean` gap task #13 recorded.
+
+### Task #29 — The scale corpus: prelude and Mathlib exports, dumps, con-leche baseline (2026-09-12, Opus under Fable)
+
+P1.8's preparation, and everything in it that does not need the Rust checker.
+The priority ruling puts performance on the critical path (§5: no proof work
+"before we find out if the performance is acceptable"), but nothing of con-ron
+can be measured until `check_decls` lands (P1.7).  Everything *around* that
+measurement can exist now: the exports, the `con-ron-decls/1` dumps they
+become, and con-leche's own verdicts and costs on the same streams — so that
+the day `check_decls` runs, the baseline is already on disk and the only new
+number is con-ron's.
+
+**What landed.**  `scripts/corpus.sh` — four idempotent steps (build the
+exporter and export; run con-leche; dump and read the dumps back in Rust;
+rebuild three reports from whatever is on disk), each step skipped when its
+output is there, every exporter/checker/dump run under `timeout` and
+`ulimit -v 22000000` — and one flag in `proof/ConRon/Dump/Main.lean`:
+**`--write-only`**, with a streaming writer behind it.  The corpus itself is
+**not committed**: 7.16 GB of export and 3.57 GB of dump live in
+`_tmp/corpus/`, with `README.md` (the exports), `baseline.md` (con-leche) and
+`dumps.md` (the dumps) generated beside them.
+
+**The exporter.**  `leanprover/lean4export` @ **`15f6055`**, which is both the
+`chore: bump toolchain to v4.33.0 (#44)` commit *and* the repo's `v4.33.0`
+tag — so con-leche's task-#199 recipe (walk `git log -- lean-toolchain`, take
+the newest commit whose file equals ours) and "check out the tag that matches
+the toolchain" pick the same commit here; `corpus.sh` implements the former,
+because the toolchain file and not the tag is what the format tracks.  Stream
+header: `lean4export 3.1.0`, format 3.1.0, Lean 4.33.0 (`d8b18978`) — the same
+exporter con-leche's own self-check used.  `--export-unsafe` and
+`--export-mdata` stay off (the defaults), so no `unsafe` declaration and no
+`.mdata` node is in any of these streams.  Build: `lake build`, 4 s.
+
+**The exports.**  `lake env` is the whole `LEAN_PATH` story: the two core
+exports run from the exporter's own package (whose toolchain carries `Init`,
+`Std` and `Lean`), and Mathlib is exported from the tree that already has it
+built at v4.33.0, `_tmp/aeneas-lean`, naming the exporter by absolute path.
+Nothing had to be assembled by hand, and Mathlib needed neither a raised
+timeout nor more than 15 GB of the 22 GB cap.
+
+| export | roots | bytes | records | declarations | instructions:u | wall | peak RSS |
+|---|---|---|---|---|---|---|---|
+| `init.ndjson` | `Init` | 347 714 179 | 6 490 422 | 57 977 | 117.6 G | 11.8 s | 985 MB |
+| `core.ndjson` | `Init Std Lean` | 747 809 047 | 13 229 044 | 163 396 | 248.7 G | 25.4 s | 2.20 GB |
+| `mathlib.ndjson` | `Mathlib` | 6 067 502 440 | 107 794 484 | 691 128 | 2 067.3 G | 288.6 s | 14.7 GB |
+
+Declarations by kind (the record census, `<name>.counts`):
+
+| export | axiom | def | thm | opaque | inductive | quot |
+|---|---|---|---|---|---|---|
+| `init` | 7 | 15 189 | 41 896 | 266 | 615 | 4 |
+| `core` | 7 | 78 903 | 79 196 | 2 463 | 2 823 | 4 |
+| `mathlib` | 7 | 176 986 | 504 824 | 2 587 | 6 720 | 4 |
+
+Four things in that table are worth keeping.  **`Init` alone is 58 k
+declarations** — the "prelude" rung is not a toy but a third of core and a
+twelfth of Mathlib, and it is the right rung for a first `check_decls` run.
+**The seven axioms and the four `Quot` constants are the same in all three**
+(`Classical.choice`, `Lean.ofReduceBool`, `Lean.ofReduceNat`,
+`Lean.trustCompiler`, `Quot.sound`, `propext`, `sorryAx`; `Quot`, `Quot.mk`,
+`Quot.lift`, `Quot.ind`), so the corpus exercises `StdAxioms`/`TrustAxioms`
+identically at every scale and **no fixture taints a run** — con-leche reports
+no taint-skip on any of the three.  **Mathlib is 691 128 declaration records in
+6.07 GB**, against the 670 982 in 5.71 GB con-leche measured at Lean 4.29.1
+(its task #199 ladder): +3 % in declarations and +6 % in bytes over four
+toolchain releases, so its published Mathlib numbers and ours are comparable.
+And **the exporter is not the bottleneck anywhere** — 288 s and 2.07 T
+instructions for Mathlib, a sixth of what checking it costs.
+
+**con-leche's baseline**, at the pinned submodule `3e00480`, `--verified`,
+under `timeout 4h` and `ulimit -v 22000000`:
+
+| export | jobs | verdict | instructions:u | wall | peak RSS |
+|---|---|---|---|---|---|
+| `init` | 1 | accepted 57 972 | 586.2 G | 59.4 s | 481 MB |
+| `init` | 8 | accepted 57 972 | 587.5 G | 12.4 s | 711 MB |
+| `core` | 1 | accepted 163 391 | 1 179.7 G | 149.6 s | 1.24 GB |
+| `core` | 8 | accepted 163 391 | 1 182.7 G | 43.4 s | 1.39 GB |
+| `mathlib` | 1 | accepted 691 123 | **12 816.5 G** | 1 228.4 s | 8.60 GB |
+| `mathlib` | 8 | accepted 691 123 | 12 842.9 G | 337.0 s | 9.12 GB |
+| `init` | default (96) | **exit 134**: `lean::exception: failed to create thread` | (54.8 G) | 15.5 s | 409 MB |
+
+**That is the number con-ron has to beat: 12.8 T instructions:u and 8.6 GB
+for Mathlib in the verified mode**, 18.5 M instructions per declaration
+(core 7.2 M, init 10.1 M), 2.11 G per MB of stream.
+
+**Why `instructions:u` is the measurement of record, demonstrated.**  Going
+from one worker to eight moves the instruction count by **+0.21 %** (`init`),
+**+0.26 %** (`core`) and **+0.21 %** (`mathlib`) while wall time falls 4.8×,
+3.4× and 3.6× — the counter measures the *work*, and is immune both to the
+thread count and to whatever else this shared machine is doing.  Wall time is
+recorded beside it and believed to an order of magnitude, no further.
+
+**The `--jobs` default cannot run under the cap, and that is a measurement,
+not an assumption.**  con-leche's default is one worker per hardware thread;
+this machine has 96, each worker reserves ~1 GiB of address space, and
+`ulimit -v 22000000` is the house rule — so the default run aborts after 15 s
+with `libc++abi: terminating due to uncaught exception of type
+lean::exception: failed to create thread` (exit 134), on the *smallest*
+export.  con-leche's own `scripts/selfcheck.sh` passes `--jobs=8` for exactly
+this reason, so **`--jobs=8` is what the parallel row measures** (`JOBS_PAR`
+is the knob), and the probe itself is a step of `corpus.sh` so the finding
+stays reproducible rather than becoming folklore.
+
+**The dumps.**  `con-ron-dump` writes the `List DeclC` con-leche's frontend
+produced (§3.6, task #10); two flags now drop work in the order its cost
+grows.  `--no-check` drops the two `checkDecls` runs and keeps the Lean round
+trip; the new **`--write-only`** drops the round trip too *and* replaces the
+buffered writer with `dumpStream`, which runs `wDecl` one declaration at a
+time and flushes `WState.buf` after each.
+
+| dump | flag | bytes | declarations | N | L | W | E | lines | parse | write | wall | peak RSS |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `init.decls` | `--no-check` | 165 127 796 | 58 002 | 68 651 | 581 | 3 | 6 137 917 | 6 328 142 | 1.3 s | 3.7 s | 18.7 s | 2.43 GB |
+| `core.decls` | `--no-check` | 344 024 887 | 165 449 | 200 801 | 1 218 | 4 | 12 273 572 | 12 834 606 | 3.7 s | 8.8 s | 43.7 s | 4.78 GB |
+| `mathlib.decls` | `--write-only` | 3 056 189 546 | 693 195 | 803 303 | 43 003 | 4 | 103 099 223 | 105 390 278 | 31.2 s | 104.2 s | 158.0 s | **12.52 GB** |
+
+**`--write-only` alone was not enough, and the streaming writer is the task's
+one real code change.**  The first Mathlib attempt — buffered writer, round
+trip skipped — died at **`INTERNAL PANIC: out of memory`, 18.87 GB RSS,
+136.7 s, zero bytes written**: 105 M lines of `Array String` plus the joined
+copy do not fit beside a 103 M-node `Expr` DAG inside 22 GB.  Streaming keeps
+one declaration's lines live at a time, at the cost of one buffered `putStr`
+per declaration, and the result is **byte-identical** (checked against the
+buffered writer on a fixture and on the whole 165 MB `init` dump, `cmp`-clean)
+at **12.52 GB and no slower** (`init` write 3 662 ms streamed vs 3 664 ms
+buffered).  A dump is therefore 0.46–0.50× its NDJSON at every scale, and
+task #10's "1 s of writing per 100 MB of NDJSON" extrapolation held: 104 s for
+6.07 GB.
+
+**The Rust reader on all three** (`con-ron-dump-check --roundtrip`, task #19):
+
+| dump | verdict | parse | re-dump | wall | peak RSS |
+|---|---|---|---|---|---|
+| `init.decls` | DAG exact, round trip EXACT | 1.26 s | 3.56 s | 6.0 s | 1.02 GB |
+| `core.decls` | DAG exact, round trip EXACT | 3.11 s | 7.94 s | 13.9 s | 2.08 GB |
+| `mathlib.decls` | **DAG exact, round trip EXACT** | 31.5 s | 109.6 s | 178.9 s | 17.46 GB |
+
+So **the format survives Mathlib**: 693 195 declarations and 103 099 223
+interned expression nodes read by the Rust reader with the distinct-`Rc`-node
+count equal to the file's record counts (task #19's DAG property, now at 310×
+the fixture corpus's 332 140 nodes), and the re-dump byte-identical — which is
+the stronger statement, because `--write-only` gave up the *Lean* round trip
+on this dump and the Rust one replaces it.  Parsing runs at **131 MB/s** when
+the reader is not also holding a re-dump (23.3 s for the 3.06 GB dump, in the
+parse-only run this table's 31.5 s replaced) and at 97 MB/s when it is — task
+#19's fixture-scale rate either way, so reading will not bound the
+differential runner.
+Peak RSS is the one number close to the wall: 17.46 GB of the 22 GB cap, ~5.7×
+the dump, which is why `corpus.sh` takes `RT_MAX` (default 4 GB of dump) and
+falls back to parse + DAG census above it.
+
+**Three small facts the corpus pinned, for whoever wires `check_decls` to it.**
+
+1. **Dump declarations = con-leche's accepted count + the in-process model's
+   generated records**, exactly, at all three scales: 57 972 + 30 = 58 002,
+   163 391 + 2 058 = 165 449, 691 123 + 2 072 = 693 195.  A Rust verdict line
+   that compares *counts* with con-leche's must add the models back, and
+   `dumpStream`'s `nD` is the right number to compare against `check_decls`.
+2. **All three frontend rewrites fire at Mathlib scale, and only there in
+   force**: 49 inductive blocks modelled in-process (1 in `init`, 45 in
+   `core`), 62 projection functions of non-direct structure-likes rewritten to
+   recursor form, and 2 declarations hoisted ahead of the pinned Nat
+   operations (`Nat.mul._f`, `Nat.mul`).  That is §3.6's argument in numbers:
+   a Rust reimplementation of the frontend would have to reproduce all three
+   before the first Mathlib verdict could be compared, and the dump means it
+   does not have to.
+3. **`P = 0` still holds at Mathlib scale** — 803 303 names, 43 003 levels,
+   4 propwhens (!), 710 364 constvals, 10 350 recrules, 6 846 indcaps, 23 988
+   block `ConstantInfo`s and **no `ProjTable` record at all**, as on the 348
+   fixtures (task #10's surprise 3, task #19's `P = 0`).  The four propwhens
+   are the whole of Mathlib's zero-ness data: `PropWhen` interning is doing
+   its job, and the pin-set work (task #22) is unaffected by scale.
+
+**Left for next time.**  `check_decls` (P1.7) is the missing half: the moment
+it runs, `corpus.sh` gains a fifth step and `baseline.md` a con-ron column.
+The corpus deliberately has no *slice* rung between `core` (748 MB) and
+`mathlib` (6.07 GB) — con-leche's ladder has one and ours can be cut the same
+way if Mathlib turns out too coarse for bisecting a divergence.  And nothing
+here runs `--trusted`: the theorem is about `--verified`, so that is the only
+mode measured.
+
+**Time.** ~65 min wall, almost all of it waiting: the Mathlib export 4.8 min,
+con-leche's seven runs 31 min (Mathlib at `--jobs=1` alone is 20.5 min), the
+three dumps 3.7 min (plus the 2.3 min the buffered attempt burned before its
+panic), the Rust reader 3.3 min, and the two Lean builds (`con-leche` and
+`con-ron-dump`, a few minutes each on top of the main tree's copied `.lake`)
+that must not run *concurrently* — they share the con-leche package's build
+directory, and the first attempt at building both at once died in `clang` with
+a half-written `.o`.  One other stumble worth recording: editing
+`scripts/corpus.sh` while a run of it was in flight broke that run — bash
+reads a script incrementally.  `scripts/gates.sh`: all 6 OK.

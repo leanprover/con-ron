@@ -1,7 +1,7 @@
 /-
 `con-ron-dump` — the differential-testing tool of DESIGN.md §3.6 (task #10).
 
-    lake exe con-ron-dump [--no-check] <export.ndjson> <out.decls>
+    lake exe con-ron-dump [--no-check|--write-only] <export.ndjson> <out.decls>
 
 It runs con-leche's own frontend exactly as `vendor/con-leche/Main.lean` does
 before it calls `checkDecls` — the built-in prelude (`Frontend.builtinPreludeE`),
@@ -19,6 +19,12 @@ back with the Lean reader, and checks that
 
 Exit 0 iff everything agrees, 1 on a mismatch, 2 if the frontend declines or
 rejects the stream (reported, never hidden), 3 on an internal or IO failure.
+
+Two flags drop work, in the order the cost grows (task #29, the scale corpus):
+`--no-check` drops the two `checkDecls` runs and keeps the round trip;
+`--write-only` drops the round trip too and streams the line buffer to the
+file, so the dump of a Mathlib-scale export never materialises a second copy
+of itself in memory.
 -/
 import ConRon.Dump.Read
 import ConLeche.Frontend.Prelude
@@ -126,14 +132,57 @@ def verdictExit : Except (CheckError × Nat) Env → Nat
 
 end ConRon.Dump
 
+/--
+**The streaming writer** (`--write-only`): the same emission as
+`ConRon.Dump.dumpDecls`, one declaration at a time, flushing and *dropping*
+the line buffer after each.  Returns the byte and line counts and the final
+writer state (whose interning tables are the census the tool prints).
+
+Why it exists.  `dumpState` accumulates every line of the dump in
+`WState.buf` and `joinLines` then materialises the whole text a second time.
+On the fixtures that is free (task #10), and on this corpus's `Init` and
+`Init Std Lean` exports it is affordable — but Mathlib's dump is ~105 M
+lines, so the buffer alone is gigabytes of boxed `String`s on top of the
+`DeclC` graph, and the buffered writer dies with `INTERNAL PANIC: out of
+memory` inside the 22 GB cap (task #29 measured it: 18.9 GB RSS, no output).
+Streaming keeps only one declaration's lines live at a time, at the cost of
+one `putStr` per declaration — a buffered handle write, so the byte stream is
+identical: same fold, same order, same ids.
+-/
+def dumpStream (outp : String) (ds : List DeclC) :
+    IO (Nat × Nat × ConRon.Dump.WState) := do
+  let h ← IO.FS.Handle.mk outp IO.FS.Mode.write
+  let mut st : ConRon.Dump.WState := {}
+  let mut bytes := 0
+  let mut lines := 0
+  -- `emit`, `wDecl` and the trailing `end <count>` line, exactly as
+  -- `ConRon.Dump.dumpState` runs them, with `buf` emptied after each write.
+  let flush : ConRon.Dump.WState → IO (Nat × Nat × ConRon.Dump.WState) :=
+    fun s => do
+      let t := ConRon.Dump.joinLines s.buf
+      unless t.isEmpty do h.putStr t
+      return (t.utf8ByteSize, s.buf.size, { s with buf := #[] })
+  let (b, l, st') ← flush ((ConRon.Dump.emit ConRon.Dump.header).run st).2
+  bytes := bytes + b; lines := lines + l; st := st'
+  for d in ds do
+    let (b, l, st') ← flush ((ConRon.Dump.wDecl d).run st).2
+    bytes := bytes + b; lines := lines + l; st := st'
+  let (b, l, st') ←
+    flush ((ConRon.Dump.emit ("end " ++ toString st.nD)).run st).2
+  bytes := bytes + b; lines := lines + l; st := st'
+  return (bytes, lines, st)
+
 def usage : String :=
-  "usage: con-ron-dump [--no-check] <export.ndjson> <out.decls>\n\
+  "usage: con-ron-dump [--no-check|--write-only] <export.ndjson> <out.decls>\n\
    \n\
    Runs con-leche's frontend, writes the parsed `List DeclC` in the\n\
    con-ron-decls/1 format, reads it back and compares (structurally, and\n\
-   by the verdict of `checkDecls .verified`)."
+   by the verdict of `checkDecls .verified`).\n\
+   \n\
+   --no-check     skip the two `checkDecls` runs; keep the round trip\n\
+   --write-only   skip the round trip too, and stream the lines out"
 
-def run (inp outp : String) (doCheck : Bool) : IO UInt32 := do
+def run (inp outp : String) (doCheck writeOnly : Bool) : IO UInt32 := do
   let prelude ← match Frontend.builtinPreludeE with
     | .ok p => pure p
     | .error (.parseError line msg) => do
@@ -162,6 +211,18 @@ def run (inp outp : String) (doCheck : Bool) : IO UInt32 := do
   | .ok res => do
     let ds := res.decls.toList
     let tParse ← IO.monoMsNow
+    if writeOnly then
+      let (bytes, lines, st) ← dumpStream outp ds
+      let tWrite ← IO.monoMsNow
+      IO.println s!"con-ron-dump: {inp}"
+      IO.println s!"  declarations {st.nD}  names {st.names.size}  levels \
+        {st.levels.size}  propwhens {st.pws.size}  exprs {st.exprs.size}"
+      IO.println s!"  constvals {st.nV}  recrules {st.nR}  indcaps {st.nC}  \
+        projtables {st.nP}  constinfos {st.nI}  lines {lines}"
+      IO.println s!"  bytes {bytes}  parse {tParse - t0}ms  write \
+        {tWrite - tParse}ms"
+      IO.println "  round trip and checkDecls skipped (--write-only)"
+      return 0
     let st := ConRon.Dump.dumpState ds
     let text := ConRon.Dump.joinLines st.buf
     IO.FS.writeFile outp text
@@ -216,7 +277,8 @@ def run (inp outp : String) (doCheck : Bool) : IO UInt32 := do
       return (if structOk && byteOk && verdictOk then 0 else 1)
 
 def main (args : List String) : IO UInt32 := do
-  let doCheck := !args.contains "--no-check"
+  let writeOnly := args.contains "--write-only"
+  let doCheck := !writeOnly && !args.contains "--no-check"
   match args.filter (fun a => !a.startsWith "--") with
-  | [inp, outp] => run inp outp doCheck
+  | [inp, outp] => run inp outp doCheck writeOnly
   | _ => do IO.eprintln usage; return 3
