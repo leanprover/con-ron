@@ -196,6 +196,26 @@ shows the pair memo is needed, it is added as one opaque function with a
 one-paragraph trust argument (the memo stores only proven-equal pairs, so a
 hit repeats a deterministic result).
 
+**The pair memo, as it actually landed (task #30).**  Measurement demanded it
+(task #28: eight fixtures do not finish), and it turned out **not** to need an
+opaque function, hence not the fifth external hole this section budgeted for.
+The memo is a plain `ron::HashMap<u64, (Expr, Expr)>` whose key is a mix of
+the two *stored hash words* — a field read each, where con-leche mixes the two
+addresses — and whose stored pair is verified on a probe by `ptr_eq` on both
+components, exactly as con-leche's `probeHit` does.  Since `ptr_eq` is `false`
+here, **the model writes the table and never reads it**: `beq_go` is the plain
+structural descent, and the refinement proof needs one extra lemma
+(`probe_hit_false`) and no fact about the table at all — not even
+`ron::HashMap`'s invariant.  In the binary a probe hits only when the stored
+pair *is* the two objects being compared (the entry holds them, so their
+identity stays theirs) and only completed `true`s are stored, so a hit repeats
+an answer this same deterministic walk already produced for that pair.  That
+is the same argument that makes the pointer fast path transparent, and it is
+written out in `kernel/expr.rs`'s module note.  `beqBudget` is still not
+ported: `beq`'s two guards run before the table is allocated, so a comparison
+decided by identity or by the word allocates nothing (task #30 measured the
+result: `Init`-scale cost unchanged).
+
 The packed data word (`hash32 | bvarB | fvarB | hasLP`) is a stored field of
 `Node`, computed by smart constructors exactly as con-leche's
 `@[computed_field] data`.  `mixHash` is opaque in Lean, so the proofs never
@@ -607,11 +627,12 @@ measured.
    `con-ron-check` binary (unverified crate) that reads a dump and prints
    con-leche's verdict line with its exit codes; `scripts/diff-fixtures.sh`
    compares every fixture's verdict (and error position) with con-leche's
-   expectation files (task #28).  ✔ — 290 of the 315 fixtures with a
-   declaration list at con-leche's exit code, no wrong verdict; the 25 left
-   are the empty `Nat`-op pin table (17, data owed by task #22/#29) and the
-   missing `beq` pair memo (8, item 8 below).  The expectation files pin the
-   exit code alone, so there is no error position to compare.
+   expectation files (task #28).  ✔ — **298 of the 315** fixtures with a
+   declaration list at con-leche's exit code, no wrong verdict, whole sweep in
+   4 s (task #30 landed the pair memo and the eight towers with it); the 17
+   left are the empty `Nat`-op pin table (data owed by task #22/#29).  The
+   expectation files pin the exit code alone, so there is no error position to
+   compare.
 8. Performance: a Mathlib export (`lean4export` at the project toolchain),
    con-leche and con-ron side by side — instructions (`perf stat`), wall
    time, peak RSS; then the `beq` pair memo and other opt-ins of §3.2 only
@@ -620,10 +641,12 @@ measured.
    (`Init`, `Init Std Lean`, `Mathlib`), their `con-ron-decls/1` dumps and
    con-leche's verdicts and costs, in `_tmp/corpus/`; the number to beat is
    **12.8 T instructions:u and 8.6 GB for Mathlib**.
-   if measurement demands them.  **Measurement now demands the `beq` pair
-   memo**: task #28's eight non-finishing tower fixtures are `O(tree)` in
-   `expr::beq_go` (§3.2's route is a fifth external hole with a trust
-   argument; hash-consing is the §3.1-licensed alternative).
+   if measurement demands them.  **Measurement demanded the `beq` pair memo
+   and task #30 landed it** — hash-keyed and pointer-verified, so inside the
+   Aeneas subset and with *no* new external hole; the eight tower fixtures
+   accept in under a second and `Init`-scale cost is unchanged (±0.1 %).  The
+   Mathlib comparison itself still needs the `Nat`-op pin data before
+   `con-ron-check` gets past `Init`'s fold position 221.
 
 **P2 — extraction** (Opus; **done 2026-09-12**, task #12)
 1. `scripts/extract.sh`; `proof/` Lake project builds the generated Lean
@@ -6431,3 +6454,226 @@ port has had.
   input.
 * A `--trusted` sweep: the mode and its expectation overrides are implemented
   and spot-checked, but the full sweep has not been run.
+
+### Task #30 — The `beq` pair memo, hash-keyed and pointer-verified (2026-09-12, Opus under Fable)
+
+P1.8, and the cash-in of §3.2's standing conditional.  Task #28 measured what
+that section asked for — eight "tower" fixtures do not finish in 300 s, 72 % of
+the cycles in `expr::beq_go` — and expected the fix to cost a **fifth external
+hole**, because con-leche keys its structural-equality memo by *addresses*,
+which Aeneas cannot model.  It does not: the memo landed as ordinary verified
+Rust, and the external holes are still exactly the four `Rc` axioms.  The eight
+fixtures now accept in under a second, the whole 348-fixture sweep runs in
+**4 s**, and `Init`-scale cost is unchanged.  Two bugs were found on the way,
+both of the "the port calls the *spec* where con-leche calls the memoised
+twin" class that task #28 §5a opened.
+
+#### 1. The design: key by the hash words, verify by identity
+
+con-leche's memo (`Kernel/Expr.lean:739-949`) keys a table by a mix of the two
+objects' *addresses* and then verifies the candidate entry by **pointer
+identity** on both components, storing only pairs a completed descent proved
+equal.  The port keeps every part of that except the key:
+
+* `expr::beq_key(ha, hb) = ha ^^^ (hb *w 0x9E3779B97F4A7C15)` — the cited
+  `beqKey` with the two **stored hash words** (a field read each, §3.2's packed
+  `data`) in place of the two addresses, and without the `&&& 0x3FFF…` mask
+  that exists so Lean gets a tagged `Nat`.  Any mixing would do: the key is a
+  *filter*, and a collision between distinct pairs costs an entry, never an
+  answer.
+* `expr::BeqMap = ron::HashMap<u64, (Expr, Expr)>` — one slot per key, last
+  write wins, as the cited `Std.HashMap` is; `ron::HashMap` is the crate's own
+  table, verified at task #16.  `expr::EqPair = (Expr, Expr)` is con-leche's
+  entry minus the two addresses (the key does that job now) and minus the
+  proof (Rust has no `Prop`).
+* `expr::probe_hit` reads the slot and tests **`ptr_eq` on both components**,
+  which is the cited `probeHit`'s verification step verbatim; holding the pair
+  is what keeps the two `Rc`s alive and their identity theirs.
+* the write-back is con-leche's `finish`: a completed `true` at a
+  `beq_recursive` node, under that node's own key.  A `false` aborts the
+  comparison at every level, so **only proved-equal pairs are ever stored** —
+  the official kernel's `expr_eq_fn` rule.
+
+**The trust argument** (§3.2's paragraph, and the module note of
+`kernel/expr.rs`).  In the *model* `ptr_eq` is `false`, so `probe_hit` is
+`false` at every probe whatever the table holds: the memo is state that is
+written and never read, and the model's `beq` is the plain structural descent
+`Refine/Expr.lean` proves exact.  In the *binary* a probe hits only when the
+stored pair is the very two objects being compared, and that entry was written
+by a completed `true` of this same deterministic walk on those same two
+objects; so a hit repeats an answer the walk has already produced for that
+pair, and binary and model agree.  It is the same shape of argument as the
+pointer fast path's, and it needs no new axiom — which is the whole point of
+keying by the hash words rather than by addresses.
+
+**`beqBudget` is not ported**, and the numbers below are why.  con-leche
+materialises the table only after 4 096 nodes because in Lean the allocation
+and its reference-count traffic cost "a third of `init-prelude`" on the
+comparisons that the pointer test or the computed word decides outright.  Here
+`beq` runs those two guards *before* it allocates (which is exactly the cited
+`beqMemo = withPtrEq a b (fun _ => a.data == b.data && …)`), so a
+decided-outright comparison allocates no table and the budget has nothing left
+to buy: 6.1 M interning probes at `Init` scale cost **0.02 % less** than before.
+
+#### 2. What the Aeneas subset made of it: four helper functions
+
+The memo is threaded **by value** (`beq_go(m: BeqMap, …) -> (bool, BeqMap)`),
+as con-leche threads its `map` and as task #6's accumulator rule says.  A
+`&mut BeqMap` generates the identical Lean (`Result (Bool × BeqMap)` either
+way) but Aeneas rejected it, and the by-value form does not fix that by
+itself — three shapes had to change, each measured, each recorded in the doc
+comments:
+
+1. **"Could not match the contexts"** on the `fvar` arm: Aeneas cannot join the
+   two branches of an `if` inside an arm of the *pair* match when one branch
+   consumes the memo through a call taking borrows out of both `a` and `b` and
+   the other does not.  The fix is that the arms are now single expressions
+   over five small helpers — `beq_when` (`.fvar`/`.proj`), `beq_both` (`.app`),
+   `beq_both_when` (`.lam`/`.forallE`), `beq_three` (`.letE`), plus the two
+   stateless conjunctions `const_beq` and `proj_head_beq` — whose children are
+   plain parameters, so the join is between two `(bool, BeqMap)`s with no loan
+   tree of `a` or `b` live.  (`state_c::consts_resolve_fc_node` is the
+   single-scrutinee precedent that *does* work.)
+2. **An internal error in Aeneas's `simplify_let_branching`** on `let rm = <the
+   match>; if rm.0 …`: the write-back is a tail call `beq_finish(…)` instead.
+3. **A pattern-matching `let` on a tuple parameter** (`let (r, m) = rm;`) comes
+   out as a `match` in the generated Lean that no `simp` set sees through, so
+   `beq_finish` takes the decision and the table as two parameters.
+
+Shape 1 bought something else: the ten constructor pairs live in their own
+function, `expr::beq_arm`, which *halves* the generated Lean (Aeneas otherwise
+duplicates the whole match, once per branch of `if rec`) and is what makes the
+proof cheap (§3).
+
+#### 3. The proof: one lemma for the memo, and the hundred cases unchanged
+
+`Refine/Expr.lean`'s `beq` section is 632 lines changed for 496 — and **not
+one of the hundred constructor-pair cases changed its argument**.  The new
+shape:
+
+* `probe_hit_false` — a probe returns `false`, from `ptr_eq_eq` alone.  It
+  assumes **nothing about the table**, in particular not `ron::HashMap`'s
+  invariant, because both branches of the probe answer `false` whatever `get`
+  returned.  This is the model half of §1's trust argument, and it is why
+  threading the memo cost no invariant bookkeeping.
+* `beq_finish_fst` — the write-back changes the table, never the decision.
+* `beq_go_arm` — **the frame peeled once**: on a pair with equal stored words,
+  `beq_go` is `beq_arm`'s own decision (identity `false`, word guard passes,
+  probe misses, write-back transparent).  Every group preamble of
+  `beq_go_abs` now peels the frame with it and the hundred cases are about
+  `beq_arm`, the memo-free descent — word for word task #20's proof, with the
+  table carried along as state no case looks at.
+* `pure_step`, `when_step`, `both_step`, `both_when_step`, `three_step` — the
+  state-threaded twins of task #20's `guard_step`, one per helper of §2, so
+  each of the ten diagonal cases is still `rw [<one step lemma>]; simp only
+  [absExpr_mk, absExprKind, <ctor>.injEq]`.
+* `beq_go_data_ne`, `beq_refines`, `beq_exact`, `eq2_refines` keep their
+  statements; the four public names of `ConRon/Refine/README.md` are unchanged
+  except for reflexivity, below.  `beq_exact`'s axiom census is unchanged:
+  `[propext, Classical.choice, Quot.sound]`, no `sorry`, nothing from the `Rc`
+  models.
+
+**One statement is weaker, deliberately.**  `beq_refl`/`beq_go_refl`/`eq2_refl`
+used to read `expr.beq e e = ok true`, which also asserts that the model's
+descent **cannot fail**.  With the memo inside it, that now additionally
+asserts that `ron::HashMap`'s `get` and `insert` cannot fail — the *totality*
+half of task #16, which this forward-style development does not have for any
+function (task #5's shape is "exact result **on success**", and every
+`*_refines` in `proof/` reasons from `f x = ok y`).  So reflexivity is now
+`expr.beq e e = ok c → c = true`, which is what §3.2's transparency obligation
+needs and is a corollary of `beq_refines` rather than a second hundred-case
+induction.  Nothing else in `proof/` used the strong form (checked).  Proving
+`ron::HashMap` total is the obvious follow-up and would restore it verbatim.
+
+#### 4. Two port bugs the memo uncovered: the resolution walk was the *spec*
+
+With `expr::beq_go` fixed, six of the eight towers still did not finish, and
+`perf` named a single site both times: `core_k::consts_resolve`, the
+**unmemoised `Expr` tree walk**, reached from `check_constant_val_after_annot`
+and from the inductive-install routes.  Both are the same mistake as task #28
+§5a — the port calling the specification where con-leche's *executed* code
+calls the `@[csimp]`-swapped memoised twin — and both are one-line fixes:
+
+* `checker_base::check_constant_val_after_annot` now calls
+  `decl_check::consts_resolve_f_fast`, because its second citation
+  (`DeclCheck.lean:463-485 checkConstantValF`) says `type.constsResolveF fe`
+  and `constsResolveF` is `@[csimp]`-equal to `constsResolveFFast`
+  (`DeclCheck.lean:197-204`).  `decl_check`'s own doc comment already named
+  con-leche task #215's `tower_struct` as the reason that twin exists.
+* the nine call sites in `kernel/inductives/{struct,sum,native}_install.rs` and
+  `modeled.rs` likewise.  Task #25's module note *claimed* they were memoised —
+  "Both walkers the port has *are* memoised — `core_k::consts_resolve` is the
+  one spelling of `Expr.constsResolve`/`constsResolveF`/`constsResolveFC`" —
+  and that sentence was simply wrong: `core_k::consts_resolve` is the `Expr`
+  tree walk, i.e. the spec.  The note and `struct_install`'s walkers paragraph
+  are corrected in place.
+
+Both swaps are semantically free by con-leche's own kernel-checked equations
+(`constsResolveF_eq_constsResolveFFast`, `structWalkersC_eq_plain`) and the
+`FEnv`-vs-`Env` agreement the port already collapses (task #18's deviation 3).
+`core_k::consts_resolve` stays as the **spec** and as what `kernel::checker`'s
+pure lane calls — `Kernel/Checker.lean` and `Kernel/CheckerSplit.lean` say
+`constsResolve env` there, so those call sites are *correct* as they stand, and
+so is `trust_axioms`'s pin guard.
+
+#### 5. Numbers
+
+Measured against this branch's merge base (`7cbfe83`).
+
+| | before | after |
+|---|---|---|
+| `scripts/diff-fixtures.sh --timeout=60`, 348 fixtures | 290 agree, 17 differ, **8 do not finish**, 33 skipped, 485 s | **298 agree, 17 differ, 0 timeouts**, 33 skipped, **4 s** |
+| `tower_{thm,struct,proj,usedlater,beqpair,recfield,mutual,nested}` | all 8 > 300 s | **≤ 1 s each**, all `accepted` |
+| `con-ron-dump-check --roundtrip _tmp/corpus/init.decls` (6 137 917 interned `Expr`s, i.e. 6.1 M `expr::beq` probes at `Init` scale) | 50 256 173 826 instructions:u | **50 245 258 610** (−0.02 %) |
+| `con-ron-check --verified _tmp/corpus/init.decls` | 19 166 185 039 instructions:u | 19 187 551 804 (+0.11 %) |
+| `crates/con-ron-core/src/kernel/expr.rs` (raw / code) | 1 184 total — 709 / 404 extracted | 1 520 total — **972 / 493** extracted, 549 / 446 tests |
+| generated `Funs.lean` | 50 944 | **51 108** (+164) |
+| generated `Types.lean` | 736 | **736 — unchanged** (the memo adds no type; the two aliases are erased) |
+| `TypesExternal_Template.lean` / `FunsExternal_Template.lean` | 25 / 54 | **25 / 54 — unchanged, still exactly the four `Rc` axioms and the `Rc` type.  That is the point of the design.** |
+| `partial_fixpoint` / `mutual` blocks in `Funs.lean` | 408 / 13 | **413 / 14** (`beq_go`, `beq_arm` and the four helpers are one mutual group) |
+| `ConRon/Refine/Expr.lean` | 2 509 | **2 645** (+632/−496) |
+| `charon cargo --preset=aeneas` | | **3.9 s** |
+| `aeneas -backend lean -split-files -loops-to-rec` | | **33 s, zero errors, zero warnings** |
+| `cd proof && lake build` | | **2 108 jobs, zero errors, zero `ConRon` warnings** |
+| `cargo test` | 167/167 | **170/170** (3 new) |
+| `scripts/provenance.py check` | | green — 1 560 items, 1 662 citations at pin 3e004805 |
+| `scripts/provenance.py coverage` | 851/1006 (84.6 %) | **856/1006 (85.1 %)**; `Kernel/Expr.lean` 30/42 → **35/42** |
+
+`scripts/gates.sh`: all 6 OK.  The `Init` row is the one measurement that is
+*not* yet meaningful: with the pin table empty the fold declines at position
+221 after 0.019 s, so those 19 G instructions are the parser, and con-leche's
+586 G baseline for `Init` cannot be compared until task #31's pin data lands.
+The roundtrip row is the honest `Init`-scale proxy — it interns 6.1 M
+expressions through `expr::beq` (the `Eq2` dictionary), which is exactly the
+traffic a memo allocation per comparison would have taxed.
+
+#### 6. Tests
+
+Three new unit tests in `kernel::expr`, and the first of them is the fixture
+family in one line:
+
+* **`beq_on_two_rebuilt_dag_towers_is_memoised`** — `d 0 = bvar 0`,
+  `d (k+1) = app (d k) (d k)` with one `Rc` per level, built **twice**, so the
+  two towers are pointer-distinct at every level and `d 60` is `2^60` nodes as
+  a tree.  `beq` says `true` (and so does the `Eq2` dictionary); without the
+  memo the test does not finish.  Plus a perturbation at the root (rejected by
+  the word) and one at the bottom (the descent aborts at the first mismatching
+  child, which is why `false` needs no memo).
+* **`probe_hit_verifies_by_identity_not_by_structure`** — §1's trust argument
+  as a test: an entry is read back for the very objects it was stored for, and
+  a structurally equal but pointer-distinct rebuild does **not** hit (which is
+  why the model, where `ptr_eq` is `false`, never reads the table); ordered
+  pairs; a foreign key; `beq_key` mixing its two arguments distinguishably.
+* **`beq_go_records_only_recursive_nodes_and_only_true`** — a leaf pair is
+  never recorded, an `app` pair is recorded once (not its leaves), and a
+  completed `false` stores nothing.
+
+#### 7. Left for next time
+
+* **`ron::HashMap` totality** (`get`/`insert` cannot fail under `Inv`), which
+  would restore the strong `beq_refl` of §3 and is the same lemma every future
+  memo-table refinement in `cached/` will want.
+* **The pin data** (task #22 / #29 / #31) — still the 17 fixture verdicts, and
+  still what blocks the `Init`/`Mathlib` instruction comparison.
+* **Mathlib scale** (P1.8 proper), which is now unblocked on the `beq` side.
+* A `--trusted` sweep.

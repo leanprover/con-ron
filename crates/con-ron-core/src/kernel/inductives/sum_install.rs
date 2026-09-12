@@ -8,6 +8,7 @@ use crate::cached::core_c;
 use crate::cached::state_c::CState;
 use crate::kernel::checker_base;
 use crate::kernel::core_k;
+use crate::kernel::decl_check;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckM;
 use crate::kernel::env;
@@ -629,7 +630,7 @@ pub fn field_doms_resolve_from(fe0: &FEnv, fvs: &Vec<Expr>, i: usize) -> bool {
         true
     } else {
         let dom: Expr = expr_ops::fvar_type_d(&fvs[i]);
-        if core_k::consts_resolve(fe0, &dom) {
+        if decl_check::consts_resolve_f_fast(fe0, &dom) {
             field_doms_resolve_from(fe0, fvs, i + 1)
         } else {
             false
@@ -644,7 +645,7 @@ pub fn field_doms_resolve_from(fe0: &FEnv, fvs: &Vec<Expr>, i: usize) -> bool {
 pub fn index_args_resolve_from(fe0: &FEnv, args: &Vec<Expr>, i: usize) -> bool {
     if i >= args.len() {
         true
-    } else if core_k::consts_resolve(fe0, &args[i]) {
+    } else if decl_check::consts_resolve_f_fast(fe0, &args[i]) {
         index_args_resolve_from(fe0, args, i + 1)
     } else {
         false

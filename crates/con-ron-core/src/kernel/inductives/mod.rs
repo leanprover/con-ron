@@ -44,8 +44,11 @@
 //!    passes the two whole-tree traversals of the direct install as a record
 //!    of two closures, so that the cached driver can supply its memoised
 //!    twins (`Cached/CheckerC.lean:56` `structWalkersC`).  Both walkers the
-//!    port has *are* memoised — `core_k::consts_resolve` is the one spelling
-//!    of `Expr.constsResolve`/`constsResolveF`/`constsResolveFC` and
+//!    port has *are* memoised — `decl_check::consts_resolve_f_fast` is the
+//!    one spelling of `constsResolveF`/`constsResolveFFast`/`constsResolveFC`
+//!    (task #30: this note used to name `core_k::consts_resolve`, which is
+//!    the *spec*, the unmemoised `Expr.constsResolve` tree walk, and every
+//!    route here called it, so a DAG-shared field type did not finish) and
 //!    `struct_parts::struct_proj_bodies` of
 //!    `structProjBodies`/`structProjBodiesC` — and con-leche's own
 //!    `structWalkersC_eq_plain` is the equation that says the record is the
