@@ -27,4 +27,9 @@ section for every task you land.
   (`_tmp/corpus/baseline.md`: `Init` 0.5 GB, `Init+Std+Lean` 1.3 GB, Mathlib
   8.6 GB); if con-ron exceeds it, that is a bug to investigate and fix before
   running anything larger — never raise the limit instead.
+* **Measuring**: this machine is shared and you do not see every process.
+  The measure of record is `perf stat -e instructions:u,cycles:u`; wall
+  time is secondary and only meaningful from several runs of a benchmark
+  small enough to repeat (`Init`, the fixtures) — never from one run of a
+  large one. Report the spread when you report wall time.
 * Commit often; the maintainer pushes and opens PRs.
