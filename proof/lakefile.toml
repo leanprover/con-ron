@@ -35,3 +35,11 @@ roots = ["ConRon.Spike.LevelName"]
 [[lean_exe]]
 name = "con-ron-dump"
 root = "ConRon.Dump.Main"
+
+# The build-time table generator (DESIGN.md §5 P1.5, task #22): prints Rust
+# source that rebuilds con-leche's elaboration-time tables
+# (`BasisKind.declsA`, later the Nat-op pin variants) with the crate's own
+# smart constructors, into `crates/con-ron-core/src/kernel/basis_tables.rs`.
+[[lean_exe]]
+name = "con-ron-gen-tables"
+root = "ConRon.Gen.Main"

@@ -16,4 +16,5 @@ import ConRon.Refine.Level
 import ConRon.Refine.PropWhen
 import ConRon.Refine.HashMap
 import ConRon.Refine.Nat
+import ConRon.Refine.BasisTables
 import ConRon.Dump.Read

@@ -2356,6 +2356,1726 @@ def cached.state_c.record_c_const
       ({ ty_e, ty, val } : cached.state_c.CConstE)
   ok { s with ienv := hm }
 
+/-- [con_ron_core::kernel::prop_when::of_repr]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 284:0-286:1 -/
+def kernel.prop_when.of_repr
+  (r : kernel.prop_when.PropWhenRepr) : Result kernel.prop_when.PropWhen := do
+  ok { repr := r }
+
+/-- [con_ron_core::kernel::prop_when::nat_compare]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 119:0-127:1
+    Visibility: public -/
+def kernel.prop_when.nat_compare
+  (m : Std.U64) (n : Std.U64) : Result kernel.prop_when.Ordering := do
+  if m < n
+  then ok kernel.prop_when.Ordering.Lt
+  else
+    if m > n
+    then ok kernel.prop_when.Ordering.Gt
+    else ok kernel.prop_when.Ordering.Eq
+
+/-- [con_ron_core::kernel::prop_when::str_compare_from]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 100:0-114:1
+    Visibility: public -/
+def kernel.prop_when.str_compare_from
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result kernel.prop_when.Ordering
+  := do
+  let i1 := alloc.vec.Vec.len a
+  if i >= i1
+  then
+    let i2 := alloc.vec.Vec.len b
+    if i >= i2
+    then ok kernel.prop_when.Ordering.Eq
+    else
+      let i3 := alloc.vec.Vec.len a
+      if i >= i3
+      then ok kernel.prop_when.Ordering.Lt
+      else
+        let i4 := alloc.vec.Vec.len b
+        if i >= i4
+        then ok kernel.prop_when.Ordering.Gt
+        else
+          let i5 ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32)
+              a i
+          let i6 ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32)
+              b i
+          if i5 < i6
+          then ok kernel.prop_when.Ordering.Lt
+          else
+            if i5 > i6
+            then ok kernel.prop_when.Ordering.Gt
+            else
+              let i7 ← i + 1#usize
+              kernel.prop_when.str_compare_from a b i7
+  else
+    let i2 := alloc.vec.Vec.len a
+    if i >= i2
+    then ok kernel.prop_when.Ordering.Lt
+    else
+      let i3 := alloc.vec.Vec.len b
+      if i >= i3
+      then ok kernel.prop_when.Ordering.Gt
+      else
+        let i4 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) a
+            i
+        let i5 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) b
+            i
+        if i4 < i5
+        then ok kernel.prop_when.Ordering.Lt
+        else
+          if i4 > i5
+          then ok kernel.prop_when.Ordering.Gt
+          else let i6 ← i + 1#usize
+               kernel.prop_when.str_compare_from a b i6
+partial_fixpoint
+
+/-- [con_ron_core::kernel::prop_when::str_compare]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 94:0-96:1
+    Visibility: public -/
+def kernel.prop_when.str_compare
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) :
+  Result kernel.prop_when.Ordering
+  := do
+  kernel.prop_when.str_compare_from a b 0#usize
+
+/-- [con_ron_core::kernel::prop_when::ord_then]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 82:0-87:1
+    Visibility: public -/
+def kernel.prop_when.ord_then
+  (a : kernel.prop_when.Ordering) (b : kernel.prop_when.Ordering) :
+  Result kernel.prop_when.Ordering
+  := do
+  match a with
+  | kernel.prop_when.Ordering.Lt => ok kernel.prop_when.Ordering.Lt
+  | kernel.prop_when.Ordering.Eq => ok b
+  | kernel.prop_when.Ordering.Gt => ok kernel.prop_when.Ordering.Gt
+
+/-- [con_ron_core::kernel::prop_when::name_cmp]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 133:0-149:1
+    Visibility: public -/
+def kernel.prop_when.name_cmp
+  (a : kernel.name.Name) (b : kernel.name.Name) :
+  Result kernel.prop_when.Ordering
+  := do
+  let nn ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
+  let nn1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+  match nn.kind with
+  | kernel.name.NameKind.Anonymous =>
+    match nn1.kind with
+    | kernel.name.NameKind.Anonymous => ok kernel.prop_when.Ordering.Eq
+    | kernel.name.NameKind.Str _ _ => ok kernel.prop_when.Ordering.Lt
+    | kernel.name.NameKind.Num _ _ => ok kernel.prop_when.Ordering.Lt
+  | kernel.name.NameKind.Str p s =>
+    match nn1.kind with
+    | kernel.name.NameKind.Anonymous => ok kernel.prop_when.Ordering.Gt
+    | kernel.name.NameKind.Str q t =>
+      let o ← kernel.prop_when.name_cmp p q
+      let o1 ← kernel.prop_when.str_compare s t
+      kernel.prop_when.ord_then o o1
+    | kernel.name.NameKind.Num _ _ => ok kernel.prop_when.Ordering.Lt
+  | kernel.name.NameKind.Num p m =>
+    match nn1.kind with
+    | kernel.name.NameKind.Anonymous => ok kernel.prop_when.Ordering.Gt
+    | kernel.name.NameKind.Str _ _ => ok kernel.prop_when.Ordering.Gt
+    | kernel.name.NameKind.Num q n =>
+      let o ← kernel.prop_when.name_cmp p q
+      let o1 ← kernel.prop_when.nat_compare m n
+      kernel.prop_when.ord_then o o1
+partial_fixpoint
+
+/-- [con_ron_core::kernel::prop_when::two_prime]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 450:0-456:1 -/
+def kernel.prop_when.two_prime
+  (p : kernel.name.Name) (q : kernel.name.Name) :
+  Result kernel.prop_when.PropWhen
+  := do
+  let o ← kernel.prop_when.name_cmp p q
+  match o with
+  | kernel.prop_when.Ordering.Lt =>
+    let n ← kernel.name.dup p
+    let n1 ← kernel.name.dup q
+    kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Two n n1)
+  | kernel.prop_when.Ordering.Eq =>
+    let n ← kernel.name.dup p
+    kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.One n)
+  | kernel.prop_when.Ordering.Gt =>
+    let n ← kernel.name.dup q
+    let n1 ← kernel.name.dup p
+    kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Two n n1)
+
+/-- [con_ron_core::kernel::prop_when::of_sorted]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 434:0-444:1 -/
+def kernel.prop_when.of_sorted
+  (ps : alloc.vec.Vec kernel.name.Name) :
+  Result kernel.prop_when.PropWhen
+  := do
+  let i := alloc.vec.Vec.len ps
+  if i = 0#usize
+  then kernel.prop_when.of_repr kernel.prop_when.PropWhenRepr.Always
+  else
+    let i1 := alloc.vec.Vec.len ps
+    if i1 = 1#usize
+    then
+      let n ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          kernel.name.Name) ps 0#usize
+      let n1 ← kernel.name.dup n
+      kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.One n1)
+    else
+      let i2 := alloc.vec.Vec.len ps
+      if i2 = 2#usize
+      then
+        let n ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            kernel.name.Name) ps 0#usize
+        let n1 ← kernel.name.dup n
+        let n2 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            kernel.name.Name) ps 1#usize
+        let n3 ← kernel.name.dup n2
+        kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Two n1 n3)
+      else kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Many ps)
+
+/-- [con_ron_core::kernel::prop_when::append_from]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 174:0-182:1
+    Visibility: public -/
+def kernel.prop_when.append_from
+  (xs : alloc.vec.Vec kernel.name.Name) (k : Std.Usize)
+  (out : alloc.vec.Vec kernel.name.Name) :
+  Result (alloc.vec.Vec kernel.name.Name)
+  := do
+  let i := alloc.vec.Vec.len xs
+  if k >= i
+  then ok out
+  else
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) xs k
+    let n1 ← kernel.name.dup n
+    let out1 ← alloc.vec.Vec.push out n1
+    let i1 ← k + 1#usize
+    kernel.prop_when.append_from xs i1 out1
+partial_fixpoint
+
+/-- [con_ron_core::kernel::prop_when::merge_from]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 200:0-230:1
+    Visibility: public -/
+def kernel.prop_when.merge_from
+  (as_ : alloc.vec.Vec kernel.name.Name) (i : Std.Usize)
+  (bs : alloc.vec.Vec kernel.name.Name) (j : Std.Usize)
+  (out : alloc.vec.Vec kernel.name.Name) :
+  Result (alloc.vec.Vec kernel.name.Name)
+  := do
+  let i1 := alloc.vec.Vec.len as_
+  if i >= i1
+  then kernel.prop_when.append_from bs j out
+  else
+    let i2 := alloc.vec.Vec.len bs
+    if j >= i2
+    then kernel.prop_when.append_from as_ i out
+    else
+      let n ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          kernel.name.Name) as_ i
+      let n1 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          kernel.name.Name) bs j
+      let o ← kernel.prop_when.name_cmp n n1
+      match o with
+      | kernel.prop_when.Ordering.Lt =>
+        let n2 ← kernel.name.dup n
+        let out1 ← alloc.vec.Vec.push out n2
+        let i3 ← i + 1#usize
+        kernel.prop_when.merge_from as_ i3 bs j out1
+      | kernel.prop_when.Ordering.Eq =>
+        let n2 ← kernel.name.dup n
+        let out1 ← alloc.vec.Vec.push out n2
+        let i3 ← i + 1#usize
+        let i4 ← j + 1#usize
+        kernel.prop_when.merge_from as_ i3 bs i4 out1
+      | kernel.prop_when.Ordering.Gt =>
+        let n2 ← kernel.name.dup n1
+        let out1 ← alloc.vec.Vec.push out n2
+        let i3 ← j + 1#usize
+        kernel.prop_when.merge_from as_ i bs i3 out1
+partial_fixpoint
+
+/-- [con_ron_core::kernel::prop_when::merge]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 192:0-194:1
+    Visibility: public -/
+def kernel.prop_when.merge
+  (as_ : alloc.vec.Vec kernel.name.Name) (bs : alloc.vec.Vec kernel.name.Name)
+  :
+  Result (alloc.vec.Vec kernel.name.Name)
+  := do
+  kernel.prop_when.merge_from as_ 0#usize bs 0#usize (alloc.vec.Vec.new
+    kernel.name.Name)
+
+/-- [con_ron_core::kernel::prop_when::canon_from]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 241:0-248:1
+    Visibility: public -/
+def kernel.prop_when.canon_from
+  (ps : alloc.vec.Vec kernel.name.Name) (i : Std.Usize) :
+  Result (alloc.vec.Vec kernel.name.Name)
+  := do
+  let i1 := alloc.vec.Vec.len ps
+  if i >= i1
+  then ok (alloc.vec.Vec.new kernel.name.Name)
+  else
+    let i2 ← i + 1#usize
+    let rest ← kernel.prop_when.canon_from ps i2
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) ps i
+    let v ← kernel.name.singleton n
+    kernel.prop_when.merge v rest
+partial_fixpoint
+
+/-- [con_ron_core::kernel::prop_when::canon]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 234:0-236:1
+    Visibility: public -/
+def kernel.prop_when.canon
+  (ps : alloc.vec.Vec kernel.name.Name) :
+  Result (alloc.vec.Vec kernel.name.Name)
+  := do
+  kernel.prop_when.canon_from ps 0#usize
+
+/-- [con_ron_core::kernel::prop_when::if_all_zero]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 465:0-475:1
+    Visibility: public -/
+def kernel.prop_when.if_all_zero
+  (ps : alloc.vec.Vec kernel.name.Name) :
+  Result kernel.prop_when.PropWhen
+  := do
+  let i := alloc.vec.Vec.len ps
+  if i = 0#usize
+  then kernel.prop_when.of_repr kernel.prop_when.PropWhenRepr.Always
+  else
+    let i1 := alloc.vec.Vec.len ps
+    if i1 = 1#usize
+    then
+      let n ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          kernel.name.Name) ps 0#usize
+      let n1 ← kernel.name.dup n
+      kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.One n1)
+    else
+      let i2 := alloc.vec.Vec.len ps
+      if i2 = 2#usize
+      then
+        let n ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            kernel.name.Name) ps 0#usize
+        let n1 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            kernel.name.Name) ps 1#usize
+        kernel.prop_when.two_prime n n1
+      else let v ← kernel.prop_when.canon ps
+           kernel.prop_when.of_sorted v
+
+/-- [con_ron_core::kernel::prop_when::never]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 423:0-425:1
+    Visibility: public -/
+def kernel.prop_when.never : Result kernel.prop_when.PropWhen := do
+  kernel.prop_when.of_repr kernel.prop_when.PropWhenRepr.Never
+
+/-- [con_ron_core::kernel::name::str_hash_from]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 69:0-75:1
+    Visibility: public -/
+def kernel.name.str_hash_from
+  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) (acc : Std.U64) :
+  Result Std.U64
+  := do
+  let i1 := alloc.vec.Vec.len s
+  if i >= i1
+  then ok acc
+  else
+    let i2 ← i + 1#usize
+    let i3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let i4 ← lift (UScalar.cast .U64 i3)
+    let i5 ← kernel.name.mix_hash acc i4
+    kernel.name.str_hash_from s i2 i5
+partial_fixpoint
+
+/-- [con_ron_core::kernel::name::str_hash]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 63:0-65:1
+    Visibility: public -/
+def kernel.name.str_hash (s : alloc.vec.Vec Std.U32) : Result Std.U64 := do
+  kernel.name.str_hash_from s 0#usize 11#u64
+
+/-- [con_ron_core::kernel::name::mk_str]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 100:0-103:1
+    Visibility: public -/
+def kernel.name.mk_str
+  (pre : kernel.name.Name) (s : alloc.vec.Vec Std.U32) :
+  Result kernel.name.Name
+  := do
+  let i ← kernel.name.hash_data pre
+  let i1 ← kernel.name.mix_hash 1#u64 i
+  let i2 ← kernel.name.str_hash s
+  let h ← kernel.name.mix_hash i1 i2
+  let r ←
+    alloc.rc.Rc.new (kernel.name.NameNode.mk h (kernel.name.NameKind.Str pre
+      s))
+  ok (kernel.name.Name.mk r)
+
+/-- [con_ron_core::kernel::name::anonymous]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 92:0-94:1
+    Visibility: public -/
+def kernel.name.anonymous : Result kernel.name.Name := do
+  let r ←
+    alloc.rc.Rc.new (kernel.name.NameNode.mk 1723#u64
+      kernel.name.NameKind.Anonymous)
+  ok (kernel.name.Name.mk r)
+
+/-- [con_ron_core::kernel::name::nat_hash]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 80:0-82:1
+    Visibility: public -/
+def kernel.name.nat_hash (n : Std.U64) : Result Std.U64 := do
+  ok n
+
+/-- [con_ron_core::kernel::expr::sat_succ]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 198:0-204:1
+    Visibility: public -/
+def kernel.expr.sat_succ (n : Std.U64) : Result Std.U64 := do
+  if n >= 32766#u64
+  then ok 32767#u64
+  else n + 1#u64
+
+/-- [con_ron_core::kernel::expr::hash32]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 189:0-191:1
+    Visibility: public -/
+def kernel.expr.hash32 (w : Std.U64) : Result Std.U64 := do
+  w % 4294967296#u64
+
+/-- [con_ron_core::kernel::expr::pack_data]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 155:0-161:1
+    Visibility: public -/
+def kernel.expr.pack_data
+  (h : Std.U64) (b : Std.U64) (f : Std.U64) (lp : Bool) : Result Std.U64 := do
+  let t ← if lp
+            then ok 1#u64
+            else ok 0#u64
+  let hs ← lift (core.num.U64.wrapping_mul h 4294967296#u64)
+  let bs ← lift (core.num.U64.wrapping_mul b 65536#u64)
+  let fs ← lift (core.num.U64.wrapping_mul f 2#u64)
+  let i ← lift (core.num.U64.wrapping_add hs bs)
+  let i1 ← lift (core.num.U64.wrapping_add i fs)
+  ok (core.num.U64.wrapping_add i1 t)
+
+/-- [con_ron_core::kernel::expr::bvar]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 270:0-274:1
+    Visibility: public -/
+def kernel.expr.bvar (i : Std.U64) : Result kernel.expr.Expr := do
+  let i1 ← kernel.name.nat_hash i
+  let i2 ← kernel.name.mix_hash 3#u64 i1
+  let h ← kernel.expr.hash32 i2
+  let i3 ← kernel.expr.sat_succ i
+  let d ← kernel.expr.pack_data h i3 0#u64 false
+  let r ←
+    alloc.rc.Rc.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Bvar i))
+  ok (kernel.expr.Expr.mk r)
+
+/-- [con_ron_core::kernel::expr::mk_bvar]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 652:0-654:1
+    Visibility: public -/
+def kernel.expr.mk_bvar (i : Std.U64) : Result kernel.expr.Expr := do
+  kernel.expr.bvar i
+
+/-- [con_ron_core::kernel::prop_when::has_params]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 566:0-572:1
+    Visibility: public -/
+def kernel.prop_when.has_params
+  (pw : kernel.prop_when.PropWhen) : Result Bool := do
+  match pw.repr with
+  | kernel.prop_when.PropWhenRepr.Never => ok false
+  | kernel.prop_when.PropWhenRepr.Always => ok false
+  | kernel.prop_when.PropWhenRepr.One _ => ok true
+  | kernel.prop_when.PropWhenRepr.Two _ _ => ok true
+  | kernel.prop_when.PropWhenRepr.Many _ => ok true
+
+/-- [con_ron_core::kernel::prop_when::names_hash_from]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 357:0-363:1
+    Visibility: public -/
+def kernel.prop_when.names_hash_from
+  (ps : alloc.vec.Vec kernel.name.Name) (i : Std.Usize) (acc : Std.U64) :
+  Result Std.U64
+  := do
+  let i1 := alloc.vec.Vec.len ps
+  if i >= i1
+  then ok acc
+  else
+    let i2 ← i + 1#usize
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) ps i
+    let i3 ← kernel.name.hash_data n
+    let i4 ← kernel.name.mix_hash acc i3
+    kernel.prop_when.names_hash_from ps i2 i4
+partial_fixpoint
+
+/-- [con_ron_core::kernel::prop_when::hash_repr]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 374:0-385:1 -/
+def kernel.prop_when.hash_repr
+  (r : kernel.prop_when.PropWhenRepr) : Result Std.U64 := do
+  match r with
+  | kernel.prop_when.PropWhenRepr.Never => ok 0#u64
+  | kernel.prop_when.PropWhenRepr.Always => ok 1#u64
+  | kernel.prop_when.PropWhenRepr.One p =>
+    let i ← kernel.name.hash_data p
+    kernel.name.mix_hash 2#u64 i
+  | kernel.prop_when.PropWhenRepr.Two p q =>
+    let i ← kernel.name.hash_data p
+    let i1 ← kernel.name.mix_hash 3#u64 i
+    let i2 ← kernel.name.hash_data q
+    kernel.name.mix_hash i1 i2
+  | kernel.prop_when.PropWhenRepr.Many ps =>
+    let i ← kernel.prop_when.names_hash_from ps 0#usize 7#u64
+    kernel.name.mix_hash 4#u64 i
+
+/-- [con_ron_core::kernel::prop_when::hash_pw]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 391:0-393:1
+    Visibility: public -/
+def kernel.prop_when.hash_pw
+  (pw : kernel.prop_when.PropWhen) : Result Std.U64 := do
+  kernel.prop_when.hash_repr pw.repr
+
+/-- [con_ron_core::kernel::expr::sat_pred]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 210:0-218:1
+    Visibility: public -/
+def kernel.expr.sat_pred (x : Std.U64) : Result Std.U64 := do
+  if x = 32767#u64
+  then ok 32767#u64
+  else if x = 0#u64
+       then ok 0#u64
+       else x - 1#u64
+
+/-- [con_ron_core::kernel::expr::lp_of_data]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 183:0-185:1
+    Visibility: public -/
+def kernel.expr.lp_of_data (w : Std.U64) : Result Bool := do
+  let i ← w % 2#u64
+  ok (i = 1#u64)
+
+/-- [con_ron_core::kernel::expr::fvar_of_data]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 177:0-179:1
+    Visibility: public -/
+def kernel.expr.fvar_of_data (w : Std.U64) : Result Std.U64 := do
+  let i ← w / 2#u64
+  i % 32768#u64
+
+/-- [con_ron_core::kernel::expr::bvar_of_data]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 171:0-173:1
+    Visibility: public -/
+def kernel.expr.bvar_of_data (w : Std.U64) : Result Std.U64 := do
+  let i ← w / 65536#u64
+  i % 32768#u64
+
+/-- [con_ron_core::kernel::expr::max_u64]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 142:0-148:1
+    Visibility: public -/
+def kernel.expr.max_u64 (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
+  if a < b
+  then ok b
+  else ok a
+
+/-- [con_ron_core::kernel::expr::forall_e]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 356:0-373:1
+    Visibility: public -/
+def kernel.expr.forall_e
+  (ty : kernel.expr.Expr) (body : kernel.expr.Expr)
+  (m : kernel.expr.BinderMeta) :
+  Result kernel.expr.Expr
+  := do
+  let dt ← kernel.expr.data ty
+  let db ← kernel.expr.data body
+  let i ← kernel.expr.hash_of_data dt
+  let i1 ← kernel.expr.hash_of_data db
+  let i2 ← kernel.prop_when.hash_pw m.pw
+  let i3 ← kernel.name.mix_hash i1 i2
+  let i4 ← kernel.name.mix_hash i i3
+  let i5 ← kernel.name.mix_hash 23#u64 i4
+  let h ← kernel.expr.hash32 i5
+  let i6 ← kernel.expr.bvar_of_data dt
+  let i7 ← kernel.expr.bvar_of_data db
+  let i8 ← kernel.expr.sat_pred i7
+  let i9 ← kernel.expr.max_u64 i6 i8
+  let i10 ← kernel.expr.fvar_of_data dt
+  let i11 ← kernel.expr.fvar_of_data db
+  let i12 ← kernel.expr.max_u64 i10 i11
+  let b ← kernel.expr.lp_of_data dt
+  let b1 ←
+    if b
+    then ok true
+    else
+      do
+      let b2 ← kernel.expr.lp_of_data db
+      if b2
+      then ok true
+      else kernel.prop_when.has_params m.pw
+  let d ← kernel.expr.pack_data h i9 i12 b1
+  let r ←
+    alloc.rc.Rc.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.ForallE ty
+      body m))
+  ok (kernel.expr.Expr.mk r)
+
+/-- [con_ron_core::kernel::expr::lam]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 335:0-352:1
+    Visibility: public -/
+def kernel.expr.lam
+  (ty : kernel.expr.Expr) (body : kernel.expr.Expr)
+  (m : kernel.expr.BinderMeta) :
+  Result kernel.expr.Expr
+  := do
+  let dt ← kernel.expr.data ty
+  let db ← kernel.expr.data body
+  let i ← kernel.expr.hash_of_data dt
+  let i1 ← kernel.expr.hash_of_data db
+  let i2 ← kernel.prop_when.hash_pw m.pw
+  let i3 ← kernel.name.mix_hash i1 i2
+  let i4 ← kernel.name.mix_hash i i3
+  let i5 ← kernel.name.mix_hash 19#u64 i4
+  let h ← kernel.expr.hash32 i5
+  let i6 ← kernel.expr.bvar_of_data dt
+  let i7 ← kernel.expr.bvar_of_data db
+  let i8 ← kernel.expr.sat_pred i7
+  let i9 ← kernel.expr.max_u64 i6 i8
+  let i10 ← kernel.expr.fvar_of_data dt
+  let i11 ← kernel.expr.fvar_of_data db
+  let i12 ← kernel.expr.max_u64 i10 i11
+  let b ← kernel.expr.lp_of_data dt
+  let b1 ←
+    if b
+    then ok true
+    else
+      do
+      let b2 ← kernel.expr.lp_of_data db
+      if b2
+      then ok true
+      else kernel.prop_when.has_params m.pw
+  let d ← kernel.expr.pack_data h i9 i12 b1
+  let r ←
+    alloc.rc.Rc.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Lam ty
+      body m))
+  ok (kernel.expr.Expr.mk r)
+
+/-- [con_ron_core::kernel::expr::app]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 315:0-329:1
+    Visibility: public -/
+def kernel.expr.app
+  (f : kernel.expr.Expr) (a : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let df ← kernel.expr.data f
+  let da ← kernel.expr.data a
+  let i ← kernel.expr.hash_of_data df
+  let i1 ← kernel.expr.hash_of_data da
+  let i2 ← kernel.name.mix_hash i i1
+  let i3 ← kernel.name.mix_hash 17#u64 i2
+  let h ← kernel.expr.hash32 i3
+  let i4 ← kernel.expr.bvar_of_data df
+  let i5 ← kernel.expr.bvar_of_data da
+  let i6 ← kernel.expr.max_u64 i4 i5
+  let i7 ← kernel.expr.fvar_of_data df
+  let i8 ← kernel.expr.fvar_of_data da
+  let i9 ← kernel.expr.max_u64 i7 i8
+  let b ← kernel.expr.lp_of_data df
+  let b1 ← if b
+             then ok true
+             else kernel.expr.lp_of_data da
+  let d ← kernel.expr.pack_data h i6 i9 b1
+  let r ←
+    alloc.rc.Rc.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.App f a))
+  ok (kernel.expr.Expr.mk r)
+
+/-- [con_ron_core::kernel::level::level_hash]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 178:0-180:1
+    Visibility: public -/
+def kernel.level.level_hash (u : kernel.level.Level) : Result Std.U64 := do
+  kernel.level.hash_data u
+
+/-- [con_ron_core::kernel::level::levels_hash_from]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 190:0-196:1
+    Visibility: public -/
+def kernel.level.levels_hash_from
+  (us : alloc.vec.Vec kernel.level.Level) (i : Std.Usize) :
+  Result Std.U64
+  := do
+  let i1 := alloc.vec.Vec.len us
+  if i >= i1
+  then ok 13#u64
+  else
+    let l ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.level.Level) us i
+    let i2 ← kernel.level.level_hash l
+    let i3 ← i + 1#usize
+    let i4 ← kernel.level.levels_hash_from us i3
+    kernel.name.mix_hash i2 i4
+partial_fixpoint
+
+/-- [con_ron_core::kernel::level::levels_hash]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 184:0-186:1
+    Visibility: public -/
+def kernel.level.levels_hash
+  (us : alloc.vec.Vec kernel.level.Level) : Result Std.U64 := do
+  kernel.level.levels_hash_from us 0#usize
+
+/-- [con_ron_core::kernel::level::level_has_param]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 150:0-158:1
+    Visibility: public -/
+def kernel.level.level_has_param (u : kernel.level.Level) : Result Bool := do
+  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
+  match ln.kind with
+  | kernel.level.LevelKind.Zero => ok false
+  | kernel.level.LevelKind.Succ v => kernel.level.level_has_param v
+  | kernel.level.LevelKind.Max a b =>
+    let b1 ← kernel.level.level_has_param a
+    if b1
+    then ok true
+    else kernel.level.level_has_param b
+  | kernel.level.LevelKind.Imax a b =>
+    let b1 ← kernel.level.level_has_param a
+    if b1
+    then ok true
+    else kernel.level.level_has_param b
+  | kernel.level.LevelKind.Param _ => ok true
+partial_fixpoint
+
+/-- [con_ron_core::kernel::level::levels_have_param_from]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 168:0-174:1
+    Visibility: public -/
+def kernel.level.levels_have_param_from
+  (us : alloc.vec.Vec kernel.level.Level) (i : Std.Usize) : Result Bool := do
+  let i1 := alloc.vec.Vec.len us
+  if i >= i1
+  then ok false
+  else
+    let l ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.level.Level) us i
+    let b ← kernel.level.level_has_param l
+    if b
+    then ok true
+    else let i2 ← i + 1#usize
+         kernel.level.levels_have_param_from us i2
+partial_fixpoint
+
+/-- [con_ron_core::kernel::level::levels_have_param]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 162:0-164:1
+    Visibility: public -/
+def kernel.level.levels_have_param
+  (us : alloc.vec.Vec kernel.level.Level) : Result Bool := do
+  kernel.level.levels_have_param_from us 0#usize
+
+/-- [con_ron_core::kernel::expr::mk_const]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 303:0-310:1
+    Visibility: public -/
+def kernel.expr.mk_const
+  (n : kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level) :
+  Result kernel.expr.Expr
+  := do
+  let i ← kernel.name.hash_data n
+  let i1 ← kernel.level.levels_hash us
+  let i2 ← kernel.name.mix_hash i i1
+  let i3 ← kernel.name.mix_hash 11#u64 i2
+  let h ← kernel.expr.hash32 i3
+  let b ← kernel.level.levels_have_param us
+  let d ← kernel.expr.pack_data h 0#u64 0#u64 b
+  let r ←
+    alloc.rc.Rc.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Const n
+      us))
+  ok (kernel.expr.Expr.mk r)
+
+/-- [con_ron_core::kernel::expr::sort]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 293:0-297:1
+    Visibility: public -/
+def kernel.expr.sort (u : kernel.level.Level) : Result kernel.expr.Expr := do
+  let i ← kernel.level.level_hash u
+  let i1 ← kernel.name.mix_hash 7#u64 i
+  let h ← kernel.expr.hash32 i1
+  let b ← kernel.level.level_has_param u
+  let d ← kernel.expr.pack_data h 0#u64 0#u64 b
+  let r ←
+    alloc.rc.Rc.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Sort u))
+  ok (kernel.expr.Expr.mk r)
+
+/-- [con_ron_core::kernel::expr::dup]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 263:0-265:1
+    Visibility: public -/
+def kernel.expr.dup (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let r ←
+    alloc.rc.Rc.Insts.CoreCloneClone.clone
+      alloc.alloc.Global.Insts.CoreAllocAllocatorClone e._0
+  ok (kernel.expr.Expr.mk r)
+
+/-- [con_ron_core::kernel::basis_tables::basis_decls_eq]:
+    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 39:0-176:1
+    Visibility: public -/
+def kernel.basis_tables.basis_decls_eq
+  : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
+  let n0 ← kernel.name.anonymous
+  let s0 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 69#u32
+  let s01 ← alloc.vec.Vec.push s0 113#u32
+  let n ← kernel.name.dup n0
+  let n1 ← kernel.name.mk_str n s01
+  let s1 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 117#u32
+  let n2 ← kernel.name.mk_str n s1
+  let n3 ← kernel.name.dup n2
+  let ns0 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n3
+  let u0 ← kernel.level.zero
+  let l ← kernel.level.dup u0
+  let e0 ← kernel.expr.sort l
+  let e1 ← kernel.expr.mk_bvar 1#u64
+  let w0 ← kernel.prop_when.never
+  let e ← kernel.expr.dup e1
+  let e2 ← kernel.expr.dup e0
+  let e21 ← kernel.expr.forall_e e e2 { pw := w0 }
+  let e3 ← kernel.expr.mk_bvar 0#u64
+  let e4 ← kernel.expr.dup e3
+  let e5 ← kernel.expr.dup e21
+  let e41 ← kernel.expr.forall_e e4 e5 { pw := w0 }
+  let u1 ← kernel.level.param n3
+  let l1 ← kernel.level.dup u1
+  let e51 ← kernel.expr.sort l1
+  let e6 ← kernel.expr.dup e51
+  let e7 ← kernel.expr.dup e41
+  let e61 ← kernel.expr.forall_e e6 e7 { pw := w0 }
+  let n4 ← kernel.name.dup n1
+  let e8 ← kernel.expr.dup e61
+  let w3 ← kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
+  let s2 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 114#u32
+  let s21 ← alloc.vec.Vec.push s2 101#u32
+  let s22 ← alloc.vec.Vec.push s21 102#u32
+  let s23 ← alloc.vec.Vec.push s22 108#u32
+  let n31 ← kernel.name.mk_str n4 s23
+  let ns2 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n3
+  let us0 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l1
+  let e71 ← kernel.expr.mk_const n4 us0
+  let e9 ← kernel.expr.dup e71
+  let e81 ← kernel.expr.app e9 e
+  let e10 ← kernel.expr.dup e81
+  let e91 ← kernel.expr.app e10 e4
+  let e11 ← kernel.expr.dup e91
+  let e101 ← kernel.expr.app e11 e4
+  let e12 ← kernel.expr.dup e101
+  let e111 ← kernel.expr.forall_e e4 e12 { pw := w3 }
+  let e13 ← kernel.expr.dup e111
+  let e121 ← kernel.expr.forall_e e6 e13 { pw := w3 }
+  let n5 ← kernel.name.dup n31
+  let e14 ← kernel.expr.dup e121
+  let s3 ← alloc.vec.Vec.push s2 101#u32
+  let s31 ← alloc.vec.Vec.push s3 99#u32
+  let n41 ← kernel.name.mk_str n4 s31
+  let s4 ← alloc.vec.Vec.push s1 95#u32
+  let s41 ← alloc.vec.Vec.push s4 49#u32
+  let n51 ← kernel.name.mk_str n s41
+  let n6 ← kernel.name.dup n51
+  let ns5 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let ns51 ← alloc.vec.Vec.push ns5 n3
+  let e131 ← kernel.expr.mk_bvar 3#u64
+  let e15 ← kernel.expr.dup e131
+  let e141 ← kernel.expr.app e15 e
+  let e16 ← kernel.expr.dup e141
+  let e151 ← kernel.expr.app e16 e4
+  let e161 ← kernel.expr.mk_bvar 4#u64
+  let e17 ← kernel.expr.dup e161
+  let e171 ← kernel.expr.app e9 e17
+  let e18 ← kernel.expr.dup e171
+  let e181 ← kernel.expr.app e18 e15
+  let e19 ← kernel.expr.dup e181
+  let e191 ← kernel.expr.app e19 e4
+  let ns6 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w6 ← kernel.prop_when.if_all_zero ns6
+  let e20 ← kernel.expr.dup e191
+  let e22 ← kernel.expr.dup e151
+  let e201 ← kernel.expr.forall_e e20 e22 { pw := w6 }
+  let ns7 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w7 ← kernel.prop_when.if_all_zero ns7
+  let e23 ← kernel.expr.dup e201
+  let e211 ← kernel.expr.forall_e e15 e23 { pw := w7 }
+  let e221 ← kernel.expr.mk_bvar 2#u64
+  let us1 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l1
+  let e231 ← kernel.expr.mk_const n5 us1
+  let e24 ← kernel.expr.dup e231
+  let e25 ← kernel.expr.dup e221
+  let e241 ← kernel.expr.app e24 e25
+  let e26 ← kernel.expr.dup e241
+  let e251 ← kernel.expr.app e26 e
+  let e261 ← kernel.expr.app e4 e
+  let e27 ← kernel.expr.dup e261
+  let e28 ← kernel.expr.dup e251
+  let e271 ← kernel.expr.app e27 e28
+  let ns8 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w8 ← kernel.prop_when.if_all_zero ns8
+  let e29 ← kernel.expr.dup e271
+  let e30 ← kernel.expr.dup e211
+  let e281 ← kernel.expr.forall_e e29 e30 { pw := w8 }
+  let u2 ← kernel.level.param n6
+  let l2 ← kernel.level.dup u2
+  let e291 ← kernel.expr.sort l2
+  let e301 ← kernel.expr.app e9 e25
+  let e31 ← kernel.expr.dup e301
+  let e311 ← kernel.expr.app e31 e
+  let e32 ← kernel.expr.dup e311
+  let e321 ← kernel.expr.app e32 e4
+  let e33 ← kernel.expr.dup e321
+  let e34 ← kernel.expr.dup e291
+  let e331 ← kernel.expr.forall_e e33 e34 { pw := w0 }
+  let e35 ← kernel.expr.dup e331
+  let e341 ← kernel.expr.forall_e e e35 { pw := w0 }
+  let ns9 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w11 ← kernel.prop_when.if_all_zero ns9
+  let e36 ← kernel.expr.dup e341
+  let e37 ← kernel.expr.dup e281
+  let e351 ← kernel.expr.forall_e e36 e37 { pw := w11 }
+  let ns10 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w12 ← kernel.prop_when.if_all_zero ns10
+  let e38 ← kernel.expr.dup e351
+  let e361 ← kernel.expr.forall_e e4 e38 { pw := w12 }
+  let ns11 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w13 ← kernel.prop_when.if_all_zero ns11
+  let e39 ← kernel.expr.dup e361
+  let e371 ← kernel.expr.forall_e e6 e39 { pw := w13 }
+  let n7 ← kernel.name.dup n41
+  let e40 ← kernel.expr.dup e371
+  let ns12 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w14 ← kernel.prop_when.if_all_zero ns12
+  let e381 ← kernel.expr.lam e29 e4 { pw := w14 }
+  let ns13 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w15 ← kernel.prop_when.if_all_zero ns13
+  let e42 ← kernel.expr.dup e381
+  let e391 ← kernel.expr.lam e36 e42 { pw := w15 }
+  let ns14 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w16 ← kernel.prop_when.if_all_zero ns14
+  let e43 ← kernel.expr.dup e391
+  let e401 ← kernel.expr.lam e4 e43 { pw := w16 }
+  let ns15 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w17 ← kernel.prop_when.if_all_zero ns15
+  let e44 ← kernel.expr.dup e401
+  let e411 ← kernel.expr.lam e6 e44 { pw := w17 }
+  let e45 ← kernel.expr.dup e411
+  let rs0 ←
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.env.RecRule)
+      ({
+         ctor := n5,
+         nfields := 0#u64,
+         ctor_params := 2#u64,
+         fire := kernel.env.RecRuleFire.Plain,
+         rhs := e45,
+         k := true,
+         eta := false,
+         params_blind := true
+       } : kernel.env.RecRule)
+  let out0 ←
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.env.ConstantInfo)
+      (kernel.env.ConstantInfo.IndInfo
+      { «name» := n4, level_params := ns0, ty := e8 }
+      {
+        eta := false,
+        eta_ctor := n,
+        eta_params := 0#u64,
+        eta_fields := 0#u64,
+        unitlike := false,
+        unit_params := 0#u64,
+        rule_k := true,
+        sort_z := w3
+      })
+  let out01 ←
+    alloc.vec.Vec.push out0 (kernel.env.ConstantInfo.CtorInfo
+      { «name» := n5, level_params := ns2, ty := e14 } 2#u64 0#u64)
+  alloc.vec.Vec.push out01 (kernel.env.ConstantInfo.RecInfo
+    { «name» := n7, level_params := ns51, ty := e40 } 5#u64 4#u64 rs0)
+
+/-- [con_ron_core::kernel::basis_tables::basis_decls_nat]:
+    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 179:0-318:1
+    Visibility: public -/
+def kernel.basis_tables.basis_decls_nat
+  : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
+  let n0 ← kernel.name.anonymous
+  let s0 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 78#u32
+  let s01 ← alloc.vec.Vec.push s0 97#u32
+  let s02 ← alloc.vec.Vec.push s01 116#u32
+  let n ← kernel.name.dup n0
+  let n1 ← kernel.name.mk_str n s02
+  let u0 ← kernel.level.zero
+  let l ← kernel.level.dup u0
+  let u1 ← kernel.level.succ l
+  let l1 ← kernel.level.dup u1
+  let e0 ← kernel.expr.sort l1
+  let n2 ← kernel.name.dup n1
+  let e ← kernel.expr.dup e0
+  let w0 ← kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
+  let s1 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 122#u32
+  let s11 ← alloc.vec.Vec.push s1 101#u32
+  let s12 ← alloc.vec.Vec.push s11 114#u32
+  let s13 ← alloc.vec.Vec.push s12 111#u32
+  let n21 ← kernel.name.mk_str n2 s13
+  let e1 ← kernel.expr.mk_const n2 (alloc.vec.Vec.new kernel.level.Level)
+  let n3 ← kernel.name.dup n21
+  let e2 ← kernel.expr.dup e1
+  let s2 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 115#u32
+  let s21 ← alloc.vec.Vec.push s2 117#u32
+  let s22 ← alloc.vec.Vec.push s21 99#u32
+  let s23 ← alloc.vec.Vec.push s22 99#u32
+  let n31 ← kernel.name.mk_str n2 s23
+  let w1 ← kernel.prop_when.never
+  let e21 ← kernel.expr.forall_e e2 e2 { pw := w1 }
+  let n4 ← kernel.name.dup n31
+  let e3 ← kernel.expr.dup e21
+  let s3 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 114#u32
+  let s31 ← alloc.vec.Vec.push s3 101#u32
+  let s32 ← alloc.vec.Vec.push s31 99#u32
+  let n41 ← kernel.name.mk_str n2 s32
+  let s4 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 117#u32
+  let n5 ← kernel.name.mk_str n s4
+  let n6 ← kernel.name.dup n5
+  let ns4 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let e31 ← kernel.expr.mk_bvar 0#u64
+  let e4 ← kernel.expr.mk_bvar 3#u64
+  let e5 ← kernel.expr.dup e4
+  let e6 ← kernel.expr.dup e31
+  let e51 ← kernel.expr.app e5 e6
+  let ns5 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w2 ← kernel.prop_when.if_all_zero ns5
+  let e7 ← kernel.expr.dup e51
+  let e61 ← kernel.expr.forall_e e2 e7 { pw := w2 }
+  let e71 ← kernel.expr.mk_bvar 1#u64
+  let e8 ← kernel.expr.mk_const n4 (alloc.vec.Vec.new kernel.level.Level)
+  let e9 ← kernel.expr.dup e8
+  let e10 ← kernel.expr.dup e71
+  let e91 ← kernel.expr.app e9 e10
+  let e11 ← kernel.expr.dup e91
+  let e101 ← kernel.expr.app e5 e11
+  let e111 ← kernel.expr.mk_bvar 2#u64
+  let e12 ← kernel.expr.dup e111
+  let e121 ← kernel.expr.app e12 e6
+  let ns6 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w3 ← kernel.prop_when.if_all_zero ns6
+  let e13 ← kernel.expr.dup e121
+  let e14 ← kernel.expr.dup e101
+  let e131 ← kernel.expr.forall_e e13 e14 { pw := w3 }
+  let ns7 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w4 ← kernel.prop_when.if_all_zero ns7
+  let e15 ← kernel.expr.dup e131
+  let e141 ← kernel.expr.forall_e e2 e15 { pw := w4 }
+  let ns8 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w5 ← kernel.prop_when.if_all_zero ns8
+  let e16 ← kernel.expr.dup e141
+  let e17 ← kernel.expr.dup e61
+  let e151 ← kernel.expr.forall_e e16 e17 { pw := w5 }
+  let e161 ← kernel.expr.mk_const n3 (alloc.vec.Vec.new kernel.level.Level)
+  let e18 ← kernel.expr.dup e161
+  let e171 ← kernel.expr.app e6 e18
+  let ns9 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w6 ← kernel.prop_when.if_all_zero ns9
+  let e19 ← kernel.expr.dup e171
+  let e20 ← kernel.expr.dup e151
+  let e181 ← kernel.expr.forall_e e19 e20 { pw := w6 }
+  let u2 ← kernel.level.param n6
+  let l2 ← kernel.level.dup u2
+  let e191 ← kernel.expr.sort l2
+  let e22 ← kernel.expr.dup e191
+  let e201 ← kernel.expr.forall_e e2 e22 { pw := w1 }
+  let ns10 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w8 ← kernel.prop_when.if_all_zero ns10
+  let e23 ← kernel.expr.dup e201
+  let e24 ← kernel.expr.dup e181
+  let e211 ← kernel.expr.forall_e e23 e24 { pw := w8 }
+  let n7 ← kernel.name.dup n41
+  let e25 ← kernel.expr.dup e211
+  let ns11 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w9 ← kernel.prop_when.if_all_zero ns11
+  let e221 ← kernel.expr.lam e16 e10 { pw := w9 }
+  let ns12 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w10 ← kernel.prop_when.if_all_zero ns12
+  let e26 ← kernel.expr.dup e221
+  let e231 ← kernel.expr.lam e19 e26 { pw := w10 }
+  let ns13 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w11 ← kernel.prop_when.if_all_zero ns13
+  let e27 ← kernel.expr.dup e231
+  let e241 ← kernel.expr.lam e23 e27 { pw := w11 }
+  let e28 ← kernel.expr.dup e241
+  let us3 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l2
+  let e251 ← kernel.expr.mk_const n7 us3
+  let e29 ← kernel.expr.dup e251
+  let e261 ← kernel.expr.app e29 e5
+  let e30 ← kernel.expr.dup e261
+  let e271 ← kernel.expr.app e30 e12
+  let e32 ← kernel.expr.dup e271
+  let e281 ← kernel.expr.app e32 e10
+  let e33 ← kernel.expr.dup e281
+  let e291 ← kernel.expr.app e33 e6
+  let e301 ← kernel.expr.app e10 e6
+  let e34 ← kernel.expr.dup e301
+  let e35 ← kernel.expr.dup e291
+  let e311 ← kernel.expr.app e34 e35
+  let ns14 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w12 ← kernel.prop_when.if_all_zero ns14
+  let e36 ← kernel.expr.dup e311
+  let e321 ← kernel.expr.lam e2 e36 { pw := w12 }
+  let ns15 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w13 ← kernel.prop_when.if_all_zero ns15
+  let e37 ← kernel.expr.dup e321
+  let e331 ← kernel.expr.lam e16 e37 { pw := w13 }
+  let ns16 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w14 ← kernel.prop_when.if_all_zero ns16
+  let e38 ← kernel.expr.dup e331
+  let e341 ← kernel.expr.lam e19 e38 { pw := w14 }
+  let ns17 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w15 ← kernel.prop_when.if_all_zero ns17
+  let e39 ← kernel.expr.dup e341
+  let e351 ← kernel.expr.lam e23 e39 { pw := w15 }
+  let e40 ← kernel.expr.dup e351
+  let rs0 ←
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.env.RecRule)
+      ({
+         ctor := n3,
+         nfields := 0#u64,
+         ctor_params := 0#u64,
+         fire := kernel.env.RecRuleFire.Plain,
+         rhs := e28,
+         k := false,
+         eta := false,
+         params_blind := true
+       } : kernel.env.RecRule)
+  let rs01 ←
+    alloc.vec.Vec.push rs0
+      ({
+         ctor := n4,
+         nfields := 1#u64,
+         ctor_params := 0#u64,
+         fire := kernel.env.RecRuleFire.Plain,
+         rhs := e40,
+         k := false,
+         eta := false,
+         params_blind := true
+       } : kernel.env.RecRule)
+  let out0 ←
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.env.ConstantInfo)
+      (kernel.env.ConstantInfo.IndInfo
+      {
+        «name» := n2,
+        level_params := (alloc.vec.Vec.new kernel.name.Name),
+        ty := e
+      }
+      {
+        eta := false,
+        eta_ctor := n,
+        eta_params := 0#u64,
+        eta_fields := 0#u64,
+        unitlike := false,
+        unit_params := 0#u64,
+        rule_k := false,
+        sort_z := w0
+      })
+  let out01 ←
+    alloc.vec.Vec.push out0 (kernel.env.ConstantInfo.CtorInfo
+      {
+        «name» := n3,
+        level_params := (alloc.vec.Vec.new kernel.name.Name),
+        ty := e2
+      } 0#u64 0#u64)
+  let out02 ←
+    alloc.vec.Vec.push out01 (kernel.env.ConstantInfo.CtorInfo
+      {
+        «name» := n4,
+        level_params := (alloc.vec.Vec.new kernel.name.Name),
+        ty := e3
+      } 0#u64 1#u64)
+  alloc.vec.Vec.push out02 (kernel.env.ConstantInfo.RecInfo
+    { «name» := n7, level_params := ns4, ty := e25 } 3#u64 3#u64 rs01)
+
+/-- [con_ron_core::kernel::basis_tables::basis_decls_punit]:
+    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 321:0-410:1
+    Visibility: public -/
+def kernel.basis_tables.basis_decls_punit
+  : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
+  let n0 ← kernel.name.anonymous
+  let s0 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 80#u32
+  let s01 ← alloc.vec.Vec.push s0 85#u32
+  let s02 ← alloc.vec.Vec.push s01 110#u32
+  let s03 ← alloc.vec.Vec.push s02 105#u32
+  let s04 ← alloc.vec.Vec.push s03 116#u32
+  let n ← kernel.name.dup n0
+  let n1 ← kernel.name.mk_str n s04
+  let s1 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 117#u32
+  let n2 ← kernel.name.mk_str n s1
+  let n3 ← kernel.name.dup n2
+  let ns0 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n3
+  let u0 ← kernel.level.param n3
+  let l ← kernel.level.dup u0
+  let e0 ← kernel.expr.sort l
+  let n4 ← kernel.name.dup n1
+  let e ← kernel.expr.dup e0
+  let s2 ← alloc.vec.Vec.push s1 110#u32
+  let s21 ← alloc.vec.Vec.push s2 105#u32
+  let s22 ← alloc.vec.Vec.push s21 116#u32
+  let n31 ← kernel.name.mk_str n4 s22
+  let ns1 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n3
+  let w0 ← kernel.prop_when.if_all_zero ns1
+  let n5 ← kernel.name.dup n31
+  let ns2 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n3
+  let us0 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
+  let e1 ← kernel.expr.mk_const n4 us0
+  let e2 ← kernel.expr.dup e1
+  let s3 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 114#u32
+  let s31 ← alloc.vec.Vec.push s3 101#u32
+  let s32 ← alloc.vec.Vec.push s31 99#u32
+  let n41 ← kernel.name.mk_str n4 s32
+  let s4 ← alloc.vec.Vec.push s1 95#u32
+  let s41 ← alloc.vec.Vec.push s4 49#u32
+  let n51 ← kernel.name.mk_str n s41
+  let n6 ← kernel.name.dup n51
+  let ns3 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let ns31 ← alloc.vec.Vec.push ns3 n3
+  let e21 ← kernel.expr.mk_bvar 0#u64
+  let e3 ← kernel.expr.mk_bvar 2#u64
+  let e4 ← kernel.expr.dup e3
+  let e5 ← kernel.expr.dup e21
+  let e41 ← kernel.expr.app e4 e5
+  let ns4 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w1 ← kernel.prop_when.if_all_zero ns4
+  let e6 ← kernel.expr.dup e41
+  let e51 ← kernel.expr.forall_e e2 e6 { pw := w1 }
+  let us1 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
+  let e61 ← kernel.expr.mk_const n5 us1
+  let e7 ← kernel.expr.dup e61
+  let e71 ← kernel.expr.app e5 e7
+  let ns5 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w2 ← kernel.prop_when.if_all_zero ns5
+  let e8 ← kernel.expr.dup e71
+  let e9 ← kernel.expr.dup e51
+  let e81 ← kernel.expr.forall_e e8 e9 { pw := w2 }
+  let u1 ← kernel.level.param n6
+  let l1 ← kernel.level.dup u1
+  let e91 ← kernel.expr.sort l1
+  let w3 ← kernel.prop_when.never
+  let e10 ← kernel.expr.dup e91
+  let e101 ← kernel.expr.forall_e e2 e10 { pw := w3 }
+  let ns6 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w4 ← kernel.prop_when.if_all_zero ns6
+  let e11 ← kernel.expr.dup e101
+  let e12 ← kernel.expr.dup e81
+  let e111 ← kernel.expr.forall_e e11 e12 { pw := w4 }
+  let n7 ← kernel.name.dup n41
+  let e13 ← kernel.expr.dup e111
+  let ns7 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w5 ← kernel.prop_when.if_all_zero ns7
+  let e121 ← kernel.expr.lam e8 e5 { pw := w5 }
+  let ns8 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w6 ← kernel.prop_when.if_all_zero ns8
+  let e14 ← kernel.expr.dup e121
+  let e131 ← kernel.expr.lam e11 e14 { pw := w6 }
+  let e15 ← kernel.expr.dup e131
+  let rs0 ←
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.env.RecRule)
+      ({
+         ctor := n5,
+         nfields := 0#u64,
+         ctor_params := 0#u64,
+         fire := kernel.env.RecRuleFire.Plain,
+         rhs := e15,
+         k := false,
+         eta := true,
+         params_blind := true
+       } : kernel.env.RecRule)
+  let out0 ←
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.env.ConstantInfo)
+      (kernel.env.ConstantInfo.IndInfo
+      { «name» := n4, level_params := ns0, ty := e }
+      {
+        eta := true,
+        eta_ctor := n5,
+        eta_params := 0#u64,
+        eta_fields := 0#u64,
+        unitlike := true,
+        unit_params := 0#u64,
+        rule_k := false,
+        sort_z := w0
+      })
+  let out01 ←
+    alloc.vec.Vec.push out0 (kernel.env.ConstantInfo.CtorInfo
+      { «name» := n5, level_params := ns2, ty := e2 } 0#u64 0#u64)
+  alloc.vec.Vec.push out01 (kernel.env.ConstantInfo.RecInfo
+    { «name» := n7, level_params := ns31, ty := e13 } 2#u64 2#u64 rs0)
+
+/-- [con_ron_core::kernel::basis_tables::basis_decls_empty]:
+    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 413:0-465:1
+    Visibility: public -/
+def kernel.basis_tables.basis_decls_empty
+  : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
+  let n0 ← kernel.name.anonymous
+  let s0 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 69#u32
+  let s01 ← alloc.vec.Vec.push s0 109#u32
+  let s02 ← alloc.vec.Vec.push s01 112#u32
+  let s03 ← alloc.vec.Vec.push s02 116#u32
+  let s04 ← alloc.vec.Vec.push s03 121#u32
+  let n ← kernel.name.dup n0
+  let n1 ← kernel.name.mk_str n s04
+  let u0 ← kernel.level.zero
+  let l ← kernel.level.dup u0
+  let u1 ← kernel.level.succ l
+  let l1 ← kernel.level.dup u1
+  let e0 ← kernel.expr.sort l1
+  let n2 ← kernel.name.dup n1
+  let e ← kernel.expr.dup e0
+  let w0 ← kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
+  let s1 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 114#u32
+  let s11 ← alloc.vec.Vec.push s1 101#u32
+  let s12 ← alloc.vec.Vec.push s11 99#u32
+  let n21 ← kernel.name.mk_str n2 s12
+  let s2 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 117#u32
+  let n3 ← kernel.name.mk_str n s2
+  let n4 ← kernel.name.dup n3
+  let ns2 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n4
+  let e1 ← kernel.expr.mk_bvar 0#u64
+  let e2 ← kernel.expr.mk_bvar 1#u64
+  let e3 ← kernel.expr.dup e2
+  let e4 ← kernel.expr.dup e1
+  let e31 ← kernel.expr.app e3 e4
+  let e41 ← kernel.expr.mk_const n2 (alloc.vec.Vec.new kernel.level.Level)
+  let ns3 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n4
+  let w1 ← kernel.prop_when.if_all_zero ns3
+  let e5 ← kernel.expr.dup e41
+  let e6 ← kernel.expr.dup e31
+  let e51 ← kernel.expr.forall_e e5 e6 { pw := w1 }
+  let u2 ← kernel.level.param n4
+  let l2 ← kernel.level.dup u2
+  let e61 ← kernel.expr.sort l2
+  let w2 ← kernel.prop_when.never
+  let e7 ← kernel.expr.dup e61
+  let e71 ← kernel.expr.forall_e e5 e7 { pw := w2 }
+  let ns4 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n4
+  let w3 ← kernel.prop_when.if_all_zero ns4
+  let e8 ← kernel.expr.dup e71
+  let e9 ← kernel.expr.dup e51
+  let e81 ← kernel.expr.forall_e e8 e9 { pw := w3 }
+  let n5 ← kernel.name.dup n21
+  let e10 ← kernel.expr.dup e81
+  let out0 ←
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.env.ConstantInfo)
+      (kernel.env.ConstantInfo.IndInfo
+      {
+        «name» := n2,
+        level_params := (alloc.vec.Vec.new kernel.name.Name),
+        ty := e
+      }
+      {
+        eta := false,
+        eta_ctor := n,
+        eta_params := 0#u64,
+        eta_fields := 0#u64,
+        unitlike := false,
+        unit_params := 0#u64,
+        rule_k := false,
+        sort_z := w0
+      })
+  alloc.vec.Vec.push out0 (kernel.env.ConstantInfo.RecInfo
+    { «name» := n5, level_params := ns2, ty := e10 } 1#u64 1#u64
+    (alloc.vec.Vec.new kernel.env.RecRule))
+
+/-- [con_ron_core::kernel::basis_tables::basis_decls_false]:
+    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 468:0-519:1
+    Visibility: public -/
+def kernel.basis_tables.basis_decls_false
+  : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
+  let n0 ← kernel.name.anonymous
+  let s0 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 70#u32
+  let s01 ← alloc.vec.Vec.push s0 97#u32
+  let s02 ← alloc.vec.Vec.push s01 108#u32
+  let s03 ← alloc.vec.Vec.push s02 115#u32
+  let s04 ← alloc.vec.Vec.push s03 101#u32
+  let n ← kernel.name.dup n0
+  let n1 ← kernel.name.mk_str n s04
+  let u0 ← kernel.level.zero
+  let l ← kernel.level.dup u0
+  let e0 ← kernel.expr.sort l
+  let n2 ← kernel.name.dup n1
+  let e ← kernel.expr.dup e0
+  let w0 ← kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
+  let s1 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 114#u32
+  let s11 ← alloc.vec.Vec.push s1 101#u32
+  let s12 ← alloc.vec.Vec.push s11 99#u32
+  let n21 ← kernel.name.mk_str n2 s12
+  let s2 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 117#u32
+  let n3 ← kernel.name.mk_str n s2
+  let n4 ← kernel.name.dup n3
+  let ns2 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n4
+  let e1 ← kernel.expr.mk_bvar 0#u64
+  let e2 ← kernel.expr.mk_bvar 1#u64
+  let e3 ← kernel.expr.dup e2
+  let e4 ← kernel.expr.dup e1
+  let e31 ← kernel.expr.app e3 e4
+  let e41 ← kernel.expr.mk_const n2 (alloc.vec.Vec.new kernel.level.Level)
+  let ns3 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n4
+  let w1 ← kernel.prop_when.if_all_zero ns3
+  let e5 ← kernel.expr.dup e41
+  let e6 ← kernel.expr.dup e31
+  let e51 ← kernel.expr.forall_e e5 e6 { pw := w1 }
+  let u1 ← kernel.level.param n4
+  let l1 ← kernel.level.dup u1
+  let e61 ← kernel.expr.sort l1
+  let w2 ← kernel.prop_when.never
+  let e7 ← kernel.expr.dup e61
+  let e71 ← kernel.expr.forall_e e5 e7 { pw := w2 }
+  let ns4 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n4
+  let w3 ← kernel.prop_when.if_all_zero ns4
+  let e8 ← kernel.expr.dup e71
+  let e9 ← kernel.expr.dup e51
+  let e81 ← kernel.expr.forall_e e8 e9 { pw := w3 }
+  let n5 ← kernel.name.dup n21
+  let e10 ← kernel.expr.dup e81
+  let out0 ←
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.env.ConstantInfo)
+      (kernel.env.ConstantInfo.IndInfo
+      {
+        «name» := n2,
+        level_params := (alloc.vec.Vec.new kernel.name.Name),
+        ty := e
+      }
+      {
+        eta := false,
+        eta_ctor := n,
+        eta_params := 0#u64,
+        eta_fields := 0#u64,
+        unitlike := false,
+        unit_params := 0#u64,
+        rule_k := false,
+        sort_z := w0
+      })
+  alloc.vec.Vec.push out0 (kernel.env.ConstantInfo.RecInfo
+    { «name» := n5, level_params := ns2, ty := e10 } 1#u64 1#u64
+    (alloc.vec.Vec.new kernel.env.RecRule))
+
+/-- [con_ron_core::kernel::basis_tables::basis_decls_quot]:
+    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 522:0-783:1
+    Visibility: public -/
+def kernel.basis_tables.basis_decls_quot
+  : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
+  let n0 ← kernel.name.anonymous
+  let s0 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 81#u32
+  let s01 ← alloc.vec.Vec.push s0 117#u32
+  let s02 ← alloc.vec.Vec.push s01 111#u32
+  let s03 ← alloc.vec.Vec.push s02 116#u32
+  let n ← kernel.name.dup n0
+  let n1 ← kernel.name.mk_str n s03
+  let s1 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 117#u32
+  let n2 ← kernel.name.mk_str n s1
+  let n3 ← kernel.name.dup n2
+  let ns0 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n3
+  let u0 ← kernel.level.param n3
+  let l ← kernel.level.dup u0
+  let e0 ← kernel.expr.sort l
+  let u1 ← kernel.level.zero
+  let l1 ← kernel.level.dup u1
+  let e1 ← kernel.expr.sort l1
+  let e2 ← kernel.expr.mk_bvar 1#u64
+  let w0 ← kernel.prop_when.never
+  let e ← kernel.expr.dup e2
+  let e3 ← kernel.expr.dup e1
+  let e31 ← kernel.expr.forall_e e e3 { pw := w0 }
+  let e4 ← kernel.expr.mk_bvar 0#u64
+  let e5 ← kernel.expr.dup e4
+  let e6 ← kernel.expr.dup e31
+  let e51 ← kernel.expr.forall_e e5 e6 { pw := w0 }
+  let e7 ← kernel.expr.dup e51
+  let e8 ← kernel.expr.dup e0
+  let e61 ← kernel.expr.forall_e e7 e8 { pw := w0 }
+  let e9 ← kernel.expr.dup e61
+  let e71 ← kernel.expr.forall_e e8 e9 { pw := w0 }
+  let n4 ← kernel.name.dup n1
+  let e10 ← kernel.expr.dup e71
+  let w4 ← kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
+  let s2 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 109#u32
+  let s21 ← alloc.vec.Vec.push s2 107#u32
+  let n31 ← kernel.name.mk_str n4 s21
+  let ns2 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n3
+  let e81 ← kernel.expr.mk_bvar 2#u64
+  let us0 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
+  let e91 ← kernel.expr.mk_const n4 us0
+  let e11 ← kernel.expr.dup e91
+  let e12 ← kernel.expr.dup e81
+  let e101 ← kernel.expr.app e11 e12
+  let e13 ← kernel.expr.dup e101
+  let e111 ← kernel.expr.app e13 e
+  let ns3 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n3
+  let w5 ← kernel.prop_when.if_all_zero ns3
+  let e14 ← kernel.expr.dup e111
+  let e121 ← kernel.expr.forall_e e e14 { pw := w5 }
+  let ns4 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n3
+  let w6 ← kernel.prop_when.if_all_zero ns4
+  let e15 ← kernel.expr.dup e121
+  let e131 ← kernel.expr.forall_e e7 e15 { pw := w6 }
+  let ns5 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n3
+  let w7 ← kernel.prop_when.if_all_zero ns5
+  let e16 ← kernel.expr.dup e131
+  let e141 ← kernel.expr.forall_e e8 e16 { pw := w7 }
+  let n5 ← kernel.name.dup n31
+  let e17 ← kernel.expr.dup e141
+  let s3 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 108#u32
+  let s31 ← alloc.vec.Vec.push s3 105#u32
+  let s32 ← alloc.vec.Vec.push s31 102#u32
+  let s33 ← alloc.vec.Vec.push s32 116#u32
+  let n41 ← kernel.name.mk_str n4 s33
+  let s4 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 118#u32
+  let n51 ← kernel.name.mk_str n s4
+  let ns6 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n3
+  let n6 ← kernel.name.dup n51
+  let ns61 ← alloc.vec.Vec.push ns6 n6
+  let e151 ← kernel.expr.mk_bvar 3#u64
+  let e161 ← kernel.expr.mk_bvar 4#u64
+  let e18 ← kernel.expr.dup e161
+  let e171 ← kernel.expr.app e11 e18
+  let e19 ← kernel.expr.dup e171
+  let e20 ← kernel.expr.dup e151
+  let e181 ← kernel.expr.app e19 e20
+  let ns7 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w8 ← kernel.prop_when.if_all_zero ns7
+  let e21 ← kernel.expr.dup e181
+  let e191 ← kernel.expr.forall_e e21 e20 { pw := w8 }
+  let e201 ← kernel.expr.app e20 e
+  let e211 ← kernel.expr.app e20 e12
+  let s5 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 69#u32
+  let s51 ← alloc.vec.Vec.push s5 113#u32
+  let n61 ← kernel.name.mk_str n s51
+  let u2 ← kernel.level.param n6
+  let l2 ← kernel.level.dup u2
+  let us1 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l2
+  let n7 ← kernel.name.dup n61
+  let e22 ← kernel.expr.mk_const n7 us1
+  let e23 ← kernel.expr.dup e22
+  let e231 ← kernel.expr.app e23 e18
+  let e24 ← kernel.expr.dup e231
+  let e25 ← kernel.expr.dup e211
+  let e241 ← kernel.expr.app e24 e25
+  let e26 ← kernel.expr.dup e241
+  let e27 ← kernel.expr.dup e201
+  let e251 ← kernel.expr.app e26 e27
+  let e261 ← kernel.expr.app e18 e
+  let e28 ← kernel.expr.dup e261
+  let e271 ← kernel.expr.app e28 e5
+  let e29 ← kernel.expr.dup e271
+  let e30 ← kernel.expr.dup e251
+  let e281 ← kernel.expr.forall_e e29 e30 { pw := w4 }
+  let e32 ← kernel.expr.dup e281
+  let e291 ← kernel.expr.forall_e e18 e32 { pw := w4 }
+  let e33 ← kernel.expr.dup e291
+  let e301 ← kernel.expr.forall_e e20 e33 { pw := w4 }
+  let ns11 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w12 ← kernel.prop_when.if_all_zero ns11
+  let e34 ← kernel.expr.dup e301
+  let e35 ← kernel.expr.dup e191
+  let e311 ← kernel.expr.forall_e e34 e35 { pw := w12 }
+  let ns12 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w13 ← kernel.prop_when.if_all_zero ns12
+  let e321 ← kernel.expr.forall_e e12 e { pw := w13 }
+  let ns13 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w14 ← kernel.prop_when.if_all_zero ns13
+  let e36 ← kernel.expr.dup e321
+  let e37 ← kernel.expr.dup e311
+  let e331 ← kernel.expr.forall_e e36 e37 { pw := w14 }
+  let e341 ← kernel.expr.sort l2
+  let ns14 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w15 ← kernel.prop_when.if_all_zero ns14
+  let e38 ← kernel.expr.dup e341
+  let e39 ← kernel.expr.dup e331
+  let e351 ← kernel.expr.forall_e e38 e39 { pw := w15 }
+  let ns15 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w16 ← kernel.prop_when.if_all_zero ns15
+  let e40 ← kernel.expr.dup e351
+  let e361 ← kernel.expr.forall_e e7 e40 { pw := w16 }
+  let ns16 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w17 ← kernel.prop_when.if_all_zero ns16
+  let e41 ← kernel.expr.dup e361
+  let e371 ← kernel.expr.forall_e e8 e41 { pw := w17 }
+  let n8 ← kernel.name.dup n41
+  let e42 ← kernel.expr.dup e371
+  let e381 ← kernel.expr.app e12 e5
+  let ns17 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w18 ← kernel.prop_when.if_all_zero ns17
+  let e43 ← kernel.expr.dup e381
+  let e391 ← kernel.expr.lam e18 e43 { pw := w18 }
+  let ns18 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w19 ← kernel.prop_when.if_all_zero ns18
+  let e44 ← kernel.expr.dup e391
+  let e401 ← kernel.expr.lam e34 e44 { pw := w19 }
+  let ns19 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w20 ← kernel.prop_when.if_all_zero ns19
+  let e45 ← kernel.expr.dup e401
+  let e411 ← kernel.expr.lam e36 e45 { pw := w20 }
+  let ns20 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w21 ← kernel.prop_when.if_all_zero ns20
+  let e46 ← kernel.expr.dup e411
+  let e421 ← kernel.expr.lam e38 e46 { pw := w21 }
+  let ns21 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w22 ← kernel.prop_when.if_all_zero ns21
+  let e47 ← kernel.expr.dup e421
+  let e431 ← kernel.expr.lam e7 e47 { pw := w22 }
+  let ns22 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+  let w23 ← kernel.prop_when.if_all_zero ns22
+  let e48 ← kernel.expr.dup e431
+  let e441 ← kernel.expr.lam e8 e48 { pw := w23 }
+  let e49 ← kernel.expr.dup e441
+  let rs0 ←
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.env.RecRule)
+      ({
+         ctor := n5,
+         nfields := 1#u64,
+         ctor_params := 2#u64,
+         fire := kernel.env.RecRuleFire.Plain,
+         rhs := e49,
+         k := false,
+         eta := false,
+         params_blind := true
+       } : kernel.env.RecRule)
+  let s6 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 105#u32
+  let s61 ← alloc.vec.Vec.push s6 110#u32
+  let s62 ← alloc.vec.Vec.push s61 100#u32
+  let n71 ← kernel.name.mk_str n4 s62
+  let ns23 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n3
+  let e451 ← kernel.expr.app e11 e20
+  let e50 ← kernel.expr.dup e451
+  let e461 ← kernel.expr.app e50 e12
+  let e52 ← kernel.expr.dup e461
+  let e471 ← kernel.expr.forall_e e52 e43 { pw := w4 }
+  let us2 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
+  let e481 ← kernel.expr.mk_const n5 us2
+  let e53 ← kernel.expr.dup e481
+  let e491 ← kernel.expr.app e53 e20
+  let e54 ← kernel.expr.dup e491
+  let e501 ← kernel.expr.app e54 e12
+  let e55 ← kernel.expr.dup e501
+  let e511 ← kernel.expr.app e55 e5
+  let e56 ← kernel.expr.dup e511
+  let e521 ← kernel.expr.app e e56
+  let e57 ← kernel.expr.dup e521
+  let e531 ← kernel.expr.forall_e e12 e57 { pw := w4 }
+  let e58 ← kernel.expr.dup e531
+  let e59 ← kernel.expr.dup e471
+  let e541 ← kernel.expr.forall_e e58 e59 { pw := w4 }
+  let e551 ← kernel.expr.app e11 e
+  let e60 ← kernel.expr.dup e551
+  let e561 ← kernel.expr.app e60 e5
+  let e62 ← kernel.expr.dup e561
+  let e571 ← kernel.expr.forall_e e62 e3 { pw := w0 }
+  let e63 ← kernel.expr.dup e571
+  let e64 ← kernel.expr.dup e541
+  let e581 ← kernel.expr.forall_e e63 e64 { pw := w4 }
+  let e65 ← kernel.expr.dup e581
+  let e591 ← kernel.expr.forall_e e7 e65 { pw := w4 }
+  let e66 ← kernel.expr.dup e591
+  let e601 ← kernel.expr.forall_e e8 e66 { pw := w4 }
+  let n9 ← kernel.name.dup n71
+  let e67 ← kernel.expr.dup e601
+  let e611 ← kernel.expr.app e e5
+  let e68 ← kernel.expr.dup e611
+  let e621 ← kernel.expr.lam e20 e68 { pw := w4 }
+  let e69 ← kernel.expr.dup e621
+  let e631 ← kernel.expr.lam e58 e69 { pw := w4 }
+  let e70 ← kernel.expr.dup e631
+  let e641 ← kernel.expr.lam e63 e70 { pw := w4 }
+  let e72 ← kernel.expr.dup e641
+  let e651 ← kernel.expr.lam e7 e72 { pw := w4 }
+  let e73 ← kernel.expr.dup e651
+  let e661 ← kernel.expr.lam e8 e73 { pw := w4 }
+  let e74 ← kernel.expr.dup e661
+  let rs1 ←
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.env.RecRule)
+      ({
+         ctor := n5,
+         nfields := 1#u64,
+         ctor_params := 2#u64,
+         fire := kernel.env.RecRuleFire.Plain,
+         rhs := e74,
+         k := false,
+         eta := false,
+         params_blind := true
+       } : kernel.env.RecRule)
+  let s7 ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 115#u32
+  let s71 ← alloc.vec.Vec.push s7 111#u32
+  let s72 ← alloc.vec.Vec.push s71 117#u32
+  let s73 ← alloc.vec.Vec.push s72 110#u32
+  let s74 ← alloc.vec.Vec.push s73 100#u32
+  let n81 ← kernel.name.mk_str n4 s74
+  let ns35 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n3
+  let e671 ← kernel.expr.app e53 e18
+  let e75 ← kernel.expr.dup e671
+  let e681 ← kernel.expr.app e75 e20
+  let e76 ← kernel.expr.dup e681
+  let e691 ← kernel.expr.app e76 e
+  let e701 ← kernel.expr.app e76 e12
+  let us3 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
+  let e711 ← kernel.expr.mk_const n7 us3
+  let e77 ← kernel.expr.dup e711
+  let e721 ← kernel.expr.app e77 e21
+  let e78 ← kernel.expr.dup e721
+  let e79 ← kernel.expr.dup e701
+  let e731 ← kernel.expr.app e78 e79
+  let e80 ← kernel.expr.dup e731
+  let e82 ← kernel.expr.dup e691
+  let e741 ← kernel.expr.app e80 e82
+  let e751 ← kernel.expr.app e12 e
+  let e83 ← kernel.expr.dup e751
+  let e761 ← kernel.expr.app e83 e5
+  let e84 ← kernel.expr.dup e761
+  let e85 ← kernel.expr.dup e741
+  let e771 ← kernel.expr.forall_e e84 e85 { pw := w4 }
+  let e86 ← kernel.expr.dup e771
+  let e781 ← kernel.expr.forall_e e12 e86 { pw := w4 }
+  let e87 ← kernel.expr.dup e781
+  let e791 ← kernel.expr.forall_e e e87 { pw := w4 }
+  let e88 ← kernel.expr.dup e791
+  let e801 ← kernel.expr.forall_e e7 e88 { pw := w4 }
+  let e89 ← kernel.expr.dup e801
+  let e811 ← kernel.expr.forall_e e8 e89 { pw := w4 }
+  let n10 ← kernel.name.dup n81
+  let e90 ← kernel.expr.dup e811
+  let out0 ←
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.env.ConstantInfo)
+      (kernel.env.ConstantInfo.IndInfo
+      { «name» := n4, level_params := ns0, ty := e10 }
+      {
+        eta := false,
+        eta_ctor := n,
+        eta_params := 0#u64,
+        eta_fields := 0#u64,
+        unitlike := false,
+        unit_params := 0#u64,
+        rule_k := false,
+        sort_z := w4
+      })
+  let out01 ←
+    alloc.vec.Vec.push out0 (kernel.env.ConstantInfo.CtorInfo
+      { «name» := n5, level_params := ns2, ty := e17 } 2#u64 1#u64)
+  let out02 ←
+    alloc.vec.Vec.push out01 (kernel.env.ConstantInfo.RecInfo
+      { «name» := n8, level_params := ns61, ty := e42 } 5#u64 5#u64 rs0)
+  let out03 ←
+    alloc.vec.Vec.push out02 (kernel.env.ConstantInfo.RecInfo
+      { «name» := n9, level_params := ns23, ty := e67 } 4#u64 4#u64 rs1)
+  alloc.vec.Vec.push out03 (kernel.env.ConstantInfo.AxiomInfo
+    { «name» := n10, level_params := ns35, ty := e90 })
+
+/-- [con_ron_core::kernel::basis_tables::basis_decls_a]:
+    Source: 'crates/con-ron-core/src/kernel/basis_tables.rs', lines 786:0-795:1
+    Visibility: public -/
+def kernel.basis_tables.basis_decls_a
+  (k : kernel.env.BasisKind) :
+  Result (alloc.vec.Vec kernel.env.ConstantInfo)
+  := do
+  match k with
+  | kernel.env.BasisKind.EqK => kernel.basis_tables.basis_decls_eq
+  | kernel.env.BasisKind.NatK => kernel.basis_tables.basis_decls_nat
+  | kernel.env.BasisKind.PunitK => kernel.basis_tables.basis_decls_punit
+  | kernel.env.BasisKind.EmptyK => kernel.basis_tables.basis_decls_empty
+  | kernel.env.BasisKind.FalseK => kernel.basis_tables.basis_decls_false
+  | kernel.env.BasisKind.QuotK => kernel.basis_tables.basis_decls_quot
+
 /-- [con_ron_core::kernel::core_types::code_points_from]:
     Source: 'crates/con-ron-core/src/kernel/core_types.rs', lines 98:0-106:1
     Visibility: public -/
@@ -2570,15 +4290,6 @@ def kernel.env.levels_copy
   := do
   kernel.env.levels_copy_from us 0#usize (alloc.vec.Vec.new kernel.level.Level)
 
-/-- [con_ron_core::kernel::expr::dup]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 263:0-265:1
-    Visibility: public -/
-def kernel.expr.dup (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let r ←
-    alloc.rc.Rc.Insts.CoreCloneClone.clone
-      alloc.alloc.Global.Insts.CoreAllocAllocatorClone e._0
-  ok (kernel.expr.Expr.mk r)
-
 /-- [con_ron_core::kernel::env::exprs_copy_from]:
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 156:0-164:1
     Visibility: public -/
@@ -2608,27 +4319,6 @@ def kernel.env.exprs_copy
   Result (alloc.vec.Vec kernel.expr.Expr)
   := do
   kernel.env.exprs_copy_from es 0#usize (alloc.vec.Vec.new kernel.expr.Expr)
-
-/-- [con_ron_core::kernel::prop_when::append_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 174:0-182:1
-    Visibility: public -/
-def kernel.prop_when.append_from
-  (xs : alloc.vec.Vec kernel.name.Name) (k : Std.Usize)
-  (out : alloc.vec.Vec kernel.name.Name) :
-  Result (alloc.vec.Vec kernel.name.Name)
-  := do
-  let i := alloc.vec.Vec.len xs
-  if k >= i
-  then ok out
-  else
-    let n ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.name.Name) xs k
-    let n1 ← kernel.name.dup n
-    let out1 ← alloc.vec.Vec.push out n1
-    let i1 ← k + 1#usize
-    kernel.prop_when.append_from xs i1 out1
-partial_fixpoint
 
 /-- [con_ron_core::kernel::prop_when::names_copy]:
     Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 186:0-188:1
@@ -2760,316 +4450,6 @@ def kernel.env.basis_kind_dup
   | kernel.env.BasisKind.FalseK => ok kernel.env.BasisKind.FalseK
   | kernel.env.BasisKind.QuotK => ok kernel.env.BasisKind.QuotK
 
-/-- [con_ron_core::kernel::prop_when::of_repr]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 284:0-286:1 -/
-def kernel.prop_when.of_repr
-  (r : kernel.prop_when.PropWhenRepr) : Result kernel.prop_when.PropWhen := do
-  ok { repr := r }
-
-/-- [con_ron_core::kernel::prop_when::nat_compare]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 119:0-127:1
-    Visibility: public -/
-def kernel.prop_when.nat_compare
-  (m : Std.U64) (n : Std.U64) : Result kernel.prop_when.Ordering := do
-  if m < n
-  then ok kernel.prop_when.Ordering.Lt
-  else
-    if m > n
-    then ok kernel.prop_when.Ordering.Gt
-    else ok kernel.prop_when.Ordering.Eq
-
-/-- [con_ron_core::kernel::prop_when::str_compare_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 100:0-114:1
-    Visibility: public -/
-def kernel.prop_when.str_compare_from
-  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) (i : Std.Usize) :
-  Result kernel.prop_when.Ordering
-  := do
-  let i1 := alloc.vec.Vec.len a
-  if i >= i1
-  then
-    let i2 := alloc.vec.Vec.len b
-    if i >= i2
-    then ok kernel.prop_when.Ordering.Eq
-    else
-      let i3 := alloc.vec.Vec.len a
-      if i >= i3
-      then ok kernel.prop_when.Ordering.Lt
-      else
-        let i4 := alloc.vec.Vec.len b
-        if i >= i4
-        then ok kernel.prop_when.Ordering.Gt
-        else
-          let i5 ←
-            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32)
-              a i
-          let i6 ←
-            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32)
-              b i
-          if i5 < i6
-          then ok kernel.prop_when.Ordering.Lt
-          else
-            if i5 > i6
-            then ok kernel.prop_when.Ordering.Gt
-            else
-              let i7 ← i + 1#usize
-              kernel.prop_when.str_compare_from a b i7
-  else
-    let i2 := alloc.vec.Vec.len a
-    if i >= i2
-    then ok kernel.prop_when.Ordering.Lt
-    else
-      let i3 := alloc.vec.Vec.len b
-      if i >= i3
-      then ok kernel.prop_when.Ordering.Gt
-      else
-        let i4 ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) a
-            i
-        let i5 ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) b
-            i
-        if i4 < i5
-        then ok kernel.prop_when.Ordering.Lt
-        else
-          if i4 > i5
-          then ok kernel.prop_when.Ordering.Gt
-          else let i6 ← i + 1#usize
-               kernel.prop_when.str_compare_from a b i6
-partial_fixpoint
-
-/-- [con_ron_core::kernel::prop_when::str_compare]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 94:0-96:1
-    Visibility: public -/
-def kernel.prop_when.str_compare
-  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) :
-  Result kernel.prop_when.Ordering
-  := do
-  kernel.prop_when.str_compare_from a b 0#usize
-
-/-- [con_ron_core::kernel::prop_when::ord_then]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 82:0-87:1
-    Visibility: public -/
-def kernel.prop_when.ord_then
-  (a : kernel.prop_when.Ordering) (b : kernel.prop_when.Ordering) :
-  Result kernel.prop_when.Ordering
-  := do
-  match a with
-  | kernel.prop_when.Ordering.Lt => ok kernel.prop_when.Ordering.Lt
-  | kernel.prop_when.Ordering.Eq => ok b
-  | kernel.prop_when.Ordering.Gt => ok kernel.prop_when.Ordering.Gt
-
-/-- [con_ron_core::kernel::prop_when::name_cmp]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 133:0-149:1
-    Visibility: public -/
-def kernel.prop_when.name_cmp
-  (a : kernel.name.Name) (b : kernel.name.Name) :
-  Result kernel.prop_when.Ordering
-  := do
-  let nn ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
-  let nn1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
-  match nn.kind with
-  | kernel.name.NameKind.Anonymous =>
-    match nn1.kind with
-    | kernel.name.NameKind.Anonymous => ok kernel.prop_when.Ordering.Eq
-    | kernel.name.NameKind.Str _ _ => ok kernel.prop_when.Ordering.Lt
-    | kernel.name.NameKind.Num _ _ => ok kernel.prop_when.Ordering.Lt
-  | kernel.name.NameKind.Str p s =>
-    match nn1.kind with
-    | kernel.name.NameKind.Anonymous => ok kernel.prop_when.Ordering.Gt
-    | kernel.name.NameKind.Str q t =>
-      let o ← kernel.prop_when.name_cmp p q
-      let o1 ← kernel.prop_when.str_compare s t
-      kernel.prop_when.ord_then o o1
-    | kernel.name.NameKind.Num _ _ => ok kernel.prop_when.Ordering.Lt
-  | kernel.name.NameKind.Num p m =>
-    match nn1.kind with
-    | kernel.name.NameKind.Anonymous => ok kernel.prop_when.Ordering.Gt
-    | kernel.name.NameKind.Str _ _ => ok kernel.prop_when.Ordering.Gt
-    | kernel.name.NameKind.Num q n =>
-      let o ← kernel.prop_when.name_cmp p q
-      let o1 ← kernel.prop_when.nat_compare m n
-      kernel.prop_when.ord_then o o1
-partial_fixpoint
-
-/-- [con_ron_core::kernel::prop_when::two_prime]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 450:0-456:1 -/
-def kernel.prop_when.two_prime
-  (p : kernel.name.Name) (q : kernel.name.Name) :
-  Result kernel.prop_when.PropWhen
-  := do
-  let o ← kernel.prop_when.name_cmp p q
-  match o with
-  | kernel.prop_when.Ordering.Lt =>
-    let n ← kernel.name.dup p
-    let n1 ← kernel.name.dup q
-    kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Two n n1)
-  | kernel.prop_when.Ordering.Eq =>
-    let n ← kernel.name.dup p
-    kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.One n)
-  | kernel.prop_when.Ordering.Gt =>
-    let n ← kernel.name.dup q
-    let n1 ← kernel.name.dup p
-    kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Two n n1)
-
-/-- [con_ron_core::kernel::prop_when::of_sorted]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 434:0-444:1 -/
-def kernel.prop_when.of_sorted
-  (ps : alloc.vec.Vec kernel.name.Name) :
-  Result kernel.prop_when.PropWhen
-  := do
-  let i := alloc.vec.Vec.len ps
-  if i = 0#usize
-  then kernel.prop_when.of_repr kernel.prop_when.PropWhenRepr.Always
-  else
-    let i1 := alloc.vec.Vec.len ps
-    if i1 = 1#usize
-    then
-      let n ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-          kernel.name.Name) ps 0#usize
-      let n1 ← kernel.name.dup n
-      kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.One n1)
-    else
-      let i2 := alloc.vec.Vec.len ps
-      if i2 = 2#usize
-      then
-        let n ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-            kernel.name.Name) ps 0#usize
-        let n1 ← kernel.name.dup n
-        let n2 ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-            kernel.name.Name) ps 1#usize
-        let n3 ← kernel.name.dup n2
-        kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Two n1 n3)
-      else kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Many ps)
-
-/-- [con_ron_core::kernel::prop_when::merge_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 200:0-230:1
-    Visibility: public -/
-def kernel.prop_when.merge_from
-  (as_ : alloc.vec.Vec kernel.name.Name) (i : Std.Usize)
-  (bs : alloc.vec.Vec kernel.name.Name) (j : Std.Usize)
-  (out : alloc.vec.Vec kernel.name.Name) :
-  Result (alloc.vec.Vec kernel.name.Name)
-  := do
-  let i1 := alloc.vec.Vec.len as_
-  if i >= i1
-  then kernel.prop_when.append_from bs j out
-  else
-    let i2 := alloc.vec.Vec.len bs
-    if j >= i2
-    then kernel.prop_when.append_from as_ i out
-    else
-      let n ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-          kernel.name.Name) as_ i
-      let n1 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-          kernel.name.Name) bs j
-      let o ← kernel.prop_when.name_cmp n n1
-      match o with
-      | kernel.prop_when.Ordering.Lt =>
-        let n2 ← kernel.name.dup n
-        let out1 ← alloc.vec.Vec.push out n2
-        let i3 ← i + 1#usize
-        kernel.prop_when.merge_from as_ i3 bs j out1
-      | kernel.prop_when.Ordering.Eq =>
-        let n2 ← kernel.name.dup n
-        let out1 ← alloc.vec.Vec.push out n2
-        let i3 ← i + 1#usize
-        let i4 ← j + 1#usize
-        kernel.prop_when.merge_from as_ i3 bs i4 out1
-      | kernel.prop_when.Ordering.Gt =>
-        let n2 ← kernel.name.dup n1
-        let out1 ← alloc.vec.Vec.push out n2
-        let i3 ← j + 1#usize
-        kernel.prop_when.merge_from as_ i bs i3 out1
-partial_fixpoint
-
-/-- [con_ron_core::kernel::prop_when::merge]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 192:0-194:1
-    Visibility: public -/
-def kernel.prop_when.merge
-  (as_ : alloc.vec.Vec kernel.name.Name) (bs : alloc.vec.Vec kernel.name.Name)
-  :
-  Result (alloc.vec.Vec kernel.name.Name)
-  := do
-  kernel.prop_when.merge_from as_ 0#usize bs 0#usize (alloc.vec.Vec.new
-    kernel.name.Name)
-
-/-- [con_ron_core::kernel::prop_when::canon_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 241:0-248:1
-    Visibility: public -/
-def kernel.prop_when.canon_from
-  (ps : alloc.vec.Vec kernel.name.Name) (i : Std.Usize) :
-  Result (alloc.vec.Vec kernel.name.Name)
-  := do
-  let i1 := alloc.vec.Vec.len ps
-  if i >= i1
-  then ok (alloc.vec.Vec.new kernel.name.Name)
-  else
-    let i2 ← i + 1#usize
-    let rest ← kernel.prop_when.canon_from ps i2
-    let n ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.name.Name) ps i
-    let v ← kernel.name.singleton n
-    kernel.prop_when.merge v rest
-partial_fixpoint
-
-/-- [con_ron_core::kernel::prop_when::canon]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 234:0-236:1
-    Visibility: public -/
-def kernel.prop_when.canon
-  (ps : alloc.vec.Vec kernel.name.Name) :
-  Result (alloc.vec.Vec kernel.name.Name)
-  := do
-  kernel.prop_when.canon_from ps 0#usize
-
-/-- [con_ron_core::kernel::prop_when::if_all_zero]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 465:0-475:1
-    Visibility: public -/
-def kernel.prop_when.if_all_zero
-  (ps : alloc.vec.Vec kernel.name.Name) :
-  Result kernel.prop_when.PropWhen
-  := do
-  let i := alloc.vec.Vec.len ps
-  if i = 0#usize
-  then kernel.prop_when.of_repr kernel.prop_when.PropWhenRepr.Always
-  else
-    let i1 := alloc.vec.Vec.len ps
-    if i1 = 1#usize
-    then
-      let n ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-          kernel.name.Name) ps 0#usize
-      let n1 ← kernel.name.dup n
-      kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.One n1)
-    else
-      let i2 := alloc.vec.Vec.len ps
-      if i2 = 2#usize
-      then
-        let n ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-            kernel.name.Name) ps 0#usize
-        let n1 ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-            kernel.name.Name) ps 1#usize
-        kernel.prop_when.two_prime n n1
-      else let v ← kernel.prop_when.canon ps
-           kernel.prop_when.of_sorted v
-
-/-- [con_ron_core::kernel::name::anonymous]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 92:0-94:1
-    Visibility: public -/
-def kernel.name.anonymous : Result kernel.name.Name := do
-  let r ←
-    alloc.rc.Rc.new (kernel.name.NameNode.mk 1723#u64
-      kernel.name.NameKind.Anonymous)
-  ok (kernel.name.Name.mk r)
-
 /-- [con_ron_core::kernel::env::ind_caps_default]:
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 374:0-385:1
     Visibility: public -/
@@ -3140,54 +4520,6 @@ def kernel.env.proj_table_dup
         bodies := v1,
         guards := v2
     }
-
-/-- [con_ron_core::kernel::name::nat_hash]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 80:0-82:1
-    Visibility: public -/
-def kernel.name.nat_hash (n : Std.U64) : Result Std.U64 := do
-  ok n
-
-/-- [con_ron_core::kernel::expr::sat_succ]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 198:0-204:1
-    Visibility: public -/
-def kernel.expr.sat_succ (n : Std.U64) : Result Std.U64 := do
-  if n >= 32766#u64
-  then ok 32767#u64
-  else n + 1#u64
-
-/-- [con_ron_core::kernel::expr::hash32]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 189:0-191:1
-    Visibility: public -/
-def kernel.expr.hash32 (w : Std.U64) : Result Std.U64 := do
-  w % 4294967296#u64
-
-/-- [con_ron_core::kernel::expr::pack_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 155:0-161:1
-    Visibility: public -/
-def kernel.expr.pack_data
-  (h : Std.U64) (b : Std.U64) (f : Std.U64) (lp : Bool) : Result Std.U64 := do
-  let t ← if lp
-            then ok 1#u64
-            else ok 0#u64
-  let hs ← lift (core.num.U64.wrapping_mul h 4294967296#u64)
-  let bs ← lift (core.num.U64.wrapping_mul b 65536#u64)
-  let fs ← lift (core.num.U64.wrapping_mul f 2#u64)
-  let i ← lift (core.num.U64.wrapping_add hs bs)
-  let i1 ← lift (core.num.U64.wrapping_add i fs)
-  ok (core.num.U64.wrapping_add i1 t)
-
-/-- [con_ron_core::kernel::expr::bvar]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 270:0-274:1
-    Visibility: public -/
-def kernel.expr.bvar (i : Std.U64) : Result kernel.expr.Expr := do
-  let i1 ← kernel.name.nat_hash i
-  let i2 ← kernel.name.mix_hash 3#u64 i1
-  let h ← kernel.expr.hash32 i2
-  let i3 ← kernel.expr.sat_succ i
-  let d ← kernel.expr.pack_data h i3 0#u64 false
-  let r ←
-    alloc.rc.Rc.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Bvar i))
-  ok (kernel.expr.Expr.mk r)
 
 /-- [con_ron_core::kernel::env::default_expr]:
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 455:0-457:1
@@ -3454,47 +4786,6 @@ def kernel.name.mk_num
       n))
   ok (kernel.name.Name.mk r)
 
-/-- [con_ron_core::kernel::name::str_hash_from]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 69:0-75:1
-    Visibility: public -/
-def kernel.name.str_hash_from
-  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) (acc : Std.U64) :
-  Result Std.U64
-  := do
-  let i1 := alloc.vec.Vec.len s
-  if i >= i1
-  then ok acc
-  else
-    let i2 ← i + 1#usize
-    let i3 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
-    let i4 ← lift (UScalar.cast .U64 i3)
-    let i5 ← kernel.name.mix_hash acc i4
-    kernel.name.str_hash_from s i2 i5
-partial_fixpoint
-
-/-- [con_ron_core::kernel::name::str_hash]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 63:0-65:1
-    Visibility: public -/
-def kernel.name.str_hash (s : alloc.vec.Vec Std.U32) : Result Std.U64 := do
-  kernel.name.str_hash_from s 0#usize 11#u64
-
-/-- [con_ron_core::kernel::name::mk_str]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 100:0-103:1
-    Visibility: public -/
-def kernel.name.mk_str
-  (pre : kernel.name.Name) (s : alloc.vec.Vec Std.U32) :
-  Result kernel.name.Name
-  := do
-  let i ← kernel.name.hash_data pre
-  let i1 ← kernel.name.mix_hash 1#u64 i
-  let i2 ← kernel.name.str_hash s
-  let h ← kernel.name.mix_hash i1 i2
-  let r ←
-    alloc.rc.Rc.new (kernel.name.NameNode.mk h (kernel.name.NameKind.Str pre
-      s))
-  ok (kernel.name.Name.mk r)
-
 /-- [con_ron_core::kernel::env::proj_fn_name]:
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 680:0-685:1
     Visibility: public -/
@@ -3516,46 +4807,6 @@ def kernel.env.proj_table_name
   let v ← kernel.core_types.code_points s
   let n1 ← kernel.name.mk_str n v
   kernel.name.mk_num n1 0#u64
-
-/-- [con_ron_core::kernel::level::level_hash]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 178:0-180:1
-    Visibility: public -/
-def kernel.level.level_hash (u : kernel.level.Level) : Result Std.U64 := do
-  kernel.level.hash_data u
-
-/-- [con_ron_core::kernel::level::level_has_param]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 150:0-158:1
-    Visibility: public -/
-def kernel.level.level_has_param (u : kernel.level.Level) : Result Bool := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
-  match ln.kind with
-  | kernel.level.LevelKind.Zero => ok false
-  | kernel.level.LevelKind.Succ v => kernel.level.level_has_param v
-  | kernel.level.LevelKind.Max a b =>
-    let b1 ← kernel.level.level_has_param a
-    if b1
-    then ok true
-    else kernel.level.level_has_param b
-  | kernel.level.LevelKind.Imax a b =>
-    let b1 ← kernel.level.level_has_param a
-    if b1
-    then ok true
-    else kernel.level.level_has_param b
-  | kernel.level.LevelKind.Param _ => ok true
-partial_fixpoint
-
-/-- [con_ron_core::kernel::expr::sort]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 293:0-297:1
-    Visibility: public -/
-def kernel.expr.sort (u : kernel.level.Level) : Result kernel.expr.Expr := do
-  let i ← kernel.level.level_hash u
-  let i1 ← kernel.name.mix_hash 7#u64 i
-  let h ← kernel.expr.hash32 i1
-  let b ← kernel.level.level_has_param u
-  let d ← kernel.expr.pack_data h 0#u64 0#u64 b
-  let r ←
-    alloc.rc.Rc.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Sort u))
-  ok (kernel.expr.Expr.mk r)
 
 /-- [con_ron_core::kernel::env::to_constant_val]:
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 710:0-724:1
@@ -3755,52 +5006,6 @@ def kernel.env.recs_form_suffix
   (block : alloc.vec.Vec kernel.env.ConstantInfo) : Result Bool := do
   kernel.env.recs_form_suffix_from block 0#usize
 
-/-- [con_ron_core::kernel::prop_when::names_hash_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 357:0-363:1
-    Visibility: public -/
-def kernel.prop_when.names_hash_from
-  (ps : alloc.vec.Vec kernel.name.Name) (i : Std.Usize) (acc : Std.U64) :
-  Result Std.U64
-  := do
-  let i1 := alloc.vec.Vec.len ps
-  if i >= i1
-  then ok acc
-  else
-    let i2 ← i + 1#usize
-    let n ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.name.Name) ps i
-    let i3 ← kernel.name.hash_data n
-    let i4 ← kernel.name.mix_hash acc i3
-    kernel.prop_when.names_hash_from ps i2 i4
-partial_fixpoint
-
-/-- [con_ron_core::kernel::prop_when::hash_repr]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 374:0-385:1 -/
-def kernel.prop_when.hash_repr
-  (r : kernel.prop_when.PropWhenRepr) : Result Std.U64 := do
-  match r with
-  | kernel.prop_when.PropWhenRepr.Never => ok 0#u64
-  | kernel.prop_when.PropWhenRepr.Always => ok 1#u64
-  | kernel.prop_when.PropWhenRepr.One p =>
-    let i ← kernel.name.hash_data p
-    kernel.name.mix_hash 2#u64 i
-  | kernel.prop_when.PropWhenRepr.Two p q =>
-    let i ← kernel.name.hash_data p
-    let i1 ← kernel.name.mix_hash 3#u64 i
-    let i2 ← kernel.name.hash_data q
-    kernel.name.mix_hash i1 i2
-  | kernel.prop_when.PropWhenRepr.Many ps =>
-    let i ← kernel.prop_when.names_hash_from ps 0#usize 7#u64
-    kernel.name.mix_hash 4#u64 i
-
-/-- [con_ron_core::kernel::prop_when::hash_pw]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 391:0-393:1
-    Visibility: public -/
-def kernel.prop_when.hash_pw
-  (pw : kernel.prop_when.PropWhen) : Result Std.U64 := do
-  kernel.prop_when.hash_repr pw.repr
-
 /-- [con_ron_core::kernel::expr::binder_meta_hash]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 59:0-61:1
     Visibility: public -/
@@ -3926,45 +5131,6 @@ def kernel.expr.literal_dup
 def kernel.expr.sat_range : Result Std.U64 := do
   ok 32767#u64
 
-/-- [con_ron_core::kernel::expr::max_u64]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 142:0-148:1
-    Visibility: public -/
-def kernel.expr.max_u64 (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
-  if a < b
-  then ok b
-  else ok a
-
-/-- [con_ron_core::kernel::expr::bvar_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 171:0-173:1
-    Visibility: public -/
-def kernel.expr.bvar_of_data (w : Std.U64) : Result Std.U64 := do
-  let i ← w / 65536#u64
-  i % 32768#u64
-
-/-- [con_ron_core::kernel::expr::fvar_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 177:0-179:1
-    Visibility: public -/
-def kernel.expr.fvar_of_data (w : Std.U64) : Result Std.U64 := do
-  let i ← w / 2#u64
-  i % 32768#u64
-
-/-- [con_ron_core::kernel::expr::lp_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 183:0-185:1
-    Visibility: public -/
-def kernel.expr.lp_of_data (w : Std.U64) : Result Bool := do
-  let i ← w % 2#u64
-  ok (i = 1#u64)
-
-/-- [con_ron_core::kernel::expr::sat_pred]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 210:0-218:1
-    Visibility: public -/
-def kernel.expr.sat_pred (x : Std.U64) : Result Std.U64 := do
-  if x = 32767#u64
-  then ok 32767#u64
-  else if x = 0#u64
-       then ok 0#u64
-       else x - 1#u64
-
 /-- [con_ron_core::kernel::expr::fvar]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 280:0-288:1
     Visibility: public -/
@@ -3982,197 +5148,6 @@ def kernel.expr.fvar
   let r ←
     alloc.rc.Rc.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Fvar idx
       ty))
-  ok (kernel.expr.Expr.mk r)
-
-/-- [con_ron_core::kernel::level::levels_hash_from]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 190:0-196:1
-    Visibility: public -/
-def kernel.level.levels_hash_from
-  (us : alloc.vec.Vec kernel.level.Level) (i : Std.Usize) :
-  Result Std.U64
-  := do
-  let i1 := alloc.vec.Vec.len us
-  if i >= i1
-  then ok 13#u64
-  else
-    let l ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.level.Level) us i
-    let i2 ← kernel.level.level_hash l
-    let i3 ← i + 1#usize
-    let i4 ← kernel.level.levels_hash_from us i3
-    kernel.name.mix_hash i2 i4
-partial_fixpoint
-
-/-- [con_ron_core::kernel::level::levels_hash]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 184:0-186:1
-    Visibility: public -/
-def kernel.level.levels_hash
-  (us : alloc.vec.Vec kernel.level.Level) : Result Std.U64 := do
-  kernel.level.levels_hash_from us 0#usize
-
-/-- [con_ron_core::kernel::level::levels_have_param_from]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 168:0-174:1
-    Visibility: public -/
-def kernel.level.levels_have_param_from
-  (us : alloc.vec.Vec kernel.level.Level) (i : Std.Usize) : Result Bool := do
-  let i1 := alloc.vec.Vec.len us
-  if i >= i1
-  then ok false
-  else
-    let l ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.level.Level) us i
-    let b ← kernel.level.level_has_param l
-    if b
-    then ok true
-    else let i2 ← i + 1#usize
-         kernel.level.levels_have_param_from us i2
-partial_fixpoint
-
-/-- [con_ron_core::kernel::level::levels_have_param]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 162:0-164:1
-    Visibility: public -/
-def kernel.level.levels_have_param
-  (us : alloc.vec.Vec kernel.level.Level) : Result Bool := do
-  kernel.level.levels_have_param_from us 0#usize
-
-/-- [con_ron_core::kernel::expr::mk_const]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 303:0-310:1
-    Visibility: public -/
-def kernel.expr.mk_const
-  (n : kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level) :
-  Result kernel.expr.Expr
-  := do
-  let i ← kernel.name.hash_data n
-  let i1 ← kernel.level.levels_hash us
-  let i2 ← kernel.name.mix_hash i i1
-  let i3 ← kernel.name.mix_hash 11#u64 i2
-  let h ← kernel.expr.hash32 i3
-  let b ← kernel.level.levels_have_param us
-  let d ← kernel.expr.pack_data h 0#u64 0#u64 b
-  let r ←
-    alloc.rc.Rc.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Const n
-      us))
-  ok (kernel.expr.Expr.mk r)
-
-/-- [con_ron_core::kernel::expr::app]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 315:0-329:1
-    Visibility: public -/
-def kernel.expr.app
-  (f : kernel.expr.Expr) (a : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let df ← kernel.expr.data f
-  let da ← kernel.expr.data a
-  let i ← kernel.expr.hash_of_data df
-  let i1 ← kernel.expr.hash_of_data da
-  let i2 ← kernel.name.mix_hash i i1
-  let i3 ← kernel.name.mix_hash 17#u64 i2
-  let h ← kernel.expr.hash32 i3
-  let i4 ← kernel.expr.bvar_of_data df
-  let i5 ← kernel.expr.bvar_of_data da
-  let i6 ← kernel.expr.max_u64 i4 i5
-  let i7 ← kernel.expr.fvar_of_data df
-  let i8 ← kernel.expr.fvar_of_data da
-  let i9 ← kernel.expr.max_u64 i7 i8
-  let b ← kernel.expr.lp_of_data df
-  let b1 ← if b
-             then ok true
-             else kernel.expr.lp_of_data da
-  let d ← kernel.expr.pack_data h i6 i9 b1
-  let r ←
-    alloc.rc.Rc.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.App f a))
-  ok (kernel.expr.Expr.mk r)
-
-/-- [con_ron_core::kernel::prop_when::has_params]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 566:0-572:1
-    Visibility: public -/
-def kernel.prop_when.has_params
-  (pw : kernel.prop_when.PropWhen) : Result Bool := do
-  match pw.repr with
-  | kernel.prop_when.PropWhenRepr.Never => ok false
-  | kernel.prop_when.PropWhenRepr.Always => ok false
-  | kernel.prop_when.PropWhenRepr.One _ => ok true
-  | kernel.prop_when.PropWhenRepr.Two _ _ => ok true
-  | kernel.prop_when.PropWhenRepr.Many _ => ok true
-
-/-- [con_ron_core::kernel::expr::lam]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 335:0-352:1
-    Visibility: public -/
-def kernel.expr.lam
-  (ty : kernel.expr.Expr) (body : kernel.expr.Expr)
-  (m : kernel.expr.BinderMeta) :
-  Result kernel.expr.Expr
-  := do
-  let dt ← kernel.expr.data ty
-  let db ← kernel.expr.data body
-  let i ← kernel.expr.hash_of_data dt
-  let i1 ← kernel.expr.hash_of_data db
-  let i2 ← kernel.prop_when.hash_pw m.pw
-  let i3 ← kernel.name.mix_hash i1 i2
-  let i4 ← kernel.name.mix_hash i i3
-  let i5 ← kernel.name.mix_hash 19#u64 i4
-  let h ← kernel.expr.hash32 i5
-  let i6 ← kernel.expr.bvar_of_data dt
-  let i7 ← kernel.expr.bvar_of_data db
-  let i8 ← kernel.expr.sat_pred i7
-  let i9 ← kernel.expr.max_u64 i6 i8
-  let i10 ← kernel.expr.fvar_of_data dt
-  let i11 ← kernel.expr.fvar_of_data db
-  let i12 ← kernel.expr.max_u64 i10 i11
-  let b ← kernel.expr.lp_of_data dt
-  let b1 ←
-    if b
-    then ok true
-    else
-      do
-      let b2 ← kernel.expr.lp_of_data db
-      if b2
-      then ok true
-      else kernel.prop_when.has_params m.pw
-  let d ← kernel.expr.pack_data h i9 i12 b1
-  let r ←
-    alloc.rc.Rc.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Lam ty
-      body m))
-  ok (kernel.expr.Expr.mk r)
-
-/-- [con_ron_core::kernel::expr::forall_e]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 356:0-373:1
-    Visibility: public -/
-def kernel.expr.forall_e
-  (ty : kernel.expr.Expr) (body : kernel.expr.Expr)
-  (m : kernel.expr.BinderMeta) :
-  Result kernel.expr.Expr
-  := do
-  let dt ← kernel.expr.data ty
-  let db ← kernel.expr.data body
-  let i ← kernel.expr.hash_of_data dt
-  let i1 ← kernel.expr.hash_of_data db
-  let i2 ← kernel.prop_when.hash_pw m.pw
-  let i3 ← kernel.name.mix_hash i1 i2
-  let i4 ← kernel.name.mix_hash i i3
-  let i5 ← kernel.name.mix_hash 23#u64 i4
-  let h ← kernel.expr.hash32 i5
-  let i6 ← kernel.expr.bvar_of_data dt
-  let i7 ← kernel.expr.bvar_of_data db
-  let i8 ← kernel.expr.sat_pred i7
-  let i9 ← kernel.expr.max_u64 i6 i8
-  let i10 ← kernel.expr.fvar_of_data dt
-  let i11 ← kernel.expr.fvar_of_data db
-  let i12 ← kernel.expr.max_u64 i10 i11
-  let b ← kernel.expr.lp_of_data dt
-  let b1 ←
-    if b
-    then ok true
-    else
-      do
-      let b2 ← kernel.expr.lp_of_data db
-      if b2
-      then ok true
-      else kernel.prop_when.has_params m.pw
-  let d ← kernel.expr.pack_data h i9 i12 b1
-  let r ←
-    alloc.rc.Rc.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.ForallE ty
-      body m))
   ok (kernel.expr.Expr.mk r)
 
 /-- [con_ron_core::kernel::expr::let_e]:
@@ -4299,12 +5274,6 @@ def kernel.expr.beq_recursive (e : kernel.expr.Expr) : Result Bool := do
     Visibility: public -/
 def kernel.expr.bvar_pool_size : Result Std.U64 := do
   ok 4096#u64
-
-/-- [con_ron_core::kernel::expr::mk_bvar]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 652:0-654:1
-    Visibility: public -/
-def kernel.expr.mk_bvar (i : Std.U64) : Result kernel.expr.Expr := do
-  kernel.expr.bvar i
 
 /-- [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::kernel::expr::Expr}::hash64]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 692:4-694:5
@@ -5814,12 +6783,6 @@ def kernel.expr_ops.lift_loose_bvars
     ron.hashmap.HashMap.new kernel.expr_ops.ExprNatKey kernel.expr.Expr
   let (e1, _) ← kernel.expr_ops.lift_loose_bvars_go amount memo e c
   ok e1
-
-/-- [con_ron_core::kernel::prop_when::never]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 423:0-425:1
-    Visibility: public -/
-def kernel.prop_when.never : Result kernel.prop_when.PropWhen := do
-  kernel.prop_when.of_repr kernel.prop_when.PropWhenRepr.Never
 
 /-- [con_ron_core::kernel::expr_ops::reset_meta_go]:
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 499:0-545:1

@@ -476,14 +476,6 @@ structure cached.state_c.CState where
   inst_c : ron.hashmap.HashMap (kernel.expr.Expr × (alloc.vec.Vec
     kernel.expr.Expr) × Std.U64) kernel.expr.Expr
 
-/-- [con_ron_core::kernel::env::CheckMode]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 52:0-55:1
-    Visibility: public -/
-@[discriminant isize]
-inductive kernel.env.CheckMode where
-| Verified : kernel.env.CheckMode
-| Trusted : kernel.env.CheckMode
-
 /-- [con_ron_core::kernel::prop_when::Ordering]
     Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 74:0-78:1
     Visibility: public -/
@@ -492,6 +484,14 @@ inductive kernel.prop_when.Ordering where
 | Lt : kernel.prop_when.Ordering
 | Eq : kernel.prop_when.Ordering
 | Gt : kernel.prop_when.Ordering
+
+/-- [con_ron_core::kernel::env::CheckMode]
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 52:0-55:1
+    Visibility: public -/
+@[discriminant isize]
+inductive kernel.env.CheckMode where
+| Verified : kernel.env.CheckMode
+| Trusted : kernel.env.CheckMode
 
 /-- [con_ron_core::kernel::env::ProjEntry]
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 436:0-447:1
