@@ -607,11 +607,18 @@ measured.
    `con-ron-check` binary (unverified crate) that reads a dump and prints
    con-leche's verdict line with its exit codes; `scripts/diff-fixtures.sh`
    compares every fixture's verdict (and error position) with con-leche's
-   expectation files.
+   expectation files (task #28).  ✔ — 290 of the 315 fixtures with a
+   declaration list at con-leche's exit code, no wrong verdict; the 25 left
+   are the empty `Nat`-op pin table (17, data owed by task #22/#29) and the
+   missing `beq` pair memo (8, item 8 below).  The expectation files pin the
+   exit code alone, so there is no error position to compare.
 8. Performance: a Mathlib export (`lean4export` at the project toolchain),
    con-leche and con-ron side by side — instructions (`perf stat`), wall
    time, peak RSS; then the `beq` pair memo and other opt-ins of §3.2 only
-   if measurement demands them.
+   if measurement demands them.  **Measurement now demands the `beq` pair
+   memo**: task #28's eight non-finishing tower fixtures are `O(tree)` in
+   `expr::beq_go` (§3.2's route is a fifth external hole with a trust
+   argument; hash-consing is the §3.1-licensed alternative).
 
 **P2 — extraction** (Opus; **done 2026-09-12**, task #12)
 1. `scripts/extract.sh`; `proof/` Lake project builds the generated Lean
@@ -5939,3 +5946,292 @@ two seam records (`PendingCheck`, `ValueGroup`) are already here.
   task #24 put it beside `instantiate_level_params` for import order and
   `level.rs`'s note says so.  Nothing is owed, but the `Level.lean` ledger
   entry reads `expr_ops`.
+### Task #28 — `Installed.lean`; the checker runs the fixture corpus (2026-09-12, Opus under Fable)
+
+P1.7, and with it the last implementation file of `ConLeche/Cached/`:
+`cached/installed.rs` (`ConLeche/Cached/Installed.lean`, 522 lines) — **the
+declaration fold `check_decls`** — plus the driver that runs it on a dump
+(`crates/con-ron-dump/src/bin/con-ron-check.rs`, an unverified binary) and the
+differential sweep that compares every fixture's verdict with con-leche's
+pinned expectation (`scripts/diff-fixtures.sh`).  The port now answers
+`accepted` / `rejected` / `declined` on real export streams, and **290 of the
+315 fixtures that have a declaration list give con-leche's exit code** — the
+other 25 in two classes, both already-recorded deviations, neither a wrong
+verdict (§5).
+
+#### 1. The fold, and the twelve declarations that are evidence
+
+`checkDecls` is two phases (con-leche task #253's install/check seam): phase A
+folds `annotDeclStep` — annotate-and-install for `defn`/`opaque`, install **by
+statement** for `thm` (its header alone is annotated; phase A never enters a
+theorem's body), the ordinary `checkDeclStepC` for everything else, including
+the pinned `Nat`-operation and `reduce*` branches whose checks are not
+separable from their installs — and records a `PendingCheck` per separable
+declaration; phase B checks each record against the prefix view
+`fe.restrictTo pc.vis` **from a fresh `CState`**.  All of that is ported: nine
+cited blocks, 24 functions.
+
+**Twelve of the file's 21 declarations are deliberately not ported**, and the
+module note says so item by item: `InstallRun`, `InstalledEnv`(`.env`),
+`GroupChecked`, `FullyChecked`(`.assemble`/`.env`), `checkRecord`,
+`CheckedRecord`, `RecordResult`, `checkRecordResult`, `collectChecks`, plus
+the ten theorems.  Every one of them is indexed by a `Prop` or returns one
+(`PLift (GroupChecked …)`), i.e. it is the *parallel driver's evidence
+plumbing*: `checkRecord` computes `checkPending` and throws the value away for
+a proof, `collectChecks` walks a table of such proofs.  Rust has no `Prop`; and
+the thing they decide — "the first failing record in fold order" — **is**
+`checkPendingList`, which is ported and is what `check_decls` runs.  A parallel
+phase B (P4) re-derives the plumbing in the Rust world against `check_pending`;
+the verdict it must agree with is this file's.  So `Cached/Installed.lean` reads
+**9/21** in the ledger and is complete.
+
+Five deviations, all in the module note: the accumulator is a flat 3-tuple with
+`u64` positions; **the index is threaded by value** — a copy is not an option,
+because `fenv::dup` rebuilds the whole index and a copy per record would make
+phase B quadratic where con-leche's `restrictTo` is an `O(1)` field update, so
+`check_pending` takes the index at the installed bound, restricts it, and hands
+it back there (`checker::check_div_mod_pin`'s shape); the two folds are index
+recursions (§3.4); `check_decls` takes the pin list (§2); the message strings
+are `parsed_c`'s.
+
+#### 2. `check_decls` takes the pins, and the threading is still owed
+
+Per §3.6's task-#22 ruling the signature is final:
+
+```rust
+pub fn check_decls(mode: &CheckMode, pins: &Vec<NatOpPinSet>, ds: &Vec<DeclC>)
+    -> Result<Env, (CheckError, u64)>
+```
+
+(`&Vec` and not `&[_]`: the crate's convention, 627 sites to 7.)  The parameter
+is **not yet threaded** to `checker::check_div_mod_pin_loop`, which still reads
+`kernel::nat_op_pins`' empty stub.  The chain runs through ten functions in
+`parsed_c` and `kernel::checker`, but the decisive point is that there is
+**nothing to thread yet**: con-leche's variants live in
+`vendor/con-leche/pins/*.json` in the `con-leche-natop-pins/3` share-table
+format, 660 KB each, and neither a Rust reader for that nor a Lean dumper
+emitting them in a format the task-#19 reader understands exists (task #22's
+and task #29's work).  So the flag exists (`con-ron-check --pins FILE`), warns
+loudly, and runs the empty list; the API does not move when the data arrives.
+This costs 17 fixture verdicts (§5b).
+
+#### 3. `con-ron-check`: con-leche's verdict line, and the driver rule above the fold
+
+```text
+con-ron-check [--verified|--trusted] [--pins FILE] [--taint-skipped N]
+              [--stats] [--quiet] FILE.decls
+```
+
+`Main.lean:48-51`'s exit codes exactly (`notImplemented` 2, `invalid` 1,
+`internal` 3, accept 0) and `OVERVIEW.md` §0's verdict words; the accept line on
+stdout, everything else on stderr, each line naming the mode as con-leche's do,
+and a failure carrying the **fold position** `check_decls` returns beside the
+error (`Main.lean:786-788` prints it too; the expectation files do not record
+it, so nothing compares it).  The fold runs on a thread with a **1 GiB stack**,
+which is what con-leche reserves per checking worker.
+
+Two rules of con-leche's driver live in the binary and **must not** live in the
+core:
+
+* **The taint-skip decline** (`Main.lean:637-645,749-753`): a clean fold over a
+  stream whose frontend skipped declarations for a tolerated axiom is still a
+  decline — "uses of tolerated axioms are never accepted".
+  `res.taintSkipped.size` is frontend state and is not in the dump (task #10's
+  surprise 9), so it is the `--taint-skipped N` parameter, and
+  `diff-fixtures.sh` supplies it for the three fixtures that have skips.  It is
+  load-bearing: `tolerated_axiom_use` and `taint_skip_continue` *accept* the
+  fold and are pinned at 2, so without the rule they would be mismatches.
+  (`sorry_use`, the third, currently declines earlier inside the fold, for the
+  empty pin table.)
+* **`N` counts declaration records.**  con-leche subtracts its built-in prelude
+  and the generated inductive model records from `decls.size`; the dump has
+  already absorbed the prelude, so the two `N`s differ by it.  Nothing compares
+  them — the expectation files pin the exit code alone.
+
+`--stats` prints the 14 `CState` map sizes after phase A and the record count,
+by running the phase boundary explicitly; that path *is* `check_decls`' body, so
+the flag changes no verdict.
+
+#### 4. `scripts/diff-fixtures.sh`
+
+For every line of `vendor/con-leche/tests/{arena,e2e,annot}-expected.txt`
+("`<exit-code> <fixture>`", `#` comments — the exit code is the *whole*
+expectation; there is no declaration name and no fold position in them) it finds
+the dump task #10's sweep wrote
+(`_tmp/dump-fixtures/<suite>/<label with / as _>.decls`), runs `con-ron-check`,
+and compares the exit code.  `--trusted` applies `tests/trusted-expected.txt`'s
+overrides the way `tests/arena.sh` does; `--only=REGEX` narrows;
+`--timeout=SECS` bounds each run; `--stats` passes the flag through.  It runs
+`dump-fixtures.sh --no-check` itself if the dumps are missing, logs every run to
+`_tmp/diff-fixtures.log`, prints one line per mismatch with the verdict line
+that produced it, and exits non-zero on any mismatch or timeout.  Like
+`dump-check-fixtures.sh` it is **not** in `scripts/gates.sh`: it needs the Lean
+build and the arena tarball (task #19's reasoning).
+
+A fixture with no dump is **skipped with a note**: those are the 33 streams
+con-leche's own frontend declines or rejects before the fold (task #10), so there
+is no declaration list and nothing about the port is being tested.
+
+#### 5. The run, and the three divergence classes it found
+
+`scripts/diff-fixtures.sh --timeout=60`, `--verified`, all 348 fixtures:
+**290 agree, 17 differ, 8 do not finish, 33 skipped**, 485 s wall (480 s of it
+the eight that do not finish).  Every one of the 25 is one of two known
+deviations, and **no fixture gives a wrong verdict for any other reason**: no
+`good` stream is rejected, no `bad` stream accepted, every reject lands on
+con-leche's exit code.
+
+**(a) A port bug, found and fixed: the `.proj` clause typed nodes through
+`ProjEntry.typeAt`.**  `tests/e2e/proj_share.ndjson` — raw `.proj` nodes on a
+structure whose parameter is a 27-node DAG with a 2^27-node tree — did not
+finish in 300 s; con-leche accepts it in milliseconds.  `perf` put 15 % of the
+cycles in `expr_ops::instantiate_list`, the *spec* walk, under a storm of
+`expr::app` allocations, which named the site exactly: task #26 had flagged it
+as an **owed reconciliation** —
+
+> `core_k::proj_entry_type_at` carries this same citation and is what
+> `core_k::infer_proj_at` — the shared `.proj` clause of both inference bodies —
+> still calls.  Retargeting that one call site here is a two-line change, but it
+> would make `kernel::core_k` depend on `crate::cached` …
+
+The port's `instantiate_list_go` defers to the spec at a `.bvar` (faithfully:
+`ExprOps.lean` does), and the spec re-traverses the replacement, so every
+occurrence of the subject and of each parameter came back as a fresh *tree* copy
+of a DAG — con-leche's own "affine frontier" out-of-memory, and the reason its
+executed clause calls `typeAtI`.  The fix keeps `core_k` free of
+`crate::cached`: `cached::core_c` gets the two twins the cached lane needs,
+`infer_proj_at_i` and `proj_type_at_checked_i` (cited
+`CoreC.lean:1292-1389 inferBodyI` + `Core.lean:2039-2204 inferBody` +
+`ExprOpsC.lean:623-642 ProjEntry.typeAtI`), identical to `core_k`'s except that
+the type is `expr_ops_c::proj_entry_type_at_i`, and `infer_proj_i` calls them.
+That is what `inferBodyI` itself does, so the fix **removes** a memo-policy
+deviation rather than adding one.  `proj_share`: 300 s+ → **1 ms**, accepted.
+`core_k::infer_proj_at`/`proj_type_at_checked` stay as the pure lane's, which is
+what `checkDeclsPure` and the `model_exists` capstone need.
+
+**(b) The `Nat`-operation pin table is empty — 17 fixtures.**  All 17
+mismatches are the same line, `declined: unsupported Nat.div/mod spelling: no
+pin variant matched`, from `kernel::nat_op_pins`' stub (task #24's stub 1):
+`nat_div_declined`, `nat_divmod_ok`, `nat_gcd_ok`, `nat_land_ok`,
+`nat_land_cone`, `nat_lor_ok`, `nat_xor_ok`, `nat_shiftleft_ok`,
+`nat_shiftright_ok`, `nat_log2_ok`, `natop_order`, `natop_before_eq`,
+`natop_before_ble`, `let_rec_rhs`, `str_lit`, `str_proj`,
+`presieve_ofarrows_cone` — all pinned at 0, all declined at the record that
+defines `Nat.div`.  This is **data, not code**: §3.6 ruled the pin sets runtime
+data precisely because generating them as Rust overwhelms rustc and Charon, and
+the decline is the verdict con-leche itself gives a stream matching no variant,
+so it is sound for the accept direction (§1).  It closes when a pins dump and
+its reader exist (§2).
+
+**(c) `beq` has no pair memo — the eight tower fixtures are the measurement
+§3.2 asked for.**  `tower_thm`, `tower_struct`, `tower_proj`,
+`tower_usedlater`, `tower_beqpair`, `tower_recfield`, `tower_mutual` and
+`tower_nested` do not finish in 60 s.  `perf` puts **72 % of the cycles in
+`expr::beq_go` and 28 % in `prop_when::beq`**, with no allocation traffic at
+all: a memo-free structural descent over two structurally equal,
+pointer-distinct depth-60 towers, i.e. `O(tree)` on 2^60 nodes.  The shared-tower
+fixtures of the same family — `dag_tower`, `dag_tower_unfold`, `budget_model`,
+`budget_block` — all accept, because there the pointer fast path hits; the eight
+that do not finish are the ones where an install rebuilds the tower (a field
+type, a recursor motive) and the comparison is then between two distinct copies.
+These fixtures exist upstream for exactly this — "what they gate is that every
+walk the frontend and the install run stays DAG-safe, since an unmemoized one
+does not finish on such a tower" (`tests/e2e-expected.txt:1147-1154`) — and
+con-leche's `beqBudget` note says why its own descent is safe: "beyond the
+budget the term is big enough that `O(tree)` is the real risk, and from there on
+every completed pair is recorded" (`Kernel/Expr.lean:767-773`).
+
+§3.2's decision not to port `BeqMap`/`beqBudget` was explicit and conditional:
+*"If measurement shows the pair memo is needed, it is added as one opaque
+function with a one-paragraph trust argument."*  **The measurement is now in,
+and the work is P1.8's, not this task's**, for a concrete reason: the memo
+cannot be written inside the Aeneas subset — it is keyed by *addresses*, and a
+structurally keyed pair memo would need structural key equality, which is the
+thing being computed — so §3.2's route is an opaque function, i.e. a **fifth
+external hole**, where this task's standing gate is that the templates stay
+exactly the four `Rc` axioms and the `Rc` type.  Adding that hole is a design
+step with its own trust argument and its own gate change.  (The other §3.1-licensed
+route, hash-consing, would make `beq` `O(1)` outright and is the same size of
+decision.)  Until one of them lands, a stream with a rebuilt shared tower deeper
+than ~30 does not finish; nothing else in the corpus is affected.
+
+#### Numbers
+
+Measured against this branch's merge base (`f69be81`, i.e. after task #27), not
+against the numbers other worktrees' entries quote.
+
+| | |
+|---|---|
+| Lean ported: `Cached/Installed.lean`, 9 cited blocks of 21 declarations | 522 raw / 223 definitional / **109 translated (48 %)** — the other 114 are the twelve `Prop`-indexed evidence declarations and the ten theorems (§1) |
+| `src/cached/installed.rs`, extracted part (raw / code) | 736 / **470** (4.3× the Lean code: the `do`-block splits, the tuple plumbing and the copies Lean's sharing gives away) |
+| `src/cached/installed.rs`, `#[cfg(test)]` part (6 tests) | 210 / 163 |
+| `src/cached/core_c.rs` | +100 raw (the two `.proj` twins, §5a) |
+| `crates/con-ron-dump/src/bin/con-ron-check.rs` (unverified) | 365 |
+| `scripts/diff-fixtures.sh` | 149 |
+| generated `Types.lean` | **736 — unchanged**; `installed` declares no type (the three seam records are `parsed_c`'s; they only *move* in the file, ahead of their new user) |
+| generated `Funs.lean` | 50 017 → **50 944** (+927) |
+| `TypesExternal_Template.lean` / `FunsExternal_Template.lean` | 25 / 54 — **unchanged**, still exactly the four `Rc` axioms and the `Rc` type |
+| `partial_fixpoint` | 406 → **408** (+2: the two index recursions, `annot_decl_fold_from` and `check_pending_list_from`) |
+| `mutual` blocks in `Funs.lean` / `Types.lean` | **13 / 3 — unchanged**; the fold is tail calls, not recursion |
+| `charon cargo --preset=aeneas` | **3.9 s** |
+| `aeneas -backend lean -split-files -loops-to-rec` | **39.7 s**, **zero errors, zero warnings** (first run) |
+| `cd proof && lake build` | **2 115 jobs, zero errors**; `ConRon.Generated.Funs` alone **101 s** |
+| `cargo test` | **167/167** green (153 unit + 4 integration + 10 in `con-ron-dump`), warning-free at `-D warnings` |
+| `scripts/provenance.py check` | green — 1 478 items, 1 592 citations (was 1 452 / 1 562) at pin 3e004805 |
+| `scripts/provenance.py coverage` | **851/1006 (84.6 %)**, from 843/1006 (83.8 %): `Cached/Installed.lean` 1/21 → **9/21** |
+| `scripts/diff-fixtures.sh --timeout=60` | 348 fixtures: **290 agree, 17 differ (§5b), 8 do not finish (§5c), 33 skipped**, 485 s |
+
+`scripts/lint-rust-style.sh crates/con-ron-core/src` clean; `scripts/gates.sh`
+all 6 OK.  The progress lines it prints:
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)           to translate  13987  translated  13049 (93%)  verified    498 (3%)
+Cherries (ConLeche/Frontend without Scan/Equiv, Main.lean) to translate   8132  translated      0 (0%)  verified      0 (0%)
+Rust core 40596 lines (1372 fns) | unverified crates 3003 | generated Lean 51853 | proofs 11247 (121 _refines) | pin 3e004805
+```
+
+**Every implementation file of `ConLeche/Kernel/` and `ConLeche/Cached/` that
+the fold reaches is now ported.**  What is left of the 15 % uncovered is
+specification (`*MemoInv`, `*_spec`), `Repr`/`toString` rendering, the raw
+basis pins that the generated tables replace, and the frontend (P4).
+
+#### Tests
+
+Six new unit tests in `cached::installed`, and every one of them is built out of
+**sorts alone**: in the empty environment `Sort 0 : Sort 1` is the only
+judgement available — an axiom would need one of con-leche's pins
+(`checkAxiomDeclC`) and an honest proposition an inductive block — which is
+itself a reminder of why the fixture corpus is the real test.
+
+* the empty stream accepts at the empty environment (both folds run zero steps);
+* `def b : Type := Prop`, `def c : Type := b` accepts, the second reading the
+  first through the prefix view, and the environment holds them newest-first;
+* **phase B is what catches a bad definition**: `def c : Prop := Prop` passes
+  phase A (the value is annotated and the constant pushed) and is rejected in
+  phase B at its **fold position**, 1 — not at its index among the records;
+* a duplicate fails in **phase A**, at the fold position of the second one;
+* **a theorem installs by statement**: `theorem t : Type := b` passes phase A
+  (the header alone is annotated, the raw value stored and never entered) and is
+  rejected in phase B, where a theorem's statement is tested for being a
+  proposition;
+* **the records carry the position and the bound**: three definitions give
+  records at positions 0, 1, 2 and bounds 0, 1, 2, so a record never sees the
+  constant it is about to justify, nor any later one.
+
+Plus the corpus itself — 290 fixture verdicts, the first end-to-end test the
+port has had.
+
+#### Left for next time
+
+* **The `beq` pair memo** (P1.8, §5 item 8): eight tower fixtures, a fifth
+  external hole with a trust argument, or hash-consing; a design step (§5c).
+* **The pin data** (task #22 / task #29): a dump of `natOpPinSets` the task-#19
+  reader can read, then `con-ron-check --pins` and the threading of
+  `check_decls`' `pins` parameter through `parsed_c`/`kernel::checker` to
+  `check_div_mod_pin_loop` — 17 fixtures (§5b).
+* **Mathlib scale** (P1.8 proper): the corpus is 12 397 declarations across 315
+  streams and the whole sweep is 5 s of checking outside the eight blow-ups;
+  `con-ron-check --stats` is the instrument, and a Mathlib export is the next
+  input.
+* A `--trusted` sweep: the mode and its expectation overrides are implemented
+  and spot-checked, but the full sweep has not been run.

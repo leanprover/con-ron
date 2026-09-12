@@ -121,7 +121,7 @@ use crate::kernel::core_k;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckM;
 use crate::kernel::env;
-use crate::kernel::env::{CheckMode, ConstantVal, IndCaps, RecRule, RecRuleFire};
+use crate::kernel::env::{CheckMode, ConstantVal, IndCaps, ProjEntry, RecRule, RecRuleFire};
 use crate::kernel::expr;
 use crate::kernel::expr::{BinderMeta, Expr, ExprKind, Literal};
 use crate::kernel::expr_ops;
@@ -3427,12 +3427,101 @@ pub fn infer_lam_i(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
 /// con-leche: ConLeche/Kernel/Core.lean:2039-2204 inferBody
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:623-642 ProjEntry.typeAtI
+/// The table lookup and the checks of the cached `.proj` clause, on the
+/// already reduced type of the subject: `core_k::infer_proj_at`'s twin with
+/// the ONE difference the cached lane prescribes — the field type comes from
+/// `expr_ops_c::proj_entry_type_at_i`, i.e. `ProjEntry.typeAtI`, and not
+/// from the `Expr`-level `ProjEntry.typeAt`.
+///
+/// **This is task #26's owed reconciliation, closed by task #28's
+/// differential run.**  The two formulas are the same value, but
+/// `ProjEntry.typeAt`'s `bvar` arm re-traverses the replacement (the spec
+/// `expr_ops::instantiate_list`, which `instantiate_list_go` defers to at a
+/// `.bvar`, exactly as `ExprOps.lean` does), so a subject or parameter that
+/// is a DAG comes back as a fresh *tree* copy — con-leche's own "affine
+/// frontier" out-of-memory, and the reason its executed clause calls
+/// `typeAtI`.  The fixture `tests/e2e/proj_share.ndjson` does not finish
+/// without this (it projects out of a 27-node DAG with a 2^27-node tree);
+/// con-leche accepts it in milliseconds.  The alternative — retargeting
+/// `core_k::infer_proj_at` — is what task #26 ruled out, because
+/// `kernel::core_k` must not depend on `crate::cached`; so the cached lane
+/// gets its own twin here, beside the body that calls it, which is where the
+/// Lean has it (`inferBodyI` inlines the lookup).
+pub fn infer_proj_at_i(
+    fe: &FEnv,
+    sn: &Name,
+    i: u64,
+    pe: &Expr,
+    te: &Expr,
+) -> CheckM<Expr> {
+    const M_NOENTRY: [u32; 33] = [
+        112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 119, 105, 116, 104, 111, 117,
+        116, 32, 97, 32, 110, 97, 116, 105, 118, 101, 32, 101, 110, 116, 114, 121,
+    ];
+    let f = expr_ops::get_app_fn(te);
+    match &f.0.kind {
+        ExprKind::Const(t, us) => match fenv::find_proj(fe, t, i) {
+            Some(entry) => {
+                let targs = expr_ops::get_app_args(te);
+                proj_type_at_checked_i(&entry, sn, t, us, &targs, pe)
+            }
+            None => Err(core_types::not_implemented(core_types::code_points(
+                &M_NOENTRY,
+            ))),
+        },
+        _ => Err(core_types::not_implemented(core_types::code_points(
+            &M_NOENTRY,
+        ))),
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
+/// con-leche: ConLeche/Kernel/Core.lean:2039-2204 inferBody
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:623-642 ProjEntry.typeAtI
+/// `core_k::proj_type_at_checked`'s cached twin: the same three guards and
+/// the same propositional-structure restriction (`ProjEntry.fireOk`, which
+/// is `core_k`'s — it reads levels only), with `ProjEntry.typeAtI` as the
+/// type.  See `infer_proj_at_i`.
+pub fn proj_type_at_checked_i(
+    entry: &ProjEntry,
+    sn: &Name,
+    t: &Name,
+    us: &Vec<Level>,
+    targs: &Vec<Expr>,
+    pe: &Expr,
+) -> CheckM<Expr> {
+    const M_NOENTRY: [u32; 33] = [
+        112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 119, 105, 116, 104, 111, 117,
+        116, 32, 97, 32, 110, 97, 116, 105, 118, 101, 32, 101, 110, 116, 114, 121,
+    ];
+    const M_PROP: [u32; 63] = [
+        112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 102, 114, 111, 109, 32, 97, 32,
+        112, 114, 111, 112, 111, 115, 105, 116, 105, 111, 110, 97, 108, 32, 115, 116, 114,
+        117, 99, 116, 117, 114, 101, 32, 109, 117, 115, 116, 32, 98, 101, 32, 97, 32, 112,
+        114, 111, 112, 111, 115, 105, 116, 105, 111, 110,
+    ];
+    if !name::beq(t, sn)
+        || (targs.len() as u64) != entry.num_params
+        || us.len() != entry.level_params.len()
+    {
+        Err(core_types::not_implemented(core_types::code_points(
+            &M_NOENTRY,
+        )))
+    } else if !core_k::proj_entry_fire_ok(entry, us) {
+        Err(core_types::invalid(core_types::code_points(&M_PROP)))
+    } else {
+        Ok(expr_ops_c::proj_entry_type_at_i(entry, us, targs, pe))
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
+/// con-leche: ConLeche/Kernel/Core.lean:2039-2204 inferBody
 /// The `.proj` clause: a `.proj` node is typed by its projection-table
-/// entry, through `ProjEntry.typeAtI` — which is `core_k::proj_entry_type_at`
-/// (the twin is the same formula, see its note).  The
-/// propositional-structure restriction reads `Level.isEquiv` **directly**, as
-/// the Lean does: this site stays off `eqvC` by policy (the module note's
-/// table).  `io` is the grade of the subject's inference.
+/// entry, through `ProjEntry.typeAtI` — which is `infer_proj_at_i` above.
+/// The propositional-structure restriction reads `Level.isEquiv`
+/// **directly**, as the Lean does: this site stays off `eqvC` by policy (the
+/// module note's table).  `io` is the grade of the subject's inference.
 pub fn infer_proj_i(
     mode: &CheckMode,
     fuel: u64,
@@ -3448,7 +3537,7 @@ pub fn infer_proj_i(
         Err(err) => Err(err),
         Ok(tpe) => match whnf(mode, fuel, st, fe, depth, &tpe) {
             Err(err) => Err(err),
-            Ok(te) => core_k::infer_proj_at(fe, sn, i, pe, &te),
+            Ok(te) => infer_proj_at_i(fe, sn, i, pe, &te),
         },
     }
 }

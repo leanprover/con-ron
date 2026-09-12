@@ -11,5 +11,9 @@ path = "src/lib.rs"
 name = "con-ron-dump-check"
 path = "src/bin/con-ron-dump-check.rs"
 
+[[bin]]
+name = "con-ron-check"
+path = "src/bin/con-ron-check.rs"
+
 [dependencies]
 con-ron-core = { path = "../con-ron-core" }
