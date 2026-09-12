@@ -504,7 +504,7 @@ inductive kernel.env.BasisKind where
 | QuotK : kernel.env.BasisKind
 
 /-- [con_ron_core::cached::parsed_c::DeclC]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 36:0-43:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 102:0-109:1
     Visibility: public -/
 @[discriminant isize]
 inductive cached.parsed_c.DeclC where
@@ -529,7 +529,7 @@ inductive cached.parsed_c.DeclC where
   cached.parsed_c.DeclC
 
 /-- [con_ron_core::cached::parsed_c::ValueKind]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 50:0-54:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 116:0-120:1
     Visibility: public -/
 @[discriminant isize]
 inductive cached.parsed_c.ValueKind where
@@ -538,7 +538,7 @@ inductive cached.parsed_c.ValueKind where
 | Opaque : cached.parsed_c.ValueKind
 
 /-- [con_ron_core::cached::parsed_c::ValueGroup]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 72:0-76:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 138:0-142:1
     Visibility: public -/
 structure cached.parsed_c.ValueGroup where
   kind : cached.parsed_c.ValueKind
@@ -546,7 +546,7 @@ structure cached.parsed_c.ValueGroup where
   jv : kernel.expr.Expr
 
 /-- [con_ron_core::cached::parsed_c::PendingCheck]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 86:0-90:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 152:0-156:1
     Visibility: public -/
 structure cached.parsed_c.PendingCheck where
   vg : cached.parsed_c.ValueGroup

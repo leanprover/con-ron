@@ -15193,8 +15193,4363 @@ partial_fixpoint
 
 end
 
+/-- [con_ron_core::cached::expr_ops_c::has_fvar]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 105:0-107:1
+    Visibility: public -/
+def cached.expr_ops_c.has_fvar (e : kernel.expr.Expr) : Result Bool := do
+  let i ← kernel.expr_ops.fvar_b e
+  ok (i != 0#u64)
+
+/-- [con_ron_core::cached::expr_ops_c::get_app_fn]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 115:0-120:1
+    Visibility: public -/
+def cached.expr_ops_c.get_app_fn
+  (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Fvar _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Sort _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Const _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.App f _ => cached.expr_ops_c.get_app_fn f
+  | kernel.expr.ExprKind.Lam _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.ForallE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.LetE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Lit _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Proj _ _ _ => kernel.expr.dup e
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::get_app_args_acc]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 129:0-138:1
+    Visibility: public -/
+def cached.expr_ops_c.get_app_args_acc
+  (e : kernel.expr.Expr) (acc : alloc.vec.Vec kernel.expr.Expr) :
+  Result (alloc.vec.Vec kernel.expr.Expr)
+  := do
+  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => ok acc
+  | kernel.expr.ExprKind.Fvar _ _ => ok acc
+  | kernel.expr.ExprKind.Sort _ => ok acc
+  | kernel.expr.ExprKind.Const _ _ => ok acc
+  | kernel.expr.ExprKind.App f a =>
+    let out ← cached.expr_ops_c.get_app_args_acc f acc
+    let e1 ← kernel.expr.dup a
+    alloc.vec.Vec.push out e1
+  | kernel.expr.ExprKind.Lam _ _ _ => ok acc
+  | kernel.expr.ExprKind.ForallE _ _ _ => ok acc
+  | kernel.expr.ExprKind.LetE _ _ _ => ok acc
+  | kernel.expr.ExprKind.Lit _ => ok acc
+  | kernel.expr.ExprKind.Proj _ _ _ => ok acc
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::get_app_args]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 142:0-144:1
+    Visibility: public -/
+def cached.expr_ops_c.get_app_args
+  (e : kernel.expr.Expr) : Result (alloc.vec.Vec kernel.expr.Expr) := do
+  cached.expr_ops_c.get_app_args_acc e (alloc.vec.Vec.new kernel.expr.Expr)
+
+/-- [con_ron_core::cached::expr_ops_c::mk_app_n_from]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 155:0-161:1
+    Visibility: public -/
+def cached.expr_ops_c.mk_app_n_from
+  (f : kernel.expr.Expr) (args : alloc.vec.Vec kernel.expr.Expr)
+  (i : Std.Usize) :
+  Result kernel.expr.Expr
+  := do
+  let i1 := alloc.vec.Vec.len args
+  if i >= i1
+  then ok f
+  else
+    let e ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.expr.Expr) args i
+    let e1 ← kernel.expr.dup e
+    let e2 ← kernel.expr.app f e1
+    let i2 ← i + 1#usize
+    cached.expr_ops_c.mk_app_n_from e2 args i2
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::mk_app_n]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 149:0-151:1
+    Visibility: public -/
+def cached.expr_ops_c.mk_app_n
+  (f : kernel.expr.Expr) (args : alloc.vec.Vec kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  cached.expr_ops_c.mk_app_n_from f args 0#usize
+
+/-- [con_ron_core::cached::expr_ops_c::rev_append_exprs]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 191:0-199:1
+    Visibility: public -/
+def cached.expr_ops_c.rev_append_exprs
+  (out : alloc.vec.Vec kernel.expr.Expr) (xs : alloc.vec.Vec kernel.expr.Expr)
+  (k : Std.Usize) :
+  Result (alloc.vec.Vec kernel.expr.Expr)
+  := do
+  if k = 0#usize
+  then ok out
+  else
+    let i := alloc.vec.Vec.len xs
+    if k > i
+    then ok out
+    else
+      let i1 ← k - 1#usize
+      let e ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          kernel.expr.Expr) xs i1
+      let e1 ← kernel.expr.dup e
+      let out1 ← alloc.vec.Vec.push out e1
+      cached.expr_ops_c.rev_append_exprs out1 xs i1
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::memo_b1_get]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 205:0-210:1
+    Visibility: public -/
+def cached.expr_ops_c.memo_b1_get
+  (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey Bool)
+  (k : kernel.expr_ops.ExprNatKey) :
+  Result (Option Bool)
+  := do
+  let o ←
+    ron.hashmap.HashMap.get
+      kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+      kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo k
+  match o with
+  | none => ok none
+  | some _ => ok o
+
+/-- [con_ron_core::cached::expr_ops_c::seen_get]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 214:0-219:1
+    Visibility: public -/
+def cached.expr_ops_c.seen_get
+  (seen : ron.hashmap.HashMap kernel.expr.Expr Unit) (k : kernel.expr.Expr) :
+  Result (Option Unit)
+  := do
+  let o ←
+    ron.hashmap.HashMap.get
+      kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+      kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen k
+  match o with
+  | none => ok none
+  | some _ => ok (some ())
+
+/-- [con_ron_core::kernel::expr::mk_bvar]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 652:0-654:1
+    Visibility: public -/
+def kernel.expr.mk_bvar (i : Std.U64) : Result kernel.expr.Expr := do
+  kernel.expr.bvar i
+
+/-- [con_ron_core::cached::expr_ops_c::instantiate1_go]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 230:0-288:1
+    Visibility: public -/
+def cached.expr_ops_c.instantiate1_go
+  (v : kernel.expr.Expr)
+  (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey kernel.expr.Expr)
+  (e : kernel.expr.Expr) (d : Std.U64) :
+  Result (kernel.expr.Expr × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey
+    kernel.expr.Expr))
+  := do
+  let i ← kernel.expr_ops.bvar_b e
+  if i <= d
+  then let r ← kernel.expr.dup e
+       ok (r, memo)
+  else
+    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    match en.kind with
+    | kernel.expr.ExprKind.Bvar i1 =>
+      if i1 = d
+      then let r ← kernel.expr.dup v
+           ok (r, memo)
+      else
+        if i1 > d
+        then
+          let i2 ← i1 - 1#u64
+          let r ← kernel.expr.mk_bvar i2
+          ok (r, memo)
+        else let r ← kernel.expr.dup e
+             ok (r, memo)
+    | kernel.expr.ExprKind.Fvar _ _ => let r ← kernel.expr.dup e
+                                       ok (r, memo)
+    | kernel.expr.ExprKind.Sort _ => let r ← kernel.expr.dup e
+                                     ok (r, memo)
+    | kernel.expr.ExprKind.Const _ _ =>
+      let r ← kernel.expr.dup e
+      ok (r, memo)
+    | kernel.expr.ExprKind.App _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e d
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ← cached.expr_ops_c.instantiate1_go v memo f d
+            let (a2, memo3) ← cached.expr_ops_c.instantiate1_go v memo2 a d
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let (w, memo3) ← cached.expr_ops_c.instantiate1_go v memo2 val d
+            let i1 ← d + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.instantiate1_go v memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ← cached.expr_ops_c.instantiate1_go v memo sub d
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.Lam _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e d
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ← cached.expr_ops_c.instantiate1_go v memo f d
+            let (a2, memo3) ← cached.expr_ops_c.instantiate1_go v memo2 a d
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let (w, memo3) ← cached.expr_ops_c.instantiate1_go v memo2 val d
+            let i1 ← d + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.instantiate1_go v memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ← cached.expr_ops_c.instantiate1_go v memo sub d
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.ForallE _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e d
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ← cached.expr_ops_c.instantiate1_go v memo f d
+            let (a2, memo3) ← cached.expr_ops_c.instantiate1_go v memo2 a d
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let (w, memo3) ← cached.expr_ops_c.instantiate1_go v memo2 val d
+            let i1 ← d + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.instantiate1_go v memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ← cached.expr_ops_c.instantiate1_go v memo sub d
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.LetE _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e d
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ← cached.expr_ops_c.instantiate1_go v memo f d
+            let (a2, memo3) ← cached.expr_ops_c.instantiate1_go v memo2 a d
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let (w, memo3) ← cached.expr_ops_c.instantiate1_go v memo2 val d
+            let i1 ← d + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.instantiate1_go v memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ← cached.expr_ops_c.instantiate1_go v memo sub d
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.Lit _ => let r ← kernel.expr.dup e
+                                    ok (r, memo)
+    | kernel.expr.ExprKind.Proj _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e d
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ← cached.expr_ops_c.instantiate1_go v memo f d
+            let (a2, memo3) ← cached.expr_ops_c.instantiate1_go v memo2 a d
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.instantiate1_go v memo ty d
+            let (w, memo3) ← cached.expr_ops_c.instantiate1_go v memo2 val d
+            let i1 ← d + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.instantiate1_go v memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ← cached.expr_ops_c.instantiate1_go v memo sub d
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+partial_fixpoint
+
+/-- [con_ron_core::kernel::expr_ops::lift_loose_bvars_go]:
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 422:0-479:1
+    Visibility: public -/
+def kernel.expr_ops.lift_loose_bvars_go
+  (amount : Std.U64)
+  (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey kernel.expr.Expr)
+  (e : kernel.expr.Expr) (c : Std.U64) :
+  Result (kernel.expr.Expr × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey
+    kernel.expr.Expr))
+  := do
+  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar i =>
+    if i >= c
+    then let i1 ← i + amount
+         let r ← kernel.expr.bvar i1
+         ok (r, memo)
+    else let r ← kernel.expr.bvar i
+         ok (r, memo)
+  | kernel.expr.ExprKind.Fvar _ _ => let r ← kernel.expr.dup e
+                                     ok (r, memo)
+  | kernel.expr.ExprKind.Sort _ => let r ← kernel.expr.dup e
+                                   ok (r, memo)
+  | kernel.expr.ExprKind.Const _ _ => let r ← kernel.expr.dup e
+                                      ok (r, memo)
+  | kernel.expr.ExprKind.App _ _ =>
+    let k ← kernel.expr_ops.expr_nat_key e c
+    let o ← kernel.expr_ops.memo1_get memo k
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App a b =>
+          do
+          let (a2, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo a c
+          let (b2, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
+          let r1 ← kernel.expr.app a2 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam ty body m =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let i ← c + 1#u64
+          let (b, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
+          let bm ← kernel.expr.binder_meta_dup m
+          let r1 ← kernel.expr.lam t b bm
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE ty body m =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let i ← c + 1#u64
+          let (b, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
+          let bm ← kernel.expr.binder_meta_dup m
+          let r1 ← kernel.expr.forall_e t b bm
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE ty v body =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let (w, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 v c
+          let i ← c + 1#u64
+          let (b, memo4) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
+          let r1 ← kernel.expr.let_e t w b
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj s i sub =>
+          do
+          let (u, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo sub c
+          let n ← kernel.name.dup s
+          let r1 ← kernel.expr.proj n i u
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup r
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprKind.Lam _ _ _ =>
+    let k ← kernel.expr_ops.expr_nat_key e c
+    let o ← kernel.expr_ops.memo1_get memo k
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App a b =>
+          do
+          let (a2, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo a c
+          let (b2, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
+          let r1 ← kernel.expr.app a2 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam ty body m =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let i ← c + 1#u64
+          let (b, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
+          let bm ← kernel.expr.binder_meta_dup m
+          let r1 ← kernel.expr.lam t b bm
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE ty body m =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let i ← c + 1#u64
+          let (b, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
+          let bm ← kernel.expr.binder_meta_dup m
+          let r1 ← kernel.expr.forall_e t b bm
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE ty v body =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let (w, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 v c
+          let i ← c + 1#u64
+          let (b, memo4) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
+          let r1 ← kernel.expr.let_e t w b
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj s i sub =>
+          do
+          let (u, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo sub c
+          let n ← kernel.name.dup s
+          let r1 ← kernel.expr.proj n i u
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup r
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprKind.ForallE _ _ _ =>
+    let k ← kernel.expr_ops.expr_nat_key e c
+    let o ← kernel.expr_ops.memo1_get memo k
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App a b =>
+          do
+          let (a2, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo a c
+          let (b2, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
+          let r1 ← kernel.expr.app a2 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam ty body m =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let i ← c + 1#u64
+          let (b, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
+          let bm ← kernel.expr.binder_meta_dup m
+          let r1 ← kernel.expr.lam t b bm
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE ty body m =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let i ← c + 1#u64
+          let (b, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
+          let bm ← kernel.expr.binder_meta_dup m
+          let r1 ← kernel.expr.forall_e t b bm
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE ty v body =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let (w, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 v c
+          let i ← c + 1#u64
+          let (b, memo4) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
+          let r1 ← kernel.expr.let_e t w b
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj s i sub =>
+          do
+          let (u, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo sub c
+          let n ← kernel.name.dup s
+          let r1 ← kernel.expr.proj n i u
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup r
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprKind.LetE _ _ _ =>
+    let k ← kernel.expr_ops.expr_nat_key e c
+    let o ← kernel.expr_ops.memo1_get memo k
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App a b =>
+          do
+          let (a2, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo a c
+          let (b2, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
+          let r1 ← kernel.expr.app a2 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam ty body m =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let i ← c + 1#u64
+          let (b, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
+          let bm ← kernel.expr.binder_meta_dup m
+          let r1 ← kernel.expr.lam t b bm
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE ty body m =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let i ← c + 1#u64
+          let (b, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
+          let bm ← kernel.expr.binder_meta_dup m
+          let r1 ← kernel.expr.forall_e t b bm
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE ty v body =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let (w, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 v c
+          let i ← c + 1#u64
+          let (b, memo4) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
+          let r1 ← kernel.expr.let_e t w b
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj s i sub =>
+          do
+          let (u, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo sub c
+          let n ← kernel.name.dup s
+          let r1 ← kernel.expr.proj n i u
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup r
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprKind.Lit _ => let r ← kernel.expr.dup e
+                                  ok (r, memo)
+  | kernel.expr.ExprKind.Proj _ _ _ =>
+    let k ← kernel.expr_ops.expr_nat_key e c
+    let o ← kernel.expr_ops.memo1_get memo k
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App a b =>
+          do
+          let (a2, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo a c
+          let (b2, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
+          let r1 ← kernel.expr.app a2 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam ty body m =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let i ← c + 1#u64
+          let (b, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
+          let bm ← kernel.expr.binder_meta_dup m
+          let r1 ← kernel.expr.lam t b bm
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE ty body m =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let i ← c + 1#u64
+          let (b, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
+          let bm ← kernel.expr.binder_meta_dup m
+          let r1 ← kernel.expr.forall_e t b bm
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE ty v body =>
+          do
+          let (t, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
+          let (w, memo3) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo2 v c
+          let i ← c + 1#u64
+          let (b, memo4) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
+          let r1 ← kernel.expr.let_e t w b
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj s i sub =>
+          do
+          let (u, memo2) ←
+            kernel.expr_ops.lift_loose_bvars_go amount memo sub c
+          let n ← kernel.name.dup s
+          let r1 ← kernel.expr.proj n i u
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup r
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
+      ok (r, memo2)
+    | some r => ok (r, memo)
+partial_fixpoint
+
+/-- [con_ron_core::kernel::expr_ops::lift_loose_bvars]:
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 485:0-488:1
+    Visibility: public -/
+def kernel.expr_ops.lift_loose_bvars
+  (amount : Std.U64) (c : Std.U64) (e : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let memo ←
+    ron.hashmap.HashMap.new kernel.expr_ops.ExprNatKey kernel.expr.Expr
+  let (e1, _) ← kernel.expr_ops.lift_loose_bvars_go amount memo e c
+  ok e1
+
+mutual
+
+/-- [con_ron_core::cached::expr_ops_c::instantiate1_lift_b]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 305:0-332:1
+    Visibility: public -/
+def cached.expr_ops_c.instantiate1_lift_b
+  (v : kernel.expr.Expr) (fuel : Std.U64) (e : kernel.expr.Expr) (d : Std.U64)
+  :
+  Result ((Option kernel.expr.Expr) × Std.U64)
+  := do
+  let i ← kernel.expr_ops.bvar_b e
+  if i <= d
+  then let e1 ← kernel.expr.dup e
+       ok (some e1, fuel)
+  else
+    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    match en.kind with
+    | kernel.expr.ExprKind.Bvar i1 =>
+      if i1 = d
+      then
+        let e1 ← kernel.expr_ops.lift_loose_bvars d 0#u64 v
+        ok (some e1, fuel)
+      else
+        if i1 > d
+        then
+          let i2 ← i1 - 1#u64
+          let e1 ← kernel.expr.mk_bvar i2
+          ok (some e1, fuel)
+        else let e1 ← kernel.expr.dup e
+             ok (some e1, fuel)
+    | kernel.expr.ExprKind.Fvar _ _ =>
+      let e1 ← kernel.expr.dup e
+      ok (some e1, fuel)
+    | kernel.expr.ExprKind.Sort _ =>
+      let e1 ← kernel.expr.dup e
+      ok (some e1, fuel)
+    | kernel.expr.ExprKind.Const _ _ =>
+      let e1 ← kernel.expr.dup e
+      ok (some e1, fuel)
+    | kernel.expr.ExprKind.App _ _ =>
+      if fuel = 0#u64
+      then ok (none, 0#u64)
+      else
+        let i1 ← fuel - 1#u64
+        cached.expr_ops_c.instantiate1_lift_b_compound v i1 e d
+    | kernel.expr.ExprKind.Lam _ _ _ =>
+      if fuel = 0#u64
+      then ok (none, 0#u64)
+      else
+        let i1 ← fuel - 1#u64
+        cached.expr_ops_c.instantiate1_lift_b_compound v i1 e d
+    | kernel.expr.ExprKind.ForallE _ _ _ =>
+      if fuel = 0#u64
+      then ok (none, 0#u64)
+      else
+        let i1 ← fuel - 1#u64
+        cached.expr_ops_c.instantiate1_lift_b_compound v i1 e d
+    | kernel.expr.ExprKind.LetE _ _ _ =>
+      if fuel = 0#u64
+      then ok (none, 0#u64)
+      else
+        let i1 ← fuel - 1#u64
+        cached.expr_ops_c.instantiate1_lift_b_compound v i1 e d
+    | kernel.expr.ExprKind.Lit _ =>
+      let e1 ← kernel.expr.dup e
+      ok (some e1, fuel)
+    | kernel.expr.ExprKind.Proj _ _ _ =>
+      if fuel = 0#u64
+      then ok (none, 0#u64)
+      else
+        let i1 ← fuel - 1#u64
+        cached.expr_ops_c.instantiate1_lift_b_compound v i1 e d
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::instantiate1_lift_b_compound]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 338:0-384:1
+    Visibility: public -/
+def cached.expr_ops_c.instantiate1_lift_b_compound
+  (v : kernel.expr.Expr) (fuel : Std.U64) (e : kernel.expr.Expr) (d : Std.U64)
+  :
+  Result ((Option kernel.expr.Expr) × Std.U64)
+  := do
+  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ =>
+    let e1 ← kernel.expr.dup e
+    ok (some e1, fuel)
+  | kernel.expr.ExprKind.Fvar _ _ =>
+    let e1 ← kernel.expr.dup e
+    ok (some e1, fuel)
+  | kernel.expr.ExprKind.Sort _ =>
+    let e1 ← kernel.expr.dup e
+    ok (some e1, fuel)
+  | kernel.expr.ExprKind.Const _ _ =>
+    let e1 ← kernel.expr.dup e
+    ok (some e1, fuel)
+  | kernel.expr.ExprKind.App f a =>
+    let (o, fuel1) ← cached.expr_ops_c.instantiate1_lift_b v fuel f d
+    match o with
+    | none => ok (none, fuel1)
+    | some f2 =>
+      let (o1, fuel2) ← cached.expr_ops_c.instantiate1_lift_b v fuel1 a d
+      match o1 with
+      | none => ok (none, fuel2)
+      | some a2 => let e1 ← kernel.expr.app f2 a2
+                   ok (some e1, fuel2)
+  | kernel.expr.ExprKind.Lam ty body m =>
+    let (o, fuel1) ← cached.expr_ops_c.instantiate1_lift_b v fuel ty d
+    match o with
+    | none => ok (none, fuel1)
+    | some t =>
+      let i ← d + 1#u64
+      let (o1, fuel2) ← cached.expr_ops_c.instantiate1_lift_b v fuel1 body i
+      match o1 with
+      | none => ok (none, fuel2)
+      | some b =>
+        let bm ← kernel.expr.binder_meta_dup m
+        let e1 ← kernel.expr.lam t b bm
+        ok (some e1, fuel2)
+  | kernel.expr.ExprKind.ForallE ty body m =>
+    let (o, fuel1) ← cached.expr_ops_c.instantiate1_lift_b v fuel ty d
+    match o with
+    | none => ok (none, fuel1)
+    | some t =>
+      let i ← d + 1#u64
+      let (o1, fuel2) ← cached.expr_ops_c.instantiate1_lift_b v fuel1 body i
+      match o1 with
+      | none => ok (none, fuel2)
+      | some b =>
+        let bm ← kernel.expr.binder_meta_dup m
+        let e1 ← kernel.expr.forall_e t b bm
+        ok (some e1, fuel2)
+  | kernel.expr.ExprKind.LetE ty val body =>
+    let (o, fuel1) ← cached.expr_ops_c.instantiate1_lift_b v fuel ty d
+    match o with
+    | none => ok (none, fuel1)
+    | some t =>
+      let (o1, fuel2) ← cached.expr_ops_c.instantiate1_lift_b v fuel1 val d
+      match o1 with
+      | none => ok (none, fuel2)
+      | some w =>
+        let i ← d + 1#u64
+        let (o2, fuel3) ←
+          cached.expr_ops_c.instantiate1_lift_b v fuel2 body i
+        match o2 with
+        | none => ok (none, fuel3)
+        | some b => let e1 ← kernel.expr.let_e t w b
+                    ok (some e1, fuel3)
+  | kernel.expr.ExprKind.Lit _ =>
+    let e1 ← kernel.expr.dup e
+    ok (some e1, fuel)
+  | kernel.expr.ExprKind.Proj sn i sub =>
+    let (o, fuel1) ← cached.expr_ops_c.instantiate1_lift_b v fuel sub d
+    match o with
+    | none => ok (none, fuel1)
+    | some s2 =>
+      let n ← kernel.name.dup sn
+      let e1 ← kernel.expr.proj n i s2
+      ok (some e1, fuel1)
+partial_fixpoint
+
+end
+
+/-- [con_ron_core::cached::expr_ops_c::instantiate1_lift_go]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 390:0-448:1
+    Visibility: public -/
+def cached.expr_ops_c.instantiate1_lift_go
+  (v : kernel.expr.Expr)
+  (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey kernel.expr.Expr)
+  (e : kernel.expr.Expr) (d : Std.U64) :
+  Result (kernel.expr.Expr × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey
+    kernel.expr.Expr))
+  := do
+  let i ← kernel.expr_ops.bvar_b e
+  if i <= d
+  then let r ← kernel.expr.dup e
+       ok (r, memo)
+  else
+    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    match en.kind with
+    | kernel.expr.ExprKind.Bvar i1 =>
+      if i1 = d
+      then let r ← kernel.expr_ops.lift_loose_bvars d 0#u64 v
+           ok (r, memo)
+      else
+        if i1 > d
+        then
+          let i2 ← i1 - 1#u64
+          let r ← kernel.expr.mk_bvar i2
+          ok (r, memo)
+        else let r ← kernel.expr.dup e
+             ok (r, memo)
+    | kernel.expr.ExprKind.Fvar _ _ => let r ← kernel.expr.dup e
+                                       ok (r, memo)
+    | kernel.expr.ExprKind.Sort _ => let r ← kernel.expr.dup e
+                                     ok (r, memo)
+    | kernel.expr.ExprKind.Const _ _ =>
+      let r ← kernel.expr.dup e
+      ok (r, memo)
+    | kernel.expr.ExprKind.App _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e d
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo f d
+            let (a2, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 a d
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let (w, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 val d
+            let i1 ← d + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo sub d
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.Lam _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e d
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo f d
+            let (a2, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 a d
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let (w, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 val d
+            let i1 ← d + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo sub d
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.ForallE _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e d
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo f d
+            let (a2, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 a d
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let (w, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 val d
+            let i1 ← d + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo sub d
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.LetE _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e d
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo f d
+            let (a2, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 a d
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let (w, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 val d
+            let i1 ← d + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo sub d
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.Lit _ => let r ← kernel.expr.dup e
+                                    ok (r, memo)
+    | kernel.expr.ExprKind.Proj _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e d
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo f d
+            let (a2, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 a d
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let i1 ← d + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo ty d
+            let (w, memo3) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo2 val d
+            let i1 ← d + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ←
+              cached.expr_ops_c.instantiate1_lift_go v memo sub d
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::instantiate1_lift]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 455:0-467:1
+    Visibility: public -/
+def cached.expr_ops_c.instantiate1_lift
+  (e : kernel.expr.Expr) (v : kernel.expr.Expr) (d : Std.U64) :
+  Result kernel.expr.Expr
+  := do
+  let i ← kernel.expr_ops.bvar_b e
+  if i <= d
+  then kernel.expr.dup e
+  else
+    let (o, _) ← cached.expr_ops_c.instantiate1_lift_b v 4096#u64 e d
+    match o with
+    | none =>
+      let memo ←
+        ron.hashmap.HashMap.new kernel.expr_ops.ExprNatKey kernel.expr.Expr
+      let (r, _) ← cached.expr_ops_c.instantiate1_lift_go v memo e d
+      ok r
+    | some r => ok r
+
+/-- [con_ron_core::cached::expr_ops_c::instantiate1]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 471:0-478:1
+    Visibility: public -/
+def cached.expr_ops_c.instantiate1
+  (e : kernel.expr.Expr) (v : kernel.expr.Expr) (d : Std.U64) :
+  Result kernel.expr.Expr
+  := do
+  let i ← kernel.expr_ops.bvar_b e
+  if i <= d
+  then kernel.expr.dup e
+  else
+    let memo ←
+      ron.hashmap.HashMap.new kernel.expr_ops.ExprNatKey kernel.expr.Expr
+    let (e1, _) ← cached.expr_ops_c.instantiate1_go v memo e d
+    ok e1
+
+mutual
+
+/-- [con_ron_core::cached::expr_ops_c::instantiate_list_go]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 498:0-558:1
+    Visibility: public -/
+def cached.expr_ops_c.instantiate_list_go
+  (vs : alloc.vec.Vec kernel.expr.Expr)
+  (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey kernel.expr.Expr)
+  (e : kernel.expr.Expr) (k : Std.U64) (d : Std.U64) :
+  Result (kernel.expr.Expr × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey
+    kernel.expr.Expr))
+  := do
+  if k = 0#u64
+  then let r ← kernel.expr.dup e
+       ok (r, memo)
+  else
+    let i ← kernel.expr_ops.bvar_b e
+    if i <= d
+    then let r ← kernel.expr.dup e
+         ok (r, memo)
+    else
+      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      match en.kind with
+      | kernel.expr.ExprKind.Bvar i1 =>
+        if i1 < d
+        then let r ← kernel.expr.dup e
+             ok (r, memo)
+        else
+          let i2 ← i1 - d
+          if i2 < k
+          then
+            let r ← cached.expr_ops_c.instantiate_list_bvar vs e i2 d
+            ok (r, memo)
+          else let i3 ← i1 - k
+               let r ← kernel.expr.mk_bvar i3
+               ok (r, memo)
+      | kernel.expr.ExprKind.Fvar _ _ =>
+        let r ← kernel.expr.dup e
+        ok (r, memo)
+      | kernel.expr.ExprKind.Sort _ => let r ← kernel.expr.dup e
+                                       ok (r, memo)
+      | kernel.expr.ExprKind.Const _ _ =>
+        let r ← kernel.expr.dup e
+        ok (r, memo)
+      | kernel.expr.ExprKind.App _ _ =>
+        let key ← kernel.expr_ops.expr_nat_key e d
+        let o ← kernel.expr_ops.memo1_get memo key
+        match o with
+        | none =>
+          let (memo1, r) ←
+            match en.kind with
+            | kernel.expr.ExprKind.Bvar _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Fvar _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Sort _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Const _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.App f a =>
+              do
+              let (f2, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo f k d
+              let (a2, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 a k d
+              let r1 ← kernel.expr.app f2 a2
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.Lam ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.lam t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.ForallE ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.forall_e t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.LetE ty val body =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let (w, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 val k d
+              let i1 ← d + 1#u64
+              let (b, memo4) ←
+                cached.expr_ops_c.instantiate_list_go vs memo3 body k i1
+              let r1 ← kernel.expr.let_e t w b
+              ok (memo4, r1)
+            | kernel.expr.ExprKind.Lit _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Proj sn i1 sub =>
+              do
+              let (s2, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo sub k d
+              let n ← kernel.name.dup sn
+              let r1 ← kernel.expr.proj n i1 s2
+              ok (memo2, r1)
+          let e1 ← kernel.expr.dup r
+          let (_, memo2) ←
+            ron.hashmap.HashMap.insert
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+              key e1
+          ok (r, memo2)
+        | some r => ok (r, memo)
+      | kernel.expr.ExprKind.Lam _ _ _ =>
+        let key ← kernel.expr_ops.expr_nat_key e d
+        let o ← kernel.expr_ops.memo1_get memo key
+        match o with
+        | none =>
+          let (memo1, r) ←
+            match en.kind with
+            | kernel.expr.ExprKind.Bvar _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Fvar _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Sort _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Const _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.App f a =>
+              do
+              let (f2, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo f k d
+              let (a2, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 a k d
+              let r1 ← kernel.expr.app f2 a2
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.Lam ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.lam t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.ForallE ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.forall_e t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.LetE ty val body =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let (w, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 val k d
+              let i1 ← d + 1#u64
+              let (b, memo4) ←
+                cached.expr_ops_c.instantiate_list_go vs memo3 body k i1
+              let r1 ← kernel.expr.let_e t w b
+              ok (memo4, r1)
+            | kernel.expr.ExprKind.Lit _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Proj sn i1 sub =>
+              do
+              let (s2, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo sub k d
+              let n ← kernel.name.dup sn
+              let r1 ← kernel.expr.proj n i1 s2
+              ok (memo2, r1)
+          let e1 ← kernel.expr.dup r
+          let (_, memo2) ←
+            ron.hashmap.HashMap.insert
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+              key e1
+          ok (r, memo2)
+        | some r => ok (r, memo)
+      | kernel.expr.ExprKind.ForallE _ _ _ =>
+        let key ← kernel.expr_ops.expr_nat_key e d
+        let o ← kernel.expr_ops.memo1_get memo key
+        match o with
+        | none =>
+          let (memo1, r) ←
+            match en.kind with
+            | kernel.expr.ExprKind.Bvar _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Fvar _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Sort _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Const _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.App f a =>
+              do
+              let (f2, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo f k d
+              let (a2, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 a k d
+              let r1 ← kernel.expr.app f2 a2
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.Lam ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.lam t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.ForallE ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.forall_e t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.LetE ty val body =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let (w, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 val k d
+              let i1 ← d + 1#u64
+              let (b, memo4) ←
+                cached.expr_ops_c.instantiate_list_go vs memo3 body k i1
+              let r1 ← kernel.expr.let_e t w b
+              ok (memo4, r1)
+            | kernel.expr.ExprKind.Lit _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Proj sn i1 sub =>
+              do
+              let (s2, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo sub k d
+              let n ← kernel.name.dup sn
+              let r1 ← kernel.expr.proj n i1 s2
+              ok (memo2, r1)
+          let e1 ← kernel.expr.dup r
+          let (_, memo2) ←
+            ron.hashmap.HashMap.insert
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+              key e1
+          ok (r, memo2)
+        | some r => ok (r, memo)
+      | kernel.expr.ExprKind.LetE _ _ _ =>
+        let key ← kernel.expr_ops.expr_nat_key e d
+        let o ← kernel.expr_ops.memo1_get memo key
+        match o with
+        | none =>
+          let (memo1, r) ←
+            match en.kind with
+            | kernel.expr.ExprKind.Bvar _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Fvar _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Sort _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Const _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.App f a =>
+              do
+              let (f2, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo f k d
+              let (a2, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 a k d
+              let r1 ← kernel.expr.app f2 a2
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.Lam ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.lam t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.ForallE ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.forall_e t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.LetE ty val body =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let (w, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 val k d
+              let i1 ← d + 1#u64
+              let (b, memo4) ←
+                cached.expr_ops_c.instantiate_list_go vs memo3 body k i1
+              let r1 ← kernel.expr.let_e t w b
+              ok (memo4, r1)
+            | kernel.expr.ExprKind.Lit _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Proj sn i1 sub =>
+              do
+              let (s2, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo sub k d
+              let n ← kernel.name.dup sn
+              let r1 ← kernel.expr.proj n i1 s2
+              ok (memo2, r1)
+          let e1 ← kernel.expr.dup r
+          let (_, memo2) ←
+            ron.hashmap.HashMap.insert
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+              key e1
+          ok (r, memo2)
+        | some r => ok (r, memo)
+      | kernel.expr.ExprKind.Lit _ => let r ← kernel.expr.dup e
+                                      ok (r, memo)
+      | kernel.expr.ExprKind.Proj _ _ _ =>
+        let key ← kernel.expr_ops.expr_nat_key e d
+        let o ← kernel.expr_ops.memo1_get memo key
+        match o with
+        | none =>
+          let (memo1, r) ←
+            match en.kind with
+            | kernel.expr.ExprKind.Bvar _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Fvar _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Sort _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Const _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.App f a =>
+              do
+              let (f2, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo f k d
+              let (a2, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 a k d
+              let r1 ← kernel.expr.app f2 a2
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.Lam ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.lam t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.ForallE ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.forall_e t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.LetE ty val body =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo ty k d
+              let (w, memo3) ←
+                cached.expr_ops_c.instantiate_list_go vs memo2 val k d
+              let i1 ← d + 1#u64
+              let (b, memo4) ←
+                cached.expr_ops_c.instantiate_list_go vs memo3 body k i1
+              let r1 ← kernel.expr.let_e t w b
+              ok (memo4, r1)
+            | kernel.expr.ExprKind.Lit _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Proj sn i1 sub =>
+              do
+              let (s2, memo2) ←
+                cached.expr_ops_c.instantiate_list_go vs memo sub k d
+              let n ← kernel.name.dup sn
+              let r1 ← kernel.expr.proj n i1 s2
+              ok (memo2, r1)
+          let e1 ← kernel.expr.dup r
+          let (_, memo2) ←
+            ron.hashmap.HashMap.insert
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+              key e1
+          ok (r, memo2)
+        | some r => ok (r, memo)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::instantiate_list_bvar]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 566:0-580:1
+    Visibility: public -/
+def cached.expr_ops_c.instantiate_list_bvar
+  (vs : alloc.vec.Vec kernel.expr.Expr) (e : kernel.expr.Expr) (j : Std.U64)
+  (d : Std.U64) :
+  Result kernel.expr.Expr
+  := do
+  let i ← lift (UScalar.cast .Usize j)
+  let i1 := alloc.vec.Vec.len vs
+  if i < i1
+  then
+    let i2 ← lift (UScalar.cast .Usize j)
+    let w ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.expr.Expr) vs i2
+    if j = 0#u64
+    then kernel.expr.dup w
+    else
+      let i3 ← kernel.expr_ops.bvar_b w
+      if i3 <= d
+      then kernel.expr.dup w
+      else
+        let fresh ←
+          ron.hashmap.HashMap.new kernel.expr_ops.ExprNatKey kernel.expr.Expr
+        let (e1, _) ← cached.expr_ops_c.instantiate_list_go vs fresh w j d
+        ok e1
+  else kernel.expr.dup e
+partial_fixpoint
+
+end
+
+/-- [con_ron_core::cached::expr_ops_c::instantiate_list]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 585:0-592:1
+    Visibility: public -/
+def cached.expr_ops_c.instantiate_list
+  (e : kernel.expr.Expr) (vs : alloc.vec.Vec kernel.expr.Expr) (d : Std.U64) :
+  Result kernel.expr.Expr
+  := do
+  let i := alloc.vec.Vec.len vs
+  if i = 0#usize
+  then kernel.expr.dup e
+  else
+    let memo ←
+      ron.hashmap.HashMap.new kernel.expr_ops.ExprNatKey kernel.expr.Expr
+    let i1 := alloc.vec.Vec.len vs
+    let i2 ← lift (UScalar.cast .U64 i1)
+    let (e1, _) ← cached.expr_ops_c.instantiate_list_go vs memo e i2 d
+    ok e1
+
+mutual
+
+/-- [con_ron_core::cached::expr_ops_c::instantiate_rev_go]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 603:0-663:1
+    Visibility: public -/
+def cached.expr_ops_c.instantiate_rev_go
+  (vs : alloc.vec.Vec kernel.expr.Expr)
+  (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey kernel.expr.Expr)
+  (e : kernel.expr.Expr) (k : Std.U64) (d : Std.U64) :
+  Result (kernel.expr.Expr × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey
+    kernel.expr.Expr))
+  := do
+  if k = 0#u64
+  then let r ← kernel.expr.dup e
+       ok (r, memo)
+  else
+    let i ← kernel.expr_ops.bvar_b e
+    if i <= d
+    then let r ← kernel.expr.dup e
+         ok (r, memo)
+    else
+      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      match en.kind with
+      | kernel.expr.ExprKind.Bvar i1 =>
+        if i1 < d
+        then let r ← kernel.expr.dup e
+             ok (r, memo)
+        else
+          let i2 ← i1 - d
+          if i2 < k
+          then
+            let r ← cached.expr_ops_c.instantiate_rev_bvar vs e i2 d
+            ok (r, memo)
+          else let i3 ← i1 - k
+               let r ← kernel.expr.mk_bvar i3
+               ok (r, memo)
+      | kernel.expr.ExprKind.Fvar _ _ =>
+        let r ← kernel.expr.dup e
+        ok (r, memo)
+      | kernel.expr.ExprKind.Sort _ => let r ← kernel.expr.dup e
+                                       ok (r, memo)
+      | kernel.expr.ExprKind.Const _ _ =>
+        let r ← kernel.expr.dup e
+        ok (r, memo)
+      | kernel.expr.ExprKind.App _ _ =>
+        let key ← kernel.expr_ops.expr_nat_key e d
+        let o ← kernel.expr_ops.memo1_get memo key
+        match o with
+        | none =>
+          let (memo1, r) ←
+            match en.kind with
+            | kernel.expr.ExprKind.Bvar _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Fvar _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Sort _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Const _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.App f a =>
+              do
+              let (f2, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo f k d
+              let (a2, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 a k d
+              let r1 ← kernel.expr.app f2 a2
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.Lam ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.lam t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.ForallE ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.forall_e t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.LetE ty val body =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let (w, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 val k d
+              let i1 ← d + 1#u64
+              let (b, memo4) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo3 body k i1
+              let r1 ← kernel.expr.let_e t w b
+              ok (memo4, r1)
+            | kernel.expr.ExprKind.Lit _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Proj sn i1 sub =>
+              do
+              let (s2, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo sub k d
+              let n ← kernel.name.dup sn
+              let r1 ← kernel.expr.proj n i1 s2
+              ok (memo2, r1)
+          let e1 ← kernel.expr.dup r
+          let (_, memo2) ←
+            ron.hashmap.HashMap.insert
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+              key e1
+          ok (r, memo2)
+        | some r => ok (r, memo)
+      | kernel.expr.ExprKind.Lam _ _ _ =>
+        let key ← kernel.expr_ops.expr_nat_key e d
+        let o ← kernel.expr_ops.memo1_get memo key
+        match o with
+        | none =>
+          let (memo1, r) ←
+            match en.kind with
+            | kernel.expr.ExprKind.Bvar _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Fvar _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Sort _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Const _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.App f a =>
+              do
+              let (f2, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo f k d
+              let (a2, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 a k d
+              let r1 ← kernel.expr.app f2 a2
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.Lam ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.lam t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.ForallE ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.forall_e t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.LetE ty val body =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let (w, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 val k d
+              let i1 ← d + 1#u64
+              let (b, memo4) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo3 body k i1
+              let r1 ← kernel.expr.let_e t w b
+              ok (memo4, r1)
+            | kernel.expr.ExprKind.Lit _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Proj sn i1 sub =>
+              do
+              let (s2, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo sub k d
+              let n ← kernel.name.dup sn
+              let r1 ← kernel.expr.proj n i1 s2
+              ok (memo2, r1)
+          let e1 ← kernel.expr.dup r
+          let (_, memo2) ←
+            ron.hashmap.HashMap.insert
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+              key e1
+          ok (r, memo2)
+        | some r => ok (r, memo)
+      | kernel.expr.ExprKind.ForallE _ _ _ =>
+        let key ← kernel.expr_ops.expr_nat_key e d
+        let o ← kernel.expr_ops.memo1_get memo key
+        match o with
+        | none =>
+          let (memo1, r) ←
+            match en.kind with
+            | kernel.expr.ExprKind.Bvar _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Fvar _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Sort _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Const _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.App f a =>
+              do
+              let (f2, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo f k d
+              let (a2, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 a k d
+              let r1 ← kernel.expr.app f2 a2
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.Lam ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.lam t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.ForallE ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.forall_e t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.LetE ty val body =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let (w, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 val k d
+              let i1 ← d + 1#u64
+              let (b, memo4) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo3 body k i1
+              let r1 ← kernel.expr.let_e t w b
+              ok (memo4, r1)
+            | kernel.expr.ExprKind.Lit _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Proj sn i1 sub =>
+              do
+              let (s2, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo sub k d
+              let n ← kernel.name.dup sn
+              let r1 ← kernel.expr.proj n i1 s2
+              ok (memo2, r1)
+          let e1 ← kernel.expr.dup r
+          let (_, memo2) ←
+            ron.hashmap.HashMap.insert
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+              key e1
+          ok (r, memo2)
+        | some r => ok (r, memo)
+      | kernel.expr.ExprKind.LetE _ _ _ =>
+        let key ← kernel.expr_ops.expr_nat_key e d
+        let o ← kernel.expr_ops.memo1_get memo key
+        match o with
+        | none =>
+          let (memo1, r) ←
+            match en.kind with
+            | kernel.expr.ExprKind.Bvar _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Fvar _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Sort _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Const _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.App f a =>
+              do
+              let (f2, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo f k d
+              let (a2, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 a k d
+              let r1 ← kernel.expr.app f2 a2
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.Lam ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.lam t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.ForallE ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.forall_e t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.LetE ty val body =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let (w, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 val k d
+              let i1 ← d + 1#u64
+              let (b, memo4) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo3 body k i1
+              let r1 ← kernel.expr.let_e t w b
+              ok (memo4, r1)
+            | kernel.expr.ExprKind.Lit _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Proj sn i1 sub =>
+              do
+              let (s2, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo sub k d
+              let n ← kernel.name.dup sn
+              let r1 ← kernel.expr.proj n i1 s2
+              ok (memo2, r1)
+          let e1 ← kernel.expr.dup r
+          let (_, memo2) ←
+            ron.hashmap.HashMap.insert
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+              key e1
+          ok (r, memo2)
+        | some r => ok (r, memo)
+      | kernel.expr.ExprKind.Lit _ => let r ← kernel.expr.dup e
+                                      ok (r, memo)
+      | kernel.expr.ExprKind.Proj _ _ _ =>
+        let key ← kernel.expr_ops.expr_nat_key e d
+        let o ← kernel.expr_ops.memo1_get memo key
+        match o with
+        | none =>
+          let (memo1, r) ←
+            match en.kind with
+            | kernel.expr.ExprKind.Bvar _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Fvar _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Sort _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Const _ _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.App f a =>
+              do
+              let (f2, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo f k d
+              let (a2, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 a k d
+              let r1 ← kernel.expr.app f2 a2
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.Lam ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.lam t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.ForallE ty body m =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let i1 ← d + 1#u64
+              let (b, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 body k i1
+              let bm ← kernel.expr.binder_meta_dup m
+              let r1 ← kernel.expr.forall_e t b bm
+              ok (memo3, r1)
+            | kernel.expr.ExprKind.LetE ty val body =>
+              do
+              let (t, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo ty k d
+              let (w, memo3) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo2 val k d
+              let i1 ← d + 1#u64
+              let (b, memo4) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo3 body k i1
+              let r1 ← kernel.expr.let_e t w b
+              ok (memo4, r1)
+            | kernel.expr.ExprKind.Lit _ =>
+              do
+              let r1 ← kernel.expr.dup e
+              ok (memo, r1)
+            | kernel.expr.ExprKind.Proj sn i1 sub =>
+              do
+              let (s2, memo2) ←
+                cached.expr_ops_c.instantiate_rev_go vs memo sub k d
+              let n ← kernel.name.dup sn
+              let r1 ← kernel.expr.proj n i1 s2
+              ok (memo2, r1)
+          let e1 ← kernel.expr.dup r
+          let (_, memo2) ←
+            ron.hashmap.HashMap.insert
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+              kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+              key e1
+          ok (r, memo2)
+        | some r => ok (r, memo)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::instantiate_rev_bvar]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 669:0-683:1
+    Visibility: public -/
+def cached.expr_ops_c.instantiate_rev_bvar
+  (vs : alloc.vec.Vec kernel.expr.Expr) (e : kernel.expr.Expr) (j : Std.U64)
+  (d : Std.U64) :
+  Result kernel.expr.Expr
+  := do
+  let i ← lift (UScalar.cast .Usize j)
+  let i1 := alloc.vec.Vec.len vs
+  if i < i1
+  then
+    let i2 := alloc.vec.Vec.len vs
+    let i3 ← i2 - 1#usize
+    let i4 ← lift (UScalar.cast .Usize j)
+    let i5 ← i3 - i4
+    let w ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.expr.Expr) vs i5
+    if j = 0#u64
+    then kernel.expr.dup w
+    else
+      let i6 ← kernel.expr_ops.bvar_b w
+      if i6 <= d
+      then kernel.expr.dup w
+      else
+        let fresh ←
+          ron.hashmap.HashMap.new kernel.expr_ops.ExprNatKey kernel.expr.Expr
+        let (e1, _) ← cached.expr_ops_c.instantiate_rev_go vs fresh w j d
+        ok e1
+  else kernel.expr.dup e
+partial_fixpoint
+
+end
+
+/-- [con_ron_core::cached::expr_ops_c::instantiate_rev]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 687:0-696:1
+    Visibility: public -/
+def cached.expr_ops_c.instantiate_rev
+  (e : kernel.expr.Expr) (vs : alloc.vec.Vec kernel.expr.Expr) (d : Std.U64) :
+  Result kernel.expr.Expr
+  := do
+  let i := alloc.vec.Vec.len vs
+  if i = 0#usize
+  then kernel.expr.dup e
+  else
+    let i1 ← kernel.expr_ops.bvar_b e
+    if i1 <= d
+    then kernel.expr.dup e
+    else
+      let memo ←
+        ron.hashmap.HashMap.new kernel.expr_ops.ExprNatKey kernel.expr.Expr
+      let i2 := alloc.vec.Vec.len vs
+      let i3 ← lift (UScalar.cast .U64 i2)
+      let (e1, _) ← cached.expr_ops_c.instantiate_rev_go vs memo e i3 d
+      ok e1
+
+/-- [con_ron_core::cached::expr_ops_c::abstract1_go]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 707:0-763:1
+    Visibility: public -/
+def cached.expr_ops_c.abstract1_go
+  (d : Std.U64)
+  (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey kernel.expr.Expr)
+  (e : kernel.expr.Expr) (k : Std.U64) :
+  Result (kernel.expr.Expr × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey
+    kernel.expr.Expr))
+  := do
+  let i ← kernel.expr_ops.fvar_b e
+  if i <= d
+  then let r ← kernel.expr.dup e
+       ok (r, memo)
+  else
+    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    match en.kind with
+    | kernel.expr.ExprKind.Bvar _ => let r ← kernel.expr.dup e
+                                     ok (r, memo)
+    | kernel.expr.ExprKind.Fvar idx _ =>
+      if idx = d
+      then let r ← kernel.expr.mk_bvar k
+           ok (r, memo)
+      else let r ← kernel.expr.dup e
+           ok (r, memo)
+    | kernel.expr.ExprKind.Sort _ => let r ← kernel.expr.dup e
+                                     ok (r, memo)
+    | kernel.expr.ExprKind.Const _ _ =>
+      let r ← kernel.expr.dup e
+      ok (r, memo)
+    | kernel.expr.ExprKind.App _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e k
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ← cached.expr_ops_c.abstract1_go d memo f k
+            let (a2, memo3) ← cached.expr_ops_c.abstract1_go d memo2 a k
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let i1 ← k + 1#u64
+            let (b, memo3) ← cached.expr_ops_c.abstract1_go d memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let i1 ← k + 1#u64
+            let (b, memo3) ← cached.expr_ops_c.abstract1_go d memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let (w, memo3) ← cached.expr_ops_c.abstract1_go d memo2 val k
+            let i1 ← k + 1#u64
+            let (b, memo4) ← cached.expr_ops_c.abstract1_go d memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ← cached.expr_ops_c.abstract1_go d memo sub k
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.Lam _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e k
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ← cached.expr_ops_c.abstract1_go d memo f k
+            let (a2, memo3) ← cached.expr_ops_c.abstract1_go d memo2 a k
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let i1 ← k + 1#u64
+            let (b, memo3) ← cached.expr_ops_c.abstract1_go d memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let i1 ← k + 1#u64
+            let (b, memo3) ← cached.expr_ops_c.abstract1_go d memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let (w, memo3) ← cached.expr_ops_c.abstract1_go d memo2 val k
+            let i1 ← k + 1#u64
+            let (b, memo4) ← cached.expr_ops_c.abstract1_go d memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ← cached.expr_ops_c.abstract1_go d memo sub k
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.ForallE _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e k
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ← cached.expr_ops_c.abstract1_go d memo f k
+            let (a2, memo3) ← cached.expr_ops_c.abstract1_go d memo2 a k
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let i1 ← k + 1#u64
+            let (b, memo3) ← cached.expr_ops_c.abstract1_go d memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let i1 ← k + 1#u64
+            let (b, memo3) ← cached.expr_ops_c.abstract1_go d memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let (w, memo3) ← cached.expr_ops_c.abstract1_go d memo2 val k
+            let i1 ← k + 1#u64
+            let (b, memo4) ← cached.expr_ops_c.abstract1_go d memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ← cached.expr_ops_c.abstract1_go d memo sub k
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.LetE _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e k
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ← cached.expr_ops_c.abstract1_go d memo f k
+            let (a2, memo3) ← cached.expr_ops_c.abstract1_go d memo2 a k
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let i1 ← k + 1#u64
+            let (b, memo3) ← cached.expr_ops_c.abstract1_go d memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let i1 ← k + 1#u64
+            let (b, memo3) ← cached.expr_ops_c.abstract1_go d memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let (w, memo3) ← cached.expr_ops_c.abstract1_go d memo2 val k
+            let i1 ← k + 1#u64
+            let (b, memo4) ← cached.expr_ops_c.abstract1_go d memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ← cached.expr_ops_c.abstract1_go d memo sub k
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.Lit _ => let r ← kernel.expr.dup e
+                                    ok (r, memo)
+    | kernel.expr.ExprKind.Proj _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e k
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ← cached.expr_ops_c.abstract1_go d memo f k
+            let (a2, memo3) ← cached.expr_ops_c.abstract1_go d memo2 a k
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let i1 ← k + 1#u64
+            let (b, memo3) ← cached.expr_ops_c.abstract1_go d memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let i1 ← k + 1#u64
+            let (b, memo3) ← cached.expr_ops_c.abstract1_go d memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ← cached.expr_ops_c.abstract1_go d memo ty k
+            let (w, memo3) ← cached.expr_ops_c.abstract1_go d memo2 val k
+            let i1 ← k + 1#u64
+            let (b, memo4) ← cached.expr_ops_c.abstract1_go d memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ← cached.expr_ops_c.abstract1_go d memo sub k
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::abstract1]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 767:0-774:1
+    Visibility: public -/
+def cached.expr_ops_c.abstract1
+  (e : kernel.expr.Expr) (d : Std.U64) (k : Std.U64) :
+  Result kernel.expr.Expr
+  := do
+  let i ← kernel.expr_ops.fvar_b e
+  if i <= d
+  then kernel.expr.dup e
+  else
+    let memo ←
+      ron.hashmap.HashMap.new kernel.expr_ops.ExprNatKey kernel.expr.Expr
+    let (e1, _) ← cached.expr_ops_c.abstract1_go d memo e k
+    ok e1
+
+/-- [con_ron_core::cached::expr_ops_c::abstract_range_go]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 781:0-841:1
+    Visibility: public -/
+def cached.expr_ops_c.abstract_range_go
+  (d : Std.U64) (k : Std.U64)
+  (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey kernel.expr.Expr)
+  (e : kernel.expr.Expr) (c : Std.U64) :
+  Result (kernel.expr.Expr × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey
+    kernel.expr.Expr))
+  := do
+  let i ← kernel.expr_ops.fvar_b e
+  if i <= d
+  then let r ← kernel.expr.dup e
+       ok (r, memo)
+  else
+    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    match en.kind with
+    | kernel.expr.ExprKind.Bvar _ => let r ← kernel.expr.dup e
+                                     ok (r, memo)
+    | kernel.expr.ExprKind.Fvar idx _ =>
+      if d <= idx
+      then
+        let i1 ← d + k
+        if idx < i1
+        then
+          let i2 ← i1 - 1#u64
+          let i3 ← i2 - idx
+          let i4 ← c + i3
+          let r ← kernel.expr.mk_bvar i4
+          ok (r, memo)
+        else let r ← kernel.expr.dup e
+             ok (r, memo)
+      else let r ← kernel.expr.dup e
+           ok (r, memo)
+    | kernel.expr.ExprKind.Sort _ => let r ← kernel.expr.dup e
+                                     ok (r, memo)
+    | kernel.expr.ExprKind.Const _ _ =>
+      let r ← kernel.expr.dup e
+      ok (r, memo)
+    | kernel.expr.ExprKind.App _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e c
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo f c
+            let (a2, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 a c
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let i1 ← c + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let i1 ← c + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let (w, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 val c
+            let i1 ← c + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.abstract_range_go d k memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo sub c
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.Lam _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e c
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo f c
+            let (a2, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 a c
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let i1 ← c + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let i1 ← c + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let (w, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 val c
+            let i1 ← c + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.abstract_range_go d k memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo sub c
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.ForallE _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e c
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo f c
+            let (a2, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 a c
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let i1 ← c + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let i1 ← c + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let (w, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 val c
+            let i1 ← c + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.abstract_range_go d k memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo sub c
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.LetE _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e c
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo f c
+            let (a2, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 a c
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let i1 ← c + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let i1 ← c + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let (w, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 val c
+            let i1 ← c + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.abstract_range_go d k memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo sub c
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+    | kernel.expr.ExprKind.Lit _ => let r ← kernel.expr.dup e
+                                    ok (r, memo)
+    | kernel.expr.ExprKind.Proj _ _ _ =>
+      let key ← kernel.expr_ops.expr_nat_key e c
+      let o ← kernel.expr_ops.memo1_get memo key
+      match o with
+      | none =>
+        let (memo1, r) ←
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Fvar _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Sort _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Const _ _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.App f a =>
+            do
+            let (f2, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo f c
+            let (a2, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 a c
+            let r1 ← kernel.expr.app f2 a2
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.Lam ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let i1 ← c + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.lam t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.ForallE ty body m =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let i1 ← c + 1#u64
+            let (b, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 body i1
+            let bm ← kernel.expr.binder_meta_dup m
+            let r1 ← kernel.expr.forall_e t b bm
+            ok (memo3, r1)
+          | kernel.expr.ExprKind.LetE ty val body =>
+            do
+            let (t, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo ty c
+            let (w, memo3) ←
+              cached.expr_ops_c.abstract_range_go d k memo2 val c
+            let i1 ← c + 1#u64
+            let (b, memo4) ←
+              cached.expr_ops_c.abstract_range_go d k memo3 body i1
+            let r1 ← kernel.expr.let_e t w b
+            ok (memo4, r1)
+          | kernel.expr.ExprKind.Lit _ =>
+            do
+            let r1 ← kernel.expr.dup e
+            ok (memo, r1)
+          | kernel.expr.ExprKind.Proj sn i1 sub =>
+            do
+            let (s2, memo2) ←
+              cached.expr_ops_c.abstract_range_go d k memo sub c
+            let n ← kernel.name.dup sn
+            let r1 ← kernel.expr.proj n i1 s2
+            ok (memo2, r1)
+        let e1 ← kernel.expr.dup r
+        let (_, memo2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1
+            key e1
+        ok (r, memo2)
+      | some r => ok (r, memo)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::abstract_range]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 846:0-855:1
+    Visibility: public -/
+def cached.expr_ops_c.abstract_range
+  (e : kernel.expr.Expr) (d : Std.U64) (k : Std.U64) (c : Std.U64) :
+  Result kernel.expr.Expr
+  := do
+  if k = 0#u64
+  then kernel.expr.dup e
+  else
+    let i ← kernel.expr_ops.fvar_b e
+    if i <= d
+    then kernel.expr.dup e
+    else
+      let memo ←
+        ron.hashmap.HashMap.new kernel.expr_ops.ExprNatKey kernel.expr.Expr
+      let (e1, _) ← cached.expr_ops_c.abstract_range_go d k memo e c
+      ok e1
+
+/-- [con_ron_core::cached::expr_ops_c::inst_level_params_go]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 868:0-926:1
+    Visibility: public -/
+def cached.expr_ops_c.inst_level_params_go
+  (ks : alloc.vec.Vec kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
+  (memo : ron.hashmap.HashMap kernel.expr.Expr kernel.expr.Expr)
+  (e : kernel.expr.Expr) :
+  Result (kernel.expr.Expr × (ron.hashmap.HashMap kernel.expr.Expr
+    kernel.expr.Expr))
+  := do
+  let b ← kernel.expr.has_lp e
+  if b
+  then
+    let o ← kernel.expr_ops.memo_e_get memo e
+    match o with
+    | none =>
+      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar idx ty =>
+          do
+          let (t, memo2) ←
+            cached.expr_ops_c.inst_level_params_go ks us memo ty
+          let r1 ← kernel.expr.fvar idx t
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort u =>
+          do
+          let l ← kernel.level.subst ks us u
+          let r1 ← kernel.expr.sort l
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const n vs =>
+          do
+          let n1 ← kernel.name.dup n
+          let v ← kernel.expr_ops.levels_subst ks us vs
+          let r1 ← kernel.expr.mk_const n1 v
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (f2, memo2) ←
+            cached.expr_ops_c.inst_level_params_go ks us memo f
+          let (a2, memo3) ←
+            cached.expr_ops_c.inst_level_params_go ks us memo2 a
+          let r1 ← kernel.expr.app f2 a2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam ty body m =>
+          do
+          let (t, memo2) ←
+            cached.expr_ops_c.inst_level_params_go ks us memo ty
+          let (b1, memo3) ←
+            cached.expr_ops_c.inst_level_params_go ks us memo2 body
+          let pw ← kernel.level.subst_pw ks us m.pw
+          let r1 ← kernel.expr.lam t b1 { pw }
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE ty body m =>
+          do
+          let (t, memo2) ←
+            cached.expr_ops_c.inst_level_params_go ks us memo ty
+          let (b1, memo3) ←
+            cached.expr_ops_c.inst_level_params_go ks us memo2 body
+          let pw ← kernel.level.subst_pw ks us m.pw
+          let r1 ← kernel.expr.forall_e t b1 { pw }
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE ty val body =>
+          do
+          let (t, memo2) ←
+            cached.expr_ops_c.inst_level_params_go ks us memo ty
+          let (w, memo3) ←
+            cached.expr_ops_c.inst_level_params_go ks us memo2 val
+          let (b1, memo4) ←
+            cached.expr_ops_c.inst_level_params_go ks us memo3 body
+          let r1 ← kernel.expr.let_e t w b1
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj sn i sub =>
+          do
+          let (s2, memo2) ←
+            cached.expr_ops_c.inst_level_params_go ks us memo sub
+          let n ← kernel.name.dup sn
+          let r1 ← kernel.expr.proj n i s2
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let e2 ← kernel.expr.dup r
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  else let r ← kernel.expr.dup e
+       ok (r, memo)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::inst_level_params]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 930:0-937:1
+    Visibility: public -/
+def cached.expr_ops_c.inst_level_params
+  (ks : alloc.vec.Vec kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
+  (e : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let b ← kernel.expr.has_lp e
+  if b
+  then
+    let memo ← ron.hashmap.HashMap.new kernel.expr.Expr kernel.expr.Expr
+    let (e1, _) ← cached.expr_ops_c.inst_level_params_go ks us memo e
+    ok e1
+  else kernel.expr.dup e
+
+/-- [con_ron_core::cached::expr_ops_c::proj_entry_type_at_i]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 946:0-957:1
+    Visibility: public -/
+def cached.expr_ops_c.proj_entry_type_at_i
+  (entry : kernel.env.ProjEntry) (us : alloc.vec.Vec kernel.level.Level)
+  (targs : alloc.vec.Vec kernel.expr.Expr) (pe : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let body ←
+    cached.expr_ops_c.inst_level_params entry.level_params us entry.body
+  let e ← kernel.expr.dup pe
+  let vs ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.expr.Expr) e
+  let i := alloc.vec.Vec.len targs
+  let vs1 ← cached.expr_ops_c.rev_append_exprs vs targs i
+  cached.expr_ops_c.instantiate_list body vs1 0#u64
+
+/-- [con_ron_core::cached::expr_ops_c::loose_bvars_bounded]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 966:0-968:1
+    Visibility: public -/
+def cached.expr_ops_c.loose_bvars_bounded
+  (k : Std.U64) (e : kernel.expr.Expr) : Result Bool := do
+  let i ← kernel.expr_ops.bvar_b e
+  ok (i <= k)
+
+mutual
+
+/-- [con_ron_core::cached::expr_ops_c::wscoped_b_go]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 982:0-1007:1
+    Visibility: public -/
+def cached.expr_ops_c.wscoped_b_go
+  (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey Bool) (d : Std.U64)
+  (e : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey Bool))
+  := do
+  let i ← kernel.expr_ops.fvar_b e
+  if i = 0#u64
+  then ok (true, memo)
+  else
+    let key ← kernel.expr_ops.expr_nat_key e d
+    let o ← cached.expr_ops_c.memo_b1_get memo key
+    match o with
+    | none =>
+      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ => ok (memo, true)
+        | kernel.expr.ExprKind.Fvar idx ty =>
+          do
+          let (r1, memo2) ← cached.expr_ops_c.wscoped_b_fvar memo d idx ty
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort _ => ok (memo, true)
+        | kernel.expr.ExprKind.Const _ _ => ok (memo, true)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (r1, memo2) ← cached.expr_ops_c.wscoped_b_pair memo d f a
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Lam ty body _ =>
+          do
+          let (r1, memo2) ← cached.expr_ops_c.wscoped_b_pair memo d ty body
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.ForallE ty body _ =>
+          do
+          let (r1, memo2) ← cached.expr_ops_c.wscoped_b_pair memo d ty body
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.LetE ty val body =>
+          do
+          let (r1, memo2) ←
+            cached.expr_ops_c.wscoped_b_triple memo d ty val body
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Lit _ => ok (memo, true)
+        | kernel.expr.ExprKind.Proj _ _ sub =>
+          do
+          let (r1, memo2) ← cached.expr_ops_c.wscoped_b_go memo d sub
+          ok (memo2, r1)
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 key
+          r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::wscoped_b_fvar]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1012:0-1018:1
+    Visibility: public -/
+def cached.expr_ops_c.wscoped_b_fvar
+  (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey Bool) (d : Std.U64)
+  (idx : Std.U64) (ty : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey Bool))
+  := do
+  if idx < d
+  then cached.expr_ops_c.wscoped_b_go memo idx ty
+  else ok (false, memo)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::wscoped_b_pair]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1023:0-1034:1
+    Visibility: public -/
+def cached.expr_ops_c.wscoped_b_pair
+  (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey Bool) (d : Std.U64)
+  (x : kernel.expr.Expr) (y : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey Bool))
+  := do
+  let (b, memo1) ← cached.expr_ops_c.wscoped_b_go memo d x
+  if b
+  then cached.expr_ops_c.wscoped_b_go memo1 d y
+  else ok (false, memo1)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::wscoped_b_triple]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1038:0-1050:1
+    Visibility: public -/
+def cached.expr_ops_c.wscoped_b_triple
+  (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey Bool) (d : Std.U64)
+  (x : kernel.expr.Expr) (y : kernel.expr.Expr) (z : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey Bool))
+  := do
+  let (b, memo1) ← cached.expr_ops_c.wscoped_b_go memo d x
+  if b
+  then cached.expr_ops_c.wscoped_b_pair memo1 d y z
+  else ok (false, memo1)
+partial_fixpoint
+
+end
+
+/-- [con_ron_core::cached::expr_ops_c::wscoped_b]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1054:0-1057:1
+    Visibility: public -/
+def cached.expr_ops_c.wscoped_b
+  (d : Std.U64) (e : kernel.expr.Expr) : Result Bool := do
+  let memo ← ron.hashmap.HashMap.new kernel.expr_ops.ExprNatKey Bool
+  let (b, _) ← cached.expr_ops_c.wscoped_b_go memo d e
+  ok b
+
+/-- [con_ron_core::cached::expr_ops_c::fvar_leaves_go]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1069:0-1113:1
+    Visibility: public -/
+def cached.expr_ops_c.fvar_leaves_go
+  (acc : alloc.vec.Vec (Std.U64 × kernel.expr.Expr))
+  (seen : ron.hashmap.HashMap kernel.expr.Expr Unit) (e : kernel.expr.Expr) :
+  Result ((alloc.vec.Vec (Std.U64 × kernel.expr.Expr)) × (ron.hashmap.HashMap
+    kernel.expr.Expr Unit))
+  := do
+  let i ← kernel.expr_ops.fvar_b e
+  if i = 0#u64
+  then ok (acc, seen)
+  else
+    let o ← cached.expr_ops_c.seen_get seen e
+    match o with
+    | none =>
+      let e1 ← kernel.expr.dup e
+      let (_, seen1) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen e1 ()
+      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      match en.kind with
+      | kernel.expr.ExprKind.Bvar _ => ok (acc, seen1)
+      | kernel.expr.ExprKind.Fvar idx ty =>
+        let e2 ← kernel.expr.dup ty
+        let acc1 ← alloc.vec.Vec.push acc (idx, e2)
+        cached.expr_ops_c.fvar_leaves_go acc1 seen1 ty
+      | kernel.expr.ExprKind.Sort _ => ok (acc, seen1)
+      | kernel.expr.ExprKind.Const _ _ => ok (acc, seen1)
+      | kernel.expr.ExprKind.App f a =>
+        let (acc2, seen2) ← cached.expr_ops_c.fvar_leaves_go acc seen1 f
+        cached.expr_ops_c.fvar_leaves_go acc2 seen2 a
+      | kernel.expr.ExprKind.Lam ty body _ =>
+        let (acc2, seen2) ← cached.expr_ops_c.fvar_leaves_go acc seen1 ty
+        cached.expr_ops_c.fvar_leaves_go acc2 seen2 body
+      | kernel.expr.ExprKind.ForallE ty body _ =>
+        let (acc2, seen2) ← cached.expr_ops_c.fvar_leaves_go acc seen1 ty
+        cached.expr_ops_c.fvar_leaves_go acc2 seen2 body
+      | kernel.expr.ExprKind.LetE ty val body =>
+        let (acc2, seen2) ← cached.expr_ops_c.fvar_leaves_go acc seen1 ty
+        let (acc3, seen3) ← cached.expr_ops_c.fvar_leaves_go acc2 seen2 val
+        cached.expr_ops_c.fvar_leaves_go acc3 seen3 body
+      | kernel.expr.ExprKind.Lit _ => ok (acc, seen1)
+      | kernel.expr.ExprKind.Proj _ _ sub =>
+        cached.expr_ops_c.fvar_leaves_go acc seen1 sub
+    | some _ => ok (acc, seen)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::fvar_leaves]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1117:0-1120:1
+    Visibility: public -/
+def cached.expr_ops_c.fvar_leaves
+  (e : kernel.expr.Expr) :
+  Result (alloc.vec.Vec (Std.U64 × kernel.expr.Expr))
+  := do
+  let seen ← ron.hashmap.HashMap.new kernel.expr.Expr Unit
+  let (v, _) ←
+    cached.expr_ops_c.fvar_leaves_go (alloc.vec.Vec.new (Std.U64 ×
+      kernel.expr.Expr)) seen e
+  ok v
+
+/-- [con_ron_core::cached::expr_ops_c::leaf_mem_from]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1134:0-1146:1
+    Visibility: public -/
+def cached.expr_ops_c.leaf_mem_from
+  (bl : alloc.vec.Vec (Std.U64 × kernel.expr.Expr)) (i : Std.Usize)
+  (idx : Std.U64) (ty : kernel.expr.Expr) :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len bl
+  if i >= i1
+  then ok false
+  else
+    let (i2, e) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.U64 ×
+        kernel.expr.Expr)) bl i
+    if i2 = idx
+    then
+      let b ← kernel.expr.beq e ty
+      if b
+      then ok true
+      else let i3 ← i + 1#usize
+           cached.expr_ops_c.leaf_mem_from bl i3 idx ty
+    else let i3 ← i + 1#usize
+         cached.expr_ops_c.leaf_mem_from bl i3 idx ty
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::leaf_mem]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1126:0-1128:1
+    Visibility: public -/
+def cached.expr_ops_c.leaf_mem
+  (bl : alloc.vec.Vec (Std.U64 × kernel.expr.Expr)) (idx : Std.U64)
+  (ty : kernel.expr.Expr) :
+  Result Bool
+  := do
+  cached.expr_ops_c.leaf_mem_from bl 0#usize idx ty
+
+/-- [con_ron_core::kernel::expr_ops::memo_b_get]:
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1896:0-1901:1
+    Visibility: public -/
+def kernel.expr_ops.memo_b_get
+  (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (k : kernel.expr.Expr) :
+  Result (Option Bool)
+  := do
+  let o ←
+    ron.hashmap.HashMap.get
+      kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+      kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo k
+  match o with
+  | none => ok none
+  | some _ => ok o
+
+mutual
+
+/-- [con_ron_core::cached::expr_ops_c::leaves_sub_go]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1152:0-1176:1
+    Visibility: public -/
+def cached.expr_ops_c.leaves_sub_go
+  (bl : alloc.vec.Vec (Std.U64 × kernel.expr.Expr))
+  (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (e : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
+  := do
+  let i ← kernel.expr_ops.fvar_b e
+  if i = 0#u64
+  then ok (true, memo)
+  else
+    let o ← kernel.expr_ops.memo_b_get memo e
+    match o with
+    | none =>
+      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ => ok (memo, true)
+        | kernel.expr.ExprKind.Fvar idx ty =>
+          do
+          let (r1, memo2) ← cached.expr_ops_c.leaves_sub_fvar bl memo idx ty
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort _ => ok (memo, true)
+        | kernel.expr.ExprKind.Const _ _ => ok (memo, true)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (r1, memo2) ← cached.expr_ops_c.leaves_sub_pair bl memo f a
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Lam ty body _ =>
+          do
+          let (r1, memo2) ← cached.expr_ops_c.leaves_sub_pair bl memo ty body
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.ForallE ty body _ =>
+          do
+          let (r1, memo2) ← cached.expr_ops_c.leaves_sub_pair bl memo ty body
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.LetE ty val body =>
+          do
+          let (r1, memo2) ←
+            cached.expr_ops_c.leaves_sub_triple bl memo ty val body
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Lit _ => ok (memo, true)
+        | kernel.expr.ExprKind.Proj _ _ sub =>
+          do
+          let (r1, memo2) ← cached.expr_ops_c.leaves_sub_go bl memo sub
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::leaves_sub_fvar]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1180:0-1191:1
+    Visibility: public -/
+def cached.expr_ops_c.leaves_sub_fvar
+  (bl : alloc.vec.Vec (Std.U64 × kernel.expr.Expr))
+  (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (idx : Std.U64)
+  (ty : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
+  := do
+  let b ← cached.expr_ops_c.leaf_mem bl idx ty
+  if b
+  then cached.expr_ops_c.leaves_sub_go bl memo ty
+  else ok (false, memo)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::leaves_sub_pair]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1195:0-1206:1
+    Visibility: public -/
+def cached.expr_ops_c.leaves_sub_pair
+  (bl : alloc.vec.Vec (Std.U64 × kernel.expr.Expr))
+  (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (x : kernel.expr.Expr)
+  (y : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
+  := do
+  let (b, memo1) ← cached.expr_ops_c.leaves_sub_go bl memo x
+  if b
+  then cached.expr_ops_c.leaves_sub_go bl memo1 y
+  else ok (false, memo1)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::leaves_sub_triple]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1210:0-1222:1
+    Visibility: public -/
+def cached.expr_ops_c.leaves_sub_triple
+  (bl : alloc.vec.Vec (Std.U64 × kernel.expr.Expr))
+  (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (x : kernel.expr.Expr)
+  (y : kernel.expr.Expr) (z : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
+  := do
+  let (b, memo1) ← cached.expr_ops_c.leaves_sub_go bl memo x
+  if b
+  then cached.expr_ops_c.leaves_sub_pair bl memo1 y z
+  else ok (false, memo1)
+partial_fixpoint
+
+end
+
+/-- [con_ron_core::cached::expr_ops_c::leaf_guard]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1228:0-1236:1
+    Visibility: public -/
+def cached.expr_ops_c.leaf_guard
+  (fab : kernel.expr.Expr) (base : kernel.expr.Expr) : Result Bool := do
+  let b ← cached.expr_ops_c.has_fvar fab
+  if b
+  then
+    let bl ← cached.expr_ops_c.fvar_leaves base
+    let memo ← ron.hashmap.HashMap.new kernel.expr.Expr Bool
+    let (b1, _) ← cached.expr_ops_c.leaves_sub_go bl memo fab
+    ok b1
+  else ok true
+
+/-- [con_ron_core::cached::expr_ops_c::inst_spine_chain_from]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1252:0-1259:1
+    Visibility: public -/
+def cached.expr_ops_c.inst_spine_chain_from
+  (args : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize) (t : Std.U64)
+  (e : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let i1 := alloc.vec.Vec.len args
+  if i >= i1
+  then kernel.expr.dup e
+  else
+    let e1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.expr.Expr) args i
+    let e2 ← cached.expr_ops_c.instantiate1 e e1 t
+    let i2 ← i + 1#usize
+    let i3 ← kernel.expr_ops.sub_nat t 1#u64
+    cached.expr_ops_c.inst_spine_chain_from args i2 i3 e2
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::inst_spine_chain]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1245:0-1247:1
+    Visibility: public -/
+def cached.expr_ops_c.inst_spine_chain
+  (args : alloc.vec.Vec kernel.expr.Expr) (t : Std.U64) (e : kernel.expr.Expr)
+  :
+  Result kernel.expr.Expr
+  := do
+  cached.expr_ops_c.inst_spine_chain_from args 0#usize t e
+
+/-- [con_ron_core::cached::expr_ops_c::inst_spine]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1264:0-1271:1
+    Visibility: public -/
+def cached.expr_ops_c.inst_spine
+  (args : alloc.vec.Vec kernel.expr.Expr) (t : Std.U64) (e : kernel.expr.Expr)
+  :
+  Result kernel.expr.Expr
+  := do
+  let i := alloc.vec.Vec.len args
+  let i1 ← lift (UScalar.cast .U64 i)
+  let i2 ← t + 1#u64
+  if i1 = i2
+  then
+    let i3 := alloc.vec.Vec.len args
+    let rev ←
+      cached.expr_ops_c.rev_append_exprs (alloc.vec.Vec.new kernel.expr.Expr)
+        args i3
+    cached.expr_ops_c.instantiate_list e rev 0#u64
+  else cached.expr_ops_c.inst_spine_chain args t e
+
+/-- [con_ron_core::kernel::expr_ops::cons_expr]:
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 179:0-183:1
+    Visibility: public -/
+def kernel.expr_ops.cons_expr
+  (a : kernel.expr.Expr) (acc : alloc.vec.Vec kernel.expr.Expr) :
+  Result (alloc.vec.Vec kernel.expr.Expr)
+  := do
+  let e ← kernel.expr.dup a
+  let out ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.expr.Expr) e
+  let i := alloc.vec.Vec.len acc
+  kernel.expr_ops.exprs_copy_upto acc i 0#usize out
+
+/-- [con_ron_core::cached::expr_ops_c::pi_residual_acc]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1284:0-1304:1
+    Visibility: public -/
+def cached.expr_ops_c.pi_residual_acc
+  (acc : alloc.vec.Vec kernel.expr.Expr) (e : kernel.expr.Expr)
+  (args : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize) :
+  Result (Option kernel.expr.Expr)
+  := do
+  let i1 := alloc.vec.Vec.len args
+  if i >= i1
+  then let e1 ← cached.expr_ops_c.instantiate_list e acc 0#u64
+       ok (some e1)
+  else
+    let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+    match en.kind with
+    | kernel.expr.ExprKind.Bvar _ =>
+      let i2 := alloc.vec.Vec.len acc
+      if i2 = 0#usize
+      then ok none
+      else
+        let e2 ← cached.expr_ops_c.instantiate_list e acc 0#u64
+        cached.expr_ops_c.pi_residual_acc (alloc.vec.Vec.new kernel.expr.Expr)
+          e2 args i
+    | kernel.expr.ExprKind.Fvar _ _ => ok none
+    | kernel.expr.ExprKind.Sort _ => ok none
+    | kernel.expr.ExprKind.Const _ _ => ok none
+    | kernel.expr.ExprKind.App _ _ => ok none
+    | kernel.expr.ExprKind.Lam _ _ _ => ok none
+    | kernel.expr.ExprKind.ForallE _ b _ =>
+      let e1 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          kernel.expr.Expr) args i
+      let acc2 ← kernel.expr_ops.cons_expr e1 acc
+      let i2 ← i + 1#usize
+      cached.expr_ops_c.pi_residual_acc acc2 b args i2
+    | kernel.expr.ExprKind.LetE _ _ _ => ok none
+    | kernel.expr.ExprKind.Lit _ => ok none
+    | kernel.expr.ExprKind.Proj _ _ _ => ok none
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::pi_residual]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1308:0-1310:1
+    Visibility: public -/
+def cached.expr_ops_c.pi_residual
+  (e : kernel.expr.Expr) (args : alloc.vec.Vec kernel.expr.Expr) :
+  Result (Option kernel.expr.Expr)
+  := do
+  cached.expr_ops_c.pi_residual_acc (alloc.vec.Vec.new kernel.expr.Expr) e args
+    0#usize
+
+/-- [con_ron_core::kernel::prop_when::all_contained_from]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 576:0-584:1
+    Visibility: public -/
+def kernel.prop_when.all_contained_from
+  (params : alloc.vec.Vec kernel.name.Name)
+  (ps : alloc.vec.Vec kernel.name.Name) (i : Std.Usize) :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len ps
+  if i >= i1
+  then ok true
+  else
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) ps i
+    let b ← kernel.name.contains params n
+    if b
+    then
+      let i2 ← i + 1#usize
+      kernel.prop_when.all_contained_from params ps i2
+    else ok false
+partial_fixpoint
+
+/-- [con_ron_core::kernel::prop_when::params_defined]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 590:0-600:1
+    Visibility: public -/
+def kernel.prop_when.params_defined
+  (params : alloc.vec.Vec kernel.name.Name) (pw : kernel.prop_when.PropWhen) :
+  Result Bool
+  := do
+  match pw.repr with
+  | kernel.prop_when.PropWhenRepr.Never => ok true
+  | kernel.prop_when.PropWhenRepr.Always => ok true
+  | kernel.prop_when.PropWhenRepr.One p => kernel.name.contains params p
+  | kernel.prop_when.PropWhenRepr.Two p q =>
+    let b ← kernel.name.contains params p
+    if b
+    then kernel.name.contains params q
+    else ok false
+  | kernel.prop_when.PropWhenRepr.Many ps =>
+    kernel.prop_when.all_contained_from params ps 0#usize
+
+/-- [con_ron_core::kernel::level::all_params_defined]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 225:0-233:1
+    Visibility: public -/
+def kernel.level.all_params_defined
+  (params : alloc.vec.Vec kernel.name.Name) (u : kernel.level.Level) :
+  Result Bool
+  := do
+  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
+  match ln.kind with
+  | kernel.level.LevelKind.Zero => ok true
+  | kernel.level.LevelKind.Succ l => kernel.level.all_params_defined params l
+  | kernel.level.LevelKind.Max l r =>
+    let b ← kernel.level.all_params_defined params l
+    if b
+    then kernel.level.all_params_defined params r
+    else ok false
+  | kernel.level.LevelKind.Imax l r =>
+    let b ← kernel.level.all_params_defined params l
+    if b
+    then kernel.level.all_params_defined params r
+    else ok false
+  | kernel.level.LevelKind.Param n => kernel.name.contains params n
+partial_fixpoint
+
+/-- [con_ron_core::kernel::expr_ops::levels_all_params_defined]:
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1987:0-1995:1
+    Visibility: public -/
+def kernel.expr_ops.levels_all_params_defined
+  (params : alloc.vec.Vec kernel.name.Name)
+  (us : alloc.vec.Vec kernel.level.Level) (i : Std.Usize) :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len us
+  if i >= i1
+  then ok true
+  else
+    let l ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.level.Level) us i
+    let b ← kernel.level.all_params_defined params l
+    if b
+    then
+      let i2 ← i + 1#usize
+      kernel.expr_ops.levels_all_params_defined params us i2
+    else ok false
+partial_fixpoint
+
+/-- [con_ron_core::kernel::expr_ops::bool_and]:
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1912:0-1918:1
+    Visibility: public -/
+def kernel.expr_ops.bool_and (a : Bool) (b : Bool) : Result Bool := do
+  if a
+  then ok b
+  else ok false
+
+mutual
+
+/-- [con_ron_core::cached::expr_ops_c::all_level_params_defined_go]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1324:0-1358:1
+    Visibility: public -/
+def cached.expr_ops_c.all_level_params_defined_go
+  (params : alloc.vec.Vec kernel.name.Name)
+  (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (e : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
+  := do
+  let b ← kernel.expr.has_lp e
+  if b
+  then
+    let o ← kernel.expr_ops.memo_b_get memo e
+    match o with
+    | none =>
+      let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ => ok (memo, true)
+        | kernel.expr.ExprKind.Fvar _ ty =>
+          do
+          let (r1, memo2) ←
+            cached.expr_ops_c.all_level_params_defined_go params memo ty
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort u =>
+          do
+          let r1 ← kernel.level.all_params_defined params u
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ us =>
+          do
+          let r1 ←
+            kernel.expr_ops.levels_all_params_defined params us 0#usize
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (r1, memo2) ← cached.expr_ops_c.alpd_pair params memo f a
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Lam ty body m =>
+          do
+          let (r1, memo2) ←
+            cached.expr_ops_c.alpd_binder params memo ty body m.pw
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.ForallE ty body m =>
+          do
+          let (r1, memo2) ←
+            cached.expr_ops_c.alpd_binder params memo ty body m.pw
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.LetE ty val body =>
+          do
+          let (r1, memo2) ←
+            cached.expr_ops_c.alpd_triple params memo ty val body
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Lit _ => ok (memo, true)
+        | kernel.expr.ExprKind.Proj _ _ sub =>
+          do
+          let (r1, memo2) ←
+            cached.expr_ops_c.all_level_params_defined_go params memo sub
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  else ok (true, memo)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::alpd_pair]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1362:0-1373:1
+    Visibility: public -/
+def cached.expr_ops_c.alpd_pair
+  (params : alloc.vec.Vec kernel.name.Name)
+  (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (x : kernel.expr.Expr)
+  (y : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
+  := do
+  let (b, memo1) ←
+    cached.expr_ops_c.all_level_params_defined_go params memo x
+  if b
+  then cached.expr_ops_c.all_level_params_defined_go params memo1 y
+  else ok (false, memo1)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::alpd_binder]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1379:0-1393:1
+    Visibility: public -/
+def cached.expr_ops_c.alpd_binder
+  (params : alloc.vec.Vec kernel.name.Name)
+  (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (ty : kernel.expr.Expr)
+  (body : kernel.expr.Expr) (pw : kernel.prop_when.PropWhen) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
+  := do
+  let (b, memo1) ←
+    cached.expr_ops_c.all_level_params_defined_go params memo ty
+  if b
+  then
+    let (rb, memo2) ←
+      cached.expr_ops_c.all_level_params_defined_go params memo1 body
+    let rp ← kernel.prop_when.params_defined params pw
+    let b1 ← kernel.expr_ops.bool_and rb rp
+    ok (b1, memo2)
+  else ok (false, memo1)
+partial_fixpoint
+
+/-- [con_ron_core::cached::expr_ops_c::alpd_triple]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1397:0-1409:1
+    Visibility: public -/
+def cached.expr_ops_c.alpd_triple
+  (params : alloc.vec.Vec kernel.name.Name)
+  (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (x : kernel.expr.Expr)
+  (y : kernel.expr.Expr) (z : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
+  := do
+  let (b, memo1) ←
+    cached.expr_ops_c.all_level_params_defined_go params memo x
+  if b
+  then cached.expr_ops_c.alpd_pair params memo1 y z
+  else ok (false, memo1)
+partial_fixpoint
+
+end
+
+/-- [con_ron_core::cached::expr_ops_c::all_level_params_defined]:
+    Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 1413:0-1416:1
+    Visibility: public -/
+def cached.expr_ops_c.all_level_params_defined
+  (params : alloc.vec.Vec kernel.name.Name) (e : kernel.expr.Expr) :
+  Result Bool
+  := do
+  let memo ← ron.hashmap.HashMap.new kernel.expr.Expr Bool
+  let (b, _) ← cached.expr_ops_c.all_level_params_defined_go params memo e
+  ok b
+
 /-- [con_ron_core::cached::parsed_c::value_kind_dup]:
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 58:0-64:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 124:0-130:1
     Visibility: public -/
 def cached.parsed_c.value_kind_dup
   (k : cached.parsed_c.ValueKind) : Result cached.parsed_c.ValueKind := do
@@ -15202,6 +19557,6108 @@ def cached.parsed_c.value_kind_dup
   | cached.parsed_c.ValueKind.Defn => ok cached.parsed_c.ValueKind.Defn
   | cached.parsed_c.ValueKind.Thm => ok cached.parsed_c.ValueKind.Thm
   | cached.parsed_c.ValueKind.Opaque => ok cached.parsed_c.ValueKind.Opaque
+
+/-- [con_ron_core::kernel::core_k::check_fuel]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 5858:0-5860:1
+    Visibility: public -/
+def kernel.core_k.check_fuel : Result Std.U64 := do
+  ok 100000#u64
+
+/-- [con_ron_core::kernel::type_checker::ensure_sort_core]:
+    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 134:0-142:1
+    Visibility: public -/
+def kernel.type_checker.ensure_sort_core
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (depth : Std.U64) (e : kernel.expr.Expr) :
+  Result ((core.result.Result kernel.level.Level kernel.core_types.CheckError)
+    × cached.state_c.CState)
+  := do
+  let i ← kernel.core_k.check_fuel
+  kernel.core_k.ensure_sort mode i st fe depth e
+
+/-- [con_ron_core::cached::parsed_c::op_s_ix_c]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 166:0-174:1
+    Visibility: public -/
+def cached.parsed_c.op_s_ix_c
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (d : Std.U64) (i : kernel.expr.Expr) :
+  Result ((core.result.Result kernel.level.Level kernel.core_types.CheckError)
+    × cached.state_c.CState)
+  := do
+  kernel.type_checker.ensure_sort_core mode st fe d i
+
+/-- [con_ron_core::kernel::type_checker::annotate_core]:
+    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 120:0-128:1
+    Visibility: public -/
+def kernel.type_checker.annotate_core
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (depth : Std.U64) (e : kernel.expr.Expr) :
+  Result ((core.result.Result kernel.expr.Expr kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let i ← kernel.core_k.check_fuel
+  cached.core_c.annotate mode i st fe depth e
+
+/-- [con_ron_core::kernel::level::is_proj_table_str]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 621:0-632:1
+    Visibility: public -/
+def kernel.level.is_proj_table_str
+  (s : alloc.vec.Vec Std.U32) : Result Bool := do
+  let i := alloc.vec.Vec.len s
+  if i = 9#usize
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
+        0#usize
+    if i1 = 112#u32
+    then
+      let i2 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
+          1#usize
+      if i2 = 114#u32
+      then
+        let i3 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
+            2#usize
+        if i3 = 111#u32
+        then
+          let i4 ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32)
+              s 3#usize
+          if i4 = 106#u32
+          then
+            let i5 ←
+              alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                Std.U32) s 4#usize
+            if i5 = 84#u32
+            then
+              let i6 ←
+                alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                  Std.U32) s 5#usize
+              if i6 = 97#u32
+              then
+                let i7 ←
+                  alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                    Std.U32) s 6#usize
+                if i7 = 98#u32
+                then
+                  let i8 ←
+                    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                      Std.U32) s 7#usize
+                  if i8 = 108#u32
+                  then
+                    let i9 ←
+                      alloc.vec.Vec.index
+                        (core.slice.index.SliceIndexUsizeSlice Std.U32) s
+                        8#usize
+                    ok (i9 = 101#u32)
+                  else ok false
+                else ok false
+              else ok false
+            else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [con_ron_core::kernel::level::is_proj_str]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 615:0-617:1
+    Visibility: public -/
+def kernel.level.is_proj_str (s : alloc.vec.Vec Std.U32) : Result Bool := do
+  let i := alloc.vec.Vec.len s
+  if i = 4#usize
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
+        0#usize
+    if i1 = 112#u32
+    then
+      let i2 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
+          1#usize
+      if i2 = 114#u32
+      then
+        let i3 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
+            2#usize
+        if i3 = 111#u32
+        then
+          let i4 ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32)
+              s 3#usize
+          ok (i4 = 106#u32)
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [con_ron_core::kernel::level::name_is_proj_fn_shape]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 637:0-645:1
+    Visibility: public -/
+def kernel.level.name_is_proj_fn_shape
+  (n : kernel.name.Name) : Result Bool := do
+  let nn ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global n._0
+  match nn.kind with
+  | kernel.name.NameKind.Anonymous => ok false
+  | kernel.name.NameKind.Str _ _ => ok false
+  | kernel.name.NameKind.Num p _ =>
+    let nn1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global p._0
+    match nn1.kind with
+    | kernel.name.NameKind.Anonymous => ok false
+    | kernel.name.NameKind.Str _ s =>
+      let b ← kernel.level.is_proj_str s
+      if b
+      then ok true
+      else kernel.level.is_proj_table_str s
+    | kernel.name.NameKind.Num _ _ => ok false
+
+/-- [con_ron_core::kernel::level::name_nodup_from]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 581:0-589:1
+    Visibility: public -/
+def kernel.level.name_nodup_from
+  (ns : alloc.vec.Vec kernel.name.Name) (i : Std.Usize) : Result Bool := do
+  let i1 := alloc.vec.Vec.len ns
+  if i >= i1
+  then ok true
+  else
+    let i2 ← i + 1#usize
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) ns i
+    let b ← kernel.name.contains_from ns i2 n
+    if b
+    then ok false
+    else kernel.level.name_nodup_from ns i2
+partial_fixpoint
+
+/-- [con_ron_core::kernel::level::name_nodup]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 574:0-576:1
+    Visibility: public -/
+def kernel.level.name_nodup
+  (ns : alloc.vec.Vec kernel.name.Name) : Result Bool := do
+  kernel.level.name_nodup_from ns 0#usize
+
+/-- [con_ron_core::kernel::type_checker::infer_type_core]:
+    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 79:0-87:1
+    Visibility: public -/
+def kernel.type_checker.infer_type_core
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (depth : Std.U64) (e : kernel.expr.Expr) :
+  Result ((core.result.Result kernel.expr.Expr kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let i ← kernel.core_k.check_fuel
+  cached.core_c.infer mode i st fe depth e
+
+/-- [con_ron_core::kernel::expr_ops::bool_and3]:
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1922:0-1924:1
+    Visibility: public -/
+def kernel.expr_ops.bool_and3
+  (a : Bool) (b : Bool) (c : Bool) : Result Bool := do
+  let b1 ← kernel.expr_ops.bool_and a b
+  kernel.expr_ops.bool_and b1 c
+
+/-- [con_ron_core::kernel::core_k::str_support_stored]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 693:0-719:1
+    Visibility: public -/
+def kernel.core_k.str_support_stored
+  (fe : kernel.fenv.FEnv) : Result Bool := do
+  let n ← kernel.basis_names.string_name
+  let o ← kernel.fenv.find fe n
+  let b := core.option.Option.is_some o
+  if b
+  then
+    let n1 ← kernel.basis_names.string_of_list_name
+    let o1 ← kernel.fenv.find fe n1
+    let b1 := core.option.Option.is_some o1
+    if b1
+    then
+      let n2 ← kernel.basis_names.list_name
+      let o2 ← kernel.fenv.find fe n2
+      let b2 := core.option.Option.is_some o2
+      if b2
+      then
+        let n3 ← kernel.basis_names.list_nil_name
+        let o3 ← kernel.fenv.find fe n3
+        let b3 := core.option.Option.is_some o3
+        if b3
+        then
+          let n4 ← kernel.basis_names.list_cons_name
+          let o4 ← kernel.fenv.find fe n4
+          let b4 := core.option.Option.is_some o4
+          if b4
+          then
+            let n5 ← kernel.basis_names.char_name
+            let o5 ← kernel.fenv.find fe n5
+            let b5 := core.option.Option.is_some o5
+            if b5
+            then
+              let n6 ← kernel.basis_names.char_of_nat_name
+              let o6 ← kernel.fenv.find fe n6
+              ok (core.option.Option.is_some o6)
+            else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [con_ron_core::kernel::core_k::nat_trio_stored]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 679:0-689:1
+    Visibility: public -/
+def kernel.core_k.nat_trio_stored (fe : kernel.fenv.FEnv) : Result Bool := do
+  let n ← kernel.basis_names.nat_name
+  let o ← kernel.fenv.find fe n
+  let b := core.option.Option.is_some o
+  if b
+  then
+    let n1 ← kernel.basis_names.nat_zero_name
+    let o1 ← kernel.fenv.find fe n1
+    let b1 := core.option.Option.is_some o1
+    if b1
+    then
+      let n2 ← kernel.basis_names.nat_succ_name
+      let o2 ← kernel.fenv.find fe n2
+      ok (core.option.Option.is_some o2)
+    else ok false
+  else ok false
+
+/-- [con_ron_core::kernel::core_k::consts_resolve]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 620:0-674:1
+    Visibility: public -/
+def kernel.core_k.consts_resolve
+  (fe : kernel.fenv.FEnv) (e : kernel.expr.Expr) : Result Bool := do
+  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => ok true
+  | kernel.expr.ExprKind.Fvar _ ty => kernel.core_k.consts_resolve fe ty
+  | kernel.expr.ExprKind.Sort _ => ok true
+  | kernel.expr.ExprKind.Const n _ =>
+    let o ← kernel.fenv.find fe n
+    ok (core.option.Option.is_some o)
+  | kernel.expr.ExprKind.App f a =>
+    let b ← kernel.core_k.consts_resolve fe f
+    if b
+    then kernel.core_k.consts_resolve fe a
+    else ok false
+  | kernel.expr.ExprKind.Lam ty body _ =>
+    let b ← kernel.core_k.consts_resolve fe ty
+    if b
+    then kernel.core_k.consts_resolve fe body
+    else ok false
+  | kernel.expr.ExprKind.ForallE ty body _ =>
+    let b ← kernel.core_k.consts_resolve fe ty
+    if b
+    then kernel.core_k.consts_resolve fe body
+    else ok false
+  | kernel.expr.ExprKind.LetE ty val body =>
+    let b ← kernel.core_k.consts_resolve fe ty
+    if b
+    then
+      let b1 ← kernel.core_k.consts_resolve fe val
+      if b1
+      then kernel.core_k.consts_resolve fe body
+      else ok false
+    else ok false
+  | kernel.expr.ExprKind.Lit l =>
+    match l with
+    | kernel.expr.Literal.NatVal _ => kernel.core_k.nat_trio_stored fe
+    | kernel.expr.Literal.StrVal _ =>
+      let b ← kernel.core_k.nat_trio_stored fe
+      if b
+      then kernel.core_k.str_support_stored fe
+      else ok false
+  | kernel.expr.ExprKind.Proj s _ pe =>
+    let o ← kernel.fenv.find fe s
+    let b := core.option.Option.is_some o
+    if b
+    then kernel.core_k.consts_resolve fe pe
+    else ok false
+partial_fixpoint
+
+/-- [con_ron_core::kernel::decl_check::consts_resolve_f_go]:
+    Source: 'crates/con-ron-core/src/kernel/decl_check.rs', lines 85:0-129:1
+    Visibility: public -/
+def kernel.decl_check.consts_resolve_f_go
+  (fe : kernel.fenv.FEnv) (memo : ron.hashmap.HashMap kernel.expr.Expr Bool)
+  (e : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
+  := do
+  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ =>
+    let r ← kernel.core_k.consts_resolve fe e
+    ok (r, memo)
+  | kernel.expr.ExprKind.Fvar _ _ =>
+    let o ← kernel.expr_ops.memo_b_get memo e
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ ty =>
+          do
+          let (r1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo f
+          let (b2, memo3) ← kernel.decl_check.consts_resolve_f_go fe memo2 a
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam ty body _ =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 body
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE ty body _ =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 body
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE ty val body =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 val
+          let (b3, memo4) ←
+            kernel.decl_check.consts_resolve_f_go fe memo3 body
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj s _ sub =>
+          do
+          let (b, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo sub
+          let o1 ← kernel.fenv.find fe s
+          let ok1 := core.option.Option.is_some o1
+          let r1 ← kernel.expr_ops.bool_and ok1 b
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprKind.Sort _ =>
+    let r ← kernel.core_k.consts_resolve fe e
+    ok (r, memo)
+  | kernel.expr.ExprKind.Const _ _ =>
+    let r ← kernel.core_k.consts_resolve fe e
+    ok (r, memo)
+  | kernel.expr.ExprKind.App _ _ =>
+    let o ← kernel.expr_ops.memo_b_get memo e
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ ty =>
+          do
+          let (r1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo f
+          let (b2, memo3) ← kernel.decl_check.consts_resolve_f_go fe memo2 a
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam ty body _ =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 body
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE ty body _ =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 body
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE ty val body =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 val
+          let (b3, memo4) ←
+            kernel.decl_check.consts_resolve_f_go fe memo3 body
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj s _ sub =>
+          do
+          let (b, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo sub
+          let o1 ← kernel.fenv.find fe s
+          let ok1 := core.option.Option.is_some o1
+          let r1 ← kernel.expr_ops.bool_and ok1 b
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprKind.Lam _ _ _ =>
+    let o ← kernel.expr_ops.memo_b_get memo e
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ ty =>
+          do
+          let (r1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo f
+          let (b2, memo3) ← kernel.decl_check.consts_resolve_f_go fe memo2 a
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam ty body _ =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 body
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE ty body _ =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 body
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE ty val body =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 val
+          let (b3, memo4) ←
+            kernel.decl_check.consts_resolve_f_go fe memo3 body
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj s _ sub =>
+          do
+          let (b, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo sub
+          let o1 ← kernel.fenv.find fe s
+          let ok1 := core.option.Option.is_some o1
+          let r1 ← kernel.expr_ops.bool_and ok1 b
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprKind.ForallE _ _ _ =>
+    let o ← kernel.expr_ops.memo_b_get memo e
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ ty =>
+          do
+          let (r1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo f
+          let (b2, memo3) ← kernel.decl_check.consts_resolve_f_go fe memo2 a
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam ty body _ =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 body
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE ty body _ =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 body
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE ty val body =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 val
+          let (b3, memo4) ←
+            kernel.decl_check.consts_resolve_f_go fe memo3 body
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj s _ sub =>
+          do
+          let (b, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo sub
+          let o1 ← kernel.fenv.find fe s
+          let ok1 := core.option.Option.is_some o1
+          let r1 ← kernel.expr_ops.bool_and ok1 b
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprKind.LetE _ _ _ =>
+    let o ← kernel.expr_ops.memo_b_get memo e
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ ty =>
+          do
+          let (r1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo f
+          let (b2, memo3) ← kernel.decl_check.consts_resolve_f_go fe memo2 a
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam ty body _ =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 body
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE ty body _ =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 body
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE ty val body =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 val
+          let (b3, memo4) ←
+            kernel.decl_check.consts_resolve_f_go fe memo3 body
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj s _ sub =>
+          do
+          let (b, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo sub
+          let o1 ← kernel.fenv.find fe s
+          let ok1 := core.option.Option.is_some o1
+          let r1 ← kernel.expr_ops.bool_and ok1 b
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprKind.Lit _ =>
+    let r ← kernel.core_k.consts_resolve fe e
+    ok (r, memo)
+  | kernel.expr.ExprKind.Proj _ _ _ =>
+    let o ← kernel.expr_ops.memo_b_get memo e
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ ty =>
+          do
+          let (r1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo f
+          let (b2, memo3) ← kernel.decl_check.consts_resolve_f_go fe memo2 a
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam ty body _ =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 body
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE ty body _ =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 body
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE ty val body =>
+          do
+          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
+          let (b2, memo3) ←
+            kernel.decl_check.consts_resolve_f_go fe memo2 val
+          let (b3, memo4) ←
+            kernel.decl_check.consts_resolve_f_go fe memo3 body
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.core_k.consts_resolve fe e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj s _ sub =>
+          do
+          let (b, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo sub
+          let o1 ← kernel.fenv.find fe s
+          let ok1 := core.option.Option.is_some o1
+          let r1 ← kernel.expr_ops.bool_and ok1 b
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+partial_fixpoint
+
+/-- [con_ron_core::kernel::decl_check::consts_resolve_f_fast]:
+    Source: 'crates/con-ron-core/src/kernel/decl_check.rs', lines 135:0-138:1
+    Visibility: public -/
+def kernel.decl_check.consts_resolve_f_fast
+  (fe : kernel.fenv.FEnv) (e : kernel.expr.Expr) : Result Bool := do
+  let memo ← ron.hashmap.HashMap.new kernel.expr.Expr Bool
+  let (b, _) ← kernel.decl_check.consts_resolve_f_go fe memo e
+  ok b
+
+/-- [con_ron_core::cached::parsed_c::check_constant_val_c_after_annot::M#1]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 231:34-231:171 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_constant_val_c_after_annot.M_1
+  : Array Std.U32 24#usize :=
+  Array.make 24#usize [
+    117#u32, 110#u32, 107#u32, 110#u32, 111#u32, 119#u32, 110#u32, 32#u32,
+    99#u32, 111#u32, 110#u32, 115#u32, 116#u32, 97#u32, 110#u32, 116#u32,
+    32#u32, 105#u32, 110#u32, 32#u32, 116#u32, 121#u32, 112#u32, 101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_constant_val_c_after_annot::M]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 229:34-229:233 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_constant_val_c_after_annot.M
+  : Array Std.U32 37#usize :=
+  Array.make 37#usize [
+    117#u32, 110#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32,
+    101#u32, 100#u32, 32#u32, 117#u32, 110#u32, 105#u32, 118#u32, 101#u32,
+    114#u32, 115#u32, 101#u32, 32#u32, 112#u32, 97#u32, 114#u32, 97#u32,
+    109#u32, 101#u32, 116#u32, 101#u32, 114#u32, 32#u32, 105#u32, 110#u32,
+    32#u32, 116#u32, 121#u32, 112#u32, 101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_constant_val_c_after_annot]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 221:0-248:1
+    Visibility: public -/
+def cached.parsed_c.check_constant_val_c_after_annot
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (cv : kernel.env.ConstantVal)
+  (jty : kernel.expr.Expr) :
+  Result ((core.result.Result (kernel.env.ConstantVal × kernel.expr.Expr)
+    kernel.core_types.CheckError) × cached.state_c.CState)
+  := do
+  let b ← cached.expr_ops_c.all_level_params_defined cv.level_params jty
+  if b
+  then
+    let b1 ← kernel.decl_check.consts_resolve_f_fast fe jty
+    if b1
+    then
+      let (r, st1) ← kernel.type_checker.infer_type_core mode st fe 0#u64 jty
+      match r with
+      | core.result.Result.Ok jsty =>
+        let (r1, st2) ← cached.parsed_c.op_s_ix_c mode st1 fe 0#u64 jsty
+        match r1 with
+        | core.result.Result.Ok _ =>
+          let n ← kernel.name.dup cv.name
+          let v ← kernel.prop_when.names_copy cv.level_params
+          let e ← kernel.expr.dup jty
+          ok (core.result.Result.Ok
+            ({ «name» := n, level_params := v, ty := e }, jty), st2)
+        | core.result.Result.Err err => ok (core.result.Result.Err err, st2)
+      | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+    else
+      let s ←
+        lift (Array.to_slice
+          cached.parsed_c.check_constant_val_c_after_annot.M_1)
+      let v ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.invalid v
+      ok (core.result.Result.Err ce, st)
+  else
+    let s ←
+      lift (Array.to_slice cached.parsed_c.check_constant_val_c_after_annot.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.invalid v
+    ok (core.result.Result.Err ce, st)
+
+/-- [con_ron_core::cached::parsed_c::check_constant_val_c::M#5]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 206:34-206:208 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_constant_val_c.M_5 : Array Std.U32 32#usize :=
+  Array.make 32#usize [
+    117#u32, 110#u32, 101#u32, 120#u32, 112#u32, 101#u32, 99#u32, 116#u32,
+    101#u32, 100#u32, 32#u32, 102#u32, 114#u32, 101#u32, 101#u32, 32#u32,
+    118#u32, 97#u32, 114#u32, 105#u32, 97#u32, 98#u32, 108#u32, 101#u32,
+    32#u32, 105#u32, 110#u32, 32#u32, 116#u32, 121#u32, 112#u32, 101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_constant_val_c::M#4]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 204:34-204:188 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_constant_val_c.M_4 : Array Std.U32 28#usize :=
+  Array.make 28#usize [
+    108#u32, 111#u32, 111#u32, 115#u32, 101#u32, 32#u32, 98#u32, 111#u32,
+    117#u32, 110#u32, 100#u32, 32#u32, 118#u32, 97#u32, 114#u32, 105#u32,
+    97#u32, 98#u32, 108#u32, 101#u32, 32#u32, 105#u32, 110#u32, 32#u32,
+    116#u32, 121#u32, 112#u32, 101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_constant_val_c::M#3]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 202:34-202:265 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_constant_val_c.M_3 : Array Std.U32 44#usize :=
+  Array.make 44#usize [
+    100#u32, 117#u32, 112#u32, 108#u32, 105#u32, 99#u32, 97#u32, 116#u32,
+    101#u32, 32#u32, 117#u32, 110#u32, 105#u32, 118#u32, 101#u32, 114#u32,
+    115#u32, 101#u32, 32#u32, 112#u32, 97#u32, 114#u32, 97#u32, 109#u32,
+    101#u32, 116#u32, 101#u32, 114#u32, 115#u32, 32#u32, 105#u32, 110#u32,
+    32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32, 97#u32,
+    116#u32, 105#u32, 111#u32, 110#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_constant_val_c::M#2]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 200:34-200:172 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_constant_val_c.M_2 : Array Std.U32 24#usize :=
+  Array.make 24#usize [
+    114#u32, 101#u32, 115#u32, 101#u32, 114#u32, 118#u32, 101#u32, 100#u32,
+    32#u32, 112#u32, 114#u32, 111#u32, 106#u32, 101#u32, 99#u32, 116#u32,
+    105#u32, 111#u32, 110#u32, 32#u32, 110#u32, 97#u32, 109#u32, 101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_constant_val_c::M#1]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 198:34-198:146 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_constant_val_c.M_1 : Array Std.U32 19#usize :=
+  Array.make 19#usize [
+    114#u32, 101#u32, 115#u32, 101#u32, 114#u32, 118#u32, 101#u32, 100#u32,
+    32#u32, 98#u32, 97#u32, 115#u32, 105#u32, 115#u32, 32#u32, 110#u32, 97#u32,
+    109#u32, 101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_constant_val_c::M]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 196:34-196:155 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_constant_val_c.M : Array Std.U32 21#usize :=
+  Array.make 21#usize [
+    100#u32, 117#u32, 112#u32, 108#u32, 105#u32, 99#u32, 97#u32, 116#u32,
+    101#u32, 32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32,
+    97#u32, 116#u32, 105#u32, 111#u32, 110#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_constant_val_c]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 189:0-213:1
+    Visibility: public -/
+def cached.parsed_c.check_constant_val_c
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (cv : kernel.env.ConstantVal) :
+  Result ((core.result.Result (kernel.env.ConstantVal × kernel.expr.Expr)
+    kernel.core_types.CheckError) × cached.state_c.CState)
+  := do
+  let o ← kernel.fenv.find fe cv.name
+  let b := core.option.Option.is_some o
+  if b
+  then
+    let s ← lift (Array.to_slice cached.parsed_c.check_constant_val_c.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.invalid v
+    ok (core.result.Result.Err ce, st)
+  else
+    let v ← kernel.basis_names.reserved_basis_names
+    let b1 ← kernel.name.contains v cv.name
+    if b1
+    then
+      let s ← lift (Array.to_slice cached.parsed_c.check_constant_val_c.M_1)
+      let v1 ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.invalid v1
+      ok (core.result.Result.Err ce, st)
+    else
+      let b2 ← kernel.level.name_is_proj_fn_shape cv.name
+      if b2
+      then
+        let s ←
+          lift (Array.to_slice cached.parsed_c.check_constant_val_c.M_2)
+        let v1 ← kernel.core_types.code_points s
+        let ce ← kernel.core_types.invalid v1
+        ok (core.result.Result.Err ce, st)
+      else
+        let b3 ← kernel.level.name_nodup cv.level_params
+        if b3
+        then
+          let b4 ← cached.expr_ops_c.loose_bvars_bounded 0#u64 cv.ty
+          if b4
+          then
+            let b5 ← cached.expr_ops_c.has_fvar cv.ty
+            if b5
+            then
+              let s ←
+                lift (Array.to_slice cached.parsed_c.check_constant_val_c.M_5)
+              let v1 ← kernel.core_types.code_points s
+              let ce ← kernel.core_types.invalid v1
+              ok (core.result.Result.Err ce, st)
+            else
+              let (r, st1) ←
+                kernel.type_checker.annotate_core mode st fe 0#u64 cv.ty
+              match r with
+              | core.result.Result.Ok jty =>
+                cached.parsed_c.check_constant_val_c_after_annot mode st1 fe cv
+                  jty
+              | core.result.Result.Err err =>
+                ok (core.result.Result.Err err, st1)
+          else
+            let s ←
+              lift (Array.to_slice cached.parsed_c.check_constant_val_c.M_4)
+            let v1 ← kernel.core_types.code_points s
+            let ce ← kernel.core_types.invalid v1
+            ok (core.result.Result.Err ce, st)
+        else
+          let s ←
+            lift (Array.to_slice cached.parsed_c.check_constant_val_c.M_3)
+          let v1 ← kernel.core_types.code_points s
+          let ce ← kernel.core_types.invalid v1
+          ok (core.result.Result.Err ce, st)
+
+/-- [con_ron_core::kernel::type_checker::is_def_eq_core]:
+    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 106:0-115:1
+    Visibility: public -/
+def kernel.type_checker.is_def_eq_core
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (depth : Std.U64) (a : kernel.expr.Expr)
+  (b : kernel.expr.Expr) :
+  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let i ← kernel.core_k.check_fuel
+  cached.core_c.defeq mode i st fe depth a b
+
+/-- [con_ron_core::kernel::env::constant_info_name]:
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 730:0-740:1
+    Visibility: public -/
+def kernel.env.constant_info_name
+  (c : kernel.env.ConstantInfo) : Result kernel.name.Name := do
+  match c with
+  | kernel.env.ConstantInfo.AxiomInfo v => kernel.name.dup v.name
+  | kernel.env.ConstantInfo.DefnInfo v _ _ => kernel.name.dup v.name
+  | kernel.env.ConstantInfo.ThmInfo v _ => kernel.name.dup v.name
+  | kernel.env.ConstantInfo.IndInfo v _ => kernel.name.dup v.name
+  | kernel.env.ConstantInfo.CtorInfo v _ _ => kernel.name.dup v.name
+  | kernel.env.ConstantInfo.RecInfo v _ _ _ => kernel.name.dup v.name
+  | kernel.env.ConstantInfo.ProjInfo tbl =>
+    kernel.env.proj_table_name tbl.struct_name
+
+/-- [con_ron_core::kernel::env::proj_table_dup]:
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 421:0-433:1
+    Visibility: public -/
+def kernel.env.proj_table_dup
+  (t : kernel.env.ProjTable) : Result kernel.env.ProjTable := do
+  let n ← kernel.name.dup t.struct_name
+  let v ← kernel.prop_when.names_copy t.level_params
+  let n1 ← kernel.name.dup t.ctor
+  let l ← kernel.level.dup t.struct_sort
+  let v1 ← kernel.env.exprs_copy t.bodies
+  let v2 ← kernel.env.levels_copy t.guards
+  ok
+    {
+      t
+        with
+        struct_name := n,
+        level_params := v,
+        ctor := n1,
+        struct_sort := l,
+        bodies := v1,
+        guards := v2
+    }
+
+/-- [con_ron_core::kernel::env::constant_info_dup]:
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 523:0-548:1
+    Visibility: public -/
+def kernel.env.constant_info_dup
+  (c : kernel.env.ConstantInfo) : Result kernel.env.ConstantInfo := do
+  match c with
+  | kernel.env.ConstantInfo.AxiomInfo v =>
+    let cv ← kernel.env.constant_val_dup v
+    ok (kernel.env.ConstantInfo.AxiomInfo cv)
+  | kernel.env.ConstantInfo.DefnInfo v value hint =>
+    let cv ← kernel.env.constant_val_dup v
+    let e ← kernel.expr.dup value
+    let rh ← kernel.env.reducibility_hint_dup hint
+    ok (kernel.env.ConstantInfo.DefnInfo cv e rh)
+  | kernel.env.ConstantInfo.ThmInfo v value =>
+    let cv ← kernel.env.constant_val_dup v
+    let e ← kernel.expr.dup value
+    ok (kernel.env.ConstantInfo.ThmInfo cv e)
+  | kernel.env.ConstantInfo.IndInfo v caps =>
+    let cv ← kernel.env.constant_val_dup v
+    let ic ← kernel.env.ind_caps_dup caps
+    ok (kernel.env.ConstantInfo.IndInfo cv ic)
+  | kernel.env.ConstantInfo.CtorInfo v np nf =>
+    let cv ← kernel.env.constant_val_dup v
+    ok (kernel.env.ConstantInfo.CtorInfo cv np nf)
+  | kernel.env.ConstantInfo.RecInfo v mi rp rules =>
+    let cv ← kernel.env.constant_val_dup v
+    let v1 ← kernel.env.rec_rules_copy rules
+    ok (kernel.env.ConstantInfo.RecInfo cv mi rp v1)
+  | kernel.env.ConstantInfo.ProjInfo tbl =>
+    let pt ← kernel.env.proj_table_dup tbl
+    ok (kernel.env.ConstantInfo.ProjInfo pt)
+
+/-- [con_ron_core::kernel::fenv::push]:
+    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 152:0-165:1
+    Visibility: public -/
+def kernel.fenv.push
+  (fe : kernel.fenv.FEnv) (ci : kernel.env.ConstantInfo) :
+  Result kernel.fenv.FEnv
+  := do
+  let n ← kernel.env.constant_info_name ci
+  let ci1 ← kernel.env.constant_info_dup ci
+  let (_, idx) ←
+    ron.hashmap.HashMap.insert
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 fe.idx n
+      (fe.visible_below, ci1)
+  let consts ← alloc.vec.Vec.insert fe.env.consts 0#usize ci
+  let i ← fe.visible_below + 1#u64
+  ok { env := { consts }, idx, visible_below := i }
+
+/-- [con_ron_core::cached::state_c::record_c_const]:
+    Source: 'crates/con-ron-core/src/cached/state_c.rs', lines 560:0-568:1
+    Visibility: public -/
+def cached.state_c.record_c_const
+  (s : cached.state_c.CState) (n : kernel.name.Name) (ty_e : kernel.expr.Expr)
+  (ty : kernel.expr.Expr) (val : Option (kernel.expr.Expr × kernel.expr.Expr))
+  :
+  Result cached.state_c.CState
+  := do
+  let (_, hm) ←
+    ron.hashmap.HashMap.insert
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 s.ienv n
+      ({ ty_e, ty, val } : cached.state_c.CConstE)
+  ok { s with ienv := hm }
+
+/-- [con_ron_core::cached::parsed_c::check_defn_val_c_after_annot::M#2]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 317:50-317:202 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_defn_val_c_after_annot.M_2
+  : Array Std.U32 27#usize :=
+  Array.make 27#usize [
+    116#u32, 121#u32, 112#u32, 101#u32, 32#u32, 109#u32, 105#u32, 115#u32,
+    109#u32, 97#u32, 116#u32, 99#u32, 104#u32, 32#u32, 105#u32, 110#u32,
+    32#u32, 100#u32, 101#u32, 102#u32, 105#u32, 110#u32, 105#u32, 116#u32,
+    105#u32, 111#u32, 110#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_defn_val_c_after_annot::M#1]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 293:34-293:175 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_defn_val_c_after_annot.M_1
+  : Array Std.U32 25#usize :=
+  Array.make 25#usize [
+    117#u32, 110#u32, 107#u32, 110#u32, 111#u32, 119#u32, 110#u32, 32#u32,
+    99#u32, 111#u32, 110#u32, 115#u32, 116#u32, 97#u32, 110#u32, 116#u32,
+    32#u32, 105#u32, 110#u32, 32#u32, 118#u32, 97#u32, 108#u32, 117#u32,
+    101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_defn_val_c_after_annot::M]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 291:34-291:237 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_defn_val_c_after_annot.M : Array Std.U32 38#usize :=
+  Array.make 38#usize [
+    117#u32, 110#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32,
+    101#u32, 100#u32, 32#u32, 117#u32, 110#u32, 105#u32, 118#u32, 101#u32,
+    114#u32, 115#u32, 101#u32, 32#u32, 112#u32, 97#u32, 114#u32, 97#u32,
+    109#u32, 101#u32, 116#u32, 101#u32, 114#u32, 32#u32, 105#u32, 110#u32,
+    32#u32, 118#u32, 97#u32, 108#u32, 117#u32, 101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_defn_val_c_after_annot]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 281:0-323:1
+    Visibility: public -/
+def cached.parsed_c.check_defn_val_c_after_annot
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (cv_a : kernel.env.ConstantVal)
+  (jty : kernel.expr.Expr) (jv : kernel.expr.Expr)
+  (hint : kernel.env.ReducibilityHint) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let b ← cached.expr_ops_c.all_level_params_defined cv_a.level_params jv
+  if b
+  then
+    let b1 ← kernel.decl_check.consts_resolve_f_fast fe jv
+    if b1
+    then
+      let n ← kernel.name.dup cv_a.name
+      let e ← kernel.expr.dup cv_a.ty
+      let e1 ← kernel.expr.dup jty
+      let e2 ← kernel.expr.dup jv
+      let st1 ← cached.state_c.record_c_const st n e e1 (some (e2, e2))
+      let (r, st2) ← kernel.type_checker.infer_type_core mode st1 fe 0#u64 jv
+      match r with
+      | core.result.Result.Ok jvt =>
+        let (r1, st3) ←
+          kernel.type_checker.is_def_eq_core mode st2 fe 0#u64 jvt jty
+        match r1 with
+        | core.result.Result.Ok ok1 =>
+          if ok1
+          then
+            let cv ← kernel.env.constant_val_dup cv_a
+            let rh ← kernel.env.reducibility_hint_dup hint
+            let f ←
+              kernel.fenv.push fe (kernel.env.ConstantInfo.DefnInfo cv jv rh)
+            ok (core.result.Result.Ok f, st3)
+          else
+            let s ←
+              lift (Array.to_slice
+                cached.parsed_c.check_defn_val_c_after_annot.M_2)
+            let v ← kernel.core_types.code_points s
+            let ce ← kernel.core_types.invalid v
+            ok (core.result.Result.Err ce, st3)
+        | core.result.Result.Err err => ok (core.result.Result.Err err, st3)
+      | core.result.Result.Err err => ok (core.result.Result.Err err, st2)
+    else
+      let s ←
+        lift (Array.to_slice cached.parsed_c.check_defn_val_c_after_annot.M_1)
+      let v ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.invalid v
+      ok (core.result.Result.Err ce, st)
+  else
+    let s ←
+      lift (Array.to_slice cached.parsed_c.check_defn_val_c_after_annot.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.invalid v
+    ok (core.result.Result.Err ce, st)
+
+/-- [con_ron_core::cached::parsed_c::check_defn_val_c::M#1]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 266:34-266:212 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_defn_val_c.M_1 : Array Std.U32 33#usize :=
+  Array.make 33#usize [
+    117#u32, 110#u32, 101#u32, 120#u32, 112#u32, 101#u32, 99#u32, 116#u32,
+    101#u32, 100#u32, 32#u32, 102#u32, 114#u32, 101#u32, 101#u32, 32#u32,
+    118#u32, 97#u32, 114#u32, 105#u32, 97#u32, 98#u32, 108#u32, 101#u32,
+    32#u32, 105#u32, 110#u32, 32#u32, 118#u32, 97#u32, 108#u32, 117#u32,
+    101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_defn_val_c::M]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 264:34-264:192 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_defn_val_c.M : Array Std.U32 29#usize :=
+  Array.make 29#usize [
+    108#u32, 111#u32, 111#u32, 115#u32, 101#u32, 32#u32, 98#u32, 111#u32,
+    117#u32, 110#u32, 100#u32, 32#u32, 118#u32, 97#u32, 114#u32, 105#u32,
+    97#u32, 98#u32, 108#u32, 101#u32, 32#u32, 105#u32, 110#u32, 32#u32,
+    118#u32, 97#u32, 108#u32, 117#u32, 101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_defn_val_c]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 254:0-273:1
+    Visibility: public -/
+def cached.parsed_c.check_defn_val_c
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (cv_a : kernel.env.ConstantVal)
+  (jty : kernel.expr.Expr) (value : kernel.expr.Expr)
+  (hint : kernel.env.ReducibilityHint) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let b ← cached.expr_ops_c.loose_bvars_bounded 0#u64 value
+  if b
+  then
+    let b1 ← cached.expr_ops_c.has_fvar value
+    if b1
+    then
+      let s ← lift (Array.to_slice cached.parsed_c.check_defn_val_c.M_1)
+      let v ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.invalid v
+      ok (core.result.Result.Err ce, st)
+    else
+      let (r, st1) ← kernel.type_checker.annotate_core mode st fe 0#u64 value
+      match r with
+      | core.result.Result.Ok jv =>
+        cached.parsed_c.check_defn_val_c_after_annot mode st1 fe cv_a jty jv
+          hint
+      | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+  else
+    let s ← lift (Array.to_slice cached.parsed_c.check_defn_val_c.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.invalid v
+    ok (core.result.Result.Err ce, st)
+
+/-- [con_ron_core::cached::parsed_c::check_thm_val_c_checked::M#2]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 418:50-418:187 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_thm_val_c_checked.M_2 : Array Std.U32 24#usize :=
+  Array.make 24#usize [
+    116#u32, 121#u32, 112#u32, 101#u32, 32#u32, 109#u32, 105#u32, 115#u32,
+    109#u32, 97#u32, 116#u32, 99#u32, 104#u32, 32#u32, 105#u32, 110#u32,
+    32#u32, 116#u32, 104#u32, 101#u32, 111#u32, 114#u32, 101#u32, 109#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_thm_val_c_checked::M#1]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 395:34-395:175 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_thm_val_c_checked.M_1 : Array Std.U32 25#usize :=
+  Array.make 25#usize [
+    117#u32, 110#u32, 107#u32, 110#u32, 111#u32, 119#u32, 110#u32, 32#u32,
+    99#u32, 111#u32, 110#u32, 115#u32, 116#u32, 97#u32, 110#u32, 116#u32,
+    32#u32, 105#u32, 110#u32, 32#u32, 118#u32, 97#u32, 108#u32, 117#u32,
+    101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_thm_val_c_checked::M]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 393:34-393:237 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_thm_val_c_checked.M : Array Std.U32 38#usize :=
+  Array.make 38#usize [
+    117#u32, 110#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32,
+    101#u32, 100#u32, 32#u32, 117#u32, 110#u32, 105#u32, 118#u32, 101#u32,
+    114#u32, 115#u32, 101#u32, 32#u32, 112#u32, 97#u32, 114#u32, 97#u32,
+    109#u32, 101#u32, 116#u32, 101#u32, 114#u32, 32#u32, 105#u32, 110#u32,
+    32#u32, 118#u32, 97#u32, 108#u32, 117#u32, 101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_thm_val_c_checked]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 383:0-424:1
+    Visibility: public -/
+def cached.parsed_c.check_thm_val_c_checked
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (cv_a : kernel.env.ConstantVal)
+  (jty : kernel.expr.Expr) (value : kernel.expr.Expr) (jv : kernel.expr.Expr) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let b ← cached.expr_ops_c.all_level_params_defined cv_a.level_params jv
+  if b
+  then
+    let b1 ← kernel.decl_check.consts_resolve_f_fast fe jv
+    if b1
+    then
+      let n ← kernel.name.dup cv_a.name
+      let e ← kernel.expr.dup cv_a.ty
+      let e1 ← kernel.expr.dup jty
+      let st1 ← cached.state_c.record_c_const st n e e1 none
+      let (r, st2) ← kernel.type_checker.infer_type_core mode st1 fe 0#u64 jv
+      match r with
+      | core.result.Result.Ok jvt =>
+        let (r1, st3) ←
+          kernel.type_checker.is_def_eq_core mode st2 fe 0#u64 jvt jty
+        match r1 with
+        | core.result.Result.Ok ok1 =>
+          if ok1
+          then
+            let cv ← kernel.env.constant_val_dup cv_a
+            let e2 ← kernel.expr.dup value
+            let f ←
+              kernel.fenv.push fe (kernel.env.ConstantInfo.ThmInfo cv e2)
+            ok (core.result.Result.Ok f, st3)
+          else
+            let s ←
+              lift (Array.to_slice cached.parsed_c.check_thm_val_c_checked.M_2)
+            let v ← kernel.core_types.code_points s
+            let ce ← kernel.core_types.invalid v
+            ok (core.result.Result.Err ce, st3)
+        | core.result.Result.Err err => ok (core.result.Result.Err err, st3)
+      | core.result.Result.Err err => ok (core.result.Result.Err err, st2)
+    else
+      let s ←
+        lift (Array.to_slice cached.parsed_c.check_thm_val_c_checked.M_1)
+      let v ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.invalid v
+      ok (core.result.Result.Err ce, st)
+  else
+    let s ← lift (Array.to_slice cached.parsed_c.check_thm_val_c_checked.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.invalid v
+    ok (core.result.Result.Err ce, st)
+
+/-- [con_ron_core::cached::parsed_c::check_thm_val_c_witness::M#1]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 369:34-369:212 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_thm_val_c_witness.M_1 : Array Std.U32 33#usize :=
+  Array.make 33#usize [
+    117#u32, 110#u32, 101#u32, 120#u32, 112#u32, 101#u32, 99#u32, 116#u32,
+    101#u32, 100#u32, 32#u32, 102#u32, 114#u32, 101#u32, 101#u32, 32#u32,
+    118#u32, 97#u32, 114#u32, 105#u32, 97#u32, 98#u32, 108#u32, 101#u32,
+    32#u32, 105#u32, 110#u32, 32#u32, 118#u32, 97#u32, 108#u32, 117#u32,
+    101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_thm_val_c_witness::M]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 367:34-367:192 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_thm_val_c_witness.M : Array Std.U32 29#usize :=
+  Array.make 29#usize [
+    108#u32, 111#u32, 111#u32, 115#u32, 101#u32, 32#u32, 98#u32, 111#u32,
+    117#u32, 110#u32, 100#u32, 32#u32, 118#u32, 97#u32, 114#u32, 105#u32,
+    97#u32, 98#u32, 108#u32, 101#u32, 32#u32, 105#u32, 110#u32, 32#u32,
+    118#u32, 97#u32, 108#u32, 117#u32, 101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_thm_val_c_witness]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 358:0-376:1
+    Visibility: public -/
+def cached.parsed_c.check_thm_val_c_witness
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (cv_a : kernel.env.ConstantVal)
+  (jty : kernel.expr.Expr) (value : kernel.expr.Expr) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let b ← cached.expr_ops_c.loose_bvars_bounded 0#u64 value
+  if b
+  then
+    let b1 ← cached.expr_ops_c.has_fvar value
+    if b1
+    then
+      let s ←
+        lift (Array.to_slice cached.parsed_c.check_thm_val_c_witness.M_1)
+      let v ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.invalid v
+      ok (core.result.Result.Err ce, st)
+    else
+      let (r, st1) ← kernel.type_checker.annotate_core mode st fe 0#u64 value
+      match r with
+      | core.result.Result.Ok jv =>
+        cached.parsed_c.check_thm_val_c_checked mode st1 fe cv_a jty value jv
+      | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+  else
+    let s ← lift (Array.to_slice cached.parsed_c.check_thm_val_c_witness.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.invalid v
+    ok (core.result.Result.Err ce, st)
+
+/-- [con_ron_core::cached::parsed_c::check_thm_val_c::M]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 347:50-347:245 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_thm_val_c.M : Array Std.U32 36#usize :=
+  Array.make 36#usize [
+    116#u32, 121#u32, 112#u32, 101#u32, 32#u32, 111#u32, 102#u32, 32#u32,
+    116#u32, 104#u32, 101#u32, 111#u32, 114#u32, 101#u32, 109#u32, 32#u32,
+    105#u32, 115#u32, 32#u32, 110#u32, 111#u32, 116#u32, 32#u32, 97#u32,
+    32#u32, 112#u32, 114#u32, 111#u32, 112#u32, 111#u32, 115#u32, 105#u32,
+    116#u32, 105#u32, 111#u32, 110#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_thm_val_c]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 329:0-353:1
+    Visibility: public -/
+def cached.parsed_c.check_thm_val_c
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (cv_a : kernel.env.ConstantVal)
+  (jty : kernel.expr.Expr) (value : kernel.expr.Expr) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let (r, st1) ← kernel.type_checker.infer_type_core mode st fe 0#u64 jty
+  match r with
+  | core.result.Result.Ok jsty =>
+    let (r1, st2) ← cached.parsed_c.op_s_ix_c mode st1 fe 0#u64 jsty
+    match r1 with
+    | core.result.Result.Ok ul =>
+      let l ← kernel.level.zero
+      let o ← kernel.level.is_equiv ul l
+      let r2 ← kernel.core_k.lift_fueled o
+      match r2 with
+      | core.result.Result.Ok is_prop =>
+        if is_prop
+        then cached.parsed_c.check_thm_val_c_witness mode st2 fe cv_a jty value
+        else
+          let s ← lift (Array.to_slice cached.parsed_c.check_thm_val_c.M)
+          let v ← kernel.core_types.code_points s
+          let ce ← kernel.core_types.invalid v
+          ok (core.result.Result.Err ce, st2)
+      | core.result.Result.Err err => ok (core.result.Result.Err err, st2)
+    | core.result.Result.Err err => ok (core.result.Result.Err err, st2)
+  | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+
+/-- [con_ron_core::cached::parsed_c::check_opaque_val_c_after_annot::M#2]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 483:50-483:181 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_opaque_val_c_after_annot.M_2
+  : Array Std.U32 23#usize :=
+  Array.make 23#usize [
+    116#u32, 121#u32, 112#u32, 101#u32, 32#u32, 109#u32, 105#u32, 115#u32,
+    109#u32, 97#u32, 116#u32, 99#u32, 104#u32, 32#u32, 105#u32, 110#u32,
+    32#u32, 111#u32, 112#u32, 97#u32, 113#u32, 117#u32, 101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_opaque_val_c_after_annot::M#1]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 463:34-463:175 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_opaque_val_c_after_annot.M_1
+  : Array Std.U32 25#usize :=
+  Array.make 25#usize [
+    117#u32, 110#u32, 107#u32, 110#u32, 111#u32, 119#u32, 110#u32, 32#u32,
+    99#u32, 111#u32, 110#u32, 115#u32, 116#u32, 97#u32, 110#u32, 116#u32,
+    32#u32, 105#u32, 110#u32, 32#u32, 118#u32, 97#u32, 108#u32, 117#u32,
+    101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_opaque_val_c_after_annot::M]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 461:34-461:237 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_opaque_val_c_after_annot.M
+  : Array Std.U32 38#usize :=
+  Array.make 38#usize [
+    117#u32, 110#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32,
+    101#u32, 100#u32, 32#u32, 117#u32, 110#u32, 105#u32, 118#u32, 101#u32,
+    114#u32, 115#u32, 101#u32, 32#u32, 112#u32, 97#u32, 114#u32, 97#u32,
+    109#u32, 101#u32, 116#u32, 101#u32, 114#u32, 32#u32, 105#u32, 110#u32,
+    32#u32, 118#u32, 97#u32, 108#u32, 117#u32, 101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_opaque_val_c_after_annot]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 452:0-489:1
+    Visibility: public -/
+def cached.parsed_c.check_opaque_val_c_after_annot
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (cv_a : kernel.env.ConstantVal)
+  (jty : kernel.expr.Expr) (jv : kernel.expr.Expr) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let b ← cached.expr_ops_c.all_level_params_defined cv_a.level_params jv
+  if b
+  then
+    let b1 ← kernel.decl_check.consts_resolve_f_fast fe jv
+    if b1
+    then
+      let n ← kernel.name.dup cv_a.name
+      let e ← kernel.expr.dup cv_a.ty
+      let e1 ← kernel.expr.dup jty
+      let st1 ← cached.state_c.record_c_const st n e e1 none
+      let (r, st2) ← kernel.type_checker.infer_type_core mode st1 fe 0#u64 jv
+      match r with
+      | core.result.Result.Ok jvt =>
+        let (r1, st3) ←
+          kernel.type_checker.is_def_eq_core mode st2 fe 0#u64 jvt jty
+        match r1 with
+        | core.result.Result.Ok ok1 =>
+          if ok1
+          then
+            let cv ← kernel.env.constant_val_dup cv_a
+            let f ←
+              kernel.fenv.push fe (kernel.env.ConstantInfo.AxiomInfo cv)
+            ok (core.result.Result.Ok f, st3)
+          else
+            let s ←
+              lift (Array.to_slice
+                cached.parsed_c.check_opaque_val_c_after_annot.M_2)
+            let v ← kernel.core_types.code_points s
+            let ce ← kernel.core_types.invalid v
+            ok (core.result.Result.Err ce, st3)
+        | core.result.Result.Err err => ok (core.result.Result.Err err, st3)
+      | core.result.Result.Err err => ok (core.result.Result.Err err, st2)
+    else
+      let s ←
+        lift (Array.to_slice
+          cached.parsed_c.check_opaque_val_c_after_annot.M_1)
+      let v ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.invalid v
+      ok (core.result.Result.Err ce, st)
+  else
+    let s ←
+      lift (Array.to_slice cached.parsed_c.check_opaque_val_c_after_annot.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.invalid v
+    ok (core.result.Result.Err ce, st)
+
+/-- [con_ron_core::cached::parsed_c::check_opaque_val_c::M#1]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 441:34-441:212 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_opaque_val_c.M_1 : Array Std.U32 33#usize :=
+  Array.make 33#usize [
+    117#u32, 110#u32, 101#u32, 120#u32, 112#u32, 101#u32, 99#u32, 116#u32,
+    101#u32, 100#u32, 32#u32, 102#u32, 114#u32, 101#u32, 101#u32, 32#u32,
+    118#u32, 97#u32, 114#u32, 105#u32, 97#u32, 98#u32, 108#u32, 101#u32,
+    32#u32, 105#u32, 110#u32, 32#u32, 118#u32, 97#u32, 108#u32, 117#u32,
+    101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_opaque_val_c::M]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 439:34-439:192 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_opaque_val_c.M : Array Std.U32 29#usize :=
+  Array.make 29#usize [
+    108#u32, 111#u32, 111#u32, 115#u32, 101#u32, 32#u32, 98#u32, 111#u32,
+    117#u32, 110#u32, 100#u32, 32#u32, 118#u32, 97#u32, 114#u32, 105#u32,
+    97#u32, 98#u32, 108#u32, 101#u32, 32#u32, 105#u32, 110#u32, 32#u32,
+    118#u32, 97#u32, 108#u32, 117#u32, 101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_opaque_val_c]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 430:0-448:1
+    Visibility: public -/
+def cached.parsed_c.check_opaque_val_c
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (cv_a : kernel.env.ConstantVal)
+  (jty : kernel.expr.Expr) (value : kernel.expr.Expr) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let b ← cached.expr_ops_c.loose_bvars_bounded 0#u64 value
+  if b
+  then
+    let b1 ← cached.expr_ops_c.has_fvar value
+    if b1
+    then
+      let s ← lift (Array.to_slice cached.parsed_c.check_opaque_val_c.M_1)
+      let v ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.invalid v
+      ok (core.result.Result.Err ce, st)
+    else
+      let (r, st1) ← kernel.type_checker.annotate_core mode st fe 0#u64 value
+      match r with
+      | core.result.Result.Ok jv =>
+        cached.parsed_c.check_opaque_val_c_after_annot mode st1 fe cv_a jty jv
+      | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+  else
+    let s ← lift (Array.to_slice cached.parsed_c.check_opaque_val_c.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.invalid v
+    ok (core.result.Result.Err ce, st)
+
+/-- [con_ron_core::kernel::env::pi_sort_tele_len]:
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 609:0-625:1
+    Visibility: public -/
+def kernel.env.pi_sort_tele_len
+  (e : kernel.expr.Expr) : Result (Option Std.U64) := do
+  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => ok none
+  | kernel.expr.ExprKind.Fvar _ _ => ok none
+  | kernel.expr.ExprKind.Sort _ => ok (some 0#u64)
+  | kernel.expr.ExprKind.Const _ _ => ok none
+  | kernel.expr.ExprKind.App _ _ => ok none
+  | kernel.expr.ExprKind.Lam _ _ _ => ok none
+  | kernel.expr.ExprKind.ForallE _ body _ =>
+    let o ← kernel.env.pi_sort_tele_len body
+    match o with
+    | none => ok none
+    | some n => let i ← n + 1#u64
+                ok (some i)
+  | kernel.expr.ExprKind.LetE _ _ _ => ok none
+  | kernel.expr.ExprKind.Lit _ => ok none
+  | kernel.expr.ExprKind.Proj _ _ _ => ok none
+partial_fixpoint
+
+/-- [con_ron_core::kernel::env::ind_params_ok_one]:
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 639:0-652:1
+    Visibility: public -/
+def kernel.env.ind_params_ok_one
+  (n_p : Std.U64) (ci : kernel.env.ConstantInfo) : Result Bool := do
+  match ci with
+  | kernel.env.ConstantInfo.AxiomInfo _ => ok true
+  | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok true
+  | kernel.env.ConstantInfo.ThmInfo _ _ => ok true
+  | kernel.env.ConstantInfo.IndInfo cv_t _ =>
+    let o ← kernel.env.pi_sort_tele_len cv_t.ty
+    match o with
+    | none => ok true
+    | some n => ok (n_p <= n)
+  | kernel.env.ConstantInfo.CtorInfo _ n_pc _ => ok (n_pc = n_p)
+  | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok true
+  | kernel.env.ConstantInfo.ProjInfo _ => ok true
+
+/-- [con_ron_core::kernel::env::ind_params_ok_from]:
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 656:0-664:1
+    Visibility: public -/
+def kernel.env.ind_params_ok_from
+  (n_p : Std.U64) (block : alloc.vec.Vec kernel.env.ConstantInfo)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len block
+  if i >= i1
+  then ok true
+  else
+    let ci ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.ConstantInfo) block i
+    let b ← kernel.env.ind_params_ok_one n_p ci
+    if b
+    then let i2 ← i + 1#usize
+         kernel.env.ind_params_ok_from n_p block i2
+    else ok false
+partial_fixpoint
+
+/-- [con_ron_core::kernel::env::ind_params_ok]:
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 630:0-632:1
+    Visibility: public -/
+def kernel.env.ind_params_ok
+  (n_p : Std.U64) (block : alloc.vec.Vec kernel.env.ConstantInfo) :
+  Result Bool
+  := do
+  kernel.env.ind_params_ok_from n_p block 0#usize
+
+/-- [con_ron_core::cached::parsed_c::check_ind_decl_c::M#1]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 727:34-727:193 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_ind_decl_c.M_1 : Array Std.U32 29#usize :=
+  Array.make 29#usize [
+    110#u32, 117#u32, 109#u32, 98#u32, 101#u32, 114#u32, 32#u32, 111#u32,
+    102#u32, 32#u32, 112#u32, 97#u32, 114#u32, 97#u32, 109#u32, 101#u32,
+    116#u32, 101#u32, 114#u32, 115#u32, 32#u32, 109#u32, 105#u32, 115#u32,
+    109#u32, 97#u32, 116#u32, 99#u32, 104#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_ind_decl_c::M]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 725:42-725:332 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_ind_decl_c.M : Array Std.U32 58#usize :=
+  Array.make 58#usize [
+    105#u32, 110#u32, 100#u32, 117#u32, 99#u32, 116#u32, 105#u32, 118#u32,
+    101#u32, 32#u32, 98#u32, 108#u32, 111#u32, 99#u32, 107#u32, 58#u32, 32#u32,
+    116#u32, 97#u32, 115#u32, 107#u32, 32#u32, 35#u32, 50#u32, 53#u32, 47#u32,
+    35#u32, 50#u32, 55#u32, 32#u32, 119#u32, 105#u32, 114#u32, 101#u32,
+    115#u32, 32#u32, 116#u32, 104#u32, 101#u32, 32#u32, 105#u32, 110#u32,
+    100#u32, 117#u32, 99#u32, 116#u32, 105#u32, 118#u32, 101#u32, 32#u32,
+    100#u32, 105#u32, 115#u32, 112#u32, 97#u32, 116#u32, 99#u32, 104#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_ind_decl_c]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 714:0-729:1
+    Visibility: public -/
+def cached.parsed_c.check_ind_decl_c
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (block : alloc.vec.Vec kernel.env.ConstantInfo)
+  (n_p : Std.U64) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let b ← kernel.env.ind_params_ok n_p block
+  if b
+  then
+    let s ← lift (Array.to_slice cached.parsed_c.check_ind_decl_c.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.not_implemented v
+    ok (core.result.Result.Err ce, st)
+  else
+    let s ← lift (Array.to_slice cached.parsed_c.check_ind_decl_c.M_1)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.invalid v
+    ok (core.result.Result.Err ce, st)
+
+/-- [con_ron_core::kernel::basis_pins::is_pinned_eq_basis]:
+    Source: 'crates/con-ron-core/src/kernel/basis_pins.rs', lines 46:0-49:1
+    Visibility: public -/
+def kernel.basis_pins.is_pinned_eq_basis
+  (ci : kernel.env.ConstantInfo) : Result Bool := do
+  ok false
+
+/-- [con_ron_core::kernel::std_axioms::eq_basis_pinned]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 589:0-594:1
+    Visibility: public -/
+def kernel.std_axioms.eq_basis_pinned
+  (fe : kernel.fenv.FEnv) : Result Bool := do
+  let n ← kernel.basis_names.eq_name
+  let o ← kernel.fenv.find fe n
+  match o with
+  | none => ok false
+  | some ci => kernel.basis_pins.is_pinned_eq_basis ci
+
+/-- [con_ron_core::kernel::checker::install_basis_decl::M]
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 90:34-90:155 -/
+@[global_simps, irreducible]
+def kernel.checker.install_basis_decl.M : Array Std.U32 21#usize :=
+  Array.make 21#usize [
+    100#u32, 117#u32, 112#u32, 108#u32, 105#u32, 99#u32, 97#u32, 116#u32,
+    101#u32, 32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32,
+    97#u32, 116#u32, 105#u32, 111#u32, 110#u32
+    ]
+
+/-- [con_ron_core::kernel::checker::install_basis_decl]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 88:0-94:1
+    Visibility: public -/
+def kernel.checker.install_basis_decl
+  (fe : kernel.fenv.FEnv) (ci : kernel.env.ConstantInfo) :
+  Result (core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError)
+  := do
+  let n ← kernel.env.constant_info_name ci
+  let o ← kernel.fenv.find fe n
+  let b := core.option.Option.is_some o
+  if b
+  then
+    let s ← lift (Array.to_slice kernel.checker.install_basis_decl.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.invalid v
+    ok (core.result.Result.Err ce)
+  else let f ← kernel.fenv.push fe ci
+       ok (core.result.Result.Ok f)
+
+/-- [con_ron_core::kernel::checker::install_basis_decls]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1489:0-1498:1
+    Visibility: public -/
+def kernel.checker.install_basis_decls
+  (fe : kernel.fenv.FEnv) (decls : alloc.vec.Vec kernel.env.ConstantInfo)
+  (i : Std.Usize) :
+  Result (core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError)
+  := do
+  let i1 := alloc.vec.Vec.len decls
+  if i >= i1
+  then ok (core.result.Result.Ok fe)
+  else
+    let ci ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.ConstantInfo) decls i
+    let ci1 ← kernel.env.constant_info_dup ci
+    let r ← kernel.checker.install_basis_decl fe ci1
+    match r with
+    | core.result.Result.Ok fe2 =>
+      let i2 ← i + 1#usize
+      kernel.checker.install_basis_decls fe2 decls i2
+    | core.result.Result.Err _ => ok r
+partial_fixpoint
+
+/-- [con_ron_core::kernel::checker::check_basis_decl::M]
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1477:50-1477:276 -/
+@[global_simps, irreducible]
+def kernel.checker.check_basis_decl.M : Array Std.U32 43#usize :=
+  Array.make 43#usize [
+    113#u32, 117#u32, 111#u32, 116#u32, 105#u32, 101#u32, 110#u32, 116#u32,
+    32#u32, 98#u32, 97#u32, 115#u32, 105#u32, 115#u32, 32#u32, 114#u32,
+    101#u32, 113#u32, 117#u32, 105#u32, 114#u32, 101#u32, 115#u32, 32#u32,
+    116#u32, 104#u32, 101#u32, 32#u32, 112#u32, 105#u32, 110#u32, 110#u32,
+    101#u32, 100#u32, 32#u32, 69#u32, 113#u32, 32#u32, 98#u32, 97#u32, 115#u32,
+    105#u32, 115#u32
+    ]
+
+/-- [con_ron_core::kernel::basis_pins::decls_a]:
+    Source: 'crates/con-ron-core/src/kernel/basis_pins.rs', lines 67:0-70:1
+    Visibility: public -/
+def kernel.basis_pins.decls_a
+  (kind : kernel.env.BasisKind) :
+  Result (alloc.vec.Vec kernel.env.ConstantInfo)
+  := do
+  ok (alloc.vec.Vec.new kernel.env.ConstantInfo)
+
+/-- [con_ron_core::kernel::checker::check_basis_decl]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1473:0-1484:1
+    Visibility: public -/
+def kernel.checker.check_basis_decl
+  (fe : kernel.fenv.FEnv) (kind : kernel.env.BasisKind) :
+  Result (core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError)
+  := do
+  match kind with
+  | kernel.env.BasisKind.EqK =>
+    let v ← kernel.basis_pins.decls_a kernel.env.BasisKind.EqK
+    kernel.checker.install_basis_decls fe v 0#usize
+  | kernel.env.BasisKind.NatK =>
+    let v ← kernel.basis_pins.decls_a kernel.env.BasisKind.NatK
+    kernel.checker.install_basis_decls fe v 0#usize
+  | kernel.env.BasisKind.PunitK =>
+    let v ← kernel.basis_pins.decls_a kernel.env.BasisKind.PunitK
+    kernel.checker.install_basis_decls fe v 0#usize
+  | kernel.env.BasisKind.EmptyK =>
+    let v ← kernel.basis_pins.decls_a kernel.env.BasisKind.EmptyK
+    kernel.checker.install_basis_decls fe v 0#usize
+  | kernel.env.BasisKind.FalseK =>
+    let v ← kernel.basis_pins.decls_a kernel.env.BasisKind.FalseK
+    kernel.checker.install_basis_decls fe v 0#usize
+  | kernel.env.BasisKind.QuotK =>
+    let b ← kernel.std_axioms.eq_basis_pinned fe
+    if b
+    then
+      let v ← kernel.basis_pins.decls_a kernel.env.BasisKind.QuotK
+      kernel.checker.install_basis_decls fe v 0#usize
+    else
+      let s ← lift (Array.to_slice kernel.checker.check_basis_decl.M)
+      let v ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.not_implemented v
+      ok (core.result.Result.Err ce)
+
+/-- [con_ron_core::cached::parsed_c::check_basis_decl_c]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 694:0-696:1
+    Visibility: public -/
+def cached.parsed_c.check_basis_decl_c
+  (fe : kernel.fenv.FEnv) (kind : kernel.env.BasisKind) :
+  Result (core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError)
+  := do
+  kernel.checker.check_basis_decl fe kind
+
+/-- [con_ron_core::kernel::trust_axioms::bool_cv_a]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 178:0-184:1
+    Visibility: public -/
+def kernel.trust_axioms.bool_cv_a : Result kernel.env.ConstantVal := do
+  let n ← kernel.core_k.bool_name
+  let l ← kernel.level.zero
+  let l1 ← kernel.level.succ l
+  let e ← kernel.expr.sort l1
+  ok
+    {
+      «name» := n,
+      level_params := (alloc.vec.Vec.new kernel.name.Name),
+      ty := e
+    }
+
+/-- [con_ron_core::kernel::trust_axioms::reduce_nat_name::S]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 91:10-91:73 -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.reduce_nat_name.S : Array Std.U32 9#usize :=
+  Array.make 9#usize [
+    114#u32, 101#u32, 100#u32, 117#u32, 99#u32, 101#u32, 78#u32, 97#u32,
+    116#u32
+    ]
+
+/-- [con_ron_core::kernel::trust_axioms::lean_ns::S]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 74:38-74:77 -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.lean_ns.S : Array Std.U32 4#usize :=
+  Array.make 4#usize [ 76#u32, 101#u32, 97#u32, 110#u32 ]
+
+/-- [con_ron_core::kernel::trust_axioms::lean_ns]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 73:0-75:1
+    Visibility: public -/
+def kernel.trust_axioms.lean_ns : Result kernel.name.Name := do
+  let n ← kernel.name.anonymous
+  let s ← lift (Array.to_slice kernel.trust_axioms.lean_ns.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::trust_axioms::reduce_nat_name]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 88:0-93:1
+    Visibility: public -/
+def kernel.trust_axioms.reduce_nat_name : Result kernel.name.Name := do
+  let n ← kernel.trust_axioms.lean_ns
+  let s ← lift (Array.to_slice kernel.trust_axioms.reduce_nat_name.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::std_axioms::erase_pw_eq]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 192:0-256:1
+    Visibility: public -/
+def kernel.std_axioms.erase_pw_eq
+  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
+  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
+  let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar i =>
+    match en1.kind with
+    | kernel.expr.ExprKind.Bvar j => ok (i = j)
+    | kernel.expr.ExprKind.Fvar _ _ => ok false
+    | kernel.expr.ExprKind.Sort _ => ok false
+    | kernel.expr.ExprKind.Const _ _ => ok false
+    | kernel.expr.ExprKind.App _ _ => ok false
+    | kernel.expr.ExprKind.Lam _ _ _ => ok false
+    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
+    | kernel.expr.ExprKind.LetE _ _ _ => ok false
+    | kernel.expr.ExprKind.Lit _ => ok false
+    | kernel.expr.ExprKind.Proj _ _ _ => ok false
+  | kernel.expr.ExprKind.Fvar i t =>
+    match en1.kind with
+    | kernel.expr.ExprKind.Bvar _ => ok false
+    | kernel.expr.ExprKind.Fvar j t2 =>
+      if i = j
+      then kernel.std_axioms.erase_pw_eq t t2
+      else ok false
+    | kernel.expr.ExprKind.Sort _ => ok false
+    | kernel.expr.ExprKind.Const _ _ => ok false
+    | kernel.expr.ExprKind.App _ _ => ok false
+    | kernel.expr.ExprKind.Lam _ _ _ => ok false
+    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
+    | kernel.expr.ExprKind.LetE _ _ _ => ok false
+    | kernel.expr.ExprKind.Lit _ => ok false
+    | kernel.expr.ExprKind.Proj _ _ _ => ok false
+  | kernel.expr.ExprKind.Sort u =>
+    match en1.kind with
+    | kernel.expr.ExprKind.Bvar _ => ok false
+    | kernel.expr.ExprKind.Fvar _ _ => ok false
+    | kernel.expr.ExprKind.Sort v => kernel.level.beq u v
+    | kernel.expr.ExprKind.Const _ _ => ok false
+    | kernel.expr.ExprKind.App _ _ => ok false
+    | kernel.expr.ExprKind.Lam _ _ _ => ok false
+    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
+    | kernel.expr.ExprKind.LetE _ _ _ => ok false
+    | kernel.expr.ExprKind.Lit _ => ok false
+    | kernel.expr.ExprKind.Proj _ _ _ => ok false
+  | kernel.expr.ExprKind.Const n us =>
+    match en1.kind with
+    | kernel.expr.ExprKind.Bvar _ => ok false
+    | kernel.expr.ExprKind.Fvar _ _ => ok false
+    | kernel.expr.ExprKind.Sort _ => ok false
+    | kernel.expr.ExprKind.Const n2 us2 =>
+      let b1 ← kernel.name.beq n n2
+      if b1
+      then kernel.expr.levels_beq us us2
+      else ok false
+    | kernel.expr.ExprKind.App _ _ => ok false
+    | kernel.expr.ExprKind.Lam _ _ _ => ok false
+    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
+    | kernel.expr.ExprKind.LetE _ _ _ => ok false
+    | kernel.expr.ExprKind.Lit _ => ok false
+    | kernel.expr.ExprKind.Proj _ _ _ => ok false
+  | kernel.expr.ExprKind.App f x =>
+    match en1.kind with
+    | kernel.expr.ExprKind.Bvar _ => ok false
+    | kernel.expr.ExprKind.Fvar _ _ => ok false
+    | kernel.expr.ExprKind.Sort _ => ok false
+    | kernel.expr.ExprKind.Const _ _ => ok false
+    | kernel.expr.ExprKind.App f2 x2 =>
+      let b1 ← kernel.std_axioms.erase_pw_eq f f2
+      if b1
+      then kernel.std_axioms.erase_pw_eq x x2
+      else ok false
+    | kernel.expr.ExprKind.Lam _ _ _ => ok false
+    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
+    | kernel.expr.ExprKind.LetE _ _ _ => ok false
+    | kernel.expr.ExprKind.Lit _ => ok false
+    | kernel.expr.ExprKind.Proj _ _ _ => ok false
+  | kernel.expr.ExprKind.Lam t b1 _ =>
+    match en1.kind with
+    | kernel.expr.ExprKind.Bvar _ => ok false
+    | kernel.expr.ExprKind.Fvar _ _ => ok false
+    | kernel.expr.ExprKind.Sort _ => ok false
+    | kernel.expr.ExprKind.Const _ _ => ok false
+    | kernel.expr.ExprKind.App _ _ => ok false
+    | kernel.expr.ExprKind.Lam t2 b2 _ =>
+      let b3 ← kernel.std_axioms.erase_pw_eq t t2
+      if b3
+      then kernel.std_axioms.erase_pw_eq b1 b2
+      else ok false
+    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
+    | kernel.expr.ExprKind.LetE _ _ _ => ok false
+    | kernel.expr.ExprKind.Lit _ => ok false
+    | kernel.expr.ExprKind.Proj _ _ _ => ok false
+  | kernel.expr.ExprKind.ForallE t b1 _ =>
+    match en1.kind with
+    | kernel.expr.ExprKind.Bvar _ => ok false
+    | kernel.expr.ExprKind.Fvar _ _ => ok false
+    | kernel.expr.ExprKind.Sort _ => ok false
+    | kernel.expr.ExprKind.Const _ _ => ok false
+    | kernel.expr.ExprKind.App _ _ => ok false
+    | kernel.expr.ExprKind.Lam _ _ _ => ok false
+    | kernel.expr.ExprKind.ForallE t2 b2 _ =>
+      let b3 ← kernel.std_axioms.erase_pw_eq t t2
+      if b3
+      then kernel.std_axioms.erase_pw_eq b1 b2
+      else ok false
+    | kernel.expr.ExprKind.LetE _ _ _ => ok false
+    | kernel.expr.ExprKind.Lit _ => ok false
+    | kernel.expr.ExprKind.Proj _ _ _ => ok false
+  | kernel.expr.ExprKind.LetE t v b1 =>
+    match en1.kind with
+    | kernel.expr.ExprKind.Bvar _ => ok false
+    | kernel.expr.ExprKind.Fvar _ _ => ok false
+    | kernel.expr.ExprKind.Sort _ => ok false
+    | kernel.expr.ExprKind.Const _ _ => ok false
+    | kernel.expr.ExprKind.App _ _ => ok false
+    | kernel.expr.ExprKind.Lam _ _ _ => ok false
+    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
+    | kernel.expr.ExprKind.LetE t2 v2 b2 =>
+      let b3 ← kernel.std_axioms.erase_pw_eq t t2
+      if b3
+      then
+        let b4 ← kernel.std_axioms.erase_pw_eq v v2
+        if b4
+        then kernel.std_axioms.erase_pw_eq b1 b2
+        else ok false
+      else ok false
+    | kernel.expr.ExprKind.Lit _ => ok false
+    | kernel.expr.ExprKind.Proj _ _ _ => ok false
+  | kernel.expr.ExprKind.Lit l =>
+    match en1.kind with
+    | kernel.expr.ExprKind.Bvar _ => ok false
+    | kernel.expr.ExprKind.Fvar _ _ => ok false
+    | kernel.expr.ExprKind.Sort _ => ok false
+    | kernel.expr.ExprKind.Const _ _ => ok false
+    | kernel.expr.ExprKind.App _ _ => ok false
+    | kernel.expr.ExprKind.Lam _ _ _ => ok false
+    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
+    | kernel.expr.ExprKind.LetE _ _ _ => ok false
+    | kernel.expr.ExprKind.Lit l2 => kernel.expr.literal_beq l l2
+    | kernel.expr.ExprKind.Proj _ _ _ => ok false
+  | kernel.expr.ExprKind.Proj s i e =>
+    match en1.kind with
+    | kernel.expr.ExprKind.Bvar _ => ok false
+    | kernel.expr.ExprKind.Fvar _ _ => ok false
+    | kernel.expr.ExprKind.Sort _ => ok false
+    | kernel.expr.ExprKind.Const _ _ => ok false
+    | kernel.expr.ExprKind.App _ _ => ok false
+    | kernel.expr.ExprKind.Lam _ _ _ => ok false
+    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
+    | kernel.expr.ExprKind.LetE _ _ _ => ok false
+    | kernel.expr.ExprKind.Lit _ => ok false
+    | kernel.expr.ExprKind.Proj s2 j e2 =>
+      let b1 ← kernel.name.beq s s2
+      if b1
+      then if i = j
+           then kernel.std_axioms.erase_pw_eq e e2
+           else ok false
+      else ok false
+partial_fixpoint
+
+/-- [con_ron_core::kernel::std_axioms::matches_pin_fast]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 264:0-274:1
+    Visibility: public -/
+def kernel.std_axioms.matches_pin_fast
+  (cv : kernel.env.ConstantVal) (pin : kernel.env.ConstantVal) :
+  Result Bool
+  := do
+  let b ← kernel.name.beq cv.name pin.name
+  if b
+  then
+    let b1 ← kernel.prop_when.names_beq cv.level_params pin.level_params
+    if b1
+    then kernel.std_axioms.erase_pw_eq cv.ty pin.ty
+    else ok false
+  else ok false
+
+/-- [con_ron_core::kernel::basis_pins::is_pinned_nat_basis]:
+    Source: 'crates/con-ron-core/src/kernel/basis_pins.rs', lines 56:0-59:1
+    Visibility: public -/
+def kernel.basis_pins.is_pinned_nat_basis
+  (ci : kernel.env.ConstantInfo) : Result Bool := do
+  ok false
+
+/-- [con_ron_core::kernel::trust_axioms::reduce_elem_ok]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 355:0-369:1
+    Visibility: public -/
+def kernel.trust_axioms.reduce_elem_ok
+  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) : Result Bool := do
+  let n ← kernel.trust_axioms.reduce_nat_name
+  let b ← kernel.name.beq c n
+  if b
+  then
+    let n1 ← kernel.basis_names.nat_name
+    let o ← kernel.fenv.find fe n1
+    match o with
+    | none => ok false
+    | some ci => kernel.basis_pins.is_pinned_nat_basis ci
+  else
+    let n1 ← kernel.core_k.bool_name
+    let o ← kernel.fenv.find fe n1
+    match o with
+    | none => ok false
+    | some ci =>
+      match ci with
+      | kernel.env.ConstantInfo.AxiomInfo _ => ok false
+      | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
+      | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
+      | kernel.env.ConstantInfo.IndInfo cv_b _ =>
+        let cv ← kernel.trust_axioms.bool_cv_a
+        kernel.std_axioms.matches_pin_fast cv_b cv
+      | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
+      | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
+      | kernel.env.ConstantInfo.ProjInfo _ => ok false
+
+/-- [con_ron_core::kernel::trust_axioms::reduce_elem_ty]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 198:0-204:1
+    Visibility: public -/
+def kernel.trust_axioms.reduce_elem_ty
+  (c : kernel.name.Name) : Result kernel.expr.Expr := do
+  let n ← kernel.trust_axioms.reduce_nat_name
+  let b ← kernel.name.beq c n
+  if b
+  then
+    let n1 ← kernel.basis_names.nat_name
+    kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
+  else
+    let n1 ← kernel.core_k.bool_name
+    kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
+
+/-- [con_ron_core::kernel::basis_builder::never_meta]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 114:0-118:1
+    Visibility: public -/
+def kernel.basis_builder.never_meta : Result kernel.expr.BinderMeta := do
+  let pw ← kernel.prop_when.never
+  ok { pw }
+
+/-- [con_ron_core::kernel::basis_builder::pi]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 127:0-129:1
+    Visibility: public -/
+def kernel.basis_builder.pi
+  (ty : kernel.expr.Expr) (body : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let bm ← kernel.basis_builder.never_meta
+  kernel.expr.forall_e ty body bm
+
+/-- [con_ron_core::kernel::trust_axioms::reduce_op_raw]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 208:0-214:1
+    Visibility: public -/
+def kernel.trust_axioms.reduce_op_raw
+  (c : kernel.name.Name) : Result kernel.env.ConstantVal := do
+  let n ← kernel.name.dup c
+  let e ← kernel.trust_axioms.reduce_elem_ty c
+  let e1 ← kernel.basis_builder.pi e e
+  ok
+    {
+      «name» := n,
+      level_params := (alloc.vec.Vec.new kernel.name.Name),
+      ty := e1
+    }
+
+/-- [con_ron_core::kernel::trust_axioms::reduce_bool_name::S]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 100:10-100:80 -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.reduce_bool_name.S : Array Std.U32 10#usize :=
+  Array.make 10#usize [
+    114#u32, 101#u32, 100#u32, 117#u32, 99#u32, 101#u32, 66#u32, 111#u32,
+    111#u32, 108#u32
+    ]
+
+/-- [con_ron_core::kernel::trust_axioms::reduce_bool_name]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 97:0-102:1
+    Visibility: public -/
+def kernel.trust_axioms.reduce_bool_name : Result kernel.name.Name := do
+  let n ← kernel.trust_axioms.lean_ns
+  let s ← lift (Array.to_slice kernel.trust_axioms.reduce_bool_name.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::trust_axioms::reduce_op_cv_a]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 262:0-268:1
+    Visibility: public -/
+def kernel.trust_axioms.reduce_op_cv_a
+  (c : kernel.name.Name) : Result kernel.env.ConstantVal := do
+  let n ← kernel.trust_axioms.reduce_nat_name
+  let b ← kernel.name.beq c n
+  if b
+  then kernel.trust_axioms.reduce_op_raw n
+  else
+    let n1 ← kernel.trust_axioms.reduce_bool_name
+    kernel.trust_axioms.reduce_op_raw n1
+
+/-- [con_ron_core::kernel::trust_axioms::reduce_stored_ok]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 341:0-348:1
+    Visibility: public -/
+def kernel.trust_axioms.reduce_stored_ok
+  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) : Result Bool := do
+  let o ← kernel.fenv.find fe c
+  match o with
+  | none => ok false
+  | some ci =>
+    match ci with
+    | kernel.env.ConstantInfo.AxiomInfo cv_r =>
+      let cv ← kernel.trust_axioms.reduce_op_cv_a c
+      kernel.std_axioms.matches_pin_fast cv_r cv
+    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
+    | kernel.env.ConstantInfo.IndInfo _ _ => ok false
+    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
+    | kernel.env.ConstantInfo.ProjInfo _ => ok false
+
+/-- [con_ron_core::kernel::std_axioms::one_level]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 409:0-413:1
+    Visibility: public -/
+def kernel.std_axioms.one_level
+  : Result (alloc.vec.Vec kernel.level.Level) := do
+  let l ← kernel.level.zero
+  let l1 ← kernel.level.succ l
+  alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l1
+
+/-- [con_ron_core::kernel::basis_builder::ap2]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 140:0-142:1
+    Visibility: public -/
+def kernel.basis_builder.ap2
+  (f : kernel.expr.Expr) (a : kernel.expr.Expr) (b : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let e ← kernel.expr.app f a
+  kernel.expr.app e b
+
+/-- [con_ron_core::kernel::basis_builder::ap3]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 146:0-148:1
+    Visibility: public -/
+def kernel.basis_builder.ap3
+  (f : kernel.expr.Expr) (a : kernel.expr.Expr) (b : kernel.expr.Expr)
+  (c : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let e ← kernel.basis_builder.ap2 f a b
+  kernel.expr.app e c
+
+/-- [con_ron_core::kernel::basis_builder::cnst]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 106:0-108:1
+    Visibility: public -/
+def kernel.basis_builder.cnst
+  (n : kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level) :
+  Result kernel.expr.Expr
+  := do
+  kernel.expr.mk_const n us
+
+/-- [con_ron_core::kernel::trust_axioms::eq_app]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 248:0-255:1
+    Visibility: public -/
+def kernel.trust_axioms.eq_app
+  (c : kernel.name.Name) (x : kernel.expr.Expr) (y : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let n ← kernel.basis_names.eq_name
+  let v ← kernel.std_axioms.one_level
+  let e ← kernel.basis_builder.cnst n v
+  let e1 ← kernel.trust_axioms.reduce_elem_ty c
+  kernel.basis_builder.ap3 e e1 x y
+
+/-- [con_ron_core::kernel::trust_axioms::of_reduce_nat_name::S]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 109:10-109:83 -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.of_reduce_nat_name.S : Array Std.U32 11#usize :=
+  Array.make 11#usize [
+    111#u32, 102#u32, 82#u32, 101#u32, 100#u32, 117#u32, 99#u32, 101#u32,
+    78#u32, 97#u32, 116#u32
+    ]
+
+/-- [con_ron_core::kernel::trust_axioms::of_reduce_nat_name]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 106:0-111:1
+    Visibility: public -/
+def kernel.trust_axioms.of_reduce_nat_name : Result kernel.name.Name := do
+  let n ← kernel.trust_axioms.lean_ns
+  let s ← lift (Array.to_slice kernel.trust_axioms.of_reduce_nat_name.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::trust_axioms::of_reduce_op]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 133:0-139:1
+    Visibility: public -/
+def kernel.trust_axioms.of_reduce_op
+  (n : kernel.name.Name) : Result kernel.name.Name := do
+  let n1 ← kernel.trust_axioms.of_reduce_nat_name
+  let b ← kernel.name.beq n n1
+  if b
+  then kernel.trust_axioms.reduce_nat_name
+  else kernel.trust_axioms.reduce_bool_name
+
+/-- [con_ron_core::kernel::basis_builder::bv]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 81:0-83:1
+    Visibility: public -/
+def kernel.basis_builder.bv (i : Std.U64) : Result kernel.expr.Expr := do
+  kernel.expr.bvar i
+
+/-- [con_ron_core::kernel::trust_axioms::of_reduce_raw]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 219:0-242:1
+    Visibility: public -/
+def kernel.trust_axioms.of_reduce_raw
+  (n : kernel.name.Name) : Result kernel.env.ConstantVal := do
+  let c ← kernel.trust_axioms.of_reduce_op n
+  let n1 ← kernel.name.dup n
+  let e ← kernel.trust_axioms.reduce_elem_ty c
+  let n2 ← kernel.name.dup c
+  let e1 ←
+    kernel.basis_builder.cnst n2 (alloc.vec.Vec.new kernel.level.Level)
+  let e2 ← kernel.basis_builder.bv 1#u64
+  let e3 ← kernel.expr.app e1 e2
+  let e4 ← kernel.basis_builder.bv 0#u64
+  let e5 ← kernel.trust_axioms.eq_app c e3 e4
+  let e6 ← kernel.basis_builder.bv 2#u64
+  let e7 ← kernel.trust_axioms.eq_app c e6 e2
+  let e8 ← kernel.basis_builder.pi e5 e7
+  let e9 ← kernel.basis_builder.pi e e8
+  let e10 ← kernel.basis_builder.pi e e9
+  ok
+    {
+      «name» := n1,
+      level_params := (alloc.vec.Vec.new kernel.name.Name),
+      ty := e10
+    }
+
+/-- [con_ron_core::kernel::trust_axioms::of_reduce_bool_name::S]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 118:10-118:89 -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.of_reduce_bool_name.S : Array Std.U32 12#usize :=
+  Array.make 12#usize [
+    111#u32, 102#u32, 82#u32, 101#u32, 100#u32, 117#u32, 99#u32, 101#u32,
+    66#u32, 111#u32, 111#u32, 108#u32
+    ]
+
+/-- [con_ron_core::kernel::trust_axioms::of_reduce_bool_name]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 115:0-120:1
+    Visibility: public -/
+def kernel.trust_axioms.of_reduce_bool_name : Result kernel.name.Name := do
+  let n ← kernel.trust_axioms.lean_ns
+  let s ← lift (Array.to_slice kernel.trust_axioms.of_reduce_bool_name.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::trust_axioms::of_reduce_pin_a]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 274:0-280:1
+    Visibility: public -/
+def kernel.trust_axioms.of_reduce_pin_a
+  (n : kernel.name.Name) : Result kernel.env.ConstantVal := do
+  let n1 ← kernel.trust_axioms.of_reduce_nat_name
+  let b ← kernel.name.beq n n1
+  if b
+  then kernel.trust_axioms.of_reduce_raw n1
+  else
+    let n2 ← kernel.trust_axioms.of_reduce_bool_name
+    kernel.trust_axioms.of_reduce_raw n2
+
+/-- [con_ron_core::kernel::trust_axioms::of_reduce_ax_ok]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 378:0-393:1
+    Visibility: public -/
+def kernel.trust_axioms.of_reduce_ax_ok
+  (fe : kernel.fenv.FEnv) (cv_a : kernel.env.ConstantVal) : Result Bool := do
+  let c ← kernel.trust_axioms.of_reduce_op cv_a.name
+  let b ← kernel.std_axioms.eq_basis_pinned fe
+  if b
+  then
+    let b1 ← kernel.trust_axioms.reduce_elem_ok fe c
+    if b1
+    then
+      let b2 ← kernel.trust_axioms.reduce_stored_ok fe c
+      if b2
+      then
+        let cv ← kernel.trust_axioms.of_reduce_pin_a cv_a.name
+        kernel.std_axioms.matches_pin_fast cv_a cv
+      else ok false
+    else ok false
+  else ok false
+
+/-- [con_ron_core::kernel::trust_axioms::true_intro_name::S]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 68:32-68:78 -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.true_intro_name.S : Array Std.U32 5#usize :=
+  Array.make 5#usize [ 105#u32, 110#u32, 116#u32, 114#u32, 111#u32 ]
+
+/-- [con_ron_core::kernel::trust_axioms::true_name::S]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 62:38-62:78 -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.true_name.S : Array Std.U32 4#usize :=
+  Array.make 4#usize [ 84#u32, 114#u32, 117#u32, 101#u32 ]
+
+/-- [con_ron_core::kernel::trust_axioms::true_name]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 61:0-63:1
+    Visibility: public -/
+def kernel.trust_axioms.true_name : Result kernel.name.Name := do
+  let n ← kernel.name.anonymous
+  let s ← lift (Array.to_slice kernel.trust_axioms.true_name.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::trust_axioms::true_intro_name]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 67:0-69:1
+    Visibility: public -/
+def kernel.trust_axioms.true_intro_name : Result kernel.name.Name := do
+  let n ← kernel.trust_axioms.true_name
+  let s ← lift (Array.to_slice kernel.trust_axioms.true_intro_name.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::trust_axioms::true_intro_cv_a]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 158:0-164:1
+    Visibility: public -/
+def kernel.trust_axioms.true_intro_cv_a : Result kernel.env.ConstantVal := do
+  let n ← kernel.trust_axioms.true_intro_name
+  let n1 ← kernel.trust_axioms.true_name
+  let e ← kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
+  ok
+    {
+      «name» := n,
+      level_params := (alloc.vec.Vec.new kernel.name.Name),
+      ty := e
+    }
+
+/-- [con_ron_core::kernel::trust_axioms::true_intro_pinned]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 302:0-317:1
+    Visibility: public -/
+def kernel.trust_axioms.true_intro_pinned
+  (fe : kernel.fenv.FEnv) : Result Bool := do
+  let n ← kernel.trust_axioms.true_intro_name
+  let o ← kernel.fenv.find fe n
+  match o with
+  | none => ok false
+  | some ci =>
+    match ci with
+    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
+    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
+    | kernel.env.ConstantInfo.IndInfo _ _ => ok false
+    | kernel.env.ConstantInfo.CtorInfo cv_ti n_p n_f =>
+      if n_p = 0#u64
+      then
+        if n_f = 0#u64
+        then
+          let cv ← kernel.trust_axioms.true_intro_cv_a
+          kernel.std_axioms.matches_pin_fast cv_ti cv
+        else ok false
+      else ok false
+    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
+    | kernel.env.ConstantInfo.ProjInfo _ => ok false
+
+/-- [con_ron_core::kernel::trust_axioms::true_cv_a]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 148:0-154:1
+    Visibility: public -/
+def kernel.trust_axioms.true_cv_a : Result kernel.env.ConstantVal := do
+  let n ← kernel.trust_axioms.true_name
+  let l ← kernel.level.zero
+  let e ← kernel.expr.sort l
+  ok
+    {
+      «name» := n,
+      level_params := (alloc.vec.Vec.new kernel.name.Name),
+      ty := e
+    }
+
+/-- [con_ron_core::kernel::trust_axioms::true_pinned]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 290:0-297:1
+    Visibility: public -/
+def kernel.trust_axioms.true_pinned (fe : kernel.fenv.FEnv) : Result Bool := do
+  let n ← kernel.trust_axioms.true_name
+  let o ← kernel.fenv.find fe n
+  match o with
+  | none => ok false
+  | some ci =>
+    match ci with
+    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
+    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
+    | kernel.env.ConstantInfo.IndInfo cv_t _ =>
+      let cv ← kernel.trust_axioms.true_cv_a
+      kernel.std_axioms.matches_pin_fast cv_t cv
+    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
+    | kernel.env.ConstantInfo.ProjInfo _ => ok false
+
+/-- [con_ron_core::kernel::trust_axioms::trust_compiler_name::S]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 82:10-82:96 -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.trust_compiler_name.S : Array Std.U32 13#usize :=
+  Array.make 13#usize [
+    116#u32, 114#u32, 117#u32, 115#u32, 116#u32, 67#u32, 111#u32, 109#u32,
+    112#u32, 105#u32, 108#u32, 101#u32, 114#u32
+    ]
+
+/-- [con_ron_core::kernel::trust_axioms::trust_compiler_name]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 79:0-84:1
+    Visibility: public -/
+def kernel.trust_axioms.trust_compiler_name : Result kernel.name.Name := do
+  let n ← kernel.trust_axioms.lean_ns
+  let s ← lift (Array.to_slice kernel.trust_axioms.trust_compiler_name.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::trust_axioms::trust_compiler_a]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 168:0-174:1
+    Visibility: public -/
+def kernel.trust_axioms.trust_compiler_a : Result kernel.env.ConstantVal := do
+  let n ← kernel.trust_axioms.trust_compiler_name
+  let n1 ← kernel.trust_axioms.true_name
+  let e ← kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
+  ok
+    {
+      «name» := n,
+      level_params := (alloc.vec.Vec.new kernel.name.Name),
+      ty := e
+    }
+
+/-- [con_ron_core::kernel::trust_axioms::trust_compiler_ok]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 325:0-335:1
+    Visibility: public -/
+def kernel.trust_axioms.trust_compiler_ok
+  (fe : kernel.fenv.FEnv) (cv_a : kernel.env.ConstantVal) : Result Bool := do
+  let b ← kernel.trust_axioms.true_pinned fe
+  if b
+  then
+    let b1 ← kernel.trust_axioms.true_intro_pinned fe
+    if b1
+    then
+      let cv ← kernel.trust_axioms.trust_compiler_a
+      kernel.std_axioms.matches_pin_fast cv_a cv
+    else ok false
+  else ok false
+
+/-- [con_ron_core::kernel::std_axioms::nonempty_rec_name::S]
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 139:36-139:71 -/
+@[global_simps, irreducible]
+def kernel.std_axioms.nonempty_rec_name.S : Array Std.U32 3#usize :=
+  Array.make 3#usize [ 114#u32, 101#u32, 99#u32 ]
+
+/-- [con_ron_core::kernel::std_axioms::nonempty_name::S]
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 126:10-126:70 -/
+@[global_simps, irreducible]
+def kernel.std_axioms.nonempty_name.S : Array Std.U32 8#usize :=
+  Array.make 8#usize [
+    78#u32, 111#u32, 110#u32, 101#u32, 109#u32, 112#u32, 116#u32, 121#u32
+    ]
+
+/-- [con_ron_core::kernel::std_axioms::nonempty_name]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 123:0-128:1
+    Visibility: public -/
+def kernel.std_axioms.nonempty_name : Result kernel.name.Name := do
+  let n ← kernel.name.anonymous
+  let s ← lift (Array.to_slice kernel.std_axioms.nonempty_name.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::std_axioms::nonempty_rec_name]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 138:0-140:1
+    Visibility: public -/
+def kernel.std_axioms.nonempty_rec_name : Result kernel.name.Name := do
+  let n ← kernel.std_axioms.nonempty_name
+  let s ← lift (Array.to_slice kernel.std_axioms.nonempty_rec_name.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::std_axioms::nonempty_intro_name::S]
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 133:36-133:82 -/
+@[global_simps, irreducible]
+def kernel.std_axioms.nonempty_intro_name.S : Array Std.U32 5#usize :=
+  Array.make 5#usize [ 105#u32, 110#u32, 116#u32, 114#u32, 111#u32 ]
+
+/-- [con_ron_core::kernel::std_axioms::nonempty_intro_name]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 132:0-134:1
+    Visibility: public -/
+def kernel.std_axioms.nonempty_intro_name : Result kernel.name.Name := do
+  let n ← kernel.std_axioms.nonempty_name
+  let s ← lift (Array.to_slice kernel.std_axioms.nonempty_intro_name.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::basis_builder::prop]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 93:0-95:1
+    Visibility: public -/
+def kernel.basis_builder.prop : Result kernel.expr.Expr := do
+  let l ← kernel.level.zero
+  kernel.expr.sort l
+
+/-- [con_ron_core::kernel::basis_builder::srt]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 87:0-89:1
+    Visibility: public -/
+def kernel.basis_builder.srt
+  (u : kernel.level.Level) : Result kernel.expr.Expr := do
+  kernel.expr.sort u
+
+/-- [con_ron_core::kernel::basis_builder::u_n::S]
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 45:9-45:35 -/
+@[global_simps, irreducible]
+def kernel.basis_builder.u_n.S : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 117#u32 ]
+
+/-- [con_ron_core::kernel::basis_builder::bn]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 38:0-40:1
+    Visibility: public -/
+def kernel.basis_builder.bn
+  (s : alloc.vec.Vec Std.U32) : Result kernel.name.Name := do
+  let n ← kernel.name.anonymous
+  kernel.name.mk_str n s
+
+/-- [con_ron_core::kernel::basis_builder::u_n]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 44:0-46:1
+    Visibility: public -/
+def kernel.basis_builder.u_n : Result kernel.name.Name := do
+  let s ← lift (Array.to_slice kernel.basis_builder.u_n.S)
+  let v ← kernel.core_types.code_points s
+  kernel.basis_builder.bn v
+
+/-- [con_ron_core::kernel::basis_builder::u]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 50:0-52:1
+    Visibility: public -/
+def kernel.basis_builder.u : Result kernel.level.Level := do
+  let n ← kernel.basis_builder.u_n
+  kernel.level.param n
+
+/-- [con_ron_core::kernel::std_axioms::nonempty_rec_raw]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 496:0-546:1
+    Visibility: public -/
+def kernel.std_axioms.nonempty_rec_raw : Result kernel.env.ConstantInfo := do
+  let n ← kernel.basis_builder.u_n
+  let lps ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+  let l ← kernel.basis_builder.u
+  let us1 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
+  let us2 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
+  let us3 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
+  let n1 ← kernel.std_axioms.nonempty_rec_name
+  let e ← kernel.basis_builder.srt l
+  let n2 ← kernel.std_axioms.nonempty_name
+  let e1 ← kernel.basis_builder.cnst n2 us1
+  let e2 ← kernel.basis_builder.bv 0#u64
+  let e3 ← kernel.expr.app e1 e2
+  let e4 ← kernel.basis_builder.prop
+  let e5 ← kernel.basis_builder.pi e3 e4
+  let e6 ← kernel.basis_builder.bv 1#u64
+  let n3 ← kernel.std_axioms.nonempty_intro_name
+  let e7 ← kernel.basis_builder.cnst n3 us2
+  let e8 ← kernel.basis_builder.bv 2#u64
+  let e9 ← kernel.basis_builder.ap2 e7 e8 e2
+  let e10 ← kernel.expr.app e6 e9
+  let e11 ← kernel.basis_builder.pi e6 e10
+  let e12 ← kernel.basis_builder.cnst n2 us3
+  let e13 ← kernel.expr.app e12 e8
+  let e14 ← kernel.expr.app e8 e2
+  let e15 ← kernel.basis_builder.pi e13 e14
+  let e16 ← kernel.basis_builder.pi e11 e15
+  let e17 ← kernel.basis_builder.pi e5 e16
+  let e18 ← kernel.basis_builder.pi e e17
+  ok (kernel.env.ConstantInfo.RecInfo
+    { «name» := n1, level_params := lps, ty := e18 } 3#u64 3#u64
+    (alloc.vec.Vec.new kernel.env.RecRule))
+
+/-- [con_ron_core::kernel::std_axioms::nonempty_rec_pinned]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 686:0-701:1
+    Visibility: public -/
+def kernel.std_axioms.nonempty_rec_pinned
+  (fe : kernel.fenv.FEnv) : Result Bool := do
+  let n ← kernel.std_axioms.nonempty_rec_name
+  let o ← kernel.fenv.find fe n
+  match o with
+  | none => ok false
+  | some ci =>
+    match ci with
+    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
+    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
+    | kernel.env.ConstantInfo.IndInfo _ _ => ok false
+    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.RecInfo cv_nr m_i r_p _ =>
+      if m_i = 3#u64
+      then
+        if r_p = 3#u64
+        then
+          let ci1 ← kernel.std_axioms.nonempty_rec_raw
+          let cv ← kernel.env.to_constant_val ci1
+          kernel.std_axioms.matches_pin_fast cv_nr cv
+        else ok false
+      else ok false
+    | kernel.env.ConstantInfo.ProjInfo _ => ok false
+
+/-- [con_ron_core::kernel::std_axioms::nonempty_intro_raw]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 466:0-489:1
+    Visibility: public -/
+def kernel.std_axioms.nonempty_intro_raw : Result kernel.env.ConstantInfo := do
+  let n ← kernel.basis_builder.u_n
+  let lps ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+  let l ← kernel.basis_builder.u
+  let us ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
+  let n1 ← kernel.std_axioms.nonempty_intro_name
+  let e ← kernel.basis_builder.srt l
+  let e1 ← kernel.basis_builder.bv 0#u64
+  let n2 ← kernel.std_axioms.nonempty_name
+  let e2 ← kernel.basis_builder.cnst n2 us
+  let e3 ← kernel.basis_builder.bv 1#u64
+  let e4 ← kernel.expr.app e2 e3
+  let e5 ← kernel.basis_builder.pi e1 e4
+  let e6 ← kernel.basis_builder.pi e e5
+  ok (kernel.env.ConstantInfo.CtorInfo
+    { «name» := n1, level_params := lps, ty := e6 } 1#u64 1#u64)
+
+/-- [con_ron_core::kernel::std_axioms::nonempty_intro_pinned]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 666:0-681:1
+    Visibility: public -/
+def kernel.std_axioms.nonempty_intro_pinned
+  (fe : kernel.fenv.FEnv) : Result Bool := do
+  let n ← kernel.std_axioms.nonempty_intro_name
+  let o ← kernel.fenv.find fe n
+  match o with
+  | none => ok false
+  | some ci =>
+    match ci with
+    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
+    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
+    | kernel.env.ConstantInfo.IndInfo _ _ => ok false
+    | kernel.env.ConstantInfo.CtorInfo cv_ni n_p n_f =>
+      if n_p = 1#u64
+      then
+        if n_f = 1#u64
+        then
+          let ci1 ← kernel.std_axioms.nonempty_intro_raw
+          let cv ← kernel.env.to_constant_val ci1
+          kernel.std_axioms.matches_pin_fast cv_ni cv
+        else ok false
+      else ok false
+    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
+    | kernel.env.ConstantInfo.ProjInfo _ => ok false
+
+/-- [con_ron_core::kernel::env::ind_caps_default]:
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 375:0-386:1
+    Visibility: public -/
+def kernel.env.ind_caps_default : Result kernel.env.IndCaps := do
+  let n ← kernel.name.anonymous
+  let pw ← kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
+  ok
+    {
+      eta := false,
+      eta_ctor := n,
+      eta_params := 0#u64,
+      eta_fields := 0#u64,
+      unitlike := false,
+      unit_params := 0#u64,
+      rule_k := false,
+      sort_z := pw
+    }
+
+/-- [con_ron_core::kernel::std_axioms::nonempty_raw]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 448:0-462:1
+    Visibility: public -/
+def kernel.std_axioms.nonempty_raw : Result kernel.env.ConstantInfo := do
+  let n ← kernel.basis_builder.u_n
+  let lps ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+  let n1 ← kernel.std_axioms.nonempty_name
+  let l ← kernel.basis_builder.u
+  let e ← kernel.basis_builder.srt l
+  let e1 ← kernel.basis_builder.prop
+  let e2 ← kernel.basis_builder.pi e e1
+  let ic ← kernel.env.ind_caps_default
+  ok (kernel.env.ConstantInfo.IndInfo
+    { «name» := n1, level_params := lps, ty := e2 } ic)
+
+/-- [con_ron_core::kernel::std_axioms::nonempty_pinned]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 654:0-661:1
+    Visibility: public -/
+def kernel.std_axioms.nonempty_pinned
+  (fe : kernel.fenv.FEnv) : Result Bool := do
+  let n ← kernel.std_axioms.nonempty_name
+  let o ← kernel.fenv.find fe n
+  match o with
+  | none => ok false
+  | some ci =>
+    match ci with
+    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
+    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
+    | kernel.env.ConstantInfo.IndInfo cv_n _ =>
+      let ci1 ← kernel.std_axioms.nonempty_raw
+      let cv ← kernel.env.to_constant_val ci1
+      kernel.std_axioms.matches_pin_fast cv_n cv
+    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
+    | kernel.env.ConstantInfo.ProjInfo _ => ok false
+
+/-- [con_ron_core::kernel::std_axioms::iff_intro_name::S]
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 112:31-112:77 -/
+@[global_simps, irreducible]
+def kernel.std_axioms.iff_intro_name.S : Array Std.U32 5#usize :=
+  Array.make 5#usize [ 105#u32, 110#u32, 116#u32, 114#u32, 111#u32 ]
+
+/-- [con_ron_core::kernel::std_axioms::iff_name::S]
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 106:38-106:73 -/
+@[global_simps, irreducible]
+def kernel.std_axioms.iff_name.S : Array Std.U32 3#usize :=
+  Array.make 3#usize [ 73#u32, 102#u32, 102#u32 ]
+
+/-- [con_ron_core::kernel::std_axioms::iff_name]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 105:0-107:1
+    Visibility: public -/
+def kernel.std_axioms.iff_name : Result kernel.name.Name := do
+  let n ← kernel.name.anonymous
+  let s ← lift (Array.to_slice kernel.std_axioms.iff_name.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::std_axioms::iff_intro_name]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 111:0-113:1
+    Visibility: public -/
+def kernel.std_axioms.iff_intro_name : Result kernel.name.Name := do
+  let n ← kernel.std_axioms.iff_name
+  let s ← lift (Array.to_slice kernel.std_axioms.iff_intro_name.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::basis_builder::ap4]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 152:0-154:1
+    Visibility: public -/
+def kernel.basis_builder.ap4
+  (f : kernel.expr.Expr) (a : kernel.expr.Expr) (b : kernel.expr.Expr)
+  (c : kernel.expr.Expr) (d : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let e ← kernel.basis_builder.ap3 f a b c
+  kernel.expr.app e d
+
+/-- [con_ron_core::kernel::std_axioms::iff_rec_intro]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 333:0-350:1
+    Visibility: public -/
+def kernel.std_axioms.iff_rec_intro : Result kernel.expr.Expr := do
+  let e ← kernel.basis_builder.bv 2#u64
+  let e1 ← kernel.basis_builder.pi e e
+  let e2 ← kernel.basis_builder.bv 4#u64
+  let e3 ← kernel.basis_builder.pi e e2
+  let n ← kernel.std_axioms.iff_intro_name
+  let e4 ← kernel.basis_builder.cnst n (alloc.vec.Vec.new kernel.level.Level)
+  let e5 ← kernel.basis_builder.bv 3#u64
+  let e6 ← kernel.basis_builder.bv 1#u64
+  let e7 ← kernel.basis_builder.bv 0#u64
+  let e8 ← kernel.basis_builder.ap4 e4 e2 e5 e6 e7
+  let e9 ← kernel.expr.app e e8
+  let e10 ← kernel.basis_builder.pi e3 e9
+  kernel.basis_builder.pi e1 e10
+
+/-- [con_ron_core::kernel::std_axioms::iff_rec_name::S]
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 118:31-118:66 -/
+@[global_simps, irreducible]
+def kernel.std_axioms.iff_rec_name.S : Array Std.U32 3#usize :=
+  Array.make 3#usize [ 114#u32, 101#u32, 99#u32 ]
+
+/-- [con_ron_core::kernel::std_axioms::iff_rec_name]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 117:0-119:1
+    Visibility: public -/
+def kernel.std_axioms.iff_rec_name : Result kernel.name.Name := do
+  let n ← kernel.std_axioms.iff_name
+  let s ← lift (Array.to_slice kernel.std_axioms.iff_rec_name.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::std_axioms::iff_rec_raw]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 356:0-395:1
+    Visibility: public -/
+def kernel.std_axioms.iff_rec_raw : Result kernel.env.ConstantInfo := do
+  let n ← kernel.basis_builder.u_n
+  let lps ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+  let n1 ← kernel.std_axioms.iff_rec_name
+  let e ← kernel.basis_builder.prop
+  let n2 ← kernel.std_axioms.iff_name
+  let e1 ←
+    kernel.basis_builder.cnst n2 (alloc.vec.Vec.new kernel.level.Level)
+  let e2 ← kernel.basis_builder.bv 1#u64
+  let e3 ← kernel.basis_builder.bv 0#u64
+  let e4 ← kernel.basis_builder.ap2 e1 e2 e3
+  let l ← kernel.basis_builder.u
+  let e5 ← kernel.basis_builder.srt l
+  let e6 ← kernel.basis_builder.pi e4 e5
+  let e7 ← kernel.std_axioms.iff_rec_intro
+  let e8 ←
+    kernel.basis_builder.cnst n2 (alloc.vec.Vec.new kernel.level.Level)
+  let e9 ← kernel.basis_builder.bv 3#u64
+  let e10 ← kernel.basis_builder.bv 2#u64
+  let e11 ← kernel.basis_builder.ap2 e8 e9 e10
+  let e12 ← kernel.expr.app e10 e3
+  let e13 ← kernel.basis_builder.pi e11 e12
+  let e14 ← kernel.basis_builder.pi e7 e13
+  let e15 ← kernel.basis_builder.pi e6 e14
+  let e16 ← kernel.basis_builder.pi e e15
+  let e17 ← kernel.basis_builder.pi e e16
+  ok (kernel.env.ConstantInfo.RecInfo
+    { «name» := n1, level_params := lps, ty := e17 } 4#u64 4#u64
+    (alloc.vec.Vec.new kernel.env.RecRule))
+
+/-- [con_ron_core::kernel::std_axioms::iff_rec_pinned]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 634:0-649:1
+    Visibility: public -/
+def kernel.std_axioms.iff_rec_pinned
+  (fe : kernel.fenv.FEnv) : Result Bool := do
+  let n ← kernel.std_axioms.iff_rec_name
+  let o ← kernel.fenv.find fe n
+  match o with
+  | none => ok false
+  | some ci =>
+    match ci with
+    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
+    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
+    | kernel.env.ConstantInfo.IndInfo _ _ => ok false
+    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.RecInfo cv_ir m_i r_p _ =>
+      if m_i = 4#u64
+      then
+        if r_p = 4#u64
+        then
+          let ci1 ← kernel.std_axioms.iff_rec_raw
+          let cv ← kernel.env.to_constant_val ci1
+          kernel.std_axioms.matches_pin_fast cv_ir cv
+        else ok false
+      else ok false
+    | kernel.env.ConstantInfo.ProjInfo _ => ok false
+
+/-- [con_ron_core::kernel::std_axioms::iff_intro_raw]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 302:0-328:1
+    Visibility: public -/
+def kernel.std_axioms.iff_intro_raw : Result kernel.env.ConstantInfo := do
+  let n ← kernel.std_axioms.iff_intro_name
+  let e ← kernel.basis_builder.prop
+  let e1 ← kernel.basis_builder.bv 1#u64
+  let e2 ← kernel.basis_builder.pi e1 e1
+  let e3 ← kernel.basis_builder.bv 3#u64
+  let e4 ← kernel.basis_builder.pi e1 e3
+  let n1 ← kernel.std_axioms.iff_name
+  let e5 ←
+    kernel.basis_builder.cnst n1 (alloc.vec.Vec.new kernel.level.Level)
+  let e6 ← kernel.basis_builder.bv 2#u64
+  let e7 ← kernel.basis_builder.ap2 e5 e3 e6
+  let e8 ← kernel.basis_builder.pi e4 e7
+  let e9 ← kernel.basis_builder.pi e2 e8
+  let e10 ← kernel.basis_builder.pi e e9
+  let e11 ← kernel.basis_builder.pi e e10
+  ok (kernel.env.ConstantInfo.CtorInfo
+    {
+      «name» := n,
+      level_params := (alloc.vec.Vec.new kernel.name.Name),
+      ty := e11
+    } 2#u64 2#u64)
+
+/-- [con_ron_core::kernel::std_axioms::iff_intro_pinned]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 613:0-628:1
+    Visibility: public -/
+def kernel.std_axioms.iff_intro_pinned
+  (fe : kernel.fenv.FEnv) : Result Bool := do
+  let n ← kernel.std_axioms.iff_intro_name
+  let o ← kernel.fenv.find fe n
+  match o with
+  | none => ok false
+  | some ci =>
+    match ci with
+    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
+    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
+    | kernel.env.ConstantInfo.IndInfo _ _ => ok false
+    | kernel.env.ConstantInfo.CtorInfo cv_ii n_p n_f =>
+      if n_p = 2#u64
+      then
+        if n_f = 2#u64
+        then
+          let ci1 ← kernel.std_axioms.iff_intro_raw
+          let cv ← kernel.env.to_constant_val ci1
+          kernel.std_axioms.matches_pin_fast cv_ii cv
+        else ok false
+      else ok false
+    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
+    | kernel.env.ConstantInfo.ProjInfo _ => ok false
+
+/-- [con_ron_core::kernel::std_axioms::iff_raw]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 286:0-298:1
+    Visibility: public -/
+def kernel.std_axioms.iff_raw : Result kernel.env.ConstantInfo := do
+  let n ← kernel.std_axioms.iff_name
+  let e ← kernel.basis_builder.prop
+  let e1 ← kernel.basis_builder.pi e e
+  let e2 ← kernel.basis_builder.pi e e1
+  let ic ← kernel.env.ind_caps_default
+  ok (kernel.env.ConstantInfo.IndInfo
+    {
+      «name» := n,
+      level_params := (alloc.vec.Vec.new kernel.name.Name),
+      ty := e2
+    } ic)
+
+/-- [con_ron_core::kernel::std_axioms::iff_pinned]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 601:0-608:1
+    Visibility: public -/
+def kernel.std_axioms.iff_pinned (fe : kernel.fenv.FEnv) : Result Bool := do
+  let n ← kernel.std_axioms.iff_name
+  let o ← kernel.fenv.find fe n
+  match o with
+  | none => ok false
+  | some ci =>
+    match ci with
+    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
+    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
+    | kernel.env.ConstantInfo.IndInfo cv_i _ =>
+      let ci1 ← kernel.std_axioms.iff_raw
+      let cv ← kernel.env.to_constant_val ci1
+      kernel.std_axioms.matches_pin_fast cv_i cv
+    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
+    | kernel.env.ConstantInfo.ProjInfo _ => ok false
+
+/-- [con_ron_core::kernel::std_axioms::choice_name::S#1]
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 87:10-87:59 -/
+@[global_simps, irreducible]
+def kernel.std_axioms.choice_name.S_1 : Array Std.U32 6#usize :=
+  Array.make 6#usize [ 99#u32, 104#u32, 111#u32, 105#u32, 99#u32, 101#u32 ]
+
+/-- [con_ron_core::kernel::std_axioms::choice_name::S]
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 85:14-85:76 -/
+@[global_simps, irreducible]
+def kernel.std_axioms.choice_name.S : Array Std.U32 9#usize :=
+  Array.make 9#usize [
+    67#u32, 108#u32, 97#u32, 115#u32, 115#u32, 105#u32, 99#u32, 97#u32, 108#u32
+    ]
+
+/-- [con_ron_core::kernel::std_axioms::choice_name]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 81:0-89:1
+    Visibility: public -/
+def kernel.std_axioms.choice_name : Result kernel.name.Name := do
+  let n ← kernel.name.anonymous
+  let s ← lift (Array.to_slice kernel.std_axioms.choice_name.S)
+  let v ← kernel.core_types.code_points s
+  let n1 ← kernel.name.mk_str n v
+  let s1 ← lift (Array.to_slice kernel.std_axioms.choice_name.S_1)
+  let v1 ← kernel.core_types.code_points s1
+  kernel.name.mk_str n1 v1
+
+/-- [con_ron_core::kernel::std_axioms::choice_raw]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 560:0-579:1
+    Visibility: public -/
+def kernel.std_axioms.choice_raw : Result kernel.env.ConstantVal := do
+  let n ← kernel.basis_builder.u_n
+  let lps ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+  let l ← kernel.basis_builder.u
+  let us ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
+  let n1 ← kernel.std_axioms.choice_name
+  let e ← kernel.basis_builder.srt l
+  let n2 ← kernel.std_axioms.nonempty_name
+  let e1 ← kernel.basis_builder.cnst n2 us
+  let e2 ← kernel.basis_builder.bv 0#u64
+  let e3 ← kernel.expr.app e1 e2
+  let e4 ← kernel.basis_builder.bv 1#u64
+  let e5 ← kernel.basis_builder.pi e3 e4
+  let e6 ← kernel.basis_builder.pi e e5
+  ok { «name» := n1, level_params := lps, ty := e6 }
+
+/-- [con_ron_core::kernel::std_axioms::propext_name::S]
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 76:38-76:94 -/
+@[global_simps, irreducible]
+def kernel.std_axioms.propext_name.S : Array Std.U32 7#usize :=
+  Array.make 7#usize [
+    112#u32, 114#u32, 111#u32, 112#u32, 101#u32, 120#u32, 116#u32
+    ]
+
+/-- [con_ron_core::kernel::std_axioms::propext_name]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 75:0-77:1
+    Visibility: public -/
+def kernel.std_axioms.propext_name : Result kernel.name.Name := do
+  let n ← kernel.name.anonymous
+  let s ← lift (Array.to_slice kernel.std_axioms.propext_name.S)
+  let v ← kernel.core_types.code_points s
+  kernel.name.mk_str n v
+
+/-- [con_ron_core::kernel::std_axioms::propext_raw]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 420:0-444:1
+    Visibility: public -/
+def kernel.std_axioms.propext_raw : Result kernel.env.ConstantVal := do
+  let n ← kernel.std_axioms.propext_name
+  let e ← kernel.basis_builder.prop
+  let n1 ← kernel.std_axioms.iff_name
+  let e1 ←
+    kernel.basis_builder.cnst n1 (alloc.vec.Vec.new kernel.level.Level)
+  let e2 ← kernel.basis_builder.bv 1#u64
+  let e3 ← kernel.basis_builder.bv 0#u64
+  let e4 ← kernel.basis_builder.ap2 e1 e2 e3
+  let n2 ← kernel.basis_names.eq_name
+  let v ← kernel.std_axioms.one_level
+  let e5 ← kernel.basis_builder.cnst n2 v
+  let e6 ← kernel.basis_builder.bv 2#u64
+  let e7 ← kernel.basis_builder.ap3 e5 e e6 e2
+  let e8 ← kernel.basis_builder.pi e4 e7
+  let e9 ← kernel.basis_builder.pi e e8
+  let e10 ← kernel.basis_builder.pi e e9
+  ok
+    {
+      «name» := n,
+      level_params := (alloc.vec.Vec.new kernel.name.Name),
+      ty := e10
+    }
+
+/-- [con_ron_core::kernel::std_axioms::std_axiom_ok]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 715:0-751:1
+    Visibility: public -/
+def kernel.std_axioms.std_axiom_ok
+  (fe : kernel.fenv.FEnv) (cv_a : kernel.env.ConstantVal) : Result Bool := do
+  let n ← kernel.std_axioms.propext_name
+  let b ← kernel.name.beq cv_a.name n
+  if b
+  then
+    let b1 ← kernel.std_axioms.eq_basis_pinned fe
+    if b1
+    then
+      let b2 ← kernel.std_axioms.iff_pinned fe
+      if b2
+      then
+        let b3 ← kernel.std_axioms.iff_intro_pinned fe
+        if b3
+        then
+          let b4 ← kernel.std_axioms.iff_rec_pinned fe
+          if b4
+          then
+            let cv ← kernel.std_axioms.propext_raw
+            kernel.std_axioms.matches_pin_fast cv_a cv
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else
+    let n1 ← kernel.std_axioms.choice_name
+    let b1 ← kernel.name.beq cv_a.name n1
+    if b1
+    then
+      let b2 ← kernel.std_axioms.nonempty_pinned fe
+      if b2
+      then
+        let b3 ← kernel.std_axioms.nonempty_intro_pinned fe
+        if b3
+        then
+          let b4 ← kernel.std_axioms.nonempty_rec_pinned fe
+          if b4
+          then
+            let cv ← kernel.std_axioms.choice_raw
+            kernel.std_axioms.matches_pin_fast cv_a cv
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+
+/-- [con_ron_core::kernel::std_axioms::tolerated_axiom_names::S]
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 98:10-98:65 -/
+@[global_simps, irreducible]
+def kernel.std_axioms.tolerated_axiom_names.S : Array Std.U32 7#usize :=
+  Array.make 7#usize [
+    115#u32, 111#u32, 114#u32, 114#u32, 121#u32, 65#u32, 120#u32
+    ]
+
+/-- [con_ron_core::kernel::std_axioms::tolerated_axiom_names]:
+    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 94:0-101:1
+    Visibility: public -/
+def kernel.std_axioms.tolerated_axiom_names
+  : Result (alloc.vec.Vec kernel.name.Name) := do
+  let n ← kernel.name.anonymous
+  let s ← lift (Array.to_slice kernel.std_axioms.tolerated_axiom_names.S)
+  let v ← kernel.core_types.code_points s
+  let n1 ← kernel.name.mk_str n v
+  alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n1
+
+/-- [con_ron_core::cached::parsed_c::check_axiom_decl_c::M#3]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 679:50-679:157 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_axiom_decl_c.M_3 : Array Std.U32 18#usize :=
+  Array.make 18#usize [
+    110#u32, 111#u32, 110#u32, 45#u32, 115#u32, 116#u32, 97#u32, 110#u32,
+    100#u32, 97#u32, 114#u32, 100#u32, 32#u32, 97#u32, 120#u32, 105#u32,
+    111#u32, 109#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_axiom_decl_c::M#2]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 675:50-675:208 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_axiom_decl_c.M_2 : Array Std.U32 29#usize :=
+  Array.make 29#usize [
+    115#u32, 116#u32, 97#u32, 110#u32, 100#u32, 97#u32, 114#u32, 100#u32,
+    32#u32, 97#u32, 120#u32, 105#u32, 111#u32, 109#u32, 32#u32, 115#u32,
+    104#u32, 97#u32, 112#u32, 101#u32, 32#u32, 109#u32, 105#u32, 115#u32,
+    109#u32, 97#u32, 116#u32, 99#u32, 104#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_axiom_decl_c::M#1]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 670:54-670:290 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_axiom_decl_c.M_1 : Array Std.U32 44#usize :=
+  Array.make 44#usize [
+    117#u32, 110#u32, 115#u32, 117#u32, 112#u32, 112#u32, 111#u32, 114#u32,
+    116#u32, 101#u32, 100#u32, 32#u32, 99#u32, 111#u32, 109#u32, 112#u32,
+    105#u32, 108#u32, 101#u32, 114#u32, 45#u32, 116#u32, 114#u32, 117#u32,
+    115#u32, 116#u32, 32#u32, 97#u32, 120#u32, 105#u32, 111#u32, 109#u32,
+    32#u32, 101#u32, 110#u32, 118#u32, 105#u32, 114#u32, 111#u32, 110#u32,
+    109#u32, 101#u32, 110#u32, 116#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_axiom_decl_c::M]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 655:54-655:249 -/
+@[global_simps, irreducible]
+def cached.parsed_c.check_axiom_decl_c.M : Array Std.U32 36#usize :=
+  Array.make 36#usize [
+    117#u32, 110#u32, 115#u32, 117#u32, 112#u32, 112#u32, 111#u32, 114#u32,
+    116#u32, 101#u32, 100#u32, 32#u32, 76#u32, 101#u32, 97#u32, 110#u32,
+    46#u32, 116#u32, 114#u32, 117#u32, 115#u32, 116#u32, 67#u32, 111#u32,
+    109#u32, 112#u32, 105#u32, 108#u32, 101#u32, 114#u32, 32#u32, 115#u32,
+    104#u32, 97#u32, 112#u32, 101#u32
+    ]
+
+/-- [con_ron_core::cached::parsed_c::check_axiom_decl_c]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 626:0-683:1
+    Visibility: public -/
+def cached.parsed_c.check_axiom_decl_c
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (cv : kernel.env.ConstantVal) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let (r, st1) ← cached.parsed_c.check_constant_val_c mode st fe cv
+  match r with
+  | core.result.Result.Ok p =>
+    let (cv_a, jty) := p
+    let b ← kernel.std_axioms.std_axiom_ok fe cv_a
+    if b
+    then
+      let n ← kernel.name.dup cv_a.name
+      let e ← kernel.expr.dup cv_a.ty
+      let st2 ← cached.state_c.record_c_const st1 n e jty none
+      let f ← kernel.fenv.push fe (kernel.env.ConstantInfo.AxiomInfo cv_a)
+      ok (core.result.Result.Ok f, st2)
+    else
+      let n ← kernel.trust_axioms.trust_compiler_name
+      let b1 ← kernel.name.beq cv_a.name n
+      if b1
+      then
+        let b2 ← kernel.trust_axioms.trust_compiler_ok fe cv_a
+        if b2
+        then
+          let n1 ← kernel.name.dup cv_a.name
+          let e ← kernel.expr.dup cv_a.ty
+          let st2 ← cached.state_c.record_c_const st1 n1 e jty none
+          let f ←
+            kernel.fenv.push fe (kernel.env.ConstantInfo.AxiomInfo cv_a)
+          ok (core.result.Result.Ok f, st2)
+        else
+          let s ← lift (Array.to_slice cached.parsed_c.check_axiom_decl_c.M)
+          let v ← kernel.core_types.code_points s
+          let ce ← kernel.core_types.not_implemented v
+          ok (core.result.Result.Err ce, st1)
+      else
+        let n1 ← kernel.trust_axioms.of_reduce_nat_name
+        let b2 ← kernel.name.beq cv_a.name n1
+        if b2
+        then
+          let b3 ← kernel.trust_axioms.of_reduce_ax_ok fe cv_a
+          if b3
+          then
+            let n2 ← kernel.name.dup cv_a.name
+            let e ← kernel.expr.dup cv_a.ty
+            let st2 ← cached.state_c.record_c_const st1 n2 e jty none
+            let f ←
+              kernel.fenv.push fe (kernel.env.ConstantInfo.AxiomInfo cv_a)
+            ok (core.result.Result.Ok f, st2)
+          else
+            let s ←
+              lift (Array.to_slice cached.parsed_c.check_axiom_decl_c.M_1)
+            let v ← kernel.core_types.code_points s
+            let ce ← kernel.core_types.not_implemented v
+            ok (core.result.Result.Err ce, st1)
+        else
+          let n2 ← kernel.trust_axioms.of_reduce_bool_name
+          let b3 ← kernel.name.beq cv_a.name n2
+          if b3
+          then
+            let b4 ← kernel.trust_axioms.of_reduce_ax_ok fe cv_a
+            if b4
+            then
+              let n3 ← kernel.name.dup cv_a.name
+              let e ← kernel.expr.dup cv_a.ty
+              let st2 ← cached.state_c.record_c_const st1 n3 e jty none
+              let f ←
+                kernel.fenv.push fe (kernel.env.ConstantInfo.AxiomInfo cv_a)
+              ok (core.result.Result.Ok f, st2)
+            else
+              let s ←
+                lift (Array.to_slice cached.parsed_c.check_axiom_decl_c.M_1)
+              let v ← kernel.core_types.code_points s
+              let ce ← kernel.core_types.not_implemented v
+              ok (core.result.Result.Err ce, st1)
+          else
+            let n3 ← kernel.std_axioms.propext_name
+            let b4 ← kernel.name.beq cv_a.name n3
+            if b4
+            then
+              let s ←
+                lift (Array.to_slice cached.parsed_c.check_axiom_decl_c.M_2)
+              let v ← kernel.core_types.code_points s
+              let ce ← kernel.core_types.not_implemented v
+              ok (core.result.Result.Err ce, st1)
+            else
+              let n4 ← kernel.std_axioms.choice_name
+              let b5 ← kernel.name.beq cv_a.name n4
+              if b5
+              then
+                let s ←
+                  lift (Array.to_slice cached.parsed_c.check_axiom_decl_c.M_2)
+                let v ← kernel.core_types.code_points s
+                let ce ← kernel.core_types.not_implemented v
+                ok (core.result.Result.Err ce, st1)
+              else
+                let v ← kernel.std_axioms.tolerated_axiom_names
+                let b6 ← kernel.name.contains v cv_a.name
+                if b6
+                then ok (core.result.Result.Ok fe, st1)
+                else
+                  let s ←
+                    lift (Array.to_slice
+                      cached.parsed_c.check_axiom_decl_c.M_3)
+                  let v1 ← kernel.core_types.code_points s
+                  let ce ← kernel.core_types.not_implemented v1
+                  ok (core.result.Result.Err ce, st1)
+  | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+
+/-- [con_ron_core::kernel::trust_axioms::reduce_op_names]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 124:0-129:1
+    Visibility: public -/
+def kernel.trust_axioms.reduce_op_names
+  : Result (alloc.vec.Vec kernel.name.Name) := do
+  let n ← kernel.trust_axioms.reduce_nat_name
+  let ns ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+  let n1 ← kernel.trust_axioms.reduce_bool_name
+  alloc.vec.Vec.push ns n1
+
+/-- [con_ron_core::kernel::fenv::restrict_to]:
+    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 130:0-136:1
+    Visibility: public -/
+def kernel.fenv.restrict_to
+  (fe : kernel.fenv.FEnv) (k : Std.U64) : Result kernel.fenv.FEnv := do
+  ok { fe with visible_below := k }
+
+/-- [con_ron_core::kernel::trust_pins::reduce_nat_decl_pin::S]
+    Source: 'crates/con-ron-core/src/kernel/trust_pins.rs', lines 32:48-32:82 -/
+@[global_simps, irreducible]
+def kernel.trust_pins.reduce_nat_decl_pin.S : Array Std.U32 3#usize :=
+  Array.make 3#usize [ 78#u32, 97#u32, 116#u32 ]
+
+/-- [con_ron_core::kernel::basis_builder::lm]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 134:0-136:1
+    Visibility: public -/
+def kernel.basis_builder.lm
+  (ty : kernel.expr.Expr) (body : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let bm ← kernel.basis_builder.never_meta
+  kernel.expr.lam ty body bm
+
+/-- [con_ron_core::kernel::trust_pins::reduce_nat_decl_pin]:
+    Source: 'crates/con-ron-core/src/kernel/trust_pins.rs', lines 30:0-35:1
+    Visibility: public -/
+def kernel.trust_pins.reduce_nat_decl_pin : Result kernel.expr.Expr := do
+  let s ← lift (Array.to_slice kernel.trust_pins.reduce_nat_decl_pin.S)
+  let v ← kernel.core_types.code_points s
+  let n ← kernel.basis_builder.bn v
+  let e ← kernel.basis_builder.cnst n (alloc.vec.Vec.new kernel.level.Level)
+  let e1 ← kernel.basis_builder.bv 0#u64
+  kernel.basis_builder.lm e e1
+
+/-- [con_ron_core::kernel::trust_pins::reduce_bool_decl_pin::S]
+    Source: 'crates/con-ron-core/src/kernel/trust_pins.rs', lines 23:48-23:88 -/
+@[global_simps, irreducible]
+def kernel.trust_pins.reduce_bool_decl_pin.S : Array Std.U32 4#usize :=
+  Array.make 4#usize [ 66#u32, 111#u32, 111#u32, 108#u32 ]
+
+/-- [con_ron_core::kernel::trust_pins::reduce_bool_decl_pin]:
+    Source: 'crates/con-ron-core/src/kernel/trust_pins.rs', lines 21:0-26:1
+    Visibility: public -/
+def kernel.trust_pins.reduce_bool_decl_pin : Result kernel.expr.Expr := do
+  let s ← lift (Array.to_slice kernel.trust_pins.reduce_bool_decl_pin.S)
+  let v ← kernel.core_types.code_points s
+  let n ← kernel.basis_builder.bn v
+  let e ← kernel.basis_builder.cnst n (alloc.vec.Vec.new kernel.level.Level)
+  let e1 ← kernel.basis_builder.bv 0#u64
+  kernel.basis_builder.lm e e1
+
+/-- [con_ron_core::kernel::trust_axioms::reduce_decl_pin]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 402:0-408:1
+    Visibility: public -/
+def kernel.trust_axioms.reduce_decl_pin
+  (c : kernel.name.Name) : Result kernel.expr.Expr := do
+  let n ← kernel.trust_axioms.reduce_nat_name
+  let b ← kernel.name.beq c n
+  if b
+  then kernel.trust_pins.reduce_nat_decl_pin
+  else kernel.trust_pins.reduce_bool_decl_pin
+
+/-- [con_ron_core::kernel::expr_ops::all_level_params_defined]:
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1934:0-1983:1
+    Visibility: public -/
+def kernel.expr_ops.all_level_params_defined
+  (params : alloc.vec.Vec kernel.name.Name) (e : kernel.expr.Expr) :
+  Result Bool
+  := do
+  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => ok true
+  | kernel.expr.ExprKind.Fvar _ t =>
+    kernel.expr_ops.all_level_params_defined params t
+  | kernel.expr.ExprKind.Sort u => kernel.level.all_params_defined params u
+  | kernel.expr.ExprKind.Const _ us =>
+    kernel.expr_ops.levels_all_params_defined params us 0#usize
+  | kernel.expr.ExprKind.App f a =>
+    let b ← kernel.expr_ops.all_level_params_defined params f
+    if b
+    then kernel.expr_ops.all_level_params_defined params a
+    else ok false
+  | kernel.expr.ExprKind.Lam t b m =>
+    let b1 ← kernel.expr_ops.all_level_params_defined params t
+    if b1
+    then
+      let b2 ← kernel.expr_ops.all_level_params_defined params b
+      if b2
+      then kernel.prop_when.params_defined params m.pw
+      else ok false
+    else ok false
+  | kernel.expr.ExprKind.ForallE t b m =>
+    let b1 ← kernel.expr_ops.all_level_params_defined params t
+    if b1
+    then
+      let b2 ← kernel.expr_ops.all_level_params_defined params b
+      if b2
+      then kernel.prop_when.params_defined params m.pw
+      else ok false
+    else ok false
+  | kernel.expr.ExprKind.LetE t v b =>
+    let b1 ← kernel.expr_ops.all_level_params_defined params t
+    if b1
+    then
+      let b2 ← kernel.expr_ops.all_level_params_defined params v
+      if b2
+      then kernel.expr_ops.all_level_params_defined params b
+      else ok false
+    else ok false
+  | kernel.expr.ExprKind.Lit _ => ok true
+  | kernel.expr.ExprKind.Proj _ _ sub =>
+    kernel.expr_ops.all_level_params_defined params sub
+partial_fixpoint
+
+/-- [con_ron_core::kernel::expr_ops::all_level_params_defined_go]:
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2004:0-2050:1
+    Visibility: public -/
+def kernel.expr_ops.all_level_params_defined_go
+  (params : alloc.vec.Vec kernel.name.Name)
+  (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (e : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
+  := do
+  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => ok (true, memo)
+  | kernel.expr.ExprKind.Fvar _ _ =>
+    let o ← kernel.expr_ops.memo_b_get memo e
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ t =>
+          do
+          let (r1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo f
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 a
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam t b m =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 b
+          let b3 ← kernel.prop_when.params_defined params m.pw
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE t b m =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 b
+          let b3 ← kernel.prop_when.params_defined params m.pw
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE t v b =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 v
+          let (b3, memo4) ←
+            kernel.expr_ops.all_level_params_defined_go params memo3 b
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj _ _ sub =>
+          do
+          let (r1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo sub
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprKind.Sort u =>
+    let r ← kernel.level.all_params_defined params u
+    ok (r, memo)
+  | kernel.expr.ExprKind.Const _ us =>
+    let r ← kernel.expr_ops.levels_all_params_defined params us 0#usize
+    ok (r, memo)
+  | kernel.expr.ExprKind.App _ _ =>
+    let o ← kernel.expr_ops.memo_b_get memo e
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ t =>
+          do
+          let (r1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo f
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 a
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam t b m =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 b
+          let b3 ← kernel.prop_when.params_defined params m.pw
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE t b m =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 b
+          let b3 ← kernel.prop_when.params_defined params m.pw
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE t v b =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 v
+          let (b3, memo4) ←
+            kernel.expr_ops.all_level_params_defined_go params memo3 b
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj _ _ sub =>
+          do
+          let (r1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo sub
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprKind.Lam _ _ _ =>
+    let o ← kernel.expr_ops.memo_b_get memo e
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ t =>
+          do
+          let (r1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo f
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 a
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam t b m =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 b
+          let b3 ← kernel.prop_when.params_defined params m.pw
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE t b m =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 b
+          let b3 ← kernel.prop_when.params_defined params m.pw
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE t v b =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 v
+          let (b3, memo4) ←
+            kernel.expr_ops.all_level_params_defined_go params memo3 b
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj _ _ sub =>
+          do
+          let (r1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo sub
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprKind.ForallE _ _ _ =>
+    let o ← kernel.expr_ops.memo_b_get memo e
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ t =>
+          do
+          let (r1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo f
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 a
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam t b m =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 b
+          let b3 ← kernel.prop_when.params_defined params m.pw
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE t b m =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 b
+          let b3 ← kernel.prop_when.params_defined params m.pw
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE t v b =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 v
+          let (b3, memo4) ←
+            kernel.expr_ops.all_level_params_defined_go params memo3 b
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj _ _ sub =>
+          do
+          let (r1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo sub
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprKind.LetE _ _ _ =>
+    let o ← kernel.expr_ops.memo_b_get memo e
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ t =>
+          do
+          let (r1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo f
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 a
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam t b m =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 b
+          let b3 ← kernel.prop_when.params_defined params m.pw
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE t b m =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 b
+          let b3 ← kernel.prop_when.params_defined params m.pw
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE t v b =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 v
+          let (b3, memo4) ←
+            kernel.expr_ops.all_level_params_defined_go params memo3 b
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj _ _ sub =>
+          do
+          let (r1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo sub
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprKind.Lit _ => ok (true, memo)
+  | kernel.expr.ExprKind.Proj _ _ _ =>
+    let o ← kernel.expr_ops.memo_b_get memo e
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Fvar _ t =>
+          do
+          let (r1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          ok (memo2, r1)
+        | kernel.expr.ExprKind.Sort _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Const _ _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.App f a =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo f
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 a
+          let r1 ← kernel.expr_ops.bool_and b1 b2
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.Lam t b m =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 b
+          let b3 ← kernel.prop_when.params_defined params m.pw
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.ForallE t b m =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 b
+          let b3 ← kernel.prop_when.params_defined params m.pw
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo3, r1)
+        | kernel.expr.ExprKind.LetE t v b =>
+          do
+          let (b1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo t
+          let (b2, memo3) ←
+            kernel.expr_ops.all_level_params_defined_go params memo2 v
+          let (b3, memo4) ←
+            kernel.expr_ops.all_level_params_defined_go params memo3 b
+          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
+          ok (memo4, r1)
+        | kernel.expr.ExprKind.Lit _ =>
+          do
+          let r1 ← kernel.expr_ops.all_level_params_defined params e
+          ok (memo, r1)
+        | kernel.expr.ExprKind.Proj _ _ sub =>
+          do
+          let (r1, memo2) ←
+            kernel.expr_ops.all_level_params_defined_go params memo sub
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+      ok (r, memo2)
+    | some r => ok (r, memo)
+partial_fixpoint
+
+/-- [con_ron_core::kernel::expr_ops::all_level_params_defined_fast]:
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2057:0-2060:1
+    Visibility: public -/
+def kernel.expr_ops.all_level_params_defined_fast
+  (params : alloc.vec.Vec kernel.name.Name) (e : kernel.expr.Expr) :
+  Result Bool
+  := do
+  let memo ← ron.hashmap.HashMap.new kernel.expr.Expr Bool
+  let (b, _) ← kernel.expr_ops.all_level_params_defined_go params memo e
+  ok b
+
+/-- [con_ron_core::kernel::trust_axioms::reduce_pin_guard]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 413:0-426:1
+    Visibility: public -/
+def kernel.trust_axioms.reduce_pin_guard
+  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) : Result Bool := do
+  let pin ← kernel.trust_axioms.reduce_decl_pin c
+  let b ← kernel.expr_ops.loose_bvars_bounded 0#u64 pin
+  if b
+  then
+    let b1 ← kernel.expr_ops.has_fvar pin
+    if b1
+    then ok false
+    else
+      let b2 ←
+        kernel.expr_ops.all_level_params_defined_fast (alloc.vec.Vec.new
+          kernel.name.Name) pin
+      if b2
+      then kernel.core_k.consts_resolve fe pin
+      else ok false
+  else ok false
+
+/-- [con_ron_core::kernel::trust_axioms::reduce_cert_var]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 430:0-432:1
+    Visibility: public -/
+def kernel.trust_axioms.reduce_cert_var
+  (c : kernel.name.Name) : Result kernel.expr.Expr := do
+  let e ← kernel.trust_axioms.reduce_elem_ty c
+  kernel.expr.fvar 0#u64 e
+
+/-- [con_ron_core::kernel::checker::check_reduce_identity::M]
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1201:43-1201:296 -/
+@[global_simps, irreducible]
+def kernel.checker.check_reduce_identity.M : Array Std.U32 48#usize :=
+  Array.make 48#usize [
+    112#u32, 105#u32, 110#u32, 110#u32, 101#u32, 100#u32, 32#u32, 99#u32,
+    111#u32, 109#u32, 112#u32, 105#u32, 108#u32, 101#u32, 114#u32, 45#u32,
+    116#u32, 114#u32, 117#u32, 115#u32, 116#u32, 32#u32, 111#u32, 112#u32,
+    97#u32, 113#u32, 117#u32, 101#u32, 32#u32, 105#u32, 115#u32, 32#u32,
+    110#u32, 111#u32, 116#u32, 32#u32, 116#u32, 104#u32, 101#u32, 32#u32,
+    105#u32, 100#u32, 101#u32, 110#u32, 116#u32, 105#u32, 116#u32, 121#u32
+    ]
+
+/-- [con_ron_core::kernel::checker::check_reduce_identity]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1186:0-1205:1
+    Visibility: public -/
+def kernel.checker.check_reduce_identity
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (val_a : kernel.expr.Expr) :
+  Result ((core.result.Result Unit kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let x ← kernel.trust_axioms.reduce_cert_var c
+  let e ← kernel.expr.dup val_a
+  let e1 ← kernel.expr.dup x
+  let applied ← kernel.expr.app e e1
+  let (r, st1) ←
+    kernel.type_checker.is_def_eq_core mode st fe 1#u64 applied x
+  match r with
+  | core.result.Result.Ok ok1 =>
+    if ok1
+    then ok (core.result.Result.Ok (), st1)
+    else
+      let s ← lift (Array.to_slice kernel.checker.check_reduce_identity.M)
+      let v ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.internal v
+      ok (core.result.Result.Err ce, st1)
+  | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+
+/-- [con_ron_core::kernel::checker::check_reduce_pin_pre::M#2]
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1173:70-1173:296 -/
+@[global_simps, irreducible]
+def kernel.checker.check_reduce_pin_pre.M_2 : Array Std.U32 42#usize :=
+  Array.make 42#usize [
+    117#u32, 110#u32, 115#u32, 117#u32, 112#u32, 112#u32, 111#u32, 114#u32,
+    116#u32, 101#u32, 100#u32, 32#u32, 99#u32, 111#u32, 109#u32, 112#u32,
+    105#u32, 108#u32, 101#u32, 114#u32, 45#u32, 116#u32, 114#u32, 117#u32,
+    115#u32, 116#u32, 32#u32, 111#u32, 112#u32, 97#u32, 113#u32, 117#u32,
+    101#u32, 32#u32, 115#u32, 112#u32, 101#u32, 108#u32, 108#u32, 105#u32,
+    110#u32, 103#u32
+    ]
+
+/-- [con_ron_core::kernel::checker::check_reduce_pin_pre::M#1]
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1153:42-1153:404 -/
+@[global_simps, irreducible]
+def kernel.checker.check_reduce_pin_pre.M_1 : Array Std.U32 71#usize :=
+  Array.make 71#usize [
+    117#u32, 110#u32, 115#u32, 117#u32, 112#u32, 112#u32, 111#u32, 114#u32,
+    116#u32, 101#u32, 100#u32, 32#u32, 99#u32, 111#u32, 109#u32, 112#u32,
+    105#u32, 108#u32, 101#u32, 114#u32, 45#u32, 116#u32, 114#u32, 117#u32,
+    115#u32, 116#u32, 32#u32, 111#u32, 112#u32, 97#u32, 113#u32, 117#u32,
+    101#u32, 32#u32, 115#u32, 112#u32, 101#u32, 108#u32, 108#u32, 105#u32,
+    110#u32, 103#u32, 58#u32, 32#u32, 112#u32, 105#u32, 110#u32, 32#u32,
+    103#u32, 114#u32, 111#u32, 117#u32, 110#u32, 100#u32, 32#u32, 99#u32,
+    111#u32, 110#u32, 115#u32, 116#u32, 97#u32, 110#u32, 116#u32, 115#u32,
+    32#u32, 97#u32, 98#u32, 115#u32, 101#u32, 110#u32, 116#u32
+    ]
+
+/-- [con_ron_core::kernel::checker::check_reduce_pin_pre::M]
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1151:42-1151:280 -/
+@[global_simps, irreducible]
+def kernel.checker.check_reduce_pin_pre.M : Array Std.U32 45#usize :=
+  Array.make 45#usize [
+    117#u32, 110#u32, 115#u32, 117#u32, 112#u32, 112#u32, 111#u32, 114#u32,
+    116#u32, 101#u32, 100#u32, 32#u32, 99#u32, 111#u32, 109#u32, 112#u32,
+    105#u32, 108#u32, 101#u32, 114#u32, 45#u32, 116#u32, 114#u32, 117#u32,
+    115#u32, 116#u32, 32#u32, 111#u32, 112#u32, 97#u32, 113#u32, 117#u32,
+    101#u32, 32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32,
+    97#u32, 116#u32, 105#u32, 111#u32, 110#u32
+    ]
+
+/-- [con_ron_core::kernel::checker::check_reduce_pin_pre]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1143:0-1182:1
+    Visibility: public -/
+def kernel.checker.check_reduce_pin_pre
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (value : kernel.expr.Expr) :
+  Result ((core.result.Result Unit kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let b ← kernel.trust_axioms.reduce_elem_ok fe c
+  if b
+  then
+    let b1 ← kernel.trust_axioms.reduce_pin_guard fe c
+    if b1
+    then
+      let (r, st1) ← kernel.type_checker.annotate_core mode st fe 0#u64 value
+      match r with
+      | core.result.Result.Ok val_a =>
+        let e ← kernel.trust_axioms.reduce_decl_pin c
+        let (r1, st2) ← kernel.type_checker.annotate_core mode st1 fe 0#u64 e
+        match r1 with
+        | core.result.Result.Ok pin_a =>
+          let (r2, st3) ←
+            kernel.type_checker.is_def_eq_core mode st2 fe 0#u64 val_a pin_a
+          match r2 with
+          | core.result.Result.Ok ok_pin =>
+            if ok_pin
+            then kernel.checker.check_reduce_identity mode st3 fe c val_a
+            else
+              let s ←
+                lift (Array.to_slice kernel.checker.check_reduce_pin_pre.M_2)
+              let v ← kernel.core_types.code_points s
+              let ce ← kernel.core_types.not_implemented v
+              ok (core.result.Result.Err ce, st3)
+          | core.result.Result.Err err => ok (core.result.Result.Err err, st3)
+        | core.result.Result.Err err => ok (core.result.Result.Err err, st2)
+      | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+    else
+      let s ← lift (Array.to_slice kernel.checker.check_reduce_pin_pre.M_1)
+      let v ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.not_implemented v
+      ok (core.result.Result.Err ce, st)
+  else
+    let s ← lift (Array.to_slice kernel.checker.check_reduce_pin_pre.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.not_implemented v
+    ok (core.result.Result.Err ce, st)
+
+/-- [con_ron_core::kernel::checker::check_reduce_pin::M]
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1126:42-1126:280 -/
+@[global_simps, irreducible]
+def kernel.checker.check_reduce_pin.M : Array Std.U32 45#usize :=
+  Array.make 45#usize [
+    117#u32, 110#u32, 115#u32, 117#u32, 112#u32, 112#u32, 111#u32, 114#u32,
+    116#u32, 101#u32, 100#u32, 32#u32, 99#u32, 111#u32, 109#u32, 112#u32,
+    105#u32, 108#u32, 101#u32, 114#u32, 45#u32, 116#u32, 114#u32, 117#u32,
+    115#u32, 116#u32, 32#u32, 111#u32, 112#u32, 97#u32, 113#u32, 117#u32,
+    101#u32, 32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32,
+    97#u32, 116#u32, 105#u32, 111#u32, 110#u32
+    ]
+
+/-- [con_ron_core::kernel::checker::check_reduce_pin]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1117:0-1136:1
+    Visibility: public -/
+def kernel.checker.check_reduce_pin
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (k_pre : Std.U64) (c : kernel.name.Name)
+  (value : kernel.expr.Expr) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let b ← kernel.trust_axioms.reduce_stored_ok fe c
+  if b
+  then
+    let fe_pre ← kernel.fenv.restrict_to fe k_pre
+    let (r, st1) ← kernel.checker.check_reduce_pin_pre mode st fe_pre c value
+    match r with
+    | core.result.Result.Ok _ =>
+      let f ← kernel.fenv.restrict_to fe_pre fe.visible_below
+      ok (core.result.Result.Ok f, st1)
+    | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+  else
+    let s ← lift (Array.to_slice kernel.checker.check_reduce_pin.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.not_implemented v
+    ok (core.result.Result.Err ce, st)
+
+/-- [con_ron_core::cached::parsed_c::check_opaque_decl_c]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 594:0-617:1
+    Visibility: public -/
+def cached.parsed_c.check_opaque_decl_c
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (cv : kernel.env.ConstantVal)
+  (value : kernel.expr.Expr) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let (r, st1) ← cached.parsed_c.check_constant_val_c mode st fe cv
+  match r with
+  | core.result.Result.Ok p =>
+    let (cv_a, jty) := p
+    let v ← kernel.trust_axioms.reduce_op_names
+    let b ← kernel.name.contains v cv_a.name
+    if b
+    then
+      let (r1, st2) ←
+        cached.parsed_c.check_opaque_val_c mode st1 fe cv_a jty value
+      match r1 with
+      | core.result.Result.Ok fe2 =>
+        kernel.checker.check_reduce_pin mode st2 fe2 fe.visible_below 
+          cv_a.name value
+      | core.result.Result.Err _ => ok (r1, st2)
+    else cached.parsed_c.check_opaque_val_c mode st1 fe cv_a jty value
+  | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+
+/-- [con_ron_core::cached::parsed_c::check_thm_decl_c]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 575:0-586:1
+    Visibility: public -/
+def cached.parsed_c.check_thm_decl_c
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (cv : kernel.env.ConstantVal)
+  (value : kernel.expr.Expr) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let (r, st1) ← cached.parsed_c.check_constant_val_c mode st fe cv
+  match r with
+  | core.result.Result.Ok p =>
+    let (cv_a, jty) := p
+    cached.parsed_c.check_thm_val_c mode st1 fe cv_a jty value
+  | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+
+/-- [con_ron_core::kernel::core_k::nat_div_mod_names]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1348:0-1359:1
+    Visibility: public -/
+def kernel.core_k.nat_div_mod_names
+  : Result (alloc.vec.Vec kernel.name.Name) := do
+  let n ← kernel.core_k.nat_div_name
+  let ns ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+  let n1 ← kernel.core_k.nat_mod_name
+  let ns1 ← alloc.vec.Vec.push ns n1
+  let n2 ← kernel.core_k.nat_gcd_name
+  let ns2 ← alloc.vec.Vec.push ns1 n2
+  let n3 ← kernel.core_k.nat_land_name
+  let ns3 ← alloc.vec.Vec.push ns2 n3
+  let n4 ← kernel.core_k.nat_lor_name
+  let ns4 ← alloc.vec.Vec.push ns3 n4
+  let n5 ← kernel.core_k.nat_xor_name
+  let ns5 ← alloc.vec.Vec.push ns4 n5
+  let n6 ← kernel.core_k.nat_shift_left_name
+  let ns6 ← alloc.vec.Vec.push ns5 n6
+  let n7 ← kernel.core_k.nat_shift_right_name
+  alloc.vec.Vec.push ns6 n7
+
+/-- [con_ron_core::kernel::core_k::nat_op_names]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1333:0-1343:1
+    Visibility: public -/
+def kernel.core_k.nat_op_names : Result (alloc.vec.Vec kernel.name.Name) := do
+  let n ← kernel.core_k.nat_pred_name
+  let ns ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+  let n1 ← kernel.core_k.nat_add_name
+  let ns1 ← alloc.vec.Vec.push ns n1
+  let n2 ← kernel.core_k.nat_sub_name
+  let ns2 ← alloc.vec.Vec.push ns1 n2
+  let n3 ← kernel.core_k.nat_mul_name
+  let ns3 ← alloc.vec.Vec.push ns2 n3
+  let n4 ← kernel.core_k.nat_pow_name
+  let ns4 ← alloc.vec.Vec.push ns3 n4
+  let n5 ← kernel.core_k.nat_beq_name
+  let ns5 ← alloc.vec.Vec.push ns4 n5
+  let n6 ← kernel.core_k.nat_ble_name
+  alloc.vec.Vec.push ns5 n6
+
+/-- [con_ron_core::kernel::core_k::defn_lp_empty]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1618:0-1624:1
+    Visibility: public -/
+def kernel.core_k.defn_lp_empty
+  (fe : kernel.fenv.FEnv) (n : kernel.name.Name) : Result Bool := do
+  let o ← kernel.fenv.find fe n
+  match o with
+  | none => ok false
+  | some ci =>
+    match ci with
+    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
+    | kernel.env.ConstantInfo.DefnInfo cv _ _ =>
+      let i := alloc.vec.Vec.len cv.level_params
+      ok (i = 0#usize)
+    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
+    | kernel.env.ConstantInfo.IndInfo _ _ => ok false
+    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
+    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
+    | kernel.env.ConstantInfo.ProjInfo _ => ok false
+
+/-- [con_ron_core::kernel::core_k::deps_all_stored]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1629:0-1637:1
+    Visibility: public -/
+def kernel.core_k.deps_all_stored
+  (fe : kernel.fenv.FEnv) (deps : alloc.vec.Vec kernel.name.Name)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len deps
+  if i >= i1
+  then ok true
+  else
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) deps i
+    let b ← kernel.core_k.defn_lp_empty fe n
+    if b
+    then let i2 ← i + 1#usize
+         kernel.core_k.deps_all_stored fe deps i2
+    else ok false
+partial_fixpoint
+
+/-- [con_ron_core::kernel::core_k::nat_op_deps]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1364:0-1432:1
+    Visibility: public -/
+def kernel.core_k.nat_op_deps
+  (c : kernel.name.Name) : Result (alloc.vec.Vec kernel.name.Name) := do
+  let n ← kernel.core_k.nat_pred_name
+  let b ← kernel.name.beq c n
+  if b
+  then alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+  else
+    let n1 ← kernel.core_k.nat_add_name
+    let b1 ← kernel.name.beq c n1
+    if b1
+    then alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n1
+    else
+      let n2 ← kernel.core_k.nat_sub_name
+      let b2 ← kernel.name.beq c n2
+      if b2
+      then
+        let ns ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+        alloc.vec.Vec.push ns n2
+      else
+        let n3 ← kernel.core_k.nat_mul_name
+        let b3 ← kernel.name.beq c n3
+        if b3
+        then
+          let ns ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n1
+          alloc.vec.Vec.push ns n3
+        else
+          let n4 ← kernel.core_k.nat_pow_name
+          let b4 ← kernel.name.beq c n4
+          if b4
+          then
+            let ns ←
+              alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n1
+            let ns1 ← alloc.vec.Vec.push ns n3
+            alloc.vec.Vec.push ns1 n4
+          else
+            let n5 ← kernel.core_k.nat_beq_name
+            let b5 ← kernel.name.beq c n5
+            if b5
+            then alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n5
+            else
+              let n6 ← kernel.core_k.nat_ble_name
+              let b6 ← kernel.name.beq c n6
+              if b6
+              then alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
+              else
+                let n7 ← kernel.core_k.nat_div_name
+                let b7 ← kernel.name.beq c n7
+                if b7
+                then
+                  let ns ←
+                    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+                  let ns1 ← alloc.vec.Vec.push ns n2
+                  let ns2 ← alloc.vec.Vec.push ns1 n6
+                  alloc.vec.Vec.push ns2 n7
+                else
+                  let n8 ← kernel.core_k.nat_mod_name
+                  let b8 ← kernel.name.beq c n8
+                  if b8
+                  then
+                    let ns ←
+                      alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+                    let ns1 ← alloc.vec.Vec.push ns n2
+                    let ns2 ← alloc.vec.Vec.push ns1 n6
+                    alloc.vec.Vec.push ns2 n8
+                  else
+                    let n9 ← kernel.core_k.nat_gcd_name
+                    let b9 ← kernel.name.beq c n9
+                    if b9
+                    then
+                      let ns ←
+                        alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name)
+                          n6
+                      let ns1 ← alloc.vec.Vec.push ns n8
+                      alloc.vec.Vec.push ns1 n9
+                    else
+                      let n10 ← kernel.core_k.nat_land_name
+                      let b10 ← kernel.name.beq c n10
+                      if b10
+                      then
+                        let ns ←
+                          alloc.vec.Vec.push (alloc.vec.Vec.new
+                            kernel.name.Name) n1
+                        let ns1 ← alloc.vec.Vec.push ns n3
+                        let ns2 ← alloc.vec.Vec.push ns1 n6
+                        let ns3 ← alloc.vec.Vec.push ns2 n7
+                        let ns4 ← alloc.vec.Vec.push ns3 n8
+                        alloc.vec.Vec.push ns4 n10
+                      else
+                        let n11 ← kernel.core_k.nat_lor_name
+                        let b11 ← kernel.name.beq c n11
+                        if b11
+                        then
+                          let ns ←
+                            alloc.vec.Vec.push (alloc.vec.Vec.new
+                              kernel.name.Name) n1
+                          let ns1 ← alloc.vec.Vec.push ns n2
+                          let ns2 ← alloc.vec.Vec.push ns1 n3
+                          let ns3 ← alloc.vec.Vec.push ns2 n6
+                          let ns4 ← alloc.vec.Vec.push ns3 n7
+                          let ns5 ← alloc.vec.Vec.push ns4 n8
+                          alloc.vec.Vec.push ns5 n11
+                        else
+                          let n12 ← kernel.core_k.nat_xor_name
+                          let b12 ← kernel.name.beq c n12
+                          if b12
+                          then
+                            let ns ←
+                              alloc.vec.Vec.push (alloc.vec.Vec.new
+                                kernel.name.Name) n1
+                            let ns1 ← alloc.vec.Vec.push ns n3
+                            let ns2 ← alloc.vec.Vec.push ns1 n6
+                            let ns3 ← alloc.vec.Vec.push ns2 n7
+                            let ns4 ← alloc.vec.Vec.push ns3 n8
+                            alloc.vec.Vec.push ns4 n12
+                          else
+                            let n13 ← kernel.core_k.nat_shift_left_name
+                            let b13 ← kernel.name.beq c n13
+                            if b13
+                            then
+                              let ns ←
+                                alloc.vec.Vec.push (alloc.vec.Vec.new
+                                  kernel.name.Name) n2
+                              let ns1 ← alloc.vec.Vec.push ns n3
+                              let ns2 ← alloc.vec.Vec.push ns1 n6
+                              alloc.vec.Vec.push ns2 n13
+                            else
+                              let n14 ← kernel.core_k.nat_shift_right_name
+                              let b14 ← kernel.name.beq c n14
+                              if b14
+                              then
+                                let ns ←
+                                  alloc.vec.Vec.push (alloc.vec.Vec.new
+                                    kernel.name.Name) n2
+                                let ns1 ← alloc.vec.Vec.push ns n6
+                                let ns2 ← alloc.vec.Vec.push ns1 n7
+                                alloc.vec.Vec.push ns2 n14
+                              else ok (alloc.vec.Vec.new kernel.name.Name)
+
+/-- [con_ron_core::kernel::core_k::lp_empty]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 278:0-283:1
+    Visibility: public -/
+def kernel.core_k.lp_empty
+  (fe : kernel.fenv.FEnv) (n : kernel.name.Name) : Result Bool := do
+  let o ← kernel.fenv.find fe n
+  match o with
+  | none => ok false
+  | some ci =>
+    let cv ← kernel.env.to_constant_val ci
+    let i := alloc.vec.Vec.len cv.level_params
+    ok (i = 0#usize)
+
+/-- [con_ron_core::kernel::core_k::nat_op_guard]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1645:0-1666:1
+    Visibility: public -/
+def kernel.core_k.nat_op_guard
+  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) : Result Bool := do
+  let b ← kernel.core_k.nat_lit_supported fe
+  if b
+  then
+    let v ← kernel.core_k.nat_op_deps c
+    let b1 ← kernel.core_k.deps_all_stored fe v 0#usize
+    if b1
+    then
+      let n ← kernel.core_k.nat_beq_name
+      let b2 ← kernel.name.beq c n
+      if b2
+      then
+        let n1 ← kernel.core_k.bool_true_name
+        let b3 ← kernel.core_k.lp_empty fe n1
+        if b3
+        then
+          let n2 ← kernel.core_k.bool_false_name
+          kernel.core_k.lp_empty fe n2
+        else ok false
+      else
+        let n1 ← kernel.core_k.nat_ble_name
+        let b3 ← kernel.name.beq c n1
+        if b3
+        then
+          let n2 ← kernel.core_k.bool_true_name
+          let b4 ← kernel.core_k.lp_empty fe n2
+          if b4
+          then
+            let n3 ← kernel.core_k.bool_false_name
+            kernel.core_k.lp_empty fe n3
+          else ok false
+        else
+          let v1 ← kernel.core_k.nat_div_mod_names
+          let b4 ← kernel.name.contains v1 c
+          if b4
+          then
+            let n2 ← kernel.core_k.bool_true_name
+            let b5 ← kernel.core_k.lp_empty fe n2
+            if b5
+            then
+              let n3 ← kernel.core_k.bool_false_name
+              kernel.core_k.lp_empty fe n3
+            else ok false
+          else ok true
+    else ok false
+  else ok false
+
+/-- [con_ron_core::kernel::core_k::nat_eq_ap2]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1449:0-1451:1
+    Visibility: public -/
+def kernel.core_k.nat_eq_ap2
+  (n : kernel.name.Name) (a : kernel.expr.Expr) (b : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let n1 ← kernel.name.dup n
+  let e ← kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
+  let e1 ← kernel.expr.app e a
+  kernel.expr.app e1 b
+
+/-- [con_ron_core::kernel::core_k::nat_eq_ap1]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1443:0-1445:1
+    Visibility: public -/
+def kernel.core_k.nat_eq_ap1
+  (n : kernel.name.Name) (a : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let n1 ← kernel.name.dup n
+  let e ← kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
+  kernel.expr.app e a
+
+/-- [con_ron_core::kernel::core_k::nat_eq_s]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1437:0-1439:1
+    Visibility: public -/
+def kernel.core_k.nat_eq_s
+  (a : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let n ← kernel.basis_names.nat_succ_name
+  let e ← kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
+  kernel.expr.app e a
+
+/-- [con_ron_core::kernel::core_k::nat_op_equations]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1458:0-1539:1
+    Visibility: public -/
+def kernel.core_k.nat_op_equations
+  (d : Std.U64) (c : kernel.name.Name) :
+  Result (alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr))
+  := do
+  let n ← kernel.basis_names.nat_name
+  let nat_ty ← kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
+  let e ← kernel.expr.dup nat_ty
+  let x ← kernel.expr.fvar d e
+  let i ← d + 1#u64
+  let y ← kernel.expr.fvar i nat_ty
+  let n1 ← kernel.basis_names.nat_zero_name
+  let z ← kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
+  let n2 ← kernel.core_k.bool_true_name
+  let b_t ← kernel.expr.mk_const n2 (alloc.vec.Vec.new kernel.level.Level)
+  let n3 ← kernel.core_k.bool_false_name
+  let b_f ← kernel.expr.mk_const n3 (alloc.vec.Vec.new kernel.level.Level)
+  let n4 ← kernel.core_k.nat_pred_name
+  let b ← kernel.name.beq c n4
+  if b
+  then
+    let e1 ← kernel.expr.dup z
+    let e2 ← kernel.core_k.nat_eq_ap1 c e1
+    let eqs ←
+      alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.expr.Expr ×
+        kernel.expr.Expr)) (e2, e1)
+    let e3 ← kernel.expr.dup x
+    let e4 ← kernel.core_k.nat_eq_s e3
+    let e5 ← kernel.core_k.nat_eq_ap1 c e4
+    alloc.vec.Vec.push eqs (e5, e3)
+  else
+    let n5 ← kernel.core_k.nat_add_name
+    let b1 ← kernel.name.beq c n5
+    if b1
+    then
+      let e1 ← kernel.expr.dup x
+      let e2 ← kernel.expr.dup z
+      let e3 ← kernel.core_k.nat_eq_ap2 c e1 e2
+      let eqs ←
+        alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.expr.Expr ×
+          kernel.expr.Expr)) (e3, e1)
+      let e4 ← kernel.expr.dup y
+      let e5 ← kernel.core_k.nat_eq_s e4
+      let e6 ← kernel.core_k.nat_eq_ap2 c e1 e5
+      let e7 ← kernel.core_k.nat_eq_ap2 c e1 e4
+      let e8 ← kernel.core_k.nat_eq_s e7
+      alloc.vec.Vec.push eqs (e6, e8)
+    else
+      let n6 ← kernel.core_k.nat_sub_name
+      let b2 ← kernel.name.beq c n6
+      if b2
+      then
+        let e1 ← kernel.expr.dup x
+        let e2 ← kernel.expr.dup z
+        let e3 ← kernel.core_k.nat_eq_ap2 c e1 e2
+        let eqs ←
+          alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.expr.Expr ×
+            kernel.expr.Expr)) (e3, e1)
+        let e4 ← kernel.expr.dup y
+        let e5 ← kernel.core_k.nat_eq_s e4
+        let e6 ← kernel.core_k.nat_eq_ap2 c e1 e5
+        let e7 ← kernel.core_k.nat_eq_ap2 c e1 e4
+        let e8 ← kernel.core_k.nat_eq_ap1 n4 e7
+        alloc.vec.Vec.push eqs (e6, e8)
+      else
+        let n7 ← kernel.core_k.nat_mul_name
+        let b3 ← kernel.name.beq c n7
+        if b3
+        then
+          let e1 ← kernel.expr.dup x
+          let e2 ← kernel.expr.dup z
+          let e3 ← kernel.core_k.nat_eq_ap2 c e1 e2
+          let eqs ←
+            alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.expr.Expr ×
+              kernel.expr.Expr)) (e3, e2)
+          let e4 ← kernel.expr.dup y
+          let e5 ← kernel.core_k.nat_eq_s e4
+          let e6 ← kernel.core_k.nat_eq_ap2 c e1 e5
+          let e7 ← kernel.core_k.nat_eq_ap2 c e1 e4
+          let e8 ← kernel.core_k.nat_eq_ap2 n5 e7 e1
+          alloc.vec.Vec.push eqs (e6, e8)
+        else
+          let n8 ← kernel.core_k.nat_pow_name
+          let b4 ← kernel.name.beq c n8
+          if b4
+          then
+            let e1 ← kernel.expr.dup x
+            let e2 ← kernel.expr.dup z
+            let e3 ← kernel.core_k.nat_eq_ap2 c e1 e2
+            let e4 ← kernel.core_k.nat_eq_s e2
+            let eqs ←
+              alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.expr.Expr ×
+                kernel.expr.Expr)) (e3, e4)
+            let e5 ← kernel.expr.dup y
+            let e6 ← kernel.core_k.nat_eq_s e5
+            let e7 ← kernel.core_k.nat_eq_ap2 c e1 e6
+            let e8 ← kernel.core_k.nat_eq_ap2 c e1 e5
+            let e9 ← kernel.core_k.nat_eq_ap2 n7 e8 e1
+            alloc.vec.Vec.push eqs (e7, e9)
+          else
+            let n9 ← kernel.core_k.nat_beq_name
+            let b5 ← kernel.name.beq c n9
+            if b5
+            then
+              let e1 ← kernel.expr.dup z
+              let e2 ← kernel.core_k.nat_eq_ap2 c e1 e1
+              let e3 ← kernel.expr.dup b_t
+              let eqs ←
+                alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.expr.Expr ×
+                  kernel.expr.Expr)) (e2, e3)
+              let e4 ← kernel.expr.dup y
+              let e5 ← kernel.core_k.nat_eq_s e4
+              let e6 ← kernel.core_k.nat_eq_ap2 c e1 e5
+              let e7 ← kernel.expr.dup b_f
+              let eqs1 ← alloc.vec.Vec.push eqs (e6, e7)
+              let e8 ← kernel.expr.dup x
+              let e9 ← kernel.core_k.nat_eq_s e8
+              let e10 ← kernel.core_k.nat_eq_ap2 c e9 e1
+              let eqs2 ← alloc.vec.Vec.push eqs1 (e10, e7)
+              let e11 ← kernel.core_k.nat_eq_s e8
+              let e12 ← kernel.core_k.nat_eq_s e4
+              let e13 ← kernel.core_k.nat_eq_ap2 c e11 e12
+              let e14 ← kernel.core_k.nat_eq_ap2 c e8 e4
+              alloc.vec.Vec.push eqs2 (e13, e14)
+            else
+              let n10 ← kernel.core_k.nat_ble_name
+              let b6 ← kernel.name.beq c n10
+              if b6
+              then
+                let e1 ← kernel.expr.dup z
+                let e2 ← kernel.expr.dup y
+                let e3 ← kernel.core_k.nat_eq_ap2 c e1 e2
+                let e4 ← kernel.expr.dup b_t
+                let eqs ←
+                  alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.expr.Expr ×
+                    kernel.expr.Expr)) (e3, e4)
+                let e5 ← kernel.expr.dup x
+                let e6 ← kernel.core_k.nat_eq_s e5
+                let e7 ← kernel.core_k.nat_eq_ap2 c e6 e1
+                let e8 ← kernel.expr.dup b_f
+                let eqs1 ← alloc.vec.Vec.push eqs (e7, e8)
+                let e9 ← kernel.core_k.nat_eq_s e5
+                let e10 ← kernel.core_k.nat_eq_s e2
+                let e11 ← kernel.core_k.nat_eq_ap2 c e9 e10
+                let e12 ← kernel.core_k.nat_eq_ap2 c e5 e2
+                alloc.vec.Vec.push eqs1 (e11, e12)
+              else
+                ok (alloc.vec.Vec.new (kernel.expr.Expr × kernel.expr.Expr))
+
+/-- [con_ron_core::kernel::core_k::subst_const0]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1689:0-1701:1
+    Visibility: public -/
+def kernel.core_k.subst_const0
+  (n : kernel.name.Name) (r : kernel.expr.Expr) (e : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Fvar _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Sort _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Const c us =>
+    let i := alloc.vec.Vec.len us
+    if i = 0#usize
+    then
+      let b ← kernel.name.beq c n
+      if b
+      then kernel.expr.dup r
+      else kernel.expr.dup e
+    else kernel.expr.dup e
+  | kernel.expr.ExprKind.App f a =>
+    let e1 ← kernel.core_k.subst_const0 n r f
+    let e2 ← kernel.core_k.subst_const0 n r a
+    kernel.expr.app e1 e2
+  | kernel.expr.ExprKind.Lam _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.ForallE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.LetE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Lit _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Proj _ _ _ => kernel.expr.dup e
+partial_fixpoint
+
+/-- [con_ron_core::kernel::checker::nat_eqs_subst_from]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1358:0-1375:1
+    Visibility: public -/
+def kernel.checker.nat_eqs_subst_from
+  (n : kernel.name.Name) (value2 : kernel.expr.Expr)
+  (eqs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr)) (i : Std.Usize)
+  (out : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr)) :
+  Result (alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr))
+  := do
+  let i1 := alloc.vec.Vec.len eqs
+  if i >= i1
+  then ok out
+  else
+    let (e, e1) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (kernel.expr.Expr × kernel.expr.Expr)) eqs i
+    let e2 ← kernel.core_k.subst_const0 n value2 e
+    let e3 ← kernel.core_k.subst_const0 n value2 e1
+    let out1 ← alloc.vec.Vec.push out (e2, e3)
+    let i2 ← i + 1#usize
+    kernel.checker.nat_eqs_subst_from n value2 eqs i2 out1
+partial_fixpoint
+
+/-- [con_ron_core::kernel::checker::nat_eqs_subst]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1352:0-1354:1
+    Visibility: public -/
+def kernel.checker.nat_eqs_subst
+  (n : kernel.name.Name) (value2 : kernel.expr.Expr)
+  (eqs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr)) :
+  Result (alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr))
+  := do
+  kernel.checker.nat_eqs_subst_from n value2 eqs 0#usize (alloc.vec.Vec.new
+    (kernel.expr.Expr × kernel.expr.Expr))
+
+/-- [con_ron_core::kernel::checker::check_structural_nat_pin::M#2]
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1341:62-1341:254 -/
+@[global_simps, irreducible]
+def kernel.checker.check_structural_nat_pin.M_2 : Array Std.U32 36#usize :=
+  Array.make 36#usize [
+    110#u32, 111#u32, 110#u32, 115#u32, 116#u32, 97#u32, 110#u32, 100#u32,
+    97#u32, 114#u32, 100#u32, 32#u32, 115#u32, 116#u32, 114#u32, 117#u32,
+    99#u32, 116#u32, 117#u32, 114#u32, 97#u32, 108#u32, 32#u32, 78#u32, 97#u32,
+    116#u32, 32#u32, 111#u32, 112#u32, 101#u32, 114#u32, 97#u32, 116#u32,
+    105#u32, 111#u32, 110#u32
+    ]
+
+/-- [con_ron_core::kernel::checker::check_structural_nat_pin::M#1]
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1327:47-1327:235 -/
+@[global_simps, irreducible]
+def kernel.checker.check_structural_nat_pin.M_1 : Array Std.U32 35#usize :=
+  Array.make 35#usize [
+    115#u32, 116#u32, 114#u32, 117#u32, 99#u32, 116#u32, 117#u32, 114#u32,
+    97#u32, 108#u32, 32#u32, 78#u32, 97#u32, 116#u32, 32#u32, 111#u32, 112#u32,
+    101#u32, 114#u32, 97#u32, 116#u32, 105#u32, 111#u32, 110#u32, 32#u32,
+    110#u32, 111#u32, 116#u32, 32#u32, 115#u32, 116#u32, 111#u32, 114#u32,
+    101#u32, 100#u32
+    ]
+
+/-- [con_ron_core::kernel::checker::check_structural_nat_pin::M]
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1324:42-1324:293 -/
+@[global_simps, irreducible]
+def kernel.checker.check_structural_nat_pin.M : Array Std.U32 48#usize :=
+  Array.make 48#usize [
+    110#u32, 111#u32, 110#u32, 115#u32, 116#u32, 97#u32, 110#u32, 100#u32,
+    97#u32, 114#u32, 100#u32, 32#u32, 115#u32, 116#u32, 114#u32, 117#u32,
+    99#u32, 116#u32, 117#u32, 114#u32, 97#u32, 108#u32, 32#u32, 78#u32, 97#u32,
+    116#u32, 32#u32, 111#u32, 112#u32, 101#u32, 114#u32, 97#u32, 116#u32,
+    105#u32, 111#u32, 110#u32, 32#u32, 101#u32, 110#u32, 118#u32, 105#u32,
+    114#u32, 111#u32, 110#u32, 109#u32, 101#u32, 110#u32, 116#u32
+    ]
+
+/-- [con_ron_core::kernel::checker::certify_nat_eqs_from]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 331:0-352:1
+    Visibility: public -/
+def kernel.checker.certify_nat_eqs_from
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv)
+  (eqs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr)) (i : Std.Usize)
+  :
+  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let i1 := alloc.vec.Vec.len eqs
+  if i >= i1
+  then ok (core.result.Result.Ok true, st)
+  else
+    let (e, e1) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (kernel.expr.Expr × kernel.expr.Expr)) eqs i
+    let (r, st1) ← kernel.type_checker.is_def_eq_core mode st fe 2#u64 e e1
+    match r with
+    | core.result.Result.Ok ok1 =>
+      if ok1
+      then
+        let i2 ← i + 1#usize
+        kernel.checker.certify_nat_eqs_from mode st1 fe eqs i2
+      else ok (r, st1)
+    | core.result.Result.Err _ => ok (r, st1)
+partial_fixpoint
+
+/-- [con_ron_core::kernel::checker::certify_nat_eqs]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 320:0-327:1
+    Visibility: public -/
+def kernel.checker.certify_nat_eqs
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv)
+  (eqs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr)) :
+  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  kernel.checker.certify_nat_eqs_from mode st fe eqs 0#usize
+
+/-- [con_ron_core::kernel::checker::check_structural_nat_pin]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1314:0-1348:1
+    Visibility: public -/
+def kernel.checker.check_structural_nat_pin
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe2 : kernel.fenv.FEnv) (k_pre : Std.U64) (n : kernel.name.Name) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let b ← kernel.core_k.nat_op_guard fe2 n
+  if b
+  then
+    let v ← kernel.core_k.nat_op_deps n
+    let b1 ← kernel.core_k.deps_all_stored fe2 v 0#usize
+    if b1
+    then
+      let o ← kernel.core_k.defn_probe fe2 n
+      match o with
+      | none =>
+        let s ←
+          lift (Array.to_slice kernel.checker.check_structural_nat_pin.M_1)
+        let v1 ← kernel.core_types.code_points s
+        let ce ← kernel.core_types.internal v1
+        ok (core.result.Result.Err ce, st)
+      | some t =>
+        let (_, value2, _) := t
+        let v1 ← kernel.core_k.nat_op_equations 0#u64 n
+        let eqs ← kernel.checker.nat_eqs_subst n value2 v1
+        let fe_pre ← kernel.fenv.restrict_to fe2 k_pre
+        let (r, st1) ← kernel.checker.certify_nat_eqs mode st fe_pre eqs
+        let fe21 ← kernel.fenv.restrict_to fe_pre fe2.visible_below
+        match r with
+        | core.result.Result.Ok ok1 =>
+          if ok1
+          then ok (core.result.Result.Ok fe21, st1)
+          else
+            let s ←
+              lift (Array.to_slice kernel.checker.check_structural_nat_pin.M_2)
+            let v2 ← kernel.core_types.code_points s
+            let ce ← kernel.core_types.not_implemented v2
+            ok (core.result.Result.Err ce, st1)
+        | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+    else
+      let s ← lift (Array.to_slice kernel.checker.check_structural_nat_pin.M)
+      let v1 ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.not_implemented v1
+      ok (core.result.Result.Err ce, st)
+  else
+    let s ← lift (Array.to_slice kernel.checker.check_structural_nat_pin.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.not_implemented v
+    ok (core.result.Result.Err ce, st)
+
+/-- [con_ron_core::kernel::nat_op_pins::nat_op_pin_sets]:
+    Source: 'crates/con-ron-core/src/kernel/nat_op_pins.rs', lines 65:0-67:1
+    Visibility: public -/
+def kernel.nat_op_pins.nat_op_pin_sets
+  : Result (alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet) := do
+  ok (alloc.vec.Vec.new kernel.nat_op_pins.NatOpPinSet)
+
+/-- [con_ron_core::kernel::checker::check_div_mod_pin::M#1]
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1082:47-1082:221 -/
+@[global_simps, irreducible]
+def kernel.checker.check_div_mod_pin.M_1 : Array Std.U32 32#usize :=
+  Array.make 32#usize [
+    78#u32, 97#u32, 116#u32, 46#u32, 100#u32, 105#u32, 118#u32, 47#u32,
+    109#u32, 111#u32, 100#u32, 32#u32, 111#u32, 112#u32, 101#u32, 114#u32,
+    97#u32, 116#u32, 105#u32, 111#u32, 110#u32, 32#u32, 110#u32, 111#u32,
+    116#u32, 32#u32, 115#u32, 116#u32, 111#u32, 114#u32, 101#u32, 100#u32
+    ]
+
+/-- [con_ron_core::kernel::checker::check_div_mod_pin::M]
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1079:42-1079:233 -/
+@[global_simps, irreducible]
+def kernel.checker.check_div_mod_pin.M : Array Std.U32 35#usize :=
+  Array.make 35#usize [
+    117#u32, 110#u32, 115#u32, 117#u32, 112#u32, 112#u32, 111#u32, 114#u32,
+    116#u32, 101#u32, 100#u32, 32#u32, 78#u32, 97#u32, 116#u32, 46#u32,
+    100#u32, 105#u32, 118#u32, 47#u32, 109#u32, 111#u32, 100#u32, 32#u32,
+    101#u32, 110#u32, 118#u32, 105#u32, 114#u32, 111#u32, 110#u32, 109#u32,
+    101#u32, 110#u32, 116#u32
+    ]
+
+/-- [con_ron_core::kernel::checker::check_div_mod_pin_loop::M]
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1043:42-1043:329 -/
+@[global_simps, irreducible]
+def kernel.checker.check_div_mod_pin_loop.M : Array Std.U32 56#usize :=
+  Array.make 56#usize [
+    117#u32, 110#u32, 115#u32, 117#u32, 112#u32, 112#u32, 111#u32, 114#u32,
+    116#u32, 101#u32, 100#u32, 32#u32, 78#u32, 97#u32, 116#u32, 46#u32,
+    100#u32, 105#u32, 118#u32, 47#u32, 109#u32, 111#u32, 100#u32, 32#u32,
+    115#u32, 112#u32, 101#u32, 108#u32, 108#u32, 105#u32, 110#u32, 103#u32,
+    58#u32, 32#u32, 110#u32, 111#u32, 32#u32, 112#u32, 105#u32, 110#u32,
+    32#u32, 118#u32, 97#u32, 114#u32, 105#u32, 97#u32, 110#u32, 116#u32,
+    32#u32, 109#u32, 97#u32, 116#u32, 99#u32, 104#u32, 101#u32, 100#u32
+    ]
+
+/-- [con_ron_core::kernel::core_k::subst_const_all]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1707:0-1735:1
+    Visibility: public -/
+def kernel.core_k.subst_const_all
+  (n : kernel.name.Name) (r : kernel.expr.Expr) (e : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Fvar _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Sort _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Const c us =>
+    let i := alloc.vec.Vec.len us
+    if i = 0#usize
+    then
+      let b ← kernel.name.beq c n
+      if b
+      then kernel.expr.dup r
+      else kernel.expr.dup e
+    else kernel.expr.dup e
+  | kernel.expr.ExprKind.App f a =>
+    let e1 ← kernel.core_k.subst_const_all n r f
+    let e2 ← kernel.core_k.subst_const_all n r a
+    kernel.expr.app e1 e2
+  | kernel.expr.ExprKind.Lam ty b mb =>
+    let e1 ← kernel.core_k.subst_const_all n r ty
+    let e2 ← kernel.core_k.subst_const_all n r b
+    let bm ← kernel.expr.binder_meta_dup mb
+    kernel.expr.lam e1 e2 bm
+  | kernel.expr.ExprKind.ForallE ty b mb =>
+    let e1 ← kernel.core_k.subst_const_all n r ty
+    let e2 ← kernel.core_k.subst_const_all n r b
+    let bm ← kernel.expr.binder_meta_dup mb
+    kernel.expr.forall_e e1 e2 bm
+  | kernel.expr.ExprKind.LetE ty v b =>
+    let e1 ← kernel.core_k.subst_const_all n r ty
+    let e2 ← kernel.core_k.subst_const_all n r v
+    let e3 ← kernel.core_k.subst_const_all n r b
+    kernel.expr.let_e e1 e2 e3
+  | kernel.expr.ExprKind.Lit _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Proj s i pe =>
+    let n1 ← kernel.name.dup s
+    let e1 ← kernel.core_k.subst_const_all n r pe
+    kernel.expr.proj n1 i e1
+partial_fixpoint
+
+/-- [con_ron_core::kernel::checker::hyps_subst_from]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 805:0-819:1
+    Visibility: public -/
+def kernel.checker.hyps_subst_from
+  (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
+  (hyps : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize)
+  (out : alloc.vec.Vec kernel.expr.Expr) :
+  Result (alloc.vec.Vec kernel.expr.Expr)
+  := do
+  let i1 := alloc.vec.Vec.len hyps
+  if i >= i1
+  then ok out
+  else
+    let e ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.expr.Expr) hyps i
+    let e1 ← kernel.core_k.subst_const0 c ann_val e
+    let out1 ← alloc.vec.Vec.push out e1
+    let i2 ← i + 1#usize
+    kernel.checker.hyps_subst_from c ann_val hyps i2 out1
+partial_fixpoint
+
+/-- [con_ron_core::kernel::checker::hyps_subst]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 799:0-801:1
+    Visibility: public -/
+def kernel.checker.hyps_subst
+  (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
+  (hyps : alloc.vec.Vec kernel.expr.Expr) :
+  Result (alloc.vec.Vec kernel.expr.Expr)
+  := do
+  kernel.checker.hyps_subst_from c ann_val hyps 0#usize (alloc.vec.Vec.new
+    kernel.expr.Expr)
+
+/-- [con_ron_core::kernel::checker::hyps_resolve]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 781:0-795:1
+    Visibility: public -/
+def kernel.checker.hyps_resolve
+  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
+  (hyps : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize) :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len hyps
+  if i >= i1
+  then ok true
+  else
+    let e ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.expr.Expr) hyps i
+    let e1 ← kernel.core_k.subst_const0 c ann_val e
+    let b ← kernel.core_k.consts_resolve fe e1
+    if b
+    then
+      let i2 ← i + 1#usize
+      kernel.checker.hyps_resolve fe c ann_val hyps i2
+    else ok false
+partial_fixpoint
+
+/-- [con_ron_core::kernel::checker::div_mod_cert_guard]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 754:0-776:1
+    Visibility: public -/
+def kernel.checker.div_mod_cert_guard
+  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
+  (hyps : alloc.vec.Vec kernel.expr.Expr) (eq_e : kernel.expr.Expr)
+  (proof : kernel.expr.Expr) :
+  Result Bool
+  := do
+  let p ← kernel.core_k.subst_const_all c ann_val proof
+  let b ← kernel.expr_ops.loose_bvars_bounded 0#u64 p
+  if b
+  then
+    let b1 ← kernel.expr_ops.has_fvar p
+    if b1
+    then ok false
+    else
+      let b2 ←
+        kernel.expr_ops.all_level_params_defined_fast (alloc.vec.Vec.new
+          kernel.name.Name) p
+      if b2
+      then
+        let b3 ← kernel.core_k.consts_resolve fe p
+        if b3
+        then
+          let b4 ← kernel.checker.hyps_resolve fe c ann_val hyps 0#usize
+          if b4
+          then
+            let e ← kernel.core_k.subst_const0 c ann_val eq_e
+            kernel.core_k.consts_resolve fe e
+          else ok false
+        else ok false
+      else ok false
+  else ok false
+
+/-- [con_ron_core::kernel::checker::cert_nat_ty]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 409:0-411:1
+    Visibility: public -/
+def kernel.checker.cert_nat_ty : Result kernel.expr.Expr := do
+  let n ← kernel.basis_names.nat_name
+  kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
+
+/-- [con_ron_core::kernel::checker::cert_y]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 421:0-423:1
+    Visibility: public -/
+def kernel.checker.cert_y : Result kernel.expr.Expr := do
+  let e ← kernel.checker.cert_nat_ty
+  kernel.expr.fvar 1#u64 e
+
+/-- [con_ron_core::kernel::checker::cert_x]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 415:0-417:1
+    Visibility: public -/
+def kernel.checker.cert_x : Result kernel.expr.Expr := do
+  let e ← kernel.checker.cert_nat_ty
+  kernel.expr.fvar 0#u64 e
+
+/-- [con_ron_core::kernel::checker::div_mod_cert_applied]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 730:0-745:1
+    Visibility: public -/
+def kernel.checker.div_mod_cert_applied
+  (proof_s : kernel.expr.Expr) (hyps : alloc.vec.Vec kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let e ← kernel.expr.dup proof_s
+  let e1 ← kernel.checker.cert_x
+  let e2 ← kernel.expr.app e e1
+  let e3 ← kernel.checker.cert_y
+  let base ← kernel.expr.app e2 e3
+  let i := alloc.vec.Vec.len hyps
+  if i = 1#usize
+  then
+    let e4 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.expr.Expr) hyps 0#usize
+    let e5 ← kernel.expr.dup e4
+    let e6 ← kernel.expr.fvar 2#u64 e5
+    kernel.expr.app base e6
+  else
+    let i1 := alloc.vec.Vec.len hyps
+    if i1 = 2#usize
+    then
+      let e4 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          kernel.expr.Expr) hyps 0#usize
+      let e5 ← kernel.expr.dup e4
+      let e6 ← kernel.expr.fvar 2#u64 e5
+      let e7 ← kernel.expr.app base e6
+      let e8 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          kernel.expr.Expr) hyps 1#usize
+      let e9 ← kernel.expr.dup e8
+      let e10 ← kernel.expr.fvar 3#u64 e9
+      kernel.expr.app e7 e10
+    else ok base
+
+/-- [con_ron_core::kernel::checker::check_div_mod_certs_from]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 844:0-887:1
+    Visibility: public -/
+def kernel.checker.check_div_mod_certs_from
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
+  (stmts : alloc.vec.Vec ((alloc.vec.Vec kernel.expr.Expr) ×
+  kernel.expr.Expr)) (proofs : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize)
+  :
+  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let i1 := alloc.vec.Vec.len stmts
+  if i >= i1
+  then
+    let i2 := alloc.vec.Vec.len proofs
+    if i >= i2
+    then ok (core.result.Result.Ok true, st)
+    else
+      let i3 := alloc.vec.Vec.len stmts
+      if i >= i3
+      then ok (core.result.Result.Ok false, st)
+      else
+        let i4 := alloc.vec.Vec.len proofs
+        if i >= i4
+        then ok (core.result.Result.Ok false, st)
+        else
+          let (v, e) ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              ((alloc.vec.Vec kernel.expr.Expr) × kernel.expr.Expr)) stmts i
+          let e1 ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              kernel.expr.Expr) proofs i
+          let b ← kernel.checker.div_mod_cert_guard fe c ann_val v e e1
+          if b
+          then
+            let e2 ← kernel.core_k.subst_const_all c ann_val e1
+            let v1 ← kernel.checker.hyps_subst c ann_val v
+            let applied ← kernel.checker.div_mod_cert_applied e2 v1
+            let (r, st1) ←
+              kernel.type_checker.annotate_core mode st fe 4#u64 applied
+            match r with
+            | core.result.Result.Ok applied_a =>
+              let (r1, st2) ←
+                kernel.type_checker.infer_type_core mode st1 fe 4#u64 applied_a
+              match r1 with
+              | core.result.Result.Ok tp =>
+                let target ← kernel.core_k.subst_const0 c ann_val e
+                let (r2, st3) ←
+                  kernel.type_checker.is_def_eq_core mode st2 fe 4#u64 tp
+                    target
+                match r2 with
+                | core.result.Result.Ok ok1 =>
+                  if ok1
+                  then
+                    let i5 ← i + 1#usize
+                    kernel.checker.check_div_mod_certs_from mode st3 fe c
+                      ann_val stmts proofs i5
+                  else ok (r2, st3)
+                | core.result.Result.Err _ => ok (r2, st3)
+              | core.result.Result.Err err =>
+                ok (core.result.Result.Err err, st2)
+            | core.result.Result.Err err =>
+              ok (core.result.Result.Err err, st1)
+          else ok (core.result.Result.Ok false, st)
+  else
+    let i2 := alloc.vec.Vec.len stmts
+    if i >= i2
+    then ok (core.result.Result.Ok false, st)
+    else
+      let i3 := alloc.vec.Vec.len proofs
+      if i >= i3
+      then ok (core.result.Result.Ok false, st)
+      else
+        let (v, e) ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            ((alloc.vec.Vec kernel.expr.Expr) × kernel.expr.Expr)) stmts i
+        let e1 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            kernel.expr.Expr) proofs i
+        let b ← kernel.checker.div_mod_cert_guard fe c ann_val v e e1
+        if b
+        then
+          let e2 ← kernel.core_k.subst_const_all c ann_val e1
+          let v1 ← kernel.checker.hyps_subst c ann_val v
+          let applied ← kernel.checker.div_mod_cert_applied e2 v1
+          let (r, st1) ←
+            kernel.type_checker.annotate_core mode st fe 4#u64 applied
+          match r with
+          | core.result.Result.Ok applied_a =>
+            let (r1, st2) ←
+              kernel.type_checker.infer_type_core mode st1 fe 4#u64 applied_a
+            match r1 with
+            | core.result.Result.Ok tp =>
+              let target ← kernel.core_k.subst_const0 c ann_val e
+              let (r2, st3) ←
+                kernel.type_checker.is_def_eq_core mode st2 fe 4#u64 tp target
+              match r2 with
+              | core.result.Result.Ok ok1 =>
+                if ok1
+                then
+                  let i4 ← i + 1#usize
+                  kernel.checker.check_div_mod_certs_from mode st3 fe c ann_val
+                    stmts proofs i4
+                else ok (r2, st3)
+              | core.result.Result.Err _ => ok (r2, st3)
+            | core.result.Result.Err err =>
+              ok (core.result.Result.Err err, st2)
+          | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+        else ok (core.result.Result.Ok false, st)
+partial_fixpoint
+
+/-- [con_ron_core::kernel::checker::check_div_mod_certs]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 829:0-839:1
+    Visibility: public -/
+def kernel.checker.check_div_mod_certs
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
+  (stmts : alloc.vec.Vec ((alloc.vec.Vec kernel.expr.Expr) ×
+  kernel.expr.Expr)) (proofs : alloc.vec.Vec kernel.expr.Expr) :
+  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  kernel.checker.check_div_mod_certs_from mode st fe c ann_val stmts proofs
+    0#usize
+
+/-- [con_ron_core::kernel::checker::cert_hyp2]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 719:0-724:1
+    Visibility: public -/
+def kernel.checker.cert_hyp2
+  (h1 : kernel.expr.Expr) (h2 : kernel.expr.Expr) :
+  Result (alloc.vec.Vec kernel.expr.Expr)
+  := do
+  let hs ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.expr.Expr) h1
+  alloc.vec.Vec.push hs h2
+
+/-- [con_ron_core::kernel::checker::cert_hyp1]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 711:0-715:1
+    Visibility: public -/
+def kernel.checker.cert_hyp1
+  (h : kernel.expr.Expr) : Result (alloc.vec.Vec kernel.expr.Expr) := do
+  alloc.vec.Vec.push (alloc.vec.Vec.new kernel.expr.Expr) h
+
+/-- [con_ron_core::kernel::checker::cert_zero]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 441:0-443:1
+    Visibility: public -/
+def kernel.checker.cert_zero : Result kernel.expr.Expr := do
+  let n ← kernel.basis_names.nat_zero_name
+  kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
+
+/-- [con_ron_core::kernel::checker::cert_base_rhs]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 701:0-707:1
+    Visibility: public -/
+def kernel.checker.cert_base_rhs
+  (c : kernel.name.Name) : Result kernel.expr.Expr := do
+  let n ← kernel.core_k.nat_div_name
+  let b ← kernel.name.beq c n
+  if b
+  then kernel.checker.cert_zero
+  else kernel.checker.cert_x
+
+/-- [con_ron_core::kernel::checker::cert_sub2]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 648:0-650:1
+    Visibility: public -/
+def kernel.checker.cert_sub2
+  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let n ← kernel.core_k.nat_sub_name
+  kernel.core_k.nat_eq_ap2 n a b
+
+/-- [con_ron_core::kernel::checker::cert_op2]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 498:0-500:1
+    Visibility: public -/
+def kernel.checker.cert_op2
+  (c : kernel.name.Name) (a : kernel.expr.Expr) (b : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  kernel.core_k.nat_eq_ap2 c a b
+
+/-- [con_ron_core::kernel::checker::cert_rec_rhs]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 690:0-697:1
+    Visibility: public -/
+def kernel.checker.cert_rec_rhs
+  (c : kernel.name.Name) : Result kernel.expr.Expr := do
+  let e ← kernel.checker.cert_x
+  let e1 ← kernel.checker.cert_y
+  let e2 ← kernel.checker.cert_sub2 e e1
+  let step ← kernel.checker.cert_op2 c e2 e1
+  let n ← kernel.core_k.nat_div_name
+  let b ← kernel.name.beq c n
+  if b
+  then kernel.core_k.nat_eq_s step
+  else ok step
+
+/-- [con_ron_core::kernel::checker::cert_div2]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 660:0-662:1
+    Visibility: public -/
+def kernel.checker.cert_div2
+  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let n ← kernel.core_k.nat_div_name
+  kernel.core_k.nat_eq_ap2 n a b
+
+/-- [con_ron_core::kernel::checker::cert_one]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 429:0-431:1
+    Visibility: public -/
+def kernel.checker.cert_one : Result kernel.expr.Expr := do
+  let n ← kernel.basis_names.nat_zero_name
+  let e ← kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
+  kernel.core_k.nat_eq_s e
+
+/-- [con_ron_core::kernel::checker::cert_two]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 435:0-437:1
+    Visibility: public -/
+def kernel.checker.cert_two : Result kernel.expr.Expr := do
+  let e ← kernel.checker.cert_one
+  kernel.core_k.nat_eq_s e
+
+/-- [con_ron_core::kernel::checker::cert_halves]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 679:0-685:1
+    Visibility: public -/
+def kernel.checker.cert_halves
+  (c : kernel.name.Name) : Result kernel.expr.Expr := do
+  let e ← kernel.checker.cert_x
+  let e1 ← kernel.checker.cert_two
+  let e2 ← kernel.checker.cert_div2 e e1
+  let e3 ← kernel.checker.cert_y
+  let e4 ← kernel.checker.cert_div2 e3 e1
+  kernel.checker.cert_op2 c e2 e4
+
+/-- [con_ron_core::kernel::checker::cert_mul2]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 672:0-674:1
+    Visibility: public -/
+def kernel.checker.cert_mul2
+  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let n ← kernel.core_k.nat_mul_name
+  kernel.core_k.nat_eq_ap2 n a b
+
+/-- [con_ron_core::kernel::checker::cert_add2]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 666:0-668:1
+    Visibility: public -/
+def kernel.checker.cert_add2
+  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let n ← kernel.core_k.nat_add_name
+  kernel.core_k.nat_eq_ap2 n a b
+
+/-- [con_ron_core::kernel::checker::cert_mod2]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 654:0-656:1
+    Visibility: public -/
+def kernel.checker.cert_mod2
+  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let n ← kernel.core_k.nat_mod_name
+  kernel.core_k.nat_eq_ap2 n a b
+
+/-- [con_ron_core::kernel::checker::cert_eq_n]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 482:0-493:1
+    Visibility: public -/
+def kernel.checker.cert_eq_n
+  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let n ← kernel.basis_names.eq_name
+  let v ← kernel.std_axioms.one_level
+  let e ← kernel.expr.mk_const n v
+  let e1 ← kernel.checker.cert_nat_ty
+  let e2 ← kernel.expr.app e e1
+  let e3 ← kernel.expr.app e2 a
+  kernel.expr.app e3 b
+
+/-- [con_ron_core::kernel::checker::cert_eq_b]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 467:0-478:1
+    Visibility: public -/
+def kernel.checker.cert_eq_b
+  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let n ← kernel.basis_names.eq_name
+  let v ← kernel.std_axioms.one_level
+  let e ← kernel.expr.mk_const n v
+  let n1 ← kernel.core_k.bool_name
+  let e1 ← kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
+  let e2 ← kernel.expr.app e e1
+  let e3 ← kernel.expr.app e2 a
+  kernel.expr.app e3 b
+
+/-- [con_ron_core::kernel::checker::cert_ble2]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 461:0-463:1
+    Visibility: public -/
+def kernel.checker.cert_ble2
+  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let n ← kernel.core_k.nat_ble_name
+  kernel.core_k.nat_eq_ap2 n a b
+
+/-- [con_ron_core::kernel::checker::cert_b_false]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 453:0-455:1
+    Visibility: public -/
+def kernel.checker.cert_b_false : Result kernel.expr.Expr := do
+  let n ← kernel.core_k.bool_false_name
+  kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
+
+/-- [con_ron_core::kernel::checker::cert_b_true]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 447:0-449:1
+    Visibility: public -/
+def kernel.checker.cert_b_true : Result kernel.expr.Expr := do
+  let n ← kernel.core_k.bool_true_name
+  kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
+
+/-- [con_ron_core::kernel::checker::div_mod_cert_stmts]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 507:0-644:1
+    Visibility: public -/
+def kernel.checker.div_mod_cert_stmts
+  (c : kernel.name.Name) :
+  Result (alloc.vec.Vec ((alloc.vec.Vec kernel.expr.Expr) × kernel.expr.Expr))
+  := do
+  let n ← kernel.core_k.nat_gcd_name
+  let b ← kernel.name.beq c n
+  if b
+  then
+    let e ← kernel.checker.cert_one
+    let e1 ← kernel.checker.cert_x
+    let e2 ← kernel.checker.cert_ble2 e e1
+    let e3 ← kernel.checker.cert_b_true
+    let e4 ← kernel.checker.cert_eq_b e2 e3
+    let v ← kernel.checker.cert_hyp1 e4
+    let e5 ← kernel.checker.cert_y
+    let e6 ← kernel.checker.cert_op2 c e1 e5
+    let e7 ← kernel.checker.cert_mod2 e5 e1
+    let e8 ← kernel.checker.cert_op2 c e7 e1
+    let e9 ← kernel.checker.cert_eq_n e6 e8
+    let out ←
+      alloc.vec.Vec.push (alloc.vec.Vec.new ((alloc.vec.Vec kernel.expr.Expr)
+        × kernel.expr.Expr)) (v, e9)
+    let e10 ← kernel.checker.cert_ble2 e e1
+    let e11 ← kernel.checker.cert_b_false
+    let e12 ← kernel.checker.cert_eq_b e10 e11
+    let v1 ← kernel.checker.cert_hyp1 e12
+    let e13 ← kernel.checker.cert_op2 c e1 e5
+    let e14 ← kernel.checker.cert_eq_n e13 e5
+    alloc.vec.Vec.push out (v1, e14)
+  else
+    let n1 ← kernel.core_k.nat_shift_left_name
+    let b1 ← kernel.name.beq c n1
+    if b1
+    then
+      let e ← kernel.checker.cert_one
+      let e1 ← kernel.checker.cert_y
+      let e2 ← kernel.checker.cert_ble2 e e1
+      let e3 ← kernel.checker.cert_b_true
+      let e4 ← kernel.checker.cert_eq_b e2 e3
+      let v ← kernel.checker.cert_hyp1 e4
+      let e5 ← kernel.checker.cert_x
+      let e6 ← kernel.checker.cert_op2 c e5 e1
+      let e7 ← kernel.checker.cert_two
+      let e8 ← kernel.checker.cert_mul2 e7 e5
+      let e9 ← kernel.checker.cert_sub2 e1 e
+      let e10 ← kernel.checker.cert_op2 c e8 e9
+      let e11 ← kernel.checker.cert_eq_n e6 e10
+      let out ←
+        alloc.vec.Vec.push (alloc.vec.Vec.new ((alloc.vec.Vec kernel.expr.Expr)
+          × kernel.expr.Expr)) (v, e11)
+      let e12 ← kernel.checker.cert_ble2 e e1
+      let e13 ← kernel.checker.cert_b_false
+      let e14 ← kernel.checker.cert_eq_b e12 e13
+      let v1 ← kernel.checker.cert_hyp1 e14
+      let e15 ← kernel.checker.cert_op2 c e5 e1
+      let e16 ← kernel.checker.cert_eq_n e15 e5
+      alloc.vec.Vec.push out (v1, e16)
+    else
+      let n2 ← kernel.core_k.nat_shift_right_name
+      let b2 ← kernel.name.beq c n2
+      if b2
+      then
+        let e ← kernel.checker.cert_one
+        let e1 ← kernel.checker.cert_y
+        let e2 ← kernel.checker.cert_ble2 e e1
+        let e3 ← kernel.checker.cert_b_true
+        let e4 ← kernel.checker.cert_eq_b e2 e3
+        let v ← kernel.checker.cert_hyp1 e4
+        let e5 ← kernel.checker.cert_x
+        let e6 ← kernel.checker.cert_op2 c e5 e1
+        let e7 ← kernel.checker.cert_sub2 e1 e
+        let e8 ← kernel.checker.cert_op2 c e5 e7
+        let e9 ← kernel.checker.cert_two
+        let e10 ← kernel.checker.cert_div2 e8 e9
+        let e11 ← kernel.checker.cert_eq_n e6 e10
+        let out ←
+          alloc.vec.Vec.push (alloc.vec.Vec.new ((alloc.vec.Vec
+            kernel.expr.Expr) × kernel.expr.Expr)) (v, e11)
+        let e12 ← kernel.checker.cert_ble2 e e1
+        let e13 ← kernel.checker.cert_b_false
+        let e14 ← kernel.checker.cert_eq_b e12 e13
+        let v1 ← kernel.checker.cert_hyp1 e14
+        let e15 ← kernel.checker.cert_op2 c e5 e1
+        let e16 ← kernel.checker.cert_eq_n e15 e5
+        alloc.vec.Vec.push out (v1, e16)
+      else
+        let n3 ← kernel.core_k.nat_land_name
+        let b3 ← kernel.name.beq c n3
+        if b3
+        then
+          let e ← kernel.checker.cert_one
+          let e1 ← kernel.checker.cert_x
+          let e2 ← kernel.checker.cert_ble2 e e1
+          let e3 ← kernel.checker.cert_b_true
+          let e4 ← kernel.checker.cert_eq_b e2 e3
+          let v ← kernel.checker.cert_hyp1 e4
+          let e5 ← kernel.checker.cert_y
+          let e6 ← kernel.checker.cert_op2 c e1 e5
+          let e7 ← kernel.checker.cert_two
+          let e8 ← kernel.checker.cert_halves c
+          let e9 ← kernel.checker.cert_mul2 e7 e8
+          let e10 ← kernel.checker.cert_mod2 e1 e7
+          let e11 ← kernel.checker.cert_mod2 e5 e7
+          let e12 ← kernel.checker.cert_mul2 e10 e11
+          let e13 ← kernel.checker.cert_add2 e9 e12
+          let e14 ← kernel.checker.cert_eq_n e6 e13
+          let out ←
+            alloc.vec.Vec.push (alloc.vec.Vec.new ((alloc.vec.Vec
+              kernel.expr.Expr) × kernel.expr.Expr)) (v, e14)
+          let e15 ← kernel.checker.cert_ble2 e e1
+          let e16 ← kernel.checker.cert_b_false
+          let e17 ← kernel.checker.cert_eq_b e15 e16
+          let v1 ← kernel.checker.cert_hyp1 e17
+          let e18 ← kernel.checker.cert_op2 c e1 e5
+          let e19 ← kernel.checker.cert_zero
+          let e20 ← kernel.checker.cert_eq_n e18 e19
+          alloc.vec.Vec.push out (v1, e20)
+        else
+          let n4 ← kernel.core_k.nat_lor_name
+          let b4 ← kernel.name.beq c n4
+          if b4
+          then
+            let e ← kernel.checker.cert_one
+            let e1 ← kernel.checker.cert_x
+            let e2 ← kernel.checker.cert_ble2 e e1
+            let e3 ← kernel.checker.cert_b_true
+            let e4 ← kernel.checker.cert_eq_b e2 e3
+            let v ← kernel.checker.cert_hyp1 e4
+            let e5 ← kernel.checker.cert_y
+            let e6 ← kernel.checker.cert_op2 c e1 e5
+            let e7 ← kernel.checker.cert_two
+            let e8 ← kernel.checker.cert_halves c
+            let e9 ← kernel.checker.cert_mul2 e7 e8
+            let e10 ← kernel.checker.cert_mod2 e1 e7
+            let e11 ← kernel.checker.cert_mod2 e5 e7
+            let e12 ← kernel.checker.cert_add2 e10 e11
+            let e13 ← kernel.checker.cert_mod2 e1 e7
+            let e14 ← kernel.checker.cert_mod2 e5 e7
+            let e15 ← kernel.checker.cert_mul2 e13 e14
+            let e16 ← kernel.checker.cert_sub2 e12 e15
+            let e17 ← kernel.checker.cert_add2 e9 e16
+            let e18 ← kernel.checker.cert_eq_n e6 e17
+            let out ←
+              alloc.vec.Vec.push (alloc.vec.Vec.new ((alloc.vec.Vec
+                kernel.expr.Expr) × kernel.expr.Expr)) (v, e18)
+            let e19 ← kernel.checker.cert_ble2 e e1
+            let e20 ← kernel.checker.cert_b_false
+            let e21 ← kernel.checker.cert_eq_b e19 e20
+            let v1 ← kernel.checker.cert_hyp1 e21
+            let e22 ← kernel.checker.cert_op2 c e1 e5
+            let e23 ← kernel.checker.cert_eq_n e22 e5
+            alloc.vec.Vec.push out (v1, e23)
+          else
+            let n5 ← kernel.core_k.nat_xor_name
+            let b5 ← kernel.name.beq c n5
+            if b5
+            then
+              let e ← kernel.checker.cert_one
+              let e1 ← kernel.checker.cert_x
+              let e2 ← kernel.checker.cert_ble2 e e1
+              let e3 ← kernel.checker.cert_b_true
+              let e4 ← kernel.checker.cert_eq_b e2 e3
+              let v ← kernel.checker.cert_hyp1 e4
+              let e5 ← kernel.checker.cert_y
+              let e6 ← kernel.checker.cert_op2 c e1 e5
+              let e7 ← kernel.checker.cert_two
+              let e8 ← kernel.checker.cert_halves c
+              let e9 ← kernel.checker.cert_mul2 e7 e8
+              let e10 ← kernel.checker.cert_mod2 e1 e7
+              let e11 ← kernel.checker.cert_mod2 e5 e7
+              let e12 ← kernel.checker.cert_add2 e10 e11
+              let e13 ← kernel.checker.cert_mod2 e12 e7
+              let e14 ← kernel.checker.cert_add2 e9 e13
+              let e15 ← kernel.checker.cert_eq_n e6 e14
+              let out ←
+                alloc.vec.Vec.push (alloc.vec.Vec.new ((alloc.vec.Vec
+                  kernel.expr.Expr) × kernel.expr.Expr)) (v, e15)
+              let e16 ← kernel.checker.cert_ble2 e e1
+              let e17 ← kernel.checker.cert_b_false
+              let e18 ← kernel.checker.cert_eq_b e16 e17
+              let v1 ← kernel.checker.cert_hyp1 e18
+              let e19 ← kernel.checker.cert_op2 c e1 e5
+              let e20 ← kernel.checker.cert_eq_n e19 e5
+              alloc.vec.Vec.push out (v1, e20)
+            else
+              let e ← kernel.checker.cert_y
+              let e1 ← kernel.checker.cert_x
+              let e2 ← kernel.checker.cert_ble2 e e1
+              let e3 ← kernel.checker.cert_b_true
+              let e4 ← kernel.checker.cert_eq_b e2 e3
+              let e5 ← kernel.checker.cert_one
+              let e6 ← kernel.checker.cert_ble2 e5 e
+              let e7 ← kernel.checker.cert_eq_b e6 e3
+              let v ← kernel.checker.cert_hyp2 e4 e7
+              let e8 ← kernel.checker.cert_op2 c e1 e
+              let e9 ← kernel.checker.cert_rec_rhs c
+              let e10 ← kernel.checker.cert_eq_n e8 e9
+              let out ←
+                alloc.vec.Vec.push (alloc.vec.Vec.new ((alloc.vec.Vec
+                  kernel.expr.Expr) × kernel.expr.Expr)) (v, e10)
+              let e11 ← kernel.checker.cert_ble2 e e1
+              let e12 ← kernel.checker.cert_b_false
+              let e13 ← kernel.checker.cert_eq_b e11 e12
+              let v1 ← kernel.checker.cert_hyp1 e13
+              let e14 ← kernel.checker.cert_op2 c e1 e
+              let e15 ← kernel.checker.cert_base_rhs c
+              let e16 ← kernel.checker.cert_eq_n e14 e15
+              let out1 ← alloc.vec.Vec.push out (v1, e16)
+              let e17 ← kernel.checker.cert_ble2 e5 e
+              let e18 ← kernel.checker.cert_eq_b e17 e12
+              let v2 ← kernel.checker.cert_hyp1 e18
+              let e19 ← kernel.checker.cert_op2 c e1 e
+              let e20 ← kernel.checker.cert_eq_n e19 e15
+              alloc.vec.Vec.push out1 (v2, e20)
+
+/-- [con_ron_core::kernel::checker::div_mod_cert_proofs]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 384:0-402:1
+    Visibility: public -/
+def kernel.checker.div_mod_cert_proofs
+  (ps : kernel.nat_op_pins.NatOpPinSet) (c : kernel.name.Name) :
+  Result (alloc.vec.Vec kernel.expr.Expr)
+  := do
+  let n ← kernel.core_k.nat_div_name
+  let b ← kernel.name.beq c n
+  if b
+  then kernel.env.exprs_copy ps.div_proofs
+  else
+    let n1 ← kernel.core_k.nat_gcd_name
+    let b1 ← kernel.name.beq c n1
+    if b1
+    then kernel.env.exprs_copy ps.gcd_proofs
+    else
+      let n2 ← kernel.core_k.nat_land_name
+      let b2 ← kernel.name.beq c n2
+      if b2
+      then kernel.env.exprs_copy ps.land_proofs
+      else
+        let n3 ← kernel.core_k.nat_lor_name
+        let b3 ← kernel.name.beq c n3
+        if b3
+        then kernel.env.exprs_copy ps.lor_proofs
+        else
+          let n4 ← kernel.core_k.nat_xor_name
+          let b4 ← kernel.name.beq c n4
+          if b4
+          then kernel.env.exprs_copy ps.xor_proofs
+          else
+            let n5 ← kernel.core_k.nat_shift_left_name
+            let b5 ← kernel.name.beq c n5
+            if b5
+            then kernel.env.exprs_copy ps.shift_left_proofs
+            else
+              let n6 ← kernel.core_k.nat_shift_right_name
+              let b6 ← kernel.name.beq c n6
+              if b6
+              then kernel.env.exprs_copy ps.shift_right_proofs
+              else kernel.env.exprs_copy ps.mod_proofs
+
+/-- [con_ron_core::kernel::checker::div_mod_decl_pin]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 361:0-379:1
+    Visibility: public -/
+def kernel.checker.div_mod_decl_pin
+  (ps : kernel.nat_op_pins.NatOpPinSet) (c : kernel.name.Name) :
+  Result kernel.expr.Expr
+  := do
+  let n ← kernel.core_k.nat_div_name
+  let b ← kernel.name.beq c n
+  if b
+  then kernel.expr.dup ps.div_pin
+  else
+    let n1 ← kernel.core_k.nat_gcd_name
+    let b1 ← kernel.name.beq c n1
+    if b1
+    then kernel.expr.dup ps.gcd_pin
+    else
+      let n2 ← kernel.core_k.nat_land_name
+      let b2 ← kernel.name.beq c n2
+      if b2
+      then kernel.expr.dup ps.land_pin
+      else
+        let n3 ← kernel.core_k.nat_lor_name
+        let b3 ← kernel.name.beq c n3
+        if b3
+        then kernel.expr.dup ps.lor_pin
+        else
+          let n4 ← kernel.core_k.nat_xor_name
+          let b4 ← kernel.name.beq c n4
+          if b4
+          then kernel.expr.dup ps.xor_pin
+          else
+            let n5 ← kernel.core_k.nat_shift_left_name
+            let b5 ← kernel.name.beq c n5
+            if b5
+            then kernel.expr.dup ps.shift_left_pin
+            else
+              let n6 ← kernel.core_k.nat_shift_right_name
+              let b6 ← kernel.name.beq c n6
+              if b6
+              then kernel.expr.dup ps.shift_right_pin
+              else kernel.expr.dup ps.mod_pin
+
+/-- [con_ron_core::kernel::checker::check_div_mod_pin_at]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 989:0-1018:1
+    Visibility: public -/
+def kernel.checker.check_div_mod_pin_at
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (value2 : kernel.expr.Expr)
+  (ps : kernel.nat_op_pins.NatOpPinSet) :
+  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let e ← kernel.checker.div_mod_decl_pin ps c
+  let (r, st1) ← kernel.type_checker.annotate_core mode st fe 0#u64 e
+  match r with
+  | core.result.Result.Ok pin_a =>
+    let (r1, st2) ←
+      kernel.type_checker.is_def_eq_core mode st1 fe 0#u64 value2 pin_a
+    match r1 with
+    | core.result.Result.Ok ok_pin =>
+      if ok_pin
+      then
+        let v ← kernel.checker.div_mod_cert_stmts c
+        let v1 ← kernel.checker.div_mod_cert_proofs ps c
+        kernel.checker.check_div_mod_certs mode st2 fe c value2 v v1
+      else ok (r1, st2)
+    | core.result.Result.Err _ => ok (r1, st2)
+  | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+
+/-- [con_ron_core::kernel::checker::div_mod_certs_guard_from]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 962:0-977:1
+    Visibility: public -/
+def kernel.checker.div_mod_certs_guard_from
+  (stmts : alloc.vec.Vec ((alloc.vec.Vec kernel.expr.Expr) ×
+  kernel.expr.Expr)) (proofs : alloc.vec.Vec kernel.expr.Expr)
+  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len stmts
+  if i >= i1
+  then ok true
+  else
+    let i2 := alloc.vec.Vec.len proofs
+    if i >= i2
+    then ok true
+    else
+      let (v, e) ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          ((alloc.vec.Vec kernel.expr.Expr) × kernel.expr.Expr)) stmts i
+      let e1 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          kernel.expr.Expr) proofs i
+      let b ← kernel.checker.div_mod_cert_guard fe c ann_val v e e1
+      if b
+      then
+        let i3 ← i + 1#usize
+        kernel.checker.div_mod_certs_guard_from stmts proofs fe c ann_val i3
+      else ok false
+partial_fixpoint
+
+/-- [con_ron_core::kernel::checker::div_mod_certs_guard]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 948:0-957:1
+    Visibility: public -/
+def kernel.checker.div_mod_certs_guard
+  (ps : kernel.nat_op_pins.NatOpPinSet) (fe : kernel.fenv.FEnv)
+  (c : kernel.name.Name) (ann_val : kernel.expr.Expr) :
+  Result Bool
+  := do
+  let v ← kernel.checker.div_mod_cert_stmts c
+  let v1 ← kernel.checker.div_mod_cert_proofs ps c
+  kernel.checker.div_mod_certs_guard_from v v1 fe c ann_val 0#usize
+
+/-- [con_ron_core::kernel::checker::div_mod_pin_guard]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 929:0-940:1
+    Visibility: public -/
+def kernel.checker.div_mod_pin_guard
+  (ps : kernel.nat_op_pins.NatOpPinSet) (fe : kernel.fenv.FEnv)
+  (c : kernel.name.Name) :
+  Result Bool
+  := do
+  let pin ← kernel.checker.div_mod_decl_pin ps c
+  let b ← kernel.expr_ops.loose_bvars_bounded 0#u64 pin
+  if b
+  then
+    let b1 ← kernel.expr_ops.has_fvar pin
+    if b1
+    then ok false
+    else
+      let b2 ←
+        kernel.expr_ops.all_level_params_defined_fast (alloc.vec.Vec.new
+          kernel.name.Name) pin
+      if b2
+      then kernel.core_k.consts_resolve fe pin
+      else ok false
+  else ok false
+
+/-- [con_ron_core::kernel::checker::check_div_mod_pin_loop]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1033:0-1058:1
+    Visibility: public -/
+def kernel.checker.check_div_mod_pin_loop
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (value2 : kernel.expr.Expr)
+  (variants : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet) (i : Std.Usize) :
+  Result ((core.result.Result Unit kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let i1 := alloc.vec.Vec.len variants
+  if i >= i1
+  then
+    let s ← lift (Array.to_slice kernel.checker.check_div_mod_pin_loop.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.not_implemented v
+    ok (core.result.Result.Err ce, st)
+  else
+    let nops ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.nat_op_pins.NatOpPinSet) variants i
+    let b ← kernel.checker.div_mod_pin_guard nops fe c
+    if b
+    then
+      let b1 ← kernel.checker.div_mod_certs_guard nops fe c value2
+      if b1
+      then
+        let (attempt, st1) ←
+          kernel.checker.check_div_mod_pin_at mode st fe c value2 nops
+        let oes ← cached.checker_c.or_else_step attempt
+        match oes with
+        | cached.checker_c.OrElseStep.Matched =>
+          ok (core.result.Result.Ok (), st1)
+        | cached.checker_c.OrElseStep.Continue _ =>
+          let i2 ← i + 1#usize
+          kernel.checker.check_div_mod_pin_loop mode st1 fe c value2 variants
+            i2
+      else
+        let i2 ← i + 1#usize
+        kernel.checker.check_div_mod_pin_loop mode st fe c value2 variants i2
+    else
+      let i2 ← i + 1#usize
+      kernel.checker.check_div_mod_pin_loop mode st fe c value2 variants i2
+partial_fixpoint
+
+/-- [con_ron_core::kernel::env::constant_info_type]:
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 758:0-768:1
+    Visibility: public -/
+def kernel.env.constant_info_type
+  (c : kernel.env.ConstantInfo) : Result kernel.expr.Expr := do
+  match c with
+  | kernel.env.ConstantInfo.AxiomInfo v => kernel.expr.dup v.ty
+  | kernel.env.ConstantInfo.DefnInfo v _ _ => kernel.expr.dup v.ty
+  | kernel.env.ConstantInfo.ThmInfo v _ => kernel.expr.dup v.ty
+  | kernel.env.ConstantInfo.IndInfo v _ => kernel.expr.dup v.ty
+  | kernel.env.ConstantInfo.CtorInfo v _ _ => kernel.expr.dup v.ty
+  | kernel.env.ConstantInfo.RecInfo v _ _ _ => kernel.expr.dup v.ty
+  | kernel.env.ConstantInfo.ProjInfo _ =>
+    let l ← kernel.level.zero
+    let l1 ← kernel.level.succ l
+    kernel.expr.sort l1
+
+/-- [con_ron_core::kernel::checker::bool_ctor_typed]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 915:0-923:1
+    Visibility: public -/
+def kernel.checker.bool_ctor_typed
+  (fe2 : kernel.fenv.FEnv) (n : kernel.name.Name) : Result Bool := do
+  let o ← kernel.fenv.find fe2 n
+  match o with
+  | none => ok false
+  | some ci =>
+    let e ← kernel.env.constant_info_type ci
+    let n1 ← kernel.core_k.bool_name
+    let e1 ← kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
+    kernel.expr.beq e e1
+
+/-- [con_ron_core::kernel::checker::div_mod_env_guard]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 895:0-907:1
+    Visibility: public -/
+def kernel.checker.div_mod_env_guard
+  (fe2 : kernel.fenv.FEnv) (c : kernel.name.Name) : Result Bool := do
+  let b ← kernel.core_k.nat_op_guard fe2 c
+  if b
+  then
+    let v ← kernel.core_k.nat_op_deps c
+    let b1 ← kernel.core_k.deps_all_stored fe2 v 0#usize
+    if b1
+    then
+      let b2 ← kernel.std_axioms.eq_basis_pinned fe2
+      if b2
+      then
+        let n ← kernel.core_k.bool_true_name
+        let b3 ← kernel.checker.bool_ctor_typed fe2 n
+        if b3
+        then
+          let n1 ← kernel.core_k.bool_false_name
+          kernel.checker.bool_ctor_typed fe2 n1
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [con_ron_core::kernel::checker::check_div_mod_pin]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1071:0-1102:1
+    Visibility: public -/
+def kernel.checker.check_div_mod_pin
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (k_pre : Std.U64) (c : kernel.name.Name) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let b ← kernel.checker.div_mod_env_guard fe c
+  if b
+  then
+    let o ← kernel.core_k.defn_probe fe c
+    match o with
+    | none =>
+      let s ← lift (Array.to_slice kernel.checker.check_div_mod_pin.M_1)
+      let v ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.internal v
+      ok (core.result.Result.Err ce, st)
+    | some t =>
+      let (_, value2, _) := t
+      let fe_pre ← kernel.fenv.restrict_to fe k_pre
+      let v ← kernel.nat_op_pins.nat_op_pin_sets
+      let (r, st1) ←
+        kernel.checker.check_div_mod_pin_loop mode st fe_pre c value2 v 0#usize
+      match r with
+      | core.result.Result.Ok _ =>
+        let f ← kernel.fenv.restrict_to fe_pre fe.visible_below
+        ok (core.result.Result.Ok f, st1)
+      | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+  else
+    let s ← lift (Array.to_slice kernel.checker.check_div_mod_pin.M)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.not_implemented v
+    ok (core.result.Result.Err ce, st)
+
+/-- [con_ron_core::kernel::checker::check_defn_div_mod_pin]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1296:0-1308:1
+    Visibility: public -/
+def kernel.checker.check_defn_div_mod_pin
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe2 : kernel.fenv.FEnv) (k_pre : Std.U64) (n : kernel.name.Name) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let v ← kernel.core_k.nat_div_mod_names
+  let b ← kernel.name.contains v n
+  if b
+  then kernel.checker.check_div_mod_pin mode st fe2 k_pre n
+  else ok (core.result.Result.Ok fe2, st)
+
+/-- [con_ron_core::kernel::checker::check_defn_pins]:
+    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1277:0-1292:1
+    Visibility: public -/
+def kernel.checker.check_defn_pins
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe2 : kernel.fenv.FEnv) (k_pre : Std.U64) (n : kernel.name.Name) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let v ← kernel.core_k.nat_op_names
+  let b ← kernel.name.contains v n
+  if b
+  then
+    let (r, st1) ←
+      kernel.checker.check_structural_nat_pin mode st fe2 k_pre n
+    match r with
+    | core.result.Result.Ok fe3 =>
+      kernel.checker.check_defn_div_mod_pin mode st1 fe3 k_pre n
+    | core.result.Result.Err _ => ok (r, st1)
+  else kernel.checker.check_defn_div_mod_pin mode st fe2 k_pre n
+
+/-- [con_ron_core::cached::parsed_c::check_defn_pins_c]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 563:0-571:1
+    Visibility: public -/
+def cached.parsed_c.check_defn_pins_c
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe2 : kernel.fenv.FEnv) (k_pre : Std.U64) (n : kernel.name.Name) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  kernel.checker.check_defn_pins mode st fe2 k_pre n
+
+/-- [con_ron_core::cached::parsed_c::check_defn_decl_c]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 525:0-549:1
+    Visibility: public -/
+def cached.parsed_c.check_defn_decl_c
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (cv : kernel.env.ConstantVal)
+  (value : kernel.expr.Expr) (hint : kernel.env.ReducibilityHint) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let (r, st1) ← cached.parsed_c.check_constant_val_c mode st fe cv
+  match r with
+  | core.result.Result.Ok p =>
+    let (cv_a, jty) := p
+    let v ← kernel.core_k.nat_op_names
+    let b ← kernel.name.contains v cv_a.name
+    if b
+    then
+      let (r1, st2) ←
+        cached.parsed_c.check_defn_val_c mode st1 fe cv_a jty value hint
+      match r1 with
+      | core.result.Result.Ok fe2 =>
+        cached.parsed_c.check_defn_pins_c mode st2 fe2 fe.visible_below
+          cv_a.name
+      | core.result.Result.Err _ => ok (r1, st2)
+    else
+      let v1 ← kernel.core_k.nat_div_mod_names
+      let b1 ← kernel.name.contains v1 cv_a.name
+      if b1
+      then
+        let (r1, st2) ←
+          cached.parsed_c.check_defn_val_c mode st1 fe cv_a jty value hint
+        match r1 with
+        | core.result.Result.Ok fe2 =>
+          cached.parsed_c.check_defn_pins_c mode st2 fe2 fe.visible_below
+            cv_a.name
+        | core.result.Result.Err _ => ok (r1, st2)
+      else cached.parsed_c.check_defn_val_c mode st1 fe cv_a jty value hint
+  | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
+
+/-- [con_ron_core::cached::parsed_c::check_decl_c]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 495:0-511:1
+    Visibility: public -/
+def cached.parsed_c.check_decl_c
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (pd : cached.parsed_c.DeclC) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  match pd with
+  | cached.parsed_c.DeclC.AxiomDecl cv =>
+    cached.parsed_c.check_axiom_decl_c mode st fe cv
+  | cached.parsed_c.DeclC.DefnDecl cv value hint =>
+    cached.parsed_c.check_defn_decl_c mode st fe cv value hint
+  | cached.parsed_c.DeclC.ThmDecl cv value =>
+    cached.parsed_c.check_thm_decl_c mode st fe cv value
+  | cached.parsed_c.DeclC.OpaqueDecl cv value =>
+    cached.parsed_c.check_opaque_decl_c mode st fe cv value
+  | cached.parsed_c.DeclC.BasisDecl kind =>
+    let r ← cached.parsed_c.check_basis_decl_c fe kind
+    ok (r, st)
+  | cached.parsed_c.DeclC.IndDecl block n_p =>
+    cached.parsed_c.check_ind_decl_c mode st fe block n_p
+
+/-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::clear_slots]:
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 279:4-290:5 -/
+def ron.hashmap.HashMap.clear_slots
+  {K : Type} {V : Type} (slots : alloc.vec.Vec (ron.hashmap.AList K V))
+  (lo : Std.Usize) (hi : Std.Usize) :
+  Result (alloc.vec.Vec (ron.hashmap.AList K V))
+  := do
+  if hi > lo
+  then
+    let n ← hi - lo
+    if n = 1#usize
+    then
+      let (_, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+          (ron.hashmap.AList K V)) slots lo
+      ok (index_mut_back ron.hashmap.AList.Nil)
+    else
+      let i ← n / 2#usize
+      let mid ← lo + i
+      let slots1 ← ron.hashmap.HashMap.clear_slots slots lo mid
+      ron.hashmap.HashMap.clear_slots slots1 mid hi
+  else ok slots
+partial_fixpoint
+
+/-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::clear]:
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 272:4-276:5
+    Visibility: public -/
+def ron.hashmap.HashMap.clear
+  {K : Type} {V : Type} (self : ron.hashmap.HashMap K V) :
+  Result (ron.hashmap.HashMap K V)
+  := do
+  let n := alloc.vec.Vec.len self.slots
+  let v ← ron.hashmap.HashMap.clear_slots self.slots 0#usize n
+  ok { self with num_entries := 0#usize, slots := v }
+
+/-- [con_ron_core::cached::state_c::flushed]:
+    Source: 'crates/con-ron-core/src/cached/state_c.rs', lines 538:0-549:1
+    Visibility: public -/
+def cached.state_c.flushed
+  (s : cached.state_c.CState) : Result cached.state_c.CState := do
+  let hm ← ron.hashmap.HashMap.clear s.const_ty_at
+  let hm1 ← ron.hashmap.HashMap.clear s.const_val_at
+  let hm2 ← ron.hashmap.HashMap.clear s.rule_rhs_at
+  let hm3 ← ron.hashmap.HashMap.clear s.whnf_core_c
+  let hm4 ← ron.hashmap.HashMap.clear s.whnf_c
+  let hm5 ← ron.hashmap.HashMap.clear s.infer_c
+  let hm6 ← ron.hashmap.HashMap.clear s.infer_io_c
+  let hm7 ← ron.hashmap.HashMap.clear s.defeq_c
+  let hm8 ← ron.hashmap.HashMap.clear s.annot_c
+  let hm9 ← ron.hashmap.HashMap.clear s.inst_c
+  ok
+    {
+      s
+        with
+        const_ty_at := hm,
+        const_val_at := hm1,
+        rule_rhs_at := hm2,
+        whnf_core_c := hm3,
+        whnf_c := hm4,
+        infer_c := hm5,
+        infer_io_c := hm6,
+        defeq_c := hm7,
+        annot_c := hm8,
+        inst_c := hm9
+    }
+
+/-- [con_ron_core::cached::state_c::flush_c]:
+    Source: 'crates/con-ron-core/src/cached/state_c.rs', lines 553:0-555:1
+    Visibility: public -/
+def cached.state_c.flush_c
+  (s : cached.state_c.CState) : Result cached.state_c.CState := do
+  cached.state_c.flushed s
+
+/-- [con_ron_core::cached::parsed_c::check_decl_step_c]:
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 736:0-744:1
+    Visibility: public -/
+def cached.parsed_c.check_decl_step_c
+  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
+  (fe : kernel.fenv.FEnv) (pd : cached.parsed_c.DeclC) :
+  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
+    cached.state_c.CState)
+  := do
+  let st1 ← cached.state_c.flush_c st
+  cached.parsed_c.check_decl_c mode st1 fe pd
 
 /-- [con_ron_core::cached::state_c::levels_list_hash_from]:
     Source: 'crates/con-ron-core/src/cached/state_c.rs', lines 109:0-115:1
@@ -15804,124 +26261,6 @@ def cached.state_c.is_equiv_list_l_m
   := do
   cached.state_c.is_equiv_list_l_m_from s ls rs 0#usize
 
-/-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::clear_slots]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 279:4-290:5 -/
-def ron.hashmap.HashMap.clear_slots
-  {K : Type} {V : Type} (slots : alloc.vec.Vec (ron.hashmap.AList K V))
-  (lo : Std.Usize) (hi : Std.Usize) :
-  Result (alloc.vec.Vec (ron.hashmap.AList K V))
-  := do
-  if hi > lo
-  then
-    let n ← hi - lo
-    if n = 1#usize
-    then
-      let (_, index_mut_back) ←
-        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
-          (ron.hashmap.AList K V)) slots lo
-      ok (index_mut_back ron.hashmap.AList.Nil)
-    else
-      let i ← n / 2#usize
-      let mid ← lo + i
-      let slots1 ← ron.hashmap.HashMap.clear_slots slots lo mid
-      ron.hashmap.HashMap.clear_slots slots1 mid hi
-  else ok slots
-partial_fixpoint
-
-/-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::clear]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 272:4-276:5
-    Visibility: public -/
-def ron.hashmap.HashMap.clear
-  {K : Type} {V : Type} (self : ron.hashmap.HashMap K V) :
-  Result (ron.hashmap.HashMap K V)
-  := do
-  let n := alloc.vec.Vec.len self.slots
-  let v ← ron.hashmap.HashMap.clear_slots self.slots 0#usize n
-  ok { self with num_entries := 0#usize, slots := v }
-
-/-- [con_ron_core::cached::state_c::flushed]:
-    Source: 'crates/con-ron-core/src/cached/state_c.rs', lines 538:0-549:1
-    Visibility: public -/
-def cached.state_c.flushed
-  (s : cached.state_c.CState) : Result cached.state_c.CState := do
-  let hm ← ron.hashmap.HashMap.clear s.const_ty_at
-  let hm1 ← ron.hashmap.HashMap.clear s.const_val_at
-  let hm2 ← ron.hashmap.HashMap.clear s.rule_rhs_at
-  let hm3 ← ron.hashmap.HashMap.clear s.whnf_core_c
-  let hm4 ← ron.hashmap.HashMap.clear s.whnf_c
-  let hm5 ← ron.hashmap.HashMap.clear s.infer_c
-  let hm6 ← ron.hashmap.HashMap.clear s.infer_io_c
-  let hm7 ← ron.hashmap.HashMap.clear s.defeq_c
-  let hm8 ← ron.hashmap.HashMap.clear s.annot_c
-  let hm9 ← ron.hashmap.HashMap.clear s.inst_c
-  ok
-    {
-      s
-        with
-        const_ty_at := hm,
-        const_val_at := hm1,
-        rule_rhs_at := hm2,
-        whnf_core_c := hm3,
-        whnf_c := hm4,
-        infer_c := hm5,
-        infer_io_c := hm6,
-        defeq_c := hm7,
-        annot_c := hm8,
-        inst_c := hm9
-    }
-
-/-- [con_ron_core::cached::state_c::flush_c]:
-    Source: 'crates/con-ron-core/src/cached/state_c.rs', lines 553:0-555:1
-    Visibility: public -/
-def cached.state_c.flush_c
-  (s : cached.state_c.CState) : Result cached.state_c.CState := do
-  cached.state_c.flushed s
-
-/-- [con_ron_core::cached::state_c::record_c_const]:
-    Source: 'crates/con-ron-core/src/cached/state_c.rs', lines 560:0-568:1
-    Visibility: public -/
-def cached.state_c.record_c_const
-  (s : cached.state_c.CState) (n : kernel.name.Name) (ty_e : kernel.expr.Expr)
-  (ty : kernel.expr.Expr) (val : Option (kernel.expr.Expr × kernel.expr.Expr))
-  :
-  Result cached.state_c.CState
-  := do
-  let (_, hm) ←
-    ron.hashmap.HashMap.insert
-      kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
-      kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 s.ienv n
-      ({ ty_e, ty, val } : cached.state_c.CConstE)
-  ok { s with ienv := hm }
-
-/-- [con_ron_core::kernel::basis_builder::bn]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 38:0-40:1
-    Visibility: public -/
-def kernel.basis_builder.bn
-  (s : alloc.vec.Vec Std.U32) : Result kernel.name.Name := do
-  let n ← kernel.name.anonymous
-  kernel.name.mk_str n s
-
-/-- [con_ron_core::kernel::basis_builder::u_n::S]
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 45:9-45:35 -/
-@[global_simps, irreducible]
-def kernel.basis_builder.u_n.S : Array Std.U32 1#usize :=
-  Array.make 1#usize [ 117#u32 ]
-
-/-- [con_ron_core::kernel::basis_builder::u_n]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 44:0-46:1
-    Visibility: public -/
-def kernel.basis_builder.u_n : Result kernel.name.Name := do
-  let s ← lift (Array.to_slice kernel.basis_builder.u_n.S)
-  let v ← kernel.core_types.code_points s
-  kernel.basis_builder.bn v
-
-/-- [con_ron_core::kernel::basis_builder::u]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 50:0-52:1
-    Visibility: public -/
-def kernel.basis_builder.u : Result kernel.level.Level := do
-  let n ← kernel.basis_builder.u_n
-  kernel.level.param n
-
 /-- [con_ron_core::kernel::basis_builder::v_n::S]
     Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 57:9-57:35 -/
 @[global_simps, irreducible]
@@ -15964,26 +26303,6 @@ def kernel.basis_builder.u1 : Result kernel.level.Level := do
   let n ← kernel.basis_builder.u1_n
   kernel.level.param n
 
-/-- [con_ron_core::kernel::basis_builder::bv]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 81:0-83:1
-    Visibility: public -/
-def kernel.basis_builder.bv (i : Std.U64) : Result kernel.expr.Expr := do
-  kernel.expr.bvar i
-
-/-- [con_ron_core::kernel::basis_builder::srt]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 87:0-89:1
-    Visibility: public -/
-def kernel.basis_builder.srt
-  (u : kernel.level.Level) : Result kernel.expr.Expr := do
-  kernel.expr.sort u
-
-/-- [con_ron_core::kernel::basis_builder::prop]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 93:0-95:1
-    Visibility: public -/
-def kernel.basis_builder.prop : Result kernel.expr.Expr := do
-  let l ← kernel.level.zero
-  kernel.expr.sort l
-
 /-- [con_ron_core::kernel::basis_builder::type1]:
     Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 99:0-101:1
     Visibility: public -/
@@ -15991,74 +26310,6 @@ def kernel.basis_builder.type1 : Result kernel.expr.Expr := do
   let l ← kernel.level.zero
   let l1 ← kernel.level.succ l
   kernel.expr.sort l1
-
-/-- [con_ron_core::kernel::basis_builder::cnst]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 106:0-108:1
-    Visibility: public -/
-def kernel.basis_builder.cnst
-  (n : kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level) :
-  Result kernel.expr.Expr
-  := do
-  kernel.expr.mk_const n us
-
-/-- [con_ron_core::kernel::basis_builder::never_meta]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 114:0-118:1
-    Visibility: public -/
-def kernel.basis_builder.never_meta : Result kernel.expr.BinderMeta := do
-  let pw ← kernel.prop_when.never
-  ok { pw }
-
-/-- [con_ron_core::kernel::basis_builder::pi]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 127:0-129:1
-    Visibility: public -/
-def kernel.basis_builder.pi
-  (ty : kernel.expr.Expr) (body : kernel.expr.Expr) :
-  Result kernel.expr.Expr
-  := do
-  let bm ← kernel.basis_builder.never_meta
-  kernel.expr.forall_e ty body bm
-
-/-- [con_ron_core::kernel::basis_builder::lm]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 134:0-136:1
-    Visibility: public -/
-def kernel.basis_builder.lm
-  (ty : kernel.expr.Expr) (body : kernel.expr.Expr) :
-  Result kernel.expr.Expr
-  := do
-  let bm ← kernel.basis_builder.never_meta
-  kernel.expr.lam ty body bm
-
-/-- [con_ron_core::kernel::basis_builder::ap2]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 140:0-142:1
-    Visibility: public -/
-def kernel.basis_builder.ap2
-  (f : kernel.expr.Expr) (a : kernel.expr.Expr) (b : kernel.expr.Expr) :
-  Result kernel.expr.Expr
-  := do
-  let e ← kernel.expr.app f a
-  kernel.expr.app e b
-
-/-- [con_ron_core::kernel::basis_builder::ap3]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 146:0-148:1
-    Visibility: public -/
-def kernel.basis_builder.ap3
-  (f : kernel.expr.Expr) (a : kernel.expr.Expr) (b : kernel.expr.Expr)
-  (c : kernel.expr.Expr) :
-  Result kernel.expr.Expr
-  := do
-  let e ← kernel.basis_builder.ap2 f a b
-  kernel.expr.app e c
-
-/-- [con_ron_core::kernel::basis_builder::ap4]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 152:0-154:1
-    Visibility: public -/
-def kernel.basis_builder.ap4
-  (f : kernel.expr.Expr) (a : kernel.expr.Expr) (b : kernel.expr.Expr)
-  (c : kernel.expr.Expr) (d : kernel.expr.Expr) :
-  Result kernel.expr.Expr
-  := do
-  let e ← kernel.basis_builder.ap3 f a b c
-  kernel.expr.app e d
 
 /-- [con_ron_core::kernel::basis_names::and_intro_name::S]
     Source: 'crates/con-ron-core/src/kernel/basis_names.rs', lines 201:4-201:50 -/
@@ -16074,961 +26325,6 @@ def kernel.basis_names.and_intro_name : Result kernel.name.Name := do
   let s ← lift (Array.to_slice kernel.basis_names.and_intro_name.S)
   let v ← kernel.core_types.code_points s
   kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::basis_pins::is_pinned_eq_basis]:
-    Source: 'crates/con-ron-core/src/kernel/basis_pins.rs', lines 46:0-49:1
-    Visibility: public -/
-def kernel.basis_pins.is_pinned_eq_basis
-  (ci : kernel.env.ConstantInfo) : Result Bool := do
-  ok false
-
-/-- [con_ron_core::kernel::basis_pins::is_pinned_nat_basis]:
-    Source: 'crates/con-ron-core/src/kernel/basis_pins.rs', lines 56:0-59:1
-    Visibility: public -/
-def kernel.basis_pins.is_pinned_nat_basis
-  (ci : kernel.env.ConstantInfo) : Result Bool := do
-  ok false
-
-/-- [con_ron_core::kernel::basis_pins::decls_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_pins.rs', lines 67:0-70:1
-    Visibility: public -/
-def kernel.basis_pins.decls_a
-  (kind : kernel.env.BasisKind) :
-  Result (alloc.vec.Vec kernel.env.ConstantInfo)
-  := do
-  ok (alloc.vec.Vec.new kernel.env.ConstantInfo)
-
-/-- [con_ron_core::kernel::env::constant_info_name]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 730:0-740:1
-    Visibility: public -/
-def kernel.env.constant_info_name
-  (c : kernel.env.ConstantInfo) : Result kernel.name.Name := do
-  match c with
-  | kernel.env.ConstantInfo.AxiomInfo v => kernel.name.dup v.name
-  | kernel.env.ConstantInfo.DefnInfo v _ _ => kernel.name.dup v.name
-  | kernel.env.ConstantInfo.ThmInfo v _ => kernel.name.dup v.name
-  | kernel.env.ConstantInfo.IndInfo v _ => kernel.name.dup v.name
-  | kernel.env.ConstantInfo.CtorInfo v _ _ => kernel.name.dup v.name
-  | kernel.env.ConstantInfo.RecInfo v _ _ _ => kernel.name.dup v.name
-  | kernel.env.ConstantInfo.ProjInfo tbl =>
-    kernel.env.proj_table_name tbl.struct_name
-
-/-- [con_ron_core::kernel::env::proj_table_dup]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 421:0-433:1
-    Visibility: public -/
-def kernel.env.proj_table_dup
-  (t : kernel.env.ProjTable) : Result kernel.env.ProjTable := do
-  let n ← kernel.name.dup t.struct_name
-  let v ← kernel.prop_when.names_copy t.level_params
-  let n1 ← kernel.name.dup t.ctor
-  let l ← kernel.level.dup t.struct_sort
-  let v1 ← kernel.env.exprs_copy t.bodies
-  let v2 ← kernel.env.levels_copy t.guards
-  ok
-    {
-      t
-        with
-        struct_name := n,
-        level_params := v,
-        ctor := n1,
-        struct_sort := l,
-        bodies := v1,
-        guards := v2
-    }
-
-/-- [con_ron_core::kernel::env::constant_info_dup]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 523:0-548:1
-    Visibility: public -/
-def kernel.env.constant_info_dup
-  (c : kernel.env.ConstantInfo) : Result kernel.env.ConstantInfo := do
-  match c with
-  | kernel.env.ConstantInfo.AxiomInfo v =>
-    let cv ← kernel.env.constant_val_dup v
-    ok (kernel.env.ConstantInfo.AxiomInfo cv)
-  | kernel.env.ConstantInfo.DefnInfo v value hint =>
-    let cv ← kernel.env.constant_val_dup v
-    let e ← kernel.expr.dup value
-    let rh ← kernel.env.reducibility_hint_dup hint
-    ok (kernel.env.ConstantInfo.DefnInfo cv e rh)
-  | kernel.env.ConstantInfo.ThmInfo v value =>
-    let cv ← kernel.env.constant_val_dup v
-    let e ← kernel.expr.dup value
-    ok (kernel.env.ConstantInfo.ThmInfo cv e)
-  | kernel.env.ConstantInfo.IndInfo v caps =>
-    let cv ← kernel.env.constant_val_dup v
-    let ic ← kernel.env.ind_caps_dup caps
-    ok (kernel.env.ConstantInfo.IndInfo cv ic)
-  | kernel.env.ConstantInfo.CtorInfo v np nf =>
-    let cv ← kernel.env.constant_val_dup v
-    ok (kernel.env.ConstantInfo.CtorInfo cv np nf)
-  | kernel.env.ConstantInfo.RecInfo v mi rp rules =>
-    let cv ← kernel.env.constant_val_dup v
-    let v1 ← kernel.env.rec_rules_copy rules
-    ok (kernel.env.ConstantInfo.RecInfo cv mi rp v1)
-  | kernel.env.ConstantInfo.ProjInfo tbl =>
-    let pt ← kernel.env.proj_table_dup tbl
-    ok (kernel.env.ConstantInfo.ProjInfo pt)
-
-/-- [con_ron_core::kernel::fenv::push]:
-    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 152:0-165:1
-    Visibility: public -/
-def kernel.fenv.push
-  (fe : kernel.fenv.FEnv) (ci : kernel.env.ConstantInfo) :
-  Result kernel.fenv.FEnv
-  := do
-  let n ← kernel.env.constant_info_name ci
-  let ci1 ← kernel.env.constant_info_dup ci
-  let (_, idx) ←
-    ron.hashmap.HashMap.insert
-      kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
-      kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 fe.idx n
-      (fe.visible_below, ci1)
-  let consts ← alloc.vec.Vec.insert fe.env.consts 0#usize ci
-  let i ← fe.visible_below + 1#u64
-  ok { env := { consts }, idx, visible_below := i }
-
-/-- [con_ron_core::kernel::checker::install_basis_decl::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 90:34-90:155 -/
-@[global_simps, irreducible]
-def kernel.checker.install_basis_decl.M : Array Std.U32 21#usize :=
-  Array.make 21#usize [
-    100#u32, 117#u32, 112#u32, 108#u32, 105#u32, 99#u32, 97#u32, 116#u32,
-    101#u32, 32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32,
-    97#u32, 116#u32, 105#u32, 111#u32, 110#u32
-    ]
-
-/-- [con_ron_core::kernel::checker::install_basis_decl]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 88:0-94:1
-    Visibility: public -/
-def kernel.checker.install_basis_decl
-  (fe : kernel.fenv.FEnv) (ci : kernel.env.ConstantInfo) :
-  Result (core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError)
-  := do
-  let n ← kernel.env.constant_info_name ci
-  let o ← kernel.fenv.find fe n
-  let b := core.option.Option.is_some o
-  if b
-  then
-    let s ← lift (Array.to_slice kernel.checker.install_basis_decl.M)
-    let v ← kernel.core_types.code_points s
-    let ce ← kernel.core_types.invalid v
-    ok (core.result.Result.Err ce)
-  else let f ← kernel.fenv.push fe ci
-       ok (core.result.Result.Ok f)
-
-/-- [con_ron_core::kernel::core_k::check_fuel]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 5858:0-5860:1
-    Visibility: public -/
-def kernel.core_k.check_fuel : Result Std.U64 := do
-  ok 100000#u64
-
-/-- [con_ron_core::kernel::type_checker::annotate_core]:
-    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 120:0-128:1
-    Visibility: public -/
-def kernel.type_checker.annotate_core
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (depth : Std.U64) (e : kernel.expr.Expr) :
-  Result ((core.result.Result kernel.expr.Expr kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  let i ← kernel.core_k.check_fuel
-  cached.core_c.annotate mode i st fe depth e
-
-/-- [con_ron_core::kernel::type_checker::is_def_eq_core]:
-    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 106:0-115:1
-    Visibility: public -/
-def kernel.type_checker.is_def_eq_core
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (depth : Std.U64) (a : kernel.expr.Expr)
-  (b : kernel.expr.Expr) :
-  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  let i ← kernel.core_k.check_fuel
-  cached.core_c.defeq mode i st fe depth a b
-
-/-- [con_ron_core::kernel::type_checker::infer_type_core]:
-    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 79:0-87:1
-    Visibility: public -/
-def kernel.type_checker.infer_type_core
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (depth : Std.U64) (e : kernel.expr.Expr) :
-  Result ((core.result.Result kernel.expr.Expr kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  let i ← kernel.core_k.check_fuel
-  cached.core_c.infer mode i st fe depth e
-
-/-- [con_ron_core::kernel::prop_when::all_contained_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 576:0-584:1
-    Visibility: public -/
-def kernel.prop_when.all_contained_from
-  (params : alloc.vec.Vec kernel.name.Name)
-  (ps : alloc.vec.Vec kernel.name.Name) (i : Std.Usize) :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len ps
-  if i >= i1
-  then ok true
-  else
-    let n ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.name.Name) ps i
-    let b ← kernel.name.contains params n
-    if b
-    then
-      let i2 ← i + 1#usize
-      kernel.prop_when.all_contained_from params ps i2
-    else ok false
-partial_fixpoint
-
-/-- [con_ron_core::kernel::prop_when::params_defined]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 590:0-600:1
-    Visibility: public -/
-def kernel.prop_when.params_defined
-  (params : alloc.vec.Vec kernel.name.Name) (pw : kernel.prop_when.PropWhen) :
-  Result Bool
-  := do
-  match pw.repr with
-  | kernel.prop_when.PropWhenRepr.Never => ok true
-  | kernel.prop_when.PropWhenRepr.Always => ok true
-  | kernel.prop_when.PropWhenRepr.One p => kernel.name.contains params p
-  | kernel.prop_when.PropWhenRepr.Two p q =>
-    let b ← kernel.name.contains params p
-    if b
-    then kernel.name.contains params q
-    else ok false
-  | kernel.prop_when.PropWhenRepr.Many ps =>
-    kernel.prop_when.all_contained_from params ps 0#usize
-
-/-- [con_ron_core::kernel::level::all_params_defined]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 225:0-233:1
-    Visibility: public -/
-def kernel.level.all_params_defined
-  (params : alloc.vec.Vec kernel.name.Name) (u : kernel.level.Level) :
-  Result Bool
-  := do
-  let ln ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global u._0
-  match ln.kind with
-  | kernel.level.LevelKind.Zero => ok true
-  | kernel.level.LevelKind.Succ l => kernel.level.all_params_defined params l
-  | kernel.level.LevelKind.Max l r =>
-    let b ← kernel.level.all_params_defined params l
-    if b
-    then kernel.level.all_params_defined params r
-    else ok false
-  | kernel.level.LevelKind.Imax l r =>
-    let b ← kernel.level.all_params_defined params l
-    if b
-    then kernel.level.all_params_defined params r
-    else ok false
-  | kernel.level.LevelKind.Param n => kernel.name.contains params n
-partial_fixpoint
-
-/-- [con_ron_core::kernel::expr_ops::levels_all_params_defined]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1987:0-1995:1
-    Visibility: public -/
-def kernel.expr_ops.levels_all_params_defined
-  (params : alloc.vec.Vec kernel.name.Name)
-  (us : alloc.vec.Vec kernel.level.Level) (i : Std.Usize) :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len us
-  if i >= i1
-  then ok true
-  else
-    let l ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.level.Level) us i
-    let b ← kernel.level.all_params_defined params l
-    if b
-    then
-      let i2 ← i + 1#usize
-      kernel.expr_ops.levels_all_params_defined params us i2
-    else ok false
-partial_fixpoint
-
-/-- [con_ron_core::kernel::expr_ops::all_level_params_defined]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1934:0-1983:1
-    Visibility: public -/
-def kernel.expr_ops.all_level_params_defined
-  (params : alloc.vec.Vec kernel.name.Name) (e : kernel.expr.Expr) :
-  Result Bool
-  := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
-  match en.kind with
-  | kernel.expr.ExprKind.Bvar _ => ok true
-  | kernel.expr.ExprKind.Fvar _ t =>
-    kernel.expr_ops.all_level_params_defined params t
-  | kernel.expr.ExprKind.Sort u => kernel.level.all_params_defined params u
-  | kernel.expr.ExprKind.Const _ us =>
-    kernel.expr_ops.levels_all_params_defined params us 0#usize
-  | kernel.expr.ExprKind.App f a =>
-    let b ← kernel.expr_ops.all_level_params_defined params f
-    if b
-    then kernel.expr_ops.all_level_params_defined params a
-    else ok false
-  | kernel.expr.ExprKind.Lam t b m =>
-    let b1 ← kernel.expr_ops.all_level_params_defined params t
-    if b1
-    then
-      let b2 ← kernel.expr_ops.all_level_params_defined params b
-      if b2
-      then kernel.prop_when.params_defined params m.pw
-      else ok false
-    else ok false
-  | kernel.expr.ExprKind.ForallE t b m =>
-    let b1 ← kernel.expr_ops.all_level_params_defined params t
-    if b1
-    then
-      let b2 ← kernel.expr_ops.all_level_params_defined params b
-      if b2
-      then kernel.prop_when.params_defined params m.pw
-      else ok false
-    else ok false
-  | kernel.expr.ExprKind.LetE t v b =>
-    let b1 ← kernel.expr_ops.all_level_params_defined params t
-    if b1
-    then
-      let b2 ← kernel.expr_ops.all_level_params_defined params v
-      if b2
-      then kernel.expr_ops.all_level_params_defined params b
-      else ok false
-    else ok false
-  | kernel.expr.ExprKind.Lit _ => ok true
-  | kernel.expr.ExprKind.Proj _ _ sub =>
-    kernel.expr_ops.all_level_params_defined params sub
-partial_fixpoint
-
-/-- [con_ron_core::kernel::expr_ops::bool_and]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1912:0-1918:1
-    Visibility: public -/
-def kernel.expr_ops.bool_and (a : Bool) (b : Bool) : Result Bool := do
-  if a
-  then ok b
-  else ok false
-
-/-- [con_ron_core::kernel::expr_ops::bool_and3]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1922:0-1924:1
-    Visibility: public -/
-def kernel.expr_ops.bool_and3
-  (a : Bool) (b : Bool) (c : Bool) : Result Bool := do
-  let b1 ← kernel.expr_ops.bool_and a b
-  kernel.expr_ops.bool_and b1 c
-
-/-- [con_ron_core::kernel::expr_ops::memo_b_get]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1896:0-1901:1
-    Visibility: public -/
-def kernel.expr_ops.memo_b_get
-  (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (k : kernel.expr.Expr) :
-  Result (Option Bool)
-  := do
-  let o ←
-    ron.hashmap.HashMap.get
-      kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
-      kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo k
-  match o with
-  | none => ok none
-  | some _ => ok o
-
-/-- [con_ron_core::kernel::expr_ops::all_level_params_defined_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2004:0-2050:1
-    Visibility: public -/
-def kernel.expr_ops.all_level_params_defined_go
-  (params : alloc.vec.Vec kernel.name.Name)
-  (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (e : kernel.expr.Expr) :
-  Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
-  := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
-  match en.kind with
-  | kernel.expr.ExprKind.Bvar _ => ok (true, memo)
-  | kernel.expr.ExprKind.Fvar _ _ =>
-    let o ← kernel.expr_ops.memo_b_get memo e
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ t =>
-          do
-          let (r1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          ok (memo2, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App f a =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo f
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 a
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam t b m =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let b3 ← kernel.prop_when.params_defined params m.pw
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE t b m =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let b3 ← kernel.prop_when.params_defined params m.pw
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE t v b =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 v
-          let (b3, memo4) ←
-            kernel.expr_ops.all_level_params_defined_go params memo3 b
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj _ _ sub =>
-          do
-          let (r1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo sub
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup e
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | kernel.expr.ExprKind.Sort u =>
-    let r ← kernel.level.all_params_defined params u
-    ok (r, memo)
-  | kernel.expr.ExprKind.Const _ us =>
-    let r ← kernel.expr_ops.levels_all_params_defined params us 0#usize
-    ok (r, memo)
-  | kernel.expr.ExprKind.App _ _ =>
-    let o ← kernel.expr_ops.memo_b_get memo e
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ t =>
-          do
-          let (r1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          ok (memo2, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App f a =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo f
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 a
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam t b m =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let b3 ← kernel.prop_when.params_defined params m.pw
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE t b m =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let b3 ← kernel.prop_when.params_defined params m.pw
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE t v b =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 v
-          let (b3, memo4) ←
-            kernel.expr_ops.all_level_params_defined_go params memo3 b
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj _ _ sub =>
-          do
-          let (r1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo sub
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup e
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | kernel.expr.ExprKind.Lam _ _ _ =>
-    let o ← kernel.expr_ops.memo_b_get memo e
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ t =>
-          do
-          let (r1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          ok (memo2, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App f a =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo f
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 a
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam t b m =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let b3 ← kernel.prop_when.params_defined params m.pw
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE t b m =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let b3 ← kernel.prop_when.params_defined params m.pw
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE t v b =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 v
-          let (b3, memo4) ←
-            kernel.expr_ops.all_level_params_defined_go params memo3 b
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj _ _ sub =>
-          do
-          let (r1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo sub
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup e
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | kernel.expr.ExprKind.ForallE _ _ _ =>
-    let o ← kernel.expr_ops.memo_b_get memo e
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ t =>
-          do
-          let (r1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          ok (memo2, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App f a =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo f
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 a
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam t b m =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let b3 ← kernel.prop_when.params_defined params m.pw
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE t b m =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let b3 ← kernel.prop_when.params_defined params m.pw
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE t v b =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 v
-          let (b3, memo4) ←
-            kernel.expr_ops.all_level_params_defined_go params memo3 b
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj _ _ sub =>
-          do
-          let (r1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo sub
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup e
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | kernel.expr.ExprKind.LetE _ _ _ =>
-    let o ← kernel.expr_ops.memo_b_get memo e
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ t =>
-          do
-          let (r1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          ok (memo2, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App f a =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo f
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 a
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam t b m =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let b3 ← kernel.prop_when.params_defined params m.pw
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE t b m =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let b3 ← kernel.prop_when.params_defined params m.pw
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE t v b =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 v
-          let (b3, memo4) ←
-            kernel.expr_ops.all_level_params_defined_go params memo3 b
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj _ _ sub =>
-          do
-          let (r1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo sub
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup e
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | kernel.expr.ExprKind.Lit _ => ok (true, memo)
-  | kernel.expr.ExprKind.Proj _ _ _ =>
-    let o ← kernel.expr_ops.memo_b_get memo e
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ t =>
-          do
-          let (r1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          ok (memo2, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App f a =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo f
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 a
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam t b m =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let b3 ← kernel.prop_when.params_defined params m.pw
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE t b m =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let b3 ← kernel.prop_when.params_defined params m.pw
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE t v b =>
-          do
-          let (b1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo t
-          let (b2, memo3) ←
-            kernel.expr_ops.all_level_params_defined_go params memo2 v
-          let (b3, memo4) ←
-            kernel.expr_ops.all_level_params_defined_go params memo3 b
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.expr_ops.all_level_params_defined params e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj _ _ sub =>
-          do
-          let (r1, memo2) ←
-            kernel.expr_ops.all_level_params_defined_go params memo sub
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup e
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
-      ok (r, memo2)
-    | some r => ok (r, memo)
-partial_fixpoint
-
-/-- [con_ron_core::kernel::expr_ops::all_level_params_defined_fast]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2057:0-2060:1
-    Visibility: public -/
-def kernel.expr_ops.all_level_params_defined_fast
-  (params : alloc.vec.Vec kernel.name.Name) (e : kernel.expr.Expr) :
-  Result Bool
-  := do
-  let memo ← ron.hashmap.HashMap.new kernel.expr.Expr Bool
-  let (b, _) ← kernel.expr_ops.all_level_params_defined_go params memo e
-  ok b
-
-/-- [con_ron_core::kernel::core_k::str_support_stored]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 693:0-719:1
-    Visibility: public -/
-def kernel.core_k.str_support_stored
-  (fe : kernel.fenv.FEnv) : Result Bool := do
-  let n ← kernel.basis_names.string_name
-  let o ← kernel.fenv.find fe n
-  let b := core.option.Option.is_some o
-  if b
-  then
-    let n1 ← kernel.basis_names.string_of_list_name
-    let o1 ← kernel.fenv.find fe n1
-    let b1 := core.option.Option.is_some o1
-    if b1
-    then
-      let n2 ← kernel.basis_names.list_name
-      let o2 ← kernel.fenv.find fe n2
-      let b2 := core.option.Option.is_some o2
-      if b2
-      then
-        let n3 ← kernel.basis_names.list_nil_name
-        let o3 ← kernel.fenv.find fe n3
-        let b3 := core.option.Option.is_some o3
-        if b3
-        then
-          let n4 ← kernel.basis_names.list_cons_name
-          let o4 ← kernel.fenv.find fe n4
-          let b4 := core.option.Option.is_some o4
-          if b4
-          then
-            let n5 ← kernel.basis_names.char_name
-            let o5 ← kernel.fenv.find fe n5
-            let b5 := core.option.Option.is_some o5
-            if b5
-            then
-              let n6 ← kernel.basis_names.char_of_nat_name
-              let o6 ← kernel.fenv.find fe n6
-              ok (core.option.Option.is_some o6)
-            else ok false
-          else ok false
-        else ok false
-      else ok false
-    else ok false
-  else ok false
-
-/-- [con_ron_core::kernel::core_k::nat_trio_stored]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 679:0-689:1
-    Visibility: public -/
-def kernel.core_k.nat_trio_stored (fe : kernel.fenv.FEnv) : Result Bool := do
-  let n ← kernel.basis_names.nat_name
-  let o ← kernel.fenv.find fe n
-  let b := core.option.Option.is_some o
-  if b
-  then
-    let n1 ← kernel.basis_names.nat_zero_name
-    let o1 ← kernel.fenv.find fe n1
-    let b1 := core.option.Option.is_some o1
-    if b1
-    then
-      let n2 ← kernel.basis_names.nat_succ_name
-      let o2 ← kernel.fenv.find fe n2
-      ok (core.option.Option.is_some o2)
-    else ok false
-  else ok false
-
-/-- [con_ron_core::kernel::core_k::consts_resolve]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 620:0-674:1
-    Visibility: public -/
-def kernel.core_k.consts_resolve
-  (fe : kernel.fenv.FEnv) (e : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
-  match en.kind with
-  | kernel.expr.ExprKind.Bvar _ => ok true
-  | kernel.expr.ExprKind.Fvar _ ty => kernel.core_k.consts_resolve fe ty
-  | kernel.expr.ExprKind.Sort _ => ok true
-  | kernel.expr.ExprKind.Const n _ =>
-    let o ← kernel.fenv.find fe n
-    ok (core.option.Option.is_some o)
-  | kernel.expr.ExprKind.App f a =>
-    let b ← kernel.core_k.consts_resolve fe f
-    if b
-    then kernel.core_k.consts_resolve fe a
-    else ok false
-  | kernel.expr.ExprKind.Lam ty body _ =>
-    let b ← kernel.core_k.consts_resolve fe ty
-    if b
-    then kernel.core_k.consts_resolve fe body
-    else ok false
-  | kernel.expr.ExprKind.ForallE ty body _ =>
-    let b ← kernel.core_k.consts_resolve fe ty
-    if b
-    then kernel.core_k.consts_resolve fe body
-    else ok false
-  | kernel.expr.ExprKind.LetE ty val body =>
-    let b ← kernel.core_k.consts_resolve fe ty
-    if b
-    then
-      let b1 ← kernel.core_k.consts_resolve fe val
-      if b1
-      then kernel.core_k.consts_resolve fe body
-      else ok false
-    else ok false
-  | kernel.expr.ExprKind.Lit l =>
-    match l with
-    | kernel.expr.Literal.NatVal _ => kernel.core_k.nat_trio_stored fe
-    | kernel.expr.Literal.StrVal _ =>
-      let b ← kernel.core_k.nat_trio_stored fe
-      if b
-      then kernel.core_k.str_support_stored fe
-      else ok false
-  | kernel.expr.ExprKind.Proj s _ pe =>
-    let o ← kernel.fenv.find fe s
-    let b := core.option.Option.is_some o
-    if b
-    then kernel.core_k.consts_resolve fe pe
-    else ok false
-partial_fixpoint
 
 /-- [con_ron_core::kernel::checker::check_defn_val_after_annot::M#2]
     Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 153:50-153:202 -/
@@ -17172,18 +26468,6 @@ def kernel.checker.check_defn_val
     let v ← kernel.core_types.code_points s
     let ce ← kernel.core_types.invalid v
     ok (core.result.Result.Err ce, st)
-
-/-- [con_ron_core::kernel::type_checker::ensure_sort_core]:
-    Source: 'crates/con-ron-core/src/kernel/type_checker.rs', lines 134:0-142:1
-    Visibility: public -/
-def kernel.type_checker.ensure_sort_core
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (depth : Std.U64) (e : kernel.expr.Expr) :
-  Result ((core.result.Result kernel.level.Level kernel.core_types.CheckError)
-    × cached.state_c.CState)
-  := do
-  let i ← kernel.core_k.check_fuel
-  kernel.core_k.ensure_sort mode i st fe depth e
 
 /-- [con_ron_core::kernel::checker::check_thm_val_checked::M#2]
     Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 246:50-246:187 -/
@@ -17508,2131 +26792,6 @@ def kernel.checker.check_opaque_val
     let ce ← kernel.core_types.invalid v
     ok (core.result.Result.Err ce, st)
 
-/-- [con_ron_core::kernel::checker::certify_nat_eqs_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 331:0-352:1
-    Visibility: public -/
-def kernel.checker.certify_nat_eqs_from
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv)
-  (eqs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr)) (i : Std.Usize)
-  :
-  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  let i1 := alloc.vec.Vec.len eqs
-  if i >= i1
-  then ok (core.result.Result.Ok true, st)
-  else
-    let (e, e1) ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        (kernel.expr.Expr × kernel.expr.Expr)) eqs i
-    let (r, st1) ← kernel.type_checker.is_def_eq_core mode st fe 2#u64 e e1
-    match r with
-    | core.result.Result.Ok ok1 =>
-      if ok1
-      then
-        let i2 ← i + 1#usize
-        kernel.checker.certify_nat_eqs_from mode st1 fe eqs i2
-      else ok (r, st1)
-    | core.result.Result.Err _ => ok (r, st1)
-partial_fixpoint
-
-/-- [con_ron_core::kernel::checker::certify_nat_eqs]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 320:0-327:1
-    Visibility: public -/
-def kernel.checker.certify_nat_eqs
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv)
-  (eqs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr)) :
-  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  kernel.checker.certify_nat_eqs_from mode st fe eqs 0#usize
-
-/-- [con_ron_core::kernel::checker::div_mod_decl_pin]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 361:0-379:1
-    Visibility: public -/
-def kernel.checker.div_mod_decl_pin
-  (ps : kernel.nat_op_pins.NatOpPinSet) (c : kernel.name.Name) :
-  Result kernel.expr.Expr
-  := do
-  let n ← kernel.core_k.nat_div_name
-  let b ← kernel.name.beq c n
-  if b
-  then kernel.expr.dup ps.div_pin
-  else
-    let n1 ← kernel.core_k.nat_gcd_name
-    let b1 ← kernel.name.beq c n1
-    if b1
-    then kernel.expr.dup ps.gcd_pin
-    else
-      let n2 ← kernel.core_k.nat_land_name
-      let b2 ← kernel.name.beq c n2
-      if b2
-      then kernel.expr.dup ps.land_pin
-      else
-        let n3 ← kernel.core_k.nat_lor_name
-        let b3 ← kernel.name.beq c n3
-        if b3
-        then kernel.expr.dup ps.lor_pin
-        else
-          let n4 ← kernel.core_k.nat_xor_name
-          let b4 ← kernel.name.beq c n4
-          if b4
-          then kernel.expr.dup ps.xor_pin
-          else
-            let n5 ← kernel.core_k.nat_shift_left_name
-            let b5 ← kernel.name.beq c n5
-            if b5
-            then kernel.expr.dup ps.shift_left_pin
-            else
-              let n6 ← kernel.core_k.nat_shift_right_name
-              let b6 ← kernel.name.beq c n6
-              if b6
-              then kernel.expr.dup ps.shift_right_pin
-              else kernel.expr.dup ps.mod_pin
-
-/-- [con_ron_core::kernel::checker::div_mod_cert_proofs]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 384:0-402:1
-    Visibility: public -/
-def kernel.checker.div_mod_cert_proofs
-  (ps : kernel.nat_op_pins.NatOpPinSet) (c : kernel.name.Name) :
-  Result (alloc.vec.Vec kernel.expr.Expr)
-  := do
-  let n ← kernel.core_k.nat_div_name
-  let b ← kernel.name.beq c n
-  if b
-  then kernel.env.exprs_copy ps.div_proofs
-  else
-    let n1 ← kernel.core_k.nat_gcd_name
-    let b1 ← kernel.name.beq c n1
-    if b1
-    then kernel.env.exprs_copy ps.gcd_proofs
-    else
-      let n2 ← kernel.core_k.nat_land_name
-      let b2 ← kernel.name.beq c n2
-      if b2
-      then kernel.env.exprs_copy ps.land_proofs
-      else
-        let n3 ← kernel.core_k.nat_lor_name
-        let b3 ← kernel.name.beq c n3
-        if b3
-        then kernel.env.exprs_copy ps.lor_proofs
-        else
-          let n4 ← kernel.core_k.nat_xor_name
-          let b4 ← kernel.name.beq c n4
-          if b4
-          then kernel.env.exprs_copy ps.xor_proofs
-          else
-            let n5 ← kernel.core_k.nat_shift_left_name
-            let b5 ← kernel.name.beq c n5
-            if b5
-            then kernel.env.exprs_copy ps.shift_left_proofs
-            else
-              let n6 ← kernel.core_k.nat_shift_right_name
-              let b6 ← kernel.name.beq c n6
-              if b6
-              then kernel.env.exprs_copy ps.shift_right_proofs
-              else kernel.env.exprs_copy ps.mod_proofs
-
-/-- [con_ron_core::kernel::checker::cert_nat_ty]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 409:0-411:1
-    Visibility: public -/
-def kernel.checker.cert_nat_ty : Result kernel.expr.Expr := do
-  let n ← kernel.basis_names.nat_name
-  kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
-
-/-- [con_ron_core::kernel::checker::cert_x]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 415:0-417:1
-    Visibility: public -/
-def kernel.checker.cert_x : Result kernel.expr.Expr := do
-  let e ← kernel.checker.cert_nat_ty
-  kernel.expr.fvar 0#u64 e
-
-/-- [con_ron_core::kernel::checker::cert_y]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 421:0-423:1
-    Visibility: public -/
-def kernel.checker.cert_y : Result kernel.expr.Expr := do
-  let e ← kernel.checker.cert_nat_ty
-  kernel.expr.fvar 1#u64 e
-
-/-- [con_ron_core::kernel::core_k::nat_eq_s]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1437:0-1439:1
-    Visibility: public -/
-def kernel.core_k.nat_eq_s
-  (a : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let n ← kernel.basis_names.nat_succ_name
-  let e ← kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
-  kernel.expr.app e a
-
-/-- [con_ron_core::kernel::checker::cert_one]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 429:0-431:1
-    Visibility: public -/
-def kernel.checker.cert_one : Result kernel.expr.Expr := do
-  let n ← kernel.basis_names.nat_zero_name
-  let e ← kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
-  kernel.core_k.nat_eq_s e
-
-/-- [con_ron_core::kernel::checker::cert_two]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 435:0-437:1
-    Visibility: public -/
-def kernel.checker.cert_two : Result kernel.expr.Expr := do
-  let e ← kernel.checker.cert_one
-  kernel.core_k.nat_eq_s e
-
-/-- [con_ron_core::kernel::checker::cert_zero]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 441:0-443:1
-    Visibility: public -/
-def kernel.checker.cert_zero : Result kernel.expr.Expr := do
-  let n ← kernel.basis_names.nat_zero_name
-  kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
-
-/-- [con_ron_core::kernel::checker::cert_b_true]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 447:0-449:1
-    Visibility: public -/
-def kernel.checker.cert_b_true : Result kernel.expr.Expr := do
-  let n ← kernel.core_k.bool_true_name
-  kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
-
-/-- [con_ron_core::kernel::checker::cert_b_false]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 453:0-455:1
-    Visibility: public -/
-def kernel.checker.cert_b_false : Result kernel.expr.Expr := do
-  let n ← kernel.core_k.bool_false_name
-  kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
-
-/-- [con_ron_core::kernel::core_k::nat_eq_ap2]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1449:0-1451:1
-    Visibility: public -/
-def kernel.core_k.nat_eq_ap2
-  (n : kernel.name.Name) (a : kernel.expr.Expr) (b : kernel.expr.Expr) :
-  Result kernel.expr.Expr
-  := do
-  let n1 ← kernel.name.dup n
-  let e ← kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
-  let e1 ← kernel.expr.app e a
-  kernel.expr.app e1 b
-
-/-- [con_ron_core::kernel::checker::cert_ble2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 461:0-463:1
-    Visibility: public -/
-def kernel.checker.cert_ble2
-  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let n ← kernel.core_k.nat_ble_name
-  kernel.core_k.nat_eq_ap2 n a b
-
-/-- [con_ron_core::kernel::std_axioms::one_level]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 409:0-413:1
-    Visibility: public -/
-def kernel.std_axioms.one_level
-  : Result (alloc.vec.Vec kernel.level.Level) := do
-  let l ← kernel.level.zero
-  let l1 ← kernel.level.succ l
-  alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l1
-
-/-- [con_ron_core::kernel::checker::cert_eq_b]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 467:0-478:1
-    Visibility: public -/
-def kernel.checker.cert_eq_b
-  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let n ← kernel.basis_names.eq_name
-  let v ← kernel.std_axioms.one_level
-  let e ← kernel.expr.mk_const n v
-  let n1 ← kernel.core_k.bool_name
-  let e1 ← kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
-  let e2 ← kernel.expr.app e e1
-  let e3 ← kernel.expr.app e2 a
-  kernel.expr.app e3 b
-
-/-- [con_ron_core::kernel::checker::cert_eq_n]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 482:0-493:1
-    Visibility: public -/
-def kernel.checker.cert_eq_n
-  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let n ← kernel.basis_names.eq_name
-  let v ← kernel.std_axioms.one_level
-  let e ← kernel.expr.mk_const n v
-  let e1 ← kernel.checker.cert_nat_ty
-  let e2 ← kernel.expr.app e e1
-  let e3 ← kernel.expr.app e2 a
-  kernel.expr.app e3 b
-
-/-- [con_ron_core::kernel::checker::cert_op2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 498:0-500:1
-    Visibility: public -/
-def kernel.checker.cert_op2
-  (c : kernel.name.Name) (a : kernel.expr.Expr) (b : kernel.expr.Expr) :
-  Result kernel.expr.Expr
-  := do
-  kernel.core_k.nat_eq_ap2 c a b
-
-/-- [con_ron_core::kernel::checker::cert_hyp2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 719:0-724:1
-    Visibility: public -/
-def kernel.checker.cert_hyp2
-  (h1 : kernel.expr.Expr) (h2 : kernel.expr.Expr) :
-  Result (alloc.vec.Vec kernel.expr.Expr)
-  := do
-  let hs ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.expr.Expr) h1
-  alloc.vec.Vec.push hs h2
-
-/-- [con_ron_core::kernel::checker::cert_hyp1]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 711:0-715:1
-    Visibility: public -/
-def kernel.checker.cert_hyp1
-  (h : kernel.expr.Expr) : Result (alloc.vec.Vec kernel.expr.Expr) := do
-  alloc.vec.Vec.push (alloc.vec.Vec.new kernel.expr.Expr) h
-
-/-- [con_ron_core::kernel::checker::cert_base_rhs]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 701:0-707:1
-    Visibility: public -/
-def kernel.checker.cert_base_rhs
-  (c : kernel.name.Name) : Result kernel.expr.Expr := do
-  let n ← kernel.core_k.nat_div_name
-  let b ← kernel.name.beq c n
-  if b
-  then kernel.checker.cert_zero
-  else kernel.checker.cert_x
-
-/-- [con_ron_core::kernel::checker::cert_sub2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 648:0-650:1
-    Visibility: public -/
-def kernel.checker.cert_sub2
-  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let n ← kernel.core_k.nat_sub_name
-  kernel.core_k.nat_eq_ap2 n a b
-
-/-- [con_ron_core::kernel::checker::cert_rec_rhs]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 690:0-697:1
-    Visibility: public -/
-def kernel.checker.cert_rec_rhs
-  (c : kernel.name.Name) : Result kernel.expr.Expr := do
-  let e ← kernel.checker.cert_x
-  let e1 ← kernel.checker.cert_y
-  let e2 ← kernel.checker.cert_sub2 e e1
-  let step ← kernel.checker.cert_op2 c e2 e1
-  let n ← kernel.core_k.nat_div_name
-  let b ← kernel.name.beq c n
-  if b
-  then kernel.core_k.nat_eq_s step
-  else ok step
-
-/-- [con_ron_core::kernel::checker::cert_div2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 660:0-662:1
-    Visibility: public -/
-def kernel.checker.cert_div2
-  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let n ← kernel.core_k.nat_div_name
-  kernel.core_k.nat_eq_ap2 n a b
-
-/-- [con_ron_core::kernel::checker::cert_halves]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 679:0-685:1
-    Visibility: public -/
-def kernel.checker.cert_halves
-  (c : kernel.name.Name) : Result kernel.expr.Expr := do
-  let e ← kernel.checker.cert_x
-  let e1 ← kernel.checker.cert_two
-  let e2 ← kernel.checker.cert_div2 e e1
-  let e3 ← kernel.checker.cert_y
-  let e4 ← kernel.checker.cert_div2 e3 e1
-  kernel.checker.cert_op2 c e2 e4
-
-/-- [con_ron_core::kernel::checker::cert_mul2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 672:0-674:1
-    Visibility: public -/
-def kernel.checker.cert_mul2
-  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let n ← kernel.core_k.nat_mul_name
-  kernel.core_k.nat_eq_ap2 n a b
-
-/-- [con_ron_core::kernel::checker::cert_add2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 666:0-668:1
-    Visibility: public -/
-def kernel.checker.cert_add2
-  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let n ← kernel.core_k.nat_add_name
-  kernel.core_k.nat_eq_ap2 n a b
-
-/-- [con_ron_core::kernel::checker::cert_mod2]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 654:0-656:1
-    Visibility: public -/
-def kernel.checker.cert_mod2
-  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let n ← kernel.core_k.nat_mod_name
-  kernel.core_k.nat_eq_ap2 n a b
-
-/-- [con_ron_core::kernel::checker::div_mod_cert_stmts]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 507:0-644:1
-    Visibility: public -/
-def kernel.checker.div_mod_cert_stmts
-  (c : kernel.name.Name) :
-  Result (alloc.vec.Vec ((alloc.vec.Vec kernel.expr.Expr) × kernel.expr.Expr))
-  := do
-  let n ← kernel.core_k.nat_gcd_name
-  let b ← kernel.name.beq c n
-  if b
-  then
-    let e ← kernel.checker.cert_one
-    let e1 ← kernel.checker.cert_x
-    let e2 ← kernel.checker.cert_ble2 e e1
-    let e3 ← kernel.checker.cert_b_true
-    let e4 ← kernel.checker.cert_eq_b e2 e3
-    let v ← kernel.checker.cert_hyp1 e4
-    let e5 ← kernel.checker.cert_y
-    let e6 ← kernel.checker.cert_op2 c e1 e5
-    let e7 ← kernel.checker.cert_mod2 e5 e1
-    let e8 ← kernel.checker.cert_op2 c e7 e1
-    let e9 ← kernel.checker.cert_eq_n e6 e8
-    let out ←
-      alloc.vec.Vec.push (alloc.vec.Vec.new ((alloc.vec.Vec kernel.expr.Expr)
-        × kernel.expr.Expr)) (v, e9)
-    let e10 ← kernel.checker.cert_ble2 e e1
-    let e11 ← kernel.checker.cert_b_false
-    let e12 ← kernel.checker.cert_eq_b e10 e11
-    let v1 ← kernel.checker.cert_hyp1 e12
-    let e13 ← kernel.checker.cert_op2 c e1 e5
-    let e14 ← kernel.checker.cert_eq_n e13 e5
-    alloc.vec.Vec.push out (v1, e14)
-  else
-    let n1 ← kernel.core_k.nat_shift_left_name
-    let b1 ← kernel.name.beq c n1
-    if b1
-    then
-      let e ← kernel.checker.cert_one
-      let e1 ← kernel.checker.cert_y
-      let e2 ← kernel.checker.cert_ble2 e e1
-      let e3 ← kernel.checker.cert_b_true
-      let e4 ← kernel.checker.cert_eq_b e2 e3
-      let v ← kernel.checker.cert_hyp1 e4
-      let e5 ← kernel.checker.cert_x
-      let e6 ← kernel.checker.cert_op2 c e5 e1
-      let e7 ← kernel.checker.cert_two
-      let e8 ← kernel.checker.cert_mul2 e7 e5
-      let e9 ← kernel.checker.cert_sub2 e1 e
-      let e10 ← kernel.checker.cert_op2 c e8 e9
-      let e11 ← kernel.checker.cert_eq_n e6 e10
-      let out ←
-        alloc.vec.Vec.push (alloc.vec.Vec.new ((alloc.vec.Vec kernel.expr.Expr)
-          × kernel.expr.Expr)) (v, e11)
-      let e12 ← kernel.checker.cert_ble2 e e1
-      let e13 ← kernel.checker.cert_b_false
-      let e14 ← kernel.checker.cert_eq_b e12 e13
-      let v1 ← kernel.checker.cert_hyp1 e14
-      let e15 ← kernel.checker.cert_op2 c e5 e1
-      let e16 ← kernel.checker.cert_eq_n e15 e5
-      alloc.vec.Vec.push out (v1, e16)
-    else
-      let n2 ← kernel.core_k.nat_shift_right_name
-      let b2 ← kernel.name.beq c n2
-      if b2
-      then
-        let e ← kernel.checker.cert_one
-        let e1 ← kernel.checker.cert_y
-        let e2 ← kernel.checker.cert_ble2 e e1
-        let e3 ← kernel.checker.cert_b_true
-        let e4 ← kernel.checker.cert_eq_b e2 e3
-        let v ← kernel.checker.cert_hyp1 e4
-        let e5 ← kernel.checker.cert_x
-        let e6 ← kernel.checker.cert_op2 c e5 e1
-        let e7 ← kernel.checker.cert_sub2 e1 e
-        let e8 ← kernel.checker.cert_op2 c e5 e7
-        let e9 ← kernel.checker.cert_two
-        let e10 ← kernel.checker.cert_div2 e8 e9
-        let e11 ← kernel.checker.cert_eq_n e6 e10
-        let out ←
-          alloc.vec.Vec.push (alloc.vec.Vec.new ((alloc.vec.Vec
-            kernel.expr.Expr) × kernel.expr.Expr)) (v, e11)
-        let e12 ← kernel.checker.cert_ble2 e e1
-        let e13 ← kernel.checker.cert_b_false
-        let e14 ← kernel.checker.cert_eq_b e12 e13
-        let v1 ← kernel.checker.cert_hyp1 e14
-        let e15 ← kernel.checker.cert_op2 c e5 e1
-        let e16 ← kernel.checker.cert_eq_n e15 e5
-        alloc.vec.Vec.push out (v1, e16)
-      else
-        let n3 ← kernel.core_k.nat_land_name
-        let b3 ← kernel.name.beq c n3
-        if b3
-        then
-          let e ← kernel.checker.cert_one
-          let e1 ← kernel.checker.cert_x
-          let e2 ← kernel.checker.cert_ble2 e e1
-          let e3 ← kernel.checker.cert_b_true
-          let e4 ← kernel.checker.cert_eq_b e2 e3
-          let v ← kernel.checker.cert_hyp1 e4
-          let e5 ← kernel.checker.cert_y
-          let e6 ← kernel.checker.cert_op2 c e1 e5
-          let e7 ← kernel.checker.cert_two
-          let e8 ← kernel.checker.cert_halves c
-          let e9 ← kernel.checker.cert_mul2 e7 e8
-          let e10 ← kernel.checker.cert_mod2 e1 e7
-          let e11 ← kernel.checker.cert_mod2 e5 e7
-          let e12 ← kernel.checker.cert_mul2 e10 e11
-          let e13 ← kernel.checker.cert_add2 e9 e12
-          let e14 ← kernel.checker.cert_eq_n e6 e13
-          let out ←
-            alloc.vec.Vec.push (alloc.vec.Vec.new ((alloc.vec.Vec
-              kernel.expr.Expr) × kernel.expr.Expr)) (v, e14)
-          let e15 ← kernel.checker.cert_ble2 e e1
-          let e16 ← kernel.checker.cert_b_false
-          let e17 ← kernel.checker.cert_eq_b e15 e16
-          let v1 ← kernel.checker.cert_hyp1 e17
-          let e18 ← kernel.checker.cert_op2 c e1 e5
-          let e19 ← kernel.checker.cert_zero
-          let e20 ← kernel.checker.cert_eq_n e18 e19
-          alloc.vec.Vec.push out (v1, e20)
-        else
-          let n4 ← kernel.core_k.nat_lor_name
-          let b4 ← kernel.name.beq c n4
-          if b4
-          then
-            let e ← kernel.checker.cert_one
-            let e1 ← kernel.checker.cert_x
-            let e2 ← kernel.checker.cert_ble2 e e1
-            let e3 ← kernel.checker.cert_b_true
-            let e4 ← kernel.checker.cert_eq_b e2 e3
-            let v ← kernel.checker.cert_hyp1 e4
-            let e5 ← kernel.checker.cert_y
-            let e6 ← kernel.checker.cert_op2 c e1 e5
-            let e7 ← kernel.checker.cert_two
-            let e8 ← kernel.checker.cert_halves c
-            let e9 ← kernel.checker.cert_mul2 e7 e8
-            let e10 ← kernel.checker.cert_mod2 e1 e7
-            let e11 ← kernel.checker.cert_mod2 e5 e7
-            let e12 ← kernel.checker.cert_add2 e10 e11
-            let e13 ← kernel.checker.cert_mod2 e1 e7
-            let e14 ← kernel.checker.cert_mod2 e5 e7
-            let e15 ← kernel.checker.cert_mul2 e13 e14
-            let e16 ← kernel.checker.cert_sub2 e12 e15
-            let e17 ← kernel.checker.cert_add2 e9 e16
-            let e18 ← kernel.checker.cert_eq_n e6 e17
-            let out ←
-              alloc.vec.Vec.push (alloc.vec.Vec.new ((alloc.vec.Vec
-                kernel.expr.Expr) × kernel.expr.Expr)) (v, e18)
-            let e19 ← kernel.checker.cert_ble2 e e1
-            let e20 ← kernel.checker.cert_b_false
-            let e21 ← kernel.checker.cert_eq_b e19 e20
-            let v1 ← kernel.checker.cert_hyp1 e21
-            let e22 ← kernel.checker.cert_op2 c e1 e5
-            let e23 ← kernel.checker.cert_eq_n e22 e5
-            alloc.vec.Vec.push out (v1, e23)
-          else
-            let n5 ← kernel.core_k.nat_xor_name
-            let b5 ← kernel.name.beq c n5
-            if b5
-            then
-              let e ← kernel.checker.cert_one
-              let e1 ← kernel.checker.cert_x
-              let e2 ← kernel.checker.cert_ble2 e e1
-              let e3 ← kernel.checker.cert_b_true
-              let e4 ← kernel.checker.cert_eq_b e2 e3
-              let v ← kernel.checker.cert_hyp1 e4
-              let e5 ← kernel.checker.cert_y
-              let e6 ← kernel.checker.cert_op2 c e1 e5
-              let e7 ← kernel.checker.cert_two
-              let e8 ← kernel.checker.cert_halves c
-              let e9 ← kernel.checker.cert_mul2 e7 e8
-              let e10 ← kernel.checker.cert_mod2 e1 e7
-              let e11 ← kernel.checker.cert_mod2 e5 e7
-              let e12 ← kernel.checker.cert_add2 e10 e11
-              let e13 ← kernel.checker.cert_mod2 e12 e7
-              let e14 ← kernel.checker.cert_add2 e9 e13
-              let e15 ← kernel.checker.cert_eq_n e6 e14
-              let out ←
-                alloc.vec.Vec.push (alloc.vec.Vec.new ((alloc.vec.Vec
-                  kernel.expr.Expr) × kernel.expr.Expr)) (v, e15)
-              let e16 ← kernel.checker.cert_ble2 e e1
-              let e17 ← kernel.checker.cert_b_false
-              let e18 ← kernel.checker.cert_eq_b e16 e17
-              let v1 ← kernel.checker.cert_hyp1 e18
-              let e19 ← kernel.checker.cert_op2 c e1 e5
-              let e20 ← kernel.checker.cert_eq_n e19 e5
-              alloc.vec.Vec.push out (v1, e20)
-            else
-              let e ← kernel.checker.cert_y
-              let e1 ← kernel.checker.cert_x
-              let e2 ← kernel.checker.cert_ble2 e e1
-              let e3 ← kernel.checker.cert_b_true
-              let e4 ← kernel.checker.cert_eq_b e2 e3
-              let e5 ← kernel.checker.cert_one
-              let e6 ← kernel.checker.cert_ble2 e5 e
-              let e7 ← kernel.checker.cert_eq_b e6 e3
-              let v ← kernel.checker.cert_hyp2 e4 e7
-              let e8 ← kernel.checker.cert_op2 c e1 e
-              let e9 ← kernel.checker.cert_rec_rhs c
-              let e10 ← kernel.checker.cert_eq_n e8 e9
-              let out ←
-                alloc.vec.Vec.push (alloc.vec.Vec.new ((alloc.vec.Vec
-                  kernel.expr.Expr) × kernel.expr.Expr)) (v, e10)
-              let e11 ← kernel.checker.cert_ble2 e e1
-              let e12 ← kernel.checker.cert_b_false
-              let e13 ← kernel.checker.cert_eq_b e11 e12
-              let v1 ← kernel.checker.cert_hyp1 e13
-              let e14 ← kernel.checker.cert_op2 c e1 e
-              let e15 ← kernel.checker.cert_base_rhs c
-              let e16 ← kernel.checker.cert_eq_n e14 e15
-              let out1 ← alloc.vec.Vec.push out (v1, e16)
-              let e17 ← kernel.checker.cert_ble2 e5 e
-              let e18 ← kernel.checker.cert_eq_b e17 e12
-              let v2 ← kernel.checker.cert_hyp1 e18
-              let e19 ← kernel.checker.cert_op2 c e1 e
-              let e20 ← kernel.checker.cert_eq_n e19 e15
-              alloc.vec.Vec.push out1 (v2, e20)
-
-/-- [con_ron_core::kernel::checker::div_mod_cert_applied]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 730:0-745:1
-    Visibility: public -/
-def kernel.checker.div_mod_cert_applied
-  (proof_s : kernel.expr.Expr) (hyps : alloc.vec.Vec kernel.expr.Expr) :
-  Result kernel.expr.Expr
-  := do
-  let e ← kernel.expr.dup proof_s
-  let e1 ← kernel.checker.cert_x
-  let e2 ← kernel.expr.app e e1
-  let e3 ← kernel.checker.cert_y
-  let base ← kernel.expr.app e2 e3
-  let i := alloc.vec.Vec.len hyps
-  if i = 1#usize
-  then
-    let e4 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.expr.Expr) hyps 0#usize
-    let e5 ← kernel.expr.dup e4
-    let e6 ← kernel.expr.fvar 2#u64 e5
-    kernel.expr.app base e6
-  else
-    let i1 := alloc.vec.Vec.len hyps
-    if i1 = 2#usize
-    then
-      let e4 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-          kernel.expr.Expr) hyps 0#usize
-      let e5 ← kernel.expr.dup e4
-      let e6 ← kernel.expr.fvar 2#u64 e5
-      let e7 ← kernel.expr.app base e6
-      let e8 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-          kernel.expr.Expr) hyps 1#usize
-      let e9 ← kernel.expr.dup e8
-      let e10 ← kernel.expr.fvar 3#u64 e9
-      kernel.expr.app e7 e10
-    else ok base
-
-/-- [con_ron_core::kernel::core_k::subst_const_all]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1707:0-1735:1
-    Visibility: public -/
-def kernel.core_k.subst_const_all
-  (n : kernel.name.Name) (r : kernel.expr.Expr) (e : kernel.expr.Expr) :
-  Result kernel.expr.Expr
-  := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
-  match en.kind with
-  | kernel.expr.ExprKind.Bvar _ => kernel.expr.dup e
-  | kernel.expr.ExprKind.Fvar _ _ => kernel.expr.dup e
-  | kernel.expr.ExprKind.Sort _ => kernel.expr.dup e
-  | kernel.expr.ExprKind.Const c us =>
-    let i := alloc.vec.Vec.len us
-    if i = 0#usize
-    then
-      let b ← kernel.name.beq c n
-      if b
-      then kernel.expr.dup r
-      else kernel.expr.dup e
-    else kernel.expr.dup e
-  | kernel.expr.ExprKind.App f a =>
-    let e1 ← kernel.core_k.subst_const_all n r f
-    let e2 ← kernel.core_k.subst_const_all n r a
-    kernel.expr.app e1 e2
-  | kernel.expr.ExprKind.Lam ty b mb =>
-    let e1 ← kernel.core_k.subst_const_all n r ty
-    let e2 ← kernel.core_k.subst_const_all n r b
-    let bm ← kernel.expr.binder_meta_dup mb
-    kernel.expr.lam e1 e2 bm
-  | kernel.expr.ExprKind.ForallE ty b mb =>
-    let e1 ← kernel.core_k.subst_const_all n r ty
-    let e2 ← kernel.core_k.subst_const_all n r b
-    let bm ← kernel.expr.binder_meta_dup mb
-    kernel.expr.forall_e e1 e2 bm
-  | kernel.expr.ExprKind.LetE ty v b =>
-    let e1 ← kernel.core_k.subst_const_all n r ty
-    let e2 ← kernel.core_k.subst_const_all n r v
-    let e3 ← kernel.core_k.subst_const_all n r b
-    kernel.expr.let_e e1 e2 e3
-  | kernel.expr.ExprKind.Lit _ => kernel.expr.dup e
-  | kernel.expr.ExprKind.Proj s i pe =>
-    let n1 ← kernel.name.dup s
-    let e1 ← kernel.core_k.subst_const_all n r pe
-    kernel.expr.proj n1 i e1
-partial_fixpoint
-
-/-- [con_ron_core::kernel::core_k::subst_const0]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1689:0-1701:1
-    Visibility: public -/
-def kernel.core_k.subst_const0
-  (n : kernel.name.Name) (r : kernel.expr.Expr) (e : kernel.expr.Expr) :
-  Result kernel.expr.Expr
-  := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
-  match en.kind with
-  | kernel.expr.ExprKind.Bvar _ => kernel.expr.dup e
-  | kernel.expr.ExprKind.Fvar _ _ => kernel.expr.dup e
-  | kernel.expr.ExprKind.Sort _ => kernel.expr.dup e
-  | kernel.expr.ExprKind.Const c us =>
-    let i := alloc.vec.Vec.len us
-    if i = 0#usize
-    then
-      let b ← kernel.name.beq c n
-      if b
-      then kernel.expr.dup r
-      else kernel.expr.dup e
-    else kernel.expr.dup e
-  | kernel.expr.ExprKind.App f a =>
-    let e1 ← kernel.core_k.subst_const0 n r f
-    let e2 ← kernel.core_k.subst_const0 n r a
-    kernel.expr.app e1 e2
-  | kernel.expr.ExprKind.Lam _ _ _ => kernel.expr.dup e
-  | kernel.expr.ExprKind.ForallE _ _ _ => kernel.expr.dup e
-  | kernel.expr.ExprKind.LetE _ _ _ => kernel.expr.dup e
-  | kernel.expr.ExprKind.Lit _ => kernel.expr.dup e
-  | kernel.expr.ExprKind.Proj _ _ _ => kernel.expr.dup e
-partial_fixpoint
-
-/-- [con_ron_core::kernel::checker::hyps_resolve]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 781:0-795:1
-    Visibility: public -/
-def kernel.checker.hyps_resolve
-  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
-  (hyps : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize) :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len hyps
-  if i >= i1
-  then ok true
-  else
-    let e ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.expr.Expr) hyps i
-    let e1 ← kernel.core_k.subst_const0 c ann_val e
-    let b ← kernel.core_k.consts_resolve fe e1
-    if b
-    then
-      let i2 ← i + 1#usize
-      kernel.checker.hyps_resolve fe c ann_val hyps i2
-    else ok false
-partial_fixpoint
-
-/-- [con_ron_core::kernel::checker::div_mod_cert_guard]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 754:0-776:1
-    Visibility: public -/
-def kernel.checker.div_mod_cert_guard
-  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
-  (hyps : alloc.vec.Vec kernel.expr.Expr) (eq_e : kernel.expr.Expr)
-  (proof : kernel.expr.Expr) :
-  Result Bool
-  := do
-  let p ← kernel.core_k.subst_const_all c ann_val proof
-  let b ← kernel.expr_ops.loose_bvars_bounded 0#u64 p
-  if b
-  then
-    let b1 ← kernel.expr_ops.has_fvar p
-    if b1
-    then ok false
-    else
-      let b2 ←
-        kernel.expr_ops.all_level_params_defined_fast (alloc.vec.Vec.new
-          kernel.name.Name) p
-      if b2
-      then
-        let b3 ← kernel.core_k.consts_resolve fe p
-        if b3
-        then
-          let b4 ← kernel.checker.hyps_resolve fe c ann_val hyps 0#usize
-          if b4
-          then
-            let e ← kernel.core_k.subst_const0 c ann_val eq_e
-            kernel.core_k.consts_resolve fe e
-          else ok false
-        else ok false
-      else ok false
-  else ok false
-
-/-- [con_ron_core::kernel::checker::hyps_subst_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 805:0-819:1
-    Visibility: public -/
-def kernel.checker.hyps_subst_from
-  (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
-  (hyps : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize)
-  (out : alloc.vec.Vec kernel.expr.Expr) :
-  Result (alloc.vec.Vec kernel.expr.Expr)
-  := do
-  let i1 := alloc.vec.Vec.len hyps
-  if i >= i1
-  then ok out
-  else
-    let e ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.expr.Expr) hyps i
-    let e1 ← kernel.core_k.subst_const0 c ann_val e
-    let out1 ← alloc.vec.Vec.push out e1
-    let i2 ← i + 1#usize
-    kernel.checker.hyps_subst_from c ann_val hyps i2 out1
-partial_fixpoint
-
-/-- [con_ron_core::kernel::checker::hyps_subst]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 799:0-801:1
-    Visibility: public -/
-def kernel.checker.hyps_subst
-  (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
-  (hyps : alloc.vec.Vec kernel.expr.Expr) :
-  Result (alloc.vec.Vec kernel.expr.Expr)
-  := do
-  kernel.checker.hyps_subst_from c ann_val hyps 0#usize (alloc.vec.Vec.new
-    kernel.expr.Expr)
-
-/-- [con_ron_core::kernel::checker::check_div_mod_certs_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 844:0-887:1
-    Visibility: public -/
-def kernel.checker.check_div_mod_certs_from
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
-  (stmts : alloc.vec.Vec ((alloc.vec.Vec kernel.expr.Expr) ×
-  kernel.expr.Expr)) (proofs : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize)
-  :
-  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  let i1 := alloc.vec.Vec.len stmts
-  if i >= i1
-  then
-    let i2 := alloc.vec.Vec.len proofs
-    if i >= i2
-    then ok (core.result.Result.Ok true, st)
-    else
-      let i3 := alloc.vec.Vec.len stmts
-      if i >= i3
-      then ok (core.result.Result.Ok false, st)
-      else
-        let i4 := alloc.vec.Vec.len proofs
-        if i >= i4
-        then ok (core.result.Result.Ok false, st)
-        else
-          let (v, e) ←
-            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-              ((alloc.vec.Vec kernel.expr.Expr) × kernel.expr.Expr)) stmts i
-          let e1 ←
-            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-              kernel.expr.Expr) proofs i
-          let b ← kernel.checker.div_mod_cert_guard fe c ann_val v e e1
-          if b
-          then
-            let e2 ← kernel.core_k.subst_const_all c ann_val e1
-            let v1 ← kernel.checker.hyps_subst c ann_val v
-            let applied ← kernel.checker.div_mod_cert_applied e2 v1
-            let (r, st1) ←
-              kernel.type_checker.annotate_core mode st fe 4#u64 applied
-            match r with
-            | core.result.Result.Ok applied_a =>
-              let (r1, st2) ←
-                kernel.type_checker.infer_type_core mode st1 fe 4#u64 applied_a
-              match r1 with
-              | core.result.Result.Ok tp =>
-                let target ← kernel.core_k.subst_const0 c ann_val e
-                let (r2, st3) ←
-                  kernel.type_checker.is_def_eq_core mode st2 fe 4#u64 tp
-                    target
-                match r2 with
-                | core.result.Result.Ok ok1 =>
-                  if ok1
-                  then
-                    let i5 ← i + 1#usize
-                    kernel.checker.check_div_mod_certs_from mode st3 fe c
-                      ann_val stmts proofs i5
-                  else ok (r2, st3)
-                | core.result.Result.Err _ => ok (r2, st3)
-              | core.result.Result.Err err =>
-                ok (core.result.Result.Err err, st2)
-            | core.result.Result.Err err =>
-              ok (core.result.Result.Err err, st1)
-          else ok (core.result.Result.Ok false, st)
-  else
-    let i2 := alloc.vec.Vec.len stmts
-    if i >= i2
-    then ok (core.result.Result.Ok false, st)
-    else
-      let i3 := alloc.vec.Vec.len proofs
-      if i >= i3
-      then ok (core.result.Result.Ok false, st)
-      else
-        let (v, e) ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-            ((alloc.vec.Vec kernel.expr.Expr) × kernel.expr.Expr)) stmts i
-        let e1 ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-            kernel.expr.Expr) proofs i
-        let b ← kernel.checker.div_mod_cert_guard fe c ann_val v e e1
-        if b
-        then
-          let e2 ← kernel.core_k.subst_const_all c ann_val e1
-          let v1 ← kernel.checker.hyps_subst c ann_val v
-          let applied ← kernel.checker.div_mod_cert_applied e2 v1
-          let (r, st1) ←
-            kernel.type_checker.annotate_core mode st fe 4#u64 applied
-          match r with
-          | core.result.Result.Ok applied_a =>
-            let (r1, st2) ←
-              kernel.type_checker.infer_type_core mode st1 fe 4#u64 applied_a
-            match r1 with
-            | core.result.Result.Ok tp =>
-              let target ← kernel.core_k.subst_const0 c ann_val e
-              let (r2, st3) ←
-                kernel.type_checker.is_def_eq_core mode st2 fe 4#u64 tp target
-              match r2 with
-              | core.result.Result.Ok ok1 =>
-                if ok1
-                then
-                  let i4 ← i + 1#usize
-                  kernel.checker.check_div_mod_certs_from mode st3 fe c ann_val
-                    stmts proofs i4
-                else ok (r2, st3)
-              | core.result.Result.Err _ => ok (r2, st3)
-            | core.result.Result.Err err =>
-              ok (core.result.Result.Err err, st2)
-          | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
-        else ok (core.result.Result.Ok false, st)
-partial_fixpoint
-
-/-- [con_ron_core::kernel::checker::check_div_mod_certs]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 829:0-839:1
-    Visibility: public -/
-def kernel.checker.check_div_mod_certs
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
-  (stmts : alloc.vec.Vec ((alloc.vec.Vec kernel.expr.Expr) ×
-  kernel.expr.Expr)) (proofs : alloc.vec.Vec kernel.expr.Expr) :
-  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  kernel.checker.check_div_mod_certs_from mode st fe c ann_val stmts proofs
-    0#usize
-
-/-- [con_ron_core::kernel::std_axioms::eq_basis_pinned]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 589:0-594:1
-    Visibility: public -/
-def kernel.std_axioms.eq_basis_pinned
-  (fe : kernel.fenv.FEnv) : Result Bool := do
-  let n ← kernel.basis_names.eq_name
-  let o ← kernel.fenv.find fe n
-  match o with
-  | none => ok false
-  | some ci => kernel.basis_pins.is_pinned_eq_basis ci
-
-/-- [con_ron_core::kernel::core_k::defn_lp_empty]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1618:0-1624:1
-    Visibility: public -/
-def kernel.core_k.defn_lp_empty
-  (fe : kernel.fenv.FEnv) (n : kernel.name.Name) : Result Bool := do
-  let o ← kernel.fenv.find fe n
-  match o with
-  | none => ok false
-  | some ci =>
-    match ci with
-    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
-    | kernel.env.ConstantInfo.DefnInfo cv _ _ =>
-      let i := alloc.vec.Vec.len cv.level_params
-      ok (i = 0#usize)
-    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
-    | kernel.env.ConstantInfo.IndInfo _ _ => ok false
-    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
-    | kernel.env.ConstantInfo.ProjInfo _ => ok false
-
-/-- [con_ron_core::kernel::core_k::deps_all_stored]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1629:0-1637:1
-    Visibility: public -/
-def kernel.core_k.deps_all_stored
-  (fe : kernel.fenv.FEnv) (deps : alloc.vec.Vec kernel.name.Name)
-  (i : Std.Usize) :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len deps
-  if i >= i1
-  then ok true
-  else
-    let n ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.name.Name) deps i
-    let b ← kernel.core_k.defn_lp_empty fe n
-    if b
-    then let i2 ← i + 1#usize
-         kernel.core_k.deps_all_stored fe deps i2
-    else ok false
-partial_fixpoint
-
-/-- [con_ron_core::kernel::core_k::nat_op_deps]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1364:0-1432:1
-    Visibility: public -/
-def kernel.core_k.nat_op_deps
-  (c : kernel.name.Name) : Result (alloc.vec.Vec kernel.name.Name) := do
-  let n ← kernel.core_k.nat_pred_name
-  let b ← kernel.name.beq c n
-  if b
-  then alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-  else
-    let n1 ← kernel.core_k.nat_add_name
-    let b1 ← kernel.name.beq c n1
-    if b1
-    then alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n1
-    else
-      let n2 ← kernel.core_k.nat_sub_name
-      let b2 ← kernel.name.beq c n2
-      if b2
-      then
-        let ns ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-        alloc.vec.Vec.push ns n2
-      else
-        let n3 ← kernel.core_k.nat_mul_name
-        let b3 ← kernel.name.beq c n3
-        if b3
-        then
-          let ns ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n1
-          alloc.vec.Vec.push ns n3
-        else
-          let n4 ← kernel.core_k.nat_pow_name
-          let b4 ← kernel.name.beq c n4
-          if b4
-          then
-            let ns ←
-              alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n1
-            let ns1 ← alloc.vec.Vec.push ns n3
-            alloc.vec.Vec.push ns1 n4
-          else
-            let n5 ← kernel.core_k.nat_beq_name
-            let b5 ← kernel.name.beq c n5
-            if b5
-            then alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n5
-            else
-              let n6 ← kernel.core_k.nat_ble_name
-              let b6 ← kernel.name.beq c n6
-              if b6
-              then alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n6
-              else
-                let n7 ← kernel.core_k.nat_div_name
-                let b7 ← kernel.name.beq c n7
-                if b7
-                then
-                  let ns ←
-                    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-                  let ns1 ← alloc.vec.Vec.push ns n2
-                  let ns2 ← alloc.vec.Vec.push ns1 n6
-                  alloc.vec.Vec.push ns2 n7
-                else
-                  let n8 ← kernel.core_k.nat_mod_name
-                  let b8 ← kernel.name.beq c n8
-                  if b8
-                  then
-                    let ns ←
-                      alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-                    let ns1 ← alloc.vec.Vec.push ns n2
-                    let ns2 ← alloc.vec.Vec.push ns1 n6
-                    alloc.vec.Vec.push ns2 n8
-                  else
-                    let n9 ← kernel.core_k.nat_gcd_name
-                    let b9 ← kernel.name.beq c n9
-                    if b9
-                    then
-                      let ns ←
-                        alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name)
-                          n6
-                      let ns1 ← alloc.vec.Vec.push ns n8
-                      alloc.vec.Vec.push ns1 n9
-                    else
-                      let n10 ← kernel.core_k.nat_land_name
-                      let b10 ← kernel.name.beq c n10
-                      if b10
-                      then
-                        let ns ←
-                          alloc.vec.Vec.push (alloc.vec.Vec.new
-                            kernel.name.Name) n1
-                        let ns1 ← alloc.vec.Vec.push ns n3
-                        let ns2 ← alloc.vec.Vec.push ns1 n6
-                        let ns3 ← alloc.vec.Vec.push ns2 n7
-                        let ns4 ← alloc.vec.Vec.push ns3 n8
-                        alloc.vec.Vec.push ns4 n10
-                      else
-                        let n11 ← kernel.core_k.nat_lor_name
-                        let b11 ← kernel.name.beq c n11
-                        if b11
-                        then
-                          let ns ←
-                            alloc.vec.Vec.push (alloc.vec.Vec.new
-                              kernel.name.Name) n1
-                          let ns1 ← alloc.vec.Vec.push ns n2
-                          let ns2 ← alloc.vec.Vec.push ns1 n3
-                          let ns3 ← alloc.vec.Vec.push ns2 n6
-                          let ns4 ← alloc.vec.Vec.push ns3 n7
-                          let ns5 ← alloc.vec.Vec.push ns4 n8
-                          alloc.vec.Vec.push ns5 n11
-                        else
-                          let n12 ← kernel.core_k.nat_xor_name
-                          let b12 ← kernel.name.beq c n12
-                          if b12
-                          then
-                            let ns ←
-                              alloc.vec.Vec.push (alloc.vec.Vec.new
-                                kernel.name.Name) n1
-                            let ns1 ← alloc.vec.Vec.push ns n3
-                            let ns2 ← alloc.vec.Vec.push ns1 n6
-                            let ns3 ← alloc.vec.Vec.push ns2 n7
-                            let ns4 ← alloc.vec.Vec.push ns3 n8
-                            alloc.vec.Vec.push ns4 n12
-                          else
-                            let n13 ← kernel.core_k.nat_shift_left_name
-                            let b13 ← kernel.name.beq c n13
-                            if b13
-                            then
-                              let ns ←
-                                alloc.vec.Vec.push (alloc.vec.Vec.new
-                                  kernel.name.Name) n2
-                              let ns1 ← alloc.vec.Vec.push ns n3
-                              let ns2 ← alloc.vec.Vec.push ns1 n6
-                              alloc.vec.Vec.push ns2 n13
-                            else
-                              let n14 ← kernel.core_k.nat_shift_right_name
-                              let b14 ← kernel.name.beq c n14
-                              if b14
-                              then
-                                let ns ←
-                                  alloc.vec.Vec.push (alloc.vec.Vec.new
-                                    kernel.name.Name) n2
-                                let ns1 ← alloc.vec.Vec.push ns n6
-                                let ns2 ← alloc.vec.Vec.push ns1 n7
-                                alloc.vec.Vec.push ns2 n14
-                              else ok (alloc.vec.Vec.new kernel.name.Name)
-
-/-- [con_ron_core::kernel::core_k::nat_div_mod_names]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1348:0-1359:1
-    Visibility: public -/
-def kernel.core_k.nat_div_mod_names
-  : Result (alloc.vec.Vec kernel.name.Name) := do
-  let n ← kernel.core_k.nat_div_name
-  let ns ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-  let n1 ← kernel.core_k.nat_mod_name
-  let ns1 ← alloc.vec.Vec.push ns n1
-  let n2 ← kernel.core_k.nat_gcd_name
-  let ns2 ← alloc.vec.Vec.push ns1 n2
-  let n3 ← kernel.core_k.nat_land_name
-  let ns3 ← alloc.vec.Vec.push ns2 n3
-  let n4 ← kernel.core_k.nat_lor_name
-  let ns4 ← alloc.vec.Vec.push ns3 n4
-  let n5 ← kernel.core_k.nat_xor_name
-  let ns5 ← alloc.vec.Vec.push ns4 n5
-  let n6 ← kernel.core_k.nat_shift_left_name
-  let ns6 ← alloc.vec.Vec.push ns5 n6
-  let n7 ← kernel.core_k.nat_shift_right_name
-  alloc.vec.Vec.push ns6 n7
-
-/-- [con_ron_core::kernel::core_k::lp_empty]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 278:0-283:1
-    Visibility: public -/
-def kernel.core_k.lp_empty
-  (fe : kernel.fenv.FEnv) (n : kernel.name.Name) : Result Bool := do
-  let o ← kernel.fenv.find fe n
-  match o with
-  | none => ok false
-  | some ci =>
-    let cv ← kernel.env.to_constant_val ci
-    let i := alloc.vec.Vec.len cv.level_params
-    ok (i = 0#usize)
-
-/-- [con_ron_core::kernel::core_k::nat_op_guard]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1645:0-1666:1
-    Visibility: public -/
-def kernel.core_k.nat_op_guard
-  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) : Result Bool := do
-  let b ← kernel.core_k.nat_lit_supported fe
-  if b
-  then
-    let v ← kernel.core_k.nat_op_deps c
-    let b1 ← kernel.core_k.deps_all_stored fe v 0#usize
-    if b1
-    then
-      let n ← kernel.core_k.nat_beq_name
-      let b2 ← kernel.name.beq c n
-      if b2
-      then
-        let n1 ← kernel.core_k.bool_true_name
-        let b3 ← kernel.core_k.lp_empty fe n1
-        if b3
-        then
-          let n2 ← kernel.core_k.bool_false_name
-          kernel.core_k.lp_empty fe n2
-        else ok false
-      else
-        let n1 ← kernel.core_k.nat_ble_name
-        let b3 ← kernel.name.beq c n1
-        if b3
-        then
-          let n2 ← kernel.core_k.bool_true_name
-          let b4 ← kernel.core_k.lp_empty fe n2
-          if b4
-          then
-            let n3 ← kernel.core_k.bool_false_name
-            kernel.core_k.lp_empty fe n3
-          else ok false
-        else
-          let v1 ← kernel.core_k.nat_div_mod_names
-          let b4 ← kernel.name.contains v1 c
-          if b4
-          then
-            let n2 ← kernel.core_k.bool_true_name
-            let b5 ← kernel.core_k.lp_empty fe n2
-            if b5
-            then
-              let n3 ← kernel.core_k.bool_false_name
-              kernel.core_k.lp_empty fe n3
-            else ok false
-          else ok true
-    else ok false
-  else ok false
-
-/-- [con_ron_core::kernel::env::constant_info_type]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 758:0-768:1
-    Visibility: public -/
-def kernel.env.constant_info_type
-  (c : kernel.env.ConstantInfo) : Result kernel.expr.Expr := do
-  match c with
-  | kernel.env.ConstantInfo.AxiomInfo v => kernel.expr.dup v.ty
-  | kernel.env.ConstantInfo.DefnInfo v _ _ => kernel.expr.dup v.ty
-  | kernel.env.ConstantInfo.ThmInfo v _ => kernel.expr.dup v.ty
-  | kernel.env.ConstantInfo.IndInfo v _ => kernel.expr.dup v.ty
-  | kernel.env.ConstantInfo.CtorInfo v _ _ => kernel.expr.dup v.ty
-  | kernel.env.ConstantInfo.RecInfo v _ _ _ => kernel.expr.dup v.ty
-  | kernel.env.ConstantInfo.ProjInfo _ =>
-    let l ← kernel.level.zero
-    let l1 ← kernel.level.succ l
-    kernel.expr.sort l1
-
-/-- [con_ron_core::kernel::checker::bool_ctor_typed]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 915:0-923:1
-    Visibility: public -/
-def kernel.checker.bool_ctor_typed
-  (fe2 : kernel.fenv.FEnv) (n : kernel.name.Name) : Result Bool := do
-  let o ← kernel.fenv.find fe2 n
-  match o with
-  | none => ok false
-  | some ci =>
-    let e ← kernel.env.constant_info_type ci
-    let n1 ← kernel.core_k.bool_name
-    let e1 ← kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
-    kernel.expr.beq e e1
-
-/-- [con_ron_core::kernel::checker::div_mod_env_guard]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 895:0-907:1
-    Visibility: public -/
-def kernel.checker.div_mod_env_guard
-  (fe2 : kernel.fenv.FEnv) (c : kernel.name.Name) : Result Bool := do
-  let b ← kernel.core_k.nat_op_guard fe2 c
-  if b
-  then
-    let v ← kernel.core_k.nat_op_deps c
-    let b1 ← kernel.core_k.deps_all_stored fe2 v 0#usize
-    if b1
-    then
-      let b2 ← kernel.std_axioms.eq_basis_pinned fe2
-      if b2
-      then
-        let n ← kernel.core_k.bool_true_name
-        let b3 ← kernel.checker.bool_ctor_typed fe2 n
-        if b3
-        then
-          let n1 ← kernel.core_k.bool_false_name
-          kernel.checker.bool_ctor_typed fe2 n1
-        else ok false
-      else ok false
-    else ok false
-  else ok false
-
-/-- [con_ron_core::kernel::checker::div_mod_pin_guard]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 929:0-940:1
-    Visibility: public -/
-def kernel.checker.div_mod_pin_guard
-  (ps : kernel.nat_op_pins.NatOpPinSet) (fe : kernel.fenv.FEnv)
-  (c : kernel.name.Name) :
-  Result Bool
-  := do
-  let pin ← kernel.checker.div_mod_decl_pin ps c
-  let b ← kernel.expr_ops.loose_bvars_bounded 0#u64 pin
-  if b
-  then
-    let b1 ← kernel.expr_ops.has_fvar pin
-    if b1
-    then ok false
-    else
-      let b2 ←
-        kernel.expr_ops.all_level_params_defined_fast (alloc.vec.Vec.new
-          kernel.name.Name) pin
-      if b2
-      then kernel.core_k.consts_resolve fe pin
-      else ok false
-  else ok false
-
-/-- [con_ron_core::kernel::checker::div_mod_certs_guard_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 962:0-977:1
-    Visibility: public -/
-def kernel.checker.div_mod_certs_guard_from
-  (stmts : alloc.vec.Vec ((alloc.vec.Vec kernel.expr.Expr) ×
-  kernel.expr.Expr)) (proofs : alloc.vec.Vec kernel.expr.Expr)
-  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (ann_val : kernel.expr.Expr)
-  (i : Std.Usize) :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len stmts
-  if i >= i1
-  then ok true
-  else
-    let i2 := alloc.vec.Vec.len proofs
-    if i >= i2
-    then ok true
-    else
-      let (v, e) ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-          ((alloc.vec.Vec kernel.expr.Expr) × kernel.expr.Expr)) stmts i
-      let e1 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-          kernel.expr.Expr) proofs i
-      let b ← kernel.checker.div_mod_cert_guard fe c ann_val v e e1
-      if b
-      then
-        let i3 ← i + 1#usize
-        kernel.checker.div_mod_certs_guard_from stmts proofs fe c ann_val i3
-      else ok false
-partial_fixpoint
-
-/-- [con_ron_core::kernel::checker::div_mod_certs_guard]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 948:0-957:1
-    Visibility: public -/
-def kernel.checker.div_mod_certs_guard
-  (ps : kernel.nat_op_pins.NatOpPinSet) (fe : kernel.fenv.FEnv)
-  (c : kernel.name.Name) (ann_val : kernel.expr.Expr) :
-  Result Bool
-  := do
-  let v ← kernel.checker.div_mod_cert_stmts c
-  let v1 ← kernel.checker.div_mod_cert_proofs ps c
-  kernel.checker.div_mod_certs_guard_from v v1 fe c ann_val 0#usize
-
-/-- [con_ron_core::kernel::checker::check_div_mod_pin_at]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 989:0-1018:1
-    Visibility: public -/
-def kernel.checker.check_div_mod_pin_at
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (value2 : kernel.expr.Expr)
-  (ps : kernel.nat_op_pins.NatOpPinSet) :
-  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  let e ← kernel.checker.div_mod_decl_pin ps c
-  let (r, st1) ← kernel.type_checker.annotate_core mode st fe 0#u64 e
-  match r with
-  | core.result.Result.Ok pin_a =>
-    let (r1, st2) ←
-      kernel.type_checker.is_def_eq_core mode st1 fe 0#u64 value2 pin_a
-    match r1 with
-    | core.result.Result.Ok ok_pin =>
-      if ok_pin
-      then
-        let v ← kernel.checker.div_mod_cert_stmts c
-        let v1 ← kernel.checker.div_mod_cert_proofs ps c
-        kernel.checker.check_div_mod_certs mode st2 fe c value2 v v1
-      else ok (r1, st2)
-    | core.result.Result.Err _ => ok (r1, st2)
-  | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
-
-/-- [con_ron_core::kernel::checker::check_div_mod_pin_loop::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1043:42-1043:329 -/
-@[global_simps, irreducible]
-def kernel.checker.check_div_mod_pin_loop.M : Array Std.U32 56#usize :=
-  Array.make 56#usize [
-    117#u32, 110#u32, 115#u32, 117#u32, 112#u32, 112#u32, 111#u32, 114#u32,
-    116#u32, 101#u32, 100#u32, 32#u32, 78#u32, 97#u32, 116#u32, 46#u32,
-    100#u32, 105#u32, 118#u32, 47#u32, 109#u32, 111#u32, 100#u32, 32#u32,
-    115#u32, 112#u32, 101#u32, 108#u32, 108#u32, 105#u32, 110#u32, 103#u32,
-    58#u32, 32#u32, 110#u32, 111#u32, 32#u32, 112#u32, 105#u32, 110#u32,
-    32#u32, 118#u32, 97#u32, 114#u32, 105#u32, 97#u32, 110#u32, 116#u32,
-    32#u32, 109#u32, 97#u32, 116#u32, 99#u32, 104#u32, 101#u32, 100#u32
-    ]
-
-/-- [con_ron_core::kernel::checker::check_div_mod_pin_loop]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1033:0-1058:1
-    Visibility: public -/
-def kernel.checker.check_div_mod_pin_loop
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (value2 : kernel.expr.Expr)
-  (variants : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet) (i : Std.Usize) :
-  Result ((core.result.Result Unit kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  let i1 := alloc.vec.Vec.len variants
-  if i >= i1
-  then
-    let s ← lift (Array.to_slice kernel.checker.check_div_mod_pin_loop.M)
-    let v ← kernel.core_types.code_points s
-    let ce ← kernel.core_types.not_implemented v
-    ok (core.result.Result.Err ce, st)
-  else
-    let nops ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.nat_op_pins.NatOpPinSet) variants i
-    let b ← kernel.checker.div_mod_pin_guard nops fe c
-    if b
-    then
-      let b1 ← kernel.checker.div_mod_certs_guard nops fe c value2
-      if b1
-      then
-        let (attempt, st1) ←
-          kernel.checker.check_div_mod_pin_at mode st fe c value2 nops
-        let oes ← cached.checker_c.or_else_step attempt
-        match oes with
-        | cached.checker_c.OrElseStep.Matched =>
-          ok (core.result.Result.Ok (), st1)
-        | cached.checker_c.OrElseStep.Continue _ =>
-          let i2 ← i + 1#usize
-          kernel.checker.check_div_mod_pin_loop mode st1 fe c value2 variants
-            i2
-      else
-        let i2 ← i + 1#usize
-        kernel.checker.check_div_mod_pin_loop mode st fe c value2 variants i2
-    else
-      let i2 ← i + 1#usize
-      kernel.checker.check_div_mod_pin_loop mode st fe c value2 variants i2
-partial_fixpoint
-
-/-- [con_ron_core::kernel::nat_op_pins::nat_op_pin_sets]:
-    Source: 'crates/con-ron-core/src/kernel/nat_op_pins.rs', lines 65:0-67:1
-    Visibility: public -/
-def kernel.nat_op_pins.nat_op_pin_sets
-  : Result (alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet) := do
-  ok (alloc.vec.Vec.new kernel.nat_op_pins.NatOpPinSet)
-
-/-- [con_ron_core::kernel::fenv::restrict_to]:
-    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 130:0-136:1
-    Visibility: public -/
-def kernel.fenv.restrict_to
-  (fe : kernel.fenv.FEnv) (k : Std.U64) : Result kernel.fenv.FEnv := do
-  ok { fe with visible_below := k }
-
-/-- [con_ron_core::kernel::checker::check_div_mod_pin::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1082:47-1082:221 -/
-@[global_simps, irreducible]
-def kernel.checker.check_div_mod_pin.M_1 : Array Std.U32 32#usize :=
-  Array.make 32#usize [
-    78#u32, 97#u32, 116#u32, 46#u32, 100#u32, 105#u32, 118#u32, 47#u32,
-    109#u32, 111#u32, 100#u32, 32#u32, 111#u32, 112#u32, 101#u32, 114#u32,
-    97#u32, 116#u32, 105#u32, 111#u32, 110#u32, 32#u32, 110#u32, 111#u32,
-    116#u32, 32#u32, 115#u32, 116#u32, 111#u32, 114#u32, 101#u32, 100#u32
-    ]
-
-/-- [con_ron_core::kernel::checker::check_div_mod_pin::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1079:42-1079:233 -/
-@[global_simps, irreducible]
-def kernel.checker.check_div_mod_pin.M : Array Std.U32 35#usize :=
-  Array.make 35#usize [
-    117#u32, 110#u32, 115#u32, 117#u32, 112#u32, 112#u32, 111#u32, 114#u32,
-    116#u32, 101#u32, 100#u32, 32#u32, 78#u32, 97#u32, 116#u32, 46#u32,
-    100#u32, 105#u32, 118#u32, 47#u32, 109#u32, 111#u32, 100#u32, 32#u32,
-    101#u32, 110#u32, 118#u32, 105#u32, 114#u32, 111#u32, 110#u32, 109#u32,
-    101#u32, 110#u32, 116#u32
-    ]
-
-/-- [con_ron_core::kernel::checker::check_div_mod_pin]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1071:0-1102:1
-    Visibility: public -/
-def kernel.checker.check_div_mod_pin
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (k_pre : Std.U64) (c : kernel.name.Name) :
-  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  let b ← kernel.checker.div_mod_env_guard fe c
-  if b
-  then
-    let o ← kernel.core_k.defn_probe fe c
-    match o with
-    | none =>
-      let s ← lift (Array.to_slice kernel.checker.check_div_mod_pin.M_1)
-      let v ← kernel.core_types.code_points s
-      let ce ← kernel.core_types.internal v
-      ok (core.result.Result.Err ce, st)
-    | some t =>
-      let (_, value2, _) := t
-      let fe_pre ← kernel.fenv.restrict_to fe k_pre
-      let v ← kernel.nat_op_pins.nat_op_pin_sets
-      let (r, st1) ←
-        kernel.checker.check_div_mod_pin_loop mode st fe_pre c value2 v 0#usize
-      match r with
-      | core.result.Result.Ok _ =>
-        let f ← kernel.fenv.restrict_to fe_pre fe.visible_below
-        ok (core.result.Result.Ok f, st1)
-      | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
-  else
-    let s ← lift (Array.to_slice kernel.checker.check_div_mod_pin.M)
-    let v ← kernel.core_types.code_points s
-    let ce ← kernel.core_types.not_implemented v
-    ok (core.result.Result.Err ce, st)
-
-/-- [con_ron_core::kernel::trust_axioms::reduce_nat_name::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 91:10-91:73 -/
-@[global_simps, irreducible]
-def kernel.trust_axioms.reduce_nat_name.S : Array Std.U32 9#usize :=
-  Array.make 9#usize [
-    114#u32, 101#u32, 100#u32, 117#u32, 99#u32, 101#u32, 78#u32, 97#u32,
-    116#u32
-    ]
-
-/-- [con_ron_core::kernel::trust_axioms::lean_ns::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 74:38-74:77 -/
-@[global_simps, irreducible]
-def kernel.trust_axioms.lean_ns.S : Array Std.U32 4#usize :=
-  Array.make 4#usize [ 76#u32, 101#u32, 97#u32, 110#u32 ]
-
-/-- [con_ron_core::kernel::trust_axioms::lean_ns]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 73:0-75:1
-    Visibility: public -/
-def kernel.trust_axioms.lean_ns : Result kernel.name.Name := do
-  let n ← kernel.name.anonymous
-  let s ← lift (Array.to_slice kernel.trust_axioms.lean_ns.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::trust_axioms::reduce_nat_name]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 88:0-93:1
-    Visibility: public -/
-def kernel.trust_axioms.reduce_nat_name : Result kernel.name.Name := do
-  let n ← kernel.trust_axioms.lean_ns
-  let s ← lift (Array.to_slice kernel.trust_axioms.reduce_nat_name.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::trust_axioms::reduce_elem_ty]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 198:0-204:1
-    Visibility: public -/
-def kernel.trust_axioms.reduce_elem_ty
-  (c : kernel.name.Name) : Result kernel.expr.Expr := do
-  let n ← kernel.trust_axioms.reduce_nat_name
-  let b ← kernel.name.beq c n
-  if b
-  then
-    let n1 ← kernel.basis_names.nat_name
-    kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
-  else
-    let n1 ← kernel.core_k.bool_name
-    kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
-
-/-- [con_ron_core::kernel::trust_axioms::reduce_op_raw]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 208:0-214:1
-    Visibility: public -/
-def kernel.trust_axioms.reduce_op_raw
-  (c : kernel.name.Name) : Result kernel.env.ConstantVal := do
-  let n ← kernel.name.dup c
-  let e ← kernel.trust_axioms.reduce_elem_ty c
-  let e1 ← kernel.basis_builder.pi e e
-  ok
-    {
-      «name» := n,
-      level_params := (alloc.vec.Vec.new kernel.name.Name),
-      ty := e1
-    }
-
-/-- [con_ron_core::kernel::trust_axioms::reduce_bool_name::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 100:10-100:80 -/
-@[global_simps, irreducible]
-def kernel.trust_axioms.reduce_bool_name.S : Array Std.U32 10#usize :=
-  Array.make 10#usize [
-    114#u32, 101#u32, 100#u32, 117#u32, 99#u32, 101#u32, 66#u32, 111#u32,
-    111#u32, 108#u32
-    ]
-
-/-- [con_ron_core::kernel::trust_axioms::reduce_bool_name]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 97:0-102:1
-    Visibility: public -/
-def kernel.trust_axioms.reduce_bool_name : Result kernel.name.Name := do
-  let n ← kernel.trust_axioms.lean_ns
-  let s ← lift (Array.to_slice kernel.trust_axioms.reduce_bool_name.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::trust_axioms::reduce_op_cv_a]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 262:0-268:1
-    Visibility: public -/
-def kernel.trust_axioms.reduce_op_cv_a
-  (c : kernel.name.Name) : Result kernel.env.ConstantVal := do
-  let n ← kernel.trust_axioms.reduce_nat_name
-  let b ← kernel.name.beq c n
-  if b
-  then kernel.trust_axioms.reduce_op_raw n
-  else
-    let n1 ← kernel.trust_axioms.reduce_bool_name
-    kernel.trust_axioms.reduce_op_raw n1
-
-/-- [con_ron_core::kernel::std_axioms::erase_pw_eq]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 192:0-256:1
-    Visibility: public -/
-def kernel.std_axioms.erase_pw_eq
-  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global a._0
-  let en1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global b._0
-  match en.kind with
-  | kernel.expr.ExprKind.Bvar i =>
-    match en1.kind with
-    | kernel.expr.ExprKind.Bvar j => ok (i = j)
-    | kernel.expr.ExprKind.Fvar _ _ => ok false
-    | kernel.expr.ExprKind.Sort _ => ok false
-    | kernel.expr.ExprKind.Const _ _ => ok false
-    | kernel.expr.ExprKind.App _ _ => ok false
-    | kernel.expr.ExprKind.Lam _ _ _ => ok false
-    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
-    | kernel.expr.ExprKind.LetE _ _ _ => ok false
-    | kernel.expr.ExprKind.Lit _ => ok false
-    | kernel.expr.ExprKind.Proj _ _ _ => ok false
-  | kernel.expr.ExprKind.Fvar i t =>
-    match en1.kind with
-    | kernel.expr.ExprKind.Bvar _ => ok false
-    | kernel.expr.ExprKind.Fvar j t2 =>
-      if i = j
-      then kernel.std_axioms.erase_pw_eq t t2
-      else ok false
-    | kernel.expr.ExprKind.Sort _ => ok false
-    | kernel.expr.ExprKind.Const _ _ => ok false
-    | kernel.expr.ExprKind.App _ _ => ok false
-    | kernel.expr.ExprKind.Lam _ _ _ => ok false
-    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
-    | kernel.expr.ExprKind.LetE _ _ _ => ok false
-    | kernel.expr.ExprKind.Lit _ => ok false
-    | kernel.expr.ExprKind.Proj _ _ _ => ok false
-  | kernel.expr.ExprKind.Sort u =>
-    match en1.kind with
-    | kernel.expr.ExprKind.Bvar _ => ok false
-    | kernel.expr.ExprKind.Fvar _ _ => ok false
-    | kernel.expr.ExprKind.Sort v => kernel.level.beq u v
-    | kernel.expr.ExprKind.Const _ _ => ok false
-    | kernel.expr.ExprKind.App _ _ => ok false
-    | kernel.expr.ExprKind.Lam _ _ _ => ok false
-    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
-    | kernel.expr.ExprKind.LetE _ _ _ => ok false
-    | kernel.expr.ExprKind.Lit _ => ok false
-    | kernel.expr.ExprKind.Proj _ _ _ => ok false
-  | kernel.expr.ExprKind.Const n us =>
-    match en1.kind with
-    | kernel.expr.ExprKind.Bvar _ => ok false
-    | kernel.expr.ExprKind.Fvar _ _ => ok false
-    | kernel.expr.ExprKind.Sort _ => ok false
-    | kernel.expr.ExprKind.Const n2 us2 =>
-      let b1 ← kernel.name.beq n n2
-      if b1
-      then kernel.expr.levels_beq us us2
-      else ok false
-    | kernel.expr.ExprKind.App _ _ => ok false
-    | kernel.expr.ExprKind.Lam _ _ _ => ok false
-    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
-    | kernel.expr.ExprKind.LetE _ _ _ => ok false
-    | kernel.expr.ExprKind.Lit _ => ok false
-    | kernel.expr.ExprKind.Proj _ _ _ => ok false
-  | kernel.expr.ExprKind.App f x =>
-    match en1.kind with
-    | kernel.expr.ExprKind.Bvar _ => ok false
-    | kernel.expr.ExprKind.Fvar _ _ => ok false
-    | kernel.expr.ExprKind.Sort _ => ok false
-    | kernel.expr.ExprKind.Const _ _ => ok false
-    | kernel.expr.ExprKind.App f2 x2 =>
-      let b1 ← kernel.std_axioms.erase_pw_eq f f2
-      if b1
-      then kernel.std_axioms.erase_pw_eq x x2
-      else ok false
-    | kernel.expr.ExprKind.Lam _ _ _ => ok false
-    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
-    | kernel.expr.ExprKind.LetE _ _ _ => ok false
-    | kernel.expr.ExprKind.Lit _ => ok false
-    | kernel.expr.ExprKind.Proj _ _ _ => ok false
-  | kernel.expr.ExprKind.Lam t b1 _ =>
-    match en1.kind with
-    | kernel.expr.ExprKind.Bvar _ => ok false
-    | kernel.expr.ExprKind.Fvar _ _ => ok false
-    | kernel.expr.ExprKind.Sort _ => ok false
-    | kernel.expr.ExprKind.Const _ _ => ok false
-    | kernel.expr.ExprKind.App _ _ => ok false
-    | kernel.expr.ExprKind.Lam t2 b2 _ =>
-      let b3 ← kernel.std_axioms.erase_pw_eq t t2
-      if b3
-      then kernel.std_axioms.erase_pw_eq b1 b2
-      else ok false
-    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
-    | kernel.expr.ExprKind.LetE _ _ _ => ok false
-    | kernel.expr.ExprKind.Lit _ => ok false
-    | kernel.expr.ExprKind.Proj _ _ _ => ok false
-  | kernel.expr.ExprKind.ForallE t b1 _ =>
-    match en1.kind with
-    | kernel.expr.ExprKind.Bvar _ => ok false
-    | kernel.expr.ExprKind.Fvar _ _ => ok false
-    | kernel.expr.ExprKind.Sort _ => ok false
-    | kernel.expr.ExprKind.Const _ _ => ok false
-    | kernel.expr.ExprKind.App _ _ => ok false
-    | kernel.expr.ExprKind.Lam _ _ _ => ok false
-    | kernel.expr.ExprKind.ForallE t2 b2 _ =>
-      let b3 ← kernel.std_axioms.erase_pw_eq t t2
-      if b3
-      then kernel.std_axioms.erase_pw_eq b1 b2
-      else ok false
-    | kernel.expr.ExprKind.LetE _ _ _ => ok false
-    | kernel.expr.ExprKind.Lit _ => ok false
-    | kernel.expr.ExprKind.Proj _ _ _ => ok false
-  | kernel.expr.ExprKind.LetE t v b1 =>
-    match en1.kind with
-    | kernel.expr.ExprKind.Bvar _ => ok false
-    | kernel.expr.ExprKind.Fvar _ _ => ok false
-    | kernel.expr.ExprKind.Sort _ => ok false
-    | kernel.expr.ExprKind.Const _ _ => ok false
-    | kernel.expr.ExprKind.App _ _ => ok false
-    | kernel.expr.ExprKind.Lam _ _ _ => ok false
-    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
-    | kernel.expr.ExprKind.LetE t2 v2 b2 =>
-      let b3 ← kernel.std_axioms.erase_pw_eq t t2
-      if b3
-      then
-        let b4 ← kernel.std_axioms.erase_pw_eq v v2
-        if b4
-        then kernel.std_axioms.erase_pw_eq b1 b2
-        else ok false
-      else ok false
-    | kernel.expr.ExprKind.Lit _ => ok false
-    | kernel.expr.ExprKind.Proj _ _ _ => ok false
-  | kernel.expr.ExprKind.Lit l =>
-    match en1.kind with
-    | kernel.expr.ExprKind.Bvar _ => ok false
-    | kernel.expr.ExprKind.Fvar _ _ => ok false
-    | kernel.expr.ExprKind.Sort _ => ok false
-    | kernel.expr.ExprKind.Const _ _ => ok false
-    | kernel.expr.ExprKind.App _ _ => ok false
-    | kernel.expr.ExprKind.Lam _ _ _ => ok false
-    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
-    | kernel.expr.ExprKind.LetE _ _ _ => ok false
-    | kernel.expr.ExprKind.Lit l2 => kernel.expr.literal_beq l l2
-    | kernel.expr.ExprKind.Proj _ _ _ => ok false
-  | kernel.expr.ExprKind.Proj s i e =>
-    match en1.kind with
-    | kernel.expr.ExprKind.Bvar _ => ok false
-    | kernel.expr.ExprKind.Fvar _ _ => ok false
-    | kernel.expr.ExprKind.Sort _ => ok false
-    | kernel.expr.ExprKind.Const _ _ => ok false
-    | kernel.expr.ExprKind.App _ _ => ok false
-    | kernel.expr.ExprKind.Lam _ _ _ => ok false
-    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
-    | kernel.expr.ExprKind.LetE _ _ _ => ok false
-    | kernel.expr.ExprKind.Lit _ => ok false
-    | kernel.expr.ExprKind.Proj s2 j e2 =>
-      let b1 ← kernel.name.beq s s2
-      if b1
-      then if i = j
-           then kernel.std_axioms.erase_pw_eq e e2
-           else ok false
-      else ok false
-partial_fixpoint
-
-/-- [con_ron_core::kernel::std_axioms::matches_pin_fast]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 264:0-274:1
-    Visibility: public -/
-def kernel.std_axioms.matches_pin_fast
-  (cv : kernel.env.ConstantVal) (pin : kernel.env.ConstantVal) :
-  Result Bool
-  := do
-  let b ← kernel.name.beq cv.name pin.name
-  if b
-  then
-    let b1 ← kernel.prop_when.names_beq cv.level_params pin.level_params
-    if b1
-    then kernel.std_axioms.erase_pw_eq cv.ty pin.ty
-    else ok false
-  else ok false
-
-/-- [con_ron_core::kernel::trust_axioms::reduce_stored_ok]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 341:0-348:1
-    Visibility: public -/
-def kernel.trust_axioms.reduce_stored_ok
-  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) : Result Bool := do
-  let o ← kernel.fenv.find fe c
-  match o with
-  | none => ok false
-  | some ci =>
-    match ci with
-    | kernel.env.ConstantInfo.AxiomInfo cv_r =>
-      let cv ← kernel.trust_axioms.reduce_op_cv_a c
-      kernel.std_axioms.matches_pin_fast cv_r cv
-    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
-    | kernel.env.ConstantInfo.IndInfo _ _ => ok false
-    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
-    | kernel.env.ConstantInfo.ProjInfo _ => ok false
-
-/-- [con_ron_core::kernel::trust_pins::reduce_nat_decl_pin::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_pins.rs', lines 32:48-32:82 -/
-@[global_simps, irreducible]
-def kernel.trust_pins.reduce_nat_decl_pin.S : Array Std.U32 3#usize :=
-  Array.make 3#usize [ 78#u32, 97#u32, 116#u32 ]
-
-/-- [con_ron_core::kernel::trust_pins::reduce_nat_decl_pin]:
-    Source: 'crates/con-ron-core/src/kernel/trust_pins.rs', lines 30:0-35:1
-    Visibility: public -/
-def kernel.trust_pins.reduce_nat_decl_pin : Result kernel.expr.Expr := do
-  let s ← lift (Array.to_slice kernel.trust_pins.reduce_nat_decl_pin.S)
-  let v ← kernel.core_types.code_points s
-  let n ← kernel.basis_builder.bn v
-  let e ← kernel.basis_builder.cnst n (alloc.vec.Vec.new kernel.level.Level)
-  let e1 ← kernel.basis_builder.bv 0#u64
-  kernel.basis_builder.lm e e1
-
-/-- [con_ron_core::kernel::trust_pins::reduce_bool_decl_pin::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_pins.rs', lines 23:48-23:88 -/
-@[global_simps, irreducible]
-def kernel.trust_pins.reduce_bool_decl_pin.S : Array Std.U32 4#usize :=
-  Array.make 4#usize [ 66#u32, 111#u32, 111#u32, 108#u32 ]
-
-/-- [con_ron_core::kernel::trust_pins::reduce_bool_decl_pin]:
-    Source: 'crates/con-ron-core/src/kernel/trust_pins.rs', lines 21:0-26:1
-    Visibility: public -/
-def kernel.trust_pins.reduce_bool_decl_pin : Result kernel.expr.Expr := do
-  let s ← lift (Array.to_slice kernel.trust_pins.reduce_bool_decl_pin.S)
-  let v ← kernel.core_types.code_points s
-  let n ← kernel.basis_builder.bn v
-  let e ← kernel.basis_builder.cnst n (alloc.vec.Vec.new kernel.level.Level)
-  let e1 ← kernel.basis_builder.bv 0#u64
-  kernel.basis_builder.lm e e1
-
-/-- [con_ron_core::kernel::trust_axioms::reduce_decl_pin]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 402:0-408:1
-    Visibility: public -/
-def kernel.trust_axioms.reduce_decl_pin
-  (c : kernel.name.Name) : Result kernel.expr.Expr := do
-  let n ← kernel.trust_axioms.reduce_nat_name
-  let b ← kernel.name.beq c n
-  if b
-  then kernel.trust_pins.reduce_nat_decl_pin
-  else kernel.trust_pins.reduce_bool_decl_pin
-
-/-- [con_ron_core::kernel::trust_axioms::reduce_pin_guard]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 413:0-426:1
-    Visibility: public -/
-def kernel.trust_axioms.reduce_pin_guard
-  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) : Result Bool := do
-  let pin ← kernel.trust_axioms.reduce_decl_pin c
-  let b ← kernel.expr_ops.loose_bvars_bounded 0#u64 pin
-  if b
-  then
-    let b1 ← kernel.expr_ops.has_fvar pin
-    if b1
-    then ok false
-    else
-      let b2 ←
-        kernel.expr_ops.all_level_params_defined_fast (alloc.vec.Vec.new
-          kernel.name.Name) pin
-      if b2
-      then kernel.core_k.consts_resolve fe pin
-      else ok false
-  else ok false
-
-/-- [con_ron_core::kernel::trust_axioms::bool_cv_a]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 178:0-184:1
-    Visibility: public -/
-def kernel.trust_axioms.bool_cv_a : Result kernel.env.ConstantVal := do
-  let n ← kernel.core_k.bool_name
-  let l ← kernel.level.zero
-  let l1 ← kernel.level.succ l
-  let e ← kernel.expr.sort l1
-  ok
-    {
-      «name» := n,
-      level_params := (alloc.vec.Vec.new kernel.name.Name),
-      ty := e
-    }
-
-/-- [con_ron_core::kernel::trust_axioms::reduce_elem_ok]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 355:0-369:1
-    Visibility: public -/
-def kernel.trust_axioms.reduce_elem_ok
-  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) : Result Bool := do
-  let n ← kernel.trust_axioms.reduce_nat_name
-  let b ← kernel.name.beq c n
-  if b
-  then
-    let n1 ← kernel.basis_names.nat_name
-    let o ← kernel.fenv.find fe n1
-    match o with
-    | none => ok false
-    | some ci => kernel.basis_pins.is_pinned_nat_basis ci
-  else
-    let n1 ← kernel.core_k.bool_name
-    let o ← kernel.fenv.find fe n1
-    match o with
-    | none => ok false
-    | some ci =>
-      match ci with
-      | kernel.env.ConstantInfo.AxiomInfo _ => ok false
-      | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
-      | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
-      | kernel.env.ConstantInfo.IndInfo cv_b _ =>
-        let cv ← kernel.trust_axioms.bool_cv_a
-        kernel.std_axioms.matches_pin_fast cv_b cv
-      | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
-      | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
-      | kernel.env.ConstantInfo.ProjInfo _ => ok false
-
-/-- [con_ron_core::kernel::trust_axioms::reduce_cert_var]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 430:0-432:1
-    Visibility: public -/
-def kernel.trust_axioms.reduce_cert_var
-  (c : kernel.name.Name) : Result kernel.expr.Expr := do
-  let e ← kernel.trust_axioms.reduce_elem_ty c
-  kernel.expr.fvar 0#u64 e
-
-/-- [con_ron_core::kernel::checker::check_reduce_identity::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1201:43-1201:296 -/
-@[global_simps, irreducible]
-def kernel.checker.check_reduce_identity.M : Array Std.U32 48#usize :=
-  Array.make 48#usize [
-    112#u32, 105#u32, 110#u32, 110#u32, 101#u32, 100#u32, 32#u32, 99#u32,
-    111#u32, 109#u32, 112#u32, 105#u32, 108#u32, 101#u32, 114#u32, 45#u32,
-    116#u32, 114#u32, 117#u32, 115#u32, 116#u32, 32#u32, 111#u32, 112#u32,
-    97#u32, 113#u32, 117#u32, 101#u32, 32#u32, 105#u32, 115#u32, 32#u32,
-    110#u32, 111#u32, 116#u32, 32#u32, 116#u32, 104#u32, 101#u32, 32#u32,
-    105#u32, 100#u32, 101#u32, 110#u32, 116#u32, 105#u32, 116#u32, 121#u32
-    ]
-
-/-- [con_ron_core::kernel::checker::check_reduce_identity]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1186:0-1205:1
-    Visibility: public -/
-def kernel.checker.check_reduce_identity
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (val_a : kernel.expr.Expr) :
-  Result ((core.result.Result Unit kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  let x ← kernel.trust_axioms.reduce_cert_var c
-  let e ← kernel.expr.dup val_a
-  let e1 ← kernel.expr.dup x
-  let applied ← kernel.expr.app e e1
-  let (r, st1) ←
-    kernel.type_checker.is_def_eq_core mode st fe 1#u64 applied x
-  match r with
-  | core.result.Result.Ok ok1 =>
-    if ok1
-    then ok (core.result.Result.Ok (), st1)
-    else
-      let s ← lift (Array.to_slice kernel.checker.check_reduce_identity.M)
-      let v ← kernel.core_types.code_points s
-      let ce ← kernel.core_types.internal v
-      ok (core.result.Result.Err ce, st1)
-  | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
-
-/-- [con_ron_core::kernel::checker::check_reduce_pin_pre::M#2]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1173:70-1173:296 -/
-@[global_simps, irreducible]
-def kernel.checker.check_reduce_pin_pre.M_2 : Array Std.U32 42#usize :=
-  Array.make 42#usize [
-    117#u32, 110#u32, 115#u32, 117#u32, 112#u32, 112#u32, 111#u32, 114#u32,
-    116#u32, 101#u32, 100#u32, 32#u32, 99#u32, 111#u32, 109#u32, 112#u32,
-    105#u32, 108#u32, 101#u32, 114#u32, 45#u32, 116#u32, 114#u32, 117#u32,
-    115#u32, 116#u32, 32#u32, 111#u32, 112#u32, 97#u32, 113#u32, 117#u32,
-    101#u32, 32#u32, 115#u32, 112#u32, 101#u32, 108#u32, 108#u32, 105#u32,
-    110#u32, 103#u32
-    ]
-
-/-- [con_ron_core::kernel::checker::check_reduce_pin_pre::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1153:42-1153:404 -/
-@[global_simps, irreducible]
-def kernel.checker.check_reduce_pin_pre.M_1 : Array Std.U32 71#usize :=
-  Array.make 71#usize [
-    117#u32, 110#u32, 115#u32, 117#u32, 112#u32, 112#u32, 111#u32, 114#u32,
-    116#u32, 101#u32, 100#u32, 32#u32, 99#u32, 111#u32, 109#u32, 112#u32,
-    105#u32, 108#u32, 101#u32, 114#u32, 45#u32, 116#u32, 114#u32, 117#u32,
-    115#u32, 116#u32, 32#u32, 111#u32, 112#u32, 97#u32, 113#u32, 117#u32,
-    101#u32, 32#u32, 115#u32, 112#u32, 101#u32, 108#u32, 108#u32, 105#u32,
-    110#u32, 103#u32, 58#u32, 32#u32, 112#u32, 105#u32, 110#u32, 32#u32,
-    103#u32, 114#u32, 111#u32, 117#u32, 110#u32, 100#u32, 32#u32, 99#u32,
-    111#u32, 110#u32, 115#u32, 116#u32, 97#u32, 110#u32, 116#u32, 115#u32,
-    32#u32, 97#u32, 98#u32, 115#u32, 101#u32, 110#u32, 116#u32
-    ]
-
-/-- [con_ron_core::kernel::checker::check_reduce_pin_pre::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1151:42-1151:280 -/
-@[global_simps, irreducible]
-def kernel.checker.check_reduce_pin_pre.M : Array Std.U32 45#usize :=
-  Array.make 45#usize [
-    117#u32, 110#u32, 115#u32, 117#u32, 112#u32, 112#u32, 111#u32, 114#u32,
-    116#u32, 101#u32, 100#u32, 32#u32, 99#u32, 111#u32, 109#u32, 112#u32,
-    105#u32, 108#u32, 101#u32, 114#u32, 45#u32, 116#u32, 114#u32, 117#u32,
-    115#u32, 116#u32, 32#u32, 111#u32, 112#u32, 97#u32, 113#u32, 117#u32,
-    101#u32, 32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32,
-    97#u32, 116#u32, 105#u32, 111#u32, 110#u32
-    ]
-
-/-- [con_ron_core::kernel::checker::check_reduce_pin_pre]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1143:0-1182:1
-    Visibility: public -/
-def kernel.checker.check_reduce_pin_pre
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (c : kernel.name.Name) (value : kernel.expr.Expr) :
-  Result ((core.result.Result Unit kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  let b ← kernel.trust_axioms.reduce_elem_ok fe c
-  if b
-  then
-    let b1 ← kernel.trust_axioms.reduce_pin_guard fe c
-    if b1
-    then
-      let (r, st1) ← kernel.type_checker.annotate_core mode st fe 0#u64 value
-      match r with
-      | core.result.Result.Ok val_a =>
-        let e ← kernel.trust_axioms.reduce_decl_pin c
-        let (r1, st2) ← kernel.type_checker.annotate_core mode st1 fe 0#u64 e
-        match r1 with
-        | core.result.Result.Ok pin_a =>
-          let (r2, st3) ←
-            kernel.type_checker.is_def_eq_core mode st2 fe 0#u64 val_a pin_a
-          match r2 with
-          | core.result.Result.Ok ok_pin =>
-            if ok_pin
-            then kernel.checker.check_reduce_identity mode st3 fe c val_a
-            else
-              let s ←
-                lift (Array.to_slice kernel.checker.check_reduce_pin_pre.M_2)
-              let v ← kernel.core_types.code_points s
-              let ce ← kernel.core_types.not_implemented v
-              ok (core.result.Result.Err ce, st3)
-          | core.result.Result.Err err => ok (core.result.Result.Err err, st3)
-        | core.result.Result.Err err => ok (core.result.Result.Err err, st2)
-      | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
-    else
-      let s ← lift (Array.to_slice kernel.checker.check_reduce_pin_pre.M_1)
-      let v ← kernel.core_types.code_points s
-      let ce ← kernel.core_types.not_implemented v
-      ok (core.result.Result.Err ce, st)
-  else
-    let s ← lift (Array.to_slice kernel.checker.check_reduce_pin_pre.M)
-    let v ← kernel.core_types.code_points s
-    let ce ← kernel.core_types.not_implemented v
-    ok (core.result.Result.Err ce, st)
-
-/-- [con_ron_core::kernel::checker::check_reduce_pin::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1126:42-1126:280 -/
-@[global_simps, irreducible]
-def kernel.checker.check_reduce_pin.M : Array Std.U32 45#usize :=
-  Array.make 45#usize [
-    117#u32, 110#u32, 115#u32, 117#u32, 112#u32, 112#u32, 111#u32, 114#u32,
-    116#u32, 101#u32, 100#u32, 32#u32, 99#u32, 111#u32, 109#u32, 112#u32,
-    105#u32, 108#u32, 101#u32, 114#u32, 45#u32, 116#u32, 114#u32, 117#u32,
-    115#u32, 116#u32, 32#u32, 111#u32, 112#u32, 97#u32, 113#u32, 117#u32,
-    101#u32, 32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32,
-    97#u32, 116#u32, 105#u32, 111#u32, 110#u32
-    ]
-
-/-- [con_ron_core::kernel::checker::check_reduce_pin]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1117:0-1136:1
-    Visibility: public -/
-def kernel.checker.check_reduce_pin
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe : kernel.fenv.FEnv) (k_pre : Std.U64) (c : kernel.name.Name)
-  (value : kernel.expr.Expr) :
-  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  let b ← kernel.trust_axioms.reduce_stored_ok fe c
-  if b
-  then
-    let fe_pre ← kernel.fenv.restrict_to fe k_pre
-    let (r, st1) ← kernel.checker.check_reduce_pin_pre mode st fe_pre c value
-    match r with
-    | core.result.Result.Ok _ =>
-      let f ← kernel.fenv.restrict_to fe_pre fe.visible_below
-      ok (core.result.Result.Ok f, st1)
-    | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
-  else
-    let s ← lift (Array.to_slice kernel.checker.check_reduce_pin.M)
-    let v ← kernel.core_types.code_points s
-    let ce ← kernel.core_types.not_implemented v
-    ok (core.result.Result.Err ce, st)
-
-/-- [con_ron_core::kernel::env::pi_sort_tele_len]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 609:0-625:1
-    Visibility: public -/
-def kernel.env.pi_sort_tele_len
-  (e : kernel.expr.Expr) : Result (Option Std.U64) := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
-  match en.kind with
-  | kernel.expr.ExprKind.Bvar _ => ok none
-  | kernel.expr.ExprKind.Fvar _ _ => ok none
-  | kernel.expr.ExprKind.Sort _ => ok (some 0#u64)
-  | kernel.expr.ExprKind.Const _ _ => ok none
-  | kernel.expr.ExprKind.App _ _ => ok none
-  | kernel.expr.ExprKind.Lam _ _ _ => ok none
-  | kernel.expr.ExprKind.ForallE _ body _ =>
-    let o ← kernel.env.pi_sort_tele_len body
-    match o with
-    | none => ok none
-    | some n => let i ← n + 1#u64
-                ok (some i)
-  | kernel.expr.ExprKind.LetE _ _ _ => ok none
-  | kernel.expr.ExprKind.Lit _ => ok none
-  | kernel.expr.ExprKind.Proj _ _ _ => ok none
-partial_fixpoint
-
-/-- [con_ron_core::kernel::env::ind_params_ok_one]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 639:0-652:1
-    Visibility: public -/
-def kernel.env.ind_params_ok_one
-  (n_p : Std.U64) (ci : kernel.env.ConstantInfo) : Result Bool := do
-  match ci with
-  | kernel.env.ConstantInfo.AxiomInfo _ => ok true
-  | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok true
-  | kernel.env.ConstantInfo.ThmInfo _ _ => ok true
-  | kernel.env.ConstantInfo.IndInfo cv_t _ =>
-    let o ← kernel.env.pi_sort_tele_len cv_t.ty
-    match o with
-    | none => ok true
-    | some n => ok (n_p <= n)
-  | kernel.env.ConstantInfo.CtorInfo _ n_pc _ => ok (n_pc = n_p)
-  | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok true
-  | kernel.env.ConstantInfo.ProjInfo _ => ok true
-
-/-- [con_ron_core::kernel::env::ind_params_ok_from]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 656:0-664:1
-    Visibility: public -/
-def kernel.env.ind_params_ok_from
-  (n_p : Std.U64) (block : alloc.vec.Vec kernel.env.ConstantInfo)
-  (i : Std.Usize) :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len block
-  if i >= i1
-  then ok true
-  else
-    let ci ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.env.ConstantInfo) block i
-    let b ← kernel.env.ind_params_ok_one n_p ci
-    if b
-    then let i2 ← i + 1#usize
-         kernel.env.ind_params_ok_from n_p block i2
-    else ok false
-partial_fixpoint
-
-/-- [con_ron_core::kernel::env::ind_params_ok]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 630:0-632:1
-    Visibility: public -/
-def kernel.env.ind_params_ok
-  (n_p : Std.U64) (block : alloc.vec.Vec kernel.env.ConstantInfo) :
-  Result Bool
-  := do
-  kernel.env.ind_params_ok_from n_p block 0#usize
-
 /-- [con_ron_core::kernel::checker::check_ind_decl::M#1]
     Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1526:34-1526:193 -/
 @[global_simps, irreducible]
@@ -19681,937 +26840,6 @@ def kernel.checker.check_ind_decl
     let ce ← kernel.core_types.invalid v
     ok (core.result.Result.Err ce, st)
 
-/-- [con_ron_core::kernel::checker::install_basis_decls]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1489:0-1498:1
-    Visibility: public -/
-def kernel.checker.install_basis_decls
-  (fe : kernel.fenv.FEnv) (decls : alloc.vec.Vec kernel.env.ConstantInfo)
-  (i : Std.Usize) :
-  Result (core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError)
-  := do
-  let i1 := alloc.vec.Vec.len decls
-  if i >= i1
-  then ok (core.result.Result.Ok fe)
-  else
-    let ci ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.env.ConstantInfo) decls i
-    let ci1 ← kernel.env.constant_info_dup ci
-    let r ← kernel.checker.install_basis_decl fe ci1
-    match r with
-    | core.result.Result.Ok fe2 =>
-      let i2 ← i + 1#usize
-      kernel.checker.install_basis_decls fe2 decls i2
-    | core.result.Result.Err _ => ok r
-partial_fixpoint
-
-/-- [con_ron_core::kernel::checker::check_basis_decl::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1477:50-1477:276 -/
-@[global_simps, irreducible]
-def kernel.checker.check_basis_decl.M : Array Std.U32 43#usize :=
-  Array.make 43#usize [
-    113#u32, 117#u32, 111#u32, 116#u32, 105#u32, 101#u32, 110#u32, 116#u32,
-    32#u32, 98#u32, 97#u32, 115#u32, 105#u32, 115#u32, 32#u32, 114#u32,
-    101#u32, 113#u32, 117#u32, 105#u32, 114#u32, 101#u32, 115#u32, 32#u32,
-    116#u32, 104#u32, 101#u32, 32#u32, 112#u32, 105#u32, 110#u32, 110#u32,
-    101#u32, 100#u32, 32#u32, 69#u32, 113#u32, 32#u32, 98#u32, 97#u32, 115#u32,
-    105#u32, 115#u32
-    ]
-
-/-- [con_ron_core::kernel::checker::check_basis_decl]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1473:0-1484:1
-    Visibility: public -/
-def kernel.checker.check_basis_decl
-  (fe : kernel.fenv.FEnv) (kind : kernel.env.BasisKind) :
-  Result (core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError)
-  := do
-  match kind with
-  | kernel.env.BasisKind.EqK =>
-    let v ← kernel.basis_pins.decls_a kernel.env.BasisKind.EqK
-    kernel.checker.install_basis_decls fe v 0#usize
-  | kernel.env.BasisKind.NatK =>
-    let v ← kernel.basis_pins.decls_a kernel.env.BasisKind.NatK
-    kernel.checker.install_basis_decls fe v 0#usize
-  | kernel.env.BasisKind.PunitK =>
-    let v ← kernel.basis_pins.decls_a kernel.env.BasisKind.PunitK
-    kernel.checker.install_basis_decls fe v 0#usize
-  | kernel.env.BasisKind.EmptyK =>
-    let v ← kernel.basis_pins.decls_a kernel.env.BasisKind.EmptyK
-    kernel.checker.install_basis_decls fe v 0#usize
-  | kernel.env.BasisKind.FalseK =>
-    let v ← kernel.basis_pins.decls_a kernel.env.BasisKind.FalseK
-    kernel.checker.install_basis_decls fe v 0#usize
-  | kernel.env.BasisKind.QuotK =>
-    let b ← kernel.std_axioms.eq_basis_pinned fe
-    if b
-    then
-      let v ← kernel.basis_pins.decls_a kernel.env.BasisKind.QuotK
-      kernel.checker.install_basis_decls fe v 0#usize
-    else
-      let s ← lift (Array.to_slice kernel.checker.check_basis_decl.M)
-      let v ← kernel.core_types.code_points s
-      let ce ← kernel.core_types.not_implemented v
-      ok (core.result.Result.Err ce)
-
-/-- [con_ron_core::kernel::trust_axioms::eq_app]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 248:0-255:1
-    Visibility: public -/
-def kernel.trust_axioms.eq_app
-  (c : kernel.name.Name) (x : kernel.expr.Expr) (y : kernel.expr.Expr) :
-  Result kernel.expr.Expr
-  := do
-  let n ← kernel.basis_names.eq_name
-  let v ← kernel.std_axioms.one_level
-  let e ← kernel.basis_builder.cnst n v
-  let e1 ← kernel.trust_axioms.reduce_elem_ty c
-  kernel.basis_builder.ap3 e e1 x y
-
-/-- [con_ron_core::kernel::trust_axioms::of_reduce_nat_name::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 109:10-109:83 -/
-@[global_simps, irreducible]
-def kernel.trust_axioms.of_reduce_nat_name.S : Array Std.U32 11#usize :=
-  Array.make 11#usize [
-    111#u32, 102#u32, 82#u32, 101#u32, 100#u32, 117#u32, 99#u32, 101#u32,
-    78#u32, 97#u32, 116#u32
-    ]
-
-/-- [con_ron_core::kernel::trust_axioms::of_reduce_nat_name]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 106:0-111:1
-    Visibility: public -/
-def kernel.trust_axioms.of_reduce_nat_name : Result kernel.name.Name := do
-  let n ← kernel.trust_axioms.lean_ns
-  let s ← lift (Array.to_slice kernel.trust_axioms.of_reduce_nat_name.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::trust_axioms::of_reduce_op]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 133:0-139:1
-    Visibility: public -/
-def kernel.trust_axioms.of_reduce_op
-  (n : kernel.name.Name) : Result kernel.name.Name := do
-  let n1 ← kernel.trust_axioms.of_reduce_nat_name
-  let b ← kernel.name.beq n n1
-  if b
-  then kernel.trust_axioms.reduce_nat_name
-  else kernel.trust_axioms.reduce_bool_name
-
-/-- [con_ron_core::kernel::trust_axioms::of_reduce_raw]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 219:0-242:1
-    Visibility: public -/
-def kernel.trust_axioms.of_reduce_raw
-  (n : kernel.name.Name) : Result kernel.env.ConstantVal := do
-  let c ← kernel.trust_axioms.of_reduce_op n
-  let n1 ← kernel.name.dup n
-  let e ← kernel.trust_axioms.reduce_elem_ty c
-  let n2 ← kernel.name.dup c
-  let e1 ←
-    kernel.basis_builder.cnst n2 (alloc.vec.Vec.new kernel.level.Level)
-  let e2 ← kernel.basis_builder.bv 1#u64
-  let e3 ← kernel.expr.app e1 e2
-  let e4 ← kernel.basis_builder.bv 0#u64
-  let e5 ← kernel.trust_axioms.eq_app c e3 e4
-  let e6 ← kernel.basis_builder.bv 2#u64
-  let e7 ← kernel.trust_axioms.eq_app c e6 e2
-  let e8 ← kernel.basis_builder.pi e5 e7
-  let e9 ← kernel.basis_builder.pi e e8
-  let e10 ← kernel.basis_builder.pi e e9
-  ok
-    {
-      «name» := n1,
-      level_params := (alloc.vec.Vec.new kernel.name.Name),
-      ty := e10
-    }
-
-/-- [con_ron_core::kernel::trust_axioms::of_reduce_bool_name::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 118:10-118:89 -/
-@[global_simps, irreducible]
-def kernel.trust_axioms.of_reduce_bool_name.S : Array Std.U32 12#usize :=
-  Array.make 12#usize [
-    111#u32, 102#u32, 82#u32, 101#u32, 100#u32, 117#u32, 99#u32, 101#u32,
-    66#u32, 111#u32, 111#u32, 108#u32
-    ]
-
-/-- [con_ron_core::kernel::trust_axioms::of_reduce_bool_name]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 115:0-120:1
-    Visibility: public -/
-def kernel.trust_axioms.of_reduce_bool_name : Result kernel.name.Name := do
-  let n ← kernel.trust_axioms.lean_ns
-  let s ← lift (Array.to_slice kernel.trust_axioms.of_reduce_bool_name.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::trust_axioms::of_reduce_pin_a]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 274:0-280:1
-    Visibility: public -/
-def kernel.trust_axioms.of_reduce_pin_a
-  (n : kernel.name.Name) : Result kernel.env.ConstantVal := do
-  let n1 ← kernel.trust_axioms.of_reduce_nat_name
-  let b ← kernel.name.beq n n1
-  if b
-  then kernel.trust_axioms.of_reduce_raw n1
-  else
-    let n2 ← kernel.trust_axioms.of_reduce_bool_name
-    kernel.trust_axioms.of_reduce_raw n2
-
-/-- [con_ron_core::kernel::trust_axioms::of_reduce_ax_ok]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 378:0-393:1
-    Visibility: public -/
-def kernel.trust_axioms.of_reduce_ax_ok
-  (fe : kernel.fenv.FEnv) (cv_a : kernel.env.ConstantVal) : Result Bool := do
-  let c ← kernel.trust_axioms.of_reduce_op cv_a.name
-  let b ← kernel.std_axioms.eq_basis_pinned fe
-  if b
-  then
-    let b1 ← kernel.trust_axioms.reduce_elem_ok fe c
-    if b1
-    then
-      let b2 ← kernel.trust_axioms.reduce_stored_ok fe c
-      if b2
-      then
-        let cv ← kernel.trust_axioms.of_reduce_pin_a cv_a.name
-        kernel.std_axioms.matches_pin_fast cv_a cv
-      else ok false
-    else ok false
-  else ok false
-
-/-- [con_ron_core::kernel::trust_axioms::true_intro_name::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 68:32-68:78 -/
-@[global_simps, irreducible]
-def kernel.trust_axioms.true_intro_name.S : Array Std.U32 5#usize :=
-  Array.make 5#usize [ 105#u32, 110#u32, 116#u32, 114#u32, 111#u32 ]
-
-/-- [con_ron_core::kernel::trust_axioms::true_name::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 62:38-62:78 -/
-@[global_simps, irreducible]
-def kernel.trust_axioms.true_name.S : Array Std.U32 4#usize :=
-  Array.make 4#usize [ 84#u32, 114#u32, 117#u32, 101#u32 ]
-
-/-- [con_ron_core::kernel::trust_axioms::true_name]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 61:0-63:1
-    Visibility: public -/
-def kernel.trust_axioms.true_name : Result kernel.name.Name := do
-  let n ← kernel.name.anonymous
-  let s ← lift (Array.to_slice kernel.trust_axioms.true_name.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::trust_axioms::true_intro_name]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 67:0-69:1
-    Visibility: public -/
-def kernel.trust_axioms.true_intro_name : Result kernel.name.Name := do
-  let n ← kernel.trust_axioms.true_name
-  let s ← lift (Array.to_slice kernel.trust_axioms.true_intro_name.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::trust_axioms::true_intro_cv_a]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 158:0-164:1
-    Visibility: public -/
-def kernel.trust_axioms.true_intro_cv_a : Result kernel.env.ConstantVal := do
-  let n ← kernel.trust_axioms.true_intro_name
-  let n1 ← kernel.trust_axioms.true_name
-  let e ← kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
-  ok
-    {
-      «name» := n,
-      level_params := (alloc.vec.Vec.new kernel.name.Name),
-      ty := e
-    }
-
-/-- [con_ron_core::kernel::trust_axioms::true_intro_pinned]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 302:0-317:1
-    Visibility: public -/
-def kernel.trust_axioms.true_intro_pinned
-  (fe : kernel.fenv.FEnv) : Result Bool := do
-  let n ← kernel.trust_axioms.true_intro_name
-  let o ← kernel.fenv.find fe n
-  match o with
-  | none => ok false
-  | some ci =>
-    match ci with
-    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
-    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
-    | kernel.env.ConstantInfo.IndInfo _ _ => ok false
-    | kernel.env.ConstantInfo.CtorInfo cv_ti n_p n_f =>
-      if n_p = 0#u64
-      then
-        if n_f = 0#u64
-        then
-          let cv ← kernel.trust_axioms.true_intro_cv_a
-          kernel.std_axioms.matches_pin_fast cv_ti cv
-        else ok false
-      else ok false
-    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
-    | kernel.env.ConstantInfo.ProjInfo _ => ok false
-
-/-- [con_ron_core::kernel::trust_axioms::true_cv_a]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 148:0-154:1
-    Visibility: public -/
-def kernel.trust_axioms.true_cv_a : Result kernel.env.ConstantVal := do
-  let n ← kernel.trust_axioms.true_name
-  let l ← kernel.level.zero
-  let e ← kernel.expr.sort l
-  ok
-    {
-      «name» := n,
-      level_params := (alloc.vec.Vec.new kernel.name.Name),
-      ty := e
-    }
-
-/-- [con_ron_core::kernel::trust_axioms::true_pinned]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 290:0-297:1
-    Visibility: public -/
-def kernel.trust_axioms.true_pinned (fe : kernel.fenv.FEnv) : Result Bool := do
-  let n ← kernel.trust_axioms.true_name
-  let o ← kernel.fenv.find fe n
-  match o with
-  | none => ok false
-  | some ci =>
-    match ci with
-    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
-    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
-    | kernel.env.ConstantInfo.IndInfo cv_t _ =>
-      let cv ← kernel.trust_axioms.true_cv_a
-      kernel.std_axioms.matches_pin_fast cv_t cv
-    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
-    | kernel.env.ConstantInfo.ProjInfo _ => ok false
-
-/-- [con_ron_core::kernel::trust_axioms::trust_compiler_name::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 82:10-82:96 -/
-@[global_simps, irreducible]
-def kernel.trust_axioms.trust_compiler_name.S : Array Std.U32 13#usize :=
-  Array.make 13#usize [
-    116#u32, 114#u32, 117#u32, 115#u32, 116#u32, 67#u32, 111#u32, 109#u32,
-    112#u32, 105#u32, 108#u32, 101#u32, 114#u32
-    ]
-
-/-- [con_ron_core::kernel::trust_axioms::trust_compiler_name]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 79:0-84:1
-    Visibility: public -/
-def kernel.trust_axioms.trust_compiler_name : Result kernel.name.Name := do
-  let n ← kernel.trust_axioms.lean_ns
-  let s ← lift (Array.to_slice kernel.trust_axioms.trust_compiler_name.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::trust_axioms::trust_compiler_a]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 168:0-174:1
-    Visibility: public -/
-def kernel.trust_axioms.trust_compiler_a : Result kernel.env.ConstantVal := do
-  let n ← kernel.trust_axioms.trust_compiler_name
-  let n1 ← kernel.trust_axioms.true_name
-  let e ← kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
-  ok
-    {
-      «name» := n,
-      level_params := (alloc.vec.Vec.new kernel.name.Name),
-      ty := e
-    }
-
-/-- [con_ron_core::kernel::trust_axioms::trust_compiler_ok]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 325:0-335:1
-    Visibility: public -/
-def kernel.trust_axioms.trust_compiler_ok
-  (fe : kernel.fenv.FEnv) (cv_a : kernel.env.ConstantVal) : Result Bool := do
-  let b ← kernel.trust_axioms.true_pinned fe
-  if b
-  then
-    let b1 ← kernel.trust_axioms.true_intro_pinned fe
-    if b1
-    then
-      let cv ← kernel.trust_axioms.trust_compiler_a
-      kernel.std_axioms.matches_pin_fast cv_a cv
-    else ok false
-  else ok false
-
-/-- [con_ron_core::kernel::std_axioms::nonempty_rec_name::S]
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 139:36-139:71 -/
-@[global_simps, irreducible]
-def kernel.std_axioms.nonempty_rec_name.S : Array Std.U32 3#usize :=
-  Array.make 3#usize [ 114#u32, 101#u32, 99#u32 ]
-
-/-- [con_ron_core::kernel::std_axioms::nonempty_name::S]
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 126:10-126:70 -/
-@[global_simps, irreducible]
-def kernel.std_axioms.nonempty_name.S : Array Std.U32 8#usize :=
-  Array.make 8#usize [
-    78#u32, 111#u32, 110#u32, 101#u32, 109#u32, 112#u32, 116#u32, 121#u32
-    ]
-
-/-- [con_ron_core::kernel::std_axioms::nonempty_name]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 123:0-128:1
-    Visibility: public -/
-def kernel.std_axioms.nonempty_name : Result kernel.name.Name := do
-  let n ← kernel.name.anonymous
-  let s ← lift (Array.to_slice kernel.std_axioms.nonempty_name.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::std_axioms::nonempty_rec_name]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 138:0-140:1
-    Visibility: public -/
-def kernel.std_axioms.nonempty_rec_name : Result kernel.name.Name := do
-  let n ← kernel.std_axioms.nonempty_name
-  let s ← lift (Array.to_slice kernel.std_axioms.nonempty_rec_name.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::std_axioms::nonempty_intro_name::S]
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 133:36-133:82 -/
-@[global_simps, irreducible]
-def kernel.std_axioms.nonempty_intro_name.S : Array Std.U32 5#usize :=
-  Array.make 5#usize [ 105#u32, 110#u32, 116#u32, 114#u32, 111#u32 ]
-
-/-- [con_ron_core::kernel::std_axioms::nonempty_intro_name]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 132:0-134:1
-    Visibility: public -/
-def kernel.std_axioms.nonempty_intro_name : Result kernel.name.Name := do
-  let n ← kernel.std_axioms.nonempty_name
-  let s ← lift (Array.to_slice kernel.std_axioms.nonempty_intro_name.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::std_axioms::nonempty_rec_raw]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 496:0-546:1
-    Visibility: public -/
-def kernel.std_axioms.nonempty_rec_raw : Result kernel.env.ConstantInfo := do
-  let n ← kernel.basis_builder.u_n
-  let lps ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-  let l ← kernel.basis_builder.u
-  let us1 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
-  let us2 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
-  let us3 ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
-  let n1 ← kernel.std_axioms.nonempty_rec_name
-  let e ← kernel.basis_builder.srt l
-  let n2 ← kernel.std_axioms.nonempty_name
-  let e1 ← kernel.basis_builder.cnst n2 us1
-  let e2 ← kernel.basis_builder.bv 0#u64
-  let e3 ← kernel.expr.app e1 e2
-  let e4 ← kernel.basis_builder.prop
-  let e5 ← kernel.basis_builder.pi e3 e4
-  let e6 ← kernel.basis_builder.bv 1#u64
-  let n3 ← kernel.std_axioms.nonempty_intro_name
-  let e7 ← kernel.basis_builder.cnst n3 us2
-  let e8 ← kernel.basis_builder.bv 2#u64
-  let e9 ← kernel.basis_builder.ap2 e7 e8 e2
-  let e10 ← kernel.expr.app e6 e9
-  let e11 ← kernel.basis_builder.pi e6 e10
-  let e12 ← kernel.basis_builder.cnst n2 us3
-  let e13 ← kernel.expr.app e12 e8
-  let e14 ← kernel.expr.app e8 e2
-  let e15 ← kernel.basis_builder.pi e13 e14
-  let e16 ← kernel.basis_builder.pi e11 e15
-  let e17 ← kernel.basis_builder.pi e5 e16
-  let e18 ← kernel.basis_builder.pi e e17
-  ok (kernel.env.ConstantInfo.RecInfo
-    { «name» := n1, level_params := lps, ty := e18 } 3#u64 3#u64
-    (alloc.vec.Vec.new kernel.env.RecRule))
-
-/-- [con_ron_core::kernel::std_axioms::nonempty_rec_pinned]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 686:0-701:1
-    Visibility: public -/
-def kernel.std_axioms.nonempty_rec_pinned
-  (fe : kernel.fenv.FEnv) : Result Bool := do
-  let n ← kernel.std_axioms.nonempty_rec_name
-  let o ← kernel.fenv.find fe n
-  match o with
-  | none => ok false
-  | some ci =>
-    match ci with
-    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
-    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
-    | kernel.env.ConstantInfo.IndInfo _ _ => ok false
-    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.RecInfo cv_nr m_i r_p _ =>
-      if m_i = 3#u64
-      then
-        if r_p = 3#u64
-        then
-          let ci1 ← kernel.std_axioms.nonempty_rec_raw
-          let cv ← kernel.env.to_constant_val ci1
-          kernel.std_axioms.matches_pin_fast cv_nr cv
-        else ok false
-      else ok false
-    | kernel.env.ConstantInfo.ProjInfo _ => ok false
-
-/-- [con_ron_core::kernel::std_axioms::nonempty_intro_raw]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 466:0-489:1
-    Visibility: public -/
-def kernel.std_axioms.nonempty_intro_raw : Result kernel.env.ConstantInfo := do
-  let n ← kernel.basis_builder.u_n
-  let lps ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-  let l ← kernel.basis_builder.u
-  let us ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
-  let n1 ← kernel.std_axioms.nonempty_intro_name
-  let e ← kernel.basis_builder.srt l
-  let e1 ← kernel.basis_builder.bv 0#u64
-  let n2 ← kernel.std_axioms.nonempty_name
-  let e2 ← kernel.basis_builder.cnst n2 us
-  let e3 ← kernel.basis_builder.bv 1#u64
-  let e4 ← kernel.expr.app e2 e3
-  let e5 ← kernel.basis_builder.pi e1 e4
-  let e6 ← kernel.basis_builder.pi e e5
-  ok (kernel.env.ConstantInfo.CtorInfo
-    { «name» := n1, level_params := lps, ty := e6 } 1#u64 1#u64)
-
-/-- [con_ron_core::kernel::std_axioms::nonempty_intro_pinned]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 666:0-681:1
-    Visibility: public -/
-def kernel.std_axioms.nonempty_intro_pinned
-  (fe : kernel.fenv.FEnv) : Result Bool := do
-  let n ← kernel.std_axioms.nonempty_intro_name
-  let o ← kernel.fenv.find fe n
-  match o with
-  | none => ok false
-  | some ci =>
-    match ci with
-    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
-    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
-    | kernel.env.ConstantInfo.IndInfo _ _ => ok false
-    | kernel.env.ConstantInfo.CtorInfo cv_ni n_p n_f =>
-      if n_p = 1#u64
-      then
-        if n_f = 1#u64
-        then
-          let ci1 ← kernel.std_axioms.nonempty_intro_raw
-          let cv ← kernel.env.to_constant_val ci1
-          kernel.std_axioms.matches_pin_fast cv_ni cv
-        else ok false
-      else ok false
-    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
-    | kernel.env.ConstantInfo.ProjInfo _ => ok false
-
-/-- [con_ron_core::kernel::env::ind_caps_default]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 375:0-386:1
-    Visibility: public -/
-def kernel.env.ind_caps_default : Result kernel.env.IndCaps := do
-  let n ← kernel.name.anonymous
-  let pw ← kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
-  ok
-    {
-      eta := false,
-      eta_ctor := n,
-      eta_params := 0#u64,
-      eta_fields := 0#u64,
-      unitlike := false,
-      unit_params := 0#u64,
-      rule_k := false,
-      sort_z := pw
-    }
-
-/-- [con_ron_core::kernel::std_axioms::nonempty_raw]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 448:0-462:1
-    Visibility: public -/
-def kernel.std_axioms.nonempty_raw : Result kernel.env.ConstantInfo := do
-  let n ← kernel.basis_builder.u_n
-  let lps ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-  let n1 ← kernel.std_axioms.nonempty_name
-  let l ← kernel.basis_builder.u
-  let e ← kernel.basis_builder.srt l
-  let e1 ← kernel.basis_builder.prop
-  let e2 ← kernel.basis_builder.pi e e1
-  let ic ← kernel.env.ind_caps_default
-  ok (kernel.env.ConstantInfo.IndInfo
-    { «name» := n1, level_params := lps, ty := e2 } ic)
-
-/-- [con_ron_core::kernel::std_axioms::nonempty_pinned]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 654:0-661:1
-    Visibility: public -/
-def kernel.std_axioms.nonempty_pinned
-  (fe : kernel.fenv.FEnv) : Result Bool := do
-  let n ← kernel.std_axioms.nonempty_name
-  let o ← kernel.fenv.find fe n
-  match o with
-  | none => ok false
-  | some ci =>
-    match ci with
-    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
-    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
-    | kernel.env.ConstantInfo.IndInfo cv_n _ =>
-      let ci1 ← kernel.std_axioms.nonempty_raw
-      let cv ← kernel.env.to_constant_val ci1
-      kernel.std_axioms.matches_pin_fast cv_n cv
-    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
-    | kernel.env.ConstantInfo.ProjInfo _ => ok false
-
-/-- [con_ron_core::kernel::std_axioms::iff_intro_name::S]
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 112:31-112:77 -/
-@[global_simps, irreducible]
-def kernel.std_axioms.iff_intro_name.S : Array Std.U32 5#usize :=
-  Array.make 5#usize [ 105#u32, 110#u32, 116#u32, 114#u32, 111#u32 ]
-
-/-- [con_ron_core::kernel::std_axioms::iff_name::S]
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 106:38-106:73 -/
-@[global_simps, irreducible]
-def kernel.std_axioms.iff_name.S : Array Std.U32 3#usize :=
-  Array.make 3#usize [ 73#u32, 102#u32, 102#u32 ]
-
-/-- [con_ron_core::kernel::std_axioms::iff_name]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 105:0-107:1
-    Visibility: public -/
-def kernel.std_axioms.iff_name : Result kernel.name.Name := do
-  let n ← kernel.name.anonymous
-  let s ← lift (Array.to_slice kernel.std_axioms.iff_name.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::std_axioms::iff_intro_name]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 111:0-113:1
-    Visibility: public -/
-def kernel.std_axioms.iff_intro_name : Result kernel.name.Name := do
-  let n ← kernel.std_axioms.iff_name
-  let s ← lift (Array.to_slice kernel.std_axioms.iff_intro_name.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::std_axioms::iff_rec_intro]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 333:0-350:1
-    Visibility: public -/
-def kernel.std_axioms.iff_rec_intro : Result kernel.expr.Expr := do
-  let e ← kernel.basis_builder.bv 2#u64
-  let e1 ← kernel.basis_builder.pi e e
-  let e2 ← kernel.basis_builder.bv 4#u64
-  let e3 ← kernel.basis_builder.pi e e2
-  let n ← kernel.std_axioms.iff_intro_name
-  let e4 ← kernel.basis_builder.cnst n (alloc.vec.Vec.new kernel.level.Level)
-  let e5 ← kernel.basis_builder.bv 3#u64
-  let e6 ← kernel.basis_builder.bv 1#u64
-  let e7 ← kernel.basis_builder.bv 0#u64
-  let e8 ← kernel.basis_builder.ap4 e4 e2 e5 e6 e7
-  let e9 ← kernel.expr.app e e8
-  let e10 ← kernel.basis_builder.pi e3 e9
-  kernel.basis_builder.pi e1 e10
-
-/-- [con_ron_core::kernel::std_axioms::iff_rec_name::S]
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 118:31-118:66 -/
-@[global_simps, irreducible]
-def kernel.std_axioms.iff_rec_name.S : Array Std.U32 3#usize :=
-  Array.make 3#usize [ 114#u32, 101#u32, 99#u32 ]
-
-/-- [con_ron_core::kernel::std_axioms::iff_rec_name]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 117:0-119:1
-    Visibility: public -/
-def kernel.std_axioms.iff_rec_name : Result kernel.name.Name := do
-  let n ← kernel.std_axioms.iff_name
-  let s ← lift (Array.to_slice kernel.std_axioms.iff_rec_name.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::std_axioms::iff_rec_raw]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 356:0-395:1
-    Visibility: public -/
-def kernel.std_axioms.iff_rec_raw : Result kernel.env.ConstantInfo := do
-  let n ← kernel.basis_builder.u_n
-  let lps ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-  let n1 ← kernel.std_axioms.iff_rec_name
-  let e ← kernel.basis_builder.prop
-  let n2 ← kernel.std_axioms.iff_name
-  let e1 ←
-    kernel.basis_builder.cnst n2 (alloc.vec.Vec.new kernel.level.Level)
-  let e2 ← kernel.basis_builder.bv 1#u64
-  let e3 ← kernel.basis_builder.bv 0#u64
-  let e4 ← kernel.basis_builder.ap2 e1 e2 e3
-  let l ← kernel.basis_builder.u
-  let e5 ← kernel.basis_builder.srt l
-  let e6 ← kernel.basis_builder.pi e4 e5
-  let e7 ← kernel.std_axioms.iff_rec_intro
-  let e8 ←
-    kernel.basis_builder.cnst n2 (alloc.vec.Vec.new kernel.level.Level)
-  let e9 ← kernel.basis_builder.bv 3#u64
-  let e10 ← kernel.basis_builder.bv 2#u64
-  let e11 ← kernel.basis_builder.ap2 e8 e9 e10
-  let e12 ← kernel.expr.app e10 e3
-  let e13 ← kernel.basis_builder.pi e11 e12
-  let e14 ← kernel.basis_builder.pi e7 e13
-  let e15 ← kernel.basis_builder.pi e6 e14
-  let e16 ← kernel.basis_builder.pi e e15
-  let e17 ← kernel.basis_builder.pi e e16
-  ok (kernel.env.ConstantInfo.RecInfo
-    { «name» := n1, level_params := lps, ty := e17 } 4#u64 4#u64
-    (alloc.vec.Vec.new kernel.env.RecRule))
-
-/-- [con_ron_core::kernel::std_axioms::iff_rec_pinned]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 634:0-649:1
-    Visibility: public -/
-def kernel.std_axioms.iff_rec_pinned
-  (fe : kernel.fenv.FEnv) : Result Bool := do
-  let n ← kernel.std_axioms.iff_rec_name
-  let o ← kernel.fenv.find fe n
-  match o with
-  | none => ok false
-  | some ci =>
-    match ci with
-    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
-    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
-    | kernel.env.ConstantInfo.IndInfo _ _ => ok false
-    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.RecInfo cv_ir m_i r_p _ =>
-      if m_i = 4#u64
-      then
-        if r_p = 4#u64
-        then
-          let ci1 ← kernel.std_axioms.iff_rec_raw
-          let cv ← kernel.env.to_constant_val ci1
-          kernel.std_axioms.matches_pin_fast cv_ir cv
-        else ok false
-      else ok false
-    | kernel.env.ConstantInfo.ProjInfo _ => ok false
-
-/-- [con_ron_core::kernel::std_axioms::iff_intro_raw]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 302:0-328:1
-    Visibility: public -/
-def kernel.std_axioms.iff_intro_raw : Result kernel.env.ConstantInfo := do
-  let n ← kernel.std_axioms.iff_intro_name
-  let e ← kernel.basis_builder.prop
-  let e1 ← kernel.basis_builder.bv 1#u64
-  let e2 ← kernel.basis_builder.pi e1 e1
-  let e3 ← kernel.basis_builder.bv 3#u64
-  let e4 ← kernel.basis_builder.pi e1 e3
-  let n1 ← kernel.std_axioms.iff_name
-  let e5 ←
-    kernel.basis_builder.cnst n1 (alloc.vec.Vec.new kernel.level.Level)
-  let e6 ← kernel.basis_builder.bv 2#u64
-  let e7 ← kernel.basis_builder.ap2 e5 e3 e6
-  let e8 ← kernel.basis_builder.pi e4 e7
-  let e9 ← kernel.basis_builder.pi e2 e8
-  let e10 ← kernel.basis_builder.pi e e9
-  let e11 ← kernel.basis_builder.pi e e10
-  ok (kernel.env.ConstantInfo.CtorInfo
-    {
-      «name» := n,
-      level_params := (alloc.vec.Vec.new kernel.name.Name),
-      ty := e11
-    } 2#u64 2#u64)
-
-/-- [con_ron_core::kernel::std_axioms::iff_intro_pinned]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 613:0-628:1
-    Visibility: public -/
-def kernel.std_axioms.iff_intro_pinned
-  (fe : kernel.fenv.FEnv) : Result Bool := do
-  let n ← kernel.std_axioms.iff_intro_name
-  let o ← kernel.fenv.find fe n
-  match o with
-  | none => ok false
-  | some ci =>
-    match ci with
-    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
-    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
-    | kernel.env.ConstantInfo.IndInfo _ _ => ok false
-    | kernel.env.ConstantInfo.CtorInfo cv_ii n_p n_f =>
-      if n_p = 2#u64
-      then
-        if n_f = 2#u64
-        then
-          let ci1 ← kernel.std_axioms.iff_intro_raw
-          let cv ← kernel.env.to_constant_val ci1
-          kernel.std_axioms.matches_pin_fast cv_ii cv
-        else ok false
-      else ok false
-    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
-    | kernel.env.ConstantInfo.ProjInfo _ => ok false
-
-/-- [con_ron_core::kernel::std_axioms::iff_raw]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 286:0-298:1
-    Visibility: public -/
-def kernel.std_axioms.iff_raw : Result kernel.env.ConstantInfo := do
-  let n ← kernel.std_axioms.iff_name
-  let e ← kernel.basis_builder.prop
-  let e1 ← kernel.basis_builder.pi e e
-  let e2 ← kernel.basis_builder.pi e e1
-  let ic ← kernel.env.ind_caps_default
-  ok (kernel.env.ConstantInfo.IndInfo
-    {
-      «name» := n,
-      level_params := (alloc.vec.Vec.new kernel.name.Name),
-      ty := e2
-    } ic)
-
-/-- [con_ron_core::kernel::std_axioms::iff_pinned]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 601:0-608:1
-    Visibility: public -/
-def kernel.std_axioms.iff_pinned (fe : kernel.fenv.FEnv) : Result Bool := do
-  let n ← kernel.std_axioms.iff_name
-  let o ← kernel.fenv.find fe n
-  match o with
-  | none => ok false
-  | some ci =>
-    match ci with
-    | kernel.env.ConstantInfo.AxiomInfo _ => ok false
-    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.ThmInfo _ _ => ok false
-    | kernel.env.ConstantInfo.IndInfo cv_i _ =>
-      let ci1 ← kernel.std_axioms.iff_raw
-      let cv ← kernel.env.to_constant_val ci1
-      kernel.std_axioms.matches_pin_fast cv_i cv
-    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
-    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
-    | kernel.env.ConstantInfo.ProjInfo _ => ok false
-
-/-- [con_ron_core::kernel::std_axioms::choice_name::S#1]
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 87:10-87:59 -/
-@[global_simps, irreducible]
-def kernel.std_axioms.choice_name.S_1 : Array Std.U32 6#usize :=
-  Array.make 6#usize [ 99#u32, 104#u32, 111#u32, 105#u32, 99#u32, 101#u32 ]
-
-/-- [con_ron_core::kernel::std_axioms::choice_name::S]
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 85:14-85:76 -/
-@[global_simps, irreducible]
-def kernel.std_axioms.choice_name.S : Array Std.U32 9#usize :=
-  Array.make 9#usize [
-    67#u32, 108#u32, 97#u32, 115#u32, 115#u32, 105#u32, 99#u32, 97#u32, 108#u32
-    ]
-
-/-- [con_ron_core::kernel::std_axioms::choice_name]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 81:0-89:1
-    Visibility: public -/
-def kernel.std_axioms.choice_name : Result kernel.name.Name := do
-  let n ← kernel.name.anonymous
-  let s ← lift (Array.to_slice kernel.std_axioms.choice_name.S)
-  let v ← kernel.core_types.code_points s
-  let n1 ← kernel.name.mk_str n v
-  let s1 ← lift (Array.to_slice kernel.std_axioms.choice_name.S_1)
-  let v1 ← kernel.core_types.code_points s1
-  kernel.name.mk_str n1 v1
-
-/-- [con_ron_core::kernel::std_axioms::choice_raw]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 560:0-579:1
-    Visibility: public -/
-def kernel.std_axioms.choice_raw : Result kernel.env.ConstantVal := do
-  let n ← kernel.basis_builder.u_n
-  let lps ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-  let l ← kernel.basis_builder.u
-  let us ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.level.Level) l
-  let n1 ← kernel.std_axioms.choice_name
-  let e ← kernel.basis_builder.srt l
-  let n2 ← kernel.std_axioms.nonempty_name
-  let e1 ← kernel.basis_builder.cnst n2 us
-  let e2 ← kernel.basis_builder.bv 0#u64
-  let e3 ← kernel.expr.app e1 e2
-  let e4 ← kernel.basis_builder.bv 1#u64
-  let e5 ← kernel.basis_builder.pi e3 e4
-  let e6 ← kernel.basis_builder.pi e e5
-  ok { «name» := n1, level_params := lps, ty := e6 }
-
-/-- [con_ron_core::kernel::std_axioms::propext_name::S]
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 76:38-76:94 -/
-@[global_simps, irreducible]
-def kernel.std_axioms.propext_name.S : Array Std.U32 7#usize :=
-  Array.make 7#usize [
-    112#u32, 114#u32, 111#u32, 112#u32, 101#u32, 120#u32, 116#u32
-    ]
-
-/-- [con_ron_core::kernel::std_axioms::propext_name]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 75:0-77:1
-    Visibility: public -/
-def kernel.std_axioms.propext_name : Result kernel.name.Name := do
-  let n ← kernel.name.anonymous
-  let s ← lift (Array.to_slice kernel.std_axioms.propext_name.S)
-  let v ← kernel.core_types.code_points s
-  kernel.name.mk_str n v
-
-/-- [con_ron_core::kernel::std_axioms::propext_raw]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 420:0-444:1
-    Visibility: public -/
-def kernel.std_axioms.propext_raw : Result kernel.env.ConstantVal := do
-  let n ← kernel.std_axioms.propext_name
-  let e ← kernel.basis_builder.prop
-  let n1 ← kernel.std_axioms.iff_name
-  let e1 ←
-    kernel.basis_builder.cnst n1 (alloc.vec.Vec.new kernel.level.Level)
-  let e2 ← kernel.basis_builder.bv 1#u64
-  let e3 ← kernel.basis_builder.bv 0#u64
-  let e4 ← kernel.basis_builder.ap2 e1 e2 e3
-  let n2 ← kernel.basis_names.eq_name
-  let v ← kernel.std_axioms.one_level
-  let e5 ← kernel.basis_builder.cnst n2 v
-  let e6 ← kernel.basis_builder.bv 2#u64
-  let e7 ← kernel.basis_builder.ap3 e5 e e6 e2
-  let e8 ← kernel.basis_builder.pi e4 e7
-  let e9 ← kernel.basis_builder.pi e e8
-  let e10 ← kernel.basis_builder.pi e e9
-  ok
-    {
-      «name» := n,
-      level_params := (alloc.vec.Vec.new kernel.name.Name),
-      ty := e10
-    }
-
-/-- [con_ron_core::kernel::std_axioms::std_axiom_ok]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 715:0-751:1
-    Visibility: public -/
-def kernel.std_axioms.std_axiom_ok
-  (fe : kernel.fenv.FEnv) (cv_a : kernel.env.ConstantVal) : Result Bool := do
-  let n ← kernel.std_axioms.propext_name
-  let b ← kernel.name.beq cv_a.name n
-  if b
-  then
-    let b1 ← kernel.std_axioms.eq_basis_pinned fe
-    if b1
-    then
-      let b2 ← kernel.std_axioms.iff_pinned fe
-      if b2
-      then
-        let b3 ← kernel.std_axioms.iff_intro_pinned fe
-        if b3
-        then
-          let b4 ← kernel.std_axioms.iff_rec_pinned fe
-          if b4
-          then
-            let cv ← kernel.std_axioms.propext_raw
-            kernel.std_axioms.matches_pin_fast cv_a cv
-          else ok false
-        else ok false
-      else ok false
-    else ok false
-  else
-    let n1 ← kernel.std_axioms.choice_name
-    let b1 ← kernel.name.beq cv_a.name n1
-    if b1
-    then
-      let b2 ← kernel.std_axioms.nonempty_pinned fe
-      if b2
-      then
-        let b3 ← kernel.std_axioms.nonempty_intro_pinned fe
-        if b3
-        then
-          let b4 ← kernel.std_axioms.nonempty_rec_pinned fe
-          if b4
-          then
-            let cv ← kernel.std_axioms.choice_raw
-            kernel.std_axioms.matches_pin_fast cv_a cv
-          else ok false
-        else ok false
-      else ok false
-    else ok false
-
-/-- [con_ron_core::kernel::std_axioms::tolerated_axiom_names::S]
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 98:10-98:65 -/
-@[global_simps, irreducible]
-def kernel.std_axioms.tolerated_axiom_names.S : Array Std.U32 7#usize :=
-  Array.make 7#usize [
-    115#u32, 111#u32, 114#u32, 114#u32, 121#u32, 65#u32, 120#u32
-    ]
-
-/-- [con_ron_core::kernel::std_axioms::tolerated_axiom_names]:
-    Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 94:0-101:1
-    Visibility: public -/
-def kernel.std_axioms.tolerated_axiom_names
-  : Result (alloc.vec.Vec kernel.name.Name) := do
-  let n ← kernel.name.anonymous
-  let s ← lift (Array.to_slice kernel.std_axioms.tolerated_axiom_names.S)
-  let v ← kernel.core_types.code_points s
-  let n1 ← kernel.name.mk_str n v
-  alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n1
-
 /-- [con_ron_core::kernel::checker::check_axiom_decl::M#3]
     Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1459:50-1459:157 -/
 @[global_simps, irreducible]
@@ -20657,146 +26885,6 @@ def kernel.checker.check_axiom_decl.M : Array Std.U32 36#usize :=
     109#u32, 112#u32, 105#u32, 108#u32, 101#u32, 114#u32, 32#u32, 115#u32,
     104#u32, 97#u32, 112#u32, 101#u32
     ]
-
-/-- [con_ron_core::kernel::level::is_proj_table_str]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 621:0-632:1
-    Visibility: public -/
-def kernel.level.is_proj_table_str
-  (s : alloc.vec.Vec Std.U32) : Result Bool := do
-  let i := alloc.vec.Vec.len s
-  if i = 9#usize
-  then
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
-        0#usize
-    if i1 = 112#u32
-    then
-      let i2 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
-          1#usize
-      if i2 = 114#u32
-      then
-        let i3 ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
-            2#usize
-        if i3 = 111#u32
-        then
-          let i4 ←
-            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32)
-              s 3#usize
-          if i4 = 106#u32
-          then
-            let i5 ←
-              alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-                Std.U32) s 4#usize
-            if i5 = 84#u32
-            then
-              let i6 ←
-                alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-                  Std.U32) s 5#usize
-              if i6 = 97#u32
-              then
-                let i7 ←
-                  alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-                    Std.U32) s 6#usize
-                if i7 = 98#u32
-                then
-                  let i8 ←
-                    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-                      Std.U32) s 7#usize
-                  if i8 = 108#u32
-                  then
-                    let i9 ←
-                      alloc.vec.Vec.index
-                        (core.slice.index.SliceIndexUsizeSlice Std.U32) s
-                        8#usize
-                    ok (i9 = 101#u32)
-                  else ok false
-                else ok false
-              else ok false
-            else ok false
-          else ok false
-        else ok false
-      else ok false
-    else ok false
-  else ok false
-
-/-- [con_ron_core::kernel::level::is_proj_str]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 615:0-617:1
-    Visibility: public -/
-def kernel.level.is_proj_str (s : alloc.vec.Vec Std.U32) : Result Bool := do
-  let i := alloc.vec.Vec.len s
-  if i = 4#usize
-  then
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
-        0#usize
-    if i1 = 112#u32
-    then
-      let i2 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
-          1#usize
-      if i2 = 114#u32
-      then
-        let i3 ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
-            2#usize
-        if i3 = 111#u32
-        then
-          let i4 ←
-            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32)
-              s 3#usize
-          ok (i4 = 106#u32)
-        else ok false
-      else ok false
-    else ok false
-  else ok false
-
-/-- [con_ron_core::kernel::level::name_is_proj_fn_shape]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 637:0-645:1
-    Visibility: public -/
-def kernel.level.name_is_proj_fn_shape
-  (n : kernel.name.Name) : Result Bool := do
-  let nn ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global n._0
-  match nn.kind with
-  | kernel.name.NameKind.Anonymous => ok false
-  | kernel.name.NameKind.Str _ _ => ok false
-  | kernel.name.NameKind.Num p _ =>
-    let nn1 ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global p._0
-    match nn1.kind with
-    | kernel.name.NameKind.Anonymous => ok false
-    | kernel.name.NameKind.Str _ s =>
-      let b ← kernel.level.is_proj_str s
-      if b
-      then ok true
-      else kernel.level.is_proj_table_str s
-    | kernel.name.NameKind.Num _ _ => ok false
-
-/-- [con_ron_core::kernel::level::name_nodup_from]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 581:0-589:1
-    Visibility: public -/
-def kernel.level.name_nodup_from
-  (ns : alloc.vec.Vec kernel.name.Name) (i : Std.Usize) : Result Bool := do
-  let i1 := alloc.vec.Vec.len ns
-  if i >= i1
-  then ok true
-  else
-    let i2 ← i + 1#usize
-    let n ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.name.Name) ns i
-    let b ← kernel.name.contains_from ns i2 n
-    if b
-    then ok false
-    else kernel.level.name_nodup_from ns i2
-partial_fixpoint
-
-/-- [con_ron_core::kernel::level::name_nodup]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 574:0-576:1
-    Visibility: public -/
-def kernel.level.name_nodup
-  (ns : alloc.vec.Vec kernel.name.Name) : Result Bool := do
-  kernel.level.name_nodup_from ns 0#usize
 
 /-- [con_ron_core::kernel::checker_base::check_constant_val_after_annot::M#1]
     Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 108:34-108:171 -/
@@ -21115,16 +27203,6 @@ def kernel.checker.check_axiom_decl
                   ok (core.result.Result.Err ce, st1)
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
-/-- [con_ron_core::kernel::trust_axioms::reduce_op_names]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 124:0-129:1
-    Visibility: public -/
-def kernel.trust_axioms.reduce_op_names
-  : Result (alloc.vec.Vec kernel.name.Name) := do
-  let n ← kernel.trust_axioms.reduce_nat_name
-  let ns ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-  let n1 ← kernel.trust_axioms.reduce_bool_name
-  alloc.vec.Vec.push ns n1
-
 /-- [con_ron_core::kernel::checker::check_opaque_decl]:
     Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1395:0-1416:1
     Visibility: public -/
@@ -21166,345 +27244,6 @@ def kernel.checker.check_thm_decl
   | core.result.Result.Ok cv_a =>
     kernel.checker.check_thm_val mode st1 fe cv_a value
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
-
-/-- [con_ron_core::kernel::core_k::nat_op_names]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1333:0-1343:1
-    Visibility: public -/
-def kernel.core_k.nat_op_names : Result (alloc.vec.Vec kernel.name.Name) := do
-  let n ← kernel.core_k.nat_pred_name
-  let ns ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-  let n1 ← kernel.core_k.nat_add_name
-  let ns1 ← alloc.vec.Vec.push ns n1
-  let n2 ← kernel.core_k.nat_sub_name
-  let ns2 ← alloc.vec.Vec.push ns1 n2
-  let n3 ← kernel.core_k.nat_mul_name
-  let ns3 ← alloc.vec.Vec.push ns2 n3
-  let n4 ← kernel.core_k.nat_pow_name
-  let ns4 ← alloc.vec.Vec.push ns3 n4
-  let n5 ← kernel.core_k.nat_beq_name
-  let ns5 ← alloc.vec.Vec.push ns4 n5
-  let n6 ← kernel.core_k.nat_ble_name
-  alloc.vec.Vec.push ns5 n6
-
-/-- [con_ron_core::kernel::core_k::nat_eq_ap1]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1443:0-1445:1
-    Visibility: public -/
-def kernel.core_k.nat_eq_ap1
-  (n : kernel.name.Name) (a : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  let n1 ← kernel.name.dup n
-  let e ← kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
-  kernel.expr.app e a
-
-/-- [con_ron_core::kernel::core_k::nat_op_equations]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1458:0-1539:1
-    Visibility: public -/
-def kernel.core_k.nat_op_equations
-  (d : Std.U64) (c : kernel.name.Name) :
-  Result (alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr))
-  := do
-  let n ← kernel.basis_names.nat_name
-  let nat_ty ← kernel.expr.mk_const n (alloc.vec.Vec.new kernel.level.Level)
-  let e ← kernel.expr.dup nat_ty
-  let x ← kernel.expr.fvar d e
-  let i ← d + 1#u64
-  let y ← kernel.expr.fvar i nat_ty
-  let n1 ← kernel.basis_names.nat_zero_name
-  let z ← kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
-  let n2 ← kernel.core_k.bool_true_name
-  let b_t ← kernel.expr.mk_const n2 (alloc.vec.Vec.new kernel.level.Level)
-  let n3 ← kernel.core_k.bool_false_name
-  let b_f ← kernel.expr.mk_const n3 (alloc.vec.Vec.new kernel.level.Level)
-  let n4 ← kernel.core_k.nat_pred_name
-  let b ← kernel.name.beq c n4
-  if b
-  then
-    let e1 ← kernel.expr.dup z
-    let e2 ← kernel.core_k.nat_eq_ap1 c e1
-    let eqs ←
-      alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.expr.Expr ×
-        kernel.expr.Expr)) (e2, e1)
-    let e3 ← kernel.expr.dup x
-    let e4 ← kernel.core_k.nat_eq_s e3
-    let e5 ← kernel.core_k.nat_eq_ap1 c e4
-    alloc.vec.Vec.push eqs (e5, e3)
-  else
-    let n5 ← kernel.core_k.nat_add_name
-    let b1 ← kernel.name.beq c n5
-    if b1
-    then
-      let e1 ← kernel.expr.dup x
-      let e2 ← kernel.expr.dup z
-      let e3 ← kernel.core_k.nat_eq_ap2 c e1 e2
-      let eqs ←
-        alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.expr.Expr ×
-          kernel.expr.Expr)) (e3, e1)
-      let e4 ← kernel.expr.dup y
-      let e5 ← kernel.core_k.nat_eq_s e4
-      let e6 ← kernel.core_k.nat_eq_ap2 c e1 e5
-      let e7 ← kernel.core_k.nat_eq_ap2 c e1 e4
-      let e8 ← kernel.core_k.nat_eq_s e7
-      alloc.vec.Vec.push eqs (e6, e8)
-    else
-      let n6 ← kernel.core_k.nat_sub_name
-      let b2 ← kernel.name.beq c n6
-      if b2
-      then
-        let e1 ← kernel.expr.dup x
-        let e2 ← kernel.expr.dup z
-        let e3 ← kernel.core_k.nat_eq_ap2 c e1 e2
-        let eqs ←
-          alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.expr.Expr ×
-            kernel.expr.Expr)) (e3, e1)
-        let e4 ← kernel.expr.dup y
-        let e5 ← kernel.core_k.nat_eq_s e4
-        let e6 ← kernel.core_k.nat_eq_ap2 c e1 e5
-        let e7 ← kernel.core_k.nat_eq_ap2 c e1 e4
-        let e8 ← kernel.core_k.nat_eq_ap1 n4 e7
-        alloc.vec.Vec.push eqs (e6, e8)
-      else
-        let n7 ← kernel.core_k.nat_mul_name
-        let b3 ← kernel.name.beq c n7
-        if b3
-        then
-          let e1 ← kernel.expr.dup x
-          let e2 ← kernel.expr.dup z
-          let e3 ← kernel.core_k.nat_eq_ap2 c e1 e2
-          let eqs ←
-            alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.expr.Expr ×
-              kernel.expr.Expr)) (e3, e2)
-          let e4 ← kernel.expr.dup y
-          let e5 ← kernel.core_k.nat_eq_s e4
-          let e6 ← kernel.core_k.nat_eq_ap2 c e1 e5
-          let e7 ← kernel.core_k.nat_eq_ap2 c e1 e4
-          let e8 ← kernel.core_k.nat_eq_ap2 n5 e7 e1
-          alloc.vec.Vec.push eqs (e6, e8)
-        else
-          let n8 ← kernel.core_k.nat_pow_name
-          let b4 ← kernel.name.beq c n8
-          if b4
-          then
-            let e1 ← kernel.expr.dup x
-            let e2 ← kernel.expr.dup z
-            let e3 ← kernel.core_k.nat_eq_ap2 c e1 e2
-            let e4 ← kernel.core_k.nat_eq_s e2
-            let eqs ←
-              alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.expr.Expr ×
-                kernel.expr.Expr)) (e3, e4)
-            let e5 ← kernel.expr.dup y
-            let e6 ← kernel.core_k.nat_eq_s e5
-            let e7 ← kernel.core_k.nat_eq_ap2 c e1 e6
-            let e8 ← kernel.core_k.nat_eq_ap2 c e1 e5
-            let e9 ← kernel.core_k.nat_eq_ap2 n7 e8 e1
-            alloc.vec.Vec.push eqs (e7, e9)
-          else
-            let n9 ← kernel.core_k.nat_beq_name
-            let b5 ← kernel.name.beq c n9
-            if b5
-            then
-              let e1 ← kernel.expr.dup z
-              let e2 ← kernel.core_k.nat_eq_ap2 c e1 e1
-              let e3 ← kernel.expr.dup b_t
-              let eqs ←
-                alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.expr.Expr ×
-                  kernel.expr.Expr)) (e2, e3)
-              let e4 ← kernel.expr.dup y
-              let e5 ← kernel.core_k.nat_eq_s e4
-              let e6 ← kernel.core_k.nat_eq_ap2 c e1 e5
-              let e7 ← kernel.expr.dup b_f
-              let eqs1 ← alloc.vec.Vec.push eqs (e6, e7)
-              let e8 ← kernel.expr.dup x
-              let e9 ← kernel.core_k.nat_eq_s e8
-              let e10 ← kernel.core_k.nat_eq_ap2 c e9 e1
-              let eqs2 ← alloc.vec.Vec.push eqs1 (e10, e7)
-              let e11 ← kernel.core_k.nat_eq_s e8
-              let e12 ← kernel.core_k.nat_eq_s e4
-              let e13 ← kernel.core_k.nat_eq_ap2 c e11 e12
-              let e14 ← kernel.core_k.nat_eq_ap2 c e8 e4
-              alloc.vec.Vec.push eqs2 (e13, e14)
-            else
-              let n10 ← kernel.core_k.nat_ble_name
-              let b6 ← kernel.name.beq c n10
-              if b6
-              then
-                let e1 ← kernel.expr.dup z
-                let e2 ← kernel.expr.dup y
-                let e3 ← kernel.core_k.nat_eq_ap2 c e1 e2
-                let e4 ← kernel.expr.dup b_t
-                let eqs ←
-                  alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.expr.Expr ×
-                    kernel.expr.Expr)) (e3, e4)
-                let e5 ← kernel.expr.dup x
-                let e6 ← kernel.core_k.nat_eq_s e5
-                let e7 ← kernel.core_k.nat_eq_ap2 c e6 e1
-                let e8 ← kernel.expr.dup b_f
-                let eqs1 ← alloc.vec.Vec.push eqs (e7, e8)
-                let e9 ← kernel.core_k.nat_eq_s e5
-                let e10 ← kernel.core_k.nat_eq_s e2
-                let e11 ← kernel.core_k.nat_eq_ap2 c e9 e10
-                let e12 ← kernel.core_k.nat_eq_ap2 c e5 e2
-                alloc.vec.Vec.push eqs1 (e11, e12)
-              else
-                ok (alloc.vec.Vec.new (kernel.expr.Expr × kernel.expr.Expr))
-
-/-- [con_ron_core::kernel::checker::nat_eqs_subst_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1358:0-1375:1
-    Visibility: public -/
-def kernel.checker.nat_eqs_subst_from
-  (n : kernel.name.Name) (value2 : kernel.expr.Expr)
-  (eqs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr)) (i : Std.Usize)
-  (out : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr)) :
-  Result (alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr))
-  := do
-  let i1 := alloc.vec.Vec.len eqs
-  if i >= i1
-  then ok out
-  else
-    let (e, e1) ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        (kernel.expr.Expr × kernel.expr.Expr)) eqs i
-    let e2 ← kernel.core_k.subst_const0 n value2 e
-    let e3 ← kernel.core_k.subst_const0 n value2 e1
-    let out1 ← alloc.vec.Vec.push out (e2, e3)
-    let i2 ← i + 1#usize
-    kernel.checker.nat_eqs_subst_from n value2 eqs i2 out1
-partial_fixpoint
-
-/-- [con_ron_core::kernel::checker::nat_eqs_subst]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1352:0-1354:1
-    Visibility: public -/
-def kernel.checker.nat_eqs_subst
-  (n : kernel.name.Name) (value2 : kernel.expr.Expr)
-  (eqs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr)) :
-  Result (alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr))
-  := do
-  kernel.checker.nat_eqs_subst_from n value2 eqs 0#usize (alloc.vec.Vec.new
-    (kernel.expr.Expr × kernel.expr.Expr))
-
-/-- [con_ron_core::kernel::checker::check_structural_nat_pin::M#2]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1341:62-1341:254 -/
-@[global_simps, irreducible]
-def kernel.checker.check_structural_nat_pin.M_2 : Array Std.U32 36#usize :=
-  Array.make 36#usize [
-    110#u32, 111#u32, 110#u32, 115#u32, 116#u32, 97#u32, 110#u32, 100#u32,
-    97#u32, 114#u32, 100#u32, 32#u32, 115#u32, 116#u32, 114#u32, 117#u32,
-    99#u32, 116#u32, 117#u32, 114#u32, 97#u32, 108#u32, 32#u32, 78#u32, 97#u32,
-    116#u32, 32#u32, 111#u32, 112#u32, 101#u32, 114#u32, 97#u32, 116#u32,
-    105#u32, 111#u32, 110#u32
-    ]
-
-/-- [con_ron_core::kernel::checker::check_structural_nat_pin::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1327:47-1327:235 -/
-@[global_simps, irreducible]
-def kernel.checker.check_structural_nat_pin.M_1 : Array Std.U32 35#usize :=
-  Array.make 35#usize [
-    115#u32, 116#u32, 114#u32, 117#u32, 99#u32, 116#u32, 117#u32, 114#u32,
-    97#u32, 108#u32, 32#u32, 78#u32, 97#u32, 116#u32, 32#u32, 111#u32, 112#u32,
-    101#u32, 114#u32, 97#u32, 116#u32, 105#u32, 111#u32, 110#u32, 32#u32,
-    110#u32, 111#u32, 116#u32, 32#u32, 115#u32, 116#u32, 111#u32, 114#u32,
-    101#u32, 100#u32
-    ]
-
-/-- [con_ron_core::kernel::checker::check_structural_nat_pin::M]
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1324:42-1324:293 -/
-@[global_simps, irreducible]
-def kernel.checker.check_structural_nat_pin.M : Array Std.U32 48#usize :=
-  Array.make 48#usize [
-    110#u32, 111#u32, 110#u32, 115#u32, 116#u32, 97#u32, 110#u32, 100#u32,
-    97#u32, 114#u32, 100#u32, 32#u32, 115#u32, 116#u32, 114#u32, 117#u32,
-    99#u32, 116#u32, 117#u32, 114#u32, 97#u32, 108#u32, 32#u32, 78#u32, 97#u32,
-    116#u32, 32#u32, 111#u32, 112#u32, 101#u32, 114#u32, 97#u32, 116#u32,
-    105#u32, 111#u32, 110#u32, 32#u32, 101#u32, 110#u32, 118#u32, 105#u32,
-    114#u32, 111#u32, 110#u32, 109#u32, 101#u32, 110#u32, 116#u32
-    ]
-
-/-- [con_ron_core::kernel::checker::check_structural_nat_pin]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1314:0-1348:1
-    Visibility: public -/
-def kernel.checker.check_structural_nat_pin
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe2 : kernel.fenv.FEnv) (k_pre : Std.U64) (n : kernel.name.Name) :
-  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  let b ← kernel.core_k.nat_op_guard fe2 n
-  if b
-  then
-    let v ← kernel.core_k.nat_op_deps n
-    let b1 ← kernel.core_k.deps_all_stored fe2 v 0#usize
-    if b1
-    then
-      let o ← kernel.core_k.defn_probe fe2 n
-      match o with
-      | none =>
-        let s ←
-          lift (Array.to_slice kernel.checker.check_structural_nat_pin.M_1)
-        let v1 ← kernel.core_types.code_points s
-        let ce ← kernel.core_types.internal v1
-        ok (core.result.Result.Err ce, st)
-      | some t =>
-        let (_, value2, _) := t
-        let v1 ← kernel.core_k.nat_op_equations 0#u64 n
-        let eqs ← kernel.checker.nat_eqs_subst n value2 v1
-        let fe_pre ← kernel.fenv.restrict_to fe2 k_pre
-        let (r, st1) ← kernel.checker.certify_nat_eqs mode st fe_pre eqs
-        let fe21 ← kernel.fenv.restrict_to fe_pre fe2.visible_below
-        match r with
-        | core.result.Result.Ok ok1 =>
-          if ok1
-          then ok (core.result.Result.Ok fe21, st1)
-          else
-            let s ←
-              lift (Array.to_slice kernel.checker.check_structural_nat_pin.M_2)
-            let v2 ← kernel.core_types.code_points s
-            let ce ← kernel.core_types.not_implemented v2
-            ok (core.result.Result.Err ce, st1)
-        | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
-    else
-      let s ← lift (Array.to_slice kernel.checker.check_structural_nat_pin.M)
-      let v1 ← kernel.core_types.code_points s
-      let ce ← kernel.core_types.not_implemented v1
-      ok (core.result.Result.Err ce, st)
-  else
-    let s ← lift (Array.to_slice kernel.checker.check_structural_nat_pin.M)
-    let v ← kernel.core_types.code_points s
-    let ce ← kernel.core_types.not_implemented v
-    ok (core.result.Result.Err ce, st)
-
-/-- [con_ron_core::kernel::checker::check_defn_div_mod_pin]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1296:0-1308:1
-    Visibility: public -/
-def kernel.checker.check_defn_div_mod_pin
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe2 : kernel.fenv.FEnv) (k_pre : Std.U64) (n : kernel.name.Name) :
-  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  let v ← kernel.core_k.nat_div_mod_names
-  let b ← kernel.name.contains v n
-  if b
-  then kernel.checker.check_div_mod_pin mode st fe2 k_pre n
-  else ok (core.result.Result.Ok fe2, st)
-
-/-- [con_ron_core::kernel::checker::check_defn_pins]:
-    Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1277:0-1292:1
-    Visibility: public -/
-def kernel.checker.check_defn_pins
-  (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
-  (fe2 : kernel.fenv.FEnv) (k_pre : Std.U64) (n : kernel.name.Name) :
-  Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
-    cached.state_c.CState)
-  := do
-  let v ← kernel.core_k.nat_op_names
-  let b ← kernel.name.contains v n
-  if b
-  then
-    let (r, st1) ←
-      kernel.checker.check_structural_nat_pin mode st fe2 k_pre n
-    match r with
-    | core.result.Result.Ok fe3 =>
-      kernel.checker.check_defn_div_mod_pin mode st1 fe3 k_pre n
-    | core.result.Result.Err _ => ok (r, st1)
-  else kernel.checker.check_defn_div_mod_pin mode st fe2 k_pre n
 
 /-- [con_ron_core::kernel::checker::check_defn_decl]:
     Source: 'crates/con-ron-core/src/kernel/checker.rs', lines 1239:0-1255:1
@@ -22427,18 +28166,6 @@ def kernel.expr_ops.strip_lams
   := do
   kernel.expr_ops.strip_lams_go k e (alloc.vec.Vec.new (kernel.expr.Expr ×
     kernel.expr.BinderMeta))
-
-/-- [con_ron_core::kernel::expr_ops::cons_expr]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 179:0-183:1
-    Visibility: public -/
-def kernel.expr_ops.cons_expr
-  (a : kernel.expr.Expr) (acc : alloc.vec.Vec kernel.expr.Expr) :
-  Result (alloc.vec.Vec kernel.expr.Expr)
-  := do
-  let e ← kernel.expr.dup a
-  let out ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.expr.Expr) e
-  let i := alloc.vec.Vec.len acc
-  kernel.expr_ops.exprs_copy_upto acc i 0#usize out
 
 /-- [con_ron_core::kernel::expr_ops::inst_lams_at_f_go]:
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1354:0-1373:1
@@ -23979,453 +29706,6 @@ def kernel.core_types.beq
     | kernel.core_types.CheckError.NotImplemented _ => ok false
     | kernel.core_types.CheckError.Invalid _ => ok false
     | kernel.core_types.CheckError.Internal y => kernel.name.str_eq x y
-
-/-- [con_ron_core::kernel::decl_check::consts_resolve_f_go]:
-    Source: 'crates/con-ron-core/src/kernel/decl_check.rs', lines 85:0-129:1
-    Visibility: public -/
-def kernel.decl_check.consts_resolve_f_go
-  (fe : kernel.fenv.FEnv) (memo : ron.hashmap.HashMap kernel.expr.Expr Bool)
-  (e : kernel.expr.Expr) :
-  Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
-  := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
-  match en.kind with
-  | kernel.expr.ExprKind.Bvar _ =>
-    let r ← kernel.core_k.consts_resolve fe e
-    ok (r, memo)
-  | kernel.expr.ExprKind.Fvar _ _ =>
-    let o ← kernel.expr_ops.memo_b_get memo e
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ ty =>
-          do
-          let (r1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          ok (memo2, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App f a =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo f
-          let (b2, memo3) ← kernel.decl_check.consts_resolve_f_go fe memo2 a
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam ty body _ =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 body
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE ty body _ =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 body
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE ty val body =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 val
-          let (b3, memo4) ←
-            kernel.decl_check.consts_resolve_f_go fe memo3 body
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj s _ sub =>
-          do
-          let (b, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo sub
-          let o1 ← kernel.fenv.find fe s
-          let ok1 := core.option.Option.is_some o1
-          let r1 ← kernel.expr_ops.bool_and ok1 b
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup e
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | kernel.expr.ExprKind.Sort _ =>
-    let r ← kernel.core_k.consts_resolve fe e
-    ok (r, memo)
-  | kernel.expr.ExprKind.Const _ _ =>
-    let r ← kernel.core_k.consts_resolve fe e
-    ok (r, memo)
-  | kernel.expr.ExprKind.App _ _ =>
-    let o ← kernel.expr_ops.memo_b_get memo e
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ ty =>
-          do
-          let (r1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          ok (memo2, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App f a =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo f
-          let (b2, memo3) ← kernel.decl_check.consts_resolve_f_go fe memo2 a
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam ty body _ =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 body
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE ty body _ =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 body
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE ty val body =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 val
-          let (b3, memo4) ←
-            kernel.decl_check.consts_resolve_f_go fe memo3 body
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj s _ sub =>
-          do
-          let (b, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo sub
-          let o1 ← kernel.fenv.find fe s
-          let ok1 := core.option.Option.is_some o1
-          let r1 ← kernel.expr_ops.bool_and ok1 b
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup e
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | kernel.expr.ExprKind.Lam _ _ _ =>
-    let o ← kernel.expr_ops.memo_b_get memo e
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ ty =>
-          do
-          let (r1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          ok (memo2, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App f a =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo f
-          let (b2, memo3) ← kernel.decl_check.consts_resolve_f_go fe memo2 a
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam ty body _ =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 body
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE ty body _ =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 body
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE ty val body =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 val
-          let (b3, memo4) ←
-            kernel.decl_check.consts_resolve_f_go fe memo3 body
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj s _ sub =>
-          do
-          let (b, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo sub
-          let o1 ← kernel.fenv.find fe s
-          let ok1 := core.option.Option.is_some o1
-          let r1 ← kernel.expr_ops.bool_and ok1 b
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup e
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | kernel.expr.ExprKind.ForallE _ _ _ =>
-    let o ← kernel.expr_ops.memo_b_get memo e
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ ty =>
-          do
-          let (r1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          ok (memo2, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App f a =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo f
-          let (b2, memo3) ← kernel.decl_check.consts_resolve_f_go fe memo2 a
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam ty body _ =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 body
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE ty body _ =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 body
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE ty val body =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 val
-          let (b3, memo4) ←
-            kernel.decl_check.consts_resolve_f_go fe memo3 body
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj s _ sub =>
-          do
-          let (b, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo sub
-          let o1 ← kernel.fenv.find fe s
-          let ok1 := core.option.Option.is_some o1
-          let r1 ← kernel.expr_ops.bool_and ok1 b
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup e
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | kernel.expr.ExprKind.LetE _ _ _ =>
-    let o ← kernel.expr_ops.memo_b_get memo e
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ ty =>
-          do
-          let (r1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          ok (memo2, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App f a =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo f
-          let (b2, memo3) ← kernel.decl_check.consts_resolve_f_go fe memo2 a
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam ty body _ =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 body
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE ty body _ =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 body
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE ty val body =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 val
-          let (b3, memo4) ←
-            kernel.decl_check.consts_resolve_f_go fe memo3 body
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj s _ sub =>
-          do
-          let (b, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo sub
-          let o1 ← kernel.fenv.find fe s
-          let ok1 := core.option.Option.is_some o1
-          let r1 ← kernel.expr_ops.bool_and ok1 b
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup e
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | kernel.expr.ExprKind.Lit _ =>
-    let r ← kernel.core_k.consts_resolve fe e
-    ok (r, memo)
-  | kernel.expr.ExprKind.Proj _ _ _ =>
-    let o ← kernel.expr_ops.memo_b_get memo e
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ ty =>
-          do
-          let (r1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          ok (memo2, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App f a =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo f
-          let (b2, memo3) ← kernel.decl_check.consts_resolve_f_go fe memo2 a
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam ty body _ =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 body
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE ty body _ =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 body
-          let r1 ← kernel.expr_ops.bool_and b1 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE ty val body =>
-          do
-          let (b1, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo ty
-          let (b2, memo3) ←
-            kernel.decl_check.consts_resolve_f_go fe memo2 val
-          let (b3, memo4) ←
-            kernel.decl_check.consts_resolve_f_go fe memo3 body
-          let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.core_k.consts_resolve fe e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj s _ sub =>
-          do
-          let (b, memo2) ← kernel.decl_check.consts_resolve_f_go fe memo sub
-          let o1 ← kernel.fenv.find fe s
-          let ok1 := core.option.Option.is_some o1
-          let r1 ← kernel.expr_ops.bool_and ok1 b
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup e
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
-      ok (r, memo2)
-    | some r => ok (r, memo)
-partial_fixpoint
-
-/-- [con_ron_core::kernel::decl_check::consts_resolve_f_fast]:
-    Source: 'crates/con-ron-core/src/kernel/decl_check.rs', lines 135:0-138:1
-    Visibility: public -/
-def kernel.decl_check.consts_resolve_f_fast
-  (fe : kernel.fenv.FEnv) (e : kernel.expr.Expr) : Result Bool := do
-  let memo ← ron.hashmap.HashMap.new kernel.expr.Expr Bool
-  let (b, _) ← kernel.decl_check.consts_resolve_f_go fe memo e
-  ok b
 
 /-- [con_ron_core::kernel::decl_check::model_suffix]:
     Source: 'crates/con-ron-core/src/kernel/decl_check.rs', lines 146:0-148:1
@@ -26146,453 +31426,6 @@ def kernel.expr.beq_recursive (e : kernel.expr.Expr) : Result Bool := do
     Visibility: public -/
 def kernel.expr.bvar_pool_size : Result Std.U64 := do
   ok 4096#u64
-
-/-- [con_ron_core::kernel::expr::mk_bvar]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 652:0-654:1
-    Visibility: public -/
-def kernel.expr.mk_bvar (i : Std.U64) : Result kernel.expr.Expr := do
-  kernel.expr.bvar i
-
-/-- [con_ron_core::kernel::expr_ops::lift_loose_bvars_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 422:0-479:1
-    Visibility: public -/
-def kernel.expr_ops.lift_loose_bvars_go
-  (amount : Std.U64)
-  (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey kernel.expr.Expr)
-  (e : kernel.expr.Expr) (c : Std.U64) :
-  Result (kernel.expr.Expr × (ron.hashmap.HashMap kernel.expr_ops.ExprNatKey
-    kernel.expr.Expr))
-  := do
-  let en ← alloc.rc.Rc.Insts.CoreOpsDerefDeref.deref Global e._0
-  match en.kind with
-  | kernel.expr.ExprKind.Bvar i =>
-    if i >= c
-    then let i1 ← i + amount
-         let r ← kernel.expr.bvar i1
-         ok (r, memo)
-    else let r ← kernel.expr.bvar i
-         ok (r, memo)
-  | kernel.expr.ExprKind.Fvar _ _ => let r ← kernel.expr.dup e
-                                     ok (r, memo)
-  | kernel.expr.ExprKind.Sort _ => let r ← kernel.expr.dup e
-                                   ok (r, memo)
-  | kernel.expr.ExprKind.Const _ _ => let r ← kernel.expr.dup e
-                                      ok (r, memo)
-  | kernel.expr.ExprKind.App _ _ =>
-    let k ← kernel.expr_ops.expr_nat_key e c
-    let o ← kernel.expr_ops.memo1_get memo k
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App a b =>
-          do
-          let (a2, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo a c
-          let (b2, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
-          let r1 ← kernel.expr.app a2 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam ty body m =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let i ← c + 1#u64
-          let (b, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
-          let bm ← kernel.expr.binder_meta_dup m
-          let r1 ← kernel.expr.lam t b bm
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE ty body m =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let i ← c + 1#u64
-          let (b, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
-          let bm ← kernel.expr.binder_meta_dup m
-          let r1 ← kernel.expr.forall_e t b bm
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE ty v body =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let (w, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 v c
-          let i ← c + 1#u64
-          let (b, memo4) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
-          let r1 ← kernel.expr.let_e t w b
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj s i sub =>
-          do
-          let (u, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo sub c
-          let n ← kernel.name.dup s
-          let r1 ← kernel.expr.proj n i u
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup r
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | kernel.expr.ExprKind.Lam _ _ _ =>
-    let k ← kernel.expr_ops.expr_nat_key e c
-    let o ← kernel.expr_ops.memo1_get memo k
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App a b =>
-          do
-          let (a2, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo a c
-          let (b2, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
-          let r1 ← kernel.expr.app a2 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam ty body m =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let i ← c + 1#u64
-          let (b, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
-          let bm ← kernel.expr.binder_meta_dup m
-          let r1 ← kernel.expr.lam t b bm
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE ty body m =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let i ← c + 1#u64
-          let (b, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
-          let bm ← kernel.expr.binder_meta_dup m
-          let r1 ← kernel.expr.forall_e t b bm
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE ty v body =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let (w, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 v c
-          let i ← c + 1#u64
-          let (b, memo4) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
-          let r1 ← kernel.expr.let_e t w b
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj s i sub =>
-          do
-          let (u, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo sub c
-          let n ← kernel.name.dup s
-          let r1 ← kernel.expr.proj n i u
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup r
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | kernel.expr.ExprKind.ForallE _ _ _ =>
-    let k ← kernel.expr_ops.expr_nat_key e c
-    let o ← kernel.expr_ops.memo1_get memo k
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App a b =>
-          do
-          let (a2, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo a c
-          let (b2, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
-          let r1 ← kernel.expr.app a2 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam ty body m =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let i ← c + 1#u64
-          let (b, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
-          let bm ← kernel.expr.binder_meta_dup m
-          let r1 ← kernel.expr.lam t b bm
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE ty body m =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let i ← c + 1#u64
-          let (b, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
-          let bm ← kernel.expr.binder_meta_dup m
-          let r1 ← kernel.expr.forall_e t b bm
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE ty v body =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let (w, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 v c
-          let i ← c + 1#u64
-          let (b, memo4) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
-          let r1 ← kernel.expr.let_e t w b
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj s i sub =>
-          do
-          let (u, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo sub c
-          let n ← kernel.name.dup s
-          let r1 ← kernel.expr.proj n i u
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup r
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | kernel.expr.ExprKind.LetE _ _ _ =>
-    let k ← kernel.expr_ops.expr_nat_key e c
-    let o ← kernel.expr_ops.memo1_get memo k
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App a b =>
-          do
-          let (a2, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo a c
-          let (b2, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
-          let r1 ← kernel.expr.app a2 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam ty body m =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let i ← c + 1#u64
-          let (b, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
-          let bm ← kernel.expr.binder_meta_dup m
-          let r1 ← kernel.expr.lam t b bm
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE ty body m =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let i ← c + 1#u64
-          let (b, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
-          let bm ← kernel.expr.binder_meta_dup m
-          let r1 ← kernel.expr.forall_e t b bm
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE ty v body =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let (w, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 v c
-          let i ← c + 1#u64
-          let (b, memo4) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
-          let r1 ← kernel.expr.let_e t w b
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj s i sub =>
-          do
-          let (u, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo sub c
-          let n ← kernel.name.dup s
-          let r1 ← kernel.expr.proj n i u
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup r
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | kernel.expr.ExprKind.Lit _ => let r ← kernel.expr.dup e
-                                  ok (r, memo)
-  | kernel.expr.ExprKind.Proj _ _ _ =>
-    let k ← kernel.expr_ops.expr_nat_key e c
-    let o ← kernel.expr_ops.memo1_get memo k
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match en.kind with
-        | kernel.expr.ExprKind.Bvar _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Fvar _ _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Sort _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Const _ _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.App a b =>
-          do
-          let (a2, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo a c
-          let (b2, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
-          let r1 ← kernel.expr.app a2 b2
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.Lam ty body m =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let i ← c + 1#u64
-          let (b, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
-          let bm ← kernel.expr.binder_meta_dup m
-          let r1 ← kernel.expr.lam t b bm
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.ForallE ty body m =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let i ← c + 1#u64
-          let (b, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 body i
-          let bm ← kernel.expr.binder_meta_dup m
-          let r1 ← kernel.expr.forall_e t b bm
-          ok (memo3, r1)
-        | kernel.expr.ExprKind.LetE ty v body =>
-          do
-          let (t, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo ty c
-          let (w, memo3) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo2 v c
-          let i ← c + 1#u64
-          let (b, memo4) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
-          let r1 ← kernel.expr.let_e t w b
-          ok (memo4, r1)
-        | kernel.expr.ExprKind.Lit _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | kernel.expr.ExprKind.Proj s i sub =>
-          do
-          let (u, memo2) ←
-            kernel.expr_ops.lift_loose_bvars_go amount memo sub c
-          let n ← kernel.name.dup s
-          let r1 ← kernel.expr.proj n i u
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup r
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
-      ok (r, memo2)
-    | some r => ok (r, memo)
-partial_fixpoint
-
-/-- [con_ron_core::kernel::expr_ops::lift_loose_bvars]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 485:0-488:1
-    Visibility: public -/
-def kernel.expr_ops.lift_loose_bvars
-  (amount : Std.U64) (c : Std.U64) (e : kernel.expr.Expr) :
-  Result kernel.expr.Expr
-  := do
-  let memo ←
-    ron.hashmap.HashMap.new kernel.expr_ops.ExprNatKey kernel.expr.Expr
-  let (e1, _) ← kernel.expr_ops.lift_loose_bvars_go amount memo e c
-  ok e1
 
 /-- [con_ron_core::kernel::expr_ops::reset_meta_go]:
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 499:0-545:1

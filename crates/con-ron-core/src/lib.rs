@@ -19,8 +19,9 @@
 //! | `expr_ops` | `ConLeche/Kernel/ExprOps.lean` |
 //! | `env` | `ConLeche/Kernel/Env.lean` |
 //! | `fenv` | `ConLeche/Kernel/FEnv.lean` |
+//! | `expr_ops_c` | `ConLeche/Cached/ExprOpsC.lean` (the executed, memoised twins of `expr_ops`), plus `Cached/ExprC.lean`'s `hasFvar` |
 //! | `state_c` | `ConLeche/Cached/StateC.lean` |
-//! | `parsed_c` | `ConLeche/Cached/ParsedC.lean`, plus the two seam records of `Cached/Installed.lean` and `Kernel/CheckerSplit.lean` |
+//! | `parsed_c` | `ConLeche/Cached/ParsedC.lean` (`checkDeclC`, `checkDeclStepC`), plus the two seam records of `Cached/Installed.lean` and `Kernel/CheckerSplit.lean` |
 //! | `core_k` | `ConLeche/Kernel/Core.lean` (the bodies; `core` is a Rust prelude crate name) |
 //! | `core_c` | `ConLeche/Cached/CoreC.lean` (the six memoizing wrappers that tie the knot) |
 //! | `type_checker` | `ConLeche/Kernel/TypeChecker.lean` (the knot's entry points, at `checkFuel`) |

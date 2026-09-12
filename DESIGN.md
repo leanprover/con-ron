@@ -4363,3 +4363,352 @@ installs call *below* `CheckerOps` is already here: `checkConstantVal`,
 `checkEtaThm`, `checkUnitThm`, `indBlockCaps`, `openPisAtFvars(F)`,
 `domsMatchAux`, `checkTypedList`, `checkAnnotList`, `checkDefEqList`,
 `unwrapOr`, `isEqHead`, `eqHeadLevel`, `piResultSort`, `findCV`.
+
+### Task #26 — `ExprOpsC` and the parsed-declaration checker (2026-09-12, Opus under Fable)
+
+P1.5's cached half: `ConLeche/Cached/ExprOpsC.lean` (832 lines, **37/37**
+declarations) ported as `crates/con-ron-core/src/cached/expr_ops_c.rs`, and
+the executable body of `ConLeche/Cached/ParsedC.lean` (264 lines, **8/10**)
+added to `cached/parsed_c.rs`, whose `DeclC` task #14 had already taken.
+`checkDeclC` and `checkDeclStepC` now exist in the crate, so the cached lane
+has a per-declaration step over the closed knot of task #18 and the
+declaration checker of task #24.  Charon and Aeneas both succeeded on the
+**first** run — **zero Aeneas errors**, and the reason is recorded below,
+because it was not luck.
+
+#### Two tiers of the same walks, and the memo policy is the difference
+
+`Kernel/ExprOps.lean` (task #13) is the tier the semantic verification
+reasons about; `Cached/ExprOpsC.lean` is what `Cached/CoreC.lean`,
+`Cached/StateC.lean`, `Cached/CheckerC.lean` and `Cached/ParsedC.lean`
+actually call, with `ConLeche/Verify/Cached/OpsC.lean` proving each function
+equal to its `ConLeche.Expr` counterpart.  §3.1 makes the differences
+binding, and there are exactly four:
+
+1. **A derived-field cutoff at the head of every walk** — `bvarB ≤ d`,
+   `fvarB ≤ d`, `fvarB == 0`, `!hasLP` — returning the node **itself**, so
+   the result shares memory with the input and a later `ptr_eq` on it is
+   `O(1)`.  `expr_ops`' twins have no such cutoff.  (This is the retired
+   arena's "return the same index", and it is why `instantiate1` is `O(1)`
+   on a closed subterm.)
+2. **Only compound nodes are memoised, and the key is built once**
+   (con-leche task #177): the probe and the insert sit *inside* the
+   `app`/`lam`/`forallE`/`letE`/`proj` arms, and an atom — the loose `bvar`s
+   above all, the most numerous nodes a substitution touches — is answered on
+   the spot, because recording a one-word answer under a two-word key was
+   pure loss.  The exceptions are the four walks that probe *before* the
+   match (`instLevelParamsGo`, `wscopedBGo`, `leavesSubGo`,
+   `allLevelParamsDefinedGo`), where every node kind does get an entry.  The
+   port follows **each function's own shape**: a probe or an insert the Lean
+   does not do is exactly what §3.1 forbids, in either direction.
+3. **The bulk key carries no live prefix.**  `instantiateListGo`'s and
+   `instantiateRevGo`'s key is `(node, cursor)`, not `(node, cursor,
+   prefix)`: `k` is invariant over the life of one table, and the `bvar`
+   arm's re-entry — the one place it shrinks — runs under a **fresh** table.
+   So `instantiate_list_go` and `instantiate_rev_go` allocate a table in
+   that arm and nowhere else, and the arm's two guards (`j = 0`, or the
+   replacement closed at the cursor) mean the common case — the checker
+   substitutes `fvar`s — allocates none.
+4. **Short-circuiting *is* memo policy.**  `wscopedBGo`, `leavesSubGo` and
+   `allLevelParamsDefinedGo` stop at the first `false` and therefore write
+   *fewer* entries than an unconditional `&&` would.
+
+#### The `bool_and` rule, refined — and why Aeneas was silent
+
+Task #24's rule was "a memoized walk's arm must end in a call or a
+constructor, never in a branch", and its fix was `expr_ops::bool_and(b1,
+b2)`, which **computes both operands**.  Three of this file's walks
+short-circuit, so `bool_and` would have written memo entries the Lean does
+not — a *hit where the Lean misses*, the one deviation §3.1 says would force
+redoing con-leche's memo-soundness tier.  The refinement that lands here:
+
+> **Lift the branching arm into a one-line callee.**  The arm becomes
+> `wscoped_b_pair(memo, d, x, y)` — a single call, so no two borrow contexts
+> join at the insert — and the branch lives inside that callee, where the
+> outer `&mut memo` is not live at a join.  Same branch, same entries, one
+> more stack frame.
+
+Twelve such callees carry it: `wscoped_b_fvar`/`_pair`/`_triple`,
+`leaves_sub_fvar`/`_pair`/`_triple`, `alpd_pair`/`_binder`/`_triple`,
+`instantiate1_lift_b_compound`, `instantiate_list_bvar`,
+`instantiate_rev_bvar`.  Where the Lean has *already* computed both sides —
+`allLevelParamsDefinedGo`'s binder arms, `(rb && m.pw.paramsDefined params,
+memo)` — `expr_ops::bool_and` is used, exactly as task #24 asks.  Applied
+a priori, this is why Aeneas gave no error on a 1 000-line file of
+`&mut`-threaded walks: **`bool_and` is for a conjunction the Lean evaluates
+eagerly; a callee is for one it short-circuits.**
+
+The visible price is in the SCC decomposition: `Funs.lean` goes from **3
+`mutual` blocks to 9**, the six new ones being exactly these lifted pairs —
+`instantiate1_lift_b`+`_compound` (2 fns, 162 lines),
+`instantiate_list_go`+`_bvar` (2, 484), `instantiate_rev_go`+`_bvar` (2,
+487), `wscoped_b_go`+3 (4, 101), `leaves_sub_go`+3 (4, 104),
+`all_level_params_defined_go`+3 (4, 123).  That is the *correct*
+decomposition — a callee that recurses back into its walk genuinely is in
+its SCC — and the fact worth recording is what did **not** happen: none of
+them joins the 75-function core knot, because the declaration checker and
+the syntactic passes call *into* the knot and nothing in it calls back.
+
+#### `ExprC` is `Expr`, so there is no `expr_c.rs`
+
+`Cached/ExprC.lean` retired the second expression inductive at con-leche task
+#172 B3a (`abbrev ExprC := ConLeche.Expr`, under the user's
+`@[computed_field]` ruling), and its ten smart constructors are `@[inline]`
+aliases with `mkApp_eq` and nine siblings the `rfl` equations.  So `ExprC.mkApp`
+is `expr::app`, `ExprC.mkBVar` is `expr::mk_bvar`, and the file needs no type
+and no module of its own — `ExprC.lean` stays 1/12 covered on purpose (its
+eleven `mk*`/`ExprC` declarations are cited nowhere because they *are* the
+constructors `expr.rs` already carries).
+
+The one exception is its single executed *function*, `ExprC.hasFvar`
+(`:113-115`), which **is** ported, duplicating `expr_ops::has_fvar`'s body
+character for character.  That is deliberate: the two are different Lean
+declarations — `ExprC.hasFvar` is the `O(1)` field read, `Expr.hasFvar` the
+walk its `@[csimp]` twin replaces — and `ParsedC.lean`'s own docstring turns
+on the distinction ("the two `hasFvar`s differ … which is why the guard below
+names `ExprC.hasFvar` outright").  A single Rust function with two citations
+would have erased the reason `ParsedC` writes the name out.
+
+#### The parsed-declaration checker, against `kernel::checker`
+
+`checkDeclC` mirrors `Kernel/Checker.lean`'s `checkDecl` branch by branch,
+and the differences are exactly three — recorded once in `parsed_c.rs`'s
+module doc rather than on fourteen items:
+
+1. **The syntactic guards are the cached ones.**
+   `ExprC.looseBVarsBounded`, `ExprC.hasFvar`, `ExprC.allLevelParamsDefined`
+   and `constsResolveFC` replace their `Expr`-level namesakes.
+2. **Every accepted constant is recorded in `ienv`.**  `recordCConst` runs
+   between the resolution guard and the inference for a definition, theorem
+   or opaque, and before each axiom install — tagged with the very `Expr`
+   objects about to be pushed, because that entry is what the cached lazy
+   accessors (`constTyAtM`, `constValAtM`) read.  A definition's entry
+   carries the value pair (`vE := jv`, both components that node); a theorem's
+   and an opaque's carry `none`.
+3. **The pinned-name tests come before the push.**  `checkDeclC`'s `defn`
+   and `opaque` arms branch first and hand `fe` to `push` unshared — con-leche's
+   own RC-linearity rule, with the comment in `checkDeclC` itself ("with `fe`
+   still live after the push … `checkOpaqueValC`'s `fe.push` copied the whole
+   index on EVERY opaque install").  The port threads the index by value
+   (task #14), so the same branch is what keeps the common arm one tail call.
+
+Everything else is *shared*, and that is the `CheckerOps` collapse of task
+#24 paying a second dividend: the pin gates (`checker::check_defn_pins`,
+`check_reduce_pin`), the axiom pins (`std_axioms`, `trust_axioms`) and the
+basis install (`checker::check_basis_decl`) are the `FEnv`-indexed twins the
+port already spells **once** (task #18's deviation 3), so `check_defn_pins_c`
+and `check_basis_decl_c` are three-line wrappers carrying the `ParsedC`
+citation and nothing else.  `sharedOpsC mode fe`, the record the cited code
+passes them, has no Rust spelling at all: there is no record, and its five
+core slots are `kernel::type_checker`'s by name.  `opSIxC` is one more of
+those — `ensureSortI (coreKnotI mode fe checkFuel)` is
+`type_checker::ensure_sort_core`.
+
+#### The one memo-policy deviation, owed to task #23
+
+`constsResolveFC` (`Cached/StateC.lean:409-450`) is **not** called by name:
+`cached::state_c` does not have it yet — it is task #23's half of that file,
+landing concurrently — so the port calls
+`decl_check::consts_resolve_f_fast`, the `Expr`-level memoised walk of
+`DeclCheck.lean:89-204`.  The two compute the same answer and both memoise on
+the node; they differ in *where* they probe.  The C twin probes before the
+match, so it records the four atom kinds too; the `Expr` twin answers those
+through the spec walk and records nothing.  So the port **misses where the
+Lean hits**, on an `O(1)` leaf answer.
+
+That is the safe direction — never a hit the Lean does not have, so no
+verdict can change — but §3.1 asks for it to be flagged rather than taken
+silently.  Reconciling it is **one call-site change** in
+`check_constant_val_c_after_annot`, `check_defn_val_c_after_annot`,
+`check_thm_val_c_checked` and `check_opaque_val_c_after_annot` (four sites,
+one name), and it must happen before any `check_decl_c_refines` is stated
+against `checkDeclC`.  Flagged in `parsed_c.rs`'s module doc.
+
+#### The one placeholder
+
+`checkDeclC`'s `.indDecl` arm declines past the parameter check, as
+`checker::check_decl`'s does.  `indParamsOk` runs **first and for both
+routes** (con-leche task #228: official reads `nparams` off the declaration,
+so a `false` is official's own *reject*), and the dispatch itself —
+`nativeParts?`, `checkNativeS`, `checkIndDeclSF` — is
+`ConLeche/Kernel/Inductives/*` plus `Cached/CheckerC.lean`'s nine
+per-declaration phase drivers.  **Task #25/#27 wires the inductive
+dispatch**; the arm exists because the fold has to dispatch on the
+constructor.  A decline can only make the Rust *reject*, which is sound for
+the accept direction (§1).  It is the only `not_implemented` this task
+introduces.
+
+#### Constructs that do not survive transliteration
+
+Beyond the memo-policy points above, and all a priori:
+
+1. **The three `abbrev` memo tables are Rust type aliases** — `MemoN`,
+   `MemoNL` (the same type, kept as two names because `MemoLInv ws k memo` is
+   stated of the second) and `Memo0`.  Erased before Charon, as
+   `core_types::CheckM` and `state_c::CheckCM` are; they are there so a
+   ported signature says what con-leche says.  The key *dictionaries* are
+   reused, not re-derived: `expr_ops::ExprNatKey`'s `Hashable`/`Eq2` are
+   Lean's derived instances on `(ExprC × Nat)` at the same components
+   (task #14's point 6).
+2. **The cited dependent `if _h : i - d < k`** (`instantiateListGo`,
+   `instantiateRevGo`) is an ordinary `if`: its only purpose is to put
+   `i - d < k` in scope for the `termination_by (k, sizeOf e)` obligation,
+   and Aeneas's `partial_fixpoint` carries no measure, so neither the
+   dependent `if` nor the `decreasing_by` block has a counterpart.  Same for
+   `piResidualAcc`'s `(as.length, acc.length)`.
+3. **`instantiate1LiftB`'s clause order.**  The cited `match fuel, e with`
+   puts the atom arms *before* `| 0, _ => (none, 0)`, so they answer at an
+   exhausted budget too; the port matches on the node first and tests the
+   budget only on the compound kinds, which is the same clause order.  The
+   `| r => r` forwarding arms are `(None, fuel)` spelled out, there being no
+   pair to forward.
+4. **`fvarLeavesGo`'s `seen` set is a `HashMap<Expr, ()>`** — Lean's
+   `Std.HashMap ExprC Unit`, and Aeneas translated the `Unit` value type
+   without complaint (`ron.hashmap.HashMap kernel.expr.Expr Unit`, and
+   `insert … e ()` in `Funs.lean`).  Its accumulator is threaded by value and
+   the cited `(idx, ty) :: acc` front cons becomes a push, so the list comes
+   out reversed; the only consumer is `leafMem`, a membership test, and the
+   `seen` set makes the list duplicate-free, so the *set* the cited
+   `leafGuard` reads is the same set.  Documented on the item.
+5. **`args.reverse`/`targs.reverse` is a local `rev_append_exprs`** — the
+   same downward index recursion `core_k::rev_append_exprs` is for
+   `Core.lean`'s own `ProjEntry.typeAt`, cited `none` here because the Lean
+   text it stands for is `instSpine`'s and `typeAtI`'s.
+6. **`leafMem`'s `(i == idx && t == ty) || rest` and `abstractRangeGo`'s
+   `d ≤ idx ∧ idx < d + k`** are `if` nests (task #3's pattern 9); the
+   `i - d = 0 || w.bvarB ≤ d` disjunction likewise.
+7. **`piResidualAcc`'s `a :: acc` is a genuine front cons**
+   (`expr_ops::cons_expr`): the accumulator's order is what
+   `instantiateList` reads.  `getAppArgsAcc`'s is not — pushing after the
+   recursive call gives the same list in one pass (task #13's deviation 3).
+8. **Every `(d : Nat := 0)` / `(k : Nat := 0)` default is an explicit
+   argument** (task #14's point 2: Rust has no parameter defaults).
+9. **The long `do` blocks are split at the annotation**, as task #24's
+   deviation 7 does it prophylactically: `check_constant_val_c` →
+   `_after_annot`, and the same for `check_defn_val_c`, `check_thm_val_c`
+   (three functions: the is-a-proposition gate, the witness guards, the
+   comparison) and `check_opaque_val_c`; `checkDeclC`'s six arms are six
+   functions, so every one of them is a tail call.
+10. **`liftFueled "level comparison"` is `core_k::lift_fueled`** —
+    monomorphic and stringless (task #18's deviation 1).
+
+#### Numbers
+
+| | |
+|---|---|
+| Lean ported: `Cached/ExprOpsC.lean`, 37 cited blocks (all 37 declarations) | 701 raw / **660 code** |
+| plus `Cached/ParsedC.lean` 8 cited blocks (7 new; `DeclC` was task #14's) | 181 raw / **163 code** |
+| plus `Cached/ExprC.lean` 1 block (`hasFvar`) | 3 raw / 2 code |
+| `src/cached/expr_ops_c.rs`, extracted part (raw / code) | 1 443 / **1 009** (1.5× the Lean code) |
+| `src/cached/expr_ops_c.rs`, `#[cfg(test)]` part (2 tests) | 189 / 139 |
+| `src/cached/parsed_c.rs`, extracted part (raw / code) | 757 / **505** (was 91 / 36) |
+| `src/cached/parsed_c.rs`, `#[cfg(test)]` part (5 tests, 3 new) | 339 / 273 |
+| generated `Types.lean` | **621 — unchanged**; neither module declares a type (the three memo `abbrev`s are erased aliases) |
+| generated `Funs.lean` | 28 742 → **33 575** (+4 833: `expr_ops_c` 3 778, `parsed_c` 1 058) |
+| `TypesExternal_Template.lean` / `FunsExternal_Template.lean` | 25 / 54 — **unchanged**, byte for byte |
+| `charon cargo --preset=aeneas` wall (after `cargo clean`) | **1.75 s** (the `.llbc` is 57 MB) |
+| `aeneas -backend lean -split-files -loops-to-rec` | **18.35 s** self-reported (18.99 s wall; was 16.4 s) |
+| `partial_fixpoint` (whole crate / this task) | 252 → **283** (+31: `expr_ops_c` 31, `parsed_c` 0 — the parsed checker is a fold of tail calls, not a recursion) |
+| `mutual` blocks in `Funs.lean` | 3 → **9**: the six new ones are the lifted short-circuit callees above (§"the `bool_and` rule, refined"), 1 461 lines between them; **the 75-function core knot is untouched** |
+| `mutual` blocks in `Types.lean` | 3 — unchanged |
+| `cd proof && lake build` after the regeneration (`gates.sh`, 2 114 jobs) | **269 s** — this worktree's *first* build, so Mathlib's 1 900 jobs are in it; the re-elaboration of `Funs.lean` and its dependents alone is **87 s** |
+| external holes | **exactly the four `Rc` axioms and the `Rc` type** |
+
+`cargo build`/`cargo test` warning-free, **122/122** green (117 from tasks
+#6-#24 + 5 new); `scripts/lint-rust-style.sh crates/con-ron-core/src` clean;
+`scripts/provenance.py check` green — 1 141 items, 1 073 citations, all
+current at pin 3e004805; `scripts/gates.sh` all 6 OK.  The two progress lines
+it prints:
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)           to translate  14074  translated   7861 (55%)  verified    498 (3%)
+Cherries (ConLeche/Frontend without Scan/Equiv, Main.lean) to translate   8191  translated      0 (0%)  verified      0 (0%)
+Rust core 25832 lines (987 fns) | unverified crates 2471 | generated Lean 34369 | proofs 10648 (114 _refines) | pin 3e004805
+```
+
+The 1.5× Rust→Lean-code ratio on `expr_ops_c` is the lowest of any walk-heavy
+module so far (`expr_ops` was 1.7×, `core_k` 3.3×) and the 3.7× Rust→generated
+ratio is task #13's ten-constructor-`match` phenomenon again: each memoised
+walk matches on ten constructors twice, once for the cutoff/atom arms and once
+inside the miss branch, and Charon expands every wildcard.
+
+#### Tests
+
+Five, all `#[cfg(test)]` and invisible to Charon.
+
+`expr_ops_c` (2).  **The memo hit, asserted on the table and not on the
+answer**: the subject is `f s s` with one *shared* `s = λ (_ : A). bvar 1`
+occurring twice, and after one `instantiate1_go` the table holds **exactly
+three** entries — the outer `.app`, the inner `.app`, and `s` once, the second
+occurrence being the hit — while `A`, `f` and the `.bvar`s, being atoms or
+below the cutoff, are never recorded (module note 2 in code).  A second walk
+on a fresh table writes the same three (the count is a property of the term,
+not of the history); a second walk on the *same* table writes nothing more and
+answers the same term; and a term closed at the cursor comes back **itself**,
+with no table allocated at all.  **The cached walks against the
+specifications** on that same shared-DAG term: `instantiate1`,
+`instantiateList`, `instantiate1Lift`, `abstract1`, `abstractRange`,
+`instSpine`, `instLevelParams` and `allLevelParamsDefined` each agree with
+`expr_ops`' twin — which is what `Verify/Cached/OpsC.lean` proves in general —
+with `instantiateRev` on a one-element array agreeing with `instantiateList`,
+`abstractRange` at `k = 0` the identity, the `O(1)` scope reads agreeing with
+the walks at and off the bound, `fvarLeaves` finding the one leaf,
+`leafGuard` passing a fabrication over the subject's own leaves and refusing a
+foreign one, `piResidual` peeling a one-binder telescope and declining a
+non-telescope, and `instLevelParams` leaving a `hasLP`-negative term
+untouched.
+
+`parsed_c` (3 new).  **`checkConstantValC`'s rejects** — a stored name is
+`.invalid` before anything is annotated, a type with a loose bound variable is
+`.invalid` (and the guard is asserted directly to be the cached bound read
+answering `false` at 0), a reserved basis name is `.invalid`, and the positive
+control comes back with its type **annotated** and paired with itself.
+**`checkDefnValC` accepts `(λ x : Sort 1. x) : Sort 1 → Sort 1`** — built from
+`Sort`/Π/λ terms over the empty index as `core_k`'s tests build theirs; it
+installs as a `defnInfo` holding the annotated value, the visibility bound
+advances by exactly one, and **the `ienv` entry is asserted**, with its value
+pair present, because writing it is this file's deviation 2.  The negative
+control is the same header at value `Sort 1`, the one *reject* the value check
+can produce.  **`checkDeclStepC` flushes and then dispatches** — an entry in
+`annot_c` is gone after the step while the self-certified `ienv` survives; the
+`.indDecl` arm *declines* on a well-formed block and **rejects** a declared
+`nparams` the block cannot satisfy; and a non-standard axiom declines at its
+own record through the same fold.
+
+#### Deliberately not ported
+
+* `ParsedC.lean`'s `msSecs` (`:247`) and `declCLabel` (`:251`) — the driver's
+  progress-line rendering, `String`-valued and on no verdict path (§3.1:
+  message strings need not match).  `ParsedC.lean` is therefore **8/10** and
+  stays there.
+* `ExprC.lean`'s `ExprC` (`:109`) and its ten `mk*` constructors
+  (`:127-149`) — cited nowhere because they *are* `expr.rs`'s constructors,
+  with the file's own `mkApp_eq` &c. the `rfl` equations (above).  Its ten
+  `@[simp] theorem`s likewise: they are the spec.
+* `ExprOpsC.lean` has **nothing** unported — no `theorem` and no memo
+  invariant of its own; the `*_spec` equations with `ConLeche.Expr`'s
+  operations live in `ConLeche/Verify/Cached/OpsC.lean` and are the
+  specification this port will be proved against (task #13's ruling).
+
+#### Coverage
+
+`scripts/provenance.py coverage | tail -3`, con-leche 3e004805: **TOTAL
+588/1018 covered (57.8 %), 430 uncovered** — up from **543/1018 (53.3 %)** at
+task #24 (+45).  Per file: **`Cached/ExprOpsC.lean` 0/37 → 37/37**,
+`Cached/ParsedC.lean` 1/10 → **8/10**, `Cached/ExprC.lean` 0/12 → **1/12**;
+everything else unchanged.  So the ledger agrees with the prose in every file.
+
+**Note for task #23.**  The four `constsResolveFC` call sites above are the
+reconciliation this task owes that one; `state_c.rs` gained **no field** from
+this task, because every memo in `ExprOpsC.lean` is local (`{}` per call) —
+`StateC.lean`'s nine `*M` wrappers are `pure (ExprC.…)`-bodied, so the port's
+callers call `cached::expr_ops_c`'s functions directly (task #14's point 9)
+and there is nothing to store.
+
+**Note for task #25/#27.**  `check_ind_decl_c` is the seam, and it is one
+`match` arm: `nativeParts?` and the two install routes, plus
+`Cached/CheckerC.lean`'s `checkNativeS`/`checkIndDeclSF` and the four
+memoised direct-install walkers (`instPisAtLiftC`, `structProjBodiesGoC`,
+`structProjBodiesC`, `structWalkersC`) — the last four of which have
+everything they call waiting here: `expr_ops_c::instantiate1_lift` is exactly
+what `instPisAtLiftC` and `structProjBodiesGoC` run.
