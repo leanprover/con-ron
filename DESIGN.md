@@ -500,3 +500,35 @@ The port was mechanical.  Roughly 80% of it is a direct one-to-one rewrite; the
 remaining 20% is the seven patterns above, each applied the same way every time.
 A second agent given these rules should be able to port a module without design
 decisions.
+
+### Task #2 — Toolchain: the Aeneas Lean library on v4.33.0 (2026-09-12, Opus under Fable)
+
+**Result: it builds** on `leanprover/lean4:v4.33.0` with Mathlib `v4.33.0`
+after a ~80-line patch to ten files, kept at
+`spikes/toolchain/aeneas-433.patch` (against `vendor/aeneas` at 505b6ca3,
+`backends/lean/`).  Clean rebuild of the package: 146 s, 2037 jobs,
+Mathlib from the olean cache (`~/.cache/mathlib` persists on this machine).
+
+What the patch is: two `leanOptions` —
+`backward.isDefEq.respectTransparency := false` (4.33 made `isDefEq`
+respect transparency for implicit arguments, which stopped hundreds of
+`simp`/`rfl`/`rw` steps over the semireducible `Result`/`Post`/`CoIndN`
+from closing; the flag restores every one with zero proof edits) and
+`backward.do.legacy := true` (one `do` block in `Step.lean`) — plus six
+genuine API moves (`BVDecide` namespaces and now-private getters via
+`open private`, one `Option` coercion, the `NPow` class in `ReduceZMod`,
+three name collisions with new core `Array`/`Vector` lemmas, two
+`#guard_msgs` texts).  Mathlib is load-bearing for the library
+(`Data.BitVec`, `ZMod`, ordered-algebra lemmas), not only tactics, so it
+stays.
+
+Upstream: the last toolchain bump was to v4.31.0 (2026-07-06); PR
+AeneasVerif/aeneas#1283 "Upgrade to lean 4.33.1" (opened 2026-08-22, 58
+files, proper proof fixes instead of the `backward.*` flags) is open but
+stale and conflicting with master.  **Decision:** stay on the pinned
+Aeneas commit (translator and library must match) at con-leche's exact
+toolchain v4.33.0, carry the patch, and switch to upstream when #1283 or
+its successor lands.  The patched library is produced by
+`scripts/setup-aeneas-lean.sh` (copy + `patch`) into a gitignored
+location the proof project `require`s by path; a fork carrying the patch
+would be the tidier long-term home if the stopgap outlives a month.

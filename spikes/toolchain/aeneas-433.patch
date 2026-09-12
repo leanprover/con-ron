@@ -1,0 +1,375 @@
+diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Data/Array.lean aeneas-lean-433/Aeneas/Data/Array.lean
+--- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Data/Array.lean	2026-09-12 07:32:55.300809685 +0000
++++ aeneas-lean-433/Aeneas/Data/Array.lean	2026-09-12 07:47:44.161231212 +0000
+@@ -109,7 +109,7 @@
+   simp_lists
+ 
+ @[simp, simp_lists_safe]
+-theorem getElem!_set!_ne {α : Type u}
++theorem getElem!_set!_ne' {α : Type u}
+   [Inhabited α] {i j : ℕ} {x : α} {xs : Array α}
+   (h : i ≠ j) :
+   (xs.set! i x)[j]! = xs[j]! := by
+diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Data/Vector.lean aeneas-lean-433/Aeneas/Data/Vector.lean
+--- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Data/Vector.lean	2026-09-12 07:32:55.301809670 +0000
++++ aeneas-lean-433/Aeneas/Data/Vector.lean	2026-09-12 07:50:30.058704807 +0000
+@@ -20,7 +20,7 @@
+   by_cases h : i < n <;> try grind
+   simp_ifs
+   simp_lists
+-  rfl
++  simp [Array.getElem!_eq_getD, Array.getD, outOfBounds, *]
+ 
+ @[simp, simp_lists_safe]
+ theorem getElem!_default [Inhabited α] (ls : Vector α n) (i : ℕ)
+@@ -42,20 +42,20 @@
+   (s : Vector α n) (s' : List α) (i j : ℕ) (h : j < i) :
+   (s.setSlice! i s')[j]! = s[j]! := by
+   simp only [getElem!_eq_toArray_getElem!, setSlice!]
+-  simp_lists
++  simp_lists [Array.getElem!_setSlice!_prefix]
+ 
+ @[simp_lists_safe]
+ theorem getElem!_setSlice!_middle {α} {n} [Inhabited α]
+   (s : Vector α n) (s' : List α) (i j : ℕ) (h : i ≤ j ∧ j - i < s'.length ∧ j < s.size) :
+   (s.setSlice! i s')[j]! = s'[j - i]! := by
+   simp only [setSlice!, getElem!_eq_toArray_getElem!]
+-  simp_lists
++  simp_lists [Array.getElem!_setSlice!_middle]
+ 
+ theorem getElem!_setSlice!_suffix {α} {n} [Inhabited α]
+   (s : Vector α n) (s' : List α) (i j : ℕ) (h : i + s'.length ≤ j) :
+   (s.setSlice! i s')[j]! = s[j]! := by
+   simp only [setSlice!, getElem!_eq_toArray_getElem!]
+-  simp_lists
++  simp_lists [Array.getElem!_setSlice!_suffix]
+ 
+ @[simp_lists_safe]
+ theorem getElem!_setSlice!_same {α} {n} [Inhabited α] (s : Vector α n) (s' : List α) (i j : ℕ)
+@@ -67,20 +67,20 @@
+   (s : Vector α n) (s' : List α) (i j : ℕ) (h : j < i ∧ j < s.size) :
+   (s.setSlice! i s')[j] = s[j] := by
+   simp only [setSlice!, getElem_eq_toArray_getElem]
+-  simp_lists
++  simp_lists [Array.getElem_setSlice!_prefix]
+ 
+ @[simp_lists_safe]
+ theorem getElem_setSlice!_middle {α} {n} [Inhabited α]
+   (s : Vector α n) (s' : List α) (i j : ℕ) (h : i ≤ j ∧ j - i < s'.length ∧ j < n) :
+   (s.setSlice! i s')[j] = s'[j - i] := by
+   simp only [setSlice!, getElem_eq_toArray_getElem]
+-  simp_lists
++  simp_lists [Array.getElem_setSlice!_middle]
+ 
+ theorem getElem_setSlice!_suffix {α} {n} [Inhabited α]
+   (s : Vector α n) (s' : List α) (i j : ℕ) (h : i + s'.length ≤ j ∧ j < n) :
+   (s.setSlice! i s')[j] = s[j] := by
+   simp only [setSlice!, getElem_eq_toArray_getElem]
+-  simp_lists
++  simp_lists [Array.getElem_setSlice!_suffix]
+ 
+ @[simp_lists_safe]
+ theorem getElem_setSlice!_same {α} {n} [Inhabited α] (s : Vector α n) (s' : List α) (i j : ℕ)
+@@ -109,7 +109,7 @@
+   simp_lists
+ 
+ @[simp, simp_lists_safe]
+-theorem getElem_set! {α : Type u}
++theorem getElem_set!' {α : Type u}
+   [Inhabited α] {n i j : ℕ} {x : α} {xs : Vector α n}
+   (hi : i < n ∧ j = i) :
+   (xs.set! i x)[j] = x := by
+@@ -125,15 +125,15 @@
+   (h : i ≠ j) :
+   (xs.set! i x)[j]! = xs[j]! := by
+   simp only [getElem!_eq_toArray_getElem!, toArray_set!]
+-  simp_lists
++  simp_lists [Array.getElem!_set!_ne']
+ 
+ @[simp, simp_lists_safe]
+-theorem getElem_set!_ne {α : Type u}
++theorem getElem_set!_ne' {α : Type u}
+   [Inhabited α] {n i j : ℕ} {x : α} {xs : Vector α n}
+   (h : i ≠ j ∧ j < n) :
+   (xs.set! i x)[j] = xs[j] := by
+   simp only [getElem_eq_toArray_getElem, toArray_set!]
+-  simp_lists
++  simp_lists [Array.getElem_set!_ne]
+ 
+ @[simp, simp_lists_safe]
+ theorem getElem!_replicate {α : Type u} [Inhabited α] {i n : ℕ} {a : α} (h : i < n) :
+diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Do/Tests.lean aeneas-lean-433/Aeneas/Do/Tests.lean
+--- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Do/Tests.lean	2026-09-12 07:32:55.301809670 +0000
++++ aeneas-lean-433/Aeneas/Do/Tests.lean	2026-09-12 07:48:28.227560023 +0000
+@@ -625,13 +625,15 @@
+ 
+ /-- warning: Variable name `n` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _n
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ ---
+ warning: Variable name `n` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _n
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false` -/
+ #guard_msgs in
+@@ -647,7 +649,8 @@
+ 
+ /-- warning: Variable name `x` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _x
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false` -/
+ #guard_msgs in
+@@ -668,25 +671,29 @@
+ /--
+ warning: Variable name `a` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _a
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ ---
+ warning: Variable name `b` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _b
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ ---
+ warning: Variable name `c` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _c
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ ---
+ warning: Variable name `d` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _d
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ -/
+@@ -699,25 +706,29 @@
+ /--
+ warning: Variable name `a` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _a
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ ---
+ warning: Variable name `b` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _b
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ ---
+ warning: Variable name `c` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _c
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ ---
+ warning: Variable name `d` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _d
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ -/
+diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean aeneas-lean-433/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean
+--- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean	2026-09-12 07:32:55.305809609 +0000
++++ aeneas-lean-433/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean	2026-09-12 07:40:12.016125593 +0000
+@@ -80,9 +80,9 @@
+ simproc reduceZModPow
+   (@HPow.hPow _ Nat _
+       (@instHPow _ Nat
+-        (@Monoid.toPow _
+-          (@MonoidWithZero.toMonoid _
+-            (@Semiring.toMonoidWithZero _
++        (@NPow.toPow _
++          (@Monoid.toNPow _
++            (@Semiring.toMonoid _
+               (@CommSemiring.toSemiring _ (@CommRing.toCommSemiring _ (ZMod.commRing _)))))))
+       _ _) := fun e => do
+   trace[ReduceZMod] "Visiting: {e}"
+diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Tactic/Solver/BvTac/BvTac.lean aeneas-lean-433/Aeneas/Tactic/Solver/BvTac/BvTac.lean
+--- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Tactic/Solver/BvTac/BvTac.lean	2026-09-12 07:32:55.305809609 +0000
++++ aeneas-lean-433/Aeneas/Tactic/Solver/BvTac/BvTac.lean	2026-09-12 07:48:09.440846162 +0000
+@@ -7,7 +7,7 @@
+ open Lean Lean.Meta Lean.Parser.Tactic Lean.Elab.Tactic
+ open Bvify Utils
+ 
+-structure Config extends Lean.Elab.Tactic.BVDecide.Frontend.BVDecideConfig, Bvify.Config where
++structure Config extends Lean.Elab.Tactic.BVDecide.BVDecideConfig, Bvify.Config where
+ 
+ declare_config_elab elabConfig Config
+ 
+@@ -79,7 +79,7 @@
+ elab "bv_tac_preprocess" config:Parser.Tactic.optConfig n:(colGt term)? : tactic => do
+   bvTacPreprocess (← elabConfig config) (← optElabTerm n)
+ 
+-open Lean.Elab.Tactic.BVDecide.Frontend Lean.Elab in
++open Lean.Meta.Tactic.BVDecide Lean.Elab in
+ /-- `bv_tac n` solves goals about bit-vectors.
+ 
+ **Usage**: `bv_tac n` where `n` is the bitwidth to use for the bit-vectors.
+@@ -118,7 +118,7 @@
+   -- Call bv_decide
+   IO.FS.withTempFile fun _ lratFile => do
+     let config := config.toBVDecideConfig
+-    let cfg ← BVDecide.Frontend.TacticContext.new lratFile config
++    let cfg ← Lean.Meta.Tactic.BVDecide.TacticContext.new lratFile config
+     liftMetaFinishingTactic fun g => do
+       discard <| bvDecide g cfg
+ 
+diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Tactic/Step/Tests/TupleDestruct.lean aeneas-lean-433/Aeneas/Tactic/Step/Tests/TupleDestruct.lean
+--- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Tactic/Step/Tests/TupleDestruct.lean	2026-09-12 07:32:55.306809593 +0000
++++ aeneas-lean-433/Aeneas/Tactic/Step/Tests/TupleDestruct.lean	2026-09-12 07:53:05.381340360 +0000
+@@ -35,49 +35,57 @@
+ /--
+ warning: Variable name `a` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _a
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ ---
+ warning: Variable name `b` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _b
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ ---
+ warning: Variable name `c` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _c
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ ---
+ warning: Variable name `d` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _d
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ ---
+ warning: Variable name `b` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _b
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ ---
+ warning: Variable name `c` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _c
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ ---
+ warning: Variable name `e` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _e
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ ---
+ warning: Variable name `h` is not explicitly referenced.
+ 
+-The binding can be removed (if unused) or named `_` (if used implicitly).
++Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
++  [apply] _h
+ 
+ Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ -/
+diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/AeneasMeta/BvEnumToBitVec.lean aeneas-lean-433/AeneasMeta/BvEnumToBitVec.lean
+--- /home/joachim/con-ron/vendor/aeneas/backends/lean/AeneasMeta/BvEnumToBitVec.lean	2026-09-12 07:32:55.306809593 +0000
++++ aeneas-lean-433/AeneasMeta/BvEnumToBitVec.lean	2026-09-12 07:34:57.357937668 +0000
+@@ -3,7 +3,8 @@
+ Released under Apache 2.0 license as described in the file LICENSE.
+ -/
+ import Lean
+-import Lean.Elab.Tactic.BVDecide.Frontend.Normalize.Enums
++import Lean.Meta.Tactic.BVDecide.Normalize.Enums
++import Batteries.Tactic.OpenPrivate
+ 
+ /-!
+ # Eagerly realizing `bv_decide`'s enum conversion constants
+@@ -44,7 +45,9 @@
+ namespace Aeneas
+ 
+ open Lean Meta Elab
+-open Lean.Elab.Tactic.BVDecide.Frontend.Normalize
++open Lean.Meta.Tactic.BVDecide.Normalize
++open private getEnumToBitVecFor getEnumToBitVecLeFor getEqIffEnumToBitVecEqFor from
++  Lean.Meta.Tactic.BVDecide.Normalize.Enums
+ 
+ /-- Marker class enabling `deriving BvEnumToBitVec` on an enum inductive.
+ 
+diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/AeneasMeta/Simp/Simp.lean aeneas-lean-433/AeneasMeta/Simp/Simp.lean
+--- /home/joachim/con-ron/vendor/aeneas/backends/lean/AeneasMeta/Simp/Simp.lean	2026-09-12 07:32:55.307809578 +0000
++++ aeneas-lean-433/AeneasMeta/Simp/Simp.lean	2026-09-12 07:34:38.705223510 +0000
+@@ -116,7 +116,7 @@
+     let freshFVarIds ←
+       match result? with
+       | none => replaceMainGoal []; pure none
+-      | some (fvars, mvarId) => replaceMainGoal [mvarId]; pure fvars
++      | some (fvars, mvarId) => replaceMainGoal [mvarId]; pure (some fvars)
+     /- We need to filter the `fvarIdsToSimp` to remove those which have been replaced with fresh fvars -/
+     let fvars ← do
+       match freshFVarIds with
+diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/lakefile.lean aeneas-lean-433/lakefile.lean
+--- /home/joachim/con-ron/vendor/aeneas/backends/lean/lakefile.lean	2026-09-12 07:32:55.307809578 +0000
++++ aeneas-lean-433/lakefile.lean	2026-09-12 07:50:37.292594668 +0000
+@@ -3,9 +3,14 @@
+ 
+ -- Important: mathlib imports std4 and quote4: we mustn't add a `require std4` line
+ require mathlib from git
+-  "https://github.com/leanprover-community/mathlib4.git" @ "v4.31.0"
++  "https://github.com/leanprover-community/mathlib4.git" @ "v4.33.0"
+ 
+ package «aeneas» where
++  -- Lean 4.33 made `isDefEq` respect the transparency setting for implicit
++  -- arguments; many of our `simp`/`rfl` proofs relied on the old behaviour.
++  leanOptions := #[
++    ⟨`backward.isDefEq.respectTransparency, false⟩,
++    ⟨`backward.do.legacy, true⟩]
+   preferReleaseBuild := true
+   buildArchive := s!"lean-build-aeneas-{System.Platform.target}.tar.gz"
+ 
+diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/lean-toolchain aeneas-lean-433/lean-toolchain
+--- /home/joachim/con-ron/vendor/aeneas/backends/lean/lean-toolchain	2026-09-12 07:32:55.307809578 +0000
++++ aeneas-lean-433/lean-toolchain	2026-09-12 07:31:35.076042385 +0000
+@@ -1 +1 @@
+-leanprover/lean4:v4.31.0
++leanprover/lean4:v4.33.0
