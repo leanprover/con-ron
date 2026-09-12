@@ -11,9 +11,10 @@ path = "src/lib.rs"
 name = "con-ron-dump-check"
 path = "src/bin/con-ron-dump-check.rs"
 
-[[bin]]
-name = "con-ron-check"
-path = "src/bin/con-ron-check.rs"
+# `con-ron-check` moved to `crates/con-ron` at task #40: it is the same driver
+# as the `con-ron` binary, reading a `con-ron-decls/1` dump instead of a raw
+# stream, and it now shares `con_ron::driver` with it.  This crate is the dump
+# format's reader and writer, below both.
 
 [dependencies]
 con-ron-core = { path = "../con-ron-core" }

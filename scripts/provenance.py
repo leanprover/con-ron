@@ -854,11 +854,35 @@ def cmd_coverage(args):
             print("    REDUNDANT %s" % r)
         findings += len(redundant)
 
+    # A skip may name a file OUTSIDE `COVERAGE_GLOBS`: `Main.lean` and
+    # `ConLeche/Frontend/**` are the CHERRIES, whose ledger is
+    # `scripts/progress.py`'s second table (§3.7 — "later `Frontend/**`,
+    # `Main.lean`"), so the TOTAL above stays the verified core's.  The
+    # entries still have to be checked, or the list rots exactly where it is
+    # longest: every unused key is validated against the file it NAMES, for
+    # both findings — STALE if the declaration is not there, REDUNDANT if a
+    # Rust item cites it after all (task #40, which closed the cherries).
     for key, reason in sorted(skips.items()):
-        if key not in used:
+        if key in used:
+            continue
+        path, decl = key
+        lines = lean_text(path)
+        decls = ([(ln, nm) for (ln, kw, nm) in top_level_decls(lines)
+                  if kw in DEFINITIONAL]
+                 if lines is not None else [])
+        hit = [(ln, nm) for ln, nm in decls if decl == "*" or nm == decl]
+        if not hit:
             print("STALE %s — `%s %s` names no declaration of that file"
-                  % (SKIP_FILE, key[0], key[1]))
+                  % (SKIP_FILE, path, decl))
             findings += 1
+            continue
+        mine = by_file.get(path, [])
+        for ln, nm in hit:
+            if any(c.a <= ln <= c.b or names_compatible(nm, c.decl) for c in mine):
+                print("REDUNDANT %s — `%s %s` is skipped (%s) but cited"
+                      % (SKIP_FILE, path, nm,
+                         "file-wide" if decl == "*" else "by name"))
+                findings += 1
 
     pct = (100.0 * covered / total) if total else 0.0
     print("TOTAL %d/%d covered (%.1f%%), %d uncovered, %d deliberately "
