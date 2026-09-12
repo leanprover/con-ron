@@ -7677,3 +7677,216 @@ Mathlib caps are next set: the two units are not interchangeable.
   in priority.
 * `expr::beq_go` + `beq` + `beq_record`, task #30's lane.
 * `core.decls` and Mathlib at these numbers, once the machine is free.
+
+### Task #36 — The dump reader at Mathlib scale (2026-09-12, Opus under Fable)
+
+P1.8's memory half.  Task #29 gave con-ron a Mathlib-sized corpus and task #19
+the reader that eats it; the first full Mathlib run then sat at **17.1 GB of
+RSS with phase A barely started** (the maintainer's `--stats-every 50000` log,
+`fenv … rss=17142396KB` at `[A 500000/693195]`), and `con-ron-dump-check
+--roundtrip` peaked at 17.5 GB.  con-leche's *whole* run peaks at 8.6 GB, so
+under §7's 3× rule (26 GB) the checker had no headroom left before it had done
+anything.  This task measured where those bytes were and took the ones that
+were waste: **the Mathlib parse now peaks at 9.20 GB instead of 13.83 GB and
+takes 13.1 s instead of ~24 s**, and the 3 GB of dump text is never in memory
+at all.  Only `crates/con-ron-dump` and this file changed — the verified core,
+its model and the proof are untouched.
+
+#### 1. What one node weighs (`con-ron-dump-check --sizes`)
+
+New in the crate: `node_sizes`, `expr_node_bytes`, `peak_rss_kb`, and the test
+`the_node_sizes_are_what_the_accounting_assumes` that pins them.  `RcBlock<T>`
+is a `#[repr(C)]` *model* of `alloc::rc::RcInner` — two counts in front of the
+value — so the heap column is what one `Rc::new` really costs; nothing is
+allocated through it and no pointer is cast to it (still no `unsafe`).
+
+| type | `size_of` | heap block |
+|---|---|---|
+| `ExprNode` (`data: u64` + `kind`) | 56 | **72** |
+| ` ExprKind` | 48 | — |
+| `  app` payload `(Expr, Expr)` | **16** | — |
+| `  const` payload `(Name, Vec<Level>)` | 32 | — |
+| `  lit` payload `Literal` | 32 | — |
+| `  lam`/`forallE` payload `(Expr, Expr, BinderMeta)` | **40** | — |
+| `NameNode` | 40 | 56 |
+| `LevelNode` | 32 | 48 |
+| `PropWhen` (inline, in every binder) | **24** | — |
+| `Vec<u32>` (a string), `Nat` (limbs) | 24 | — |
+| `DeclC` | 64 | — |
+| `ConstantInfo` / `ConstantVal` | 120 / 40 | — |
+| `Expr` / `Name` / `Level` handle | 8 | — |
+
+The 72 is the whole story at scale: 103 099 223 `E` records × 72 B = **7.42
+GB**, and it is set by the *widest* variant, `lam`/`forallE`, because a
+`BinderMeta` is a `PropWhen` **by value** and `PropWhenRepr::Many(Vec<Name>)`
+is 24 bytes (the other four arms hide in the `Vec`'s niche).  85 % of the
+nodes are `app`, which needs 16.
+
+#### 2. The accounting, before and after (Mathlib, 3 056 189 546 B)
+
+The census is 103 099 223 `E`, 803 303 `N`, 43 003 `L`, 4 `W`, 710 364 `V`,
+10 350 `R`, 6 846 `C`, 23 988 `I`, 693 195 `D` — 105 390 276 record lines.
+
+| the reader's structures | before | after |
+|---|---|---|
+| the dump text (`fs::read_to_string`) | 3.06 GB | **0** |
+| the line index `Vec<&str>` (105.4 M × 16 B, `Vec` capacity 134.2 M) | 2.15 GB | **0** |
+| the per-line `Vec<&str>` of tokens | one allocation per line | **0** (one reused span buffer) |
+| `E` heap nodes (103.1 M × 72 B) | 7.42 GB | 7.42 GB |
+| the `E` id table (`Vec<Expr>`, capacity 134.2 M × 8 B) | 1.07 GB | 1.07 GB |
+| `N` nodes + their `Vec<u32>` strings | 0.07 GB | 0.07 GB |
+| `L`/`W`/`V`/`R`/`C`/`I` tables and `DeclC`s | 0.10 GB | 0.10 GB |
+| **accounted total** | **13.87 GB** | **8.66 GB** |
+| **measured peak RSS** | **13.83 GB** | **9.20 GB** |
+
+The two columns' agreement is the point: the accounting is not a guess, and
+after the change the reader's resident set *is* the terms plus their id tables
+plus one 1 MB read buffer, to within mimalloc's page overhead (0.5 GB).  The
+17.5 GB quoted at the top is the same 13.83 GB plus `--roundtrip`'s 3.06 GB
+re-dump string and `dag::census`'s pointer set; the 17.1 GB is it plus 500 000
+declarations of phase A.
+
+#### 3. What was waste, and what it took to remove it
+
+**(a) The text.**  `run_lines` took a `&str`, so every caller had to hold the
+whole dump — 3.06 GB for Mathlib.  The format does not need it: every
+reference is *backward* and every record is one line (FORMAT.md §2, task #10),
+so a single forward pass over a `BufRead` suffices.  The obstacle was purely a
+borrow one, `Reader<'a>` holding `toks: Vec<&'a str>` into the input, and it is
+now split in two:
+
+* `Tables` — the nine id `Vec`s, the payload and the `pins` flag, **with no
+  lifetime at all**, so it outlives every line buffer;
+* `Rec<'s, 'l>` — one record's cursor: `&'s mut Tables`, the line `&'l str`,
+  the span slice, `pos`, `line_no`.  All forty-odd record functions moved to it
+  unchanged but for `self.x` → `self.st.x`.
+
+`next_tok` copies `self.line` into a local `&'l str` *before* indexing, so the
+token it returns outlives the `&mut self` borrow and the record functions can
+still match on a token while they push — the one trick the whole refactor
+needed.
+
+**(b) The line index.**  `let rest: Vec<&str> = lines.collect()` was 2.15 GB
+of Mathlib's peak for nothing: the pass is forward and needs one line at a
+time.  Gone in both drivers.
+
+**(c) The per-line token `Vec`.**  `line.split(' ').collect()` allocated a
+`Vec<&str>` per record — 105 M allocations.  `split_spans` writes `(u32, u32)`
+byte spans into **one** buffer instead; spans carry no lifetime, which is
+exactly why the buffer can be reused across a `read_line` that refills the
+line.
+
+The driver is now `Session::feed(line, line_no)` per line, with two loops over
+it: `run_lines_str` (a `&str`, for the round-trip tests and the pin reader) and
+`run_lines_read` (any `BufRead`).  They share every record function, and they
+are held to the same *messages and line numbers* by
+`the_streaming_driver_agrees_with_the_string_one`, which runs thirteen inputs —
+the kitchen sink, empty files, a missing footer, a bad header, a wrong footer
+count, content after the footer — through both and asserts `Result` equality.
+The one subtlety is that a file ending in `'\n'` has one more `'\n'`-separated
+piece than it has lines, which the missing-footer message's line number is
+computed from, so the streaming driver counts that phantom piece too.
+
+**(d) Two copies of anything?  No.**  The id tables hold 8-byte `Rc` handles,
+never second copies — that is what `con-ron-dump-check`'s DAG census has been
+asserting since task #19 (reached nodes == record counts, on all 315 fixtures
+and on Mathlib) — and they are dropped the moment the parse returns
+(`parse_decls_*` moves `decls` out of `Tables` and drops the rest).  They
+cannot be dropped *earlier*: `V`, `I` and `D` records reference `E` and `N` ids
+to the very last line of the file, so no prefix of the stream lets the reader
+conclude that a kind is finished.  Shrinking them is not worth it either — the
+non-`E` tables together are 0.02 GB; `E`'s 1.07 GB is 0.25 GB of `Vec`
+doubling slack over the 0.82 GB it must hold, and a chunked table would buy
+back that 3 % at the price of an indirection in the hottest loop of the parse.
+
+#### 4. What the reader pays that is *not* the reader's to fix
+
+7.42 GB of the 8.66 is `ExprNode` heap blocks, and every byte of it is decided
+by core types this crate may not touch (§3.4, and the brief).  For the record,
+with the numbers a repacking would buy at Mathlib scale:
+
+| change | `ExprNode` | block | Mathlib saving |
+|---|---|---|---|
+| today | 56 | 72 | — |
+| `BinderMeta`'s `PropWhen` behind a handle (`lam`/`forallE` payload 40 → 24, so `const`/`lit`'s 32 sets the width) | 48 | 64 | **0.82 GB** |
+| that, plus `const` and `lit` payloads behind a handle (`app`'s 16 sets the width) | 32 | 48 | **2.47 GB** |
+
+Lean pays 8 bytes of object header plus the fields, so con-leche's `app` node
+is ~32 B against con-ron's 72; the second row would put the *terms themselves*
+within 1.5× of con-leche, which is what §7's rule asks of the whole run.  Both
+rows change `Expr`'s shape and therefore the model and the refinement proof —
+a §3.1/§3.2 question for the core, not a tooling one — and neither is needed
+for the 3× budget now that the parse is 9.2 GB of 26.
+
+#### 5. The two RSS readings the brief asked for
+
+`con-ron-check` now prints, on every run,
+
+```
+  peak RSS after parse 8989 MB, after check … MB  (VmHWM)
+```
+
+from `/proc/self/status`, and `--parse-only` stops after the reader and prints
+the first of them alone — the parse half of the budget, measurable without a
+checker run.  `con-ron-dump-check` gained `--parse-only` (stream the file, no
+DAG census, no re-dump: the *measurement* mode) and `--sizes` (§1's table),
+and ends every report with the run's `VmHWM`.  `--parse-only` and
+`--roundtrip` are exclusive, and a `con-ron-pins/1` file (tiny, no streaming
+driver) falls back to the in-memory path.  The fixture gate still runs the
+default mode, because the DAG census and the byte-exact round trip are the
+properties FORMAT.md §6 asks for.
+
+#### 6. Before and after, measured
+
+`/usr/bin/env time -v`, `ulimit -v` per the brief (3 GB `init`, 5 GB `core`,
+26 GB Mathlib), one process at a time; "before" is the task-#35 binary built
+from the same tree (`_tmp/task36/before-*`).  Maximum RSS as `time -v` reports
+it, its kbytes read as decimal MB/GB the way this log's earlier entries do —
+the binaries' own `VmHWM` line divides by 1024 instead, so `time -v`'s
+9 204 MB and the binary's `8989 MB` are the same number.
+
+| run | before | after |
+|---|---|---|
+| `dump-check --quiet` `init` (in-memory, with census) | 861 MB, parse 1.03 s | 832 MB, parse 0.63 s |
+| `dump-check --parse-only` `init` | — | **562 MB**, parse 0.72 s |
+| `dump-check --quiet` `core` (in-memory, with census) | 1 733 MB, parse 2.31 s | 1 587 MB, parse 1.45 s |
+| `dump-check --parse-only` `core` | — | **1 135 MB**, parse 1.52 s |
+| `con-ron-check --pins` `init` (full run) | 1 004 MB, 64.9 s | 1 007 MB, 61.2 s |
+| … of which the parse | ~861 MB | **549 MB** (check 983 MB) |
+| `con-ron-check` Mathlib, parse | **13 827 MB**, ~24 s of its 26.9 s | **9 204 MB**, parse 13.1 s |
+| `dump-check --parse-only` Mathlib | — | 9 204 MB, parse 22.4 s |
+
+`init`'s and `core`'s accounting checks out the same way as Mathlib's: 6 137
+917 `E` × 72 B + a 67 MB table + 13 MB of the rest = 522 MB against 562 MB
+measured (`init`), and 12 273 572 × 72 + 134 MB + 37 MB = 1 055 MB against
+1 135 MB (`core`).  `init`'s *end-to-end* peak does not move, and that is
+expected: its parse was never the peak — the fold is, at 983 MB — which is
+also why task #32's "drop the text before the fold" was enough at `Init` scale
+and stopped being enough at Mathlib's.  The parse also got **1.6× to 2.4×
+faster** everywhere, from not touching 3 GB twice and not allocating 105 M
+token vectors.
+
+#### Gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | all 6 OK (`cargo build`, `cargo test`, lint, provenance, `extract.sh --check`, `lake build`) |
+| `cargo test` | 176/176 (157 unit + 4 integration + **15** in `con-ron-dump`), warning-free — two new tests |
+| `scripts/provenance.py check`, `lint-rust-style.sh` | green, and untouched: both are scoped to `crates/con-ron-core/src` (task #19) |
+| `scripts/extract.sh --check` | trivially green — the core and its model are byte-identical |
+| `scripts/diff-fixtures.sh --timeout=60` | **315 agree, 0 differ**, 0 timed out, 33 skipped |
+| `scripts/dump-check-fixtures.sh` | 315 dumps, 0 failures, DAG exact 315/315, round trip byte-identical 315/315 |
+
+#### Left for next time
+
+* **The full Mathlib run**, now that the parse leaves 17 GB of the 26 GB
+  budget to the fold; the maintainer's run died in phase A at 17.7 GB.
+* **`ExprNode`'s 72 bytes** — §4's table, in the core, with the model and the
+  refinement proof behind it.  It is the only item left in the reader's
+  accounting, it is 86 % of it, and the `BinderMeta` row is nearly free (a
+  `PropWhen` handle, no change to any operation's arm structure).
+* The `E` id table's 0.25 GB of `Vec` slack, if a chunked table ever measures
+  free in the parse loop.
+* `con-ron-check --stats-every`'s `rss_kb` still reads *current* RSS from
+  `/proc/self/statm` (the periodic column wants that); the two new numbers are
+  `VmHWM` from `peak_rss_kb`.  Two functions, on purpose.

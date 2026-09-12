@@ -56,6 +56,17 @@
 //! fixups, no cycles, no recursion over the term (the `E` records are already
 //! topologically sorted, so the reader needs no worklist either — the writer's
 //! is enough).
+//!
+//! And because the pass is forward, **the dump is never held in memory**
+//! (task #36): [`parse_decls_file`] streams it a line at a time, so a 3 GB
+//! Mathlib dump costs one line buffer rather than 3 GB of `String` plus 2 GB
+//! of `Vec<&str>` line index.  [`parse_decls`] still takes a `&str` — the
+//! round-trip tests and the pin reader want that — and the two drivers share
+//! every record function below, so they accept the same files with the same
+//! messages and the same line numbers.  What the reader's resident set *is*,
+//! after that, is the terms themselves: `con-ron-dump-check --sizes`
+//! ([`node_sizes`]) prints what one node of each kind weighs, and
+//! [`peak_rss_kb`] is what the binaries report it against.
 
 // ---------------------------------------------------------------------------
 // The global allocator (task #35).
@@ -111,10 +122,16 @@ use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::BinderMeta;
 use con_ron_core::kernel::expr::Expr;
 use con_ron_core::kernel::expr::Literal;
+use con_ron_core::kernel::expr::ExprKind;
+use con_ron_core::kernel::expr::ExprNode;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
+use con_ron_core::kernel::level::LevelKind;
+use con_ron_core::kernel::level::LevelNode;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
+use con_ron_core::kernel::name::NameKind;
+use con_ron_core::kernel::name::NameNode;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_core::kernel::prop_when;
 use con_ron_core::kernel::prop_when::PropWhen;
@@ -247,12 +264,105 @@ impl Counts {
 }
 
 // ---------------------------------------------------------------------------
+// What a node weighs (task #36)
+// ---------------------------------------------------------------------------
+
+/// `Rc<T>`'s heap block: the two reference counts in front of the value
+/// (`alloc::rc::RcInner`, `#[repr(C)] { strong, weak, value }`).  This is a
+/// *model* of that private type, used only to report a size — nothing is
+/// allocated through it and no pointer is cast to it.
+#[repr(C)]
+#[allow(dead_code)]
+struct RcBlock<T> {
+    strong: usize,
+    weak: usize,
+    value: T,
+}
+
+/// One row of the size report: a type, its `size_of`, and — for a type the
+/// core holds behind an `Rc` — what one heap block of it costs including the
+/// two counts.  `heap == 0` means the type is stored inline, in its owner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NodeSize {
+    pub what: &'static str,
+    pub size: usize,
+    pub heap: usize,
+}
+
+/// **What the reader's terms weigh, per node** (`con-ron-dump-check --sizes`,
+/// DESIGN.md task #36).  The interesting number is `ExprNode`'s `heap`: at
+/// Mathlib scale it is multiplied by 103 M.  It is printed rather than
+/// asserted-and-forgotten because shrinking it is a *core-type* question
+/// (`ExprKind`'s widest variant sets the padding every `app` node pays), and
+/// the core is off limits to this crate; the test below pins today's numbers
+/// so that a repacking shows up as a diff with its saving attached.
+pub fn node_sizes() -> Vec<NodeSize> {
+    fn row<T>(what: &'static str, rc: bool) -> NodeSize {
+        NodeSize {
+            what,
+            size: std::mem::size_of::<T>(),
+            heap: if rc { std::mem::size_of::<RcBlock<T>>() } else { 0 },
+        }
+    }
+    vec![
+        row::<ExprNode>("ExprNode (data + kind)", true),
+        row::<ExprKind>("  ExprKind", false),
+        row::<(Expr, Expr)>("    app payload", false),
+        row::<(Name, Vec<Level>)>("    const payload", false),
+        row::<Literal>("    lit payload", false),
+        row::<(Expr, Expr, BinderMeta)>("    lam/forallE payload", false),
+        row::<NameNode>("NameNode (hash + kind)", true),
+        row::<NameKind>("  NameKind", false),
+        row::<LevelNode>("LevelNode (hash + kind)", true),
+        row::<LevelKind>("  LevelKind", false),
+        row::<PropWhen>("PropWhen (inline, in a binder)", false),
+        row::<Vec<u32>>("Vec<u32> (a string's header)", false),
+        row::<Nat>("Nat (limb Vec header)", false),
+        row::<DeclC>("DeclC", false),
+        row::<ConstantInfo>("ConstantInfo (inline)", false),
+        row::<ConstantVal>("ConstantVal (inline)", false),
+    ]
+}
+
+/// The `Rc` heap block of an `ExprNode` — the reader's dominant cost, one per
+/// `E` record.  Separate from [`node_sizes`] so the binaries can multiply it
+/// by the record count without searching the table.
+pub fn expr_node_bytes() -> usize {
+    std::mem::size_of::<RcBlock<ExprNode>>()
+}
+
+/// The peak resident set of this process in KB, `VmHWM` from
+/// `/proc/self/status` — a high-water mark, so it survives every `free` and
+/// is the number DESIGN.md's memory budgets are stated in.  `0` where the
+/// file is not readable.
+pub fn peak_rss_kb() -> u64 {
+    match std::fs::read_to_string("/proc/self/status") {
+        Err(_) => 0,
+        Ok(t) => {
+            for l in t.lines() {
+                if let Some(rest) = l.strip_prefix("VmHWM:") {
+                    let mut it = rest.split_whitespace();
+                    if let Some(n) = it.next() {
+                        return n.parse::<u64>().unwrap_or(0);
+                    }
+                }
+            }
+            0
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // The reader's state
 // ---------------------------------------------------------------------------
 
-/// One `Vec` per id space, plus the current record's tokens.  The mirror of
-/// `Read.lean`'s `RState`.
-struct Reader<'a> {
+/// One `Vec` per id space: the reader's whole persistent state, the mirror of
+/// `Read.lean`'s `RState` minus the current record.  It is deliberately free
+/// of any borrow of the input (task #36): the reader reads the dump one line
+/// at a time and never holds the text, so this struct outlives every line
+/// buffer and the cursor over the current line ([`Rec`]) is built fresh per
+/// record.
+struct Tables {
     names: Vec<Name>,
     levels: Vec<Level>,
     pws: Vec<PropWhen>,
@@ -270,14 +380,11 @@ struct Reader<'a> {
     /// `D`), `true` a `con-ron-pins/1` one (payload `S`).  `Read.lean`'s
     /// `RState.pins`.
     pins: bool,
-    toks: Vec<&'a str>,
-    pos: usize,
-    line_no: usize,
 }
 
-impl<'a> Reader<'a> {
-    fn new() -> Reader<'a> {
-        Reader {
+impl Tables {
+    fn new(pins: bool) -> Tables {
+        Tables {
             names: Vec::new(),
             levels: Vec::new(),
             pws: Vec::new(),
@@ -289,13 +396,54 @@ impl<'a> Reader<'a> {
             infos: Vec::new(),
             decls: Vec::new(),
             pin_sets: Vec::new(),
-            pins: false,
-            toks: Vec::new(),
-            pos: 0,
-            line_no: 1,
+            pins,
         }
     }
 
+    /// The payload count the footer must agree with: declarations in a
+    /// `con-ron-decls/1` dump, pin variants in a `con-ron-pins/1` one.
+    fn payload_len(&self) -> usize {
+        if self.pins {
+            self.pin_sets.len()
+        } else {
+            self.decls.len()
+        }
+    }
+
+    fn counts(&self) -> Counts {
+        let mut c = Counts {
+            names: self.names.len(),
+            levels: self.levels.len(),
+            pws: self.pws.len(),
+            exprs: self.exprs.len(),
+            cvs: self.cvs.len(),
+            rules: self.rules.len(),
+            caps: self.caps.len(),
+            tables: self.tables.len(),
+            infos: self.infos.len(),
+            pin_sets: self.pin_sets.len(),
+            ..Counts::default()
+        };
+        c.tally_decls(&self.decls);
+        c
+    }
+}
+
+
+/// The cursor over **one** record: the tables it grows, the line's text, the
+/// token spans [`split_spans`] found in it, and how far the record has been
+/// consumed.  `'l` is the line buffer's lifetime and is *not* the tables' —
+/// that separation is what lets the driver reuse a single line buffer instead
+/// of keeping the whole dump in memory (task #36).
+struct Rec<'s, 'l> {
+    st: &'s mut Tables,
+    line: &'l str,
+    spans: &'s [(u32, u32)],
+    pos: usize,
+    line_no: usize,
+}
+
+impl<'s, 'l> Rec<'s, 'l> {
     /// `Read.lean`'s `rerr`: fail, naming the line.
     fn err<T>(&self, msg: String) -> Result<T, String> {
         Err(format!("line {}: {}", self.line_no, msg))
@@ -303,11 +451,15 @@ impl<'a> Reader<'a> {
 
     // --- tokens ------------------------------------------------------------
 
-    fn next_tok(&mut self) -> Result<&'a str, String> {
-        if self.pos < self.toks.len() {
-            let t = self.toks[self.pos];
+    fn next_tok(&mut self) -> Result<&'l str, String> {
+        if self.pos < self.spans.len() {
+            // `line` is a `&'l str` *copied* out of `self`, so the token the
+            // caller gets back outlives this `&mut self` borrow and the
+            // record functions can go on matching on it while they push.
+            let l: &'l str = self.line;
+            let (a, b) = self.spans[self.pos];
             self.pos += 1;
-            Ok(t)
+            Ok(&l[a as usize..b as usize])
         } else {
             self.err("unexpected end of record".to_string())
         }
@@ -392,8 +544,8 @@ impl<'a> Reader<'a> {
 
     fn name_ref(&mut self) -> Result<Name, String> {
         let i = self.count()?;
-        if i < self.names.len() {
-            Ok(name::dup(&self.names[i]))
+        if i < self.st.names.len() {
+            Ok(name::dup(&self.st.names[i]))
         } else {
             self.err(format!("name id {} is not defined yet", i))
         }
@@ -401,8 +553,8 @@ impl<'a> Reader<'a> {
 
     fn level_ref(&mut self) -> Result<Level, String> {
         let i = self.count()?;
-        if i < self.levels.len() {
-            Ok(level::dup(&self.levels[i]))
+        if i < self.st.levels.len() {
+            Ok(level::dup(&self.st.levels[i]))
         } else {
             self.err(format!("level id {} is not defined yet", i))
         }
@@ -410,8 +562,8 @@ impl<'a> Reader<'a> {
 
     fn pw_ref(&mut self) -> Result<PropWhen, String> {
         let i = self.count()?;
-        if i < self.pws.len() {
-            Ok(prop_when::dup(&self.pws[i]))
+        if i < self.st.pws.len() {
+            Ok(prop_when::dup(&self.st.pws[i]))
         } else {
             self.err(format!("propwhen id {} is not defined yet", i))
         }
@@ -419,8 +571,8 @@ impl<'a> Reader<'a> {
 
     fn expr_ref(&mut self) -> Result<Expr, String> {
         let i = self.count()?;
-        if i < self.exprs.len() {
-            Ok(expr::dup(&self.exprs[i]))
+        if i < self.st.exprs.len() {
+            Ok(expr::dup(&self.st.exprs[i]))
         } else {
             self.err(format!("expr id {} is not defined yet", i))
         }
@@ -428,8 +580,8 @@ impl<'a> Reader<'a> {
 
     fn cv_ref(&mut self) -> Result<ConstantVal, String> {
         let i = self.count()?;
-        if i < self.cvs.len() {
-            Ok(env::constant_val_dup(&self.cvs[i]))
+        if i < self.st.cvs.len() {
+            Ok(env::constant_val_dup(&self.st.cvs[i]))
         } else {
             self.err(format!("constval id {} is not defined yet", i))
         }
@@ -437,8 +589,8 @@ impl<'a> Reader<'a> {
 
     fn rule_ref(&mut self) -> Result<RecRule, String> {
         let i = self.count()?;
-        if i < self.rules.len() {
-            Ok(env::rec_rule_dup(&self.rules[i]))
+        if i < self.st.rules.len() {
+            Ok(env::rec_rule_dup(&self.st.rules[i]))
         } else {
             self.err(format!("recrule id {} is not defined yet", i))
         }
@@ -446,8 +598,8 @@ impl<'a> Reader<'a> {
 
     fn caps_ref(&mut self) -> Result<IndCaps, String> {
         let i = self.count()?;
-        if i < self.caps.len() {
-            Ok(env::ind_caps_dup(&self.caps[i]))
+        if i < self.st.caps.len() {
+            Ok(env::ind_caps_dup(&self.st.caps[i]))
         } else {
             self.err(format!("indcaps id {} is not defined yet", i))
         }
@@ -455,8 +607,8 @@ impl<'a> Reader<'a> {
 
     fn table_ref(&mut self) -> Result<ProjTable, String> {
         let i = self.count()?;
-        if i < self.tables.len() {
-            Ok(env::proj_table_dup(&self.tables[i]))
+        if i < self.st.tables.len() {
+            Ok(env::proj_table_dup(&self.st.tables[i]))
         } else {
             self.err(format!("projtable id {} is not defined yet", i))
         }
@@ -464,8 +616,8 @@ impl<'a> Reader<'a> {
 
     fn info_ref(&mut self) -> Result<ConstantInfo, String> {
         let i = self.count()?;
-        if i < self.infos.len() {
-            Ok(env::constant_info_dup(&self.infos[i]))
+        if i < self.st.infos.len() {
+            Ok(env::constant_info_dup(&self.st.infos[i]))
         } else {
             self.err(format!("constinfo id {} is not defined yet", i))
         }
@@ -566,7 +718,7 @@ impl<'a> Reader<'a> {
     /// `N` — `ConLeche/Kernel/Name.lean`.  `hashData` is recomputed by the
     /// smart constructors, never read off the file.
     fn record_name(&mut self) -> Result<(), String> {
-        self.expect_id(self.names.len(), "name")?;
+        self.expect_id(self.st.names.len(), "name")?;
         let t = self.next_tok()?;
         let v = if t == "a" {
             name::anonymous()
@@ -581,13 +733,13 @@ impl<'a> Reader<'a> {
         } else {
             return self.err(format!("unknown name record '{}'", t));
         };
-        self.names.push(v);
+        self.st.names.push(v);
         Ok(())
     }
 
     /// `L` — `ConLeche/Kernel/Expr.lean:39`.
     fn record_level(&mut self) -> Result<(), String> {
-        self.expect_id(self.levels.len(), "level")?;
+        self.expect_id(self.st.levels.len(), "level")?;
         let t = self.next_tok()?;
         let v = if t == "z" {
             level::zero()
@@ -608,7 +760,7 @@ impl<'a> Reader<'a> {
         } else {
             return self.err(format!("unknown level record '{}'", t));
         };
-        self.levels.push(v);
+        self.st.levels.push(v);
         Ok(())
     }
 
@@ -618,7 +770,7 @@ impl<'a> Reader<'a> {
     /// is the identity (`PropWhen.ifAllZero_toList`, checked by
     /// `canonical_list_renormalises_to_itself` below).
     fn record_pw(&mut self) -> Result<(), String> {
-        self.expect_id(self.pws.len(), "propwhen")?;
+        self.expect_id(self.st.pws.len(), "propwhen")?;
         let t = self.next_tok()?;
         let v = if t == "n" {
             prop_when::never()
@@ -628,7 +780,7 @@ impl<'a> Reader<'a> {
         } else {
             return self.err(format!("unknown propwhen record '{}'", t));
         };
-        self.pws.push(v);
+        self.st.pws.push(v);
         Ok(())
     }
 
@@ -637,7 +789,7 @@ impl<'a> Reader<'a> {
     /// `sat_succ`, `sat_pred`, `hash32`); its hash bits are the port's own
     /// (DESIGN.md task #3, note 6) and nothing compares them with Lean's.
     fn record_expr(&mut self) -> Result<(), String> {
-        self.expect_id(self.exprs.len(), "expr")?;
+        self.expect_id(self.st.exprs.len(), "expr")?;
         let t = self.next_tok()?;
         let v = if t == "b" {
             let i = self.nat()?;
@@ -686,17 +838,17 @@ impl<'a> Reader<'a> {
         } else {
             return self.err(format!("unknown expr record '{}'", t));
         };
-        self.exprs.push(v);
+        self.st.exprs.push(v);
         Ok(())
     }
 
     /// `V` — `ConLeche/Kernel/Env.lean:197`.
     fn record_cv(&mut self) -> Result<(), String> {
-        self.expect_id(self.cvs.len(), "constval")?;
+        self.expect_id(self.st.cvs.len(), "constval")?;
         let n = self.name_ref()?;
         let lps = self.name_list()?;
         let ty = self.expr_ref()?;
-        self.cvs.push(ConstantVal {
+        self.st.cvs.push(ConstantVal {
             name: n,
             level_params: lps,
             ty,
@@ -709,7 +861,7 @@ impl<'a> Reader<'a> {
     /// placeholders in a dump (FORMAT.md §6.6); the format writes them anyway,
     /// so the reader reads them and assumes nothing.
     fn record_rule(&mut self) -> Result<(), String> {
-        self.expect_id(self.rules.len(), "recrule")?;
+        self.expect_id(self.st.rules.len(), "recrule")?;
         let ctor = self.name_ref()?;
         let nfields = self.nat()?;
         let ctor_params = self.nat()?;
@@ -718,7 +870,7 @@ impl<'a> Reader<'a> {
         let k = self.boolean()?;
         let eta = self.boolean()?;
         let params_blind = self.boolean()?;
-        self.rules.push(RecRule {
+        self.st.rules.push(RecRule {
             ctor,
             nfields,
             ctor_params,
@@ -733,7 +885,7 @@ impl<'a> Reader<'a> {
 
     /// `C` — `ConLeche/Kernel/Env.lean:359`.
     fn record_caps(&mut self) -> Result<(), String> {
-        self.expect_id(self.caps.len(), "indcaps")?;
+        self.expect_id(self.st.caps.len(), "indcaps")?;
         let eta = self.boolean()?;
         let eta_ctor = self.name_ref()?;
         let eta_params = self.nat()?;
@@ -742,7 +894,7 @@ impl<'a> Reader<'a> {
         let unit_params = self.nat()?;
         let rule_k = self.boolean()?;
         let sort_z = self.pw_ref()?;
-        self.caps.push(IndCaps {
+        self.st.caps.push(IndCaps {
             eta,
             eta_ctor,
             eta_params,
@@ -760,7 +912,7 @@ impl<'a> Reader<'a> {
     /// the port does not inherit the asymmetry with `guards` (task #10,
     /// surprise 8).
     fn record_table(&mut self) -> Result<(), String> {
-        self.expect_id(self.tables.len(), "projtable")?;
+        self.expect_id(self.st.tables.len(), "projtable")?;
         let struct_name = self.name_ref()?;
         let level_params = self.name_list()?;
         let num_params = self.nat()?;
@@ -770,7 +922,7 @@ impl<'a> Reader<'a> {
         let bodies = self.expr_list()?;
         let guards = self.level_list()?;
         let off = self.nat()?;
-        self.tables.push(ProjTable {
+        self.st.tables.push(ProjTable {
             struct_name,
             level_params,
             num_params,
@@ -790,7 +942,7 @@ impl<'a> Reader<'a> {
     /// constructors of the type `check_decls` takes, so they are read here
     /// (task #10, surprise 3).
     fn record_info(&mut self) -> Result<(), String> {
-        self.expect_id(self.infos.len(), "constinfo")?;
+        self.expect_id(self.st.infos.len(), "constinfo")?;
         let t = self.next_tok()?;
         let v = if t == "a" {
             let cv = self.cv_ref()?;
@@ -825,7 +977,7 @@ impl<'a> Reader<'a> {
         } else {
             return self.err(format!("unknown constinfo record '{}'", t));
         };
-        self.infos.push(v);
+        self.st.infos.push(v);
         Ok(())
     }
 
@@ -859,7 +1011,7 @@ impl<'a> Reader<'a> {
         } else {
             return self.err(format!("unknown declaration record '{}'", t));
         };
-        self.decls.push(v);
+        self.st.decls.push(v);
         Ok(())
     }
 
@@ -885,7 +1037,7 @@ impl<'a> Reader<'a> {
         let xor_proofs = self.expr_list()?;
         let shift_left_proofs = self.expr_list()?;
         let shift_right_proofs = self.expr_list()?;
-        self.pin_sets.push(NatOpPinSet {
+        self.st.pin_sets.push(NatOpPinSet {
             toolchain,
             div_pin,
             mod_pin,
@@ -911,10 +1063,10 @@ impl<'a> Reader<'a> {
     fn record(&mut self, kind: &str) -> Result<(), String> {
         // A file has ONE payload kind (FORMAT.md §7): the header decided
         // which, so the other one's record is an error, not an ignored line.
-        if kind == "D" && self.pins {
+        if kind == "D" && self.st.pins {
             return self.err("a declaration record 'D' in a con-ron-pins/1 dump".to_string());
         }
-        if kind == "S" && !self.pins {
+        if kind == "S" && !self.st.pins {
             return self.err("a pin-set record 'S' in a con-ron-decls/1 dump".to_string());
         }
         match kind {
@@ -933,33 +1085,6 @@ impl<'a> Reader<'a> {
         }
     }
 
-    /// The payload count the footer must agree with: declarations in a
-    /// `con-ron-decls/1` dump, pin variants in a `con-ron-pins/1` one.
-    fn payload_len(&self) -> usize {
-        if self.pins {
-            self.pin_sets.len()
-        } else {
-            self.decls.len()
-        }
-    }
-
-    fn counts(&self) -> Counts {
-        let mut c = Counts {
-            names: self.names.len(),
-            levels: self.levels.len(),
-            pws: self.pws.len(),
-            exprs: self.exprs.len(),
-            cvs: self.cvs.len(),
-            rules: self.rules.len(),
-            caps: self.caps.len(),
-            tables: self.tables.len(),
-            infos: self.infos.len(),
-            pin_sets: self.pin_sets.len(),
-            ..Counts::default()
-        };
-        c.tally_decls(&self.decls);
-        c
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -980,8 +1105,34 @@ pub fn parse_decls(text: &str) -> Result<Vec<DeclC>, String> {
 
 /// [`parse_decls`] plus the record census `con-ron-dump-check` prints.
 pub fn parse_decls_counted(text: &str) -> Result<(Vec<DeclC>, Counts), String> {
-    let (r, counts) = run_lines(text, HEADER, false)?;
-    Ok((r.decls, counts))
+    let (st, counts) = run_lines_str(text, HEADER, false)?;
+    Ok((st.decls, counts))
+}
+
+/// **The streaming reader** (task #36).  [`parse_decls_counted`] for a file
+/// that is never held in memory: the dump is read a line at a time through a
+/// [`BufReader`](std::io::BufReader), so the reader's resident set is the
+/// terms it builds plus one line buffer, not the terms *plus the 3 GB of
+/// text*.  The format allows it — every reference is backward and every
+/// record is one line (FORMAT.md §2) — and the two drivers share every record
+/// function below, so they accept exactly the same files with exactly the
+/// same messages.
+pub fn parse_decls_file(path: &str) -> Result<(Vec<DeclC>, Counts), String> {
+    // The path is *not* in the message: both callers prefix it, as they do
+    // for a parse error's `line N:`.
+    let f = match std::fs::File::open(path) {
+        Ok(f) => f,
+        Err(e) => return Err(format!("{}", e)),
+    };
+    let (st, counts) = run_lines_read(std::io::BufReader::with_capacity(1 << 20, f), HEADER, false)?;
+    Ok((st.decls, counts))
+}
+
+/// [`parse_decls_file`] for any reader, so a test can put the streaming
+/// driver and the in-memory one side by side.
+pub fn parse_decls_reader<R: std::io::BufRead>(r: R) -> Result<(Vec<DeclC>, Counts), String> {
+    let (st, counts) = run_lines_read(r, HEADER, false)?;
+    Ok((st.decls, counts))
 }
 
 /// **The pin reader** (FORMAT.md §7).  The inverse of [`dump_pins`] and of
@@ -995,74 +1146,178 @@ pub fn parse_pins(text: &str) -> Result<Vec<NatOpPinSet>, String> {
 
 /// [`parse_pins`] plus the record census.
 pub fn parse_pins_counted(text: &str) -> Result<(Vec<NatOpPinSet>, Counts), String> {
-    let (r, counts) = run_lines(text, PINS_HEADER, true)?;
-    Ok((r.pin_sets, counts))
+    let (st, counts) = run_lines_str(text, PINS_HEADER, true)?;
+    Ok((st.pin_sets, counts))
 }
 
-/// `Read.lean`'s `runLines`, shared by both drivers: check the header, then a
-/// single forward pass over the records, stopping at the `end` footer, whose
-/// count is the payload's (`Reader::payload_len`).
-fn run_lines<'a>(
-    text: &'a str,
-    header: &str,
-    pins: bool,
-) -> Result<(Reader<'a>, Counts), String> {
+/// The token spans of one record line, `line.split(' ')` without the `Vec` of
+/// `&str`s: the spans carry no lifetime, so one buffer serves every line of
+/// the file.  Empty fields are kept, exactly as `split` keeps them, because
+/// the record functions reject them by name.
+fn split_spans(line: &str, out: &mut Vec<(u32, u32)>) {
+    out.clear();
+    let b = line.as_bytes();
+    let mut start: usize = 0;
+    let mut i: usize = 0;
+    while i < b.len() {
+        if b[i] == b' ' {
+            out.push((start as u32, i as u32));
+            start = i + 1;
+        }
+        i += 1;
+    }
+    out.push((start as u32, b.len() as u32));
+}
+
+/// `Read.lean`'s `runLines` minus the line source: the tables, the reusable
+/// span buffer, and whether the `end` footer has been seen.  One [`feed`]
+/// call per line is the whole pass.
+///
+/// [`feed`]: Session::feed
+struct Session {
+    st: Tables,
+    spans: Vec<(u32, u32)>,
+    saw_footer: bool,
+}
+
+impl Session {
+    fn new(pins: bool) -> Session {
+        Session { st: Tables::new(pins), spans: Vec::new(), saw_footer: false }
+    }
+
+    /// One line of the record stream, `line_no` its one-based number in the
+    /// file (the header is line 1).  A line's tokens are borrowed only for
+    /// the duration of this call, which is what makes the streaming driver
+    /// possible.
+    fn feed(&mut self, line: &str, line_no: usize) -> Result<(), String> {
+        if self.saw_footer {
+            if !line.is_empty() {
+                return Err(format!("line {}: content after the footer", line_no));
+            }
+            return Ok(());
+        }
+        if line.is_empty() {
+            return Ok(());
+        }
+        if line.len() > u32::MAX as usize {
+            return Err(format!("line {}: record line is absurdly long", line_no));
+        }
+        split_spans(line, &mut self.spans);
+        let mut r = Rec { st: &mut self.st, line, spans: &self.spans, pos: 0, line_no };
+        let kind = r.next_tok()?;
+        if kind == "end" {
+            let n = r.count()?;
+            let want = r.st.payload_len();
+            if n != want {
+                return r.err(format!(
+                    "footer count {} != the {} {} read",
+                    n,
+                    want,
+                    if r.st.pins { "pin sets" } else { "declarations" }
+                ));
+            }
+            if r.pos != r.spans.len() {
+                return r.err("trailing fields in the footer".to_string());
+            }
+            self.saw_footer = true;
+        } else {
+            r.record(kind)?;
+            if r.pos != r.spans.len() {
+                return r.err("trailing fields in a record".to_string());
+            }
+        }
+        Ok(())
+    }
+
+    /// The end of the file: the footer must have been seen.  `pieces` is how
+    /// many `'\n'`-separated pieces followed the header, which is the line
+    /// number `Read.lean` names here.
+    fn finish(self, pieces: usize) -> Result<(Tables, Counts), String> {
+        if !self.saw_footer {
+            return Err(format!(
+                "line {}: the dump has no 'end' footer",
+                pieces + 1
+            ));
+        }
+        let counts = self.st.counts();
+        Ok((self.st, counts))
+    }
+}
+
+/// The header check both drivers do.
+fn check_header(hdr: &str, header: &str) -> Result<(), String> {
+    if hdr == header {
+        Ok(())
+    } else {
+        Err(format!("bad header: expected '{}', got '{}'", header, hdr))
+    }
+}
+
+/// `Read.lean`'s `runLines` over a string: check the header, then a single
+/// forward pass over the records, stopping at the `end` footer, whose count
+/// is the payload's (`Tables::payload_len`).  Unlike task #19's version this
+/// no longer collects the lines into a `Vec<&str>` — 1.7 GB of the Mathlib
+/// dump's peak was that index (task #36).
+fn run_lines_str(text: &str, header: &str, pins: bool) -> Result<(Tables, Counts), String> {
     let mut lines = text.split('\n');
     let hdr = match lines.next() {
         Some(h) => h,
         None => return Err("empty input".to_string()),
     };
-    if hdr != header {
-        return Err(format!(
-            "bad header: expected '{}', got '{}'",
-            header, hdr
-        ));
+    check_header(hdr, header)?;
+    let mut sess = Session::new(pins);
+    let mut pieces: usize = 0;
+    for line in lines {
+        pieces += 1;
+        sess.feed(line, pieces + 1)?;
     }
-    let rest: Vec<&str> = lines.collect();
-    let mut r = Reader::new();
-    r.pins = pins;
-    let mut saw_footer = false;
-    for (k, line) in rest.iter().enumerate() {
-        r.line_no = k + 2;
-        if saw_footer {
-            if !line.is_empty() {
-                return r.err("content after the footer".to_string());
-            }
-            continue;
-        }
-        if line.is_empty() {
-            continue;
-        }
-        r.toks = line.split(' ').collect();
-        r.pos = 0;
-        let kind = r.next_tok()?;
-        if kind == "end" {
-            let n = r.count()?;
-            if n != r.payload_len() {
-                return r.err(format!(
-                    "footer count {} != the {} {} read",
-                    n,
-                    r.payload_len(),
-                    if pins { "pin sets" } else { "declarations" }
-                ));
-            }
-            if r.pos != r.toks.len() {
-                return r.err("trailing fields in the footer".to_string());
-            }
-            saw_footer = true;
-        } else {
-            r.record(kind)?;
-            if r.pos != r.toks.len() {
-                return r.err("trailing fields in a record".to_string());
+    sess.finish(pieces)
+}
+
+/// `run_lines_str`'s twin on an `io::BufRead`: the same pass, one line buffer
+/// reused for the whole file (task #36).  The piece count is kept equal to
+/// the string driver's — a file whose last line ends in `'\n'` has one more
+/// `'\n'`-separated piece than it has lines — so the two report the same line
+/// numbers, the missing-footer one included.
+fn run_lines_read<R: std::io::BufRead>(
+    mut rd: R,
+    header: &str,
+    pins: bool,
+) -> Result<(Tables, Counts), String> {
+    let mut buf = String::new();
+    let mut nl: bool = false;
+    let mut read = |buf: &mut String, nl: &mut bool| -> Result<bool, String> {
+        buf.clear();
+        match rd.read_line(buf) {
+            Err(e) => Err(format!("read error: {}", e)),
+            Ok(0) => Ok(false),
+            Ok(_) => {
+                *nl = buf.ends_with('\n');
+                if *nl {
+                    buf.pop();
+                }
+                Ok(true)
             }
         }
+    };
+    if !read(&mut buf, &mut nl)? {
+        // An empty file has one empty piece, as `"".split('\n')` does.
+        check_header("", header)?;
+        return Err("empty input".to_string());
     }
-    if !saw_footer {
-        r.line_no = rest.len() + 1;
-        return r.err("the dump has no 'end' footer".to_string());
+    check_header(&buf, header)?;
+    let mut sess = Session::new(pins);
+    let mut pieces: usize = 0;
+    while read(&mut buf, &mut nl)? {
+        pieces += 1;
+        sess.feed(&buf, pieces + 1)?;
     }
-    let counts = r.counts();
-    Ok((r, counts))
+    if nl {
+        // The empty piece after the file's final newline: the string driver
+        // sees it (and skips it), so the line count must count it too.
+        pieces += 1;
+    }
+    sess.finish(pieces)
 }
 
 // ---------------------------------------------------------------------------
@@ -1573,5 +1828,78 @@ mod tests {
         assert!(parse_decls(&t).unwrap().is_empty());
         // blank lines are ignored
         assert!(parse_decls("con-ron-decls/1\n\n\nend 0\n\n").unwrap().is_empty());
+    }
+
+    /// Task #36: the streaming driver is the same reader.  Every sample this
+    /// module has — the kitchen sink, an empty list, a pin dump — must come
+    /// back identical through `parse_decls_reader`, and every error must come
+    /// back with the same message *and the same line number*, which is the
+    /// part the two line-counting conventions could break.
+    #[test]
+    fn the_streaming_driver_agrees_with_the_string_one() {
+        fn both(text: &str) -> (Result<usize, String>, Result<usize, String>) {
+            let a = parse_decls_counted(text).map(|(ds, _)| ds.len());
+            let b = parse_decls_reader(std::io::Cursor::new(text.as_bytes()))
+                .map(|(ds, _)| ds.len());
+            (a, b)
+        }
+        let ok = dump_decls(&kitchen_sink());
+        let (a, b) = both(&ok);
+        assert_eq!(a, b);
+        assert_eq!(b.unwrap(), kitchen_sink().len());
+        // the re-dump off the streamed parse is byte-identical too
+        let ds = parse_decls_reader(std::io::Cursor::new(ok.as_bytes())).unwrap().0;
+        assert_eq!(dump_decls(&ds), ok);
+        assert_eq!(dag::census(&ds).exprs, parse_decls_counted(&ok).unwrap().1.exprs);
+
+        for text in [
+            "",
+            "con-ron-decls/1",
+            "con-ron-decls/1\n",
+            "con-ron-decls/1\nend 0\n",
+            "con-ron-decls/1\n\n\nend 0\n\n",
+            "con-ron-pins/1\nend 0\n",
+            "con-ron-decls/1\nN 0 a\nend 0",
+            "con-ron-decls/1\nN 0 a\n",
+            "con-ron-decls/1\nN 1 a\nend 0\n",
+            "con-ron-decls/1\nN 0 a\nX 0\nend 0\n",
+            "con-ron-decls/1\nend 0\nN 0 a\n",
+            "con-ron-decls/1\nend 0 7\n",
+            &ok.replace("end 13", "end 12"),
+        ] {
+            let (a, b) = both(text);
+            assert_eq!(a, b, "the two drivers disagree on {:?}", text);
+        }
+    }
+
+    /// Task #36: what one node weighs.  The numbers are the *reason* the
+    /// Mathlib parse costs what it does — 103 M `E` records times
+    /// `ExprNode`'s heap block — and they are asserted, not just printed, so
+    /// that a core-type repacking (which this crate may not do) announces
+    /// itself here with its saving.
+    #[test]
+    fn the_node_sizes_are_what_the_accounting_assumes() {
+        for r in node_sizes() {
+            eprintln!("{:<32} size {:>3}  rc block {:>3}", r.what, r.size, r.heap);
+        }
+        // An `ExprKind` is as wide as its widest variant, which is
+        // `lam`/`forallE`: two handles plus a `BinderMeta`, and a
+        // `BinderMeta` is a `PropWhen` *by value* — 24 bytes, since
+        // `PropWhenRepr::Many(Vec<Name>)` is 24 and the other four arms hide
+        // in the `Vec`'s niche.  So 40 bytes of payload, 48 with the
+        // discriminant, 56 with the cached `data` word and 72 of heap once
+        // `Rc`'s two counts are in front — and 85 % of the nodes are `app`,
+        // which would need 16.
+        assert_eq!(std::mem::size_of::<PropWhen>(), 24);
+        assert_eq!(std::mem::size_of::<BinderMeta>(), 24);
+        assert_eq!(std::mem::size_of::<ExprKind>(), 48);
+        assert_eq!(std::mem::size_of::<ExprNode>(), 56);
+        assert_eq!(expr_node_bytes(), 72);
+        assert_eq!(std::mem::size_of::<NameNode>(), 40);
+        assert_eq!(std::mem::size_of::<LevelNode>(), 32);
+        // the id tables cost one machine word per record, the `Rc` handle
+        assert_eq!(std::mem::size_of::<Expr>(), 8);
+        assert_eq!(std::mem::size_of::<Name>(), 8);
+        assert_eq!(std::mem::size_of::<Level>(), 8);
     }
 }

@@ -6,7 +6,8 @@
 //! any of the core's checker is wired up:
 //!
 //! ```text
-//! con-ron-dump-check [--roundtrip] [--quiet] <dump.decls|dump.pins>...
+//! con-ron-dump-check [--roundtrip] [--parse-only] [--sizes] [--quiet]
+//!                    <dump.decls|dump.pins>...
 //! ```
 //!
 //! A `con-ron-pins/1` file (FORMAT.md §7) is recognised by its header and
@@ -27,6 +28,16 @@
 //!   every list length, every escape and the whole emission order to Lean's
 //!   writer.
 //!
+//! `--parse-only` (task #36) is the *measurement* mode: the dump is streamed
+//! through `parse_decls_file`, one line at a time, and neither the text nor
+//! the census's pointer set nor a re-dump is ever held, so the peak resident
+//! set the run reports is the reader's own — the terms plus the id tables
+//! plus one line buffer.  `--sizes` prints what one node of each kind weighs
+//! (`con_ron_dump::node_sizes`), which is the multiplier in that accounting.
+//!
+//! Every report ends with the run's peak RSS (`VmHWM`), so the memory numbers
+//! in DESIGN.md's task log can be reproduced without `time -v`.
+//!
 //! Exit status is `0` only if every file passed.
 
 use std::process::ExitCode;
@@ -35,13 +46,16 @@ use std::time::Instant;
 use con_ron_dump::dag;
 use con_ron_dump::dump_decls;
 use con_ron_dump::dump_pins;
+use con_ron_dump::node_sizes;
 use con_ron_dump::parse_decls_counted;
+use con_ron_dump::parse_decls_file;
+use con_ron_dump::peak_rss_kb;
 use con_ron_dump::parse_pins_counted;
 use con_ron_dump::Counts;
 use con_ron_dump::PINS_HEADER;
 
-const USAGE: &str =
-    "usage: con-ron-dump-check [--roundtrip] [--quiet] <dump.decls|dump.pins>...";
+const USAGE: &str = "usage: con-ron-dump-check [--roundtrip] [--parse-only] [--sizes] \
+                     [--quiet] <dump.decls|dump.pins>...";
 
 /// The running totals across all the files on the command line.
 #[derive(Default)]
@@ -96,6 +110,68 @@ fn first_difference(want: &str, got: &str) -> String {
             }
         }
     }
+}
+
+/// The dump's first line, without reading the rest of it — how
+/// `--parse-only` tells a declaration dump from a pin dump before deciding
+/// to stream.
+fn header_of(path: &str) -> Result<String, String> {
+    use std::io::BufRead;
+    let f = match std::fs::File::open(path) {
+        Ok(f) => f,
+        Err(e) => return Err(format!("{}", e)),
+    };
+    let mut l = String::new();
+    match std::io::BufReader::new(f).read_line(&mut l) {
+        Ok(_) => Ok(l.trim_end_matches('\n').to_string()),
+        Err(e) => Err(format!("{}", e)),
+    }
+}
+
+/// `--parse-only`: stream the dump through the reader and report the census
+/// the reader itself counted, with no DAG census, no re-dump and no copy of
+/// the text (task #36).  This is the mode the memory budget is measured in;
+/// `check_one` is still what the fixture gate runs, because the DAG check and
+/// the byte-exact round trip are the properties FORMAT.md §6 asks for.
+fn check_one_streamed(path: &str, quiet: bool, t: &mut Totals) -> bool {
+    t.files += 1;
+    t.bytes += std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    let t0 = Instant::now();
+    let (ds, counts) = match parse_decls_file(path) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("FAIL {}: {}", path, e);
+            t.failed += 1;
+            return false;
+        }
+    };
+    let parse_ms = t0.elapsed().as_secs_f64() * 1e3;
+    t.parse_ms += parse_ms;
+    add(&mut t.counts, &counts);
+    t.ok += 1;
+    if !quiet {
+        println!(
+            "OK   {}  decls {}  N{} L{} W{} E{}  V{} R{} C{} P{} I{}  \
+             parse {:.1} ms  peak RSS {} MB  (streamed: no census, no re-dump)",
+            path,
+            counts.decls,
+            counts.names,
+            counts.levels,
+            counts.pws,
+            counts.exprs,
+            counts.cvs,
+            counts.rules,
+            counts.caps,
+            counts.tables,
+            counts.infos,
+            parse_ms,
+            peak_rss_kb() / 1024,
+        );
+    }
+    // `ds` is dropped here, after the peak is read: freeing it cannot lower
+    // `VmHWM`, and holding it to this point is what the checker does.
+    drop(ds);
+    true
 }
 
 fn check_one(path: &str, roundtrip: bool, quiet: bool, t: &mut Totals) -> bool {
@@ -280,11 +356,15 @@ fn check_pins(path: &str, text: &str, roundtrip: bool, quiet: bool, t: &mut Tota
 
 fn main() -> ExitCode {
     let mut roundtrip = false;
+    let mut parse_only = false;
+    let mut sizes = false;
     let mut quiet = false;
     let mut paths: Vec<String> = Vec::new();
     for a in std::env::args().skip(1) {
         match a.as_str() {
             "--roundtrip" => roundtrip = true,
+            "--parse-only" => parse_only = true,
+            "--sizes" => sizes = true,
             "--quiet" => quiet = true,
             "-h" | "--help" => {
                 println!("{}", USAGE);
@@ -297,15 +377,41 @@ fn main() -> ExitCode {
             _ => paths.push(a),
         }
     }
+    if sizes {
+        println!("node sizes (bytes; `heap` includes Rc's two reference counts)");
+        for r in node_sizes() {
+            println!(
+                "  {:<30} size {:>3}{}",
+                r.what,
+                r.size,
+                if r.heap > 0 { format!("   heap {:>3}", r.heap) } else { String::new() }
+            );
+        }
+        println!();
+    }
     if paths.is_empty() {
+        if sizes {
+            return ExitCode::SUCCESS;
+        }
         eprintln!("{}", USAGE);
+        return ExitCode::from(2);
+    }
+    if parse_only && roundtrip {
+        eprintln!("con-ron: --parse-only and --roundtrip are exclusive\n{}", USAGE);
         return ExitCode::from(2);
     }
 
     let mut t = Totals::default();
     let t0 = Instant::now();
     for p in &paths {
-        check_one(p, roundtrip, quiet, &mut t);
+        // A pin dump is tiny and its reader has no streaming driver, so
+        // `--parse-only` falls back to the in-memory path for one.
+        let streamed = parse_only && header_of(p).map(|h| h != PINS_HEADER).unwrap_or(false);
+        if streamed {
+            check_one_streamed(p, quiet, &mut t);
+        } else {
+            check_one(p, roundtrip, quiet, &mut t);
+        }
     }
     let wall = t0.elapsed().as_secs_f64();
 
@@ -338,6 +444,7 @@ fn main() -> ExitCode {
         println!("re-dump time        {:.2} s  (round trip: byte-identical)", t.write_ms / 1e3);
     }
     println!("wall                {:.2} s", wall);
+    println!("peak RSS            {} MB  (VmHWM)", peak_rss_kb() / 1024);
 
     if t.failed == 0 {
         ExitCode::SUCCESS

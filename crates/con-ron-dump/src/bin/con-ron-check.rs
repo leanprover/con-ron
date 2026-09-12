@@ -9,7 +9,7 @@
 //!
 //! ```text
 //! con-ron-check [--verified|--trusted] [--pins FILE] [--taint-skipped N]
-//!               [--stats] [--stats-every N] [--quiet] FILE.decls
+//!               [--stats] [--stats-every N] [--parse-only] [--quiet] FILE.decls
 //! ```
 //!
 //! The verdict vocabulary and the exit codes are con-leche's
@@ -52,6 +52,14 @@
 //! sound for the accept direction (§1), and 17 of the corpus's fixtures turn
 //! on it.
 //!
+//! Two flags exist for the memory budget (DESIGN.md task #36).
+//! `--parse-only` stops after the reader, which is how the parse half of the
+//! budget is measured on its own; and every run reports the peak resident set
+//! (`VmHWM`) **twice**, once at the end of the parse and once at the end of
+//! the fold, so the two halves of the 3x rule are visible separately.  The
+//! dump itself is never held: `parse_decls_file` streams it line by line, so
+//! the 3 GB of Mathlib text is not part of either number.
+//!
 //! The fold runs on a thread with a **1 GiB stack**: `check_decls`, like
 //! con-leche's, is deep recursion over the term DAG, and con-leche reserves
 //! 1 GiB per worker for exactly this.
@@ -71,12 +79,13 @@ use con_ron_core::kernel::env::Env;
 use con_ron_core::kernel::fenv;
 use con_ron_core::kernel::fenv::FEnv;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
-use con_ron_dump::parse_decls;
+use con_ron_dump::parse_decls_file;
 use con_ron_dump::parse_pins;
+use con_ron_dump::peak_rss_kb;
 
 const USAGE: &str = "usage: con-ron-check [--verified|--trusted] [--pins FILE] \
-                     [--taint-skipped N] [--stats] [--stats-every N] [--quiet] \
-                     FILE.decls";
+                     [--taint-skipped N] [--stats] [--stats-every N] \
+                     [--parse-only] [--quiet] FILE.decls";
 
 /// con-leche reserves 1 GiB of stack per checking worker; the fold's
 /// recursion depth is the term DAG's, so the port needs the same.
@@ -93,6 +102,10 @@ struct Args {
     /// `--stats-every N`: report the map sizes every `N` declarations in each
     /// phase (0 = only at the phase boundary).
     stats_every: u64,
+    /// `--parse-only` (task #36): read the dump and stop, so that the parse
+    /// half of the memory budget can be measured without the fold.  The
+    /// verdict is then "parsed N declarations" and the exit code 0.
+    parse_only: bool,
     quiet: bool,
 }
 
@@ -136,6 +149,7 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
     let mut taint_skipped: u64 = 0;
     let mut stats = false;
     let mut stats_every: u64 = 0;
+    let mut parse_only = false;
     let mut quiet = false;
     let mut i = 0usize;
     while i < argv.len() {
@@ -144,6 +158,7 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
             "--verified" => mode_verified = true,
             "--trusted" => mode_verified = false,
             "--stats" => stats = true,
+            "--parse-only" => parse_only = true,
             "--stats-every" => {
                 i += 1;
                 if i >= argv.len() {
@@ -214,6 +229,7 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
             taint_skipped,
             stats,
             stats_every,
+            parse_only,
             quiet,
         }),
     }
@@ -344,25 +360,33 @@ fn check_decls_with_stats(
 /// exit code.
 fn run(args: &Args) -> u8 {
     let t0 = Instant::now();
-    let text = match std::fs::read_to_string(&args.path) {
-        Ok(t) => t,
+    // The dump is *streamed* (task #36): the reader takes it one line at a
+    // time and never holds the text, so `Init`'s 165 MB and Mathlib's 3.06 GB
+    // are not part of the run's peak at all.  Task #32 had already dropped
+    // the text before the fold; the file is now never a `String` to begin
+    // with, which also removes the `Vec<&str>` line index that used to be
+    // 1.7 GB of Mathlib's parse.
+    let ds: Vec<DeclC> = match parse_decls_file(&args.path) {
+        Ok((ds, _)) => ds,
         Err(e) => {
             eprintln!("con-ron: {}: {}", args.path, e);
             return 3;
         }
     };
-    let ds: Vec<DeclC> = match parse_decls(&text) {
-        Ok(ds) => ds,
-        Err(e) => {
-            eprintln!("con-ron: {}: {}", args.path, e);
-            return 3;
-        }
-    };
-    // The dump text is 165 MB for `Init` and nothing reads it again: the
-    // records own every `Name`, `Level` and `Expr` the reader built.  Holding
-    // it through the fold was 165 MB of the run's peak (task #32).
-    drop(text);
     let t_parse = t0.elapsed();
+    let rss_parse = peak_rss_kb();
+    if args.parse_only {
+        println!("con-ron: parsed {} declarations ({})", ds.len(), args.mode_tag);
+        if !args.quiet {
+            eprintln!(
+                "  records {} parse {:.3}s peak RSS after parse {} MB",
+                ds.len(),
+                t_parse.as_secs_f64(),
+                rss_parse / 1024
+            );
+        }
+        return 0;
+    }
     // The pin list (§3.6's parameter).  No `--pins` is the empty list, i.e.
     // the pin loop's `[]` arm; a `Nat.div`/`Nat.mod` stream then declines.
     let t_pins0 = Instant::now();
@@ -440,6 +464,14 @@ fn run(args: &Args) -> u8 {
             t_pins.as_secs_f64(),
             t_check.as_secs_f64(),
             t0.elapsed().as_secs_f64()
+        );
+        // The two halves of DESIGN.md's 3x memory rule, separately (task
+        // #36): `VmHWM` is a high-water mark, so the first number is the
+        // reader's own peak and the second is the whole run's.
+        eprintln!(
+            "  peak RSS after parse {} MB, after check {} MB  (VmHWM)",
+            rss_parse / 1024,
+            peak_rss_kb() / 1024
         );
         if let Some(s) = stats {
             eprintln!("{}", s);
