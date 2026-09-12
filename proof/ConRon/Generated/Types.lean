@@ -727,6 +727,16 @@ structure kernel.inductives.struct_parts.StructParts where
   large : Bool
   is_prop : Bool
 
+/-- [con_ron_core::kernel::pins_decode::Tables]
+    Source: 'crates/con-ron-core/src/kernel/pins_decode.rs', lines 63:0-69:1
+    Visibility: public -/
+structure kernel.pins_decode.Tables where
+  names : alloc.vec.Vec kernel.name.Name
+  levels : alloc.vec.Vec kernel.level.Level
+  pws : alloc.vec.Vec kernel.prop_when.PropWhen
+  exprs : alloc.vec.Vec kernel.expr.Expr
+  sets : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet
+
 /-- Trait declaration: [con_ron_core::kernel::prop_when::Valuation]
     Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 513:0-517:1
     Visibility: public -/

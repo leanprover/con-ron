@@ -420,8 +420,16 @@ def parseRecord (kind : String) : R Unit := do
 
 /-! ## The driver -/
 
-/-- Read the records, stopping at the `end` footer. -/
-partial def runLines : List String → R Unit
+/-- Read the records, stopping at the `end` footer.
+
+**Total, not `partial`** (task #43).  The recursion is structural in the line
+list, but the recursive call sits under a `bind`, which the structural checker
+does not see through; `termination_by` closes it.  It matters for the *proof*
+side and not for the runtime: a `partial def` is opaque, with no equations and
+no unfolding, so nothing whatever can be proved about it — and
+`ConRon/Refine/Pins.lean` needs to state that the Rust decoder computes what
+this function computes. -/
+def runLines : List String → R Unit
   | [] => rerr "the dump has no 'end' footer"
   | l :: ls => do
     modify fun st =>
@@ -445,6 +453,7 @@ partial def runLines : List String → R Unit
         let st ← get
         if st.pos != st.toks.size then rerr "trailing fields in a record"
         else runLines ls
+termination_by ls => ls.length
 
 /-- **The reader.**  The inverse of `dumpDecls` (`ConRon/Dump/Write.lean`). -/
 def parseDecls (s : String) : Except String (List DeclC) :=

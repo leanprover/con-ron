@@ -18,6 +18,13 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 2048
 open ConRon.Generated
 
+/-- [core::str::{str}::as_bytes]:
+    Source: '/rustc/library/core/src/str/mod.rs', lines 514:4-514:41
+    Name pattern: [core::str::{str}::as_bytes]
+    Visibility: public -/
+@[rust_fun "core::str::{str}::as_bytes"]
+axiom core.str.Str.as_bytes : Str → Result (Slice Std.U8)
+
 /-- [alloc::rc::{alloc::rc::Rc<T>}::new]:
     Source: '/rustc/library/alloc/src/rc.rs', lines 423:4-423:33
     Name pattern: [alloc::rc::{alloc::rc::Rc<@T>}::new]

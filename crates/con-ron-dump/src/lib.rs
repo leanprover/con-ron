@@ -1463,6 +1463,44 @@ mod tests {
         assert_eq!(back[0].div_proofs.len(), 2);
     }
 
+    /// The **embedded** pin text (task #43) decoded by the *verified* decoder
+    /// in the core, against this crate's unverified reader on the same bytes.
+    /// The two readers agree if and only if the writer maps their outputs to
+    /// the same bytes, and the DAG census is what says the verified decoder
+    /// kept the sharing (as a tree the v4.33.0 variant is 5.1 M nodes, so a
+    /// reader that lost it would be caught here and nowhere else).
+    ///
+    /// The decode runs on a thread with the driver's stack
+    /// (`con_ron::driver::STACK_BYTES` is 1 GiB): the core decoder's recursion
+    /// is one frame per record, and 26 721 of them do not fit a test thread's
+    /// default stack.
+    #[test]
+    fn the_embedded_pin_text_decodes_to_the_same_pins() {
+        let text = con_ron_core::kernel::pins_text::PINS_TEXT;
+        let h = std::thread::Builder::new()
+            .stack_size(1 << 30)
+            .spawn(move || {
+                let core = match con_ron_core::kernel::pins_decode::decode_embedded() {
+                    Ok(v) => v,
+                    Err(_) => panic!("the embedded pin text does not decode"),
+                };
+                let (mine, counts) = parse_pins_counted(text).unwrap();
+                assert_eq!(core.len(), mine.len());
+                // Value equality through the writer: same ids, same lengths,
+                // same escapes, same order.
+                assert_eq!(dump_pins(&core), dump_pins(&mine));
+                // ... and the embedded text is exactly what the writer writes.
+                assert_eq!(dump_pins(&core), text);
+                // The sharing: one heap node per `E` record, not one per use.
+                let cen = dag::census_pins(&core);
+                assert_eq!(cen.exprs, counts.exprs);
+                assert_eq!(cen.names, counts.names);
+                core.len()
+            })
+            .unwrap();
+        assert_eq!(h.join().unwrap(), 3);
+    }
+
     #[test]
     fn an_empty_pin_list_round_trips() {
         let text = dump_pins(&Vec::new());

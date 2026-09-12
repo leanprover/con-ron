@@ -439,29 +439,46 @@ con-leche's directory tree.  Generated names are therefore
 (`ConRon/Refine/README.md`).  Worth an upstream report: Aeneas could
 qualify with `_root_` or the namespace.
 
-**The Nat-op pin sets are runtime data (decision, task #22; landed end to
-end in task #31).**  Encoding the ~26.5k-node pin sets as generated Rust
-overwhelms rustc and Charon, and the alternative hypothesis
-`abs tables = natOpPinSets` cannot be discharged without `native_decide`.
-Neither is needed: con-leche checks every pin by `isDefEq` against the
-stream's own definition and checks the certificate proofs as theorems
-against the hand-pinned `divModCertStmts` (149 nodes, generated source,
-proved), so the pin list is a *hint* that affects completeness, never
-soundness.  The Rust `check_decls` therefore takes the pin list as a
-parameter, threaded from `cached::installed::check_decls` through
-`annotDeclStep`/`checkDeclC` to `checker::check_div_mod_pin_loop`
-(`kernel/nat_op_pins.rs` declares the record and nothing else — there is no
-`nat_op_pin_sets()` constant, §3.4), and the unverified driver reads
-con-leche's own `natOpPinSets` out of a **`con-ron-pins/1` dump**, a sibling
-of `con-ron-decls/1` written by `lake exe con-ron-dump-pins` and specified in
-`proof/ConRon/Dump/FORMAT.md` §7 (`con-ron-check --pins FILE`).  The theorem
-is stated against a con-leche `checkDecls` that takes the same parameter —
-which asks for a small upstream change: make `natOpPinSets` an argument of
-`checkDecls` (`checkDecls mode pins ds`, with the shipped
-`checkDecls mode ds := checkDecls mode natOpPinSets ds`) and check that
-`model_exists` is parametric in it.  Until that lands, the pin-loop
-refinement is stated with `abs pins = natOpPinSets` as a hypothesis and
-the corollary is conditional; the basis blocks are *not* hints (their
+**The Nat-op pin sets are an embedded text constant inside the verified core
+(decision, task #43; superseding task #22's "runtime data" and task #31's
+driver-read file).**  Encoding the ~26.5k-node pin sets as generated Rust
+overwhelms rustc and Charon (task #22), so task #31 made the pin list a
+*parameter* of `check_decls` that the unverified driver read out of a
+`con-ron-pins/1` dump — sound, because con-leche checks every pin by `isDefEq`
+against the stream's own definition and every certificate proof against the
+hand-pinned `divModCertStmts`, so the list is a *hint* that affects
+completeness and never soundness — but it left the theorem's statement carrying
+`absPins pins = natOpPinSets` as a hypothesis about an argument the binary was
+*given*.  Task #43 closes that: the same text is a `&'static str` constant
+**inside the core** (`kernel/pins_text.rs`, generated from con-leche's own value
+by `scripts/gen-pins.sh`, freshness-gated by `--check` in `scripts/gates.sh`),
+and a *verified* decoder in the core reads it (`kernel/pins_decode.rs`, 50
+functions in the §3.4 subset).  `check_decls` keeps its `pins` parameter and
+nothing else moves; the driver passes `decode(PINS_TEXT)`, and `--pins FILE` /
+`--no-pins` survive as **test overrides** only (`driver::pins_for_run`).  So the
+pins the binary uses are a closed term of the model, and the hypothesis becomes
+a *theorem to prove* rather than a promise to keep.
+
+Two findings of task #43 shape what that theorem can say today, both measured:
+a `&str` constant extracts to **one Lean string literal** where a `b"..."` byte
+constant extracts to a 532 456-element array literal Lean cannot elaborate at
+all (`std::bad_alloc`), so the text goes in as a `&str` at the price of one new
+external, `core::str::{str}::as_bytes`, modeled *exactly* (`Str := Slice U8`, so
+it is the identity) in `Generated/FunsExternal.lean` — the fifth hole, and the
+first that is not an `Rc` operation.  And the **closed computation
+`parsePins PINS_TEXT = natOpPinSets` is out of reach of the Lean 4.33 kernel**:
+Aeneas's own `toStr` discharges its bound with `decide +native`, so the
+constant's Lean definition already depends on a native-decide axiom; a
+well-founded reference decoder does not whnf (measured on a 23-byte text); and
+kernel reduction of a string literal is quadratic — the *cheapest* claim about
+the text, its byte size, costs 27 s at 1 KB and over 300 s at 8 KB.  The task
+#43 log entry has the numbers and the three upstream changes that would lift
+each obstacle.  `proof/ConRon/Refine/Pins.lean` states the refinement, the
+closed computation and the corollary; the first and third are open work, the
+second is open on the toolchain.  The upstream ask is unchanged: make
+`natOpPinSets` an argument of `checkDecls` (`checkDecls mode pins ds`, with the
+shipped `checkDecls mode ds := checkDecls mode natOpPinSets ds`) and check that
+`model_exists` is parametric in it.  The basis blocks are *not* hints (their
 denotations are pinned by the model), so they stay generated source
 (`kernel/basis_tables.rs`, proved in `Refine/BasisTables.lean`).
 
@@ -9584,3 +9601,223 @@ this task to `init` and `core`.
   has no `mark_persistent`, so its workers pay the atomics con-leche's mark
   removes, and con-leche's own `--no-mark-persistent` row prices that at 18–32 %
   of pool wall.
+### Task #43 — Pins embedded and decoded in the core; the closed computation (2026-09-12, Opus under Fable)
+
+§3's pin paragraph, rewritten.  Task #22 ruled the `Nat`-operation pin sets
+data, task #31 made them a *parameter* the unverified driver read out of a
+`con-ron-pins/1` file, and the price was a hypothesis in the main theorem:
+`absPins pins = natOpPinSets`, a promise about an argument the binary was
+*given*.  This task moves the data inside: the text is a `&'static str`
+constant in the verified core and a **verified decoder in the core** reads it,
+so the pins the binary uses are a closed term of the model.  The Rust half
+landed complete and green; the **kernel half did not, and measuring exactly why
+is this task's deliverable** — three independent obstacles, each measured, none
+a matter of patience.
+
+#### 1. The text, and why `&str`
+
+`scripts/gen-pins.sh` writes `crates/con-ron-core/src/kernel/pins_text.rs` from
+con-leche's own value: `lake exe con-ron-dump-pins` (task #31) emits
+`ConLeche.natOpPinSets` in the format `proof/ConRon/Dump/FORMAT.md` §7
+specifies, and the script wraps those bytes — **byte for byte**, one dump line
+per Rust source line so that a submodule bump is a line diff — in one constant.
+`--check` regenerates into `_tmp/` and diffs, which is the freshness gate;
+`scripts/gates.sh` runs it as gate 5, between `provenance` and
+`extract.sh --check`.
+
+The encoding was the task's first question, and Charon/Aeneas answer it
+unambiguously (both spikes on the real 532 456-byte text):
+
+| the constant | charon | aeneas | generated Lean | Lean elaborates it |
+|---|---|---|---|---|
+| `pub const PINS_TEXT: &str = "…"` | 0.1 s | **0.4 s** | `toStr "…"` — **one string literal**, 560 KB | **1.9 s** |
+| `pub const PINS_BYTES: &[u8] = b"…"` | 1.0 s | **169 s** | `Array.make 532456#usize [99#u8, …]` — 53 310 lines, 4 MB | **never**: `std::bad_alloc` after 130 s under `ulimit -v 24 GB`, and a deterministic `isDefEq` timeout at the default heartbeats |
+
+So `&str` it is, and the whole-crate extraction pays almost nothing for it:
+`charon cargo` 4.1 s, `aeneas` **37.2 s** (33 s before), peak RSS 16.9 GB, and
+`Funs.lean` elaborates in **99 s** against 104 s before — the 532 KB literal is
+free, because it is *one* literal.
+
+The cost is elsewhere: a `&str` can only be indexed through `as_bytes`, so
+`FunsExternal_Template.lean` now declares **five** externals, not four.  The
+fifth is *not* a trust assumption — Aeneas models `Str` as `Slice U8`
+(`Aeneas/Std/StringDef.lean`), so `core.str.Str.as_bytes s = ok s` is the
+identity, and that is what `Generated/FunsExternal.lean` fills the hole with.
+It is the first hole that is not an `Rc` operation, and it exists only because
+Rust offers no other way to read a byte of a `&str`.
+
+#### 2. The decoder, in the core
+
+`kernel/pins_decode.rs`, 1 404 lines, 57 functions, entirely in the §3.4
+subset: index recursion over `&[u8]`, `Vec` tables threaded by value, no
+loops, no closures, no `?`, one `CheckError::Internal` for every failure (a
+malformed text cannot happen for a committed constant, so it is an internal
+inconsistency of the binary and never a verdict on an input).  It is
+`ConRon/Dump/Read.lean`'s `parsePins` restricted to the record kinds a pin dump
+can hold — `N`/`L`/`W`/`E`/`S` and the `end <count>` footer — and
+**deliberately the stricter of the two**: single spaces between fields, one
+newline per record, nothing after the footer, no declaration-dump records.
+Strictness is free for the theorem, whose shape is "if Rust returns `ok v` then
+the Lean reader returns the same value" (§3.5), and it makes the byte pass
+simple.
+
+`check_decls` keeps its `pins` parameter and **no body moved**: the only
+plumbing is `con_ron::driver::pins_for_run`, shared by both binaries — embedded
+by default, `--pins FILE` (task #31's unverified file reader) and `--no-pins`
+(the empty list) as **test overrides**, named as such in both usage texts.
+`scripts/diff-e2e.sh` and `scripts/diff-fixtures.sh` now pass *nothing* by
+default and keep `--no-pins` / a new `--pins-file` for the two other routes.
+
+| | |
+|---|---|
+| `charon cargo --preset=aeneas` | 4.1 s, zero errors |
+| `aeneas -backend lean -split-files -loops-to-rec` | **37.2 s, zero errors, zero warnings** |
+| generated `Funs.lean` | 51 665 → **53 364** (+1 699: the decoder, and `PINS_TEXT`) |
+| generated `Types.lean` | 736 → **746** (+10: `pins_decode::Tables`) |
+| `partial_fixpoint` | 415 → **426** (+11: the decoder's index recursions) |
+| `mutual` blocks in `Funs.lean` | **14 — unchanged** |
+| `FunsExternal_Template.lean` | 54 → **61**: four `Rc` axioms **plus `as_bytes`** |
+| `TypesExternal_Template.lean` | **25 — unchanged** |
+| decode, per run | **2–3 ms** for 26 721 records (task #31's unverified reader is 20.9 ms; the verified one is faster because it never allocates a token) |
+
+#### 3. The closed computation: where it fails, precisely
+
+The statement wanted is
+`ConRon.Dump.parsePins (absText PINS_TEXT) = .ok ConLeche.natOpPinSets`, with
+`native_decide` forbidden.  It is **out of reach in Lean 4.33**, for three
+independent reasons.
+
+**(a) Aeneas's string model already spends a native-decide axiom.**  `toStr`
+discharges its bound `s.toByteArray.size ≤ U32.max` with its own default
+argument `by decide +native` (`Aeneas/Std/String.lean`, whose own comment says
+it should not).  So before any proof of ours:
+
+```
+#print axioms ConRon.Generated.kernel.pins_text.PINS_TEXT
+-- [propext, Classical.choice, Quot.sound,
+--  ConRon.Generated.kernel.pins_text.PINS_TEXT._native.decide.ax_1]
+#print axioms ConRon.Generated.kernel.pins_decode.decode
+-- [propext, Classical.choice, Quot.sound]
+```
+
+The decoder is clean; the *constant* is not.  Any theorem naming it inherits
+the axiom, so a `native_decide`-free statement about an embedded text is
+impossible without an upstream change — which is Aeneas's to make, and the
+measurement below says why Aeneas took that shortcut in the first place.
+
+**(b) The reference decoder does not reduce in the kernel at all.**
+`parsePins` went through `partial def runLines`, and a `partial def` is opaque:
+no equations, no unfolding, nothing provable.  This task made it total
+(`termination_by ls => ls.length` — the recursion *is* structural in the line
+list, but the recursive call sits under a `bind`, which the structural checker
+does not see through).  That buys the statements; it does not buy evaluation —
+well-founded recursion does not whnf.  On the smallest possible pin text, 23
+bytes:
+
+```lean
+example : (parsePins "con-ron-pins/1\nend 0\n").isOk = true := by rfl
+-- Tactic `rfl` failed … is not definitionally equal to `true`      (1.3 s)
+```
+
+`decide` is not an option either: `Except String (List NatOpPinSet)` has no
+`DecidableEq`, and `Expr`'s derived one is the structural walk — 5.1 M nodes
+per variant (task #22).
+
+**(c) Kernel reduction of a string literal is quadratic.**  The *cheapest
+conceivable* claim about the embedded text is its byte size, and unlike the
+decoder it does reduce (`String.toByteArray` is a projection in 4.33, and a
+literal expands).  Measured on prefixes of the real text, `maxHeartbeats 0`:
+
+| prefix | `("…").toByteArray.size ≤ 4294967295` by `decide` |
+|---|---|
+| 256 B | 3.0 s |
+| 1 KB | **27 s** |
+| 8 KB | **> 300 s** (timeout) |
+| 532 KB (the text) | ≈ 10⁶–10⁷ s by the quadratic fit |
+
+The quadratic is the literal's expansion through `List.utf8Encode`, whose
+`ByteArray.push` fold is O(n) per byte.  (With `Aeneas.Std.U32.max` in place of
+the numeral the same `decide` gets *stuck* rather than slow — `U32.max` is not a
+numeral to the kernel — which is worth knowing before blaming the string.)
+
+**So both routes die, and the round trip dies twice.**  The direct route
+(evaluate the decoder on the text) fails by (b) and (c).  The round-trip route —
+prove `parsePins (dumpPins v) = .ok v` generically, then
+`PINS_TEXT = dumpPins ConLeche.natOpPinSets` by `rfl`/`decide` — fails by (c)
+twice over: that `rfl` is a 532 KB string equality, and the writer it must
+evaluate goes through `Std.HashMap` (UInt64 hashing) and `String.append`, which
+is quadratic in the kernel too.  The round-trip *theorem* is still worth having
+— it is the reusable half and says the format is injective — but it cannot be
+cashed in on this value in this kernel.  Compiled evaluation does the whole
+decode in 18 ms (task #31), which is exactly `native_decide`'s trust and is
+forbidden.
+
+**What would lift each obstacle**, in increasing upstream cost: (a) a `Str`
+model in Aeneas that needs no side condition, or a `toStr` whose bound is not a
+proof argument — a small, purely local change to `Aeneas/Std/String.lean`, and
+the one worth reporting; (b)+(c) a reference decoder written *for* kernel
+evaluation — structural recursion over a `List UInt8` with `Nat`-keyed
+`Std.TreeMap` tables instead of `Array`s, which turns the pass into ≈10⁷
+GMP-accelerated `Nat` steps — plus a kernel that expands a string literal
+linearly.  Absent all three, the honest position is the one the port now has:
+the embedded text is held to con-leche's own `natOpPinSets` by
+`scripts/gen-pins.sh --check` at build time and to the writer's bytes by
+`cargo test`, and the *theorem* speaks of `decode PINS_TEXT` without yet saying
+what it equals.
+
+#### 4. `proof/ConRon/Refine/Pins.lean`
+
+`absText`, `absNatOpPinSet`, `absPins`, and four statements — one **proved**,
+three `sorry` with the reason written where a reader will find it:
+
+* `absText_toStr : absText (toStr s h) = s` — **proved.**  The bridge, and the
+  one lemma that makes a statement about the Rust constant a statement about a
+  Lean string literal at **zero** kernel cost: `PINS_TEXT` is *definitionally*
+  `toStr "…"`, `Slice.from_val` reads the list back without ever touching the
+  `toStr` bound (it is a *parameter*), and `String.fromUTF8? s.toByteArray =
+  some s` closes it.  Two pieces had to be proved on the way, both because
+  4.33's core does not carry them: `ByteArray.toList b = b.data.toList` (a loop
+  invariant — Aeneas proves the sibling `length_toList` by hand for the same
+  reason) and the `UInt8`/`U8` round trip.  The last step needs `show` rather
+  than `rw`: `{ data := b.data }` *is* `b` by structure eta, and the hidden
+  validity proof depends on it, so `rw`'s motive does not typecheck.
+* `pins_decode_refines` — the decoder against `parsePins`.  Not attempted: the
+  bulk is 57 functions, and the one genuinely new piece is a tokenizer bridge
+  between a byte index and `String.splitOn`, for which 4.33 has no `List Char`
+  lemmas.  The docstring lists the five pieces in dependency order.  It is
+  deliberately deferred until (a) above is resolved, since it feeds a statement
+  the same task measured to be unreachable.
+* `pins_text_decodes` — the closed computation, with §3 above as its docstring.
+* `check_decls_pins_refines` — the corollary's shape, so that where the pins
+  enter is written down before the tiers below it exist.
+
+#### Tests and gates
+
+| | |
+|---|---|
+| `cargo test` | **233 passed, 0 failed** (163 core + 4 integration + 16 `con-ron-dump` + 50 `con-ron`, 1 ignored), warning-free at `-D warnings` |
+| new: `con_ron_dump::the_embedded_pin_text_decodes_to_the_same_pins` | the **verified** decoder against the unverified reader on the same bytes: `dump_pins(core) = dump_pins(unverified) = PINS_TEXT`, and `dag::census_pins` equals the record census, so the sharing survived (as a tree one variant is 5.1 M nodes) |
+| new: five tests in `kernel::pins_decode` | the empty text, the three toolchains, eight malformed texts (wrong header, wrong footer count, a `D` record, a non-dense id, a forward reference, content after the footer, a missing final newline, a string length that disagrees) and the `\<hex>;` escape including the surrogate rejection |
+| `scripts/diff-e2e.sh --timeout=60` | **348 agree, 0 differ**, 0 timeouts — *with no `--pins` argument at all* |
+| `scripts/diff-fixtures.sh --timeout=60` | **315 agree, 0 differ**, 33 skipped, 10 s |
+| `scripts/diff-fixtures.sh --no-pins` | **298 agree, 17 differ** — task #28's numbers, so the empty-list arm is still exercised |
+| `scripts/gates.sh` | all **7** OK (`gen-pins --check` is the new one) |
+| `scripts/provenance.py check` | green — 2 081 items, 2 217 citations at pin 3e004805 |
+
+One provenance note: `natOpPinSets` has no source line of its own —
+`#load_natop_pins` produces it while `NatOpPins.lean` elaborates — so the three
+citations of it use the `_` declaration form (`NatOpPins.lean:61-64 _`), as
+`std_axioms.rs` and `expr.rs` already do for anonymous instances.
+
+#### Left for next time
+
+* **Report (a) upstream to Aeneas**: `toStr`'s `by decide +native` puts a
+  native-decide axiom in every extracted string constant.  It is the cheapest
+  of the three fixes and the one that decides whether an embedded constant can
+  ever carry a theorem.
+* **`pins_decode_refines`** if and when the closed computation looks reachable;
+  the tokenizer bridge is the part to cost first.
+* The round-trip theorem `parsePins (dumpPins v) = .ok v` as a *format*
+  theorem, which is worth having whatever happens to (c) — and whose writer
+  half needs `Write.lean`'s three `partial def`s made total the way `runLines`
+  now is.

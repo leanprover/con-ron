@@ -4,7 +4,7 @@
 #
 #   usage: scripts/diff-fixtures.sh [--trusted] [--verbose] [--stats]
 #                                   [--timeout=SECS] [--only=REGEX]
-#                                   [--no-pins]
+#                                   [--no-pins|--pins-file]
 #
 # `OUT=<dir>` picks the dump directory, `LOG=<file>` the run log.
 #
@@ -19,12 +19,13 @@
 #     `con-ron-check` prints is compared against nothing here);
 #   * `vendor/con-leche/tests/trusted-expected.txt` ("<exit> <suite>
 #     <fixture>"), the `--trusted` overrides, read only for `--trusted`;
-#   * the `Nat`-operation pin dump `$OUT/pins.dump` that `dump-fixtures.sh`
-#     wrote (task #31), handed to every run as `--pins`: it is DESIGN.md
-#     §3.6's pin-list parameter of `check_decls`, and without it the 17
-#     fixtures that define `Nat.div` decline for an empty pin table.
-#     `--no-pins` runs without it, which is what reproduces task #28's
-#     numbers.
+#   * NO pin argument: since task #43 the `Nat`-operation pin sets are an
+#     embedded text constant inside the verified core, which the core decodes
+#     itself, so every run below checks with con-leche's own `natOpPinSets`
+#     without being handed anything.  `--no-pins` passes the empty list, which
+#     is what reproduces task #28's numbers (the 17 fixtures that define
+#     `Nat.div` then decline), and `--pins-file` reads `$OUT/pins.dump` through
+#     the unverified reader instead (task #31's arrangement).
 #
 # For each expectation line the dump is run through `con-ron-check` and the
 # exit code compared.  A fixture with no dump is SKIPPED with a note: those
@@ -56,15 +57,17 @@ verbose=0
 stats=0
 only=""
 use_pins=1
+from_file=0
 for a in "$@"; do
   case "$a" in
     --trusted) MODE=--trusted ;;
     --verbose) verbose=1 ;;
     --stats) stats=1 ;;
     --no-pins) use_pins=0 ;;
+    --pins-file) from_file=1 ;;
     --timeout=*) TO=${a#--timeout=} ;;
     --only=*) only=${a#--only=} ;;
-    *) echo "usage: scripts/diff-fixtures.sh [--trusted] [--verbose] [--stats] [--no-pins] [--timeout=SECS] [--only=REGEX]" >&2; exit 2 ;;
+    *) echo "usage: scripts/diff-fixtures.sh [--trusted] [--verbose] [--stats] [--no-pins|--pins-file] [--timeout=SECS] [--only=REGEX]" >&2; exit 2 ;;
   esac
 done
 
@@ -92,14 +95,19 @@ if [ ! -d "$OUT" ] || [ -z "$(find "$OUT" -name '*.decls' -print -quit 2>/dev/nu
     echo "diff-fixtures: dump-fixtures.sh failed" >&2; exit 3; }
 fi
 
-# The pin list (task #31).  One file for the whole corpus; `--no-pins` drops it.
+# The pin list.  Since task #43 the default needs no argument: `natOpPinSets` is
+# an embedded text constant inside the verified core and the core decodes it.
+# `--no-pins` is the empty list (task #28's numbers) and `--pins-file` reads
+# `$OUT/pins.dump` through the unverified reader (task #31's route).
 PINS="${PINS:-$OUT/pins.dump}"
 pinargs=""
-if [ "$use_pins" -eq 1 ]; then
+if [ "$use_pins" -eq 0 ]; then
+  pinargs="--no-pins"
+elif [ "$from_file" -eq 1 ]; then
   if [ -f "$PINS" ]; then
     pinargs="--pins $PINS"
   else
-    echo "diff-fixtures: $PINS missing; run scripts/dump-fixtures.sh (or pass --no-pins)" >&2
+    echo "diff-fixtures: $PINS missing; run scripts/dump-fixtures.sh" >&2
     exit 3
   fi
 fi
@@ -168,6 +176,6 @@ run_suite e2e vendor/con-leche/tests/e2e-expected.txt
 run_suite annot vendor/con-leche/tests/annot-expected.txt
 t1=$(date +%s)
 
-echo "diff-fixtures ($MODE${pinargs:+, with pins}): $total fixtures, $agree agree, $differ differ, $skipped skipped (no declaration list), $timedout timed out, $((t1 - t0))s"
+echo "diff-fixtures ($MODE, pins ${pinargs:-embedded}): $total fixtures, $agree agree, $differ differ, $skipped skipped (no declaration list), $timedout timed out, $((t1 - t0))s"
 echo "  log: $log"
 [ "$differ" -eq 0 ] && [ "$timedout" -eq 0 ]
