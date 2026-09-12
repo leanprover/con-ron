@@ -13,9 +13,10 @@ are kept current; the task log at the end is append-only.  It is maintained
 by the agents that work on the project (the pattern is borrowed from
 con-leche's `DESIGN.md`).
 
-**Status (2026-09-12): design draft for discussion with the maintainer.  No
-port code exists yet.  A feasibility spike (`spikes/rc-fuel/`) went through
-Charon and Aeneas cleanly.**
+**Status (2026-09-12): design draft for discussion with the maintainer.  P0 is
+done (spikes through Charon and Aeneas, the `proof/` project elaborating); P1
+has started — `crates/con-ron-core` holds the first real module, `nat` (task
+#6).**
 
 ## 1. The goal, precisely
 
@@ -180,10 +181,14 @@ Both are written in the crate and verified:
   terms, names and levels) and `PartialEq`.  Spec: an abstract partial map
   (`Std.HashMap` on the Lean side, related by "same lookup function").
   The Aeneas tutorial's verified hash map is the template.
-* `ron::Nat` — `Small(u64) | Big(Vec<u64>)` limbs, normalised.  Operations
-  needed (`Kernel/Core.lean:628-655`): `pred, add, sub, mul, pow (exponent ≤
-  2^24), div, mod, gcd, land, lor, xor, shiftLeft, shiftRight, beq, ble`.
-  Spec: `toNat : ron.Nat → Nat` is a homomorphism.  Start with shift-subtract
+* `ron::Nat` — a single `Vec<u64>` of little-endian limbs, normalised (no
+  trailing zero limb; `0` is the empty vector), **not** the
+  `Small(u64) | Big(Vec<u64>)` enum this section first proposed: one
+  representation means one algorithm and one induction per operation instead
+  of four representation cases, and one invariant instead of two (task #6).
+  Operations needed (`Kernel/Core.lean:628-655`): `pred, add, sub, mul, pow
+  (exponent ≤ 2^24), div, mod, gcd, land, lor, xor, shiftLeft, shiftRight,
+  beq, ble`.  Spec: `toNat : ron.Nat → Nat` is a homomorphism.  Shift-subtract
   long division (easy proof); Knuth D only if a profile demands it.  This
   discharges con-leche's "verified bignum" wish list item for the Rust side.
 
@@ -677,3 +682,209 @@ import-line rewrite from `spikes/level-name/lean/` into
 script will own it in P2).  There is no freshness gate on the committed
 generated Lean yet, and no `#print axioms` gate — but the census above is
 clean today and is the baseline for that gate.
+
+### Task #6 — `ron::Nat`, the bignum (2026-09-12, Opus under Fable)
+
+P1.1 (first half): `crates/con-ron-core/src/nat.rs`, the arbitrary-precision
+natural that replaces Lean's runtime `Nat` (GMP behind a small-int fast path,
+none of which con-ron trusts).  Charon and Aeneas **both succeeded on the
+first run with zero errors and zero iteration**; the generated Lean is in
+`_tmp/nat-lean/` (gitignored, not elaborated — that is P2's business).
+
+**Design choice: a single `Vec<u64>` of little-endian limbs, normalised** —
+§3.3's `Small(u64) | Big(Vec<u64>)` was rejected and §3.3 is amended.  The
+reason is proof volume, not code volume:
+
+* the abstraction is one recursive function over one list, with no case
+  analysis and no "does it fit a word" side condition;
+* every operation is *one* algorithm, so every homomorphism lemma is one
+  induction.  The enum gives each binary operation four representation cases,
+  each of which must additionally re-establish the right tag: ~4× the lemma
+  count for nothing the model can see;
+* normalisation is the single predicate "the last limb is not `0`".  The enum
+  needs that *and* "`Big` only when it does not fit a word" — a second
+  invariant every operation must preserve — to keep structural equality equal
+  to numeric equality, which is what `beq` and (task #7) the hash map want.
+
+The price is a heap allocation for small values.  That is a performance
+decision, revisitable in P1.6 as a `Small` fast path proved equal to these
+same functions, which is a far smaller proof than starting from the enum.
+
+**Numbers.**
+
+| | |
+|---|---|
+| `src/nat.rs` port (raw / code lines) | 671 / 439 |
+| tests in the same file (9 tests, not extracted) | 314 |
+| Rust functions | 48 (26 `pub`) |
+| generated `Types.lean` / `Funs.lean` | 35 / **737** (1.7× the Rust code) |
+| generated external templates | **none** |
+| `charon cargo --preset=aeneas` wall (after `cargo clean`) | **0.19 s** |
+| `aeneas -backend lean -split-files -loops-to-rec` wall | **0.74 s** (0.58 s self-reported) |
+| items translated | 48 transparent fns, 13 opaque, 4 trait decls, 7 trait impls (1 of each emitted) |
+| **`partial_fixpoint`** | **21** |
+| `mutual` blocks | **0** (every recursion is self-recursion) |
+| external holes | **none** — the crate still has only §3.2's four `Rc` axioms, and this module adds nothing |
+
+`cargo build`/`cargo test` warning-free, 9/9 green;
+`scripts/lint-rust-style.sh crates/con-ron-core/src` clean.  The `.llbc`
+lands at the *workspace* root (`con_ron_core.llbc`), not in the crate
+directory — `charon cargo` follows cargo's workspace root; `*.llbc` is
+gitignored.  Note that `charon cargo` is a no-op when cargo's cache is warm:
+the llbc is written only when rustc actually runs, so `cargo clean` (or a
+touch of every source file) has to come first.  That is a trap for P2's
+`scripts/extract.sh`.
+
+**The 13 opaque functions are all `core`/`alloc` primitives Aeneas already
+models**, and they are the complete list of what this module asks of the std
+model: `alloc.vec.Vec::{new, push, len, index}` (with
+`core.slice.index.SliceIndexUsizeSlice`) and `core.num.U64::{overflowing_add,
+overflowing_sub, wrapping_mul}`.  Aeneas's `Vec` model has no `pop` and no
+`truncate`, which is the one thing that shaped the code: `norm` trims trailing
+zero limbs by *copying*, and every operation builds its result with
+`new`/`push` only.
+
+**Constructs that do not survive transliteration, and their replacements**
+(all of them a-priori choices, as in task #3 — nothing here was error-driven):
+
+1. **Loops over limbs** → index-carrying `*_from` helpers, the public function
+   being the `i = 0` wrapper (the task-#3 pattern); 22 of them.
+2. **A mutable output buffer.**  §3.4 reserves `&mut` for the state parameter,
+   so accumulators are passed **by value and returned**: `out: Vec<u64>` in,
+   `Vec<u64>` out, with a local `let mut o = out; o.push(x);` at the one point
+   that mutates.  Aeneas sees a plain value-passing recursion; no `&mut`
+   parameter occurs in the module.  This also rules out `IndexMut`: `mul` is
+   written as shift-and-add (`Σ_i (a * b[i]) << 64i`) rather than as an
+   in-place accumulation into a pre-sized buffer, which keeps the `Vec` API to
+   four functions and makes the homomorphism one induction with the invariant
+   `toNat acc = toNat a * toNat b[0..i]`.
+3. **`u64` → `usize` casts** (a shift's whole-word part becoming a limb index)
+   are *avoided entirely*, because their model depends on
+   `System.Platform.numBits`: a `u64` count is consumed by a counting
+   recursion instead (`push_zeros` for left shifts, `skip_index` for right
+   shifts).  The only casts in the module are `u64 → u128` and back, in the
+   one multiply-accumulate step, where the `u128` product provably cannot
+   overflow (`(2^64-1)^2 + (2^64-1) < 2^128`) and the truncating cast back is
+   exactly the low half.  They come out as `lift (UScalar.cast .U128 x)` /
+   `lift (UScalar.cast .U64 t)`, which are total.
+4. **Variable-width shifts.**  Rust's `<<`/`>>` panic when the amount reaches
+   the word width and Aeneas models them as `fail`, so `shift_left` and
+   `shift_right` split off `bits == 0` before touching `64 - bits`, and the
+   division's bit counter runs `j : 1..=64` so that `j - 1` is always legal.
+5. **A three-way comparison instead of `Ord`.**  `pub enum Cmp { Lt, Eq, Gt }`
+   with `beq`/`ble`/`blt` reading it off — one lemma about `cmp` instead of
+   three.  Deriving `PartialEq`/`Ord` would drag std trait instances into the
+   model for no gain.
+6. **`#[derive(Clone)]` was measured, not assumed**: it translates fine
+   (Aeneas models `Vec::clone` as `alloc.vec.CloneVec.clone`, so it is *not*
+   an external hole), but it adds a `core::clone::Clone` declaration and
+   instance and 14 lines to `Funs.lean`.  Dropped in favour of an explicit
+   limb copy, which is also what the module's free-function API wants.
+7. **`mod` is a Rust keyword** → the function is `modulo`.  `div` and `modulo`
+   are wrappers around one `div_mod` returning a pair (Aeneas handles tuples).
+8. **`pow` is square-and-multiply**, not repeated multiplication: the caller
+   enforces con-leche's `ReducePowMaxExp` (`e ≤ 2^24`,
+   `Kernel/Core.lean:639`), and 2^24 bignum multiplications is not a viable
+   implementation.  The proof cost is one strong induction on `e` through
+   `x^e = (x^(e/2))^2 * x^(e%2)` instead of a one-line induction.
+9. **Division is restoring shift-subtract**, one bit at a time from the top
+   (§3.3): `rem := 2*rem + bit; if rem ≥ b then rem -= b`.  Knuth D stays out.
+   The quotient limbs come out most-significant-first, so `div_mod` reverses
+   them (`rev_copy_from`) — the representation is little-endian.
+
+**`hash64`** is FNV-1a over whole limbs (`h₀ = 0xcbf29ce484222325`,
+`h_{i+1} = (h_i ⊕ limbs[i]) * 0x100000001b3`, wrapping).  As with task #3's
+string hash this is *not* Lean's `Nat` hash and nothing may compare the two;
+it only has to be a function of the *value*, which is exactly what the
+normalisation invariant buys (see `hash64_congr` below).
+
+**Tests** (`#[cfg(test)]`, invisible to Charon, so loops and closures are
+allowed there): a 2 000-round differential test against `u128` for every
+operation on operands below 2^127 (drawn by a 12-line xorshift, with every
+fourth round narrowed to 1–70 bits so that the 0/1/one-limb boundaries are hit
+often), which also asserts that every result is normalised; plus hand-picked
+multi-limb cases — carries and borrows across 3–4 limbs, `sub` truncating to
+zero, 200 random divisions by 3-limb divisors checked as `a = q·b + r ∧ r < b`
+(and the `a/0 = 0`, `a%0 = a` convention), `3^200` against repeated
+multiplication *and* against wrapping `u64` arithmetic in its low limb,
+`2^200` as an explicit limb pattern, shifts by 0…256 with round-trips and
+against `b · 2^k`, and gcd of Fibonacci numbers up to `F(180)`
+(`gcd(F(n),F(n+1)) = 1`, `gcd(F(m),F(n)) = F(gcd(m,n))`).
+
+**Proposed proof spec** (P3.1; the files to write are
+`proof/ConRon/Abs/Nat.lean` and `proof/ConRon/Refine/Nat.lean`).  The
+abstraction and the invariant:
+
+```lean
+/-- The value of a limb list, little-endian. -/
+def limbsToNat : List Std.U64 → ℕ
+  | []     => 0
+  | x :: r => x.val + 2 ^ 64 * limbsToNat r
+
+/-- `abs : con_ron_core.nat.Nat → ℕ`. -/
+def toNat (a : nat.Nat) : ℕ := limbsToNat a.limbs.val
+
+/-- Normalisation: no trailing zero limb. -/
+def WF (a : nat.Nat) : Prop :=
+  ∀ h : a.limbs.val ≠ [], a.limbs.val.getLast h ≠ 0#u64
+```
+
+Two structural lemmas carry the representation choice:
+
+```lean
+theorem toNat_lt (a) : toNat a < 2 ^ (64 * a.limbs.val.length)
+theorem toNat_inj {a b} (ha : WF a) (hb : WF b) (h : toNat a = toNat b) : a = b
+```
+
+`toNat_inj` is what makes structural equality numeric equality; it is the
+lemma `beq` and task #7's hash map both need, and `hash64_congr` (below) is an
+immediate corollary, so hashing needs no spec of its own.
+
+Every operation then gets one lemma in §3.5's exact-result-on-success shape —
+nothing is claimed when the Rust model fails, and `WF` is threaded:
+
+```lean
+theorem add_spec {a b c} (ha : WF a) (hb : WF b) (h : nat.add a b = ok c) :
+    toNat c = toNat a + toNat b ∧ WF c
+```
+
+and the same for, in the module's order (`F` is the `ℕ` operation named):
+
+| Rust | `F` |
+|---|---|
+| `zero` / `one` / `from_u64 x` | `0` / `1` / `x.val` |
+| `to_u64` | `= some x → toNat a = x.val`; `= none → 2^64 ≤ toNat a` |
+| `is_zero` | `= true ↔ toNat a = 0` |
+| `norm v` | `toNat c = limbsToNat v.val ∧ WF c` (the only lemma whose input is unnormalised) |
+| `clone` | `toNat c = toNat a ∧ WF c` |
+| `cmp a b` | `= Cmp.Lt ↔ toNat a < toNat b`, and the two siblings; `beq`/`ble`/`blt` are corollaries |
+| `add` / `sub` / `pred` | `+` / `-` (Lean's truncating `Nat` subtraction, so no side condition) / `- 1` |
+| `mul` / `pow a e` | `*` / `toNat a ^ e.val` |
+| `div_mod a b` | `toNat q = toNat a / toNat b ∧ toNat r = toNat a % toNat b` — Lean's own `x/0 = 0`, `x%0 = x` make this unconditional, matching `Kernel/Core.lean:643-644` |
+| `gcd` | `Nat.gcd` |
+| `land` / `lor` / `xor` | `Nat.land` / `Nat.lor` / `Nat.xor` |
+| `shift_left a k` / `shift_right a k` | `Nat.shiftLeft (toNat a) k.val` / `Nat.shiftRight (toNat a) k.val` |
+| `hash64` | `hash64_congr : WF a → WF b → toNat a = toNat b → nat.hash64 a = nat.hash64 b` (from `toNat_inj`) |
+
+Under each of those sits one auxiliary lemma per `*_from` helper, all of the
+same shape — a statement about the suffix `i..` of the limb list, proved by
+induction on `length - i`, e.g.
+
+```lean
+theorem add_from_spec (a b out : List Std.U64) (i n : ℕ) (carry : Std.U64) … :
+    limbsToNat result
+      = limbsToNat out
+        + 2 ^ (64 * out.length) * (limbsFrom a i + limbsFrom b i + carry.val)
+```
+
+with `limbsFrom l i = limbsToNat (l.drop i)`.  The 21 `partial_fixpoint`s mean
+every one of these is an admissibility-style induction (`dspec`) rather than a
+structural one; `pow` and `gcd` additionally need a strong induction, on `e`
+resp. on `toNat a` (Lean's own `Nat.gcd` is well-founded in the same argument,
+so the two recursions line up arm for arm).
+
+**Totality is deliberately not proved.**  The accept-direction (§1) claims
+nothing when the Rust model fails, and this module *can* fail: `push` fails
+past `Usize.max` limbs and `mul`'s shift counter is an overflow-checked `u64`
+addition.  Both are "the machine ran out", which is exactly the class of
+divergence §1 allows.
