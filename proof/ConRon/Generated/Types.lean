@@ -27,6 +27,25 @@ namespace ConRon.Generated
 structure core.alloc.AllocatorClone (Self : Type) where
   cloneCloneInst : core.clone.Clone Self
 
+/-- [con_ron_core::kernel::core_types::CheckError]
+    Source: 'crates/con-ron-core/src/kernel/core_types.rs', lines 73:0-77:1
+    Visibility: public -/
+@[discriminant isize]
+inductive kernel.core_types.CheckError where
+| NotImplemented : alloc.vec.Vec Std.U32 → kernel.core_types.CheckError
+| Invalid : alloc.vec.Vec Std.U32 → kernel.core_types.CheckError
+| Internal : alloc.vec.Vec Std.U32 → kernel.core_types.CheckError
+
+/-- [con_ron_core::cached::checker_c::OrElseStep]
+    Source: 'crates/con-ron-core/src/cached/checker_c.rs', lines 73:0-76:1
+    Visibility: public -/
+@[discriminant isize]
+inductive cached.checker_c.OrElseStep where
+| Matched : cached.checker_c.OrElseStep
+| Continue :
+  Option kernel.core_types.CheckError →
+  cached.checker_c.OrElseStep
+
 /-- [con_ron_core::ron::hashmap::AList]
     Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 82:0-85:1
     Visibility: public -/
@@ -314,7 +333,7 @@ inductive kernel.prop_when.Ordering where
 | Gt : kernel.prop_when.Ordering
 
 /-- [con_ron_core::kernel::env::ProjTable]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 406:0-416:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 407:0-417:1
     Visibility: public -/
 structure kernel.env.ProjTable where
   struct_name : kernel.name.Name
@@ -328,7 +347,7 @@ structure kernel.env.ProjTable where
   off : Std.U64
 
 /-- [con_ron_core::kernel::env::IndCaps]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 355:0-364:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 356:0-365:1
     Visibility: public -/
 structure kernel.env.IndCaps where
   eta : Bool
@@ -341,7 +360,7 @@ structure kernel.env.IndCaps where
   sort_z : kernel.prop_when.PropWhen
 
 /-- [con_ron_core::kernel::env::ReducibilityHint]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 276:0-280:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 277:0-281:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.ReducibilityHint where
@@ -383,7 +402,7 @@ structure kernel.env.ConstantVal where
   ty : kernel.expr.Expr
 
 /-- [con_ron_core::kernel::env::ConstantInfo]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 491:0-499:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 492:0-500:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.ConstantInfo where
@@ -415,7 +434,7 @@ inductive kernel.env.ConstantInfo where
 | ProjInfo : kernel.env.ProjTable → kernel.env.ConstantInfo
 
 /-- [con_ron_core::kernel::env::Env]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 779:0-781:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 780:0-782:1
     Visibility: public -/
 structure kernel.env.Env where
   consts : alloc.vec.Vec kernel.env.ConstantInfo
@@ -443,7 +462,7 @@ structure kernel.level.SubstZ where
   vs : alloc.vec.Vec kernel.level.Level
 
 /-- [con_ron_core::kernel::env::ProjEntry]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 436:0-447:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 437:0-448:1
     Visibility: public -/
 structure kernel.env.ProjEntry where
   struct_name : kernel.name.Name
@@ -472,17 +491,8 @@ inductive kernel.env.CheckMode where
 | Verified : kernel.env.CheckMode
 | Trusted : kernel.env.CheckMode
 
-/-- [con_ron_core::kernel::core_types::CheckError]
-    Source: 'crates/con-ron-core/src/kernel/core_types.rs', lines 73:0-77:1
-    Visibility: public -/
-@[discriminant isize]
-inductive kernel.core_types.CheckError where
-| NotImplemented : alloc.vec.Vec Std.U32 → kernel.core_types.CheckError
-| Invalid : alloc.vec.Vec Std.U32 → kernel.core_types.CheckError
-| Internal : alloc.vec.Vec Std.U32 → kernel.core_types.CheckError
-
 /-- [con_ron_core::kernel::env::BasisKind]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 329:0-336:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 330:0-337:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.BasisKind where
@@ -543,8 +553,30 @@ structure cached.parsed_c.PendingCheck where
   pos : Std.U64
   vis : Std.U64
 
+/-- [con_ron_core::kernel::nat_op_pins::NatOpPinSet]
+    Source: 'crates/con-ron-core/src/kernel/nat_op_pins.rs', lines 38:0-56:1
+    Visibility: public -/
+structure kernel.nat_op_pins.NatOpPinSet where
+  toolchain : alloc.vec.Vec Std.U32
+  div_pin : kernel.expr.Expr
+  mod_pin : kernel.expr.Expr
+  gcd_pin : kernel.expr.Expr
+  land_pin : kernel.expr.Expr
+  lor_pin : kernel.expr.Expr
+  xor_pin : kernel.expr.Expr
+  shift_left_pin : kernel.expr.Expr
+  shift_right_pin : kernel.expr.Expr
+  div_proofs : alloc.vec.Vec kernel.expr.Expr
+  mod_proofs : alloc.vec.Vec kernel.expr.Expr
+  gcd_proofs : alloc.vec.Vec kernel.expr.Expr
+  land_proofs : alloc.vec.Vec kernel.expr.Expr
+  lor_proofs : alloc.vec.Vec kernel.expr.Expr
+  xor_proofs : alloc.vec.Vec kernel.expr.Expr
+  shift_left_proofs : alloc.vec.Vec kernel.expr.Expr
+  shift_right_proofs : alloc.vec.Vec kernel.expr.Expr
+
 /-- [con_ron_core::kernel::env::Declaration]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 575:0-582:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 576:0-583:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.Declaration where
@@ -567,6 +599,12 @@ inductive kernel.env.Declaration where
   alloc.vec.Vec kernel.env.ConstantInfo →
   Std.U64 →
   kernel.env.Declaration
+
+/-- [con_ron_core::kernel::decl_check::ModelRename]
+    Source: 'crates/con-ron-core/src/kernel/decl_check.rs', lines 175:0-177:1
+    Visibility: public -/
+structure kernel.decl_check.ModelRename where
+  block_names : alloc.vec.Vec kernel.name.Name
 
 /-- Trait declaration: [con_ron_core::kernel::expr_ops::NameToName]
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1092:0-1095:1

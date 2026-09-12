@@ -1735,6 +1735,7 @@ pub fn subst_const_all(n: &Name, r: &Expr, e: &Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:712-722 natOpCod
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:209-217 natOpCodF
 /// The pinned codomain of a structural-`Nat` operation: `Bool` (itself
 /// stored level-monomorphically at type `Sort 1`) for the comparisons, `Nat`
 /// otherwise.
@@ -1769,6 +1770,7 @@ pub fn bool_stored_ok(fe: &FEnv) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:724-739 natOpTyPinned
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:219-231 natOpTyPinnedF
 /// The pinned type of a certified `Nat` operation: `Nat → Nat` for the unary
 /// `pred`, `Nat → Nat → Nat` for the arithmetic operations, `Nat → Nat →
 /// Bool` for the comparisons.
@@ -1803,6 +1805,7 @@ pub fn nat_op_ty_pinned(fe: &FEnv, c: &Name, ty: &Expr) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:741-747 natOpStoredOk
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-238 natOpStoredOkF
 /// con-leche: ConLeche/Kernel/FEnv.lean:147-151 natOpStoredF
 /// Op `n` is stored as a level-monomorphic definition with the pinned type.
 pub fn nat_op_stored_ok(fe: &FEnv, n: &Name) -> bool {

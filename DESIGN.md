@@ -4008,3 +4008,358 @@ it; that is a 30-minute task and the next module to need them is
 `kernel::expr_ops` (82 declarations, the `isApp`/`getAppFn` family and the
 exact `bvarB`/`fvarB` accessors that fall back to a memoised walk — the first
 consumers of `wf_data`).
+### Task #24 — The declaration checker (2026-09-12, Opus under Fable)
+
+P1.5.  The declaration-checking family of `ConLeche/Kernel/` ported as nine
+new modules: `checker_base.rs` (`CheckerBase.lean`, 292 lines), `checker.rs`
+(`Checker.lean`, 569), `decl_check.rs` (`DeclCheck.lean`, 937),
+`checker_split.rs` (`CheckerSplit.lean`, 121), `type_checker.rs`
+(`TypeChecker.lean`, 60), `std_axioms.rs` (`StdAxioms.lean`, 375),
+`trust_axioms.rs` (`TrustAxioms.lean`, 218), `trust_pins.rs`
+(`TrustPins.lean`, 48) and `cached/checker_c.rs` (`Cached/CheckerC.lean`,
+270), plus three dependency modules the family cannot be written without —
+`basis_builder.rs` (`Kernel/Basis/Builder.lean`, the raw-pin DSL),
+`nat_op_pins.rs` (`NatOpPinSet.lean` + `NatOpPins.lean`) and `basis_pins.rs`
+(a stub for `BasisA.lean`; below).  `checkDecl` and `checkDeclsPure` now
+exist in the crate, over the closed knot of task #18.
+
+#### The `CheckerOps` collapse
+
+`ConLeche/Kernel/CheckerBase.lean:30-53` writes the whole declaration checker
+*once*, monad-polymorphically, against a record `ops : CheckerOps m` of the
+core's five entry points plus `orElse`, and instantiates it twice:
+`fueledOps`/`pureOps` (the pure knot, the verification's subject) and
+`Cached/CheckerC.lean`'s `sharedOpsC` (the memoized knot the binary runs).
+§3.1's knot ruling applies to it unchanged — **no trait in the recursion, no
+closures** — so the record parameter is *dropped* and its slots are called by
+name.  Three consequences:
+
+1. **`kernel/type_checker.rs` is the one place the knot is named.**
+   `TypeChecker.lean`'s seven entry points (`whnfCore`, `whnf`,
+   `inferTypeCore`, `inferTypeIO`, `isDefEqCore`, `annotateCore`,
+   `ensureSortCore`) become seven six-line functions over `core_c`/`core_k` at
+   `core_k::check_fuel()`, and they are simultaneously `fueledOps`, `pureOps`
+   and `sharedOpsC`'s five core slots — each carries all three citations.
+   `pureFns` (`:24`) has no Rust spelling: §3.1's "bodies over wrappers" gives
+   the port **one** knot, the cached one, so a refinement lemma about any of
+   these is stated against `coreKnotI`, as §3.5 already writes it.
+   `opE`/`opB`/`opS` (`CheckerC.lean:68-79`) collapse with it — `opE fe pick
+   d e` is a *slot selector* passed as a function into a record projection,
+   and there is no record to project.
+2. **`orElse` is the one thing `CheckerC.lean` leaves standing**, and it is
+   `cached/checker_c.rs`'s only item.  Ported exactly as `sharedOpsC` writes
+   it, as a three-way `OrElseStep`: `.ok (true, s')` is `Matched`, `.ok
+   (false, s')` is `Continue none`, `.error e` is `Continue (some e)`.  The
+   **continuation** is a closure §3.4 forbids, so it stays at the one call
+   site (`checker::check_div_mod_pin_loop`'s own tail call — task #18's
+   treatment of `whnfStep`'s continuation), and the outcome the combinator
+   delivers is carried in the enum, because that is what makes this the
+   checker's only error-recovery point.  Recorded in the module doc, with the
+   one memo-policy deviation it forces (below).
+3. **Every `ops`-taking function takes `(mode, st, fe, …)`**, and the
+   `FEnv`-indexed `F`-twins of `DeclCheck.lean` are the *same* Rust functions
+   with a second citation (task #18's deviation 3: the port has one
+   environment spelling, the index).  That collapses 21 of `DeclCheck.lean`'s
+   40 declarations into their generic twins, `domsMatchAuxA` into
+   `domsMatchAux`, and `Env.findCV?`/`FEnv.findCV?` into one `find_cv`.
+
+#### The pre-insertion environment is a visibility bound, not a value
+
+`checkDecl`'s `defn` and `opaque` arms hold **two** environments at once:
+`env`, the pre-insertion one every certificate check runs in, and `env2`, the
+extended one the guards read (`natOpGuard env2`, `env2.find? c`,
+`divModEnvGuard env2`, `reduceStoredOk env2`).  Lean can, because its
+environments are persistent; task #14 ruled that the port threads the index
+*linearly*.  The resolution is con-leche's own `FEnv`: an entry carries its
+installation counter and `FEnv.restrictTo k` lowers the visibility bound in
+`O(1)` (con-leche task #108).  So the two views are **one index at two
+bounds** — `k = fe.visibleBelow` is read off before the push, and a function
+that needs the pre-insertion view takes the index by value, restricts,
+checks, and restores the bound before handing it back.  That is §3.5's "phase
+B needs exactly one view at a time — it lowers the bound for a record and
+raises it back" made concrete, with no `fenv::dup` (which rebuilds the index)
+anywhere on the path.  It changes two signatures: `check_div_mod_pin` and
+`check_reduce_pin` return the index where the Lean returns `Unit`.
+
+#### `matchesPin` is compared against the RAW pins, and that is exact
+
+`StdAxioms.lean` and `TrustAxioms.lean` write their pins twice: the *raw*
+ones, hand-written with `Basis/Builder.lean`'s DSL, and the *annotated* ones
+(`iffA`, `propextA`, `choiceA`, `reduceNatCvA`, `ofReduceNatA`, …) computed
+from them at elaboration time by `#annotate_basis`/`#annotate_pins`.  A grep
+of the implementation modules settles how the annotated forms are consumed:
+**every** use goes through `ConstantVal.matchesPin`, whose type test is
+`a.erasePw == b.erasePw`, i.e. up to every binder's prop-ness datum — and
+`annotateBody` (`Core.lean:2746`) changes *nothing else* in a `letE`-free
+term, which no pin is.  So
+
+```text
+matchesPin cv (annotate pin) = matchesPin cv pin
+```
+
+and the port compares against the raw pin, which it can write down, with the
+annotated twin cited on the same item.  A unit test pins the argument: the
+pins match themselves, a wrong type does not, and a pin whose binder data has
+been rewritten still matches while `Expr.beq` says the terms differ.  **Task
+#22 therefore owes this task no pin table for the axioms at all** — with two
+exceptions, below.
+
+`Expr.erasePw`/`matchesPin` (the specification) and
+`Expr.erasePwEq`/`matchesPinFast` (the executed lockstep descent, `@[csimp]`)
+are both ported, as task #13's `@[csimp]` rule asks; a test checks they agree
+on all 100 pairs the ten pins form.
+
+#### The three stubs, and why each is sound
+
+* **`kernel/nat_op_pins.rs`: `nat_op_pin_sets()` is empty.**  In con-leche the
+  variant list is spliced from the committed `pins/*.json` dumps by
+  `#load_natop_pins`; generating it is task #22's.  `checkDivModPinLoop` on an
+  empty list is its `[]` arm — the decline con-leche itself gives a stream
+  matching no variant — so the loop is exercised with zero pins, and the only
+  effect is that `Nat.div`/`Nat.mod` streams decline.
+* **`kernel/basis_pins.rs` is new, and task #22 should delete it.**  Two of
+  the nineteen annotated basis pins are consumed by an **exact**
+  `ConstantInfo` equality rather than through `matchesPin` — `env.find? eqName
+  = some eqA` and `env.find? natName = some natA` — so the erase-`pw`
+  argument does not cover them.  They are spelled there as predicates on the
+  stored constant (`is_pinned_eq_basis`, `is_pinned_nat_basis`) plus
+  `BasisKind.declsA`, and the stubs answer `false` / the empty block.  A
+  `false` declines, which is the verdict con-leche gives a stream that never
+  installed the pinned basis; an empty block installs nothing, so a later
+  declaration mentioning a basis constant fails `constsResolve`.  Both are
+  declines, never accepts (§1).
+* **`checkDecl`'s `.indDecl` arm declines past the parameter check.**
+  `indParamsOk` runs first and for both routes, as con-leche task #228
+  insists (a wrong `nparams` is a *reject*); the dispatch itself —
+  `nativeParts?`, `checkNative`, `checkModeled` — is
+  `ConLeche/Kernel/Inductives/*`, a family this task does not port.
+
+#### The two Aeneas errors, and the one external hole
+
+Charon succeeded on the first run.  Aeneas gave **two** errors, both the same
+shape, and both in a *newly written memoized walk*
+(`expr_ops::all_level_params_defined_go`, `decl_check::consts_resolve_f_go`):
+*"Could not match the contexts"* at the arm's last expression.
+
+* **The cause is a branch inside an arm of a `&mut`-threaded `match` that then
+  joins on the memo insert.**  The Lean arm is `let (b₁, memo) := go f; let
+  (b₂, memo) := go a; (b₁ && b₂, memo)`, and the obvious transliteration `b1
+  && b2` is a *branch* (`&&` short-circuits), so the arm ends in two borrow
+  contexts that merge with the other arms at `memo.insert`.  Rewriting it as
+  an `if` nest (§3.4's pattern 9) does **not** help — the `if` is the problem.
+  What works is task #14's fix: **lift the join into a call**,
+  `expr_ops::bool_and(b1, b2)` / `bool_and3(b1, b2, b3)`, so the branch lives
+  inside a callee where no `&mut` is live and every arm is one straight-line
+  expression (this is the shape `rename_consts_go` and
+  `instantiate_level_params_go` already had, which is why they never failed).
+  Both operands are still computed before the call, which matters: a
+  short-circuit would be a *memo-policy* deviation — fewer entries written —
+  not just a shape one.  **Rule for the next porter: a memoized walk's arm
+  must end in a call or a constructor, never in a branch.**
+* **A fifth external hole, caught and removed.**  `vec![65, 66, 67]` — the
+  natural spelling for a pinned name's code points — emits
+  `core::mem::maybe_uninit::MaybeUninit` into `TypesExternal_Template.lean`.
+  Every one of the 23 non-test `vec!` literals is now task #14's idiom, a
+  `const S: [u32; N]` plus `core_types::code_points(&S)`, and §3.2's standing
+  gate holds: the templates are **exactly the four `Rc` axioms and the `Rc`
+  type**.
+
+#### Constructs that do not survive transliteration
+
+Beyond the collapses above, and all a-priori except the `bool_and` one:
+
+1. **`domsMatchAux` is monomorphic at the identity view.**  Its `g : Nat →
+   Expr → Expr` is `fun _ e => e` at every call site in this scope; the one
+   renaming site (`checkProjIotaF`) is the inductive family's, and the
+   abstraction returns with it (task #18's `liftFueled` rule).
+2. **`Basis/Builder.lean`'s binder-name arguments are gone.**  `pi "a" ty b`
+   takes the `Init.Prelude` spelling for the reader only — `Expr` has no
+   binder name — so `pi`/`piI`/`piA` are one Rust function with three
+   citations and `lm`/`lmI` one with two.  A `&str` parameter would also be
+   the one shape task #14 measured Aeneas failing on.  `BasisDSL.rule` **is**
+   `env::rec_rule_parsed`, which gained a second citation rather than a twin.
+3. **`divModCertStmts`' thirteen local builders are named functions**
+   (`cert_ble2`, `cert_eq_b`, `cert_eq_n`, `cert_op2`, `cert_sub2`,
+   `cert_mod2`, `cert_div2`, `cert_add2`, `cert_mul2`, `cert_one`, `cert_two`,
+   `cert_rec_rhs`, `cert_base_rhs`), as `natOpEquations`' four were at task
+   #18; `core_k::nat_eq_ap2` is already the binary-application builder and is
+   reused.  The eight branches keep their arm order and their comments.
+4. **`divModAttemptReason` and the `tried : List String` accumulator are not
+   ported.**  They render the per-variant decline text; §3.1 says message
+   strings need not match, and the decline is a fixed message.  The *outcome*
+   still flows (`or_else_step`'s payload), because that is the combinator.
+5. **Two-list recursions become one index recursion** with three arms — both
+   exhausted, both in range, or the arity throw (task #14's point 7):
+   `check_typed_list`, `check_def_eq_list`, `check_div_mod_certs`.  A `zip`
+   (`divModCertsGuard`) stops at the shorter list, so its bound is the
+   minimum.
+6. **`fv :: fvs` is a front `Vec::insert`** in `openPisAtFvars` and
+   `openPisAtFvarsFGo`, `O(width)` where Lean's cons is `O(1)` — deliberate
+   and bounded by the telescope width (task #14's point 5 for `Env.consts`).
+7. **A long `do` block with an annotation in the middle is split at the
+   annotation**, so the state-threading call is a tail call and the guard
+   groups never join on a borrowed state: `check_constant_val` →
+   `check_constant_val_after_annot`, and the same for `check_defn_val`,
+   `check_thm_val` (three functions: the is-a-proposition gate, the witness
+   guards, the comparison), `check_opaque_val`, `check_proj_rule` (four:
+   syntactic, well-formedness, shape, the definitional pins) and
+   `check_value_group`.  This is task #18's rule for a gated certificate whose
+   arms rejoin, applied prophylactically — and given the two errors above,
+   worth applying.
+8. **`Expr.allLevelParamsDefined` came with the task.**  `checkConstantVal`
+   asks it of every declaration's type, and task #13 had left it owed ("the
+   `Level.lean` completion task"): the spec walk, the memoized `*Go` and the
+   executed `*Fast` are now in `expr_ops.rs` beside
+   `instantiate_level_params`, where task #13 put the other `Expr` operation
+   `Kernel/Level.lean` spells for import order.  `level.rs`'s "not ported
+   here" note is updated.
+9. **`checkMemberValF`'s local `f : Name → Name` is a dictionary struct**
+   (`decl_check::ModelRename`, task #9's pattern 1), over
+   `expr_ops::NameToName`.
+10. **`ValueKind`/`ValueGroup` were already ported** (task #14 took the three
+    seam records); `checker_split.rs` holds only the three functions, and
+    `ValueKind.word` stays unported (message rendering).
+
+#### Numbers
+
+| | |
+|---|---|
+| Lean ported: 9 files, 2 890 lines; plus `Basis/Builder.lean` 125, `NatOpPinSet.lean` 51, `Level.lean:251-412` | |
+| the nine modules + 3 dependency modules, extracted part (raw / code) | **4 854 / 3 213** |
+| `#[cfg(test)]` part (12 tests in 4 modules) | 673 / 545 |
+| `expr_ops.rs` (the `allLevelParamsDefined` family + `bool_and`) | 2 485 → **2 661** |
+| generated `Types.lean` | 583 → **621** (+38: `OrElseStep`, `NatOpPinSet`, `ModelRename`) |
+| generated `Funs.lean` | 21 205 → **28 743** (+7 538: `checker` 2 274, `decl_check` 1 305, `checker_base` 1 292, `std_axioms` 855, `trust_axioms` 495, `checker_split` 390, `basis_builder` 167, `type_checker` 85, `trust_pins` 34, `basis_pins` 23, `checker_c` 15, `nat_op_pins` 7, `expr_ops` +596) |
+| `TypesExternal_Template.lean` / `FunsExternal_Template.lean` | 25 / 54 — **unchanged** |
+| `charon cargo --preset=aeneas` wall | **~2 s** (the `.llbc` is 71 MB, was 33 MB) |
+| `aeneas -backend lean -split-files -loops-to-rec` | **16.4 s** (was 13.98 s) |
+| `partial_fixpoint` (whole crate / this task) | 226 → **252** (+26: `checker` 9, `checker_base` 7, `decl_check` 5, `std_axioms` 2, `expr_ops` +3) |
+| `mutual` blocks in `Funs.lean` / `Types.lean` | **3 / 3 — unchanged**: nothing new joins the core knot, because the declaration checker calls *into* it and nothing in it calls back |
+| `cd proof && lake build` after the regeneration (`gates.sh`, 2 040 jobs) | **64 s** |
+| external holes | **exactly the four `Rc` axioms and the `Rc` type**; `MaybeUninit` briefly made a fifth (above) |
+
+`cargo build`/`cargo test` warning-free, **117/117** green (105 from tasks
+#6-#18 + 12 new); `scripts/lint-rust-style.sh crates/con-ron-core/src` clean;
+`scripts/provenance.py check` green — 1 066 items, 1 001 citations, all
+current at pin 3e004805; `scripts/gates.sh` all six OK.
+
+#### Tests
+
+Twelve, in four modules, all environments hand-built from axioms and
+`Sort`/Π/λ terms as `core_k`'s are.
+
+`checker_base` (4): **the duplicate-name guard** — `checkConstantVal` on a
+stored name is `.invalid` (not a decline), the same header under a fresh name
+checks with its type annotated and its sort run, a reserved basis name is
+`.invalid`, and a type mentioning an unstored constant throws.  The equality
+head readers (`isEqHead` accepts `Eq` at *one* level and nothing else,
+`eqHeadLevel` reads it and answers `.zero` off shape) and `piResultSort`.
+`openPisAtFvars` and its one-pass twin opening the same two-binder telescope
+to the same fvars, both refusing a telescope that is too short, and both the
+identity at `n = 0`.  `checkDefEqList` throwing on a length difference, and
+`domsMatchAux` at two offsets, out of range, and at zero positions.
+
+`checker` (4): **a `defn` whose value has the wrong type is rejected** —
+`d : A := Sort 1` passes every syntactic guard and then `Sort 2 ≢ A` makes it
+`.invalid`, with `d : A := a` as the positive control (installed as a
+`defnInfo`, visibility bound advanced by exactly one) and a duplicate header
+rejected before the value is looked at.  **The axiom pin** — a `propext`
+(resp. `Classical.choice`) with a non-pinned type is a positive decline at the
+pinned-name branch, never an install; a non-standard axiom declines;
+`sorryAx` is *tolerated*, i.e. checked and **not** stored, with the
+environment coming back unchanged; and the pin comparison is asserted directly
+(reflexive, false on a wrong type, blind to the binder datum).  The pinned
+certificate statements — three for `Nat.div`/`Nat.mod` (the recursive step
+under two `Nat.ble` guards, two base cases) and two for each of the six
+others, the `div`/`mod` base values, the open form over `fvar 0`/`fvar 1`, and
+`divModCertApplied` at one and two hypotheses.  The pin loop declining on the
+empty variant table, and `checkDeclsPure` on the empty stream.
+
+`std_axioms` (2): the lockstep comparison agreeing with the specification on
+all 100 pairs the ten pins form, reflexive, blind to a rewritten `pw` and not
+blind to anything else; the families' sizes and the guards' arity tests (a
+stored `Iff.intro` at the wrong arity fails even with the pinned type).
+
+`checker_c` (1): **`orElse`'s three outcomes** — a matched attempt is the
+whole, a `false` continues with no diagnosis, and a *thrown error* continues
+carrying the error instead of propagating, for an `internal` error as much as
+for a `notImplemented` one.
+
+#### The one deviation that is owed upstream
+
+`sharedOpsC.orElse`'s error arm is `k (some e) s` — the **pre-attempt** state:
+"the memo entries the failed attempt wrote are discarded with it".  The port's
+state is a `&mut CState`, so those writes are in place when `or_else_step`
+sees the `Err` and the continuation runs on the post-attempt state.  Every
+entry is a correct answer, so no verdict changes, but it is a *hit where the
+Lean misses*, which §3.1 asks to be flagged rather than taken silently.
+Reconciling it is either a `CState` snapshot in `cached::state_c` or an
+upstream note, and it must happen before any `check_decl_refines` is stated
+against `checkDeclsPure`.  Flagged in `checker_c.rs`'s module doc.
+
+#### Deliberately not ported
+
+* `structure CheckerOps` (`CheckerBase.lean:30-53`) and `pureFns`
+  (`TypeChecker.lean:24`) — cited, not ported: §3.1 ties the knot with plain
+  functions, and the port has one knot.
+* **`CheckerGated.lean` (42 lines) is proof-tier only** — the task asked for a
+  verdict, and this is it.  `fueledOpsGated`/`pureOpsGated` are `fueledOps`'
+  twin over the *gated* knot (`Kernel/CoreGated.lean`); the file's own header
+  says "nothing here is reachable from `Main.lean`'s import closure: the
+  executable is byte-identical to master", and the declaration checker it
+  instantiates is not duplicated (that is the whole point of `CheckerOps`).
+  Porting it would mean porting `CoreGated.lean` — a second copy of the whole
+  core — for a lane the binary never runs.  0/2 covered, on purpose.
+* `divModAttemptReason` (`Checker.lean:333`), `ValueKind.word`
+  (`CheckerSplit.lean:45`) — message rendering (§3.1).
+* `CRFMemoInv` (`DeclCheck.lean:71`), `LPMemoInv` (`Level.lean:280`) and their
+  `empty`/`insert` lemmas — `Prop`s; Charon erases them, and they are exactly
+  the invariants the Rust-side refinement proof will restate about
+  `crate::ron::hashmap` memos (task #13's ruling).
+* `trustPinEnv` (`TrustAxioms.lean:133`) — the environment `#annotate_pins`
+  computes over; part of the generator, not of the checker.
+* **Eight `DeclCheck.lean` mirrors that stand on `Kernel/Inductives/*`**:
+  `ctorResidualOkF` (`:419`, needs `structFam`), `checkIotaThmF` (`:508`),
+  `nestedRuleShapeF` (`:576`), `checkIotaThmNF` (`:602`), `checkIotaRuleF`
+  (`:688`), `checkIotaRulesF` (`:719`), `checkProjTyF` (`:749`),
+  `checkProjIotaF` (`:798`) — they need `checkIotaSidesTy`,
+  `projFwd`/`projBack` or `structFam`, and two of them need the **two** index
+  views the Lean passes (`fe'` and `feSelf`), which the port spells as one
+  index at two visibility bounds; the function that threads those bounds is
+  their caller's.  Recorded in `decl_check.rs`'s module doc, with the table of
+  what *did* collapse.
+* **Sixteen of `CheckerC.lean`'s seventeen declarations** — the
+  per-declaration phase drivers (`checkIndMemberS`, `provisionRecsS`,
+  `checkIndRecsS`, `checkProjFnS`, `installProjFnStepS`, `checkNativePassS`,
+  `checkNativeTailS`, `checkNativeS`, `checkIndDeclSF`) and the four memoised
+  direct-install walkers (`instPisAtLiftC`, `structProjBodiesGoC`,
+  `structProjBodiesC`, `structWalkersC`), all on the same family; listed in
+  `checker_c.rs` so the next porter does not re-derive them.  `opE`/`opB`/`opS`
+  are the collapse, above.
+
+#### Coverage
+
+`scripts/provenance.py coverage | tail -3`, con-leche 3e004805: **TOTAL
+543/1018 covered (53.3 %), 475 uncovered** — up from **382/1018 (37.5 %)** at
+this branch's merge base (+161).  Per file: **`StdAxioms.lean` 25/25**,
+**`TrustPins.lean` 2/2**, **`NatOpPinSet.lean` 1/1**, **`BasisA.lean` 1/1**,
+`TrustAxioms.lean` **26/27**, `Level.lean` 21/25 → **24/25**,
+`Basis/Builder.lean` **20/21**, `Checker.lean` **20/21**, `CheckerBase.lean`
+**19/20**, `TypeChecker.lean` **7/8**, `CheckerSplit.lean` 2/6 → **5/6**,
+`DeclCheck.lean` **28/40**, `CheckerC.lean` **1/17**, `CheckerGated.lean`
+0/2.  So the ledger agrees with the prose in every file.
+
+**Note for task #22.**  This task needs *no* pin table for the standard and
+compiler-trust axioms — the erase-`pw` argument above makes the raw pins exact
+— and exactly three stubs from it: `eqA` and `natA` as predicates, and
+`BasisKind.declsA`, all in `kernel/basis_pins.rs`, which should be folded into
+`kernel/basis_tables.rs` and deleted.  `nat_op_pin_sets()` lives in
+`kernel/nat_op_pins.rs` beside the `NatOpPinSet` record it returns.
+
+**Note for task #25.**  `checkDecl`'s `.indDecl` arm and the eight
+`DeclCheck.lean` mirrors above are the seam.  Everything the inductive
+installs call *below* `CheckerOps` is already here: `checkConstantVal`,
+`checkMemberVal`, `checkProjRule`, `checkProjLookups`, `checkProjShape`,
+`checkEtaThm`, `checkUnitThm`, `indBlockCaps`, `openPisAtFvars(F)`,
+`domsMatchAux`, `checkTypedList`, `checkAnnotList`, `checkDefEqList`,
+`unwrapOr`, `isEqHead`, `eqHeadLevel`, `piResultSort`, `findCV`.
