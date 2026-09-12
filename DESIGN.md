@@ -2751,3 +2751,218 @@ plus one **ledger false positive**: `install` at `:964` is the phrase
 `scripts/provenance.py` when someone is next in there; it is cosmetic and
 affects no `check`.)  `Level.lean` goes 18/25 → **21/25**, the four
 remaining being `Expr.allLevelParamsDefined` and its memoized twin.
+
+### Task #17 — `Name`/`Level`/`PropWhen` refined on the crate (2026-09-12, Opus under Fable)
+
+P3.3's first part: the task-#5 spike proofs are now stated and proved against
+the *crate's* generated model, and `PropWhen` is refined on top of them.  Four
+files under `proof/ConRon/Refine/`, all `sorry`-free and all elaborating with
+**zero output** under `lake env lean`; `scripts/gates.sh` green.  `master` was
+merged mid-task (the module nesting of task #14/#15), and the nesting cost
+exactly **one line per file**.
+
+**Size.**
+
+| file | lines | `lake build` | declarations |
+|---|---|---|---|
+| `Refine/Abs.lean` | 326 | 1.6 s | 41 |
+| `Refine/Name.lean` | 396 | 2.1 s | 21 |
+| `Refine/Level.lean` | 1 504 | 5.0 s | 74 |
+| `Refine/PropWhen.lean` | **1 904** | 4.7 s | 98 |
+| total | **4 130** | 13 s (whole `ConRon` tree: 9.7 s wall, parallel) | 234 |
+
+For comparison: the spike's `Refine.lean` is 1 830 lines, the crate's
+`kernel/{name,level,prop_when}.rs` are 264/864/951 raw lines (of `prop_when.rs`
+281 are `#[cfg(test)]`), and the generated model is ≈1 150 lines of
+`kernel.level` and ≈771 of `kernel.prop_when` inside an 11 516-line
+`Funs.lean`.
+
+**How much of the spike ported by renaming: all of it, and the rename is one
+line.**  Because Aeneas keeps the Rust module path as the definition-name
+prefix, the nesting of task #14 made the generated names
+`ConRon.Generated.kernel.level.leq_core` — so adding
+
+```lean
+open ConRon.Generated ConRon.Generated.kernel
+```
+
+restores every `level.*`/`name.*`/`prop_when.*` spelling the spike used.  A
+mechanical diff confirms the rename is *all* that changed: all **63**
+generated `name.*`/`level.*` definitions are token-identical to the spike's
+modulo the prefix (only their line *wrapping* differs, because the longer
+names re-flow Aeneas's pretty-printer).  The four remaining edits were
+bookkeeping, not proof work:
+
+1. the file split — `Abs.lean` takes the plumbing `simp` set, the `abs`
+   functions, the `*_inv` smart-constructor shapes, `StrWF`/`NameWF`/`LevelWF`
+   and `Level.ind'`/`Name.ind'`; `Name.lean` takes `absString_inj`,
+   `absName_injective`, `str_eq`, `beq`; `Level.lean` the rest;
+2. four identifiers qualified as `Name.…` in `Level.lean` (`absName_injective`,
+   `name_beq_refl`, `name_beq_abs`, `name_beq_exact'`) — the only cross-file
+   references the split created;
+3. the README's naming rule applied to the public statements
+   (`level_zero_abs` → `zero_refines`, `level_beq_exact` → `beq_refines`, …);
+4. `vec_singleton` hoisted from `Level.lean` into `Abs.lean` (`PropWhen` needs
+   it too), and the two induction principles de-duplicated.
+
+**Not one tactic line of the 1 378 changed.**  That is the claim
+`ConRon/Refine/README.md` made at task #12, now verified at full scale rather
+than on two smoke lemmas — and those two smoke lemmas (`Smoke.lean`) were
+folded into `Level.lean`'s `zero_refines`/`succ_refines` and the file deleted.
+
+New in `Name.lean` beyond the spike: `contains_refines`
+(`name::contains` refines `List.contains` at con-leche's `LawfulBEq Name`) and
+`singleton_refines`, both of which `PropWhen` needs.
+
+**`PropWhen`: the `import all` decision — not taken, and it did not need to
+be.**  con-leche's datum is sealed twice over: `PropWhenRepr` is a `private
+inductive` and `PropWhen` is a one-field structure whose constructor *and*
+field are `private` (`PropWhen.lean:378-413`), and the module is `public
+section` **without** `@[expose]`, so no importer can reduce through a body.
+`absPropWhen` is therefore built from the two *public* producers, which
+`PropWhen.casesZ` (`:645-661`) guarantees name every value:
+
+```lean
+def absPropWhenRepr : prop_when.PropWhenRepr → ConLeche.PropWhen
+  | .Never    => .never
+  | .Always   => .ifAllZero []
+  | .One p    => .ifAllZero [absName p]
+  | .Two p q  => .ifAllZero [absName p, absName q]
+  | .Many ps  => .ifAllZero (absNames ps)
+```
+
+and every *proof* went through the exported equation battery
+(`toList_ifAllZero`, `holds_ifAllZero`, `inter_ifAllZero`, `bindZ_ifAllZero`,
+`inter_eq_toList`, `ifAllZero_eq_iff`, `ifAllZero_ne_never`, `ifAllZero_canon`,
+`canon_eq_self`, `sorted_canon`, `sorted_merge`, `sorted_ext`,
+`isNever_ifAllZero`, `hasParams_ifAllZero`, `paramsDefined_ifAllZero`,
+`toList?_ifAllZero`, `nil_inter`/`inter_nil`, `inter_never_left`/`_right`,
+`bindZ_never`, `bindZ_go_nil`).  **So `import all ConLeche.Kernel.PropWhen`
+was never needed** — the encapsulation the module was designed for holds
+against an external refinement proof, which is a real (and pleasant) result
+about that design.  One nuance worth recording: *definitions* whose body does
+not mention the private representation are still unfoldable from outside —
+`rw [ConLeche.PropWhen.merge]` works without `@[expose]`, because equation
+lemmas are ordinary theorems.  That is what made the sorted-list layer
+(`merge`, `canon`, `bindZ.go`) tractable; had `merge` been sealed as well, the
+proof would have had to go through `mem_merge`/`sorted_merge`/`sorted_ext`
+only, and `to_list`'s exactness would have cost a good deal more.
+
+**`PropWhen`'s hard spots**, in the order they bit.
+
+1. **`str_compare` against Lean's `Ord String`** (≈110 lines, the single
+   biggest new block).  `Name.cmp`'s `str` arm is `compare s t`, i.e.
+   `String.compare = compareOfLessAndEq` over `instLTString`, i.e.
+   `List.Lex (· < ·)` on the character lists (`Init/Data/Ord/String.lean:35`,
+   `Init/Data/List/Basic.lean:247`).  The port compares a `Vec<u32>` of code
+   points by a first-difference index walk, so the refinement needs six
+   arm-selection lemmas for `compare (String.ofList l) (String.ofList m)`
+   (`cmp_nil_nil`, `cmp_nil_cons`, `cmp_cons_nil`, `cmp_cons_lt`,
+   `cmp_cons_gt`, `cmp_cons_cons`), each one `rw [cmp_ofList]` plus a
+   `List.Lex` lemma, and it needs `StrWF` on **both** sides: `Char.ofNat`
+   clamps an invalid code point to `'\0'`, so `absString` is order-preserving
+   only where every stored word is a valid `Char`.  This is the same
+   `StrWF` clause task #5 introduced for injectivity, now doing a second job.
+2. **`&&`-expansion doubles the index walks.**  `str_compare_from` and
+   `names_beq_from` both begin `if i >= a.len() && i >= b.len()`, which Charon
+   turns into a nested `if` whose *both* branches contain the whole rest of the
+   body (task #5's finding 1, at 2× rather than 3×).  Every one of those walks
+   is therefore written twice; it is mechanical, and the four
+   `rw [if_pos …]`/`rw [if_neg …]` with `by scalar_tac` side conditions handle
+   it, but it is the reason `str_compare_from_refines` is 60 lines of proof for
+   a 15-line Rust function.
+3. **The 5×5 `match` explosion, twice** — `inter` and `equiv_r` each expand to
+   25 arms.  The pattern that worked: **factor the distinct leaves into
+   standalone lemmas and dispatch with
+   `cases ra <;> cases rb <;> simp only [f] at h <;> first | exact …`**.
+   `inter_shape` needs five leaves (`never` on either side, `dup` on either
+   side, `two_prime`, and the generic
+   `of_sorted (merge (to_list a) (to_list b))`) and is 25 arms in six lines.
+   `beq_iff` could not use that trick — its arms differ in what they *prove*,
+   not just in which lemma applies — so its 25 arms are generated from seven
+   templates and spelled out (≈150 lines).
+4. **`inter` and `bind_z` are producers, so `PropWhenWF` needs four
+   constructors, not two.**  The first draft had only `never` and
+   `if_all_zero`; then `inter`'s output is `of_sorted (merge …)` or
+   `two_prime …`, which is *not* syntactically a smart-constructor
+   application, and `bind_z_go` folds `inter` — so closure under the two
+   derived producers is not provable from the two primitive ones without
+   re-deriving `canon`-idempotence *inside the Rust model*.  The fix keeps the
+   §3.5 convention (constructors are the port's own producers) and simply adds
+   the two: `PropWhenWF.inter` and `PropWhenWF.bind_z`, the latter quantifying
+   over the dictionary type `F` of task #9's pattern 1.  **General rule for the
+   rest of the port: a `*WF` predicate's constructors are the module's whole
+   set of *public* producers, not just its primitive ones.**
+5. **A separate `WFShape` invariant is what the lemmas actually use.**
+   `PropWhenWF` is an inductive derivation; the refinement lemmas need a
+   *statement*: `WFShape pw` says the representation's parameter list carries
+   well-formed names, is strictly ascending after abstraction (con-leche's
+   `PropWhen.Sorted`) and, if it is a `Many`, holds more than two names.
+   `wf_shape : PropWhenWF pw → WFShape pw` is one induction with one shape
+   lemma per constructor (`never_shape`, `if_all_zero_shape`, `inter_shape`,
+   `bind_z_wf`), and `wfShape_toList : (absPropWhen pw).toList = …` is the
+   payoff that makes `to_list`, `to_list_opt`, `has_params` and `beq` exact
+   instead of merely membership-correct.  Cost: `bind_z` needs its shape-only
+   induction (`bind_z_go_from_wf`) *and* its abstraction induction
+   (`bind_z_go_from_shape`) separately, because `wf_shape`'s induction
+   hypothesis carries no valuation — ≈25 duplicated lines.
+6. **The `Many` length clause is not decoration.**  `hasParams (ifAllZero ps)
+   = !ps.isEmpty`, and a `Many` holding the empty list would read `true` in
+   Rust and `false` in con-leche.  `of_sorted` only emits `Many` in its
+   `len ≥ 3` branch, so the clause is free — but it has to be *in* the
+   invariant, and it is the one clause the erased `Sorted ps ∧ 2 < ps.length`
+   proof field of `PropWhenRepr` still owes.
+7. `holds`'s and `bind_z`'s higher-order arguments are trait dictionaries, so
+   their statements carry a relating hypothesis, exactly as task #9 predicted:
+   `hφ : ∀ n, NameWF n → ∀ m, inst.value_at phi n = ok m → φ (absName n) = m.val`
+   and `hf : ∀ n, NameWF n → ∀ r, inst.apply f n = ok r →
+   absPropWhen r = Φ (absName n) ∧ PropWhenWF r`.  Neither needed anything
+   clever; **this is the shape every higher-order argument in the rest of the
+   port will take**, `CoreFns` included.
+8. `hash_pw` gets no lemma, by §3.2 (`mixHash` is opaque, hash values only
+   move memo entries between buckets); `prop_when::dup` gets `dup_eq : dup pw
+   = ok pw`, which is what makes `inter`'s `Always` arms one-liners.
+9. Two Lean-side annoyances worth a note for the next agent: `rw` fails with
+   "motive is not type correct" whenever the rewritten term sits under a
+   `decide`/`getElem` whose instance or proof depends on it (use `simp only`
+   there), and `List.drop_eq_getElem_cons` makes `simp` emit a stray
+   `i < l.length` side goal — state the "one side exhausted" cases with
+   `List.drop_eq_nil_iff` instead.
+
+**The lemma inventory** (`_refines`-named, per `ConRon/Refine/README.md`):
+`Name` — `anonymous`, `mk_str`, `mk_num`, `dup`, `str_eq`, `beq`, `contains`,
+`singleton` (plus `*_wf`); `Level` — `zero`, `succ`, `max`, `imax`, `param`,
+`beq`, `level_has_param`, `subst`, `is_never_zero`, `simplify`, `leq_core`,
+`rest`, `by_cases`, `leq`, `is_equiv` (plus `*_wf`); `PropWhen` — `never`,
+`if_all_zero`, `name_cmp`, `to_list`, `to_list_opt`, `is_never`, `has_params`,
+`holds`, `params_defined`, `inter`, `bind_z`, `beq`.  Each file ends with
+`#guard_msgs in #print axioms` on two or three of its main lemmas
+(`Name`: `beq_refines`, `contains_refines`, `str_eq_refines`; `Level`:
+`leq_refines`, `simplify_refines`, `beq_refines`; `PropWhen`:
+`inter_refines`, `bind_z_refines`, `beq_refines`) — `propext`,
+`Classical.choice`, `Quot.sound` and nothing else, checked by the build.
+
+**Extrapolation, updated.**  Task #5 estimated ≈2.2 proof lines per Rust line
+from a module (`Level`) that is unusually branchy.  `prop_when` is the first
+independent data point: 1 904 proof lines for 670 raw / ≈361 code Rust lines
+is **5.3 proof lines per Rust code line** — worse, and the reason is
+identifiable and *not* general: 110 of those lines are the one-off
+`Ord String` bridge, ≈300 are the two 25-arm `match` expansions, and ≈250 are
+the canonical-form machinery (`merge`/`canon`/`of_sorted`/`WFShape`) that
+exists because this one module carries a representation invariant.  A module
+without a sealed canonical representation should stay near task #5's figure;
+the ones that *do* carry an invariant (`Expr`'s `BeqMap`, the memo tiers)
+should be budgeted at this ratio.
+
+**Not done, and named so the next task does not look for it.**
+`level::zeroness_of` and `level::subst_pw` (task #13's `Level`→`PropWhen`
+bridge) are ported in Rust but unproved: they are the natural first consumers
+of `bind_z_refines` and `inter_refines` and belong with the `Level`/`PropWhen`
+bridge lemmas of `ConLeche/Verify/PropWhen.lean`, not with either module
+alone.  `name_lt`, `hash_pw`, `names_hash_from`, `hash_repr` and `equiv_r`'s
+`names_beq` wrapper have no refinement statements (nothing executed decides on
+them, or §3.2 exempts them).  The spike's eight unproved leftovers
+(`is_equiv_list`, `is_zero`, `is_non_zero`, `all_params_defined`, `name_nodup`,
+`levels_hash`, `levels_have_param`, the three string-shape predicates) are
+still unproved — they were not stated at task #5 either, and they are all
+instances of the patterns above.

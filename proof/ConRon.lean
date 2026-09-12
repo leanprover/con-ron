@@ -10,5 +10,8 @@ carries its own copy of the `Rc` model of §3.2, and two top-level
 it.
 -/
 import ConRon.Generated
-import ConRon.Refine.Smoke
+import ConRon.Refine.Abs
+import ConRon.Refine.Name
+import ConRon.Refine.Level
+import ConRon.Refine.PropWhen
 import ConRon.Dump.Read
