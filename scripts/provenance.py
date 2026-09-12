@@ -31,8 +31,13 @@ import subprocess
 import sys
 
 # The Rust trees that must be annotated, relative to the repository root.
+# `crates/con-ron/src` is the UNVERIFIED frontend (task #37).  It is inside
+# this gate and outside `lint-rust-style.sh` and `extract.sh` on purpose:
+# DESIGN.md §3.7 — "for the unverified frontend it is the only sync signal
+# there is".  Its items are cited but not style-linted.
 DEFAULT_ROOTS = [
     "crates/con-ron-core/src",
+    "crates/con-ron/src",
     "spikes/level-name/src",
 ]
 
