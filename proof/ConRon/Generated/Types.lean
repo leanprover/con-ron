@@ -78,7 +78,7 @@ theorem kernel.name.Name._0._simpLemma_ (_0 : alloc.rc.Rc kernel.name.NameNode)
 mutual
 
 /-- [con_ron_core::kernel::level::LevelKind]
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 27:0-33:1
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 29:0-35:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.level.LevelKind where
@@ -89,13 +89,13 @@ inductive kernel.level.LevelKind where
 | Param : kernel.name.Name → kernel.level.LevelKind
 
 /-- [con_ron_core::kernel::level::LevelNode]
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 38:0-41:1
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 40:0-43:1
     Visibility: public -/
 inductive kernel.level.LevelNode where
 | mk : Std.U64 → kernel.level.LevelKind → kernel.level.LevelNode
 
 /-- [con_ron_core::kernel::level::Level]
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 45:0-45:36
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 47:0-47:36
     Visibility: public -/
 inductive kernel.level.Level where
 | mk : alloc.rc.Rc kernel.level.LevelNode → kernel.level.Level
@@ -539,6 +539,32 @@ inductive kernel.env.Declaration where
 structure kernel.env.Env where
   consts : alloc.vec.Vec kernel.env.ConstantInfo
 
+/-- [con_ron_core::kernel::expr_ops::ExprNatKey]
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 90:0-93:1
+    Visibility: public -/
+structure kernel.expr_ops.ExprNatKey where
+  e : kernel.expr.Expr
+  d : Std.U64
+
+/-- Trait declaration: [con_ron_core::kernel::expr_ops::NameToName]
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1092:0-1095:1
+    Visibility: public -/
+structure kernel.expr_ops.NameToName (Self : Type) where
+  rename : Self → kernel.name.Name → Result kernel.name.Name
+
+/-- Trait declaration: [con_ron_core::kernel::prop_when::NameToPw]
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 625:0-629:1
+    Visibility: public -/
+structure kernel.prop_when.NameToPw (Self : Type) where
+  apply : Self → kernel.name.Name → Result kernel.prop_when.PropWhen
+
+/-- [con_ron_core::kernel::level::SubstZ]
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 542:0-545:1
+    Visibility: public -/
+structure kernel.level.SubstZ where
+  ks : alloc.vec.Vec kernel.name.Name
+  vs : alloc.vec.Vec kernel.level.Level
+
 /-- [con_ron_core::kernel::fenv::FEnv]
     Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 63:0-69:1
     Visibility: public -/
@@ -553,11 +579,5 @@ structure kernel.fenv.FEnv where
     Visibility: public -/
 structure kernel.prop_when.Valuation (Self : Type) where
   value_at : Self → kernel.name.Name → Result Std.U64
-
-/-- Trait declaration: [con_ron_core::kernel::prop_when::NameToPw]
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 625:0-629:1
-    Visibility: public -/
-structure kernel.prop_when.NameToPw (Self : Type) where
-  apply : Self → kernel.name.Name → Result kernel.prop_when.PropWhen
 
 end ConRon.Generated

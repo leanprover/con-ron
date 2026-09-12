@@ -14,6 +14,7 @@
 //! | `prop_when` | `ConLeche/Kernel/PropWhen.lean` |
 //! | `expr` | `ConLeche/Kernel/Expr.lean` (everything but the `Level` part) |
 //! | `core_types` | `ConLeche/Kernel/Core.lean:45-59` (`CheckError`, `CheckM`) |
+//! | `expr_ops` | `ConLeche/Kernel/ExprOps.lean` |
 //! | `env` | `ConLeche/Kernel/Env.lean` |
 //! | `fenv` | `ConLeche/Kernel/FEnv.lean` |
 //! | `state_c` | `ConLeche/Cached/StateC.lean` |
