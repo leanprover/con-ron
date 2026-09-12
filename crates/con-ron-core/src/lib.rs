@@ -21,8 +21,15 @@
 //! | `fenv` | `ConLeche/Kernel/FEnv.lean` |
 //! | `state_c` | `ConLeche/Cached/StateC.lean` |
 //! | `parsed_c` | `ConLeche/Cached/ParsedC.lean`, plus the two seam records of `Cached/Installed.lean` and `Kernel/CheckerSplit.lean` |
-//! | `core_k` | `ConLeche/Kernel/Core.lean` (the bodies; `core` is a Rust prelude crate name) |
-//! | `core_c` | `ConLeche/Cached/CoreC.lean` (the six memoizing wrappers that tie the knot) |
+//! | `core_k` | `ConLeche/Kernel/Core.lean` (its syntactic layer; `core` is a Rust prelude crate name) |
+//! | `core_c` | `ConLeche/Cached/CoreC.lean` (the executed bodies **and** the six memoizing wrappers that tie them) |
+//!
+//! The one place the map is not one-to-one is the checker core: `CoreC.lean`
+//! has its own twin of almost every `Kernel/Core.lean` body, and it is the
+//! twins the knot executes, so the bodies live in `core_c` (with the
+//! `Core.lean` citation beside the `CoreC.lean` one) and `core_k` keeps the
+//! readers, pins and shape guards they call.  See both modules' notes and
+//! DESIGN.md's task #23.
 
 pub mod cached;
 pub mod kernel;
