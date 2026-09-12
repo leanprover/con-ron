@@ -491,6 +491,31 @@ structure kernel.expr_ops.ExprNatKey where
   e : kernel.expr.Expr
   d : Std.U64
 
+/-- [con_ron_core::cached::parsed_c::ValueKind]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 105:0-109:1
+    Visibility: public -/
+@[discriminant isize]
+inductive cached.parsed_c.ValueKind where
+| Defn : cached.parsed_c.ValueKind
+| Thm : cached.parsed_c.ValueKind
+| Opaque : cached.parsed_c.ValueKind
+
+/-- [con_ron_core::cached::parsed_c::ValueGroup]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 127:0-131:1
+    Visibility: public -/
+structure cached.parsed_c.ValueGroup where
+  kind : cached.parsed_c.ValueKind
+  cv_a : kernel.env.ConstantVal
+  jv : kernel.expr.Expr
+
+/-- [con_ron_core::cached::parsed_c::PendingCheck]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 141:0-145:1
+    Visibility: public -/
+structure cached.parsed_c.PendingCheck where
+  vg : cached.parsed_c.ValueGroup
+  pos : Std.U64
+  vis : Std.U64
+
 /-- [con_ron_core::kernel::env::BasisKind]
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 337:0-344:1
     Visibility: public -/
@@ -527,31 +552,6 @@ inductive cached.parsed_c.DeclC where
   alloc.vec.Vec kernel.env.ConstantInfo →
   Std.U64 →
   cached.parsed_c.DeclC
-
-/-- [con_ron_core::cached::parsed_c::ValueKind]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 105:0-109:1
-    Visibility: public -/
-@[discriminant isize]
-inductive cached.parsed_c.ValueKind where
-| Defn : cached.parsed_c.ValueKind
-| Thm : cached.parsed_c.ValueKind
-| Opaque : cached.parsed_c.ValueKind
-
-/-- [con_ron_core::cached::parsed_c::ValueGroup]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 127:0-131:1
-    Visibility: public -/
-structure cached.parsed_c.ValueGroup where
-  kind : cached.parsed_c.ValueKind
-  cv_a : kernel.env.ConstantVal
-  jv : kernel.expr.Expr
-
-/-- [con_ron_core::cached::parsed_c::PendingCheck]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 141:0-145:1
-    Visibility: public -/
-structure cached.parsed_c.PendingCheck where
-  vg : cached.parsed_c.ValueGroup
-  pos : Std.U64
-  vis : Std.U64
 
 /-- [con_ron_core::kernel::inductives::sum_parts::InductiveShape]
     Source: 'crates/con-ron-core/src/kernel/inductives/sum_parts.rs', lines 28:0-39:1

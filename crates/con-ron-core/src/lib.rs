@@ -37,6 +37,7 @@
 //! | `decl_check` | `ConLeche/Kernel/DeclCheck.lean` (the `F`-mirrors with no generic twin) |
 //! | `checker_split` | `ConLeche/Kernel/CheckerSplit.lean` |
 //! | `checker_c` | `ConLeche/Cached/CheckerC.lean` (`orElse`, the one error-recovery point) |
+//! | `installed` | `ConLeche/Cached/Installed.lean` (**`check_decls`**, the install/check fold; its `Prop`-indexed driver evidence is not ported — the module note says which and why) |
 //!
 //! The one place the map is not one-to-one is the checker core: `CoreC.lean`
 //! has its own twin of almost every `Kernel/Core.lean` body, and it is the
