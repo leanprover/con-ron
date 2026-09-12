@@ -11,4 +11,5 @@ it.
 -/
 import ConRon.Generated
 import ConRon.Refine.Smoke
+import ConRon.Refine.HashMap
 import ConRon.Dump.Read
