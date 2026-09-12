@@ -22,8 +22,8 @@
 //! | `expr_ops_c` | `ConLeche/Cached/ExprOpsC.lean` (the executed, memoised twins of `expr_ops`), plus `Cached/ExprC.lean`'s `hasFvar` |
 //! | `state_c` | `ConLeche/Cached/StateC.lean` |
 //! | `parsed_c` | `ConLeche/Cached/ParsedC.lean` (`checkDeclC`, `checkDeclStepC`), plus the two seam records of `Cached/Installed.lean` and `Kernel/CheckerSplit.lean` |
-//! | `core_k` | `ConLeche/Kernel/Core.lean` (the bodies; `core` is a Rust prelude crate name) |
-//! | `core_c` | `ConLeche/Cached/CoreC.lean` (the six memoizing wrappers that tie the knot) |
+//! | `core_k` | `ConLeche/Kernel/Core.lean` (its syntactic layer; `core` is a Rust prelude crate name) |
+//! | `core_c` | `ConLeche/Cached/CoreC.lean` (the executed bodies **and** the six memoizing wrappers that tie them) |
 //! | `type_checker` | `ConLeche/Kernel/TypeChecker.lean` (the knot's entry points, at `checkFuel`) |
 //! | `basis_builder` | `ConLeche/Kernel/Basis/Builder.lean` (the raw-pin DSL) |
 //! | `std_axioms` | `ConLeche/Kernel/StdAxioms.lean` |
@@ -36,6 +36,16 @@
 //! | `decl_check` | `ConLeche/Kernel/DeclCheck.lean` (the `F`-mirrors with no generic twin) |
 //! | `checker_split` | `ConLeche/Kernel/CheckerSplit.lean` |
 //! | `checker_c` | `ConLeche/Cached/CheckerC.lean` (`orElse`, the one error-recovery point) |
+//!
+//! The one place the map is not one-to-one is the checker core: `CoreC.lean`
+//! has its own twin of almost every `Kernel/Core.lean` body, and it is the
+//! twins the knot executes, so the bodies live in `core_c` (with the
+//! `Core.lean` citation beside the `CoreC.lean` one) and `core_k` keeps the
+//! readers, pins and shape guards they call.  See both modules' notes and
+//! DESIGN.md's task #23.
+//! | `core_k` | `ConLeche/Kernel/Core.lean` (the bodies; `core` is a Rust prelude crate name) |
+//! | `core_c` | `ConLeche/Cached/CoreC.lean` (the six memoizing wrappers that tie the knot) |
+//! | `inductives` | `ConLeche/Kernel/Inductives/*` (the two install routes for an inductive block; its own `mod.rs` has the sub-map and the three directory-wide deviations) |
 
 pub mod cached;
 pub mod kernel;

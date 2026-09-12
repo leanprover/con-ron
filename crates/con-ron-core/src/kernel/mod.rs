@@ -2,6 +2,7 @@
 pub mod basis_builder;
 pub mod basis_names;
 pub mod basis_pins;
+pub mod basis_tables;
 pub mod checker;
 pub mod checker_base;
 pub mod checker_split;
@@ -12,6 +13,7 @@ pub mod env;
 pub mod expr;
 pub mod expr_ops;
 pub mod fenv;
+pub mod inductives;
 pub mod level;
 pub mod name;
 pub mod nat_op_pins;

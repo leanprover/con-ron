@@ -46,35 +46,6 @@ inductive cached.checker_c.OrElseStep where
   Option kernel.core_types.CheckError →
   cached.checker_c.OrElseStep
 
-/-- [con_ron_core::ron::hashmap::AList]
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 82:0-85:1
-    Visibility: public -/
-@[discriminant isize]
-inductive ron.hashmap.AList (K : Type) (V : Type) where
-| Cons : K → V → ron.hashmap.AList K V → ron.hashmap.AList K V
-| Nil : ron.hashmap.AList K V
-
-/-- Trait declaration: [con_ron_core::ron::hashmap::Eq2]
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 63:0-65:1
-    Visibility: public -/
-structure ron.hashmap.Eq2 (Self : Type) where
-  eq2 : Self → Self → Result Bool
-
-/-- [con_ron_core::ron::hashmap::HashMap]
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 92:0-101:1
-    Visibility: public -/
-structure ron.hashmap.HashMap (K : Type) (V : Type) where
-  num_entries : Std.Usize
-  max_load : Std.Usize
-  saturated : Bool
-  slots : alloc.vec.Vec (ron.hashmap.AList K V)
-
-/-- Trait declaration: [con_ron_core::ron::hashmap::Hashable]
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 48:0-50:1
-    Visibility: public -/
-structure ron.hashmap.Hashable (Self : Type) where
-  hash64 : Self → Result Std.U64
-
 mutual
 
 /-- [con_ron_core::kernel::name::NameKind]
@@ -283,54 +254,34 @@ def kernel.expr.Expr._0 (x : kernel.expr.Expr) :=
 theorem kernel.expr.Expr._0._simpLemma_ (_0 : alloc.rc.Rc kernel.expr.ExprNode)
   : (kernel.expr.Expr.mk _0)._0 = _0 := by rfl
 
-/-- [con_ron_core::ron::nat::Cmp]
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 64:0-68:1
+/-- [con_ron_core::ron::hashmap::AList]
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 82:0-85:1
     Visibility: public -/
 @[discriminant isize]
-inductive ron.nat.Cmp where
-| Lt : ron.nat.Cmp
-| Eq : ron.nat.Cmp
-| Gt : ron.nat.Cmp
+inductive ron.hashmap.AList (K : Type) (V : Type) where
+| Cons : K → V → ron.hashmap.AList K V → ron.hashmap.AList K V
+| Nil : ron.hashmap.AList K V
 
-/-- [con_ron_core::cached::state_c::CConstE]
-    Source: 'crates/con-ron-core/src/cached/state_c.rs', lines 279:0-283:1
+/-- Trait declaration: [con_ron_core::ron::hashmap::Eq2]
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 63:0-65:1
     Visibility: public -/
-structure cached.state_c.CConstE where
-  ty_e : kernel.expr.Expr
-  ty : kernel.expr.Expr
-  val : Option (kernel.expr.Expr × kernel.expr.Expr)
+structure ron.hashmap.Eq2 (Self : Type) where
+  eq2 : Self → Self → Result Bool
 
-/-- [con_ron_core::cached::state_c::CState]
-    Source: 'crates/con-ron-core/src/cached/state_c.rs', lines 302:0-320:1
+/-- [con_ron_core::ron::hashmap::HashMap]
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 92:0-101:1
     Visibility: public -/
-structure cached.state_c.CState where
-  ienv : ron.hashmap.HashMap kernel.name.Name cached.state_c.CConstE
-  const_ty_at : ron.hashmap.HashMap (kernel.name.Name × (alloc.vec.Vec
-    kernel.level.Level)) kernel.expr.Expr
-  const_val_at : ron.hashmap.HashMap (kernel.name.Name × (alloc.vec.Vec
-    kernel.level.Level)) kernel.expr.Expr
-  rule_rhs_at : ron.hashmap.HashMap (kernel.name.Name × kernel.name.Name ×
-    (alloc.vec.Vec kernel.level.Level)) kernel.expr.Expr
-  whnf_core_c : ron.hashmap.HashMap kernel.expr.Expr kernel.expr.Expr
-  whnf_c : ron.hashmap.HashMap kernel.expr.Expr kernel.expr.Expr
-  infer_c : ron.hashmap.HashMap kernel.expr.Expr kernel.expr.Expr
-  infer_io_c : ron.hashmap.HashMap kernel.expr.Expr kernel.expr.Expr
-  defeq_c : ron.hashmap.HashMap (kernel.expr.Expr × kernel.expr.Expr) Bool
-  annot_c : ron.hashmap.HashMap kernel.expr.Expr kernel.expr.Expr
-  lsimp_c : ron.hashmap.HashMap kernel.level.Level kernel.level.Level
-  lnz_c : ron.hashmap.HashMap kernel.level.Level Bool
-  eqv_c : ron.hashmap.HashMap (kernel.level.Level × kernel.level.Level) Bool
-  inst_c : ron.hashmap.HashMap (kernel.expr.Expr × (alloc.vec.Vec
-    kernel.expr.Expr) × Std.U64) kernel.expr.Expr
+structure ron.hashmap.HashMap (K : Type) (V : Type) where
+  num_entries : Std.Usize
+  max_load : Std.Usize
+  saturated : Bool
+  slots : alloc.vec.Vec (ron.hashmap.AList K V)
 
-/-- [con_ron_core::kernel::prop_when::Ordering]
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 74:0-78:1
+/-- Trait declaration: [con_ron_core::ron::hashmap::Hashable]
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 48:0-50:1
     Visibility: public -/
-@[discriminant isize]
-inductive kernel.prop_when.Ordering where
-| Lt : kernel.prop_when.Ordering
-| Eq : kernel.prop_when.Ordering
-| Gt : kernel.prop_when.Ordering
+structure ron.hashmap.Hashable (Self : Type) where
+  hash64 : Self → Result Std.U64
 
 /-- [con_ron_core::kernel::env::ProjTable]
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 407:0-417:1
@@ -448,11 +399,60 @@ structure kernel.fenv.FEnv where
     kernel.env.ConstantInfo)
   visible_below : Std.U64
 
+/-- [con_ron_core::cached::state_c::CConstE]
+    Source: 'crates/con-ron-core/src/cached/state_c.rs', lines 303:0-307:1
+    Visibility: public -/
+structure cached.state_c.CConstE where
+  ty_e : kernel.expr.Expr
+  ty : kernel.expr.Expr
+  val : Option (kernel.expr.Expr × kernel.expr.Expr)
+
+/-- [con_ron_core::cached::state_c::CState]
+    Source: 'crates/con-ron-core/src/cached/state_c.rs', lines 326:0-344:1
+    Visibility: public -/
+structure cached.state_c.CState where
+  ienv : ron.hashmap.HashMap kernel.name.Name cached.state_c.CConstE
+  const_ty_at : ron.hashmap.HashMap (kernel.name.Name × (alloc.vec.Vec
+    kernel.level.Level)) kernel.expr.Expr
+  const_val_at : ron.hashmap.HashMap (kernel.name.Name × (alloc.vec.Vec
+    kernel.level.Level)) kernel.expr.Expr
+  rule_rhs_at : ron.hashmap.HashMap (kernel.name.Name × kernel.name.Name ×
+    (alloc.vec.Vec kernel.level.Level)) kernel.expr.Expr
+  whnf_core_c : ron.hashmap.HashMap kernel.expr.Expr kernel.expr.Expr
+  whnf_c : ron.hashmap.HashMap kernel.expr.Expr kernel.expr.Expr
+  infer_c : ron.hashmap.HashMap kernel.expr.Expr kernel.expr.Expr
+  infer_io_c : ron.hashmap.HashMap kernel.expr.Expr kernel.expr.Expr
+  defeq_c : ron.hashmap.HashMap (kernel.expr.Expr × kernel.expr.Expr) Bool
+  annot_c : ron.hashmap.HashMap kernel.expr.Expr kernel.expr.Expr
+  lsimp_c : ron.hashmap.HashMap kernel.level.Level kernel.level.Level
+  lnz_c : ron.hashmap.HashMap kernel.level.Level Bool
+  eqv_c : ron.hashmap.HashMap (kernel.level.Level × kernel.level.Level) Bool
+  inst_c : ron.hashmap.HashMap (kernel.expr.Expr × (alloc.vec.Vec
+    kernel.expr.Expr) × Std.U64) kernel.expr.Expr
+
+/-- [con_ron_core::ron::nat::Cmp]
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 64:0-68:1
+    Visibility: public -/
+@[discriminant isize]
+inductive ron.nat.Cmp where
+| Lt : ron.nat.Cmp
+| Eq : ron.nat.Cmp
+| Gt : ron.nat.Cmp
+
 /-- Trait declaration: [con_ron_core::kernel::prop_when::NameToPw]
     Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 625:0-629:1
     Visibility: public -/
 structure kernel.prop_when.NameToPw (Self : Type) where
   apply : Self → kernel.name.Name → Result kernel.prop_when.PropWhen
+
+/-- [con_ron_core::kernel::prop_when::Ordering]
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 74:0-78:1
+    Visibility: public -/
+@[discriminant isize]
+inductive kernel.prop_when.Ordering where
+| Lt : kernel.prop_when.Ordering
+| Eq : kernel.prop_when.Ordering
+| Gt : kernel.prop_when.Ordering
 
 /-- [con_ron_core::kernel::level::SubstZ]
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 542:0-545:1
@@ -476,13 +476,6 @@ structure kernel.env.ProjEntry where
   struct_sort : kernel.level.Level
   off : Std.U64
 
-/-- [con_ron_core::kernel::expr_ops::ExprNatKey]
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 90:0-93:1
-    Visibility: public -/
-structure kernel.expr_ops.ExprNatKey where
-  e : kernel.expr.Expr
-  d : Std.U64
-
 /-- [con_ron_core::kernel::env::CheckMode]
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 52:0-55:1
     Visibility: public -/
@@ -490,6 +483,13 @@ structure kernel.expr_ops.ExprNatKey where
 inductive kernel.env.CheckMode where
 | Verified : kernel.env.CheckMode
 | Trusted : kernel.env.CheckMode
+
+/-- [con_ron_core::kernel::expr_ops::ExprNatKey]
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 90:0-93:1
+    Visibility: public -/
+structure kernel.expr_ops.ExprNatKey where
+  e : kernel.expr.Expr
+  d : Std.U64
 
 /-- [con_ron_core::kernel::env::BasisKind]
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 330:0-337:1
@@ -504,7 +504,7 @@ inductive kernel.env.BasisKind where
 | QuotK : kernel.env.BasisKind
 
 /-- [con_ron_core::cached::parsed_c::DeclC]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 102:0-109:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 91:0-98:1
     Visibility: public -/
 @[discriminant isize]
 inductive cached.parsed_c.DeclC where
@@ -529,7 +529,7 @@ inductive cached.parsed_c.DeclC where
   cached.parsed_c.DeclC
 
 /-- [con_ron_core::cached::parsed_c::ValueKind]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 116:0-120:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 105:0-109:1
     Visibility: public -/
 @[discriminant isize]
 inductive cached.parsed_c.ValueKind where
@@ -538,7 +538,7 @@ inductive cached.parsed_c.ValueKind where
 | Opaque : cached.parsed_c.ValueKind
 
 /-- [con_ron_core::cached::parsed_c::ValueGroup]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 138:0-142:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 127:0-131:1
     Visibility: public -/
 structure cached.parsed_c.ValueGroup where
   kind : cached.parsed_c.ValueKind
@@ -546,12 +546,118 @@ structure cached.parsed_c.ValueGroup where
   jv : kernel.expr.Expr
 
 /-- [con_ron_core::cached::parsed_c::PendingCheck]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 152:0-156:1
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 141:0-145:1
     Visibility: public -/
 structure cached.parsed_c.PendingCheck where
   vg : cached.parsed_c.ValueGroup
   pos : Std.U64
   vis : Std.U64
+
+/-- [con_ron_core::kernel::inductives::sum_parts::InductiveShape]
+    Source: 'crates/con-ron-core/src/kernel/inductives/sum_parts.rs', lines 28:0-39:1
+    Visibility: public -/
+structure kernel.inductives.sum_parts.InductiveShape where
+  cv_t : kernel.env.ConstantVal
+  ctors : alloc.vec.Vec (kernel.env.ConstantVal × Std.U64)
+  n_p : Std.U64
+  n_idx : Std.U64
+  cv_r : kernel.env.ConstantVal
+  elim : kernel.name.Name
+  res_sort : kernel.level.Level
+  rhss : alloc.vec.Vec kernel.expr.Expr
+  large : Bool
+  is_prop : Bool
+
+/-- [con_ron_core::kernel::inductives::native_parts::RecFieldKind]
+    Source: 'crates/con-ron-core/src/kernel/inductives/native_parts.rs', lines 62:0-68:1
+    Visibility: public -/
+@[discriminant isize]
+inductive kernel.inductives.native_parts.RecFieldKind where
+| Ordinary : kernel.inductives.native_parts.RecFieldKind
+| Recursive : kernel.inductives.native_parts.RecFieldKind
+| Reflexive : kernel.inductives.native_parts.RecFieldKind
+| Negative : kernel.inductives.native_parts.RecFieldKind
+| Unsupported : kernel.inductives.native_parts.RecFieldKind
+
+/-- [con_ron_core::kernel::inductives::native_parts::NativeParts]
+    Source: 'crates/con-ron-core/src/kernel/inductives/native_parts.rs', lines 481:0-485:1
+    Visibility: public -/
+structure kernel.inductives.native_parts.NativeParts where
+  shape : kernel.inductives.sum_parts.InductiveShape
+  kinds : alloc.vec.Vec (alloc.vec.Vec
+    kernel.inductives.native_parts.RecFieldKind)
+  rec_pinned : Bool
+
+/-- [con_ron_core::kernel::inductives::native_install::NativePass]
+    Source: 'crates/con-ron-core/src/kernel/inductives/native_install.rs', lines 906:0-912:1
+    Visibility: public -/
+structure kernel.inductives.native_install.NativePass where
+  env1 : kernel.fenv.FEnv
+  cv_ta : kernel.env.ConstantVal
+  p : kernel.inductives.native_parts.NativeParts
+  ctors_a : alloc.vec.Vec (kernel.env.ConstantVal × Std.U64)
+  sortss : alloc.vec.Vec (alloc.vec.Vec kernel.level.Level)
+
+/-- Trait declaration: [con_ron_core::kernel::inductives::sum_install::CapsOf]
+    Source: 'crates/con-ron-core/src/kernel/inductives/sum_install.rs', lines 39:0-42:1
+    Visibility: public -/
+structure kernel.inductives.sum_install.CapsOf (Self : Type) where
+  caps_of : Self → kernel.inductives.sum_parts.InductiveShape → Result
+    kernel.env.IndCaps
+
+/-- [con_ron_core::kernel::inductives::native_install::NativeCapsAt]
+    Source: 'crates/con-ron-core/src/kernel/inductives/native_install.rs', lines 109:0-111:1
+    Visibility: public -/
+structure kernel.inductives.native_install.NativeCapsAt where
+  is_rec : Bool
+
+/-- Trait declaration: [con_ron_core::kernel::inductives::checker_local::DomView]
+    Source: 'crates/con-ron-core/src/kernel/inductives/checker_local.rs', lines 143:0-146:1
+    Visibility: public -/
+structure kernel.inductives.checker_local.DomView (Self : Type) where
+  view : Self → Std.U64 → kernel.expr.Expr → Result kernel.expr.Expr
+
+/-- [con_ron_core::kernel::inductives::checker_local::DomIdent]
+    Source: 'crates/con-ron-core/src/kernel/inductives/checker_local.rs', lines 151:0-151:20
+    Visibility: public -/
+@[reducible]
+def kernel.inductives.checker_local.DomIdent := Unit
+
+/-- [con_ron_core::kernel::inductives::modeled::DomProjFwd]
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 173:0-177:1
+    Visibility: public -/
+structure kernel.inductives.modeled.DomProjFwd where
+  t : kernel.name.Name
+  ctor : kernel.name.Name
+  n_f : Std.U64
+
+/-- [con_ron_core::kernel::inductives::modeled::ProjFwd]
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 134:0-138:1
+    Visibility: public -/
+structure kernel.inductives.modeled.ProjFwd where
+  t : kernel.name.Name
+  ctor : kernel.name.Name
+  n_f : Std.U64
+
+/-- Trait declaration: [con_ron_core::kernel::expr_ops::NameToName]
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1092:0-1095:1
+    Visibility: public -/
+structure kernel.expr_ops.NameToName (Self : Type) where
+  rename : Self → kernel.name.Name → Result kernel.name.Name
+
+/-- [con_ron_core::kernel::inductives::modeled::ProjBack]
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 96:0-100:1
+    Visibility: public -/
+structure kernel.inductives.modeled.ProjBack where
+  t : kernel.name.Name
+  ctor : kernel.name.Name
+  n_f : Std.U64
+
+/-- [con_ron_core::kernel::inductives::modeled::BlockRename]
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 77:0-79:1
+    Visibility: public -/
+structure kernel.inductives.modeled.BlockRename where
+  block_names : alloc.vec.Vec kernel.name.Name
 
 /-- [con_ron_core::kernel::nat_op_pins::NatOpPinSet]
     Source: 'crates/con-ron-core/src/kernel/nat_op_pins.rs', lines 38:0-56:1
@@ -606,11 +712,20 @@ inductive kernel.env.Declaration where
 structure kernel.decl_check.ModelRename where
   block_names : alloc.vec.Vec kernel.name.Name
 
-/-- Trait declaration: [con_ron_core::kernel::expr_ops::NameToName]
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1092:0-1095:1
+/-- [con_ron_core::kernel::inductives::struct_parts::StructParts]
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 323:0-334:1
     Visibility: public -/
-structure kernel.expr_ops.NameToName (Self : Type) where
-  rename : Self → kernel.name.Name → Result kernel.name.Name
+structure kernel.inductives.struct_parts.StructParts where
+  cv_t : kernel.env.ConstantVal
+  cv_c : kernel.env.ConstantVal
+  n_p : Std.U64
+  n_f : Std.U64
+  cv_r : kernel.env.ConstantVal
+  elim : kernel.name.Name
+  res_sort : kernel.level.Level
+  rhs : kernel.expr.Expr
+  large : Bool
+  is_prop : Bool
 
 /-- Trait declaration: [con_ron_core::kernel::prop_when::Valuation]
     Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 513:0-517:1

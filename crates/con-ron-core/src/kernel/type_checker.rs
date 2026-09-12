@@ -130,7 +130,7 @@ pub fn annotate_core(
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:56-58 ensureSortCore
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
 /// `ensureSort` over the knot at `checkFuel` — `CheckerOps.ensureSort`, and
-/// `ensureSortI`'s executed spelling (`core_k::ensure_sort`).
+/// `ensureSortI`'s executed spelling (`core_c::ensure_sort_i`, task #23).
 pub fn ensure_sort_core(
     mode: &CheckMode,
     st: &mut CState,
@@ -138,5 +138,5 @@ pub fn ensure_sort_core(
     depth: u64,
     e: &Expr,
 ) -> CheckM<Level> {
-    core_k::ensure_sort(mode, core_k::check_fuel(), st, fe, depth, e)
+    core_c::ensure_sort_i(mode, core_k::check_fuel(), st, fe, depth, e)
 }

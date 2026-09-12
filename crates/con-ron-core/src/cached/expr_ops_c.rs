@@ -943,6 +943,16 @@ pub fn inst_level_params(ks: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> Expr {
 /// `bvar` arm re-traverses the replacement, so every occurrence of the
 /// subject and of every parameter came back as a fresh *tree* copy of a term
 /// that was a DAG — the out-of-memory of DESIGN.md's "affine frontier".
+///
+/// **Owed reconciliation.**  `core_k::proj_entry_type_at` carries this same
+/// citation (task #23 added it while `ExprOpsC` was unported) and is what
+/// `core_k::infer_proj_at` — the shared `.proj` clause of both inference
+/// bodies — still calls.  Retargeting that one call site here is a two-line
+/// change, but it would make `kernel::core_k` depend on `crate::cached`,
+/// which task #23 deliberately kept it free of ("its syntactic layer"), so it
+/// belongs with whoever next owns that seam.  Until then the executed `.proj`
+/// type is the `Expr`-level formula: the same value, at one memo policy short
+/// of the cited one.
 pub fn proj_entry_type_at_i(
     entry: &ProjEntry,
     us: &Vec<Level>,

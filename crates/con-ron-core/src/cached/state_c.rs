@@ -56,24 +56,47 @@
 //! does not see bucket placement, and `mixHash` is opaque in Lean.  It is
 //! spelled faithfully anyway so that a hit here is a hit there.
 //!
-//! ## What is *not* here
+//! ## Where each declaration of the file lives (completed by task #23)
 //!
-//! Everything in the file that touches `ConLeche/Kernel/ExprOps.lean` or
-//! `Kernel/Basis.lean`, which are not ported yet: the seven environment-index
-//! guards (`isUnitLikeTyC`, `isCtorAppC`, `headHintC`, `unfoldableHeadC`,
-//! `sameConstHeadsC`, `rawNatLitC?`, `etaCtorShapeC` — `ExprC.getAppFn`, the
-//! pinned basis names), `bvarBoundM` (`Expr.bvarB`, the exact accessor), the
-//! nine syntactic wrappers `inst1M`, `instListM`, `instListRevM`,
-//! `abstract1M`, `abstractRangeM`, `mkAppNM`, `instSpineM`, `piResidualM`,
-//! `instLevelParamsM`, the three lazy stored-constant conversions
-//! `storedTyIdxM`, `storedValIdxM` (`Expr.exprPtrBEq`) and with them
-//! `constTyAtM`, `constValAtM`, `ruleRhsAtM`, and the memoized DAG walk
-//! `constsResolveFCGo`/`constsResolveFC`.  `instCCapC` and the `instC` map
-//! itself *are* here, because they are state.
+//! The file is **38/38 covered**, but not all in this module:
+//!
+//! * the seven environment-index guards (`isUnitLikeTyC`, `isCtorAppC`,
+//!   `headHintC`, `unfoldableHeadC`, `sameConstHeadsC`, `rawNatLitC?`,
+//!   `etaCtorShapeC`) are *the same function* as `Kernel/Core.lean`'s
+//!   originals, because the port already reads the environment through
+//!   `FEnv` (task #18's deviation 3).  They are `core_k`'s, with a second
+//!   citation there — duplicating them verbatim would be gratuitous;
+//! * `bvarBoundM` and eight of the nine `*M` syntactic wrappers are
+//!   `pure (<a syntactic operation>)`, so they are state-free named
+//!   functions here, forwarding to `crate::cached::expr_ops_c` (see the
+//!   block comment below).  `instListM` is the one that is genuinely
+//!   stateful — it owns the `instC` memo and its 32 000 000-entry bound;
+//! * `piResidualM` is in `cached::core_c`, at its one call site: the
+//!   operation it wraps is `Core.lean`'s `piResidual`, so a wrapper here
+//!   would have to reach back into `core_k`;
+//! * everything else — `CConstE`, `CState`, `instCCapC`, `peelFuel`, the
+//!   level memos, the lazy stored-constant conversions `storedTyIdxM`/
+//!   `storedValIdxM`/`constTyAtM`/`constValAtM`/`ruleRhsAtM`, the flush and
+//!   the memoized DAG walk `constsResolveFCGo`/`constsResolveFC` — is here.
+//!
+//! `Cached/ExprOpsC.lean`, whose `ExprC` operations the `*M` wrappers wrap,
+//! is `crate::cached::expr_ops_c` (task #26).  The wrappers call **it**, not
+//! `kernel::expr_ops`: the twins compute the same values, but not with the
+//! same memo policy — the `ExprC` walks carry a derived-field cutoff at the
+//! head, memoise only the compound nodes, and keep the live prefix out of the
+//! bulk key — and DESIGN.md §3.1 makes the policy, not just the value,
+//! binding.
 
+use crate::cached::expr_ops_c;
+use crate::kernel::core_k;
+use crate::kernel::core_types;
 use crate::kernel::core_types::CheckError;
+use crate::kernel::env;
 use crate::kernel::expr;
-use crate::kernel::expr::Expr;
+use crate::kernel::expr::{Expr, ExprKind, Literal};
+use crate::kernel::expr_ops;
+use crate::kernel::fenv;
+use crate::kernel::fenv::FEnv;
 use crate::ron::hashmap::Eq2;
 use crate::ron::hashmap::HashMap;
 use crate::ron::hashmap::Hashable;
@@ -81,6 +104,7 @@ use crate::kernel::level;
 use crate::kernel::level::Level;
 use crate::kernel::name;
 use crate::kernel::name::Name;
+use crate::kernel::prop_when;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Cached/StateC.lean:166 CheckCM
@@ -362,6 +386,163 @@ pub fn peel_fuel() -> u64 {
 }
 
 // ---------------------------------------------------------------------------
+// The syntactic operations — the `*M` wrappers (`StateC.lean:176-226`)
+// ---------------------------------------------------------------------------
+//
+// Nine of the ten are `pure (<a syntactic operation>)`, so they take no state
+// parameter (task #14's rule 9: a `CheckCM` action with a pure body is the
+// plain Rust function).  They are named functions anyway, rather than folded
+// into their call sites: `CoreC.lean`'s bodies call them by these names, the
+// refinement tier states one lemma per name, and three of them
+// (`inst_list_rev_m`, `pi_residual_m`, `inst_list_m`) are not aliases at all.
+//
+// **The wrapped operation is `cached::expr_ops_c`'s** (task #26).  The Lean
+// wraps `Cached/ExprOpsC.lean`'s `ExprC` twins, and they are what these
+// wrappers call.  They compute the same values as `kernel::expr_ops`' — that
+// is `ConLeche/Verify/Cached/OpsC.lean`'s subject — but not by the same memo
+// policy, and con-leche's own `ExprOpsC` docstring is emphatic that the
+// difference is a *computation* and not a value ("not as a *computation*":
+// `Expr.instantiateList`'s `bvar` arm re-traverses the replacement, so a
+// DAG-shared field type came back as a fresh tree copy).  §3.1 binds the
+// policy, so each wrapper below names the `ExprC` twin it runs.
+
+/// con-leche: ConLeche/Cached/StateC.lean:176-177 bvarBoundM
+/// The per-node loose-bvar bound — an `O(1)` field read (`Expr.bvarB`).
+pub fn bvar_bound_m(e: &Expr) -> u64 {
+    expr_ops::bvar_b(e)
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:181-184 inst1M
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:275-277 instantiate1
+/// `ExprC.instantiate1`; the identity — the same node, by reference — when
+/// the target has no loose bvar at or above the cursor (the cited
+/// `bvarB ≤ d` cutoff, which `expr_ops::instantiate1` does not have).
+pub fn inst1_m(e: &Expr, v: &Expr, d: u64) -> Expr {
+    expr_ops_c::instantiate1(e, v, d)
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:186-199 instListM
+/// The cited `s.instC[(e, vs, d)]?` probe, as its own function over a
+/// *shared* state borrow (see `lsimp_probe`).
+pub fn inst_c_probe(s: &CState, key: &(Expr, Vec<Expr>, u64)) -> Option<Expr> {
+    match s.inst_c.get(key) {
+        Some(r) => Some(expr::dup(r)),
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:186-199 instListM
+/// **Bulk instantiation with the persistent result memo**, keyed by the
+/// whole argument tuple `(e, vs, d)`.  The three cited steps, in order: the
+/// `e.bvarB ≤ d` identity (no key is built and nothing is cached), the
+/// probe, and on a miss the entry-bound reset followed by the insert.
+///
+/// The wrapped walk is `expr_ops_c::instantiate_list` — the cited
+/// `ExprC.instantiateList`, one memoised DAG pass whose key is `(node,
+/// cursor)` with the live prefix `k` carried outside it, whose `bvar` arm
+/// re-enters at the replacement under a *fresh* table, and whose head cutoff
+/// returns the node itself.  `expr_ops::instantiate_list_fast` is the same
+/// value (`Verify/Cached/OpsC.lean`) at a different memo policy.
+///
+/// `instCCapC` is 32 000 000 (`inst_c_cap_c`); the cited `let mp := if
+/// mp.size < instCCapC then mp else {}` drops the *whole* map when it is
+/// reached, so the freshly computed result is the reset map's single entry.
+/// The Rust spells that as `clear()` on the `&mut` state, which task #7
+/// documented as exactly this `{ s with instC := {} }` (it keeps the bucket
+/// allocation).  `inst_list_m_reset` is that decision, factored out so the
+/// map's borrow dies before the insert.
+pub fn inst_list_m(s: &mut CState, e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
+    if expr_ops::bvar_b(e) <= d {
+        expr::dup(e)
+    } else {
+        let key = (expr::dup(e), env::exprs_copy(vs), d);
+        match inst_c_probe(s, &key) {
+            Some(r) => r,
+            None => {
+                inst_list_m_reset(s);
+                let r = expr_ops_c::instantiate_list(e, vs, d);
+                s.inst_c.insert(key, expr::dup(&r));
+                r
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:186-199 instListM
+/// The cited entry bound, **at the bound as a parameter**: at `cap` entries
+/// the memo is dropped whole, so the next insert starts it over.  Split out
+/// of `inst_list_m` so that the `len()` borrow ends before the insert (task
+/// #14's rule) — and split *with the bound* so a unit test can exercise the
+/// reset without allocating 32 000 000 entries.  The executed path is
+/// `inst_list_m_reset`, which passes `instCCapC` and nothing else.
+pub fn inst_list_m_reset_at(s: &mut CState, cap: usize) {
+    if s.inst_c.len() < cap {
+    } else {
+        s.inst_c.clear();
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:186-199 instListM
+/// The cited `let mp := if mp.size < instCCapC then mp else {}`, i.e.
+/// `inst_list_m_reset_at` at `instCCapC`.
+pub fn inst_list_m_reset(s: &mut CState) {
+    inst_list_m_reset_at(s, inst_c_cap_c())
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:201-205 instListRevM
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:441-445 instantiateRev
+/// **Bulk instantiation on a reversed accumulator array**, deliberately not
+/// memoized in `CState`.  `ExprC.instantiateRev` indexes the array from its
+/// end (`instantiateRevGo`'s `vs[vs.size - 1 - (i - d)]` where
+/// `instantiateListGo` reads `vs[i - d]`, at every depth including its own
+/// `bvar` re-entry), which is what the port now spells outright; while
+/// `ExprOpsC` was unported this wrapper reversed the spine and ran the
+/// `instantiateList` walk instead — the same value, but one `Vec` copy per
+/// call that the cited code does not make, and its own two short-circuits are
+/// `instantiate_rev`'s own.
+pub fn inst_list_rev_m(e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
+    expr_ops_c::instantiate_rev(e, vs, d)
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:207-208 abstract1M
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:510-512 abstract1
+/// `ExprC.abstract1` at the binder cursor `0` (the cited `(k : Nat := 0)`
+/// default, which Rust has no spelling for).
+pub fn abstract1_m(e: &Expr, d: u64) -> Expr {
+    expr_ops_c::abstract1(e, d, 0)
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:210-211 abstractRangeM
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:569-574 abstractRange
+/// `ExprC.abstractRange` at the binder cursor `0`.
+pub fn abstract_range_m(e: &Expr, d: u64, k: u64) -> Expr {
+    expr_ops_c::abstract_range(e, d, k, 0)
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:213-214 mkAppNM
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:78-81 mkAppN
+/// `ExprC.mkAppN`.  Deviation: the head is taken by value, as `mk_app_n`'s
+/// own signature has it (the spine is built onto it).
+pub fn mk_app_n_m(f: Expr, args: &Vec<Expr>) -> Expr {
+    expr_ops_c::mk_app_n(f, args)
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:216-218 instSpineM
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:757-761 instSpine
+/// `ExprC.instSpine`: the one bulk pass when the spine spans the telescope
+/// context, the `instantiate1` chain otherwise.
+pub fn inst_spine_m(args: &Vec<Expr>, t: u64, e: &Expr) -> Expr {
+    expr_ops_c::inst_spine(args, t, e)
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:224-226 instLevelParamsM
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:619-621 instLevelParams
+/// `ExprC.instLevelParams`.
+pub fn inst_level_params_m(ks: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> Expr {
+    expr_ops_c::inst_level_params(ks, us, e)
+}
+
+// ---------------------------------------------------------------------------
 // Level operations (`StateC.lean:235-308`)
 // ---------------------------------------------------------------------------
 
@@ -520,6 +701,252 @@ pub fn is_equiv_list_l_m_from(
     }
 }
 
+
+// ---------------------------------------------------------------------------
+// The lazy stored-constant conversions (`StateC.lean:312-388`)
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Cached/StateC.lean:312-320 storedTyIdxM
+/// The cited `s.ienv[n]?` probe, as an owning read of the entry's type half:
+/// the tag and the conversion, copied out so the map's borrow ends before
+/// the caller writes to the state (task #14's rule).
+pub fn ienv_ty_probe(s: &CState, n: &Name) -> Option<(Expr, Expr)> {
+    match s.ienv.get(n) {
+        Some(ent) => Some((expr::dup(&ent.ty_e), expr::dup(&ent.ty))),
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:322-330 storedValIdxM
+/// The cited `s.ienv[n]?` probe at the entry's *value* half (`some (vE,
+/// vi)`; `none` where the entry carries no value).
+pub fn ienv_val_probe(s: &CState, n: &Name) -> Option<(Expr, Expr)> {
+    match s.ienv.get(n) {
+        Some(ent) => match &ent.val {
+            Some(p) => Some((expr::dup(&p.0), expr::dup(&p.1))),
+            None => None,
+        },
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:312-320 storedTyIdxM
+/// **The `ExprC` of a stored constant's type**: the cached entry when its
+/// `Expr` tag validates by pointer equality, else the `Expr` itself.
+///
+/// **§3.2 pointer-identity site** (1 of 2 in this module).  The Lean
+/// validates the tag with `Expr.exprPtrBEq`, which is *structural* equality
+/// with a physical-equality shortcut (`ExprOps.lean:2382-2388`), and
+/// `expr_ops::expr_ptr_beq` is that composition with the shortcut modeled
+/// `false` (§3.2's standing treatment, discharged there by the reflexivity
+/// of `Expr.beq`).  So the model takes the `beq` branch and answers exactly
+/// what the program answers, and the branch it picks is unobservable anyway:
+/// `ent.ty` is by construction the conversion of `ent.tyE`, and `ExprC =
+/// Expr` since con-leche's task #198, so the conversion is the identity and
+/// both arms return the same value.
+pub fn stored_ty_idx_m(s: &mut CState, n: &Name, ty: &Expr) -> Expr {
+    match ienv_ty_probe(s, n) {
+        Some(ent) => {
+            if expr_ops::expr_ptr_beq(&ent.0, ty) {
+                ent.1
+            } else {
+                expr::dup(ty)
+            }
+        }
+        None => expr::dup(ty),
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:322-330 storedValIdxM
+/// The `ExprC` of a stored definition/theorem value (see `stored_ty_idx_m`,
+/// whose pointer-identity note covers this site too).
+pub fn stored_val_idx_m(s: &mut CState, n: &Name, v: &Expr) -> Expr {
+    match ienv_val_probe(s, n) {
+        Some(ent) => {
+            if expr_ops::expr_ptr_beq(&ent.0, v) {
+                ent.1
+            } else {
+                expr::dup(v)
+            }
+        }
+        None => expr::dup(v),
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:332-349 constTyAtM
+/// The cited `s.constTyAt[(n, us)]?` probe (see `lsimp_probe`).
+pub fn const_ty_at_probe(s: &CState, key: &(Name, Vec<Level>)) -> Option<Expr> {
+    match s.const_ty_at.get(key) {
+        Some(r) => Some(expr::dup(r)),
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:351-367 constValAtM
+/// The cited `s.constValAt[(n, us)]?` probe.
+pub fn const_val_at_probe(s: &CState, key: &(Name, Vec<Level>)) -> Option<Expr> {
+    match s.const_val_at.get(key) {
+        Some(r) => Some(expr::dup(r)),
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:369-388 ruleRhsAtM
+/// The cited `s.ruleRhsAt[(c, j, us)]?` probe.
+pub fn rule_rhs_at_probe(s: &CState, key: &(Name, Name, Vec<Level>)) -> Option<Expr> {
+    match s.rule_rhs_at.get(key) {
+        Some(r) => Some(expr::dup(r)),
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:332-349 constTyAtM
+/// The cited `fe.find? n` read, as an owning probe of the two fields
+/// `ci.toConstantVal` is destructured for: the level parameters and the
+/// stored type.  `to_constant_val` would copy the record; this copies the
+/// same two components and no more (task #14's note on `ConstantInfo`).
+pub fn const_decl_probe(fe: &FEnv, n: &Name) -> Option<(Vec<Name>, Expr)> {
+    match fenv::find(fe, n) {
+        Some(ci) => {
+            let cv = env::to_constant_val(ci);
+            Some((cv.level_params, cv.ty))
+        }
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:351-367 constValAtM
+/// The cited `some (.defnInfo cv v _)` destructuring, as an owning probe:
+/// the level parameters and the stored value (task #18's deviation 8).
+pub fn defn_decl_probe(fe: &FEnv, n: &Name) -> Option<(Vec<Name>, Expr)> {
+    match fenv::find(fe, n) {
+        Some(ci) => match ci {
+            env::ConstantInfo::DefnInfo(cv, v, _) => {
+                Some((prop_when::names_copy(&cv.level_params), expr::dup(v)))
+            }
+            _ => None,
+        },
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:369-388 ruleRhsAtM
+/// The cited `some (.recInfo cv _ _ rules)` destructuring followed by
+/// `rules.find? (·.ctor == j)`, as one owning probe: the recursor's level
+/// parameters and the matching rule's right-hand side.  `none` covers both
+/// cited failures (not a stored recursor, no rule for the constructor),
+/// which the caller separates by re-reading nothing — both throw
+/// `.internal`, and the port throws the recursor one.
+pub fn rule_rhs_probe(fe: &FEnv, c: &Name, j: &Name) -> Option<(Vec<Name>, Expr)> {
+    match fenv::find(fe, c) {
+        Some(ci) => match ci {
+            env::ConstantInfo::RecInfo(cv, _, _, rules) => {
+                match rule_rhs_probe_from(rules, j, 0) {
+                    Some(rhs) => Some((prop_when::names_copy(&cv.level_params), rhs)),
+                    None => None,
+                }
+            }
+            _ => None,
+        },
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:369-388 ruleRhsAtM
+/// The index recursion the cited `rules.find? (fun r' => r'.ctor == j)`
+/// becomes, answering with the found rule's `rhs`.
+pub fn rule_rhs_probe_from(rules: &Vec<env::RecRule>, j: &Name, i: usize) -> Option<Expr> {
+    if i >= rules.len() {
+        None
+    } else if name::beq(&rules[i].ctor, j) {
+        Some(expr::dup(&rules[i].rhs))
+    } else {
+        rule_rhs_probe_from(rules, j, i + 1)
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:332-349 constTyAtM
+/// **The level-instantiated type of the stored constant `n`**, memoized in
+/// `constTyAt` under the `(n, us)` key: the probe, then the stored type
+/// through `stored_ty_idx_m`, then `inst_level_params_m`, then the insert.
+///
+/// Deviation: the cited `_nI : Name` parameter is dropped.  It is the
+/// interned twin of `n` the retired arena needed and the Lean already writes
+/// with a leading underscore — unused there too.
+pub fn const_ty_at_m(s: &mut CState, fe: &FEnv, n: &Name, us: &Vec<Level>) -> CheckCM<Expr> {
+    const M: [u32; 28] = [
+        99, 111, 110, 115, 116, 84, 121, 65, 116, 77, 58, 32, 117, 110, 107, 110, 111, 119, 110,
+        32, 99, 111, 110, 115, 116, 97, 110, 116,
+    ];
+    let key = (name::dup(n), env::levels_copy(us));
+    match const_ty_at_probe(s, &key) {
+        Some(i) => Ok(i),
+        None => match const_decl_probe(fe, n) {
+            Some(cv) => {
+                let raw = stored_ty_idx_m(s, n, &cv.1);
+                let i = inst_level_params_m(&cv.0, us, &raw);
+                s.const_ty_at.insert(key, expr::dup(&i));
+                Ok(i)
+            }
+            None => Err(core_types::internal(core_types::code_points(&M))),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:351-367 constValAtM
+/// The level-instantiated *value* of the stored definition `n`, memoized in
+/// `constValAt` (see `const_ty_at_m`; the `_nI` parameter is dropped there
+/// too).
+pub fn const_val_at_m(s: &mut CState, fe: &FEnv, n: &Name, us: &Vec<Level>) -> CheckCM<Expr> {
+    const M: [u32; 36] = [
+        99, 111, 110, 115, 116, 86, 97, 108, 65, 116, 77, 58, 32, 110, 111, 116, 32, 97, 32,
+        115, 116, 111, 114, 101, 100, 32, 100, 101, 102, 105, 110, 105, 116, 105, 111, 110,
+    ];
+    let key = (name::dup(n), env::levels_copy(us));
+    match const_val_at_probe(s, &key) {
+        Some(i) => Ok(i),
+        None => match defn_decl_probe(fe, n) {
+            Some(cv) => {
+                let raw = stored_val_idx_m(s, n, &cv.1);
+                let i = inst_level_params_m(&cv.0, us, &raw);
+                s.const_val_at.insert(key, expr::dup(&i));
+                Ok(i)
+            }
+            None => Err(core_types::internal(core_types::code_points(&M))),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:369-388 ruleRhsAtM
+/// The level-instantiated right-hand side of the rule for constructor `j` of
+/// the stored recursor `c`, memoized in `ruleRhsAt` under the `(c, j, us)`
+/// key.  Deviation: the cited `_cI _jI` parameters are dropped, as
+/// `const_ty_at_m`'s `_nI` is.
+pub fn rule_rhs_at_m(
+    s: &mut CState,
+    fe: &FEnv,
+    c: &Name,
+    j: &Name,
+    us: &Vec<Level>,
+) -> CheckCM<Expr> {
+    const M: [u32; 33] = [
+        114, 117, 108, 101, 82, 104, 115, 65, 116, 77, 58, 32, 110, 111, 116, 32, 97, 32, 115,
+        116, 111, 114, 101, 100, 32, 114, 101, 99, 117, 114, 115, 111, 114,
+    ];
+    let key = (name::dup(c), name::dup(j), env::levels_copy(us));
+    match rule_rhs_at_probe(s, &key) {
+        Some(i) => Ok(i),
+        None => match rule_rhs_probe(fe, c, j) {
+            Some(r) => {
+                let i = inst_level_params_m(&r.0, us, &r.1);
+                s.rule_rhs_at.insert(key, expr::dup(&i));
+                Ok(i)
+            }
+            None => Err(core_types::internal(core_types::code_points(&M))),
+        },
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The flush and the converted-constant record (`StateC.lean:394-460`)
 // ---------------------------------------------------------------------------
@@ -565,6 +992,109 @@ pub fn record_c_const(
     val: Option<(Expr, Expr)>,
 ) {
     s.ienv.insert(n, CConstE { ty_e, ty, val });
+}
+
+// ---------------------------------------------------------------------------
+// The parsed-index driver's syntactic guard (`StateC.lean:409-450`)
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Cached/StateC.lean:409-446 constsResolveFCGo
+/// Core of `consts_resolve_fc`: `Expr.constsResolveF` as a **memoized DAG
+/// walk**.  The memo is local to the call (the result depends on the
+/// environment), so it is a `&mut HashMap` accumulator, exactly as
+/// `expr_ops`' own `*_go` walks are; it is *not* `CState` state and no
+/// memo-policy obligation of §3.1 attaches to it.
+///
+/// The value is `core_k::consts_resolve`'s — the unmemoized `Expr` walk of
+/// `Core.lean:307-332`, which is what makes the `Expr`-typed driver
+/// quadratic on shared declarations and is why this twin exists.  The two
+/// `isSome` blocks are that function's (`nat_trio_stored`,
+/// `str_support_stored`), read through the index.
+pub fn consts_resolve_fc_go(fe: &FEnv, memo: &mut HashMap<Expr, bool>, e: &Expr) -> bool {
+    match memo_b_get(memo, e) {
+        Some(r) => r,
+        None => {
+            let r = consts_resolve_fc_node(fe, memo, e);
+            memo.insert(expr::dup(e), r);
+            r
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:409-446 constsResolveFCGo
+/// The cited `memo[e]?` probe, as its own function so the map's borrow ends
+/// before the miss branch writes to it.
+pub fn memo_b_get(memo: &HashMap<Expr, bool>, k: &Expr) -> Option<bool> {
+    match memo.get(k) {
+        Some(r) => Some(*r),
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:409-446 constsResolveFCGo
+/// The cited inner `match e with …`: the node's own answer, computed on a
+/// memo miss and inserted by `consts_resolve_fc_go`.
+pub fn consts_resolve_fc_node(fe: &FEnv, memo: &mut HashMap<Expr, bool>, e: &Expr) -> bool {
+    match &e.0.kind {
+        ExprKind::Bvar(_) => true,
+        ExprKind::Sort(_) => true,
+        ExprKind::Lit(Literal::NatVal(_)) => core_k::nat_trio_stored(fe),
+        ExprKind::Lit(Literal::StrVal(_)) => {
+            if core_k::nat_trio_stored(fe) {
+                core_k::str_support_stored(fe)
+            } else {
+                false
+            }
+        }
+        ExprKind::Const(n, _) => fenv::find(fe, n).is_some(),
+        ExprKind::Fvar(_, ty) => consts_resolve_fc_go(fe, memo, ty),
+        ExprKind::App(f, a) => {
+            if consts_resolve_fc_go(fe, memo, f) {
+                consts_resolve_fc_go(fe, memo, a)
+            } else {
+                false
+            }
+        }
+        ExprKind::Lam(ty, body, _) => {
+            if consts_resolve_fc_go(fe, memo, ty) {
+                consts_resolve_fc_go(fe, memo, body)
+            } else {
+                false
+            }
+        }
+        ExprKind::ForallE(ty, body, _) => {
+            if consts_resolve_fc_go(fe, memo, ty) {
+                consts_resolve_fc_go(fe, memo, body)
+            } else {
+                false
+            }
+        }
+        ExprKind::LetE(ty, val, body) => {
+            if consts_resolve_fc_go(fe, memo, ty) {
+                if consts_resolve_fc_go(fe, memo, val) {
+                    consts_resolve_fc_go(fe, memo, body)
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }
+        ExprKind::Proj(sn, _, sub) => {
+            if fenv::find(fe, sn).is_some() {
+                consts_resolve_fc_go(fe, memo, sub)
+            } else {
+                false
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:448-450 constsResolveFC
+/// `Expr.constsResolveF fe` on `ExprC` — one memoized DAG walk.
+pub fn consts_resolve_fc(fe: &FEnv, e: &Expr) -> bool {
+    let mut memo: HashMap<Expr, bool> = HashMap::new();
+    consts_resolve_fc_go(fe, &mut memo, e)
 }
 
 #[cfg(test)]

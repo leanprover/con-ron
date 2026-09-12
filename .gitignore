@@ -8,3 +8,4 @@ _tmp/
 result
 result-*
 .claude/worktrees/
+__pycache__/

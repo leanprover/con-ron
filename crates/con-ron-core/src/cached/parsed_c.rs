@@ -15,7 +15,7 @@
 //!    `ExprC.hasFvar`, `ExprC.allLevelParamsDefined` and `constsResolveFC`
 //!    replace `Expr.looseBVarsBounded`, `Expr.hasFvar`,
 //!    `Expr.allLevelParamsDefined` and `Expr.constsResolveF`.  The first three
-//!    are `cached::expr_ops_c`'s; the fourth is the deviation below.
+//!    are `cached::expr_ops_c`'s, the fourth `cached::state_c`'s.
 //! 2. **Every accepted constant is recorded in `ienv`.**  `recordCConst` runs
 //!    between the resolution guard and the inference (definitions, theorems,
 //!    opaques) resp. before each axiom install, tagged with the very `Expr`
@@ -33,27 +33,15 @@
 //! the port already spells once (task #18's deviation 3), and `sharedOpsC`'s
 //! five core slots are `kernel::type_checker`'s (task #24's collapse 1).
 //!
-//! ## The one memo-policy deviation, owed to task #23
+//! Every memo policy the cached lane prescribes is therefore the cited one:
+//! `state_c::consts_resolve_fc` (task #23) probes *before* the match and so
+//! records the four atom kinds too, which the `Expr`-level
+//! `decl_check::consts_resolve_f_fast` does not — that difference was the one
+//! deviation this module carried while task #23 was in flight, and calling
+//! `constsResolveFC` by name is what retired it.
 //!
-//! `constsResolveFC` (`Cached/StateC.lean:409-450`) is **not** called by name:
-//! `crate::cached::state_c` does not have it yet (it is task #23's half of
-//! that file), so the port calls `decl_check::consts_resolve_f_fast`, the
-//! `Expr`-level memoised walk of `DeclCheck.lean:89-204`.  The two walks
-//! compute the same answer and both memoise on the node; they differ in
-//! *where* they probe — the C twin probes before the match, so it records the
-//! four atom kinds too, while the `Expr` twin answers those through the spec
-//! walk and records nothing.  So the port **misses where the Lean hits**, on
-//! an `O(1)` leaf answer.  That is the safe direction (never a hit the Lean
-//! does not have), but DESIGN.md §3.1 asks for it to be flagged rather than
-//! taken silently: it must be reconciled — one call-site change — when task
-//! #23 lands `state_c::consts_resolve_fc`, before any `check_decl_c_refines`
-//! is stated against `checkDeclC`.
-//!
-//! ## The one placeholder
-//!
-//! `checkDeclC`'s `.indDecl` arm declines past the parameter check; see
-//! `check_ind_decl_c`.  The fold must dispatch on the constructor, which is
-//! why the arm is written at all.
+//! **Nothing here is a placeholder.**  `checkDeclC`'s `.indDecl` arm
+//! dispatches to task #25's two install routes (`check_ind_decl_c`).
 //!
 //! `DeclC` is `Declaration` with the *value* constructors' payloads at
 //! `ExprC`, which is `Expr` (task #10, surprise 1), and **without**
@@ -73,7 +61,6 @@ use crate::kernel::basis_names;
 use crate::kernel::checker;
 use crate::kernel::core_k;
 use crate::kernel::core_types;
-use crate::kernel::decl_check;
 use crate::kernel::env;
 use crate::kernel::env::BasisKind;
 use crate::kernel::env::CheckMode;
@@ -84,6 +71,8 @@ use crate::kernel::expr;
 use crate::kernel::expr::Expr;
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
+use crate::kernel::inductives::inductives_c;
+use crate::kernel::inductives::native_parts;
 use crate::kernel::level;
 use crate::kernel::level::Level;
 use crate::kernel::name;
@@ -227,7 +216,7 @@ pub fn check_constant_val_c_after_annot(
 ) -> CheckCM<(ConstantVal, Expr)> {
     if !expr_ops_c::all_level_params_defined(&cv.level_params, &jty) {
         Err(core_types::invalid({ const M: [u32; 37] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
-    } else if !decl_check::consts_resolve_f_fast(fe, &jty) {
+    } else if !state_c::consts_resolve_fc(fe, &jty) {
         Err(core_types::invalid({ const M: [u32; 24] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
     } else {
         match type_checker::infer_type_core(mode, st, fe, 0, &jty) {
@@ -289,7 +278,7 @@ pub fn check_defn_val_c_after_annot(
 ) -> CheckCM<FEnv> {
     if !expr_ops_c::all_level_params_defined(&cv_a.level_params, &jv) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
-    } else if !decl_check::consts_resolve_f_fast(&fe, &jv) {
+    } else if !state_c::consts_resolve_fc(&fe, &jv) {
         Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else {
         state_c::record_c_const(
@@ -391,7 +380,7 @@ pub fn check_thm_val_c_checked(
 ) -> CheckCM<FEnv> {
     if !expr_ops_c::all_level_params_defined(&cv_a.level_params, &jv) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
-    } else if !decl_check::consts_resolve_f_fast(&fe, &jv) {
+    } else if !state_c::consts_resolve_fc(&fe, &jv) {
         Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else {
         state_c::record_c_const(
@@ -459,7 +448,7 @@ pub fn check_opaque_val_c_after_annot(
 ) -> CheckCM<FEnv> {
     if !expr_ops_c::all_level_params_defined(&cv_a.level_params, &jv) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
-    } else if !decl_check::consts_resolve_f_fast(&fe, &jv) {
+    } else if !state_c::consts_resolve_fc(&fe, &jv) {
         Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else {
         state_c::record_c_const(
@@ -702,15 +691,17 @@ pub fn check_basis_decl_c(fe: FEnv, kind: &BasisKind) -> CheckCM<FEnv> {
 /// DECLARATION and not of a route — so a block with a wrong `nparams` is
 /// *rejected* here.
 ///
-/// Deviation, and **the one placeholder in this module**: the dispatch itself
-/// — `nativeParts?`, `checkNativeS`, `checkIndDeclSF` — is
-/// `ConLeche/Kernel/Inductives/*` and `Cached/CheckerC.lean`'s per-declaration
-/// phase drivers, which this task does not port, so the arm declines past the
-/// parameter check.  **Task #25/#27 wires the inductive dispatch** (the
-/// recogniser and the two install routes, and `CheckerC.lean`'s sixteen
-/// unported declarations); the fold has to dispatch on the constructor, which
-/// is why the arm exists at all.  A decline can only make the Rust *reject*,
-/// which is sound for the accept direction (DESIGN.md §1).
+/// **ONE ROUTE, dispatched by the recogniser alone** (con-leche tasks #210
+/// and #219): a block `nativeParts?` recognises is the fixpoint route's,
+/// every other one the modeled path's.  The two drivers are task #25's
+/// `kernel::inductives::inductives_c`, whose module note names this call site
+/// — `check_native_s` takes the index by reference and `fenv::dup`s it
+/// internally (`native_install::check_native_pass_former`), so the extended
+/// index it returns *is* the arm's result and `fe` is consumed by being
+/// dropped; `check_ind_decl_s` takes it by value, as the port's other install
+/// paths do.
+///
+/// No placeholder is left in this module: `checkDeclC` is complete.
 pub fn check_ind_decl_c(
     mode: &CheckMode,
     st: &mut CState,
@@ -718,11 +709,11 @@ pub fn check_ind_decl_c(
     block: &Vec<ConstantInfo>,
     n_p: u64,
 ) -> CheckCM<FEnv> {
-    let _ = mode;
-    let _ = st;
-    let _ = fe;
     if env::ind_params_ok(n_p, block) {
-        Err(core_types::not_implemented({ const M: [u32; 58] = [105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 98, 108, 111, 99, 107, 58, 32, 116, 97, 115, 107, 32, 35, 50, 53, 47, 35, 50, 55, 32, 119, 105, 114, 101, 115, 32, 116, 104, 101, 32, 105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 100, 105, 115, 112, 97, 116, 99, 104]; core_types::code_points(&M) }))
+        match native_parts::native_parts(n_p, block) {
+            Some(p) => inductives_c::check_native_s(mode, st, &fe, &p),
+            None => inductives_c::check_ind_decl_s(mode, st, fe, block),
+        }
     } else {
         Err(core_types::invalid({ const M: [u32; 29] = [110, 117, 109, 98, 101, 114, 32, 111, 102, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 115, 32, 109, 105, 115, 109, 97, 116, 99, 104]; core_types::code_points(&M) }))
     }
@@ -977,19 +968,45 @@ mod tests {
         }
     }
 
-    /// `checkDeclStepC` flushes and then dispatches, and the `.indDecl` arm is
-    /// the module's one placeholder: the declared parameter count is checked
-    /// first and for both routes, so a wrong `nparams` is a **reject** while a
-    /// well-formed block is a *decline* until task #25/#27 wires the dispatch.
+    /// `checkDeclStepC` flushes and then dispatches, and the `.indDecl` arm
+    /// reaches task #25's two routes: the declared parameter count is checked
+    /// first and for both of them, so a wrong `nparams` is a **reject**
+    /// (official's own), while a block the recogniser refuses and the
+    /// modeller has no `_model` for is refused from *inside* the modeled
+    /// route — not by a placeholder.
     #[test]
-    fn check_decl_step_c_flushes_and_the_ind_arm_declines() {
+    fn check_decl_step_c_flushes_and_dispatches_the_ind_arm() {
         let mode = CheckMode::Verified;
         let mut st: CState = state_c::cstate_new();
 
-        // an entry in an environment-dependent memo, and one in `ienv`
+        // **The flush happens first.**  Seed an environment-dependent memo
+        // and an `ienv` entry, then run a step whose check fails at
+        // `checkConstantValC`'s very first guard — a duplicate name — so
+        // nothing downstream annotates anything: what is left in `annot_c`
+        // afterwards is exactly what the flush left.
         st.annot_c.insert(expr::bvar(0), expr::bvar(0));
         state_c::record_c_const(&mut st, nm("k"), sort1(), sort1(), None);
+        let mut consts: Vec<ConstantInfo> = Vec::new();
+        consts.push(ConstantInfo::AxiomInfo(cvt("k", sort1())));
+        let fe_k: FEnv = fenv::mk_fenv(Env { consts });
+        match parsed_c::check_decl_step_c(
+            &mode,
+            &mut st,
+            fe_k,
+            &DeclC::AxiomDecl(cvt("k", sort1())),
+        ) {
+            Ok(_) => panic!("a duplicate axiom must not check"),
+            Err(e) => assert!(is_invalid(&e)),
+        }
+        // flushed: the environment-dependent memo is empty, and the
+        // self-certified `ienv` survives (`state_c::flushed`)
+        assert_eq!(st.annot_c.len(), 0);
+        assert!(st.ienv.get(&nm("k")).is_some());
 
+        // **The `.indDecl` arm reaches the routes.**  `T : Sort 0` with a
+        // constructor is well-formed at `nparams = 0`, the recogniser refuses
+        // it (no recursor record), and the modeled route then finds no
+        // `T._model` — so the refusal comes from inside the route.
         let good_block: Vec<ConstantInfo> = {
             let mut b: Vec<ConstantInfo> = Vec::new();
             b.push(ConstantInfo::IndInfo(cv("T"), env::ind_caps_default()));
@@ -997,19 +1014,16 @@ mod tests {
             b
         };
         assert!(env::ind_params_ok(0, &good_block));
-        match parsed_c::check_decl_step_c(
+        let mut st_i: CState = state_c::cstate_new();
+        match parsed_c::check_decl_c(
             &mode,
-            &mut st,
+            &mut st_i,
             empty_fenv(),
             &DeclC::IndDecl(good_block, 0),
         ) {
-            Ok(_) => panic!("the inductive install routes are not ported yet"),
-            Err(e) => assert!(is_not_implemented(&e), "an unported route is a decline"),
+            Ok(_) => panic!("a `T : Sort 0` block with no model must not install"),
+            Err(_) => (),
         }
-        // the step flushed: the environment-dependent memo is empty, `ienv`
-        // survives (it is self-certified by its `Expr` tags)
-        assert_eq!(st.annot_c.len(), 0);
-        assert!(st.ienv.get(&nm("k")).is_some());
 
         // a declared parameter count the block cannot satisfy is a *reject*
         let mut st2: CState = state_c::cstate_new();
