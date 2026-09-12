@@ -44,16 +44,19 @@
 //!   parameter count is still checked first, as con-leche task #228 insists,
 //!   so a block with a wrong `nparams` is *rejected* and everything else
 //!   *declines* — sound for the accept direction (DESIGN.md §1).
-//! * the pinned basis blocks the `.basisDecl` arm installs, and the pin
-//!   variants `checkDivModPinLoop` walks, are generated tables
-//!   (`kernel::basis_pins`, `kernel::nat_op_pins`); both stubs are empty, so
-//!   the fold installs nothing and the loop declines.
+//! * the pinned basis blocks the `.basisDecl` arm installs are
+//!   `kernel::basis_tables`, generated from con-leche's own
+//!   `BasisKind.declsA` (task #22), and the two pins compared as whole
+//!   `ConstantInfo`s are `kernel::basis_pins` over that table (task #27).
+//!   The pin variants `checkDivModPinLoop` walks are still
+//!   `kernel::nat_op_pins`' empty stub, so that loop declines.
 
 use crate::cached::checker_c;
 use crate::cached::checker_c::OrElseStep;
 use crate::cached::state_c::CState;
 use crate::kernel::basis_names;
 use crate::kernel::basis_pins;
+use crate::kernel::basis_tables;
 use crate::kernel::checker_base;
 use crate::kernel::core_k;
 use crate::kernel::core_types;
@@ -897,7 +900,7 @@ pub fn div_mod_env_guard(fe2: &FEnv, c: &Name) -> bool {
         false
     } else if !core_k::deps_all_stored(fe2, &core_k::nat_op_deps(c), 0) {
         false
-    } else if !std_axioms::eq_basis_pinned(fe2) {
+    } else if !basis_pins::eq_basis_pinned(fe2) {
         false
     } else if !bool_ctor_typed(fe2, &core_k::bool_true_name()) {
         false
@@ -1468,18 +1471,21 @@ pub fn check_axiom_decl(
 /// shapes.  The quotient block's types mention the pinned equality former, so
 /// it requires the pinned `Eq` basis.
 ///
-/// The block itself comes from `basis_pins::decls_a`, a stub returning the
-/// empty block (that module's note), so the fold installs nothing.
+/// The block itself is `basis_tables::basis_decls_a` — `BasisKind.declsA`,
+/// generated from con-leche's own value (task #22), because the annotated
+/// pins are produced by the annotation pass at elaboration time and the Rust
+/// core has no elaborator.  `proof/ConRon/Refine/BasisTables.lean` proves
+/// that what the table builds abstracts to the cited `declsA`.
 pub fn check_basis_decl(fe: FEnv, kind: &BasisKind) -> CheckM<FEnv> {
     match kind {
         BasisKind::QuotK => {
-            if !std_axioms::eq_basis_pinned(&fe) {
+            if !basis_pins::eq_basis_pinned(&fe) {
                 Err(core_types::not_implemented({ const M: [u32; 43] = [113, 117, 111, 116, 105, 101, 110, 116, 32, 98, 97, 115, 105, 115, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 116, 104, 101, 32, 112, 105, 110, 110, 101, 100, 32, 69, 113, 32, 98, 97, 115, 105, 115]; core_types::code_points(&M) }))
             } else {
-                install_basis_decls(fe, &basis_pins::decls_a(kind), 0)
+                install_basis_decls(fe, &basis_tables::basis_decls_a(kind), 0)
             }
         }
-        _ => install_basis_decls(fe, &basis_pins::decls_a(kind), 0),
+        _ => install_basis_decls(fe, &basis_tables::basis_decls_a(kind), 0),
     }
 }
 
@@ -1680,9 +1686,9 @@ mod tests {
     /// or falling through to the tolerated whitelist.  The same holds for
     /// `Classical.choice`.
     ///
-    /// The pin comparison itself is asserted directly, because
-    /// `stdAxiomOk`'s `Eq`-basis prerequisite reads a generated table
-    /// (`kernel::basis_pins`, a stub for now): the pinned type matches its
+    /// The pin comparison itself is asserted directly, on an environment
+    /// that does not carry the pinned `Eq` basis `stdAxiomOk` requires
+    /// (`kernel::basis_pins`): the pinned type matches its
     /// own pin, a wrong type does not, and the comparison forgives exactly
     /// the binder prop-ness datum that annotation computes — which is the
     /// deviation note of `std_axioms`, tested.

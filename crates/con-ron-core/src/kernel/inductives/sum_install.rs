@@ -6,6 +6,7 @@
 
 use crate::cached::core_c;
 use crate::cached::state_c::CState;
+use crate::kernel::checker_base;
 use crate::kernel::core_k;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckM;
@@ -18,7 +19,6 @@ use crate::kernel::expr::{BinderMeta, Expr, ExprKind};
 use crate::kernel::expr_ops;
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
-use crate::kernel::inductives::checker_local;
 use crate::kernel::inductives::struct_install;
 use crate::kernel::inductives::struct_parts;
 use crate::kernel::inductives::sum_parts;
@@ -166,7 +166,7 @@ pub fn check_sum_tele_whnf(
                 level_params: prop_when::names_copy(&cv.level_params),
                 ty: closed,
             };
-            match checker_local::check_constant_val(mode, st, fe, &cv2) {
+            match checker_base::check_constant_val(mode, st, fe, &cv2) {
                 Err(err) => Err(err),
                 Ok(cv_ta) => Ok((cv_ta, q.1)),
             }
@@ -202,7 +202,7 @@ where
         111, 114, 109, 101, 114, 32, 114, 101, 115, 117, 108, 116, 32, 115, 111, 114, 116, 32,
         32, 32, 32, 32, 32, 32, 32,
     ];
-    match checker_local::check_constant_val(mode, st, &fe, &p.cv_t) {
+    match checker_base::check_constant_val(mode, st, &fe, &p.cv_t) {
         Err(err) => Err(err),
         Ok(cv_ta0) => {
             match check_sum_tele(mode, st, &fe, &p.cv_t, p.n_p + p.n_idx, &cv_ta0) {
@@ -505,7 +505,7 @@ pub fn norm_ctor_val(
     ];
     match expr_ops::strip_pis(n_p, &cv_ca.ty) {
         None => Err(core_types::not_implemented(core_types::code_points(&M_TELE))),
-        Some(cq) => match checker_local::open_pis_at_fvars(n_p, &cv_ca.ty, 0) {
+        Some(cq) => match checker_base::open_pis_at_fvars_f(n_p, &cv_ca.ty, 0) {
             None => Err(core_types::not_implemented(core_types::code_points(&M_TELE))),
             Some(oq) => {
                 let pbs: Vec<(Expr, BinderMeta)> = zip_param_binders(&oq.0, &cq.0);
@@ -522,7 +522,7 @@ pub fn norm_ctor_val(
                                 level_params: prop_when::names_copy(&cv_c.level_params),
                                 ty: ty2,
                             };
-                            checker_local::check_constant_val(mode, st, fe, &cv2)
+                            checker_base::check_constant_val(mode, st, fe, &cv2)
                         }
                     }
                 }
@@ -610,7 +610,7 @@ pub fn opened_resid_ok(
     let expected: Expr = expr::mk_const(name::dup(t), struct_parts::params_of(lps));
     if expr::beq(&head, &expected) {
         let args: Vec<Expr> = expr_ops::get_app_args(resid);
-        if struct_parts::exprs_beq(&expr_ops::take_exprs(&args, n_p as usize), fvs_p) {
+        if expr::exprs_beq(&expr_ops::take_exprs(&args, n_p as usize), fvs_p) {
             args.len() as u64 == n_p + n_idx
         } else {
             false
@@ -709,7 +709,7 @@ pub fn check_sum_ctor(
         101, 120, 112, 114, 101, 115, 115, 105, 111, 110, 32, 109, 101, 110, 116, 105, 111,
         110, 115, 32, 116, 104, 101, 32, 98, 108, 111, 99, 107, 32, 32, 32,
     ];
-    match checker_local::check_constant_val(mode, st, fe, cv_c) {
+    match checker_base::check_constant_val(mode, st, fe, cv_c) {
         Err(err) => Err(err),
         Ok(cv_ca0) => {
             match norm_ctor_val(mode, st, fe, t, n_p, n_f, cv_c, &cv_ca0) {
@@ -724,12 +724,12 @@ pub fn check_sum_ctor(
                         ) {
                             Err(core_types::invalid(core_types::code_points(&M_RET)))
                         } else {
-                            match checker_local::open_pis_at_fvars(n_p, &cv_ca.ty, 0) {
+                            match checker_base::open_pis_at_fvars_f(n_p, &cv_ca.ty, 0) {
                                 None => Err(core_types::not_implemented(
                                     core_types::code_points(&M_CTELE),
                                 )),
                                 Some(cq) => {
-                                    match checker_local::open_pis_at_fvars(
+                                    match checker_base::open_pis_at_fvars_f(
                                         n_p, &cv_ta.ty, 0,
                                     ) {
                                         None => Err(core_types::not_implemented(
@@ -737,13 +737,13 @@ pub fn check_sum_ctor(
                                         )),
                                         Some(tq) => {
                                             let doms: Vec<Expr> =
-                                                checker_local::fvar_types_of(&tq.0);
+                                                checker_base::fvar_types(&tq.0);
                                             match struct_install::check_struct_doms_at(
                                                 mode, st, fe, 0, &cq.0, &doms, n_p,
                                             ) {
                                                 Err(err) => Err(err),
                                                 Ok(()) => {
-                                                    match checker_local::open_pis_at_fvars(
+                                                    match checker_base::open_pis_at_fvars_f(
                                                         n_f, &cq.1, n_p,
                                                     ) {
                                                         None => {

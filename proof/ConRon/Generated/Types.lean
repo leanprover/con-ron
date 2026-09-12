@@ -284,7 +284,7 @@ structure ron.hashmap.Hashable (Self : Type) where
   hash64 : Self → Result Std.U64
 
 /-- [con_ron_core::kernel::env::ProjTable]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 407:0-417:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 414:0-424:1
     Visibility: public -/
 structure kernel.env.ProjTable where
   struct_name : kernel.name.Name
@@ -298,7 +298,7 @@ structure kernel.env.ProjTable where
   off : Std.U64
 
 /-- [con_ron_core::kernel::env::IndCaps]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 356:0-365:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 363:0-372:1
     Visibility: public -/
 structure kernel.env.IndCaps where
   eta : Bool
@@ -311,7 +311,7 @@ structure kernel.env.IndCaps where
   sort_z : kernel.prop_when.PropWhen
 
 /-- [con_ron_core::kernel::env::ReducibilityHint]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 277:0-281:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 284:0-288:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.ReducibilityHint where
@@ -320,7 +320,7 @@ inductive kernel.env.ReducibilityHint where
 | Regular : Std.U64 → kernel.env.ReducibilityHint
 
 /-- [con_ron_core::kernel::env::RecRuleFire]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 192:0-196:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 199:0-203:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.RecRuleFire where
@@ -332,7 +332,7 @@ inductive kernel.env.RecRuleFire where
   kernel.env.RecRuleFire
 
 /-- [con_ron_core::kernel::env::RecRule]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 216:0-225:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 223:0-232:1
     Visibility: public -/
 structure kernel.env.RecRule where
   ctor : kernel.name.Name
@@ -345,7 +345,7 @@ structure kernel.env.RecRule where
   params_blind : Bool
 
 /-- [con_ron_core::kernel::env::ConstantVal]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 173:0-177:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 180:0-184:1
     Visibility: public -/
 structure kernel.env.ConstantVal where
   «name» : kernel.name.Name
@@ -353,7 +353,7 @@ structure kernel.env.ConstantVal where
   ty : kernel.expr.Expr
 
 /-- [con_ron_core::kernel::env::ConstantInfo]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 492:0-500:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 499:0-507:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.ConstantInfo where
@@ -385,7 +385,7 @@ inductive kernel.env.ConstantInfo where
 | ProjInfo : kernel.env.ProjTable → kernel.env.ConstantInfo
 
 /-- [con_ron_core::kernel::env::Env]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 780:0-782:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1078:0-1080:1
     Visibility: public -/
 structure kernel.env.Env where
   consts : alloc.vec.Vec kernel.env.ConstantInfo
@@ -462,7 +462,7 @@ structure kernel.level.SubstZ where
   vs : alloc.vec.Vec kernel.level.Level
 
 /-- [con_ron_core::kernel::env::ProjEntry]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 437:0-448:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 444:0-455:1
     Visibility: public -/
 structure kernel.env.ProjEntry where
   struct_name : kernel.name.Name
@@ -477,7 +477,7 @@ structure kernel.env.ProjEntry where
   off : Std.U64
 
 /-- [con_ron_core::kernel::env::CheckMode]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 52:0-55:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 59:0-62:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.CheckMode where
@@ -492,7 +492,7 @@ structure kernel.expr_ops.ExprNatKey where
   d : Std.U64
 
 /-- [con_ron_core::kernel::env::BasisKind]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 330:0-337:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 337:0-344:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.BasisKind where
@@ -611,20 +611,20 @@ structure kernel.inductives.sum_install.CapsOf (Self : Type) where
 structure kernel.inductives.native_install.NativeCapsAt where
   is_rec : Bool
 
-/-- Trait declaration: [con_ron_core::kernel::inductives::checker_local::DomView]
-    Source: 'crates/con-ron-core/src/kernel/inductives/checker_local.rs', lines 143:0-146:1
+/-- Trait declaration: [con_ron_core::kernel::checker_base::DomView]
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 132:0-135:1
     Visibility: public -/
-structure kernel.inductives.checker_local.DomView (Self : Type) where
+structure kernel.checker_base.DomView (Self : Type) where
   view : Self → Std.U64 → kernel.expr.Expr → Result kernel.expr.Expr
 
-/-- [con_ron_core::kernel::inductives::checker_local::DomIdent]
-    Source: 'crates/con-ron-core/src/kernel/inductives/checker_local.rs', lines 151:0-151:20
+/-- [con_ron_core::kernel::checker_base::DomIdent]
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 142:0-142:20
     Visibility: public -/
 @[reducible]
-def kernel.inductives.checker_local.DomIdent := Unit
+def kernel.checker_base.DomIdent := Unit
 
 /-- [con_ron_core::kernel::inductives::modeled::DomProjFwd]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 173:0-177:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 174:0-178:1
     Visibility: public -/
 structure kernel.inductives.modeled.DomProjFwd where
   t : kernel.name.Name
@@ -632,7 +632,7 @@ structure kernel.inductives.modeled.DomProjFwd where
   n_f : Std.U64
 
 /-- [con_ron_core::kernel::inductives::modeled::ProjFwd]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 134:0-138:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 135:0-139:1
     Visibility: public -/
 structure kernel.inductives.modeled.ProjFwd where
   t : kernel.name.Name
@@ -646,7 +646,7 @@ structure kernel.expr_ops.NameToName (Self : Type) where
   rename : Self → kernel.name.Name → Result kernel.name.Name
 
 /-- [con_ron_core::kernel::inductives::modeled::ProjBack]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 96:0-100:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 97:0-101:1
     Visibility: public -/
 structure kernel.inductives.modeled.ProjBack where
   t : kernel.name.Name
@@ -654,7 +654,7 @@ structure kernel.inductives.modeled.ProjBack where
   n_f : Std.U64
 
 /-- [con_ron_core::kernel::inductives::modeled::BlockRename]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 77:0-79:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 78:0-80:1
     Visibility: public -/
 structure kernel.inductives.modeled.BlockRename where
   block_names : alloc.vec.Vec kernel.name.Name
@@ -682,7 +682,7 @@ structure kernel.nat_op_pins.NatOpPinSet where
   shift_right_proofs : alloc.vec.Vec kernel.expr.Expr
 
 /-- [con_ron_core::kernel::env::Declaration]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 576:0-583:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 874:0-881:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.Declaration where
@@ -707,13 +707,13 @@ inductive kernel.env.Declaration where
   kernel.env.Declaration
 
 /-- [con_ron_core::kernel::decl_check::ModelRename]
-    Source: 'crates/con-ron-core/src/kernel/decl_check.rs', lines 175:0-177:1
+    Source: 'crates/con-ron-core/src/kernel/decl_check.rs', lines 176:0-178:1
     Visibility: public -/
 structure kernel.decl_check.ModelRename where
   block_names : alloc.vec.Vec kernel.name.Name
 
 /-- [con_ron_core::kernel::inductives::struct_parts::StructParts]
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 323:0-334:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 301:0-312:1
     Visibility: public -/
 structure kernel.inductives.struct_parts.StructParts where
   cv_t : kernel.env.ConstantVal

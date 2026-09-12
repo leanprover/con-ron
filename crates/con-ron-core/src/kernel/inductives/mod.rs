@@ -14,7 +14,6 @@
 //! | `native_install` | `Inductives/NativeInstall.lean` + `Inductives/NativeInstallF.lean` |
 //! | `modeled` | `Inductives/Modeled.lean` + the `*F` twins of `Kernel/DeclCheck.lean` |
 //! | `inductives_c` | the two routes' drivers in `Cached/CheckerC.lean` |
-//! | `checker_local` | `Kernel/CheckerBase.lean`'s and `Kernel/DeclCheck.lean`'s shared helpers — **temporary**, see below |
 //!
 //! ## Three deviations that apply to the whole directory
 //!
@@ -54,16 +53,26 @@
 //!    name; the memos are per-call and local, so no memo *policy*
 //!    (DESIGN.md §3.1) is touched.
 //!
-//! ## `checker_local` is owed to task #24
+//! ## What these routes take from the declaration checker
 //!
 //! The install routes sit *on top of* `Kernel/CheckerBase.lean` and
-//! `Kernel/DeclCheck.lean`, which task #24 ports as `kernel/checker*.rs`.
-//! Everything of those two files that an inductive route needs — and nothing
-//! else — is in `checker_local`, each item with its citation and a note; it is
-//! to be unified with task #24's modules (the functions move, the callers keep
-//! their names through a `use`).
+//! `Kernel/DeclCheck.lean`, which are `kernel/checker_base.rs` and
+//! `kernel/decl_check.rs`.  Task #25 landed the pieces it needed in a
+//! temporary `checker_local` module; **task #27 unified it away** — there is
+//! no second spelling of any of them any more:
+//!
+//! | what a route needs | where it is |
+//! |---|---|
+//! | `checkConstantVal`, `checkTypedList`/`checkAnnotList`/`checkDefEqList`, `openPisAtFvars`(`F`), `domsMatchAux` and its `DomView`, `isEqHead`/`eqHeadLevel`, `Env.findCV?`, `checkProjShape`/`checkProjRule`, `unwrapOr`, `fvs.map Expr.fvarTypeD` | `kernel::checker_base` |
+//! | `Expr.allLevelParamsDefined` (spec, memoised `*Go`, executed `*Fast`) | `kernel::expr_ops` (task #13's leftover, closed by task #24) |
+//! | the `deriving DecidableEq`s of the stored-constant records, and `blockRecSuffixDec` | `kernel::env` |
+//! | `eqA` and the guard `env.find? eqName = some eqA` | `kernel::basis_pins`, over task #22's generated `kernel::basis_tables` |
+//!
+//! The one non-identity binder view the directory needs — `checkProjIotaF`'s
+//! forward projection rename — is `modeled::DomProjFwd`, an implementation of
+//! `checker_base::DomView`; the other three sites pass
+//! `checker_base::DomIdent`.
 
-pub mod checker_local;
 pub mod inductives_c;
 pub mod modeled;
 pub mod native_install;

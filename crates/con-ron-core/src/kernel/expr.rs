@@ -510,6 +510,32 @@ pub fn levels_beq_from(ls: &Vec<Level>, rs: &Vec<Level>, i: usize) -> bool {
     }
 }
 
+/// con-leche: none — `List Expr` equality (the `==` of a `List Expr` field)
+/// The twin of `levels_beq` one level up: what Lean's `BEq (List Expr)`
+/// decides, and what the `deriving DecidableEq`s of `Kernel/Env.lean`'s
+/// stored-constant records (`env::rec_rule_fire_beq`, `env::proj_table_beq`)
+/// and the inductive recognisers' `==` conjuncts read.  Entry point of the
+/// index recursion below.
+pub fn exprs_beq(xs: &Vec<Expr>, ys: &Vec<Expr>) -> bool {
+    if xs.len() == ys.len() {
+        exprs_beq_from(xs, ys, 0)
+    } else {
+        false
+    }
+}
+
+/// con-leche: none — the index recursion behind `exprs_beq`
+/// Lean's `List.beq` over `BEq Expr`; no loops (DESIGN.md §3.4).
+pub fn exprs_beq_from(xs: &Vec<Expr>, ys: &Vec<Expr>, i: usize) -> bool {
+    if i >= xs.len() {
+        true
+    } else if beq(&xs[i], &ys[i]) {
+        exprs_beq_from(xs, ys, i + 1)
+    } else {
+        false
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Expr.lean:818-949 Expr.beqGo
 /// The structural descent, in the official kernel's shape: pointer identity,
 /// then the computed word (a mismatch *is* an inequality), then the

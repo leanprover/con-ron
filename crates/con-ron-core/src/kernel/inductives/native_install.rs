@@ -30,6 +30,7 @@
 
 use crate::cached::core_c;
 use crate::cached::state_c::CState;
+use crate::kernel::checker_base;
 use crate::kernel::core_k;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckM;
@@ -40,7 +41,6 @@ use crate::kernel::expr::{BinderMeta, Expr, ExprKind};
 use crate::kernel::expr_ops;
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
-use crate::kernel::inductives::checker_local;
 use crate::kernel::inductives::native_parts;
 use crate::kernel::inductives::native_parts::{NativeParts, RecFieldKind};
 use crate::kernel::inductives::struct_install;
@@ -382,7 +382,7 @@ pub fn native_opened_recursive(
         false
     } else {
         let args: Vec<Expr> = expr_ops::get_app_args(dom);
-        if !struct_parts::exprs_beq(&expr_ops::take_exprs(&args, n_p as usize), fvs_p) {
+        if !expr::exprs_beq(&expr_ops::take_exprs(&args, n_p as usize), fvs_p) {
             false
         } else if args.len() as u64 != n_p + n_idx {
             false
@@ -414,7 +414,7 @@ pub fn native_opened_reflexive(
     dom: &Expr,
 ) -> bool {
     let tele_len: u64 = native_parts::pi_binders(dom).0.len() as u64;
-    match checker_local::open_pis_at_fvars(tele_len, dom, n_p + i) {
+    match checker_base::open_pis_at_fvars_f(tele_len, dom, n_p + i) {
         None => false,
         Some(aq) => {
             if aq.0.len() == 0 {
@@ -429,7 +429,7 @@ pub fn native_opened_reflexive(
                     false
                 } else {
                     let args: Vec<Expr> = expr_ops::get_app_args(&aq.1);
-                    if !struct_parts::exprs_beq(
+                    if !expr::exprs_beq(
                         &expr_ops::take_exprs(&args, n_p as usize),
                         fvs_p,
                     ) {
@@ -510,9 +510,9 @@ pub fn native_opened_ok(
     n_f: u64,
     ks: &Vec<RecFieldKind>,
 ) -> bool {
-    match checker_local::open_pis_at_fvars(n_p, cty, 0) {
+    match checker_base::open_pis_at_fvars_f(n_p, cty, 0) {
         None => false,
-        Some(pq) => match checker_local::open_pis_at_fvars(n_f, &pq.1, n_p) {
+        Some(pq) => match checker_base::open_pis_at_fvars_f(n_f, &pq.1, n_p) {
             None => false,
             Some(xq) => {
                 let resid: Vec<Expr> = core_k::drop_exprs(
@@ -655,7 +655,7 @@ pub fn check_native_rules(
 /// rule; Aeneas answered *"Could not match the contexts"* at the joined
 /// `if`).
 pub fn term_scoped(fe: &FEnv, lps: &Vec<Name>, e: &Expr) -> bool {
-    if checker_local::all_level_params_defined(lps, e) {
+    if expr_ops::all_level_params_defined_fast(lps, e) {
         if core_k::consts_resolve(fe, e) {
             if expr_ops::loose_bvars_bounded(0, e) {
                 !expr_ops::has_fvar(e)
@@ -731,7 +731,7 @@ pub fn check_native_rec(
     } else if !p.rec_pinned {
         Err(core_types::invalid(core_types::code_points(&M_PIN)))
     } else {
-        match checker_local::check_constant_val(mode, st, fe, &p.shape.cv_r) {
+        match checker_base::check_constant_val(mode, st, fe, &p.shape.cv_r) {
             Err(err) => Err(err),
             Ok(cv_ri) => {
                 let ctors: Vec<(Name, u64, Expr, Vec<u64>)> =
@@ -1109,7 +1109,7 @@ pub fn check_native_pass_ctors(
                         Ok(kinds) => {
                             let p: NativeParts = native_parts::with_kinds(pc, kinds);
                             let settled =
-                                checker_local::ind_caps_beq(&native_caps(&p), &expected);
+                                env::ind_caps_beq(&native_caps(&p), &expected);
                             Ok((
                                 NativePass {
                                     env1: fe1,
@@ -1205,7 +1205,7 @@ pub fn check_native_tail_guards(
     if elim_restriction_violated(&q.p) {
         Err(core_types::invalid(core_types::code_points(&M_ELIM)))
     } else {
-        match checker_local::open_pis_at_fvars(
+        match checker_base::open_pis_at_fvars_f(
             q.p.shape.n_p + q.p.shape.n_idx,
             &q.cv_ta.ty,
             0,

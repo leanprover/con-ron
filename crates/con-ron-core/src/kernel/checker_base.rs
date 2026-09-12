@@ -125,42 +125,68 @@ pub fn check_constant_val_after_annot(
 // Telescope helpers (`CheckerBase.lean:99-154`)
 // ---------------------------------------------------------------------------
 
+/// con-leche: none — replaces the `g : Nat → Expr → Expr` argument of `domsMatchAux`
+/// The one-method trait that stands for the cited function argument (task
+/// #9's pattern 1; DESIGN.md §3.4 forbids closures).  Aeneas renders it as a
+/// dictionary threaded through the recursion.
+pub trait DomView {
+    /// con-leche: none — the `g` of `domsMatchAux g`
+    fn view(&self, i: u64, e: &Expr) -> Expr;
+}
+
+/// con-leche: none — `domsMatchAux (fun _ e => e)`, the identity view
+/// The view every call site in this file and three of the four in the
+/// inductive routes pass (`checkProjRule`, `checkEtaThm`, `checkUnitThm`);
+/// the fourth, `checkProjIotaF`, renames
+/// (`kernel::inductives::modeled::DomProjFwd`).
+pub struct DomIdent;
+
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:99-106 domsMatchAux
+impl DomView for DomIdent {
+    /// con-leche: none — `fun _ e => e`
+    fn view(&self, _i: u64, e: &Expr) -> Expr {
+        expr::dup(e)
+    }
+}
+
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:99-106 domsMatchAux
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:120-129 domsMatchAuxA
-/// Compare binder domains at offsets `o1`/`o2` for `n` positions.
+/// Compare binder domains at offsets `o1`/`o2` for `n` positions, the right
+/// side viewed through `g`.
 ///
-/// Two deviations.  **(a)** The cited `Array` twin is the same function here:
+/// One deviation: the cited `Array` twin is the same function here —
 /// con-leche wrote it because `List` indexing is linear per access, and a
-/// `Vec` is already the array — so `domsMatchAux` and `domsMatchAuxA` are one
-/// Rust function, and its `domsMatchAuxA_eq` is the equation between them.
-/// **(b) It is monomorphic at the identity view `g`.**  Every call site in
-/// this task's scope passes `fun _ e => e`; the one that renames
-/// (`checkProjIotaF`) belongs to the inductive-install family, which is not
-/// ported yet.  The abstraction returns with it (task #18's rule for
-/// `liftFueled`: a function argument all of whose call sites agree is
-/// inlined, and a one-method dictionary struct is the pattern when they do
-/// not).
-pub fn doms_match_aux(
+/// `Vec` is already the array, so `domsMatchAux` and `domsMatchAuxA` are one
+/// Rust function and its `domsMatchAuxA_eq` is the equation between them.
+pub fn doms_match_aux<G>(
+    g: &G,
     bs1: &Vec<(Expr, BinderMeta)>,
     bs2: &Vec<(Expr, BinderMeta)>,
     o1: u64,
     o2: u64,
     n: u64,
-) -> bool {
-    doms_match_aux_from(bs1, bs2, o1, o2, n, 0)
+) -> bool
+where
+    G: DomView,
+{
+    doms_match_aux_from(g, bs1, bs2, o1, o2, n, 0)
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:99-106 domsMatchAux
 /// The `(List.range n).all` of the cited function as an index recursion
 /// (task #3's pattern).
-pub fn doms_match_aux_from(
+pub fn doms_match_aux_from<G>(
+    g: &G,
     bs1: &Vec<(Expr, BinderMeta)>,
     bs2: &Vec<(Expr, BinderMeta)>,
     o1: u64,
     o2: u64,
     n: u64,
     i: u64,
-) -> bool {
+) -> bool
+where
+    G: DomView,
+{
     if i >= n {
         true
     } else {
@@ -170,10 +196,13 @@ pub fn doms_match_aux_from(
             false
         } else if j2 >= bs2.len() as u64 {
             false
-        } else if expr::beq(&bs1[j1 as usize].0, &bs2[j2 as usize].0) {
-            doms_match_aux_from(bs1, bs2, o1, o2, n, i + 1)
         } else {
-            false
+            let viewed: Expr = g.view(i, &bs2[j2 as usize].0);
+            if expr::beq(&bs1[j1 as usize].0, &viewed) {
+                doms_match_aux_from(g, bs1, bs2, o1, o2, n, i + 1)
+            } else {
+                false
+            }
         }
     }
 }
@@ -511,7 +540,11 @@ pub fn check_proj_rule(
     n_f: u64,
     i: u64,
 ) -> CheckM<Expr> {
-    match expr_ops::pis_to_lams(n_p + n_f, &cvj.ty, &expr::bvar(n_f - 1 - i)) {
+    match expr_ops::pis_to_lams(
+        n_p + n_f,
+        &cvj.ty,
+        &expr::bvar(expr_ops::sub_nat(n_f, 1 + i)),
+    ) {
         None => Err(core_types::not_implemented({ const M: [u32; 25] = [112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 114, 117, 108, 101, 32, 116, 101, 108, 101, 115, 99, 111, 112, 101]; core_types::code_points(&M) })),
         Some(rhs) => {
             if expr_ops::has_fvar(&rhs) {
@@ -573,13 +606,14 @@ pub fn check_proj_rule_shape(
     match expr_ops::strip_lams(n_p + n_f, &rhs_a) {
         None => Err(core_types::not_implemented({ const M: [u32; 25] = [112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 114, 117, 108, 101, 32, 116, 101, 108, 101, 115, 99, 111, 112, 101]; core_types::code_points(&M) })),
         Some((rbinders, rrbody)) => {
-            if !expr::beq(&rrbody, &expr::bvar(n_f - 1 - i)) {
+            if !expr::beq(&rrbody, &expr::bvar(expr_ops::sub_nat(n_f, 1 + i))) {
                 Err(core_types::not_implemented({ const M: [u32; 20] = [112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 114, 117, 108, 101, 32, 98, 111, 100, 121]; core_types::code_points(&M) }))
             } else {
                 match expr_ops::strip_pis(n_p + n_f, &cvj.ty) {
                     None => Err(core_types::not_implemented({ const M: [u32; 32] = [112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 99, 111, 110, 115, 116, 114, 117, 99, 116, 111, 114, 32, 116, 101, 108, 101, 115, 99, 111, 112, 101]; core_types::code_points(&M) })),
                     Some((cbinders_r, _)) => {
-                        if !doms_match_aux(&rbinders, &cbinders_r, 0, 0, n_p + n_f) {
+                        if !doms_match_aux(&DomIdent, &rbinders, &cbinders_r, 0, 0, n_p + n_f)
+                        {
                             Err(core_types::not_implemented({ const M: [u32; 31] = [112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 114, 117, 108, 101, 32, 100, 111, 109, 97, 105, 110, 32, 109, 105, 115, 109, 97, 116, 99, 104]; core_types::code_points(&M) }))
                         } else {
                             check_proj_rule_certs(mode, st, fe, pty, cvj, n_p, n_f, rhs_a)
@@ -862,10 +896,10 @@ mod tests {
         bs1.push((expr::dup(&a), never_meta()));
         let mut bs2: Vec<(Expr, BinderMeta)> = Vec::new();
         bs2.push((expr::dup(&a), never_meta()));
-        assert!(checker_base::doms_match_aux(&bs1, &bs2, 1, 0, 1));
-        assert!(!checker_base::doms_match_aux(&bs1, &bs2, 0, 0, 1));
+        assert!(checker_base::doms_match_aux(&checker_base::DomIdent, &bs1, &bs2, 1, 0, 1));
+        assert!(!checker_base::doms_match_aux(&checker_base::DomIdent, &bs1, &bs2, 0, 0, 1));
         // out of range is false, and zero positions is vacuously true
-        assert!(!checker_base::doms_match_aux(&bs1, &bs2, 0, 0, 2));
-        assert!(checker_base::doms_match_aux(&bs1, &bs2, 9, 9, 0));
+        assert!(!checker_base::doms_match_aux(&checker_base::DomIdent, &bs1, &bs2, 0, 0, 2));
+        assert!(checker_base::doms_match_aux(&checker_base::DomIdent, &bs1, &bs2, 9, 9, 0));
     }
 }

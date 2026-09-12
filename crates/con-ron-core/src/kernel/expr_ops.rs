@@ -2658,4 +2658,36 @@ mod tests {
         assert!(expr_ops::expr_ptr_beq(&e, &app2(expr::fvar(2, cst("T")), expr::bvar(0))));
         assert!(!expr_ops::expr_ptr_beq(&e, &cst("other")));
     }
+    /// `allLevelParamsDefined` reads the *binder data*'s parameters too, as
+    /// the cited definition does (con-leche task #161), and the memoized
+    /// walk agrees with the specification.  (Task #25's test, moved here with
+    /// the function.)
+    #[test]
+    fn all_level_params_defined_reads_binder_data() {
+        let u = nm("u");
+        let mut ps: Vec<Name> = Vec::new();
+        ps.push(name::dup(&u));
+        let sort_u = expr::sort(level::param(name::dup(&u)));
+        assert!(expr_ops::all_level_params_defined_fast(&ps, &sort_u));
+        assert!(!expr_ops::all_level_params_defined_fast(&Vec::new(), &sort_u));
+        // the datum's parameters count
+        let mut qs: Vec<Name> = Vec::new();
+        qs.push(name::dup(&u));
+        let pi = expr::forall_e(
+            expr::sort(level::zero()),
+            expr::bvar(0),
+            BinderMeta { pw: prop_when::if_all_zero(qs) },
+        );
+        assert!(expr_ops::all_level_params_defined_fast(&ps, &pi));
+        assert!(!expr_ops::all_level_params_defined_fast(&Vec::new(), &pi));
+        // and the executed walk agrees with the specification
+        assert_eq!(
+            expr_ops::all_level_params_defined_fast(&ps, &pi),
+            expr_ops::all_level_params_defined(&ps, &pi)
+        );
+        assert_eq!(
+            expr_ops::all_level_params_defined_fast(&Vec::new(), &pi),
+            expr_ops::all_level_params_defined(&Vec::new(), &pi)
+        );
+    }
 }

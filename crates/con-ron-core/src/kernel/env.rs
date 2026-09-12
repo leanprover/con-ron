@@ -12,14 +12,21 @@
 //!   con-leche's own "newest first": index `0` is the most recently
 //!   installed constant, and `find?` is the linear search over that order,
 //!   exactly as `List.find?` is.
-//! * **No derived equality, no `Repr`, no `Inhabited`.**  `deriving
-//!   DecidableEq` on these records is used by con-leche only in `Prop`s and
-//!   in the block-partition decision it *substitutes away*
-//!   (`blockRecSuffixDec`, `Env.lean:737`, whose whole point is that the tag
-//!   pass `recsFormSuffix` decides it without comparing an expression); the
-//!   executable comparisons the checker does are `Name.beq`, `Expr.beq` and
-//!   the `==` inside `sameRegular`, and those are ported.  DESIGN.md §3.4:
-//!   derive nothing you do not need.
+//! * **No `Repr`, no `Inhabited`, and the derived equality written out by
+//!   hand.**  `deriving DecidableEq` on these records has two executable
+//!   consumers and no more: the block-partition decision con-leche
+//!   *substitutes away* (`blockRecSuffixDec`, `Env.lean:737`, whose whole
+//!   point is that the tag pass `recsFormSuffix` decides it without
+//!   comparing an expression — `block_rec_suffix_ok` below), and the **two
+//!   pinned-basis guards that compare a whole stored `ConstantInfo`**
+//!   (`env.find? eqName = some eqA`, `env.find? natName = some natA`; see
+//!   `crate::kernel::basis_pins`).  §3.4 forbids the `derive`, and a derived
+//!   `PartialEq` would compare the `Rc` trees structurally with no pointer
+//!   fast path, so the instances are spelled out as the `*_beq` family
+//!   below, componentwise in the cited field order, over the crate's own
+//!   `name::beq`/`expr::beq`/`level::beq`/`prop_when::beq` (§3.2).
+//!   Everything else the checker compares is `Name.beq`, `Expr.beq` and the
+//!   `==` inside `sameRegular`.
 //! * **An explicit `*_dup` per type** rather than `#[derive(Clone)]`, as
 //!   `nat.rs`/`name.rs`/`expr.rs` do.  A `dup` of a `Name`, `Level`, `Expr`
 //!   or `PropWhen` is an `Rc` bump; a `dup` of a record copies its `Vec`s.
@@ -569,6 +576,297 @@ pub fn constant_infos_copy_from(
     }
 }
 
+// ---------------------------------------------------------------------------
+// The derived structural equalities (`deriving DecidableEq` on the records
+// above) — what the two pinned-basis guards read (`kernel::basis_pins`)
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/Env.lean:196-201 ConstantVal
+/// Lean's `deriving DecidableEq` on `ConstantVal`, componentwise in the cited
+/// field order.  The `Name`/`Expr` comparisons are the crate's own, with
+/// their pointer fast paths (DESIGN.md §3.2).
+pub fn constant_val_beq(a: &ConstantVal, b: &ConstantVal) -> bool {
+    if name::beq(&a.name, &b.name) {
+        if prop_when::names_beq(&a.level_params, &b.level_params) {
+            expr::beq(&a.ty, &b.ty)
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:203-247 RecRuleFire
+/// Lean's `deriving DecidableEq` on `RecRuleFire`: different constructors are
+/// unequal, `.nested` componentwise.
+pub fn rec_rule_fire_beq(a: &RecRuleFire, b: &RecRuleFire) -> bool {
+    match a {
+        RecRuleFire::Inert => match b {
+            RecRuleFire::Inert => true,
+            _ => false,
+        },
+        RecRuleFire::Plain => match b {
+            RecRuleFire::Plain => true,
+            _ => false,
+        },
+        RecRuleFire::Nested(l1, p1) => match b {
+            RecRuleFire::Nested(l2, p2) => {
+                if expr::levels_beq(l1, l2) {
+                    expr::exprs_beq(p1, p2)
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:249-292 RecRule
+/// Lean's `deriving DecidableEq` on `RecRule`, componentwise — the five
+/// install-computed fields (`ctor_params`, `fire`, `k`, `eta`,
+/// `params_blind`) included, because the guard compares the *stored* rule.
+pub fn rec_rule_beq(a: &RecRule, b: &RecRule) -> bool {
+    if name::beq(&a.ctor, &b.ctor) {
+        if a.nfields == b.nfields {
+            if a.ctor_params == b.ctor_params {
+                if rec_rule_fire_beq(&a.fire, &b.fire) {
+                    if expr::beq(&a.rhs, &b.rhs) {
+                        if a.k == b.k {
+                            if a.eta == b.eta {
+                                a.params_blind == b.params_blind
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:249-292 RecRule
+/// The `List.beq` over `BEq RecRule` of `recInfo`'s `rules` field.
+pub fn rec_rules_beq(a: &Vec<RecRule>, b: &Vec<RecRule>) -> bool {
+    if a.len() == b.len() {
+        rec_rules_beq_from(a, b, 0)
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:249-292 RecRule
+/// The index recursion behind `rec_rules_beq`.
+pub fn rec_rules_beq_from(a: &Vec<RecRule>, b: &Vec<RecRule>, i: usize) -> bool {
+    if i >= a.len() {
+        true
+    } else if rec_rule_beq(&a[i], &b[i]) {
+        rec_rules_beq_from(a, b, i + 1)
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:312-322 ReducibilityHint
+/// Lean's `deriving DecidableEq` on `ReducibilityHint`.
+pub fn reducibility_hint_beq(a: &ReducibilityHint, b: &ReducibilityHint) -> bool {
+    match a {
+        ReducibilityHint::Opaque => match b {
+            ReducibilityHint::Opaque => true,
+            _ => false,
+        },
+        ReducibilityHint::Abbrev => match b {
+            ReducibilityHint::Abbrev => true,
+            _ => false,
+        },
+        ReducibilityHint::Regular(h1) => match b {
+            ReducibilityHint::Regular(h2) => h1 == h2,
+            _ => false,
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:357-384 IndCaps
+/// Lean's `deriving DecidableEq` on `IndCaps`, componentwise — the
+/// result-sort zero-ness datum `sort_z` through `prop_when::beq`.
+pub fn ind_caps_beq(a: &IndCaps, b: &IndCaps) -> bool {
+    if a.eta == b.eta {
+        if name::beq(&a.eta_ctor, &b.eta_ctor) {
+            if a.eta_params == b.eta_params {
+                if a.eta_fields == b.eta_fields {
+                    if a.unitlike == b.unitlike {
+                        if a.unit_params == b.unit_params {
+                            if a.rule_k == b.rule_k {
+                                prop_when::beq(&a.sort_z, &b.sort_z)
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:386-441 ProjTable
+/// Lean's `deriving DecidableEq` on `ProjTable`, componentwise in the cited
+/// field order (`bodies` before `guards`, `off` last).
+pub fn proj_table_beq(a: &ProjTable, b: &ProjTable) -> bool {
+    if name::beq(&a.struct_name, &b.struct_name) {
+        if prop_when::names_beq(&a.level_params, &b.level_params) {
+            if a.num_params == b.num_params {
+                if name::beq(&a.ctor, &b.ctor) {
+                    if a.num_fields == b.num_fields {
+                        if level::beq(&a.struct_sort, &b.struct_sort) {
+                            if expr::exprs_beq(&a.bodies, &b.bodies) {
+                                if expr::levels_beq(&a.guards, &b.guards) {
+                                    a.off == b.off
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:470-496 ConstantInfo
+/// Lean's `deriving DecidableEq` on `ConstantInfo` — **the equality the two
+/// pinned-basis guards read** as `env.find? eqName == some eqA` and
+/// `decide (env.find? natName = some natA)`
+/// (`Kernel/StdAxioms.lean:346`, `Kernel/TrustAxioms.lean:180`,
+/// `Kernel/Checker.lean:284,528`,
+/// `Kernel/Inductives/Modeled.lean:448,493,603,653`).  Different
+/// constructors are unequal; each arm is componentwise.
+///
+/// It is a *whole-constant* comparison, not `ConstantVal.matchesPin`: the
+/// other seventeen annotated basis pins are consumed up to `Expr.erasePw`
+/// and so need no table at all (task #24's note in
+/// `std_axioms`/`trust_axioms`), while these two read the capabilities and
+/// the recursor rules too.
+pub fn constant_info_beq(a: &ConstantInfo, b: &ConstantInfo) -> bool {
+    match a {
+        ConstantInfo::AxiomInfo(v1) => match b {
+            ConstantInfo::AxiomInfo(v2) => constant_val_beq(v1, v2),
+            _ => false,
+        },
+        ConstantInfo::DefnInfo(v1, e1, h1) => match b {
+            ConstantInfo::DefnInfo(v2, e2, h2) => {
+                if constant_val_beq(v1, v2) {
+                    if expr::beq(e1, e2) {
+                        reducibility_hint_beq(h1, h2)
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        },
+        ConstantInfo::ThmInfo(v1, e1) => match b {
+            ConstantInfo::ThmInfo(v2, e2) => {
+                if constant_val_beq(v1, v2) {
+                    expr::beq(e1, e2)
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        },
+        ConstantInfo::IndInfo(v1, c1) => match b {
+            ConstantInfo::IndInfo(v2, c2) => {
+                if constant_val_beq(v1, v2) {
+                    ind_caps_beq(c1, c2)
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        },
+        ConstantInfo::CtorInfo(v1, p1, f1) => match b {
+            ConstantInfo::CtorInfo(v2, p2, f2) => {
+                if constant_val_beq(v1, v2) {
+                    if p1 == p2 {
+                        f1 == f2
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        },
+        ConstantInfo::RecInfo(v1, m1, r1, rs1) => match b {
+            ConstantInfo::RecInfo(v2, m2, r2, rs2) => {
+                if constant_val_beq(v1, v2) {
+                    if m1 == m2 {
+                        if r1 == r2 {
+                            rec_rules_beq(rs1, rs2)
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        },
+        ConstantInfo::ProjInfo(t1) => match b {
+            ConstantInfo::ProjInfo(t2) => proj_table_beq(t1, t2),
+            _ => false,
+        },
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Env.lean:499-528 Declaration
 /// A declaration presented to the checker.  `indDecl` carries the parameter
 /// count the *stream declares* (con-leche task #228), checked by
@@ -887,6 +1185,17 @@ pub fn all_rec_info_from(block: &Vec<ConstantInfo>, i: usize) -> bool {
     } else {
         false
     }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:736-742 blockRecSuffixDec
+/// con-leche: ConLeche/Kernel/Env.lean:670-675 recsFormSuffix
+/// The substituted decision behind `@decide _ (blockRecSuffixDec block)`: the
+/// recursors form a suffix of the block.  `recsFormSuffix_iff` is the cited
+/// equivalence that licenses deciding it by the tag pass instead of by the
+/// derived `DecidableEq (List ConstantInfo)`, which would compare DAG-shared
+/// towers as trees.
+pub fn block_rec_suffix_ok(block: &Vec<ConstantInfo>) -> bool {
+    recs_form_suffix(block)
 }
 
 #[cfg(test)]

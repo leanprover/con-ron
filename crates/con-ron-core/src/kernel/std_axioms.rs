@@ -584,17 +584,6 @@ pub fn choice_raw() -> ConstantVal {
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:322-373 stdAxiomOk
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
-/// Is the pinned `Eq` basis stored?  `decide (env.find? eqName = some eqA)`,
-/// through the index and through `basis_pins`' stub (see that module).
-pub fn eq_basis_pinned(fe: &FEnv) -> bool {
-    match fenv::find(fe, &basis_names::eq_name()) {
-        Some(ci) => basis_pins::is_pinned_eq_basis(ci),
-        None => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:322-373 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
 /// The stored `Iff` type former against the pin.  Factored out of the guard's
 /// `&&` cascade (task #3's pattern 9), so each `match` on a lookup ends
 /// before the next one begins (task #14's borrow rule).
@@ -714,7 +703,7 @@ pub fn nonempty_rec_pinned(fe: &FEnv) -> bool {
 /// function, and the pins compared against are the raw ones (module note).
 pub fn std_axiom_ok(fe: &FEnv, cv_a: &ConstantVal) -> bool {
     if name::beq(&cv_a.name, &propext_name()) {
-        if eq_basis_pinned(fe) {
+        if basis_pins::eq_basis_pinned(fe) {
             if iff_pinned(fe) {
                 if iff_intro_pinned(fe) {
                     if iff_rec_pinned(fe) {
@@ -753,6 +742,7 @@ pub fn std_axiom_ok(fe: &FEnv, cv_a: &ConstantVal) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::kernel::basis_builder;
+    use crate::kernel::basis_pins;
     use crate::kernel::env;
     use crate::kernel::env::{ConstantInfo, ConstantVal, Env};
     use crate::kernel::expr;
@@ -845,7 +835,7 @@ mod tests {
         assert!(std_axioms::iff_intro_pinned(&fe_ok));
         // …and the pinned `Eq` basis is not there, so `stdAxiomOk` still says
         // no (`basis_pins`' stub; task #22 supplies the table)
-        assert!(!std_axioms::eq_basis_pinned(&fe_ok));
+        assert!(!basis_pins::eq_basis_pinned(&fe_ok));
         let propext: ConstantVal = std_axioms::propext_raw();
         assert!(!std_axioms::std_axiom_ok(&fe_ok, &propext));
         // an unrelated name is never a standard axiom

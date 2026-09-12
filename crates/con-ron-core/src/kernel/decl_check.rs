@@ -46,7 +46,9 @@
 
 use crate::cached::state_c::CState;
 use crate::kernel::basis_names;
+use crate::kernel::basis_pins;
 use crate::kernel::checker_base;
+use crate::kernel::checker_base::DomIdent;
 use crate::kernel::core_k;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckM;
@@ -63,7 +65,6 @@ use crate::kernel::level::Level;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
-use crate::kernel::std_axioms;
 use crate::ron::hashmap::HashMap;
 use std::vec::Vec;
 
@@ -394,7 +395,7 @@ pub fn check_eta_thm(
             Some((cvm_t, _, _)) => match core_k::defn_probe(fe, &model_name(ctor_name)) {
                 None => false,
                 Some((cvm_c, _, _)) => {
-                    if !std_axioms::eq_basis_pinned(fe) {
+                    if !basis_pins::eq_basis_pinned(fe) {
                         false
                     } else if !prop_when::names_beq(&tcv.level_params, lps) {
                         false
@@ -432,7 +433,7 @@ pub fn eta_telescope_ok(
         Some((sbinders, sbody)) => match expr_ops::strip_pis(n_p, &cvm_t.ty) {
             None => false,
             Some((tbinders_m, tbody_m)) => {
-                if !checker_base::doms_match_aux(&sbinders, &tbinders_m, 0, 0, n_p) {
+                if !checker_base::doms_match_aux(&DomIdent, &sbinders, &tbinders_m, 0, 0, n_p) {
                     false
                 } else if n_p >= sbinders.len() as u64 {
                     false
@@ -465,7 +466,7 @@ pub fn check_unit_thm(
         Some(tcv) => match core_k::defn_probe(fe, &model_name(t)) {
             None => false,
             Some((cvm_t, _, _)) => {
-                if !std_axioms::eq_basis_pinned(fe) {
+                if !basis_pins::eq_basis_pinned(fe) {
                     false
                 } else if !prop_when::names_beq(&tcv.level_params, lps) {
                     false
@@ -496,7 +497,7 @@ pub fn unit_telescope_ok(
         Some((sbinders, sbody)) => match expr_ops::strip_pis(n_p, &cvm_t.ty) {
             None => false,
             Some((tbinders_m, tbody_m)) => {
-                if !checker_base::doms_match_aux(&sbinders, &tbinders_m, 0, 0, n_p) {
+                if !checker_base::doms_match_aux(&DomIdent, &sbinders, &tbinders_m, 0, 0, n_p) {
                     false
                 } else if n_p + 1 >= sbinders.len() as u64 {
                     false
@@ -669,7 +670,7 @@ pub fn check_proj_lookups(
                             Err(core_types::invalid({ const M: [u32; 21] = [112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 110, 97, 109, 101, 32, 116, 97, 107, 101, 110]; core_types::code_points(&M) }))
                         } else if fenv::find(fe, t).is_none() {
                             Err(core_types::not_implemented({ const M: [u32; 28] = [112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 112, 97, 114, 101, 110, 116, 32, 110, 111, 116, 32, 115, 116, 111, 114, 101, 100]; core_types::code_points(&M) }))
-                        } else if !std_axioms::eq_basis_pinned(fe) {
+                        } else if !basis_pins::eq_basis_pinned(fe) {
                             Err(core_types::not_implemented({ const M: [u32; 44] = [112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 105, 111, 116, 97, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 116, 104, 101, 32, 112, 105, 110, 110, 101, 100, 32, 69, 113, 32, 98, 97, 115, 105, 115]; core_types::code_points(&M) }))
                         } else {
                             Ok((cvj, mcv))
