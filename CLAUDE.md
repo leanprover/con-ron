@@ -13,6 +13,13 @@ section for every task you land.
 * Rust style rules for Aeneas are in `DESIGN.md` §3.4 and enforced by
   `scripts/lint-rust-style.sh` and `scripts/provenance.py check`
   (DESIGN.md §3.7).
+* **`scripts/gates.sh` is the one command every task must run before
+  committing**: `cargo build`, `cargo test`, the style lint, the provenance
+  check, `scripts/extract.sh --check` and `cd proof && lake build`, in that
+  order, one OK/FAIL line each, stopping at the first failure.
+* The Lean model of the crate is *committed*, under `proof/ConRon/Generated/`;
+  regenerate it with `scripts/extract.sh` whenever `crates/con-ron-core`
+  changes, and commit the result in the same commit.
 * Large artifacts (exports, scratch builds) go to `_tmp/` (gitignored).
   Use `timeout` on every checker run and `ulimit -v` when a run may OOM.
 * Commit often; the maintainer pushes and opens PRs.
