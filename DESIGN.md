@@ -277,10 +277,18 @@ computes on the abstracted inputs; nothing is claimed when Rust fails.
 Exactness is needed because Boolean and `Option Bool` outcomes feed
 branches on both sides; the accept-direction statement of §1 is a corollary
 of exactness at every level.  Stored derived data (hash words) is governed
-by a hereditary well-formedness predicate (`NameWF`, `LevelWF`, `NodeWF`:
-the word equals the model's own hash formula of the children, code points
-are valid `Char`s), preserved by every constructor, under which `abs` is
-injective and `beq` is exact.  Forward reasoning from `ok`:
+by a hereditary well-formedness predicate (`NameWF`, `LevelWF`, `NodeWF`),
+under which `abs` is injective and `beq` is exact.  **Such a predicate is
+written as an *inductive* one whose constructors are the port's own smart
+constructors** (task #5): `NameWF.str : NameWF pre → StrWF s →
+name.mk_str pre s = ok n → NameWF n`, and so on.  It says "this node is
+what the smart constructor built", which pins the stored word to the
+children without the proofs ever naming a hash formula, makes the
+constructor-preservation lemmas literally the constructors, and gives
+injectivity of `abs` from the fact that a smart constructor is a function.
+The one extra clause is the one no equation supplies: every code point
+stored in a `Str` node is a valid `Char` (`Nat.isValidChar`), without which
+`absString` is not injective.  Forward reasoning from `ok`:
 
 ```lean
 theorem whnf_refines (fuel st e st' r) (hwf : StateWF st)
@@ -1494,3 +1502,186 @@ prose.
 (`Types.lean` 203, `Funs.lean` 3 318, two templates).  `charon cargo` is
 still a no-op on a warm cargo cache (task #7), so `cargo clean` comes first;
 the `.llbc` still lands at the workspace root.
+
+### Task #5 — Lemma-shape spike: `Level`/`Name` refinement proved (2026-09-12, Opus under Fable)
+
+P0.4's second half and the dry run for P3: the 27 `sorry`s Fable left in
+`proof/ConRon/Spike/LevelName/Refine.lean` are gone.  Every statement she
+wrote is proved, with the conclusions verbatim; the three changes to
+*hypotheses* are listed below.  `lake build` is clean of errors **and
+warnings**, and
+
+```lean
+#guard_msgs in #print axioms leq_refines        -- propext, Classical.choice, Quot.sound
+#guard_msgs in #print axioms simplify_refines   -- idem
+#guard_msgs in #print axioms level_beq_exact    -- idem
+```
+
+is a committed gate at the end of the file.  Nothing from Aeneas's library,
+nothing from the `Rc` models.
+
+**Size.**
+
+| | |
+|---|---|
+| `Refine.lean` before (statements only) | 111 |
+| `Refine.lean` after | **1 830** |
+| ... signature/statement lines | 323 |
+| ... tactic lines | 1 378 |
+| ... declarations | 108 |
+| Rust ported (`src/name.rs` + `src/level.rs`, code lines, task #3) | 502 |
+| generated `Funs.lean` | 1 354 |
+| Lean ported from con-leche (code lines) | 197 |
+| `lake build` of `Refine.lean`, cold | **5.5 s** (whole project from scratch: 14 s) |
+
+So the proof is **3.6× the Rust code, 1.35× the generated Lean, 9× the
+con-leche source** — but that ratio is the wrong one to extrapolate (below).
+
+**Section split.** Lines 1–601 are *one-off infrastructure*: the monadic
+plumbing, the smart-constructor inversion lemmas, `NameWF`/`LevelWF`,
+`absString`/`absName`/`absLevel` injectivity, `str_eq`, `beq` (reflexivity,
+soundness, exactness) and two hand-rolled structural induction principles.
+Lines 602–1717 are the actual per-function refinements; 1718–1830 restate
+them under Fable's names and run the axiom census.  The largest single
+proofs: `rest_refines_aux` 268 lines, `absLevel_injective` 115,
+`level_beq_abs` 108, `leq_core_refines_aux` 74, `subst_go_refines` 65,
+`combining_refines` 64, `simplify_refines'` 60, `by_cases_refines_aux` 57.
+
+**Changes to the statements** (conclusions untouched):
+
+1. **`NameWF`/`LevelWF` are inductive predicates, not `def`s**, and they say
+   "this node is what the port's own smart constructor built" rather than
+   "the stored word equals *this formula*".  See the §3.5 amendment above.
+   The pay-off: `level_zero_wf … level_param_wf` are *literally the five
+   constructors*, `absLevel_injective`'s hash argument is
+   `Result.ok_injective (h₁.symm.trans h₂)`, and `name.mix_hash` never
+   appears in a proof — no totality lemma for it was needed at all.
+2. **`subst_refines` needs `hks : ∀ k ∈ ks.val, NameWF k`.**  Fable's version
+   only assumed the *values* well-formed.  It is not provable as written, and
+   not for a technical reason: `subst_go` decides which value to take with
+   `name.beq ks[i] n`, whose exactness needs the *key*'s hash word correct.
+   An ill-formed key with a wrong stored hash makes the Rust walk skip a
+   substitution con-leche performs.
+3. **`vs.toList` → `vs.val`** (and `ks.toList` → `ks.val`).  Aeneas's
+   `alloc.vec.Vec` has no `toList`; its list projection is `Vec.val`.  A
+   convention for §3.5: refinement statements about `Vec` arguments quantify
+   over `.val`.
+
+Plus one non-change worth recording: `rest_refines`, `by_cases_refines` and
+`leq_core_refines` are stated *without* an induction hypothesis, exactly as
+Fable wrote them.  Internally they are corollaries of one
+`leq_core_refines_aux (N : Nat) : ∀ fuel, fuel.val = N → LeqCoreSpec fuel`
+proved by strong induction on `N`, where `abbrev LeqCoreSpec fuel` packages
+the `leq_core` statement at one fuel value.  The cascade
+`rest → imax_rules → by_cases_left/right → by_cases`, and
+`imax_rules → imax_rules_distrib → imax_rules_distrib_right`, has **no cycle
+inside one fuel step**, so those seven are plain lemmas taking
+`hQ : LeqCoreSpec fuel` as an argument and composing in dependency order; only
+`leq_core` itself consumes the induction, at `fuel - 1`.  No `dspec`, no
+admissibility, no `partial_fixpoint` reasoning anywhere.
+
+**What carried the weight.**
+
+* **A five-lemma local `simp` set is the single highest-leverage thing in the
+  file**: `bind_eq_ok_iff` (`(do let x ← e; f x) = ok v ↔ ∃ y, e = ok y ∧
+  f y = ok v`, proved in four lines by `cases` on the ITree and marked
+  `@[simp]`), plus `ok`-equations for the four `Rc` models, `Aeneas.Std.lift`,
+  `level.dup` and `name.dup`.  With them, `rw [f.eq_def] at h; simp at h`
+  turns an entire Rust function body into a nest of existentials and
+  disjunctions in one step — including the `if`/`match` splits.  This belongs
+  in a shared `ConRon/Refine/Basic.lean` for the real port.
+* **Lean's own equation lemmas carry the arm-order side conditions.**  For a
+  definition with overlapping `match` patterns (`ConLeche.Level.rest`,
+  `imaxRules`, `subst.go`), `rw [ConLeche.Level.rest]` picks the first
+  matching arm *and emits "the earlier patterns do not match" as extra
+  goals*, which `simp_all` discharges.  That made 13 `rest` arm-selection
+  lemmas and 5 `imaxRules` arm-selection lemmas one-liners each, and it is
+  why the arm-order deviation of task #3 (`imaxRules` as a four-function
+  cascade) costs almost nothing to prove: the Rust cascade's guards are
+  exactly those side conditions.  **Recommended pattern: for every con-leche
+  function with overlapping patterns, write its arm-selection lemmas first,
+  as `rw [f] <;> simp_all` one-liners, then do the Rust-side case analysis
+  against them.**
+* `scalar_tac` for every index, fuel and `diff` bound (never `omega` on a
+  scalar goal; the file's single `omega` is on a pure `Nat` subtraction).
+* `WP.spec_imp_exists` to turn Aeneas's `⦃ ⦄` specs (`Vec.index_usize_spec`,
+  `Vec.push_spec`, `Usize.add_spec`, `U64.sub_spec`) into the forward
+  `∃ y, f x = ok y ∧ P y` form.  **`step` was never usable**: it wants a
+  `⦃ ⦄` goal, and these proofs are forward from a hypothesis
+  `h : rust … = ok o` towards `lean … = o`.  The `⦃ ⦄`/`step` tier and the
+  refinement tier are two different proof styles; ours needs the `spec`
+  lemmas only as a source of "this call succeeds and returns *that*".
+* `IScalar.add_equiv`/`sub_equiv` and `UScalar.sub_equiv` for `diff ± 1` and
+  `fuel - 1`: from `x + y = ok z` they give `z.val = x.val + y.val`, which is
+  all the overflow reasoning the refinement needs (overflow makes the
+  hypothesis false, so there is nothing to prove).
+* Hand-rolled structural induction principles `Level.ind'` / `Name.ind'`
+  (12 lines each) over the port's three-type `Kind`/`Node`/wrapper mutual
+  inductive, so that `induction u using Level.ind'` skips the `Rc` and the
+  node layer.  Aeneas's `partial_fixpoint` definitions give no induction
+  principle of their own, so **every structural refinement is an induction on
+  the argument, not on the function** — either on this recursor or on the
+  `LevelWF` derivation when the proof needs the WF hypotheses in step.
+* `#setup_aeneas_simps` was *not* needed (no `getElem!` in this code).
+
+**What was awkward in the generated code.**
+
+1. **`&&` expansion (task #3, item 9) shows up as duplicated proof
+   obligations.**  `rest`'s `Imax`/`Imax` arm is `beq a x && beq b y &&
+   diff ≥ 0` in the Lean and a four-way `if` nest in `Funs.lean`; after
+   `simp` the hypothesis is a three-way disjunction in which
+   `level.imax_rules … = ok o` appears *three times*.  Harmless but it
+   triples that arm.  Confirms the §3.4 advice to write the `if` nest
+   explicitly — it does not remove the duplication, but it keeps the shape
+   predictable.
+2. **The 5×5 `match` explosion.**  `level.beq`, `level.rest` and
+   `level.combining` each translate to 25 arms because Charon expands nested
+   matches, and the proofs mirror that one-for-one: `rest_refines_aux` is 268
+   lines for 25 cases (generated by a script with seven distinct case
+   bodies), `level_beq_abs` 108 lines.  This is the dominant cost driver and
+   it is *structural*, not accidental.
+3. `have i1 := s.len; if … ` — Aeneas hoists `Vec::len` into a `let_fun`,
+   which blocks `split`.  `simp only []` first.
+4. `Aeneas.Std.lift` wrapping pure operations (`wrapping_mul`, `^^^`,
+   `UScalar.cast`) needs its own `@[simp]` unfolding, and `alloc.vec.Vec`
+   has no `toList`.
+5. Every `*_from` index loop (§3.4's `Vec` convention) costs one induction on
+   `len - i`, with the conclusion stated on `List.drop i` so that `i = 0`
+   collapses to the whole list.  `str_eq` needed two (reflexivity and
+   soundness), `subst_go` one.  Reusable shape, ~20–65 lines each.
+
+**Assessment of the per-function proof cost for the full port.**  Three
+numbers, in increasing order of usefulness:
+
+* Naive: 1.35 proof lines per generated Lean line ⇒ ~190k lines for §4's
+  ≈145k generated lines.  This is wrong: a third of this file is one-off.
+* Marginal, by line: 1 117 lines of actual per-function refinement for 502
+  Rust code lines ⇒ **≈ 2.2 proof lines per Rust line**, ≈ 55k Rust lines
+  in §4's extrapolation ⇒ **~120k**.  Still pessimistic, because `Level` is
+  unusually branchy (three 5×5 matches in 500 lines).
+* By function: 40 refinement lemmas, median **~20 lines**, and the
+  distribution is bimodal — a structurally recursive function over one
+  scrutinee costs 20–60 lines (`level_has_param` 25, `is_never_zero` 17,
+  `simplify` 60, `subst` 46), a function matching on *two* scrutinees costs
+  60–270 (`combining` 64, `beq` 108, `rest` 268).  con-leche's hot path has
+  far fewer two-scrutinee matches per line than `Level.lean` does
+  (`whnfCore`/`infer` branch on one expression at a time; `defEq` is the
+  exception and it is exactly the place to watch).
+
+My estimate for the ≈22k-line verified core is therefore **8–20k proof
+lines**, i.e. the same order as con-leche's own `Verify/Cached/*` tier
+(§4's guess) — *provided* the one-to-one mirroring rule holds and the memo
+tier's hard work stays on the con-leche side.  The tail risk is concentrated
+in `defEq` and the inductive routes, where two-scrutinee matches are the norm.
+The infrastructure this task built (the simp set, the WF pattern, the
+induction principles, the arm-selection-lemma technique, the index-loop
+shape) is written once and reused, and a second agent given those five
+patterns should be able to prove a module without design decisions — the same
+claim task #3 made for the porting side, and it held here.
+
+**Left for next time.**  The `ConRon/Refine/Basic.lean` factoring (today the
+simp set lives at the top of `Refine.lean`); a `Vec.toList`-style convention
+note in §3.4; and `is_equiv_list`, `is_zero`, `is_non_zero`,
+`all_params_defined`, `name_nodup`, `levels_hash`, `levels_have_param` and the
+three string-shape predicates are ported but unproved — Fable did not state
+them, and they are all instances of the patterns above.

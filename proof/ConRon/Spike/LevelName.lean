@@ -14,3 +14,4 @@ import ConRon.Spike.LevelName.TypesExternal
 import ConRon.Spike.LevelName.Funs
 import ConRon.Spike.LevelName.FunsExternal
 import ConRon.Spike.LevelName.Abs
+import ConRon.Spike.LevelName.Refine
