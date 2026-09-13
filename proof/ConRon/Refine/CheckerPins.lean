@@ -190,6 +190,35 @@ here.
    two `orElse` obligations travelled with it until task #65 removed them,
    and task #67 proves what they assumed rather than restoring them.
 
+## The full outcome, and the three blocks it had to name (task #67)
+
+DESIGN.md §3's ruling of 2026-09-13: every `*_refines` here is stated over the
+Rust computation's **whole** inner outcome — `.Ok` is the pre-#67 accept
+statement verbatim, `.Err e` is `ErrSim e <the cited run>`, and a `Native`
+error claims nothing.  Every `CheckError` site this file's functions reach is
+mirrored except the port's own `CheckError::Native` at `OrElseStep::Failed`
+(§1) and `core_k::nat_op_result`'s two shift amounts, so every failure arm
+below is *proved*.
+
+Three of the lemmas had no con-leche **function** to point at on the failure
+side, because the cited code is inline, so the fragment is named here and the
+failure arm is stated over it:
+
+* `reduceIdentityCertF` — `checkReducePinF`'s identity certificate together
+  with the `throw (.internal …)` that follows a `false` (`Checker.lean:398-406`);
+* `structuralNatBlockF` — `checkDeclC`'s inlined structural-`Nat` block
+  (`Cached/ParsedC.lean:165-181`), with `structuralNatBlockF_run_ok` assembling
+  its successful run from the three facts the accept arm hands back;
+* `defnPinsBlockF` — the `.defnDecl` arm's two pinned-`Nat` gates in sequence
+  (`Cached/ParsedC.lean:164-183`), which is what `checker::check_defn_pins` is.
+
+`certify_nat_eqs_err_step` is `certify_nat_eqs_step`'s failure twin;
+`certifyNatEqs` has no `throw` of its own, so it is move 1 all the way down.
+
+No outcome binder here was ever explicit, so no `*_refines_ok` corollary is
+needed and no call site changes: at `.Ok r` each `match` reduces definitionally
+to the statement callers already pass.
+
 `sorry` count in this file: 0.
 -/
 open Aeneas Aeneas.Std Result
@@ -4560,6 +4589,28 @@ def structuralNatBlockF (ops : ConLeche.CheckerOps ConLeche.Cached.CheckCM)
       throw (.notImplemented s!"nonstandard structural Nat operation ({c})")
   | _ => throw (.internal s!"structural Nat operation not stored ({c})")
 
+/-- The block **run**, assembled from the three facts
+`check_structural_nat_pin_refines`' accept arm hands back: the guard passes,
+the operation is stored as a definition, and its equations certify.  This is
+what a caller needs when it must place the block's *successful* run in front of
+something else — `check_defn_pins_refines`' failure half is the one place. -/
+theorem structuralNatBlockF_run_ok
+    {ops : ConLeche.CheckerOps ConLeche.Cached.CheckCM} {lfe2 : ConLeche.FEnv}
+    {lenv : ConLeche.Env} {c : ConLeche.Name}
+    {lst lst' : ConLeche.Cached.CState} {cvL : ConLeche.ConstantVal}
+    {value' : ConLeche.Expr} {hintL : ConLeche.ReducibilityHint}
+    (hg : ConLeche.natOpGuardF lfe2 c = true)
+    (hd : ((ConLeche.natOpDeps c).all (ConLeche.natOpStoredOkF lfe2)) = true)
+    (hf : lfe2.find? c = some (.defnInfo cvL value' hintL))
+    (hcert : (ConLeche.certifyNatEqs ops lenv
+        ((ConLeche.natOpEquations 0 c).map fun eq =>
+          (ConLeche.Expr.substConst0 c value' eq.1,
+           ConLeche.Expr.substConst0 c value' eq.2))).run lst = .ok (true, lst')) :
+    (structuralNatBlockF ops lfe2 lenv c).run lst = .ok ((), lst') := by
+  simp only [structuralNatBlockF, hg, hd, Bool.and_self, if_true, StateT.run_bind,
+    pure_bind, hf, hcert, except_ok_bind]
+  rfl
+
 /-- `ConLeche/Kernel/Checker.lean:419-562 checkDecl`'s inlined structural-`Nat`
 block, `ConLeche/Cached/ParsedC.lean:164-181` at the index —
 **`checker::check_structural_nat_pin` refines it**: the operation and its
@@ -4778,24 +4829,33 @@ theorem check_structural_nat_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
 `ConLeche/Cached/ParsedC.lean:182-183` — **`checker::check_defn_div_mod_pin`
 refines the cited `if natDivModNames.contains cv.name then checkDivModPinF …`**.
 A name outside the table is the `else` arm's `pure ()`, and the index comes
-back unchanged. -/
+back unchanged.  **The whole outcome** (task #67): the dispatch throws nothing
+of its own, so a mirrored failure is `check_div_mod_pin`'s, carried through. -/
 theorem check_defn_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    {st st' : cached.state_c.CState} {fe2 fe' : fenv.FEnv} {k_pre : Std.U64}
+    {st st' : cached.state_c.CState} {fe2 : fenv.FEnv} {k_pre : Std.U64}
     {n : name.Name}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe2) (hn : NameWF n) (hvar : PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     (h : checker.check_defn_div_mod_pin mode pins st fe2 k_pre n
-      = ok (.Ok fe', st')) :
+      = ok (out, st')) :
     ∀ lst lfe (lfp : ConLeche.FEnv), StateRel st lst → FEnvRel fe2 lfe →
       EqBasisPinnedSpec fe2 lfe →
       lfp.find? = (lfe.restrictTo k_pre.val).find? →
-      ∃ lst', ((if ConLeche.natDivModNames.contains (absName n) then
-            ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) lfp lfe
-              (absName n)
-          else pure ()) : ConLeche.Cached.CheckCM Unit).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst', ((if ConLeche.natDivModNames.contains (absName n) then
+              ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) lfp lfe
+                (absName n)
+            else pure ()) : ConLeche.Cached.CheckCM Unit).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe'
+      | .Err e =>
+        ErrSim e (((if ConLeche.natDivModNames.contains (absName n) then
+              ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) lfp lfe
+                (absName n)
+            else pure ()) : ConLeche.Cached.CheckCM Unit).run lst) := by
   intro lst lfe lfp hsr hfr heqb hlfp
   rw [checker.check_defn_div_mod_pin] at h
   obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
@@ -4811,10 +4871,34 @@ theorem check_defn_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
       hsr, hsw, hfr, hfw⟩
   | true =>
     simp only [if_true] at h
-    obtain ⟨lst', hrun, hsr', hsw', hfr', hfw'⟩ :=
-      check_div_mod_pin_refines_at_view hfuel hk hsw hfw hn hvar hpins h
-        lst lfe lfp hsr hfr heqb hlfp
-    exact ⟨lst', by rw [← hbv]; simpa using hrun, hsr', hsw', hfr', hfw'⟩
+    have hres := check_div_mod_pin_refines_at_view hfuel hk hsw hfw hn hvar hpins h
+      lst lfe lfp hsr hfr heqb hlfp
+    revert hres
+    cases out with
+    | Ok fe3 =>
+      intro hres
+      obtain ⟨lst', hrun, hsr', hsw', hfr', hfw'⟩ := hres
+      exact ⟨lst', by rw [← hbv]; simpa using hrun, hsr', hsw', hfr', hfw'⟩
+    | Err e =>
+      intro hres
+      rw [← hbv]
+      simpa using hres
+
+/-- `ConLeche/Cached/ParsedC.lean:164-183` — **the `.defnDecl` arm's two
+pinned-`Nat` gates as one computation**, which is what
+`checker::check_defn_pins` is: the structural-`Nat` block when the name is one
+of `natOpNames`, then the `Nat.div`/`Nat.mod` gate when it is one of
+`natDivModNames`.  The accept direction below hands the first block's facts
+back one by one (the cited Lean inlines it); the failure direction needs the
+whole thing as a computation, and this is it. -/
+def defnPinsBlockF (ops : ConLeche.CheckerOps ConLeche.Cached.CheckCM)
+    (lfp lfe2 : ConLeche.FEnv) (lenv : ConLeche.Env) (c : ConLeche.Name) :
+    ConLeche.Cached.CheckCM Unit := do
+  let _ ← (if ConLeche.natOpNames.contains c then
+      structuralNatBlockF ops lfe2 lenv c else pure ())
+  if ConLeche.natDivModNames.contains c then
+    ConLeche.checkDivModPinF ops lfp lfe2 c
+  else pure ()
 
 /-- `ConLeche/Cached/ParsedC.lean:164-183` — **`checker::check_defn_pins`
 refines the `.defnDecl` arm's two pinned-`Nat` gates**, in order: the
@@ -4826,38 +4910,50 @@ facts back separately (`check_structural_nat_pin_refines`) and names the
 intermediate model state `lst1` the second gate runs from; when the name is not
 a structural op nothing runs and `lst1 = lst`.  Both halves are stated at an
 arbitrary `find?`-agreeing pre-insertion index `lfp`, which is the index
-`checkDeclC` actually hands them. -/
+`checkDeclC` actually hands them.
+
+**The whole outcome** (task #67, DESIGN.md §3's ruling of 2026-09-13): the
+dispatch throws nothing of its own, so a mirrored failure is one of the two
+gates', and the failure arm is stated over `defnPinsBlockF` — the two gates in
+sequence, the shape the accept arm takes apart. -/
 theorem check_defn_pins_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    {st st' : cached.state_c.CState} {fe2 fe' : fenv.FEnv} {k_pre : Std.U64}
+    {st st' : cached.state_c.CState} {fe2 : fenv.FEnv} {k_pre : Std.U64}
     {n : name.Name}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe2) (hn : NameWF n) (hvar : PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
-    (h : checker.check_defn_pins mode pins st fe2 k_pre n = ok (.Ok fe', st')) :
+    (h : checker.check_defn_pins mode pins st fe2 k_pre n = ok (out, st')) :
     ∀ lst lfe (lfp : ConLeche.FEnv), StateRel st lst → FEnvRel fe2 lfe →
       EqBasisPinnedSpec fe2 lfe →
       lfp.find? = (lfe.restrictTo k_pre.val).find? →
-      ∃ lst1 lst' : ConLeche.Cached.CState,
-        (ConLeche.natOpNames.contains (absName n) = true →
-          ConLeche.natOpGuardF lfe (absName n) = true
-          ∧ ((ConLeche.natOpDeps (absName n)).all
-              (ConLeche.natOpStoredOkF lfe)) = true
-          ∧ ∃ (cvL : ConLeche.ConstantVal) (value' : ConLeche.Expr)
-              (hintL : ConLeche.ReducibilityHint),
-              lfe.find? (absName n) = some (.defnInfo cvL value' hintL)
-              ∧ ∀ lenv : ConLeche.Env,
-                  (ConLeche.certifyNatEqs (TypeChecker.lops mode lfp) lenv
-                      ((ConLeche.natOpEquations 0 (absName n)).map fun eq =>
-                        (ConLeche.Expr.substConst0 (absName n) value' eq.1,
-                         ConLeche.Expr.substConst0 (absName n) value' eq.2))).run lst
-                    = .ok (true, lst1))
-        ∧ (ConLeche.natOpNames.contains (absName n) = false → lst1 = lst)
-        ∧ ((if ConLeche.natDivModNames.contains (absName n) then
-              ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) lfp lfe
-                (absName n)
-            else pure ()) : ConLeche.Cached.CheckCM Unit).run lst1 = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst1 lst' : ConLeche.Cached.CState,
+          (ConLeche.natOpNames.contains (absName n) = true →
+            ConLeche.natOpGuardF lfe (absName n) = true
+            ∧ ((ConLeche.natOpDeps (absName n)).all
+                (ConLeche.natOpStoredOkF lfe)) = true
+            ∧ ∃ (cvL : ConLeche.ConstantVal) (value' : ConLeche.Expr)
+                (hintL : ConLeche.ReducibilityHint),
+                lfe.find? (absName n) = some (.defnInfo cvL value' hintL)
+                ∧ ∀ lenv : ConLeche.Env,
+                    (ConLeche.certifyNatEqs (TypeChecker.lops mode lfp) lenv
+                        ((ConLeche.natOpEquations 0 (absName n)).map fun eq =>
+                          (ConLeche.Expr.substConst0 (absName n) value' eq.1,
+                           ConLeche.Expr.substConst0 (absName n) value' eq.2))).run lst
+                      = .ok (true, lst1))
+          ∧ (ConLeche.natOpNames.contains (absName n) = false → lst1 = lst)
+          ∧ ((if ConLeche.natDivModNames.contains (absName n) then
+                ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) lfp lfe
+                  (absName n)
+              else pure ()) : ConLeche.Cached.CheckCM Unit).run lst1 = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe'
+      | .Err e =>
+        ∀ lenv : ConLeche.Env,
+          ErrSim e ((defnPinsBlockF (TypeChecker.lops mode lfp) lfp lfe lenv
+              (absName n)).run lst) := by
   intro lst lfe lfp hsr hfr heqb hlfp
   rw [checker.check_defn_pins] at h
   obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
@@ -4868,30 +4964,68 @@ theorem check_defn_pins_refines {mode : env.CheckMode} {fuel : Std.U64}
   cases b with
   | false =>
     simp only [Bool.false_eq_true, if_false] at h
-    obtain ⟨lst', hrun, hsr', hsw', hfr', hfw'⟩ :=
-      check_defn_div_mod_pin_refines hfuel hk hsw hfw hn hvar hpins h
-        lst lfe lfp hsr hfr heqb hlfp
-    exact ⟨lst, lst', fun hc => absurd hc (by rw [← hbv]; simp),
-      fun _ => rfl, hrun, hsr', hsw', hfr', hfw'⟩
+    have hres := check_defn_div_mod_pin_refines hfuel hk hsw hfw hn hvar hpins h
+      lst lfe lfp hsr hfr heqb hlfp
+    revert hres
+    cases out with
+    | Ok fe3 =>
+      intro hres
+      obtain ⟨lst', hrun, hsr', hsw', hfr', hfw'⟩ := hres
+      exact ⟨lst, lst', fun hc => absurd hc (by rw [← hbv]; simp),
+        fun _ => rfl, hrun, hsr', hsw', hfr', hfw'⟩
+    | Err e =>
+      -- the name is not a structural op: the first block is the cited `pure ()`
+      intro hres lenv
+      simp only [defnPinsBlockF, ← hbv, Bool.false_eq_true, if_false, pure_bind]
+      exact hres
   | true =>
     simp only [if_true] at h
     obtain ⟨q, hq, h2⟩ := bind_eq_ok_iff.mp h
     obtain ⟨res, st1⟩ := q
     cases res with
-    | Err e => simp at h2
+    | Err e =>
+      -- move 1: the structural-`Nat` block threw
+      have hstruct := check_structural_nat_pin_refines hfuel hk hsw hfw hn hq
+        lst lfe hsr hfr
+      simp at h2
+      obtain ⟨rfl, rfl⟩ := h2
+      intro lenv
+      simp only [defnPinsBlockF, ← hbv, if_true, StateT.run_bind]
+      rw [TypeChecker.lops, ConLeche.Cached.sharedOpsC_congr hlfp]
+      exact ErrSim.bind (hstruct lenv) _
     | Ok fe3 =>
       obtain ⟨hg, hd, ⟨cvL, value', hintL, lstC, hfindL, hcertL, hsrC, hswC⟩,
         hfr3, hfw3, rfl⟩ :=
         check_structural_nat_pin_refines hfuel hk hsw hfw hn hq lst lfe hsr hfr
       simp at h2
-      obtain ⟨lst', hrun, hsr', hsw', hfr', hfw'⟩ :=
-        check_defn_div_mod_pin_refines hfuel hk hswC hfw hn hvar hpins h2
-          lstC lfe lfp hsrC hfr heqb hlfp
-      refine ⟨lstC, lst', fun _ => ⟨hg, hd, cvL, value', hintL, hfindL, ?_⟩,
-        fun hc => absurd hc (by rw [← hbv]; simp), hrun, hsr', hsw', hfr', hfw'⟩
-      intro lenv
-      rw [TypeChecker.lops, ConLeche.Cached.sharedOpsC_congr hlfp]
-      exact hcertL lenv
+      have hcert' : ∀ lenv : ConLeche.Env,
+          (ConLeche.certifyNatEqs (TypeChecker.lops mode lfp) lenv
+              ((ConLeche.natOpEquations 0 (absName n)).map fun eq =>
+                (ConLeche.Expr.substConst0 (absName n) value' eq.1,
+                 ConLeche.Expr.substConst0 (absName n) value' eq.2))).run lst
+            = .ok (true, lstC) := by
+        intro lenv
+        rw [TypeChecker.lops, ConLeche.Cached.sharedOpsC_congr hlfp]
+        exact hcertL lenv
+      have hres := check_defn_div_mod_pin_refines hfuel hk hswC hfw hn hvar hpins h2
+        lstC lfe lfp hsrC hfr heqb hlfp
+      revert hres
+      cases out with
+      | Ok fe4 =>
+        intro hres
+        obtain ⟨lst', hrun, hsr', hsw', hfr', hfw'⟩ := hres
+        exact ⟨lstC, lst', fun _ => ⟨hg, hd, cvL, value', hintL, hfindL, hcert'⟩,
+          fun hc => absurd hc (by rw [← hbv]; simp), hrun, hsr', hsw', hfr', hfw'⟩
+      | Err e =>
+        -- the structural block passed and the `Nat.div`/`Nat.mod` gate threw:
+        -- the block's *successful* run is what puts the cited gate at `lstC`
+        intro hres lenv
+        have hblk : (structuralNatBlockF (TypeChecker.lops mode lfp) lfe lenv
+              (absName n)).run lst = .ok ((), lstC) :=
+          structuralNatBlockF_run_ok hg hd hfindL (hcert' lenv)
+        simp only [defnPinsBlockF, ← hbv, if_true, StateT.run_bind, hblk,
+          except_ok_bind]
+        exact hres
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate) -/
 
