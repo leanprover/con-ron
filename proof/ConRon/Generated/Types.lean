@@ -28,13 +28,14 @@ structure core.alloc.AllocatorClone (Self : Type) where
   cloneCloneInst : core.clone.Clone Self
 
 /-- [con_ron_core::kernel::core_types::CheckError]
-    Source: 'crates/con-ron-core/src/kernel/core_types.rs', lines 73:0-77:1
+    Source: 'crates/con-ron-core/src/kernel/core_types.rs', lines 87:0-92:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.core_types.CheckError where
 | NotImplemented : alloc.vec.Vec Std.U32 → kernel.core_types.CheckError
 | Invalid : alloc.vec.Vec Std.U32 → kernel.core_types.CheckError
 | Internal : alloc.vec.Vec Std.U32 → kernel.core_types.CheckError
+| Native : alloc.vec.Vec Std.U32 → kernel.core_types.CheckError
 
 /-- [con_ron_core::cached::checker_c::OrElseStep]
     Source: 'crates/con-ron-core/src/cached/checker_c.rs', lines 91:0-95:1
@@ -680,6 +681,12 @@ structure kernel.inductives.modeled.ProjBack where
 structure kernel.inductives.modeled.BlockRename where
   block_names : alloc.vec.Vec kernel.name.Name
 
+/-- Trait declaration: [con_ron_core::ron::hashmap::Dup]
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 555:0-557:1
+    Visibility: public -/
+structure ron.hashmap.Dup (Self : Type) where
+  dup2 : Self → Result Self
+
 /-- [con_ron_core::kernel::env::Declaration]
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 885:0-892:1
     Visibility: public -/
@@ -721,7 +728,7 @@ structure kernel.inductives.struct_parts.StructParts where
   is_prop : Bool
 
 /-- [con_ron_core::kernel::pins_decode::Tables]
-    Source: 'crates/con-ron-core/src/kernel/pins_decode.rs', lines 63:0-69:1
+    Source: 'crates/con-ron-core/src/kernel/pins_decode.rs', lines 68:0-74:1
     Visibility: public -/
 structure kernel.pins_decode.Tables where
   names : alloc.vec.Vec kernel.name.Name

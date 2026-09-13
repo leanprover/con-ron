@@ -125,6 +125,7 @@ fn msg(e: &CheckError) -> String {
         CheckError::NotImplemented(m) => m,
         CheckError::Invalid(m) => m,
         CheckError::Internal(m) => m,
+        CheckError::Native(m) => m,
     };
     cps.iter().filter_map(|c| char::from_u32(*c)).collect()
 }

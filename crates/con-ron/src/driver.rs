@@ -100,11 +100,18 @@ pub const STACK_BYTES: usize = 1 << 30;
 // ---------------------------------------------------------------------------
 
 /// con-leche: Main.lean:48-51 ConLeche.CheckError.exitCode
+/// The cited three codes, plus the port's own fourth constructor
+/// (`core_types::CheckError::Native`, DESIGN.md §3's ruling of 2026-09-13):
+/// a failure with no con-leche counterpart — a machine-word limit, a width
+/// check — is a **decline**, exit 2, the same code as "not implemented",
+/// because that is what it is: the port cannot carry this input, and says so
+/// rather than rejecting the stream (1) or claiming a checker bug (3).
 pub fn exit_code(e: &CheckError) -> u8 {
     match e {
         CheckError::NotImplemented(_) => 2,
         CheckError::Invalid(_) => 1,
         CheckError::Internal(_) => 3,
+        CheckError::Native(_) => 2,
     }
 }
 
@@ -129,6 +136,7 @@ pub fn message(e: &CheckError) -> String {
         CheckError::NotImplemented(m) => m,
         CheckError::Invalid(m) => m,
         CheckError::Internal(m) => m,
+        CheckError::Native(m) => m,
     };
     cps.iter()
         .map(|c| char::from_u32(*c).unwrap_or('\u{fffd}'))

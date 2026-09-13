@@ -1648,12 +1648,12 @@ pub fn nat_op_result(c: &Name, a: &Nat, b: &Nat) -> CheckM<Option<Expr>> {
     } else if name::beq(c, &nat_shift_left_name()) {
         match nat::to_u64(b) {
             Some(k) => Ok(Some(expr::lit(expr::literal_nat(nat::shift_left(a, k))))),
-            None => Err(core_types::internal(core_types::code_points(&M_SHIFT))),
+            None => Err(core_types::native(core_types::code_points(&M_SHIFT))),
         }
     } else if name::beq(c, &nat_shift_right_name()) {
         match nat::to_u64(b) {
             Some(k) => Ok(Some(expr::lit(expr::literal_nat(nat::shift_right(a, k))))),
-            None => Err(core_types::internal(core_types::code_points(&M_SHIFT))),
+            None => Err(core_types::native(core_types::code_points(&M_SHIFT))),
         }
     } else if name::beq(c, &nat_beq_name()) {
         let n = if nat::beq(a, b) {

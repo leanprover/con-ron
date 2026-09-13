@@ -531,6 +531,148 @@ where
     }
 }
 
+// ---------------------------------------------------------------------------
+// Copying a table (task #67)
+// ---------------------------------------------------------------------------
+//
+// `CheckerOps.orElse` (`ConLeche/Kernel/CheckerBase.lean:36-53`) continues its
+// error arm from the **pre-attempt** state, `k (some e) s`: whatever memo
+// entries the failed attempt wrote are discarded.  Lean gets that for free —
+// `s` is a value — while the port threads one `&mut CState`, so it needs a
+// snapshot to restore from, and a snapshot of a `CState` is a copy of its
+// fourteen tables.  Since there is no iteration API (the module note), the
+// copy is *structural*: the three scalar fields, then a rebuilt `slots`.
+
+/// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
+/// A value that can be copied into an independent one.  Deliberately our own
+/// trait rather than `core::clone::Clone`, for `Eq2`'s reasons (see its doc
+/// comment) and DESIGN.md §3.4's ban on `derive(Clone)` for the core types:
+/// the copy of a `Name`/`Level`/`Expr` is the `P` bump `kernel::name::dup` and
+/// friends already spell, and nothing here may descend into a node.
+///
+/// The method is `dup2`, not `dup`, so that it never collides with the
+/// free-function `dup`s the modules already export.
+pub trait Dup {
+    fn dup2(&self) -> Self;
+}
+
+/// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
+/// A `u64` key or value (`instC`'s offset) is copied by reading it.
+impl Dup for u64 {
+    fn dup2(&self) -> u64 {
+        *self
+    }
+}
+
+/// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
+/// The value type of `lnzC`, `eqvC` and `defeqC`.
+impl Dup for bool {
+    fn dup2(&self) -> bool {
+        *self
+    }
+}
+
+/// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
+/// The pair keys of `constTyAt`, `constValAt`, `defeqC` and `eqvC`.  Charon
+/// and Aeneas do take a user trait impl on a tuple type: the generated
+/// instance is `Pair.Insts.<...>` applied to the component instances
+/// (checked by `spikes/dup-tuple` before this was written).
+impl<A: Dup, B: Dup> Dup for (A, B) {
+    fn dup2(&self) -> (A, B) {
+        (self.0.dup2(), self.1.dup2())
+    }
+}
+
+/// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
+/// The triple keys of `ruleRhsAt` and `instC`; `TupleABC.Insts.<...>` on the
+/// Lean side.
+impl<A: Dup, B: Dup, C: Dup> Dup for (A, B, C) {
+    fn dup2(&self) -> (A, B, C) {
+        (self.0.dup2(), self.1.dup2(), self.2.dup2())
+    }
+}
+
+/// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
+/// Copy one bucket, entry by entry, rebuilding the optional tail (task #41's
+/// shape: a one-entry bucket allocates nothing).  As deep as the bucket is
+/// long, i.e. `O(1)` under any hash that spreads — the same bound `list_get`
+/// and `list_insert` run under.
+fn dup_alist<K, V>(ls: &AList<K, V>) -> AList<K, V>
+where
+    K: Dup,
+    V: Dup,
+{
+    match ls {
+        AList::Nil => AList::Nil,
+        AList::Cons(ckey, cvalue, tl) => match tl {
+            None => AList::Cons(ckey.dup2(), cvalue.dup2(), None),
+            Some(b) => {
+                let rest = dup_alist(&**b);
+                AList::Cons(ckey.dup2(), cvalue.dup2(), Some(Box::new(rest)))
+            }
+        },
+    }
+}
+
+impl<K, V> HashMap<K, V>
+where
+    K: Dup,
+    V: Dup,
+{
+    /// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
+    /// A copy of the table that shares nothing with it: inserting into one
+    /// leaves the other alone.  The three scalar fields are carried over and
+    /// the buckets are rebuilt in place, so the copy has the same capacity,
+    /// the same load threshold and every key in the same bucket — it is the
+    /// same table, not merely the same abstract map.
+    ///
+    /// `O(size)`, like `kernel::fenv::dup`, and for the same reason: there is
+    /// no iteration API to be cleverer with.  That is affordable because the
+    /// caller — the snapshot `CheckerOps.orElse` restores from
+    /// (`ConLeche/Kernel/CheckerBase.lean:36-53`) — runs at most once per
+    /// Nat-op pin variant attempt, a handful of times per run.
+    pub fn dup(&self) -> HashMap<K, V> {
+        let n = self.slots.len();
+        let slots = HashMap::dup_slots(&self.slots, Vec::with_capacity(n), 0, n);
+        HashMap {
+            num_entries: self.num_entries,
+            max_load: self.max_load,
+            saturated: self.saturated,
+            slots,
+        }
+    }
+
+    /// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
+    /// `dup`'s bucket walk over `[lo, hi)`, pushing the copies onto `out` in
+    /// index order.  Halved rather than peeled one at a time, so the
+    /// recursion is `log2 n` deep and a 2^26-bucket `instC` does not blow the
+    /// stack (see `allocate_slots` and the note on recursion depth at the top
+    /// of the file); the left half is copied first, which is what keeps the
+    /// pushes in order.  The accumulator is passed by value and returned
+    /// (task #6's rule).
+    fn dup_slots(
+        src: &Vec<AList<K, V>>,
+        out: Vec<AList<K, V>>,
+        lo: usize,
+        hi: usize,
+    ) -> Vec<AList<K, V>> {
+        if hi > lo {
+            let n = hi - lo;
+            if n == 1 {
+                let mut out = out;
+                out.push(dup_alist(&src[lo]));
+                out
+            } else {
+                let mid = lo + n / 2;
+                let out = HashMap::dup_slots(src, out, lo, mid);
+                HashMap::dup_slots(src, out, mid, hi)
+            }
+        } else {
+            out
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -876,5 +1018,146 @@ mod tests {
             i += 1;
         }
         assert_eq!(m.len(), 1000);
+    }
+
+    impl Dup for Bad {
+        fn dup2(&self) -> Bad {
+            Bad(self.0)
+        }
+    }
+
+    /// `dup` of a populated table answers `get` exactly as the original does,
+    /// for present and for absent keys, and reports the same `len`.
+    #[test]
+    fn dup_answers_get_the_same_way() {
+        let mut m: HashMap<u64, u64> = HashMap::new();
+        let mut i: u64 = 0;
+        while i < 500 {
+            assert_eq!(m.insert(i, i * 3 + 1), None);
+            i += 1;
+        }
+        let d = m.dup();
+        assert_eq!(d.len(), m.len());
+        let mut k: u64 = 0;
+        while k < 1000 {
+            assert_eq!(d.get(&k).copied(), m.get(&k).copied());
+            k += 1;
+        }
+        // 500..1000 are the absent ones, and both tables say so.
+        assert_eq!(d.get(&700), None);
+    }
+
+    /// A `dup` of an *unallocated* table (`new`'s, which owns no bucket) is
+    /// itself empty and usable.
+    #[test]
+    fn dup_of_an_unallocated_table() {
+        let m: HashMap<u64, u64> = HashMap::new();
+        let mut d = m.dup();
+        assert!(d.is_empty());
+        assert_eq!(d.get(&3), None);
+        assert_eq!(d.insert(3, 4), None);
+        assert_eq!(d.get(&3), Some(&4));
+        assert_eq!(m.get(&3), None);
+    }
+
+    /// The copy is independent: inserting into one leaves the other alone, in
+    /// both directions, removals included.
+    #[test]
+    fn dup_is_independent_of_the_original() {
+        let mut m: HashMap<u64, u64> = HashMap::new();
+        let mut i: u64 = 0;
+        while i < 100 {
+            assert_eq!(m.insert(i, i), None);
+            i += 1;
+        }
+        let mut d = m.dup();
+        assert_eq!(d.insert(1000, 7), None);
+        assert_eq!(m.get(&1000), None);
+        assert_eq!(m.len(), 100);
+        assert_eq!(d.len(), 101);
+        assert_eq!(m.insert(2000, 9), None);
+        assert_eq!(d.get(&2000), None);
+        assert_eq!(d.remove(&5), Some(5));
+        assert_eq!(m.get(&5), Some(&5));
+        assert_eq!(d.insert(0, 42), Some(0));
+        assert_eq!(m.get(&0), Some(&0));
+    }
+
+    /// Chained buckets are copied node by node: with a constant hash every
+    /// entry sits in bucket 0, so this is the one-long-`AList` case.
+    #[test]
+    fn dup_copies_a_chain() {
+        let mut m: HashMap<Bad, u64> = HashMap::new();
+        let mut i: u64 = 0;
+        while i < 40 {
+            assert_eq!(m.insert(Bad(i), i + 1), None);
+            i += 1;
+        }
+        let mut d = m.dup();
+        let mut i: u64 = 0;
+        while i < 40 {
+            assert_eq!(d.get(&Bad(i)), Some(&(i + 1)));
+            i += 1;
+        }
+        assert_eq!(d.remove(&Bad(20)), Some(21));
+        assert_eq!(m.get(&Bad(20)), Some(&21));
+        assert_eq!(d.get(&Bad(20)), None);
+    }
+
+    /// The dictionaries a `(u64, u64)` test key needs; `CState`'s real tuple
+    /// keys have theirs in `cached::state_c`.
+    impl Hashable for (u64, u64) {
+        fn hash64(&self) -> u64 {
+            self.0.wrapping_mul(31).wrapping_add(self.1)
+        }
+    }
+
+    impl Eq2 for (u64, u64) {
+        fn eq2(&self, other: &Self) -> bool {
+            self.0 == other.0 && self.1 == other.1
+        }
+    }
+
+    /// A tuple key goes through the `Dup` impl on `(A, B)`; the map is a
+    /// stand-in for `CState`'s five tuple-keyed tables.
+    #[test]
+    fn dup_with_a_tuple_key() {
+        let mut m: HashMap<(u64, u64), bool> = HashMap::new();
+        let mut i: u64 = 0;
+        while i < 50 {
+            assert_eq!(m.insert((i, i + 1), i % 2 == 0), None);
+            i += 1;
+        }
+        let d = m.dup();
+        let mut i: u64 = 0;
+        while i < 50 {
+            assert_eq!(d.get(&(i, i + 1)), Some(&(i % 2 == 0)));
+            i += 1;
+        }
+        assert_eq!(d.get(&(3, 3)), None);
+    }
+
+    /// `dup` preserves the *shape*, not merely the abstract map: same entry
+    /// count, same bucket count, and a table that keeps growing the same way.
+    #[test]
+    fn dup_preserves_the_capacity() {
+        let mut m: HashMap<u64, u64> = HashMap::new();
+        let mut i: u64 = 0;
+        while i < 300 {
+            assert_eq!(m.insert(i, i), None);
+            i += 1;
+        }
+        let mut d = m.dup();
+        assert_eq!(d.slots.len(), m.slots.len());
+        assert_eq!(d.max_load, m.max_load);
+        assert_eq!(d.saturated, m.saturated);
+        assert_eq!(d.num_entries, m.num_entries);
+        let mut i: u64 = 300;
+        while i < 900 {
+            assert_eq!(d.insert(i, i), None);
+            assert_eq!(m.insert(i, i), None);
+            i += 1;
+        }
+        assert_eq!(d.slots.len(), m.slots.len());
     }
 }

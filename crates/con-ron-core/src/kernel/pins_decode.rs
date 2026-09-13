@@ -32,11 +32,16 @@
 //! accept is a committed constant that `scripts/gen-pins.sh --check` keeps
 //! byte-identical to the writer's output.
 //!
-//! **Errors.**  Every failure is `CheckError::Internal`: a malformed text
-//! cannot happen for the embedded constant (the freshness gate is what makes
-//! that a fact rather than a hope), so it is an internal inconsistency of the
-//! binary and not a verdict on any input.  All of them carry the same message;
-//! the theorem never reads it, and the driver turns the error into exit 3.
+//! **Errors.**  Every failure is `CheckError::Native` (task #67): con-leche
+//! has no decoder at all — `natOpPinSets` is loaded at *elaboration* time by
+//! `#load_natop_pins` (`ConLeche/Kernel/NatOpPins.lean:61-64`) from an
+//! `include_str` JSON — so not one of this module's twenty-eight throws has a
+//! `throw` behind it, and claiming any of them mirrors one would be false.
+//! They are the port's own declines: a malformed text cannot happen for the
+//! embedded constant (the freshness gate is what makes that a fact rather
+//! than a hope), and the theorem runs the decoder on that constant, where it
+//! returns `ok`.  All of them carry the same message; the theorem never reads
+//! it, and the driver turns the error into exit 2.
 
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckError;
@@ -80,17 +85,19 @@ pub fn tables_new() -> Tables {
     }
 }
 
-/// con-leche: none — `Read.lean`'s `rerr`, with the line number dropped
+/// con-leche: none — Rust-only failures, DESIGN.md §3
 /// The one error this module reports: the embedded text is not a
-/// `con-ron-pins/1` dump.  `Internal`, because the text is a committed
-/// constant (see the module note).
+/// `con-ron-pins/1` dump.  `Native` (task #67), because the cited checker has
+/// no decoder to throw — the pins are elaboration-time data there — and
+/// because the text is a committed constant (see the module note).  It is the
+/// spelling of `Read.lean`'s `rerr`, with the line number dropped.
 pub fn bad_text() -> CheckError {
     const M: [u32; 34] = [
         101, 109, 98, 101, 100, 100, 101, 100, 32, 112, 105, 110, 32, 116, 101,
         120, 116, 32, 105, 115, 32, 109, 97, 108, 102, 111, 114, 109, 101, 100,
         32, 40, 33, 41,
     ];
-    core_types::internal(core_types::code_points(&M))
+    core_types::native(core_types::code_points(&M))
 }
 
 // ---------------------------------------------------------------------------

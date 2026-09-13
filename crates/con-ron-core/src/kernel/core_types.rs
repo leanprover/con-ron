@@ -63,17 +63,32 @@ use crate::kernel::name;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Kernel/Core.lean:47-51 CheckError
-/// The checker's error, in the cited constructor order.
+/// The checker's error, in the cited constructor order, **plus a fourth
+/// constructor the cited type does not have**.
 ///
 /// Deviations: the `String` payloads are `Vec<u32>` code points (the module
 /// note above), and `deriving Repr` is dropped — rendering only, and §3.4
 /// forbids `derive(Debug)` on the core types anyway.  The `ToString`
 /// instance at `Core.lean:53-57` is not ported for the same reason; the CLI
 /// (`crates/con-ron`, outside the verified core) renders errors.
+///
+/// **`Native` (DESIGN.md §3, the ruling of 2026-09-13).**  The port throws
+/// in places the cited checker cannot fail at all: a machine word overflows
+/// where `Nat` grows, a shift amount leaves `u64`, an index does not fit a
+/// `u32`.  Those failures have no con-leche counterpart, so they are not
+/// `Invalid`/`Internal` — mixing them in would make the refinement claim
+/// "con-leche throws here too", which is false.  `Native` is the port's own
+/// decline: the refinement lemmas (`Refine/Core/Statements.lean`'s `Out`)
+/// claim *nothing* about a run that ends in one, and `absErrKind` maps it to
+/// `none`, while the three mirrored constructors keep con-leche's meaning
+/// and are claimed exactly.  Every `Native` site is a documented
+/// accept-direction deviation (§3's list): it declines a stream con-leche
+/// might accept, and never accepts one con-leche declines.
 pub enum CheckError {
     NotImplemented(Vec<u32>),
     Invalid(Vec<u32>),
     Internal(Vec<u32>),
+    Native(Vec<u32>),
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:59 CheckM
@@ -123,6 +138,15 @@ pub fn internal(m: Vec<u32>) -> CheckError {
     CheckError::Internal(m)
 }
 
+/// con-leche: none — Rust-only failures, DESIGN.md §3
+/// The port's own decline, with no `throw` behind it: a machine-word limit
+/// or a width check the cited code does not have (the note on `CheckError`
+/// above).  A site that throws this is *not* claimed to be a con-leche
+/// throw; it is claimed to be a decline.
+pub fn native(m: Vec<u32>) -> CheckError {
+    CheckError::Native(m)
+}
+
 /// con-leche: none — a `Vec<u32>` copy; Lean's `String` is shared by value
 /// The code-point copy a reused message needs.
 pub fn str_copy(s: &Vec<u32>) -> Vec<u32> {
@@ -137,6 +161,7 @@ pub fn dup(e: &CheckError) -> CheckError {
         CheckError::NotImplemented(w) => CheckError::NotImplemented(str_copy(w)),
         CheckError::Invalid(m) => CheckError::Invalid(str_copy(m)),
         CheckError::Internal(m) => CheckError::Internal(str_copy(m)),
+        CheckError::Native(m) => CheckError::Native(str_copy(m)),
     }
 }
 
@@ -151,16 +176,25 @@ pub fn beq(a: &CheckError, b: &CheckError) -> bool {
             CheckError::NotImplemented(y) => name::str_eq(x, y),
             CheckError::Invalid(_) => false,
             CheckError::Internal(_) => false,
+            CheckError::Native(_) => false,
         },
         CheckError::Invalid(x) => match b {
             CheckError::NotImplemented(_) => false,
             CheckError::Invalid(y) => name::str_eq(x, y),
             CheckError::Internal(_) => false,
+            CheckError::Native(_) => false,
         },
         CheckError::Internal(x) => match b {
             CheckError::NotImplemented(_) => false,
             CheckError::Invalid(_) => false,
             CheckError::Internal(y) => name::str_eq(x, y),
+            CheckError::Native(_) => false,
+        },
+        CheckError::Native(x) => match b {
+            CheckError::NotImplemented(_) => false,
+            CheckError::Invalid(_) => false,
+            CheckError::Internal(_) => false,
+            CheckError::Native(y) => name::str_eq(x, y),
         },
     }
 }

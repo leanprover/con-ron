@@ -1572,7 +1572,12 @@ pub fn install_basis_decls(fe: FEnv, decls: &Vec<ConstantInfo>, i: usize) -> Che
 /// `checkNative` / `checkModeled` — is `ConLeche/Kernel/Inductives/*`, a
 /// family this task does not port, so the arm declines past the parameter
 /// check.  A decline can only make the Rust *reject*, which is sound for the
-/// accept direction (DESIGN.md §1).
+/// accept direction (DESIGN.md §1).  The decline is **`Native`** (task #67):
+/// the cited code does not throw here, it dispatches, so an error saying
+/// "con-leche throws `notImplemented` too" would be false.  The parameter
+/// mismatch below it *is* the cited `throw` and stays `Invalid`.  (The live
+/// route is `cached::parsed_c::check_ind_decl_c`, which dispatches for real;
+/// this pure-lane arm is what the two routes' landing left behind.)
 pub fn check_ind_decl(
     mode: &CheckMode,
     st: &mut CState,
@@ -1584,7 +1589,7 @@ pub fn check_ind_decl(
     let _ = st;
     let _ = fe;
     if env::ind_params_ok(n_p, block) {
-        Err(core_types::not_implemented({ const M: [u32; 54] = [105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 98, 108, 111, 99, 107, 58, 32, 116, 104, 101, 32, 105, 110, 115, 116, 97, 108, 108, 32, 114, 111, 117, 116, 101, 115, 32, 97, 114, 101, 32, 110, 111, 116, 32, 112, 111, 114, 116, 101, 100, 32, 121, 101, 116]; core_types::code_points(&M) }))
+        Err(core_types::native({ const M: [u32; 54] = [105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 98, 108, 111, 99, 107, 58, 32, 116, 104, 101, 32, 105, 110, 115, 116, 97, 108, 108, 32, 114, 111, 117, 116, 101, 115, 32, 97, 114, 101, 32, 110, 111, 116, 32, 112, 111, 114, 116, 101, 100, 32, 121, 101, 116]; core_types::code_points(&M) }))
     } else {
         Err(core_types::invalid({ const M: [u32; 29] = [110, 117, 109, 98, 101, 114, 32, 111, 102, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 115, 32, 109, 105, 115, 109, 97, 116, 99, 104]; core_types::code_points(&M) }))
     }

@@ -1107,6 +1107,124 @@ pub fn consts_resolve_fc(fe: &FEnv, e: &Expr) -> bool {
     consts_resolve_fc_go(fe, &mut memo, e)
 }
 
+// ---------------------------------------------------------------------------
+// The `CState` snapshot (task #67)
+// ---------------------------------------------------------------------------
+//
+// `CheckerOps.orElse` (`ConLeche/Kernel/CheckerBase.lean:36-53`) runs its
+// error continuation on the **pre-attempt** state, `k (some e) s`: the memo
+// entries a failed attempt wrote are dropped on the floor.  In Lean that is
+// just value semantics — `s` was never mutated — while the port threads one
+// `&mut CState` through the whole checker, so the caller has to keep a
+// snapshot and put it back.  `dup` below is that snapshot: a copy of the
+// fourteen tables of `CState`, through `ron::hashmap`'s `Dup` trait (see the
+// section at the end of that file, and `spikes/dup-tuple` for the evidence
+// that Charon and Aeneas accept a trait impl on a tuple type, which the five
+// tuple-keyed maps need).
+//
+// The `Dup` instances of the key and value types are here rather than beside
+// each type's own `dup`, next to the `Hashable`/`Eq2` instances of the same
+// keys: they exist for `CState`, and `Name`/`Level`/`Expr` already export the
+// `P` bump each instance is.
+
+/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// The key type of `ienv` and a component of three tuple keys; the copy is
+/// `name::dup`'s `P` bump (DESIGN.md §3.2).
+impl crate::ron::hashmap::Dup for Name {
+    /// con-leche: none — the `P` bump that Lean's value semantics hides (DESIGN.md §3.2)
+    fn dup2(&self) -> Name {
+        name::dup(self)
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// The key type of `lsimpC`/`lnzC` and the value type of `lsimpC`; the copy
+/// is `level::dup`'s `P` bump.
+impl crate::ron::hashmap::Dup for Level {
+    /// con-leche: none — the `P` bump that Lean's value semantics hides (DESIGN.md §3.2)
+    fn dup2(&self) -> Level {
+        level::dup(self)
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// The key and value type of the five expression memos; the copy is
+/// `expr::dup`'s `P` bump, so no node is ever descended into.
+impl crate::ron::hashmap::Dup for Expr {
+    /// con-leche: none — the `P` bump that Lean's value semantics hides (DESIGN.md §3.2)
+    fn dup2(&self) -> Expr {
+        expr::dup(self)
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// The level list of `constTyAt`/`constValAt`/`ruleRhsAt`'s key: only the
+/// spine is copied (`env::levels_copy`).
+impl crate::ron::hashmap::Dup for Vec<Level> {
+    /// con-leche: none — a `Vec<Level>` copy; Lean's `List Level` is shared by value
+    fn dup2(&self) -> Vec<Level> {
+        env::levels_copy(self)
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// The argument list of `instC`'s key: only the spine is copied
+/// (`env::exprs_copy`).
+impl crate::ron::hashmap::Dup for Vec<Expr> {
+    /// con-leche: none — a `Vec<Expr>` copy; Lean's `Array ExprC` is shared by value
+    fn dup2(&self) -> Vec<Expr> {
+        env::exprs_copy(self)
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:122-126 CConstE
+/// The value type of `ienv`: three expression handles, the third behind an
+/// `Option` of a pair.
+impl crate::ron::hashmap::Dup for CConstE {
+    /// con-leche: none — the `dup` of a `CConstE`; Lean's value semantics hides it
+    fn dup2(&self) -> CConstE {
+        CConstE {
+            ty_e: expr::dup(&self.ty_e),
+            ty: expr::dup(&self.ty),
+            val: match &self.val {
+                None => None,
+                Some(p) => Some((expr::dup(&p.0), expr::dup(&p.1))),
+            },
+        }
+    }
+}
+
+/// con-leche: none — the `dup` of a `CState`; Lean's value semantics hides it
+/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// A snapshot of the per-declaration state: all fourteen maps copied, in the
+/// cited field order.  The copy shares no table with the original, so writing
+/// to one leaves the other alone — which is what lets a caller restore the
+/// pre-attempt state of `CheckerOps.orElse`'s error arm
+/// (`ConLeche/Kernel/CheckerBase.lean:36-53`, the module section above).
+///
+/// `O(size)`: each map is walked bucket by bucket, since `ron::hashmap` has no
+/// iteration API (its module note) — the same bargain `kernel::fenv::dup`
+/// makes.  Affordable because it is called at most once per Nat-op pin
+/// variant attempt, a handful of times per run, and never on a hot path.
+pub fn dup(s: &CState) -> CState {
+    CState {
+        ienv: s.ienv.dup(),
+        const_ty_at: s.const_ty_at.dup(),
+        const_val_at: s.const_val_at.dup(),
+        rule_rhs_at: s.rule_rhs_at.dup(),
+        whnf_core_c: s.whnf_core_c.dup(),
+        whnf_c: s.whnf_c.dup(),
+        infer_c: s.infer_c.dup(),
+        infer_io_c: s.infer_io_c.dup(),
+        defeq_c: s.defeq_c.dup(),
+        annot_c: s.annot_c.dup(),
+        lsimp_c: s.lsimp_c.dup(),
+        lnz_c: s.lnz_c.dup(),
+        eqv_c: s.eqv_c.dup(),
+        inst_c: s.inst_c.dup(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::kernel::expr;
@@ -1335,5 +1453,113 @@ mod tests {
         assert_eq!(out.len(), 2);
         assert!(level::beq(&out[0], &level::zero()));
         assert!(level::beq(&out[1], &lp("w")));
+    }
+
+    /// `state_c::dup` is a snapshot: the copy answers every table the same
+    /// way, and the two states are independent afterwards.  Five of the
+    /// fourteen maps are exercised, one per key shape.
+    #[test]
+    fn cstate_dup_is_an_independent_snapshot() {
+        let mut s = state_c::cstate_new();
+        let f = nm("f");
+        let us = vec![lp("u")];
+        s.ienv.insert(
+            name::dup(&f),
+            state_c::cconst_e_new(expr::bvar(0), expr::bvar(1)),
+        );
+        s.const_ty_at.insert(
+            (name::dup(&f), vec![level::dup(&us[0])]),
+            expr::bvar(2),
+        );
+        s.whnf_c.insert(expr::bvar(3), expr::bvar(4));
+        s.lnz_c.insert(lp("u"), true);
+        s.inst_c.insert(
+            (expr::bvar(5), vec![expr::bvar(6)], 7),
+            expr::bvar(8),
+        );
+
+        let mut d = state_c::dup(&s);
+
+        // Present keys answer the same way ...
+        match d.ienv.get(&f) {
+            Some(c) => {
+                assert!(expr::beq(&c.ty_e, &expr::bvar(0)));
+                assert!(expr::beq(&c.ty, &expr::bvar(1)));
+                assert!(c.val.is_none());
+            }
+            None => panic!("ienv entry lost"),
+        }
+        match d.const_ty_at.get(&(name::dup(&f), vec![level::dup(&us[0])])) {
+            Some(e) => assert!(expr::beq(e, &expr::bvar(2))),
+            None => panic!("constTyAt entry lost"),
+        }
+        match d.whnf_c.get(&expr::bvar(3)) {
+            Some(e) => assert!(expr::beq(e, &expr::bvar(4))),
+            None => panic!("whnfC entry lost"),
+        }
+        assert_eq!(d.lnz_c.get(&lp("u")), Some(&true));
+        match d.inst_c.get(&(expr::bvar(5), vec![expr::bvar(6)], 7)) {
+            Some(e) => assert!(expr::beq(e, &expr::bvar(8))),
+            None => panic!("instC entry lost"),
+        }
+
+        // ... absent keys too, and the sizes match.
+        assert!(d.ienv.get(&nm("g")).is_none());
+        assert!(d.whnf_c.get(&expr::bvar(99)).is_none());
+        assert!(d.const_ty_at.get(&(name::dup(&f), Vec::new())).is_none());
+        assert_eq!(d.ienv.len(), s.ienv.len());
+        assert_eq!(d.const_ty_at.len(), s.const_ty_at.len());
+        assert_eq!(d.whnf_c.len(), s.whnf_c.len());
+        assert_eq!(d.lnz_c.len(), s.lnz_c.len());
+        assert_eq!(d.inst_c.len(), s.inst_c.len());
+        assert!(d.defeq_c.is_empty());
+        assert!(d.eqv_c.is_empty());
+
+        // The copy is independent in both directions.
+        d.whnf_c.insert(expr::bvar(50), expr::bvar(51));
+        assert!(s.whnf_c.get(&expr::bvar(50)).is_none());
+        s.lnz_c.insert(lp("w"), false);
+        assert!(d.lnz_c.get(&lp("w")).is_none());
+        d.lnz_c.insert(lp("u"), false);
+        assert_eq!(s.lnz_c.get(&lp("u")), Some(&true));
+        assert_eq!(s.whnf_c.len(), 1);
+        assert_eq!(d.whnf_c.len(), 2);
+    }
+
+    /// The snapshot of a state that has grown past a resize keeps every
+    /// binding, and a `CConstE` with a `val` survives whole.
+    #[test]
+    fn cstate_dup_of_a_grown_state() {
+        let mut s = state_c::cstate_new();
+        let mut i: u64 = 0;
+        while i < 200 {
+            s.whnf_c.insert(expr::bvar(i), expr::bvar(i + 1));
+            i += 1;
+        }
+        let mut c = state_c::cconst_e_new(expr::bvar(0), expr::bvar(1));
+        c.val = Some((expr::bvar(2), expr::bvar(3)));
+        s.ienv.insert(nm("f"), c);
+
+        let d = state_c::dup(&s);
+        assert_eq!(d.whnf_c.len(), 200);
+        let mut i: u64 = 0;
+        while i < 200 {
+            match d.whnf_c.get(&expr::bvar(i)) {
+                Some(e) => assert!(expr::beq(e, &expr::bvar(i + 1))),
+                None => panic!("entry lost across a resize"),
+            }
+            i += 1;
+        }
+        assert!(d.whnf_c.get(&expr::bvar(200)).is_none());
+        match d.ienv.get(&nm("f")) {
+            Some(c) => match &c.val {
+                Some(pair) => {
+                    assert!(expr::beq(&pair.0, &expr::bvar(2)));
+                    assert!(expr::beq(&pair.1, &expr::bvar(3)));
+                }
+                None => panic!("the `val` field was dropped"),
+            },
+            None => panic!("ienv entry lost"),
+        }
     }
 }
