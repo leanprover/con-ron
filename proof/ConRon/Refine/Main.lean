@@ -2,6 +2,7 @@ import ConRon.Refine.Installed
 import ConRon.Refine.PinsWF
 import ConRon.Refine.IndC
 import ConRon.Refine.Core.Arms.Arms
+import ConRon.Refine.BasisRaw
 import ConLeche.MainTheorem
 
 /-! # The capstone: `conron.model_exists` and `conron.no_proof_of_False` (task #60)
@@ -183,13 +184,32 @@ theorem conron.no_proof_of_False (V : Type w) [ConLeche.SetTheory V]
     ConLeche.Cached.no_proof_of_False_cached V (μ := .verified) rfl
       (check_decls_verified_refines_ok hk hraw hind hinde hvar hds h) c hmem hty
 
+/-! ## The pin recogniser discharged
+
+`Refine/BasisRaw.lean` and `Refine/Canon.lean` prove the four facts
+`CheckerDecl.BasisRawSpec` bundles — con-leche's task #293 moved the
+pinned-block match out of the parser into the fold, so `checkDecl` reads
+`basisPinHit`, `quotPinHit`, `quotBasis` and `ConstantInfo.canonEq`, and the
+port's counterparts refine them.  The bundle is stated in `CheckerDecl.lean`,
+in the `IndRoutesSpec` idiom, because that is where the arms consume it; the
+witness is here, beside the knot's, because this is where the tower's
+hypotheses are discharged. -/
+
+/-- **The pin recogniser refines con-leche's** (con-leche task #293). -/
+theorem conron.basis_raw_spec : CheckerDecl.BasisRawSpec where
+  basisPinHit := fun hblock h => BasisRaw.basis_pin_hit_refines hblock h
+  quotPinHit := fun hcv h => BasisRaw.quot_pin_hit_refines hcv h
+  quotBasisAt := fun h => BasisRaw.quot_basis_at_refines h
+  constantInfoCanonEq := fun ha hb h => Canon.constant_info_canon_eq_refines ha hb h
+
 /-! ## The knot and the inductive routes discharged
 
 `Core.knot_spec` (task #61) proves `KnotSpec mode fuel` at every fuel, and
 `Refine/IndC.lean`'s `ind_routes_spec'` / `ind_routes_spec_err'` take that to
 both halves of the inductive seam (task #57/#59 for the accept half, task #67
-continued for the failure half), so `hk`, `hind` and `hinde` are not
-hypotheses of the theorems below.  The one that remains here is the pin
+continued for the failure half); `conron.basis_raw_spec` just above proves the
+pin recogniser's four facts (task #83).  So `hk`, `hraw`, `hind` and `hinde`
+are not hypotheses of the theorems below.  The one that remains here is the pin
 argument's well-formedness (`hvar`), and the corollaries further down discharge
 that as well for the list the binary actually folds with; `Refine/README.md`
 names each with its owner.  Task #58's `hoe` is gone: task #65 made a thrown pin attempt the pin
@@ -203,7 +223,7 @@ theorem conron.model_exists' (V : Type w) [ConLeche.SetTheory V]
     (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e)) :=
-  conron.model_exists V (Core.knot_spec IndAbs.checkFuelU)
+  conron.model_exists V (Core.knot_spec IndAbs.checkFuelU) conron.basis_raw_spec
     (InductivesC.ind_routes_spec' (Core.knot_spec IndAbs.checkFuelU))
     (InductivesC.ind_routes_spec_err' (Core.knot_spec IndAbs.checkFuelU))
     hvar hds h
@@ -216,7 +236,7 @@ theorem conron.no_proof_of_False' (V : Type w) [ConLeche.SetTheory V]
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ¬ ∃ c ∈ (absEnv e).consts,
         c.toConstantVal.type = .const ConLeche.falseName [] :=
-  conron.no_proof_of_False V (Core.knot_spec IndAbs.checkFuelU)
+  conron.no_proof_of_False V (Core.knot_spec IndAbs.checkFuelU) conron.basis_raw_spec
     (InductivesC.ind_routes_spec' (Core.knot_spec IndAbs.checkFuelU))
     (InductivesC.ind_routes_spec_err' (Core.knot_spec IndAbs.checkFuelU))
     hvar hds h
