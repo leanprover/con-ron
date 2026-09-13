@@ -43,7 +43,8 @@ use con_ron_core::cached::parsed_c::DeclC;
 
 use crate::in_model::mutual::{BlockRec, Ctx};
 
-/// con-leche: ConLeche/Frontend/InModel.lean:40-46 generate
+/// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove mod::generate_refines, then delete this line
 /// Generate the model records of a block, in stream order, or the reason the
 /// block is declined.
 pub fn generate(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {

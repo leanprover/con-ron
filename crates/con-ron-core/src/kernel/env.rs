@@ -60,7 +60,7 @@ use std::vec::Vec;
 // The mode (`Env.lean:69-194`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:69-72 CheckMode
+/// con-leche: ConLeche/Kernel/Env.lean:59-62 CheckMode
 /// The checker's two-valued mode setting, validated once at startup and
 /// threaded as configuration.  `deriving DecidableEq, Repr, Inhabited` is
 /// dropped: nothing executable compares two modes (the five accessors below
@@ -70,7 +70,7 @@ pub enum CheckMode {
     Trusted,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:69-72 CheckMode
+/// con-leche: ConLeche/Kernel/Env.lean:59-62 CheckMode
 /// The handle-free copy of a two-constructor enum.
 pub fn check_mode_dup(m: &CheckMode) -> CheckMode {
     match m {
@@ -79,7 +79,7 @@ pub fn check_mode_dup(m: &CheckMode) -> CheckMode {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:80-81 CheckMode.ttChecks
+/// con-leche: ConLeche/Kernel/Env.lean:70-71 CheckMode.ttChecks
 /// The seven TT-lane checks: constantly `false` since con-leche's task #148.
 /// The cited wildcard arm is spelled out over the two constructors.
 pub fn tt_checks(m: &CheckMode) -> bool {
@@ -89,7 +89,7 @@ pub fn tt_checks(m: &CheckMode) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:92-94 CheckMode.verifiedChecks
+/// con-leche: ConLeche/Kernel/Env.lean:82-84 CheckMode.verifiedChecks
 /// The verified mode's extra checks (the λ-rule's codomain-sort check).
 pub fn verified_checks(m: &CheckMode) -> bool {
     match m {
@@ -98,7 +98,7 @@ pub fn verified_checks(m: &CheckMode) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:119-121 CheckMode.betaGate
+/// con-leche: ConLeche/Kernel/Env.lean:109-111 CheckMode.betaGate
 /// The β-certificate gate.
 pub fn beta_gate(m: &CheckMode) -> bool {
     match m {
@@ -107,7 +107,7 @@ pub fn beta_gate(m: &CheckMode) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:141-142 CheckMode.ioGate
+/// con-leche: ConLeche/Kernel/Env.lean:131-132 CheckMode.ioGate
 /// The io-grade knot slot: `true` at both modes.  The cited wildcard arm is
 /// spelled out over the two constructors.
 pub fn io_gate(m: &CheckMode) -> bool {
@@ -117,7 +117,7 @@ pub fn io_gate(m: &CheckMode) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:173-175 CheckMode.certs
+/// con-leche: ConLeche/Kernel/Env.lean:163-165 CheckMode.certs
 /// The certificate families: the work that exists only so the soundness
 /// proof can consume it.
 pub fn certs(m: &CheckMode) -> bool {
@@ -127,13 +127,13 @@ pub fn certs(m: &CheckMode) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:184-185 CheckMode.betaSkip
+/// con-leche: ConLeche/Kernel/Env.lean:174-175 CheckMode.betaSkip
 /// The β site's read: `!mode.certs || (mode.betaGate && pw.isNever)`.
 pub fn beta_skip(m: &CheckMode, pw: &PropWhen) -> bool {
     !certs(m) || (beta_gate(m) && prop_when::is_never(pw))
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:193-194 CheckMode.ioSkip
+/// con-leche: ConLeche/Kernel/Env.lean:183-184 CheckMode.ioSkip
 /// The io site's read: `!mode.certs || pw.isNever`.
 pub fn io_skip(m: &CheckMode, pw: &PropWhen) -> bool {
     !certs(m) || prop_when::is_never(pw)
@@ -183,7 +183,7 @@ pub fn exprs_copy_from(es: &Vec<Expr>, i: usize, out: Vec<Expr>) -> Vec<Expr> {
 // The stored-constant records (`Env.lean:197-496`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:197-201 ConstantVal
+/// con-leche: ConLeche/Kernel/Env.lean:187-191 ConstantVal
 /// Data common to all constants.  Deviation: the field `type` is `ty` —
 /// `type` is a Rust keyword (task #6's modulo rule).
 pub struct ConstantVal {
@@ -192,7 +192,7 @@ pub struct ConstantVal {
     pub ty: Expr,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:197-201 ConstantVal
+/// con-leche: ConLeche/Kernel/Env.lean:187-191 ConstantVal
 /// The record copy: two `P` bumps and one `Vec<Name>` spine.
 pub fn constant_val_dup(cv: &ConstantVal) -> ConstantVal {
     ConstantVal {
@@ -202,7 +202,7 @@ pub fn constant_val_dup(cv: &ConstantVal) -> ConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:243-247 RecRuleFire
+/// con-leche: ConLeche/Kernel/Env.lean:233-237 RecRuleFire
 /// How a stored recursor rule may fire (install-computed; the parse
 /// placeholder is `.inert`).
 pub enum RecRuleFire {
@@ -211,7 +211,7 @@ pub enum RecRuleFire {
     Nested(Vec<Level>, Vec<Expr>),
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:243-247 RecRuleFire
+/// con-leche: ConLeche/Kernel/Env.lean:233-237 RecRuleFire
 /// The copy; `.nested`'s two lists are copied spine-wise.
 pub fn rec_rule_fire_dup(f: &RecRuleFire) -> RecRuleFire {
     match f {
@@ -223,7 +223,7 @@ pub fn rec_rule_fire_dup(f: &RecRuleFire) -> RecRuleFire {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:259-292 RecRule
+/// con-leche: ConLeche/Kernel/Env.lean:249-282 RecRule
 /// One iota rule of a recursor.  The five install-computed fields
 /// (`ctorParams`, `fire`, `k`, `eta`, `paramsBlind`) carry parse
 /// placeholders `0`/`.inert`/`false` until the install computes them
@@ -240,7 +240,7 @@ pub struct RecRule {
     pub params_blind: bool,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:259-292 RecRule
+/// con-leche: ConLeche/Kernel/Env.lean:249-282 RecRule
 /// The record copy.
 pub fn rec_rule_dup(r: &RecRule) -> RecRule {
     RecRule {
@@ -255,7 +255,7 @@ pub fn rec_rule_dup(r: &RecRule) -> RecRule {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:259-292 RecRule
+/// con-leche: ConLeche/Kernel/Env.lean:249-282 RecRule
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:117-121 BasisDSL.rule
 /// A rule at the cited *parse placeholders* — the Lean's field defaults
 /// `ctorParams := 0`, `fire := .inert`, `k := eta := paramsBlind := false`,
@@ -275,7 +275,7 @@ pub fn rec_rule_parsed(ctor: Name, nfields: u64, rhs: Expr) -> RecRule {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:298-301 RecRule.compareParams
+/// con-leche: ConLeche/Kernel/Env.lean:288-291 RecRule.compareParams
 /// Whether the ι step compares this rule's parameter comparands.
 pub fn rec_rule_compare_params(rl: &RecRule) -> bool {
     match rl.fire {
@@ -285,7 +285,7 @@ pub fn rec_rule_compare_params(rl: &RecRule) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:318-322 ReducibilityHint
+/// con-leche: ConLeche/Kernel/Env.lean:308-312 ReducibilityHint
 /// The reducibility hint of a definition.  Deviation: `opaque` and `abbrev`
 /// are spelled `Opaque`/`Abbrev` (the Lean writes them in `«»` because they
 /// are Lean keywords; they are not Rust ones, but the constructor case is
@@ -296,7 +296,7 @@ pub enum ReducibilityHint {
     Regular(u64),
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:318-322 ReducibilityHint
+/// con-leche: ConLeche/Kernel/Env.lean:308-312 ReducibilityHint
 /// The copy.
 pub fn reducibility_hint_dup(h: &ReducibilityHint) -> ReducibilityHint {
     match h {
@@ -306,7 +306,7 @@ pub fn reducibility_hint_dup(h: &ReducibilityHint) -> ReducibilityHint {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:329-334 ReducibilityHint.lt
+/// con-leche: ConLeche/Kernel/Env.lean:319-324 ReducibilityHint.lt
 /// `h₁.lt h₂`: `h₁` is strictly less eager to unfold than `h₂`.  The cited
 /// five arms overlap, so they are read *in order*: the first arm matching a
 /// pair wins.  Spelled here as one nested match in the same order, with
@@ -327,7 +327,7 @@ pub fn reducibility_hint_lt(h1: &ReducibilityHint, h2: &ReducibilityHint) -> boo
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:344-346 ReducibilityHint.sameRegular
+/// con-leche: ConLeche/Kernel/Env.lean:334-336 ReducibilityHint.sameRegular
 /// Both hints are `regular` at the *same* height.
 pub fn reducibility_hint_same_regular(h1: &ReducibilityHint, h2: &ReducibilityHint) -> bool {
     match h1 {
@@ -341,7 +341,7 @@ pub fn reducibility_hint_same_regular(h1: &ReducibilityHint, h2: &ReducibilityHi
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:352-354 BasisKind
+/// con-leche: ConLeche/Kernel/Env.lean:342-344 BasisKind
 /// The trusted basis inductives.
 pub enum BasisKind {
     EqK,
@@ -352,7 +352,7 @@ pub enum BasisKind {
     QuotK,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:352-354 BasisKind
+/// con-leche: ConLeche/Kernel/Env.lean:342-344 BasisKind
 /// The copy.
 pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
     match k {
@@ -365,7 +365,7 @@ pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:362-384 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:352-374 IndCaps
 /// Definitional capabilities of a stored inductive type, recorded at
 /// install.  Every field of the cited structure has a default; see
 /// `ind_caps_default`.
@@ -380,7 +380,7 @@ pub struct IndCaps {
     pub sort_z: PropWhen,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:362-384 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:352-374 IndCaps
 /// The cited structure's *field defaults*, which Rust has not: `eta :=
 /// false`, `etaCtor := .anonymous`, `etaParams := etaFields := 0`,
 /// `unitlike := false`, `unitParams := 0`, `ruleK := false` and — the one
@@ -401,7 +401,7 @@ pub fn ind_caps_default() -> IndCaps {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:362-384 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:352-374 IndCaps
 /// The record copy.
 pub fn ind_caps_dup(c: &IndCaps) -> IndCaps {
     IndCaps {
@@ -416,7 +416,7 @@ pub fn ind_caps_dup(c: &IndCaps) -> IndCaps {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:411-441 ProjTable
+/// con-leche: ConLeche/Kernel/Env.lean:401-431 ProjTable
 /// One structure's projection table: everything the checker's `.proj` rules
 /// consume about a structure `T`, stored once at the structure's install as
 /// one constant under `proj_table_name T`.
@@ -432,7 +432,7 @@ pub struct ProjTable {
     pub off: u64,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:411-441 ProjTable
+/// con-leche: ConLeche/Kernel/Env.lean:401-431 ProjTable
 /// The record copy.
 pub fn proj_table_dup(t: &ProjTable) -> ProjTable {
     ProjTable {
@@ -448,7 +448,7 @@ pub fn proj_table_dup(t: &ProjTable) -> ProjTable {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:447-462 ProjEntry
+/// con-leche: ConLeche/Kernel/Env.lean:437-452 ProjEntry
 /// The per-field view of a `ProjTable`, i.e. what `find_proj` returns.
 pub struct ProjEntry {
     pub struct_name: Name,
@@ -464,6 +464,7 @@ pub struct ProjEntry {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove env::default_expr_refines, then delete this line
 /// `default : Expr`, i.e. the cited inductive's `deriving Inhabited` at
 /// `Expr.lean:403`: Lean's derived instance is the first constructor at its
 /// arguments' own defaults, `.bvar 0`.  Task #11 deliberately did not port
@@ -473,7 +474,7 @@ pub fn default_expr() -> Expr {
     expr::bvar(0)
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:466-468 ProjTable.entry
+/// con-leche: ConLeche/Kernel/Env.lean:456-458 ProjTable.entry
 /// The per-field view of a table at field `i` (meaningful for `i <
 /// numFields`).  The two `getD`s are out-of-range guards: Lean's `default :
 /// Expr` is `.bvar 0` (`default_expr`) and `guards.getD i .zero` falls back
@@ -503,7 +504,7 @@ pub fn proj_table_entry(tbl: &ProjTable, i: u64) -> ProjEntry {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:471-496 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:461-486 ConstantInfo
 /// Information stored about an accepted constant.
 pub enum ConstantInfo {
     AxiomInfo(ConstantVal),
@@ -533,7 +534,7 @@ pub fn rec_rules_copy_from(rs: &Vec<RecRule>, i: usize, out: Vec<RecRule>) -> Ve
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:471-496 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:461-486 ConstantInfo
 /// The record copy; what `fenv::push` needs, because a pushed constant lands
 /// both in `env.consts` and in the index (where Lean shares one value).
 pub fn constant_info_dup(c: &ConstantInfo) -> ConstantInfo {
@@ -592,7 +593,7 @@ pub fn constant_infos_copy_from(
 // above) — what the two pinned-basis guards read (`kernel::basis_pins`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:196-201 ConstantVal
+/// con-leche: ConLeche/Kernel/Env.lean:186-191 ConstantVal
 /// Lean's `deriving DecidableEq` on `ConstantVal`, componentwise in the cited
 /// field order.  The `Name`/`Expr` comparisons are the crate's own, with
 /// their pointer fast paths (DESIGN.md §3.2).
@@ -608,7 +609,7 @@ pub fn constant_val_beq(a: &ConstantVal, b: &ConstantVal) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:203-247 RecRuleFire
+/// con-leche: ConLeche/Kernel/Env.lean:193-237 RecRuleFire
 /// Lean's `deriving DecidableEq` on `RecRuleFire`: different constructors are
 /// unequal, `.nested` componentwise.
 pub fn rec_rule_fire_beq(a: &RecRuleFire, b: &RecRuleFire) -> bool {
@@ -634,7 +635,7 @@ pub fn rec_rule_fire_beq(a: &RecRuleFire, b: &RecRuleFire) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:249-292 RecRule
+/// con-leche: ConLeche/Kernel/Env.lean:239-282 RecRule
 /// Lean's `deriving DecidableEq` on `RecRule`, componentwise — the five
 /// install-computed fields (`ctor_params`, `fire`, `k`, `eta`,
 /// `params_blind`) included, because the guard compares the *stored* rule.
@@ -670,7 +671,7 @@ pub fn rec_rule_beq(a: &RecRule, b: &RecRule) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:249-292 RecRule
+/// con-leche: ConLeche/Kernel/Env.lean:239-282 RecRule
 /// The `List.beq` over `BEq RecRule` of `recInfo`'s `rules` field.
 pub fn rec_rules_beq(a: &Vec<RecRule>, b: &Vec<RecRule>) -> bool {
     if a.len() == b.len() {
@@ -680,7 +681,7 @@ pub fn rec_rules_beq(a: &Vec<RecRule>, b: &Vec<RecRule>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:249-292 RecRule
+/// con-leche: ConLeche/Kernel/Env.lean:239-282 RecRule
 /// The index recursion behind `rec_rules_beq`.
 pub fn rec_rules_beq_from(a: &Vec<RecRule>, b: &Vec<RecRule>, i: usize) -> bool {
     if i >= a.len() {
@@ -692,7 +693,7 @@ pub fn rec_rules_beq_from(a: &Vec<RecRule>, b: &Vec<RecRule>, i: usize) -> bool 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:312-322 ReducibilityHint
+/// con-leche: ConLeche/Kernel/Env.lean:302-312 ReducibilityHint
 /// Lean's `deriving DecidableEq` on `ReducibilityHint`.
 pub fn reducibility_hint_beq(a: &ReducibilityHint, b: &ReducibilityHint) -> bool {
     match a {
@@ -711,7 +712,7 @@ pub fn reducibility_hint_beq(a: &ReducibilityHint, b: &ReducibilityHint) -> bool
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:357-384 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:347-374 IndCaps
 /// Lean's `deriving DecidableEq` on `IndCaps`, componentwise — the
 /// result-sort zero-ness datum `sort_z` through `prop_when::beq`.
 pub fn ind_caps_beq(a: &IndCaps, b: &IndCaps) -> bool {
@@ -746,7 +747,7 @@ pub fn ind_caps_beq(a: &IndCaps, b: &IndCaps) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:386-441 ProjTable
+/// con-leche: ConLeche/Kernel/Env.lean:376-431 ProjTable
 /// Lean's `deriving DecidableEq` on `ProjTable`, componentwise in the cited
 /// field order (`bodies` before `guards`, `off` last).
 pub fn proj_table_beq(a: &ProjTable, b: &ProjTable) -> bool {
@@ -785,7 +786,7 @@ pub fn proj_table_beq(a: &ProjTable, b: &ProjTable) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:470-496 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:460-486 ConstantInfo
 /// Lean's `deriving DecidableEq` on `ConstantInfo` — **the equality the two
 /// pinned-basis guards read** as `env.find? eqName == some eqA` and
 /// `decide (env.find? natName = some natA)`
@@ -878,7 +879,8 @@ pub fn constant_info_beq(a: &ConstantInfo, b: &ConstantInfo) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:499-528 Declaration
+/// con-leche: ConLeche/Kernel/Env.lean:506-560 Declaration
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove env::Declaration_refines, then delete this line
 /// A declaration presented to the checker.  `indDecl` carries the parameter
 /// count the *stream declares* (con-leche task #228), checked by
 /// `ind_params_ok`.
@@ -891,7 +893,8 @@ pub enum Declaration {
     IndDecl(Vec<ConstantInfo>, u64),
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:533-535 Declaration.name
+/// con-leche: ConLeche/Kernel/Env.lean:564-568 Declaration.name
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove env::declaration_name_refines, then delete this line
 /// The name of a non-basis declaration (basis and inductive blocks install
 /// several, so they answer `.anonymous`).
 pub fn declaration_name(d: &Declaration) -> Name {
@@ -909,7 +912,7 @@ pub fn declaration_name(d: &Declaration) -> Name {
 // The declared-parameter-count check (`Env.lean:550-588`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:550-553 Expr.piSortTeleLen?
+/// con-leche: ConLeche/Kernel/Env.lean:583-586 Expr.piSortTeleLen?
 /// The length of a syntactic Π-telescope ending in a `.sort`: `some n` when
 /// the expression is `n` Π binders with a sort residual, `none` otherwise.
 /// A spine walk — one child per step, never a tree.  The cited `.map (·+1)`
@@ -933,14 +936,14 @@ pub fn pi_sort_tele_len(e: &Expr) -> Option<u64> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:581-588 indParamsOk
+/// con-leche: ConLeche/Kernel/Env.lean:614-621 indParamsOk
 /// The stream's declared parameter count, checked as official checks it.
 /// One-sided on purpose: `false` means official rejects.
 pub fn ind_params_ok(n_p: u64, block: &Vec<ConstantInfo>) -> bool {
     ind_params_ok_from(n_p, block, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:581-588 indParamsOk
+/// con-leche: ConLeche/Kernel/Env.lean:614-621 indParamsOk
 /// The cited `List.all`'s predicate, at one member: a former whose declared
 /// type is a Π-telescope ending in a sort and shorter than `nP` is one
 /// official cannot peel `nP` binders off; any other residual is left to the
@@ -960,7 +963,7 @@ pub fn ind_params_ok_one(n_p: u64, ci: &ConstantInfo) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:581-588 indParamsOk
+/// con-leche: ConLeche/Kernel/Env.lean:614-621 indParamsOk
 /// The index recursion the cited `List.all` becomes (task #3's pattern).
 pub fn ind_params_ok_from(n_p: u64, block: &Vec<ConstantInfo>, i: usize) -> bool {
     if i >= block.len() {
@@ -984,7 +987,7 @@ const PROJ_STR: [u32; 4] = [112, 114, 111, 106];
 /// The code points of `"projTable"` (cf. `level::is_proj_table_str`).
 const PROJ_TABLE_STR: [u32; 9] = [112, 114, 111, 106, 84, 97, 98, 108, 101];
 
-/// con-leche: ConLeche/Kernel/Env.lean:596 projFnName
+/// con-leche: ConLeche/Kernel/Env.lean:629 projFnName
 /// The public projection-*function* name for field `i` of structure `T`:
 /// `(T.str "proj").num i`.
 pub fn proj_fn_name(t: &Name, i: u64) -> Name {
@@ -994,7 +997,7 @@ pub fn proj_fn_name(t: &Name, i: u64) -> Name {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:602 projTableName
+/// con-leche: ConLeche/Kernel/Env.lean:635 projTableName
 /// The reserved name of structure `T`'s projection table:
 /// `(T.str "projTable").num 0`.
 pub fn proj_table_name(t: &Name) -> Name {
@@ -1008,7 +1011,7 @@ pub fn proj_table_name(t: &Name) -> Name {
 // `ConstantInfo`'s accessors (`Env.lean:606-620`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:606-609 ConstantInfo.toConstantVal
+/// con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal
 /// The common header of a stored constant.  A projection table is not a
 /// term, so its header carries the closed dummy type `Sort 1`
 /// (`.sort (.succ .zero)`) under the reserved name.
@@ -1033,7 +1036,7 @@ pub fn to_constant_val(c: &ConstantInfo) -> ConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:611 ConstantInfo.name
+/// con-leche: ConLeche/Kernel/Env.lean:644 ConstantInfo.name
 /// `c.toConstantVal.name`, spelled as a direct match (see the deviation note
 /// on `to_constant_val`).
 pub fn constant_info_name(c: &ConstantInfo) -> Name {
@@ -1048,7 +1051,7 @@ pub fn constant_info_name(c: &ConstantInfo) -> Name {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:616-618 ConstantInfo.isTowerEntry
+/// con-leche: ConLeche/Kernel/Env.lean:649-651 ConstantInfo.isTowerEntry
 /// A projection table: a table, not a term.
 pub fn is_tower_entry(c: &ConstantInfo) -> bool {
     match c {
@@ -1062,7 +1065,7 @@ pub fn is_tower_entry(c: &ConstantInfo) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:620 ConstantInfo.type
+/// con-leche: ConLeche/Kernel/Env.lean:653 ConstantInfo.type
 /// `c.toConstantVal.type`, spelled as a direct match (see `to_constant_val`).
 pub fn constant_info_type(c: &ConstantInfo) -> Expr {
     match c {
@@ -1080,7 +1083,7 @@ pub fn constant_info_type(c: &ConstantInfo) -> Expr {
 // The environment (`Env.lean:627-645`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:627-629 Env
+/// con-leche: ConLeche/Kernel/Env.lean:677-679 Env
 /// The global environment: the constants accepted so far, **newest first**.
 /// Names are unique (the checker rejects duplicates), so the order is
 /// irrelevant for lookup; it is kept anyway, because `FEnv`'s installation
@@ -1102,7 +1105,7 @@ pub struct Env {
     pub consts: Vec<P<ConstantInfo>>,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:627-629 Env
+/// con-leche: ConLeche/Kernel/Env.lean:677-679 Env
 /// The record copy — `P` bumps, not record copies (the `Env` deviation).
 pub fn env_dup(e: &Env) -> Env {
     Env {
@@ -1110,7 +1113,7 @@ pub fn env_dup(e: &Env) -> Env {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:634 Env.empty
+/// con-leche: ConLeche/Kernel/Env.lean:684 Env.empty
 /// The empty environment; the starting point of every checker run.
 pub fn empty() -> Env {
     Env { consts: Vec::new() }
@@ -1129,7 +1132,7 @@ pub fn constant_info_rc_dup(c: &P<ConstantInfo>) -> P<ConstantInfo> {
     ptr::clone(c)
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:627-629 Env
+/// con-leche: ConLeche/Kernel/Env.lean:677-679 Env
 /// An `Env` over records that are not shared yet — `⟨cs⟩` where the Lean's
 /// `cs` is already a list of stored records, in the cited **newest-first**
 /// order.  The entry point of the index recursion below; it is how the tests
@@ -1143,7 +1146,7 @@ pub fn env_of(cs: &Vec<ConstantInfo>) -> Env {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:627-629 Env
+/// con-leche: ConLeche/Kernel/Env.lean:677-679 Env
 /// The index recursion behind `env_of`: `cs[..i]`, each record shared, pushed
 /// onto the accumulator **back to front**, so the accumulator comes out in
 /// the stored (oldest-first) order.  `i` counts down; the entry point passes
@@ -1162,7 +1165,7 @@ pub fn env_of_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:636-637 Env.find?
+/// con-leche: ConLeche/Kernel/Env.lean:686-687 Env.find?
 /// `env.consts.find? (·.name == n)` — the linear search over the cited list,
 /// in its order (newest first), so the newest binding of a name wins.
 ///
@@ -1175,7 +1178,7 @@ pub fn find<'a>(env: &'a Env, n: &Name) -> Option<&'a ConstantInfo> {
     find_from(&env.consts, env.consts.len(), n)
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:636-637 Env.find?
+/// con-leche: ConLeche/Kernel/Env.lean:686-687 Env.find?
 /// The index recursion the cited `List.find?` becomes (task #3's pattern),
 /// counting **down**: `find_from(cs, i, n)` searches `cs[..i]` from the top,
 /// which is the cited list from the front.  The predicate is inlined because
@@ -1194,7 +1197,7 @@ pub fn find_from<'a>(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:642-645 Env.findProj?
+/// con-leche: ConLeche/Kernel/Env.lean:692-695 Env.findProj?
 /// The projection-table entry for field `i` of `T`: the structure's table
 /// (`proj_table_name T`), viewed at field `i`; `none` beyond the table's
 /// field count.
@@ -1216,7 +1219,7 @@ pub fn find_proj(env: &Env, t: &Name, i: u64) -> Option<ProjEntry> {
 // The block's recursor suffix, decided on the tags (`Env.lean:666-675`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:666-668 ConstantInfo.isRecInfo
+/// con-leche: ConLeche/Kernel/Env.lean:716-718 ConstantInfo.isRecInfo
 /// Is this member a recursor record?
 pub fn is_rec_info(c: &ConstantInfo) -> bool {
     match c {
@@ -1230,7 +1233,7 @@ pub fn is_rec_info(c: &ConstantInfo) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:671-675 recsFormSuffix
+/// con-leche: ConLeche/Kernel/Env.lean:721-725 recsFormSuffix
 /// Do the recursors form a suffix of the block?  The tag pass — one pass, no
 /// expression compared, which is the whole point of the cited function (the
 /// derived `DecidableEq (List ConstantInfo)` compares DAG-shared towers as
@@ -1239,7 +1242,7 @@ pub fn recs_form_suffix(block: &Vec<ConstantInfo>) -> bool {
     recs_form_suffix_from(block, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:671-675 recsFormSuffix
+/// con-leche: ConLeche/Kernel/Env.lean:721-725 recsFormSuffix
 /// The index recursion the cited `List` recursion becomes; the inner
 /// `rest.all ConstantInfo.isRecInfo` is `all_rec_info_from`.
 pub fn recs_form_suffix_from(block: &Vec<ConstantInfo>, i: usize) -> bool {
@@ -1252,7 +1255,7 @@ pub fn recs_form_suffix_from(block: &Vec<ConstantInfo>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:671-675 recsFormSuffix
+/// con-leche: ConLeche/Kernel/Env.lean:721-725 recsFormSuffix
 /// The cited `rest.all ConstantInfo.isRecInfo`, as an index recursion.
 pub fn all_rec_info_from(block: &Vec<ConstantInfo>, i: usize) -> bool {
     if i >= block.len() {
@@ -1264,8 +1267,8 @@ pub fn all_rec_info_from(block: &Vec<ConstantInfo>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:736-742 blockRecSuffixDec
-/// con-leche: ConLeche/Kernel/Env.lean:670-675 recsFormSuffix
+/// con-leche: ConLeche/Kernel/Env.lean:786-792 blockRecSuffixDec
+/// con-leche: ConLeche/Kernel/Env.lean:720-725 recsFormSuffix
 /// The substituted decision behind `@decide _ (blockRecSuffixDec block)`: the
 /// recursors form a suffix of the block.  `recsFormSuffix_iff` is the cited
 /// equivalence that licenses deciding it by the tag pass instead of by the

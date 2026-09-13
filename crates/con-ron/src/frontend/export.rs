@@ -38,12 +38,13 @@ use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::prop_when;
 
-/// con-leche: ConLeche/Frontend/Export.lean:405 M
+/// con-leche: ConLeche/Frontend/Export.lean:117 M
 /// The parse's error monad: a message, which the driver reports with the line
 /// number.
 pub type M<T> = Result<T, String>;
 
 /// con-leche: ConLeche/Frontend/Export.lean:95-101 canonNameMap
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_name_map_refines, then delete this line
 /// The level-parameter renaming a constant's own parameter list induces: the
 /// `i`-th parameter becomes `⟨i⟩`, anything else is left alone.  Lean returns
 /// the closure `Name → Name`; the port passes the list and the name together,
@@ -60,6 +61,7 @@ pub fn canon_name_map(ps: &Vec<Name>, n: &Name) -> Name {
 }
 
 /// con-leche: ConLeche/Frontend/Export.lean:55-62 canonLevel
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_level_refines, then delete this line
 /// Rename level parameters (for basis-block matching up to level-parameter
 /// names).
 pub fn canon_level(ps: &Vec<Name>, l: &Level) -> Level {
@@ -73,13 +75,16 @@ pub fn canon_level(ps: &Vec<Name>, l: &Level) -> Level {
 }
 
 /// con-leche: ConLeche/Frontend/Export.lean:55-62 canonLevel
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_level_list_refines, then delete this line
 /// `us.map (canonLevel m)`, the `const` arm's list.
 pub fn canon_level_list(ps: &Vec<Name>, ls: &Vec<Level>) -> Vec<Level> {
     ls.iter().map(|l| canon_level(ps, l)).collect()
 }
 
 /// con-leche: ConLeche/Frontend/Export.lean:154-174 canonExprEqFast
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_expr_eq_fast_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Export.lean:64-93 canonExpr
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_expr_eq_fast_refines, then delete this line
 /// Lockstep twin of `canonExpr m a == canonExpr m' b`.  `canonExpr` preserves
 /// every node's constructor (it rewrites only levels, and resets the binder
 /// metadata to the same constant on both sides), so the two canonical forms
@@ -121,8 +126,11 @@ pub fn canon_expr_eq_fast(ps: &Vec<Name>, ps2: &Vec<Name>, a: &Expr, b: &Expr) -
 }
 
 /// con-leche: ConLeche/Frontend/Export.lean:229-234 ConstantVal.canonEqFast
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::constant_val_canon_eq_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Export.lean:223-227 ConstantVal.canonEq
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::constant_val_canon_eq_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Export.lean:103-108 ConstantVal.canon
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::constant_val_canon_eq_refines, then delete this line
 /// Two constants have the same canonical common data.  The numbered
 /// level-parameter lists are equal exactly when they are equally long.
 pub fn constant_val_canon_eq(cv: &ConstantVal, cv2: &ConstantVal) -> bool {
@@ -132,6 +140,7 @@ pub fn constant_val_canon_eq(cv: &ConstantVal, cv2: &ConstantVal) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/Export.lean:252-259 canonRulesEqFast
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_rules_eq_fast_refines, then delete this line
 /// Rule lists compared through the canonical form of each rule's right-hand
 /// side.  `{r with rhs := .bvar 0} == {r' with rhs := .bvar 0}` is every
 /// field but `rhs` under Lean's derived equality, which is what the first
@@ -161,8 +170,11 @@ pub fn canon_rules_eq_fast(
 }
 
 /// con-leche: ConLeche/Frontend/Export.lean:282-301 ConstantInfo.canonEqFast
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::constant_info_canon_eq_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Export.lean:278-280 ConstantInfo.canonEq
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::constant_info_canon_eq_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Export.lean:110-125 ConstantInfo.canon
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::constant_info_canon_eq_refines, then delete this line
 /// Two stored constants have the same canonical form.  `indInfo`'s `IndCaps`
 /// is reset on both sides by `canon`, so it is not compared; a `projInfo`
 /// never occurs in parsed input and the arm keeps the match total.
@@ -198,7 +210,9 @@ pub fn constant_info_canon_eq(ci: &ConstantInfo, ci2: &ConstantInfo) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/Export.lean:322-326 canonEqListFast
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_eq_list_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Export.lean:317-320 canonEqList
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_eq_list_refines, then delete this line
 /// Two blocks are the same, member for member, up to the canonical form.
 pub fn canon_eq_list(xs: &[ConstantInfo], ys: &[ConstantInfo]) -> bool {
     xs.len() == ys.len()
@@ -209,6 +223,7 @@ pub fn canon_eq_list(xs: &[ConstantInfo], ys: &[ConstantInfo]) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/Export.lean:347-351 FrontendError
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::FrontendError_refines, then delete this line
 /// Declaration kinds the checker cannot represent yet map to `Unsupported`,
 /// which the driver turns into the arena's "declined" exit code — as opposed
 /// to malformed input, which is a hard error.  A record that CONTRADICTS
@@ -220,7 +235,7 @@ pub enum FrontendError {
     Invalid(String),
 }
 
-/// con-leche: ConLeche/Frontend/Export.lean:353-361 RecordVerdict
+/// con-leche: ConLeche/Frontend/Export.lean:71-79 RecordVerdict
 /// What a declaration record can carry out of the parse when it does not
 /// produce a state: a positive DECLINE (a feature the checker does not
 /// support) or a REJECT (the record's redundant fields contradict the block's
@@ -231,7 +246,8 @@ pub enum RecordVerdict {
     Invalid(String),
 }
 
-/// con-leche: ConLeche/Frontend/Export.lean:363-366 RecordVerdict.toError
+/// con-leche: ConLeche/Frontend/Export.lean:81-85 RecordVerdict.toError
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::record_verdict_to_error_refines, then delete this line
 /// The frontend error a record verdict becomes.
 pub fn record_verdict_to_error(v: RecordVerdict) -> FrontendError {
     match v {
@@ -241,6 +257,7 @@ pub fn record_verdict_to_error(v: RecordVerdict) -> FrontendError {
 }
 
 /// con-leche: ConLeche/Frontend/Export.lean:368-373 taintSentinel
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::TAINT_SENTINEL_refines, then delete this line
 /// Internal sentinel: a declaration-level expression lookup hit a tainted
 /// entry.  Backstop only — `apply_decl_d`'s read-only pre-scan skips tainted
 /// declarations before any parsing; if it fires anyway it is converted to a
@@ -270,6 +287,7 @@ pub fn name_str(n: &Name) -> String {
 }
 
 /// con-leche: ConLeche/Frontend/Export.lean:407-417 taintDetail
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::taint_detail_refines, then delete this line
 /// The taint skips WITHOUT the total: per-root counts and the first few
 /// skipped names.  Used where the caller already states the count.
 pub fn taint_detail(skips: &[(Name, Name)]) -> String {
@@ -291,6 +309,7 @@ pub fn taint_detail(skips: &[(Name, Name)]) -> String {
 }
 
 /// con-leche: ConLeche/Frontend/Export.lean:419-422 taintSummary
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::taint_summary_refines, then delete this line
 /// Diagnostic summary of the taint skips: total, per-root counts, and the
 /// first few skipped names.
 pub fn taint_summary(skips: &[(Name, Name)]) -> String {

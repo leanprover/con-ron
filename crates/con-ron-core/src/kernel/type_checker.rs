@@ -63,6 +63,7 @@ use crate::kernel::level::Level;
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:57-66 fueledOps
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:68-69 pureOps
 /// con-leche: ConLeche/Cached/CheckerC.lean:68-71 opE
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove type_checker::whnf_core_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:81-96 sharedOpsC
 /// Head normalization without delta, at `checkFuel` (`CheckerOps.whnf`'s
 /// sibling; the record's `whnf` slot is `whnf` below).
@@ -79,6 +80,7 @@ pub fn whnf_core(
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:31-33 whnf
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
 /// con-leche: ConLeche/Cached/CheckerC.lean:68-71 opE
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove type_checker::whnf_refines, then delete this line
 /// The full reduction loop, at `checkFuel` — `CheckerOps.whnf`.
 pub fn whnf(mode: &CheckMode, st: &mut CState, fe: &FEnv, depth: u64, e: &Expr) -> CheckM<Expr> {
     core_c::whnf(mode, core_k::check_fuel(), st, fe, depth, e)
@@ -87,6 +89,7 @@ pub fn whnf(mode: &CheckMode, st: &mut CState, fe: &FEnv, depth: u64, e: &Expr) 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:35-38 inferTypeCore
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
 /// con-leche: ConLeche/Cached/CheckerC.lean:68-71 opE
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove type_checker::infer_type_core_refines, then delete this line
 /// Full-grade type inference at `checkFuel`: the declaration front door's
 /// entry — official's `infer_type_core(e, infer_only = false)`, and
 /// `CheckerOps.inferType`.
@@ -132,6 +135,7 @@ pub fn is_def_eq_core(
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:52-54 annotateCore
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
 /// con-leche: ConLeche/Cached/CheckerC.lean:68-71 opE
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove type_checker::annotate_core_refines, then delete this line
 /// The annotation pass at `checkFuel` — `CheckerOps.annotate`.
 pub fn annotate_core(
     mode: &CheckMode,

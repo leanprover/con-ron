@@ -39,7 +39,7 @@
 use crate::frontend::export::FrontendError;
 use crate::frontend::export_c::{parse_export_d, prelude_ix_empty, PreludeIx};
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-65 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:57-62 builtinPreludeText
 /// The committed prelude for the pinned toolchain (`lean-toolchain`),
 /// embedded at build time.  A toolchain bump regenerates it and re-points
 /// this path.
@@ -48,7 +48,8 @@ pub const BUILTIN_PRELUDE_TEXT: &str = include_str!(concat!(
     "/../../vendor/con-leche/pins/leanprover-lean4-v4.33.0.prelude.ndjson"
 ));
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:67-71 builtinPreludeE
+/// con-leche: ConLeche/Frontend/Prelude.lean:64-68 builtinPreludeE
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove prelude::builtin_prelude_e_refines, then delete this line
 /// The parsed, indexed prelude: `Result` because a committed file can in
 /// principle be corrupted, and a prelude that does not parse must be a loud
 /// error rather than a silently empty prelude.

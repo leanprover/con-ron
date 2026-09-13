@@ -85,6 +85,7 @@ use crate::kernel::type_checker;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:55-61 DeclC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::DeclC_refines, then delete this line
 /// A parsed declaration over `ExprC`.  Its constant-value records *are*
 /// `ConLeche.ConstantVal` (con-leche task #198: the separate `ConstantValC`
 /// is gone), so the header's type is an ordinary `Expr` — which is the same
@@ -131,7 +132,7 @@ pub struct ValueGroup {
     pub jv: Expr,
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:89-92 PendingCheck
+/// con-leche: ConLeche/Cached/Installed.lean:87-90 PendingCheck
 /// A phase-A record awaiting its phase-B check: the datum that crosses the
 /// install/check seam, the fold position of the declaration (its error tag)
 /// and the environment counter at the install — `fe.visibleBelow` before the
@@ -149,7 +150,8 @@ pub struct PendingCheck {
 // The parsed-declaration checker (`ParsedC.lean:63-241`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:67-69 opSIxC
+/// con-leche: ConLeche/Cached/ParsedC.lean:51-53 opSIxC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::op_s_ix_c_refines, then delete this line
 /// Parsed `ensureSort` (no per-call conversion): `ensureSortI` over the
 /// cached knot at `checkFuel`, which is `type_checker::ensure_sort_core` —
 /// the one place the knot is named (task #24's collapse 1).
@@ -163,7 +165,8 @@ pub fn op_s_ix_c(
     type_checker::ensure_sort_core(mode, st, fe, d, i)
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:71-96 checkConstantValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:55-80 checkConstantValC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_constant_val_c_refines, then delete this line
 /// `checkConstantVal` on a *parsed* declaration: the checks of
 /// `checkConstantValF` with the syntactic passes memoised on the `ExprC` DAG
 /// and the operations on `ExprC` values.  Returns the constant with its type
@@ -202,7 +205,8 @@ pub fn check_constant_val_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:71-96 checkConstantValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:55-80 checkConstantValC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_constant_val_c_after_annot_refines, then delete this line
 /// The tail past the annotation: the level-parameter and resolution guards on
 /// the annotated type, the type's own sort through `opSIxC`, and the record
 /// update.  Split off so the annotation's state-threading call is a tail call
@@ -237,7 +241,8 @@ pub fn check_constant_val_c_after_annot(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:98-115 checkDefnValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:82-99 checkDefnValC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_defn_val_c_refines, then delete this line
 /// `checkDefnValP` over `ExprC`: the value's syntactic guards, its
 /// annotation, the `ienv` record, and the comparison of its inferred type
 /// against the declared one, returning the pushed index.
@@ -262,7 +267,8 @@ pub fn check_defn_val_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:98-115 checkDefnValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:82-99 checkDefnValC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_defn_val_c_after_annot_refines, then delete this line
 /// The tail past the annotation.  `recordCConst` runs **between** the
 /// resolution guard and the inference, as the cited code has it: the `ienv`
 /// entry is what the cached lazy accessors (`constTyAtM`, `constValAtM`)
@@ -312,7 +318,8 @@ pub fn check_defn_val_c_after_annot(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:117-138 checkThmValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:101-122 checkThmValC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_thm_val_c_refines, then delete this line
 /// `checkThmValP` over `ExprC`: the statement must be a proposition first.
 /// Deviation: the cited `liftFueled "level comparison"` is monomorphic and
 /// stringless (task #18's deviation 1), i.e. `core_k::lift_fueled`.
@@ -342,7 +349,8 @@ pub fn check_thm_val_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:117-138 checkThmValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:101-122 checkThmValC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_thm_val_c_witness_refines, then delete this line
 /// The witness half: the value's syntactic guards and its annotation.  Split
 /// off so the is-a-proposition gate is a tail call (task #24's deviation 7).
 pub fn check_thm_val_c_witness(
@@ -365,7 +373,8 @@ pub fn check_thm_val_c_witness(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:117-138 checkThmValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:101-122 checkThmValC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_thm_val_c_checked_refines, then delete this line
 /// The tail past the witness annotation.  The `ienv` record carries **no**
 /// value (`recordCConst … none`) and the push stores the record's own *raw*
 /// value, unread: a theorem is stored by its statement and is opaque to
@@ -413,7 +422,8 @@ pub fn check_thm_val_c_checked(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:140-156 checkOpaqueValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:124-140 checkOpaqueValC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_opaque_val_c_refines, then delete this line
 /// `checkOpaqueValP` over `ExprC`: exactly the theorem check without the
 /// is-a-proposition requirement, stored as an `axiomInfo` because the
 /// official kernel's `is_delta` never unfolds an opaque.
@@ -437,7 +447,8 @@ pub fn check_opaque_val_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:140-156 checkOpaqueValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:124-140 checkOpaqueValC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_opaque_val_c_after_annot_refines, then delete this line
 /// The tail past the annotation.
 pub fn check_opaque_val_c_after_annot(
     mode: &CheckMode,
@@ -478,7 +489,8 @@ pub fn check_opaque_val_c_after_annot(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_decl_c_refines, then delete this line
 /// One parsed declaration, mirroring `checkDeclSPPlain` branch by branch.
 /// The six arms are six functions, so every one of them is a tail call
 /// (task #18's rule for a gated cascade).
@@ -501,7 +513,8 @@ pub fn check_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_defn_decl_c_refines, then delete this line
 /// The `.defnDecl` arm.  **The pinned-name test comes first**, which is the
 /// cited arm's own RC-linearity shape: with `fe` still live after the push —
 /// the pin gates read it at the pre-insertion bound — `checkDefnValC`'s
@@ -540,7 +553,8 @@ pub fn check_defn_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_defn_pins_c_refines, then delete this line
 /// The `.defnDecl` arm's two pinned-`Nat` gates — the structural-operation
 /// recurrence certificates and the `Nat.div`/`Nat.mod` pin variants.
 ///
@@ -563,7 +577,8 @@ pub fn check_defn_pins_c(
     checker::check_defn_pins(mode, pins, st, fe2, k_pre, n)
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_thm_decl_c_refines, then delete this line
 /// The `.thmDecl` arm.
 pub fn check_thm_decl_c(
     mode: &CheckMode,
@@ -578,7 +593,8 @@ pub fn check_thm_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_opaque_decl_c_refines, then delete this line
 /// The `.opaqueDecl` arm: the compiler-trust gate for
 /// `Lean.reduceNat`/`Lean.reduceBool`, tested before the push for the cited
 /// RC-linearity reason (the comment in `checkDeclC` itself), then the opaque
@@ -609,7 +625,8 @@ pub fn check_opaque_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_axiom_decl_c_refines, then delete this line
 /// The `.axiomDecl` arm.  The one thing it adds to `checkDecl`'s is the
 /// `recordCConst` before each install: the cached lane keeps the accepted
 /// constant's annotated type in `ienv`, tagged with the very `Expr` object
@@ -675,7 +692,8 @@ pub fn check_axiom_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_basis_decl_c_refines, then delete this line
 /// The `.basisDecl` arm: the pinned `Eq` basis prerequisite of the quotient
 /// block, then the install fold.
 ///
@@ -688,7 +706,8 @@ pub fn check_basis_decl_c(fe: FEnv, kind: &BasisKind) -> CheckCM<FEnv> {
     checker::check_basis_decl(fe, kind)
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_ind_decl_c_refines, then delete this line
 /// The `.indDecl` arm.  **The declared parameter count first, and for both
 /// routes** (con-leche task #228): `indParamsOk` is official's own check,
 /// one-sided, and it runs before the dispatch because it is a property of the
@@ -723,7 +742,8 @@ pub fn check_ind_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:262-266 checkDeclStepC
+/// con-leche: ConLeche/Cached/ParsedC.lean:278-282 checkDeclStepC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_decl_step_c_refines, then delete this line
 /// One step of the parsed-declaration fold: **flush, then check**.  The flush
 /// is what makes one `CState` safe for a whole stream — every
 /// environment-dependent memo is emptied, the self-certified `ienv` and the

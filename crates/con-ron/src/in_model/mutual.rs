@@ -39,7 +39,7 @@ use crate::in_model::kit::{
     pi_binders, sub, tag_ctor_name, vars_at, KCtor,
 };
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:67-76 IndTypeRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:65-74 IndTypeRec
 /// One inductive type of a parsed block, with the export's shape data.
 pub struct IndTypeRec {
     pub cv: ConstantVal,
@@ -51,7 +51,7 @@ pub struct IndTypeRec {
     pub num_nested: u64,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:78-83 IndCtorRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:76-81 IndCtorRec
 /// One constructor of a parsed block.
 pub struct IndCtorRec {
     pub cv: ConstantVal,
@@ -59,7 +59,7 @@ pub struct IndCtorRec {
     pub n_f: u64,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:85-94 IndRecRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:83-92 IndRecRec
 /// One recursor of a parsed block (`numParams`, `numMotives`, `numMinors`,
 /// `numIndices` as exported).
 pub struct IndRecRec {
@@ -71,7 +71,7 @@ pub struct IndRecRec {
     pub rules: Vec<RecRule>,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:96-101 BlockRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:94-99 BlockRec
 /// A parsed inductive block.
 pub struct BlockRec {
     pub types: Vec<IndTypeRec>,
@@ -79,7 +79,7 @@ pub struct BlockRec {
     pub recs: Vec<IndRecRec>,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:103-110 Ctx
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:101-108 Ctx
 /// What the generator reads besides the block: the declared types of the
 /// constants so far, the definitional heights, and the parsed inductive
 /// blocks so far by member type name (the nested rung reads a container's
@@ -90,7 +90,7 @@ pub struct Ctx<'a> {
     pub blocks: &'a dyn Fn(&Name) -> Option<&'a BlockRec>,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:112-118 MCtor
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:110-116 MCtor
 /// A constructor of member `m`, classified: its record, its recursive field
 /// positions with the target member of each.
 pub struct MCtor<'a> {
@@ -99,7 +99,7 @@ pub struct MCtor<'a> {
     pub rec_fields: Vec<(u64, u64)>,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:120-133 memberApp?
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:118-131 memberApp?
 /// Is `e` member `m'` of the block applied to the parameter variables (`o`
 /// binders below the parameter frame) and `nIdx_{m'}` index expressions?
 /// Returns the member.
@@ -131,7 +131,7 @@ pub fn member_app(
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:135-155 classifyCtor
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:133-153 classifyCtor
 /// Classify one constructor's fields: each domain is ordinary (no member
 /// mentioned) or exactly a member at the parameters and some index
 /// expressions (`T_{m'} p⃗ e⃗`); anything else is not this rung's (nested,
@@ -176,13 +176,14 @@ pub fn classify_ctor<'a>(
     })
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:157-160 need
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:155-158 need
 /// Unwrap a generator step that cannot fail on a well-formed block.
 pub fn need<T>(what: &str, o: Option<T>) -> Result<T, String> {
     o.ok_or_else(|| format!("internal shape failure: {}", what))
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:162-454 genMutual
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:160-452 genMutual
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove mutual::gen_mutual_refines, then delete this line
 /// **The mutual rung** (B1 index-free, B2 indexed).  The records, in stream
 /// order: the tag block, the auxiliary block, the member/constructor/recursor
 /// models, the iota theorems, the projection artifacts.
@@ -1085,8 +1086,10 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:162-454 genMutual
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:160-452 genMutual
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove mutual::h_of_refines, then delete this line
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove mutual::h_of_refines, then delete this line
 /// The `hOf` of both generators: the height of a constant, the definitions
 /// emitted by this block first (they are not in `ctx` yet), else the parse
 /// state's table.

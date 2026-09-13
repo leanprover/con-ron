@@ -48,7 +48,7 @@ use crate::in_model::kit::{
 };
 use crate::in_model::mutual::{need, BlockRec, Ctx, IndRecRec};
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:70-90 Mem
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:69-89 Mem
 /// A member of the auxiliary family: a real member of the block or a mimic (a
 /// nested occurrence `I As`, the container at its pins).
 pub struct Mem {
@@ -71,7 +71,7 @@ pub struct Mem {
     pub idx_bs: Vec<Expr>,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:92-111 ACtor
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:91-110 ACtor
 /// One constructor of the auxiliary family.
 pub struct ACtor {
     /// the member it belongs to
@@ -93,7 +93,7 @@ pub struct ACtor {
     pub j_in: u64,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:113-125 Group
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:112-124 Group
 /// A container group (B4): the mimics that are one container's recursor family
 /// instantiated at the pins, in the container's motive order, with each
 /// member's recursor name; `lv`/`pins` are the container's levels and pins
@@ -108,7 +108,7 @@ pub struct Group {
     pub large: bool,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:127-141 Family
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:126-140 Family
 /// The family read off the block.
 pub struct Family {
     pub t: Name,
@@ -129,7 +129,7 @@ pub struct Family {
 // Carriers and the family rewrite (`Nested.lean:143-251`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:145-155 carrierAt
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:144-154 carrierAt
 /// Member `mem`'s carrier at `o` binders below the parameter frame, at index
 /// arguments `idx`; `model` renames a real member to its model.
 pub fn carrier_at(fam: &Family, mem: &Mem, o: u64, idx: &[Expr], model: bool) -> Expr {
@@ -182,7 +182,7 @@ pub fn carrier_at(fam: &Family, mem: &Mem, o: u64, idx: &[Expr], model: bool) ->
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:157-160 auxAt
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:156-159 auxAt
 /// `aux p⃗ (tag.mem p⃗ idx)` at `o` binders below the parameter frame.
 pub fn aux_at(fam: &Family, tag: u64, o: u64, idx: &[Expr]) -> Expr {
     expr_ops::mk_app_n(
@@ -197,7 +197,7 @@ pub fn aux_at(fam: &Family, tag: u64, o: u64, idx: &[Expr]) -> Expr {
     )
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:162-183 matchCarrier
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:161-182 matchCarrier
 /// Is `e`, at `o` binders below the parameter frame, a member's carrier at
 /// some index arguments?  Returns the member's tag and the index arguments.
 pub fn match_carrier(fam: &Family, o: u64, e: &Expr) -> Option<(u64, Vec<Expr>)> {
@@ -245,7 +245,7 @@ pub fn match_carrier(fam: &Family, o: u64, e: &Expr) -> Option<(u64, Vec<Expr>)>
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:187-236 specAllGo
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:186-235 specAllGo
 /// Rewrite every whole carrier occurrence into the auxiliary family (`o`
 /// binders below the parameter frame at entry).  One memoized DAG walk, keyed
 /// by the node and the binder offset `o` (which shifts under binders, so a
@@ -307,7 +307,7 @@ pub fn spec_all_go(
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:238-245 specAllGoList
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:237-244 specAllGoList
 /// `spec_all_go` over a list, threading the memo.
 pub fn spec_all_go_list(
     fam: &Family,
@@ -318,7 +318,7 @@ pub fn spec_all_go_list(
     es.iter().map(|e| spec_all_go(fam, memo, o, e)).collect()
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:249-251 specAll
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:248-250 specAll
 /// `spec_all_go` at a fresh memo.
 pub fn spec_all(fam: &Family, o: u64, e: &Expr) -> Expr {
     let mut memo = std::collections::HashMap::new();
@@ -329,7 +329,7 @@ pub fn spec_all(fam: &Family, o: u64, e: &Expr) -> Expr {
 // Reading the family off the recursor (`Nested.lean:253-351`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:255-259 stripAllPis
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:254-258 stripAllPis
 /// Strip every leading `∀`, returning binders and body.
 pub fn strip_all_pis(e: &Expr) -> (Vec<(Expr, expr::BinderMeta)>, Expr) {
     let mut bs: Vec<(Expr, expr::BinderMeta)> = Vec::new();
@@ -346,7 +346,7 @@ pub fn strip_all_pis(e: &Expr) -> (Vec<(Expr, expr::BinderMeta)>, Expr) {
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:261-304 readMems
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:260-303 readMems
 /// Read the members off the motives of the first recursor's type (after the
 /// parameters): motive `m`'s domain `∀ ı⃗ (t : C), Sort ℓ`.
 pub fn read_mems(
@@ -457,7 +457,7 @@ pub fn get_name(ns: &[Name], i: u64) -> Name {
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:306-351 readCtors
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:305-350 readCtors
 /// Read the constructors off the minors: minor `J`'s domain
 /// `∀ f⃗ ih⃗, motive_m e⃗ (C As f⃗)`, `nF` from the rules.
 pub fn read_ctors(
@@ -591,7 +591,7 @@ pub fn read_ctors(
 // Emission helpers (`Nested.lean:353-397`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:355-356 mkEq
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:354-355 mkEq
 /// `Eq.{ℓ} α a b`.
 pub fn mk_eq(l: &Level, alpha: Expr, a: Expr, b: Expr) -> Expr {
     expr_ops::mk_app_n(
@@ -600,7 +600,7 @@ pub fn mk_eq(l: &Level, alpha: Expr, a: Expr, b: Expr) -> Expr {
     )
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:358-359 mkRefl
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:357-358 mkRefl
 /// `Eq.refl.{ℓ} α a`.
 pub fn mk_refl(l: &Level, alpha: Expr, a: Expr) -> Expr {
     expr_ops::mk_app_n(
@@ -609,7 +609,7 @@ pub fn mk_refl(l: &Level, alpha: Expr, a: Expr) -> Expr {
     )
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:361-363 mkEqRec
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:360-362 mkEqRec
 /// `@Eq.rec.{ℓm, ℓα} α a motive refl b h`.
 pub fn mk_eq_rec(
     lm: &Level,
@@ -630,13 +630,13 @@ pub fn mk_eq_rec(
     )
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:365-366 liftAll
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:364-365 liftAll
 /// Lift every entry.
 pub fn lift_all(n: u64, es: &[Expr]) -> Vec<Expr> {
     lift_all_n(n, es)
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:368-397 congrChain
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:367-396 congrChain
 /// The congruence chain (Prop motives): given a spine builder `F` (closed over
 /// the current frame), argument lists `l⃗`, `r⃗` (equal at unmoved positions),
 /// the moved positions with their equations `e_k : l_k = r_k` and their types,
@@ -652,7 +652,7 @@ pub fn congr_chain(
     congr_chain_go(la, alpha, f, ls, rs, moved, 0)
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:368-397 congrChain
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:367-396 congrChain
 /// The cited `where go`.
 pub fn congr_chain_go(
     la: &Level,
@@ -721,7 +721,8 @@ pub fn congr_chain_go(
 // The nested rung (`Nested.lean:399-1317`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::Gen_refines, then delete this line
 /// The shared builders of `genNested`: every one of the cited function's local
 /// `let f := fun …` definitions, as methods over the locals they close over
 /// (the module note's first deviation).
@@ -741,11 +742,13 @@ pub struct Gen<'a> {
     pub member_names: Vec<Name>,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::impl<'a> Gen<'a>_refines, then delete this line
 /// The builders themselves; each method is the cited function's `let` of the
 /// same name, with the same arguments.
 impl<'a> Gen<'a> {
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::rn_name_refines, then delete this line
     /// `rnF`: a block name becomes its model.
     pub fn rn_name(&self, x: &Name) -> Name {
         if self.block_names.iter().any(|y| name::beq(y, x)) {
@@ -755,19 +758,22 @@ impl<'a> Gen<'a> {
         }
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::rn_refines, then delete this line
     /// `rn`: `Expr.renameConsts rnF`.
     pub fn rn(&self, e: &Expr) -> Expr {
         expr_ops::rename_consts(&kit::RenameFn(|x: &Name| self.rn_name(x)), e)
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::aux_ctor_name_of_refines, then delete this line
     /// `auxCtorName'`.
     pub fn aux_ctor_name_of(&self, c: &ACtor) -> Name {
         kit::aux_ctor_name(&self.fam.t, c.mem, &c.cname)
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::spec_doms_refines, then delete this line
     /// `specDoms`: the spec'd field domains of a constructor at `o` extra
     /// binders below the parameter frame (field `i` sits `o + i` below).
     pub fn spec_doms(&self, c: &ACtor, o: u64) -> Vec<Expr> {
@@ -782,7 +788,8 @@ impl<'a> Gen<'a> {
             .collect()
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::model_doms_refines, then delete this line
     /// `modelDoms`: the model-side field domains (public spelling renamed).
     pub fn model_doms(&self, c: &ACtor, o: u64) -> Vec<Expr> {
         (0..c.n_f)
@@ -790,7 +797,8 @@ impl<'a> Gen<'a> {
             .collect()
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::field_idx_refines, then delete this line
     /// `fieldIdx`: a field's index arguments off its domain, at `o'` below the
     /// field's own frame.
     pub fn field_idx(&self, c: &ACtor, i: u64, o2: u64) -> Vec<Expr> {
@@ -800,7 +808,8 @@ impl<'a> Gen<'a> {
         }
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::tag_dispatch_refines, then delete this line
     /// `tagDispatch`: `tag.rec p⃗ (λ i', ∀ s, aux p⃗ i' → Sort ℓs) branches i s`
     /// at frame `o` below the parameters.
     pub fn tag_dispatch(&self, o: u64, ls: &Level, branches: &[Expr], i: Expr, s: Expr) -> Expr {
@@ -834,7 +843,8 @@ impl<'a> Gen<'a> {
         )
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::dispatch_motive_refines, then delete this line
     /// `dispatchMotive`: the dispatching motive `λ i s, tag.rec … i s` at frame
     /// `o`, with the branches built at frame `o + 2`.
     pub fn dispatch_motive(
@@ -865,7 +875,8 @@ impl<'a> Gen<'a> {
         )
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::idx_bs_at_refines, then delete this line
     /// `idxBsAt`: the index binders of a member at frame `o` (spec'd).
     pub fn idx_bs_at(&self, mem: &Mem, o: u64) -> Vec<Expr> {
         (0..mem.n_idx)
@@ -879,7 +890,8 @@ impl<'a> Gen<'a> {
             .collect()
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::idx_bs_at_m_refines, then delete this line
     /// `idxBsAtM`: the same on the model side.
     pub fn idx_bs_at_m(&self, mem: &Mem, o: u64) -> Vec<Expr> {
         (0..mem.n_idx)
@@ -887,7 +899,8 @@ impl<'a> Gen<'a> {
             .collect()
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::impl_nm_refines, then delete this line
     /// `packName`, `unpackName`, `unpackPackName`, `packUnpackName`,
     /// `congrPackName`, `unpackAll`, `packUnpackAll`, `recAll`: the `_impl`
     /// names of the isomorphism.
@@ -895,7 +908,8 @@ impl<'a> Gen<'a> {
         impl_name(&self.fam.t, &format!("{}_{}", stem, j))
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::app_impl_refines, then delete this line
     /// `appImpl`: `pack_j p⃗ idx x`, `unpack_j p⃗ idx s`, … at frame `o`.
     pub fn app_impl(&self, nm: &Name, o: u64, idx: &[Expr], args: &[Expr]) -> Expr {
         expr_ops::mk_app_n(
@@ -904,13 +918,15 @@ impl<'a> Gen<'a> {
         )
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::carr_m_refines, then delete this line
     /// `carrM`: the model-side carrier of a member at frame `o`.
     pub fn carr_m(&self, mem: &Mem, o: u64, idx: &[Expr]) -> Expr {
         carrier_at(self.fam, mem, o, idx, true)
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::ih_pos_refines, then delete this line
     /// `ihPos`: the k-th recursive field is the k-th ih.
     pub fn ih_pos(&self, c: &ACtor, i: u64) -> u64 {
         (0..i)
@@ -918,19 +934,22 @@ impl<'a> Gen<'a> {
             .count() as u64
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::n_ih_of_refines, then delete this line
     /// `nIhOf`.
     pub fn n_ih_of(&self, c: &ACtor) -> u64 {
         c.kinds.iter().filter(|k| k.is_some()).count() as u64
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::kind_refines, then delete this line
     /// `c.kinds.getD i none`.
     pub fn kind(&self, c: &ACtor, i: u64) -> Option<u64> {
         c.kinds.get(i as usize).copied().flatten()
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::mem_at_refines, then delete this line
     /// `mems.getD t default`, at a tag that is always in range.
     pub fn mem_at(&self, t: u64) -> &Mem {
         match self.fam.mems.get(t as usize) {
@@ -939,19 +958,22 @@ impl<'a> Gen<'a> {
         }
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::mot_var_refines, then delete this line
     /// `motVar`: the motive variables at frame `o` below the prefix's end.
     pub fn mot_var(&self, o: u64, m: u64) -> Expr {
         expr::bvar(o + self.n + sub(sub(self.big_m, 1), m))
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::min_var_refines, then delete this line
     /// `minVar`: the minor variables at frame `o` below the prefix's end.
     pub fn min_var(&self, o: u64, big_j: u64) -> Expr {
         expr::bvar(o + sub(sub(self.n, 1), big_j))
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::mot_u_refines, then delete this line
     /// `motU`: `_impl.unpack`'s motive — the identity carrier at a real
     /// member, `Carrier_j` at a mimic.
     pub fn mot_u(&self, o: u64) -> Expr {
@@ -986,7 +1008,8 @@ impl<'a> Gen<'a> {
         })
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::unpack_minors_refines, then delete this line
     /// `unpackMinors`: the unpack minors at frame `o`, `λ f⃗' ih⃗, body`.
     pub fn unpack_minors(&self, o: u64) -> Vec<Expr> {
         let lps = &self.fam.lps;
@@ -1066,7 +1089,8 @@ impl<'a> Gen<'a> {
             .collect()
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::mot_pu_refines, then delete this line
     /// `motPU`: `_impl.packUnpack`'s motive.
     pub fn mot_pu(&self, o: u64) -> Expr {
         self.dispatch_motive(o, &level::zero(), &|o2: u64| {
@@ -1118,7 +1142,8 @@ impl<'a> Gen<'a> {
         })
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::pu_minors_refines, then delete this line
     /// `puMinors`: `_impl.packUnpack`'s minors at frame `o`.
     pub fn pu_minors(&self, o: u64) -> Vec<Expr> {
         let lps = &self.fam.lps;
@@ -1237,7 +1262,8 @@ impl<'a> Gen<'a> {
             .collect()
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::mot_r_refines, then delete this line
     /// `motR`: `_impl.rec`'s motive — `M_m` at a real member, `M_{r+j} ∘
     /// unpack_j` at a mimic.
     pub fn mot_r(&self, o: u64) -> Expr {
@@ -1282,7 +1308,8 @@ impl<'a> Gen<'a> {
         })
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::rec_minors_refines, then delete this line
     /// `recMinors`: the adapted minors at frame `o` below the prefix's end — a
     /// mimic constructor's by unpacking its mimic-typed fields, a real
     /// constructor's by unpacking them and transporting the result along
@@ -1461,7 +1488,8 @@ impl<'a> Gen<'a> {
             .collect()
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::up_stmt_of_refines, then delete this line
     /// `upStmtOf`: `unpack_j (pack_j x) = x` at frame `o`.
     pub fn up_stmt_of(&self, mem: &Mem, o: u64, idx: &[Expr], x: Expr) -> Expr {
         mk_eq(
@@ -1477,7 +1505,8 @@ impl<'a> Gen<'a> {
         )
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::gctors_refines, then delete this line
     /// `gctors`: the group's constructors, in the container family's order.
     pub fn gctors(&self, g: &Group) -> Vec<&'a ACtor> {
         let mut out: Vec<&ACtor> = Vec::new();
@@ -1491,7 +1520,8 @@ impl<'a> Gen<'a> {
         out
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::c_rec_refines, then delete this line
     /// `cRec`: group member `k`'s container recursor at an elimination level.
     pub fn c_rec(&self, g: &Group, k: u64, le: &Level) -> Expr {
         let mut lvls: Vec<Level> = if g.large {
@@ -1505,7 +1535,8 @@ impl<'a> Gen<'a> {
         expr::mk_const(get_name(&g.rec_names, k), lvls)
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::pins_at_refines, then delete this line
     /// `pinsAt`: the group's pins at frame `o`.
     pub fn pins_at(&self, g: &Group, o: u64) -> Vec<Expr> {
         let head = self.mem_at(*g.tags.first().unwrap_or(&0));
@@ -1513,7 +1544,8 @@ impl<'a> Gen<'a> {
         dup_all(&args[..(g.n_pi as usize).min(args.len())])
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::in_group_refines, then delete this line
     /// `inGroup`.
     pub fn in_group(&self, g: &Group, k: Option<u64>) -> bool {
         match k {
@@ -1522,7 +1554,8 @@ impl<'a> Gen<'a> {
         }
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::pack_motives_refines, then delete this line
     /// `packMotives`: the pack motives at frame `o`.
     pub fn pack_motives(&self, g: &Group, o: u64) -> Vec<Expr> {
         g.tags
@@ -1540,7 +1573,8 @@ impl<'a> Gen<'a> {
             .collect()
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::pack_minors_refines, then delete this line
     /// `packMinors`: the pack minors at frame `o`.
     pub fn pack_minors(&self, g: &Group, o: u64) -> Vec<Expr> {
         let lps = &self.fam.lps;
@@ -1605,7 +1639,8 @@ impl<'a> Gen<'a> {
             .collect()
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::up_motives_refines, then delete this line
     /// `upMotives`: `unpackPack`'s motives at frame `o`.
     pub fn up_motives(&self, g: &Group, o: u64) -> Vec<Expr> {
         g.tags
@@ -1628,7 +1663,8 @@ impl<'a> Gen<'a> {
             .collect()
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::up_minors_refines, then delete this line
     /// `upMinors`: `unpackPack`'s minors at frame `o`, by the congruence chain.
     pub fn up_minors(&self, g: &Group, o: u64) -> Vec<Expr> {
         self.gctors(g)
@@ -1742,7 +1778,8 @@ impl<'a> Gen<'a> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::Iota_refines, then delete this line
 /// The iota proof's own builders (step 9's `uOf`, `eOf`, `carrOf`, `rOf`,
 /// `ihApp`, `stmtAt`, `nest`, `goT`): the locals they close over, as a record,
 /// for the reason the module note gives for `Gen`.
@@ -1760,10 +1797,12 @@ pub struct Iota<'b, 'a> {
     pub rec_all: Name,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::impl<'b, 'a> Iota<'b, 'a>_refines, then delete this line
 /// The iota proof's builders themselves.
 impl<'b, 'a> Iota<'b, 'a> {
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::idx_of_refines, then delete this line
     /// The repeated `fieldIdx c i (nF - i) |>.map rn |>.map (·.liftLooseBVars
     /// (M + n) nF) |> liftAll o'` of step 9.
     pub fn idx_of(&self, i: u64, o2: u64) -> Vec<Expr> {
@@ -1780,7 +1819,8 @@ impl<'b, 'a> Iota<'b, 'a> {
             .collect()
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::u_of_refines, then delete this line
     /// `uOf`: `unpack (pack f_i)` at frame `o'`.
     pub fn u_of(&self, o2: u64, i: u64) -> Expr {
         let gg = self.g;
@@ -1803,7 +1843,8 @@ impl<'b, 'a> Iota<'b, 'a> {
         )
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::e_of_refines, then delete this line
     /// `eOf`: `unpackPack_j f_i`.
     pub fn e_of(&self, o2: u64, i: u64) -> Expr {
         let gg = self.g;
@@ -1821,7 +1862,8 @@ impl<'b, 'a> Iota<'b, 'a> {
         )
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::carr_of_refines, then delete this line
     /// `carrOf`: the field's model-side carrier.
     pub fn carr_of(&self, o2: u64, i: u64) -> Expr {
         let gg = self.g;
@@ -1829,7 +1871,8 @@ impl<'b, 'a> Iota<'b, 'a> {
         gg.carr_m(mem2, self.o_p + o2, &self.idx_of(i, o2))
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::r_of_refines, then delete this line
     /// `rOf`: `R_k`, the aux recursor at `pack f_k`.
     pub fn r_of(&self, o2: u64, i: u64) -> Expr {
         let gg = self.g;
@@ -1859,7 +1902,8 @@ impl<'b, 'a> Iota<'b, 'a> {
         )
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::ih_app_refines, then delete this line
     /// `ihApp`: the real-kind ih through the model recursor.
     pub fn ih_app(&self, i: u64) -> Expr {
         let gg = self.g;
@@ -1886,7 +1930,8 @@ impl<'b, 'a> Iota<'b, 'a> {
         )
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::z_of_refines, then delete this line
     /// `zOf`: the generalised value at a packed position, `f_k` where fixed.
     pub fn z_of(&self, o2: u64, zs: &[Option<Expr>], k: u64) -> Expr {
         match zs.get(k as usize).and_then(|x| x.as_ref()) {
@@ -1899,7 +1944,8 @@ impl<'b, 'a> Iota<'b, 'a> {
         }
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::h_of_k_refines, then delete this line
     /// `hOfk`: the generalised proof at a packed position, `e_k` where fixed.
     pub fn h_of_k(&self, o2: u64, hs: &[Option<Expr>], k: u64) -> Expr {
         match hs.get(k as usize).and_then(|x| x.as_ref()) {
@@ -1908,7 +1954,8 @@ impl<'b, 'a> Iota<'b, 'a> {
         }
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::stmt_at_refines, then delete this line
     /// `stmtAt`: the statement's three parts at the generalisation state
     /// `(zs, hs)`, at frame `o'`.
     pub fn stmt_at(
@@ -2107,7 +2154,8 @@ impl<'b, 'a> Iota<'b, 'a> {
         (alpha_g, lhs_g, rhs_g)
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::go_t_refines, then delete this line
     /// `goT`: the LHS transport chain over the packed positions at a real
     /// member.
     pub fn go_t(
@@ -2233,7 +2281,8 @@ impl<'b, 'a> Iota<'b, 'a> {
         }
     }
 
-    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+    /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::nest_refines, then delete this line
     /// `nest`: the generalisations, outermost over the first packed position;
     /// the innermost base is `Eq.refl`.
     pub fn nest(
@@ -2335,7 +2384,8 @@ impl<'b, 'a> Iota<'b, 'a> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::push_defn_refines, then delete this line
 /// The cited function's `push` local: emit a definition and record its height.
 pub fn push_defn(
     out: &mut Vec<DeclC>,
@@ -2362,7 +2412,8 @@ pub fn push_defn(
     ));
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nested::gen_nested_refines, then delete this line
 /// **The generic in-process rung**: mutual, nested, both.  (The mutual rung of
 /// `mutual::gen_mutual` is the special case without mimics; it stays as the
 /// B1/B2 landing.)

@@ -113,6 +113,7 @@ impl PartialEq for NameKey {
 impl Eq for NameKey {}
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:57-62 DeclC.names
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nat_op_ground::decl_names_refines, then delete this line
 /// The names a parsed declaration declares (the prelude index and the hoist's
 /// name index; basis blocks are indexed by kind instead).
 pub fn decl_names(d: &DeclC) -> Vec<Name> {
@@ -129,7 +130,8 @@ pub fn decl_names(d: &DeclC) -> Vec<Name> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:64-87 usedConstsGo
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:54-77 usedConstsGo
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nat_op_ground::used_consts_go_refines, then delete this line
 /// The constants an `Expr` DAG references, each node visited once.
 /// Deviation: an explicit worklist rather than structural recursion —
 /// `app-lam` reaches term depths in the thousands and the Lean recursion runs
@@ -168,6 +170,7 @@ pub fn used_consts_go(seen: &mut HashSet<ExprKey>, acc: &mut Vec<Name>, e: &Expr
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:89-105 DeclC.usedConsts
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nat_op_ground::decl_used_consts_refines, then delete this line
 /// The constants a parsed record references (types, values, recursor rule
 /// right-hand sides; a basis block references nothing the stream declares).
 pub fn decl_used_consts(d: &DeclC) -> Vec<Name> {
@@ -198,7 +201,8 @@ pub fn decl_used_consts(d: &DeclC) -> Vec<Name> {
     acc
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:107-114 isNatOpRecord
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:97-104 isNatOpRecord
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nat_op_ground::is_nat_op_record_refines, then delete this line
 /// The pinned `Nat` operation records whose ground the pass serves: the
 /// pin-certified WF operations and the structural ones (whose `natOpDeps` are
 /// in their own closures already — kept uniform).
@@ -217,7 +221,8 @@ pub fn is_nat_op_record(d: &DeclC) -> Option<Name> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:116-161 hoistNatOpGround
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:164-169 hoistNatOpGround
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nat_op_ground::hoist_nat_op_ground_refines, then delete this line
 /// **The hoist.**  Returns the reordered records and the names of the records
 /// moved (empty, and the vector untouched, when no operation's ground is
 /// declared after it).

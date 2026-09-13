@@ -1379,7 +1379,9 @@ pub fn check_iota_thm_n_frames(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:319-360 checkIotaRule
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove modeled::check_iota_rule_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:687-716 checkIotaRuleF
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove modeled::check_iota_rule_refines, then delete this line
 /// Check one modeled recursor rule: generic well-formedness of the right-hand
 /// side, then the model's `iota_j` theorem — for canonical rules the plain
 /// statement pin (`checkIotaThm`), for nested-auxiliary rules the generalized
@@ -1475,7 +1477,9 @@ pub fn check_iota_rule(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:319-360 checkIotaRule
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove modeled::check_iota_rule_fire_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:687-716 checkIotaRuleF
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove modeled::check_iota_rule_fire_refines, then delete this line
 /// The firing-mode decision and the stored rule, split off so the guard nest
 /// above stays readable.  `iotaRec` reads the stored flag instead of
 /// re-walking the recursor type on every fire.
@@ -1524,7 +1528,9 @@ pub fn check_iota_rule_fire(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:319-360 checkIotaRule
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove modeled::iota_rule_stored_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:687-716 checkIotaRuleF
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove modeled::iota_rule_stored_refines, then delete this line
 /// `recRuleBits env'.find? cvName { r with rhs := rhsA, ctorParams := cnP,
 /// fire := fire, paramsBlind := false }` — the stored rule.  Its own function
 /// because the two firing branches above must each *tail-call* it rather than

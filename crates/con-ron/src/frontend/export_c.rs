@@ -92,8 +92,8 @@ use crate::frontend::scan_types::{
     RuleRec,
 };
 
-/// con-leche: ConLeche/Frontend/Export.lean:405 M
-/// con-leche: ConLeche/Frontend/Export.lean:353-361 RecordVerdict
+/// con-leche: ConLeche/Frontend/Export.lean:117 M
+/// con-leche: ConLeche/Frontend/Export.lean:71-79 RecordVerdict
 /// The two ways applying one line can fail: a parse message (con-leche's
 /// `M = Except String`) or a record verdict (its `StateD ⊕ RecordVerdict`'s
 /// right summand).  Merging them into one `Result` is this module's first
@@ -121,7 +121,7 @@ pub fn invalid<T>(what: String) -> Result<T, LineErr> {
     Err(LineErr::Verdict(RecordVerdict::Invalid(what)))
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:350-354 BasisKind
+/// con-leche: ConLeche/Kernel/Env.lean:340-344 BasisKind
 /// Lean's `deriving DecidableEq` on `BasisKind`, which the prelude dedupe and
 /// the pin match compare with `==`.  con-ron-core has no counterpart: the
 /// verified core never compares two kinds (it dispatches on one), so the
@@ -139,6 +139,7 @@ pub fn basis_kind_beq(a: &BasisKind, b: &BasisKind) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:94-102 DeclC.asInfo?
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::decl_as_info_refines, then delete this line
 /// The constant a definition-like record would store, for the canon
 /// comparison (`opaqueDecl` is told apart from `defnDecl` by
 /// `decl_same_canon`'s constructor test, not here).
@@ -164,6 +165,7 @@ pub fn decl_as_info(d: &DeclC) -> Option<ConstantInfo> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:104-114 DeclC.sameCanon
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::decl_same_canon_refines, then delete this line
 /// Two parsed records are the same declaration: same kind, and equal up to the
 /// basis-matching canonical form.
 pub fn decl_same_canon(a: &DeclC, b: &DeclC) -> bool {
@@ -180,6 +182,7 @@ pub fn decl_same_canon(a: &DeclC, b: &DeclC) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:116-122 PreludeIx
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::PreludeIx_refines, then delete this line
 /// The built-in prelude, indexed: its records in order, the definition-like
 /// and inductive records by every name they declare, and the basis blocks by
 /// kind.  Deviation: `by_name` holds the record's index in `decls` (the module
@@ -191,6 +194,7 @@ pub struct PreludeIx {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:116-122 PreludeIx
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::prelude_ix_empty_refines, then delete this line
 /// The empty prelude (Lean's field defaults), which the prelude's own parse
 /// runs against.
 pub fn prelude_ix_empty() -> PreludeIx {
@@ -202,6 +206,7 @@ pub fn prelude_ix_empty() -> PreludeIx {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:124-129 PreludeIx.ofDecls
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::prelude_ix_of_decls_refines, then delete this line
 pub fn prelude_ix_of_decls(ds: Vec<DeclC>) -> PreludeIx {
     let mut ix = prelude_ix_empty();
     for d in ds {
@@ -221,7 +226,8 @@ pub fn prelude_ix_of_decls(ds: Vec<DeclC>) -> PreludeIx {
     ix
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:133-202 StateD
+/// con-leche: ConLeche/Frontend/ExportC.lean:78-134 StateD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::StateD_refines, then delete this line
 /// The direct parse state: stream-index-keyed tables of *values* (names and
 /// levels as trees, expressions as `Expr` — a table hit is a shared node by
 /// reference), the parsed declarations as `DeclC`, and the taint bookkeeping.
@@ -272,7 +278,8 @@ pub struct StateD {
     pub prelude_dropped: u64,
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:878-885 StateD.init
+/// con-leche: ConLeche/Frontend/ExportC.lean:755-758 StateD.init
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::state_d_init_refines, then delete this line
 /// The initial parse state over a prelude: `PUnit` counts as seen for the
 /// projection rewrite when the prelude installs it, and `note_decl` is folded
 /// over the prelude's records to seed the modeller's declaration table (the
@@ -320,7 +327,8 @@ pub fn state_d_init(prelude: PreludeIx, in_model: bool, census: bool) -> StateD 
     st
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:203-220 noteDecl
+/// con-leche: ConLeche/Frontend/ExportC.lean:135-153 noteDecl
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::note_decl_entries_refines, then delete this line
 /// The constants one pushed declaration declares, with their level
 /// parameters, declared types and (for a definition) definitional height:
 /// the cited `cvs`.
@@ -365,7 +373,8 @@ pub fn note_decl_entries(d: &DeclC) -> Vec<(Name, Vec<Name>, Expr, Option<u64>)>
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:203-220 noteDecl
+/// con-leche: ConLeche/Frontend/ExportC.lean:135-153 noteDecl
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::note_entries_refines, then delete this line
 /// The insert half of `noteDecl`: the cited `cvs.foldl` over `constTypes`
 /// and `heights`.
 pub fn note_entries(st: &mut StateD, es: Vec<(Name, Vec<Name>, Expr, Option<u64>)>) {
@@ -377,7 +386,8 @@ pub fn note_entries(st: &mut StateD, es: Vec<(Name, Vec<Name>, Expr, Option<u64>
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:203-220 noteDecl
+/// con-leche: ConLeche/Frontend/ExportC.lean:135-153 noteDecl
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::note_decl_refines, then delete this line
 /// Record a pushed declaration's constants in the declaration table
 /// (`const_types`, `heights`).
 pub fn note_decl(st: &mut StateD, d: &DeclC) {
@@ -385,7 +395,8 @@ pub fn note_decl(st: &mut StateD, d: &DeclC) {
     note_entries(st, es);
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:222-239 pushDecl
+/// con-leche: ConLeche/Frontend/ExportC.lean:155-162 pushDecl
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::push_decl_refines, then delete this line
 /// **The prelude dedupe**, at every declaration push: a basis block the
 /// prelude holds is dropped by kind; a record under a prelude name is dropped
 /// when it is the same declaration (`decl_same_canon`) and declines the stream
@@ -431,7 +442,7 @@ pub fn push_decl(st: &mut StateD, d: DeclC) -> Result<(), LineErr> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:241-244 StateD.name
+/// con-leche: ConLeche/Frontend/ExportC.lean:164-167 StateD.name
 pub fn st_name(st: &StateD, i: u64) -> Result<Name, LineErr> {
     match id_table_get(&st.names, i) {
         Some(n) => Ok(name::dup(n)),
@@ -439,7 +450,7 @@ pub fn st_name(st: &StateD, i: u64) -> Result<Name, LineErr> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:246-249 StateD.level
+/// con-leche: ConLeche/Frontend/ExportC.lean:169-172 StateD.level
 pub fn st_level(st: &StateD, i: u64) -> Result<Level, LineErr> {
     match id_table_get(&st.levels, i) {
         Some(l) => Ok(level::dup(l)),
@@ -447,7 +458,8 @@ pub fn st_level(st: &StateD, i: u64) -> Result<Level, LineErr> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:251-254 StateD.expr
+/// con-leche: ConLeche/Frontend/ExportC.lean:174-177 StateD.expr
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::st_expr_refines, then delete this line
 pub fn st_expr(st: &StateD, i: u64) -> Result<Expr, LineErr> {
     match id_table_get(&st.exprs, i) {
         Some(e) => Ok(expr::dup(e)),
@@ -455,7 +467,8 @@ pub fn st_expr(st: &StateD, i: u64) -> Result<Expr, LineErr> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:256-269 getDeclD
+/// con-leche: ConLeche/Frontend/ExportC.lean:179-189 getDeclD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::get_decl_d_refines, then delete this line
 /// Declaration-level expression lookup: the taint sentinel, then the table
 /// read.  (The frontend tree-size budget that used to sit here was retired at
 /// con-leche task #215; the DAG-tower fixtures are the standing gate in its
@@ -467,7 +480,7 @@ pub fn get_decl_d(st: &StateD, i: u64) -> Result<Expr, LineErr> {
     st_expr(st, i)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:271-274 parsePwD
+/// con-leche: ConLeche/Frontend/ExportC.lean:191-194 parsePwD
 /// The `pw` datum over the direct name table.
 pub fn parse_pw_d(st: &StateD, r: &PwRec) -> Result<PropWhen, LineErr> {
     match r {
@@ -482,7 +495,8 @@ pub fn parse_pw_d(st: &StateD, r: &PwRec) -> Result<PropWhen, LineErr> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:278-285 parseNameEntryD
+/// con-leche: ConLeche/Frontend/ExportC.lean:228-237 parseNameEntryD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_name_entry_d_refines, then delete this line
 /// A name-table entry: the name value is built directly.
 pub fn parse_name_entry_d(st: &mut StateD, i: u64, r: &NameRec) -> Result<(), LineErr> {
     let v = match r {
@@ -499,7 +513,8 @@ pub fn parse_name_entry_d(st: &mut StateD, i: u64, r: &NameRec) -> Result<(), Li
     Ok(())
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:287-294 parseLevelEntryD
+/// con-leche: ConLeche/Frontend/ExportC.lean:239-247 parseLevelEntryD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_level_entry_d_refines, then delete this line
 /// A level-table entry.
 pub fn parse_level_entry_d(st: &mut StateD, i: u64, r: &LevelRec) -> Result<(), LineErr> {
     let l = match r {
@@ -513,6 +528,7 @@ pub fn parse_level_entry_d(st: &mut StateD, i: u64, r: &LevelRec) -> Result<(), 
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:296-304 exprRecChildren
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::expr_rec_children_refines, then delete this line
 /// The child expression-table indices of an entry (for taint propagation).
 pub fn expr_rec_children(r: &ExprRec) -> Vec<u64> {
     match r {
@@ -525,7 +541,8 @@ pub fn expr_rec_children(r: &ExprRec) -> Vec<u64> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:306-350 parseExprEntryD
+/// con-leche: ConLeche/Frontend/ExportC.lean:249-279 parseExprEntryD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_expr_entry_d_refines, then delete this line
 /// An expression-table entry: build the node from the children's table values
 /// (the derived fields are the smart constructors'), with the taint
 /// bookkeeping unchanged.  Binder names are display data the official
@@ -605,7 +622,8 @@ pub fn parse_expr_entry_d(st: &mut StateD, i: u64, r: &ExprRec) -> Result<(), Li
     Ok(())
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:354-360 parseCVD
+/// con-leche: ConLeche/Frontend/ExportC.lean:283-289 parseCVD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_cv_d_refines, then delete this line
 /// A declaration's common data.
 pub fn parse_cv_d(st: &StateD, cv: &CVRec) -> Result<ConstantVal, LineErr> {
     let nm = st_name(st, cv.name)?;
@@ -621,7 +639,8 @@ pub fn parse_cv_d(st: &StateD, cv: &CVRec) -> Result<ConstantVal, LineErr> {
     })
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:362-374 projRewriteD
+/// con-leche: ConLeche/Frontend/ExportC.lean:291-302 projRewriteD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::proj_rewrite_d_refines, then delete this line
 /// The projection-function rewrite at a definition record: the value is
 /// `fun p⃗ self => .proj T i self` for a recorded owner `T`, the field's sort
 /// is on record from the artifact, `PUnit` is available, and the definition's
@@ -651,7 +670,7 @@ pub fn proj_rewrite_d(st: &StateD, cv: &ConstantVal, vl: &Expr) -> Option<Expr> 
     proj_rec::proj_rec_value(o, l, &cv.ty, vl, i)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:376-389 noteProjIota
+/// con-leche: ConLeche/Frontend/ExportC.lean:304-317 noteProjIota
 /// An artifact `T._model.proj_i.iota` names the field's sort in its `Eq`
 /// level: recorded for the projection rewrite.  Run on the records the
 /// in-process modeller GENERATES and on those alone, so unreachable until
@@ -664,7 +683,8 @@ pub fn note_proj_iota(st: &mut StateD, cvp: &ConstantVal) {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:391-398 pushGenD
+/// con-leche: ConLeche/Frontend/ExportC.lean:319-326 pushGenD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::push_gen_d_refines, then delete this line
 /// Push one record the in-process modeller generated: `push_decl`, plus the
 /// projection-iota registration (the ONLY place it runs).  Unreachable until
 /// task #38, and the entry point that task calls.
@@ -676,7 +696,8 @@ pub fn push_gen_d(st: &mut StateD, d: DeclC) -> Result<(), LineErr> {
     push_decl(st, d)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:400-408 noteGen
+/// con-leche: ConLeche/Frontend/ExportC.lean:328-336 noteGen
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::note_gen_refines, then delete this line
 /// Book a record the in-process modeller generated for block `T0`: a
 /// declaration of the FOLD, never a record of the file, so the driver's
 /// headline count subtracts it and a failure at it is reported with the block
@@ -685,7 +706,8 @@ pub fn note_gen(st: &mut StateD, d: &DeclC, t0: &Name) {
     note_gen_names(st, decl_names(d), t0);
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:400-408 noteGen
+/// con-leche: ConLeche/Frontend/ExportC.lean:328-336 noteGen
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::note_gen_names_refines, then delete this line
 /// `note_gen` at the record's names already in hand.  The call site needs
 /// this half: `push_gen_d` takes the `DeclC` by value (it is pushed into the
 /// state), and whether it pushed — the cited `st'.decls.size > before` — is
@@ -698,7 +720,7 @@ pub fn note_gen_names(st: &mut StateD, names: Vec<Name>, t0: &Name) {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:410-416 indPiTeleLen
+/// con-leche: ConLeche/Frontend/ExportC.lean:338-344 indPiTeleLen
 /// **The syntactic Π-telescope length of a declared type**: official counts a
 /// constructor's binders by walking `is_pi` without reducing, and the count
 /// past the parameters is the `numFields` of the constructor it generates.
@@ -717,7 +739,7 @@ pub fn ind_pi_tele_len(e: &Expr) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:418-421 parseRuleD
+/// con-leche: ConLeche/Frontend/ExportC.lean:346-349 parseRuleD
 /// One recursor rule of an inductive record, resolved.
 pub fn parse_rule_d(st: &StateD, ru: &RuleRec) -> Result<env::RecRule, LineErr> {
     Ok(env::rec_rule_parsed(
@@ -727,7 +749,7 @@ pub fn parse_rule_d(st: &StateD, ru: &RuleRec) -> Result<env::RecRule, LineErr> 
     ))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:423-447 blockRecOf
+/// con-leche: ConLeche/Frontend/ExportC.lean:351-375 blockRecOf
 /// The export's shape data of an inductive record, for the in-process
 /// modeller.
 pub fn block_rec_of(
@@ -782,7 +804,7 @@ pub fn block_rec_of(
     })
 }
 
-/// con-leche: ConLeche/Frontend/InModel.lean:35-38 wants
+/// con-leche: ConLeche/Frontend/InModel.lean:34-37 wants
 /// Is the block one the modeller is for: mutual (several types) or nested
 /// (`numNested > 0`)?  con-leche asks this of the `InModel.BlockRec`
 /// `blockRecOf` builds; the two fields it reads are the scan records' own
@@ -792,7 +814,8 @@ pub fn in_model_wants(tys: &[IndTypeRec]) -> bool {
     tys.len() > 1 || tys.iter().any(|t| t.num_nested > 0)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:449-767 processLineCoreD.registerProjOwners
+/// con-leche: ConLeche/Frontend/ExportC.lean:377-396 processLineCoreD.registerProjOwners
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::register_proj_owners_refines, then delete this line
 /// Record the structure-like owners of a parsed block that the projection
 /// rewrite serves.
 pub fn register_proj_owners(
@@ -845,7 +868,8 @@ pub fn register_proj_owners(
     Ok(())
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:449-767 processLineCoreD
+/// con-leche: ConLeche/Frontend/ExportC.lean:625-697 processLineCoreD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::process_line_core_d_refines, then delete this line
 /// The record's own semantics: the declaration kinds, producing `DeclC`
 /// records.  Every branch, guard and error string is the one the `Lean.Json`
 /// reader this replaced had; only the reads changed, from key lookups in a DOM
@@ -940,7 +964,8 @@ pub fn process_line_core_d(st: &mut StateD, d: &DeclRec) -> Result<(), LineErr> 
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:449-767 processLineCoreD
+/// con-leche: ConLeche/Frontend/ExportC.lean:625-697 processLineCoreD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::process_ind_decl_d_refines, then delete this line
 /// `processLineCoreD`'s `.ind` arm, which is two thirds of the function: the
 /// unsafe decline, the declared parameter count (task #228), the block's
 /// redundant fields (task #271), the block's `ConstantInfo`s, the projection
@@ -1276,6 +1301,7 @@ pub fn process_ind_decl_d(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:769-793 declRecordScanD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::decl_record_scan_d_refines, then delete this line
 /// The read-only pre-scan for the taint policy: the names a declaration
 /// record declares, and the expression indices it reads.
 pub fn decl_record_scan_d(st: &StateD, d: &DeclRec) -> Result<(Vec<Name>, Vec<u64>), LineErr> {
@@ -1310,7 +1336,8 @@ pub fn decl_record_scan_d(st: &StateD, d: &DeclRec) -> Result<(Vec<Name>, Vec<u6
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:795-824 applyDeclD
+/// con-leche: ConLeche/Frontend/ExportC.lean:699-711 applyDeclD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::apply_decl_d_refines, then delete this line
 /// The taint policy at a declaration record.
 pub fn apply_decl_d(st: &mut StateD, d: &DeclRec) -> Result<(), LineErr> {
     if let DeclRec::Ax(cv, _) = d {
@@ -1351,7 +1378,8 @@ pub fn apply_decl_d(st: &mut StateD, d: &DeclRec) -> Result<(), LineErr> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:826-840 applyLine
+/// con-leche: ConLeche/Frontend/ExportC.lean:713-726 applyLine
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::apply_line_refines, then delete this line
 /// **The semantic layer**: one scanned line applied to the parse state.
 pub fn apply_line(st: &mut StateD, r: &LineRec) -> Result<(), LineErr> {
     match r {
@@ -1364,7 +1392,8 @@ pub fn apply_line(st: &mut StateD, r: &LineRec) -> Result<(), LineErr> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:844-876 ParseResultD
+/// con-leche: ConLeche/Frontend/ExportC.lean:730-753 ParseResultD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::ParseResultD_refines, then delete this line
 /// The direct parse result: declarations over `Expr` and the taint skips.
 pub struct ParseResultD {
     /// the built-in prelude's records first, then the stream's
@@ -1389,7 +1418,8 @@ pub struct ParseResultD {
     pub in_model_declined: Vec<(Name, String)>,
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:887-894 ParseResultD.ofState
+/// con-leche: ConLeche/Frontend/ExportC.lean:760-763 ParseResultD.ofState
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_result_of_state_refines, then delete this line
 /// The result: the prelude's records, then the stream's with every pinned
 /// operation's stream-certified ground hoisted ahead of it.
 pub fn parse_result_of_state(st: StateD) -> ParseResultD {
@@ -1433,7 +1463,8 @@ pub fn line_err_to_frontend(e: LineErr, line_no: u64) -> FrontendError {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:896-906 applyFinalLine
+/// con-leche: ConLeche/Frontend/ExportC.lean:765-775 applyFinalLine
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::apply_final_line_refines, then delete this line
 /// Scan and apply the LAST line of a stream — the one no newline ends.  A
 /// syntactic failure is reported at its offset in the line.
 pub fn apply_final_line(
@@ -1454,7 +1485,8 @@ pub fn apply_final_line(
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:908-943 feedChunk
+/// con-leche: ConLeche/Frontend/ExportC.lean:777-811 feedChunk
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::feed_chunk_refines, then delete this line
 /// Every COMPLETE line of the chunk from `i`, applied in order: the line count
 /// and where the incomplete tail begins (the caller carries it into the next
 /// chunk).  A line a chunk cut in half is told from a malformed one by whether
@@ -1504,11 +1536,12 @@ pub fn feed_chunk(
     Ok((line_no, i))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:945-946 chunkSize
+/// con-leche: ConLeche/Frontend/ExportC.lean:813-814 chunkSize
 /// How many bytes the streaming driver asks for at a time.
 pub const CHUNK_SIZE: usize = 4 * 1024 * 1024;
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:948-961 parseExportD
+/// con-leche: ConLeche/Frontend/ExportC.lean:841-846 parseExportD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_export_d_refines, then delete this line
 /// Wholesale direct parse (tests and small inputs).  `prelude` is the built-in
 /// prelude the result is prepended with and deduped against (empty for the
 /// prelude's own parse).
@@ -1526,7 +1559,8 @@ pub fn parse_export_d(
     Ok(parse_result_of_state(st))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:963-996 parseExportHandleD
+/// con-leche: ConLeche/Frontend/ExportC.lean:903-931 parseExportHandleD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_export_handle_d_refines, then delete this line
 /// Streaming direct parse off an open reader.
 ///
 /// The reader is read strictly forward, 4 MiB at a time, and is never seeked,
@@ -1590,7 +1624,8 @@ pub fn read_up_to<R: Read>(h: &mut R, buf: &mut [u8]) -> std::io::Result<usize> 
     Ok(got)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:998-1003 parseExportStreamD
+/// con-leche: ConLeche/Frontend/ExportC.lean:933-938 parseExportStreamD
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_export_stream_d_refines, then delete this line
 /// Streaming direct parse of a file.
 pub fn parse_export_stream_d(
     path: &str,

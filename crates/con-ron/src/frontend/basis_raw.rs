@@ -702,7 +702,7 @@ pub fn quot_basis() -> Vec<ConstantInfo> {
     ]
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:39-46 BasisKind.decls
+/// con-leche: ConLeche/Kernel/Basis.lean:40-47 BasisKind.decls
 /// The constants of one basis block, in dependency order.
 pub fn basis_decls(k: &BasisKind) -> Vec<ConstantInfo> {
     match k {

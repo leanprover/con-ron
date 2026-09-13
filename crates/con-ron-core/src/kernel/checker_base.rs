@@ -56,8 +56,10 @@ use std::vec::Vec;
 // The common per-declaration check (`CheckerBase.lean:73-97`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:73-97 checkConstantVal
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:95-119 checkConstantVal
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:463-485 checkConstantValF
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// Checks common to all declarations: fresh name, no reserved name, no
 /// reserved projection shape, well-formed universe parameters, and a type
 /// that is a type and mentions only declared parameters.  Returns the
@@ -89,8 +91,10 @@ pub fn check_constant_val(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:73-97 checkConstantVal
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:95-119 checkConstantVal
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove checker_base::check_constant_val_after_annot_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:463-485 checkConstantValF
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove checker_base::check_constant_val_after_annot_refines, then delete this line
 /// The tail of `check_constant_val` past the annotation: the level-parameter
 /// and resolution guards on the annotated type, the type's own sort, and the
 /// record update `{ cv with type := type }`.  Split off so the annotation's
@@ -151,7 +155,7 @@ pub trait DomView {
 /// (`kernel::inductives::modeled::DomProjFwd`).
 pub struct DomIdent;
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:99-106 domsMatchAux
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux
 impl DomView for DomIdent {
     /// con-leche: none — `fun _ e => e`
     fn view(&self, _i: u64, e: &Expr) -> Expr {
@@ -159,8 +163,8 @@ impl DomView for DomIdent {
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:99-106 domsMatchAux
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:120-129 domsMatchAuxA
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:142-151 domsMatchAuxA
 /// Compare binder domains at offsets `o1`/`o2` for `n` positions, the right
 /// side viewed through `g`.
 ///
@@ -182,7 +186,7 @@ where
     doms_match_aux_from(g, bs1, bs2, o1, o2, n, 0)
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:99-106 domsMatchAux
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux
 /// The `(List.range n).all` of the cited function as an index recursion
 /// (task #3's pattern).
 pub fn doms_match_aux_from<G>(
@@ -217,7 +221,7 @@ where
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:108-118 openPisAtFvars
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:130-140 openPisAtFvars
 /// Open the first `n` `∀`-binders at fresh free variables `0..n-1` (each
 /// fvar's type is the binder domain, instantiated with the earlier fvars).
 /// Returns the fvars and the opened body.
@@ -245,7 +249,7 @@ pub fn open_pis_at_fvars(n: u64, e: &Expr, i: u64) -> Option<(Vec<Expr>, Expr)> 
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:131-145 openPisAtFvarsFGo
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:153-167 openPisAtFvarsFGo
 /// Core of `openPisAtFvarsF`: `acc` holds the already-created fvars,
 /// innermost binder first.  One `instantiateList` pass per domain instead of
 /// one whole-telescope `instantiate1` pass per binder.
@@ -277,7 +281,7 @@ pub fn open_pis_at_fvars_f_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:147-154 openPisAtFvarsF
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:169-176 openPisAtFvarsF
 /// One-pass `openPisAtFvars` (equal to it: `openPisAtFvarsF_eq`; the fallback
 /// covers telescopes whose binders only appear after substitution).  **The
 /// executed one.**
@@ -292,7 +296,7 @@ pub fn open_pis_at_fvars_f(n: u64, e: &Expr, i: u64) -> Option<(Vec<Expr>, Expr)
 // The list checks (`CheckerBase.lean:156-209`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:156-168 checkTypedList
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:178-190 checkTypedList
 /// Check each expression's inferred type against the corresponding expected
 /// type (definitionally); throws on a length mismatch.  Used to pin a nested
 /// rule's stored parameter instantiations to the constructor's parameter
@@ -308,7 +312,7 @@ pub fn check_typed_list(
     check_typed_list_from(mode, st, fe, depth, xs, ts, 0)
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:156-168 checkTypedList
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:178-190 checkTypedList
 /// The cited two-list recursion as one index recursion (task #14's point 7):
 /// both exhausted, both in range, or the arity throw.
 pub fn check_typed_list_from(
@@ -341,7 +345,7 @@ pub fn check_typed_list_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:170-184 checkAnnotList
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:192-206 checkAnnotList
 /// Check that each expression is a fixed point of the annotation pass in the
 /// given context: its codomain-sort annotations are exactly the ones
 /// annotation reconstructs.
@@ -355,7 +359,7 @@ pub fn check_annot_list(
     check_annot_list_from(mode, st, fe, depth, xs, 0)
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:170-184 checkAnnotList
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:192-206 checkAnnotList
 /// The cited `List` recursion as an index recursion.
 pub fn check_annot_list_from(
     mode: &CheckMode,
@@ -381,7 +385,7 @@ pub fn check_annot_list_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:186-189 isEqHead
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:208-211 isEqHead
 /// Is the expression the pinned equality former at one level?
 pub fn is_eq_head(e: &Expr) -> bool {
     match &e.0.kind {
@@ -396,7 +400,7 @@ pub fn is_eq_head(e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:191-198 eqHeadLevel
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:213-220 eqHeadLevel
 /// The level an equality head carries — the statement's own `Eq.{ℓ}` level,
 /// read off a head `isEqHead` has accepted.  Off shape it is `.zero`, which
 /// `isEqHead` has already rejected wherever the result is used.
@@ -413,7 +417,7 @@ pub fn eq_head_level(e: &Expr) -> Level {
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:200-209 checkDefEqList
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:222-231 checkDefEqList
 /// Pairwise definitional-equality check of two spines (throws on any
 /// mismatch, including a length difference).
 pub fn check_def_eq_list(
@@ -427,7 +431,7 @@ pub fn check_def_eq_list(
     check_def_eq_list_from(mode, st, fe, depth, xs, ys, 0)
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:200-209 checkDefEqList
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:222-231 checkDefEqList
 /// The cited two-list recursion as one index recursion.
 pub fn check_def_eq_list_from(
     mode: &CheckMode,
@@ -456,7 +460,7 @@ pub fn check_def_eq_list_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:211-217 unwrapOr
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:233-239 unwrapOr
 /// Unwrap an optional value or fail with the given error (the `Option`-shaped
 /// checks stay bind-shaped for the verification batteries).  Its call sites
 /// are `DeclCheck.lean`'s iota-theorem mirrors, which belong to the
@@ -469,7 +473,7 @@ pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> CheckM<T> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:219-225 Env.findCV?
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:241-247 Env.findCV?
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:33-35 FEnv.findCV?
 /// The stored constant under `n`, as a `ConstantVal`, if any.  The
 /// iota-certificate checks consume only the stored constant's *type* (any
@@ -482,7 +486,7 @@ pub fn find_cv(fe: &FEnv, n: &Name) -> Option<ConstantVal> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:227-232 piResultSort
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:249-254 piResultSort
 /// The result sort of a syntactic pi telescope (the sort the type former's
 /// type ends in), if it ends in a sort at all.
 pub fn pi_result_sort(e: &Expr) -> Option<Level> {
@@ -497,7 +501,7 @@ pub fn pi_result_sort(e: &Expr) -> Option<Level> {
 // The projection stages (`CheckerBase.lean:235-289`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:235-250 checkProjShape
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:257-272 checkProjShape
 /// Stage 2b: the projection type's parameter telescope is *syntactically* the
 /// constructor's, and the constructor's residual is the family applied to
 /// exactly the parameters — the syntactic pins the rule's total λ-equality
@@ -523,7 +527,7 @@ pub fn check_proj_shape(pty: &Expr, ctor_ty: &Expr, n_p: u64, n_f: u64) -> Check
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:252-289 checkProjRule
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:274-311 checkProjRule
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:763-795 checkProjRuleF
 /// Stage 3: the reduction rule — λ over the constructor telescope returning
 /// field `i`, annotated; its λ-domains stay the constructor's.  The syntactic
@@ -571,7 +575,7 @@ pub fn check_proj_rule(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:252-289 checkProjRule
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:274-311 checkProjRule
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:763-795 checkProjRuleF
 /// The annotated rule's four-way well-formedness conjunction, as an `if` nest
 /// (task #3's pattern 9).
@@ -591,7 +595,7 @@ pub fn proj_rule_wf(fe: &FEnv, rhs_a: &Expr, lps: &Vec<Name>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:252-289 checkProjRule
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:274-311 checkProjRule
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:763-795 checkProjRuleF
 /// The syntactic stage past the annotation: the rule's λ telescope, its body
 /// `bvar (nF - 1 - i)`, and its domains against the constructor's
@@ -629,7 +633,7 @@ pub fn check_proj_rule_shape(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:252-289 checkProjRule
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:274-311 checkProjRule
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:763-795 checkProjRuleF
 /// The frame walks and the definitional parameter/domain pins: the projection
 /// type's opened parameter annotations are definitionally the constructor's

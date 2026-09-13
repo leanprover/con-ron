@@ -128,7 +128,8 @@ use std::vec::Vec;
 // `PendingCheck` (`:74-77`) is `crate::cached::parsed_c` (task #14 took the
 // three seam records together).
 
-/// con-leche: ConLeche/Cached/Installed.lean:96-115 annotConstantValC
+/// con-leche: ConLeche/Cached/Installed.lean:92-113 annotConstantValC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_constant_val_c_refines, then delete this line
 /// `checkConstantValC` minus its inference: the syntactic guards and the
 /// annotation of the type — `checker_split::install_constant_val`'s cached
 /// twin, i.e. that function with the `ExprC` guards of
@@ -165,7 +166,8 @@ pub fn annot_constant_val_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:96-115 annotConstantValC
+/// con-leche: ConLeche/Cached/Installed.lean:92-113 annotConstantValC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_constant_val_c_after_annot_refines, then delete this line
 /// The tail past the annotation: the level-parameter and resolution guards on
 /// the annotated type, and the header the cited `pure` builds.  Unlike
 /// `parsed_c::check_constant_val_c_after_annot` there is no inference here —
@@ -190,7 +192,8 @@ pub fn annot_constant_val_c_after_annot(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:121-133 annotValC
+/// con-leche: ConLeche/Cached/Installed.lean:115-131 annotValC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_val_c_refines, then delete this line
 /// The value half of `checkDefnValC`/`checkThmValC`/`checkOpaqueValC` minus
 /// its inference: the guards, the annotation, and the converted-constant
 /// record — `checker_split::install_value`'s cached twin.  `record` is
@@ -217,7 +220,8 @@ pub fn annot_val_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:121-133 annotValC
+/// con-leche: ConLeche/Cached/Installed.lean:115-131 annotValC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_val_c_after_annot_refines, then delete this line
 /// The tail past the annotation: the two guards on the annotated value and
 /// the `ienv` record, tagged with the very `Expr` objects the install pushes
 /// (`vE := jv`, so both components of the value pair are that node).  The
@@ -246,7 +250,8 @@ pub fn annot_val_c_after_annot(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:121-133 annotValC
+/// con-leche: ConLeche/Cached/Installed.lean:115-131 annotValC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_val_c_record_refines, then delete this line
 /// The cited `if record then some (jv, jv) else none`, as a function: the
 /// branch would otherwise sit inside an argument of `recordCConst` with the
 /// state borrowed (task #24's rule — an arm must end in a call or a
@@ -259,7 +264,8 @@ pub fn annot_val_c_record(jv: &Expr, record: bool) -> Option<(Expr, Expr)> {
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:139-144 annotValueC
+/// con-leche: ConLeche/Cached/Installed.lean:133-142 annotValueC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_value_c_refines, then delete this line
 /// Phase A's install of a separable value declaration: the per-declaration
 /// flush, then the header's and the value's install halves; returns the
 /// header with its annotated type, that type, and the annotated value.
@@ -278,7 +284,8 @@ pub fn annot_value_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:139-144 annotValueC
+/// con-leche: ConLeche/Cached/Installed.lean:133-142 annotValueC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_value_c_tail_refines, then delete this line
 /// The cited tail past `annotConstantValC`: the value's install half, and the
 /// triple.  Split off so the header's call is a tail call.
 pub fn annot_value_c_tail(
@@ -296,7 +303,8 @@ pub fn annot_value_c_tail(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_c_refines, then delete this line
 /// Phase A's step body: annotate-and-install for the three value kinds, the
 /// ordinary step `parsed_c::check_decl_step_c` for everything else.  `i` is
 /// the fold position the record is tagged with.
@@ -328,7 +336,8 @@ pub fn annot_step_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_defn_c_refines, then delete this line
 /// The `.defnDecl` arm: a pin-certified operation takes the ordinary step
 /// (its check is not separable from its install), everything else is
 /// annotated, installed, and recorded as pending.
@@ -356,7 +365,8 @@ pub fn annot_step_defn_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_defn_c_push_refines, then delete this line
 /// The cited push, with the RC-linearity read the comment there insists on:
 /// **the counter is read BEFORE the push**, so that the index reaches `push`
 /// unshared.  The annotated type `r.2.1` is not read — it is `r.1`'s own
@@ -391,7 +401,8 @@ pub fn annot_step_defn_c_push(
     (fe2, pend2)
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_thm_c_refines, then delete this line
 /// The `.thmDecl` arm: **a theorem installs BY STATEMENT**.  The header's
 /// install half runs and the constant is pushed with the record's own raw
 /// value, which nothing ever reads (a theorem is opaque to reduction), so
@@ -414,7 +425,8 @@ pub fn annot_step_thm_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_thm_c_push_refines, then delete this line
 /// The theorem arm's record and push.  The raw value is stored twice — in the
 /// environment and in the `ValueGroup` — where Lean shares one node (§3.2's
 /// copy rule).
@@ -446,7 +458,8 @@ pub fn annot_step_thm_c_push(
     (fe2, pend2)
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_opaque_c_refines, then delete this line
 /// The `.opaqueDecl` arm: a `reduce*` witness takes the ordinary step (its
 /// identity certificate is part of its install), everything else is
 /// annotated, installed **as an axiom** — the cited `.axiomInfo`, an opaque's
@@ -472,7 +485,8 @@ pub fn annot_step_opaque_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_opaque_c_push_refines, then delete this line
 /// The opaque arm's push, the counter read before it.
 pub fn annot_step_opaque_c_push(
     i: u64,
@@ -496,7 +510,8 @@ pub fn annot_step_opaque_c_push(
     (fe2, pend2)
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_other_c_refines, then delete this line
 /// The catch-all arm, shared by the three gated branches above: the ordinary
 /// step, which leaves the records untouched — axioms, inductive and basis
 /// blocks and the pinned branches are checked in full at their install.
@@ -514,7 +529,8 @@ pub fn annot_step_other_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:187-197 annotDeclStep
+/// con-leche: ConLeche/Cached/Installed.lean:185-195 annotDeclStep
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_decl_step_refines, then delete this line
 /// Phase A's step with the position carried and the error tagged: the
 /// accumulator is `(i, fe, pend)`, and a failing step reports the
 /// `CheckError` together with `i`, the fold position of the declaration that
@@ -540,7 +556,7 @@ pub fn annot_decl_step(
 // Phase B: check (`Installed.lean:232-253`, `:398-403`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/Installed.lean:262-276 checkPending
+/// con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending
 /// Phase B's check of one record **against the prefix view**, from a flushed
 /// memo state: `checker_split::check_value_group`'s inference and conversion
 /// calls — those of `checkConstantValC` and `check{Defn,Thm,Opaque}ValC`, in
@@ -568,7 +584,7 @@ pub fn check_pending(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:262-276 checkPending
+/// con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending
 /// The cited `let jv ← if pc.vg.kind = .thm then … else pure pc.vg.jv`: a
 /// theorem's statement must be a proposition, and its raw value's guards and
 /// annotation run here (`annot_val_c` — `installValue`'s twin, at the view,
@@ -609,7 +625,7 @@ pub fn check_pending_value(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:262-276 checkPending
+/// con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending
 /// The cited tail past the `let jv ← if …` join: the value's inferred type
 /// against the declared one, and the index handed back at the bound it came
 /// in at.  Split off so the two branches of the join are tail calls (task
@@ -639,7 +655,7 @@ pub fn check_pending_tail(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:433-438 checkPendingList
+/// con-leche: ConLeche/Cached/Installed.lean:431-436 checkPendingList
 /// Phase B as a pure walk: **every record checked from a fresh memo state**,
 /// a failure tagged with the record's fold position.  The entry point of the
 /// index recursion below (deviation 3); the index is threaded by value
@@ -653,7 +669,7 @@ pub fn check_pending_list(
     check_pending_list_from(mode, fe, pend, 0)
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:433-438 checkPendingList
+/// con-leche: ConLeche/Cached/Installed.lean:431-436 checkPendingList
 /// The cited `checkPending mode fe pc {}`: one record's check from its own
 /// **fresh `CState`**, so no memo crosses from one record's check to the next
 /// (§3.1's memo policy — a record is checked at its own prefix view, where
@@ -677,7 +693,7 @@ pub fn check_pending_fresh(
     check_pending(mode, &mut st, fe, pc)
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:433-438 checkPendingList
+/// con-leche: ConLeche/Cached/Installed.lean:431-436 checkPendingList
 /// The cited `List` recursion at `pend[i..]`, one record per step through
 /// `check_pending_fresh` (the cited `checkPending … {}`).
 pub fn check_pending_list_from(
@@ -700,7 +716,8 @@ pub fn check_pending_list_from(
 // The fold (`Installed.lean:405-411`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/Installed.lean:440-447 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::check_decls_refines, then delete this line
 /// **The declaration fold**: install every record (phase A), check every
 /// recorded declaration (phase B), return the environment.  This is the
 /// function `ConLeche.no_proof_of_False` is stated about and the algorithm
@@ -730,7 +747,8 @@ pub fn check_decls(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:440-447 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::check_decls_phase_b_refines, then delete this line
 /// The cited `checkPendingList mode p.2.1 p.2.2.toList; pure p.2.1.env`: the
 /// records walked, then the environment of the index phase A built.
 pub fn check_decls_phase_b(
@@ -744,7 +762,8 @@ pub fn check_decls_phase_b(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:440-447 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls
+/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_decl_fold_from_refines, then delete this line
 /// The cited `ds.foldlM (annotDeclStep mode) (0, mkFEnv Env.empty, #[])` as
 /// an index recursion threading the accumulator by value (deviation 3), i.e.
 /// the fold applied to `ds[i..]`.  The `CState` is the caller's — the cited
