@@ -81,7 +81,12 @@ out, docs = sys.argv[1], sys.argv[2:]
 #
 # The owner/repo are matched loosely on purpose: the project may be renamed
 # and the gate should survive that without a script edit.  The <ref> is what
-# matters, and it must be `master`.
+# matters: a link into this repository must be `master` (and is checked);
+# a link into another repository (con-leche's own tree, Aeneas) must pin a
+# commit and is left alone.  While `vendor/con-leche` exists, con-leche code
+# may also be cited through this repository's `master` (checked); if the
+# vendored tree is ever dropped, every such link has to become a pinned
+# link into leanprover/con-leche.
 LINK = re.compile(
     r'https://github\.com/([^/\s)]+)/([^/\s)]+)/blob/([^/\s)]+)/'
     r'([^)\s#]+)#L(\d+)(?:-L(\d+))?')
@@ -97,9 +102,18 @@ for doc in docs:
     for m in LINK.finditer(text):
         owner, repo, ref, path, a, b = m.groups()
         link = m.group(0)
+        if repo != 'con-ron':
+            # A link into another repository (con-leche, Aeneas): it must pin
+            # a commit, because nothing here can check it and a branch link
+            # would drift; a pinned link is immutable and is not extracted.
+            if re.fullmatch(r'[0-9a-f]{7,40}', ref):
+                continue
+            errors.append(
+                f"{link}\n    ({doc}) links another repository at `{ref}`; such a link must pin a commit.")
+            continue
         if ref != 'master':
             errors.append(
-                f"{link}\n    ({doc}) pins the ref `{ref}`; the documents must link `master`.")
+                f"{link}\n    ({doc}) pins the ref `{ref}`; links into this repository must track `master`.")
             continue
         a = int(a)
         b = int(b) if b is not None else a

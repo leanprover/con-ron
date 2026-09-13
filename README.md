@@ -8,7 +8,7 @@ This was written by AI under supervision from Joachim Breitner at the [Lean FRO]
 
 This is not a high assurance verification effort, given the reliance on Aeneas as a Rust-to-Lean translator. The goal is to make it very plausible that the Rust implementation follows the Lean implementation very closely.
 
-The point is that with `con-leche` having a [formal consistency proof](https://github.com/leanprover/con-ron/blob/master/vendor/con-leche/ConLeche/MainTheorem.lean#L63-L80), any remaining unsoundness bugs are most likely found in Lean’s compiler or runtime (including the bignum library used). Such a bug will very unlikely exist in the Rust compiler or runtime at the same time, so by checking a proof with both `con-leche` and `con-ron`, you gain a high level of protection against that class of bugs.
+The point is that with `con-leche` having a [formal consistency proof](https://github.com/leanprover/con-leche/blob/3e004805f2b919fd9d636901f80bf1ed87666099/ConLeche/MainTheorem.lean#L47-L66), any remaining unsoundness bugs are most likely found in Lean’s compiler or runtime (including the bignum library used). Such a bug will very unlikely exist in the Rust compiler or runtime at the same time, so by checking a proof with both `con-leche` and `con-ron`, you gain a high level of protection against that class of bugs.
 
 [Performance](./OVERVIEW.md#63-performance) of `con-ron` is currently not particularly impressive (about 2× wall time and space over `con-leche`, oddly at roughtly the same instruction count), likely because by following the Lean code and data structure design closely it implements idioms that are not particularly well suited for Rust.
 

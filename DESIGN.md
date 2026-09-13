@@ -1110,6 +1110,13 @@ measured.
   (`vendor/con-leche/ConLeche/…`).  No build; `gates.sh` runs it between
   `provenance` and `gen-pins`.  Until `OVERVIEW.md` exists and while no
   document carries such a link, it passes trivially.
+  Links into *another* repository (con-leche's own tree, Aeneas) must pin
+  a commit and are not checked; links into this repository must track
+  `master` and are.  con-leche code may be cited through
+  `vendor/con-leche/…` on this repository's `master` while the vendored
+  tree exists; the day it is dropped, every such link in README.md,
+  OVERVIEW.md and DESIGN.md has to be rewritten as a pinned link into
+  leanprover/con-leche (maintainer, 2026-09-13).
 * Commit often.  The maintainer pushes and opens PRs (see `CLAUDE.md`).
 * Fable designs and states theorems and reviews; Opus agents port, extract,
   prove and measure.  Delegate anything mechanical.
