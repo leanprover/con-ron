@@ -774,6 +774,21 @@ theorem Out.destErr {α β : Type} {A : α → β} {WF : α → Prop}
     {x : Except ConLeche.CheckError (β × ConLeche.Cached.CState)}
     (h : Out A WF (.Err e) st' x) : ErrSim e x := h
 
+/-- **Move 1, at a `CheckCM` bind**: a sub-action that threw makes the whole
+`do` block throw, at the same error.  `Abs.lean`'s `ErrSim.bind` is this over
+a bare `Except`; this is the state-monad spelling the arms actually meet,
+where the `run` sits outside the bind. -/
+theorem ErrSim.bindCM {α β : Type} {e : kernel.core_types.CheckError}
+    {x : ConLeche.Cached.CheckCM α} {f : α → ConLeche.Cached.CheckCM β}
+    {lst : ConLeche.Cached.CState} (h : ErrSim e (x.run lst)) :
+    ErrSim e ((x >>= f).run lst) := by
+  intro k hk
+  obtain ⟨le, hx, hk'⟩ := h k hk
+  refine ⟨le, ?_, hk'⟩
+  show (do let p ← x lst; (f p.1).run p.2) = Except.error le
+  rw [show x lst = Except.error le from hx]
+  rfl
+
 /-- **Error propagation**: an outcome that failed makes every continuation of
 it fail, on both sides.  The move every `do` block's error arm makes. -/
 theorem Out.bind {α α' β δ : Type} {A : α → β} {WF : α → Prop}

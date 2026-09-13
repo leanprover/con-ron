@@ -37,8 +37,14 @@ transcription that is not literal: the cited `.proj` arm *inlines*
 `ProjEntry.fireOk`'s body (`Core.lean:1250-1253`) as an `if`/`unless` pair
 where the port calls the function, and that lemma proves the two agree.  Error
 *messages* are carried in the transcriptions for readability only -- DESIGN.md
-§3.1 does not require them to match, and no lemma here claims anything about a
-failure arm.
+§3.1 does not require them to match.
+
+**The failure half** (task #67).  Each accept lemma `<fn>_refines` has a
+companion `<fn>_err` next to it, with the same hypotheses and `.Ok r` replaced by
+`.Err ce`, concluding `ErrSim ce <the same con-leche side>`: every one of this
+file's twelve `CheckError` sites is a *mirrored* `throw`, so con-leche throws at
+the same kind.  `invalid_arm`/`not_implemented_arm` below do the shared
+bookkeeping.
 
 **Five facts are hypotheses**, each owned by a sibling agent of this task and
 stated in exactly the shape that agent proves, so that discharging it at merge
@@ -713,6 +719,86 @@ theorem annotate_proj_entry_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     refine ⟨?_, Expr.proj_wf ht he2 hproj⟩
     rw [annotateProjEntryL, ← hoabs]
     simp only [if_pos hname, if_pos hnpv, Expr.proj_refines hproj]
+
+/-- **`core_k::annotate_proj_entry`'s failure half**: four mirrored throws, the
+cited arm's four (`core_k.rs:2717` ← `Core.lean:2845`'s `.invalid "invalid
+projection: the node names another structure"`, `:2719` ← `:2847`'s `.invalid
+"projection parameter mismatch"`, `:2726` ← `:2865`'s `.invalid "projection index
+out of range"` and `:2728` ← `:2866`'s `.notImplemented "projection on a
+non-structure-like type"` -- the last two are the cited `throw (if … then … else
+…)`, split by the port into two arms). -/
+theorem annotate_proj_entry_err {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    {sn t : name.Name} {i : Std.U64} {e2 : expr.Expr}
+    {targs : alloc.vec.Vec expr.Expr} {ce : core_types.CheckError}
+    (hrel : FindAgree fe lfe) (hfwf : FindWF fe)
+    (hsn : NameWF sn) (ht : NameWF t)
+    (h : core_k.annotate_proj_entry fe sn t i e2 targs = ok (.Err ce)) :
+    ErrSim ce (annotateProjEntryL lfe (absName sn) (absName t) i.val (absExpr e2)
+      (absExprs targs)) := by
+  rw [core_k.annotate_proj_entry] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨o, ho, h⟩ := h
+  obtain ⟨hoabs, howf⟩ := find_proj_refines hrel hfwf ht ho
+  cases o with
+  | none =>
+    simp only [Option.map_none] at hoabs
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨o1, ho1, h⟩ := h
+    obtain ⟨ho1abs, -⟩ := find_proj_refines hrel hfwf ht ho1
+    have hsome : core.option.Option.is_some o1
+        = (lfe.findProj? (absName t) (0#u64 : Std.U64).val).isSome := by
+      rw [← ho1abs, core.option.Option.is_some]; cases o1 <;> simp
+    rw [show ((0#u64 : Std.U64)).val = 0 from rfl] at hsome
+    simp only [annotateProjEntryL, ← hoabs]
+    split at h
+    · rename_i hb
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+      rw [if_pos (show (lfe.findProj? (absName t) 0).isSome = true by
+        rw [← hsome]; exact hb)]
+      exact invalid_arm hce1 hr rfl
+    · rename_i hb
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+      rw [if_neg (show ¬ ((lfe.findProj? (absName t) 0).isSome = true) by
+        rw [← hsome]; exact hb)]
+      exact not_implemented_arm hce1 hr rfl
+  | some entry =>
+    simp only [Option.map_some] at hoabs
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨b, hb, h⟩ := h
+    have hbv : b = decide (absName t = absName sn) := Name.beq_refines ht hsn hb
+    simp only [annotateProjEntryL, ← hoabs]
+    split at h
+    case isFalse =>
+      rename_i hbf
+      have hne : absName t ≠ absName sn := by rw [hbv] at hbf; simpa using hbf
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+      rw [if_neg hne]
+      exact invalid_arm hce1 hr rfl
+    rename_i hbt
+    have hname : absName t = absName sn := by
+      rw [hbv] at hbt; exact of_decide_eq_true hbt
+    simp only [bind_eq_ok_iff, lift_eq, Result.ok.injEq, exists_eq_left'] at h
+    split at h
+    case isFalse =>
+      simp only [name_dup_eq, bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h
+      obtain ⟨_, -, _, -, hcontra⟩ := h
+      exact absurd hcontra (by simp)
+    rename_i hnp
+    have hnpv : (absExprs targs).length ≠ (absProjEntry entry).numParams := by
+      have hc : (Std.UScalar.cast .U64 (alloc.vec.Vec.len targs) : Std.U64).val
+          = targs.val.length := by
+        rw [ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+      simp only [bne_iff_ne, ne_eq] at hnp
+      simp only [absExprs, List.length_map, absProjEntry]
+      intro hEq
+      exact hnp (by scalar_tac)
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+    rw [if_pos hname, if_neg hnpv]
+    exact invalid_arm hce1 hr rfl
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate) -/
 
