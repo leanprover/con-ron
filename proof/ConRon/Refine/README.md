@@ -291,7 +291,7 @@ it, and **exactly four hypotheses survive to the top** — the same four that
 |---|---|
 | `hk : Core.KnotSpec mode IndAbs.checkFuelU` — the six core wrappers and bodies refine `coreKnotI` at `checkFuel` | **task #55** (`Refine/Core/Arms/*`, `Refine/Core/Knot.lean`); `Refine/Core/Statements.lean` is the statement it is proving |
 | `hind : IndRoutesSpec mode` — the two inductive install routes | **task #59** (`IndC.ind_routes_spec_of_p`, the recogniser bridge task #57 owed); the tier is `sorry`-free since task #67 fixed `modeled.rs`'s `u64 → usize` casts |
-| `hvar : CheckerPins.PinsWF pins` — every node of every pin is what the port's own smart constructor built | the same construction argument as `hds` (task #58 added it: `hpins` alone does not give it, since two pin lists can abstract to `natOpPinSets` with one carrying a stored hash word that makes `expr::beq` inexact).  Task #66 has a partial by-construction proof from `decode_embedded` |
+| `hvar : CheckerPins.PinsWF pins` — every node of every pin is what the port's own smart constructor built | **task #66** (`PinsWF.decode_embedded_wf`), for the embedded pins: the same by-construction argument as `hds`, since `ExprWF`'s constructors *are* the port's smart constructors.  The `pins`-parametric theorems keep it, as they must — `hpins` alone does not give it, two pin lists can abstract to `natOpPinSets` with one carrying a stored hash word that makes `expr::beq` inexact (task #58) 
 | `hpins : absPins pins = ConLeche.natOpPinSets` — the port's pin list is the global the pinned con-leche bakes into `checkDeclStepC` | `Refine/Pins.lean`'s `check_decls_pins_refines` (open on that file's two statements, task #43), **or** the `pins-param` submodule bump, which deletes the hypothesis: `Installed.leanCheckDecls` is the one line that changes |
 | `hds : ∀ d ∈ ds.val, DeclCWF d` — the parsed input is well formed | the parser, by construction (the `*WF` predicates of §3.5 are the port's own smart constructors) |
 
@@ -369,6 +369,7 @@ tokens.
 | `PinsSplit.lean` | **(B)** `String.splitOn` at a one-character separator, the two facts the tokenizer bridge rests on, and `absText` on an ASCII text |
 | `PinsRead.lean` | **(B)** `PinsDec` against `parsePins`: the line invariant and the field invariant, per reader and per record; `parsePins_of_decode` is (B)'s product |
 | `Pins.lean` | the statements: `pins_decode_refines` (proved, no axiom), `pins_closed` (the closed computation), `pins_text_decodes`, `check_decls_pins_refines` |
+| `PinsWF.lean` | **(C)** task #66: the well-formedness invariant `TablesWF` threaded through the record pass, the `StrWF` and `Nat.NatWF` leaves, and `decode_wf`/`decode_embedded_wf` — what discharges `hvar`.  It sits *above* `CheckerPins.lean` in the import order because `PinsWF` is defined there; when that predicate moves into `Abs.lean` this file belongs beside `PinsRun.lean` |
 
 ## Where the native-decide axiom lives
 
@@ -430,14 +431,25 @@ back — **proves** what they assumed rather than restoring them
 (`CheckerPins.check_div_mod_pin_at_err` and `State.dup_state_eq`).  The
 capstones' hypothesis list is the five rows above and nothing else.
 
-**What is still owed on the pins: `hvar : CheckerPins.PinsWF pins`.**  The
-`_embedded` corollaries discharge the pins' *value* and not their *well
-formedness*.  `PinsWF` is `ExprWF` for each of the eight pinned expressions and
-each certificate list, so discharging it from `decode_embedded` means threading
-a full well-formedness invariant — names, levels, prop-whens and expressions —
-through `PinsBytes` and `PinsRecords`.  It is cheap in kind and not in bulk:
-`ExprWF`'s constructors *are* the port's smart constructors and every record
-already applies exactly one, but every reader lemma in half (A) gains a
-hypothesis and a conjunct.  Task #64 drafted that invariant (`TablesWF`) for the
-`Name` half and then removed it when the `W` record turned out not to need it;
-the full version is the next step.
+**`hvar` is discharged too, for the embedded pins (task #66).**  It used to be
+what the `_embedded` corollaries still owed: they gave the pins' *value* and not
+their *well formedness*, and `PinsWF` is `ExprWF` for each of the eight pinned
+expressions and each certificate list.  `Refine/PinsWF.lean` closes it the way
+DESIGN.md §3.5 fixed at task #5 — the `*WF` predicates are inductives whose
+constructors **are** the port's smart constructors, and the decoder reaches
+every `Name`, `Level`, `PropWhen` and `Expr` it installs through exactly one of
+them, so one invariant `TablesWF` threaded through the record pass does it:
+
+    TablesWF tb → record_* t i tb = ok (.Ok (tb', j)) → TablesWF tb'
+
+with the four backward references reading a well-formed entry out of a
+well-formed table and the three counted lists collecting them.  Two leaves are
+not table entries and are proved on their own: `StrWF` for a `<string>` field
+(through `PinsDec.unescapeFrom`, which only ever appends a code point that
+passed its own `isValidChar` guard) and `Nat.NatWF` for a `<bignum>` field, the
+file's one fuel induction.  `decode_wf : decode t = ok (.Ok v) → PinsWF v` is
+the product, proved for **every** byte slice — nothing is evaluated, so its
+census is con-leche's own three axioms, and `decode_embedded_wf` adds only the
+`toStr` axiom Aeneas already spends on every extracted `&str`.  So
+`conron.model_exists_embedded` / `no_proof_of_False_embedded` carry neither
+`hk`, nor `hpins`, nor `hvar`.
