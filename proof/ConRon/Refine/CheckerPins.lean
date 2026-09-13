@@ -2,6 +2,8 @@ import ConRon.Refine.TypeChecker
 import ConRon.Refine.CheckerC
 import ConRon.Refine.Pins
 import ConRon.Refine.CoreKNatOps
+import ConRon.Refine.CoreKNames
+import ConRon.Refine.CoreKSupport
 import ConRon.Refine.CoreKLits
 import ConRon.Refine.ExprOpsFields
 import ConRon.Refine.ExprOpsMeta
@@ -688,7 +690,7 @@ clauses being the same. -/
 theorem div_mod_cert_guard_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {lenv : ConLeche.Env} {c : name.Name} {ann_val eq_e proof : expr.Expr}
     {hyps : alloc.vec.Vec expr.Expr} {r : Bool}
-    (hp : CoreK.PinnedBasisNames) (hfe : CoreK.FindAgree fe lfe)
+    (hp : CoreK.PinnedBasisNames) (hfe : FindAgree fe lfe)
     (henv : ∀ n : ConLeche.Name, lfe.find? n = lenv.find? n)
     (hc : NameWF c) (hav : ExprWF ann_val) (hh : ExprsWF hyps)
     (heq : ExprWF eq_e) (hpf : ExprWF proof)
@@ -708,7 +710,7 @@ recursion with the substitution fused in: from index `i` on it is the
 theorem hyps_resolve_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {lenv : ConLeche.Env} {c : name.Name} {ann_val : expr.Expr}
     {hyps : alloc.vec.Vec expr.Expr} {i : Std.Usize} {r : Bool}
-    (hp : CoreK.PinnedBasisNames) (hfe : CoreK.FindAgree fe lfe)
+    (hp : CoreK.PinnedBasisNames) (hfe : FindAgree fe lfe)
     (henv : ∀ n : ConLeche.Name, lfe.find? n = lenv.find? n)
     (hc : NameWF c) (hav : ExprWF ann_val) (hh : ExprsWF hyps)
     (h : checker.hyps_resolve fe c ann_val hyps i = ok r) :
@@ -800,8 +802,8 @@ theorem check_div_mod_certs_refines {mode : env.CheckMode} {fuel : Std.U64}
 == .const boolName [] | none => false`, which `checker::bool_ctor_typed` is
 (the Lean spells it twice; task #14's borrow rule factors it out). -/
 theorem bool_ctor_typed_refines {fe2 : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {n : name.Name} {r : Bool} (hfe : CoreK.FindAgree fe2 lfe)
-    (hwf : CoreK.FindWF fe2) (hn : NameWF n)
+    {n : name.Name} {r : Bool} (hfe : FindAgree fe2 lfe)
+    (hwf : FindWF fe2) (hn : NameWF n)
     (h : checker.bool_ctor_typed fe2 n = ok r) :
     r = (match lfe.find? (absName n) with
       | some ci => ci.toConstantVal.type == ConLeche.Expr.const ConLeche.boolName []
@@ -820,15 +822,15 @@ type `Bool` itself.  `DepsTyPinned` is the module note's deviation, named:
 the port's second clause tests `core_k::defn_lp_empty` where the Lean tests
 `natOpStoredOkF`. -/
 theorem div_mod_env_guard_refines {fe2 : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {c : name.Name} {r : Bool} (hfe : CoreK.FindAgree fe2 lfe)
-    (hwf : CoreK.FindWF fe2) (hc : NameWF c)
+    {c : name.Name} {r : Bool} (hfe : FindAgree fe2 lfe)
+    (hwf : FindWF fe2) (hc : NameWF c)
     (hnls : CoreK.NatLitSupportedSpec fe2 lfe) (hlp : CoreK.LpEmptySpec fe2 lfe)
-    (hnod : CoreK.PinnedNames (core_k.nat_op_deps c) (ConLeche.natOpDeps (absName c)))
-    (hbeq : CoreK.PinnedName core_k.nat_beq_name ConLeche.natBeqName)
-    (hble : CoreK.PinnedName core_k.nat_ble_name ConLeche.natBleName)
-    (hdmn : CoreK.PinnedNames core_k.nat_div_mod_names ConLeche.natDivModNames)
-    (hbt : CoreK.PinnedName core_k.bool_true_name ConLeche.boolTrueName)
-    (hbf : CoreK.PinnedName core_k.bool_false_name ConLeche.boolFalseName)
+    (hnod : PinnedNames (core_k.nat_op_deps c) (ConLeche.natOpDeps (absName c)))
+    (hbeq : PinnedName core_k.nat_beq_name ConLeche.natBeqName)
+    (hble : PinnedName core_k.nat_ble_name ConLeche.natBleName)
+    (hdmn : PinnedNames core_k.nat_div_mod_names ConLeche.natDivModNames)
+    (hbt : PinnedName core_k.bool_true_name ConLeche.boolTrueName)
+    (hbf : PinnedName core_k.bool_false_name ConLeche.boolFalseName)
     (heq : EqBasisPinnedSpec fe2 lfe) (hdep : DepsTyPinned lfe (absName c))
     (h : checker.div_mod_env_guard fe2 c = ok r) :
     r = ConLeche.divModEnvGuardF lfe (absName c) := by
@@ -843,7 +845,7 @@ theorem div_mod_env_guard_refines {fe2 : fenv.FEnv} {lfe : ConLeche.FEnv}
 pin, checked once at install rather than proven about the blob. -/
 theorem div_mod_pin_guard_refines {ps : nat_op_pins.NatOpPinSet} {fe : fenv.FEnv}
     {lfe : ConLeche.FEnv} {lenv : ConLeche.Env} {c : name.Name} {r : Bool}
-    (hp : CoreK.PinnedBasisNames) (hfe : CoreK.FindAgree fe lfe)
+    (hp : CoreK.PinnedBasisNames) (hfe : FindAgree fe lfe)
     (henv : ∀ n : ConLeche.Name, lfe.find? n = lenv.find? n)
     (hps : NatOpPinSetWF ps) (hc : NameWF c)
     (h : checker.div_mod_pin_guard ps fe c = ok r) :
@@ -860,7 +862,7 @@ theorem div_mod_certs_guard_from_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {lenv : ConLeche.Env} {c : name.Name} {ann_val : expr.Expr}
     {stmts : alloc.vec.Vec (alloc.vec.Vec expr.Expr × expr.Expr)}
     {proofs : alloc.vec.Vec expr.Expr} {i : Std.Usize} {r : Bool}
-    (hp : CoreK.PinnedBasisNames) (hfe : CoreK.FindAgree fe lfe)
+    (hp : CoreK.PinnedBasisNames) (hfe : FindAgree fe lfe)
     (henv : ∀ n : ConLeche.Name, lfe.find? n = lenv.find? n)
     (hc : NameWF c) (hav : ExprWF ann_val) (hst : StmtsWF stmts)
     (hpr : ExprsWF proofs)
@@ -880,7 +882,7 @@ stopping short of a variant's constants moves on to the next variant. -/
 theorem div_mod_certs_guard_refines {ps : nat_op_pins.NatOpPinSet}
     {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {lenv : ConLeche.Env}
     {c : name.Name} {ann_val : expr.Expr} {r : Bool}
-    (hp : CoreK.PinnedBasisNames) (hfe : CoreK.FindAgree fe lfe)
+    (hp : CoreK.PinnedBasisNames) (hfe : FindAgree fe lfe)
     (henv : ∀ n : ConLeche.Name, lfe.find? n = lenv.find? n)
     (hps : NatOpPinSetWF ps) (hc : NameWF c) (hav : ExprWF ann_val)
     (h : checker.div_mod_certs_guard ps fe c ann_val = ok r) :

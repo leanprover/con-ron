@@ -447,7 +447,7 @@ theorem desc_bvars_from_refines (N : Nat) :
       obtain ⟨j, hj, e, he, out1, hpush, k2, hk2, hrec⟩ := h
       have hlt : k.val < (List.range n.val).length := by
         rw [List.length_range]; scalar_tac
-      have hjv : j.val = off.val - k.val := by scalar_tac
+      have hjv : j.val = off.val - k.val := Level.u64_sub_val hj
       have hk2v : k2.val = k.val + 1 := HashMap.uscalar_add_eq hk2
       have hewf : ExprWF e := ExprWF.bvar he
       have hout1 : ExprsWF out1 := by
@@ -456,13 +456,15 @@ theorem desc_bvars_from_refines (N : Nat) :
         rcases List.mem_append.1 hw with h1 | h1
         · exact hout w h1
         · simp only [List.mem_singleton] at h1; rw [h1]; exact hewf
-      obtain ⟨habs, hwf⟩ := ih (n.val - k2.val) (by omega) n off k2 out1 r rfl hout1 hrec
+      obtain ⟨habs, hwf⟩ :=
+        ih (n.val - k2.val) (by clear hlt; scalar_tac) n off k2 out1 r rfl hout1 hrec
       refine ⟨?_, hwf⟩
-      rw [habs, absExprs, vec_push_val hpush]
-      simp only [List.map_append, List.map_singleton, Expr.bvar_refines he,
-        ← absExprs, hk2v]
+      have h1 : absExprs out1 = absExprs out ++ [ConLeche.Expr.bvar (off.val - k.val)] := by
+        rw [absExprs, absExprs, vec_push_val hpush]
+        simp [Expr.bvar_refines he, hjv]
+      rw [habs, h1, hk2v, List.append_assoc]
+      congr 1
       rw [List.drop_eq_getElem_cons hlt]
-      simp only [List.getElem_range, List.map_cons, hjv]
       simp
 
 /-- `ConLeche/Kernel/DeclCheck.lean:345-382` etc. — `decl_check::desc_bvars` is
@@ -489,7 +491,16 @@ theorem model_app_refines {t : name.Name} {lps : alloc.vec.Vec name.Name}
         (.const ((absName t).str "_model") ((absNames lps).map ConLeche.Level.param))
         ((List.range n_p.val).map (fun j => ConLeche.Expr.bvar (off.val - j)))
       ∧ ExprWF r := by
-  sorry
+  rw [decl_check.model_app] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨n, hn, v, hv, e, he, v1, hv1, hmk⟩ := h
+  obtain ⟨hnabs, hnwf⟩ := model_name_refines ht hn
+  obtain ⟨hvabs, hvwf⟩ := lp_params_refines hlps hv
+  obtain ⟨hv1abs, hv1wf⟩ := desc_bvars_refines hv1
+  obtain ⟨habs, hwf⟩ :=
+    ExprOpsSpine.mk_app_n_refines (Expr.mk_const_wf hnwf hvwf he) hv1wf hmk
+  refine ⟨?_, hwf⟩
+  rw [habs, Expr.mk_const_refines he, hnabs, hvabs, hv1abs]
 
 /-! ## 5. The structure artifacts' shape predicates (`DeclCheck.lean:344-441`)
 

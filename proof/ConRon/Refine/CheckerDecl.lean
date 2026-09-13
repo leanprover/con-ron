@@ -795,12 +795,28 @@ theorem check_decls_pure_refines {mode : env.CheckMode} {fuel : Std.U64}
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
-The one lemma of this file that is *proved* and that composes the two
-concurrent tasks: nothing beyond the three standard axioms may enter through
-the seam. -/
+The lemmas of this file that are *proved* outright — the seam with task #57,
+and the basis-table install — and then the dispatch's own census, whose
+`sorryAx` is the honest record of what its arms still owe. -/
 
 /-- info: 'ConRon.Refine.CheckerDecl.check_ind_decl_c_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms check_ind_decl_c_refines
+
+/-- info: 'ConRon.Refine.CheckerDecl.install_basis_decls_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms install_basis_decls_refines
+
+/-! **The dispatch's census, with the gap machine-checked.**  `check_decl_c`
+is proved *from* its arms, and four of the six arms are still `sorry` here, so
+`sorryAx` is in the list — and it is written down rather than left to a reader
+to discover.  When `Refine/Checker.lean`'s and `cached::parsed_c`'s arm bodies
+land, this `#guard_msgs` **fails**, which is the point: it forces the census
+to be updated to the three standard axioms at exactly the moment that becomes
+true. -/
+
+/-- info: 'ConRon.Refine.CheckerDecl.check_decl_c_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms check_decl_c_refines
 
 end ConRon.Refine.CheckerDecl
