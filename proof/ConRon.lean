@@ -50,5 +50,6 @@ import ConRon.Refine.PropRead
 import ConRon.Refine.CoreKShapes
 import ConRon.Refine.CoreKInfer
 import ConRon.Refine.CoreKPinned
+import ConRon.Refine.IndAbs
 import ConRon.Refine.Pins
 import ConRon.Dump.Read
