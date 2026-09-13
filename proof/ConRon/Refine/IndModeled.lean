@@ -8004,8 +8004,7 @@ theorem checkProjIotaBody_head {lmode : ConLeche.CheckMode}
         (.app (.app (.app (.const c [la]) tySlot) lhsC) rhsC)).run lst
       = .error (.notImplemented "projection iota head") := by
   rw [checkProjIotaBody]
-  simp [hc, StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
-    StateT.pure, Except.pure]
+  simp [hc, StateT.run, Bind.bind, StateT.bind, Except.bind]
 
 omit hw hcb in
 /-- `checkProjIotaBody`'s **redex** `throw` (`DeclCheck.lean:827`). -/
@@ -8113,18 +8112,25 @@ theorem check_proj_iota_body_refines
     {st st' : cached.state_c.CState} {fe_self : fenv.FEnv} {t : name.Name}
     {cvj tcv : env.ConstantVal} {lps : alloc.vec.Vec name.Name}
     {n_p n_f i : Std.U64} {sbody : expr.Expr}
+    {out : core.result.Result Unit core_types.CheckError}
     (hspines : StructSpinesRefine)
     (hst : StateWF st) (hfe : FEnvWF fe_self) (ht : NameWF t)
     (hcvj : ConstantValWF cvj) (hlps : NamesWF lps) (htcv : ConstantValWF tcv)
     (hsb : ExprWF sbody)
     (h : inductives.modeled.check_proj_iota_body mode st fe_self t cvj lps n_p
-        n_f i tcv sbody = ok (.Ok (), st')) :
+        n_f i tcv sbody = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe_self lfe →
-      ∃ lst',
-        (checkProjIotaBody (absMode mode) lfe (absName t) (absConstantVal cvj)
-            (absNames lps) n_p.val n_f.val i.val (absConstantVal tcv)
-            (absExpr sbody)).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+      match out with
+      | .Ok _ =>
+        ∃ lst',
+          (checkProjIotaBody (absMode mode) lfe (absName t) (absConstantVal cvj)
+              (absNames lps) n_p.val n_f.val i.val (absConstantVal tcv)
+              (absExpr sbody)).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((checkProjIotaBody (absMode mode) lfe (absName t)
+          (absConstantVal cvj) (absNames lps) n_p.val n_f.val i.val
+          (absConstantVal tcv) (absExpr sbody)).run lst) := by
   intro lst lfe hrel hfer
   rw [inductives.modeled.check_proj_iota_body] at h
   obtain ⟨depth, hdepth, h⟩ := bind_eq_ok_iff.mp h
@@ -8174,6 +8180,32 @@ theorem check_proj_iota_body_refines
   obtain ⟨hheadv, hheadwf⟩ := ExprOps.get_app_fn_refines hsb hhead
   obtain ⟨args, hargs, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hargsv, hargswf⟩ := ExprOps.get_app_args_refines hsb hargs
+  have hlhstarget : absExpr lhss = ConLeche.Expr.mkAppN
+      (.const (ConLeche.projModelName (absName t) i.val)
+        ((absNames lps).map ConLeche.Level.param))
+      (((List.range n_p.val).map fun k =>
+          ConLeche.Expr.bvar (n_p.val + n_f.val - 1 - k))
+        ++ [ConLeche.Expr.mkAppN
+              (.const ((absName cvj.name).str "_model")
+                ((absNames cvj.level_params).map ConLeche.Level.param))
+              (((List.range n_p.val).map fun k =>
+                  ConLeche.Expr.bvar (n_p.val + n_f.val - 1 - k))
+                ++ (List.range n_f.val).map fun k =>
+                     ConLeche.Expr.bvar (n_f.val - 1 - k))]) := by
+    rw [hlhssv, he1v, hlargsv, hmkv, hev, hsp1v, hspv, hpav', hxav]
+  -- move 2, shared by the port's three spine rejections: a body the spine
+  -- probe rejects cannot match the cited four-`.app` pattern (deviation 3),
+  -- so the cited body takes its `| _ => throw` arm
+  have hshape : ∀ {v : alloc.vec.Vec Std.U32} {ce : core_types.CheckError},
+      core_types.not_implemented v = ok ce →
+      (∀ c la ts l r, absExpr sbody
+        ≠ .app (.app (.app (.const c [la]) ts) l) r) →
+      ErrSim ce ((checkProjIotaBody (absMode mode) lfe (absName t)
+        (absConstantVal cvj) (absNames lps) n_p.val n_f.val i.val
+        (absConstantVal tcv) (absExpr sbody)).run lst) := by
+    intro v ce hce hne
+    exact errSim_notImplemented "projection iota body shape" hce
+      (checkProjIotaBody_shape hne)
   -- the shape probe: three arguments and a one-level `.const` head
   obtain ⟨pq, hpq, hz⟩ := bind_eq_ok_iff.mp h
   obtain ⟨head1, shaped⟩ := pq
@@ -8271,14 +8303,30 @@ theorem check_proj_iota_body_refines
               rw [hx]; simp [hav]
             have hb2v : b2 = decide (absExpr e3 = absExpr e4) :=
               Expr.beq_refines (by rw [he3v]; exact ha2wf) (ExprWF.bvar he4) hb2
+            have heqa1 : absExpr a1 = absExpr lhss := by
+              rw [← he2v]; exact of_decide_eq_true hb1v.symm
             by_cases hb2t : b2 = true
             · rw [if_pos hb2t] at hz
               rw [hb2t] at hb2v
+              have heqa2 : absExpr a2
+                  = ConLeche.Expr.bvar (n_f.val - 1 - i.val) := by
+                rw [← he4v, ← he3v]; exact of_decide_eq_true hb2v.symm
               obtain ⟨o, ho, hz⟩ := bind_eq_ok_iff.mp hz
               obtain ⟨hoabs, howf⟩ :=
                 hcb.openPisAtFvarsF depth tcv.ty 0#u64 o htcv.2.2 ho
               cases o with
-              | none => simp at hz
+              | none =>
+                -- move 2: `DeclCheck.lean:833`, the telescope that will not open
+                simp only [Option.map_none] at hoabs
+                rw [hdepthv, show ((0#u64 : Std.U64)).val = 0 from rfl,
+                  ConLeche.openPisAtFvarsF_eq] at hoabs
+                simp at hz
+                obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := hz
+                refine errSim_notImplemented "projection iota telescope" hce ?_
+                rw [hspine]
+                refine checkProjIotaBody_tele hceq ?_ (by rw [heqa2]; simp)
+                  (by simpa [absConstantVal] using hoabs.symm)
+                rw [heqa1, hlhstarget]; simp [absConstantVal]
               | some oq =>
               obtain ⟨fvs, e5⟩ := oq
               obtain ⟨hfvswf, he5wf⟩ := howf _ rfl
@@ -8297,32 +8345,13 @@ theorem check_proj_iota_body_refines
               obtain ⟨hrgtv, hrgtwf⟩ := arg_get_d_refines htargswf hrgt
               obtain ⟨hlav, hlawf⟩ := hcb.eqHeadLevel _ la hheadwf hla
               rw [hheadabs] at hlav
-              obtain ⟨lst', hrun, hrel', hwf'⟩ :=
+              have hsides :=
                 check_iota_sides_ty_refines hw hcb hst hfe halphawf hlftwf
                   hrgtwf hlawf hz lst lfe
                   (ConLeche.projModelName (absName t) i.val) hrel hfer
-              refine ⟨lst', ?_, hrel', hwf'⟩
-              rw [hspine]
-              have heqa1 : absExpr a1 = absExpr lhss := by
-                rw [← he2v]; exact of_decide_eq_true hb1v.symm
-              have heqa2 : absExpr a2
-                  = ConLeche.Expr.bvar (n_f.val - 1 - i.val) := by
-                rw [← he4v, ← he3v]; exact of_decide_eq_true hb2v.symm
-              have hlhstarget : absExpr lhss = ConLeche.Expr.mkAppN
-                  (.const (ConLeche.projModelName (absName t) i.val)
-                    ((absNames lps).map ConLeche.Level.param))
-                  (((List.range n_p.val).map fun k =>
-                      ConLeche.Expr.bvar (n_p.val + n_f.val - 1 - k))
-                    ++ [ConLeche.Expr.mkAppN
-                          (.const ((absName cvj.name).str "_model")
-                            ((absNames cvj.level_params).map
-                              ConLeche.Level.param))
-                          (((List.range n_p.val).map fun k =>
-                              ConLeche.Expr.bvar (n_p.val + n_f.val - 1 - k))
-                            ++ (List.range n_f.val).map fun k =>
-                                 ConLeche.Expr.bvar (n_f.val - 1 - k))]) := by
-                rw [hlhssv, he1v, hlargsv, hmkv, hev, hsp1v, hspv, hpav', hxav]
-              have hside : (ConLeche.checkIotaSidesTy
+              -- the cited body past its pins *is* `checkIotaSidesTy`, so the
+              -- accept and the failure halves are one equation apart
+              have hargeq : (ConLeche.checkIotaSidesTy
                   (m := ConLeche.Cached.CheckCM) (absMode mode)
                   (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe.env
                   (n_p.val + n_f.val)
@@ -8332,31 +8361,126 @@ theorem check_proj_iota_body_refines
                   (ConLeche.eqHeadLevel
                     (ConLeche.Expr.const (absName n0) [absLevel l0]))
                   (ConLeche.projModelName (absName t) i.val)).run lst
-                  = .ok ((), lst') := by
+                  = (ConLeche.checkIotaSidesTy (m := ConLeche.Cached.CheckCM)
+                      (absMode mode)
+                      (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe.env
+                      depth.val (absExpr alpha) (absExpr lft) (absExpr rgt)
+                      (absLevel la)
+                      (ConLeche.projModelName (absName t) i.val)).run lst := by
                 rw [show ((0#usize : Std.Usize)).val = 0 from rfl] at halphav
                 rw [show ((1#usize : Std.Usize)).val = 1 from rfl] at hlftv
                 rw [show ((2#usize : Std.Usize)).val = 2 from rfl] at hrgtv
                 rw [← hdepthv, ← htargsv, ← halphav, ← hlftv, ← hrgtv, ← hlav]
-                exact hrun
-              exact checkProjIotaBody_run (fvs := absExprs fvs)
-                (sbodyO := absExpr e5) hceq
-                (by rw [heqa1, hlhstarget]; simp [absConstantVal])
-                (by rw [heqa2]; simp)
-                (by simpa [absConstantVal] using hoabs.symm) hside
-            · simp only [Bool.not_eq_true] at hb2t
-              rw [if_neg (by simp [hb2t])] at hz; simp at hz
-          · simp only [Bool.not_eq_true] at hb1t
-            rw [if_neg (by simp [hb1t])] at hz; simp at hz
-        · simp only [Bool.not_eq_true] at hbt
-          rw [if_neg (by simp [hbt])] at hz; simp at hz
-      · simp at hz
+              have hbody : (checkProjIotaBody (absMode mode) lfe (absName t)
+                  (absConstantVal cvj) (absNames lps) n_p.val n_f.val i.val
+                  (absConstantVal tcv) (absExpr sbody)).run lst
+                  = (ConLeche.checkIotaSidesTy (m := ConLeche.Cached.CheckCM)
+                      (absMode mode)
+                      (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe.env
+                      depth.val (absExpr alpha) (absExpr lft) (absExpr rgt)
+                      (absLevel la)
+                      (ConLeche.projModelName (absName t) i.val)).run lst := by
+                rw [hspine, ← hargeq]
+                exact checkProjIotaBody_tail (fvs := absExprs fvs)
+                  (sbodyO := absExpr e5) hceq
+                  (by rw [heqa1, hlhstarget]; simp [absConstantVal])
+                  (by rw [heqa2]; simp)
+                  (by simpa [absConstantVal] using hoabs.symm)
+              cases out with
+              | Ok _ =>
+                obtain ⟨lst', hrun, hrel', hwf'⟩ := hsides
+                exact ⟨lst', hbody.trans hrun, hrel', hwf'⟩
+              | Err e => exact ErrSim.of_eq hsides hbody
+            · -- move 2: `DeclCheck.lean:830`, the field mismatch
+              simp only [Bool.not_eq_true] at hb2t
+              rw [if_neg (by simp [hb2t])] at hz
+              simp at hz
+              obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := hz
+              rw [hb2t] at hb2v
+              have hne2 : ¬ (absExpr a2 = ConLeche.Expr.bvar
+                  (n_f.val - 1 - i.val)) := by
+                rw [← he4v, ← he3v]; exact of_decide_eq_false hb2v.symm
+              refine errSim_notImplemented "projection iota field mismatch"
+                hce ?_
+              rw [hspine]
+              refine checkProjIotaBody_field hceq ?_ (by simp [hne2])
+              rw [heqa1, hlhstarget]; simp [absConstantVal]
+          · -- move 2: `DeclCheck.lean:828`, the redex mismatch
+            simp only [Bool.not_eq_true] at hb1t
+            rw [if_neg (by simp [hb1t])] at hz
+            simp at hz
+            obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := hz
+            rw [hb1t] at hb1v
+            have hne1 : ¬ (absExpr a1 = absExpr lhss) := by
+              rw [← he2v]; exact of_decide_eq_false hb1v.symm
+            refine errSim_notImplemented "projection iota redex mismatch"
+              hce ?_
+            rw [hspine]
+            refine checkProjIotaBody_redex hceq ?_
+            rw [show ConLeche.Expr.mkAppN
+                (.const (ConLeche.projModelName (absName t) i.val)
+                  ((absNames lps).map ConLeche.Level.param))
+                (((List.range n_p.val).map fun k =>
+                    ConLeche.Expr.bvar (n_p.val + n_f.val - 1 - k))
+                  ++ [ConLeche.Expr.mkAppN
+                        (.const ((absConstantVal cvj).name.str "_model")
+                          ((absConstantVal cvj).levelParams.map
+                            ConLeche.Level.param))
+                        (((List.range n_p.val).map fun k =>
+                            ConLeche.Expr.bvar (n_p.val + n_f.val - 1 - k))
+                          ++ (List.range n_f.val).map fun k =>
+                               ConLeche.Expr.bvar (n_f.val - 1 - k))])
+              = absExpr lhss from by rw [hlhstarget]; simp [absConstantVal]]
+            simp [hne1]
+        · -- move 2: `DeclCheck.lean:826`, the head that is not `Eq`
+          simp only [Bool.not_eq_true] at hbt
+          rw [if_neg (by simp [hbt])] at hz
+          simp at hz
+          obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := hz
+          rw [hbt] at hbv
+          have hcne : ¬ (absName n0 = ConLeche.eqName) := by
+            have hx := hbv.symm
+            simp only [ConLeche.isEqHead] at hx
+            simpa using hx
+          refine errSim_notImplemented "projection iota head" hce ?_
+          rw [hspine]
+          exact checkProjIotaBody_head hcne
+      · -- move 2: a `.const` head that does not carry exactly one level
+        rename_i hus1
+        simp at hz
+        obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := hz
+        refine hshape hce (fun c la ts l r hx => ?_)
+        rw [hx] at hheadv
+        simp only [ConLeche.Expr.getAppFn, absExpr_mk, absExprKind] at hheadv
+        obtain ⟨-, hus⟩ : absName n0 = c ∧ absLevels us0 = [la] := by
+          simpa using hheadv
+        have hus0len : (absLevels us0).length = 1 := by rw [hus]; rfl
+        have hlen1 : alloc.vec.Vec.len us0 = 1#usize := by
+          have hl : us0.val.length = 1 := by simpa [absLevels] using hus0len
+          have := alloc.vec.Vec.len_val us0
+          scalar_tac
+        simp [hlen1] at hus1
+    -- move 2: a head that is not a `.const` at all
     all_goals simp only [ExprOps.node_kind, arc_deref_eq, bind_tc_ok,
       Result.ok.injEq, Prod.mk.injEq] at hpq
     all_goals rw [← hpq.2] at hz
     all_goals simp at hz
-  · rw [if_neg hlen, Result.ok.injEq, Prod.mk.injEq] at hpq
+    all_goals obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := hz
+    all_goals refine hshape hce (fun c la ts l r hx => ?_)
+    all_goals rw [hx] at hheadv
+    all_goals simp [ConLeche.Expr.getAppFn] at hheadv
+  · -- move 2: a spine that is not three arguments long
+    rw [if_neg hlen, Result.ok.injEq, Prod.mk.injEq] at hpq
     rw [← hpq.2] at hz
     simp at hz
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := hz
+    refine hshape hce (fun c la ts l r hx => ?_)
+    refine hlen ?_
+    have hg : (absExprs args).length = 3 := by
+      rw [hargsv, hx]; simp [ConLeche.Expr.getAppArgs]
+    have hl : args.val.length = 3 := by simpa [absExprs] using hg
+    have := alloc.vec.Vec.len_val args
+    scalar_tac
 
 omit hw hcb in
 /-- `thm_probe`'s inversion: a `some` answer pins the stored constant to a
