@@ -10936,3 +10936,134 @@ makes the remaining three mechanical rather than exploratory.
   port's own note records the owed retargeting to `proj_entry_type_at_i`, and
   the two lemmas now sit side by side (`ExprOpsFields`/`ExprOpsCAbs`) for
   whoever closes that seam.
+
+### Task #52 — `StateC` refined (2026-09-13, Opus under Fable)
+
+Step 5 of `proof/ConRon/Refine/CORE_PLAN.md`: the **operation** half of
+`cached::state_c`, against `ConLeche/Cached/StateC.lean`.  Task #46 had built
+the relation (`StateRel`/`StateWF` over the fourteen memo tables, one
+probe/insert lemma per table); this task runs the wrappers on top of it.
+
+Two new files, both `sorry`-free:
+
+| file | lines | top-level items |
+|---|---:|---:|
+| `proof/ConRon/Refine/StateC.lean` | 1 913 | 68 |
+| `proof/ConRon/Refine/StateCResolve.lean` | 435 | 10 |
+
+#### What is proved
+
+* **the pure wrappers** — `bvar_bound_m`, `peel_fuel`, `inst_c_cap_c`,
+  `cconst_e_new`, `subst_level_trees` (an index loop over `level::subst`), and
+  the eight that *are* their `cached::expr_ops_c` twin, each as the
+  unconditional identity `inst1_m_eq`, … that says so;
+* **the three level memos** — `simplify_l_m` (`lsimpC`), `is_non_zero_l_m`
+  (`lnzC`, whose `level::is_non_zero` refinement this file adds), `is_equiv_l_m`
+  and `is_equiv_list_l_m` (`eqvC` over `lsimpC`);
+* **`inst_list_m`** with the `instC` entry cap and its clear-on-cap;
+* **the two `ienv` pointer-identity sites** `stored_ty_idx_m` /
+  `stored_val_idx_m` (§3.2, task #23's treatment: `ptr_eq` is `false`, so the
+  model takes `Expr.beq` and `Refine/ExprOpsMeta.lean`'s `expr_ptr_beq_refines`
+  closes the gap);
+* **the three level-instantiated readers** `const_ty_at_m` / `const_val_at_m` /
+  `rule_rhs_at_m` together with the four owning `fe.find?` probes
+  (`const_decl_probe`, `defn_decl_probe`, `rule_rhs_probe(_from)`);
+* **`flush_c`** and **`record_c_const`**;
+* **`consts_resolve_fc`** — the memoized `ExprC` DAG walk, in the sibling file.
+
+Every conclusion is the `CORE_PLAN` shape, exact on success and silent on
+failure: `f st … = ok (r, st') → ∀ lst, StateRel st lst → ∃ lst', (f' …).run lst
+= .ok (abs r, lst') ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r`.
+
+#### Three things worth recording
+
+**1. A memo hit is not claimed to be *correct*, and must not be.** Neither
+`StateRel` nor `StateWF` says a stored entry is the value the operation would
+have computed, and nothing here needs it: con-leche probes the same table at the
+same key and gets the same entry, so the two programs agree *whatever* the entry
+is.  The memo tables are a refinement obligation, not a soundness one — which is
+why `simplify_l_m_refines` does not mention `Level.simplify` at all.  (The
+soundness side is con-leche's own `CSOK.*` invariants, above this tier.)
+
+**2. The `instC` entry cap needs a clause `StateRel` does not have.**
+`StateC.lean:194` drops the whole bulk-instantiation memo when
+`mp.size ≥ instCCapC`; `inst_list_m_reset_at` does it when
+`s.inst_c.len() ≥ inst_c_cap_c`.  For the memo policies to line up probe by
+probe those two tests must be *the same test*, and `RelOn` cannot give it:
+`RelOn` is key-restricted, so a `Std.HashMap` may hold entries at keys outside
+the image of `absInstKey` and the sizes need not agree.  So this file adds
+
+```lean
+def InstCSize (st : CState) (lst : ConLeche.Cached.CState) : Prop :=
+  (HashMap.al_v st.inst_c).length = lst.instC.size
+```
+
+as a hypothesis *and* a conclusion of `inst_list_m_refines`, with a generic
+`insert_size_step` (the counterpart of `State.lean`'s `insert_step`) carrying it
+through an insert: both counts grow by one exactly when the key was absent, and
+`RelOn` *at the key* is what makes "absent" the same question on the two sides.
+`InstCSize` and `insert_size_step` are marked **"to be unified into
+`State.lean`"** — `InstCSize` belongs in `StateRel` and `insert_size_step`
+beside `insert_step`; they are here only because `State.lean` is another task's
+file.  `to_constant_val_wf` (the invariant half of `Refine/Env.lean`'s
+`to_constant_val_refines`) and `level::is_non_zero`'s refinement carry the same
+note.
+
+**3. "Run lemmas" are what make the `StateT` side tractable.** A con-leche
+wrapper is a `modifyGet`/`do` block in `StateT CState (Except CheckError)`; its
+`.run lst` does not reduce under `simp` once an `if` or a `match` stands between
+the state and the answer (`(if c then f else g) lst` is opaque to `simp`).  The
+pattern that works, used throughout both files, is to prove one small *run
+lemma* per branch of the con-leche definition — `simplifyLM_hit`/`_miss`,
+`instListM_id`/`_hit`/`_miss_under`/`_miss_over`, `constTyAtM_hit`/`_bind`, … —
+each `simp [<the definition>, <the lookups>]`, and then let the refinement proof
+be pure case analysis on the *port* side.  Two of them needed a name for a
+subterm con-leche writes inline: `eqvStep` (the tail of `isEquivLM`'s miss
+branch, after its two inlined `lsimpC` probes, which the port spells as two
+`simplify_l_m` calls) and `nodeL` (the inner `match e with …` of
+`constsResolveFCGo`, so that the memo prologue is proved once instead of ten
+times).  Both are `rfl`-identities against the cited definition, so nothing is
+assumed.
+
+#### Two named ingredients, one of them now discharged
+
+Eight wrappers run a `cached::expr_ops_c` twin and `consts_resolve_fc`'s `.lit`
+arms read two `core_k` guards.  Rather than duplicate work in flight, the facts
+are *named* and taken as hypotheses — `InstantiateListRefines`,
+`InstLevelParamsRefines` (task #51's `Refine/ExprOpsC.lean`) and
+`LitGuardsRefine` (task #49's `Refine/CoreK*.lean`, and through it
+`kernel::basis_names`, which no task owns yet).  Nothing is weakened: the
+conclusions are the exact-result ones under an explicit, discharged-later
+premise, and the premise is a `def`/`structure` so discharging it is a one-line
+`exact`.  Task #51 landed during this task, so one of the three is already
+closed: `instLevelParamsRefines` *is* `Refine/ExprOpsCAbs.lean`'s
+`inst_level_params_refines`, and its census is clean, so the three
+level-instantiated readers apply unconditionally today.
+`InstantiateListRefines` stays open on purpose — task #51's
+`instantiate_list_refines` is one of its `sorry`s, and nothing here should
+depend on it.
+
+#### Deviations recorded, none new
+
+The port drops con-leche's `_nI` / `_cI _jI` parameters (the interned twins the
+retired arena needed, already underscored in the Lean), so the three readers'
+statements quantify over them; the linear-update dance
+(`let mp := s.instC; let s := { s with instC := {} }; …`) has no Rust
+counterpart and no proof consequence — the state transformer is the same, which
+is exactly what the run lemmas show.
+
+#### Gates
+
+| | |
+|---|---|
+| `scripts/gates.sh` | **all 7 OK** |
+| `#guard_msgs in #print axioms` | `is_equiv_l_m_refines`, `inst_list_m_refines`, `const_ty_at_m_refines`, `consts_resolve_fc_refines` — `[propext, Classical.choice, Quot.sound]`, nothing else |
+| `sorry` | **zero** in both files (the tier's others are task #51's 21 in `Refine/ExprOpsC*.lean` and task #43's three in `Refine/Pins.lean`) |
+
+#### What is left of `cached::state_c`
+
+Nothing in the module, given the two named ingredients.  The environment-index
+guards con-leche writes in `StateC.lean:62-112` (`isCtorAppC`, `headHintC`,
+`unfoldableHeadC`, `sameConstHeadsC`, `rawNatLitC?`, `etaCtorShapeC`) are
+*ported into `kernel/core_k.rs`*, so by the `Refine/README.md` naming rule they
+are `Refine/CoreK*.lean`'s — task #49's, not this file's.

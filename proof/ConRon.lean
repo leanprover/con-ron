@@ -33,6 +33,8 @@ import ConRon.Refine.Nat
 import ConRon.Refine.Env
 import ConRon.Refine.FEnv
 import ConRon.Refine.State
+import ConRon.Refine.StateC
+import ConRon.Refine.StateCResolve
 import ConRon.Refine.BasisTables
 import ConRon.Refine.Pins
 import ConRon.Dump.Read
