@@ -440,19 +440,22 @@ mode, single-threaded and at eight workers.  Instructions are what the
 two checkers do; the gap in wall and memory is memory traffic and atomic
 reference counts.
 
-<!-- PERF-TABLE: filled from _tmp/perf-overview after the runs at the commit named there -->
+<!-- measured at master 9ea1ac33, release build with mimalloc, one run per cell (three for Init at one worker); ulimit -v = 3 x con-leche's RSS + 1 GiB per worker -->
 | export | jobs | con-leche instructions | con-ron instructions | con-leche wall | con-ron wall | con-leche peak RSS | con-ron peak RSS |
 |---|---|---|---|---|---|---|---|
 | `Init` (57 972 declarations) | 1 | 586 G | 540 G | 59 s | 65 s (64–68, three runs) | 0.48 GB | 0.90 GB |
-| `Init` | 8 | 587 G | *(pending)* | 12 s | *(pending)* | 0.71 GB | *(pending)* |
+| `Init` | 8 | 587 G | 545 G | 12 s | 20 s | 0.71 GB | 1.14 GB |
 | `Init`+`Std`+`Lean` (163 391) | 1 | 1 180 G | 1 159 G | 150 s | 156 s | 1.24 GB | 2.44 GB |
-| `Init`+`Std`+`Lean` | 8 | 1 183 G | *(pending)* | 43 s | *(pending)* | 1.39 GB | *(pending)* |
+| `Init`+`Std`+`Lean` | 8 | 1 183 G | 1 167 G | 43 s | 72 s | 1.39 GB | 2.83 GB |
 | Mathlib (691 123) | 1 | 12 817 G | 11 381 G | 1 228 s | 1 938 s | 8.6 GB | 15.85 GB |
-| Mathlib | 8 | 12 843 G | *(pending)* | 337 s | *(pending)* | 9.1 GB | *(pending)* |
+| Mathlib | 8 | 12 843 G | 11 343 G | 337 s | 929 s | 9.1 GB | 17.8 GB |
 
 Single-threaded, con-ron does 8–11 % fewer instructions than con-leche on
 every export and takes 1.05–1.6× the wall time at 1.8–1.9× the memory:
-the same work, more memory traffic.  Two earlier measurements in DESIGN.md
+the same work, more memory traffic.  At eight workers the gap in wall
+time widens to 1.7–2.8×: con-leche's check phase scales better, its
+reference counts being plain where con-ron's are atomic in every lane
+(§3.2).  Two earlier measurements in DESIGN.md
 explain the shape: before the switch to atomic reference counts, Mathlib
 ran at equal instructions, 1.6× the wall and 1.86× the memory; the switch
 to `Arc` cost 13–17 % of wall time single-threaded and bought a check
