@@ -1431,6 +1431,16 @@ private theorem errSim_notImplemented {γ : Type} {v : alloc.vec.Vec Std.U32}
     ErrSim ce x := by
   rw [not_implemented_err hce]; exact ErrSim.notImplemented hx
 
+/-- The same where the cited body's message depends on *which* of several
+guards the port's single `Bool` collapsed (`iotaLhsPrefixOk` is three con-leche
+`unless`es): the kind is all that is compared, so the message is existential. -/
+private theorem errSim_notImplemented' {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} {x : Except ConLeche.CheckError γ}
+    (hce : core_types.not_implemented v = ok ce)
+    (hx : ∃ s, x = .error (.notImplemented s)) : ErrSim ce x := by
+  obtain ⟨s, hs⟩ := hx
+  exact errSim_notImplemented s hce hs
+
 /-- The same at `core_types::invalid`. -/
 private theorem errSim_invalid {γ : Type} {v : alloc.vec.Vec Std.U32}
     {ce : core_types.CheckError} {x : Except ConLeche.CheckError γ} (s : String)
@@ -2784,10 +2794,172 @@ theorem check_iota_thm_ctor_refines_ok
 
 
 omit hw hcb in
+/-- **The statement head's four `throw`s, carried into the unsplit body**
+(task #67): `checkIotaThmF` opens with exactly `iotaStmtOpen`'s body
+(`DeclCheck.lean:512-528`), so whatever the port's `iota_stmt_open` threw, the
+cited body throws at the same point. -/
+theorem checkIotaThmF_stmt_err {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name} {tyA rhsA : ConLeche.Expr}
+    {mI rP j cnP cnF : Nat} {r : ConLeche.RecRule} {cvj : ConLeche.ConstantVal}
+    {lst : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+    (hle : (iotaStmtOpen lfe2 cvName lps rP cnF j).run lst = .error le) :
+    (ConLeche.checkIotaThmF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j r cvj cnP cnF rhsA).run lst
+      = .error le := by
+  rw [iotaStmtOpen] at hle
+  rw [ConLeche.checkIotaThmF]
+  cases hfd : lfe2.findCV? ((cvName.str "_model").str s!"iota_{j}") with
+  | none =>
+    rw [hfd] at hle
+    simpa [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure] using hle
+  | some cvt =>
+  rw [hfd] at hle
+  by_cases h2 : cvt.levelParams = lps
+  · cases ho : ConLeche.openPisAtFvars (rP + cnF) cvt.type 0 with
+    | none =>
+      simp [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, h2, ho] at hle ⊢
+      exact hle
+    | some q =>
+    obtain ⟨fvs, tb⟩ := q
+    by_cases h4 : ConLeche.isEqHead tb.getAppFn = true
+    · by_cases h5 : tb.getAppArgs.length = 3
+      · simp [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, h2, ho, h4, h5] at hle
+      · simp [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, h2, ho, h4, h5] at hle ⊢
+        exact hle
+    · simp only [Bool.not_eq_true] at h4
+      simp [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, h2, ho, h4] at hle ⊢
+      exact hle
+  · simp [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, h2] at hle ⊢
+    exact hle
+
+omit hw hcb in
+/-- **The left side's three `throw`s, as one** (task #67): the port collapses
+`checkIotaThmF`'s head, arity and prefix `unless`es into the single `Bool`
+`iota_lhs_prefix_ok` with one `throw`, so a `false` there is one of the three
+cited throws — all `notImplemented`, which is all `ErrSim` compares. -/
+theorem checkIotaThmF_lhs_err {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA tb : ConLeche.Expr} {mI rP j cnP cnF : Nat}
+    {r : ConLeche.RecRule} {cvj cvt : ConLeche.ConstantVal}
+    {fvs : List ConLeche.Expr} {lst : ConLeche.Cached.CState}
+    (h1 : lfe2.findCV? ((cvName.str "_model").str s!"iota_{j}") = some cvt)
+    (h2 : cvt.levelParams = lps)
+    (h3 : ConLeche.openPisAtFvars (rP + cnF) cvt.type 0 = some (fvs, tb))
+    (h4 : ConLeche.isEqHead tb.getAppFn = true)
+    (h5 : tb.getAppArgs.length = 3)
+    (h6 : iotaLhsPrefixOk g cvName lps mI rP fvs
+        (tb.getAppArgs.getD 1 (.bvar 0))
+        (tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs = false) :
+    ∃ s, (ConLeche.checkIotaThmF lmode (ConLeche.Cached.sharedOpsC lmode lfe)
+        lfe2 lfe g cvName lps tyA mI rP j r cvj cnP cnF rhsA).run lst
+      = .error (.notImplemented s) := by
+  rw [ConLeche.checkIotaThmF, h1]
+  simp only [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, h2, h3, h4, h5, beq_iff_eq, if_true]
+  by_cases c1 : (tb.getAppArgs.getD 1 (ConLeche.Expr.bvar 0)).getAppFn
+      = ConLeche.Expr.const (g cvName) (lps.map ConLeche.Level.param)
+  · rw [if_pos c1]
+    by_cases c2 : (tb.getAppArgs.getD 1 (ConLeche.Expr.bvar 0)).getAppArgs.length
+        = mI + 1
+    · rw [if_pos c2]
+      have c3 : ¬ ((tb.getAppArgs.getD 1 (ConLeche.Expr.bvar 0)).getAppArgs.take rP
+          = fvs.take rP) := by
+        intro hc
+        rw [iotaLhsPrefixOk, c1, c2, hc] at h6
+        simp at h6
+      rw [if_neg c3]
+      exact ⟨_, rfl⟩
+    · rw [if_neg c2]
+      exact ⟨_, rfl⟩
+  · rw [if_neg c1]
+    exact ⟨_, rfl⟩
+
+omit hw hcb in
+/-- The major premise's `throw` (`DeclCheck.lean:537`). -/
+theorem checkIotaThmF_major_err {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA tb : ConLeche.Expr} {mI rP j cnP cnF : Nat}
+    {r : ConLeche.RecRule} {cvj cvt : ConLeche.ConstantVal}
+    {fvs : List ConLeche.Expr} {lst : ConLeche.Cached.CState}
+    (h1 : lfe2.findCV? ((cvName.str "_model").str s!"iota_{j}") = some cvt)
+    (h2 : cvt.levelParams = lps)
+    (h3 : ConLeche.openPisAtFvars (rP + cnF) cvt.type 0 = some (fvs, tb))
+    (h4 : ConLeche.isEqHead tb.getAppFn = true)
+    (h5 : tb.getAppArgs.length = 3)
+    (h6 : iotaLhsPrefixOk g cvName lps mI rP fvs
+        (tb.getAppArgs.getD 1 (.bvar 0))
+        (tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs = true)
+    (h7 : ((tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs.getLastD (.bvar 0)
+        == ConLeche.Expr.mkAppN
+            (.const (g r.ctor) (cvj.levelParams.map .param))
+            (fvs.take cnP ++ fvs.drop rP)) = false) :
+    (ConLeche.checkIotaThmF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j r cvj cnP cnF rhsA).run lst
+      = .error (.notImplemented s!"iota statement major mismatch for {cvName}") := by
+  rw [ConLeche.checkIotaThmF, h1]
+  simp only [iotaLhsPrefixOk, Bool.and_eq_true, beq_iff_eq] at h6
+  obtain ⟨⟨hhd, har⟩, hpx⟩ := h6
+  have h7' : ¬ ((tb.getAppArgs.getD 1 (ConLeche.Expr.bvar 0)).getAppArgs.getLastD
+      (ConLeche.Expr.bvar 0) = ConLeche.Expr.mkAppN
+        (.const (g r.ctor) (cvj.levelParams.map .param))
+        (fvs.take cnP ++ fvs.drop rP)) := by
+    intro hc; rw [hc] at h7; simp at h7
+  simp only [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, h2, h3, h4, h5, hhd, har, hpx, beq_iff_eq,
+    if_true]
+  rw [if_neg h7']
+  rfl
+
+omit hw hcb in
 /-- `checkIotaThmF`'s success path, run: the cited body is **not** split in
 con-leche, so this is where the port's four halves — `iota_stmt_open`,
 `iota_lhs_prefix_ok`, the major pin and `check_iota_thm_ctor` — are composed
 back into it. -/
+theorem checkIotaThmF_tail {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA tb : ConLeche.Expr} {mI rP j cnP cnF : Nat}
+    {r : ConLeche.RecRule} {cvj cvt : ConLeche.ConstantVal}
+    {fvs : List ConLeche.Expr} {lst : ConLeche.Cached.CState}
+    (h1 : lfe2.findCV? ((cvName.str "_model").str s!"iota_{j}") = some cvt)
+    (h2 : cvt.levelParams = lps)
+    (h3 : ConLeche.openPisAtFvars (rP + cnF) cvt.type 0 = some (fvs, tb))
+    (h4 : ConLeche.isEqHead tb.getAppFn = true)
+    (h5 : tb.getAppArgs.length = 3)
+    (h6 : iotaLhsPrefixOk g cvName lps mI rP fvs
+        (tb.getAppArgs.getD 1 (.bvar 0))
+        (tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs = true)
+    (h7 : ((tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs.getLastD (.bvar 0)
+        == ConLeche.Expr.mkAppN
+            (.const (g r.ctor) (cvj.levelParams.map .param))
+            (fvs.take cnP ++ fvs.drop rP)) = true) :
+    (ConLeche.checkIotaThmF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j r cvj cnP cnF rhsA).run lst
+      = (checkIotaThmCtor lmode lfe g cvName tyA mI rP cvj cnP cnF rhsA fvs
+          (fvs.drop rP) (tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs tb.getAppArgs
+          (tb.getAppArgs.getD 1 (.bvar 0)) (tb.getAppArgs.getD 2 (.bvar 0))
+          (ConLeche.eqHeadLevel tb.getAppFn)).run lst := by
+  rw [ConLeche.checkIotaThmF, h1]
+  simp only [checkIotaThmCtor, checkIotaThmFrames]
+  simp only [iotaLhsPrefixOk, Bool.and_eq_true, beq_iff_eq] at h6
+  obtain ⟨⟨hhd, har⟩, hpx⟩ := h6
+  simp only [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, h2, h3, h4, h5, hhd,
+    har, hpx, h7, beq_self_eq_true, if_true]
+  rfl
+
+omit hw hcb in
+/-- `checkIotaThmF`'s success path, run: `checkIotaThmF_tail` composed with a
+`checkIotaThmCtor` that also succeeded. -/
 theorem checkIotaThmF_run {lmode : ConLeche.CheckMode}
     {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
     {cvName : ConLeche.Name} {lps : List ConLeche.Name}
@@ -2812,16 +2984,10 @@ theorem checkIotaThmF_run {lmode : ConLeche.CheckMode}
         (ConLeche.eqHeadLevel tb.getAppFn)).run lst = .ok ((), lst')) :
     (ConLeche.checkIotaThmF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
         lfe g cvName lps tyA mI rP j r cvj cnP cnF rhsA).run lst
-      = .ok ((), lst') := by
-  rw [ConLeche.checkIotaThmF, h1]
-  simp only [checkIotaThmCtor, checkIotaThmFrames] at h8
-  simp only [iotaLhsPrefixOk, Bool.and_eq_true, beq_iff_eq] at h6
-  obtain ⟨⟨hhd, har⟩, hpx⟩ := h6
-  simp only [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
-    Except.bind, Pure.pure, StateT.pure, Except.pure, h2, h3, h4, h5, hhd,
-    har, hpx, h7, beq_self_eq_true, if_true] at h8 ⊢
-  exact h8
+      = .ok ((), lst') :=
+  (checkIotaThmF_tail h1 h2 h3 h4 h5 h6 h7).trans h8
 
+set_option linter.unusedSimpArgs false in
 /-- `ConLeche/Kernel/DeclCheck.lean:507-573` — **`check_iota_thm` refines
 `checkIotaThmF`**: a canonical recursor rule's `iota_j` theorem, checked
 semantically. -/
@@ -2831,21 +2997,31 @@ theorem check_iota_thm_refines
     {cv_name : name.Name} {lps : alloc.vec.Vec name.Name}
     {ty_a rhs_a : expr.Expr} {m_i r_p j cn_p cn_f : Std.U64}
     {r : env.RecRule} {cvj : env.ConstantVal}
+    {out : core.result.Result Unit core_types.CheckError}
     (hspines : StructSpinesRefine)
     (hf : RenamesTo f g) (hst : StateWF st) (hfe2 : FEnvWF fe2)
     (hfe : FEnvWF fe_self) (hcv : NameWF cv_name) (hlps : NamesWF lps)
     (hty : ExprWF ty_a) (hr : RecRuleWF r) (hcvj : ConstantValWF cvj)
     (hrhs : ExprWF rhs_a)
     (h : inductives.modeled.check_iota_thm mode st fe2 fe_self f cv_name lps
-        ty_a m_i r_p j r cvj cn_p cn_f rhs_a = ok (.Ok (), st')) :
+        ty_a m_i r_p j r cvj cn_p cn_f rhs_a = ok (out, st')) :
     ∀ lst lfe2 lfe, StateRel st lst → FEnvRel fe2 lfe2 → FEnvRel fe_self lfe →
-      ∃ lst',
-        (ConLeche.checkIotaThmF (absMode mode)
-            (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
-            (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
-            j.val (absRecRule r) (absConstantVal cvj) cn_p.val cn_f.val
-            (absExpr rhs_a)).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+      match out with
+      | .Ok _ =>
+        ∃ lst',
+          (ConLeche.checkIotaThmF (absMode mode)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
+              (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
+              j.val (absRecRule r) (absConstantVal cvj) cn_p.val cn_f.val
+              (absExpr rhs_a)).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e
+          ((ConLeche.checkIotaThmF (absMode mode)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
+              (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
+              j.val (absRecRule r) (absConstantVal cvj) cn_p.val cn_f.val
+              (absExpr rhs_a)).run lst) := by
   -- `iota_stmt_open_refines`, `iota_lhs_prefix_ok_refines`, the major pin and
   -- `check_iota_thm_ctor_refines`, composed back into the *unsplit* cited body
   -- by `checkIotaThmF_run`.  Task #59 left this `sorry` because `x_fvs` and
@@ -2855,7 +3031,14 @@ theorem check_iota_thm_refines
   rw [inductives.modeled.check_iota_thm] at h
   obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
   cases r1 with
-  | Err err => simp at h
+  | Err err =>
+    -- move 1: `iota_stmt_open` threw, and the unsplit body throws at the same
+    -- guard (`DeclCheck.lean:512-528`)
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact ErrSim.trans
+      (iota_stmt_open_refines hw hcb hr2 hfe2 hcv hlps hr1 lst)
+      (fun le hle => checkIotaThmF_stmt_err hle)
   | Ok oq =>
   obtain ⟨fvs, targs, l_a⟩ := oq
   obtain ⟨hopen, hfvswf, htargswf, hlawf⟩ :=
@@ -2905,20 +3088,75 @@ theorem check_iota_thm_refines
     by_cases hb1t : b1 = true
     · rw [if_pos hb1t] at h
       rw [hb1t] at hb1v
-      obtain ⟨lst', hrun, hrel', hwf'⟩ :=
+      have hctor :=
         check_iota_thm_ctor_refines hw hcb hf hst hfe hty hcvj hrhs hfvswf
           hxfvswf hlargswf htargswf hlhswf hrhsswf hlawf h lst lfe
           (absName cv_name) hrel hrS
-      rw [hxfvsv, hlargsv, k6, hlhsv, hrhssv, k7] at hrun
-      exact ⟨lst', checkIotaThmF_run k1 k2 k3 k4 k5 hbv.symm
-        (by simpa [absRecRule, absConstantVal] using
-          of_decide_eq_true hb1v.symm) hrun, hrel', hwf'⟩
-    · simp only [Bool.not_eq_true] at hb1t
+      rw [hxfvsv, hlargsv, k6, hlhsv, hrhssv, k7] at hctor
+      have htail := checkIotaThmF_tail (lmode := absMode mode) (lfe2 := lfe2)
+        (lfe := lfe) (lst := lst) (tyA := absExpr ty_a)
+        (rhsA := absExpr rhs_a) (j := j.val) (r := absRecRule r)
+        (cnP := cn_p.val) (cvj := absConstantVal cvj)
+        k1 k2 k3 k4 k5 hbv.symm
+        (by simpa [absRecRule, absConstantVal] using of_decide_eq_true hb1v.symm)
+      cases out with
+      | Ok u =>
+        obtain ⟨lst', hrun, hrel', hwf'⟩ := hctor
+        exact ⟨lst', htail.trans hrun, hrel', hwf'⟩
+      | Err e => exact ErrSim.of_eq hctor htail
+    · -- the major premise mismatch (`DeclCheck.lean:537`)
+      simp only [Bool.not_eq_true] at hb1t
       rw [if_neg (by simp [hb1t])] at h
       simp [bind_eq_ok_iff] at h
-  · simp only [Bool.not_eq_true] at hbt
+      obtain ⟨v1, hv1, ce, hce, rfl, rfl⟩ := h
+      rw [hb1t] at hb1v
+      exact errSim_notImplemented
+        s!"iota statement major mismatch for {absName cv_name}" hce
+        (checkIotaThmF_major_err (lmode := absMode mode) (lfe2 := lfe2)
+          (lfe := lfe) (lst := lst) (tyA := absExpr ty_a)
+          (rhsA := absExpr rhs_a) (j := j.val) (r := absRecRule r)
+          (cnP := cn_p.val) (cvj := absConstantVal cvj)
+          k1 k2 k3 k4 k5 hbv.symm
+          (by simpa [absRecRule, absConstantVal] using
+            of_decide_eq_false hb1v.symm))
+  · -- the left side's head, arity or prefix (`DeclCheck.lean:529-533`)
+    simp only [Bool.not_eq_true] at hbt
     rw [if_neg (by simp [hbt])] at h
     simp [bind_eq_ok_iff] at h
+    obtain ⟨v1, hv1, ce, hce, rfl, rfl⟩ := h
+    rw [hbt] at hbv
+    exact errSim_notImplemented' hce
+      (checkIotaThmF_lhs_err (lmode := absMode mode) (lfe2 := lfe2)
+        (lfe := lfe) (lst := lst) (tyA := absExpr ty_a)
+        (rhsA := absExpr rhs_a) (j := j.val) (r := absRecRule r)
+        (cnP := cn_p.val) (cvj := absConstantVal cvj)
+        k1 k2 k3 k4 k5 hbv.symm)
+
+/-- `check_iota_thm_refines` at a success, the pre-#67 statement. -/
+theorem check_iota_thm_refines_ok
+    {st st' : cached.state_c.CState} {fe2 fe_self : fenv.FEnv}
+    {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
+    {cv_name : name.Name} {lps : alloc.vec.Vec name.Name}
+    {ty_a rhs_a : expr.Expr} {m_i r_p j cn_p cn_f : Std.U64}
+    {r : env.RecRule} {cvj : env.ConstantVal}
+    (hspines : StructSpinesRefine)
+    (hf : RenamesTo f g) (hst : StateWF st) (hfe2 : FEnvWF fe2)
+    (hfe : FEnvWF fe_self) (hcv : NameWF cv_name) (hlps : NamesWF lps)
+    (hty : ExprWF ty_a) (hr : RecRuleWF r) (hcvj : ConstantValWF cvj)
+    (hrhs : ExprWF rhs_a)
+    (h : inductives.modeled.check_iota_thm mode st fe2 fe_self f cv_name lps
+        ty_a m_i r_p j r cvj cn_p cn_f rhs_a = ok (.Ok (), st')) :
+    ∀ lst lfe2 lfe, StateRel st lst → FEnvRel fe2 lfe2 → FEnvRel fe_self lfe →
+      ∃ lst',
+        (ConLeche.checkIotaThmF (absMode mode)
+            (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
+            (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
+            j.val (absRecRule r) (absConstantVal cvj) cn_p.val cn_f.val
+            (absExpr rhs_a)).run lst = .ok ((), lst')
+        ∧ StateRel st' lst' ∧ StateWF st' :=
+  check_iota_thm_refines hw hcb hspines hf hst hfe2 hfe hcv hlps hty hr hcvj
+    hrhs h
+
 
 /-! ## The nested-auxiliary shape (`Modeled.lean:151-190`,
 `DeclCheck.lean:575-599`) -/
