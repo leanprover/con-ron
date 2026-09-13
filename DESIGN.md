@@ -13456,3 +13456,73 @@ byte-identical, the capstones' included.
 | `sorry` | 6, all in the inductive tier (`IndModeled` ×5, `IndC` ×1) — #59's count, unchanged |
 | capstones | `conron.model_exists'` / `conron.model_exists_embedded` hypotheses **unchanged** |
 | progress | `verified 12766 (92%)` of 13 743; `proofs 119328 (1289 _refines)` |
+### Task #69 — Automating the refinement proofs: a study (2026-09-13, Fable)
+
+The maintainer's question: the simulation proofs are mechanical — could they
+be `some induction <;> grind [function_of_interest]`?  A Fable agent re-proved
+three representative lemmas with candidate idioms and wrote up what works and
+what does not: `proof/ConRon/Refine/AUTOMATION.md` (the findings and the
+recommendation) and `proof/ConRon/Refine/Automation/Study.lean` (the evidence:
+builds at default heartbeats, no `sorry`, imported by nothing).  No existing
+proof or Rust was touched.
+
+**The answer is "nearly".**  One idiom closes all three:
+
+```lean
+⟨shape⟩ ; rust_inv h ; all_goals grind [⟨lemma set⟩]
+```
+
+| lemma | hand | automatic | elaboration |
+|---|---|---|---|
+| `Level.rest_refines_aux` (25 cases, IH) | 268 lines | 10 + 12 arm equations | 1.5 s → 6.5 s |
+| `ExprOps.instantiate1_go_refines` (10 cases, memo) | 340 lines | 10 shape lines + 9-line macro + 8 wrappers | 0.65 s → 5.3 s |
+| `Core.reduce_nat_lits_i_refines` (2 wrapper calls) | 79 lines | 5 + 3 `use`/plumbing lemmas | 0.2 s → 1.0 s |
+
+`rust_inv h` is `repeat' (first | split at h | simp at h | obtain ⟨_, h⟩ :=
+h)`: a deterministic normaliser of the Rust success hypothesis (bind
+inversion via the `@[simp]` `bind_eq_ok_iff`, pair splitting, one `∃`/`∧`
+layer at a time, `match`/`if` splits, `simp` refuting the `.Err` branches).
+`grind` can do all of it itself but exhausts its budget on junk first when the
+chain is deep.
+
+**What the lemma set must look like** (each item was found by a failure, all
+recorded in `AUTOMATION.md`):
+
+* the induction/wrapper hypothesis **as a predicate with a `use` lemma whose
+  first hypothesis is the Rust success equation** — `grind` E-matches local
+  `∀`s only on conclusion-inferred patterns, which `absLevel`/`absExpr`
+  reduction destroys, and `grind [→ h]` is rejected for locals;
+* **`→` takes patterns from the propositional hypotheses in order**, so
+  `Expr.app_wf hf ha : expr.app f a = ok e → ExprWF e` fires on every pair
+  of WF terms (quadratic junk, the real instance never reached); the
+  library's `_wf`/`_refines` lemmas should put the Rust equation first.
+  `grind_pattern` cannot substitute: `Eq` is not an admissible pattern;
+* **arm-selection equations without side conditions**: `Level.rest_max`'s
+  `∀ s, r ≠ .succ s` makes `grind` diverge (a `whnf` timeout at any budget);
+  one specialisation per constructor pair fixes it;
+* **`Sim`/`SimS` must lose their existential**: `grind` negates `∃ lst', …`
+  into a `∀` whose body never enters the E-graph.  `RunOk (g.run lst) P` —
+  the same claim as a predicate on the run result — with `Sim.ofRun` back
+  to `Sim`; the monad plumbing as unconditional `rfl` equations
+  (`Lits.runBind`'s conditional form has free variables on the right and
+  never fires); `(gen := 24)` for a two-wrapper chain; `∀ m, o = some m →`
+  instead of `∀ m ∈ o` (no `Membership` unfolding on `Option`).
+
+**What stays manual**: one shape line per constructor in an induction (the
+fully uniform `induction he <;> …` fails because the body matches on
+`e._0.kind`, which nothing reduces while `e` is a variable), and the
+per-lemma budget tuning at the largest arms, which the study did not reach.
+
+**Recommendation** (in `AUTOMATION.md`): adopt the idiom during the task #67
+restatement, leaves and walks first (`Level`, `ExprOps*`, `CoreK*`), with the
+four library-side changes made once — `use` lemmas beside every `Spec`,
+equation-first argument order, per-pair arm equations, `RunOk` as `SimS`'s
+conclusion shape (`Shape.lean`) — and `rust_inv` in `Refine/Abs.lean`.
+Expected effect: 5–10× fewer proof lines where it applies, ~5× the elaboration
+time of those files; con-leche bumps then touch shape lines and arm equations
+rather than 300-line proofs.  Not covered: `HashMap`/`Nat` (mathematical),
+`Pins*` (byte-level), `Ind*` (list folds).
+
+Gates: `lake build ConRon.Refine.Automation.Study` clean; the full
+`gates.sh` was not run in the study's worktree (nothing outside the new files
+changed; the merge into master runs it).
