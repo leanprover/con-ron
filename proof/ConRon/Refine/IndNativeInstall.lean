@@ -112,6 +112,27 @@ walk's mutual pair (`mentions_fvar_go`, `mentions_fvar_node`) and
 `check_native_rec` and `check_native_table`.  And the two `do`-block identities
 `checkNativePassS_eq` / `checkNativeTailS_eq`.
 
+## The full outcome (task #67)
+
+The twelve stages from `check_native_rules` up to `check_native` are stated
+over the port's **whole** inner outcome: `.Ok r` claims what it always did,
+and `.Err e` claims that the cited code throws at the *same kind*
+(`Refine/Abs.lean`'s `ErrSim`).  `kernel/inductives/native_install.rs` has 17
+`CheckError` sites and **all of them are mirrored** — no `Native` — so every
+failure half is proved, never excused: the two `checkNativeRulesF` throws, the
+nine of `checkNativeRecF` (rewritten one by one in the `CheckNativeRecF`
+section below, stated on the con-leche side alone), the three of
+`classifyFixKinds`, the three of `checkNativeTailGuardsF` and the two of
+`checkNativeI`.  Everything else is a sub-computation's throw carried out by
+`ErrSim.bindCM` / `ErrSim.trans`.
+
+Four sibling ingredients carry the failure halves of the stages this file does
+not own — `CheckConstantValErr`, `CheckSumIndErr`, `CheckSumCtorsErr` and
+`CheckStructFieldSortsIErr`.  They are separate `Prop`s beside the accept
+ingredients only because `Refine/IndIngredients.lean`, which discharges them,
+is not this file's to edit; they fold into their accept siblings once that
+file is converted.
+
 ## Two side conditions that are *not* slack
 
 * **The unrestricted-canonical pair** (`Refine/FEnv.lean`'s `FEnvCanon` /
@@ -3003,7 +3024,7 @@ private theorem checkNativeRecF_recTy_scope
       ∧ recTy.looseBVarsBounded 0 = true ∧ recTy.hasFvar = false) := by
     simpa using hsc
   rw [ConLeche.checkNativeRecF]
-  simp [h0, h1, h2, hcv, hty, hsc, hsc', ConLeche.unwrapOr, checkCM_throw_apply,
+  simp [h0, h1, h2, hcv, hty, hsc', ConLeche.unwrapOr, checkCM_throw_apply,
     show ConLeche.StructWalkers.plain.resolve fe recTy
       = recTy.constsResolveF fe from rfl,
     StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
@@ -3029,7 +3050,7 @@ private theorem checkNativeRecF_infer_err
       ∧ recTy.looseBVarsBounded 0 = true ∧ recTy.hasFvar = false := by
     simpa using hsc
   rw [ConLeche.checkNativeRecF]
-  simp [h0, h1, h2, hcv, hty, hsc, hsc', hinf, ConLeche.unwrapOr,
+  simp [h0, h1, h2, hcv, hty, hsc', hinf, ConLeche.unwrapOr,
     show ConLeche.StructWalkers.plain.resolve fe recTy
       = recTy.constsResolveF fe from rfl,
     StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
@@ -3055,7 +3076,7 @@ private theorem checkNativeRecF_ensure_err
       ∧ recTy.looseBVarsBounded 0 = true ∧ recTy.hasFvar = false := by
     simpa using hsc
   rw [ConLeche.checkNativeRecF]
-  simp [h0, h1, h2, hcv, hty, hsc, hsc', hinf, hens, ConLeche.unwrapOr,
+  simp [h0, h1, h2, hcv, hty, hsc', hinf, hens, ConLeche.unwrapOr,
     show ConLeche.StructWalkers.plain.resolve fe recTy
       = recTy.constsResolveF fe from rfl,
     StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
@@ -3082,7 +3103,7 @@ private theorem checkNativeRecF_defeq_err
       ∧ recTy.looseBVarsBounded 0 = true ∧ recTy.hasFvar = false := by
     simpa using hsc
   rw [ConLeche.checkNativeRecF]
-  simp [h0, h1, h2, hcv, hty, hsc, hsc', hinf, hens, hde, ConLeche.unwrapOr,
+  simp [h0, h1, h2, hcv, hty, hsc', hinf, hens, hde, ConLeche.unwrapOr,
     show ConLeche.StructWalkers.plain.resolve fe recTy
       = recTy.constsResolveF fe from rfl,
     StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
@@ -3111,7 +3132,7 @@ private theorem checkNativeRecF_defeq_false
       ∧ recTy.looseBVarsBounded 0 = true ∧ recTy.hasFvar = false := by
     simpa using hsc
   rw [ConLeche.checkNativeRecF]
-  simp [h0, h1, h2, hcv, hty, hsc, hsc', hinf, hens, hde, ConLeche.unwrapOr,
+  simp [h0, h1, h2, hcv, hty, hsc', hinf, hens, hde, ConLeche.unwrapOr,
     checkCM_throw_apply,
     show ConLeche.StructWalkers.plain.resolve fe recTy
       = recTy.constsResolveF fe from rfl,
@@ -3147,7 +3168,7 @@ private theorem checkNativeRecF_rules_err
       ∧ recTy.looseBVarsBounded 0 = true ∧ recTy.hasFvar = false := by
     simpa using hsc
   rw [ConLeche.checkNativeRecF]
-  simp [h0, h1, h2, hcv, hty, hsc, hsc', hinf, hens, hde, hru, ConLeche.unwrapOr,
+  simp [h0, h1, h2, hcv, hty, hsc', hinf, hens, hde, hru, ConLeche.unwrapOr,
     show ConLeche.StructWalkers.plain.resolve fe recTy
       = recTy.constsResolveF fe from rfl,
     StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
@@ -4558,9 +4579,8 @@ theorem check_native_tail_guards_refines {mode : env.CheckMode}
             refine errSim_invalid hce rfl
               (ls := "direct rec: recursor rules are not the generated ones") ?_
             simp only [StateT.run_bind, hrun1, exceptOk_bind, ← hb1v, ← hb2v,
-              hb1t, if_true]
-            simp [checkCM_throw_apply, StateT.run, Bind.bind, StateT.bind,
-              Except.bind]
+              if_true]
+            simp [checkCM_throw_apply, StateT.run]
         · rename_i hb1f
           simp only [Bool.not_eq_true] at hb1f
           rw [hb1f] at hb1v
@@ -5019,8 +5039,9 @@ the pass copies the index with `fenv::dup`, and `FEnv.dup_rel` is what carries
 the caller's own `lfe` across the copy. -/
 theorem check_native_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU)
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {p0 : inductives.native_parts.NativeParts}
+    {outc : core.result.Result fenv.FEnv core_types.CheckError}
     (hsi : CheckSumIndRefines mode) (hsie : CheckSumIndErr mode)
     (hcc : CheckSumCtorsRefines mode) (hcce : CheckSumCtorsErr mode)
     (hsic : CheckSumIndCanon mode)
@@ -5039,13 +5060,18 @@ theorem check_native_refines {mode : env.CheckMode}
     (hbodies : StructInstall.StructProjBodiesRefines) (hg : StructProjGuardsRefines)
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hp0 : IndAbs.NativePartsWF p0)
-    (h : inductives.native_install.check_native mode st fe p0 = ok (.Ok fe', st')) :
+    (h : inductives.native_install.check_native mode st fe p0 = ok (outc, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (checkNativeI (absMode mode) lfe (IndAbs.absNativeParts p0)).run lst
-          = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match outc with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (checkNativeI (absMode mode) lfe (IndAbs.absNativeParts p0)).run lst
+            = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((checkNativeI (absMode mode) lfe
+          (IndAbs.absNativeParts p0)).run lst) := by
   intro lst lfe hrel hfer
   rw [inductives.native_install.check_native] at h
   obtain ⟨names, hnames, h⟩ := bind_eq_ok_iff.mp h
@@ -5076,7 +5102,18 @@ theorem check_native_refines {mode : env.CheckMode}
     obtain ⟨res, st1⟩ := pq
     rw [if_pos hnodup]
     cases res with
-    | Err err => simp at h
+    | Err err =>
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      have hkey : ErrSim err ((checkNativePassI (absMode mode) lfe
+          (IndAbs.absNativeParts p0) b1).run lst) :=
+        check_native_pass_refines hsi hsie hsic hcc hcce hcomp hwk
+          hrck hbeq hst hfe hcan hfull hp0 hpass lst lfe hrel hfer
+      rw [hb1v] at hkey
+      refine ErrSim.trans hkey ?_
+      intro le hle
+      simp only [pure_bind, StateT.run_bind, hle]
+      rfl
     | Ok q =>
       obtain ⟨np, b2⟩ := q
       obtain ⟨lst1, lq, hrun1, hrel1, hqrel, hwf1, hqwf, hqcan, hqfull⟩ :=
@@ -5085,13 +5122,23 @@ theorem check_native_refines {mode : env.CheckMode}
       rw [hb1v] at hrun1
       by_cases hb2 : b2 = true
       · simp only [hb2] at h
-        obtain ⟨lst', lfe2, hrun2, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩ :=
+        have hkeyt :=
           check_native_tail_refines hw hres hpo hpb hop hkg hro hfs hfse hcons
             hrhs hty hc4 hlpsok hcvr hcvre hsr hbodies hg hwf1 hfe hqwf hqcan
             hqfull h lst1 lfe lq hrel1 hfer hqrel
-        refine ⟨lst', lfe2, ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
-        simp only [StateT.run_bind, pure_bind, exceptOk_bind, hrun1, hb2, if_true]
-        exact hrun2
+        cases outc with
+        | Err e =>
+          refine ErrSim.trans hkeyt ?_
+          intro le hle
+          simp only [StateT.run_bind, pure_bind, exceptOk_bind, hrun1, hb2,
+            if_true, hle]
+        | Ok fe' =>
+          obtain ⟨lst', lfe2, hrun2, hrel2, hfrel2, hwf2, hfwf2, hfcan2,
+            hffull2⟩ := hkeyt
+          refine ⟨lst', lfe2, ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
+          simp only [StateT.run_bind, pure_bind, exceptOk_bind, hrun1, hb2,
+            if_true]
+          exact hrun2
       · simp only [Bool.not_eq_true] at hb2
         simp only [hb2] at h
         obtain ⟨is_rec2, hir, h⟩ := bind_eq_ok_iff.mp h
@@ -5101,7 +5148,20 @@ theorem check_native_refines {mode : env.CheckMode}
         obtain ⟨pq2, hpass2, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨res2, st2⟩ := pq2
         cases res2 with
-        | Err err => simp at h
+        | Err err =>
+          simp at h
+          obtain ⟨rfl, rfl⟩ := h
+          have hkey : ErrSim err ((checkNativePassI (absMode mode) lfe
+              (IndAbs.absNativeParts p0) is_rec2).run lst1) :=
+            check_native_pass_refines hsi hsie hsic hcc hcce hcomp hwk
+              hrck hbeq hwf1 hfe hcan hfull hp0 hpass2 lst1 lfe hrel1 hfer
+          rw [hirv] at hkey
+          refine ErrSim.trans hkey ?_
+          intro le hle
+          simp only [StateT.run_bind, pure_bind, exceptOk_bind, hrun1, hb2]
+          rw [if_neg (by simp)]
+          simp only [StateT.run_bind, hle]
+          rfl
         | Ok q2 =>
           obtain ⟨np1, b3⟩ := q2
           obtain ⟨lst2, lq2, hrun2, hrel2, hq2rel, hwf2, hq2wf, hq2can, hq2full⟩ :=
@@ -5110,26 +5170,56 @@ theorem check_native_refines {mode : env.CheckMode}
           rw [hirv] at hrun2
           by_cases hb3 : b3 = true
           · simp only [hb3] at h
-            obtain ⟨lst', lfe2, hrun3, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
+            have hkeyt :=
               check_native_tail_refines hw hres hpo hpb hop hkg hro hfs hfse
                 hcons hrhs hty hc4 hlpsok hcvr hcvre hsr hbodies hg hwf2 hfe
                 hq2wf hq2can hq2full h lst2 lfe lq2 hrel2 hfer hq2rel
-            refine ⟨lst', lfe2, ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
-            simp only [StateT.run_bind, pure_bind, exceptOk_bind, hrun1, hb2]
-            rw [if_neg (by simp)]
-            simp only [StateT.run_bind, exceptOk_bind, hrun2, hb3, if_true]
-            exact hrun3
+            cases outc with
+            | Err e =>
+              refine ErrSim.trans hkeyt ?_
+              intro le hle
+              simp only [StateT.run_bind, pure_bind, exceptOk_bind, hrun1, hb2]
+              rw [if_neg (by simp)]
+              simp only [StateT.run_bind, exceptOk_bind, hrun2, hb3, if_true,
+                hle]
+            | Ok fe' =>
+              obtain ⟨lst', lfe2, hrun3, hrel3, hfrel3, hwf3, hfwf3, hfcan3,
+                hffull3⟩ := hkeyt
+              refine ⟨lst', lfe2, ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3,
+                hffull3⟩
+              simp only [StateT.run_bind, pure_bind, exceptOk_bind, hrun1, hb2]
+              rw [if_neg (by simp)]
+              simp only [StateT.run_bind, exceptOk_bind, hrun2, hb3, if_true]
+              exact hrun3
           · simp only [Bool.not_eq_true] at hb3
             simp only [hb3] at h
             obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
             obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
             obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
             simp at h
+            obtain ⟨rfl, rfl⟩ := h
+            refine errSim_internal hce rfl
+              (ls := "direct rec: the capability record did not settle") ?_
+            simp only [StateT.run_bind, pure_bind, exceptOk_bind, hrun1, hb2]
+            rw [if_neg (by simp)]
+            simp only [StateT.run_bind, exceptOk_bind, hrun2, hb3]
+            rw [if_neg (by simp)]
+            simp [checkCM_throw_apply, StateT.run, Bind.bind, StateT.bind,
+              Except.bind]
   · rename_i hb
     simp only [Bool.not_eq_true] at hb
     obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
     simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hnot : ¬((IndAbs.absNativeParts p0).ctors.map (fun c => c.1.name)).Nodup := by
+      rw [show (IndAbs.absNativeParts p0).ctors.map (fun c => c.1.name)
+        = absNames names from habsn.symm]
+      exact of_decide_eq_false (hbndv.symm.trans hb)
+    refine errSim_invalid hce rfl
+      (ls := "direct rec: duplicate constructor") ?_
+    rw [if_neg hnot]
+    simp [checkCM_throw_apply, StateT.run, Bind.bind, StateT.bind, Except.bind]
 
 end ConRon.Refine.NativeInstall
