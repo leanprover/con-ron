@@ -256,11 +256,16 @@ Axioms: only the standard axioms are supported; anything else is
 ceiling (owner ruling, 2026-08-21): acceptance routes for custom
 axioms (opaque-with-witness, unfoldable-definition storage,
 canonical-value models) were explored and rejected: none is wanted.
-Refinement (user rulings, 2026-08-22/24, revised for task #95): the
-*tolerated whitelist* (`toleratedAxiomNames`) is exactly `sorryAx` — a
-tolerated `axiom` record is dropped by the frontend without parsing
-its type at all; nothing is installed and the name is tainted
-(`Frontend.State.taintedNames`).  The `Init` **compiler-trust family
+Refinement (user rulings, 2026-08-22/24, revised for task #95, and
+again for task #292): the one axiom tolerated as a *declaration* is
+`sorryAx` (`sorryAxName`, `ConLeche/Kernel/Basis/Names.lean`).  Its
+record is FORWARDED to the fold like any other: the type is checked
+and the record installs **nothing** — there is no set model for it —
+so a stream that merely declares the axiom is accepted, and any USE of
+the name DECLINES at the record that uses it.  The fold owns that
+decision (`unknownConstError` in `ConLeche/Kernel/Core.lean`,
+`unresolvedConstsError` in `ConLeche/Kernel/CheckerBase.lean`); the
+parser has no taint machinery at all.  The `Init` **compiler-trust family
 is installed** instead (task #95, user design 2026-08-24):
 `Lean.trustCompiler : True` is trivially realizable and installs like
 a checked `opaque` realized by `True.intro` over the pinned `True`
@@ -575,6 +580,37 @@ to `M`) is arithmetic on facts that are already correct, not an
 adapter.  An adapter *reorders, reshapes, or supplies something the
 telescope failed to give*.  A "no rewriting at all" pass criterion
 would have failed this test and would have been wrong.
+
+### The documents' code links are gated; their quoted code too; `README.md` is otherwise link-only
+
+`OVERVIEW.md` **and** `README.md` carry line-anchored
+`blob/master/<path>#L<a>-L<b>` links into the source, and both are
+under `tests/overview-links.sh` (task #299): the cited lines are copied
+into `tests/overview-links-expected.txt`, so moving or editing them
+fails the gate and the failure names the document.  Re-read the citing
+paragraph, then `tests/overview-links.sh --update`.  The gate also
+checks that every RELATIVE link's target (`./PERF.md`,
+`./bridge/lean4lean-model`) still exists.
+
+**Quoted code in `README.md`/`OVERVIEW.md` is gated; the fix is to
+re-sync the quote.**  A fenced ```lean block headed by
+`theorem <name>` / `def <name>` is compared TEXTUALLY with that
+declaration's header in the tree — the `open … in` / `@[…]` prefix,
+the `theorem`/`def` line, every continuation line up to the text
+before the statement-ending `:=`, with the docstring skipped and
+indentation significant — by `tests/quote-gate.sh` (task #302).
+Textual and not `#check`: the documents quote SOURCE for a human to
+read, so binder names, notation and line breaks are the whole point,
+and `#check` normalises exactly those away.  There is no `--update`:
+the source is the truth, and a gate over a human-written document does
+not rewrite it.
+
+**`README.md` is the maintainer's, and human-written.**  An agent may
+turn an existing code name into a link, repoint a link whose anchor
+moved, and — since 2026-09-13 — re-sync a quoted code block the quote
+gate reports as stale.  Everything else is untouchable: no added
+words, no reflow, no punctuation.  Anything the README ought to *say*
+differently is reported to the maintainer, never written.
 
 ## Environment notes
 
@@ -68940,146 +68976,2858 @@ diagnosis it looks like.
 
 No checker code changed, so the binary is master's.
 
----
+## TASK #287 — THE ENVIRONMENT-VARIABLE HOOKS: what went, what stays until the modeller goes (2026-09-12, `agent/envvars-287`)
 
-## TASK #285 — THE PIN LIST IS A PARAMETER OF THE FOLD (2026-09-12, `pins-param`, for con-ron)
+**The end state the maintainer ruled: the checker binary reads no
+environment variable at all; everything is a command-line flag or
+gone.**  This task removes everything that can go today.  What is left
+is the in-process modeller's four debug switches, and they are not a
+separate decision: they die with the modeller (task #279).
 
-Asked for by the con-ron lane (the Rust port of this checker and its
-Aeneas refinement proof, `vendor/con-leche` there is this tree): a
-refinement proof of the ported checker wants to be **stated for any
-`Nat.div`/`Nat.mod` pin list**, not only for the variants this
-toolchain committed.  It could not be: `natOpPinSets` was hard-wired
-at the two install gates (`checkDivModPin`, `checkDivModPinF`) and
-therefore at every statement above them.
+### Per variable
 
-What the tree looked like: the constant appeared in exactly two places
-in the proof tiers — `DivModPinRun`'s `∃ ps ∈ natOpPinSets`
-(`ConLeche/Semantics/DeclRun.lean`) and `checkDivModPin_inv`'s
-conclusion (`ConLeche/Verify/DivModInv.lean`) — while the model's
-certificate conversion `divMod_install`
-(`ConLeche/Model/DivModCert.lean`) was **already** over an arbitrary
-`ps : NatOpPinSet`.  That asymmetry is the whole of the task: the
-model never needed the list, so nothing had to be generalised, only
-threaded.
+| variable | verdict |
+|---|---|
+| `CON_LECHE_NO_PROOF_CERTS` | **REMOVED.**  The retired-switch tombstone in `checkMain` (the read, the message, the `return 3`) and the "MODE FAIL" test in `tests/arena.sh` that asserted it errors.  The `--yolo` FLAG tombstone stays — a flag spelling is what a stale command line carries. |
+| `CON_LECHE_INFER_ONLY` | **REMOVED**, the same way; `--infer-only` stays a hard-error flag. |
+| `CON_LECHE_PROGRESS` | **already gone at #229** — but `tests/arena.sh` still asserted that it is *ignored*, and a test that a retired variable is ignored is itself a tombstone.  Both checks removed; the `--progress` flag's own twelve checks are untouched. |
+| `CON_LECHE_ROUTE_TRACE` | **REMOVED, end to end** — see below. |
+| `CON_LECHE_VERBOSE` | **REMOVED**: the read and the `verboseCounts` line beside the verdict.  The constant count it printed is derivable from the stream by `scripts/stream-census.py`, which is what the help text and PERF.md now say.  `env` in the driver's accepting arm became unused and is now `_`; the accept is still the `.ok` of `checkDecls`, which is what the success line is printed from. |
+| `CON_LECHE_TRACE_DECLS` | **GHOST** (no read anywhere): a code comment in `Main.lean` cited it for a measured +4 index offset on the Mathlib stream.  Sentence rewritten to state the measurement without the dead name. |
+| `CON_LECHE_TREE_BUDGET` | **GHOST** (retired with the budget at #215): named in `ConLeche/Frontend/Export.lean`'s retirement docstring (now "its override") and in `scripts/mk_budget_fixtures.py`, the generator of two fixtures the budget left behind — **script deleted**.  Nothing in `tests/` or `scripts/` called it; the two fixtures stay (`tests/e2e-expected.txt` rows `budget_model`, `budget_block`), and `budget_block.ndjson`'s own `meta.exporter` line still names the generator as its provenance — that is data inside a pinned fixture, not a live reference. |
+| `CON_LECHE_INMODEL`, `CON_LECHE_INMODEL_CENSUS`, `CON_LECHE_INMODEL_DUMP`, `CON_LECHE_PROJREC_TRACE` | **STAY until #279.**  The in-process modeller's debug switches, `tests/inmodel.sh` their gate; they go with the modeller. |
+| `CON_LECHE_MODE`, `CON_LECHE_BIN`, `CON_LECHE_ARENA_*`, `CON_LECHE_VLIMIT*`, `CON_LECHE_TIMEOUT`, `CON_LECHE_TMPDIR`, `CON_LECHE_OFFICIAL_KERNEL` | **NOT THE BINARY'S.**  `scripts/arena/*` and `scripts/perf-tables.sh` read these; the checker never has.  Out of scope. |
 
-**The parameter and where it sits.**  `pins : List NatOpPinSet` is now
-an argument of `checkDivModPin{,F}`, `checkDecl`, `checkDeclsPure`,
-`checkDeclC`, `checkDeclStepC`, `annotStepC`, `annotDeclStep` and
-`checkDecls`, and of the types stated over those steps — `InstallRun`,
-`InstalledEnv`, `FullyChecked`.  The position is uniform: **right after
-the "how to check" arguments**, i.e. after `ops` where there is one and
-after `mode` in the cached driver, so `checkDecl mode ops pins env d`
-and `annotDeclStep mode pins p pd`.  Everything that the installed
-environment already determines takes it **implicitly** —
-`GroupChecked`, `checkRecord`, `RecordResult`, `collectChecks`,
-`groupChecked_*`, `fullyChecked_checkDecls`, `checkDecls_fullyChecked`,
-`fullyChecked_sound`, the three `MainC` letters — which is why
-`Main.lean`'s pool, its `collectChecks` call and every downstream
-`obtain` are untouched.
+### The route census is gone with its instrument
 
-**`checkDecls` keeps its spelling**, because the headline statements
-must not move: the parameter is its **last** and it **defaults** to
-`natOpPinSets` (`pins : List NatOpPinSet := natOpPinSets`).  So
-`checkDecls mode ds` still elaborates to the shipped fold,
-`ConLeche.model_exists` and `ConLeche.no_proof_of_False` are unchanged
-token for token, and `tests/challenge.sh` still reports the two
-statements identical to `ConLeche/Challenge.lean`'s.  A statement that
-wants the general fold writes the argument: `checkDecls mode ds pins`.
+Maintainer's call: *"Let's just get rid of this gate, we have fewer
+routes now anyways."*  Since task #210 Part C there is one native
+route, so the census counted `fix`, `basis` and the modeller's
+`inmodel`, and its failure meanings (`modeled`, "no install route")
+are both plain declines the arena expectations already pin — a good
+fixture that loses its route stops accepting, and `tests/arena.sh`
+says so on the fixture's own row.
 
-**The two generalised theorems** (`ConLeche/MainTheorem.lean`, beside
-the shipped pair and *before* it, since the shipped pair is derived):
+Removed: `tests/route-census.sh`; the gate call and its comment block
+in `tests/arena.sh`; the `--help` entry; and the trace's whole
+implementation in `Main.lean` — the `trace` read, the `if trace then`
+block in `installLoop` that re-ran `nativeParts?` to name a route, and
+the `trace : Bool` / `inModelled : Array Name` parameters that carried
+it through `installLoop` and `checkDeclsIO`.  `inModelled` itself
+stays where it is computed (`Frontend.ExportC`): the driver's stderr
+receipt and the in-model census still print it.  **The census had no
+pinned data file** — its stream list is read out of
+`tests/arena-expected.txt`'s accepting `good/` rows, so nothing else
+was deleted with it.  `tests/arena.sh` is now nine gates, which is
+what `.github/workflows/ci.yml`'s header already said.
 
-* `ConLeche.model_exists_with (V) [SetTheory V] (pins) (ds) (env) : checkDecls .verified ds pins = .ok env → Nonempty (Model V env)`
-* `ConLeche.no_proof_of_False_with (V) [SetTheory V] (pins) (ds) (env) : checkDecls .verified ds pins = .ok env → ¬ ∃ c ∈ env.consts, c.toConstantVal.type = .const falseName []`
+`OVERVIEW.md` §12's gate list and §1's "the heartbeat and the route
+trace are printed between the steps" lost the census and the trace
+(no task numbers there, per the docs rule).  DESIGN.md's historical
+records keep theirs: this section is the dated note that the gate is
+gone.
 
-and `model_exists := model_exists_with V natOpPinSets ds env accepted`,
-`no_proof_of_False := no_proof_of_False_with V natOpPinSets ds env accepted`
-— each one line.  The three `MainC` letters (`checkDecls_sound`,
-`no_proof_of_{False,Empty}_cached`) are generalised **in place**, with
-`pins` implicit, so the shipped instances are their own instances and
-no wrapper was added there.
+### The checker checks exactly what it checked
 
-**The one change that is not threading**: `DivModPinRun` says
-`∃ ps : NatOpPinSet` where it said `∃ ps ∈ natOpPinSets`.  Threading
-`pins` into it would have carried the parameter through `DeclDefnRun`,
-`DeclRun`, `Bridge/Sound`, `DeclEta`, `Model/Fold` and `Model/Harvest`
-for a hypothesis **nobody reads**: what `divMod_install` consumes is
-the certificates' verdict *in the accepted environment*, never where
-the matched variant came from.  Dropping the membership is therefore
-both smaller and *more general* — the run record is now what an install
-at ANY list establishes — and it costs two edits: `divModPinRun_of`
-discards the `hmem` that `checkDivModPin_inv` still hands it (the
-inversion keeps `∃ ps ∈ pins`, which is the honest statement of a
-loop over `pins`), and `harvestDefn`'s pattern loses one `-`.  The
-model tier is otherwise **untouched**: `Model/Fold` and
-`Model/Capstone` only gained the threaded argument in their
-`checkDeclsPure` statements.
-
-`Main.lean` keeps calling the shipped fold: its driver types name
-`ConLeche.natOpPinSets` outright (`InstalledEnv mode
-ConLeche.natOpPinSets ds`, `annotDeclStep mode ConLeche.natOpPinSets
-p pd`), and `fullyChecked_checkDecls mode fc` hands back exactly the
-`checkDecls mode ds = .ok env` the driver's subtype asks for, because
-the default argument elaborates to the same term.
-
-No import changed anywhere (`shake` proposes *adding* a
-`public import ConLeche.Kernel.NatOpPins` to `ConLeche/Cached/Installed.lean`
-now that `checkDecls`' default value names the list; the public view
-already carries it transitively, the challenge library builds against
-it, and `add` proposals are not this gate's business).  33 files,
-+646/−332 — of which the Lean and test sources are 28 files,
-+338/−183, and the rest is this section, `OVERVIEW.md` and the three
-regenerated/edited expectation files.
+Nothing on any checking path moved.  The trace ran `nativeParts?` a
+second time, for printing only, *beside* the dispatch rather than in
+it; deleting it removes a recogniser call from the install loop and
+nothing else.  `checkDecls` and the fold are untouched, and so is
+`Kernel/*` / `Cached/*` — the two dropped parameters are the DRIVER's
+(`Main.lean`), not the checker's, so no init-full comparison is owed
+and none was run.
 
 ### Gates
 
-Every run in the `pins-param` worktree.  `lake build` **544 jobs
-warning-free**, 2 min 19 s wall from a `lake clean` on this machine
-(18 min CPU); `lake test` green;
-`tests/layering.sh` 280/190/3/1 with 0 base→lane and 0 impl→theory;
-`tests/challenge.sh` **OK — `ConLeche.model_exists` and
-`ConLeche.no_proof_of_False` token-identical to the challenge half**,
-which is the gate this task was designed around; `tests/pindump.sh`
-three pinners reproduce their committed JSON byte-for-byte;
-`tests/trust-surface.sh` 13 escapes in 5 allowlisted files (484
-scanned), 0 outside; `tests/no-local-paths.sh` OK; `tests/inmodel.sh`
-OK; axioms pinned (18 theorems at `[propext, Classical.choice,
-Quot.sound]`); arena tutorial 90/92, e2e 195/195, annot 15/15, retired
-flags 8/8, mode flags 20/20, prelude counts 3/3, progress lane 17/17,
-worker pool 15/15, DAG-tower 14/14.
+| gate | result |
+|---|---|
+| `lake build` | 544 jobs, **warning-free**, exit 0 |
+| `lake test` | green, warning-free |
+| `tests/arena.sh` (full, `env -i`, no `ulimit`) | **exit 0.**  layering 280/190/3/1, 0 base→lane, 0 impl→theory; proofdeps **3 819 rows / 11 roots / 0 doors, byte-for-byte as pinned** (the module graph did not move — no pin regenerated); pindump 3 pinners reproduced; trust surface 13 escapes in 5 allowlisted files (484 scanned), 0 outside; no-local-paths OK; challenge OK; shake 457 proposals all allowlisted; inmodel OK; axioms 18 theorems at the three; arena tutorial **90/92**; e2e **195/195**; annot **15/15**; retired flags **8/8**; prelude counts 3/3; worker pool 15/15; DAG-tower 14/14; trusted sweep 138+195+15 with the three recorded divergences; `--jobs=1` and `--jobs=4` sweeps as at the default |
+| the two counts that MOVED | **mode flags 20/20 → 18/18** (the two retired-env-var assertions) and **progress lane 17/17 → 15/15** (the two `CON_LECHE_PROGRESS`-is-ignored assertions).  Those four are the removals themselves; every other number is master's. |
+| `tests/overview-links.sh` | four Main.lean anchors re-anchored (`usage` L791→L738, `checkLoop` L192→L163, `checkPool` L307→L278, `checkDeclsIO` L345-L349→L316-L319, one line shorter for the dropped parameters); each citing paragraph re-read and still true; 77 links / 49 files OK |
+| `PERF.md` | regenerated with `scripts/perf-tables.sh --render` from the tracked `perf-data/` record after editing the one sentence in `scripts/perf-tables-render.py`; the diff is exactly that sentence |
 
-`tests/proofdeps.sh` **shrank by four rows and was regenerated**:
-`ConLeche.Kernel.NatOpPins` LEFT the closures of `False_pure`,
-`Empty_pure`, `False_checked` and `fullyChecked_sound`.  That is the
-change stated as a measurement — those four proofs no longer reach the
-committed variant list at all, because neither the fold they are about
-nor the run record they consume names it.  The main theorem's own
-closures (`main_False`, `main_model`) still reach it, and must: the
-shipped statement is the fold *at* `natOpPinSets`.  3 815 rows across
-11 roots, 0 doors.
+Evidence the end state is reached for this task's half:
+`grep -rn 'IO.getEnv' Main.lean ConLeche` shows **five sites of four
+names, all the modeller's** (`CON_LECHE_INMODEL`,
+`CON_LECHE_INMODEL_CENSUS` twice — once in `parseInput`, once in the
+census report — `CON_LECHE_INMODEL_DUMP`, `CON_LECHE_PROJREC_TRACE`),
+and no removed name is cited anywhere outside DESIGN.md's historical
+records.
 
-`tests/overview-links.sh` re-anchored (77 links / 49 files).  Twenty-two
-citations moved and one changed text; every citing paragraph was
-re-read.  The prose held everywhere — the tour describes what the fold
-does, not its arity — and two paragraphs were *added* to keep it
-honest: §1 now says `checkDecls`' third argument is the pin list with
-`natOpPinSets` as its default and points at the two `_with` theorems,
-and the `Nat.div`/`Nat.mod` bullet says the model side reads none of it.
+## TASK #286 — THE MAIN COROLLARY AT THE STREAM (2026-09-12, `agent/falsethm-286`)
 
-**`tests/shake.sh` could not be run end-to-end in this sandbox** and
-was replicated by hand.  Its half (a) captures `lake shake`'s output
-(135 018 bytes here) into a shell variable, after which every
-`fork`/`exec` in that shell fails with `Argument list too long` — an
-environment limit, reproducible with nothing but that one capture and
-independent of this change.  Running the gate's own python check on
-`lake shake`'s saved output: **456 proposals, 0 new**, and **one
-allowlist line no longer proposed**, which is deleted here —
-`ConLeche/Semantics.lean` / `public import ConLeche.Verify.Inductives.SumWF`,
-whose own recorded reason was "a transitive-minimization move, not an
-unused import", i.e. exactly the kind of artefact that moves when one
-constant leaves one statement.  456 proposals / 456 allowlisted / 0
-stale after the deletion.  Half (b) run directly: `pub-imports: 940 of
-1279 in-tree edges public, none demotable`.
+The maintainer's request: *"proving the main corollary to assume that
+`False` exists in `ds` … the annotation does not drop theorems and
+preserves `False`."*  `no_proof_of_False` is about the environment the
+fold RETURNS; a reader who has not read `annotStepC` cannot tell from it
+whether a record declaring `False` could be dropped, aliased or
+re-typed on the way in.  This task states the corollary a second time,
+over the fold's INPUT, and derives it from the first.  Statement as
+landed (`ConLeche/MainTheorem.lean`, `sorry` twin in
+`ConLeche/Challenge.lean`, third entry in `comparator.json`'s
+`theorem_names`):
 
-Comparator was not re-run: `tests/challenge.sh` is the in-tree half of
-it and the two statements are unchanged.
+```lean
+/-- **The main corollary, at the stream.**  A stream that declares a
+theorem of type `False` is never accepted. -/
+theorem no_False_theorem_accepted (V : Type w) [SetTheory V]
+    (ds : List DeclC) (cv : ConstantVal) (v : ExprC)
+    (hmem : DeclC.thmDecl cv v ∈ ds) (hty : cv.type = .const falseName []) :
+    ∀ env, checkDecls .verified ds ≠ .ok env
+```
+
+`V` and `[SetTheory V]` are there for the same reason the other two
+have them: the tree instantiates the interface nowhere (the bridge
+does), so a statement that does not quantify over `V` could not be
+proved from `model_exists`.  The theorem is universally quantified
+over `ds`, and `hmem` is `∈` on the record list — nothing about
+positions, nothing about the rest of the stream.
+
+**This is not §5 of the task #277 record coming back.**  That section
+rejected a `ds`-statement that would have to say what the fold STORES
+for every record kind (six reasons: dropped tolerated-axiom records,
+the built-in prelude, the `ProjRec` rewrite, the in-process modeller's
+`_model` records, the constructor reorder, the prelude dedupe — plus
+`annotate`, `opaqueDecl`'s discarded value, `indDecl`'s regenerated
+recursors).  This statement makes no such claim: it is a NEGATIVE
+statement about ONE record kind, and it is *derived* from the
+env-statement rather than replacing it.  §5's recommendation — "state
+the theorem about `env`, as it is" — stands; this is an addition.
+
+### 1. The three ingredients, as used
+
+All three are in the new `ConLeche/Verify/Cached/StreamThm.lean`
+(imports `Verify.Cached.PushChain` and `Verify.Cached.BridgeCS4`, both
+already in the capstones' closure), and `MainTheorem.lean` imports it
+privately; its top lemma is
+`checkDecls_thmDecl_const`, stated for an arbitrary bare constant type
+`.const n ls`, not for `False`:
+
+1. **The annotation of a bare constant is the constant.**
+   `annotateBodyI`'s `.const` arm is `pure e`, so
+   `annotateBodyI_const` is `rfl`.  The entry point is memoised
+   (`memoEI (·.annotC)`), so the returned type is the MEMO'S on a hit
+   — and the hit branch had to be excluded.  It is, without any memo
+   invariant: `annotStepC`'s `thmDecl` arm begins with `flushC`, and
+   `CState.flushed` sets `annotC := {}`, so the call runs at a state
+   whose annotation memo is EMPTY.  `annotate_const_of_miss` takes the
+   miss as a hypothesis (`s₀.annotC[e]? = none`) and
+   `flushed_annotC_none` discharges it.  `CSOK`/`CSOKF` are not
+   needed and are not used.
+2. **A theorem record is never dropped.**
+   `annotConstantValC_const` walks the header install's eight guards
+   with `bindC_ok`/`pureC_ok`/`throwC_bind_ok` (the recipe of
+   `annotConstantValC_run`, `Verify/Cached/InstalledC.lean`, without
+   its `CSOK`/`EnvWF` premises) and concludes
+   `cvA = ⟨cv.name, cv.levelParams, .const n ls⟩`;
+   `annotStepC_thm_consts` then reads the arm's `pure` off:
+   `fe'.env.consts = .thmInfo cvA value :: fe.env.consts`.
+3. **Pushed constants persist.**  `installRun_thmDecl_const` inducts
+   on `InstallRun`.  At the step that consumes the record, ingredient 2
+   puts the constant on the list; `installRun_trace` (PushChain) on the
+   REST gives `q.2.1.env.consts = new ++ fe₁.env.consts`, so it is
+   still there at the end of phase A.  The induction carries the one
+   side condition `PushChain` needs — the index is canonical
+   (`p.2.1 = mkFEnv p.2.1.env`) — forward through `annotStepC_push`.
+   Phase B pushes nothing, so `checkDecls_fullyChecked` +
+   `InstalledEnv.run` closes it.
+
+The corollary is then two lines: the constant of type `.const falseName
+[]` that `checkDecls_thmDecl_const` produces is exactly what
+`no_proof_of_False` forbids.
+
+### 2. What was harder than expected, and what was not
+
+* **The memo was the whole risk, and `flushC` retired it.**  The brief
+  expected the lemma to go through the cached tier's memo-table
+  invariant (`CSOK.annotC`: every entry is backed by a pure run at some
+  fuel).  That route exists but is expensive — `CSOK` at the right
+  environment is only available inside `installRun_model`'s walk, which
+  is a Model-tier induction carrying `EnvWF` and the graded model.
+  The per-declaration flush makes it unnecessary: the annotation memo
+  is provably empty at the exact call site.  The new module therefore
+  sits at the `Verify` tier with no model reasoning in it at all, and
+  the new root's proof-term closure is `main_model`'s **plus exactly
+  one module** (`ConLeche.Verify.Cached.StreamThm`) — 430 rows against
+  429.
+* **The `f + 1` shape of the knot.**  `coreKnotI` matches on `0` /
+  `fuel + 1`, and the call site passes the literal `checkFuel`
+  (`= 100000`).  `annotate_const_of_miss` is stated at `f + 1` and
+  instantiated at `f := checkFuel - 1` with
+  `show checkFuel - 1 + 1 = checkFuel from rfl` — the kernel's literal
+  arithmetic, no `Nat.succ_pred` gymnastics.
+* **`Yields` does not fit.**  `Verify/Cached/AgreeFloor.lean`'s clause
+  walker is the natural tool for "every value this action returns
+  satisfies `P`", and the guard chain of `annotConstantValC` is exactly
+  what it was built for — but `Yields` quantifies over ALL start states
+  and this proof's whole content is a fact about ONE (the flushed one).
+  Hence the hypothesis-style walk instead, in the shape
+  `annotConstantValC_run` already uses.
+* **`flushC`'s inversion.**  `flushC s₀ = .ok ((), s₀.flushed)` is
+  `rfl`, but `simpa`-ing the resulting `Except`/`Prod` equation into
+  `s₁ = s₀.flushed` fought back; `congrArg Prod.snd (Except.ok.inj …)`
+  followed by `subst` is the short way.
+* **Nothing about `False` is in the lemmas.**  `falseName` appears only
+  in the capstone.  The stream-side fact is about any declared type of
+  the form `.const n ls`, which is what makes it cheap: a type with a
+  binder in it would need the annotation pass's real specification.
+
+### 3. Gates
+
+`lake build` warning-free; `lake test` warning-free (the axiom pin
+gains a nineteenth row: `ConLeche.no_False_theorem_accepted` at
+`[propext, Classical.choice, Quot.sound]`); `tests/challenge.sh` OK —
+the three statements are token-identical across the two modules;
+`tests/proofdeps.sh` REGENERATED for the new root `main_stream_False`
+(4249 rows / 12 roots, 0 doors; the only new module in any closure is
+the one this task added); `tests/overview-links.sh --update` (78 links
+/ 49 files) after re-reading the three citing paragraphs — the
+`MainTheorem.lean` and `Axioms.lean` anchors shifted by the new import
+line and the new pin block, the cited text is unchanged;
+`tests/arena.sh` exit 0.  No checker code changed: the binary is
+master's.
+
+**Merged with task #287** (the environment-variable hooks) before
+landing.  One conflict, in this document — two records appended at the
+same place, ordered #287 then #286 — and none in code: #287 touched
+`Main.lean`, the frontend and the gate scripts, this task the
+statement, the proof and the pins.  `OVERVIEW.md` and
+`tests/overview-links-expected.txt` merged clean (the two sides cite
+different files) and every anchor still resolves, so no `--update` was
+needed after the merge.  The battery has **no route-census gate** any
+more — #287 deleted `tests/route-census.sh` with the
+`CON_LECHE_ROUTE_TRACE` hook it read; the merged run is the one
+recorded above minus that line.
+
+## TASK #288 — `no_False_theorem_accepted` IS *THE* MAIN COROLLARY (2026-09-12, `agent/maincor-288`)
+
+The maintainer's ruling on the statement task #286 added: *"I want that
+to be **the** main corollary."*  Nothing in any statement changes —
+this is a relabelling of the three theorems, in the docstrings, the
+module headers, `OVERVIEW.md`, the axiom pin's table and the proof-dep
+roots:
+
+| theorem | label before | label now |
+|---|---|---|
+| `model_exists` | **The main theorem.** | **The main theorem.** (unchanged) |
+| `no_proof_of_False` | **The main corollary.** | **The corollary at the environment.** |
+| `no_False_theorem_accepted` | **The main corollary, at the stream.** | **The main corollary.** |
+
+**Why.**  `no_proof_of_False` quantifies over the environment the fold
+RETURNS, so reading it presupposes knowing what an `Env` is and
+trusting that the fold put into it what the stream declared.
+`no_False_theorem_accepted` speaks only of the list of declarations
+handed to the checker: *a stream one of whose records declares a
+theorem of type `False` is never accepted*.  That is the sentence a
+reader can check against their own idea of what the checker is for,
+which is what a main corollary is for.  The environment statement
+keeps its place as the step the main corollary rests on — it is where
+the model argument lands — and stays a pinned, advertised theorem
+(`comparator.json` keeps all three names, in the same order).
+
+**Order.**  The three theorems stay in proof order in both modules
+(main theorem → corollary at the environment → main corollary); the
+prose in `ConLeche/Challenge.lean` now states the theorem and the main
+corollary in the opening quote and explains the environment statement
+as the first of the two steps between them.  `OVERVIEW.md` §1 reads
+the same way, and its module-map row for the pair names all three.
+
+**Gates** (docs only — the docstrings live in the modules): `lake
+build` warning-free, `lake test` warning-free, `tests/challenge.sh` OK
+(the three statements are still token-identical: only docstrings
+moved), `tests/overview-links.sh --update` after re-reading the four
+citing paragraphs — the `MainTheorem.lean` and `Axioms.lean` anchors
+shifted by the reworded docstrings and the reworded pin section, the
+cited text is unchanged — and `tests/no-local-paths.sh`.  No arena
+battery and no checker run: no checker code changed.
+
+**README.md is the maintainer's** and was not touched; its "### The
+Main Corollary" section still shows the environment statement, and the
+replacement text is in this task's report.
+
+## TASK #291 — THE ENVIRONMENT STATEMENT IS DROPPED (2026-09-12, `agent/dropenv-291`)
+
+The maintainer's ruling on the three advertised theorems: *"The old one
+is no more useful than the new one, so should be dropped."*
+`ConLeche.no_proof_of_False` — the corollary at the environment task
+#288 relabelled — is **removed as a public statement**.  Two statements
+remain, in both halves of the Comparator pair and in
+`comparator.json`'s `theorem_names`: `model_exists` (the main theorem)
+and `no_False_theorem_accepted` (the main corollary).
+
+**Where the content went.**  Nothing is lost: the environment argument
+is now the first half of the main corollary's own proof.  A second
+ruling settled the form — *"MainTheorem should be elegant, pretty,
+concise.  Simple proofs (few clear steps) here are fine, large ones
+should be imported"*, then *"merging the proof steps … into ONE proof
+inside MainTheorem.lean is fine"* — so there is no private lemma and no
+new Verify module: `no_False_theorem_accepted` is six tactic lines that
+name the two imported facts (`Cached.checkDecls_thmDecl_const` for the
+stream side, `model_exists` for the model side) and then read the
+constant's type through `Model.mem` / `Model.false_empty`.  The
+docstring says the same in words, so a reader still sees that the
+corollary goes through "an accepted environment holds no constant of
+type `False`".
+
+**The statement was never the only place that fact is proved.**  The
+Verify tier keeps its own letters under their own names —
+`no_proof_of_False_cached` (`Verify/Cached/MainC.lean`, every
+validating mode), `no_proof_of_False_checked`
+(`Verify/Cached/InstalledC.lean`) and `no_proof_of_False_pure`
+(`Model/Fold.lean`) — and they stay pinned and stay proof-dep roots.
+Only the capstone name disappeared, so every citation of a `_cached` /
+`_checked` / `_pure` letter was left alone; the citations reworded are
+the ones that named the capstone.
+
+**What moved** (outside this document): `ConLeche/MainTheorem.lean`
+(statement deleted, proofs merged, module header "the main theorem and
+the main corollary"); `ConLeche/Challenge.lean` (statement deleted, the
+prose that called the middle step "the corollary at the environment"
+now calls it a step, and the bullet that explained the removed
+statement's `c.toConstantVal.type` explains the corollary's own
+`cv.type` instead); `comparator.json` (two names);
+`tests/ConLecheTests/Axioms.lean` (nineteen pinned theorems → eighteen,
+one `#print axioms` block gone, eleven of them proof-dep roots);
+`tests/ProofDeps.lean` (the root `main_False` gone: **11 roots**, and
+`tests/proofdeps-expected.txt` regenerated — 4249 rows → 3820, exactly
+the `main_False` block, no other row changed);
+`tests/trust-surface.sh`, `tests/e2e-expected.txt`, `OVERVIEW.md` §1
+(the main corollary presented directly, its environment step in words)
+and its module map, `tests/overview-links-expected.txt` (`--update`
+after re-reading the three citing paragraphs: 77 links / 49 files, one
+link fewer), `formalization.yaml` and `scripts/arena/con-leche.yaml`
+(the exported second theorem is `ConLeche.no_False_theorem_accepted`),
+`scripts/dead-census.py`'s capstone list, and the prose citations in
+`ConLeche/Cached/Installed.lean`, `ConLeche/Cached/ParsedC.lean`,
+`ConLeche/Verify/Cached/MainC.lean`,
+`ConLeche/Verify/Cached/InstalledC.lean` and `Main.lean` — including
+the `--verified` paragraph of `--help`, which now states the main
+corollary instead of the environment one.
+
+**README.md is the maintainer's** and was not touched; its "### The
+Main Corollary" section still shows the removed statement, and the
+replacement text is in this task's report.
+
+## TASK #289 — WHAT `checkDecls` STORES OF WHAT IT READS (2026-09-12, `agent/streamrel-289`)
+
+The maintainer's request: *"somewhere I want a strong statement on how
+`checkDecls`'s output relates to the input: Every constant in `ds`
+except `sorryAx` appears in `env`, with types related by a relation that
+ignores annotations and zeta-reduces let.  Not a theorem to go into
+MainTheorem, but maybe the proof can mention it, and of course the
+OVERVIEW should point to it."*  Landed as
+`ConLeche/Verify/Cached/StreamConsts.lean`.
+
+### 1. The relation
+
+```lean
+@[expose] def Expr.zeta : Expr → Expr
+  | .app f a        => .app (zeta f) (zeta a)
+  | .lam ty b m     => .lam (zeta ty) (zeta b) m
+  | .forallE ty b m => .forallE (zeta ty) (zeta b) m
+  | .letE _ v b     => (zeta b).instantiate1Lift (zeta v) 0
+  | .proj s i e     => .proj s i (zeta e)
+  | .fvar i ty      => .fvar i ty
+  | e               => e
+
+@[expose] def AnnotOf (declared stored : Expr) : Prop :=
+  stored.resetMeta = declared.zeta.resetMeta
+```
+
+Two decisions in there.
+
+* **The erasure is `Expr.resetMeta`, which already existed** (the
+  recursor replay's, `Kernel/ExprOps.lean`): "every binder's datum reset
+  to the parse placeholder".  No new definition was needed, because
+  `BinderMeta.pw` on `lam`/`forallE` is the WHOLE of what a node carries
+  beyond its shape — task #205 dropped the binder name, the `BinderInfo`
+  and the `fvar` display name precisely so that structural `=` IS
+  α-equivalence.  So "ignores annotations" has one honest reading and
+  `resetMeta` is it.  (`resetMeta` descends into `fvar` type
+  annotations; `zeta` does not, because the annotation pass does not
+  either — its `.fvar` clause is `pure e`.  On the terms the theorem is
+  about the difference is invisible: a declared type is `hasFvar =
+  false`.)
+* **`zeta` substitutes with `instantiate1Lift`, not `instantiate1`.**
+  The checker's own `instantiate1` does no lifting, which is correct for
+  it because the pass opens every binder with an `fvar` before
+  descending and so only ever inlines a bvar-CLOSED `let` value.  A pure
+  function on de Bruijn terms has no such luxury: it meets a `let` under
+  binders whose value mentions them.  With `instantiate1Lift` the
+  commutation lemma is unconditional apart from the substituted term
+  being closed, and it is exactly `instantiate1Lift_instantiate1`
+  (`Verify/Subst.lean`), which was already there.
+
+`annotateCore_annotOf` is the theorem: a successful *pure* annotation
+run over a bvar-closed, `d`-scoped term returns a term `AnnotOf`-related
+to it.  Induction on the knot's fuel; `Verify/Abstract.lean`'s five
+`annotateCore_*_inv` inversions do the unfolding.  The binder clauses
+are the only real work: the pass opens with `fvar d ty'`, annotates,
+and closes with `abstract1`, so the proof needs (a) `zeta` commuting
+with a closed substitution, (b) `resetMeta` commuting with both
+`instantiate1` and `abstract1`, and (c) the open-then-close roundtrip
+`instantiate1_abstract1_self` — the mirror of the existing
+`abstract1_instantiate1`, and the one roundtrip direction that was
+missing.
+
+**One inversion had to be re-proved.** `annotateCore_proj_inv` discards
+the `T = sn` check (task #271's "the node names another structure"),
+because its consumers — `WScoped`, `looseBVarsBounded`, `LeafEquiv` —
+are blind to the name.  `AnnotOf` is not: the stored node's structure
+name has to be the declared one.  `annotateCore_proj_name` is the same
+walk keeping that conjunct; adding it to the existing lemma would have
+broken every `obtain ⟨…⟩` on it.
+
+### 2. The theorem
+
+```lean
+theorem checkDecls_consts (V : Type w) [SetTheory V]
+    {ds : List DeclC} {env : Env} (accepted : checkDecls .verified ds = .ok env)
+    {pd : DeclC} (hmem : pd ∈ ds) {cv : ConstantVal} (hcv : DeclC.Declares pd cv) :
+    ∃ c, env.find? cv.name = some c ∧
+      c.toConstantVal.levelParams = cv.levelParams ∧
+      AnnotOf cv.type c.toConstantVal.type
+```
+
+`DeclC.Declares` is the record-kind side: a definition, a theorem and an
+opaque declare their header; an axiom declares its header **unless
+`toleratedAxiomNames.contains cv.name`** — the exception is written
+exactly as `checkDeclC`'s own arm has it (`ParsedC.lean`: the tolerated
+branch is `pure fe`, no push, no `recordCConst`, no pending check), and
+`toleratedAxiomNames` is exactly `[sorryAx]`; `basisDecl` and `indDecl`
+declare nothing.  (Task #292 replaced the singleton list by the name:
+the conjunct now reads `cv.name ≠ sorryAxName`, same set, same proof.)
+
+**The definition VALUE was left out, and it is one conjunct away.**
+`DeclDefnRun` carries `ValueFrontRun`, whose first three conjuncts are
+`value.looseBVarsBounded 0`, `value.hasFvar = false` and
+`annotateCore μ env F 0 value = .ok value'` — exactly what
+`annotateCore_annotOf` consumes — and the stored constant is
+`.defnInfo ⟨…⟩ value' hint`.  So `AnnotOf value value'` is free at the
+per-record lemma.  It is NOT free at the walk, which is specialised to
+"a constant of this name": stating it too means generalising
+`installRun_declares` over the per-record conclusion (a predicate
+`Q : DeclC → Env → Prop` with a monotonicity hypothesis — the walk's
+body does not change) and adding a second capstone.  The maintainer
+asked for types; this is the note that says what the other half costs.
+
+`find?` rather than `∈ env.consts`: the returned environment's names are
+unique — `PushChain`'s third conjunct, already computed by
+`installRun_trace` from `NodupNames Env.empty` — so membership upgrades
+to a lookup for free (`find?_of_mem_nodup`, the one list lemma that was
+missing).
+
+### 3. Against task #277 §5's six reasons
+
+§5 rejected a `ds`-statement whose lemma would be *"every constant a
+`DeclC` of `ds` declares is in `env.consts` with the same type and
+value"*, as FALSE, and listed why.  This statement is the TRUE version;
+here is each reason and what became of it.
+
+1. **the frontend drops tolerated-axiom records and everything
+   downstream** — not this statement's business: `ds` is the fold's
+   input, and the *fold* accepts an `axiomDecl sorryAx` and stores
+   nothing.  That is `DeclC.Declares`'s one side condition.
+2. **the built-in prelude is prepended** — harmless: the statement is
+   one-directional (every declared constant is stored), never "and
+   nothing else is".
+3. **the `ProjRec` rewrite** and 4. **the in-process modeller's `_model`
+   records** — likewise: extra records, extra stored constants.
+5. **constructors are reordered** and 6. **a stream's own copy of a
+   prelude block is dropped** — both concern `indDecl` blocks, which are
+   outside the claim for a stronger reason (§4).
+   Plus the three §5 listed after the six: `annotate` (that is the whole
+   point — `AnnotOf`, not `=`), `opaqueDecl`'s discarded value (the
+   statement is about TYPES only), and `indDecl`'s regenerated recursors
+   (§4).
+
+§5's recommendation — "state the theorem about `env`, as it is" — stands
+for the MAIN theorem; this is an addition, it is not in
+`MainTheorem.lean`, and `OVERVIEW.md` points at it from the corollary
+paragraph.
+
+### 4. The `indDecl` caveat — three of them, not one
+
+The brief expected the recursor to be the exception a reader should hear
+about.  It is one of three, and the other two are the more interesting
+finding:
+
+* **the recursor** — `checkNativeRec` (`Kernel/Inductives/NativeInstall.lean`)
+  checks the stream's record with `checkConstantVal`, builds the
+  GENERATED type `structRecTyR`, compares the two with `ops.isDefEq` and
+  then stores the generated one, discarding the stream's.  Official's
+  replay does the same.  So the true relation for a recursor is "the
+  accepting run's `isDefEq`", not `AnnotOf`.
+* **the type former**, on the native route — `checkSumTele`
+  (`Kernel/Inductives/SumInstall.lean`): if the declared type is not
+  ALREADY a syntactic Π-telescope of `nP + nIdx` binders ending in a
+  sort, the checker whnf's the telescope, closes it and runs
+  `checkConstantVal` on THAT from scratch.  The stored type is then the
+  annotation of the reduct.
+* **a constructor**, on the native route — `normCtorVal` (same file):
+  the field domains are normalised by official's positivity walk and,
+  when that changed anything, `checkConstantVal` runs again on the
+  rebuilt type.
+
+So `AnnotOf (declared type) (stored type)` is REFUTABLE for inductive
+members on the native route, not merely unproved, and a cheap weakening
+does not exist: the honest claim is a defeq one.  A separate
+complication is that a constructor is annotated at the environment
+holding the type former, not at the pre-block environment, so even the
+shape `∃ F, annotateCore μ env F 0 cv.type = .ok …` is wrong at `env`.
+
+The MODELED route does store the annotation of the declared type for
+formers and constructors (`checkMemberVal` is plain `checkConstantVal`),
+and `Semantics.MemberValRun` already carries the equation; what is
+missing there is the `find?`-at-the-end plumbing through the member,
+recursor and projection folds — a route-conditional claim, which is not
+a statement worth having.  **Docketed, not attempted.**
+
+### 5. Why the model (and `V`) is in the statement
+
+The proof has to relate what the CACHED pass returned to what the pure
+`annotateCore` returns — the cached entry point is memoised, and the
+memo's contents are only pinned by `CSOK.annotC` ("every entry is backed
+by a pure run").  The cached→pure simulation needs `EnvWF` of the
+environment the record is installed at, and in this tree `EnvWF` is
+bundled into `Semantics.EnvFacts`, which comes from the model: there is
+NO route to `EnvWF` along the run that does not thread `EnvModelOk V μ`.
+Hence `(V : Type w) [SetTheory V]`, exactly as `no_False_theorem_accepted`
+carries it and for the same underlying reason.
+
+This is also why **`checkDecls_thmDecl_const` (#286) was NOT made a
+corollary of this theorem**, although `AnnotOf` on a bare constant is
+equality.  Its statement has no `V`, the tree instantiates `SetTheory`
+nowhere, so deriving it here would mean adding a `V` parameter to it —
+changing the statement the brief said to keep.  The two proofs stay
+side by side, and that is the right outcome: #286's is cheap precisely
+because a bare constant needs no annotation specification and the step's
+own `flushC` empties the memo, so it reads the cached pass directly with
+no model in sight.  The general statement cannot.
+
+### 6. `annotStepC_model`: `installRun_model`'s cons case, extracted
+
+The walk needs `installRun_model`'s five hypotheses and its per-step
+model reasoning.  Rather than duplicate 130 lines, the cons case is now
+a lemma of its own in `Verify/Cached/InstalledC.lean`, with ONE conjunct
+added to what it concludes:
+
+```lean
+EnvModelOk V μ fe₁.env ∧ CSOKF s₁ ∧
+  ∃ d F, DeclCRel pd d ∧ checkDecl μ (fueledOps μ F) fe.env d = .ok fe₁.env
+```
+
+The third conjunct is the interesting one: phase A's step at a record —
+including the separable value declarations, whose check phase A only
+*records* — IS a pure `checkDecl` run at some fuel.  Both halves of the
+old proof already produced it (`checkDeclStepC_run` on the ordinary
+path, `hsplit` on the value path) and threw it away.  With it, the
+per-record reasoning happens entirely at the pure checker's own run
+relation: `Semantics.checkDeclRun_ofEnvFactsE` (which, despite the name,
+needs no `EnvFacts`) hands out `DeclRun`, whose `ConstantValRun` carries
+`annotateCore μ env F 0 cv.type = .ok type'` together with the two
+guards `annotateCore_annotOf` wants (`looseBVarsBounded 0`,
+`hasFvar = false`).  `checkDecl_declares` is then four near-identical
+cases and `installRun_model` itself is five lines.
+
+### 7. What was hard
+
+* **Nothing about the annotation pass.**  The expectation was that the
+  binder telescope loops (`annotatePisC`/`annotateLamsC`) would be the
+  wall.  They never appeared: the statement is about the PURE
+  `annotateCore`, which is the chained one-binder-at-a-time spec, and
+  `Verify/Abstract.lean` already had every inversion and both scoping
+  preservations.  The cached loops are reached only through the existing
+  simulation, which the walk consumes as a black box.
+* **The de Bruijn algebra was the wall, and it was already built.**
+  `instantiate1Lift_instantiate1` is *the* lemma the `letE` case of
+  `zeta_instantiate1` needs, stated with exactly the right closedness
+  side condition; without it the naive `zeta` over `instantiate1` is not
+  merely unproved but wrong (substituting an open value under a binder
+  captures).
+* **`installRun_model`'s hypotheses do not survive a prefix split.**
+  The first plan was to split the run at the record, apply
+  `installRun_model` to the prefix for `EnvWF`, and leave the existing
+  theorem alone.  It fails on hypothesis (5): the pending-check
+  hypothesis is stated at the run's FINAL index (`checkPending μ q.2.1
+  pc {}`), and at an intermediate index it is a different statement —
+  the same `restrictTo` of a smaller `FEnv`.  Hence the extraction.
+* **`obtain rfl` eats the wrong variable.**  `DeclCRel`'s cases give
+  `hty : RelC cv.type tyE` and the record gives `hcv : cv' = cv`;
+  substituting the second first deletes the variable the first mentions.
+  Order matters.
+
+### 8. Gates
+
+`lake build` warning-free; `lake test` warning-free (the axiom pin gains
+a row — `ConLeche.Cached.checkDecls_consts` at
+`[propext, Classical.choice, Quot.sound]` — and four `#guard`s pin
+`Expr.zeta`'s two halves); `tests/arena.sh` exit 0.  `tests/shake.sh`
+needed two edits: of the new module's eight imports only three are
+`public` — shake demotes `InstalledC` (the module that declares
+`annotStepC_model`!) in favour of re-exporting `Cached.Installed`,
+`Model.Fold` and `Verify/Cached/BridgeC`, which is what the public
+statements actually name, and `pub-import-plan` demotes `Verify/Abstract`,
+`Verify/Subst` and `Verify/EnvBound` on top of that — and the allowlist line for `InstalledC`'s own
+`public import … PushChain` is DELETED — `annotStepC_model`'s statement
+names `PushChain`, so that import is a genuine re-export now and shake
+no longer proposes removing it.  `tests/overview-links.sh --update`
+after re-reading the citing paragraphs (the two `InstalledC.lean`
+anchors moved with the step lemma; the axiom-pin anchor moved with the
+new pin).  `tests/proofdeps.sh` needed NO regeneration (3 820 rows / 11 roots,
+0 doors — #291's numbers): the new module is in no capstone's closure — `checkDecls_thmDecl_const` was not made a
+corollary of it (§5) — and `annotStepC_model` sits in a module the
+walks already reached.
+
+Merged with master (tasks #288 and #291, which relabelled the
+corollaries and dropped `no_proof_of_False`) before landing; no
+conflicts, and the OVERVIEW paragraph reads correctly after #291's
+rewrite of the paragraph it follows.
+
+## TASK #285 — ONE `Expr`, ONE `Declaration` (2026-09-12, `agent/onetype-285`)
+
+**The user's directive, verbatim:** *"That's worth a cleanup now.  Only
+one Expr and Decl type."*
+
+Two names died and nothing else changed: `checkDecls` accepts the same
+53 088 declarations of `init-full` at the same instruction count, the
+arena/e2e/annot verdicts are master's, and every capstone is the same
+statement with one type name substituted.
+
+### 1. `ExprC` — the abbreviation, the namespace, the module
+
+`abbrev ExprC := ConLeche.Expr` was task #172 B3a's residue: the type
+had been unified two hundred commits ago and only the *name* survived,
+as a namespace whose members were reached by dot notation on an
+`ExprC`-typed value.  Task #198's census kept it deliberately (*"it is
+the namespace that separates the memoized executed operations from the
+pure specs"*) and named the trap it created: **dot notation resolves
+through the DECLARED field type**, so `cv.type.hasFvar` silently
+changed meaning the day `ConstantValC` became `ConstantVal`.
+
+The abbreviation, the namespace and the `ExprC.lean` module are gone.
+Every operation now lives in `ConLeche.Expr` beside the spec it is
+proved equal to, and `ConLeche/Cached/ExprC.lean` is
+`ConLeche/Cached/ExprNodes.lean` (`git mv`): what is left in it is the
+nine node constructors (`mkApp`, `mkLam`, …) and the module header that
+holds the tree's ONE-ROW TRUST CENSUS.
+
+**The naming rule, and it is the whole rule:** a moved declaration
+keeps its name when the name is free in `ConLeche.Expr`, and takes a
+`C` suffix when it is not — the `C` OVERVIEW §10 already documents,
+*cached*, now on the function and never on a type.  A renamed function
+takes its `Go`/`Acc`/`B` helpers and their `_spec` lemmas with it, so a
+family is spelled one way.  Twenty-one names carry it:
+
+    abstract1C  abstract1GoC  abstractRangeC  abstractRangeGoC
+    allLevelParamsDefinedC   allLevelParamsDefinedGoC
+    fvarLeavesC  fvarLeavesGoC  getAppArgsC  getAppArgsAccC
+    instSpineC  instSpineChainC  instantiate1C  instantiate1GoC
+    instantiate1LiftC  instantiate1LiftBC  instantiate1LiftGoC
+    instantiateListC  instantiateListGoC  wscopedBC  wscopedBGoC
+
+### 2. The pair decisions, one row each
+
+The brief's question for every name that collided: are the two the same
+function?  Six pairs were, and the cached half is deleted.
+
+| pair | decision | why |
+|---|---|---|
+| `hasFvar` | **deleted**, use `Expr.hasFvar` | the cached one was `e.fvarB != 0`; the kernel's `Expr.hasFvarFast` is that expression *character for character* and is substituted for `Expr.hasFvar` by `@[csimp] hasFvar_eq_hasFvarFast`.  Same compiled code, one name. |
+| `looseBVarsBounded` | **deleted**, use `Expr.looseBVarsBounded` | same story at `Expr.looseBVarsBoundedFast = decide (e.bvarB ≤ k)`, `@[csimp]`. |
+| `getAppFn` | **deleted** | the two definitions are identical (`\| .app f _ => getAppFn f \| e => e`); no memo, no cutoff, nothing to distinguish. |
+| `mkAppN` | **deleted** | identical, modulo `mkApp f a` being `.app f a` by `rfl` at an `@[inline]`. |
+| `mkBVar` | **deleted**, use `Expr.mkBvar` | it *was* `Expr.mkBvar`.  Two names differing only in one letter's case, in one namespace, is the worst of both. |
+| `bvarB_eq`, `fvarB_eq` | **deleted** | `Verify/Cached/Erase.lean`'s were `:= Expr.bvarB_eq e` — re-exports of the kernel lemmas under the same short name. |
+
+Everything else in the collision set is a **genuinely different
+implementation** and keeps both members: the cached walks carry a
+`bvarB`/`fvarB`/`hasLP` cutoff at every node, a memo table, or an
+accumulator, and that is precisely what `Verify/Cached/OpsC.lean` and
+`GuardsC.lean` prove agrees with the spec.  `getAppArgsC` is the
+clearest: linear, against a spec that appends `[a]` at every spine step.
+
+**What the deletions cost in proofs.**  `getAppFn_spec`,
+`looseBVarsBounded_spec` and `mkAppN_spec` became `x = x` and are
+deleted with their subjects; their 34 consumers lost a `rw` each.  The
+recurring shape was
+
+    have hfn := ExprC.getAppFn_spec i
+    generalize hg : ExprC.getAppFn i = g at hfn ⊢
+    cases g with | const nm us => … hfn.symm …
+
+and it collapses to `generalize hg : Expr.getAppFn i = g` — after
+`cases g`, `hg` IS the fact the spec lemma used to carry.  In the
+branches the `generalize` reached (no `rw [hspec]` between), the
+following `rw [show Expr.getAppFn j = … from hg]` became a no-op and is
+gone: 102 such lines across `DiscC2`/`DiscC3`/`DiscC4`/`DiscC6`.
+
+### 3. `DeclC` — constructor for constructor the kernel's `Declaration`
+
+`ConLeche.Cached.DeclC` and `ConLeche.Declaration` had the same six
+constructors with the same fields.  The parser produces `Declaration`
+now, `checkDecls` consumes it, and `Main.lean`, `Challenge.lean`,
+`MainTheorem.lean` and every `Verify/*` and `Model/*` statement follow
+— **the statements change only in the type name** (`tests/challenge.sh`
+compares the two modules token for token and is green).
+
+`DeclCRel` (`Verify/Cached/BridgeC.lean`) related the two per
+constructor through `RelC`, which task #198 had already reduced to
+equality.  It and `DeclCRel_total` are deleted: `checkDeclC_sim` and
+`checkDeclStepC_run` take one record and `cases pd` where they cased on
+the relation, and the per-branch `RelC` premises the sub-lemmas
+consumed are `rfl` at the call sites.  `annotStepC_model` (task #289,
+merged here) loses the `∃ d, DeclCRel pd d ∧ …` conjunct of its
+conclusion for `checkDecl … pd`, and `checkDecl_declares`
+(`StreamConsts.lean`) cases on the record.
+
+Two declarations died with the rename and are recorded here rather than
+quietly dropped:
+
+* `instance : Inhabited DeclC` (`Frontend/NatOpGround.lean`) — a
+  **duplicate**: `Declaration` already `deriving`s `Inhabited`;
+* `Expr.LeafEquiv.hasFvar_eq` (`Verify/Abstract.lean`) — a hard
+  candidate of `scripts/dead-census.py` **after** the change and not
+  before: its last consumer was a `simp_all [Expr.hasFvar]` in
+  `leafGuard_spec`, which now reads the field equation directly.  The
+  census is 100 → 101 hard and 1421 → 1415 soft candidates across the
+  change; the one arrival is this lemma, the departures are #291's.
+
+### 4. Findings
+
+**(1) A rename whose target already exists cannot be checked by the
+compiler — so make the compiler check it first.**  Every cached
+operation had a same-named, same-typed `ConLeche.Expr` twin, so a
+missed call site would not fail to build: it would silently run the
+*pure* walk where the memoized one ran.  The instrument was one
+throwaway build with `@[deprecated "PROBE285"]` on all 48 cached
+operations: 446 warnings, each an exact `file:line:col` of a reference
+the elaborator had resolved to the cached name — dot notation included
+(6 of them; the other 440 were already spelled out, which is task
+#198's trap having taught the tier).  The rewrite was then driven off
+those coordinates and not off grep.  **When two names are
+interchangeable to the type checker, ask the elaborator which one each
+site meant.**
+
+**(2) Lean's deprecation warnings are suppressed inside deprecated
+declarations**, so the probe saw nothing of the two defining modules —
+which is right, and worth knowing before trusting the count.
+
+**(3) Auto-generated names are not in the probe's answer either.**
+`instantiate1Go.eq_def` and its nine siblings are referenced by name in
+`OpsC`/`GuardsC` and are not constants the `deprecated` attribute
+covers; 110 of them needed their own pass.  Same class as task #222's
+`toDirectSumParts`.
+
+**(4) A functional-induction principle can change shape when a
+REDUCIBLE abbreviation leaves a signature.**  `whnfAppI`'s body is
+untouched; only `k : ExprC → CheckCM ExprC` became
+`k : Expr → CheckCM Expr`, and `whnfAppI_betaPeelI_congr`'s fourth
+bullet went from two induction hypotheses to one (the unused `_ih'`).
+The proof is unchanged otherwise and the principle is generated and
+kernel-checked either way, so nothing is owed — but it is a reminder
+that `abbrev` is not invisible to the equation compiler.
+
+**(5) The import gate found the consequences the type system could
+not.**  Cutting `DeclC` cut the frontend's last edge to the cached
+checker, and `lake shake` proposed seven removals.  Five are clean
+under task #223's criterion and are applied (`ExprNodes` needs
+`Kernel.Expr` and not `Kernel.ExprOps`; `Erase` needs no node
+constructors; three `Frontend/*` modules no longer need
+`Cached.ParsedC`); three are compensated relocations and go on
+`tests/shake-allowlist.txt` with the compensation as their reason
+(`StreamConsts`'s edge to `BridgeC` is the third: task #289's module
+reached `DeclCRel` through it).  The
+build then asked for two things no analysis had: `ExportC` names the
+node constructors and now imports `Cached.ExprNodes` directly, and two
+bare `open ConLeche.Cached`s (`NatOpGround`, `tests/ConLecheTests/ScanTests`)
+had to go because the namespace was no longer in their closure — task
+#223 §6's first blind class, seen twice in one batch.
+
+**(6) `pub-import-plan`'s fixpoint is order-dependent, and a graph edit
+can hand it a new candidate.**  `ConLeche/Kernel/BasisA.lean`'s
+`public import ConLeche.Kernel.BasisGen` became demotable only after
+this task moved the edges around it; demoting it makes
+`Kernel/TrustAxioms.lean` fail to PARSE (`unexpected token '#'`),
+because `BasisGen` declares the `#annotate_basis` command and a command
+elaborator is registered, not named.  It joins the script's `FALLBACK`
+set as its seventh entry, with that reason.
+
+### Gates
+
+| gate | result |
+|---|---|
+| `lake build` | 546 jobs, warning-free |
+| `lake test` | 468 jobs, warning-free |
+| `tests/arena.sh` (`env -i`) | exit 0 |
+| layering | base 282 / model 190 / caps 3 / umbrella 1; 0 base→lane, 0 impl→theory |
+| proofdeps | 3 816 rows across 11 roots, doors 0 — **regenerated**: the 10 `Cached.ExprC` rows are `Cached.ExprNodes` rows (the module was renamed) and 4 rows DEPARTED, the two `*_pure` capstones' reach into `Cached.ExprC` and `Verify.Cached.Erase`, which the six deleted pairs took with them |
+| trust surface | 13 escapes in 5 allowlisted files (486 scanned), 0 outside |
+| shake | 459 removals proposed, all allowlisted; pub-imports 947 of 1 293 public, none demotable (7 fallbacks) |
+| overview-links | 80 links, 50 files, OK (three anchors repointed, each re-read: the cited text is byte-identical and only the line numbers moved) |
+| challenge | statements identical for `model_exists`, `no_False_theorem_accepted` |
+| arena / e2e / annot / prelude / progress / DAG tower | 90/92, 195/195, 15/15, 3/3, 15/15, 14/14 — master's numbers |
+| trusted + `--jobs=1` + `--jobs=4` sweeps | as at the default worker count |
+
+`init-full`, `--verified --jobs=1`, `perf stat -e instructions:u`, same
+machine, same stream, 53 088 accepted and exit 0 in both cells:
+
+| | instructions:u |
+|---|---|
+| master `885f0793` | 538.449 G |
+| this branch | 538.520 G |
+| Δ | **+0.013 %** |
+
+(measured twice — against master `5ffc1180` before the three merges it
+was 538.464 G vs 538.506 G, **+0.008 %**)
+
+Which is what a rename should look like.  The six deleted pairs were
+deleted *because* the two members compile to the same code — a
+`@[csimp]` twin for `hasFvar`/`looseBVarsBounded`, an identical body for
+`getAppFn`/`mkAppN`/`mkBVar` — so no call site changed what it runs.
+
+## TASK #292 — `sorryAx` IS THE FOLD'S: the record installs nothing, a use declines; the parser's taint pre-scan is gone (2026-09-12, `agent/sorryax-292`)
+
+**The ruling** (maintainer, verbatim): *"It should not be the parser
+that drops sorryAx … move it to checkDecls and have it decline
+`.const n` where n is sorryAx.  No need to have a singleton list while
+it is exactly one."*
+
+What stood before this task is the 2026-08-24 taint skip-and-continue
+design recorded above: the frontend pre-scanned every declaration
+record, dropped the `sorryAx` axiom record **without even parsing its
+type**, tainted its name, propagated the taint through the expression
+table and the name map, skipped every declaration that reached a
+tainted entry, and handed the driver a `taintSkipped` list that turned
+a clean run into exit 2 **at the end of the stream**.  The verdict was
+right; the position was not, and a semantic decision — which axioms
+this checker supports — lived in the parser, outside the fold the main
+theorem is about.
+
+### 1. What the fold does now
+
+* The `sorryAx` axiom record is FORWARDED like any other.  `checkDecl`
+  (and `checkDeclC`) runs `checkConstantVal` on it — the type is
+  well-formedness-checked, as every header is — and then the arm is
+  `pure env` / `pure fe`: **nothing is installed**.  That is not
+  laziness: an export declares `sorryAx` whenever the module it came
+  from mentions `sorry`, whether or not anything uses it (init-full
+  does), and there is no set model for `∀ (α : Sort u), Bool → α` and
+  cannot be one.  So a stream that merely DECLARES the axiom is
+  accepted, and a stream that USES it declines **at the record that
+  uses it**.
+* `toleratedAxiomNames : List Name` is gone; `sorryAxName : Name`
+  (`ConLeche/Kernel/Basis/Names.lean`) replaces it at every site.
+
+### 2. THE CHOKE POINT, and why it takes two throws
+
+The obvious answer — "the guard that keeps unresolved constants out of
+stored terms" — is only half of it.  `Expr.constsResolve` (and its
+indexed and cached twins) runs at every front door for stream data: a
+declaration's type (`checkConstantVal`), a value
+(`check{Defn,Thm,Opaque}Val`), a recursor rule's right-hand side.  But
+it runs **after** the annotation pass, and annotation *infers the sort
+of every binder domain*.  A `sorryAx` in a domain therefore reaches
+inference before the guard ever looks, and inference's own `.const`
+arm threw `.invalid "unknown constant …"` — a REJECT where the ruling
+wants a decline.  Both places are the choke point, and both are one
+pure function:
+
+* `unknownConstError (n : Name) : CheckError`
+  (`ConLeche/Kernel/Core.lean`, beside `CheckError`) — the `.const`
+  arm of `inferBody`, `inferBodyIO` and the cached `CoreC` twin call
+  it where they matched `none` on the environment lookup;
+* `unresolvedConstsError (where_ : String) (e : Expr) : CheckError`
+  (`ConLeche/Kernel/CheckerBase.lean`) — every `unless … constsResolve
+  … do throw` branch calls it.  It asks `e.mentionsConst sorryAxName`,
+  which is the same walk `constsResolve` just ran (the `.proj` struct
+  name included) and is memoized by `@[csimp]`
+  (`Kernel/Inductives/StructParts.lean`), so a DAG-shared term does
+  not unfold on the failing path.
+
+Both return `.notImplemented` on `sorryAx` and the **byte-identical
+old `.invalid` message** on anything else, so no other verdict moved.
+After `constsResolve` passes, inference cannot meet an unresolved
+constant at all — that is what the guard is for — so the two together
+are exhaustive: every `.const sorryAx` in a type, a value, a rule RHS
+or an inductive member's type is caught by one of them.  (A
+`.proj sorryAx i e` node, which is not a `.const` node, is caught too:
+`mentionsConst` reads the struct name, and no environment ever holds
+`sorryAx`.)
+
+**Why the proofs did not move.**  The change is `throw <one error>` →
+`throw <another error>` at branches that already existed.  `SimC` is
+success-only (`SimC.throw` holds for every error value), the agreement
+floor and `PushChain` are accept-only, and the `DeclRun` records carry
+guards, not messages.  The whole diff in `Verify/*` and `Semantics/*`
+is `toleratedAxiomNames.contains X = true` → `X = sorryAxName`
+(a `by_cases` hypothesis, four helper lemmas in `AgreeFloor` whose
+`tolerated_eq` became the hypothesis itself and was deleted), plus
+`Declaration.Declares`' exception, now `cv.name ≠ sorryAxName`.
+The build went through on the first try.
+
+### 3. What was deleted
+
+`ConLeche/Frontend/Export.lean`: `taintSentinel`, `taintDetail`,
+`taintSummary` (and with them the file's `StdAxioms` import — its
+public signatures now take `Name`/`Expr` through a promoted
+`public import ConLeche.Kernel.Env`).
+`ConLeche/Frontend/ExportC.lean`: `declRecordScanD`, `exprRecChildren`,
+the `tainted`/`taintedNames`/`taintSkipped` fields of `StateD`,
+`getDeclD`'s sentinel check, the taint half of `parseExprEntryD`, the
+taint half of `applyDeclD` (which is now `processLineCoreD` alone) and
+`ParseResultD.taintSkipped`.
+`Main.lean`: the decline-at-the-end, `taintNote`, and the two-armed
+success print — an accepted run now always prints the accept line.
+`--help` gained a paragraph stating the rule.
+
+### 4. Verdict changes
+
+| fixture | before | after |
+|---|---|---|
+| `sorry_unused` | 0 | 0 (the record is now *checked*, and counted: 15 declarations, not 14) |
+| `sorry_use` | 2 at the end | 2 **at the use**: `use of the sorryAx axiom in value of usesSorry` |
+| `tolerated_axiom_unused` | 0 | 0 (2 declarations, not 1) |
+| `tolerated_axiom_use` | 2 at the end | 2 at the use (via the inference choke: the value's λ-domain is inferred first) |
+| `taint_skip_continue` → `sorry_use_midstream` | 2 | 2 — but the later records are never reached |
+| `taint_skip_bad_later` → `sorry_use_before_invalid` | **1** | **2** — the fold stops at the use, so the invalid record after it is never checked |
+
+The two renamed fixtures are the "decline at the use" pins and their
+old names no longer described them.  Nothing else moved: arena 90/92,
+e2e 195/195, the trusted and `--jobs` sweeps unchanged.  No arena
+stream uses `sorryAx` (`good/init-prelude.ndjson` declares it and
+never references it — checked by scanning the expression table for a
+`const` node at its name index); Mathlib has none either, which is
+what its exit 0 meant under the old design.
+
+### 5. Gates
+
+| gate | result |
+|---|---|
+| `lake build` / `lake test` | warning-free |
+| layering | base 282 / model 190 / caps 3 / umbrella 1, 0 cross edges |
+| proofdeps | 3816 rows **as pinned** — the proof cone's module graph did not move |
+| shake + pub-imports | 458 removals all allowlisted (one line deleted: `CheckerBase`'s `StructParts` import is now USED, by `unresolvedConstsError`); 947 of 1292 edges public, none demotable |
+| overview-links | 80 links, 50 files — nine anchors repointed, each new target re-read |
+| challenge / trust surface / no-local-paths | OK |
+| arena / e2e / annot / prelude / progress / DAG tower | 90/92, 195/195, 15/15, 3/3, 15/15, 14/14 |
+
+### 6. `init-full`
+
+One run per binary, `--verified --jobs=1`, `ulimit -v 16000000`,
+`perf stat -e instructions:u`, same machine, same stream:
+
+| | accepted | instructions:u |
+|---|---|---|
+| master `e4487c23` | 53 088 | 538.501 G |
+| this branch | **53 089** | **537.844 G** |
+| Δ | **+1** | **−0.122 %** |
+
+Both exit 0.  The extra declaration is the `sorryAx` axiom record
+itself: the old parser dropped it before the fold ever saw it, and it
+is now checked (and installs nothing), so the headline count — which
+counts the FILE's declaration records — gains the one record the file
+always had.  The fold-position count moves with it, 53 118 → 53 119,
+and `Main.lean`'s comment on reading a `--progress` index says so.
+
+The instructions went DOWN although one more record is checked: the
+taint pre-scan ran `declRecordScanD` over **every** declaration record
+of the stream (resolving its declared names and collecting its
+expression indices) and the expression-table walk carried a taint
+check per entry.  Nothing fires on a stream with no `sorryAx` use, and
+all of it is gone.
+
+## TASK #293 — THE PARSER DECODES; `preparePrelude` PREPARES; THE FOLD DECIDES (2026-09-12, `agent/prepare-293`)
+
+**The ruling** (maintainer, verbatim): *"Why does the parser deal with
+basis things?  That's clearly a layering violation; it's the fold that
+may or may not want to treat them specially. … We can also move this
+functionality into a *new* function, 'preparePrelude' or so, to keep
+concerns separate.  (Ideally that's `List Declaration` to
+`List Declaration`?)"* — and, mid-task, on the shape of that function:
+*"If that `preparePrelude` reorders anyways, then it can just as well
+reorder any existing prelude declaration, and only synthesize any that
+are missing.  This way, we get a simple spec: it is a permutation of
+the input plus additional declarations, but nothing missing."*
+
+What stood before is task #191's design: the parse was handed the
+checker's prelude, PREPENDED its records to every stream, matched every
+inductive block against the five basis pins and every `#QUOT` record
+(and the `Quot.sound` axiom record) against the quotient pin, dropped a
+stream record that duplicated a prelude one, DECLINED the run when it
+differed, and reordered the result for the pinned `Nat` operations'
+ground.  Five of those six are verdicts or semantic recognition, and
+they lived in the decoder.
+
+### 1. The three places, after
+
+* **`ConLeche/Frontend/ExportC.lean` — the decoder emits the file's
+  records and nothing else.**  Every inductive block parses to
+  `indDecl`, `Nat` and `Eq` like any other; every `#QUOT` record parses
+  to the new `Declaration.quotDecl kind cv` — the constant the file
+  declares at the kind it declares it at, official's own record shape;
+  `Quot.sound` parses to the ordinary `axiomDecl` it is.  `punitSeen`,
+  the prelude index, the dedupe, the pin match and the hoist are gone
+  from `StateD` and from `ParseResultD`, which now carries the records,
+  the projection rewrites and the modeller's receipts.
+  `parseExportD`'s final signature:
+
+      parseExportD (contents : String) (inModel : Bool := true)
+        (census : Bool := false) : Except FrontendError ParseResultD
+
+  (and `parseExportStreamD`/`parseExportHandleD` the same, minus the
+  `prelude` parameter).  **Two non-decoding steps are left**, both of
+  which die with task #279: the projection-function rewrite
+  (`ProjRec.lean`) and the in-process modeller's record insertion.
+
+* **`ConLeche/Frontend/Prepare.lean` — `preparePrelude`, new.**  Total,
+  pure, no error channel, and it never rewrites a record:
+
+      preparePrelude (pre : PreludeIx) (ds : List Declaration) : List Declaration
+
+  It (i) moves the stream's OWN copy of each prelude declaration to the
+  front, in the prelude's (dependency-correct) order, synthesising from
+  `pins/<toolchain>.prelude.ndjson` only the ones the stream does not
+  declare, and (ii) applies the ground hoist.  `prepareD` is the same
+  function with the driver's receipts (`synthesised`, `hoisted`).  The
+  prelude index is now records only — the by-name and by-kind tables
+  the dedupe needed are gone with it.
+
+* **`ConLeche/Kernel/Checker.lean` (and its cached twin) — the fold
+  recognises and decides.**  `checkDecl`'s `.indDecl` arm asks
+  `basisPinHit` (`ConLeche/Kernel/Basis.lean`: task #215's name
+  pre-filter, then `canonEqList` against the pin) and installs the PIN
+  on a hit; a block under a pinned name that does NOT match falls
+  through to the ordinary route and `checkConstantVal`'s reserved-name
+  check REJECTS it, exactly as before (task #181's ruling: a basis
+  redefinition is invalid input).  The `.quotDecl` arm asks
+  `quotPinHit`: the `type` record installs the pinned block whole, the
+  other three install nothing (they are members of the block that one
+  installs), and a record that does not match DECLINES — "quotient
+  declaration mismatch", the parser's own message.  The `.axiomDecl`
+  arm gained the `Quot.sound` case ahead of the common checks (its name
+  is a reserved basis name: this record IS the pinned block's, not a
+  redeclaration of it), with the same two outcomes.
+
+  `checkBasisDecl` (and `checkBasisDeclC`) is the pinned-block install,
+  factored out so that the three arms that install one share a body and
+  every lemma about it is proved once (`declBasisRunOf`,
+  `checkBasisDecl_datF`, `checkBasisDeclC_{skels,push,sim}`).
+
+### 2. `Declaration`, and the one constructor that did not go
+
+`Declaration` gained `quotDecl` and `QuotKind` (`type`/`ctor`/`lift`/
+`ind`, plus `sound` for the axiom record's slot in the pinned block).
+`basisDecl` **stays**, and this is the task's one deviation from the
+letter of the ruling, taken under the licence it came with ("you may
+keep an INTERNAL kind-dispatch inside the fold's arm"): no frontend
+function can produce one — not the decoder, not `preparePrelude` — and
+`checkDecl`'s `.indDecl` and `.quotDecl` arms are its only producers,
+through `checkBasisDecl`.  What removing the constructor outright would
+buy is a `Declaration` with official's exact shape; what it costs is
+re-proving the basis install's dozen lemmas *inside* the `indDecl`
+case in ~10 proof files, with no change to what is proved.  The
+constructor's docstring says what it is: the fold's own record for
+"install the pinned block".
+
+### 3. The lemmas (`ConLeche/Verify/Frontend/Prepare.lean`)
+
+    theorem preparePrelude_perm (pre : PreludeIx) (ds : List Declaration) :
+        ∃ extra : List Declaration, (∀ d ∈ extra, d ∈ pre.decls.toList) ∧
+          (preparePrelude pre ds).Perm (ds ++ extra)
+
+    theorem mem_preparePrelude {pre : PreludeIx} {ds : List Declaration}
+        {pd : Declaration} (h : pd ∈ ds) : pd ∈ preparePrelude pre ds
+
+the maintainer's spec and its pass-through corollary — **every record
+of the file is in the prepared list, unchanged and exactly once**, and
+what else is there is a prelude record the file did not declare.  Task
+#290's parser-level statement composes with the second.
+
+Two implementation decisions the proof forced, both worth keeping:
+
+* the two list passes are written as a tail-recursive implementation
+  (`pickGo`, `keepGo`-style) and a plain recursive **specification**
+  (`pickSpec`), proved equal (`pickGo_eq`) — a stream is millions of
+  records long, and a list recursion that is not tail-recursive is a
+  stack frame per record;
+* the hoist's final sort is `List.mergeSort`, not `Array.qsort`: core
+  proves `mergeSort_perm` and proves nothing about `qsort`, and the
+  keys are pairwise distinct so the order is the same one `qsort`
+  produced (`applyHoist`, `ConLeche/Frontend/NatOpGround.lean`; the
+  hoist is also split into `hoistTargets` and `applyHoist` so that the
+  permutation proof does not have to walk the `Id.run do` that computes
+  the targets).
+
+### 4. Where the canonical form went, and what that did to the proof cone
+
+`canonLevel`/`canonExpr`/`ConstantInfo.canon` and the lockstep
+`canonEq*` twins moved from `ConLeche/Frontend/Export.lean` to
+**`ConLeche/Kernel/Canon.lean`**, unchanged: the fold does the matching
+now, and the kernel may not import the frontend.  (`Export.lean` is
+left with `FrontendError`, `RecordVerdict` and `M`, and imports
+nothing.)
+
+`tests/proofdeps.sh` therefore reports **eight new modules in every
+capstone's proof-term closure** — `ConLeche.Kernel.Basis`, its five
+`Basis.*` pin modules, `ConLeche.Kernel.Basis.Quot` and
+`ConLeche.Kernel.Canon` — and the pin was regenerated (3 816 → 3 904
+rows).  That is not a door to justify away: it is the ruling, measured.
+Recognising a stream's `Nat` block as the pinned one is now part of
+what `checkDecls` does, so the raw pins and the canonical form are part
+of what the main theorem's proof term reads.
+
+### 5. Verdict changes (two, both the spec's own)
+
+| fixture | before | after | why |
+|---|---|---|---|
+| `prelude_bool_redefined` | 2 | **1** | `natop_order` with `Bool : Type 1`.  There is no prelude copy to differ from any more — the stream's own `Bool` IS the prelude's record — so the block installs and `Nat.ble`, exported against the real `Bool`, fails to typecheck: a REJECT, which is also what the official kernel does with that stream. |
+| `tower_prelude` | 2 | **0** | an inductive block named `Bool` with a depth-60 tower in a constructor field.  It declined at the dedupe's `sameCanon`; with the dedupe gone it installs.  The fixture still gates what it was built to gate — a walker that unfolded the tower would never finish — so the DAG-tower row keeps it at the new code. |
+
+Nothing else moved: arena 90/92, e2e 193/195 → **195/195** with the two
+expectations updated, annot 15/15, prelude counts 3/3, progress 15/15,
+worker pool 15/15, DAG tower 14/14, the trusted sweep unchanged.
+
+**The verdict line's count is the FILE's record count now**
+(`parsed.size - genRecords`), and it does not need the prelude
+arithmetic any more: nothing the preparation does changes it.  On raw
+`init-full` that is 53 093 — the number `Main.lean`'s own comment
+already called "the declaration records in the file" — against 53 089
+before: the four quotient records the parser used to fold into one
+`basisDecl`, and the `Quot.sound` record it used to swallow, are five
+records of the file and count as five.  Same stream, same verdict, a
+count that is now the file's own.
+
+### 6. `init-full`
+
+One run per binary, `--verified --jobs=1`, `ulimit -v 16000000`,
+`perf stat -e instructions:u`, same machine, same stream:
+
+| | accepted | instructions:u |
+|---|---|---|
+| master `08a04a98` | 53 089 | 537.858 G |
+| this branch | **53 093** | **537.659 G** |
+| Δ | **+4** (§5) | **−0.037 %** |
+
+Both exit 0.  The instruction delta is noise, which is what this change
+should look like: the same work happens, in another place — the pin
+match that ran in the parse runs in the fold, over the same records.
+
+The fold-position count is **53 123**: the file's 53 093 records plus
+the modeller's 30 generated ones, and *nothing else*.  `init-full`
+declares every prelude declaration itself, so the preparation
+synthesised none of them and only moved the stream's own records to the
+front — which is the whole point of the new shape, measured.
+
+### 7. Gates
+
+| gate | result |
+|---|---|
+| `lake build` / `lake test` | warning-free |
+| layering | base 285 / model 190 / caps 3 / umbrella 1; 0 base→lane, 0 impl→theory (`ConLeche.Verify.Frontend.Prepare` is the first theory module that imports `ConLeche/Frontend/*` — the allowed direction; it is rooted in `ConLecheCaps`) |
+| proofdeps | **3 904 rows, 0 doors** — regenerated for the eight modules §4 explains |
+| shake + pub-imports | 457 removals, all allowlisted (one allowlist line deleted: `Semantics/Bridge/DeclRun`'s `public import` is a plain one now); 949 of 1295 edges public, none demotable |
+| overview-links | 82 links, 52 files; every moved anchor re-read, the prelude/basis/frontend prose rewritten |
+| trust surface / no-local-paths / challenge / pindump | OK (13 escapes in 5 allowlisted files; 3 pinners reproduce byte-for-byte) |
+| arena / e2e / annot / prelude counts / progress / pool / DAG tower | 90/92, **195/195**, 15/15, 3/3, 15/15, 15/15, **14/14** |
+| trusted and `--jobs` sweeps | unchanged |
+## TASK #290 — THE PARSER ENTERS THE THEOREM (2026-09-12, `agent/parser-290`)
+
+The maintainer's goal, verbatim: *"including the parser in the theorem:
+I agree that verifying the parser at the `List Chunk` level is good.
+For the theorem I want an easy to understand predicate 'this JSON
+input declares a theorem of type False'.  I imagine the prettiest way
+is to express it as a string template using Lean's interpolation
+(you'd have to fix escaping)."*  The corollary at the stream (task
+#286) is about the list of records the fold consumes; this task
+states it a third time, over the FILE, and derives it from the second.
+
+### 1. The statements, as landed (after the merge with master 62b38eef, §6)
+
+`ConLeche/Accepts.lean` (exposed; the vocabulary of the statement):
+
+```lean
+def hasProofOfFalse (file : String) : Prop :=
+  ∃ (before between₁ between₂ between₃ after : String) (i j k v : Nat) (name : String),
+    file =
+      before ++ "\n" ++
+      s!"\{\"in\":{i},\"str\":\{\"pre\":0,\"str\":\"False\"}}" ++ "\n" ++
+      between₁ ++ "\n" ++
+      s!"\{\"ie\":{j},\"const\":\{\"name\":{i},\"us\":[]}}" ++ "\n" ++
+      between₂ ++ "\n" ++
+      s!"\{\"in\":{k},\"str\":\{\"pre\":0,\"str\":\"{name}\"}}" ++ "\n" ++
+      between₃ ++ "\n" ++
+      s!"\{\"thm\":\{\"all\":[{k}],\"levelParams\":[],\"name\":{k},\"type\":{j},\"value\":{v}}}" ++ "\n" ++
+      after
+
+def pipelineAccepts (file : String) : Prop :=
+  ∃ (pre : Frontend.PreludeIx) (r : Frontend.ParseResultD) (env : Env),
+    Frontend.builtinPreludeE = .ok pre ∧
+    Frontend.parseExportD file (inModel := true) (census := false) = .ok r ∧
+    checkDecls .verified (Frontend.preparePrelude pre r.decls.toList) = .ok env
+```
+
+`pipelineAccepts` is `checkMain`'s accept path (`Main.lean`) read off
+the driver: the prelude parses, the file parses, `prepareD`'s
+`.decls` — which IS `preparePrelude` — goes into `checkDeclsIO`, whose
+result carries `checkDecls … = .ok env`.  (`streamingAccepts chunks`
+is the same with `parseChunks` in place of `parseExportD`.)
+`ConLeche/MainTheorem.lean`, with its `sorry` twin in
+`ConLeche/Challenge.lean`; `comparator.json` lists exactly
+`model_exists` and `no_False_declaration`:
+
+```lean
+/-- **The main corollary.** … -/
+theorem no_False_declaration (V : Type w) [SetTheory V] (s : String)
+    (h : hasProofOfFalse s) : ¬ pipelineAccepts s := by
+  rintro ⟨pre, r, env, -, hparse, hcheck⟩
+  obtain ⟨cv, vl, hty, hmem⟩ := Frontend.parseExportD_hasProofOfFalse h hparse
+  exact no_False_theorem_accepted V _ cv vl (Frontend.mem_preparePrelude hmem) hty env hcheck
+
+theorem no_False_declaration_streaming (V : Type w) [SetTheory V] (s : String)
+    (chunks : List ByteArray) (h : hasProofOfFalse s)
+    (hcs : s.toUTF8 = Frontend.concatBytes chunks) (hne : ∀ c ∈ chunks, c.isEmpty = false) :
+    ¬ streamingAccepts chunks
+```
+
+Three imported steps: the line-level lemma
+`parseExportD_hasProofOfFalse` (`Verify/Frontend/FileFalse.lean`)
+gives a `thmDecl` of type `False` in `r.decls`; `mem_preparePrelude`
+(`Verify/Frontend/Prepare.lean`, task #293's permutation fact) keeps
+it in the prepared list; `no_False_theorem_accepted` — now in
+`Verify/Cached/StreamThm.lean` beside `checkDecls_thmDecl_const`, with
+its name, statement and docstring — forbids it.  The streaming twin is
+`parseChunks_ok_parseExportD` and is stated in `MainTheorem.lean`
+beside the corollary, NOT in the comparator list.
+
+**No size hypothesis** (the maintainer's ruling at the merge): `feedChunk`
+walks `USize` positions and `ByteArray.usize` wraps in the logic, so
+a first version carried `hsz : s.utf8ByteSize < USize.size`.  Instead
+the parser now GUARDS: `parseExportD` returns `sizeError`
+(`.unsupported`) when `contents.utf8ByteSize ≥ USize.size`, before
+`feedChunk`; `chunkStep` carries a running byte count `total` and fails
+the same way when `total + buf0.size ≥ USize.size`, and
+`parseExportHandleD.loop`/`parseChunks.go` thread it.  The lemmas:
+`parseExportD_ok_size` (a result means the input fits),
+`parseChunks_ok_size` (a result of the streaming parse means the chunks
+fit) and `parseChunks_ok_parseExportD` (a result of the streaming parse
+IS the wholesale parse's) carry no hypothesis; the equalities
+`parseExportD_eq_parseLines` and `parseChunks_eq_parseExportD` keep
+theirs, because on an oversized input the two parses fail differently
+(the wholesale one up front, the streaming one at the chunk that
+crosses the word — after any earlier parse error).  One `Nat`
+comparison per chunk; the wholesale check is O(1) (`utf8ByteSize`).
+
+**Deviations from the sketch, and why.**
+
+* **The theorem's own name is a separate index `k` with an arbitrary
+  string** (the maintainer's confirmation): `False` as the theorem's
+  name would be rejected for the wrong reason (a duplicate).  The proof
+  never reads that line at all — it is absorbed into the arbitrary part
+  before the theorem record — so `name` may hold anything, including a
+  quote that makes the line malformed; the file then does not parse.
+* **A leading part is required** (`before ++ "\n"`): a file whose very
+  first line is the `False` name entry is not matched by the template
+  (lean4export's first line is the `meta` header, so no export is
+  affected).  The template is a sufficient condition, stated as the
+  maintainer sketched it; a variant with an optional first newline was
+  not worth the loss of readability.
+
+### 2. What had to change in the parser — four tightenings and one refactor
+
+Each is a conservative change (it rejects more streams than before, or
+changes nothing observable); every gate passed unchanged (arena 90/92,
+e2e 195/195, annot 15/15, the sweeps).
+
+1. **An index is bound once** (`IdTable.bound`, `StateD.freshName/
+   freshLevel/freshExpr`, `reboundError`).  The tables let a later line
+   overwrite an entry (harmless for the parse, because entries are
+   resolved eagerly), but the theorem needs the entry a template line
+   bound to be the entry the theorem line reads, whatever the arbitrary
+   parts hold.  The test is on a BORROWED state, in three `@[noinline]`
+   helpers: written inline as `if st.exprs.bound i then throw …` at the
+   top of the `do` block, the compiler's reset/reuse pass projected and
+   `inc`'d all 21 fields of the state before the test — +17 %
+   instructions on the parse phase, found by diffing the emitted C.
+   As landed: **+0.39 G on the 17.16 G parse phase of init-full
+   (+2.2 % of parsing), +0.07 % of the whole `--verified --jobs=1` run
+   (538.45 G → 538.84 G)** — the price of the new check.
+2. **A line never spans a newline.**  Two scanners stepped over one:
+   `naiveSkipBraced`/`skipBraced` (the `meta` header) skipped any byte
+   between brackets, so `{"meta":{"x":` + newline + the template's
+   name entry + `}}` swallowed the entry into the header — a
+   counterexample to the sketch; and `naiveStrBody`/`strClose` took
+   `\` + newline as an escape pair (the decoder then refused it, but
+   the consumed bytes had crossed the newline).  Now the header skip
+   stops at a newline and a control byte after a backslash is refused
+   on both sides; the twin proofs (`skipBraced_eq`, `strClose_eq`, the
+   `.induct` proofs) gained a case each.
+3. **The escape decoder is handed the string body, sliced out.**
+   `unescape`'s `\u` lookahead read up to eight bytes past the body
+   (never past the closing quote in effect, but proving that meant a
+   short-circuit analysis of a 60-line `USize` loop).  `scanString`
+   now passes `b.extract (i+1) e` and the naive side `⟨⟨body⟩⟩`, so both
+   run the same function on the same array and `naiveStr`'s verdict is
+   visibly a function of the body.  The twin (`scanString_eq`) got
+   simpler; `unescape_shift` and its five helpers (130 lines) became
+   dead and were deleted.  The allocation is on the escape path only
+   (38 lines of init-full).
+4. *(Dropped at the merge.)*  A first version replaced the ground
+   hoist's `Array.qsort` by `Array.mergeSort` for a membership lemma;
+   task #293's `preparePrelude_perm` (`Verify/Frontend/Prepare.lean`)
+   proves the permutation of master's own `hoistNatOpGround`, so
+   `NatOpGround.lean` is master's and `mem_preparePrelude` is the fact
+   the corollary reads.
+5. **The inductive arm is two named halves.**  `processLineCoreD`'s
+   `.ind` arm was a 150-line `do` block with three `for` loops; `dsimp`
+   on its unfolding exceeded the step budget and `split` did not
+   engage, so its frame lemma was intractable as one term.  It is now
+   `validateIndD` (reads the state on a borrowed parameter, returns
+   the verdict or the ordered constructors and `nPd`) followed by
+   `installIndD` (every state change), whose generated-record loop is
+   the recursive `pushGenList`; `registerProjOwners` is a top-level
+   definition.  Same code, in named pieces; the frame lemma is an
+   induction plus a dozen bind peels.
+
+And **the streaming loop calls a pure step**: `chunkStep`/`chunkFinish`
+are what `parseExportHandleD.loop` does between reads, and
+`parseChunks` is the same fold over a list of chunks.  RC discipline
+unchanged (`st` threaded by value; the buffer extracted as before).
+
+### 3. The proof, module by module (`ConLeche/Verify/Frontend/*`)
+
+* `Digits.lean` — `IsDec d n` (a non-empty digit run, no leading zero
+  unless `0`, valued `n`); `repr_isDec : IsDec (lit (toString n)) n`;
+  `naiveNum_isDec`.  `Init/Data/Repr.lean` is a module that does not
+  expose `Nat.repr`/`toDigits*`, so this is one of the tree's two new
+  `import all` sites (the other is the fixture test).
+* `Local.lean` (1 441 lines) — `LineLocal f`: on `l ++ 10 :: x` with no
+  newline in `l`, the scanner's verdict and stopping point do not
+  depend on `x`, and it stops inside `l` or at the newline.  Proved for
+  every naive scanner by the suffix lemmas' own inductions (the slot
+  tables through `Slot.of_local`, the line loop by one macro per key
+  group), then `naiveLine_local`, and the two consequences the file
+  theorem reads: `naiveLine_some` (a `some rest` line is the input up
+  to its first newline) and `naiveLine_none` (a `none` line holds no
+  newline).
+* `Lines.lean` — `parseLines`, the parse as a fold over the byte list;
+  `parseExportD_eq_parseLines` (under `hsz`, via `scanLineSpec_cases`
+  and a `fun_induction` over `feedChunk`), `parseExportD_size` and
+  `parseExportD_ok_size` (the guard); `parseLines_split` (a parse
+  of `l ++ 10 :: m` reaches `m` as a line start — for ANY `l` — by
+  successful steps, `Reach`) and `parseLines_reach`.
+* `Chunks.lean` — `feedChunk_prefix` (the buffer's complete lines parse
+  as in the longer input and the loop stops where the wholesale parse
+  continues: the full `x`-independence of `naiveLine_local`),
+  `feedChunk_tail_nonl` (the carry holds no newline), `parseChunks_go`
+  (with the running count as an invariant: `carry.size ≤ total`),
+  `parseChunks_eq_parseLines`, **`parseChunks_eq_parseExportD`**; the
+  guard's `chunkStep_ok_total`, `parseChunks_ok_size` and
+  **`parseChunks_ok_parseExportD`** (no size hypothesis).
+* `ApplyLine.lean` — `Frame` (a declaration record leaves the three
+  index tables alone and only extends the record list), proved for
+  `pushDecl`, `pushGenList`, `registerProjOwners`, `installIndD`,
+  every arm of `processLineCoreD` (the `.quot` arm's kind dispatch is
+  a join point: `simp only at h`, then one `split`), and `applyDeclD`
+  (= `processLineCoreD` since #292); `Keeps` (what any successful line
+  keeps: bound names, bound expressions, pushed records) via the entry
+  specs; `applyLine_nameFalse`, `applyLine_constFalse`.
+* `ThmLine.lean` — `applyLine_thmFalse`: the theorem record is pushed
+  with type `False` (`pushDecl_mem`).  The first version also handled
+  the prelude dedupe (`canon_type_const`, `sameCanon_thm`,
+  `pushDecl_thm`: a record dropped as a prelude copy is a `thmDecl` of
+  type `False` itself); since #293 the parser keeps every record, so
+  those lemmas went.
+* `FalseLines.lean` — the three template lines scanned, with the
+  indices symbolic decimal runs: `naiveLine_nameFalse`,
+  `naiveLine_constFalse`, `naiveLine_thm`, by stepping the loops
+  (`obj_step`/`line_step`: `rw […eq_def]; simp +decide [leaves, *]`).
+* `FileFalse.lean` — the walk: `parseLines_hasProofOfFalse` (split at
+  `before`, the name line, split at `between₁`, the const line, split
+  at `between₂ ++ name line ++ between₃` as one part, the theorem
+  line, `parseLines_reach` over `after`, `Reach.keeps` throughout) and
+  `parseExportD_hasProofOfFalse` (the initial state's name table, the
+  guard's `parseExportD_ok_size`).  (`Hoist.lean` — a membership fact
+  about the ground hoist — went with the merge; see §2 item 4.)
+
+### 4. What was hard
+
+* **The two scanner holes were found by trying to prove the sketch**,
+  not by testing: the meta header's newline was a genuine
+  counterexample to the theorem as sketched on the code as it stood.
+* **The taint machinery was not needed.**  A first version tracked
+  three taint invariants across the file; a tainted type index makes
+  the theorem line fail to apply, which the hypothesis excludes, so
+  the invariants were dropped (and #292 removes the rest).
+* **`first | … | …` does not backtrack past a nested `by`**: a term
+  `exact ⟨…, fun x => by tac⟩` whose inner tactic fails is elaborated
+  with error recovery (`sorry`), so `first` takes it.  The line loop's
+  key dispatch is therefore explicit `case`s, one per key.
+* **Join points.**  `applyDeclD` and `parseLevelEntryD` desugar with
+  `__do_jp` binders; `simp only at h` inlines them, after which the
+  peeling (`exceptBind_ok`, `split at h`) is routine.  On a generic
+  `d : DeclRec`, `split at h` picks the innermost match; `cases d`
+  first.
+* **Hygiene and exposure.**  The step macros are `set_option hygiene
+  false` (they name the proof's own hypotheses); `scanLineSpec` and
+  `parseLines` needed `@[expose]` (a `public section` hides a `def`'s
+  body from the next module); `Nat.repr` needed `import all`;
+  `decide` cannot see through `String.toUTF8` in a module —
+  `lit_eq_toByteArray` first; the template's byte lemmas were renamed
+  `tpl_*` after clashing with the key lemmas `lit_in`, `lit_type`,
+  `lit_value` of `Equiv/Keys.lean` (only visible from a classic probe
+  file, which is what the challenge and proofdeps gates run).
+
+### 5. Gates
+
+`lake build` and `lake test` warning-free (three new axiom pins at
+`[propext, Classical.choice, Quot.sound]`); `tests/challenge.sh` OK —
+four statements token-identical; `tests/proofdeps.sh` REGENERATED for
+the new root `main_file_False` (4 712 rows / 13 roots, 0 doors);
+`tests/overview-links.sh --update` after re-reading the citing
+paragraphs (the three `MainTheorem.lean` anchors moved by the new
+imports, `parseExportStreamD` by the chunk step, the axiom pin by the
+new block; 80 links / 50 files); `tests/arena.sh` all suites as
+expected; the instruction comparison above.  The fixture test
+(`tests/ConLecheTests/FileTests.lean`): a file built from
+`zero_ctor_false_proof.ndjson`'s lines matches the template (the
+string equation decided by the kernel), the parser reads it into a
+`thmDecl` of type `False`, and the fold rejects it.
+
+### 6. The merge with master 62b38eef, and the promotion (2026-09-12)
+
+Master moved under the branch four times while it was proved: #285
+(`DeclC`/`ExprC` → `Declaration`/`Expr`), #291 (the environment
+statement dropped), #292 (`sorryAx` is the fold's — the parser's taint
+pre-scan, `taintSkipped`, `applyDeclD`'s three outcomes all gone) and
+#293 (the parser takes no prelude; `preparePrelude` sits between parser
+and fold; the basis-pin match and the prelude dedupe left the parser).
+Merged ONCE, as instructed, with master's `ExportC.lean` and
+`NatOpGround.lean` taken as the base and the branch's edits re-applied
+on master's text: the rebinding checks; the validate/install split of
+the inductive arm — which on master has no pin match any more, so
+`installIndD_frame` lost a `split`; `pushGenList` as a plain fold
+(`pushGenD` returns a state now); `chunkStep`/`chunkFinish`/
+`concatBytes`/`parseChunks` with the loop calling them.  What went:
+`Verify/Frontend/Hoist.lean`, the prelude-dedupe lemmas of
+`ThmLine.lean`, every taint field of `Frame`/`Keeps`, `applyDeclD_cases`
+(now `applyDeclD_frame := processLineCoreD_frame`), the prelude lemmas
+of `FileFalse.lean`.  What came: `mem_preparePrelude` as the step
+between the parse and the stream lemma, the `.quotDecl` arm, and the
+size guard (§1).
+
+**The promotion** (the maintainer's ruling): the public pair is
+`model_exists` + `no_False_declaration` — `Challenge.lean`,
+`MainTheorem.lean` and `comparator.json` state exactly those two, with
+`no_False_declaration_streaming` beside the corollary in
+`MainTheorem.lean` only.  `no_False_theorem_accepted` kept its name,
+statement and docstring and moved to `Verify/Cached/StreamThm.lean`
+next to `checkDecls_thmDecl_const`, proved from
+`no_proof_of_False_cached` (so its closure no longer reaches
+`Denotes`/`Model.Denotes` — a module LEAVING, recorded in the
+regenerated proofdeps expectation).  Proofdeps roots: `main_file_False`
+is the headline, `stream_False` the step (12 roots, 4 362 rows, 0
+doors).  The axiom pin table, `trust-surface.sh`'s challenge note,
+`formalization.yaml`, the arena yaml and `--help` name
+`ConLeche.no_False_declaration`; OVERVIEW §1 presents the file-level
+statement first with the stream-level one as the step it rests on, and
+§2's driver item cites `chunkStep`.  README is the maintainer's and was
+not edited; the replacement text for its "### The Main Corollary"
+section follows (the "Not covered by the proof" bullet "The parser
+reading JSON files to `List DeclC`" should go with it; the
+annotation-pass and driver bullets stand):
+
+> At the end of `ConLeche/MainTheorem.lean` we prove that a file that
+> declares a theorem of type `False` is never accepted.  "Declares a
+> theorem of type `False`" is a string template over the export format
+> (`ConLeche/Accepts.lean`): four lines — a name entry for `False`, an
+> expression entry for the constant `False`, a name entry for the
+> theorem's own name, and the theorem record whose type is that
+> expression — with anything at all before, between and after them:
+>
+> ```lean
+> def hasProofOfFalse (file : String) : Prop :=
+>   ∃ (before between₁ between₂ between₃ after : String) (i j k v : Nat) (name : String),
+>     file =
+>       before ++ "\n" ++
+>       s!"\{\"in\":{i},\"str\":\{\"pre\":0,\"str\":\"False\"}}" ++ "\n" ++
+>       between₁ ++ "\n" ++
+>       s!"\{\"ie\":{j},\"const\":\{\"name\":{i},\"us\":[]}}" ++ "\n" ++
+>       between₂ ++ "\n" ++
+>       s!"\{\"in\":{k},\"str\":\{\"pre\":0,\"str\":\"{name}\"}}" ++ "\n" ++
+>       between₃ ++ "\n" ++
+>       s!"\{\"thm\":\{\"all\":[{k}],\"levelParams\":[],\"name\":{k},\"type\":{j},\"value\":{v}}}" ++ "\n" ++
+>       after
+> ```
+>
+> `pipelineAccepts file` is the binary's accept path as pure content:
+> the built-in prelude parses, the file parses, and `checkDecls` in
+> `--verified` mode accepts the parsed list prepared with the prelude.
+> The theorem:
+>
+> ```lean
+> theorem no_False_declaration (V : Type w) [SetTheory V] (s : String)
+>     (h : hasProofOfFalse s) : ¬ pipelineAccepts s
+> ```
+>
+> The meaning of `False` is hard-coded, so no tricks involving odd
+> definitions for `False` will confuse the checker.  Inside the proof,
+> the same statement is established first about the parsed stream (a
+> list of declarations one of whose records declares a theorem of type
+> `False` is never accepted, `ConLeche/Verify/Cached/StreamThm.lean`)
+> and before that about the environment (an accepted environment holds
+> no constant of type `False`); the file-level statement adds the
+> parser and the preparation step on top of those.
+
+**Gates on the merged tree** (commit after the merge): `lake build` and
+`lake test` warning-free; `env -i … bash tests/arena.sh` exit 0 —
+proofdeps 4 362 rows across 12 roots, 0 doors; challenge OK on the two
+names; shake 456 removals all allowlisted, pub-imports none demotable
+(the promotion needed three import fixes: MainTheorem's stale
+allowlist line for a now-private `MainC`, Accepts' redundant `Prepare`
+line, StreamThm taking `MainC` privately with `SetTheory.Core` public
+for its statement); overview-links 89 links / 56 files after
+re-reading the citing paragraphs; no-local-paths, trust-surface OK;
+arena tutorial 90/92, e2e 195/195, annot 15/15 and the sweeps as
+expected.
+
+**The size guard's cost is nil and the rebinding test's is as
+measured before the merge.**  Against the master binary rebuilt at
+62b38eef, raw init-full, `--verified --jobs=1`, `ulimit -v 16000000`:
+537.655 G → 538.051 G instructions (+0.074 %); the parse phase alone
+(`CON_LECHE_INMODEL_CENSUS=1`, exit 2): 16.441 G → 16.824 G (+2.33 %),
+the rebinding test's borrowed `bound` lookups on every table entry
+(§2 item 1; the guard is one comparison per 4 MiB chunk).  Verdicts
+identical (exit 0, the same success line).
+
+## TASK #294 — ONE MAIN COROLLARY, OVER THE CHUNKS, WITH THE ACCEPT CHAIN INLINED (2026-09-12, `agent/parser-294`)
+
+The maintainer's refinement of #290, four rulings.
+
+### 1. The rulings, as landed
+
+1. **One main corollary, about chunks** — *"We currently have two
+   main corollaries.  We should have only one, and the better one is
+   surely the one about chunks."*  The `String` theorem,
+   `no_False_declaration_streaming`, `pipelineAccepts` and
+   `streamingAccepts` are gone.  The public pair is `model_exists` +
+   `no_False_declaration (chunks : List ByteArray)`.
+2. **The accept path inlined in the statement, as a `do` chain of the
+   three functions** — *"pipelineAccepts and streamingAccepts are
+   small enough that it would be better if the main corollary just
+   inlines it, and names the three functions that are queued here.
+   This can use `do` notation to chain them prettily!"*  A first draft
+   of the brief asked for a `pipeline` definition the driver would
+   call; the maintainer withdrew it: the driver interleaves the three
+   steps with IO (the streaming read loop, the heartbeats, the
+   parallel check pool, the evidence-carrying subtypes), and a reader
+   eyeballs `main` against the theorem.  So `Main.lean` is untouched
+   except for `checkMain`'s docstring, which says what each phase
+   computes.
+3. **`hasProofOfFalse` over bytes** — *"Instead of binding s and
+   chunks, why not have only chunks, phrase `hasProofOfFalse` over
+   `ByteArray` (using `toUtf8` inside it)."*
+4. **The `c.isEmpty = false` hypothesis goes.**  It existed because
+   `parseChunks` mirrored the IO loop, where an empty READ means end
+   of file, so an empty chunk mid-list truncated the pure fold.
+
+```lean
+def hasProofOfFalse (chunks : List ByteArray) : Prop :=
+  ∃ (before between₁ between₂ between₃ after : ByteArray) (i j k v : Nat) (name : String),
+    Frontend.concatBytes chunks =
+      before ++ "\n".toUTF8 ++
+      (s!"\{\"in\":{i},\"str\":\{\"pre\":0,\"str\":\"False\"}}").toUTF8 ++ "\n".toUTF8 ++
+      between₁ ++ "\n".toUTF8 ++
+      (s!"\{\"ie\":{j},\"const\":\{\"name\":{i},\"us\":[]}}").toUTF8 ++ "\n".toUTF8 ++
+      between₂ ++ "\n".toUTF8 ++
+      (s!"\{\"in\":{k},\"str\":\{\"pre\":0,\"str\":\"{name}\"}}").toUTF8 ++ "\n".toUTF8 ++
+      between₃ ++ "\n".toUTF8 ++
+      (s!"\{\"thm\":\{\"all\":[{k}],\"levelParams\":[],\"name\":{k},\"type\":{j},\"value\":{v}}}").toUTF8 ++ "\n".toUTF8 ++
+      after
+
+theorem no_False_declaration (V : Type w) [SetTheory V] (chunks : List ByteArray)
+    (h : hasProofOfFalse chunks) :
+    ∀ env, (do
+      let pre ← Frontend.builtinPreludeE.toOption
+      let r ← (Frontend.parseChunks chunks).toOption
+      (checkDecls .verified (Frontend.preparePrelude pre r.decls.toList)).toOption) ≠ some env := by
+  intro env hacc
+  simp only [bind, Option.bind_eq_some_iff, Except.toOption_eq_some_iff] at hacc
+  obtain ⟨pre, -, r, hparse, hcheck⟩ := hacc
+  obtain ⟨cv, vl, hty, hmem⟩ := Frontend.parseChunks_hasProofOfFalse h hparse
+  exact no_False_theorem_accepted V _ cv vl (Frontend.mem_preparePrelude hmem) hty env hcheck
+```
+
+### 2. The error-type choice
+
+The three steps live in three `Except` error types — `FrontendError`
+(the prelude and the parse) and `CheckError × Nat` (the fold) — and no
+shared type exists: `FrontendError` has no `ToString`, and folding it
+into `CheckError` would lose the line number or invent an instance
+outside the statement.  The brief allowed unification "only inside the
+statement", so the chain forgets the reasons: each step is
+`.toOption`, the `do` block is in `Option`, and the conclusion is
+`≠ some env` — "the chain never yields an environment".  The reasons
+are the driver's diagnostics (which step failed, the exit code
+1/2/3), and the driver is untouched.  The proof needs one lemma,
+`Except.toOption_eq_some_iff` (`ConLeche/Verify/ExceptBind.lean`),
+beside `exceptBind_ok`; `Option.bind_eq_some_iff` is core's.
+`parseChunks`'s parameters were reordered (`chunks` first, the two
+switches after it as defaults) so that the chain reads
+`Frontend.parseChunks chunks` — the driver's defaults, `inModel :=
+true` and `census := false`, appear nowhere.
+
+### 3. The bytes-level template and the walk
+
+The template is over `Frontend.concatBytes chunks`: the four lines are
+`(s!"…").toUTF8`, the newlines `"\n".toUTF8`, the five parts
+arbitrary `ByteArray`s (bytes that are no UTF-8 at all fail to parse,
+which is a non-accept like any other).  The walk
+(`ConLeche/Verify/Frontend/FileFalse.lean`) is now stated over the
+byte LIST shape — `parseLines_template`, with the five parts as
+arbitrary `List UInt8` and the four lines as `lit s!"…"` — and
+`parseChunks_hasProofOfFalse` puts the chunks into that shape:
+`parseChunks_eq_parseLines` (under the size bound `parseChunks_ok_size`
+provides), `bytes_eq_of_size_lt`, then `ByteArray.data_append` /
+`Array.toList_append` / `toUTF8_toList : s.toUTF8.data.toList = lit s`
+/ `lit_nl` flatten the `++`s into the list shape.  The fixture test
+(`tests/ConLecheTests/FileTests.lean`) proves
+`hasProofOfFalse [falseFile.toUTF8]` by folding the byte appends back
+into ONE string's `toByteArray` (`← String.toByteArray_append`, a
+`rfl`-lemma) and deciding the string equation, as before; `decide` on
+the `ByteArray` equation itself gets stuck at `Array`'s decidable
+equality on `copySlice`, so that route is not available.
+
+### 4. The empty-chunk semantics
+
+`parseChunks.go` now folds the WHOLE list: `| c :: cs => match
+chunkStep … c with …`, no `isEmpty` test.  An empty chunk's step feeds
+`carry ++ ∅ = carry`, which holds no newline, so `feedChunk` stops at
+0 and hands the carry back unchanged (the running count grows by 0);
+the fold goes on.  Hence `parseChunks cs = parseBytes (concatBytes cs)`
+for every list — empty pieces anywhere — under the size bound
+(`parseChunks_eq_parseBytes`), and `parseChunks_ok_parseBytes` without
+any hypothesis.  `parseBytes (b : ByteArray)` is the wholesale parse
+with the size guard on the buffer's size; `parseExportD (s : String)`
+is `parseBytes s.toUTF8` and serves the prelude and the tests.  The IO
+loop `parseExportHandleD.loop` is byte-for-byte unchanged: it still
+takes an empty READ for the end of the file, calls the same
+`chunkStep`, and finishes with the same `chunkFinish` — the
+end-of-input decision is the loop's, not the step's.  **The binary's
+run path is therefore unchanged** (only the pure `parseChunks` and
+the wholesale parse used by the prelude's 267-line text moved), and no
+instruction measurement was taken; the fixture test pins the new
+semantics (`[b.extract 0 70, ∅, b.extract 70 71, b.extract 71 b.size,
+∅]` parses to the same one record as `[b]`).
+
+### 5. Everything that named the old statements
+
+`comparator.json` unchanged (the two names); `Challenge.lean`'s
+`sorry` twin token-identical; `tests/ConLecheTests/Axioms.lean` loses
+the streaming pin; `tests/ProofDeps.lean`'s roots unchanged by name
+(`main_file_False` now reaches `Verify/Frontend/Chunks.lean`'s guard
+lemmas, regenerated); `tests/trust-surface.sh`, `scripts/arena/
+con-leche.yaml`, `Main.lean --help` unchanged by name;
+`formalization.yaml`'s scope, OVERVIEW §1's corollary paragraphs (the
+chain, the byte template, the chunk independence as a step — no task
+numbers) and `checkMain`'s docstring rewritten.  README is the
+maintainer's and was not edited; the replacement text for its
+"### The Main Corollary" section follows (the "Not covered by the
+proof" bullet about the parser should go with it; the annotation-pass
+and driver bullets stand):
+
+> At the end of `ConLeche/MainTheorem.lean` we prove that a file that
+> declares a theorem of type `False` is never accepted.  The file is
+> the list of chunks the binary reads, and "declares a theorem of type
+> `False`" is a template over their bytes (`ConLeche/Accepts.lean`):
+> four lines of the export format — a name entry for `False`, an
+> expression entry for the constant `False`, a name entry for the
+> theorem's own name, and the theorem record whose type is that
+> expression — with any bytes at all before, between and after them:
+>
+> ```lean
+> def hasProofOfFalse (chunks : List ByteArray) : Prop :=
+>   ∃ (before between₁ between₂ between₃ after : ByteArray) (i j k v : Nat) (name : String),
+>     Frontend.concatBytes chunks =
+>       before ++ "\n".toUTF8 ++
+>       (s!"\{\"in\":{i},\"str\":\{\"pre\":0,\"str\":\"False\"}}").toUTF8 ++ "\n".toUTF8 ++
+>       between₁ ++ "\n".toUTF8 ++
+>       (s!"\{\"ie\":{j},\"const\":\{\"name\":{i},\"us\":[]}}").toUTF8 ++ "\n".toUTF8 ++
+>       between₂ ++ "\n".toUTF8 ++
+>       (s!"\{\"in\":{k},\"str\":\{\"pre\":0,\"str\":\"{name}\"}}").toUTF8 ++ "\n".toUTF8 ++
+>       between₃ ++ "\n".toUTF8 ++
+>       (s!"\{\"thm\":\{\"all\":[{k}],\"levelParams\":[],\"name\":{k},\"type\":{j},\"value\":{v}}}").toUTF8 ++ "\n".toUTF8 ++
+>       after
+> ```
+>
+> The theorem's statement is the binary's accept path itself — the
+> built-in prelude parses, the chunks parse, `checkDecls` in
+> `--verified` mode accepts the parsed list prepared with the prelude
+> — chained, and it never returns an environment:
+>
+> ```lean
+> theorem no_False_declaration (V : Type w) [SetTheory V] (chunks : List ByteArray)
+>     (h : hasProofOfFalse chunks) :
+>     ∀ env, (do
+>       let pre ← Frontend.builtinPreludeE.toOption
+>       let r ← (Frontend.parseChunks chunks).toOption
+>       (checkDecls .verified (Frontend.preparePrelude pre r.decls.toList)).toOption) ≠ some env
+> ```
+>
+> `main` runs the same three steps with IO between them (the streaming
+> read loop, the progress heartbeat, the parallel check pool) and
+> prints its success line only from an accept of the fold.  The
+> meaning of `False` is hard-coded, so no tricks involving odd
+> definitions for `False` will confuse the checker; the chunks may be
+> cut anywhere.  Inside the proof, the same statement is established
+> first about the parsed stream (`ConLeche/Verify/Cached/StreamThm.lean`)
+> and before that about the environment; the file-level statement adds
+> the parser and the preparation on top of those.
+
+### 6. Gates
+
+`lake build` and `lake test` warning-free; `env -i … bash
+tests/arena.sh` exit 0 — proofdeps regenerated (12 roots), challenge
+gate on the two names, shake and pub-imports clean, overview-links
+regenerated after re-reading the citing paragraphs, no-local-paths,
+trust-surface, e2e/arena unchanged — recorded in the READY report with
+the row count.
+
+## TASK #295 — ONE ERROR TYPE FOR THE ACCEPT PATH, AND ARRAYS ON THE RUN PATH (2026-09-12, `agent/errtype-295`)
+
+Two maintainer rulings, one task.
+
+### 1. The rulings, verbatim
+
+1. *"Still not happy with `no_False_declaration`.  The `toOption` is
+   too noisy.  How different are the error types?  Also, the
+   quantifier to prove that it is `.err` is noisy.  Better write
+   `… matches .error _` (or `!….isOk`)."*  The `isOk` form is the one
+   that landed (§2 says why).  Answer to the question in
+   the middle: **not different at all.**  `FrontendError`'s
+   `parseError`/`unsupported`/`invalid` and `CheckError`'s
+   `internal`/`notImplemented`/`invalid` were the same three verdict
+   classes under two names — the driver already mapped both onto the
+   same three exit codes (3/2/1).  So `FrontendError` is DELETED and
+   the frontend reports the checker's `CheckError`.
+2. *"Use a pure `let` for the result of `preparePrelude`, for better
+   readability, and throw in an `open Frontend in` around the
+   theorem."*
+3. *"I don't buy it.  Why convert a 1M array to a list for no good
+   reason?  Surely the array lemmas in the library suffice for a
+   fold!"* — on a first draft of this task that would have made
+   `ParseResultD.decls` a `List`.  The run path carries **arrays**
+   instead, from the parse through `preparePrelude` into `checkDecls`;
+   the proofs keep their list shape behind `ds.toList`.
+
+### 2. The statement, as landed
+
+```lean
+open Frontend in
+theorem no_False_declaration (V : Type w) [SetTheory V] (chunks : List ByteArray)
+    (h : hasProofOfFalse chunks) :
+    (do
+      let pre ← builtinPreludeE
+      let r ← parseChunks chunks
+      let ds := preparePrelude pre r.decls
+      checkDecls .verified ds).isOk = false := by
+  refine Except.isOk_eq_false fun env hacc => ?_
+  obtain ⟨pre, -, hacc⟩ := exceptBind_ok hacc
+  obtain ⟨r, hparse, hcheck⟩ := exceptBind_ok hacc
+  obtain ⟨cv, vl, hty, hmem⟩ := Frontend.parseChunks_hasProofOfFalse h hparse
+  exact no_False_theorem_accepted V _ cv vl (Frontend.mem_preparePrelude hmem) hty env hcheck
+```
+
+with the one lemma the first step needs
+(`ConLeche/Verify/ExceptBind.lean`, replacing `Except.toOption_eq_some_iff`,
+which nothing else used):
+
+```lean
+theorem Except.isOk_eq_false {ε α : Type} {x : Except ε α} (h : ∀ a, x ≠ .ok a) :
+    x.isOk = false
+```
+
+**Why the `isOk` spelling and not `matches`.**  Both were written and
+both elaborate; the maintainer offered either.  `x matches .error _`
+is a `Bool`, and in statement position the `Bool → Prop` coercion makes
+it `(match x with | .error _ => true | _ => false) = true` — **with a
+matcher generated for the declaration**, `no_False_declaration.match_1`.
+That matcher is then part of the advertised statement (it shows up in
+the challenge gate's `#check @…` output, where both halves happen to
+generate the same name, so the comparison passes), and it blocks the
+tidy proof: a general lemma `(x matches .error _) ↔ ∀ a, x ≠ .ok a`
+carries its OWN matcher, and `apply`/`refine`/`simp` cannot unify the
+two through a metavariable scrutinee — the error prints the two sides
+identically and still fails.  The `matches` proof therefore has to
+`split` on the goal's own matcher and then recover the positive fact
+from what `split` hands the catch-all branch (`∀ e, chain ≠ .error e`)
+through a second lemma: four lines of scaffolding for a statement
+respelling.  `.isOk = false` needs none of it — it is already a `Prop`
+(no coercion, hence no `= true` either), the proof is one `refine`
+through one lemma, and the elaborated statement is
+`Except.isOk (…) = false`.  The maintainer's literal alternative
+`!(…).isOk` proves in exactly the same length but reintroduces the
+`= true`.  Ruling (the maintainer, relayed): take the `isOk` form — a
+`split`/`next` dance over a generated matcher is exactly what this
+file's style rule forbids.
+
+The pure `let` prints as `have ds := …` in the elaborated statement —
+`ds` is used once and nothing depends on its value.
+
+### 3. One error type
+
+`ConLeche/Frontend/Export.lean` keeps `RecordVerdict` (the parse's own
+declined/invalid datum) and maps it to `CheckError`
+(`.declined → .notImplemented`, `.invalid → .invalid`); the caller
+pairs it with the line.  Every frontend `Except FrontendError α`
+became `Except (CheckError × Nat) α`, with `parseError line msg →
+(.internal msg, line)`.  The `Nat` is the failure's POSITION, read in
+the step's own unit — the input LINE number in the frontend, the
+record's position in the list the fold folds — which is documented on
+`CheckError` itself (`ConLeche/Kernel/Core.lean`), on `checkDecls`, and
+in `Export.lean`'s header.  `Export.lean` gained one import
+(`ConLeche.Kernel.Core`); the layering is unchanged (the frontend may
+read the kernel, never the other way).
+
+**The driver's messages and exit codes are byte-identical**: the three
+match arms became `(.notImplemented what, _)` / `(.invalid what, _)` /
+`(.internal msg, line)` and print exactly what they printed before, so
+e2e and arena verdicts are unchanged (and the `sizeError` guard, which
+has no line to name, carries 0).
+
+### 4. Arrays on the run path
+
+`ParseResultD.decls` was already an `Array`; what was converted was
+everything after it.  Now:
+
+* `prepareD`/`preparePrelude : PreludeIx → Array Declaration → Array
+  Declaration`.  `pickSpec` (the list recursion) stays as the SPEC;
+  the implementation `pick` is `findIdx` + `getElem?` +
+  `eraseIdxIfInBounds` — one scan and one erase per prelude record,
+  where the old `pickGo` rebuilt the whole stream as a list for each
+  of the twelve.  `frontOf` pushes the front onto an array
+  accumulator.  The bridge is `pickSpec_eq` (the list pick by index)
+  and `pick_toList`/`frontOf_toList`; `frontSpec_perm`,
+  `pickSpec_perm` and the hoist's permutation lemma are untouched.
+  `preparePrelude_perm` now reads
+  `(preparePrelude pre ds).toList.Perm (ds.toList ++ extra)` and
+  `mem_preparePrelude` is array membership on both sides.
+* `checkDecls (mode) (ds : Array Declaration)` is `Array.foldlM` over
+  the records.  **No second definition and no separate transport
+  lemma were needed**: `InstallRun` and the eighteen files above it
+  stay list-shaped, and the ONLY two theorems that unfold the fold —
+  `fullyChecked_checkDecls` and `checkDecls_fullyChecked` — open with
+  `rw [← Array.foldlM_toList]` and go on exactly as before, over
+  `ds.toList`.  That rewrite IS the transport, in the two places that
+  can see it.
+* The statements over the run-time input take arrays and read the
+  proofs' lists inside: `model_exists`, `no_False_theorem_accepted`,
+  `checkDecls_consts`, `checkDecls_sound`,
+  `no_proof_of_{False,Empty}_cached`, `checkDecls_skels` (whose
+  conclusion is `streamSkels ds.toList`) and the four
+  `trusted_agrees_*`.  Membership hypotheses are array membership,
+  converted at the one use with `Array.mem_toList_iff`.
+* `Main.lean`'s `installLoop` iterates the array BY INDEX, carrying
+  `InstallRun mode (ds.toList.take i)`; the step's obligation is
+  `List.take_add_one` plus `Array.getElem?_eq_getElem`, and the exit is
+  `List.take_of_length_le`.  It stays a tail call (well-founded
+  recursion compiles to the plain recursive function), and the driver
+  no longer materialises `decls.toList` — about 15 MB of cons cells at
+  Mathlib scale, plus the walk that built them.
+
+### 5. What did NOT change
+
+`PreludeIx.decls` stays an `Array` (twelve records, `toList`ed once
+inside `prepareD` so that `frontSpec` keeps its list shape).
+`comparator.json` (the two names), the challenge twin (token-identical,
+`open Frontend in` and the `let` included), the arena and e2e verdicts,
+`Main.lean`'s diagnostics, `tests/trust-surface.sh`, the pin gates.
+
+### 6. Gates
+
+`lake build` and `lake test` warning-free; `env -i … tests/arena.sh`
+exit 0 — e2e and arena verdicts unchanged, proofdeps regenerated (the
+module graph did not move, but `Verify/ExceptBind` swapped a lemma),
+challenge, shake and pub-imports, overview-links regenerated after
+re-reading every citing paragraph (the `CheckError` docstring shifted
+`Kernel/Core.lean`'s anchors by 15), no-local-paths, trust-surface.
+One init-full instruction comparison against the master binary at
+041634af (`--verified --jobs=1`, `perf stat -e instructions:u`,
+interleaved old/new/old/new): 538.044 G → 538.106 G, **+0.012 %**,
+both runs accepting the same 53 093 declarations.  Unchanged, as
+expected of a rename: the driver no longer materialises the fold's
+input as a list (one walk and ~15 MB of cons cells saved at Mathlib
+scale), and the prepare step's twelve picks now scan an array twice
+each (`findIdx`, then the erase) where they used to rebuild the whole
+stream as a list once each.  The two cancel to nothing measurable, and
+no published PERF.md number moves.
+
+### 7. The README's replacement text
+
+`README.md` is the maintainer's.  Its "### The Main Corollary" and
+"### The Main Theorem" sections still show the pre-#290 statements
+(`no_proof_of_False`, `List DeclC`); the text task #294 offered stands
+except for the two code blocks, which now read:
+
+> ```lean
+> open Frontend in
+> theorem no_False_declaration (V : Type w) [SetTheory V] (chunks : List ByteArray)
+>     (h : hasProofOfFalse chunks) :
+>     (do
+>       let pre ← builtinPreludeE
+>       let r ← parseChunks chunks
+>       let ds := preparePrelude pre r.decls
+>       checkDecls .verified ds).isOk = false
+> ```
+>
+> The three steps fail in one error type — the checker's own
+> `CheckError` with the position of the failure, which is the input's
+> line number in the parser's half and the record's position in the
+> fold's — so the chain is one plain `do` block and the conclusion is
+> simply that it does not succeed.  The records travel as an `Array`,
+> which is what the parse returns and what the fold folds.
+
+and, in "### The Main Theorem":
+
+> ```lean
+> theorem model_exists (V : Type w) [SetTheory V]
+>   (ds : Array Declaration) (env : Env)
+>   (accepted : checkDecls .verified ds = .ok env) :
+>   Nonempty (Model V env)
+> ```
+
+## TASK #296 — THE MAIN COROLLARY, CONTRAPOSED (2026-09-12, `agent/contra-296`)
+
+### 1. The ruling, verbatim
+
+*"the `isOk = false` is not nice.  How about you move the isOk to the
+assumption and conclude `¬hasProofOfFalse`"*
+
+### 2. The statement, as landed
+
+```lean
+open Frontend in
+/-- **The main corollary.**  Accepted chunks declare no theorem of type
+`False`: were the template's four lines there, the parse would read them
+into a theorem record of type `False`, the preparation would keep the
+record, and a stream holding it is never accepted. -/
+theorem no_False_declaration (V : Type w) [SetTheory V] (chunks : List ByteArray)
+    (accepted : (do
+      let pre ← builtinPreludeE
+      let r ← parseChunks chunks
+      let ds := preparePrelude pre r.decls
+      checkDecls .verified ds).isOk) :
+    ¬ hasProofOfFalse chunks := by
+  intro h
+  obtain ⟨env, hacc⟩ := Except.exists_ok_of_isOk accepted
+  obtain ⟨pre, -, hacc⟩ := exceptBind_ok hacc
+  obtain ⟨r, hparse, hcheck⟩ := exceptBind_ok hacc
+  obtain ⟨cv, vl, hty, hmem⟩ := Frontend.parseChunks_hasProofOfFalse h hparse
+  exact no_False_theorem_accepted V _ cv vl (Frontend.mem_preparePrelude hmem) hty env hcheck
+```
+
+The hypothesis name is `accepted`, as in `model_exists`.  `(…).isOk` in
+hypothesis position is the `Bool → Prop` coercion, so the ELABORATED
+statement — what the challenge gate compares and what a reader sees —
+carries the `= true` the previous spelling's `= false` did:
+
+```
+(do … ConLeche.Cached.checkDecls ConLeche.CheckMode.verified ds).isOk = true →
+  ¬ConLeche.hasProofOfFalse chunks
+```
+
+`= true` was therefore NOT written out in the source: the coercion
+prints it anyway, and the maintainer's spelling is the shorter one.
+Task #295's reason for the `isOk` form over `matches` is unaffected —
+there is still no generated matcher in the statement.
+
+`ConLeche/Verify/ExceptBind.lean` swapped its one-line helper the same
+way the statement turned around: `Except.isOk_eq_false` (∀-premise,
+conclusion `.isOk = false`) is DELETED and replaced by
+
+```lean
+theorem Except.exists_ok_of_isOk {ε α : Type} {x : Except ε α} (h : x.isOk) :
+    ∃ a, x = .ok a
+```
+
+which is what turns the new hypothesis into the environment the rest of
+the proof peels.  `exceptBind_ok` is untouched, and nothing else used
+either lemma.  (`Except.isOk` is an `abbrev` for `Except.toBool`, so the
+error branch closes with `simp [Except.toBool]`, not `rfl`.)
+
+### 3. What else moved
+
+Only prose: the `MainTheorem.lean` and `Challenge.lean` headers and the
+two docstrings (token-identical statements, `tests/challenge.sh`),
+`ConLeche/Accepts.lean`'s closing paragraph, OVERVIEW §1's citing
+paragraph (re-read before `overview-links.sh --update`; the corollary's
+anchor grew by one line), and the `tests/ConLecheTests/Axioms.lean`
+table row.  `Main.lean`'s two mentions and its `--verified` help text
+say "a file that declares a theorem of type `False` is never accepted",
+which is the same claim in words and is left alone — the help text is
+compared byte-for-byte by the e2e gate.
+
+### 4. Gates
+
+`lake build` and `lake test` warning-free, challenge (statements
+identical), overview-links, no-local-paths, proofdeps (unchanged: the
+pin records the MODULES the proof term reaches, and the swapped helper
+lives in the module the old one did).  No arena battery and no checker
+run: no executable code changed — `MainTheorem.lean`, `Challenge.lean`
+and `ExceptBind.lean` are statements and proofs only.
+
+### 5. The README's replacement text
+
+`README.md` is the maintainer's.  In "### The Main Corollary" the code
+block now reads
+
+> ```lean
+> open Frontend in
+> theorem no_False_declaration (V : Type w) [SetTheory V] (chunks : List ByteArray)
+>     (accepted : (do
+>       let pre ← builtinPreludeE
+>       let r ← parseChunks chunks
+>       let ds := preparePrelude pre r.decls
+>       checkDecls .verified ds).isOk) :
+>     ¬ hasProofOfFalse chunks
+> ```
+>
+> The hypothesis is the binary's accept path — the built-in prelude
+> parses, the chunks parse, the verified fold accepts the parsed records
+> prepared with the prelude, all three failing in one error type, so the
+> chain is a plain `do` block and `.isOk` says it succeeded — and the
+> conclusion is that the bytes the binary read hold no theorem of type
+> `False`.
+
+("### The Main Theorem" is unchanged from task #295 §7.)
+
+## TASK #297 — ONE JSON FILE, NOT EVERY PROOF OF `False` (2026-09-12, `agent/json-297`)
+
+### 1. The rulings, verbatim
+
+*"the hasProofOfFalse predicate is misleading, as it does not apply to
+*all* proofs of False.  I think we have to go back to putting it in the
+assumption (better narrative), change its name to somehow reflect that
+it describes a particular way of putting that theorem in JSON, not all
+of them.  Maybe `jsonWithTheoremFalse`?  And the conclusion could be
+`∃ e, … = .error e`, most direct maybe."*
+
+Plus: why not ONE interpolation template?  The answer was that the five
+parts were `ByteArray`s and `s!` has no splice for bytes.  So the parts
+became `String`s and the whole file became one `s!` template with a
+single `.toUTF8` at the end.
+
+### 2. The predicate, as landed
+
+`ConLeche/Accepts.lean`:
+
+```lean
+def jsonWithTheoremFalse (chunks : List ByteArray) : Prop :=
+  ∃ (before between₁ between₂ between₃ after name : String) (i j k v : Nat),
+    Frontend.concatBytes chunks = (s!"{before}
+\{\"in\":{i},\"str\":\{\"pre\":0,\"str\":\"False\"}}
+{between₁}
+\{\"ie\":{j},\"const\":\{\"name\":{i},\"us\":[]}}
+{between₂}
+\{\"in\":{k},\"str\":\{\"pre\":0,\"str\":\"{name}\"}}
+{between₃}
+\{\"thm\":\{\"all\":[{k}],\"levelParams\":[],\"name\":{k},\"type\":{j},\"value\":{v}}}
+{after}").toUTF8
+```
+
+**The template is a real multi-line string literal.**  A Lean string
+literal spans lines, and a raw newline in it is a literal `\n` byte —
+but the indentation of a continuation line is part of the literal (the
+probe: `s!"a{x}b\n     c{x}d"` written over two lines with five spaces
+of indent yields the bytes `… 10, 32, 32, 32, 32, 32, 99 …`).  So every
+continuation line of the template starts at column 0, inside the `def`
+body and against the surrounding indentation.  That is deliberate and
+load-bearing: the source shows the file shape exactly as it is, with no
+escapes to decode.
+
+**The UTF-8 narrowing.**  The five parts are `String`s, so the file is
+the UTF-8 of ONE interpolated Lean string.  A file whose arbitrary parts
+carry bytes that are no UTF-8 at all therefore falls outside the
+predicate, where the old `ByteArray`-parts form covered it.  That is
+immaterial: an export is UTF-8, and the parts are the pieces of a file
+the checker is being handed as an export.  The gain is the one thing the
+maintainer asked for — one template, read off the page.
+
+### 3. The statement, as landed
+
+`ConLeche/MainTheorem.lean` (token-identical in `ConLeche/Challenge.lean`
+with `sorry`, `tests/challenge.sh`):
+
+```lean
+open Frontend in
+theorem no_False_declaration (V : Type w) [SetTheory V] (chunks : List ByteArray)
+    (h : jsonWithTheoremFalse chunks) :
+    ∃ e, (do
+      let pre ← builtinPreludeE
+      let r ← parseChunks chunks
+      let ds := preparePrelude pre r.decls
+      checkDecls .verified ds) = .error e := by
+  refine Except.exists_error_of_not_ok fun env hacc => ?_
+  obtain ⟨pre, -, hacc⟩ := exceptBind_ok hacc
+  obtain ⟨r, hparse, hcheck⟩ := exceptBind_ok hacc
+  obtain ⟨cv, vl, hty, hmem⟩ := Frontend.parseChunks_jsonWithTheoremFalse h hparse
+  exact no_False_theorem_accepted V _ cv vl (Frontend.mem_preparePrelude hmem) hty env hcheck
+```
+
+The narrative is the one the maintainer asked for: the FILE is the
+hypothesis, and the binary's accept path erroring is the conclusion.
+Nothing is claimed about which of the three steps errs — `∃ e` over the
+one `CheckError × Nat`.
+
+`ConLeche/Verify/ExceptBind.lean` swapped its one-line helper again, the
+way it did at #296: `Except.exists_ok_of_isOk` is DELETED and replaced by
+
+```lean
+theorem Except.exists_error_of_not_ok {ε α : Type} {x : Except ε α} (h : ∀ a, x ≠ .ok a) :
+    ∃ e, x = .error e
+```
+
+which is what `refine … fun env hacc => ?_` turns into the `False` goal
+the rest of the proof closes.  `exceptBind_ok` is untouched.
+
+### 4. The one piece of new proof: cutting the template up
+
+The line lemmas (`ConLeche/Verify/Frontend/FalseLines.lean`) are stated
+against the PER-LINE `s!` templates, and `s!` fuses each of the
+whole-file template's newlines into the string literal beside it — the
+chunk after `{i}` is `",\"str\":{\"pre\":0,\"str\":\"False\"}}\n"`, not
+the line's own last chunk followed by a newline.  So the whole-file
+template is not syntactically the parts and the lines.
+
+`ConLeche/Verify/Frontend/FileFalse.lean` undoes that in one step.
+Seven fusions, each `by rw [← String.append_assoc]; rfl` (string
+literals reduce under `String.append`), e.g.
+
+```lean
+theorem fuse_nl_in (x : String) : "\n" ++ ("{\"in\":" ++ x) = "\n{\"in\":" ++ x
+```
+
+and then `template_split`, which states the whole-file template as the
+five parts and the four line templates with `"\n"` between them and is
+proved by
+
+```lean
+  simp only [String.append_assoc, toString_id, fuse_nl_in, fuse_strFalse_nl, fuse_nl_ie,
+    fuse_usNil_nl, fuse_quote_nl, fuse_nl_thm, fuse_close_nl]
+```
+
+(`toString_id : toString (s : String) = s := rfl` clears the splices'
+`toString`).  With `template_split` in hand the byte step of
+`parseChunks_jsonWithTheoremFalse` is the old one plus
+`String.toByteArray_append`:
+
+```lean
+    rw [bytes_eq_of_size_lt hsz, heq, template_split]
+    simp only [String.toUTF8_eq_toByteArray, String.toByteArray_append, ByteArray.data_append,
+      Array.toList_append, ← lit_eq_toByteArray, lit_append, lit_nl, List.append_assoc,
+      List.cons_append, List.nil_append]
+```
+
+`parseLines_template` — the walk over the four lines — is UNCHANGED: it
+already took the five parts as `List UInt8`, and they now arrive as
+`lit before`, `lit b₁`, … instead of `before.data.toList`.  The fixture
+example in `tests/ConLecheTests/FileTests.lean` got SHORTER: its five
+witnesses are the strings themselves, and the byte equation is now one
+`congrArg String.toByteArray (by decide)` over the string equation with
+no `← String.toByteArray_append` fold in front of it.
+
+### 5. What else moved
+
+Only names and prose: `parseChunks_hasProofOfFalse` →
+`parseChunks_jsonWithTheoremFalse`, the `MainTheorem.lean` and
+`Challenge.lean` headers and docstrings, `ConLeche/Accepts.lean`'s
+module doc and the predicate's docstring (both now say what the
+predicate is NOT), `FalseLines.lean`'s one citation, OVERVIEW §1's
+citing paragraphs (re-read, then `overview-links.sh --update`; three
+anchors moved and two changed), and the `tests/ConLecheTests/Axioms.lean`
+table row.  `Main.lean` is untouched — its `--verified` help text says
+"a file that declares a theorem of type `False` is never accepted",
+which is the same claim in words, and the e2e gate compares it
+byte-for-byte.
+
+### 6. Gates
+
+`lake build` and `lake test` warning-free, challenge (statements
+identical for both roots), overview-links (88 links, 56 files),
+no-local-paths, proofdeps (UNCHANGED — 4363 module rows across 12
+roots: the pin records the MODULES a proof term reaches, no module was
+added and the swapped `Except` helper lives where the old one did).  No
+arena battery and no checker run: the predicate and the theorem are
+proof tier, and no executable code changed.
+
+### 7. The README's replacement text
+
+`README.md` is the maintainer's.  In "### The Main Corollary" the code
+block now reads
+
+> ```lean
+> open Frontend in
+> theorem no_False_declaration (V : Type w) [SetTheory V] (chunks : List ByteArray)
+>     (h : jsonWithTheoremFalse chunks) :
+>     ∃ e, (do
+>       let pre ← builtinPreludeE
+>       let r ← parseChunks chunks
+>       let ds := preparePrelude pre r.decls
+>       checkDecls .verified ds) = .error e
+> ```
+>
+> The hypothesis is the file: `jsonWithTheoremFalse chunks` says that
+> the bytes the binary read are ONE particular JSON file declaring a
+> theorem of type `False` — a name entry for `False`, an expression
+> entry for the constant `False`, a name entry for the theorem's own
+> name, and the theorem record of that name and type, four lines of the
+> export format in that order with anything at all before, between and
+> after them.  The name is careful: this is one way of writing such a
+> theorem into a JSON file, not every proof of `False` a file might
+> hold.  The conclusion is the binary's accept path — the built-in
+> prelude parses, the chunks parse, the verified fold accepts the
+> prepared records, all three failing in one error type, so the chain is
+> a plain `do` block — returning an error, with no claim about which
+> step produced it.
+
+("### The Main Theorem" is unchanged from task #295 §7.)
+
+## TASK #299 — README CODE LINKS UNDER THE LINK GATE (2026-09-12, `agent/readme-links-299`)
+
+**The ruling (maintainer, verbatim).**
+
+> The README could benefit from direct links to the code, like the
+> OVERVIEW does. So include the README in the machinery for keeping
+> such links up to date, and suitable links to the README. Since it
+> should be human written, do not add text to the README, but only turn
+> into a link what is already there and that a user would want to click
+> on (e.g. `theorem foobar`, 'File `MainTheorem`').
+
+### 1. The gate now scans two documents
+
+`tests/overview-links.sh` takes a **list** of documents (`DOCS` at the
+top), `OVERVIEW.md` first and `README.md` second, and writes ONE
+combined expectation (`tests/overview-links-expected.txt`) with a
+`>>> <document>` banner before each document's segments.
+
+**The name is kept.**  The gate is cited by name in `CLAUDE.md`, in
+`tests/arena.sh`, in `.github/workflows/ci.yml`, in the expectation
+file's own name, in its output prefix, and in something over a hundred
+records of this document.  A rename to `tests/doc-links.sh` buys an
+accurate name and costs a permanent one-line shim plus every one of
+those citations; the header now says which documents it scans, which is
+the information the name would have carried.
+
+**OVERVIEW first** so that a document joining the gate *appends* a
+section: the diff of the regenerated expectation at this task is
+exactly the new `>>> README.md` block plus the header rewording, and
+nothing of the existing 88 citations moved.
+
+**The failure names the document.**  On a diff the script splits both
+texts on the banner and compares section by section, so the message
+reads `the cited lines are not what README.md was written against` —
+the document to go re-read, not both.
+
+**New, cheap check: relative link targets.**  A link that is not a
+`blob/master` one and not external — `./PERF.md`,
+`./bridge/lean4lean-model` — has no cited text to pin, but its target
+must exist.  One `os.path.exists` per such link (7 of them today, all
+in `README.md`), which is what catches a renamed or deleted file behind
+a whole-file mention.  It is reported as a structural error, beside the
+dead-anchor errors, not as a diff.
+
+Counts before / after: **88 links, 56 files, 1 document** →
+**103 links, 57 files, 2 documents**.
+
+### 2. The links added to `README.md`
+
+Link-only edits: the link *text* is the existing text, character for
+character, and no other character of the file changed.  Targets are
+`https://github.com/leanprover/con-leche/blob/master/<path>#L<a>-L<b>`
+— **the canonical form for every new code link in this repository**.
+`OVERVIEW.md`'s 88 links spelled the pre-rename `leanprover/lech` and
+resolved only through GitHub's rename redirect; they are normalised to
+`leanprover/con-leche` here (maintainer: "the redirect is not something
+to rely on").  It is a pure URL change: the gate records path and lines
+only, matches owner/repo loosely on purpose, and the expectation is
+byte-identical across it.  The tree holds no other `leanprover/lech`
+URL; the two remaining mentions in this document are HISTORY — a quoted
+`lech: declined:` verdict line and task #216's own statement of the
+link form — and stay as written.
+
+| README § | linked text | target |
+|---|---|---|
+| Design of the implementation | `sorryAx` | `ConLeche/Cached/ParsedC.lean#L223-L224` (the fold's arm: install nothing) |
+| Design of the implementation | `--jobs` | `Main.lean#L776` (the flag's line in `usage`) |
+| The Main Corollary | `False` | `ConLeche/Kernel/Basis/False.lean#L51-L52` (`falseBasis`, the pin) |
+| The Main Corollary | `main` | `Main.lean#L1093` |
+| The Main Theorem | `no_False_declaration` | `ConLeche/MainTheorem.lean#L97-L103` |
+| The Main Theorem | `Model V env` | `ConLeche/Denotes.lean#L270-L290` |
+| The Main Theorem | `Denotes` | `ConLeche/Denotes.lean#L134-L135` |
+| The Main Theorem | `checkDecls` | `ConLeche/Cached/Installed.lean#L417-L421` |
+| The Main Theorem | `preparePrelude` | `ConLeche/Frontend/Prepare.lean#L165-L172` |
+| The Main Theorem | `theorem Frontend.preparePrelude_perm` | `ConLeche/Verify/Frontend/Prepare.lean#L157-L162` |
+| The Main Theorem | `theorem checkDecls_consts` | `ConLeche/Verify/Cached/StreamConsts.lean#L779-L784` |
+| Set theory assumption | `[SetTheory V]` | `ConLeche/SetTheory/Core.lean#L95-L133` (the whole class, which is what the paragraph enumerates) |
+| Set theory assumption | `carneiro_implies_conleche` | `bridge/lean4lean-model/ConLecheBridge/Carneiro.lean#L200-L202` |
+| Level annotation | `PropWhen` | `ConLeche/Kernel/PropWhen.lean#L413-L415` |
+| The certification tax | `--trusted` | `Main.lean#L759` (the flag's line in `usage`) |
+
+Every anchor was read before it was written, and the gate now pins the
+lines it points at.
+
+**What was NOT linked, and why.**
+
+* **`jsonWithTheoremFalse`, `builtinPreludeE`, `parseChunks`.**  All
+  three occur in `README.md` *only inside the fenced `lean` block* of
+  the main corollary, and a fenced code block cannot contain a link.
+  There is no prose mention to turn into one.  Linking them needs one
+  of the maintainer's own words in the surrounding prose; it is
+  reported, not written.
+* **`model_exists`.**  Same reason: the name appears only in the
+  quoted block.  The prose of "### The Main Theorem" names
+  `no_False_declaration` (linked) but never `model_exists`; the
+  whole-file link `[`ConLeche/MainTheorem.lean`](./ConLeche/MainTheorem.lean)`
+  beside it is left relative, as the ruling allows.
+* **`trustCompiler`, `ofReduceBool`, `ofReduceNat`.**  The family has
+  no single defining line — it is a module of pins
+  (`ConLeche/Kernel/TrustAxioms.lean`) — and linking one of the three
+  and not the others reads arbitrary.  Left for the maintainer to ask
+  for.
+* **Second and later mentions** of a name already linked in the same
+  section (`False`, `main`, `checkDecls`, `Model`, `sorryAx`), and
+  words that are not code names ("the parser", "three standard Lean
+  axiom").
+* **The seven relative whole-file links** (`./OVERVIEW.md`,
+  `./ConLeche/MainTheorem.lean` ×2, `./ConLeche/Denotes.lean`,
+  `./ConLeche/SetTheory/Core.lean`, `./bridge/lean4lean-model`,
+  `./PERF.md`) stay relative and unanchored, as the ruling allows —
+  and are now existence-checked by the gate.
+
+**Finding, for the maintainer, not acted on:** `README.md`'s quoted
+`model_exists` block reads `(ds : List DeclC)`, while the tree's
+theorem reads `(ds : Array Declaration)` — stale since the arrays
+landed on the run path (task #295).  The quoted `no_False_declaration`
+block matches the tree.  Both are inside fences, so neither is gated;
+fixing the quotation is a README *text* edit, which is the
+maintainer's.
+
+### 3. Links to the README, and the practice
+
+* `OVERVIEW.md`'s opening now links `README.md` and says what a reader
+  finds there (the main theorem and corollary in the maintainer's own
+  words, with its own links into the source).
+* `DESIGN.md` House practices gained *"The documents' code links are
+  gated; `README.md` is link-only"*: what the gate covers, and the rule
+  that an agent may turn a code name into a link or repoint one that
+  rotted and may change no other character.
+* `CLAUDE.md`'s gate bullet, `tests/arena.sh`'s gate comment and
+  `.github/workflows/ci.yml`'s gate list all name both documents now.
+
+### 4. Gates
+
+| gate | result |
+|---|---|
+| `tests/overview-links.sh` | 103 links, 57 files, 2 documents, OK (one `--update` after every anchor was read; OK again, expectation byte-identical, after the slug normalisation and after merging master's `ed604845`) |
+| failure paths, exercised by hand | a broken relative target is named as a structural error; a citation change in a README-only anchor names `README.md` alone |
+| `tests/arena.sh` (`env -i`, no ulimit) | exit 0 |
+| `tests/no-local-paths.sh` | OK |
+| `lake build` | warning-free, 560 jobs (a cold build: the worktree was fresh and `tests/arena.sh` needs the binary and the oleans — no `.lean` file changed) |
+
+### 5. Master moved under the branch
+
+`ed604845` ("README: Mutli-version NatOps") reworded the last sentence
+of README's "### Nat operations" while this branch was open.  The merge
+is clean and the paragraph carries none of this task's links; the
+maintainer's text stands character for character, and the diff of
+`README.md` against `ed604845` is link markup and nothing else.  The
+reworded sentence names no code, so nothing was re-linked and nothing
+dropped.  `README.md` is a CITING document: its own line numbers appear
+nowhere in the expectation, so an edit to it moves no citation — the
+gate confirms that, not the reasoning.
+
+## TASK #302 — THE QUOTE GATE (2026-09-13, `agent/quotegate-302`)
+
+**The ruling (maintainer).**  Asked whether the fenced code blocks in
+the human-facing documents should be held against the tree the way
+their line anchors are: *"sure!"*.
+
+### 1. What rots, and why the link gate does not catch it
+
+Task #299 put `README.md` beside `OVERVIEW.md` under
+`tests/overview-links.sh`, so every `blob/master/<path>#L<a>-L<b>`
+citation's text is a committed artefact.  That gate sees LINKS.  The
+README also QUOTES: two fenced ```lean blocks reproduce the statements
+of `no_False_declaration` and `model_exists` so a reader meets the
+theorem on the page instead of on GitHub.
+
+A quote rots on its own schedule and more quietly than an anchor.
+Rename a binder, add a hypothesis, re-indent a continuation line, and
+the link above the block still points at perfectly valid lines — the
+link gate's diff fires only if the CITED range moved or changed, and
+the two README anchors cite `MainTheorem.lean#L97-L103`, not the whole
+statement, and `Denotes.lean`, `Installed.lean`, … for the names in
+the prose.  A statement can change without any cited range changing at
+all.  Nothing in the build reads a markdown fence.  So: a second gate,
+beside the first, over the other half of what the documents copy.
+
+### 2. Textual, not `#check` — and why that is the whole point
+
+`tests/challenge.sh` (task #281) compares the Comparator pair's
+statements by ELABORATING them: `#check @name` under
+`pp.universes`/`pp.explicit`/`pp.proofs` from a probe file per module,
+the outputs diffed.  That is right there, where the question is whether
+two modules state the same proposition and spelling is irrelevant.
+
+Here the question is the opposite one.  The documents quote SOURCE
+TEXT, for a human to read next to the prose, so what must hold is that
+the block IS the source: same binder names, same notation, same line
+breaks, same indentation.  `#check` normalises all of that away, and a
+`#check`-based gate would pass a quote that says `chunks` where the
+tree now says `cs`, or that predates a `{}`→`()` binder change — a
+quote that is wrong for every reader and right for the elaborator.  It
+would also need a built tree and a probe file per document.  The
+comparison is textual, the source is the truth, and the gate costs
+0.1 s with no build.  The script's header states this.
+
+### 3. What the gate scopes and how it delimits a statement
+
+`tests/quote-gate.sh` reads `README.md` and `OVERVIEW.md`.  Every
+fenced ```lean block whose first significant line matches
+`theorem <name>` / `def <name>` is IN scope; the block may carry
+`open … in` lines and `@[…]` attribute lines ahead of that line (the
+two prefixes a statement is written with).  A ```lean block that is not
+declaration-headed — an example, a snippet — is out of scope and is
+COUNTED in the summary as skipped, so a future non-declaration block is
+a visible decision rather than a silent hole.  (OVERVIEW.md has one
+fenced block today, the usage banner, and it is not a ```lean one.)
+
+The source side is the declaration's header as the source writes it:
+
+* start at the `theorem <name>` / `def <name>` line;
+* extend BACKWARDS over the `open … in` and `@[…]` lines directly
+  above it, STEPPING OVER a docstring in between — the tree's order is
+  `open Frontend in`, then `/-- … -/`, then `theorem`, and the
+  docstring is never quoted;
+* end at the first `:=` or `where` **at bracket depth 0**, exclusive.
+
+The depth counter is not decoration.  `no_False_declaration`'s
+statement contains `let ds := preparePrelude pre r.decls` inside its
+`(do …)` block: a "first `:=`" rule would cut the statement four lines
+early and the gate would have failed against a correct quote.  Depth
+also keeps a default argument's `:=` out, and a `--` comment ends a
+line's scan.
+
+Comparison strips TRAILING whitespace from every line and nothing else.
+Indentation is significant on purpose: the continuation indentation is
+what a reader copies, and `README.md` was synced to the tree's
+four-space continuations at `639b3ba6` deliberately.
+
+### 4. Which declaration — the rule that was actually needed
+
+The documents quote a SHORT name (`theorem model_exists`); the tree
+declares `ConLeche.model_exists` inside a `namespace`.  The gate
+collects every file under `ConLeche/**/*.lean` plus `Main.lean` that
+declares that short name.
+
+One candidate: done.  Several: take the LAST markdown link above the
+block whose target is one of the candidates — which is how the
+documents already say which one they mean.  Both link shapes count, the
+`blob/master/<path>` code link and a relative one.
+
+This was not hypothetical.  `no_False_declaration` is declared TWICE —
+in `ConLeche/MainTheorem.lean` and in its sorry'd Comparator twin
+`ConLeche/Challenge.lean` — and the gate's first run reported the
+ambiguity.  The README resolves it a paragraph above the block, with
+`[ConLeche/MainTheorem.lean](./ConLeche/MainTheorem.lean)`, a RELATIVE
+link; so the rule accepts relative destinations, not only code links.
+Excluding `Challenge.lean` by name was the alternative and was
+rejected: a gate that special-cases a file stops working the moment a
+second twin exists.  If no link above the block names a candidate the
+ambiguity is REPORTED with the list, never guessed.
+
+### 5. No `--update`
+
+The link gate has one because its expectation — the cited text — is not
+derivable from the document.  Here it is: the source is the truth, and
+the only fix for a failure is to re-sync the quote in the document.  An
+`--update` would have to WRITE `README.md`, which is the one thing a
+gate over a human-written document must not do on its own.  The failure
+message says the fix instead, and says that an agent is allowed to make
+it (maintainer, 2026-09-13) while the prose around the block is not
+the agent's.
+
+### 6. The failure message
+
+Shaped like the link gate's, one paragraph per bad block:
+
+```
+the quoted statement of `model_exists` in README.md differs from ConLeche/MainTheorem.lean:L84-L87
+    --- ConLeche/MainTheorem.lean:L84-L87
+    +++ README.md:73
+    @@ -1,4 +1,4 @@
+     theorem model_exists (V : Type w) [SetTheory V]
+    -    (ds : Array Declaration) (env : Env)
+    +  (ds : Array Declaration) (env : Env)
+         (accepted : checkDecls .verified ds = .ok env) :
+         Nonempty (Model V env)
+```
+
+`-` is the tree, `+` is the document, and the trailer says so, says how
+to re-sync, and says why there is no `--update`.  Structural failures
+(a name no file declares, an unresolvable ambiguity, a statement whose
+end cannot be delimited, an unterminated fence) are reported the same
+way, with the document and the block's line number.
+
+### 7. Wiring
+
+`tests/arena.sh` calls it directly after `tests/overview-links.sh`;
+`.github/workflows/ci.yml`'s gate header lists it (nine gates → ten) and
+needs no separate step, since `arena.sh` is its caller; `CLAUDE.md`
+gained the bullet after the link-gate bullet; House practices gained the
+paragraph *"Quoted code in `README.md`/`OVERVIEW.md` is gated; the fix
+is to re-sync the quote"*, and the README's own rule now reads
+link-only **plus** re-syncing a stale quote.
+
+### 8. Gates
+
+| gate | result |
+|---|---|
+| `tests/quote-gate.sh` | 2 quoted statements match the tree (`no_False_declaration` → `MainTheorem.lean:L91-L103`, `model_exists` → `L84-L87`); 0.1 s, no build |
+| failure direction: one character in a quote (`chunks` → `chunk`) | FAIL naming `no_False_declaration`, README.md, the source range, with the diff |
+| failure direction: indentation (4 spaces → 2) in a quote | FAIL naming `model_exists`, same shape |
+| failure direction: the SOURCE perturbed instead | FAIL on `model_exists`, `-` showing the tree's new line |
+| structural: a `theorem` no file declares | reported with the document and block line |
+| scope: a non-declaration ```lean block, and a `def` quote | the first counted as skipped, the second checked (`preparePrelude` → `Prepare.lean:L171`) |
+| `tests/arena.sh` (`env -i`, no ulimit) | exit 0 — the new gate reports inside it, one line after the link gate's |
+| `tests/no-local-paths.sh` | OK |
+| `lake build` | warning-free, 560 jobs (a cold build: the worktree was fresh and `tests/arena.sh` needs the binary and the oleans — no `.lean` file changed) |
+
+No `.lean` file changed; `README.md` and `OVERVIEW.md` are byte-identical
+to `639b3ba6` (both quotes already matched, which is what made them the
+acceptance test).
+
+## TASK #303 — MAIN.LEAN: RETIRED FLAGS GONE WITHOUT TRACE, HISTORY OUT OF THE COMMENTS (2026-09-13, `agent/mainclean-303`)
+
+The maintainer's ruling, verbatim: *"we still support and error on
+cmdline flags from long before the public release? remove them all with
+no trace in the code! and while you look at the main module, remove
+comments that are purely historical (e.g. on process forking)"*.  The
+repository went public 2026-09-10; no user has a retired invocation to
+protect, and a tombstone for something nobody ever shipped is noise —
+the same principle task #287 applied to the environment-variable hooks,
+which kept the FLAG tombstones because "a flag spelling is what a stale
+command line carries".  That exemption is withdrawn.
+
+### The spellings removed
+
+`--set-model`, `--set-model=p`, `--set-model=r`, `--no-model`,
+`--tt-model`, `--yolo`, `--infer-only`, `--pre`, `--core`,
+`--core=<c>`, `--install-only`, `--check-range`, `--check-range=<r>` —
+thirteen, each an arm of `parseArgs` carrying a message that named its
+successor.  Gone with them: the "retired-spelling discipline" comment
+above the first arm, and the `--help` text's closing RETIRED FLAGS
+paragraph.
+
+**What a retired spelling does now**: it falls through to the
+pre-existing generic arm (`s.startsWith "-"`), so
+
+```
+$ con-leche --pre stream.ndjson
+con-leche: unknown option --pre
+<the usage text>
+$ echo $?
+3
+```
+
+— exit 3 without reading the input, and the message names nothing
+retired.  No live spelling moved: `--verified`, `--trusted`,
+`--jobs[=<n>]`, `--progress[=<stride>]`, `--no-mark-persistent`,
+`--help` and the bare-`--jobs` / bad-stride / bad-count usage errors are
+untouched, and all thirteen retired spellings were re-run against the
+built binary to confirm the fall-through (the `=`-carrying ones too:
+`--core=x`, `--check-range=0:2`, `--set-model=p`, `--set-model=r`).
+
+**No regression to report**: the `CON_LECHE_NO_PROOF_CERTS` /
+`CON_LECHE_INFER_ONLY` tombstones task #287 deleted are still absent —
+no merge resurrected them, and `IO.getEnv` in `Main.lean` is still the
+modeller's four names only.
+
+### The history out of Main.lean's comments
+
+`task #` mentions **59 → 1**; the file is 1 125 → 1 011 lines.  The
+one that stands is the pointer CLAUDE.md allows — a task number may
+stand where it points at a DESIGN record explaining a live decision —
+namely the check phase's dedicated-thread measurement (task #269's
+section), in a code comment.
+
+**The `--help` text is human-facing, so the docs rule reaches it.**
+The first pass left its eight `task #NNN` parentheticals alone, the
+brief having said not to edit the help text beyond the retired list;
+the maintainer then ruled that "no task numbers or history in
+human-facing text" applies to `--help` too.  All eight are gone —
+`--jobs`'s `(task #269)`, `CON_LECHE_INMODEL=0`'s `(task #200)`, two
+`(task #219)` inside that entry, and the section headings THE VERDICT
+LINE'S COUNT `(task #187)`, THE BUILT-IN PRELUDE `(task #191)`, NO
+PREPROCESSOR `(task #207)` and its `(task #219)`.  Each said only
+where a fact was decided, so each was dropped and the sentence closed
+up; nothing else in the help text moved, and the string is still 227
+lines, so no anchor into `Main.lean` shifted (`tests/overview-links.sh`
+passes with the expectation untouched).  **Nothing pins the help
+output** — no test runs `con-leche --help` — so the arena battery was
+not re-run for this edit.
+
+What was rewritten to the present tense or deleted:
+
+* the process-forking era — "Task #65 used to re-exec it as a
+  supervised child … Task #230 removed that supervisor" → the checker
+  runs in this process, spawns no copy of itself, and an OOM exits 1
+  with the runtime's own panic message;
+* "**TASK #269 SUPERSEDES THE `jobs > 1` GUARD.**  The sentence above
+  is right about the RC arithmetic and wrong about the lane …" — a
+  comment narrating the correction of the comment above it: the two are
+  now one paragraph stating why the mark is taken at every `--jobs=<n>`
+  and why the check phase gets a thread of its own, with the
+  measurement's DESIGN pointer;
+* "The interned representation and every driver over it retired with
+  the arena (task #172), the R core retired with the collapsed model
+  (2026-09-05), and the hand-written trusted twin retired into an
+  instantiation (2026-09-06), so …" → "One core at two modes, one
+  parse.  The stream is parsed directly to `Expr` … and checked by the
+  one driver";
+* "What this replaced was a diagnostic re-run (`diagLoopC`) …" → "never
+  a diagnostic re-run of the accepted prefix, which would be a lie
+  waiting to happen if the two runs ever disagreed" (the reason the
+  design is what it is, without the thing it replaced);
+* "What it replaced was `env.consts.length` … (task #175 S1's one
+  projection table per structure dropped init-full by 499)" → the live
+  contrast alone: the record count is a property of the input, the
+  constant count of our representation;
+* "Since task #207 there is nothing else", "since task #219", "a FLAG
+  since task #229 — and it was an environment variable before", "the
+  three-mode setting", "the GRADED core since the R core's retirement",
+  and every `(task #NNN)` / `(2026-09-0N)` parenthetical whose only
+  content was when something changed;
+* `_tmp/frontier3/decl_index.py` — a pointer into a gitignored scratch
+  directory, dead for any reader.
+
+Two live facts that KEPT their comment, with the history stripped: the
+input is read strictly forward in chunks and no scratch file exists
+anywhere (**NO TEMPORARY FILES**), and the install loop is written tail
+-recursively because a `for … in ds` loop with `let mut` accumulators
+`lean_inc`s the `FEnv` and the `CState` before each step and every
+hashmap then copies its bucket array per declaration.
+
+### The gates' rows
+
+`tests/arena.sh` loses the whole **retired flags 8/8** family: six rows
+asserted a retired spelling errors, and the two that did not
+(`SPLIT_GOOD` accepts, `SPLIT_BAD` rejects with no flag at all) move
+into the mode section, which is where `SPLIT_GOOD`/`SPLIT_BAD` are
+defined now.  The mode section loses its twelve retired-spelling rows
+and **gains two** — `--not-a-flag` and `--trusted --not-a-flag`, exit 3
+— because the generic unknown-option arm is now the only thing standing
+where thirteen named arms stood and nothing else gated it.  So **mode
+flags 18/18 → 10/10**: 2 bare + 4 mode + 2 unknown-option + 2
+`CON_LECHE_INMODEL_CENSUS`.  Every other count on the battery is
+master's.  (The two added rows are the one place this task did more
+than remove; they are two lines to drop if the maintainer would rather
+have the removals alone.)
+
+`tests/e2e-expected.txt`'s header loses the `raw`/`pre` third-field
+paragraph and the fixture-regeneration history, and states the fact
+they were explaining: every run is raw, so a fixture has exactly one
+verdict and a row carries exactly one exit code.
+
+### Statements elsewhere the change would have falsified
+
+Fixed in the same commit, because each asserted that a retired spelling
+is a hard error or named one as a live variant:
+
+| file | was | is |
+|---|---|---|
+| `OVERVIEW.md` §0 | the nine-spelling retired list, "rejected with a message naming what stands in its place" | "Any other option is a usage error: the run reports it, prints the usage text and exits 3 without reading its input" |
+| `ConLeche/Kernel/Env.lean` | "**HISTORY, because the spelling moved twice**" — three mode values, two renames, "Every retired spelling is a hard error naming its successor" | the two values are spelled `--verified` and `--trusted`, and say what the modes are FOR |
+| `ConLeche/Cached/CoreC.lean` | "the flag that selected it (`--set-model=r`) is a hard error" | `cfgR` is gone with the configuration record |
+| `ConLeche/Verify/Cached.lean` | "the `--core=cached-parsed` variant" | "the cached core" |
+| `scripts/perf-tables.sh` | "the R column went … with `--set-model=r` (a hard error now)" | one representation and two modes, so no core axis |
+| `lakefile.toml` | "the consistency corollaries for `--core=cached-parsed`" | "for the cached core" |
+| `.github/workflows/ci.yml` | "the e2e, annot, retired-flag and mode suites" | "the e2e, annot and mode suites" |
+
+**Second commit, separable**: `tests/pilot-measure.sh`,
+`tests/pilot-parity.sh` and `tests/pilot-scale.sh` deleted.  Each passes
+`--core=<variant>` on every checker invocation it makes, so all three
+have exited 3 on every run since task #172 deleted the selector and the
+cores it chose between; nothing calls them (`tests/arena.sh`,
+`.github/workflows/ci.yml`, `scripts/` do not), and the only other
+mentions are this document's dated records of the pilot they measured.
+They were the last `--core=` spellings in the tree.  The ruling did not
+name them, which is why they are their own commit.
+
+After both: `grep -rn` for any of the thirteen spellings over the whole
+tree, `.lake` and this document's history excluded, comes back **empty**.
+
+### Gates
+
+| gate | result |
+|---|---|
+| `lake build` | 560 jobs, **warning-free**, exit 0 |
+| `lake test` | green, warning-free |
+| `tests/arena.sh` (full, `env -i`, no `ulimit`) | **exit 0.**  layering 294/190/3/1, 0 base→lane, 0 impl→theory; proofdeps **4 363 module rows as pinned across 12 roots, 0 doors** (no module graph change); pindump 3 pinners reproduced; trust surface 13 escapes in 5 allowlisted files (499 scanned), 0 outside; no-local-paths OK; challenge OK; shake 456 proposals all allowlisted; inmodel OK; axioms 20 theorems at the three; arena tutorial **90/92**; e2e **195/195**; annot **15/15**; prelude counts 3/3; progress lane 15/15; worker pool 15/15; DAG-tower 14/14; trusted sweep 138+195+15 with the three recorded divergences; `--jobs=1` and `--jobs=4` sweeps as at the default.  The two numbers that MOVED are this task's removals: the **retired flags 8/8** line is gone with its family, and **mode flags 18/18 → 10/10** |
+| `tests/overview-links.sh` | eight anchors re-anchored, all pure line moves (`usage` L743→L706, `exitCode` L48 unchanged, `installLoop` L107→L106, `checkLoop` L175→L174, `checkPool` L290→L289, `checkDeclsIO` L328-L331→L327-L330, `CheckMode` L69→L59, `indParamsOk` L624-L631→L614-L621; README's `--jobs` L776→L739, `--trusted` L759→L722, `main` L1093→L984).  Every cited TEXT is byte-identical — no citation pointed at a deleted comment — and each citing paragraph was re-read and is still true.  103 links / 57 files OK |
+| `tests/quote-gate.sh` | 2 quoted statements match |
+| `tests/no-local-paths.sh` | OK |
+| proofdeps | unchanged: no import moved, no module added or removed |
+| measurement | **none owed**: no executable line outside `parseArgs`'s deleted arms changed, and the accept path is untouched |
+
+---
+
+## TASK #304 — THE PIN LIST IS A PARAMETER OF THE FOLD (2026-09-13, `agent/pins-304`, for con-ron)
+
+Asked for by the maintainer on behalf of a downstream user (the
+con-ron lane: the Rust port of this checker and its Aeneas refinement
+proof).  Verbatim: *"a downstream user needs our main theorem and
+corollary and verified functions abstracted in the NatOpsPin (it is a
+large constant value, tricky for some formal methods). moreover it is
+actually nice to state that it is actually irrelevant for
+consistency."*  It could not be stated that way: `natOpPinSets` was
+hard-wired at the two install gates (`checkDivModPin`,
+`checkDivModPinF`) and therefore at every statement above them.
+
+**This is a REDO, not a rebase.**  The maintainer wrote the
+implementation himself on branch `pins-param` (one commit on the
+2026-09-12 master) and said *"it may be easier to redo than to
+merge"*; a read-only review agreed — 14 of its 33 files conflicted
+with the 22 landings since (`DeclC`→`Declaration`, `ExprC`→`Expr`,
+`checkDecls` over `Array Declaration`, the main corollary over the
+chunks the binary reads with its `do` chain, `preparePrelude`, one
+error type, the driver cleanups).  Everything below is that blueprint
+reapplied on master, with the one deviation the maintainer asked for
+(no default argument, no `_with` twins — see below).
+
+**Why it is sound, which is the whole point of the task.**  The model
+tier reads a `Nat.div`/`Nat.mod` pin ONLY through the certificates'
+verdict in the accepted environment.  `divMod_install`
+(`ConLeche/Model/DivModCert.lean`) was **already** over an implicit
+`{ps : NatOpPinSet}`; the pin's definitional equality and the two
+guards are carried by the run record and consumed by nothing in
+`Model/*`; `checkDivModCerts` rejects a length mismatch, so no list
+can certify vacuously; and `checkDivModPinLoop`'s `[]` arm throws
+`.notImplemented`, so the EMPTY list makes every `Nat.div`-declaring
+stream decline rather than accept.  That asymmetry is the whole of the
+task: the model never needed the list, so nothing had to be
+generalised, only threaded.
+
+**The parameter and where it sits.**  `pins : List NatOpPinSet` is an
+argument of `checkDivModPin{,F}`, `checkDecl`, `checkDeclsPure`,
+`checkDeclC`, `checkDeclStepC`, `annotStepC`, `annotDeclStep` and
+`checkDecls`, and of the types stated over those steps — `InstallRun`,
+`InstalledEnv`, `FullyChecked`.  The position is uniform: **right
+after the "how to check" arguments** — after `ops` where there is one,
+and after `mode` in the cached driver, `checkDecls` INCLUDED:
+
+```lean
+def checkDecls (mode : CheckMode) (pins : List NatOpPinSet)
+    (ds : Array Declaration) : Except (CheckError × Nat) Env
+```
+
+with **no default argument**.  Everything the installed environment
+already determines takes it **implicitly** — `GroupChecked`,
+`checkRecord`, `RecordResult`, `collectChecks`, `groupChecked_*`,
+`fullyChecked_checkDecls`, `checkDecls_fullyChecked`,
+`fullyChecked_sound`, the three `MainC` letters, `checkDecls_sound`,
+`checkDecls_thmDecl_const`, `no_False_theorem_accepted`,
+`checkDecls_consts`, `checkDecls_skels` — which is why `Main.lean`'s
+pool, its `collectChecks` call and every downstream `obtain` are
+untouched.
+
+**The advertised statements are the QUANTIFIED ones.**  The blueprint
+kept `checkDecls mode ds` spelled as before (the parameter last, with
+`natOpPinSets` as its default) and added `model_exists_with` /
+`no_proof_of_False_with` beside the shipped pair.  The maintainer
+ruled the other way for this landing: the large constant leaves the
+statement ENTIRELY, and there is one pair of theorems, not two:
+
+```lean
+theorem model_exists (V : Type w) [SetTheory V]
+    (pins : List NatOpPinSet) (ds : Array Declaration) (env : Env)
+    (accepted : checkDecls .verified pins ds = .ok env) :
+    Nonempty (Model V env)
+
+open Frontend in
+theorem no_False_declaration (V : Type w) [SetTheory V]
+    (pins : List NatOpPinSet) (chunks : List ByteArray)
+    (h : jsonWithTheoremFalse chunks) :
+    ∃ e, (do
+      let pre ← builtinPreludeE
+      let r ← parseChunks chunks
+      let ds := preparePrelude pre r.decls
+      checkDecls .verified pins ds) = .error e
+```
+
+Both proofs are unchanged and still a few lines; `ConLeche/Challenge.lean`
+carries the token-identical `sorry` twins and `comparator.json` is
+unchanged in names.  `tests/challenge.sh`: **statements identical for
+`ConLeche.model_exists` and `ConLeche.no_False_declaration`**.
+
+**The one change that is not threading**: `DivModPinRun`
+(`ConLeche/Semantics/DeclRun.lean`) says `∃ ps : NatOpPinSet` where it
+said `∃ ps ∈ natOpPinSets`.  Threading `pins` into it would have
+carried the parameter through `DeclDefnRun`, `DeclRun`,
+`Bridge/Sound`, `DeclEta`, `Model/Fold` and `Model/Harvest` for a
+hypothesis **nobody reads**.  Dropping the membership is both smaller
+and *more general* — the run record is now what an install at ANY list
+establishes — and it costs two edits: `divModPinRun_of` discards the
+`hmem` that `checkDivModPin_inv` still hands it (the inversion keeps
+`∃ ps ∈ pins`, the honest statement of a loop over `pins`), and
+`harvestDefn`'s `obtain` pattern loses one `-`.  `Model/*` is
+otherwise untouched beyond the threaded argument in `Model/Fold`'s and
+`Model/Capstone`'s `checkDeclsPure` statements.
+
+`Main.lean` names `ConLeche.natOpPinSets` outright at its driver types
+(`InstalledEnv mode ConLeche.natOpPinSets ds`, `annotDeclStep mode
+ConLeche.natOpPinSets p pd`, the `checkDecls`-subtype), and
+`tests/ConLecheTests.lean` passes `natOpPinSets` explicitly at every
+`#guard`.  **The binary's behaviour is unchanged.**
+
+**The documents.**  `README.md` is the maintainer's, but a quoted
+```lean block is an allowed agent edit (`tests/quote-gate.sh`'s own
+ruling): the two quoted statements were re-synced to the new binders
+and no prose character changed.  `OVERVIEW.md` §1 paraphrases the new
+binder and gains a paragraph saying what `pins` is and that
+consistency does not depend on it (the empty list included), and the
+well-founded-operations bullet says the model side reads none of it.
+Thirty-three anchors moved; twenty-four of them because the cited
+STATEMENT itself gained the parameter.  Each was repointed by hand and
+its citing paragraph re-read before `--update`.
+
+### Gates
+
+Every run in the `pins-304` worktree.  `lake build` **560 jobs,
+warning-free**; `lake test` green; `env -i … tests/arena.sh` **exit
+0**:
+
+| gate | result |
+| --- | --- |
+| `tests/layering.sh` | base 294 / model 190 / caps 3 / umbrella 1; 0 base→lane, 0 impl→theory |
+| `tests/proofdeps.sh` | **regenerated: 4363 → 4351 rows**, `ConLeche.Kernel.NatOpPins` LEFT **all twelve** capstone closures |
+| `tests/pindump.sh` | 3 pinners reproduce their committed JSON byte-for-byte |
+| `tests/trust-surface.sh` | 13 escapes in 5 allowlisted files (499 scanned); 0 outside |
+| `tests/overview-links.sh` | 103 links / 57 files / 2 documents, re-anchored |
+| `tests/quote-gate.sh` | 2 quoted statements match |
+| `tests/no-local-paths.sh` | OK |
+| `tests/challenge.sh` | OK — statements identical for both advertised names |
+| `tests/shake.sh` | 456 removals proposed, all 456 allowlisted, 0 new / 0 stale; pub-imports 970 of 1332 public, none demotable |
+| `tests/inmodel.sh` | OK |
+| axioms | pinned (20 theorems at `[propext, Classical.choice, Quot.sound]`) |
+| arena | tutorial 90/92, e2e 195/195, annot 15/15, mode flags 10/10, prelude counts 3/3, progress lane 15/15, worker pool 15/15, DAG-tower 14/14; trusted / `--jobs=1` / `--jobs=4` sweeps as expected |
+| measurement | **init-full `--verified --jobs=1`, `ulimit -v 16000000`, `perf stat -e instructions:u`: 538 104 052 281 instructions against the master binary's (b9a40647) 538 125 262 123 — **−0.004 %**, i.e. nothing.  Both accept 53 093 declarations.  The pin list is an ARGUMENT where it was a global, and at `--jobs=1` that is one extra pointer down the fold; the difference is below this machine's noise |
+
+The proofdeps row is the task's result stated as a measurement: the
+pin dump `ConLeche.Kernel.NatOpPins` is no longer in the proof-term
+closure of ANY capstone — `main_model` and `main_file_False`, the main
+theorem and the main corollary, included.  Before this task it was in
+all twelve, because the fold they are about named the committed list.
+It is still in the BINARY, of course: `Main.lean` passes it.

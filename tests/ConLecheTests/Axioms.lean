@@ -2,6 +2,8 @@ module
 
 public import ConLeche.MainTheorem
 public import ConLeche.Verify.Cached.MainC
+public import ConLeche.Verify.Cached.StreamConsts
+public import ConLeche.Verify.Cached.StreamThm
 public import ConLeche.Model.Fold
 public import ConLeche.Model.Capstone
 public section
@@ -55,7 +57,8 @@ different things and neither implies the other.
 |---|---|
 | `ConLeche.model_exists` | **THE MAIN THEOREM**: what `checkDecls` accepts in the verified mode has a model in every `SetTheory V` (`Nonempty (Model V env)`) |
 | `ConLeche.Denotes_functional` | a term has at most one denotation under `Denotes` (`ConLeche/Denotes.lean`, with the relation) |
-| `ConLeche.no_proof_of_False` | **THE MAIN COROLLARY**: hence it holds no constant of type `False` |
+| `ConLeche.no_False_declaration` | **THE MAIN COROLLARY**: chunks that are a `jsonWithTheoremFalse` file — a name entry `False`, a constant expression of it, a name entry, and a theorem record of that name and type, in that order — make the binary's chain (the prelude parses, the chunks parse, the fold accepts the prepared records) return an error |
+| `ConLeche.no_False_theorem_accepted` | the step it rests on, at the STREAM: records one of which declares a theorem of type `False` are never accepted by `checkDecls` (`ConLeche/Verify/Cached/StreamThm.lean`) |
 | `no_proof_of_False_cached` / `no_proof_of_Empty_cached` | the fold's letters at every validating mode |
 | `checkDecls_sound` | the model an accept of the fold carries |
 | `fullyChecked_checkDecls` / `checkDecls_fullyChecked` | the driver's fully checked environment is an accept of the fold, and conversely |
@@ -84,11 +87,17 @@ and the relation they are stated over (`ConLeche/Denotes.lean`)
 
 The statements the project exists to make (task #277): every accepted
 environment has a model (`model_exists`, over the relation `Denotes`),
-and hence — the main corollary, derived from it in three lines —
-holds no constant of type `False`.  `Denotes_functional`, which says
-the relation is a partial function, is proved with the relation
-itself (task #284) and is pinned here beside them.  Everything below
-them is what they are corollaries of. -/
+and hence every FILE — the chunks the binary reads — that the checker
+accepts declares no theorem of type `False` (`no_False_declaration`,
+tasks #290/#294/#296), which is THE MAIN COROLLARY: the statement a reader
+can check without knowing what an `Env`, or even a declaration record,
+is.  The step it rests on at the stream — no list of declarations one
+of whose records declares a theorem of type `False` is accepted
+(`no_False_theorem_accepted`, tasks #286/#288/#291, now in
+`ConLeche/Verify/Cached/StreamThm.lean`) — is pinned beside it.
+`Denotes_functional`, which says the relation is a partial function,
+is proved with the relation itself (task #284) and is pinned here too.
+Everything below them is what they are corollaries of. -/
 
 /--
 info: 'ConLeche.model_exists' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -103,10 +112,30 @@ info: 'ConLeche.Denotes_functional' depends on axioms: [propext, Classical.choic
 #print axioms ConLeche.Denotes_functional
 
 /--
-info: 'ConLeche.no_proof_of_False' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'ConLeche.no_False_theorem_accepted' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms ConLeche.no_proof_of_False
+#print axioms ConLeche.no_False_theorem_accepted
+
+/--
+info: 'ConLeche.no_False_declaration' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms ConLeche.no_False_declaration
+
+/-! ## What the fold stores of what it reads
+(`ConLeche/Verify/Cached/StreamConsts.lean`)
+
+The other direction of the same relation between input and output:
+every record of the stream that declares a constant leaves that
+constant, under its own name and with the annotation of its own
+declared type, in the environment the fold returns. -/
+
+/--
+info: 'ConLeche.Cached.checkDecls_consts' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms ConLeche.Cached.checkDecls_consts
 
 /-! ## The fold's letters (`ConLeche/Verify/Cached/MainC.lean`) -/
 

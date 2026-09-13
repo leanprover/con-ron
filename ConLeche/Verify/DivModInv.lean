@@ -27,6 +27,7 @@ half of that module (the frame's `EqSideOk` machinery and
 namespace ConLeche
 
 variable {mode : CheckMode}
+variable {pins : List NatOpPinSet}
 
 variable {env : Env}
 
@@ -176,7 +177,6 @@ the stored definition, and the pin variant that matched — its guards,
 its pin definitionally equal to the stored value, its certificates
 checked. -/
 theorem checkDivModPin_inv {env env2 : Env} {F : Nat} {c : Name} {u : Unit}
-    {pins : List NatOpPinSet}
     (h : checkDivModPin (fueledOps mode F) pins env env2 c = .ok u) :
     divModEnvGuard env2 c = true ∧
     ∃ cv' value' hint',
