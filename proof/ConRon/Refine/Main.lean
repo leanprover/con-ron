@@ -202,7 +202,7 @@ theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
     (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e)) :=
-  conron.model_exists' V hind hvar (check_decls_pins_refines pins hp) hds h
+  conron.model_exists' V hind hvar (check_decls_pins_refines_ok pins hp) hds h
 
 /-- **The main corollary for the shipped binary** (task #64):
 `conron.no_proof_of_False'` at the embedded pins. -/
@@ -216,7 +216,7 @@ theorem conron.no_proof_of_False_embedded (V : Type w) [ConLeche.SetTheory V]
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ¬ ∃ c ∈ (absEnv e).consts,
         c.toConstantVal.type = .const ConLeche.falseName [] :=
-  conron.no_proof_of_False' V hind hvar (check_decls_pins_refines pins hp) hds h
+  conron.no_proof_of_False' V hind hvar (check_decls_pins_refines_ok pins hp) hds h
 
 /-! ## The census (DESIGN.md §5, the P3 gate) — **passed**
 
