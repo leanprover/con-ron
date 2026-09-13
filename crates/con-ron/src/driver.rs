@@ -203,7 +203,6 @@ pub fn value_kind_word(k: &ValueKind) -> &'static str {
 /// con-leche: ConLeche/Cached/ParsedC.lean:267-276 declCLabel
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove driver::decl_label_refines, then delete this line
 /// con-leche: Main.lean:61-65 declCName
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove driver::decl_label_refines, then delete this line
 /// A parsed declaration's display label.  DESIGN.md §3.7 kept it out of the
 /// verified core as driver-only rendering ("the theorem never reads a
 /// message"), so the driver carries it — and con-leche makes the same split
@@ -244,7 +243,6 @@ pub fn ms_secs(ms: u128) -> String {
 // ---------------------------------------------------------------------------
 
 /// con-leche: Main.lean:423-434 progressStride
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove driver::progress_stride_refines, then delete this line
 /// The progress heartbeat's stride: no flag is off; bare `--progress` is
 /// stride 1.  A value that is not a decimal numeral, and `0` — the flag asking
 /// for no heartbeat — are usage errors, per the provenance discipline the
@@ -265,7 +263,6 @@ pub fn progress_stride(v: &str) -> Result<u64, String> {
 }
 
 /// con-leche: Main.lean:436-459 jobsCount
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove driver::jobs_count_refines, then delete this line
 /// The worker count: a decimal numeral of at least 1, `1` being the sequential
 /// lane (one worker, no shared counter and no result table).  `0` and a
 /// non-numeral are usage errors (exit 3), as in con-leche, so a script that
@@ -459,7 +456,6 @@ pub fn mark_persistent_note() -> &'static str {
 // ---------------------------------------------------------------------------
 
 /// con-leche: Main.lean:143-158 checkHeartbeat
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove driver::PhaseObserver_refines, then delete this line
 /// con-leche: Main.lean:318-421 checkDeclsIO
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove driver::PhaseObserver_refines, then delete this line
 /// What a caller wants to know between the steps of the fold.  Every method
@@ -509,7 +505,6 @@ pub trait PhaseObserver {
     fn phase_b_workers(&mut self, _workers: usize) {}
 
     /// con-leche: Main.lean:240-260 checkOne
-    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove driver::wants_check_lines_refines, then delete this line
     /// **Does this observer want a line per completed check?**  The port's
     /// spelling of the cited `stride > 0` guard, which con-leche reads off the
     /// stride the pool was handed: `false` and no worker touches the shared
@@ -522,7 +517,6 @@ pub trait PhaseObserver {
     }
 
     /// con-leche: Main.lean:143-158 checkHeartbeat
-    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove driver::check_after_refines, then delete this line
     /// After the `done`-th of `m` recorded checks completed — the record it
     /// was, the memo state it used, the index it left.
     fn check_after(
@@ -552,7 +546,6 @@ pub trait PhaseObserver {
 /// con-leche: Main.lean:67-141 installLoop
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// con-leche: Main.lean:160-191 checkLoop
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// **The driver**: phase A installs every record, phase B checks every
@@ -663,7 +656,6 @@ pub fn check_decls_driver<O: PhaseObserver + Send>(
 /// con-leche: Main.lean:318-421 checkDeclsIO
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// con-leche: Main.lean:143-158 checkHeartbeat
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// **The heartbeat**, `OVERVIEW.md` §0's line shapes with con-leche's
 /// `con-leche: ` prefix replaced by `con-ron: `:
 ///
@@ -785,7 +777,6 @@ impl Heartbeat {
 }
 
 /// con-leche: Main.lean:143-158 checkHeartbeat
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove driver::impl PhaseObserver for Heartbeat_refines, then delete this line
 /// con-leche: Main.lean:318-421 checkDeclsIO
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove driver::impl PhaseObserver for Heartbeat_refines, then delete this line
 /// The heartbeat as an observer of the two phases.
@@ -830,7 +821,6 @@ impl PhaseObserver for Heartbeat {
     }
 
     /// con-leche: Main.lean:240-260 checkOne
-    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove driver::wants_check_lines_refines, then delete this line
     /// The cited `stride > 0`: with no heartbeat no worker bumps the shared
     /// completed-counter.
     fn wants_check_lines(&self) -> bool {
@@ -856,7 +846,6 @@ impl PhaseObserver for Heartbeat {
     }
 
     /// con-leche: Main.lean:143-158 checkHeartbeat
-    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove driver::check_after_refines, then delete this line
     /// `con-leche: check <done>/<M> <kind> <name> t=<s>s`, after the check.
     fn check_after(&mut self, done: usize, m: usize, pc: &PendingCheck, _st: &CState, _fe: &FEnv) {
         if self.stride > 0 && (done as u64) % self.stride == 0 {

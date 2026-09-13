@@ -1730,7 +1730,6 @@ pub fn fvar_b(e: &Expr) -> u64 {
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2365-2378 instPisAtLift
 /// con-leche: ConLeche/Cached/CheckerC.lean:31-35 instPisAtLiftC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops::inst_pis_at_lift_refines, then delete this line
 /// Instantiate the leading `∀`-binders at *open* arguments, by the general
 /// capture-avoiding substitution.  The `i = 0` wrapper of the recursion
 /// below.
@@ -1746,7 +1745,6 @@ pub fn inst_pis_at_lift(args: &Vec<Expr>, e: &Expr) -> Option<Expr> {
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2365-2378 instPisAtLift
 /// con-leche: ConLeche/Cached/CheckerC.lean:31-35 instPisAtLiftC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops::inst_pis_at_lift_from_refines, then delete this line
 /// The index recursion behind `inst_pis_at_lift`.
 pub fn inst_pis_at_lift_from(args: &Vec<Expr>, i: usize, e: &Expr) -> Option<Expr> {
     if i >= args.len() {

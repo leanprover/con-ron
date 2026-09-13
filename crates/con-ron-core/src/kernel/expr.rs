@@ -323,7 +323,6 @@ pub fn sat_pred(x: u64) -> u64 {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::ExprKind_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprC.lean:102-109 ExprC
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::ExprKind_refines, then delete this line
 /// The ten constructors of `inductive Expr`; the cited
@@ -350,7 +349,6 @@ pub enum ExprKind {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::ExprNode_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprC.lean:102-109 ExprC
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::ExprNode_refines, then delete this line
 /// The heap node of an `Expr`: the cited inductive's `@[computed_field]
@@ -361,7 +359,6 @@ pub struct ExprNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::Expr_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprC.lean:102-109 ExprC
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::Expr_refines, then delete this line
 /// A kernel expression, as a `P` tree — Lean's value semantics made
@@ -369,7 +366,6 @@ pub struct ExprNode {
 pub struct Expr(pub P<ExprNode>);
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::data_refines, then delete this line
 /// The cached `@[computed_field] data`, an `O(1)` field read.
 pub fn data(e: &Expr) -> u64 {
     e.0.data
@@ -382,7 +378,6 @@ pub fn dup(e: &Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::bvar_refines, then delete this line
 /// `Expr.bvar`, with the cited `data` equation
 /// `packData (hash32 (mixHash 3 (hash i))) (satSucc i) 0 false`.
 pub fn bvar(i: u64) -> Expr {
@@ -392,7 +387,6 @@ pub fn bvar(i: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::fvar_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprC.lean:129-130 mkFVar
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::fvar_refines, then delete this line
 /// `Expr.fvar`: hash tag 5; the fvar range is `satSucc idx`, the bvar bound
@@ -409,7 +403,6 @@ pub fn fvar(idx: u64, ty: Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::sort_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprC.lean:132 mkSort
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::sort_refines, then delete this line
 /// `Expr.sort`: hash tag 7 over the level's own cached hash; both ranges are
@@ -421,7 +414,6 @@ pub fn sort(u: Level) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::mk_const_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprC.lean:134 mkConst
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::mk_const_refines, then delete this line
 /// `Expr.const`: hash tag 11 over the name's hash and `levelsHash us`.
@@ -437,7 +429,6 @@ pub fn mk_const(n: Name, us: Vec<Level>) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::app_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprC.lean:136 mkApp
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::app_refines, then delete this line
 /// `Expr.app`: hash tag 17; both ranges are the componentwise `max` and the
@@ -459,7 +450,6 @@ pub fn app(f: Expr, a: Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::lam_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprC.lean:138-139 mkLam
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::lam_refines, then delete this line
 /// `Expr.lam`: hash tag 19 over the type, the body and the binder datum; the
@@ -485,7 +475,6 @@ pub fn lam(ty: Expr, body: Expr, m: BinderMeta) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::forall_e_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprC.lean:141-142 mkForallE
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::forall_e_refines, then delete this line
 /// `Expr.forallE`: `lam`'s equation with hash tag 23.
@@ -509,7 +498,6 @@ pub fn forall_e(ty: Expr, body: Expr, m: BinderMeta) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::let_e_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprC.lean:144-145 mkLetE
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::let_e_refines, then delete this line
 /// `Expr.letE`: hash tag 29 over type, value and body; only the body is
@@ -538,7 +526,6 @@ pub fn let_e(ty: Expr, value: Expr, body: Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::lit_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprC.lean:147 mkLit
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::lit_refines, then delete this line
 /// `Expr.lit`: hash tag 31; a literal is closed, so both ranges are `0` and
@@ -550,7 +537,6 @@ pub fn lit(l: Literal) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::proj_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprC.lean:149 mkProj
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::proj_refines, then delete this line
 /// `Expr.proj`: hash tag 37 over the structure name, the field index and the

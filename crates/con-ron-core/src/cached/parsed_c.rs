@@ -60,6 +60,7 @@ use crate::cached::state_c::CheckCM;
 use crate::kernel::basis_names;
 use crate::kernel::checker;
 use crate::kernel::core_k;
+use crate::kernel::checker_base;
 use crate::kernel::core_types;
 use crate::kernel::env;
 use crate::kernel::env::BasisKind;
@@ -151,7 +152,6 @@ pub struct PendingCheck {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:51-53 opSIxC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::op_s_ix_c_refines, then delete this line
 /// Parsed `ensureSort` (no per-call conversion): `ensureSortI` over the
 /// cached knot at `checkFuel`, which is `type_checker::ensure_sort_core` —
 /// the one place the knot is named (task #24's collapse 1).
@@ -222,7 +222,7 @@ pub fn check_constant_val_c_after_annot(
     if !expr_ops_c::all_level_params_defined(&cv.level_params, &jty) {
         Err(core_types::invalid({ const M: [u32; 37] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
     } else if !state_c::consts_resolve_fc(fe, &jty) {
-        Err(core_types::invalid({ const M: [u32; 24] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&jty))
     } else {
         match type_checker::infer_type_core(mode, st, fe, 0, &jty) {
             Err(err) => Err(err),
@@ -286,7 +286,7 @@ pub fn check_defn_val_c_after_annot(
     if !expr_ops_c::all_level_params_defined(&cv_a.level_params, &jv) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else if !state_c::consts_resolve_fc(&fe, &jv) {
-        Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&jv))
     } else {
         state_c::record_c_const(
             st,
@@ -391,7 +391,7 @@ pub fn check_thm_val_c_checked(
     if !expr_ops_c::all_level_params_defined(&cv_a.level_params, &jv) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else if !state_c::consts_resolve_fc(&fe, &jv) {
-        Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&jv))
     } else {
         state_c::record_c_const(
             st,
@@ -461,7 +461,7 @@ pub fn check_opaque_val_c_after_annot(
     if !expr_ops_c::all_level_params_defined(&cv_a.level_params, &jv) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else if !state_c::consts_resolve_fc(&fe, &jv) {
-        Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&jv))
     } else {
         state_c::record_c_const(
             st,
@@ -683,7 +683,7 @@ pub fn check_axiom_decl_c(
                 || name::beq(&cv_a.name, &std_axioms::choice_name())
             {
                 Err(core_types::not_implemented({ const M: [u32; 29] = [115, 116, 97, 110, 100, 97, 114, 100, 32, 97, 120, 105, 111, 109, 32, 115, 104, 97, 112, 101, 32, 109, 105, 115, 109, 97, 116, 99, 104]; core_types::code_points(&M) }))
-            } else if name::contains(&std_axioms::tolerated_axiom_names(), &cv_a.name) {
+            } else if name::beq(&cv_a.name, &basis_names::sorry_ax_name()) {
                 Ok(fe)
             } else {
                 Err(core_types::not_implemented({ const M: [u32; 18] = [110, 111, 110, 45, 115, 116, 97, 110, 100, 97, 114, 100, 32, 97, 120, 105, 111, 109]; core_types::code_points(&M) }))
@@ -743,7 +743,6 @@ pub fn check_ind_decl_c(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:278-282 checkDeclStepC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_decl_step_c_refines, then delete this line
 /// One step of the parsed-declaration fold: **flush, then check**.  The flush
 /// is what makes one `CState` safe for a whole stream — every
 /// environment-dependent memo is emptied, the self-certified `ienv` and the

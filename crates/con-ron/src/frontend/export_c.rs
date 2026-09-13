@@ -459,7 +459,6 @@ pub fn st_level(st: &StateD, i: u64) -> Result<Level, LineErr> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:174-177 StateD.expr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::st_expr_refines, then delete this line
 pub fn st_expr(st: &StateD, i: u64) -> Result<Expr, LineErr> {
     match id_table_get(&st.exprs, i) {
         Some(e) => Ok(expr::dup(e)),
@@ -623,7 +622,6 @@ pub fn parse_expr_entry_d(st: &mut StateD, i: u64, r: &ExprRec) -> Result<(), Li
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:283-289 parseCVD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_cv_d_refines, then delete this line
 /// A declaration's common data.
 pub fn parse_cv_d(st: &StateD, cv: &CVRec) -> Result<ConstantVal, LineErr> {
     let nm = st_name(st, cv.name)?;
@@ -697,7 +695,6 @@ pub fn push_gen_d(st: &mut StateD, d: DeclC) -> Result<(), LineErr> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:328-336 noteGen
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::note_gen_refines, then delete this line
 /// Book a record the in-process modeller generated for block `T0`: a
 /// declaration of the FOLD, never a record of the file, so the driver's
 /// headline count subtracts it and a failure at it is reported with the block
@@ -707,7 +704,6 @@ pub fn note_gen(st: &mut StateD, d: &DeclC, t0: &Name) {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:328-336 noteGen
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::note_gen_names_refines, then delete this line
 /// `note_gen` at the record's names already in hand.  The call site needs
 /// this half: `push_gen_d` takes the `DeclC` by value (it is pushed into the
 /// state), and whether it pushed — the cited `st'.decls.size > before` — is
@@ -1379,7 +1375,6 @@ pub fn apply_decl_d(st: &mut StateD, d: &DeclRec) -> Result<(), LineErr> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:713-726 applyLine
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::apply_line_refines, then delete this line
 /// **The semantic layer**: one scanned line applied to the parse state.
 pub fn apply_line(st: &mut StateD, r: &LineRec) -> Result<(), LineErr> {
     match r {

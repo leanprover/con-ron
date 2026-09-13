@@ -120,7 +120,6 @@ pub type CheckCM<T> = Result<T, CheckError>;
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::levels_list_hash_refines, then delete this line
 /// Lean's derived `Hashable (List α)` over `Level` — `foldl mixHash 7`
 /// (`Init/Data/Hashable.lean:37-38`), which is what the cited fields'
 /// `(Name × List Level)` keys hash their list component with.
@@ -129,7 +128,6 @@ pub fn levels_list_hash(us: &Vec<Level>) -> u64 {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::levels_list_hash_from_refines, then delete this line
 /// The index recursion behind `levels_list_hash`; the fold is a *left* one,
 /// so the accumulator is carried forward.
 pub fn levels_list_hash_from(us: &Vec<Level>, i: usize, acc: u64) -> u64 {
@@ -141,7 +139,6 @@ pub fn levels_list_hash_from(us: &Vec<Level>, i: usize, acc: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::exprs_list_hash_refines, then delete this line
 /// Lean's derived `Hashable (List α)` over `ExprC`, for the `instC` key's
 /// argument list.
 pub fn exprs_list_hash(es: &Vec<Expr>) -> u64 {
@@ -149,7 +146,6 @@ pub fn exprs_list_hash(es: &Vec<Expr>) -> u64 {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::exprs_list_hash_from_refines, then delete this line
 /// The index recursion behind `exprs_list_hash`.
 pub fn exprs_list_hash_from(es: &Vec<Expr>, i: usize, acc: u64) -> u64 {
     if i >= es.len() {
@@ -160,7 +156,6 @@ pub fn exprs_list_hash_from(es: &Vec<Expr>, i: usize, acc: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::exprs_beq_refines, then delete this line
 /// Lean's `BEq (List ExprC)` (`List.beq` over `BEq ExprC`), the twin of
 /// `expr::levels_beq` for the `instC` key's argument list.
 pub fn exprs_beq(ls: &Vec<Expr>, rs: &Vec<Expr>) -> bool {
@@ -172,7 +167,6 @@ pub fn exprs_beq(ls: &Vec<Expr>, rs: &Vec<Expr>) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::exprs_beq_from_refines, then delete this line
 /// The index recursion behind `exprs_beq`.
 pub fn exprs_beq_from(ls: &Vec<Expr>, rs: &Vec<Expr>, i: usize) -> bool {
     if i >= ls.len() {
@@ -185,12 +179,10 @@ pub fn exprs_beq_from(ls: &Vec<Expr>, rs: &Vec<Expr>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl Hashable for (Name, Vec<Level>)_refines, then delete this line
 /// The key dictionary of `constTyAt`/`constValAt`: Lean's derived
 /// `Hashable (Name × List Level)`.
 impl Hashable for (Name, Vec<Level>) {
     /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::hash64_refines, then delete this line
     /// `mixHash (hash n) (List.hash us)`, the derived product instance.
     fn hash64(&self) -> u64 {
         name::mix_hash(name::hash_data(&self.0), levels_list_hash(&self.1))
@@ -198,12 +190,10 @@ impl Hashable for (Name, Vec<Level>) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl Eq2 for (Name, Vec<Level>)_refines, then delete this line
 /// The key equality of `constTyAt`/`constValAt`: Lean's derived
 /// `BEq (Name × List Level)`, componentwise.
 impl Eq2 for (Name, Vec<Level>) {
     /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::eq2_refines, then delete this line
     /// The derived product equality, componentwise.
     fn eq2(&self, other: &Self) -> bool {
         name::beq(&self.0, &other.0) && expr::levels_beq(&self.1, &other.1)
@@ -211,12 +201,10 @@ impl Eq2 for (Name, Vec<Level>) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl Hashable for (Name, Name, Vec<Level>)_refines, then delete this line
 /// The key dictionary of `ruleRhsAt`.  A Lean triple is `(a, (b, c))`, so
 /// the derived hash is right-nested.
 impl Hashable for (Name, Name, Vec<Level>) {
     /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::hash64_refines, then delete this line
     /// `mixHash (hash c) (mixHash (hash j) (List.hash us))`.
     fn hash64(&self) -> u64 {
         name::mix_hash(
@@ -227,11 +215,9 @@ impl Hashable for (Name, Name, Vec<Level>) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl Eq2 for (Name, Name, Vec<Level>)_refines, then delete this line
 /// The key equality of `ruleRhsAt`, componentwise.
 impl Eq2 for (Name, Name, Vec<Level>) {
     /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::eq2_refines, then delete this line
     /// The derived triple equality, componentwise.
     fn eq2(&self, other: &Self) -> bool {
         name::beq(&self.0, &other.0)
@@ -241,11 +227,9 @@ impl Eq2 for (Name, Name, Vec<Level>) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl Hashable for (Expr, Expr)_refines, then delete this line
 /// The key dictionary of `defeqC`.
 impl Hashable for (Expr, Expr) {
     /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::hash64_refines, then delete this line
     /// `mixHash (hash a) (hash b)` over the two stored `Expr` words.
     fn hash64(&self) -> u64 {
         name::mix_hash(expr::hash(&self.0), expr::hash(&self.1))
@@ -253,12 +237,10 @@ impl Hashable for (Expr, Expr) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl Eq2 for (Expr, Expr)_refines, then delete this line
 /// The key equality of `defeqC`: `Expr.beq` on both components, with its
 /// pointer and computed-word fast paths (§3.2).
 impl Eq2 for (Expr, Expr) {
     /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::eq2_refines, then delete this line
     /// `Expr.beq` on both components, with its fast paths (§3.2).
     fn eq2(&self, other: &Self) -> bool {
         expr::beq(&self.0, &other.0) && expr::beq(&self.1, &other.1)
@@ -266,11 +248,9 @@ impl Eq2 for (Expr, Expr) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl Hashable for (Level, Level)_refines, then delete this line
 /// The key dictionary of `eqvC`.
 impl Hashable for (Level, Level) {
     /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::hash64_refines, then delete this line
     /// `mixHash (hash l) (hash r)` over the two stored `Level` words.
     fn hash64(&self) -> u64 {
         name::mix_hash(level::hash_data(&self.0), level::hash_data(&self.1))
@@ -278,11 +258,9 @@ impl Hashable for (Level, Level) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl Eq2 for (Level, Level)_refines, then delete this line
 /// The key equality of `eqvC`.
 impl Eq2 for (Level, Level) {
     /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::eq2_refines, then delete this line
     /// `Level.beq` on both components.
     fn eq2(&self, other: &Self) -> bool {
         level::beq(&self.0, &other.0) && level::beq(&self.1, &other.1)
@@ -290,12 +268,10 @@ impl Eq2 for (Level, Level) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl Hashable for (Expr, Vec<Expr>, u64)_refines, then delete this line
 /// The key dictionary of `instC`, the persistent bulk-instantiation memo:
 /// the whole argument tuple `(e, vs, d)`, hashed right-nested.
 impl Hashable for (Expr, Vec<Expr>, u64) {
     /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::hash64_refines, then delete this line
     /// `mixHash (hash e) (mixHash (List.hash vs) (UInt64.ofNat d))`.
     fn hash64(&self) -> u64 {
         name::mix_hash(
@@ -306,11 +282,9 @@ impl Hashable for (Expr, Vec<Expr>, u64) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl Eq2 for (Expr, Vec<Expr>, u64)_refines, then delete this line
 /// The key equality of `instC`, componentwise.
 impl Eq2 for (Expr, Vec<Expr>, u64) {
     /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-    /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::eq2_refines, then delete this line
     /// The derived triple equality, componentwise.
     fn eq2(&self, other: &Self) -> bool {
         expr::beq(&self.0, &other.0) && exprs_beq(&self.1, &other.1) && self.2 == other.2
@@ -322,7 +296,6 @@ impl Eq2 for (Expr, Vec<Expr>, u64) {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:116-125 CConstE
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::CConstE_refines, then delete this line
 /// One cached-environment entry: a stored constant's annotated type and (for
 /// definitions/theorems/opaques) value, each tagged with the very `Expr`
 /// object it came from.  Deviations: `ExprC` is `Expr` (the module note), and
@@ -334,7 +307,6 @@ pub struct CConstE {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:116-125 CConstE
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::cconst_e_new_refines, then delete this line
 /// The cited structure at its one field default, `val := none`.
 pub fn cconst_e_new(ty_e: Expr, ty: Expr) -> CConstE {
     CConstE {
@@ -345,7 +317,6 @@ pub fn cconst_e_new(ty_e: Expr, ty: Expr) -> CConstE {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::CState_refines, then delete this line
 /// Per-declaration state: the converted-constant cache `ienv`, the memo
 /// caches for the five entry points, the lazy caches for level-instantiated
 /// stored constants, the level-operation memos, and the persistent
@@ -436,14 +407,12 @@ pub fn peel_fuel() -> u64 {
 // policy, so each wrapper below names the `ExprC` twin it runs.
 
 /// con-leche: ConLeche/Cached/StateC.lean:176-177 bvarBoundM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::bvar_bound_m_refines, then delete this line
 /// The per-node loose-bvar bound — an `O(1)` field read (`Expr.bvarB`).
 pub fn bvar_bound_m(e: &Expr) -> u64 {
     expr_ops::bvar_b(e)
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:181-184 inst1M
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::inst1_m_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:275-277 instantiate1
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::inst1_m_refines, then delete this line
 /// `ExprC.instantiate1`; the identity — the same node, by reference — when
@@ -454,7 +423,6 @@ pub fn inst1_m(e: &Expr, v: &Expr, d: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:186-199 instListM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::inst_c_probe_refines, then delete this line
 /// The cited `s.instC[(e, vs, d)]?` probe, as its own function over a
 /// *shared* state borrow (see `lsimp_probe`).
 pub fn inst_c_probe(s: &CState, key: &(Expr, Vec<Expr>, u64)) -> Option<Expr> {
@@ -465,7 +433,6 @@ pub fn inst_c_probe(s: &CState, key: &(Expr, Vec<Expr>, u64)) -> Option<Expr> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:186-199 instListM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::inst_list_m_refines, then delete this line
 /// **Bulk instantiation with the persistent result memo**, keyed by the
 /// whole argument tuple `(e, vs, d)`.  The three cited steps, in order: the
 /// `e.bvarB ≤ d` identity (no key is built and nothing is cached), the
@@ -503,7 +470,6 @@ pub fn inst_list_m(s: &mut CState, e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:186-199 instListM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::inst_list_m_reset_at_refines, then delete this line
 /// The cited entry bound, **at the bound as a parameter**: at `cap` entries
 /// the memo is dropped whole, so the next insert starts it over.  Split out
 /// of `inst_list_m` so that the `len()` borrow ends before the insert (task
@@ -518,7 +484,6 @@ pub fn inst_list_m_reset_at(s: &mut CState, cap: usize) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:186-199 instListM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::inst_list_m_reset_refines, then delete this line
 /// The cited `let mp := if mp.size < instCCapC then mp else {}`, i.e.
 /// `inst_list_m_reset_at` at `instCCapC`.
 pub fn inst_list_m_reset(s: &mut CState) {
@@ -526,9 +491,7 @@ pub fn inst_list_m_reset(s: &mut CState) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:201-205 instListRevM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::inst_list_rev_m_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:427-431 instantiateRev
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::inst_list_rev_m_refines, then delete this line
 /// **Bulk instantiation on a reversed accumulator array**, deliberately not
 /// memoized in `CState`.  `ExprC.instantiateRev` indexes the array from its
 /// end (`instantiateRevGo`'s `vs[vs.size - 1 - (i - d)]` where
@@ -543,7 +506,6 @@ pub fn inst_list_rev_m(e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:207-208 abstract1M
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::abstract1_m_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:510-512 abstract1
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::abstract1_m_refines, then delete this line
 /// `ExprC.abstract1` at the binder cursor `0` (the cited `(k : Nat := 0)`
@@ -553,7 +515,6 @@ pub fn abstract1_m(e: &Expr, d: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:210-211 abstractRangeM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::abstract_range_m_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:569-574 abstractRange
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::abstract_range_m_refines, then delete this line
 /// `ExprC.abstractRange` at the binder cursor `0`.
@@ -562,7 +523,6 @@ pub fn abstract_range_m(e: &Expr, d: u64, k: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:213-214 mkAppNM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::mk_app_n_m_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:78-81 mkAppN
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::mk_app_n_m_refines, then delete this line
 /// `ExprC.mkAppN`.  Deviation: the head is taken by value, as `mk_app_n`'s
@@ -572,7 +532,6 @@ pub fn mk_app_n_m(f: Expr, args: &Vec<Expr>) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:216-218 instSpineM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::inst_spine_m_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:757-761 instSpine
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::inst_spine_m_refines, then delete this line
 /// `ExprC.instSpine`: the one bulk pass when the spine spans the telescope
@@ -582,9 +541,7 @@ pub fn inst_spine_m(args: &Vec<Expr>, t: u64, e: &Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:224-226 instLevelParamsM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::inst_level_params_m_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:605-607 instLevelParams
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::inst_level_params_m_refines, then delete this line
 /// `ExprC.instLevelParams`.
 pub fn inst_level_params_m(ks: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> Expr {
     expr_ops_c::inst_level_params(ks, us, e)
@@ -755,7 +712,6 @@ pub fn is_equiv_list_l_m_from(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:312-320 storedTyIdxM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::ienv_ty_probe_refines, then delete this line
 /// The cited `s.ienv[n]?` probe, as an owning read of the entry's type half:
 /// the tag and the conversion, copied out so the map's borrow ends before
 /// the caller writes to the state (task #14's rule).
@@ -767,7 +723,6 @@ pub fn ienv_ty_probe(s: &CState, n: &Name) -> Option<(Expr, Expr)> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:322-330 storedValIdxM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::ienv_val_probe_refines, then delete this line
 /// The cited `s.ienv[n]?` probe at the entry's *value* half (`some (vE,
 /// vi)`; `none` where the entry carries no value).
 pub fn ienv_val_probe(s: &CState, n: &Name) -> Option<(Expr, Expr)> {
@@ -781,7 +736,6 @@ pub fn ienv_val_probe(s: &CState, n: &Name) -> Option<(Expr, Expr)> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:312-320 storedTyIdxM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::stored_ty_idx_m_refines, then delete this line
 /// **The `ExprC` of a stored constant's type**: the cached entry when its
 /// `Expr` tag validates by pointer equality, else the `Expr` itself.
 ///
@@ -809,7 +763,6 @@ pub fn stored_ty_idx_m(s: &mut CState, n: &Name, ty: &Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:322-330 storedValIdxM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::stored_val_idx_m_refines, then delete this line
 /// The `ExprC` of a stored definition/theorem value (see `stored_ty_idx_m`,
 /// whose pointer-identity note covers this site too).
 pub fn stored_val_idx_m(s: &mut CState, n: &Name, v: &Expr) -> Expr {
@@ -826,7 +779,6 @@ pub fn stored_val_idx_m(s: &mut CState, n: &Name, v: &Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:332-349 constTyAtM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::const_ty_at_probe_refines, then delete this line
 /// The cited `s.constTyAt[(n, us)]?` probe (see `lsimp_probe`).
 pub fn const_ty_at_probe(s: &CState, key: &(Name, Vec<Level>)) -> Option<Expr> {
     match s.const_ty_at.get(key) {
@@ -836,7 +788,6 @@ pub fn const_ty_at_probe(s: &CState, key: &(Name, Vec<Level>)) -> Option<Expr> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:351-367 constValAtM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::const_val_at_probe_refines, then delete this line
 /// The cited `s.constValAt[(n, us)]?` probe.
 pub fn const_val_at_probe(s: &CState, key: &(Name, Vec<Level>)) -> Option<Expr> {
     match s.const_val_at.get(key) {
@@ -846,7 +797,6 @@ pub fn const_val_at_probe(s: &CState, key: &(Name, Vec<Level>)) -> Option<Expr> 
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:369-388 ruleRhsAtM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::rule_rhs_at_probe_refines, then delete this line
 /// The cited `s.ruleRhsAt[(c, j, us)]?` probe.
 pub fn rule_rhs_at_probe(s: &CState, key: &(Name, Name, Vec<Level>)) -> Option<Expr> {
     match s.rule_rhs_at.get(key) {
@@ -856,7 +806,6 @@ pub fn rule_rhs_at_probe(s: &CState, key: &(Name, Name, Vec<Level>)) -> Option<E
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:332-349 constTyAtM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::const_decl_probe_refines, then delete this line
 /// The cited `fe.find? n` read, as an owning probe of the two fields
 /// `ci.toConstantVal` is destructured for: the level parameters and the
 /// stored type.  `to_constant_val` would copy the record; this copies the
@@ -872,7 +821,6 @@ pub fn const_decl_probe(fe: &FEnv, n: &Name) -> Option<(Vec<Name>, Expr)> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:351-367 constValAtM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::defn_decl_probe_refines, then delete this line
 /// The cited `some (.defnInfo cv v _)` destructuring, as an owning probe:
 /// the level parameters and the stored value (task #18's deviation 8).
 pub fn defn_decl_probe(fe: &FEnv, n: &Name) -> Option<(Vec<Name>, Expr)> {
@@ -888,7 +836,6 @@ pub fn defn_decl_probe(fe: &FEnv, n: &Name) -> Option<(Vec<Name>, Expr)> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:369-388 ruleRhsAtM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::rule_rhs_probe_refines, then delete this line
 /// The cited `some (.recInfo cv _ _ rules)` destructuring followed by
 /// `rules.find? (·.ctor == j)`, as one owning probe: the recursor's level
 /// parameters and the matching rule's right-hand side.  `none` covers both
@@ -911,7 +858,6 @@ pub fn rule_rhs_probe(fe: &FEnv, c: &Name, j: &Name) -> Option<(Vec<Name>, Expr)
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:369-388 ruleRhsAtM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::rule_rhs_probe_from_refines, then delete this line
 /// The index recursion the cited `rules.find? (fun r' => r'.ctor == j)`
 /// becomes, answering with the found rule's `rhs`.
 pub fn rule_rhs_probe_from(rules: &Vec<env::RecRule>, j: &Name, i: usize) -> Option<Expr> {
@@ -925,7 +871,6 @@ pub fn rule_rhs_probe_from(rules: &Vec<env::RecRule>, j: &Name, i: usize) -> Opt
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:332-349 constTyAtM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::const_ty_at_m_refines, then delete this line
 /// **The level-instantiated type of the stored constant `n`**, memoized in
 /// `constTyAt` under the `(n, us)` key: the probe, then the stored type
 /// through `stored_ty_idx_m`, then `inst_level_params_m`, then the insert.
@@ -954,7 +899,6 @@ pub fn const_ty_at_m(s: &mut CState, fe: &FEnv, n: &Name, us: &Vec<Level>) -> Ch
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:351-367 constValAtM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::const_val_at_m_refines, then delete this line
 /// The level-instantiated *value* of the stored definition `n`, memoized in
 /// `constValAt` (see `const_ty_at_m`; the `_nI` parameter is dropped there
 /// too).
@@ -979,7 +923,6 @@ pub fn const_val_at_m(s: &mut CState, fe: &FEnv, n: &Name, us: &Vec<Level>) -> C
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:369-388 ruleRhsAtM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::rule_rhs_at_m_refines, then delete this line
 /// The level-instantiated right-hand side of the rule for constructor `j` of
 /// the stored recursor `c`, memoized in `ruleRhsAt` under the `(c, j, us)`
 /// key.  Deviation: the cited `_cI _jI` parameters are dropped, as
@@ -1054,7 +997,6 @@ pub fn flush_c(s: &mut CState) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:452-460 recordCConst
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::record_c_const_refines, then delete this line
 /// Record an accepted constant's converted type/value, tagged with the very
 /// `Expr` objects pushed into the environment.
 pub fn record_c_const(
@@ -1072,7 +1014,6 @@ pub fn record_c_const(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:409-446 constsResolveFCGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::consts_resolve_fc_go_refines, then delete this line
 /// Core of `consts_resolve_fc`: `Expr.constsResolveF` as a **memoized DAG
 /// walk**.  The memo is local to the call (the result depends on the
 /// environment), so it is a `&mut HashMap` accumulator, exactly as
@@ -1096,7 +1037,6 @@ pub fn consts_resolve_fc_go(fe: &FEnv, memo: &mut HashMap<Expr, bool>, e: &Expr)
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:409-446 constsResolveFCGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::memo_b_get_refines, then delete this line
 /// The cited `memo[e]?` probe, as its own function so the map's borrow ends
 /// before the miss branch writes to it.
 pub fn memo_b_get(memo: &HashMap<Expr, bool>, k: &Expr) -> Option<bool> {
@@ -1107,7 +1047,6 @@ pub fn memo_b_get(memo: &HashMap<Expr, bool>, k: &Expr) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:409-446 constsResolveFCGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::consts_resolve_fc_node_refines, then delete this line
 /// The cited inner `match e with …`: the node's own answer, computed on a
 /// memo miss and inserted by `consts_resolve_fc_go`.
 pub fn consts_resolve_fc_node(fe: &FEnv, memo: &mut HashMap<Expr, bool>, e: &Expr) -> bool {
@@ -1167,7 +1106,6 @@ pub fn consts_resolve_fc_node(fe: &FEnv, memo: &mut HashMap<Expr, bool>, e: &Exp
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:448-450 constsResolveFC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::consts_resolve_fc_refines, then delete this line
 /// `Expr.constsResolveF fe` on `ExprC` — one memoized DAG walk.
 pub fn consts_resolve_fc(fe: &FEnv, e: &Expr) -> bool {
     let mut memo: HashMap<Expr, bool> = HashMap::new();
@@ -1195,7 +1133,6 @@ pub fn consts_resolve_fc(fe: &FEnv, e: &Expr) -> bool {
 // `P` bump each instance is.
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl crate::ron::hashmap::Dup for Name_refines, then delete this line
 /// The key type of `ienv` and a component of three tuple keys; the copy is
 /// `name::dup`'s `P` bump (DESIGN.md §3.2).
 impl crate::ron::hashmap::Dup for Name {
@@ -1206,7 +1143,6 @@ impl crate::ron::hashmap::Dup for Name {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl crate::ron::hashmap::Dup for Level_refines, then delete this line
 /// The key type of `lsimpC`/`lnzC` and the value type of `lsimpC`; the copy
 /// is `level::dup`'s `P` bump.
 impl crate::ron::hashmap::Dup for Level {
@@ -1217,7 +1153,6 @@ impl crate::ron::hashmap::Dup for Level {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl crate::ron::hashmap::Dup for Expr_refines, then delete this line
 /// The key and value type of the five expression memos; the copy is
 /// `expr::dup`'s `P` bump, so no node is ever descended into.
 impl crate::ron::hashmap::Dup for Expr {
@@ -1228,7 +1163,6 @@ impl crate::ron::hashmap::Dup for Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl crate::ron::hashmap::Dup for Vec<Level>_refines, then delete this line
 /// The level list of `constTyAt`/`constValAt`/`ruleRhsAt`'s key: only the
 /// spine is copied (`env::levels_copy`).
 impl crate::ron::hashmap::Dup for Vec<Level> {
@@ -1239,7 +1173,6 @@ impl crate::ron::hashmap::Dup for Vec<Level> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl crate::ron::hashmap::Dup for Vec<Expr>_refines, then delete this line
 /// The argument list of `instC`'s key: only the spine is copied
 /// (`env::exprs_copy`).
 impl crate::ron::hashmap::Dup for Vec<Expr> {
@@ -1250,7 +1183,6 @@ impl crate::ron::hashmap::Dup for Vec<Expr> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:116-125 CConstE
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::impl crate::ron::hashmap::Dup for CConstE_refines, then delete this line
 /// The value type of `ienv`: three expression handles, the third behind an
 /// `Option` of a pair.
 impl crate::ron::hashmap::Dup for CConstE {
@@ -1269,7 +1201,6 @@ impl crate::ron::hashmap::Dup for CConstE {
 
 /// con-leche: none — the `dup` of a `CState`; Lean's value semantics hides it
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::dup_refines, then delete this line
 /// A snapshot of the per-declaration state: all fourteen maps copied, in the
 /// cited field order.  The copy shares no table with the original, so writing
 /// to one leaves the other alone — which is what lets a caller restore the

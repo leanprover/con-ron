@@ -43,6 +43,7 @@ use crate::kernel::expr;
 use crate::kernel::expr::{BinderMeta, Expr, ExprKind};
 use crate::kernel::expr_ops;
 use crate::kernel::fenv;
+use crate::kernel::inductives::struct_parts;
 use crate::kernel::fenv::FEnv;
 use crate::kernel::level;
 use crate::kernel::level::Level;
@@ -55,6 +56,29 @@ use std::vec::Vec;
 // ---------------------------------------------------------------------------
 // The common per-declaration check (`CheckerBase.lean:73-97`)
 // ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:71-91 unresolvedConstsError
+/// **The verdict at a term whose constants do not all resolve.**  A term that
+/// mentions `sorryAx` declines — that axiom is tolerated as a declaration and
+/// installs nothing, so a use of it is a positively detected unsupported
+/// feature, never a malformed stream; anything else is an unknown constant
+/// and rejects.  The cited `where_ : String` argument only names the slot in
+/// the message, and §3.1 says messages need not match, so the port takes no
+/// such argument: the two verdicts are the two messages.
+pub fn unresolved_consts_error(e: &Expr) -> CheckError {
+    const S: [u32; 24] = [
+        117, 115, 101, 32, 111, 102, 32, 116, 104, 101, 32, 115, 111, 114, 114, 121, 65, 120,
+        32, 97, 120, 105, 111, 109,
+    ];
+    const U: [u32; 16] = [
+        117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116,
+    ];
+    if struct_parts::mentions_const(&basis_names::sorry_ax_name(), e) {
+        core_types::not_implemented(core_types::code_points(&S))
+    } else {
+        core_types::invalid(core_types::code_points(&U))
+    }
+}
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:95-119 checkConstantVal
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
@@ -119,7 +143,7 @@ pub fn check_constant_val_after_annot(
     if !expr_ops::all_level_params_defined_fast(&cv.level_params, &ty) {
         Err(core_types::invalid({ const M: [u32; 37] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
     } else if !decl_check::consts_resolve_f_fast(fe, &ty) {
-        Err(core_types::invalid({ const M: [u32; 24] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
+        Err(unresolved_consts_error(&ty))
     } else {
         match type_checker::infer_type_core(mode, st, fe, 0, &ty) {
             Err(err) => Err(err),

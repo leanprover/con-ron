@@ -1030,7 +1030,6 @@ pub fn struct_proj_guards_from(
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:748-766 structProjBodiesGo
 /// con-leche: ConLeche/Cached/CheckerC.lean:37-43 structProjBodiesGoC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove struct_parts::struct_proj_bodies_go_refines, then delete this line
 /// The projection bodies' one walk of the constructor telescope: field `i`'s
 /// domain is body `i`, and the field is replaced by the subject's projection
 /// `.proj T i (bvar 0)` before the walk continues.  Lean conses `fdom` on the

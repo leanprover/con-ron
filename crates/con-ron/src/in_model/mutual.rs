@@ -183,7 +183,6 @@ pub fn need<T>(what: &str, o: Option<T>) -> Result<T, String> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:160-452 genMutual
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove mutual::gen_mutual_refines, then delete this line
 /// **The mutual rung** (B1 index-free, B2 indexed).  The records, in stream
 /// order: the tag block, the auxiliary block, the member/constructor/recursor
 /// models, the iota theorems, the projection artifacts.
@@ -1087,9 +1086,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:160-452 genMutual
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove mutual::h_of_refines, then delete this line
 /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove mutual::h_of_refines, then delete this line
 /// The `hOf` of both generators: the height of a constant, the definitions
 /// emitted by this block first (they are not in `ctx` yet), else the parse
 /// state's table.

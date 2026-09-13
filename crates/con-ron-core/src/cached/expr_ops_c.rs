@@ -170,7 +170,6 @@ pub fn mk_app_n_from(f: Expr, args: &Vec<Expr>, i: usize) -> Expr {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:71-72 MemoN
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::MemoN_refines, then delete this line
 /// Memo table for cursored node→node traversals.  The key dictionaries are
 /// `expr_ops::ExprNatKey`'s — Lean's derived `Hashable`/`BEq` on
 /// `(ExprC × Nat)` at the same components (task #14's point 6).  Erased
@@ -179,7 +178,6 @@ pub fn mk_app_n_from(f: Expr, args: &Vec<Expr>, i: usize) -> Expr {
 pub type MemoN = HashMap<ExprNatKey, Expr>;
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:74-81 MemoNL
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::MemoNL_refines, then delete this line
 /// Memo table for the bulk traversals, `(node, cursor)` — **the live prefix
 /// `k` is not part of the key** (module note 3).  The same Rust type as
 /// `MemoN`, as it is the same Lean type; the two names are kept because the
@@ -187,7 +185,6 @@ pub type MemoN = HashMap<ExprNatKey, Expr>;
 pub type MemoNL = HashMap<ExprNatKey, Expr>;
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:564-565 Memo0
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::Memo0_refines, then delete this line
 /// Memo table for cursor-free node→node traversals.
 pub type Memo0 = HashMap<Expr, Expr>;
 
@@ -702,7 +699,6 @@ pub fn instantiate_rev_bvar(vs: &Vec<Expr>, e: &Expr, j: u64, d: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:427-431 instantiateRev
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::instantiate_rev_refines, then delete this line
 /// Bulk instantiation on a reversed accumulator array.
 pub fn instantiate_rev(e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
     if vs.len() == 0 {
@@ -883,7 +879,6 @@ pub fn abstract_range(e: &Expr, d: u64, k: u64, c: u64) -> Expr {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:567-603 instLevelParamsGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::inst_level_params_go_refines, then delete this line
 /// Core of `instantiateLevelParams` on `ExprC`: nodes without a level
 /// parameter are returned unchanged (the `hasLP` cutoff), and **every other
 /// node kind is memoised** — the probe and the insert sit around the whole
@@ -951,7 +946,6 @@ pub fn inst_level_params_go(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:605-607 instLevelParams
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::inst_level_params_refines, then delete this line
 /// `Expr.instantiateLevelParams` on `ExprC`.
 pub fn inst_level_params(ks: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> Expr {
     if !expr::has_lp(e) {
@@ -963,7 +957,6 @@ pub fn inst_level_params(ks: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:609-628 ProjEntry.typeAtI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::proj_entry_type_at_i_refines, then delete this line
 /// `ProjEntry.typeAt` on `ExprC`: the same two instantiations through the
 /// memoised, **sharing-preserving** operations above.  The spec's
 /// `core_k::proj_entry_type_at` calls `expr_ops`' unmemoised walks, whose
@@ -1165,7 +1158,6 @@ pub fn fvar_leaves(e: &Expr) -> Vec<(u64, Expr)> {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:691-696 leafMem
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::leaf_mem_refines, then delete this line
 /// Is `(idx, ty)` in the base leaf list?  The `i = 0` wrapper of the index
 /// recursion below; the annotation is compared with `ExprC.beq`
 /// (pointer-first, DESIGN.md §3.2).
@@ -1174,7 +1166,6 @@ pub fn leaf_mem(bl: &Vec<(u64, Expr)>, idx: u64, ty: &Expr) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:691-696 leafMem
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::leaf_mem_from_refines, then delete this line
 /// The index recursion behind `leaf_mem`.  Deviation: the cited
 /// `(i == idx && t == ty) || leafMem rest idx ty` is an `if` nest (task #3's
 /// pattern 9).
@@ -1193,7 +1184,6 @@ pub fn leaf_mem_from(bl: &Vec<(u64, Expr)>, i: usize, idx: u64, ty: &Expr) -> bo
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:698-724 leavesSubGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::leaves_sub_go_refines, then delete this line
 /// Core of the fabrication-side leaf-subset test (con-leche task #86): every
 /// `fvar` leaf of the walked term is one of `bl`.  Memo probed before the
 /// match, the branching arms lifted into callees, as in `wscopedBGo`.
@@ -1224,7 +1214,6 @@ pub fn leaves_sub_go(bl: &Vec<(u64, Expr)>, memo: &mut HashMap<Expr, bool>, e: &
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:698-724 leavesSubGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::leaves_sub_fvar_refines, then delete this line
 /// The `.fvar` arm: a leaf in the base list licenses its annotation.
 pub fn leaves_sub_fvar(
     bl: &Vec<(u64, Expr)>,
@@ -1240,7 +1229,6 @@ pub fn leaves_sub_fvar(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:698-724 leavesSubGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::leaves_sub_pair_refines, then delete this line
 /// The two-child arms' short-circuit.
 pub fn leaves_sub_pair(
     bl: &Vec<(u64, Expr)>,
@@ -1256,7 +1244,6 @@ pub fn leaves_sub_pair(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:698-724 leavesSubGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::leaves_sub_triple_refines, then delete this line
 /// The `.letE` arm's three-child short-circuit.
 pub fn leaves_sub_triple(
     bl: &Vec<(u64, Expr)>,
@@ -1273,7 +1260,6 @@ pub fn leaves_sub_triple(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:726-730 leafGuard
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::leaf_guard_refines, then delete this line
 /// The fabrication leaf guard: every `fvar` leaf of `fab` is one of `base`.
 /// `O(1)` off the cached range on an `fvar`-free fabrication, which is why
 /// the cited disjunction is spelled here as the early return.
@@ -1326,7 +1312,6 @@ pub fn inst_spine(args: &Vec<Expr>, t: u64, e: &Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:745-765 piResidualAcc
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::pi_residual_acc_refines, then delete this line
 /// Core of `piResidual` in bulk form: peel one `∀`-binder per argument,
 /// substituting in one pass at the end.  The `bvar` arm re-enters on the same
 /// argument list with the accumulator flushed, which is the cited
@@ -1360,7 +1345,6 @@ pub fn pi_residual_acc(acc: Vec<Expr>, e: &Expr, args: &Vec<Expr>, i: usize) -> 
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:767-769 piResidual
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::pi_residual_refines, then delete this line
 /// The residual of a `∀`-telescope at an argument spine.
 pub fn pi_residual(e: &Expr, args: &Vec<Expr>) -> Option<Expr> {
     pi_residual_acc(Vec::new(), e, args, 0)

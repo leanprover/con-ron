@@ -161,7 +161,7 @@ pub fn check_defn_val_after_annot(
     if !expr_ops::all_level_params_defined_fast(&cv.level_params, &value_a) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else if !core_k::consts_resolve(&fe, &value_a) {
-        Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&value_a))
     } else {
         match type_checker::infer_type_core(mode, st, &fe, 0, &value_a) {
             Err(err) => Err(err),
@@ -258,7 +258,7 @@ pub fn check_thm_val_checked(
     if !expr_ops::all_level_params_defined_fast(&cv.level_params, &jv) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else if !core_k::consts_resolve(&fe, &jv) {
-        Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&jv))
     } else {
         match type_checker::infer_type_core(mode, st, &fe, 0, &jv) {
             Err(err) => Err(err),
@@ -322,7 +322,7 @@ pub fn check_opaque_val_after_annot(
     if !expr_ops::all_level_params_defined_fast(&cv.level_params, &value_a) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else if !core_k::consts_resolve(&fe, &value_a) {
-        Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&value_a))
     } else {
         match type_checker::infer_type_core(mode, st, &fe, 0, &value_a) {
             Err(err) => Err(err),
@@ -1142,9 +1142,7 @@ pub fn check_div_mod_pin_loop(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:362-388 checkDivModPin
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron-core/src/kernel/checker.rs_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:903-913 checkDivModPinF
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove checker::check_div_mod_pin_refines, then delete this line
 /// The pin-certified operations' install gate, run after the ordinary
 /// definition check: the dependency and pinned-`Eq` guards at the *extended*
 /// environment, then the pin variants in `pins` order at the *pre-insertion*
@@ -1569,7 +1567,7 @@ pub fn check_axiom_decl(
                 || name::beq(&cv_a.name, &std_axioms::choice_name())
             {
                 Err(core_types::not_implemented({ const M: [u32; 29] = [115, 116, 97, 110, 100, 97, 114, 100, 32, 97, 120, 105, 111, 109, 32, 115, 104, 97, 112, 101, 32, 109, 105, 115, 109, 97, 116, 99, 104]; core_types::code_points(&M) }))
-            } else if name::contains(&std_axioms::tolerated_axiom_names(), &cv_a.name) {
+            } else if name::beq(&cv_a.name, &basis_names::sorry_ax_name()) {
                 Ok(fe)
             } else {
                 Err(core_types::not_implemented({ const M: [u32; 18] = [110, 111, 110, 45, 115, 116, 97, 110, 100, 97, 114, 100, 32, 97, 120, 105, 111, 109]; core_types::code_points(&M) }))

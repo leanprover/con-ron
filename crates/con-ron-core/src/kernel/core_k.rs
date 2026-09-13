@@ -107,6 +107,7 @@
 
 use crate::kernel::basis_names;
 use crate::kernel::core_types;
+use crate::kernel::core_types::CheckError;
 use crate::kernel::core_types::CheckM;
 use crate::kernel::env;
 use crate::kernel::env::{
@@ -131,6 +132,29 @@ use std::vec::Vec;
 // ---------------------------------------------------------------------------
 // `Vec` helpers for the `List` operations the Lean uses for free
 // ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/Core.lean:76-96 unknownConstError
+/// **The verdict at a constant the environment does not know.**  `sorryAx`
+/// is the one axiom the checker tolerates as a *declaration* and installs
+/// nothing for (`basis_names::sorry_ax_name`), so a *use* of it is a
+/// positively detected unsupported feature and the run declines, at the
+/// record that uses it; every other unresolved name is a malformed stream
+/// and rejects.  The cited interpolation is dropped (§3.1: message strings
+/// need not match).
+pub fn unknown_const_error(n: &Name) -> CheckError {
+    const S: [u32; 24] = [
+        117, 115, 101, 32, 111, 102, 32, 116, 104, 101, 32, 115, 111, 114, 114, 121, 65, 120,
+        32, 97, 120, 105, 111, 109,
+    ];
+    const U: [u32; 16] = [
+        117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116,
+    ];
+    if name::beq(n, &basis_names::sorry_ax_name()) {
+        core_types::not_implemented(core_types::code_points(&S))
+    } else {
+        core_types::invalid(core_types::code_points(&U))
+    }
+}
 
 /// con-leche: none — `List.drop` on a `Vec`; Lean's list tail is shared
 /// `xs.drop k`, as a fresh `Vec` of `P` bumps.
@@ -392,7 +416,6 @@ pub fn proj_model_name(t: &Name, i: u64) -> Name {
 
 /// con-leche: ConLeche/Kernel/Core.lean:155-162 isCtorApp
 /// con-leche: ConLeche/Cached/StateC.lean:62-69 isCtorAppC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::is_ctor_app_refines, then delete this line
 /// Is the expression headed by a stored constructor?
 pub fn is_ctor_app(fe: &FEnv, e: &Expr) -> bool {
     let f = expr_ops::get_app_fn(e);
@@ -453,7 +476,6 @@ pub fn caps_never_zero(lps: &Vec<Name>, us: &Vec<Level>, caps: &IndCaps) -> bool
 
 /// con-leche: ConLeche/Kernel/Core.lean:206-243 isUnitLikeTy
 /// con-leche: ConLeche/Cached/StateC.lean:48-60 isUnitLikeTyC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::is_unit_like_ty_refines, then delete this line
 /// Is this (whnf'd) type expression a unit-like inductive type?  The
 /// head-name comparison against the single pin that can pass (`PUnit`) comes
 /// first, then the two stored-shape checks specialised to it — con-leche's
@@ -510,7 +532,6 @@ pub fn is_punit_rec_shape(fe: &FEnv) -> bool {
 
 /// con-leche: ConLeche/Kernel/Core.lean:266-279 unfoldableHead
 /// con-leche: ConLeche/Cached/StateC.lean:80-87 unfoldableHeadC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::unfoldable_head_refines, then delete this line
 /// May the delta step unfold `e`'s head?  The *decision* the lazy delta step
 /// takes; the unfolding itself is materialized only inside the branch that
 /// consumes it.  By construction
@@ -529,7 +550,6 @@ pub fn unfoldable_head(fe: &FEnv, e: &Expr) -> bool {
 
 /// con-leche: ConLeche/Kernel/Core.lean:281-290 headHint
 /// con-leche: ConLeche/Cached/StateC.lean:71-78 headHintC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::head_hint_refines, then delete this line
 /// The reducibility hint of the constant at the head of `e` (`opaque` when
 /// the head is not a stored definition — a theorem included).
 pub fn head_hint(fe: &FEnv, e: &Expr) -> ReducibilityHint {
@@ -545,7 +565,6 @@ pub fn head_hint(fe: &FEnv, e: &Expr) -> ReducibilityHint {
 
 /// con-leche: ConLeche/Kernel/Core.lean:292-301 sameConstHeads
 /// con-leche: ConLeche/Cached/StateC.lean:89-96 sameConstHeadsC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::same_const_heads_refines, then delete this line
 /// Are `a` and `b` applications of the *same* constant (the lazy delta
 /// same-head short-circuit)?  Both sides must actually be applications.
 pub fn same_const_heads(a: &Expr, b: &Expr) -> bool {
@@ -780,7 +799,6 @@ pub fn str_support_stored(fe: &FEnv) -> bool {
 
 /// con-leche: ConLeche/Kernel/Core.lean:371-376 litToCtorIfNat
 /// con-leche: ConLeche/Cached/CoreC.lean:84-90 litToCtorIfNatI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::lit_to_ctor_if_nat_refines, then delete this line
 /// Convert a `Nat`-literal major premise to constructor form, one layer;
 /// anything else passes through.
 pub fn lit_to_ctor_if_nat(fe: &FEnv, e: &Expr) -> Expr {
@@ -798,7 +816,6 @@ pub fn lit_to_ctor_if_nat(fe: &FEnv, e: &Expr) -> Expr {
 
 /// con-leche: ConLeche/Kernel/Core.lean:378-383 rawNatLit?
 /// con-leche: ConLeche/Cached/StateC.lean:98-103 rawNatLitC?
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::raw_nat_lit_refines, then delete this line
 /// A `Nat` literal reading of a whnf'd expression: literals and the
 /// `Nat.zero` constant (the official kernel's `rawNatLitExt?`).
 pub fn raw_nat_lit(e: &Expr) -> Option<Nat> {
@@ -2050,7 +2067,6 @@ pub fn struct_eta_shape_ok(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1140-1151 etaCtorShape
 /// con-leche: ConLeche/Cached/StateC.lean:105-112 etaCtorShapeC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::eta_ctor_shape_refines, then delete this line
 /// The constructor shape official's `try_eta_struct_core` tests before
 /// inferring anything: the candidate's head is a stored constructor applied
 /// to exactly its parameters and fields.
@@ -2380,7 +2396,6 @@ pub fn fire_is_inert(f: &RecRuleFire) -> bool {
 
 /// con-leche: ConLeche/Kernel/Core.lean:1834-1843 ProjEntry.typeAt
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:609-628 ProjEntry.typeAtI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::proj_entry_type_at_refines, then delete this line
 /// **The type of a `.proj` node at a tower-backed entry**: the stored body
 /// level-instantiated at the subject type's levels, with the subject type's
 /// arguments and the subject substituted for its `numParams + 1` loose

@@ -131,7 +131,6 @@ pub fn decl_names(d: &DeclC) -> Vec<Name> {
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:54-77 usedConstsGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nat_op_ground::used_consts_go_refines, then delete this line
 /// The constants an `Expr` DAG references, each node visited once.
 /// Deviation: an explicit worklist rather than structural recursion —
 /// `app-lam` reaches term depths in the thousands and the Lean recursion runs
@@ -202,7 +201,6 @@ pub fn decl_used_consts(d: &DeclC) -> Vec<Name> {
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:97-104 isNatOpRecord
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nat_op_ground::is_nat_op_record_refines, then delete this line
 /// The pinned `Nat` operation records whose ground the pass serves: the
 /// pin-certified WF operations and the structural ones (whose `natOpDeps` are
 /// in their own closures already — kept uniform).

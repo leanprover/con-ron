@@ -139,13 +139,11 @@ use crate::ron::nat::Nat;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1138-1140 InferLamEntry
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::InferLamEntry_refines, then delete this line
 /// Stack entry of `infer_lams_i`: the opened domain and the binder meta.
 /// The cited `abbrev` is a type alias, erased before Charon sees anything.
 pub type InferLamEntry = (Expr, BinderMeta);
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1639-1641 AnnotBinderEntry
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::AnnotBinderEntry_refines, then delete this line
 /// Stack entry of the annotation binder-telescope loops: the annotated
 /// opened domain and the binder meta.
 pub type AnnotBinderEntry = (Expr, BinderMeta);
@@ -155,7 +153,6 @@ pub type AnnotBinderEntry = (Expr, BinderMeta);
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:66-82 unfoldDefinitionI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defn_lp_count_refines, then delete this line
 /// The cited `some (.defnInfo cv _ _)` destructuring, as an owning probe of
 /// the one field the guard reads — the level-parameter count.  The value is
 /// deliberately *not* read here: `const_val_at_m` fetches it, through the
@@ -171,7 +168,6 @@ pub fn defn_lp_count(fe: &FEnv, n: &Name) -> Option<usize> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:66-82 unfoldDefinitionI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::unfold_definition_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:245-264 unfoldDefinition
 /// **The δ step's materialization**, monadic: the unfolded value is read
 /// through the `(name, levels)` cache (`constValAtM`) instead of being
@@ -213,7 +209,6 @@ pub fn unfold_definition_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:92-152 reduceNatI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::reduce_nat_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:811-863 reduceNat
 /// Literal acceleration, run in the `whnf` loop *before* delta-unfolding:
 /// pack `Nat.succ` applied to a literal back into a literal, and fold the
@@ -290,7 +285,6 @@ pub fn reduce_nat_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:92-152 reduceNatI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::reduce_nat_bin_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:811-863 reduceNat
 /// The certified-operation arm of `reduce_nat_i`: both arguments read as
 /// literals, first one then the other, and `core_k::nat_op_result` folds.
@@ -312,7 +306,6 @@ pub fn reduce_nat_bin_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:92-152 reduceNatI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::reduce_nat_lits_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:811-863 reduceNat
 /// The two-literal read both binary arms share: head-normalise the first
 /// argument and stop unless it is a literal, then the second.
@@ -341,7 +334,6 @@ pub fn reduce_nat_lits_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:154-193 iotaCertsIAux
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron-core/src/cached/core_c.rs_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:865-897 iotaCerts
 /// **The bulk telescope certificate** (con-leche's task #50): peel the raw
 /// telescope while accumulating the certified arguments, substituting only
@@ -417,7 +409,6 @@ pub fn iota_certs_i_aux(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:195-199 iotaCertsI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::iota_certs_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:865-897 iotaCerts
 /// Certify a spine against a recursor telescope: the accumulator loop at the
 /// empty accumulator and the first argument.
@@ -435,7 +426,6 @@ pub fn iota_certs_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:201-209 defEqListI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::def_eq_list_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:906-915 defEqList
 /// Pairwise definitional equality of two spines.  The `i = 0` wrapper of the
 /// index recursion below.
@@ -452,7 +442,6 @@ pub fn def_eq_list_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:201-209 defEqListI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::def_eq_list_i_from_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:906-915 defEqList
 /// The index recursion behind `def_eq_list_i`: the cited `[], []` arm is
 /// "both exhausted", the cons arm is "both in range", and the wildcard is
@@ -481,9 +470,7 @@ pub fn def_eq_list_i_from(
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:220-222 piResidualM
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::pi_residual_m_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:767-769 piResidual
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::pi_residual_m_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:899-904 piResidual
 /// `piResidualM`, the tenth `*M` wrapper: `pure (ExprC.piResidual e args)`.
 /// It lives here, at its one call site, rather than in `state_c`, for the
@@ -498,7 +485,6 @@ pub fn pi_residual_m(e: &Expr, args: &Vec<Expr>) -> Option<Expr> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:211-221 iotaIndexOkI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::iota_index_ok_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:917-933 iotaIndexOk
 /// The canonical-index comparison of a firing ι redex: where the recursor
 /// has indices (`rP < mI`) the residual of the constructor's telescope along
@@ -532,7 +518,6 @@ pub fn iota_index_ok_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:223-238 defeqSpineI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defeq_spine_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2387-2406 defeqSpine
 /// Levels-and-spine congruence for two applications of the same stored
 /// constant — the lazy delta *same-head short-circuit*.  A `false` verdict is
@@ -574,7 +559,6 @@ pub fn defeq_spine_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:240-280 proofIrrelI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::proof_irrel_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:935-966 proofIrrel
 /// Proof irrelevance certification: both sides' types whnf to the basis unit
 /// type, or both sides' types' *sorts* are `Prop`.  Every inference here is
@@ -612,9 +596,7 @@ pub fn proof_irrel_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:240-280 proofIrrelI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::prop_legs_i_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:328-354 propIrrelI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::prop_legs_i_refines, then delete this line
 /// The two `Prop` legs both irrelevance twins end in, verbatim in the Lean
 /// and therefore one function here: the type of `ta` whnfs to a sort that is
 /// `Prop`, and so does the type of the type of `b`.  `ta` is the caller's
@@ -672,7 +654,6 @@ pub fn prop_legs_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:328-354 propIrrelI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::prop_irrel_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:968-1010 propIrrel
 /// **The hoisted proof-irrelevance test**: the `Prop` branch of
 /// `proof_irrel_i` alone, with the two head-symbol fast arms in front — the
@@ -706,7 +687,6 @@ pub fn prop_irrel_i(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:356-367 projAppsFnI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::proj_apps_fn_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1054-1064 etaProjs
 /// The projection-*function* spine `[proj_0 targs b, …]`, built through
 /// `mkAppNM`.  The cited `List Nat` argument is always `List.range nF`, so
@@ -732,7 +712,6 @@ pub fn proj_apps_fn_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:369-376 projNodesI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::proj_nodes_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1054-1064 etaProjs
 /// The `.proj T i b` spine — the tower spelling.
 pub fn proj_nodes_i(t: &Name, b: &Expr, n_f: u64, j: u64, out: Vec<Expr>) -> Vec<Expr> {
@@ -746,7 +725,6 @@ pub fn proj_nodes_i(t: &Name, b: &Expr, n_f: u64, j: u64, out: Vec<Expr>) -> Vec
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:378-386 projAppsI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::proj_apps_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1054-1064 etaProjs
 /// The fabricated projections of a structure-eta spine: the tower spelling
 /// at an all-tower slot family (`towerSlotsAllF` through the index), the
@@ -772,7 +750,6 @@ pub fn proj_apps_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:388-405 structEtaProjCertsI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::struct_eta_proj_certs_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1012-1035 structEtaProjCerts
 /// The per-projection telescope certificates of a structural eta
 /// certification at a **projection-function** slot family: for every field
@@ -797,7 +774,6 @@ pub fn struct_eta_proj_certs_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:388-405 structEtaProjCertsI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::struct_eta_proj_certs_i_from_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1012-1035 structEtaProjCerts
 /// The index recursion behind `struct_eta_proj_certs_i`.
 pub fn struct_eta_proj_certs_i_from(
@@ -850,7 +826,6 @@ pub fn struct_eta_proj_certs_i_from(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:407-473 structEtaCertWithI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::struct_eta_cert_with_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1066-1138 structEtaCertWith
 /// The structure-eta certificate against a *given* weak-head-normal type of
 /// the stuck side.  `a` is a fully applied constructor of an eta-capable
@@ -908,7 +883,6 @@ pub fn struct_eta_cert_with_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:407-473 structEtaCertWithI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::struct_eta_cert_steps_i_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:297-300 certAtI
 /// The certificate's state-touching steps, in the cited order: the level
 /// lists are equivalent (`isEquivListLM`, through `eqvC`), the type
@@ -1008,7 +982,6 @@ pub fn struct_eta_cert_steps_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:407-473 structEtaCertWithI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::struct_eta_cert_fields_i_refines, then delete this line
 /// The last two steps: the TT-lane synthetic-spine certification (con-leche's
 /// task #137, skipped unless `mode.ttChecks` — a literal `false` at both
 /// shipped cores, so this arm is dead but ported) and the field comparison
@@ -1053,7 +1026,6 @@ pub fn struct_eta_cert_fields_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:475-484 structEtaCertI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::struct_eta_cert_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1153-1176 structEtaCert
 /// Structural eta certification for a stored eta-capable structure, with the
 /// constructor-shape test **first** (the divergence audit's D13):
@@ -1082,7 +1054,6 @@ pub fn struct_eta_cert_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:486-512 structUnitCertI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::struct_unit_cert_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1178-1206 structUnitCert
 /// Unit-likeness certification: `a` and `b` inhabit the same stored
 /// unit-like family (the types are definitionally equal and the type
@@ -1125,7 +1096,6 @@ pub fn struct_unit_cert_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:486-512 structUnitCertI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::struct_unit_steps_i_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:297-300 certAtI
 /// The state-touching tail: `b`'s reduced type is definitionally equal to
 /// `a`'s, and then — **as a certificate family**, `certAtI mode` (official's
@@ -1169,7 +1139,6 @@ pub fn struct_unit_steps_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:514-533 etaCertI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::eta_cert_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1208-1233 etaCert
 /// Eta certification for a one-sided λ against a stuck term `b`: `b`'s type
 /// whnfs to a `∀` whose domain is defeq to the λ's, and the λ's body is
@@ -1210,7 +1179,6 @@ pub fn eta_cert_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:514-533 etaCertI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::eta_cert_body_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1208-1233 etaCert
 /// The pointwise comparison and the annotation check of `eta_cert_i`, once
 /// the domains have matched.
@@ -1247,7 +1215,6 @@ pub fn eta_cert_body_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:535-541 stuckIrrelI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::stuck_irrel_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1235-1245 stuckIrrel
 /// The fallback for structurally distinct stuck terms: structural eta in
 /// either direction, unit-likeness, else proof irrelevance.
@@ -1280,11 +1247,9 @@ pub fn stuck_irrel_i(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron-core/src/cached/core_c.rs_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:679 wscopedB
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron-core/src/cached/core_c.rs_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:726-730 leafGuard
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron-core/src/cached/core_c.rs_refines, then delete this line
 /// The **cached tier's** scope guard, run by all three rescue branches on
 /// their fabrication: the cited
 /// `ExprC.wscopedB depth fab && ExprC.looseBVarsBounded 0 fab &&
@@ -1316,7 +1281,6 @@ pub fn fab_scope_ok_i(fab: &Expr, major: &Expr, depth: u64) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::major_to_ctor_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor
 /// Stuck-major rescue (`to_cnstr_when_K` and `to_cnstr_when_structure` in
 /// the official kernel): a recursor's major premise that does not whnf to a
@@ -1381,7 +1345,6 @@ pub fn major_to_ctor_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::major_to_ctor_k_i_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:297-300 certAtI
 /// The **K branch**: for a K-flagged inductive proposition the
 /// parameters-only application of the single constructor is fabricated from
@@ -1450,7 +1413,6 @@ pub fn major_to_ctor_k_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::k_type_and_irrel_i_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:297-300 certAtI
 /// The K branch's last two certificates, shared with the `And` branch: the
 /// fabrication's type against the major's (for `Eq` this is the endpoint
@@ -1488,7 +1450,6 @@ pub fn k_type_and_irrel_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_io_whnf_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor
 /// `r.whnf depth (← r.inferIO depth major)` — the major's reduced type,
 /// which all three rescue branches open with.
@@ -1507,7 +1468,6 @@ pub fn infer_io_whnf_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::major_to_ctor_eta_i_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:297-300 certAtI
 /// The **η branch**: for an eta-capable structure the constructor of the
 /// major's projections is fabricated (`projAppsI`, through `mkAppNM`) and
@@ -1583,7 +1543,6 @@ pub fn major_to_ctor_eta_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::eta_rescue_certs_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor
 /// The η branch's certificate: the structure-eta certificate against the
 /// major's own reduced type, with the **0-field rescue** for the pinned
@@ -1619,7 +1578,6 @@ pub fn eta_rescue_certs_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::major_to_ctor_and_i_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:297-300 certAtI
 /// **THE `And`-ONLY η RESCUE** (con-leche's user ruling: `And` and nothing
 /// else).  `And.rec F h` at a stuck PROOF `h` fires through the fabrication
@@ -1691,7 +1649,6 @@ pub fn major_to_ctor_and_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:672-681 litMajorToCtorI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::lit_major_to_ctor_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1495-1507 litMajorToCtor
 /// Convert a literal major premise to constructor form: a `Nat` literal one
 /// layer (`litToCtorIfNatI`, which is `core_k::lit_to_ctor_if_nat` — the
@@ -1719,7 +1676,6 @@ pub fn lit_major_to_ctor_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:683-692 projLitToCtorI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::proj_lit_to_ctor_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1509-1523 projLitToCtor
 /// Convert a string-literal projection scrutinee to its *reduced*
 /// constructor form.  Only `String` literals; anything else passes through
@@ -1747,7 +1703,6 @@ pub fn proj_lit_to_ctor_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:694-708 prepareMajorI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::prepare_major_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1658-1695 prepareMajor
 /// The major premise's preparation in the official kernel's order: at a
 /// K-flagged recursor the K rescue runs on the **raw** major (it reads only
@@ -1783,7 +1738,6 @@ pub fn prepare_major_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:710-720 pinArgsI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::pin_args_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1697-1717 recFireComparands
 /// The nested-rule pin instantiations: each stored pin is level-instantiated
 /// (`instLevelParamsM`) and then substituted at the recursor's
@@ -1809,7 +1763,6 @@ pub fn pin_args_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::params_as_levels_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1697-1717 recFireComparands
 /// `cvjLps.map Level.param`, the level trees `substLevelTreesM` substitutes
 /// in the canonical (`.plain`) arm.  §3.4 forbids closures, so the `map` is
@@ -1825,7 +1778,6 @@ pub fn params_as_levels(ps: &Vec<Name>, i: usize, out: Vec<Level>) -> Vec<Level>
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:722-726 iotaNumArgs
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::iota_num_args_refines, then delete this line
 /// The length of an application spine, without building its argument list.
 pub fn iota_num_args(e: &Expr, n: u64) -> u64 {
     match &e.0.kind {
@@ -1835,7 +1787,6 @@ pub fn iota_num_args(e: &Expr, n: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:728-741 iotaArityOk
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::rec_arity_probe_refines, then delete this line
 /// The cited `some (.recInfo cv mI _ _)` destructuring, as an owning probe of
 /// the two numbers the guard reads: the major's index and the recursor's
 /// level-parameter count.  `core_k::rec_probe` would copy the rule list,
@@ -1851,7 +1802,6 @@ pub fn rec_arity_probe(fe: &FEnv, c: &Name) -> Option<(u64, usize)> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:728-741 iotaArityOk
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::iota_arity_ok_refines, then delete this line
 /// **The arity pre-check of the ι step**: `iota_rec_i` returns `None` unless
 /// the head is a stored recursor applied to exactly `majorIdx + 1` arguments
 /// with the recursor's own number of levels.  The whnf spine loop asks this
@@ -1870,7 +1820,6 @@ pub fn iota_arity_ok(fe: &FEnv, e: &Expr) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::iota_rec_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec
 /// One iota step: the expression is a stored recursor applied to exactly its
 /// telescope, the major premise whnfs to a fully applied constructor with a
@@ -1914,7 +1863,6 @@ pub fn iota_rec_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::iota_rec_rule_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec
 /// The prepared major's head must be a stored constructor with a matching
 /// rule at a matching spine length; a matched **inert** rule is a positive
@@ -1967,7 +1915,6 @@ pub fn iota_rec_rule_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::iota_cmp_levels_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1697-1717 recFireComparands
 /// The comparand levels of a firing rule: for a canonical (`.plain`) rule
 /// the constructor's level parameters, linked to the recursor's by name; for
@@ -1990,7 +1937,6 @@ pub fn iota_cmp_levels_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::iota_cmp_args_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1697-1717 recFireComparands
 /// The comparand parameters: the recursor's leading arguments for a
 /// canonical rule, the `pinArgsI` instantiations for a nested one.
@@ -2019,7 +1965,6 @@ pub fn iota_cmp_args_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::iota_rec_checks_i_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:302-308 certUnlessI
 /// The firing cascade's first two steps: the constructor's levels against
 /// the rule's comparands (`isEquivListLM`, through `eqvC`), then the
@@ -2081,7 +2026,6 @@ pub fn iota_rec_checks_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::iota_params_keep_i_refines, then delete this line
 /// The `keep` argument of the parameter comparison's `certUnlessI`: a nested
 /// rule, or a projection-function recursor.  Verdict-relevant in both cases,
 /// so the comparison runs at every mode.
@@ -2093,7 +2037,6 @@ pub fn iota_params_keep_i(rl: &RecRule, c: &Name) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::iota_rec_telescopes_i_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:297-300 certAtI
 /// **ONE certificate family**: the two instantiated types (read through
 /// `constTyAtM`), the two *licensed* telescope runs and the canonical-index
@@ -2142,7 +2085,6 @@ pub fn iota_rec_telescopes_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::iota_rec_family_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec
 /// The certificate family itself: the recursor's telescope against the
 /// non-major prefix plus the prepared major, the constructor's telescope
@@ -2207,7 +2149,6 @@ pub fn iota_rec_family_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:840-848 projCertI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::is_ctor_stored_i_refines, then delete this line
 /// The cited `some (.ctorInfo _ _ _)` test, as its **own function** — task
 /// #14's rule, and one of task #23's four Aeneas errors: a borrow taken from
 /// the index, consumed into a scalar and then joined with a branch that
@@ -2222,7 +2163,6 @@ pub fn is_ctor_stored_i(fe: &FEnv, c: &Name) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:840-848 projCertI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::proj_cert_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1845-1880 projCert
 /// **The structural projection's certificate**: the redex `proj_i (C p⃗ x⃗)`
 /// fires only after its constructor spine is certified against `C`'s stored
@@ -2250,7 +2190,6 @@ pub fn proj_cert_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:850-853 projCertAtI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::proj_cert_at_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1882-1894 projCertAt
 /// **The fire certificate as the mode runs it**: the verified core certifies
 /// the constructor spine; the trusted core is the official kernel's
@@ -2280,7 +2219,6 @@ pub fn proj_cert_at_i(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:857-900 whnfAppI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::whnf_app_i_refines, then delete this line
 /// **Bulk-beta argument loop** (con-leche's task #50): consume the whole
 /// application spine against the whnf'd head `v`.  A lambda head enters the
 /// peel loop (first binder inline, which keeps the argument count
@@ -2366,7 +2304,6 @@ pub fn whnf_app_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:902-938 betaPeelI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::beta_peel_i_refines, then delete this line
 /// **Peel loop of `whnf_app_i`**: `t` is the raw (unsubstituted) lambda body
 /// after the binders consumed so far, `acc` their arguments (innermost
 /// first).  Each binder's argument certificate substitutes only the
@@ -2434,7 +2371,6 @@ pub fn beta_peel_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:942-996 whnfCoreStepI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::whnf_core_step_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1930-2019 whnfCoreBody
 /// **One head-normalization step** (beta, iota, projection) with the loop's
 /// continuation abstracted.  Only the spine head's normalization stays a
@@ -2503,7 +2439,6 @@ pub fn whnf_core_step_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:942-996 whnfCoreStepI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::whnf_core_proj_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1930-2019 whnfCoreBody
 /// The `.proj` arm's continuation, on the reduced (and string-literal
 /// expanded) scrutinee: the structural rule `proj_i (ctor p⃗ x⃗) ↦ x_i`,
@@ -2561,7 +2496,6 @@ pub fn whnf_core_proj_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:998-1004 whnfCoreLoopI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::whnf_core_loop_i_refines, then delete this line
 /// Iterate `whnf_core_step_i` on its own step budget.  No `Core.lean`
 /// counterpart — `whnfCoreBody` recurses through the knot instead, which is
 /// exactly what task #106 replaced.
@@ -2586,7 +2520,6 @@ pub fn whnf_core_loop_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1006-1009 whnfCoreBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::whnf_core_body_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1930-2019 whnfCoreBody
 /// **The head-normalization body**: the loop at its own step budget
 /// (`core_k::whnf_core_loop_fuel`, con-leche's `whnfCoreLoopFuel`).  Beta
@@ -2613,7 +2546,6 @@ pub fn whnf_core_body_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1093-1102 whnfStepI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::whnf_step_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2040-2055 whnfStep
 /// One iteration of the reduction loop (the official kernel's `whnf` body):
 /// head-normalize, try literal acceleration, unfold one definition — and
@@ -2643,7 +2575,6 @@ pub fn whnf_step_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1104-1108 whnfLoopI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::whnf_loop_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2057-2062 whnfLoop
 /// The reduction loop: iterate `whnf_step_i` on its own step budget, so the
 /// whole chain costs one knot level however many steps it takes.
@@ -2668,7 +2599,6 @@ pub fn whnf_loop_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1110-1112 whnfBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::whnf_body_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2064-2066 whnfBody
 /// The reduction body: `whnf_loop_i` at its own step budget.  It reads no
 /// mode function at all — the whole δ/ι/β content sits in `whnfCore`, which
@@ -2686,7 +2616,6 @@ pub fn whnf_body_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1114-1119 ensureSortI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::ensure_sort_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2068-2074 ensureSort
 /// Ensure `e` (the type of some expression) is a sort, **returning its
 /// level** — no readback needed, which is the twin's one difference from the
@@ -2717,7 +2646,6 @@ pub fn ensure_sort_i(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:43-58 CoreFnsI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_at_i_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:60-64 CoreFnsI.ioView
 /// con-leche: ConLeche/Kernel/Core.lean:98-124 CoreFns
 /// con-leche: ConLeche/Kernel/Core.lean:126-132 CoreFns.ioView
@@ -2743,7 +2671,6 @@ pub fn infer_at_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1011-1042 inferSpineI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_spine_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_spine_i_refines, then delete this line
 /// **Application-inference spine loop** (con-leche's task #50): walk the raw
@@ -2836,7 +2763,6 @@ pub fn infer_spine_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1044-1091 inferSpineIOI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_spine_io_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_spine_io_i_refines, then delete this line
 /// **The io-grade spine walk**: `infer_spine_i` with the per-argument
@@ -2939,7 +2865,6 @@ pub fn infer_spine_io_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1044-1091 inferSpineIOI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_spine_io_cert_i_refines, then delete this line
 /// The cited `unless mode.ioSkip mt.pw do let ta ← r.infer depth a; unless ←
 /// r.defeq depth ta dom' do throw` — the gated certificate as its own
 /// `CheckM<()>`, so the gate's two arms carry the same borrow context and
@@ -2970,7 +2895,6 @@ pub fn infer_spine_io_cert_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1142-1160 inferLamsOutI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lams_out_i_refines, then delete this line
 /// **Rebuild loop of `infer_lams_i`**: fold the stack (innermost binder
 /// first, `j` its binder level relative to the ambient depth `d`), one
 /// `∀`-node per entry with one `abstractRangeM` per domain.  The
@@ -3015,7 +2939,6 @@ pub fn infer_lams_out_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1162-1206 inferLamsLeafI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lams_leaf_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lams_leaf_i_refines, then delete this line
 /// **Leaf phase of `infer_lams_i`**: bulk-open the residual body, infer it,
@@ -3072,7 +2995,6 @@ pub fn infer_lams_leaf_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1162-1206 inferLamsLeafI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lams_leaf_sort_i_refines, then delete this line
 /// The cited verified-mode block of the leaf phase: the body type's own
 /// sort, and the innermost binder's annotation validated against its
 /// zero-ness (the leaf half of the spec's `.lam` clause check).  An empty
@@ -3119,7 +3041,6 @@ pub fn infer_lams_leaf_sort_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1162-1206 inferLamsLeafI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lams_prev_pw_i_refines, then delete this line
 /// The cited `prevPw` the rebuild fold starts from: a λ residual's own
 /// datum, else the innermost stack entry's (which makes the head entry's
 /// chain check vacuous), else `.never` on an empty stack.
@@ -3137,7 +3058,6 @@ pub fn infer_lams_prev_pw_i(t: &Expr, stk: &Vec<InferLamEntry>) -> PropWhen {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1208-1228 inferLamsI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lams_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lams_i_refines, then delete this line
 /// **λ-telescope inference loop** (con-leche's task #72): peel the raw
@@ -3242,7 +3162,6 @@ pub fn infer_pis_out_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1256-1267 inferPisLeafI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_pis_leaf_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_pis_leaf_i_refines, then delete this line
 /// Leaf phase of `infer_pis_i`: bulk-open the residual body, infer its sort,
@@ -3281,7 +3200,6 @@ pub fn infer_pis_leaf_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1269-1290 inferPisI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_pis_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_pis_i_refines, then delete this line
 /// **∀-telescope inference loop**: peel the raw ∀-chain, checking each
@@ -3382,9 +3300,6 @@ pub fn infer_const_i(
     n: &Name,
     us: &Vec<Level>,
 ) -> CheckM<Expr> {
-    const M_UNKNOWN: [u32; 16] = [
-        117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116,
-    ];
     const M_TOWER: [u32; 41] = [
         112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 116, 97, 98, 108, 101, 32, 101,
         110, 116, 114, 121, 32, 117, 115, 101, 100, 32, 97, 115, 32, 97, 32, 99, 111, 110, 115,
@@ -3395,7 +3310,7 @@ pub fn infer_const_i(
         102, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 108, 101, 118, 101, 108, 115,
     ];
     match const_shape_probe_i(fe, n) {
-        None => Err(core_types::invalid(core_types::code_points(&M_UNKNOWN))),
+        None => Err(core_k::unknown_const_error(n)),
         Some(p) => {
             if p.0 {
                 Err(core_types::invalid(core_types::code_points(&M_TOWER)))
@@ -3582,7 +3497,6 @@ pub fn infer_lam_i(
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron-core/src/cached/core_c.rs_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:609-628 ProjEntry.typeAtI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron-core/src/cached/core_c.rs_refines, then delete this line
 /// The table lookup and the checks of the cached `.proj` clause, on the
 /// already reduced type of the subject: `core_k::infer_proj_at`'s twin with
 /// the ONE difference the cached lane prescribes — the field type comes from
@@ -3636,7 +3550,6 @@ pub fn infer_proj_at_i(
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::proj_type_at_checked_i_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:609-628 ProjEntry.typeAtI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::proj_type_at_checked_i_refines, then delete this line
 /// `core_k::proj_type_at_checked`'s cached twin: the same three guards and
 /// the same propositional-structure restriction (`ProjEntry.fireOk`, which
 /// is `core_k`'s — it reads levels only), with `ProjEntry.typeAtI` as the
@@ -3703,7 +3616,6 @@ pub fn infer_proj_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1391-1448 inferBodyIOI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_body_io_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_body_io_i_refines, then delete this line
 /// **The io-grade inference body**: `infer_body_i` with exactly three clauses
@@ -3750,7 +3662,6 @@ pub fn infer_body_io_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1391-1448 inferBodyIOI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_forall_io_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_forall_io_i_refines, then delete this line
 /// The io `∀` clause, chained: the domain's sort, the body opened with
@@ -3812,7 +3723,6 @@ pub fn infer_forall_io_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1391-1448 inferBodyIOI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lam_io_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lam_io_i_refines, then delete this line
 /// The io `λ` clause, chained and with **no domain-sort run** (con-leche's
@@ -3853,7 +3763,6 @@ pub fn infer_lam_io_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1391-1448 inferBodyIOI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lam_cod_io_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
 /// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lam_cod_io_i_refines, then delete this line
 /// The io λ clause's codomain-sort validation: **the chain rule** at an
@@ -3914,7 +3823,6 @@ pub fn infer_lam_cod_io_i(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1450-1453 boolTrueShortcutI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::bool_true_shortcut_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2373-2385 boolTrueShortcut
 /// **The eq-true shortcut** (the divergence audit's E2): the left side is
 /// fully head-normalised and the verdict is `true` iff the reduct is
@@ -3934,7 +3842,6 @@ pub fn bool_true_shortcut_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1455-1614 defeqStepI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defeq_step_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2408-2668 defeqStep
 /// The definitional-equality body's one iteration: the syntactic fast path,
 /// the eq-true shortcut, head normalization of both sides (**no delta** —
@@ -3986,7 +3893,6 @@ pub fn defeq_step_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1455-1614 defeqStepI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defeq_after_whnf_i_refines, then delete this line
 /// The hoisted proof-irrelevance probe, run **once per entry** (the audit's
 /// D3, hence the `pi` flag) and never on a pair official's
 /// `quick_is_def_eq` decides itself (D4, hence `quickPair`).
@@ -4014,7 +3920,6 @@ pub fn defeq_after_whnf_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1455-1614 defeqStepI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defeq_lits_i_refines, then delete this line
 /// Literal acceleration, guarded on *both* sides being free of free
 /// variables, mirroring the official kernel: unguarded folding is a
 /// forbidden strategy superset.  A fold re-enters the loop at `pi = true`.
@@ -4064,7 +3969,6 @@ pub fn defeq_lits_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1455-1614 defeqStepI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defeq_delta_i_refines, then delete this line
 /// Lazy delta, **decision before materialization**: the two heads
 /// (`unfoldableHeadC`) and their hints decide which side to unfold, and
 /// `unfoldDefinitionI` — which is the only place the `constValAt` memo is
@@ -4102,7 +4006,6 @@ pub fn defeq_delta_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1455-1614 defeqStepI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defeq_delta_both_i_refines, then delete this line
 /// Both heads unfoldable: unfold only the side with the greater hint
 /// (`headHintC`); at equal *regular* hints try the same-head congruence
 /// short-circuit first (`sameConstHeadsC` + `defeqSpineI`); otherwise unfold
@@ -4145,7 +4048,6 @@ pub fn defeq_delta_both_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1455-1614 defeqStepI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defeq_unfold_both_i_refines, then delete this line
 /// `match ← unfoldDefinitionI fe a', ← unfoldDefinitionI fe b' with | some
 /// a₂, some b₂ => k false a₂ b₂ | _, _ => pure false`, the tail both
 /// equal-hint arms share.
@@ -4171,7 +4073,6 @@ pub fn defeq_unfold_both_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1455-1614 defeqStepI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defeq_struct_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2408-2668 defeqStep
 /// Neither head unfolds: structural congruence with the stuck fallbacks, in
 /// the cited arm order (which is load-bearing — the literal/constructor-form
@@ -4308,7 +4209,6 @@ pub fn defeq_struct_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1455-1614 defeqStepI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defeq_binders_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2408-2668 defeqStep
 /// Binder congruence, the ∀ and λ arms together (they are byte-identical
 /// apart from the message tag): the domains, then the bodies at a fresh
@@ -4368,7 +4268,6 @@ pub fn defeq_binders_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1455-1614 defeqStepI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defeq_apps_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2408-2668 defeqStep
 /// Stuck applications: **spine-wise** congruence (the official kernel's
 /// `is_def_eq_app`) — equal spine lengths, one head comparison, then the
@@ -4402,7 +4301,6 @@ pub fn defeq_apps_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1616-1621 defeqLoopI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defeq_loop_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2670-2675 defeqLoop
 /// The lazy-delta loop: iterate `defeq_step_i` on its own step budget.
 pub fn defeq_loop_i(
@@ -4428,7 +4326,6 @@ pub fn defeq_loop_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1623-1625 defeqBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defeq_body_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2683-2686 defeqBody
 /// The definitional-equality body: the lazy-delta loop at its own step
 /// budget (`core_k::defeq_loop_fuel`), entered at `pi = true`.
@@ -4455,7 +4352,6 @@ pub fn defeq_body_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1627-1634 isPropTypeI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::is_prop_type_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2688-2697 isPropType
 /// Check that a (raw) type is a `Prop` by annotating it and inferring its
 /// sort.  The inference is at the io grade: `ty'` is the pass's own output,
@@ -4489,7 +4385,6 @@ pub fn is_prop_type_i(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1649-1676 annotateBindersOutI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annotate_binders_out_i_refines, then delete this line
 /// **Rebuild loop of the annotation binder-telescope loops**: fold the stack
 /// (innermost binder first, `j` its binder level), rebuilding one binder
 /// node per entry with one `abstractRangeM` per domain.
@@ -4535,7 +4430,6 @@ pub fn annotate_binders_out_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1649-1676 annotateBindersOutI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annot_node_i_refines, then delete this line
 /// The cited `mk tyAbs cur (annotBinderMetaI pw? mb)`: the node constructor
 /// the Lean passes as a function argument, as the `is_forall` flag (the
 /// module note's point 6) — and as its **own function**, because written
@@ -4552,7 +4446,6 @@ pub fn annot_node_i(is_forall: bool, ty: Expr, body: Expr, mb: BinderMeta) -> Ex
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1649-1676 annotateBindersOutI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annot_pw_thread_i_refines, then delete this line
 /// The cited `pw?.map fun _ => (annotBinderMetaI pw? mb).pw` — the datum
 /// *just written*, threaded outward, as its own function: written inline it
 /// is a `match` on a borrow of the parameter joining on an `Option`, which
@@ -4566,7 +4459,6 @@ pub fn annot_pw_thread_i(pw: &Option<PropWhen>, mb: &BinderMeta) -> Option<PropW
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1649-1676 annotateBindersOutI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annot_pw_dup_i_refines, then delete this line
 /// `Option.map PropWhen.dup` — the threaded datum is read twice per entry
 /// (once by `annotBinderMetaI`, once by the fold's own `map`) and `PropWhen`
 /// is not `Copy`, so the port copies it (Lean's value semantics is free).
@@ -4578,7 +4470,6 @@ pub fn annot_pw_dup_i(pw: &Option<PropWhen>) -> Option<PropWhen> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1678-1691 annotPwPiI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annot_pw_pi_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2724-2755 annotPwPi
 /// **The ∀ telescope's datum**, computed once: the leaf codomain sort's
 /// zero-ness — shared by every node of the telescope because `zeronessOf
@@ -4606,7 +4497,6 @@ pub fn annot_pw_pi_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1693-1702 annotatePisPwI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annotate_pis_pw_i_refines, then delete this line
 /// The telescope loop's write.  **Ungated** since con-leche's ruling of
 /// 2026-09-06: writing the datum is part of the real checker's algorithm
 /// (the readers and the licences consume it); only *validating* it is
@@ -4630,7 +4520,6 @@ pub fn annotate_pis_pw_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1704-1713 annotatePisLeafI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annotate_pis_leaf_i_refines, then delete this line
 /// Leaf phase of `annotate_pis_i`: bulk-open and annotate the residual body,
 /// compute the telescope's datum, then rebuild outward.
 pub fn annotate_pis_leaf_i(
@@ -4666,7 +4555,6 @@ pub fn annotate_pis_leaf_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1715-1730 annotatePisI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annotate_pis_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2773-2893 annotateBody
 /// **∀-telescope annotation loop** (con-leche's task #72): peel the raw
 /// ∀-chain, annotating each opened domain on the way in.  `k ≥ 1` counts the
@@ -4721,7 +4609,6 @@ pub fn annotate_pis_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1732-1745 annotPwLamI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annot_pw_lam_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2757-2771 annotPwLam
 /// **The λ chain's datum**: the zero-ness of the sort of the innermost
 /// body's TYPE; every λ node of the chain shares it (the
@@ -4750,7 +4637,6 @@ pub fn annot_pw_lam_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1747-1751 annotateLamsPwI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annotate_lams_pw_i_refines, then delete this line
 /// The λ twin of `annotate_pis_pw_i`, ungated with it.
 pub fn annotate_lams_pw_i(
     mode: &CheckMode,
@@ -4768,7 +4654,6 @@ pub fn annotate_lams_pw_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1753-1762 annotateLamsLeafI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annotate_lams_leaf_i_refines, then delete this line
 /// Leaf phase of `annotate_lams_i` (as `annotate_pis_leaf_i`, rebuilding
 /// λ-nodes).
 pub fn annotate_lams_leaf_i(
@@ -4804,7 +4689,6 @@ pub fn annotate_lams_leaf_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1764-1777 annotateLamsI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annotate_lams_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2773-2893 annotateBody
 /// **λ-telescope annotation loop** (con-leche's task #72).
 pub fn annotate_lams_i(
@@ -4856,7 +4740,6 @@ pub fn annotate_lams_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1779-1867 annotateBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annotate_body_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2773-2893 annotateBody
 /// **The annotation body**: compute the codomain-sort annotations of every
 /// binder, bottom-up, by real inference on the opened (already annotated)
@@ -4940,7 +4823,6 @@ pub fn annotate_body_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1779-1867 annotateBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annotate_forall_i_refines, then delete this line
 /// The `∀` clause: annotate the first domain inline, then peel the whole
 /// chain with `annotate_pis_i`.
 pub fn annotate_forall_i(
@@ -4978,7 +4860,6 @@ pub fn annotate_forall_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1779-1867 annotateBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annotate_lam_loop_i_refines, then delete this line
 /// The `λ` clause's **loop** arm: taken only when the node is bvar-closed
 /// (`bvarBoundM e = 0`, an `O(1)` read of the cached bound), because the
 /// λ-loop is chain-identical only there — the chained tails re-open exactly
@@ -5018,7 +4899,6 @@ pub fn annotate_lam_loop_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1779-1867 annotateBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annotate_lam_chain_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2773-2893 annotateBody
 /// The `λ` clause's **chained** arm (a node with loose bvars): the spec
 /// body's own clause — annotate the domain, annotate the body opened at a
@@ -5060,7 +4940,6 @@ pub fn annotate_lam_chain_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1779-1867 annotateBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annotate_let_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2773-2893 annotateBody
 /// The `.letE` clause: the official `infer_let` triple —
 /// `ensureSortI(infer(type))`, `infer(val)`, `defeq(val_type, type)` — runs
@@ -5110,7 +4989,6 @@ pub fn annotate_let_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1779-1867 annotateBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annotate_proj_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2773-2893 annotateBody
 /// The `.proj` clause: run the projection rule (the one place it is
 /// checked).  A table entry types the node directly, and the display name is
@@ -5170,7 +5048,6 @@ pub fn annotate_proj_i(
 // `&mut CState` *is* that in-place update.
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1871-1889 memoEI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::whnf_core_probe_refines, then delete this line
 /// The `(get' (← get))[e]?` probe of `memoEI` at `CState.whnfCoreC`, over a
 /// *shared* state borrow so the map's borrow ends before the miss branch
 /// writes.
@@ -5182,7 +5059,6 @@ pub fn whnf_core_probe(st: &CState, e: &Expr) -> Option<Expr> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1871-1889 memoEI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::whnf_probe_refines, then delete this line
 /// The `whnfC` probe (see `whnf_core_probe`).
 pub fn whnf_probe(st: &CState, e: &Expr) -> Option<Expr> {
     match st.whnf_c.get(e) {
@@ -5192,7 +5068,6 @@ pub fn whnf_probe(st: &CState, e: &Expr) -> Option<Expr> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1871-1889 memoEI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_probe_refines, then delete this line
 /// The `inferC` probe (see `whnf_core_probe`).
 pub fn infer_probe(st: &CState, e: &Expr) -> Option<Expr> {
     match st.infer_c.get(e) {
@@ -5202,7 +5077,6 @@ pub fn infer_probe(st: &CState, e: &Expr) -> Option<Expr> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1871-1889 memoEI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_io_probe_refines, then delete this line
 /// The `inferIOC` probe (see `whnf_core_probe`).
 pub fn infer_io_probe(st: &CState, e: &Expr) -> Option<Expr> {
     match st.infer_io_c.get(e) {
@@ -5212,7 +5086,6 @@ pub fn infer_io_probe(st: &CState, e: &Expr) -> Option<Expr> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1871-1889 memoEI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::annot_probe_refines, then delete this line
 /// The `annotC` probe (see `whnf_core_probe`).
 pub fn annot_probe(st: &CState, e: &Expr) -> Option<Expr> {
     match st.annot_c.get(e) {
@@ -5222,7 +5095,6 @@ pub fn annot_probe(st: &CState, e: &Expr) -> Option<Expr> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1891-1904 memoBI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defeq_probe_refines, then delete this line
 /// The `(← get).defeqC[(a, b)]?` probe of `memoBI` (see `whnf_core_probe`).
 pub fn defeq_probe(st: &CState, key: &(Expr, Expr)) -> Option<bool> {
     match st.defeq_c.get(key) {
@@ -5234,7 +5106,6 @@ pub fn defeq_probe(st: &CState, key: &(Expr, Expr)) -> Option<bool> {
 /// con-leche: ConLeche/Cached/CoreC.lean:1906-1976 coreKnotI
 /// con-leche: ConLeche/Kernel/Core.lean:2897-2936 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1871-1889 memoEI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::whnf_core_refines, then delete this line
 /// `(coreKnotI mode fe fuel).whnfCore d e`: the fuel-zero throw, the
 /// `whnfCoreC` probe, `whnf_core_body_i` at `fuel - 1`, and the memo insert.
 pub fn whnf_core(
@@ -5380,7 +5251,6 @@ pub fn infer_io(
 /// con-leche: ConLeche/Cached/CoreC.lean:1906-1976 coreKnotI
 /// con-leche: ConLeche/Kernel/Core.lean:2897-2936 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1891-1904 memoBI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::defeq_refines, then delete this line
 /// `(coreKnotI mode fe fuel).defeq d a b`, memoized in `defeqC` under the
 /// **pair** key `(a, b)` (`memoBI`).  The key is built before the probe, as
 /// the Lean's tuple is, and moved into the map on a miss.

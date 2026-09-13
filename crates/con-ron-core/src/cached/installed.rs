@@ -101,6 +101,7 @@ use crate::cached::state_c::CheckCM;
 use crate::kernel::basis_names;
 use crate::kernel::checker_split;
 use crate::kernel::core_k;
+use crate::kernel::checker_base;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckError;
 use crate::kernel::env;
@@ -181,7 +182,7 @@ pub fn annot_constant_val_c_after_annot(
     if !expr_ops_c::all_level_params_defined(&cv.level_params, &jty) {
         Err(core_types::invalid({ const M: [u32; 37] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
     } else if !state_c::consts_resolve_fc(fe, &jty) {
-        Err(core_types::invalid({ const M: [u32; 24] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&jty))
     } else {
         let cv_a: ConstantVal = ConstantVal {
             name: name::dup(&cv.name),
@@ -237,7 +238,7 @@ pub fn annot_val_c_after_annot(
     if !expr_ops_c::all_level_params_defined(&cv_a.level_params, &jv) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else if !state_c::consts_resolve_fc(fe, &jv) {
-        Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&jv))
     } else {
         state_c::record_c_const(
             st,
@@ -265,7 +266,6 @@ pub fn annot_val_c_record(jv: &Expr, record: bool) -> Option<(Expr, Expr)> {
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:133-142 annotValueC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_value_c_refines, then delete this line
 /// Phase A's install of a separable value declaration: the per-declaration
 /// flush, then the header's and the value's install halves; returns the
 /// header with its annotated type, that type, and the annotated value.
@@ -285,7 +285,6 @@ pub fn annot_value_c(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:133-142 annotValueC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_value_c_tail_refines, then delete this line
 /// The cited tail past `annotConstantValC`: the value's install half, and the
 /// triple.  Split off so the header's call is a tail call.
 pub fn annot_value_c_tail(
@@ -304,7 +303,6 @@ pub fn annot_value_c_tail(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_c_refines, then delete this line
 /// Phase A's step body: annotate-and-install for the three value kinds, the
 /// ordinary step `parsed_c::check_decl_step_c` for everything else.  `i` is
 /// the fold position the record is tagged with.
@@ -337,7 +335,6 @@ pub fn annot_step_c(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_defn_c_refines, then delete this line
 /// The `.defnDecl` arm: a pin-certified operation takes the ordinary step
 /// (its check is not separable from its install), everything else is
 /// annotated, installed, and recorded as pending.
@@ -366,7 +363,6 @@ pub fn annot_step_defn_c(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_defn_c_push_refines, then delete this line
 /// The cited push, with the RC-linearity read the comment there insists on:
 /// **the counter is read BEFORE the push**, so that the index reaches `push`
 /// unshared.  The annotated type `r.2.1` is not read — it is `r.1`'s own
@@ -402,7 +398,6 @@ pub fn annot_step_defn_c_push(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_thm_c_refines, then delete this line
 /// The `.thmDecl` arm: **a theorem installs BY STATEMENT**.  The header's
 /// install half runs and the constant is pushed with the record's own raw
 /// value, which nothing ever reads (a theorem is opaque to reduction), so
@@ -426,7 +421,6 @@ pub fn annot_step_thm_c(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_thm_c_push_refines, then delete this line
 /// The theorem arm's record and push.  The raw value is stored twice — in the
 /// environment and in the `ValueGroup` — where Lean shares one node (§3.2's
 /// copy rule).
@@ -459,7 +453,6 @@ pub fn annot_step_thm_c_push(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_opaque_c_refines, then delete this line
 /// The `.opaqueDecl` arm: a `reduce*` witness takes the ordinary step (its
 /// identity certificate is part of its install), everything else is
 /// annotated, installed **as an axiom** — the cited `.axiomInfo`, an opaque's
@@ -486,7 +479,6 @@ pub fn annot_step_opaque_c(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_opaque_c_push_refines, then delete this line
 /// The opaque arm's push, the counter read before it.
 pub fn annot_step_opaque_c_push(
     i: u64,
@@ -511,7 +503,6 @@ pub fn annot_step_opaque_c_push(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_step_other_c_refines, then delete this line
 /// The catch-all arm, shared by the three gated branches above: the ordinary
 /// step, which leaves the records untouched — axioms, inductive and basis
 /// blocks and the pinned branches are checked in full at their install.
@@ -530,7 +521,6 @@ pub fn annot_step_other_c(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:185-195 annotDeclStep
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove installed::annot_decl_step_refines, then delete this line
 /// Phase A's step with the position carried and the error tagged: the
 /// accumulator is `(i, fe, pend)`, and a failing step reports the
 /// `CheckError` together with `i`, the fold position of the declaration that

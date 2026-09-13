@@ -191,7 +191,6 @@ con-leche's annotated-NDJSON writer (`Frontend/ExportWrite.lean`), an output
 path this checker does not have.";
 
 /// con-leche: Main.lean:946-960 Args
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove con-ron::Args_refines, then delete this line
 /// What the command line asked for.  `no_mark` is here, as con-leche's
 /// `noMark` is, because the flag is accepted — it just has nothing to turn
 /// off (`driver::mark_persistent_note`).
@@ -510,7 +509,6 @@ fn check_main(a: &Args, file: &str) -> u8 {
 }
 
 /// con-leche: Main.lean:992-1019 main
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove con-ron::main_refines, then delete this line
 /// The entry point.  The checker runs IN THIS PROCESS (con-leche task #230
 /// removed the out-of-memory supervisor that used to re-exec it), on one
 /// big-stack thread; a panic on it is exit 3, never a verdict.

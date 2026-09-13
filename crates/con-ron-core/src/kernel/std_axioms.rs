@@ -88,19 +88,6 @@ pub fn choice_name() -> Name {
     )
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:44-51 toleratedAxiomNames
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove std_axioms::tolerated_axiom_names_refines, then delete this line
-/// The axioms tolerated as *declarations* (dropped by the frontend, never
-/// installed; any use is skipped and taints the run): exactly `sorryAx`.
-pub fn tolerated_axiom_names() -> Vec<Name> {
-    let mut ns: Vec<Name> = Vec::new();
-    ns.push(name::mk_str(
-        name::anonymous(),
-        { const S: [u32; 7] = [115, 111, 114, 114, 121, 65, 120]; core_types::code_points(&S) },
-    ));
-    ns
-}
-
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:44-45 iffName
 /// The name `Iff`.
 pub fn iff_name() -> Name {
@@ -815,7 +802,6 @@ mod tests {
     fn the_pinned_families_and_their_arities() {
         assert_eq!(std_axioms::iff_family().len(), 3);
         assert_eq!(std_axioms::nonempty_family().len(), 3);
-        assert_eq!(std_axioms::tolerated_axiom_names().len(), 1);
         // `Iff.intro` and `Iff.rec` are children of `Iff`
         assert!(name::beq(
             &std_axioms::iff_intro_name(),
