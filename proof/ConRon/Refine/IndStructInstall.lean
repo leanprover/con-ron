@@ -32,11 +32,12 @@ ingredient, exactly as `Refine/StateC.lean` carries `InstantiateListRefines`.
 reaches `ops.isDefEq` and so takes
 `hw : Core.Wrappers mode IndAbs.checkFuelU`.
 
-3 `sorry`s: the three recursions (`check_struct_doms_at`,
-`proj_bodies_scoped_from`, `check_struct_proj_table`).  Aeneas emits the first
-two as `partial_fixpoint` definitions, whose unfolding needs the fixpoint
-equation and a well-founded measure on the index; the statements are the exact
-ones and the recursion is the only thing missing.
+2 `sorry`s: `check_struct_doms_at` (the binder-by-binder `isDefEq` recursion,
+which needs the knot's arms) and `check_struct_proj_table` (which needs both
+walkers' refinements).  The two guards are proved, by strong induction on the
+remaining index over Aeneas's `partial_fixpoint` unfolding; the `j = 0` reading
+of the name-family freshness that both routes' drivers call follows from the
+general one.
 -/
 import ConRon.Refine.IndAbs
 import ConRon.Refine.ExprOpsFields
@@ -117,8 +118,81 @@ theorem proj_bodies_scoped_from_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     b = ((absExprs bodies).drop i.val).all (fun e =>
       !e.hasFvar && e.allLevelParamsDefined (absNames lps) && e.constsResolveF lfe
         && e.looseBVarsBounded (n_p.val + 1)) := by
-  -- the index recursion on `bodies.len() - i`; Aeneas's `partial_fixpoint`
-  sorry
+  generalize hd : bodies.length - i.val = d
+  induction d using Nat.strong_induction_on generalizing i b with
+  | _ d ih =>
+    rw [inductives.struct_install.proj_bodies_scoped_from] at h
+    split at h
+    · rename_i hge
+      have hnil : (absExprs bodies).drop i.val = [] := by
+        apply List.drop_eq_nil_of_le
+        simp only [absExprs, List.length_map]
+        scalar_tac
+      rw [hnil]
+      simpa using (Result.ok_injective h).symm
+    · rename_i hlt
+      have hlt' : i.val < bodies.val.length := by
+        have := alloc.vec.Vec.len_val bodies; scalar_tac
+      obtain ⟨y, hy, hyv⟩ :=
+        WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec bodies i hlt')
+      subst hyv
+      have hew : ExprWF bodies.val[i.val] := hbodies _ (List.getElem_mem hlt')
+      have hlt2 : i.val < (absExprs bodies).length := by
+        simpa [absExprs] using hlt'
+      have hcons : (absExprs bodies).drop i.val
+          = absExpr bodies.val[i.val] :: (absExprs bodies).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt2]; simp [absExprs]
+      rw [hcons, List.all_cons]
+      simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
+      obtain ⟨b0, hb0, h⟩ := bind_eq_ok_iff.mp h
+      have hb0v : b0 = (absExpr bodies.val[i.val]).hasFvar :=
+        ExprOps.has_fvar_refines hew hb0
+      split at h
+      · rename_i hfv
+        rw [hb0v] at hfv
+        rw [← Result.ok_injective h, hfv]
+        simp
+      · rename_i hfv
+        simp only [Bool.not_eq_true] at hfv
+        rw [hb0v] at hfv
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1v : b1 = (absExpr bodies.val[i.val]).allLevelParamsDefined
+            (absNames lps) :=
+          ExprOps.all_level_params_defined_fast_refines hlps hew hb1
+        split at h
+        · rename_i hlp
+          obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+          have hb2v : b2 = (absExpr bodies.val[i.val]).constsResolveF lfe :=
+            hres _ _ _ _ hrel hfe hew hb2
+          split at h
+          · rename_i hcr
+            obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+            have hi2v : i2.val = n_p.val + 1 := HashMap.uscalar_add_eq hi2
+            obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+            have hb3v : b3 = (absExpr bodies.val[i.val]).looseBVarsBounded i2.val :=
+              ExprOps.loose_bvars_bounded_refines hew hb3
+            rw [hi2v] at hb3v
+            split at h
+            · rename_i hlb
+              obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+              have hi3v : i3.val = i.val + 1 := HashMap.uscalar_add_eq hi3
+              have hrec := ih (bodies.length - i3.val) (by scalar_tac) h rfl
+              rw [hi3v] at hrec
+              rw [hrec, hfv, ← hb1v, hlp, ← hb2v, hcr, ← hb3v, hlb]
+              simp
+            · rename_i hlb
+              simp only [Bool.not_eq_true] at hlb
+              rw [← Result.ok_injective h, hfv, ← hb1v, hlp, ← hb2v, hcr, ← hb3v,
+                hlb]
+              simp
+          · rename_i hcr
+            simp only [Bool.not_eq_true] at hcr
+            rw [← Result.ok_injective h, hfv, ← hb1v, hlp, ← hb2v, hcr]
+            simp
+        · rename_i hlp
+          simp only [Bool.not_eq_true] at hlp
+          rw [← Result.ok_injective h, hfv, ← hb1v, hlp]
+          simp
 
 /-- `ConLeche/Kernel/Inductives/StructInstallF.lean:73-95` —
 `proj_fn_family_free_from` refines the projection-function name family's
