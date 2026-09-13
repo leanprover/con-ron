@@ -5635,6 +5635,26 @@ theorem checkIotaRuleF_run {lmode : ConLeche.CheckMode}
         lfe g cvName lps tyA mI rP j r).run lst = .ok (r', lst3) :=
   (checkIotaRuleF_tail hfind hnf hbv hfv hann hlp hcr hsl hinf).trans hfire
 
+omit hw hcb in
+/-- `checkIotaRuleF`'s **first** `throw` (task #67): the rule's constructor is
+not a stored `ctorInfo`, which is exactly what `core_k::ctor_probe` answering
+`None` says (`CoreK.ctorOf` is its reading). -/
+theorem checkIotaRuleF_ctor_err {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name} {tyA : ConLeche.Expr}
+    {mI rP j : Nat} {r : ConLeche.RecRule} {lst : ConLeche.Cached.CState}
+    (hfind : CoreK.ctorOf (lfe2.find? r.ctor) = none) :
+    (ConLeche.checkIotaRuleF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j r).run lst
+      = .error (.invalid s!"iota rule constructor {r.ctor} not stored") := by
+  rw [ConLeche.checkIotaRuleF]
+  cases hx : lfe2.find? r.ctor with
+  | none => rfl
+  | some ci =>
+    rw [hx] at hfind
+    cases ci <;> first | rfl | simp [CoreK.ctorOf] at hfind
+
+set_option linter.unusedSimpArgs false in
 /-- `ConLeche/Kernel/DeclCheck.lean:687-716` — **`check_iota_rule` refines
 `checkIotaRuleF`**: generic well-formedness of the right-hand side, then the
 model's `iota_j` theorem. -/
@@ -5642,21 +5662,30 @@ theorem check_iota_rule_refines
     {st st' : cached.state_c.CState} {fe2 fe_self : fenv.FEnv}
     {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
     {cv_name : name.Name} {lps : alloc.vec.Vec name.Name} {ty_a : expr.Expr}
-    {m_i r_p j : Std.U64} {r r' : env.RecRule}
+    {m_i r_p j : Std.U64} {r : env.RecRule}
+    {out : core.result.Result env.RecRule core_types.CheckError}
     (hres : StructInstall.ConstsResolveFFastRefines)
     (hspines : StructSpinesRefine)
     (hf : RenamesTo f g) (hst : StateWF st) (hfe2 : FEnvWF fe2)
     (hfe : FEnvWF fe_self) (hcv : NameWF cv_name) (hlps : NamesWF lps)
     (hty : ExprWF ty_a) (hrw : RecRuleWF r)
     (h : inductives.modeled.check_iota_rule mode st fe2 fe_self f cv_name lps
-        ty_a m_i r_p j r = ok (.Ok r', st')) :
+        ty_a m_i r_p j r = ok (out, st')) :
     ∀ lst lfe2 lfe, StateRel st lst → FEnvRel fe2 lfe2 → FEnvRel fe_self lfe →
-      ∃ lst',
-        (ConLeche.checkIotaRuleF (absMode mode)
-            (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
-            (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
-            j.val (absRecRule r)).run lst = .ok (absRecRule r', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRuleWF r' := by
+      match out with
+      | .Ok r' =>
+        ∃ lst',
+          (ConLeche.checkIotaRuleF (absMode mode)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
+              (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
+              j.val (absRecRule r)).run lst = .ok (absRecRule r', lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRuleWF r'
+      | .Err e =>
+        ErrSim e
+          ((ConLeche.checkIotaRuleF (absMode mode)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
+              (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
+              j.val (absRecRule r)).run lst) := by
   intro lst lfe2 lfe hrel hr2 hrS
   rw [inductives.modeled.check_iota_rule] at h
   obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
@@ -5664,7 +5693,14 @@ theorem check_iota_rule_refines
     CoreK.ctor_probe_refines (FindAgree.of_rel hr2 hfe2) (FindWF.of_wf hfe2)
       hrw.1 ho
   cases o with
-  | none => simp at h
+  | none =>
+    -- the rule's constructor is not stored (`DeclCheck.lean:690`)
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    simp only [Option.map_none] at hoabs
+    exact errSim_invalid
+      s!"iota rule constructor {absName r.ctor} not stored" hce
+      (checkIotaRuleF_ctor_err hoabs.symm)
   | some cq =>
   obtain ⟨cvj, cn_p, cn_f⟩ := cq
   have hcvjwf : ConstantValWF cvj := howf cvj cn_p cn_f rfl
@@ -5672,25 +5708,54 @@ theorem check_iota_rule_refines
   have hfind : lfe2.find? (absName r.ctor)
       = some (.ctorInfo (absConstantVal cvj) cn_p.val cn_f.val) :=
     ctorOf_inv (by simpa using hoabs.symm)
+  have hctor : (absRecRule r).ctor = absName r.ctor := rfl
+  have hrhsr : (absRecRule r).rhs = absExpr r.rhs := rfl
+  have hnfr : (absRecRule r).nfields = r.nfields.val := rfl
+  have hzero : ((0#u64 : Std.U64)).val = 0 := rfl
   simp at h
   by_cases hnf : r.nfields.val = cn_f.val
   · rw [if_pos hnf] at h
     obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
     have hbv := ExprOps.loose_bvars_bounded_refines hrw.2.2 hb
+    rw [hzero] at hbv
     by_cases hbt : b = true
     · rw [if_pos hbt] at h
       rw [hbt] at hbv
       obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
       have hb1v := ExprOps.has_fvar_refines hrw.2.2 hb1
       by_cases hb1t : b1 = true
-      · rw [if_pos hb1t] at h; simp at h
+      · -- the free variable (`DeclCheck.lean:695`)
+        rw [if_pos hb1t] at h
+        simp at h
+        obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+        rw [hb1t] at hb1v
+        refine errSim_invalid
+          s!"free variable in rule of {absName cv_name}" hce ?_
+        rw [ConLeche.checkIotaRuleF]
+        simp [StateT.run, Bind.bind, StateT.bind, Except.bind,
+          Pure.pure, StateT.pure, Except.pure, hctor, hrhsr, hnfr,
+          hzero,
+          hfind, hnf, hbv.symm, hb1v.symm]
       · simp only [Bool.not_eq_true] at hb1t
         rw [hb1t] at hb1v
         rw [if_neg (by simp [hb1t])] at h
         obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨r1, st1⟩ := p
         cases r1 with
-        | Err err => simp at h
+        | Err err =>
+          -- move 1: `core_c::annotate` threw
+          simp at h
+          obtain ⟨rfl, rfl⟩ := h
+          have herr :=
+            IndAbs.ops_annotate_err hw hst hfe hrw.2.2 hp lst lfe hrel hrS
+          rw [hrS.1] at herr
+          refine ErrSim.trans herr (fun le hle => ?_)
+          rw [ConLeche.checkIotaRuleF]
+          simp only [StateT.run, hzero] at hle ⊢
+          simp [StateT.run, Bind.bind, StateT.bind, Except.bind,
+            Pure.pure, StateT.pure, Except.pure, hctor, hrhsr, hnfr,
+            hzero,
+            hfind, hnf, hbv.symm, hb1v.symm, hle]
         | Ok rhs_a =>
         obtain ⟨lst1, hrun1, hrel1, hwf1, hrhswf⟩ :=
           IndAbs.ops_annotate hw hst hfe hrw.2.2 hp lst lfe hrel hrS
@@ -5712,7 +5777,19 @@ theorem check_iota_rule_refines
             obtain ⟨ho1abs, ho1wf⟩ := ExprOps.strip_lams_refines hrhswf ho1
             rw [hi1v] at ho1abs
             cases o1 with
-            | none => simp at h
+            | none =>
+              -- the rule shape (`DeclCheck.lean:702`)
+              simp at h
+              obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+              simp only [Option.map_none] at ho1abs
+              refine errSim_notImplemented
+                s!"rule shape mismatch for {absName cv_name}" hce ?_
+              rw [ConLeche.checkIotaRuleF]
+              simp only [StateT.run, hzero] at hrun1 ⊢
+              simp [StateT.run, Bind.bind, StateT.bind, Except.bind,
+                Pure.pure, StateT.pure, Except.pure, hctor, hrhsr, hnfr,
+                hzero,
+                hfind, hnf, hbv.symm, hb1v.symm, hrun1, hb2v.symm, hb3v.symm, ← ho1abs]
             | some sq =>
             obtain ⟨bs, bd⟩ := sq
             simp only [Option.map_some] at ho1abs
@@ -5720,25 +5797,113 @@ theorem check_iota_rule_refines
             obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
             obtain ⟨r2, st2⟩ := p2
             cases r2 with
-            | Err err => simp at h
+            | Err err =>
+              -- move 1: `core_c::infer` threw
+              simp at h
+              obtain ⟨rfl, rfl⟩ := h
+              have herr :=
+                IndAbs.ops_infer_err hw hwf1 hfe hrhswf hp2 lst1 lfe hrel1 hrS
+              rw [hrS.1] at herr
+              refine ErrSim.trans herr (fun le hle => ?_)
+              rw [ConLeche.checkIotaRuleF]
+              simp only [StateT.run, hzero] at hrun1 hle ⊢
+              simp [StateT.run, Bind.bind, StateT.bind, Except.bind,
+                Pure.pure, StateT.pure, Except.pure, hctor, hrhsr, hnfr,
+                hzero,
+                hfind, hnf, hbv.symm, hb1v.symm, hrun1, hb2v.symm, hb3v.symm, ← ho1abs, hle]
             | Ok rhsTy =>
             obtain ⟨lst2, hrun2, hrel2, hwf2, hrhsTywf⟩ :=
               IndAbs.ops_infer hw hwf1 hfe hrhswf hp2 lst1 lfe hrel1 hrS
             rw [hrS.1] at hrun2
-            obtain ⟨lst3, hrun3, hrel3, hwf3, hr'wf⟩ :=
+            have hfire :=
               check_iota_rule_fire_refines hw hcb hres hspines hf hwf2 hfe2 hfe hcv
                 hlps hty hrw hcvjwf hrhswf h lst2 lfe2 lfe hrel2 hr2 hrS
-            refine ⟨lst3, ?_, hrel3, hwf3, hr'wf⟩
-            exact checkIotaRuleF_run hfind (by simpa [absRecRule] using hnf)
-              hbv.symm hb1v.symm hrun1 hb2v.symm hb3v.symm ho1abs.symm hrun2
-              hrun3
-          · simp only [Bool.not_eq_true] at hb3t
-            rw [if_neg (by simp [hb3t])] at h; simp at h
-        · simp only [Bool.not_eq_true] at hb2t
-          rw [if_neg (by simp [hb2t])] at h; simp at h
-    · simp only [Bool.not_eq_true] at hbt
-      rw [if_neg (by simp [hbt])] at h; simp at h
-  · rw [if_neg hnf] at h; simp at h
+            have htail := checkIotaRuleF_tail (lmode := absMode mode)
+              (lfe2 := lfe2) (lfe := lfe) (lst := lst) (g := g)
+              (cvName := absName cv_name) (lps := absNames lps)
+              (tyA := absExpr ty_a) (mI := m_i.val) (rP := r_p.val)
+              (j := j.val) (r := absRecRule r)
+              hfind (by rw [hnfr]; exact hnf) hbv.symm hb1v.symm hrun1
+              hb2v.symm hb3v.symm ho1abs.symm hrun2
+            cases out with
+            | Ok r' =>
+              obtain ⟨lst3, hrun3, hrel3, hwf3, hr'wf⟩ := hfire
+              exact ⟨lst3, htail.trans hrun3, hrel3, hwf3, hr'wf⟩
+            | Err e => exact ErrSim.of_eq hfire htail
+
+          · -- the unresolved constant (`DeclCheck.lean:700`)
+            simp only [Bool.not_eq_true] at hb3t
+            rw [if_neg (by simp [hb3t])] at h
+            simp at h
+            obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+            rw [hb3t] at hb3v
+            refine errSim_invalid
+              s!"unknown constant in rule of {absName cv_name}" hce ?_
+            rw [ConLeche.checkIotaRuleF]
+            simp only [StateT.run, hzero] at hrun1 ⊢
+            simp [StateT.run, Bind.bind, StateT.bind, Except.bind,
+              Pure.pure, StateT.pure, Except.pure, hctor, hrhsr, hnfr,
+              hzero,
+              hfind, hnf, hbv.symm, hb1v.symm, hrun1, hb2v.symm, hb3v.symm]
+        · -- the undeclared universe parameter (`DeclCheck.lean:698`)
+          simp only [Bool.not_eq_true] at hb2t
+          rw [if_neg (by simp [hb2t])] at h
+          simp at h
+          obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+          rw [hb2t] at hb2v
+          refine errSim_invalid
+            s!"undeclared universe parameter in rule of {absName cv_name}" hce ?_
+          rw [ConLeche.checkIotaRuleF]
+          simp only [StateT.run, hzero] at hrun1 ⊢
+          simp [StateT.run, Bind.bind, StateT.bind, Except.bind,
+            Pure.pure, StateT.pure, Except.pure, hctor, hrhsr, hnfr,
+            hzero,
+            hfind, hnf, hbv.symm, hb1v.symm, hrun1, hb2v.symm]
+    · -- the loose bound variable (`DeclCheck.lean:693`)
+      simp only [Bool.not_eq_true] at hbt
+      rw [if_neg (by simp [hbt])] at h
+      simp at h
+      obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+      rw [hbt] at hbv
+      refine errSim_invalid
+        s!"loose bound variable in rule of {absName cv_name}" hce ?_
+      rw [ConLeche.checkIotaRuleF]
+      simp [StateT.run, Bind.bind, StateT.bind, Except.bind,
+        Pure.pure, StateT.pure, Except.pure, hctor, hrhsr, hnfr,
+        hzero,
+        hfind, hnf, hbv.symm]
+  · -- the field count (`DeclCheck.lean:691`)
+    rw [if_neg hnf] at h
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    refine errSim_invalid "rule field count mismatch" hce ?_
+    rw [ConLeche.checkIotaRuleF]
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind,
+      Pure.pure, StateT.pure, Except.pure, hctor, hrhsr, hnfr, hzero,
+      hfind, hnf]
+
+
+/-- `check_iota_rule_refines` at a success, the pre-#67 statement. -/
+theorem check_iota_rule_refines_ok
+    {st st' : cached.state_c.CState} {fe2 fe_self : fenv.FEnv}
+    {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
+    {cv_name : name.Name} {lps : alloc.vec.Vec name.Name} {ty_a : expr.Expr}
+    {m_i r_p j : Std.U64} {r r' : env.RecRule}
+    (hres : StructInstall.ConstsResolveFFastRefines)
+    (hspines : StructSpinesRefine)
+    (hf : RenamesTo f g) (hst : StateWF st) (hfe2 : FEnvWF fe2)
+    (hfe : FEnvWF fe_self) (hcv : NameWF cv_name) (hlps : NamesWF lps)
+    (hty : ExprWF ty_a) (hrw : RecRuleWF r)
+    (h : inductives.modeled.check_iota_rule mode st fe2 fe_self f cv_name lps
+        ty_a m_i r_p j r = ok (.Ok r', st')) :
+    ∀ lst lfe2 lfe, StateRel st lst → FEnvRel fe2 lfe2 → FEnvRel fe_self lfe →
+      ∃ lst',
+        (ConLeche.checkIotaRuleF (absMode mode)
+            (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
+            (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
+            j.val (absRecRule r)).run lst = .ok (absRecRule r', lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRuleWF r' :=
+  check_iota_rule_refines hw hcb hres hspines hf hst hfe2 hfe hcv hlps hty hrw h
 
 omit hw hcb in
 /-- `checkIotaRulesF`'s cons step, run: one rule checked, the tail folded. -/
