@@ -312,7 +312,7 @@ theorem annot_constant_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
                 have hq : r1 = .Ok (cv_a, jty) ∧ st1 = st' := by simpa using h
                 obtain ⟨rfl, rfl⟩ := hq
                 obtain ⟨lst1, hrunA, hsr1, hsw1, hjtyw⟩ :=
-                  TypeChecker.annotate_core_refines hfuel hk st fe 0#u64 cv.ty jty0 _
+                  (TypeChecker.annotate_core_refines hfuel hk).ok st fe 0#u64 cv.ty jty0 _
                     hsw hfw hcv.2.2 hann lst lfe hsr hfr
                 obtain ⟨htail, hcvw, hjtyw'⟩ :=
                   annot_constant_val_c_after_annot_refines hfw hcv hjtyw htl lfe hfr
@@ -481,7 +481,7 @@ theorem annot_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
       | Err e => exact absurd h (by simp)
       | Ok jv0 =>
         obtain ⟨lst1, hrunA, hsr1, hsw1, hjvw⟩ :=
-          TypeChecker.annotate_core_refines hfuel hk st fe 0#u64 value jv0 st1
+          (TypeChecker.annotate_core_refines hfuel hk).ok st fe 0#u64 value jv0 st1
             hsw hfw hv hann lst lfe hsr hfr
         simp only [ConLeche.Cached.opE] at hrunA
         have hrunA' : StateT.run ((ConLeche.Cached.coreKnotI (absMode mode) lfe
@@ -1118,7 +1118,7 @@ theorem check_pending_tail_refines {mode : env.CheckMode}
   | Err e => exact absurd h (by simp)
   | Ok jvt =>
     obtain ⟨lst1, hrunI, hsr1, hsw1, hjvtw⟩ :=
-      TypeChecker.infer_type_core_refines IndAbs.check_fuel_eq hk.1 st fe_v 0#u64 jv jvt st1
+      (TypeChecker.infer_type_core_refines IndAbs.check_fuel_eq hk.1).ok st fe_v 0#u64 jv jvt st1
         hsw hfw hjv hinf lst lfe_v hsr hfr
     obtain ⟨q1, hdef, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r1, st2⟩ := q1
@@ -1126,7 +1126,7 @@ theorem check_pending_tail_refines {mode : env.CheckMode}
     | Err e => exact absurd h (by simp)
     | Ok ok1 =>
       obtain ⟨lst2, hrunD, hsr2, hsw2⟩ :=
-        TypeChecker.is_def_eq_core_refines IndAbs.check_fuel_eq hk.1 st1 fe_v 0#u64 jvt
+        (TypeChecker.is_def_eq_core_refines IndAbs.check_fuel_eq hk.1).ok st1 fe_v 0#u64 jvt
           pc.vg.cv_a.ty ok1 st2 hsw1 hfw hjvtw hpc.1.2.2 hdef lst1 lfe_v hsr1 hfr
       simp only [ConLeche.Cached.opE, ConLeche.Cached.opB] at hrunI hrunD
       have hrunI' : StateT.run ((ConLeche.Cached.coreKnotI (absMode mode) lfe_v
@@ -1289,7 +1289,7 @@ theorem check_pending_refines {mode : env.CheckMode}
   | Err e => exact absurd h (by simp)
   | Ok jsty =>
     obtain ⟨lst1, hrunI, hsr1, hsw1, hjstyw⟩ :=
-      TypeChecker.infer_type_core_refines IndAbs.check_fuel_eq hk.1 st1 fe_v 0#u64
+      (TypeChecker.infer_type_core_refines IndAbs.check_fuel_eq hk.1).ok st1 fe_v 0#u64
         pc.vg.cv_a.ty jsty st2 hwf1 hfwv hpc.1.2.2 hinf lst.flushed
         (lfe.restrictTo pc.vis.val) hrel1 hfrv
     obtain ⟨q1, hops, h⟩ := bind_eq_ok_iff.mp h
@@ -1299,7 +1299,7 @@ theorem check_pending_refines {mode : env.CheckMode}
     | Ok u =>
       rw [cached.parsed_c.op_s_ix_c] at hops
       obtain ⟨lst2, hrunS, hsr2, hsw2, huw⟩ :=
-        TypeChecker.ensure_sort_core_refines IndAbs.check_fuel_eq hk.1 st2 fe_v 0#u64 jsty u
+        (TypeChecker.ensure_sort_core_refines IndAbs.check_fuel_eq hk.1).ok st2 fe_v 0#u64 jsty u
           st3 hsw1 hfwv hjstyw hops lst1 (lfe.restrictTo pc.vis.val) hsr1 hfrv
       obtain ⟨lst', hrunV, hsr', hsw', hfr', hfw'⟩ :=
         check_pending_value_refines hk hsw2 hfwv hpc huw h lst2

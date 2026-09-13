@@ -971,7 +971,7 @@ theorem check_def_eq_list_from_refines {mode : env.CheckMode} {fuel : Std.U64}
             obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
             have hi4v : i4.val = i.val + 1 := HashMap.uscalar_add_eq hi4
             obtain ⟨lst1, hrun, hsr1, hsw1⟩ :=
-              TypeChecker.is_def_eq_core_refines hfuel hk st fe depth e e1 true st1
+              (TypeChecker.is_def_eq_core_refines hfuel hk).ok st fe depth e e1 true st1
                 hsw hfw hewf he1wf hq lst lfe hsr hfr
             have hstep : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
                 (absExpr e) (absExpr e1)).run lst = .ok (true, lst1) := by
@@ -1062,7 +1062,7 @@ theorem check_typed_list_from_refines {mode : env.CheckMode} {fuel : Std.U64}
           obtain ⟨rr2, st2⟩ := q2
           obtain ⟨hltt, he1wf, hdropt⟩ := ExprOps.vec_index_expr hts he1
           obtain ⟨lst1, hrun, hsr1, hsw1, htywf⟩ :=
-            TypeChecker.infer_type_core_refines hfuel hk st fe depth e ty st1
+            (TypeChecker.infer_type_core_refines hfuel hk).ok st fe depth e ty st1
               hsw hfw hewf hq lst lfe hsr hfr
           cases rr2 with
           | Err er => simp at h
@@ -1074,7 +1074,7 @@ theorem check_typed_list_from_refines {mode : env.CheckMode} {fuel : Std.U64}
               obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
               have hi5v : i5.val = i.val + 1 := HashMap.uscalar_add_eq hi5
               obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
-                TypeChecker.is_def_eq_core_refines hfuel hk st1 fe depth ty e1 true st2
+                (TypeChecker.is_def_eq_core_refines hfuel hk).ok st1 fe depth ty e1 true st2
                   hsw1 hfw htywf he1wf hq2 lst1 lfe hsr1 hfr
               have hinf : ((TypeChecker.lops mode lfe).inferType lfe.env depth.val
                   (absExpr e)).run lst = .ok (absExpr ty, lst1) := by
@@ -1151,7 +1151,7 @@ theorem check_annot_list_from_refines {mode : env.CheckMode} {fuel : Std.U64}
       | Err er => simp at h
       | Ok aA =>
         obtain ⟨lst1, hrun, hsr1, hsw1, hawf⟩ :=
-          TypeChecker.annotate_core_refines hfuel hk st fe depth e aA st1
+          (TypeChecker.annotate_core_refines hfuel hk).ok st fe depth e aA st1
             hsw hfw hewf hq lst lfe hsr hfr
         obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
         have hcv := Expr.beq_refines hawf hewf hc
@@ -1301,7 +1301,7 @@ theorem check_constant_val_after_annot_refines {mode : env.CheckMode} {fuel : St
       | Err er => simp at h
       | Ok stype =>
         obtain ⟨lst1, hrun1, hsr1, hsw1, hstwf⟩ :=
-          TypeChecker.infer_type_core_refines hfuel hk st fe 0#u64 ty stype st1
+          (TypeChecker.infer_type_core_refines hfuel hk).ok st fe 0#u64 ty stype st1
             hsw hfw hty hq lst lfe hsr hfr
         obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨r2, st2⟩ := q2
@@ -1309,7 +1309,7 @@ theorem check_constant_val_after_annot_refines {mode : env.CheckMode} {fuel : St
         | Err er => simp at h
         | Ok u =>
           obtain ⟨lst2, hrun2, hsr2, hsw2, huwf⟩ :=
-            TypeChecker.ensure_sort_core_refines hfuel hk st1 fe 0#u64 stype u st2
+            (TypeChecker.ensure_sort_core_refines hfuel hk).ok st1 fe 0#u64 stype u st2
               hsw1 hfw hstwf hq2 lst1 lfe hsr1 hfr
           obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
@@ -1402,7 +1402,7 @@ theorem check_constant_val_refines {mode : env.CheckMode} {fuel : Std.U64}
               | Err er => simp at h
               | Ok ty =>
                 obtain ⟨lst1, hrun1, hsr1, hsw1, htyawf⟩ :=
-                  TypeChecker.annotate_core_refines hfuel hk st fe 0#u64 cv.ty ty st1
+                  (TypeChecker.annotate_core_refines hfuel hk).ok st fe 0#u64 cv.ty ty st1
                     hsw hfw htywf hq lst lfe hsr hfr
                 obtain ⟨lst2, hrun2, hsr2, hsw2, hcv'wf⟩ :=
                   check_constant_val_after_annot_refines hfuel hk hcr hsw1 hfw
@@ -1623,7 +1623,7 @@ theorem check_proj_rule_certs_refines {mode : env.CheckMode} {fuel : Std.U64}
               | Err er => simp at h
               | Ok rhsty =>
                 obtain ⟨lst3, hrun3, hsr3, hsw3, -⟩ :=
-                  TypeChecker.infer_type_core_refines hfuel hk st2 fe 0#u64 rhs_a rhsty st3
+                  (TypeChecker.infer_type_core_refines hfuel hk).ok st2 fe 0#u64 rhs_a rhsty st3
                     hsw2 hfw hrhs hq3 lst2 lfe hsr2 hfr
                 simp at h
                 obtain ⟨rfl, rfl⟩ := h
@@ -1826,7 +1826,7 @@ theorem check_proj_rule_refines {mode : env.CheckMode} {fuel : Std.U64}
         | Err er => simp at h
         | Ok rhs_a =>
           obtain ⟨lst1, hrun1, hsr1, hsw1, hrawf⟩ :=
-            TypeChecker.annotate_core_refines hfuel hk st fe 0#u64 rhs rhs_a st1
+            (TypeChecker.annotate_core_refines hfuel hk).ok st fe 0#u64 rhs rhs_a st1
               hsw hfw hrhswf hq lst lfe hsr hfr
           obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
           have hb2abs := proj_rule_wf_refines hcr hfr hfw hrawf hlps hb2

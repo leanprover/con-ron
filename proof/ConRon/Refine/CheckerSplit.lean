@@ -299,7 +299,7 @@ theorem install_constant_val_refines {mode : env.CheckMode} {fuel : Std.U64}
               | Err er => simp at h
               | Ok ty =>
                 obtain ⟨lst1, hrun1, hsr1, hsw1, htyawf⟩ :=
-                  TypeChecker.annotate_core_refines hfuel hk st fe 0#u64 cv.ty ty st1
+                  (TypeChecker.annotate_core_refines hfuel hk).ok st fe 0#u64 cv.ty ty st1
                     hsw hfw htywf hq lst lfe hsr hfr
                 obtain ⟨b6, hb6, h⟩ := bind_eq_ok_iff.mp h
                 have hb6abs :=
@@ -377,7 +377,7 @@ theorem install_value_refines {mode : env.CheckMode} {fuel : Std.U64}
       | Err er => simp at h
       | Ok va =>
         obtain ⟨lst1, hrun, hsr1, hsw1, hvaw⟩ :=
-          TypeChecker.annotate_core_refines hfuel hk st fe 0#u64 value va st1
+          (TypeChecker.annotate_core_refines hfuel hk).ok st fe 0#u64 value va st1
             hsw hfw hv hq lst lfe hsr hfr
         obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
         have hb2v := ExprOps.all_level_params_defined_fast_refines hcv.2.1 hvaw hb2
@@ -433,7 +433,7 @@ theorem check_value_group_tail_refines {mode : env.CheckMode} {fuel : Std.U64}
   | Err er => simp at h
   | Ok vtype =>
     obtain ⟨lst1, hrun1, hsr1, hsw1, hvw⟩ :=
-      TypeChecker.infer_type_core_refines hfuel hk st fe 0#u64 jv vtype st1
+      (TypeChecker.infer_type_core_refines hfuel hk).ok st fe 0#u64 jv vtype st1
         hsw hfw hjv hq lst lfe hsr hfr
     obtain ⟨p2, hq2, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r1, st2⟩ := p2
@@ -446,7 +446,7 @@ theorem check_value_group_tail_refines {mode : env.CheckMode} {fuel : Std.U64}
         have hst : st2 = st' := by simpa using h
         subst hst
         obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
-          TypeChecker.is_def_eq_core_refines hfuel hk st1 fe 0#u64 vtype g.cv_a.ty true st2
+          (TypeChecker.is_def_eq_core_refines hfuel hk).ok st1 fe 0#u64 vtype g.cv_a.ty true st2
             hsw1 hfw hvw hg.1.2.2 hq2 lst1 lfe hsr1 hfr
         exact ⟨lst2, tail_run hrun1 hrun2, hsr2, hsw2⟩
 
@@ -485,7 +485,7 @@ theorem check_value_group_refines {mode : env.CheckMode} {fuel : Std.U64}
   | Err er => simp at h
   | Ok stype =>
     obtain ⟨lst1, hrun1, hsr1, hsw1, hstw⟩ :=
-      TypeChecker.infer_type_core_refines hfuel hk st fe 0#u64 g.cv_a.ty stype st1
+      (TypeChecker.infer_type_core_refines hfuel hk).ok st fe 0#u64 g.cv_a.ty stype st1
         hsw hfw hg.1.2.2 hq lst lfe hsr hfr
     obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r1, st2⟩ := q2
@@ -493,7 +493,7 @@ theorem check_value_group_refines {mode : env.CheckMode} {fuel : Std.U64}
     | Err er => simp at h
     | Ok u =>
       obtain ⟨lst2, hrun2, hsr2, hsw2, huw⟩ :=
-        TypeChecker.ensure_sort_core_refines hfuel hk st1 fe 0#u64 stype u st2
+        (TypeChecker.ensure_sort_core_refines hfuel hk).ok st1 fe 0#u64 stype u st2
           hsw1 hfw hstw hq2 lst1 lfe hsr1 hfr
       have hinf : ((TypeChecker.lops mode lfe).inferType lfe.env 0
           (absValueGroup g).cvA.type).run lst = .ok (absExpr stype, lst1) := by

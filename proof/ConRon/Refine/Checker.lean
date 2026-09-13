@@ -317,7 +317,7 @@ private theorem defn_after_annot_core {mode : env.CheckMode} {fuel : Std.U64}
       | Err e => simp at h
       | Ok vtype =>
         obtain ⟨lst1, hrun1, hsr1, hsw1, hvw⟩ :=
-          TypeChecker.infer_type_core_refines hfuel hk st fe 0#u64 value_a vtype st1
+          (TypeChecker.infer_type_core_refines hfuel hk).ok st fe 0#u64 value_a vtype st1
             hsw hfw hv hinf lst lfe hsr hfr
         obtain ⟨q, hdef, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨r1, st2⟩ := q
@@ -325,7 +325,7 @@ private theorem defn_after_annot_core {mode : env.CheckMode} {fuel : Std.U64}
         | Err e => simp at h
         | Ok okv =>
           obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
-            TypeChecker.is_def_eq_core_refines hfuel hk st1 fe 0#u64 vtype cv.ty okv st2
+            (TypeChecker.is_def_eq_core_refines hfuel hk).ok st1 fe 0#u64 vtype cv.ty okv st2
               hsw1 hfw hvw hcv.2.2 hdef lst1 lfe hsr1 hfr
           cases okv with
           | false => simp at h
@@ -386,7 +386,7 @@ theorem check_defn_val_refines {mode : env.CheckMode} {fuel : Std.U64}
       | Err e => simp at h
       | Ok value_a =>
         obtain ⟨lst1, hruna, hsr1, hsw1, hvaw⟩ :=
-          TypeChecker.annotate_core_refines hfuel hk st fe 0#u64 value value_a st1
+          (TypeChecker.annotate_core_refines hfuel hk).ok st fe 0#u64 value value_a st1
             hsw hfw hv hann lst lfe hsr hfr
         obtain ⟨lst', hsr', hsw', hwf', hrel', hrun⟩ :=
           defn_after_annot_core hfuel hk hp hsw1 hfw hcv hvaw h lst1 lfe hsr1 hfr
@@ -518,7 +518,7 @@ private theorem thm_checked_core {mode : env.CheckMode} {fuel : Std.U64}
       | Err e => simp at h
       | Ok vtype =>
         obtain ⟨lst1, hrun1, hsr1, hsw1, hvw⟩ :=
-          TypeChecker.infer_type_core_refines hfuel hk st fe 0#u64 jv vtype st1
+          (TypeChecker.infer_type_core_refines hfuel hk).ok st fe 0#u64 jv vtype st1
             hsw hfw hjv hinf lst lfe hsr hfr
         obtain ⟨q, hdef, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨r1, st2⟩ := q
@@ -526,7 +526,7 @@ private theorem thm_checked_core {mode : env.CheckMode} {fuel : Std.U64}
         | Err e => simp at h
         | Ok okv =>
           obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
-            TypeChecker.is_def_eq_core_refines hfuel hk st1 fe 0#u64 vtype cv.ty okv st2
+            (TypeChecker.is_def_eq_core_refines hfuel hk).ok st1 fe 0#u64 vtype cv.ty okv st2
               hsw1 hfw hvw hcv.2.2 hdef lst1 lfe hsr1 hfr
           cases okv with
           | false => simp at h
@@ -606,7 +606,7 @@ private theorem thm_witness_core {mode : env.CheckMode} {fuel : Std.U64}
       | Err e => simp at h
       | Ok jv =>
         obtain ⟨lst1, hruna, hsr1, hsw1, hjvw⟩ :=
-          TypeChecker.annotate_core_refines hfuel hk st fe 0#u64 value jv st1
+          (TypeChecker.annotate_core_refines hfuel hk).ok st fe 0#u64 value jv st1
             hsw hfw hv hann lst lfe hsr hfr
         obtain ⟨lst', hsr', hsw', hwf', hrel', hrun⟩ :=
           thm_checked_core hfuel hk hp hsw1 hfw hcv hv hjvw h lst1 lfe lfe.env hsr1 hfr
@@ -650,7 +650,7 @@ theorem check_thm_val_refines {mode : env.CheckMode} {fuel : Std.U64}
   | Err e => simp at h
   | Ok stype =>
     obtain ⟨lst1, hrun1, hsr1, hsw1, hstw⟩ :=
-      TypeChecker.infer_type_core_refines hfuel hk st fe 0#u64 cv.ty stype st1
+      (TypeChecker.infer_type_core_refines hfuel hk).ok st fe 0#u64 cv.ty stype st1
         hsw hfw hcv.2.2 hinf lst lfe hsr hfr
     obtain ⟨q, hsort, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r1, st2⟩ := q
@@ -658,7 +658,7 @@ theorem check_thm_val_refines {mode : env.CheckMode} {fuel : Std.U64}
     | Err e => simp at h
     | Ok u =>
       obtain ⟨lst2, hrun2, hsr2, hsw2, huw⟩ :=
-        TypeChecker.ensure_sort_core_refines hfuel hk st1 fe 0#u64 stype u st2
+        (TypeChecker.ensure_sort_core_refines hfuel hk).ok st1 fe 0#u64 stype u st2
           hsw1 hfw hstw hsort lst1 lfe hsr1 hfr
       obtain ⟨l, hl0, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, hiso, h⟩ := bind_eq_ok_iff.mp h
@@ -794,7 +794,7 @@ theorem check_opaque_val_refines {mode : env.CheckMode} {fuel : Std.U64}
       | Err e => simp at h
       | Ok value_a =>
         obtain ⟨lst1, hruna, hsr1, hsw1, hvaw⟩ :=
-          TypeChecker.annotate_core_refines hfuel hk st fe 0#u64 value value_a st1
+          (TypeChecker.annotate_core_refines hfuel hk).ok st fe 0#u64 value value_a st1
             hsw hfw hv hann lst lfe hsr hfr
         have h : kernel.checker.check_opaque_val_after_annot mode st1 fe cv value_a
             = ok (.Ok fe', st') := h
@@ -820,7 +820,7 @@ theorem check_opaque_val_refines {mode : env.CheckMode} {fuel : Std.U64}
             | Err e => simp at h
             | Ok vtype =>
               obtain ⟨lst2, hrun2, hsr2, hsw2, hvw⟩ :=
-                TypeChecker.infer_type_core_refines hfuel hk st1 fe 0#u64 value_a vtype st2
+                (TypeChecker.infer_type_core_refines hfuel hk).ok st1 fe 0#u64 value_a vtype st2
                   hsw1 hfw hvaw hinf lst1 lfe hsr1 hfr
               obtain ⟨q2, hdef, h⟩ := bind_eq_ok_iff.mp h
               obtain ⟨r2, st3⟩ := q2
@@ -828,7 +828,7 @@ theorem check_opaque_val_refines {mode : env.CheckMode} {fuel : Std.U64}
               | Err e => simp at h
               | Ok okv =>
                 obtain ⟨lst3, hrun3, hsr3, hsw3⟩ :=
-                  TypeChecker.is_def_eq_core_refines hfuel hk st2 fe 0#u64 vtype cv.ty
+                  (TypeChecker.is_def_eq_core_refines hfuel hk).ok st2 fe 0#u64 vtype cv.ty
                     okv st3 hsw2 hfw hvw hcv.2.2 hdef lst2 lfe hsr2 hfr
                 cases okv with
                 | false => simp at h
@@ -912,7 +912,7 @@ theorem certify_nat_eqs_val {mode : env.CheckMode} {fuel : Std.U64}
       | Err e => simp at h
       | Ok ok1 =>
         obtain ⟨lst1, hrun, hsr1, hsw1⟩ :=
-          TypeChecker.is_def_eq_core_refines hfuel hk st fe 2#u64 e1 e2 ok1 st1
+          (TypeChecker.is_def_eq_core_refines hfuel hk).ok st fe 2#u64 e1 e2 ok1 st1
             hsw hfw hw1 hw2 hdef lst lfe hsr hfr
         have hrun2 : (ConLeche.Cached.opB (absMode mode) lfe 2
             (absExpr e1) (absExpr e2)).run lst = .ok (ok1, lst1) := hrun

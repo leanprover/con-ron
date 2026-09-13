@@ -2049,7 +2049,7 @@ theorem check_iota_sides_ty_refines {mode : env.CheckMode} {fuel : Std.U64}
   | Err e1 => simp at h
   | Ok tl =>
     obtain ⟨lst1, hrun1, hsr1, hsw1, htlwf⟩ :=
-      TypeChecker.infer_type_core_refines hfuel hk st fe depth lhs_s tl st1
+      (TypeChecker.infer_type_core_refines hfuel hk).ok st fe depth lhs_s tl st1
         hsw hfw hl (infer_at_fuel hfuel hq1) lst lfe hsr hfr
     obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r2, st2⟩ := q2
@@ -2057,7 +2057,7 @@ theorem check_iota_sides_ty_refines {mode : env.CheckMode} {fuel : Std.U64}
     | Err e2 => simp at h
     | Ok b =>
       obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
-        TypeChecker.is_def_eq_core_refines hfuel hk st1 fe depth tl alpha_s b st2
+        (TypeChecker.is_def_eq_core_refines hfuel hk).ok st1 fe depth tl alpha_s b st2
           hsw1 hfw htlwf ha (defeq_at_fuel hfuel hq2) lst1 lfe hsr1 hfr
       cases b with
       | false => simp [bind_eq_ok_iff] at h
@@ -2069,7 +2069,7 @@ theorem check_iota_sides_ty_refines {mode : env.CheckMode} {fuel : Std.U64}
         | Err e3 => simp at h
         | Ok tr =>
           obtain ⟨lst3, hrun3, hsr3, hsw3, htrwf⟩ :=
-            TypeChecker.infer_type_core_refines hfuel hk st2 fe depth rhs_s tr st3
+            (TypeChecker.infer_type_core_refines hfuel hk).ok st2 fe depth rhs_s tr st3
               hsw2 hfw hr (infer_at_fuel hfuel hq3) lst2 lfe hsr2 hfr
           obtain ⟨q4, hq4, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨r4, st4⟩ := q4
@@ -2077,7 +2077,7 @@ theorem check_iota_sides_ty_refines {mode : env.CheckMode} {fuel : Std.U64}
           | Err e4 => simp at h
           | Ok b1 =>
             obtain ⟨lst4, hrun4, hsr4, hsw4⟩ :=
-              TypeChecker.is_def_eq_core_refines hfuel hk st3 fe depth tr alpha_s
+              (TypeChecker.is_def_eq_core_refines hfuel hk).ok st3 fe depth tr alpha_s
                 b1 st4 hsw3 hfw htrwf ha (defeq_at_fuel hfuel hq4) lst3 lfe hsr3 hfr
             cases b1 with
             | false => simp [bind_eq_ok_iff] at h
@@ -2112,7 +2112,7 @@ theorem check_iota_sides_ty_refines {mode : env.CheckMode} {fuel : Std.U64}
                 | Err e5 => simp at h
                 | Ok ta =>
                   obtain ⟨lst5, hrun5, hsr5, hsw5, htawf⟩ :=
-                    TypeChecker.infer_type_core_refines hfuel hk st4 fe depth
+                    (TypeChecker.infer_type_core_refines hfuel hk).ok st4 fe depth
                       alpha_s ta st5 hsw4 hfw ha (infer_at_fuel hfuel hq5) lst4
                       lfe hsr4 hfr
                   simp only [level_dup_eq, bind_tc_ok] at h
@@ -2123,7 +2123,7 @@ theorem check_iota_sides_ty_refines {mode : env.CheckMode} {fuel : Std.U64}
                   | Err e6 => simp at h
                   | Ok b3 =>
                     obtain ⟨lst6, hrun6, hsr6, hsw6⟩ :=
-                      TypeChecker.is_def_eq_core_refines hfuel hk st5 fe depth ta
+                      (TypeChecker.is_def_eq_core_refines hfuel hk).ok st5 fe depth ta
                         se b3 st6 hsw5 hfw htawf (Expr.sort_wf hla hse)
                         (defeq_at_fuel hfuel hq6) lst5 lfe hsr5 hfr
                     rw [Expr.sort_refines hse] at hrun6

@@ -1891,7 +1891,7 @@ private theorem check_div_mod_certs_from_val {mode : env.CheckMode} {fuel : Std.
           | Err er => simp at harm
           | Ok applied_a =>
             obtain ⟨lst1, hrunA, hsr1, hsw1, haawf⟩ :=
-              (TypeChecker.annotate_core_refines hfuel hk) st fe 4#u64 applied
+              ((TypeChecker.annotate_core_refines hfuel hk).ok) st fe 4#u64 applied
                 applied_a b hsw hfw happwf hann lst lfe hsr hfr
             have hrunA' : (ConLeche.Cached.opE (absMode mode) lfe (·.annotate) 4
                 (ConLeche.divModCertApplied
@@ -1907,7 +1907,7 @@ private theorem check_div_mod_certs_from_val {mode : env.CheckMode} {fuel : Std.
             | Err er => simp at harm
             | Ok tp =>
               obtain ⟨lst2, hrunI, hsr2, hsw2, htpwf⟩ :=
-                (TypeChecker.infer_type_core_refines hfuel hk) b fe 4#u64 applied_a
+                ((TypeChecker.infer_type_core_refines hfuel hk).ok) b fe 4#u64 applied_a
                   tp b1 hsw1 hfw haawf hinf lst1 lfe hsr1 hfr
               have hrunI' : (ConLeche.Cached.opE (absMode mode) lfe (·.infer) 4
                   (absExpr applied_a)).run lst1 = .ok (absExpr tp, lst2) := hrunI
@@ -1919,7 +1919,7 @@ private theorem check_div_mod_certs_from_val {mode : env.CheckMode} {fuel : Std.
               | Err er => simp at harm
               | Ok ok1 =>
                 obtain ⟨lst3, hrunD, hsr3, hsw3⟩ :=
-                  (TypeChecker.is_def_eq_core_refines hfuel hk) b1 fe 4#u64 tp target
+                  ((TypeChecker.is_def_eq_core_refines hfuel hk).ok) b1 fe 4#u64 tp target
                     ok1 b2 hsw2 hfw htpwf htwf hdef lst2 lfe hsr2 hfr
                 have hrunD' : (ConLeche.Cached.opB (absMode mode) lfe 4 (absExpr tp)
                     (ConLeche.Expr.substConst0 (absName c) (absExpr ann_val)
@@ -2549,7 +2549,7 @@ theorem check_div_mod_pin_at_refines {mode : env.CheckMode} {fuel : Std.U64}
   | Err er => simp at h
   | Ok pin_a =>
     obtain ⟨lst1, hrunA, hsr1, hsw1, hpawf⟩ :=
-      (TypeChecker.annotate_core_refines hfuel hk) st fe 0#u64 pin pin_a b
+      ((TypeChecker.annotate_core_refines hfuel hk).ok) st fe 0#u64 pin pin_a b
         hsw hfw hpwf hann lst lfe hsr hfr
     have hrunA' : (ConLeche.Cached.opE (absMode mode) lfe (·.annotate) 0
         (ConLeche.divModDeclPin (absNatOpPinSet ps) (absName c))).run lst
@@ -2560,7 +2560,7 @@ theorem check_div_mod_pin_at_refines {mode : env.CheckMode} {fuel : Std.U64}
     | Err er => simp at h
     | Ok ok_pin =>
       obtain ⟨lst2, hrunD, hsr2, hsw2⟩ :=
-        (TypeChecker.is_def_eq_core_refines hfuel hk) b fe 0#u64 value2 pin_a
+        ((TypeChecker.is_def_eq_core_refines hfuel hk).ok) b fe 0#u64 value2 pin_a
           ok_pin b1 hsw1 hfw hv hpawf hdef lst1 lfe hsr1 hfr
       have hrunD' : (ConLeche.Cached.opB (absMode mode) lfe 0 (absExpr value2)
           (absExpr pin_a)).run lst1 = .ok (ok_pin, lst2) := hrunD
@@ -2881,7 +2881,7 @@ theorem check_reduce_identity_refines {mode : env.CheckMode} {fuel : Std.U64}
     | true =>
       simp at h
       obtain ⟨lst', hrun, hsr', hsw'⟩ :=
-        (TypeChecker.is_def_eq_core_refines hfuel hk) st fe 1#u64 applied x true st1
+        ((TypeChecker.is_def_eq_core_refines hfuel hk).ok) st fe 1#u64 applied x true st1
           hsw hfw hawf hxwf hq lst lfe hsr hfr
       rw [h] at hsr' hsw'
       refine ⟨lst', ?_, hsr', hsw'⟩
@@ -2929,7 +2929,7 @@ theorem check_reduce_pin_pre_refines {mode : env.CheckMode} {fuel : Std.U64}
       | Err e => simp at h
       | Ok val_a =>
         obtain ⟨lst1, hrun1, hsr1, hsw1, hvawf⟩ :=
-          (TypeChecker.annotate_core_refines hfuel hk) st fe 0#u64 value val_a st1
+          ((TypeChecker.annotate_core_refines hfuel hk).ok) st fe 0#u64 value val_a st1
             hsw hfw hval hq lst lfe hsr hfr
         have hrun1' : (ConLeche.Cached.opE (absMode mode) lfe (·.annotate) 0
             (absExpr value)).run lst = .ok (absExpr val_a, lst1) := hrun1
@@ -2940,7 +2940,7 @@ theorem check_reduce_pin_pre_refines {mode : env.CheckMode} {fuel : Std.U64}
         | Err e => simp at h
         | Ok pin_a =>
           obtain ⟨lst2, hrun2, hsr2, hsw2, hpawf⟩ :=
-            (TypeChecker.annotate_core_refines hfuel hk) st1 fe 0#u64 pin pin_a st2
+            ((TypeChecker.annotate_core_refines hfuel hk).ok) st1 fe 0#u64 pin pin_a st2
               hsw1 hfw hpinwf hq2 lst1 lfe hsr1 hfr
           have hrun2' : (ConLeche.Cached.opE (absMode mode) lfe (·.annotate) 0
               (ConLeche.reduceDeclPin (absName c))).run lst1
@@ -2951,7 +2951,7 @@ theorem check_reduce_pin_pre_refines {mode : env.CheckMode} {fuel : Std.U64}
           | Err e => simp at h
           | Ok ok_pin =>
             obtain ⟨lst3, hrun3, hsr3, hsw3⟩ :=
-              (TypeChecker.is_def_eq_core_refines hfuel hk) st2 fe 0#u64 val_a pin_a
+              ((TypeChecker.is_def_eq_core_refines hfuel hk).ok) st2 fe 0#u64 val_a pin_a
                 ok_pin st3 hsw2 hfw hvawf hpawf hq3 lst2 lfe hsr2 hfr
             have hrun3' : (ConLeche.Cached.opB (absMode mode) lfe 0
                 (absExpr val_a) (absExpr pin_a)).run lst2 = .ok (ok_pin, lst3) :=
@@ -3319,7 +3319,7 @@ private theorem certify_nat_eqs_val_step {mode : env.CheckMode} {fuel : Std.U64}
       | Err e => simp at h
       | Ok ok1 =>
         obtain ⟨lst1, hrun, hsr1, hsw1⟩ :=
-          TypeChecker.is_def_eq_core_refines hfuel hk st fe 2#u64 e1 e2 ok1 st1
+          (TypeChecker.is_def_eq_core_refines hfuel hk).ok st fe 2#u64 e1 e2 ok1 st1
             hsw hfw hw1 hw2 hdef lst lfe hsr hfr
         have hrun2 : (ConLeche.Cached.opB (absMode mode) lfe 2
             (absExpr e1) (absExpr e2)).run lst = .ok (ok1, lst1) := hrun
