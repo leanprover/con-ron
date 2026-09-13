@@ -1635,6 +1635,72 @@ theorem checkProjTyF_run {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
   simp only [h1, h2, h3, h4, StateT.run, Bind.bind, Pure.pure, StateT.pure,
     Except.pure, if_true]
 
+open ConLeche.Cached in
+/-- `checkProjTyF`'s roundtrip `throw` (`DeclCheck.lean:752`). -/
+theorem checkProjTyF_roundtrip {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {mty : ConLeche.Expr} {nP nF : Nat} {lst : CState}
+    (h1 : ((mty.renameConsts (ConLeche.projBack T ctorName nF)).renameConsts
+        (ConLeche.projFwd T ctorName nF) == mty) = false) :
+    (ConLeche.checkProjTyF (m := CheckCM) lfe T ctorName lps mty nP nF).run lst
+      = .error (.notImplemented "projection type roundtrip") := by
+  rw [ConLeche.checkProjTyF]
+  simp only [h1, StateT.run, Bind.bind, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjTyF`'s resolution `throw` (`DeclCheck.lean:754`). -/
+theorem checkProjTyF_resolve {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {mty : ConLeche.Expr} {nP nF : Nat} {lst : CState}
+    (h1 : ((mty.renameConsts (ConLeche.projBack T ctorName nF)).renameConsts
+        (ConLeche.projFwd T ctorName nF) == mty) = true)
+    (h2 : (mty.renameConsts (ConLeche.projBack T ctorName nF)).constsResolveF lfe
+        = false) :
+    (ConLeche.checkProjTyF (m := CheckCM) lfe T ctorName lps mty nP nF).run lst
+      = .error (.notImplemented "projection type resolution") := by
+  rw [ConLeche.checkProjTyF]
+  simp only [h1, h2, StateT.run, Bind.bind, if_true, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjTyF`'s well-formedness `throw` (`DeclCheck.lean:758`). -/
+theorem checkProjTyF_wf {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {mty : ConLeche.Expr} {nP nF : Nat} {lst : CState}
+    (h1 : ((mty.renameConsts (ConLeche.projBack T ctorName nF)).renameConsts
+        (ConLeche.projFwd T ctorName nF) == mty) = true)
+    (h2 : (mty.renameConsts (ConLeche.projBack T ctorName nF)).constsResolveF lfe
+        = true)
+    (h3 : ((mty.renameConsts (ConLeche.projBack T ctorName nF)).looseBVarsBounded 0
+        && !(mty.renameConsts (ConLeche.projBack T ctorName nF)).hasFvar
+        && (mty.renameConsts (ConLeche.projBack T ctorName nF)).allLevelParamsDefined
+              lps) = false) :
+    (ConLeche.checkProjTyF (m := CheckCM) lfe T ctorName lps mty nP nF).run lst
+      = .error (.notImplemented "projection type wellformedness") := by
+  rw [ConLeche.checkProjTyF]
+  simp only [h1, h2, h3, StateT.run, Bind.bind, if_true, Bool.false_eq_true,
+    if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjTyF`'s telescope `throw` (`DeclCheck.lean:760`). -/
+theorem checkProjTyF_telescope {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {mty : ConLeche.Expr} {nP nF : Nat} {lst : CState}
+    (h1 : ((mty.renameConsts (ConLeche.projBack T ctorName nF)).renameConsts
+        (ConLeche.projFwd T ctorName nF) == mty) = true)
+    (h2 : (mty.renameConsts (ConLeche.projBack T ctorName nF)).constsResolveF lfe
+        = true)
+    (h3 : ((mty.renameConsts (ConLeche.projBack T ctorName nF)).looseBVarsBounded 0
+        && !(mty.renameConsts (ConLeche.projBack T ctorName nF)).hasFvar
+        && (mty.renameConsts (ConLeche.projBack T ctorName nF)).allLevelParamsDefined
+              lps) = true)
+    (h4 : ((mty.renameConsts (ConLeche.projBack T ctorName nF)).stripPis
+        (nP + 1)).isSome = false) :
+    (ConLeche.checkProjTyF (m := CheckCM) lfe T ctorName lps mty nP nF).run lst
+      = .error (.notImplemented "projection type telescope") := by
+  rw [ConLeche.checkProjTyF]
+  simp only [h1, h2, h3, h4, StateT.run, Bind.bind, if_true, Bool.false_eq_true,
+    if_false]
+  rfl
+
 /-- `ConLeche/Kernel/DeclCheck.lean:748-761 checkProjTyF` (and
 `Inductives/Modeled.lean:497-511 checkProjTy`, the generic twin) —
 **`inductives::modeled::check_proj_ty`**: the public projection type is the
@@ -1647,17 +1713,24 @@ The four `modeled.rs` steps above carry the two renamings; the rest is
 `ExprOps.strip_pis_refines` and `Expr.beq_refines`. -/
 theorem check_proj_ty_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {t ctor_name : name.Name} {lps : alloc.vec.Vec name.Name} {mty : expr.Expr}
-    {n_p n_f : Std.U64} {pty : expr.Expr}
+    {n_p n_f : Std.U64}
+    {out : core.result.Result expr.Expr core_types.CheckError}
     (hfe : FindAgree fe lfe) (hwf : FindWF fe) (ht : NameWF t)
     (hc : NameWF ctor_name) (hlps : NamesWF lps) (hmty : ExprWF mty)
     (h : inductives.modeled.check_proj_ty fe t ctor_name lps mty n_p n_f
-      = ok (.Ok pty)) :
+      = ok out) :
     ∀ lst : ConLeche.Cached.CState,
-      (ConLeche.checkProjTyF (m := ConLeche.Cached.CheckCM) lfe
-          (absName t) (absName ctor_name) (absNames lps) (absExpr mty)
-          n_p.val n_f.val).run lst
-        = .ok (absExpr pty, lst)
-      ∧ ExprWF pty := by
+      match out with
+      | .Ok pty =>
+        (ConLeche.checkProjTyF (m := ConLeche.Cached.CheckCM) lfe
+            (absName t) (absName ctor_name) (absNames lps) (absExpr mty)
+            n_p.val n_f.val).run lst
+          = .ok (absExpr pty, lst)
+        ∧ ExprWF pty
+      | .Err e =>
+        ErrSim e ((ConLeche.checkProjTyF (m := ConLeche.Cached.CheckCM) lfe
+            (absName t) (absName ctor_name) (absNames lps) (absExpr mty)
+            n_p.val n_f.val).run lst) := by
   -- `hwf` is carried for the seam's uniformity (every statement of this
   -- section takes it); this route reads the index only through `FindAgree`.
   have _ : FindWF fe := hwf
@@ -1716,26 +1789,81 @@ theorem check_proj_ty_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
         obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨hoabs, -⟩ := ExprOps.strip_pis_refines hptywf ho
         rw [hi1v] at hoabs
+        have hround : ((absExpr mty).renameConsts
+              (ConLeche.projBack (absName t) (absName ctor_name) n_f.val)).renameConsts
+              (ConLeche.projFwd (absName t) (absName ctor_name) n_f.val)
+            == absExpr mty := by
+          rw [← hptyabs, ← hroundabs, ← decide_eq_beq]; exact hbabs.symm
+        have hres : ((absExpr mty).renameConsts
+              (ConLeche.projBack (absName t) (absName ctor_name) n_f.val)).constsResolveF
+              lfe = true := by
+          rw [← hptyabs]; exact hb1abs.symm
+        have hwfc : (((absExpr mty).renameConsts
+                (ConLeche.projBack (absName t) (absName ctor_name) n_f.val)).looseBVarsBounded 0
+              && !((absExpr mty).renameConsts
+                (ConLeche.projBack (absName t) (absName ctor_name) n_f.val)).hasFvar
+              && ((absExpr mty).renameConsts
+                (ConLeche.projBack (absName t) (absName ctor_name) n_f.val)).allLevelParamsDefined
+                  (absNames lps)) = true := by
+          rw [← hptyabs]; exact hwfabs.symm
         by_cases hon : core.option.Option.is_none o = true
-        · replace h := ite_pos_eq (c := (core.option.Option.is_none o = true)) hon h
-          simp [bind_eq_ok_iff] at h
+        · -- `modeled.rs` ← `DeclCheck.lean:760`
+          replace h := ite_pos_eq (c := (core.option.Option.is_none o = true)) hon h
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+          cases out with
+          | Ok q => simp at h
+          | Err e =>
+            refine errSim_notImplemented hce (by simpa using h)
+              (checkProjTyF_telescope hround hres hwfc ?_)
+            rw [← hptyabs, ← hoabs]
+            cases o with
+            | none => simp
+            | some q => simp [core.option.Option.is_none] at hon
         · replace h := ite_neg_eq (c := (core.option.Option.is_none o = true)) hon h
-          simp only [Result.ok.injEq, core.result.Result.Ok.injEq] at h
+          simp only [Result.ok.injEq] at h
           subst h
           refine ⟨?_, hptywf⟩
           rw [hptyabs]
-          refine checkProjTyF_run ?_ ?_ ?_ ?_
-          · rw [← hptyabs, ← hroundabs, ← decide_eq_beq]
-            exact hbabs.symm
+          refine checkProjTyF_run hround hres hwfc ?_
+          rw [← hptyabs, ← hoabs]
+          cases o with
+          | none => simp [core.option.Option.is_none] at hon
+          | some q => simp
+      · -- `modeled.rs` ← `DeclCheck.lean:758`
+        rename_i hwff
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+        cases out with
+        | Ok q => simp at h
+        | Err e =>
+          refine errSim_notImplemented hce (by simpa using h)
+            (checkProjTyF_wf ?_ ?_ ?_)
+          · rw [← hptyabs, ← hroundabs, ← decide_eq_beq]; exact hbabs.symm
           · rw [← hptyabs]; exact hb1abs.symm
-          · rw [← hptyabs]; exact hwfabs.symm
-          · rw [← hptyabs, ← hoabs]
-            cases o with
-            | none => simp [core.option.Option.is_none] at hon
-            | some q => simp
-      · simp [bind_eq_ok_iff] at h
-    · simp [bind_eq_ok_iff] at h
-  · simp [bind_eq_ok_iff] at h
+          · rw [← hptyabs, ← hwfabs]; simpa using hwff
+    · -- `modeled.rs` ← `DeclCheck.lean:754`
+      rename_i hb1f
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      cases out with
+      | Ok q => simp at h
+      | Err e =>
+        refine errSim_notImplemented hce (by simpa using h)
+          (checkProjTyF_resolve ?_ ?_)
+        · rw [← hptyabs, ← hroundabs, ← decide_eq_beq]; exact hbabs.symm
+        · rw [← hptyabs, ← hb1abs]; simpa using hb1f
+  · -- `modeled.rs` ← `DeclCheck.lean:752`
+    rename_i hbf
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+    cases out with
+    | Ok q => simp at h
+    | Err e =>
+      refine errSim_notImplemented hce (by simpa using h)
+        (checkProjTyF_roundtrip ?_)
+      rw [← hptyabs, ← hroundabs, ← decide_eq_beq, ← hbabs]
+      simpa using hbf
 
 /-- `ConLeche/Kernel/CheckerBase.lean:235-250 checkProjShape` —
 **`checker_base::check_proj_shape`**: the projection type's parameter prefix
@@ -1746,12 +1874,18 @@ and state-free, so the run leaves `lst` alone.
 projection route (`Cached/CheckerC.lean:160`) calls it between `checkProjTyF`
 and `checkProjRuleF`, and task #57 consumes the whole chain. -/
 theorem check_proj_shape_refines {pty ctor_ty : expr.Expr} {n_p n_f : Std.U64}
+    {out : core.result.Result Unit core_types.CheckError}
     (hp : ExprWF pty) (hct : ExprWF ctor_ty)
-    (h : checker_base.check_proj_shape pty ctor_ty n_p n_f = ok (.Ok ())) :
+    (h : checker_base.check_proj_shape pty ctor_ty n_p n_f = ok out) :
     ∀ lst : ConLeche.Cached.CState,
-      (ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM)
-        (absExpr pty) (absExpr ctor_ty) n_p.val n_f.val).run lst
-      = .ok ((), lst) :=
+      match out with
+      | .Ok _ =>
+        (ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM)
+          (absExpr pty) (absExpr ctor_ty) n_p.val n_f.val).run lst
+        = .ok ((), lst)
+      | .Err e =>
+        ErrSim e ((ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM)
+          (absExpr pty) (absExpr ctor_ty) n_p.val n_f.val).run lst) :=
   CheckerBase.check_proj_shape_refines hp hct h
 
 /-- `ConLeche/Kernel/DeclCheck.lean:763-795 checkProjRuleF` (and
