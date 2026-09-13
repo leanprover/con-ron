@@ -1,6 +1,6 @@
 //! Port of `ConLeche/Kernel/Name.lean` — hierarchical names.
 //!
-//! Brought into the crate at task #9 from `spikes/level-name/src/name.rs`,
+//! Brought into the crate at task #9 from the task-#3 scale spike (`spikes/`, removed at task #76),
 //! which stays untouched as task #3's recorded evidence; this copy is the
 //! living code, and it additionally carries the `crate::ron::hashmap`
 //! dictionaries (`Hashable`, `Eq2`) at the end of the file.

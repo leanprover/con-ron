@@ -36,7 +36,7 @@
 #     scripts/corpus.sh [--steps=1,2,3,4] [--no-mathlib] [OUTDIR]
 #
 # Every exporter/checker/dump run is wrapped in `timeout` and `ulimit -v`
-# (22 GB): this machine is shared.
+# (22 GB), so that a runaway run dies rather than the machine.
 set -u
 cd "$(dirname "$0")/.."
 root=$PWD

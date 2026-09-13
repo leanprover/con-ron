@@ -2,6 +2,7 @@
 name = "con-ron-dump"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
 description = "Reader and writer for the `con-ron-decls/1` dump format; UNVERIFIED tooling outside the Aeneas subset (DESIGN.md §3.6, tasks #10 and #19)"
 
 [lib]

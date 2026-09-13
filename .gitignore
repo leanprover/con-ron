@@ -2,7 +2,7 @@
 **/target/
 .lake/
 **/.lake/
-_tmp/
+_tmp
 .direnv/
 *.llbc
 result

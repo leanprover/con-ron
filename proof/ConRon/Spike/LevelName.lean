@@ -1,5 +1,5 @@
 /-
-The task-#3 scale spike (`spikes/level-name/`), elaborated: the Aeneas output
+The task-#3 scale spike (`spikes/level-name/`, removed at task #76), elaborated: the Aeneas output
 for the Rust port of `ConLeche/Kernel/Name.lean` and the `Level` half of
 `ConLeche/Kernel/Expr.lean` + `ConLeche/Kernel/Level.lean`, with the `Rc`
 models of DESIGN.md §3.2 and the abstraction functions onto con-leche.

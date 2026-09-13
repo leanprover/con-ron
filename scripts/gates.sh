@@ -8,12 +8,13 @@
 #   2. cargo test                           the unit tests pass
 #   3. scripts/lint-rust-style.sh           the Aeneas subset (§3.4)
 #   4. scripts/provenance.py check          every item cites con-leche (§3.7)
-#   5. scripts/gen-pins.sh --check          embedded pin text == natOpPinSets
-#   6. scripts/extract.sh --check           committed generated Lean == crate
-#   7. cd proof && lake build               the whole proof library elaborates
+#   5. scripts/overview-links.sh            OVERVIEW.md/DESIGN.md line anchors
+#   6. scripts/gen-pins.sh --check          embedded pin text == natOpPinSets
+#   7. scripts/extract.sh --check           committed generated Lean == crate
+#   8. cd proof && lake build               the whole proof library elaborates
 #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
-#      has no jobs flag: the first build of the vendored con-leche at this
-#      machine's 96 cores runs the session out of memory, task #74)
+#      has no jobs flag: on a many-core machine the first build of the
+#      vendored con-leche can exhaust memory, task #74)
 #
 # One OK/FAIL line per gate; non-zero exit on the first failure.  Full output
 # of every gate goes to `_tmp/gates/<n>-<name>.log`.
@@ -52,6 +53,7 @@ run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root
 run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
 run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
 run provenance    python3 "$root/scripts/provenance.py" check
+run overview-links "$root/scripts/overview-links.sh"
 run gen-pins      "$root/scripts/gen-pins.sh" --check
 run extract-check "$root/scripts/extract.sh" --check
 run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build

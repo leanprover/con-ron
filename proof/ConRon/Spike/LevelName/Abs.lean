@@ -1,5 +1,5 @@
 /-
-The abstraction functions for the task-#3 scale spike (`spikes/level-name`):
+The abstraction functions for the task-#3 scale spike (`spikes/level-name`, removed at task #76):
 they map the Aeneas model of the Rust `Name`/`Level` trees onto con-leche's
 own `ConLeche.Name` and `ConLeche.Level` (DESIGN.md §1, §3.2, §3.3).
 
