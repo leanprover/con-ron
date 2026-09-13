@@ -13777,3 +13777,85 @@ were **false as written**.  All twenty-seven casts are gone:
 Every rewrite is the identity on a 64-bit target, and the gates say so:
 `diff-e2e` 348/348 and `diff-fixtures` 315 agree / 0 differ, both unchanged,
 with the `orElse` change in the same build.
+
+#### 7. The re-proof pass, layer by layer
+
+Sixteen `Core/Arms/*` files, `Core/Knot.lean`, the two adapter layers and the
+throwing leaves were restated by one sub-agent per file, against a shared
+brief (the convention, the three moves, the census as a map, and the standing
+rule that a false error half is a *port bug* to report, never to weaken away).
+
+| layer | files | outcome |
+|---|---|---|
+| leaves | `CoreKVec`, `CoreKInfer`, `CoreKLits`, `StateC` | 8 companions; no port bug |
+| knot | `Core/Knot.lean` + 16 `Core/Arms/*` | all sorry-free, censuses unchanged; **no port bug in any of them** |
+| adapters | `TypeChecker`, `IndAbs` | `RefinesL` restated; five `ops_*_err` added |
+| checker | `CheckerBase`, `Checker`, `DeclCheck`, `CheckerPins`, + 64 call sites by script | the pin path proved; the rest restated as far as the session reached |
+| pins | `PinsBytes`, `PinsRecords`, `PinsRun` | all failures `Native`; the cheap tier |
+| inductive | `IndModeled`, `IndC` (six `sorry`s closed), `IndStructInstall` | |
+
+**What the error halves actually cost.**  Near-uniformly one of three moves,
+and overwhelmingly the first: `Arms/Major`'s twenty-five failure cases are
+*all* move 1 (that group has no `throw` of its own), `Arms/Certs` has 24
+move-1 binds and no explicit throw at all, `Arms/DefEqStruct` 25 move-1 halves
+and 48 tail-call transports.  The files grew 20–60 %: `Arms/Iota` 2066 → 2415,
+`Arms/Annotate` 1786 → 2171, `Arms/DefEq` 1590 → 1777, `Arms/InferSpine`
+396 → 805 (the outlier: ten `Err` exits in one walk).
+
+Three things made the pass cheap enough to fan out:
+
+* **`*.apply`/`*.ok` keep the pre-#67 statements**, so no call site moved;
+  only the producers changed.  The one textual rename in the checker tier
+  (`h.field …` → `h.field.ok …`, 64 sites) was a script.
+* **`*.mk'`** lets a converted proof keep its accept half word for word.
+  Several agents found that converting *in place* — intro the outcome and
+  `cases` inside the existing structure — was cheaper still, because the old
+  `| Err err => simp at h` arm that closed by contradiction is exactly where
+  the new proof goes.
+* Where a clause's con-leche side **is** its tail call's, applying the `Sim`
+  at the whole outcome serves both halves at once and the proof gets
+  *shorter* than the accept-only one (`WhnfCore`'s loop and body,
+  `InferSpineIO`'s four recursive leaves, `DefEqStruct`'s tail calls,
+  `InferTele`'s two pure folds, restated over `OutP` so one induction serves
+  both directions).
+
+**Five idioms worth keeping** (they each cost an agent a build cycle):
+`simp` will not reduce a con-leche `throw` — state the `@[local simp]` on the
+*applied* form `(throw le : CheckCM β) lst = .error le`, not on its `.run`;
+`simp only [Result.ok.injEq, Prod.mk.injEq] at h` reports "no progress" on
+Aeneas's `| Err _ => ok (r, st1)` arm because of the destructuring `let`, and
+plain `simp at h` works; `ErrSim.bindCM` needs con-leche's side syntactically
+`x >>= f`, so a named `def` must be `unfold`ed, not `rw`n; give
+`ErrSim.invalid`/`.notImplemented` their message explicitly or the closing
+`simp` stalls on a metavariable; and **`obtain ⟨-, -, h⟩ := bind_eq_ok_iff.mp h`
+silently does nothing** when a `-` lands on the existential witness.
+
+#### 8. Where the campaign stands
+
+All seven gates are green, the proof library is **`sorry`-free** (task #59's
+six closed by §6's port fix), the capstones' hypotheses are unchanged
+(`hk`, `hind`, `hvar`, `hpins`, `hds` — `hoe` stays gone, and task #67 now
+*proves* what its two halves assumed), and `scripts/progress.py`'s campaign
+line reads **full-outcome 108 / 262 in scope (41 %)**.
+
+What that number counts is `*_refines` *statements*.  The tiers that carry the
+soundness argument — the knot (through `RefinesE`/`RefinesB`/`Sim`), the
+throwing leaves, and the whole Nat-op pin path up to `orElse` — are done; what
+is left is the bulk of the checker and inductive tiers, whose lemmas are still
+stated in the accept direction and are **not** load-bearing for the ruling.
+Concretely, still owed: `CheckerDecl` (25), `Installed` (22), `IndModeled`
+(24), `IndNativeInstall` (12), `IndC` (11), `IndSumInstall` (10),
+`CheckerSplit` (4), `Main` (1), and about fourteen leaf lemmas whose content
+*is* full-outcome but is spelled as an accept `*_refines` plus an `*_err`
+companion (folding those in would churn sixteen green arm files for no proof
+content, so they were left).  Six sub-agents were cut off mid-file by the
+Opus session limit; `CheckerSplit` and `IndModeled` were reverted to their
+last green state rather than committed half-restated.
+
+**Task #69's grind idiom is not adopted** (the maintainer is diagnosing its
+~5× elaboration cost as task #70).  Its one free prerequisite is carried:
+`RunOk`/`RunErr` and the `Out.ofRun`/`Sim.ofRun`/`SimS.ofRun`/`ErrSim.ofRunErr`
+introduction rules, which are purely additive — every existing statement,
+proof and call site stands.  `Automation/Study.lean` had to move with the
+restatement, since the gates build it: its `Sim.ofRun` now concludes `SimOk`,
+the accept half on its own, which is what its experiment 3 measures.
