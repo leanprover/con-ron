@@ -97,7 +97,24 @@ is recorded rather than papered over: `div_mod_env_guard_refines` carries
 `OrElseErrorStateSound` carries task #24's state gap, and the fix is a
 one-call change in `checker.rs`.
 
-`sorry` count in this file: 16.
+## What is proved and what is stated
+
+Everything in `checker.rs:365-1232` is covered, and everything *pure* is
+proved: the two eight-way variant dispatches (`div_mod_decl_pin`,
+`div_mod_cert_proofs`), all twenty-two closed `cert_*` builders, the two
+`Vec`-literal helpers, `div_mod_cert_applied`, the whole guard cascade
+(`div_mod_cert_guard`, `hyps_resolve`, `hyps_subst(_from)`,
+`div_mod_pin_guard`, `div_mod_certs_guard(_from)`, `bool_ctor_typed`,
+`div_mod_env_guard`), and the one stateful leaf whose only core call is a
+single `isDefEq` (`check_reduce_identity`).
+
+The eight open ones are stated exactly and each carries a one-line note: the
+closed statement table `div_mod_cert_stmts`, the two `check_div_mod_certs`
+recursions, the per-variant attempt, **the loop**, and the three install
+gates.  All but the first are stateful walks over the knot's entry points; the
+first is long rather than hard.
+
+`sorry` count in this file: 8.
 -/
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel ConRon.Generated.cached
@@ -665,6 +682,206 @@ theorem div_mod_cert_stmts_refines {c : name.Name}
   -- builders above and two or three `Vec::push`es; mechanical, long.
   sorry
 
+/-! ## The list plumbing, and `hyps_resolve`/`hyps_subst`
+
+Out of `checker.rs` order on purpose: `div_mod_cert_guard` (next section)
+*calls* `hyps_resolve`, so its lemma needs this one first.  Everything here is
+the index-vs-list bookkeeping the three index recursions of the file share. -/
+
+/-- The empty `Vec<Name>` is the empty list of level parameters (the guards
+below all run `allLevelParamsDefined []`). -/
+private theorem absNames_new : absNames (alloc.vec.Vec.new name.Name) = [] := rfl
+
+/-- …and is well formed. -/
+private theorem namesWF_new : NamesWF (alloc.vec.Vec.new name.Name) := by
+  intro n hn; simp [alloc.vec.Vec.new] at hn
+
+/-- The `u64` zero the field guards are called at. -/
+private theorem u64_zero_val : ((0#u64 : Std.U64)).val = 0 := rfl
+
+/-! ### The index-vs-list plumbing
+
+The three index recursions below (`hyps_resolve`, `hyps_subst_from`,
+`div_mod_certs_guard_from`) all read `hyps[i]` and step to `i + 1`, against a
+Lean `List.all`/`List.map` of the *dropped tail*.  These four facts are what
+turns one into the other; they are the `Refine/CoreKGuards.lean`
+`env_exprs_copy_from_val` shape, restated for `absExprs`. -/
+
+/-- A successful `Vec::index` is in range. -/
+private theorem vec_index_lt {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize}
+    {x : α}
+    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok x) :
+    i.val < v.val.length := by
+  have hg := ExprOps.vec_index_getElem? h
+  by_contra hc
+  rw [List.getElem?_eq_none (by omega)] at hg
+  simp at hg
+
+/-- …and answers the entry at that index. -/
+private theorem vec_index_val {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize}
+    {x : α}
+    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok x)
+    (hlt : i.val < v.val.length) : v.val[i.val] = x := by
+  have hg := ExprOps.vec_index_getElem? h
+  rw [List.getElem?_eq_getElem hlt] at hg
+  exact Option.some_injective _ hg
+
+/-- Past the end, the abstracted statement tail is empty. -/
+private theorem drop_absStmts_nil
+    {v : alloc.vec.Vec (alloc.vec.Vec expr.Expr × expr.Expr)} {k : Nat}
+    (h : v.val.length ≤ k) : (absStmts v).drop k = [] := by
+  rw [absStmts]
+  exact List.drop_eq_nil_of_le (by simpa using h)
+
+/-- In range, the abstracted statement tail peels off the indexed entry. -/
+private theorem drop_absStmts_cons
+    {v : alloc.vec.Vec (alloc.vec.Vec expr.Expr × expr.Expr)} {k : Nat}
+    {x : alloc.vec.Vec expr.Expr × expr.Expr} (hlt : k < v.val.length)
+    (hx : v.val[k] = x) :
+    (absStmts v).drop k = absStmt x :: (absStmts v).drop (k + 1) := by
+  have hlt' : k < (absStmts v).length := by rw [absStmts, List.length_map]; exact hlt
+  rw [List.drop_eq_getElem_cons hlt']
+  congr 1
+  simp only [absStmts, List.getElem_map, hx]
+
+/-- Past the end, the abstracted tail is empty. -/
+private theorem drop_absExprs_nil {v : alloc.vec.Vec expr.Expr} {k : Nat}
+    (h : v.val.length ≤ k) : (absExprs v).drop k = [] := by
+  rw [absExprs]
+  exact List.drop_eq_nil_of_le (by simpa using h)
+
+/-- In range, the abstracted tail peels off the indexed entry. -/
+private theorem drop_absExprs_cons {v : alloc.vec.Vec expr.Expr} {k : Nat}
+    {x : expr.Expr} (hlt : k < v.val.length) (hx : v.val[k] = x) :
+    (absExprs v).drop k = absExpr x :: (absExprs v).drop (k + 1) := by
+  have hlt' : k < (absExprs v).length := by rw [absExprs, List.length_map]; exact hlt
+  rw [List.drop_eq_getElem_cons hlt']
+  congr 1
+  simp only [absExprs, List.getElem_map, hx]
+
+/-- `ConLeche/Kernel/Checker.lean:239-250 divModCertGuard` —
+`checker::hyps_resolve` refines the cited
+`(hyps.map (Expr.substConst0 c annVal)).all (·.constsResolve env)`, as an index
+recursion with the substitution fused in: from index `i` on it is the
+`List.all` of the dropped tail. -/
+theorem hyps_resolve_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    {lenv : ConLeche.Env} {c : name.Name} {ann_val : expr.Expr}
+    {hyps : alloc.vec.Vec expr.Expr} {i : Std.Usize} {r : Bool}
+    (hp : CoreK.PinnedBasisNames) (hfe : FindAgree fe lfe)
+    (henv : ∀ n : ConLeche.Name, lfe.find? n = lenv.find? n)
+    (hc : NameWF c) (hav : ExprWF ann_val) (hh : ExprsWF hyps)
+    (h : checker.hyps_resolve fe c ann_val hyps i = ok r) :
+    r = (((absExprs hyps).drop i.val).map
+          (ConLeche.Expr.substConst0 (absName c) (absExpr ann_val))).all
+        (fun e => e.constsResolve lenv) := by
+  suffices hs : ∀ (N : Nat) (i : Std.Usize) (r : Bool),
+      hyps.val.length - i.val = N →
+      checker.hyps_resolve fe c ann_val hyps i = ok r →
+      r = (((absExprs hyps).drop i.val).map
+            (ConLeche.Expr.substConst0 (absName c) (absExpr ann_val))).all
+          (fun e => e.constsResolve lenv) by
+    exact hs _ i r rfl h
+  clear h
+  intro N
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro i r hN h
+    rw [checker.hyps_resolve.eq_def] at h
+    dsimp only at h
+    split at h
+    · have hlen : hyps.val.length ≤ i.val := by
+        have := alloc.vec.Vec.len_val hyps; scalar_tac
+      rw [drop_absExprs_nil hlen]
+      simpa using (Result.ok_injective h).symm
+    · simp only [bind_eq_ok_iff] at h
+      obtain ⟨x, hidx, e1, hsc, b, hb, h⟩ := h
+      have hlt := vec_index_lt hidx
+      have hx := vec_index_val hidx hlt
+      have hxwf : ExprWF x := hh x (by rw [← hx]; exact List.getElem_mem hlt)
+      obtain ⟨he1abs, he1wf⟩ := CoreK.subst_const0_refines hc hav hxwf e1 hsc
+      have hbv := CoreK.consts_resolve_refines hp hfe henv he1wf b hb
+      rw [drop_absExprs_cons hlt hx]
+      simp only [List.map_cons, List.all_cons, ← he1abs, ← hbv]
+      cases b with
+      | false =>
+        simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+        rw [← h]; rfl
+      | true =>
+        simp only [if_true, bind_eq_ok_iff] at h
+        obtain ⟨i2, hi2, h⟩ := h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        rw [ih (hyps.val.length - i2.val) (by omega) i2 r rfl h, hi2v]
+        simp
+
+/-- `con-leche: none` — `hyps.map (Expr.substConst0 c annVal)` of
+`checkDivModCerts`; §3.4 forbids the closure, so the port names the map.
+`checker::hyps_subst_from` is its index recursion, the accumulator passed by
+value and returned. -/
+theorem hyps_subst_from_refines {c : name.Name} {ann_val : expr.Expr}
+    {hyps out r : alloc.vec.Vec expr.Expr} {i : Std.Usize} (hc : NameWF c)
+    (hav : ExprWF ann_val) (hh : ExprsWF hyps) (hout : ExprsWF out)
+    (h : checker.hyps_subst_from c ann_val hyps i out = ok r) :
+    absExprs r = absExprs out ++
+        ((absExprs hyps).drop i.val).map
+          (ConLeche.Expr.substConst0 (absName c) (absExpr ann_val))
+      ∧ ExprsWF r := by
+  suffices hs : ∀ (N : Nat) (i : Std.Usize) (out r : alloc.vec.Vec expr.Expr),
+      ExprsWF out → hyps.val.length - i.val = N →
+      checker.hyps_subst_from c ann_val hyps i out = ok r →
+      absExprs r = absExprs out ++
+          ((absExprs hyps).drop i.val).map
+            (ConLeche.Expr.substConst0 (absName c) (absExpr ann_val))
+        ∧ ExprsWF r by
+    exact hs _ i out r hout rfl h
+  clear h hout
+  intro N
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro i out r hout hN h
+    rw [checker.hyps_subst_from.eq_def] at h
+    dsimp only at h
+    split at h
+    · have hlen : hyps.val.length ≤ i.val := by
+        have := alloc.vec.Vec.len_val hyps; scalar_tac
+      rw [← Result.ok_injective h, drop_absExprs_nil hlen]
+      exact ⟨by simp, hout⟩
+    · simp only [bind_eq_ok_iff] at h
+      obtain ⟨x, hidx, e1, hsc, out1, hpush, i2, hi2, h⟩ := h
+      have hlt := vec_index_lt hidx
+      have hx := vec_index_val hidx hlt
+      have hxwf : ExprWF x := hh x (by rw [← hx]; exact List.getElem_mem hlt)
+      obtain ⟨he1abs, he1wf⟩ := CoreK.subst_const0_refines hc hav hxwf e1 hsc
+      have hout1v : out1.val = out.val ++ [e1] := vec_push_val hpush
+      have hout1 : ExprsWF out1 := by
+        intro z hz
+        rw [hout1v] at hz
+        simp only [List.mem_append, List.mem_singleton] at hz
+        rcases hz with hz | hz
+        · exact hout z hz
+        · rw [hz]; exact he1wf
+      have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+      obtain ⟨habs, hwf⟩ :=
+        ih (hyps.val.length - i2.val) (by omega) i2 out1 r hout1 rfl h
+      refine ⟨?_, hwf⟩
+      rw [habs, hi2v, drop_absExprs_cons hlt hx, absExprs, hout1v]
+      simp [absExprs, he1abs]
+
+/-- `con-leche: none` — `checker::hyps_subst` is the cited `List.map`. -/
+theorem hyps_subst_refines {c : name.Name} {ann_val : expr.Expr}
+    {hyps r : alloc.vec.Vec expr.Expr} (hc : NameWF c) (hav : ExprWF ann_val)
+    (hh : ExprsWF hyps) (h : checker.hyps_subst c ann_val hyps = ok r) :
+    absExprs r = (absExprs hyps).map
+        (ConLeche.Expr.substConst0 (absName c) (absExpr ann_val))
+      ∧ ExprsWF r := by
+  rw [checker.hyps_subst] at h
+  have hnew : ExprsWF (alloc.vec.Vec.new expr.Expr) := by
+    intro x hx; simp [alloc.vec.Vec.new] at hx
+  obtain ⟨habs, hwf⟩ := hyps_subst_from_refines hc hav hh hnew h
+  refine ⟨?_, hwf⟩
+  rw [habs, show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero]
+  simp [absExprs, alloc.vec.Vec.new]
+
+
 /-! ## The applied proof and the syntactic guards -/
 
 /-- `ConLeche/Kernel/Checker.lean:224-237 divModCertApplied` —
@@ -676,9 +893,90 @@ theorem div_mod_cert_applied_refines {proof_s : expr.Expr}
     (hh : ExprsWF hyps) (h : checker.div_mod_cert_applied proof_s hyps = ok e) :
     absExpr e = ConLeche.divModCertApplied (absExpr proof_s) (absExprs hyps)
       ∧ ExprWF e := by
-  -- `sorry`: the cited `match hyps with | [h1] | [h1, h2] | _` against the
-  -- port's `len() == 1` / `== 2` test, plus three `app` chains.
-  sorry
+  rw [checker.div_mod_cert_applied] at h
+  obtain ⟨p, hdp, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨x, hx, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e2, he2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨y, hy, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨base, hbase, h⟩ := bind_eq_ok_iff.mp h
+  have hpv : p = proof_s := Expr.dup_eq hdp
+  obtain ⟨hxabs, hxwf⟩ := cert_x_refines hx
+  obtain ⟨hyabs, hywf⟩ := cert_y_refines hy
+  have hpwf : ExprWF p := by rw [hpv]; exact hp
+  have hbwf : ExprWF base := ExprWF.app (ExprWF.app hpwf hxwf he2) hywf hbase
+  have hbabs : absExpr base
+      = .app (.app (absExpr proof_s) (.fvar 0 (.const ConLeche.natName [])))
+          (.fvar 1 (.const ConLeche.natName [])) := by
+    rw [Expr.app_refines hbase, Expr.app_refines he2, hxabs, hyabs, hpv]
+  have hlen := alloc.vec.Vec.len_val hyps
+  dsimp only at h
+  split at h
+  · -- one hypothesis: the cited `[h1]` arm
+    rename_i h1
+    have hl1 : hyps.val.length = 1 := by scalar_tac
+    obtain ⟨a, ha⟩ := List.length_eq_one_iff.mp hl1
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨e4, h4, e5, h5, e6, h6, h⟩ := h
+    have hlt : (0#usize : Std.Usize).val < hyps.val.length := by rw [hl1]; norm_num
+    have h4v := vec_index_val h4 hlt
+    simp only [ha] at h4v
+    have hae : e4 = a := by simpa using h4v.symm
+    have hawf : ExprWF a := hh a (by rw [ha]; simp)
+    have h5v : e5 = e4 := Expr.dup_eq h5
+    have h6wf : ExprWF e6 := ExprWF.fvar (by rw [h5v, hae]; exact hawf) h6
+    have habs : absExprs hyps = [absExpr a] := by rw [absExprs, ha]; simp
+    refine ⟨?_, ExprWF.app hbwf h6wf h⟩
+    rw [habs]
+    simp only [ConLeche.divModCertApplied]
+    rw [Expr.app_refines h, hbabs, Expr.fvar_refines h6, h5v, hae]
+    rfl
+  · split at h
+    · -- two hypotheses: the cited `[h1, h2]` arm
+      rename_i h2
+      have hl2 : hyps.val.length = 2 := by scalar_tac
+      obtain ⟨a, b, ha⟩ := List.length_eq_two.mp hl2
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨e4, h4, e5, h5, e6, h6, e7, h7, e8, h8, e9, h9, e10, h10, h⟩ := h
+      have hlt0 : (0#usize : Std.Usize).val < hyps.val.length := by rw [hl2]; norm_num
+      have hlt1 : (1#usize : Std.Usize).val < hyps.val.length := by rw [hl2]; norm_num
+      have h4v := vec_index_val h4 hlt0
+      have h8v := vec_index_val h8 hlt1
+      simp only [ha] at h4v h8v
+      have hae : e4 = a := by simpa using h4v.symm
+      have hbe : e8 = b := by simpa using h8v.symm
+      have hawf : ExprWF a := hh a (by rw [ha]; simp)
+      have hbwf2 : ExprWF b := hh b (by rw [ha]; simp)
+      have h5v : e5 = e4 := Expr.dup_eq h5
+      have h9v : e9 = e8 := Expr.dup_eq h9
+      have h6wf : ExprWF e6 := ExprWF.fvar (by rw [h5v, hae]; exact hawf) h6
+      have h10wf : ExprWF e10 := ExprWF.fvar (by rw [h9v, hbe]; exact hbwf2) h10
+      have h7wf : ExprWF e7 := ExprWF.app hbwf h6wf h7
+      have habs : absExprs hyps = [absExpr a, absExpr b] := by rw [absExprs, ha]; simp
+      refine ⟨?_, ExprWF.app h7wf h10wf h⟩
+      rw [habs]
+      simp only [ConLeche.divModCertApplied]
+      rw [Expr.app_refines h, Expr.app_refines h7, hbabs, Expr.fvar_refines h6,
+        Expr.fvar_refines h10, h5v, h9v, hae, hbe]
+      rfl
+    · -- neither: the cited `_` arm, i.e. no hypothesis or more than two
+      rename_i h1 h2
+      have hne1 : hyps.val.length ≠ 1 := fun hc => h1 (by scalar_tac)
+      have hne2 : hyps.val.length ≠ 2 := fun hc => h2 (by scalar_tac)
+      rw [← Result.ok_injective h]
+      refine ⟨?_, hbwf⟩
+      rcases hv : hyps.val with _ | ⟨a, l⟩
+      · rw [show absExprs hyps = [] by rw [absExprs, hv]; simp]
+        simp only [ConLeche.divModCertApplied]
+        exact hbabs
+      · rcases l with _ | ⟨b, l2⟩
+        · exact absurd (show hyps.val.length = 1 by rw [hv]; simp) hne1
+        · rcases l2 with _ | ⟨c2, l3⟩
+          · exact absurd (show hyps.val.length = 2 by rw [hv]; simp) hne2
+          · rw [show absExprs hyps
+                  = absExpr a :: absExpr b :: absExpr c2 :: l3.map absExpr by
+              rw [absExprs, hv]; simp]
+            simp only [ConLeche.divModCertApplied]
+            exact hbabs
 
 /-- `ConLeche/Kernel/Checker.lean:239-250 divModCertGuard`,
 `ConLeche/Kernel/DeclCheck.lean:321-330 divModCertGuardF` —
@@ -697,55 +995,58 @@ theorem div_mod_cert_guard_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     (h : checker.div_mod_cert_guard fe c ann_val hyps eq_e proof = ok r) :
     r = ConLeche.divModCertGuard lenv (absName c) (absExpr ann_val)
       (absExprs hyps) (absExpr eq_e) (absExpr proof) := by
-  -- `sorry`: `subst_const_all_refines` once, then the four `expr_ops` field
-  -- guards and `consts_resolve_refines`; the `&&` chain against the port's
-  -- `if` nest as in `nat_op_guard_refines`.
-  sorry
-
-/-- `ConLeche/Kernel/Checker.lean:239-250 divModCertGuard` —
-`checker::hyps_resolve` refines the cited
-`(hyps.map (Expr.substConst0 c annVal)).all (·.constsResolve env)`, as an index
-recursion with the substitution fused in: from index `i` on it is the
-`List.all` of the dropped tail. -/
-theorem hyps_resolve_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {lenv : ConLeche.Env} {c : name.Name} {ann_val : expr.Expr}
-    {hyps : alloc.vec.Vec expr.Expr} {i : Std.Usize} {r : Bool}
-    (hp : CoreK.PinnedBasisNames) (hfe : FindAgree fe lfe)
-    (henv : ∀ n : ConLeche.Name, lfe.find? n = lenv.find? n)
-    (hc : NameWF c) (hav : ExprWF ann_val) (hh : ExprsWF hyps)
-    (h : checker.hyps_resolve fe c ann_val hyps i = ok r) :
-    r = (((absExprs hyps).drop i.val).map
-          (ConLeche.Expr.substConst0 (absName c) (absExpr ann_val))).all
-        (fun e => e.constsResolve lenv) := by
-  -- `sorry`: the `deps_all_stored_from` induction shape (fuel = length - i),
-  -- with `subst_const0_refines` and `consts_resolve_refines` at each step.
-  sorry
-
-/-- `con-leche: none` — `hyps.map (Expr.substConst0 c annVal)` of
-`checkDivModCerts`; §3.4 forbids the closure, so the port names the map.
-`checker::hyps_subst_from` is its index recursion, the accumulator passed by
-value and returned. -/
-theorem hyps_subst_from_refines {c : name.Name} {ann_val : expr.Expr}
-    {hyps out r : alloc.vec.Vec expr.Expr} {i : Std.Usize} (hc : NameWF c)
-    (hav : ExprWF ann_val) (hh : ExprsWF hyps) (hout : ExprsWF out)
-    (h : checker.hyps_subst_from c ann_val hyps i out = ok r) :
-    absExprs r = absExprs out ++
-        ((absExprs hyps).drop i.val).map
-          (ConLeche.Expr.substConst0 (absName c) (absExpr ann_val))
-      ∧ ExprsWF r := by
-  -- `sorry`: the accumulator induction, `vec_push_val` at each step.
-  sorry
-
-/-- `con-leche: none` — `checker::hyps_subst` is the cited `List.map`. -/
-theorem hyps_subst_refines {c : name.Name} {ann_val : expr.Expr}
-    {hyps r : alloc.vec.Vec expr.Expr} (hc : NameWF c) (hav : ExprWF ann_val)
-    (hh : ExprsWF hyps) (h : checker.hyps_subst c ann_val hyps = ok r) :
-    absExprs r = (absExprs hyps).map
-        (ConLeche.Expr.substConst0 (absName c) (absExpr ann_val))
-      ∧ ExprsWF r := by
-  -- `sorry`: `hyps_subst_from_refines` at `i = 0`, empty accumulator.
-  sorry
-
+  rw [checker.div_mod_cert_guard] at h
+  obtain ⟨p, hp0, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hpabs, hpwf⟩ := CoreK.subst_const_all_refines hc hav hpf p hp0
+  rw [ConLeche.divModCertGuard, ← hpabs]
+  have hbv := ExprOps.loose_bvars_bounded_refines hpwf hb
+  rw [u64_zero_val] at hbv
+  cases b with
+  | false =>
+    simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+    rw [← h, ← hbv]; simp
+  | true =>
+    simp only [if_true, bind_eq_ok_iff] at h
+    obtain ⟨b1, hb1, h⟩ := h
+    have hb1v := ExprOps.has_fvar_refines hpwf hb1
+    cases b1 with
+    | true =>
+      simp only [if_true, Result.ok.injEq] at h
+      rw [← h, ← hbv, ← hb1v]; simp
+    | false =>
+      simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff] at h
+      obtain ⟨b2, hb2, h⟩ := h
+      have hb2v := ExprOps.all_level_params_defined_fast_refines namesWF_new hpwf hb2
+      rw [absNames_new] at hb2v
+      cases b2 with
+      | false =>
+        simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+        rw [← h, ← hbv, ← hb1v, ← hb2v]; simp
+      | true =>
+        simp only [if_true, bind_eq_ok_iff] at h
+        obtain ⟨b3, hb3, h⟩ := h
+        have hb3v := CoreK.consts_resolve_refines hp hfe henv hpwf b3 hb3
+        cases b3 with
+        | false =>
+          simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+          rw [← h, ← hbv, ← hb1v, ← hb2v, ← hb3v]; simp
+        | true =>
+          simp only [if_true, bind_eq_ok_iff] at h
+          obtain ⟨b4, hb4, h⟩ := h
+          have hb4v := hyps_resolve_refines hp hfe henv hc hav hh hb4
+          rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at hb4v
+          cases b4 with
+          | false =>
+            simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+            rw [← h, ← hbv, ← hb1v, ← hb2v, ← hb3v, ← hb4v]; simp
+          | true =>
+            simp only [if_true, bind_eq_ok_iff] at h
+            obtain ⟨e, he, h⟩ := h
+            obtain ⟨heabs, hewf⟩ := CoreK.subst_const0_refines hc hav heq e he
+            rw [← hbv, ← hb1v, ← hb2v, ← hb3v, ← hb4v,
+              CoreK.consts_resolve_refines hp hfe henv hewf r h, heabs]
+            simp
 /-! ## The certificate check (`Checker.lean:252-275 checkDivModCerts`) -/
 
 /-- `ConLeche/Kernel/Checker.lean:252-275 checkDivModCerts`,
@@ -868,10 +1169,75 @@ theorem div_mod_env_guard_refines {fe2 : fenv.FEnv} {lfe : ConLeche.FEnv}
     (heq : EqBasisPinnedSpec fe2 lfe) (hdep : DepsTyPinned lfe (absName c))
     (h : checker.div_mod_env_guard fe2 c = ok r) :
     r = ConLeche.divModEnvGuardF lfe (absName c) := by
-  -- `sorry`: `nat_op_guard_refines`, `deps_all_stored_refines` (through
-  -- `DepsTyPinned`), `EqBasisPinnedSpec` and `bool_ctor_typed_refines` twice,
-  -- the port's `if` nest against the Lean's `&&` chain.
-  sorry
+  rw [checker.div_mod_env_guard] at h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  have hbv := CoreK.nat_op_guard_refines hfe hc hnls hlp hnod hbeq hble hdmn hbt hbf hb
+  rw [ConLeche.divModEnvGuardF, ← hbv]
+  cases b with
+  | false =>
+    simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+    rw [← h]; simp
+  | true =>
+    simp only [if_true, bind_eq_ok_iff] at h
+    obtain ⟨v, hv, h⟩ := h
+    obtain ⟨hvabs, hvwf⟩ := hnod v hv
+    obtain ⟨b1, hb1, h⟩ := h
+    have hb1v := CoreK.deps_all_stored_refines hfe hvwf hb1
+    rw [hvabs, hdep] at hb1v
+    cases b1 with
+    | false =>
+      simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+      rw [← h, ← hb1v]; simp
+    | true =>
+      simp only [if_true, bind_eq_ok_iff] at h
+      obtain ⟨b2, hb2, h⟩ := h
+      have hb2v := heq b2 hb2
+      -- `basis_pins` decides the equality; the cited guard spells it `==`.
+      rw [show decide (lfe.find? ConLeche.eqName = some ConLeche.eqA)
+            = (lfe.find? ConLeche.eqName == some ConLeche.eqA) by
+          by_cases hq : lfe.find? ConLeche.eqName = some ConLeche.eqA
+          · simp [hq]
+          · simp [hq]] at hb2v
+      cases b2 with
+      | false =>
+        simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+        rw [← h, ← hb1v, ← hb2v]; simp
+      | true =>
+        simp only [if_true, bind_eq_ok_iff] at h
+        obtain ⟨n, hn, h⟩ := h
+        obtain ⟨hnabs, hnwf⟩ := hbt n hn
+        obtain ⟨b3, hb3, h⟩ := h
+        have hb3v := bool_ctor_typed_refines hfe hwf hnwf hb3
+        rw [hnabs] at hb3v
+        -- the two `Bool`-constructor clauses are `match`es on the lookup, and
+        -- the port's spelling and the cited one compile to *different*
+        -- matcher auxiliaries, so the lookup is destructed rather than
+        -- rewritten under.
+        cases b3 with
+        | false =>
+          simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+          cases hft : lfe.find? ConLeche.boolTrueName with
+          | none => rw [← h, ← hb1v, ← hb2v]; simp [hft]
+          | some ci =>
+            simp only [hft] at hb3v
+            rw [← h, ← hb1v, ← hb2v]
+            simp [hft, ← hb3v]
+        | true =>
+          simp only [if_true, bind_eq_ok_iff] at h
+          obtain ⟨n1, hn1, h⟩ := h
+          obtain ⟨hn1abs, hn1wf⟩ := hbf n1 hn1
+          have hrv := bool_ctor_typed_refines hfe hwf hn1wf h
+          rw [hn1abs] at hrv
+          rw [← hb1v, ← hb2v]
+          cases hft : lfe.find? ConLeche.boolTrueName with
+          | none => simp only [hft] at hb3v; simp at hb3v
+          | some ci =>
+            simp only [hft] at hb3v
+            cases hff : lfe.find? ConLeche.boolFalseName with
+            | none => simp only [hff] at hrv; simp [hft, hff, hrv]
+            | some ci2 =>
+              simp only [hff] at hrv
+              simp [hft, hff, ← hb3v, hrv]
 
 /-- `ConLeche/Kernel/Checker.lean:292-297 divModPinGuard`,
 `ConLeche/Kernel/DeclCheck.lean:332-336 divModPinGuardF` —
@@ -884,9 +1250,39 @@ theorem div_mod_pin_guard_refines {ps : nat_op_pins.NatOpPinSet} {fe : fenv.FEnv
     (hps : NatOpPinSetWF ps) (hc : NameWF c)
     (h : checker.div_mod_pin_guard ps fe c = ok r) :
     r = ConLeche.divModPinGuard (absNatOpPinSet ps) lenv (absName c) := by
-  -- `sorry`: `div_mod_decl_pin_refines` once (the Lean rebuilds the pin four
-  -- times), then the three `expr_ops` guards and `consts_resolve_refines`.
-  sorry
+  rw [checker.div_mod_pin_guard] at h
+  obtain ⟨pin, hpin, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hpabs, hpwf⟩ := div_mod_decl_pin_refines hps hc hpin
+  rw [ConLeche.divModPinGuard, ← hpabs]
+  have hbv := ExprOps.loose_bvars_bounded_refines hpwf hb
+  rw [u64_zero_val] at hbv
+  cases b with
+  | false =>
+    simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+    rw [← h, ← hbv]; simp
+  | true =>
+    simp only [if_true, bind_eq_ok_iff] at h
+    obtain ⟨b1, hb1, h⟩ := h
+    have hb1v := ExprOps.has_fvar_refines hpwf hb1
+    cases b1 with
+    | true =>
+      simp only [if_true, Result.ok.injEq] at h
+      rw [← h, ← hbv, ← hb1v]; simp
+    | false =>
+      simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff] at h
+      obtain ⟨b2, hb2, h⟩ := h
+      have hb2v := ExprOps.all_level_params_defined_fast_refines namesWF_new hpwf hb2
+      rw [absNames_new] at hb2v
+      cases b2 with
+      | false =>
+        simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+        rw [← h, ← hbv, ← hb1v, ← hb2v]; simp
+      | true =>
+        simp only [if_true] at h
+        rw [← hbv, ← hb1v, ← hb2v,
+          CoreK.consts_resolve_refines hp hfe henv hpwf r h]
+        simp
 
 /-- `ConLeche/Kernel/Checker.lean:299-306 divModCertsGuard` —
 `checker::div_mod_certs_guard_from` refines the cited
@@ -904,9 +1300,66 @@ theorem div_mod_certs_guard_from_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     r = (((absStmts stmts).drop i.val).zip ((absExprs proofs).drop i.val)).all
         (fun p => ConLeche.divModCertGuard lenv (absName c) (absExpr ann_val)
           p.1.1 p.1.2 p.2) := by
-  -- `sorry`: the index-vs-list induction over the minimum of the two lengths,
-  -- `div_mod_cert_guard_refines` at each step.
-  sorry
+  suffices hs : ∀ (N : Nat) (i : Std.Usize) (r : Bool),
+      stmts.val.length - i.val = N →
+      checker.div_mod_certs_guard_from stmts proofs fe c ann_val i = ok r →
+      r = (((absStmts stmts).drop i.val).zip ((absExprs proofs).drop i.val)).all
+          (fun p => ConLeche.divModCertGuard lenv (absName c) (absExpr ann_val)
+            p.1.1 p.1.2 p.2) by
+    exact hs _ i r rfl h
+  clear h
+  intro N
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro i r hN h
+    rw [checker.div_mod_certs_guard_from.eq_def] at h
+    dsimp only at h
+    split at h
+    · have hl : stmts.val.length ≤ i.val := by
+        have := alloc.vec.Vec.len_val stmts; scalar_tac
+      rw [drop_absStmts_nil hl]
+      simpa using (Result.ok_injective h).symm
+    · split at h
+      · have hl : proofs.val.length ≤ i.val := by
+          have := alloc.vec.Vec.len_val proofs; scalar_tac
+        rw [drop_absExprs_nil hl]
+        simpa using (Result.ok_injective h).symm
+      · simp only [bind_eq_ok_iff] at h
+        obtain ⟨p, hidx, h⟩ := h
+        obtain ⟨v, eq_e⟩ := p
+        -- the pattern-`let` Aeneas emits for the pair: only the *unifier* sees
+        -- through it, so it goes by ascription (task #16's hard spot 1).
+        have h2 : (do
+            let e1 ← alloc.vec.Vec.index
+              (core.slice.index.SliceIndexUsizeSlice expr.Expr) proofs i
+            let b ← checker.div_mod_cert_guard fe c ann_val v eq_e e1
+            if b then do
+              let i3 ← i + 1#usize
+              checker.div_mod_certs_guard_from stmts proofs fe c ann_val i3
+            else ok false) = ok r := h
+        clear h
+        simp only [bind_eq_ok_iff] at h2
+        obtain ⟨pf, hpidx, b, hb, h⟩ := h2
+        have hlt := vec_index_lt hidx
+        have hx := vec_index_val hidx hlt
+        have hltp := vec_index_lt hpidx
+        have hxp := vec_index_val hpidx hltp
+        have hvwf : ExprsWF v ∧ ExprWF eq_e :=
+          hst (v, eq_e) (by rw [← hx]; exact List.getElem_mem hlt)
+        have hpwf : ExprWF pf := hpr pf (by rw [← hxp]; exact List.getElem_mem hltp)
+        have hbv := div_mod_cert_guard_refines hp hfe henv hc hav hvwf.1 hvwf.2 hpwf hb
+        rw [drop_absStmts_cons hlt hx, drop_absExprs_cons hltp hxp]
+        simp only [List.zip_cons_cons, List.all_cons, absStmt, ← hbv]
+        cases b with
+        | false =>
+          simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+          rw [← h]; rfl
+        | true =>
+          simp only [if_true] at h
+          obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+          have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+          rw [ih (stmts.val.length - i2.val) (by omega) i2 r rfl h, hi2v]
+          simp
 
 /-- `ConLeche/Kernel/Checker.lean:299-306 divModCertsGuard`,
 `ConLeche/Kernel/DeclCheck.lean:338-342 divModCertsGuardF` —
@@ -922,9 +1375,14 @@ theorem div_mod_certs_guard_refines {ps : nat_op_pins.NatOpPinSet}
     (h : checker.div_mod_certs_guard ps fe c ann_val = ok r) :
     r = ConLeche.divModCertsGuard (absNatOpPinSet ps) lenv (absName c)
       (absExpr ann_val) := by
-  -- `sorry`: `div_mod_cert_stmts_refines`, `div_mod_cert_proofs_refines` and
-  -- `div_mod_certs_guard_from_refines` at `i = 0`.
-  sorry
+  rw [checker.div_mod_certs_guard] at h
+  obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hvabs, hvwf⟩ := div_mod_cert_stmts_refines hc hv
+  obtain ⟨h1abs, h1wf⟩ := div_mod_cert_proofs_refines hps hc hv1
+  rw [ConLeche.divModCertsGuard, ← hvabs, ← h1abs,
+    div_mod_certs_guard_from_refines hp hfe henv hc hav hvwf h1wf h,
+    show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero, List.drop_zero]
 
 /-! ## One variant's attempt (`Checker.lean:308-328 checkDivModPinAt`) -/
 
@@ -1056,9 +1514,37 @@ theorem check_reduce_identity_refines {mode : env.CheckMode} {fuel : Std.U64}
             (.app (absExpr val_a) (ConLeche.reduceCertVar (absName c)))
             (ConLeche.reduceCertVar (absName c))).run lst = .ok (true, lst')
         ∧ StateRel st' lst' ∧ StateWF st' := by
-  -- `sorry`: `TrustPinsSpec.certVar`, `Expr.app_refines`, then
-  -- `is_def_eq_core_refines` (`Refine/TypeChecker.lean`).
-  sorry
+  intro lst lfe hsr hfr
+  rw [checker.check_reduce_identity] at h
+  obtain ⟨x, hx, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e0, he0, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨applied, happ, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hxabs, hxwf⟩ := htp.certVar c x hc hx
+  have he0v : e0 = val_a := Expr.dup_eq he0
+  have he1v : e1 = x := Expr.dup_eq he1
+  have hawf : ExprWF applied :=
+    ExprWF.app (by rw [he0v]; exact hva) (by rw [he1v]; exact hxwf) happ
+  have haabs : absExpr applied
+      = .app (absExpr val_a) (ConLeche.reduceCertVar (absName c)) := by
+    rw [Expr.app_refines happ, he0v, he1v, hxabs]
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨q, hq, h⟩ := h
+  obtain ⟨res, st1⟩ := q
+  cases res with
+  | Err er => exact absurd h (by simp)
+  | Ok ok1 =>
+    cases ok1 with
+    | false => exact absurd h (by simp)
+    | true =>
+      simp at h
+      obtain ⟨lst', hrun, hsr', hsw'⟩ :=
+        (TypeChecker.is_def_eq_core_refines hfuel hk) st fe 1#u64 applied x true st1
+          hsw hfw hawf hxwf hq lst lfe hsr hfr
+      rw [h] at hsr' hsw'
+      refine ⟨lst', ?_, hsr', hsw'⟩
+      rw [haabs, hxabs] at hrun
+      exact hrun
 
 /-- `ConLeche/Kernel/Checker.lean:382-417 checkReducePin`,
 `ConLeche/Kernel/DeclCheck.lean:914-933 checkReducePinF` —
