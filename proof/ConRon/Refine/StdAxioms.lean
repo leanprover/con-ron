@@ -1412,11 +1412,13 @@ theorem iff_intro_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : Boo
     cases ci
     case CtorInfo cv np nf =>
       rw [hg]
+      simp only [] at h
       by_cases hnp : np = 2#u64
       · subst hnp
         by_cases hnf : nf = 2#u64
         · subst hnf
-          simp only [if_pos, bind_eq_ok_iff] at h
+          rw [if_pos rfl, if_pos rfl] at h
+          simp only [bind_eq_ok_iff] at h
           obtain ⟨ci1, hci1, cvp, hcvp, hmp⟩ := h
           obtain ⟨r1, w1⟩ := iff_intro_raw_refines hci1
           obtain ⟨r2, w2⟩ := CoreK.to_constant_val_refines w1 hcvp
@@ -1472,11 +1474,13 @@ theorem iff_rec_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : Bool}
     cases ci
     case RecInfo cv mi rp rs =>
       rw [hg]
+      simp only [] at h
       by_cases hmi : mi = 4#u64
       · subst hmi
         by_cases hrp : rp = 4#u64
         · subst hrp
-          simp only [if_pos, bind_eq_ok_iff] at h
+          rw [if_pos rfl, if_pos rfl] at h
+          simp only [bind_eq_ok_iff] at h
           obtain ⟨ci1, hci1, cvp, hcvp, hmp⟩ := h
           obtain ⟨r1, w1⟩ := iff_rec_raw_refines hci1
           obtain ⟨r2, w2⟩ := CoreK.to_constant_val_refines w1 hcvp
@@ -1572,11 +1576,13 @@ theorem nonempty_intro_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b 
     cases ci
     case CtorInfo cv np nf =>
       rw [hg]
+      simp only [] at h
       by_cases hnp : np = 1#u64
       · subst hnp
         by_cases hnf : nf = 1#u64
         · subst hnf
-          simp only [if_pos, bind_eq_ok_iff] at h
+          rw [if_pos rfl, if_pos rfl] at h
+          simp only [bind_eq_ok_iff] at h
           obtain ⟨ci1, hci1, cvp, hcvp, hmp⟩ := h
           obtain ⟨r1, w1⟩ := nonempty_intro_raw_refines hci1
           obtain ⟨r2, w2⟩ := CoreK.to_constant_val_refines w1 hcvp
@@ -1631,11 +1637,13 @@ theorem nonempty_rec_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : 
     cases ci
     case RecInfo cv mi rp rs =>
       rw [hg]
+      simp only [] at h
       by_cases hmi : mi = 3#u64
       · subst hmi
         by_cases hrp : rp = 3#u64
         · subst hrp
-          simp only [if_pos, bind_eq_ok_iff] at h
+          rw [if_pos rfl, if_pos rfl] at h
+          simp only [bind_eq_ok_iff] at h
           obtain ⟨ci1, hci1, cvp, hcvp, hmp⟩ := h
           obtain ⟨r1, w1⟩ := nonempty_rec_raw_refines hci1
           obtain ⟨r2, w2⟩ := CoreK.to_constant_val_refines w1 hcvp
@@ -1701,11 +1709,13 @@ theorem std_axiom_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
   simp only [bind_eq_ok_iff] at h
   obtain ⟨n, hn, bn, hbn, h⟩ := h
   obtain ⟨na, nw⟩ := propext_name_refines hn
-  rw [Name.beq_refines hcv.1 nw hbn, na] at h
-  rw [ConLeche.stdAxiomOkF]
+  have ebn : bn = decide (absName cv_a.name = ConLeche.propextName) := by
+    rw [Name.beq_refines hcv.1 nw hbn, na]
+  simp only [ConLeche.stdAxiomOkF, absConstantVal]
   by_cases hp : absName cv_a.name = ConLeche.propextName
-  · rw [if_pos (show (absConstantVal cv_a).name = ConLeche.propextName from hp),
-      if_pos (by simpa using hp)] at h ⊢
+  · rw [show bn = true by rw [ebn, hp]; simp] at h
+    rw [if_pos rfl] at h
+    rw [if_pos hp]
     simp only [bind_eq_ok_iff] at h
     obtain ⟨b1, hb1, h⟩ := h
     rw [← heqb b1 hb1]
@@ -1739,16 +1749,19 @@ theorem std_axiom_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
             obtain ⟨r1, w1⟩ := propext_raw_refines hcvp
             rw [propextA_matchesPin_raw,
               matches_pin_fast_eq_matches_pin hcv w1 hmp, r1]
-            simp
-  · rw [if_neg (show ¬ (absConstantVal cv_a).name = ConLeche.propextName from hp),
-      if_neg (by simpa using hp)] at h ⊢
+            simp [absConstantVal]
+  · rw [show bn = false by rw [ebn]; simp [hp]] at h
+    rw [if_neg (by simp)] at h
+    rw [if_neg hp]
     simp only [bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, bn1, hbn1, h⟩ := h
     obtain ⟨na1, nw1⟩ := choice_name_refines hn1
-    rw [Name.beq_refines hcv.1 nw1 hbn1, na1] at h
+    have ebn1 : bn1 = decide (absName cv_a.name = ConLeche.choiceName) := by
+      rw [Name.beq_refines hcv.1 nw1 hbn1, na1]
     by_cases hc : absName cv_a.name = ConLeche.choiceName
-    · rw [if_pos (show (absConstantVal cv_a).name = ConLeche.choiceName from hc),
-        if_pos (by simpa using hc)] at h ⊢
+    · rw [show bn1 = true by rw [ebn1, hc]; simp] at h
+      rw [if_pos rfl] at h
+      rw [if_pos hc]
       simp only [bind_eq_ok_iff] at h
       obtain ⟨b2, hb2, h⟩ := h
       rw [← nonempty_pinned_refines hrel hwf hb2]
@@ -1775,9 +1788,10 @@ theorem std_axiom_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
             obtain ⟨r1, w1⟩ := choice_raw_refines hcvp
             rw [choiceA_matchesPin_raw,
               matches_pin_fast_eq_matches_pin hcv w1 hmp, r1]
-            simp
-    · rw [if_neg (show ¬ (absConstantVal cv_a).name = ConLeche.choiceName from hc),
-        if_neg (by simpa using hc), Result.ok.injEq] at h ⊢
+            simp [absConstantVal]
+    · rw [show bn1 = false by rw [ebn1]; simp [hc]] at h
+      rw [if_neg (by simp), Result.ok.injEq] at h
+      rw [if_neg hc]
       exact h.symm
 
 /-- The same over task #46's full relation, which is what the declaration

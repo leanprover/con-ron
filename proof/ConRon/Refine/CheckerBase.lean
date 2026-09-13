@@ -773,4 +773,76 @@ theorem check_proj_shape_refines {pty ctor_ty : expr.Expr} {n_p n_f : Std.U64}
           simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
           simp at h
 
+/-! ## The three list walks
+
+Task #24's deviation 5: the cited two-`List` recursions became one index
+recursion with three arms (both exhausted, both in range, or the arity throw),
+so each is refined against the cited recursion run on the two `drop i`
+suffixes.  The `ops` record is `sharedOpsC` (`Refine/TypeChecker.lean`'s
+`lops`), and the `Env` argument every slot ignores is `lfe.env` — which is
+exactly why the port can pass the index alone (task #24's note 3).
+
+Each walk needs one *run* lemma per arm of the cited definition, in the
+`Refine/StateC.lean` style: the state monad's `do` is unfolded once, against a
+known first step. -/
+
+open ConLeche.Cached in
+/-- `checkDefEqList` on two exhausted lists. -/
+theorem checkDefEqList_nil {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {d : Nat} {lst : CState} :
+    (ConLeche.checkDefEqList ops lenv d [] []).run lst = .ok ((), lst) := rfl
+
+open ConLeche.Cached in
+/-- `checkDefEqList`'s step, at a comparison that succeeded. -/
+theorem checkDefEqList_cons {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {d : Nat} {a b : ConLeche.Expr} {xs ys : List ConLeche.Expr} {lst lst' : CState}
+    (hstep : (ops.isDefEq lenv d a b).run lst = .ok (true, lst')) :
+    (ConLeche.checkDefEqList ops lenv d (a :: xs) (b :: ys)).run lst
+      = (ConLeche.checkDefEqList ops lenv d xs ys).run lst' := by
+  rw [ConLeche.checkDefEqList]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ops.isDefEq lenv d a b) lst = Except.ok (true, lst') from hstep]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkTypedList` on two exhausted lists. -/
+theorem checkTypedList_nil {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {d : Nat} {lst : CState} :
+    (ConLeche.checkTypedList ops lenv d [] []).run lst = .ok ((), lst) := rfl
+
+open ConLeche.Cached in
+/-- `checkTypedList`'s step, at an inference and a comparison that succeeded. -/
+theorem checkTypedList_cons {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {d : Nat} {a t ty : ConLeche.Expr} {xs ts : List ConLeche.Expr}
+    {lst lst1 lst2 : CState}
+    (hinf : (ops.inferType lenv d a).run lst = .ok (ty, lst1))
+    (hdef : (ops.isDefEq lenv d ty t).run lst1 = .ok (true, lst2)) :
+    (ConLeche.checkTypedList ops lenv d (a :: xs) (t :: ts)).run lst
+      = (ConLeche.checkTypedList ops lenv d xs ts).run lst2 := by
+  rw [ConLeche.checkTypedList]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ops.inferType lenv d a) lst = Except.ok (ty, lst1) from hinf]
+  simp only [Except.bind]
+  rw [show (ops.isDefEq lenv d ty t) lst1 = Except.ok (true, lst2) from hdef]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkAnnotList` on an exhausted list. -/
+theorem checkAnnotList_nil {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {d : Nat} {lst : CState} :
+    (ConLeche.checkAnnotList ops lenv d []).run lst = .ok ((), lst) := rfl
+
+open ConLeche.Cached in
+/-- `checkAnnotList`'s step, at an annotation that reproduced its input. -/
+theorem checkAnnotList_cons {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {d : Nat} {a aA : ConLeche.Expr} {xs : List ConLeche.Expr} {lst lst1 : CState}
+    (hann : (ops.annotate lenv d a).run lst = .ok (aA, lst1)) (heq : (aA == a) = true) :
+    (ConLeche.checkAnnotList ops lenv d (a :: xs)).run lst
+      = (ConLeche.checkAnnotList ops lenv d xs).run lst1 := by
+  rw [ConLeche.checkAnnotList]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ops.annotate lenv d a) lst = Except.ok (aA, lst1) from hann]
+  simp only [Except.bind, heq]
+  rfl
+
 end ConRon.Refine.CheckerBase

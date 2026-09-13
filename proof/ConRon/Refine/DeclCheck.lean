@@ -367,13 +367,50 @@ underflow where Lean's `Nat` truncates, and a success means no underflow. -/
 
 /-- `decl_check::lp_params_from` is the cited `lps.map .param` from `i`. -/
 theorem lp_params_from_refines {lps : alloc.vec.Vec name.Name}
-    (hlps : NamesWF lps) :
-    ∀ (N : Nat) (i : Std.Usize) (out r : alloc.vec.Vec level.Level),
-      lps.val.length - i.val ≤ N → LevelsWF out →
+    (hlps : NamesWF lps) (N : Nat) :
+    ∀ (i : Std.Usize) (out r : alloc.vec.Vec level.Level),
+      lps.val.length - i.val = N → LevelsWF out →
       decl_check.lp_params_from lps i out = ok r →
       absLevels r = absLevels out
           ++ ((absNames lps).drop i.val).map ConLeche.Level.param ∧ LevelsWF r := by
-  sorry
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro i out r hN hout h
+    rw [decl_check.lp_params_from.eq_def] at h
+    dsimp only at h
+    split at h
+    · rename_i hge
+      have hlen : lps.val.length ≤ i.val := by
+        have := alloc.vec.Vec.len_val lps; scalar_tac
+      rw [← Result.ok_injective h, absNames, ← List.map_drop,
+        List.drop_eq_nil_of_le (by simpa using hlen)]
+      exact ⟨by simp, hout⟩
+    · rename_i hge
+      simp only [bind_eq_ok_iff, name_dup_eq, Result.ok.injEq, exists_eq_left'] at h
+      obtain ⟨x, hidx, u, hu, out1, hpush, i2, hi2, hrec⟩ := h
+      have hlt : i.val < lps.val.length := by
+        have := alloc.vec.Vec.len_val lps; scalar_tac
+      have hx : lps.val[i.val] = x := by
+        have hg := ExprOps.vec_index_getElem? hidx
+        rw [List.getElem?_eq_getElem hlt] at hg; exact Option.some_injective _ hg
+      have hxwf : NameWF x := by rw [← hx]; exact hlps _ (List.getElem_mem hlt)
+      have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+      have hout1 : LevelsWF out1 := by
+        intro w hw
+        rw [vec_push_val hpush] at hw
+        rcases List.mem_append.1 hw with h1 | h1
+        · exact hout w h1
+        · simp only [List.mem_singleton] at h1; rw [h1]; exact LevelWF.param hxwf hu
+      obtain ⟨habs, hwf⟩ := ih (lps.val.length - i2.val) (by omega) i2 out1 r rfl hout1 hrec
+      refine ⟨?_, hwf⟩
+      have h1 : absLevels out1 = absLevels out ++ [ConLeche.Level.param (absName x)] := by
+        rw [absLevels, absLevels, vec_push_val hpush]
+        simp [Level.param_refines hu]
+      rw [habs, h1, hi2v, List.append_assoc]
+      congr 1
+      rw [absNames, ← List.map_drop, ← List.map_drop,
+        List.drop_eq_getElem_cons hlt, hx]
+      simp
 
 /-- `ConLeche/Kernel/DeclCheck.lean:345-382` etc. — `decl_check::lp_params` is
 the cited `lps.map .param`. -/
@@ -381,17 +418,52 @@ theorem lp_params_refines {lps : alloc.vec.Vec name.Name}
     {r : alloc.vec.Vec level.Level} (hlps : NamesWF lps)
     (h : decl_check.lp_params lps = ok r) :
     absLevels r = (absNames lps).map ConLeche.Level.param ∧ LevelsWF r := by
-  sorry
+  rw [decl_check.lp_params] at h
+  obtain ⟨habs, hwf⟩ :=
+    lp_params_from_refines hlps _ 0#usize _ r rfl CoreK.levelsWF_new h
+  refine ⟨?_, hwf⟩
+  rw [habs]
+  simp [absLevels, alloc.vec.Vec.new]
 
 /-- `decl_check::desc_bvars_from` is the cited descending spine from `k`. -/
-theorem desc_bvars_from_refines :
-    ∀ (N : Nat) (n off k : Std.U64) (out r : alloc.vec.Vec expr.Expr),
-      n.val - k.val ≤ N → ExprsWF out →
+theorem desc_bvars_from_refines (N : Nat) :
+    ∀ (n off k : Std.U64) (out r : alloc.vec.Vec expr.Expr),
+      n.val - k.val = N → ExprsWF out →
       decl_check.desc_bvars_from n off k out = ok r →
       absExprs r = absExprs out
           ++ ((List.range n.val).drop k.val).map
               (fun j => ConLeche.Expr.bvar (off.val - j)) ∧ ExprsWF r := by
-  sorry
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro n off k out r hN hout h
+    rw [decl_check.desc_bvars_from.eq_def] at h
+    split at h
+    · rename_i hge
+      rw [← Result.ok_injective h,
+        List.drop_eq_nil_of_le (by simp; scalar_tac)]
+      exact ⟨by simp, hout⟩
+    · rename_i hge
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨j, hj, e, he, out1, hpush, k2, hk2, hrec⟩ := h
+      have hlt : k.val < (List.range n.val).length := by
+        rw [List.length_range]; scalar_tac
+      have hjv : j.val = off.val - k.val := by scalar_tac
+      have hk2v : k2.val = k.val + 1 := HashMap.uscalar_add_eq hk2
+      have hewf : ExprWF e := ExprWF.bvar he
+      have hout1 : ExprsWF out1 := by
+        intro w hw
+        rw [vec_push_val hpush] at hw
+        rcases List.mem_append.1 hw with h1 | h1
+        · exact hout w h1
+        · simp only [List.mem_singleton] at h1; rw [h1]; exact hewf
+      obtain ⟨habs, hwf⟩ := ih (n.val - k2.val) (by omega) n off k2 out1 r rfl hout1 hrec
+      refine ⟨?_, hwf⟩
+      rw [habs, absExprs, vec_push_val hpush]
+      simp only [List.map_append, List.map_singleton, Expr.bvar_refines he,
+        ← absExprs, hk2v]
+      rw [List.drop_eq_getElem_cons hlt]
+      simp only [List.getElem_range, List.map_cons, hjv]
+      simp
 
 /-- `ConLeche/Kernel/DeclCheck.lean:345-382` etc. — `decl_check::desc_bvars` is
 the cited `(List.range nP).map fun k => Expr.bvar (off - k)`. -/
@@ -399,7 +471,12 @@ theorem desc_bvars_refines {n off : Std.U64} {r : alloc.vec.Vec expr.Expr}
     (h : decl_check.desc_bvars n off = ok r) :
     absExprs r = (List.range n.val).map (fun j => ConLeche.Expr.bvar (off.val - j))
       ∧ ExprsWF r := by
-  sorry
+  rw [decl_check.desc_bvars] at h
+  obtain ⟨habs, hwf⟩ :=
+    desc_bvars_from_refines _ n off 0#u64 _ r rfl ExprOps.exprsWF_new h
+  refine ⟨?_, hwf⟩
+  rw [habs]
+  simp [absExprs, alloc.vec.Vec.new]
 
 /-- `ConLeche/Kernel/DeclCheck.lean:345-382` etc. — `decl_check::model_app` is
 the cited `mkAppN (.const (T.str "_model") (lps.map .param))
