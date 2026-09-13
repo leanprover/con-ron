@@ -8506,6 +8506,34 @@ omit hw hcb in
 pin and the two telescopes, the cited body *is* `checkProjIotaBody` — at the
 stored constant's own name, which is the name it was found under
 (`FEnv.canon_find_name`), so the two spine heads are one. -/
+theorem checkProjIotaF_tail {lmode : ConLeche.CheckMode} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj tcv : ConLeche.ConstantVal} {nP nF i : Nat} {rh : ConLeche.Expr}
+    {sbs cbs : List (ConLeche.Expr × ConLeche.BinderMeta)}
+    {sbody cbody : ConLeche.Expr}
+    (hname : cvj.name = ctorName)
+    (hfind : lfe.find? ((ConLeche.projModelName T i).str "iota")
+      = some (.thmInfo tcv rh))
+    (hlp : tcv.levelParams = lps)
+    (hsp : tcv.type.stripPis (nP + nF) = some (sbs, sbody))
+    (hcp : cvj.type.stripPis (nP + nF) = some (cbs, cbody))
+    (hdm : ConLeche.domsMatchAux
+        (fun _ e => ConLeche.Expr.renameConsts
+          (ConLeche.projFwd T ctorName nF) e) sbs cbs 0 0 (nP + nF) = true) :
+    ConLeche.checkProjIotaF (m := ConLeche.Cached.CheckCM) lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe T ctorName lps cvj nP nF i
+      = checkProjIotaBody lmode lfe T cvj lps nP nF i tcv sbody := by
+  subst hname
+  rw [ConLeche.checkProjIotaF, checkProjIotaBody.eq_def]
+  simp only [hfind, hlp, hsp, hcp, hdm, if_true, pure_bind]
+  split
+  · rfl
+  · rename_i hne
+    split
+    · exact ((hne _ _ _ _ _) rfl).elim
+    · rfl
+
+omit hw hcb in
 theorem checkProjIotaF_run {lmode : ConLeche.CheckMode} {lfe : ConLeche.FEnv}
     {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
     {cvj tcv : ConLeche.ConstantVal} {nP nF i : Nat} {rh : ConLeche.Expr}
@@ -8525,20 +8553,106 @@ theorem checkProjIotaF_run {lmode : ConLeche.CheckMode} {lfe : ConLeche.FEnv}
     (ConLeche.checkProjIotaF (m := ConLeche.Cached.CheckCM) lmode
         (ConLeche.Cached.sharedOpsC lmode lfe) lfe T ctorName lps cvj nP nF
         i).run lst = .ok ((), lst') := by
-  subst hname
-  have key : ConLeche.checkProjIotaF (m := ConLeche.Cached.CheckCM) lmode
-      (ConLeche.Cached.sharedOpsC lmode lfe) lfe T cvj.name lps cvj nP nF i
-      = checkProjIotaBody lmode lfe T cvj lps nP nF i tcv sbody := by
-    rw [ConLeche.checkProjIotaF, checkProjIotaBody.eq_def]
-    simp only [hfind, hlp, hsp, hcp, hdm, if_true, pure_bind]
-    split
-    · rfl
-    · rename_i hne
-      split
-      · exact ((hne _ _ _ _ _) rfl).elim
-      · rfl
-  rw [key]
+  rw [checkProjIotaF_tail (cbody := cbody) hname hfind hlp hsp hcp hdm]
   exact hbody
+
+omit hw hcb in
+/-- `checkProjIotaF`'s **missing theorem** `throw` (`DeclCheck.lean:802`): the
+index stores no `proj_i.iota` theorem, which is exactly where the cited
+`let some (.thmInfo tcv _) := … | throw` fires. -/
+theorem checkProjIotaF_miss {lmode : ConLeche.CheckMode} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj : ConLeche.ConstantVal} {nP nF i : Nat}
+    {lst : ConLeche.Cached.CState}
+    (hfind : (match lfe.find? ((ConLeche.projModelName T i).str "iota") with
+        | some (.thmInfo tcv _) => some tcv
+        | _ => none) = none) :
+    (ConLeche.checkProjIotaF (m := ConLeche.Cached.CheckCM) lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe T ctorName lps cvj nP nF
+        i).run lst
+      = .error (.notImplemented "missing projection iota theorem") := by
+  rw [ConLeche.checkProjIotaF]
+  cases hfx : lfe.find? ((ConLeche.projModelName T i).str "iota") with
+  | none => rfl
+  | some ci =>
+    rw [hfx] at hfind
+    cases ci <;> first | rfl | simp at hfind
+
+omit hw hcb in
+/-- `checkProjIotaF`'s **level** `throw` (`DeclCheck.lean:804`). -/
+theorem checkProjIotaF_lps {lmode : ConLeche.CheckMode} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj tcv : ConLeche.ConstantVal} {nP nF i : Nat} {rh : ConLeche.Expr}
+    {lst : ConLeche.Cached.CState}
+    (hfind : lfe.find? ((ConLeche.projModelName T i).str "iota")
+      = some (.thmInfo tcv rh))
+    (hlp : ¬ tcv.levelParams = lps) :
+    (ConLeche.checkProjIotaF (m := ConLeche.Cached.CheckCM) lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe T ctorName lps cvj nP nF
+        i).run lst
+      = .error (.notImplemented "projection iota level mismatch") := by
+  rw [ConLeche.checkProjIotaF, hfind]
+  simp [hlp, StateT.run, Bind.bind, StateT.bind, Except.bind]
+
+omit hw hcb in
+/-- `checkProjIotaF`'s **statement telescope** `throw`
+(`DeclCheck.lean:806`). -/
+theorem checkProjIotaF_tele {lmode : ConLeche.CheckMode} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj tcv : ConLeche.ConstantVal} {nP nF i : Nat} {rh : ConLeche.Expr}
+    {lst : ConLeche.Cached.CState}
+    (hfind : lfe.find? ((ConLeche.projModelName T i).str "iota")
+      = some (.thmInfo tcv rh))
+    (hlp : tcv.levelParams = lps)
+    (hsp : tcv.type.stripPis (nP + nF) = none) :
+    (ConLeche.checkProjIotaF (m := ConLeche.Cached.CheckCM) lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe T ctorName lps cvj nP nF
+        i).run lst
+      = .error (.notImplemented "projection iota telescope") := by
+  rw [ConLeche.checkProjIotaF, hfind]
+  simp [hlp, hsp, StateT.run]
+
+omit hw hcb in
+/-- `checkProjIotaF`'s **constructor telescope** `throw`
+(`DeclCheck.lean:808`). -/
+theorem checkProjIotaF_ctele {lmode : ConLeche.CheckMode} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj tcv : ConLeche.ConstantVal} {nP nF i : Nat} {rh : ConLeche.Expr}
+    {sbs : List (ConLeche.Expr × ConLeche.BinderMeta)} {sbody : ConLeche.Expr}
+    {lst : ConLeche.Cached.CState}
+    (hfind : lfe.find? ((ConLeche.projModelName T i).str "iota")
+      = some (.thmInfo tcv rh))
+    (hlp : tcv.levelParams = lps)
+    (hsp : tcv.type.stripPis (nP + nF) = some (sbs, sbody))
+    (hcp : cvj.type.stripPis (nP + nF) = none) :
+    (ConLeche.checkProjIotaF (m := ConLeche.Cached.CheckCM) lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe T ctorName lps cvj nP nF
+        i).run lst
+      = .error (.notImplemented "projection constructor telescope") := by
+  rw [ConLeche.checkProjIotaF, hfind]
+  simp [hlp, hsp, hcp, StateT.run]
+
+omit hw hcb in
+/-- `checkProjIotaF`'s **domain** `throw` (`DeclCheck.lean:812`). -/
+theorem checkProjIotaF_dom {lmode : ConLeche.CheckMode} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj tcv : ConLeche.ConstantVal} {nP nF i : Nat} {rh : ConLeche.Expr}
+    {sbs cbs : List (ConLeche.Expr × ConLeche.BinderMeta)}
+    {sbody cbody : ConLeche.Expr} {lst : ConLeche.Cached.CState}
+    (hfind : lfe.find? ((ConLeche.projModelName T i).str "iota")
+      = some (.thmInfo tcv rh))
+    (hlp : tcv.levelParams = lps)
+    (hsp : tcv.type.stripPis (nP + nF) = some (sbs, sbody))
+    (hcp : cvj.type.stripPis (nP + nF) = some (cbs, cbody))
+    (hdm : ConLeche.domsMatchAux
+        (fun _ e => ConLeche.Expr.renameConsts
+          (ConLeche.projFwd T ctorName nF) e) sbs cbs 0 0 (nP + nF) = false) :
+    (ConLeche.checkProjIotaF (m := ConLeche.Cached.CheckCM) lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe T ctorName lps cvj nP nF
+        i).run lst
+      = .error (.notImplemented "projection iota domain mismatch") := by
+  rw [ConLeche.checkProjIotaF, hfind]
+  simp [hlp, hsp, hcp, hdm, StateT.run, Bind.bind, StateT.bind, Except.bind]
 
 /-- `ConLeche/Kernel/DeclCheck.lean:797-836` — **`check_proj_iota` refines
 `checkProjIotaF`**: the model's `proj_i.iota` theorem pins the rule.
@@ -8555,21 +8669,29 @@ theorem check_proj_iota_refines
     {st st' : cached.state_c.CState} {fe2 fe_self : fenv.FEnv}
     {t ctor_name : name.Name} {lps : alloc.vec.Vec name.Name}
     {cvj : env.ConstantVal} {n_p n_f i : Std.U64}
+    {out : core.result.Result Unit core_types.CheckError}
     (hspines : StructSpinesRefine)
     (hcname : absName cvj.name = absName ctor_name)
     (hst : StateWF st) (hfe2 : FEnvWF fe2) (hfe : FEnvWF fe_self)
     (ht : NameWF t) (hc : NameWF ctor_name) (hlps : NamesWF lps)
     (hcvj : ConstantValWF cvj)
     (h : inductives.modeled.check_proj_iota mode st fe2 fe_self t ctor_name lps
-        cvj n_p n_f i = ok (.Ok (), st')) :
+        cvj n_p n_f i = ok (out, st')) :
     ∀ lst lfe2 lfe, StateRel st lst → FEnvRel fe2 lfe2 →
       FEnvRel fe_self lfe → lfe2 = lfe →
-      ∃ lst',
-        (ConLeche.checkProjIotaF (absMode mode)
-            (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 (absName t)
-            (absName ctor_name) (absNames lps) (absConstantVal cvj) n_p.val
-            n_f.val i.val).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+      match out with
+      | .Ok _ =>
+        ∃ lst',
+          (ConLeche.checkProjIotaF (absMode mode)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 (absName t)
+              (absName ctor_name) (absNames lps) (absConstantVal cvj) n_p.val
+              n_f.val i.val).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkProjIotaF (absMode mode)
+          (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 (absName t)
+          (absName ctor_name) (absNames lps) (absConstantVal cvj) n_p.val
+          n_f.val i.val).run lst) := by
   intro lst lfe2 lfe hrel hr2 hrS heq
   subst heq
   rw [inductives.modeled.check_proj_iota] at h
@@ -8579,7 +8701,13 @@ theorem check_proj_iota_refines
   obtain ⟨hoabs, howf⟩ := thm_probe_refines hr2 hfe2 hnwf ho
   rw [hnv] at hoabs
   cases o with
-  | none => simp at h
+  | none =>
+    -- move 2: `DeclCheck.lean:802`, no `proj_i.iota` theorem is stored
+    simp only [Option.map_none] at hoabs
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    exact errSim_notImplemented "missing projection iota theorem" hce
+      (checkProjIotaF_miss hoabs.symm)
   | some tcv =>
   have htcvwf : ConstantValWF tcv := howf tcv rfl
   simp only [Option.map_some] at hoabs
@@ -8597,7 +8725,13 @@ theorem check_proj_iota_refines
     obtain ⟨ho1abs, ho1wf⟩ := ExprOps.strip_pis_refines htcvwf.2.2 ho1
     rw [hi1v] at ho1abs
     cases o1 with
-    | none => simp at h
+    | none =>
+      -- move 2: `DeclCheck.lean:806`, the statement telescope
+      simp only [Option.map_none] at ho1abs
+      simp at h
+      obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+      exact errSim_notImplemented "projection iota telescope" hce
+        (checkProjIotaF_tele hfind hlpseq ho1abs.symm)
     | some sq =>
     obtain ⟨sbs, sbody⟩ := sq
     obtain ⟨hsbswf, hsbodywf⟩ := ho1wf _ rfl
@@ -8606,7 +8740,13 @@ theorem check_proj_iota_refines
     obtain ⟨ho2abs, ho2wf⟩ := ExprOps.strip_pis_refines hcvj.2.2 ho2
     rw [hi1v] at ho2abs
     cases o2 with
-    | none => simp at h
+    | none =>
+      -- move 2: `DeclCheck.lean:808`, the constructor telescope
+      simp only [Option.map_none] at ho2abs
+      simp at h
+      obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+      exact errSim_notImplemented "projection constructor telescope" hce
+        (checkProjIotaF_ctele hfind hlpseq ho1abs.symm ho2abs.symm)
     | some cq =>
     obtain ⟨cbs, cbody⟩ := cq
     obtain ⟨hcbswf, hcbodywf⟩ := ho2wf _ rfl
@@ -8623,16 +8763,34 @@ theorem check_proj_iota_refines
     by_cases hb1t : b1 = true
     · rw [if_pos hb1t] at h
       rw [hb1t] at hb1v
-      obtain ⟨lst', hrun, hrel', hwf'⟩ :=
-        check_proj_iota_body_refines hw hcb hspines hst hfe ht hcvj hlps htcvwf
-          hsbodywf h lst lfe2 hrel hrS
-      refine ⟨lst', ?_, hrel', hwf'⟩
-      exact checkProjIotaF_run (rh := rh) (cbody := absExpr cbody) hcname hfind
-        hlpseq ho1abs.symm ho2abs.symm hb1v.symm hrun
-    · simp only [Bool.not_eq_true] at hb1t
-      rw [if_neg (by simp [hb1t])] at h; simp at h
-  · simp only [Bool.not_eq_true] at hbt
-    rw [if_neg (by simp [hbt])] at h; simp at h
+      have hbody := check_proj_iota_body_refines hw hcb hspines hst hfe ht hcvj
+        hlps htcvwf hsbodywf h lst lfe2 hrel hrS
+      have htail := checkProjIotaF_tail (lmode := absMode mode) (lfe := lfe2)
+        (rh := rh) (cvj := absConstantVal cvj) (cbody := absExpr cbody) hcname
+        hfind hlpseq ho1abs.symm ho2abs.symm hb1v.symm
+      cases out with
+      | Ok _ =>
+        obtain ⟨lst', hrun, hrel', hwf'⟩ := hbody
+        exact ⟨lst', by rw [htail]; exact hrun, hrel', hwf'⟩
+      | Err e => exact ErrSim.of_eq hbody (by rw [htail])
+    · -- move 2: `DeclCheck.lean:812`, the domain mismatch
+      simp only [Bool.not_eq_true] at hb1t
+      rw [if_neg (by simp [hb1t])] at h
+      rw [hb1t] at hb1v
+      simp at h
+      obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+      exact errSim_notImplemented "projection iota domain mismatch" hce
+        (checkProjIotaF_dom hfind hlpseq ho1abs.symm ho2abs.symm hb1v.symm)
+  · -- move 2: `DeclCheck.lean:804`, the level-parameter mismatch
+    simp only [Bool.not_eq_true] at hbt
+    rw [if_neg (by simp [hbt])] at h
+    rw [hbt] at hbv
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    have hne : ¬ (absConstantVal tcv).levelParams = absNames lps := by
+      simpa [absConstantVal] using of_decide_eq_false hbv.symm
+    exact errSim_notImplemented "projection iota level mismatch" hce
+      (checkProjIotaF_lps hfind hne)
 
 omit hw hcb in
 /-- `checkProjFnS`' success path, run: the two lookups (both state-neutral),
