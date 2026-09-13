@@ -1,17 +1,15 @@
-# con-ron
+# con-ron – con-leche in Rust
 
-A Rust port of [con-leche](https://github.com/leanprover/con-leche), the
-consistency-proven Lean checker, together with a Lean proof (via
-[Aeneas](https://github.com/AeneasVerif/aeneas)) that the Rust checker refines
-the Lean one — so con-leche's main theorem covers the Rust binary, with the
-Lean runtime out of the trusted base.
+This is the external Lean checker [con-leche](https://github.com/leanprover/con-leche), ported to Rust very closely.
 
-See `DESIGN.md` for the design, plan, and work log, and `AENEAS_FINDINGS.md`
-for what this port learned about Charon and Aeneas (bugs, limitations,
-workarounds, scale numbers) — collected for their maintainers.
+So closely, in fact, that we can use Aeneas to prove the Rust implementation of the checker's core to be equivalent to the one in Lean (partial correctness, the Rust code has additional failure conditions), and thus inherits the consistency properties of `con-leche`.
 
-## Setup
+This was written by AI under supervision from Joachim Breitner at the Lean FRO. This README is genuinely human written; the rest of the repository is not. The file [`OVERVIEW.md`](./OVERVIEW.md) contains a much more detailed, AI written exposition of the project. 
 
-Dependencies not on the machine (the Rust nightly Charon needs, Charon,
-Aeneas) come from `flake.nix`; `direnv allow` loads them.  Lean toolchains
-come from the system `elan`.  Submodules: `git submodule update --init`.
+This is not a high assurance verification effort, given the reliance on Aeneas as a Rust-to-Lean translator. The goal is to make it very plausible that the Rust implementation follows the Lean implementation very closely.
+
+The point is that with `con-leche` having a formal consistency proof, any remaining unsoundness bugs are most likely found in Lean’s compiler or runtime (including the bignum library used). Such a bug will very unlikely exist in the Rust compiler or runtime at the same time, so by checking a proof with both `con-leche` and `con-ron`, you gain a high level of protection against that class of bugs.
+
+Performance of `con-ron` is currently not particularly impressive (about 2× wall time and space over `con-leche`, oddly at roughtly the same instruction count), likely because by following the Lean code and data structure design closely it implements idioms that are not particularly well suited for Rust.
+
+Unsolicited PRs against this repo are unlikely to be useful; well-written issues with bug reports or feature requests are welcome.
