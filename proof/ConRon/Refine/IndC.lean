@@ -993,19 +993,25 @@ theorem check_ind_recs_s_refines
 nothing at all where the model's projection artifact is absent. -/
 theorem install_proj_fn_step_s_refines
     {st st' : cached.state_c.CState} {t ctor_name : name.Name}
-    {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64} {fe fe' : fenv.FEnv}
+    {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64} {fe : fenv.FEnv}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (ht : NameWF t) (hc : NameWF ctor_name)
     (hlps : NamesWF lps)
     (h : inductives.inductives_c.install_proj_fn_step_s mode st t ctor_name lps
-        n_p n_f fe i = ok (.Ok fe', st')) :
+        n_p n_f fe i = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.installProjFnStepS (absMode mode) (absName t)
-            (absName ctor_name) (absNames lps) n_p.val n_f.val lfe i.val).run lst
-          = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.installProjFnStepS (absMode mode) (absName t)
+              (absName ctor_name) (absNames lps) n_p.val n_f.val lfe i.val).run lst
+            = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.installProjFnStepS (absMode mode) (absName t)
+          (absName ctor_name) (absNames lps) n_p.val n_f.val lfe i.val).run lst) := by
   -- `CoreK.proj_model_name_refines` and `FEnv.find_refines` for the artifact
   -- probe, then the flush and `IndModeled`'s `check_proj_fn` stage
   intro lst lfe hrel hfer
@@ -1027,24 +1033,27 @@ theorem install_proj_fn_step_s_refines
           let st1 ← cached.state_c.flush_c st
           inductives.modeled.check_proj_fn mode st1 fe t ctor_name lps n_p n_f i)
       else ok (.Ok fe, st))
-      = (ok (.Ok fe', st') : Result ((core.result.Result _ core_types.CheckError)
+      = (ok (out, st') : Result ((core.result.Result _ core_types.CheckError)
           × cached.state_c.CState)) := h
   split at h
   · rename_i hb
     rw [if_pos (by rw [← hsome]; exact hb)]
     obtain ⟨st1, hflush, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hfrun, hrel1, hwf1, _⟩ := StateC.flush_c_refines hrel hst hflush
-    obtain ⟨lst', lfe', hrun, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩ :=
+    have hbody :=
       Modeled.check_proj_fn_refines hw (IndIngredients.checkerBaseSpec hw)
         IndIngredients.structInstallConstsResolveFFast
         IndIngredients.structSpinesRefine hwf1 hfe hcan hfull ht hc hlps h
         lst.flushed lfe hrel1 hfer
-    refine ⟨lst', lfe', ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
     simp only [StateT.run_bind, StateC.flushC_run, NativeInstall.exceptOk_bind]
-    exact hrun
+    cases out with
+    | Ok fe' =>
+      obtain ⟨lst', lfe', hrun, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩ := hbody
+      exact ⟨lst', lfe', hrun, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
+    | Err e => exact hbody
   · rename_i hb
     rw [if_neg (by rw [← hsome]; exact hb)]
-    simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     exact ⟨lst, lfe, rfl, hrel, hfer, hst, hfe, hcan, hfull⟩
 
@@ -1052,20 +1061,27 @@ theorem install_proj_fn_step_s_refines
 `(List.range nF).foldlM (installProjFnStepS …) fe₃`, as an index recursion. -/
 theorem install_proj_fns_s_refines
     {st st' : cached.state_c.CState} {t ctor_name : name.Name}
-    {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64} {fe fe' : fenv.FEnv}
+    {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64} {fe : fenv.FEnv}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (ht : NameWF t) (hc : NameWF ctor_name)
     (hlps : NamesWF lps)
     (h : inductives.inductives_c.install_proj_fns_s mode st t ctor_name lps n_p
-        n_f fe i = ok (.Ok fe', st')) :
+        n_f fe i = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        ((List.range' i.val (n_f.val - i.val)).foldlM
-            (ConLeche.Cached.installProjFnStepS (absMode mode) (absName t)
-              (absName ctor_name) (absNames lps) n_p.val n_f.val) lfe).run lst
-          = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          ((List.range' i.val (n_f.val - i.val)).foldlM
+              (ConLeche.Cached.installProjFnStepS (absMode mode) (absName t)
+                (absName ctor_name) (absNames lps) n_p.val n_f.val) lfe).run lst
+            = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e (((List.range' i.val (n_f.val - i.val)).foldlM
+          (ConLeche.Cached.installProjFnStepS (absMode mode) (absName t)
+            (absName ctor_name) (absNames lps) n_p.val n_f.val) lfe).run lst) := by
   generalize hd : n_f.val - i.val = d
   induction d using Nat.strong_induction_on generalizing st fe i with
   | _ d ih =>
@@ -1075,7 +1091,7 @@ theorem install_proj_fns_s_refines
     · rename_i hge
       have hz : d = 0 := by rw [← hd]; scalar_tac
       subst hz
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact ⟨lst, lfe, by
         simp only [List.range'_zero, List.foldlM_nil, StateT.run, Pure.pure,
@@ -1085,7 +1101,18 @@ theorem install_proj_fns_s_refines
       obtain ⟨p, hstep, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r, st1⟩ := p
       cases r with
-      | Err e => simp at h
+      | Err e =>
+        -- the projection's step threw: the fold's head threw
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        have hs :=
+          install_proj_fn_step_s_refines hw hst hfe hcan hfull ht hc hlps hstep lst
+            lfe hrel hfer
+        have hsplit : d = (n_f.val - (i.val + 1)) + 1 := by rw [← hd]; scalar_tac
+        subst hsplit
+        show ErrSim e _
+        rw [List.range'_succ, List.foldlM_cons]
+        exact ErrSim.bindCM hs
       | Ok fe2 =>
         obtain ⟨i1, hi1, h⟩ := by simpa using bind_eq_ok_iff.mp (by simpa using h)
         have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
@@ -1094,14 +1121,24 @@ theorem install_proj_fns_s_refines
             lfe hrel hfer
         have hsplit : d = (n_f.val - i1.val) + 1 := by rw [← hd]; scalar_tac
         subst hsplit
-        obtain ⟨lst', lfe', hrunr, hrelr, hferr, hwfr, hfewr, hfcanr, hffullr⟩ :=
+        have htail :=
           ih (n_f.val - i1.val) (by omega) hwf1 hfew1 hfcan1 hffull1 h rfl lst1 lfe1
             hrel1 hfer1
-        refine ⟨lst', lfe', ?_, hrelr, hferr, hwfr, hfewr, hfcanr, hffullr⟩
-        rw [List.range'_succ, List.foldlM_cons, ← hi1v]
-        simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at hrun1 hrunr ⊢
-        rw [hrun1]
-        exact hrunr
+        cases out with
+        | Ok fe' =>
+          obtain ⟨lst', lfe', hrunr, hrelr, hferr, hwfr, hfewr, hfcanr, hffullr⟩ :=
+            htail
+          refine ⟨lst', lfe', ?_, hrelr, hferr, hwfr, hfewr, hfcanr, hffullr⟩
+          rw [List.range'_succ, List.foldlM_cons, ← hi1v]
+          simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at hrun1 hrunr ⊢
+          rw [hrun1]
+          exact hrunr
+        | Err e =>
+          show ErrSim e _
+          rw [List.range'_succ, List.foldlM_cons, ← hi1v]
+          simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at hrun1 htail ⊢
+          rw [hrun1]
+          exact htail
 
 /-- `ConLeche/Cached/CheckerC.lean:233-268` — `check_ind_decl_struct_s` refines
 the single-type-former, single-constructor arm of `checkIndDeclSF`: the
