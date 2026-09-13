@@ -101,9 +101,39 @@ def covered_by(name, lineno, cites):
 # direction convention of §3.5 (a hypothesis `= ok (.Ok …`), FULL the
 # full-outcome convention of the 2026-09-13 ruling (an `.Err` clause, or one
 # of the restated `Refines*` definitions).  Override with `--shape OLD NEW`.
-SHAPE_OLD = r"= ok \(\.Ok "
-SHAPE_NEW = r"\.Err\b|RefinesE\b|RefinesB\b|RefinesO\b|FullOutcome|Sim\b|SimS\b|SimP\b"
-LEMMA_SHAPES = {}  # (module, fn) -> "full" | "accept" | "other"
+SHAPE_OLD = r"= ok \(\.Ok |core\.result\.Result\.Ok"
+SHAPE_NEW = r"\.Err\b|core\.result\.Result\.Err"
+LEMMA_SHAPES = {}  # (module, fn) -> "full" | "accept" | "na" | "other"
+SHAPE_DEFS = {}    # name of a statement-packaging `def`/`structure` -> its shape
+
+
+def shape_defs(old_re, new_re):
+    """Shared statement shapes (`RefinesE`, `Sim`, `KnotSpec`, …): every
+    `def`/`structure`/`abbrev` under Refine/ whose body mentions `= ok`; each
+    gets the shape of its own body, so a lemma stated through it inherits it
+    even though the lemma's text never changes when the def is restated."""
+    d = os.path.join(REPO, REFINE_DIR)
+    for dirpath, _dirs, files in os.walk(d):
+        for fn in files:
+            if not fn.endswith(".lean"):
+                continue
+            text = open(os.path.join(dirpath, fn), encoding="utf-8").read()
+            for m in re.finditer(r"^(?:def|abbrev|structure)\s+([A-Za-z_][A-Za-z0-9_.]*)\b(.*?)(?=^(?:def|abbrev|structure|theorem|lemma|end|namespace|section|/--|/-!)\b)", text, re.M | re.S):
+                body = m.group(2)
+                if "= ok" not in body:
+                    continue
+                name = m.group(1).split(".")[-1]
+                SHAPE_DEFS[name] = classify_text(body, old_re, new_re)
+
+
+def classify_text(stmt, old_re, new_re):
+    if re.search(new_re, stmt):
+        return "full"
+    if re.search(old_re, stmt):
+        return "accept"
+    if re.search(SHAPE_NA, stmt) and not re.search(r"\.Ok\b", stmt):
+        return "na"
+    return "other"
 
 
 SHAPE_NA = r"= ok [a-zA-Z_(\[]"  # a `Result T` with no `CheckError` inside: no error arm to restate
@@ -112,14 +142,15 @@ SHAPE_NA = r"= ok [a-zA-Z_(\[]"  # a `Result T` with no `CheckError` inside: no 
 def classify(stmt, old_re, new_re):
     """full: restated in the new convention; accept: still in the old one;
     n/a: the function cannot return a `CheckError` (a plain `= ok r`), so the
-    campaign does not touch it; other: unclassified."""
-    if re.search(new_re, stmt):
-        return "full"
-    if re.search(old_re, stmt) or re.search(r"core\.result\.Result\.Ok", stmt):
-        return "accept"
-    if re.search(SHAPE_NA, stmt) and not re.search(r"\.Ok\b", stmt):
-        return "na"
-    return "other"
+    campaign does not touch it; other: unclassified.  A statement written
+    through a shared shape definition inherits that definition's shape."""
+    direct = classify_text(stmt, old_re, new_re)
+    if direct in ("full", "accept"):
+        return direct
+    for name, shape in SHAPE_DEFS.items():
+        if re.search(r"\b%s\b" % re.escape(name), stmt):
+            return shape
+    return direct
 
 
 def refine_lemmas(old_re=SHAPE_OLD, new_re=SHAPE_NEW):
@@ -127,6 +158,8 @@ def refine_lemmas(old_re=SHAPE_OLD, new_re=SHAPE_NEW):
     recursively; a file in a subdirectory `Refine/Core/Arms/X.lean` counts
     for the module `corec` (the knot lives in `cached/core_c.rs`).  Also
     fills LEMMA_SHAPES with each lemma's statement shape."""
+    if not SHAPE_DEFS:
+        shape_defs(old_re, new_re)
     out = set()
     d = os.path.join(REPO, REFINE_DIR)
     if not os.path.isdir(d):
