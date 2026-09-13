@@ -55,6 +55,32 @@ attribute [local simp] except_pure' StateT.run modifyGet MonadStateOf.modifyGet
   StateT.modifyGet Bind.bind StateT.bind Pure.pure StateT.pure Except.bind
   Except.pure
 
+/-! ## The error half's plumbing (task #67)
+
+`Shape.lean`'s plumbing set carries no `MonadExcept` instance, so a con-leche
+`throw` does not reduce on its own; and the port's three error constructors
+are reached through `core_types::invalid`/`not_implemented`, whose results a
+`throw` arm has to name. -/
+
+/-- A con-leche `throw`, **applied**: `StateT.run` is already in the plumbing
+set and fires first, so the equation must be stated on `… lst`, not on
+`(…).run lst`. -/
+@[local simp] theorem checkCM_throw_apply {β : Type} (le : ConLeche.CheckError)
+    (lst : ConLeche.Cached.CState) :
+    (throw le : ConLeche.Cached.CheckCM β) lst = .error le := rfl
+
+/-- `core_types::invalid` builds the constructor it names. -/
+private theorem invalid_inv {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.invalid v = ok ce) :
+    ce = .Invalid v := by
+  rw [core_types.invalid] at h; exact (Result.ok_injective h).symm
+
+/-- `core_types::not_implemented` builds the constructor it names. -/
+private theorem not_implemented_inv {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.not_implemented v = ok ce) :
+    ce = .NotImplemented v := by
+  rw [core_types.not_implemented] at h; exact (Result.ok_injective h).symm
+
 /-- The port's `if flag { … } else { … }` at a decided flag; `rw` with these
 keeps the `= ok …` orientation a `simp` would flip. -/
 theorem bool_ite_true {α : Type} (a b : α) :
@@ -437,31 +463,35 @@ theorem infer_lams_prev_pw_i_refines {t : expr.Expr}
 
 /-- The rebuild fold as a pure statement over the count `p` — the shape the
 induction wants (`p` decreases by one per entry, con-leche recurses on the
-list). -/
+list).  Task #67: over the **full outcome**, since the fold's chain check
+throws (`core_c.rs:2928`, the cited `CoreC.lean:1157`); `OutP` at the
+value abstraction `fun r => (absExpr r, lst)` is the pure tier's two halves
+for a step that leaves the state alone. -/
 theorem infer_lams_out_i_val (N : Nat) :
     ∀ (mode : env.CheckMode) (d : Std.U64)
       (stk : alloc.vec.Vec (expr.Expr × expr.BinderMeta)) (p : Std.Usize)
-      (j : Std.U64) (cur r : expr.Expr) (prev_pw : prop_when.PropWhen),
+      (j : Std.U64) (cur : expr.Expr)
+      (o : core.result.Result expr.Expr core_types.CheckError)
+      (prev_pw : prop_when.PropWhen),
       p.val = N → p.val ≤ stk.val.length → LamEntriesWF stk.val → ExprWF cur →
       PropWhenWF prev_pw →
-      cached.core_c.infer_lams_out_i mode d stk p j cur prev_pw = ok (.Ok r) →
-      (∀ lst, (ConLeche.Cached.inferLamsOutI (absMode mode) d.val
+      cached.core_c.infer_lams_out_i mode d stk p j cur prev_pw = ok o →
+      ∀ lst, OutP (fun r => (absExpr r, lst)) ExprWF o
+        ((ConLeche.Cached.inferLamsOutI (absMode mode) d.val
           (absLamEntries (stk.val.take p.val)) j.val (absExpr cur)
-          (absPropWhen prev_pw)).run lst = .ok (absExpr r, lst)) ∧ ExprWF r := by
+          (absPropWhen prev_pw)).run lst) := by
   induction N with
   | zero =>
-    intro mode d stk p j cur r prev_pw hN hp hstk hcur hpw h
+    intro mode d stk p j cur o prev_pw hN hp hstk hcur hpw h lst
     unfold cached.core_c.infer_lams_out_i at h
     rw [if_pos (show p = 0#usize by scalar_tac)] at h
-    have hr : cur = r := by
-      have := Result.ok_injective h
-      simpa using this
-    subst hr
-    refine ⟨fun lst => ?_, hcur⟩
+    have ho : o = .Ok cur := (Result.ok_injective h).symm
+    subst ho
+    refine OutP.ok ?_ hcur
     rw [hN, List.take_zero, absLamEntries_nil]
     simp [ConLeche.Cached.inferLamsOutI]
   | succ n ih =>
-    intro mode d stk p j cur r prev_pw hN hp hstk hcur hpw h
+    intro mode d stk p j cur o prev_pw hN hp hstk hcur hpw h lst
     have hlen : (alloc.vec.Vec.len stk).val = stk.val.length := alloc.vec.Vec.len_val stk
     unfold cached.core_c.infer_lams_out_i at h
     rw [if_neg (show ¬ p = 0#usize by intro hc; rw [hc] at hN; simp at hN)] at h
@@ -485,19 +515,25 @@ theorem infer_lams_out_i_val (N : Nat) :
       rw [show p.val = i1.val + 1 by omega]
       exact absLamEntries_take_succ hg
     have hvc := Env.verified_checks_refines hb
-    -- the chain check passes, and the fold's next step is the same on both sides
-    have key : ((absMode mode).verifiedChecks
-            && !(absPropWhen ent.2.pw == absPropWhen prev_pw)) = false
-        ∧ ∃ ty_abs node i2,
-            cached.state_c.abstract_range_m ent.1 d j = ok ty_abs ∧
-            expr.forall_e ty_abs cur ent.2 = ok node ∧
-            expr_ops.sub_nat j 1#u64 = ok i2 ∧
-            cached.core_c.infer_lams_out_i mode d stk i1 i2 node ent.2.pw
-              = ok (.Ok r) := by
+    -- either the chain check fails on both sides, or it passes on both and the
+    -- fold's next step is the same one (task #67: the two halves share this
+    -- single split)
+    have key : (((absMode mode).verifiedChecks
+              && !(absPropWhen ent.2.pw == absPropWhen prev_pw)) = true
+          ∧ ∃ v, o = .Err (.NotImplemented v))
+        ∨ (((absMode mode).verifiedChecks
+              && !(absPropWhen ent.2.pw == absPropWhen prev_pw)) = false
+          ∧ ∃ ty_abs node i2,
+              cached.state_c.abstract_range_m ent.1 d j = ok ty_abs ∧
+              expr.forall_e ty_abs cur ent.2 = ok node ∧
+              expr_ops.sub_nat j 1#u64 = ok i2 ∧
+              cached.core_c.infer_lams_out_i mode d stk i1 i2 node ent.2.pw
+                = ok o) := by
       split at h
       case isTrue hbt =>
         -- the verified modes: the annotations must agree
         obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have heq := PropWhen.beq_refines hxwf.2 hpw hb1
         split at h
         case isTrue hb1t =>
           obtain ⟨ty_abs, hta, h⟩ := bind_eq_ok_iff.mp h
@@ -507,18 +543,24 @@ theorem infer_lams_out_i_val (N : Nat) :
           obtain ⟨i2, hi2, hrec⟩ := bind_eq_ok_iff.mp h
           rw [Expr.binder_meta_dup_eq hbm1] at hnode
           rw [PropWhen.dup_eq hpw1] at hrec
-          refine ⟨?_, ty_abs, node, i2, hta, hnode, hi2, hrec⟩
-          have heq := PropWhen.beq_refines hxwf.2 hpw hb1
+          refine Or.inr ⟨?_, ty_abs, node, i2, hta, hnode, hi2, hrec⟩
           rw [hb1t] at heq
           have heqq : absPropWhen ent.2.pw = absPropWhen prev_pw :=
             of_decide_eq_true heq.symm
           rw [heqq, beq_self_eq_true', Bool.not_true, Bool.and_false]
         case isFalse hb1f =>
-          exfalso
+          -- both sides throw `notImplemented`
           obtain ⟨s, -, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨v, -, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨ce, -, hc⟩ := bind_eq_ok_iff.mp h
-          simp at hc
+          obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+          refine Or.inl ⟨?_, v, ?_⟩
+          · rw [show b1 = false by simpa using hb1f] at heq
+            have hne : ¬ (absPropWhen ent.2.pw = absPropWhen prev_pw) :=
+              of_decide_eq_false heq.symm
+            rw [← hvc, hbt]
+            simp [hne]
+          · rw [← not_implemented_inv hce]
+            exact (Result.ok_injective h).symm
       case isFalse hbf =>
         -- the unverified modes: the gate is off
         obtain ⟨ty_abs, hta, h⟩ := bind_eq_ok_iff.mp h
@@ -528,31 +570,42 @@ theorem infer_lams_out_i_val (N : Nat) :
         obtain ⟨i2, hi2, hrec⟩ := bind_eq_ok_iff.mp h
         rw [Expr.binder_meta_dup_eq hbm1] at hnode
         rw [PropWhen.dup_eq hpw1] at hrec
-        refine ⟨?_, ty_abs, node, i2, hta, hnode, hi2, hrec⟩
+        refine Or.inr ⟨?_, ty_abs, node, i2, hta, hnode, hi2, hrec⟩
         have hbf' : b = false := by simpa using hbf
         rw [← hvc, hbf', Bool.false_and]
-    obtain ⟨hgate, ty_abs, node, i2, hta, hnode, hi2, hrec⟩ := key
-    have hta' : cached.expr_ops_c.abstract_range ent.1 d j 0#u64 = ok ty_abs := by
-      rw [← StateC.abstract_range_m_eq]; exact hta
-    obtain ⟨habsta, hwfta⟩ := ExprOpsC.abstract_range_refines hxwf.1 hta'
-    have habsnode := Expr.forall_e_refines hnode
-    have hwfnode : ExprWF node := ExprWF.forall_e hwfta hcur hxwf.2 hnode
-    have hi2v : i2.val = j.val - 1 := ExprOps.sub_nat_val hi2
-    obtain ⟨hrun, hwfr⟩ :=
-      ih mode d stk i1 i2 node r ent.2.pw hi1v (le_of_lt hlt) hstk hwfnode hxwf.2 hrec
-    refine ⟨fun lst => ?_, hwfr⟩
-    have hnodeabs : ConLeche.Expr.forallE
-        (ConLeche.Cached.ExprC.abstractRange (absExpr ent.1) d.val j.val)
-        (absExpr cur) { pw := absPropWhen ent.2.pw } = absExpr node := by
-      rw [habsnode, habsta]
-      simp [absBinderMeta]
-    rw [hcons, ConLeche.Cached.inferLamsOutI.eq_def]
-    simp only [hgate, Bool.false_eq_true, if_false, ConLeche.Cached.abstractRangeM,
-      absBinderMeta, StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
-      StateT.pure, Except.pure]
-    rw [hnodeabs, ← hi2v]
-    have hr := hrun lst
-    simpa [StateT.run] using hr
+    rcases key with ⟨hgate, v, ho⟩ | ⟨hgate, ty_abs, node, i2, hta, hnode, hi2, hrec⟩
+    · -- move 2: the explicit `throw` arm
+      subst ho
+      refine OutP.err (ErrSim.notImplemented
+        (s := "sort-annotation mismatch (lam-cod-chain)") ?_)
+      rw [hcons, ConLeche.Cached.inferLamsOutI.eq_def]
+      simp [hgate]
+    · have hta' : cached.expr_ops_c.abstract_range ent.1 d j 0#u64 = ok ty_abs := by
+        rw [← StateC.abstract_range_m_eq]; exact hta
+      obtain ⟨habsta, hwfta⟩ := ExprOpsC.abstract_range_refines hxwf.1 hta'
+      have habsnode := Expr.forall_e_refines hnode
+      have hwfnode : ExprWF node := ExprWF.forall_e hwfta hcur hxwf.2 hnode
+      have hi2v : i2.val = j.val - 1 := ExprOps.sub_nat_val hi2
+      have hnodeabs : ConLeche.Expr.forallE
+          (ConLeche.Cached.ExprC.abstractRange (absExpr ent.1) d.val j.val)
+          (absExpr cur) { pw := absPropWhen ent.2.pw } = absExpr node := by
+        rw [habsnode, habsta]
+        simp [absBinderMeta]
+      -- one fold step is the same on both sides, at every outcome
+      have hstep : (ConLeche.Cached.inferLamsOutI (absMode mode) d.val
+            (absLamEntries (stk.val.take p.val)) j.val (absExpr cur)
+            (absPropWhen prev_pw)).run lst
+          = (ConLeche.Cached.inferLamsOutI (absMode mode) d.val
+            (absLamEntries (stk.val.take i1.val)) i2.val (absExpr node)
+            (absPropWhen ent.2.pw)).run lst := by
+        rw [hcons, ConLeche.Cached.inferLamsOutI.eq_def]
+        simp only [hgate, Bool.false_eq_true, if_false, ConLeche.Cached.abstractRangeM,
+          absBinderMeta, StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+          StateT.pure, Except.pure]
+        rw [hnodeabs, ← hi2v]
+      rw [hstep]
+      exact ih mode d stk i1 i2 node o ent.2.pw hi1v (le_of_lt hlt) hstk hwfnode
+        hxwf.2 hrec lst
 
 /-- `ConLeche/Cached/CoreC.lean:1146-1160` — **`infer_lams_out_i` refines
 `inferLamsOutI`** (`core_c.rs:2891`): the rebuild fold, at the stack prefix
@@ -570,18 +623,20 @@ theorem infer_lams_out_i_refines {d : Std.U64}
       (ConLeche.Cached.inferLamsOutI (absMode mode) d.val
         (absLamEntries (stk.val.take p.val)) j.val (absExpr cur)
         (absPropWhen prev_pw)) := by
-  intro st r st' hwf hok lst hrel
+  intro st o st' hwf hok lst hrel
   simp only [bind_eq_ok_iff] at hok
   obtain ⟨r1, hr1, hok⟩ := hok
-  have hr1' : r1 = .Ok r ∧ st = st' := by
+  have hr1' : r1 = o ∧ st = st' := by
     simp only [Result.ok.injEq, Prod.mk.injEq] at hok
     exact ⟨hok.1, hok.2⟩
   obtain ⟨hr1eq, hsteq⟩ := hr1'
   subst hr1eq
   subst hsteq
-  obtain ⟨hrun, hwfr⟩ :=
-    infer_lams_out_i_val p.val mode d stk p j cur r prev_pw rfl hp hstk hcur hpw hr1
-  exact ⟨lst, hrun lst, hrel, hwf, hwfr⟩
+  have hout :=
+    infer_lams_out_i_val p.val mode d stk p j cur r1 prev_pw rfl hp hstk hcur hpw hr1 lst
+  cases r1 with
+  | Ok r => obtain ⟨hrun, hwfr⟩ := hout; exact ⟨lst, hrun, hrel, hwf, hwfr⟩
+  | Err ce => exact Out.err hout
 
 /-- `ConLeche/Cached/CoreC.lean:1173-1191` — **`infer_lams_leaf_sort_i` refines
 `inferLamsLeafSortI`** (`core_c.rs:2981`), the verified-mode block of the leaf
@@ -593,21 +648,33 @@ theorem infer_lams_leaf_sort_i_refines (hw : Wrappers mode fuel) (dk : Std.U64)
       (fun st fe => cached.core_c.infer_lams_leaf_sort_i mode fuel st fe dk bt stk)
       (fun lfe => inferLamsLeafSortI (knot mode lfe fuel.val) dk.val (absExpr bt)
         (absLamEntries stk.val)) := by
-  intro fe lfe hfe hfrel st res st' hwf hok lst hrel
-  cases res
+  intro fe lfe hfe hfrel st o st' hwf hok lst hrel
   unfold cached.core_c.infer_lams_leaf_sort_i at hok
   dsimp only at hok ⊢
   obtain ⟨x1, hinfio, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨r0, st1⟩ := x1
   cases r0 with
-  | Err e => exfalso; simp at hok
+  | Err e =>
+    -- move 1: `infer_io` threw, and it is con-leche's first step too
+    have ho : o = .Err e := (congrArg Prod.fst (Result.ok_injective hok)).symm
+    subst ho
+    refine Out.err ?_
+    unfold inferLamsLeafSortI
+    exact ErrSim.bindCM ((hw.inferIOSim dk hbt).apply_err hwf hfe hinfio hrel hfrel)
   | Ok btt =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, hbttwf⟩ :=
       (hw.inferIOSim dk hbt).apply hwf hfe hinfio hrel hfrel
     obtain ⟨x2, hwhnf, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨r1, st2⟩ := x2
     cases r1 with
-    | Err e => exfalso; simp at hok
+    | Err e =>
+      -- move 1 again, one step in
+      have ho : o = .Err e := (congrArg Prod.fst (Result.ok_injective hok)).symm
+      subst ho
+      refine Out.err ?_
+      unfold inferLamsLeafSortI
+      rw [checkCM_bind_run _ _ hrun1]
+      exact ErrSim.bindCM ((hw.whnfSim dk hbttwf).apply_err hwf1 hfe hwhnf hrel1 hfrel)
     | Ok wbtt =>
       obtain ⟨lst2, hrun2, hrel2, hwf2, hwbttwf⟩ :=
         (hw.whnfSim dk hbttwf).apply hwf1 hfe hwhnf hrel1 hfrel
@@ -624,7 +691,9 @@ theorem infer_lams_leaf_sort_i_refines (hw : Wrappers mode fuel) (dk : Std.U64)
           have hnil : stk.val = [] := by
             have h0 : stk.val.length = 0 := by rw [← hlen, hz]; scalar_tac
             exact List.eq_nil_of_length_eq_zero h0
+          have ho : o = .Ok () := (congrArg Prod.fst (Result.ok_injective hok)).symm
           have hst : st' = st2 := (congrArg Prod.snd (Result.ok_injective hok)).symm
+          subst ho
           subst hst
           refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
           rw [inferLamsLeafSortI]
@@ -655,12 +724,14 @@ theorem infer_lams_leaf_sort_i_refines (hw : Wrappers mode fuel) (dk : Std.U64)
             rw [← Option.some_injective _ hg]
             exact List.getElem_mem hlt
           have hxwf := hstk _ hmem
+          have heq := PropWhen.beq_refines hpvwf hxwf.2 hb
           split at hok
           case isTrue hbt =>
+            have ho : o = .Ok () := (congrArg Prod.fst (Result.ok_injective hok)).symm
             have hst : st' = st2 := (congrArg Prod.snd (Result.ok_injective hok)).symm
+            subst ho
             subst hst
             refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
-            have heq := PropWhen.beq_refines hpvwf hxwf.2 hb
             rw [hbt] at heq
             have heqq : absPropWhen pv = absPropWhen ent.2.pw :=
               of_decide_eq_true heq.symm
@@ -670,17 +741,35 @@ theorem infer_lams_leaf_sort_i_refines (hw : Wrappers mode fuel) (dk : Std.U64)
             rw [← hpvabs, heqq]
             simp [absBinderMeta]
           case isFalse hbf =>
-            exfalso
+            -- move 2: both sides throw `notImplemented`
+            rw [show b = false by simpa using hbf] at heq
+            have hnee : ¬ (absPropWhen pv = absPropWhen ent.2.pw) :=
+              of_decide_eq_false heq.symm
             obtain ⟨s0, -, hok⟩ := bind_eq_ok_iff.mp hok
             obtain ⟨v0, -, hok⟩ := bind_eq_ok_iff.mp hok
-            obtain ⟨ce, -, hc⟩ := bind_eq_ok_iff.mp hok
-            simp at hc
+            obtain ⟨ce, hce, hok⟩ := bind_eq_ok_iff.mp hok
+            have ho : o = .Err ce := (congrArg Prod.fst (Result.ok_injective hok)).symm
+            subst ho
+            rw [not_implemented_inv hce]
+            refine Out.err (ErrSim.notImplemented
+              (s := "sort-annotation mismatch (lam-cod-leaf)") ?_)
+            rw [inferLamsLeafSortI]
+            rw [checkCM_bind_run _ _ hrun1, checkCM_bind_run _ _ hrun2]
+            simp only [absExpr_mk, absExprKind, hcons]
+            rw [← hpvabs]
+            simp [absBinderMeta, hnee]
       all_goals
-        (exfalso
-         obtain ⟨s0, -, hok⟩ := bind_eq_ok_iff.mp hok
+        -- move 2: the residual is not a sort, and both sides throw `invalid`
+        (obtain ⟨s0, -, hok⟩ := bind_eq_ok_iff.mp hok
          obtain ⟨v0, -, hok⟩ := bind_eq_ok_iff.mp hok
-         obtain ⟨ce, -, hc⟩ := bind_eq_ok_iff.mp hok
-         simp at hc)
+         obtain ⟨ce, hce, hok⟩ := bind_eq_ok_iff.mp hok
+         have ho : o = .Err ce := (congrArg Prod.fst (Result.ok_injective hok)).symm
+         subst ho
+         rw [invalid_inv hce]
+         refine Out.err (ErrSim.invalid (s := "expected a sort") ?_)
+         rw [inferLamsLeafSortI]
+         rw [checkCM_bind_run _ _ hrun1, checkCM_bind_run _ _ hrun2]
+         simp)
 
 /-- `ConLeche/Cached/CoreC.lean:1162-1206` — **`infer_lams_leaf_i` refines
 `inferLamsLeafI`** (`core_c.rs:2933`): bulk-open the residual body, infer it,
@@ -694,7 +783,7 @@ theorem infer_lams_leaf_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
       (fun lfe => ConLeche.Cached.inferLamsLeafI (absMode mode)
         (knot mode lfe fuel.val) d.val (absExpr t) k.val (absExprs fvs).toArray
         (absLamEntries stk.val)) := by
-  intro fe lfe hfe hfrel st res st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st o st' hwf hok lst hrel
   unfold cached.core_c.infer_lams_leaf_i at hok
   dsimp only at hok ⊢
   obtain ⟨ob, hob, hok⟩ := bind_eq_ok_iff.mp hok
@@ -704,15 +793,55 @@ theorem infer_lams_leaf_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
   have hiv : i.val = d.val + k.val := HashMap.uscalar_add_eq hi
   obtain ⟨r0, st1⟩ := x1
   cases r0 with
-  | Err e => exfalso; simp at hok
+  | Err e =>
+    -- move 1: the body's inference threw, and it is con-leche's first call too
+    have ho : o = .Err e := (congrArg Prod.fst (Result.ok_injective hok)).symm
+    subst ho
+    refine Out.err ?_
+    rw [inferLamsLeafI_eq, hobrun, pure_bind, ← hiv]
+    exact ErrSim.bindCM ((hw.inferSim i hobwf).apply_err hwf hfe hinf hrel hfrel)
   | Ok bt =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, hbtwf⟩ :=
       (hw.inferSim i hobwf).apply hwf hfe hinf hrel hfrel
     obtain ⟨b, hisl, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨x2, hchk, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨st2, chk⟩ := x2
+    have hlam := ExprOps.is_lam_refines hisl
     cases chk with
-    | Err e => exfalso; simp at hok
+    | Err e =>
+      -- move 1: only the verified-mode sort block can throw here, and it is
+      -- exactly the con-leche action the check phase runs
+      have ho : o = .Err e := (congrArg Prod.fst (Result.ok_injective hok)).symm
+      subst ho
+      refine Out.err ?_
+      rw [inferLamsLeafI_eq, hobrun, pure_bind, ← hiv]
+      rw [checkCM_bind_run _ _ hrun1]
+      split at hchk
+      case isTrue hbt =>
+        exact absurd (congrArg Prod.snd (Result.ok_injective hchk)) (by simp)
+      case isFalse hbf =>
+        have hnone : ConLeche.Expr.lamPw (absExpr t) = none := by
+          have h0 : (ConLeche.Expr.lamPw (absExpr t)).isSome = false := by
+            rw [lamPw_isSome, ← hlam]
+            simpa using hbf
+          simpa using h0
+        obtain ⟨b1, hb1, hchk⟩ := bind_eq_ok_iff.mp hchk
+        have hvc := Env.verified_checks_refines hb1
+        split at hchk
+        case isTrue hb1t =>
+          obtain ⟨x3, hsort, hchk⟩ := bind_eq_ok_iff.mp hchk
+          obtain ⟨chk1, st3⟩ := x3
+          have hst : st3 = st2 := congrArg Prod.fst (Result.ok_injective hchk)
+          have hc1 : chk1 = .Err e := congrArg Prod.snd (Result.ok_injective hchk)
+          subst hst
+          rw [hc1] at hsort
+          have hvt : (absMode mode).verifiedChecks = true := by rw [← hvc, hb1t]
+          simp only [hnone]
+          rw [hvt, bool_ite_true]
+          exact ErrSim.bindCM ((infer_lams_leaf_sort_i_refines hw i hbtwf hstk).apply_err
+            hwf1 hfe hsort hrel1 hfrel)
+        case isFalse hb1f =>
+          exact absurd (congrArg Prod.snd (Result.ok_injective hchk)) (by simp)
     | Ok u =>
       cases u
       -- the check phase: the port's `is_lam`/`verified_checks` split is the
@@ -726,7 +855,6 @@ theorem infer_lams_leaf_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
                   (absLamEntries stk.val)
               else pure ()) : ConLeche.Cached.CheckCM Unit).run lst1
             = .ok ((), lst2) := by
-        have hlam := ExprOps.is_lam_refines hisl
         split at hchk
         case isTrue hbt =>
           -- a λ residual skips the check
@@ -766,15 +894,15 @@ theorem infer_lams_leaf_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
             rw [← hvc, show b1 = false by simpa using hb1f]
             simp
       obtain ⟨lst2, hrel2, hwf2, hchkrun⟩ := key
-      -- the rebuild
+      -- the rebuild, at whichever outcome the fold ends in
       obtain ⟨cur, hcur, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨prev_pw, hprev, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨i2, hi2, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨r1, hout, hfin⟩ := bind_eq_ok_iff.mp hok
-      have hr1 : r1 = .Ok res := congrArg Prod.fst (Result.ok_injective hfin)
+      have hr1 : r1 = o := congrArg Prod.fst (Result.ok_injective hfin)
       have hst' : st' = st2 := (congrArg Prod.snd (Result.ok_injective hfin)).symm
       subst hst'
-      rw [hr1] at hout
+      subst hr1
       have hcur' : cached.expr_ops_c.abstract_range bt d k 0#u64 = ok cur := by
         rw [← StateC.abstract_range_m_eq]; exact hcur
       obtain ⟨hcurabs, hcurwf⟩ := ExprOpsC.abstract_range_refines hbtwf hcur'
@@ -783,19 +911,29 @@ theorem infer_lams_leaf_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
       have hi2v : i2.val = k.val - 1 := ExprOps.sub_nat_val hi2
       have hlen : (alloc.vec.Vec.len stk).val = stk.val.length :=
         alloc.vec.Vec.len_val stk
-      obtain ⟨houtrun, hreswf⟩ :=
+      have hstep : (ConLeche.Cached.inferLamsLeafI (absMode mode)
+            (knot mode lfe fuel.val) d.val (absExpr t) k.val (absExprs fvs).toArray
+            (absLamEntries stk.val)).run lst
+          = (ConLeche.Cached.inferLamsOutI (absMode mode) d.val
+            (absLamEntries stk.val) i2.val (absExpr cur)
+            (absPropWhen prev_pw)).run lst2 := by
+        rw [inferLamsLeafI_eq, hobrun, pure_bind, ← hiv]
+        rw [checkCM_bind_run _ _ hrun1, checkCM_bind_run _ _ hchkrun]
+        rw [ConLeche.Cached.abstractRangeM]
+        rw [pure_bind]
+        rw [show ConLeche.Cached.ExprC.abstractRange (absExpr bt) d.val k.val
+            = absExpr cur from by rw [hcurabs]; rfl, ← hi2v, ← hprevabs]
+      rw [hstep]
+      have hout' :=
         infer_lams_out_i_val (alloc.vec.Vec.len stk).val mode d stk
-          (alloc.vec.Vec.len stk) i2 cur res prev_pw rfl (by rw [hlen]) hstk hcurwf
-          hprevwf hout
-      refine ⟨lst2, ?_, hrel2, hwf2, hreswf⟩
-      rw [inferLamsLeafI_eq, hobrun, pure_bind, ← hiv]
-      rw [checkCM_bind_run _ _ hrun1, checkCM_bind_run _ _ hchkrun]
-      rw [ConLeche.Cached.abstractRangeM]
-      rw [pure_bind]
-      rw [hlen, List.take_length] at houtrun
-      rw [show ConLeche.Cached.ExprC.abstractRange (absExpr bt) d.val k.val
-          = absExpr cur from by rw [hcurabs]; rfl, ← hi2v, ← hprevabs]
-      exact houtrun lst2
+          (alloc.vec.Vec.len stk) i2 cur r1 prev_pw rfl (by rw [hlen]) hstk hcurwf
+          hprevwf hout lst2
+      rw [hlen, List.take_length] at hout'
+      cases r1 with
+      | Ok res =>
+        obtain ⟨houtrun, hreswf⟩ := hout'
+        exact ⟨lst2, houtrun, hrel2, hwf2, hreswf⟩
+      | Err ce => exact Out.err hout'
 
 /-- The λ-peel loop at a fixed peel budget — the shape the induction wants. -/
 theorem infer_lams_i_val (hw : Wrappers mode fuel) (N : Nat) :
@@ -810,17 +948,18 @@ theorem infer_lams_i_val (hw : Wrappers mode fuel) (N : Nat) :
           (absExprs fvs).toArray (absLamEntries stk.val)) := by
   induction N with
   | zero =>
-    intro d peel t k fvs stk hN ht hfvs hstk fe lfe hfe hfrel st res st' hwf hok lst hrel
+    intro d peel t k fvs stk hN ht hfvs hstk fe lfe hfe hfrel st o st' hwf hok lst hrel
     unfold cached.core_c.infer_lams_i at hok
     dsimp only at hok
     rw [if_pos (show peel = 0#u64 by scalar_tac)] at hok
     have hleaf :=
-      (infer_lams_leaf_i_refines hw d k ht hfvs hstk).apply hwf hfe hok hrel hfrel
+      (infer_lams_leaf_i_refines hw d k ht hfvs hstk) fe lfe hfe hfrel st o st' hwf hok
+        lst hrel
     dsimp only at hleaf ⊢
     rw [hN]
     simpa [ConLeche.Cached.inferLamsI] using hleaf
   | succ n ih =>
-    intro d peel t k fvs stk hN ht hfvs hstk fe lfe hfe hfrel st res st' hwf hok lst hrel
+    intro d peel t k fvs stk hN ht hfvs hstk fe lfe hfe hfrel st o st' hwf hok lst hrel
     unfold cached.core_c.infer_lams_i at hok
     dsimp only at hok
     rw [if_neg (show ¬ peel = 0#u64 by
@@ -845,14 +984,30 @@ theorem infer_lams_i_val (hw : Wrappers mode fuel) (N : Nat) :
       have hiv : i.val = d.val + k.val := HashMap.uscalar_add_eq hi
       obtain ⟨r0, st1⟩ := x1
       cases r0 with
-      | Err e => exfalso; simp at hok
+      | Err e =>
+        -- move 1: the domain's inference threw, con-leche's first call too
+        have ho : o = .Err e := (congrArg Prod.fst (Result.ok_injective hok)).symm
+        subst ho
+        refine Out.err ?_
+        rw [ConLeche.Cached.inferLamsI.eq_def]
+        simp only [absExpr_mk, absExprKind]
+        rw [htyorun, pure_bind, ← hiv]
+        exact ErrSim.bindCM ((hw.inferSim i htyowf).apply_err hwf hfe hinf hrel hfrel)
       | Ok tty =>
         obtain ⟨lst1, hrun1, hrel1, hwf1, httywf⟩ :=
           (hw.inferSim i htyowf).apply hwf hfe hinf hrel hfrel
         obtain ⟨x2, hwhnf, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨r1, st2⟩ := x2
         cases r1 with
-        | Err e => exfalso; simp at hok
+        | Err e =>
+          have ho : o = .Err e := (congrArg Prod.fst (Result.ok_injective hok)).symm
+          subst ho
+          refine Out.err ?_
+          rw [ConLeche.Cached.inferLamsI.eq_def]
+          simp only [absExpr_mk, absExprKind]
+          rw [htyorun, pure_bind, ← hiv]
+          rw [checkCM_bind_run _ _ hrun1]
+          exact ErrSim.bindCM ((hw.whnfSim i httywf).apply_err hwf1 hfe hwhnf hrel1 hfrel)
         | Ok wtty =>
           obtain ⟨lst2, hrun2, hrel2, hwf2, hwttywf⟩ :=
             (hw.whnfSim i httywf).apply hwf1 hfe hwhnf hrel1 hfrel
@@ -887,10 +1042,10 @@ theorem infer_lams_i_val (hw : Wrappers mode fuel) (N : Nat) :
               have hi1v : i1.val = n := by
                 have h1 := HashMap.uscalar_sub_eq hi1; scalar_tac
               have hi2v : i2.val = k.val + 1 := HashMap.uscalar_add_eq hi2
-              obtain ⟨lst3, hrun3, hrel3, hwf3, hreswf⟩ :=
-                (ih d i1 body i2 fvs1 stk1 hi1v hbody hfvs1wf hstk1wf).apply hwf2 hfe
-                  hrec hrel2 hfrel
-              refine ⟨lst3, ?_, hrel3, hwf3, hreswf⟩
+              -- the recursive peel, at whichever outcome it ends in
+              have hrecout :=
+                (ih d i1 body i2 fvs1 stk1 hi1v hbody hfvs1wf hstk1wf) fe lfe hfe hfrel
+                  st2 o st' hwf2 hrec lst2 hrel2
               rw [ConLeche.Cached.inferLamsI.eq_def]
               simp only [absExpr_mk, absExprKind]
               rw [htyorun, pure_bind, ← hiv]
@@ -903,23 +1058,32 @@ theorem infer_lams_i_val (hw : Wrappers mode fuel) (N : Nat) :
               rw [show ((absExpr tyo, absBinderMeta mb) :: absLamEntries stk.val)
                   = absLamEntries stk1.val from by
                 simp [hstk1v]]
-              exact hrun3
+              exact hrecout
             case isFalse hbf =>
               exfalso; rw [hbst] at hbf; simp at hbf
           all_goals
-            (exfalso
-             obtain ⟨bs, hisl, hok⟩ := bind_eq_ok_iff.mp hok
+            -- move 2: the domain's type is not a sort, both sides throw `invalid`
+            (obtain ⟨bs, hisl, hok⟩ := bind_eq_ok_iff.mp hok
              have hbsf : bs = false := by rw [CoreK.is_sort_refines hisl]; simp
              split at hok
              case isTrue hbt => rw [hbsf] at hbt; simp at hbt
              case isFalse _ =>
                obtain ⟨s0, -, hok⟩ := bind_eq_ok_iff.mp hok
                obtain ⟨v0, -, hok⟩ := bind_eq_ok_iff.mp hok
-               obtain ⟨ce, -, hc⟩ := bind_eq_ok_iff.mp hok
-               simp at hc)
+               obtain ⟨ce, hce, hok⟩ := bind_eq_ok_iff.mp hok
+               have ho : o = .Err ce := (congrArg Prod.fst (Result.ok_injective hok)).symm
+               subst ho
+               rw [invalid_inv hce]
+               refine Out.err (ErrSim.invalid (s := "expected a sort") ?_)
+               rw [ConLeche.Cached.inferLamsI.eq_def]
+               simp only [absExpr_mk, absExprKind]
+               rw [htyorun, pure_bind, ← hiv]
+               rw [checkCM_bind_run _ _ hrun1, checkCM_bind_run _ _ hrun2]
+               simp)
     all_goals
       (have hleaf :=
-        (infer_lams_leaf_i_refines hw d k ht hfvs hstk).apply hwf hfe hok hrel hfrel
+        (infer_lams_leaf_i_refines hw d k ht hfvs hstk) fe lfe hfe hfrel st o st' hwf hok
+          lst hrel
        simpa [ConLeche.Cached.inferLamsI] using hleaf)
 
 /-- `ConLeche/Cached/CoreC.lean:1208-1228` — **`infer_lams_i` refines
@@ -937,31 +1101,34 @@ theorem infer_lams_i_refines (hw : Wrappers mode fuel) (d peel : Std.U64)
   infer_lams_i_val hw peel.val d peel t k fvs stk rfl ht hfvs hstk
 
 /-- The ∀-fold as a pure statement over the count `p`: the accumulated domain
-sorts folded by `imax`, innermost binder first. -/
+sorts folded by `imax`, innermost binder first.  Task #67: over the **full
+outcome**, since the fold's annotation check throws (`core_c.rs:3150`, the
+cited `CoreC.lean:1251`). -/
 theorem infer_pis_out_i_val (N : Nat) :
     ∀ (mode : env.CheckMode)
       (stk : alloc.vec.Vec (level.Level × prop_when.PropWhen)) (p : Std.Usize)
-      (v r : level.Level) (pv : prop_when.PropWhen),
+      (v : level.Level)
+      (o : core.result.Result level.Level core_types.CheckError)
+      (pv : prop_when.PropWhen),
       p.val = N → p.val ≤ stk.val.length → PisEntriesWF stk.val → LevelWF v →
       PropWhenWF pv →
-      cached.core_c.infer_pis_out_i mode stk p v pv = ok (.Ok r) →
-      (∀ lst, (ConLeche.Cached.inferPisOutI (absMode mode)
+      cached.core_c.infer_pis_out_i mode stk p v pv = ok o →
+      ∀ lst, OutP (fun r => (absLevel r, lst)) LevelWF o
+        ((ConLeche.Cached.inferPisOutI (absMode mode)
           (absPisEntries (stk.val.take p.val)) (absLevel v)
-          (absPropWhen pv)).run lst = .ok (absLevel r, lst)) ∧ LevelWF r := by
+          (absPropWhen pv)).run lst) := by
   induction N with
   | zero =>
-    intro mode stk p v r pv hN hp hstk hv hpv h
+    intro mode stk p v o pv hN hp hstk hv hpv h lst
     unfold cached.core_c.infer_pis_out_i at h
     rw [if_pos (show p = 0#usize by scalar_tac)] at h
-    have hr : v = r := by
-      have h1 := Result.ok_injective h
-      simpa using h1
-    subst hr
-    refine ⟨fun lst => ?_, hv⟩
+    have ho : o = .Ok v := (Result.ok_injective h).symm
+    subst ho
+    refine OutP.ok ?_ hv
     rw [hN, List.take_zero, absPisEntries_nil]
     simp [ConLeche.Cached.inferPisOutI]
   | succ n ih =>
-    intro mode stk p v r pv hN hp hstk hv hpv h
+    intro mode stk p v o pv hN hp hstk hv hpv h lst
     have hlen : (alloc.vec.Vec.len stk).val = stk.val.length := alloc.vec.Vec.len_val stk
     unfold cached.core_c.infer_pis_out_i at h
     rw [if_neg (show ¬ p = 0#usize by intro hc; rw [hc] at hN; simp at hN)] at h
@@ -985,50 +1152,69 @@ theorem infer_pis_out_i_val (N : Nat) :
       rw [show p.val = i1.val + 1 by omega]
       exact absPisEntries_take_succ hg
     have hvc := Env.verified_checks_refines hb
-    have key : ((absMode mode).verifiedChecks
-            && !(absPropWhen pv == absPropWhen ent.2)) = false
-        ∧ ∃ v2, kernel.level.imax ent.1 v = ok v2 ∧
-            cached.core_c.infer_pis_out_i mode stk i1 v2 pv = ok (.Ok r) := by
+    have key : (((absMode mode).verifiedChecks
+              && !(absPropWhen pv == absPropWhen ent.2)) = true
+          ∧ ∃ w, o = .Err (.NotImplemented w))
+        ∨ (((absMode mode).verifiedChecks
+              && !(absPropWhen pv == absPropWhen ent.2)) = false
+          ∧ ∃ v2, kernel.level.imax ent.1 v = ok v2 ∧
+              cached.core_c.infer_pis_out_i mode stk i1 v2 pv = ok o) := by
       split at h
       case isTrue hbt =>
         obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have heq := PropWhen.beq_refines hpv hxwf.2 hb1
         split at h
         case isTrue hb1t =>
           obtain ⟨l1, hl1, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨v2, hv2, hrec⟩ := bind_eq_ok_iff.mp h
           rw [level_dup_eq] at hl1
           rw [← Result.ok_injective hl1] at hv2
-          refine ⟨?_, v2, hv2, hrec⟩
-          have heq := PropWhen.beq_refines hpv hxwf.2 hb1
+          refine Or.inr ⟨?_, v2, hv2, hrec⟩
           rw [hb1t] at heq
           have heqq : absPropWhen pv = absPropWhen ent.2 := of_decide_eq_true heq.symm
           rw [heqq, beq_self_eq_true', Bool.not_true, Bool.and_false]
         case isFalse hb1f =>
-          exfalso
+          -- both sides throw `notImplemented`
           obtain ⟨s, -, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨w, -, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨ce, -, hc⟩ := bind_eq_ok_iff.mp h
-          simp at hc
+          obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+          refine Or.inl ⟨?_, w, ?_⟩
+          · rw [show b1 = false by simpa using hb1f] at heq
+            have hne : ¬ (absPropWhen pv = absPropWhen ent.2) :=
+              of_decide_eq_false heq.symm
+            rw [← hvc, hbt]
+            simp [hne]
+          · rw [← not_implemented_inv hce]
+            exact (Result.ok_injective h).symm
       case isFalse hbf =>
         obtain ⟨l1, hl1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨v2, hv2, hrec⟩ := bind_eq_ok_iff.mp h
         rw [level_dup_eq] at hl1
         rw [← Result.ok_injective hl1] at hv2
-        refine ⟨?_, v2, hv2, hrec⟩
+        refine Or.inr ⟨?_, v2, hv2, hrec⟩
         have hbf' : b = false := by simpa using hbf
         rw [← hvc, hbf', Bool.false_and]
-    obtain ⟨hgate, v2, hv2, hrec⟩ := key
-    have habsv2 := Level.imax_refines hv2
-    have hwfv2 : LevelWF v2 := LevelWF.imax hxwf.1 hv hv2
-    obtain ⟨hrun, hwfr⟩ :=
-      ih mode stk i1 v2 r pv hi1v (le_of_lt hlt) hstk hwfv2 hpv hrec
-    refine ⟨fun lst => ?_, hwfr⟩
-    rw [hcons, ConLeche.Cached.inferPisOutI.eq_def]
-    simp only [hgate, Bool.false_eq_true, if_false, StateT.run, Bind.bind,
-      StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure]
-    rw [show (absLevel ent.1).imax (absLevel v) = absLevel v2 from habsv2.symm]
-    have hr := hrun lst
-    simpa [StateT.run] using hr
+    rcases key with ⟨hgate, w, ho⟩ | ⟨hgate, v2, hv2, hrec⟩
+    · -- move 2: the explicit `throw` arm
+      subst ho
+      refine OutP.err (ErrSim.notImplemented
+        (s := "sort-annotation mismatch (forall-cod)") ?_)
+      rw [hcons, ConLeche.Cached.inferPisOutI.eq_def]
+      simp [hgate]
+    · have habsv2 := Level.imax_refines hv2
+      have hwfv2 : LevelWF v2 := LevelWF.imax hxwf.1 hv hv2
+      have hstep : (ConLeche.Cached.inferPisOutI (absMode mode)
+            (absPisEntries (stk.val.take p.val)) (absLevel v)
+            (absPropWhen pv)).run lst
+          = (ConLeche.Cached.inferPisOutI (absMode mode)
+            (absPisEntries (stk.val.take i1.val)) (absLevel v2)
+            (absPropWhen pv)).run lst := by
+        rw [hcons, ConLeche.Cached.inferPisOutI.eq_def]
+        simp only [hgate, Bool.false_eq_true, if_false, StateT.run, Bind.bind,
+          StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure]
+        rw [show (absLevel ent.1).imax (absLevel v) = absLevel v2 from habsv2.symm]
+      rw [hstep]
+      exact ih mode stk i1 v2 o pv hi1v (le_of_lt hlt) hstk hwfv2 hpv hrec lst
 
 /-- `ConLeche/Cached/CoreC.lean:1230-1254` — **`infer_pis_out_i` refines
 `inferPisOutI`** (`core_c.rs:3116`): fold the accumulated domain sorts by
@@ -1044,16 +1230,17 @@ theorem infer_pis_out_i_refines
         ok (r, st))
       (ConLeche.Cached.inferPisOutI (absMode mode)
         (absPisEntries (stk.val.take p.val)) (absLevel v) (absPropWhen pv)) := by
-  intro st r st' hwf hok lst hrel
+  intro st o st' hwf hok lst hrel
   simp only [bind_eq_ok_iff] at hok
   obtain ⟨r1, hr1, hok⟩ := hok
   simp only [Result.ok.injEq, Prod.mk.injEq] at hok
   obtain ⟨hr1eq, hsteq⟩ := hok
   subst hr1eq
   subst hsteq
-  obtain ⟨hrun, hwfr⟩ :=
-    infer_pis_out_i_val p.val mode stk p v r pv rfl hp hstk hv hpv hr1
-  exact ⟨lst, hrun lst, hrel, hwf, hwfr⟩
+  have hout := infer_pis_out_i_val p.val mode stk p v r1 pv rfl hp hstk hv hpv hr1 lst
+  cases r1 with
+  | Ok r => obtain ⟨hrun, hwfr⟩ := hout; exact ⟨lst, hrun, hrel, hwf, hwfr⟩
+  | Err ce => exact Out.err hout
 
 /-- `ConLeche/Cached/CoreC.lean:1256-1267` — **`infer_pis_leaf_i` refines
 `inferPisLeafI`** (`core_c.rs:3144`): bulk-open the residual body, infer its
@@ -1067,7 +1254,7 @@ theorem infer_pis_leaf_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
       (fun lfe => ConLeche.Cached.inferPisLeafI (absMode mode)
         (knot mode lfe fuel.val) d.val (absExpr t) k.val (absExprs fvs).toArray
         (absPisEntries stk.val)) := by
-  intro fe lfe hfe hfrel st res st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st o st' hwf hok lst hrel
   unfold cached.core_c.infer_pis_leaf_i at hok
   obtain ⟨ob, hob, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨i, hi, hok⟩ := bind_eq_ok_iff.mp hok
@@ -1076,14 +1263,28 @@ theorem infer_pis_leaf_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
   have hiv : i.val = d.val + k.val := HashMap.uscalar_add_eq hi
   obtain ⟨r0, st1⟩ := x1
   cases r0 with
-  | Err e => exfalso; simp at hok
+  | Err e =>
+    -- move 1: the body's inference threw, con-leche's first call too
+    have ho : o = .Err e := (congrArg Prod.fst (Result.ok_injective hok)).symm
+    subst ho
+    refine Out.err ?_
+    dsimp only
+    rw [ConLeche.Cached.inferPisLeafI.eq_def, hobrun, pure_bind, ← hiv]
+    exact ErrSim.bindCM ((hw.inferSim i hobwf).apply_err hwf hfe hinf hrel hfrel)
   | Ok bt =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, hbtwf⟩ :=
       (hw.inferSim i hobwf).apply hwf hfe hinf hrel hfrel
     obtain ⟨x2, hwhnf, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨r1, st2⟩ := x2
     cases r1 with
-    | Err e => exfalso; simp at hok
+    | Err e =>
+      have ho : o = .Err e := (congrArg Prod.fst (Result.ok_injective hok)).symm
+      subst ho
+      refine Out.err ?_
+      dsimp only
+      rw [ConLeche.Cached.inferPisLeafI.eq_def, hobrun, pure_bind, ← hiv]
+      rw [checkCM_bind_run _ _ hrun1]
+      exact ErrSim.bindCM ((hw.whnfSim i hbtwf).apply_err hwf1 hfe hwhnf hrel1 hfrel)
     | Ok wbt =>
       obtain ⟨lst2, hrun2, hrel2, hwf2, hwbtwf⟩ :=
         (hw.whnfSim i hbtwf).apply hwf1 hfe hwhnf hrel1 hfrel
@@ -1098,22 +1299,33 @@ theorem infer_pis_leaf_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
         rw [level_dup_eq] at hl
         rw [← Result.ok_injective hl] at hout
         obtain ⟨hpvabs, hpvwf⟩ := ExprOps.zeroness_of_refines hvwf pv hpv
+        have hlen : (alloc.vec.Vec.len stk).val = stk.val.length :=
+          alloc.vec.Vec.len_val stk
+        have hout' :=
+          infer_pis_out_i_val (alloc.vec.Vec.len stk).val mode stk
+            (alloc.vec.Vec.len stk) v r2 pv rfl (by rw [hlen]) hstk hvwf hpvwf hout lst2
+        rw [hlen, List.take_length] at hout'
         cases r2 with
-        | Err e => exfalso; simp at hok
+        | Err e =>
+          -- move 1: the fold's annotation check threw
+          have ho : o = .Err e := (congrArg Prod.fst (Result.ok_injective hok)).symm
+          subst ho
+          refine Out.err ?_
+          dsimp only
+          rw [ConLeche.Cached.inferPisLeafI.eq_def, hobrun, pure_bind, ← hiv]
+          rw [checkCM_bind_run _ _ hrun1, checkCM_bind_run _ _ hrun2]
+          simp only [absExpr_mk, absExprKind]
+          rw [← hpvabs]
+          exact ErrSim.bindCM hout'
         | Ok iv =>
+          obtain ⟨houtrun, hivwf⟩ := hout'
           obtain ⟨e0, he0, hok⟩ := bind_eq_ok_iff.mp hok
-          have hres : res = e0 ∧ st' = st2 := by
-            simp only [Result.ok.injEq, Prod.mk.injEq,
-              core.result.Result.Ok.injEq] at hok
+          have hres : o = .Ok e0 ∧ st' = st2 := by
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
             exact ⟨hok.1.symm, hok.2.symm⟩
           obtain ⟨hres1, hres2⟩ := hres
           subst hres1
           subst hres2
-          have hlen : (alloc.vec.Vec.len stk).val = stk.val.length :=
-            alloc.vec.Vec.len_val stk
-          obtain ⟨houtrun, hivwf⟩ :=
-            infer_pis_out_i_val (alloc.vec.Vec.len stk).val mode stk
-              (alloc.vec.Vec.len stk) v iv pv rfl (by rw [hlen]) hstk hvwf hpvwf hout
           refine ⟨lst2, ?_, hrel2, hwf2, ExprWF.sort hivwf he0⟩
           dsimp only
           rw [ConLeche.Cached.inferPisLeafI.eq_def, hobrun]
@@ -1121,18 +1333,22 @@ theorem infer_pis_leaf_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
           rw [← hiv]
           rw [checkCM_bind_run _ _ hrun1, checkCM_bind_run _ _ hrun2]
           simp only [absExpr_mk, absExprKind]
-          rw [checkCM_bind_run _ _ (by
-            rw [hlen, List.take_length] at houtrun
-            rw [← hpvabs]
-            exact houtrun lst2)]
+          rw [checkCM_bind_run _ _ (by rw [← hpvabs]; exact houtrun)]
           rw [Expr.sort_refines he0]
           simp
       all_goals
-        (exfalso
-         obtain ⟨s0, -, hok⟩ := bind_eq_ok_iff.mp hok
+        -- move 2: the body's type is not a sort, both sides throw `invalid`
+        (obtain ⟨s0, -, hok⟩ := bind_eq_ok_iff.mp hok
          obtain ⟨v0, -, hok⟩ := bind_eq_ok_iff.mp hok
-         obtain ⟨ce, -, hc⟩ := bind_eq_ok_iff.mp hok
-         simp at hc)
+         obtain ⟨ce, hce, hok⟩ := bind_eq_ok_iff.mp hok
+         have ho : o = .Err ce := (congrArg Prod.fst (Result.ok_injective hok)).symm
+         subst ho
+         rw [invalid_inv hce]
+         refine Out.err (ErrSim.invalid (s := "expected a sort") ?_)
+         dsimp only
+         rw [ConLeche.Cached.inferPisLeafI.eq_def, hobrun, pure_bind, ← hiv]
+         rw [checkCM_bind_run _ _ hrun1, checkCM_bind_run _ _ hrun2]
+         simp)
 
 /-- The ∀-peel loop at a fixed peel budget — the shape the induction wants
 (`peel.val` is con-leche's `Nat` fuel). -/
@@ -1148,17 +1364,18 @@ theorem infer_pis_i_val (hw : Wrappers mode fuel) (N : Nat) :
           (absExprs fvs).toArray (absPisEntries stk.val)) := by
   induction N with
   | zero =>
-    intro d peel t k fvs stk hN ht hfvs hstk fe lfe hfe hfrel st res st' hwf hok lst hrel
+    intro d peel t k fvs stk hN ht hfvs hstk fe lfe hfe hfrel st o st' hwf hok lst hrel
     unfold cached.core_c.infer_pis_i at hok
     dsimp only at hok
     rw [if_pos (show peel = 0#u64 by scalar_tac)] at hok
     have hleaf :=
-      (infer_pis_leaf_i_refines hw d k ht hfvs hstk).apply hwf hfe hok hrel hfrel
+      (infer_pis_leaf_i_refines hw d k ht hfvs hstk) fe lfe hfe hfrel st o st' hwf hok
+        lst hrel
     dsimp only at hleaf ⊢
     rw [hN]
     simpa [ConLeche.Cached.inferPisI] using hleaf
   | succ n ih =>
-    intro d peel t k fvs stk hN ht hfvs hstk fe lfe hfe hfrel st res st' hwf hok lst hrel
+    intro d peel t k fvs stk hN ht hfvs hstk fe lfe hfe hfrel st o st' hwf hok lst hrel
     unfold cached.core_c.infer_pis_i at hok
     dsimp only at hok
     rw [if_neg (show ¬ peel = 0#u64 by
@@ -1183,14 +1400,30 @@ theorem infer_pis_i_val (hw : Wrappers mode fuel) (N : Nat) :
       have hiv : i.val = d.val + k.val := HashMap.uscalar_add_eq hi
       obtain ⟨r0, st1⟩ := x1
       cases r0 with
-      | Err e => exfalso; simp at hok
+      | Err e =>
+        -- move 1: the domain's inference threw, con-leche's first call too
+        have ho : o = .Err e := (congrArg Prod.fst (Result.ok_injective hok)).symm
+        subst ho
+        refine Out.err ?_
+        rw [ConLeche.Cached.inferPisI.eq_def]
+        simp only [absExpr_mk, absExprKind]
+        rw [htyorun, pure_bind, ← hiv]
+        exact ErrSim.bindCM ((hw.inferSim i htyowf).apply_err hwf hfe hinf hrel hfrel)
       | Ok tty =>
         obtain ⟨lst1, hrun1, hrel1, hwf1, httywf⟩ :=
           (hw.inferSim i htyowf).apply hwf hfe hinf hrel hfrel
         obtain ⟨x2, hwhnf, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨r1, st2⟩ := x2
         cases r1 with
-        | Err e => exfalso; simp at hok
+        | Err e =>
+          have ho : o = .Err e := (congrArg Prod.fst (Result.ok_injective hok)).symm
+          subst ho
+          refine Out.err ?_
+          rw [ConLeche.Cached.inferPisI.eq_def]
+          simp only [absExpr_mk, absExprKind]
+          rw [htyorun, pure_bind, ← hiv]
+          rw [checkCM_bind_run _ _ hrun1]
+          exact ErrSim.bindCM ((hw.whnfSim i httywf).apply_err hwf1 hfe hwhnf hrel1 hfrel)
         | Ok wtty =>
           obtain ⟨lst2, hrun2, hrel2, hwf2, hwttywf⟩ :=
             (hw.whnfSim i httywf).apply hwf1 hfe hwhnf hrel1 hfrel
@@ -1226,10 +1459,10 @@ theorem infer_pis_i_val (hw : Wrappers mode fuel) (N : Nat) :
             have hi1v : i1.val = n := by
               have h1 := HashMap.uscalar_sub_eq hi1; scalar_tac
             have hi2v : i2.val = k.val + 1 := HashMap.uscalar_add_eq hi2
-            obtain ⟨lst3, hrun3, hrel3, hwf3, hreswf⟩ :=
-              (ih d i1 body i2 fvs1 stk1 hi1v hbody hfvs1wf hstk1wf).apply hwf2 hfe
-                hrec hrel2 hfrel
-            refine ⟨lst3, ?_, hrel3, hwf3, hreswf⟩
+            -- the recursive peel, at whichever outcome it ends in
+            have hrecout :=
+              (ih d i1 body i2 fvs1 stk1 hi1v hbody hfvs1wf hstk1wf) fe lfe hfe hfrel
+                st2 o st' hwf2 hrec lst2 hrel2
             rw [ConLeche.Cached.inferPisI.eq_def]
             simp only [absExpr_mk, absExprKind]
             rw [htyorun, pure_bind, ← hiv]
@@ -1242,16 +1475,25 @@ theorem infer_pis_i_val (hw : Wrappers mode fuel) (N : Nat) :
             rw [show ((absLevel u, (absBinderMeta mb).pw) :: absPisEntries stk.val)
                 = absPisEntries stk1.val from by
               simp [hstk1v, absBinderMeta]]
-            exact hrun3
+            exact hrecout
           all_goals
-            (exfalso
-             obtain ⟨s0, -, hok⟩ := bind_eq_ok_iff.mp hok
+            -- move 2: the domain's type is not a sort, both sides throw `invalid`
+            (obtain ⟨s0, -, hok⟩ := bind_eq_ok_iff.mp hok
              obtain ⟨v0, -, hok⟩ := bind_eq_ok_iff.mp hok
-             obtain ⟨ce, -, hc⟩ := bind_eq_ok_iff.mp hok
-             simp at hc)
+             obtain ⟨ce, hce, hok⟩ := bind_eq_ok_iff.mp hok
+             have ho : o = .Err ce := (congrArg Prod.fst (Result.ok_injective hok)).symm
+             subst ho
+             rw [invalid_inv hce]
+             refine Out.err (ErrSim.invalid (s := "expected a sort") ?_)
+             rw [ConLeche.Cached.inferPisI.eq_def]
+             simp only [absExpr_mk, absExprKind]
+             rw [htyorun, pure_bind, ← hiv]
+             rw [checkCM_bind_run _ _ hrun1, checkCM_bind_run _ _ hrun2]
+             simp)
     all_goals
       (have hleaf :=
-        (infer_pis_leaf_i_refines hw d k ht hfvs hstk).apply hwf hfe hok hrel hfrel
+        (infer_pis_leaf_i_refines hw d k ht hfvs hstk) fe lfe hfe hfrel st o st' hwf hok
+          lst hrel
        simpa [ConLeche.Cached.inferPisI] using hleaf)
 
 /-- `ConLeche/Cached/CoreC.lean:1269-1290` — **`infer_pis_i` refines
