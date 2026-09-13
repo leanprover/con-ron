@@ -39,12 +39,14 @@ theorem name_nodup_from_refines {ns : alloc.vec.Vec name.Name} (hns : NamesWF ns
     rw [level.name_nodup_from.eq_def] at hb; simp only [] at hb
     rw [if_pos (by scalar_tac)] at hb
     rw [absNames, ← List.map_drop, List.drop_eq_nil_of_le (by scalar_tac)]
+    simp only [ConLeche.Name.nodup]
     simpa using hb.symm
   | succ k ih =>
     intro i h b hb
     rw [level.name_nodup_from.eq_def] at hb; simp only [] at hb
     split at hb
     · rw [absNames, ← List.map_drop, List.drop_eq_nil_of_le (by scalar_tac)]
+      simp only [ConLeche.Name.nodup]
       simpa using hb.symm
     · rename_i hlt
       have hb2 : i.val < ns.val.length := by scalar_tac
@@ -52,12 +54,10 @@ theorem name_nodup_from_refines {ns : alloc.vec.Vec name.Name} (hns : NamesWF ns
       obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
       obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec ns i hb2)
       simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw] at hb
-      obtain ⟨y', hy', c, hc, hb⟩ := hb
-      simp only [Result.ok.injEq] at hy'
-      subst hy'
+      obtain ⟨c, hc, hb⟩ := hb
       subst hyv
       have hyWF : NameWF ns.val[i.val] := hns _ (List.getElem_mem hb2)
-      have hcabs := Name.contains_from_refines hns hyWF ns.val.length w c (by scalar_tac) hc
+      have hcabs := Name.contains_from_refines hns hyWF ns.val.length w (by scalar_tac) c hc
       rw [hwv] at hcabs
       rw [absNames, ← List.map_drop, List.drop_eq_getElem_cons hb2]
       simp only [List.map_cons, ConLeche.Name.nodup]
