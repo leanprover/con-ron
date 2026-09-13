@@ -55,3 +55,4 @@ import ConRon.Dump.Read
 import ConRon.Refine.TypeChecker
 import ConRon.Refine.IndSpec
 import ConRon.Refine.CheckerC
+import ConRon.Refine.CheckerDecl
