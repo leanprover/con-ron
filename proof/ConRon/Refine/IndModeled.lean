@@ -10362,7 +10362,14 @@ it.
 
 Deviation: con-leche's `(cvC.levelParams = cvT.levelParams) && checkEtaThmF …`
 and `nF == 0 && piResultIsProp cvT.type` are `if`s in the port; `&&` is
-already short-circuiting, so the two are the same `Bool`. -/
+already short-circuiting, so the two are the same `Bool`.
+
+Task #67: `ind_block_caps` returns a bare `IndCaps`, not a `CheckM`, so it has
+no `CheckError` site and this statement is **already** the full-outcome one —
+there is no `.Err` half to add.  The same holds of everything below it in this
+file (`ctor_residual_ok`, `ctor_targets_fam`, the block split) and of the
+capability artifacts above it: `install_proj_fn_step` is the last `CheckM`
+item of `modeled.rs`. -/
 theorem ind_block_caps_refines {mode : env.CheckMode}
     {fe2 : fenv.FEnv} {lfe : ConLeche.FEnv} {cv_t cv_c : env.ConstantVal}
     {n_p n_f : Std.U64} {caps : env.IndCaps}
