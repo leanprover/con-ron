@@ -2553,13 +2553,313 @@ theorem projRuleCertsTail_run {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLech
   simp only []
   rw [show (ops.inferType lfe.env 0 rhsA) lst2 = Except.ok (rhsTy, lst3) from hinf]
 
+open ConLeche.Cached in
+/-- The certificate tail's first `throw` (`CheckerBase.lean:278`,
+`DeclCheck.lean:784`): the projection type's telescope. -/
+theorem projRuleCertsTail_pty_none {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty rhsA : ConLeche.Expr} {cvj : ConLeche.ConstantVal}
+    {nP nF : Nat} {lst : CState}
+    (h1 : ConLeche.openPisAtFvarsF nP pty 0 = none) :
+    (projRuleCertsTail ops lfe pty cvj nP nF rhsA).run lst
+      = .error (.notImplemented "projection type telescope") := by
+  rw [projRuleCertsTail]
+  simp only [h1, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rfl
+
+open ConLeche.Cached in
+/-- The certificate tail's second `throw` (`CheckerBase.lean:280`,
+`DeclCheck.lean:786`): the constructor's parameter instantiation. -/
+theorem projRuleCertsTail_ctor_none {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty rhsA x1 : ConLeche.Expr} {cvj : ConLeche.ConstantVal}
+    {nP nF : Nat} {fvsP : List ConLeche.Expr} {lst : CState}
+    (h1 : ConLeche.openPisAtFvarsF nP pty 0 = some (fvsP, x1))
+    (h2 : ConLeche.Expr.instPisAtF fvsP cvj.type = none) :
+    (projRuleCertsTail ops lfe pty cvj nP nF rhsA).run lst
+      = .error (.notImplemented "projection constructor telescope") := by
+  rw [projRuleCertsTail]
+  simp only [h1, h2, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rfl
+
+open ConLeche.Cached in
+/-- The certificate tail passes on what the parameter pins threw. -/
+theorem projRuleCertsTail_defeq1_err {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty rhsA x1 crestP : ConLeche.Expr}
+    {cvj : ConLeche.ConstantVal} {nP nF : Nat}
+    {fvsP cdomsP : List ConLeche.Expr} {lst : CState} {le : ConLeche.CheckError}
+    (h1 : ConLeche.openPisAtFvarsF nP pty 0 = some (fvsP, x1))
+    (h2 : ConLeche.Expr.instPisAtF fvsP cvj.type = some (cdomsP, crestP))
+    (hd1 : (ConLeche.checkDefEqList ops lfe.env (nP + nF)
+      (fvsP.map ConLeche.Expr.fvarTypeD) cdomsP).run lst = .error le) :
+    (projRuleCertsTail ops lfe pty cvj nP nF rhsA).run lst = .error le := by
+  rw [projRuleCertsTail]
+  simp only [h1, h2, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkDefEqList ops lfe.env (nP + nF)
+    (fvsP.map ConLeche.Expr.fvarTypeD) cdomsP) lst = Except.error le from hd1]
+
+open ConLeche.Cached in
+/-- The certificate tail's third `throw` (`CheckerBase.lean:283`,
+`DeclCheck.lean:789`): the constructor's field telescope. -/
+theorem projRuleCertsTail_xfvs_none {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty rhsA x1 crestP : ConLeche.Expr}
+    {cvj : ConLeche.ConstantVal} {nP nF : Nat}
+    {fvsP cdomsP : List ConLeche.Expr} {lst lst1 : CState}
+    (h1 : ConLeche.openPisAtFvarsF nP pty 0 = some (fvsP, x1))
+    (h2 : ConLeche.Expr.instPisAtF fvsP cvj.type = some (cdomsP, crestP))
+    (hd1 : (ConLeche.checkDefEqList ops lfe.env (nP + nF)
+      (fvsP.map ConLeche.Expr.fvarTypeD) cdomsP).run lst = .ok ((), lst1))
+    (h3 : ConLeche.openPisAtFvarsF nF crestP nP = none) :
+    (projRuleCertsTail ops lfe pty cvj nP nF rhsA).run lst
+      = .error (.notImplemented "projection constructor telescope") := by
+  rw [projRuleCertsTail]
+  simp only [h1, h2, h3, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkDefEqList ops lfe.env (nP + nF)
+    (fvsP.map ConLeche.Expr.fvarTypeD) cdomsP) lst = Except.ok ((), lst1) from hd1]
+  rfl
+
+open ConLeche.Cached in
+/-- The certificate tail's fourth `throw` (`CheckerBase.lean:285`,
+`DeclCheck.lean:791`): the rule's own λ telescope. -/
+theorem projRuleCertsTail_ldoms_none {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty rhsA x1 crestP x2 : ConLeche.Expr}
+    {cvj : ConLeche.ConstantVal} {nP nF : Nat}
+    {fvsP cdomsP xFvs : List ConLeche.Expr} {lst lst1 : CState}
+    (h1 : ConLeche.openPisAtFvarsF nP pty 0 = some (fvsP, x1))
+    (h2 : ConLeche.Expr.instPisAtF fvsP cvj.type = some (cdomsP, crestP))
+    (hd1 : (ConLeche.checkDefEqList ops lfe.env (nP + nF)
+      (fvsP.map ConLeche.Expr.fvarTypeD) cdomsP).run lst = .ok ((), lst1))
+    (h3 : ConLeche.openPisAtFvarsF nF crestP nP = some (xFvs, x2))
+    (h4 : ConLeche.Expr.instLamsAtF (fvsP ++ xFvs) rhsA = none) :
+    (projRuleCertsTail ops lfe pty cvj nP nF rhsA).run lst
+      = .error (.notImplemented "projection rule telescope") := by
+  rw [projRuleCertsTail]
+  simp only [h1, h2, h3, h4, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkDefEqList ops lfe.env (nP + nF)
+    (fvsP.map ConLeche.Expr.fvarTypeD) cdomsP) lst = Except.ok ((), lst1) from hd1]
+  rfl
+
+open ConLeche.Cached in
+/-- The certificate tail passes on what the domain pins threw. -/
+theorem projRuleCertsTail_defeq2_err {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty rhsA x1 crestP x2 x3 : ConLeche.Expr}
+    {cvj : ConLeche.ConstantVal} {nP nF : Nat}
+    {fvsP cdomsP xFvs ldoms : List ConLeche.Expr} {lst lst1 : CState}
+    {le : ConLeche.CheckError}
+    (h1 : ConLeche.openPisAtFvarsF nP pty 0 = some (fvsP, x1))
+    (h2 : ConLeche.Expr.instPisAtF fvsP cvj.type = some (cdomsP, crestP))
+    (hd1 : (ConLeche.checkDefEqList ops lfe.env (nP + nF)
+      (fvsP.map ConLeche.Expr.fvarTypeD) cdomsP).run lst = .ok ((), lst1))
+    (h3 : ConLeche.openPisAtFvarsF nF crestP nP = some (xFvs, x2))
+    (h4 : ConLeche.Expr.instLamsAtF (fvsP ++ xFvs) rhsA = some (ldoms, x3))
+    (hd2 : (ConLeche.checkDefEqList ops lfe.env (nP + nF)
+      ((fvsP ++ xFvs).map ConLeche.Expr.fvarTypeD) ldoms).run lst1 = .error le) :
+    (projRuleCertsTail ops lfe pty cvj nP nF rhsA).run lst = .error le := by
+  rw [projRuleCertsTail]
+  simp only [h1, h2, h3, h4, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkDefEqList ops lfe.env (nP + nF)
+    (fvsP.map ConLeche.Expr.fvarTypeD) cdomsP) lst = Except.ok ((), lst1) from hd1]
+  simp only []
+  rw [show (ConLeche.checkDefEqList ops lfe.env (nP + nF)
+    ((fvsP ++ xFvs).map ConLeche.Expr.fvarTypeD) ldoms) lst1 = Except.error le from hd2]
+
+open ConLeche.Cached in
+/-- The certificate tail passes on what the rule's own inference threw. -/
+theorem projRuleCertsTail_infer_err {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty rhsA x1 crestP x2 x3 : ConLeche.Expr}
+    {cvj : ConLeche.ConstantVal} {nP nF : Nat}
+    {fvsP cdomsP xFvs ldoms : List ConLeche.Expr} {lst lst1 lst2 : CState}
+    {le : ConLeche.CheckError}
+    (h1 : ConLeche.openPisAtFvarsF nP pty 0 = some (fvsP, x1))
+    (h2 : ConLeche.Expr.instPisAtF fvsP cvj.type = some (cdomsP, crestP))
+    (hd1 : (ConLeche.checkDefEqList ops lfe.env (nP + nF)
+      (fvsP.map ConLeche.Expr.fvarTypeD) cdomsP).run lst = .ok ((), lst1))
+    (h3 : ConLeche.openPisAtFvarsF nF crestP nP = some (xFvs, x2))
+    (h4 : ConLeche.Expr.instLamsAtF (fvsP ++ xFvs) rhsA = some (ldoms, x3))
+    (hd2 : (ConLeche.checkDefEqList ops lfe.env (nP + nF)
+      ((fvsP ++ xFvs).map ConLeche.Expr.fvarTypeD) ldoms).run lst1 = .ok ((), lst2))
+    (hinf : (ops.inferType lfe.env 0 rhsA).run lst2 = .error le) :
+    (projRuleCertsTail ops lfe pty cvj nP nF rhsA).run lst = .error le := by
+  rw [projRuleCertsTail]
+  simp only [h1, h2, h3, h4, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkDefEqList ops lfe.env (nP + nF)
+    (fvsP.map ConLeche.Expr.fvarTypeD) cdomsP) lst = Except.ok ((), lst1) from hd1]
+  simp only []
+  rw [show (ConLeche.checkDefEqList ops lfe.env (nP + nF)
+    ((fvsP ++ xFvs).map ConLeche.Expr.fvarTypeD) ldoms) lst1 = Except.ok ((), lst2) from hd2]
+  simp only []
+  rw [show (ops.inferType lfe.env 0 rhsA) lst2 = Except.error le from hinf]
+
 /-- `ConLeche/Kernel/CheckerBase.lean:252-289 checkProjRule`,
 `ConLeche/Kernel/DeclCheck.lean:763-795 checkProjRuleF` — the frame walks and
 the definitional parameter/domain pins, then the rule's own inference.
 
 The `r` the port returns is `rhs_a` itself; the inferred type is discarded on
-both sides. -/
+both sides.  Over the whole outcome: the port's four `not_implemented` sites
+(`kernel/checker_base.rs:653`, `655`, `665`, `672`) are the cited tail's four
+`throw`s (`:278`, `:280`, `:283`, `:285`), and its three other failures are
+what the two `checkDefEqList` runs and the inference threw. -/
 theorem check_proj_rule_certs_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {pty rhs_a : expr.Expr}
+    {cvj : env.ConstantVal} {n_p n_f : Std.U64}
+    {out : core.result.Result expr.Expr core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hpty : ExprWF pty) (hcvj : ConstantValWF cvj)
+    (hrhs : ExprWF rhs_a)
+    (h : checker_base.check_proj_rule_certs mode st fe pty cvj n_p n_f rhs_a
+      = ok (out, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      match out with
+      | .Ok r =>
+        ∃ lst', (projRuleCertsTail (TypeChecker.lops mode lfe) lfe (absExpr pty)
+            (absConstantVal cvj) n_p.val n_f.val (absExpr rhs_a)).run lst
+            = .ok (absExpr r, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r
+      | .Err e =>
+        ErrSim e ((projRuleCertsTail (TypeChecker.lops mode lfe) lfe (absExpr pty)
+            (absConstantVal cvj) n_p.val n_f.val (absExpr rhs_a)).run lst) := by
+  intro lst lfe hsr hfr
+  obtain ⟨-, -, hcvjty⟩ := hcvj
+  rw [checker_base.check_proj_rule_certs] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hoabs, howf⟩ := open_pis_at_fvars_f_refines hpty ho
+  rw [show ((0#u64 : Std.U64)).val = 0 from rfl] at hoabs
+  cases o with
+  | none =>
+    -- `checker_base.rs:653` ← `CheckerBase.lean:278`
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    have e1 : ConLeche.openPisAtFvarsF n_p.val (absExpr pty) 0 = none := by
+      rw [← hoabs]; rfl
+    exact errSim_notImplemented hce rfl (projRuleCertsTail_pty_none e1)
+  | some p =>
+    obtain ⟨fvs_p, y1⟩ := p
+    obtain ⟨hfvspwf, hy1wf⟩ := howf (fvs_p, y1) rfl
+    have e1 : ConLeche.openPisAtFvarsF n_p.val (absExpr pty) 0
+        = some (absExprs fvs_p, absExpr y1) := by rw [← hoabs]; rfl
+    obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨h1abs, h1wf⟩ := ExprOps.inst_pis_at_f_refines hfvspwf hcvjty ho1
+    cases o1 with
+    | none =>
+      -- `checker_base.rs:655` ← `CheckerBase.lean:280`
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      have e2 : ConLeche.Expr.instPisAtF (absExprs fvs_p) (absConstantVal cvj).type
+          = none := by simp only [absConstantVal]; rw [← h1abs]; rfl
+      exact errSim_notImplemented hce rfl (projRuleCertsTail_ctor_none e1 e2)
+    | some p1 =>
+      obtain ⟨cdoms_p, crest_p⟩ := p1
+      obtain ⟨hcdomswf, hcrestwf⟩ := h1wf (cdoms_p, crest_p) rfl
+      have e2 : ConLeche.Expr.instPisAtF (absExprs fvs_p) (absConstantVal cvj).type
+          = some (absExprs cdoms_p, absExpr crest_p) := by
+        simp only [absConstantVal]; rw [← h1abs]; rfl
+      obtain ⟨ptypes, hptypes, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hptabs, hptwf⟩ := fvar_types_refines hfvspwf hptypes
+      obtain ⟨ii, hii, h⟩ := bind_eq_ok_iff.mp h
+      have hiiv : ii.val = n_p.val + n_f.val := HashMap.uscalar_add_eq hii
+      obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r0, st1⟩ := q
+      cases r0 with
+      | Err er =>
+        -- move 1: the parameter pins threw
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        have herr :=
+          check_def_eq_list_refines hfuel hk hsw hfw hptwf hcdomswf hq lst lfe hsr hfr
+        rw [hiiv, hptabs] at herr
+        exact ErrSim.trans herr (fun le hle => projRuleCertsTail_defeq1_err e1 e2 hle)
+      | Ok _u0 =>
+        obtain ⟨lst1, hrun1, hsr1, hsw1⟩ :=
+          check_def_eq_list_refines_ok hfuel hk hsw hfw hptwf hcdomswf hq lst lfe hsr hfr
+        rw [hiiv, hptabs] at hrun1
+        obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨h2abs, h2wf⟩ := open_pis_at_fvars_f_refines hcrestwf ho2
+        cases o2 with
+        | none =>
+          -- `checker_base.rs:665` ← `CheckerBase.lean:283`
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          have e3 : ConLeche.openPisAtFvarsF n_f.val (absExpr crest_p) n_p.val = none := by
+            rw [← h2abs]; rfl
+          exact errSim_notImplemented hce rfl
+            (projRuleCertsTail_xfvs_none e1 e2 hrun1 e3)
+        | some p2 =>
+          obtain ⟨x_fvs, y2⟩ := p2
+          obtain ⟨hxfvswf, hy2wf⟩ := h2wf (x_fvs, y2) rfl
+          have e3 : ConLeche.openPisAtFvarsF n_f.val (absExpr crest_p) n_p.val
+              = some (absExprs x_fvs, absExpr y2) := by rw [← h2abs]; rfl
+          obtain ⟨frame, hframe, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hfrabs, hfrwf⟩ := CoreK.append_exprs_refines hfvspwf hxfvswf hframe
+          obtain ⟨o3, ho3, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨h3abs, h3wf⟩ := ExprOps.inst_lams_at_f_refines hfrwf hrhs ho3
+          cases o3 with
+          | none =>
+            -- `checker_base.rs:672` ← `CheckerBase.lean:285`
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+            obtain ⟨hout, -⟩ := err_outS h
+            subst hout
+            have e4 : ConLeche.Expr.instLamsAtF
+                (absExprs fvs_p ++ absExprs x_fvs) (absExpr rhs_a) = none := by
+              rw [← hfrabs, ← h3abs]; rfl
+            exact errSim_notImplemented hce rfl
+              (projRuleCertsTail_ldoms_none e1 e2 hrun1 e3 e4)
+          | some p3 =>
+            obtain ⟨ldoms, y3⟩ := p3
+            obtain ⟨hldomswf, hy3wf⟩ := h3wf (ldoms, y3) rfl
+            have e4 : ConLeche.Expr.instLamsAtF
+                (absExprs fvs_p ++ absExprs x_fvs) (absExpr rhs_a)
+                = some (absExprs ldoms, absExpr y3) := by
+              rw [← hfrabs, ← h3abs]; rfl
+            obtain ⟨ftypes, hftypes, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨hftabs, hftwf⟩ := fvar_types_refines hfrwf hftypes
+            obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨r1, st2⟩ := q2
+            cases r1 with
+            | Err er =>
+              -- move 1: the domain pins threw
+              obtain ⟨hout, -⟩ := err_outS h
+              subst hout
+              have herr :=
+                check_def_eq_list_refines hfuel hk hsw1 hfw hftwf hldomswf hq2
+                  lst1 lfe hsr1 hfr
+              rw [hiiv, hftabs, hfrabs] at herr
+              exact ErrSim.trans herr (fun le hle =>
+                projRuleCertsTail_defeq2_err e1 e2 hrun1 e3 e4 hle)
+            | Ok _u1 =>
+              obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
+                check_def_eq_list_refines_ok hfuel hk hsw1 hfw hftwf hldomswf hq2
+                  lst1 lfe hsr1 hfr
+              rw [hiiv, hftabs, hfrabs] at hrun2
+              obtain ⟨q3, hq3, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨r2, st3⟩ := q3
+              cases r2 with
+              | Err er =>
+                -- move 1: the rule's own inference threw
+                obtain ⟨hout, -⟩ := err_outS h
+                subst hout
+                have herr := (TypeChecker.infer_type_core_refines hfuel hk).err st2 fe
+                  0#u64 rhs_a er st3 hsw2 hfw hrhs hq3 lst2 lfe hsr2 hfr
+                exact ErrSim.trans herr (fun le hle =>
+                  projRuleCertsTail_infer_err e1 e2 hrun1 e3 e4 hrun2 hle)
+              | Ok rhsty =>
+                obtain ⟨lst3, hrun3, hsr3, hsw3, -⟩ :=
+                  (TypeChecker.infer_type_core_refines hfuel hk).ok st2 fe 0#u64 rhs_a rhsty st3
+                    hsw2 hfw hrhs hq3 lst2 lfe hsr2 hfr
+                simp at h
+                obtain ⟨rfl, rfl⟩ := h
+                refine ⟨lst3, ?_, hsr3, hsw3, hrhs⟩
+                have hinf : ((TypeChecker.lops mode lfe).inferType lfe.env 0
+                    (absExpr rhs_a)).run lst2 = .ok (absExpr rhsty, lst3) := by
+                  rw [TypeChecker.sharedOpsC_inferType]; exact hrun3
+                exact projRuleCertsTail_run e1 e2 hrun1 e3 e4 hrun2 hinf
+
+/-- `check_proj_rule_certs_refines` at a success, the pre-#67 statement. -/
+theorem check_proj_rule_certs_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {pty rhs_a r : expr.Expr}
     {cvj : env.ConstantVal} {n_p n_f : Std.U64}
@@ -2571,92 +2871,8 @@ theorem check_proj_rule_certs_refines {mode : env.CheckMode} {fuel : Std.U64}
       ∃ lst', (projRuleCertsTail (TypeChecker.lops mode lfe) lfe (absExpr pty)
           (absConstantVal cvj) n_p.val n_f.val (absExpr rhs_a)).run lst
           = .ok (absExpr r, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r := by
-  intro lst lfe hsr hfr
-  obtain ⟨-, -, hcvjty⟩ := hcvj
-  rw [checker_base.check_proj_rule_certs] at h
-  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨hoabs, howf⟩ := open_pis_at_fvars_f_refines hpty ho
-  cases o with
-  | none => simp [bind_eq_ok_iff] at h
-  | some p =>
-    obtain ⟨fvs_p, y1⟩ := p
-    obtain ⟨hfvspwf, hy1wf⟩ := howf (fvs_p, y1) rfl
-    obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨h1abs, h1wf⟩ := ExprOps.inst_pis_at_f_refines hfvspwf hcvjty ho1
-    cases o1 with
-    | none => simp [bind_eq_ok_iff] at h
-    | some p1 =>
-      obtain ⟨cdoms_p, crest_p⟩ := p1
-      obtain ⟨hcdomswf, hcrestwf⟩ := h1wf (cdoms_p, crest_p) rfl
-      obtain ⟨ptypes, hptypes, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨hptabs, hptwf⟩ := fvar_types_refines hfvspwf hptypes
-      obtain ⟨ii, hii, h⟩ := bind_eq_ok_iff.mp h
-      have hiiv : ii.val = n_p.val + n_f.val := HashMap.uscalar_add_eq hii
-      obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨r0, st1⟩ := q
-      cases r0 with
-      | Err er => simp at h
-      | Ok _u0 =>
-        obtain ⟨lst1, hrun1, hsr1, hsw1⟩ :=
-          check_def_eq_list_refines hfuel hk hsw hfw hptwf hcdomswf hq lst lfe hsr hfr
-        obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨h2abs, h2wf⟩ := open_pis_at_fvars_f_refines hcrestwf ho2
-        cases o2 with
-        | none => simp [bind_eq_ok_iff] at h
-        | some p2 =>
-          obtain ⟨x_fvs, y2⟩ := p2
-          obtain ⟨hxfvswf, hy2wf⟩ := h2wf (x_fvs, y2) rfl
-          obtain ⟨frame, hframe, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨hfrabs, hfrwf⟩ := CoreK.append_exprs_refines hfvspwf hxfvswf hframe
-          obtain ⟨o3, ho3, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨h3abs, h3wf⟩ := ExprOps.inst_lams_at_f_refines hfrwf hrhs ho3
-          cases o3 with
-          | none => simp [bind_eq_ok_iff] at h
-          | some p3 =>
-            obtain ⟨ldoms, y3⟩ := p3
-            obtain ⟨hldomswf, hy3wf⟩ := h3wf (ldoms, y3) rfl
-            obtain ⟨ftypes, hftypes, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨hftabs, hftwf⟩ := fvar_types_refines hfrwf hftypes
-            obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨r1, st2⟩ := q2
-            cases r1 with
-            | Err er => simp at h
-            | Ok _u1 =>
-              obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
-                check_def_eq_list_refines hfuel hk hsw1 hfw hftwf hldomswf hq2
-                  lst1 lfe hsr1 hfr
-              obtain ⟨q3, hq3, h⟩ := bind_eq_ok_iff.mp h
-              obtain ⟨r2, st3⟩ := q3
-              cases r2 with
-              | Err er => simp at h
-              | Ok rhsty =>
-                obtain ⟨lst3, hrun3, hsr3, hsw3, -⟩ :=
-                  (TypeChecker.infer_type_core_refines hfuel hk).ok st2 fe 0#u64 rhs_a rhsty st3
-                    hsw2 hfw hrhs hq3 lst2 lfe hsr2 hfr
-                simp at h
-                obtain ⟨rfl, rfl⟩ := h
-                refine ⟨lst3, ?_, hsr3, hsw3, hrhs⟩
-                rw [show ((0#u64 : Std.U64)).val = 0 from rfl] at hrun3 hoabs
-                rw [hiiv] at hrun1 hrun2
-                rw [hptabs] at hrun1
-                rw [hftabs, hfrabs] at hrun2
-                have e1 : ConLeche.openPisAtFvarsF n_p.val (absExpr pty) 0
-                    = some (absExprs fvs_p, absExpr y1) := by rw [← hoabs]; rfl
-                have e2 : ConLeche.Expr.instPisAtF (absExprs fvs_p)
-                    (absConstantVal cvj).type
-                    = some (absExprs cdoms_p, absExpr crest_p) := by
-                  simp only [absConstantVal]; rw [← h1abs]; rfl
-                have e3 : ConLeche.openPisAtFvarsF n_f.val (absExpr crest_p) n_p.val
-                    = some (absExprs x_fvs, absExpr y2) := by rw [← h2abs]; rfl
-                have e4 : ConLeche.Expr.instLamsAtF
-                    (absExprs fvs_p ++ absExprs x_fvs) (absExpr rhs_a)
-                    = some (absExprs ldoms, absExpr y3) := by
-                  rw [← hfrabs, ← h3abs]; rfl
-                have hinf : ((TypeChecker.lops mode lfe).inferType lfe.env 0
-                    (absExpr rhs_a)).run lst2 = .ok (absExpr rhsty, lst3) := by
-                  rw [TypeChecker.sharedOpsC_inferType]; exact hrun3
-                exact projRuleCertsTail_run e1 e2 hrun1 e3 e4 hrun2 hinf
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r :=
+  check_proj_rule_certs_refines hfuel hk hsw hfw hpty hcvj hrhs h
 
 
 open ConLeche.Cached in
@@ -2698,26 +2914,100 @@ theorem checkProjRuleF_at_annot {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLe
   simp only [h3, reduceIte, Except.bind]
   rfl
 
+open ConLeche.Cached in
+/-- The shape tail's first `throw` (`CheckerBase.lean:266`,
+`DeclCheck.lean:776`): the rule's λ telescope. -/
+theorem projRuleShapeTail_lams_none {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty rhsA : ConLeche.Expr} {cvj : ConLeche.ConstantVal}
+    {nP nF i : Nat} {lst : CState}
+    (h1 : rhsA.stripLams (nP + nF) = none) :
+    (projRuleShapeTail ops lfe pty cvj nP nF i rhsA).run lst
+      = .error (.notImplemented "projection rule telescope") := by
+  rw [projRuleShapeTail]
+  simp only [h1, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rfl
+
+open ConLeche.Cached in
+/-- The shape tail's second `throw` (`CheckerBase.lean:268`,
+`DeclCheck.lean:778`): the rule's body is not the field variable. -/
+theorem projRuleShapeTail_body {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty rhsA rrbody : ConLeche.Expr}
+    {cvj : ConLeche.ConstantVal} {nP nF i : Nat}
+    {rbinders : List (ConLeche.Expr × ConLeche.BinderMeta)} {lst : CState}
+    (h1 : rhsA.stripLams (nP + nF) = some (rbinders, rrbody))
+    (h2 : (rrbody == ConLeche.Expr.bvar (nF - 1 - i)) = false) :
+    (projRuleShapeTail ops lfe pty cvj nP nF i rhsA).run lst
+      = .error (.notImplemented "projection rule body") := by
+  rw [projRuleShapeTail]
+  simp only [h1, h2, Bool.false_eq_true, if_false, StateT.run, Bind.bind, StateT.bind,
+    Except.bind]
+  rfl
+
+open ConLeche.Cached in
+/-- The shape tail's third `throw` (`CheckerBase.lean:270`,
+`DeclCheck.lean:780`): the constructor's telescope. -/
+theorem projRuleShapeTail_pis_none {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty rhsA rrbody : ConLeche.Expr}
+    {cvj : ConLeche.ConstantVal} {nP nF i : Nat}
+    {rbinders : List (ConLeche.Expr × ConLeche.BinderMeta)} {lst : CState}
+    (h1 : rhsA.stripLams (nP + nF) = some (rbinders, rrbody))
+    (h2 : (rrbody == ConLeche.Expr.bvar (nF - 1 - i)) = true)
+    (h3 : cvj.type.stripPis (nP + nF) = none) :
+    (projRuleShapeTail ops lfe pty cvj nP nF i rhsA).run lst
+      = .error (.notImplemented "projection constructor telescope") := by
+  rw [projRuleShapeTail]
+  simp only [h1, h2, h3, reduceIte, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rfl
+
+open ConLeche.Cached in
+/-- The shape tail's fourth `throw` (`CheckerBase.lean:273`,
+`DeclCheck.lean:783`): the domain comparison. -/
+theorem projRuleShapeTail_doms {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty rhsA rrbody x : ConLeche.Expr}
+    {cvj : ConLeche.ConstantVal} {nP nF i : Nat}
+    {rbinders cbindersR : List (ConLeche.Expr × ConLeche.BinderMeta)} {lst : CState}
+    (h1 : rhsA.stripLams (nP + nF) = some (rbinders, rrbody))
+    (h2 : (rrbody == ConLeche.Expr.bvar (nF - 1 - i)) = true)
+    (h3 : cvj.type.stripPis (nP + nF) = some (cbindersR, x))
+    (h4 : ConLeche.domsMatchAuxA (fun _ e => e) rbinders.toArray cbindersR.toArray
+      0 0 (nP + nF) = false) :
+    (projRuleShapeTail ops lfe pty cvj nP nF i rhsA).run lst
+      = .error (.notImplemented "projection rule domain mismatch") := by
+  rw [projRuleShapeTail]
+  simp only [h1, h2, h3, h4, Bool.false_eq_true, if_false, reduceIte, StateT.run,
+    Bind.bind, StateT.bind, Except.bind]
+  rfl
+
 /-- `ConLeche/Kernel/CheckerBase.lean:252-289 checkProjRule`,
 `ConLeche/Kernel/DeclCheck.lean:763-795 checkProjRuleF` — the syntactic stage
 past the annotation: the rule's λ telescope, its body `bvar (nF - 1 - i)`, and
 its domains against the constructor's (`domsMatchAuxA`).
 
 The cited body is `bvar (nF - 1 - i)`; the port computes it as
-`sub_nat nF (1 + i)`, which is the same truncated subtraction. -/
+`sub_nat nF (1 + i)`, which is the same truncated subtraction.  Over the whole
+outcome: the port's four `not_implemented` sites (`kernel/checker_base.rs:613`,
+`617`, `621`, and the `strip_pis` `None` arm) are the cited stage's four
+`throw`s (`:266`, `:268`, `:270`, `:273`); what remains is the certificate
+tail's own outcome. -/
 theorem check_proj_rule_shape_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
-    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {pty rhs_a r : expr.Expr}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {pty rhs_a : expr.Expr}
     {cvj : env.ConstantVal} {n_p n_f i : Std.U64}
+    {out : core.result.Result expr.Expr core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hpty : ExprWF pty) (hcvj : ConstantValWF cvj)
     (hrhs : ExprWF rhs_a)
     (h : checker_base.check_proj_rule_shape mode st fe pty cvj n_p n_f i rhs_a
-      = ok (.Ok r, st')) :
+      = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (projRuleShapeTail (TypeChecker.lops mode lfe) lfe (absExpr pty)
-          (absConstantVal cvj) n_p.val n_f.val i.val (absExpr rhs_a)).run lst
-          = .ok (absExpr r, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r := by
+      match out with
+      | .Ok r =>
+        ∃ lst', (projRuleShapeTail (TypeChecker.lops mode lfe) lfe (absExpr pty)
+            (absConstantVal cvj) n_p.val n_f.val i.val (absExpr rhs_a)).run lst
+            = .ok (absExpr r, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r
+      | .Err e =>
+        ErrSim e ((projRuleShapeTail (TypeChecker.lops mode lfe) lfe (absExpr pty)
+            (absConstantVal cvj) n_p.val n_f.val i.val (absExpr rhs_a)).run lst) := by
   intro lst lfe hsr hfr
   have hcvjty : ExprWF cvj.ty := hcvj.2.2
   rw [checker_base.check_proj_rule_shape] at h
@@ -2727,11 +3017,22 @@ theorem check_proj_rule_shape_refines {mode : env.CheckMode} {fuel : Std.U64}
   obtain ⟨hoabs, howf⟩ := ExprOps.strip_lams_refines hrhs ho
   rw [hi1v] at hoabs
   cases o with
-  | none => simp [bind_eq_ok_iff] at h
+  | none =>
+    -- the rule's λ telescope (`CheckerBase.lean:266`)
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    have e1 : (absExpr rhs_a).stripLams (n_p.val + n_f.val) = none := by
+      rw [← hoabs]; rfl
+    exact errSim_notImplemented hce rfl (projRuleShapeTail_lams_none e1)
   | some p =>
     obtain ⟨rbinders, rrbody⟩ := p
     have hrbwf : ExprOps.BindersWF rbinders := (howf (rbinders, rrbody) rfl).1
     have hrrwf : ExprWF rrbody := (howf (rbinders, rrbody) rfl).2
+    have e1 : (absExpr rhs_a).stripLams (n_p.val + n_f.val)
+        = some (ExprOps.absBinders rbinders, absExpr rrbody) := by
+      rw [← hoabs]; rfl
     obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨eb, heb, h⟩ := bind_eq_ok_iff.mp h
@@ -2745,38 +3046,143 @@ theorem check_proj_rule_shape_refines {mode : env.CheckMode} {fuel : Std.U64}
     split at h
     · rename_i hbt
       subst hbt
+      have e2 : (absExpr rrbody == ConLeche.Expr.bvar (n_f.val - 1 - i.val)) = true := by
+        rw [← hebabs, ← decide_eq_beq_expr, ← hbabs]
       obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨h1abs, h1wf⟩ := ExprOps.strip_pis_refines hcvjty ho1
       rw [hi1v] at h1abs
       cases o1 with
-      | none => simp [bind_eq_ok_iff] at h
+      | none =>
+        -- the constructor's telescope (`CheckerBase.lean:270`)
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        have e3 : (absConstantVal cvj).type.stripPis (n_p.val + n_f.val) = none := by
+          simp only [absConstantVal]; rw [← h1abs]; rfl
+        exact errSim_notImplemented hce rfl (projRuleShapeTail_pis_none e1 e2 e3)
       | some p1 =>
         obtain ⟨cbinders_r, y⟩ := p1
         have hcbwf : ExprOps.BindersWF cbinders_r := (h1wf (cbinders_r, y) rfl).1
+        have e3 : (absConstantVal cvj).type.stripPis (n_p.val + n_f.val)
+            = some (ExprOps.absBinders cbinders_r, absExpr y) := by
+          simp only [absConstantVal]; rw [← h1abs]; rfl
         obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
         have hb1abs := doms_match_aux_refines_array hrbwf hcbwf hb1
         rw [hi1v, show ((0#u64 : Std.U64)).val = 0 from rfl] at hb1abs
         split at h
         · rename_i hb1t
-          obtain ⟨lst', hrun, rest⟩ :=
-            check_proj_rule_certs_refines hfuel hk hsw hfw hpty hcvj hrhs h lst lfe hsr hfr
-          refine ⟨lst', ?_, rest⟩
-          have e1 : (absExpr rhs_a).stripLams (n_p.val + n_f.val)
-              = some (ExprOps.absBinders rbinders, absExpr rrbody) := by
-            rw [← hoabs]; rfl
-          have e3 : (absConstantVal cvj).type.stripPis (n_p.val + n_f.val)
-              = some (ExprOps.absBinders cbinders_r, absExpr y) := by
-            simp only [absConstantVal]; rw [← h1abs]; rfl
-          have e2 : (absExpr rrbody == ConLeche.Expr.bvar (n_f.val - 1 - i.val)) = true := by
-            rw [← hebabs, ← decide_eq_beq_expr, ← hbabs]
           have e4 : ConLeche.domsMatchAuxA (fun _ e => e)
               (ExprOps.absBinders rbinders).toArray (ExprOps.absBinders cbinders_r).toArray
               0 0 (n_p.val + n_f.val) = true := by
             rw [← hb1abs]; exact hb1t
+          have hcerts :=
+            check_proj_rule_certs_refines hfuel hk hsw hfw hpty hcvj hrhs h lst lfe hsr hfr
           rw [projRuleShapeTail_run e1 e2 e3 e4]
-          exact hrun
-        · simp [bind_eq_ok_iff] at h
-    · simp [bind_eq_ok_iff] at h
+          cases out with
+          | Ok r => exact hcerts
+          | Err e => exact hcerts
+        · -- the domain comparison (`CheckerBase.lean:273`)
+          rename_i hb1f
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          refine errSim_notImplemented hce rfl (projRuleShapeTail_doms e1 e2 e3 ?_)
+          rw [← hb1abs]; simpa using hb1f
+    · -- the rule's body (`CheckerBase.lean:268`)
+      rename_i hbf
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      refine errSim_notImplemented hce rfl (projRuleShapeTail_body e1 ?_)
+      rw [← hebabs, ← decide_eq_beq_expr, ← hbabs]
+      simpa using hbf
+
+/-- `check_proj_rule_shape_refines` at a success, the pre-#67 statement. -/
+theorem check_proj_rule_shape_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {pty rhs_a r : expr.Expr}
+    {cvj : env.ConstantVal} {n_p n_f i : Std.U64}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hpty : ExprWF pty) (hcvj : ConstantValWF cvj)
+    (hrhs : ExprWF rhs_a)
+    (h : checker_base.check_proj_rule_shape mode st fe pty cvj n_p n_f i rhs_a
+      = ok (.Ok r, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ∃ lst', (projRuleShapeTail (TypeChecker.lops mode lfe) lfe (absExpr pty)
+          (absConstantVal cvj) n_p.val n_f.val i.val (absExpr rhs_a)).run lst
+          = .ok (absExpr r, lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r :=
+  check_proj_rule_shape_refines hfuel hk hsw hfw hpty hcvj hrhs h
+
+open ConLeche.Cached in
+/-- `checkProjRuleF`'s first `throw` (`CheckerBase.lean:257`,
+`DeclCheck.lean:767`): the rule's λ tower does not exist. -/
+theorem checkProjRuleF_rhs_none {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty : ConLeche.Expr} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat} {lst : CState}
+    (h1 : ConLeche.Expr.pisToLams (nP + nF) cvj.type (ConLeche.Expr.bvar (nF - 1 - i))
+      = none) :
+    (ConLeche.checkProjRuleF ops lfe pty cvj lps nP nF i).run lst
+      = .error (.notImplemented "projection rule telescope") := by
+  rw [ConLeche.checkProjRuleF]
+  simp only [h1, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjRuleF`'s scoping `throw` (`CheckerBase.lean:259`,
+`DeclCheck.lean:769`).  The port splits the cited `unless A && B` into two
+`else if` arms carrying the same message (`kernel/checker_base.rs:553`, `555`),
+so both reach this one lemma. -/
+theorem checkProjRuleF_scoping {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty rhs : ConLeche.Expr} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat} {lst : CState}
+    (h1 : ConLeche.Expr.pisToLams (nP + nF) cvj.type (ConLeche.Expr.bvar (nF - 1 - i))
+      = some rhs)
+    (h2 : (!rhs.hasFvar && rhs.looseBVarsBounded 0) = false) :
+    (ConLeche.checkProjRuleF ops lfe pty cvj lps nP nF i).run lst
+      = .error (.notImplemented "projection rule scoping") := by
+  rw [ConLeche.checkProjRuleF]
+  simp only [h1, h2, Bool.false_eq_true, if_false, StateT.run, Bind.bind, StateT.bind,
+    Except.bind]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjRuleF` passes on what the annotation threw. -/
+theorem checkProjRuleF_annot_err {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty rhs : ConLeche.Expr} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat} {lst : CState}
+    {le : ConLeche.CheckError}
+    (h1 : ConLeche.Expr.pisToLams (nP + nF) cvj.type (ConLeche.Expr.bvar (nF - 1 - i))
+      = some rhs)
+    (h2 : (!rhs.hasFvar && rhs.looseBVarsBounded 0) = true)
+    (hann : (ops.annotate lfe.env 0 rhs).run lst = .error le) :
+    (ConLeche.checkProjRuleF ops lfe pty cvj lps nP nF i).run lst = .error le := by
+  rw [ConLeche.checkProjRuleF]
+  simp only [h1, h2, reduceIte, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ops.annotate lfe.env 0 rhs) lst = Except.error le from hann]
+
+open ConLeche.Cached in
+/-- `checkProjRuleF`'s well-formedness `throw` (`CheckerBase.lean:263`,
+`DeclCheck.lean:773`), on the annotated rule. -/
+theorem checkProjRuleF_wf {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {pty rhs rhsA : ConLeche.Expr} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat} {lst lst1 : CState}
+    (h1 : ConLeche.Expr.pisToLams (nP + nF) cvj.type (ConLeche.Expr.bvar (nF - 1 - i))
+      = some rhs)
+    (h2 : (!rhs.hasFvar && rhs.looseBVarsBounded 0) = true)
+    (hann : (ops.annotate lfe.env 0 rhs).run lst = .ok (rhsA, lst1))
+    (h3 : (ConLeche.Expr.allLevelParamsDefined lps rhsA &&
+      ConLeche.Expr.constsResolveF lfe rhsA &&
+      rhsA.looseBVarsBounded 0 && !rhsA.hasFvar) = false) :
+    (ConLeche.checkProjRuleF ops lfe pty cvj lps nP nF i).run lst
+      = .error (.notImplemented "projection rule wellformedness") := by
+  rw [ConLeche.checkProjRuleF]
+  simp only [h1, h2, reduceIte, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ops.annotate lfe.env 0 rhs) lst = Except.ok (rhsA, lst1) from hann]
+  simp only [h3, Bool.false_eq_true, if_false]
+  rfl
 
 /-- `ConLeche/Kernel/CheckerBase.lean:252-289 checkProjRule`,
 `ConLeche/Kernel/DeclCheck.lean:763-795 checkProjRuleF` — stage 3: the
@@ -2784,20 +3190,32 @@ reduction rule, λ over the constructor telescope returning field `i`,
 annotated, with its λ-domains the constructor's.
 
 The four-way well-formedness conjunction is `proj_rule_wf`, so this lemma
-carries `ConstsResolveFSpec` too. -/
+carries `ConstsResolveFSpec` too.  Over the whole outcome: the port's four
+`not_implemented` sites (`kernel/checker_base.rs:551`, `553`, `555`, `562`) are
+the cited definition's three head `throw`s (`:257`, `:259`, `:263`) — `:553`
+and `:555` are the two `else if` arms the port splits the cited
+`unless !rhs.hasFvar && rhs.looseBVarsBounded 0` into, both carrying the
+`"projection rule scoping"` message — and what remains is the annotation's and
+the shape stage's own outcomes. -/
 theorem check_proj_rule_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     (hcr : ConstsResolveFSpec)
-    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {pty r : expr.Expr}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {pty : expr.Expr}
     {cvj : env.ConstantVal} {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64}
+    {out : core.result.Result expr.Expr core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hpty : ExprWF pty) (hcvj : ConstantValWF cvj)
     (hlps : NamesWF lps)
-    (h : checker_base.check_proj_rule mode st fe pty cvj lps n_p n_f i = ok (.Ok r, st')) :
+    (h : checker_base.check_proj_rule mode st fe pty cvj lps n_p n_f i = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.checkProjRuleF (TypeChecker.lops mode lfe) lfe (absExpr pty)
-          (absConstantVal cvj) (absNames lps) n_p.val n_f.val i.val).run lst
-          = .ok (absExpr r, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r := by
+      match out with
+      | .Ok r =>
+        ∃ lst', (ConLeche.checkProjRuleF (TypeChecker.lops mode lfe) lfe (absExpr pty)
+            (absConstantVal cvj) (absNames lps) n_p.val n_f.val i.val).run lst
+            = .ok (absExpr r, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r
+      | .Err e =>
+        ErrSim e ((ConLeche.checkProjRuleF (TypeChecker.lops mode lfe) lfe (absExpr pty)
+            (absConstantVal cvj) (absNames lps) n_p.val n_f.val i.val).run lst) := by
   intro lst lfe hsr hfr
   have hcvjty : ExprWF cvj.ty := hcvj.2.2
   rw [checker_base.check_proj_rule] at h
@@ -2816,56 +3234,111 @@ theorem check_proj_rule_refines {mode : env.CheckMode} {fuel : Std.U64}
     ExprOps.pis_to_lams_refines i1.val i1 cvj.ty eb o rfl hcvjty (Expr.bvar_wf heb) ho
   rw [hi1v, hebabs] at hoabs
   cases o with
-  | none => simp [bind_eq_ok_iff] at h
+  | none =>
+    -- the rule's λ tower (`CheckerBase.lean:257`)
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    have e1 : ConLeche.Expr.pisToLams (n_p.val + n_f.val) (absConstantVal cvj).type
+        (ConLeche.Expr.bvar (n_f.val - 1 - i.val)) = none := by
+      simp only [absConstantVal]; rw [← hoabs]; rfl
+    exact errSim_notImplemented hce rfl (checkProjRuleF_rhs_none e1)
   | some rhs =>
     have hrhswf : ExprWF rhs := howf rhs rfl
+    have e1 : ConLeche.Expr.pisToLams (n_p.val + n_f.val) (absConstantVal cvj).type
+        (ConLeche.Expr.bvar (n_f.val - 1 - i.val)) = some (absExpr rhs) := by
+      simp only [absConstantVal]; rw [← hoabs]; rfl
     obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
     have hbabs := ExprOps.has_fvar_refines hrhswf hb
     split at h
-    · simp [bind_eq_ok_iff] at h
+    · -- the scoping `throw`, first arm (`kernel/checker_base.rs:553`)
+      rename_i hbt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      refine errSim_notImplemented hce rfl (checkProjRuleF_scoping e1 ?_)
+      have hfv : (absExpr rhs).hasFvar = true := by rw [← hbabs]; simpa using hbt
+      rw [hfv]; simp
     · rename_i hbf
       obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
       have hb1abs := ExprOps.loose_bvars_bounded_refines hrhswf hb1
       rw [show ((0#u64 : Std.U64)).val = 0 from rfl] at hb1abs
       split at h
       · rename_i hb1t
+        have e2 : (!(absExpr rhs).hasFvar && (absExpr rhs).looseBVarsBounded 0)
+            = true := by
+          rw [← hbabs, ← hb1abs]
+          simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true]
+          exact ⟨by simpa using hbf, hb1t⟩
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨r0, st1⟩ := q
         cases r0 with
-        | Err er => simp at h
+        | Err er =>
+          -- move 1: the annotation threw
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          have herr := (TypeChecker.annotate_core_refines hfuel hk).err st fe 0#u64 rhs
+            er st1 hsw hfw hrhswf hq lst lfe hsr hfr
+          exact ErrSim.trans herr (fun le hle => checkProjRuleF_annot_err e1 e2 hle)
         | Ok rhs_a =>
           obtain ⟨lst1, hrun1, hsr1, hsw1, hrawf⟩ :=
             (TypeChecker.annotate_core_refines hfuel hk).ok st fe 0#u64 rhs rhs_a st1
               hsw hfw hrhswf hq lst lfe hsr hfr
+          have hann : ((TypeChecker.lops mode lfe).annotate lfe.env 0
+              (absExpr rhs)).run lst = .ok (absExpr rhs_a, lst1) := by
+            rw [TypeChecker.sharedOpsC_annotate]
+            rw [show ((0#u64 : Std.U64)).val = 0 from rfl] at hrun1
+            exact hrun1
           obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
           have hb2abs := proj_rule_wf_refines hcr hfr hfw hrawf hlps hb2
           split at h
           · rename_i hb2t
-            obtain ⟨lst2, hrun2, rest⟩ :=
-              check_proj_rule_shape_refines hfuel hk hsw1 hfw hpty hcvj hrawf h
-                lst1 lfe hsr1 hfr
-            refine ⟨lst2, ?_, rest⟩
-            have hann : ((TypeChecker.lops mode lfe).annotate lfe.env 0
-                (absExpr rhs)).run lst = .ok (absExpr rhs_a, lst1) := by
-              rw [TypeChecker.sharedOpsC_annotate]
-              rw [show ((0#u64 : Std.U64)).val = 0 from rfl] at hrun1
-              exact hrun1
-            have e1 : ConLeche.Expr.pisToLams (n_p.val + n_f.val)
-                (absConstantVal cvj).type
-                (ConLeche.Expr.bvar (n_f.val - 1 - i.val)) = some (absExpr rhs) := by
-              simp only [absConstantVal]; rw [← hoabs]; rfl
-            have e2 : (!(absExpr rhs).hasFvar && (absExpr rhs).looseBVarsBounded 0)
-                = true := by
-              rw [← hbabs, ← hb1abs]
-              simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true]
-              exact ⟨by simpa using hbf, hb1t⟩
             have e3 : (ConLeche.Expr.allLevelParamsDefined (absNames lps) (absExpr rhs_a) &&
                 ConLeche.Expr.constsResolveF lfe (absExpr rhs_a) &&
                 (absExpr rhs_a).looseBVarsBounded 0 && !(absExpr rhs_a).hasFvar) = true := by
               rw [← hb2abs]; exact hb2t
+            have hshape :=
+              check_proj_rule_shape_refines hfuel hk hsw1 hfw hpty hcvj hrawf h
+                lst1 lfe hsr1 hfr
             rw [checkProjRuleF_at_annot e1 e2 hann e3]
-            exact hrun2
-          · simp [bind_eq_ok_iff] at h
-      · simp [bind_eq_ok_iff] at h
+            cases out with
+            | Ok r => exact hshape
+            | Err e => exact hshape
+          · -- the well-formedness `throw` (`CheckerBase.lean:263`)
+            rename_i hb2f
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+            obtain ⟨hout, -⟩ := err_outS h
+            subst hout
+            refine errSim_notImplemented hce rfl (checkProjRuleF_wf e1 e2 hann ?_)
+            rw [← hb2abs]; simpa using hb2f
+      · -- the scoping `throw`, second arm (`kernel/checker_base.rs:555`)
+        rename_i hb1f
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        refine errSim_notImplemented hce rfl (checkProjRuleF_scoping e1 ?_)
+        have hlb : (absExpr rhs).looseBVarsBounded 0 = false := by
+          rw [← hb1abs]; simpa using hb1f
+        rw [hlb]; simp
+
+/-- `check_proj_rule_refines` at a success, the pre-#67 statement. -/
+theorem check_proj_rule_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    (hcr : ConstsResolveFSpec)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {pty r : expr.Expr}
+    {cvj : env.ConstantVal} {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hpty : ExprWF pty) (hcvj : ConstantValWF cvj)
+    (hlps : NamesWF lps)
+    (h : checker_base.check_proj_rule mode st fe pty cvj lps n_p n_f i = ok (.Ok r, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ∃ lst', (ConLeche.checkProjRuleF (TypeChecker.lops mode lfe) lfe (absExpr pty)
+          (absConstantVal cvj) (absNames lps) n_p.val n_f.val i.val).run lst
+          = .ok (absExpr r, lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r :=
+  check_proj_rule_refines hfuel hk hcr hsw hfw hpty hcvj hlps h
 
 end ConRon.Refine.CheckerBase
