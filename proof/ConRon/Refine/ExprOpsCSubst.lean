@@ -1344,12 +1344,22 @@ there and nowhere else).  So the invariant is parameterised by `k`
 `instantiateListGo_spec` (`Verify/Cached/OpsC.lean:419`) is and as task #47's
 `instantiate_list_refines_aux` is.
 
-**These six statements carry a `sorry`** (six of them, the only ones in this
-task; see the DESIGN.md entry for task #51).  The statements are the final ones
--- exact result on success, `MemoLQ` the cited invariant -- and the proof is the
-two-level induction above; what is missing is only the discharge, which is the
-same 350-line case analysis as `instantiate1_go_refines` with the outer
-induction threaded through the `.bvar` arm's fresh table. -/
+Discharged in task #54.  The proof is `instantiate1_go_refines`' case analysis
+with the live prefix threaded through, under one extra layer: the `GoLP`/`GoRP`
+propositions below package "the walk's statement at *one* live prefix `K`", and
+`instantiate_list_go_aux`/`instantiate_rev_go_aux` prove `∀ K, GoLP vs K` by
+`Nat.strong_induction_on`, so that the `.bvar` arm may apply the walk's own
+lemma at the strictly smaller prefix `i - d` under the fresh table
+`instantiate_list_bvar` allocates.
+
+`instantiate_rev_bvar_refines` carries one hypothesis the task-#51 statement
+did not: `j.val < vs.val.length`.  It has to -- `vs.val[vs.val.length - 1 -
+j.val]? = some w` does *not* bound `j`, because `Nat` subtraction saturates at
+`0`, so without the bound the statement is false for `j ≥ vs.len`, where the
+port returns the node itself while the conclusion still speaks about `vs[0]`.
+The forward twin needs no such hypothesis: `vs.val[j.val]? = some w` bounds `j`
+by itself.  Every caller has the bound (the `.bvar` arm reaches the callee
+under `i - d < k ≤ vs.len`). -/
 
 /-- con-leche's `MemoLInv` (`Verify/Cached/OpsC.lean:349`), as the `Q` of
 `MemoInv`: every recorded answer is the bulk substitution of the **live prefix**
@@ -1357,6 +1367,564 @@ at the key's cursor.  `k` is a parameter of the invariant, not of the key. -/
 def MemoLQ (ws : List ConLeche.Expr) (k : Nat) :
     ConLeche.Expr × Nat → expr.Expr → Prop :=
   fun key r => ExprWF r ∧ absExpr r = ConLeche.Expr.instantiateList key.1 (ws.take k) key.2
+
+/-- The `dup e` return shared by the `k = 0` branch, the `bvarB ≤ d` cutoff and
+the four atom arms of both bulk walks: the node is its own instantiation. -/
+theorem instL_dup_ret {Q : ConLeche.Expr × Nat → expr.Expr → Prop}
+    {e r : expr.Expr} {memo memo' : ron.hashmap.HashMap expr_ops.ExprNatKey expr.Expr}
+    {ws : List ConLeche.Expr} {d : Std.U64}
+    (hwfe : ExprWF e) (hm : MemoInv KeyWF absKey Q memo)
+    (hself : ConLeche.Expr.instantiateList (absExpr e) ws d.val = absExpr e)
+    (h : (do let c ← expr.dup e; ok (c, memo)) = ok (r, memo')) :
+    (ExprWF r ∧ absExpr r = ConLeche.Expr.instantiateList (absExpr e) ws d.val) ∧
+      MemoInv KeyWF absKey Q memo' := by
+  simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
+  obtain ⟨c, hdup, hr, hmm⟩ := h
+  rw [Expr.dup_eq hdup] at hr
+  subst hr; subst hmm
+  exact ⟨⟨hwfe, hself.symm⟩, hm⟩
+
+/-- The `bvarB ≤ d` cutoff of the bulk walks: at or above the loose-`bvar`
+bound there is nothing to replace. -/
+theorem instL_cutoff_self {e : expr.Expr} {bb d : Std.U64} {ws : List ConLeche.Expr}
+    (hwfe : ExprWF e) (hbb : expr_ops.bvar_b e = ok bb) (hle : bb.val ≤ d.val) :
+    ConLeche.Expr.instantiateList (absExpr e) ws d.val = absExpr e := by
+  have hbnd : ConLeche.Expr.looseBVarsBounded d.val (absExpr e) = true :=
+    ConLeche.Expr.looseBVarsBounded_iff.mpr
+      (by rw [← ConLeche.Expr.bvarB_eq, ← bvar_b_refines hwfe hbb]; exact hle)
+  exact ConLeche.Expr.instantiateList_eq_self hbnd
+
+/-- The statement of `instantiate_list_go` at one fixed live prefix `K`: the
+proposition the strong induction on the prefix runs over. -/
+def GoLP (vs : alloc.vec.Vec expr.Expr) (K : Nat) : Prop :=
+  ∀ (e : expr.Expr), ExprWF e →
+    ∀ (memo memo' : ron.hashmap.HashMap expr_ops.ExprNatKey expr.Expr)
+      (k d : Std.U64) (r : expr.Expr),
+      k.val = K → k.val ≤ vs.val.length →
+      MemoInv KeyWF absKey (MemoLQ (absExprs vs) k.val) memo →
+      cached.expr_ops_c.instantiate_list_go vs memo e k d = ok (r, memo') →
+      (ExprWF r ∧
+          absExpr r
+            = ConLeche.Expr.instantiateList (absExpr e) ((absExprs vs).take k.val) d.val) ∧
+        MemoInv KeyWF absKey (MemoLQ (absExprs vs) k.val) memo'
+
+/-- `instantiate_list_bvar` from the walk's lemma at the *shorter* prefix `j`. -/
+theorem instantiate_list_bvar_aux {vs : alloc.vec.Vec expr.Expr} {j : Std.U64}
+    (hgo : GoLP vs j.val) {e r w : expr.Expr} {d : Std.U64} (he : ExprWF e)
+    (hj : vs.val[j.val]? = some w) (hwfw : ExprWF w)
+    (h : cached.expr_ops_c.instantiate_list_bvar vs e j d = ok r) :
+    absExpr r
+        = ConLeche.Expr.instantiateList (absExpr w) ((absExprs vs).take j.val) d.val ∧
+      ExprWF r := by
+  have hjlt : j.val < vs.val.length := by
+    by_contra hc
+    rw [List.getElem?_eq_none (by omega)] at hj; simp at hj
+  rw [cached.expr_ops_c.instantiate_list_bvar] at h
+  obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+  dsimp only at h
+  have hiv : i.val = j.val := by
+    rw [← Result.ok_injective hi,
+      u64_cast_usize_val_of_lt (n := vs.val.length) (alloc.vec.Vec.property vs) hjlt]
+  split at h
+  · obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    have hi2v : i2.val = j.val := by
+      rw [← Result.ok_injective hi2,
+        u64_cast_usize_val_of_lt (n := vs.val.length) (alloc.vec.Vec.property vs) hjlt]
+    obtain ⟨w0, hidx, h⟩ := bind_eq_ok_iff.mp h
+    have hw0 : w = w0 := by
+      have hg := vec_index_getElem? hidx
+      rw [hi2v, hj] at hg
+      exact Option.some.inj hg
+    subst hw0
+    split at h
+    · rename_i hz
+      have hz' : j.val = 0 := by rw [hz]; scalar_tac
+      rw [Expr.dup_eq h, hz']
+      simp only [List.take_zero]
+      exact ⟨(ConLeche.Expr.instantiateList_nil _ _).symm, hwfw⟩
+    · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+      split at h
+      · rename_i hle
+        rw [Expr.dup_eq h]
+        exact ⟨(instL_cutoff_self hwfw hbb (by scalar_tac)).symm, hwfw⟩
+      · obtain ⟨fresh, hnew, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨p, hgo2, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨r0, fresh'⟩ := p
+        have hr : r0 = r := Result.ok_injective h
+        subst hr
+        obtain ⟨⟨hwf, habs⟩, -⟩ :=
+          hgo w hwfw fresh fresh' j d r0 rfl (by omega) (new_memo_inv hnew) hgo2
+        exact ⟨habs, hwf⟩
+  · rename_i hlt
+    exact absurd (show i < alloc.vec.Vec.len vs by
+      have := alloc.vec.Vec.len_val vs; scalar_tac) hlt
+
+/-- The two-level induction: strong on the live prefix, structural on the
+`ExprWF` derivation inside it. -/
+theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs) :
+    ∀ K, GoLP vs K := by
+  intro K
+  induction K using Nat.strong_induction_on with
+  | _ K ihK =>
+    intro e he
+    induction he with
+    | @bvar i e h1 =>
+      have hwfe : ExprWF e := ExprWF.bvar h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_list_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]
+        simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · have hlen : ((absExprs vs).take k.val).length = k.val := by
+            rw [List.length_take, absExprs, List.length_map]; omega
+          simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          split at h
+          · rename_i hid
+            have hid' : i.val < d.val := by scalar_tac
+            refine instL_dup_ret hwfe hm ?_ h
+            simp only [absExpr_mk, absExprKind]
+            rw [ConLeche.Expr.instantiateList, if_pos hid']
+          · rename_i hid
+            have hid' : d.val ≤ i.val := by scalar_tac
+            obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+            have hi2v : i2.val = i.val - d.val := HashMap.uscalar_sub_eq hi2
+            split at h
+            · rename_i hik
+              have hik' : i2.val < k.val := by scalar_tac
+              obtain ⟨r0, hbv, h⟩ := bind_eq_ok_iff.mp h
+              have e0 := Result.ok_injective (α := expr.Expr × _) h
+              have e1 : r = r0 := (congrArg Prod.fst e0).symm
+              have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+              subst e1; subst e2
+              have hlt2 : i.val - d.val < vs.val.length := by omega
+              have hget : vs.val[i2.val]? = some vs.val[i.val - d.val] := by
+                rw [hi2v]; exact List.getElem?_eq_getElem hlt2
+              obtain ⟨habs, hwf⟩ :=
+                instantiate_list_bvar_aux (ihK i2.val (by omega)) hwfe hget
+                  (hvs _ (List.getElem_mem hlt2)) hbv
+              refine ⟨⟨hwf, ?_⟩, hm⟩
+              rw [habs]
+              have hidx : i.val - d.val < ((absExprs vs).take k.val).length := by
+                rw [hlen]; omega
+              have hgetl : ((absExprs vs).take k.val)[i.val - d.val]'hidx
+                  = absExpr vs.val[i.val - d.val] := by
+                rw [List.getElem_take]
+                simp [absExprs]
+              have htk : ((absExprs vs).take k.val).take (i.val - d.val)
+                  = (absExprs vs).take i2.val := by
+                rw [List.take_take, hi2v]
+                congr 1
+                omega
+              simp only [absExpr_mk, absExprKind]
+              rw [ConLeche.Expr.instantiateList, if_neg (by omega), dif_pos hidx,
+                hgetl, htk]
+            · rename_i hik
+              have hik' : ¬ (i2.val < k.val) := by scalar_tac
+              obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+              have hi3v : i3.val = i.val - k.val := HashMap.uscalar_sub_eq hi3
+              obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+              have e0 := Result.ok_injective (α := expr.Expr × _) h
+              have e1 : r = c := (congrArg Prod.fst e0).symm
+              have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+              subst e1; subst e2
+              refine ⟨⟨Expr.mk_bvar_wf hc, ?_⟩, hm⟩
+              rw [Expr.mk_bvar_refines hc, ConLeche.Expr.mkBvar_eq, hi3v]
+              simp only [absExpr_mk, absExprKind]
+              rw [ConLeche.Expr.instantiateList, if_neg (by omega),
+                dif_neg (by rw [hlen]; omega), hlen]
+    | @fvar idx ty e hty h1 ih =>
+      have hwfe : ExprWF e := ExprWF.fvar hty h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_list_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          refine instL_dup_ret hwfe hm ?_ h
+          simp only [absExpr_mk, absExprKind]
+          rw [ConLeche.Expr.instantiateList]
+    | @sort u e hu h1 =>
+      have hwfe : ExprWF e := ExprWF.sort hu h1
+      obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_list_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          refine instL_dup_ret hwfe hm ?_ h
+          simp only [absExpr_mk, absExprKind]
+          rw [ConLeche.Expr.instantiateList]
+    | @mk_const n us e hn hus h1 =>
+      have hwfe : ExprWF e := ExprWF.mk_const hn hus h1
+      obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_list_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          refine instL_dup_ret hwfe hm ?_ h
+          simp only [absExpr_mk, absExprKind]
+          rw [ConLeche.Expr.instantiateList]
+    | @lit l e hl h1 =>
+      have hwfe : ExprWF e := ExprWF.lit hl h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_list_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          refine instL_dup_ret hwfe hm ?_ h
+          simp only [absExpr_mk, absExprKind]
+          rw [ConLeche.Expr.instantiateList]
+    | @app f a e hf ha h1 ihf iha =>
+      have hwfe : ExprWF e := ExprWF.app hf ha h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_list_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+          have hkk := expr_nat_key_eq hkey
+          subst hkk
+          cases o with
+          | some w =>
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1 : r = w := (congrArg Prod.fst e0).symm
+            have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+            subst e1; subst e2
+            exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey)
+              (Q := MemoLQ (absExprs vs) k.val) key_exact hm (keyWF_mk hwfe)
+              (memo1_get_hit ho), hm⟩
+          | none =>
+            obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨memo1, r0⟩ := q
+            obtain ⟨p1, hf2, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨f2, memo2⟩ := p1
+            obtain ⟨p2, ha2, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨a2, memo3⟩ := p2
+            obtain ⟨r1, happ, hgo⟩ := bind_eq_ok_iff.mp hgo
+            have eg := Result.ok_injective
+              (α := ron.hashmap.HashMap expr_ops.ExprNatKey _ × _) hgo
+            have eg1 : memo1 = memo3 := (congrArg Prod.fst eg).symm
+            have eg2 : r0 = r1 := (congrArg Prod.snd eg).symm
+            subst eg1; subst eg2
+            obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihf memo memo2 k d f2 hK hk hm hf2
+            obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := iha memo2 memo1 k d a2 hK hk hm2 ha2
+            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨oldv, memo4⟩ := p3
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1' : r = r0 := (congrArg Prod.fst e0).symm
+            have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
+            subst e1'; subst e2'
+            have hans : MemoLQ (absExprs vs) k.val
+                (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.App f a)), d⟩) r := by
+              refine ⟨Expr.app_wf hwf2 hwf3 happ, ?_⟩
+              rw [Expr.app_refines happ, habs2, habs3]
+              simp only [absKey_mk, absExpr_mk, absExprKind]
+              rw [ConLeche.Expr.instantiateList]
+            refine ⟨hans, ?_⟩
+            rw [Expr.dup_eq hdup] at hins
+            exact MemoInv.set key_exact hm3 (keyWF_mk hwfe) hans hins
+    | @lam ty bo m e hty hbo hm0 h1 ihty ihbo =>
+      have hwfe : ExprWF e := ExprWF.lam hty hbo hm0 h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_list_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+          have hkk := expr_nat_key_eq hkey
+          subst hkk
+          cases o with
+          | some w =>
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1 : r = w := (congrArg Prod.fst e0).symm
+            have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+            subst e1; subst e2
+            exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey)
+              (Q := MemoLQ (absExprs vs) k.val) key_exact hm (keyWF_mk hwfe)
+              (memo1_get_hit ho), hm⟩
+          | none =>
+            obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨memo1, r0⟩ := q
+            obtain ⟨p1, ht, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨t, memo2⟩ := p1
+            obtain ⟨dd, hdd, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨p2, hb, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨b, memo3⟩ := p2
+            obtain ⟨bm, hbm, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨r1, hlam, hgo⟩ := bind_eq_ok_iff.mp hgo
+            have eg := Result.ok_injective
+              (α := ron.hashmap.HashMap expr_ops.ExprNatKey _ × _) hgo
+            have eg1 : memo1 = memo3 := (congrArg Prod.fst eg).symm
+            have eg2 : r0 = r1 := (congrArg Prod.snd eg).symm
+            subst eg1; subst eg2
+            obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k d t hK hk hm ht
+            obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 k dd b hK hk hm2 hb
+            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨oldv, memo4⟩ := p3
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1' : r = r0 := (congrArg Prod.fst e0).symm
+            have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
+            subst e1'; subst e2'
+            have hans : MemoLQ (absExprs vs) k.val
+                (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1
+                  (expr.ExprKind.Lam ty bo m)), d⟩) r := by
+              refine ⟨Expr.lam_wf hwf2 hwf3 (Expr.binder_meta_dup_eq hbm ▸ hm0) hlam, ?_⟩
+              rw [Expr.lam_refines hlam, habs2, habs3, Expr.binder_meta_dup_eq hbm,
+                HashMap.uscalar_add_eq hdd, Expr.val_one]
+              simp only [absKey_mk, absExpr_mk, absExprKind]
+              rw [ConLeche.Expr.instantiateList]
+            refine ⟨hans, ?_⟩
+            rw [Expr.dup_eq hdup] at hins
+            exact MemoInv.set key_exact hm3 (keyWF_mk hwfe) hans hins
+    | @forall_e ty bo m e hty hbo hm0 h1 ihty ihbo =>
+      have hwfe : ExprWF e := ExprWF.forall_e hty hbo hm0 h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_list_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+          have hkk := expr_nat_key_eq hkey
+          subst hkk
+          cases o with
+          | some w =>
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1 : r = w := (congrArg Prod.fst e0).symm
+            have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+            subst e1; subst e2
+            exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey)
+              (Q := MemoLQ (absExprs vs) k.val) key_exact hm (keyWF_mk hwfe)
+              (memo1_get_hit ho), hm⟩
+          | none =>
+            obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨memo1, r0⟩ := q
+            obtain ⟨p1, ht, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨t, memo2⟩ := p1
+            obtain ⟨dd, hdd, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨p2, hb, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨b, memo3⟩ := p2
+            obtain ⟨bm, hbm, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨r1, hfa, hgo⟩ := bind_eq_ok_iff.mp hgo
+            have eg := Result.ok_injective
+              (α := ron.hashmap.HashMap expr_ops.ExprNatKey _ × _) hgo
+            have eg1 : memo1 = memo3 := (congrArg Prod.fst eg).symm
+            have eg2 : r0 = r1 := (congrArg Prod.snd eg).symm
+            subst eg1; subst eg2
+            obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k d t hK hk hm ht
+            obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 k dd b hK hk hm2 hb
+            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨oldv, memo4⟩ := p3
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1' : r = r0 := (congrArg Prod.fst e0).symm
+            have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
+            subst e1'; subst e2'
+            have hans : MemoLQ (absExprs vs) k.val
+                (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1
+                  (expr.ExprKind.ForallE ty bo m)), d⟩) r := by
+              refine ⟨Expr.forall_e_wf hwf2 hwf3 (Expr.binder_meta_dup_eq hbm ▸ hm0) hfa, ?_⟩
+              rw [Expr.forall_e_refines hfa, habs2, habs3, Expr.binder_meta_dup_eq hbm,
+                HashMap.uscalar_add_eq hdd, Expr.val_one]
+              simp only [absKey_mk, absExpr_mk, absExprKind]
+              rw [ConLeche.Expr.instantiateList]
+            refine ⟨hans, ?_⟩
+            rw [Expr.dup_eq hdup] at hins
+            exact MemoInv.set key_exact hm3 (keyWF_mk hwfe) hans hins
+    | @let_e ty vv bo e hty hvv hbo h1 ihty ihvv ihbo =>
+      have hwfe : ExprWF e := ExprWF.let_e hty hvv hbo h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_list_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+          have hkk := expr_nat_key_eq hkey
+          subst hkk
+          cases o with
+          | some w =>
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1 : r = w := (congrArg Prod.fst e0).symm
+            have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+            subst e1; subst e2
+            exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey)
+              (Q := MemoLQ (absExprs vs) k.val) key_exact hm (keyWF_mk hwfe)
+              (memo1_get_hit ho), hm⟩
+          | none =>
+            obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨memo1, r0⟩ := q
+            obtain ⟨p1, ht, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨t, memo2⟩ := p1
+            obtain ⟨p2, hw2, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨w2, memo3⟩ := p2
+            obtain ⟨dd, hdd, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨p4, hb, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨b, memo5⟩ := p4
+            obtain ⟨r1, hlet, hgo⟩ := bind_eq_ok_iff.mp hgo
+            have eg := Result.ok_injective
+              (α := ron.hashmap.HashMap expr_ops.ExprNatKey _ × _) hgo
+            have eg1 : memo1 = memo5 := (congrArg Prod.fst eg).symm
+            have eg2 : r0 = r1 := (congrArg Prod.snd eg).symm
+            subst eg1; subst eg2
+            obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k d t hK hk hm ht
+            obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihvv memo2 memo3 k d w2 hK hk hm2 hw2
+            obtain ⟨⟨hwf4, habs4⟩, hm4⟩ := ihbo memo3 memo1 k dd b hK hk hm3 hb
+            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨oldv, memo6⟩ := p3
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1' : r = r0 := (congrArg Prod.fst e0).symm
+            have e2' : memo' = memo6 := (congrArg Prod.snd e0).symm
+            subst e1'; subst e2'
+            have hans : MemoLQ (absExprs vs) k.val
+                (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1
+                  (expr.ExprKind.LetE ty vv bo)), d⟩) r := by
+              refine ⟨Expr.let_e_wf hwf2 hwf3 hwf4 hlet, ?_⟩
+              rw [Expr.let_e_refines hlet, habs2, habs3, habs4,
+                HashMap.uscalar_add_eq hdd, Expr.val_one]
+              simp only [absKey_mk, absExpr_mk, absExprKind]
+              rw [ConLeche.Expr.instantiateList]
+            refine ⟨hans, ?_⟩
+            rw [Expr.dup_eq hdup] at hins
+            exact MemoInv.set key_exact hm4 (keyWF_mk hwfe) hans hins
+    | @proj s i x e hs hx h1 ih =>
+      have hwfe : ExprWF e := ExprWF.proj hs hx h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_list_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+          have hkk := expr_nat_key_eq hkey
+          subst hkk
+          cases o with
+          | some w =>
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1 : r = w := (congrArg Prod.fst e0).symm
+            have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+            subst e1; subst e2
+            exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey)
+              (Q := MemoLQ (absExprs vs) k.val) key_exact hm (keyWF_mk hwfe)
+              (memo1_get_hit ho), hm⟩
+          | none =>
+            obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨memo1, r0⟩ := q
+            obtain ⟨p1, hu, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨u, memo2⟩ := p1
+            obtain ⟨n2, hn2, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨r1, hproj, hgo⟩ := bind_eq_ok_iff.mp hgo
+            have eg := Result.ok_injective
+              (α := ron.hashmap.HashMap expr_ops.ExprNatKey _ × _) hgo
+            have eg1 : memo1 = memo2 := (congrArg Prod.fst eg).symm
+            have eg2 : r0 = r1 := (congrArg Prod.snd eg).symm
+            subst eg1; subst eg2
+            obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ih memo memo1 k d u hK hk hm hu
+            have hsn : s = n2 :=
+              (Result.ok_injective (hn2.symm.trans (name_dup_eq s))).symm
+            subst hsn
+            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨oldv, memo4⟩ := p3
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1' : r = r0 := (congrArg Prod.fst e0).symm
+            have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
+            subst e1'; subst e2'
+            have hans : MemoLQ (absExprs vs) k.val
+                (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1
+                  (expr.ExprKind.Proj s i x)), d⟩) r := by
+              refine ⟨Expr.proj_wf hs hwf2 hproj, ?_⟩
+              rw [Expr.proj_refines hproj, habs2]
+              simp only [absKey_mk, absExpr_mk, absExprKind]
+              rw [ConLeche.Expr.instantiateList]
+            refine ⟨hans, ?_⟩
+            rw [Expr.dup_eq hdup] at hins
+            exact MemoInv.set key_exact hm2 (keyWF_mk hwfe) hans hins
+
+/-! ### The three public statements of the forward walk -/
 
 /-- **`expr_ops_c::instantiate_list_go` refines `Expr.instantiateList`** at the
 live prefix (con-leche's `instantiateListGo`, `ExprOpsC.lean:279-360`). -/
@@ -1371,7 +1939,8 @@ theorem instantiate_list_go_refines {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsW
           absExpr r
             = ConLeche.Expr.instantiateList (absExpr e) ((absExprs vs).take k.val) d.val) ∧
         MemoInv KeyWF absKey (MemoLQ (absExprs vs) k.val) memo' := by
-  sorry
+  intro memo memo' k d r hk hm h
+  exact instantiate_list_go_aux hvs k.val e he memo memo' k d r rfl hk hm h
 
 /-- **`expr_ops_c::instantiate_list_bvar` refines `Expr.instantiateList`** at a
 `.bvar` the live prefix reaches: the replacement, guarded, re-entered under a
@@ -1383,7 +1952,14 @@ theorem instantiate_list_bvar_refines {vs : alloc.vec.Vec expr.Expr} (hvs : Expr
     absExpr r
         = ConLeche.Expr.instantiateList (absExpr w) ((absExprs vs).take j.val) d.val ∧
       ExprWF r := by
-  sorry
+  have hjlt : j.val < vs.val.length := by
+    by_contra hc
+    rw [List.getElem?_eq_none (by omega)] at hj; simp at hj
+  have hwv : w = vs.val[j.val] := by
+    rw [List.getElem?_eq_getElem hjlt] at hj
+    exact (Option.some.inj hj).symm
+  exact instantiate_list_bvar_aux (instantiate_list_go_aux hvs j.val) he hj
+    (by rw [hwv]; exact hvs _ (List.getElem_mem hjlt)) h
 
 /-- **`expr_ops_c::instantiate_list` refines `ExprC.instantiateList`**
 (`ExprOpsC.lean:362-368`): the empty-list shortcut, then one memoised DAG pass
@@ -1394,7 +1970,571 @@ theorem instantiate_list_refines {e r : expr.Expr} {vs : alloc.vec.Vec expr.Expr
     absExpr r
         = ConLeche.Cached.ExprC.instantiateList (absExpr e) (absExprs vs) d.val ∧
       ExprWF r := by
-  sorry
+  rw [ConLeche.Cached.ExprC.instantiateList_spec]
+  have hlenv := alloc.vec.Vec.len_val vs
+  rw [cached.expr_ops_c.instantiate_list] at h
+  dsimp only at h
+  split at h
+  · rename_i hz
+    have hz' : vs.val.length = 0 := by scalar_tac
+    have hnil : absExprs vs = [] := by
+      have hl : (absExprs vs).length = 0 := by
+        rw [absExprs, List.length_map]; exact hz'
+      simpa using hl
+    rw [Expr.dup_eq h, hnil, ConLeche.Expr.instantiateList_nil]
+    exact ⟨rfl, he⟩
+  · obtain ⟨memo, hnew, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨p, hgo, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r0, memo'⟩ := p
+    have hr : r0 = r := Result.ok_injective h
+    subst hr
+    have hi2v : i2.val = vs.val.length := by
+      rw [← Result.ok_injective hi2, usize_cast_u64_val, hlenv]
+    have hall : (absExprs vs).take i2.val = absExprs vs := by
+      rw [hi2v, absExprs]; simp
+    obtain ⟨⟨hwf, habs⟩, -⟩ :=
+      instantiate_list_go_aux hvs i2.val e he memo memo' i2 d r0 rfl (by omega)
+        (new_memo_inv hnew) hgo
+    exact ⟨by rw [habs, hall], hwf⟩
+
+/-- The statement of `instantiate_list_go` at one fixed live prefix `K`: the
+proposition the strong induction on the prefix runs over. -/
+def GoRP (vs : alloc.vec.Vec expr.Expr) (K : Nat) : Prop :=
+  ∀ (e : expr.Expr), ExprWF e →
+    ∀ (memo memo' : ron.hashmap.HashMap expr_ops.ExprNatKey expr.Expr)
+      (k d : Std.U64) (r : expr.Expr),
+      k.val = K → k.val ≤ vs.val.length →
+      MemoInv KeyWF absKey (MemoLQ (absExprs vs).reverse k.val) memo →
+      cached.expr_ops_c.instantiate_rev_go vs memo e k d = ok (r, memo') →
+      (ExprWF r ∧
+          absExpr r
+            = ConLeche.Expr.instantiateList (absExpr e) ((absExprs vs).reverse.take k.val) d.val) ∧
+        MemoInv KeyWF absKey (MemoLQ (absExprs vs).reverse k.val) memo'
+
+/-- `instantiate_rev_bvar` from the walk's lemma at the shorter prefix `j`: the
+replacement is read from the *end* of the array. -/
+theorem instantiate_rev_bvar_aux {vs : alloc.vec.Vec expr.Expr} {j : Std.U64}
+    (hgo : GoRP vs j.val) {e r w : expr.Expr} {d : Std.U64} (he : ExprWF e)
+    (hjlt : j.val < vs.val.length)
+    (hj : vs.val[vs.val.length - 1 - j.val]? = some w) (hwfw : ExprWF w)
+    (h : cached.expr_ops_c.instantiate_rev_bvar vs e j d = ok r) :
+    absExpr r
+        = ConLeche.Expr.instantiateList (absExpr w)
+            ((absExprs vs).reverse.take j.val) d.val ∧
+      ExprWF r := by
+  have hlenv := alloc.vec.Vec.len_val vs
+  rw [cached.expr_ops_c.instantiate_rev_bvar] at h
+  obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+  dsimp only at h
+  have hiv : i.val = j.val := by
+    rw [← Result.ok_injective hi,
+      u64_cast_usize_val_of_lt (n := vs.val.length) (alloc.vec.Vec.property vs) hjlt]
+  split at h
+  · obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+    have hi3v : i3.val = vs.val.length - 1 := by
+      rw [HashMap.uscalar_sub_eq hi3, hlenv]; scalar_tac
+    obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+    have hi4v : i4.val = j.val := by
+      rw [← Result.ok_injective hi4,
+        u64_cast_usize_val_of_lt (n := vs.val.length) (alloc.vec.Vec.property vs) hjlt]
+    obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
+    have hi5v : i5.val = vs.val.length - 1 - j.val := by
+      rw [HashMap.uscalar_sub_eq hi5, hi3v, hi4v]
+    obtain ⟨w0, hidx, h⟩ := bind_eq_ok_iff.mp h
+    have hw0 : w = w0 := by
+      have hg := vec_index_getElem? hidx
+      rw [hi5v, hj] at hg
+      exact Option.some.inj hg
+    subst hw0
+    split at h
+    · rename_i hz
+      have hz' : j.val = 0 := by rw [hz]; scalar_tac
+      rw [Expr.dup_eq h, hz']
+      simp only [List.take_zero]
+      exact ⟨(ConLeche.Expr.instantiateList_nil _ _).symm, hwfw⟩
+    · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+      split at h
+      · rename_i hle
+        rw [Expr.dup_eq h]
+        exact ⟨(instL_cutoff_self hwfw hbb (by scalar_tac)).symm, hwfw⟩
+      · obtain ⟨fresh, hnew, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨p, hgo2, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨r0, fresh'⟩ := p
+        have hr : r0 = r := Result.ok_injective h
+        subst hr
+        obtain ⟨⟨hwf, habs⟩, -⟩ :=
+          hgo w hwfw fresh fresh' j d r0 rfl (by omega) (new_memo_inv hnew) hgo2
+        exact ⟨habs, hwf⟩
+  · rename_i hlt
+    exact absurd (show i < alloc.vec.Vec.len vs by scalar_tac) hlt
+
+/-- `instantiate_list_go_aux`'s twin on the reversed array. -/
+theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs) :
+    ∀ K, GoRP vs K := by
+  intro K
+  induction K using Nat.strong_induction_on with
+  | _ K ihK =>
+    intro e he
+    induction he with
+    | @bvar i e h1 =>
+      have hwfe : ExprWF e := ExprWF.bvar h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_rev_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]
+        simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · have hlen : ((absExprs vs).reverse.take k.val).length = k.val := by
+            rw [List.length_take, List.length_reverse, absExprs, List.length_map]; omega
+          simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          split at h
+          · rename_i hid
+            have hid' : i.val < d.val := by scalar_tac
+            refine instL_dup_ret hwfe hm ?_ h
+            simp only [absExpr_mk, absExprKind]
+            rw [ConLeche.Expr.instantiateList, if_pos hid']
+          · rename_i hid
+            have hid' : d.val ≤ i.val := by scalar_tac
+            obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+            have hi2v : i2.val = i.val - d.val := HashMap.uscalar_sub_eq hi2
+            split at h
+            · rename_i hik
+              have hik' : i2.val < k.val := by scalar_tac
+              obtain ⟨r0, hbv, h⟩ := bind_eq_ok_iff.mp h
+              have e0 := Result.ok_injective (α := expr.Expr × _) h
+              have e1 : r = r0 := (congrArg Prod.fst e0).symm
+              have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+              subst e1; subst e2
+              have hlt2 : vs.val.length - 1 - (i.val - d.val) < vs.val.length := by omega
+              have hget : vs.val[vs.val.length - 1 - i2.val]?
+                  = some vs.val[vs.val.length - 1 - (i.val - d.val)] := by
+                rw [hi2v]; exact List.getElem?_eq_getElem hlt2
+              obtain ⟨habs, hwf⟩ :=
+                instantiate_rev_bvar_aux (ihK i2.val (by omega)) hwfe (by omega) hget
+                  (hvs _ (List.getElem_mem hlt2)) hbv
+              refine ⟨⟨hwf, ?_⟩, hm⟩
+              rw [habs]
+              have hidx : i.val - d.val < ((absExprs vs).reverse.take k.val).length := by
+                rw [hlen]; omega
+              have hgetl : ((absExprs vs).reverse.take k.val)[i.val - d.val]'hidx
+                  = absExpr vs.val[vs.val.length - 1 - (i.val - d.val)] := by
+                rw [List.getElem_take, List.getElem_reverse]
+                simp [absExprs]
+              have htk : ((absExprs vs).reverse.take k.val).take (i.val - d.val)
+                  = (absExprs vs).reverse.take i2.val := by
+                rw [List.take_take, hi2v]
+                congr 1
+                omega
+              simp only [absExpr_mk, absExprKind]
+              rw [ConLeche.Expr.instantiateList, if_neg (by omega), dif_pos hidx,
+                hgetl, htk]
+            · rename_i hik
+              have hik' : ¬ (i2.val < k.val) := by scalar_tac
+              obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+              have hi3v : i3.val = i.val - k.val := HashMap.uscalar_sub_eq hi3
+              obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+              have e0 := Result.ok_injective (α := expr.Expr × _) h
+              have e1 : r = c := (congrArg Prod.fst e0).symm
+              have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+              subst e1; subst e2
+              refine ⟨⟨Expr.mk_bvar_wf hc, ?_⟩, hm⟩
+              rw [Expr.mk_bvar_refines hc, ConLeche.Expr.mkBvar_eq, hi3v]
+              simp only [absExpr_mk, absExprKind]
+              rw [ConLeche.Expr.instantiateList, if_neg (by omega),
+                dif_neg (by rw [hlen]; omega), hlen]
+    | @fvar idx ty e hty h1 ih =>
+      have hwfe : ExprWF e := ExprWF.fvar hty h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_rev_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          refine instL_dup_ret hwfe hm ?_ h
+          simp only [absExpr_mk, absExprKind]
+          rw [ConLeche.Expr.instantiateList]
+    | @sort u e hu h1 =>
+      have hwfe : ExprWF e := ExprWF.sort hu h1
+      obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_rev_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          refine instL_dup_ret hwfe hm ?_ h
+          simp only [absExpr_mk, absExprKind]
+          rw [ConLeche.Expr.instantiateList]
+    | @mk_const n us e hn hus h1 =>
+      have hwfe : ExprWF e := ExprWF.mk_const hn hus h1
+      obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_rev_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          refine instL_dup_ret hwfe hm ?_ h
+          simp only [absExpr_mk, absExprKind]
+          rw [ConLeche.Expr.instantiateList]
+    | @lit l e hl h1 =>
+      have hwfe : ExprWF e := ExprWF.lit hl h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_rev_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          refine instL_dup_ret hwfe hm ?_ h
+          simp only [absExpr_mk, absExprKind]
+          rw [ConLeche.Expr.instantiateList]
+    | @app f a e hf ha h1 ihf iha =>
+      have hwfe : ExprWF e := ExprWF.app hf ha h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_rev_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+          have hkk := expr_nat_key_eq hkey
+          subst hkk
+          cases o with
+          | some w =>
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1 : r = w := (congrArg Prod.fst e0).symm
+            have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+            subst e1; subst e2
+            exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey)
+              (Q := MemoLQ (absExprs vs).reverse k.val) key_exact hm (keyWF_mk hwfe)
+              (memo1_get_hit ho), hm⟩
+          | none =>
+            obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨memo1, r0⟩ := q
+            obtain ⟨p1, hf2, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨f2, memo2⟩ := p1
+            obtain ⟨p2, ha2, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨a2, memo3⟩ := p2
+            obtain ⟨r1, happ, hgo⟩ := bind_eq_ok_iff.mp hgo
+            have eg := Result.ok_injective
+              (α := ron.hashmap.HashMap expr_ops.ExprNatKey _ × _) hgo
+            have eg1 : memo1 = memo3 := (congrArg Prod.fst eg).symm
+            have eg2 : r0 = r1 := (congrArg Prod.snd eg).symm
+            subst eg1; subst eg2
+            obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihf memo memo2 k d f2 hK hk hm hf2
+            obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := iha memo2 memo1 k d a2 hK hk hm2 ha2
+            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨oldv, memo4⟩ := p3
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1' : r = r0 := (congrArg Prod.fst e0).symm
+            have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
+            subst e1'; subst e2'
+            have hans : MemoLQ (absExprs vs).reverse k.val
+                (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.App f a)), d⟩) r := by
+              refine ⟨Expr.app_wf hwf2 hwf3 happ, ?_⟩
+              rw [Expr.app_refines happ, habs2, habs3]
+              simp only [absKey_mk, absExpr_mk, absExprKind]
+              rw [ConLeche.Expr.instantiateList]
+            refine ⟨hans, ?_⟩
+            rw [Expr.dup_eq hdup] at hins
+            exact MemoInv.set key_exact hm3 (keyWF_mk hwfe) hans hins
+    | @lam ty bo m e hty hbo hm0 h1 ihty ihbo =>
+      have hwfe : ExprWF e := ExprWF.lam hty hbo hm0 h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_rev_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+          have hkk := expr_nat_key_eq hkey
+          subst hkk
+          cases o with
+          | some w =>
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1 : r = w := (congrArg Prod.fst e0).symm
+            have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+            subst e1; subst e2
+            exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey)
+              (Q := MemoLQ (absExprs vs).reverse k.val) key_exact hm (keyWF_mk hwfe)
+              (memo1_get_hit ho), hm⟩
+          | none =>
+            obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨memo1, r0⟩ := q
+            obtain ⟨p1, ht, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨t, memo2⟩ := p1
+            obtain ⟨dd, hdd, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨p2, hb, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨b, memo3⟩ := p2
+            obtain ⟨bm, hbm, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨r1, hlam, hgo⟩ := bind_eq_ok_iff.mp hgo
+            have eg := Result.ok_injective
+              (α := ron.hashmap.HashMap expr_ops.ExprNatKey _ × _) hgo
+            have eg1 : memo1 = memo3 := (congrArg Prod.fst eg).symm
+            have eg2 : r0 = r1 := (congrArg Prod.snd eg).symm
+            subst eg1; subst eg2
+            obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k d t hK hk hm ht
+            obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 k dd b hK hk hm2 hb
+            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨oldv, memo4⟩ := p3
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1' : r = r0 := (congrArg Prod.fst e0).symm
+            have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
+            subst e1'; subst e2'
+            have hans : MemoLQ (absExprs vs).reverse k.val
+                (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1
+                  (expr.ExprKind.Lam ty bo m)), d⟩) r := by
+              refine ⟨Expr.lam_wf hwf2 hwf3 (Expr.binder_meta_dup_eq hbm ▸ hm0) hlam, ?_⟩
+              rw [Expr.lam_refines hlam, habs2, habs3, Expr.binder_meta_dup_eq hbm,
+                HashMap.uscalar_add_eq hdd, Expr.val_one]
+              simp only [absKey_mk, absExpr_mk, absExprKind]
+              rw [ConLeche.Expr.instantiateList]
+            refine ⟨hans, ?_⟩
+            rw [Expr.dup_eq hdup] at hins
+            exact MemoInv.set key_exact hm3 (keyWF_mk hwfe) hans hins
+    | @forall_e ty bo m e hty hbo hm0 h1 ihty ihbo =>
+      have hwfe : ExprWF e := ExprWF.forall_e hty hbo hm0 h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_rev_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+          have hkk := expr_nat_key_eq hkey
+          subst hkk
+          cases o with
+          | some w =>
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1 : r = w := (congrArg Prod.fst e0).symm
+            have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+            subst e1; subst e2
+            exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey)
+              (Q := MemoLQ (absExprs vs).reverse k.val) key_exact hm (keyWF_mk hwfe)
+              (memo1_get_hit ho), hm⟩
+          | none =>
+            obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨memo1, r0⟩ := q
+            obtain ⟨p1, ht, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨t, memo2⟩ := p1
+            obtain ⟨dd, hdd, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨p2, hb, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨b, memo3⟩ := p2
+            obtain ⟨bm, hbm, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨r1, hfa, hgo⟩ := bind_eq_ok_iff.mp hgo
+            have eg := Result.ok_injective
+              (α := ron.hashmap.HashMap expr_ops.ExprNatKey _ × _) hgo
+            have eg1 : memo1 = memo3 := (congrArg Prod.fst eg).symm
+            have eg2 : r0 = r1 := (congrArg Prod.snd eg).symm
+            subst eg1; subst eg2
+            obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k d t hK hk hm ht
+            obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 k dd b hK hk hm2 hb
+            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨oldv, memo4⟩ := p3
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1' : r = r0 := (congrArg Prod.fst e0).symm
+            have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
+            subst e1'; subst e2'
+            have hans : MemoLQ (absExprs vs).reverse k.val
+                (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1
+                  (expr.ExprKind.ForallE ty bo m)), d⟩) r := by
+              refine ⟨Expr.forall_e_wf hwf2 hwf3 (Expr.binder_meta_dup_eq hbm ▸ hm0) hfa, ?_⟩
+              rw [Expr.forall_e_refines hfa, habs2, habs3, Expr.binder_meta_dup_eq hbm,
+                HashMap.uscalar_add_eq hdd, Expr.val_one]
+              simp only [absKey_mk, absExpr_mk, absExprKind]
+              rw [ConLeche.Expr.instantiateList]
+            refine ⟨hans, ?_⟩
+            rw [Expr.dup_eq hdup] at hins
+            exact MemoInv.set key_exact hm3 (keyWF_mk hwfe) hans hins
+    | @let_e ty vv bo e hty hvv hbo h1 ihty ihvv ihbo =>
+      have hwfe : ExprWF e := ExprWF.let_e hty hvv hbo h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_rev_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+          have hkk := expr_nat_key_eq hkey
+          subst hkk
+          cases o with
+          | some w =>
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1 : r = w := (congrArg Prod.fst e0).symm
+            have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+            subst e1; subst e2
+            exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey)
+              (Q := MemoLQ (absExprs vs).reverse k.val) key_exact hm (keyWF_mk hwfe)
+              (memo1_get_hit ho), hm⟩
+          | none =>
+            obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨memo1, r0⟩ := q
+            obtain ⟨p1, ht, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨t, memo2⟩ := p1
+            obtain ⟨p2, hw2, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨w2, memo3⟩ := p2
+            obtain ⟨dd, hdd, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨p4, hb, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨b, memo5⟩ := p4
+            obtain ⟨r1, hlet, hgo⟩ := bind_eq_ok_iff.mp hgo
+            have eg := Result.ok_injective
+              (α := ron.hashmap.HashMap expr_ops.ExprNatKey _ × _) hgo
+            have eg1 : memo1 = memo5 := (congrArg Prod.fst eg).symm
+            have eg2 : r0 = r1 := (congrArg Prod.snd eg).symm
+            subst eg1; subst eg2
+            obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k d t hK hk hm ht
+            obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihvv memo2 memo3 k d w2 hK hk hm2 hw2
+            obtain ⟨⟨hwf4, habs4⟩, hm4⟩ := ihbo memo3 memo1 k dd b hK hk hm3 hb
+            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨oldv, memo6⟩ := p3
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1' : r = r0 := (congrArg Prod.fst e0).symm
+            have e2' : memo' = memo6 := (congrArg Prod.snd e0).symm
+            subst e1'; subst e2'
+            have hans : MemoLQ (absExprs vs).reverse k.val
+                (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1
+                  (expr.ExprKind.LetE ty vv bo)), d⟩) r := by
+              refine ⟨Expr.let_e_wf hwf2 hwf3 hwf4 hlet, ?_⟩
+              rw [Expr.let_e_refines hlet, habs2, habs3, habs4,
+                HashMap.uscalar_add_eq hdd, Expr.val_one]
+              simp only [absKey_mk, absExpr_mk, absExprKind]
+              rw [ConLeche.Expr.instantiateList]
+            refine ⟨hans, ?_⟩
+            rw [Expr.dup_eq hdup] at hins
+            exact MemoInv.set key_exact hm4 (keyWF_mk hwfe) hans hins
+    | @proj s i x e hs hx h1 ih =>
+      have hwfe : ExprWF e := ExprWF.proj hs hx h1
+      obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
+      intro memo memo' k d r hK hk hm h
+      rw [cached.expr_ops_c.instantiate_rev_go.eq_def] at h
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; scalar_tac
+        refine instL_dup_ret hwfe hm ?_ h
+        rw [hk0v]; simp only [List.take_zero]
+        exact ConLeche.Expr.instantiateList_nil _ _
+      · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
+        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+          have hkk := expr_nat_key_eq hkey
+          subst hkk
+          cases o with
+          | some w =>
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1 : r = w := (congrArg Prod.fst e0).symm
+            have e2 : memo' = memo := (congrArg Prod.snd e0).symm
+            subst e1; subst e2
+            exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey)
+              (Q := MemoLQ (absExprs vs).reverse k.val) key_exact hm (keyWF_mk hwfe)
+              (memo1_get_hit ho), hm⟩
+          | none =>
+            obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨memo1, r0⟩ := q
+            obtain ⟨p1, hu, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨u, memo2⟩ := p1
+            obtain ⟨n2, hn2, hgo⟩ := bind_eq_ok_iff.mp hgo
+            obtain ⟨r1, hproj, hgo⟩ := bind_eq_ok_iff.mp hgo
+            have eg := Result.ok_injective
+              (α := ron.hashmap.HashMap expr_ops.ExprNatKey _ × _) hgo
+            have eg1 : memo1 = memo2 := (congrArg Prod.fst eg).symm
+            have eg2 : r0 = r1 := (congrArg Prod.snd eg).symm
+            subst eg1; subst eg2
+            obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ih memo memo1 k d u hK hk hm hu
+            have hsn : s = n2 :=
+              (Result.ok_injective (hn2.symm.trans (name_dup_eq s))).symm
+            subst hsn
+            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨oldv, memo4⟩ := p3
+            have e0 := Result.ok_injective (α := expr.Expr × _) h
+            have e1' : r = r0 := (congrArg Prod.fst e0).symm
+            have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
+            subst e1'; subst e2'
+            have hans : MemoLQ (absExprs vs).reverse k.val
+                (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1
+                  (expr.ExprKind.Proj s i x)), d⟩) r := by
+              refine ⟨Expr.proj_wf hs hwf2 hproj, ?_⟩
+              rw [Expr.proj_refines hproj, habs2]
+              simp only [absKey_mk, absExpr_mk, absExprKind]
+              rw [ConLeche.Expr.instantiateList]
+            refine ⟨hans, ?_⟩
+            rw [Expr.dup_eq hdup] at hins
+            exact MemoInv.set key_exact hm2 (keyWF_mk hwfe) hans hins
+
+/-! ### The three public statements of the reversed walk -/
 
 /-- **`expr_ops_c::instantiate_rev_go` refines `Expr.instantiateList`** on the
 *reversed* replacement array (con-leche's `instantiateRevGo`,
@@ -1412,19 +2552,29 @@ theorem instantiate_rev_go_refines {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF
             = ConLeche.Expr.instantiateList (absExpr e)
                 (((absExprs vs).reverse).take k.val) d.val) ∧
         MemoInv KeyWF absKey (MemoLQ (absExprs vs).reverse k.val) memo' := by
-  sorry
+  intro memo memo' k d r hk hm h
+  exact instantiate_rev_go_aux hvs k.val e he memo memo' k d r rfl hk hm h
 
 /-- **`expr_ops_c::instantiate_rev_bvar` refines `Expr.instantiateList`** at a
-`.bvar`, reading the replacement from the *end* of the array. -/
+`.bvar`, reading the replacement from the *end* of the array.  `j.val <
+vs.val.length` is a hypothesis and not a consequence of `hj`: `Nat` subtraction
+saturates, so `vs.val[vs.val.length - 1 - j.val]?` says nothing about `j` once
+`j` runs past the end (task #54). -/
 theorem instantiate_rev_bvar_refines {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
     {e r w : expr.Expr} {j d : Std.U64} (he : ExprWF e)
+    (hjlt : j.val < vs.val.length)
     (hj : vs.val[vs.val.length - 1 - j.val]? = some w)
     (h : cached.expr_ops_c.instantiate_rev_bvar vs e j d = ok r) :
     absExpr r
         = ConLeche.Expr.instantiateList (absExpr w)
             (((absExprs vs).reverse).take j.val) d.val ∧
       ExprWF r := by
-  sorry
+  have hilt : vs.val.length - 1 - j.val < vs.val.length := by omega
+  have hwv : w = vs.val[vs.val.length - 1 - j.val] := by
+    rw [List.getElem?_eq_getElem hilt] at hj
+    exact (Option.some.inj hj).symm
+  exact instantiate_rev_bvar_aux (instantiate_rev_go_aux hvs j.val) he hjlt hj
+    (by rw [hwv]; exact hvs _ (List.getElem_mem hilt)) h
 
 /-- **`expr_ops_c::instantiate_rev` refines `ExprC.instantiateRev`**
 (`ExprOpsC.lean:441-445`); `instantiateRev_spec` reads the cited definition as
@@ -1435,6 +2585,36 @@ theorem instantiate_rev_refines {e r : expr.Expr} {vs : alloc.vec.Vec expr.Expr}
     absExpr r
         = ConLeche.Expr.instantiateList (absExpr e) (absExprs vs).reverse d.val ∧
       ExprWF r := by
-  sorry
+  have hlenv := alloc.vec.Vec.len_val vs
+  rw [cached.expr_ops_c.instantiate_rev] at h
+  dsimp only at h
+  split at h
+  · rename_i hz
+    have hz' : vs.val.length = 0 := by scalar_tac
+    have hnil : absExprs vs = [] := by
+      have hl : (absExprs vs).length = 0 := by
+        rw [absExprs, List.length_map]; exact hz'
+      simpa using hl
+    rw [Expr.dup_eq h, hnil]
+    simp only [List.reverse_nil]
+    exact ⟨(ConLeche.Expr.instantiateList_nil _ _).symm, he⟩
+  · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rw [Expr.dup_eq h]
+      exact ⟨(instL_cutoff_self he hbb (by scalar_tac)).symm, he⟩
+    · obtain ⟨memo, hnew, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨p, hgo, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r0, memo'⟩ := p
+      have hr : r0 = r := Result.ok_injective h
+      subst hr
+      have hi3v : i3.val = vs.val.length := by
+        rw [← Result.ok_injective hi3, usize_cast_u64_val, hlenv]
+      have hall : (absExprs vs).reverse.take i3.val = (absExprs vs).reverse := by
+        rw [hi3v, absExprs]; simp
+      obtain ⟨⟨hwf, habs⟩, -⟩ :=
+        instantiate_rev_go_aux hvs i3.val e he memo memo' i3 d r0 rfl (by omega)
+          (new_memo_inv hnew) hgo
+      exact ⟨by rw [habs, hall], hwf⟩
 
 end ConRon.Refine.ExprOpsC

@@ -10915,6 +10915,88 @@ result on success, nothing weakened), and only the discharge is owed.
 `wscoped_b_go_refines` is the one of the four `Bool` walks that *is* proved, on
 purpose: it is the template the other three follow, and having it green is what
 makes the remaining three mechanical rather than exploratory.
+### Task #53 — The knot's skeleton: memo wrappers and the fuel induction (2026-09-13, Opus under Fable)
+
+`CORE_PLAN.md` step 6's third file: `proof/ConRon/Refine/Core/Knot.lean`
+(590 lines, 20 theorems, no `sorry`).  It closes everything about the knot
+that is *not* a body's arm — the memo wrappers and the recursion — so that
+tasks #54 and on can be exactly "prove one arm", against a fixed interface.
+
+#### What is proved
+
+| theorem | statement |
+|---|---|
+| `wrappers_zero mode` | `Wrappers mode 0#u64` |
+| `wrappers_succ` | `fuel'.val = fuel.val + 1 → Bodies mode fuel → Wrappers mode fuel'` |
+| `knot_induction` | `(∀ fuel, Wrappers mode fuel → Bodies mode fuel) → ∀ fuel, KnotSpec mode fuel` |
+
+Plus the pieces they are assembled from, each worth its own name because the
+arm files will want them: four `memoEI`/`memoBI` run lemmas, six
+`knot_succ_*` projections of `coreKnotI`'s successor arm, and six
+`*_probe_refines` lemmas for the Rust probes.
+
+`Refine/Core/Statements.lean` needed **no change**: the twelve statements
+Fable wrote are provable as written, and the `Wrappers`/`Bodies` split (the
+bodies at `fuel`, the wrappers at `fuel + 1`) is exactly what the memo
+argument wants.  Nothing was added to `Refine/State.lean` either — task #46
+had already put every probe and every insert there, value invariant included.
+
+#### Fuel zero is vacuous, and that is the whole point of §3.5's shape
+
+Every wrapper's first test is `fuel == 0`, and its `then` branch returns
+`CheckError::internal("fuel exhausted: …")`.  `RefinesE`/`RefinesB` assume an
+`.Ok` result, so the hypothesis is absurd: `rw [….eq_def] at h; simp at h`,
+six times.  "Exact result on success, nothing on failure" is what makes the
+base case free — a total-correctness statement would have had to *relate* the
+two fuel-exhaustion errors, and con-leche's message (`"fuel exhausted: infer"`
+for both `infer` and `inferIO`) is not the port's.
+
+#### The memo step, per wrapper
+
+The Rust wrapper at `fuel + 1` is `probe → body at fuel → insert`, and
+con-leche's `memoEI` is `probe → body → modify`.  So each arm splits on the
+probe:
+
+* **hit**: `StateRel`'s clause for that map (through `*_probe_refines`, which
+  is task #46's `get_step` composed with the generated probe) turns the Rust
+  `Some r` into con-leche's `[absExpr e]? = some (absExpr r)`, and
+  `memoEI_run_hit` returns it with the state untouched.  `StateWF`'s *value*
+  clause is what supplies `ExprWF r` here — a memo hit must hand its caller a
+  well-formed term, and nothing else in the state can prove that.
+* **miss**: `fuel' - 1#u64 = ok fuel` (`fuel_pred`, from
+  `fuel'.val = fuel.val + 1`), then the body lemma at `fuel` — the Rust's
+  decrement against con-leche's `prev ()`, which is a `Unit` closure and so
+  `coreKnotI fe fuel` by iota, no `Thunk` to unfold (con-leche's task #179) —
+  then the map's insert lemma from `Refine/State.lean`.
+
+`memoEI_run_miss` carries con-leche's **detach-and-insert** verbatim:
+`let mp := get' st; let st := set' st ∅; set' st (mp.insert e r)`, the
+linear-update dance task #14 dropped on the Rust side.  Its `hs` argument is
+`set' (set' lst' ∅) ((get' lst').insert e r) = lst''`, and at each of the five
+concrete maps that is `rfl` — a nested structure update collapses by
+projection-of-constructor, so the net effect really is one `Std.HashMap.insert`
+and the insert lemmas apply unchanged.
+
+`defeq` is the same with `memoBI` and the `(a, b)` key; `absExprPair (a, b)`
+is `(absExpr a, absExpr b)` by `rfl`, so the pair key needs no bridging.
+
+`inferIO` is the one arm with a case split, and it mirrors the Lean's:
+`env::io_gate(mode)` (`Env.io_gate_refines`) against `mode.ioGate`, at the
+gate the io body under `inferIOC` tied to the previous level's `ioView`
+(`Bodies.inferIO`), off the gate the full inference body under `inferC`
+(`Bodies.infer`).  The second arm is dead at both modes — `ioGate` is
+constantly `true` — and is proved anyway, as it is ported anyway.
+
+#### The recursion
+
+`knot_induction` is `Nat.rec` on `fuel.val`, the shape task #5 used for
+`leq_core`/`rest`/`by_cases`.  The successor step needs a `Std.U64` whose
+value is `n`, which `Std.UScalar.ofNatCore n` supplies with `n < 2^64` from
+`fuel.bv.isLt` — no `U64.max` side condition survives into the statement,
+because `fuel.val = n + 1` already bounds `n`.  The bodies at any fuel are the
+arms applied to the wrappers at the *same* fuel: a body's recursive calls go
+through wrappers, and the decrement lives in the wrapper, so there is exactly
+one induction and it is on the wrapper side.
 
 #### Gates
 
@@ -11223,3 +11305,150 @@ Aeneas, nothing from `pins_text`.  The three representative ones:
 * `scripts/gates.sh`: all 7 OK.  The progress line afterwards reads
   `verified 5866 (42%)` of the 13 743 verified-core Lean lines, and
   `proofs 43999 (586 _refines)`.
+| `#print axioms` | `wrappers_succ`, `knot_induction`: `[propext, Classical.choice, Quot.sound]`, pinned with `#guard_msgs` |
+
+#### What is left
+
+`Wrappers mode fuel → Bodies mode fuel` — the six arms, one file per body
+under `Refine/Core/Arms/`.  Each may now assume the six wrapper lemmas at its
+own fuel and has to prove one `Bodies` field; `knot_induction` closes the loop
+the moment the last one lands.
+### Task #54 — `ExprOpsC`: the bulk-substitution and gray-set clusters (2026-09-13, Opus under Fable)
+
+Task #51 left **21 `sorry`s** in the `ExprOpsC` tier (`Refine/CORE_PLAN.md` step
+3's second half), in the three clusters its entry named.  This task closes all
+21: `proof/ConRon/Refine/ExprOpsC{,Subst,Abs,Guards}.lean` are now
+**`sorry`-free**, and the only `sorry`s left anywhere under `proof/` are task
+#43's three in `Refine/Pins.lean`.
+
+| cluster | file | before | after |
+|---|---|---|---|
+| `instantiate_list_{go,bvar,·}`, `instantiate_rev_{go,bvar,·}` | `ExprOpsCSubst.lean` | 6 | 0 |
+| `proj_entry_type_at_i` | `ExprOpsCAbs.lean` | 1 | 0 |
+| `fvarLeaves`; `leavesSub`/`leafGuard`; `alpd`; `instSpine`/`piResidual` | `ExprOpsCGuards.lean` | 14 | 0 |
+| **total** | | **21** | **0** |
+
+The four files grow from 4 486 to 7 914 lines (+3 428, 3 477 insertions against
+49 deletions — the deletions are the `sorry`s and the four "what is owed"
+paragraphs, rewritten into "how it went").  Every statement is task #51's,
+unchanged, with the one exception in §1.
+
+#### 1. The bulk substitutions: the live prefix as an *outer* induction
+
+`instantiateListGo`'s `.bvar` arm re-enters at the replacement `vs[i - d]` with
+the **shorter** prefix `i - d` and under a **fresh** memo table — which is what
+keeps the prefix out of the key (`MemoNL`, the module's note 3).  So the walk is
+not structural in the `ExprWF` derivation alone, and neither is con-leche's
+`instantiateListGo_spec` (`Verify/Cached/OpsC.lean:419`), whose induction is
+strong on `k` *outside* a structural one on the node.
+
+The port's version of that is one extra layer of packaging, and it is the whole
+trick: `GoLP vs K` is *the walk's entire statement at one fixed live prefix `K`*
+(a `def … : Prop`), and `instantiate_list_go_aux` proves `∀ K, GoLP vs K` by
+`Nat.strong_induction_on` with the ten-arm `ExprWF` induction inside it.  The
+`.bvar` arm then hands `ihK (i - d)` to `instantiate_list_bvar_aux`, whose only
+use of it is the re-entry under the fresh table (`new_memo_inv`).  Everything
+else is `instantiate1_go_refines`' script with `MemoLQ` in place of `Inst1Q`.
+
+Two economies worth reusing: the `k = 0` shortcut, the `bvarB ≤ d` cutoff and
+the four atom arms are all literally the same generated `dup e` return, so one
+lemma (`instL_dup_ret`, parameterised by the `Q` and by the substitution list)
+discharges six branches per walk; and `instantiate_rev_*` is the forward text
+with `(absExprs vs).reverse` substituted through and `List.getElem_reverse` in
+the single place the replacement is read — it was produced by a scripted
+rewrite of the forward block plus three local edits.
+
+**The one statement that changed.**  `instantiate_rev_bvar_refines` now also
+takes `hjlt : j.val < vs.val.length`.  It has to: `Nat` subtraction saturates, so
+task #51's `hj : vs.val[vs.val.length - 1 - j.val]? = some w` does *not* bound
+`j`, and for `j ≥ vs.len` the statement is **false** — the port takes its `else`
+branch and returns the node itself, while the conclusion still speaks about
+`vs[0]`.  The forward twin needs nothing added, because `vs.val[j.val]? = some w`
+bounds `j` by itself; that asymmetry is easy to miss when a lemma pair is
+written by copying.  Both call sites have the bound (the `.bvar` arm reaches the
+callee under `i - d < k ≤ vs.len`), so nothing downstream is weakened.
+
+#### 2. The gray set is `MemoInv` at `V := Unit`
+
+`fvar_leaves_go` marks a node **before** descending into it, so "every recorded
+node's leaves are already in the accumulator" is false of the node being walked
+and of its ancestors.  con-leche relaxes it with a gray predicate (`SeenInv`,
+`Verify/Cached/GuardsC.lean:409`), and task #51 called the port-side analogue
+"the file's one piece of genuinely new design".  It turned out to need **no new
+machinery at all**: it is task #47's `MemoInv` at `V := Unit` with
+
+```lean
+SeenQ G acc = fun a _ => (∀ l ∈ ConLeche.Expr.fvarLeaves a, l ∈ absLeaves acc) ∨ G a
+```
+
+as its `Q`.  `MemoInv.set` *is* `insertGray`, the `seen_get` hit is `MemoInv.hit`,
+and the two directions of the gray set are one-line `MemoInv_monoQ` corollaries
+(`SeenQ_insertGray`, `SeenQ_dropGray`).  The call's precondition "every gray node
+is strictly bigger in `ConLeche.Expr.sizeF`" is what rules out a hit at the node
+itself — `sizeF` and not `sizeOf`, because `fvarLeaves` descends `fvar`
+annotations.  And `MemoInv`'s own clause "every recorded key is well formed" is
+what lets `expr::eq2`'s exactness apply at the pairs `seen_get` compares, the
+same reason task #47 put that clause there.  **`MemoInv` is thus not only
+memo-policy-agnostic (task #51's finding) but carries a gray-set walk unchanged**
+— worth remembering for `Cached/*`'s remaining set walks.
+
+The declared `fvar_leaves_go_refines` is stated at a *fresh* `seen` set (that is
+how its only caller enters it), so it is not itself inductive: the general
+statement is `fvar_leaves_go_aux`, and the declared one is its instance at
+`G := fun _ => False`.  Where the port's list order differs from the cited one
+(it pushes where con-leche conses) the claim is about the *set*, exactly as the
+port's own deviation note says.
+
+#### 3. What the other twelve needed
+
+* `leavesSubGo` and `allLevelParamsDefinedGo` are `wscoped_b_go_refines` node for
+  node, at the node-only key (`expr_key_exact`, `memo_b_get`), with
+  `leaf_mem_refines` / `level::all_params_defined` +
+  `expr_ops::levels_all_params_defined` + `prop_when::params_defined` in the leaf
+  arms, and the short-circuiting callees inverted by the `*_inv` idiom inside the
+  walk's own induction.  Task #51's judgement — keep one of the four `Bool` walks
+  green as the template and the other three become mechanical — held exactly.
+* Two head shortcuts were new: `alpd_cutoff` (`!expr::has_lp`, off con-leche's
+  `allLevelParamsDefined_of_not_hasLevelParam`) and `leaves_sub_cutoff`.
+  `Expr.fvarLeaves` is well founded, so its ten arm equations had to be named
+  (`fvl_*`; con-leche's own are `private`) — the third `private`-is-a-wall
+  instance after task #51's two.
+* `leaf_guard_refines` needed `all_contains_congr`, the set-invariance of
+  `List.all (B.contains ·)`: that is where `fvar_leaves_refines`'
+  membership-only claim meets a cited definition that folds over the list.
+* `instSpine`/`piResidualAcc`/`proj_entry_type_at_i` are consequences of
+  `instantiate_list_refines` plus `rev_append_exprs_val`'s index-loop idiom.
+  `piResidualAcc`'s cited `termination_by (as.length, acc.length)` collapses into
+  the *single* measure `2 * (args.length - i) + (if acc = [] then 0 else 1)`, so
+  one strong induction sufficed where con-leche needs a lexicographic pair.
+
+#### 4. How it was run
+
+The `instantiate_list` cluster was done first (task #51's advice: 10 of the 21
+were waiting behind it) and then the other four clusters in parallel, by three
+sub-agents sharing this worktree, each developing in its own scratch module that
+`import`s `Refine/ExprOpsCGuards` and restates the target lemmas under an `X`
+suffix.  That keeps every iteration a one-file rebuild instead of a rebuild of
+the `ExprOpsC*` chain, and the scratch modules are spliced into the real files
+and deleted at the end.  Worth reusing for the `Refine/Core/Arms/*` fan-out of
+`CORE_PLAN.md` step 6; the one cost is reconciling duplicate helper names at
+splice time (here: two independent re-proofs of
+`fvarLeaves_nil_of_fvarsBelow_zero`).
+
+#### 5. Gates and axiom census
+
+| | |
+|---|---|
+| `scripts/gates.sh` | all 7 OK |
+| `cd proof && lake build` | zero errors; no `sorry` outside `Refine/Pins.lean` |
+
+`#guard_msgs in #print axioms` now pins **five** lemmas of this tier at
+`[propext, Classical.choice, Quot.sound]` and nothing else — task #51's
+`instantiate1_refines`, `abstract1_refines`, `wscoped_b_refines` plus this task's
+`instantiate_list_refines` (the bulk substitution behind every telescope
+instantiation) and `fvar_leaves_refines` (the gray-set walk).  Nothing reaches
+`sorryAx` or `PINS_TEXT`.
+
+The progress line after the green run reads `verified 3270 (23%)` of the 13 743
+verified-core Lean lines — up from task #47's `957 (6%)` — and
+`proofs 34243 (367 _refines)`.

@@ -28,6 +28,7 @@ import ConRon.Refine.ExprOpsCAbs
 import ConRon.Refine.ExprOpsCGuards
 import ConRon.Refine.HashMap
 import ConRon.Refine.Core.Statements
+import ConRon.Refine.Core.Knot
 import ConRon.Refine.HashMapWF
 import ConRon.Refine.Nat
 import ConRon.Refine.Env
