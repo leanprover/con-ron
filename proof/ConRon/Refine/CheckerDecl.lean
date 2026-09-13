@@ -142,6 +142,64 @@ def DeclCWF : parsed_c.DeclC → Prop
   | .BasisDecl _ => True
   | .IndDecl block _ => ConstantInfosWF block
 
+/-! ## The failure half's vocabulary (task #67)
+
+Every `*_refines` below is stated over the port's **whole** inner outcome
+(`Refine/README.md`, "the full-outcome convention"), so each one carries an
+`.Err` arm.  Three of the four moves that close those arms need a little
+vocabulary: the inversions of the three `core_types` error constructors — the
+port's error came out of `core_types::invalid`, so its kind *is* con-leche's
+`.invalid` — and con-leche's `throw` on its **applied** form, because the
+plumbing `simp` set unfolds `StateT.run`/`Except.bind` but carries no
+`MonadExcept` instance.  `Refine/CheckerBase.lean` has the same five as
+`private`; these are this file's copies. -/
+
+/-- `core_types::not_implemented` is the constructor. -/
+private theorem not_implemented_val {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.not_implemented v = ok ce) :
+    ce = .NotImplemented v := by
+  rw [core_types.not_implemented] at h; exact (Result.ok_injective h).symm
+
+/-- `core_types::invalid` is the constructor. -/
+private theorem invalid_val {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.invalid v = ok ce) :
+    ce = .Invalid v := by
+  rw [core_types.invalid] at h; exact (Result.ok_injective h).symm
+
+/-- `core_types::internal` is the constructor. -/
+private theorem internal_val {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.internal v = ok ce) :
+    ce = .Internal v := by
+  rw [core_types.internal] at h; exact (Result.ok_injective h).symm
+
+/-- A mirrored `throw` at `notImplemented`: the port's error came out of
+`core_types::not_implemented`, and the cited side has been rewritten down to
+its own `throw`. -/
+private theorem errSim_notImplemented {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.not_implemented v = ok ce1) (heq : ce1 = ce)
+    (hx : x = .error (.notImplemented ls)) : ErrSim ce x := by
+  rw [← heq, not_implemented_val hce]; exact ErrSim.notImplemented hx
+
+/-- A mirrored `throw` at `invalid`, the same bookkeeping. -/
+private theorem errSim_invalid {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.invalid v = ok ce1) (heq : ce1 = ce)
+    (hx : x = .error (.invalid ls)) : ErrSim ce x := by
+  rw [← heq, invalid_val hce]; exact ErrSim.invalid hx
+
+/-- A mirrored `throw` at `internal`, the same bookkeeping. -/
+private theorem errSim_internal {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.internal v = ok ce1) (heq : ce1 = ce)
+    (hx : x = .error (.internal ls)) : ErrSim ce x := by
+  rw [← heq, internal_val hce]; exact ErrSim.internal hx
+
+/-- con-leche's `throw`, at the executed monad and on its *applied* form. -/
+private theorem throwC_run {β : Type} (le : ConLeche.CheckError)
+    (lst : ConLeche.Cached.CState) :
+    (throw le : ConLeche.Cached.CheckCM β) lst = Except.error le := rfl
+
 /-! ## The `.indDecl` arm, both spellings
 
 The seam with task #57.  The cached one is proved from `IndRoutesSpec`; the
@@ -229,42 +287,77 @@ theorem check_ind_decl_declines {mode : env.CheckMode} {st st' : cached.state_c.
 `install_basis_decl_refines` is one step.  Neither the fold nor a step touches
 the `CState`, which is why the state comes out unchanged. -/
 
-/-- The index fold, with an explicit bound to recurse on.  The
+open ConLeche.Cached in
+/-- `installBasisDeclF`'s duplicate `throw` (`ConLeche/Kernel/DeclCheck.lean:855-859`)
+is the same error in both monads.  `Refine/Checker.lean` states the port's step
+against the **`CheckM`** spelling (`installBasisDecl` has no state), and the fold
+below runs at `CheckCM`; this is the transport between them, the `hxy` of an
+`ErrSim.trans`. -/
+private theorem installBasisDeclF_errC {lfe : ConLeche.FEnv}
+    {ci : ConLeche.ConstantInfo} {lst : CState} {le : ConLeche.CheckError}
+    (h : ConLeche.installBasisDeclF (m := ConLeche.CheckM) lfe ci = .error le) :
+    (ConLeche.installBasisDeclF (m := CheckCM) lfe ci).run lst = .error le := by
+  rw [ConLeche.installBasisDeclF] at h
+  rw [ConLeche.installBasisDeclF]
+  by_cases hf : (lfe.find? ci.name).isNone = true
+  · simp only [hf, if_pos, Pure.pure, Except.pure] at h
+    exact absurd h (by simp)
+  · simp only [Bool.not_eq_true] at hf
+    rw [hf] at h ⊢
+    simp only [Bool.false_eq_true, if_false] at h ⊢
+    have hle : le = ConLeche.CheckError.invalid
+        (toString "duplicate declaration " ++ toString ci.name) :=
+      Except.error.inj
+        (show (Except.error le : Except ConLeche.CheckError ConLeche.FEnv) = _ from h.symm)
+    rw [hle]
+    rfl
+
+/-- The index fold, with an explicit bound to recurse on, over the whole
+outcome.  The port's one `invalid` site in a step is `install_basis_decl`'s
+duplicate check (`kernel/checker.rs:110`), which is the cited
+`installBasisDeclF`'s own `throw`; the fold itself constructs no error.  The
 **unrestricted-canonical pair** rides along (task #59): each step is one
 `fenv::push`, so `FEnv.push_canon` carries it, and the checker tier's
 declaration fold needs it back out (`Refine/IndSpec.lean`'s header). -/
 theorem install_basis_decls_from (n : Nat) :
-    ∀ (fe fe' : fenv.FEnv) (decls : alloc.vec.Vec env.ConstantInfo) (i : Std.Usize),
+    ∀ (fe : fenv.FEnv)
+      (out : core.result.Result fenv.FEnv core_types.CheckError)
+      (decls : alloc.vec.Vec env.ConstantInfo) (i : Std.Usize),
       decls.val.length - i.val ≤ n → FEnvWF fe → FEnv.FEnvCanon fe →
       FEnv.FEnvFull fe → ConstantInfosWF decls →
-      kernel.checker.install_basis_decls fe decls i = ok (.Ok fe') →
+      kernel.checker.install_basis_decls fe decls i = ok out →
       ∀ lfe (lst : ConLeche.Cached.CState), FEnvRel fe lfe →
-        ∃ lfe₂,
-          (((absConstantInfos decls).drop i.val).foldlM
-              (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst
-            = .ok (lfe₂, lst)
-          ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe'
-          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+        match out with
+        | .Ok fe' =>
+          ∃ lfe₂,
+            (((absConstantInfos decls).drop i.val).foldlM
+                (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst
+              = .ok (lfe₂, lst)
+            ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe'
+            ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+        | .Err e =>
+          ErrSim e ((((absConstantInfos decls).drop i.val).foldlM
+              (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst) := by
   induction n with
   | zero =>
-    intro fe fe' decls i hb hfw hcan hfull hd h lfe lst hfr
+    intro fe out decls i hb hfw hcan hfull hd h lfe lst hfr
     rw [kernel.checker.install_basis_decls] at h
     rw [if_pos (show i >= alloc.vec.Vec.len decls by
       have := alloc.vec.Vec.len_val decls; scalar_tac)] at h
-    have hfe : fe = fe' := by simpa using h
-    subst hfe
+    have hout : out = .Ok fe := by simpa using h.symm
+    subst hout
     refine ⟨lfe, ?_, hfr, hfw, hcan, hfull⟩
     rw [List.drop_eq_nil_of_le (by
       simp only [absConstantInfos, List.length_map]; omega)]
     rfl
   | succ n ih =>
-    intro fe fe' decls i hb hfw hcan hfull hd h lfe lst hfr
+    intro fe out decls i hb hfw hcan hfull hd h lfe lst hfr
     rw [kernel.checker.install_basis_decls] at h
     by_cases hge : i.val >= decls.val.length
     · rw [if_pos (show i >= alloc.vec.Vec.len decls by
         have := alloc.vec.Vec.len_val decls; scalar_tac)] at h
-      have hfe : fe = fe' := by simpa using h
-      subst hfe
+      have hout : out = .Ok fe := by simpa using h.symm
+      subst hout
       refine ⟨lfe, ?_, hfr, hfw, hcan, hfull⟩
       rw [List.drop_eq_nil_of_le (by
         simp only [absConstantInfos, List.length_map]; omega)]
@@ -280,8 +373,30 @@ theorem install_basis_decls_from (n : Nat) :
         have := ExprOps.vec_index_getElem? hci
         exact List.mem_of_getElem? this
       have hciwf : ConstantInfoWF ci1 := hd ci1 hmem
+      -- the list step: `drop i` is `absConstantInfo ci1 :: drop (i+1)`, shared
+      -- by both arms
+      have hget : (absConstantInfos decls)[i.val]? = some (absConstantInfo ci1) := by
+        simp only [absConstantInfos, List.getElem?_map, ExprOps.vec_index_getElem? hci]
+        rfl
+      have hlen : i.val < (absConstantInfos decls).length := by
+        simp only [absConstantInfos, List.length_map]; omega
+      have hdrop : (absConstantInfos decls).drop i.val
+          = absConstantInfo ci1 :: (absConstantInfos decls).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlen]
+        congr 1
+        have h1 : (absConstantInfos decls)[i.val]? = some (absConstantInfo ci1) := hget
+        rw [List.getElem?_eq_getElem hlen] at h1
+        exact Option.some_inj.mp h1
       cases r with
-      | Err e => simp at h
+      | Err e =>
+        -- the step threw: `install_basis_decl`'s duplicate check, which is the
+        -- cited `installBasisDeclF`'s own `throw`
+        have hout : out = .Err e := by simpa using h.symm
+        subst hout
+        have herr := Checker.install_basis_decl_refines hfw hciwf hcan hfull hins lfe hfr
+        show ErrSim e _
+        rw [hdrop, List.foldlM_cons]
+        exact ErrSim.bindCM (ErrSim.trans herr (fun _ hle => installBasisDeclF_errC hle))
       | Ok fe2 =>
         obtain ⟨hrel2, hwf2, hnone, hcan2, hfull2⟩ :=
           Checker.install_basis_decl_refines hfw hciwf hcan hfull hins lfe hfr
@@ -290,34 +405,73 @@ theorem install_basis_decls_from (n : Nat) :
           have he := Std.UScalar.add_equiv i 1#usize
           rw [hi2] at he
           simpa using he.2.1
-        obtain ⟨lfe₂, hfold, hrel', hwf', hcan', hfull'⟩ :=
-          ih fe2 fe' decls i2 (by omega) hwf2 hcan2 hfull2 hd h
+        have hrec :=
+          ih fe2 out decls i2 (by omega) hwf2 hcan2 hfull2 hd h
             (lfe.push (absConstantInfo ci1)) lst hrel2
-        refine ⟨lfe₂, ?_, hrel', hwf', hcan', hfull'⟩
-        -- the list step: `drop i` is `absConstantInfo ci1 :: drop (i+1)`
-        have hget : (absConstantInfos decls)[i.val]? = some (absConstantInfo ci1) := by
-          simp only [absConstantInfos, List.getElem?_map, ExprOps.vec_index_getElem? hci]
-          rfl
-        have hlen : i.val < (absConstantInfos decls).length := by
-          simp only [absConstantInfos, List.length_map]; omega
-        have hdrop : (absConstantInfos decls).drop i.val
-            = absConstantInfo ci1 :: (absConstantInfos decls).drop (i.val + 1) := by
-          rw [List.drop_eq_getElem_cons hlen]
-          congr 1
-          have h1 : (absConstantInfos decls)[i.val]? = some (absConstantInfo ci1) := hget
-          rw [List.getElem?_eq_getElem hlen] at h1
-          exact Option.some_inj.mp h1
-        rw [hdrop, List.foldlM_cons]
-        rw [show (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM) lfe
-            (absConstantInfo ci1)) = pure (lfe.push (absConstantInfo ci1)) by
+        rw [hi2v] at hrec
+        have hstep : (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM) lfe
+            (absConstantInfo ci1)) = pure (lfe.push (absConstantInfo ci1)) := by
           rw [ConLeche.installBasisDeclF]
-          simp [hnone]]
-        rw [hi2v] at hfold
-        simpa using hfold
+          simp [hnone]
+        cases out with
+        | Ok fe' =>
+          obtain ⟨lfe₂, hfold, hrel', hwf', hcan', hfull'⟩ := hrec
+          refine ⟨lfe₂, ?_, hrel', hwf', hcan', hfull'⟩
+          rw [hdrop, List.foldlM_cons, hstep]
+          simpa using hfold
+        | Err e =>
+          show ErrSim e _
+          rw [hdrop, List.foldlM_cons, hstep]
+          simpa using hrec
+
+/-- `install_basis_decls_from` at a success, the pre-#67 statement. -/
+theorem install_basis_decls_from_ok (n : Nat) :
+    ∀ (fe fe' : fenv.FEnv) (decls : alloc.vec.Vec env.ConstantInfo) (i : Std.Usize),
+      decls.val.length - i.val ≤ n → FEnvWF fe → FEnv.FEnvCanon fe →
+      FEnv.FEnvFull fe → ConstantInfosWF decls →
+      kernel.checker.install_basis_decls fe decls i = ok (.Ok fe') →
+      ∀ lfe (lst : ConLeche.Cached.CState), FEnvRel fe lfe →
+        ∃ lfe₂,
+          (((absConstantInfos decls).drop i.val).foldlM
+              (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst
+            = .ok (lfe₂, lst)
+          ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' :=
+  fun fe fe' decls i hb hfw hcan hfull hd h =>
+    install_basis_decls_from n fe (.Ok fe') decls i hb hfw hcan hfull hd h
 
 /-- **`checker::install_basis_decls` refines `kind.declsA.foldlM
-installBasisDeclF`**, the whole table: the fold from index 0. -/
-theorem install_basis_decls_refines {fe fe' : fenv.FEnv}
+installBasisDeclF`**, the whole table over the whole outcome: the fold from
+index 0. -/
+theorem install_basis_decls_refines {fe : fenv.FEnv}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
+    {decls : alloc.vec.Vec env.ConstantInfo}
+    (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
+    (hd : ConstantInfosWF decls)
+    (h : kernel.checker.install_basis_decls fe decls 0#usize = ok out) :
+    ∀ lfe (lst : ConLeche.Cached.CState), FEnvRel fe lfe →
+      match out with
+      | .Ok fe' =>
+        ∃ lfe₂,
+          ((absConstantInfos decls).foldlM
+              (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst
+            = Except.ok (lfe₂, lst)
+          ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e (((absConstantInfos decls).foldlM
+            (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst) := by
+  intro lfe lst hfr
+  have hrun :=
+    install_basis_decls_from decls.val.length fe out decls 0#usize (by simp) hfw hcan
+      hfull hd h lfe lst hfr
+  rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at hrun
+  cases out with
+  | Ok fe' => exact hrun
+  | Err e => exact hrun
+
+/-- `install_basis_decls_refines` at a success, the pre-#67 statement. -/
+theorem install_basis_decls_refines_ok {fe fe' : fenv.FEnv}
     {decls : alloc.vec.Vec env.ConstantInfo}
     (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
     (hd : ConstantInfosWF decls)
@@ -328,12 +482,8 @@ theorem install_basis_decls_refines {fe fe' : fenv.FEnv}
             (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst
           = .ok (lfe₂, lst)
         ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
-  intro lfe lst hfr
-  obtain ⟨lfe₂, hfold, rest⟩ :=
-    install_basis_decls_from decls.val.length fe fe' decls 0#usize (by simp) hfw hcan
-      hfull hd h lfe lst hfr
-  exact ⟨lfe₂, by simpa using hfold, rest⟩
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' :=
+  install_basis_decls_refines hfw hcan hfull hd h
 
 /-- **`cached::parsed_c::check_basis_decl_c` refines `checkDeclC`'s
 `.basisDecl` arm** (`ConLeche/Cached/ParsedC.lean:233-237`): the quotient
@@ -343,59 +493,122 @@ that makes it possible: `Refine/BasisTables.lean`'s `absBasisDecls_eq` says
 the generated `basis_decls_a` **is** `BasisKind.declsA`, and
 `Refine/BasisPins.lean`'s `eq_basis_pinned_refines` is the quotient gate
 exactly.  The table's `ConstantInfosWF` is `Refine/BasisPins.lean`'s
-`basis_decls_a_wf`, used here rather than re-derived. -/
-theorem check_basis_decl_c_refines {mode : env.CheckMode} {fe fe' : fenv.FEnv}
+`basis_decls_a_wf`, used here rather than re-derived.
+
+Over the whole outcome (task #67): the port's own `not_implemented` site
+(`kernel/checker.rs:1571`) is the quotient gate, which is the cited arm's own
+`throw`; every other failure is one the install fold passed on. -/
+theorem check_basis_decl_c_refines {mode : env.CheckMode} {fe : fenv.FEnv}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
+    {kind : env.BasisKind} (hfw : FEnvWF fe)
+    (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
+    (h : cached.parsed_c.check_basis_decl_c fe kind = ok out) :
+    ∀ lst lfe, FEnvRel fe lfe →
+      match out with
+      | .Ok fe' =>
+        ∃ lfe',
+          (ConLeche.Cached.checkDeclC (absMode mode) lfe
+              (.basisDecl (absBasisKind kind))).run lst = Except.ok (lfe', lst)
+          ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) lfe
+            (.basisDecl (absBasisKind kind))).run lst) := by
+  intro lst lfe hfr
+  rw [cached.parsed_c.check_basis_decl_c, kernel.checker.check_basis_decl.eq_def] at h
+  rw [ConLeche.Cached.checkDeclC]
+  -- the install, shared by all six arms
+  have install : ∀ (v : alloc.vec.Vec env.ConstantInfo)
+      (o : core.result.Result fenv.FEnv core_types.CheckError),
+      basis_tables.basis_decls_a kind = ok v →
+      kernel.checker.install_basis_decls fe v 0#usize = ok o →
+      match o with
+      | .Ok fe' =>
+        ∃ lfe₂,
+          ((ConLeche.BasisKind.declsA (absBasisKind kind)).foldlM
+              (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst
+            = Except.ok (lfe₂, lst)
+          ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e (((ConLeche.BasisKind.declsA (absBasisKind kind)).foldlM
+            (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst) := by
+    intro v o hv hi
+    have habs : absConstantInfos v = ConLeche.BasisKind.declsA (absBasisKind kind) := by
+      have := ConRon.Refine.absBasisDecls_eq kind
+      rw [ConRon.Refine.absBasisDecls, hv] at this
+      simpa using this
+    have hr :=
+      install_basis_decls_refines hfw hcan hfull (BasisPins.basis_decls_a_wf hv) hi
+        lfe lst hfr
+    rw [habs] at hr
+    cases o with
+    | Ok fe' => exact hr
+    | Err e => exact hr
+  cases kind with
+  | QuotK =>
+    obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+    have hbv := BasisPins.eq_basis_pinned_refines hfr hfw hb
+    cases b with
+    | false =>
+      -- the quotient gate declined: `ParsedC.lean:227-228`'s own `throw`
+      obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+      have hout : out = .Err ce := by simpa using h.symm
+      subst hout
+      have hne : ¬ (lfe.find? ConLeche.eqName = some ConLeche.eqA) := by
+        simpa using hbv.symm
+      show ErrSim ce _
+      refine errSim_notImplemented
+        (ls := "quotient basis requires the pinned Eq basis") hce rfl ?_
+      simp only [absBasisKind]
+      rw [if_pos trivial, if_neg hne]
+      rfl
+    | true =>
+      obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+      have hr := install v out hv h
+      have heq : (lfe.find? ConLeche.eqName = some ConLeche.eqA) := by
+        simpa using hbv.symm
+      cases out with
+      | Ok fe' =>
+        obtain ⟨lfe₂, hfold, rest⟩ := hr
+        refine ⟨lfe₂, ?_, rest⟩
+        simp only [absBasisKind] at hfold ⊢
+        rw [show (lfe.find? ConLeche.eqName = some ConLeche.eqA) from heq]
+        simpa using hfold
+      | Err e =>
+        show ErrSim e _
+        simp only [absBasisKind] at hr ⊢
+        rw [show (lfe.find? ConLeche.eqName = some ConLeche.eqA) from heq]
+        simpa using hr
+  | EqK | NatK | PunitK | EmptyK | FalseK =>
+    all_goals (
+      obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+      have hr := install v out hv h
+      cases out with
+      | Ok fe' =>
+        obtain ⟨lfe₂, hfold, rest⟩ := hr
+        refine ⟨lfe₂, ?_, rest⟩
+        simp only [absBasisKind] at hfold ⊢
+        simpa using hfold
+      | Err e =>
+        show ErrSim e _
+        simp only [absBasisKind] at hr ⊢
+        simpa using hr)
+
+/-- `check_basis_decl_c_refines` at a success, the pre-#67 statement. -/
+theorem check_basis_decl_c_refines_ok {mode : env.CheckMode} {fe fe' : fenv.FEnv}
     {kind : env.BasisKind} (hfw : FEnvWF fe)
     (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
     (h : cached.parsed_c.check_basis_decl_c fe kind = ok (.Ok fe')) :
     ∀ lst lfe, FEnvRel fe lfe →
       ∃ lfe',
         (ConLeche.Cached.checkDeclC (absMode mode) lfe
-            (.basisDecl (absBasisKind kind))).run lst = .ok (lfe', lst)
+            (.basisDecl (absBasisKind kind))).run lst = Except.ok (lfe', lst)
         ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
-  intro lst lfe hfr
-  rw [cached.parsed_c.check_basis_decl_c, kernel.checker.check_basis_decl.eq_def] at h
-  rw [ConLeche.Cached.checkDeclC]
-  -- the install, shared by all six arms
-  have install : ∀ v : alloc.vec.Vec env.ConstantInfo,
-      basis_tables.basis_decls_a kind = ok v →
-      kernel.checker.install_basis_decls fe v 0#usize = ok (.Ok fe') →
-      ∃ lfe₂,
-        ((ConLeche.BasisKind.declsA (absBasisKind kind)).foldlM
-            (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst
-          = .ok (lfe₂, lst)
-        ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
-    intro v hv hi
-    have habs : absConstantInfos v = ConLeche.BasisKind.declsA (absBasisKind kind) := by
-      have := ConRon.Refine.absBasisDecls_eq kind
-      rw [ConRon.Refine.absBasisDecls, hv] at this
-      simpa using this
-    obtain ⟨lfe₂, hfold, rest⟩ :=
-      install_basis_decls_refines hfw hcan hfull (BasisPins.basis_decls_a_wf hv) hi
-        lfe lst hfr
-    exact ⟨lfe₂, habs ▸ hfold, rest⟩
-  cases kind with
-  | QuotK =>
-    obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
-    have hbv := BasisPins.eq_basis_pinned_refines hfr hfw hb
-    cases b with
-    | false => simp at h
-    | true =>
-      obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨lfe₂, hfold, rest⟩ := install v hv h
-      refine ⟨lfe₂, ?_, rest⟩
-      simp only [absBasisKind] at hfold ⊢
-      rw [show (lfe.find? ConLeche.eqName = some ConLeche.eqA) from by
-        simpa using hbv.symm]
-      simpa using hfold
-  | EqK | NatK | PunitK | EmptyK | FalseK =>
-    obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨lfe₂, hfold, rest⟩ := install v hv h
-    refine ⟨lfe₂, ?_, rest⟩
-    simp only [absBasisKind] at hfold ⊢
-    simpa using hfold
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' :=
+  check_basis_decl_c_refines hfw hcan hfull h
 
 /-! ## The dispatch and the fold
 
