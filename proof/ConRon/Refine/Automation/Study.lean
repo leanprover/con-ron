@@ -3,7 +3,6 @@ import ConRon.Refine.ExprOps
 import ConRon.Refine.ExprOpsMeta
 import ConRon.Refine.CoreKSupport
 import ConRon.Refine.Core.Arms.Lits
-import ConRon.Refine.Automation.SimpSets
 /-! # Task #69 — can the refinement proofs be automatic?  (Fable's study)
 
 Three representative lemmas of the tower, re-proved with one idiom:
@@ -19,7 +18,34 @@ the smart-constructor equation, and (d) the bind inversion `bind_eq_ok_iff`.
 
 Each experiment is stated beside the name and length of the hand proof it
 replaces.  Nothing here is imported by the tower; the file is evidence, and
-`AUTOMATION.md` next to it is the write-up. -/
+`AUTOMATION.md` next to it is the write-up.
+
+**Task #71 moved the infrastructure out of this file into the library** — the
+maintainer's ruling of 2026-09-13, "land the infrastructure, use the idiom for
+new proofs only" (DESIGN.md §3).  What lives where now:
+
+* `rust_norm`, `rust_grind`, `rust_pairs`, `bind_arc_deref` and the two
+  populated simp sets: `Refine/Abs.lean` (and `Refine/SimpSets.lean`, which
+  registers `rust_reduce`/`rust_invert`);
+* `ExprWF.ind_node`, `ExprWF.kids` and the nine `ExprWF.*_kids`:
+  `Refine/Expr.lean`; the `LevelWF`/`NameWF` twins: `Refine/Level.lean`,
+  `Refine/Name.lean`;
+* `RunOk`/`RunErr`, `except_bind_ok`/`except_bind_error`, `push_new_val`:
+  `Refine/Abs.lean`; `Sim.ofRun`/`SimS.ofRun`, `run_bind_eq`/`run_pure_eq`,
+  `Wrappers.whnf_use`: `Refine/Core/Arms/Shape.lean`;
+* the `use`/WF lemmas keyed on the Rust equation, beside what they are about:
+  `Expr.{fvar,sort,mk_const,app,lam,forall_e,let_e,lit,proj}_wf'`
+  (`Refine/Expr.lean`), `Level.{zero,succ,max,imax,param}_wf'`,
+  `Level.LeqCoreSpec.use`, `Level.subst_use`, `Level.simplify_use`
+  (`Refine/Level.lean`), `ExprOps.hit'`/`set'` (`Refine/ExprOps.lean`).
+
+What stayed here is what serves one experiment only: the `Inst1Spec`/
+`ResetSpec` predicates with their `use`/`iff` lemmas (both are defined here —
+the tower states those two walks without a `Spec`), the twelve `rest_*`
+arm-selection specialisations, the arm plumbing (`SimOk`, `rawNatLitC_eq'`,
+`raw_nat_lit_use`, `nat_op_*_use`, `lits_use`, `natBinI_eq`), and `rust_inv`,
+task #69's untuned normaliser, which the three "before" experiments still use
+so that the measurement stays reproducible. -/
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel ConRon.Generated.cached
@@ -36,7 +62,12 @@ deterministically before `grind` — `simp` (which knows `bind_eq_ok_iff` and
 `Prod.exists`), then one `∃`/`∧` layer at a time, then `split` on the
 `match`/`if` that guards the rest, `simp` closing the branches it refutes
 (`ok (.Err e, s) = ok (.Ok r, s')`) — leaves one goal per reachable success
-path, each with plain equations in context. -/
+path, each with plain equations in context.
+
+Task #70's tuned replacement is `rust_norm` (`Refine/Abs.lean`, landed at task
+#71); this one stays here because the three "before" experiments below are the
+measurement of record for the 4–8× cost, and re-running them needs the
+normaliser they were measured with. -/
 syntax "rust_inv " ident : tactic
 macro_rules
   | `(tactic| rust_inv $h) => `(tactic| repeat' (first
@@ -65,10 +96,10 @@ list:
 section Level
 open ConRon.Refine.Level
 
-theorem LeqCoreSpec.use {fuel : Std.U64} (hQ : LeqCoreSpec fuel) {l r : level.Level}
-    (hl : LevelWF l) (hr : LevelWF r) {d : Std.I64} {o : Option Bool}
-    (h : level.leq_core fuel l r d = ok o) :
-    ConLeche.Level.leqCore fuel.val (absLevel l) (absLevel r) d.val = o := hQ l r hl hr d o h
+/-! `LeqCoreSpec.use` — the IH as an E-matching entry point — went to
+`Refine/Level.lean` beside `LeqCoreSpec` at task #71 (README: "a `use` lemma
+beside every `Spec`"); the twelve arm-selection specialisations below serve
+`rest` alone and stay here. -/
 
 theorem rest_max_zero {fuel a b diff} : ConLeche.Level.rest fuel (.max a b) .zero diff
     = (do if ← ConLeche.Level.leqCore fuel a .zero diff then ConLeche.Level.leqCore fuel b .zero diff else pure false) :=
@@ -165,29 +196,9 @@ theorem Inst1Spec.use {v e : expr.Expr} {memo memo' : ron.hashmap.HashMap expr_o
 theorem Inst1Q_iff (v : ConLeche.Expr) (e : ConLeche.Expr) (d : Nat) (r : expr.Expr) :
     Inst1Q v (e, d) r ↔ (ExprWF r ∧ absExpr r = ConLeche.Expr.instantiate1 e v d) := Iff.rfl
 
-theorem app_wf' {f a e : expr.Expr} (h : expr.app f a = ok e) (hf : ExprWF f) (ha : ExprWF a) :
-    ExprWF e := Expr.app_wf hf ha h
-theorem lam_wf' {ty bo e : expr.Expr} {m : expr.BinderMeta} (h : expr.lam ty bo m = ok e)
-    (hty : ExprWF ty) (hbo : ExprWF bo) (hm : BinderMetaWF m) : ExprWF e := Expr.lam_wf hty hbo hm h
-theorem forall_e_wf' {ty bo e : expr.Expr} {m : expr.BinderMeta} (h : expr.forall_e ty bo m = ok e)
-    (hty : ExprWF ty) (hbo : ExprWF bo) (hm : BinderMetaWF m) : ExprWF e :=
-  Expr.forall_e_wf hty hbo hm h
-theorem let_e_wf' {ty v bo e : expr.Expr} (h : expr.let_e ty v bo = ok e)
-    (hty : ExprWF ty) (hv : ExprWF v) (hbo : ExprWF bo) : ExprWF e := Expr.let_e_wf hty hv hbo h
-theorem proj_wf' {s : name.Name} {i : Std.U64} {x e : expr.Expr} (h : expr.proj s i x = ok e)
-    (hs : NameWF s) (hx : ExprWF x) : ExprWF e := Expr.proj_wf hs hx h
-theorem hit' {K V A : Type} {Eq2Inst : ron.hashmap.Eq2 K} {HashableInst : ron.hashmap.Hashable K}
-    {KWF : K → Prop} {absK : K → A} {Q : A → V → Prop}
-    {m : ron.hashmap.HashMap K V} {k : K} {r : V}
-    (h : ron.hashmap.HashMap.get HashableInst Eq2Inst m k = ok (some r))
-    (hm : MemoInv KWF absK Q m) (hx : KeyExact Eq2Inst KWF absK) (hk : KWF k) :
-    Q (absK k) r := MemoInv.hit hx hm hk h
-theorem set' {K V A : Type} {Eq2Inst : ron.hashmap.Eq2 K} {HashableInst : ron.hashmap.Hashable K}
-    {KWF : K → Prop} {absK : K → A} {Q : A → V → Prop}
-    {m m' : ron.hashmap.HashMap K V} {k : K} {v : V} {old : Option V}
-    (h : ron.hashmap.HashMap.insert HashableInst Eq2Inst m k v = ok (old, m'))
-    (hm : MemoInv KWF absK Q m) (hx : KeyExact Eq2Inst KWF absK) (hk : KWF k)
-    (hq : Q (absK k) v) : MemoInv KWF absK Q m' := MemoInv.set hx hm hk hq h
+/-! The equation-first `*_wf'` reorderings and the two memo lemmas `hit'`/`set'`
+went to `Refine/Expr.lean` and `Refine/ExprOps.lean` at task #71; the names
+below are theirs. -/
 
 /-- The closing tactic, the same in all ten cases. -/
 macro "inst1_close" : tactic => `(tactic| (
@@ -196,9 +207,9 @@ macro "inst1_close" : tactic => `(tactic| (
     rust_inv h
     all_goals grind [→ Inst1Spec.use, → expr_nat_key_eq, → Expr.dup_eq, → Expr.binder_meta_dup_eq,
       name_dup_eq,
-      → Expr.bvar_refines, → Expr.bvar_wf, → Expr.app_refines, → app_wf',
-      → Expr.lam_refines, → lam_wf', → Expr.forall_e_refines, → forall_e_wf',
-      → Expr.let_e_refines, → let_e_wf', → Expr.proj_refines, → proj_wf',
+      → Expr.bvar_refines, → Expr.bvar_wf, → Expr.app_refines, → Expr.app_wf',
+      → Expr.lam_refines, → Expr.lam_wf', → Expr.forall_e_refines, → Expr.forall_e_wf',
+      → Expr.let_e_refines, → Expr.let_e_wf', → Expr.proj_refines, → Expr.proj_wf',
       → hit', → set', → memo1_get_hit, KeyWF_mk, absKey_mk, Inst1Q_iff,
       ConLeche.Expr.instantiate1, absExpr_mk, absExprKind, bind_eq_ok_iff,
       → HashMap.uscalar_sub_eq, → HashMap.uscalar_add_eq]))
@@ -253,16 +264,9 @@ state.  Beyond the recipe of experiment 2, two things about the *statement*:
 section Arm
 open ConRon.Refine.State ConRon.Refine.FEnv ConRon.Refine.Core
 
-/-- `SimS`'s conclusion as a predicate on the run result. -/
-def RunOk {ε β σ : Type} (x : Except ε (β × σ)) (P : β → σ → Prop) : Prop :=
-  match x with
-  | .ok (v, s) => P v s
-  | .error _ => False
-
-theorem RunOk_ok {ε β σ : Type} (v : β) (s : σ) (P : β → σ → Prop) :
-    RunOk (ε := ε) (.ok (v, s)) P ↔ P v s := Iff.rfl
-theorem RunOk_error {ε β σ : Type} (e : ε) (P : β → σ → Prop) :
-    RunOk (β := β) (σ := σ) (.error e) P ↔ False := Iff.rfl
+/-! `RunOk` and its two `Iff.rfl` readings are `Refine/Abs.lean`'s (task #67
+carried them, with the `RunErr` twin the failure half needs); this section used
+to keep a private copy. -/
 
 /-- **The accept half of `Sim`**, which is what experiment 3 measures.
 
@@ -274,7 +278,8 @@ measurement here is about the accept direction's *shape*, and it is unchanged.
 So the experiment concludes `SimOk`, the accept half on its own, and the
 tower's own `RunOk` introduction rules — `ConRon.Refine.Core.Sim.ofRun` and
 `SimS.ofRun` in `Core/Arms/Shape.lean`, which take both halves — are where the
-shape is carried for real. -/
+shape is carried for real.  `SimOk` and `SimOk.ofRun` stay in this file for that
+reason: the library has no accept-half-only form and should not grow one. -/
 def SimOk {α β : Type} (A : α → β) (WF : α → Prop)
     (f : cached.state_c.CState → fenv.FEnv →
       Result ((core.result.Result α core_types.CheckError) × cached.state_c.CState))
@@ -297,15 +302,9 @@ theorem SimOk.ofRun {α β : Type} {A : α → β} {WF : α → Prop} {f g}
     exact ⟨s, hv, h1, h2, h3⟩
   · exact this.elim
 
-theorem run_bind_eq {α β : Type} (x : ConLeche.Cached.CheckCM α)
-    (f : α → ConLeche.Cached.CheckCM β) (lst : ConLeche.Cached.CState) :
-    (x >>= f).run lst = (x.run lst >>= fun p => (f p.1).run p.2) := rfl
-theorem run_pure_eq {α : Type} (a : α) (lst : ConLeche.Cached.CState) :
-    (pure a : ConLeche.Cached.CheckCM α).run lst = .ok (a, lst) := rfl
-theorem except_bind_ok {ε α β : Type} (a : α) (f : α → Except ε β) :
-    (Except.ok a >>= f) = f a := rfl
-theorem except_bind_error {ε α β : Type} (e : ε) (f : α → Except ε β) :
-    (Except.error e >>= f) = Except.error e := rfl
+/-! The four monad-plumbing equations are the library's: `run_bind_eq` and
+`run_pure_eq` in `Refine/Core/Arms/Shape.lean`, `except_bind_ok` and
+`except_bind_error` in `Refine/Abs.lean` (task #67 carried all four). -/
 
 /-- `Cached/StateC.lean:99-103` — `rawNatLitC?` *is* `rawNatLit?` (a copy of
 `Lits.rawNatLitC_eq`, which is `private`). -/
@@ -319,19 +318,9 @@ theorem rawNatLitC_eq' (e : ConLeche.Expr) :
     | cons => rfl
   | _ => rfl
 
-/-- The wrapper hypothesis as an E-matching entry point: fires on a successful
-`whnf` call. -/
-theorem Wrappers.whnf_use {mode : env.CheckMode} {fuel : Std.U64}
-    {st : cached.state_c.CState} {fe : fenv.FEnv} {d : Std.U64} {e r : expr.Expr}
-    {st' : cached.state_c.CState}
-    (hok : cached.core_c.whnf mode fuel st fe d e = ok (.Ok r, st'))
-    (hw : Wrappers mode fuel)
-    {lst : ConLeche.Cached.CState} {lfe : ConLeche.FEnv}
-    (hrel : StateRel st lst) (hfrel : FEnvRel fe lfe)
-    (hwf : StateWF st) (hfe : FEnvWF fe) (he : ExprWF e) :
-    ∃ lst', ((knot mode lfe fuel.val).whnf d.val (absExpr e)).run lst = .ok (absExpr r, lst')
-      ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r :=
-  (hw.whnfSim d he).apply hwf hfe hok hrel hfrel
+/-! The wrapper hypothesis as an E-matching entry point — `Wrappers.whnf_use`,
+which fires on a successful `whnf` call — went to
+`Refine/Core/Arms/Shape.lean` beside `Wrappers.whnfSim` at task #71. -/
 
 /-- `raw_nat_lit`, with the pin discharged and the WF clause stated without
 `Membership` (which `grind` does not unfold on `Option`). -/
@@ -401,147 +390,16 @@ it; and `grind =>`/`sym =>` doing the bind inversion itself is 15× slower and
 fails on the smallest lemma — the whole body is internalised before the first
 split, and every split branch carries it. -/
 
-/-! ### The two simp sets (`SimpSets.lean` registers them) -/
-attribute [rust_reduce] arc_deref_eq bind_tc_ok lift_eq ptr_new_eq ptr_clone_eq arc_new_eq
-  arc_clone_eq expr_dup_eq name_dup_eq level_dup_eq ExprOps.binder_meta_eq
-  name.NameNode.hash._simpLemma_ name.NameNode.kind._simpLemma_ name.Name._0._simpLemma_
-  level.LevelNode.hash._simpLemma_ level.LevelNode.kind._simpLemma_ level.Level._0._simpLemma_
-  expr.ExprNode.data._simpLemma_ expr.ExprNode.kind._simpLemma_ expr.Expr._0._simpLemma_
-attribute [rust_invert] arc_deref_eq bind_tc_ok lift_eq ptr_new_eq ptr_clone_eq arc_new_eq
-  arc_clone_eq expr_dup_eq name_dup_eq level_dup_eq ExprOps.binder_meta_eq
-  name.NameNode.hash._simpLemma_ name.NameNode.kind._simpLemma_ name.Name._0._simpLemma_
-  level.LevelNode.hash._simpLemma_ level.LevelNode.kind._simpLemma_ level.Level._0._simpLemma_
-  expr.ExprNode.data._simpLemma_ expr.ExprNode.kind._simpLemma_ expr.Expr._0._simpLemma_
-  bind_eq_ok_iff Result.ok.injEq Prod.mk.injEq Prod.exists uncurry_apply_pair
-  core.result.Result.Ok.injEq false_and and_false exists_false true_and and_true
-  exists_eq_left exists_eq_right Option.some.injEq
+/-! ### The infrastructure, now in the library (task #71)
 
-/-- The head of every generated body, reduced in one pre-order step: `let en ←
-Arc::deref e._0; …` is `… e._0 …`.  (`arc_deref_eq` alone is a post-order
-rewrite, so `simp` would visit all the dead arms of the `match` first.) -/
-theorem bind_arc_deref {T β : Type} (A : Type) (x : T) (f : T → Result β) :
-    (do let y ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref A x; f y) = f x := by
-  rw [arc_deref_eq, bind_tc_ok]
-
-open Lean Elab Tactic Meta in
-/-- Destructure every local hypothesis whose type is syntactically a pair: the
-`let (n, n1) := val` a Rust `Some((n, n1))` pattern produces is a
-one-alternative `match` that neither `split` nor `simp` opens while `val` is a
-variable.  Fails when there is nothing to do, so that it can sit last in a
-`first`.  (Not `‹_ × _›`: elaborating that unifies every hypothesis type with
-`?a × ?b` and unfolds the `Wrappers`/`Spec` predicates on the way — a `whnf`
-timeout.) -/
-elab "rust_pairs" : tactic => do
-  let g ← getMainGoal
-  let mut fvs : Array FVarId := #[]
-  for d in ← g.withContext getLCtx do
-    if d.isImplementationDetail then continue
-    let ty ← instantiateMVars d.type
-    if ty.isAppOfArity ``Prod 2 then fvs := fvs.push d.fvarId
-  if fvs.isEmpty then throwError "rust_pairs: no pair in the context"
-  let mut g := g
-  for fv in fvs do
-    let subgoals ← g.cases fv
-    match subgoals with
-    | #[sg] => g := sg.mvarId
-    | _ => throwError "rust_pairs: unexpected number of goals"
-  replaceMainGoal [g]
-
-/-- The tuned normaliser: `rust_inv` with the cheap sets, the loop ordered so
-nothing is retried on an unchanged hypothesis, and the pair fallback. -/
-syntax "rust_norm " ident : tactic
-macro_rules
-  | `(tactic| rust_norm $h) => `(tactic| (
-      try simp only [↓bind_arc_deref, ↓expr.Expr._0._simpLemma_, ↓expr.ExprNode.kind._simpLemma_,
-        ↓level.Level._0._simpLemma_, ↓level.LevelNode.kind._simpLemma_,
-        ↓name.Name._0._simpLemma_, ↓name.NameNode.kind._simpLemma_, rust_reduce] at $h:ident
-      repeat' (first
-        | (obtain ⟨_, $h⟩ := $h)
-        | (split at $h:ident)
-        | (simp only [rust_invert, reduceCtorEq, ↓existsAndEq] at $h:ident)
-        | rust_pairs)))
-
-/-- The closing call, one fixed configuration for every lemma. -/
-macro "rust_grind" : tactic => `(tactic| grind (ematch := 12) (gen := 24))
-
-/-! ### The node-shaped induction (no shape line per constructor)
-
-`induction he` leaves `e` a variable and the constructor's equation
-`expr.app f a = ok e` as a hypothesis; the body matches on `e._0.kind`, which
-nothing reduces until the inversion lemma has been applied — the per-constructor
-line of experiment 2.  Stating the motive on `.mk (.mk d k)` moves that
-inversion into the principle, once.  The motive depends on the derivation
-(`motive e he`) because `induction e, he using …` needs the targets explicit;
-the induction hypotheses come out as `∀ h, motive f h`, which `grind` uses like
-any local implication. -/
-theorem ExprWF.ind_node {motive : (e : expr.Expr) → ExprWF e → Prop}
-    (bvar : ∀ d i (h : ExprWF (.mk (.mk d (.Bvar i)))), motive (.mk (.mk d (.Bvar i))) h)
-    (fvar : ∀ d idx ty (h : ExprWF (.mk (.mk d (.Fvar idx ty)))), (∀ h, motive ty h) →
-      motive (.mk (.mk d (.Fvar idx ty))) h)
-    (sort : ∀ d u (h : ExprWF (.mk (.mk d (.«Sort» u)))), motive (.mk (.mk d (.«Sort» u))) h)
-    (mk_const : ∀ d n us (h : ExprWF (.mk (.mk d (.Const n us)))),
-      motive (.mk (.mk d (.Const n us))) h)
-    (app : ∀ d f a (h : ExprWF (.mk (.mk d (.App f a)))), (∀ h, motive f h) → (∀ h, motive a h) →
-      motive (.mk (.mk d (.App f a))) h)
-    (lam : ∀ d ty b m (h : ExprWF (.mk (.mk d (.Lam ty b m)))), (∀ h, motive ty h) →
-      (∀ h, motive b h) → motive (.mk (.mk d (.Lam ty b m))) h)
-    (forall_e : ∀ d ty b m (h : ExprWF (.mk (.mk d (.ForallE ty b m)))), (∀ h, motive ty h) →
-      (∀ h, motive b h) → motive (.mk (.mk d (.ForallE ty b m))) h)
-    (let_e : ∀ d ty v b (h : ExprWF (.mk (.mk d (.LetE ty v b)))), (∀ h, motive ty h) →
-      (∀ h, motive v h) → (∀ h, motive b h) → motive (.mk (.mk d (.LetE ty v b))) h)
-    (lit : ∀ d l (h : ExprWF (.mk (.mk d (.Lit l)))), motive (.mk (.mk d (.Lit l))) h)
-    (proj : ∀ d s i x (h : ExprWF (.mk (.mk d (.Proj s i x)))), (∀ h, motive x h) →
-      motive (.mk (.mk d (.Proj s i x))) h)
-    (e : expr.Expr) (he : ExprWF e) : motive e he := by
-  induction he with
-  | @bvar i e h1 => obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1; exact bvar d i (.bvar h1)
-  | @fvar idx ty e hty h1 ih =>
-    obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1; exact fvar d idx ty (.fvar hty h1) (fun _ => ih)
-  | @sort u e hu h1 => obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1; exact sort d u (.sort hu h1)
-  | @mk_const n us e hn hus h1 =>
-    obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-    exact mk_const d n us (.mk_const hn hus h1)
-  | @app f a e hf ha h1 ihf iha =>
-    obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
-    exact app d f a (.app hf ha h1) (fun _ => ihf) (fun _ => iha)
-  | @lam ty bo m e hty hbo hm h1 ihty ihbo =>
-    obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
-    exact lam d ty bo m (.lam hty hbo hm h1) (fun _ => ihty) (fun _ => ihbo)
-  | @forall_e ty bo m e hty hbo hm h1 ihty ihbo =>
-    obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
-    exact forall_e d ty bo m (.forall_e hty hbo hm h1) (fun _ => ihty) (fun _ => ihbo)
-  | @let_e ty vv bo e hty hvv hbo h1 ihty ihvv ihbo =>
-    obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
-    exact let_e d ty vv bo (.let_e hty hvv hbo h1) (fun _ => ihty) (fun _ => ihvv) (fun _ => ihbo)
-  | @lit l e hl h1 => obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1; exact lit d l (.lit hl h1)
-  | @proj s i x e hs hx h1 ih =>
-    obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1; exact proj d s i x (.proj hs hx h1) (fun _ => ih)
-
-/-- The children of a well-formed node, one forward lemma per kind: the trigger
-is the node itself (`CoreK.ExprWF.children` says the same through the kind). -/
-theorem ExprWF.fvar_kids {d idx ty} (h : ExprWF (.mk (.mk d (.Fvar idx ty)))) : ExprWF ty := by
-  have := CoreK.ExprWF.children h; simpa using this
-theorem ExprWF.sort_kids {d u} (h : ExprWF (.mk (.mk d (.«Sort» u)))) : LevelWF u := by
-  have := CoreK.ExprWF.children h; simpa using this
-theorem ExprWF.const_kids {d n us} (h : ExprWF (.mk (.mk d (.Const n us)))) :
-    NameWF n ∧ LevelsWF us := by
-  have := CoreK.ExprWF.children h; simpa using this
-theorem ExprWF.app_kids {d f a} (h : ExprWF (.mk (.mk d (.App f a)))) : ExprWF f ∧ ExprWF a := by
-  have := CoreK.ExprWF.children h; simpa using this
-theorem ExprWF.lam_kids {d ty b m} (h : ExprWF (.mk (.mk d (.Lam ty b m)))) :
-    ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m := by
-  have := CoreK.ExprWF.children h; simpa using this
-theorem ExprWF.forall_e_kids {d ty b m} (h : ExprWF (.mk (.mk d (.ForallE ty b m)))) :
-    ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m := by
-  have := CoreK.ExprWF.children h; simpa using this
-theorem ExprWF.let_e_kids {d ty v b} (h : ExprWF (.mk (.mk d (.LetE ty v b)))) :
-    ExprWF ty ∧ ExprWF v ∧ ExprWF b := by
-  have := CoreK.ExprWF.children h; simpa using this
-theorem ExprWF.lit_kids {d l} (h : ExprWF (.mk (.mk d (.Lit l)))) : LiteralWF l := by
-  have := CoreK.ExprWF.children h; simpa using this
-theorem ExprWF.proj_kids {d s i x} (h : ExprWF (.mk (.mk d (.Proj s i x)))) :
-    NameWF s ∧ ExprWF x := by
-  have := CoreK.ExprWF.children h; simpa using this
+The pieces this section built are no longer here.  `Refine/SimpSets.lean`
+registers `rust_reduce`/`rust_invert`; `Refine/Abs.lean` populates both with the
+plumbing lemmas it owns (`ExprOps.binder_meta_eq` and `expr_dup_eq` join from
+their own files) and defines `bind_arc_deref`, `rust_pairs`, `rust_norm` and
+`rust_grind`; `Refine/Expr.lean` has `ExprWF.kids`, the nine `ExprWF.*_kids`
+and `ExprWF.ind_node`, with the `LevelWF`/`NameWF` twins in
+`Refine/Level.lean`/`Refine/Name.lean`.  The six tuned proofs below are
+unchanged and are what tests that the moved pieces still do their job. -/
 
 /-! ### Experiment 1, tuned: 6.9 s → 2.3 s (hand 2.0 s); no `cases` line either,
 `split` opens the `match` on the node kinds.  And a fourth leaf of the same
@@ -567,24 +425,9 @@ theorem rest_refines_tuned {fuel : Std.U64} (hQ : LeqCoreSpec fuel)
   rust_norm h
   all_goals rust_grind
 
-/-- `Vec::push` on the empty vector, as a use lemma. -/
-theorem push_new_val {α : Type} {x : α} {w : alloc.vec.Vec α}
-    (h : alloc.vec.Vec.push (alloc.vec.Vec.new α) x = ok w) : w.val = [x] := by
-  obtain ⟨w', h', hv⟩ := vec_singleton x
-  cases Result.ok_injective (h.symm.trans h'); exact hv
-theorem subst_use {u u' : level.Level} {ks : alloc.vec.Vec name.Name} {vs : alloc.vec.Vec level.Level}
-    (h : level.subst ks vs u = ok u') (hu : LevelWF u)
-    (hks : ∀ k ∈ ks.val, NameWF k) (hvs : ∀ v ∈ vs.val, LevelWF v) :
-    absLevel u' = ConLeche.Level.subst (ks.val.map absName) (vs.val.map absLevel) (absLevel u)
-      ∧ LevelWF u' :=
-  subst_refines' u hu ks vs hks hvs u' h
-theorem simplify_use {u u' : level.Level} (h : level.simplify u = ok u') (hu : LevelWF u) :
-    absLevel u' = ConLeche.Level.simplify (absLevel u) ∧ LevelWF u' := simplify_refines' u hu u' h
-theorem zero_wf' {u : level.Level} (h : level.zero = ok u) : LevelWF u := LevelWF.zero h
-theorem succ_wf' {a u : level.Level} (h : level.succ a = ok u) (ha : LevelWF a) : LevelWF u :=
-  LevelWF.succ ha h
-theorem param_wf' {n : name.Name} {u : level.Level} (h : level.param n = ok u) (hn : NameWF n) :
-    LevelWF u := LevelWF.param hn h
+/-! `push_new_val` (`Refine/Abs.lean`), `subst_use`, `simplify_use` and the
+five `*_wf'` reorderings (`Refine/Level.lean`) moved to the library at task
+#71; the names below are theirs. -/
 attribute [local grind →] push_new_val subst_use simplify_use zero_wf' succ_wf' param_wf'
   zero_refines succ_refines param_refines
 attribute [local grind =] List.map_cons List.map_nil List.mem_singleton List.mem_cons
@@ -612,8 +455,9 @@ open ConRon.Refine.ExprOps
 attribute [local grind =] KeyWF_mk absKey_mk Inst1Q_iff absExpr_mk bind_eq_ok_iff name_dup_eq
 attribute [local grind] ConLeche.Expr.instantiate1 absExprKind
 attribute [local grind →] Inst1Spec.use expr_nat_key_eq Expr.dup_eq Expr.binder_meta_dup_eq
-  Expr.bvar_refines Expr.bvar_wf Expr.app_refines app_wf' Expr.lam_refines lam_wf'
-  Expr.forall_e_refines forall_e_wf' Expr.let_e_refines let_e_wf' Expr.proj_refines proj_wf'
+  Expr.bvar_refines Expr.bvar_wf Expr.app_refines Expr.app_wf' Expr.lam_refines Expr.lam_wf'
+  Expr.forall_e_refines Expr.forall_e_wf' Expr.let_e_refines Expr.let_e_wf'
+  Expr.proj_refines Expr.proj_wf'
   hit' set' memo1_get_hit HashMap.uscalar_sub_eq HashMap.uscalar_add_eq
 attribute [local grind →] ExprWF.fvar_kids ExprWF.sort_kids ExprWF.const_kids ExprWF.app_kids
   ExprWF.lam_kids ExprWF.forall_e_kids ExprWF.let_e_kids ExprWF.lit_kids ExprWF.proj_kids
@@ -650,9 +494,7 @@ theorem ResetQ_iff (k : ConLeche.Expr) (r : expr.Expr) :
     ResetQ k r ↔ (ExprWF r ∧ absExpr r = ConLeche.Expr.resetMeta k) := Iff.rfl
 theorem never_meta' {pw : prop_when.PropWhen} (h : prop_when.never = ok pw) :
     BinderMetaWF ⟨pw⟩ ∧ absBinderMeta ⟨pw⟩ = (⟨.never⟩ : ConLeche.BinderMeta) := never_meta h
-theorem fvar_wf' {idx : Std.U64} {ty e : expr.Expr} (h : expr.fvar idx ty = ok e)
-    (hty : ExprWF ty) : ExprWF e := Expr.fvar_wf hty h
-attribute [local grind →] ResetSpec.use never_meta' memo_e_get_hit Expr.fvar_refines fvar_wf'
+attribute [local grind →] ResetSpec.use never_meta' memo_e_get_hit Expr.fvar_refines Expr.fvar_wf'
 attribute [local grind =] ResetQ_iff
 attribute [local grind] ConLeche.Expr.resetMeta
 
