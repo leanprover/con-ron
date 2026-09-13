@@ -72,7 +72,7 @@ else.  (Task #12's two-lemma `Smoke.lean` was folded into `Level.lean`'s
 | `HashMapWF.lean` | task #16's deferred `Eq2` generalisation, written for its first client (task #46): the bucket walks and the `Std.HashMap` bridge under a *forward*, key-restricted exactness hypothesis (`Eq2Fwd`) instead of `Eq2Spec` |
 | `Env.lean` | `kernel::env` (task #46): the mode accessors, the `Vec` copies and the `*_dup` identities, `rec_rule_parsed`/`ind_caps_default`/`default_expr` (the Lean's field defaults), `proj_table_entry`, `pi_sort_tele_len`, `ind_params_ok`, the reserved names `proj_fn_name`/`proj_table_name`, `abs`'s injectivity on the well-formed records, the whole `*_beq` family exactly, the accessors, and `find`/`find_proj` |
 | `FEnv.lean` | `kernel::fenv` (task #46, completed by #50): `FEnvRel`/`FEnvWF`, `mk_fenv_go`/`mk_fenv`, `find`/`find_proj`, `restrict_to`, `dup`, and `push` — `push_refines` was task #46's one `sorry` because the Aeneas model of `Vec::insert` is `List.set`; task #50 removed that call from the port (`Env.consts` is stored reversed) and proved it |
-| `State.lean` | `cached::state_c` (task #46): `StateRel`/`StateWF` over the fourteen memo maps, the fresh state, `flushed`, and the memo probe/insert lemmas |
+| `State.lean` | `cached::state_c` (task #46): `StateRel`/`StateWF` over the fourteen memo maps (task #61 added `StateRel.instCSize`, the `instC` entry count, and `insert_size_step`), the fresh state, `flushed`, and the memo probe/insert lemmas |
 | `StateC.lean` | `cached::state_c`'s **operations** (task #52, CORE_PLAN step 5): the pure `*M` wrappers, the three level memos (`simplify_l_m`, `is_non_zero_l_m`, `is_equiv_l_m`, `is_equiv_list_l_m`), `inst_list_m` with the `instC` entry cap and `InstCSize`, the two `ienv` pointer-identity sites (`stored_ty_idx_m`/`stored_val_idx_m`), the three level-instantiated readers and their `fe.find?` probes, `subst_level_trees`, `flush_c` and `record_c_const` |
 | `StateCResolve.lean` | `cached::state_c::consts_resolve_fc` (task #52): the memoized `ExprC` DAG walk of the parsed-index driver, over the call-local memo relation `MemoBOk` |
 | `ExprOpsC.lean` | `cached::expr_ops_c`'s **foundation** (task #51): the module note for all four `ExprOpsC*` files, the `O(1)` field reads (`has_fvar`, `loose_bvars_bounded`), the spine readers, `rev_append_exprs`, the two extra memo probes and `leaf_mem` |
@@ -115,6 +115,39 @@ only through `IndAbs`'s five operation lemmas.
 | `IndSpec.lean` | `IndRoutesSpec`, the one `Prop` the checker tier (task #56) consumes: the two entry points `check_native_s`/`check_ind_decl_s` against `checkNativeS`/`checkIndDeclSF` |
 | `IndC.lean` | `kernel::inductives::inductives_c` — the two routes' cached drivers, i.e. the **flush policy**, and `ind_routes_spec` |
 
+## The top of the tower (task #60, `CORE_PLAN.md` steps 7's top and 8)
+
+| file | contents |
+|---|---|
+| `Installed.lean` | `cached::installed` — **the declaration fold**: `absPendingCheck`/`absPendingChecks`/`PendingCheckWF` (marked "to be unified into `Abs.lean`"), the two install halves and their tails, the four-way phase-A dispatch and its three pushes, `annot_decl_step`, phase B's `check_pending` family with its fresh `CState`, both index recursions, `leanCheckDecls` and **`check_decls_refines`** |
+| `Main.lean` | the capstone: `check_decls_verified_refines`, `conron.model_exists` and `conron.no_proof_of_False` from `ConLeche.MainTheorem`, each with a `#guard_msgs`-checked axiom census |
+
+### How the tower composes, and what is still owed
+
+Read bottom-up, `check_decls_refines` is the composition of every file above
+it, and **exactly four hypotheses survive to the top** — the same four that
+`Refine/Main.lean`'s two theorems carry, and no others:
+
+| hypothesis | who discharges it |
+|---|---|
+| `hk : Core.KnotSpec mode IndAbs.checkFuelU` — the six core wrappers and bodies refine `coreKnotI` at `checkFuel` | **task #55** (`Refine/Core/Arms/*`, `Refine/Core/Knot.lean`); `Refine/Core/Statements.lean` is the statement it is proving |
+| `hind : IndRoutesSpec mode` — the two inductive install routes | **task #57** proved `IndRoutesSpecP` (`IndC.ind_routes_spec`); **task #59** owes `ind_routes_spec_of_p`, the recogniser bridge to the consumer's form |
+| `hpins : absPins pins = ConLeche.natOpPinSets` — the port's pin list is the global the pinned con-leche bakes into `checkDeclStepC` | `Refine/Pins.lean`'s `check_decls_pins_refines` (open on that file's two statements, task #43), **or** the `pins-param` submodule bump, which deletes the hypothesis: `Installed.leanCheckDecls` is the one line that changes |
+| `hds : ∀ d ∈ ds.val, DeclCWF d` — the parsed input is well formed | the parser, by construction (the `*WF` predicates of §3.5 are the port's own smart constructors) |
+
+Everything else is *internal* and already discharged where it is used: task
+#56's four cross-file `Spec`s in `CheckerPinned.lean`, task #49's in
+`CoreKPinned.lean`, and the `FindAgree`/`FindWF` projections in
+`CoreKBase.lean`.  The `sorry`s that remain below the top are arm-level bulk
+(`CheckerSplit` 4, `CheckerDecl` 9, `DeclCheck` 14, `CheckerPins` 8,
+`Checker` 5, `CheckerSplit`/`BasisPins`/`Pins` the rest — **`Installed` 0 since
+task #62**); every one of them is a *guard cascade or a core call*, none is a
+design question, and the axiom censuses in `Installed.lean` and `Main.lean` are
+what will say so: `sorryAx` leaving `conron.model_exists` is the P3 gate.
+`Installed.lean` itself is now `sorry`-free, so the only door `sorryAx` takes
+into `check_decls_refines` is `annot_step_other_c_refines` →
+`CheckerDecl.check_decl_step_c_refines`.
+
 ## Not yet here
 
 `cached::core_c` (the knot's six wrappers and their bodies): `Refine/Core/`
@@ -124,3 +157,34 @@ second half of step 3, task #49's twelve `CoreK*`/`BasisNames`/`PropRead` files
 step 4, task #52's two `StateC*` files step 5, and task #57's ten `Ind*` files
 the second half of step 7; `Refine/Checker.lean` and `Refine/DeclCheck.lean`
 (step 7's first half) are task #56's.
+
+## The knot (`Core/`, `CORE_PLAN.md` step 6)
+
+| file | contents |
+|---|---|
+| `Core/Statements.lean` | the twelve statements as one proposition per fuel: `RefinesE`/`RefinesB`, `Wrappers`, `Bodies`, `KnotSpec` (Fable) |
+| `Core/Knot.lean` | task #53's skeleton: `wrappers_zero`, `wrappers_succ`, `knot_induction`, the `memoEI`/`memoBI` run lemmas and the six probe lemmas |
+| `Core/Arms/Shape.lean` | task #55's shared shape: `Sim`/`SimS`/`SimP`, the bridges to `RefinesE`/`RefinesB`, the six wrappers at one call site, and `knotV` (the io grade as a flag) |
+| `Core/Arms/Bridge.lean` | `StateC`'s two named ingredients (`InstantiateListRefines`, `InstLevelParamsRefines`), discharged from task #54 |
+| `Core/Arms/*.lean` | one file per group of `cached/core_c.rs`'s 120-function block, partitioned by which body reaches which helper: `Shared`, `Lits`, `Certs`, `Iota`, `Major`, `App`, `WhnfCore`, `Whnf`, `InferSpine`, `InferTele`, `Infer`, `InferSpineIO`, `InferIO`, `DefEqStruct`, `DefEq`, `Annotate` |
+| `Core/Arms/Arms.lean` | the `Deps` discharges, `arms` and `knot_spec`, with the axiom census |
+
+**The knot is closed** (task #61): `#print axioms knot_spec` is
+`[propext, Classical.choice, Quot.sound]`, and so is every one of the six
+`*_body_sim`.  Task #55 left nineteen `sorry`s across eight of these files —
+four port deviations it found, `StateRel`'s missing `instC` entry-count
+clause, two packaging cycles of its own fan-out and two unfinished literal
+arms; task #61 fixed the Rust where the Rust was wrong, folded `InstCSize`
+into `Refine/State.lean`'s `StateRel`, split `WhnfCoreDeps` by the budget and
+`DefEqDeps`/`DefEqStructDeps` along the call order, and proved the rest.
+
+## Not yet here
+
+Everything *above* the knot: `Refine/CORE_PLAN.md` steps 7 and 8 — the
+declaration fold, phase A and B, and `Refine/Main.lean`'s capstones.  Task #46's four
+files are its steps 1 and 2, task #51's four `ExprOpsC*` files the second half
+of its step 3, task #49's twelve `CoreK*`/`BasisNames`/`PropRead` files its
+step 4, and task #52's two `StateC*` files its step 5; step 6 is the
+induction.
+(step 7's first half) are task #56's, and task #60's two files above are its
+top and step 8.

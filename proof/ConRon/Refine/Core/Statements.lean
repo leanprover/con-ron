@@ -79,13 +79,15 @@ structure Bodies (mode : env.CheckMode) (fuel : Std.U64) : Prop where
     (fun lfe => ConLeche.Cached.whnfCoreBodyI (absMode mode) (knot mode lfe fuel.val) lfe)
   whnf : RefinesE (cached.core_c.whnf_body_i mode fuel)
     (fun lfe => ConLeche.Cached.whnfBodyI (knot mode lfe fuel.val) lfe)
-  /-- The Rust `infer_body_i` carries con-leche's `ioView` as a flag
-  (task #18, deviation 4): at `false` it is `inferBodyI` on the knot, at
-  `true` it is `inferBodyI` on the knot's io view. -/
-  infer : RefinesE (fun st fe d e => cached.core_c.infer_body_i mode fuel st fe d e false)
+  /-- Task #61: `infer_body_i` **is** `inferBodyI` at the knot itself.  It
+  used to carry con-leche's `ioView` as a `Bool` (task #18, deviation 4) and
+  the statement had a second field for `io = true`, which was *false*: the
+  Rust's `.app`/`.forallE`/`.lam` clauses called the full-grade wrappers
+  where `inferBodyI` at `ioView` calls the io slot.  Those three views are
+  overridden by `inferBodyIOI`, so the flag only ever mattered at `.proj`,
+  which now has its own clause in `infer_body_io_i`. -/
+  infer : RefinesE (cached.core_c.infer_body_i mode fuel)
     (fun lfe => ConLeche.Cached.inferBodyI (absMode mode) (knot mode lfe fuel.val) lfe)
-  inferView : RefinesE (fun st fe d e => cached.core_c.infer_body_i mode fuel st fe d e true)
-    (fun lfe => ConLeche.Cached.inferBodyI (absMode mode) (knot mode lfe fuel.val).ioView lfe)
   defeq : RefinesB (cached.core_c.defeq_body_i mode fuel)
     (fun lfe => ConLeche.Cached.defeqBodyI (absMode mode) (knot mode lfe fuel.val) lfe)
   annotate : RefinesE (cached.core_c.annotate_body_i mode fuel)

@@ -585,6 +585,45 @@ theorem new_rel (h : ron.hashmap.HashMap.new K V = ok m) :
   show HashMap.lookupK (HashMap.al_v m) k = none
   rw [new_alv h]; rfl
 
+/-- **One memo insert, on the count.**  The port's entry count follows
+con-leche's `size` through an insert: both grow by one exactly when the key was
+absent, and `RelOn` at the key is what makes "absent" the same question on the
+two sides. -/
+theorem insert_size_step [LawfulBEq K'] [LawfulHashable K']
+    (hkey : KeyOk P Eq2Inst absK) (hinv : HashMap.Inv HashableInst m)
+    (hkeys : HashMap.KeysOk P m) (hrel : HashMap.RelOn P m s absK absV)
+    {k : K} {v : V} (hk : P k) {old : Option V}
+    (h : ron.hashmap.HashMap.insert HashableInst Eq2Inst m k v = ok (old, m'))
+    (hsz : (HashMap.al_v m).length = s.size) :
+    (HashMap.al_v m').length = (s.insert (absK k) (absV v)).size := by
+  obtain ⟨hinv', -, hupd, hkeys'⟩ :=
+    HashMap.insert_refines_wf hkey.eq2 hinv hkeys hk h
+  -- the two sides' counts are the two key sets' cardinalities
+  have hcard : (HashMap.al_v m').length = (HashMap.support m').card :=
+    (HashMap.card_support hinv').symm
+  have hcard0 : (HashMap.al_v m).length = (HashMap.support m).card :=
+    (HashMap.card_support hinv).symm
+  -- `support m' = insert k (support m)`
+  have hsupp : HashMap.support m' = Insert.insert k (HashMap.support m) := by
+    apply Finset.ext
+    intro k'
+    rw [HashMap.mem_support_iff, Finset.mem_insert, HashMap.mem_support_iff, hupd,
+      Function.update_apply]
+    by_cases hkk : k' = k
+    · simp [hkk]
+    · simp [hkk]
+  -- "the key was absent" is the same question on the two sides
+  have habs : (absK k ∈ s) ↔ k ∈ HashMap.support m := by
+    have hlk := hrel k hk
+    rw [HashMap.mem_support_iff, _root_.Std.HashMap.mem_iff_contains,
+      _root_.Std.HashMap.contains_eq_isSome_getElem?, ← hlk]
+    cases HashMap.toFun m k <;> simp
+  rw [hcard, hsupp, _root_.Std.HashMap.size_insert]
+  by_cases hmem : k ∈ HashMap.support m
+  · rw [Finset.insert_eq_self.mpr hmem, if_pos (habs.mpr hmem), ← hcard0, hsz]
+  · rw [Finset.card_insert_of_notMem hmem, if_neg (fun hc => hmem (habs.mp hc)),
+      ← hcard0, hsz]
+
 end Generic
 
 /-! ## The two relations
@@ -616,6 +655,15 @@ structure StateRel (st : cached.state_c.CState)
   lnzC : HashMap.RelOn LevelWF st.lnz_c lst.lnzC absLevel id
   eqvC : HashMap.RelOn LevelPairWF st.eqv_c lst.eqvC absLevelPair id
   instC : HashMap.RelOn InstKeyWF st.inst_c lst.instC absInstKey absExpr
+  /-- The `instC` table's **entry count**, which the other thirteen clauses do
+  not need: `StateRel` is a lookup agreement and a lookup agreement does not
+  bound the Lean map's size.  `cached::state_c::inst_list_m` is the one
+  operation that reads a count — the `instC` entry cap, `inst_c.len() <
+  inst_c_cap_c` against `mp.size < instCCapC` (`StateC.lean:186-199`) — so
+  without this clause the two sides can disagree about whether the table is
+  full.  Task #61 folded it in (`Refine/StateC.lean` had it as a free-standing
+  `InstCSize` hypothesis that nothing could discharge). -/
+  instCSize : (HashMap.al_v st.inst_c).length = lst.instC.size
 
 /-- The port-side invariant of the fourteen tables: each is a well-formed
 `ron::HashMap` (task #16's `Inv`) holding only well-formed keys and — where the
@@ -676,7 +724,8 @@ theorem cstate_new_refines {st : cached.state_c.CState}
   subst hst
   exact ⟨⟨new_rel h0, new_rel h1, new_rel h1, new_rel h2, new_rel h3,
       new_rel h3, new_rel h3, new_rel h3, new_rel h4, new_rel h3, new_rel h5,
-      new_rel h6, new_rel h7, new_rel h8⟩,
+      new_rel h6, new_rel h7, new_rel h8,
+      by show (HashMap.al_v m8).length = _; rw [new_alv h8]; simp⟩,
     ⟨new_inv h0, new_keys h0, new_vals h0,
       new_inv h1, new_keys h1, new_vals h1,
       new_inv h1, new_keys h1, new_vals h1,
@@ -706,7 +755,11 @@ theorem flushed_refines {st st' : cached.state_c.CState}
   subst hst
   exact ⟨⟨hrel.ienv, new_rel h0, new_rel h0, new_rel h1, new_rel h2,
       new_rel h2, new_rel h2, new_rel h2, new_rel h3, new_rel h2,
-      hrel.lsimpC, hrel.lnzC, hrel.eqvC, new_rel h4⟩,
+      hrel.lsimpC, hrel.lnzC, hrel.eqvC, new_rel h4,
+      by
+        show (HashMap.al_v m4).length = _
+        rw [new_alv h4]
+        simp [ConLeche.Cached.CState.flushed]⟩,
     ⟨hwf.ienvInv, hwf.ienvKeys, hwf.ienvVals,
       new_inv h0, new_keys h0, new_vals h0,
       new_inv h0, new_keys h0, new_vals h0,
@@ -1235,8 +1288,10 @@ theorem inst_c_insert_refines {st : cached.state_c.CState}
       StateWF { st with inst_c := m' } := by
   obtain ⟨h1, h2, h3, h4⟩ := insert_step instKeyKey hwf.instCInv hwf.instCKeys
     hwf.instCVals hrel.instC hk hv h
-  exact ⟨{ hrel with instC := h4 },
+  refine ⟨{ hrel with instC := h4, instCSize := ?_ },
     { hwf with instCInv := h1, instCKeys := h2, instCVals := h3 }⟩
+  exact insert_size_step instKeyKey hwf.instCInv hwf.instCKeys hrel.instC hk h
+    hrel.instCSize
 
 end ConRon.Refine.State
 
