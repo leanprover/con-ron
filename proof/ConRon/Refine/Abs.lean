@@ -24,6 +24,7 @@ What the abstractions forget, in the order DESIGN.md §3.3 lists it:
 -/
 import ConRon.Generated
 import ConRon.Refine.Nat
+import ConRon.Refine.SimpSets
 import ConLeche.Kernel.Level
 import ConLeche.Kernel.Env
 import ConLeche.Kernel.Core
@@ -79,6 +80,95 @@ the proofs exactly as before the alias existed (`deref` is not wrapped, so
 @[simp] theorem name_dup_eq (n : name.Name) : name.dup n = ok n := by
   cases n; simp [name.dup]
 
+/-! ## The Rust-side normaliser (task #70's tuned idiom, landed at task #71)
+
+`rust_norm h` peels a Rust success hypothesis `h : f args = ok v`
+deterministically — head reduction, then one `∃`/`∧` layer, `match`/`if`
+split, bind inversion, pair destructuring, until nothing changes — leaving one
+goal per reachable success path with plain equations in context; `rust_grind`
+closes each with `grind` at the one budget task #70 fixed for every lemma.
+Together with the attribute-registered lemma sets they are the whole idiom:
+
+```lean
+⟨shape step⟩ ; rust_norm h ; all_goals rust_grind
+```
+
+`Refine/README.md` §"Writing a new refinement lemma" is the recipe and says
+what a `use` lemma must look like; `Refine/AUTOMATION.md` is the study that
+measured all of it (tasks #69/#70) and `Refine/Automation/Study.lean` the six
+worked examples.  **The idiom is for new leaf, memo-walk and knot-arm
+refinement lemmas only** (DESIGN.md §3's ruling of 2026-09-13): the existing
+hand proofs are not rewritten, and `HashMap`/`Nat`, `Pins*` and `Ind*` are out
+of its scope.
+
+The two sets `Refine/SimpSets.lean` registers are populated here with the
+plumbing above; later files add their own (`ExprOps.binder_meta_eq`,
+`BasisTables`'s `expr_dup_eq`). -/
+
+attribute [rust_reduce, rust_invert] arc_deref_eq bind_tc_ok lift_eq ptr_new_eq ptr_clone_eq
+  arc_new_eq arc_clone_eq name_dup_eq level_dup_eq
+  name.NameNode.hash._simpLemma_ name.NameNode.kind._simpLemma_ name.Name._0._simpLemma_
+  level.LevelNode.hash._simpLemma_ level.LevelNode.kind._simpLemma_ level.Level._0._simpLemma_
+  expr.ExprNode.data._simpLemma_ expr.ExprNode.kind._simpLemma_ expr.Expr._0._simpLemma_
+
+attribute [rust_invert] bind_eq_ok_iff Result.ok.injEq Prod.mk.injEq Prod.exists
+  uncurry_apply_pair core.result.Result.Ok.injEq false_and and_false exists_false true_and
+  and_true exists_eq_left exists_eq_right Option.some.injEq
+
+/-- The head of every generated body, reduced in one pre-order step: `let en ←
+Arc::deref e._0; …` is `… e._0 …`.  (`arc_deref_eq` alone is a post-order
+rewrite, so `simp` would visit all the dead arms of the `match` first — task
+#70 measured that as the single largest cost of the untuned normaliser.) -/
+theorem bind_arc_deref {T β : Type} (A : Type) (x : T) (f : T → Result β) :
+    (do let y ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref A x; f y) = f x := by
+  rw [arc_deref_eq, bind_tc_ok]
+
+open Lean Elab Tactic Meta in
+/-- Destructure every local hypothesis whose type is syntactically a pair: the
+`let (n, n1) := val` a Rust `Some((n, n1))` pattern produces is a
+one-alternative `match` that neither `split` nor `simp` opens while `val` is a
+variable.  Fails when there is nothing to do, so that it can sit last in a
+`first`.  (Not `obtain ⟨_, _⟩ := ‹_ × _›`: elaborating that unifies every
+hypothesis type with `?a × ?b` and unfolds the `Wrappers`/`Spec` predicates on
+the way — a `whnf` timeout.) -/
+elab "rust_pairs" : tactic => do
+  let g ← getMainGoal
+  let mut fvs : Array FVarId := #[]
+  for d in ← g.withContext getLCtx do
+    if d.isImplementationDetail then continue
+    let ty ← instantiateMVars d.type
+    if ty.isAppOfArity ``Prod 2 then fvs := fvs.push d.fvarId
+  if fvs.isEmpty then throwError "rust_pairs: no pair in the context"
+  let mut g := g
+  for fv in fvs do
+    let subgoals ← g.cases fv
+    match subgoals with
+    | #[sg] => g := sg.mvarId
+    | _ => throwError "rust_pairs: unexpected number of goals"
+  replaceMainGoal [g]
+
+/-- The normaliser: the head reduced in **pre-order** (`↓`), then the cheap
+peel first and `simp` only on a hypothesis that changed shape. -/
+syntax "rust_norm " ident : tactic
+macro_rules
+  | `(tactic| rust_norm $h) => `(tactic| (
+      try simp only [↓bind_arc_deref, ↓expr.Expr._0._simpLemma_, ↓expr.ExprNode.kind._simpLemma_,
+        ↓level.Level._0._simpLemma_, ↓level.LevelNode.kind._simpLemma_,
+        ↓name.Name._0._simpLemma_, ↓name.NameNode.kind._simpLemma_, rust_reduce] at $h:ident
+      repeat' (first
+        | (obtain ⟨_, $h⟩ := $h)
+        | (split at $h:ident)
+        | (simp only [rust_invert, reduceCtorEq, ↓existsAndEq] at $h:ident)
+        | rust_pairs)))
+
+/-- The closing call, one fixed configuration for every lemma: `ematch := 12`
+because the Option-monad plumbing of a leaf needs more than the default five
+rounds once the splits are done outside, `gen := 24` because a two-wrapper arm
+needs one more term generation than the default eight.  A lemma that needs
+more says so with the `[limit]` line in its `grind` diagnostics, and raising
+this default is the answer — not a per-lemma override. -/
+macro "rust_grind" : tactic => `(tactic| grind (ematch := 12) (gen := 24))
+
 /-- `i + 1` on a `usize` index, in the forward `= ok` form the refinement
 proofs use. -/
 theorem usize_add_ok {i : Std.Usize} (h : i.val + 1 ≤ Std.Usize.max) :
@@ -114,6 +204,13 @@ theorem vec_singleton {α : Type} (x : α) :
   obtain ⟨w, h1, h2⟩ := WP.spec_imp_exists
     (alloc.vec.Vec.push_spec (alloc.vec.Vec.new α) x (by simp; scalar_tac))
   exact ⟨w, h1, by simpa using h2⟩
+
+/-- `vec_singleton` keyed on the Rust equation, which is the form a `grind`
+`use` lemma needs (`Refine/README.md`, the first keying rule). -/
+theorem push_new_val {α : Type} {x : α} {w : alloc.vec.Vec α}
+    (h : alloc.vec.Vec.push (alloc.vec.Vec.new α) x = ok w) : w.val = [x] := by
+  obtain ⟨w', h', hv⟩ := vec_singleton x
+  cases Result.ok_injective (h.symm.trans h'); exact hv
 
 /-- `Vec::push` when it succeeds: the model's vector really is the list with
 the element appended. -/
