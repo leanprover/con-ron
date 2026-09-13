@@ -586,8 +586,17 @@ reaches — the whole knot, since the certificates are theorem checks — after
 making every Rust-only failure (overflow, shift amount) an abort
 (Aeneas `fail`, unconstrained) rather than a `CheckError`; mechanical but
 of the same size as the tower; or (b) keep it as the port's one documented
-failure-direction assumption, reviewable at one function.  Decision
-pending the maintainer; the capstones carry it as a named hypothesis
+failure-direction assumption, reviewable at one function.  A cheaper
+targeted fix — relaxing `StateRel` to a soundness invariant for the maps
+that survive `flushC` — does not work: the cached `orElse`
+(`CheckerC.lean:93`) keeps the post-attempt state on `false` and discards
+it on `error`, so a spurious Rust failure diverges the per-declaration
+memos too, and characterising those by soundness is the memo-soundness
+proof §3.1 avoids by mirroring.  Hence (a) is the full-outcome
+restatement of the tower ("`Ok r ↦ ok (abs r)`, `Err ↦ throw`, aborts
+unconstrained"), preceded by turning the Rust-only `CheckError`s into
+aborts.  Recommendation: ship v1 with (b); run (a) as the next campaign.
+Decision pending the maintainer; the capstones carry the hypothesis
 either way.
 
 ### 3.7 Provenance: keeping the port in sync with con-leche
