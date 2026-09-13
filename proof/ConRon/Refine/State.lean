@@ -33,6 +33,7 @@ reproduced at all.
 -/
 import ConRon.Refine.HashMapWF
 import ConRon.Refine.Expr
+import ConRon.Refine.Env
 import ConLeche.Cached.StateC
 
 open Aeneas Aeneas.Std Result
@@ -1385,6 +1386,178 @@ theorem inst_c_insert_refines {st : cached.state_c.CState}
   exact insert_size_step instKeyKey hwf.instCInv hwf.instCKeys hrel.instC hk h
     hrel.instCSize
 
+
+/-! ## The pin loop's pre-attempt snapshot (task #67)
+
+`CheckerOps.orElse` (`ConLeche/Kernel/CheckerBase.lean:36-53`) hands its error
+arm the state the failed attempt *started* in, so con-leche throws away the
+memo entries a failed Nat-op pin attempt wrote.  The port threads one
+`&mut CState`, so `kernel::checker::check_div_mod_pin_loop` takes a snapshot —
+`cached::state_c::dup`, a `ron::HashMap::dup` at each of the fourteen tables —
+and restores it on a recovered error.  DESIGN.md §3's ruling of 2026-09-13 is
+what makes that the shape: a refinement lemma covers the whole outcome, and the
+error arm's continuation is related by *this* state, not by the one the attempt
+left behind.
+
+`Refine/HashMap.lean`'s `dup_spec` does the table half from one hypothesis per
+dictionary, `HashMap.DupId` ("`dup2` returns its argument in the model").  The
+nine instances below discharge it: `Name`/`Level`/`Expr` are `P` bumps
+(`Refine/Abs.lean`'s `name_dup_eq`, `level_dup_eq`, and `expr_dup_eq` above),
+`Vec<Level>`/`Vec<Expr>` are `env::levels_copy`/`env::exprs_copy`
+(`Refine/Env.lean`'s `levels_copy_refines`/`exprs_copy_refines`, which give the
+equality outright — `Refine/CoreKGuards.lean`'s `env_levels_copy_val` and
+`env_exprs_copy_val` are the same fact on the `.val`s, but that file sits above
+this one), `u64`/`bool` are reads, and `CConstE` and the tuples are
+componentwise. -/
+
+section Dup
+
+/-- The `ienv` key: `name::dup` is the identity in the model. -/
+theorem nameDupId : HashMap.DupId name.Name.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  have h' : name.dup a = ok b := h
+  rw [name_dup_eq] at h'
+  exact (Result.ok_injective h').symm
+
+/-- The level memos' key and value: `level::dup` is the identity. -/
+theorem levelDupId : HashMap.DupId level.Level.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  have h' : level.dup a = ok b := h
+  rw [level_dup_eq] at h'
+  exact (Result.ok_injective h').symm
+
+/-- The `Expr`-keyed memos' key and value: `expr::dup` is the identity. -/
+theorem exprDupId : HashMap.DupId expr.Expr.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  have h' : expr.dup a = ok b := h
+  rw [expr_dup_eq] at h'
+  exact (Result.ok_injective h').symm
+
+/-- The `constTyAt`/`constValAt`/`ruleRhsAt` keys' level list: `env::levels_copy`
+rebuilds the very same `Vec` (`Refine/Env.lean`). -/
+theorem levelsDupId :
+    HashMap.DupId alloc.vec.VecLevel.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  have h' : env.levels_copy a = ok b := h
+  exact Env.levels_copy_refines h'
+
+/-- The `instC` key's term list: `env::exprs_copy` rebuilds the very same
+`Vec` (`Refine/Env.lean`). -/
+theorem exprsDupId :
+    HashMap.DupId alloc.vec.VecExpr.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  have h' : env.exprs_copy a = ok b := h
+  exact Env.exprs_copy_refines h'
+
+/-- The `instC` key's cursor: a `u64` is copied by reading it. -/
+theorem u64DupId : HashMap.DupId U64.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  exact (Result.ok_injective (α := Std.U64) h).symm
+
+/-- The value of `lnzC`, `eqvC` and `defeqC`. -/
+theorem boolDupId : HashMap.DupId Bool.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  exact (Result.ok_injective (α := Bool) h).symm
+
+/-- The pair keys of `constTyAt`, `constValAt`, `defeqC` and `eqvC`,
+componentwise. -/
+theorem pairDupId {A B : Type} {DA : ron.hashmap.Dup A} {DB : ron.hashmap.Dup B}
+    (hA : HashMap.DupId DA) (hB : HashMap.DupId DB) :
+    HashMap.DupId (Pair.Insts.Con_ron_coreRonHashmapDup DA DB) := by
+  intro a b h
+  obtain ⟨x, y⟩ := a
+  have h' : (do let t ← DA.dup2 x
+                let t1 ← DB.dup2 y
+                ok (t, t1)) = ok b := h
+  simp only [bind_eq_ok_iff, Result.ok.injEq] at h'
+  obtain ⟨u, hu, v, hv, hb⟩ := h'
+  rw [hA _ _ hu, hB _ _ hv] at hb
+  exact hb.symm
+
+/-- The triple keys of `ruleRhsAt` and `instC`; a Lean triple is `(a, (b, c))`,
+so the generated `dup2` destructures both levels at once. -/
+theorem tripleDupId {A B C : Type} {DA : ron.hashmap.Dup A}
+    {DB : ron.hashmap.Dup B} {DC : ron.hashmap.Dup C} (hA : HashMap.DupId DA)
+    (hB : HashMap.DupId DB) (hC : HashMap.DupId DC) :
+    HashMap.DupId (TupleABC.Insts.Con_ron_coreRonHashmapDup DA DB DC) := by
+  intro a b h
+  obtain ⟨x, y, z⟩ := a
+  have h' : (do let t3 ← DA.dup2 x
+                let t4 ← DB.dup2 y
+                let t5 ← DC.dup2 z
+                ok (t3, t4, t5)) = ok b := h
+  simp only [bind_eq_ok_iff, Result.ok.injEq] at h'
+  obtain ⟨u, hu, v, hv, w, hw, hb⟩ := h'
+  rw [hA _ _ hu, hB _ _ hv, hC _ _ hw] at hb
+  exact hb.symm
+
+/-- The `ienv` value: an entry's tagged type, type and optional value, each an
+`expr::dup`. -/
+theorem cconstEDupId :
+    HashMap.DupId cached.state_c.CConstE.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  obtain ⟨te, ty, v⟩ := a
+  cases v with
+  | none =>
+    have h' : (do let e ← expr.dup te
+                  let e1 ← expr.dup ty
+                  ok ({ ty_e := e, ty := e1, val := none } :
+                    cached.state_c.CConstE)) = ok b := h
+    simp only [expr_dup_eq, bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h'
+    exact h'.symm
+  | some p =>
+    obtain ⟨p1, p2⟩ := p
+    have h' : (do let e ← expr.dup te
+                  let e1 ← expr.dup ty
+                  let e4 ← expr.dup p1
+                  let e5 ← expr.dup p2
+                  ok ({ ty_e := e, ty := e1, val := some (e4, e5) } :
+                    cached.state_c.CConstE)) = ok b := h
+    simp only [expr_dup_eq, bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h'
+    exact h'.symm
+
+/-- **The snapshot is the state.**  Fourteen `HashMap::dup`s at nine `DupId`
+dictionaries, so `dup_spec` at each field and structure eta at the end.  This
+is the whole content of the snapshot in the model — the two `CState`s are of
+course genuinely independent at run time, which is why the port needs it. -/
+theorem dup_state_eq {st st' : cached.state_c.CState}
+    (h : cached.state_c.dup st = ok st') : st' = st := by
+  rw [cached.state_c.dup] at h
+  simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+  obtain ⟨m0, h0, m1, h1, m2, h2, m3, h3, m4, h4, m5, h5, m6, h6, m7, h7,
+    m8, h8, m9, h9, m10, h10, m11, h11, m12, h12, m13, h13, hst⟩ := h
+  rw [HashMap.dup_spec nameDupId cconstEDupId h0,
+    HashMap.dup_spec (pairDupId nameDupId levelsDupId) exprDupId h1,
+    HashMap.dup_spec (pairDupId nameDupId levelsDupId) exprDupId h2,
+    HashMap.dup_spec (tripleDupId nameDupId nameDupId levelsDupId) exprDupId h3,
+    HashMap.dup_spec exprDupId exprDupId h4,
+    HashMap.dup_spec exprDupId exprDupId h5,
+    HashMap.dup_spec exprDupId exprDupId h6,
+    HashMap.dup_spec exprDupId exprDupId h7,
+    HashMap.dup_spec (pairDupId exprDupId exprDupId) boolDupId h8,
+    HashMap.dup_spec exprDupId exprDupId h9,
+    HashMap.dup_spec levelDupId levelDupId h10,
+    HashMap.dup_spec levelDupId boolDupId h11,
+    HashMap.dup_spec (pairDupId levelDupId levelDupId) boolDupId h12,
+    HashMap.dup_spec (tripleDupId exprDupId exprsDupId u64DupId) exprDupId h13]
+    at hst
+  exact hst.symm
+
+/-- **What the pin loop wants**: a snapshot denotes the same con-leche state
+and is as well formed — `StateRel`'s fourteen `RelOn` clauses and its `instC`
+entry count, and `StateWF`'s `Inv`/`KeysOk`/value-WF triples, all at once.
+Read it at the *pre-attempt* state: `check_div_mod_pin_loop` takes `dup st`
+before an attempt and, on a recovered error, continues from the copy, so this
+is what turns the hypothesis `StateRel st lst` into the `StateRel` the error
+arm's continuation needs. -/
+theorem dup_refines {st st' : cached.state_c.CState}
+    {lst : ConLeche.Cached.CState} (hwf : StateWF st) (hrel : StateRel st lst)
+    (h : cached.state_c.dup st = ok st') : StateRel st' lst ∧ StateWF st' := by
+  rw [dup_state_eq h]
+  exact ⟨hrel, hwf⟩
+
+end Dup
+
 end ConRon.Refine.State
 
 /-! ## Axiom census
@@ -1405,3 +1578,6 @@ reaches `kernel::pins_text::PINS_TEXT`'s `native_decide` (task #43). -/
 
 /-- info: 'ConRon.Refine.State.whnf_core_c_insert_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.State.whnf_core_c_insert_refines
+
+/-- info: 'ConRon.Refine.State.dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ConRon.Refine.State.dup_refines

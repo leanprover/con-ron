@@ -1580,6 +1580,170 @@ theorem remove_refines (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m)
   · rw [hent, hinv.entries]; omega
 
 
+
+/-! ## `dup`, the pin loop's pre-attempt snapshot (task #67)
+
+`CheckerOps.orElse` (`ConLeche/Kernel/CheckerBase.lean:36-53`) resumes its
+error arm from the state the failed attempt *started* in — `k (some e) s`, not
+the `s'` the attempt left behind — so the memo entries a failed Nat-op pin
+attempt wrote are discarded with it.  con-leche gets that for free, `s` being a
+value; the port threads one `&mut CState`, so
+`kernel::checker::check_div_mod_pin_loop` restores from a snapshot instead, and
+a snapshot of a memo table is `ron::HashMap::dup`: the three scalar fields
+carried over and `slots` rebuilt bucket by bucket (`dup_slots`, which halves
+its range exactly as `allocate_slots` and `clear_slots` do) with `dup_alist`
+under the one-method `Dup` dictionary.
+
+**In the model that copy is the identity.**  Every type the port instantiates
+`Dup` at copies by a pointer bump (`kernel::name::dup` and friends, whose `P`
+field the abstraction does not see — DESIGN.md §3.2) or by rebuilding a `Vec`
+element by element (`env::levels_copy`), and each of those is already proved to
+return its argument unchanged.  So rather than transport `Inv`, `toFun`,
+`al_v`, `KeysOk` and the `Std.HashMap` bridge one at a time, `dup_spec` proves
+the one fact that gives all of them at once: `dup m = ok m'` implies `m' = m`.
+`DupId` is the hypothesis it runs on, discharged per dictionary in
+`Refine/State.lean`. -/
+
+section Dup
+
+/-- **The hypothesis on a `Dup` dictionary**: `dup2` returns its argument *in
+the model*.  Forward, as DESIGN.md §3.5 asks (`dup2` may fail; when it returns,
+it returns a copy indistinguishable from the original).  `Refine/State.lean`
+discharges it for the nine dictionaries `cached::state_c::dup` uses. -/
+def DupId {α : Type} (DupInst : ron.hashmap.Dup α) : Prop :=
+  ∀ a b : α, DupInst.dup2 a = ok b → b = a
+
+variable {DupK : ron.hashmap.Dup K} {DupV : ron.hashmap.Dup V}
+
+omit [DecidableEq K] in
+/-- The one-element window a `Vec` walk copies at its base case. -/
+theorem take_one_drop {α : Type} [Inhabited α] {s : List α} {lo : Nat}
+    (h : lo < s.length) : (s.drop lo).take 1 = [s[lo]!] := by
+  simp [List.take_one, List.head?_drop, List.getElem?_eq_getElem h,
+    List.getElem!_of_getElem? (List.getElem?_eq_getElem h)]
+
+omit [DecidableEq K] in
+/-- **One bucket, copied.**  `dup_alist` rebuilds the chain entry by entry
+(task #41's optional tail: a one-entry bucket allocates nothing), and under
+`DupId` on both components the rebuilt chain is the original one. -/
+theorem dup_alist_id (hK : DupId DupK) (hV : DupId DupV)
+    {ls ls' : ron.hashmap.AList K V}
+    (h : ron.hashmap.dup_alist DupK DupV ls = ok ls') : ls' = ls := by
+  induction ls using AList.recTail generalizing ls' with
+  | nil =>
+    rw [ron.hashmap.dup_alist.eq_def] at h
+    simp only [] at h
+    exact (Result.ok_injective h).symm
+  | last ckey cval =>
+    rw [ron.hashmap.dup_alist.eq_def] at h
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨a, ha, b, hb, hls⟩ := h
+    rw [hK _ _ ha, hV _ _ hb] at hls
+    exact hls.symm
+  | cons ckey cval tl ih =>
+    rw [ron.hashmap.dup_alist.eq_def] at h
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨rest, hrest, a, ha, b, hb, hls⟩ := h
+    rw [ih hrest, hK _ _ ha, hV _ _ hb] at hls
+    exact hls.symm
+
+omit [DecidableEq K] in
+/-- **`dup`'s bucket walk.**  `dup_slots src out lo hi` appends the buckets
+`[lo, hi)` of `src` to `out`, unchanged.  The halving is what keeps the
+recursion `log2 n` deep on a 2^26-bucket `instC`; the proof is
+`allocate_slots_spec`'s strong induction on the width of the range. -/
+theorem dup_slots_spec (hK : DupId DupK) (hV : DupId DupV) (N : Nat) :
+    ∀ (src out out' : alloc.vec.Vec (ron.hashmap.AList K V)) (lo hi : Std.Usize),
+      hi.val - lo.val = N → hi.val ≤ src.val.length →
+      ron.hashmap.HashMap.dup_slots DupK DupV src out lo hi = ok out' →
+      out'.val = out.val ++ (src.val.drop lo.val).take (hi.val - lo.val) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro src out out' lo hi hN hhi h
+    rw [ron.hashmap.HashMap.dup_slots.eq_def] at h
+    split at h
+    · rename_i hgt
+      have hlt : lo.val < hi.val := by scalar_tac
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨n, hn, h⟩ := h
+      have hnv : n.val = hi.val - lo.val := uscalar_sub_eq hn
+      split at h
+      · rename_i h1
+        have hn1 : hi.val = lo.val + 1 := by
+          have : n.val = 1 := by scalar_tac
+          omega
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨a, ha, a1, ha1, hp⟩ := h
+        obtain ⟨hlo, rfl⟩ := vec_index_eq ha
+        rw [vec_push_eq hp, dup_alist_id hK hV ha1, hn1,
+          show lo.val + 1 - lo.val = 1 by omega, take_one_drop hlo]
+      · rename_i h1
+        have hn2 : 2 ≤ n.val := by
+          have : n.val ≠ 1 := by scalar_tac
+          omega
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨i, hi2, mid, hmid, out1, hs1, h2⟩ := h
+        have hiv : i.val = n.val / 2 := by
+          rw [uscalar_div_eq hi2, show (2#usize : Std.Usize).val = 2 by scalar_tac]
+        have hmv : mid.val = lo.val + i.val := uscalar_add_eq hmid
+        have e1 := ih (mid.val - lo.val) (by omega) src out out1 lo mid rfl
+          (by omega) hs1
+        have e2 := ih (hi.val - mid.val) (by omega) src out1 out' mid hi rfl
+          hhi h2
+        rw [e2, e1, List.append_assoc,
+          show hi.val - lo.val = (mid.val - lo.val) + (hi.val - mid.val) by omega,
+          List.take_add, List.drop_drop,
+          show lo.val + (mid.val - lo.val) = mid.val by omega]
+    · rename_i hgt
+      have hle : hi.val ≤ lo.val := by scalar_tac
+      rw [← Result.ok_injective h, show hi.val - lo.val = 0 by omega]
+      simp
+
+omit [DecidableEq K] in
+/-- **The snapshot is the table.**  `ron::HashMap::dup` carries `num_entries`,
+`max_load` and `saturated` over and rebuilds `slots` bucket for bucket, so
+under `DupId` the copy is *equal* to the original — every consequence the pin
+loop wants (`Inv`, `KeysOk`, `toFun`, `al_v` and its length, `Rel`/`RelOn`)
+follows by rewriting with this.  It is the model that collapses here, not the
+port: the two tables really are independent at run time, which is the whole
+point of the snapshot. -/
+theorem dup_spec (hK : DupId DupK) (hV : DupId DupV) {m m' : ron.hashmap.HashMap K V}
+    (h : ron.hashmap.HashMap.dup DupK DupV m = ok m') : m' = m := by
+  rw [ron.hashmap.HashMap.dup] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨slots, hs, hm⟩ := h
+  have hv : slots.val = m.slots.val := by
+    have := dup_slots_spec hK hV
+      ((alloc.vec.Vec.len m.slots).val - (0#usize : Std.Usize).val) m.slots
+      (alloc.vec.Vec.with_capacity (ron.hashmap.AList K V)
+        (alloc.vec.Vec.len m.slots)) slots 0#usize (alloc.vec.Vec.len m.slots)
+      rfl (by simp) hs
+    simpa [alloc.vec.Vec.with_capacity] using this
+  rw [← Result.ok_injective hm, alloc.vec.Vec.ext _ _ hv]
+
+/-- The snapshot denotes the same abstract map (`toFun` is `dup`-invariant). -/
+theorem dup_toFun (hK : DupId DupK) (hV : DupId DupV) {m m' : ron.hashmap.HashMap K V}
+    (h : ron.hashmap.HashMap.dup DupK DupV m = ok m') (k : K) :
+    toFun m' k = toFun m k := by
+  rw [dup_spec hK hV h]
+
+omit [DecidableEq K] in
+/-- The snapshot holds the same entries — which is `KeysOk`, the value-WF
+clause of `StateWF` and, through its length, `StateRel`'s `instC` count. -/
+theorem dup_al_v (hK : DupId DupK) (hV : DupId DupV) {m m' : ron.hashmap.HashMap K V}
+    (h : ron.hashmap.HashMap.dup DupK DupV m = ok m') : al_v m' = al_v m := by
+  rw [dup_spec hK hV h]
+
+omit [DecidableEq K] in
+/-- The snapshot satisfies the table invariant. -/
+theorem dup_inv (hK : DupId DupK) (hV : DupId DupV) {m m' : ron.hashmap.HashMap K V}
+    (hinv : Inv HashableInst m) (h : ron.hashmap.HashMap.dup DupK DupV m = ok m') :
+    Inv HashableInst m' := by
+  rw [dup_spec hK hV h]; exact hinv
+
+end Dup
+
+
 /-! ## The bridge to `Std.HashMap`
 
 This is what the memo proofs of the checker will use: the port's table
@@ -1654,3 +1818,6 @@ Nothing but Lean's own three axioms: no `sorry`, nothing from the `Arc` model
 
 /-- info: 'ConRon.Refine.HashMap.get_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap.get_refines
+
+/-- info: 'ConRon.Refine.HashMap.dup_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ConRon.Refine.HashMap.dup_spec

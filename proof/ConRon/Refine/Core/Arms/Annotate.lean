@@ -34,9 +34,16 @@ Three groups:
   The two λ arms carry the `bvarBoundM e = 0` test the Rust reads before it
   branches — a hypothesis the caller discharges from `bvar_bound_m_refines`.
 
-The `.M`-suffixed `Array Std.U32` constants of the block are error-message code
-points, reached only on the `.Err` path; nothing is claimed on failure
-(DESIGN.md §3.5), so they carry no theorem.
+Every lemma is stated over the **full outcome** (task #67, DESIGN.md §3's
+ruling of 2026-09-13): exact result on success *and* con-leche's own throw, at
+the same kind, on a failure.  The pass has no `Native` site — its six
+`CheckError` constructions are all mirrored, the three of `annotate_body_i`
+(`core_c.rs:4760` ← `Cached/CoreC.lean:1786`, `:4769` ← `:1791`, `:4776` ←
+`:1794`), `annotate_let_i`'s (`:4955` ← `:1844`), `annotate_proj_i`'s
+(`:5003` ← `:1867`) and, through `core_k::annotate_proj_entry`,
+`Refine/CoreKInfer.lean`'s four.  The `.M`-suffixed `Array Std.U32` constants
+of the block are those messages' code points; messages are never compared, so
+they still carry no theorem.
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.CoreKGuards
@@ -61,6 +68,42 @@ re-declared here verbatim. -/
 attribute [local simp] except_pure' StateT.run modifyGet MonadStateOf.modifyGet
   StateT.modifyGet Bind.bind StateT.bind Pure.pure StateT.pure Except.bind
   Except.pure
+
+/-! ## The mirrored `throw` arms (task #67)
+
+The full-outcome convention (DESIGN.md §3's ruling of 2026-09-13): every
+lemma of this file claims con-leche's outcome for *every* Rust outcome, and
+the annotation pass's `CheckError` sites are all mirrored -- three in
+`annotate_body_i` (`core_c.rs:4760` <- `Cached/CoreC.lean:1786`, `:4769` <-
+`:1791`, `:4776` <- `:1794`), one in `annotate_let_i` (`:4955` <- `:1844`),
+one in `annotate_proj_i` (`:5003` <- `:1867`) and `core_k::annotate_proj_entry`'s
+four, which `Refine/CoreKInfer.lean`'s `annotate_proj_entry_err` owns.
+
+Three small helpers do the shared bookkeeping.  `invalid_inv` /
+`not_implemented_inv` invert the port's error constructor (the coordinator
+hoists these into `Abs.lean` at the end of the campaign), and `throw_apply`
+is the *applied* form of a con-leche `throw`: the plumbing `simp` set above
+has `StateT.run` but no `MonadExcept` instance, so an explicit-`throw` arm
+ends there. -/
+
+/-- `core_types::invalid v = ok ce -> ce = .Invalid v`. -/
+private theorem invalid_inv {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.invalid v = ok ce) :
+    ce = .Invalid v := by
+  rw [core_types.invalid] at h; exact (Result.ok_injective h).symm
+
+/-- `core_types::not_implemented v = ok ce -> ce = .NotImplemented v`. -/
+private theorem not_implemented_inv {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.not_implemented v = ok ce) :
+    ce = .NotImplemented v := by
+  rw [core_types.not_implemented] at h; exact (Result.ok_injective h).symm
+
+/-- `throw` in `CheckCM`, at the *applied* form (`StateT.run` is already in the
+plumbing set and fires first, so the lemma must be stated here, not on
+`(throw le).run lst`). -/
+@[local simp] private theorem throw_apply {β : Type} (le : ConLeche.CheckError)
+    (lst : ConLeche.Cached.CState) :
+    (throw le : ConLeche.Cached.CheckCM β) lst = .error le := rfl
 
 /-! ## The two accumulators
 
@@ -433,8 +476,7 @@ theorem annot_pw_pi_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mode 
   rw [ConLeche.Cached.annotPwPiI.eq_def, ← habsO]
   cases o with
   | some p =>
-    simp only [Result.ok.injEq, Prod.mk.injEq,
-      core.result.Result.Ok.injEq] at hok
+    simp only [Result.ok.injEq, Prod.mk.injEq] at hok
     obtain ⟨hr, hst⟩ := hok
     subst hr
     subst hst
@@ -443,25 +485,37 @@ theorem annot_pw_pi_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mode 
     simp only [bind_eq_ok_iff] at hok
     obtain ⟨⟨r0, st1⟩, h1, hok⟩ := hok
     cases r0 with
-    | Err err => simp [uncurry_apply_pair] at hok
+    | Err err =>
+      simp only [uncurry_apply_pair] at hok
+      simp at hok
+      obtain ⟨hr, -⟩ := hok
+      subst hr
+      exact Out.err (ErrSim.bindCM ((hw.inferIOSim d hb).apply_err hwf hfe h1 hrel hfrel))
     | Ok bt =>
       simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
       obtain ⟨lst1, hrun1, hrel1, hwf1, hbtWF⟩ :=
         (hw.inferIOSim d hb).apply hwf hfe h1 hrel hfrel
       obtain ⟨⟨r1, st2⟩, h2, hok⟩ := hok
       cases r1 with
-      | Err err => simp [uncurry_apply_pair] at hok
+      | Err err =>
+        simp only [uncurry_apply_pair] at hok
+        simp at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        simp only [Option.map_none]
+        rw [bind_run hrun1]
+        exact Out.err (ErrSim.bindCM ((hd.ensureSort d hbtWF).apply_err hwf1 hfe h2 hrel1 hfrel))
       | Ok v =>
-        simp only [uncurry_apply_pair, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq] at hok
+        simp only [uncurry_apply_pair, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨lst2, hrun2, hrel2, hwf2, hvWF⟩ :=
           (hd.ensureSort d hbtWF).apply hwf1 hfe h2 hrel1 hfrel
         obtain ⟨pw, hpw, hr, hst⟩ := hok
         obtain ⟨habsPw, hwfPw⟩ := ExprOps.zeroness_of_refines hvWF pw hpw
         subst hst
-        refine ⟨lst2, ?_, hrel2, hwf2, by rw [← hr]; exact hwfPw⟩
+        subst hr
+        refine ⟨lst2, ?_, hrel2, hwf2, hwfPw⟩
         simp only [StateT.run] at hrun1 hrun2
-        simp [hrun1, hrun2, ← hr, habsPw]
+        simp [hrun1, hrun2, habsPw]
 
 /-- `ConLeche/Cached/CoreC.lean:1736` — **`annot_pw_lam_i` refines
 `annotPwLamI`** (`core_c.rs:4566`): the λ chain's datum, the zero-ness of the
@@ -482,8 +536,7 @@ theorem annot_pw_lam_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mode
   rw [ConLeche.Cached.annotPwLamI.eq_def, ← habsO]
   cases o with
   | some p =>
-    simp only [Result.ok.injEq, Prod.mk.injEq,
-      core.result.Result.Ok.injEq] at hok
+    simp only [Result.ok.injEq, Prod.mk.injEq] at hok
     obtain ⟨hr, hst⟩ := hok
     subst hr
     subst hst
@@ -492,32 +545,52 @@ theorem annot_pw_lam_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mode
     simp only [bind_eq_ok_iff] at hok
     obtain ⟨⟨r0, st1⟩, h1, hok⟩ := hok
     cases r0 with
-    | Err err => simp [uncurry_apply_pair] at hok
+    | Err err =>
+      simp only [uncurry_apply_pair] at hok
+      simp at hok
+      obtain ⟨hr, -⟩ := hok
+      subst hr
+      exact Out.err (ErrSim.bindCM ((hw.inferIOSim d hb).apply_err hwf hfe h1 hrel hfrel))
     | Ok bt =>
       simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
       obtain ⟨lst1, hrun1, hrel1, hwf1, hbtWF⟩ :=
         (hw.inferIOSim d hb).apply hwf hfe h1 hrel hfrel
       obtain ⟨⟨r1, st2⟩, h2, hok⟩ := hok
       cases r1 with
-      | Err err => simp [uncurry_apply_pair] at hok
+      | Err err =>
+        simp only [uncurry_apply_pair] at hok
+        simp at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        simp only [Option.map_none]
+        rw [bind_run hrun1]
+        exact Out.err (ErrSim.bindCM ((hw.inferIOSim d hbtWF).apply_err hwf1 hfe h2 hrel1 hfrel))
       | Ok btt =>
         simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
         obtain ⟨lst2, hrun2, hrel2, hwf2, hbttWF⟩ :=
           (hw.inferIOSim d hbtWF).apply hwf1 hfe h2 hrel1 hfrel
         obtain ⟨⟨r2, st3⟩, h3, hok⟩ := hok
         cases r2 with
-        | Err err => simp [uncurry_apply_pair] at hok
+        | Err err =>
+          simp only [uncurry_apply_pair] at hok
+          simp at hok
+          obtain ⟨hr, -⟩ := hok
+          subst hr
+          simp only [Option.map_none]
+          rw [bind_run hrun1, bind_run hrun2]
+          exact Out.err
+            (ErrSim.bindCM ((hd.ensureSort d hbttWF).apply_err hwf2 hfe h3 hrel2 hfrel))
         | Ok vb =>
-          simp only [uncurry_apply_pair, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-            core.result.Result.Ok.injEq] at hok
+          simp only [uncurry_apply_pair, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨lst3, hrun3, hrel3, hwf3, hvbWF⟩ :=
             (hd.ensureSort d hbttWF).apply hwf2 hfe h3 hrel2 hfrel
           obtain ⟨pw, hpw, hr, hst⟩ := hok
           obtain ⟨habsPw, hwfPw⟩ := ExprOps.zeroness_of_refines hvbWF pw hpw
           subst hst
-          refine ⟨lst3, ?_, hrel3, hwf3, by rw [← hr]; exact hwfPw⟩
+          subst hr
+          refine ⟨lst3, ?_, hrel3, hwf3, hwfPw⟩
           simp only [StateT.run] at hrun1 hrun2 hrun3
-          simp [hrun1, hrun2, hrun3, ← hr, habsPw]
+          simp [hrun1, hrun2, hrun3, habsPw]
 
 /-- `ConLeche/Cached/CoreC.lean:1699` — **`annotate_pis_pw_i` refines
 `annotatePisPwI`** (`core_c.rs:4457`): the ∀ telescope loop's write, ungated
@@ -537,19 +610,26 @@ theorem annotate_pis_pw_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps m
   have hiv : i.val = d.val + k.val := HashMap.uscalar_add_eq hi
   obtain ⟨⟨r0, st1⟩, h1, hok⟩ := hok
   cases r0 with
-  | Err err => simp [uncurry_apply_pair] at hok
+  | Err err =>
+    simp only [uncurry_apply_pair] at hok
+    simp at hok
+    obtain ⟨hr, -⟩ := hok
+    subst hr
+    rw [ConLeche.Cached.annotatePisPwI, ← hiv]
+    exact Out.err
+      (ErrSim.bindCM ((annot_pw_pi_i_refines hw hd i hl).apply_err hwf hfe h1 hrel hfrel))
   | Ok p =>
-    simp only [uncurry_apply_pair, Result.ok.injEq, Prod.mk.injEq,
-      core.result.Result.Ok.injEq] at hok
+    simp only [uncurry_apply_pair, Result.ok.injEq, Prod.mk.injEq] at hok
     obtain ⟨lst1, hrun1, hrel1, hwf1, hpWF⟩ :=
       (annot_pw_pi_i_refines hw hd i hl).apply hwf hfe h1 hrel hfrel
     obtain ⟨hr, hst⟩ := hok
     subst hst
+    subst hr
     refine ⟨lst1, ?_, hrel1, hwf1, ?_⟩
     · rw [ConLeche.Cached.annotatePisPwI, ← hiv]
       simp only [StateT.run] at hrun1
-      simp [hrun1, ← hr]
-    · intro q hq; rw [← hr, Option.some.injEq] at hq; rw [← hq]; exact hpWF
+      simp [hrun1]
+    · intro q hq; rw [Option.some.injEq] at hq; rw [← hq]; exact hpWF
 
 /-- `ConLeche/Cached/CoreC.lean:1748` — **`annotate_lams_pw_i` refines
 `annotateLamsPwI`** (`core_c.rs:4591`), the λ twin, ungated with it. -/
@@ -567,19 +647,26 @@ theorem annotate_lams_pw_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps 
   have hiv : i.val = d.val + k.val := HashMap.uscalar_add_eq hi
   obtain ⟨⟨r0, st1⟩, h1, hok⟩ := hok
   cases r0 with
-  | Err err => simp [uncurry_apply_pair] at hok
+  | Err err =>
+    simp only [uncurry_apply_pair] at hok
+    simp at hok
+    obtain ⟨hr, -⟩ := hok
+    subst hr
+    rw [ConLeche.Cached.annotateLamsPwI, ← hiv]
+    exact Out.err
+      (ErrSim.bindCM ((annot_pw_lam_i_refines hw hd i hl).apply_err hwf hfe h1 hrel hfrel))
   | Ok p =>
-    simp only [uncurry_apply_pair, Result.ok.injEq, Prod.mk.injEq,
-      core.result.Result.Ok.injEq] at hok
+    simp only [uncurry_apply_pair, Result.ok.injEq, Prod.mk.injEq] at hok
     obtain ⟨lst1, hrun1, hrel1, hwf1, hpWF⟩ :=
       (annot_pw_lam_i_refines hw hd i hl).apply hwf hfe h1 hrel hfrel
     obtain ⟨hr, hst⟩ := hok
     subst hst
+    subst hr
     refine ⟨lst1, ?_, hrel1, hwf1, ?_⟩
     · rw [ConLeche.Cached.annotateLamsPwI, ← hiv]
       simp only [StateT.run] at hrun1
-      simp [hrun1, ← hr]
-    · intro q hq; rw [← hr, Option.some.injEq] at hq; rw [← hq]; exact hpWF
+      simp [hrun1]
+    · intro q hq; rw [Option.some.injEq] at hq; rw [← hq]; exact hpWF
 
 /-! ## The two leaf phases
 
@@ -638,17 +725,30 @@ theorem annotate_pis_leaf_i_refines (hw : Wrappers mode fuel)
   have hiv : i.val = d.val + k.val := HashMap.uscalar_add_eq hi
   obtain ⟨⟨r0, st1⟩, h1, hok⟩ := hok
   cases r0 with
-  | Err err => simp [uncurry_apply_pair] at hok
+  | Err err =>
+    simp only [uncurry_apply_pair] at hok
+    simp at hok
+    obtain ⟨hr, -⟩ := hok
+    subst hr
+    rw [annotatePisLeafI_eq, instantiateRev_absExprArr, ← habsTo, ← hiv]
+    exact Out.err (ErrSim.bindCM ((hw.annotateSim i hwfTo).apply_err hwf hfe h1 hrel hfrel))
   | Ok leaf2 =>
     simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
     obtain ⟨lst1, hrun1, hrel1, hwf1, hleafWF⟩ :=
       (hw.annotateSim i hwfTo).apply hwf hfe h1 hrel hfrel
     obtain ⟨⟨r1, st2⟩, h2, hok⟩ := hok
     cases r1 with
-    | Err err => simp [uncurry_apply_pair] at hok
+    | Err err =>
+      simp only [uncurry_apply_pair] at hok
+      simp at hok
+      obtain ⟨hr, -⟩ := hok
+      subst hr
+      rw [annotatePisLeafI_eq, instantiateRev_absExprArr, ← habsTo, ← hiv,
+        bind_run hrun1]
+      exact Out.err (ErrSim.bindCM
+        ((annotate_pis_pw_i_refines hw hd d k hleafWF).apply_err hwf1 hfe h2 hrel1 hfrel))
     | Ok pw =>
-      simp only [uncurry_apply_pair, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-        core.result.Result.Ok.injEq] at hok
+      simp only [uncurry_apply_pair, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨lst2, hrun2, hrel2, hwf2, hpwWF⟩ :=
         (annotate_pis_pw_i_refines hw hd d k hleafWF).apply hwf1 hfe h2 hrel1 hfrel
       obtain ⟨cur, hcur, i2, hi2, e, he, hr, hst⟩ := hok
@@ -662,12 +762,13 @@ theorem annotate_pis_leaf_i_refines (hw : Wrappers mode fuel)
         annotate_binders_out_i_refines true d stk.val.length pw stk
           (alloc.vec.Vec.len stk) i2 cur hlenv (by omega) hpwWF hstk hwfCur e he
       subst hst
-      refine ⟨lst2, ?_, hrel2, hwf2, by rw [← hr]; exact hwfE⟩
+      subst hr
+      refine ⟨lst2, ?_, hrel2, hwf2, hwfE⟩
       simp only [StateT.run] at hrun1 hrun2 ⊢
       rw [annotatePisLeafI_eq, instantiateRev_absExprArr, ← habsTo]
       simp only [Bind.bind, StateT.bind, Except.bind, ← hiv, hrun1, hrun2]
       rw [hlenv, hi2v, ← absStk] at habsE
-      rw [← habsCur, ← habsE, hr]
+      rw [← habsCur, ← habsE]
       rfl
 
 /-- `ConLeche/Cached/CoreC.lean:1755` — **`annotate_lams_leaf_i` refines
@@ -692,17 +793,30 @@ theorem annotate_lams_leaf_i_refines (hw : Wrappers mode fuel)
   have hiv : i.val = d.val + k.val := HashMap.uscalar_add_eq hi
   obtain ⟨⟨r0, st1⟩, h1, hok⟩ := hok
   cases r0 with
-  | Err err => simp [uncurry_apply_pair] at hok
+  | Err err =>
+    simp only [uncurry_apply_pair] at hok
+    simp at hok
+    obtain ⟨hr, -⟩ := hok
+    subst hr
+    rw [annotateLamsLeafI_eq, instantiateRev_absExprArr, ← habsTo, ← hiv]
+    exact Out.err (ErrSim.bindCM ((hw.annotateSim i hwfTo).apply_err hwf hfe h1 hrel hfrel))
   | Ok leaf2 =>
     simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
     obtain ⟨lst1, hrun1, hrel1, hwf1, hleafWF⟩ :=
       (hw.annotateSim i hwfTo).apply hwf hfe h1 hrel hfrel
     obtain ⟨⟨r1, st2⟩, h2, hok⟩ := hok
     cases r1 with
-    | Err err => simp [uncurry_apply_pair] at hok
+    | Err err =>
+      simp only [uncurry_apply_pair] at hok
+      simp at hok
+      obtain ⟨hr, -⟩ := hok
+      subst hr
+      rw [annotateLamsLeafI_eq, instantiateRev_absExprArr, ← habsTo, ← hiv,
+        bind_run hrun1]
+      exact Out.err (ErrSim.bindCM
+        ((annotate_lams_pw_i_refines hw hd d k hleafWF).apply_err hwf1 hfe h2 hrel1 hfrel))
     | Ok pw =>
-      simp only [uncurry_apply_pair, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-        core.result.Result.Ok.injEq] at hok
+      simp only [uncurry_apply_pair, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨lst2, hrun2, hrel2, hwf2, hpwWF⟩ :=
         (annotate_lams_pw_i_refines hw hd d k hleafWF).apply hwf1 hfe h2 hrel1 hfrel
       obtain ⟨cur, hcur, i2, hi2, e, he, hr, hst⟩ := hok
@@ -716,12 +830,13 @@ theorem annotate_lams_leaf_i_refines (hw : Wrappers mode fuel)
         annotate_binders_out_i_refines false d stk.val.length pw stk
           (alloc.vec.Vec.len stk) i2 cur hlenv (by omega) hpwWF hstk hwfCur e he
       subst hst
-      refine ⟨lst2, ?_, hrel2, hwf2, by rw [← hr]; exact hwfE⟩
+      subst hr
+      refine ⟨lst2, ?_, hrel2, hwf2, hwfE⟩
       simp only [StateT.run] at hrun1 hrun2 ⊢
       rw [annotateLamsLeafI_eq, instantiateRev_absExprArr, ← habsTo]
       simp only [Bind.bind, StateT.bind, Except.bind, ← hiv, hrun1, hrun2]
       rw [hlenv, hi2v, ← absStk] at habsE
-      rw [← habsCur, ← habsE, hr]
+      rw [← habsCur, ← habsE]
       rfl
 
 /-! ## The two peel loops
@@ -802,7 +917,8 @@ theorem annotate_pis_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mode
     unfold cached.core_c.annotate_pis_i at hok
     rw [if_pos (show peel = 0#u64 by scalar_tac)] at hok
     rw [hpeel, annotatePisI_zero]
-    exact (annotate_pis_leaf_i_refines hw hd d ht k hfvs hstk).apply hwf hfe hok hrel hfrel
+    exact annotate_pis_leaf_i_refines hw hd d ht k hfvs hstk fe lfe hfe hfrel st r st'
+      hwf hok lst hrel
   | succ N ih =>
     intro peel t k fvs stk hpeel ht hfvs hstk fe lfe hfe hfrel st r st' hwf hok lst hrel
     dsimp only at hok ⊢
@@ -811,14 +927,14 @@ theorem annotate_pis_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mode
     rw [hpeel]
     have leafCase : ∀ (t0 : expr.Expr), ExprWF t0 →
         (∀ ty body mb, absExpr t0 ≠ ConLeche.Expr.forallE ty body mb) →
-        cached.core_c.annotate_pis_leaf_i mode fuel st fe d t0 k fvs stk
-          = ok (.Ok r, st') →
-        ∃ lst', (ConLeche.Cached.annotatePisI (knot mode lfe fuel.val) lfe d.val
-            (N + 1) (absExpr t0) k.val (absExprArr fvs) (absStk stk)).run lst
-              = .ok (absExpr r, lst') ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r := by
+        cached.core_c.annotate_pis_leaf_i mode fuel st fe d t0 k fvs stk = ok (r, st') →
+        Out absExpr ExprWF r st'
+          ((ConLeche.Cached.annotatePisI (knot mode lfe fuel.val) lfe d.val
+            (N + 1) (absExpr t0) k.val (absExprArr fvs) (absStk stk)).run lst) := by
       intro t0 ht0 hne hok0
       rw [annotatePisI_succ_leaf _ _ _ _ _ _ _ _ hne]
-      exact (annotate_pis_leaf_i_refines hw hd d ht0 k hfvs hstk).apply hwf hfe hok0 hrel hfrel
+      exact annotate_pis_leaf_i_refines hw hd d ht0 k hfvs hstk fe lfe hfe hfrel st r st'
+        hwf hok0 lst hrel
     cases ht with
     | @forall_e ty body mb e hty hbody hmb h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.forall_e_inv h1
@@ -836,7 +952,14 @@ theorem annotate_pis_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mode
       have hiv : i.val = d.val + k.val := HashMap.uscalar_add_eq hi
       obtain ⟨⟨r0, st1⟩, h2, hok⟩ := hok
       cases r0 with
-      | Err err => simp [uncurry_apply_pair] at hok
+      | Err err =>
+        simp only [uncurry_apply_pair] at hok
+        simp at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [annotatePisI_succ_forallE, instantiateRev_absExprArr, ← habsTyo, ← hiv]
+        exact Out.err
+          (ErrSim.bindCM ((hw.annotateSim i hwfTyo).apply_err hwf hfe h2 hrel hfrel))
       | Ok ty2 =>
         simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
         obtain ⟨lst1, hrun1, hrel1, hwf1, hty2WF⟩ :=
@@ -853,17 +976,15 @@ theorem annotate_pis_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mode
           have h1' : (1#u64 : Std.U64).val = 1 := by scalar_tac
           omega
         have hi2v : i2.val = k.val + 1 := HashMap.uscalar_add_eq hi2
-        obtain ⟨lst2, hrun2, hrel2, hwf2, hrWF⟩ :=
-          (ih i1 body i2 fvs1 stk1 hi1v hbody
-              (ExprsWF_push hfvs (Expr.fvar_wf hty2WF hfv) hfvs1)
-              (StkWF_push hstk hty2WF hmb hstk1)).apply hwf1 hfe hok hrel1 hfrel
-        refine ⟨lst2, ?_, hrel2, hwf2, hrWF⟩
-        simp only [StateT.run] at hrun1 hrun2 ⊢
+        have hout := ih i1 body i2 fvs1 stk1 hi1v hbody
+            (ExprsWF_push hfvs (Expr.fvar_wf hty2WF hfv) hfvs1)
+            (StkWF_push hstk hty2WF hmb hstk1) fe lfe hfe hfrel st1 r st' hwf1 hok lst1 hrel1
+        simp only [StateT.run] at hrun1 hout ⊢
         rw [absExprArr_push hfvs1, Expr.fvar_refines hfv, absStk_push hstk1, hi1v,
-          hi2v] at hrun2
+          hi2v] at hout
         rw [annotatePisI_succ_forallE, instantiateRev_absExprArr, ← habsTyo, ← hiv]
         simp only [Bind.bind, StateT.bind, Except.bind, hrun1]
-        exact hrun2
+        exact hout
     | @bvar i e h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.bvar_inv h1
       simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
@@ -921,7 +1042,8 @@ theorem annotate_lams_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mod
     unfold cached.core_c.annotate_lams_i at hok
     rw [if_pos (show peel = 0#u64 by scalar_tac)] at hok
     rw [hpeel, annotateLamsI_zero]
-    exact (annotate_lams_leaf_i_refines hw hd d ht k hfvs hstk).apply hwf hfe hok hrel hfrel
+    exact annotate_lams_leaf_i_refines hw hd d ht k hfvs hstk fe lfe hfe hfrel st r st'
+      hwf hok lst hrel
   | succ N ih =>
     intro peel t k fvs stk hpeel ht hfvs hstk fe lfe hfe hfrel st r st' hwf hok lst hrel
     dsimp only at hok ⊢
@@ -930,14 +1052,14 @@ theorem annotate_lams_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mod
     rw [hpeel]
     have leafCase : ∀ (t0 : expr.Expr), ExprWF t0 →
         (∀ ty body mb, absExpr t0 ≠ ConLeche.Expr.lam ty body mb) →
-        cached.core_c.annotate_lams_leaf_i mode fuel st fe d t0 k fvs stk
-          = ok (.Ok r, st') →
-        ∃ lst', (ConLeche.Cached.annotateLamsI (knot mode lfe fuel.val) lfe d.val
-            (N + 1) (absExpr t0) k.val (absExprArr fvs) (absStk stk)).run lst
-              = .ok (absExpr r, lst') ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r := by
+        cached.core_c.annotate_lams_leaf_i mode fuel st fe d t0 k fvs stk = ok (r, st') →
+        Out absExpr ExprWF r st'
+          ((ConLeche.Cached.annotateLamsI (knot mode lfe fuel.val) lfe d.val
+            (N + 1) (absExpr t0) k.val (absExprArr fvs) (absStk stk)).run lst) := by
       intro t0 ht0 hne hok0
       rw [annotateLamsI_succ_leaf _ _ _ _ _ _ _ _ hne]
-      exact (annotate_lams_leaf_i_refines hw hd d ht0 k hfvs hstk).apply hwf hfe hok0 hrel hfrel
+      exact annotate_lams_leaf_i_refines hw hd d ht0 k hfvs hstk fe lfe hfe hfrel st r st'
+        hwf hok0 lst hrel
     cases ht with
     | @lam ty body mb e hty hbody hmb h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.lam_inv h1
@@ -955,7 +1077,14 @@ theorem annotate_lams_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mod
       have hiv : i.val = d.val + k.val := HashMap.uscalar_add_eq hi
       obtain ⟨⟨r0, st1⟩, h2, hok⟩ := hok
       cases r0 with
-      | Err err => simp [uncurry_apply_pair] at hok
+      | Err err =>
+        simp only [uncurry_apply_pair] at hok
+        simp at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [annotateLamsI_succ_lam, instantiateRev_absExprArr, ← habsTyo, ← hiv]
+        exact Out.err
+          (ErrSim.bindCM ((hw.annotateSim i hwfTyo).apply_err hwf hfe h2 hrel hfrel))
       | Ok ty2 =>
         simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
         obtain ⟨lst1, hrun1, hrel1, hwf1, hty2WF⟩ :=
@@ -972,17 +1101,15 @@ theorem annotate_lams_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mod
           have h1' : (1#u64 : Std.U64).val = 1 := by scalar_tac
           omega
         have hi2v : i2.val = k.val + 1 := HashMap.uscalar_add_eq hi2
-        obtain ⟨lst2, hrun2, hrel2, hwf2, hrWF⟩ :=
-          (ih i1 body i2 fvs1 stk1 hi1v hbody
-              (ExprsWF_push hfvs (Expr.fvar_wf hty2WF hfv) hfvs1)
-              (StkWF_push hstk hty2WF hmb hstk1)).apply hwf1 hfe hok hrel1 hfrel
-        refine ⟨lst2, ?_, hrel2, hwf2, hrWF⟩
-        simp only [StateT.run] at hrun1 hrun2 ⊢
+        have hout := ih i1 body i2 fvs1 stk1 hi1v hbody
+            (ExprsWF_push hfvs (Expr.fvar_wf hty2WF hfv) hfvs1)
+            (StkWF_push hstk hty2WF hmb hstk1) fe lfe hfe hfrel st1 r st' hwf1 hok lst1 hrel1
+        simp only [StateT.run] at hrun1 hout ⊢
         rw [absExprArr_push hfvs1, Expr.fvar_refines hfv, absStk_push hstk1, hi1v,
-          hi2v] at hrun2
+          hi2v] at hout
         rw [annotateLamsI_succ_lam, instantiateRev_absExprArr, ← habsTyo, ← hiv]
         simp only [Bind.bind, StateT.bind, Except.bind, hrun1]
-        exact hrun2
+        exact hout
     | @bvar i e h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.bvar_inv h1
       simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
@@ -1180,7 +1307,14 @@ theorem annotate_forall_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps m
   simp only [bind_eq_ok_iff] at hok
   obtain ⟨⟨r0, st1⟩, h1, hok⟩ := hok
   cases r0 with
-  | Err err => simp [uncurry_apply_pair] at hok
+  | Err err =>
+    simp only [uncurry_apply_pair] at hok
+    simp at hok
+    obtain ⟨hr, -⟩ := hok
+    subst hr
+    rw [annotateBodyI_forallE]
+    exact Out.err
+      (ErrSim.bindCM ((hw.annotateSim depth hty).apply_err hwf hfe h1 hrel hfrel))
   | Ok ty2 =>
     simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
     obtain ⟨lst1, hrun1, hrel1, hwf1, hty2WF⟩ :=
@@ -1194,18 +1328,16 @@ theorem annotate_forall_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps m
     obtain ⟨stk, hstk, hok⟩ := hok
     obtain ⟨i, hi, hok⟩ := hok
     have hiv : i.val = ConLeche.Cached.peelFuel := StateC.peel_fuel_refines hi
-    obtain ⟨lst2, hrun2, hrel2, hwf2, hrWF⟩ :=
-      (annotate_pis_i_refines hw hd depth i.val i body 1#u64 fvs stk rfl hbody
-          (ExprsWF_push exprsWF_new (Expr.fvar_wf hty2WF hfv) hfvs)
-          (StkWF_push stkWF_new hty2WF hmb hstk)).apply hwf1 hfe hok hrel1 hfrel
-    refine ⟨lst2, ?_, hrel2, hwf2, hrWF⟩
-    simp only [StateT.run] at hrun1 hrun2 ⊢
+    have hout := annotate_pis_i_refines hw hd depth i.val i body 1#u64 fvs stk rfl hbody
+        (ExprsWF_push exprsWF_new (Expr.fvar_wf hty2WF hfv) hfvs)
+        (StkWF_push stkWF_new hty2WF hmb hstk) fe lfe hfe hfrel st1 r st' hwf1 hok lst1 hrel1
+    simp only [StateT.run] at hrun1 hout ⊢
     rw [absExprArr_push hfvs, Expr.fvar_refines hfv, absStk_push hstk, hiv,
       show (1#u64 : Std.U64).val = 1 from by scalar_tac, absExprArr_new,
-      absStk_new] at hrun2
+      absStk_new] at hout
     rw [annotateBodyI_forallE]
     simp only [Bind.bind, StateT.bind, Except.bind, hrun1]
-    exact hrun2
+    exact hout
 
 /-- `ConLeche/Cached/CoreC.lean:1779-1867` — **`annotate_lam_loop_i` refines the
 bvar-closed branch of `annotateBodyI`'s `.lam` clause** (`core_c.rs:4817`).  The
@@ -1227,7 +1359,14 @@ theorem annotate_lam_loop_i_refines (hw : Wrappers mode fuel)
   simp only [bind_eq_ok_iff] at hok
   obtain ⟨⟨r0, st1⟩, h1, hok⟩ := hok
   cases r0 with
-  | Err err => simp [uncurry_apply_pair] at hok
+  | Err err =>
+    simp only [uncurry_apply_pair] at hok
+    simp at hok
+    obtain ⟨hr, -⟩ := hok
+    subst hr
+    rw [annotateBodyI_lam_split, if_pos hbb]
+    exact Out.err
+      (ErrSim.bindCM ((hw.annotateSim depth hty).apply_err hwf hfe h1 hrel hfrel))
   | Ok ty2 =>
     simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
     obtain ⟨lst1, hrun1, hrel1, hwf1, hty2WF⟩ :=
@@ -1241,18 +1380,16 @@ theorem annotate_lam_loop_i_refines (hw : Wrappers mode fuel)
     obtain ⟨stk, hstk, hok⟩ := hok
     obtain ⟨i, hi, hok⟩ := hok
     have hiv : i.val = ConLeche.Cached.peelFuel := StateC.peel_fuel_refines hi
-    obtain ⟨lst2, hrun2, hrel2, hwf2, hrWF⟩ :=
-      (annotate_lams_i_refines hw hd depth i.val i body 1#u64 fvs stk rfl hbody
-          (ExprsWF_push exprsWF_new (Expr.fvar_wf hty2WF hfv) hfvs)
-          (StkWF_push stkWF_new hty2WF hmb hstk)).apply hwf1 hfe hok hrel1 hfrel
-    refine ⟨lst2, ?_, hrel2, hwf2, hrWF⟩
-    simp only [StateT.run] at hrun1 hrun2 ⊢
+    have hout := annotate_lams_i_refines hw hd depth i.val i body 1#u64 fvs stk rfl hbody
+        (ExprsWF_push exprsWF_new (Expr.fvar_wf hty2WF hfv) hfvs)
+        (StkWF_push stkWF_new hty2WF hmb hstk) fe lfe hfe hfrel st1 r st' hwf1 hok lst1 hrel1
+    simp only [StateT.run] at hrun1 hout ⊢
     rw [absExprArr_push hfvs, Expr.fvar_refines hfv, absStk_push hstk, hiv,
       show (1#u64 : Std.U64).val = 1 from by scalar_tac, absExprArr_new,
-      absStk_new] at hrun2
+      absStk_new] at hout
     rw [annotateBodyI_lam_split, if_pos hbb]
     simp only [Bind.bind, StateT.bind, Except.bind, hrun1]
-    exact hrun2
+    exact hout
 
 /-- `ConLeche/Cached/CoreC.lean:1779-1867` — **`annotate_lam_chain_i` refines the
 open branch of `annotateBodyI`'s `.lam` clause** (`core_c.rs:4858`): annotate the
@@ -1275,7 +1412,14 @@ theorem annotate_lam_chain_i_refines (hw : Wrappers mode fuel)
   simp only [bind_eq_ok_iff, arc_deref_eq, bind_tc_ok] at hok
   obtain ⟨⟨r0, st1⟩, h1, hok⟩ := hok
   cases r0 with
-  | Err err => simp [uncurry_apply_pair] at hok
+  | Err err =>
+    simp only [uncurry_apply_pair] at hok
+    simp at hok
+    obtain ⟨hr, -⟩ := hok
+    subst hr
+    rw [annotateBodyI_lam_split, if_neg hbb]
+    exact Out.err
+      (ErrSim.bindCM ((hw.annotateSim depth hty).apply_err hwf hfe h1 hrel hfrel))
   | Ok ty2 =>
     simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
     obtain ⟨lst1, hrun1, hrel1, hwf1, hty2WF⟩ :=
@@ -1292,7 +1436,14 @@ theorem annotate_lam_chain_i_refines (hw : Wrappers mode fuel)
     have hiv : i.val = depth.val + 1 := HashMap.uscalar_add_eq hi
     obtain ⟨⟨r1, st2⟩, h2, hok⟩ := hok
     cases r1 with
-    | Err err => simp [uncurry_apply_pair] at hok
+    | Err err =>
+      simp only [uncurry_apply_pair] at hok
+      simp at hok
+      obtain ⟨hr, -⟩ := hok
+      subst hr
+      rw [annotateBodyI_lam_split, if_neg hbb, bind_run hrun1, ← habsOb, ← hiv]
+      exact Out.err
+        (ErrSim.bindCM ((hw.annotateSim i hwfOb).apply_err hwf1 hfe h2 hrel1 hfrel))
     | Ok body2 =>
       simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
       obtain ⟨lst2, hrun2, hrel2, hwf2, hbody2WF⟩ :=
@@ -1340,20 +1491,51 @@ theorem annotate_lam_chain_i_refines (hw : Wrappers mode fuel)
             hpWF⟩
           rw [if_pos (by simp [absBinderMeta, ← hbwv])]
           exact hrun3
+      -- and the same two routes on a throw: the `pw_written` route cannot
+      -- throw, the `annot_pw_lam_i` one throws what its callee threw
+      have hbranchErr : ∀ e0, pw1 = .Err e0 →
+          ErrSim e0 ((if !ConLeche.pwWritten (absBinderMeta mb).pw then
+                ConLeche.Cached.annotPwLamI (knot mode lfe fuel.val) lfe i.val
+                  (absExpr body2)
+              else pure (absBinderMeta mb).pw).run lst2) := by
+        intro e0 hp
+        subst hp
+        cases bw with
+        | true =>
+          rw [if_pos rfl] at hbranch
+          simp only [bind_eq_ok_iff] at hbranch
+          obtain ⟨q, -, hbranch⟩ := hbranch
+          simp at hbranch
+        | false =>
+          rw [if_neg (by simp)] at hbranch
+          simp only [bind_eq_ok_iff] at hbranch
+          obtain ⟨⟨r2, st4⟩, h3, hbranch⟩ := hbranch
+          simp only [uncurry_apply_pair, Result.ok.injEq, Prod.mk.injEq] at hbranch
+          obtain ⟨-, hp⟩ := hbranch
+          rw [hp] at h3
+          rw [if_pos (by simp [absBinderMeta, ← hbwv])]
+          exact (annot_pw_lam_i_refines hw hd i hbody2WF).apply_err hwf2 hfe h3 hrel2 hfrel
       cases pw1 with
-      | Err err => simp [uncurry_apply_pair] at hok
+      | Err err =>
+        simp only [uncurry_apply_pair] at hok
+        simp at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [annotateBodyI_lam_split, if_neg hbb, bind_run hrun1, ← habsOb, ← hiv,
+          bind_run hrun2, ite_bind_jp]
+        exact Out.err (ErrSim.bindCM (hbranchErr err rfl))
       | Ok p =>
         simp only [uncurry_apply_pair, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq, ExprOps.binder_meta_eq] at hok
+          ExprOps.binder_meta_eq] at hok
         obtain ⟨lst3, hrun3, hrel3, hwf3, hpWF⟩ := hbranchSim p rfl
         obtain ⟨bm2, hbm2, e2, he2, hr, hst⟩ := hok
         subst hst
-        refine ⟨lst3, ?_, hrel3, hwf3, by
-          rw [← hr]
-          exact Expr.lam_wf hty2WF hwfBAbs (by rw [← hbm2]; exact hpWF) he2⟩
+        subst hr
+        refine ⟨lst3, ?_, hrel3, hwf3,
+          Expr.lam_wf hty2WF hwfBAbs (by rw [← hbm2]; exact hpWF) he2⟩
         rw [annotateBodyI_lam_split, if_neg hbb, bind_run hrun1, ← habsOb, ← hiv,
           bind_run hrun2, ite_bind_jp, bind_run hrun3]
-        rw [← hr, Expr.lam_refines he2, habsBAbs, ← hbm2]
+        rw [Expr.lam_refines he2, habsBAbs, ← hbm2]
         rfl
 
 /-- `ConLeche/Cached/CoreC.lean:1779-1867` — **`annotate_let_i` refines the
@@ -1374,67 +1556,119 @@ theorem annotate_let_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mode
   simp only [bind_eq_ok_iff] at hok
   obtain ⟨⟨r0, st1⟩, h1, hok⟩ := hok
   cases r0 with
-  | Err err => simp [uncurry_apply_pair] at hok
+  | Err err =>
+    simp only [uncurry_apply_pair] at hok
+    simp at hok
+    obtain ⟨hr, -⟩ := hok
+    subst hr
+    rw [annotateBodyI_letE]
+    exact Out.err
+      (ErrSim.bindCM ((hw.annotateSim depth hty).apply_err hwf hfe h1 hrel hfrel))
   | Ok ty2 =>
     simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
     obtain ⟨lst1, hrun1, hrel1, hwf1, hty2WF⟩ :=
       (hw.annotateSim depth hty).apply hwf hfe h1 hrel hfrel
     obtain ⟨⟨r1, st2⟩, h2, hok⟩ := hok
     cases r1 with
-    | Err err => simp [uncurry_apply_pair] at hok
+    | Err err =>
+      simp only [uncurry_apply_pair] at hok
+      simp at hok
+      obtain ⟨hr, -⟩ := hok
+      subst hr
+      rw [annotateBodyI_letE, bind_run hrun1]
+      exact Out.err
+        (ErrSim.bindCM ((hw.inferSim depth hty2WF).apply_err hwf1 hfe h2 hrel1 hfrel))
     | Ok tty =>
       simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
       obtain ⟨lst2, hrun2, hrel2, hwf2, httyWF⟩ :=
         (hw.inferSim depth hty2WF).apply hwf1 hfe h2 hrel1 hfrel
       obtain ⟨⟨r2, st3⟩, h3, hok⟩ := hok
       cases r2 with
-      | Err err => simp [uncurry_apply_pair] at hok
+      | Err err =>
+        simp only [uncurry_apply_pair] at hok
+        simp at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [annotateBodyI_letE, bind_run hrun1, bind_run hrun2]
+        exact Out.err
+          (ErrSim.bindCM ((hd.ensureSort depth httyWF).apply_err hwf2 hfe h3 hrel2 hfrel))
       | Ok srt =>
         simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
         obtain ⟨lst3, hrun3, hrel3, hwf3, hsrtWF⟩ :=
           (hd.ensureSort depth httyWF).apply hwf2 hfe h3 hrel2 hfrel
         obtain ⟨⟨r3, st4⟩, h4, hok⟩ := hok
         cases r3 with
-        | Err err => simp [uncurry_apply_pair] at hok
+        | Err err =>
+          simp only [uncurry_apply_pair] at hok
+          simp at hok
+          obtain ⟨hr, -⟩ := hok
+          subst hr
+          rw [annotateBodyI_letE, bind_run hrun1, bind_run hrun2, bind_run hrun3]
+          exact Out.err
+            (ErrSim.bindCM ((hw.annotateSim depth hv).apply_err hwf3 hfe h4 hrel3 hfrel))
         | Ok v2 =>
           simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
           obtain ⟨lst4, hrun4, hrel4, hwf4, hv2WF⟩ :=
             (hw.annotateSim depth hv).apply hwf3 hfe h4 hrel3 hfrel
           obtain ⟨⟨r4, st5⟩, h5, hok⟩ := hok
           cases r4 with
-          | Err err => simp [uncurry_apply_pair] at hok
+          | Err err =>
+            simp only [uncurry_apply_pair] at hok
+            simp at hok
+            obtain ⟨hr, -⟩ := hok
+            subst hr
+            rw [annotateBodyI_letE, bind_run hrun1, bind_run hrun2, bind_run hrun3,
+              bind_run hrun4]
+            exact Out.err
+              (ErrSim.bindCM ((hw.inferSim depth hv2WF).apply_err hwf4 hfe h5 hrel4 hfrel))
           | Ok tv =>
             simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
             obtain ⟨lst5, hrun5, hrel5, hwf5, htvWF⟩ :=
               (hw.inferSim depth hv2WF).apply hwf4 hfe h5 hrel4 hfrel
             obtain ⟨⟨r5, st6⟩, h6, hok⟩ := hok
             cases r5 with
-            | Err err => simp [uncurry_apply_pair] at hok
+            | Err err =>
+              simp only [uncurry_apply_pair] at hok
+              simp at hok
+              obtain ⟨hr, -⟩ := hok
+              subst hr
+              rw [annotateBodyI_letE, bind_run hrun1, bind_run hrun2, bind_run hrun3,
+                bind_run hrun4, bind_run hrun5]
+              exact Out.err
+                (ErrSim.bindCM
+                  ((hw.defeqSim depth htvWF hty2WF).apply_err hwf5 hfe h6 hrel5 hfrel))
             | Ok eq =>
               obtain ⟨lst6, hrun6, hrel6, hwf6, -⟩ :=
                 (hw.defeqSim depth htvWF hty2WF).apply hwf5 hfe h6 hrel5 hfrel
               cases eq with
               | false =>
-                exfalso
+                -- `core_c.rs:4955` <- `Cached/CoreC.lean:1844`: the `unless`
+                -- guard agrees, so both sides throw `invalid` here
                 obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
                 obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-                obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-                simp only [Result.ok.injEq, Prod.mk.injEq, reduceCtorEq,
-                  false_and] at hok
+                obtain ⟨ce1, hce1, hok⟩ := bind_eq_ok_iff.mp hok
+                simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+                obtain ⟨hr, -⟩ := hok
+                subst hr
+                rw [invalid_inv hce1]
+                rw [annotateBodyI_letE, bind_run hrun1, bind_run hrun2, bind_run hrun3,
+                  bind_run hrun4, bind_run hrun5, bind_run hrun6]
+                exact Out.err
+                  (ErrSim.invalid (s := "let value type mismatch") (by simp))
               | true =>
                 simp only [uncurry_apply_pair, bind_eq_ok_iff, if_true] at hok
                 obtain ⟨red, hred, hok⟩ := hok
                 obtain ⟨habsRed, hwfRed⟩ := ExprOpsC.instantiate1_refines hb hv
                   (by rw [StateC.inst1_m_eq] at hred; exact hred)
                 rw [show (0#u64 : Std.U64).val = 0 from by scalar_tac] at habsRed
-                obtain ⟨lst7, hrun7, hrel7, hwf7, hrWF⟩ :=
-                  (hw.annotateSim depth hwfRed).apply hwf6 hfe hok hrel6 hfrel
-                refine ⟨lst7, ?_, hrel7, hwf7, hrWF⟩
-                simp only [StateT.run] at hrun1 hrun2 hrun3 hrun4 hrun5 hrun6 hrun7 ⊢
+                have hout := hw.annotateSim depth hwfRed fe lfe hfe hfrel st6 r st' hwf6
+                  hok lst6 hrel6
+                simp only [StateT.run] at hrun1 hrun2 hrun3 hrun4 hrun5 hrun6 hout ⊢
                 rw [annotateBodyI_letE]
                 simp only [Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
                   Except.pure, hrun1, hrun2, hrun3, hrun4, hrun5, hrun6, ← habsRed,
-                  id_eq, if_true, hrun7]
+                  id_eq, if_true]
+                exact hout
 
 /-- `CoreKInfer.lean`'s transcription of the `.proj` arm below its recursive
 calls, as the `CheckCM` action `annotateBodyI` writes inline: on success the
@@ -1471,6 +1705,46 @@ theorem annotateProjEntryL_run {lfe : ConLeche.FEnv} {sn T : ConLeche.Name} {i :
       · rw [if_neg hn] at h; simp at h
     · rw [if_neg hT] at h; simp at h
 
+/-- The same clause **on a throw** (task #67): whatever
+`CoreK.annotateProjEntryL` throws, the `CheckCM` action `annotateBodyI` writes
+inline throws too — the state is untouched on both sides. -/
+theorem annotateProjEntryL_run_err {lfe : ConLeche.FEnv} {sn T : ConLeche.Name} {i : Nat}
+    {e2 : ConLeche.Expr} {targs : List ConLeche.Expr} {le : ConLeche.CheckError}
+    (h : CoreK.annotateProjEntryL lfe sn T i e2 targs = .error le)
+    (lst : ConLeche.Cached.CState) :
+    ((match lfe.findProj? T i with
+      | some entry => do
+        unless T = sn do
+          throw (.invalid "invalid projection: the node names another structure")
+        unless targs.length = entry.numParams do
+          throw (.invalid "projection parameter mismatch")
+        pure (ConLeche.Expr.proj T i e2)
+      | none =>
+        throw (if (lfe.findProj? T 0).isSome then
+            ConLeche.CheckError.invalid "projection index out of range"
+          else .notImplemented "projection on a non-structure-like type")) :
+      ConLeche.Cached.CheckCM ConLeche.Expr).run lst = .error le := by
+  rw [CoreK.annotateProjEntryL] at h
+  cases hfp : lfe.findProj? T i with
+  | none =>
+    simp only [hfp] at h
+    simp only [Except.error.injEq] at h
+    simp only []
+    simp [← h]
+  | some entry =>
+    simp only [hfp] at h
+    simp only []
+    by_cases hT : T = sn
+    · rw [if_pos hT] at h
+      by_cases hn : targs.length = entry.numParams
+      · rw [if_pos hn] at h; simp at h
+      · rw [if_neg hn] at h
+        simp only [Except.error.injEq] at h
+        simp [hT, hn, ← h]
+    · rw [if_neg hT] at h
+      simp only [Except.error.injEq] at h
+      simp [hT, ← h]
+
 /-- `ConLeche/Cached/CoreC.lean:1779-1867` — **`annotate_proj_i` refines the
 `.proj` clause of `annotateBodyI`** (`core_c.rs:4950`): run the projection rule,
 the one place it is checked.  A table entry types the node directly and the
@@ -1490,14 +1764,28 @@ theorem annotate_proj_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mod
   simp only [bind_eq_ok_iff] at hok
   obtain ⟨⟨r0, st1⟩, h1, hok⟩ := hok
   cases r0 with
-  | Err err => simp [uncurry_apply_pair] at hok
+  | Err err =>
+    simp only [uncurry_apply_pair] at hok
+    simp at hok
+    obtain ⟨hr, -⟩ := hok
+    subst hr
+    rw [annotateBodyI_proj]
+    exact Out.err
+      (ErrSim.bindCM ((hw.annotateSim depth hpe).apply_err hwf hfe h1 hrel hfrel))
   | Ok e2 =>
     simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
     obtain ⟨lst1, hrun1, hrel1, hwf1, he2WF⟩ :=
       (hw.annotateSim depth hpe).apply hwf hfe h1 hrel hfrel
     obtain ⟨⟨r1, st2⟩, h2, hok⟩ := hok
     cases r1 with
-    | Err err => simp [uncurry_apply_pair] at hok
+    | Err err =>
+      simp only [uncurry_apply_pair] at hok
+      simp at hok
+      obtain ⟨hr, -⟩ := hok
+      subst hr
+      rw [annotateBodyI_proj, bind_run hrun1, bind_assoc']
+      exact Out.err
+        (ErrSim.bindCM ((hd.inferIOWhnf depth he2WF).apply_err hwf1 hfe h2 hrel1 hfrel))
     | Ok te =>
       simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
       obtain ⟨lst2, hrun2, hrel2, hwf2, hteWF⟩ :=
@@ -1518,85 +1806,137 @@ theorem annotate_proj_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mod
         simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨hr, hst⟩ := hok
         rw [hr] at hr2
-        obtain ⟨hentry, hrWF⟩ := CoreK.annotate_proj_entry_refines
-          (FindAgree.of_rel hfrel hfe) (FindWF.of_wf hfe) hsn hn he2WF hr2
         subst hst
-        refine ⟨lst2, ?_, hrel2, hwf2, hrWF⟩
         simp only [absExpr_mk, absExprKind]
         rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← habsTargs]
-        exact annotateProjEntryL_run hentry lst2
+        cases r with
+        | Ok x =>
+          obtain ⟨hentry, hrWF⟩ := CoreK.annotate_proj_entry_refines
+            (FindAgree.of_rel hfrel hfe) (FindWF.of_wf hfe) hsn hn he2WF hr2
+          exact Out.ok (lst' := lst2) (annotateProjEntryL_run hentry lst2) hrel2 hwf2 hrWF
+        | Err ce =>
+          -- `core_k::annotate_proj_entry`'s four mirrored throws
+          refine Out.err (ErrSim.trans (CoreK.annotate_proj_entry_err
+            (FindAgree.of_rel hfrel hfe) (FindWF.of_wf hfe) hsn hn hr2) ?_)
+          intro le hle
+          exact annotateProjEntryL_run_err hle lst2
       | @bvar j e h3 =>
         obtain ⟨dd, rfl, -, -, -⟩ := Expr.bvar_inv h3
         simp only [ExprOps.node_kind] at hok
-        exfalso
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, reduceCtorEq, false_and] at hok
+        obtain ⟨ce1, hce1, hok⟩ := bind_eq_ok_iff.mp hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [not_implemented_inv hce1]
+        exact Out.err (ErrSim.notImplemented
+          (s := "projection on a non-structure type")
+          (by simp [absExpr_mk, absExprKind]))
       | @fvar idx ty e hty h3 =>
         obtain ⟨dd, rfl, -, -, -⟩ := Expr.fvar_inv h3
         simp only [ExprOps.node_kind] at hok
-        exfalso
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, reduceCtorEq, false_and] at hok
+        obtain ⟨ce1, hce1, hok⟩ := bind_eq_ok_iff.mp hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [not_implemented_inv hce1]
+        exact Out.err (ErrSim.notImplemented
+          (s := "projection on a non-structure type")
+          (by simp [absExpr_mk, absExprKind]))
       | @sort u e hu h3 =>
         obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.sort_inv h3
         simp only [ExprOps.node_kind] at hok
-        exfalso
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, reduceCtorEq, false_and] at hok
+        obtain ⟨ce1, hce1, hok⟩ := bind_eq_ok_iff.mp hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [not_implemented_inv hce1]
+        exact Out.err (ErrSim.notImplemented
+          (s := "projection on a non-structure type")
+          (by simp [absExpr_mk, absExprKind]))
       | @app g a e hg ha h3 =>
         obtain ⟨dd, rfl, -, -, -⟩ := Expr.app_inv h3
         simp only [ExprOps.node_kind] at hok
-        exfalso
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, reduceCtorEq, false_and] at hok
+        obtain ⟨ce1, hce1, hok⟩ := bind_eq_ok_iff.mp hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [not_implemented_inv hce1]
+        exact Out.err (ErrSim.notImplemented
+          (s := "projection on a non-structure type")
+          (by simp [absExpr_mk, absExprKind]))
       | @lam ty bo m e hty hbo hm h3 =>
         obtain ⟨dd, rfl, -, -, -⟩ := Expr.lam_inv h3
         simp only [ExprOps.node_kind] at hok
-        exfalso
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, reduceCtorEq, false_and] at hok
+        obtain ⟨ce1, hce1, hok⟩ := bind_eq_ok_iff.mp hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [not_implemented_inv hce1]
+        exact Out.err (ErrSim.notImplemented
+          (s := "projection on a non-structure type")
+          (by simp [absExpr_mk, absExprKind]))
       | @forall_e ty bo m e hty hbo hm h3 =>
         obtain ⟨dd, rfl, -, -, -⟩ := Expr.forall_e_inv h3
         simp only [ExprOps.node_kind] at hok
-        exfalso
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, reduceCtorEq, false_and] at hok
+        obtain ⟨ce1, hce1, hok⟩ := bind_eq_ok_iff.mp hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [not_implemented_inv hce1]
+        exact Out.err (ErrSim.notImplemented
+          (s := "projection on a non-structure type")
+          (by simp [absExpr_mk, absExprKind]))
       | @let_e ty v bo e hty hv hbo h3 =>
         obtain ⟨dd, rfl, -, -, -⟩ := Expr.let_e_inv h3
         simp only [ExprOps.node_kind] at hok
-        exfalso
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, reduceCtorEq, false_and] at hok
+        obtain ⟨ce1, hce1, hok⟩ := bind_eq_ok_iff.mp hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [not_implemented_inv hce1]
+        exact Out.err (ErrSim.notImplemented
+          (s := "projection on a non-structure type")
+          (by simp [absExpr_mk, absExprKind]))
       | @lit l e hl h3 =>
         obtain ⟨dd, rfl, -, -, -⟩ := Expr.lit_inv h3
         simp only [ExprOps.node_kind] at hok
-        exfalso
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, reduceCtorEq, false_and] at hok
+        obtain ⟨ce1, hce1, hok⟩ := bind_eq_ok_iff.mp hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [not_implemented_inv hce1]
+        exact Out.err (ErrSim.notImplemented
+          (s := "projection on a non-structure type")
+          (by simp [absExpr_mk, absExprKind]))
       | @proj s2 idx x e hs2 hx h3 =>
         obtain ⟨dd, rfl, -, -, -⟩ := Expr.proj_inv h3
         simp only [ExprOps.node_kind] at hok
-        exfalso
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, reduceCtorEq, false_and] at hok
+        obtain ⟨ce1, hce1, hok⟩ := bind_eq_ok_iff.mp hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [not_implemented_inv hce1]
+        exact Out.err (ErrSim.notImplemented
+          (s := "projection on a non-structure type")
+          (by simp [absExpr_mk, absExprKind]))
 
 end
 
@@ -1625,96 +1965,123 @@ theorem annotate_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
   | @bvar i e h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.bvar_inv h1
     simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff,
-      Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+      Result.ok.injEq, Prod.mk.injEq] at hok
     obtain ⟨e1, he1, hr, hst⟩ := hok
     rw [Expr.dup_eq he1] at hr
     subst hst
-    refine ⟨lst, ?_, hrel, hwf, by rw [← hr]; exact ExprWF.bvar h1⟩
+    subst hr
+    refine ⟨lst, ?_, hrel, hwf, ExprWF.bvar h1⟩
     simp only [absExpr_mk, absExprKind]
-    rw [annotateBodyI_bvar, ← hr]
+    rw [annotateBodyI_bvar]
     simp
   | @sort u e hu h1 =>
     obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff,
-      Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+      Result.ok.injEq, Prod.mk.injEq] at hok
     obtain ⟨e1, he1, hr, hst⟩ := hok
     rw [Expr.dup_eq he1] at hr
     subst hst
-    refine ⟨lst, ?_, hrel, hwf, by rw [← hr]; exact ExprWF.sort hu h1⟩
+    subst hr
+    refine ⟨lst, ?_, hrel, hwf, ExprWF.sort hu h1⟩
     simp only [absExpr_mk, absExprKind]
-    rw [annotateBodyI_sort, ← hr]
+    rw [annotateBodyI_sort]
     simp
   | @mk_const n us e hn hus h1 =>
     obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff,
-      Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+      Result.ok.injEq, Prod.mk.injEq] at hok
     obtain ⟨e1, he1, hr, hst⟩ := hok
     rw [Expr.dup_eq he1] at hr
     subst hst
-    refine ⟨lst, ?_, hrel, hwf, by rw [← hr]; exact ExprWF.mk_const hn hus h1⟩
+    subst hr
+    refine ⟨lst, ?_, hrel, hwf, ExprWF.mk_const hn hus h1⟩
     simp only [absExpr_mk, absExprKind]
-    rw [annotateBodyI_const, ← hr]
+    rw [annotateBodyI_const]
     simp
   | @fvar idx ty e hty h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.fvar_inv h1
     simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
     split at hok
     · rename_i hlt
-      simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-        core.result.Result.Ok.injEq] at hok
+      simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨e1, he1, hr, hst⟩ := hok
       rw [Expr.dup_eq he1] at hr
       subst hst
-      refine ⟨lst, ?_, hrel, hwf, by rw [← hr]; exact ExprWF.fvar hty h1⟩
+      subst hr
+      refine ⟨lst, ?_, hrel, hwf, ExprWF.fvar hty h1⟩
       simp only [absExpr_mk, absExprKind]
-      rw [annotateBodyI_fvar, if_pos (show idx.val < d.val by scalar_tac), ← hr]
+      rw [annotateBodyI_fvar, if_pos (show idx.val < d.val by scalar_tac)]
       simp
-    · exfalso
+    · -- `core_c.rs:4760` <- `Cached/CoreC.lean:1786`: the scope test agrees
+      rename_i hnlt
       obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-      obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-      simp only [Result.ok.injEq, Prod.mk.injEq, reduceCtorEq, false_and] at hok
+      obtain ⟨ce1, hce1, hok⟩ := bind_eq_ok_iff.mp hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+      obtain ⟨hr, -⟩ := hok
+      subst hr
+      rw [invalid_inv hce1]
+      simp only [absExpr_mk, absExprKind]
+      rw [annotateBodyI_fvar, if_neg (show ¬ idx.val < d.val by scalar_tac)]
+      exact Out.err (ErrSim.invalid (s := "free variable out of scope") (by simp))
   | @app f a e hf ha h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.app_inv h1
     simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, 
       bind_eq_ok_iff] at hok
     obtain ⟨⟨r0, st1⟩, h2, hok⟩ := hok
     cases r0 with
-    | Err err => simp [uncurry_apply_pair] at hok
+    | Err err =>
+      simp only [uncurry_apply_pair] at hok
+      simp at hok
+      obtain ⟨hr, -⟩ := hok
+      subst hr
+      simp only [absExpr_mk, absExprKind]
+      rw [annotateBodyI_app]
+      exact Out.err (ErrSim.bindCM ((hw.annotateSim d hf).apply_err hwf hfe h2 hrel hfrel))
     | Ok f2 =>
       simp only [uncurry_apply_pair, bind_eq_ok_iff] at hok
       obtain ⟨lst1, hrun1, hrel1, hwf1, hf2WF⟩ :=
         (hw.annotateSim d hf).apply hwf hfe h2 hrel hfrel
       obtain ⟨⟨r1, st2⟩, h3, hok⟩ := hok
       cases r1 with
-      | Err err => simp [uncurry_apply_pair] at hok
+      | Err err =>
+        simp only [uncurry_apply_pair] at hok
+        simp at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        simp only [absExpr_mk, absExprKind]
+        rw [annotateBodyI_app, bind_run hrun1]
+        exact Out.err
+          (ErrSim.bindCM ((hw.annotateSim d ha).apply_err hwf1 hfe h3 hrel1 hfrel))
       | Ok a2 =>
-        simp only [uncurry_apply_pair, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq] at hok
+        simp only [uncurry_apply_pair, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨lst2, hrun2, hrel2, hwf2, ha2WF⟩ :=
           (hw.annotateSim d ha).apply hwf1 hfe h3 hrel1 hfrel
         obtain ⟨e1, he1, hr, hst⟩ := hok
         subst hst
-        refine ⟨lst2, ?_, hrel2, hwf2, by rw [← hr]; exact Expr.app_wf hf2WF ha2WF he1⟩
+        subst hr
+        refine ⟨lst2, ?_, hrel2, hwf2, Expr.app_wf hf2WF ha2WF he1⟩
         simp only [absExpr_mk, absExprKind]
-        rw [annotateBodyI_app, bind_run hrun1, bind_run hrun2, ← hr,
-          Expr.app_refines he1]
+        rw [annotateBodyI_app, bind_run hrun1, bind_run hrun2, Expr.app_refines he1]
         rfl
   | @forall_e ty bo m e hty hbo hm h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
     simp only [absExpr_mk, absExprKind]
-    exact (annotate_forall_i_refines hw hd d hty hbo hm).apply hwf hfe hok hrel hfrel
+    exact annotate_forall_i_refines hw hd d hty hbo hm fe lfe hfe hfrel st r st'
+      hwf hok lst hrel
   | @let_e ty v bo e hty hv hbo h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.let_e_inv h1
     simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
     simp only [absExpr_mk, absExprKind]
-    exact (annotate_let_i_refines hw hd d hty hv hbo).apply hwf hfe hok hrel hfrel
+    exact annotate_let_i_refines hw hd d hty hv hbo fe lfe hfe hfrel st r st'
+      hwf hok lst hrel
   | @proj sn idx x e hsn hx h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.proj_inv h1
     simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
     simp only [absExpr_mk, absExprKind]
-    exact (annotate_proj_i_refines hw hd d hsn idx hx).apply hwf hfe hok hrel hfrel
+    exact annotate_proj_i_refines hw hd d hsn idx hx fe lfe hfe hfrel st r st'
+      hwf hok lst hrel
   | @lam ty bo m e hty hbo hm h1 =>
     have heWF : ExprWF e := ExprWF.lam hty hbo hm h1
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.lam_inv h1
@@ -1725,11 +2092,13 @@ theorem annotate_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     simp only [absExpr_mk, absExprKind]
     split at hok
     · rename_i h0
-      refine (annotate_lam_loop_i_refines hw hd d hty hbo hm ?_).apply hwf hfe hok hrel hfrel
+      refine annotate_lam_loop_i_refines hw hd d hty hbo hm ?_ fe lfe hfe hfrel st r st'
+        hwf hok lst hrel
       rw [← hbbv, h0]
       scalar_tac
     · rename_i h0
-      refine (annotate_lam_chain_i_refines hw hd d hty hbo hm ?_).apply hwf hfe hok hrel hfrel
+      refine annotate_lam_chain_i_refines hw hd d hty hbo hm ?_ fe lfe hfe hfrel st r st'
+        hwf hok lst hrel
       rw [← hbbv]
       intro hc
       exact h0 (by scalar_tac)
@@ -1745,20 +2114,28 @@ theorem annotate_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
           (FindAgree.of_rel hfrel hfe) (FindWF.of_wf hfe) hb
       split at hok
       · rename_i htrue
-        simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq] at hok
+        simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨e1, he1, hr, hst⟩ := hok
         rw [Expr.dup_eq he1] at hr
         subst hst
-        refine ⟨lst, ?_, hrel, hwf, by rw [← hr]; exact ExprWF.lit hl h1⟩
+        subst hr
+        refine ⟨lst, ?_, hrel, hwf, ExprWF.lit hl h1⟩
         simp only [absExpr_mk, absExprKind, absLiteral]
-        rw [annotateBodyI_natLit, if_pos (by rw [← hbv]; exact htrue), ← hr]
+        rw [annotateBodyI_natLit, if_pos (by rw [← hbv]; exact htrue)]
         simp
-      · exfalso
+      · -- `core_c.rs:4769` <- `Cached/CoreC.lean:1791`
+        rename_i hfalse
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, reduceCtorEq, false_and] at hok
+        obtain ⟨ce1, hce1, hok⟩ := bind_eq_ok_iff.mp hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [invalid_inv hce1]
+        simp only [absExpr_mk, absExprKind, absLiteral]
+        rw [annotateBodyI_natLit, if_neg (by rw [← hbv]; exact hfalse)]
+        exact Out.err (ErrSim.invalid
+          (s := "Nat literal without the Nat basis declarations") (by simp))
     | StrVal str =>
       simp only [bind_eq_ok_iff] at hok
       obtain ⟨b, hb, hok⟩ := hok
@@ -1767,20 +2144,28 @@ theorem annotate_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
           (FindAgree.of_rel hfrel hfe) (FindWF.of_wf hfe) hb
       split at hok
       · rename_i htrue
-        simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq] at hok
+        simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨e1, he1, hr, hst⟩ := hok
         rw [Expr.dup_eq he1] at hr
         subst hst
-        refine ⟨lst, ?_, hrel, hwf, by rw [← hr]; exact ExprWF.lit hl h1⟩
+        subst hr
+        refine ⟨lst, ?_, hrel, hwf, ExprWF.lit hl h1⟩
         simp only [absExpr_mk, absExprKind, absLiteral]
-        rw [annotateBodyI_strLit, if_pos (by rw [← hbv]; exact htrue), ← hr]
+        rw [annotateBodyI_strLit, if_pos (by rw [← hbv]; exact htrue)]
         simp
-      · exfalso
+      · -- `core_c.rs:4776` <- `Cached/CoreC.lean:1794`
+        rename_i hfalse
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, reduceCtorEq, false_and] at hok
+        obtain ⟨ce1, hce1, hok⟩ := bind_eq_ok_iff.mp hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+        obtain ⟨hr, -⟩ := hok
+        subst hr
+        rw [not_implemented_inv hce1]
+        simp only [absExpr_mk, absExprKind, absLiteral]
+        rw [annotateBodyI_strLit, if_neg (by rw [← hbv]; exact hfalse)]
+        exact Out.err (ErrSim.notImplemented
+          (s := "string literals before the String support declarations") (by simp))
 
 
 end ConRon.Refine.Core

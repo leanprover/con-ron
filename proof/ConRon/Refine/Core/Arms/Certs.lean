@@ -12,7 +12,7 @@
 | proof irrelevance | `proof_irrel_i`, `prop_legs_i` | `proofIrrelI` `:241` (and `propIrrelI` `:333`, whose `Prop` legs are the same block) |
 | structure eta | `struct_eta_proj_certs_i(_from)`, `struct_eta_cert_with_i`, `struct_eta_cert_steps_i`, `struct_eta_cert_fields_i` | `structEtaProjCertsI` `:389`, `structEtaCertWithI` `:408` |
 
-Four things cost thought.
+Five things cost thought.
 
 1. **The three projection-spine builders are pure in the port** (`Vec<Expr>`,
    no `CState`) where con-leche writes them in `CheckCM` — `mkAppNM` is
@@ -48,6 +48,21 @@ Four things cost thought.
    `env::certs`.  Each gate is discharged into one local record,
    `∀ f, (certAtI … >>= f).run lst = (f b).run lst'`, which is what a caller
    needs to step through the `do` block at either mode.
+
+5. **The full outcome** (task #67, DESIGN.md §3's ruling of 2026-09-13).  Every
+   lemma here is a `Sim` over the Rust computation's *whole* outcome, so each
+   carries a failure half beside its accept half — which is the pre-#67 proof,
+   word for word.  This group's failures are all *mirrored* and almost all of
+   one shape, move 1: a sub-computation threw, `…apply_err` says con-leche
+   throws at the same kind, and `ErrSim.bindCM` carries that through the rest
+   of the con-leche `do` block.  None of these helpers has an explicit `throw`
+   of its own and none is a `Native` site; the one leaf that declines by itself
+   is `core_k::lift_fueled`, whose `none` arm mirrors con-leche's `liftFueled`
+   throw at `.internal` (`lift_fueled_none`, `lift_fueled_run_err`; the message
+   is never compared).  Each of the two `certAtI` gates therefore gets a
+   failure twin beside its record (`hgateErr`, `hgate2Err`): a gate that is
+   *off* runs nothing and so cannot throw, and a gate that is *on* throws
+   exactly what its family threw.
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.CoreKVec
@@ -343,7 +358,7 @@ theorem def_eq_list_i_from_aux {mode : env.CheckMode} {fuel : Std.U64}
         rename_i hge2
         have hdy : (absExprs ys).drop i.val = [] :=
           List.drop_eq_nil_of_le (by rw [hyl]; scalar_tac)
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst, ?_, hrel, hwf, trivial⟩
         rw [hdx, hdy]
@@ -356,7 +371,7 @@ theorem def_eq_list_i_from_aux {mode : env.CheckMode} {fuel : Std.U64}
           List.drop_eq_getElem_cons (by rw [hxl] at *; omega)
         split at hok
         · rename_i hlt1; exact absurd hlt1 (by scalar_tac)
-        · simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        · simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
           rw [hdx, hdy]
@@ -375,7 +390,15 @@ theorem def_eq_list_i_from_aux {mode : env.CheckMode} {fuel : Std.U64}
           obtain ⟨-, hxwf, hdx⟩ := ExprOps.vec_index_expr hxs hxi
           obtain ⟨-, hywf, hdy⟩ := ExprOps.vec_index_expr hys hyi
           cases rr with
-          | Err err => simp at hok
+          | Err err =>
+            -- the head pair's `defeq` threw: con-leche's first step throws too
+            replace hok : ok (core.result.Result.Err err, st1) = ok (r, st') := hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+            obtain ⟨rfl, rfl⟩ := hok
+            rw [hdx, hdy]
+            simp only [ConLeche.Cached.defEqListI]
+            exact ErrSim.bindCM
+              ((hw.defeqSim d hxwf hywf).apply_err hwf hfe hdq hrel hfrel)
           | Ok bq =>
             -- the destructuring bind leaves a `let (r, st1) := (r, st1)` that
             -- `split` cannot see through; this `replace` is the iota step
@@ -383,7 +406,7 @@ theorem def_eq_list_i_from_aux {mode : env.CheckMode} {fuel : Std.U64}
                   (do let i5 ← i + 1#usize
                       cached.core_c.def_eq_list_i_from mode fuel st1 fe d xs ys i5)
                 else ok (core.result.Result.Ok bq, st1))
-                = ok (core.result.Result.Ok r, st') := hok
+                = ok (r, st') := hok
             obtain ⟨lst1, hrun1, hrel1, hwf1, -⟩ :=
               (hw.defeqSim d hxwf hywf).apply hwf hfe hdq hrel hfrel
             rw [hdx, hdy]
@@ -397,18 +420,15 @@ theorem def_eq_list_i_from_aux {mode : env.CheckMode} {fuel : Std.U64}
               obtain ⟨i5, hi5, hok⟩ := hok
               have hi5v : i5.val = i.val + 1 := HashMap.uscalar_add_eq hi5
               have hlt : xs.val.length - i5.val < N := by omega
-              obtain ⟨lst', hrun', hrel', hwf', -⟩ :=
-                ih (xs.val.length - i5.val) hlt xs ys i5 hxs hys rfl fe lfe hfe hfrel
-                  st1 r st' hwf1 hok lst1 hrel1
-              refine ⟨lst', ?_, hrel', hwf', trivial⟩
+              have hrec := ih (xs.val.length - i5.val) hlt xs ys i5 hxs hys rfl fe lfe
+                hfe hfrel st1 r st' hwf1 hok lst1 hrel1
               rw [if_pos rfl, ← hi5v]
-              exact hrun'
+              exact hrec
             · -- the pair disagrees: `pure false`
               rename_i hbq
               have hbqf : bq = false := by simpa using hbq
               subst hbqf
-              simp only [Result.ok.injEq, Prod.mk.injEq,
-                core.result.Result.Ok.injEq] at hok
+              simp only [Result.ok.injEq, Prod.mk.injEq] at hok
               obtain ⟨rfl, rfl⟩ := hok
               refine ⟨lst1, ?_, hrel1, hwf1, trivial⟩
               rw [if_neg (by simp)]
@@ -420,7 +440,7 @@ theorem def_eq_list_i_from_aux {mode : env.CheckMode} {fuel : Std.U64}
             List.drop_eq_getElem_cons (by rw [hxl]; exact hltx)
           have hdy : (absExprs ys).drop i.val = [] :=
             List.drop_eq_nil_of_le (by rw [hyl]; scalar_tac)
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
           rw [hdx, hdy]
@@ -450,7 +470,8 @@ theorem def_eq_list_i_refines {mode : env.CheckMode} {fuel : Std.U64}
   intro fe lfe hfe hfrel st r st' hwf hok lst hrel
   unfold cached.core_c.def_eq_list_i at hok
   dsimp only at hok
-  have := (def_eq_list_i_from_refines hw d hxs hys 0#usize).apply hwf hfe hok hrel hfrel
+  have := def_eq_list_i_from_refines hw d hxs hys 0#usize fe lfe hfe hfrel st r st' hwf
+    hok lst hrel
   simpa using this
 
 /-! ## `iota_certs_i` — certifying a spine against a recursor telescope
@@ -547,7 +568,7 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
         rename_i hge
         have hdarg : (absExprs args).drop i.val = [] :=
           List.drop_eq_nil_of_le (by simp only [absExprs, List.length_map]; scalar_tac)
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst, ?_, hrel, hwf, trivial⟩
         rw [hdarg, iotaCertsIAux_nil]
@@ -569,7 +590,7 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
             rename_i hz
             have haccnil : absExprs acc = [] := by
               simp only [absExprs, HashMap.vec_len_eq_zero_iff.mp hz, List.map_nil]
-            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
             obtain ⟨rfl, rfl⟩ := hok
             refine ⟨lst, ?_, hrel, hwf, trivial⟩
             rw [hax, haccnil, iotaCertsIAux_bvar_nil hk']
@@ -593,49 +614,48 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
             obtain ⟨⟨ty2, st1⟩, hinst, hok⟩ := hok
             replace hok : cached.core_c.iota_certs_i_aux mode fuel st1 fe d lic ty2
                 (alloc.vec.Vec.new expr.Expr) args i
-                = ok (core.result.Result.Ok r, st') := hok
+                = ok (r, st') := hok
             obtain ⟨lst1, hrun1, hrel1, hwf1, -, hty2⟩ :=
               StateC.inst_list_m_refines hsc.instList hwf hty hacc hinst lst hrel
                 (hsc.instSize st lst hrel)
-            obtain ⟨lst', hrun', hrel', hwf', -⟩ :=
+            have hrec :=
               ihM 0 (by omega) lic ty2 (alloc.vec.Vec.new expr.Expr) args i hty2
                 ExprOps.exprsWF_new hargs hN rfl fe lfe hfe hfrel st1 r st' hwf1 hok lst1 hrel1
-            refine ⟨lst', ?_, hrel', hwf', trivial⟩
             rw [hax, hacc', iotaCertsIAux_bvar_cons hk']
             rw [hacc'] at hrun1
             rw [run_bind _ _ (by simpa using hrun1)]
-            simpa [hax] using hrun'
+            simpa [hax] using hrec
         · -- `.fvar`
           rename_i hk
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
           rw [hax, iotaCertsIAux_dead (by simp [CoreK.absExpr_kind ty, hk]) (by simp [CoreK.absExpr_kind ty, hk])]
           rfl
         · -- `.sort`
           rename_i hk
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
           rw [hax, iotaCertsIAux_dead (by simp [CoreK.absExpr_kind ty, hk]) (by simp [CoreK.absExpr_kind ty, hk])]
           rfl
         · -- `.const`
           rename_i hk
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
           rw [hax, iotaCertsIAux_dead (by simp [CoreK.absExpr_kind ty, hk]) (by simp [CoreK.absExpr_kind ty, hk])]
           rfl
         · -- `.app`
           rename_i hk
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
           rw [hax, iotaCertsIAux_dead (by simp [CoreK.absExpr_kind ty, hk]) (by simp [CoreK.absExpr_kind ty, hk])]
           rfl
         · -- `.lam`
           rename_i hk
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
           rw [hax, iotaCertsIAux_dead (by simp [CoreK.absExpr_kind ty, hk]) (by simp [CoreK.absExpr_kind ty, hk])]
@@ -663,12 +683,11 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
               simp only [bind_eq_ok_iff] at hok
               obtain ⟨i2, hi2, hok⟩ := hok
               have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
-              obtain ⟨lst', hrun', hrel', hwf', -⟩ :=
+              have hrec :=
                 ihN (args.val.length - i2.val) (by omega) acc2.val.length true bd acc2 args i2
                   hbodywf hacc2wf hargs rfl rfl fe lfe hfe hfrel st r st' hwf hok lst hrel
-              refine ⟨lst', ?_, hrel', hwf', trivial⟩
               rw [if_pos (by simp [absBinderMeta, ← hbnvabs, hb])]
-              simpa [hacc2abs, hi2v] using hrun'
+              simpa [hacc2abs, hi2v] using hrec
             · -- the slot is certified
               rename_i hb
               have hbf : bnv = false := by simpa using hb
@@ -690,7 +709,7 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
                         | core.result.Result.Err _ => ok (r1, st3))
                   | core.result.Result.Err err =>
                     ok (core.result.Result.Err err, st2))
-                  = ok (core.result.Result.Ok r, st') := hok
+                  = ok (r, st') := hok
               simp only [bind_eq_ok_iff] at hok
               obtain ⟨⟨rr, st2⟩, hio, hok⟩ := hok
               obtain ⟨lst1, hrun1, hrel1, hwf1, -, hdom2⟩ :=
@@ -698,7 +717,13 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
                   (hsc.instSize st lst hrel)
               rw [run_bind _ _ (by simpa using hrun1)]
               cases rr with
-              | Err err => simp at hok
+              | Err err =>
+                -- the argument's type inference threw: con-leche's step throws too
+                replace hok : ok (core.result.Result.Err err, st2) = ok (r, st') := hok
+                simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+                obtain ⟨rfl, rfl⟩ := hok
+                exact ErrSim.bindCM
+                  ((hw.inferIOSim d hewf).apply_err hwf1 hfe hio hrel1 hfrel)
               | Ok ta =>
                 replace hok : (do
                     let (r1, st3) ← cached.core_c.defeq mode fuel st2 fe d ta dom2
@@ -710,21 +735,27 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
                               args i2)
                       else ok (r1, st3)
                     | core.result.Result.Err _ => ok (r1, st3))
-                    = ok (core.result.Result.Ok r, st') := hok
+                    = ok (r, st') := hok
                 obtain ⟨lst2, hrun2, hrel2, hwf2, htawf⟩ :=
                   (hw.inferIOSim d hewf).apply hwf1 hfe hio hrel1 hfrel
                 rw [run_bind _ _ hrun2]
                 simp only [bind_eq_ok_iff] at hok
                 obtain ⟨⟨r1, st3⟩, hdq, hok⟩ := hok
                 cases r1 with
-                | Err err => simp at hok
+                | Err err =>
+                  -- the slot's `defeq` threw
+                  replace hok : ok (core.result.Result.Err err, st3) = ok (r, st') := hok
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+                  obtain ⟨rfl, rfl⟩ := hok
+                  exact ErrSim.bindCM
+                    ((hw.defeqSim d htawf hdom2).apply_err hwf2 hfe hdq hrel2 hfrel)
                 | Ok b1 =>
                   replace hok : (if b1 = true then
                         (do let i2 ← i + 1#usize
                             cached.core_c.iota_certs_i_aux mode fuel st3 fe d true bd acc2
                               args i2)
                       else ok (core.result.Result.Ok b1, st3))
-                      = ok (core.result.Result.Ok r, st') := hok
+                      = ok (r, st') := hok
                   obtain ⟨lst3, hrun3, hrel3, hwf3, -⟩ :=
                     (hw.defeqSim d htawf hdom2).apply hwf2 hfe hdq hrel2 hfrel
                   rw [run_bind _ _ (by simpa using hrun3)]
@@ -734,18 +765,16 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
                     simp only [bind_eq_ok_iff] at hok
                     obtain ⟨i2, hi2, hok⟩ := hok
                     have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
-                    obtain ⟨lst', hrun', hrel', hwf', -⟩ :=
+                    have hrec :=
                       ihN (args.val.length - i2.val) (by omega) acc2.val.length true bd acc2
                         args i2 hbodywf hacc2wf hargs rfl rfl fe lfe hfe hfrel st3 r st' hwf3
                         hok lst3 hrel3
-                    refine ⟨lst', ?_, hrel', hwf', trivial⟩
                     rw [if_pos rfl]
-                    simpa [hacc2abs, hi2v] using hrun'
+                    simpa [hacc2abs, hi2v] using hrec
                   · rename_i hb1
                     have hb1f : b1 = false := by simpa using hb1
                     subst hb1f
-                    simp only [Result.ok.injEq, Prod.mk.injEq,
-                      core.result.Result.Ok.injEq] at hok
+                    simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                     obtain ⟨rfl, rfl⟩ := hok
                     refine ⟨lst3, ?_, hrel3, hwf3, trivial⟩
                     rw [if_neg (by simp)]
@@ -772,7 +801,7 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
                       | core.result.Result.Err _ => ok (r1, st3))
                 | core.result.Result.Err err =>
                   ok (core.result.Result.Err err, st2))
-                = ok (core.result.Result.Ok r, st') := hok
+                = ok (r, st') := hok
             simp only [bind_eq_ok_iff] at hok
             obtain ⟨⟨rr, st2⟩, hio, hok⟩ := hok
             obtain ⟨lst1, hrun1, hrel1, hwf1, -, hdom2⟩ :=
@@ -780,7 +809,13 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
                 (hsc.instSize st lst hrel)
             rw [run_bind _ _ (by simpa using hrun1)]
             cases rr with
-            | Err err => simp at hok
+            | Err err =>
+              -- the argument's type inference threw: con-leche's step throws too
+              replace hok : ok (core.result.Result.Err err, st2) = ok (r, st') := hok
+              simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+              obtain ⟨rfl, rfl⟩ := hok
+              exact ErrSim.bindCM
+                ((hw.inferIOSim d hewf).apply_err hwf1 hfe hio hrel1 hfrel)
             | Ok ta =>
               replace hok : (do
                   let (r1, st3) ← cached.core_c.defeq mode fuel st2 fe d ta dom2
@@ -792,21 +827,27 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
                             args i2)
                     else ok (r1, st3)
                   | core.result.Result.Err _ => ok (r1, st3))
-                  = ok (core.result.Result.Ok r, st') := hok
+                  = ok (r, st') := hok
               obtain ⟨lst2, hrun2, hrel2, hwf2, htawf⟩ :=
                 (hw.inferIOSim d hewf).apply hwf1 hfe hio hrel1 hfrel
               rw [run_bind _ _ hrun2]
               simp only [bind_eq_ok_iff] at hok
               obtain ⟨⟨r1, st3⟩, hdq, hok⟩ := hok
               cases r1 with
-              | Err err => simp at hok
+              | Err err =>
+                -- the slot's `defeq` threw
+                replace hok : ok (core.result.Result.Err err, st3) = ok (r, st') := hok
+                simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+                obtain ⟨rfl, rfl⟩ := hok
+                exact ErrSim.bindCM
+                  ((hw.defeqSim d htawf hdom2).apply_err hwf2 hfe hdq hrel2 hfrel)
               | Ok b1 =>
                 replace hok : (if b1 = true then
                       (do let i2 ← i + 1#usize
                           cached.core_c.iota_certs_i_aux mode fuel st3 fe d false bd acc2
                             args i2)
                     else ok (core.result.Result.Ok b1, st3))
-                    = ok (core.result.Result.Ok r, st') := hok
+                    = ok (r, st') := hok
                 obtain ⟨lst3, hrun3, hrel3, hwf3, -⟩ :=
                   (hw.defeqSim d htawf hdom2).apply hwf2 hfe hdq hrel2 hfrel
                 rw [run_bind _ _ (by simpa using hrun3)]
@@ -816,39 +857,37 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
                   simp only [bind_eq_ok_iff] at hok
                   obtain ⟨i2, hi2, hok⟩ := hok
                   have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
-                  obtain ⟨lst', hrun', hrel', hwf', -⟩ :=
+                  have hrec :=
                     ihN (args.val.length - i2.val) (by omega) acc2.val.length false bd acc2
                       args i2 hbodywf hacc2wf hargs rfl rfl fe lfe hfe hfrel st3 r st' hwf3
                       hok lst3 hrel3
-                  refine ⟨lst', ?_, hrel', hwf', trivial⟩
                   rw [if_pos rfl]
-                  simpa [hacc2abs, hi2v] using hrun'
+                  simpa [hacc2abs, hi2v] using hrec
                 · rename_i hb1
                   have hb1f : b1 = false := by simpa using hb1
                   subst hb1f
-                  simp only [Result.ok.injEq, Prod.mk.injEq,
-                    core.result.Result.Ok.injEq] at hok
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst3, ?_, hrel3, hwf3, trivial⟩
                   rw [if_neg (by simp)]
                   rfl
         · -- `.letE`
           rename_i hk
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
           rw [hax, iotaCertsIAux_dead (by simp [CoreK.absExpr_kind ty, hk]) (by simp [CoreK.absExpr_kind ty, hk])]
           rfl
         · -- `.lit`
           rename_i hk
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
           rw [hax, iotaCertsIAux_dead (by simp [CoreK.absExpr_kind ty, hk]) (by simp [CoreK.absExpr_kind ty, hk])]
           rfl
         · -- `.proj`
           rename_i hk
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
           rw [hax, iotaCertsIAux_dead (by simp [CoreK.absExpr_kind ty, hk]) (by simp [CoreK.absExpr_kind ty, hk])]
@@ -879,8 +918,8 @@ theorem iota_certs_i_refines (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
   intro fe lfe hfe hfrel st r st' hwf hok lst hrel
   unfold cached.core_c.iota_certs_i at hok
   dsimp only at hok
-  have := (iota_certs_i_aux_refines hsc hw d lic 0#usize hty ExprOps.exprsWF_new hargs).apply
-    hwf hfe hok hrel hfrel
+  have := iota_certs_i_aux_refines hsc hw d lic 0#usize hty ExprOps.exprsWF_new hargs
+    fe lfe hfe hfrel st r st' hwf hok lst hrel
   simpa [ConLeche.Cached.iotaCertsI] using this
 
 
@@ -943,6 +982,33 @@ theorem run_liftFueled {α : Type} {o : Option α} {a : α} (what : String)
     (ConLeche.liftFueled (m := ConLeche.Cached.CheckCM) what o).run lst = .ok (a, lst) := by
   subst h; rfl
 
+/-- `core_k::lift_fueled` failed, so the fuelled option was `none` and the
+error is the port's `Internal` (`core_k.rs:376`). -/
+private theorem lift_fueled_none {o : Option Bool} {ce : core_types.CheckError}
+    (h : core_k.lift_fueled o = ok (.Err ce)) :
+    o = none ∧ ∃ v, ce = .Internal v := by
+  cases o with
+  | some a => simp [core_k.lift_fueled] at h
+  | none =>
+    refine ⟨rfl, ?_⟩
+    simp only [core_k.lift_fueled, bind_eq_ok_iff] at h
+    obtain ⟨s, -, v, -, ce1, hce1, hr⟩ := h
+    have h2 : ce1 = ce := by simpa using Result.ok_injective hr
+    have h1 : core_types.CheckError.Internal v = ce1 :=
+      Result.ok_injective (by rw [core_types.internal] at hce1; exact hce1)
+    exact ⟨v, by rw [← h2, ← h1]⟩
+
+/-- **Move 1 at a fuelled level comparison** (task #67): where the port's
+`lift_fueled` declines, con-leche's `liftFueled` throws `.internal` at the
+same `none` (`ConLeche/Kernel/Core.lean:111`), and the rest of the `do` block
+never runs.  The message is not compared. -/
+private theorem lift_fueled_run_err {α : Type} {o : Option Bool} {ce : core_types.CheckError}
+    (h : core_k.lift_fueled o = ok (.Err ce)) (what : String)
+    (lst : ConLeche.Cached.CState) (f : Bool → ConLeche.Cached.CheckCM α) :
+    ErrSim ce ((ConLeche.liftFueled what o >>= f).run lst) := by
+  obtain ⟨rfl, v, rfl⟩ := lift_fueled_none h
+  exact ErrSim.bindCM (ErrSim.internal rfl)
+
 /-- `ConLeche/Cached/CoreC.lean:252-268` — **`prop_legs_i` refines the two
 `Prop` legs** (`core_c.rs:605`). -/
 theorem prop_legs_i_refines {mode : env.CheckMode} {fuel : Std.U64}
@@ -958,14 +1024,22 @@ theorem prop_legs_i_refines {mode : env.CheckMode} {fuel : Std.U64}
   rw [propLegsI]
   obtain ⟨rr, st1, hio, hok⟩ := bind_pair_eq_ok hok
   cases rr with
-  | Err err => simp at hok
+  | Err err =>
+    replace hok : ok (core.result.Result.Err err, st1) = ok (r, st') := hok
+    simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+    obtain ⟨rfl, rfl⟩ := hok
+    exact ErrSim.bindCM ((hw.inferIOSim d hta).apply_err hwf hfe hio hrel hfrel)
   | Ok tta =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, httawf⟩ :=
       (hw.inferIOSim d hta).apply hwf hfe hio hrel hfrel
     rw [run_bind _ _ hrun1]
     obtain ⟨r1, st2, hwh, hok⟩ := bind_pair_eq_ok hok
     cases r1 with
-    | Err err => simp at hok
+    | Err err =>
+      replace hok : ok (core.result.Result.Err err, st2) = ok (r, st') := hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      exact ErrSim.bindCM ((hw.whnfSim d httawf).apply_err hwf1 hfe hwh hrel1 hfrel)
     | Ok wtta =>
       obtain ⟨lst2, hrun2, hrel2, hwf2, hwttawf⟩ :=
         (hw.whnfSim d httawf).apply hwf1 hfe hwh hrel1 hfrel
@@ -974,13 +1048,13 @@ theorem prop_legs_i_refines {mode : env.CheckMode} {fuel : Std.U64}
       split at hok
       · -- `.bvar`
         rename_i hk
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.fvar`
         rename_i hk
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
@@ -1000,27 +1074,46 @@ theorem prop_legs_i_refines {mode : env.CheckMode} {fuel : Std.U64}
         rw [hlabs] at hrun3
         obtain ⟨r2, hlift, hok⟩ := bind_eq_ok_iff.mp hok
         cases r2 with
-        | Err err => simp at hok
+        | Err err =>
+          replace hok : ok (core.result.Result.Err err, st3) = ok (r, st') := hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+          obtain ⟨rfl, rfl⟩ := hok
+          rw [run_bind _ _ hrun3]
+          exact lift_fueled_run_err hlift _ _ _
         | Ok ok_a =>
           have heqasome : eq_a = some ok_a := lift_fueled_some hlift
           rw [run_bind _ _ hrun3, run_bind _ _ (run_liftFueled _ _ heqasome)]
           obtain ⟨r3, st4, hio2, hok⟩ := bind_pair_eq_ok hok
           cases r3 with
-          | Err err => simp at hok
+          | Err err =>
+            replace hok : ok (core.result.Result.Err err, st4) = ok (r, st') := hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+            obtain ⟨rfl, rfl⟩ := hok
+            exact ErrSim.bindCM ((hw.inferIOSim d hb).apply_err hwf3 hfe hio2 hrel3 hfrel)
           | Ok tb =>
             obtain ⟨lst4, hrun4, hrel4, hwf4, htbwf⟩ :=
               (hw.inferIOSim d hb).apply hwf3 hfe hio2 hrel3 hfrel
             rw [run_bind _ _ hrun4]
             obtain ⟨r4, st5, hio3, hok⟩ := bind_pair_eq_ok hok
             cases r4 with
-            | Err err => simp at hok
+            | Err err =>
+              replace hok : ok (core.result.Result.Err err, st5) = ok (r, st') := hok
+              simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+              obtain ⟨rfl, rfl⟩ := hok
+              exact ErrSim.bindCM
+                ((hw.inferIOSim d htbwf).apply_err hwf4 hfe hio3 hrel4 hfrel)
             | Ok ttb =>
               obtain ⟨lst5, hrun5, hrel5, hwf5, httbwf⟩ :=
                 (hw.inferIOSim d htbwf).apply hwf4 hfe hio3 hrel4 hfrel
               rw [run_bind _ _ hrun5]
               obtain ⟨r5, st6, hwh2, hok⟩ := bind_pair_eq_ok hok
               cases r5 with
-              | Err err => simp at hok
+              | Err err =>
+                replace hok : ok (core.result.Result.Err err, st6) = ok (r, st') := hok
+                simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+                obtain ⟨rfl, rfl⟩ := hok
+                exact ErrSim.bindCM
+                  ((hw.whnfSim d httbwf).apply_err hwf5 hfe hwh2 hrel5 hfrel)
               | Ok wttb =>
                 obtain ⟨lst6, hrun6, hrel6, hwf6, hwttbwf⟩ :=
                   (hw.whnfSim d httbwf).apply hwf5 hfe hwh2 hrel5 hfrel
@@ -1028,14 +1121,12 @@ theorem prop_legs_i_refines {mode : env.CheckMode} {fuel : Std.U64}
                 simp only at hok
                 split at hok
                 · rename_i hk2
-                  simp only [Result.ok.injEq, Prod.mk.injEq,
-                    core.result.Result.Ok.injEq] at hok
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · rename_i hk2
-                  simp only [Result.ok.injEq, Prod.mk.injEq,
-                    core.result.Result.Ok.injEq] at hok
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
@@ -1051,109 +1142,111 @@ theorem prop_legs_i_refines {mode : env.CheckMode} {fuel : Std.U64}
                     StateC.is_equiv_l_m_refines hwf6 hvtwf hlwf heqb lst6 hrel6
                   rw [hlabs] at hrun7
                   obtain ⟨r6, hlift2, hok⟩ := bind_eq_ok_iff.mp hok
-                  split at hok
-                  · rename_i ok_b
+                  cases r6 with
+                  | Err err =>
+                    replace hok : ok (core.result.Result.Err err, st7) = ok (r, st') := hok
+                    simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+                    obtain ⟨rfl, rfl⟩ := hok
+                    rw [run_bind _ _ hrun7]
+                    exact lift_fueled_run_err hlift2 _ _ _
+                  | Ok ok_b =>
                     have heqbsome : eq_b = some ok_b := lift_fueled_some hlift2
+                    -- the iota step the `match` on `r6` leaves behind
+                    replace hok : (if ok_a = true then
+                          ok (core.result.Result.Ok ok_b, st7)
+                        else ok (core.result.Result.Ok ok_a, st7))
+                        = ok (r, st') := hok
                     rw [run_bind _ _ hrun7, run_bind _ _ (run_liftFueled _ _ heqbsome)]
                     split at hok
                     · -- `ok_a` held: the verdict is `ok_b`
                       rename_i hoka
-                      simp only [Result.ok.injEq, Prod.mk.injEq,
-                        core.result.Result.Ok.injEq] at hok
-                      refine ⟨lst7, ?_, hok.2 ▸ hrel7, hok.2 ▸ hwf7, trivial⟩
-                      rw [hoka, ← hok.1]
+                      simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+                      obtain ⟨rfl, rfl⟩ := hok
+                      refine ⟨lst7, ?_, hrel7, hwf7, trivial⟩
+                      rw [hoka]
                       rfl
                     · -- `ok_a` failed: the verdict is `ok_a`
                       rename_i hoka
                       have hokaf : ok_a = false := by simpa using hoka
-                      simp only [Result.ok.injEq, Prod.mk.injEq,
-                        core.result.Result.Ok.injEq] at hok
-                      refine ⟨lst7, ?_, hok.2 ▸ hrel7, hok.2 ▸ hwf7, trivial⟩
-                      rw [← hok.1, hokaf]
+                      simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+                      obtain ⟨rfl, rfl⟩ := hok
+                      refine ⟨lst7, ?_, hrel7, hwf7, trivial⟩
+                      rw [hokaf]
                       rfl
-                  · rename_i err
-                    simp at hok
                 · rename_i hk2
-                  simp only [Result.ok.injEq, Prod.mk.injEq,
-                    core.result.Result.Ok.injEq] at hok
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · rename_i hk2
-                  simp only [Result.ok.injEq, Prod.mk.injEq,
-                    core.result.Result.Ok.injEq] at hok
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · rename_i hk2
-                  simp only [Result.ok.injEq, Prod.mk.injEq,
-                    core.result.Result.Ok.injEq] at hok
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · rename_i hk2
-                  simp only [Result.ok.injEq, Prod.mk.injEq,
-                    core.result.Result.Ok.injEq] at hok
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · rename_i hk2
-                  simp only [Result.ok.injEq, Prod.mk.injEq,
-                    core.result.Result.Ok.injEq] at hok
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · rename_i hk2
-                  simp only [Result.ok.injEq, Prod.mk.injEq,
-                    core.result.Result.Ok.injEq] at hok
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · rename_i hk2
-                  simp only [Result.ok.injEq, Prod.mk.injEq,
-                    core.result.Result.Ok.injEq] at hok
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
       · -- `.const`
         rename_i hk
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.app`
         rename_i hk
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.lam`
         rename_i hk
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.forallE`
         rename_i hk
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.letE`
         rename_i hk
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.lit`
         rename_i hk
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.proj`
         rename_i hk
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
@@ -1175,14 +1268,23 @@ theorem proof_irrel_i_refines {mode : env.CheckMode} {fuel : Std.U64}
   rw [ConLeche.Cached.proofIrrelI]
   obtain ⟨rr, st1, hio, hok⟩ := bind_pair_eq_ok hok
   cases rr with
-  | Err err => simp at hok
+  | Err err =>
+    -- `a`'s type inference threw: con-leche's first step throws too
+    replace hok : ok (core.result.Result.Err err, st1) = ok (r, st') := hok
+    simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+    obtain ⟨rfl, rfl⟩ := hok
+    exact ErrSim.bindCM ((hw.inferIOSim d ha).apply_err hwf hfe hio hrel hfrel)
   | Ok ta =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, htawf⟩ :=
       (hw.inferIOSim d ha).apply hwf hfe hio hrel hfrel
     rw [run_bind _ _ hrun1]
     obtain ⟨r1, st2, hwh, hok⟩ := bind_pair_eq_ok hok
     cases r1 with
-    | Err err => simp at hok
+    | Err err =>
+      replace hok : ok (core.result.Result.Err err, st2) = ok (r, st') := hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      exact ErrSim.bindCM ((hw.whnfSim d htawf).apply_err hwf1 hfe hwh hrel1 hfrel)
     | Ok wta =>
       obtain ⟨lst2, hrun2, hrel2, hwf2, hwtawf⟩ :=
         (hw.whnfSim d htawf).apply hwf1 hfe hwh hrel1 hfrel
@@ -1199,14 +1301,22 @@ theorem proof_irrel_i_refines {mode : env.CheckMode} {fuel : Std.U64}
         rw [run_bind _ _ (run_pure _ _), if_pos (by rw [← hb1abs])]
         obtain ⟨r2, st3, hio2, hok⟩ := bind_pair_eq_ok hok
         cases r2 with
-        | Err err => simp at hok
+        | Err err =>
+          replace hok : ok (core.result.Result.Err err, st3) = ok (r, st') := hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+          obtain ⟨rfl, rfl⟩ := hok
+          exact ErrSim.bindCM ((hw.inferIOSim d hb).apply_err hwf2 hfe hio2 hrel2 hfrel)
         | Ok tb =>
           obtain ⟨lst3, hrun3, hrel3, hwf3, htbwf⟩ :=
             (hw.inferIOSim d hb).apply hwf2 hfe hio2 hrel2 hfrel
           rw [run_bind _ _ hrun3]
           obtain ⟨r3, st4, hwh2, hok⟩ := bind_pair_eq_ok hok
           cases r3 with
-          | Err err => simp at hok
+          | Err err =>
+            replace hok : ok (core.result.Result.Err err, st4) = ok (r, st') := hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+            obtain ⟨rfl, rfl⟩ := hok
+            exact ErrSim.bindCM ((hw.whnfSim d htbwf).apply_err hwf3 hfe hwh2 hrel3 hfrel)
           | Ok wtb =>
             obtain ⟨lst4, hrun4, hrel4, hwf4, hwtbwf⟩ :=
               (hw.whnfSim d htbwf).apply hwf3 hfe hwh2 hrel3 hfrel
@@ -1216,8 +1326,7 @@ theorem proof_irrel_i_refines {mode : env.CheckMode} {fuel : Std.U64}
               rw [CoreK.is_unit_like_ty_refines CoreK.pinned_punit_name
                 CoreK.pinned_punit_rec_name (FindAgree.of_rel hfrel hfe) hwtbwf hb2]
               rfl
-            simp only [Result.ok.injEq, Prod.mk.injEq,
-              core.result.Result.Ok.injEq] at hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
             obtain ⟨rfl, rfl⟩ := hok
             refine ⟨lst4, ?_, hrel4, hwf4, trivial⟩
             rw [run_bind _ _ (run_pure _ _), ← hb2abs]
@@ -1227,7 +1336,8 @@ theorem proof_irrel_i_refines {mode : env.CheckMode} {fuel : Std.U64}
         have hb1ff : b1 = false := by simpa using hb1f
         subst hb1ff
         rw [run_bind _ _ (run_pure _ _), if_neg (by rw [← hb1abs]; simp)]
-        exact (prop_legs_i_refines hw d htawf hb).apply hwf2 hfe hok hrel2 hfrel
+        exact prop_legs_i_refines hw d htawf hb fe lfe hfe hfrel st2 r st' hwf2 hok lst2
+          hrel2
 
 /-! ## `struct_eta_proj_certs_i` — the per-projection telescope certificates
 
@@ -1263,7 +1373,7 @@ theorem struct_eta_proj_certs_i_from_aux (hsc : StateCOpen) {mode : env.CheckMod
       rename_i hge
       have hN0 : N = 0 := by scalar_tac
       subst hN0
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨rfl, rfl⟩ := hok
       exact ⟨lst, rfl, hrel, hwf, trivial⟩
     · rename_i hge
@@ -1279,7 +1389,7 @@ theorem struct_eta_proj_certs_i_from_aux (hsc : StateCOpen) {mode : env.CheckMod
       cases o with
       | none =>
         simp only [Option.map_none] at hoabs
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst, ?_, hrel, hwf, trivial⟩
         rw [← hnabs]
@@ -1345,13 +1455,20 @@ theorem struct_eta_proj_certs_i_from_aux (hsc : StateCOpen) {mode : env.CheckMod
               | some q => simp
             rw [if_pos ⟨hlpseq, hsomeL⟩]
             obtain ⟨rr, st1, hcty, hok⟩ := bind_pair_eq_ok hok
+            rw [run_bind _ _ (run_pure _ _)]
             cases rr with
-            | Err err => simp at hok
+            | Err err =>
+              -- the projection's type read threw: con-leche's `constTyAtM` throws too
+              replace hok : ok (core.result.Result.Err err, st1) = ok (r, st') := hok
+              simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+              obtain ⟨rfl, rfl⟩ := hok
+              exact ErrSim.bindCM (StateC.const_ty_at_m_err hwf hfe hnwf hus2 hcty lst lfe
+                hrel hfrel (absName n))
             | Ok pty =>
               obtain ⟨lst1, hrun1, hrel1, hwf1, hptywf⟩ :=
                 StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf hfe hnwf hus2
                   hcty lst lfe hrel hfrel (absName n)
-              rw [run_bind _ _ (run_pure _ _), run_bind _ _ hrun1]
+              rw [run_bind _ _ hrun1]
               obtain ⟨v, hv, hok⟩ := bind_eq_ok_iff.mp hok
               obtain ⟨v1, hv1, hok⟩ := bind_eq_ok_iff.mp hok
               obtain ⟨spine, hspine, hok⟩ := bind_eq_ok_iff.mp hok
@@ -1360,8 +1477,22 @@ theorem struct_eta_proj_certs_i_from_aux (hsc : StateCOpen) {mode : env.CheckMod
               obtain ⟨hv1abs, hv1wf⟩ := CoreK.expr_singleton_refines hb hv1
               obtain ⟨hspabs2, hspwf⟩ := CoreK.append_exprs_refines htargs hv1wf hspine
               obtain ⟨r1, st2, hio, hok⟩ := bind_pair_eq_ok hok
-              split at hok
-              · rename_i b3
+              cases r1 with
+              | Err err =>
+                -- the telescope certificate threw
+                replace hok : ok (core.result.Result.Err err, st2) = ok (r, st') := hok
+                simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+                obtain ⟨rfl, rfl⟩ := hok
+                have herr := (iota_certs_i_refines hsc hw d false hptywf hspwf).apply_err
+                  hwf1 hfe hio hrel1 hfrel
+                rw [hspabs2, hv1abs] at herr
+                exact ErrSim.bindCM herr
+              | Ok b3 =>
+                replace hok : (if b3 = true then
+                      (do let i3 ← j + 1#u64
+                          cached.core_c.struct_eta_proj_certs_i_from mode fuel st2 fe d t
+                            us2 targs b lps_t n_f i3)
+                    else ok (core.result.Result.Ok b3, st2)) = ok (r, st') := hok
                 obtain ⟨lst2, hrun2, hrel2, hwf2, -⟩ :=
                   (iota_certs_i_refines hsc hw d false hptywf hspwf).apply hwf1 hfe hio
                     hrel1 hfrel
@@ -1371,22 +1502,19 @@ theorem struct_eta_proj_certs_i_from_aux (hsc : StateCOpen) {mode : env.CheckMod
                 · rename_i hb3
                   obtain ⟨i3, hi3, hok⟩ := bind_eq_ok_iff.mp hok
                   have hi3v : i3.val = j.val + 1 := HashMap.uscalar_add_eq hi3
-                  obtain ⟨lst3, hrun3, hrel3, hwf3, -⟩ :=
+                  have hrec :=
                     ih (n_f.val - i3.val) (by omega) t us2 targs b lps_t n_f i3 ht hus2
                       htargs hb hlps rfl fe lfe hfe hfrel st2 r st' hwf2 hok lst2 hrel2
-                  refine ⟨lst3, ?_, hrel3, hwf3, trivial⟩
                   rw [if_pos hb3, ← hi3v]
-                  exact hrun3
+                  exact hrec
                 · rename_i hb3
                   have hb3f : b3 = false := by
                     simp only [Bool.not_eq_true] at hb3; exact hb3
-                  simp only [Result.ok.injEq, Prod.mk.injEq,
-                    core.result.Result.Ok.injEq] at hok
-                  refine ⟨lst2, ?_, hok.2 ▸ hrel2, hok.2 ▸ hwf2, trivial⟩
-                  rw [if_neg hb3, ← hok.1, hb3f]
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+                  obtain ⟨rfl, rfl⟩ := hok
+                  refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
+                  rw [if_neg hb3, hb3f]
                   rfl
-              · rename_i err
-                simp at hok
           · -- the telescope does not peel
             rename_i hsome
             have hstrip : ConLeche.Expr.stripPis ((absExprs targs).length + 1)
@@ -1399,7 +1527,7 @@ theorem struct_eta_proj_certs_i_from_aux (hsc : StateCOpen) {mode : env.CheckMod
               cases o1 with
               | none => simp
               | some q => simp [core.option.Option.is_some] at hsome
-            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
             obtain ⟨rfl, rfl⟩ := hok
             refine ⟨lst, ?_, hrel, hwf, trivial⟩
             rw [if_neg (by rintro ⟨-, h2⟩; exact hsomeL h2)]
@@ -1409,7 +1537,7 @@ theorem struct_eta_proj_certs_i_from_aux (hsc : StateCOpen) {mode : env.CheckMod
           have hb1ff : b1 = false := by simpa using hb1f
           have hne : ¬ (absNames cvp.level_params = absNames lps_t) :=
             of_decide_eq_false (by rw [← hb1abs]; exact hb1ff)
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
           rw [if_neg (by rintro ⟨h1, -⟩; exact hne h1)]
@@ -1451,8 +1579,8 @@ theorem struct_eta_proj_certs_i_refines (hsc : StateCOpen) {mode : env.CheckMode
   dsimp only
   unfold cached.core_c.struct_eta_proj_certs_i at hok
   dsimp only at hok
-  have := (struct_eta_proj_certs_i_from_refines hsc hw d n_f 0#u64 ht hus2 htargs hb
-    hlps).apply hwf hfe hok hrel hfrel
+  have := struct_eta_proj_certs_i_from_refines hsc hw d n_f 0#u64 ht hus2 htargs hb hlps
+    fe lfe hfe hfrel st r st' hwf hok lst hrel
   simpa [List.range_eq_range'] using this
 
 /-! ## `struct_eta_cert_with_i` — the structure-eta certificate
@@ -1532,35 +1660,35 @@ theorem struct_eta_cert_fields_i_refines (hsc : StateCOpen) {mode : env.CheckMod
   have hb1abs : b1 = (absMode mode).ttChecks := Env.tt_checks_refines hb1
   obtain ⟨st1, tt, hbranch, hok⟩ := bind_pair_eq_ok hok
   rw [← hb1abs]
-  -- the field comparison, shared by the two TT arms
+  -- the field comparison, shared by the two TT arms, at the whole outcome
   have tail : ∀ (st2 : cached.state_c.CState) (lst2 : ConLeche.Cached.CState) (b2 : Bool),
       StateWF st2 → StateRel st2 lst2 →
       ((if b2 = true then
           (do let fields ← kernel.core_k.drop_exprs_n aargs caps.eta_params
               cached.core_c.def_eq_list_i mode fuel st2 fe d fields projs)
-        else ok (core.result.Result.Ok b2, st2)) = ok (core.result.Result.Ok r, st')) →
-      ∃ lst', (if b2 = true then
+        else ok (core.result.Result.Ok b2, st2)) = ok (r, st')) →
+      Out id (fun _ => True) r st'
+        ((if b2 = true then
             ConLeche.Cached.defEqListI (knot mode lfe fuel.val) lfe d.val
               ((absExprs aargs).drop (absIndCaps caps).etaParams) (absExprs projs)
-          else pure false).run lst2 = .ok (id r, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ True := by
+          else pure false).run lst2) := by
     intro st2 lst2 b2 hwf2 hrel2 htl
     split at htl
     · rename_i hb2
       rw [if_pos hb2]
       obtain ⟨fields, hfields, htl⟩ := bind_eq_ok_iff.mp htl
       obtain ⟨hfabs, hfwf⟩ := CoreK.drop_exprs_n_refines haargs hfields
-      obtain ⟨lst3, hrun3, hrel3, hwf3, -⟩ :=
-        (def_eq_list_i_refines hw d hfwf hpwf).apply hwf2 hfe htl hrel2 hfrel
-      refine ⟨lst3, ?_, hrel3, hwf3, trivial⟩
-      rw [hfabs] at hrun3
-      exact hrun3
+      have hd := def_eq_list_i_refines hw d hfwf hpwf fe lfe hfe hfrel st2 r st' hwf2 htl
+        lst2 hrel2
+      rw [hfabs] at hd
+      exact hd
     · rename_i hb2
       have hb2f : b2 = false := by simp only [Bool.not_eq_true] at hb2; exact hb2
       rw [if_neg hb2]
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at htl
-      refine ⟨lst2, ?_, htl.2 ▸ hrel2, htl.2 ▸ hwf2, trivial⟩
-      rw [← htl.1, hb2f]
+      simp only [Result.ok.injEq, Prod.mk.injEq] at htl
+      obtain ⟨rfl, rfl⟩ := htl
+      refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
+      rw [hb2f]
       rfl
   split at hbranch
   · -- the TT-lane arm (dead at both shipped cores, but ported)
@@ -1570,9 +1698,14 @@ theorem struct_eta_cert_fields_i_refines (hsc : StateCOpen) {mode : env.CheckMod
     obtain ⟨rr, st2, hcty, hbranch⟩ := bind_pair_eq_ok hbranch
     cases rr with
     | Err err =>
+      -- the constructor's type read threw, and the port passes that error on
       simp only [Result.ok.injEq, Prod.mk.injEq] at hbranch
       obtain ⟨rfl, rfl⟩ := hbranch
-      simp at hok
+      replace hok : ok (core.result.Result.Err err, st2) = ok (r, st') := hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      exact ErrSim.bindCM (StateC.const_ty_at_m_err hwf hfe hc hus hcty lst lfe hrel hfrel
+        (absName c))
     | Ok cty =>
       obtain ⟨lst2, hrun2, hrel2, hwf2, hctywf⟩ :=
         StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf hfe hc hus hcty
@@ -1587,15 +1720,22 @@ theorem struct_eta_cert_fields_i_refines (hsc : StateCOpen) {mode : env.CheckMod
       simp only [Result.ok.injEq, Prod.mk.injEq] at hbranch
       obtain ⟨hst1, htt⟩ := hbranch
       rw [← hst1, ← htt] at hok
-      split at hok
-      · rename_i b2
+      cases tt1 with
+      | Err err =>
+        -- the type former's telescope certificate threw
+        replace hok : ok (core.result.Result.Err err, st3) = ok (r, st') := hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+        obtain ⟨rfl, rfl⟩ := hok
+        have herr := (iota_certs_i_refines hsc hw d false hctywf hspwf).apply_err hwf2 hfe
+          hio hrel2 hfrel
+        rw [hspabs] at herr
+        exact ErrSim.bindCM herr
+      | Ok b2 =>
         obtain ⟨lst3, hrun3, hrel3, hwf3, -⟩ :=
           (iota_certs_i_refines hsc hw d false hctywf hspwf).apply hwf2 hfe hio hrel2 hfrel
         rw [hspabs] at hrun3
         rw [run_bind _ _ (by simpa using hrun3)]
         exact tail _ _ b2 hwf3 hrel3 hok
-      · rename_i err
-        simp at hok
   · -- the TT lane is off: the certificate is `true` without running
     rename_i hb1f
     rw [if_neg hb1f]
@@ -1635,7 +1775,13 @@ theorem struct_eta_cert_steps_i_refines (hsc : StateCOpen) {mode : env.CheckMode
     StateC.is_equiv_list_l_m_refines hwf hus hus2 heqv lst hrel
   obtain ⟨rq, hlift, hB⟩ := bind_eq_ok_iff.mp hA
   cases rq with
-  | Err err => simp at hB
+  | Err err =>
+    -- the level comparison ran out of fuel: `liftFueled` throws on both sides
+    replace hB : ok (core.result.Result.Err err, st1) = ok (r, st') := hB
+    simp only [Result.ok.injEq, Prod.mk.injEq] at hB
+    obtain ⟨rfl, rfl⟩ := hB
+    rw [run_bind _ _ hrun1]
+    exact lift_fueled_run_err hlift _ _ _
   | Ok b1 =>
     have heqvsome : eqv = some b1 := lift_fueled_some hlift
     rw [run_bind _ _ hrun1, run_bind _ _ (run_liftFueled _ _ heqvsome)]
@@ -1648,7 +1794,17 @@ theorem struct_eta_cert_steps_i_refines (hsc : StateCOpen) {mode : env.CheckMode
       -- the type former's type, read *before* the gate
       obtain ⟨r1, st2, hcty, hC⟩ := bind_pair_eq_ok hB
       cases r1 with
-      | Err err => simp at hC
+      | Err err =>
+        -- the type former's type read threw, before either gate
+        obtain ⟨st3, tele, htele, hD⟩ := bind_pair_eq_ok hC
+        replace htele : ok (st2, core.result.Result.Err err) = ok (st3, tele) := htele
+        simp only [Result.ok.injEq, Prod.mk.injEq] at htele
+        obtain ⟨rfl, rfl⟩ := htele
+        replace hD : ok (core.result.Result.Err err, st2) = ok (r, st') := hD
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hD
+        obtain ⟨rfl, rfl⟩ := hD
+        exact ErrSim.bindCM (StateC.const_ty_at_m_err hwf1 hfe ht hus2 hcty lst1 lfe hrel1
+          hfrel (absName t))
       | Ok tty =>
         obtain ⟨lst2, hrun2, hrel2, hwf2, htywf⟩ :=
           StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf1 hfe ht hus2 hcty
@@ -1689,8 +1845,38 @@ theorem struct_eta_cert_steps_i_refines (hsc : StateCOpen) {mode : env.CheckMode
             refine ⟨lst2, hst ▸ hrel2, hst ▸ hwf2, fun f => ?_⟩
             rw [ConLeche.Cached.certAtI, if_neg hcerts, hb2t]
             exact run_bind _ _ (run_pure _ _)
+        -- the same gate, at a telescope certificate that *threw*
+        have hgateErr : ∀ ce : core_types.CheckError, tele = core.result.Result.Err ce →
+            ∀ f : Bool → ConLeche.Cached.CheckCM Bool,
+              ErrSim ce ((ConLeche.Cached.certAtI (absMode mode)
+                  (ConLeche.Cached.iotaCertsI (knot mode lfe fuel.val) lfe d.val false
+                    (absExpr tty) (absExprs targs)) >>= f).run lst2) := by
+          intro ce hce f
+          obtain ⟨cg, hcg, htl⟩ := bind_eq_ok_iff.mp htele
+          have hcgabs : cg = (absMode mode).certs := Env.certs_refines hcg
+          split at htl
+          · -- the family runs, and threw
+            rename_i hcgt
+            have hcerts : (absMode mode).certs = true := by rw [← hcgabs]; exact hcgt
+            obtain ⟨tele1, st4, hio, htl2⟩ := bind_pair_eq_ok htl
+            simp only [Result.ok.injEq, Prod.mk.injEq] at htl2
+            obtain ⟨-, hte⟩ := htl2
+            rw [hte, hce] at hio
+            rw [ConLeche.Cached.certAtI, if_pos hcerts]
+            exact ErrSim.bindCM
+              ((iota_certs_i_refines hsc hw d false htywf htargs).apply_err hwf2 hfe hio
+                hrel2 hfrel)
+          · -- the family is off: it cannot throw
+            rename_i hcgf
+            simp only [Result.ok.injEq, Prod.mk.injEq] at htl
+            obtain ⟨-, hte⟩ := htl
+            exact absurd (hte.trans hce) (by simp)
         cases tele with
-        | Err err => simp at hD
+        | Err err =>
+          replace hD : ok (core.result.Result.Err err, st3) = ok (r, st') := hD
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hD
+          obtain ⟨rfl, rfl⟩ := hD
+          exact hgateErr err rfl _
         | Ok b2 =>
           obtain ⟨lst3, hrel3, hwf3, hrun3⟩ := hgate b2 rfl
           rw [hrun3]
@@ -1705,24 +1891,6 @@ theorem struct_eta_cert_steps_i_refines (hsc : StateCOpen) {mode : env.CheckMode
             have hcg2abs : cg2 = (absMode mode).certs := Env.certs_refines hcg2
             obtain ⟨st4, cs, hslots, hF⟩ := bind_pair_eq_ok hE
             obtain ⟨caps1, slots⟩ := cs
-            -- the destructuring `let` the triple leaves behind (see
-            -- `bind_pair_eq_ok`): this `replace` is the iota step
-            replace hF : (match slots with
-                | core.result.Result.Ok b4 =>
-                  if b4 = true then
-                    (do let params ← kernel.core_k.take_exprs_n aargs caps1.eta_params
-                        let (r2, st5) ← cached.core_c.def_eq_list_i mode fuel st4 fe d
-                          params targs
-                        match r2 with
-                        | core.result.Result.Ok b5 =>
-                          if b5 = true then
-                            cached.core_c.struct_eta_cert_fields_i mode fuel st5 fe d c
-                              us us2 aargs targs b cvc caps1 t
-                          else ok (r2, st5)
-                        | core.result.Result.Err _ => ok (r2, st5))
-                  else ok (slots, st4)
-                | core.result.Result.Err _ => ok (slots, st4))
-                = ok (core.result.Result.Ok r, st') := hF
             have hgate2 : ∀ b3 : Bool, slots = core.result.Result.Ok b3 →
                 caps1 = caps ∧ ∃ lst4, StateRel st4 lst4 ∧ StateWF st4 ∧
                   ∀ f : Bool → ConLeche.Cached.CheckCM Bool,
@@ -1783,13 +1951,75 @@ theorem struct_eta_cert_steps_i_refines (hsc : StateCOpen) {mode : env.CheckMode
                 refine ⟨hcaps.symm, lst3, hst4 ▸ hrel3, hst4 ▸ hwf3, fun f => ?_⟩
                 rw [ConLeche.Cached.certAtI, if_neg hcerts, hb3t]
                 exact run_bind _ _ (run_pure _ _)
+            -- the same gate, at a per-slot certificate that *threw*
+            have hgate2Err : ∀ ce : core_types.CheckError,
+                slots = core.result.Result.Err ce →
+                ∀ f : Bool → ConLeche.Cached.CheckCM Bool,
+                  ErrSim ce ((ConLeche.Cached.certAtI (absMode mode)
+                      (if lfe.towerSlotsAllF (absName t) caps.eta_fields.val
+                       then pure true
+                       else ConLeche.Cached.structEtaProjCertsI (knot mode lfe fuel.val)
+                         lfe d.val (absName t) (absName t) (absLevels us2)
+                         (absExprs targs) (absExpr b) (absNames cvt.level_params)
+                         (List.range caps.eta_fields.val)) >>= f).run lst3) := by
+              intro ce hce f
+              split at hslots
+              · -- the family runs
+                rename_i hcg2t
+                have hcerts : (absMode mode).certs = true := by
+                  rw [← hcg2abs]; exact hcg2t
+                obtain ⟨tw, htw, hsl1⟩ := bind_eq_ok_iff.mp hslots
+                have htwabs : tw = lfe.towerSlotsAllF (absName t) caps.eta_fields.val :=
+                  ConRon.Refine.tower_slots_all_f_refines (FindAgree.of_rel hfrel hfe)
+                    (FindWF.of_wf hfe) ht htw
+                obtain ⟨c1, r2, hinner, hsl2⟩ := bind_pair_eq_ok hsl1
+                simp only [Result.ok.injEq, Prod.mk.injEq] at hsl2
+                obtain ⟨-, -, hr2⟩ := hsl2
+                split at hinner
+                · -- an all-tower slot family runs nothing, so it cannot throw
+                  rename_i htwt
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hinner
+                  obtain ⟨-, hr2'⟩ := hinner
+                  exact absurd ((hr2'.trans hr2).trans hce) (by simp)
+                · -- one of the projection-function slots threw
+                  rename_i htwf
+                  obtain ⟨slots1, st5, hsp, hin2⟩ := bind_pair_eq_ok hinner
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hin2
+                  obtain ⟨-, hsl⟩ := hin2
+                  rw [hsl, hr2, hce] at hsp
+                  rw [ConLeche.Cached.certAtI, if_pos hcerts, ← htwabs, if_neg htwf]
+                  exact ErrSim.bindCM
+                    ((struct_eta_proj_certs_i_refines hsc hw d caps.eta_fields ht hus2
+                      htargs hb hcvt.2.1).apply_err hwf3 hfe hsp hrel3 hfrel)
+              · -- the family is off: it cannot throw
+                rename_i hcg2f
+                simp only [Result.ok.injEq, Prod.mk.injEq] at hslots
+                obtain ⟨-, -, hsl⟩ := hslots
+                exact absurd (hsl.trans hce) (by simp)
             cases slots with
-            | Err err => simp at hF
+            | Err err =>
+              replace hF : ok (core.result.Result.Err err, st4) = ok (r, st') := hF
+              simp only [Result.ok.injEq, Prod.mk.injEq] at hF
+              obtain ⟨rfl, rfl⟩ := hF
+              exact hgate2Err err rfl _
             | Ok b3 =>
+              -- the destructuring `let` the triple leaves behind (see
+              -- `bind_pair_eq_ok`): this `replace` is the iota step
+              replace hF : (if b3 = true then
+                    (do let params ← kernel.core_k.take_exprs_n aargs caps1.eta_params
+                        let (r2, st5) ← cached.core_c.def_eq_list_i mode fuel st4 fe d
+                          params targs
+                        match r2 with
+                        | core.result.Result.Ok b5 =>
+                          if b5 = true then
+                            cached.core_c.struct_eta_cert_fields_i mode fuel st5 fe d c
+                              us us2 aargs targs b cvc caps1 t
+                          else ok (r2, st5)
+                        | core.result.Result.Err _ => ok (r2, st5))
+                  else ok (core.result.Result.Ok b3, st4)) = ok (r, st') := hF
               obtain ⟨hcaps, lst4, hrel4, hwf4, hrun4⟩ := hgate2 b3 rfl
               subst hcaps
               rw [hrun4]
-              dsimp only at hF
               split at hF
               · -- the slots are certified: the parameter comparison
                 rename_i hb3t
@@ -1799,7 +2029,15 @@ theorem struct_eta_cert_steps_i_refines (hsc : StateCOpen) {mode : env.CheckMode
                 obtain ⟨hpabs, hpwf⟩ := CoreK.take_exprs_n_refines haargs hparams
                 obtain ⟨r2, st5, hdq, hH⟩ := bind_pair_eq_ok hG
                 cases r2 with
-                | Err err => simp at hH
+                | Err err =>
+                  -- the parameter comparison threw
+                  replace hH : ok (core.result.Result.Err err, st5) = ok (r, st') := hH
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hH
+                  obtain ⟨rfl, rfl⟩ := hH
+                  have herr := (def_eq_list_i_refines hw d hpwf htargs).apply_err hwf4 hfe
+                    hdq hrel4 hfrel
+                  rw [hpabs] at herr
+                  exact ErrSim.bindCM herr
                 | Ok b4 =>
                   obtain ⟨lst5, hrun5, hrel5, hwf5, -⟩ :=
                     (def_eq_list_i_refines hw d hpwf htargs).apply hwf4 hfe hdq hrel4
@@ -1812,14 +2050,13 @@ theorem struct_eta_cert_steps_i_refines (hsc : StateCOpen) {mode : env.CheckMode
                     rename_i hb4t
                     subst hb4t
                     rw [if_pos rfl]
-                    exact (struct_eta_cert_fields_i_refines hsc hw d hc ht hus hus2 haargs
-                      htargs hb).apply hwf5 hfe hH hrel5 hfrel
+                    exact struct_eta_cert_fields_i_refines hsc hw d hc ht hus hus2 haargs
+                      htargs hb fe lfe hfe hfrel st5 r st' hwf5 hH lst5 hrel5
                   · -- the parameters differ
                     rename_i hb4f
                     have hb4ff : b4 = false := by simpa using hb4f
                     subst hb4ff
-                    simp only [Result.ok.injEq, Prod.mk.injEq,
-                      core.result.Result.Ok.injEq] at hH
+                    simp only [Result.ok.injEq, Prod.mk.injEq] at hH
                     obtain ⟨rfl, rfl⟩ := hH
                     refine ⟨lst5, ?_, hrel5, hwf5, trivial⟩
                     rw [if_neg (by simp)]
@@ -1828,8 +2065,7 @@ theorem struct_eta_cert_steps_i_refines (hsc : StateCOpen) {mode : env.CheckMode
                 rename_i hb3f
                 have hb3ff : b3 = false := by simpa using hb3f
                 subst hb3ff
-                simp only [Result.ok.injEq, Prod.mk.injEq,
-                  core.result.Result.Ok.injEq] at hF
+                simp only [Result.ok.injEq, Prod.mk.injEq] at hF
                 obtain ⟨rfl, rfl⟩ := hF
                 refine ⟨lst4, ?_, hrel4, hwf4, trivial⟩
                 rw [if_neg (by simp)]
@@ -1838,7 +2074,7 @@ theorem struct_eta_cert_steps_i_refines (hsc : StateCOpen) {mode : env.CheckMode
             rename_i hb2f
             have hb2ff : b2 = false := by simpa using hb2f
             subst hb2ff
-            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hD
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hD
             obtain ⟨rfl, rfl⟩ := hD
             refine ⟨lst3, ?_, hrel3, hwf3, trivial⟩
             rw [if_neg (by simp)]
@@ -1847,7 +2083,7 @@ theorem struct_eta_cert_steps_i_refines (hsc : StateCOpen) {mode : env.CheckMode
       rename_i hb1f
       have hb1ff : b1 = false := by simpa using hb1f
       subst hb1ff
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hB
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hB
       obtain ⟨rfl, rfl⟩ := hB
       refine ⟨lst1, ?_, hrel1, hwf1, trivial⟩
       rw [if_neg (by simp)]
@@ -1884,7 +2120,7 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
     | none =>
       have hmiss := CoreK.ctor_probe_miss CoreK.envFacts (FindAgree.of_rel hfrel hfe)
         (FindWF.of_wf hfe) hcwf hprobe
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨rfl, rfl⟩ := hok
       refine ⟨lst, ?_, hrel, hwf, trivial⟩
       cases hf : lfe.find? (absName c) with
@@ -1920,7 +2156,7 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
           rw [haalen, ← hi1v, ← hi2v]
           intro hc
           exact absurd (Std.UScalar.val_eq_imp_iff.mpr hc) (by simpa using hne)
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst, ?_, hrel, hwf, trivial⟩
         rw [if_neg hneL]
@@ -1946,7 +2182,7 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
           | none =>
             have hmiss := CoreK.ind_probe_miss CoreK.envFacts (FindAgree.of_rel hfrel hfe)
               (FindWF.of_wf hfe) htwf hprobe2
-            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
             obtain ⟨rfl, rfl⟩ := hok
             refine ⟨lst, ?_, hrel, hwf, trivial⟩
             cases hf : lfe.find? (absName t) with
@@ -1976,26 +2212,24 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
               have hshapeconj := of_decide_eq_true (show decide _ = true by
                 rw [← hshapeabs]; exact hb1t)
               rw [if_pos hshapeconj]
-              exact (struct_eta_cert_steps_i_refines hsc hw d hcwf htwf huswf hus2wf
-                haawf htawf hb hcvtwf).apply hwf hfe hok hrel hfrel
+              exact struct_eta_cert_steps_i_refines hsc hw d hcwf htwf huswf hus2wf
+                haawf htawf hb hcvtwf fe lfe hfe hfrel st r st' hwf hok lst hrel
             · -- the syntactic block fails
               rename_i hb1f
               have hb1ff : b1 = false := by
                 simp only [Bool.not_eq_true] at hb1f; exact hb1f
-              simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+              simp only [Result.ok.injEq, Prod.mk.injEq] at hok
               obtain ⟨rfl, rfl⟩ := hok
               refine ⟨lst, ?_, hrel, hwf, trivial⟩
               rw [if_neg (of_decide_eq_false (by rw [← hshapeabs]; exact hb1ff))]
               rfl
         all_goals (rename_i hk2
-                   simp only [Result.ok.injEq, Prod.mk.injEq,
-                     core.result.Result.Ok.injEq] at hok
+                   simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                    obtain ⟨rfl, rfl⟩ := hok
                    refine ⟨lst, ?_, hrel, hwf, trivial⟩
                    rw [hk2]; simp)
   all_goals (rename_i hk
-             simp only [Result.ok.injEq, Prod.mk.injEq,
-               core.result.Result.Ok.injEq] at hok
+             simp only [Result.ok.injEq, Prod.mk.injEq] at hok
              obtain ⟨rfl, rfl⟩ := hok
              refine ⟨lst, ?_, hrel, hwf, trivial⟩
              rw [hk]; simp)

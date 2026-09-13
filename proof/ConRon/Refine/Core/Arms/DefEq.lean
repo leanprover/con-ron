@@ -49,10 +49,25 @@ so task #61 splits the record along it.  `DefEqDepsA` is everything
 assembles `DefEqDeps` for the loop.  `extends` keeps `hd.structEtaCert` and
 friends working unchanged on a `DefEqDeps`.
 
-The `.M`-suffixed `Array Std.U32` constants of the block
-(`defeq_loop_i.M`, `defeq_binders_i.M_PI`, `defeq_binders_i.M_LAM`) are error
-message code points on the `.Err` path; nothing is claimed on failure
-(DESIGN.md §3.5), so they carry no theorem.
+**The failure half (task #67).**  Every lemma is stated over the Rust's
+*whole* outcome (`Refine/State.lean`'s `Out`), so each `.Err` arm is proved
+rather than contradicted.  Three of the block's error sites are its own; all
+three are **mirrored**, one-to-one with a `throw` in `Cached/CoreC.lean`:
+
+| Rust | con-leche |
+|---|---|
+| `core_c.rs:4231` `notImplemented(M_PI)` | `CoreC.lean:1579` `throw (.notImplemented "sort-annotation mismatch (defeq-forall)")` |
+| `core_c.rs:4235` `notImplemented(M_LAM)` | `CoreC.lean:1588` `… (defeq-lam)` |
+| `core_c.rs:4300` `internal(defeq_loop_i.M)` | `CoreC.lean:1619` `throw (.internal "fuel exhausted: defeq loop")` |
+
+The first two are `defeq_binders_i`'s prop-ness guard, which both sides take
+at the same step under the same condition; the third is the exhausted budget,
+`DefEq.defeqLoopI_zero_run`, exactly as `Core/Knot.lean`'s `wrappers_zero`
+mirrors the wrappers'.  So the `.M`-suffixed `Array Std.U32` constants of the
+block (`defeq_loop_i.M`, `defeq_binders_i.M_PI`, `defeq_binders_i.M_LAM`) are
+message code points only — messages are never compared — and still carry no
+theorem.  Every other failure here is a callee's, carried through con-leche's
+`do` block by `ErrSim.bindCM`.
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.CoreKPinned
@@ -81,6 +96,54 @@ private theorem run_bind' {α β : Type} {x : ConLeche.Cached.CheckCM α}
   simp only [StateT.run, Bind.bind, StateT.bind] at h ⊢
   rw [h]
   rfl
+
+/-! ### Task #67's plumbing
+
+The full-outcome statement (DESIGN.md §3's ruling of 2026-09-13) adds a
+failure half to every lemma below.  Four one-liners carry it: the Rust's
+`| Err err => ok (r, st1)` arm (`err_arm`), the transport of the con-leche
+side along an equation (`out_of_eq`), the two `core_types` inversions, and
+the applied form of a con-leche `throw` — which `simp` will not otherwise
+reduce, `StateT.run` being in the plumbing set already. -/
+
+/-- The Rust's `Err` arm of a `match` on a callee's outcome: it hands the
+error straight on, which pins both the outcome and the state. -/
+private theorem err_arm {α : Type} {err : kernel.core_types.CheckError}
+    {o : core.result.Result α kernel.core_types.CheckError}
+    {st1 st' : cached.state_c.CState}
+    (h : Aeneas.Std.Result.ok (core.result.Result.Err err, st1)
+      = Aeneas.Std.Result.ok (o, st')) :
+    o = .Err err ∧ st' = st1 := by
+  have h2 := Result.ok_injective h
+  simp only [Prod.mk.injEq] at h2
+  exact ⟨h2.1.symm, h2.2.symm⟩
+
+/-- `Out` transported along an equation on the con-leche side: the tail-call
+arms, where the block reduces to the callee's own run. -/
+private theorem out_of_eq {α β : Type} {A : α → β} {WF : α → Prop}
+    {o : core.result.Result α kernel.core_types.CheckError}
+    {st' : cached.state_c.CState}
+    {x y : Except ConLeche.CheckError (β × ConLeche.Cached.CState)}
+    (h : Out A WF o st' y) (hxy : x = y) : Out A WF o st' x := hxy ▸ h
+
+/-- `core_types::internal`, inverted. -/
+private theorem internal_inv {v : alloc.vec.Vec Std.U32}
+    {ce : kernel.core_types.CheckError} (h : core_types.internal v = ok ce) :
+    ce = .Internal v := by
+  rw [core_types.internal] at h; exact (Result.ok_injective h).symm
+
+/-- `core_types::not_implemented`, inverted. -/
+private theorem not_implemented_inv {v : alloc.vec.Vec Std.U32}
+    {ce : kernel.core_types.CheckError} (h : core_types.not_implemented v = ok ce) :
+    ce = .NotImplemented v := by
+  rw [core_types.not_implemented] at h; exact (Result.ok_injective h).symm
+
+/-- A con-leche `throw`, **applied** to the state: the plumbing set has
+`StateT.run` but no `MonadExcept` instance, so this is where an explicit
+`throw` arm ends. -/
+@[local simp] private theorem checkCM_throw_apply {β : Type}
+    (le : ConLeche.CheckError) (lst : ConLeche.Cached.CState) :
+    (throw le : ConLeche.Cached.CheckCM β) lst = .error le := rfl
 
 /-! ## The fragments of `defeqStepI`
 
@@ -320,6 +383,17 @@ theorem defeqLoopI_succ (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth m :
       = defeqStepI mode r fe depth (defeqLoopI mode r fe depth m) pi a b := by
   rw [defeqLoopI]
 
+/-- `CoreC.lean:1619` — **the exhausted budget, mirrored**: `defeqLoopI … 0`
+throws `.internal`, where `defeq_loop_i`'s `n == 0` arm builds
+`core_types::internal` from its `.M` table (`core_c.rs:4300`).  Same step,
+same kind — which is what makes the `zero` case of `defeq_loop_aux` a real
+proof under task #67, where the accept-direction statement made it
+vacuous. -/
+theorem defeqLoopI_zero_run (mode : CheckMode) (r : CoreFnsI) (fe : FEnv)
+    (depth : Nat) (pi : Bool) (a b : ExprC) (lst : CState) :
+    (defeqLoopI mode r fe depth 0 pi a b).run lst
+      = .error (.internal "fuel exhausted: defeq loop") := rfl
+
 end DefEq
 
 /-! ## The foreign callees
@@ -504,12 +578,16 @@ theorem bool_true_shortcut_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
   unfold cached.core_c.bool_true_shortcut_i at hok
   obtain ⟨⟨rc, st1⟩, hc, hok⟩ := bind_eq_ok_iff.mp hok
   cases rc with
-  | Err err => simp at hok
+  | Err err =>
+    -- `whnf` threw: con-leche's `do` throws the same, at its first bind
+    obtain ⟨rfl, rfl⟩ := err_arm hok
+    unfold ConLeche.Cached.boolTrueShortcutI
+    exact ErrSim.bindCM ((hw.whnfSim d ha).apply_err hwf hfe hc hrel hfrel)
   | Ok w =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, hww⟩ :=
       (hw.whnfSim d ha).apply hwf hfe hc hrel hfrel
     obtain ⟨bb, hbb, hok⟩ := bind_eq_ok_iff.mp hok
-    obtain ⟨rfl, rfl⟩ : bb = res ∧ st1 = st' := by
+    obtain ⟨rfl, rfl⟩ : core.result.Result.Ok bb = res ∧ st1 = st' := by
       simpa using Result.ok_injective hok
     refine ⟨lst1, ?_, hrel1, hwf1, trivial⟩
     unfold ConLeche.Cached.boolTrueShortcutI
@@ -542,20 +620,22 @@ theorem prop_irrel_i_refines (hw : Wrappers mode fuel) (hd : DefEqDepsA mode fue
     intro st0 r0 st0' hwf0 hok0 lst0 hrel0
     obtain ⟨⟨rc, st1⟩, hc, hok0⟩ := bind_eq_ok_iff.mp hok0
     cases rc with
-    | Err err => simp at hok0
+    | Err err =>
+      obtain ⟨rfl, rfl⟩ := err_arm hok0
+      exact ErrSim.bindCM ((hw.inferIOSim d ha).apply_err hwf0 hfe hc hrel0 hfrel)
     | Ok ta =>
       obtain ⟨lst1, hrun1, hrel1, hwf1, htawf⟩ :=
         (hw.inferIOSim d ha).apply hwf0 hfe hc hrel0 hfrel
-      obtain ⟨lst2, hrun2, hrel2, hwf2, -⟩ :=
-        (hd.propLegs d htawf hb).apply hwf1 hfe hok0 hrel1 hfrel
-      exact ⟨lst2, by rw [run_bind' hrun1]; exact hrun2, hrel2, hwf2, trivial⟩
+      exact out_of_eq
+        ((hd.propLegs d htawf hb) fe lfe hfe hfrel st1 r0 st0' hwf1 hok0 lst1 hrel1)
+        (run_bind' hrun1)
   unfold cached.core_c.prop_irrel_i at hok
   simp only [ConLeche.Cached.propIrrelI]
   obtain ⟨n1, hn1, hok⟩ := bind_eq_ok_iff.mp hok
   have e1 := PropRead.not_proof_fast_refines hfa hfw ha hn1
   split at hok
   · rename_i hc1
-    obtain ⟨rfl, rfl⟩ : (false : Bool) = res ∧ st = st' := by
+    obtain ⟨rfl, rfl⟩ : core.result.Result.Ok false = res ∧ st = st' := by
       simpa using Result.ok_injective hok
     refine ⟨lst, ?_, hrel, hwf, trivial⟩
     rw [← e1, hc1]
@@ -567,7 +647,7 @@ theorem prop_irrel_i_refines (hw : Wrappers mode fuel) (hd : DefEqDepsA mode fue
     have e2 := PropRead.not_proof_fast_refines hfa hfw hb hn2
     split at hok
     · rename_i hc2
-      obtain ⟨rfl, rfl⟩ : (false : Bool) = res ∧ st = st' := by
+      obtain ⟨rfl, rfl⟩ : core.result.Result.Ok false = res ∧ st = st' := by
         simpa using Result.ok_injective hok
       refine ⟨lst, ?_, hrel, hwf, trivial⟩
       rw [hn1f, ← e2, hc2]
@@ -586,7 +666,7 @@ theorem prop_irrel_i_refines (hw : Wrappers mode fuel) (hd : DefEqDepsA mode fue
         rw [← f1, hd1, ← f2]
         split at hok
         · rename_i hd2
-          obtain ⟨rfl, rfl⟩ : (true : Bool) = res ∧ st = st' := by
+          obtain ⟨rfl, rfl⟩ : core.result.Result.Ok true = res ∧ st = st' := by
             simpa using Result.ok_injective hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
           rw [hd2]
@@ -594,12 +674,12 @@ theorem prop_irrel_i_refines (hw : Wrappers mode fuel) (hd : DefEqDepsA mode fue
         · rename_i hd2
           have : p2 = false := by simpa using hd2
           rw [this]
-          exact tail.apply hwf hok hrel
+          exact tail st res st' hwf hok lst hrel
       · rename_i hd1
         have hp1f : p1 = false := by simpa using hd1
         rw [← f1, hp1f]
         simp only [Bool.false_and, Bool.false_eq_true, if_false]
-        exact tail.apply hwf hok hrel
+        exact tail st res st' hwf hok lst hrel
 
 /-- `ConLeche/Cached/CoreC.lean:536` — **`stuck_irrel_i` refines
 `stuckIrrelI`** (`core_c.rs:1215`): structural eta in either direction, then
@@ -615,7 +695,9 @@ theorem stuck_irrel_i_refines (hd : DefEqDepsA mode fuel) (d : Std.U64)
   simp only [ConLeche.Cached.stuckIrrelI]
   obtain ⟨⟨r1, st1⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
   cases r1 with
-  | Err err => simp at hok
+  | Err err =>
+    obtain ⟨rfl, rfl⟩ := err_arm hok
+    exact ErrSim.bindCM ((hd.structEtaCert d ha hb).apply_err hwf hfe h1 hrel hfrel)
   | Ok v1 =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, -⟩ :=
       (hd.structEtaCert d ha hb).apply hwf hfe h1 hrel hfrel
@@ -623,14 +705,16 @@ theorem stuck_irrel_i_refines (hd : DefEqDepsA mode fuel) (d : Std.U64)
     rw [run_bind' hrun1]
     cases v1 with
     | true =>
-      obtain ⟨rfl, rfl⟩ : (true : Bool) = res ∧ st1 = st' := by
+      obtain ⟨rfl, rfl⟩ : core.result.Result.Ok true = res ∧ st1 = st' := by
         simpa using Result.ok_injective hok
       exact ⟨lst1, by simp, hrel1, hwf1, trivial⟩
     | false =>
       simp only [Bool.false_eq_true, if_false] at hok ⊢
       obtain ⟨⟨r2, st2⟩, h2, hok⟩ := bind_eq_ok_iff.mp hok
       cases r2 with
-      | Err err => simp at hok
+      | Err err =>
+        obtain ⟨rfl, rfl⟩ := err_arm hok
+        exact ErrSim.bindCM ((hd.structEtaCert d hb ha).apply_err hwf1 hfe h2 hrel1 hfrel)
       | Ok v2 =>
         obtain ⟨lst2, hrun2, hrel2, hwf2, -⟩ :=
           (hd.structEtaCert d hb ha).apply hwf1 hfe h2 hrel1 hfrel
@@ -638,14 +722,16 @@ theorem stuck_irrel_i_refines (hd : DefEqDepsA mode fuel) (d : Std.U64)
         rw [run_bind' hrun2]
         cases v2 with
         | true =>
-          obtain ⟨rfl, rfl⟩ : (true : Bool) = res ∧ st2 = st' := by
+          obtain ⟨rfl, rfl⟩ : core.result.Result.Ok true = res ∧ st2 = st' := by
             simpa using Result.ok_injective hok
           exact ⟨lst2, by simp, hrel2, hwf2, trivial⟩
         | false =>
           simp only [Bool.false_eq_true, if_false] at hok ⊢
           obtain ⟨⟨r3, st3⟩, h3, hok⟩ := bind_eq_ok_iff.mp hok
           cases r3 with
-          | Err err => simp at hok
+          | Err err =>
+            obtain ⟨rfl, rfl⟩ := err_arm hok
+            exact ErrSim.bindCM ((hd.structUnitCert d ha hb).apply_err hwf2 hfe h3 hrel2 hfrel)
           | Ok v3 =>
             obtain ⟨lst3, hrun3, hrel3, hwf3, -⟩ :=
               (hd.structUnitCert d ha hb).apply hwf2 hfe h3 hrel2 hfrel
@@ -653,12 +739,12 @@ theorem stuck_irrel_i_refines (hd : DefEqDepsA mode fuel) (d : Std.U64)
             rw [run_bind' hrun3]
             cases v3 with
             | true =>
-              obtain ⟨rfl, rfl⟩ : (true : Bool) = res ∧ st3 = st' := by
+              obtain ⟨rfl, rfl⟩ : core.result.Result.Ok true = res ∧ st3 = st' := by
                 simpa using Result.ok_injective hok
               exact ⟨lst3, by simp, hrel3, hwf3, trivial⟩
             | false =>
               simp only [Bool.false_eq_true, if_false] at hok ⊢
-              exact (hd.proofIrrel d ha hb).apply hwf3 hfe hok hrel3 hfrel
+              exact (hd.proofIrrel d ha hb) fe lfe hfe hfrel st3 res st' hwf3 hok lst3 hrel3
 
 /-- `ConLeche/Cached/CoreC.lean:224` — **`defeq_spine_i` refines
 `defeqSpineI`** (`core_c.rs:527`): the lazy-delta same-head short-circuit,
@@ -714,19 +800,20 @@ theorem defeq_spine_i_refines (hd : DefEqDepsA mode fuel) (d : Std.U64)
           simp only [StateT.run] at hrun1
           cases o with
           | none =>
-            obtain ⟨rfl, rfl⟩ : (false : Bool) = res ∧ st1 = st' := by
+            obtain ⟨rfl, rfl⟩ : core.result.Result.Ok false = res ∧ st1 = st' := by
               simpa using Result.ok_injective hok
             exact ⟨lst1, by simp [absExprs, hne, hlen', hrun1], hrel1, hwf1, trivial⟩
           | some v =>
             cases v with
             | true =>
-              obtain ⟨lst2, hrun2, hrel2, hwf2, -⟩ :=
-                (hd.defEqList d hawf hbwf).apply hwf1 hfe hok hrel1 hfrel
-              refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
-              simp only [absExprs, StateT.run] at hrun2
-              simp [absExprs, hne, hlen', hrun1, hrun2]
+              -- a tail call: con-leche's block *is* `defEqListI` from here,
+              -- so the whole outcome passes straight through
+              refine out_of_eq
+                ((hd.defEqList d hawf hbwf) fe lfe hfe hfrel st1 res st' hwf1 hok lst1
+                  hrel1) ?_
+              simp [absExprs, hne, hlen', hrun1]
             | false =>
-              obtain ⟨rfl, rfl⟩ : (false : Bool) = res ∧ st1 = st' := by
+              obtain ⟨rfl, rfl⟩ : core.result.Result.Ok false = res ∧ st1 = st' := by
                 simpa using Result.ok_injective hok
               exact ⟨lst1, by simp [absExprs, hne, hlen', hrun1], hrel1, hwf1, trivial⟩
         · rename_i hlen
@@ -738,22 +825,22 @@ theorem defeq_spine_i_refines (hd : DefEqDepsA mode fuel) (d : Std.U64)
             have h2 : (alloc.vec.Vec.len args_b).val = args_b.val.length :=
               alloc.vec.Vec.len_val args_b
             scalar_tac
-          obtain ⟨rfl, rfl⟩ : (false : Bool) = res ∧ st = st' := by
+          obtain ⟨rfl, rfl⟩ : core.result.Result.Ok false = res ∧ st = st' := by
             simpa using Result.ok_injective hok
           exact ⟨lst, by simp [absExprs, hlen'], hrel, hwf, trivial⟩
       · rename_i hcb1
         have hne : ¬ absName n = absName n2 := by
           have hb1f : b1 = false := by simpa using hcb1
           rw [hb1f] at e1; exact of_decide_eq_false e1.symm
-        obtain ⟨rfl, rfl⟩ : (false : Bool) = res ∧ st = st' := by
+        obtain ⟨rfl, rfl⟩ : core.result.Result.Ok false = res ∧ st = st' := by
           simpa using Result.ok_injective hok
         exact ⟨lst, by simp [absExprs, hne], hrel, hwf, trivial⟩
     | _ =>
-      obtain ⟨rfl, rfl⟩ : (false : Bool) = res ∧ st = st' := by
+      obtain ⟨rfl, rfl⟩ : core.result.Result.Ok false = res ∧ st = st' := by
         simpa using Result.ok_injective hok
       exact ⟨lst, by simp [absExprKind], hrel, hwf, trivial⟩
   | _ =>
-    obtain ⟨rfl, rfl⟩ : (false : Bool) = res ∧ st = st' := by
+    obtain ⟨rfl, rfl⟩ : core.result.Result.Ok false = res ∧ st = st' := by
       simpa using Result.ok_injective hok
     exact ⟨lst, by simp [absExprKind], hrel, hwf, trivial⟩
 
@@ -762,7 +849,13 @@ theorem defeq_spine_i_refines (hd : DefEqDepsA mode fuel) (d : Std.U64)
 ∀/λ congruence arms** (`core_c.rs:4167`): the domains, the bodies at a fresh
 variable of the *right* side's domain, and last the prop-ness annotations at
 the verified modes.  The two arms are byte-identical apart from the message,
-which the `is_forall` flag picks. -/
+which the `is_forall` flag picks.
+
+This is the block's one **explicit throw** (task #67): under a verified mode
+with disagreeing `pw` annotations the Rust returns
+`not_implemented(M_PI | M_LAM)` (`core_c.rs:4231`/`:4235`) exactly where the
+cited body throws `.notImplemented` (`CoreC.lean:1579`/`:1588`) — same step,
+same kind, and the messages are not compared. -/
 theorem defeq_binders_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
     {t1 bo1 t2 bo2 : expr.Expr} {m1 m2 : expr.BinderMeta} (is_forall : Bool)
     (ht1 : ExprWF t1) (hbo1 : ExprWF bo1) (hm1 : BinderMetaWF m1)
@@ -781,7 +874,9 @@ theorem defeq_binders_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
   simp only [DefEq.defeqBindersFrag]
   obtain ⟨⟨r1, st1⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
   cases r1 with
-  | Err err => simp at hok
+  | Err err =>
+    obtain ⟨rfl, rfl⟩ := err_arm hok
+    exact ErrSim.bindCM ((hw.defeqSim d ht1 ht2).apply_err hwf hfe h1 hrel hfrel)
   | Ok v1 =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, -⟩ :=
       (hw.defeqSim d ht1 ht2).apply hwf hfe h1 hrel hfrel
@@ -789,7 +884,7 @@ theorem defeq_binders_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
     rw [run_bind' hrun1]
     cases v1 with
     | false =>
-      obtain ⟨rfl, rfl⟩ : (false : Bool) = res ∧ st1 = st' := by
+      obtain ⟨rfl, rfl⟩ : core.result.Result.Ok false = res ∧ st1 = st' := by
         simpa using Result.ok_injective hok
       exact ⟨lst1, by simp, hrel1, hwf1, trivial⟩
     | true =>
@@ -808,14 +903,21 @@ theorem defeq_binders_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
         have := ConRon.Refine.Nat.uadd_val hi; simpa using this
       obtain ⟨⟨r2, st2⟩, h2, hok⟩ := bind_eq_ok_iff.mp hok
       cases r2 with
-      | Err err => simp at hok
+      | Err err =>
+        -- the body comparison threw; the two `inst1M` steps in front of it
+        -- cannot, so con-leche reaches the same call and throws the same
+        obtain ⟨rfl, rfl⟩ := err_arm hok
+        refine ErrSim.trans ((hw.defeqSim i ho1w ho2w).apply_err hwf1 hfe h2 hrel1 hfrel) ?_
+        intro le hle
+        simp only [hiv, ho1a, ho2a, hvabs, StateT.run, Expr.val_zero] at hle
+        simp [ConLeche.Cached.inst1M, hle]
       | Ok v2 =>
         obtain ⟨lst2, hrun2, hrel2, hwf2, -⟩ :=
           (hw.defeqSim i ho1w ho2w).apply hwf1 hfe h2 hrel1 hfrel
         simp only [id, hiv, ho1a, ho2a, hvabs, StateT.run, Expr.val_zero] at hrun2
         cases v2 with
         | false =>
-          obtain ⟨rfl, rfl⟩ : (false : Bool) = res ∧ st2 = st' := by
+          obtain ⟨rfl, rfl⟩ : core.result.Result.Ok false = res ∧ st2 = st' := by
             simpa using Result.ok_injective hok
           exact ⟨lst2, by simp [ConLeche.Cached.inst1M, hrun2], hrel2, hwf2, trivial⟩
         | true =>
@@ -827,20 +929,45 @@ theorem defeq_binders_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
             have e5 := PropWhen.beq_refines hm1 hm2 hb5
             split at hok
             · rename_i hc5
-              obtain ⟨rfl, rfl⟩ : (true : Bool) = res ∧ st2 = st' := by
+              obtain ⟨rfl, rfl⟩ : core.result.Result.Ok true = res ∧ st2 = st' := by
                 simpa using Result.ok_injective hok
               refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
               have hpw : absPropWhen m1.pw = absPropWhen m2.pw := by
                 rw [hc5] at e5; exact of_decide_eq_true e5.symm
               simp [ConLeche.Cached.inst1M, hrun2, absBinderMeta, hpw]
             · rename_i hc5
-              exfalso
-              split at hok <;>
-                (simp only [bind_eq_ok_iff] at hok
-                 obtain ⟨_, -, _, -, hc⟩ := hok
-                 simp at hc)
+              -- **the mirrored `notImplemented`** (`core_c.rs:4231`/`:4235`
+              -- against `CoreC.lean:1579`/`:1588`): the verified mode with
+              -- disagreeing prop-ness annotations makes *both* sides throw,
+              -- at the same step and the same kind; the message is the tag
+              -- the `is_forall` flag picks, and is never compared
+              have hvc : (absMode mode).verifiedChecks = true := by
+                have hb4t : b4 = true := by simpa using hc4
+                rw [hb4t] at e4; exact e4.symm
+              have hpw : ¬ absPropWhen m1.pw = absPropWhen m2.pw := by
+                have hb5f : b5 = false := by simpa using hc5
+                rw [hb5f] at e5; exact of_decide_eq_false e5.symm
+              cases is_forall with
+              | true =>
+                simp only [if_true, bind_eq_ok_iff] at hok
+                obtain ⟨_, -, _, -, ce, hce, hres⟩ := hok
+                obtain ⟨rfl, rfl⟩ : core.result.Result.Err ce = res ∧ st2 = st' := by
+                  simpa using hres
+                rw [not_implemented_inv hce]
+                refine ErrSim.notImplemented
+                  (s := "sort-annotation mismatch (defeq-forall)") ?_
+                simp [ConLeche.Cached.inst1M, hrun2, absBinderMeta, hvc, hpw]
+              | false =>
+                simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff] at hok
+                obtain ⟨_, -, _, -, ce, hce, hres⟩ := hok
+                obtain ⟨rfl, rfl⟩ : core.result.Result.Err ce = res ∧ st2 = st' := by
+                  simpa using hres
+                rw [not_implemented_inv hce]
+                refine ErrSim.notImplemented
+                  (s := "sort-annotation mismatch (defeq-lam)") ?_
+                simp [ConLeche.Cached.inst1M, hrun2, absBinderMeta, hvc, hpw]
           · rename_i hc4
-            obtain ⟨rfl, rfl⟩ : (true : Bool) = res ∧ st2 = st' := by
+            obtain ⟨rfl, rfl⟩ : core.result.Result.Ok true = res ∧ st2 = st' := by
               simpa using Result.ok_injective hok
             refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
             have hv4 : (absMode mode).verifiedChecks = false := by
@@ -875,10 +1002,9 @@ theorem defeq_apps_i_refines (hw : Wrappers mode fuel) (hd : DefEqDepsA mode fue
   · rename_i hlen
     have hlen' : ¬ (args_a.val.length = args_b.val.length) := by
       intro hc; simp only [bne_iff_ne, ne_eq] at hlen; exact hlen (by scalar_tac)
-    obtain ⟨lst1, hrun1, hrel1, hwf1, -⟩ :=
-      (stuck_irrel_i_refines hd d ha hb).apply hwf hfe hok hrel hfrel
-    simp only [id, StateT.run] at hrun1
-    exact ⟨lst1, by simp [absExprs, hlen', hrun1], hrel1, hwf1, trivial⟩
+    exact out_of_eq
+      ((stuck_irrel_i_refines hd d ha hb) fe lfe hfe hfrel st res st' hwf hok lst hrel)
+      (by simp [absExprs, hlen'])
   · rename_i hlen
     have hlen' : args_a.val.length = args_b.val.length := by
       simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hlen
@@ -890,35 +1016,45 @@ theorem defeq_apps_i_refines (hw : Wrappers mode fuel) (hd : DefEqDepsA mode fue
     simp only [ConLeche.Cached.ExprC.getAppFn_spec, ← hfaabs, ← hfbabs]
     obtain ⟨⟨r1, st1⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
     cases r1 with
-    | Err err => simp at hok
+    | Err err =>
+      obtain ⟨rfl, rfl⟩ := err_arm hok
+      refine ErrSim.trans ((hw.defeqSim d hfawf hfbwf).apply_err hwf hfe h1 hrel hfrel) ?_
+      intro le hle
+      simp only [StateT.run] at hle
+      simp [absExprs, hlen', hle]
     | Ok v1 =>
       obtain ⟨lst1, hrun1, hrel1, hwf1, -⟩ :=
         (hw.defeqSim d hfawf hfbwf).apply hwf hfe h1 hrel hfrel
       simp only [id, StateT.run] at hrun1
       cases v1 with
       | false =>
-        obtain ⟨lst2, hrun2, hrel2, hwf2, -⟩ :=
-          (stuck_irrel_i_refines hd d ha hb).apply hwf1 hfe hok hrel1 hfrel
-        simp only [id, StateT.run] at hrun2
-        exact ⟨lst2, by simp [absExprs, hlen', hrun1, hrun2], hrel2, hwf2, trivial⟩
+        exact out_of_eq
+          ((stuck_irrel_i_refines hd d ha hb) fe lfe hfe hfrel st1 res st' hwf1 hok lst1
+            hrel1)
+          (by simp [absExprs, hlen', hrun1])
       | true =>
         obtain ⟨⟨r2, st2⟩, h2, hok⟩ := bind_eq_ok_iff.mp hok
         cases r2 with
-        | Err err => simp at hok
+        | Err err =>
+          obtain ⟨rfl, rfl⟩ := err_arm hok
+          refine ErrSim.trans ((hd.defEqList d hawf hbwf).apply_err hwf1 hfe h2 hrel1 hfrel) ?_
+          intro le hle
+          simp only [StateT.run, absExprs] at hle
+          simp [absExprs, hlen', hrun1, hle]
         | Ok v2 =>
           obtain ⟨lst2, hrun2, hrel2, hwf2, -⟩ :=
             (hd.defEqList d hawf hbwf).apply hwf1 hfe h2 hrel1 hfrel
           simp only [id, StateT.run, absExprs] at hrun2
           cases v2 with
           | true =>
-            obtain ⟨rfl, rfl⟩ : (true : Bool) = res ∧ st2 = st' := by
+            obtain ⟨rfl, rfl⟩ : core.result.Result.Ok true = res ∧ st2 = st' := by
               simpa using Result.ok_injective hok
             exact ⟨lst2, by simp [absExprs, hlen', hrun1, hrun2], hrel2, hwf2, trivial⟩
           | false =>
-            obtain ⟨lst3, hrun3, hrel3, hwf3, -⟩ :=
-              (stuck_irrel_i_refines hd d ha hb).apply hwf2 hfe hok hrel2 hfrel
-            simp only [id, StateT.run] at hrun3
-            exact ⟨lst3, by simp [absExprs, hlen', hrun1, hrun2, hrun3], hrel3, hwf3, trivial⟩
+            exact out_of_eq
+              ((stuck_irrel_i_refines hd d ha hb) fe lfe hfe hfrel st2 res st' hwf2 hok lst2
+                hrel2)
+              (by simp [absExprs, hlen', hrun1, hrun2])
 /-- `ConLeche/Cached/CoreC.lean:1512-1514` — **`defeq_unfold_both_i` refines
 the tail both equal-hint arms share** (`core_c.rs:4004`).
 
@@ -945,7 +1081,9 @@ private theorem defeq_unfold_both_of_loop (hd : DefEqDeps mode fuel) (d n : Std.
   simp only [DefEq.defeqUnfoldBothFrag]
   obtain ⟨⟨r1, st1⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
   cases r1 with
-  | Err err => simp at hok
+  | Err err =>
+    obtain ⟨rfl, rfl⟩ := err_arm hok
+    exact ErrSim.bindCM ((hd.unfoldDefinition ha).apply_err hwf hfe h1 hrel hfrel)
   | Ok o =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, howf⟩ :=
       (hd.unfoldDefinition ha).apply hwf hfe h1 hrel hfrel
@@ -958,7 +1096,9 @@ private theorem defeq_unfold_both_of_loop (hd : DefEqDeps mode fuel) (d n : Std.
       rw [run_bind' hrun1]
       obtain ⟨⟨r2, st2⟩, h2, hok⟩ := bind_eq_ok_iff.mp hok
       cases r2 with
-      | Err err => simp at hok
+      | Err err =>
+        obtain ⟨rfl, rfl⟩ := err_arm hok
+        exact ErrSim.bindCM ((hd.unfoldDefinition hb).apply_err hwf1 hfe h2 hrel1 hfrel)
       | Ok o2 =>
         obtain ⟨lst2, hrun2, hrel2, hwf2, howf2⟩ :=
           (hd.unfoldDefinition hb).apply hwf1 hfe h2 hrel1 hfrel
@@ -969,7 +1109,8 @@ private theorem defeq_unfold_both_of_loop (hd : DefEqDeps mode fuel) (d n : Std.
         | some b3 =>
           simp only [Option.map_some] at hrun2
           rw [run_bind' hrun2]
-          exact (hk false a3 b3 (howf a3 rfl) (howf2 b3 rfl)).apply hwf2 hfe hok hrel2 hfrel
+          exact (hk false a3 b3 (howf a3 rfl) (howf2 b3 rfl)) fe lfe hfe hfrel st2 res st'
+            hwf2 hok lst2 hrel2
 
 /-- `ConLeche/Cached/CoreC.lean:1497-1517` — **`defeq_delta_both_i` refines
 the `| true, true` arm** (`core_c.rs:3963`): unfold the side with the greater
@@ -1006,7 +1147,9 @@ private theorem defeq_delta_both_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U
     simp only [if_true]
     obtain ⟨⟨r1, st1⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
     cases r1 with
-    | Err err => simp at hok
+    | Err err =>
+      obtain ⟨rfl, rfl⟩ := err_arm hok
+      exact ErrSim.bindCM ((hd.unfoldDefinition ha).apply_err hwf hfe h1 hrel hfrel)
     | Ok o =>
       obtain ⟨lst1, hrun1, hrel1, hwf1, howf⟩ :=
         (hd.unfoldDefinition ha).apply hwf hfe h1 hrel hfrel
@@ -1014,13 +1157,14 @@ private theorem defeq_delta_both_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U
       | none =>
         simp only [Option.map_none] at hrun1
         rw [run_bind' hrun1]
-        obtain ⟨rfl, rfl⟩ : (false : Bool) = res ∧ st1 = st' := by
+        obtain ⟨rfl, rfl⟩ : core.result.Result.Ok false = res ∧ st1 = st' := by
           simpa using Result.ok_injective hok
         exact ⟨lst1, by simp, hrel1, hwf1, trivial⟩
       | some a3 =>
         simp only [Option.map_some] at hrun1
         rw [run_bind' hrun1]
-        exact (hk false a3 b2 (howf a3 rfl) hb).apply hwf1 hfe hok hrel1 hfrel
+        exact (hk false a3 b2 (howf a3 rfl) hb) fe lfe hfe hfrel st1 res st' hwf1 hok lst1
+          hrel1
   | false =>
     simp only [Bool.false_eq_true, if_false]
     obtain ⟨c2, hc2, hok⟩ := bind_eq_ok_iff.mp hok
@@ -1031,7 +1175,9 @@ private theorem defeq_delta_both_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U
       simp only [if_true]
       obtain ⟨⟨r1, st1⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
       cases r1 with
-      | Err err => simp at hok
+      | Err err =>
+        obtain ⟨rfl, rfl⟩ := err_arm hok
+        exact ErrSim.bindCM ((hd.unfoldDefinition hb).apply_err hwf hfe h1 hrel hfrel)
       | Ok o =>
         obtain ⟨lst1, hrun1, hrel1, hwf1, howf⟩ :=
           (hd.unfoldDefinition hb).apply hwf hfe h1 hrel hfrel
@@ -1039,13 +1185,14 @@ private theorem defeq_delta_both_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U
         | none =>
           simp only [Option.map_none] at hrun1
           rw [run_bind' hrun1]
-          obtain ⟨rfl, rfl⟩ : (false : Bool) = res ∧ st1 = st' := by
+          obtain ⟨rfl, rfl⟩ : core.result.Result.Ok false = res ∧ st1 = st' := by
             simpa using Result.ok_injective hok
           exact ⟨lst1, by simp, hrel1, hwf1, trivial⟩
         | some b3 =>
           simp only [Option.map_some] at hrun1
           rw [run_bind' hrun1]
-          exact (hk false a2 b3 ha (howf b3 rfl)).apply hwf1 hfe hok hrel1 hfrel
+          exact (hk false a2 b3 ha (howf b3 rfl)) fe lfe hfe hfrel st1 res st' hwf1 hok lst1
+            hrel1
     | false =>
       simp only [Bool.false_eq_true, if_false]
       rw [run_pure']
@@ -1055,8 +1202,8 @@ private theorem defeq_delta_both_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U
       cases c3 with
       | false =>
         simp only [Bool.false_and, Bool.false_eq_true, if_false]
-        exact (defeq_unfold_both_of_loop hd d n hk ha hb fe lfe hfe hfrel hua hub).apply
-          hwf hok hrel
+        exact defeq_unfold_both_of_loop hd d n hk ha hb fe lfe hfe hfrel hua hub
+          st res st' hwf hok lst hrel
       | true =>
         obtain ⟨c4, hc4, hok⟩ := bind_eq_ok_iff.mp hok
         have e4 := CoreK.same_const_heads_refines ha hb hc4
@@ -1064,13 +1211,16 @@ private theorem defeq_delta_both_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U
         cases c4 with
         | false =>
           simp only [Bool.and_false, Bool.false_eq_true, if_false]
-          exact (defeq_unfold_both_of_loop hd d n hk ha hb fe lfe hfe hfrel hua hub).apply
-            hwf hok hrel
+          exact defeq_unfold_both_of_loop hd d n hk ha hb fe lfe hfe hfrel hua hub
+            st res st' hwf hok lst hrel
         | true =>
           simp only [Bool.and_self, if_true]
           obtain ⟨⟨r1, st1⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
           cases r1 with
-          | Err err => simp at hok
+          | Err err =>
+            obtain ⟨rfl, rfl⟩ := err_arm hok
+            exact ErrSim.bindCM
+              ((defeq_spine_i_refines hd.toDefEqDepsA d ha hb).apply_err hwf hfe h1 hrel hfrel)
           | Ok v =>
             obtain ⟨lst1, hrun1, hrel1, hwf1, -⟩ :=
               (defeq_spine_i_refines hd.toDefEqDepsA d ha hb).apply hwf hfe h1 hrel
@@ -1079,13 +1229,13 @@ private theorem defeq_delta_both_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U
             rw [run_bind' hrun1]
             cases v with
             | true =>
-              obtain ⟨rfl, rfl⟩ : (true : Bool) = res ∧ st1 = st' := by
+              obtain ⟨rfl, rfl⟩ : core.result.Result.Ok true = res ∧ st1 = st' := by
                 simpa using Result.ok_injective hok
               exact ⟨lst1, by simp, hrel1, hwf1, trivial⟩
             | false =>
               simp only [Bool.false_eq_true, if_false]
-              exact (defeq_unfold_both_of_loop hd d n hk ha hb fe lfe hfe hfrel hua hub).apply
-                hwf1 hok hrel1
+              exact defeq_unfold_both_of_loop hd d n hk ha hb fe lfe hfe hfrel hua hub
+                st1 res st' hwf1 hok lst1 hrel1
 
 /-- `ConLeche/Cached/CoreC.lean:1488-1614` — **`defeq_delta_i` refines lazy
 delta** (`core_c.rs:3927`): the two heads decide which side to unfold, and
@@ -1113,12 +1263,14 @@ private theorem defeq_delta_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U64)
   | true =>
     cases ub with
     | true =>
-      exact (defeq_delta_both_of_loop hd d n hk ha hb fe lfe hfe hfrel
-        eua.symm eub.symm).apply hwf hok hrel
+      exact defeq_delta_both_of_loop hd d n hk ha hb fe lfe hfe hfrel eua.symm eub.symm
+        st res st' hwf hok lst hrel
     | false =>
       obtain ⟨⟨r1, st1⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
       cases r1 with
-      | Err err => simp at hok
+      | Err err =>
+        obtain ⟨rfl, rfl⟩ := err_arm hok
+        exact ErrSim.bindCM ((hd.unfoldDefinition ha).apply_err hwf hfe h1 hrel hfrel)
       | Ok o =>
         obtain ⟨lst1, hrun1, hrel1, hwf1, howf⟩ :=
           (hd.unfoldDefinition ha).apply hwf hfe h1 hrel hfrel
@@ -1126,19 +1278,22 @@ private theorem defeq_delta_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U64)
         | none =>
           simp only [Option.map_none] at hrun1
           rw [run_bind' hrun1]
-          obtain ⟨rfl, rfl⟩ : (false : Bool) = res ∧ st1 = st' := by
+          obtain ⟨rfl, rfl⟩ : core.result.Result.Ok false = res ∧ st1 = st' := by
             simpa using Result.ok_injective hok
           exact ⟨lst1, by simp, hrel1, hwf1, trivial⟩
         | some a3 =>
           simp only [Option.map_some] at hrun1
           rw [run_bind' hrun1]
-          exact (hk false a3 b2 (howf a3 rfl) hb).apply hwf1 hfe hok hrel1 hfrel
+          exact (hk false a3 b2 (howf a3 rfl) hb) fe lfe hfe hfrel st1 res st' hwf1 hok lst1
+            hrel1
   | false =>
     cases ub with
     | true =>
       obtain ⟨⟨r1, st1⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
       cases r1 with
-      | Err err => simp at hok
+      | Err err =>
+        obtain ⟨rfl, rfl⟩ := err_arm hok
+        exact ErrSim.bindCM ((hd.unfoldDefinition hb).apply_err hwf hfe h1 hrel hfrel)
       | Ok o =>
         obtain ⟨lst1, hrun1, hrel1, hwf1, howf⟩ :=
           (hd.unfoldDefinition hb).apply hwf hfe h1 hrel hfrel
@@ -1146,15 +1301,16 @@ private theorem defeq_delta_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U64)
         | none =>
           simp only [Option.map_none] at hrun1
           rw [run_bind' hrun1]
-          obtain ⟨rfl, rfl⟩ : (false : Bool) = res ∧ st1 = st' := by
+          obtain ⟨rfl, rfl⟩ : core.result.Result.Ok false = res ∧ st1 = st' := by
             simpa using Result.ok_injective hok
           exact ⟨lst1, by simp, hrel1, hwf1, trivial⟩
         | some b3 =>
           simp only [Option.map_some] at hrun1
           rw [run_bind' hrun1]
-          exact (hk false a2 b3 ha (howf b3 rfl)).apply hwf1 hfe hok hrel1 hfrel
+          exact (hk false a2 b3 ha (howf b3 rfl)) fe lfe hfe hfrel st1 res st' hwf1 hok lst1
+            hrel1
     | false =>
-      exact (hd.defeqStruct d ha hb).apply hwf hfe hok hrel hfrel
+      exact (hd.defeqStruct d ha hb) fe lfe hfe hfrel st res st' hwf hok lst hrel
 
 /-- `ConLeche/Cached/CoreC.lean:1479-1614` — **`defeq_lits_i` refines literal
 acceleration** (`core_c.rs:3881`): the fold runs only when *both* sides are
@@ -1202,7 +1358,7 @@ private theorem defeq_lits_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U64)
   | false =>
     simp only [Bool.false_eq_true, if_false]
     simp only [Bool.false_eq_true, if_false, bind_tc_ok] at hok
-    exact (defeq_delta_of_loop hd d n hk ha hb).apply hwf hfe hok hrel hfrel
+    exact defeq_delta_of_loop hd d n hk ha hb fe lfe hfe hfrel st res st' hwf hok lst hrel
   | true =>
     simp only [if_true]
     obtain ⟨⟨st1, ra⟩, hra, hok⟩ := bind_eq_ok_iff.mp hok
@@ -1211,7 +1367,9 @@ private theorem defeq_lits_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U64)
     rw [show st1 = st2 from (congrArg Prod.fst hpair).symm,
       show ra = ra1 from (congrArg Prod.snd hpair).symm] at hok
     cases ra1 with
-    | Err err => simp at hok
+    | Err err =>
+      obtain ⟨rfl, rfl⟩ := err_arm hok
+      exact ErrSim.bindCM ((hd.reduceNat d ha).apply_err hwf hfe hrn hrel hfrel)
     | Ok o =>
       obtain ⟨lst1, hrun1, hrel1, hwf1, howf⟩ :=
         (hd.reduceNat d ha).apply hwf hfe hrn hrel hfrel
@@ -1219,7 +1377,8 @@ private theorem defeq_lits_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U64)
       | some a3 =>
         simp only [Option.map_some] at hrun1
         rw [run_bind' hrun1]
-        exact (hk true a3 b2 (howf a3 rfl) hb).apply hwf1 hfe hok hrel1 hfrel
+        exact (hk true a3 b2 (howf a3 rfl) hb) fe lfe hfe hfrel st2 res st' hwf1 hok lst1
+          hrel1
       | none =>
         simp only [Option.map_none] at hrun1
         rw [run_bind' hrun1]
@@ -1229,7 +1388,9 @@ private theorem defeq_lits_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U64)
         rw [show st3 = st4 from (congrArg Prod.fst hpair2).symm,
           show rb = rb1 from (congrArg Prod.snd hpair2).symm] at hok
         cases rb1 with
-        | Err err => simp at hok
+        | Err err =>
+          obtain ⟨rfl, rfl⟩ := err_arm hok
+          exact ErrSim.bindCM ((hd.reduceNat d hb).apply_err hwf1 hfe hrn2 hrel1 hfrel)
         | Ok o2 =>
           obtain ⟨lst2, hrun2, hrel2, hwf2, howf2⟩ :=
             (hd.reduceNat d hb).apply hwf1 hfe hrn2 hrel1 hfrel
@@ -1237,11 +1398,13 @@ private theorem defeq_lits_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U64)
           | some b3 =>
             simp only [Option.map_some] at hrun2
             rw [run_bind' hrun2]
-            exact (hk true a2 b3 ha (howf2 b3 rfl)).apply hwf2 hfe hok hrel2 hfrel
+            exact (hk true a2 b3 ha (howf2 b3 rfl)) fe lfe hfe hfrel st4 res st' hwf2 hok lst2
+              hrel2
           | none =>
             simp only [Option.map_none] at hrun2
             rw [run_bind' hrun2]
-            exact (defeq_delta_of_loop hd d n hk ha hb).apply hwf2 hfe hok hrel2 hfrel
+            exact defeq_delta_of_loop hd d n hk ha hb fe lfe hfe hfrel st4 res st' hwf2 hok
+              lst2 hrel2
 
 /-- `ConLeche/Cached/CoreC.lean:1472-1614` — **`defeq_after_whnf_i` refines
 the hoisted proof-irrelevance probe and its tail** (`core_c.rs:3849`): run
@@ -1266,7 +1429,7 @@ private theorem defeq_after_whnf_of_loop (hw : Wrappers mode fuel)
     rw [run_pure']
     simp only [Bool.false_eq_true, if_false]
     simp only [Bool.false_eq_true, if_false, bind_tc_ok] at hok
-    exact (defeq_lits_of_loop hd d n hk ha hb).apply hwf hfe hok hrel hfrel
+    exact defeq_lits_of_loop hd d n hk ha hb fe lfe hfe hfrel st res st' hwf hok lst hrel
   | true =>
     obtain ⟨⟨st1, pir⟩, hpir, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨qp0, hqp, hpir⟩ := bind_eq_ok_iff.mp hpir
@@ -1281,8 +1444,8 @@ private theorem defeq_after_whnf_of_loop (hw : Wrappers mode fuel)
       rw [show st1 = st from (congrArg Prod.fst hp).symm,
         show pir = core.result.Result.Ok false from (congrArg Prod.snd hp).symm] at hok
       have hok' : cached.core_c.defeq_lits_i mode fuel st fe d n a2 b2
-          = ok (.Ok res, st') := hok
-      exact (defeq_lits_of_loop hd d n hk ha hb).apply hwf hfe hok' hrel hfrel
+          = ok (res, st') := hok
+      exact defeq_lits_of_loop hd d n hk ha hb fe lfe hfe hfrel st res st' hwf hok' lst hrel
     | false =>
       simp only [Bool.not_false, Bool.and_true, if_true]
       obtain ⟨⟨pir1, st2⟩, hpi, hpir⟩ := bind_eq_ok_iff.mp hpir
@@ -1290,7 +1453,10 @@ private theorem defeq_after_whnf_of_loop (hw : Wrappers mode fuel)
       rw [show st1 = st2 from (congrArg Prod.fst hp).symm,
         show pir = pir1 from (congrArg Prod.snd hp).symm] at hok
       cases pir1 with
-      | Err err => simp at hok
+      | Err err =>
+        obtain ⟨rfl, rfl⟩ := err_arm hok
+        exact ErrSim.bindCM
+          ((prop_irrel_i_refines hw hd.toDefEqDepsA d ha hb).apply_err hwf hfe hpi hrel hfrel)
       | Ok v =>
         obtain ⟨lst1, hrun1, hrel1, hwf1, -⟩ :=
           (prop_irrel_i_refines hw hd.toDefEqDepsA d ha hb).apply hwf hfe hpi hrel
@@ -1299,12 +1465,13 @@ private theorem defeq_after_whnf_of_loop (hw : Wrappers mode fuel)
         rw [run_bind' hrun1]
         cases v with
         | true =>
-          obtain ⟨rfl, rfl⟩ : (true : Bool) = res ∧ st2 = st' := by
+          obtain ⟨rfl, rfl⟩ : core.result.Result.Ok true = res ∧ st2 = st' := by
             simpa using Result.ok_injective hok
           exact ⟨lst1, by simp, hrel1, hwf1, trivial⟩
         | false =>
           simp only [Bool.false_eq_true, if_false]
-          exact (defeq_lits_of_loop hd d n hk ha hb).apply hwf1 hfe hok hrel1 hfrel
+          exact defeq_lits_of_loop hd d n hk ha hb fe lfe hfe hfrel st2 res st' hwf1 hok lst1
+            hrel1
 
 /-- `ConLeche/Cached/CoreC.lean:1456` — **`defeq_step_i` refines `defeqStepI`
 at a given continuation** (`core_c.rs:3806`): the syntactic fast path, the
@@ -1330,7 +1497,7 @@ private theorem defeq_step_of_loop (hw : Wrappers mode fuel) (hd : DefEqDeps mod
   rw [ee0]
   cases e0 with
   | true =>
-    obtain ⟨rfl, rfl⟩ : (true : Bool) = res ∧ st = st' := by
+    obtain ⟨rfl, rfl⟩ : core.result.Result.Ok true = res ∧ st = st' := by
       simpa using Result.ok_injective hok
     exact ⟨lst, by simp, hrel, hwf, trivial⟩
   | false =>
@@ -1338,17 +1505,24 @@ private theorem defeq_step_of_loop (hw : Wrappers mode fuel) (hd : DefEqDeps mod
     rw [run_pure', run_pure']
     simp only [hasFvarC_eq]
     obtain ⟨⟨st1, sc⟩, hsc, hok⟩ := bind_eq_ok_iff.mp hok
-    have key : ∃ (lst1 : ConLeche.Cached.CState) (scv : Bool),
+    -- the eq-true shortcut, as one step: it either answers, or it threw and
+    -- con-leche's `if ← …` throws with it (task #67's second disjunct)
+    have key : (∃ err : core_types.CheckError, sc = core.result.Result.Err err ∧
+        ErrSim err
+          (((if pi && (absExpr b).isBoolTrue && !(absExpr a).hasFvar then
+              ConLeche.Cached.boolTrueShortcutI (knot mode lfe fuel.val) d.val (absExpr a)
+            else pure false) : ConLeche.Cached.CheckCM Bool).run lst))
+      ∨ (∃ (lst1 : ConLeche.Cached.CState) (scv : Bool),
         sc = core.result.Result.Ok scv ∧
         ((if pi && (absExpr b).isBoolTrue && !(absExpr a).hasFvar then
             ConLeche.Cached.boolTrueShortcutI (knot mode lfe fuel.val) d.val (absExpr a)
           else pure false) : ConLeche.Cached.CheckCM Bool).run lst = .ok (scv, lst1)
-        ∧ StateRel st1 lst1 ∧ StateWF st1 := by
+        ∧ StateRel st1 lst1 ∧ StateWF st1) := by
       cases pi with
       | false =>
         have hp := Result.ok_injective hsc
         have hs : st1 = st := (congrArg Prod.fst hp).symm
-        exact ⟨lst, false, (congrArg Prod.snd hp).symm, by simp,
+        exact Or.inr ⟨lst, false, (congrArg Prod.snd hp).symm, by simp,
           by rw [hs]; exact hrel, by rw [hs]; exact hwf⟩
       | true =>
         obtain ⟨bt0, hbt, hsc⟩ := bind_eq_ok_iff.mp hsc
@@ -1357,7 +1531,7 @@ private theorem defeq_step_of_loop (hw : Wrappers mode fuel) (hd : DefEqDeps mod
         | false =>
           have hp := Result.ok_injective hsc
           have hs : st1 = st := (congrArg Prod.fst hp).symm
-          exact ⟨lst, false, (congrArg Prod.snd hp).symm, by simp [← ebt],
+          exact Or.inr ⟨lst, false, (congrArg Prod.snd hp).symm, by simp [← ebt],
             by rw [hs]; exact hrel, by rw [hs]; exact hwf⟩
         | true =>
           obtain ⟨af0, haf, hsc⟩ := bind_eq_ok_iff.mp hsc
@@ -1366,7 +1540,7 @@ private theorem defeq_step_of_loop (hw : Wrappers mode fuel) (hd : DefEqDeps mod
           | true =>
             have hp := Result.ok_injective hsc
             have hs : st1 = st := (congrArg Prod.fst hp).symm
-            exact ⟨lst, false, (congrArg Prod.snd hp).symm, by simp [← ebt, ← eaf],
+            exact Or.inr ⟨lst, false, (congrArg Prod.snd hp).symm, by simp [← ebt, ← eaf],
               by rw [hs]; exact hrel, by rw [hs]; exact hwf⟩
           | false =>
             obtain ⟨⟨sc1, st2⟩, hbs, hsc⟩ := bind_eq_ok_iff.mp hsc
@@ -1374,34 +1548,45 @@ private theorem defeq_step_of_loop (hw : Wrappers mode fuel) (hd : DefEqDeps mod
             have hs : st1 = st2 := (congrArg Prod.fst hp).symm
             have hr : sc = sc1 := (congrArg Prod.snd hp).symm
             cases sc1 with
-            | Err err => rw [hr] at hok; simp at hok
+            | Err err =>
+              refine Or.inl ⟨err, hr, ?_⟩
+              simp only [← ebt, ← eaf, Bool.not_false, Bool.and_true, if_true]
+              exact (bool_true_shortcut_i_refines hw d ha).apply_err hwf hfe hbs hrel hfrel
             | Ok v =>
               obtain ⟨lst1, hrun1, hrel1, hwf1, -⟩ :=
                 (bool_true_shortcut_i_refines hw d ha).apply hwf hfe hbs hrel hfrel
               simp only [id] at hrun1
-              refine ⟨lst1, v, hr, ?_, by rw [hs]; exact hrel1, by rw [hs]; exact hwf1⟩
+              refine Or.inr ⟨lst1, v, hr, ?_, by rw [hs]; exact hrel1, by rw [hs]; exact hwf1⟩
               simp only [← ebt, ← eaf, Bool.not_false, Bool.and_true, if_true]
               exact hrun1
-    obtain ⟨lst1, scv, hscv, hg, hrel1, hwf1⟩ := key
+    rcases key with ⟨err, hscv, herr⟩ | ⟨lst1, scv, hscv, hg, hrel1, hwf1⟩
+    · -- the shortcut threw: so does con-leche, at the same `if ← …`
+      rw [hscv] at hok
+      obtain ⟨rfl, rfl⟩ := err_arm hok
+      exact ErrSim.bindCM herr
     rw [hscv] at hok
     rw [run_bind' hg]
     cases scv with
     | true =>
-      obtain ⟨rfl, rfl⟩ : (true : Bool) = res ∧ st1 = st' := by
+      obtain ⟨rfl, rfl⟩ : core.result.Result.Ok true = res ∧ st1 = st' := by
         simpa using Result.ok_injective hok
       exact ⟨lst1, by simp, hrel1, hwf1, trivial⟩
     | false =>
       simp only [Bool.false_eq_true, if_false]
       obtain ⟨⟨r1, st2⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
       cases r1 with
-      | Err err => simp at hok
+      | Err err =>
+        obtain ⟨rfl, rfl⟩ := err_arm hok
+        exact ErrSim.bindCM ((hw.whnfCoreSim d ha).apply_err hwf1 hfe h1 hrel1 hfrel)
       | Ok a2 =>
         obtain ⟨lst2, hrun2, hrel2, hwf2, ha2wf⟩ :=
           (hw.whnfCoreSim d ha).apply hwf1 hfe h1 hrel1 hfrel
         rw [run_bind' hrun2]
         obtain ⟨⟨r2, st3⟩, h2, hok⟩ := bind_eq_ok_iff.mp hok
         cases r2 with
-        | Err err => simp at hok
+        | Err err =>
+          obtain ⟨rfl, rfl⟩ := err_arm hok
+          exact ErrSim.bindCM ((hw.whnfCoreSim d hb).apply_err hwf2 hfe h2 hrel2 hfrel)
         | Ok b2 =>
           obtain ⟨lst3, hrun3, hrel3, hwf3, hb2wf⟩ :=
             (hw.whnfCoreSim d hb).apply hwf2 hfe h2 hrel2 hfrel
@@ -1412,13 +1597,13 @@ private theorem defeq_step_of_loop (hw : Wrappers mode fuel) (hd : DefEqDeps mod
           rw [ee3]
           cases e3 with
           | true =>
-            obtain ⟨rfl, rfl⟩ : (true : Bool) = res ∧ st3 = st' := by
+            obtain ⟨rfl, rfl⟩ : core.result.Result.Ok true = res ∧ st3 = st' := by
               simpa using Result.ok_injective hok
             exact ⟨lst3, by simp, hrel3, hwf3, trivial⟩
           | false =>
             simp only [Bool.false_eq_true, if_false]
-            exact (defeq_after_whnf_of_loop hw hd d n pi hk ha2wf hb2wf).apply
-              hwf3 hfe hok hrel3 hfrel
+            exact defeq_after_whnf_of_loop hw hd d n pi hk ha2wf hb2wf fe lfe hfe hfrel
+              st3 res st' hwf3 hok lst3 hrel3
 
 /-- The induction that makes the budget a `Nat`: `defeq_loop_i` at a `U64`
 whose `val` is `m` refines `defeqLoopI … m`.  This is the whole cycle — the
@@ -1436,15 +1621,22 @@ private theorem defeq_loop_aux (hw : Wrappers mode fuel) (hd : DefEqDeps mode fu
   intro m
   induction m with
   | zero =>
-    -- the budget is spent: the Rust answers `.Err`, so there is nothing to show
+    -- **the budget is spent on both sides at once** (task #67): the Rust
+    -- builds `internal(<M>)` and `defeqLoopI … 0` throws `.internal`, at the
+    -- same step and the same kind
     intro n hn pi a b ha hb fe lfe hfe hfrel st res st' hwf hok lst hrel
     have hz : n = 0#u64 := Std.UScalar.eq_of_val_eq (by simp [hn])
     unfold cached.core_c.defeq_loop_i at hok
     simp only [hz] at hok
     obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-    obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-    obtain ⟨_, -, hok⟩ := bind_eq_ok_iff.mp hok
-    simp at hok
+    obtain ⟨v, -, hok⟩ := bind_eq_ok_iff.mp hok
+    obtain ⟨ce, hce, hok⟩ := bind_eq_ok_iff.mp hok
+    obtain ⟨rfl, rfl⟩ := err_arm hok
+    have hce' : ce = .Internal v := internal_inv hce
+    subst hce'
+    exact ErrSim.internal
+      (DefEq.defeqLoopI_zero_run (absMode mode) (knot mode lfe fuel.val) lfe d.val pi
+        (absExpr a) (absExpr b) lst)
   | succ m ih =>
     intro n hn pi a b ha hb fe lfe hfe hfrel st res st' hwf hok lst hrel
     have hz : ¬ (n = 0#u64) := by
@@ -1464,11 +1656,13 @@ private theorem defeq_loop_aux (hw : Wrappers mode fuel) (hd : DefEqDeps mode fu
         d.val m)
       (fun pi' x y hx hy => ih i hiv pi' x y hx hy) ha hb
     simp only [DefEq.defeqLoopI_succ]
-    exact hstep.apply hwf hfe hok hrel hfrel
+    exact hstep fe lfe hfe hfrel st res st' hwf hok lst hrel
 
 /-- `ConLeche/Cached/CoreC.lean:1617` — **`defeq_loop_i` refines
 `defeqLoopI`** (`core_c.rs:4256`): the `U64` budget is con-leche's `Nat`
-one. -/
+one, **exhaustion included** — at `0` the Rust throws `internal(<M>)` and
+`defeqLoopI … 0` throws `.internal`, at the same step (task #67), which is
+what `Core/Knot.lean`'s `wrappers_zero` proves for the six wrappers. -/
 theorem defeq_loop_i_refines (hw : Wrappers mode fuel) (hd : DefEqDeps mode fuel)
     (d n : Std.U64) (pi : Bool) {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     Sim id (fun _ => True)
@@ -1579,7 +1773,8 @@ theorem defeq_body_i_refines (hw : Wrappers mode fuel) (hd : DefEqDeps mode fuel
   unfold cached.core_c.defeq_body_i at hok
   obtain ⟨i, hi, hok⟩ := bind_eq_ok_iff.mp hok
   have hiv : i.val = ConLeche.defeqLoopFuel := CoreK.defeq_loop_fuel_refines hi
-  have hres := (defeq_loop_i_refines hw hd d i true ha hb).apply hwf hfe hok hrel hfrel
+  have hres := defeq_loop_i_refines hw hd d i true ha hb fe lfe hfe hfrel st res st' hwf hok
+    lst hrel
   rw [hiv] at hres
   simpa [ConLeche.Cached.defeqBodyI] using hres
 
