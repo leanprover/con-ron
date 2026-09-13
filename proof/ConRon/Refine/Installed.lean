@@ -1650,6 +1650,67 @@ install half runs and the constant is pushed with the record's own raw value,
 which nothing ever reads, so phase A never enters a theorem's body. -/
 theorem annot_step_thm_c_refines {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU)
+    {st st' : cached.state_c.CState} {i : Std.U64} {fe : fenv.FEnv}
+    {pend : alloc.vec.Vec parsed_c.PendingCheck}
+    {cv : env.ConstantVal} {value : expr.Expr}
+    {out : core.result.Result (fenv.FEnv × alloc.vec.Vec parsed_c.PendingCheck)
+      core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnvCanon fe) (hfull : FEnvFull fe)
+    (hcv : ConstantValWF cv)
+    (hv : ExprWF value) (hpe : PendingChecksWF pend)
+    (h : cached.installed.annot_step_thm_c mode st i fe pend cv value
+          = ok (out, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      match out with
+      | .Ok (fe', pend') =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+              (absPendingChecks pend).toArray
+              (.thmDecl (absConstantVal cv) (absExpr value))).run lst
+            = .ok ((lfe', (absPendingChecks pend').toArray), lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+          ∧ PendingChecksWF pend' ∧ FEnvCanon fe' ∧ FEnvFull fe'
+      | .Err e =>
+        ErrSim e
+          ((ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+              (absPendingChecks pend).toArray
+              (.thmDecl (absConstantVal cv) (absExpr value))).run lst) := by
+  intro lst lfe hsr hfr
+  rw [cached.installed.annot_step_thm_c] at h
+  obtain ⟨st1, hflush, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hrunf, hrel1, hwf1, -⟩ := StateC.flush_c_refines hsr hsw hflush
+  obtain ⟨q, hacv, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r, st2⟩ := q
+  have hhead := annot_constant_val_c_refines IndAbs.check_fuel_eq hk.1 hwf1 hfw hcv hacv
+    lst.flushed lfe hrel1 hfr
+  cases r with
+  | Err e =>
+    -- the header's install half threw, and the cited arm passes it on
+    obtain ⟨hout, rfl⟩ := err_outS h
+    subst hout
+    show ErrSim e _
+    rw [ConLeche.Cached.annotStepC]
+    exact ErrSim.trans hhead (fun _ hle => run_bind_ok hrunf (run_bind_err hle))
+  | Ok r1 =>
+    obtain ⟨cv1, jty1⟩ := r1
+    obtain ⟨lst1, hrun1, hsr1, hsw1, hcv1, hjty1⟩ := hhead
+    obtain ⟨p, hpush, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨pr, st3⟩ := p
+    obtain ⟨fe2, pend2⟩ := pr
+    obtain ⟨hout, rfl⟩ := ok_outS h
+    subst hout
+    obtain ⟨lst2, hrunr, hsr2, hsw2, hfr2, hfw2, hpabs, hpw, hcan', hfull'⟩ :=
+      annot_step_thm_c_push_refines hsw1 hfw hcan hfull hcv1 hjty1 hv hpe hpush lst1
+        lfe hsr1 hfr
+    refine ⟨lst2, _, ?_, hsr2, hsw2, hfr2, hfw2, hpw, hcan', hfull'⟩
+    rw [ConLeche.Cached.annotStepC]
+    refine run_bind_ok hrunf (run_bind_ok hrun1 (run_bind_ok hrunr ?_))
+    rw [hpabs, ← List.push_toArray]
+    rfl
+
+/-- `annot_step_thm_c_refines` at a success, the pre-#67 statement. -/
+theorem annot_step_thm_c_refines_ok {mode : env.CheckMode}
+    (hk : Core.KnotSpec mode IndAbs.checkFuelU)
     {st st' : cached.state_c.CState} {i : Std.U64} {fe fe' : fenv.FEnv}
     {pend pend' : alloc.vec.Vec parsed_c.PendingCheck}
     {cv : env.ConstantVal} {value : expr.Expr}
@@ -1665,33 +1726,8 @@ theorem annot_step_thm_c_refines {mode : env.CheckMode}
             (.thmDecl (absConstantVal cv) (absExpr value))).run lst
           = .ok ((lfe', (absPendingChecks pend').toArray), lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
-        ∧ PendingChecksWF pend' ∧ FEnvCanon fe' ∧ FEnvFull fe' := by
-  intro lst lfe hsr hfr
-  rw [cached.installed.annot_step_thm_c] at h
-  obtain ⟨st1, hflush, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨hrunf, hrel1, hwf1, -⟩ := StateC.flush_c_refines hsr hsw hflush
-  obtain ⟨q, hacv, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨r, st2⟩ := q
-  cases r with
-  | Err e => simp at h
-  | Ok r1 =>
-    obtain ⟨cv1, jty1⟩ := r1
-    obtain ⟨lst1, hrun1, hsr1, hsw1, hcv1, hjty1⟩ :=
-      annot_constant_val_c_refines IndAbs.check_fuel_eq hk.1 hwf1 hfw hcv hacv
-        lst.flushed lfe hrel1 hfr
-    obtain ⟨p, hpush, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨pr, st3⟩ := p
-    obtain ⟨fe2, pend2⟩ := pr
-    have hfe : fe2 = fe' ∧ pend2 = pend' ∧ st3 = st' := by simpa using h
-    obtain ⟨rfl, rfl, rfl⟩ := hfe
-    obtain ⟨lst2, hrunr, hsr2, hsw2, hfr2, hfw2, hpabs, hpw, hcan', hfull'⟩ :=
-      annot_step_thm_c_push_refines hsw1 hfw hcan hfull hcv1 hjty1 hv hpe hpush lst1
-        lfe hsr1 hfr
-    refine ⟨lst2, _, ?_, hsr2, hsw2, hfr2, hfw2, hpw, hcan', hfull'⟩
-    rw [ConLeche.Cached.annotStepC]
-    refine run_bind_ok hrunf (run_bind_ok hrun1 (run_bind_ok hrunr ?_))
-    rw [hpabs, ← List.push_toArray]
-    rfl
+        ∧ PendingChecksWF pend' ∧ FEnvCanon fe' ∧ FEnvFull fe' :=
+  annot_step_thm_c_refines hk hsw hfw hcan hfull hcv hv hpe h
 
 /-- **`installed::annot_step_opaque_c_push` refines the cited push**
 (`Installed.lean:136-169`, the `.opaqueDecl` arm's tail): the constant is
@@ -2805,8 +2841,56 @@ theorem annot_decl_fold_from_refines {mode : env.CheckMode}
 
 /-- **`installed::check_decls_phase_b` refines the cited
 `checkPendingList mode p.2.1 p.2.2.toList; pure p.2.1.env`**
-(`Installed.lean:407-411`). -/
+(`Installed.lean:407-411`).
+
+Over the whole outcome (task #67): the walk is the only thing that can fail
+here, and the cited `do` block passes its verdict — error *and* fold position —
+straight out. -/
 theorem check_decls_phase_b_refines {mode : env.CheckMode}
+    (hk : Core.KnotSpec mode IndAbs.checkFuelU)
+    {fe : fenv.FEnv} {pend : alloc.vec.Vec parsed_c.PendingCheck}
+    {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
+    (hfw : FEnvWF fe) (hpe : PendingChecksWF pend)
+    (h : cached.installed.check_decls_phase_b mode fe pend = ok out) :
+    ∀ lfe, FEnvRel fe lfe →
+      match out with
+      | .Ok e =>
+        (do
+          ConLeche.Cached.checkPendingList (absMode mode) lfe
+            (absPendingChecks pend).toArray.toList
+          pure lfe.env : Except (ConLeche.CheckError × Nat) ConLeche.Env)
+          = .ok (absEnv e)
+      | .Err er =>
+        ErrSimPos er
+          (do
+            ConLeche.Cached.checkPendingList (absMode mode) lfe
+              (absPendingChecks pend).toArray.toList
+            pure lfe.env : Except (ConLeche.CheckError × Nat) ConLeche.Env) := by
+  intro lfe hfr
+  rw [cached.installed.check_decls_phase_b] at h
+  obtain ⟨r, hlist, h⟩ := bind_eq_ok_iff.mp h
+  have hrest := check_pending_list_refines hk hfw hpe hlist lfe hfr
+  cases r with
+  | Ok fe2 =>
+    have hout := ok_out h
+    subst hout
+    obtain ⟨hwalk, hfr2, -⟩ := hrest
+    show (do
+        ConLeche.Cached.checkPendingList (absMode mode) lfe
+          (absPendingChecks pend).toArray.toList
+        pure lfe.env : Except (ConLeche.CheckError × Nat) ConLeche.Env)
+        = .ok (absEnv fe2.env)
+    rw [List.toList_toArray, hwalk, hfr2.1]
+    rfl
+  | Err er =>
+    have hout := err_out h
+    subst hout
+    show ErrSimPos er _
+    rw [List.toList_toArray]
+    exact ErrSimPos.trans hrest (fun _ hle => by rw [hle]; rfl)
+
+/-- `check_decls_phase_b_refines` at a success, the pre-#67 statement. -/
+theorem check_decls_phase_b_refines_ok {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU)
     {fe : fenv.FEnv} {pend : alloc.vec.Vec parsed_c.PendingCheck} {e : env.Env}
     (hfw : FEnvWF fe) (hpe : PendingChecksWF pend)
@@ -2816,18 +2900,8 @@ theorem check_decls_phase_b_refines {mode : env.CheckMode}
         ConLeche.Cached.checkPendingList (absMode mode) lfe
           (absPendingChecks pend).toArray.toList
         pure lfe.env : Except (ConLeche.CheckError × Nat) ConLeche.Env)
-        = .ok (absEnv e) := by
-  intro lfe hfr
-  rw [cached.installed.check_decls_phase_b] at h
-  obtain ⟨r, hlist, h⟩ := bind_eq_ok_iff.mp h
-  cases r with
-  | Err er => simp at h
-  | Ok fe2 =>
-    have he : fe2.env = e := by simpa using h
-    obtain ⟨hwalk, hfr2, -⟩ := check_pending_list_refines hk hfw hpe hlist lfe hfr
-    rw [List.toList_toArray, hwalk]
-    rw [← he, hfr2.1]
-    rfl
+        = .ok (absEnv e) :=
+  check_decls_phase_b_refines hk hfw hpe h
 
 /-! ## `check_decls`, and the pin parameter's one line
 
