@@ -205,6 +205,65 @@ theorem conron.no_proof_of_False' (V : Type w) [ConLeche.SetTheory V]
 /-- info: 'ConRon.Refine.conron.no_proof_of_False'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms conron.no_proof_of_False'
 
+/-! ## The headline: the pins the verified decoder produced (task #75)
+
+`hvar` is a promise about the pin *argument*, and the one place a real run gets
+it from is the decoder: `con_ron::driver::pins_for_run` calls
+`kernel::pins_decode::decode_embedded()`, and task #66's `PinsWF.decode_wf`
+reads `PinsWF` off **any** successful decode run — the input is a `Slice U8`
+like any other, and nothing about its value is used.  So the pair below is the
+statement about *the binary's checker fed the pins its own verified decoder
+produced*, with no hypothesis left but that decode and the run itself, and it
+names no string constant: its census is con-leche's own three axioms.
+
+The two `_embedded` corollaries in the next section are this pair's instance at
+`text = core.str.Str.as_bytes kernel.pins_text.PINS_TEXT` — `decode_embedded`
+is that `as_bytes` followed by `decode`, which is what `decode_embedded_wf`
+peels — and they pay one axiom for naming the constant (`AENEAS_FINDINGS.md`
+§3.8).  They are kept as they are: the extra generality here is exactly the
+step that drops the axiom, and both statements are worth having side by side. -/
+
+/-- **The main theorem for the shipped binary, axiom-free** (task #75): every
+environment `crates/con-ron-core`'s `check_decls` accepts, when fed a pin list
+that `kernel::pins_decode::decode` returned for *some* byte slice, has a model
+in every set theory.  `conron.model_exists'` with `hvar` discharged by
+`PinsWF.decode_wf`, so it carries `hp` (a decode run) and `h` (the check run)
+and nothing else, and its census is con-leche's own three axioms.
+
+This is the theorem about the binary that ships, up to one fact that lives in
+the unverified crate and not in this tower: that the driver
+(`con_ron::driver::pins_for_run`) calls the decoder on the embedded
+`con-ron-pins/1` text rather than on something else.
+`conron.model_exists_embedded` below is this theorem at exactly that text. -/
+theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
+    {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    Nonempty (ConLeche.Model V (absEnv e)) :=
+  conron.model_exists' V (PinsWF.decode_wf hp) h
+
+/-- **The main corollary for the shipped binary, axiom-free** (task #75): at
+decoded pins, an accepted stream never yields a constant of type `False`.
+`conron.no_proof_of_False'` with `hvar` discharged by `PinsWF.decode_wf`; like
+`conron.model_exists_decoded` it carries the decode run and the check run and
+nothing else, and names no string constant, so its census is the three
+standard axioms. -/
+theorem conron.no_proof_of_False_decoded (V : Type w) [ConLeche.SetTheory V]
+    {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    ¬ ∃ c ∈ (absEnv e).consts,
+        c.toConstantVal.type = .const ConLeche.falseName [] :=
+  conron.no_proof_of_False' V (PinsWF.decode_wf hp) h
+
+/-- info: 'ConRon.Refine.conron.model_exists_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms conron.model_exists_decoded
+
+/-- info: 'ConRon.Refine.conron.no_proof_of_False_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms conron.no_proof_of_False_decoded
+
 /-! ## The instance at the binary's own pins (tasks #64, #74)
 
 The theorems above are general in `pins` and, since **task #74**, say nothing
@@ -250,7 +309,17 @@ statement as `conron.model_exists'`, for the pin list
 `kernel::pins_decode::decode_embedded()`, the verified decoder on the
 embedded text.  It carries `hp` (what the decoder returned) and `hds`; `hp` is
 there for `PinsWF` alone, and no hypothesis anywhere is about the pins'
-*value*. -/
+*value*.
+
+It is the **instance of `conron.model_exists_decoded`** (task #75) at
+`text = core.str.Str.as_bytes kernel.pins_text.PINS_TEXT`, which is what
+`decode_embedded` is, and the one axiom it carries beyond the standard three is
+the price of naming that constant: Aeneas's `toStr` discharges its size bound
+with `by decide +native` in the *definition* of every extracted `&str`
+(`AENEAS_FINDINGS.md` §3.8), so `pins_text.PINS_TEXT._native.decide.ax_1` comes
+in through the closure with nothing evaluated.  The **axiom-free headline** is
+therefore `conron.model_exists_decoded`, which says the same thing for every
+decoder input. -/
 theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
@@ -260,7 +329,12 @@ theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
   conron.model_exists' V (PinsWF.decode_embedded_wf hp) h
 
 /-- **The main corollary for the shipped binary** (tasks #64, #74):
-`conron.no_proof_of_False'` at the embedded pins. -/
+`conron.no_proof_of_False'` at the embedded pins — equivalently, the instance
+of `conron.no_proof_of_False_decoded` (task #75) at
+`text = core.str.Str.as_bytes kernel.pins_text.PINS_TEXT`.  Its fourth axiom is
+Aeneas's `toStr` artifact on the `&str` constant's definition
+(`AENEAS_FINDINGS.md` §3.8), not anything this proof evaluates; the axiom-free
+headline is the decoded corollary. -/
 theorem conron.no_proof_of_False_embedded (V : Type w) [ConLeche.SetTheory V]
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))

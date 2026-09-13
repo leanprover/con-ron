@@ -385,7 +385,12 @@ ask above still stands, and is now the *only* reason the two
 `kernel::pins_decode::decode_embedded`, whose definition reaches
 `kernel::pins_text::PINS_TEXT`, whose `toStr` bound carries
 `pins_text.PINS_TEXT._native.decide.ax_1` — inherited through the closure
-with nothing evaluated.
+with nothing evaluated.  **Since task #75 the headline theorem no longer
+depends on the ask**: `conron.model_exists_decoded` /
+`no_proof_of_False_decoded` state the same thing for the pins the verified
+decoder returned on *any* byte slice, name no string constant, and are pinned
+at `[propext, Classical.choice, Quot.sound]`; the two `_embedded` capstones,
+which are their instance at the constant, are what still pays the axiom.
 
 ### 3.9 `Vec::insert` is modelled as `List.set` — an overwrite where Rust inserts (task #46) **[bug]**
 

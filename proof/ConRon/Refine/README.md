@@ -289,7 +289,7 @@ only through `IndAbs`'s five operation lemmas.
 |---|---|
 | `Validate.lean` | `kernel::validate` (task #73): the input validation pass is **sound** — one soundness lemma per validator function, `validate_str`/`validate_nat`/`validate_name`/`validate_level`/`validate_prop_when`/`validate_literal`/`validate_expr`/the record and vector walks/`validate_decls`, each producing the `*WF` derivation the `Refine/Abs.lean` inductives take from the rebuild's own smart-constructor equation.  `seen_hit_false` is the model half of the visited set's trust argument (`ptr_eq` is `false`, so the table is written and never read), `equiv_r_exact` the one exactness lemma `PropWhen` needs, `Expr.ind'` the structural recursor, and `check_decls_gate` the entry gate `Refine/Installed.lean` opens with |
 | `Installed.lean` | `cached::installed` — **the declaration fold**: `absPendingCheck`/`absPendingChecks`/`PendingCheckWF` (marked "to be unified into `Abs.lean`"), the two install halves and their tails, the four-way phase-A dispatch and its three pushes, `annot_decl_step`, phase B's `check_pending` family with its fresh `CState`, both index recursions, `leanCheckDecls` and **`check_decls_refines`** |
-| `Main.lean` | the capstone: `check_decls_verified_refines`, `conron.model_exists` and `conron.no_proof_of_False` from `ConLeche.MainTheorem`'s `model_exists_with`/`no_proof_of_False_with` (the pins-parametric pair, task #74), the primed pair with the knot and the routes discharged, and the two `_embedded` corollaries — each with a `#guard_msgs`-checked axiom census |
+| `Main.lean` | the capstone: `check_decls_verified_refines`, `conron.model_exists` and `conron.no_proof_of_False` from `ConLeche.MainTheorem`'s `model_exists_with`/`no_proof_of_False_with` (the pins-parametric pair, task #74), the primed pair with the knot and the routes discharged, task #75's `conron.model_exists_decoded` / `no_proof_of_False_decoded` — the primed pair at pins the verified decoder returned for *any* byte slice, `hvar` closed by `PinsWF.decode_wf`, the **axiom-free headline** at `[propext, Classical.choice, Quot.sound]` — and the two `_embedded` corollaries, which are that pair's instance at the embedded text.  Each with a `#guard_msgs`-checked axiom census |
 
 ### How the tower composes, and what is still owed
 
@@ -327,6 +327,18 @@ them closed as task #67's campaign worked up the tower, and every
 `_embedded` capstones alone, the one `toStr` entry Aeneas spends on the
 *definition* of every extracted `&str` constant).  `sorryAx` leaving `conron.model_exists` was the P3 gate, and it
 is passed.
+
+**Since task #75 that `toStr` entry is not the headline's, either.**
+`conron.model_exists_decoded` / `conron.no_proof_of_False_decoded` state the
+primed pair for a pin list the verified decoder returned from *some*
+`Slice U8` (`hp : kernel.pins_decode.decode text = ok (.Ok pins)`, closing
+`hvar` through `PinsWF.decode_wf`), so they carry the decode run and the check
+run and nothing else, name no string constant, and their pinned census is
+exactly `[propext, Classical.choice, Quot.sound]`.  The two `_embedded`
+capstones are their instance at `core.str.Str.as_bytes PINS_TEXT`, and they
+alone pay `pins_text.PINS_TEXT._native.decide.ax_1`.  What is left outside the
+proof is one fact in the unverified crate: that
+`con_ron::driver::pins_for_run` calls the decoder on the embedded text.
 
 ## Not yet here
 
@@ -433,14 +445,19 @@ though nothing is evaluated.  It is Aeneas's to fix, and `AENEAS_FINDINGS.md`
 theorem about every byte string, so nothing is ever evaluated, and its census is
 con-leche's own three axioms.
 
-**Both the general and the embedded capstones are kept**, and what separates
-them is now generality, not trust.  `Refine/Main.lean`'s
+**Both the general and the embedded capstones are kept** (three pairs since
+task #75), and what separates them is now generality, not trust.  `Refine/Main.lean`'s
 `conron.model_exists'` / `conron.no_proof_of_False'` are general in `pins` and
 say nothing about its value; `conron.model_exists_embedded` /
 `conron.no_proof_of_False_embedded` are the same theorems at the pin list the
 binary actually folds with (`kernel::pins_decode::decode_embedded()`, what
 `con_ron::driver::pins_for_run` passes by default), so they carry neither `hk`
-nor `hvar`, and they carry the one `toStr` axiom above.  Every one of those
+nor `hvar`, and they carry the one `toStr` axiom above.  Between the two sit
+task #75's `conron.model_exists_decoded` / `no_proof_of_False_decoded`: the
+same theorems for whatever `kernel::pins_decode::decode` returned on *any*
+byte slice, which is general enough to name no constant and so spends nothing
+beyond con-leche's three, and of which the `_embedded` pair is the instance at
+`core.str.Str.as_bytes PINS_TEXT`.  Every one of those
 censuses is pinned with `#guard_msgs in #print axioms`, which is what keeps the
 boundary honest.
 
