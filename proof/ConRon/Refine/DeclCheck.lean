@@ -252,8 +252,8 @@ theorem consts_resolve_f_fast_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
   obtain ⟨memo, hnew, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨p, hgo, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨b0, memo'⟩ := p
-  have hb : b0 = b := congrArg Prod.fst (Result.ok_injective (α := Bool × _) h)
-  subst hb
+  simp at h
+  subst h
   obtain ⟨lmemo', hl, -⟩ :=
     consts_resolve_f_go_refines hp hfe he memo memo' ∅ b (StateC.memo_b_new hnew) hgo
   have hspec := (ConLeche.Expr.constsResolveFGo_spec (absExpr e) ∅
@@ -282,18 +282,12 @@ is the cited `n.str "_model"`. -/
 theorem model_name_refines {n r : name.Name} (hn : NameWF n)
     (h : decl_check.model_name n = ok r) :
     absName r = (absName n).str "_model" ∧ NameWF r := by
-  rw [decl_check.model_name] at h
+  rw [decl_check.model_name, decl_check.model_suffix] at h
   simp only [bind_eq_ok_iff, name_dup_eq, Result.ok.injEq, exists_eq_left'] at h
-  obtain ⟨v, hv, hmk⟩ := h
-  rw [decl_check.model_suffix] at hv
-  obtain ⟨s, hs, hv⟩ := bind_eq_ok_iff.mp hv
-  simp only [lift_eq, Result.ok.injEq] at hs
-  subst hs
-  have hvv : v.val = [95#u32, 109#u32, 111#u32, 100#u32, 101#u32, 108#u32] := by
-    rw [code_points_val hv]; simp
-  refine ⟨?_, NameWF.str hn ?_ hmk⟩
-  · rw [Name.mk_str_refines hmk, absString_eq, hvv]; rfl
-  · rw [hvv]; decide
+  obtain ⟨s, hs, v, hv, hmk⟩ := h
+  obtain ⟨h1, h1wf⟩ := str_lit_step hn hs hv hmk
+    (L := [95#u32, 109#u32, 111#u32, 100#u32, 101#u32, 108#u32]) (by simp) (by decide)
+  exact ⟨by rw [h1]; rfl, h1wf⟩
 
 /-- `ConLeche/Kernel/DeclCheck.lean:345-382 checkEtaThmF` —
 `decl_check::eta_thm_name` is the cited `(T.str "_model").str "eta"`. -/
@@ -343,9 +337,11 @@ theorem model_rename_refines {bns : alloc.vec.Vec name.Name} (hbns : NamesWF bns
           { block_names := bns } n = ok r →
         absName r = modelRename (absNames bns) (absName n) ∧ NameWF r := by
   intro n hn r h
-  rw [decl_check.ModelRename.Insts.Con_ron_coreKernelExpr_opsNameToName,
-    decl_check.ModelRename.Insts.Con_ron_coreKernelExpr_opsNameToName.rename] at h
-  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  -- the dictionary's projection only reduces through the unifier
+  have h2 : (do let b ← name.contains bns n
+                if b then decl_check.model_name n else name.dup n) = ok r := h
+  clear h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h2
   have hbv := Name.contains_refines hbns hn hb
   rw [modelRename, ← hbv]
   cases b with

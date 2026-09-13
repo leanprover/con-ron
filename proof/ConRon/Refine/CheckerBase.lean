@@ -608,4 +608,169 @@ theorem open_pis_at_fvars_refines :
       rw [← Result.ok_injective h]
       exact ⟨by simp [absExprKind, ConLeche.openPisAtFvars], by simp⟩
 
+/-- `ConLeche/Kernel/CheckerBase.lean:131-145 openPisAtFvarsFGo` — the one-pass
+core: one `instantiateList` per domain instead of one whole-telescope
+`instantiate1` per binder.  `acc` holds the already-created fvars, innermost
+binder first. -/
+theorem open_pis_at_fvars_f_go_refines :
+    ∀ (N : Nat) (acc : alloc.vec.Vec expr.Expr) (n : Std.U64) (e : expr.Expr) (i : Std.U64)
+      (r : Option ((alloc.vec.Vec expr.Expr) × expr.Expr)),
+      n.val = N → ExprsWF acc → ExprWF e →
+      checker_base.open_pis_at_fvars_f_go acc n e i = ok r →
+      (Option.map (fun p => (absExprs p.1, absExpr p.2)) r
+        = ConLeche.openPisAtFvarsFGo (absExprs acc) n.val (absExpr e) i.val)
+      ∧ (∀ p, r = some p → ExprsWF p.1 ∧ ExprWF p.2) := by
+  intro N
+  induction N with
+  | zero =>
+    intro acc n e i r hN hacc he h
+    rw [checker_base.open_pis_at_fvars_f_go.eq_def] at h
+    rw [if_pos (by scalar_tac)] at h
+    obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨habs1, hwf1⟩ := ExprOps.instantiate_list_fast_refines he hacc he1
+    simp only [Result.ok.injEq] at h
+    rw [← h, hN]
+    refine ⟨?_, ?_⟩
+    · simp only [ConLeche.openPisAtFvarsFGo, Option.map_some, habs1,
+        show ((0#u64 : Std.U64)).val = 0 from rfl]
+      simp [absExprs, alloc.vec.Vec.new]
+    · intro p hp
+      simp only [Option.some.injEq] at hp
+      rw [← hp]
+      exact ⟨ExprOps.exprsWF_new, hwf1⟩
+  | succ N ih =>
+    intro acc n e i r hN hacc he h
+    rw [checker_base.open_pis_at_fvars_f_go.eq_def] at h
+    rw [if_neg (by scalar_tac)] at h
+    obtain ⟨nd⟩ := e
+    obtain ⟨d, k⟩ := nd
+    rw [hN, absExpr_mk]
+    cases k with
+    | ForallE dom body m =>
+      obtain ⟨hdom, hbody, hm⟩ := wf_forall_inv he rfl
+      simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+      obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨fv, hfv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨acc2, hacc2, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨habs1, hwf1⟩ := ExprOps.instantiate_list_fast_refines hdom hacc he1
+      have hfvwf : ExprWF fv := Expr.fvar_wf hwf1 hfv
+      have hfvabs : absExpr fv = .fvar i.val (absExpr e1) := Expr.fvar_refines hfv
+      obtain ⟨hacc2abs, hacc2wf⟩ := ExprOps.cons_expr_refines hfvwf hacc hacc2
+      have hn1v : n1.val = n.val - 1 := HashMap.uscalar_sub_eq hn1
+      have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+      obtain ⟨habs, hwf⟩ := ih acc2 n1 body i2 o (by omega) hacc2wf hbody ho
+      rw [hn1v, hi2v, hacc2abs, show n.val - 1 = N by omega] at habs
+      rw [habs1, show ((0#u64 : Std.U64)).val = 0 from rfl] at hfvabs
+      simp only [absExprKind, ConLeche.openPisAtFvarsFGo, ← hfvabs, ← habs]
+      cases o with
+      | none =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact ⟨by simp, by simp⟩
+      | some q =>
+        obtain ⟨fvs, b⟩ := q
+        obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+        simp only [Result.ok.injEq] at h
+        obtain ⟨hfvswf, hbwf⟩ := hwf (fvs, b) rfl
+        obtain ⟨hvabs, hvwf⟩ := ExprOps.cons_expr_refines hfvwf hfvswf hv
+        rw [← h]
+        refine ⟨by simp [hvabs], ?_⟩
+        intro p hp
+        simp only [Option.some.injEq] at hp
+        rw [← hp]
+        exact ⟨hvwf, hbwf⟩
+    | _ =>
+      simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+      rw [← Result.ok_injective h]
+      exact ⟨by simp [absExprKind, ConLeche.openPisAtFvarsFGo], by simp⟩
+
+/-- `ConLeche/Kernel/CheckerBase.lean:147-154 openPisAtFvarsF` — **the executed
+one**: the one-pass walk with the cited fallback. -/
+theorem open_pis_at_fvars_f_refines {n : Std.U64} {e : expr.Expr} {i : Std.U64}
+    {r : Option ((alloc.vec.Vec expr.Expr) × expr.Expr)} (he : ExprWF e)
+    (h : checker_base.open_pis_at_fvars_f n e i = ok r) :
+    (Option.map (fun p => (absExprs p.1, absExpr p.2)) r
+      = ConLeche.openPisAtFvarsF n.val (absExpr e) i.val)
+    ∧ (∀ p, r = some p → ExprsWF p.1 ∧ ExprWF p.2) := by
+  rw [checker_base.open_pis_at_fvars_f] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hoabs, howf⟩ :=
+    open_pis_at_fvars_f_go_refines n.val _ n e i o rfl ExprOps.exprsWF_new he ho
+  rw [ConLeche.openPisAtFvarsF]
+  rw [show absExprs (alloc.vec.Vec.new expr.Expr) = [] from rfl] at hoabs
+  rw [← hoabs]
+  cases o with
+  | none =>
+    simp only [Option.map_none]
+    exact open_pis_at_fvars_refines n.val n e i r rfl he h
+  | some q =>
+    simp only [Result.ok.injEq] at h
+    rw [← h]
+    exact ⟨by simp, howf⟩
+
+/-! ## `checkProjShape` — stage 2b, and state-free
+
+The cited definition is monad-polymorphic but touches neither the state nor
+the core, so it is run here at `ConLeche.Cached.CheckCM` — the monad the
+executed checker uses — and leaves the state where it found it. -/
+
+/-- `ConLeche/Kernel/CheckerBase.lean:235-250 checkProjShape` — the projection
+type's parameter telescope is syntactically the constructor's, and the
+constructor's residual is the family applied to exactly the parameters. -/
+theorem check_proj_shape_refines {pty ctor_ty : expr.Expr} {n_p n_f : Std.U64}
+    (hp : ExprWF pty) (hc : ExprWF ctor_ty)
+    (h : checker_base.check_proj_shape pty ctor_ty n_p n_f = ok (.Ok ())) :
+    ∀ lst : ConLeche.Cached.CState,
+      (ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM)
+        (absExpr pty) (absExpr ctor_ty) n_p.val n_f.val).run lst = .ok ((), lst) := by
+  intro lst
+  rw [checker_base.check_proj_shape] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨habs1, -⟩ := ExprOps.strip_pis_refines hp ho
+  cases o with
+  | none => simp at h
+  | some q1 =>
+    obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+    have hi1v : i1.val = n_p.val + n_f.val := HashMap.uscalar_add_eq hi1
+    obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨habs2, hwf2⟩ := ExprOps.strip_pis_refines hc ho1
+    rw [hi1v] at habs2
+    cases o1 with
+    | none => simp at h
+    | some q2 =>
+      obtain ⟨cbinders, cbody⟩ := q2
+      obtain ⟨-, hcbodywf⟩ := hwf2 (cbinders, cbody) rfl
+      obtain ⟨args, hargs, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hargsabs, hargswf⟩ := ExprOps.get_app_args_refines hcbodywf hargs
+      simp only [lift_eq, bind_tc_ok] at h
+      split at h
+      · simp at h
+      · rename_i hne
+        have hlen : args.val.length = n_p.val := by
+          have hcast : (Std.UScalar.cast .U64 (alloc.vec.Vec.len args) : Std.U64).val
+              = args.val.length := by
+            rw [ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+          simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hne
+          rw [← hcast, hne]
+        obtain ⟨f, hf, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hfabs, hfwf⟩ := ExprOps.get_app_fn_refines hcbodywf hf
+        obtain ⟨nd⟩ := f
+        obtain ⟨df, kf⟩ := nd
+        rw [ConLeche.checkProjShape]
+        simp only [← habs1, ← habs2, Option.map_some]
+        cases kf with
+        | Const cn cus =>
+          rw [absExpr_mk, absExprKind] at hfabs
+          simp only [← hargsabs, ← hfabs]
+          have : (absExprs args).length = n_p.val := by
+            simp only [absExprs, List.length_map]; exact hlen
+          simp [this]
+          rfl
+        | _ =>
+          simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+          simp at h
+
 end ConRon.Refine.CheckerBase

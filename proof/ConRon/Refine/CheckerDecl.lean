@@ -53,7 +53,7 @@ is stated at an arbitrary `Env` argument, which is what discharges it.
 as `lfe'.env` for an index `lfe'` the port's `fe'` stands in `FEnvRel` to —
 which is the form the fold consumes.
 
-## `sorry` count in this file: 10.
+## `sorry` count in this file: 9.
 
 All ten are the dispatch and fold lemmas whose arms are the sibling files'
 (`Refine/Checker.lean`, `Refine/CheckerPins.lean`, and
@@ -332,30 +332,6 @@ Eight statements.  Each arm's content is a sibling file's
 `Refine/CheckerBase.lean`); stated here so the dispatch is fixed and the
 composition is a `cases` on the declaration. -/
 
-/-- **`kernel::checker::check_decl` refines `checkDecl`**
-(`ConLeche/Kernel/Checker.lean:419-562`), at the cached operation record.  The
-environment in and out is the index (task #18 deviation 3); the Lean's
-pre-insertion `Env` is the index's own `env` (module note), and the Lean's
-output `Env` is the `env` of an index the port's result stands in `FEnvRel` to.
-
-`sorry`: needs the six arm lemmas — `Refine/CheckerBase.lean`'s
-`check_constant_val_refines`, `Refine/Checker.lean`'s
-`check_defn_val`/`check_thm_val`/`check_opaque_val`/`install_basis_decl`,
-`Refine/CheckerPins.lean`'s `check_div_mod_pin`/`check_reduce_pin` and the
-structural-`Nat` gate, and `check_ind_decl_declines` above. -/
-theorem check_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
-    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
-    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {d : env.Declaration}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclarationWF d)
-    (h : kernel.checker.check_decl mode pins st fe d = ok (.Ok fe', st')) :
-    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
-            (absDeclaration d)).run lst = .ok (lfe'.env, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
-  sorry
-
 /-- **`cached::parsed_c::check_decl_c` refines `checkDeclC`**
 (`ConLeche/Cached/ParsedC.lean:158-241`): the same six arms over the parsed
 representation, with `checkConstantValC`'s recorded judgement type threaded and
@@ -504,6 +480,55 @@ theorem check_basis_decl_refines {mode : env.CheckMode}
             (ConLeche.Declaration.basisDecl (absBasisKind kind))).run lst = .ok (lfe'.env, lst)
         ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
   sorry
+
+/-- **`kernel::checker::check_decl` refines `checkDecl`**
+(`ConLeche/Kernel/Checker.lean:419-562`), at the cached operation record.  The
+environment in and out is the index (task #18 deviation 3); the Lean's
+pre-insertion `Env` is the index's own `env` (module note), and the Lean's
+output `Env` is the `env` of an index the port's result stands in `FEnvRel` to.
+
+`sorry`: needs the six arm lemmas — `Refine/CheckerBase.lean`'s
+`check_constant_val_refines`, `Refine/Checker.lean`'s
+`check_defn_val`/`check_thm_val`/`check_opaque_val`/`install_basis_decl`,
+`Refine/CheckerPins.lean`'s `check_div_mod_pin`/`check_reduce_pin` and the
+structural-`Nat` gate, and `check_ind_decl_declines` above. -/
+theorem check_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {d : env.Declaration}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclarationWF d)
+    (h : kernel.checker.check_decl mode pins st fe d = ok (.Ok fe', st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ∃ lst' lfe',
+        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+            (absDeclaration d)).run lst = .ok (lfe'.env, lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+  intro lst lfe hsr hfr
+  rw [kernel.checker.check_decl.eq_def] at h
+  cases d with
+  | AxiomDecl cv =>
+    simp only [absDeclaration]
+    exact check_axiom_decl_refines hfuel hk hsw hfw hd h lst lfe hsr hfr
+  | DefnDecl cv value hint =>
+    simp only [absDeclaration]
+    exact check_defn_decl_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr
+  | ThmDecl cv value =>
+    simp only [absDeclaration]
+    exact check_thm_decl_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr
+  | OpaqueDecl cv value =>
+    simp only [absDeclaration]
+    exact check_opaque_decl_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr
+  | BasisDecl kind =>
+    simp only [absDeclaration]
+    obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+    have hrs : r = .Ok fe' ∧ st = st' := by simpa using h
+    obtain ⟨rfl, rfl⟩ := hrs
+    obtain ⟨lfe', hrun, hrel', hwf'⟩ :=
+      check_basis_decl_refines (mode := mode) hfw hr lst lfe hfr
+    exact ⟨lst, lfe', hrun, hsr, hsw, hrel', hwf'⟩
+  | IndDecl block n_p =>
+    -- task #24's third stub: the `Expr`-level arm never returns `.Ok`
+    exact absurd h check_ind_decl_declines
 
 /-! ## The fold
 
