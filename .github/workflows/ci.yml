@@ -162,7 +162,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # `vendor/aeneas` only; `vendor/con-leche` is a vendored subtree.
           submodules: true
@@ -180,7 +180,7 @@ jobs:
       # Charon and Aeneas come from the flake; `hacl.cachix.org` is Aeneas's
       # own binary cache, so this is a download and not a build.
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
+        uses: DeterminateSystems/nix-installer-action@v23
         with:
           extra-conf: |
             extra-substituters = https://hacl.cachix.org
@@ -229,14 +229,14 @@ jobs:
       # `scripts/setup-aeneas-lean.sh` is the one place that names it.
       - name: Restore the patched Aeneas library build
         id: cache-aeneas
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: _tmp/aeneas-lean/.lake/build
           key: aeneas-lean-${{ runner.os }}-${{ steps.keys.outputs.aeneas }}-${{ hashFiles('**/aeneas-433.patch') }}-${{ hashFiles('proof/lean-toolchain') }}
 
       - name: Restore the vendored con-leche build
         id: cache-conleche
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: vendor/con-leche/.lake
           key: con-leche-lake-${{ runner.os }}-${{ steps.keys.outputs.conleche }}-${{ hashFiles('vendor/con-leche/lean-toolchain', 'vendor/con-leche/lakefile.toml') }}
@@ -249,7 +249,7 @@ jobs:
       # reason.  Do not move either past the Aeneas step.
       - name: Restore the proof library build
         id: cache-proof
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: proof/.lake/build
           key: proof-build-${{ runner.os }}-${{ steps.keys.outputs.aeneas }}-${{ steps.keys.outputs.conleche }}-${{ hashFiles('proof/**/*.lean', 'proof/lakefile.toml', 'proof/lean-toolchain') }}
@@ -258,7 +258,7 @@ jobs:
             proof-build-${{ runner.os }}-
 
       - name: Cache the cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -297,7 +297,7 @@ jobs:
 
       - name: Save the patched Aeneas library build
         if: always() && steps.cache-aeneas.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: _tmp/aeneas-lean/.lake/build
           key: ${{ steps.cache-aeneas.outputs.cache-primary-key }}
@@ -329,21 +329,21 @@ jobs:
       # broken branch pays the cold cost again.
       - name: Save the vendored con-leche build
         if: always() && steps.cache-conleche.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: vendor/con-leche/.lake
           key: ${{ steps.cache-conleche.outputs.cache-primary-key }}
 
       - name: Save the proof library build
         if: always() && steps.cache-proof.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: proof/.lake/build
           key: ${{ steps.cache-proof.outputs.cache-primary-key }}
 
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ci-logs
           path: |
