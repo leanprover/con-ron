@@ -901,6 +901,105 @@ theorem checkMemberValF_run {ops : ConLeche.CheckerOps CheckCM}
   simp only [h1, h2, h3, h4, Bool.false_eq_true, if_false, if_true]
   rfl
 
+open ConLeche.Cached in
+/-- `checkMemberValF` passes on what `checkConstantValF` threw. -/
+theorem checkMemberValF_cv_err {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {bns : List ConLeche.Name} {cv : ConLeche.ConstantVal}
+    {lst : CState} {le : ConLeche.CheckError}
+    (h0 : (ConLeche.checkConstantValF ops lfe cv).run lst = .error le) :
+    (ConLeche.checkMemberValF ops bns lfe cv).run lst = .error le := by
+  rw [ConLeche.checkMemberValF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkConstantValF ops lfe cv) lst = Except.error le from h0]
+
+open ConLeche.Cached in
+/-- `checkMemberValF`'s model-shaped-name `throw` (`DeclCheck.lean:494`), the
+one `invalid` of the cited function. -/
+theorem checkMemberValF_model_name {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {bns : List ConLeche.Name}
+    {cv cvA : ConLeche.ConstantVal} {lst lst1 : CState}
+    (h0 : (ConLeche.checkConstantValF ops lfe cv).run lst = .ok (cvA, lst1))
+    (h1 : cvA.name.isModelSuffix = true) :
+    ∃ s, (ConLeche.checkMemberValF ops bns lfe cv).run lst
+      = .error (.invalid s) := by
+  rw [ConLeche.checkMemberValF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkConstantValF ops lfe cv) lst = Except.ok (cvA, lst1)
+    from h0]
+  simp only [h1, if_true]
+  exact ⟨_, rfl⟩
+
+open ConLeche.Cached in
+/-- `checkMemberValF`'s no-route `throw` (`DeclCheck.lean:496-499`). -/
+theorem checkMemberValF_no_route {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {bns : List ConLeche.Name}
+    {cv cvA : ConLeche.ConstantVal} {lst lst1 : CState}
+    (h0 : (ConLeche.checkConstantValF ops lfe cv).run lst = .ok (cvA, lst1))
+    (h1 : cvA.name.isModelSuffix = false)
+    (h2 : defnOf (lfe.find? (cvA.name.str "_model")) = none) :
+    ∃ s, (ConLeche.checkMemberValF ops bns lfe cv).run lst
+      = .error (.notImplemented s) := by
+  rw [ConLeche.checkMemberValF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkConstantValF ops lfe cv) lst = Except.ok (cvA, lst1)
+    from h0]
+  simp only [h1, Bool.false_eq_true, if_false]
+  cases hx : lfe.find? (cvA.name.str "_model") with
+  | none => exact ⟨_, rfl⟩
+  | some ci =>
+    rw [hx] at h2
+    cases ci with
+    | axiomInfo _ => exact ⟨_, rfl⟩
+    | defnInfo _ _ _ => simp [defnOf] at h2
+    | thmInfo _ _ => exact ⟨_, rfl⟩
+    | indInfo _ _ => exact ⟨_, rfl⟩
+    | ctorInfo _ _ _ => exact ⟨_, rfl⟩
+    | recInfo _ _ _ _ => exact ⟨_, rfl⟩
+    | projInfo _ => exact ⟨_, rfl⟩
+
+open ConLeche.Cached in
+/-- `checkMemberValF`'s model-level `throw` (`DeclCheck.lean:501`). -/
+theorem checkMemberValF_lps {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {bns : List ConLeche.Name}
+    {cv cvA cvm : ConLeche.ConstantVal} {mval : ConLeche.Expr}
+    {hint : ConLeche.ReducibilityHint} {lst lst1 : CState}
+    (h0 : (ConLeche.checkConstantValF ops lfe cv).run lst = .ok (cvA, lst1))
+    (h1 : cvA.name.isModelSuffix = false)
+    (h2 : lfe.find? (cvA.name.str "_model") = some (.defnInfo cvm mval hint))
+    (h3 : cvm.levelParams ≠ cvA.levelParams) :
+    ∃ s, (ConLeche.checkMemberValF ops bns lfe cv).run lst
+      = .error (.notImplemented s) := by
+  rw [ConLeche.checkMemberValF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkConstantValF ops lfe cv) lst = Except.ok (cvA, lst1)
+    from h0]
+  simp only [h1, h2, Bool.false_eq_true, if_false]
+  rw [if_neg h3]
+  exact ⟨_, rfl⟩
+
+open ConLeche.Cached in
+/-- `checkMemberValF`'s model-type `throw` (`DeclCheck.lean:503-505`). -/
+theorem checkMemberValF_ty {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {bns : List ConLeche.Name}
+    {cv cvA cvm : ConLeche.ConstantVal} {mval : ConLeche.Expr}
+    {hint : ConLeche.ReducibilityHint} {lst lst1 : CState}
+    (h0 : (ConLeche.checkConstantValF ops lfe cv).run lst = .ok (cvA, lst1))
+    (h1 : cvA.name.isModelSuffix = false)
+    (h2 : lfe.find? (cvA.name.str "_model") = some (.defnInfo cvm mval hint))
+    (h3 : cvm.levelParams = cvA.levelParams)
+    (h4 : (cvA.type.renameConsts (modelRename bns) == cvm.type) = false) :
+    ∃ s, (ConLeche.checkMemberValF ops bns lfe cv).run lst
+      = .error (.notImplemented s) := by
+  have hf : modelRename bns = fun n => if bns.contains n then n.str "_model" else n :=
+    rfl
+  rw [ConLeche.checkMemberValF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkConstantValF ops lfe cv) lst = Except.ok (cvA, lst1)
+    from h0]
+  rw [hf] at h4
+  simp only [h1, h2, h3, h4, Bool.false_eq_true, if_false, if_true]
+  exact ⟨_, rfl⟩
+
 /-- `ConLeche/Kernel/DeclCheck.lean:487-505 checkMemberValF` —
 **`inductives::modeled::check_member_val`**: the common `checkConstantVal`, no
 model-shaped name of its own, and the model companion the in-process modeller
@@ -909,23 +1008,37 @@ block's names renamed to their companions'. -/
 theorem check_member_val_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
-    {fe : fenv.FEnv} {cv cv' : env.ConstantVal}
+    {fe : fenv.FEnv} {cv : env.ConstantVal}
+    {out : core.result.Result env.ConstantVal core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hbn : NamesWF block_names)
     (hcv : ConstantValWF cv)
     (h : inductives.modeled.check_member_val mode st block_names fe cv
-      = ok (.Ok cv', st')) :
+      = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.checkMemberValF (m := ConLeche.Cached.CheckCM)
+      match out with
+      | .Ok cv' =>
+        ∃ lst', (ConLeche.checkMemberValF (m := ConLeche.Cached.CheckCM)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe)
+              (absNames block_names) lfe (absConstantVal cv)).run lst
+            = .ok (absConstantVal cv', lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkMemberValF (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe)
-            (absNames block_names) lfe (absConstantVal cv)).run lst
-          = .ok (absConstantVal cv', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv' := by
+            (absNames block_names) lfe (absConstantVal cv)).run lst) := by
   intro lst lfe hsr hfr
   rw [inductives.modeled.check_member_val] at h
   obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r, st1⟩ := q
   cases r with
-  | Err er => simp at h
+  | Err er =>
+    -- `checker_base::check_constant_val` threw, and the cited `do` passes it on
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    exact ErrSim.trans
+      (CheckerBase.check_constant_val_refines hfuel hk constsResolveFSpec hsw hfw
+        hcv hq lst lfe hsr hfr)
+      (fun le hle => checkMemberValF_cv_err hle)
   | Ok cv_a =>
     obtain ⟨lst1, hrun1, hsr1, hsw1, hcaw⟩ :=
       CheckerBase.check_constant_val_refines hfuel hk constsResolveFSpec hsw hfw
@@ -933,7 +1046,17 @@ theorem check_member_val_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
     have hbabs := name_is_model_suffix_refines hcaw.1 hb
     split at h
-    · simp [bind_eq_ok_iff] at h
+    · -- `modeled.rs:1625` ← `DeclCheck.lean:494`
+      rename_i hbt
+      obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      obtain ⟨ls, hls⟩ := checkMemberValF_model_name (bns := absNames block_names)
+        hrun1 (by rw [show (absConstantVal cv_a).name = absName cv_a.name from rfl,
+          ← hbabs]; exact hbt)
+      exact errSim_invalid hce rfl hls
     · rename_i hbf
       simp only [Bool.not_eq_true] at hbf
       obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
@@ -941,8 +1064,22 @@ theorem check_member_val_refines {mode : env.CheckMode} {fuel : Std.U64}
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨hoabs, howf⟩ := defn_probe_refines (FindAgree.of_rel hfr hfw)
         (FindWF.of_wf hfw) hnwf ho
+      have hmodelName : (absConstantVal cv_a).name.isModelSuffix = false := by
+        rw [show (absConstantVal cv_a).name = absName cv_a.name from rfl, ← hbabs]
+        exact hbf
+      have hnameEq : absName n = (absConstantVal cv_a).name.str "_model" := by
+        rw [hnabs]; rfl
       cases o with
-      | none => simp [bind_eq_ok_iff] at h
+      | none =>
+        -- `modeled.rs:1629` ← `DeclCheck.lean:496`
+        obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        obtain ⟨ls, hls⟩ := checkMemberValF_no_route (bns := absNames block_names)
+          hrun1 hmodelName (by rw [← hnameEq]; simpa using hoabs.symm)
+        exact errSim_notImplemented hce rfl hls
       | some dq =>
         obtain ⟨cv1, v1, hint1⟩ := dq
         obtain ⟨hcv1wf, -⟩ := howf cv1 v1 hint1 rfl
@@ -965,22 +1102,45 @@ theorem check_member_val_refines {mode : env.CheckMode} {fuel : Std.U64}
           split at h
           · rename_i hb2t
             subst hb2t
-            simp only [Result.ok.injEq, Prod.mk.injEq,
-              core.result.Result.Ok.injEq] at h
-            obtain ⟨rfl, rfl⟩ := h
+            obtain ⟨hout, rfl⟩ := ok_outS h
+            subst hout
             refine ⟨lst1, ?_, hsr1, hsw1, hcaw⟩
             refine checkMemberValF_run hrun1 ?_ hfind ?_ ?_
-            · rw [show (absConstantVal cv_a).name = absName cv_a.name from rfl,
-                ← hbabs]
-              exact hbf
+            · exact hmodelName
             · show absNames cv1.level_params = absNames cv_a.level_params
               simpa using hb1abs.symm
             · rw [show (absConstantVal cv_a).type = absExpr cv_a.ty from rfl,
                 show (absConstantVal cv1).type = absExpr cv1.ty from rfl,
                 ← hrabs, ← decide_eq_beq]
               exact hb2abs.symm
-          · simp [bind_eq_ok_iff] at h
-        · simp [bind_eq_ok_iff] at h
+          · -- `modeled.rs:1639` ← `DeclCheck.lean:503`
+            rename_i hb2f
+            obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨hout, -⟩ := err_outS h
+            subst hout
+            obtain ⟨ls, hls⟩ := checkMemberValF_ty (bns := absNames block_names)
+              hrun1 hmodelName hfind
+              (by show absNames cv1.level_params = absNames cv_a.level_params
+                  simpa using hb1abs.symm)
+              (by rw [show (absConstantVal cv_a).type = absExpr cv_a.ty from rfl,
+                    show (absConstantVal cv1).type = absExpr cv1.ty from rfl,
+                    ← hrabs, ← decide_eq_beq, ← hb2abs]
+                  simpa using hb2f)
+            exact errSim_notImplemented hce rfl hls
+        · -- `modeled.rs:1634` ← `DeclCheck.lean:501`
+          rename_i hb1f
+          obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          obtain ⟨ls, hls⟩ := checkMemberValF_lps (bns := absNames block_names)
+            hrun1 hmodelName hfind
+            (by show absNames cv1.level_params ≠ absNames cv_a.level_params
+                simpa [hb1abs] using hb1f)
+          exact errSim_notImplemented hce rfl hls
 
 /-! ### The projection lookups (`DeclCheck.lean:729-746`)
 
@@ -1920,17 +2080,24 @@ theorem check_proj_rule_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {pty : expr.Expr}
     {cvj : env.ConstantVal} {lps : alloc.vec.Vec name.Name}
-    {n_p n_f i : Std.U64} {rhs_a : expr.Expr}
+    {n_p n_f i : Std.U64}
+    {out : core.result.Result expr.Expr core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hpty : ExprWF pty)
     (hcvj : ConstantValWF cvj) (hlps : NamesWF lps)
     (h : checker_base.check_proj_rule mode st fe pty cvj lps n_p n_f i
-      = ok (.Ok rhs_a, st')) :
+      = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.checkProjRuleF (m := ConLeche.Cached.CheckCM)
+      match out with
+      | .Ok rhs_a =>
+        ∃ lst', (ConLeche.checkProjRuleF (m := ConLeche.Cached.CheckCM)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe (absExpr pty)
+              (absConstantVal cvj) (absNames lps) n_p.val n_f.val i.val).run lst
+            = .ok (absExpr rhs_a, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF rhs_a
+      | .Err e =>
+        ErrSim e ((ConLeche.checkProjRuleF (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe (absExpr pty)
-            (absConstantVal cvj) (absNames lps) n_p.val n_f.val i.val).run lst
-          = .ok (absExpr rhs_a, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF rhs_a :=
+            (absConstantVal cvj) (absNames lps) n_p.val n_f.val i.val).run lst) :=
   CheckerBase.check_proj_rule_refines hfuel hk constsResolveFSpec hsw hfw hpty
     hcvj hlps h
 
