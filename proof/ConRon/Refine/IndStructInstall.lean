@@ -438,13 +438,19 @@ theorem checkStructProjTableF_ok {w : ConLeche.StructWalkers}
 the fields' result-type bodies read off the *annotated* constructor type by
 substitution alone, the per-field guard levels, the constructor and the
 counts, pushed as one `projInfo` constant.  Nothing is annotated, inferred or
-pinned here, so no knot hypothesis is needed — only the two walkers. -/
+pinned here, so no knot hypothesis is needed — only the two walkers.
+
+The **unrestricted-canonical pair** rides through (task #59): the one success
+branch is a single `fenv::push`, so `FEnv.push_canon` carries
+`FEnvCanon`/`FEnvFull` from the index handed in to the one handed back.
+`Refine/IndSpec.lean`'s header says why the tier needs the pair at all. -/
 theorem check_struct_proj_table_refines
     {t c : name.Name} {lps : alloc.vec.Vec name.Name} {n_p n_f off : Std.U64}
     {res_sort : level.Level} {guards : alloc.vec.Vec level.Level}
     {cv_ca : env.ConstantVal} {fe fe' : fenv.FEnv} {lfe : ConLeche.FEnv}
     (hbodies : StructProjBodiesRefines) (hres : ConstsResolveFFastRefines)
     (hrel : FEnvRel fe lfe) (hfe : FEnvWF fe)
+    (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
     (ht : NameWF t) (hc : NameWF c) (hlps : NamesWF lps)
     (hsort : LevelWF res_sort) (hguards : LevelsWF guards)
     (hcv : ConstantValWF cv_ca)
@@ -455,7 +461,8 @@ theorem check_struct_proj_table_refines
           ConLeche.StructWalkers.plain (absName t) (absName c) (absNames lps)
           n_p.val n_f.val (absLevel res_sort) (absLevels guards) off.val
           (absConstantVal cv_ca) lfe).run lst = .ok (lfe', lst))
-      ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+      ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+      ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   rw [inductives.struct_install.check_struct_proj_table] at h
   obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
   have habs := hbodies t n_p n_f cv_ca.ty o ht hcv.2.2 ho
@@ -521,7 +528,8 @@ theorem check_struct_proj_table_refines
                     bodies := (absExprs bodies).toArray,
                     guards := absLevels guards, off := off.val } := by
               simp only [absConstantInfo, absProjTable, absNames, hvv]
-            refine ⟨_, ?_, hcia ▸ hrel', hfe'⟩
+            have hpc := FEnv.push_canon hfe hciwf hcan hfull hf
+            refine ⟨_, ?_, hcia ▸ hrel', hfe', hpc.1, hpc.2⟩
             intro lst
             refine checkStructProjTableF_ok (bodies := (absExprs bodies).toArray)
               habs1.symm ?_ ?_ ?_ ?_

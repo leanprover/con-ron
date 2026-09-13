@@ -636,6 +636,60 @@ theorem push_canon {fe fe' : fenv.FEnv} {ci : env.ConstantInfo}
   rw [← hpush]
   exact hrel
 
+/-! ### The index key *is* the stored constant's name (task #59)
+
+`ConLeche/Kernel/Env.lean:636` defines `Env.find? env n = env.consts.find?
+(·.name == n)`, so a found record's name is the name it was found under.  The
+*indexed* reading cannot see that on its own — `FEnv.find?` reads a hash map,
+and `FEnvRel` says nothing about which key a value sits at — but the rebuild
+`mkFEnvGo` only ever inserts `ci` at `ci.name`, so it holds of every canonical
+view.  `modeled::check_proj_iota_body` needs exactly this: it builds the
+constructor spine head from the *looked-up* `cvj.name` where `checkProjIotaF`
+writes the name it looked up under. -/
+
+/-- `mkFEnvGo` stores each constant under its own name. -/
+theorem mkFEnvGo_name : ∀ (l : List ConLeche.ConstantInfo) {n : ConLeche.Name}
+    {p : Nat × ConLeche.ConstantInfo},
+    (ConLeche.mkFEnvGo l).2[n]? = some p → p.2.name = n := by
+  intro l
+  induction l with
+  | nil => intro n p h; simp [ConLeche.mkFEnvGo] at h
+  | cons ci cs ih =>
+    intro n p h
+    rw [ConLeche.mkFEnvGo] at h
+    by_cases hn : ci.name = n
+    · rw [Std.HashMap.getElem?_insert] at h
+      rw [if_pos (by simp [hn])] at h
+      rw [← Option.some_inj.mp h]; exact hn
+    · rw [Std.HashMap.getElem?_insert, if_neg (by simpa using fun hc => hn hc)] at h
+      exact ih h
+
+/-- **A canonical view answers under the name it stores**: what `Env.find?`'s
+`(·.name == n)` gives on the list reading, recovered for the index. -/
+theorem canon_find_name {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name}
+    {ci : ConLeche.ConstantInfo} (hcan : FEnvCanon fe) (hrel : FEnvRel fe lfe)
+    (hn : NameWF n) (h : lfe.find? (absName n) = some ci) :
+    ci.name = absName n := by
+  rw [ConLeche.FEnv.find?] at h
+  -- the two indices agree at every well-formed name's image
+  have hidx : lfe.idx[absName n]?
+      = ((ConLeche.mkFEnv (absEnv fe.env)).restrictTo fe.visible_below.val).idx[absName n]? :=
+    (hrel.2.2 n hn).symm.trans (hcan.2.2 n hn)
+  rw [hidx] at h
+  cases hg : (ConLeche.mkFEnv (absEnv fe.env)).idx[absName n]? with
+  | none => rw [show ((ConLeche.mkFEnv (absEnv fe.env)).restrictTo
+      fe.visible_below.val).idx = (ConLeche.mkFEnv (absEnv fe.env)).idx from rfl, hg] at h
+            simp at h
+  | some p =>
+    rw [show ((ConLeche.mkFEnv (absEnv fe.env)).restrictTo
+      fe.visible_below.val).idx = (ConLeche.mkFEnv (absEnv fe.env)).idx from rfl, hg] at h
+    have hname : p.2.name = absName n := mkFEnvGo_name _ hg
+    obtain ⟨c, cc⟩ := p
+    simp only at h hname
+    by_cases hlt : c < lfe.visibleBelow
+    · rw [if_pos hlt] at h; rw [← Option.some_inj.mp h]; exact hname
+    · rw [if_neg hlt] at h; simp at h
+
 /-! ## The projection lookup and the slot queries -/
 
 /-- `ConLeche/Kernel/FEnv.lean:92-95` — `fenv::find_proj` refines

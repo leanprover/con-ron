@@ -17,7 +17,7 @@ passes.
 | group | items |
 |---|---|
 | the dictionary | `CapsOf` (`CapsOfRefines`, a hypothesis: `checkSumInd`'s `capsOf` argument is a one-method trait in the port) |
-| the former's telescope | `whnf_telescope`, `close_telescope`, `check_sum_tele`, `check_sum_tele_whnf`, `check_sum_ind` |
+| the former's telescope | `whnf_telescope`, `close_telescope`, `check_sum_tele`, `check_sum_tele_whnf`, `check_sum_ind` (with `check_sum_ind_canon`, the index-canonicity half `Refine/IndNativeInstall.lean` asks for as `CheckSumIndCanon`) |
 | the fields' sorts | `exprs_contains`, `exprs_contains_from`, `check_struct_field_sorts_i` |
 | the positivity walk as a normalisation | `norm_pos_dom`, `norm_field_doms`, `norm_ctor_val`, `zip_param_binders`(`_from`), `append_binders`(`_from`) |
 | the constructors' stage | `opened_resid_ok`, `field_doms_resolve_from`, `index_args_resolve_from`, `check_sum_ctor`, `check_sum_ctors`, `cons_sum_ctors` |
@@ -915,6 +915,56 @@ theorem check_sum_ind_refines {mode : env.CheckMode} {C : Type}
         simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
           StateT.pure, Except.pure, hwsabs, hcapsabs, absConstantInfo]
 
+
+/-- `check_sum_ind` keeps the **unrestricted-canonical** pair: its only index
+step is the `fenv::push` of the type former onto the index it was handed, and
+`FEnv.push_canon` is exactly that step.  This is
+`Refine/IndNativeInstall.lean`'s `CheckSumIndCanon` ingredient.
+
+`hfe2` is the one hypothesis beyond the three `FEnv` facts: `FEnv.push_canon`
+needs `ConstantInfoWF` of what is pushed, which here is
+`.IndInfo cv_ta (capsOf p₂)` — and `IndCapsWF` of the dictionary's record is
+*not* a consequence of the port's code, it is what `CapsOfRefines` supplies.
+Rather than drag the knot, `CheckConstantValRefines` and `CapsOfRefines` into a
+statement that says nothing about abstraction, the well-formedness of the
+*result* index is taken as given: every caller already has it, from
+`check_sum_ind_refines`' (resp. `NativeInstall.CheckSumIndRefines`') own
+`FEnvWF r.1` conjunct, and `EnvWF fe2.env` is where the pushed record's
+`ConstantInfoWF` is read back off. -/
+theorem check_sum_ind_canon {mode : env.CheckMode} {C : Type}
+    {inst : inductives.sum_install.CapsOf C} {self : C}
+    {st st' : cached.state_c.CState} {fe fe2 : fenv.FEnv}
+    {p p2 : inductives.sum_parts.InductiveShape} {cv_ta : env.ConstantVal}
+    (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
+    (h : inductives.sum_install.check_sum_ind inst mode st fe p self
+        = ok (.Ok (fe2, cv_ta, p2), st'))
+    (hfe2 : FEnvWF fe2) :
+    FEnv.FEnvCanon fe2 ∧ FEnv.FEnvFull fe2 := by
+  rw [inductives.sum_install.check_sum_ind] at h
+  obtain ⟨pp, hp0, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r0, st1⟩ := pp
+  cases r0 with
+  | Err err => simp at h
+  | Ok cv_ta0 =>
+    simp at h
+    obtain ⟨i, hi, a, b, htele, h⟩ := h
+    cases a with
+    | Err err => simp at h
+    | Ok q =>
+      obtain ⟨cvTa, s⟩ := q
+      simp at h
+      obtain ⟨o, ho, h⟩ := h
+      cases o with
+      | none => simp at h
+      | some tq =>
+        obtain ⟨tbs, e⟩ := tq
+        simp at h
+        obtain ⟨e1, he1, hbeq, hws, caps, hcapsok, cvd, hcvd, hpush, hcveq, hsteq⟩ := h
+        have hci : ConstantInfoWF (.IndInfo cvd caps) := by
+          refine hfe2.env _ ?_
+          rw [FEnv.push_consts hpush]
+          simp
+        exact FEnv.push_canon hfe hci hcan hfull hpush
 
 /-! ## The fields' sorts (`SumInstall.lean:118-152`) -/
 

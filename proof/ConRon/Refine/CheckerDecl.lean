@@ -36,6 +36,20 @@ declining past the parameter check, and a Rust function that never returns
 `.Ok` refines everything vacuously (§3.5) — `check_ind_decl_refines` records
 that, and records that it is a *decline*, never an accept.
 
+## The canonical-index pair rides through the parsed tier (task #59)
+
+`Refine/IndSpec.lean`'s `IndRoutesSpec` carries `FEnv.FEnvCanon`/`FEnv.FEnvFull`
+of the index it is handed — both inductive routes open by *rebuilding* the
+index with `fenv::dup`, and the clause is false for an index that is not its
+own environment's rebuild (that file's header has the argument).  So
+`check_ind_decl_c_refines`, `check_decl_c_refines` and
+`check_decl_step_c_refines` take the pair, and they **hand it back** with the
+answer, because `cached::installed`'s phase A is a fold that feeds one step's
+index into the next.  Every arm that installs is a `fenv::push`
+(`FEnv.push_canon`), the basis fold below included; the pair is discharged
+where the index is *built*, at `installed::check_decls`' `fenv::mk_fenv`
+(`FEnv.mk_fenv_canon` and `Installed.mk_fenv_full`).
+
 ## Two environments, one index — why the generic `checkDecl` is still the target
 
 `checkDecl` holds `env` (pre-insertion) and `env2` (extended) at once; the port
@@ -106,17 +120,29 @@ parameter count first and for both routes (con-leche task #228), then the
 one-route dispatch by the recogniser alone (task #210/#219).  Proved, with
 task #57's `IndRoutesSpec` as a named hypothesis: `Refine/Env.lean`'s
 `ind_params_ok_refines` gives the gate, and `IndRoutesSpec`'s two clauses give
-the recogniser's verdict *and* the chosen route together. -/
+the recogniser's verdict *and* the chosen route together.
+
+**`hcan`/`hfull` are not slack** (task #59).  `IndRoutesSpec`'s two clauses
+carry them, because `native_install::check_native_pass_former` and
+`inductives_c::check_ind_recs_s` copy the index with `fenv::dup`, which
+*rebuilds* it from the environment; `Refine/IndSpec.lean`'s header spells out
+why the clause is false for an index that is not its own environment's rebuild.
+They come back out with the answer, which is what `cached::installed`'s
+declaration fold needs, and they are discharged where the index is *built* —
+`FEnv.mk_fenv_canon` at `installed::check_decls`, `FEnv.push_canon` at every
+step in between. -/
 theorem check_ind_decl_c_refines {mode : env.CheckMode} (hind : IndRoutesSpec mode)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {block : alloc.vec.Vec env.ConstantInfo} {n_p : Std.U64}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hb : ConstantInfosWF block)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hb : ConstantInfosWF block)
     (h : cached.parsed_c.check_ind_decl_c mode st fe block n_p = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
         (ConLeche.Cached.checkDeclC (absMode mode) lfe
             (.indDecl (absConstantInfos block) n_p.val)).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_ind_decl_c] at h
   obtain ⟨b, hb', h⟩ := bind_eq_ok_iff.mp h
@@ -132,14 +158,14 @@ theorem check_ind_decl_c_refines {mode : env.CheckMode} (hind : IndRoutesSpec mo
     cases o with
     | none =>
       obtain ⟨lst', lfe', hnp, hrun, hrest⟩ :=
-        hind.modeled st fe n_p block fe' st' hsw hfw hb ho h lst lfe hsr hfr
+        hind.modeled st fe n_p block fe' st' hsw hfw hcan hfull hb ho h lst lfe hsr hfr
       refine ⟨lst', lfe', ?_, hrest⟩
       rw [ConLeche.Cached.checkDeclC]
       simp only [← hbv, if_pos, hnp]
       exact hrun
     | some p =>
       obtain ⟨lst', lfe', lp, hnp, hrun, hrest⟩ :=
-        hind.native st fe n_p block p fe' st' hsw hfw hb ho h lst lfe hsr hfr
+        hind.native st fe n_p block p fe' st' hsw hfw hcan hfull hb ho h lst lfe hsr hfr
       refine ⟨lst', lfe', ?_, hrest⟩
       rw [ConLeche.Cached.checkDeclC]
       simp only [← hbv, if_pos, hnp]
@@ -170,38 +196,43 @@ theorem check_ind_decl_declines {mode : env.CheckMode} {st st' : cached.state_c.
 `install_basis_decl_refines` is one step.  Neither the fold nor a step touches
 the `CState`, which is why the state comes out unchanged. -/
 
-/-- The index fold, with an explicit bound to recurse on. -/
+/-- The index fold, with an explicit bound to recurse on.  The
+**unrestricted-canonical pair** rides along (task #59): each step is one
+`fenv::push`, so `FEnv.push_canon` carries it, and the checker tier's
+declaration fold needs it back out (`Refine/IndSpec.lean`'s header). -/
 theorem install_basis_decls_from (n : Nat) :
     ∀ (fe fe' : fenv.FEnv) (decls : alloc.vec.Vec env.ConstantInfo) (i : Std.Usize),
-      decls.val.length - i.val ≤ n → FEnvWF fe → ConstantInfosWF decls →
+      decls.val.length - i.val ≤ n → FEnvWF fe → FEnv.FEnvCanon fe →
+      FEnv.FEnvFull fe → ConstantInfosWF decls →
       kernel.checker.install_basis_decls fe decls i = ok (.Ok fe') →
       ∀ lfe (lst : ConLeche.Cached.CState), FEnvRel fe lfe →
         ∃ lfe₂,
           (((absConstantInfos decls).drop i.val).foldlM
               (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst
             = .ok (lfe₂, lst)
-          ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe' := by
+          ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   induction n with
   | zero =>
-    intro fe fe' decls i hb hfw hd h lfe lst hfr
+    intro fe fe' decls i hb hfw hcan hfull hd h lfe lst hfr
     rw [kernel.checker.install_basis_decls] at h
     rw [if_pos (show i >= alloc.vec.Vec.len decls by
       have := alloc.vec.Vec.len_val decls; scalar_tac)] at h
     have hfe : fe = fe' := by simpa using h
     subst hfe
-    refine ⟨lfe, ?_, hfr, hfw⟩
+    refine ⟨lfe, ?_, hfr, hfw, hcan, hfull⟩
     rw [List.drop_eq_nil_of_le (by
       simp only [absConstantInfos, List.length_map]; omega)]
     rfl
   | succ n ih =>
-    intro fe fe' decls i hb hfw hd h lfe lst hfr
+    intro fe fe' decls i hb hfw hcan hfull hd h lfe lst hfr
     rw [kernel.checker.install_basis_decls] at h
     by_cases hge : i.val >= decls.val.length
     · rw [if_pos (show i >= alloc.vec.Vec.len decls by
         have := alloc.vec.Vec.len_val decls; scalar_tac)] at h
       have hfe : fe = fe' := by simpa using h
       subst hfe
-      refine ⟨lfe, ?_, hfr, hfw⟩
+      refine ⟨lfe, ?_, hfr, hfw, hcan, hfull⟩
       rw [List.drop_eq_nil_of_le (by
         simp only [absConstantInfos, List.length_map]; omega)]
       rfl
@@ -219,17 +250,17 @@ theorem install_basis_decls_from (n : Nat) :
       cases r with
       | Err e => simp at h
       | Ok fe2 =>
-        obtain ⟨hrel2, hwf2, hnone⟩ :=
-          Checker.install_basis_decl_refines hfw hciwf hins lfe hfr
+        obtain ⟨hrel2, hwf2, hnone, hcan2, hfull2⟩ :=
+          Checker.install_basis_decl_refines hfw hciwf hcan hfull hins lfe hfr
         obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
         have hi2v : i2.val = i.val + 1 := by
           have he := Std.UScalar.add_equiv i 1#usize
           rw [hi2] at he
           simpa using he.2.1
-        obtain ⟨lfe₂, hfold, hrel', hwf'⟩ :=
-          ih fe2 fe' decls i2 (by omega) hwf2 hd h
+        obtain ⟨lfe₂, hfold, hrel', hwf', hcan', hfull'⟩ :=
+          ih fe2 fe' decls i2 (by omega) hwf2 hcan2 hfull2 hd h
             (lfe.push (absConstantInfo ci1)) lst hrel2
-        refine ⟨lfe₂, ?_, hrel', hwf'⟩
+        refine ⟨lfe₂, ?_, hrel', hwf', hcan', hfull'⟩
         -- the list step: `drop i` is `absConstantInfo ci1 :: drop (i+1)`
         have hget : (absConstantInfos decls)[i.val]? = some (absConstantInfo ci1) := by
           simp only [absConstantInfos, List.getElem?_map, ExprOps.vec_index_getElem? hci]
@@ -255,17 +286,20 @@ theorem install_basis_decls_from (n : Nat) :
 installBasisDeclF`**, the whole table: the fold from index 0. -/
 theorem install_basis_decls_refines {fe fe' : fenv.FEnv}
     {decls : alloc.vec.Vec env.ConstantInfo}
-    (hfw : FEnvWF fe) (hd : ConstantInfosWF decls)
+    (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
+    (hd : ConstantInfosWF decls)
     (h : kernel.checker.install_basis_decls fe decls 0#usize = ok (.Ok fe')) :
     ∀ lfe (lst : ConLeche.Cached.CState), FEnvRel fe lfe →
       ∃ lfe₂,
         ((absConstantInfos decls).foldlM
             (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst
           = .ok (lfe₂, lst)
-        ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe' := by
+        ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lfe lst hfr
   obtain ⟨lfe₂, hfold, rest⟩ :=
-    install_basis_decls_from decls.val.length fe fe' decls 0#usize (by simp) hfw hd h lfe lst hfr
+    install_basis_decls_from decls.val.length fe fe' decls 0#usize (by simp) hfw hcan
+      hfull hd h lfe lst hfr
   exact ⟨lfe₂, by simpa using hfold, rest⟩
 
 /-- **`cached::parsed_c::check_basis_decl_c` refines `checkDeclC`'s
@@ -279,12 +313,14 @@ exactly.  `basis_decls_a_wf` is `Refine/BasisPins.lean`'s one `sorry` (the
 table's `ConstantInfosWF`), used here rather than re-derived. -/
 theorem check_basis_decl_c_refines {mode : env.CheckMode} {fe fe' : fenv.FEnv}
     {kind : env.BasisKind} (hfw : FEnvWF fe)
+    (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
     (h : cached.parsed_c.check_basis_decl_c fe kind = ok (.Ok fe')) :
     ∀ lst lfe, FEnvRel fe lfe →
       ∃ lfe',
         (ConLeche.Cached.checkDeclC (absMode mode) lfe
             (.basisDecl (absBasisKind kind))).run lst = .ok (lfe', lst)
-        ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hfr
   rw [cached.parsed_c.check_basis_decl_c, kernel.checker.check_basis_decl.eq_def] at h
   rw [ConLeche.Cached.checkDeclC]
@@ -296,14 +332,16 @@ theorem check_basis_decl_c_refines {mode : env.CheckMode} {fe fe' : fenv.FEnv}
         ((ConLeche.BasisKind.declsA (absBasisKind kind)).foldlM
             (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst
           = .ok (lfe₂, lst)
-        ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe' := by
+        ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
     intro v hv hi
     have habs : absConstantInfos v = ConLeche.BasisKind.declsA (absBasisKind kind) := by
       have := ConRon.Refine.absBasisDecls_eq kind
       rw [ConRon.Refine.absBasisDecls, hv] at this
       simpa using this
     obtain ⟨lfe₂, hfold, rest⟩ :=
-      install_basis_decls_refines hfw (BasisPins.basis_decls_a_wf hv) hi lfe lst hfr
+      install_basis_decls_refines hfw hcan hfull (BasisPins.basis_decls_a_wf hv) hi
+        lfe lst hfr
     exact ⟨lfe₂, habs ▸ hfold, rest⟩
   cases kind with
   | QuotK =>
@@ -315,7 +353,7 @@ theorem check_basis_decl_c_refines {mode : env.CheckMode} {fe fe' : fenv.FEnv}
       obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨lfe₂, hfold, rest⟩ := install v hv h
       refine ⟨lfe₂, ?_, rest⟩
-      simp only [absBasisKind, if_pos rfl] at hfold ⊢
+      simp only [absBasisKind] at hfold ⊢
       rw [show (lfe.find? ConLeche.eqName = some ConLeche.eqA) from by
         simpa using hbv.symm]
       simpa using hfold
@@ -353,7 +391,8 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr} {hint : env.ReducibilityHint}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
     (h : cached.parsed_c.check_defn_decl_c mode pins st fe cv value hint
         = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
@@ -361,7 +400,8 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
         (ConLeche.Cached.checkDeclC (absMode mode) lfe
             (.defnDecl (absConstantVal cv) (absExpr value) (absHint hint))).run lst
           = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   sorry
 
 /-- `checkDeclC`'s `.thmDecl` arm (`ParsedC.lean:186-188`).
@@ -371,13 +411,15 @@ theorem check_thm_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
     (h : cached.parsed_c.check_thm_decl_c mode st fe cv value = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
         (ConLeche.Cached.checkDeclC (absMode mode) lfe
             (.thmDecl (absConstantVal cv) (absExpr value))).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   sorry
 
 /-- `checkDeclC`'s `.opaqueDecl` arm (`ParsedC.lean:189-202`): the opaque
@@ -390,13 +432,15 @@ theorem check_opaque_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
     (h : cached.parsed_c.check_opaque_decl_c mode st fe cv value = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
         (ConLeche.Cached.checkDeclC (absMode mode) lfe
             (.opaqueDecl (absConstantVal cv) (absExpr value))).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   sorry
 
 /-- `checkDeclC`'s `.axiomDecl` arm (`ParsedC.lean:203-232`): the pinned
@@ -410,13 +454,15 @@ checked and not stored, and every other axiom is a positive decline.
 theorem check_axiom_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv : env.ConstantVal}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv)
     (h : cached.parsed_c.check_axiom_decl_c mode st fe cv = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
         (ConLeche.Cached.checkDeclC (absMode mode) lfe
             (.axiomDecl (absConstantVal cv))).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   sorry
 
 /-- **`cached::parsed_c::check_decl_c` refines `checkDeclC`**
@@ -435,39 +481,44 @@ theorem check_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hind : IndRoutesSpec mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {pd : parsed_c.DeclC}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclCWF pd)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hd : DeclCWF pd)
     (h : cached.parsed_c.check_decl_c mode pins st fe pd = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
         (ConLeche.Cached.checkDeclC (absMode mode) lfe (absDeclC pd)).run lst
             = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_decl_c.eq_def] at h
   cases pd with
   | AxiomDecl cv =>
     simp only [absDeclC]
-    exact check_axiom_decl_c_refines hfuel hk hsw hfw hd h lst lfe hsr hfr
+    exact check_axiom_decl_c_refines hfuel hk hsw hfw hcan hfull hd h lst lfe hsr hfr
   | DefnDecl cv value hint =>
     simp only [absDeclC]
-    exact check_defn_decl_c_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr
+    exact check_defn_decl_c_refines hfuel hk hsw hfw hcan hfull hd.1 hd.2 h lst lfe
+      hsr hfr
   | ThmDecl cv value =>
     simp only [absDeclC]
-    exact check_thm_decl_c_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr
+    exact check_thm_decl_c_refines hfuel hk hsw hfw hcan hfull hd.1 hd.2 h lst lfe
+      hsr hfr
   | OpaqueDecl cv value =>
     simp only [absDeclC]
-    exact check_opaque_decl_c_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr
+    exact check_opaque_decl_c_refines hfuel hk hsw hfw hcan hfull hd.1 hd.2 h lst lfe
+      hsr hfr
   | BasisDecl kind =>
     simp only [absDeclC]
     obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
     have hrs : r = .Ok fe' ∧ st = st' := by simpa using h
     obtain ⟨rfl, rfl⟩ := hrs
-    obtain ⟨lfe', hrun, hrel', hwf'⟩ :=
-      check_basis_decl_c_refines (mode := mode) hfw hr lst lfe hfr
-    exact ⟨lst, lfe', hrun, hsr, hsw, hrel', hwf'⟩
+    obtain ⟨lfe', hrun, hrel', hwf', hcan', hfull'⟩ :=
+      check_basis_decl_c_refines (mode := mode) hfw hcan hfull hr lst lfe hfr
+    exact ⟨lst, lfe', hrun, hsr, hsw, hrel', hwf', hcan', hfull'⟩
   | IndDecl block n_p =>
     simp only [absDeclC]
-    exact check_ind_decl_c_refines hind hsw hfw hd h lst lfe hsr hfr
+    exact check_ind_decl_c_refines hind hsw hfw hcan hfull hd h lst lfe hsr hfr
 
 /-- **`cached::parsed_c::check_decl_step_c` refines `checkDeclStepC`**
 (`ConLeche/Cached/ParsedC.lean:259-262`): `flushC`, then `checkDeclC`.  The
@@ -482,19 +533,22 @@ theorem check_decl_step_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hind : IndRoutesSpec mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {pd : parsed_c.DeclC}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclCWF pd)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hd : DeclCWF pd)
     (h : cached.parsed_c.check_decl_step_c mode pins st fe pd = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
         (ConLeche.Cached.checkDeclStepC (absMode mode) lfe (absDeclC pd)).run lst
             = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_decl_step_c] at h
   obtain ⟨st1, hflush, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hrunf, hrel1, hwf1, -⟩ := StateC.flush_c_refines hsr hsw hflush
   obtain ⟨lst', lfe', hrun, rest⟩ :=
-    check_decl_c_refines hfuel hk hind hwf1 hfw hd h lst.flushed lfe hrel1 hfr
+    check_decl_c_refines hfuel hk hind hwf1 hfw hcan hfull hd h lst.flushed lfe
+      hrel1 hfr
   refine ⟨lst', lfe', ?_, rest⟩
   rw [ConLeche.Cached.checkDeclStepC]
   simp only [StateT.run_bind, hrunf]

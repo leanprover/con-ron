@@ -14,10 +14,9 @@ refinement statement that some *other* file of the tier proves.
 This file is the tier's **leaf**: it imports all of them at once and discharges
 each ingredient from its owner's lemma.  Nothing here is a new refinement — each
 theorem is an application, sometimes with a `Prod`/`Option` bridge or a
-re-association of conjuncts.  `Refine/IndC.lean`'s `InductivesC.structGens`
-(the twelve `struct_parts` generators `native_parts` asks for) is the same
-move made one file earlier, where both sides were already in scope; it is not
-repeated here.
+re-association of conjuncts.  `structGens` — the twelve `struct_parts`
+generators `native_parts` asks for — is here too, and `Refine/IndC.lean`, the
+tier's driver file, imports this one.
 
 ## What is discharged, from where
 
@@ -58,7 +57,8 @@ lemma of the file the ingredient's own doc comment names.  Several of those
 lemmas still carry `sorry`s of their own while their files are being finished —
 that is by design, the tier's layering, and closing them closes these.
 -/
-import ConRon.Refine.IndC
+import ConRon.Refine.IndStructParts
+import ConRon.Refine.IndNativeParts
 import ConRon.Refine.IndModeled
 import ConRon.Refine.IndNativeInstall
 import ConRon.Refine.IndSumInstall
@@ -72,6 +72,35 @@ open ConRon.Generated ConRon.Generated.kernel ConRon.Generated.kernel.inductives
 open ConRon.Refine ConRon.Refine.State ConRon.Refine.FEnv
 
 namespace ConRon.Refine.IndIngredients
+
+/-! ## `kernel::inductives::struct_parts` — `Refine/IndNativeParts.lean`'s
+`StructGens`
+
+`native_parts`'s generators call twelve `struct_parts` items; task #57 bundled
+them as one hypothesis because the two files were written in parallel.  Each
+field is `Refine/IndStructParts.lean`'s exact refinement statement, so the
+discharge is twelve applications and nothing else. -/
+
+/-- **`Refine/IndNativeParts.lean`'s `StructGens`**, from
+`Refine/IndStructParts.lean`. -/
+theorem structGens : NativeParts.StructGens where
+  params_of := fun _ _ hlps h => StructParts.params_of_refines hlps h
+  level_is_prop := fun _ _ hs h => StructParts.level_is_prop_refines hs h
+  struct_ps_at := fun _ _ _ h => StructParts.struct_ps_at_refines h
+  field_spine := fun _ _ h => StructParts.field_spine_refines h
+  struct_ctor_spine_at := fun _ _ _ _ _ _ hc hlps h =>
+    StructParts.struct_ctor_spine_at_refines hc hlps h
+  struct_elim_level := fun _ _ _ he h => StructParts.struct_elim_level_refines he h
+  replace_pis_pw := fun _ _ _ _ _ hpw he hb h =>
+    StructParts.replace_pis_pw_refines hpw he hb h
+  pis_to_lams_pw := fun _ _ _ _ _ hpw he hb h =>
+    StructParts.pis_to_lams_pw_refines hpw he hb h
+  struct_fam_i := fun _ _ _ _ _ _ _ ht hlps h =>
+    StructParts.struct_fam_i_refines ht hlps h
+  struct_motive_ty_i := fun _ _ _ _ _ _ _ ht hlps hl hitele h =>
+    StructParts.struct_motive_ty_i_refines ht hlps hl hitele h
+  mentions_const := fun _ _ _ ht he h => StructParts.mentions_const_refines ht he h
+  struct_used_later := fun _ _ _ _ hcty h => StructParts.struct_used_later_refines hcty h
 
 /-! ## `decl_check::consts_resolve_f_fast`
 
@@ -174,7 +203,7 @@ theorem sumInstallFvarTypes : SumInstall.FvarTypesRefines := by
 /-! ## `kernel::inductives::struct_parts` — `Refine/IndStructParts.lean`
 
 The recogniser's generators and readers.  `Refine/IndC.lean`'s
-`InductivesC.structGens` already bundles the twelve `native_parts` asks for;
+`structGens` already bundles the twelve `native_parts` asks for;
 these are the ones the three *install* modules and the modeled route ask for
 separately. -/
 
@@ -188,7 +217,9 @@ theorem structFamRefines : Modeled.StructFamRefines := by
 (`StructParts.lean:336-337`). -/
 theorem structSpinesRefine : Modeled.StructSpinesRefine :=
   ⟨fun _ _ hlps h => StructParts.params_of_refines hlps h,
-   fun _ _ h => StructParts.struct_proj_ps_refines h⟩
+   fun _ _ h => StructParts.struct_proj_ps_refines h,
+   fun _ _ h => StructParts.field_spine_refines h,
+   fun _ _ _ h => StructParts.struct_ps_at_refines h⟩
 
 /-- `Refine/IndStructInstall.lean`'s `StructProjBodiesRefines`, the second of
 `StructWalkers.plain`'s two walkers. -/
@@ -234,7 +265,7 @@ theorem checkStructDomsAtRefines {mode : env.CheckMode}
 
 Eleven ingredients of `Refine/IndNativeInstall.lean`.  Six of the owner's
 lemmas take `NativeParts.StructGens`, which `Refine/IndC.lean` already
-discharges (`InductivesC.structGens`). -/
+discharges (`structGens`). -/
 
 /-- con-leche compares `RecFieldKind`s with `==`; `Refine/IndNativeParts.lean`
 states the port's `rec_field_kind_beq` with `decide`.  The two agree
@@ -257,7 +288,7 @@ theorem piBindersRefines : NativeInstall.PiBindersRefines := by
 /-- `Refine/IndNativeInstall.lean`'s `RecCtorKindsRefines`. -/
 theorem recCtorKindsRefines : NativeInstall.RecCtorKindsRefines := by
   intro _ _ _ _ _ _ ht hlps hc h
-  exact NativeParts.rec_ctor_kinds_refines InductivesC.structGens ht hlps hc h
+  exact NativeParts.rec_ctor_kinds_refines structGens ht hlps hc h
 
 /-- `native_parts::complete` replaces the record's shape wholesale
 (`native_parts.rs:501-507`), so the completed record's `NativePartsWF` is the
@@ -293,25 +324,25 @@ theorem withKindsRefines : NativeInstall.WithKindsRefines := by
 
 /-- `Refine/IndNativeInstall.lean`'s `NativeCtors4Refines`. -/
 theorem nativeCtors4Refines : NativeInstall.NativeCtors4Refines := by
-  intro _ _ _ hctors h
-  exact NativeParts.native_ctors4_refines hctors h
+  intro _ _ _ hctors hkf h
+  exact NativeParts.native_ctors4_refines hctors hkf h
 
 /-- `Refine/IndNativeInstall.lean`'s `StructRecTyRRefines`. -/
 theorem structRecTyRRefines : NativeInstall.StructRecTyRRefines := by
-  intro _ _ _ _ _ _ _ _ _ ht hlps helim htty hctors h
-  exact NativeParts.struct_rec_ty_r_refines InductivesC.structGens ht hlps helim
-    htty hctors h
+  intro _ _ _ _ _ _ _ _ _ ht hlps helim htty hctors hcpos h
+  exact NativeParts.struct_rec_ty_r_refines structGens ht hlps helim
+    htty hctors hcpos h
 
 /-- `Refine/IndNativeInstall.lean`'s `StructRecRhsRRefines`. -/
 theorem structRecRhsRRefines : NativeInstall.StructRecRhsRRefines := by
-  intro _ _ _ _ _ _ _ _ _ _ _ _ ht hlps helim htty hctors hrec hrlvls h
-  exact NativeParts.struct_rec_rhs_r_refines InductivesC.structGens ht hlps helim
-    htty hctors hrec hrlvls h
+  intro _ _ _ _ _ _ _ _ _ _ _ _ ht hlps helim htty hctors hcpos hj hrec hrlvls h
+  exact NativeParts.struct_rec_rhs_r_refines structGens ht hlps helim
+    htty hctors hcpos hj hrec hrlvls h
 
 /-- `Refine/IndNativeInstall.lean`'s `NativeRulesOkRefines`. -/
 theorem nativeRulesOkRefines : NativeInstall.NativeRulesOkRefines := by
   intro _ _ _ _ _ _ _ _ _ _ hrec hrlvls hpw hcs hrhss hrecty h
-  exact NativeParts.native_rules_ok_refines InductivesC.structGens hrec hrlvls hpw
+  exact NativeParts.native_rules_ok_refines structGens hrec hrlvls hpw
     hcs hrhss hrecty h
 
 /-- `Refine/IndNativeInstall.lean`'s `NativeRecLpsOkRefines`. -/
@@ -335,8 +366,16 @@ theorem sumRulesRefines : NativeInstall.SumRulesRefines := by
 theorem checkStructFieldSortsIRefines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU) :
     NativeInstall.CheckStructFieldSortsIRefines mode := by
-  intro _ _ _ _ _ _ _ _ _ _ _ hst hfe hs hfvs hidx h
-  exact SumInstall.check_struct_field_sorts_i_refines hw hst hfe hs hfvs hidx h
+  intro _ _ _ _ _ _ _ _ _ _ _ hst hfe hs hfvs hidx hj h
+  exact SumInstall.check_struct_field_sorts_i_refines hw hst hfe hs hfvs hidx hj h
+
+/-- `Refine/IndNativeInstall.lean`'s `CheckSumIndCanon`: `check_sum_ind` keeps
+the canonical pair, because the type former it installs is one `fenv::push`. -/
+theorem checkSumIndCanon {mode : env.CheckMode} :
+    NativeInstall.CheckSumIndCanon mode := by
+  intro _ _ _ _ _ _ _ r hfe hcan hfull h hfe2
+  obtain ⟨fe2, cv_ta, p2⟩ := r
+  exact SumInstall.check_sum_ind_canon hfe hcan hfull h hfe2
 
 /-- `Refine/IndNativeInstall.lean`'s `CheckSumIndRefines`, at **any** `CapsOf`
 dictionary whose `caps_of` refines the Lean closure.  The dictionary's own
@@ -385,8 +424,9 @@ counter and the cast wraps on a 32-bit target), so neither discharge assumes
 anything about the platform.  `kind_get_d_refines` still needs the bound — the
 index is the caller's.  `struct_proj_guards_refines` no longer does:
 `Refine/IndStructParts.lean` discharges it internally, off the `nF`-long `used`
-table its own walk builds, so `StructProjGuardsRefines`' bound is simply
-unused here. -/
+table its own walk builds, and `NativeInstall.StructProjGuardsRefines` dropped
+the bound with it (`native_install::check_native_table` has no `Vec` of the
+single constructor's field count in hand and so could not have supplied one). -/
 
 /-- `Refine/IndNativeInstall.lean`'s `KindGetDRefines`. -/
 theorem kindGetDRefines : NativeInstall.KindGetDRefines := by
@@ -395,7 +435,8 @@ theorem kindGetDRefines : NativeInstall.KindGetDRefines := by
 
 /-- `Refine/IndNativeInstall.lean`'s `StructProjGuardsRefines`. -/
 theorem structProjGuardsRefines : NativeInstall.StructProjGuardsRefines := by
-  intro _ _ _ _ _ hcty hsorts _hnf h
+  intro _ _ _ _ _ hcty hsorts h
   exact StructParts.struct_proj_guards_refines hcty hsorts h
+
 
 end ConRon.Refine.IndIngredients
