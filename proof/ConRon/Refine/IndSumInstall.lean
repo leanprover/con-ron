@@ -468,6 +468,70 @@ theorem checkSumTeleF_fall {lfe : ConLeche.FEnv} {cv cvTa0 : ConLeche.ConstantVa
   · next bs s heq => exact absurd heq (hstrip bs s)
   · rfl
 
+/-- `checkSumIndF`'s constant check threw: con-leche's own first bind carries
+it (`SumInstallF.lean:35`). -/
+theorem checkSumIndF_err_cv {lfe : ConLeche.FEnv} {p : ConLeche.InductiveShape}
+    {capsOf : ConLeche.InductiveShape → ConLeche.IndCaps}
+    {lst : ConLeche.Cached.CState} {ce : core_types.CheckError}
+    (h : ErrSim ce ((ConLeche.checkConstantValF ops lfe p.cvT).run lst)) :
+    ErrSim ce ((ConLeche.checkSumIndF ops lfe p capsOf).run lst) := by
+  rw [ConLeche.checkSumIndF]
+  exact ErrSim.bindCM h
+
+/-- `checkSumIndF`'s telescope stage threw (`SumInstallF.lean:36`). -/
+theorem checkSumIndF_err_tele {lfe : ConLeche.FEnv} {p : ConLeche.InductiveShape}
+    {capsOf : ConLeche.InductiveShape → ConLeche.IndCaps}
+    {cvTa0 : ConLeche.ConstantVal} {lst lst1 : ConLeche.Cached.CState}
+    {ce : core_types.CheckError}
+    (h0 : (ConLeche.checkConstantValF ops lfe p.cvT).run lst = .ok (cvTa0, lst1))
+    (h : ErrSim ce ((ConLeche.checkSumTeleF ops lfe p.cvT (p.nP + p.nIdx)
+      cvTa0).run lst1)) :
+    ErrSim ce ((ConLeche.checkSumIndF ops lfe p capsOf).run lst) := by
+  rw [ConLeche.checkSumIndF, run_bind, h0]
+  simp only [Except.bind]
+  rw [run_bind]
+  exact ErrSim.bind_run h _
+
+/-- `checkSumIndF` at a checked former whose type is not a telescope of its
+parameters and indices: `unwrapOr` throws `internal`
+(`SumInstallF.lean:37-38`, the port's `sum_install.rs:216`). -/
+theorem checkSumIndF_strip_none {lfe : ConLeche.FEnv} {p : ConLeche.InductiveShape}
+    {capsOf : ConLeche.InductiveShape → ConLeche.IndCaps}
+    {cvTa0 cvTa : ConLeche.ConstantVal} {s : ConLeche.Level}
+    {lst lst1 lst2 : ConLeche.Cached.CState}
+    (h0 : (ConLeche.checkConstantValF ops lfe p.cvT).run lst = .ok (cvTa0, lst1))
+    (h1 : (ConLeche.checkSumTeleF ops lfe p.cvT (p.nP + p.nIdx) cvTa0).run lst1
+      = .ok ((cvTa, s), lst2))
+    (hstrip : cvTa.type.stripPis (p.nP + p.nIdx) = none) :
+    (ConLeche.checkSumIndF ops lfe p capsOf).run lst
+      = .error (.internal "direct sum: type former telescope") := by
+  rw [ConLeche.checkSumIndF, run_bind, h0]
+  simp only [Except.bind]
+  rw [run_bind, h1]
+  simp [ConLeche.unwrapOr, hstrip, StateT.run, Bind.bind, StateT.bind, Except.bind]
+
+/-- `checkSumIndF` at a former whose telescope residual is not the result
+sort: both sides throw `internal` (`SumInstallF.lean:39-40`,
+`sum_install.rs:220`). -/
+theorem checkSumIndF_sort_ne {lfe : ConLeche.FEnv} {p : ConLeche.InductiveShape}
+    {capsOf : ConLeche.InductiveShape → ConLeche.IndCaps}
+    {cvTa0 cvTa : ConLeche.ConstantVal} {s : ConLeche.Level}
+    {tbs : List (ConLeche.Expr × ConLeche.BinderMeta)} {tbody : ConLeche.Expr}
+    {lst lst1 lst2 : ConLeche.Cached.CState}
+    (h0 : (ConLeche.checkConstantValF ops lfe p.cvT).run lst = .ok (cvTa0, lst1))
+    (h1 : (ConLeche.checkSumTeleF ops lfe p.cvT (p.nP + p.nIdx) cvTa0).run lst1
+      = .ok ((cvTa, s), lst2))
+    (hstrip : cvTa.type.stripPis (p.nP + p.nIdx) = some (tbs, tbody))
+    (hne : (tbody == ConLeche.Expr.sort s) = false) :
+    (ConLeche.checkSumIndF ops lfe p capsOf).run lst
+      = .error (.internal "direct sum: type former result sort") := by
+  have hne' : ¬ (tbody = ConLeche.Expr.sort s) := by simpa using hne
+  rw [ConLeche.checkSumIndF, run_bind, h0]
+  simp only [Except.bind]
+  rw [run_bind, h1]
+  simp [ConLeche.unwrapOr, hstrip, hne', StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure]
+
 /-- `normPosDom` at a domain the block does not occur in: kept as declared. -/
 theorem normPosDom_keep {lenv : ConLeche.Env} {T : ConLeche.Name} {d fuel : Nat}
     {e : ConLeche.Expr} {lst : ConLeche.Cached.CState}
@@ -1004,84 +1068,137 @@ theorem check_sum_ind_refines {mode : env.CheckMode} {C : Type}
     {lcapsOf : ConLeche.InductiveShape → ConLeche.IndCaps}
     (hw : Core.Wrappers mode IndAbs.checkFuelU) (hcv : CheckConstantValRefines mode)
     (hcaps : CapsOfRefines inst self lcapsOf)
-    {st st' : cached.state_c.CState} {fe fe2 : fenv.FEnv}
-    {p p2 : inductives.sum_parts.InductiveShape} {cv_ta : env.ConstantVal}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
+    {p : inductives.sum_parts.InductiveShape}
+    {o : core.result.Result (fenv.FEnv × env.ConstantVal
+      × inductives.sum_parts.InductiveShape) core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hp : IndAbs.InductiveShapeWF p)
     (h : inductives.sum_install.check_sum_ind inst mode st fe p self
-        = ok (.Ok (fe2, cv_ta, p2), st')) :
+        = ok (o, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (ConLeche.checkSumIndF (m := ConLeche.Cached.CheckCM)
+      match o with
+      | .Ok (fe2, cv_ta, p2) =>
+        ∃ lst' lfe',
+          (ConLeche.checkSumIndF (m := ConLeche.Cached.CheckCM)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
+              (IndAbs.absInductiveShape p) lcapsOf).run lst
+            = .ok ((lfe', absConstantVal cv_ta, IndAbs.absInductiveShape p2), lst')
+          ∧ FEnvRel fe2 lfe' ∧ FEnvWF fe2
+          ∧ StateRel st' lst' ∧ StateWF st'
+          ∧ ConstantValWF cv_ta ∧ IndAbs.InductiveShapeWF p2
+      | .Err e =>
+        ErrSim e ((ConLeche.checkSumIndF (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
-            (IndAbs.absInductiveShape p) lcapsOf).run lst
-          = .ok ((lfe', absConstantVal cv_ta, IndAbs.absInductiveShape p2), lst')
-        ∧ FEnvRel fe2 lfe' ∧ FEnvWF fe2
-        ∧ StateRel st' lst' ∧ StateWF st'
-        ∧ ConstantValWF cv_ta ∧ IndAbs.InductiveShapeWF p2 := by
+            (IndAbs.absInductiveShape p) lcapsOf).run lst) := by
   intro lst lfe hrel hfer
   rw [inductives.sum_install.check_sum_ind] at h
   obtain ⟨pp, hp0, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r0, st1⟩ := pp
+  have hcvkey := hcv st st1 fe p.cv_t _ hst hfe hp.1 hp0 lst lfe hrel hfer
   cases r0 with
-  | Err err => simp at h
+  | Err err =>
+    -- `checker_base::check_constant_val` threw (`sum_install.rs:211`)
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact checkSumIndF_err_cv hcvkey
   | Ok cv_ta0 =>
+    obtain ⟨lst1, hrun0, hrel1, hwf1, hcv0wf⟩ := hcvkey
+    have hrun0' : (ConLeche.checkConstantValF (m := ConLeche.Cached.CheckCM)
+        (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
+        (IndAbs.absInductiveShape p).cvT).run lst
+        = .ok (absConstantVal cv_ta0, lst1) := hrun0
     simp at h
     obtain ⟨i, hi, a, b, htele, h⟩ := h
+    have hiv : i.val = p.n_p.val + p.n_idx.val := HashMap.uscalar_add_eq hi
+    have htelekey :=
+      check_sum_tele_refines hw hcv hwf1 hfe hp.1 hcv0wf htele lst1 lfe hrel1 hfer
+    rw [hiv] at htelekey
     cases a with
-    | Err err => simp at h
+    | Err err =>
+      -- `check_sum_tele` threw (`sum_install.rs:213`)
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact checkSumIndF_err_tele hrun0' htelekey
     | Ok q =>
       obtain ⟨cv_ta', s⟩ := q
+      obtain ⟨lst2, hrun1, hrel2, hwf2, hcvtawf, hswf⟩ := htelekey
+      have hrun1' : (ConLeche.checkSumTeleF (m := ConLeche.Cached.CheckCM)
+          (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
+          (IndAbs.absInductiveShape p).cvT
+          ((IndAbs.absInductiveShape p).nP + (IndAbs.absInductiveShape p).nIdx)
+          (absConstantVal cv_ta0)).run lst1
+          = .ok ((absConstantVal cv_ta', absLevel s), lst2) := hrun1
+      have hnpidx : (IndAbs.absInductiveShape p).nP
+          + (IndAbs.absInductiveShape p).nIdx = i.val := by rw [hiv]; rfl
       simp at h
-      obtain ⟨o, ho, h⟩ := h
-      cases o with
-      | none => simp at h
+      obtain ⟨o1, ho, h⟩ := h
+      obtain ⟨hoabs, howf⟩ := ExprOps.strip_pis_refines hcvtawf.2.2 ho
+      cases o1 with
+      | none =>
+        -- the checked former's type is not a telescope: both sides throw
+        -- `internal` (`sum_install.rs:216`, `SumInstallF.lean:37-38`)
+        simp at h
+        obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+        have hstripnone : (absConstantVal cv_ta').type.stripPis
+            ((IndAbs.absInductiveShape p).nP
+              + (IndAbs.absInductiveShape p).nIdx) = none := by
+          rw [hnpidx]; simpa [absConstantVal] using hoabs.symm
+        refine ErrSim.of_eq
+          (x := Except.error (.internal "direct sum: type former telescope")) ?_ ?_
+        · rw [internal_err hce]; exact ErrSim.internal rfl
+        · exact checkSumIndF_strip_none hrun0' hrun1' hstripnone
       | some tq =>
         obtain ⟨tbs, e⟩ := tq
-        simp at h
-        obtain ⟨e1, he1, hbeq, hws, caps, hcapsok, cvd, hcvd, hpush, rfl, rfl⟩ := h
-        obtain ⟨lst1, hrun0, hrel1, hwf1, hcv0wf⟩ :=
-          hcv st st1 fe p.cv_t _ hst hfe hp.1 hp0 lst lfe hrel hfer
-        have hiv : i.val = p.n_p.val + p.n_idx.val := HashMap.uscalar_add_eq hi
-        obtain ⟨lst2, hrun1, hrel2, hwf2, hcvtawf, hswf⟩ :=
-          check_sum_tele_refines hw hcv hwf1 hfe hp.1 hcv0wf htele lst1 lfe hrel1 hfer
-        obtain ⟨hoabs, howf⟩ := ExprOps.strip_pis_refines hcvtawf.2.2 ho
         obtain ⟨htbswf, hewf⟩ := howf _ rfl
+        have hstrip : (absConstantVal cv_ta').type.stripPis
+            ((IndAbs.absInductiveShape p).nP
+              + (IndAbs.absInductiveShape p).nIdx)
+            = some (ExprOps.absBinders tbs, absExpr e) := by
+          rw [hnpidx]; simpa [absConstantVal] using hoabs.symm
+        simp at h
+        obtain ⟨e1, he1, hcase⟩ := h
         have he1abs : absExpr e1 = .sort (absLevel s) := Expr.sort_refines he1
         have he1wf : ExprWF e1 := Expr.sort_wf hswf he1
-        have hbeq' : absExpr e = ConLeche.Expr.sort (absLevel s) := by
-          have := Expr.beq_refines hewf he1wf hbeq
-          rw [he1abs] at this
-          exact of_decide_eq_true this.symm
-        have hp2wf : IndAbs.InductiveShapeWF p2 := by
-          rw [inductives.sum_parts.with_sort] at hws
-          obtain ⟨bb, hbb, hws⟩ := bind_eq_ok_iff.mp hws
-          rw [← Result.ok_injective hws]
-          exact ⟨hp.1, hp.2.1, hp.2.2.1, hp.2.2.2.1, hswf, hp.2.2.2.2.2⟩
-        have hwsabs : IndAbs.absInductiveShape p2
-            = (IndAbs.absInductiveShape p).withSort (absLevel s) :=
-          SumParts.with_sort_refines hswf hws
-        obtain ⟨hcapsabs, hcapswf⟩ := hcaps p2 caps hp2wf hcapsok
-        rw [hwsabs] at hcapsabs
-        rw [Env.constant_val_dup_refines hcvd] at hpush
-        obtain ⟨hrelpush, hwfpush⟩ :=
-          FEnv.push_refines hfer hfe (show ConstantInfoWF (.IndInfo cv_ta' caps) from
-            ⟨hcvtawf, hcapswf⟩) hpush
-        refine ⟨lst2, lfe.push (absConstantInfo (.IndInfo cv_ta' caps)), ?_,
-          hrelpush, hwfpush, hrel2, hwf2, hcvtawf, hp2wf⟩
-        have hstrip : (absConstantVal cv_ta').type.stripPis i.val
-            = some (ExprOps.absBinders tbs, absExpr e) := by
-          simpa [absConstantVal] using hoabs.symm
-        rw [ConLeche.checkSumIndF,
-          show (IndAbs.absInductiveShape p).cvT = absConstantVal p.cv_t from rfl,
-          show (IndAbs.absInductiveShape p).nP + (IndAbs.absInductiveShape p).nIdx
-            = i.val from by rw [hiv]; rfl,
-          run_bind, hrun0]
-        simp only [Except.bind]
-        rw [run_bind, hrun1]
-        simp only [Except.bind]
-        simp only [hstrip, ConLeche.unwrapOr, hbeq']
-        simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
-          StateT.pure, Except.pure, hwsabs, hcapsabs, absConstantInfo]
+        rcases hcase with ⟨hbeq, v, hv, ce, hce, rfl, rfl⟩
+          | ⟨hbeq, p2, hws, caps, hcapsok, cvd, hcvd, fe2, hpush, rfl, rfl⟩
+        · -- the residual is not the result sort: both sides throw `internal`
+          -- (`sum_install.rs:220`, `SumInstallF.lean:39-40`)
+          have hbeqabs := Expr.beq_refines hewf he1wf hbeq
+          rw [he1abs] at hbeqabs
+          have hne : (absExpr e == ConLeche.Expr.sort (absLevel s)) = false := by
+            simpa using hbeqabs.symm
+          refine ErrSim.of_eq
+            (x := Except.error (.internal "direct sum: type former result sort"))
+            ?_ ?_
+          · rw [internal_err hce]; exact ErrSim.internal rfl
+          · exact checkSumIndF_sort_ne hrun0' hrun1' hstrip hne
+        · have hbeqabs := Expr.beq_refines hewf he1wf hbeq
+          rw [he1abs] at hbeqabs
+          have hbeq' : absExpr e = ConLeche.Expr.sort (absLevel s) :=
+            of_decide_eq_true hbeqabs.symm
+          have hp2wf : IndAbs.InductiveShapeWF p2 := by
+            rw [inductives.sum_parts.with_sort] at hws
+            obtain ⟨bb, hbb, hws⟩ := bind_eq_ok_iff.mp hws
+            rw [← Result.ok_injective hws]
+            exact ⟨hp.1, hp.2.1, hp.2.2.1, hp.2.2.2.1, hswf, hp.2.2.2.2.2⟩
+          have hwsabs : IndAbs.absInductiveShape p2
+              = (IndAbs.absInductiveShape p).withSort (absLevel s) :=
+            SumParts.with_sort_refines hswf hws
+          obtain ⟨hcapsabs, hcapswf⟩ := hcaps p2 caps hp2wf hcapsok
+          rw [hwsabs] at hcapsabs
+          rw [Env.constant_val_dup_refines hcvd] at hpush
+          obtain ⟨hrelpush, hwfpush⟩ :=
+            FEnv.push_refines hfer hfe (show ConstantInfoWF (.IndInfo cv_ta' caps) from
+              ⟨hcvtawf, hcapswf⟩) hpush
+          refine ⟨lst2, lfe.push (absConstantInfo (.IndInfo cv_ta' caps)), ?_,
+            hrelpush, hwfpush, hrel2, hwf2, hcvtawf, hp2wf⟩
+          rw [ConLeche.checkSumIndF, run_bind, hrun0']
+          simp only [Except.bind]
+          rw [run_bind, hrun1']
+          simp only [Except.bind]
+          simp only [hstrip, ConLeche.unwrapOr, hbeq']
+          simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+            StateT.pure, Except.pure, hwsabs, hcapsabs, absConstantInfo]
 
 
 /-- `check_sum_ind` keeps the **unrestricted-canonical** pair: its only index
