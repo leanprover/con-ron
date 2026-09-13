@@ -192,6 +192,11 @@ theorem pi_result_sort_refines {e : expr.Expr} {o : Option level.Level}
     subst h
     exact ⟨by simp, by simp⟩
 
+/-- con-leche compares names with `==`; `Refine/Name.lean` states `name::beq`
+with `decide`.  The two agree (`Name`'s `BEq` is lawful). -/
+theorem decide_eq_beq_name (a b : ConLeche.Name) : decide (a = b) = (a == b) := by
+  rw [Bool.eq_iff_iff]; simp
+
 /-- `ConLeche/Kernel/CheckerBase.lean:186-189 isEqHead` — the pinned equality
 former at one level. -/
 theorem is_eq_head_refines {e : expr.Expr} {b : Bool} (he : ExprWF e)
@@ -215,7 +220,7 @@ theorem is_eq_head_refines {e : expr.Expr} {b : Bool} (he : ExprWF e)
         | cons v vs => rw [hv] at hl1; simp at hl1
         | nil =>
           rw [Name.beq_refines hcwf hmwf hb, hmabs]
-          simp [ConLeche.isEqHead]
+          simp [ConLeche.isEqHead, decide_eq_beq_name]
     · rename_i hlen
       have hl1 : us.val.length ≠ 1 := by scalar_tac
       simp only [Result.ok.injEq] at h
@@ -277,5 +282,249 @@ theorem eq_head_level_refines {e : expr.Expr} {u : level.Level} (he : ExprWF e)
   | _ =>
     simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
     exact ⟨by rw [Level.zero_refines h]; simp [ConLeche.eqHeadLevel], Level.zero_wf h⟩
+
+/-! ## `domsMatchAux` at the identity view, and its `Array` twin
+
+Task #24's deviation 1: the cited `g : Nat → Expr → Expr` is a closure §3.4
+forbids, so the port replaces it with a `DomView` dictionary and passes
+`DomIdent` — `fun _ e => e` — at every call site in this scope.  The cited
+`Array` twin `domsMatchAuxA` (`CheckerBase.lean:120-129`) is the *same* Rust
+function, and `domsMatchAuxA_eq` is the equation between them; both readings
+are stated below. -/
+
+/-- con-leche compares terms with `==`; `Refine/Expr.lean` states `expr::beq`
+with `decide`.  The two agree. -/
+theorem decide_eq_beq_expr (a b : ConLeche.Expr) : decide (a = b) = (a == b) := by
+  rw [Bool.eq_iff_iff]; simp
+
+/-- The cited `(List.range n).all` body, at the identity view. -/
+def domsStep (bs₁ bs₂ : List (ConLeche.Expr × ConLeche.BinderMeta)) (o₁ o₂ i : Nat) : Bool :=
+  match bs₁[o₁ + i]?, bs₂[o₂ + i]? with
+  | some b₁, some b₂ => b₁.1 == b₂.1
+  | _, _ => false
+
+/-- `domsMatchAux` at the identity view *is* `domsStep`'s `List.range` fold. -/
+theorem domsMatchAux_ident (bs₁ bs₂ : List (ConLeche.Expr × ConLeche.BinderMeta))
+    (o₁ o₂ n : Nat) :
+    ConLeche.domsMatchAux (fun _ e => e) bs₁ bs₂ o₁ o₂ n
+      = (List.range n).all (domsStep bs₁ bs₂ o₁ o₂) := rfl
+
+/-- `domsMatchAuxA` at the identity view is the same fold over the arrays. -/
+theorem domsMatchAuxA_ident (bs₁ bs₂ : List (ConLeche.Expr × ConLeche.BinderMeta))
+    (o₁ o₂ n : Nat) :
+    ConLeche.domsMatchAuxA (fun _ e => e) bs₁.toArray bs₂.toArray o₁ o₂ n
+      = (List.range n).all (domsStep bs₁ bs₂ o₁ o₂) := by
+  rw [ConLeche.domsMatchAuxA]
+  simp only [List.getElem?_toArray]
+  rfl
+
+/-- `DomIdent`'s one method is the cited `fun _ e => e` (`expr::dup` is the
+identity in the model, DESIGN.md §3.2). -/
+theorem dom_ident_view_refines {i : Std.U64} {e r : expr.Expr}
+    (h : checker_base.DomIdent.Insts.Con_ron_coreKernelChecker_baseDomView.view () i e = ok r) :
+    r = e := by
+  rw [checker_base.DomIdent.Insts.Con_ron_coreKernelChecker_baseDomView.view] at h
+  exact Expr.dup_eq h
+
+/-- Indexing a binder vector: the abstracted list agrees at the same index. -/
+theorem vec_index_binder {bs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
+    {i : Std.Usize} {p : expr.Expr × expr.BinderMeta} (hbs : ExprOps.BindersWF bs)
+    (h : alloc.vec.Vec.index
+      (core.slice.index.SliceIndexUsizeSlice (expr.Expr × expr.BinderMeta)) bs i = ok p) :
+    ExprWF p.1 ∧ (ExprOps.absBinders bs)[i.val]?
+      = some (absExpr p.1, absBinderMeta p.2) := by
+  have hg := ExprOps.vec_index_getElem? h
+  have hlt : i.val < bs.val.length := by
+    by_contra hc
+    rw [List.getElem?_eq_none (by omega)] at hg; simp at hg
+  have hx : bs.val[i.val] = p := by
+    rw [List.getElem?_eq_getElem hlt] at hg; exact Option.some_injective _ hg
+  refine ⟨(hbs p (by rw [← hx]; exact List.getElem_mem hlt)).1, ?_⟩
+  rw [ExprOps.absBinders, List.getElem?_map, hg]
+  rfl
+
+/-- `ConLeche/Kernel/CheckerBase.lean:99-106 domsMatchAux` — the index
+recursion behind `doms_match_aux`, at the positions from `i` on. -/
+theorem doms_match_aux_from_refines
+    {bs1 bs2 : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
+    (hb1 : ExprOps.BindersWF bs1) (hb2 : ExprOps.BindersWF bs2) :
+    ∀ (N : Nat) (o1 o2 n i : Std.U64), n.val - i.val ≤ N → ∀ b : Bool,
+      checker_base.doms_match_aux_from
+        checker_base.DomIdent.Insts.Con_ron_coreKernelChecker_baseDomView () bs1 bs2 o1 o2 n i
+        = ok b →
+      b = (List.range' i.val (n.val - i.val)).all
+            (domsStep (ExprOps.absBinders bs1) (ExprOps.absBinders bs2) o1.val o2.val) := by
+  have hlen1 : (ExprOps.absBinders bs1).length = bs1.val.length := by simp [ExprOps.absBinders]
+  have hlen2 : (ExprOps.absBinders bs2).length = bs2.val.length := by simp [ExprOps.absBinders]
+  intro N
+  induction N with
+  | zero =>
+    intro o1 o2 n i hN b h
+    rw [checker_base.doms_match_aux_from.eq_def] at h
+    simp only [] at h
+    rw [if_pos (by scalar_tac)] at h
+    rw [show n.val - i.val = 0 by omega]
+    simpa using h.symm
+  | succ N ih =>
+    intro o1 o2 n i hN b h
+    rw [checker_base.doms_match_aux_from.eq_def] at h
+    simp only [] at h
+    split at h
+    · rw [show n.val - i.val = 0 by scalar_tac]
+      simpa using h.symm
+    · rename_i hlt
+      have hltv : i.val < n.val := by scalar_tac
+      simp only [lift_eq, bind_tc_ok] at h
+      obtain ⟨j1, hj1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨j2, hj2, h⟩ := bind_eq_ok_iff.mp h
+      have hj1v : j1.val = o1.val + i.val := HashMap.uscalar_add_eq hj1
+      have hj2v : j2.val = o2.val + i.val := HashMap.uscalar_add_eq hj2
+      have hc1 : (Std.UScalar.cast .U64 (alloc.vec.Vec.len bs1) : Std.U64).val
+          = bs1.val.length := by rw [ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+      have hc2 : (Std.UScalar.cast .U64 (alloc.vec.Vec.len bs2) : Std.U64).val
+          = bs2.val.length := by rw [ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+      rw [show n.val - i.val = (n.val - i.val - 1) + 1 by omega, List.range'_succ,
+        List.all_cons]
+      split at h
+      · rename_i hge
+        have hnone : (ExprOps.absBinders bs1)[o1.val + i.val]? = none :=
+          List.getElem?_eq_none (by rw [hlen1]; scalar_tac)
+        simp only [domsStep, hnone]
+        simpa using h.symm
+      · rename_i hlt1
+        split at h
+        · rename_i hge
+          have hnone : (ExprOps.absBinders bs2)[o2.val + i.val]? = none :=
+            List.getElem?_eq_none (by rw [hlen2]; scalar_tac)
+          simp only [domsStep, hnone]
+          rcases hs : (ExprOps.absBinders bs1)[o1.val + i.val]? with _ | q <;>
+            simpa using h.symm
+        · rename_i hlt2
+          obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨e2, m2⟩ := p2
+          obtain ⟨viewed, hview, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨e1, m1⟩ := p1
+          obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+          have hi5 : ((Std.UScalar.cast .Usize j2 : Std.Usize)).val = j2.val :=
+            ExprOps.u64_cast_usize_val_of_lt (n := bs2.val.length)
+              (by have := bs2.slice.property; scalar_tac) (by scalar_tac)
+          have hi6 : ((Std.UScalar.cast .Usize j1 : Std.Usize)).val = j1.val :=
+            ExprOps.u64_cast_usize_val_of_lt (n := bs1.val.length)
+              (by have := bs1.slice.property; scalar_tac) (by scalar_tac)
+          obtain ⟨hw2, hg2⟩ := vec_index_binder hb2 hp2
+          obtain ⟨hw1, hg1⟩ := vec_index_binder hb1 hp1
+          rw [hi5, hj2v] at hg2
+          rw [hi6, hj1v] at hg1
+          rw [dom_ident_view_refines hview] at hc
+          have hcv := Expr.beq_refines hw1 hw2 hc
+          simp only [domsStep, hg1, hg2, ← decide_eq_beq_expr, ← hcv]
+          cases c with
+          | false =>
+            simp only [Bool.false_eq_true, if_false] at h
+            simpa using h.symm
+          | true =>
+            simp only [reduceIte] at h
+            obtain ⟨i7, hi7, h⟩ := bind_eq_ok_iff.mp h
+            have hi7v : i7.val = i.val + 1 := HashMap.uscalar_add_eq hi7
+            have hih := ih o1 o2 n i7 (by omega) b h
+            rw [hi7v, show n.val - (i.val + 1) = n.val - i.val - 1 by omega] at hih
+            simpa using hih
+
+/-- `ConLeche/Kernel/CheckerBase.lean:99-106 domsMatchAux` — the wrapper, at
+the identity view. -/
+theorem doms_match_aux_refines
+    {bs1 bs2 : alloc.vec.Vec (expr.Expr × expr.BinderMeta)} {o1 o2 n : Std.U64} {b : Bool}
+    (hb1 : ExprOps.BindersWF bs1) (hb2 : ExprOps.BindersWF bs2)
+    (h : checker_base.doms_match_aux
+      checker_base.DomIdent.Insts.Con_ron_coreKernelChecker_baseDomView () bs1 bs2 o1 o2 n
+      = ok b) :
+    b = ConLeche.domsMatchAux (fun _ e => e)
+      (ExprOps.absBinders bs1) (ExprOps.absBinders bs2) o1.val o2.val n.val := by
+  rw [checker_base.doms_match_aux] at h
+  have hh := doms_match_aux_from_refines hb1 hb2 n.val o1 o2 n 0#u64 (by scalar_tac) b h
+  rw [domsMatchAux_ident, List.range_eq_range']
+  simpa using hh
+
+/-- `ConLeche/Kernel/CheckerBase.lean:120-129 domsMatchAuxA` — the `Array`
+twin is the same Rust function (task #24's `F`/`Array` collapse); this is the
+reading `checkProjRuleF` consumes. -/
+theorem doms_match_aux_refines_array
+    {bs1 bs2 : alloc.vec.Vec (expr.Expr × expr.BinderMeta)} {o1 o2 n : Std.U64} {b : Bool}
+    (hb1 : ExprOps.BindersWF bs1) (hb2 : ExprOps.BindersWF bs2)
+    (h : checker_base.doms_match_aux
+      checker_base.DomIdent.Insts.Con_ron_coreKernelChecker_baseDomView () bs1 bs2 o1 o2 n
+      = ok b) :
+    b = ConLeche.domsMatchAuxA (fun _ e => e)
+      (ExprOps.absBinders bs1).toArray (ExprOps.absBinders bs2).toArray
+      o1.val o2.val n.val := by
+  rw [domsMatchAuxA_ident, ← domsMatchAux_ident]
+  exact doms_match_aux_refines hb1 hb2 h
+
+/-! ## `fvs.map Expr.fvarTypeD`
+
+con-leche writes the map inline in `checkProjRule`/`checkIotaThm`; §3.4 forbids
+the closure, so the port has `fvar_types`. -/
+
+/-- `checker_base::fvar_types_from` — the accumulating index recursion. -/
+theorem fvar_types_from_refines {fvs : alloc.vec.Vec expr.Expr} (hfvs : ExprsWF fvs) :
+    ∀ (N : Nat) (i : Std.Usize) (out r : alloc.vec.Vec expr.Expr),
+      fvs.val.length - i.val ≤ N → ExprsWF out →
+      checker_base.fvar_types_from fvs i out = ok r →
+      absExprs r = absExprs out ++ ((absExprs fvs).drop i.val).map ConLeche.Expr.fvarTypeD
+        ∧ ExprsWF r := by
+  intro N
+  induction N with
+  | zero =>
+    intro i out r hN hout h
+    rw [checker_base.fvar_types_from.eq_def] at h
+    simp only [] at h
+    rw [if_pos (by scalar_tac)] at h
+    rw [← Result.ok_injective h]
+    refine ⟨?_, hout⟩
+    rw [show (absExprs fvs).drop i.val = [] from
+      List.drop_eq_nil_of_le (by simp only [absExprs, List.length_map]; scalar_tac)]
+    simp
+  | succ N ih =>
+    intro i out r hN hout h
+    rw [checker_base.fvar_types_from.eq_def] at h
+    simp only [] at h
+    split at h
+    · rw [← Result.ok_injective h]
+      refine ⟨?_, hout⟩
+      rw [show (absExprs fvs).drop i.val = [] from
+        List.drop_eq_nil_of_le (by simp only [absExprs, List.length_map]; scalar_tac)]
+      simp
+    · rename_i hlt
+      obtain ⟨x, hx, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨t, ht, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hlti, hxwf, hdrop⟩ := ExprOps.vec_index_expr hfvs hx
+      obtain ⟨htabs, htwf⟩ := ExprOps.fvar_type_d_refines hxwf ht
+      have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+      have hout1v : absExprs out1 = absExprs out ++ [absExpr t] := by
+        rw [absExprs, absExprs, vec_push_val hout1]; simp
+      have hout1wf : ExprsWF out1 := by
+        intro y hy
+        rw [vec_push_val hout1] at hy
+        rcases List.mem_append.1 hy with h1 | h1
+        · exact hout y h1
+        · simp only [List.mem_singleton] at h1; rw [h1]; exact htwf
+      obtain ⟨habs, hwf⟩ := ih i2 out1 r (by omega) hout1wf h
+      refine ⟨?_, hwf⟩
+      rw [habs, hout1v, hi2v, hdrop]
+      simp [htabs]
+
+/-- `checker_base::fvar_types` — `fvs.map Expr.fvarTypeD`. -/
+theorem fvar_types_refines {fvs r : alloc.vec.Vec expr.Expr} (hfvs : ExprsWF fvs)
+    (h : checker_base.fvar_types fvs = ok r) :
+    absExprs r = (absExprs fvs).map ConLeche.Expr.fvarTypeD ∧ ExprsWF r := by
+  rw [checker_base.fvar_types] at h
+  obtain ⟨habs, hwf⟩ := fvar_types_from_refines hfvs fvs.val.length 0#usize _ r
+    (by scalar_tac) ExprOps.exprsWF_new h
+  refine ⟨?_, hwf⟩
+  rw [habs]
+  simp [absExprs, alloc.vec.Vec.new]
 
 end ConRon.Refine.CheckerBase

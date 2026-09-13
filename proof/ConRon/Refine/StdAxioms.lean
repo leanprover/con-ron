@@ -729,4 +729,529 @@ theorem choice_raw_refines {cv : env.ConstantVal} (h : std_axioms.choice_raw = o
   rfl
 
 
+/-! ## The pin comparison (`StdAxioms.lean:71-215`)
+
+`Expr.erasePw`/`ConstantVal.matchesPin` are the **specification** every proof
+about a pin hit consumes; `Expr.erasePwEq`/`ConstantVal.matchesPinFast` are the
+executed lockstep twins the `@[csimp]` lemma swaps in, and the ones every guard
+below calls.  Both pairs are ported (task #13's `@[csimp]` rule) and both are
+refined here, exactly; `matches_pin_fast_eq_matches_pin` is the port's copy of
+the cited `@[csimp]` equation, transported through the abstraction. -/
+
+/-- The machine-word equality test the `Bvar`/`Proj` arms use: a `U64` equality
+decides the `Nat` equality of the abstracted indices. -/
+theorem u64_decide_beq (i j : Std.U64) : (decide (i = j)) = (i.val == j.val) := by
+  by_cases hij : i = j
+  · subst hij; simp
+  · have hv : i.val ≠ j.val := fun hc => hij (Std.UScalar.eq_of_val_eq hc)
+    simp [hij, hv]
+
+/-- `ConLeche/Kernel/StdAxioms.lean:71-122 Expr.erasePw` —
+`std_axioms::erase_pw` refines `Expr.erasePw`: the specification of the pin
+comparison's type test, which resets every binder's prop-ness datum and leaves
+every other field alone.  Ported and uncalled (the executed test is
+`erase_pw_eq`), so the provenance gate stays in step with its source. -/
+theorem erase_pw_refines {e : expr.Expr} (he : ExprWF e) :
+    ∀ r : expr.Expr, std_axioms.erase_pw e = ok r →
+      absExpr r = (absExpr e).erasePw ∧ ExprWF r := by
+  induction he with
+  | @bvar i e h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
+    intro r h
+    rw [std_axioms.erase_pw.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    exact ⟨by rw [Expr.bvar_refines h]; rfl, Expr.bvar_wf h⟩
+  | @sort u e hu h1 =>
+    obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
+    intro r h
+    rw [std_axioms.erase_pw.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, level_dup_eq] at h
+    exact ⟨by rw [Expr.sort_refines h]; rfl, Expr.sort_wf hu h⟩
+  | @mk_const n us e hn hus h1 =>
+    obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
+    intro r h
+    rw [std_axioms.erase_pw.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, name_dup_eq,
+      bind_eq_ok_iff] at h
+    obtain ⟨v1, hv1, hmk⟩ := h
+    rw [Env.levels_copy_refines hv1] at hmk
+    exact ⟨by rw [Expr.mk_const_refines hmk]; rfl, Expr.mk_const_wf hn hus hmk⟩
+  | @lit l e hl h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
+    intro r h
+    rw [std_axioms.erase_pw.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    obtain ⟨l1, hl1, hlit⟩ := h
+    rw [Expr.literal_dup_eq hl1] at hlit
+    exact ⟨by rw [Expr.lit_refines hlit]; rfl, Expr.lit_wf hl hlit⟩
+  | @fvar idx ty e hty h1 ih =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
+    intro r h
+    rw [std_axioms.erase_pw.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    obtain ⟨t, ht, hfv⟩ := h
+    obtain ⟨ta, tw⟩ := ih t ht
+    exact ⟨by rw [Expr.fvar_refines hfv, ta]; rfl, Expr.fvar_wf tw hfv⟩
+  | @app f a e hf ha h1 ihf iha =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
+    intro r h
+    rw [std_axioms.erase_pw.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    obtain ⟨x, hx, y, hy, hap⟩ := h
+    obtain ⟨xa, xw⟩ := ihf x hx
+    obtain ⟨ya, yw⟩ := iha y hy
+    exact ⟨by rw [Expr.app_refines hap, xa, ya]; rfl, Expr.app_wf xw yw hap⟩
+  | @lam ty bo m e hty hbo hm h1 ihty ihbo =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
+    intro r h
+    rw [std_axioms.erase_pw.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    obtain ⟨x, hx, y, hy, bm, hbm, hlam⟩ := h
+    obtain ⟨xa, xw⟩ := ihty x hx
+    obtain ⟨ya, yw⟩ := ihbo y hy
+    obtain ⟨ba, bw⟩ := bb_never_meta hbm
+    exact ⟨by rw [Expr.lam_refines hlam, xa, ya, ba]; rfl,
+      Expr.lam_wf xw yw bw hlam⟩
+  | @forall_e ty bo m e hty hbo hm h1 ihty ihbo =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
+    intro r h
+    rw [std_axioms.erase_pw.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    obtain ⟨x, hx, y, hy, bm, hbm, hall⟩ := h
+    obtain ⟨xa, xw⟩ := ihty x hx
+    obtain ⟨ya, yw⟩ := ihbo y hy
+    obtain ⟨ba, bw⟩ := bb_never_meta hbm
+    exact ⟨by rw [Expr.forall_e_refines hall, xa, ya, ba]; rfl,
+      Expr.forall_e_wf xw yw bw hall⟩
+  | @let_e ty v bo e hty hv hbo h1 ihty ihv ihbo =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
+    intro r h
+    rw [std_axioms.erase_pw.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    obtain ⟨x, hx, y, hy, z, hz, hlet⟩ := h
+    obtain ⟨xa, xw⟩ := ihty x hx
+    obtain ⟨ya, yw⟩ := ihv y hy
+    obtain ⟨za, zw⟩ := ihbo z hz
+    exact ⟨by rw [Expr.let_e_refines hlet, xa, ya, za]; rfl,
+      Expr.let_e_wf xw yw zw hlet⟩
+  | @proj sn i x e hs hx h1 ih =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
+    intro r h
+    rw [std_axioms.erase_pw.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, name_dup_eq,
+      bind_eq_ok_iff] at h
+    obtain ⟨y, hy, hpr⟩ := h
+    obtain ⟨ya, yw⟩ := ih y hy
+    exact ⟨by rw [Expr.proj_refines hpr, ya]; rfl, Expr.proj_wf hs yw hpr⟩
+
+/-- `ConLeche/Kernel/StdAxioms.lean:124-126 ConstantVal.matchesPin` —
+`std_axioms::matches_pin` refines the pin comparison's **specification**,
+exactly: exact name, exact level parameters, type up to the `pw` datum. -/
+theorem matches_pin_refines {cv pin : env.ConstantVal} {b : Bool}
+    (hcv : ConstantValWF cv) (hpin : ConstantValWF pin)
+    (h : std_axioms.matches_pin cv pin = ok b) :
+    b = ConLeche.ConstantVal.matchesPin (absConstantVal cv) (absConstantVal pin) := by
+  rw [std_axioms.matches_pin] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨bn, hbn, h⟩ := h
+  rw [Name.beq_refines hcv.1 hpin.1 hbn] at h
+  rw [ConLeche.ConstantVal.matchesPin, absConstantVal, absConstantVal]
+  by_cases hn : absName cv.name = absName pin.name
+  · rw [if_pos (by simpa using hn)] at h
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨bl, hbl, h⟩ := h
+    rw [Env.names_beq_refines hcv.2.1 hpin.2.1 hbl] at h
+    by_cases hl : absNames cv.level_params = absNames pin.level_params
+    · rw [if_pos (by simpa using hl)] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨t1, ht1, t2, ht2, hbeq⟩ := h
+      obtain ⟨t1a, t1w⟩ := erase_pw_refines hcv.2.2 t1 ht1
+      obtain ⟨t2a, t2w⟩ := erase_pw_refines hpin.2.2 t2 ht2
+      rw [Expr.beq_refines t1w t2w hbeq, t1a, t2a]
+      simp [hn, hl]
+    · rw [if_neg (by simpa using hl), Result.ok.injEq] at h
+      simp [← h, hl]
+  · rw [if_neg (by simpa using hn), Result.ok.injEq] at h
+    simp [← h, hn]
+
+/-! ### A `Vec`-free `ExprWF` inversion, all ten kinds at once
+
+**To be moved to `Refine/Expr.lean`** beside the other `*_inv` lemmas, exactly
+as `Refine/CoreKGuards.lean`'s note says of the three it needed
+(`wf_const_inv`, `wf_sort_inv`, `wf_app_inv`): the lockstep descent cases on the
+*other* term's kind, which throws its `ExprWF` derivation away, so it needs the
+inversion at every kind rather than at three. -/
+
+/-- The well-formedness of a node's children, read off its kind. -/
+def KindWF : expr.ExprKind → Prop
+  | .Bvar _ => True
+  | .Fvar _ ty => ExprWF ty
+  | .«Sort» u => LevelWF u
+  | .Const n us => NameWF n ∧ LevelsWF us
+  | .App f a => ExprWF f ∧ ExprWF a
+  | .Lam ty b m => ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m
+  | .ForallE ty b m => ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m
+  | .LetE ty v b => ExprWF ty ∧ ExprWF v ∧ ExprWF b
+  | .Lit l => LiteralWF l
+  | .Proj s _ x => NameWF s ∧ ExprWF x
+
+/-- A well-formed node's children are well formed. -/
+theorem wf_kind_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
+    {k : expr.ExprKind} (hk : e = .mk (.mk d k)) : KindWF k := by
+  cases he with
+  | @bvar i _ h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
+    simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq] at hk
+    obtain ⟨-, rfl⟩ := hk; exact trivial
+  | @fvar idx ty _ hty h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
+    simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq] at hk
+    obtain ⟨-, rfl⟩ := hk; exact hty
+  | @sort u _ hu h1 =>
+    obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
+    simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq] at hk
+    obtain ⟨-, rfl⟩ := hk; exact hu
+  | @mk_const n us _ hn hus h1 =>
+    obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
+    simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq] at hk
+    obtain ⟨-, rfl⟩ := hk; exact ⟨hn, hus⟩
+  | @app f a _ hf ha h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
+    simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq] at hk
+    obtain ⟨-, rfl⟩ := hk; exact ⟨hf, ha⟩
+  | @lam ty bo m _ hty hbo hm h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
+    simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq] at hk
+    obtain ⟨-, rfl⟩ := hk; exact ⟨hty, hbo, hm⟩
+  | @forall_e ty bo m _ hty hbo hm h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
+    simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq] at hk
+    obtain ⟨-, rfl⟩ := hk; exact ⟨hty, hbo, hm⟩
+  | @let_e ty v bo _ hty hv hbo h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
+    simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq] at hk
+    obtain ⟨-, rfl⟩ := hk; exact ⟨hty, hv, hbo⟩
+  | @lit l _ hl h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
+    simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq] at hk
+    obtain ⟨-, rfl⟩ := hk; exact hl
+  | @proj sn i x _ hs hx h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
+    simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq] at hk
+    obtain ⟨-, rfl⟩ := hk; exact ⟨hs, hx⟩
+
+theorem wf_fvar_inv {e : expr.Expr} (he : ExprWF e) {d idx : Std.U64}
+    {ty : expr.Expr} (hk : e = .mk (.mk d (.Fvar idx ty))) : ExprWF ty :=
+  wf_kind_inv he hk
+
+theorem wf_sort_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
+    {u : level.Level} (hk : e = .mk (.mk d (.«Sort» u))) : LevelWF u :=
+  wf_kind_inv he hk
+
+theorem wf_const_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
+    {n : name.Name} {us : alloc.vec.Vec level.Level}
+    (hk : e = .mk (.mk d (.Const n us))) : NameWF n ∧ LevelsWF us :=
+  wf_kind_inv he hk
+
+theorem wf_app_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
+    {f a : expr.Expr} (hk : e = .mk (.mk d (.App f a))) : ExprWF f ∧ ExprWF a :=
+  wf_kind_inv he hk
+
+theorem wf_lam_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
+    {ty b : expr.Expr} {m : expr.BinderMeta} (hk : e = .mk (.mk d (.Lam ty b m))) :
+    ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m := wf_kind_inv he hk
+
+theorem wf_forall_e_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
+    {ty b : expr.Expr} {m : expr.BinderMeta}
+    (hk : e = .mk (.mk d (.ForallE ty b m))) :
+    ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m := wf_kind_inv he hk
+
+theorem wf_let_e_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
+    {ty v b : expr.Expr} (hk : e = .mk (.mk d (.LetE ty v b))) :
+    ExprWF ty ∧ ExprWF v ∧ ExprWF b := wf_kind_inv he hk
+
+theorem wf_lit_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
+    {l : expr.Literal} (hk : e = .mk (.mk d (.Lit l))) : LiteralWF l :=
+  wf_kind_inv he hk
+
+theorem wf_proj_inv {e : expr.Expr} (he : ExprWF e) {d i : Std.U64}
+    {sn : name.Name} {x : expr.Expr} (hk : e = .mk (.mk d (.Proj sn i x))) :
+    NameWF sn ∧ ExprWF x := wf_kind_inv he hk
+
+/-- `ConLeche/Kernel/StdAxioms.lean:148-162 Expr.erasePwEq` —
+`std_axioms::erase_pw_eq` refines the **lockstep descent**: `a.erasePw =
+b.erasePw`, decided by descending both terms together and stopping at the first
+disagreement, so the walk is bounded by the pin's tree size however large the
+stream side is. -/
+theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
+    ∀ (b : expr.Expr), ExprWF b → ∀ c : Bool,
+      std_axioms.erase_pw_eq a b = ok c →
+      c = ConLeche.Expr.erasePwEq (absExpr a) (absExpr b) := by
+  induction ha with
+  | @bvar i a h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
+    intro b hb c h
+    obtain ⟨ndb⟩ := b
+    obtain ⟨db, kb⟩ := ndb
+    rw [std_axioms.erase_pw_eq.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    cases kb <;> simp only [Result.ok.injEq] at h <;>
+      rw [← h] <;> simp [ConLeche.Expr.erasePwEq, u64_decide_beq]
+  | @sort u a hu h1 =>
+    obtain ⟨d1, bb, -, rfl, -, -, -⟩ := Expr.sort_inv h1
+    intro b hb c h
+    obtain ⟨ndb⟩ := b
+    obtain ⟨db, kb⟩ := ndb
+    rw [std_axioms.erase_pw_eq.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    cases kb
+    case «Sort» v =>
+      rw [Level.beq_refines hu (wf_sort_inv hb rfl) h]
+      simp [ConLeche.Expr.erasePwEq]
+    all_goals
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      simp [ConLeche.Expr.erasePwEq]
+  | @mk_const n us a hn hus h1 =>
+    obtain ⟨d1, bb, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
+    intro b hb c h
+    obtain ⟨ndb⟩ := b
+    obtain ⟨db, kb⟩ := ndb
+    rw [std_axioms.erase_pw_eq.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    cases kb
+    case Const n2 us2 =>
+      obtain ⟨hn2, hus2⟩ := wf_const_inv hb rfl
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨bn, hbn, h⟩ := h
+      rw [Name.beq_refines hn hn2 hbn] at h
+      by_cases hne : absName n = absName n2
+      · rw [if_pos (by simpa using hne)] at h
+        simp only [arc_deref_eq, bind_tc_ok] at h
+        rw [Expr.levels_beq_refines hus hus2 h]
+        simp [ConLeche.Expr.erasePwEq, hne]
+      · rw [if_neg (by simpa using hne), Result.ok.injEq] at h
+        rw [← h]
+        simp [ConLeche.Expr.erasePwEq, hne]
+    all_goals
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      simp [ConLeche.Expr.erasePwEq]
+  | @lit l a hl h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
+    intro b hb c h
+    obtain ⟨ndb⟩ := b
+    obtain ⟨db, kb⟩ := ndb
+    rw [std_axioms.erase_pw_eq.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    cases kb
+    case Lit l2 =>
+      rw [Expr.literal_beq_refines hl (wf_lit_inv hb rfl) h]
+      simp [ConLeche.Expr.erasePwEq]
+    all_goals
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      simp [ConLeche.Expr.erasePwEq]
+  | @fvar idx ty a hty h1 ih =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
+    intro b hb c h
+    obtain ⟨ndb⟩ := b
+    obtain ⟨db, kb⟩ := ndb
+    rw [std_axioms.erase_pw_eq.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    cases kb
+    case Fvar j t2 =>
+      by_cases hij : idx = j
+      · subst hij
+        rw [if_pos rfl] at h
+        rw [ih t2 (wf_fvar_inv hb rfl) c h]
+        simp [ConLeche.Expr.erasePwEq]
+      · rw [if_neg hij, Result.ok.injEq] at h
+        have hv : idx.val ≠ j.val := fun hc => hij (Std.UScalar.eq_of_val_eq hc)
+        rw [← h]
+        simp [ConLeche.Expr.erasePwEq, hv]
+    all_goals
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      simp [ConLeche.Expr.erasePwEq]
+  | @app f x a hf hx h1 ihf ihx =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
+    intro b hb c h
+    obtain ⟨ndb⟩ := b
+    obtain ⟨db, kb⟩ := ndb
+    rw [std_axioms.erase_pw_eq.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    cases kb
+    case App f2 x2 =>
+      obtain ⟨hf2, hx2⟩ := wf_app_inv hb rfl
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨b1, hb1, h⟩ := h
+      rw [ihf f2 hf2 b1 hb1] at h
+      cases hd : ConLeche.Expr.erasePwEq (absExpr f) (absExpr f2)
+      · rw [hd, if_neg (by simp), Result.ok.injEq] at h
+        rw [← h]; simp [ConLeche.Expr.erasePwEq, hd]
+      · rw [hd, if_pos rfl] at h
+        rw [ihx x2 hx2 c h]
+        simp [ConLeche.Expr.erasePwEq, hd]
+    all_goals
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      simp [ConLeche.Expr.erasePwEq]
+  | @lam ty bo m a hty hbo hm h1 ihty ihbo =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
+    intro b hb c h
+    obtain ⟨ndb⟩ := b
+    obtain ⟨db, kb⟩ := ndb
+    rw [std_axioms.erase_pw_eq.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    cases kb
+    case Lam t2 b2 m2 =>
+      obtain ⟨ht2, hb2, -⟩ := wf_lam_inv hb rfl
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨b1, hb1, h⟩ := h
+      rw [ihty t2 ht2 b1 hb1] at h
+      cases hd : ConLeche.Expr.erasePwEq (absExpr ty) (absExpr t2)
+      · rw [hd, if_neg (by simp), Result.ok.injEq] at h
+        rw [← h]; simp [ConLeche.Expr.erasePwEq, hd]
+      · rw [hd, if_pos rfl] at h
+        rw [ihbo b2 hb2 c h]
+        simp [ConLeche.Expr.erasePwEq, hd]
+    all_goals
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      simp [ConLeche.Expr.erasePwEq]
+  | @forall_e ty bo m a hty hbo hm h1 ihty ihbo =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
+    intro b hb c h
+    obtain ⟨ndb⟩ := b
+    obtain ⟨db, kb⟩ := ndb
+    rw [std_axioms.erase_pw_eq.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    cases kb
+    case ForallE t2 b2 m2 =>
+      obtain ⟨ht2, hb2, -⟩ := wf_forall_e_inv hb rfl
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨b1, hb1, h⟩ := h
+      rw [ihty t2 ht2 b1 hb1] at h
+      cases hd : ConLeche.Expr.erasePwEq (absExpr ty) (absExpr t2)
+      · rw [hd, if_neg (by simp), Result.ok.injEq] at h
+        rw [← h]; simp [ConLeche.Expr.erasePwEq, hd]
+      · rw [hd, if_pos rfl] at h
+        rw [ihbo b2 hb2 c h]
+        simp [ConLeche.Expr.erasePwEq, hd]
+    all_goals
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      simp [ConLeche.Expr.erasePwEq]
+  | @let_e ty v bo a hty hv hbo h1 ihty ihv ihbo =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
+    intro b hb c h
+    obtain ⟨ndb⟩ := b
+    obtain ⟨db, kb⟩ := ndb
+    rw [std_axioms.erase_pw_eq.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    cases kb
+    case LetE t2 v2 b2 =>
+      obtain ⟨ht2, hv2, hb2⟩ := wf_let_e_inv hb rfl
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨b1, hb1, h⟩ := h
+      rw [ihty t2 ht2 b1 hb1] at h
+      cases hd : ConLeche.Expr.erasePwEq (absExpr ty) (absExpr t2)
+      · rw [hd, if_neg (by simp), Result.ok.injEq] at h
+        rw [← h]; simp [ConLeche.Expr.erasePwEq, hd]
+      · rw [hd, if_pos rfl] at h
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨b3, hb3, h⟩ := h
+        rw [ihv v2 hv2 b3 hb3] at h
+        cases hd2 : ConLeche.Expr.erasePwEq (absExpr v) (absExpr v2)
+        · rw [hd2, if_neg (by simp), Result.ok.injEq] at h
+          rw [← h]; simp [ConLeche.Expr.erasePwEq, hd, hd2]
+        · rw [hd2, if_pos rfl] at h
+          rw [ihbo b2 hb2 c h]
+          simp [ConLeche.Expr.erasePwEq, hd, hd2]
+    all_goals
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      simp [ConLeche.Expr.erasePwEq]
+  | @proj sn i x a hs hx h1 ih =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
+    intro b hb c h
+    obtain ⟨ndb⟩ := b
+    obtain ⟨db, kb⟩ := ndb
+    rw [std_axioms.erase_pw_eq.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    cases kb
+    case Proj s2 j e2 =>
+      obtain ⟨hs2, he2⟩ := wf_proj_inv hb rfl
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨bn, hbn, h⟩ := h
+      rw [Name.beq_refines hs hs2 hbn] at h
+      by_cases hne : absName sn = absName s2
+      · rw [if_pos (by simpa using hne)] at h
+        by_cases hij : i = j
+        · subst hij
+          rw [if_pos rfl] at h
+          rw [ih e2 he2 c h]
+          simp [ConLeche.Expr.erasePwEq, hne]
+        · have hv : i.val ≠ j.val := fun hc => hij (Std.UScalar.eq_of_val_eq hc)
+          rw [if_neg hij, Result.ok.injEq] at h
+          rw [← h]
+          simp [ConLeche.Expr.erasePwEq, hne, hv]
+      · rw [if_neg (by simpa using hne), Result.ok.injEq] at h
+        rw [← h]
+        simp [ConLeche.Expr.erasePwEq, hne]
+    all_goals
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      simp [ConLeche.Expr.erasePwEq]
+
+/-- `ConLeche/Kernel/StdAxioms.lean:206-210 ConstantVal.matchesPinFast` —
+`std_axioms::matches_pin_fast` refines the **executed** shape test, the one
+every pin guard below calls. -/
+theorem matches_pin_fast_refines {cv pin : env.ConstantVal} {b : Bool}
+    (hcv : ConstantValWF cv) (hpin : ConstantValWF pin)
+    (h : std_axioms.matches_pin_fast cv pin = ok b) :
+    b = ConLeche.ConstantVal.matchesPinFast (absConstantVal cv)
+      (absConstantVal pin) := by
+  rw [std_axioms.matches_pin_fast] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨bn, hbn, h⟩ := h
+  rw [Name.beq_refines hcv.1 hpin.1 hbn] at h
+  rw [ConLeche.ConstantVal.matchesPinFast, absConstantVal, absConstantVal]
+  by_cases hn : absName cv.name = absName pin.name
+  · rw [if_pos (by simpa using hn)] at h
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨bl, hbl, h⟩ := h
+    rw [Env.names_beq_refines hcv.2.1 hpin.2.1 hbl] at h
+    by_cases hl : absNames cv.level_params = absNames pin.level_params
+    · rw [if_pos (by simpa using hl)] at h
+      rw [erase_pw_eq_refines hcv.2.2 pin.ty hpin.2.2 b h]
+      simp [hn, hl]
+    · rw [if_neg (by simpa using hl), Result.ok.injEq] at h
+      simp [← h, hl]
+  · rw [if_neg (by simpa using hn), Result.ok.injEq] at h
+    simp [← h, hn]
+
+/-- `ConLeche/Kernel/StdAxioms.lean:212-215
+ConstantVal.matchesPin_eq_matchesPinFast` — **the agreement**, on the port's
+side: the specification and the executed test are the same `Bool`, which is
+what the cited `@[csimp]` lemma says.  Every guard below is therefore equally a
+statement about `matchesPin`, which is what every proof about a pin hit
+consumes. -/
+theorem matches_pin_fast_eq_matches_pin {cv pin : env.ConstantVal} {b : Bool}
+    (hcv : ConstantValWF cv) (hpin : ConstantValWF pin)
+    (h : std_axioms.matches_pin_fast cv pin = ok b) :
+    b = ConLeche.ConstantVal.matchesPin (absConstantVal cv) (absConstantVal pin) := by
+  rw [matches_pin_fast_refines hcv hpin h,
+    ConLeche.ConstantVal.matchesPin_eq_matchesPinFast]
+
+/-- The port's own two comparisons agree, node for node — the `@[csimp]`
+equation as the port can state it. -/
+theorem matches_pin_eq_fast {cv pin : env.ConstantVal} {b b' : Bool}
+    (hcv : ConstantValWF cv) (hpin : ConstantValWF pin)
+    (h : std_axioms.matches_pin cv pin = ok b)
+    (h' : std_axioms.matches_pin_fast cv pin = ok b') : b = b' := by
+  rw [matches_pin_refines hcv hpin h, matches_pin_fast_eq_matches_pin hcv hpin h']
+
+
 end ConRon.Refine.StdAxioms

@@ -24,7 +24,7 @@ and the port compares against the raw pin, which it can write down, with the
 annotated twin cited on the same item (DESIGN.md task #24).
 
 Here that argument is not an argument at all but a **closed computation**:
-`reduceOpCvA_erasePw` and `ofReducePinA_erasePw` below are `rfl` — the four
+`matchesPin_reduceOpCvA` and `matchesPin_ofReducePinA` below are `rfl` — the four
 annotated pins and the raw ones they came from have the same name, the same
 (empty) level parameters and `erasePw`-equal types.  (`reduceNatCvA` is in
 fact *literally* `reduceOpRaw reduceNatName`: its one binder's codomain is a
@@ -68,6 +68,18 @@ the lemma that needs it:
   `matchesPin`, which is why they have a module of their own.
 
 Neither is a new claim; both are discharged where the sibling lands.
+
+## Two things proved here that belong elsewhere
+
+* **The raw-pin builder's six steps** (`never_meta`, `pi`, `lm`, `cnst`, `bv`,
+  `ap2`/`ap3`) and `std_axioms::one_level`: another task-#56 file's modules, so
+  they are proved here as *steps* (the shape `CoreKBase.str_lit_step` has)
+  rather than as `<fn>_refines` lemmas that would claim the module.  **To be
+  replaced by `Refine/BasisBuilder.lean`'s on merge.**
+* **`constsResolve_eq_constsResolveF`**: the `Env`-indexed walk and its
+  `F`-twin have the same clauses (`DeclCheck.lean:36-58`'s own docstring), and
+  `reducePinGuardF` names the twin while `Refine/CoreKSupport.lean` proved the
+  `Env` form.  It belongs in `Refine/DeclCheck.lean` beside `constsResolveF`.
 
 ## Deviations recorded
 
@@ -602,7 +614,7 @@ theorem of_reduce_raw_refines {n : name.Name} {cv : env.ConstantVal} (hn : NameW
   simp only [absConstantVal, hn1abs, absNames_new, h10abs, h9abs, h8abs, h7abs, h5abs,
     h3abs, h1abs, hn2abs, h2abs, h4abs, h6abs, htabs, hcabs, ConLeche.ofReduceRaw,
     ConLeche.BasisDSL.pi, ConLeche.BasisDSL.cnst, ConLeche.BasisDSL.bv,
-    ConLeche.BasisDSL.ap3, ConLeche.BasisDSL.ap2, absLevels_new]
+    ConLeche.BasisDSL.ap3, absLevels_new]
   rfl
 
 /-- `ConLeche/Kernel/TrustAxioms.lean:146-148 reduceOpCvA`,
@@ -748,5 +760,365 @@ theorem reduce_cert_var_refines {c : name.Name} {e : expr.Expr} (hc : NameWF c)
   obtain ⟨t, ht, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨htabs, htwf⟩ := reduce_elem_ty_refines hc ht
   exact ⟨by rw [Expr.fvar_refines h, htabs]; rfl, ExprWF.fvar htwf h⟩
+
+/-- `Expr.constsResolve` through the index is `Expr.constsResolveF`: the two
+have the same clauses, and `DeclCheck.lean:36-58` says so in its docstring
+("same clauses, lookups through the index").  The bridge `Refine/CoreKSupport.lean`'s
+`Env`-indexed statement needs to reach `reducePinGuardF`. -/
+theorem constsResolve_eq_constsResolveF {lfe : ConLeche.FEnv} {lenv : ConLeche.Env}
+    (henv : ∀ n : ConLeche.Name, lfe.find? n = lenv.find? n) (e : ConLeche.Expr) :
+    ConLeche.Expr.constsResolve lenv e = ConLeche.Expr.constsResolveF lfe e := by
+  induction e with
+  | bvar i => rfl
+  | sort u => rfl
+  | fvar i t ih =>
+    simp [ConLeche.Expr.constsResolve, ConLeche.Expr.constsResolveF, ih]
+  | const n us =>
+    simp [ConLeche.Expr.constsResolve, ConLeche.Expr.constsResolveF, henv]
+  | app f a ihf iha =>
+    simp [ConLeche.Expr.constsResolve, ConLeche.Expr.constsResolveF, ihf, iha]
+  | lam t b m iht ihb =>
+    simp [ConLeche.Expr.constsResolve, ConLeche.Expr.constsResolveF, iht, ihb]
+  | forallE t b m iht ihb =>
+    simp [ConLeche.Expr.constsResolve, ConLeche.Expr.constsResolveF, iht, ihb]
+  | letE t v b iht ihv ihb =>
+    simp [ConLeche.Expr.constsResolve, ConLeche.Expr.constsResolveF, iht, ihv, ihb]
+  | lit l =>
+    cases l <;>
+      simp [ConLeche.Expr.constsResolve, ConLeche.Expr.constsResolveF, henv]
+  | proj s i e ih =>
+    simp [ConLeche.Expr.constsResolve, ConLeche.Expr.constsResolveF, henv, ih]
+
+/-! ## The environment predicates (`TrustAxioms.lean:154-196`)
+
+Every guard is stated against `DeclCheck.lean`'s `FEnv`-indexed twin, over
+`FindAgree`/`FindWF` — the find-agreement projection of task #46's `FEnvRel` /
+`FEnvWF` that `CoreKBase.lean` fixed for step 4. -/
+
+/-- `trustCompilerOkF`'s first conjunct, named: the port factors it out of the
+`&&` cascade as `trust_axioms::true_pinned` (task #3's pattern 9, task #14's
+borrow rule), and the guard is unchanged — `trustCompilerOkF_eq` below is
+`rfl`. -/
+def TruePinned (lfe : ConLeche.FEnv) : Bool :=
+  match lfe.find? ConLeche.trueName with
+  | some (.indInfo cvT _) => ConLeche.ConstantVal.matchesPin cvT ConLeche.trueCvA
+  | _ => false
+
+/-- `trustCompilerOkF`'s second conjunct, named (`trust_axioms::true_intro_pinned`). -/
+def TrueIntroPinned (lfe : ConLeche.FEnv) : Bool :=
+  match lfe.find? ConLeche.trueIntroName with
+  | some (.ctorInfo cvTi 0 0) => ConLeche.ConstantVal.matchesPin cvTi ConLeche.trueIntroCvA
+  | _ => false
+
+/-- **The factoring changes nothing**: `trustCompilerOkF` *is* the two named
+conjuncts and the pin comparison (`ConLeche/Kernel/DeclCheck.lean:272-280`). -/
+theorem trustCompilerOkF_eq (lfe : ConLeche.FEnv) (cvA : ConLeche.ConstantVal) :
+    ConLeche.trustCompilerOkF lfe cvA
+      = (TruePinned lfe && TrueIntroPinned lfe
+          && ConLeche.ConstantVal.matchesPin cvA ConLeche.trustCompilerA) := rfl
+
+/-- `ConLeche/Kernel/TrustAxioms.lean:156-167 trustCompilerOk`,
+`ConLeche/Kernel/DeclCheck.lean:272-280 trustCompilerOkF` —
+`trust_axioms::true_pinned` is the guard's **first conjunct**. -/
+theorem true_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {r : Bool}
+    (hmp : MatchesPinSpec) (hfe : FindAgree fe lfe) (hwf : FindWF fe)
+    (h : trust_axioms.true_pinned fe = ok r) :
+    r = TruePinned lfe := by
+  rw [TruePinned]
+  rw [trust_axioms.true_pinned] at h
+  obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hnabs, hnwf⟩ := true_name_refines hn
+  cases o with
+  | none =>
+    rw [← hnabs, hfe.find_none hnwf ho]
+    simp only [Result.ok.injEq] at h; rw [← h]
+  | some ci =>
+    have hlf := hfe.find_some hnwf ho
+    have hciwf := hwf n ci hnwf ho
+    rw [← hnabs, hlf]
+    cases ci with
+    | IndInfo cvT caps =>
+      obtain ⟨cv, hcv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hcvabs, hcvwf⟩ := true_cv_a_refines hcv
+      rw [hmp cvT cv r hciwf.1 hcvwf h, hcvabs]
+      rfl
+    | AxiomInfo _ | DefnInfo _ _ _ | ThmInfo _ _ | CtorInfo _ _ _
+    | RecInfo _ _ _ _ | ProjInfo _ =>
+      simp only [Result.ok.injEq] at h; rw [← h]; rfl
+
+/-- `ConLeche/Kernel/TrustAxioms.lean:156-167 trustCompilerOk`,
+`ConLeche/Kernel/DeclCheck.lean:272-280 trustCompilerOkF` —
+`trust_axioms::true_intro_pinned` is the guard's **second conjunct**: the
+stored `True.intro` at the pinned arity `0 0`. -/
+theorem true_intro_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {r : Bool}
+    (hmp : MatchesPinSpec) (hfe : FindAgree fe lfe) (hwf : FindWF fe)
+    (h : trust_axioms.true_intro_pinned fe = ok r) :
+    r = TrueIntroPinned lfe := by
+  rw [TrueIntroPinned]
+  rw [trust_axioms.true_intro_pinned] at h
+  obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hnabs, hnwf⟩ := true_intro_name_refines hn
+  cases o with
+  | none =>
+    rw [← hnabs, hfe.find_none hnwf ho]
+    simp only [Result.ok.injEq] at h; rw [← h]
+  | some ci =>
+    have hlf := hfe.find_some hnwf ho
+    have hciwf := hwf n ci hnwf ho
+    rw [← hnabs, hlf]
+    cases ci with
+    | CtorInfo cvTi nP nF =>
+      have h2 : (if nP = 0#u64 then
+                   (if nF = 0#u64 then
+                     (do let cv ← trust_axioms.true_intro_cv_a
+                         std_axioms.matches_pin_fast cvTi cv)
+                    else ok false)
+                 else ok false) = ok r := h
+      simp only [absConstantInfo]
+      have hpv : (nP = 0#u64) ↔ (nP.val = 0) :=
+        ⟨fun hx => by rw [hx, Expr.val_zero],
+         fun hx => Std.UScalar.eq_of_val_eq (by rw [hx, Expr.val_zero])⟩
+      have hfv : (nF = 0#u64) ↔ (nF.val = 0) :=
+        ⟨fun hx => by rw [hx, Expr.val_zero],
+         fun hx => Std.UScalar.eq_of_val_eq (by rw [hx, Expr.val_zero])⟩
+      by_cases hp : nP = 0#u64
+      · by_cases hf : nF = 0#u64
+        · rw [if_pos hp, if_pos hf] at h2
+          obtain ⟨cv, hcv, h2⟩ := bind_eq_ok_iff.mp h2
+          obtain ⟨hcvabs, hcvwf⟩ := true_intro_cv_a_refines hcv
+          rw [hmp cvTi cv r hciwf hcvwf h2, hcvabs, hpv.mp hp, hfv.mp hf]
+          rfl
+        · rw [if_pos hp, if_neg hf] at h2
+          simp only [Result.ok.injEq] at h2
+          rw [← h2]
+          split
+          · rename_i heq
+            simp only [Option.some.injEq, ConLeche.ConstantInfo.ctorInfo.injEq] at heq
+            exact absurd (hfv.mpr heq.2.2) hf
+          · rfl
+      · rw [if_neg hp] at h2
+        simp only [Result.ok.injEq] at h2
+        rw [← h2]
+        split
+        · rename_i heq
+          simp only [Option.some.injEq, ConLeche.ConstantInfo.ctorInfo.injEq] at heq
+          exact absurd (hpv.mpr heq.2.1) hp
+        · rfl
+    | AxiomInfo _ | DefnInfo _ _ _ | ThmInfo _ _ | IndInfo _ _
+    | RecInfo _ _ _ _ | ProjInfo _ =>
+      simp only [Result.ok.injEq] at h; rw [← h]; rfl
+
+/-- `ConLeche/Kernel/TrustAxioms.lean:156-167 trustCompilerOk`,
+`ConLeche/Kernel/DeclCheck.lean:272-280 trustCompilerOkF` —
+`trust_axioms::trust_compiler_ok` refines `trustCompilerOkF`: is
+`Lean.trustCompiler` installable here? -/
+theorem trust_compiler_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    {cvA : env.ConstantVal} {r : Bool} (hmp : MatchesPinSpec)
+    (hfe : FindAgree fe lfe) (hwf : FindWF fe) (hcv : ConstantValWF cvA)
+    (h : trust_axioms.trust_compiler_ok fe cvA = ok r) :
+    r = ConLeche.trustCompilerOkF lfe (absConstantVal cvA) := by
+  rw [trust_axioms.trust_compiler_ok] at h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  rw [trustCompilerOkF_eq, ← true_pinned_refines hmp hfe hwf hb]
+  cases b with
+  | false => simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h; rw [← h]; rfl
+  | true =>
+    simp only [if_pos] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    rw [← true_intro_pinned_refines hmp hfe hwf hb1]
+    cases b1 with
+    | false => simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h; rw [← h]; rfl
+    | true =>
+      simp only [if_pos] at h
+      obtain ⟨cv, hcva, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hcvabs, hcvwf⟩ := trust_compiler_a_refines hcva
+      rw [hmp cvA cv r hcv hcvwf h, hcvabs]
+      rfl
+
+/-- `ConLeche/Kernel/TrustAxioms.lean:169-175 reduceStoredOk`,
+`ConLeche/Kernel/DeclCheck.lean:282-286 reduceStoredOkF` —
+`trust_axioms::reduce_stored_ok` refines `reduceStoredOkF`: is the reduce
+operation `c` stored as a checked opaque of the pinned type?  The pin the port
+compares against is the raw one, which `matchesPin` cannot tell from the
+annotated `reduceOpCvA` (`matchesPin_reduceOpCvA`). -/
+theorem reduce_stored_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    {c : name.Name} {r : Bool} (hmp : MatchesPinSpec) (hfe : FindAgree fe lfe)
+    (hwf : FindWF fe) (hc : NameWF c)
+    (h : trust_axioms.reduce_stored_ok fe c = ok r) :
+    r = ConLeche.reduceStoredOkF lfe (absName c) := by
+  rw [trust_axioms.reduce_stored_ok] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  rw [ConLeche.reduceStoredOkF]
+  cases o with
+  | none =>
+    rw [hfe.find_none hc ho]
+    simp only [Result.ok.injEq] at h; rw [← h]
+  | some ci =>
+    have hlf := hfe.find_some hc ho
+    have hciwf := hwf c ci hc ho
+    rw [hlf]
+    cases ci with
+    | AxiomInfo cvR =>
+      obtain ⟨cv, hcv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hcvabs, hcvwf⟩ := reduce_op_cv_a_refines hc hcv
+      rw [hmp cvR cv r hciwf hcvwf h, hcvabs, ← matchesPin_reduceOpCvA]
+      rfl
+    | DefnInfo _ _ _ | ThmInfo _ _ | IndInfo _ _ | CtorInfo _ _ _
+    | RecInfo _ _ _ _ | ProjInfo _ =>
+      simp only [Result.ok.injEq] at h; rw [← h]; rfl
+
+/-- `ConLeche/Kernel/TrustAxioms.lean:177-184 reduceElemOk`,
+`ConLeche/Kernel/DeclCheck.lean:288-294 reduceElemOkF` —
+`trust_axioms::reduce_elem_ok` refines `reduceElemOkF`: the element-inductive
+shape an `ofReduce*` axiom needs.  The `Nat` branch is the exactly-compared pin
+(`basis_pins::nat_basis_pinned`, `BasisPinsSpec`); the `Bool` branch is an
+ordinary `matchesPin`. -/
+theorem reduce_elem_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    {c : name.Name} {r : Bool} (hmp : MatchesPinSpec) (hbp : BasisPinsSpec fe lfe)
+    (hfe : FindAgree fe lfe) (hwf : FindWF fe) (hc : NameWF c)
+    (h : trust_axioms.reduce_elem_ok fe c = ok r) :
+    r = ConLeche.reduceElemOkF lfe (absName c) := by
+  rw [trust_axioms.reduce_elem_ok] at h
+  obtain ⟨a, ha, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨ea, fa⟩ := reduce_nat_name_refines ha
+  rw [Name.beq_refines hc fa hb, ea] at h
+  rw [ConLeche.reduceElemOkF]
+  by_cases hq : absName c = ConLeche.reduceNatName
+  · rw [if_pos hq]
+    simp only [hq, decide_true, if_pos] at h
+    exact hbp.natPinned r h
+  · rw [if_neg hq]
+    simp only [hq, decide_false, Bool.false_eq_true, if_false] at h
+    obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hnabs, hnwf⟩ := CoreK.bool_name_refines hn
+    cases o with
+    | none =>
+      rw [← hnabs, hfe.find_none hnwf ho]
+      simp only [Result.ok.injEq] at h; rw [← h]
+    | some ci =>
+      have hlf := hfe.find_some hnwf ho
+      have hciwf := hwf n ci hnwf ho
+      rw [← hnabs, hlf]
+      cases ci with
+      | IndInfo cvB caps =>
+        obtain ⟨cv, hcv, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hcvabs, hcvwf⟩ := bool_cv_a_refines hcv
+        rw [hmp cvB cv r hciwf.1 hcvwf h, hcvabs]
+        rfl
+      | AxiomInfo _ | DefnInfo _ _ _ | ThmInfo _ _ | CtorInfo _ _ _
+      | RecInfo _ _ _ _ | ProjInfo _ =>
+        simp only [Result.ok.injEq] at h; rw [← h]; rfl
+
+/-- `ConLeche/Kernel/TrustAxioms.lean:186-196 ofReduceAxOk`,
+`ConLeche/Kernel/DeclCheck.lean:296-302 ofReduceAxOkF` —
+`trust_axioms::of_reduce_ax_ok` refines `ofReduceAxOkF`: is this checked axiom
+a pinned `ofReduce*` over a standardly-shaped environment?  (The reduce
+operation's own install already ran the identity certificate,
+`checker::check_reduce_pin` — the fact the model consumes here.) -/
+theorem of_reduce_ax_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    {cvA : env.ConstantVal} {r : Bool} (hmp : MatchesPinSpec)
+    (hbp : BasisPinsSpec fe lfe) (hfe : FindAgree fe lfe) (hwf : FindWF fe)
+    (hcv : ConstantValWF cvA)
+    (h : trust_axioms.of_reduce_ax_ok fe cvA = ok r) :
+    r = ConLeche.ofReduceAxOkF lfe (absConstantVal cvA) := by
+  rw [trust_axioms.of_reduce_ax_ok] at h
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hcabs, hcwf⟩ := of_reduce_op_refines hcv.1 hc
+  rw [ConLeche.ofReduceAxOkF, show (absConstantVal cvA).name = absName cvA.name from rfl,
+    ← hbp.eqPinned b hb]
+  cases b with
+  | false => simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h; rw [← h]; rfl
+  | true =>
+    simp only [if_pos] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    rw [← hcabs, ← reduce_elem_ok_refines hmp hbp hfe hwf hcwf hb1]
+    cases b1 with
+    | false => simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h; rw [← h]; rfl
+    | true =>
+      simp only [if_pos] at h
+      obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+      rw [← reduce_stored_ok_refines hmp hfe hwf hcwf hb2]
+      cases b2 with
+      | false => simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h; rw [← h]; rfl
+      | true =>
+        simp only [if_pos] at h
+        obtain ⟨cv, hcva, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hcvabs, hcvwf⟩ := of_reduce_pin_a_refines hcv.1 hcva
+        rw [hmp cvA cv r hcv hcvwf h, hcvabs, ← matchesPin_ofReducePinA]
+        rfl
+
+/-- `ConLeche/Kernel/TrustAxioms.lean:207-211 reducePinGuard`,
+`ConLeche/Kernel/DeclCheck.lean:304-308 reducePinGuardF` —
+`trust_axioms::reduce_pin_guard` refines `reducePinGuardF`: the syntactic
+guards on the pin, checked once at install.  `henv` is `Refine/CoreKSupport.lean`'s
+own hypothesis — the port's `core_k::consts_resolve` is refined there against
+the `Env`-indexed `Expr.constsResolve`, and the two spellings have the same
+clauses once the lookups agree. -/
+theorem reduce_pin_guard_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    {lenv : ConLeche.Env} {c : name.Name} {r : Bool} (hfe : FindAgree fe lfe)
+    (henv : ∀ n : ConLeche.Name, lfe.find? n = lenv.find? n) (hc : NameWF c)
+    (h : trust_axioms.reduce_pin_guard fe c = ok r) :
+    r = ConLeche.reducePinGuardF lfe (absName c) := by
+  rw [trust_axioms.reduce_pin_guard] at h
+  obtain ⟨pin, hpin, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hpabs, hpwf⟩ := reduce_decl_pin_refines hc hpin
+  have hb0 := ExprOps.loose_bvars_bounded_refines hpwf hb
+  rw [Expr.val_zero] at hb0
+  rw [ConLeche.reducePinGuardF, ← hpabs, ← hb0]
+  cases b with
+  | false =>
+    simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+    rw [← h]; rfl
+  | true =>
+    simp only [if_pos] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    rw [← ExprOps.has_fvar_refines hpwf hb1]
+    cases b1 with
+    | true =>
+      simp only [if_pos, Result.ok.injEq] at h
+      rw [← h]; rfl
+    | false =>
+      simp only [Bool.false_eq_true, if_false] at h
+      obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+      rw [← absNames_new,
+        ← ExprOps.all_level_params_defined_fast_refines namesWF_new hpwf hb2]
+      cases b2 with
+      | false =>
+        simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+        rw [← h]; rfl
+      | true =>
+        simp only [if_pos] at h
+        rw [CoreK.consts_resolve_refines CoreK.pinnedBasisNames hfe henv hpwf r h]
+        simp only [Bool.true_and, Bool.not_false]
+        exact constsResolve_eq_constsResolveF henv _
+
+/-! ## Axiom census (DESIGN.md §5, the P3 gate)
+
+Lean's own three, at the two ends of the file: the closed pin equality the
+whole family rests on, and the guard the `ofReduce*` axioms are accepted by. -/
+
+/--
+info: 'ConRon.Refine.TrustAxioms.of_reduce_raw_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms of_reduce_raw_refines
+
+/--
+info: 'ConRon.Refine.TrustAxioms.of_reduce_ax_ok_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms of_reduce_ax_ok_refines
+
+/--
+info: 'ConRon.Refine.TrustAxioms.reduce_pin_guard_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms reduce_pin_guard_refines
 
 end ConRon.Refine.TrustAxioms
