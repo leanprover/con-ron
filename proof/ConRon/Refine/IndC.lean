@@ -1252,13 +1252,15 @@ theorem check_native_pass_s_refines
     obtain ⟨lst1, lfe1, hrun1, hrel1, hfrel1, hwf1, hfwf1, hcvwf, hiswf, hcwf,
         hrcan, hrfull⟩ :=
       NativeInstall.check_native_pass_former_refines
-        (IndIngredients.checkSumIndRefines hw) IndIngredients.checkSumIndCanon
+        (IndIngredients.checkSumIndRefines hw) (IndIngredients.checkSumIndErr hw)
+        IndIngredients.checkSumIndCanon
         hst hfe hcan hfull hp0 hformer lst lfe hrel hfer
     obtain ⟨st2, hflush, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hfrun, hrel2, hwf2, _⟩ := StateC.flush_c_refines hrel1 hwf1 hflush
     obtain ⟨lst', lq, hrun2, hrel3, hqrel, hwf3, hqwf, hqenv⟩ :=
       NativeInstall.check_native_pass_ctors_refines
-        (IndIngredients.checkSumCtorsRefines hw) IndIngredients.completeRefines
+        (IndIngredients.checkSumCtorsRefines hw) (IndIngredients.checkSumCtorsErr hw)
+        IndIngredients.completeRefines
         IndIngredients.withKindsRefines IndIngredients.recCtorKindsRefines
         IndIngredients.recFieldKindBeqRefines hwf2 hfwf1 hcvwf hiswf hp0 hcwf h
         lst1.flushed lfe1 hrel2 hfrel1
@@ -1308,7 +1310,8 @@ theorem check_native_tail_s_refines
         IndIngredients.nativeInstallParamsOf IndIngredients.piBindersRefines
         IndIngredients.nativeInstallOpenPisAtFvarsF IndIngredients.kindGetDRefines
         IndIngredients.nativeRulesOkRefines
-        (IndIngredients.checkStructFieldSortsIRefines hw) hst hfe hq hguards lst
+        (IndIngredients.checkStructFieldSortsIRefines hw)
+        (IndIngredients.checkStructFieldSortsIErr hw) hst hfe hq hguards lst
         lfe lq hrel hfer hqrel
     obtain ⟨cq, hcq, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hcrel, hcp, hccv, hcctors, hcss, hcwf, hcpwf, hccvwf, hcawf, hsswf⟩ :=
@@ -1336,6 +1339,7 @@ theorem check_native_tail_s_refines
         IndIngredients.structRecRhsRRefines IndIngredients.structRecTyRRefines
         IndIngredients.nativeCtors4Refines IndIngredients.nativeRecLpsOkRefines
         (IndIngredients.nativeInstallCheckConstantVal hw)
+        (IndIngredients.nativeInstallCheckConstantValErr hw)
         IndIngredients.nativeInstallParamsOf IndIngredients.sumRulesRefines
         IndIngredients.structProjBodiesRefines
         IndIngredients.structProjGuardsRefines hwf2 hcwf hconscan.1 hconscan.2
