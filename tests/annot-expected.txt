@@ -1,0 +1,99 @@
+# Expected exit codes for the annotated fixture suite (task #161),
+# read by tests/arena.sh (0 accept, 1 reject, 2 decline, 3 error).
+# Line format: "<expectation> <fixture>".
+#
+# These are hand-written export streams (tests/annot/*.ndjson) whose
+# lam/forallE records carry the optional "pw" sort-annotation field:
+# absent or "never" claims the binder's codomain is never a
+# proposition; an array of name-table indices claims it is one exactly
+# when all those level parameters are zero ("[]" = always).  The
+# verified mode (--verified, the default) validates every claim
+# against the codomain sort it computes and positively declines a
+# mismatch, naming the site; annotations never steer reduction.  Under
+# --trusted (official parity) the annotations are ignored — the three
+# decline fixtures accept there, recorded in
+# tests/trusted-expected.txt.
+#
+# Task #161 P5 (the annotate pass): the pass WRITES the datum wherever
+# the input carries the parse placeholder (an absent "pw" field, or the
+# semantically identical "never"), and leaves an explicit "ifAllZero"
+# claim alone for validation to judge.  So a decline fixture must claim
+# prop-ness where there is none — the three annot_decline_* streams do
+# — while the three annot_fill_* streams (the pre-P5 decline fixtures,
+# whose offending binder was simply UNANNOTATED) now accept: the pass
+# fills their placeholders correctly.  They are kept as the pass's own
+# per-site regression.
+
+# Accepts: the constant-free annotated fragment.
+# idU.{u} : ∀ (α : Sort u), α → α — every codomain is Prop iff u = 0.
+0 annot_id.ndjson
+# constFn.{u,v} : ∀ (α : Sort u) (β : Sort v), α → β → β — the imax
+# telescope: every codomain's zeroness reads off the imax's right arm.
+0 annot_imax.ndjson
+# idm.{u,v} over Sort (max u v): the type spells [u,v], the value
+# [v,u] — equivalent-but-unequal lists must pass everywhere the
+# checker compares annotations (chain rule and final defeq).
+0 annot_max.ndjson
+# impSelf : ∀ (p : Prop), p → p — the always-a-proposition datum "[]".
+0 annot_prop.ndjson
+# tid : Type → Type with NO pw fields: a fully Type-level stream needs
+# no annotations at all.
+0 annot_type_absent.ndjson
+# Three declarations (idU, impSelf, tid) in one stream; also the
+# split-driver and mode-flag smoke fixture (SPLIT_GOOD in arena.sh).
+0 annot_split_good.ndjson
+# Same prefix with `def badDecl : Prop := Type` at declaration index 2
+# (SPLIT_BAD): a genuine reject, past the annotated prefix.
+1 annot_split_bad.ndjson
+# Same with a second bad definition (`badFirst`, also `Prop := Type`)
+# AHEAD of badDecl: the rejection must name badFirst, the first
+# failing record in fold order, at every --jobs (the pool's
+# determinism fixture, SPLIT_BAD2 in arena.sh).
+1 annot_split_bad2.ndjson
+
+# Pass fills (task #161 P5; these were the pre-P5 decline fixtures —
+# their offending binder carries NO pw field, so the pass computes the
+# right datum and the stream accepts).  One per front-door site.
+# impSelf with the ∀ (h : p) binder unannotated.
+0 annot_fill_forall.ndjson
+# impSelf's value with the outer λ unannotated, inner λ says "[]".
+0 annot_fill_lam_chain.ndjson
+# fun (x : ∀ p h, p) => x with the (single) λ unannotated — its body's
+# type is a proposition by impredicativity.
+0 annot_fill_lam_leaf.ndjson
+
+# The write's OUTWARD THREAD (task #161 P5; task #163 clone-drift
+# regression).  Two declarations, each a telescope that MIXES a written
+# and an unwritten binder — the shape whose annotated output tells the
+# repaired fold (`annotateBindersOutI` threads the datum just written,
+# via `annotBinderMetaI`) apart from the pre-repair one (which
+# re-stamped the leaf's datum at every node).  Nothing in the suite
+# exercised it before, which is how a clone of the pre-repair fold
+# survived 223-fixture parity.
+#  * idmDrift.{u,v} : ∀ (α : Sort (max u v)) (a : α), α — the INNER ∀
+#    and λ spell the datum "[v,u]", the outer binders are unannotated,
+#    so the leaf computes "[u,v]" and the two folds write different
+#    outer spellings of the same zero-ness.
+#  * fDrift.{u} : ∀ (α : Sort u), let z := α; ∀ (b : z), z — the ∀
+#    telescope's residual is a `letE` whose zeta reduct is a ∀, so the
+#    leaf phase takes `annotPwPiI`'s forall-residual head read (the
+#    other half of the drift) and picks up that node's written "[u,u]".
+# Both accept: every datum reaching a node under either fold is in the
+# same `PropWhen.equiv` class (the codomain rule gives one true datum
+# per telescope), so the spellings differ but no verdict does — which
+# is the fact this fixture pins.
+0 annot_pw_thread.ndjson
+
+# Declines: one per stream-reachable validation site.  (The three
+# defensive sites — defeq-forall, defeq-lam, eta — cannot be reached
+# by any input that got past the front door; they are unit-tested in
+# tests/ConLecheTests.lean instead.)  Each carries an EXPLICIT wrong
+# claim — "[]" ("always a proposition") on a Type-level binder — which
+# the pass must not overwrite.
+# def tidBad : Type → Type, the ∀ claiming "[]": (forall-cod).
+2 annot_decline_forall.ndjson
+# def constBad : Type → Type → Type, outer λ claiming "[]" over a
+# correctly-filled inner λ: (lam-cod-chain).
+2 annot_decline_lam_chain.ndjson
+# def tidBad : Type → Type, the single λ claiming "[]": (lam-cod-leaf).
+2 annot_decline_lam_leaf.ndjson
