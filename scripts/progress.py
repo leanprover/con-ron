@@ -153,6 +153,46 @@ def classify(stmt, old_re, new_re):
     return direct
 
 
+OPENERS = "([{⟨⦃"
+CLOSERS = ")]}⟩⦄"
+
+
+def statement_end(text, start):
+    """Where a `theorem`'s statement ends: the `:=` (or `where`) that
+    introduces its *proof*, which is the first one at bracket depth 0.
+
+    A plain `(.*?)(?::=|\\bwhere\\b)` capture stops at the first `:=`
+    anywhere, and Lean's named-argument syntax puts one *inside* the
+    statement — `ConLeche.liftFueled (m := ConLeche.CheckM) …`.  The campaign
+    found that truncating there hides a full-outcome statement's `.Err` arm
+    and reports the lemma as unclassified (task #67 continued).  Strings are
+    skipped so a bracket inside a message does not unbalance the scan.
+    """
+    i, n, depth = start, len(text), 0
+    while i < n:
+        c = text[i]
+        if c == '"':
+            i += 1
+            while i < n and text[i] != '"':
+                i += 2 if text[i] == "\\" else 1
+            i += 1
+            continue
+        if c in OPENERS:
+            depth += 1
+        elif c in CLOSERS:
+            depth -= 1
+        elif depth == 0:
+            if text.startswith(":=", i):
+                return i
+            if (text.startswith("where", i)
+                    and not (text[i - 1].isalnum() or text[i - 1] == "_")
+                    and (i + 5 >= n or not (text[i + 5].isalnum()
+                                            or text[i + 5] == "_"))):
+                return i
+        i += 1
+    return n
+
+
 def refine_lemmas(old_re=SHAPE_OLD, new_re=SHAPE_NEW):
     """{(ModuleLower, fn)} for every `theorem <fn>_refines` under Refine/,
     recursively; a file in a subdirectory `Refine/Core/Arms/X.lean` counts
@@ -176,10 +216,11 @@ def refine_lemmas(old_re=SHAPE_OLD, new_re=SHAPE_NEW):
             else:
                 module = rel.split(os.sep)[0].lower() + fn[:-5].lower().replace("_", "")
             text = open(os.path.join(dirpath, fn), encoding="utf-8").read()
-            for m in re.finditer(r"^\s*theorem\s+([A-Za-z_][A-Za-z0-9_]*)_refines\b(.*?)(?::=|\bwhere\b)", text, re.M | re.S):
+            for m in re.finditer(r"^\s*theorem\s+([A-Za-z_][A-Za-z0-9_]*)_refines\b", text, re.M):
                 key = (module, m.group(1))
                 out.add(key)
-                LEMMA_SHAPES[key] = classify(m.group(2), old_re, new_re)
+                stmt = text[m.end():statement_end(text, m.end())]
+                LEMMA_SHAPES[key] = classify(stmt, old_re, new_re)
     return out
 
 
