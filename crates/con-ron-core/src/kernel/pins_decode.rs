@@ -200,15 +200,34 @@ pub fn read_nat_from(t: &[u8], i: usize, acc: u64) -> CheckM<(u64, usize)> {
 }
 
 /// con-leche: none — `read_nat` where the value is an index into a table
-/// A `<nat>` used as an id or a list length.  `as usize` is the port's cast
-/// everywhere an index is a machine word (`env::proj_body`, `decl_check`):
-/// `usize` is 64 bits on every target it builds for, and `read_nat` has
-/// already bounded the value well below that.  `usize::try_from` would be a
-/// sixth external hole for no gain.
+/// A `<nat>` used as an id or a list length, bounded to `u32::MAX` so that the
+/// `as usize` below is a *widening* cast on every target.
+///
+/// The bound is not decoration (task #64).  `read_nat`'s accumulator guard
+/// admits values up to `10^19 + 9` — inside `u64`, but well outside `u32` —
+/// and Aeneas models `usize` platform-generically, knowing only
+/// `Usize::MAX ∈ {u32::MAX, u64::MAX}` and modelling `as usize` as a
+/// *truncating* cast.  Without this check the decoder therefore does not
+/// refine `ConRon.Dump.parsePins` on a 32-bit target, and the failure is a
+/// real one rather than an artefact of the model: at `usize = u32` the text
+/// `4294967296` would pass `expect_id(_, _, 0)`, because it truncates to `0`.
+/// With the check the cast is the identity on every accepted value on every
+/// platform (`u32::MAX ≤ Usize::MAX` is what Aeneas's `scalar_tac` knows), so
+/// `proof/ConRon/Refine/PinsBytes.lean`'s `read_index_refines` needs no
+/// platform hypothesis and nothing above it does either.  Ids, counts and
+/// string lengths in this format are at most 26 721, so nothing a dump can
+/// legitimately contain is rejected.  `usize::try_from` would be a sixth
+/// external hole for no gain.
 pub fn read_index(t: &[u8], i: usize) -> CheckM<(usize, usize)> {
     match read_nat(t, i) {
         Err(e) => Err(e),
-        Ok((n, j)) => Ok((n as usize, j)),
+        Ok((n, j)) => {
+            if n > 4294967295 {
+                Err(bad_text())
+            } else {
+                Ok((n as usize, j))
+            }
+        }
     }
 }
 
@@ -1388,6 +1407,23 @@ mod tests {
         assert!(decode(b"con-ron-pins/1\nend 0").is_err());
         // a string field whose declared length disagrees with its text
         assert!(decode(b"con-ron-pins/1\nN 0 a\nN 1 s 0 2 a\nend 0\n").is_err());
+    }
+
+    /// An index field wider than `u32` is rejected at the cast rather than
+    /// truncated (task #64).  On this 64-bit host every one of these texts
+    /// would have been rejected anyway — a truncated id fails `expect_id`'s
+    /// comparison, a truncated length fails the cross-check — which is the
+    /// point: the guard is free here, and it is what makes the decoder refine
+    /// `ConRon.Dump.parsePins` on a 32-bit target too, where `4294967296`
+    /// would otherwise truncate to `0` and *pass* `expect_id(_, _, 0)`.
+    #[test]
+    fn an_index_wider_than_u32_is_rejected() {
+        assert!(decode(b"con-ron-pins/1\nN 4294967296 a\nend 0\n").is_err());
+        assert!(decode(b"con-ron-pins/1\nN 0 a\nN 1 s 0 4294967296 x\nend 0\n").is_err());
+        assert!(decode(b"con-ron-pins/1\nend 4294967296\n").is_err());
+        // the largest value the guard still admits is read, not rejected at
+        // the cast (it fails later, on the id comparison)
+        assert!(decode(b"con-ron-pins/1\nN 4294967295 a\nend 0\n").is_err());
     }
 
     /// The escape of FORMAT.md §3, the part of the format a byte reader has to

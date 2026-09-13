@@ -402,8 +402,9 @@ scripts/                 gates.sh (run it before every commit), extract.sh,
 
 **`scripts/gates.sh` is the one command every task runs before committing**
 (task #12): `cargo build`, `cargo test`, `lint-rust-style.sh`,
-`provenance.py check`, `extract.sh --check`, `cd proof && lake build`, one
-OK/FAIL line each, stopping at the first failure.
+`provenance.py check`, `gen-pins.sh --check` (task #43), `extract.sh --check`,
+`cd proof && lake build`, one OK/FAIL line each, stopping at the first
+failure.
 
 Refinement lemma shape — **exact result on success** (task #5): a Rust
 function that returns `ok y` computes *exactly* what the Lean function
@@ -508,9 +509,9 @@ well-founded reference decoder does not whnf (measured on a 23-byte text); and
 kernel reduction of a string literal is quadratic — the *cheapest* claim about
 the text, its byte size, costs 27 s at 1 KB and over 300 s at 8 KB.  The task
 #43 log entry has the numbers and the three upstream changes that would lift
-each obstacle.  `proof/ConRon/Refine/Pins.lean` states the refinement, the
-closed computation and the corollary; the first and third are open work, the
-second is open on the toolchain.  The upstream ask is unchanged: make
+each obstacle.
+
+The upstream ask is unchanged: make
 `natOpPinSets` an argument of `checkDecls` (`checkDecls mode pins ds`, with the
 shipped `checkDecls mode ds := checkDecls mode natOpPinSets ds`) and check that
 `model_exists` is parametric in it.  The basis blocks are *not* hints (their
@@ -550,11 +551,22 @@ avoided; `native_decide` accepted as an interim.**  The embedded-text route
 of task #43 failed on one 532 KB literal (kernel string reduction is
 quadratic; Aeneas's `toStr` carries `decide +native`; a byte literal of that
 size does not elaborate).  Interim (task #64): the closed computation
-`parsePins PINS = some natOpPinSets` is discharged by `native_decide`, so
-the capstones for the binary's actual pins carry `Lean.ofReduceBool` —
-trusted for exactly one closed computation on static data — beside the
-three standard axioms, while the pins-parametric versions stay at the
-three; the decoder's refinement is an ordinary proof.  Spike #63 measured
+`parsePins PINS = some natOpPinSets` is discharged by `native_decide` in
+the single lemma `ConRon.Refine.pins_closed`, so the capstones for the
+binary's actual pins carry two native-evaluation axioms beside the three
+standard ones, while the pins-parametric versions stay at the three; the
+decoder's refinement is an ordinary proof at the three.  **Not
+`Lean.ofReduceBool`, as first written:** Lean 4.33 does not emit it for
+`native_decide` — `Lean/Meta/Native.lean` compiles the proposition and
+seals the result into a *fresh axiom named after the theorem*, asserting
+precisely `decide P = true`, which is a strictly narrower assumption.  The
+second entry is not ours either: Aeneas's `toStr` spends
+`decide +native` on every extracted `&str` constant, so `PINS_TEXT`
+carries one before any proof of ours (`AENEAS_FINDINGS.md`).  Writing the
+`of_decide_eq_true (Lean.ofReduceBool …)` term by hand to get the older
+spelling does not terminate: the interpreter then evaluates
+`absText PINS_TEXT`, a 532 K-element `List U8`, instead of the literal.
+Spike #63 measured
 the two encodings: split generated source is dead (Charon emits a 5 GB
 LLBC); chunked byte constants are axiom-clean, the closed computation is
 4–6 min once (byte lists reduce linearly in the kernel; the decoder's
@@ -12983,3 +12995,193 @@ declined by con-ron.  Acceptances lost, never gained, so §1 is untouched.  The
 alternative was the error-direction restatement of the whole tower (a second
 `*_err_refines` family, preceded by turning every Rust-only `CheckError` into
 an Aeneas `fail`) — §3 records why the cheap targeted fix does not exist.
+### Task #64 — Pins: the decoder refined; the closed computation by `native_decide` (interim) (2026-09-13, Opus under Fable)
+
+The maintainer's decision on task #43's two open statements: **discharge the
+pins hypothesis, with `native_decide` accepted as an interim for the closed
+computation only.**  Both landed.  `ConRon/Refine/Pins.lean` is `sorry`-free,
+`pins_decode_refines` is an **ordinary proof** at con-leche's own three axioms,
+and native evaluation is confined to one lemma whose census is machine-checked.
+
+The task also found **a real bug in the port** — a truncating cast that makes
+the decoder wrong on a 32-bit `usize` — which is what the exercise is for, and
+which was fixed in the Rust rather than papered over in the statement.
+
+#### 1. Why two halves, and what `PinsDec` is
+
+`pins_decode_refines` relates two programs of different shape:
+`kernel::pins_decode::decode` walks a `&[u8]` with an index, `ConRon.Dump.
+parsePins` splits a `String` on `"\n"` and each line on `" "`.  Task #43 named
+the missing piece "the tokenizer bridge" and put it first in the dependency
+order.  The joint is a new file, `Refine/PinsDec.lean`: the **same decoder over
+a byte suffix** (`Bytes := List Nat`, `Option` for failure, con-leche values in
+the tables), which splits the problem into
+
+| half | statement | files |
+|---|---|---|
+| **(A)** the model against `PinsDec` | `decode t = ok (.Ok v) → PinsDec.decode (bytesOf t) = some (absPins v)` | `PinsBytes`, `PinsRecords`, `PinsRun` |
+| **(B)** `PinsDec` against the reader | `PinsDec.decode bs = some ps → parsePins (text bs) = .ok ps` | `PinsSplit`, `PinsRead` |
+
+(A) is ordinary Aeneas refinement with no string anywhere; (B) is pure Lean and
+is where `String.splitOn` is met.  The ASCII fact `absText` (a UTF-8 *decode*)
+needs is a third small file, `PinsAscii`, proved over `PinsDec`'s own equations
+rather than by a second walk over the port.
+
+| file | lines | contents |
+|---|---|---|
+| `PinsDec.lean` | 738 | the byte-level reference decoder, and its `#guard` self-tests |
+| `PinsAbs.lean` | 145 | task #43's `absText`/`absPins`/`absText_toStr`, moved, plus `bytesOf`/`absTables` |
+| `PinsBytes.lean` | 1 383 | (A) the scalars, the escape, the references, the counted lists — 25 lemmas |
+| `PinsRecords.lean` | 1 223 | (A) the `N`/`L`/`W`/`E` records — 20 lemmas |
+| `PinsRun.lean` | 621 | (A) the `S` record and the pass; `decode_refines` |
+| `PinsAscii.lean` | 658 | every byte the decoder accepts is ASCII — 57 lemmas |
+| `PinsSplit.lean` | 334 | (B) `String.splitOn` at one character, and `absText` on an ASCII text |
+| `PinsRead.lean` | 2 169 | (B) the tokenizer bridge; `parsePins_of_decode` |
+| `Pins.lean` | 226 | the four statements |
+
+**`PinsDec` was validated by execution before a line of proof was written**,
+and the `#guard`s stay in the file: they run `kernel::pins_decode`'s own twelve
+unit-test texts through the mirror and compare accept with accept, then read a
+dump exercising **every** record kind (`N`×3, `L`×5, `W`×2, `E`×10, `S`, the
+footer, the escape including an astral code point and the surrogate rejection)
+both ways and compare *value for value* — `pins_decode_refines` on those
+inputs.  That is what made it safe to fan the proof out to six agents at once.
+
+#### 2. The port bug: a truncating cast
+
+`read_index` was `read_nat` then `n as usize`, with the comment "`usize` is 64
+bits on every target it builds for, and `read_nat` has already bounded the
+value well below that".  Both halves are wrong: `read_nat`'s accumulator guard
+admits up to `10^19 + 9` — inside `u64`, well outside `u32` — and Aeneas models
+`usize` platform-generically, knowing only `Usize.max ∈ {U32.max, U64.max}`,
+with `as usize` a **truncating** cast.  So at `usize = u32` the text
+`4294967296` truncates to `0` and *passes* `expect_id(_, _, 0)`: the decoder
+does not refine `parsePins` there, and the failure is a property of the
+program, not an artefact of the model.
+
+It blocked thirteen of `PinsBytes`' twenty-five lemmas, and the alternative was
+a platform hypothesis threaded through three files and into the capstones.  The
+port was fixed instead: `read_index` rejects `n > 4294967295` before the cast.
+`U32.max ≤ Usize.max` is what `scalar_tac` knows on every platform, so the cast
+is provably the identity on every accepted value and **no platform hypothesis
+appears anywhere**.  Ids, counts and string lengths here are at most 26 721, so
+nothing legitimate is rejected; on a 64-bit host the guard is behaviourally
+invisible, because every value it now rejects failed a later check anyway.
+`cargo test` gained `an_index_wider_than_u32_is_rejected`, and `extract.sh` was
+re-run: the `Funs.lean` diff is **53 insertions, 49 deletions — one changed
+body and `Source:` line numbers**, nothing else.
+
+`PinsDec.readIndex` deliberately does **not** carry the guard.  The refinement
+runs one way, model-accepts ⟹ mirror-accepts, so a mirror that also accepts
+what the port rejects claims nothing extra; it stays the more permissive of the
+two there, as it already is about spaces and record kinds.
+
+#### 3. Two statement corrections, and one that was not needed
+
+* **The counted-list helpers were false as stated.**  `name_list_from`,
+  `level_list_from`, `expr_list_from`, `pins_eight_from` and
+  `proofs_eight_from` return `ok (.Ok (out, i))` at `k = 0` for *every* `i`,
+  including one past the end of the slice, so `j.val ≤ t.length` cannot hold —
+  witness `t = []`, `i = j = 1`, `k = 0`.  They take `(hi : i.val ≤ t.length)`
+  now: vacuous at every call site (`k ≠ 0` forces an `after_space`, which
+  supplies the bound), confined to the `*_from` layer, and
+  `pins_decode_refines` carries nothing.
+* **The `W` record looked like it needed a well-formedness invariant, and does
+  not.**  `prop_when::if_all_zero` *normalises*, sorting with
+  `prop_when::name_cmp`, and `Refine/PropWhen.lean`'s `if_all_zero_shape` asks
+  for `NamesWF`.  A `TablesWF` invariant was drafted and threaded through three
+  files before the better answer appeared: `name_cmp` never reads the stored
+  hash word and compares a `Str` payload as a raw `u32` list and a `Num`
+  payload as a raw `u64`, so `name_cmp a b = ok .Eq` forces the same kind tree
+  and the same payloads — everything `absName` looks at — hence
+  `absName a = absName b`, **well formed or not**.  The threading was reverted
+  on the rule that a hypothesis goes in only if the statement is false without
+  it.  `if_all_zero_abs` is the unconditional generalisation of
+  `if_all_zero_shape`; it is ~250 lines of `prop_when` theory **parked in
+  `PinsRecords.lean` and owed to `Refine/PropWhen.lean`**.
+
+#### 4. The closed computation, and exactly what is trusted
+
+`pins_closed : parsePins pinsTextLean = .ok ConLeche.natOpPinSets`, by
+`native_decide`, in about ten seconds.  What makes it cheap is task #43's
+`absText_toStr`: `rw [PINS_TEXT, absText_toStr]` turns the model's `Str` into
+the 532 KB Lean string literal at **zero** kernel cost (the `toStr` bound is a
+parameter and is never touched), so the compiled computation is `parsePins "…"`
+and nothing about `Slice`, `U8` or `toStr` is ever run.  `DecidableEq
+ConLeche.NatOpPinSet` is derived in `PinsDec.lean`, where the self-tests
+already need it.  Task #43's three obstacles all still hold, and spike #63
+measured the alternatives, so the interim stands (§3).
+
+**One correction to the brief, and it is load-bearing for the census.**  Lean
+4.33 does **not** emit `Lean.ofReduceBool` for `native_decide`.
+`Lean/Meta/Native.lean` compiles the proposition, runs it, and seals the result
+into a *fresh axiom named after the theorem*, asserting precisely
+`decide P = true` — a strictly narrower assumption than `ofReduceBool`, and one
+that names its own spender.  Writing the older term
+`of_decide_eq_true (Lean.ofReduceBool …)` by hand to get the requested spelling
+does **not** terminate: the interpreter then evaluates `absText PINS_TEXT`, a
+532 K-element `List U8`, instead of the literal (killed at 3 GB RSS).  The
+second native entry is not ours either — Aeneas's `toStr` spends
+`decide +native` on every extracted `&str`, so `PINS_TEXT` carries one before
+any proof of ours (`AENEAS_FINDINGS.md`).
+
+The censuses, all `#guard_msgs`-pinned:
+
+| theorem | axioms |
+|---|---|
+| `pins_decode_refines` | `[propext, Classical.choice, Quot.sound]` |
+| `PinsRun.decode_refines`, `PinsRead.parsePins_of_decode`, `PinsDec.decode_ascii`, `PinsSplit.absText_of_ascii` | the same three |
+| `conron.model_exists'` / `no_proof_of_False'` | the same three — **unchanged** |
+| `pins_closed`, `check_decls_pins_refines`, `conron.{model_exists,no_proof_of_False}_embedded` | the three **plus** `pins_closed._native.native_decide.ax_1_2` and `pins_text.PINS_TEXT._native.decide.ax_1` |
+
+#### 5. The capstones: both kept
+
+`conron.model_exists'` / `conron.no_proof_of_False'` are **unchanged** —
+general in `pins`, carrying `hpins`, naming no embedded constant, with no
+native evaluation in their closure.  Appended beside them are
+`conron.model_exists_embedded` / `conron.no_proof_of_False_embedded`: the same
+theorems at the pin list the binary actually folds with
+(`kernel::pins_decode::decode_embedded()`, what `con_ron::driver::pins_for_run`
+passes by default), carrying **neither `hk` nor `hpins`**.  `Installed.lean`
+gained the matching `check_decls_embedded_refines`.
+
+#### Gates
+
+| gate | result |
+|---|---|
+| `cargo build` | OK, warning-free at `-D warnings` |
+| `cargo test` | **234/234** |
+| `lint-rust-style.sh` | OK |
+| `provenance.py check` | OK — 2 105 items, 2 230 citations at pin 3e004805 |
+| `gen-pins.sh --check` | OK — 26 721 records, 532 456 bytes |
+| `extract.sh --check` | OK — externals 1 type, 5 fns |
+| `cd proof && lake build` | **2 583 jobs, zero errors**; no `sorry` in any `Pins*` file |
+
+#### Left for next time
+
+* **`hvar : CheckerPins.PinsWF pins`** is the one hypothesis the `_embedded`
+  corollaries still carry, and the piece of task #64 that is owed.  It needs
+  `ExprWF` for every expression the decoder installs, i.e. a full
+  well-formedness invariant (names, levels, prop-whens, expressions) threaded
+  through `PinsBytes` and `PinsRecords`.  Cheap in kind — `ExprWF`'s
+  constructors *are* the port's smart constructors and every record already
+  applies exactly one, and `StrWF` comes straight from `read_string`'s
+  `is_valid_char` guard — but every reader lemma in half (A) gains a hypothesis
+  and a conjunct.  The `TablesWF` draft this task wrote and removed is the
+  shape to start from.
+* **Move `if_all_zero_abs` and its ~250 lines of `prop_when` theory** from
+  `PinsRecords.lean` to `Refine/PropWhen.lean`, beside the conditional
+  `if_all_zero_shape` it generalises.
+* **`reduceIte` does not fire on the outer `if 115 = 97`** of `recordExpr`'s
+  eleven-deep dispatch even when listed explicitly, though it fires on every
+  inner one; the eleven delegating arms work around it with a trailing full
+  `simp`, which is why `record_expr_refines` needs `maxHeartbeats 1000000`.
+  Worth an MWE.
+* **`PinsDec` niggles the proofs paid for**, all cosmetic and all recorded by
+  the agents who hit them: `unescapeFrom`'s `let d := hexDigit b` blocks
+  `split at h` until a `dsimp only`; guards written `a || b` over `Prop`s cost a
+  `simp only [Bool.or_eq_true, decide_eq_true_eq]` each where `∨` would let
+  `omega` read them; `runFooter`'s negated-disjunction guard would be more
+  mechanical written positively; and nothing exports "a record's remainder is a
+  suffix of its input", which is what forced `PinsRead`'s `AtField` to carry an
+  `Option Bytes`.

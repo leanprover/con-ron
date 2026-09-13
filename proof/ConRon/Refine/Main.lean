@@ -46,12 +46,15 @@ be *exactly* `[propext, Classical.choice, Quot.sound]` — con-leche's own three
 did, at task #58**; the knot, the routes and the pins stayed *hypotheses*
 rather than becoming axioms, which is the point.
 
-**Nothing here may reach `kernel::pins_text::PINS_TEXT`** (task #43): the
-constant's own Lean value is fine, but any closed claim *about* it needs
-`decide +native`, whose `Lean.ofReduceBool`/`Lean.trustCompiler` would show up
-in this census.  It does not, and the guard is what keeps it that way: `pins`
-is a *parameter* of `check_decls` here and `hpins` is a hypothesis about it, so
-the embedded text is not in the proof closure at all.
+**The two `pins`-parametric theorems may not reach `kernel::pins_text::
+PINS_TEXT`** (task #43), and do not: `pins` is a *parameter* of `check_decls`
+there and `hpins` is a hypothesis about it, so the embedded text is not in
+their proof closure at all, and no native evaluation is either.  That is the
+whole point of keeping them alongside the `*_embedded` corollaries task #64
+added below, which *do* name the embedded constant and therefore carry the two
+native-decide axioms `Refine/Pins.lean`'s `pins_closed` spends.  Both censuses
+are pinned; the difference between them is the trust story, and
+`Refine/README.md` spells it out.
 
 ## `sorry` count in this file: 0
 -/
@@ -154,6 +157,69 @@ theorem conron.no_proof_of_False' (V : Type w) [ConLeche.SetTheory V]
 /-- info: 'ConRon.Refine.conron.no_proof_of_False'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms conron.no_proof_of_False'
 
+/-! ## The instance at the binary's own pins (task #64)
+
+The theorems above are general in `pins` and carry
+`hpins : absPins pins = ConLeche.natOpPinSets` — a promise about an argument
+the binary was *given*.  For a real run the argument is not free:
+`con_ron::driver::pins_for_run` hands `check_decls` the **verified** decoder
+applied to the embedded `con-ron-pins/1` constant, and `Refine/Pins.lean`'s
+`check_decls_pins_refines` says what that equals.  The two corollaries below
+are `conron.model_exists'` / `conron.no_proof_of_False'` with `hpins`
+discharged that way, for the pin list the binary actually folds with — so
+they carry neither `hk` (`Core.knot_spec`, task #61) nor `hpins`.
+
+**Both versions are kept, and the difference between them is the trust
+story.**  The primed theorems do not mention the embedded text at all, so
+nothing native-decide-shaped is in their closure and their census is
+con-leche's own three axioms.  These two inherit exactly two more, both
+native evaluation on *static data*: `pins_closed`'s sealed axiom, which
+asserts that the embedded text decodes to con-leche's `natOpPinSets`, and the
+one Aeneas's `toStr` already spends on every extracted `&str` constant.  Both
+censuses are pinned below; `Refine/README.md`'s "Where the native-decide
+axiom lives" is the standing statement of what that buys, and DESIGN.md §3
+records that spike #63 measured the alternatives and that the interim stands.
+
+`hvar : CheckerPins.PinsWF pins` is **not** discharged here and is task #64's
+one piece of owed work: it needs `ExprWF` for every expression the decoder
+installs, i.e. a full well-formedness invariant threaded through
+`Refine/PinsBytes.lean` and `Refine/PinsRecords.lean` — cheap in kind, since
+`ExprWF`'s constructors *are* the port's smart constructors and every record
+already applies one, but a contract change across the whole of half (A).
+DESIGN.md's task #64 entry has the recipe. -/
+
+/-- **The main theorem for the shipped binary** (task #64): the same
+statement as `conron.model_exists'`, for the pin list
+`con_ron::driver::pins_for_run` passes by default —
+`kernel::pins_decode::decode_embedded()`, the verified decoder on the
+embedded text — and therefore with no hypothesis about the pins' *value*. -/
+theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
+    (hind : IndRoutesSpec .Verified)
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hoe : CheckerDecl.DivModOrElse .Verified)
+    (hvar : CheckerPins.PinsWF pins)
+    (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
+    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    Nonempty (ConLeche.Model V (absEnv e)) :=
+  conron.model_exists' V hind hoe hvar (check_decls_pins_refines pins hp) hds h
+
+/-- **The main corollary for the shipped binary** (task #64):
+`conron.no_proof_of_False'` at the embedded pins. -/
+theorem conron.no_proof_of_False_embedded (V : Type w) [ConLeche.SetTheory V]
+    (hind : IndRoutesSpec .Verified)
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hoe : CheckerDecl.DivModOrElse .Verified)
+    (hvar : CheckerPins.PinsWF pins)
+    (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
+    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    ¬ ∃ c ∈ (absEnv e).consts,
+        c.toConstantVal.type = .const ConLeche.falseName [] :=
+  conron.no_proof_of_False' V hind hoe hvar (check_decls_pins_refines pins hp) hds h
+
 /-! ## The census (DESIGN.md §5, the P3 gate) — **passed**
 
 `sorryAx` is **gone** (task #58 closed the last door, `checkDeclStepC`'s
@@ -180,5 +246,26 @@ plugged in here), `hind`, `hpins` and `hvar`. -/
 
 /-- info: 'ConLeche.no_proof_of_False' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConLeche.no_proof_of_False
+
+-- The binary-instance corollaries (task #64).  Two entries more than the
+-- general theorems above, and exactly two: `pins_closed`'s own sealed
+-- native-evaluation axiom (Lean 4.33 seals `native_decide` into a fresh axiom
+-- named after the theorem, asserting `decide P = true` and nothing else,
+-- rather than emitting `Lean.ofReduceBool`), and the one Aeneas's `toStr`
+-- spends on every extracted `&str` constant.  Nothing else changes.
+
+/-- info: 'ConRon.Refine.conron.model_exists_embedded' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ pins_closed._native.native_decide.ax_1_2,
+ pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms conron.model_exists_embedded
+
+/-- info: 'ConRon.Refine.conron.no_proof_of_False_embedded' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ pins_closed._native.native_decide.ax_1_2,
+ pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms conron.no_proof_of_False_embedded
 
 end ConRon.Refine
