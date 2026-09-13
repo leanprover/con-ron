@@ -11514,7 +11514,8 @@ independently written statements lined up.
 
 #### What is closed
 
-**`annotate` is closed.**  `#print axioms annotate_body_sim` is `[propext,
+**19 declarations out of roughly 300 carry a `sorry`**, and eleven of the
+nineteen files carry none.  **`annotate` is closed.**  `#print axioms annotate_body_sim` is `[propext,
 Classical.choice, Quot.sound]`: the body, its eighteen arms and everything
 they rest on.  `whnf`, `infer` and `infer_io` are assembled and carry
 `sorryAx` from named findings, not from unfinished proofs.  Seven files are
