@@ -1485,6 +1485,26 @@ theorem run_bind_ok_inv {α β : Type} {x : CheckCM α} {f : α → CheckCM β}
     · rfl
     · rw [hx] at h; exact h
 
+open ConLeche.Cached in
+/-- The same at a failure: a `do`-step whose continuation is a `pure` throws
+only if the step itself threw.  This is what carries `checkDefnValF`'s failure
+across `checkDefnValF_pushC` to `checkDefnVal`. -/
+theorem run_bind_pure_err_inv {α β : Type} {x : CheckCM α} {g : α → β}
+    {lst : CState} {le : ConLeche.CheckError}
+    (h : (x >>= fun a => (pure (g a) : CheckCM β)).run lst = .error le) :
+    x.run lst = .error le := by
+  rw [StateT.run_bind] at h
+  cases hx : x.run lst with
+  | error e =>
+    rw [hx] at h
+    simp only [Bind.bind, Except.bind] at h
+    rw [Except.error.inj h]
+  | ok p =>
+    rw [hx] at h
+    simp only [Bind.bind, Except.bind, StateT.run, Pure.pure, StateT.pure,
+      Except.pure] at h
+    exact absurd h (by simp)
+
 /-- `absConstantVal`'s two field reads, as rewrites. -/
 theorem absConstantVal_name (cv : env.ConstantVal) :
     (absConstantVal cv).name = absName cv.name := rfl
@@ -4916,23 +4936,41 @@ theorem check_defn_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr} {hint : env.ReducibilityHint}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
-    (h : kernel.checker.check_defn_decl mode pins st fe cv value hint = ok (.Ok fe', st')) :
+    (h : kernel.checker.check_defn_decl mode pins st fe cv value hint = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → Indexed lfe →
-      ∃ lst' lfe',
-        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
-            (ConLeche.Declaration.defnDecl (absConstantVal cv) (absExpr value) (absHint hint))).run lst
-          = .ok (lfe'.env, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
-        ∧ Indexed lfe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+              (ConLeche.Declaration.defnDecl (absConstantVal cv) (absExpr value)
+                (absHint hint))).run lst
+            = Except.ok (lfe'.env, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+          ∧ Indexed lfe'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+          (ConLeche.Declaration.defnDecl (absConstantVal cv) (absExpr value)
+            (absHint hint))).run lst) := by
   intro lst lfe hsr hfr hix
   rw [kernel.checker.check_defn_decl] at h
   obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r, st1⟩ := q
   cases r with
-  | Err er => simp at h
+  | Err er =>
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    show ErrSim er _
+    have herr :=
+      CheckerBase.check_constant_val_refines hfuel hk constsResolveFSpec hsw hfw hcv
+        (hq : checker_base.check_constant_val mode st fe cv = ok (.Err er, st1))
+        lst lfe hsr hfr
+    rw [hix.checkConstantVal_eq] at herr
+    exact ErrSim.trans herr (fun _ hle => by
+      rw [ConLeche.checkDecl]; exact run_bind_err_head hle)
   | Ok cv_a =>
     have hqb : checker_base.check_constant_val mode st fe cv = ok (.Ok cv_a, st1) := hq
     obtain ⟨hfind0, hnameq⟩ := check_constant_val_fresh hqb
@@ -4947,7 +4985,20 @@ theorem check_defn_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r1, st2⟩ := q2
     cases r1 with
-    | Err er => simp at h
+    | Err er =>
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      show ErrSim er _
+      have herr :=
+        Checker.check_defn_val_refines hfuel hk CoreK.pinnedBasisNames hsw1 hfw hcvawf hv
+          hq2 lst1 lfe hsr1 hfr
+      have hbridge := checkDefnValF_pushC (TypeChecker.lops mode lfe) lfe.env
+        (absConstantVal cv_a) (absExpr value) (absHint hint)
+      rw [← hix] at hbridge
+      rw [hbridge] at herr
+      refine ErrSim.trans herr (fun le hle => ?_)
+      rw [ConLeche.checkDecl]
+      exact run_bind_ok hruncvF (run_bind_err_head (run_bind_pure_err_inv hle))
     | Ok fe2 =>
       obtain ⟨lst2, lfeS, hrunF, hsr2, hsw2, hrelS, hwfS⟩ :=
         Checker.check_defn_val_refines hfuel hk CoreK.pinnedBasisNames hsw1 hfw hcvawf hv
@@ -4987,7 +5038,7 @@ theorem check_defn_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
           = ((lfe.push (absConstantInfo (env.ConstantInfo.DefnInfo cv_a value_a hint))).restrictTo
               (fe.visible_below).val).find? := by
         rw [hfr.2.1, push_restrict_find hcifresh]
-      obtain ⟨lst3, lst4, hA, hB, hC, hsr4, hsw4, hrel4, hwf4⟩ :=
+      have hres :=
         CheckerPins.check_defn_pins_refines hfuel hk hsw2 hwf2 hcvawf.1 hvar hpins h lst2
           (lfe.push (absConstantInfo (env.ConstantInfo.DefnInfo cv_a value_a hint))) lfe
           hsr2 hrel2 (fun _ hr => BasisPins.eq_basis_pinned_refines hrel2 hwf2 hr) hlfp
@@ -5044,52 +5095,91 @@ theorem check_defn_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
                 Except ConLeche.CheckError (Unit × ConLeche.Cached.CState)) = .ok ((), l4) := hh
             exact (show l3 = l4 by simpa using he).symm
           rw [hl]; rfl
-      have hC' : ((if ConLeche.natDivModNames.contains (absConstantVal cv_a).name then
-            ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) lfe
-              (lfe.push (absConstantInfo (env.ConstantInfo.DefnInfo cv_a value_a hint)))
-              (absConstantVal cv_a).name
-          else pure ()) : ConLeche.Cached.CheckCM Unit).run lst3 = .ok ((), lst4) := hC
-      refine ⟨lst4, lfe.push (absConstantInfo
-        (env.ConstantInfo.DefnInfo cv_a value_a hint)), ?_, hsr4, hsw4, hrel4, hwf4, hix2⟩
-      rw [ConLeche.checkDecl]
-      refine run_bind_ok hruncvF ?_
-      refine run_bind_ok hrunE ?_
-      rw [hdmE]
-      by_cases hnat : ConLeche.natOpNames.contains (absConstantVal cv_a).name = true
-      · rw [if_pos hnat]
-        obtain ⟨hg, hd2, cvL, value', hintL, hfindL, hcert⟩ := hA hnat
-        have hg' : ConLeche.natOpGuardF (lfe.push (absConstantInfo
-            (env.ConstantInfo.DefnInfo cv_a value_a hint)))
-            (absConstantVal cv_a).name = true := hg
-        have hd2' : ((ConLeche.natOpDeps (absConstantVal cv_a).name).all
-            (ConLeche.natOpStoredOkF (lfe.push (absConstantInfo
-              (env.ConstantInfo.DefnInfo cv_a value_a hint))))) = true := hd2
-        have hfindL' : (lfe.push (absConstantInfo
-            (env.ConstantInfo.DefnInfo cv_a value_a hint))).find?
-              (absConstantVal cv_a).name = some (.defnInfo cvL value' hintL) := hfindL
-        have hcert' : (ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lfe.env
-            ((ConLeche.natOpEquations 0 (absConstantVal cv_a).name).map fun eq =>
-              (ConLeche.Expr.substConst0 (absConstantVal cv_a).name value' eq.1,
-               ConLeche.Expr.substConst0 (absConstantVal cv_a).name value' eq.2))).run lst2
-            = .ok (true, lst3) := hcert lfe.env
-        rw [hguard, hstored]
-        rw [if_pos (show (ConLeche.natOpGuardF (lfe.push (absConstantInfo
-            (env.ConstantInfo.DefnInfo cv_a value_a hint))) (absConstantVal cv_a).name &&
-          (ConLeche.natOpDeps (absConstantVal cv_a).name).all
-            (ConLeche.natOpStoredOkF (lfe.push (absConstantInfo
-              (env.ConstantInfo.DefnInfo cv_a value_a hint))))) = true from by
-          rw [hg', hd2']; rfl)]
-        rw [hfindE, hfindL']
-        simp only []
-        refine run_bind_ok hcert' ?_
-        simp only [if_true]
-        exact divmod lst3 lst4 hC'
-      · rw [if_neg hnat]
-        have hnatf : ConLeche.natOpNames.contains (absConstantVal cv_a).name = false := by
-          simpa using hnat
-        rw [← hB hnatf]
-        exact divmod lst3 lst4 hC'
+      cases out with
+      | Err e =>
+        show ErrSim e _
+        refine ErrSim.trans (hres lfe.env) (fun le hle => ?_)
+        rw [ConLeche.checkDecl]
+        refine run_bind_ok hruncvF ?_
+        refine run_bind_ok hrunE ?_
+        rw [hdmE, hguard, hstored, hfindE]
+        show (defnGatesInlined (TypeChecker.lops mode lfe) lfe
+            (lfe.push (absConstantInfo (env.ConstantInfo.DefnInfo cv_a value_a hint)))
+            lfe.env (absConstantVal cv_a).name
+            (pure (lfe.push (absConstantInfo
+              (env.ConstantInfo.DefnInfo cv_a value_a hint))).env)).run lst2
+          = Except.error le
+        rw [defnGatesInlined_eq]
+        exact run_bind_err_head hle
+      | Ok fe' =>
+        obtain ⟨lst3, lst4, hA, hB, hC, hsr4, hsw4, hrel4, hwf4⟩ := hres
+        have hC' : ((if ConLeche.natDivModNames.contains (absConstantVal cv_a).name then
+              ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) lfe
+                (lfe.push (absConstantInfo (env.ConstantInfo.DefnInfo cv_a value_a hint)))
+                (absConstantVal cv_a).name
+            else pure ()) : ConLeche.Cached.CheckCM Unit).run lst3 = .ok ((), lst4) := hC
+        refine ⟨lst4, lfe.push (absConstantInfo
+          (env.ConstantInfo.DefnInfo cv_a value_a hint)), ?_, hsr4, hsw4, hrel4, hwf4, hix2⟩
+        rw [ConLeche.checkDecl]
+        refine run_bind_ok hruncvF ?_
+        refine run_bind_ok hrunE ?_
+        rw [hdmE]
+        by_cases hnat : ConLeche.natOpNames.contains (absConstantVal cv_a).name = true
+        · rw [if_pos hnat]
+          obtain ⟨hg, hd2, cvL, value', hintL, hfindL, hcert⟩ := hA hnat
+          have hg' : ConLeche.natOpGuardF (lfe.push (absConstantInfo
+              (env.ConstantInfo.DefnInfo cv_a value_a hint)))
+              (absConstantVal cv_a).name = true := hg
+          have hd2' : ((ConLeche.natOpDeps (absConstantVal cv_a).name).all
+              (ConLeche.natOpStoredOkF (lfe.push (absConstantInfo
+                (env.ConstantInfo.DefnInfo cv_a value_a hint))))) = true := hd2
+          have hfindL' : (lfe.push (absConstantInfo
+              (env.ConstantInfo.DefnInfo cv_a value_a hint))).find?
+                (absConstantVal cv_a).name = some (.defnInfo cvL value' hintL) := hfindL
+          have hcert' : (ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lfe.env
+              ((ConLeche.natOpEquations 0 (absConstantVal cv_a).name).map fun eq =>
+                (ConLeche.Expr.substConst0 (absConstantVal cv_a).name value' eq.1,
+                 ConLeche.Expr.substConst0 (absConstantVal cv_a).name value' eq.2))).run lst2
+              = .ok (true, lst3) := hcert lfe.env
+          rw [hguard, hstored]
+          rw [if_pos (show (ConLeche.natOpGuardF (lfe.push (absConstantInfo
+              (env.ConstantInfo.DefnInfo cv_a value_a hint))) (absConstantVal cv_a).name &&
+            (ConLeche.natOpDeps (absConstantVal cv_a).name).all
+              (ConLeche.natOpStoredOkF (lfe.push (absConstantInfo
+                (env.ConstantInfo.DefnInfo cv_a value_a hint))))) = true from by
+            rw [hg', hd2']; rfl)]
+          rw [hfindE, hfindL']
+          simp only []
+          refine run_bind_ok hcert' ?_
+          simp only [if_true]
+          exact divmod lst3 lst4 hC'
+        · rw [if_neg hnat]
+          have hnatf : ConLeche.natOpNames.contains (absConstantVal cv_a).name = false := by
+            simpa using hnat
+          rw [← hB hnatf]
+          exact divmod lst3 lst4 hC'
 
+
+/-- `check_defn_decl_refines` at a success, the pre-#67 statement. -/
+theorem check_defn_decl_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hvar : CheckerPins.PinsWF pins)
+    (hpins : absPins pins = ConLeche.natOpPinSets)
+    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
+    {cv : env.ConstantVal} {value : expr.Expr} {hint : env.ReducibilityHint}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
+    (h : kernel.checker.check_defn_decl mode pins st fe cv value hint
+        = ok (.Ok fe', st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → Indexed lfe →
+      ∃ lst' lfe',
+        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+            (ConLeche.Declaration.defnDecl (absConstantVal cv) (absExpr value)
+              (absHint hint))).run lst
+          = Except.ok (lfe'.env, lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ Indexed lfe' :=
+  check_defn_decl_refines hfuel hk hvar hpins hsw hfw hcv hv h
 
 /-- `checkDecl`'s `.thmDecl` arm (`Checker.lean:501-503`).
 
