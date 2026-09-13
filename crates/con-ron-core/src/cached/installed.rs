@@ -756,7 +756,7 @@ pub fn validate_reject_message() -> Vec<u32> {
     core_types::code_points(&M)
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:407-411 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:440-447 checkDecls
 /// **The fold proper**, i.e. the cited `checkDecls` body: `check_decls` above
 /// is this function behind task #73's validation pass.  Split out so that the
 /// pass is one line and the refinement lemma's gate can name what follows it
