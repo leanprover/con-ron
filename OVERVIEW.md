@@ -23,11 +23,11 @@ development is consistent: a bug in those would have to have a twin in
 
 The binary reads a Lean export in `lean4export`'s NDJSON format and
 prints one verdict line
-([the usage text in `con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L109-L175)):
+([the usage text in `con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L100-L163)):
 
 ```
 con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
-        [--progress[=<stride>]] [--pins FILE|--no-pins] [--dump-decls OUT]
+        [--progress[=<stride>]] [--pins FILE|--no-pins]
         FILE.ndjson
 con-ron --help
 ```
@@ -37,17 +37,15 @@ con-ron --help
 switched off; it is faster and outside the theorem.  `--jobs=<n>` is the
 check phase's worker count, defaulting to one per hardware thread capped
 at 16, because each worker reserves a gigabyte of address space for its
-stack.  `--progress[=<stride>]` is a heartbeat on stderr.  The three
-flags con-leche does not have are marked as con-ron's own in the usage
-text: `--pins FILE` and `--no-pins` replace the embedded pin list for
-testing, and `--dump-decls OUT` writes the parsed declarations in the
-`con-ron-decls/1` format and exits.  `--no-mark-persistent` is accepted
-and does nothing: the Lean-runtime device it turns off has no
-counterpart in a program whose reference counts are atomic by type.
+stack.  `--progress[=<stride>]` is a heartbeat on stderr.  The two flags
+con-leche does not have are marked as con-ron's own in the usage text:
+`--pins FILE` and `--no-pins` replace the embedded pin list for testing.  `--no-mark-persistent` is accepted and does nothing: the
+Lean-runtime device it turns off has no counterpart in a program whose
+reference counts are atomic by type.
 
 The exit code follows the Lean kernel arena convention, the same as
 con-leche's
-([the exit-code table in `driver.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L40-L45)):
+([the exit-code table in `driver.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L42-L47)):
 
 | exit | verdict | meaning |
 |---|---|---|
@@ -55,14 +53,6 @@ con-leche's
 | 1 | `rejected` | a declaration is invalid |
 | 2 | `declined` | the checker detected a feature it does not support, and says which |
 | 3 | error | bad usage, malformed input, or an internal failure |
-
-A second binary, `con-ron-check`, is the same driver over a
-`con-ron-decls/1` dump instead of a raw export
-([its header](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron-check.rs#L1-L14)).
-The dump is the parsed declaration list that con-leche's own frontend
-produced, so this binary is con-leche's `Main.lean` minus the frontend,
-and it is the differential seam of §6: the same dump through both
-checkers must give the same verdict.
 
 ## 1. Building
 
@@ -75,7 +65,7 @@ at the version in `proof/lean-toolchain` (the same as con-leche's).
 
 ```
 nix develop                        # cargo, charon, aeneas on PATH
-cargo build --release              # target/release/con-ron, con-ron-check
+cargo build --release              # target/release/con-ron
 scripts/setup-aeneas-lean.sh       # the patched Aeneas Lean library + Mathlib, once
 cd proof && lake build             # the model and the proofs
 ```
@@ -221,7 +211,7 @@ elaborations.  The port embeds that list as text in the verified core
 ([`PINS_TEXT`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_text.rs#L40-L44),
 generated from con-leche by `scripts/gen-pins.sh` and checked by the
 gates) and decodes it with a verified decoder
-([`decode`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_decode.rs#L1330-L1347))
+([`decode`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_decode.rs#L1328-L1345))
 whose output is well-formed by construction for every input.
 
 ### 3.5 Errors, and the validation pass
@@ -269,8 +259,8 @@ The unverified crate `con-ron` holds the frontend (the parser and the
 modeller, ported from con-leche's), the driver, and the worker pool of
 the check phase
 ([`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L1-L9));
-`con-ron-dump` reads and writes the two dump formats.  The verified crate
-is `con-ron-core`.
+`con-ron-dump` reads and writes `con-ron-pins/1`, the text format the
+pin list travels in (§3.4).  The verified crate is `con-ron-core`.
 
 ## 4. Keeping the port in sync with con-leche
 
@@ -385,12 +375,20 @@ the fold, and the capstones of §2.
 ### 5.4 Differential testing
 
 Before and beside the proof, the port is checked against con-leche on
-data: con-leche's own test fixtures through both checkers
-(`scripts/diff-fixtures.sh`, 315 fixtures, every verdict and exit code
-equal), its end-to-end suite through both binaries (`scripts/diff-e2e.sh`,
-348 cases, at several worker counts), and the frontends compared on the
-parsed declaration dumps (`scripts/diff-frontend.sh`, byte-identical).
-The frontend is unverified; this is what stands in for its proof.
+data.  `scripts/diff-e2e.sh` runs the whole `con-ron` binary on every
+one of con-leche's own fixtures — its `tests/arena`, `tests/e2e` and
+`tests/annot` suites, 348 streams — and compares the exit code against
+con-leche's committed expectation for that stream, in both modes, with
+and without the embedded pin list, and at several worker counts.  Being
+end-to-end is the point: the frontend is unverified, and a sweep that
+fed the checker a ready-made declaration list would test neither it nor
+the rules that live above the fold (the taint-skip decline, the
+frontend's own verdicts).  A run is green only when every case agrees.
+
+Earlier tasks ran a second, narrower sweep through a text dump of
+con-leche's parsed declarations, which let the Rust checker be exercised
+before a Rust frontend existed; task #80 retired it once the end-to-end
+sweep covered it — the dump's 315 cases were a subset of these 348.
 
 ## 6. Results
 
@@ -566,8 +564,8 @@ are `abs*`, the relations `*Rel`, the well-formedness predicates `*WF`.
 | `crates/con-ron-core/src/kernel/` | the pure checker: `name`, `level`, `prop_when`, `expr`, `expr_ops`, `env`, `fenv`, `core_k`, `checker*`, `decl_check`, `type_checker`, the basis tables, the axiom tables, `inductives/*`, `pins_text`, `pins_decode`, `validate` |
 | `crates/con-ron-core/src/cached/` | the memoising checker: `state_c`, `expr_ops_c`, `core_c` (the knot), `checker_c`, `parsed_c`, `installed` (`check_decls`) |
 | `crates/con-ron-core/src/ron/` | `nat`, `hashmap`, `ptr` — what replaces the runtime |
-| `crates/con-ron/src/` | the frontend, the driver, the pool, the two binaries |
-| `crates/con-ron-dump/` | the `con-ron-decls/1` and `con-ron-pins/1` readers and writers |
+| `crates/con-ron/src/` | the frontend, the driver, the pool, the binary |
+| `crates/con-ron-dump/` | the `con-ron-pins/1` reader and writer |
 | `proof/ConRon/Generated/` | the committed Aeneas model |
 | `proof/ConRon/Refine/` | the proofs: `Abs`, `State`, `FEnv` (abstractions and relations); one file per Rust module; `Core/` (the knot); `Ind*` (the inductive routes); `Pins*` (the decoder); `Validate`; `Installed`; `Main` |
 | `proof/ConRon/Refine/README.md` | the proof tier's own map: naming, the hypothesis table, how to write a lemma |

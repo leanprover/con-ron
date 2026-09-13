@@ -82,7 +82,7 @@ import ConRon.Refine.Core.Arms.WhnfCore
 import ConRon.Refine.Core.Arms.App
 import ConRon.Refine.Core.Arms.InferSpine
 import ConRon.Refine.Core.Arms.InferSpineIO
-import ConRon.Dump.Read
+import ConRon.Dump.Pins
 import ConRon.Refine.TypeChecker
 import ConRon.Refine.IndSpec
 import ConRon.Refine.CheckerC

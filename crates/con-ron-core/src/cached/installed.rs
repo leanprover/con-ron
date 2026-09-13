@@ -46,7 +46,7 @@
 //! The taint-skip decline (`Main.lean:637-645`) is a **driver** rule above
 //! `check_decls`: the frontend's skipped declarations never reach the fold,
 //! and a clean fold over a stream with skips is still a decline.  The core
-//! must not implement it (task #10's surprise 9); `con-ron-check` does.
+//! must not implement it (task #10's surprise 9); `con_ron::driver` does.
 //!
 //! ## Deviations from the cited code
 //!
@@ -83,7 +83,7 @@
 //!    the loop's `[]` arm, i.e. a `Nat.div`/`Nat.mod` stream declines, which
 //!    is sound for the accept direction (§1); the binary's own list is the
 //!    embedded text `kernel::pins_text::PINS_TEXT`, decoded in the core
-//!    (task #43), and `con-ron-check --pins FILE` is a test override.
+//!    (task #43), and `con-ron --pins FILE` is a test override.
 //! 5. **Message strings** are the cited ones minus their interpolated names
 //!    (§3.1: the theorem never reads them), spelled as `core_types`' code
 //!    points — the same texts `parsed_c` and `kernel::checker_split` use, so
@@ -800,7 +800,7 @@ pub fn check_decls_phase_b(
 /// an index recursion threading the accumulator by value (deviation 3), i.e.
 /// the fold applied to `ds[i..]`.  The `CState` is the caller's — the cited
 /// `{}` is `check_decls`' own fresh one, and a driver that runs phase A in
-/// steps (con-leche's `Main.lean`, `con-ron-check --stats`) owns it across
+/// steps (con-leche's `Main.lean`, `con_ron::driver`'s phase loops) owns it across
 /// the steps.
 pub fn annot_decl_fold_from(
     mode: &CheckMode,

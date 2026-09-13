@@ -37,13 +37,6 @@ roots = ["ConRon"]
 name = "ConRonSpike"
 roots = ["ConRon.Spike.LevelName"]
 
-# The `DeclC` dump (DESIGN.md §3.6, task #10): runs con-leche's frontend on an
-# export and writes the parsed `List DeclC` in the `con-ron-decls/1` format
-# (`ConRon/Dump/FORMAT.md`), then reads it back and compares.
-[[lean_exe]]
-name = "con-ron-dump"
-root = "ConRon.Dump.Main"
-
 # The build-time table generator (DESIGN.md §5 P1.5, task #22): prints Rust
 # source that rebuilds con-leche's elaboration-time tables
 # (`BasisKind.declsA`, later the Nat-op pin variants) with the crate's own
@@ -54,8 +47,9 @@ root = "ConRon.Gen.Main"
 
 # The `Nat`-operation pin dump (DESIGN.md §3.6's runtime-data decision, task
 # #31): writes `ConLeche.natOpPinSets` in the `con-ron-pins/1` format
-# (`ConRon/Dump/FORMAT.md` §7) and reads it back.  `con-ron-check --pins FILE`
-# is what consumes the result.
+# (`ConRon/Dump/FORMAT.md`) and reads it back.  `scripts/gen-pins.sh` embeds
+# the result in the verified core, and `con-ron --pins FILE` reads a file in
+# that format as a test override.
 [[lean_exe]]
 name = "con-ron-dump-pins"
 root = "ConRon.Dump.Pins"

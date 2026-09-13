@@ -1,19 +1,21 @@
-//! `driver` — con-leche's `Main.lean`: **the** driver, shared by both
-//! binaries (task #40).
+//! `driver` — con-leche's `Main.lean`: **the** driver (task #40).
 //!
-//! Before this module `con-ron` (task #37) and `con-ron-check` (task #28)
-//! each carried their own copy of the pieces of `Main.lean` that sit *above*
-//! `check_decls`: the exit-code mapping, the declaration label, the two phase
-//! loops with the boundary visible, and — the one that is load-bearing for a
-//! verdict — the **taint-skip rule**.  Two copies of a rule that decides an
-//! exit code is one copy too many, so the rule, the loops and the verdict
-//! lines live here and the two binaries are argument parsers around them.
+//! Before this module `con-ron` (task #37) and the checker-only
+//! `con-ron-check` (task #28) each carried their own copy of the pieces of
+//! `Main.lean` that sit *above* `check_decls`: the exit-code mapping, the
+//! declaration label, the two phase loops with the boundary visible, and —
+//! the one that is load-bearing for a verdict — the **taint-skip rule**.  Two
+//! copies of a rule that decides an exit code is one copy too many, so the
+//! rule, the loops and the verdict lines moved here and the binaries became
+//! argument parsers around them.  Task #80 retired `con-ron-check` with the
+//! declaration dump it read, so `con-ron` is now the only such parser; the
+//! split earns its keep anyway, because it is what keeps the fold's body one
+//! readable function.
 //!
-//! What is *not* here is either binary's own front matter: `con-ron` reads a
-//! raw lean4export stream (`frontend::export_c`) and `con-ron-check` a
-//! `con-ron-decls/1` dump (`con_ron_dump::parse_decls_file`), and each has its
-//! own flags and its own usage text.  What *is* here is everything from the
-//! parsed `Vec<DeclC>` on.
+//! What is *not* here is that binary's own front matter: `con-ron` reads a
+//! raw lean4export stream (`frontend::export_c`) and has its own flags and
+//! its own usage text.  What *is* here is everything from the parsed
+//! `Vec<DeclC>` on.
 //!
 //! ## The two phases, and why they are spelled out here
 //!
@@ -30,8 +32,8 @@
 //! `PhaseObserver` is the seam: con-leche prints its heartbeat from inside
 //! `installLoop`/`checkLoop`, which it can because printing is in `IO` there;
 //! the port's loops are pure over a `&mut O` instead, so `con-ron`'s
-//! `Heartbeat` and `con-ron-check`'s stats reporter are two implementations
-//! of one trait rather than two copies of one loop.
+//! `Heartbeat` is an implementation of one trait rather than a second copy of
+//! the loop.
 //!
 //! ## Exit codes, and the two conventions that are *not* exit codes
 //!
@@ -163,7 +165,7 @@ pub fn message(e: &CheckError) -> String {
 /// sweep can hand the checker a pin list the embedded one is not, e.g. after a
 /// con-leche bump and before `scripts/gen-pins.sh` runs), and `--no-pins` is
 /// the empty list, which is what exercises the pin loop's `[]` arm
-/// (`scripts/diff-fixtures.sh --no-pins`).
+/// (`scripts/diff-e2e.sh --no-pins`).
 pub fn pins_for_run(
     over: &Option<String>,
     no_pins: bool,
@@ -472,7 +474,8 @@ pub trait PhaseObserver {
 
     /// con-leche: Main.lean:67-161 installLoop
     /// After record `done` of `total` was installed, with the memo state and
-    /// the index it produced (`con-ron-check --stats-every` reads them).
+    /// the index it produced (a statistics observer reads them; the
+    /// `--progress` heartbeat does not).
     fn install_after(&mut self, _done: usize, _total: usize, _st: &CState, _fe: &FEnv, _pend: usize) {
     }
 
@@ -888,10 +891,11 @@ impl PhaseObserver for Heartbeat {
 ///
 /// It must NOT live in the core: `check_decls` accepts the list it is given
 /// and knows nothing of what the frontend dropped (task #28's reasoning, and
-/// DESIGN.md §3.7's skip note for the driver rules).  It lives here, once, so
-/// that both binaries apply the same rule — `con-ron` off its own frontend's
-/// `taint_skipped`, `con-ron-check` off `--taint-skipped N`, since the count
-/// is frontend state the dump does not carry (task #10's surprise 9).
+/// DESIGN.md §3.7's skip note for the driver rules).  It lives here, next to
+/// the fold it qualifies, and `con-ron` supplies the count off its own
+/// frontend's `taint_skipped` — which is frontend state a declaration list
+/// does not carry (task #10's surprise 9, and half of why the checker-only
+/// seam of task #28 was retired at task #80).
 ///
 /// con-leche prints the accept on STDOUT and every decline on stderr, and a
 /// declined stream never says "accepted" (2026-09-07: it used to print the

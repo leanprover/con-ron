@@ -51,7 +51,7 @@ That is also the shape the model's side wants: `kernel::pins_decode::
 run_records` is a `partial_fixpoint`, so (A)'s proof is a fuel induction on
 `t.length - i` either way.
 -/
-import ConRon.Dump.Read
+import ConRon.Dump.Pins
 
 namespace ConRon.Refine.PinsDec
 
@@ -116,7 +116,7 @@ port: `readIndex` has no `4294967295` bound of its own.  That is the harmless
 direction — the refinement runs model-accepts ⟹ mirror-accepts, so a mirror
 that also accepts what the port rejects claims nothing extra — and it keeps
 `PinsDec` free of a machine-word bound that has no counterpart in
-`ConRon.Dump.Read.lean`'s `natTok`. -/
+`ConRon/Dump/Pins.lean`'s `natTok`. -/
 def readIndex (bs : Bytes) : Option (Nat × Bytes) := readNat bs
 
 /-- `read_big_nat_from`: the same loop without the machine-word guard. -/
@@ -576,7 +576,7 @@ def recordExpr (bs : Bytes) (tb : Tables) : Option (Tables × Bytes) :=
       else if k = 112 then recordExprProj r tb
       else none
 
-/-! ## The payload record (FORMAT.md §7) -/
+/-! ## The payload record (FORMAT.md §4) -/
 
 /-- `pins_eight_from`: the eight pinned defining expressions. -/
 def pinsEightFrom (bs : Bytes) (tb : Tables) : Nat → List Expr →
@@ -702,7 +702,7 @@ private def testBytes (s : String) : Bytes := s.toList.map Char.toNat
 
 #guard (decode (testBytes "con-ron-pins/1\nend 0\n")).isSome
 #guard decide (decode (testBytes "con-ron-pins/1\nend 0\n") = some [])
-#guard (decode (testBytes "con-ron-decls/1\nend 0\n")).isNone
+#guard (decode (testBytes "con-ron-pins/2\nend 0\n")).isNone
 #guard (decode (testBytes "con-ron-pins/1\nend 1\n")).isNone
 #guard (decode (testBytes "con-ron-pins/1\nD a 0\nend 0\n")).isNone
 #guard (decode (testBytes "con-ron-pins/1\nN 1 a\nend 0\n")).isNone

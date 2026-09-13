@@ -6,7 +6,7 @@
 //! **Generated file — do not edit.**  Written by `scripts/gen-pins.sh` from
 //! con-leche's own value: `lake exe con-ron-dump-pins` writes
 //! `ConLeche.natOpPinSets` in the text format `proof/ConRon/Dump/FORMAT.md`
-//! §7 specifies, and the script wraps those bytes in the constant below.
+//! specifies, and the script wraps those bytes in the constant below.
 //! `scripts/gen-pins.sh --check` is the freshness gate, and
 //! `scripts/gates.sh` runs it.
 //!

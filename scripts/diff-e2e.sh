@@ -6,33 +6,34 @@
 #                              [--only=REGEX] [--no-pins|--pins-file]
 #                              [--progress] [--jobs=N]
 #
-# This is `scripts/diff-fixtures.sh` (task #28) one step further up: that
-# script runs `con-ron-check` on the *dump* con-leche's frontend produced, so
-# it tests the checker alone; this one runs the whole binary on the raw
-# NDJSON, so it tests con-ron's own frontend AND checker together against
-# `vendor/con-leche/tests/{arena,e2e,annot}-expected.txt`.  The expectation
-# files' format is "<exit-code> <fixture>" with `#` comments -- the exit code
-# is the WHOLE expectation, there is no declaration name and no fold position
-# in them.
+# **This is the port's differential test** (task #80, which retired the
+# checker-only seam of task #28 in its favour).  It runs the whole binary on
+# the raw NDJSON, so it tests con-ron's own frontend AND checker together
+# against `vendor/con-leche/tests/{arena,e2e,annot}-expected.txt`.  The
+# expectation files' format is "<exit-code> <fixture>" with `#` comments --
+# the exit code is the WHOLE expectation, there is no declaration name and no
+# fold position in them.
 #
-# Two things `diff-fixtures.sh` had to supply by hand are supplied by the
+# Two things the retired seam had to supply by hand are supplied by the
 # frontend here, which is the point of the script:
 #
 #   * the TAINT-SKIP decline (`Main.lean:637-645,749-753`) -- an accepting
 #     fold over a stream the frontend skipped declarations in is still a
-#     decline.  `diff-fixtures.sh` names the three affected fixtures in a
-#     `taint_of` table because the skip count is frontend state the dump does
-#     not carry; con-ron's own frontend has it.
+#     decline.  Feeding a checker a declaration list cannot see it: the skip
+#     count is frontend state a declaration list does not carry (task #10's
+#     surprise 9).  con-ron's own frontend has it.
 #   * the frontend's own verdicts: a stream con-leche's frontend declines or
-#     rejects before the fold has no dump at all, so `diff-fixtures.sh`
-#     SKIPS 33 fixtures.  Here they are checked like any other.
+#     rejects before the fold has no declaration list at all, so the seam
+#     SKIPPED 33 fixtures.  Here they are checked like any other -- which is
+#     why this sweep reads 348 cases where that one read 315.
 #
 # The PIN LIST needs no argument since task #43: `natOpPinSets` is an embedded
 # text constant inside the verified core and the core decodes it, so a plain
 # run uses con-leche's own pins.  `--no-pins` passes the empty list, under which
 # the 17 fixtures that define `Nat.div` decline (task #28's numbers), and
-# `--pins-file` reads `$OUT/pins.dump` through the unverified reader instead
-# (task #31's arrangement, kept as a test route).
+# `--pins-file` reads the `con-ron-pins/1` dump `scripts/gen-pins.sh` writes
+# (`_tmp/gen-pins/pins.dump`) through the unverified reader instead (task
+# #31's arrangement, kept as a test route).
 #
 # Since task #39 the IN-PROCESS MODELLER is ported, so the 23 fixtures that
 # used to be reported `INMODEL` are checked like any other; the row exists
@@ -58,7 +59,7 @@ cd "$(dirname "$0")/.."
 root="$PWD"
 
 CL="$root/vendor/con-leche"
-OUT="${OUT:-$root/_tmp/dump-fixtures}"
+PINDUMP="${PINDUMP:-$root/_tmp/gen-pins/pins.dump}"
 ARENA_DIR="${ARENA_DIR:-$root/_tmp/arena-tests}"
 TO=600
 MODE=--verified
@@ -97,17 +98,17 @@ fi
 # The pin list.  Since task #43 the default needs NO argument: the pins are an
 # embedded text constant inside the verified core, decoded by the core.
 # `--no-pins` still reproduces task #28's numbers (the empty list), and
-# `--pins-file` still exercises task #31's unverified file reader.
+# `--pins-file` still exercises task #31's unverified file reader on the dump
+# `scripts/gen-pins.sh` writes.
 pinargs=""
 if [ "$use_pins" -eq 0 ]; then
   pinargs="--no-pins"
 elif [ "$from_file" -eq 1 ]; then
-  if [ -f "$OUT/pins.dump" ]; then
-    pinargs="--pins $OUT/pins.dump"
-  else
-    echo "diff-e2e: $OUT/pins.dump missing; run scripts/dump-fixtures.sh" >&2
+  if [ ! -f "$PINDUMP" ]; then
+    echo "diff-e2e: $PINDUMP missing; run scripts/gen-pins.sh --check" >&2
     exit 3
   fi
+  pinargs="--pins $PINDUMP"
 fi
 
 WORK="$root/_tmp/diff-e2e"
@@ -118,8 +119,7 @@ log="${LOG:-$root/_tmp/diff-e2e.log}"
 total=0; agree=0; differ=0; inmodel=0; timedout=0; other=0
 
 # `vendor/con-leche/tests/trusted-expected.txt` ("<exit> <suite> <fixture>")
-# overrides the certified expectation under `--trusted`, as in
-# `diff-fixtures.sh`.
+# overrides the certified expectation under `--trusted`.
 want_for() {
   local suite=$1 fix=$2 cert=$3 line
   [ "$MODE" = --trusted ] || { echo "$cert"; return; }

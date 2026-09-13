@@ -56,7 +56,7 @@ holds for every byte string too.
 import ConRon.Refine.PinsAbs
 import ConRon.Refine.PinsRun
 import ConRon.Refine.PinsRead
-import ConRon.Dump.Read
+import ConRon.Dump.Pins
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel

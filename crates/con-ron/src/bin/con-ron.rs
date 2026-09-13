@@ -3,8 +3,7 @@
 //!
 //! ```text
 //! con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
-//!         [--progress[=<stride>]] [--pins FILE|--no-pins]
-//!         [--dump-decls OUT] FILE.ndjson
+//!         [--progress[=<stride>]] [--pins FILE|--no-pins] FILE.ndjson
 //! con-ron --help
 //! ```
 //!
@@ -20,10 +19,10 @@
 //! **This binary is the one true driver** (task #40): everything from the
 //! parsed list on — the exit-code mapping, the two phase loops, the
 //! `--progress` heartbeat, the taint-skip rule, the verdict lines — lives in
-//! `con_ron::driver` and is shared with `con-ron-check`, which is the same
-//! driver reading a `con-ron-decls/1` dump instead of a stream.  What is here
-//! is this binary's own front matter: the flags, the prelude, the parse, the
-//! receipts.
+//! `con_ron::driver`, which task #40 wrote as the shared body of this binary
+//! and the retired `con-ron-check` and which task #80 left as this binary's
+//! alone.  What is here is this binary's own front matter: the flags, the
+//! prelude, the parse, the receipts.
 //!
 //! Exit codes are con-leche's (`vendor/con-leche/Main.lean:15-31`, its
 //! `OVERVIEW.md` §0): 0 accepted, 1 rejected, 2 declined, 3
@@ -33,12 +32,10 @@
 //! failure aborts, which a shell reports as 134) and a panic, which is 3.
 //!
 //! **NO TEMPORARY FILES** (con-leche task #180).  The checker writes nothing
-//! outside its own stdout/stderr — and `--dump-decls OUT`, which is con-ron's
-//! own flag, writes only where the user named — and reads its input strictly
-//! forward, 4 MiB at a time, so a Mathlib-scale export never materialises
-//! anywhere.
+//! outside its own stdout/stderr and reads its input strictly forward, 4 MiB
+//! at a time, so a Mathlib-scale export never materialises anywhere.
 //!
-//! **Four flags differ from con-leche's, and say so here.**
+//! **Three flags differ from con-leche's, and say so here.**
 //!
 //! * `--jobs=<n>` is con-leche's flag and does con-leche's thing (task #48):
 //!   `n` workers claim records off a shared counter in phase B
@@ -62,16 +59,11 @@
 //!   (`kernel::pins_decode::decode_embedded`), so a plain run checks with
 //!   con-leche's own pins and nothing is read from outside.  `--pins FILE`
 //!   reads a `con-ron-pins/1` dump through the unverified reader instead
-//!   (task #31's arrangement, which `scripts/diff-e2e.sh --pins` still
+//!   (task #31's arrangement, which `scripts/diff-e2e.sh --pins-file` still
 //!   exercises), and `--no-pins` is the empty list, i.e. the pin loop's `[]`
 //!   arm — a `Nat.div`/`Nat.mod` stream then declines with "unsupported
 //!   Nat.div/mod spelling", exactly as con-leche does for a stream matching no
 //!   variant.
-//! * `--dump-decls OUT` is con-ron's own too: it writes the parsed
-//!   `Vec<DeclC>` in the `con-ron-decls/1` format (task #10's specification,
-//!   task #19's byte-exact writer) and exits without folding.  That is the
-//!   oracle of `scripts/diff-frontend.sh`: the bytes must equal the Lean
-//!   frontend's.
 //!
 //! Every retired con-leche spelling — `--set-model[=p|=r]`, `--no-model`,
 //! `--tt-model`, `--yolo`, `--infer-only`, `--pre`, `--core[=<c>]`,
@@ -80,7 +72,6 @@
 //! provenance must be readable off the invocation, so a retired spelling is
 //! never a silent alias (`driver::retired_flag`).
 
-use std::io::Write;
 use std::process::ExitCode;
 use std::time::Instant;
 
@@ -97,8 +88,8 @@ use con_ron::frontend::prelude;
 
 // The global allocator is `con-ron-dump`'s (task #35's mimalloc, declared by
 // that crate's lib): a program may declare only one, and this binary links
-// that crate anyway — for the `con-ron-decls/1` writer of `--dump-decls` and
-// the `con-ron-pins/1` reader of `--pins`.  So `con-ron` declares none, and
+// that crate anyway — for the `con-ron-pins/1` reader of `--pins` and for
+// `natdec`, the decimal parser the frontend shares with it.  So `con-ron` declares none, and
 // `cargo build --no-default-features` gives glibc `malloc` back to both.
 
 /// con-leche: Main.lean:800-1048 usage
@@ -108,7 +99,6 @@ use con_ron::frontend::prelude;
 const USAGE: &str = "\
 usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
                [--progress[=<stride>]] [--pins FILE|--no-pins]
-               [--dump-decls OUT]
                FILE.ndjson
        con-ron --help
 
@@ -167,8 +157,6 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
                     declines.  Neither flag is needed for a normal run: the
                     pins are con-leche's `natOpPinSets`, embedded in the
                     verified core and decoded by it.
-  --dump-decls OUT  con-ron's own: write the parsed declaration list in the
-                    `con-ron-decls/1` format and exit, without folding.
   --help            print this text on STDOUT and exit 0, in any argument
                     position; no input is read.
 
@@ -215,7 +203,6 @@ struct Args {
     /// `--no-pins` (task #43): the empty pin list, the pin loop's `[]` arm.  A
     /// test override; the default is the core's own embedded text.
     no_pins: bool,
-    dump_decls: Option<String>,
     bad: Option<String>,
 }
 
@@ -232,7 +219,6 @@ fn parse_args(argv: &[String]) -> Args {
         no_mark: false,
         pins: None,
         no_pins: false,
-        dump_decls: None,
         bad: None,
     };
     let mut i = 0usize;
@@ -266,17 +252,6 @@ fn parse_args(argv: &[String]) -> Args {
                     a.pins = Some(argv[i].clone());
                 }
             }
-            "--dump-decls" => {
-                i += 1;
-                if i >= argv.len() {
-                    bad(
-                        "--dump-decls takes an output file: --dump-decls OUT".to_string(),
-                        &mut a,
-                    );
-                } else {
-                    a.dump_decls = Some(argv[i].clone());
-                }
-            }
             "--jobs" => bad(
                 "--jobs takes a worker count: --jobs=<n>; omit the flag for one worker \
                  per hardware thread"
@@ -296,8 +271,6 @@ fn parse_args(argv: &[String]) -> Args {
                     }
                 } else if let Some(v) = s.strip_prefix("--pins=") {
                     a.pins = Some(v.to_string());
-                } else if let Some(v) = s.strip_prefix("--dump-decls=") {
-                    a.dump_decls = Some(v.to_string());
                 } else if s.starts_with('-') {
                     bad(format!("unknown option {}", s), &mut a);
                 } else {
@@ -320,7 +293,7 @@ fn env_is(k: &str, v: &str) -> bool {
 /// con-leche: Main.lean:53-59 parseInput
 /// The real driver's front matter: the retired environment gates, the
 /// prelude, the streaming parse, the receipts, then `driver` for the fold and
-/// the verdict.  `--dump-decls` returns before the fold.
+/// the verdict.
 fn check_main(a: &Args, file: &str) -> u8 {
     let t0 = Instant::now();
     let mode_tag = if a.verified {
@@ -448,28 +421,6 @@ fn check_main(a: &Args, file: &str) -> u8 {
             parsed.hoisted.len(),
             names.join(", ")
         );
-    }
-    let t_parse = t0.elapsed();
-    // `--dump-decls OUT`: the parsed list in the `con-ron-decls/1` format,
-    // and no fold.  This is `scripts/diff-frontend.sh`'s oracle.
-    if let Some(out) = &a.dump_decls {
-        let text = con_ron_dump::dump_decls(&parsed.decls);
-        let n = text.len();
-        match std::fs::File::create(out).and_then(|mut f| f.write_all(text.as_bytes())) {
-            Err(e) => {
-                eprintln!("con-ron: {}: {}", out, e);
-                return 3;
-            }
-            Ok(()) => {}
-        }
-        eprintln!(
-            "con-ron: dumped {} records ({} bytes) to {}  parse {:.3}s",
-            parsed.decls.len(),
-            n,
-            out,
-            t_parse.as_secs_f64()
-        );
-        return 0;
     }
     let pins = match driver::pins_for_run(&a.pins, a.no_pins) {
         Ok(p) => p,

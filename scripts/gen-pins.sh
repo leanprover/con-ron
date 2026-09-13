@@ -12,11 +12,11 @@
 #
 # The source of truth is con-leche itself: `lake exe con-ron-dump-pins`
 # (task #31) writes `ConLeche.natOpPinSets` in the format
-# `proof/ConRon/Dump/FORMAT.md` §7 specifies, and this script wraps those
+# `proof/ConRon/Dump/FORMAT.md` specifies, and this script wraps those
 # bytes in a Rust `&str` constant.  The wrapping is byte-exact: the text of
 # `PINS_TEXT` is the dump file, character for character, so
 # `kernel::pins_decode::decode` on it is the same decode
-# `con-ron-check --pins FILE` used to do on the file.
+# `con-ron --pins FILE` does on a file.
 #
 # Why a `&str` and not a `&[u8]` (task #43's measurement): Aeneas renders a
 # `&str` constant as ONE Lean string literal (`toStr "..."`, 0.4 s, 560 KB of
@@ -64,7 +64,7 @@ emit() {
 //! **Generated file — do not edit.**  Written by `scripts/gen-pins.sh` from
 //! con-leche's own value: `lake exe con-ron-dump-pins` writes
 //! `ConLeche.natOpPinSets` in the text format `proof/ConRon/Dump/FORMAT.md`
-//! §7 specifies, and the script wraps those bytes in the constant below.
+//! specifies, and the script wraps those bytes in the constant below.
 //! `scripts/gen-pins.sh --check` is the freshness gate, and
 //! `scripts/gates.sh` runs it.
 //!

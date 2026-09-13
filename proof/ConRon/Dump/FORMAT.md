@@ -1,52 +1,59 @@
-# `con-ron-decls/1` — the `DeclC` dump format
+# `con-ron-pins/1` — the `Nat`-operation pin dump format
 
-The interchange format between con-leche's Lean frontend and con-ron's Rust
-core (DESIGN.md §3.6).  con-leche's own frontend parses an export stream and
-produces the `List DeclC` that `ConLeche.Cached.checkDecls` consumes; this
-format is that list, written out, so that the Rust core can be exercised on
-exactly the declarations the Lean checker sees — no Rust parser needed, and no
-frontend rewrite (prelude prepend, `NatOpGround` hoist, projection rewrite,
-in-process `_model` generation) reimplemented on the Rust side.
+con-leche's `natOpPinSets` (`ConLeche/Kernel/NatOpPins.lean:61`), written out
+as text.  DESIGN.md §3.6 and task #31: encoding those pin sets as *generated
+Rust* is 26 512 `Expr` nodes that Charon OOMs on, and the list is a **hint
+list** — every pin is re-checked by `isDefEq` against the stream's own stored
+value and every certificate proof is kernel-checked against the hand-pinned
+`divModCertStmts` — so the pins travel as data rather than as code.  Task #43
+then embedded exactly these bytes *inside* the verified core
+(`kernel::pins_text::PINS_TEXT`), where a verified decoder reads them, and left
+the file route as a test override.
 
-Writer: `ConRon/Dump/Write.lean` (`dumpDecls : List DeclC → String`).
-Reader (Lean, the format's validator): `ConRon/Dump/Read.lean`
-(`parseDecls : String → Except String (List DeclC)`).
-Round-trip harness: `ConRon/Dump/Main.lean` (`lake exe con-ron-dump`).
+| | |
+|---|---|
+| Lean writer and reader | `ConRon/Dump/Pins.lean` (`dumpPins`, `parsePins`) |
+| Round-trip harness | `lake exe con-ron-dump-pins` (the same file's `main`) |
+| Rust reader / writer | `crates/con-ron-dump/src/lib.rs` (`parse_pins`), `write.rs` (`dump_pins`) |
+| Verified decoder | `crates/con-ron-core/src/kernel/pins_decode.rs`, proved against `parsePins` in `proof/ConRon/Refine/Pins*.lean` |
+| Who produces the bytes | `scripts/gen-pins.sh` (into the core's embedded constant; `--check` is a gate) |
+| Who consumes a file | `con-ron --pins FILE`, a test override |
 
-A **sibling format, `con-ron-pins/1`**, carries the `Nat`-operation pin
-variants (§7).  It shares everything below the payload record — the shape, the
-id spaces, the escape, the `N`/`L`/`W`/`E` records — with this one, so read §§
-1-3 and the `N`/`L`/`W`/`E` parts of §4 as specifying both.
+Until task #80 a **sibling format, `con-ron-decls/1`**, carried con-leche's
+parsed `List DeclC` (task #10) so that the Rust *checker* could be exercised
+without a Rust frontend.  `scripts/diff-e2e.sh` runs the whole binary on every
+fixture's raw export against con-leche's own pinned expectations, which
+subsumes that seam, so the declaration dump was retired; §§1-4 below are the
+record grammar the two formats shared.
 
 ## 1. Shape
 
-Text, line-oriented, ASCII-only, deterministic (the same `List DeclC` always
-produces the same bytes).  Lines are separated by a single `\n`; there is a
-trailing `\n` after the last line.  Fields inside a line are separated by a
-single space `U+0020`; no other whitespace occurs anywhere.
+Text, line-oriented, ASCII-only, deterministic (the same `List NatOpPinSet`
+always produces the same bytes).  Lines are separated by a single `\n`; there
+is a trailing `\n` after the last line.  Fields inside a line are separated by
+a single space `U+0020`; no other whitespace occurs anywhere.
 
 ```
-con-ron-decls/1        <- the version header, the whole first line
+con-ron-pins/1         <- the version header, the whole first line
 <record>               <- one per line, in the order described below
 ...
-end <declCount>        <- the footer; <declCount> = the number of `D` records
+end <setCount>         <- the footer; <setCount> = the number of `S` records
 ```
 
-A reader must reject a file whose first line is not exactly
-`con-ron-decls/1`, and one whose footer count disagrees with the number of
-`D` records seen.  Blank lines are ignored; there are no comments.
+A reader must reject a file whose first line is not exactly `con-ron-pins/1`,
+and one whose footer count disagrees with the number of `S` records seen.
+Blank lines are ignored; there are no comments.
 
 ## 2. Ids, and the DAG
 
 con-leche's terms are a DAG: `ExprC` (= `ConLeche.Expr`) nodes are shared
-heavily — `Kernel/Expr.lean`'s `bvarPool`, the frontend's index tables, and
-every `instantiate` that returns a subterm.  Writing the tree out would blow
-up exponentially, so shared nodes are written **once** and referred to by an
-integer id, in the spirit of `lean4export`'s `<id> #N…` records (the dialect
-`ConLeche/Frontend/Scan/Types.lean` recognises).
+heavily — `Kernel/Expr.lean`'s `bvarPool` and every `instantiate` that returns
+a subterm.  Writing the tree out would blow up exponentially (as a tree one
+pin variant is 5.1 M nodes), so shared nodes are written **once** and referred
+to by an integer id, in the spirit of `lean4export`'s `<id> #N…` records.
 
-There are **nine id spaces**, one per record kind, each dense from `0` and
-each assigned in the order the records appear:
+There are **four id spaces**, one per interned record kind, each dense from
+`0` and each assigned in the order the records appear:
 
 | kind | record letter | what |
 |---|---|---|
@@ -54,11 +61,6 @@ each assigned in the order the records appear:
 | level | `L` | `ConLeche.Level` |
 | propwhen | `W` | `ConLeche.PropWhen` |
 | expr | `E` | `ExprC` = `ConLeche.Expr` |
-| constval | `V` | `ConLeche.ConstantVal` |
-| recrule | `R` | `ConLeche.RecRule` |
-| indcaps | `C` | `ConLeche.IndCaps` |
-| projtable | `P` | `ConLeche.ProjTable` |
-| constinfo | `I` | `ConLeche.ConstantInfo` |
 
 **Invariant (the reader may rely on it, and must check it):** within a kind,
 the `n`-th record of that kind carries id `n`, and every id a record mentions
@@ -68,16 +70,14 @@ a reader is a single forward pass that pushes each decoded value onto a
 `Vec` per kind and indexes into those vectors — no fixups, no cycles, no
 forward references.  This is what the Rust side wants.
 
-`N`, `L`, `W` and `E` records are **interned**: the writer keeps a hash map
-from value to id, so structurally equal subterms collapse to one record.
-`V`, `R`, `C`, `P` and `I` records are not interned (each occurs once in
-practice); they are emitted immediately before the record that uses them.
+All four record kinds are **interned**: the writer keeps a hash map from value
+to id, so structurally equal subterms collapse to one record.  The `S` payload
+records are not interned and carry no id (§4).
 
 ## 3. Scalars
 
 * `<nat>` — a natural number in decimal, no sign, no leading zeros except
   for `0` itself.  Unbounded: `Literal.natVal` can be a bignum.
-* `<bool>` — `0` (false) or `1` (true).
 * `<string>` — **two** fields: `<len> <text>`, where `<len>` is the number of
   Unicode *code points* and `<text>` is the escaped form below.  The length
   is redundant (the escape is self-delimiting) and is there so that the Rust
@@ -104,9 +104,9 @@ needs no UTF-8 decoder: it reads bytes and produces `u32`s.
 
 ## 4. The records
 
-Below, `<name>`, `<level>`, `<pw>`, `<expr>`, `<cv>`, `<rule>`, `<caps>`,
-`<tbl>`, `<ci>` are ids into the corresponding space, written in decimal.
-`<k>` is always a list length, immediately followed by that many fields.
+Below, `<name>`, `<level>`, `<pw>`, `<expr>` are ids into the corresponding
+space, written in decimal.  `<k>` is always a list length, immediately
+followed by that many fields.
 
 ### Names — `ConLeche/Kernel/Name.lean`
 
@@ -172,86 +172,30 @@ except for the hash bits, which the port computes with its own `mixHash`
 (DESIGN.md task #3, note 6), so the two hash *values* differ by design and
 nothing may compare them.
 
-`fvar` never occurs in a parsed declaration (`checkConstantValC` rejects one),
-but it is a constructor of the type and is representable here.
+`fvar` does not occur in a pin blob, but it is a constructor of the type and
+is representable here.
 
-### Constant values — `ConLeche/Kernel/Env.lean:197`
-
-```
-V <id> <name> <k> <name>* <expr>  -- ⟨name, levelParams, type⟩
-```
-
-### Recursor rules — `ConLeche/Kernel/Env.lean:255`
+### Pin variants — `ConLeche/Kernel/NatOpPinSet.lean:30`
 
 ```
-R <id> <name> <nat> <nat> <fire> <expr> <bool> <bool> <bool>
-       ctor    nfields ctorParams   rhs   k     eta   paramsBlind
-
-<fire> ::= i                          -- RecRuleFire.inert
-         | p                          -- RecRuleFire.plain
-         | n <k> <level>* <k> <expr>* -- RecRuleFire.nested lvls pins
+S <len> <text> <expr> <expr> <expr> <expr> <expr> <expr> <expr> <expr>
+        toolchain  div    mod    gcd   land   lor    xor    shl    shr
+  <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>*
+  divProofs   modProofs   gcdProofs   landProofs  lorProofs   xorProofs   shlProofs   shrProofs
 ```
 
-All of `ctorParams`, `fire`, `k`, `eta` and `paramsBlind` are *install*-computed;
-the parse placeholders are `0`, `.inert`, `false`, `false`, `false`.  A dump
-taken before `checkDecls` therefore always carries the placeholders — but the
-format writes them out, because a dump is a `List DeclC` and nothing else is
-allowed to know that.
-
-### Inductive capabilities — `ConLeche/Kernel/Env.lean:359`
-
-```
-C <id> <bool> <name> <nat> <nat> <bool> <nat> <bool> <pw>
-       eta  etaCtor etaParams etaFields unitlike unitParams ruleK sortZ
-```
-
-### Projection tables — `ConLeche/Kernel/Env.lean:397`
-
-```
-P <id> <name> <k> <name>* <nat> <name> <nat> <level> <k> <expr>* <k> <level>* <nat>
-       structName levelParams numParams ctor numFields structSort bodies guards off
-```
-
-`bodies` is an `Array Expr` in Lean and is written as a plain counted list.
-
-### Constant infos — `ConLeche/Kernel/Env.lean:471`
-
-```
-I <id> a <cv>                     -- axiomInfo
-I <id> d <cv> <expr> <hint>       -- defnInfo val value hint
-I <id> t <cv> <expr>              -- thmInfo val value
-I <id> i <cv> <caps>              -- indInfo val caps
-I <id> c <cv> <nat> <nat>         -- ctorInfo val numParams numFields
-I <id> r <cv> <nat> <nat> <k> <rule>*
-                                  -- recInfo val majorIdx rulePrefix rules
-I <id> p <tbl>                    -- projInfo tbl
-
-<hint> ::= o                      -- ReducibilityHint.opaque
-         | b                      -- ReducibilityHint.abbrev
-         | r <nat>                -- ReducibilityHint.regular height
-```
-
-### Declarations — `ConLeche/Cached/ParsedC.lean:55`
-
-`D` records carry **no id**: they are the payload, and their order is the
-order of the `List DeclC`, which is the order `checkDecls` folds them in.
-
-```
-D a <cv>                          -- axiomDecl val
-D d <cv> <expr> <hint>            -- defnDecl val value hint
-D t <cv> <expr>                   -- thmDecl val value
-D o <cv> <expr>                   -- opaqueDecl val value
-D b <basis>                       -- basisDecl kind
-D i <nat> <k> <ci>*               -- indDecl block numParams  (numParams first)
-
-<basis> ::= eq | nat | punit | empty | false | quot
-```
+(one line, the wrap above is presentation).  `S` records carry **no id**: the
+record *is* the payload, and its position in the file is its position in
+`natOpPinSets`, which is the order `checkDivModPinLoop` tries the variants in.
+The eight pins come first and the eight counted proof lists follow, in the
+field order of the structure; `<len> <text>` is the toolchain string (§3),
+which the decline message names and nothing else reads.
 
 ## 5. Emission order
 
-The writer walks the declaration list in order and, for each declaration, its
-fields in constructor order, emitting a record for every value it has not
-emitted before, children first.  The `ExprC` walk is an explicit worklist, not
+The writer walks the pin list in order and, for each variant, its fields in
+constructor order, emitting a record for every value it has not emitted
+before, children first.  The `ExprC` walk is an explicit worklist, not
 recursion: con-leche's terms are deep enough (spines of tens of thousands of
 `app` nodes) that a recursive writer would overflow the stack.
 
@@ -266,66 +210,12 @@ recursion: con-leche's terms are deep enough (spines of tens of thousands of
    indices (DESIGN.md §3.3, an overflow being a Rust-side failure).
 4. **Strings are code points, not bytes.**
 5. **`PropWhen` arrives canonical**; keep it so.
-6. **The install-computed `RecRule` fields are placeholders in a dump.**
+6. **Keep the sharing.**  A byte-identical re-dump does not prove it (the
+   writer interns by value, so it would collapse a tree expansion back into
+   the same bytes): count the distinct heap nodes the parsed variants reach
+   and compare with the file's record counts (`con_ron_dump::dag`).
 
-## 7. `con-ron-pins/1` — the `Nat`-operation pin dump
-
-DESIGN.md §3.6 rules the `Nat`-operation pin sets **runtime data**: encoding
-`ConLeche.natOpPinSets` (`ConLeche/Kernel/NatOpPins.lean:61`) as generated
-Rust is 26 512 nodes that Charon OOMs on, and the list is a *hint list* — every
-pin is re-checked by `isDefEq` against the stream's own stored value and every
-certificate proof is kernel-checked against the hand-pinned `divModCertStmts`
-— so the Rust core takes it as a parameter of `check_decls` and the unverified
-driver reads it from a file.  This is that file.
-
-```
-con-ron-pins/1         <- the version header, the whole first line
-<record>               <- N / L / W / E exactly as in §4, then the S records
-...
-end <setCount>         <- the footer; <setCount> = the number of `S` records
-```
-
-Writer: `ConRon/Dump/Write.lean` (`dumpPins : List NatOpPinSet → String`).
-Reader (Lean): `ConRon/Dump/Read.lean` (`parsePins`).  Round-trip harness:
-`ConRon/Dump/Pins.lean` (`lake exe con-ron-dump-pins`).  Rust reader:
-`crates/con-ron-dump/src/lib.rs` (`parse_pins`), writer `write.rs`
-(`dump_pins`), consumer `con-ron-check --pins FILE`.
-
-**Why a sibling file and not a record of `con-ron-decls/1`** (task #31's
-choice).  A pin variant describes a *toolchain*, not a stream: the same three
-variants apply to all 348 fixtures, and their 26 512 `E` records would be
-copied into every fixture dump — 348 × 532 KB of the same bytes, and 26 512
-nodes of parse work before every verdict, on the 331 streams that never define
-`Nat.div`.  The driver already takes the pins as a separate argument
-(`--pins FILE`), the two files have disjoint lifetimes (a pin dump is rewritten
-when con-leche's `pins/` moves, a fixture dump when the fixture does), and
-keeping `con-ron-decls/1` untouched keeps task #10's byte-identity round trip
-over the whole corpus valid as it stands.  What the two share is the *record
-grammar*, verbatim: the same `E` id space discipline, the same interning, the
-same escape, the same footer rule, and the same single-forward-pass reader
-(the Lean and Rust readers are one function each with a payload flag).
-
-A file has **one** payload kind: an `S` record in a `con-ron-decls/1` dump and
-a `D` record in a `con-ron-pins/1` one are both errors, and the footer counts
-whichever payload the header announced.
-
-### Pin variants — `ConLeche/Kernel/NatOpPinSet.lean:30`
-
-```
-S <len> <text> <expr> <expr> <expr> <expr> <expr> <expr> <expr> <expr>
-        toolchain  div    mod    gcd   land   lor    xor    shl    shr
-  <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>*
-  divProofs   modProofs   gcdProofs   landProofs  lorProofs   xorProofs   shlProofs   shrProofs
-```
-
-(one line, the wrap above is presentation).  `S` records carry **no id**, for
-`D`'s reason: the record *is* the payload, and its position in the file is its
-position in `natOpPinSets`, which is the order `checkDivModPinLoop` tries the
-variants in.  The eight pins come first and the eight counted proof lists
-follow, in the field order of the structure; `<len> <text>` is the toolchain
-string (§3), which the decline message names and nothing else reads.
-
-### The census, at con-leche 3e004805
+## 7. The census, at con-leche 3e004805
 
 | | |
 |---|---|

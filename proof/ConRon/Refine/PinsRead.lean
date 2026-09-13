@@ -136,15 +136,13 @@ theorem split_at_space {l f r s : Bytes} (hf : 10 ∉ f)
 
 /-! ## The reader's state, against the decoder's -/
 
-/-- The reader's arrays are the decoder's tables, and the file is a pin
-dump. -/
+/-- The reader's arrays are the decoder's tables. -/
 structure Match (st : RState) (tb : Tables) : Prop where
   names : st.names.toList = tb.names
   levels : st.levels.toList = tb.levels
   pws : st.pws.toList = tb.pws
   exprs : st.exprs.toList = tb.exprs
   sets : st.pinSets.toList = tb.sets
-  pins : st.pins = true
 
 /-- The decoder is at the start of a field of the current line, and the
 reader's cursor is on the same field.  `bs` is the decoder's byte suffix and
@@ -257,7 +255,7 @@ theorem field_step {st : RState} {bs f bs' : Bytes} {rest : Option Bytes}
 /-- The reader's cursor is the only thing a field reader moves. -/
 theorem Match.pos {st : RState} {tb : Tables} (h : Match st tb) (k : Nat) :
     Match { st with pos := k } tb :=
-  ⟨h.names, h.levels, h.pws, h.exprs, h.sets, h.pins⟩
+  ⟨h.names, h.levels, h.pws, h.exprs, h.sets⟩
 
 /-- `nextTok` on a field the byte reader consumed. -/
 theorem tok_step {st : RState} {bs f bs' : Bytes} {rest : Option Bytes}
@@ -974,31 +972,31 @@ theorem match_push_names {st : RState} {tb : Tables} (hm : Match st tb)
     (v : ConLeche.Name) (k : Nat) :
     Match { st with pos := k, names := st.names.push v }
       { tb with names := tb.names ++ [v] } :=
-  ⟨by simp [hm.names], hm.levels, hm.pws, hm.exprs, hm.sets, hm.pins⟩
+  ⟨by simp [hm.names], hm.levels, hm.pws, hm.exprs, hm.sets⟩
 
 theorem match_push_levels {st : RState} {tb : Tables} (hm : Match st tb)
     (v : ConLeche.Level) (k : Nat) :
     Match { st with pos := k, levels := st.levels.push v }
       { tb with levels := tb.levels ++ [v] } :=
-  ⟨hm.names, by simp [hm.levels], hm.pws, hm.exprs, hm.sets, hm.pins⟩
+  ⟨hm.names, by simp [hm.levels], hm.pws, hm.exprs, hm.sets⟩
 
 theorem match_push_pws {st : RState} {tb : Tables} (hm : Match st tb)
     (v : ConLeche.PropWhen) (k : Nat) :
     Match { st with pos := k, pws := st.pws.push v }
       { tb with pws := tb.pws ++ [v] } :=
-  ⟨hm.names, hm.levels, by simp [hm.pws], hm.exprs, hm.sets, hm.pins⟩
+  ⟨hm.names, hm.levels, by simp [hm.pws], hm.exprs, hm.sets⟩
 
 theorem match_push_exprs {st : RState} {tb : Tables} (hm : Match st tb)
     (v : ConLeche.Expr) (k : Nat) :
     Match { st with pos := k, exprs := st.exprs.push v }
       { tb with exprs := tb.exprs ++ [v] } :=
-  ⟨hm.names, hm.levels, hm.pws, by simp [hm.exprs], hm.sets, hm.pins⟩
+  ⟨hm.names, hm.levels, hm.pws, by simp [hm.exprs], hm.sets⟩
 
 theorem match_push_sets {st : RState} {tb : Tables} (hm : Match st tb)
     (v : ConLeche.NatOpPinSet) (k : Nat) :
     Match { st with pos := k, pinSets := st.pinSets.push v }
       { tb with sets := tb.sets ++ [v] } :=
-  ⟨hm.names, hm.levels, hm.pws, hm.exprs, by simp [hm.sets], hm.pins⟩
+  ⟨hm.names, hm.levels, hm.pws, hm.exprs, by simp [hm.sets]⟩
 
 set_option linter.unusedSimpArgs false
 
@@ -1807,8 +1805,7 @@ theorem recordPinSet_step {st : RState} {tb tb' : Tables} {bs bs' : Bytes}
           obtain ⟨hbs, hdone⟩ := atSep_newline sq7 hnl
           refine ⟨hbs, _, ?_, match_push_sets hm _ n7, hdone⟩
           reader_simp [e₀, ep0, ep1, ep2, ep3, ep4, ep5, ep6, ep7,
-            eq0, eq1, eq2, eq3, eq4, eq5, eq6, eq7,
-            show (!st.pins) = false from by simp [hm.pins]]
+            eq0, eq1, eq2, eq3, eq4, eq5, eq6, eq7]
 
 /-! ## The pass -/
 
@@ -1943,10 +1940,7 @@ theorem modify_line (st : RState) (l : String) :
 
 theorem lineState_match {st : RState} {tb : Tables} (hm : Match st tb)
     (l : String) : Match (lineState st l) tb :=
-  ⟨hm.names, hm.levels, hm.pws, hm.exprs, hm.sets, hm.pins⟩
-
-theorem lineState_pins (st : RState) (l : String) :
-    (lineState st l).pins = st.pins := rfl
+  ⟨hm.names, hm.levels, hm.pws, hm.exprs, hm.sets⟩
 
 theorem lineState_pinSets (st : RState) (l : String) :
     (lineState st l).pinSets = st.pinSets := rfl
@@ -2037,7 +2031,7 @@ theorem runRecords_step : ∀ (fuel : Nat) {st : RState} {tb : Tables} {bytes : 
                 have hdone' : k₃
                     = (lineState st (text (101 :: 110 :: 100 :: 32 :: dg))).toks.size :=
                   hdone
-                lines_simp [lineState_pins, lineState_pinSets, hm.pins,
+                lines_simp [lineState_pinSets,
                   show st.pinSets.size = tb.sets.length from by
                     simpa using congrArg List.length hm.sets,
                   hc2, bne_self_eq_false,
@@ -2155,8 +2149,8 @@ theorem parsePins_of_decode {bs : Bytes} {ps : List ConLeche.NatOpPinSet}
     have hsplit := splitOn_line_cons (l := [99, 111, 110, 45, 114, 111, 110, 45,
       112, 105, 110, 115, 47, 49]) (r := rest) (by decide) (by decide)
     obtain ⟨st', hrun, hps⟩ := runRecords_step bs.length
-      (tb := tablesNew) (st := { lineNo := 1, pins := true })
-      ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ hascr h
+      (tb := tablesNew) (st := { lineNo := 1 })
+      ⟨rfl, rfl, rfl, rfl, rfl⟩ hascr h
     rw [ConRon.Dump.parsePins, hbs, hsplit,
       show text [99, 111, 110, 45, 114, 111, 110, 45, 112, 105, 110, 115, 47, 49]
         = ConRon.Dump.pinsHeader from by decide]

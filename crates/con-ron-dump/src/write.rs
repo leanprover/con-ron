@@ -1,20 +1,22 @@
-//! The Rust writer for `con-ron-decls/1` — a transliteration of
-//! `proof/ConRon/Dump/Write.lean`, emission order included.
+//! The Rust writer for `con-ron-pins/1` — a transliteration of the Lean
+//! writer in `proof/ConRon/Dump/Pins.lean`, emission order included.
 //!
-//! It exists to make the reader testable without the Lean side: `dump_decls`
-//! is a left inverse of [`crate::parse_decls`] *on the nose*, so
-//! `con-ron-dump-check --roundtrip` can diff a re-dump against the input file
-//! byte for byte and a single wrong field anywhere shows up as a diff.  That
-//! is a much sharper test than "it parsed": every id, every list length, every
-//! escape and the whole emission order have to agree with Lean's writer.
+//! It exists to make the reader testable without the Lean side: `dump_pins`
+//! is a left inverse of [`crate::parse_pins`] *on the nose*, so a re-dump can
+//! be diffed against the input file byte for byte and a single wrong field
+//! anywhere shows up as a diff.  That is a much sharper test than "it
+//! parsed": every id, every list length, every escape and the whole emission
+//! order have to agree with Lean's writer.  `scripts/gen-pins.sh` depends on
+//! exactly that agreement — the embedded `PINS_TEXT` of the verified core is
+//! the Lean writer's bytes, and the unit tests here re-derive them.
 //!
-//! Byte-identity needs three things to match `Write.lean` exactly:
+//! Byte-identity needs three things to match the Lean writer exactly:
 //!
 //! 1. **The interning tables.**  `N`, `L`, `W` and `E` are keyed by *value*
 //!    (the core's own `beq` and cached hash, via the key wrappers below), as
-//!    Lean's `Std.HashMap Expr Nat` is; `V`, `R`, `C`, `P` and `I` are merely
+//!    Lean's `Std.HashMap Expr Nat` is; the `S` payload records are merely
 //!    counted.
-//! 2. **The `Expr` worklist.**  `Write.lean` pushes `(e, false)`, pops from
+//! 2. **The `Expr` worklist.**  The Lean writer pushes `(e, false)`, pops from
 //!    the end, and on a first visit pushes `(e, true)` and then the children in
 //!    constructor order — so the *last* child is emitted first.  The loop below
 //!    is that loop.  It is a worklist and not recursion for the same reason:
@@ -29,15 +31,6 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::hash::Hasher;
 
-use con_ron_core::cached::parsed_c::DeclC;
-use con_ron_core::kernel::env::BasisKind;
-use con_ron_core::kernel::env::ConstantInfo;
-use con_ron_core::kernel::env::ConstantVal;
-use con_ron_core::kernel::env::IndCaps;
-use con_ron_core::kernel::env::ProjTable;
-use con_ron_core::kernel::env::RecRule;
-use con_ron_core::kernel::env::RecRuleFire;
-use con_ron_core::kernel::env::ReducibilityHint;
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::Expr;
 use con_ron_core::kernel::expr::ExprKind;
@@ -53,24 +46,14 @@ use con_ron_core::kernel::prop_when;
 use con_ron_core::kernel::prop_when::PropWhen;
 
 use crate::natdec;
-use crate::HEADER;
 use crate::PINS_HEADER;
 
 // ---------------------------------------------------------------------------
 // Scalars
 // ---------------------------------------------------------------------------
 
-/// `false`/`true` as `0`/`1`.
-fn bool_str(b: bool) -> &'static str {
-    if b {
-        "1"
-    } else {
-        "0"
-    }
-}
-
 /// One code point, escaped: a literal printable non-backslash ASCII byte, or
-/// `\<lowercase-hex>;`.  `Write.lean`'s `escChar` and `escapeString`.
+/// `\<lowercase-hex>;`.  `Pins.lean`'s `escChar` and `escapeString`.
 pub fn escape_string(s: &[u32]) -> String {
     let mut out = String::new();
     for &c in s {
@@ -102,25 +85,6 @@ fn id_list(ids: &[usize]) -> String {
     out
 }
 
-fn hint_str(h: &ReducibilityHint) -> String {
-    match h {
-        ReducibilityHint::Opaque => "o".to_string(),
-        ReducibilityHint::Abbrev => "b".to_string(),
-        ReducibilityHint::Regular(n) => format!("r {}", n),
-    }
-}
-
-fn basis_str(k: &BasisKind) -> &'static str {
-    match k {
-        BasisKind::EqK => "eq",
-        BasisKind::NatK => "nat",
-        BasisKind::PunitK => "punit",
-        BasisKind::EmptyK => "empty",
-        BasisKind::FalseK => "false",
-        BasisKind::QuotK => "quot",
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Interning keys
 // ---------------------------------------------------------------------------
@@ -129,7 +93,7 @@ fn basis_str(k: &BasisKind) -> &'static str {
 // `beq` (pointer, then cached hash, then structure) and its hash is the stored
 // computed field, both as one-method traits of its own (task #7).  These
 // wrappers hand those to `std::collections::HashMap`, so the writer interns by
-// the same notion of equality `Write.lean`'s `Std.HashMap` uses.
+// the same notion of equality `Pins.lean`'s `Std.HashMap` uses.
 
 macro_rules! key {
     ($k:ident, $t:ty, $hash:path, $eq:path) => {
@@ -157,7 +121,7 @@ key!(PwKey, PropWhen, prop_when::hash_pw, prop_when::beq);
 // The writer's state
 // ---------------------------------------------------------------------------
 
-/// `Write.lean`'s `WState`: the output, one interning table per interned id
+/// `Pins.lean`'s `WState`: the output, one interning table per interned id
 /// space and one counter per numbered one.
 struct Writer {
     buf: String,
@@ -165,12 +129,6 @@ struct Writer {
     levels: HashMap<LevelKey, usize>,
     pws: HashMap<PwKey, usize>,
     exprs: HashMap<ExprKey, usize>,
-    n_v: usize,
-    n_r: usize,
-    n_c: usize,
-    n_p: usize,
-    n_i: usize,
-    n_d: usize,
     n_s: usize,
 }
 
@@ -182,12 +140,6 @@ impl Writer {
             levels: HashMap::new(),
             pws: HashMap::new(),
             exprs: HashMap::new(),
-            n_v: 0,
-            n_r: 0,
-            n_c: 0,
-            n_p: 0,
-            n_i: 0,
-            n_d: 0,
             n_s: 0,
         }
     }
@@ -276,7 +228,7 @@ impl Writer {
 
     // --- expressions -------------------------------------------------------
 
-    /// The id of an already-emitted node (`Write.lean`'s `eid`, `getD e 0`).
+    /// The id of an already-emitted node (`Pins.lean`'s `eid`, `getD e 0`).
     fn eid(&self, e: &Expr) -> usize {
         match self.exprs.get(&ExprKey(expr::dup(e))) {
             Some(&i) => i,
@@ -327,7 +279,7 @@ impl Writer {
         self.emit(&format!("E {} {}", id, body));
     }
 
-    /// Emit an expression DAG, returning the root's id.  `Write.lean`'s
+    /// Emit an expression DAG, returning the root's id.  `Pins.lean`'s
     /// `wExprGo`: `(e, false)` means "visit", `(e, true)` means "children done,
     /// emit".
     fn w_expr(&mut self, root: &Expr) -> usize {
@@ -372,166 +324,10 @@ impl Writer {
 
     // --- the records above expressions ------------------------------------
 
-    fn w_cv(&mut self, cv: &ConstantVal) -> usize {
-        let ni = self.w_name(&cv.name);
-        let lps: Vec<usize> = cv.level_params.iter().map(|n| self.w_name(n)).collect();
-        let ti = self.w_expr(&cv.ty);
-        let id = self.n_v;
-        self.n_v += 1;
-        self.emit(&format!("V {} {} {} {}", id, ni, id_list(&lps), ti));
-        id
-    }
-
-    fn w_rule(&mut self, r: &RecRule) -> usize {
-        let ci = self.w_name(&r.ctor);
-        let fire = match &r.fire {
-            RecRuleFire::Inert => "i".to_string(),
-            RecRuleFire::Plain => "p".to_string(),
-            RecRuleFire::Nested(lvls, pins) => {
-                let ls: Vec<usize> = lvls.iter().map(|u| self.w_level(u)).collect();
-                let ps: Vec<usize> = pins.iter().map(|e| self.w_expr(e)).collect();
-                format!("n {} {}", id_list(&ls), id_list(&ps))
-            }
-        };
-        let rhs = self.w_expr(&r.rhs);
-        let id = self.n_r;
-        self.n_r += 1;
-        self.emit(&format!(
-            "R {} {} {} {} {} {} {} {} {}",
-            id,
-            ci,
-            r.nfields,
-            r.ctor_params,
-            fire,
-            rhs,
-            bool_str(r.k),
-            bool_str(r.eta),
-            bool_str(r.params_blind)
-        ));
-        id
-    }
-
-    fn w_caps(&mut self, c: &IndCaps) -> usize {
-        let ec = self.w_name(&c.eta_ctor);
-        let sz = self.w_pw(&c.sort_z);
-        let id = self.n_c;
-        self.n_c += 1;
-        self.emit(&format!(
-            "C {} {} {} {} {} {} {} {} {}",
-            id,
-            bool_str(c.eta),
-            ec,
-            c.eta_params,
-            c.eta_fields,
-            bool_str(c.unitlike),
-            c.unit_params,
-            bool_str(c.rule_k),
-            sz
-        ));
-        id
-    }
-
-    fn w_table(&mut self, t: &ProjTable) -> usize {
-        let sn = self.w_name(&t.struct_name);
-        let lps: Vec<usize> = t.level_params.iter().map(|n| self.w_name(n)).collect();
-        let ct = self.w_name(&t.ctor);
-        let ss = self.w_level(&t.struct_sort);
-        let bs: Vec<usize> = t.bodies.iter().map(|e| self.w_expr(e)).collect();
-        let gs: Vec<usize> = t.guards.iter().map(|u| self.w_level(u)).collect();
-        let id = self.n_p;
-        self.n_p += 1;
-        self.emit(&format!(
-            "P {} {} {} {} {} {} {} {} {} {}",
-            id,
-            sn,
-            id_list(&lps),
-            t.num_params,
-            ct,
-            t.num_fields,
-            ss,
-            id_list(&bs),
-            id_list(&gs),
-            t.off
-        ));
-        id
-    }
-
-    fn w_info(&mut self, ci: &ConstantInfo) -> usize {
-        let body = match ci {
-            ConstantInfo::AxiomInfo(v) => {
-                let i = self.w_cv(v);
-                format!("a {}", i)
-            }
-            ConstantInfo::DefnInfo(v, val, h) => {
-                let i = self.w_cv(v);
-                let e = self.w_expr(val);
-                format!("d {} {} {}", i, e, hint_str(h))
-            }
-            ConstantInfo::ThmInfo(v, val) => {
-                let i = self.w_cv(v);
-                let e = self.w_expr(val);
-                format!("t {} {}", i, e)
-            }
-            ConstantInfo::IndInfo(v, caps) => {
-                let i = self.w_cv(v);
-                let c = self.w_caps(caps);
-                format!("i {} {}", i, c)
-            }
-            ConstantInfo::CtorInfo(v, np, nf) => {
-                let i = self.w_cv(v);
-                format!("c {} {} {}", i, np, nf)
-            }
-            ConstantInfo::RecInfo(v, mi, rp, rules) => {
-                let i = self.w_cv(v);
-                let rs: Vec<usize> = rules.iter().map(|r| self.w_rule(r)).collect();
-                format!("r {} {} {} {}", i, mi, rp, id_list(&rs))
-            }
-            ConstantInfo::ProjInfo(t) => {
-                let ti = self.w_table(t);
-                format!("p {}", ti)
-            }
-        };
-        let id = self.n_i;
-        self.n_i += 1;
-        self.emit(&format!("I {} {}", id, body));
-        id
-    }
-
-    /// A `D` record has no id: the order is the payload.
-    fn w_decl(&mut self, d: &DeclC) {
-        let body = match d {
-            DeclC::AxiomDecl(v) => {
-                let i = self.w_cv(v);
-                format!("a {}", i)
-            }
-            DeclC::DefnDecl(v, val, h) => {
-                let i = self.w_cv(v);
-                let e = self.w_expr(val);
-                format!("d {} {} {}", i, e, hint_str(h))
-            }
-            DeclC::ThmDecl(v, val) => {
-                let i = self.w_cv(v);
-                let e = self.w_expr(val);
-                format!("t {} {}", i, e)
-            }
-            DeclC::OpaqueDecl(v, val) => {
-                let i = self.w_cv(v);
-                let e = self.w_expr(val);
-                format!("o {} {}", i, e)
-            }
-            DeclC::BasisDecl(k) => format!("b {}", basis_str(k)),
-            DeclC::IndDecl(block, np) => {
-                let is: Vec<usize> = block.iter().map(|ci| self.w_info(ci)).collect();
-                format!("i {} {}", np, id_list(&is))
-            }
-        };
-        self.emit(&format!("D {}", body));
-        self.n_d += 1;
-    }
-
-    /// An `S` record (FORMAT.md §7) has no id, for `D`'s reason.  The eight
+    /// An `S` record (FORMAT.md §4) has no id: the record *is* the payload.
+    /// The eight
     /// pins are emitted first and the eight proof lists after, in the field
-    /// order of `NatOpPinSet`, which is what `Write.lean`'s `wPinSet` does.
+    /// order of `NatOpPinSet`, which is what `Pins.lean`'s `wPinSet` does.
     fn w_pin_set(&mut self, s: &NatOpPinSet) {
         let dv = self.w_expr(&s.div_pin);
         let md = self.w_expr(&s.mod_pin);
@@ -587,23 +383,11 @@ impl Writer {
 // The entry point
 // ---------------------------------------------------------------------------
 
-/// **The writer.**  `dump_decls(&parse_decls(text)?)` is `text`, byte for
-/// byte, for every `con-ron-decls/1` dump the Lean writer produces.
-pub fn dump_decls(ds: &[DeclC]) -> String {
-    let mut w = Writer::new();
-    w.emit(HEADER);
-    for d in ds {
-        w.w_decl(d);
-    }
-    let n = w.n_d;
-    w.emit(&format!("end {}", n));
-    w.buf
-}
-
-/// **The pin writer** (FORMAT.md §7).  `dump_pins(&parse_pins(text)?)` is
+/// **The writer** (FORMAT.md).  `dump_pins(&parse_pins(text)?)` is
 /// `text`, byte for byte, for the `con-ron-pins/1` dump `lake exe
-/// con-ron-dump-pins` produces — which is how `con-ron-dump-check
-/// --roundtrip` tests the pin reader without the Lean side.
+/// con-ron-dump-pins` produces — which is how the tests exercise the pin
+/// reader without the Lean side, and how they check the core's embedded
+/// `PINS_TEXT` against both.
 pub fn dump_pins(ss: &[NatOpPinSet]) -> String {
     let mut w = Writer::new();
     w.emit(PINS_HEADER);

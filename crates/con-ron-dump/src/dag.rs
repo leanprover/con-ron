@@ -1,31 +1,26 @@
 //! The DAG census — the check that the reader really did hand back a DAG.
 //!
 //! FORMAT.md §2 exists because con-leche's terms are shared heavily and writing
-//! the tree out would blow up exponentially; the reader's job (FORMAT.md §6.1)
-//! is to put that sharing back.  A byte-identical re-dump does *not* prove it:
-//! `write.rs` interns by value, so it would collapse a tree expansion back into
-//! the same bytes.  What proves it is counting **distinct heap nodes** reachable
-//! from the parsed declarations and finding exactly as many as the file has
-//! records — one `N`, `L` or `E` record, one allocation, every later reference a
-//! cloned `Rc` handle.
+//! the tree out would blow up exponentially — as a tree one pin variant is
+//! 5.1 M nodes — and the reader's job (FORMAT.md §6.1) is to put that sharing
+//! back.  A byte-identical re-dump does *not* prove it: `write.rs` interns by
+//! value, so it would collapse a tree expansion back into the same bytes.
+//! What proves it is counting **distinct heap nodes** reachable from the
+//! parsed pin variants and finding exactly as many as the file has records —
+//! one `N`, `L` or `E` record, one allocation, every later reference a cloned
+//! `Rc` handle.
 //!
 //! The walk therefore compares pointers, taken through `Deref` (so they
 //! follow `ron::ptr`'s alias, task #44).  Raw pointers are
 //! only ever hashed and compared here, never dereferenced, so there is no
 //! `unsafe` — and none is allowed in this crate (see the crate docs).
 //!
-//! The `Expr` walk is a worklist for the same reason `Write.lean`'s is: term
-//! depth reaches the thousands.  `Name` and `Level` are shallow and recur.
+//! The `Expr` walk is a worklist for the same reason the Lean writer's is:
+//! term depth reaches the thousands.  `Name` and `Level` are shallow and
+//! recur.
 
 use std::collections::HashSet;
 
-use con_ron_core::cached::parsed_c::DeclC;
-use con_ron_core::kernel::env::ConstantInfo;
-use con_ron_core::kernel::env::ConstantVal;
-use con_ron_core::kernel::env::IndCaps;
-use con_ron_core::kernel::env::ProjTable;
-use con_ron_core::kernel::env::RecRule;
-use con_ron_core::kernel::env::RecRuleFire;
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::Expr;
 use con_ron_core::kernel::expr::ExprKind;
@@ -40,7 +35,7 @@ use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_core::kernel::prop_when;
 use con_ron_core::kernel::prop_when::PropWhen;
 
-/// How many *distinct* heap nodes a declaration list reaches.
+/// How many *distinct* heap nodes a pin list reaches.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Census {
     pub names: usize,
@@ -64,12 +59,6 @@ impl Walk {
             NameKind::Anonymous => {}
             NameKind::Str(p, _) => self.name(p),
             NameKind::Num(p, _) => self.name(p),
-        }
-    }
-
-    fn names_of(&mut self, xs: &[Name]) {
-        for x in xs {
-            self.name(x);
         }
     }
 
@@ -143,102 +132,9 @@ impl Walk {
         }
     }
 
-    fn cv(&mut self, cv: &ConstantVal) {
-        self.name(&cv.name);
-        self.names_of(&cv.level_params);
-        self.expr(&cv.ty);
-    }
-
-    fn rule(&mut self, r: &RecRule) {
-        self.name(&r.ctor);
-        match &r.fire {
-            RecRuleFire::Inert | RecRuleFire::Plain => {}
-            RecRuleFire::Nested(lvls, pins) => {
-                self.levels_of(lvls);
-                self.exprs_of(pins);
-            }
-        }
-        self.expr(&r.rhs);
-    }
-
-    fn caps(&mut self, c: &IndCaps) {
-        self.name(&c.eta_ctor);
-        self.pw(&c.sort_z);
-    }
-
-    fn table(&mut self, t: &ProjTable) {
-        self.name(&t.struct_name);
-        self.names_of(&t.level_params);
-        self.name(&t.ctor);
-        self.level(&t.struct_sort);
-        self.exprs_of(&t.bodies);
-        self.levels_of(&t.guards);
-    }
-
-    fn info(&mut self, ci: &ConstantInfo) {
-        match ci {
-            ConstantInfo::AxiomInfo(v) => self.cv(v),
-            ConstantInfo::DefnInfo(v, val, _) => {
-                self.cv(v);
-                self.expr(val);
-            }
-            ConstantInfo::ThmInfo(v, val) => {
-                self.cv(v);
-                self.expr(val);
-            }
-            ConstantInfo::IndInfo(v, c) => {
-                self.cv(v);
-                self.caps(c);
-            }
-            ConstantInfo::CtorInfo(v, _, _) => self.cv(v),
-            ConstantInfo::RecInfo(v, _, _, rules) => {
-                self.cv(v);
-                for r in rules {
-                    self.rule(r);
-                }
-            }
-            ConstantInfo::ProjInfo(t) => self.table(t),
-        }
-    }
-
-    fn decl(&mut self, d: &DeclC) {
-        match d {
-            DeclC::AxiomDecl(v) => self.cv(v),
-            DeclC::DefnDecl(v, val, _) => {
-                self.cv(v);
-                self.expr(val);
-            }
-            DeclC::ThmDecl(v, val) | DeclC::OpaqueDecl(v, val) => {
-                self.cv(v);
-                self.expr(val);
-            }
-            DeclC::BasisDecl(_) => {}
-            DeclC::IndDecl(block, _) => {
-                for ci in block {
-                    self.info(ci);
-                }
-            }
-        }
-    }
 }
 
-/// Count the distinct `Name`, `Level` and `Expr` heap nodes the list reaches.
-/// For a list that came out of [`crate::parse_decls`] this equals the dump's
-/// `N`, `L` and `E` record counts exactly: the reader allocated one node per
-/// record and shared it everywhere else.
-pub fn census(ds: &[DeclC]) -> Census {
-    let mut w = Walk::default();
-    for d in ds {
-        w.decl(d);
-    }
-    Census {
-        names: w.names.len(),
-        levels: w.levels.len(),
-        exprs: w.exprs.len(),
-    }
-}
-
-/// The same census for a `con-ron-pins/1` payload (FORMAT.md §7).  A pin
+/// The census of a `con-ron-pins/1` payload (FORMAT.md §4).  A pin
 /// variant is where the sharing matters most: as a *tree* the v4.33.0 variant
 /// is 5.1 M nodes against 20 183 in the DAG (DESIGN.md task #22), so a reader
 /// that lost the sharing would be found here and nowhere else.

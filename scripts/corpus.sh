@@ -13,17 +13,17 @@
 #   2. con-leche's own verdict on each export, at `--jobs=1` and at a
 #      parallel setting, with `perf stat -e instructions:u` (the measurement
 #      of record), wall time and peak RSS.
-#   3. the `con-ron-decls/1` dump of each export (`lake exe con-ron-dump`),
-#      with the Lean round trip on the small ones and `--write-only` on
-#      Mathlib, and `con-ron-dump-check` (the Rust reader, task #19) on
-#      every dump.
-#   4. three reports rebuilt from the artifacts on disk.
+#   3. two reports rebuilt from the artifacts on disk.
+#
+# Step 3 used to be the `con-ron-decls/1` dump of each export and the Rust
+# reader on it; task #80 retired that format with the checker-only
+# differential seam it served, so the step and its `dumps.md` report are gone
+# and the report step kept its number 4.
 #
 # Every step is skipped when its output is already there, so a re-run is
 # cheap and a partial run resumes.  Results land in
 #   $OUT/README.md    the exports: commands, sizes, times
 #   $OUT/baseline.md  con-leche's verdicts and costs
-#   $OUT/dumps.md     the dumps and the Rust reader's verdicts
 # and the raw logs next to them (`<tag>.{out,err,perf,time,exit}`).  Nothing
 # here is committed: `_tmp/` is gitignored and the Mathlib export alone is
 # gigabytes.
@@ -33,9 +33,9 @@
 # run at the same time as each other (or as another agent's).
 #
 # USAGE
-#     scripts/corpus.sh [--steps=1,2,3,4] [--no-mathlib] [OUTDIR]
+#     scripts/corpus.sh [--steps=1,2,4] [--no-mathlib] [OUTDIR]
 #
-# Every exporter/checker/dump run is wrapped in `timeout` and `ulimit -v`
+# Every exporter and checker run is wrapped in `timeout` and `ulimit -v`
 # (22 GB), so that a runaway run dies rather than the machine.
 set -u
 cd "$(dirname "$0")/.."
@@ -54,19 +54,13 @@ TO_CHECK="${TO_CHECK:-14400}"
 # on a big machine; con-leche's own scripts/selfcheck.sh uses 8 for the same
 # reason, and that is what the "default jobs" column measures here.
 JOBS_PAR="${JOBS_PAR:-8}"
-# The Rust reader's round trip holds the parsed DAG and the re-dumped text at
-# once: measured at 17.5 GB RSS for the 3.06 GB Mathlib dump (~5.7x the file),
-# i.e. inside the 22 GB cap but not by much.  Dumps above this get parse + DAG
-# census only; raise it deliberately, with the cap in mind.
-RT_MAX="${RT_MAX:-4000000000}"
-
-STEPS=1,2,3,4
+STEPS=1,2,4
 WANT_MATHLIB=1
 for a in "$@"; do
   case "$a" in
     --steps=*)    STEPS="${a#--steps=}" ;;
     --no-mathlib) WANT_MATHLIB=0 ;;
-    -*) echo "usage: $0 [--steps=1,2,3,4] [--no-mathlib] [OUTDIR]" >&2; exit 2 ;;
+    -*) echo "usage: $0 [--steps=1,2,4] [--no-mathlib] [OUTDIR]" >&2; exit 2 ;;
     *)  OUT="$a" ;;
   esac
 done
@@ -198,58 +192,8 @@ $(m_wall "$tag")s, $(m_rss "$tag") KB"
   fi
 fi
 
-###################################################################### 3
-# The `con-ron-decls/1` dumps, and the Rust reader on each.
-if step_wanted 3; then
-  DUMP="$root/proof/.lake/build/bin/con-ron-dump"
-  if [ ! -x "$DUMP" ]; then
-    say "building con-ron-dump"
-    ( cd "$root/proof" && lake build con-ron-dump ) || exit 2
-  fi
-  DCHECK="$root/target/release/con-ron-dump-check"
-  if [ ! -x "$DCHECK" ]; then
-    say "building con-ron-dump-check"
-    ( cd "$root" && cargo build --release -p con-ron-dump ) || exit 2
-  fi
-  for name in init core mathlib; do
-    src="$OUT/$name.ndjson"; [ -s "$src" ] || continue
-    dest="$OUT/$name.decls"
-    # The round trip (read back, re-dump, compare) roughly doubles the peak
-    # memory, and that is what `--write-only` drops; at Mathlib scale it is
-    # the difference between a run and an OOM.  `--no-check` drops the two
-    # `checkDecls` runs, which are con-leche's cost, not the dump's.
-    case "$name" in
-      mathlib) flag=--write-only ;;
-      *)       flag=--no-check ;;
-    esac
-    tag="dump-$name"
-    if [ -s "$dest" ] && [ -s "$OUT/$tag.exit" ]; then
-      say "dump $name: already there ($(hsize "$dest") bytes)"
-    else
-      say "con-ron-dump $flag $name"
-      measure "$tag" -- timeout "$TO_CHECK" "$DUMP" "$flag" "$src" "$dest"
-      say "  exit $(cat "$OUT/$tag.exit"), $(hsize "$dest") bytes, \
-$(m_wall "$tag")s, $(m_rss "$tag") KB"
-    fi
-    [ -s "$dest" ] || continue
-    tag="dcheck-$name"
-    if [ -s "$OUT/$tag.exit" ]; then
-      say "con-ron-dump-check $name: already there"
-    else
-      say "con-ron-dump-check $name"
-      # `--roundtrip` re-dumps and compares bytes, which is what keeps the
-      # format pinned where `--write-only` dropped the Lean round trip -- and
-      # pins it by the *other* reader, which is the stronger check.
-      rflag=--roundtrip
-      [ "$(hsize "$dest")" -gt "$RT_MAX" ] && rflag=
-      measure "$tag" -- timeout "$TO_CHECK" "$DCHECK" $rflag "$dest"
-      say "  exit $(cat "$OUT/$tag.exit"), $(m_wall "$tag")s, $(m_rss "$tag") KB"
-    fi
-  done
-fi
-
 ###################################################################### 4
-# The three reports, rebuilt from the artifacts every run (cheap, and the
+# The two reports, rebuilt from the artifacts every run (cheap, and the
 # numbers then always describe what is actually on disk).
 decls_of() { # <name>: declaration records, total and by kind, from the census
   local f="$OUT/$1.counts"; [ -s "$f" ] || { echo "- |"; return; }
@@ -260,22 +204,14 @@ decls_of() { # <name>: declaration records, total and by kind, from the census
   done
   echo "$tot |$part"
 }
-field() { # <name> <key>: a count from the dump tool's own stdout
-  sed -n "s/.*$2 \([0-9]*\).*/\1/p" "$OUT/dump-$1.out" 2>/dev/null | head -1
-}
 verdict_of() { # <tag>: con-leche's own verdict line (printed on stdout), or
               # the exception that stopped it
   grep -m1 -hE "accepted|rejected|declined|internal|exception" \
     "$OUT/$1.out" "$OUT/$1.err" 2>/dev/null | sed 's/^con-leche: //' \
     | tr '|\n' '/ ' | head -c 110
 }
-dcheck_line() { # <name>: what the Rust reader concluded
-  grep -m1 -hE "^(OK|FAIL)" "$OUT/dcheck-$1.out" 2>/dev/null \
-    | sed 's/.* B  //' | head -c 90
-}
-
 if step_wanted 4; then
-  say "writing $OUT/README.md, baseline.md, dumps.md"
+  say "writing $OUT/README.md, baseline.md"
   {
     echo "# The scale corpus (con-ron task #29)"
     echo
@@ -359,38 +295,6 @@ if step_wanted 4; then
     fi
   } > "$OUT/baseline.md"
 
-  {
-    echo "# The \`con-ron-decls/1\` dumps of the scale corpus (task #29)"
-    echo
-    echo "\`lake exe con-ron-dump <flag> <export> <dump>\` (task #10) and then"
-    echo "\`con-ron-dump-check <dump>\` (the Rust reader, task #19).  \`--no-check\`"
-    echo "keeps the Lean round trip and drops the two \`checkDecls\` runs;"
-    echo "\`--write-only\` drops the round trip too and streams the lines out one"
-    echo "declaration at a time instead of accumulating them, which is what a"
-    echo "Mathlib-scale dump needs to stay inside the 22 GB cap (the buffered"
-    echo "writer dies at 18.9 GB RSS on \`mathlib.ndjson\`).  The bytes are"
-    echo "identical either way -- checked on a fixture and on \`init.ndjson\`."
-    echo
-    echo "| dump | flag | exit | bytes | declarations | names | levels | exprs | wall | peak RSS |"
-    echo "|---|---|---|---|---|---|---|---|---|---|"
-    for n in init core mathlib; do
-      t="dump-$n"; [ -s "$OUT/$t.exit" ] || continue
-      case "$n" in mathlib) fl='`--write-only`';; *) fl='`--no-check`';; esac
-      printf '| `%s` | %s | %s | %s | %s | %s | %s | %s | %ss | %s KB |\n' \
-        "$n.decls" "$fl" "$(cat "$OUT/$t.exit")" "$(hsize "$OUT/$n.decls")" \
-        "$(field "$n" declarations)" "$(field "$n" names)" "$(field "$n" levels)" \
-        "$(field "$n" exprs)" "$(m_wall "$t")" "$(m_rss "$t")"
-    done
-    echo
-    echo "| dump | con-ron-dump-check | exit | wall | peak RSS |"
-    echo "|---|---|---|---|---|"
-    for n in init core mathlib; do
-      t="dcheck-$n"; [ -s "$OUT/$t.exit" ] || continue
-      printf '| `%s` | %s | %s | %ss | %s KB |\n' "$n.decls" \
-        "$(dcheck_line "$n")" \
-        "$(cat "$OUT/$t.exit")" "$(m_wall "$t")" "$(m_rss "$t")"
-    done
-  } > "$OUT/dumps.md"
 fi
 
 say "done; logs in $OUT"

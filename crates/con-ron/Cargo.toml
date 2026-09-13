@@ -13,18 +13,11 @@ path = "src/lib.rs"
 name = "con-ron"
 path = "src/bin/con-ron.rs"
 
-# The same driver on a `con-ron-decls/1` dump (task #28's differential seam,
-# moved here at task #40 so that both binaries share `con_ron::driver` — the
-# taint-skip rule decides an exit code, and two copies of it is one too many).
-[[bin]]
-name = "con-ron-check"
-path = "src/bin/con-ron-check.rs"
-
 [dependencies]
 con-ron-core = { path = "../con-ron-core" }
-# `con-ron-dump` is linked for two things: the `con-ron-decls/1` writer of
-# `--dump-decls` (task #19) and the `con-ron-pins/1` reader of `--pins`
-# (task #31).  Its `#[global_allocator]` — task #35's mimalloc — comes with it
-# and serves this binary too; a program may declare only one, which is why
-# `con-ron` declares none.
+# `con-ron-dump` is linked for the `con-ron-pins/1` reader of `--pins`
+# (task #31) and for `natdec`, the decimal parser the frontend shares with it.
+# Its `#[global_allocator]` — task #35's mimalloc — comes with it and serves
+# this binary too; a program may declare only one, which is why `con-ron`
+# declares none.
 con-ron-dump = { path = "../con-ron-dump" }

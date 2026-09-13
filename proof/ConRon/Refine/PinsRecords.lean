@@ -6,7 +6,7 @@ One lemma per record function, in the file's order.  Each is forward reasoning
 through `Refine/PinsBytes.lean`'s readers and then *one* smart-constructor
 lemma from `Refine/{Name,Level,PropWhen,Expr}.lean`: the reader never writes a
 cached datum itself, so the node the port installs abstracts to the node
-`ConRon.Dump.Read.lean` installs, and nothing about hashes or packed words is
+`ConRon/Dump/Pins.lean` installs, and nothing about hashes or packed words is
 ever unfolded here.
 
 Every lemma is stated over the model's **whole** outcome (task #67), and its

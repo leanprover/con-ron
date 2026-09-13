@@ -386,7 +386,9 @@ proof/                   Lake project: requires con-leche + aeneas (task #4)
                          lemma per ported function (README.md fixes the
                          naming rule; Smoke.lean is the task-#12 smoke test)
     Main.lean            check_decls_refines, conron.no_proof_of_False
-    Dump/                the `DeclC` dump of §3.6 (task #10)
+    Dump/                the `con-ron-pins/1` format of §3.6 (tasks #31, #80):
+                         `Pins.lean` (writer, reader, `con-ron-dump-pins`)
+                         and `FORMAT.md`
     Gen/                 the build-time table generator (task #22): the
                          `con-ron-gen-tables` exe that writes
                          `crates/con-ron-core/src/kernel/basis_tables.rs`
@@ -407,9 +409,9 @@ patches/                 aeneas-433.patch: the Aeneas Lean library on
 scripts/                 gates.sh (run it before every commit), extract.sh,
                          setup-aeneas-lean.sh, lint-rust-style.sh,
                          provenance.py, overview-links.sh (the link gate,
-                         §7), dump-fixtures.sh, diff-fixtures.sh,
-                         diff-frontend.sh (the frontend's byte-exact oracle)
-                         and diff-e2e.sh (the whole binary), task #37
+                         §7), gen-pins.sh (the embedded pin text) and
+                         diff-e2e.sh (the whole binary on every fixture,
+                         tasks #37 and #80)
 ```
 
 **`scripts/gates.sh` is the one command every task runs before committing**
@@ -458,22 +460,28 @@ export.  This decouples the core port from the Rust parser and catches port
 mistakes at the function they happen in; a finer oracle (dumping
 `whnf`/`infer` call pairs from con-leche) is added if debugging demands it.
 
-**The tool is `lake exe con-ron-dump`** (task #10), root
-`proof/ConRon/Dump/Main.lean`, with the writer in `ConRon/Dump/Write.lean`,
-the Lean reader in `ConRon/Dump/Read.lean` and the format specified in
-`proof/ConRon/Dump/FORMAT.md` (`con-ron-decls/1`: line-oriented text, one
-dense id space per node kind so the term DAG is written once, in the spirit
-of `lean4export`'s records).  It runs con-leche's frontend exactly as
-`vendor/con-leche/Main.lean` does — `Frontend.builtinPreludeE` then
-`Frontend.parseExportStreamD` with the in-process modeller on — writes the
-dump, reads it back **in Lean**, and checks structural equality of the two
-declaration lists, byte-identity of a re-dump, and agreement of
-`checkDecls .verified` on both.  `scripts/dump-fixtures.sh` sweeps the whole
-corpus and additionally compares each verdict against con-leche's pinned
-`tests/{arena,e2e,annot}-expected.txt`, and writes the corpus's one pin dump
-(`lake exe con-ron-dump-pins`, root `ConRon/Dump/Pins.lean`, format
-`con-ron-pins/1`) that `scripts/diff-fixtures.sh` passes to every
-`con-ron-check` run.
+**The tool was `lake exe con-ron-dump`** (task #10): con-leche's own frontend
+run exactly as `vendor/con-leche/Main.lean` runs it, the parsed `List DeclC`
+written as `con-ron-decls/1` text, read back in Lean, and the Rust checker
+(`con-ron-check`, task #28) run on the same file.  **Task #80 retired all of
+it.**  Once the Rust frontend existed (task #37), `scripts/diff-e2e.sh` ran
+the whole binary on every fixture's raw export against con-leche's pinned
+`tests/{arena,e2e,annot}-expected.txt` — 348 cases against the dump route's
+315, because the 33 streams con-leche's frontend declines or rejects before
+the fold have no declaration list at all, and because the taint-skip rule is
+frontend state a declaration list does not carry.  The dump sweep was then a
+strict subset, and duplication in the presentation; §7's list of what a task
+runs is `diff-e2e.sh`.
+
+**What survives is the pin dump**: `lake exe con-ron-dump-pins`, root
+`proof/ConRon/Dump/Pins.lean` (writer, reader and harness in one file since
+task #80), format `con-ron-pins/1`, specified in
+`proof/ConRon/Dump/FORMAT.md` — line-oriented text, one dense id space per
+node kind so the term DAG is written once, in the spirit of `lean4export`'s
+records.  It is not test infrastructure: `scripts/gen-pins.sh` embeds exactly
+those bytes in the verified core, a verified decoder reads them, and
+`ConRon.Dump.parsePins` is the right-hand side of the theorem that decoder is
+proved against (task #43 below, and `ConRon/Refine/Pins*.lean`).
 
 **Module nesting is load-bearing (task #14 follow-up).**  Aeneas prints
 every reference unqualified inside the crate's Lean namespace, so a Rust
@@ -14940,3 +14948,105 @@ out-of-range error.
 `provenance`, `overview-links`, `gen-pins`, `extract-check`, `lake-build`.
 All eight green (lake-build 293 s with `LAKE_JOBS=32`); the proof library
 stays `sorry`-free.
+
+### Task #80 — the declaration dump retired (2026-09-13, Opus under Fable)
+
+The maintainer's ruling: "we want a simpler presentation".  The checker-only
+differential seam had done its job and was now a second way of saying what
+`scripts/diff-e2e.sh` says better, so it is gone, along with the text format
+it existed to carry.  Nothing about the port, the extraction or the theorem
+changed; the proof library stays `sorry`-free.
+
+**What the seam was, and why it ends here.**  Task #10 wrote a Lean tool that
+ran con-leche's own frontend on an export and dumped the parsed `List DeclC`
+as text (`con-ron-decls/1`); task #19 wrote the Rust reader; task #28 built
+`con-ron-check`, the driver on such a dump, and `scripts/diff-fixtures.sh`,
+which put 315 fixtures through it against con-leche's pinned expectations.
+That was the right instrument while there was no Rust *frontend*: it let the
+core's fold be tested on exactly the declarations con-leche sees.  Task #37
+then wrote the frontend, and `scripts/diff-e2e.sh` ran the whole binary on
+every fixture's raw NDJSON — 348 cases, because the 33 streams con-leche's
+frontend declines or rejects before the fold have no declaration list at all
+and had to be skipped by the dump sweep.  The end-to-end sweep also supplies
+by itself the two things the dump route had to be told: the taint-skip
+decline (frontend state a declaration list does not carry, task #10's
+surprise 9 — `diff-fixtures.sh` named the three affected fixtures in a table)
+and the frontend's own verdicts.  So the 315 are a subset of the 348 and the
+seam was pure duplication.
+
+**Removed** (4 662 lines deleted against 1 015 added, most of the additions
+being the merged Lean file and the rewritten prose):
+
+| | lines |
+|---|---|
+| `crates/con-ron/src/bin/con-ron-check.rs` | 576 |
+| `crates/con-ron-dump/src/bin/con-ron-dump-check.rs` | 455 |
+| `proof/ConRon/Dump/Main.lean` | 284 |
+| `proof/ConRon/Dump/Read.lean` | 484 |
+| `proof/ConRon/Dump/Write.lean` | 439 |
+| `scripts/diff-fixtures.sh` | 186 |
+| `scripts/diff-frontend.sh` | 183 |
+| `scripts/dump-fixtures.sh` | 142 |
+| `scripts/dump-check-fixtures.sh` | 64 |
+
+plus the `--dump-decls OUT` flag of `con-ron` (the usage text, the `Args`
+field, the parse arm and the write-and-exit block), the `con-ron-decls/1`
+half of `crates/con-ron-dump` (the `D`/`V`/`R`/`C`/`P`/`I` records, their
+readers and writers, the `DeclC` half of `dag.rs`, the streaming
+`parse_decls_file` of task #36 and the declaration tests), step 3 of
+`scripts/corpus.sh` and its `dumps.md` report, and the `lean_exe
+con-ron-dump` target.
+
+Two judgement calls beyond the letter of the ruling, both flagged here.
+`con-ron-dump-check` was not on the removal list, but it is the *Rust half of
+the same seam* (its own module note said so) and `scripts/dump-check-fixtures.sh`,
+its only driver, was: what remained of it was a pin round trip that the gated
+unit test `the_embedded_pin_text_decodes_to_the_same_pins` already does on the
+real embedded text, so it went with the rest.  And `scripts/diff-frontend.sh`
+compared `con-ron --dump-decls`' bytes against the Lean dumps — it *is* the
+declaration format, so it could not survive it.
+
+**What stays, and why.**  The pins half.  `con-ron-pins/1` is not a testing
+convenience: `scripts/gen-pins.sh` turns `ConLeche.natOpPinSets` into exactly
+those bytes and embeds them in the verified core (`kernel::pins_text`), the
+core's *verified* decoder reads them (`kernel::pins_decode`), and
+`proof/ConRon/Refine/Pins*.lean` proves that decoder against the Lean reader —
+so `ConRon.Dump.parsePins` is the right-hand side of a theorem, not a test
+fixture.  `con-ron --pins FILE` reads a file in the format as a test override
+(task #31's route, which `diff-e2e.sh --pins-file` still exercises).
+
+The Lean side is now **one file**, `proof/ConRon/Dump/Pins.lean` (571 lines):
+the writer, the reader and the round-trip `main` of `lake exe
+con-ron-dump-pins`, in the namespace the proofs already name.  The record
+grammar below the payload — `N`/`L`/`W`/`E`, the escape, the id invariant, the
+`end <count>` footer — was always shared between the two formats; what is left
+is that grammar plus the `S` record.  `proof/ConRon/Dump/FORMAT.md` is now the
+`con-ron-pins/1` specification (its old §7 folded into §§1-4; §5 emission
+order, §6 what a Rust reader must get right, §7 the census).
+
+**The one thing that was not free.**  `RState` carried a `pins : Bool` flag —
+the reader was one function with a payload switch — and `Refine/PinsRead.lean`
+knows about it: `Match` has a `pins : st.pins = true` field, six anonymous
+constructors pass it, `lineState_pins` is a lemma and one `reader_simp` call
+discharges `(!st.pins) = false`.  Dropping the flag broke exactly six places
+and all six were mechanical (drop the field, drop the component, drop the
+lemma, drop the simp argument, `{ lineNo := 1, pins := true }` → `{ lineNo :=
+1 }`, and `⟨rfl, rfl, rfl, rfl, rfl, rfl⟩` → five `rfl`s).  The alternative —
+keeping a flag that is always `true` and an error message naming a format that
+no longer exists — is what "a simpler presentation" rules out.
+
+**The differential tests that remain.**  `scripts/diff-e2e.sh`, 348 cases, the
+whole binary on the raw export: `--verified` (the default) and `--trusted`
+against `tests/trusted-expected.txt`, `--jobs=1` (the reference sequential
+walk) and `--jobs=N` (the pool, task #48 — same verdict and same failing
+record at every worker count), and the three pin routes (embedded by default,
+`--no-pins` for the pin loop's `[]` arm, `--pins-file` for the unverified
+reader, now reading `_tmp/gen-pins/pins.dump` rather than the retired
+`dump-fixtures.sh` output).  Beside it: `cargo test`'s 253 unit tests,
+`scripts/gen-pins.sh --check` (the embedded pin text *is* con-leche's
+`natOpPinSets` at the vendored commit) and `scripts/extract.sh --check`.
+
+**Runs.**  `scripts/diff-e2e.sh --timeout=60`: **348 fixtures, 348 agree, 0
+differ, 0 timed out, 0 other errors**, 12 s.  `--pins-file` (the rewired
+route, now reading `_tmp/gen-pins/pins.dump`): **348 agree, 0 differ**, 11 s.
+All eight gates green.

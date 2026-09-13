@@ -3,19 +3,18 @@ name = "con-ron-dump"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "Reader and writer for the `con-ron-decls/1` dump format; UNVERIFIED tooling outside the Aeneas subset (DESIGN.md §3.6, tasks #10 and #19)"
+description = "Reader and writer for the `con-ron-pins/1` dump format; UNVERIFIED tooling outside the Aeneas subset (DESIGN.md §3.6, tasks #31 and #80)"
 
 [lib]
 path = "src/lib.rs"
 
-[[bin]]
-name = "con-ron-dump-check"
-path = "src/bin/con-ron-dump-check.rs"
-
-# `con-ron-check` moved to `crates/con-ron` at task #40: it is the same driver
-# as the `con-ron` binary, reading a `con-ron-decls/1` dump instead of a raw
-# stream, and it now shares `con_ron::driver` with it.  This crate is the dump
-# format's reader and writer, below both.
+# Task #80 retired the `con-ron-decls/1` half of this crate along with the
+# checker-only differential seam it served (`con-ron-check`,
+# `con-ron-dump-check`, `scripts/diff-fixtures.sh`): `scripts/diff-e2e.sh`
+# runs the whole binary on every fixture's raw export and subsumes it.  What
+# is left is the `con-ron-pins/1` reader and writer of task #31 — the format
+# `scripts/gen-pins.sh` embeds and `con-ron --pins FILE` reads — and
+# `natdec`, the decimal parser the frontend shares.
 
 [dependencies]
 con-ron-core = { path = "../con-ron-core" }

@@ -12,7 +12,7 @@ with the crate's own smart constructors.
 This module is the emitter: it turns a con-leche value into a Rust function
 body, interning `Name`/`Level`/`PropWhen`/`Expr` so that the term DAG stays
 a DAG (one `let` per distinct node, in dependency order — the same
-worklist order `ConRon/Dump/Write.lean` emits its records in), and spelling
+worklist order `ConRon/Dump/Pins.lean` emits its records in), and spelling
 every node as a call to the port's smart constructor.  The refinement proof
 then reads the generated Lean model (`abs` of a chain of constructor calls)
 and compares it to con-leche's value; see
@@ -30,7 +30,7 @@ open ConLeche
 
 /-! ## The emitter state
 
-One interning table per id space, exactly as `ConRon/Dump/Write.lean`'s
+One interning table per id space, exactly as `ConRon/Dump/Pins.lean`'s
 `WState`: `Name`, `Level`, `PropWhen` and `Expr` are interned by *value*
 (that is what keeps the DAG a DAG), and the records above them are merely
 numbered.  The value stored is the Rust local the node was bound to. -/
@@ -183,7 +183,7 @@ def gBinderMeta (m : BinderMeta) : G String := do
 /-! ## Expressions
 
 The walk is an explicit worklist, not recursion, for the same reason
-`ConRon/Dump/Write.lean`'s is: the pin blobs reach application spines
+`ConRon/Dump/Pins.lean`'s is: the pin blobs reach application spines
 thousands of nodes deep and a recursive emitter overflows the stack. -/
 
 /-- The local an already-emitted node was bound to. -/

@@ -2,7 +2,7 @@
 resolver = "2"
 # `con-ron-core` is the verified core (DESIGN.md §3.4: the Aeneas subset, the
 # style lint, the provenance gate, the extraction).  `con-ron-dump` is
-# *unverified* tooling -- the `con-ron-decls/1` reader of §3.6 (task #19) --
+# *unverified* tooling -- the `con-ron-pins/1` reader of §3.6 (task #31) --
 # which Charon never sees and which `scripts/extract.sh`,
 # `scripts/lint-rust-style.sh` and `scripts/provenance.py` are all scoped away
 # from; it is in the workspace so that `cargo build`/`cargo test`, i.e.

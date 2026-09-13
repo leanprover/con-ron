@@ -50,7 +50,7 @@ fn div_small(limbs: &mut [u64], d: u64) -> u64 {
 }
 
 /// Parse a `<nat>` field: decimal, no sign, no separators.  Leading zeros are
-/// accepted (`Read.lean`'s `String.toNat?` accepts them too); the writer never
+/// accepted (`Pins.lean`'s `String.toNat?` accepts them too); the writer never
 /// emits one.
 pub fn from_decimal(s: &str) -> Result<Nat, String> {
     let b = s.as_bytes();

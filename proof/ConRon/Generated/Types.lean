@@ -729,7 +729,7 @@ structure kernel.inductives.struct_parts.StructParts where
   is_prop : Bool
 
 /-- [con_ron_core::kernel::pins_decode::Tables]
-    Source: 'crates/con-ron-core/src/kernel/pins_decode.rs', lines 68:0-74:1
+    Source: 'crates/con-ron-core/src/kernel/pins_decode.rs', lines 66:0-72:1
     Visibility: public -/
 structure kernel.pins_decode.Tables where
   names : alloc.vec.Vec kernel.name.Name

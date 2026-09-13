@@ -429,7 +429,8 @@ mod beq_pair_finding {
     //! level.
     //!
     //! Why no earlier task saw it: every `Expr` the port had been given came
-    //! out of a `con-ron-decls/1` dump, and the Lean writer interns by VALUE,
+    //! out of the Lean declaration dump of task #10 (retired at task #80),
+    //! whose writer interns by VALUE,
     //! so `S`, `P` and `Q` arrive as ONE node and the pairing never happens.
     //! A Rust frontend builds the stream's own DAG, where they are three.
     //!

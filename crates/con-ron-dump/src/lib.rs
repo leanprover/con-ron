@@ -1,9 +1,24 @@
-//! The Rust reader for the `con-ron-decls/1` dump format (DESIGN.md §3.6,
-//! P1.6; the Lean half is task #10).  The format is specified by
-//! `proof/ConRon/Dump/FORMAT.md`; the Lean writer is
-//! `proof/ConRon/Dump/Write.lean` and the Lean reader — the format's
-//! validator, which this file mirrors function for function — is
-//! `proof/ConRon/Dump/Read.lean`.
+//! The Rust reader and writer for the `con-ron-pins/1` dump format
+//! (DESIGN.md §3.6, task #31; `proof/ConRon/Dump/FORMAT.md` specifies it and
+//! `proof/ConRon/Dump/Pins.lean` is the Lean writer this file mirrors
+//! function for function).
+//!
+//! A pin dump is con-leche's `natOpPinSets` as text: three `S` records, one
+//! per pinned toolchain, over the shared `N`/`L`/`W`/`E` DAG of the `Expr`s
+//! they name.  `scripts/gen-pins.sh` wraps those bytes in the verified core's
+//! embedded `kernel::pins_text::PINS_TEXT`, and `con-ron --pins FILE` reads a
+//! file in the same format through [`parse_pins`] as a test override
+//! (`driver::pins_for_run`).  The verified twin of [`parse_pins`], inside the
+//! core and in DESIGN.md §3.4's subset, is `kernel::pins_decode::decode`.
+//!
+//! **The declaration dump is gone (task #80).**  Until then this crate also
+//! carried `con-ron-decls/1`, the `List DeclC` format of task #10, which fed
+//! the checker-only differential seam (`con-ron-check`, `con-ron-dump-check`,
+//! `scripts/diff-fixtures.sh`).  `scripts/diff-e2e.sh` runs the whole binary
+//! on every fixture's raw export against con-leche's own expectations and
+//! subsumes that seam, so the format and its two readers were retired and
+//! what is left is the pins half, which nothing subsumes: it is what
+//! `gen-pins.sh` and `--pins FILE` speak.
 //!
 //! **This crate is NOT part of the verified core.**  It sits outside
 //! `crates/con-ron-core` on purpose: it is test and porting infrastructure,
@@ -22,7 +37,8 @@
 //!   such node once, pushes it onto the `Vec` for its id space, and every
 //!   later reference hands back a `clone` of the `Rc` handle
 //!   (`name::dup`/`level::dup`/`expr::dup`).  The in-memory term is therefore
-//!   the same DAG the Lean side had, not its tree expansion.
+//!   the same DAG the Lean side had, not its tree expansion — which matters:
+//!   as a tree the v4.33.0 pin variant is 5.1 M nodes.
 //! * **Computed fields are recomputed, never read off the file.**  The
 //!   constructors (`name::mk_str`, `level::succ`, `expr::app`, …) are the only
 //!   way a node is made here, and they are what write `NameNode::hash`,
@@ -30,7 +46,7 @@
 //!   `ExprNode::data` differ from Lean's by design (DESIGN.md task #3, note 6)
 //!   and nothing compares them.
 //!
-//! Deviations from `Read.lean`, deliberate and tested:
+//! Deviations from the Lean reader, deliberate and tested:
 //!
 //! * ids, lengths and the `bvar`/`fvar`/`proj`/`Name.num` indices are `u64`
 //!   (DESIGN.md §3.3), so a dump that overflows one is a *reader* failure with
@@ -39,34 +55,18 @@
 //!   decimal parser — `ron::Nat` has none and DESIGN.md §3.4 says not to grow
 //!   the core for tooling's sake;
 //! * a literal byte inside a string field must be printable non-backslash
-//!   ASCII (`0x21..=0x7e`, not `0x5c`).  `Read.lean` accepts any non-`\`
+//!   ASCII (`0x21..=0x7e`, not `0x5c`).  The Lean reader accepts any non-`\`
 //!   character there; the format never produces one, so rejecting it is the
 //!   loud failure FORMAT.md §6 wants.  The degenerate escape `\;` (no hex
-//!   digits, i.e. `U+0000`) is accepted exactly as `Read.lean` accepts it.
+//!   digits, i.e. `U+0000`) is accepted exactly as the Lean reader accepts it.
 //!
-//! The sibling format **`con-ron-pins/1`** (FORMAT.md §7) is read by
-//! [`parse_pins`], and it is the same function: the record grammar below the
-//! payload is identical, so the reader carries a `pins` flag that swaps the
-//! payload record (`S` for `D`) and what the footer counts.  Its consumer is
-//! `con-ron-check --pins FILE`, which hands the `Vec<NatOpPinSet>` to
-//! `check_decls` as DESIGN.md §3.6's pin-list *parameter*.
-//!
-//! The reader is one forward pass: nine `Vec`s that only ever grow by one, and
+//! The reader is one forward pass: four `Vec`s that only ever grow by one, and
 //! every reference an index into a `Vec` that is already long enough.  No
 //! fixups, no cycles, no recursion over the term (the `E` records are already
 //! topologically sorted, so the reader needs no worklist either — the writer's
-//! is enough).
-//!
-//! And because the pass is forward, **the dump is never held in memory**
-//! (task #36): [`parse_decls_file`] streams it a line at a time, so a 3 GB
-//! Mathlib dump costs one line buffer rather than 3 GB of `String` plus 2 GB
-//! of `Vec<&str>` line index.  [`parse_decls`] still takes a `&str` — the
-//! round-trip tests and the pin reader want that — and the two drivers share
-//! every record function below, so they accept the same files with the same
-//! messages and the same line numbers.  What the reader's resident set *is*,
-//! after that, is the terms themselves: `con-ron-dump-check --sizes`
-//! ([`node_sizes`]) prints what one node of each kind weighs, and
-//! [`peak_rss_kb`] is what the binaries report it against.
+//! is enough).  What the reader's resident set *is*, after that, is the terms
+//! themselves: [`node_sizes`] prints what one node of each kind weighs and
+//! [`peak_rss_kb`] is what a caller reports it against.
 
 // ---------------------------------------------------------------------------
 // The global allocator (task #35).
@@ -78,7 +78,7 @@
 // `Rc<Node>`s, `Vec`s and `AList` cells on one thread.
 //
 // This attribute lives **here**, in the unverified `con-ron-dump` crate, and
-// therefore applies to the two binaries that link it.  It is invisible to the
+// therefore applies to the `con-ron` binary, which links it.  It is invisible to the
 // verified core: Charon extracts `con-ron-core` alone, the allocator is not a
 // Rust item of that crate, and the Aeneas model has no heap to begin with
 // (`Rc`/`Box`/`Vec` are modeled by their contents, DESIGN.md §3.2), so
@@ -110,15 +110,8 @@ pub const ALLOCATOR: &str = if cfg!(feature = "jemalloc") {
 
 use con_ron_core::cached::parsed_c::DeclC;
 use con_ron_core::ron::ptr::P;
-use con_ron_core::kernel::env;
-use con_ron_core::kernel::env::BasisKind;
 use con_ron_core::kernel::env::ConstantInfo;
 use con_ron_core::kernel::env::ConstantVal;
-use con_ron_core::kernel::env::IndCaps;
-use con_ron_core::kernel::env::ProjTable;
-use con_ron_core::kernel::env::RecRule;
-use con_ron_core::kernel::env::RecRuleFire;
-use con_ron_core::kernel::env::ReducibilityHint;
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::BinderMeta;
 use con_ron_core::kernel::expr::Expr;
@@ -142,15 +135,10 @@ pub mod dag;
 pub mod natdec;
 pub mod write;
 
-pub use write::dump_decls;
 pub use write::dump_pins;
 
-/// The version header, the whole first line of a declaration dump
-/// (`Write.lean`'s `header`).
-pub const HEADER: &str = "con-ron-decls/1";
-
-/// The version header of the sibling pin dump (`Write.lean`'s `pinsHeader`,
-/// FORMAT.md §7).
+/// The version header, the whole first line of a pin dump (`Pins.lean`'s
+/// `pinsHeader`, FORMAT.md §1).
 pub const PINS_HEADER: &str = "con-ron-pins/1";
 
 // ---------------------------------------------------------------------------
@@ -164,7 +152,7 @@ pub fn is_valid_char(c: u32) -> bool {
     c < 0xd800 || (0xdfff < c && c < 0x11_0000)
 }
 
-/// Undo `Write.lean`'s `escapeString`: a literal printable non-backslash
+/// Undo `Pins.lean`'s `escapeString`: a literal printable non-backslash
 /// ASCII byte is itself, `\<lowercase-hex>;` is the code point it names.  The
 /// result is the code-point vector the core stores (DESIGN.md §3.3), so no
 /// UTF-8 decoder is involved: the input is pure ASCII by construction and a
@@ -219,49 +207,17 @@ pub fn unescape(t: &str) -> Result<Vec<u32>, String> {
 // ---------------------------------------------------------------------------
 
 /// The census of one dump: how many records each id space holds, and how many
-/// declarations of each kind.  `con-ron-dump-check` prints it; nothing in the
-/// reader depends on it.
+/// pin variants the payload has.  Nothing in the reader depends on it; it is
+/// what a caller prints and what the round-trip tests compare the DAG census
+/// against.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Counts {
     pub names: usize,
     pub levels: usize,
     pub pws: usize,
     pub exprs: usize,
-    pub cvs: usize,
-    pub rules: usize,
-    pub caps: usize,
-    pub tables: usize,
-    pub infos: usize,
-    pub decls: usize,
-    pub axiom_decls: usize,
-    pub defn_decls: usize,
-    pub thm_decls: usize,
-    pub opaque_decls: usize,
-    pub basis_decls: usize,
-    pub ind_decls: usize,
-    /// The `ConstantInfo`s summed over every `indDecl` block.
-    pub block_infos: usize,
-    /// `con-ron-pins/1` only: the `S` records, i.e. the pin variants.
+    /// The `S` records, i.e. the pin variants.
     pub pin_sets: usize,
-}
-
-impl Counts {
-    fn tally_decls(&mut self, ds: &[DeclC]) {
-        self.decls = ds.len();
-        for d in ds {
-            match d {
-                DeclC::AxiomDecl(_) => self.axiom_decls += 1,
-                DeclC::DefnDecl(_, _, _) => self.defn_decls += 1,
-                DeclC::ThmDecl(_, _) => self.thm_decls += 1,
-                DeclC::OpaqueDecl(_, _) => self.opaque_decls += 1,
-                DeclC::BasisDecl(_) => self.basis_decls += 1,
-                DeclC::IndDecl(block, _) => {
-                    self.ind_decls += 1;
-                    self.block_infos += block.len();
-                }
-            }
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -314,8 +270,8 @@ pub struct NodeSize {
     pub heap: usize,
 }
 
-/// **What the reader's terms weigh, per node** (`con-ron-dump-check --sizes`,
-/// DESIGN.md tasks #36 and #38).  The interesting number is `ExprNode`'s
+/// **What the core's terms weigh, per node** (DESIGN.md tasks #36 and #38).
+/// The interesting number is `ExprNode`'s
 /// `heap`: at Mathlib scale it is multiplied by 103 M.  Task #38 repacked the
 /// core types this measures — the binder datum, a `const`'s level list and a
 /// literal's payload each went behind an `Rc` — so the widest `ExprKind` arm
@@ -354,8 +310,8 @@ pub fn node_sizes() -> Vec<NodeSize> {
 }
 
 /// The `Rc` heap block of an `ExprNode` — the reader's dominant cost, one per
-/// `E` record.  Separate from [`node_sizes`] so the binaries can multiply it
-/// by the record count without searching the table.
+/// `E` record.  Separate from [`node_sizes`] so a caller can multiply it by
+/// the record count without searching the table.
 pub fn expr_node_bytes() -> usize {
     std::mem::size_of::<PBlock<ExprNode>>()
 }
@@ -386,7 +342,7 @@ pub fn peak_rss_kb() -> u64 {
 // ---------------------------------------------------------------------------
 
 /// One `Vec` per id space: the reader's whole persistent state, the mirror of
-/// `Read.lean`'s `RState` minus the current record.  It is deliberately free
+/// the Lean reader's `RState` minus the current record.  It is deliberately free
 /// of any borrow of the input (task #36): the reader reads the dump one line
 /// at a time and never holds the text, so this struct outlives every line
 /// buffer and the cursor over the current line ([`Rec`]) is built fresh per
@@ -399,65 +355,29 @@ struct Tables {
     /// of copying a `PropWhen` per binder node.
     pws: Vec<BinderMeta>,
     exprs: Vec<Expr>,
-    cvs: Vec<ConstantVal>,
-    rules: Vec<RecRule>,
-    caps: Vec<IndCaps>,
-    tables: Vec<ProjTable>,
-    infos: Vec<ConstantInfo>,
-    decls: Vec<DeclC>,
-    /// The `con-ron-pins/1` payload (FORMAT.md §7).  A file has one payload
-    /// kind or the other, never both.
+    /// The payload: the `S` records (FORMAT.md §4).
     pin_sets: Vec<NatOpPinSet>,
-    /// Which file is being read: `false` a `con-ron-decls/1` dump (payload
-    /// `D`), `true` a `con-ron-pins/1` one (payload `S`).  `Read.lean`'s
-    /// `RState.pins`.
-    pins: bool,
 }
 
 impl Tables {
-    fn new(pins: bool) -> Tables {
+    fn new() -> Tables {
         Tables {
             names: Vec::new(),
             levels: Vec::new(),
             pws: Vec::new(),
             exprs: Vec::new(),
-            cvs: Vec::new(),
-            rules: Vec::new(),
-            caps: Vec::new(),
-            tables: Vec::new(),
-            infos: Vec::new(),
-            decls: Vec::new(),
             pin_sets: Vec::new(),
-            pins,
-        }
-    }
-
-    /// The payload count the footer must agree with: declarations in a
-    /// `con-ron-decls/1` dump, pin variants in a `con-ron-pins/1` one.
-    fn payload_len(&self) -> usize {
-        if self.pins {
-            self.pin_sets.len()
-        } else {
-            self.decls.len()
         }
     }
 
     fn counts(&self) -> Counts {
-        let mut c = Counts {
+        Counts {
             names: self.names.len(),
             levels: self.levels.len(),
             pws: self.pws.len(),
             exprs: self.exprs.len(),
-            cvs: self.cvs.len(),
-            rules: self.rules.len(),
-            caps: self.caps.len(),
-            tables: self.tables.len(),
-            infos: self.infos.len(),
             pin_sets: self.pin_sets.len(),
-            ..Counts::default()
-        };
-        c.tally_decls(&self.decls);
-        c
+        }
     }
 }
 
@@ -476,7 +396,7 @@ struct Rec<'s, 'l> {
 }
 
 impl<'s, 'l> Rec<'s, 'l> {
-    /// `Read.lean`'s `rerr`: fail, naming the line.
+    /// `Pins.lean`'s `rerr`: fail, naming the line.
     fn err<T>(&self, msg: String) -> Result<T, String> {
         Err(format!("line {}: {}", self.line_no, msg))
     }
@@ -531,17 +451,6 @@ impl<'s, 'l> Rec<'s, 'l> {
         }
     }
 
-    fn boolean(&mut self) -> Result<bool, String> {
-        let t = self.next_tok()?;
-        if t == "0" {
-            Ok(false)
-        } else if t == "1" {
-            Ok(true)
-        } else {
-            self.err(format!("expected 0 or 1, got '{}'", t))
-        }
-    }
-
     /// A `<string>` field: the code-point count, then the escaped text.  The
     /// count is redundant and is cross-checked, which is what it is for.
     fn string(&mut self) -> Result<Vec<u32>, String> {
@@ -592,19 +501,6 @@ impl<'s, 'l> Rec<'s, 'l> {
         }
     }
 
-    /// A `W` reference as a `PropWhen` *value* — what a `V` record's `sortZ`
-    /// field wants.  The table holds binder data (see `bm_ref`), so this
-    /// copies out of the handle; a dump has a few hundred thousand `V`
-    /// records against a hundred million binders, so this is the rare side.
-    fn pw_ref(&mut self) -> Result<PropWhen, String> {
-        let i = self.count()?;
-        if i < self.st.pws.len() {
-            Ok(prop_when::dup(&self.st.pws[i].pw))
-        } else {
-            self.err(format!("propwhen id {} is not defined yet", i))
-        }
-    }
-
     /// A `W` reference as a binder datum: since task #38 that is a handle, so
     /// a `lam`/`forallE` node *shares* the table's datum instead of copying
     /// it.  The `W` space is tiny — 3 records for `init`, 4 for Mathlib — so
@@ -625,51 +521,6 @@ impl<'s, 'l> Rec<'s, 'l> {
             Ok(expr::dup(&self.st.exprs[i]))
         } else {
             self.err(format!("expr id {} is not defined yet", i))
-        }
-    }
-
-    fn cv_ref(&mut self) -> Result<ConstantVal, String> {
-        let i = self.count()?;
-        if i < self.st.cvs.len() {
-            Ok(env::constant_val_dup(&self.st.cvs[i]))
-        } else {
-            self.err(format!("constval id {} is not defined yet", i))
-        }
-    }
-
-    fn rule_ref(&mut self) -> Result<RecRule, String> {
-        let i = self.count()?;
-        if i < self.st.rules.len() {
-            Ok(env::rec_rule_dup(&self.st.rules[i]))
-        } else {
-            self.err(format!("recrule id {} is not defined yet", i))
-        }
-    }
-
-    fn caps_ref(&mut self) -> Result<IndCaps, String> {
-        let i = self.count()?;
-        if i < self.st.caps.len() {
-            Ok(env::ind_caps_dup(&self.st.caps[i]))
-        } else {
-            self.err(format!("indcaps id {} is not defined yet", i))
-        }
-    }
-
-    fn table_ref(&mut self) -> Result<ProjTable, String> {
-        let i = self.count()?;
-        if i < self.st.tables.len() {
-            Ok(env::proj_table_dup(&self.st.tables[i]))
-        } else {
-            self.err(format!("projtable id {} is not defined yet", i))
-        }
-    }
-
-    fn info_ref(&mut self) -> Result<ConstantInfo, String> {
-        let i = self.count()?;
-        if i < self.st.infos.len() {
-            Ok(env::constant_info_dup(&self.st.infos[i]))
-        } else {
-            self.err(format!("constinfo id {} is not defined yet", i))
         }
     }
 
@@ -702,66 +553,7 @@ impl<'s, 'l> Rec<'s, 'l> {
         Ok(v)
     }
 
-    fn rule_list(&mut self) -> Result<Vec<RecRule>, String> {
-        let n = self.count()?;
-        let mut v: Vec<RecRule> = Vec::new();
-        for _ in 0..n {
-            v.push(self.rule_ref()?);
-        }
-        Ok(v)
-    }
-
-    fn info_list(&mut self) -> Result<Vec<ConstantInfo>, String> {
-        let n = self.count()?;
-        let mut v: Vec<ConstantInfo> = Vec::new();
-        for _ in 0..n {
-            v.push(self.info_ref()?);
-        }
-        Ok(v)
-    }
-
     // --- inline enumerations ----------------------------------------------
-
-    fn hint(&mut self) -> Result<ReducibilityHint, String> {
-        let t = self.next_tok()?;
-        if t == "o" {
-            Ok(ReducibilityHint::Opaque)
-        } else if t == "b" {
-            Ok(ReducibilityHint::Abbrev)
-        } else if t == "r" {
-            Ok(ReducibilityHint::Regular(self.nat()?))
-        } else {
-            self.err(format!("unknown reducibility hint '{}'", t))
-        }
-    }
-
-    fn basis(&mut self) -> Result<BasisKind, String> {
-        let t = self.next_tok()?;
-        match t {
-            "eq" => Ok(BasisKind::EqK),
-            "nat" => Ok(BasisKind::NatK),
-            "punit" => Ok(BasisKind::PunitK),
-            "empty" => Ok(BasisKind::EmptyK),
-            "false" => Ok(BasisKind::FalseK),
-            "quot" => Ok(BasisKind::QuotK),
-            _ => self.err(format!("unknown basis kind '{}'", t)),
-        }
-    }
-
-    fn fire(&mut self) -> Result<RecRuleFire, String> {
-        let t = self.next_tok()?;
-        if t == "i" {
-            Ok(RecRuleFire::Inert)
-        } else if t == "p" {
-            Ok(RecRuleFire::Plain)
-        } else if t == "n" {
-            let lvls = self.level_list()?;
-            let pins = self.expr_list()?;
-            Ok(RecRuleFire::Nested(lvls, pins))
-        } else {
-            self.err(format!("unknown recursor-rule fire '{}'", t))
-        }
-    }
 
     // --- the records -------------------------------------------------------
 
@@ -892,180 +684,7 @@ impl<'s, 'l> Rec<'s, 'l> {
         Ok(())
     }
 
-    /// `V` — `ConLeche/Kernel/Env.lean:197`.
-    fn record_cv(&mut self) -> Result<(), String> {
-        self.expect_id(self.st.cvs.len(), "constval")?;
-        let n = self.name_ref()?;
-        let lps = self.name_list()?;
-        let ty = self.expr_ref()?;
-        self.st.cvs.push(ConstantVal {
-            name: n,
-            level_params: lps,
-            ty,
-        });
-        Ok(())
-    }
-
-    /// `R` — `ConLeche/Kernel/Env.lean:255`.  `ctor_params`, `fire`, `k`,
-    /// `eta` and `params_blind` are install-computed and carry their parse
-    /// placeholders in a dump (FORMAT.md §6.6); the format writes them anyway,
-    /// so the reader reads them and assumes nothing.
-    fn record_rule(&mut self) -> Result<(), String> {
-        self.expect_id(self.st.rules.len(), "recrule")?;
-        let ctor = self.name_ref()?;
-        let nfields = self.nat()?;
-        let ctor_params = self.nat()?;
-        let fire = self.fire()?;
-        let rhs = self.expr_ref()?;
-        let k = self.boolean()?;
-        let eta = self.boolean()?;
-        let params_blind = self.boolean()?;
-        self.st.rules.push(RecRule {
-            ctor,
-            nfields,
-            ctor_params,
-            fire,
-            rhs,
-            k,
-            eta,
-            params_blind,
-        });
-        Ok(())
-    }
-
-    /// `C` — `ConLeche/Kernel/Env.lean:359`.
-    fn record_caps(&mut self) -> Result<(), String> {
-        self.expect_id(self.st.caps.len(), "indcaps")?;
-        let eta = self.boolean()?;
-        let eta_ctor = self.name_ref()?;
-        let eta_params = self.nat()?;
-        let eta_fields = self.nat()?;
-        let unitlike = self.boolean()?;
-        let unit_params = self.nat()?;
-        let rule_k = self.boolean()?;
-        let sort_z = self.pw_ref()?;
-        self.st.caps.push(IndCaps {
-            eta,
-            eta_ctor,
-            eta_params,
-            eta_fields,
-            unitlike,
-            unit_params,
-            rule_k,
-            sort_z,
-        });
-        Ok(())
-    }
-
-    /// `P` — `ConLeche/Kernel/Env.lean:397`.  `bodies` is an `Array Expr` in
-    /// Lean and a `Vec<Expr>` here; the format writes it as a counted list and
-    /// the port does not inherit the asymmetry with `guards` (task #10,
-    /// surprise 8).
-    fn record_table(&mut self) -> Result<(), String> {
-        self.expect_id(self.st.tables.len(), "projtable")?;
-        let struct_name = self.name_ref()?;
-        let level_params = self.name_list()?;
-        let num_params = self.nat()?;
-        let ctor = self.name_ref()?;
-        let num_fields = self.nat()?;
-        let struct_sort = self.level_ref()?;
-        let bodies = self.expr_list()?;
-        let guards = self.level_list()?;
-        let off = self.nat()?;
-        self.st.tables.push(ProjTable {
-            struct_name,
-            level_params,
-            num_params,
-            ctor,
-            num_fields,
-            struct_sort,
-            bodies,
-            guards,
-            off,
-        });
-        Ok(())
-    }
-
-    /// `I` — `ConLeche/Kernel/Env.lean:471`.  All seven constructors, and
-    /// every field of each: the four the corpus never produces inside an
-    /// `indDecl` block (`axiomInfo`, `defnInfo`, `thmInfo`, `projInfo`) are
-    /// constructors of the type `check_decls` takes, so they are read here
-    /// (task #10, surprise 3).
-    fn record_info(&mut self) -> Result<(), String> {
-        self.expect_id(self.st.infos.len(), "constinfo")?;
-        let t = self.next_tok()?;
-        let v = if t == "a" {
-            let cv = self.cv_ref()?;
-            ConstantInfo::AxiomInfo(cv)
-        } else if t == "d" {
-            let cv = self.cv_ref()?;
-            let e = self.expr_ref()?;
-            let h = self.hint()?;
-            ConstantInfo::DefnInfo(cv, e, h)
-        } else if t == "t" {
-            let cv = self.cv_ref()?;
-            let e = self.expr_ref()?;
-            ConstantInfo::ThmInfo(cv, e)
-        } else if t == "i" {
-            let cv = self.cv_ref()?;
-            let c = self.caps_ref()?;
-            ConstantInfo::IndInfo(cv, c)
-        } else if t == "c" {
-            let cv = self.cv_ref()?;
-            let np = self.nat()?;
-            let nf = self.nat()?;
-            ConstantInfo::CtorInfo(cv, np, nf)
-        } else if t == "r" {
-            let cv = self.cv_ref()?;
-            let mi = self.nat()?;
-            let rp = self.nat()?;
-            let rules = self.rule_list()?;
-            ConstantInfo::RecInfo(cv, mi, rp, rules)
-        } else if t == "p" {
-            let tbl = self.table_ref()?;
-            ConstantInfo::ProjInfo(tbl)
-        } else {
-            return self.err(format!("unknown constinfo record '{}'", t));
-        };
-        self.st.infos.push(v);
-        Ok(())
-    }
-
-    /// `D` — `ConLeche/Cached/ParsedC.lean:55`.  No id: the order is the
-    /// payload, and it is the order `check_decls` folds in.
-    fn record_decl(&mut self) -> Result<(), String> {
-        let t = self.next_tok()?;
-        let v = if t == "a" {
-            let cv = self.cv_ref()?;
-            DeclC::AxiomDecl(cv)
-        } else if t == "d" {
-            let cv = self.cv_ref()?;
-            let e = self.expr_ref()?;
-            let h = self.hint()?;
-            DeclC::DefnDecl(cv, e, h)
-        } else if t == "t" {
-            let cv = self.cv_ref()?;
-            let e = self.expr_ref()?;
-            DeclC::ThmDecl(cv, e)
-        } else if t == "o" {
-            let cv = self.cv_ref()?;
-            let e = self.expr_ref()?;
-            DeclC::OpaqueDecl(cv, e)
-        } else if t == "b" {
-            let k = self.basis()?;
-            DeclC::BasisDecl(k)
-        } else if t == "i" {
-            let np = self.nat()?;
-            let block = self.info_list()?;
-            DeclC::IndDecl(block, np)
-        } else {
-            return self.err(format!("unknown declaration record '{}'", t));
-        };
-        self.st.decls.push(v);
-        Ok(())
-    }
-
-    /// `S` — `ConLeche/Kernel/NatOpPinSet.lean:30` (FORMAT.md §7).  No id,
+    /// `S` — `ConLeche/Kernel/NatOpPinSet.lean:30` (FORMAT.md §4).  No id,
     /// for `D`'s reason: the record is the payload, and its position in the
     /// file is its position in `natOpPinSets`, which is the order
     /// `check_div_mod_pin_loop` tries the variants in.
@@ -1111,25 +730,11 @@ impl<'s, 'l> Rec<'s, 'l> {
 
     /// Read one record, its kind letter already consumed.
     fn record(&mut self, kind: &str) -> Result<(), String> {
-        // A file has ONE payload kind (FORMAT.md §7): the header decided
-        // which, so the other one's record is an error, not an ignored line.
-        if kind == "D" && self.st.pins {
-            return self.err("a declaration record 'D' in a con-ron-pins/1 dump".to_string());
-        }
-        if kind == "S" && !self.st.pins {
-            return self.err("a pin-set record 'S' in a con-ron-decls/1 dump".to_string());
-        }
         match kind {
             "N" => self.record_name(),
             "L" => self.record_level(),
             "W" => self.record_pw(),
             "E" => self.record_expr(),
-            "V" => self.record_cv(),
-            "R" => self.record_rule(),
-            "C" => self.record_caps(),
-            "P" => self.record_table(),
-            "I" => self.record_info(),
-            "D" => self.record_decl(),
             "S" => self.record_pin_set(),
             _ => self.err(format!("unknown record kind '{}'", kind)),
         }
@@ -1141,54 +746,14 @@ impl<'s, 'l> Rec<'s, 'l> {
 // The driver
 // ---------------------------------------------------------------------------
 
-/// **The reader.**  The inverse of `Write.lean`'s `dumpDecls` and of
-/// [`dump_decls`]: `parse_decls(&dump_decls(&ds))` rebuilds `ds`, and
-/// `dump_decls(&parse_decls(text)?)` is `text` byte for byte (which is what
-/// `con-ron-dump-check --roundtrip` checks on every fixture).
+/// **The reader** (FORMAT.md).  The inverse of [`dump_pins`] and of
+/// `Pins.lean`'s `dumpPins`: `parse_pins(&dump_pins(&ss))` rebuilds `ss`, and
+/// `dump_pins(&parse_pins(text)?)` is `text` byte for byte.  The
+/// `Vec<NatOpPinSet>` it returns is what `con-ron --pins FILE` hands to
+/// `check_decls` as its pin-list parameter (DESIGN.md §3.6).
 ///
 /// Errors are `String`s that start with the one-based line number of the
-/// offending line, as `Read.lean`'s do.
-pub fn parse_decls(text: &str) -> Result<Vec<DeclC>, String> {
-    let (ds, _) = parse_decls_counted(text)?;
-    Ok(ds)
-}
-
-/// [`parse_decls`] plus the record census `con-ron-dump-check` prints.
-pub fn parse_decls_counted(text: &str) -> Result<(Vec<DeclC>, Counts), String> {
-    let (st, counts) = run_lines_str(text, HEADER, false)?;
-    Ok((st.decls, counts))
-}
-
-/// **The streaming reader** (task #36).  [`parse_decls_counted`] for a file
-/// that is never held in memory: the dump is read a line at a time through a
-/// [`BufReader`](std::io::BufReader), so the reader's resident set is the
-/// terms it builds plus one line buffer, not the terms *plus the 3 GB of
-/// text*.  The format allows it — every reference is backward and every
-/// record is one line (FORMAT.md §2) — and the two drivers share every record
-/// function below, so they accept exactly the same files with exactly the
-/// same messages.
-pub fn parse_decls_file(path: &str) -> Result<(Vec<DeclC>, Counts), String> {
-    // The path is *not* in the message: both callers prefix it, as they do
-    // for a parse error's `line N:`.
-    let f = match std::fs::File::open(path) {
-        Ok(f) => f,
-        Err(e) => return Err(format!("{}", e)),
-    };
-    let (st, counts) = run_lines_read(std::io::BufReader::with_capacity(1 << 20, f), HEADER, false)?;
-    Ok((st.decls, counts))
-}
-
-/// [`parse_decls_file`] for any reader, so a test can put the streaming
-/// driver and the in-memory one side by side.
-pub fn parse_decls_reader<R: std::io::BufRead>(r: R) -> Result<(Vec<DeclC>, Counts), String> {
-    let (st, counts) = run_lines_read(r, HEADER, false)?;
-    Ok((st.decls, counts))
-}
-
-/// **The pin reader** (FORMAT.md §7).  The inverse of [`dump_pins`] and of
-/// `Write.lean`'s `dumpPins`: the `Vec<NatOpPinSet>` that
-/// `con-ron-check --pins FILE` hands to `check_decls` as its pin-list
-/// parameter (DESIGN.md §3.6).
+/// offending line, as the Lean reader's do.
 pub fn parse_pins(text: &str) -> Result<Vec<NatOpPinSet>, String> {
     let (ps, _) = parse_pins_counted(text)?;
     Ok(ps)
@@ -1196,7 +761,7 @@ pub fn parse_pins(text: &str) -> Result<Vec<NatOpPinSet>, String> {
 
 /// [`parse_pins`] plus the record census.
 pub fn parse_pins_counted(text: &str) -> Result<(Vec<NatOpPinSet>, Counts), String> {
-    let (st, counts) = run_lines_str(text, PINS_HEADER, true)?;
+    let (st, counts) = run_lines_str(text, PINS_HEADER)?;
     Ok((st.pin_sets, counts))
 }
 
@@ -1219,7 +784,7 @@ fn split_spans(line: &str, out: &mut Vec<(u32, u32)>) {
     out.push((start as u32, b.len() as u32));
 }
 
-/// `Read.lean`'s `runLines` minus the line source: the tables, the reusable
+/// `Pins.lean`'s `runLines` minus the line source: the tables, the reusable
 /// span buffer, and whether the `end` footer has been seen.  One [`feed`]
 /// call per line is the whole pass.
 ///
@@ -1231,8 +796,8 @@ struct Session {
 }
 
 impl Session {
-    fn new(pins: bool) -> Session {
-        Session { st: Tables::new(pins), spans: Vec::new(), saw_footer: false }
+    fn new() -> Session {
+        Session { st: Tables::new(), spans: Vec::new(), saw_footer: false }
     }
 
     /// One line of the record stream, `line_no` its one-based number in the
@@ -1257,14 +822,9 @@ impl Session {
         let kind = r.next_tok()?;
         if kind == "end" {
             let n = r.count()?;
-            let want = r.st.payload_len();
+            let want = r.st.pin_sets.len();
             if n != want {
-                return r.err(format!(
-                    "footer count {} != the {} {} read",
-                    n,
-                    want,
-                    if r.st.pins { "pin sets" } else { "declarations" }
-                ));
+                return r.err(format!("footer count {} != the {} pin sets read", n, want));
             }
             if r.pos != r.spans.len() {
                 return r.err("trailing fields in the footer".to_string());
@@ -1281,7 +841,7 @@ impl Session {
 
     /// The end of the file: the footer must have been seen.  `pieces` is how
     /// many `'\n'`-separated pieces followed the header, which is the line
-    /// number `Read.lean` names here.
+    /// number `Pins.lean` names here.
     fn finish(self, pieces: usize) -> Result<(Tables, Counts), String> {
         if !self.saw_footer {
             return Err(format!(
@@ -1303,69 +863,23 @@ fn check_header(hdr: &str, header: &str) -> Result<(), String> {
     }
 }
 
-/// `Read.lean`'s `runLines` over a string: check the header, then a single
+/// `Pins.lean`'s `runLines` over a string: check the header, then a single
 /// forward pass over the records, stopping at the `end` footer, whose count
 /// is the payload's (`Tables::payload_len`).  Unlike task #19's version this
 /// no longer collects the lines into a `Vec<&str>` — 1.7 GB of the Mathlib
 /// dump's peak was that index (task #36).
-fn run_lines_str(text: &str, header: &str, pins: bool) -> Result<(Tables, Counts), String> {
+fn run_lines_str(text: &str, header: &str) -> Result<(Tables, Counts), String> {
     let mut lines = text.split('\n');
     let hdr = match lines.next() {
         Some(h) => h,
         None => return Err("empty input".to_string()),
     };
     check_header(hdr, header)?;
-    let mut sess = Session::new(pins);
+    let mut sess = Session::new();
     let mut pieces: usize = 0;
     for line in lines {
         pieces += 1;
         sess.feed(line, pieces + 1)?;
-    }
-    sess.finish(pieces)
-}
-
-/// `run_lines_str`'s twin on an `io::BufRead`: the same pass, one line buffer
-/// reused for the whole file (task #36).  The piece count is kept equal to
-/// the string driver's — a file whose last line ends in `'\n'` has one more
-/// `'\n'`-separated piece than it has lines — so the two report the same line
-/// numbers, the missing-footer one included.
-fn run_lines_read<R: std::io::BufRead>(
-    mut rd: R,
-    header: &str,
-    pins: bool,
-) -> Result<(Tables, Counts), String> {
-    let mut buf = String::new();
-    let mut nl: bool = false;
-    let mut read = |buf: &mut String, nl: &mut bool| -> Result<bool, String> {
-        buf.clear();
-        match rd.read_line(buf) {
-            Err(e) => Err(format!("read error: {}", e)),
-            Ok(0) => Ok(false),
-            Ok(_) => {
-                *nl = buf.ends_with('\n');
-                if *nl {
-                    buf.pop();
-                }
-                Ok(true)
-            }
-        }
-    };
-    if !read(&mut buf, &mut nl)? {
-        // An empty file has one empty piece, as `"".split('\n')` does.
-        check_header("", header)?;
-        return Err("empty input".to_string());
-    }
-    check_header(&buf, header)?;
-    let mut sess = Session::new(pins);
-    let mut pieces: usize = 0;
-    while read(&mut buf, &mut nl)? {
-        pieces += 1;
-        sess.feed(&buf, pieces + 1)?;
-    }
-    if nl {
-        // The empty piece after the file's final newline: the string driver
-        // sees it (and skips it), so the line count must count it too.
-        pieces += 1;
     }
     sess.finish(pieces)
 }
@@ -1388,23 +902,8 @@ mod tests {
         s.chars().map(|c| c as u32).collect()
     }
 
-    fn cv(s: &str) -> ConstantVal {
-        ConstantVal {
-            name: nm(s),
-            level_params: Vec::new(),
-            ty: expr::sort(level::zero()),
-        }
-    }
-
-    /// The error of a failed parse.  `unwrap_err` is unavailable: neither
-    /// `DeclC` nor `NatOpPinSet` derives `Debug` (DESIGN.md §3.4).
-    fn decls_err(text: &str) -> String {
-        match parse_decls(text) {
-            Ok(_) => panic!("this dump must not parse"),
-            Err(e) => e,
-        }
-    }
-
+    /// The error of a failed parse.  `unwrap_err` is unavailable:
+    /// `NatOpPinSet` does not derive `Debug` (DESIGN.md §3.4).
     fn pins_err(text: &str) -> String {
         match parse_pins(text) {
             Ok(_) => panic!("this dump must not parse"),
@@ -1414,7 +913,7 @@ mod tests {
 
     /// A pin variant whose eight pins and sixteen proof blobs are distinct
     /// terms, plus one node deliberately *shared* between two of them: the
-    /// sharing is what FORMAT.md §7 is for, so the round trip has to keep it.
+    /// sharing is what FORMAT.md §2 is for, so the round trip has to keep it.
     fn a_pin_set(tag: &str) -> NatOpPinSet {
         let shared = expr::app(
             expr::mk_const(nm("Nat.rec"), Vec::new()),
@@ -1442,7 +941,7 @@ mod tests {
         }
     }
 
-    // --- `con-ron-pins/1` (FORMAT.md §7) -----------------------------------
+    // --- `con-ron-pins/1` (FORMAT.md §4) -----------------------------------
 
     #[test]
     fn a_pin_dump_round_trips() {
@@ -1508,26 +1007,25 @@ mod tests {
         assert_eq!(parse_pins(&text).unwrap().len(), 0);
     }
 
-    /// A file has one payload kind: the header decides, and the wrong payload
-    /// record is an error rather than a silently ignored line.
+    /// The header is the whole version check, and the footer counts the `S`
+    /// records: neither is advisory.  (Until task #80 this file also carried
+    /// the declaration payload of task #10, and the test that the two payload
+    /// kinds did not mix.)
     #[test]
-    fn the_two_payloads_do_not_mix() {
-        // an `S` record in a declaration dump
-        let bad = "con-ron-decls/1\nS 0  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\nend 0\n";
-        assert!(decls_err(bad).contains("con-ron-decls/1 dump"), "{}", decls_err(bad));
-        // a `D` record in a pin dump
+    fn the_header_and_the_footer_are_checked() {
+        // a record letter this format does not have
         let bad = "con-ron-pins/1\nD b nat\nend 0\n";
-        assert!(pins_err(bad).contains("con-ron-pins/1 dump"), "{}", pins_err(bad));
-        // each reader rejects the other's header
-        assert!(parse_pins(&dump_decls(&Vec::new())).is_err());
-        assert!(parse_decls(&dump_pins(&Vec::new())).is_err());
+        assert!(pins_err(bad).contains("unknown record kind 'D'"), "{}", pins_err(bad));
+        // a foreign header, and a bumped version
+        assert!(parse_pins("lean4export/1\nend 0\n").is_err());
+        assert!(parse_pins("con-ron-pins/2\nend 0\n").is_err());
         // and the footer counts the pin sets
         let ss = vec![a_pin_set("t")];
         let text = dump_pins(&ss).replace("end 1", "end 2");
         assert!(pins_err(&text).contains("pin sets read"), "{}", pins_err(&text));
     }
 
-    // --- the string codec, mirroring `Read.lean`'s `#guard`s ---------------
+    // --- the string codec, mirroring the Lean reader's `#guard`s ----------
 
     #[test]
     fn escape_matches_the_lean_guards() {
@@ -1563,7 +1061,7 @@ mod tests {
         assert!(unescape("\\zz;").is_err());
         // an unescaped byte that the writer would have escaped
         assert!(unescape("a\u{7f}b").is_err());
-        // the degenerate escape `Read.lean` accepts: no digits, i.e. U+0000
+        // the degenerate escape `Pins.lean` accepts: no digits, i.e. U+0000
         assert_eq!(unescape("\\;").unwrap(), vec![0u32]);
     }
 
@@ -1631,329 +1129,72 @@ mod tests {
         ));
     }
 
-    // --- the round trip over every constructor -----------------------------
-
-    /// A `DeclC` list that uses **every** `DeclC` constructor, every
-    /// `ConstantInfo` constructor, every `ExprKind`, every `LevelKind`, every
-    /// `Name` constructor, both `Literal`s, all three `ReducibilityHint`s, all
-    /// three `RecRuleFire`s, all six `BasisKind`s, and a `ProjTable` — none of
-    /// which the fixture corpus produces in full (task #10, surprise 3).
-    fn kitchen_sink() -> Vec<DeclC> {
-        let u = level::param(nm("u"));
-        let lvls = vec![
-            level::zero(),
-            level::succ(level::zero()),
-            level::max(level::dup(&u), level::zero()),
-            level::imax(level::dup(&u), level::succ(level::dup(&u))),
-        ];
-        let pw = prop_when::if_all_zero(vec![nm("u"), nm("v")]);
-        let big = natdec::from_decimal("123456789012345678901234567890").unwrap();
-        let deep = expr::app(
-            expr::app(
-                expr::mk_const(nm("f"), vec![level::dup(&u)]),
-                expr::mk_bvar(0),
-            ),
-            expr::lam(
-                expr::sort(level::dup(&u)),
-                expr::forall_e(
-                    expr::mk_bvar(1),
-                    expr::let_e(
-                        expr::sort(level::zero()),
-                        expr::lit(expr::literal_nat(big)),
-                        expr::proj(nm("S"), 2, expr::mk_bvar(0)),
-                    ),
-                    expr::binder_meta(prop_when::never()),
-                ),
-                expr::binder_meta(prop_when::dup(&pw)),
-            ),
-        );
-        let with_fvar = expr::fvar(7, expr::lit(expr::literal_str(cps("a b\\c\n∀"))));
-        let tbl = ProjTable {
-            struct_name: nm("S"),
-            level_params: vec![nm("u"), nm("v")],
-            num_params: 1,
-            ctor: nm("S.mk"),
-            num_fields: 2,
-            struct_sort: level::dup(&u),
-            bodies: vec![expr::mk_bvar(0), expr::dup(&deep)],
-            guards: vec![level::zero(), level::dup(&u)],
-            off: 3,
-        };
-        let caps = IndCaps {
-            eta: true,
-            eta_ctor: nm("S.mk"),
-            eta_params: 1,
-            eta_fields: 2,
-            unitlike: true,
-            unit_params: 4,
-            rule_k: true,
-            sort_z: prop_when::dup(&pw),
-        };
-        let rules = vec![
-            env::rec_rule_parsed(nm("T.mk"), 0, expr::mk_bvar(0)),
-            RecRule {
-                ctor: nm("T.mk2"),
-                nfields: 2,
-                ctor_params: 1,
-                fire: RecRuleFire::Plain,
-                rhs: expr::dup(&deep),
-                k: true,
-                eta: false,
-                params_blind: true,
-            },
-            RecRule {
-                ctor: nm("T.mk3"),
-                nfields: 1,
-                ctor_params: 2,
-                fire: RecRuleFire::Nested(
-                    vec![level::dup(&u), level::zero()],
-                    vec![expr::dup(&with_fvar), expr::mk_bvar(3)],
-                ),
-                rhs: expr::mk_bvar(1),
-                k: false,
-                eta: true,
-                params_blind: false,
-            },
-        ];
-        let block = vec![
-            ConstantInfo::IndInfo(cv("T"), caps),
-            ConstantInfo::CtorInfo(cv("T.mk"), 1, 2),
-            ConstantInfo::RecInfo(cv("T.rec"), 3, 4, rules),
-            ConstantInfo::AxiomInfo(cv("T.ax")),
-            ConstantInfo::DefnInfo(
-                cv("T.d"),
-                expr::dup(&deep),
-                ReducibilityHint::Regular(17),
-            ),
-            ConstantInfo::ThmInfo(cv("T.t"), expr::dup(&with_fvar)),
-            ConstantInfo::ProjInfo(tbl),
-        ];
-        vec![
-            DeclC::AxiomDecl(ConstantVal {
-                name: name::mk_num(nm("ax"), 9),
-                level_params: vec![nm("u"), nm("v")],
-                ty: expr::sort(level::dup(&lvls[3])),
-            }),
-            DeclC::DefnDecl(cv("d1"), expr::dup(&deep), ReducibilityHint::Opaque),
-            DeclC::DefnDecl(cv("d2"), expr::mk_bvar(0), ReducibilityHint::Abbrev),
-            DeclC::DefnDecl(
-                cv("d3"),
-                expr::sort(level::dup(&lvls[2])),
-                ReducibilityHint::Regular(0),
-            ),
-            DeclC::ThmDecl(cv("t1"), expr::dup(&with_fvar)),
-            DeclC::OpaqueDecl(cv("o1"), expr::lit(expr::literal_str(Vec::new()))),
-            DeclC::BasisDecl(BasisKind::EqK),
-            DeclC::BasisDecl(BasisKind::NatK),
-            DeclC::BasisDecl(BasisKind::PunitK),
-            DeclC::BasisDecl(BasisKind::EmptyK),
-            DeclC::BasisDecl(BasisKind::FalseK),
-            DeclC::BasisDecl(BasisKind::QuotK),
-            DeclC::IndDecl(block, 1),
-        ]
-    }
-
-    #[test]
-    fn the_kitchen_sink_round_trips_byte_for_byte() {
-        let ds = kitchen_sink();
-        let text = dump_decls(&ds);
-        assert!(text.starts_with("con-ron-decls/1\n"));
-        assert!(text.ends_with("\nend 13\n"));
-        let (back, counts) = parse_decls_counted(&text).unwrap();
-        assert_eq!(counts.decls, 13);
-        assert_eq!(counts.axiom_decls, 1);
-        assert_eq!(counts.defn_decls, 3);
-        assert_eq!(counts.thm_decls, 1);
-        assert_eq!(counts.opaque_decls, 1);
-        assert_eq!(counts.basis_decls, 6);
-        assert_eq!(counts.ind_decls, 1);
-        assert_eq!(counts.block_infos, 7);
-        assert_eq!(counts.tables, 1);
-        assert_eq!(counts.caps, 1);
-        assert_eq!(counts.rules, 3);
-        let again = dump_decls(&back);
-        assert_eq!(text, again);
-        // and a second pass is still a fixed point
-        assert_eq!(dump_decls(&parse_decls(&again).unwrap()), again);
-    }
-
-    /// The reader must hand back the *DAG*, not its tree expansion: the
-    /// sub-term shared between `d1`'s value and the `indDecl` block's
-    /// `defnInfo` value has to come back as one `Rc`.
-    #[test]
-    fn sharing_survives_the_round_trip() {
-        let ds = kitchen_sink();
-        let back = parse_decls(&dump_decls(&ds)).unwrap();
-        let a = match &back[1] {
-            DeclC::DefnDecl(_, v, _) => expr::dup(v),
-            _ => panic!("expected d1"),
-        };
-        let b = match &back[12] {
-            DeclC::IndDecl(block, _) => match &block[4] {
-                ConstantInfo::DefnInfo(_, v, _) => expr::dup(v),
-                _ => panic!("expected T.d"),
-            },
-            _ => panic!("expected the block"),
-        };
-        assert!(expr::ptr_eq(&a, &b), "the shared subterm was duplicated");
-        // ... and the bvar 0 under it is the same node as the top-level one
-        let d2 = match &back[2] {
-            DeclC::DefnDecl(_, v, _) => expr::dup(v),
-            _ => panic!("expected d2"),
-        };
-        match &a.0.kind {
-            expr::ExprKind::App(f, _) => match &f.0.kind {
-                expr::ExprKind::App(_, arg) => {
-                    assert!(expr::ptr_eq(arg, &d2), "bvar 0 was not interned")
-                }
-                _ => panic!("shape"),
-            },
-            _ => panic!("shape"),
-        }
-    }
-
-    /// FORMAT.md §6.1 on real-ish data: the parsed term reaches exactly as many
-    /// distinct heap nodes as the dump has records, so nothing was duplicated.
-    #[test]
-    fn the_dag_census_matches_the_record_counts() {
-        let (ds, counts) = parse_decls_counted(&dump_decls(&kitchen_sink())).unwrap();
-        let cen = dag::census(&ds);
-        assert_eq!(
-            (cen.names, cen.levels, cen.exprs),
-            (counts.names, counts.levels, counts.exprs)
-        );
-        // ... whereas the *hand-built* list shares less than the dump does:
-        // `kitchen_sink` writes `expr::mk_bvar(0)` several times over, and the
-        // dump interns them, so the round trip strictly increases sharing.
-        let before = dag::census(&kitchen_sink());
-        assert!(before.exprs > cen.exprs);
-    }
-
     // --- the failure modes -------------------------------------------------
 
-    /// `DeclC` derives no `Debug` (con-leche derives nothing on it, task #10),
-    /// so `Result::unwrap_err` is unavailable: this is it, by hand.
     fn perr(text: &str) -> String {
-        match parse_decls(text) {
-            Ok(_) => panic!("expected a parse error"),
-            Err(e) => e,
-        }
+        pins_err(text)
     }
 
     #[test]
     fn parse_errors_name_the_line() {
         assert!(perr("").contains("bad header"));
-        assert!(perr("con-ron-decls/2\nend 0\n").contains("bad header"));
-        assert!(perr("con-ron-decls/1\n").contains("no 'end' footer"));
+        assert!(perr("con-ron-pins/2\nend 0\n").contains("bad header"));
+        assert!(perr("con-ron-pins/1\n").contains("no 'end' footer"));
 
         // a forward reference
         assert_eq!(
-            perr("con-ron-decls/1\nN 0 s 0 1 a\nend 0\n"),
+            perr("con-ron-pins/1\nN 0 s 0 1 a\nend 0\n"),
             "line 2: name id 0 is not defined yet"
         );
         // a wrong own id
         assert_eq!(
-            perr("con-ron-decls/1\nN 1 a\nend 0\n"),
+            perr("con-ron-pins/1\nN 1 a\nend 0\n"),
             "line 2: name id 1, expected 0"
         );
         // an unknown kind letter, and an unknown constructor letter
         assert_eq!(
-            perr("con-ron-decls/1\nX 0 a\nend 0\n"),
+            perr("con-ron-pins/1\nX 0 a\nend 0\n"),
             "line 2: unknown record kind 'X'"
         );
         assert_eq!(
-            perr("con-ron-decls/1\nN 0 q\nend 0\n"),
+            perr("con-ron-pins/1\nN 0 q\nend 0\n"),
             "line 2: unknown name record 'q'"
         );
         // a bad footer count, trailing fields, content after the footer
-        assert!(perr("con-ron-decls/1\nN 0 a\nend 1\n")
+        assert!(perr("con-ron-pins/1\nN 0 a\nend 1\n")
             .starts_with("line 3: footer count 1 != the 0"));
         assert_eq!(
-            perr("con-ron-decls/1\nN 0 a 7\nend 0\n"),
+            perr("con-ron-pins/1\nN 0 a 7\nend 0\n"),
             "line 2: trailing fields in a record"
         );
         assert_eq!(
-            perr("con-ron-decls/1\nend 0\nN 0 a\n"),
+            perr("con-ron-pins/1\nend 0\nN 0 a\n"),
             "line 3: content after the footer"
         );
         // the redundant string length is cross-checked
         assert_eq!(
-            perr("con-ron-decls/1\nN 0 a\nN 1 s 0 2 a\nend 0\n"),
+            perr("con-ron-pins/1\nN 0 a\nN 1 s 0 2 a\nend 0\n"),
             "line 3: string length 1 != the declared 2"
         );
         // an index that does not fit a machine word (DESIGN.md §3.3)
         assert!(
-            perr("con-ron-decls/1\nE 0 b 99999999999999999999999\nend 0\n")
+            perr("con-ron-pins/1\nE 0 b 99999999999999999999999\nend 0\n")
                 .contains("does not fit a 64-bit index")
         );
         // but an unbounded `natVal` literal does fit
         assert!(
-            parse_decls("con-ron-decls/1\nE 0 n 99999999999999999999999\nend 0\n")
-                .is_ok()
+            parse_pins("con-ron-pins/1\nE 0 n 99999999999999999999999\nend 0\n").is_ok()
         );
-        // every record kind's own truncation, and a bad bool
-        assert!(perr("con-ron-decls/1\nE 0 a 0 0\nend 0\n")
+        // every record kind's own truncation, and a bad reference
+        assert!(perr("con-ron-pins/1\nE 0 a 0 0\nend 0\n")
             .contains("expr id 0 is not defined yet"));
-        assert!(perr("con-ron-decls/1\nL 0\nend 0\n").contains("unexpected end of record"));
-        assert!(perr("con-ron-decls/1\nW 0 x\nend 0\n").contains("unknown propwhen record"));
-        assert!(perr("con-ron-decls/1\nD b bogus\nend 1\n").contains("unknown basis kind"));
+        assert!(perr("con-ron-pins/1\nL 0\nend 0\n").contains("unexpected end of record"));
+        assert!(perr("con-ron-pins/1\nW 0 x\nend 0\n").contains("unknown propwhen record"));
 
         // a mutilated real dump fails, never silently succeeds
-        let ok = dump_decls(&kitchen_sink());
-        assert!(perr(&ok.replace("end 13", "end 12")).contains("footer count"));
-        assert!(!perr(&ok.lines().take(20).collect::<Vec<_>>().join("\n")).is_empty());
-    }
-
-    #[test]
-    fn an_empty_declaration_list_round_trips() {
-        let ds: Vec<DeclC> = Vec::new();
-        let t = dump_decls(&ds);
-        assert_eq!(t, "con-ron-decls/1\nend 0\n");
-        assert!(parse_decls(&t).unwrap().is_empty());
-        // blank lines are ignored
-        assert!(parse_decls("con-ron-decls/1\n\n\nend 0\n\n").unwrap().is_empty());
-    }
-
-    /// Task #36: the streaming driver is the same reader.  Every sample this
-    /// module has — the kitchen sink, an empty list, a pin dump — must come
-    /// back identical through `parse_decls_reader`, and every error must come
-    /// back with the same message *and the same line number*, which is the
-    /// part the two line-counting conventions could break.
-    #[test]
-    fn the_streaming_driver_agrees_with_the_string_one() {
-        fn both(text: &str) -> (Result<usize, String>, Result<usize, String>) {
-            let a = parse_decls_counted(text).map(|(ds, _)| ds.len());
-            let b = parse_decls_reader(std::io::Cursor::new(text.as_bytes()))
-                .map(|(ds, _)| ds.len());
-            (a, b)
-        }
-        let ok = dump_decls(&kitchen_sink());
-        let (a, b) = both(&ok);
-        assert_eq!(a, b);
-        assert_eq!(b.unwrap(), kitchen_sink().len());
-        // the re-dump off the streamed parse is byte-identical too
-        let ds = parse_decls_reader(std::io::Cursor::new(ok.as_bytes())).unwrap().0;
-        assert_eq!(dump_decls(&ds), ok);
-        assert_eq!(dag::census(&ds).exprs, parse_decls_counted(&ok).unwrap().1.exprs);
-
-        for text in [
-            "",
-            "con-ron-decls/1",
-            "con-ron-decls/1\n",
-            "con-ron-decls/1\nend 0\n",
-            "con-ron-decls/1\n\n\nend 0\n\n",
-            "con-ron-pins/1\nend 0\n",
-            "con-ron-decls/1\nN 0 a\nend 0",
-            "con-ron-decls/1\nN 0 a\n",
-            "con-ron-decls/1\nN 1 a\nend 0\n",
-            "con-ron-decls/1\nN 0 a\nX 0\nend 0\n",
-            "con-ron-decls/1\nend 0\nN 0 a\n",
-            "con-ron-decls/1\nend 0 7\n",
-            &ok.replace("end 13", "end 12"),
-        ] {
-            let (a, b) = both(text);
-            assert_eq!(a, b, "the two drivers disagree on {:?}", text);
-        }
+        let ok = dump_pins(&[a_pin_set("t"), a_pin_set("u")]);
+        assert!(perr(&ok.replace("end 2", "end 1")).contains("footer count"));
+        assert!(!perr(&ok.lines().take(4).collect::<Vec<_>>().join("\n")).is_empty());
     }
 
     /// Task #36: what one node weighs.  The numbers are the *reason* the

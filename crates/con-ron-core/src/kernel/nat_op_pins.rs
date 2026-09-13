@@ -30,7 +30,7 @@
 //! `cached::installed::check_decls` takes it as `pins : &Vec<NatOpPinSet>`
 //! and threads it down to the loop, and the binary's own value is the
 //! embedded `con-ron-pins/1` text decoded inside the core (task #43,
-//! `kernel::pins_text` + `kernel::pins_decode`; `con-ron-check --pins FILE`
+//! `kernel::pins_text` + `kernel::pins_decode`; `con-ron --pins FILE`
 //! survives as a test override).  **This module therefore declares the record
 //! and nothing else**: there is no `nat_op_pin_sets()` (§3.4 forbids the
 //! global, and the data is not code).  The upstream change this asked for

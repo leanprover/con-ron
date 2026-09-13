@@ -30,10 +30,9 @@
 //! | `in_model::kit` | `ConLeche/Frontend/InModel/Kit.lean` |
 //! | `in_model::mutual` | `ConLeche/Frontend/InModel/Mutual.lean` |
 //! | `in_model::nested` | `ConLeche/Frontend/InModel/Nested.lean` |
-//! | `driver` | `Main.lean` (the shared driver: the phases, the flags, the verdict) |
+//! | `driver` | `Main.lean` (the driver: the phases, the flags, the verdict) |
 //! | `pool` | `Main.lean:213-328` (phase B on a pool of check workers) |
-//! | `src/bin/con-ron.rs` | `Main.lean` (the raw-stream front door) |
-//! | `src/bin/con-ron-check.rs` | `Main.lean` (the same driver on a `con-ron-decls/1` dump) |
+//! | `src/bin/con-ron.rs` | `Main.lean` (the binary) |
 //!
 //! **Three things are deliberately not here**, and every one of them is a
 //! `scripts/provenance-skip.txt` entry with its reason (§3.7 — the skip file

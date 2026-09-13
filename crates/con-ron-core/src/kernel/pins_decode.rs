@@ -1,7 +1,7 @@
 //! The decoder of the embedded `con-ron-pins/1` text (DESIGN.md §3, task #43).
 //!
 //! `kernel::pins_text::PINS_TEXT` is con-leche's `natOpPinSets` as the text
-//! format `proof/ConRon/Dump/FORMAT.md` §7 specifies; this module is the
+//! format `proof/ConRon/Dump/FORMAT.md` specifies; this module is the
 //! *verified* reader of that format, so that the pin list
 //! `cached::installed::check_decls` folds with is computed **inside** the core
 //! rather than handed in by the unverified driver (task #31's arrangement).
@@ -9,23 +9,21 @@
 //! iterators, `?`, `String` errors — and a unit test holds the two together on
 //! the embedded text.
 //!
-//! **The grammar** is FORMAT.md §7 and the record grammar of §4 it shares with
-//! `con-ron-decls/1`, restricted to what a pin dump can contain: the header
-//! line, then `N`/`L`/`W`/`E` records (the interned `Name`/`Level`/`PropWhen`/
-//! `Expr` DAG), `S` records (one per toolchain variant, in the order
+//! **The grammar** is FORMAT.md's: the header line, then `N`/`L`/`W`/`E`
+//! records (the interned `Name`/`Level`/`PropWhen`/`Expr` DAG), `S` records
+//! (one per toolchain variant, in the order
 //! `checker::check_div_mod_pin_loop` tries them) and the `end <count>` footer.
 //! Ids are dense and backward-only, which is what lets a single forward pass
 //! with one `Vec` per kind resolve every reference by indexing a table that is
 //! already long enough — no fixups, no second pass.
 //!
-//! **Deliberately stricter than `ConRon/Dump/Read.lean`.**  The Lean reference
-//! reader splits the text into lines and each line into space-separated
-//! tokens, so it tolerates empty lines, runs of spaces and the record kinds a
-//! *declaration* dump uses (`D`, `V`, `R`, `C`, `P`, `I`).  This decoder walks
-//! the bytes with an index and requires exactly what the writer
-//! (`ConRon/Dump/Write.lean`) emits: single spaces between fields, one `'\n'`
-//! after each record, nothing after the footer's newline, and none of the
-//! declaration-dump records.  That direction is free for the theorem, whose
+//! **Deliberately stricter than `ConRon/Dump/Pins.lean`.**  The Lean
+//! reference reader splits the text into lines and each line into
+//! space-separated tokens, so it tolerates empty lines and runs of spaces.
+//! This decoder walks the bytes with an index and requires exactly what the
+//! writer emits: single spaces between fields, one `'\n'` after each record
+//! and nothing after the footer's newline.  That direction is free for the
+//! theorem, whose
 //! refinement statement is "if the Rust decoder returns `ok v` then the Lean
 //! reader returns the same value" (DESIGN.md §3.5's exact-result shape): a
 //! *stricter* decoder only has fewer cases to discharge, and the text it must
@@ -1139,7 +1137,7 @@ pub fn record_expr_proj(
 }
 
 // ---------------------------------------------------------------------------
-// The payload record (FORMAT.md §7)
+// The payload record (FORMAT.md §4)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/NatOpPinSet.lean:28-51 NatOpPinSet
@@ -1405,7 +1403,7 @@ mod tests {
     /// after the footer and a missing final newline.
     #[test]
     fn malformed_texts_are_rejected() {
-        assert!(decode(b"con-ron-decls/1\nend 0\n").is_err());
+        assert!(decode(b"con-ron-pins/2\nend 0\n").is_err());
         assert!(decode(b"con-ron-pins/1\nend 1\n").is_err());
         assert!(decode(b"con-ron-pins/1\nD a 0\nend 0\n").is_err());
         assert!(decode(b"con-ron-pins/1\nN 1 a\nend 0\n").is_err());
