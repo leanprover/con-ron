@@ -387,8 +387,7 @@ pub fn bvar(i: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: ConLeche/Cached/ExprC.lean:129-130 mkFVar
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::fvar_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprNodes.lean:106-107 mkFVar
 /// `Expr.fvar`: hash tag 5; the fvar range is `satSucc idx`, the bvar bound
 /// is `0` (a type annotation is never descended by the abstraction walks)
 /// and the level-param bit is the type's.
@@ -403,8 +402,7 @@ pub fn fvar(idx: u64, ty: Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: ConLeche/Cached/ExprC.lean:132 mkSort
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::sort_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprNodes.lean:109 mkSort
 /// `Expr.sort`: hash tag 7 over the level's own cached hash; both ranges are
 /// `0` and the level-param bit is `levelHasParam u`.
 pub fn sort(u: Level) -> Expr {
@@ -414,8 +412,7 @@ pub fn sort(u: Level) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: ConLeche/Cached/ExprC.lean:134 mkConst
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::mk_const_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprNodes.lean:111 mkConst
 /// `Expr.const`: hash tag 11 over the name's hash and `levelsHash us`.
 /// Deviation: `const` is a Rust keyword, so the smart constructor is
 /// `mk_const`.
@@ -429,8 +426,7 @@ pub fn mk_const(n: Name, us: Vec<Level>) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: ConLeche/Cached/ExprC.lean:136 mkApp
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::app_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprNodes.lean:113 mkApp
 /// `Expr.app`: hash tag 17; both ranges are the componentwise `max` and the
 /// level-param bit the disjunction.
 pub fn app(f: Expr, a: Expr) -> Expr {
@@ -450,8 +446,7 @@ pub fn app(f: Expr, a: Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: ConLeche/Cached/ExprC.lean:138-139 mkLam
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::lam_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprNodes.lean:115-116 mkLam
 /// `Expr.lam`: hash tag 19 over the type, the body and the binder datum; the
 /// bvar bound drops the bound occurrence (`satPred` on the body's), the fvar
 /// range does not, and the level-param bit picks up `m.pw.hasParams`.
@@ -475,8 +470,7 @@ pub fn lam(ty: Expr, body: Expr, m: BinderMeta) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: ConLeche/Cached/ExprC.lean:141-142 mkForallE
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::forall_e_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprNodes.lean:118-119 mkForallE
 /// `Expr.forallE`: `lam`'s equation with hash tag 23.
 pub fn forall_e(ty: Expr, body: Expr, m: BinderMeta) -> Expr {
     let dt: u64 = data(&ty);
@@ -498,8 +492,7 @@ pub fn forall_e(ty: Expr, body: Expr, m: BinderMeta) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: ConLeche/Cached/ExprC.lean:144-145 mkLetE
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::let_e_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprNodes.lean:121-122 mkLetE
 /// `Expr.letE`: hash tag 29 over type, value and body; only the body is
 /// under the binder, so only its bvar bound is `satPred`ed.
 pub fn let_e(ty: Expr, value: Expr, body: Expr) -> Expr {
@@ -526,8 +519,7 @@ pub fn let_e(ty: Expr, value: Expr, body: Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: ConLeche/Cached/ExprC.lean:147 mkLit
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::lit_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprNodes.lean:124 mkLit
 /// `Expr.lit`: hash tag 31; a literal is closed, so both ranges are `0` and
 /// the level-param bit is `false`.
 pub fn lit(l: Literal) -> Expr {
@@ -537,8 +529,7 @@ pub fn lit(l: Literal) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: ConLeche/Cached/ExprC.lean:149 mkProj
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::proj_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprNodes.lean:126 mkProj
 /// `Expr.proj`: hash tag 37 over the structure name, the field index and the
 /// subterm; the ranges and the level-param bit are the subterm's unchanged.
 pub fn proj(struct_name: Name, idx: u64, e: Expr) -> Expr {
@@ -1063,8 +1054,7 @@ pub fn bvar_pool_size() -> u64 {
 /// con-leche: ConLeche/Kernel/Expr.lean:1025-1026 Expr.bvarPool
 /// con-leche: ConLeche/Kernel/Expr.lean:1028-1031 Expr.mkBvar
 /// con-leche: ConLeche/Kernel/Expr.lean:1033-1037 Expr.mkBvar_eq
-/// con-leche: ConLeche/Cached/ExprC.lean:127 mkBVar
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::mk_bvar_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:1028-1031 mkBvar
 /// The `bvar` smart constructor.
 ///
 /// **Deviation: the pool is not ported.**  `bvarPool` is a closed top-level

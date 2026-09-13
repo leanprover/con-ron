@@ -1247,8 +1247,7 @@ pub fn stuck_irrel_i(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:679 wscopedB
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron-core/src/cached/core_c.rs_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:660-661 wscopedBC
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:726-730 leafGuard
 /// The **cached tier's** scope guard, run by all three rescue branches on
 /// their fabrication: the cited

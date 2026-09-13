@@ -91,8 +91,7 @@ use std::vec::Vec;
 // `ExprC.lean`'s one executed function
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprC.lean:113-115 hasFvar
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::has_fvar_refines, then delete this line
+/// con-leche: ConLeche/Kernel/ExprOps.lean:904-913 hasFvar
 /// The node's fvar flag (`fvarB != 0`), `O(1)`.
 ///
 /// Deviation: this is `expr_ops::has_fvar`'s body character for character,
@@ -110,8 +109,7 @@ pub fn has_fvar(e: &Expr) -> bool {
 // Spines (`ExprOpsC.lean:63-81`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:65-68 getAppFn
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::get_app_fn_refines, then delete this line
+/// con-leche: ConLeche/Kernel/ExprOps.lean:915-918 getAppFn
 /// The head of an application spine.
 pub fn get_app_fn(e: &Expr) -> Expr {
     match &e.0.kind {
@@ -120,8 +118,7 @@ pub fn get_app_fn(e: &Expr) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:70-73 getAppArgsAcc
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::get_app_args_acc_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:61-64 getAppArgsAccC
 /// Prepend the spine arguments of `e` to `acc` (outermost last).
 ///
 /// Deviation: the cited `a :: acc` is a front cons, which a `Vec` cannot do
@@ -139,23 +136,20 @@ pub fn get_app_args_acc(e: &Expr, acc: Vec<Expr>) -> Vec<Expr> {
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:75-76 getAppArgs
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::get_app_args_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:66-67 getAppArgsC
 /// The arguments of an application spine, outermost last.
 pub fn get_app_args(e: &Expr) -> Vec<Expr> {
     get_app_args_acc(e, Vec::new())
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:78-81 mkAppN
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::mk_app_n_refines, then delete this line
+/// con-leche: ConLeche/Kernel/ExprOps.lean:925-928 mkAppN
 /// Apply to a list of arguments.  The `i = 0` wrapper of the index recursion
 /// below (DESIGN.md §3.4).
 pub fn mk_app_n(f: Expr, args: &Vec<Expr>) -> Expr {
     mk_app_n_from(f, args, 0)
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:78-81 mkAppN
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::mk_app_n_from_refines, then delete this line
+/// con-leche: ConLeche/Kernel/ExprOps.lean:925-928 mkAppN
 /// The index recursion behind `mk_app_n`.
 pub fn mk_app_n_from(f: Expr, args: &Vec<Expr>, i: usize) -> Expr {
     if i >= args.len() {
@@ -227,8 +221,7 @@ pub fn seen_get(seen: &HashMap<Expr, ()>, k: &Expr) -> Option<()> {
 // `instantiate1` (`ExprOpsC.lean:83-151`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:97-151 instantiate1Go
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::instantiate1_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:83-137 instantiate1GoC
 /// Core of `instantiate1`: replace `bvar d` by `v`, lowering the loose
 /// `bvar`s above `d` by one.  The `bvarB ≤ d` cutoff returns the node itself;
 /// the five atom kinds are answered on the spot; the five compound kinds
@@ -297,8 +290,7 @@ pub fn instantiate1_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Expr {
 // `instantiate1Lift` (`ExprOpsC.lean:153-273`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:167-211 instantiate1LiftB
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::instantiate1_lift_b_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:153-197 instantiate1LiftBC
 /// The budgeted plain descent of the capture-avoiding substitution: the
 /// rebuild on a node budget, `none` when it runs out (nothing built is kept).
 /// A memo would be a tax on the small terms that are the common case, so it
@@ -338,8 +330,7 @@ pub fn instantiate1_lift_b(v: &Expr, fuel: u64, e: &Expr, d: u64) -> (Option<Exp
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:167-211 instantiate1LiftB
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::instantiate1_lift_b_compound_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:153-197 instantiate1LiftBC
 /// The five compound arms at the decremented budget.  Split off so the budget
 /// test above is a tail call and every arm here ends in a constructor or a
 /// call (task #24's rule).
@@ -391,8 +382,7 @@ pub fn instantiate1_lift_b_compound(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:213-265 instantiate1LiftGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::instantiate1_lift_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:199-251 instantiate1LiftGoC
 /// The memoised descent, in `instantiate1Go`'s shape: the `bvar` arm lifts
 /// `v`'s own loose variables past the binders crossed on the way, which is
 /// what `instantiate1` may not do.
@@ -456,8 +446,7 @@ pub fn instantiate1_lift_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Exp
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:267-273 instantiate1Lift
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::instantiate1_lift_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:253-259 instantiate1LiftC
 /// `Expr.instantiate1Lift` on `ExprC`: the cutoff, the budgeted plain descent
 /// at 4096 nodes, the memoised one past the budget.  Deviation: the cited
 /// `(d : Nat := 0)` default is an explicit argument (Rust has no field or
@@ -476,8 +465,7 @@ pub fn instantiate1_lift(e: &Expr, v: &Expr, d: u64) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:275-277 instantiate1
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::instantiate1_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:261-263 instantiate1C
 /// `Expr.instantiate1` on `ExprC` (fresh per-call memo).
 pub fn instantiate1(e: &Expr, v: &Expr, d: u64) -> Expr {
     if expr_ops::bvar_b(e) <= d {
@@ -492,8 +480,7 @@ pub fn instantiate1(e: &Expr, v: &Expr, d: u64) -> Expr {
 // `instantiateList` (`ExprOpsC.lean:279-368`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:279-360 instantiateListGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::instantiate_list_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:265-346 instantiateListGoC
 /// Core of the bulk instantiation: `vs` innermost binder first, `k` the live
 /// prefix length.  The `bvar` arm re-enters at the replacement with the
 /// shorter prefix `i - d` and under a **fresh** table, which is what keeps
@@ -569,8 +556,7 @@ pub fn instantiate_list_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, 
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:279-360 instantiateListGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::instantiate_list_bvar_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:265-346 instantiateListGoC
 /// The `.bvar` arm's inner block at `j = i - d`, which the cited code reaches
 /// under `j < k`: the replacement, guarded, and the re-entry under a fresh
 /// table.  Lifted into a callee so the arm above ends in a call while the
@@ -592,8 +578,7 @@ pub fn instantiate_list_bvar(vs: &Vec<Expr>, e: &Expr, j: u64, d: u64) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:362-368 instantiateList
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::instantiate_list_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:348-354 instantiateListC
 /// `Expr.instantiateList` on `ExprC` (bulk, one memoised DAG pass).  The
 /// cited `vs.toArray` is the `Vec` itself, and `a.size` its length.
 pub fn instantiate_list(e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
@@ -715,8 +700,7 @@ pub fn instantiate_rev(e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
 // Abstraction (`ExprOpsC.lean:447-574`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:449-508 abstract1Go
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::abstract1_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:435-494 abstract1GoC
 /// Core of `abstract1`: replace `fvar d` by `bvar k`.  The cutoff is the
 /// cached fvar range (a node with `fvarB ≤ d` cannot contain `fvar d`) — the
 /// cited documented deviation from the retired arena twin, the same value
@@ -779,8 +763,7 @@ pub fn abstract1_go(d: u64, memo: &mut MemoN, e: &Expr, k: u64) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:510-512 abstract1
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::abstract1_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:496-498 abstract1C
 /// `Expr.abstract1` on `ExprC`.
 pub fn abstract1(e: &Expr, d: u64, k: u64) -> Expr {
     if expr_ops::fvar_b(e) <= d {
@@ -791,8 +774,7 @@ pub fn abstract1(e: &Expr, d: u64, k: u64) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:514-567 abstractRangeGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::abstract_range_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:500-553 abstractRangeGoC
 /// Core of `abstractRange`: abstract the block `fvar d … fvar (d + k - 1)`,
 /// outermost first.  Same memo discipline as `abstract1Go`.  Deviation: the
 /// `.fvar` arm's `d ≤ idx ∧ idx < d + k` is an `if` nest (task #3's
@@ -859,8 +841,7 @@ pub fn abstract_range_go(d: u64, k: u64, memo: &mut MemoN, e: &Expr, c: u64) -> 
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:569-574 abstractRange
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::abstract_range_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:555-560 abstractRangeC
 /// `Expr.abstractRange` on `ExprC`; `k = 0` is the identity and skips the
 /// traversal, as in the retired arena.
 pub fn abstract_range(e: &Expr, d: u64, k: u64, c: u64) -> Expr {
@@ -990,16 +971,14 @@ pub fn proj_entry_type_at_i(
 // Scope queries (`ExprOpsC.lean:644-748`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:646-648 looseBVarsBounded
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::loose_bvars_bounded_refines, then delete this line
+/// con-leche: ConLeche/Kernel/ExprOps.lean:863-877 looseBVarsBounded
 /// `Expr.looseBVarsBounded k` — `O(1)`, because the cached bound is *exact*
 /// (the least such `k`).
 pub fn loose_bvars_bounded(k: u64, e: &Expr) -> bool {
     expr_ops::bvar_b(e) <= k
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:650-676 wscopedBGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::wscoped_b_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:632-658 wscopedBGoC
 /// Core of `wscopedB`: every reachable `fvar` index is below `d`,
 /// hereditarily through the annotations — so the cached fvar range does not
 /// decide it and the `fvar` children are descended.  The memo is probed
@@ -1038,8 +1017,7 @@ pub fn wscoped_b_go(memo: &mut HashMap<ExprNatKey, bool>, d: u64, e: &Expr) -> b
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:650-676 wscopedBGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::wscoped_b_fvar_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:632-658 wscopedBGoC
 /// The `.fvar` arm: an index in scope licenses its annotation, which is
 /// checked at the *index's own* bound.
 pub fn wscoped_b_fvar(memo: &mut HashMap<ExprNatKey, bool>, d: u64, idx: u64, ty: &Expr) -> bool {
@@ -1050,8 +1028,7 @@ pub fn wscoped_b_fvar(memo: &mut HashMap<ExprNatKey, bool>, d: u64, idx: u64, ty
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:650-676 wscopedBGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::wscoped_b_pair_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:632-658 wscopedBGoC
 /// The two-child arms' short-circuit: the second child is walked only when
 /// the first answered `true`.
 pub fn wscoped_b_pair(
@@ -1067,8 +1044,7 @@ pub fn wscoped_b_pair(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:650-676 wscopedBGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::wscoped_b_triple_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:632-658 wscopedBGoC
 /// The `.letE` arm's three-child short-circuit.
 pub fn wscoped_b_triple(
     memo: &mut HashMap<ExprNatKey, bool>,
@@ -1084,16 +1060,14 @@ pub fn wscoped_b_triple(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:678-679 wscopedB
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::wscoped_b_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:660-661 wscopedBC
 /// `Expr.wscopedB d` on `ExprC` (one memoised DAG walk).
 pub fn wscoped_b(d: u64, e: &Expr) -> bool {
     let mut memo: HashMap<ExprNatKey, bool> = HashMap::new();
     wscoped_b_go(&mut memo, d, e)
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:681-703 fvarLeavesGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::fvar_leaves_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:663-685 fvarLeavesGoC
 /// Core of `fvarLeaves`: the reachable `fvar` leaves, hereditarily through
 /// the annotations, each node visited once — the `seen` set is inserted into
 /// *before* the match, so a shared sub-DAG is walked once.
@@ -1149,8 +1123,7 @@ pub fn fvar_leaves_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:705-707 fvarLeaves
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::fvar_leaves_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:687-689 fvarLeavesC
 /// The reachable `fvar` leaves (hereditarily through annotations).
 pub fn fvar_leaves(e: &Expr) -> Vec<(u64, Expr)> {
     let mut seen: HashMap<Expr, ()> = HashMap::new();
@@ -1277,16 +1250,14 @@ pub fn leaf_guard(fab: &Expr, base: &Expr) -> bool {
 // Telescope operations (`ExprOpsC.lean:750-787`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:752-755 instSpineChain
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::inst_spine_chain_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:734-737 instSpineChainC
 /// The `instantiate1` chain of `Expr.instSpine`.  The `i = 0` wrapper of the
 /// index recursion below.
 pub fn inst_spine_chain(args: &Vec<Expr>, t: u64, e: &Expr) -> Expr {
     inst_spine_chain_from(args, 0, t, e)
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:752-755 instSpineChain
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::inst_spine_chain_from_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:734-737 instSpineChainC
 /// The index recursion behind `inst_spine_chain`; the cursor's `t - 1` is
 /// Lean's truncated `Nat` subtraction, hence `expr_ops::sub_nat`.
 pub fn inst_spine_chain_from(args: &Vec<Expr>, i: usize, t: u64, e: &Expr) -> Expr {
@@ -1298,8 +1269,7 @@ pub fn inst_spine_chain_from(args: &Vec<Expr>, i: usize, t: u64, e: &Expr) -> Ex
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:757-761 instSpine
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::inst_spine_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:739-743 instSpineC
 /// `Expr.instSpine` on `ExprC`: the one bulk pass when the spine spans the
 /// telescope context, the `instantiate1` chain otherwise.
 pub fn inst_spine(args: &Vec<Expr>, t: u64, e: &Expr) -> Expr {
@@ -1354,8 +1324,7 @@ pub fn pi_residual(e: &Expr, args: &Vec<Expr>) -> Option<Expr> {
 // Level-parameter definedness (`ExprOpsC.lean:789-828`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:791-823 allLevelParamsDefinedGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::all_level_params_defined_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:773-805 allLevelParamsDefinedGoC
 /// Core of `allLevelParamsDefined`: nodes without a level parameter are
 /// `true` without traversal (the `hasLP` cutoff), everything else is memoised
 /// before the match.  The binder arms' `rb && m.pw.paramsDefined params` is
@@ -1399,8 +1368,7 @@ pub fn all_level_params_defined_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:791-823 allLevelParamsDefinedGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::alpd_pair_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:773-805 allLevelParamsDefinedGoC
 /// The `.app` arm's short-circuit.
 pub fn alpd_pair(
     params: &Vec<Name>,
@@ -1415,8 +1383,7 @@ pub fn alpd_pair(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:791-823 allLevelParamsDefinedGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::alpd_binder_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:773-805 allLevelParamsDefinedGoC
 /// The two binder arms: the domain short-circuits, and the body's answer is
 /// conjoined with the binder datum's *without* short-circuiting, because the
 /// cited `(rb && m.pw.paramsDefined params, memo)` has already run both.
@@ -1436,8 +1403,7 @@ pub fn alpd_binder(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:791-823 allLevelParamsDefinedGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::alpd_triple_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:773-805 allLevelParamsDefinedGoC
 /// The `.letE` arm's three-child short-circuit.
 pub fn alpd_triple(
     params: &Vec<Name>,
@@ -1453,8 +1419,7 @@ pub fn alpd_triple(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:825-828 allLevelParamsDefined
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::all_level_params_defined_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:807-810 allLevelParamsDefinedC
 /// `Expr.allLevelParamsDefined params` on `ExprC` (one memoised DAG walk).
 pub fn all_level_params_defined(params: &Vec<Name>, e: &Expr) -> bool {
     let mut memo: HashMap<Expr, bool> = HashMap::new();

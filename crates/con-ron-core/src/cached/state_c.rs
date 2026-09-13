@@ -413,8 +413,7 @@ pub fn bvar_bound_m(e: &Expr) -> u64 {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:181-184 inst1M
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:275-277 instantiate1
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::inst1_m_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:261-263 instantiate1C
 /// `ExprC.instantiate1`; the identity — the same node, by reference — when
 /// the target has no loose bvar at or above the cursor (the cited
 /// `bvarB ≤ d` cutoff, which `expr_ops::instantiate1` does not have).
@@ -506,8 +505,7 @@ pub fn inst_list_rev_m(e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:207-208 abstract1M
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:510-512 abstract1
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::abstract1_m_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:496-498 abstract1C
 /// `ExprC.abstract1` at the binder cursor `0` (the cited `(k : Nat := 0)`
 /// default, which Rust has no spelling for).
 pub fn abstract1_m(e: &Expr, d: u64) -> Expr {
@@ -515,16 +513,14 @@ pub fn abstract1_m(e: &Expr, d: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:210-211 abstractRangeM
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:569-574 abstractRange
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::abstract_range_m_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:555-560 abstractRangeC
 /// `ExprC.abstractRange` at the binder cursor `0`.
 pub fn abstract_range_m(e: &Expr, d: u64, k: u64) -> Expr {
     expr_ops_c::abstract_range(e, d, k, 0)
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:213-214 mkAppNM
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:78-81 mkAppN
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::mk_app_n_m_refines, then delete this line
+/// con-leche: ConLeche/Kernel/ExprOps.lean:925-928 mkAppN
 /// `ExprC.mkAppN`.  Deviation: the head is taken by value, as `mk_app_n`'s
 /// own signature has it (the spine is built onto it).
 pub fn mk_app_n_m(f: Expr, args: &Vec<Expr>) -> Expr {
@@ -532,8 +528,7 @@ pub fn mk_app_n_m(f: Expr, args: &Vec<Expr>) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:216-218 instSpineM
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:757-761 instSpine
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove state_c::inst_spine_m_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:739-743 instSpineC
 /// `ExprC.instSpine`: the one bulk pass when the spine spans the telescope
 /// context, the `instantiate1` chain otherwise.
 pub fn inst_spine_m(args: &Vec<Expr>, t: u64, e: &Expr) -> Expr {

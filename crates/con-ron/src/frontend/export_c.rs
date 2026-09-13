@@ -181,8 +181,7 @@ pub fn decl_same_canon(a: &DeclC, b: &DeclC) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:116-122 PreludeIx
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::PreludeIx_refines, then delete this line
+/// con-leche: ConLeche/Frontend/Prepare.lean:83-88 PreludeIx
 /// The built-in prelude, indexed: its records in order, the definition-like
 /// and inductive records by every name they declare, and the basis blocks by
 /// kind.  Deviation: `by_name` holds the record's index in `decls` (the module
@@ -193,8 +192,7 @@ pub struct PreludeIx {
     pub basis: Vec<BasisKind>,
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:116-122 PreludeIx
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::prelude_ix_empty_refines, then delete this line
+/// con-leche: ConLeche/Frontend/Prepare.lean:83-88 PreludeIx
 /// The empty prelude (Lean's field defaults), which the prelude's own parse
 /// runs against.
 pub fn prelude_ix_empty() -> PreludeIx {

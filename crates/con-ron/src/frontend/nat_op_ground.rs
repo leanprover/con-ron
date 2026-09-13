@@ -112,8 +112,7 @@ impl PartialEq for NameKey {
 /// con-leche: none — `NameKey`'s equality is `Name.beq`.
 impl Eq for NameKey {}
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:57-62 DeclC.names
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nat_op_ground::decl_names_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Env.lean:659-670 Declaration.names
 /// The names a parsed declaration declares (the prelude index and the hoist's
 /// name index; basis blocks are indexed by kind instead).
 pub fn decl_names(d: &DeclC) -> Vec<Name> {
@@ -168,8 +167,7 @@ pub fn used_consts_go(seen: &mut HashSet<ExprKey>, acc: &mut Vec<Name>, e: &Expr
     }
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:89-105 DeclC.usedConsts
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove nat_op_ground::decl_used_consts_refines, then delete this line
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:79-95 Declaration.usedConsts
 /// The constants a parsed record references (types, values, recursor rule
 /// right-hand sides; a basis block references nothing the stream declares).
 pub fn decl_used_consts(d: &DeclC) -> Vec<Name> {

@@ -43,8 +43,7 @@ use con_ron_core::kernel::prop_when;
 /// number.
 pub type M<T> = Result<T, String>;
 
-/// con-leche: ConLeche/Frontend/Export.lean:95-101 canonNameMap
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_name_map_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Canon.lean:67-73 canonNameMap
 /// The level-parameter renaming a constant's own parameter list induces: the
 /// `i`-th parameter becomes `⟨i⟩`, anything else is left alone.  Lean returns
 /// the closure `Name → Name`; the port passes the list and the name together,
@@ -60,8 +59,7 @@ pub fn canon_name_map(ps: &Vec<Name>, n: &Name) -> Name {
     name::dup(n)
 }
 
-/// con-leche: ConLeche/Frontend/Export.lean:55-62 canonLevel
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_level_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Canon.lean:27-34 canonLevel
 /// Rename level parameters (for basis-block matching up to level-parameter
 /// names).
 pub fn canon_level(ps: &Vec<Name>, l: &Level) -> Level {
@@ -74,17 +72,14 @@ pub fn canon_level(ps: &Vec<Name>, l: &Level) -> Level {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Export.lean:55-62 canonLevel
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_level_list_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Canon.lean:27-34 canonLevel
 /// `us.map (canonLevel m)`, the `const` arm's list.
 pub fn canon_level_list(ps: &Vec<Name>, ls: &Vec<Level>) -> Vec<Level> {
     ls.iter().map(|l| canon_level(ps, l)).collect()
 }
 
-/// con-leche: ConLeche/Frontend/Export.lean:154-174 canonExprEqFast
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_expr_eq_fast_refines, then delete this line
-/// con-leche: ConLeche/Frontend/Export.lean:64-93 canonExpr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_expr_eq_fast_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Canon.lean:126-146 canonExprEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:36-65 canonExpr
 /// Lockstep twin of `canonExpr m a == canonExpr m' b`.  `canonExpr` preserves
 /// every node's constructor (it rewrites only levels, and resets the binder
 /// metadata to the same constant on both sides), so the two canonical forms
@@ -125,12 +120,9 @@ pub fn canon_expr_eq_fast(ps: &Vec<Name>, ps2: &Vec<Name>, a: &Expr, b: &Expr) -
     }
 }
 
-/// con-leche: ConLeche/Frontend/Export.lean:229-234 ConstantVal.canonEqFast
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::constant_val_canon_eq_refines, then delete this line
-/// con-leche: ConLeche/Frontend/Export.lean:223-227 ConstantVal.canonEq
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::constant_val_canon_eq_refines, then delete this line
-/// con-leche: ConLeche/Frontend/Export.lean:103-108 ConstantVal.canon
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::constant_val_canon_eq_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Canon.lean:201-206 ConstantVal.canonEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:195-199 ConstantVal.canonEq
+/// con-leche: ConLeche/Kernel/Canon.lean:75-80 ConstantVal.canon
 /// Two constants have the same canonical common data.  The numbered
 /// level-parameter lists are equal exactly when they are equally long.
 pub fn constant_val_canon_eq(cv: &ConstantVal, cv2: &ConstantVal) -> bool {
@@ -139,8 +131,7 @@ pub fn constant_val_canon_eq(cv: &ConstantVal, cv2: &ConstantVal) -> bool {
         && canon_expr_eq_fast(&cv.level_params, &cv2.level_params, &cv.ty, &cv2.ty)
 }
 
-/// con-leche: ConLeche/Frontend/Export.lean:252-259 canonRulesEqFast
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_rules_eq_fast_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Canon.lean:224-231 canonRulesEqFast
 /// Rule lists compared through the canonical form of each rule's right-hand
 /// side.  `{r with rhs := .bvar 0} == {r' with rhs := .bvar 0}` is every
 /// field but `rhs` under Lean's derived equality, which is what the first
@@ -169,12 +160,9 @@ pub fn canon_rules_eq_fast(
     true
 }
 
-/// con-leche: ConLeche/Frontend/Export.lean:282-301 ConstantInfo.canonEqFast
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::constant_info_canon_eq_refines, then delete this line
-/// con-leche: ConLeche/Frontend/Export.lean:278-280 ConstantInfo.canonEq
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::constant_info_canon_eq_refines, then delete this line
-/// con-leche: ConLeche/Frontend/Export.lean:110-125 ConstantInfo.canon
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::constant_info_canon_eq_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Canon.lean:254-273 ConstantInfo.canonEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:250-252 ConstantInfo.canonEq
+/// con-leche: ConLeche/Kernel/Canon.lean:82-97 ConstantInfo.canon
 /// Two stored constants have the same canonical form.  `indInfo`'s `IndCaps`
 /// is reset on both sides by `canon`, so it is not compared; a `projInfo`
 /// never occurs in parsed input and the arm keeps the match total.
@@ -209,10 +197,8 @@ pub fn constant_info_canon_eq(ci: &ConstantInfo, ci2: &ConstantInfo) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Export.lean:322-326 canonEqListFast
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_eq_list_refines, then delete this line
-/// con-leche: ConLeche/Frontend/Export.lean:317-320 canonEqList
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::canon_eq_list_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Canon.lean:294-298 canonEqListFast
+/// con-leche: ConLeche/Kernel/Canon.lean:289-292 canonEqList
 /// Two blocks are the same, member for member, up to the canonical form.
 pub fn canon_eq_list(xs: &[ConstantInfo], ys: &[ConstantInfo]) -> bool {
     xs.len() == ys.len()

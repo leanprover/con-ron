@@ -85,8 +85,7 @@ use crate::kernel::trust_axioms;
 use crate::kernel::type_checker;
 use std::vec::Vec;
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:55-61 DeclC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::DeclC_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Env.lean:506-560 Declaration
 /// A parsed declaration over `ExprC`.  Its constant-value records *are*
 /// `ConLeche.ConstantVal` (con-leche task #198: the separate `ConstantValC`
 /// is gone), so the header's type is an ordinary `Expr` — which is the same
