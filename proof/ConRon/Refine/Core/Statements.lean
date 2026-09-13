@@ -103,6 +103,47 @@ theorem RefinesB.err {f g} (h : RefinesB f g) (st fe d a b)
     ErrSim ce ((g lfe d.val (absExpr a) (absExpr b)).run lst) :=
   h st fe d a b (.Err ce) st' hst hfe ha hb hok lst lfe hrel hfrel
 
+/-! ### Building one from its two halves
+
+The accept half of a `RefinesE`/`RefinesB` proof is, word for word, the
+pre-task-#67 proof; `mk'` lets it stay that way and puts the failure half
+beside it. -/
+
+theorem RefinesE.mk' {f g}
+    (hok : ∀ st fe d e r st', StateWF st → FEnvWF fe → ExprWF e →
+      f st fe d e = Aeneas.Std.Result.ok (.Ok r, st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ∃ lst', (g lfe d.val (absExpr e)).run lst = .ok (absExpr r, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r)
+    (herr : ∀ st fe d e (ce : core_types.CheckError) st', StateWF st → FEnvWF fe → ExprWF e →
+      f st fe d e = Aeneas.Std.Result.ok (.Err ce, st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ErrSim ce ((g lfe d.val (absExpr e)).run lst)) :
+    RefinesE f g := by
+  intro st fe d e o st' hst hfe he h lst lfe hrel hfrel
+  cases o with
+  | Ok r => exact hok st fe d e r st' hst hfe he h lst lfe hrel hfrel
+  | Err ce => exact herr st fe d e ce st' hst hfe he h lst lfe hrel hfrel
+
+theorem RefinesB.mk' {f g}
+    (hok : ∀ st fe d a b r st', StateWF st → FEnvWF fe → ExprWF a → ExprWF b →
+      f st fe d a b = Aeneas.Std.Result.ok (.Ok r, st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ∃ lst', (g lfe d.val (absExpr a) (absExpr b)).run lst = .ok (r, lst')
+          ∧ StateRel st' lst' ∧ StateWF st')
+    (herr : ∀ st fe d a b (ce : core_types.CheckError) st', StateWF st → FEnvWF fe →
+      ExprWF a → ExprWF b →
+      f st fe d a b = Aeneas.Std.Result.ok (.Err ce, st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ErrSim ce ((g lfe d.val (absExpr a) (absExpr b)).run lst)) :
+    RefinesB f g := by
+  intro st fe d a b o st' hst hfe ha hb h lst lfe hrel hfrel
+  cases o with
+  | Ok r =>
+    obtain ⟨lst', hrun, hrel', hwf'⟩ := hok st fe d a b r st' hst hfe ha hb h lst lfe hrel hfrel
+    exact ⟨lst', hrun, hrel', hwf', trivial⟩
+  | Err ce => exact herr st fe d a b ce st' hst hfe ha hb h lst lfe hrel hfrel
+
 /-- The six wrappers at `fuel` refine the knot at `fuel`. -/
 structure Wrappers (mode : env.CheckMode) (fuel : Std.U64) : Prop where
   whnfCore : RefinesE (cached.core_c.whnf_core mode fuel)

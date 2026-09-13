@@ -82,6 +82,29 @@ theorem memoBI_run_miss {f : Nat → ConLeche.Expr → ConLeche.Expr → CheckCM
       = .ok (r, { lst' with defeqC := lst'.defeqC.insert (a, b) r }) := by
   simp [memoBI, h, hf]
 
+open ConLeche.Cached in
+/-- `memoEI`, probe miss and a **throwing body**: the memo is not written on
+either side — the Rust's `match r with | Err _ => ok (r, st1)` skips the
+insert, and con-leche's `modify` never runs because the bind fails first — so
+the wrapper throws exactly what the body threw (task #67). -/
+theorem memoEI_run_err {get' : CState → _root_.Std.HashMap ConLeche.Expr ConLeche.Expr}
+    {set' : CState → _root_.Std.HashMap ConLeche.Expr ConLeche.Expr → CState}
+    {f : Nat → ConLeche.Expr → CheckCM ConLeche.Expr}
+    {lst : CState} {d : Nat} {e : ConLeche.Expr} {le : ConLeche.CheckError}
+    (h : (get' lst)[e]? = none)
+    (hf : (f d e).run lst = .error le) :
+    (memoEI get' set' f d e).run lst = .error le := by
+  simp [memoEI, h, hf]
+
+open ConLeche.Cached in
+/-- `memoBI`, probe miss and a throwing body. -/
+theorem memoBI_run_err {f : Nat → ConLeche.Expr → ConLeche.Expr → CheckCM Bool}
+    {lst : CState} {d : Nat} {a b : ConLeche.Expr} {le : ConLeche.CheckError}
+    (h : lst.defeqC[(a, b)]? = none)
+    (hf : (f d a b).run lst = .error le) :
+    (memoBI f d a b).run lst = .error le := by
+  simp [memoBI, h, hf]
+
 /-! ## The knot at `fuel + 1`, field by field
 
 `coreKnotI`'s successor arm (`ConLeche/Cached/CoreC.lean:1916-1975`),
@@ -213,24 +236,96 @@ theorem defeq_probe_refines {st : cached.state_c.CState}
 /-! ## Fuel zero
 
 Every wrapper's first test is `fuel == 0`, and its `then` branch builds
-`CheckError::internal("fuel exhausted: …")` from the code-point array.  So
-the `f … = ok (.Ok r, st')` hypothesis of `RefinesE`/`RefinesB` is absurd:
-either the code-point chain fails (`fail ≠ ok`) or it returns an `.Err`. -/
+`CheckError::internal("fuel exhausted: …")` from the code-point array — and so
+does `coreKnotI … 0`, whose six slots are `throw (.internal "fuel exhausted:
+…")` (`Cached/CoreC.lean:1916-1922`).  **Fuel exhaustion is mirrored**, at the
+same step and at the same kind, so the full-outcome statement (task #67)
+makes `wrappers_zero` a real proof where §3.5's accept-direction one was
+vacuous: the `.Ok` case is still absurd and the `.Err` case is `ErrSim`,
+discharged by the six equations below.  Messages are not compared, which is
+just as well: the port's `infer_io` says "infer_io" where the cited `inferIO`
+slot reuses `"fuel exhausted: infer"`. -/
+
+open ConLeche.Cached in
+theorem knot_zero_whnfCore (mode : env.CheckMode) (lfe : ConLeche.FEnv) (d : Nat) (e : ConLeche.Expr) (lst : CState) :
+    ((knot mode lfe 0).whnfCore d e).run lst
+      = .error (.internal "fuel exhausted: whnfCore") := rfl
+
+open ConLeche.Cached in
+theorem knot_zero_whnf (mode : env.CheckMode) (lfe : ConLeche.FEnv) (d : Nat) (e : ConLeche.Expr) (lst : CState) :
+    ((knot mode lfe 0).whnf d e).run lst
+      = .error (.internal "fuel exhausted: whnf") := rfl
+
+open ConLeche.Cached in
+theorem knot_zero_infer (mode : env.CheckMode) (lfe : ConLeche.FEnv) (d : Nat) (e : ConLeche.Expr) (lst : CState) :
+    ((knot mode lfe 0).infer d e).run lst
+      = .error (.internal "fuel exhausted: infer") := rfl
+
+open ConLeche.Cached in
+theorem knot_zero_defeq (mode : env.CheckMode) (lfe : ConLeche.FEnv) (d : Nat) (a b : ConLeche.Expr) (lst : CState) :
+    ((knot mode lfe 0).defeq d a b).run lst
+      = .error (.internal "fuel exhausted: defeq") := rfl
+
+open ConLeche.Cached in
+theorem knot_zero_annotate (mode : env.CheckMode) (lfe : ConLeche.FEnv) (d : Nat) (e : ConLeche.Expr) (lst : CState) :
+    ((knot mode lfe 0).annotate d e).run lst
+      = .error (.internal "fuel exhausted: annotate") := rfl
+
+open ConLeche.Cached in
+theorem knot_zero_inferIO (mode : env.CheckMode) (lfe : ConLeche.FEnv) (d : Nat) (e : ConLeche.Expr) (lst : CState) :
+    ((knot mode lfe 0).inferIO d e).run lst
+      = .error (.internal "fuel exhausted: infer") := rfl
 
 theorem wrappers_zero (mode : env.CheckMode) : Wrappers mode 0#u64 := by
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-  · intro st fe d e r st' _ _ _ h
+  · intro st fe d e oc st' _ _ _ h lst lfe _ _
     rw [cached.core_c.whnf_core.eq_def] at h; simp at h
-  · intro st fe d e r st' _ _ _ h
+    obtain ⟨v, _, ce, hce, ho, _⟩ := h
+    have hce' : ce = .Internal v := by
+      rw [core_types.internal] at hce; exact (Result.ok_injective hce).symm
+    subst hce'
+    rw [← ho]
+    exact ErrSim.internal (knot_zero_whnfCore mode lfe d.val (absExpr e) lst)
+  · intro st fe d e oc st' _ _ _ h lst lfe _ _
     rw [cached.core_c.whnf.eq_def] at h; simp at h
-  · intro st fe d e r st' _ _ _ h
+    obtain ⟨v, _, ce, hce, ho, _⟩ := h
+    have hce' : ce = .Internal v := by
+      rw [core_types.internal] at hce; exact (Result.ok_injective hce).symm
+    subst hce'
+    rw [← ho]
+    exact ErrSim.internal (knot_zero_whnf mode lfe d.val (absExpr e) lst)
+  · intro st fe d e oc st' _ _ _ h lst lfe _ _
     rw [cached.core_c.infer.eq_def] at h; simp at h
-  · intro st fe d a b r st' _ _ _ _ h
+    obtain ⟨v, _, ce, hce, ho, _⟩ := h
+    have hce' : ce = .Internal v := by
+      rw [core_types.internal] at hce; exact (Result.ok_injective hce).symm
+    subst hce'
+    rw [← ho]
+    exact ErrSim.internal (knot_zero_infer mode lfe d.val (absExpr e) lst)
+  · intro st fe d a b oc st' _ _ _ _ h lst lfe _ _
     rw [cached.core_c.defeq.eq_def] at h; simp at h
-  · intro st fe d e r st' _ _ _ h
+    obtain ⟨v, _, ce, hce, ho, _⟩ := h
+    have hce' : ce = .Internal v := by
+      rw [core_types.internal] at hce; exact (Result.ok_injective hce).symm
+    subst hce'
+    rw [← ho]
+    exact ErrSim.internal (knot_zero_defeq mode lfe d.val (absExpr a) (absExpr b) lst)
+  · intro st fe d e oc st' _ _ _ h lst lfe _ _
     rw [cached.core_c.annotate.eq_def] at h; simp at h
-  · intro st fe d e r st' _ _ _ h
+    obtain ⟨v, _, ce, hce, ho, _⟩ := h
+    have hce' : ce = .Internal v := by
+      rw [core_types.internal] at hce; exact (Result.ok_injective hce).symm
+    subst hce'
+    rw [← ho]
+    exact ErrSim.internal (knot_zero_annotate mode lfe d.val (absExpr e) lst)
+  · intro st fe d e oc st' _ _ _ h lst lfe _ _
     rw [cached.core_c.infer_io.eq_def] at h; simp at h
+    obtain ⟨v, _, ce, hce, ho, _⟩ := h
+    have hce' : ce = .Internal v := by
+      rw [core_types.internal] at hce; exact (Result.ok_injective hce).symm
+    subst hce'
+    rw [← ho]
+    exact ErrSim.internal (knot_zero_inferIO mode lfe d.val (absExpr e) lst)
 
 /-! ## Fuel `n + 1`: the memo argument -/
 
@@ -243,7 +338,13 @@ theorem fuel_pred {fuel fuel' i : Std.U64} (hf : fuel'.val = fuel.val + 1)
 con-leche's knot at `fuel + 1`, given the six bodies at `fuel`.  One proof
 per wrapper, each the same three moves: unfold past the fuel test, split on
 the probe, and — on a miss — the body lemma at `fuel` followed by the map's
-insert lemma. -/
+insert lemma.
+
+Task #67 splits each wrapper into its two halves with `RefinesE.mk'` /
+`RefinesB.mk'`.  The **accept** half is the pre-#67 proof, word for word.  The
+**failure** half is new and short: a probe *hit* cannot throw (the Rust
+returns `.Ok v`), and on a miss the body's error is the wrapper's error —
+neither side writes the memo (`memoEI_run_err`, `memoBI_run_err`). -/
 theorem wrappers_succ {mode : env.CheckMode} {fuel fuel' : Std.U64}
     (hf : fuel'.val = fuel.val + 1) (hbd : Bodies mode fuel) :
     Wrappers mode fuel' := by
@@ -251,229 +352,19 @@ theorem wrappers_succ {mode : env.CheckMode} {fuel fuel' : Std.U64}
     intro hc; rw [hc] at hf; simp at hf
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
   -- `whnfCore`, memoized in `whnfCoreC`
-  · intro st fe d e r st' hst hfe he h lst lfe hrel hfrel
-    rw [cached.core_c.whnf_core.eq_def, if_neg hne] at h
-    simp only [bind_eq_ok_iff] at h
-    obtain ⟨o, hprobe, h⟩ := h
-    obtain ⟨hlook, hwfo⟩ := whnf_core_probe_refines hrel hst he hprobe
-    cases o with
-    | some v =>
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
-      obtain ⟨hrv, hstv⟩ := h
-      subst hrv; subst hstv
-      refine ⟨lst, ?_, hrel, hst, hwfo v rfl⟩
-      simp only [hf, knot_succ_whnfCore]
-      exact memoEI_run_hit (by simpa using hlook.symm)
-    | none =>
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨i, hi, p, hbody, h⟩ := h
-      obtain ⟨rr, st1⟩ := p
-      have h2 : (match rr with
-          | core.result.Result.Ok r1 => do
-            let e1 ← kernel.expr.dup e
-            let e2 ← kernel.expr.dup r1
-            let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.whnf_core_c e1 e2
-            ok (rr, { st1 with whnf_core_c := q.2 })
-          | core.result.Result.Err _ => ok (rr, st1))
-          = ok (core.result.Result.Ok r, st') := h
-      clear h
-      cases rr with
-      | Err ce => simp at h2
-      | Ok r1 =>
-        simp only [expr_dup_eq, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq, exists_eq_left'] at h2
-        obtain ⟨q, hins, hr1, hst'⟩ := h2
-        subst hr1; subst hst'
-        have hif := fuel_pred hf hi; subst hif
-        obtain ⟨lst1, hrun, hrel1, hwf1, hwfr⟩ :=
-          hbd.whnfCore st fe d e r1 st1 hst hfe he hbody lst lfe hrel hfrel
-        obtain ⟨hrel2, hwf2⟩ := whnf_core_c_insert_refines hrel1 hwf1 he hwfr hins
-        refine ⟨_, ?_, hrel2, hwf2, hwfr⟩
-        simp only [hf, knot_succ_whnfCore]
-        exact memoEI_run_miss (by simpa using hlook.symm) hrun rfl
-  -- `whnf`, memoized in `whnfC`
-  · intro st fe d e r st' hst hfe he h lst lfe hrel hfrel
-    rw [cached.core_c.whnf.eq_def, if_neg hne] at h
-    simp only [bind_eq_ok_iff] at h
-    obtain ⟨o, hprobe, h⟩ := h
-    obtain ⟨hlook, hwfo⟩ := whnf_probe_refines hrel hst he hprobe
-    cases o with
-    | some v =>
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
-      obtain ⟨hrv, hstv⟩ := h
-      subst hrv; subst hstv
-      refine ⟨lst, ?_, hrel, hst, hwfo v rfl⟩
-      simp only [hf, knot_succ_whnf]
-      exact memoEI_run_hit (by simpa using hlook.symm)
-    | none =>
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨i, hi, p, hbody, h⟩ := h
-      obtain ⟨rr, st1⟩ := p
-      have h2 : (match rr with
-          | core.result.Result.Ok r1 => do
-            let e1 ← kernel.expr.dup e
-            let e2 ← kernel.expr.dup r1
-            let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.whnf_c e1 e2
-            ok (rr, { st1 with whnf_c := q.2 })
-          | core.result.Result.Err _ => ok (rr, st1))
-          = ok (core.result.Result.Ok r, st') := h
-      clear h
-      cases rr with
-      | Err ce => simp at h2
-      | Ok r1 =>
-        simp only [expr_dup_eq, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq, exists_eq_left'] at h2
-        obtain ⟨q, hins, hr1, hst'⟩ := h2
-        subst hr1; subst hst'
-        have hif := fuel_pred hf hi; subst hif
-        obtain ⟨lst1, hrun, hrel1, hwf1, hwfr⟩ :=
-          hbd.whnf st fe d e r1 st1 hst hfe he hbody lst lfe hrel hfrel
-        obtain ⟨hrel2, hwf2⟩ := whnf_c_insert_refines hrel1 hwf1 he hwfr hins
-        refine ⟨_, ?_, hrel2, hwf2, hwfr⟩
-        simp only [hf, knot_succ_whnf]
-        exact memoEI_run_miss (by simpa using hlook.symm) hrun rfl
-  -- `infer`, memoized in `inferC`; the body runs at the full grade (`io = false`)
-  · intro st fe d e r st' hst hfe he h lst lfe hrel hfrel
-    rw [cached.core_c.infer.eq_def, if_neg hne] at h
-    simp only [bind_eq_ok_iff] at h
-    obtain ⟨o, hprobe, h⟩ := h
-    obtain ⟨hlook, hwfo⟩ := infer_probe_refines hrel hst he hprobe
-    cases o with
-    | some v =>
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
-      obtain ⟨hrv, hstv⟩ := h
-      subst hrv; subst hstv
-      refine ⟨lst, ?_, hrel, hst, hwfo v rfl⟩
-      simp only [hf, knot_succ_infer]
-      exact memoEI_run_hit (by simpa using hlook.symm)
-    | none =>
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨i, hi, p, hbody, h⟩ := h
-      obtain ⟨rr, st1⟩ := p
-      have h2 : (match rr with
-          | core.result.Result.Ok r1 => do
-            let e1 ← kernel.expr.dup e
-            let e2 ← kernel.expr.dup r1
-            let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.infer_c e1 e2
-            ok (rr, { st1 with infer_c := q.2 })
-          | core.result.Result.Err _ => ok (rr, st1))
-          = ok (core.result.Result.Ok r, st') := h
-      clear h
-      cases rr with
-      | Err ce => simp at h2
-      | Ok r1 =>
-        simp only [expr_dup_eq, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq, exists_eq_left'] at h2
-        obtain ⟨q, hins, hr1, hst'⟩ := h2
-        subst hr1; subst hst'
-        have hif := fuel_pred hf hi; subst hif
-        obtain ⟨lst1, hrun, hrel1, hwf1, hwfr⟩ :=
-          hbd.infer st fe d e r1 st1 hst hfe he hbody lst lfe hrel hfrel
-        obtain ⟨hrel2, hwf2⟩ := infer_c_insert_refines hrel1 hwf1 he hwfr hins
-        refine ⟨_, ?_, hrel2, hwf2, hwfr⟩
-        simp only [hf, knot_succ_infer]
-        exact memoEI_run_miss (by simpa using hlook.symm) hrun rfl
-  -- `defeq`, memoized in `defeqC` under the pair key (`memoBI`)
-  · intro st fe d a b r st' hst hfe ha hbb h lst lfe hrel hfrel
-    rw [cached.core_c.defeq.eq_def, if_neg hne] at h
-    simp only [expr_dup_eq, bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h
-    obtain ⟨o, hprobe, h⟩ := h
-    have hk : ExprPairWF (a, b) := ⟨ha, hbb⟩
-    have hlook := defeq_probe_refines hrel hst hk hprobe
-    cases o with
-    | some v =>
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
-      obtain ⟨hrv, hstv⟩ := h
-      subst hrv; subst hstv
-      refine ⟨lst, ?_, hrel, hst⟩
-      simp only [hf, knot_succ_defeq]
-      exact memoBI_run_hit (by simpa [absExprPair] using hlook.symm)
-    | none =>
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨i, hi, p, hbody, h⟩ := h
-      obtain ⟨rr, st1⟩ := p
-      have h2 : (match rr with
-          | core.result.Result.Ok r1 => do
-            let q ← ron.hashmap.HashMap.insert hExprPair eExprPair st1.defeq_c (a, b) r1
-            ok (rr, { st1 with defeq_c := q.2 })
-          | core.result.Result.Err _ => ok (rr, st1))
-          = ok (core.result.Result.Ok r, st') := h
-      clear h
-      cases rr with
-      | Err ce => simp at h2
-      | Ok r1 =>
-        simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq] at h2
-        obtain ⟨q, hins, hr1, hst'⟩ := h2
-        subst hr1; subst hst'
-        have hif := fuel_pred hf hi; subst hif
-        obtain ⟨lst1, hrun, hrel1, hwf1⟩ :=
-          hbd.defeq st fe d a b r1 st1 hst hfe ha hbb hbody lst lfe hrel hfrel
-        obtain ⟨hrel2, hwf2⟩ := defeq_c_insert_refines hrel1 hwf1 hk hins
-        refine ⟨_, ?_, hrel2, hwf2⟩
-        simp only [hf, knot_succ_defeq]
-        exact memoBI_run_miss (by simpa [absExprPair] using hlook.symm) hrun
-  -- `annotate`, memoized in `annotC`
-  · intro st fe d e r st' hst hfe he h lst lfe hrel hfrel
-    rw [cached.core_c.annotate.eq_def, if_neg hne] at h
-    simp only [bind_eq_ok_iff] at h
-    obtain ⟨o, hprobe, h⟩ := h
-    obtain ⟨hlook, hwfo⟩ := annot_probe_refines hrel hst he hprobe
-    cases o with
-    | some v =>
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
-      obtain ⟨hrv, hstv⟩ := h
-      subst hrv; subst hstv
-      refine ⟨lst, ?_, hrel, hst, hwfo v rfl⟩
-      simp only [hf, knot_succ_annotate]
-      exact memoEI_run_hit (by simpa using hlook.symm)
-    | none =>
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨i, hi, p, hbody, h⟩ := h
-      obtain ⟨rr, st1⟩ := p
-      have h2 : (match rr with
-          | core.result.Result.Ok r1 => do
-            let e1 ← kernel.expr.dup e
-            let e2 ← kernel.expr.dup r1
-            let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.annot_c e1 e2
-            ok (rr, { st1 with annot_c := q.2 })
-          | core.result.Result.Err _ => ok (rr, st1))
-          = ok (core.result.Result.Ok r, st') := h
-      clear h
-      cases rr with
-      | Err ce => simp at h2
-      | Ok r1 =>
-        simp only [expr_dup_eq, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq, exists_eq_left'] at h2
-        obtain ⟨q, hins, hr1, hst'⟩ := h2
-        subst hr1; subst hst'
-        have hif := fuel_pred hf hi; subst hif
-        obtain ⟨lst1, hrun, hrel1, hwf1, hwfr⟩ :=
-          hbd.annotate st fe d e r1 st1 hst hfe he hbody lst lfe hrel hfrel
-        obtain ⟨hrel2, hwf2⟩ := annot_c_insert_refines hrel1 hwf1 he hwfr hins
-        refine ⟨_, ?_, hrel2, hwf2, hwfr⟩
-        simp only [hf, knot_succ_annotate]
-        exact memoEI_run_miss (by simpa using hlook.symm) hrun rfl
-  -- `inferIO`: the gate picks the map and the body, exactly as the Lean's
-  -- `if mode.ioGate then … else …` does
-  · intro st fe d e r st' hst hfe he h lst lfe hrel hfrel
-    rw [cached.core_c.infer_io.eq_def, if_neg hne] at h
-    simp only [bind_eq_ok_iff] at h
-    obtain ⟨gate, hgate, h⟩ := h
-    have hgb : gate = (absMode mode).ioGate := Env.io_gate_refines hgate
-    cases gate with
-    | true =>
-      rw [if_pos rfl] at h
+  · refine RefinesE.mk' ?_ ?_
+    · intro st fe d e r st' hst hfe he h lst lfe hrel hfrel
+      rw [cached.core_c.whnf_core.eq_def, if_neg hne] at h
       simp only [bind_eq_ok_iff] at h
       obtain ⟨o, hprobe, h⟩ := h
-      obtain ⟨hlook, hwfo⟩ := infer_io_probe_refines hrel hst he hprobe
+      obtain ⟨hlook, hwfo⟩ := whnf_core_probe_refines hrel hst he hprobe
       cases o with
       | some v =>
         simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
         obtain ⟨hrv, hstv⟩ := h
         subst hrv; subst hstv
         refine ⟨lst, ?_, hrel, hst, hwfo v rfl⟩
-        simp only [hf, knot_succ_inferIO, ← hgb, reduceIte]
+        simp only [hf, knot_succ_whnfCore]
         exact memoEI_run_hit (by simpa using hlook.symm)
       | none =>
         simp only [bind_eq_ok_iff] at h
@@ -483,8 +374,8 @@ theorem wrappers_succ {mode : env.CheckMode} {fuel fuel' : Std.U64}
             | core.result.Result.Ok r1 => do
               let e1 ← kernel.expr.dup e
               let e2 ← kernel.expr.dup r1
-              let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.infer_io_c e1 e2
-              ok (rr, { st1 with infer_io_c := q.2 })
+              let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.whnf_core_c e1 e2
+              ok (rr, { st1 with whnf_core_c := q.2 })
             | core.result.Result.Err _ => ok (rr, st1))
             = ok (core.result.Result.Ok r, st') := h
         clear h
@@ -497,13 +388,123 @@ theorem wrappers_succ {mode : env.CheckMode} {fuel fuel' : Std.U64}
           subst hr1; subst hst'
           have hif := fuel_pred hf hi; subst hif
           obtain ⟨lst1, hrun, hrel1, hwf1, hwfr⟩ :=
-            hbd.inferIO st fe d e r1 st1 hst hfe he hbody lst lfe hrel hfrel
-          obtain ⟨hrel2, hwf2⟩ := infer_io_c_insert_refines hrel1 hwf1 he hwfr hins
+            hbd.whnfCore.ok st fe d e r1 st1 hst hfe he hbody lst lfe hrel hfrel
+          obtain ⟨hrel2, hwf2⟩ := whnf_core_c_insert_refines hrel1 hwf1 he hwfr hins
           refine ⟨_, ?_, hrel2, hwf2, hwfr⟩
-          simp only [hf, knot_succ_inferIO, ← hgb, reduceIte]
+          simp only [hf, knot_succ_whnfCore]
           exact memoEI_run_miss (by simpa using hlook.symm) hrun rfl
-    | false =>
-      rw [if_neg (by simp)] at h
+    · intro st fe d e ce st' hst hfe he h lst lfe hrel hfrel
+      rw [cached.core_c.whnf_core.eq_def, if_neg hne] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨o, hprobe, h⟩ := h
+      obtain ⟨hlook, _⟩ := whnf_core_probe_refines hrel hst he hprobe
+      cases o with
+      | some v => simp at h
+      | none =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨i, hi, p, hbody, h⟩ := h
+        obtain ⟨rr, st1⟩ := p
+        have h2 : (match rr with
+            | core.result.Result.Ok r1 => do
+              let e1 ← kernel.expr.dup e
+              let e2 ← kernel.expr.dup r1
+              let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.whnf_core_c e1 e2
+              ok (rr, { st1 with whnf_core_c := q.2 })
+            | core.result.Result.Err _ => ok (rr, st1))
+            = ok (core.result.Result.Err ce, st') := h
+        clear h
+        have hif := fuel_pred hf hi; subst hif
+        cases rr with
+        | Ok r1 => simp [expr_dup_eq] at h2
+        | Err ce1 =>
+          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Err.injEq] at h2
+          obtain ⟨hce, _⟩ := h2
+          subst hce
+          refine ErrSim.trans
+            (hbd.whnfCore.err st fe d e ce1 st1 hst hfe he hbody lst lfe hrel hfrel) ?_
+          intro le hle
+          simp only [hf, knot_succ_whnfCore]
+          exact memoEI_run_err (by simpa using hlook.symm) hle
+
+  -- `whnf`, memoized in `whnfC`
+  · refine RefinesE.mk' ?_ ?_
+    · intro st fe d e r st' hst hfe he h lst lfe hrel hfrel
+      rw [cached.core_c.whnf.eq_def, if_neg hne] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨o, hprobe, h⟩ := h
+      obtain ⟨hlook, hwfo⟩ := whnf_probe_refines hrel hst he hprobe
+      cases o with
+      | some v =>
+        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+        obtain ⟨hrv, hstv⟩ := h
+        subst hrv; subst hstv
+        refine ⟨lst, ?_, hrel, hst, hwfo v rfl⟩
+        simp only [hf, knot_succ_whnf]
+        exact memoEI_run_hit (by simpa using hlook.symm)
+      | none =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨i, hi, p, hbody, h⟩ := h
+        obtain ⟨rr, st1⟩ := p
+        have h2 : (match rr with
+            | core.result.Result.Ok r1 => do
+              let e1 ← kernel.expr.dup e
+              let e2 ← kernel.expr.dup r1
+              let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.whnf_c e1 e2
+              ok (rr, { st1 with whnf_c := q.2 })
+            | core.result.Result.Err _ => ok (rr, st1))
+            = ok (core.result.Result.Ok r, st') := h
+        clear h
+        cases rr with
+        | Err ce => simp at h2
+        | Ok r1 =>
+          simp only [expr_dup_eq, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
+            core.result.Result.Ok.injEq, exists_eq_left'] at h2
+          obtain ⟨q, hins, hr1, hst'⟩ := h2
+          subst hr1; subst hst'
+          have hif := fuel_pred hf hi; subst hif
+          obtain ⟨lst1, hrun, hrel1, hwf1, hwfr⟩ :=
+            hbd.whnf.ok st fe d e r1 st1 hst hfe he hbody lst lfe hrel hfrel
+          obtain ⟨hrel2, hwf2⟩ := whnf_c_insert_refines hrel1 hwf1 he hwfr hins
+          refine ⟨_, ?_, hrel2, hwf2, hwfr⟩
+          simp only [hf, knot_succ_whnf]
+          exact memoEI_run_miss (by simpa using hlook.symm) hrun rfl
+    · intro st fe d e ce st' hst hfe he h lst lfe hrel hfrel
+      rw [cached.core_c.whnf.eq_def, if_neg hne] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨o, hprobe, h⟩ := h
+      obtain ⟨hlook, _⟩ := whnf_probe_refines hrel hst he hprobe
+      cases o with
+      | some v => simp at h
+      | none =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨i, hi, p, hbody, h⟩ := h
+        obtain ⟨rr, st1⟩ := p
+        have h2 : (match rr with
+            | core.result.Result.Ok r1 => do
+              let e1 ← kernel.expr.dup e
+              let e2 ← kernel.expr.dup r1
+              let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.whnf_c e1 e2
+              ok (rr, { st1 with whnf_c := q.2 })
+            | core.result.Result.Err _ => ok (rr, st1))
+            = ok (core.result.Result.Err ce, st') := h
+        clear h
+        have hif := fuel_pred hf hi; subst hif
+        cases rr with
+        | Ok r1 => simp [expr_dup_eq] at h2
+        | Err ce1 =>
+          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Err.injEq] at h2
+          obtain ⟨hce, _⟩ := h2
+          subst hce
+          refine ErrSim.trans
+            (hbd.whnf.err st fe d e ce1 st1 hst hfe he hbody lst lfe hrel hfrel) ?_
+          intro le hle
+          simp only [hf, knot_succ_whnf]
+          exact memoEI_run_err (by simpa using hlook.symm) hle
+
+  -- `infer`, memoized in `inferC`; the body runs at the full grade (`io = false`)
+  · refine RefinesE.mk' ?_ ?_
+    · intro st fe d e r st' hst hfe he h lst lfe hrel hfrel
+      rw [cached.core_c.infer.eq_def, if_neg hne] at h
       simp only [bind_eq_ok_iff] at h
       obtain ⟨o, hprobe, h⟩ := h
       obtain ⟨hlook, hwfo⟩ := infer_probe_refines hrel hst he hprobe
@@ -513,7 +514,7 @@ theorem wrappers_succ {mode : env.CheckMode} {fuel fuel' : Std.U64}
         obtain ⟨hrv, hstv⟩ := h
         subst hrv; subst hstv
         refine ⟨lst, ?_, hrel, hst, hwfo v rfl⟩
-        simp only [hf, knot_succ_inferIO, ← hgb, Bool.false_eq_true, if_false]
+        simp only [hf, knot_succ_infer]
         exact memoEI_run_hit (by simpa using hlook.symm)
       | none =>
         simp only [bind_eq_ok_iff] at h
@@ -537,12 +538,351 @@ theorem wrappers_succ {mode : env.CheckMode} {fuel fuel' : Std.U64}
           subst hr1; subst hst'
           have hif := fuel_pred hf hi; subst hif
           obtain ⟨lst1, hrun, hrel1, hwf1, hwfr⟩ :=
-            hbd.infer st fe d e r1 st1 hst hfe he hbody lst lfe hrel hfrel
+            hbd.infer.ok st fe d e r1 st1 hst hfe he hbody lst lfe hrel hfrel
           obtain ⟨hrel2, hwf2⟩ := infer_c_insert_refines hrel1 hwf1 he hwfr hins
           refine ⟨_, ?_, hrel2, hwf2, hwfr⟩
-          simp only [hf, knot_succ_inferIO, ← hgb, Bool.false_eq_true, if_false]
+          simp only [hf, knot_succ_infer]
           exact memoEI_run_miss (by simpa using hlook.symm) hrun rfl
+    · intro st fe d e ce st' hst hfe he h lst lfe hrel hfrel
+      rw [cached.core_c.infer.eq_def, if_neg hne] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨o, hprobe, h⟩ := h
+      obtain ⟨hlook, _⟩ := infer_probe_refines hrel hst he hprobe
+      cases o with
+      | some v => simp at h
+      | none =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨i, hi, p, hbody, h⟩ := h
+        obtain ⟨rr, st1⟩ := p
+        have h2 : (match rr with
+            | core.result.Result.Ok r1 => do
+              let e1 ← kernel.expr.dup e
+              let e2 ← kernel.expr.dup r1
+              let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.infer_c e1 e2
+              ok (rr, { st1 with infer_c := q.2 })
+            | core.result.Result.Err _ => ok (rr, st1))
+            = ok (core.result.Result.Err ce, st') := h
+        clear h
+        have hif := fuel_pred hf hi; subst hif
+        cases rr with
+        | Ok r1 => simp [expr_dup_eq] at h2
+        | Err ce1 =>
+          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Err.injEq] at h2
+          obtain ⟨hce, _⟩ := h2
+          subst hce
+          refine ErrSim.trans
+            (hbd.infer.err st fe d e ce1 st1 hst hfe he hbody lst lfe hrel hfrel) ?_
+          intro le hle
+          simp only [hf, knot_succ_infer]
+          exact memoEI_run_err (by simpa using hlook.symm) hle
 
+  -- `defeq`, memoized in `defeqC` under the pair key (`memoBI`)
+  · refine RefinesB.mk' ?_ ?_
+    · intro st fe d a b r st' hst hfe ha hbb h lst lfe hrel hfrel
+      rw [cached.core_c.defeq.eq_def, if_neg hne] at h
+      simp only [expr_dup_eq, bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h
+      obtain ⟨o, hprobe, h⟩ := h
+      have hk : ExprPairWF (a, b) := ⟨ha, hbb⟩
+      have hlook := defeq_probe_refines hrel hst hk hprobe
+      cases o with
+      | some v =>
+        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+        obtain ⟨hrv, hstv⟩ := h
+        subst hrv; subst hstv
+        refine ⟨lst, ?_, hrel, hst⟩
+        simp only [hf, knot_succ_defeq]
+        exact memoBI_run_hit (by simpa [absExprPair] using hlook.symm)
+      | none =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨i, hi, p, hbody, h⟩ := h
+        obtain ⟨rr, st1⟩ := p
+        have h2 : (match rr with
+            | core.result.Result.Ok r1 => do
+              let q ← ron.hashmap.HashMap.insert hExprPair eExprPair st1.defeq_c (a, b) r1
+              ok (rr, { st1 with defeq_c := q.2 })
+            | core.result.Result.Err _ => ok (rr, st1))
+            = ok (core.result.Result.Ok r, st') := h
+        clear h
+        cases rr with
+        | Err ce => simp at h2
+        | Ok r1 =>
+          simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
+            core.result.Result.Ok.injEq] at h2
+          obtain ⟨q, hins, hr1, hst'⟩ := h2
+          subst hr1; subst hst'
+          have hif := fuel_pred hf hi; subst hif
+          obtain ⟨lst1, hrun, hrel1, hwf1⟩ :=
+            hbd.defeq.ok st fe d a b r1 st1 hst hfe ha hbb hbody lst lfe hrel hfrel
+          obtain ⟨hrel2, hwf2⟩ := defeq_c_insert_refines hrel1 hwf1 hk hins
+          refine ⟨_, ?_, hrel2, hwf2⟩
+          simp only [hf, knot_succ_defeq]
+          exact memoBI_run_miss (by simpa [absExprPair] using hlook.symm) hrun
+    · intro st fe d a b ce st' hst hfe ha hbb h lst lfe hrel hfrel
+      rw [cached.core_c.defeq.eq_def, if_neg hne] at h
+      simp only [expr_dup_eq, bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h
+      obtain ⟨o, hprobe, h⟩ := h
+      have hk : ExprPairWF (a, b) := ⟨ha, hbb⟩
+      have hlook := defeq_probe_refines hrel hst hk hprobe
+      cases o with
+      | some v => simp at h
+      | none =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨i, hi, p, hbody, h⟩ := h
+        obtain ⟨rr, st1⟩ := p
+        have h2 : (match rr with
+            | core.result.Result.Ok r1 => do
+              let q ← ron.hashmap.HashMap.insert hExprPair eExprPair st1.defeq_c (a, b) r1
+              ok (rr, { st1 with defeq_c := q.2 })
+            | core.result.Result.Err _ => ok (rr, st1))
+            = ok (core.result.Result.Err ce, st') := h
+        clear h
+        have hif := fuel_pred hf hi; subst hif
+        cases rr with
+        | Ok r1 => simp at h2
+        | Err ce1 =>
+          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Err.injEq] at h2
+          obtain ⟨hce, _⟩ := h2
+          subst hce
+          refine ErrSim.trans
+            (hbd.defeq.err st fe d a b ce1 st1 hst hfe ha hbb hbody lst lfe hrel hfrel) ?_
+          intro le hle
+          simp only [hf, knot_succ_defeq]
+          exact memoBI_run_err (by simpa [absExprPair] using hlook.symm) hle
+
+  -- `annotate`, memoized in `annotC`
+  · refine RefinesE.mk' ?_ ?_
+    · intro st fe d e r st' hst hfe he h lst lfe hrel hfrel
+      rw [cached.core_c.annotate.eq_def, if_neg hne] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨o, hprobe, h⟩ := h
+      obtain ⟨hlook, hwfo⟩ := annot_probe_refines hrel hst he hprobe
+      cases o with
+      | some v =>
+        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+        obtain ⟨hrv, hstv⟩ := h
+        subst hrv; subst hstv
+        refine ⟨lst, ?_, hrel, hst, hwfo v rfl⟩
+        simp only [hf, knot_succ_annotate]
+        exact memoEI_run_hit (by simpa using hlook.symm)
+      | none =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨i, hi, p, hbody, h⟩ := h
+        obtain ⟨rr, st1⟩ := p
+        have h2 : (match rr with
+            | core.result.Result.Ok r1 => do
+              let e1 ← kernel.expr.dup e
+              let e2 ← kernel.expr.dup r1
+              let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.annot_c e1 e2
+              ok (rr, { st1 with annot_c := q.2 })
+            | core.result.Result.Err _ => ok (rr, st1))
+            = ok (core.result.Result.Ok r, st') := h
+        clear h
+        cases rr with
+        | Err ce => simp at h2
+        | Ok r1 =>
+          simp only [expr_dup_eq, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
+            core.result.Result.Ok.injEq, exists_eq_left'] at h2
+          obtain ⟨q, hins, hr1, hst'⟩ := h2
+          subst hr1; subst hst'
+          have hif := fuel_pred hf hi; subst hif
+          obtain ⟨lst1, hrun, hrel1, hwf1, hwfr⟩ :=
+            hbd.annotate.ok st fe d e r1 st1 hst hfe he hbody lst lfe hrel hfrel
+          obtain ⟨hrel2, hwf2⟩ := annot_c_insert_refines hrel1 hwf1 he hwfr hins
+          refine ⟨_, ?_, hrel2, hwf2, hwfr⟩
+          simp only [hf, knot_succ_annotate]
+          exact memoEI_run_miss (by simpa using hlook.symm) hrun rfl
+    -- `if mode.ioGate then … else …` does
+    · intro st fe d e ce st' hst hfe he h lst lfe hrel hfrel
+      rw [cached.core_c.annotate.eq_def, if_neg hne] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨o, hprobe, h⟩ := h
+      obtain ⟨hlook, _⟩ := annot_probe_refines hrel hst he hprobe
+      cases o with
+      | some v => simp at h
+      | none =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨i, hi, p, hbody, h⟩ := h
+        obtain ⟨rr, st1⟩ := p
+        have h2 : (match rr with
+            | core.result.Result.Ok r1 => do
+              let e1 ← kernel.expr.dup e
+              let e2 ← kernel.expr.dup r1
+              let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.annot_c e1 e2
+              ok (rr, { st1 with annot_c := q.2 })
+            | core.result.Result.Err _ => ok (rr, st1))
+            = ok (core.result.Result.Err ce, st') := h
+        clear h
+        have hif := fuel_pred hf hi; subst hif
+        cases rr with
+        | Ok r1 => simp [expr_dup_eq] at h2
+        | Err ce1 =>
+          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Err.injEq] at h2
+          obtain ⟨hce, _⟩ := h2
+          subst hce
+          refine ErrSim.trans
+            (hbd.annotate.err st fe d e ce1 st1 hst hfe he hbody lst lfe hrel hfrel) ?_
+          intro le hle
+          simp only [hf, knot_succ_annotate]
+          exact memoEI_run_err (by simpa using hlook.symm) hle
+
+  -- `inferIO`: the gate picks the map and the body, exactly as the Lean's
+  · refine RefinesE.mk' ?_ ?_
+    · intro st fe d e r st' hst hfe he h lst lfe hrel hfrel
+      rw [cached.core_c.infer_io.eq_def, if_neg hne] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨gate, hgate, h⟩ := h
+      have hgb : gate = (absMode mode).ioGate := Env.io_gate_refines hgate
+      cases gate with
+      | true =>
+        rw [if_pos rfl] at h
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨o, hprobe, h⟩ := h
+        obtain ⟨hlook, hwfo⟩ := infer_io_probe_refines hrel hst he hprobe
+        cases o with
+        | some v =>
+          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+          obtain ⟨hrv, hstv⟩ := h
+          subst hrv; subst hstv
+          refine ⟨lst, ?_, hrel, hst, hwfo v rfl⟩
+          simp only [hf, knot_succ_inferIO, ← hgb, reduceIte]
+          exact memoEI_run_hit (by simpa using hlook.symm)
+        | none =>
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨i, hi, p, hbody, h⟩ := h
+          obtain ⟨rr, st1⟩ := p
+          have h2 : (match rr with
+              | core.result.Result.Ok r1 => do
+                let e1 ← kernel.expr.dup e
+                let e2 ← kernel.expr.dup r1
+                let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.infer_io_c e1 e2
+                ok (rr, { st1 with infer_io_c := q.2 })
+              | core.result.Result.Err _ => ok (rr, st1))
+              = ok (core.result.Result.Ok r, st') := h
+          clear h
+          cases rr with
+          | Err ce => simp at h2
+          | Ok r1 =>
+            simp only [expr_dup_eq, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
+              core.result.Result.Ok.injEq, exists_eq_left'] at h2
+            obtain ⟨q, hins, hr1, hst'⟩ := h2
+            subst hr1; subst hst'
+            have hif := fuel_pred hf hi; subst hif
+            obtain ⟨lst1, hrun, hrel1, hwf1, hwfr⟩ :=
+              hbd.inferIO.ok st fe d e r1 st1 hst hfe he hbody lst lfe hrel hfrel
+            obtain ⟨hrel2, hwf2⟩ := infer_io_c_insert_refines hrel1 hwf1 he hwfr hins
+            refine ⟨_, ?_, hrel2, hwf2, hwfr⟩
+            simp only [hf, knot_succ_inferIO, ← hgb, reduceIte]
+            exact memoEI_run_miss (by simpa using hlook.symm) hrun rfl
+      | false =>
+        rw [if_neg (by simp)] at h
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨o, hprobe, h⟩ := h
+        obtain ⟨hlook, hwfo⟩ := infer_probe_refines hrel hst he hprobe
+        cases o with
+        | some v =>
+          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+          obtain ⟨hrv, hstv⟩ := h
+          subst hrv; subst hstv
+          refine ⟨lst, ?_, hrel, hst, hwfo v rfl⟩
+          simp only [hf, knot_succ_inferIO, ← hgb, Bool.false_eq_true, if_false]
+          exact memoEI_run_hit (by simpa using hlook.symm)
+        | none =>
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨i, hi, p, hbody, h⟩ := h
+          obtain ⟨rr, st1⟩ := p
+          have h2 : (match rr with
+              | core.result.Result.Ok r1 => do
+                let e1 ← kernel.expr.dup e
+                let e2 ← kernel.expr.dup r1
+                let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.infer_c e1 e2
+                ok (rr, { st1 with infer_c := q.2 })
+              | core.result.Result.Err _ => ok (rr, st1))
+              = ok (core.result.Result.Ok r, st') := h
+          clear h
+          cases rr with
+          | Err ce => simp at h2
+          | Ok r1 =>
+            simp only [expr_dup_eq, bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
+              core.result.Result.Ok.injEq, exists_eq_left'] at h2
+            obtain ⟨q, hins, hr1, hst'⟩ := h2
+            subst hr1; subst hst'
+            have hif := fuel_pred hf hi; subst hif
+            obtain ⟨lst1, hrun, hrel1, hwf1, hwfr⟩ :=
+              hbd.infer.ok st fe d e r1 st1 hst hfe he hbody lst lfe hrel hfrel
+            obtain ⟨hrel2, hwf2⟩ := infer_c_insert_refines hrel1 hwf1 he hwfr hins
+            refine ⟨_, ?_, hrel2, hwf2, hwfr⟩
+            simp only [hf, knot_succ_inferIO, ← hgb, Bool.false_eq_true, if_false]
+            exact memoEI_run_miss (by simpa using hlook.symm) hrun rfl
+    · intro st fe d e ce st' hst hfe he h lst lfe hrel hfrel
+      rw [cached.core_c.infer_io.eq_def, if_neg hne] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨gate, hgate, h⟩ := h
+      have hgb : gate = (absMode mode).ioGate := Env.io_gate_refines hgate
+      cases gate with
+      | true =>
+        rw [if_pos rfl] at h
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨o, hprobe, h⟩ := h
+        obtain ⟨hlook, _⟩ := infer_io_probe_refines hrel hst he hprobe
+        cases o with
+        | some v => simp at h
+        | none =>
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨i, hi, p, hbody, h⟩ := h
+          obtain ⟨rr, st1⟩ := p
+          have h2 : (match rr with
+              | core.result.Result.Ok r1 => do
+                let e1 ← kernel.expr.dup e
+                let e2 ← kernel.expr.dup r1
+                let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.infer_io_c e1 e2
+                ok (rr, { st1 with infer_io_c := q.2 })
+              | core.result.Result.Err _ => ok (rr, st1))
+              = ok (core.result.Result.Err ce, st') := h
+          clear h
+          have hif := fuel_pred hf hi; subst hif
+          cases rr with
+          | Ok r1 => simp [expr_dup_eq] at h2
+          | Err ce1 =>
+            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Err.injEq] at h2
+            obtain ⟨hce, _⟩ := h2
+            subst hce
+            refine ErrSim.trans
+              (hbd.inferIO.err st fe d e ce1 st1 hst hfe he hbody lst lfe hrel hfrel) ?_
+            intro le hle
+            simp only [hf, knot_succ_inferIO, ← hgb, reduceIte]
+            exact memoEI_run_err (by simpa using hlook.symm) hle
+      | false =>
+        rw [if_neg (by simp)] at h
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨o, hprobe, h⟩ := h
+        obtain ⟨hlook, _⟩ := infer_probe_refines hrel hst he hprobe
+        cases o with
+        | some v => simp at h
+        | none =>
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨i, hi, p, hbody, h⟩ := h
+          obtain ⟨rr, st1⟩ := p
+          have h2 : (match rr with
+              | core.result.Result.Ok r1 => do
+                let e1 ← kernel.expr.dup e
+                let e2 ← kernel.expr.dup r1
+                let q ← ron.hashmap.HashMap.insert hExpr eExpr st1.infer_c e1 e2
+                ok (rr, { st1 with infer_c := q.2 })
+              | core.result.Result.Err _ => ok (rr, st1))
+              = ok (core.result.Result.Err ce, st') := h
+          clear h
+          have hif := fuel_pred hf hi; subst hif
+          cases rr with
+          | Ok r1 => simp [expr_dup_eq] at h2
+          | Err ce1 =>
+            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Err.injEq] at h2
+            obtain ⟨hce, _⟩ := h2
+            subst hce
+            refine ErrSim.trans
+              (hbd.infer.err st fe d e ce1 st1 hst hfe he hbody lst lfe hrel hfrel) ?_
+            intro le hle
+            simp only [hf, knot_succ_inferIO, ← hgb, Bool.false_eq_true, if_false]
+            exact memoEI_run_err (by simpa using hlook.symm) hle
 /-! ## The induction
 
 `Nat.rec` on the fuel's value, exactly as task #5 did for

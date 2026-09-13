@@ -838,6 +838,18 @@ theorem OutP.err {α β : Type} {A : α → β} {WF : α → Prop}
     {e : kernel.core_types.CheckError} {x : Except ConLeche.CheckError β}
     (h : ErrSim e x) : OutP A WF (.Err e) x := h
 
+/-- **`ErrSim` transported forward**: whatever con-leche throws at `x`, it
+throws at `y` too.  This is the wrapper/caller move — a memo wrapper throws
+exactly what its body threw, a `do` block throws exactly what its first
+failing step threw — where `ErrSim.bind` is the special case in which `y` is
+literally `x >>= f`. -/
+theorem ErrSim.trans {γ δ : Type} {e : kernel.core_types.CheckError}
+    {x : Except ConLeche.CheckError γ} {y : Except ConLeche.CheckError δ}
+    (h : ErrSim e x) (hxy : ∀ le, x = .error le → y = .error le) : ErrSim e y := by
+  intro k hk
+  obtain ⟨le, hx, hk'⟩ := h k hk
+  exact ⟨le, hxy le hx, hk'⟩
+
 /-- `ErrSim` transported along an equation on the con-leche side, which is how
 a lemma proved against an unfolded body is used against the folded one. -/
 theorem ErrSim.of_eq {γ : Type} {e : kernel.core_types.CheckError}

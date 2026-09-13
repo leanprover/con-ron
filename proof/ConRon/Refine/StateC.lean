@@ -1376,6 +1376,16 @@ theorem constTyAtM_bind {lst : ConLeche.Cached.CState} {lfe : ConLeche.FEnv}
   simp [ConLeche.Cached.constTyAtM, hmiss, hfind, ConLeche.Cached.storedTyIdxM]
   split <;> rfl
 
+/-- `ConLeche/Cached/StateC.lean:349` — a `constTyAt` miss on a name the
+environment does not know: the cited `throw (.internal …)`. -/
+theorem constTyAtM_throw {lst : ConLeche.Cached.CState} {lfe : ConLeche.FEnv}
+    {nI n : ConLeche.Name} {us : List ConLeche.Level}
+    (hmiss : lst.constTyAt[(n, us)]? = none) (hfind : lfe.find? n = none) :
+    (ConLeche.Cached.constTyAtM lfe nI n us).run lst
+      = .error (.internal "constTyAtM: unknown constant") := by
+  simp [ConLeche.Cached.constTyAtM, hmiss, hfind]
+  rfl
+
 /-- `ConLeche/Cached/StateC.lean:352-353` — a `constValAt` hit. -/
 theorem constValAtM_hit {lst : ConLeche.Cached.CState} {lfe : ConLeche.FEnv}
     {nI n : ConLeche.Name} {us : List ConLeche.Level} {i : ConLeche.Expr}
@@ -1402,6 +1412,25 @@ theorem constValAtM_bind {lst : ConLeche.Cached.CState} {lfe : ConLeche.FEnv}
     ConLeche.Cached.storedValIdxM]
   split <;> rfl
 
+/-- `ConLeche/Cached/StateC.lean:366` — a `constValAt` miss on a name that is
+not a stored definition (unknown, or known at another constructor): the cited
+`| _ => throw (.internal …)`, one arm for both. -/
+theorem constValAtM_throw {lst : ConLeche.Cached.CState} {lfe : ConLeche.FEnv}
+    {nI n : ConLeche.Name} {us : List ConLeche.Level}
+    (hmiss : lst.constValAt[(n, us)]? = none)
+    (hfind : (lfe.find? n).bind
+        (fun ci => match ci with
+          | .defnInfo cv v _ => some (cv.levelParams, v)
+          | _ => none) = none) :
+    (ConLeche.Cached.constValAtM lfe nI n us).run lst
+      = .error (.internal "constValAtM: not a stored definition") := by
+  cases hx : lfe.find? n with
+  | none => simp [ConLeche.Cached.constValAtM, hmiss, hx]; rfl
+  | some ci =>
+    cases ci with
+    | defnInfo cv v hint => rw [hx] at hfind; simp at hfind
+    | _ => simp [ConLeche.Cached.constValAtM, hmiss, hx]; rfl
+
 /-- `ConLeche/Cached/StateC.lean:370-371` — a `ruleRhsAt` hit. -/
 theorem ruleRhsAtM_hit {lst : ConLeche.Cached.CState} {lfe : ConLeche.FEnv}
     {cI jI c j : ConLeche.Name} {us : List ConLeche.Level} {i : ConLeche.Expr}
@@ -1426,6 +1455,40 @@ theorem ruleRhsAtM_miss {lst : ConLeche.Cached.CState} {lfe : ConLeche.FEnv}
                    rl.rhs) }) := by
   simp [ConLeche.Cached.ruleRhsAtM, ConLeche.Cached.instLevelParamsM, modify,
     MonadStateOf.modifyGet, hmiss, hfind, hrule]
+
+/-- `ConLeche/Cached/StateC.lean:387-388` — the *two* `ruleRhsAt` throws, which
+the port merges into one arm (`state_c.rs:945`): `c` is not a stored recursor,
+or it is one but has no rule for the constructor `j`.  Both are `.internal`,
+and a refinement lemma compares only the kind, so one existential covers the
+merge. -/
+theorem ruleRhsAtM_throw {lst : ConLeche.Cached.CState} {lfe : ConLeche.FEnv}
+    {cI jI c j : ConLeche.Name} {us : List ConLeche.Level}
+    (hmiss : lst.ruleRhsAt[(c, j, us)]? = none)
+    (hfind : (lfe.find? c).bind
+        (fun ci => match ci with
+          | .recInfo cv _ _ rules =>
+            (rules.find? (fun r' => r'.ctor == j)).map
+              (fun rl => (cv.levelParams, rl.rhs))
+          | _ => none) = none) :
+    ∃ s, (ConLeche.Cached.ruleRhsAtM lfe cI jI c j us).run lst
+      = .error (.internal s) := by
+  cases hx : lfe.find? c with
+  | none =>
+    exact ⟨"ruleRhsAtM: not a stored recursor", by
+      simp [ConLeche.Cached.ruleRhsAtM, hmiss, hx]; rfl⟩
+  | some ci =>
+    cases ci with
+    | recInfo cv mi rp rules =>
+      rw [hx] at hfind
+      simp only [Option.bind_some] at hfind
+      cases hr : rules.find? (fun r' => r'.ctor == j) with
+      | none =>
+        exact ⟨"ruleRhsAtM: no rule for constructor", by
+          simp [ConLeche.Cached.ruleRhsAtM, hmiss, hx, hr]; rfl⟩
+      | some rl => rw [hr] at hfind; simp at hfind
+    | _ =>
+      exact ⟨"ruleRhsAtM: not a stored recursor", by
+        simp [ConLeche.Cached.ruleRhsAtM, hmiss, hx]; rfl⟩
 
 /-- `ConLeche/Cached/StateC.lean:332-349` — **`const_ty_at_m` refines
 `constTyAtM`** on success. -/
@@ -1497,6 +1560,65 @@ theorem const_ty_at_m_refines (hinst : InstLevelParamsRefines)
         rw [constTyAtM_bind hlk.symm hfind, ← htye, hrun]
         simp only [Except.bind]
         rw [hiv, ← hkse]
+
+/-- `crates/con-ron-core/src/cached/state_c.rs:891` — **the failure half of
+`const_ty_at_m`** (task #67).  The port has exactly one `Err` site here, the
+unknown-constant arm, and it mirrors con-leche's one `throw` at
+`ConLeche/Cached/StateC.lean:349`: both are `.internal`, and only the kind is
+compared. -/
+theorem const_ty_at_m_err {st st' : cached.state_c.CState} {fe : fenv.FEnv}
+    {n : name.Name} {us : alloc.vec.Vec level.Level}
+    {ce : core_types.CheckError} (hwf : StateWF st)
+    (hfwf : FEnv.FEnvWF fe) (hn : NameWF n) (hus : LevelsWF us)
+    (h : cached.state_c.const_ty_at_m st fe n us = ok (.Err ce, st')) :
+    ∀ lst lfe, StateRel st lst → FEnv.FEnvRel fe lfe → ∀ nI,
+      ErrSim ce
+        ((ConLeche.Cached.constTyAtM lfe nI (absName n) (absLevels us)).run lst) := by
+  intro lst lfe hrel hfrel nI
+  rw [cached.state_c.const_ty_at_m] at h
+  simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at h
+  obtain ⟨v, hv, h⟩ := h
+  have hvv : v = us := Env.levels_copy_refines hv
+  rw [hvv] at h
+  obtain ⟨o, hprobe, h⟩ := h
+  obtain ⟨hlk, -⟩ := const_ty_at_probe_refines hrel hwf ⟨hn, hus⟩ hprobe
+  rw [absNameLevels] at hlk
+  cases o with
+  | some i =>
+    -- the memo hit returns `.Ok`, never `.Err`
+    simp at h
+  | none =>
+    simp only [Option.map_none] at hlk
+    obtain ⟨o1, hdecl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hdv, -⟩ := const_decl_probe_refines hfrel hfwf hn hdecl
+    cases o1 with
+    | none =>
+      -- the throwing arm: the constant is unknown on both sides
+      have hfind : lfe.find? (absName n) = none := by
+        cases hx : lfe.find? (absName n) with
+        | none => rfl
+        | some ci => rw [hx] at hdv; simp at hdv
+      obtain ⟨s1, -, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨v1, -, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce1, hce, h⟩ := bind_eq_ok_iff.mp h
+      simp only [core_types.internal, Result.ok.injEq] at hce
+      subst hce
+      simp only [Result.ok.injEq, Prod.mk.injEq,
+        core.result.Result.Err.injEq] at h
+      obtain ⟨rfl, -⟩ := h
+      exact ErrSim.internal (constTyAtM_throw hlk.symm hfind)
+    | some cvp =>
+      -- the stored constant is found: the arm returns `.Ok`
+      exfalso
+      obtain ⟨ks, ty⟩ := cvp
+      obtain ⟨p, -, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨raw, st1⟩ := p
+      obtain ⟨i, -, h⟩ := bind_eq_ok_iff.mp h
+      simp only [ConRon.Refine.State.expr_dup_eq, bind_tc_ok,
+        bind_eq_ok_iff] at h
+      obtain ⟨q, -, h⟩ := h
+      obtain ⟨old, m'⟩ := q
+      simp at h
 
 /-- `ConLeche/Cached/StateC.lean:351-367` — **`const_val_at_m` refines
 `constValAtM`** on success. -/
@@ -1576,6 +1698,57 @@ theorem const_val_at_m_refines (hinst : InstLevelParamsRefines)
         | ctorInfo cv0 np nf => simp at hdv
         | recInfo cv0 mi rp rules => simp at hdv
         | projInfo tbl => simp at hdv
+
+/-- `crates/con-ron-core/src/cached/state_c.rs:915` — **the failure half of
+`const_val_at_m`** (task #67): the port's one `Err` site, the
+not-a-stored-definition arm, against con-leche's one `throw` at
+`ConLeche/Cached/StateC.lean:366`. -/
+theorem const_val_at_m_err {st st' : cached.state_c.CState} {fe : fenv.FEnv}
+    {n : name.Name} {us : alloc.vec.Vec level.Level}
+    {ce : core_types.CheckError} (hwf : StateWF st)
+    (hfwf : FEnv.FEnvWF fe) (hn : NameWF n) (hus : LevelsWF us)
+    (h : cached.state_c.const_val_at_m st fe n us = ok (.Err ce, st')) :
+    ∀ lst lfe, StateRel st lst → FEnv.FEnvRel fe lfe → ∀ nI,
+      ErrSim ce
+        ((ConLeche.Cached.constValAtM lfe nI (absName n) (absLevels us)).run lst) := by
+  intro lst lfe hrel hfrel nI
+  rw [cached.state_c.const_val_at_m] at h
+  simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at h
+  obtain ⟨v, hv, h⟩ := h
+  have hvv : v = us := Env.levels_copy_refines hv
+  rw [hvv] at h
+  obtain ⟨o, hprobe, h⟩ := h
+  obtain ⟨hlk, -⟩ := const_val_at_probe_refines hrel hwf ⟨hn, hus⟩ hprobe
+  rw [absNameLevels] at hlk
+  cases o with
+  | some i => simp at h
+  | none =>
+    simp only [Option.map_none] at hlk
+    obtain ⟨o1, hdecl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hdv, -⟩ := defn_decl_probe_refines hfrel hfwf hn hdecl
+    cases o1 with
+    | none =>
+      obtain ⟨s1, -, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨v1, -, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce1, hce, h⟩ := bind_eq_ok_iff.mp h
+      simp only [core_types.internal, Result.ok.injEq] at hce
+      subst hce
+      simp only [Result.ok.injEq, Prod.mk.injEq,
+        core.result.Result.Err.injEq] at h
+      obtain ⟨rfl, -⟩ := h
+      simp only [Option.map_none] at hdv
+      exact ErrSim.internal (constValAtM_throw hlk.symm hdv.symm)
+    | some cvp =>
+      exfalso
+      obtain ⟨ks, val⟩ := cvp
+      obtain ⟨p, -, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨raw, st1⟩ := p
+      obtain ⟨i, -, h⟩ := bind_eq_ok_iff.mp h
+      simp only [ConRon.Refine.State.expr_dup_eq, bind_tc_ok,
+        bind_eq_ok_iff] at h
+      obtain ⟨q, -, h⟩ := h
+      obtain ⟨old, m'⟩ := q
+      simp at h
 
 /-- `ConLeche/Cached/StateC.lean:369-388` — **`rule_rhs_at_m` refines
 `ruleRhsAtM`** on success. -/
@@ -1658,6 +1831,59 @@ theorem rule_rhs_at_m_refines (hinst : InstLevelParamsRefines)
         | indInfo cv0 caps => simp at hdv
         | ctorInfo cv0 np nf => simp at hdv
         | projInfo tbl => simp at hdv
+
+/-- `crates/con-ron-core/src/cached/state_c.rs:945` — **the failure half of
+`rule_rhs_at_m`** (task #67).  The port's one `Err` site merges con-leche's
+*two* `throw`s, `ConLeche/Cached/StateC.lean:387` ("no rule for constructor")
+and `:388` ("not a stored recursor"); both are `.internal`, so the merge is
+invisible to a statement that compares only the kind. -/
+theorem rule_rhs_at_m_err {st st' : cached.state_c.CState} {fe : fenv.FEnv}
+    {c j : name.Name} {us : alloc.vec.Vec level.Level}
+    {ce : core_types.CheckError} (hwf : StateWF st)
+    (hfwf : FEnv.FEnvWF fe) (hc : NameWF c) (hj : NameWF j) (hus : LevelsWF us)
+    (h : cached.state_c.rule_rhs_at_m st fe c j us = ok (.Err ce, st')) :
+    ∀ lst lfe, StateRel st lst → FEnv.FEnvRel fe lfe → ∀ cI jI,
+      ErrSim ce
+        ((ConLeche.Cached.ruleRhsAtM lfe cI jI (absName c) (absName j)
+          (absLevels us)).run lst) := by
+  intro lst lfe hrel hfrel cI jI
+  rw [cached.state_c.rule_rhs_at_m] at h
+  simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at h
+  obtain ⟨v, hv, h⟩ := h
+  have hvv : v = us := Env.levels_copy_refines hv
+  rw [hvv] at h
+  obtain ⟨o, hprobe, h⟩ := h
+  obtain ⟨hlk, -⟩ :=
+    rule_rhs_at_probe_refines hrel hwf ⟨hc, hj, hus⟩ hprobe
+  rw [absNameNameLevels] at hlk
+  cases o with
+  | some i => simp at h
+  | none =>
+    simp only [Option.map_none] at hlk
+    obtain ⟨o1, hdecl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hdv, -⟩ := rule_rhs_probe_refines hfrel hfwf hc hj hdecl
+    cases o1 with
+    | none =>
+      obtain ⟨s1, -, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨v1, -, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce1, hce, h⟩ := bind_eq_ok_iff.mp h
+      simp only [core_types.internal, Result.ok.injEq] at hce
+      subst hce
+      simp only [Result.ok.injEq, Prod.mk.injEq,
+        core.result.Result.Err.injEq] at h
+      obtain ⟨rfl, -⟩ := h
+      simp only [Option.map_none] at hdv
+      obtain ⟨s, hs⟩ := ruleRhsAtM_throw hlk.symm hdv.symm
+      exact ErrSim.internal hs
+    | some cvp =>
+      exfalso
+      obtain ⟨ks, rhs⟩ := cvp
+      obtain ⟨i, -, h⟩ := bind_eq_ok_iff.mp h
+      simp only [ConRon.Refine.State.expr_dup_eq, bind_tc_ok,
+        bind_eq_ok_iff] at h
+      obtain ⟨q, -, h⟩ := h
+      obtain ⟨old, m'⟩ := q
+      simp at h
 
 /-! ## The flush and the converted-constant record -/
 
@@ -1862,5 +2088,8 @@ through (`Refine/State.lean`'s census says the same). -/
 
 /-- info: 'ConRon.Refine.StateC.const_ty_at_m_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms const_ty_at_m_refines
+
+/-- info: 'ConRon.Refine.StateC.rule_rhs_at_m_err' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rule_rhs_at_m_err
 
 end ConRon.Refine.StateC

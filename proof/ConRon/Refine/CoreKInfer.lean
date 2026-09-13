@@ -66,6 +66,44 @@ open ConRon.Generated ConRon.Generated.kernel
 
 namespace ConRon.Refine.CoreK
 
+/-! ## The mirrored `throw` arms (task #67)
+
+Every `CheckError` this file's seven functions build is one of `core_k.rs`'s
+*mirrored* sites: the port turns a code-point constant into a `Vec<u32>` and
+hands it to `core_types::invalid`/`not_implemented`, and the cited con-leche arm
+`throw`s at the same kind.  The two helpers below do that bookkeeping once --
+the message is never read (DESIGN.md §3.1), so the con-leche side's string is
+whatever the transcription carries. -/
+
+/-- A mirrored `throw` at `invalid`: the port's `Err` carries
+`core_types::invalid`'s value, whose kind is con-leche's `.invalid`. -/
+private theorem invalid_arm {α γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.invalid v = ok ce1)
+    (hr : (ok (core.result.Result.Err ce1) :
+            Result (core.result.Result α core_types.CheckError)) = ok (.Err ce))
+    (hx : x = .error (.invalid ls)) : ErrSim ce x := by
+  have h1 : core_types.CheckError.Invalid v = ce := by
+    have h2 : ce1 = ce := by simpa using Result.ok_injective hr
+    rw [← h2]
+    exact Result.ok_injective (by rw [core_types.invalid] at hce; exact hce)
+  rw [← h1]
+  exact ErrSim.invalid hx
+
+/-- A mirrored `throw` at `notImplemented`, the same bookkeeping. -/
+private theorem not_implemented_arm {α γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.not_implemented v = ok ce1)
+    (hr : (ok (core.result.Result.Err ce1) :
+            Result (core.result.Result α core_types.CheckError)) = ok (.Err ce))
+    (hx : x = .error (.notImplemented ls)) : ErrSim ce x := by
+  have h1 : core_types.CheckError.NotImplemented v = ce := by
+    have h2 : ce1 = ce := by simpa using Result.ok_injective hr
+    rw [← h2]
+    exact Result.ok_injective (by rw [core_types.not_implemented] at hce; exact hce)
+  rw [← h1]
+  exact ErrSim.notImplemented hx
+
 
 /-! ## The two literal arms of `inferBody` -/
 
@@ -109,6 +147,32 @@ theorem infer_lit_nat_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {r : expr.E
     obtain ⟨_, -, _, -, _, -, hcontra⟩ := h
     exact absurd hcontra (by simp)
 
+/-- **`core_k::infer_lit_nat`'s failure half** (`core_k.rs:2481`, mirroring
+`Core.lean:2069`'s `throw (.invalid "Nat literal without the Nat basis
+declarations")`): the port declines exactly when `natLitSupportedF` is false,
+and at the same kind. -/
+theorem infer_lit_nat_err {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    {ce : core_types.CheckError}
+    (hnls : ∀ c : Bool, core_k.nat_lit_supported fe = ok c →
+      c = ConLeche.natLitSupportedF lfe)
+    (h : core_k.infer_lit_nat fe = ok (.Err ce)) :
+    ErrSim ce ((if ConLeche.natLitSupportedF lfe then .ok (.const ConLeche.natName [])
+      else .error (.invalid "Nat literal without the Nat basis declarations")) :
+        ConLeche.CheckM ConLeche.Expr) := by
+  rw [core_k.infer_lit_nat] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨b, hb, h⟩ := h
+  have hbv := hnls b hb
+  split at h
+  · simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨_, -, _, -, hcontra⟩ := h
+    exact absurd hcontra (by simp)
+  · rename_i hbf
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+    rw [if_neg (by rw [← hbv]; exact hbf)]
+    exact invalid_arm hce1 hr rfl
+
 /-- `ConLeche/Kernel/Core.lean:2039-2204 inferBody`, the `.lit (.strVal _)`
 arm -- **`core_k::infer_lit_str`**.  As for `Nat`, with
 `FEnv.strLitSupportedF` (`Kernel/FEnv.lean:122`) and `basis_names::string_name`
@@ -142,6 +206,33 @@ theorem infer_lit_str_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {r : expr.E
     obtain ⟨_, -, _, -, _, -, hcontra⟩ := h
     exact absurd hcontra (by simp)
 
+/-- **`core_k::infer_lit_str`'s failure half** (`core_k.rs:2498`, mirroring
+`Core.lean:2075-2076`'s `throw (.notImplemented "string literals before the
+String support declarations")`): the missing-support verdict is a decline on
+both sides. -/
+theorem infer_lit_str_err {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    {ce : core_types.CheckError}
+    (hsls : ∀ c : Bool, core_k.str_lit_supported fe = ok c →
+      c = ConLeche.strLitSupportedF lfe)
+    (h : core_k.infer_lit_str fe = ok (.Err ce)) :
+    ErrSim ce ((if ConLeche.strLitSupportedF lfe then .ok (.const ConLeche.stringName [])
+      else .error (.notImplemented
+        "string literals before the String support declarations")) :
+        ConLeche.CheckM ConLeche.Expr) := by
+  rw [core_k.infer_lit_str] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨b, hb, h⟩ := h
+  have hbv := hsls b hb
+  split at h
+  · simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨_, -, _, -, hcontra⟩ := h
+    exact absurd hcontra (by simp)
+  · rename_i hbf
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+    rw [if_neg (by rw [← hbv]; exact hbf)]
+    exact not_implemented_arm hce1 hr rfl
+
 /-! ## The `.fvar` arm -/
 
 /-- `ConLeche/Kernel/Core.lean:2039-2204 inferBody`, the `.fvar` arm --
@@ -164,6 +255,26 @@ theorem infer_fvar_refines {idx depth : Std.U64} {ty r : expr.Expr} (hty : ExprW
   · simp only [bind_eq_ok_iff, Result.ok.injEq] at h
     obtain ⟨_, -, _, -, _, -, hcontra⟩ := h
     exact absurd hcontra (by simp)
+
+/-- **`core_k::infer_fvar`'s failure half** (`core_k.rs:2516`, mirroring
+`Core.lean:2054`'s `throw (.invalid "free variable out of scope")`): the scope
+test is the same test, so the two reject together. -/
+theorem infer_fvar_err {idx depth : Std.U64} {ty : expr.Expr}
+    {ce : core_types.CheckError}
+    (h : core_k.infer_fvar idx ty depth = ok (.Err ce)) :
+    ErrSim ce ((if idx.val < depth.val then .ok (absExpr ty)
+      else .error (.invalid "free variable out of scope")) :
+        ConLeche.CheckM ConLeche.Expr) := by
+  rw [core_k.infer_fvar] at h
+  split at h
+  · simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨_, -, hcontra⟩ := h
+    exact absurd hcontra (by simp)
+  · rename_i hge
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+    rw [if_neg (show ¬ (idx.val < depth.val) by scalar_tac)]
+    exact invalid_arm hce1 hr rfl
 
 /-! ## `ProjEntry.typeAt` -/
 
@@ -305,6 +416,98 @@ theorem proj_type_at_checked_refines {entry : env.ProjEntry} {sn t : name.Name}
     if_pos (show (absProjEntry entry).fireOk (absLevels us) = true by
       rw [← hcv]; exact hct), habs]
 
+/-- **`core_k::proj_type_at_checked`'s failure half** (`core_k.rs:2549`,
+mirroring `Core.lean:2190`'s `throw (.notImplemented "projection without a
+native entry")`, and `core_k.rs:2553`, mirroring `Core.lean:2183-2184`'s
+`throw (.invalid "projection from a propositional structure must be a
+proposition")`).  The port splits the cited three-conjunct shape test into three
+`else if` arms carrying one message (task #67's census), so all three land on the
+transcription's single `.notImplemented` verdict. -/
+theorem proj_type_at_checked_err {entry : env.ProjEntry} {sn t : name.Name}
+    {us : alloc.vec.Vec level.Level} {targs : alloc.vec.Vec expr.Expr} {pe : expr.Expr}
+    {ce : core_types.CheckError}
+    (hfire : ProjEntryFireOk) (hent : ProjEntryWF entry)
+    (hsn : NameWF sn) (ht : NameWF t) (hus : LevelsWF us)
+    (h : core_k.proj_type_at_checked entry sn t us targs pe = ok (.Err ce)) :
+    ErrSim ce (projTypeAtCheckedL (absProjEntry entry) (absName sn) (absName t)
+      (absLevels us) (absExprs targs) (absExpr pe)) := by
+  rw [core_k.proj_type_at_checked] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨b, hb, h⟩ := h
+  have hbv : b = decide (absName t = absName sn) := Name.beq_refines ht hsn hb
+  split at h
+  case isFalse =>
+    rename_i hbf
+    have hne : absName t ≠ absName sn := by rw [hbv] at hbf; simpa using hbf
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+    rw [projTypeAtCheckedL, if_neg (fun hcon => hne hcon.1)]
+    exact not_implemented_arm hce1 hr rfl
+  rename_i hbt
+  have hname : absName t = absName sn := by
+    rw [hbv] at hbt; exact of_decide_eq_true hbt
+  have hc : (Std.UScalar.cast .U64 (alloc.vec.Vec.len targs) : Std.U64).val
+      = targs.val.length := by
+    rw [ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+  simp only [bind_eq_ok_iff, lift_eq, Result.ok.injEq, exists_eq_left'] at h
+  split at h
+  case isTrue =>
+    rename_i hnp
+    have hnpv : (absExprs targs).length ≠ (absProjEntry entry).numParams := by
+      simp only [bne_iff_ne, ne_eq] at hnp
+      simp only [absExprs, List.length_map, absProjEntry]
+      intro hEq
+      exact hnp (by scalar_tac)
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+    rw [projTypeAtCheckedL, if_neg (fun hcon => hnpv hcon.2.1)]
+    exact not_implemented_arm hce1 hr rfl
+  rename_i hnp
+  have hnpv : (absExprs targs).length = (absProjEntry entry).numParams := by
+    simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hnp
+    rw [hnp] at hc
+    simp only [absExprs, List.length_map, absProjEntry]
+    exact hc.symm
+  split at h
+  case isTrue =>
+    rename_i hlp
+    have hlpv : (absLevels us).length ≠ (absProjEntry entry).levelParams.length := by
+      simp only [bne_iff_ne, ne_eq] at hlp
+      have h1 : (alloc.vec.Vec.len us).val = us.val.length := alloc.vec.Vec.len_val us
+      have h2 : (alloc.vec.Vec.len entry.level_params).val
+          = entry.level_params.val.length := alloc.vec.Vec.len_val entry.level_params
+      simp only [absLevels, absProjEntry, absNames, List.length_map]
+      intro hEq
+      exact hlp (by scalar_tac)
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+    rw [projTypeAtCheckedL, if_neg (fun hcon => hlpv hcon.2.2)]
+    exact not_implemented_arm hce1 hr rfl
+  rename_i hlp
+  have hlpv : (absLevels us).length = (absProjEntry entry).levelParams.length := by
+    simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hlp
+    have h1 : (alloc.vec.Vec.len us).val = us.val.length := alloc.vec.Vec.len_val us
+    have h2 : (alloc.vec.Vec.len entry.level_params).val
+        = entry.level_params.val.length := alloc.vec.Vec.len_val entry.level_params
+    have h3 : (alloc.vec.Vec.len us).val
+        = (alloc.vec.Vec.len entry.level_params).val := by rw [hlp]
+    simp only [absLevels, absProjEntry, absNames, List.length_map]
+    omega
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨c, hcf, h⟩ := h
+  have hcv := hfire entry us c hent hus hcf
+  split at h
+  case isTrue =>
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨_, -, hcontra⟩ := h
+    exact absurd hcontra (by simp)
+  rename_i hcfalse
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+  rw [projTypeAtCheckedL, if_pos ⟨hname, hnpv, hlpv⟩,
+    if_neg (by rw [← hcv]; exact hcfalse)]
+  exact invalid_arm hce1 hr rfl
+
 /-- **`ExprWF` inverted at a `Const` node**: the head name and the level list
 are well formed.  Belongs in `Refine/Expr.lean` beside the `*_inv` family
 (module note). -/
@@ -386,6 +589,55 @@ theorem infer_proj_at_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {sn : name.
   all_goals
     simp only [ExprOps.node_kind, bind_eq_ok_iff, lift_eq, Result.ok.injEq,
       reduceCtorEq, and_false, exists_false] at h
+
+/-- **`core_k::infer_proj_at`'s failure half** (`core_k.rs:2582`, mirroring
+`Core.lean:2191`'s `throw (.notImplemented "projection without a native entry")`
+on a missing table entry, and `core_k.rs:2586`, mirroring `:2192`'s same throw
+on a head that is not a `.const`); the `some entry` route is
+`proj_type_at_checked_err`. -/
+theorem infer_proj_at_err {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {sn : name.Name}
+    {i : Std.U64} {pe te : expr.Expr} {ce : core_types.CheckError}
+    (hfire : ProjEntryFireOk)
+    (hrel : FindAgree fe lfe) (hfwf : FindWF fe)
+    (hsn : NameWF sn) (hte : ExprWF te)
+    (h : core_k.infer_proj_at fe sn i pe te = ok (.Err ce)) :
+    ErrSim ce (inferProjAtL lfe (absName sn) i.val (absExpr pe) (absExpr te)) := by
+  rw [core_k.infer_proj_at] at h
+  simp only [bind_eq_ok_iff, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
+  obtain ⟨f, hf, h⟩ := h
+  obtain ⟨hfabs, hfnwf⟩ := ExprOps.get_app_fn_refines hte hf
+  obtain ⟨⟨fd, fk⟩⟩ := f
+  cases fk
+  case Const t us' =>
+    simp only [ExprOps.node_kind, bind_eq_ok_iff] at h
+    obtain ⟨o, ho, h⟩ := h
+    obtain ⟨hnwf, huswf⟩ := constKind_wf_inv hfnwf rfl
+    obtain ⟨hoabs, howf⟩ := find_proj_refines hrel hfwf hnwf ho
+    have hgf : (absExpr te).getAppFn = .const (absName t) (absLevels us') := by
+      rw [← hfabs]; rfl
+    cases o with
+    | none =>
+      simp only [Option.map_none] at hoabs
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+      refine not_implemented_arm (ls := "projection without a native entry")
+        hce1 hr ?_
+      simp only [inferProjAtL, hgf, ← hoabs]
+    | some entry =>
+      simp only [Option.map_some] at hoabs
+      simp only [bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h
+      obtain ⟨targs, hta, h⟩ := h
+      obtain ⟨htabs, htawf⟩ := ExprOps.get_app_args_refines hte hta
+      have hres := proj_type_at_checked_err hfire (howf entry rfl) hsn hnwf huswf h
+      simp only [inferProjAtL, hgf, ← hoabs, ← htabs]
+      exact hres
+  all_goals
+    simp only [ExprOps.node_kind, bind_eq_ok_iff] at h
+    obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+    refine not_implemented_arm (ls := "projection without a native entry")
+      hce1 hr ?_
+    rw [inferProjAtL, ← hfabs]
+    simp
 
 /-! ## The `.proj` arm of `annotateBody` -/
 
