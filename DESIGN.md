@@ -12113,3 +12113,85 @@ would put it there, deliberately, and they are still the only route.
 * `cases b <;> simp_all` on a `Bool` hypothesis in this context blows the
   recursion depth; `cases b with | false => rfl | true => exact absurd rfl h`
   is the cheap form.
+
+### Task #62 — `Installed.lean` closed (2026-09-13, Opus under Fable)
+
+P3, `proof/ConRon/Refine/CORE_PLAN.md` step 7's top.  Task #60 landed
+`proof/ConRon/Refine/Installed.lean` with **nine `sorry`s** — the guard
+cascades and the core calls of `cached::installed`'s two phases.  This task
+closed all nine; the file is now `sorry`-free and nothing else in the tree was
+touched but three imports, one new lemma in the same file, and two doc lines.
+No new `_refines` statement: the progress line does not move, what moves is
+that nine of the existing ones stop being `sorry`.  `scripts/gates.sh`: all 7 OK.
+
+#### 1. The nine
+
+| lemma | what it took |
+|---|---|
+| `annot_constant_val_c_after_annot_refines` | `ExprOpsC.all_level_params_defined_refines` + `StateC.consts_resolve_fc_refines`, the three `dup` identities, the two-level `if` |
+| `annot_constant_val_c_refines` | the six guards (`FEnv.find_refines`, `BasisNames.reserved_basis_names_refines`, `Name.contains_refines`, `CoreK.name_is_proj_fn_shape_refines`, `CheckerBase.name_nodup_refines`, `ExprOpsC.loose_bvars_bounded_refines`/`has_fvar_refines`), `TypeChecker.annotate_core_refines`, then the tail |
+| `annot_val_c_after_annot_refines` | the same two guards, then `StateC.record_c_const_refines` over `annot_val_c_record_refines` |
+| `annot_val_c_refines` | the two scope guards, the annotation, the tail |
+| `annot_value_c_tail_refines` | `annot_val_c_refines` and the triple |
+| `annot_value_c_refines` | `StateC.flush_c_refines`, the header half, the tail |
+| `check_pending_tail_refines` | `infer_type_core_refines`, `is_def_eq_core_refines`, `FEnv.restrict_to_refines`/`_wf` |
+| `check_pending_value_refines` | `CheckerSplit.is_thm_refines`, `Level.zero_refines`/`is_equiv_refines`, `core_k::lift_fueled`'s two arms, `annot_val_c_refines`, the tail |
+| `check_pending_refines` | the flush, the view, the inference, `ensure_sort_core_refines` (`parsed_c::op_s_ix_c` *is* `type_checker::ensure_sort_core`), then the value half |
+
+Statements are exactly task #60's: nothing weakened, no hypothesis added.
+
+#### 2. `litGuards`: `LitGuardsRefine` discharged
+
+`Refine/StateCResolve.lean`'s `consts_resolve_fc_refines` carries the named
+ingredient `LitGuardsRefine` (the two `.lit` arms' `core_k::nat_trio_stored` /
+`str_support_stored` readings), which task #46 could not discharge because
+task #49 had not landed.  It can now: `Installed.litGuards` is those two
+lemmas at `FindAgree.of_rel hrel hwf` under `CoreK.pinnedBasisNames`, three
+lines.  It sits in `Installed.lean` because this is the first file that both
+*holds* an `FEnvRel` and *calls* `consts_resolve_fc`; the next consumer should
+move it down to `StateCResolve.lean` (which cannot import `CoreKPinned.lean`
+today without a cycle through `CoreKSupport` → `StateC`).
+
+Three imports were added for the same reason: `CheckerBase` (`name_nodup_refines`),
+`ExprOpsCGuards` (the *cached* `all_level_params_defined_refines`) and
+`StateCResolve`.
+
+#### 3. The census, pinned
+
+`check_decls_refines` still reads `[propext, sorryAx, Classical.choice,
+Quot.sound]` — but **not from this file any more**.  Three new
+`#guard_msgs`-checked censuses pin what is closed:
+
+* `annot_value_c_refines` — phase A's whole install half — three standard axioms;
+* `check_pending_refines` and `check_decls_phase_b_refines` — **the whole of
+  phase B**, from the fresh `CState` through both `checkPending` halves — three
+  standard axioms.
+
+So the `sorryAx` reaching the top comes through exactly one door,
+`annot_step_other_c_refines` → `Refine/CheckerDecl.lean`'s
+`check_decl_step_c_refines` (task #56's arms, task #58's to close).  `hk`,
+`hind` and `hpins` are *hypotheses* and contribute nothing to the census; once
+`check_decl_step_c_refines` is closed, `check_decls_refines` is at the three
+standard axioms with no further work here.
+
+#### 4. For the next agent
+
+* The Rust error arms (`code_points`/`invalid` chains) are killed by
+  `exact absurd h (by simp [bind_eq_ok_iff])`; that one phrase closes every
+  one of them in this file.
+* A tail lemma stated at the **`Except`** level (task #60 wrote
+  `annot_constant_val_c_after_annot_refines` that way) meets a `CheckCM` goal
+  by `exact congrArg (fun r => r.map (fun p => (p, lst))) htail` after the
+  guards are decided — the `StateT` run of a state-free block is the `Except`
+  block mapped with the state pinned on.
+* `by_cases` on a guard the tail lemma does *not* name forces the two dead
+  branches to be closed from the tail's own equation; `simp [hG, throw,
+  throwThe, MonadExceptOf.throw, Bind.bind, Except.bind] at htail` is what
+  reduces `throw e >>= f` to `Except.error e` there (plain `simp` does not).
+* `decide`-valued kind tests (`checker_split::is_thm`) go through
+  `of_decide_eq_true hbv.symm` / `of_decide_eq_false hbv.symm` — `simp_all` on
+  them blows `maxRecDepth`, as task #60 already warned.
+* A `do` block whose continuation is distributed into an `if` (con-leche's
+  `let jv ← if … then … else …` join) is walked by `run_bind_ok` on the
+  *probe* first (`liftFueled`), then `simp only [if_true]`, then `run_bind_ok`
+  again — not by `run_bind_ok` on the `if` as a whole.

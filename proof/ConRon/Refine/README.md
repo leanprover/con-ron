@@ -140,10 +140,13 @@ Everything else is *internal* and already discharged where it is used: task
 `CoreKPinned.lean`, and the `FindAgree`/`FindWF` projections in
 `CoreKBase.lean`.  The `sorry`s that remain below the top are arm-level bulk
 (`CheckerSplit` 4, `CheckerDecl` 9, `DeclCheck` 14, `CheckerPins` 8,
-`Checker` 5, `CheckerSplit`/`BasisPins`/`Pins` the rest, `Installed` 9); every
-one of them is a *guard cascade or a core call*, none is a design question, and
-the axiom censuses in `Installed.lean` and `Main.lean` are what will say so:
-`sorryAx` leaving `conron.model_exists` is the P3 gate.
+`Checker` 5, `CheckerSplit`/`BasisPins`/`Pins` the rest — **`Installed` 0 since
+task #62**); every one of them is a *guard cascade or a core call*, none is a
+design question, and the axiom censuses in `Installed.lean` and `Main.lean` are
+what will say so: `sorryAx` leaving `conron.model_exists` is the P3 gate.
+`Installed.lean` itself is now `sorry`-free, so the only door `sorryAx` takes
+into `check_decls_refines` is `annot_step_other_c_refines` →
+`CheckerDecl.check_decl_step_c_refines`.
 
 ## Not yet here
 
