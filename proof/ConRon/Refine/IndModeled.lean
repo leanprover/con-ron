@@ -3940,7 +3940,57 @@ theorem inst_pins_plain_refines
   inst_pins_plain_val hpins hpfx hlen pins.length i out v (by scalar_tac) hout h
 
 omit hw hcb in
-/-- `checkIotaThmNFrames`' success path, run. -/
+/-- `checkIotaThmNFrames`' success path down to its **tail call** (task #67). -/
+theorem checkIotaThmNFrames_tail {lmode : ConLeche.CheckMode}
+    {lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {tyA rhsA lhsS rhsS : ConLeche.Expr}
+    {rP cnP cnF mI : Nat} {cvj : ConLeche.ConstantVal}
+    {fvs targs pins : List ConLeche.Expr} {lvls : List ConLeche.Level}
+    {lA : ConLeche.Level}
+    {fvsP tyRest cdomsP crestP xFvsP crest2P ldoms lrest : _}
+    {lst lst1 lst2 lst3 lst4 : ConLeche.Cached.CState}
+    (h1 : ConLeche.openPisAtFvars rP tyA 0 = some (fvsP, tyRest))
+    (h2 : (ConLeche.checkAnnotList (m := ConLeche.Cached.CheckCM)
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe.env (rP + cnF)
+        (pins.map fun p =>
+          ConLeche.Expr.instSpine (fvsP.take rP) (rP - 1) p)).run lst
+      = .ok ((), lst1))
+    (h3 : ConLeche.Expr.instPisAt
+        (pins.map fun p => ConLeche.Expr.instSpine (fvsP.take rP) (rP - 1) p)
+        (cvj.type.instantiateLevelParams cvj.levelParams lvls)
+      = some (cdomsP, crestP))
+    (h4 : (ConLeche.checkTypedList (m := ConLeche.Cached.CheckCM)
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe.env (rP + cnF)
+        (pins.map fun p =>
+          ConLeche.Expr.instSpine (fvsP.take rP) (rP - 1) p) cdomsP).run lst1
+      = .ok ((), lst2))
+    (h5 : ConLeche.openPisAtFvars cnF crestP rP = some (xFvsP, crest2P))
+    (h6 : crest2P.getAppArgs.length = cnP + (mI - rP))
+    (h7 : ConLeche.Expr.instLamsAt (fvsP ++ xFvsP) rhsA = some (ldoms, lrest))
+    (h8 : (ConLeche.checkDefEqList (m := ConLeche.Cached.CheckCM)
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe.env (rP + cnF)
+        ((fvsP ++ xFvsP).map ConLeche.Expr.fvarTypeD) ldoms).run lst2
+      = .ok ((), lst3))
+    (h9 : ((ConLeche.Cached.sharedOpsC lmode lfe).isDefEq lfe.env (rP + cnF)
+        rhsS (ConLeche.Expr.mkAppN (rhsA.renameConsts g) fvs)).run lst3
+      = .ok (true, lst4))
+    :
+    (checkIotaThmNFrames lmode lfe g cvName tyA rP cvj cnP cnF rhsA fvs targs
+        lhsS rhsS lA lvls pins mI).run lst
+      = (ConLeche.checkIotaSidesTy (m := ConLeche.Cached.CheckCM) lmode
+          (ConLeche.Cached.sharedOpsC lmode lfe) lfe.env (rP + cnF)
+          (targs.getD 0 (.bvar 0)) lhsS rhsS lA cvName).run lst4 := by
+  rw [checkIotaThmNFrames]
+  simp only [StateT.run] at h2 h4 h8 h9 ⊢
+  simp only [List.map_append] at h8
+  simp only [List.getD_eq_getElem?_getD]
+  simp [Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, ConLeche.unwrapOr, h1, h2, h3, h4, h5, h6, h7,
+    h8, h9]
+
+omit hw hcb in
+/-- `checkIotaThmNFrames`' success path, run: `checkIotaThmNFrames_tail`
+composed with a `checkIotaSidesTy` that also succeeded. -/
 theorem checkIotaThmNFrames_run {lmode : ConLeche.CheckMode}
     {lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
     {cvName : ConLeche.Name} {tyA rhsA lhsS rhsS : ConLeche.Expr}
@@ -3979,15 +4029,10 @@ theorem checkIotaThmNFrames_run {lmode : ConLeche.CheckMode}
         (targs.getD 0 (.bvar 0)) lhsS rhsS lA cvName).run lst4
       = .ok ((), lst5)) :
     (checkIotaThmNFrames lmode lfe g cvName tyA rP cvj cnP cnF rhsA fvs targs
-        lhsS rhsS lA lvls pins mI).run lst = .ok ((), lst5) := by
-  rw [checkIotaThmNFrames]
-  simp only [StateT.run] at h2 h4 h8 h9 h10
-  simp only [List.map_append] at h8
-  simp only [List.getD_eq_getElem?_getD] at h10
-  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
-    StateT.pure, Except.pure, ConLeche.unwrapOr, h1, h2, h3, h4, h5, h6, h7,
-    h8, h9, h10]
+        lhsS rhsS lA lvls pins mI).run lst = .ok ((), lst5) :=
+  (checkIotaThmNFrames_tail h1 h2 h3 h4 h5 h6 h7 h8 h9).trans h10
 
+set_option linter.unusedSimpArgs false in
 /-- `ConLeche/Kernel/DeclCheck.lean:661-684` — `check_iota_thm_n_frames`
 refines `checkIotaThmNFrames`. -/
 theorem check_iota_thm_n_frames_refines
@@ -3996,6 +4041,7 @@ theorem check_iota_thm_n_frames_refines
     {ty_a rhs_a lhs_s rhs_s : expr.Expr} {r_p cn_p cn_f m_i : Std.U64}
     {cvj : env.ConstantVal} {fvs targs pins : alloc.vec.Vec expr.Expr}
     {lvls : alloc.vec.Vec level.Level} {l_a : level.Level}
+    {out : core.result.Result Unit core_types.CheckError}
     (hf : RenamesTo f g) (hst : StateWF st) (hfe : FEnvWF fe_self)
     (hty : ExprWF ty_a) (hcvj : ConstantValWF cvj) (hrhs : ExprWF rhs_a)
     (hfvs : ExprsWF fvs) (htargs : ExprsWF targs) (hl : ExprWF lhs_s)
@@ -4003,15 +4049,23 @@ theorem check_iota_thm_n_frames_refines
     (hpins : ExprsWF pins)
     (h : inductives.modeled.check_iota_thm_n_frames mode st fe_self f ty_a r_p
         cvj cn_p cn_f rhs_a fvs targs lhs_s rhs_s l_a lvls pins m_i
-        = ok (.Ok (), st')) :
+        = ok (out, st')) :
     ∀ lst lfe lcvName, StateRel st lst → FEnvRel fe_self lfe →
-      ∃ lst',
-        (checkIotaThmNFrames (absMode mode) lfe g lcvName (absExpr ty_a) r_p.val
-            (absConstantVal cvj) cn_p.val cn_f.val (absExpr rhs_a)
-            (absExprs fvs) (absExprs targs) (absExpr lhs_s) (absExpr rhs_s)
-            (absLevel l_a) (absLevels lvls) (absExprs pins) m_i.val).run lst
-          = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+      match out with
+      | .Ok _ =>
+        ∃ lst',
+          (checkIotaThmNFrames (absMode mode) lfe g lcvName (absExpr ty_a) r_p.val
+              (absConstantVal cvj) cn_p.val cn_f.val (absExpr rhs_a)
+              (absExprs fvs) (absExprs targs) (absExpr lhs_s) (absExpr rhs_s)
+              (absLevel l_a) (absLevels lvls) (absExprs pins) m_i.val).run lst
+            = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e
+          ((checkIotaThmNFrames (absMode mode) lfe g lcvName (absExpr ty_a) r_p.val
+              (absConstantVal cvj) cn_p.val cn_f.val (absExpr rhs_a)
+              (absExprs fvs) (absExprs targs) (absExpr lhs_s) (absExpr rhs_s)
+              (absLevel l_a) (absLevels lvls) (absExprs pins) m_i.val).run lst) := by
   -- `inst_pins_plain_refines`, `checkAnnotList`, `checkTypedList`, the two
   -- telescope opens, `IndAbs.ops_defeq` and `check_iota_sides_ty_refines`.
   -- Task #59 left this `sorry` because the public prefix was
@@ -4022,14 +4076,24 @@ theorem check_iota_thm_n_frames_refines
   rw [inductives.modeled.check_iota_thm_n_frames] at h
   obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hoabs, howf⟩ := hcb.openPisAtFvarsF r_p ty_a 0#u64 o hty ho
+  rw [show ((0#u64 : Std.U64)).val = 0 from rfl,
+    ConLeche.openPisAtFvarsF_eq] at hoabs
   cases o with
-  | none => simp at h
+  | none =>
+    -- the recursor telescope (`DeclCheck.lean:662`)
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    simp only [Option.map_none] at hoabs
+    refine errSim_notImplemented
+      s!"iota recursor telescope for {lcvName}" hce ?_
+    rw [checkIotaThmNFrames]
+    simp only [StateT.run]
+    simp [Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+      Except.pure, ConLeche.unwrapOr, ← hoabs]
   | some pq =>
   obtain ⟨fvsP, tyRest⟩ := pq
   obtain ⟨hfvsPwf, htyRestwf⟩ := howf _ rfl
   simp only [Option.map_some] at hoabs
-  rw [show ((0#u64 : Std.U64)).val = 0 from rfl,
-    ConLeche.openPisAtFvarsF_eq] at hoabs
   obtain ⟨pfx, hpfx, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hpfxv, hpfxwf⟩ := CoreK.take_exprs_n_refines hfvsPwf hpfx
   have hpfxlen : pfx.length ≤ r_p.val := by
@@ -4052,7 +4116,19 @@ theorem check_iota_thm_n_frames_refines
   obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r1, st1⟩ := p1
   cases r1 with
-  | Err err => simp at h
+  | Err err =>
+    -- move 1: the pin annotation pass threw
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have herr :=
+      hcb.checkAnnotListErr st fe_self i1 pinsP err st1 hst hfe hpinsPwf hp1
+        lst lfe hrel hfer
+    rw [hi1v, hpinsPv] at herr
+    refine ErrSim.trans herr (fun le hle => ?_)
+    rw [checkIotaThmNFrames]
+    simp only [StateT.run] at hle ⊢
+    simp [Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+      Except.pure, ConLeche.unwrapOr, ← hoabs, hle]
   | Ok u1 =>
   cases u1
   obtain ⟨lst1, hrun1, hrel1, hwf1⟩ :=
@@ -4064,9 +4140,22 @@ theorem check_iota_thm_n_frames_refines
     ExprOps.instantiate_level_params_refines hcvj.2.1 hlvls hcvj.2.2 hinst
   obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨ho1abs, ho1wf⟩ := ExprOps.inst_pis_at_refines hinstwf hpinsPwf ho1
-  rw [hpinsPv, hinstv] at ho1abs
+  rw [hpinsPv, hinstv,
+    show absExpr cvj.ty = (absConstantVal cvj).type from rfl,
+    show absNames cvj.level_params = (absConstantVal cvj).levelParams from
+      rfl] at ho1abs
   cases o1 with
-  | none => simp at h
+  | none =>
+    -- the constructor telescope (`DeclCheck.lean:667`)
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    simp only [Option.map_none] at ho1abs
+    refine errSim_notImplemented
+      s!"iota constructor telescope for {lcvName}" hce ?_
+    rw [checkIotaThmNFrames]
+    simp only [StateT.run] at hrun1 ⊢
+    simp [Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+      Except.pure, ConLeche.unwrapOr, ← hoabs, hrun1, ← ho1abs]
   | some cq =>
   obtain ⟨cdomsP, crestP⟩ := cq
   obtain ⟨hcdomswf, hcrestwf⟩ := ho1wf _ rfl
@@ -4074,7 +4163,19 @@ theorem check_iota_thm_n_frames_refines
   obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r2, st2⟩ := p2
   cases r2 with
-  | Err err => simp at h
+  | Err err =>
+    -- move 1: the pin typing pass threw
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have herr :=
+      hcb.checkTypedListErr st1 fe_self i1 pinsP cdomsP err st2 hwf1 hfe
+        hpinsPwf hcdomswf hp2 lst1 lfe hrel1 hfer
+    rw [hi1v, hpinsPv] at herr
+    refine ErrSim.trans herr (fun le hle => ?_)
+    rw [checkIotaThmNFrames]
+    simp only [StateT.run] at hrun1 hle ⊢
+    simp [Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+      Except.pure, ConLeche.unwrapOr, ← hoabs, hrun1, ← ho1abs, hle]
   | Ok u2 =>
   cases u2
   obtain ⟨lst2, hrun2, hrel2, hwf2⟩ :=
@@ -4083,13 +4184,23 @@ theorem check_iota_thm_n_frames_refines
   rw [hi1v, hpinsPv] at hrun2
   obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨ho2abs, ho2wf⟩ := hcb.openPisAtFvarsF cn_f crestP r_p o2 hcrestwf ho2
+  rw [ConLeche.openPisAtFvarsF_eq] at ho2abs
   cases o2 with
-  | none => simp at h
+  | none =>
+    -- the constructor telescope again (`DeclCheck.lean:671`)
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    simp only [Option.map_none] at ho2abs
+    refine errSim_notImplemented
+      s!"iota constructor telescope for {lcvName}" hce ?_
+    rw [checkIotaThmNFrames]
+    simp only [StateT.run] at hrun1 hrun2 ⊢
+    simp [Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+      Except.pure, ConLeche.unwrapOr, ← hoabs, hrun1, ← ho1abs, hrun2, ← ho2abs]
   | some xq =>
   obtain ⟨xFvsP, crest2P⟩ := xq
   obtain ⟨hxFvswf, hcrest2wf⟩ := ho2wf _ rfl
   simp only [Option.map_some] at ho2abs
-  rw [ConLeche.openPisAtFvarsF_eq] at ho2abs
   obtain ⟨resid, hresid, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hresidv, hresidwf⟩ := ExprOps.get_app_args_refines hcrest2wf hresid
   obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
@@ -4106,7 +4217,23 @@ theorem check_iota_thm_n_frames_refines
     scalar_tac
   by_cases hne :
       (Std.UScalar.cast .U64 (alloc.vec.Vec.len resid) : Std.U64) != i4
-  · rw [if_pos hne] at h; simp [bind_eq_ok_iff] at h
+  · -- the auxiliary constructor's residual arity (`DeclCheck.lean:673`)
+    rw [if_pos hne] at h
+    simp [bind_eq_ok_iff] at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    simp only [bne_iff_ne, ne_eq] at hne
+    have hlen : ¬ ((ConLeche.Expr.getAppArgs (absExpr crest2P)).length
+        = cn_p.val + (m_i.val - r_p.val)) := by
+      rw [← hresidv]
+      simp only [absExprs, List.length_map]
+      intro hc
+      exact hne (Std.UScalar.eq_of_val_eq (by rw [hi2v, hc, hi4v, hi3v]))
+    refine errSim_notImplemented
+      s!"iota constructor arity for {lcvName}" hce ?_
+    rw [checkIotaThmNFrames]
+    simp only [StateT.run] at hrun1 hrun2 ⊢
+    simp [Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+      Except.pure, ConLeche.unwrapOr, ← hoabs, hrun1, ← ho1abs, hrun2, ← ho2abs, hlen]
   · rw [if_neg hne] at h
     simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hne
     have hlen : (ConLeche.Expr.getAppArgs (absExpr crest2P)).length
@@ -4124,7 +4251,16 @@ theorem check_iota_thm_n_frames_refines
     obtain ⟨ho3abs, ho3wf⟩ := ExprOps.inst_lams_at_refines hrhs hframewf ho3
     rw [hframev] at ho3abs
     cases o3 with
-    | none => simp at h
+    | none =>
+      -- the rule shape (`DeclCheck.lean:676`)
+      simp at h
+      obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+      simp only [Option.map_none] at ho3abs
+      refine errSim_notImplemented s!"rule shape mismatch for {lcvName}" hce ?_
+      rw [checkIotaThmNFrames]
+      simp only [StateT.run] at hrun1 hrun2 ⊢
+      simp [Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+        Except.pure, ConLeche.unwrapOr, ← hoabs, hrun1, ← ho1abs, hrun2, ← ho2abs, hlen, ← ho3abs]
     | some lq =>
     obtain ⟨ldoms, lrest⟩ := lq
     obtain ⟨hldomswf, hlrestwf⟩ := ho3wf _ rfl
@@ -4135,7 +4271,20 @@ theorem check_iota_thm_n_frames_refines
     obtain ⟨p3, hp3, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r3, st3⟩ := p3
     cases r3 with
-    | Err err => simp at h
+    | Err err =>
+      -- move 1: the frame-domain comparison threw
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      have herr :=
+        hcb.checkDefEqListErr st2 fe_self i1 fDoms ldoms err st3 hwf2 hfe
+          hfDomswf hldomswf hp3 lst2 lfe hrel2 hfer
+      rw [hi1v, hfDomsv] at herr
+      refine ErrSim.trans herr (fun le hle => ?_)
+      rw [checkIotaThmNFrames]
+      simp only [StateT.run] at hrun1 hrun2 hle ⊢
+      simp only [List.map_append] at hle
+      simp [Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+        Except.pure, ConLeche.unwrapOr, ← hoabs, hrun1, ← ho1abs, hrun2, ← ho2abs, hlen, ← ho3abs, hle]
     | Ok u3 =>
     cases u3
     obtain ⟨lst3, hrun3, hrel3, hwf3⟩ :=
@@ -4153,7 +4302,20 @@ theorem check_iota_thm_n_frames_refines
     obtain ⟨p4, hp4, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r4, st4⟩ := p4
     cases r4 with
-    | Err err => simp at h
+    | Err err =>
+      -- move 1: `core_c::defeq` threw
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      have herr :=
+        IndAbs.ops_defeq_err hw hwf3 hfe hr happliedwf hp4 lst3 lfe hrel3 hfer
+      rw [hi1v, happliedv, hfer.1] at herr
+      refine ErrSim.trans herr (fun le hle => ?_)
+      rw [checkIotaThmNFrames]
+      simp only [StateT.run] at hrun1 hrun2 hrun3 hle ⊢
+      simp only [List.map_append] at hrun3
+      simp [Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+        Except.pure, ConLeche.unwrapOr, ← hoabs, hrun1, ← ho1abs, hrun2, ← ho2abs, hlen, ← ho3abs,
+        hrun3, hle]
     | Ok b =>
     obtain ⟨lst4, hrun4, hrel4, hwf4⟩ :=
       IndAbs.ops_defeq hw hwf3 hfe hr happliedwf hp4 lst3 lfe hrel3 hfer
@@ -4164,16 +4326,58 @@ theorem check_iota_thm_n_frames_refines
       obtain ⟨alpha, halpha, h⟩ := h
       obtain ⟨halphav, halphawf⟩ := arg_get_d_refines htargs halpha
       rw [show ((0#usize : Std.Usize)).val = 0 from rfl] at halphav
-      obtain ⟨lst5, hrun5, hrel5, hwf5⟩ :=
+      have hsides :=
         check_iota_sides_ty_refines hw hcb hwf4 hfe halphawf hl hr hla h lst4
           lfe lcvName hrel4 hfer
-      rw [hi1v, halphav] at hrun5
-      refine ⟨lst5, ?_, hrel5, hwf5⟩
-      exact checkIotaThmNFrames_run hoabs.symm hrun1 ho1abs.symm hrun2
-        ho2abs.symm hlen ho3abs.symm hrun3 hrun4 hrun5
-    · simp only [Bool.not_eq_true] at hbt
+      rw [hi1v, halphav] at hsides
+      have htail := checkIotaThmNFrames_tail (cvName := lcvName)
+        (targs := absExprs targs) (lhsS := absExpr lhs_s) (lA := absLevel l_a)
+        hoabs.symm hrun1 ho1abs.symm hrun2 ho2abs.symm hlen ho3abs.symm hrun3
+        hrun4
+      cases out with
+      | Ok u =>
+        obtain ⟨lst5, hrun5, hrel5, hwf5⟩ := hsides
+        exact ⟨lst5, htail.trans hrun5, hrel5, hwf5⟩
+      | Err e => exact ErrSim.of_eq hsides htail
+    · -- the statement mismatch (`DeclCheck.lean:682`)
+      simp only [Bool.not_eq_true] at hbt
       subst hbt
       simp at h
+      obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+      refine errSim_notImplemented s!"iota statement mismatch for {lcvName}" hce ?_
+      rw [checkIotaThmNFrames]
+      simp only [StateT.run] at hrun1 hrun2 hrun3 hrun4 ⊢
+      simp only [List.map_append] at hrun3
+      simp [Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+        Except.pure, ConLeche.unwrapOr, ← hoabs, hrun1, ← ho1abs, hrun2, ← ho2abs, hlen, ← ho3abs,
+        hrun3, hrun4]
+
+/-- `check_iota_thm_n_frames_refines` at a success, the pre-#67 statement. -/
+theorem check_iota_thm_n_frames_refines_ok
+    {st st' : cached.state_c.CState} {fe_self : fenv.FEnv}
+    {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
+    {ty_a rhs_a lhs_s rhs_s : expr.Expr} {r_p cn_p cn_f m_i : Std.U64}
+    {cvj : env.ConstantVal} {fvs targs pins : alloc.vec.Vec expr.Expr}
+    {lvls : alloc.vec.Vec level.Level} {l_a : level.Level}
+    (hf : RenamesTo f g) (hst : StateWF st) (hfe : FEnvWF fe_self)
+    (hty : ExprWF ty_a) (hcvj : ConstantValWF cvj) (hrhs : ExprWF rhs_a)
+    (hfvs : ExprsWF fvs) (htargs : ExprsWF targs) (hl : ExprWF lhs_s)
+    (hr : ExprWF rhs_s) (hla : LevelWF l_a) (hlvls : LevelsWF lvls)
+    (hpins : ExprsWF pins)
+    (h : inductives.modeled.check_iota_thm_n_frames mode st fe_self f ty_a r_p
+        cvj cn_p cn_f rhs_a fvs targs lhs_s rhs_s l_a lvls pins m_i
+        = ok (.Ok (), st')) :
+    ∀ lst lfe lcvName, StateRel st lst → FEnvRel fe_self lfe →
+      ∃ lst',
+        (checkIotaThmNFrames (absMode mode) lfe g lcvName (absExpr ty_a) r_p.val
+            (absConstantVal cvj) cn_p.val cn_f.val (absExpr rhs_a)
+            (absExprs fvs) (absExprs targs) (absExpr lhs_s) (absExpr rhs_s)
+            (absLevel l_a) (absLevels lvls) (absExprs pins) m_i.val).run lst
+          = .ok ((), lst')
+        ∧ StateRel st' lst' ∧ StateWF st' :=
+  check_iota_thm_n_frames_refines hw hcb hf hst hfe hty hcvj hrhs hfvs htargs
+    hl hr hla hlvls hpins h
+
 
 omit hw hcb in
 /-- `checkIotaThmNCtor`'s success path, run. -/
