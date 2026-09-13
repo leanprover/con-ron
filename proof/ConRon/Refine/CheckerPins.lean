@@ -3626,24 +3626,51 @@ theorem check_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
         simp only [ConLeche.checkDivModPinF, hgv, if_true, hfind]
         exact hrun
 
+/-- `ConLeche/Kernel/Checker.lean:398-406`,
+`ConLeche/Kernel/DeclCheck.lean:922-928` — **the identity certificate as a
+computation of its own**: the cited `let ok ← ops.isDefEq env 1 (.app valA x) x;
+if ok then pure () else throw (.internal …)` at `x := reduceCertVar c` and
+`ops := sharedOpsC mode fe`, which is the tail of `checkReducePinF`'s matched
+arm and is exactly what `checker::check_reduce_identity` is.  Naming it is what
+lets the full-outcome statement below (task #67) say what con-leche does when
+the certificate fails; the accept direction never needs it, because on success
+the whole fragment *is* the `isDefEq`. -/
+def reduceIdentityCertF (lmode : ConLeche.CheckMode) (lfe : ConLeche.FEnv)
+    (c : ConLeche.Name) (valA : ConLeche.Expr) : ConLeche.Cached.CheckCM Unit := do
+  let ok ← ConLeche.Cached.opB lmode lfe 1
+    (.app valA (ConLeche.reduceCertVar c)) (ConLeche.reduceCertVar c)
+  if ok then pure ()
+  else throw (.internal
+    s!"pinned compiler-trust opaque is not the identity ({c})")
+
 /-- `ConLeche/Kernel/Checker.lean:382-417 checkReducePin` —
 `checker::check_reduce_identity` refines the cited identity certificate
 `ops.isDefEq env 1 (.app valA x) x` at `x := reduceCertVar c`, which is what
 the model consumes (`EnvModel.reduce_ops`): on success it answered `true`, and
 a failure after the pin matched is an internal inconsistency because the pin
-*is* the identity function. -/
+*is* the identity function.
+
+**The whole outcome** (task #67, DESIGN.md §3's ruling of 2026-09-13): the
+accept arm is the pre-#67 statement verbatim, and a mirrored failure is either
+the comparison's own (move 1) or the cited `throw (.internal …)` that follows a
+`false` — `reduceIdentityCertF` is the fragment both sides end in. -/
 theorem check_reduce_identity_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     (htp : TrustPinsSpec)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {c : name.Name}
-    {val_a : expr.Expr}
+    {val_a : expr.Expr} {out : core.result.Result Unit core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hva : ExprWF val_a)
-    (h : checker.check_reduce_identity mode st fe c val_a = ok (.Ok (), st')) :
+    (h : checker.check_reduce_identity mode st fe c val_a = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.Cached.opB (absMode mode) lfe 1
-            (.app (absExpr val_a) (ConLeche.reduceCertVar (absName c)))
-            (ConLeche.reduceCertVar (absName c))).run lst = .ok (true, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+      match out with
+      | .Ok _ =>
+        ∃ lst', (ConLeche.Cached.opB (absMode mode) lfe 1
+              (.app (absExpr val_a) (ConLeche.reduceCertVar (absName c)))
+              (ConLeche.reduceCertVar (absName c))).run lst = .ok (true, lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((reduceIdentityCertF (absMode mode) lfe (absName c)
+            (absExpr val_a)).run lst) := by
   intro lst lfe hsr hfr
   rw [checker.check_reduce_identity] at h
   obtain ⟨x, hx, h⟩ := bind_eq_ok_iff.mp h
@@ -3662,19 +3689,35 @@ theorem check_reduce_identity_refines {mode : env.CheckMode} {fuel : Std.U64}
   obtain ⟨q, hq, h⟩ := h
   obtain ⟨res, st1⟩ := q
   cases res with
-  | Err er => exact absurd h (by simp)
+  | Err er =>
+    -- move 1: the identity comparison threw
+    have herr := ((TypeChecker.is_def_eq_core_refines hfuel hk).err) st fe 1#u64
+      applied x er st1 hsw hfw hawf hxwf hq lst lfe hsr hfr
+    rw [haabs, hxabs] at herr
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    simp only [reduceIdentityCertF, StateT.run_bind]
+    exact ErrSim.bind herr _
   | Ok ok1 =>
+    obtain ⟨lst1, hrun, hsr1, hsw1⟩ :=
+      ((TypeChecker.is_def_eq_core_refines hfuel hk).ok) st fe 1#u64 applied x ok1
+        st1 hsw hfw hawf hxwf hq lst lfe hsr hfr
+    rw [haabs, hxabs, show ((1#u64 : Std.U64)).val = 1 from rfl] at hrun
     cases ok1 with
-    | false => exact absurd h (by simp)
+    | false =>
+      -- the certificate failed after the pin matched: an internal
+      -- inconsistency on both sides, and it is mirrored, not excused
+      simp at h
+      obtain ⟨v, hv, ce0, hce0, rfl, rfl⟩ := h
+      have hce : ce0 = core_types.CheckError.Internal v := internal_inv hce0
+      subst hce
+      simp only [reduceIdentityCertF, StateT.run_bind, hrun, except_ok_bind,
+        Bool.false_eq_true, if_false]
+      exact ErrSim.internal rfl
     | true =>
       simp at h
-      obtain ⟨lst', hrun, hsr', hsw'⟩ :=
-        ((TypeChecker.is_def_eq_core_refines hfuel hk).ok) st fe 1#u64 applied x true st1
-          hsw hfw hawf hxwf hq lst lfe hsr hfr
-      rw [h] at hsr' hsw'
-      refine ⟨lst', ?_, hsr', hsw'⟩
-      rw [haabs, hxabs] at hrun
-      exact hrun
+      obtain ⟨rfl, rfl⟩ := h
+      exact ⟨lst1, hrun, hsr1, hsw1⟩
 
 /-- `ConLeche/Kernel/Checker.lean:382-417 checkReducePin`,
 `ConLeche/Kernel/DeclCheck.lean:914-933 checkReducePinF` —
@@ -3682,39 +3725,81 @@ theorem check_reduce_identity_refines {mode : env.CheckMode} {fuel : Std.U64}
 pre-insertion view: the element guard, the pin's own syntactic guards, the
 definitional comparison of the witness against the build-time pin, and the
 identity certificate.  The port tests `reduceStoredOkF` at the extended bound
-in the caller, so the cited first conjunct arrives here as `hstored`. -/
+in the caller, so the cited first conjunct arrives here as `hstored`.
+
+**The whole outcome** (task #67, DESIGN.md §3's ruling of 2026-09-13).  Every
+one of the five failure sites is mirrored: the element guard and the pin guard
+are the cited `throw (.notImplemented …)` of the `if`s they fail (the census's
+"one Lean `unless A ∧ B`, two Rust arms" case — `check_reduce_pin` carries the
+`reduceStoredOkF` half, here it is `hstored`), the mismatched pin is the third
+`throw (.notImplemented …)`, and the two annotations and the comparison are
+move 1. -/
 theorem check_reduce_pin_pre_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     (htp : TrustPinsSpec)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {lfe2 : ConLeche.FEnv}
     {c : name.Name} {value : expr.Expr}
+    {out : core.result.Result Unit core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hval : ExprWF value)
     (hstored : ConLeche.reduceStoredOkF lfe2 (absName c) = true)
-    (h : checker.check_reduce_pin_pre mode st fe c value = ok (.Ok (), st')) :
+    (h : checker.check_reduce_pin_pre mode st fe c value = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → TrustGuardsSpec fe lfe →
-      ∃ lst', (ConLeche.checkReducePinF (TypeChecker.lops mode lfe) lfe lfe2
-            (absName c) (absExpr value)).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+      match out with
+      | .Ok _ =>
+        ∃ lst', (ConLeche.checkReducePinF (TypeChecker.lops mode lfe) lfe lfe2
+              (absName c) (absExpr value)).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkReducePinF (TypeChecker.lops mode lfe) lfe lfe2
+            (absName c) (absExpr value)).run lst) := by
   intro lst lfe hsr hfr htg
   rw [checker.check_reduce_pin_pre] at h
   obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
   have hbv := htg.elemOk c b hc hb
   cases b with
-  | false => simp at h
+  | false =>
+    -- the element guard declined: the cited `reduceStoredOkF && reduceElemOkF`
+    -- is false too, and both sides throw `notImplemented`
+    simp at h
+    obtain ⟨v, hv, ce0, hce0, rfl, rfl⟩ := h
+    have hce : ce0 = core_types.CheckError.NotImplemented v := not_implemented_inv hce0
+    subst hce
+    simp only [ConLeche.checkReducePinF, hstored, Bool.true_and, ← hbv,
+      Bool.false_eq_true, if_false]
+    exact ErrSim.notImplemented rfl
   | true =>
     have helem : ConLeche.reduceElemOkF lfe (absName c) = true := hbv.symm
     simp only [if_true] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     have hb1v := htg.pinGuard c b1 hc hb1
     cases b1 with
-    | false => simp at h
+    | false =>
+      -- the pin's syntactic guard declined: the cited `reducePinGuardF` is
+      -- false too
+      simp at h
+      obtain ⟨v, hv, ce0, hce0, rfl, rfl⟩ := h
+      have hce : ce0 = core_types.CheckError.NotImplemented v := not_implemented_inv hce0
+      subst hce
+      simp only [ConLeche.checkReducePinF, hstored, helem, Bool.and_self,
+        if_true, ← hb1v, Bool.false_eq_true, if_false]
+      exact ErrSim.notImplemented rfl
     | true =>
       have hguard : ConLeche.reducePinGuardF lfe (absName c) = true := hb1v.symm
       simp only [if_true] at h
       obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨res, st1⟩ := q
       cases res with
-      | Err e => simp at h
+      | Err e =>
+        -- move 1: annotating the witness threw
+        have herr : ErrSim e ((ConLeche.Cached.opE (absMode mode) lfe (·.annotate) 0
+            (absExpr value)).run lst) :=
+          ((TypeChecker.annotate_core_refines hfuel hk).err) st fe 0#u64 value e st1
+            hsw hfw hval hq lst lfe hsr hfr
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        simp only [ConLeche.checkReducePinF, hstored, helem, Bool.and_self,
+          if_true, hguard, StateT.run_bind, TypeChecker.sharedOpsC_annotate]
+        exact ErrSim.bind herr _
       | Ok val_a =>
         obtain ⟨lst1, hrun1, hsr1, hsw1, hvawf⟩ :=
           ((TypeChecker.annotate_core_refines hfuel hk).ok) st fe 0#u64 value val_a st1
@@ -3725,7 +3810,19 @@ theorem check_reduce_pin_pre_refines {mode : env.CheckMode} {fuel : Std.U64}
         obtain ⟨pin, hpin, res2, st2, hq2, h⟩ := h
         obtain ⟨hpinabs, hpinwf⟩ := htp.declPin c pin hc hpin
         cases res2 with
-        | Err e => simp at h
+        | Err e =>
+          -- move 1: annotating the build-time pin threw
+          have herr : ErrSim e ((ConLeche.Cached.opE (absMode mode) lfe (·.annotate) 0
+              (ConLeche.reduceDeclPin (absName c))).run lst1) := by
+            rw [← hpinabs]
+            exact ((TypeChecker.annotate_core_refines hfuel hk).err) st1 fe 0#u64 pin e
+              st2 hsw1 hfw hpinwf hq2 lst1 lfe hsr1 hfr
+          simp at h
+          obtain ⟨rfl, rfl⟩ := h
+          simp only [ConLeche.checkReducePinF, hstored, helem, Bool.and_self,
+            if_true, hguard, StateT.run_bind, except_ok_bind,
+            TypeChecker.sharedOpsC_annotate, hrun1']
+          exact ErrSim.bind herr _
         | Ok pin_a =>
           obtain ⟨lst2, hrun2, hsr2, hsw2, hpawf⟩ :=
             ((TypeChecker.annotate_core_refines hfuel hk).ok) st1 fe 0#u64 pin pin_a st2
@@ -3736,7 +3833,19 @@ theorem check_reduce_pin_pre_refines {mode : env.CheckMode} {fuel : Std.U64}
           simp at h
           obtain ⟨res3, st3, hq3, h⟩ := h
           cases res3 with
-          | Err e => simp at h
+          | Err e =>
+            -- move 1: the comparison against the pin threw
+            have herr : ErrSim e ((ConLeche.Cached.opB (absMode mode) lfe 0
+                (absExpr val_a) (absExpr pin_a)).run lst2) :=
+              ((TypeChecker.is_def_eq_core_refines hfuel hk).err) st2 fe 0#u64 val_a
+                pin_a e st3 hsw2 hfw hvawf hpawf hq3 lst2 lfe hsr2 hfr
+            simp at h
+            obtain ⟨rfl, rfl⟩ := h
+            simp only [ConLeche.checkReducePinF, hstored, helem, Bool.and_self,
+              if_true, hguard, StateT.run_bind, except_ok_bind,
+              TypeChecker.sharedOpsC_annotate, TypeChecker.sharedOpsC_isDefEq,
+              hrun1', hrun2']
+            exact ErrSim.bind herr _
           | Ok ok_pin =>
             obtain ⟨lst3, hrun3, hsr3, hsw3⟩ :=
               ((TypeChecker.is_def_eq_core_refines hfuel hk).ok) st2 fe 0#u64 val_a pin_a
@@ -3745,18 +3854,45 @@ theorem check_reduce_pin_pre_refines {mode : env.CheckMode} {fuel : Std.U64}
                 (absExpr val_a) (absExpr pin_a)).run lst2 = .ok (ok_pin, lst3) :=
               hrun3
             cases ok_pin with
-            | false => simp at h
-            | true =>
+            | false =>
+              -- the witness is not the build-time pin: toolchain drift, and
+              -- the cited `throw (.notImplemented …)` says so too
               simp at h
-              obtain ⟨lst4, hrun4, hsr4, hsw4⟩ :=
-                check_reduce_identity_refines hfuel hk htp hsw3 hfw hc hvawf h
-                  lst3 lfe hsr3 hfr
-              refine ⟨lst4, ?_, hsr4, hsw4⟩
+              obtain ⟨v, hv, ce0, hce0, rfl, rfl⟩ := h
+              have hce : ce0 = core_types.CheckError.NotImplemented v :=
+                not_implemented_inv hce0
+              subst hce
               simp only [ConLeche.checkReducePinF, hstored, helem, Bool.and_self,
                 if_true, hguard, StateT.run_bind, except_ok_bind,
                 TypeChecker.sharedOpsC_annotate, TypeChecker.sharedOpsC_isDefEq,
-                hrun1', hrun2', hrun3', hrun4]
-              rfl
+                hrun1', hrun2', hrun3', Bool.false_eq_true, if_false]
+              exact ErrSim.notImplemented rfl
+            | true =>
+              simp at h
+              have hpre : (ConLeche.checkReducePinF (TypeChecker.lops mode lfe) lfe
+                    lfe2 (absName c) (absExpr value)).run lst
+                  = (reduceIdentityCertF (absMode mode) lfe (absName c)
+                      (absExpr val_a)).run lst3 := by
+                simp only [ConLeche.checkReducePinF, hstored, helem, Bool.and_self,
+                  if_true, hguard, StateT.run_bind, except_ok_bind,
+                  TypeChecker.sharedOpsC_annotate, TypeChecker.sharedOpsC_isDefEq,
+                  hrun1', hrun2', hrun3', reduceIdentityCertF]
+              have hid := check_reduce_identity_refines hfuel hk htp hsw3 hfw hc hvawf h
+                lst3 lfe hsr3 hfr
+              revert hid
+              cases out with
+              | Ok u =>
+                intro hid
+                obtain ⟨lst4, hrun4, hsr4, hsw4⟩ := hid
+                refine ⟨lst4, ?_, hsr4, hsw4⟩
+                rw [hpre]
+                simp only [reduceIdentityCertF, StateT.run_bind, hrun4,
+                  except_ok_bind]
+                rfl
+              | Err e =>
+                intro hid
+                rw [hpre]
+                exact hid
 
 /-- `ConLeche/Kernel/Checker.lean:382-417 checkReducePin`,
 `ConLeche/Kernel/DeclCheck.lean:914-933 checkReducePinF` —
