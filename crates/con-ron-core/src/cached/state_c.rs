@@ -1118,7 +1118,7 @@ pub fn consts_resolve_fc(fe: &FEnv, e: &Expr) -> bool {
 // `&mut CState` through the whole checker, so the caller has to keep a
 // snapshot and put it back.  `dup` below is that snapshot: a copy of the
 // fourteen tables of `CState`, through `ron::hashmap`'s `Dup` trait (see the
-// section at the end of that file, and `spikes/dup-tuple` for the evidence
+// section at the end of that file, and the `dup-tuple` spike (removed at task #76) for the evidence
 // that Charon and Aeneas accept a trait impl on a tuple type, which the five
 // tuple-keyed maps need).
 //

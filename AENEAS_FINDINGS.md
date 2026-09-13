@@ -28,7 +28,7 @@ Rust.
 | Charon | `aeneasverif/charon` **b104e24fea7d721b71e6c39fd70f26ff20bc0980**, via Aeneas's own flake input |
 | Rust toolchain | the nightly Charon pins, **nightly-2026-08-18** |
 | Lean (our proof project *and* con-leche) | **leanprover/lean4:v4.33.0** + Mathlib `v4.33.0` |
-| Lean the Aeneas library wants | v4.31.0 — reconciled by our 375-line `spikes/toolchain/aeneas-433.patch` (§3.1) |
+| Lean the Aeneas library wants | v4.31.0 — reconciled by our 375-line `patches/aeneas-433.patch` (§3.1) |
 | CLI | `charon cargo --preset=aeneas --dest-file <abs>.llbc`; `aeneas -backend lean -split-files -loops-to-rec -dest … -subdir ConRon/Generated -namespace ConRon.Generated -no-progress-bar` |
 
 The Rust subset we hold ourselves to (`DESIGN.md` §3.4, enforced by a lint script): no
@@ -83,7 +83,7 @@ a tuple>; if rm.0 { … }` in a by-value-threaded memo walk (#30).  Fix: a tail 
 function taking the two components as separate parameters.
 
 **F6. A trait impl mutually recursive with a function.** **[limitation]** *"mixed-recursive
-declaration groups"*, first hit in the `spikes/rc-fuel` spike (#1) — also triggered by
+declaration groups"*, first hit in the `rc-fuel` feasibility spike (#1) — also triggered by
 `#[derive(Debug)]` on a recursive type, whose impl joins the type's recursion group.  This
 decided a whole design: con-leche's checker is written against a record of closures (a
 "knot"), and the obvious Rust rendering — bodies generic over a `CoreFns` trait, the memo
@@ -208,7 +208,7 @@ prominently.  #12
 ### 3.1 The 4.33 patch, and the two `backward.*` options
 
 The Aeneas Lean library builds on `leanprover/lean4:v4.33.0` with Mathlib `v4.33.0` after a
-**375-line patch to ten files** (`spikes/toolchain/aeneas-433.patch`, against 505b6ca3).
+**375-line patch to ten files** (`patches/aeneas-433.patch`, against 505b6ca3).
 Clean rebuild of the package: 146 s, 2 037 jobs, Mathlib from the olean cache.  The patch
 is:
 

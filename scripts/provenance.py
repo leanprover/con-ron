@@ -43,7 +43,6 @@ import sys
 DEFAULT_ROOTS = [
     "crates/con-ron-core/src",
     "crates/con-ron/src",
-    "spikes/level-name/src",
 ]
 
 # The con-leche submodule, and the implementation trees the ledger counts.

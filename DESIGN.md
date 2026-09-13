@@ -75,7 +75,7 @@ only mature tool that does this:
   `Result` monad (`ok` / `fail` for panics, overflow, out-of-bounds / `div`);
   `&mut` parameters become state in/out; recursion becomes `partial_fixpoint`
   (no termination proof required); the output reads like hand-written Lean
-  (see `spikes/rc-fuel/lean/Funs.lean`).
+  (see task #1's `rc-fuel` spike).
 * It is actively maintained (last commit 2026-09-08), ships a Nix flake that
   pins Charon and the Rust nightly, and its Lean library carries a proof
   toolkit (`step`, `spec` notation, `scalar_tac`, `dspec`/admissibility for
@@ -401,7 +401,9 @@ vendor/aeneas            submodule, pinned (505b6ca3) — same rev as flake.nix
 _tmp/aeneas-lean/        gitignored: vendor/aeneas/backends/lean + the v4.33
                          patch, built; produced by setup-aeneas-lean.sh, and
                          `require`d by path from proof/
-spikes/                  feasibility experiments, kept as evidence
+patches/                 aeneas-433.patch: the Aeneas Lean library on
+                         Lean v4.33 (task #2), applied by
+                         setup-aeneas-lean.sh
 scripts/                 gates.sh (run it before every commit), extract.sh,
                          setup-aeneas-lean.sh, lint-rust-style.sh,
                          provenance.py, dump-fixtures.sh, diff-fixtures.sh,
@@ -861,7 +863,7 @@ moved and what changed*, and for the unverified frontend it is the only
 sync signal there is.
 
 **Implementation notes** (task #8).  `--roots DIR…` overrides the
-default `crates/con-ron-core/src spikes/level-name/src`; the default
+default `crates/con-ron-core/src crates/con-ron/src`; the default
 list is a constant at the top of the script.  Three details the design
 above leaves open, settled by the implementation:
 
@@ -1101,6 +1103,11 @@ measured.
 * Large artifacts (exports, builds) go to `_tmp/` (gitignored).
 
 ## Task log
+
+`spikes/` was removed at publication (task #76); its contents are in the
+repository history before that commit, and its findings are in the task
+sections that cite them.  The one file kept is the Aeneas Lean patch, now
+`patches/aeneas-433.patch`.
 
 ### Task #1 — Feasibility, design, infrastructure (2026-09-12, Fable)
 

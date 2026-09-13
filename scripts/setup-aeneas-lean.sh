@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Produce `_tmp/aeneas-lean/`: a copy of `vendor/aeneas/backends/lean` with
-# `spikes/toolchain/aeneas-433.patch` applied, so that the Aeneas Lean library
+# `patches/aeneas-433.patch` applied, so that the Aeneas Lean library
 # builds on con-leche's toolchain (leanprover/lean4:v4.33.0 + Mathlib v4.33.0).
 # See DESIGN.md, task #2.
 #
@@ -17,7 +17,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 src="$root/vendor/aeneas/backends/lean"
-patch_file="$root/spikes/toolchain/aeneas-433.patch"
+patch_file="$root/patches/aeneas-433.patch"
 dest="$root/_tmp/aeneas-lean"
 stamp="$dest/.con-ron-setup-stamp"
 
