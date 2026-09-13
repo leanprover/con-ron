@@ -1,6 +1,6 @@
 //! `ConLeche/Cached/ParsedC.lean` — **the parsed-declaration checker**: one
-//! `DeclC` straight from the direct parse, checked as it is installed, with
-//! the syntactic passes memoised on the `ExprC` DAG
+//! `Declaration` straight from the direct parse, checked as it is installed,
+//! with the syntactic passes memoised on the `Expr` DAG
 //! (`crate::cached::expr_ops_c`) and the core entry points taken from the
 //! cached knot.  Plus the two records that cross the install/check seam,
 //! `ValueGroup` (`ConLeche/Kernel/CheckerSplit.lean`) and `PendingCheck`
@@ -43,10 +43,11 @@
 //! **Nothing here is a placeholder.**  `checkDeclC`'s `.indDecl` arm
 //! dispatches to task #25's two install routes (`check_ind_decl_c`).
 //!
-//! `DeclC` is `Declaration` with the *value* constructors' payloads at
-//! `ExprC`, which is `Expr` (task #10, surprise 1), and **without**
-//! `Declaration`'s `deriving DecidableEq, Repr, Inhabited` — con-leche
-//! derives nothing on `DeclC`, deliberately (task #10's note on the
+//! **There is one declaration record**, `kernel::env::Declaration`: con-leche's
+//! task #285 merged its cached `DeclC` twin into `Declaration` (the payloads
+//! were already `Expr`, task #10 surprise 1), and the port followed at task
+//! #83.  The port derives nothing on it, as con-leche's `deriving DecidableEq,
+//! Repr, Inhabited` buys the checker nothing it uses (task #10's note on the
 //! round-trip comparison).  Its `indDecl` carries *installed*
 //! `ConstantInfo`s, so a parsed declaration transitively contains `IndCaps`,
 //! `RecRule` (with `RecRuleFire`) and `ProjTable`, whose install-computed
@@ -1108,7 +1109,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
         }
     }
 
-    /// A `DeclC` list is what `check_decls` consumes; an `indDecl` block
+    /// A `Declaration` array is what `check_decls` consumes; an `indDecl` block
     /// carries *installed* records at their parse placeholders.
     #[test]
     fn decl_list_shape() {
