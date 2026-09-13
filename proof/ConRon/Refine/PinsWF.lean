@@ -1386,4 +1386,241 @@ theorem record_expr_wf {t : Slice Std.U8} {i j : Std.Usize}
         exact record_expr_proj_wf htb h
       exact (err_ne_ok h).elim
 
+
+/-! ### `S` — the payload record
+
+The one record that builds a `NatOpPinSet`, and the only place a `<string>`
+field and the two eight-element lists meet.  `pins_eight`/`proofs_eight` are
+counted lists like the three above, over `expr_ref` and `expr_list`; the
+seventeen fields are then read back out of them by index, through `expr::dup`
+and `env::exprs_copy`, both of which are the identity. -/
+
+/-- `expr::dup` is `Arc::clone`, so it hands back the term it was given. -/
+private theorem expr_dup_wf {e d : expr.Expr} (he : ExprWF e)
+    (h : expr.dup e = ok d) : ExprWF d := by
+  rw [expr_dup_ok e, Result.ok.injEq] at h
+  rw [← h]; exact he
+
+private theorem pins_eight_from_wf {t : Slice Std.U8} {tb : pins_decode.Tables}
+    (htb : TablesWF tb) :
+    ∀ (kf : Nat) (i k : Std.Usize) (out : alloc.vec.Vec expr.Expr),
+      k.val ≤ kf → ExprsWF out →
+      ∀ (res : alloc.vec.Vec expr.Expr) (j : Std.Usize),
+        pins_decode.pins_eight_from t i tb k out = ok (.Ok (res, j)) → ExprsWF res := by
+  intro kf
+  induction kf with
+  | zero =>
+    intro i k out hk hout res j h
+    rw [pins_decode.pins_eight_from.eq_def] at h
+    rw [if_pos (show k = 0#usize from by scalar_tac)] at h
+    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact hout
+  | succ kf ih =>
+    intro i k out hk hout res j h
+    rw [pins_decode.pins_eight_from.eq_def] at h
+    split at h
+    · simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact hout
+    · rename_i hk0
+      have hkpos : 0 < k.val := by
+        rcases Nat.eq_zero_or_pos k.val with _ | hp
+        · exact absurd (by scalar_tac : k = 0#usize) hk0
+        · exact hp
+      obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+      cases r with
+      | Err e => simp at h
+      | Ok j1 =>
+        obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+        cases r1 with
+        | Err e => simp at h
+        | Ok p =>
+          obtain ⟨x, m⟩ := p
+          obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+          have hk1v : k1.val = k.val - 1 := usub_eq hk1
+          exact ih m k1 out1 (by omega)
+            (push_wf hout (expr_ref_wf htb hr1) hout1) res j h
+
+/-- The eight pinned terms are well formed. -/
+theorem pins_eight_wf {t : Slice Std.U8} {i j : Std.Usize} {tb : pins_decode.Tables}
+    {res : alloc.vec.Vec expr.Expr} (htb : TablesWF tb)
+    (h : pins_decode.pins_eight t i tb = ok (.Ok (res, j))) : ExprsWF res := by
+  rw [pins_decode.pins_eight] at h
+  exact pins_eight_from_wf htb 8 i 8#usize _ (by scalar_tac)
+    (by simp [ExprsWF, alloc.vec.Vec.new]) res j h
+
+private theorem proofs_eight_from_wf {t : Slice Std.U8} {tb : pins_decode.Tables}
+    (htb : TablesWF tb) :
+    ∀ (kf : Nat) (i k : Std.Usize) (out : alloc.vec.Vec (alloc.vec.Vec expr.Expr)),
+      k.val ≤ kf → (∀ es ∈ out.val, ExprsWF es) →
+      ∀ (res : alloc.vec.Vec (alloc.vec.Vec expr.Expr)) (j : Std.Usize),
+        pins_decode.proofs_eight_from t i tb k out = ok (.Ok (res, j)) →
+        ∀ es ∈ res.val, ExprsWF es := by
+  intro kf
+  induction kf with
+  | zero =>
+    intro i k out hk hout res j h
+    rw [pins_decode.proofs_eight_from.eq_def] at h
+    rw [if_pos (show k = 0#usize from by scalar_tac)] at h
+    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact hout
+  | succ kf ih =>
+    intro i k out hk hout res j h
+    rw [pins_decode.proofs_eight_from.eq_def] at h
+    split at h
+    · simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact hout
+    · rename_i hk0
+      have hkpos : 0 < k.val := by
+        rcases Nat.eq_zero_or_pos k.val with _ | hp
+        · exact absurd (by scalar_tac : k = 0#usize) hk0
+        · exact hp
+      obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+      cases r with
+      | Err e => simp at h
+      | Ok j1 =>
+        obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+        cases r1 with
+        | Err e => simp at h
+        | Ok p =>
+          obtain ⟨x, m⟩ := p
+          obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+          have hk1v : k1.val = k.val - 1 := usub_eq hk1
+          exact ih m k1 out1 (by omega)
+            (push_wf hout (expr_list_wf htb hr1) hout1) res j h
+
+/-- The eight certificate lists are well formed. -/
+theorem proofs_eight_wf {t : Slice Std.U8} {i j : Std.Usize}
+    {tb : pins_decode.Tables} {res : alloc.vec.Vec (alloc.vec.Vec expr.Expr)}
+    (htb : TablesWF tb)
+    (h : pins_decode.proofs_eight t i tb = ok (.Ok (res, j))) :
+    ∀ es ∈ res.val, ExprsWF es := by
+  rw [pins_decode.proofs_eight] at h
+  exact proofs_eight_from_wf htb 8 i 8#usize _ (by scalar_tac)
+    (by simp [alloc.vec.Vec.new]) res j h
+
+set_option maxHeartbeats 1000000 in
+/-- **The `S` record.**  Seventeen fields, each read out of one of the two
+eight-element lists and copied; the copies are the identity, so each field
+carries the list entry's own derivation. -/
+theorem record_pin_set_wf {t : Slice Std.U8} {i j : Std.Usize}
+    {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
+    (h : pins_decode.record_pin_set t i tb = ok (.Ok (tb', j))) : TablesWF tb' := by
+  rw [pins_decode.record_pin_set] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => simp at h
+  | Ok p =>
+    obtain ⟨toolchain, i1⟩ := p
+    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => simp at h
+    | Ok p1 =>
+      obtain ⟨pins, i2⟩ := p1
+      have hpins : ExprsWF pins := pins_eight_wf htb hr1
+      obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+      cases r2 with
+      | Err e => simp at h
+      | Ok p2 =>
+        obtain ⟨proofs, i3⟩ := p2
+        have hproofs : ∀ es ∈ proofs.val, ExprsWF es := proofs_eight_wf htb hr2
+        obtain ⟨r3, hr3, h⟩ := bind_eq_ok_iff.mp h
+        cases r3 with
+        | Err e => simp at h
+        | Ok i4 =>
+          simp only [] at h
+          split at h
+          · exact (err_ne_ok h).elim
+          · rename_i hp8
+            split at h
+            · exact (err_ne_ok h).elim
+            · rename_i hq8
+              -- The two guards the record just passed, in the form the
+              -- sixteen field reads want: both lists are exactly eight long.
+              have hplen : pins.length = 8 := by scalar_tac
+              have hqlen : proofs.length = 8 := by scalar_tac
+              have hp0 : (0#usize).val < pins.length := by simp [hplen]
+              have hp1 : (1#usize).val < pins.length := by simp [hplen]
+              have hp2 : (2#usize).val < pins.length := by simp [hplen]
+              have hp3 : (3#usize).val < pins.length := by simp [hplen]
+              have hp4 : (4#usize).val < pins.length := by simp [hplen]
+              have hp5 : (5#usize).val < pins.length := by simp [hplen]
+              have hp6 : (6#usize).val < pins.length := by simp [hplen]
+              have hp7 : (7#usize).val < pins.length := by simp [hplen]
+              have hq0 : (0#usize).val < proofs.length := by simp [hqlen]
+              have hq1 : (1#usize).val < proofs.length := by simp [hqlen]
+              have hq2 : (2#usize).val < proofs.length := by simp [hqlen]
+              have hq3 : (3#usize).val < proofs.length := by simp [hqlen]
+              have hq4 : (4#usize).val < proofs.length := by simp [hqlen]
+              have hq5 : (5#usize).val < proofs.length := by simp [hqlen]
+              have hq6 : (6#usize).val < proofs.length := by simp [hqlen]
+              have hq7 : (7#usize).val < proofs.length := by simp [hqlen]
+              obtain ⟨a0, ha0, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨b0, hb0, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨a1, ha1, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨a2, ha2, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨a3, ha3, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨a4, ha4, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨b4, hb4, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨a5, ha5, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨b5, hb5, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨a6, ha6, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨b6, hb6, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨a7, ha7, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨b7, hb7, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨c0, hc0, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨d0, hd0, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨c1, hc1, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨d1, hd1, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨c2, hc2, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨d2, hd2, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨c3, hc3, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨d3, hd3, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨c4, hc4, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨d4, hd4, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨c5, hc5, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨d5, hd5, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨c6, hc6, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨d6, hd6, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨c7, hc7, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨d7, hd7, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨v16, hv16, h⟩ := bind_eq_ok_iff.mp h
+              simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+                Prod.mk.injEq] at h
+              rw [← h.1]
+              refine with_sets htb (push_wf htb.sets ⟨read_string_wf hr, ?_, ?_,
+                ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ hv16)
+              · exact expr_dup_wf (hpins _ (vec_index_mem hp0 ha0)) hb0
+              · exact expr_dup_wf (hpins _ (vec_index_mem hp1 ha1)) hb1
+              · exact expr_dup_wf (hpins _ (vec_index_mem hp2 ha2)) hb2
+              · exact expr_dup_wf (hpins _ (vec_index_mem hp3 ha3)) hb3
+              · exact expr_dup_wf (hpins _ (vec_index_mem hp4 ha4)) hb4
+              · exact expr_dup_wf (hpins _ (vec_index_mem hp5 ha5)) hb5
+              · exact expr_dup_wf (hpins _ (vec_index_mem hp6 ha6)) hb6
+              · exact expr_dup_wf (hpins _ (vec_index_mem hp7 ha7)) hb7
+              · exact ConRon.Refine.Env.exprs_copy_wf
+                  (hproofs _ (vec_index_mem hq0 hc0)) hd0
+              · exact ConRon.Refine.Env.exprs_copy_wf
+                  (hproofs _ (vec_index_mem hq1 hc1)) hd1
+              · exact ConRon.Refine.Env.exprs_copy_wf
+                  (hproofs _ (vec_index_mem hq2 hc2)) hd2
+              · exact ConRon.Refine.Env.exprs_copy_wf
+                  (hproofs _ (vec_index_mem hq3 hc3)) hd3
+              · exact ConRon.Refine.Env.exprs_copy_wf
+                  (hproofs _ (vec_index_mem hq4 hc4)) hd4
+              · exact ConRon.Refine.Env.exprs_copy_wf
+                  (hproofs _ (vec_index_mem hq5 hc5)) hd5
+              · exact ConRon.Refine.Env.exprs_copy_wf
+                  (hproofs _ (vec_index_mem hq6 hc6)) hd6
+              · exact ConRon.Refine.Env.exprs_copy_wf
+                  (hproofs _ (vec_index_mem hq7 hc7)) hd7
+
 end ConRon.Refine.PinsWF
