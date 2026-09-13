@@ -3187,6 +3187,103 @@ theorem checkProjIotaF_at_tail {mode' : ConLeche.CheckMode}
   simp only [h1, h2, h3, h4, h5, reduceIte]
   rfl
 
+open ConLeche.Cached in
+/-- `checkProjIotaF`'s missing-theorem `throw` (`DeclCheck.lean:801`). -/
+theorem checkProjIotaF_thm_none {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj : ConLeche.ConstantVal} {nP nF i : Nat} {lst : CState}
+    (h1 : thmOf (lfe.find? ((ConLeche.projModelName T i).str "iota")) = none) :
+    (ConLeche.checkProjIotaF mode' ops lfe T ctorName lps cvj nP nF i).run lst
+      = .error (.notImplemented "missing projection iota theorem") := by
+  rw [ConLeche.checkProjIotaF]
+  cases hx : lfe.find? ((ConLeche.projModelName T i).str "iota") with
+  | none => rfl
+  | some ci =>
+    rw [hx] at h1
+    cases ci with
+    | axiomInfo _ => rfl
+    | defnInfo _ _ _ => rfl
+    | thmInfo _ _ => simp [thmOf] at h1
+    | indInfo _ _ => rfl
+    | ctorInfo _ _ _ => rfl
+    | recInfo _ _ _ _ => rfl
+    | projInfo _ => rfl
+
+open ConLeche.Cached in
+/-- `checkProjIotaF`'s level `throw` (`DeclCheck.lean:803`). -/
+theorem checkProjIotaF_lps {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj tcv : ConLeche.ConstantVal} {tval : ConLeche.Expr} {nP nF i : Nat}
+    {lst : CState}
+    (h1 : lfe.find? ((ConLeche.projModelName T i).str "iota")
+        = some (.thmInfo tcv tval))
+    (h2 : tcv.levelParams ≠ lps) :
+    (ConLeche.checkProjIotaF mode' ops lfe T ctorName lps cvj nP nF i).run lst
+      = .error (.notImplemented "projection iota level mismatch") := by
+  rw [ConLeche.checkProjIotaF]
+  simp only [h1, if_neg h2]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjIotaF`'s statement-telescope `throw` (`DeclCheck.lean:805`). -/
+theorem checkProjIotaF_thm_tele {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj tcv : ConLeche.ConstantVal} {tval : ConLeche.Expr} {nP nF i : Nat}
+    {lst : CState}
+    (h1 : lfe.find? ((ConLeche.projModelName T i).str "iota")
+        = some (.thmInfo tcv tval))
+    (h2 : tcv.levelParams = lps)
+    (h3 : tcv.type.stripPis (nP + nF) = none) :
+    (ConLeche.checkProjIotaF mode' ops lfe T ctorName lps cvj nP nF i).run lst
+      = .error (.notImplemented "projection iota telescope") := by
+  rw [ConLeche.checkProjIotaF]
+  simp only [h1, h2, h3, reduceIte]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjIotaF`'s constructor-telescope `throw` (`DeclCheck.lean:807`). -/
+theorem checkProjIotaF_ctor_tele {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj tcv : ConLeche.ConstantVal} {tval sbody : ConLeche.Expr}
+    {sbinders : List (ConLeche.Expr × ConLeche.BinderMeta)} {nP nF i : Nat}
+    {lst : CState}
+    (h1 : lfe.find? ((ConLeche.projModelName T i).str "iota")
+        = some (.thmInfo tcv tval))
+    (h2 : tcv.levelParams = lps)
+    (h3 : tcv.type.stripPis (nP + nF) = some (sbinders, sbody))
+    (h4 : cvj.type.stripPis (nP + nF) = none) :
+    (ConLeche.checkProjIotaF mode' ops lfe T ctorName lps cvj nP nF i).run lst
+      = .error (.notImplemented "projection constructor telescope") := by
+  rw [ConLeche.checkProjIotaF]
+  simp only [h1, h2, h3, h4, reduceIte]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjIotaF`'s domain `throw` (`DeclCheck.lean:811`). -/
+theorem checkProjIotaF_doms {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj tcv : ConLeche.ConstantVal} {tval sbody cbody : ConLeche.Expr}
+    {sbinders cbindersR : List (ConLeche.Expr × ConLeche.BinderMeta)}
+    {nP nF i : Nat} {lst : CState}
+    (h1 : lfe.find? ((ConLeche.projModelName T i).str "iota")
+        = some (.thmInfo tcv tval))
+    (h2 : tcv.levelParams = lps)
+    (h3 : tcv.type.stripPis (nP + nF) = some (sbinders, sbody))
+    (h4 : cvj.type.stripPis (nP + nF) = some (cbindersR, cbody))
+    (h5 : ConLeche.domsMatchAux
+        (fun _ e => e.renameConsts (ConLeche.projFwd T ctorName nF))
+        sbinders cbindersR 0 0 (nP + nF) = false) :
+    (ConLeche.checkProjIotaF mode' ops lfe T ctorName lps cvj nP nF i).run lst
+      = .error (.notImplemented "projection iota domain mismatch") := by
+  rw [ConLeche.checkProjIotaF]
+  simp only [h1, h2, h3, h4, h5, reduceIte, Bool.false_eq_true, if_false]
+  rfl
+
 /-- `ConLeche/Kernel/DeclCheck.lean:812-836` —
 **`inductives::modeled::check_proj_iota_body` refines the cited tail.**
 
@@ -3509,19 +3606,28 @@ theorem check_proj_iota_refines {mode : env.CheckMode} {fuel : Std.U64}
     {st st' : cached.state_c.CState} {fe2 fe_self : fenv.FEnv}
     {t ctor_name : name.Name} {lps : alloc.vec.Vec name.Name}
     {cvj : env.ConstantVal} {n_p n_f i : Std.U64}
+    {out : core.result.Result Unit core_types.CheckError}
     (hsw : StateWF st) (hfw2 : FEnvWF fe2) (hfws : FEnvWF fe_self)
     (ht : NameWF t) (hc : NameWF ctor_name) (hlps : NamesWF lps)
     (hcvj : ConstantValWF cvj) (hcn : absName cvj.name = absName ctor_name)
     (h : inductives.modeled.check_proj_iota mode st fe2 fe_self t ctor_name lps
-      cvj n_p n_f i = ok (.Ok (), st')) :
+      cvj n_p n_f i = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe2 lfe → FEnvRel fe_self lfe →
-      ∃ lst', (ConLeche.checkProjIotaF (absMode mode)
+      match out with
+      | .Ok _ =>
+        ∃ lst', (ConLeche.checkProjIotaF (absMode mode)
+              (m := ConLeche.Cached.CheckCM)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
+              (absName t) (absName ctor_name) (absNames lps)
+              (absConstantVal cvj) n_p.val n_f.val i.val).run lst
+            = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkProjIotaF (absMode mode)
             (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
             (absName t) (absName ctor_name) (absNames lps)
-            (absConstantVal cvj) n_p.val n_f.val i.val).run lst
-          = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+            (absConstantVal cvj) n_p.val n_f.val i.val).run lst) := by
   intro lst lfe hsr hfr2 hfrs
   rw [inductives.modeled.check_proj_iota] at h
   obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
@@ -3530,7 +3636,15 @@ theorem check_proj_iota_refines {mode : env.CheckMode} {fuel : Std.U64}
   obtain ⟨hoabs, howf⟩ := thm_probe_refines (FindAgree.of_rel hfr2 hfw2)
     (FindWF.of_wf hfw2) hnwf ho
   cases o with
-  | none => simp [bind_eq_ok_iff] at h
+  | none =>
+    -- `modeled.rs:2044` ← `DeclCheck.lean:801`
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    exact errSim_notImplemented hce rfl
+      (checkProjIotaF_thm_none (by rw [← hnabs]; simpa using hoabs.symm))
   | some tcv =>
     have htcv : ConstantValWF tcv := howf tcv rfl
     obtain ⟨tval, hfind⟩ := thmOf_eq_some hoabs.symm
@@ -3538,22 +3652,59 @@ theorem check_proj_iota_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
     have hbabs := names_beq_refines htcv.2.1 hlps hb
     split at h
-    case isFalse => simp [bind_eq_ok_iff] at h
+    case isFalse =>
+      -- `modeled.rs:2048` ← `DeclCheck.lean:803`
+      rename_i hbf
+      obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      refine errSim_notImplemented hce rfl (checkProjIotaF_lps hfind ?_)
+      show absNames tcv.level_params ≠ absNames lps
+      simpa [hbabs] using hbf
     rename_i hbt
     subst hbt
     obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
     have hi1v : i1.val = n_p.val + n_f.val := HashMap.uscalar_add_eq hi1
     obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ho1abs, ho1wf⟩ := ExprOps.strip_pis_refines htcv.2.2 ho1
+    have hlpseq : (absConstantVal tcv).levelParams = absNames lps := by
+      show absNames tcv.level_params = absNames lps
+      simpa using hbabs.symm
     cases o1 with
-    | none => simp [bind_eq_ok_iff] at h
+    | none =>
+      -- `modeled.rs:2052` ← `DeclCheck.lean:805`
+      obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      refine errSim_notImplemented hce rfl
+        (checkProjIotaF_thm_tele hfind hlpseq ?_)
+      rw [show (absConstantVal tcv).type = absExpr tcv.ty from rfl, ← hi1v]
+      simpa using ho1abs.symm
     | some sq =>
       obtain ⟨sbinders, sbody⟩ := sq
       obtain ⟨hsbwf, hsbowf⟩ := ho1wf (sbinders, sbody) rfl
       obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨ho2abs, ho2wf⟩ := ExprOps.strip_pis_refines hcvj.2.2 ho2
+      have hsbeq : (absConstantVal tcv).type.stripPis (n_p.val + n_f.val)
+          = some (ExprOps.absBinders sbinders, absExpr sbody) := by
+        rw [show (absConstantVal tcv).type = absExpr tcv.ty from rfl, ← hi1v]
+        simpa using ho1abs.symm
       cases o2 with
-      | none => simp [bind_eq_ok_iff] at h
+      | none =>
+        -- `modeled.rs:2056` ← `DeclCheck.lean:807`
+        obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        refine errSim_notImplemented hce rfl
+          (checkProjIotaF_ctor_tele hfind hlpseq hsbeq ?_)
+        rw [show (absConstantVal cvj).type = absExpr cvj.ty from rfl, ← hi1v]
+        simpa using ho2abs.symm
       | some cq =>
         obtain ⟨cbinders, cbody⟩ := cq
         obtain ⟨hcbwf, -⟩ := ho2wf (cbinders, cbody) rfl
@@ -3562,26 +3713,42 @@ theorem check_proj_iota_refines {mode : env.CheckMode} {fuel : Std.U64}
           (g := fun _ e => ConLeche.Expr.renameConsts
             (ConLeche.projFwd (absName t) (absName ctor_name) n_f.val) e)
           hsbwf hcbwf (dom_proj_fwd_view_refines (n_f := n_f) ht hc) hb1
+        have hcbeq : (absConstantVal cvj).type.stripPis (n_p.val + n_f.val)
+            = some (ExprOps.absBinders cbinders, absExpr cbody) := by
+          rw [show (absConstantVal cvj).type = absExpr cvj.ty from rfl, ← hi1v]
+          simpa using ho2abs.symm
         by_cases hb1t : b1 = true
         case neg =>
+          -- `modeled.rs:2061` ← `DeclCheck.lean:811`
           replace h := ite_neg_eq (c := (b1 = true)) hb1t h
-          simp [bind_eq_ok_iff] at h
+          obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          refine errSim_notImplemented hce rfl
+            (checkProjIotaF_doms hfind hlpseq hsbeq hcbeq ?_)
+          rw [← hi1v]
+          exact hb1abs.symm.trans (by simpa using hb1t)
         replace h := ite_pos_eq (c := (b1 = true)) hb1t h
-        obtain ⟨lst', hrun, hsr', hsw'⟩ :=
-          check_proj_iota_body_refines hfuel hk hsw hfws ht hcvj hlps htcv
-            hsbowf hcn h lst lfe hsr hfrs
-        refine ⟨lst', ?_, hsr', hsw'⟩
-        rw [checkProjIotaF_at_tail (tval := tval) (sbinders := ExprOps.absBinders sbinders)
+        have hdoms : ConLeche.domsMatchAux
+            (fun _ e => ConLeche.Expr.renameConsts
+              (ConLeche.projFwd (absName t) (absName ctor_name) n_f.val) e)
+            (ExprOps.absBinders sbinders) (ExprOps.absBinders cbinders) 0 0
+            (n_p.val + n_f.val) = true := by
+          rw [← hi1v, ← hb1t]; exact hb1abs.symm
+        have heq := checkProjIotaF_at_tail (mode' := absMode mode)
+          (ops := ConLeche.Cached.sharedOpsC (absMode mode) lfe) (tval := tval)
+          (sbinders := ExprOps.absBinders sbinders)
           (cbindersR := ExprOps.absBinders cbinders) (cbody := absExpr cbody)
-          hfind ?_ ?_ ?_ ?_]
-        · exact hrun
-        · show absNames tcv.level_params = absNames lps
-          simpa using hbabs.symm
-        · rw [show (absConstantVal tcv).type = absExpr tcv.ty from rfl, ← hi1v]
-          simpa using ho1abs.symm
-        · rw [show (absConstantVal cvj).type = absExpr cvj.ty from rfl, ← hi1v]
-          simpa using ho2abs.symm
-        · rw [← hi1v, ← hb1t]; exact hb1abs.symm
+          hfind hlpseq hsbeq hcbeq hdoms
+        have hres := check_proj_iota_body_refines hfuel hk hsw hfws ht hcvj hlps
+          htcv hsbowf hcn h lst lfe hsr hfrs
+        cases out with
+        | Ok u =>
+          obtain ⟨lst', hrun, hsr', hsw'⟩ := hres
+          exact ⟨lst', by rw [heq]; exact hrun, hsr', hsw'⟩
+        | Err e => rw [heq]; exact hres
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
