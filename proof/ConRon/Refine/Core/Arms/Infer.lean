@@ -53,10 +53,17 @@ README names: a callee's `ErrSim` carried through the rest of con-leche's
 accept direction already showed to agree.  The `.M`-suffixed `Array Std.U32`
 constants are the *messages*, and those are never compared (DESIGN.md §3.1),
 so they still carry no theorem — only the *kind* is claimed.
+
+One site is neither of the two: the `.const` clause's unresolved arm, where
+both sides build the error through a *named* builder (`unknownConstError`,
+`core_k::unknown_const_error`) whose kind depends on the name — `sorryAx`
+declines, everything else rejects.  `Refine/ErrKinds.lean`'s
+`unknown_const_error_refines` is that site's leaf lemma (con-leche task #292).
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.CoreKPinned
 import ConRon.Refine.ExprOpsC
+import ConRon.Refine.ErrKinds
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel ConRon.Generated.cached
@@ -249,7 +256,10 @@ theorem const_shape_probe_i_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
 `inferBodyI`'s `.const` clause** (`core_c.rs:3268`): the constant is stored,
 is not a projection table, carries the right number of universe levels, and
 its type is `constTyAtM`'s (`Refine/StateC.lean`).  The clause makes no
-recursive call, so it is the same under both records. -/
+recursive call, so it is the same under both records.  The unresolved arm is
+con-leche's `unknownConstError`, not a plain `.invalid`: con-leche task #292
+made `sorryAx` decline there, and the port mirrors it through
+`core_k::unknown_const_error`. -/
 theorem infer_const_i_refines (io : Bool) {n : name.Name}
     {us : alloc.vec.Vec level.Level} (hn : NameWF n) (hus : LevelsWF us) (d : Std.U64) :
     Sim absExpr ExprWF (fun st fe => cached.core_c.infer_const_i st fe n us)
@@ -260,7 +270,7 @@ theorem infer_const_i_refines (io : Bool) {n : name.Name}
       (knotV mode lfe fuel.val io) lfe d.val (.const (absName n) (absLevels us))
       = (do
         match lfe.find? (absName n) with
-        | none => throw (.invalid s!"unknown constant {absName n}")
+        | none => throw (ConLeche.unknownConstError (absName n))
         | some ci => do
           unless !ci.isTowerEntry do
             throw (.invalid
@@ -276,12 +286,14 @@ theorem infer_const_i_refines (io : Bool) {n : name.Name}
   cases o with
   | none =>
     -- the constant is not stored: `fe.find? n` is `none` on both sides and
-    -- both reject at `invalid` (`CoreC.lean:1305`)
+    -- both take `unknownConstError` (`CoreC.lean:1305`), which declines at
+    -- `sorryAx` and rejects at every other name (`Refine/ErrKinds.lean`)
     have hfind : lfe.find? (absName n) = none := by simpa using hoabs.symm
-    simp only [bind_eq_ok_iff, lift_eq] at hok
-    obtain ⟨s1, -, v, -, ce, hce, hc⟩ := hok
+    simp only [bind_eq_ok_iff] at hok
+    obtain ⟨ce, hce, hc⟩ := hok
     obtain ⟨rfl, rfl⟩ := err_arm hc
-    refine invalid_throw (s := s!"unknown constant {absName n}") hce ?_
+    refine ErrSim.mk (le := ConLeche.unknownConstError (absName n)) ?_
+      (unknown_const_error_refines hn hce)
     simp [hclause, hfind]
   | some p =>
     obtain ⟨b, i⟩ := p

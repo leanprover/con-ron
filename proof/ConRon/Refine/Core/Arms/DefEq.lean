@@ -472,16 +472,13 @@ structure DefEqDeps (mode : env.CheckMode) (fuel : Std.U64) : Prop
       (fun lfe => DefEq.defeqStructFrag (absMode mode) (knot mode lfe fuel.val) lfe
         d.val (absExpr a) (absExpr b))
 
-/-! ## Four `Cached` guards against their `Kernel` twins
+/-! ## Three `Cached` guards against their `Kernel` twins
 
-Task #49's lemmas conclude in the `Kernel` spelling (`Expr.hasFvar`,
-`unfoldableHead`, `headHint`, `sameConstHeads`); `defeqStepI` reads the
-`Cached` ones, which are the same functions on `Expr = Expr`.  These four
-one-liners are the bridge. -/
-
-private theorem hasFvarC_eq (e : ConLeche.Expr) :
-    ConLeche.Expr.hasFvar e = e.hasFvar := by
-  rw [ConLeche.Expr.hasFvar_eq_hasFvarFast]; rfl
+Task #49's lemmas conclude in the `Kernel` spelling (`unfoldableHead`,
+`headHint`, `sameConstHeads`); `defeqStepI` reads the `Cached` ones, which are
+the same functions on `Expr = Expr`.  These three one-liners are the bridge.
+(`Expr.hasFvar` needed a fourth until con-leche's task #285 deleted the cached
+twin; the two spellings are now one name.) -/
 
 private theorem unfoldableHeadC_eq {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {e : expr.Expr} {b : Bool} (hfe : FindAgree fe lfe) (he : ExprWF e)
@@ -1324,7 +1321,7 @@ private theorem defeq_lits_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U64)
         (k lfe) (absExpr a2) (absExpr b2)) := by
   intro fe lfe hfe hfrel st res st' hwf hok lst hrel
   unfold cached.core_c.defeq_lits_i at hok
-  simp only [DefEq.defeqLitsFrag, hasFvarC_eq]
+  simp only [DefEq.defeqLitsFrag]
   rw [run_pure']
   obtain ⟨fa0, hfa0, hok⟩ := bind_eq_ok_iff.mp hok
   have ea := ExprOps.has_fvar_refines ha hfa0
@@ -1500,7 +1497,6 @@ private theorem defeq_step_of_loop (hw : Wrappers mode fuel) (hd : DefEqDeps mod
   | false =>
     simp only [Bool.false_eq_true, if_false]
     rw [run_pure', run_pure']
-    simp only [hasFvarC_eq]
     obtain ⟨⟨st1, sc⟩, hsc, hok⟩ := bind_eq_ok_iff.mp hok
     -- the eq-true shortcut, as one step: it either answers, or it threw and
     -- con-leche's `if ← …` throws with it (task #67's second disjunct)
