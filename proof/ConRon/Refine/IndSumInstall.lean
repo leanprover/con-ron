@@ -532,6 +532,170 @@ theorem checkSumIndF_sort_ne {lfe : ConLeche.FEnv} {p : ConLeche.InductiveShape}
   simp [ConLeche.unwrapOr, hstrip, hne', StateT.run, Bind.bind, StateT.bind,
     Except.bind, Pure.pure, StateT.pure, Except.pure]
 
+/-! ### `checkStructFieldSortsIF`'s six failures (task #67) -/
+
+/-- `checkStructFieldSortsIF` at a field index con-leche itself finds out of
+range: `unwrapOr fvs[j]?` throws `internal` (`SumInstallF.lean:49`), which the
+port's `(i as usize) >= fvs.len()` guard mirrors (`sum_install.rs:307`). -/
+theorem checkStructFieldSortsIF_fv_none {lfe : ConLeche.FEnv} {isProp large : Bool}
+    {s : ConLeche.Level} {nP j : Nat} {fvs idxArgs : List ConLeche.Expr}
+    {lst : ConLeche.Cached.CState} (hfv : fvs[j]? = none) :
+    ∃ m, (ConLeche.checkStructFieldSortsIF ops lfe isProp large s nP fvs idxArgs
+        (j + 1)).run lst = .error (.internal m) := by
+  rw [ConLeche.checkStructFieldSortsIF]
+  simp only [ConLeche.unwrapOr, hfv, StateT.run, Bind.bind, StateT.bind,
+    Except.bind]
+  exact ⟨_, rfl⟩
+
+/-- `ops.inferType` threw at the field's annotation. -/
+theorem checkStructFieldSortsIF_infer_err {lfe : ConLeche.FEnv}
+    {isProp large : Bool} {s : ConLeche.Level} {nP j : Nat}
+    {fvs idxArgs : List ConLeche.Expr} {fv : ConLeche.Expr}
+    {lst : ConLeche.Cached.CState} {ce : core_types.CheckError}
+    (hfv : fvs[j]? = some fv)
+    (h : ErrSim ce ((ops.inferType lfe.env (nP + j) fv.fvarTypeD).run lst)) :
+    ErrSim ce ((ConLeche.checkStructFieldSortsIF ops lfe isProp large s nP fvs
+      idxArgs (j + 1)).run lst) := by
+  rw [ConLeche.checkStructFieldSortsIF]
+  simp only [ConLeche.unwrapOr, hfv, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure]
+  exact ErrSim.bind_run h _
+
+/-- `ops.ensureSort` threw at the field's inferred type. -/
+theorem checkStructFieldSortsIF_ensure_err {lfe : ConLeche.FEnv}
+    {isProp large : Bool} {s : ConLeche.Level} {nP j : Nat}
+    {fvs idxArgs : List ConLeche.Expr} {fv ty : ConLeche.Expr}
+    {lst lst1 : ConLeche.Cached.CState} {ce : core_types.CheckError}
+    (hfv : fvs[j]? = some fv)
+    (hty : (ops.inferType lfe.env (nP + j) fv.fvarTypeD).run lst = .ok (ty, lst1))
+    (h : ErrSim ce ((ops.ensureSort lfe.env (nP + j) ty).run lst1)) :
+    ErrSim ce ((ConLeche.checkStructFieldSortsIF ops lfe isProp large s nP fvs
+      idxArgs (j + 1)).run lst) := by
+  rw [ConLeche.checkStructFieldSortsIF]
+  simp only [ConLeche.unwrapOr, hfv, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure]
+  rw [show (ops.inferType lfe.env (nP + j) fv.fvarTypeD) lst
+    = Except.ok (ty, lst1) from hty]
+  simp only []
+  exact ErrSim.bind_run h _
+
+/-- The level comparison ran out of fuel: `liftFueled` throws `internal`
+(`Core.lean:109-111`), which `core_k::lift_fueled` mirrors. -/
+theorem checkStructFieldSortsIF_leq_none {lfe : ConLeche.FEnv} {large : Bool}
+    {s u : ConLeche.Level} {nP j : Nat} {fvs idxArgs : List ConLeche.Expr}
+    {fv ty : ConLeche.Expr} {lst lst1 lst2 : ConLeche.Cached.CState}
+    (hfv : fvs[j]? = some fv)
+    (hty : (ops.inferType lfe.env (nP + j) fv.fvarTypeD).run lst = .ok (ty, lst1))
+    (hu : (ops.ensureSort lfe.env (nP + j) ty).run lst1 = .ok (u, lst2))
+    (hleq : ConLeche.Level.leq u s = none) :
+    ∃ m, (ConLeche.checkStructFieldSortsIF ops lfe false large s nP fvs idxArgs
+        (j + 1)).run lst = .error (.internal m) := by
+  rw [ConLeche.checkStructFieldSortsIF]
+  simp only [ConLeche.unwrapOr, hfv, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure]
+  rw [show (ops.inferType lfe.env (nP + j) fv.fvarTypeD) lst
+    = Except.ok (ty, lst1) from hty]
+  simp only []
+  rw [show (ops.ensureSort lfe.env (nP + j) ty) lst1 = Except.ok (u, lst2) from hu]
+  simp only [Bool.not_false, if_true, ConLeche.liftFueled, hleq, Bind.bind,
+    StateT.bind, Except.bind]
+  exact ⟨_, rfl⟩
+
+/-- The field's universe is above the family's: both sides throw `invalid`
+(`SumInstallF.lean:54`, `sum_install.rs:328`). -/
+theorem checkStructFieldSortsIF_leq_false {lfe : ConLeche.FEnv} {large : Bool}
+    {s u : ConLeche.Level} {nP j : Nat} {fvs idxArgs : List ConLeche.Expr}
+    {fv ty : ConLeche.Expr} {lst lst1 lst2 : ConLeche.Cached.CState}
+    (hfv : fvs[j]? = some fv)
+    (hty : (ops.inferType lfe.env (nP + j) fv.fvarTypeD).run lst = .ok (ty, lst1))
+    (hu : (ops.ensureSort lfe.env (nP + j) ty).run lst1 = .ok (u, lst2))
+    (hleq : ConLeche.Level.leq u s = some false) :
+    ∃ m, (ConLeche.checkStructFieldSortsIF ops lfe false large s nP fvs idxArgs
+        (j + 1)).run lst = .error (.invalid m) := by
+  rw [ConLeche.checkStructFieldSortsIF]
+  simp only [ConLeche.unwrapOr, hfv, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure]
+  rw [show (ops.inferType lfe.env (nP + j) fv.fvarTypeD) lst
+    = Except.ok (ty, lst1) from hty]
+  simp only []
+  rw [show (ops.ensureSort lfe.env (nP + j) ty) lst1 = Except.ok (u, lst2) from hu]
+  simp only [Bool.not_false, if_true, ConLeche.liftFueled, hleq, Bind.bind,
+    StateT.bind, Except.bind]
+  exact ⟨_, rfl⟩
+
+/-- A `Prop` family with a large eliminator and a field that is neither a
+proposition nor one of the index expressions: both sides throw `invalid`
+(`SumInstallF.lean:57-58`, `sum_install.rs:341`). -/
+theorem checkStructFieldSortsIF_elim_false {lfe : ConLeche.FEnv}
+    {s u : ConLeche.Level} {nP j : Nat} {fvs idxArgs : List ConLeche.Expr}
+    {fv ty : ConLeche.Expr} {lst lst1 lst2 : ConLeche.Cached.CState}
+    (hfv : fvs[j]? = some fv)
+    (hty : (ops.inferType lfe.env (nP + j) fv.fvarTypeD).run lst = .ok (ty, lst1))
+    (hu : (ops.ensureSort lfe.env (nP + j) ty).run lst1 = .ok (u, lst2))
+    (hg : (ConLeche.Level.isEquiv u .zero == some true
+      || idxArgs.contains fv) = false) :
+    ∃ m, (ConLeche.checkStructFieldSortsIF ops lfe true true s nP fvs idxArgs
+        (j + 1)).run lst = .error (.invalid m) := by
+  rw [ConLeche.checkStructFieldSortsIF]
+  simp only [ConLeche.unwrapOr, hfv, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure]
+  rw [show (ops.inferType lfe.env (nP + j) fv.fvarTypeD) lst
+    = Except.ok (ty, lst1) from hty]
+  simp only []
+  rw [show (ops.ensureSort lfe.env (nP + j) ty) lst1 = Except.ok (u, lst2) from hu]
+  simp only [Bool.not_true, Bool.false_eq_true, if_false, if_true]
+  rw [if_neg (show ¬ ((ConLeche.Level.isEquiv u ConLeche.Level.zero == some true
+    || idxArgs.contains fv) = true) by simpa using hg)]
+  simp only [Bind.bind, StateT.bind, Except.bind]
+  exact ⟨_, rfl⟩
+
+/-- `checkStructFieldSortsIF`'s recursion threw, at a field whose guard
+passed: the same step as `checkStructFieldSortsIF_succ`, with the tail's own
+error carried out. -/
+theorem checkStructFieldSortsIF_succ_err {lfe : ConLeche.FEnv}
+    {isProp large : Bool} {s u : ConLeche.Level} {nP j : Nat}
+    {fvs idxArgs : List ConLeche.Expr} {fv ty : ConLeche.Expr}
+    {lst lst1 lst2 : ConLeche.Cached.CState} {ce : core_types.CheckError}
+    (hfv : fvs[j]? = some fv)
+    (hty : (ops.inferType lfe.env (nP + j) fv.fvarTypeD).run lst = .ok (ty, lst1))
+    (hu : (ops.ensureSort lfe.env (nP + j) ty).run lst1 = .ok (u, lst2))
+    (hleq : isProp = false → ConLeche.Level.leq u s = some true)
+    (helim : isProp = true → large = true →
+      (ConLeche.Level.isEquiv u .zero == some true || idxArgs.contains fv) = true)
+    (hrest : ErrSim ce ((ConLeche.checkStructFieldSortsIF ops lfe isProp large s
+      nP fvs idxArgs j).run lst2)) :
+    ErrSim ce ((ConLeche.checkStructFieldSortsIF ops lfe isProp large s nP fvs
+      idxArgs (j + 1)).run lst) := by
+  intro k hk
+  obtain ⟨le, hle, hkk⟩ := hrest k hk
+  refine ⟨le, ?_, hkk⟩
+  rw [ConLeche.checkStructFieldSortsIF]
+  simp only [ConLeche.unwrapOr, hfv, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure]
+  rw [show (ops.inferType lfe.env (nP + j) fv.fvarTypeD) lst
+    = Except.ok (ty, lst1) from hty]
+  simp only []
+  rw [show (ops.ensureSort lfe.env (nP + j) ty) lst1 = Except.ok (u, lst2) from hu]
+  simp only []
+  cases isProp with
+  | false =>
+    simp [ConLeche.liftFueled, hleq rfl, Bind.bind, StateT.bind, Except.bind,
+      Pure.pure, StateT.pure, Except.pure,
+      show (ConLeche.checkStructFieldSortsIF ops lfe false large s nP fvs idxArgs j) lst2
+        = Except.error le from hle]
+  | true =>
+    cases large with
+    | false =>
+      simp [Bind.bind, StateT.bind, Except.bind,
+        show (ConLeche.checkStructFieldSortsIF ops lfe true false s nP fvs idxArgs j) lst2
+          = Except.error le from hle]
+    | true =>
+      have hh : ConLeche.Level.isEquiv u .zero = some true ∨ fv ∈ idxArgs := by
+        simpa using helim rfl rfl
+      simp [hh, Bind.bind, StateT.bind, Except.bind,
+        show (ConLeche.checkStructFieldSortsIF ops lfe true true s nP fvs idxArgs j) lst2
+          = Except.error le from hle]
+
 /-- `normPosDom` at a domain the block does not occur in: kept as declared. -/
 theorem normPosDom_keep {lenv : ConLeche.Env} {T : ConLeche.Name} {d fuel : Nat}
     {e : ConLeche.Expr} {lst : ConLeche.Cached.CState}
@@ -1328,19 +1492,19 @@ theorem check_struct_field_sorts_i_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {is_prop large : Bool}
     {s : level.Level} {n_p j : Std.U64} {fvs idx_args : alloc.vec.Vec expr.Expr}
-    {us : alloc.vec.Vec level.Level}
+    {o : core.result.Result (alloc.vec.Vec level.Level) core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hs : LevelWF s)
     (hfvs : ExprsWF fvs) (hidx : ExprsWF idx_args) (hj : j.val ≤ Std.Usize.max)
     (h : inductives.sum_install.check_struct_field_sorts_i mode st fe is_prop
-        large s n_p fvs idx_args j = ok (.Ok us, st')) :
+        large s n_p fvs idx_args j = ok (o, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.checkStructFieldSortsIF (m := ConLeche.Cached.CheckCM)
+      Out absLevels LevelsWF o st'
+        ((ConLeche.checkStructFieldSortsIF (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe is_prop large
-            (absLevel s) n_p.val (absExprs fvs) (absExprs idx_args) j.val).run lst
-          = .ok (absLevels us, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ LevelsWF us := by
+            (absLevel s) n_p.val (absExprs fvs)
+            (absExprs idx_args) j.val).run lst) := by
   generalize hd : j.val = d
-  induction d using Nat.strong_induction_on generalizing st st' j us with
+  induction d using Nat.strong_induction_on generalizing st st' j o with
   | _ d ih =>
   subst hd
   intro lst lfe hrel hfer
@@ -1358,6 +1522,7 @@ theorem check_struct_field_sorts_i_refines {mode : env.CheckMode}
     have hyv : y.val = j.val - 1 := HashMap.uscalar_sub_eq hy
     have hjpos : 1 ≤ j.val := by scalar_tac
     have hybound : y.val ≤ Std.Usize.max := by omega
+    have hjsucc : j.val = y.val + 1 := by omega
     have hmod : y.val % 2 ^ System.Platform.numBits = y.val := by
       refine Nat.mod_eq_of_lt ?_
       have hmax : Std.Usize.max = 2 ^ System.Platform.numBits - 1 := by
@@ -1378,123 +1543,186 @@ theorem check_struct_field_sorts_i_refines {mode : env.CheckMode}
       obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨pp, hinfer, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r, st1⟩ := pp
+      have hfvwf : ExprWF fv := by
+        rw [hfveq]; exact hfvs _ (List.getElem_mem hlt)
+      obtain ⟨hdomabs, hdomwf⟩ := ExprOps.fvar_type_d_refines hfvwf hdom
+      have hi5v : i5.val = n_p.val + y.val := HashMap.uscalar_add_eq hi5
+      have hfvget : (absExprs fvs)[y.val]? = some (absExpr fv) := by
+        rw [absExprs, List.getElem?_map,
+          List.getElem?_eq_getElem (show y.val < fvs.val.length from hlt), hfveq]
+        rfl
       cases r with
-      | Err err => simp at h
+      | Err err =>
+        -- `core_c::infer` threw: con-leche's own bind carries it
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        rw [hjsucc]
+        refine checkStructFieldSortsIF_infer_err hfvget ?_
+        rw [← hfer.1, ← hdomabs, ← hi5v]
+        exact IndAbs.ops_infer_err hw hst hfe hdomwf hinfer lst lfe hrel hfer
       | Ok ty =>
         simp at h
         obtain ⟨r1, st2, hens, h⟩ := h
+        obtain ⟨lst1, hrunty, hrel1, hwf1, htywf⟩ :=
+          IndAbs.ops_infer hw hst hfe hdomwf hinfer lst lfe hrel hfer
+        have hrunty' : ((ConLeche.Cached.sharedOpsC (absMode mode) lfe).inferType
+            lfe.env (n_p.val + y.val)
+            (absExpr fv).fvarTypeD).run lst
+            = .ok (absExpr ty, lst1) := by
+          rw [← hfer.1, ← hdomabs, ← hi5v]; exact hrunty
         cases r1 with
-        | Err err => simp at h
+        | Err err =>
+          -- `core_c::ensure_sort_i` threw
+          simp at h
+          obtain ⟨rfl, rfl⟩ := h
+          rw [hjsucc]
+          refine checkStructFieldSortsIF_ensure_err hfvget hrunty' ?_
+          rw [← hfer.1, ← hi5v]
+          exact IndAbs.ops_ensure_sort_err hw hwf1 hfe htywf hens lst1 lfe hrel1 hfer
         | Ok u =>
-          have hfvwf : ExprWF fv := by
-            rw [hfveq]; exact hfvs _ (List.getElem_mem hlt)
-          obtain ⟨hdomabs, hdomwf⟩ := ExprOps.fvar_type_d_refines hfvwf hdom
-          have hi5v : i5.val = n_p.val + y.val := HashMap.uscalar_add_eq hi5
-          obtain ⟨lst1, hrunty, hrel1, hwf1, htywf⟩ :=
-            IndAbs.ops_infer hw hst hfe hdomwf hinfer lst lfe hrel hfer
           obtain ⟨lst2', hrunu, hrel2', hwf2', huwf⟩ :=
             IndAbs.ops_ensure_sort hw hwf1 hfe htywf hens lst1 lfe hrel1 hfer
-          have hfvget : (absExprs fvs)[y.val]? = some (absExpr fv) := by
-            rw [absExprs, List.getElem?_map,
-              List.getElem?_eq_getElem (show y.val < fvs.val.length from hlt), hfveq]
-            rfl
-          have hrunty' : ((ConLeche.Cached.sharedOpsC (absMode mode) lfe).inferType
-              lfe.env (n_p.val + y.val)
-              (absExpr fv).fvarTypeD).run lst
-              = .ok (absExpr ty, lst1) := by
-            rw [← hfer.1, ← hdomabs, ← hi5v]; exact hrunty
           have hrunu' : ((ConLeche.Cached.sharedOpsC (absMode mode) lfe).ensureSort
               lfe.env (n_p.val + y.val) (absExpr ty)).run lst1
               = .ok (absLevel u, lst2') := by
             rw [← hfer.1, ← hi5v]; exact hrunu
-          have hjsucc : j.val = y.val + 1 := by omega
           cases is_prop <;> cases large <;> simp at h
           case false.false =>
-            obtain ⟨o, hlequ, r2, hlf, a, b, hg, h⟩ := h
-            have hleqabs : ConLeche.Level.leq (absLevel u) (absLevel s) = o :=
+            obtain ⟨oe, hlequ, r2, hlf, a, b, hg, h⟩ := h
+            have hleqabs : ConLeche.Level.leq (absLevel u) (absLevel s) = oe :=
               Level.leq_refines huwf hs hlequ
-            cases b with
-            | Err err => simp at h
-            | Ok _ =>
-              have hbb : r2 = .Ok true ∧ a = st2 := by
-                cases r2 with
-                | Err err => simp at hg
-                | Ok bb =>
-                  cases bb with
-                  | false => simp at hg
-                  | true => simp at hg; exact ⟨rfl, hg.symm⟩
-              obtain ⟨hr2, rfl⟩ := hbb
-              subst hr2
-              have hosome : o = some true := by
-                cases o with
-                | none => simp [core_k.lift_fueled] at hlf
-                | some c => simpa [core_k.lift_fueled] using hlf
+            cases oe with
+            | none =>
+              -- `core_k::lift_fueled` threw: con-leche's `liftFueled` throws
+              -- `internal` at the same point (`Core.lean:109-111`)
+              simp [core_k.lift_fueled] at hlf
+              obtain ⟨v, hv, ce, hce, rfl⟩ := hlf
+              simp at hg
+              obtain ⟨rfl, rfl⟩ := hg
               simp at h
-              obtain ⟨r3, st4, hrec, hfin⟩ := h
-              cases r3 with
-              | Err err => simp at hfin
-              | Ok rest =>
-                simp at hfin
-                obtain ⟨hpush, rfl⟩ := hfin
-                obtain ⟨lst3, hrun3, hrel3, hwf3, hrestwf⟩ :=
-                  ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer
-                refine ⟨lst3, ?_, hrel3, hwf3, ?_⟩
-                · rw [hjsucc, absLevels, vec_push_val hpush, List.map_append]
-                  exact checkStructFieldSortsIF_succ hfvget hrunty' hrunu'
-                    (fun _ => by rw [hleqabs, hosome]) (by simp) hrun3
-                · intro l hl
-                  rw [vec_push_val hpush, List.mem_append] at hl
-                  rcases hl with hl | hl
-                  · exact hrestwf l hl
-                  · rw [List.mem_singleton.mp hl]; exact huwf
+              obtain ⟨rfl, rfl⟩ := h
+              obtain ⟨msg, hmsg⟩ := checkStructFieldSortsIF_leq_none
+                (ops := ConLeche.Cached.sharedOpsC (absMode mode) lfe)
+                hfvget hrunty' hrunu' hleqabs
+              refine ErrSim.of_eq (x := Except.error (.internal msg)) ?_ ?_
+              · rw [internal_err hce]; exact ErrSim.internal rfl
+              · rw [hjsucc]; exact hmsg
+            | some bb =>
+              simp [core_k.lift_fueled] at hlf
+              subst hlf
+              cases bb with
+              | false =>
+                -- the field's universe is above the family's: both sides throw
+                -- `invalid` (`sum_install.rs:328`, `SumInstallF.lean:54`)
+                simp at hg
+                obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := hg
+                simp at h
+                obtain ⟨rfl, rfl⟩ := h
+                obtain ⟨msg, hmsg⟩ := checkStructFieldSortsIF_leq_false
+                  (ops := ConLeche.Cached.sharedOpsC (absMode mode) lfe)
+                  hfvget hrunty' hrunu' hleqabs
+                refine ErrSim.of_eq (x := Except.error (.invalid msg)) ?_ ?_
+                · rw [invalid_err hce]; exact ErrSim.invalid rfl
+                · rw [hjsucc]; exact hmsg
+              | true =>
+                simp at hg
+                obtain ⟨rfl, rfl⟩ := hg
+                simp at h
+                obtain ⟨r3, st4, hrec, hfin⟩ := h
+                cases r3 with
+                | Err err =>
+                  simp at hfin
+                  obtain ⟨rfl, rfl⟩ := hfin
+                  rw [hjsucc]
+                  exact checkStructFieldSortsIF_succ_err hfvget hrunty' hrunu'
+                    (fun _ => hleqabs) (by simp) (ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer)
+                | Ok rest =>
+                  simp at hfin
+                  obtain ⟨rest1, hpush, rfl, rfl⟩ := hfin
+                  obtain ⟨lst3, hrun3, hrel3, hwf3, hrestwf⟩ :=
+                    ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer
+                  refine ⟨lst3, ?_, hrel3, hwf3, ?_⟩
+                  · rw [hjsucc, absLevels, vec_push_val hpush, List.map_append]
+                    exact checkStructFieldSortsIF_succ hfvget hrunty' hrunu'
+                      (fun _ => hleqabs) (by simp) hrun3
+                  · intro l hl
+                    rw [vec_push_val hpush, List.mem_append] at hl
+                    rcases hl with hl | hl
+                    · exact hrestwf l hl
+                    · rw [List.mem_singleton.mp hl]; exact huwf
           case false.true =>
-            obtain ⟨o, hlequ, r2, hlf, a, b, hg, h⟩ := h
-            have hleqabs : ConLeche.Level.leq (absLevel u) (absLevel s) = o :=
+            obtain ⟨oe, hlequ, r2, hlf, a, b, hg, h⟩ := h
+            have hleqabs : ConLeche.Level.leq (absLevel u) (absLevel s) = oe :=
               Level.leq_refines huwf hs hlequ
-            cases b with
-            | Err err => simp at h
-            | Ok _ =>
-              have hbb : r2 = .Ok true ∧ a = st2 := by
-                cases r2 with
-                | Err err => simp at hg
-                | Ok bb =>
-                  cases bb with
-                  | false => simp at hg
-                  | true => simp at hg; exact ⟨rfl, hg.symm⟩
-              obtain ⟨hr2, rfl⟩ := hbb
-              subst hr2
-              have hosome : o = some true := by
-                cases o with
-                | none => simp [core_k.lift_fueled] at hlf
-                | some c => simpa [core_k.lift_fueled] using hlf
+            cases oe with
+            | none =>
+              simp [core_k.lift_fueled] at hlf
+              obtain ⟨v, hv, ce, hce, rfl⟩ := hlf
+              simp at hg
+              obtain ⟨rfl, rfl⟩ := hg
               simp at h
-              obtain ⟨r3, st4, hrec, hfin⟩ := h
-              cases r3 with
-              | Err err => simp at hfin
-              | Ok rest =>
-                simp at hfin
-                obtain ⟨hpush, rfl⟩ := hfin
-                obtain ⟨lst3, hrun3, hrel3, hwf3, hrestwf⟩ :=
-                  ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer
-                refine ⟨lst3, ?_, hrel3, hwf3, ?_⟩
-                · rw [hjsucc, absLevels, vec_push_val hpush, List.map_append]
-                  exact checkStructFieldSortsIF_succ hfvget hrunty' hrunu'
-                    (fun _ => by rw [hleqabs, hosome]) (by simp) hrun3
-                · intro l hl
-                  rw [vec_push_val hpush, List.mem_append] at hl
-                  rcases hl with hl | hl
-                  · exact hrestwf l hl
-                  · rw [List.mem_singleton.mp hl]; exact huwf
-
+              obtain ⟨rfl, rfl⟩ := h
+              obtain ⟨msg, hmsg⟩ := checkStructFieldSortsIF_leq_none
+                (ops := ConLeche.Cached.sharedOpsC (absMode mode) lfe)
+                hfvget hrunty' hrunu' hleqabs
+              refine ErrSim.of_eq (x := Except.error (.internal msg)) ?_ ?_
+              · rw [internal_err hce]; exact ErrSim.internal rfl
+              · rw [hjsucc]; exact hmsg
+            | some bb =>
+              simp [core_k.lift_fueled] at hlf
+              subst hlf
+              cases bb with
+              | false =>
+                simp at hg
+                obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := hg
+                simp at h
+                obtain ⟨rfl, rfl⟩ := h
+                obtain ⟨msg, hmsg⟩ := checkStructFieldSortsIF_leq_false
+                  (ops := ConLeche.Cached.sharedOpsC (absMode mode) lfe)
+                  hfvget hrunty' hrunu' hleqabs
+                refine ErrSim.of_eq (x := Except.error (.invalid msg)) ?_ ?_
+                · rw [invalid_err hce]; exact ErrSim.invalid rfl
+                · rw [hjsucc]; exact hmsg
+              | true =>
+                simp at hg
+                obtain ⟨rfl, rfl⟩ := hg
+                simp at h
+                obtain ⟨r3, st4, hrec, hfin⟩ := h
+                cases r3 with
+                | Err err =>
+                  simp at hfin
+                  obtain ⟨rfl, rfl⟩ := hfin
+                  rw [hjsucc]
+                  exact checkStructFieldSortsIF_succ_err hfvget hrunty' hrunu'
+                    (fun _ => hleqabs) (by simp) (ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer)
+                | Ok rest =>
+                  simp at hfin
+                  obtain ⟨rest1, hpush, rfl, rfl⟩ := hfin
+                  obtain ⟨lst3, hrun3, hrel3, hwf3, hrestwf⟩ :=
+                    ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer
+                  refine ⟨lst3, ?_, hrel3, hwf3, ?_⟩
+                  · rw [hjsucc, absLevels, vec_push_val hpush, List.map_append]
+                    exact checkStructFieldSortsIF_succ hfvget hrunty' hrunu'
+                      (fun _ => hleqabs) (by simp) hrun3
+                  · intro l hl
+                    rw [vec_push_val hpush, List.mem_append] at hl
+                    rcases hl with hl | hl
+                    · exact hrestwf l hl
+                    · rw [List.mem_singleton.mp hl]; exact huwf
           case true.false =>
-            obtain ⟨r2, st4, hrec, hfin⟩ := h
-            cases r2 with
-            | Err err => simp at hfin
+            obtain ⟨r3, st4, hrec, hfin⟩ := h
+            cases r3 with
+            | Err err =>
+              simp at hfin
+              obtain ⟨rfl, rfl⟩ := hfin
+              rw [hjsucc]
+              exact checkStructFieldSortsIF_succ_err hfvget hrunty' hrunu'
+                (by simp) (by simp) (ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer)
             | Ok rest =>
               simp at hfin
-              obtain ⟨hpush, rfl⟩ := hfin
+              obtain ⟨rest1, hpush, rfl, rfl⟩ := hfin
               obtain ⟨lst3, hrun3, hrel3, hwf3, hrestwf⟩ :=
-                ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer
+                    ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer
               refine ⟨lst3, ?_, hrel3, hwf3, ?_⟩
               · rw [hjsucc, absLevels, vec_push_val hpush, List.map_append]
                 exact checkStructFieldSortsIF_succ hfvget hrunty' hrunu'
@@ -1505,50 +1733,92 @@ theorem check_struct_field_sorts_i_refines {mode : env.CheckMode}
                 · exact hrestwf l hl
                 · rw [List.mem_singleton.mp hl]; exact huwf
           case true.true =>
-            obtain ⟨z, hz, o, hiseq, a, hg, r3, st4, hrec, hfin⟩ := h
+            obtain ⟨z, hz, oe, hiseq, a, hcase⟩ := h
             have hzabs : absLevel z = .zero := Level.zero_refines hz
             have hzwf : LevelWF z := Level.zero_wf hz
-            have hiseqabs : ConLeche.Level.isEquiv (absLevel u) ConLeche.Level.zero = o := by
+            have hiseqabs : ConLeche.Level.isEquiv (absLevel u) ConLeche.Level.zero
+                = oe := by
               rw [← hzabs]; exact Level.is_equiv_refines huwf hzwf hiseq
-            have hgok : a = st2 ∧ (ConLeche.Level.isEquiv (absLevel u) ConLeche.Level.zero
-                == some true || (absExprs idx_args).contains (absExpr fv)) = true := by
-              cases o with
-              | none =>
-                simp at hg
-                refine ⟨hg.2.symm, ?_⟩
-                rw [hiseqabs]
-                simpa using (exprs_contains_refines hidx hfvwf hg.1).symm
-              | some bb =>
-                cases bb with
-                | false =>
+            rcases hcase with ⟨hg, v, hv, ce, hce, rfl, rfl⟩ | ⟨hg, r3, st4, hrec, hfin⟩
+            · -- a `Prop` family with a large eliminator and a field outside the
+              -- indices that is not a proposition: both sides throw `invalid`
+              -- (`sum_install.rs:341`, `SumInstallF.lean:57-58`)
+              have hguard : (ConLeche.Level.isEquiv (absLevel u) ConLeche.Level.zero
+                  == some true || (absExprs idx_args).contains (absExpr fv)) = false := by
+                cases oe with
+                | none =>
+                  simp at hg
+                  rw [hiseqabs]
+                  simpa using (exprs_contains_refines hidx hfvwf hg.1).symm
+                | some bb =>
+                  cases bb with
+                  | false =>
+                    simp at hg
+                    rw [hiseqabs]
+                    simpa using (exprs_contains_refines hidx hfvwf hg.1).symm
+                  | true => simp at hg
+              obtain ⟨msg, hmsg⟩ := checkStructFieldSortsIF_elim_false
+                (ops := ConLeche.Cached.sharedOpsC (absMode mode) lfe)
+                hfvget hrunty' hrunu' hguard
+              refine ErrSim.of_eq (x := Except.error (.invalid msg)) ?_ ?_
+              · rw [invalid_err hce]; exact ErrSim.invalid rfl
+              · rw [hjsucc]; exact hmsg
+            · have hgok : a = st2 ∧ (ConLeche.Level.isEquiv (absLevel u)
+                  ConLeche.Level.zero == some true
+                  || (absExprs idx_args).contains (absExpr fv)) = true := by
+                cases oe with
+                | none =>
                   simp at hg
                   refine ⟨hg.2.symm, ?_⟩
                   rw [hiseqabs]
                   simpa using (exprs_contains_refines hidx hfvwf hg.1).symm
-                | true =>
-                  simp at hg
-                  refine ⟨hg.symm, ?_⟩
-                  rw [hiseqabs]
-                  simp
-            obtain ⟨rfl, helimok⟩ := hgok
-            cases r3 with
-            | Err err => simp at hfin
-            | Ok rest =>
-              simp at hfin
-              obtain ⟨hpush, rfl⟩ := hfin
-              obtain ⟨lst3, hrun3, hrel3, hwf3, hrestwf⟩ :=
-                ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer
-              refine ⟨lst3, ?_, hrel3, hwf3, ?_⟩
-              · rw [hjsucc, absLevels, vec_push_val hpush, List.map_append]
-                exact checkStructFieldSortsIF_succ hfvget hrunty' hrunu'
-                  (by simp) (fun _ _ => helimok) hrun3
-              · intro l hl
-                rw [vec_push_val hpush, List.mem_append] at hl
-                rcases hl with hl | hl
-                · exact hrestwf l hl
-                · rw [List.mem_singleton.mp hl]; exact huwf
-    · rw [if_pos (by omega)] at h
+                | some bb =>
+                  cases bb with
+                  | false =>
+                    simp at hg
+                    refine ⟨hg.2.symm, ?_⟩
+                    rw [hiseqabs]
+                    simpa using (exprs_contains_refines hidx hfvwf hg.1).symm
+                  | true =>
+                    simp at hg
+                    refine ⟨hg.symm, ?_⟩
+                    rw [hiseqabs]
+                    simp
+              obtain ⟨rfl, helimok⟩ := hgok
+              cases r3 with
+              | Err err =>
+                simp at hfin
+                obtain ⟨rfl, rfl⟩ := hfin
+                rw [hjsucc]
+                exact checkStructFieldSortsIF_succ_err hfvget hrunty' hrunu'
+                  (by simp) (fun _ _ => helimok) (ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer)
+              | Ok rest =>
+                simp at hfin
+                obtain ⟨rest1, hpush, rfl, rfl⟩ := hfin
+                obtain ⟨lst3, hrun3, hrel3, hwf3, hrestwf⟩ :=
+                    ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer
+                refine ⟨lst3, ?_, hrel3, hwf3, ?_⟩
+                · rw [hjsucc, absLevels, vec_push_val hpush, List.map_append]
+                  exact checkStructFieldSortsIF_succ hfvget hrunty' hrunu'
+                    (by simp) (fun _ _ => helimok) hrun3
+                · intro l hl
+                  rw [vec_push_val hpush, List.mem_append] at hl
+                  rcases hl with hl | hl
+                  · exact hrestwf l hl
+                  · rw [List.mem_singleton.mp hl]; exact huwf
+    · -- `(j - 1) as usize >= fvs.len()` (`sum_install.rs:307`): con-leche's own
+      -- `unwrapOr fvs[j]?` throws the same `internal` (`SumInstallF.lean:49`)
+      rw [if_pos (by omega)] at h
       simp at h
+      obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+      have hnone : (absExprs fvs)[y.val]? = none :=
+        List.getElem?_eq_none (by simp only [absExprs, List.length_map]; omega)
+      obtain ⟨msg, hmsg⟩ := checkStructFieldSortsIF_fv_none
+        (ops := ConLeche.Cached.sharedOpsC (absMode mode) lfe) hnone
+      refine ErrSim.of_eq (x := Except.error (.internal msg)) ?_ ?_
+      · rw [internal_err hce]; exact ErrSim.internal rfl
+      · rw [hjsucc]; exact hmsg
+
 
 /-! ## Official's positivity walk as a normalisation (`SumInstall.lean:154-216`) -/
 
