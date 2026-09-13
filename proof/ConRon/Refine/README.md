@@ -113,7 +113,9 @@ only through `IndAbs`'s five operation lemmas.
 | `IndNativeInstall.lean` | `kernel::inductives::native_install` — the direct route's pass and tail, split at the cached driver's two flush points |
 | `IndModeled.lean` | `kernel::inductives::modeled` — the modeled route: the member checks, the recursor group and the projection functions |
 | `IndSpec.lean` | `IndRoutesSpec`, the one `Prop` the checker tier (task #56) consumes: the two entry points `check_native_s`/`check_ind_decl_s` against `checkNativeS`/`checkIndDeclSF` |
-| `IndC.lean` | `kernel::inductives::inductives_c` — the two routes' cached drivers, i.e. the **flush policy**, and `ind_routes_spec` |
+| `IndC.lean` | `kernel::inductives::inductives_c` — the two routes' cached drivers, i.e. the **flush policy**, `ind_routes_spec` and (task #59) the bridge `ind_routes_spec_of_p` |
+| `IndIngredients.lean` | task #59: the tier's **leaf** — the ~38 ingredient `Prop`s task #57's parallel files carried as hypotheses, each discharged from the file that owns it (`CheckerBaseSpec` from `Refine/CheckerBase.lean` under the knot, `structGens` from `Refine/IndStructParts.lean`, the install modules' `*Refines` from their owners) |
+| `Scalars.lean` | task #59: the `u64 → usize` index cast in one place — the two cast-value lemmas and the discharges that close `i.val ≤ Std.Usize.max` from the `Vec` a counter came from.  **No platform axiom**: where the bound cannot be discharged it is a hypothesis, because the port's guards compare the *cast* |
 
 ## The top of the tower (task #60, `CORE_PLAN.md` steps 7's top and 8)
 
