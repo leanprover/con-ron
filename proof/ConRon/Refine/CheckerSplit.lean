@@ -96,6 +96,49 @@ def ValueGroupWF (g : parsed_c.ValueGroup) : Prop :=
 @[local simp] theorem expr_dup_eq (e : expr.Expr) : expr.dup e = ok e := by
   obtain ⟨r⟩ := e; simp [expr.dup]
 
+/-! ## The failure half's bookkeeping (task #67)
+
+All fourteen `CheckError` sites of `kernel/checker_split.rs` go through
+`core_types::invalid`, so a single pair of helpers serves them: the port's
+error is the `Invalid` constructor, and the cited side has been rewritten
+down to its own `throw (.invalid …)`.  `Refine/CheckerBase.lean` carries the
+same two privately. -/
+
+/-- `core_types::invalid` is the constructor. -/
+private theorem invalid_val {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.invalid v = ok ce) :
+    ce = .Invalid v := by
+  rw [core_types.invalid] at h; exact (Result.ok_injective h).symm
+
+/-- A mirrored `throw` at `invalid`: the port's error came out of
+`core_types::invalid`, so its kind is con-leche's `.invalid`, and the cited
+side has been rewritten down to its `throw`. -/
+private theorem errSim_invalid {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.invalid v = ok ce1) (heq : ce1 = ce)
+    (hx : x = .error (.invalid ls)) : ErrSim ce x := by
+  rw [← heq, invalid_val hce]; exact ErrSim.invalid hx
+
+/-- The port's `Err` return, read off (the state-carrying shape);
+`Refine/CheckerBase.lean` carries the same privately. -/
+private theorem err_outS {α : Type} {ce : core_types.CheckError}
+    {st1 st' : cached.state_c.CState}
+    {out : core.result.Result α core_types.CheckError}
+    (h : (ok (core.result.Result.Err ce, st1) :
+      Result ((core.result.Result α core_types.CheckError) × cached.state_c.CState))
+      = ok (out, st')) : out = .Err ce ∧ st' = st1 := by
+  have h1 := Result.ok_injective h
+  exact ⟨(congrArg Prod.fst h1).symm, (congrArg Prod.snd h1).symm⟩
+
+/-- The port's `Ok` return, read off (the state-carrying shape). -/
+private theorem ok_outS {α : Type} {r : α} {st1 st' : cached.state_c.CState}
+    {out : core.result.Result α core_types.CheckError}
+    (h : (ok (core.result.Result.Ok r, st1) :
+      Result ((core.result.Result α core_types.CheckError) × cached.state_c.CState))
+      = ok (out, st')) : out = .Ok r ∧ st' = st1 := by
+  have h1 := Result.ok_injective h
+  exact ⟨(congrArg Prod.fst h1).symm, (congrArg Prod.snd h1).symm⟩
+
 /-! ## The kind test -/
 
 /-- **`checker_split::is_thm` is `g.kind = .thm`** — the cited `DecidableEq`
@@ -134,6 +177,158 @@ theorem install_constant_val_run {ops : ConLeche.CheckerOps CheckCM} {lenv : Con
   simp only [StateT.run, Bind.bind, StateT.bind]
   rw [show (ops.annotate lenv 0 cv.type) lst = Except.ok (ty, lst1) from hann]
   simp only [Except.bind, h7, h8, reduceIte]
+  rfl
+
+/-! ### `installConstantVal`'s eight `throw`s
+
+One lemma per guard, each at a run whose earlier guards all passed — the
+cited side of the eight `core_types::invalid` sites of
+`checker_split.rs:53-71`, plus the pass-through of whatever the annotation
+threw. -/
+
+open ConLeche.Cached in
+/-- `installConstantVal`'s duplicate-declaration `throw` (`CheckerSplit.lean:69`). -/
+theorem installConstantVal_dup {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {cv : ConLeche.ConstantVal} {lst : CState}
+    (h1 : (lenv.find? cv.name).isSome = true) :
+    (ConLeche.installConstantVal ops lenv cv).run lst
+      = .error (.invalid s!"duplicate declaration {cv.name}") := by
+  rw [ConLeche.installConstantVal]
+  simp only [h1, reduceIte]
+  rfl
+
+open ConLeche.Cached in
+/-- `installConstantVal`'s reserved-basis-name `throw` (`CheckerSplit.lean:71`). -/
+theorem installConstantVal_reserved {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {cv : ConLeche.ConstantVal} {lst : CState}
+    (h1 : (lenv.find? cv.name).isSome = false)
+    (h2 : ConLeche.reservedBasisNames.contains cv.name = true) :
+    (ConLeche.installConstantVal ops lenv cv).run lst
+      = .error (.invalid s!"reserved basis name {cv.name}") := by
+  rw [ConLeche.installConstantVal]
+  simp only [h1, h2, reduceIte, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `installConstantVal`'s reserved-projection-name `throw`
+(`CheckerSplit.lean:73`). -/
+theorem installConstantVal_proj {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {cv : ConLeche.ConstantVal} {lst : CState}
+    (h1 : (lenv.find? cv.name).isSome = false)
+    (h2 : ConLeche.reservedBasisNames.contains cv.name = false)
+    (h3 : cv.name.isProjFnShape = true) :
+    (ConLeche.installConstantVal ops lenv cv).run lst
+      = .error (.invalid s!"reserved projection name {cv.name}") := by
+  rw [ConLeche.installConstantVal]
+  simp only [h1, h2, h3, reduceIte, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `installConstantVal`'s duplicate-universe-parameter `throw`
+(`CheckerSplit.lean:75`). -/
+theorem installConstantVal_nodup {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {cv : ConLeche.ConstantVal} {lst : CState}
+    (h1 : (lenv.find? cv.name).isSome = false)
+    (h2 : ConLeche.reservedBasisNames.contains cv.name = false)
+    (h3 : cv.name.isProjFnShape = false)
+    (h4 : ConLeche.Name.nodup cv.levelParams = false) :
+    (ConLeche.installConstantVal ops lenv cv).run lst
+      = .error (.invalid s!"duplicate universe parameters in {cv.name}") := by
+  rw [ConLeche.installConstantVal]
+  simp only [h1, h2, h3, h4, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `installConstantVal`'s loose-bound-variable `throw`
+(`CheckerSplit.lean:77`). -/
+theorem installConstantVal_bvar {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {cv : ConLeche.ConstantVal} {lst : CState}
+    (h1 : (lenv.find? cv.name).isSome = false)
+    (h2 : ConLeche.reservedBasisNames.contains cv.name = false)
+    (h3 : cv.name.isProjFnShape = false)
+    (h4 : ConLeche.Name.nodup cv.levelParams = true)
+    (h5 : cv.type.looseBVarsBounded 0 = false) :
+    (ConLeche.installConstantVal ops lenv cv).run lst
+      = .error (.invalid s!"loose bound variable in type of {cv.name}") := by
+  rw [ConLeche.installConstantVal]
+  simp only [h1, h2, h3, h4, h5, reduceIte, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `installConstantVal`'s free-variable `throw` (`CheckerSplit.lean:79`). -/
+theorem installConstantVal_fvar {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {cv : ConLeche.ConstantVal} {lst : CState}
+    (h1 : (lenv.find? cv.name).isSome = false)
+    (h2 : ConLeche.reservedBasisNames.contains cv.name = false)
+    (h3 : cv.name.isProjFnShape = false)
+    (h4 : ConLeche.Name.nodup cv.levelParams = true)
+    (h5 : cv.type.looseBVarsBounded 0 = true) (h6 : cv.type.hasFvar = true) :
+    (ConLeche.installConstantVal ops lenv cv).run lst
+      = .error (.invalid s!"unexpected free variable in type of {cv.name}") := by
+  rw [ConLeche.installConstantVal]
+  simp only [h1, h2, h3, h4, h5, h6, reduceIte, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `installConstantVal` passes on what its annotation threw. -/
+theorem installConstantVal_annot_err {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {cv : ConLeche.ConstantVal} {lst : CState}
+    {le : ConLeche.CheckError}
+    (h1 : (lenv.find? cv.name).isSome = false)
+    (h2 : ConLeche.reservedBasisNames.contains cv.name = false)
+    (h3 : cv.name.isProjFnShape = false)
+    (h4 : ConLeche.Name.nodup cv.levelParams = true)
+    (h5 : cv.type.looseBVarsBounded 0 = true) (h6 : cv.type.hasFvar = false)
+    (hann : (ops.annotate lenv 0 cv.type).run lst = .error le) :
+    (ConLeche.installConstantVal ops lenv cv).run lst = .error le := by
+  rw [ConLeche.installConstantVal]
+  simp only [h1, h2, h3, h4, h5, h6, reduceIte, Bool.false_eq_true, if_false]
+  simp only [StateT.run, Bind.bind, StateT.bind]
+  rw [show (ops.annotate lenv 0 cv.type) lst = Except.error le from hann]
+  rfl
+
+open ConLeche.Cached in
+/-- `installConstantVal`'s undeclared-universe-parameter `throw`
+(`CheckerSplit.lean:82`). -/
+theorem installConstantVal_lparams {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {cv : ConLeche.ConstantVal} {ty : ConLeche.Expr}
+    {lst lst1 : CState}
+    (h1 : (lenv.find? cv.name).isSome = false)
+    (h2 : ConLeche.reservedBasisNames.contains cv.name = false)
+    (h3 : cv.name.isProjFnShape = false)
+    (h4 : ConLeche.Name.nodup cv.levelParams = true)
+    (h5 : cv.type.looseBVarsBounded 0 = true) (h6 : cv.type.hasFvar = false)
+    (hann : (ops.annotate lenv 0 cv.type).run lst = .ok (ty, lst1))
+    (h7 : ty.allLevelParamsDefined cv.levelParams = false) :
+    (ConLeche.installConstantVal ops lenv cv).run lst
+      = .error (.invalid s!"undeclared universe parameter in type of {cv.name}") := by
+  rw [ConLeche.installConstantVal]
+  simp only [h1, h2, h3, h4, h5, h6, reduceIte, Bool.false_eq_true, if_false]
+  simp only [StateT.run, Bind.bind, StateT.bind]
+  rw [show (ops.annotate lenv 0 cv.type) lst = Except.ok (ty, lst1) from hann]
+  simp only [Except.bind, h7, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `installConstantVal`'s unknown-constant `throw` (`CheckerSplit.lean:84`). -/
+theorem installConstantVal_consts {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {cv : ConLeche.ConstantVal} {ty : ConLeche.Expr}
+    {lst lst1 : CState}
+    (h1 : (lenv.find? cv.name).isSome = false)
+    (h2 : ConLeche.reservedBasisNames.contains cv.name = false)
+    (h3 : cv.name.isProjFnShape = false)
+    (h4 : ConLeche.Name.nodup cv.levelParams = true)
+    (h5 : cv.type.looseBVarsBounded 0 = true) (h6 : cv.type.hasFvar = false)
+    (hann : (ops.annotate lenv 0 cv.type).run lst = .ok (ty, lst1))
+    (h7 : ty.allLevelParamsDefined cv.levelParams = true)
+    (h8 : ty.constsResolve lenv = false) :
+    (ConLeche.installConstantVal ops lenv cv).run lst
+      = .error (.invalid s!"unknown constant in type of {cv.name}") := by
+  rw [ConLeche.installConstantVal]
+  simp only [h1, h2, h3, h4, h5, h6, reduceIte, Bool.false_eq_true, if_false]
+  simp only [StateT.run, Bind.bind, StateT.bind]
+  rw [show (ops.annotate lenv 0 cv.type) lst = Except.ok (ty, lst1) from hann]
+  simp only [Except.bind, h7, h8, reduceIte, Bool.false_eq_true, if_false]
   rfl
 
 open ConLeche.Cached in
@@ -242,22 +437,37 @@ theorem install_constant_val_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     (hp : CoreK.PinnedBasisNames)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
-    {cv cv' : env.ConstantVal}
+    {cv : env.ConstantVal}
+    {out : core.result.Result env.ConstantVal core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv)
-    (h : checker_split.install_constant_val mode st fe cv = ok (.Ok cv', st')) :
+    (h : checker_split.install_constant_val mode st fe cv = ok (out, st')) :
     ∀ lst lfe (lenv : ConLeche.Env), StateRel st lst → FEnvRel fe lfe →
       (∀ n : ConLeche.Name, lfe.find? n = lenv.find? n) →
-      ∃ lst',
-        (ConLeche.installConstantVal (TypeChecker.lops mode lfe) lenv
-            (absConstantVal cv)).run lst = .ok (absConstantVal cv', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv' := by
+      match out with
+      | .Ok cv' =>
+        ∃ lst',
+          (ConLeche.installConstantVal (TypeChecker.lops mode lfe) lenv
+              (absConstantVal cv)).run lst = .ok (absConstantVal cv', lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv'
+      | .Err e =>
+        ErrSim e ((ConLeche.installConstantVal (TypeChecker.lops mode lfe) lenv
+            (absConstantVal cv)).run lst) := by
   intro lst lfe lenv hsr hfr henv
   obtain ⟨hnwf, hlpwf, htywf⟩ := hcv
   rw [checker_split.install_constant_val] at h
   obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
   have hfind := FEnv.find_refines hfr hfw hnwf ho
   cases o with
-  | some ci => simp [core.option.Option.is_some, bind_eq_ok_iff] at h
+  | some ci =>
+    -- the duplicate-declaration `throw` (`CheckerSplit.lean:69`)
+    simp only [core.option.Option.is_some, Option.isSome_some, reduceIte,
+      bind_eq_ok_iff] at h
+    obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    have h1 : ((lenv.find? (absName cv.name)).isSome) = true := by
+      rw [← henv, ← hfind]; simp
+    exact errSim_invalid hce rfl (installConstantVal_dup h1)
   | none =>
     simp only [core.option.Option.is_some] at h
     have h1 : ((lenv.find? (absName cv.name)).isSome) = false := by
@@ -268,14 +478,30 @@ theorem install_constant_val_refines {mode : env.CheckMode} {fuel : Std.U64}
     have hb1abs := Name.contains_refines hrvwf hnwf hb1
     rw [hrvabs] at hb1abs
     split at h
-    · simp [bind_eq_ok_iff] at h
+    · -- the reserved-basis-name `throw` (`CheckerSplit.lean:71`)
+      rename_i hb1t
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      have h2 : ConLeche.reservedBasisNames.contains (absName cv.name) = true := by
+        rw [← hb1abs]; simpa using hb1t
+      exact errSim_invalid hce rfl (installConstantVal_reserved h1 h2)
     · rename_i hb1f
       have h2 : ConLeche.reservedBasisNames.contains (absName cv.name) = false := by
         rw [← hb1abs]; simpa using hb1f
       obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
       have hb2abs := CoreK.name_is_proj_fn_shape_refines hnwf hb2
       split at h
-      · simp [bind_eq_ok_iff] at h
+      · -- the reserved-projection-name `throw` (`CheckerSplit.lean:73`)
+        rename_i hb2t
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        have h3 : (absName cv.name).isProjFnShape = true := by
+          rw [← hb2abs]; simpa using hb2t
+        exact errSim_invalid hce rfl (installConstantVal_proj h1 h2 h3)
       · rename_i hb2f
         have h3 : (absName cv.name).isProjFnShape = false := by
           rw [← hb2abs]; simpa using hb2f
@@ -290,17 +516,43 @@ theorem install_constant_val_refines {mode : env.CheckMode} {fuel : Std.U64}
           · rename_i hb4t
             obtain ⟨b5, hb5, h⟩ := bind_eq_ok_iff.mp h
             have hb5abs := ExprOps.has_fvar_refines htywf hb5
+            have hg4 : ConLeche.Name.nodup (absConstantVal cv).levelParams = true := by
+              simp only [absConstantVal]; rw [← hb3abs]; exact hb3t
+            have hg5 : ConLeche.Expr.looseBVarsBounded 0 (absConstantVal cv).type = true := by
+              simp only [absConstantVal]; rw [← hb4abs]; exact hb4t
             split at h
-            · simp [bind_eq_ok_iff] at h
+            · -- the free-variable `throw` (`CheckerSplit.lean:79`)
+              rename_i hb5t
+              simp only [bind_eq_ok_iff] at h
+              obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+              obtain ⟨hout, -⟩ := err_outS h
+              subst hout
+              have hg6 : (absConstantVal cv).type.hasFvar = true := by
+                simp only [absConstantVal]; rw [← hb5abs]; simpa using hb5t
+              exact errSim_invalid hce rfl (installConstantVal_fvar h1 h2 h3 hg4 hg5 hg6)
             · rename_i hb5f
+              have hg6 : (absConstantVal cv).type.hasFvar = false := by
+                simp only [absConstantVal]; rw [← hb5abs]; simpa using hb5f
               obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
               obtain ⟨r1, st1⟩ := q
               cases r1 with
-              | Err er => simp at h
+              | Err er =>
+                -- move 1: the annotation threw, and the cited `do` throws at it
+                obtain ⟨hout, -⟩ := err_outS h
+                subst hout
+                have herr : ErrSim er (((TypeChecker.lops mode lfe).annotate lenv 0
+                    (absConstantVal cv).type).run lst) :=
+                  (TypeChecker.annotate_core_refines hfuel hk).err st fe 0#u64
+                    cv.ty er st1 hsw hfw htywf hq lst lfe hsr hfr
+                exact ErrSim.trans herr (fun le hle =>
+                  installConstantVal_annot_err h1 h2 h3 hg4 hg5 hg6 hle)
               | Ok ty =>
                 obtain ⟨lst1, hrun1, hsr1, hsw1, htyawf⟩ :=
                   (TypeChecker.annotate_core_refines hfuel hk).ok st fe 0#u64 cv.ty ty st1
                     hsw hfw htywf hq lst lfe hsr hfr
+                have hrun1' : ((TypeChecker.lops mode lfe).annotate lenv 0
+                    (absConstantVal cv).type).run lst = .ok (absExpr ty, lst1) := by
+                  rw [TypeChecker.sharedOpsC_annotate]; exact hrun1
                 obtain ⟨b6, hb6, h⟩ := bind_eq_ok_iff.mp h
                 have hb6abs :=
                   ExprOps.all_level_params_defined_fast_refines hlpwf htyawf hb6
@@ -309,35 +561,67 @@ theorem install_constant_val_refines {mode : env.CheckMode} {fuel : Std.U64}
                   obtain ⟨b7, hb7, h⟩ := bind_eq_ok_iff.mp h
                   have hb7abs :=
                     CoreK.consts_resolve_refines hp (FindAgree.of_rel hfr hfw) henv htyawf _ hb7
+                  have hg7 : (absExpr ty).allLevelParamsDefined
+                      (absConstantVal cv).levelParams = true := by
+                    simp only [absConstantVal]; rw [← hb6abs]; exact hb6t
                   split at h
                   · rename_i hb7t
                     obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
                     obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
                     have hnn : n = cv.name := by simpa using hn.symm
                     have hvv : v1.val = cv.level_params.val := PropWhen.names_copy_val hv1
-                    obtain ⟨hcv'', hst⟩ :
-                        ({ «name» := n, level_params := v1, ty } : env.ConstantVal) = cv'
-                          ∧ st1 = st' := by simpa using h
-                    subst hst
-                    have hcvabs : absConstantVal cv'
-                        = { absConstantVal cv with type := absExpr ty } := by
-                      rw [← hcv'']
+                    obtain ⟨hout, hst⟩ := ok_outS h
+                    subst hout; subst hst
+                    have hcvabs :
+                        absConstantVal ({ «name» := n, level_params := v1, ty } : env.ConstantVal)
+                          = { absConstantVal cv with type := absExpr ty } := by
                       simp only [absConstantVal, hnn, absNames, hvv]
                     refine ⟨lst1, ?_, hsr1, hsw1, ?_⟩
                     · rw [hcvabs]
-                      refine install_constant_val_run h1 h2 h3 ?_ ?_ ?_
-                        (by rw [TypeChecker.sharedOpsC_annotate]; exact hrun1) ?_ ?_
-                      · simp only [absConstantVal]; rw [← hb3abs]; exact hb3t
-                      · simp only [absConstantVal]; rw [← hb4abs]; exact hb4t
-                      · simp only [absConstantVal]; rw [← hb5abs]; simpa using hb5f
-                      · simp only [absConstantVal]; rw [← hb6abs]; exact hb6t
-                      · rw [← hb7abs]; exact hb7t
-                    · rw [← hcv'']
-                      exact ⟨hnn ▸ hnwf, fun m hm => hlpwf m (hvv ▸ hm), htyawf⟩
-                  · simp [bind_eq_ok_iff] at h
-                · simp [bind_eq_ok_iff] at h
-          · simp [bind_eq_ok_iff] at h
-        · simp [bind_eq_ok_iff] at h
+                      refine install_constant_val_run h1 h2 h3 hg4 hg5 hg6 hrun1' hg7 ?_
+                      rw [← hb7abs]; exact hb7t
+                    · exact ⟨hnn ▸ hnwf, fun m hm => hlpwf m (hvv ▸ hm), htyawf⟩
+                  · -- the unknown-constant `throw` (`CheckerSplit.lean:84`)
+                    rename_i hb7f
+                    simp only [bind_eq_ok_iff] at h
+                    obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+                    obtain ⟨hout, -⟩ := err_outS h
+                    subst hout
+                    have hg8 : (absExpr ty).constsResolve lenv = false := by
+                      rw [← hb7abs]; simpa using hb7f
+                    exact errSim_invalid hce rfl
+                      (installConstantVal_consts h1 h2 h3 hg4 hg5 hg6 hrun1' hg7 hg8)
+                · -- the undeclared-universe-parameter `throw` (`CheckerSplit.lean:82`)
+                  rename_i hb6f
+                  simp only [bind_eq_ok_iff] at h
+                  obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+                  obtain ⟨hout, -⟩ := err_outS h
+                  subst hout
+                  have hg7 : (absExpr ty).allLevelParamsDefined
+                      (absConstantVal cv).levelParams = false := by
+                    simp only [absConstantVal]; rw [← hb6abs]; simpa using hb6f
+                  exact errSim_invalid hce rfl
+                    (installConstantVal_lparams h1 h2 h3 hg4 hg5 hg6 hrun1' hg7)
+          · -- the loose-bound-variable `throw` (`CheckerSplit.lean:77`)
+            rename_i hb4f
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+            obtain ⟨hout, -⟩ := err_outS h
+            subst hout
+            have hg4 : ConLeche.Name.nodup (absConstantVal cv).levelParams = true := by
+              simp only [absConstantVal]; rw [← hb3abs]; exact hb3t
+            have hg5 : ConLeche.Expr.looseBVarsBounded 0 (absConstantVal cv).type = false := by
+              simp only [absConstantVal]; rw [← hb4abs]; simpa using hb4f
+            exact errSim_invalid hce rfl (installConstantVal_bvar h1 h2 h3 hg4 hg5)
+        · -- the duplicate-universe-parameter `throw` (`CheckerSplit.lean:75`)
+          rename_i hb3f
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          have hg4 : ConLeche.Name.nodup (absConstantVal cv).levelParams = false := by
+            simp only [absConstantVal]; rw [← hb3abs]; simpa using hb3f
+          exact errSim_invalid hce rfl (installConstantVal_nodup h1 h2 h3 hg4)
 
 /-- **`checker_split::install_value` refines `installValue`**
 (`CheckerSplit.lean:87-100`): the value half of `check{Defn,Thm,Opaque}Val`
