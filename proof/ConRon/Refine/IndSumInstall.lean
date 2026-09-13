@@ -170,15 +170,22 @@ file's; naming them keeps every conclusion below the exact one. -/
 (`ConLeche/Kernel/DeclCheck.lean:463-486`).  **Owned by the checker tier**
 (`kernel/checker_base.rs`). -/
 def CheckConstantValRefines (mode : env.CheckMode) : Prop :=
-  ∀ (st st' : cached.state_c.CState) (fe : fenv.FEnv) (cv cv' : env.ConstantVal),
+  ∀ (st st' : cached.state_c.CState) (fe : fenv.FEnv) (cv : env.ConstantVal)
+    (o : core.result.Result env.ConstantVal core_types.CheckError),
     StateWF st → FEnvWF fe → ConstantValWF cv →
-    kernel.checker_base.check_constant_val mode st fe cv = ok (.Ok cv', st') →
+    kernel.checker_base.check_constant_val mode st fe cv = ok (o, st') →
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.checkConstantValF (m := ConLeche.Cached.CheckCM)
+      match o with
+      | .Ok cv' =>
+        ∃ lst', (ConLeche.checkConstantValF (m := ConLeche.Cached.CheckCM)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
+              (absConstantVal cv)).run lst
+            = .ok (absConstantVal cv', lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkConstantValF (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
-            (absConstantVal cv)).run lst
-          = .ok (absConstantVal cv', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv'
+            (absConstantVal cv)).run lst)
 
 /-- `checker_base::open_pis_at_fvars_f` refines `openPisAtFvarsF`
 (`ConLeche/Kernel/CheckerBase.lean:148-153`).  **Owned by the checker
@@ -245,16 +252,23 @@ here — discharges it from the `Vec` of opened parameter variables, whose lengt
 is `n_p`. -/
 def CheckStructDomsAtRefines (mode : env.CheckMode) : Prop :=
   ∀ (st st' : cached.state_c.CState) (fe : fenv.FEnv) (off j : Std.U64)
-    (fvs doms : alloc.vec.Vec expr.Expr),
+    (fvs doms : alloc.vec.Vec expr.Expr)
+    (o : core.result.Result Unit core_types.CheckError),
     StateWF st → FEnvWF fe → ExprsWF fvs → ExprsWF doms →
     j.val ≤ Std.Usize.max →
     inductives.struct_install.check_struct_doms_at mode st fe off fvs doms j
-        = ok (.Ok (), st') →
+        = ok (o, st') →
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.checkStructDomsAtF (m := ConLeche.Cached.CheckCM)
+      match o with
+      | .Ok _ =>
+        ∃ lst', (ConLeche.checkStructDomsAtF (m := ConLeche.Cached.CheckCM)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe off.val
+              (absExprs fvs) (absExprs doms) j.val).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkStructDomsAtF (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe off.val
-            (absExprs fvs) (absExprs doms) j.val).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st'
+            (absExprs fvs) (absExprs doms) j.val).run lst)
 
 /-- The `capsOf : InductiveShape → IndCaps` dictionary's own refinement: the
 port's one-method trait computes `lcapsOf` on the abstracted record.  The one
@@ -435,6 +449,24 @@ theorem checkStructFieldSortsIF_succ {lfe : ConLeche.FEnv} {isProp large : Bool}
       simp [hh, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure,
         show (ConLeche.checkStructFieldSortsIF ops lfe true true s nP fvs idxArgs j) lst2
           = Except.ok (rest, lst3) from hrest]
+
+/-- `checkSumTeleF` at a declared type that is **not** already a syntactic
+telescope of `n` Π binders ending in a sort: the cited `| _ => do …` arm, which
+is what the port's split `check_sum_tele_whnf` is stated at (task #18's
+pattern 3). -/
+theorem checkSumTeleF_fall {lfe : ConLeche.FEnv} {cv cvTa0 : ConLeche.ConstantVal}
+    {n : Nat} {lst : ConLeche.Cached.CState}
+    (hstrip : ∀ bs s, cvTa0.type.stripPis n ≠ some (bs, .sort s)) :
+    (ConLeche.checkSumTeleF ops lfe cv n cvTa0).run lst
+      = (do
+          let q ← ConLeche.whnfTelescope ops lfe.env 0 n cvTa0.type
+          let cvTa ← ConLeche.checkConstantValF ops lfe
+            { cv with type := ConLeche.closeTelescope q.1 0 (.sort q.2) }
+          pure (cvTa, q.2)).run lst := by
+  rw [ConLeche.checkSumTeleF]
+  split
+  · next bs s heq => exact absurd heq (hstrip bs s)
+  · rfl
 
 /-- `normPosDom` at a domain the block does not occur in: kept as declared. -/
 theorem normPosDom_keep {lenv : ConLeche.Env} {T : ConLeche.Name} {d fuel : Nat}
@@ -825,13 +857,15 @@ spelled out. -/
 theorem check_sum_tele_whnf_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU) (hcv : CheckConstantValRefines mode)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
-    {cv cv_ta0 cv_ta : env.ConstantVal} {n : Std.U64} {u : level.Level}
+    {cv cv_ta0 : env.ConstantVal} {n : Std.U64}
+    {o : core.result.Result (env.ConstantVal × level.Level) core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hcvwf : ConstantValWF cv)
     (hcv0 : ConstantValWF cv_ta0)
     (h : inductives.sum_install.check_sum_tele_whnf mode st fe cv n cv_ta0
-        = ok (.Ok (cv_ta, u), st')) :
+        = ok (o, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst',
+      Out (fun q => (absConstantVal q.1, absLevel q.2))
+        (fun q => ConstantValWF q.1 ∧ LevelWF q.2) o st'
         ((do
             let q ← ConLeche.whnfTelescope (m := ConLeche.Cached.CheckCM)
               (ConLeche.Cached.sharedOpsC (absMode mode) lfe) (absEnv fe.env) 0
@@ -840,15 +874,20 @@ theorem check_sum_tele_whnf_refines {mode : env.CheckMode}
               (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
               { absConstantVal cv with
                 type := ConLeche.closeTelescope q.1 0 (.sort q.2) }
-            pure (cvTa, q.2)).run lst)
-          = .ok ((absConstantVal cv_ta, absLevel u), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv_ta ∧ LevelWF u := by
+            pure (cvTa, q.2)).run lst) := by
   intro lst lfe hrel hfer
   rw [inductives.sum_install.check_sum_tele_whnf] at h
   obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r, st1⟩ := p
   cases r with
-  | Err err => simp at h
+  | Err err =>
+    -- `whnf_telescope` threw: con-leche's own bind at `whnfTelescope` carries it
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    refine ErrSim.bindCM ?_
+    simpa [absConstantVal] using
+      whnf_telescope_refines hw hst hfe hcv0.2.2 ExprOps.bindersWF_new hp lst lfe
+        hrel hfer
   | Ok q =>
     obtain ⟨v, l⟩ := q
     simp at h
@@ -870,18 +909,27 @@ theorem check_sum_tele_whnf_refines {mode : env.CheckMode}
             type := ConLeche.closeTelescope lbs 0 (.sort (absLevel l)) } := by
       rw [absConstantVal, absConstantVal, hclabs, he1abs, habs1']
       simp [absNames, hlpv]
+    have hrun1' : (ConLeche.whnfTelescope (m := ConLeche.Cached.CheckCM)
+          (ConLeche.Cached.sharedOpsC (absMode mode) lfe) (absEnv fe.env) 0 n.val
+          (absConstantVal cv_ta0).type).run lst = .ok ((lbs, absLevel l), lst1) := by
+      simpa [absConstantVal] using hrun1
+    have hccv' := hcv st1 b fe _ _ hwf1 hfe hcv2wf hccv lst1 lfe hrel1 hfer
     cases a with
-    | Err err => simp at h
+    | Err err =>
+      -- `checker_base::check_constant_val` threw on the closed telescope
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      rw [run_bind, hrun1']
+      simp only [Except.bind]
+      rw [run_bind]
+      refine ErrSim.bind_run ?_ _
+      rw [hcv2abs] at hccv'
+      exact hccv'
     | Ok cv_ta1 =>
-      simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-      obtain ⟨⟨rfl, rfl⟩, rfl⟩ := h
-      obtain ⟨lst2, hrun2, hrel2, hwf2, hcvtawf⟩ :=
-        hcv st1 b fe _ _ hwf1 hfe hcv2wf hccv lst1 lfe hrel1 hfer
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      obtain ⟨lst2, hrun2, hrel2, hwf2, hcvtawf⟩ := hccv'
       rw [hcv2abs] at hrun2
-      have hrun1' : (ConLeche.whnfTelescope (m := ConLeche.Cached.CheckCM)
-            (ConLeche.Cached.sharedOpsC (absMode mode) lfe) (absEnv fe.env) 0 n.val
-            (absConstantVal cv_ta0).type).run lst = .ok ((lbs, absLevel l), lst1) := by
-        simpa [absConstantVal] using hrun1
       refine ⟨lst2, ?_, hrel2, hwf2, hcvtawf, hlwf⟩
       rw [run_bind, hrun1']
       simp only [Except.bind]
@@ -896,32 +944,30 @@ scratch. -/
 theorem check_sum_tele_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU) (hcv : CheckConstantValRefines mode)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
-    {cv cv_ta0 cv_ta : env.ConstantVal} {n : Std.U64} {u : level.Level}
+    {cv cv_ta0 : env.ConstantVal} {n : Std.U64}
+    {o : core.result.Result (env.ConstantVal × level.Level) core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hcvwf : ConstantValWF cv)
     (hcv0 : ConstantValWF cv_ta0)
     (h : inductives.sum_install.check_sum_tele mode st fe cv n cv_ta0
-        = ok (.Ok (cv_ta, u), st')) :
+        = ok (o, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.checkSumTeleF (m := ConLeche.Cached.CheckCM)
+      Out (fun q => (absConstantVal q.1, absLevel q.2))
+        (fun q => ConstantValWF q.1 ∧ LevelWF q.2) o st'
+        ((ConLeche.checkSumTeleF (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
-            (absConstantVal cv) n.val (absConstantVal cv_ta0)).run lst
-          = .ok ((absConstantVal cv_ta, absLevel u), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv_ta ∧ LevelWF u := by
+            (absConstantVal cv) n.val (absConstantVal cv_ta0)).run lst) := by
   intro lst lfe hrel hfer
   rw [inductives.sum_install.check_sum_tele] at h
-  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨hoabs, howf⟩ := ExprOps.strip_pis_refines hcv0.2.2 ho
-  cases o with
+  obtain ⟨sp, hsp, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hoabs, howf⟩ := ExprOps.strip_pis_refines hcv0.2.2 hsp
+  cases sp with
   | none =>
     have hstrip : (absConstantVal cv_ta0).type.stripPis n.val = none := by
       simpa [absConstantVal] using hoabs.symm
     have h' : inductives.sum_install.check_sum_tele_whnf mode st fe cv n cv_ta0
-        = ok (.Ok (cv_ta, u), st') := h
-    obtain ⟨lst', hrun, hrel', hwf', hcvta, hu⟩ :=
-      check_sum_tele_whnf_refines hw hcv hst hfe hcvwf hcv0 h' lst lfe hrel hfer
-    refine ⟨lst', ?_, hrel', hwf', hcvta, hu⟩
-    rw [ConLeche.checkSumTeleF, hstrip, ← hfer.1]
-    exact hrun
+        = ok (o, st') := h
+    rw [checkSumTeleF_fall (by simp [hstrip]), ← hfer.1]
+    exact check_sum_tele_whnf_refines hw hcv hst hfe hcvwf hcv0 h' lst lfe hrel hfer
   | some q =>
     obtain ⟨bs, e0⟩ := q
     have hstrip : (absConstantVal cv_ta0).type.stripPis n.val
@@ -933,7 +979,7 @@ theorem check_sum_tele_refines {mode : env.CheckMode}
     cases k
     case «Sort» s =>
       simp at h
-      obtain ⟨hcv1, rfl, rfl⟩ := h
+      obtain ⟨cv1, hcv1, rfl, rfl⟩ := h
       rw [Env.constant_val_dup_refines hcv1]
       refine ⟨lst, ?_, hrel, hst, hcv0, IndAbs.sort_node_wf he0wf⟩
       rw [ConLeche.checkSumTeleF, show (absConstantVal cv_ta0).type.stripPis n.val
@@ -942,11 +988,8 @@ theorem check_sum_tele_refines {mode : env.CheckMode}
       rfl
     all_goals
       (simp at h
-       obtain ⟨lst', hrun, hrel', hwf', hcvta, hu⟩ :=
-          check_sum_tele_whnf_refines hw hcv hst hfe hcvwf hcv0 h lst lfe hrel hfer
-       refine ⟨lst', ?_, hrel', hwf', hcvta, hu⟩
-       rw [ConLeche.checkSumTeleF, hstrip, ← hfer.1]
-       exact hrun)
+       rw [checkSumTeleF_fall (by intro bs' s; simp [hstrip]), ← hfer.1]
+       exact check_sum_tele_whnf_refines hw hcv hst hfe hcvwf hcv0 h lst lfe hrel hfer)
 
 /-- `ConLeche/Kernel/Inductives/SumInstall.lean:96-112` and
 `SumInstallF.lean:32-43` — `check_sum_ind` refines `checkSumIndF`: stage 1,
@@ -997,7 +1040,7 @@ theorem check_sum_ind_refines {mode : env.CheckMode} {C : Type}
         simp at h
         obtain ⟨e1, he1, hbeq, hws, caps, hcapsok, cvd, hcvd, hpush, rfl, rfl⟩ := h
         obtain ⟨lst1, hrun0, hrel1, hwf1, hcv0wf⟩ :=
-          hcv st st1 fe p.cv_t cv_ta0 hst hfe hp.1 hp0 lst lfe hrel hfer
+          hcv st st1 fe p.cv_t _ hst hfe hp.1 hp0 lst lfe hrel hfer
         have hiv : i.val = p.n_p.val + p.n_idx.val := HashMap.uscalar_add_eq hi
         obtain ⟨lst2, hrun1, hrel2, hwf2, hcvtawf, hswf⟩ :=
           check_sum_tele_refines hw hcv hwf1 hfe hp.1 hcv0wf htele lst1 lfe hrel1 hfer
@@ -1806,7 +1849,7 @@ theorem norm_ctor_val_refines {mode : env.CheckMode}
             rw [absConstantVal, absConstantVal, hty2abs']
             simp [absNames, hlpv]
           obtain ⟨lst2, hrun2, hrel2, hwf2, hrwf⟩ :=
-            hcv st1 st' fe { «name» := cv_c.name, level_params := lp, ty := ty2 } r
+            hcv st1 st' fe { «name» := cv_c.name, level_params := lp, ty := ty2 } _
               hwf1 hfe ⟨hcvc.1, hlpwf, hty2wf⟩ hccv lst1 lfe hrel1 hfer
           rw [hcv2abs] at hrun2
           refine ⟨lst2, ?_, hrel2, hwf2, hrwf⟩
@@ -2040,7 +2083,7 @@ theorem check_sum_ctor_refines {mode : env.CheckMode}
   | Err err => simp at h
   | Ok cv_ca0 =>
     obtain ⟨lst1, hrun0, hrel1, hwf1, hcvca0wf⟩ :=
-      hcv st st1 fe cv_c cv_ca0 hst hfe hcvc hccv0 lst lfe hrel hfer
+      hcv st st1 fe cv_c _ hst hfe hcvc hccv0 lst lfe hrel hfer
     simp at h
     obtain ⟨r1, st2, hnorm, h⟩ := h
     cases r1 with
@@ -2113,7 +2156,7 @@ theorem check_sum_ctor_refines {mode : env.CheckMode}
                     Scalars.u64_le_usize_max_of_le_len (v := cq1) (le_of_eq hcq1len.symm)
                   obtain ⟨hdomsabs, hdomswf⟩ := hft tq1 doms htq1wf hfvt
                   obtain ⟨lst3, hrundoms, hrel3, hwf3⟩ :=
-                    hdoms st2 st3 fe 0#u64 n_p cq1 doms hwf2 hfe hcq1wf hdomswf
+                    hdoms st2 st3 fe 0#u64 n_p cq1 doms _ hwf2 hfe hcq1wf hdomswf
                       hnpmax hdomsat lst2 lfe hrel2 hfer
                   obtain ⟨ho3abs, ho3wf⟩ := hop n_f cq2 n_p _ hcq2wf ho3
                   obtain ⟨hxq1wf, hxq2wf⟩ := ho3wf _ rfl
