@@ -20,7 +20,14 @@ while read -r line; do
   path=${line%% *}
   branch=$(sed -n 's/.*\[\([^]]*\)\].*/\1/p' <<<"$line")
   [ -n "$branch" ] || continue
+  forced=0
+  for f in "${force[@]:-}"; do [ "$f" = "$path" ] && forced=1; done
   [ "$path" = "$root" ] && continue
+  if [ "$(git rev-parse "$branch")" = "$(git rev-parse master)" ] && [ "$forced" != 1 ]; then
+    echo "fresh    $branch  ($path) — no commits yet, an agent may be working in it; kept"
+    kept=$((kept+1))
+    continue
+  fi
   if git merge-base --is-ancestor "$branch" master 2>/dev/null; then
     echo "merged   $branch  ($path)"
     run git worktree unlock "$path" 2>/dev/null || true
@@ -28,8 +35,6 @@ while read -r line; do
     run git branch -d "$branch" >/dev/null
     removed=$((removed+1))
   else
-    forced=0
-    for f in "${force[@]:-}"; do [ "$f" = "$path" ] && forced=1; done
     if [ "$forced" = 1 ]; then
       echo "unmerged $branch — removing the worktree as asked, keeping the branch"
       run git worktree unlock "$path" 2>/dev/null || true
