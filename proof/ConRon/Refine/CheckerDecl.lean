@@ -5356,21 +5356,38 @@ Proved: `Refine/StdAxioms.lean`'s `std_axiom_ok_refines_of_rel` /
 `Indexed.stdAxiomOk_eq` and its two siblings. -/
 theorem check_axiom_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv : env.ConstantVal}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {cv : env.ConstantVal}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv)
-    (h : kernel.checker.check_axiom_decl mode st fe cv = ok (.Ok fe', st')) :
+    (h : kernel.checker.check_axiom_decl mode st fe cv = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → Indexed lfe →
-      ∃ lst' lfe',
-        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
-            (ConLeche.Declaration.axiomDecl (absConstantVal cv))).run lst = .ok (lfe'.env, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
-        ∧ Indexed lfe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+              (ConLeche.Declaration.axiomDecl (absConstantVal cv))).run lst
+            = Except.ok (lfe'.env, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+          ∧ Indexed lfe'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+          (ConLeche.Declaration.axiomDecl (absConstantVal cv))).run lst) := by
   intro lst lfe hsr hfr hix
   rw [kernel.checker.check_axiom_decl] at h
   obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r, st1⟩ := q
   cases r with
-  | Err er => simp at h
+  | Err er =>
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    show ErrSim er _
+    have herr :=
+      CheckerBase.check_constant_val_refines hfuel hk constsResolveFSpec hsw hfw hcv
+        (hq : checker_base.check_constant_val mode st fe cv = ok (.Err er, st1))
+        lst lfe hsr hfr
+    rw [hix.checkConstantVal_eq] at herr
+    exact ErrSim.trans herr (fun _ hle => by
+      rw [ConLeche.checkDecl]; exact run_bind_err_head hle)
   | Ok cv_a =>
     obtain ⟨lst1, hruncvF, hsr1, hsw1, hcvawf⟩ :=
       CheckerBase.check_constant_val_refines hfuel hk constsResolveFSpec hsw hfw hcv
@@ -5385,8 +5402,8 @@ theorem check_axiom_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
     | true =>
       simp only [if_pos] at h
       obtain ⟨f, hpush, h⟩ := bind_eq_ok_iff.mp h
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h
+      obtain ⟨hout, rfl⟩ := ok_outS h
+      subst hout
       obtain ⟨hrel', hwf'⟩ := FEnv.push_refines hfr hfw
         (show ConstantInfoWF (env.ConstantInfo.AxiomInfo cv_a) from hcvawf) hpush
       refine ⟨lst1, lfe.push (.axiomInfo (absConstantVal cv_a)), ?_, hsr1, hsw1,
@@ -5413,12 +5430,27 @@ theorem check_axiom_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
           (FindAgree.of_rel hfr hfw) (FindWF.of_wf hfw) hcvawf hb2).trans
             (hix.trustCompilerOk_eq _)
         cases b2 with
-        | false => simp at h
+        | false =>
+          obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          show ErrSim ce _
+          refine errSim_notImplemented
+            (ls := s!"unsupported Lean.trustCompiler shape ({(absConstantVal cv).name})")
+            hce rfl ?_
+          rw [ConLeche.checkDecl]
+          refine run_bind_ok hruncvF ?_
+          rw [if_neg hstdf, if_pos hnm,
+            if_neg (show ¬ (ConLeche.trustCompilerOk lfe.env (absConstantVal cv_a) = true)
+              from by rw [← hb2abs]; simp)]
+          rfl
         | true =>
           simp only [if_pos] at h
           obtain ⟨f, hpush, h⟩ := bind_eq_ok_iff.mp h
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
-          obtain ⟨rfl, rfl⟩ := h
+          obtain ⟨hout, rfl⟩ := ok_outS h
+          subst hout
           obtain ⟨hrel', hwf'⟩ := FEnv.push_refines hfr hfw
             (show ConstantInfoWF (env.ConstantInfo.AxiomInfo cv_a) from hcvawf) hpush
           refine ⟨lst1, lfe.push (.axiomInfo (absConstantVal cv_a)), ?_, hsr1, hsw1,
@@ -5446,12 +5478,27 @@ theorem check_axiom_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
             (basisPinsSpec hfr hfw) (FindAgree.of_rel hfr hfw) (FindWF.of_wf hfw)
             hcvawf hb3).trans (hix.ofReduceAxOk_eq _)
           cases b3 with
-          | false => simp at h
+          | false =>
+            obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨hout, -⟩ := err_outS h
+            subst hout
+            show ErrSim ce _
+            refine errSim_notImplemented
+              (ls := s!"unsupported compiler-trust axiom environment ({(absConstantVal cv).name})")
+              hce rfl ?_
+            rw [ConLeche.checkDecl]
+            refine run_bind_ok hruncvF ?_
+            rw [if_neg hstdf, if_neg hnotc, if_pos hnm,
+              if_neg (show ¬ (ConLeche.ofReduceAxOk lfe.env (absConstantVal cv_a) = true)
+                from by rw [← hb3abs]; simp)]
+            rfl
           | true =>
             simp only [if_pos] at h
             obtain ⟨f, hpush, h⟩ := bind_eq_ok_iff.mp h
-            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
-            obtain ⟨rfl, rfl⟩ := h
+            obtain ⟨hout, rfl⟩ := ok_outS h
+            subst hout
             obtain ⟨hrel', hwf'⟩ := FEnv.push_refines hfr hfw
               (show ConstantInfoWF (env.ConstantInfo.AxiomInfo cv_a) from hcvawf) hpush
             refine ⟨lst1, lfe.push (.axiomInfo (absConstantVal cv_a)), ?_, hsr1, hsw1,
@@ -5479,12 +5526,27 @@ theorem check_axiom_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
               (basisPinsSpec hfr hfw) (FindAgree.of_rel hfr hfw) (FindWF.of_wf hfw)
               hcvawf hb4).trans (hix.ofReduceAxOk_eq _)
             cases b4 with
-            | false => simp at h
+            | false =>
+              obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨hout, -⟩ := err_outS h
+              subst hout
+              show ErrSim ce _
+              refine errSim_notImplemented
+                (ls := s!"unsupported compiler-trust axiom environment ({(absConstantVal cv).name})")
+                hce rfl ?_
+              rw [ConLeche.checkDecl]
+              refine run_bind_ok hruncvF ?_
+              rw [if_neg hstdf, if_neg hnotc, if_pos hnm,
+                if_neg (show ¬ (ConLeche.ofReduceAxOk lfe.env (absConstantVal cv_a) = true)
+                  from by rw [← hb4abs]; simp)]
+              rfl
             | true =>
               simp only [if_pos] at h
               obtain ⟨f, hpush, h⟩ := bind_eq_ok_iff.mp h
-              simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
-              obtain ⟨rfl, rfl⟩ := h
+              obtain ⟨hout, rfl⟩ := ok_outS h
+              subst hout
               obtain ⟨hrel', hwf'⟩ := FEnv.push_refines hfr hfw
                 (show ConstantInfoWF (env.ConstantInfo.AxiomInfo cv_a) from hcvawf) hpush
               refine ⟨lst1, lfe.push (.axiomInfo (absConstantVal cv_a)), ?_, hsr1, hsw1,
@@ -5506,7 +5568,22 @@ theorem check_axiom_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
             have hb4abs := Name.beq_refines hcvawf.1 hpnwf hb4
             rw [hpnabs] at hb4abs
             cases b4 with
-            | true => simp at h
+            | true =>
+              obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨hout, -⟩ := err_outS h
+              subst hout
+              show ErrSim ce _
+              refine errSim_notImplemented
+                (ls := s!"standard axiom shape mismatch ({(absConstantVal cv).name})")
+                hce rfl ?_
+              rw [ConLeche.checkDecl]
+              refine run_bind_ok hruncvF ?_
+              rw [if_neg hstdf, if_neg hnotc, if_neg hnotnb,
+                if_pos (Or.inl (show (absConstantVal cv_a).name = ConLeche.propextName
+                  from by rw [absConstantVal_name]; simpa using hb4abs.symm))]
+              rfl
             | false =>
               have hnotpe : ¬ ((absConstantVal cv_a).name = ConLeche.propextName) := by
                 rw [absConstantVal_name]
@@ -5517,7 +5594,22 @@ theorem check_axiom_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
               have hb5abs := Name.beq_refines hcvawf.1 hcnwf hb5
               rw [hcnabs] at hb5abs
               cases b5 with
-              | true => simp at h
+              | true =>
+                obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨hout, -⟩ := err_outS h
+                subst hout
+                show ErrSim ce _
+                refine errSim_notImplemented
+                  (ls := s!"standard axiom shape mismatch ({(absConstantVal cv).name})")
+                  hce rfl ?_
+                rw [ConLeche.checkDecl]
+                refine run_bind_ok hruncvF ?_
+                rw [if_neg hstdf, if_neg hnotc, if_neg hnotnb,
+                  if_pos (Or.inr (show (absConstantVal cv_a).name = ConLeche.choiceName
+                    from by rw [absConstantVal_name]; simpa using hb5abs.symm))]
+                rfl
               | false =>
                 have hnotch : ¬ ((absConstantVal cv_a).name = ConLeche.choiceName) := by
                   rw [absConstantVal_name]
@@ -5531,11 +5623,27 @@ theorem check_axiom_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
                 have hb6abs := Name.contains_refines htvwf hcvawf.1 hb6
                 rw [htvabs] at hb6abs
                 cases b6 with
-                | false => simp at h
+                | false =>
+                  obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+                  obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+                  obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+                  obtain ⟨hout, -⟩ := err_outS h
+                  subst hout
+                  show ErrSim ce _
+                  refine errSim_notImplemented
+                    (ls := s!"non-standard axiom ({(absConstantVal cv).name})")
+                    hce rfl ?_
+                  rw [ConLeche.checkDecl]
+                  refine run_bind_ok hruncvF ?_
+                  rw [if_neg hstdf, if_neg hnotc, if_neg hnotnb, if_neg hnotpc,
+                    if_neg (show ¬ (ConLeche.toleratedAxiomNames.contains
+                      (absConstantVal cv_a).name = true) from by
+                        rw [absConstantVal_name, ← hb6abs]; simp)]
+                  rfl
                 | true =>
-                  simp only [if_pos, Result.ok.injEq, Prod.mk.injEq,
-                    core.result.Result.Ok.injEq] at h
-                  obtain ⟨rfl, rfl⟩ := h
+                  simp only [if_pos] at h
+                  obtain ⟨hout, rfl⟩ := ok_outS h
+                  subst hout
                   refine ⟨lst1, lfe, ?_, hsr1, hsw1, hfr, hfw, hix⟩
                   rw [ConLeche.checkDecl]
                   refine run_bind_ok hruncvF ?_
@@ -5545,6 +5653,21 @@ theorem check_axiom_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
                         rw [absConstantVal_name]; simpa using hb6abs.symm)]
                   rfl
 
+
+/-- `check_axiom_decl_refines` at a success, the pre-#67 statement. -/
+theorem check_axiom_decl_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv : env.ConstantVal}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv)
+    (h : kernel.checker.check_axiom_decl mode st fe cv = ok (.Ok fe', st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → Indexed lfe →
+      ∃ lst' lfe',
+        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+            (ConLeche.Declaration.axiomDecl (absConstantVal cv))).run lst
+          = Except.ok (lfe'.env, lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ Indexed lfe' :=
+  check_axiom_decl_refines hfuel hk hsw hfw hcv h
 
 /-- `checkDecl`'s `.basisDecl` arm (`Checker.lean:553-557`): the quotient block
 requires the pinned `Eq` basis, then `kind.declsA.foldlM installBasisDecl`.
