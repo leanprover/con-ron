@@ -56,6 +56,7 @@ import ConRon.Refine.TypeChecker
 import ConRon.Refine.IndSpec
 import ConRon.Refine.CheckerC
 import ConRon.Refine.BasisPins
+import ConRon.Refine.StdAxioms
 import ConRon.Refine.TrustAxioms
 import ConRon.Refine.CheckerSplit
 import ConRon.Refine.Checker

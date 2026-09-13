@@ -59,15 +59,15 @@ annotated pins are cited on the same items the raw ones are.
   `rw` will not see through.
 
 Two things this file adds that belong elsewhere, each marked in place:
-`wf_kind_inv` and its ten wrappers (**to be moved to `Refine/Expr.lean`** beside
+`wf_kind_inv` and its nine wrappers (**to be moved to `Refine/Expr.lean`** beside
 `Refine/CoreKGuards.lean`'s three — the lockstep descent cases on the *second*
 term's kind, so it needs the inversion at every kind), and the eleven `bb_*`
-builder steps below.
+builder steps above (`kernel::basis_builder` is a module of its own).
 
 ## The `Basis/Builder.lean` DSL, locally
 
 `kernel::basis_builder` is not this file's module, and no sibling file may be
-imported, so the eleven builder steps this module needs are proved here under
+imported, so the thirteen builder steps this module needs are proved here under
 descriptive names (`bb_*`).  **To be unified into `Refine/BasisBuilder.lean`**
 when one exists.  They also record task #24's deviation 2: `pi`/`piI`/`piA` are
 one Rust function and `lm`/`lmI` another, because `Expr` carries no binder
@@ -1067,7 +1067,8 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     case Lit l2 =>
       simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
       rw [Expr.literal_beq_refines hl (wf_lit_inv hb rfl) h]
-      simp [ConLeche.Expr.erasePwEq, decide_eq_beq]
+      simp only [ConLeche.Expr.erasePwEq, absExpr_mk, absExprKind]
+      exact decide_eq_beq _ _
     all_goals
       simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
       rw [← h]
