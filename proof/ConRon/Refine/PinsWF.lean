@@ -952,4 +952,438 @@ theorem record_pw_wf {t : Slice Std.U8} {i j : Std.Usize}
           exact record_pw_zero_wf htb h
         · exact (err_ne_ok h).elim
 
+
+/-! ### `E` — the expression records
+
+Ten smart constructors behind eleven reader chains, and every chain is the
+shape the `N` and `L` records already had: read the operands through the
+backward references, take the constructor's own `= ok` equation off the end,
+hand it to the matching `ExprWF` constructor.  `record_expr_binder` is the one
+record with two of them, `lam` and `forall_e`, behind its `is_lam` flag. -/
+
+theorem record_expr_bvar_wf {t : Slice Std.U8} {i j : Std.Usize}
+    {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
+    (h : pins_decode.record_expr_bvar t i tb = ok (.Ok (tb', j))) :
+    TablesWF tb' := by
+  rw [pins_decode.record_expr_bvar] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => simp at h
+  | Ok i1 =>
+    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => simp at h
+    | Ok p =>
+      obtain ⟨k, i2⟩ := p
+      obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+      cases r2 with
+      | Err e => simp at h
+      | Ok i3 =>
+        obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+        simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+          Prod.mk.injEq] at h
+        rw [← h.1]
+        exact with_exprs htb (push_wf htb.exprs (.bvar hex) hv)
+
+theorem record_expr_fvar_wf {t : Slice Std.U8} {i j : Std.Usize}
+    {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
+    (h : pins_decode.record_expr_fvar t i tb = ok (.Ok (tb', j))) :
+    TablesWF tb' := by
+  rw [pins_decode.record_expr_fvar] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => simp at h
+  | Ok i1 =>
+    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => simp at h
+    | Ok p =>
+      obtain ⟨idx, i2⟩ := p
+      obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+      cases r2 with
+      | Err e => simp at h
+      | Ok i3 =>
+        obtain ⟨r3, hr3, h⟩ := bind_eq_ok_iff.mp h
+        cases r3 with
+        | Err e => simp at h
+        | Ok p1 =>
+          obtain ⟨ty, i4⟩ := p1
+          obtain ⟨r4, hr4, h⟩ := bind_eq_ok_iff.mp h
+          cases r4 with
+          | Err e => simp at h
+          | Ok i5 =>
+            obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+            simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+              Prod.mk.injEq] at h
+            rw [← h.1]
+            exact with_exprs htb
+              (push_wf htb.exprs (.fvar (expr_ref_wf htb hr3) hex) hv)
+
+theorem record_expr_sort_wf {t : Slice Std.U8} {i j : Std.Usize}
+    {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
+    (h : pins_decode.record_expr_sort t i tb = ok (.Ok (tb', j))) :
+    TablesWF tb' := by
+  rw [pins_decode.record_expr_sort] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => simp at h
+  | Ok i1 =>
+    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => simp at h
+    | Ok p =>
+      obtain ⟨u, i2⟩ := p
+      obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+      cases r2 with
+      | Err e => simp at h
+      | Ok i3 =>
+        obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+        simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+          Prod.mk.injEq] at h
+        rw [← h.1]
+        exact with_exprs htb
+          (push_wf htb.exprs (.sort (level_ref_wf htb hr1) hex) hv)
+
+theorem record_expr_const_wf {t : Slice Std.U8} {i j : Std.Usize}
+    {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
+    (h : pins_decode.record_expr_const t i tb = ok (.Ok (tb', j))) :
+    TablesWF tb' := by
+  rw [pins_decode.record_expr_const] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => simp at h
+  | Ok i1 =>
+    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => simp at h
+    | Ok p =>
+      obtain ⟨n, i2⟩ := p
+      obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+      cases r2 with
+      | Err e => simp at h
+      | Ok i3 =>
+        obtain ⟨r3, hr3, h⟩ := bind_eq_ok_iff.mp h
+        cases r3 with
+        | Err e => simp at h
+        | Ok p1 =>
+          obtain ⟨us, i4⟩ := p1
+          obtain ⟨r4, hr4, h⟩ := bind_eq_ok_iff.mp h
+          cases r4 with
+          | Err e => simp at h
+          | Ok i5 =>
+            obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+            simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+              Prod.mk.injEq] at h
+            rw [← h.1]
+            exact with_exprs htb
+              (push_wf htb.exprs
+                (.mk_const (name_ref_wf htb hr1) (level_list_wf htb hr3) hex) hv)
+
+theorem record_expr_app_wf {t : Slice Std.U8} {i j : Std.Usize}
+    {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
+    (h : pins_decode.record_expr_app t i tb = ok (.Ok (tb', j))) :
+    TablesWF tb' := by
+  rw [pins_decode.record_expr_app] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => simp at h
+  | Ok i1 =>
+    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => simp at h
+    | Ok p =>
+      obtain ⟨f, i2⟩ := p
+      obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+      cases r2 with
+      | Err e => simp at h
+      | Ok i3 =>
+        obtain ⟨r3, hr3, h⟩ := bind_eq_ok_iff.mp h
+        cases r3 with
+        | Err e => simp at h
+        | Ok p1 =>
+          obtain ⟨a, i4⟩ := p1
+          obtain ⟨r4, hr4, h⟩ := bind_eq_ok_iff.mp h
+          cases r4 with
+          | Err e => simp at h
+          | Ok i5 =>
+            obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+            simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+              Prod.mk.injEq] at h
+            rw [← h.1]
+            exact with_exprs htb
+              (push_wf htb.exprs
+                (.app (expr_ref_wf htb hr1) (expr_ref_wf htb hr3) hex) hv)
+
+theorem record_expr_binder_wf {t : Slice Std.U8} {i j : Std.Usize}
+    {tb tb' : pins_decode.Tables} {isLam : Bool} (htb : TablesWF tb)
+    (h : pins_decode.record_expr_binder t i tb isLam = ok (.Ok (tb', j))) :
+    TablesWF tb' := by
+  rw [pins_decode.record_expr_binder] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => simp at h
+  | Ok i1 =>
+    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => simp at h
+    | Ok p =>
+      obtain ⟨ty, i2⟩ := p
+      obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+      cases r2 with
+      | Err e => simp at h
+      | Ok i3 =>
+        obtain ⟨r3, hr3, h⟩ := bind_eq_ok_iff.mp h
+        cases r3 with
+        | Err e => simp at h
+        | Ok p1 =>
+          obtain ⟨body, i4⟩ := p1
+          obtain ⟨r4, hr4, h⟩ := bind_eq_ok_iff.mp h
+          cases r4 with
+          | Err e => simp at h
+          | Ok i5 =>
+            obtain ⟨r5, hr5, h⟩ := bind_eq_ok_iff.mp h
+            cases r5 with
+            | Err e => simp at h
+            | Ok p2 =>
+              obtain ⟨pw, i6⟩ := p2
+              obtain ⟨r6, hr6, h⟩ := bind_eq_ok_iff.mp h
+              cases r6 with
+              | Err e => simp at h
+              | Ok i7 =>
+                obtain ⟨m, hm, h⟩ := bind_eq_ok_iff.mp h
+                have hmw : BinderMetaWF m := binder_meta_wf (pw_ref_wf htb hr5) hm
+                split at h
+                · obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
+                  obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+                  simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+                    Prod.mk.injEq] at h
+                  rw [← h.1]
+                  exact with_exprs htb
+                    (push_wf htb.exprs
+                      (.lam (expr_ref_wf htb hr1) (expr_ref_wf htb hr3) hmw hex) hv)
+                · obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
+                  obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+                  simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+                    Prod.mk.injEq] at h
+                  rw [← h.1]
+                  exact with_exprs htb
+                    (push_wf htb.exprs
+                      (.forall_e (expr_ref_wf htb hr1) (expr_ref_wf htb hr3) hmw hex)
+                      hv)
+
+theorem record_expr_let_wf {t : Slice Std.U8} {i j : Std.Usize}
+    {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
+    (h : pins_decode.record_expr_let t i tb = ok (.Ok (tb', j))) :
+    TablesWF tb' := by
+  rw [pins_decode.record_expr_let] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => simp at h
+  | Ok i1 =>
+    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => simp at h
+    | Ok p =>
+      obtain ⟨ty, i2⟩ := p
+      obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+      cases r2 with
+      | Err e => simp at h
+      | Ok i3 =>
+        obtain ⟨r3, hr3, h⟩ := bind_eq_ok_iff.mp h
+        cases r3 with
+        | Err e => simp at h
+        | Ok p1 =>
+          obtain ⟨val, i4⟩ := p1
+          obtain ⟨r4, hr4, h⟩ := bind_eq_ok_iff.mp h
+          cases r4 with
+          | Err e => simp at h
+          | Ok i5 =>
+            obtain ⟨r5, hr5, h⟩ := bind_eq_ok_iff.mp h
+            cases r5 with
+            | Err e => simp at h
+            | Ok p2 =>
+              obtain ⟨body, i6⟩ := p2
+              obtain ⟨r6, hr6, h⟩ := bind_eq_ok_iff.mp h
+              cases r6 with
+              | Err e => simp at h
+              | Ok i7 =>
+                obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+                simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+                  Prod.mk.injEq] at h
+                rw [← h.1]
+                exact with_exprs htb
+                  (push_wf htb.exprs
+                    (.let_e (expr_ref_wf htb hr1) (expr_ref_wf htb hr3)
+                      (expr_ref_wf htb hr5) hex) hv)
+
+theorem record_expr_nat_lit_wf {t : Slice Std.U8} {i j : Std.Usize}
+    {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
+    (h : pins_decode.record_expr_nat_lit t i tb = ok (.Ok (tb', j))) :
+    TablesWF tb' := by
+  rw [pins_decode.record_expr_nat_lit] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => simp at h
+  | Ok i1 =>
+    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => simp at h
+    | Ok p =>
+      obtain ⟨n, i2⟩ := p
+      obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+      cases r2 with
+      | Err e => simp at h
+      | Ok i3 =>
+        obtain ⟨l, hl, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+        simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+          Prod.mk.injEq] at h
+        rw [← h.1]
+        exact with_exprs htb
+          (push_wf htb.exprs
+            (.lit (literal_nat_wf (read_big_nat_wf hr1) hl) hex) hv)
+
+theorem record_expr_str_lit_wf {t : Slice Std.U8} {i j : Std.Usize}
+    {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
+    (h : pins_decode.record_expr_str_lit t i tb = ok (.Ok (tb', j))) :
+    TablesWF tb' := by
+  rw [pins_decode.record_expr_str_lit] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => simp at h
+  | Ok i1 =>
+    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => simp at h
+    | Ok p =>
+      obtain ⟨s, i2⟩ := p
+      obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+      cases r2 with
+      | Err e => simp at h
+      | Ok i3 =>
+        obtain ⟨l, hl, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+        simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+          Prod.mk.injEq] at h
+        rw [← h.1]
+        exact with_exprs htb
+          (push_wf htb.exprs
+            (.lit (literal_str_wf (read_string_wf hr1) hl) hex) hv)
+
+theorem record_expr_proj_wf {t : Slice Std.U8} {i j : Std.Usize}
+    {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
+    (h : pins_decode.record_expr_proj t i tb = ok (.Ok (tb', j))) :
+    TablesWF tb' := by
+  rw [pins_decode.record_expr_proj] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => simp at h
+  | Ok i1 =>
+    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => simp at h
+    | Ok p =>
+      obtain ⟨sn, i2⟩ := p
+      obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+      cases r2 with
+      | Err e => simp at h
+      | Ok i3 =>
+        obtain ⟨r3, hr3, h⟩ := bind_eq_ok_iff.mp h
+        cases r3 with
+        | Err e => simp at h
+        | Ok p1 =>
+          obtain ⟨idx, i4⟩ := p1
+          obtain ⟨r4, hr4, h⟩ := bind_eq_ok_iff.mp h
+          cases r4 with
+          | Err e => simp at h
+          | Ok i5 =>
+            obtain ⟨r5, hr5, h⟩ := bind_eq_ok_iff.mp h
+            cases r5 with
+            | Err e => simp at h
+            | Ok p2 =>
+              obtain ⟨str, i6⟩ := p2
+              obtain ⟨r6, hr6, h⟩ := bind_eq_ok_iff.mp h
+              cases r6 with
+              | Err e => simp at h
+              | Ok i7 =>
+                obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+                simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+                  Prod.mk.injEq] at h
+                rw [← h.1]
+                exact with_exprs htb
+                  (push_wf htb.exprs
+                    (.proj (name_ref_wf htb hr1) (expr_ref_wf htb hr5) hex) hv)
+
+set_option maxHeartbeats 1000000 in
+/-- The `E` dispatch: eleven kind bytes, and `l`/`f` share
+`record_expr_binder` — the flat `split` chain `Refine/PinsRecords.lean` uses
+on the same eleven, and with the same heartbeat allowance. -/
+theorem record_expr_wf {t : Slice Std.U8} {i j : Std.Usize}
+    {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
+    (h : pins_decode.record_expr t i tb = ok (.Ok (tb', j))) : TablesWF tb' := by
+  rw [pins_decode.record_expr] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => simp at h
+  | Ok i2 =>
+    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => simp at h
+    | Ok i3 =>
+      obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
+      split at h
+      · -- `b`: a bound variable
+        obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+        exact record_expr_bvar_wf htb h
+      split at h
+      · -- `v`: a free variable
+        obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+        exact record_expr_fvar_wf htb h
+      split at h
+      · -- `s`: a sort
+        obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+        exact record_expr_sort_wf htb h
+      split at h
+      · -- `c`: a constant
+        obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+        exact record_expr_const_wf htb h
+      split at h
+      · -- `a`: an application
+        obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+        exact record_expr_app_wf htb h
+      split at h
+      · -- `l`: a lambda
+        obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+        exact record_expr_binder_wf htb h
+      split at h
+      · -- `f`: a dependent function type
+        obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+        exact record_expr_binder_wf htb h
+      split at h
+      · -- `t`: a `let`
+        obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+        exact record_expr_let_wf htb h
+      split at h
+      · -- `n`: a bignum literal
+        obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+        exact record_expr_nat_lit_wf htb h
+      split at h
+      · -- `g`: a string literal
+        obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+        exact record_expr_str_lit_wf htb h
+      split at h
+      · -- `p`: a projection
+        obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+        exact record_expr_proj_wf htb h
+      exact (err_ne_ok h).elim
+
 end ConRon.Refine.PinsWF
