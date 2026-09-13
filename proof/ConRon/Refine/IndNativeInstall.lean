@@ -426,6 +426,22 @@ def CheckConstantValRefines : Prop :=
             lfe (absConstantVal cv)).run lst = .ok (absConstantVal cv', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv'
 
+/-- `checker_base::check_constant_val`'s **failure half** (task #67): the
+wrapper threw, and `checkConstantValF` throws at the same kind.  **Owned by
+the checker-base tier**, like `CheckConstantValRefines`.  It is a *second*
+ingredient rather than an error half folded into that one because
+`Refine/IndIngredients.lean`, which discharges these, is not this file's to
+edit; the coordinator folds the two when that file is converted. -/
+def CheckConstantValErr : Prop :=
+  ∀ (st st' : cached.state_c.CState) (fe : fenv.FEnv) (cv : env.ConstantVal)
+    (ce : core_types.CheckError),
+    StateWF st → FEnvWF fe → ConstantValWF cv →
+    kernel.checker_base.check_constant_val mode st fe cv = ok (.Err ce, st') →
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ErrSim ce ((ConLeche.checkConstantValF
+          (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
+          (absConstantVal cv)).run lst)
+
 /-- `sum_install::check_sum_ind` refines `checkSumIndF`
 (`SumInstallF.lean:33-44`) at **any** implementation of the `CapsOf`
 dictionary whose `caps_of` refines the Lean closure the cited code passes.
@@ -2833,6 +2849,255 @@ theorem check_native_rec_rules_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       simpa [absExprs, alloc.vec.Vec.new] using hr
     · simp [absConstantVal, habsv, hcvra]
 
+section CheckNativeRecF
+
+/-! ### `checkNativeRecF`'s mirrored `throw` arms (task #67)
+
+`checkNativeRecF` is one long `do` block with nine failure points, so the
+failure half of `check_native_rec_refines` needs the cited side rewritten down
+to each of them.  These are those rewritings, stated **on the con-leche side
+alone** — nothing here mentions the port — so the call sites supply only the
+guards' values, which the accept direction has already read off. -/
+
+variable {ops : ConLeche.CheckerOps ConLeche.Cached.CheckCM} {fe : ConLeche.FEnv}
+  {p : ConLeche.NativeParts} {cvTa cvRi : ConLeche.ConstantVal}
+  {ctorsA : List (ConLeche.ConstantVal × Nat)} {recTy sty : ConLeche.Expr}
+  {u : ConLeche.Level}
+  {lst lst1 lst2 lst3 lst4 : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+
+/-- The recursor PIN's first conjunct (`NativeInstallF.lean:93-94`). -/
+private theorem checkNativeRecF_name
+    (h0 : (p.cvR.name == p.cvT.name.str "rec") = false) :
+    (ConLeche.checkNativeRecF (m := ConLeche.Cached.CheckCM) ops
+        ConLeche.StructWalkers.plain fe p cvTa ctorsA).run lst
+      = .error (.invalid
+        "direct rec: the block's recursor is not the generated T.rec") := by
+  rw [ConLeche.checkNativeRecF]
+  simp [h0, checkCM_throw_apply, StateT.run, Bind.bind, StateT.bind, Except.bind]
+
+/-- Its second (`NativeInstallF.lean:95-96`). -/
+private theorem checkNativeRecF_lps
+    (h0 : (p.cvR.name == p.cvT.name.str "rec") = true)
+    (h1 : ConLeche.nativeRecLpsOk p.toInductiveShape = false) :
+    (ConLeche.checkNativeRecF (m := ConLeche.Cached.CheckCM) ops
+        ConLeche.StructWalkers.plain fe p cvTa ctorsA).run lst
+      = .error (.invalid
+        "direct rec: the recursor's level parameters are not the generated ones") := by
+  rw [ConLeche.checkNativeRecF]
+  simp [h0, h1, checkCM_throw_apply, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure]
+
+/-- Its third (`NativeInstallF.lean:97-98`). -/
+private theorem checkNativeRecF_pinned
+    (h0 : (p.cvR.name == p.cvT.name.str "rec") = true)
+    (h1 : ConLeche.nativeRecLpsOk p.toInductiveShape = true)
+    (h2 : p.recPinned = false) :
+    (ConLeche.checkNativeRecF (m := ConLeche.Cached.CheckCM) ops
+        ConLeche.StructWalkers.plain fe p cvTa ctorsA).run lst
+      = .error (.invalid
+        "direct rec: the recursor record is not the generated recursor") := by
+  rw [ConLeche.checkNativeRecF]
+  simp [h0, h1, h2, checkCM_throw_apply, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure]
+
+/-- Past the PIN: `checkConstantValF` threw (`NativeInstallF.lean:99`). -/
+private theorem checkNativeRecF_cv_err
+    (h0 : (p.cvR.name == p.cvT.name.str "rec") = true)
+    (h1 : ConLeche.nativeRecLpsOk p.toInductiveShape = true)
+    (h2 : p.recPinned = true)
+    (hcv : ConLeche.checkConstantValF ops fe p.cvR lst = .error le) :
+    (ConLeche.checkNativeRecF (m := ConLeche.Cached.CheckCM) ops
+        ConLeche.StructWalkers.plain fe p cvTa ctorsA).run lst = .error le := by
+  rw [ConLeche.checkNativeRecF]
+  simp [h0, h1, h2, hcv, StateT.run, Bind.bind, StateT.bind, Except.bind,
+    Pure.pure]
+
+/-- The recursor's type could not be generated (`NativeInstallF.lean:103-104`). -/
+private theorem checkNativeRecF_recTy_none
+    (h0 : (p.cvR.name == p.cvT.name.str "rec") = true)
+    (h1 : ConLeche.nativeRecLpsOk p.toInductiveShape = true)
+    (h2 : p.recPinned = true)
+    (hcv : ConLeche.checkConstantValF ops fe p.cvR lst = .ok (cvRi, lst1))
+    (hty : ConLeche.structRecTyR p.cvT.name p.cvT.levelParams p.elim p.large p.nP
+      p.nIdx cvTa.type (ConLeche.nativeCtors4 ctorsA p.kinds) = none) :
+    (ConLeche.checkNativeRecF (m := ConLeche.Cached.CheckCM) ops
+        ConLeche.StructWalkers.plain fe p cvTa ctorsA).run lst
+      = .error (.internal "direct rec: recursor type") := by
+  rw [ConLeche.checkNativeRecF]
+  simp [h0, h1, h2, hcv, hty, ConLeche.unwrapOr, checkCM_throw_apply,
+    StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure]
+
+/-- The generated type is not scoped (`NativeInstallF.lean:105-107`). -/
+private theorem checkNativeRecF_recTy_scope
+    (h0 : (p.cvR.name == p.cvT.name.str "rec") = true)
+    (h1 : ConLeche.nativeRecLpsOk p.toInductiveShape = true)
+    (h2 : p.recPinned = true)
+    (hcv : ConLeche.checkConstantValF ops fe p.cvR lst = .ok (cvRi, lst1))
+    (hty : ConLeche.structRecTyR p.cvT.name p.cvT.levelParams p.elim p.large p.nP
+      p.nIdx cvTa.type (ConLeche.nativeCtors4 ctorsA p.kinds) = some recTy)
+    (hsc : (recTy.allLevelParamsDefined p.cvR.levelParams
+      && recTy.constsResolveF fe && recTy.looseBVarsBounded 0
+      && !recTy.hasFvar) = false) :
+    (ConLeche.checkNativeRecF (m := ConLeche.Cached.CheckCM) ops
+        ConLeche.StructWalkers.plain fe p cvTa ctorsA).run lst
+      = .error (.internal "direct rec: recursor type scoping") := by
+  have hsc' : ¬(recTy.allLevelParamsDefined p.cvR.levelParams = true
+      ∧ recTy.constsResolveF fe = true
+      ∧ recTy.looseBVarsBounded 0 = true ∧ recTy.hasFvar = false) := by
+    simpa using hsc
+  rw [ConLeche.checkNativeRecF]
+  simp [h0, h1, h2, hcv, hty, hsc, hsc', ConLeche.unwrapOr, checkCM_throw_apply,
+    show ConLeche.StructWalkers.plain.resolve fe recTy
+      = recTy.constsResolveF fe from rfl,
+    StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+    Except.pure]
+
+/-- Past the scoping guard the block is the three core operations and the
+rules (`NativeInstallF.lean:108`). -/
+private theorem checkNativeRecF_infer_err
+    (h0 : (p.cvR.name == p.cvT.name.str "rec") = true)
+    (h1 : ConLeche.nativeRecLpsOk p.toInductiveShape = true)
+    (h2 : p.recPinned = true)
+    (hcv : ConLeche.checkConstantValF ops fe p.cvR lst = .ok (cvRi, lst1))
+    (hty : ConLeche.structRecTyR p.cvT.name p.cvT.levelParams p.elim p.large p.nP
+      p.nIdx cvTa.type (ConLeche.nativeCtors4 ctorsA p.kinds) = some recTy)
+    (hsc : (recTy.allLevelParamsDefined p.cvR.levelParams
+      && recTy.constsResolveF fe && recTy.looseBVarsBounded 0
+      && !recTy.hasFvar) = true)
+    (hinf : ops.inferType fe.env 0 recTy lst1 = .error le) :
+    (ConLeche.checkNativeRecF (m := ConLeche.Cached.CheckCM) ops
+        ConLeche.StructWalkers.plain fe p cvTa ctorsA).run lst = .error le := by
+  have hsc' : recTy.allLevelParamsDefined p.cvR.levelParams = true
+      ∧ recTy.constsResolveF fe = true
+      ∧ recTy.looseBVarsBounded 0 = true ∧ recTy.hasFvar = false := by
+    simpa using hsc
+  rw [ConLeche.checkNativeRecF]
+  simp [h0, h1, h2, hcv, hty, hsc, hsc', hinf, ConLeche.unwrapOr,
+    show ConLeche.StructWalkers.plain.resolve fe recTy
+      = recTy.constsResolveF fe from rfl,
+    StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+    Except.pure]
+
+/-- `ops.ensureSort` threw (`NativeInstallF.lean:109`). -/
+private theorem checkNativeRecF_ensure_err
+    (h0 : (p.cvR.name == p.cvT.name.str "rec") = true)
+    (h1 : ConLeche.nativeRecLpsOk p.toInductiveShape = true)
+    (h2 : p.recPinned = true)
+    (hcv : ConLeche.checkConstantValF ops fe p.cvR lst = .ok (cvRi, lst1))
+    (hty : ConLeche.structRecTyR p.cvT.name p.cvT.levelParams p.elim p.large p.nP
+      p.nIdx cvTa.type (ConLeche.nativeCtors4 ctorsA p.kinds) = some recTy)
+    (hsc : (recTy.allLevelParamsDefined p.cvR.levelParams
+      && recTy.constsResolveF fe && recTy.looseBVarsBounded 0
+      && !recTy.hasFvar) = true)
+    (hinf : ops.inferType fe.env 0 recTy lst1 = .ok (sty, lst2))
+    (hens : ops.ensureSort fe.env 0 sty lst2 = .error le) :
+    (ConLeche.checkNativeRecF (m := ConLeche.Cached.CheckCM) ops
+        ConLeche.StructWalkers.plain fe p cvTa ctorsA).run lst = .error le := by
+  have hsc' : recTy.allLevelParamsDefined p.cvR.levelParams = true
+      ∧ recTy.constsResolveF fe = true
+      ∧ recTy.looseBVarsBounded 0 = true ∧ recTy.hasFvar = false := by
+    simpa using hsc
+  rw [ConLeche.checkNativeRecF]
+  simp [h0, h1, h2, hcv, hty, hsc, hsc', hinf, hens, ConLeche.unwrapOr,
+    show ConLeche.StructWalkers.plain.resolve fe recTy
+      = recTy.constsResolveF fe from rfl,
+    StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+    Except.pure]
+
+/-- `ops.isDefEq` threw (`NativeInstallF.lean:110`). -/
+private theorem checkNativeRecF_defeq_err
+    (h0 : (p.cvR.name == p.cvT.name.str "rec") = true)
+    (h1 : ConLeche.nativeRecLpsOk p.toInductiveShape = true)
+    (h2 : p.recPinned = true)
+    (hcv : ConLeche.checkConstantValF ops fe p.cvR lst = .ok (cvRi, lst1))
+    (hty : ConLeche.structRecTyR p.cvT.name p.cvT.levelParams p.elim p.large p.nP
+      p.nIdx cvTa.type (ConLeche.nativeCtors4 ctorsA p.kinds) = some recTy)
+    (hsc : (recTy.allLevelParamsDefined p.cvR.levelParams
+      && recTy.constsResolveF fe && recTy.looseBVarsBounded 0
+      && !recTy.hasFvar) = true)
+    (hinf : ops.inferType fe.env 0 recTy lst1 = .ok (sty, lst2))
+    (hens : ops.ensureSort fe.env 0 sty lst2 = .ok (u, lst3))
+    (hde : ops.isDefEq fe.env 0 cvRi.type recTy lst3 = .error le) :
+    (ConLeche.checkNativeRecF (m := ConLeche.Cached.CheckCM) ops
+        ConLeche.StructWalkers.plain fe p cvTa ctorsA).run lst = .error le := by
+  have hsc' : recTy.allLevelParamsDefined p.cvR.levelParams = true
+      ∧ recTy.constsResolveF fe = true
+      ∧ recTy.looseBVarsBounded 0 = true ∧ recTy.hasFvar = false := by
+    simpa using hsc
+  rw [ConLeche.checkNativeRecF]
+  simp [h0, h1, h2, hcv, hty, hsc, hsc', hinf, hens, hde, ConLeche.unwrapOr,
+    show ConLeche.StructWalkers.plain.resolve fe recTy
+      = recTy.constsResolveF fe from rfl,
+    StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+    Except.pure]
+
+/-- The stored recursor's type is not the generated one
+(`NativeInstallF.lean:110-111`). -/
+private theorem checkNativeRecF_defeq_false
+    (h0 : (p.cvR.name == p.cvT.name.str "rec") = true)
+    (h1 : ConLeche.nativeRecLpsOk p.toInductiveShape = true)
+    (h2 : p.recPinned = true)
+    (hcv : ConLeche.checkConstantValF ops fe p.cvR lst = .ok (cvRi, lst1))
+    (hty : ConLeche.structRecTyR p.cvT.name p.cvT.levelParams p.elim p.large p.nP
+      p.nIdx cvTa.type (ConLeche.nativeCtors4 ctorsA p.kinds) = some recTy)
+    (hsc : (recTy.allLevelParamsDefined p.cvR.levelParams
+      && recTy.constsResolveF fe && recTy.looseBVarsBounded 0
+      && !recTy.hasFvar) = true)
+    (hinf : ops.inferType fe.env 0 recTy lst1 = .ok (sty, lst2))
+    (hens : ops.ensureSort fe.env 0 sty lst2 = .ok (u, lst3))
+    (hde : ops.isDefEq fe.env 0 cvRi.type recTy lst3 = .ok (false, lst4)) :
+    (ConLeche.checkNativeRecF (m := ConLeche.Cached.CheckCM) ops
+        ConLeche.StructWalkers.plain fe p cvTa ctorsA).run lst
+      = .error (.invalid "direct rec: recursor type is not the generated one") := by
+  have hsc' : recTy.allLevelParamsDefined p.cvR.levelParams = true
+      ∧ recTy.constsResolveF fe = true
+      ∧ recTy.looseBVarsBounded 0 = true ∧ recTy.hasFvar = false := by
+    simpa using hsc
+  rw [ConLeche.checkNativeRecF]
+  simp [h0, h1, h2, hcv, hty, hsc, hsc', hinf, hens, hde, ConLeche.unwrapOr,
+    checkCM_throw_apply,
+    show ConLeche.StructWalkers.plain.resolve fe recTy
+      = recTy.constsResolveF fe from rfl,
+    StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+    Except.pure]
+
+/-- Past every guard: what is left is the rules and the pair, so a throw from
+`checkNativeRulesF` is the whole block's (`NativeInstallF.lean:112-115`). -/
+private theorem checkNativeRecF_rules_err
+    (h0 : (p.cvR.name == p.cvT.name.str "rec") = true)
+    (h1 : ConLeche.nativeRecLpsOk p.toInductiveShape = true)
+    (h2 : p.recPinned = true)
+    (hcv : ConLeche.checkConstantValF ops fe p.cvR lst = .ok (cvRi, lst1))
+    (hty : ConLeche.structRecTyR p.cvT.name p.cvT.levelParams p.elim p.large p.nP
+      p.nIdx cvTa.type (ConLeche.nativeCtors4 ctorsA p.kinds) = some recTy)
+    (hsc : (recTy.allLevelParamsDefined p.cvR.levelParams
+      && recTy.constsResolveF fe && recTy.looseBVarsBounded 0
+      && !recTy.hasFvar) = true)
+    (hinf : ops.inferType fe.env 0 recTy lst1 = .ok (sty, lst2))
+    (hens : ops.ensureSort fe.env 0 sty lst2 = .ok (u, lst3))
+    (hde : ops.isDefEq fe.env 0 cvRi.type recTy lst3 = .ok (true, lst4))
+    (hru : ConLeche.checkNativeRulesF (m := ConLeche.Cached.CheckCM)
+        ConLeche.StructWalkers.plain
+        (fe.push (.recInfo ⟨p.cvR.name, p.cvR.levelParams, recTy⟩ p.majorIdx
+          p.rulePrefix [])) p.cvR.levelParams p.cvT.name p.cvT.levelParams p.elim
+        p.large p.nP p.nIdx cvTa.type (ConLeche.nativeCtors4 ctorsA p.kinds)
+        p.cvR.name (p.cvR.levelParams.map .param)
+        (ConLeche.nativeCtors4 ctorsA p.kinds).length 0 lst4 = .error le) :
+    (ConLeche.checkNativeRecF (m := ConLeche.Cached.CheckCM) ops
+        ConLeche.StructWalkers.plain fe p cvTa ctorsA).run lst = .error le := by
+  have hsc' : recTy.allLevelParamsDefined p.cvR.levelParams = true
+      ∧ recTy.constsResolveF fe = true
+      ∧ recTy.looseBVarsBounded 0 = true ∧ recTy.hasFvar = false := by
+    simpa using hsc
+  rw [ConLeche.checkNativeRecF]
+  simp [h0, h1, h2, hcv, hty, hsc, hsc', hinf, hens, hde, hru, ConLeche.unwrapOr,
+    show ConLeche.StructWalkers.plain.resolve fe recTy
+      = recTy.constsResolveF fe from rfl,
+    StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+    Except.pure]
+
+end CheckNativeRecF
+
 /-- `ConLeche/Kernel/Inductives/NativeInstallF.lean:87-115` —
 `check_native_rec` refines `checkNativeRecF` at `StructWalkers.plain`:
 **stage 3, the recursor generated and compared**.  The recursor PIN
@@ -2848,24 +3113,32 @@ theorem check_native_rec_refines {mode : env.CheckMode}
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {p : inductives.native_parts.NativeParts} {cv_ta : env.ConstantVal}
     {ctors_a : alloc.vec.Vec (env.ConstantVal × Std.U64)}
-    {r : env.ConstantVal × alloc.vec.Vec expr.Expr}
+    {outc : core.result.Result (env.ConstantVal × alloc.vec.Vec expr.Expr)
+      core_types.CheckError}
     (hres : StructInstall.ConstsResolveFFastRefines) (hrhs : StructRecRhsRRefines)
     (hty : StructRecTyRRefines) (hc4 : NativeCtors4Refines)
     (hlpsok : NativeRecLpsOkRefines) (hcvr : CheckConstantValRefines mode)
-    (hpo : ParamsOfRefines)
+    (hcvre : CheckConstantValErr mode) (hpo : ParamsOfRefines)
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hp : IndAbs.NativePartsWF p)
     (hcvta : ConstantValWF cv_ta) (hca : ∀ c ∈ ctors_a.val, ConstantValWF c.1)
     (hkf : KindsFitCtors ctors_a p.kinds)
     (h : inductives.native_install.check_native_rec mode st fe p cv_ta ctors_a
-        = ok (.Ok r, st')) :
+        = ok (outc, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst',
-        (ConLeche.checkNativeRecF (ConLeche.Cached.sharedOpsC (absMode mode) lfe)
+      match outc with
+      | .Ok r =>
+        ∃ lst',
+          (ConLeche.checkNativeRecF (ConLeche.Cached.sharedOpsC (absMode mode) lfe)
+              ConLeche.StructWalkers.plain lfe (IndAbs.absNativeParts p)
+              (absConstantVal cv_ta) (IndAbs.absCtors ctors_a)).run lst
+            = .ok ((absConstantVal r.1, absExprs r.2), lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF r.1 ∧ ExprsWF r.2
+      | .Err e =>
+        ErrSim e ((ConLeche.checkNativeRecF
+            (ConLeche.Cached.sharedOpsC (absMode mode) lfe)
             ConLeche.StructWalkers.plain lfe (IndAbs.absNativeParts p)
-            (absConstantVal cv_ta) (IndAbs.absCtors ctors_a)).run lst
-          = .ok ((absConstantVal r.1, absExprs r.2), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF r.1 ∧ ExprsWF r.2 := by
+            (absConstantVal cv_ta) (IndAbs.absCtors ctors_a)).run lst) := by
   intro lst lfe hrel hfer
   rw [inductives.native_install.check_native_rec] at h
   simp only [name_dup_eq, bind_tc_ok] at h
@@ -2894,7 +3167,13 @@ theorem check_native_rec_refines {mode : env.CheckMode}
         obtain ⟨pq, hcv, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨res, st1⟩ := pq
         cases res with
-        | Err err => simp at h
+        | Err err =>
+          simp at h
+          obtain ⟨rfl, rfl⟩ := h
+          refine ErrSim.trans (hcvre st st1 fe p.shape.cv_r err hst hfe hp.2.2.1
+            hcv lst lfe hrel hfer) ?_
+          intro le hle
+          exact checkNativeRecF_cv_err hb0e.symm hb1e.symm hpin hle
         | Ok cv_ri =>
           obtain ⟨lst1, hrun1, hrel1, hwf1, hcvriwf⟩ :=
             hcvr st st1 fe p.shape.cv_r cv_ri hst hfe hp.2.2.1 hcv lst lfe hrel hfer
@@ -2906,10 +3185,16 @@ theorem check_native_rec_refines {mode : env.CheckMode}
             hp.1.1 hp.1.2.1 hp.2.2.2.1 hcvta.2.2 hcwf hcpos ho
           cases o with
           | none =>
+            simp only [Option.map_none] at hoabs
+            rw [hcabs] at hoabs
             obtain ⟨s1, hs1, h⟩ := bind_eq_ok_iff.mp h
             obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
             obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
             simp at h
+            obtain ⟨rfl, rfl⟩ := h
+            exact errSim_internal hce rfl (ls := "direct rec: recursor type")
+              (checkNativeRecF_recTy_none hb0e.symm hb1e.symm hpin hrun1
+                hoabs.symm)
           | some rec_ty =>
             simp only [Option.map_some] at hoabs
             have hrtwf : ExprWF rec_ty := howf rec_ty rfl
@@ -2922,14 +3207,35 @@ theorem check_native_rec_refines {mode : env.CheckMode}
               obtain ⟨pq1, hinf, h⟩ := bind_eq_ok_iff.mp h
               obtain ⟨res1, st2⟩ := pq1
               cases res1 with
-              | Err err => simp at h
+              | Err err =>
+                simp at h
+                obtain ⟨rfl, rfl⟩ := h
+                have henv : absEnv fe.env = lfe.env := hfer.1
+                rw [hcabs] at hoabs
+                refine ErrSim.trans (IndAbs.ops_infer_err hw hwf1 hfe hrtwf hinf
+                  lst1 lfe hrel1 hfer) ?_
+                intro le hle
+                rw [henv] at hle
+                exact checkNativeRecF_infer_err hb0e.symm hb1e.symm hpin hrun1
+                  hoabs.symm hb2e.symm hle
               | Ok sty =>
                 obtain ⟨lst2, hrun2, hrel2, hwf2, hstywf⟩ :=
                   IndAbs.ops_infer hw hwf1 hfe hrtwf hinf lst1 lfe hrel1 hfer
                 obtain ⟨pq2, hens, h⟩ := bind_eq_ok_iff.mp h
                 obtain ⟨res2, st3⟩ := pq2
                 cases res2 with
-                | Err err => simp at h
+                | Err err =>
+                  simp at h
+                  obtain ⟨rfl, rfl⟩ := h
+                  have henv : absEnv fe.env = lfe.env := hfer.1
+                  rw [hcabs] at hoabs
+                  rw [henv] at hrun2
+                  refine ErrSim.trans (IndAbs.ops_ensure_sort_err hw hwf2 hfe
+                    hstywf hens lst2 lfe hrel2 hfer) ?_
+                  intro le hle
+                  rw [henv] at hle
+                  exact checkNativeRecF_ensure_err hb0e.symm hb1e.symm hpin hrun1
+                    hoabs.symm hb2e.symm hrun2 hle
                 | Ok u =>
                   obtain ⟨lst3, hrun3, hrel3, hwf3, huwf⟩ :=
                     IndAbs.ops_ensure_sort hw hwf2 hfe hstywf hens lst2 lfe hrel2
@@ -2937,7 +3243,18 @@ theorem check_native_rec_refines {mode : env.CheckMode}
                   obtain ⟨pq3, hdefeq, h⟩ := bind_eq_ok_iff.mp h
                   obtain ⟨res3, st4⟩ := pq3
                   cases res3 with
-                  | Err err => simp at h
+                  | Err err =>
+                    simp at h
+                    obtain ⟨rfl, rfl⟩ := h
+                    have henv : absEnv fe.env = lfe.env := hfer.1
+                    rw [hcabs] at hoabs
+                    rw [henv] at hrun2 hrun3
+                    refine ErrSim.trans (IndAbs.ops_defeq_err hw hwf3 hfe
+                      hcvriwf.2.2 hrtwf hdefeq lst3 lfe hrel3 hfer) ?_
+                    intro le hle
+                    rw [henv] at hle
+                    exact checkNativeRecF_defeq_err hb0e.symm hb1e.symm hpin hrun1
+                      hoabs.symm hb2e.symm hrun2 hrun3 hle
                   | Ok b3 =>
                     obtain ⟨lst4, hrun4, hrel4, hwf4⟩ :=
                       IndAbs.ops_defeq hw hwf3 hfe hcvriwf.2.2 hrtwf hdefeq lst3
@@ -2945,82 +3262,132 @@ theorem check_native_rec_refines {mode : env.CheckMode}
                     replace h : ((if b3 = true then _ else _)
                         : Result ((core.result.Result (env.ConstantVal
                             × alloc.vec.Vec expr.Expr) core_types.CheckError)
-                          × cached.state_c.CState)) = ok (.Ok r, st') := h
+                          × cached.state_c.CState)) = ok (outc, st') := h
                     split at h
                     · rename_i hb3t
                       obtain ⟨r4, hrules, h⟩ := bind_eq_ok_iff.mp h
-                      obtain ⟨hr4, hst4⟩ :
-                          r4 = core.result.Result.Ok r ∧ st4 = st' := by
+                      obtain ⟨hr4, hst4⟩ : r4 = outc ∧ st4 = st' := by
                         have := Result.ok_injective h; simpa using this
                       subst hst4
                       subst hr4
-                      obtain ⟨lrhss, hrunr, hcvra, hrhssv, hcvrawf, hrhsswf⟩ :=
+                      have hrecr :=
                         check_native_rec_rules_refines hres hrhs hpo hfer hfe hcan
                           hp hcvta hcwf hcpos hrtwf hrules
-                      refine ⟨lst4, ?_, hrel4, hwf4, hcvrawf, hrhsswf⟩
-                      have henv : absEnv fe.env = lfe.env := hfer.1
-                      simp only [show ((0#u64 : Std.U64).val) = (0 : Nat) from rfl]
-                        at hrun2 hrun3 hrun4
-                      rw [ConLeche.checkNativeRecF]
-                      simp only [ConLeche.unwrapOr, StateT.run_bind, exceptOk_bind,
-                        pure_bind, StateT.run_pure, ← henv,
-                        show ((absName p.shape.cv_r.name)
-                            == (absName p.shape.cv_t.name).str "rec") = true
-                          from hb0e.symm,
-                        show ConLeche.nativeRecLpsOk
-                            (IndAbs.absNativeParts p).toInductiveShape = true
-                          from hb1e.symm,
-                        show (IndAbs.absNativeParts p).recPinned = true from hpin,
-                        if_true,
-                        show (IndAbs.absNativeParts p).cvR
-                          = absConstantVal p.shape.cv_r from rfl,
-                        show (IndAbs.absNativeParts p).kinds
-                          = IndAbs.absKindss p.kinds from rfl,
-                        show (IndAbs.absNativeParts p).cvT
-                          = absConstantVal p.shape.cv_t from rfl,
-                        show (IndAbs.absNativeParts p).elim
-                          = absName p.shape.elim from rfl,
-                        show (IndAbs.absNativeParts p).large = p.shape.large from rfl,
-                        show (IndAbs.absNativeParts p).nP = p.shape.n_p.val from rfl,
-                        show (IndAbs.absNativeParts p).nIdx
-                          = p.shape.n_idx.val from rfl,
-                        show ∀ cv : env.ConstantVal,
-                          (absConstantVal cv).name = absName cv.name from fun _ => rfl,
-                        show ∀ cv : env.ConstantVal, (absConstantVal cv).levelParams
-                          = absNames cv.level_params from fun _ => rfl,
-                        show ∀ cv : env.ConstantVal,
-                          (absConstantVal cv).type = absExpr cv.ty from fun _ => rfl,
-                        show ∀ (fe0 : ConLeche.FEnv) (e0 : ConLeche.Expr),
-                          ConLeche.StructWalkers.plain.resolve fe0 e0
-                            = e0.constsResolveF fe0 from fun _ _ => rfl,
-                        ← hcabs, ← hoabs, hrun1, hrun2, hrun3, hrun4, ← hb2e,
-                        hb3t, hrunr, hcvra, hrhssv]
-                      rfl
+                      cases r4 with
+                      | Err err =>
+                        have henv : absEnv fe.env = lfe.env := hfer.1
+                        rw [hcabs] at hoabs
+                        rw [henv] at hrun2 hrun3 hrun4
+                        rw [hb3t] at hrun4
+                        refine ErrSim.trans (hrecr lst4) ?_
+                        intro le hle
+                        rw [hcabs] at hle
+                        exact checkNativeRecF_rules_err hb0e.symm hb1e.symm hpin
+                          hrun1 hoabs.symm hb2e.symm hrun2 hrun3 hrun4 hle
+                      | Ok r =>
+                        obtain ⟨lrhss, hrunr, hcvra, hrhssv, hcvrawf, hrhsswf⟩ :=
+                          hrecr
+                        refine ⟨lst4, ?_, hrel4, hwf4, hcvrawf, hrhsswf⟩
+                        have henv : absEnv fe.env = lfe.env := hfer.1
+                        simp only [show ((0#u64 : Std.U64).val) = (0 : Nat) from rfl]
+                          at hrun2 hrun3 hrun4
+                        rw [ConLeche.checkNativeRecF]
+                        simp only [ConLeche.unwrapOr, StateT.run_bind, exceptOk_bind,
+                          pure_bind, StateT.run_pure, ← henv,
+                          show ((absName p.shape.cv_r.name)
+                              == (absName p.shape.cv_t.name).str "rec") = true
+                            from hb0e.symm,
+                          show ConLeche.nativeRecLpsOk
+                              (IndAbs.absNativeParts p).toInductiveShape = true
+                            from hb1e.symm,
+                          show (IndAbs.absNativeParts p).recPinned = true from hpin,
+                          if_true,
+                          show (IndAbs.absNativeParts p).cvR
+                            = absConstantVal p.shape.cv_r from rfl,
+                          show (IndAbs.absNativeParts p).kinds
+                            = IndAbs.absKindss p.kinds from rfl,
+                          show (IndAbs.absNativeParts p).cvT
+                            = absConstantVal p.shape.cv_t from rfl,
+                          show (IndAbs.absNativeParts p).elim
+                            = absName p.shape.elim from rfl,
+                          show (IndAbs.absNativeParts p).large = p.shape.large from rfl,
+                          show (IndAbs.absNativeParts p).nP = p.shape.n_p.val from rfl,
+                          show (IndAbs.absNativeParts p).nIdx
+                            = p.shape.n_idx.val from rfl,
+                          show ∀ cv : env.ConstantVal,
+                            (absConstantVal cv).name = absName cv.name from fun _ => rfl,
+                          show ∀ cv : env.ConstantVal, (absConstantVal cv).levelParams
+                            = absNames cv.level_params from fun _ => rfl,
+                          show ∀ cv : env.ConstantVal,
+                            (absConstantVal cv).type = absExpr cv.ty from fun _ => rfl,
+                          show ∀ (fe0 : ConLeche.FEnv) (e0 : ConLeche.Expr),
+                            ConLeche.StructWalkers.plain.resolve fe0 e0
+                              = e0.constsResolveF fe0 from fun _ _ => rfl,
+                          ← hcabs, ← hoabs, hrun1, hrun2, hrun3, hrun4, ← hb2e,
+                          hb3t, hrunr, hcvra, hrhssv]
+                        rfl
                     · rename_i hb3f
                       obtain ⟨s1, hs1, h⟩ := bind_eq_ok_iff.mp h
                       obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
                       obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
                       simp at h
+                      obtain ⟨rfl, rfl⟩ := h
+                      have henv : absEnv fe.env = lfe.env := hfer.1
+                      rw [hcabs] at hoabs
+                      rw [henv] at hrun2 hrun3 hrun4
+                      simp only [Bool.not_eq_true] at hb3f
+                      rw [hb3f] at hrun4
+                      exact errSim_invalid hce rfl
+                        (ls :=
+                          "direct rec: recursor type is not the generated one")
+                        (checkNativeRecF_defeq_false hb0e.symm hb1e.symm hpin
+                          hrun1 hoabs.symm hb2e.symm hrun2 hrun3 hrun4)
             · rename_i hb2f
               obtain ⟨s1, hs1, h⟩ := bind_eq_ok_iff.mp h
               obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
               obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
               simp at h
+              obtain ⟨rfl, rfl⟩ := h
+              simp only [Bool.not_eq_true] at hb2f
+              rw [hb2f] at hb2e
+              rw [hcabs] at hoabs
+              exact errSim_internal hce rfl
+                (ls := "direct rec: recursor type scoping")
+                (checkNativeRecF_recTy_scope hb0e.symm hb1e.symm hpin hrun1
+                  hoabs.symm hb2e.symm)
       · rename_i hpin
         obtain ⟨s1, hs1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
         simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        simp only [Bool.not_eq_true] at hpin
+        exact errSim_invalid hce rfl
+          (ls := "direct rec: the recursor record is not the generated recursor")
+          (checkNativeRecF_pinned hb0e.symm hb1e.symm hpin)
     · rename_i hb1f
       obtain ⟨s1, hs1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
       simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      simp only [Bool.not_eq_true] at hb1f
+      rw [hb1f] at hb1e
+      exact errSim_invalid hce rfl
+        (ls :=
+          "direct rec: the recursor's level parameters are not the generated ones")
+        (checkNativeRecF_lps hb0e.symm hb1e.symm)
   · rename_i hb0f
     obtain ⟨s1, hs1, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
     simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    simp only [Bool.not_eq_true] at hb0f
+    rw [hb0f] at hb0e
+    exact errSim_invalid hce rfl
+      (ls := "direct rec: the block's recursor is not the generated T.rec")
+      (checkNativeRecF_name hb0e.symm)
 
 /-- `ConLeche/Kernel/Inductives/NativeInstallF.lean:117-126` —
 `check_native_table` refines `checkNativeTableF` at `StructWalkers.plain`:
@@ -4082,6 +4449,7 @@ theorem check_native_install_refines {mode : env.CheckMode}
     (hres : StructInstall.ConstsResolveFFastRefines) (hrhs : StructRecRhsRRefines)
     (hty : StructRecTyRRefines) (hc4 : NativeCtors4Refines)
     (hlpsok : NativeRecLpsOkRefines) (hcvr : CheckConstantValRefines mode)
+    (hcvre : CheckConstantValErr mode)
     (hpo : ParamsOfRefines) (hsr : SumRulesRefines)
     (hbodies : StructInstall.StructProjBodiesRefines) (hg : StructProjGuardsRefines)
     (hst : StateWF st) (hfe : FEnvWF fe2) (hcan : FEnv.FEnvCanon fe2)
@@ -4107,7 +4475,7 @@ theorem check_native_install_refines {mode : env.CheckMode}
   | Err err => simp at h
   | Ok rq =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, hcvrawf, hrhsswf⟩ :=
-      check_native_rec_refines hw hres hrhs hty hc4 hlpsok hcvr hpo hst hfe hcan hp
+      check_native_rec_refines hw hres hrhs hty hc4 hlpsok hcvr hcvre hpo hst hfe hcan hp
         hcv hca hkf hrec lst lfe hrel hfer
     replace h : (do
         let i ← inductives.sum_parts.major_idx p.shape
@@ -4178,7 +4546,8 @@ theorem check_native_tail_refines {mode : env.CheckMode}
     (hfs : CheckStructFieldSortsIRefines mode) (hcons : ConsSumCtorsRefines)
     (hrhs : StructRecRhsRRefines) (hty : StructRecTyRRefines)
     (hc4 : NativeCtors4Refines) (hlpsok : NativeRecLpsOkRefines)
-    (hcvr : CheckConstantValRefines mode) (hsr : SumRulesRefines)
+    (hcvr : CheckConstantValRefines mode) (hcvre : CheckConstantValErr mode)
+    (hsr : SumRulesRefines)
     (hbodies : StructInstall.StructProjBodiesRefines) (hg : StructProjGuardsRefines)
     (hst : StateWF st) (hfe : FEnvWF fe) (hq : IndAbs.NativePassWF q)
     (hcan : FEnv.FEnvCanon q.env1) (hfull : FEnv.FEnvFull q.env1)
@@ -4215,7 +4584,7 @@ theorem check_native_tail_refines {mode : env.CheckMode}
     have hkfit2 : KindsFitCtors cq.2.2.2.1 cq.2.1.kinds := by
       rw [hcq2]; exact hkfit
     obtain ⟨lst', lfe', hrun2, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩ :=
-      check_native_install_refines hw hres hrhs hty hc4 hlpsok hcvr hpo hsr hbodies
+      check_native_install_refines hw hres hrhs hty hc4 hlpsok hcvr hcvre hpo hsr hbodies
         hg hwf1 hcwf hconscan.1 hconscan.2 hcpwf hccvwf hcawf hkfit2 hsswf h lst1
         (ConLeche.consSumCtorsF lq.p.nP lq.ctorsA lq.env₁) hrel1 hcrel
     refine ⟨lst', lfe', ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
@@ -4385,7 +4754,8 @@ theorem check_native_refines {mode : env.CheckMode}
     (hfs : CheckStructFieldSortsIRefines mode) (hcons : ConsSumCtorsRefines)
     (hrhs : StructRecRhsRRefines) (hty : StructRecTyRRefines)
     (hc4 : NativeCtors4Refines) (hlpsok : NativeRecLpsOkRefines)
-    (hcvr : CheckConstantValRefines mode) (hsr : SumRulesRefines)
+    (hcvr : CheckConstantValRefines mode) (hcvre : CheckConstantValErr mode)
+    (hsr : SumRulesRefines)
     (hbodies : StructInstall.StructProjBodiesRefines) (hg : StructProjGuardsRefines)
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hp0 : IndAbs.NativePartsWF p0)
@@ -4437,7 +4807,7 @@ theorem check_native_refines {mode : env.CheckMode}
       · simp only [hb2] at h
         obtain ⟨lst', lfe2, hrun2, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩ :=
           check_native_tail_refines hw hres hpo hpb hop hkg hro hfs hcons hrhs hty
-            hc4 hlpsok hcvr hsr hbodies hg hwf1 hfe hqwf hqcan hqfull h lst1 lfe lq
+            hc4 hlpsok hcvr hcvre hsr hbodies hg hwf1 hfe hqwf hqcan hqfull h lst1 lfe lq
             hrel1 hfer hqrel
         refine ⟨lst', lfe2, ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
         simp only [StateT.run_bind, pure_bind, exceptOk_bind, hrun1, hb2, if_true]
@@ -4462,7 +4832,7 @@ theorem check_native_refines {mode : env.CheckMode}
           · simp only [hb3] at h
             obtain ⟨lst', lfe2, hrun3, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
               check_native_tail_refines hw hres hpo hpb hop hkg hro hfs hcons hrhs
-                hty hc4 hlpsok hcvr hsr hbodies hg hwf2 hfe hq2wf hq2can hq2full h
+                hty hc4 hlpsok hcvr hcvre hsr hbodies hg hwf2 hfe hq2wf hq2can hq2full h
                 lst2 lfe lq2 hrel2 hfer hq2rel
             refine ⟨lst', lfe2, ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
             simp only [StateT.run_bind, pure_bind, exceptOk_bind, hrun1, hb2]
