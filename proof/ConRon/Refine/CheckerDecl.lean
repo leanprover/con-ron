@@ -104,6 +104,34 @@ halves of the `orElse` deviation — travelled here until **task #65** made a
 thrown attempt the pin check's verdict; see `Refine/CheckerC.lean`'s module
 note.
 
+## The full outcome (task #67, DESIGN.md §3's ruling of 2026-09-13)
+
+Every `*_refines` below is stated over the port's **whole** inner outcome
+(`Refine/README.md`, "the full-outcome convention"): `.Ok` is the
+pre-#67 claim unchanged, and `.Err` is `ErrSim` — con-leche throws at the same
+kind, messages never compared.  Each converted lemma keeps a `*_refines_ok`
+corollary with its pre-#67 statement, so a call site that knows its callee
+succeeded reads as it did.
+
+`cached/parsed_c.rs`, `kernel/checker_base.rs` and all of `kernel/checker.rs`
+but one site are mirrored, so the failure halves are *proved*.  The one
+exception is the checker tier's single `Native` (DESIGN.md task #67 §1):
+`kernel::checker::check_ind_decl`'s stub past the parameter check — task #24
+left the `Expr`-level routes unported, so the port declines where con-leche
+*dispatches*, and `check_decl_refines`'s `.indDecl` arm discharges it with
+`ErrSim.native`, which claims nothing.  Its sibling, the parameter-count
+mismatch, is the cited arm's own `throw` and is proved.
+
+Three statements are **still accept-direction**, all for one reason:
+`Refine/IndSpec.lean`'s `IndRoutesSpec` has no `.Err` clause yet, so nothing
+says what the two inductive routes throw.  They are
+`check_ind_decl_c_refines`, and `check_decl_c_refines` /
+`check_decl_step_c_refines`, which dispatch to it.
+
+The fold has no single computation for `ErrSim` to point at — the operation
+record is rebuilt at every step (section note below) — so `FoldsTo` gained a
+failure twin, `FoldsErr`, and `FoldErrSim` is `ErrSim` over it.
+
 ## `sorry` count in this file: 0.
 
 Everything in the file depends on `propext`, `Classical.choice` and
