@@ -11452,3 +11452,170 @@ instantiation) and `fvar_leaves_refines` (the gray-set walk).  Nothing reaches
 The progress line after the green run reads `verified 3270 (23%)` of the 13 743
 verified-core Lean lines — up from task #47's `957 (6%)` — and
 `proofs 34243 (367 _refines)`.
+
+### Task #55 — The knot's arms (2026-09-13, Opus under Fable)
+
+`CORE_PLAN.md` step 6's remaining implication — `arms : ∀ fuel,
+Wrappers mode fuel → Bodies mode fuel`, the seven bodies of
+`cached/core_c.rs` against con-leche's bodies applied to `coreKnotI … fuel`
+— and, with task #53's `knot_induction`, `knot_spec : ∀ fuel, KnotSpec mode
+fuel`.  Nineteen files, **17 078 lines**, one coordinator and sixteen
+parallel agents.
+
+#### The block, mapped
+
+`cached/core_c.rs`'s `partial_fixpoint` block is **120 functions** (3 761
+Rust lines, 7 723 generated Lean lines) besides the six memoising wrappers,
+plus 41 `Array U32` message constants that need no lemma (they are reached
+only on the `.Err` path, and §3.5 claims nothing on failure).  Partitioning
+by *which body reaches which helper* gives a decomposition that is acyclic
+apart from the six wrappers — which every helper may assume through the
+`Wrappers mode fuel` hypothesis — and four genuinely mutually recursive
+groups.
+
+| file | fns | lines | sorry | what |
+|---|---|---|---|---|
+| `Shape.lean` | — | 288 | 0 | the three `Sim` shapes, the bridges, `knotV` |
+| `Bridge.lean` | — | 45 | 0 | `StateC`'s two named ingredients, discharged |
+| `Shared.lean` | 2 | 117 | 0 | `ensure_sort_i`, `infer_io_whnf_i` |
+| `Lits.lean` | 5 | 722 | 1 | literal reduction, `unfold_definition_i` |
+| `Certs.lean` | 14 | 1780 | 1 | the certificate cascade |
+| `Iota.lean` | 16 | 2173 | 5 | ι-reduction |
+| `Major.lean` | 8 | 1699 | 3 | major premise → constructor |
+| `App.lean` | 7 | 1026 | 1 | `whnfAppI`/`betaPeelI`, the projection arm |
+| `WhnfCore.lean` | 3 | 323 | 0 | **the `whnf_core` body** |
+| `Whnf.lean` | 3 | 237 | 0 | **the `whnf` body** |
+| `InferSpine.lean` | 1 | 396 | 0 | `inferSpineI` (776 generated lines) |
+| `InferTele.lean` | 8 | 1272 | 0 | the λ/Π telescopes |
+| `Infer.lean` | 8 | 985 | 3 | **the `infer` body**, both grades |
+| `InferSpineIO.lean` | 2 | 421 | 0 | `inferSpineIOI` (786 generated lines) |
+| `InferIO.lean` | 4 | 596 | 0 | **the `infer_io` body** |
+| `DefEqStruct.lean` | 6 | 1411 | 3 | the structural `defeq` analysis |
+| `DefEq.lean` | 14 | 1561 | 0 | **the `defeq` body** |
+| `Annotate.lean` | 18 | 1786 | 0 | **the `annotate` body** |
+| `Arms.lean` | — | 212 | 2 | the discharges, `arms`, `knot_spec` |
+
+#### The shape every arm has
+
+`Shape.lean` fixes three shapes and nothing else varies: `Sim A WF f g`
+(state and environment threaded), `SimS` (state only), `SimP` (neither).
+The remaining arguments are applied *inside* the abstractions, so one shape
+covers every arity in the block; input well-formedness is a hypothesis of
+the lemma, not of `Sim`, so a caller discharges it from what it knows.
+`RefinesE.toSim`/`ofSim` move between `Statements.lean`'s twelve
+propositions and this shape, `Wrappers.whnfCoreSim`, … re-expose the
+hypothesis at one call site, and `knotV mode lfe fuel io` names the record
+the Rust's `io : Bool` selects (task #18's deviation 4).
+
+Cross-file callees travelled as one `<File>Deps` structure per file, so that
+sixteen agents could write against `Shape.lean` alone.  `Arms.lean`
+discharges four of them by `exact` — which is the real check that sixteen
+independently written statements lined up.
+
+#### What is closed
+
+**`annotate` is closed.**  `#print axioms annotate_body_sim` is `[propext,
+Classical.choice, Quot.sound]`: the body, its eighteen arms and everything
+they rest on.  `whnf`, `infer` and `infer_io` are assembled and carry
+`sorryAx` from named findings, not from unfinished proofs.  Seven files are
+sorry-free, `DefEq` and `Annotate` among them.
+
+#### What carried it
+
+* **The fuelled loop.**  con-leche recurses structurally on a `Nat` budget
+  and passes *itself* as the continuation `k`; the Rust threads the budget
+  and calls the loop where con-leche calls `k`.  `Whnf.lean` settled the
+  pattern and the other three loops reused it: state the step lemma
+  **parametric in `k`** plus a hypothesis giving `k`'s refinement, then an
+  induction `∀ (m : Nat) (n : Std.U64), n.val = m → …` supplies it.  The
+  only monad plumbing needed is one lemma, `run_bind`.
+* **One induction per SCC.**  `App.lean` proves `whnfAppI`/`betaPeelI`
+  together by strong induction on the remaining argument count —
+  con-leche's own `(args.length, tag)` order — and `DefEq.lean` proves its
+  whole budget cycle by one induction with six `*_of_loop` corollaries.
+* **Naming the inline subterm.**  Where the port splits one con-leche
+  function into several, the file *names* the clause and proves by `rfl`
+  that the name is the cited subterm (`Refine/StateC.lean`'s `eqvStep`
+  precedent): `whnfCoreProjI`, `majorToCtorI_eq_k`/`_eq_eta`/`_eq_and`,
+  `DefEq`'s nine `*Frag`s, `inferBodyIOI_forallE`/`_lam`.  Nothing is
+  paraphrased.
+* **The tiers below.**  Almost every non-knot callee already had a lemma —
+  tasks #46/#49/#51/#52/#54 — and task #54's closing of
+  `instantiate_list_refines` let `Bridge.lean` discharge `StateC`'s two
+  named hypotheses for good.
+
+#### Four findings, none of them a proof gap
+
+1. **`nat_op_result`, the shift amount** (1 `sorry`, `Lits.lean`; reaches
+   `whnf` and `defeq`).  At `Nat.shiftLeft`/`shiftRight` with an amount that
+   does not fit a `u64`, `nat::to_u64` fails and the port answers `None`
+   where `natOpResult` computes a literal.  Task #49's `OpSpec` already
+   records it as its second `none` disjunct.  The exact-result statement is
+   therefore **false on that branch**.  The cheap fix is in the port: answer
+   `Err` rather than `None`, and §3.5 claims nothing on failure.
+2. **`Bodies.inferView` is false as stated** (3 `sorry`, `Infer.lean`).  At
+   `io = true` the Rust's `.app`, `.forallE` and `.lam` clauses call the
+   full-grade `infer`/`infer_spine_i`/`infer_forall_i`/`infer_lam_i`
+   (`core_c.rs:3338-3352`) while `inferBodyI` at the knot's `ioView` calls
+   the io slot.  Those three views are unreachable at `io = true` —
+   `infer_body_io_i` and `inferBodyIOI` both override them — so the
+   divergence is in dead code, but the statement quantifies over every node.
+   Restrict `Bodies.inferView` to the seven delegated views, or thread `io`
+   through the three arms.
+3. **`as usize` in the ι cone** (5 `sorry`, `Iota.lean`).  `core_c.rs`
+   writes `rP as usize` / `cnP as usize` / `mI as usize` (`:1933`, `:1989`,
+   `:2093`, …).  Aeneas models `as usize` as `UScalar.cast .Usize`, which
+   truncates mod `2 ^ System.Platform.numBits`; each proof closes the 64-bit
+   arm and leaves the 32-bit one open, and nothing in the cone bounds `rP`.
+   **§3.4 rule 3 says such casts are avoided entirely** — the port breaks
+   its own rule here.
+4. **`const_ty_at_m` hoisted inside the `certs` gate** (3 `sorry` in
+   `Major.lean`, 1 in `Certs.lean`) — a suspected port bug, and the one
+   finding **two agents reported independently, at different sites**, which
+   is what makes it look systematic rather than incidental.  con-leche
+   evaluates `constTyAtM` *before* the `certAtI mode` gate — in
+   `majorToCtorI`'s three rescue arms (`CoreC.lean:577`, `:621`, `:653`) and
+   in `structEtaCertWithI` (`:437`) — while `core_c.rs` hoists the read
+   *inside* `if env::certs(mode)` (`:919`, `:1377`, `:1500`, `:1610`).
+   `constTyAtM` memoises (and can `throw`), so at `.trusted` con-leche moves
+   the state and the port does not: `StateRel st' lst'` is false on that arm.
+   `.verified` is fully proved in every case.  Either the port should read
+   `const_ty_at_m` unconditionally, or the twin should move it under
+   `certAtI`; DESIGN.md's "nine `certAtI` sites" does not list this hoist.
+
+#### Two gaps that are this task's own
+
+* **`InstCSize`** (1 `sorry`, `App.lean`).  `StateC.inst_list_m_refines`
+  needs the `instC` entry-count clause, which `StateRel` — a lookup
+  agreement — does not imply and cannot.  `Refine/StateC.lean:48` already
+  says where it belongs: folded into `State.lean`'s `StateRel`.  Until it
+  is, no arm that calls `inst_list_m` can thread it.
+* **The `App`/`WhnfCore` split** (2 `sorry`, `Arms.lean`; `whnf_core` and,
+  through `DefEqStruct`, `defeq` are the two bodies not yet assembled).
+  `whnf_core_loop_i`, `whnf_core_step_i`, `whnf_app_i` and `beta_peel_i` are
+  **one** strongly connected component, and the partition put it in two
+  files with `∀`-quantified `Deps` fields, so neither structure can be built
+  without the other.  The recursion is well founded — loop(n) needs
+  step(n−1) needs whnfApp(n−1) needs loop(n−1) — so the repair is
+  mechanical: merge the two files, or index both `Deps` by the budget.  The
+  lesson for the next fan-out is the one the partition was designed around
+  and this one place violated: **an SCC must live in one file**.
+
+#### Cost
+
+3 761 Rust lines and 7 723 generated Lean lines refined by 17 078 lines of
+proof — **4.5 proof lines per Rust line**, in the same range as the tiers
+below (task #51's `ExprOpsC`, task #49's `CoreK`).  The parallel fan-out was
+worth it: sixteen files written simultaneously against one interface, and
+the four `Deps` discharges that did run went through by `exact`.
+
+One coordination error is worth recording because it cost seven files a
+repair pass: the fan-out brief told the agents to check with `lake env lean`,
+which does **not** apply `proof/lakefile.toml`'s project-wide
+`[leanOptions]`.  `weak.backward.do.legacy = true` changes `do`-notation
+elaboration, so seven files that passed their own check failed the real
+build.  The check command for a single file is
+`lake env lean -Dweak.backward.do.legacy=true
+-Dweak.backward.isDefEq.respectTransparency=false <file>`.  Relatedly,
+`Shape.lean`'s plumbing is `attribute [local simp]`, and a `local` attribute
+does not cross an import — every file re-declared it.

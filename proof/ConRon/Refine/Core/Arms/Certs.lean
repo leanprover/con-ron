@@ -1503,14 +1503,103 @@ theorem struct_eta_cert_fields_i_refines (hsc : StateCOpen) {mode : env.CheckMod
     {us us2 : alloc.vec.Vec level.Level} {aargs targs : alloc.vec.Vec expr.Expr}
     {b : expr.Expr} {cvc : env.ConstantVal} {caps : env.IndCaps}
     (hc : NameWF c) (ht : NameWF t) (hus : LevelsWF us) (hus2 : LevelsWF us2)
-    (haargs : ExprsWF aargs) (htargs : ExprsWF targs) (hb : ExprWF b) :
+    (haargs : ExprsWF aargs) (htargs : ExprsWF targs) (hb : ExprWF b)
+    (hep : caps.eta_params.val ≤ Std.Usize.max) :
     Sim id (fun _ => True)
       (fun st fe => cached.core_c.struct_eta_cert_fields_i mode fuel st fe d c us us2
         aargs targs b cvc caps t)
       (fun lfe => structEtaCertFieldsI (absMode mode) (knot mode lfe fuel.val) lfe d.val
         (absName c) (absLevels us) (absLevels us2) (absExprs aargs) (absExprs targs)
         (absExpr b) (absIndCaps caps) (absName t)) := by
-  sorry
+  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  dsimp only
+  unfold cached.core_c.struct_eta_cert_fields_i at hok
+  dsimp only at hok
+  rw [structEtaCertFieldsI]
+  simp only [absIndCaps]
+  obtain ⟨projs, hprojs, hok⟩ := bind_eq_ok_iff.mp hok
+  obtain ⟨hpabs, hpwf⟩ := proj_apps_i_refines hfe hfrel ht hus2 htargs hb projs hprojs
+  rw [← hpabs, run_bind _ _ (run_pure _ _)]
+  obtain ⟨b1, hb1, hok⟩ := bind_eq_ok_iff.mp hok
+  have hb1abs : b1 = (absMode mode).ttChecks := Env.tt_checks_refines hb1
+  obtain ⟨st1, tt, hbranch, hok⟩ := bind_pair_eq_ok hok
+  rw [← hb1abs]
+  -- the field comparison, shared by the two TT arms
+  have tail : ∀ (st2 : cached.state_c.CState) (lst2 : ConLeche.Cached.CState) (b2 : Bool),
+      StateWF st2 → StateRel st2 lst2 →
+      ((if b2 = true then
+          (do let i ← lift (Std.UScalar.cast .Usize caps.eta_params)
+              let fields ← kernel.core_k.drop_exprs aargs i
+              cached.core_c.def_eq_list_i mode fuel st2 fe d fields projs)
+        else ok (core.result.Result.Ok b2, st2)) = ok (core.result.Result.Ok r, st')) →
+      ∃ lst', (if b2 = true then
+            ConLeche.Cached.defEqListI (knot mode lfe fuel.val) lfe d.val
+              ((absExprs aargs).drop (absIndCaps caps).etaParams) (absExprs projs)
+          else pure false).run lst2 = .ok (id r, lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ True := by
+    intro st2 lst2 b2 hwf2 hrel2 htl
+    split at htl
+    · rename_i hb2
+      rw [if_pos hb2]
+      obtain ⟨i, hi, htl⟩ := bind_eq_ok_iff.mp htl
+      simp only [lift_eq, Result.ok.injEq] at hi
+      have hiv : i.val = caps.eta_params.val := by
+        rw [← hi]; exact ExprOps.u64_cast_usize_val hep
+      obtain ⟨fields, hfields, htl⟩ := bind_eq_ok_iff.mp htl
+      obtain ⟨hfabs, hfwf⟩ := CoreK.drop_exprs_refines haargs hfields
+      obtain ⟨lst3, hrun3, hrel3, hwf3, -⟩ :=
+        (def_eq_list_i_refines hw d hfwf hpwf).apply hwf2 hfe htl hrel2 hfrel
+      refine ⟨lst3, ?_, hrel3, hwf3, trivial⟩
+      rw [hfabs, hiv] at hrun3
+      exact hrun3
+    · rename_i hb2
+      have hb2f : b2 = false := by simp only [Bool.not_eq_true] at hb2; exact hb2
+      rw [if_neg hb2]
+      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at htl
+      refine ⟨lst2, ?_, htl.2 ▸ hrel2, htl.2 ▸ hwf2, trivial⟩
+      rw [← htl.1, hb2f]
+      rfl
+  split at hbranch
+  · -- the TT-lane arm (dead at both shipped cores, but ported)
+    rename_i hb1t
+    rw [if_pos hb1t]
+    simp only [bind_assoc]
+    obtain ⟨rr, st2, hcty, hbranch⟩ := bind_pair_eq_ok hbranch
+    cases rr with
+    | Err err =>
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hbranch
+      obtain ⟨rfl, rfl⟩ := hbranch
+      simp at hok
+    | Ok cty =>
+      obtain ⟨lst2, hrun2, hrel2, hwf2, hctywf⟩ :=
+        StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf hfe hc hus hcty
+          lst lfe hrel hfrel (absName c)
+      rw [run_bind _ _ hrun2]
+      obtain ⟨v, hv, hbranch⟩ := bind_eq_ok_iff.mp hbranch
+      have hvv : v = targs := Env.exprs_copy_refines hv
+      rw [hvv] at hbranch
+      obtain ⟨spine, hspine, hbranch⟩ := bind_eq_ok_iff.mp hbranch
+      obtain ⟨hspabs, hspwf⟩ := CoreK.append_exprs_refines htargs hpwf hspine
+      obtain ⟨tt1, st3, hio, hbranch⟩ := bind_pair_eq_ok hbranch
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hbranch
+      obtain ⟨hst1, htt⟩ := hbranch
+      rw [← hst1, ← htt] at hok
+      split at hok
+      · rename_i b2
+        obtain ⟨lst3, hrun3, hrel3, hwf3, -⟩ :=
+          (iota_certs_i_refines hsc hw d false hctywf hspwf).apply hwf2 hfe hio hrel2 hfrel
+        rw [hspabs] at hrun3
+        rw [run_bind _ _ (by simpa using hrun3)]
+        exact tail _ _ b2 hwf3 hrel3 hok
+      · rename_i err
+        simp at hok
+  · -- the TT lane is off: the certificate is `true` without running
+    rename_i hb1f
+    rw [if_neg hb1f]
+    simp only [Result.ok.injEq, Prod.mk.injEq] at hbranch
+    obtain ⟨rfl, rfl⟩ := hbranch
+    rw [run_bind _ _ (run_pure _ _)]
+    exact tail _ _ true hwf hrel hok
 
 /-- `ConLeche/Cached/CoreC.lean:431-472` — **`struct_eta_cert_steps_i` refines
 the cited state-touching steps** (`core_c.rs:902`). -/
@@ -1520,13 +1609,21 @@ theorem struct_eta_cert_steps_i_refines (hsc : StateCOpen) {mode : env.CheckMode
     {b : expr.Expr} {cvc cvt : env.ConstantVal} {caps : env.IndCaps}
     (hc : NameWF c) (ht : NameWF t) (hus : LevelsWF us) (hus2 : LevelsWF us2)
     (haargs : ExprsWF aargs) (htargs : ExprsWF targs) (hb : ExprWF b)
-    (hcvt : ConstantValWF cvt) :
+    (hcvt : ConstantValWF cvt) (hep : caps.eta_params.val ≤ Std.Usize.max) :
     Sim id (fun _ => True)
       (fun st fe => cached.core_c.struct_eta_cert_steps_i mode fuel st fe d c us us2
         aargs targs b cvc cvt caps t)
       (fun lfe => structEtaCertStepsI (absMode mode) (knot mode lfe fuel.val) lfe d.val
         (absName c) (absLevels us) (absLevels us2) (absExprs aargs) (absExprs targs)
         (absExpr b) (absConstantVal cvt) (absIndCaps caps) (absName t)) := by
+  -- sorry: the port and the twin diverge at `mode.certs = false` (`.trusted`).
+  -- The twin evaluates `constTyAtM fe T Tn us'` **before** the `certAtI` gate
+  -- (`CoreC.lean:437`), so at `.trusted` it still writes the `constTyAt` memo
+  -- (and can `throw`); `core_c.rs:919-927` hoists that read *inside* the
+  -- `env::certs(mode)` gate, so the port touches neither.  `StateRel` therefore
+  -- fails on that arm.  The `.verified` arm is the straight step chaining
+  -- (`isEquivListLM` → `constTyAtM` → `iota_certs_i` → the slot certificates →
+  -- `def_eq_list_i` → `struct_eta_cert_fields_i`) and goes through.
   sorry
 
 /-- `ConLeche/Cached/CoreC.lean:407-473` — **`struct_eta_cert_with_i` refines
@@ -1649,9 +1746,16 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
             split at hok
             · -- the syntactic block holds: the state-touching steps
               rename_i hb1t
-              rw [if_pos (of_decide_eq_true (by rw [← hshapeabs]; exact hb1t))]
+              have hshapeconj := of_decide_eq_true (show decide _ = true by
+                rw [← hshapeabs]; exact hb1t)
+              have hep : caps.eta_params.val ≤ Std.Usize.max := by
+                have h5 := hshapeconj.2.2.2.2.1
+                simp only [absIndCaps, absExprs, List.length_map] at h5
+                have := alloc.vec.Vec.len_val targs
+                scalar_tac
+              rw [if_pos hshapeconj]
               exact (struct_eta_cert_steps_i_refines hsc hw d hcwf htwf huswf hus2wf
-                haawf htawf hb hcvtwf).apply hwf hfe hok hrel hfrel
+                haawf htawf hb hcvtwf hep).apply hwf hfe hok hrel hfrel
             · -- the syntactic block fails
               rename_i hb1f
               have hb1ff : b1 = false := by
