@@ -22,6 +22,11 @@ open ConRon.Refine ConRon.Refine.State ConRon.Refine.FEnv
 
 namespace ConRon.Refine.CheckerBase
 
+/-- `expr::dup` is the identity in the model (DESIGN.md §3.2); `Refine/State.lean`
+has the same lemma `@[local simp]`. -/
+@[local simp] theorem expr_dup_eq (e : expr.Expr) : expr.dup e = ok e := by
+  obtain ⟨r⟩ := e; simp [expr.dup]
+
 /-! ## `level::name_nodup` — the one leaf `Refine/Level.lean` left
 
 `Name.nodup` (`ConLeche/Kernel/Level.lean:213-216`) is spelled in `level.rs`
@@ -548,8 +553,8 @@ theorem open_pis_at_fvars_refines :
   | zero =>
     intro n e i r hN he h
     rw [checker_base.open_pis_at_fvars.eq_def] at h
-    rw [if_pos (by scalar_tac), Expr.dup_eq_self] at h
-    simp only [bind_tc_ok, Result.ok.injEq] at h
+    rw [if_pos (by scalar_tac)] at h
+    simp only [expr_dup_eq, bind_tc_ok, Result.ok.injEq] at h
     rw [← h, hN]
     refine ⟨by simp [ConLeche.openPisAtFvars, absExprs, alloc.vec.Vec.new], ?_⟩
     intro p hp
@@ -562,10 +567,11 @@ theorem open_pis_at_fvars_refines :
     rw [if_neg (by scalar_tac)] at h
     obtain ⟨nd⟩ := e
     obtain ⟨d, k⟩ := nd
+    rw [hN, absExpr_mk]
     cases k with
     | ForallE dom body m =>
       obtain ⟨hdom, hbody, hm⟩ := wf_forall_inv he rfl
-      simp only [arc_deref_eq, ExprOps.node_kind, Expr.dup_eq_self, bind_tc_ok] at h
+      simp only [arc_deref_eq, ExprOps.node_kind, expr_dup_eq, bind_tc_ok] at h
       obtain ⟨fv, hfv, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨opened, hopened, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
@@ -577,20 +583,14 @@ theorem open_pis_at_fvars_refines :
       have hn1v : n1.val = n.val - 1 := HashMap.uscalar_sub_eq hn1
       have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
       obtain ⟨habs, hwf⟩ := ih n1 opened i2 o (by omega) howf ho
-      rw [hn1v, hi2v, hoabs] at habs
-      rw [absExpr_mk, absExprKind, hN]
-      rw [show N + 1 = N + 1 from rfl]
-      have hnn : n.val - 1 = N := by omega
-      rw [hnn] at habs
+      rw [hn1v, hi2v, hoabs, show ((0#u64 : Std.U64)).val = 0 from rfl,
+        show n.val - 1 = N by omega] at habs
+      simp only [absExprKind, ConLeche.openPisAtFvars, ← hfvabs, ← habs]
       cases o with
       | none =>
-        simp only [Option.map_none] at habs
         simp only [Result.ok.injEq] at h
         rw [← h]
-        refine ⟨?_, by simp⟩
-        show _ = ConLeche.openPisAtFvars (N + 1) _ _
-        rw [ConLeche.openPisAtFvars, ← hfvabs, ← habs]
-        simp
+        exact ⟨by simp, by simp⟩
       | some q =>
         obtain ⟨fvs, b⟩ := q
         obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
@@ -598,20 +598,14 @@ theorem open_pis_at_fvars_refines :
         obtain ⟨hfvswf, hbwf⟩ := hwf (fvs, b) rfl
         obtain ⟨hvabs, hvwf⟩ := ExprOps.cons_expr_refines hfvwf hfvswf hv
         rw [← h]
-        refine ⟨?_, ?_⟩
-        · show _ = ConLeche.openPisAtFvars (N + 1) _ _
-          rw [ConLeche.openPisAtFvars, ← hfvabs, ← habs]
-          simp only [Option.map_some, Option.map_some]
-          rw [hvabs]
-        · intro p hp
-          simp only [Option.some.injEq] at hp
-          rw [← hp]
-          exact ⟨hvwf, hbwf⟩
+        refine ⟨by simp [hvabs], ?_⟩
+        intro p hp
+        simp only [Option.some.injEq] at hp
+        rw [← hp]
+        exact ⟨hvwf, hbwf⟩
     | _ =>
-      simp only [arc_deref_eq, ExprOps.node_kind, Result.ok.injEq] at h
-      rw [← h, hN, absExpr_mk, absExprKind]
-      refine ⟨?_, by simp⟩
-      show _ = ConLeche.openPisAtFvars (N + 1) _ _
-      simp [ConLeche.openPisAtFvars]
+      simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+      rw [← Result.ok_injective h]
+      exact ⟨by simp [absExprKind, ConLeche.openPisAtFvars], by simp⟩
 
 end ConRon.Refine.CheckerBase
