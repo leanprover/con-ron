@@ -1,0 +1,167 @@
+Task #63 — pins without upstream changes: the raw measurements.
+Machine: 96 cores / 125 GB, shared (DESIGN.md's measuring rule: instructions:u
+is the measure of record; aeneas and lean are multithreaded, so `user` and
+`instr` are the honest columns and `wall` is context-dependent).
+Toolchain: lean 4.33.0 (elan), charon/aeneas from flake.nix, aeneas-lean pin.
+Data: `_tmp/a63-pins.txt` = the 532 456 bytes of
+`crates/con-ron-core/src/kernel/pins_text.rs`'s PINS_TEXT, verbatim; write it
+with `python3 spikes/pins-encoding/mkpins.py` before running anything here.
+
+== A1. Kernel cost of a trivial decoder (count 0x0a), `by rfl`, on prefixes ==
+spikes/pins-encoding/runbench.sh <enc> <bytes>
+columns: data_elab = elaborating the literal; eqRefl = the elaborator's own
+defeq; kernel = the final `type checking` (what a `#print axioms`-clean proof
+must pay).
+
+listu8        1024 data_elab=0.127s eqRefl=0.026s kernel=0.040s
+listu8        4096 data_elab=0.638s eqRefl=0.124s kernel=0.115s
+listu8       16384 data_elab=3.500s eqRefl=0.397s kernel=0.468s
+listu8       65536 data_elab=20.90s eqRefl=2.200s kernel=2.120s
+listnat       1024 data_elab=0.123s eqRefl=0.037s kernel=0.016s
+listnat       4096 data_elab=0.580s eqRefl=0.080s kernel=0.066s
+listnat      16384 data_elab=3.200s eqRefl=0.198s kernel=0.315s
+listnat      65536 data_elab=20.60s eqRefl=0.931s kernel=1.020s
+natlit        1024 data_elab=-      eqRefl=0.125s kernel=0.068s
+natlit        4096 data_elab=0.026s eqRefl=0.503s kernel=0.401s
+natlit       16384 data_elab=0.341s eqRefl=2.150s kernel=2.170s
+natlit       65536 data_elab=5.180s eqRefl=11.20s kernel=11.00s
+str            256 wall=6.9s   (`(s : String).data`, count '\n')
+str           1024 SIGABRT after 143.5s
+
+== A1b. The table the decoder needs: N inserts + N lookups, kernel ==
+spikes/pins-encoding/runtable.sh <list|trie> <N>
+list = table as a `List Nat`, lookup by index recursion (what
+`ConRon.Dump.parsePins` does today).  trie = binary trie on the key's bits,
+`Nat` `%`/`/` (GMP in the kernel).
+
+tb-list-1000   instr=  203.4G user=  26.6s   kernel=16.0s
+tb-list-2000   instr=  815.4G user= 113.0s   kernel=72.5s     (x4.53: quadratic)
+tb-trie-1000   instr=   43.6G user=   6.8s   kernel=3.16s
+tb-trie-2000   instr=   86.9G user=  12.8s   kernel=6.54s     (x2.07)
+tb-trie-4000   instr=  174.9G user=  32.5s   kernel=15.2s     (x2.32: n log n)
+
+== A2. The chunked byte constants through charon -> aeneas -> lean ==
+spikes/pins-encoding/sweepA.sh 128 <totals>; chunk = 128 bytes.
+`rc=1` on aeneas is the one Unimplemented below, not a translation failure of
+the constants.
+
+ 64 chunks /  8192 B  charon instr=  0.9G user= 0.4s
+                      aeneas instr= 204.7G user= 31.4s wall= 2.5s
+                      leanF  instr= 117.5G user= 17.0s wall=10.3s  Funs 1419 l
+128 chunks / 16384 B  charon instr=  1.2G user= 0.5s
+                      aeneas instr= 385.3G user=103.0s wall=10.6s
+                      leanF  instr= 229.4G user= 32.5s wall=20.5s  Funs 2768 l
+256 chunks / 32768 B  charon instr=  1.9G user= 0.6s
+                      aeneas instr=1910.2G user=557.2s wall=76.3s
+                      leanF  instr= 455.4G user= 64.6s wall=38.1s  Funs 5466 l
+512 chunks / 65536 B  charon instr=  1.9G user= 0.6s
+                      aeneas: "Fatal error: allocation failure during minor
+                      GC" under ulimit -v 30 GB, with two other jobs on the
+                      machine.  Not reproduced when idle; the chunk-1700
+                      sweep below is the clean measurement of the same law.
+
+chunk-size sweep at a fixed 8192 bytes (lean elaboration of Funs.lean, wall):
+  chunk   64 (128 consts)  10.6s
+  chunk  128  (64 consts)  10.1s
+  chunk  256  (32 consts)  16.8s
+  chunk  512  (16 consts)  FAIL at the generated `maxRecDepth 2048`:
+                           `Array.make`'s `hl := by simp` runs out of depth
+  chunk 1700   (5 consts)  FAIL, same
+  (both succeed with `aeneas -max-recdepth 1000000`; see A2d for the cost)
+
+the whole 532 456 B at chunk 1700 (314 consts):
+  charon 2.2s wall; aeneas 112.0s wall; Funs.lean 55 858 lines.
+
+axioms (spikes/pins-encoding/axioms.sh), on the 64-chunk model:
+  'A63.C0'       depends on axioms: [propext, Classical.choice, Quot.sound]
+  'A63.PINS'     depends on axioms: [propext, Classical.choice, Quot.sound]
+  'A63.chunk_nl' depends on axioms: [propext, Classical.choice, Quot.sound]
+
+aeneas gap: `pub const PINS: &[&[u8]]` translates (`Slice (Slice U8)`), and so
+does a consumer that takes it as a *parameter*; a zero-argument
+`pub fn pins_nl() -> usize { total_nl(PINS, 0, 0) }` is `Error: Unimplemented`.
+
+== B. The generated-source route, split ==
+proof: `lake exe con-ron-gen-tables --pins 0 <out>` (v4.33.0 variant),
+then spikes/pins-encoding/splitpins.py <out> <nodes-per-part> <split.rs>.
+
+census (unchanged from task #22): v4.33.0 20 183 nodes, v4.34.0-rc2 20 183,
+nightly-2026-09-10 21 703; all three interned together 26 716.
+emitted: 25 001 lines / 1 548 253 bytes, one function.
+split at 500 nodes: 41 parts, 45 258 lines.
+split at 100 nodes: 202 parts, 46 324 lines.
+
+cargo build (the 500-node split), DEFAULT 8 MB stack: OK, 10.55s
+  (task #22's single function: SIGSEGV at the default stack, 73s at 256 MB)
+charon, 500-node parts, ulimit -v 30 GB: ABORT, "memory allocation of 270336
+  bytes failed"
+charon, same crate with the module removed (control): OK, 186 549 901 B llbc
+charon, 100-node parts, ulimit -v 30 GB: OK, llbc 5 348 778 744 B
+  (= 5.35 GB for ONE toolchain variant, against 0.19 GB for the whole crate)
+aeneas on that 5.35 GB llbc: see the last line of this file.
+
+`step` cost per interned node, measured on the file that already has the
+proof style — `proof/ConRon/Refine/BasisTables.lean`, read-only, profiler on
+(spikes/pins-encoding/stepcost.sh).  `step*` is `Aeneas.StepStar`:
+  block nodes  18    19    25    48    54    98
+  step* time   0.914 0.932 1.93  3.62  3.67  11.4   seconds
+  per node     51    49    77    75    68    116    ms
+plus one `simp_all` per block, 0.21-0.50 s, and 0.34-0.62 s of kernel.
+So `step*` is superlinear in the block, about n^1.3.
+
+== A2b. Aeneas vs the NUMBER of globals, chunk fixed at 1700 B, machine idle ==
+spikes/pins-encoding/sweepAe.sh 1700 64 128 256 314
+(the `rc=1` is the `pins_nl` Unimplemented; the constants all translate)
+
+ 64 globals (108 800 B)  instr=  178.0G user=   38.2s wall=   2.8s
+128 globals (217 600 B)  instr=  623.6G user=  136.6s wall=  11.7s   (x3.50)
+256 globals (435 200 B)  instr= 2053.4G user=  650.0s wall=  68.2s   (x3.29)
+314 globals (532 456 B)  instr= 3250.9G user= 1150.6s wall= 112.8s   <- THE FULL
+                                                                       TEXT
+So aeneas is about O(globals^1.75) and the whole pin text at 1700-byte chunks
+costs 113 s of wall -- a 3x regression of extract.sh's aeneas step (37 s), not
+a wall.  Extrapolated to 128-byte chunks (4160 globals): ~1e5 s of CPU.
+
+== A2c. Where the Lean cost is: `#u8`, not `Array.make`'s `hl` ==
+spikes/pins-encoding/patch_hl.py rewrites the generated `Array.make ... [ ... ]`
+to pass `hl` explicitly; lean on the 5x1700-byte model:
+
+  hl by the default `by simp`  55.3s
+  hl `(by rfl)`                50.8s
+  hl `(sorry)`                 52.3s
+
+so the side condition is not the cost (it is only why the default maxRecDepth
+2048 fails above ~256 elements -- `-max-recdepth` fixes that).  The cost is the
+element notation (spikes/pins-encoding/u8ab.sh), same 1700 bytes:
+
+  `def x : List Std.U8  := [99#u8, ...]`  instr= 98.2G user=11.2s
+  `def y : List UInt8   := [99, ...]`     instr=  9.8G user= 1.3s
+                                          (both include ~1.2s of `import Aeneas`)
+
+~100x per element.  That single factor is three quarters of route A's cost.
+
+== A2d. Lean elaboration of the generated Funs.lean, 8192 B, by chunk size ==
+(maxRecDepth 1000000 via aeneas -max-recdepth; instr is the honest column)
+
+  chunk  128  ( 64 globals)  instr= 117.5G user= 17.0s wall= 10.3s
+  chunk  512  ( 16 globals)  instr= 207.2G user= 23.5s wall= 20.3s
+  chunk 1024  (  8 globals)  instr= 332.9G user= 37.1s wall= 34.7s
+  chunk 1700  (  5 globals)  instr= 477.1G user= 52.9s wall= 55.3s
+at chunk 1700 wall = user: the file elaborates serially.
+Linear in the total at a fixed chunk size (chunk 128: 117.5 / 229.4 / 455.4 G
+at 8 / 16 / 32 KB).
+
+== Route A, the whole 532 456 bytes, by chunk size (extrapolated) ==
+  chunk  128 (4160 globals)  aeneas ~1.0e5 s CPU + lean ~1105 s
+  chunk  512 (1040 globals)  aeneas ~9400 s    + lean ~1530 s
+  chunk 1024 ( 520 globals)  aeneas ~2780 s    + lean ~2410 s
+  chunk 1700 ( 314 globals)  aeneas  1151 s    + lean ~3440 s  <- the optimum,
+                                                    ~77 min of CPU, ~65 min of
+                                                    wall (lean is serial)
+plus the closed computation itself, ~4-6 min of kernel, once.
+
+== B, the last line ==
+aeneas on the 5.35 GB llbc (100-node parts, one toolchain variant):
+  aeneas-B100  rc=134  instr=1149.8G  user=70.7s  wall=136.7s
+  "Fatal error: allocation failure during minor GC" at ulimit -v 30 GB
+  (the whole crate needs 16.9 GB).

@@ -12352,3 +12352,210 @@ compute exactly what `ConLeche.Cached.coreKnotI` computes, on well-formed
 inputs, whenever the Rust succeeds.  Everything above the knot (steps 7 and
 8: the declaration fold, the two inductive routes, `Refine/Main.lean`'s
 capstones) now rests on a theorem rather than on a hypothesis.
+
+### Task #63 — Pins without upstream changes: two encodings measured (2026-09-13, Opus under Fable)
+
+A spike with one question: can `absPins (decode PINS) = ConLeche.natOpPinSets`
+be established in Lean **with no con-leche change**?  Task #43 measured three
+obstacles against the 532 456-byte `&str` constant — (a) Aeneas's `toStr`
+discharges its bound with `decide +native`, so the constant already carries a
+native-decide axiom; (b) the reference decoder is well-founded and does not
+whnf; (c) kernel reduction of a string literal is quadratic.  This task
+measures the two encodings that could lift them: **A**, chunked byte constants
+evaluated by the kernel; **B**, the value as generated Rust source with
+generated proofs.  Nothing in `crates/` or `proof/ConRon/Refine/` was touched;
+the scripts are `spikes/pins-encoding/` and every run is logged in
+`spikes/pins-encoding/results.txt`.
+
+Measuring note (DESIGN.md's rule): 96 cores / 125 GB, shared.  `aeneas` and
+`lean` are multithreaded, so `instructions:u` and user CPU are the columns to
+read; wall time is quoted only where the machine was idle, and the two early
+`aeneas` numbers taken against a concurrent job are marked as such in
+`results.txt` and are not used below.
+
+#### 1. The kernel: obstacle (c) is about `String`, not about the kernel
+
+A trivial decoder (count `0x0a`) over prefixes of the real text, closed by
+`rfl` so the kernel must reduce it.  `kernel` is the final `type checking`.
+
+| the data | 1 KB | 4 KB | 16 KB | 64 KB | per byte | 532 456 B |
+|---|---|---|---|---|---|---|
+| `List UInt8` | 0.040 s | 0.115 | 0.468 | **2.12** | 32 µs | **≈ 17 s** |
+| `List Nat` | 0.016 | 0.066 | 0.315 | **1.02** | 16 µs | **≈ 8 s** |
+| one `Nat` literal, `% 256` / `/ 256` | 0.068 | 0.401 | 2.17 | **11.0** | — | ≈ n^1.2 |
+| `String` literal, via `.data` | **6.9 s at 256 B** | **SIGABRT after 143 s** | — | — | — | — |
+
+A byte-list literal reduces **linearly** (4.1×, 3.9×, 5.2× per quadrupling), so
+532 KB is about 17 s of kernel for one pass.  Task #43's quadratic is the
+*string literal's* expansion, not a property of kernel reduction — and a
+chunked `&str` would not rescue it either: 256 bytes already costs 6.9 s.  The
+big-`Nat` encoding is the worst of the three that work: GMP makes `% 256` cheap
+but each `/ 256` copies the whole remaining bignum, so the pass is superlinear
+and 5× the `List Nat` cost at equal size.
+
+#### 2. The kernel: the *table* is the cost, and a trie removes it
+
+`ConRon.Dump.parsePins` resolves every record's operand ids against the table
+of nodes decoded so far — 26 512 lookups into a table that grows to 26 512.
+That, not the byte scan, is what the closed computation is made of.  N inserts
+plus N lookups, kernel only:
+
+| N | table a `List`, lookup by index recursion | table a binary trie on the id's bits |
+|---|---|---|
+| 1 000 | 16.0 s | 3.16 s |
+| 2 000 | **72.5 s** (×4.53 — quadratic) | **6.54 s** (×2.07) |
+| 4 000 | — | **15.2 s** (×2.32 — n log n) |
+| at 26 512 | ≈ **3.5 hours** | ≈ **110 s** |
+
+So **obstacle (b) is ours to lift and costs nothing upstream**: a reference
+reader written *for* kernel evaluation — structural recursion over a
+`List UInt8`, `Nat`-keyed tries instead of `Array`s, which is what task #43's
+"what would lift each obstacle" paragraph guessed — puts the whole closed
+computation at ≈ 17 s of byte scan + ≈ 110 s of table + the parser's own
+per-byte work: **four to six minutes, once**.  That is the encouraging number
+of this task, and it does not depend on which encoding carries the bytes.
+
+#### 3. Route A through the pipeline: axiom-clean, and one factor of 100
+
+`const C_i: [u8; N]` × n plus `pub const PINS: &[&[u8]]` translates cleanly:
+`Array Std.U8 N#usize` per chunk, `Slice (Slice Std.U8)` for the table.
+**`#print axioms` on the constants is `[propext, Classical.choice, Quot.sound]`
+— obstacle (a) is lifted with no Aeneas change at all.**  One gap: a
+zero-argument `pub fn pins_nl() -> usize { total_nl(PINS, 0, 0) }` is
+`Error: Unimplemented`, while the same function with the table as a *parameter*
+translates — so the driver would pass `PINS` in.  A new Aeneas finding, not a
+hole in the trusted base.
+
+The cost splits between two stages that want opposite chunk sizes.
+
+**Aeneas is superlinear in the number of globals** (chunk fixed at 1 700 B,
+machine idle):
+
+| globals | bytes | instructions | user | wall |
+|---|---|---|---|---|
+| 64 | 108 800 | 178.0 G | 38.2 s | 2.8 s |
+| 128 | 217 600 | 623.6 G | 136.6 s | 11.7 s (×3.50) |
+| 256 | 435 200 | 2 053.4 G | 650.0 s | 68.2 s (×3.29) |
+| **314** | **532 456 — the whole text** | **3 250.9 G** | **1 150.6 s** | **112.8 s** |
+
+≈ O(globals^1.75).  At 314 globals the whole text costs **113 s of wall**, a 3×
+regression of `extract.sh`'s aeneas step (37 s) and perfectly affordable; at
+128-byte chunks (4 160 globals) the same law gives ~10⁵ s of CPU, which is not.
+
+**Lean wants the opposite.**  Elaborating the generated `Funs.lean`, 8 192
+bytes, by chunk size (`aeneas -max-recdepth 1000000`):
+
+| chunk | globals | instructions | user | wall |
+|---|---|---|---|---|
+| 128 | 64 | 117.5 G | 17.0 s | 10.3 s |
+| 512 | 16 | 207.2 G | 23.5 s | 20.3 s |
+| 1 024 | 8 | 332.9 G | 37.1 s | 34.7 s |
+| 1 700 | 5 | 477.1 G | 52.9 s | 55.3 s |
+
+linear in the total at a fixed chunk size, and at 1 700 `wall = user`: the file
+elaborates serially.  **Where that cost is** was worth pinning down, because
+the obvious suspect is wrong.  `Aeneas.Std.Array.make`'s
+`hl : init.length = n.val := by simp` is only why the *default* `maxRecDepth
+2048` fails above ~256 elements; it is not the time.  Filling `hl` explicitly:
+
+| `hl` | lean on 5 × 1 700 B |
+|---|---|
+| the default `by simp` | 55.3 s |
+| `(by rfl)` | 50.8 s |
+| `(sorry)` | **52.3 s** |
+
+The cost is the **element notation**.  The same 1 700 bytes as a Lean `def`:
+
+| | instructions | user |
+|---|---|---|
+| `List Std.U8` in Aeneas's `99#u8` notation | **98.2 G** | **11.2 s** |
+| core `List UInt8`, plain numerals | **9.8 G** | **1.3 s** |
+
+both including ~1.2 s of `import Aeneas` — **about 100× per element.**
+
+Route A's bill for the whole text, by chunk size:
+
+| chunk | globals | aeneas CPU | lean CPU | total |
+|---|---|---|---|---|
+| 128 | 4 160 | ~10⁵ s | ~1 105 s | ~28 h |
+| 512 | 1 040 | ~9 400 s | ~1 530 s | ~3 h |
+| 1 024 | 520 | ~2 780 s | ~2 410 s | ~1.4 h |
+| **1 700** | **314** | **1 151 s** | **~3 440 s** | **~77 min** (≈ 65 min wall) |
+
+Route A *works* — it is axiom-clean, it reduces in the kernel, and the closed
+computation is minutes — but it adds about an hour to every
+`extract.sh` + `lake build` cycle, and **three quarters of that hour is the
+`#u8` numeral.**
+
+#### 4. Route B: rustc is fixed by splitting, Charon and Aeneas are not
+
+`lake exe con-ron-gen-tables --pins 0` emits the v4.33.0 variant as one
+function: 25 001 lines, 20 183 interned nodes.
+`spikes/pins-encoding/splitpins.py` splits it into `part_<k>` functions
+threading an explicit `Arena { ns, us, es }`, so the DAG sharing is preserved
+exactly — a reference to an earlier part's node becomes `&a.es[K]`, and node K
+always sits at index K because the emitter numbers in emission order.
+
+| stage | 500-node parts (41 fns, 45 258 lines) | 100-node parts (202 fns, 46 324 lines) |
+|---|---|---|
+| `cargo build` | **OK, 10.55 s at the default 8 MB stack** (task #22: SIGSEGV at the default, 73 s at 256 MB) | — |
+| `charon cargo`, `ulimit -v` 30 GB | **abort: "memory allocation of 270336 bytes failed"** | **OK** — but the `.llbc` is **5 348 778 744 B** |
+| control: the same crate with the module removed | — | OK, 186 549 901 B |
+| `aeneas` on that `.llbc` | — | **abort: "allocation failure during minor GC"**, after 136.7 s / 1 149.8 G |
+
+So splitting moves the wall one stage: task #22's `rustc` stack overflow is
+gone, and Charon survives only at 100 nodes per function, at the price of a
+**5.35 GB LLBC for one of the three toolchain variants** — 29× the whole crate
+— on which Aeneas exhausts 30 GB (the whole crate needs 16.9 GB).  No split
+size is both small enough for Charon and coarse enough to keep the LLBC sane:
+the blow-up is in how many `Expr` values the crate builds in source, not in any
+one body's length.
+
+The *proof* half would have been the affordable one.  `step`'s cost per
+interned node, measured on the file that already has the style
+(`proof/ConRon/Refine/BasisTables.lean`, read-only, profiler on):
+
+| block, interned nodes | 18 | 19 | 25 | 48 | 54 | 98 |
+|---|---|---|---|---|---|---|
+| `step*` | 0.914 s | 0.932 | 1.93 | 3.62 | 3.67 | **11.4** |
+| per node | 51 ms | 49 | 77 | 75 | 68 | **116** |
+
+plus one `simp_all` (0.21–0.50 s) and 0.34–0.62 s of kernel per block — so
+`step*` is about n^1.3 in the block, which is exactly why small blocks are the
+right shape.  At 100-node functions, 20 183 nodes is ≈ 1 000–1 500 s of CPU in
+202 files that Lake runs in parallel: tens of seconds of wall on 96 cores, and
+a cached rebuild touches one file.  Route B does not die of proofs.
+
+#### 5. Recommendation: neither today, and the ask is Aeneas's, not con-leche's
+
+* **Route B: no, and not fixable by tuning.**  Charon and Aeneas both run out
+  of memory on a crate that builds 20 183 `Expr` values in source, and the
+  LLBC alone is 5.35 GB per toolchain variant.  Task #22's verdict stands, one
+  stage further along than it was measured.
+* **Route A: viable, at about an hour per extraction — and worth revisiting the
+  moment Aeneas emits cheaper numerals.**  Everything the theorem needs is
+  there: the constants are axiom-clean, a `List UInt8` reduces linearly, and a
+  trie-based reference reader closes the computation in four to six minutes.
+  What makes it cost an hour is one measured factor of 100 in elaborating
+  `99#u8`, and behind it Aeneas's O(globals^1.75).
+* **So the upstream ask moves.**  Task #43 asked Aeneas for a `toStr` whose
+  bound is not `decide +native`; the chunked byte encoding makes that ask
+  unnecessary (§3's axiom line).  What replaces it: **emit scalar literals in a
+  form that elaborates in O(1)** — a plain numeral with one coercion, or an
+  `Array.make` variant taking a `ByteArray` literal — and, second,
+  **translation cost linear in the number of globals**.  Both are
+  `backends/lean` changes, neither touches con-leche, and the first alone turns
+  route A's hour into ~20 minutes.
+* **Meanwhile the position is task #43's, unchanged**: the embedded text is
+  held to con-leche's value by `scripts/gen-pins.sh --check` and `cargo test`,
+  and `Refine/Pins.lean`'s `pins_text_decodes` stays open with its reason.  One
+  clause of that docstring is now wrong, though, and should be corrected when
+  the file is next touched: it blames the Lean *kernel* for the quadratic, and
+  §1 above shows the kernel is linear on bytes — the quadratic belongs to
+  `String` literals alone.
+
+**Left for next time.**  If route A is taken up, do the half with no upstream
+dependency first: rewrite `ConRon/Dump/Read.lean`'s reader over `List UInt8`
+with `Nat`-keyed tries, which §2 has already priced.  Then the chunked
+constants at 1 700 bytes, `-max-recdepth` in `scripts/extract.sh`, and `driver`
+passing `PINS` as an argument (§3's `Unimplemented`).
