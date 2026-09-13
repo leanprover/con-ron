@@ -1660,6 +1660,79 @@ theorem iotaStmtOpen_run {lfe : ConLeche.FEnv} {cvName : ConLeche.Name}
     StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure]
 
 omit hw hcb in
+/-- `iotaStmtOpen`'s four `throw`s (`DeclCheck.lean:513-528`), as runs: the
+missing theorem, the level-parameter mismatch, the telescope that will not
+open, and the body that is not a three-argument equation.  Task #67's failure
+half of `iota_stmt_open_refines` is these four and nothing else. -/
+theorem iotaStmtOpen_miss {lfe : ConLeche.FEnv} {cvName : ConLeche.Name}
+    {lps : List ConLeche.Name} {rP cnF j : Nat} {lst : ConLeche.Cached.CState}
+    (h1 : lfe.findCV? ((cvName.str "_model").str s!"iota_{j}") = none) :
+    (iotaStmtOpen lfe cvName lps rP cnF j).run lst
+      = .error (.notImplemented s!"missing iota theorem for {cvName}") := by
+  rw [iotaStmtOpen, h1]
+  simp [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind, Except.bind]
+
+omit hw hcb in
+/-- The level-parameter mismatch. -/
+theorem iotaStmtOpen_lps {lfe : ConLeche.FEnv} {cvName : ConLeche.Name}
+    {lps : List ConLeche.Name} {rP cnF j : Nat} {cvt : ConLeche.ConstantVal}
+    {lst : ConLeche.Cached.CState}
+    (h1 : lfe.findCV? ((cvName.str "_model").str s!"iota_{j}") = some cvt)
+    (h2 : ¬ cvt.levelParams = lps) :
+    (iotaStmtOpen lfe cvName lps rP cnF j).run lst
+      = .error (.notImplemented s!"iota theorem level mismatch for {cvName}") := by
+  rw [iotaStmtOpen, h1]
+  simp [ConLeche.unwrapOr, h2, StateT.run, Bind.bind, StateT.bind, Except.bind,
+    Pure.pure, StateT.pure, Except.pure]
+
+omit hw hcb in
+/-- The telescope that will not open. -/
+theorem iotaStmtOpen_shape {lfe : ConLeche.FEnv} {cvName : ConLeche.Name}
+    {lps : List ConLeche.Name} {rP cnF j : Nat} {cvt : ConLeche.ConstantVal}
+    {lst : ConLeche.Cached.CState}
+    (h1 : lfe.findCV? ((cvName.str "_model").str s!"iota_{j}") = some cvt)
+    (h2 : cvt.levelParams = lps)
+    (h3 : ConLeche.openPisAtFvars (rP + cnF) cvt.type 0 = none) :
+    (iotaStmtOpen lfe cvName lps rP cnF j).run lst
+      = .error (.notImplemented s!"iota statement shape mismatch for {cvName}") := by
+  rw [iotaStmtOpen, h1]
+  simp [ConLeche.unwrapOr, h2, h3, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure]
+
+omit hw hcb in
+/-- The body whose head is not `Eq`. -/
+theorem iotaStmtOpen_noteq {lfe : ConLeche.FEnv} {cvName : ConLeche.Name}
+    {lps : List ConLeche.Name} {rP cnF j : Nat} {cvt : ConLeche.ConstantVal}
+    {fvs : List ConLeche.Expr} {tb : ConLeche.Expr}
+    {lst : ConLeche.Cached.CState}
+    (h1 : lfe.findCV? ((cvName.str "_model").str s!"iota_{j}") = some cvt)
+    (h2 : cvt.levelParams = lps)
+    (h3 : ConLeche.openPisAtFvars (rP + cnF) cvt.type 0 = some (fvs, tb))
+    (h4 : ConLeche.isEqHead tb.getAppFn = false) :
+    (iotaStmtOpen lfe cvName lps rP cnF j).run lst
+      = .error (.notImplemented s!"iota statement not an equation for {cvName}") := by
+  rw [iotaStmtOpen, h1]
+  simp [ConLeche.unwrapOr, h2, h3, h4, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure]
+
+omit hw hcb in
+/-- The equation body whose spine is not three arguments long. -/
+theorem iotaStmtOpen_arity {lfe : ConLeche.FEnv} {cvName : ConLeche.Name}
+    {lps : List ConLeche.Name} {rP cnF j : Nat} {cvt : ConLeche.ConstantVal}
+    {fvs : List ConLeche.Expr} {tb : ConLeche.Expr}
+    {lst : ConLeche.Cached.CState}
+    (h1 : lfe.findCV? ((cvName.str "_model").str s!"iota_{j}") = some cvt)
+    (h2 : cvt.levelParams = lps)
+    (h3 : ConLeche.openPisAtFvars (rP + cnF) cvt.type 0 = some (fvs, tb))
+    (h4 : ConLeche.isEqHead tb.getAppFn = true)
+    (h5 : ¬ tb.getAppArgs.length = 3) :
+    (iotaStmtOpen lfe cvName lps rP cnF j).run lst
+      = .error (.notImplemented s!"iota statement not an equation for {cvName}") := by
+  rw [iotaStmtOpen, h1]
+  simp [ConLeche.unwrapOr, h2, h3, h4, h5, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure]
+
+omit hw hcb in
 /-- `iotaStmtOpen`'s run, **inverted**: a successful run is exactly the five
 facts `iotaStmtOpen_run` builds it from.  `check_iota_thm` and
 `check_iota_thm_n` need this because con-leche does *not* split
@@ -1709,6 +1782,7 @@ theorem iotaStmtOpen_inv {lfe : ConLeche.FEnv} {cvName : ConLeche.Name}
   · simp [hthrow, ConLeche.unwrapOr, h2, StateT.run, Bind.bind, StateT.bind,
       Except.bind, Pure.pure, StateT.pure, Except.pure] at h
 
+set_option linter.unusedSimpArgs false in
 set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:512-528` — `iota_stmt_open` refines
 `checkIotaThmF`'s statement head (`iotaStmtOpen`).  It touches no state, so the
@@ -1721,30 +1795,56 @@ same function. -/
 theorem iota_stmt_open_refines
     {fe2 : fenv.FEnv} {lfe : ConLeche.FEnv} {cv_name : name.Name}
     {lps : alloc.vec.Vec name.Name} {r_p cn_f j : Std.U64}
-    {q : alloc.vec.Vec expr.Expr × alloc.vec.Vec expr.Expr × level.Level}
+    {out : core.result.Result
+      (alloc.vec.Vec expr.Expr × alloc.vec.Vec expr.Expr × level.Level)
+      core_types.CheckError}
     (hrel : FEnvRel fe2 lfe) (hfe : FEnvWF fe2) (hcv : NameWF cv_name)
     (hlps : NamesWF lps)
     (h : inductives.modeled.iota_stmt_open fe2 cv_name lps r_p cn_f j
-        = ok (.Ok q)) :
-    (∀ lst, (iotaStmtOpen lfe (absName cv_name) (absNames lps) r_p.val cn_f.val
-        j.val).run lst
-          = .ok ((absExprs q.1, absExprs q.2.1, absLevel q.2.2), lst))
-      ∧ ExprsWF q.1 ∧ ExprsWF q.2.1 ∧ LevelWF q.2.2 := by
+        = ok out) :
+    match out with
+    | .Ok q =>
+      (∀ lst, (iotaStmtOpen lfe (absName cv_name) (absNames lps) r_p.val cn_f.val
+          j.val).run lst
+            = .ok ((absExprs q.1, absExprs q.2.1, absLevel q.2.2), lst))
+        ∧ ExprsWF q.1 ∧ ExprsWF q.2.1 ∧ LevelWF q.2.2
+    | .Err e =>
+      ∀ lst, ErrSim e ((iotaStmtOpen lfe (absName cv_name) (absNames lps)
+        r_p.val cn_f.val j.val).run lst) := by
   rw [inductives.modeled.iota_stmt_open] at h
   obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hnv, hnwf⟩ := iota_thm_name_refines hcv hn
   obtain ⟨hoabs, howf⟩ := hcb.findCv fe2 lfe n o hrel hfe hnwf ho
-  rw [hnv] at hoabs
+  rw [hnv, show ("iota_" ++ toString j.val)
+      = (toString "iota_" ++ toString j.val) from rfl] at hoabs
   cases o with
-  | none => simp at h
+  | none =>
+    -- the missing iota theorem (`DeclCheck.lean:513`)
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl⟩ := h
+    intro lst
+    simp only [Option.map_none] at hoabs
+    exact errSim_notImplemented
+      s!"missing iota theorem for {absName cv_name}" hce
+      (iotaStmtOpen_miss hoabs.symm)
   | some cvt =>
   have hcvtwf : ConstantValWF cvt := howf cvt rfl
+  simp only [Option.map_some] at hoabs
   obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
   have hbv : b = decide (absNames cvt.level_params = absNames lps) :=
     Env.names_beq_refines hcvtwf.2.1 hlps hb
   cases b with
-  | false => simp at h
+  | false =>
+    -- the level-parameter mismatch (`DeclCheck.lean:515`)
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl⟩ := h
+    intro lst
+    have hne : ¬ (absConstantVal cvt).levelParams = absNames lps := by
+      simpa [absConstantVal] using (of_decide_eq_false hbv.symm)
+    exact errSim_notImplemented
+      s!"iota theorem level mismatch for {absName cv_name}" hce
+      (iotaStmtOpen_lps hoabs.symm hne)
   | true =>
   have hlpseq : (absConstantVal cvt).levelParams = absNames lps := by
     simpa [absConstantVal] using (of_decide_eq_true hbv.symm)
@@ -1753,9 +1853,18 @@ theorem iota_stmt_open_refines
   have hkv : k.val = r_p.val + cn_f.val := HashMap.uscalar_add_eq hk
   obtain ⟨ho1abs, ho1wf⟩ := hcb.openPisAtFvarsF k cvt.ty 0#u64 o1 hcvtwf.2.2 ho1
   rw [hkv, show ((0#u64 : Std.U64)).val = 0 from rfl,
-    ConLeche.openPisAtFvarsF_eq] at ho1abs
+    ConLeche.openPisAtFvarsF_eq,
+    show absExpr cvt.ty = (absConstantVal cvt).type from rfl] at ho1abs
   cases o1 with
-  | none => simp at h
+  | none =>
+    -- the telescope that will not open (`DeclCheck.lean:519`)
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl⟩ := h
+    intro lst
+    simp only [Option.map_none] at ho1abs
+    exact errSim_notImplemented
+      s!"iota statement shape mismatch for {absName cv_name}" hce
+      (iotaStmtOpen_shape hoabs.symm hlpseq ho1abs.symm)
   | some z =>
   obtain ⟨fvs, tb⟩ := z
   obtain ⟨hfvswf, htbwf⟩ := ho1wf _ rfl
@@ -1768,31 +1877,66 @@ theorem iota_stmt_open_refines
   have hb1v : b1 = ConLeche.isEqHead (absExpr head) :=
     hcb.isEqHead head b1 hheadwf hb1
   cases b1 with
-  | false => simp at h
+  | false =>
+    -- the body that is not an equation (`DeclCheck.lean:523`)
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl⟩ := h
+    intro lst
+    have h4 : ConLeche.isEqHead (absExpr tb).getAppFn = false := by
+      rw [← hheadv]; exact hb1v.symm
+    exact errSim_notImplemented
+      s!"iota statement not an equation for {absName cv_name}" hce
+      (iotaStmtOpen_noteq hoabs.symm hlpseq ho1abs.symm h4)
   | true =>
+  have h4 : ConLeche.isEqHead (absExpr tb).getAppFn = true := by
+    rw [← hheadv]; exact hb1v.symm
   by_cases hlen : (alloc.vec.Vec.len targs) != 3#usize
-  · rw [if_pos hlen] at h; simp at h
+  · -- the equation body of the wrong arity (`DeclCheck.lean:525`)
+    rw [if_pos hlen] at h
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl⟩ := h
+    intro lst
+    have h5 : ¬ (ConLeche.Expr.getAppArgs (absExpr tb)).length = 3 := by
+      have hl3 := alloc.vec.Vec.len_val targs
+      simp only [bne_iff_ne, ne_eq] at hlen
+      rw [← htargsv]
+      simp only [absExprs, List.length_map]
+      intro hc
+      exact hlen (Std.UScalar.eq_of_val_eq (by rw [hl3]; exact hc))
+    exact errSim_notImplemented
+      s!"iota statement not an equation for {absName cv_name}" hce
+      (iotaStmtOpen_arity hoabs.symm hlpseq ho1abs.symm h4 h5)
   · rw [if_neg hlen] at h
     obtain ⟨l, hl, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hlv, hlwf⟩ := hcb.eqHeadLevel head l hheadwf hl
-    rw [Result.ok.injEq, core.result.Result.Ok.injEq] at h
+    rw [Result.ok.injEq] at h
     subst h
     have hlenv : (ConLeche.Expr.getAppArgs (absExpr tb)).length = 3 := by
+      have hl3 := alloc.vec.Vec.len_val targs
+      simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hlen
+      rw [hlen] at hl3
       rw [← htargsv]
       simp only [absExprs, List.length_map]
-      have := alloc.vec.Vec.len_val targs
-      simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hlen
-      scalar_tac
-    simp only [Option.map_some] at hoabs
-    rw [show ("iota_" ++ toString j.val)
-        = (toString "iota_" ++ toString j.val) from rfl] at hoabs
+      exact hl3.symm
     refine ⟨?_, hfvswf, htargswf, hlwf⟩
     intro lst
-    rw [show absExpr cvt.ty = (absConstantVal cvt).type from rfl] at ho1abs
-    have h4 : ConLeche.isEqHead (absExpr tb).getAppFn = true := by
-      rw [← hheadv]; exact hb1v.symm
     rw [iotaStmtOpen_run hoabs.symm hlpseq ho1abs.symm h4 hlenv, ← htargsv,
       ← hheadv, ← hlv]
+
+/-- `iota_stmt_open_refines` at a success, the pre-#67 statement. -/
+theorem iota_stmt_open_refines_ok
+    {fe2 : fenv.FEnv} {lfe : ConLeche.FEnv} {cv_name : name.Name}
+    {lps : alloc.vec.Vec name.Name} {r_p cn_f j : Std.U64}
+    {q : alloc.vec.Vec expr.Expr × alloc.vec.Vec expr.Expr × level.Level}
+    (hrel : FEnvRel fe2 lfe) (hfe : FEnvWF fe2) (hcv : NameWF cv_name)
+    (hlps : NamesWF lps)
+    (h : inductives.modeled.iota_stmt_open fe2 cv_name lps r_p cn_f j
+        = ok (.Ok q)) :
+    (∀ lst, (iotaStmtOpen lfe (absName cv_name) (absNames lps) r_p.val cn_f.val
+        j.val).run lst
+          = .ok ((absExprs q.1, absExprs q.2.1, absLevel q.2.2), lst))
+      ∧ ExprsWF q.1 ∧ ExprsWF q.2.1 ∧ LevelWF q.2.2 :=
+  iota_stmt_open_refines hw hcb hrel hfe hcv hlps h
 
 set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:529-534` — `iota_lhs_prefix_ok` refines the
