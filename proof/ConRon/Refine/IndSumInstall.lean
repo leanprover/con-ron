@@ -886,6 +886,52 @@ theorem normFieldDoms_rec_err {lenv : ConLeche.Env} {T : ConLeche.Name}
   simp only []
   exact ErrSim.bind_run hrec _
 
+/-- `normCtorValF` at a constructor type that is not a telescope of the
+block's parameters: both sides decline (`sum_install.rs:508`,
+`SumInstallF.lean:86-87`). -/
+theorem normCtorValF_strip_none_err {lfe : ConLeche.FEnv} {T : ConLeche.Name}
+    {nP nF : Nat} {cvC cvCa : ConLeche.ConstantVal}
+    {lst : ConLeche.Cached.CState} {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError}
+    (hce : core_types.not_implemented v = ok ce)
+    (hstrip : cvCa.type.stripPis nP = none) :
+    ErrSim ce ((ConLeche.normCtorValF ops lfe T nP nF cvC cvCa).run lst) := by
+  rw [not_implemented_err hce, ConLeche.normCtorValF]
+  simp only [ConLeche.unwrapOr, hstrip, StateT.run, Bind.bind, StateT.bind,
+    Except.bind]
+  exact ErrSim.notImplemented rfl
+
+/-- The same at the opened parameter telescope (`sum_install.rs:510`,
+`SumInstallF.lean:88-89`). -/
+theorem normCtorValF_open_none_err {lfe : ConLeche.FEnv} {T : ConLeche.Name}
+    {nP nF : Nat} {cvC cvCa : ConLeche.ConstantVal}
+    {cbs : List (ConLeche.Expr × ConLeche.BinderMeta)} {crest0 : ConLeche.Expr}
+    {lst : ConLeche.Cached.CState} {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError}
+    (hce : core_types.not_implemented v = ok ce)
+    (hstrip : cvCa.type.stripPis nP = some (cbs, crest0))
+    (hopen : ConLeche.openPisAtFvars nP cvCa.type 0 = none) :
+    ErrSim ce ((ConLeche.normCtorValF ops lfe T nP nF cvC cvCa).run lst) := by
+  rw [not_implemented_err hce, ConLeche.normCtorValF]
+  simp only [ConLeche.unwrapOr, hstrip, hopen, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure]
+  exact ErrSim.notImplemented rfl
+
+/-- `normCtorValF`'s field walk threw. -/
+theorem normCtorValF_fd_err {lfe : ConLeche.FEnv} {T : ConLeche.Name}
+    {nP nF : Nat} {cvC cvCa : ConLeche.ConstantVal}
+    {cbs : List (ConLeche.Expr × ConLeche.BinderMeta)}
+    {crest0 crest : ConLeche.Expr} {fvsP : List ConLeche.Expr}
+    {lst : ConLeche.Cached.CState} {ce : core_types.CheckError}
+    (hstrip : cvCa.type.stripPis nP = some (cbs, crest0))
+    (hopen : ConLeche.openPisAtFvars nP cvCa.type 0 = some (fvsP, crest))
+    (h : ErrSim ce ((ConLeche.normFieldDoms ops lfe.env T nP nF crest).run lst)) :
+    ErrSim ce ((ConLeche.normCtorValF ops lfe T nP nF cvC cvCa).run lst) := by
+  rw [ConLeche.normCtorValF]
+  simp only [ConLeche.unwrapOr, hstrip, hopen, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure]
+  exact ErrSim.bind_run h _
+
 /-- `checkSumCtorsF` at an exhausted list. -/
 theorem checkSumCtorsF_nil {lfe0 lfe : ConLeche.FEnv} {T : ConLeche.Name}
     {lps : List ConLeche.Name} {nP nIdx : Nat} {resSort : ConLeche.Level}
@@ -2317,56 +2363,75 @@ theorem norm_ctor_val_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU) (hcv : CheckConstantValRefines mode)
     (hmc : MentionsConstRefines) (hop : OpenPisAtFvarsFRefines)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {t : name.Name}
-    {n_p n_f : Std.U64} {cv_c cv_ca r : env.ConstantVal}
+    {n_p n_f : Std.U64} {cv_c cv_ca : env.ConstantVal}
+    {o : core.result.Result env.ConstantVal core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (ht : NameWF t)
     (hcvc : ConstantValWF cv_c) (hcvca : ConstantValWF cv_ca)
     (h : inductives.sum_install.norm_ctor_val mode st fe t n_p n_f cv_c cv_ca
-        = ok (.Ok r, st')) :
+        = ok (o, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.normCtorValF (m := ConLeche.Cached.CheckCM)
+      Out absConstantVal ConstantValWF o st'
+        ((ConLeche.normCtorValF (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe (absName t)
-            n_p.val n_f.val (absConstantVal cv_c) (absConstantVal cv_ca)).run lst
-          = .ok (absConstantVal r, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF r := by
+            n_p.val n_f.val (absConstantVal cv_c)
+            (absConstantVal cv_ca)).run lst) := by
   intro lst lfe hrel hfer
   rw [inductives.sum_install.norm_ctor_val] at h
-  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨hoabs, howf⟩ := ExprOps.strip_pis_refines hcvca.2.2 ho
-  cases o with
-  | none => simp at h
+  obtain ⟨sp, hsp, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hoabs, howf⟩ := ExprOps.strip_pis_refines hcvca.2.2 hsp
+  cases sp with
+  | none =>
+    -- the constructor's type is not a telescope of the block's parameters:
+    -- both sides decline (`sum_install.rs:508`, `SumInstallF.lean:86-87`)
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    refine normCtorValF_strip_none_err hce ?_
+    simpa [absConstantVal] using hoabs.symm
   | some cq =>
     obtain ⟨cbs, crest0⟩ := cq
     obtain ⟨hcbswf, -⟩ := howf _ rfl
+    have hstrip : (absConstantVal cv_ca).type.stripPis n_p.val
+        = some (ExprOps.absBinders cbs, absExpr crest0) := by
+      simpa [absConstantVal] using hoabs.symm
     simp at h
     obtain ⟨o1, ho1, h⟩ := h
     obtain ⟨ho1abs, ho1wf⟩ := hop n_p cv_ca.ty 0#u64 o1 hcvca.2.2 ho1
     cases o1 with
-    | none => simp at h
+    | none =>
+      -- the same at the opened parameter telescope (`sum_install.rs:510`)
+      simp at h
+      obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+      refine normCtorValF_open_none_err hce hstrip ?_
+      rw [← ConLeche.openPisAtFvarsF_eq]
+      simpa [absConstantVal] using ho1abs.symm
     | some oq =>
       obtain ⟨fvsP, crest⟩ := oq
       obtain ⟨hfvsPwf, hcrestwf⟩ := ho1wf _ rfl
+      have hopen : ConLeche.openPisAtFvars n_p.val (absConstantVal cv_ca).type 0
+          = some (absExprs fvsP, absExpr crest) := by
+        rw [← ConLeche.openPisAtFvarsF_eq]
+        simpa [absConstantVal] using ho1abs.symm
       simp at h
       obtain ⟨pbs, hzip, r0, st1, hnfd, h⟩ := h
+      obtain ⟨hpbsabs, hpbswf⟩ := zip_param_binders_refines hfvsPwf hcbswf hzip
+      have hfdkey := norm_field_doms_refines hw hmc hst hfe ht hcrestwf
+        ExprOps.bindersWF_new hnfd lst lfe hrel hfer
       cases r0 with
-      | Err err => simp at h
+      | Err err =>
+        -- `norm_field_doms` threw: con-leche's own bind carries it
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        refine normCtorValF_fd_err hstrip hopen ?_
+        rw [← hfer.1]
+        exact hfdkey
       | Ok fq =>
         obtain ⟨fbs, resid⟩ := fq
-        obtain ⟨hpbsabs, hpbswf⟩ := zip_param_binders_refines hfvsPwf hcbswf hzip
-        obtain ⟨lst1, lfbs, hrunfd, hfbsabs, hrel1, hwf1, hfbswf, hresidwf⟩ :=
-          norm_field_doms_refines hw hmc hst hfe ht hcrestwf ExprOps.bindersWF_new
-            hnfd lst lfe hrel hfer
+        obtain ⟨lst1, lfbs, hrunfd, hfbsabs, hrel1, hwf1, hfbswf, hresidwf⟩ := hfdkey
         simp at h
         obtain ⟨all, hall, ty2, hclose, hcase⟩ := h
         obtain ⟨hallabs, hallwf⟩ := append_binders_refines hpbswf hfbswf hall
         obtain ⟨hty2abs, hty2wf⟩ := close_telescope_refines hallwf hresidwf hclose
         have hfbsabs' : ExprOps.absBinders fbs = lfbs := by simpa using hfbsabs
-        have hstrip : (absConstantVal cv_ca).type.stripPis n_p.val
-            = some (ExprOps.absBinders cbs, absExpr crest0) := by
-          simpa [absConstantVal] using hoabs.symm
-        have hopen : ConLeche.openPisAtFvars n_p.val (absConstantVal cv_ca).type 0
-            = some (absExprs fvsP, absExpr crest) := by
-          rw [← ConLeche.openPisAtFvarsF_eq]
-          simpa [absConstantVal] using ho1abs.symm
         set lty : ConLeche.Expr :=
           ConLeche.closeTelescope
             (List.zipWith
@@ -2391,7 +2456,7 @@ theorem norm_ctor_val_refines {mode : env.CheckMode}
               (ConLeche.Cached.sharedOpsC (absMode mode) lfe) (absEnv fe.env)
               (absName t) n_p.val n_f.val (absExpr crest)) lst
               = Except.ok ((lfbs, absExpr resid), lst1) from hrunfd]
-        rcases hcase with ⟨hbeq, lp, hlp, hccv⟩ | ⟨hbeq, hdup, rfl⟩
+        rcases hcase with ⟨hbeq, lp, hlp, hccv⟩ | ⟨hbeq, cvd, hdup, rfl, rfl⟩
         · have hbeqabs := Expr.beq_refines hty2wf hcvca.2.2 hbeq
           rw [hty2abs'] at hbeqabs
           have hne : (lty == (absConstantVal cv_ca).type) = false := by
@@ -2404,13 +2469,26 @@ theorem norm_ctor_val_refines {mode : env.CheckMode}
               = { absConstantVal cv_c with type := lty } := by
             rw [absConstantVal, absConstantVal, hty2abs']
             simp [absNames, hlpv]
-          obtain ⟨lst2, hrun2, hrel2, hwf2, hrwf⟩ :=
+          have hcvkey :=
             hcv st1 st' fe { «name» := cv_c.name, level_params := lp, ty := ty2 } _
               hwf1 hfe ⟨hcvc.1, hlpwf, hty2wf⟩ hccv lst1 lfe hrel1 hfer
-          rw [hcv2abs] at hrun2
-          refine ⟨lst2, ?_, hrel2, hwf2, hrwf⟩
-          rw [hrunhead, hne]
-          simpa using hrun2
+          rw [hcv2abs] at hcvkey
+          cases o with
+          | Err err =>
+            -- the re-check of the rebuilt constructor type threw: it *is* the
+            -- tail of `normCtorValF`'s `else` branch
+            have hkey : ErrSim err ((ConLeche.checkConstantValF
+                (m := ConLeche.Cached.CheckCM)
+                (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
+                { absConstantVal cv_c with type := lty }).run lst1) := hcvkey
+            refine ErrSim.of_eq hkey ?_
+            rw [hrunhead, hne]
+            simp
+          | Ok cv2 =>
+            obtain ⟨lst2, hrun2, hrel2, hwf2, hrwf⟩ := hcvkey
+            refine ⟨lst2, ?_, hrel2, hwf2, hrwf⟩
+            rw [hrunhead, hne]
+            simpa using hrun2
         · have hbeqabs := Expr.beq_refines hty2wf hcvca.2.2 hbeq
           rw [hty2abs'] at hbeqabs
           have heq : (lty == (absConstantVal cv_ca).type) = true := by
@@ -2419,6 +2497,7 @@ theorem norm_ctor_val_refines {mode : env.CheckMode}
           refine ⟨lst1, ?_, hrel1, hwf1, hcvca⟩
           rw [hrunhead, heq]
           rfl
+
 
 /-! ## The constructors' stage (`SumInstall.lean:219-279`) -/
 
