@@ -5,6 +5,7 @@ import ConRon.Refine.Pins
 import ConRon.Refine.Checker
 import ConRon.Refine.BasisTables
 import ConRon.Refine.BasisPins
+import ConRon.Refine.StateC
 import ConRon.Refine.ExprOps
 import ConLeche.Cached.ParsedC
 
@@ -53,7 +54,7 @@ is stated at an arbitrary `Env` argument, which is what discharges it.
 as `lfe'.env` for an index `lfe'` the port's `fe'` stands in `FEnvRel` to —
 which is the form the fold consumes.
 
-## `sorry` count in this file: 9.
+## `sorry` count in this file: 11.
 
 All ten are the dispatch and fold lemmas whose arms are the sibling files'
 (`Refine/Checker.lean`, `Refine/CheckerPins.lean`, and
@@ -332,6 +333,92 @@ Eight statements.  Each arm's content is a sibling file's
 `Refine/CheckerBase.lean`); stated here so the dispatch is fixed and the
 composition is a `cases` on the declaration. -/
 
+/-! ### The four value arms of `checkDeclC`
+
+`cached/parsed_c.rs`'s parsed twins of `Refine/Checker.lean`'s: the same
+checks with `checkConstantValC`'s recorded judgement type threaded (the
+`(cvA, jty)` pair `recordCConst` consumes) and the pinned-name test *before*
+the push, which is the cited arm's own RC-linearity shape.  Stated here so
+that `check_decl_c_refines` is a `cases`; their bodies belong with
+`cached::parsed_c`, which `CORE_PLAN.md` step 7 places after this file. -/
+
+/-- `checkDeclC`'s `.defnDecl` arm (`ParsedC.lean:161-185`): the constant
+check, the value check, then the two pinned-`Nat` gates at the pre-insertion
+bound.
+
+`sorry`: `check_constant_val_c`, `check_defn_val_c` and
+`Refine/CheckerPins.lean`'s `check_div_mod_pin_f`. -/
+theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
+    {cv : env.ConstantVal} {value : expr.Expr} {hint : env.ReducibilityHint}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
+    (h : cached.parsed_c.check_defn_decl_c mode pins st fe cv value hint
+        = ok (.Ok fe', st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ∃ lst' lfe',
+        (ConLeche.Cached.checkDeclC (absMode mode) lfe
+            (.defnDecl (absConstantVal cv) (absExpr value) (absHint hint))).run lst
+          = .ok (lfe', lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+  sorry
+
+/-- `checkDeclC`'s `.thmDecl` arm (`ParsedC.lean:186-188`).
+
+`sorry`: `check_constant_val_c` and `check_thm_val_c`. -/
+theorem check_thm_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
+    {cv : env.ConstantVal} {value : expr.Expr}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
+    (h : cached.parsed_c.check_thm_decl_c mode st fe cv value = ok (.Ok fe', st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ∃ lst' lfe',
+        (ConLeche.Cached.checkDeclC (absMode mode) lfe
+            (.thmDecl (absConstantVal cv) (absExpr value))).run lst = .ok (lfe', lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+  sorry
+
+/-- `checkDeclC`'s `.opaqueDecl` arm (`ParsedC.lean:189-202`): the opaque
+check, then the compiler-trust gate for `Lean.reduceNat`/`Lean.reduceBool` —
+branched *before* the push, so the common arm hands `fe` to it unshared.
+
+`sorry`: `check_constant_val_c`, `check_opaque_val_c` and
+`Refine/CheckerPins.lean`'s `check_reduce_pin_f`. -/
+theorem check_opaque_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
+    {cv : env.ConstantVal} {value : expr.Expr}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
+    (h : cached.parsed_c.check_opaque_decl_c mode st fe cv value = ok (.Ok fe', st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ∃ lst' lfe',
+        (ConLeche.Cached.checkDeclC (absMode mode) lfe
+            (.opaqueDecl (absConstantVal cv) (absExpr value))).run lst = .ok (lfe', lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+  sorry
+
+/-- `checkDeclC`'s `.axiomDecl` arm (`ParsedC.lean:203-232`): the pinned
+axioms are installed with their shapes pinned, the tolerated whitelist is
+checked and not stored, and every other axiom is a positive decline.
+
+`sorry`: `check_constant_val_c`, `Refine/StdAxioms.lean`'s `std_axiom_ok_f`,
+`Refine/TrustAxioms.lean`'s `trust_compiler_ok_f`/`of_reduce_ax_ok_f`,
+`Refine/StateC.lean`'s `record_c_const` and `Refine/FEnv.lean`'s
+`push_refines`. -/
+theorem check_axiom_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv : env.ConstantVal}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv)
+    (h : cached.parsed_c.check_axiom_decl_c mode st fe cv = ok (.Ok fe', st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ∃ lst' lfe',
+        (ConLeche.Cached.checkDeclC (absMode mode) lfe
+            (.axiomDecl (absConstantVal cv))).run lst = .ok (lfe', lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+  sorry
+
 /-- **`cached::parsed_c::check_decl_c` refines `checkDeclC`**
 (`ConLeche/Cached/ParsedC.lean:158-241`): the same six arms over the parsed
 representation, with `checkConstantValC`'s recorded judgement type threaded and
@@ -355,7 +442,32 @@ theorem check_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
         (ConLeche.Cached.checkDeclC (absMode mode) lfe (absDeclC pd)).run lst
             = .ok (lfe', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
-  sorry
+  intro lst lfe hsr hfr
+  rw [cached.parsed_c.check_decl_c.eq_def] at h
+  cases pd with
+  | AxiomDecl cv =>
+    simp only [absDeclC]
+    exact check_axiom_decl_c_refines hfuel hk hsw hfw hd h lst lfe hsr hfr
+  | DefnDecl cv value hint =>
+    simp only [absDeclC]
+    exact check_defn_decl_c_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr
+  | ThmDecl cv value =>
+    simp only [absDeclC]
+    exact check_thm_decl_c_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr
+  | OpaqueDecl cv value =>
+    simp only [absDeclC]
+    exact check_opaque_decl_c_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr
+  | BasisDecl kind =>
+    simp only [absDeclC]
+    obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+    have hrs : r = .Ok fe' ∧ st = st' := by simpa using h
+    obtain ⟨rfl, rfl⟩ := hrs
+    obtain ⟨lfe', hrun, hrel', hwf'⟩ :=
+      check_basis_decl_c_refines (mode := mode) hfw hr lst lfe hfr
+    exact ⟨lst, lfe', hrun, hsr, hsw, hrel', hwf'⟩
+  | IndDecl block n_p =>
+    simp only [absDeclC]
+    exact check_ind_decl_c_refines hind hsw hfw hd h lst lfe hsr hfr
 
 /-- **`cached::parsed_c::check_decl_step_c` refines `checkDeclStepC`**
 (`ConLeche/Cached/ParsedC.lean:259-262`): `flushC`, then `checkDeclC`.  The
@@ -377,7 +489,16 @@ theorem check_decl_step_c_refines {mode : env.CheckMode} {fuel : Std.U64}
         (ConLeche.Cached.checkDeclStepC (absMode mode) lfe (absDeclC pd)).run lst
             = .ok (lfe', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
-  sorry
+  intro lst lfe hsr hfr
+  rw [cached.parsed_c.check_decl_step_c] at h
+  obtain ⟨st1, hflush, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hrunf, hrel1, hwf1, -⟩ := StateC.flush_c_refines hsr hsw hflush
+  obtain ⟨lst', lfe', hrun, rest⟩ :=
+    check_decl_c_refines hfuel hk hind hwf1 hfw hd h lst.flushed lfe hrel1 hfr
+  refine ⟨lst', lfe', ?_, rest⟩
+  rw [ConLeche.Cached.checkDeclStepC]
+  simp only [StateT.run_bind, hrunf]
+  exact hrun
 
 /-! ### The six arms of `checkDecl`, stated
 

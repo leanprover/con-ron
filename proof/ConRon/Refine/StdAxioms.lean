@@ -1,6 +1,8 @@
 import ConRon.Refine.CoreKBase
+import ConRon.Refine.CoreKSupport
 import ConRon.Refine.BasisNames
 import ConLeche.Kernel.StdAxioms
+import ConLeche.Kernel.DeclCheck
 
 /-! # `kernel::std_axioms` — the two recognized standard axioms (task #56)
 
@@ -1257,6 +1259,545 @@ theorem matches_pin_eq_fast {cv pin : env.ConstantVal} {b b' : Bool}
     (h : std_axioms.matches_pin cv pin = ok b)
     (h' : std_axioms.matches_pin_fast cv pin = ok b') : b = b' := by
   rw [matches_pin_refines hcv hpin h, matches_pin_fast_eq_matches_pin hcv hpin h']
+
+
+/-! ## The annotated pins, and why comparing against the raw ones is exact
+
+Task #24's key claim for this module, **proved**.  `ConstantVal.matchesPin`
+reads three things of the pin — its name, its level parameters and its type *up
+to every binder's prop-ness datum* (`Expr.erasePw`) — so two pins that agree on
+those three give the same verdict against every stored constant.  The annotated
+pin and the raw one do agree on all three, because `annotateBody`
+(`Kernel/Core.lean:2746`) rebuilds every node unchanged except a binder's `pw`,
+and no pin here has a `letE` (the one arm that changes a shape).  Each of the
+eight equations below is therefore `rfl` on two closed terms — Lean checks the
+annotation pass's *output*, not an argument about it. -/
+
+/-- Two pins that agree on name, level parameters and `erasePw` of the type are
+the same pin as far as `ConstantVal.matchesPin` can tell. -/
+theorem matchesPin_congr {p q : ConLeche.ConstantVal} (hn : p.name = q.name)
+    (hl : p.levelParams = q.levelParams) (ht : p.type.erasePw = q.type.erasePw)
+    (cv : ConLeche.ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv p = ConLeche.ConstantVal.matchesPin cv q := by
+  simp [ConLeche.ConstantVal.matchesPin, hn, hl, ht]
+
+/-- `ConLeche/Kernel/StdAxioms.lean:308-314` — `iffA` and `iffRaw` give the
+same `matchesPin` verdict. -/
+theorem iffA_matchesPin_raw (cv : ConLeche.ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.iffA.toConstantVal
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.iffRaw.toConstantVal :=
+  matchesPin_congr rfl rfl rfl cv
+
+/-- `ConLeche/Kernel/StdAxioms.lean:308-314` — `iffIntroA` and `iffIntroRaw`. -/
+theorem iffIntroA_matchesPin_raw (cv : ConLeche.ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.iffIntroA.toConstantVal
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.iffIntroRaw.toConstantVal :=
+  matchesPin_congr rfl rfl rfl cv
+
+/-- `ConLeche/Kernel/StdAxioms.lean:308-314` — `iffRecA` and `iffRecRaw`. -/
+theorem iffRecA_matchesPin_raw (cv : ConLeche.ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.iffRecA.toConstantVal
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.iffRecRaw.toConstantVal :=
+  matchesPin_congr rfl rfl rfl cv
+
+/-- `ConLeche/Kernel/StdAxioms.lean:308-314` — `nonemptyA` and `nonemptyRaw`. -/
+theorem nonemptyA_matchesPin_raw (cv : ConLeche.ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyA.toConstantVal
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyRaw.toConstantVal :=
+  matchesPin_congr rfl rfl rfl cv
+
+/-- `ConLeche/Kernel/StdAxioms.lean:308-314` — `nonemptyIntroA` and
+`nonemptyIntroRaw`. -/
+theorem nonemptyIntroA_matchesPin_raw (cv : ConLeche.ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyIntroA.toConstantVal
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyIntroRaw.toConstantVal :=
+  matchesPin_congr rfl rfl rfl cv
+
+/-- `ConLeche/Kernel/StdAxioms.lean:308-314` — `nonemptyRecA` and
+`nonemptyRecRaw`. -/
+theorem nonemptyRecA_matchesPin_raw (cv : ConLeche.ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyRecA.toConstantVal
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyRecRaw.toConstantVal :=
+  matchesPin_congr rfl rfl rfl cv
+
+/-- `ConLeche/Kernel/StdAxioms.lean:316-319` — `propextA` and `propextRaw`. -/
+theorem propextA_matchesPin_raw (cv : ConLeche.ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.propextA
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.propextRaw :=
+  matchesPin_congr rfl rfl rfl cv
+
+/-- `ConLeche/Kernel/StdAxioms.lean:316-319` — `choiceA` and `choiceRaw`. -/
+theorem choiceA_matchesPin_raw (cv : ConLeche.ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.choiceA
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.choiceRaw :=
+  matchesPin_congr rfl rfl rfl cv
+
+/-! ## The install guard (`StdAxioms.lean:322-373`, `DeclCheck.lean:240-273`)
+
+`stdAxiomOk`'s five (resp. four) conjuncts, one Rust function each — task #24's
+pattern 9, so that each `match` on a lookup ends before the next one begins.
+Each is refined **exactly**: the Rust `Bool` is the cited Lean conjunct,
+verbatim, including the arity patterns, which are part of the pin.
+
+The hypotheses are `CoreKBase`'s find-agreement (`FindAgree`/`FindWF`), the
+projection of task #46's `FEnv.FEnvRel`/`FEnv.FEnvWF` that the module reads —
+`fenv::find` is the only environment call here. -/
+
+/-- `ConLeche/Kernel/StdAxioms.lean:322-373 stdAxiomOk`,
+`ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF` —
+`std_axioms::iff_pinned` is the stored `Iff` type former against the pin. -/
+theorem iff_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : Bool}
+    (hrel : FindAgree fe lfe) (hwf : FindWF fe)
+    (h : std_axioms.iff_pinned fe = ok b) :
+    b = (match lfe.find? ConLeche.iffName with
+         | some (.indInfo cvI _) =>
+             ConLeche.ConstantVal.matchesPin cvI ConLeche.iffA.toConstantVal
+         | _ => false) := by
+  rw [std_axioms.iff_pinned] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨n, hn, o, ho, h⟩ := h
+  obtain ⟨na, nw⟩ := iff_name_refines hn
+  cases o with
+  | none =>
+    have hg : lfe.find? ConLeche.iffName = none := by
+      rw [← na]; exact hrel.find_none nw ho
+    rw [hg]
+    simp only [Result.ok.injEq] at h
+    exact h.symm
+  | some ci =>
+    have hg : lfe.find? ConLeche.iffName = some (absConstantInfo ci) := by
+      rw [← na]; exact hrel.find_some nw ho
+    have hciwf := hwf n ci nw ho
+    cases ci
+    case IndInfo cv caps =>
+      rw [hg]
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨ci1, hci1, cvp, hcvp, hmp⟩ := h
+      obtain ⟨r1, w1⟩ := iff_raw_refines hci1
+      obtain ⟨r2, w2⟩ := CoreK.to_constant_val_refines w1 hcvp
+      show b = ConLeche.ConstantVal.matchesPin (absConstantVal cv)
+        ConLeche.iffA.toConstantVal
+      rw [iffA_matchesPin_raw, matches_pin_fast_eq_matches_pin hciwf.1 w2 hmp, r2, r1]
+    all_goals
+      rw [hg]
+      simp only [Result.ok.injEq] at h
+      exact h.symm
+
+/-- `ConLeche/Kernel/StdAxioms.lean:322-373 stdAxiomOk`,
+`ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF` —
+`std_axioms::iff_intro_pinned`, at the pinned arity `2 2`: the `some (.ctorInfo
+cvIi 2 2)` pattern is part of the pin. -/
+theorem iff_intro_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : Bool}
+    (hrel : FindAgree fe lfe) (hwf : FindWF fe)
+    (h : std_axioms.iff_intro_pinned fe = ok b) :
+    b = (match lfe.find? ConLeche.iffIntroName with
+         | some (.ctorInfo cvIi 2 2) =>
+             ConLeche.ConstantVal.matchesPin cvIi ConLeche.iffIntroA.toConstantVal
+         | _ => false) := by
+  rw [std_axioms.iff_intro_pinned] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨n, hn, o, ho, h⟩ := h
+  obtain ⟨na, nw⟩ := iff_intro_name_refines hn
+  cases o with
+  | none =>
+    have hg : lfe.find? ConLeche.iffIntroName = none := by
+      rw [← na]; exact hrel.find_none nw ho
+    rw [hg]
+    simp only [Result.ok.injEq] at h
+    exact h.symm
+  | some ci =>
+    have hg : lfe.find? ConLeche.iffIntroName = some (absConstantInfo ci) := by
+      rw [← na]; exact hrel.find_some nw ho
+    have hciwf := hwf n ci nw ho
+    cases ci
+    case CtorInfo cv np nf =>
+      rw [hg]
+      by_cases hnp : np = 2#u64
+      · subst hnp
+        by_cases hnf : nf = 2#u64
+        · subst hnf
+          simp only [if_pos, bind_eq_ok_iff] at h
+          obtain ⟨ci1, hci1, cvp, hcvp, hmp⟩ := h
+          obtain ⟨r1, w1⟩ := iff_intro_raw_refines hci1
+          obtain ⟨r2, w2⟩ := CoreK.to_constant_val_refines w1 hcvp
+          show b = ConLeche.ConstantVal.matchesPin (absConstantVal cv)
+            ConLeche.iffIntroA.toConstantVal
+          rw [iffIntroA_matchesPin_raw,
+            matches_pin_fast_eq_matches_pin hciwf w2 hmp, r2, r1]
+        · rw [if_pos rfl, if_neg hnf, Result.ok.injEq] at h
+          split
+          · rename_i heq
+            simp only [Option.some.injEq, ConLeche.ConstantInfo.ctorInfo.injEq,
+              absConstantInfo] at heq
+            exact absurd (Std.UScalar.eq_of_val_eq heq.2.2) hnf
+          · exact h.symm
+      · rw [if_neg hnp, Result.ok.injEq] at h
+        split
+        · rename_i heq
+          simp only [Option.some.injEq, ConLeche.ConstantInfo.ctorInfo.injEq,
+            absConstantInfo] at heq
+          exact absurd (Std.UScalar.eq_of_val_eq heq.2.1) hnp
+        · exact h.symm
+    all_goals
+      rw [hg]
+      simp only [Result.ok.injEq] at h
+      exact h.symm
+
+/-- `ConLeche/Kernel/StdAxioms.lean:322-373 stdAxiomOk`,
+`ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF` —
+`std_axioms::iff_rec_pinned`, at the pinned arity `4 4`.  Only the recursor's
+*type* is read, never its reduction rules (the cited note). -/
+theorem iff_rec_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : Bool}
+    (hrel : FindAgree fe lfe) (hwf : FindWF fe)
+    (h : std_axioms.iff_rec_pinned fe = ok b) :
+    b = (match lfe.find? ConLeche.iffRecName with
+         | some (.recInfo cvIr 4 4 _) =>
+             ConLeche.ConstantVal.matchesPin cvIr ConLeche.iffRecA.toConstantVal
+         | _ => false) := by
+  rw [std_axioms.iff_rec_pinned] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨n, hn, o, ho, h⟩ := h
+  obtain ⟨na, nw⟩ := iff_rec_name_refines hn
+  cases o with
+  | none =>
+    have hg : lfe.find? ConLeche.iffRecName = none := by
+      rw [← na]; exact hrel.find_none nw ho
+    rw [hg]
+    simp only [Result.ok.injEq] at h
+    exact h.symm
+  | some ci =>
+    have hg : lfe.find? ConLeche.iffRecName = some (absConstantInfo ci) := by
+      rw [← na]; exact hrel.find_some nw ho
+    have hciwf := hwf n ci nw ho
+    cases ci
+    case RecInfo cv mi rp rs =>
+      rw [hg]
+      by_cases hmi : mi = 4#u64
+      · subst hmi
+        by_cases hrp : rp = 4#u64
+        · subst hrp
+          simp only [if_pos, bind_eq_ok_iff] at h
+          obtain ⟨ci1, hci1, cvp, hcvp, hmp⟩ := h
+          obtain ⟨r1, w1⟩ := iff_rec_raw_refines hci1
+          obtain ⟨r2, w2⟩ := CoreK.to_constant_val_refines w1 hcvp
+          show b = ConLeche.ConstantVal.matchesPin (absConstantVal cv)
+            ConLeche.iffRecA.toConstantVal
+          rw [iffRecA_matchesPin_raw,
+            matches_pin_fast_eq_matches_pin hciwf.1 w2 hmp, r2, r1]
+        · rw [if_pos rfl, if_neg hrp, Result.ok.injEq] at h
+          split
+          · rename_i heq
+            simp only [Option.some.injEq, ConLeche.ConstantInfo.recInfo.injEq,
+              absConstantInfo] at heq
+            exact absurd (Std.UScalar.eq_of_val_eq heq.2.2.1) hrp
+          · exact h.symm
+      · rw [if_neg hmi, Result.ok.injEq] at h
+        split
+        · rename_i heq
+          simp only [Option.some.injEq, ConLeche.ConstantInfo.recInfo.injEq,
+            absConstantInfo] at heq
+          exact absurd (Std.UScalar.eq_of_val_eq heq.2.1) hmi
+        · exact h.symm
+    all_goals
+      rw [hg]
+      simp only [Result.ok.injEq] at h
+      exact h.symm
+
+/-- `ConLeche/Kernel/StdAxioms.lean:322-373 stdAxiomOk`,
+`ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF` —
+`std_axioms::nonempty_pinned`. -/
+theorem nonempty_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : Bool}
+    (hrel : FindAgree fe lfe) (hwf : FindWF fe)
+    (h : std_axioms.nonempty_pinned fe = ok b) :
+    b = (match lfe.find? ConLeche.nonemptyName with
+         | some (.indInfo cvN _) =>
+             ConLeche.ConstantVal.matchesPin cvN ConLeche.nonemptyA.toConstantVal
+         | _ => false) := by
+  rw [std_axioms.nonempty_pinned] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨n, hn, o, ho, h⟩ := h
+  obtain ⟨na, nw⟩ := nonempty_name_refines hn
+  cases o with
+  | none =>
+    have hg : lfe.find? ConLeche.nonemptyName = none := by
+      rw [← na]; exact hrel.find_none nw ho
+    rw [hg]
+    simp only [Result.ok.injEq] at h
+    exact h.symm
+  | some ci =>
+    have hg : lfe.find? ConLeche.nonemptyName = some (absConstantInfo ci) := by
+      rw [← na]; exact hrel.find_some nw ho
+    have hciwf := hwf n ci nw ho
+    cases ci
+    case IndInfo cv caps =>
+      rw [hg]
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨ci1, hci1, cvp, hcvp, hmp⟩ := h
+      obtain ⟨r1, w1⟩ := nonempty_raw_refines hci1
+      obtain ⟨r2, w2⟩ := CoreK.to_constant_val_refines w1 hcvp
+      show b = ConLeche.ConstantVal.matchesPin (absConstantVal cv)
+        ConLeche.nonemptyA.toConstantVal
+      rw [nonemptyA_matchesPin_raw,
+        matches_pin_fast_eq_matches_pin hciwf.1 w2 hmp, r2, r1]
+    all_goals
+      rw [hg]
+      simp only [Result.ok.injEq] at h
+      exact h.symm
+
+/-- `ConLeche/Kernel/StdAxioms.lean:322-373 stdAxiomOk`,
+`ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF` —
+`std_axioms::nonempty_intro_pinned`, at the pinned arity `1 1`. -/
+theorem nonempty_intro_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : Bool}
+    (hrel : FindAgree fe lfe) (hwf : FindWF fe)
+    (h : std_axioms.nonempty_intro_pinned fe = ok b) :
+    b = (match lfe.find? ConLeche.nonemptyIntroName with
+         | some (.ctorInfo cvNi 1 1) =>
+             ConLeche.ConstantVal.matchesPin cvNi ConLeche.nonemptyIntroA.toConstantVal
+         | _ => false) := by
+  rw [std_axioms.nonempty_intro_pinned] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨n, hn, o, ho, h⟩ := h
+  obtain ⟨na, nw⟩ := nonempty_intro_name_refines hn
+  cases o with
+  | none =>
+    have hg : lfe.find? ConLeche.nonemptyIntroName = none := by
+      rw [← na]; exact hrel.find_none nw ho
+    rw [hg]
+    simp only [Result.ok.injEq] at h
+    exact h.symm
+  | some ci =>
+    have hg : lfe.find? ConLeche.nonemptyIntroName = some (absConstantInfo ci) := by
+      rw [← na]; exact hrel.find_some nw ho
+    have hciwf := hwf n ci nw ho
+    cases ci
+    case CtorInfo cv np nf =>
+      rw [hg]
+      by_cases hnp : np = 1#u64
+      · subst hnp
+        by_cases hnf : nf = 1#u64
+        · subst hnf
+          simp only [if_pos, bind_eq_ok_iff] at h
+          obtain ⟨ci1, hci1, cvp, hcvp, hmp⟩ := h
+          obtain ⟨r1, w1⟩ := nonempty_intro_raw_refines hci1
+          obtain ⟨r2, w2⟩ := CoreK.to_constant_val_refines w1 hcvp
+          show b = ConLeche.ConstantVal.matchesPin (absConstantVal cv)
+            ConLeche.nonemptyIntroA.toConstantVal
+          rw [nonemptyIntroA_matchesPin_raw,
+            matches_pin_fast_eq_matches_pin hciwf w2 hmp, r2, r1]
+        · rw [if_pos rfl, if_neg hnf, Result.ok.injEq] at h
+          split
+          · rename_i heq
+            simp only [Option.some.injEq, ConLeche.ConstantInfo.ctorInfo.injEq,
+              absConstantInfo] at heq
+            exact absurd (Std.UScalar.eq_of_val_eq heq.2.2) hnf
+          · exact h.symm
+      · rw [if_neg hnp, Result.ok.injEq] at h
+        split
+        · rename_i heq
+          simp only [Option.some.injEq, ConLeche.ConstantInfo.ctorInfo.injEq,
+            absConstantInfo] at heq
+          exact absurd (Std.UScalar.eq_of_val_eq heq.2.1) hnp
+        · exact h.symm
+    all_goals
+      rw [hg]
+      simp only [Result.ok.injEq] at h
+      exact h.symm
+
+/-- `ConLeche/Kernel/StdAxioms.lean:322-373 stdAxiomOk`,
+`ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF` —
+`std_axioms::nonempty_rec_pinned`, at the pinned arity `3 3`. -/
+theorem nonempty_rec_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : Bool}
+    (hrel : FindAgree fe lfe) (hwf : FindWF fe)
+    (h : std_axioms.nonempty_rec_pinned fe = ok b) :
+    b = (match lfe.find? ConLeche.nonemptyRecName with
+         | some (.recInfo cvNr 3 3 _) =>
+             ConLeche.ConstantVal.matchesPin cvNr ConLeche.nonemptyRecA.toConstantVal
+         | _ => false) := by
+  rw [std_axioms.nonempty_rec_pinned] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨n, hn, o, ho, h⟩ := h
+  obtain ⟨na, nw⟩ := nonempty_rec_name_refines hn
+  cases o with
+  | none =>
+    have hg : lfe.find? ConLeche.nonemptyRecName = none := by
+      rw [← na]; exact hrel.find_none nw ho
+    rw [hg]
+    simp only [Result.ok.injEq] at h
+    exact h.symm
+  | some ci =>
+    have hg : lfe.find? ConLeche.nonemptyRecName = some (absConstantInfo ci) := by
+      rw [← na]; exact hrel.find_some nw ho
+    have hciwf := hwf n ci nw ho
+    cases ci
+    case RecInfo cv mi rp rs =>
+      rw [hg]
+      by_cases hmi : mi = 3#u64
+      · subst hmi
+        by_cases hrp : rp = 3#u64
+        · subst hrp
+          simp only [if_pos, bind_eq_ok_iff] at h
+          obtain ⟨ci1, hci1, cvp, hcvp, hmp⟩ := h
+          obtain ⟨r1, w1⟩ := nonempty_rec_raw_refines hci1
+          obtain ⟨r2, w2⟩ := CoreK.to_constant_val_refines w1 hcvp
+          show b = ConLeche.ConstantVal.matchesPin (absConstantVal cv)
+            ConLeche.nonemptyRecA.toConstantVal
+          rw [nonemptyRecA_matchesPin_raw,
+            matches_pin_fast_eq_matches_pin hciwf.1 w2 hmp, r2, r1]
+        · rw [if_pos rfl, if_neg hrp, Result.ok.injEq] at h
+          split
+          · rename_i heq
+            simp only [Option.some.injEq, ConLeche.ConstantInfo.recInfo.injEq,
+              absConstantInfo] at heq
+            exact absurd (Std.UScalar.eq_of_val_eq heq.2.2.1) hrp
+          · exact h.symm
+      · rw [if_neg hmi, Result.ok.injEq] at h
+        split
+        · rename_i heq
+          simp only [Option.some.injEq, ConLeche.ConstantInfo.recInfo.injEq,
+            absConstantInfo] at heq
+          exact absurd (Std.UScalar.eq_of_val_eq heq.2.1) hmi
+        · exact h.symm
+    all_goals
+      rw [hg]
+      simp only [Result.ok.injEq] at h
+      exact h.symm
+
+/-! ## The guard, and the one conjunct that is another module's
+
+`stdAxiomOk`'s `propext` arm opens with `decide (env.find? eqName = some eqA)`,
+which is **not** a `matchesPin` comparison — it is an exact `ConstantInfo`
+equality against the *annotated* basis pin, so the erase-`pw` argument above
+does not cover it and the port answers it in `kernel/basis_pins.rs` over task
+#22's generated table (`basis_pins::eq_basis_pinned`).  That is a different
+module, so its refinement is *named* here and carried as a hypothesis: every
+lemma that depends on it says so, and `Refine/BasisPins.lean` discharges it in
+one place. -/
+
+/-- **What `Refine/BasisPins.lean` owes this file**: `basis_pins::eq_basis_pinned`
+is the cited `decide (fe.find? eqName = some eqA)`. -/
+def EqBasisPinned (fe : fenv.FEnv) (lfe : ConLeche.FEnv) : Prop :=
+  ∀ b : Bool, basis_pins.eq_basis_pinned fe = ok b →
+    b = decide (lfe.find? ConLeche.eqName = some ConLeche.eqA)
+
+/-- `ConLeche/Kernel/StdAxioms.lean:322-373 stdAxiomOk`,
+`ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF` —
+**`std_axioms::std_axiom_ok` refines `stdAxiomOkF` exactly.**  The port's
+nested `if`s are the cited `&&` cascade (both short-circuit, and the port's
+conjuncts are the pure guards above); the two pins it compares the checked
+axiom against are the *raw* `propextRaw`/`choiceRaw`, which give the annotated
+`propextA`/`choiceA`'s verdict by `propextA_matchesPin_raw`/
+`choiceA_matchesPin_raw`.
+
+Deviation (task #18's point 3): con-leche's `stdAxiomOk` (over an `Env`) and
+`stdAxiomOkF` (over the index) are this one Rust function; the port has one
+environment spelling, the index, so the statement is against the `F`-twin. -/
+theorem std_axiom_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    {cv_a : env.ConstantVal} {b : Bool}
+    (hrel : FindAgree fe lfe) (hwf : FindWF fe) (heqb : EqBasisPinned fe lfe)
+    (hcv : ConstantValWF cv_a)
+    (h : std_axioms.std_axiom_ok fe cv_a = ok b) :
+    b = ConLeche.stdAxiomOkF lfe (absConstantVal cv_a) := by
+  rw [std_axioms.std_axiom_ok] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨n, hn, bn, hbn, h⟩ := h
+  obtain ⟨na, nw⟩ := propext_name_refines hn
+  rw [Name.beq_refines hcv.1 nw hbn, na] at h
+  rw [ConLeche.stdAxiomOkF]
+  by_cases hp : absName cv_a.name = ConLeche.propextName
+  · rw [if_pos (show (absConstantVal cv_a).name = ConLeche.propextName from hp),
+      if_pos (by simpa using hp)] at h ⊢
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨b1, hb1, h⟩ := h
+    rw [← heqb b1 hb1]
+    cases b1
+    · simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+      simp [← h]
+    · rw [if_pos rfl] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨b2, hb2, h⟩ := h
+      rw [← iff_pinned_refines hrel hwf hb2]
+      cases b2
+      · simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+        simp [← h]
+      · rw [if_pos rfl] at h
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨b3, hb3, h⟩ := h
+        rw [← iff_intro_pinned_refines hrel hwf hb3]
+        cases b3
+        · simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+          simp [← h]
+        · rw [if_pos rfl] at h
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨b4, hb4, h⟩ := h
+          rw [← iff_rec_pinned_refines hrel hwf hb4]
+          cases b4
+          · simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+            simp [← h]
+          · rw [if_pos rfl] at h
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨cvp, hcvp, hmp⟩ := h
+            obtain ⟨r1, w1⟩ := propext_raw_refines hcvp
+            rw [propextA_matchesPin_raw,
+              matches_pin_fast_eq_matches_pin hcv w1 hmp, r1]
+            simp
+  · rw [if_neg (show ¬ (absConstantVal cv_a).name = ConLeche.propextName from hp),
+      if_neg (by simpa using hp)] at h ⊢
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨n1, hn1, bn1, hbn1, h⟩ := h
+    obtain ⟨na1, nw1⟩ := choice_name_refines hn1
+    rw [Name.beq_refines hcv.1 nw1 hbn1, na1] at h
+    by_cases hc : absName cv_a.name = ConLeche.choiceName
+    · rw [if_pos (show (absConstantVal cv_a).name = ConLeche.choiceName from hc),
+        if_pos (by simpa using hc)] at h ⊢
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨b2, hb2, h⟩ := h
+      rw [← nonempty_pinned_refines hrel hwf hb2]
+      cases b2
+      · simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+        simp [← h]
+      · rw [if_pos rfl] at h
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨b3, hb3, h⟩ := h
+        rw [← nonempty_intro_pinned_refines hrel hwf hb3]
+        cases b3
+        · simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+          simp [← h]
+        · rw [if_pos rfl] at h
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨b4, hb4, h⟩ := h
+          rw [← nonempty_rec_pinned_refines hrel hwf hb4]
+          cases b4
+          · simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+            simp [← h]
+          · rw [if_pos rfl] at h
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨cvp, hcvp, hmp⟩ := h
+            obtain ⟨r1, w1⟩ := choice_raw_refines hcvp
+            rw [choiceA_matchesPin_raw,
+              matches_pin_fast_eq_matches_pin hcv w1 hmp, r1]
+            simp
+    · rw [if_neg (show ¬ (absConstantVal cv_a).name = ConLeche.choiceName from hc),
+        if_neg (by simpa using hc), Result.ok.injEq] at h ⊢
+      exact h.symm
+
+/-- The same over task #46's full relation, which is what the declaration
+checker carries: `FindAgree`/`FindWF` are its find-agreement projection
+(`CoreKBase`'s two bridges). -/
+theorem std_axiom_ok_refines_of_rel {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    {cv_a : env.ConstantVal} {b : Bool}
+    (hrel : FEnv.FEnvRel fe lfe) (hwf : FEnv.FEnvWF fe)
+    (heqb : EqBasisPinned fe lfe) (hcv : ConstantValWF cv_a)
+    (h : std_axioms.std_axiom_ok fe cv_a = ok b) :
+    b = ConLeche.stdAxiomOkF lfe (absConstantVal cv_a) :=
+  std_axiom_ok_refines (FindAgree.of_rel hrel hwf) (FindWF.of_wf hwf) heqb hcv h
+
+/-! ## Axiom census (DESIGN.md §5, the P3 gate) -/
+
+/--
+info: 'ConRon.Refine.StdAxioms.std_axiom_ok_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms std_axiom_ok_refines
 
 
 end ConRon.Refine.StdAxioms
