@@ -796,6 +796,30 @@ theorem check_div_mod_certs_refines {mode : env.CheckMode} {fuel : Std.U64}
 
 /-! ## The environment guards (`Checker.lean:277-306`) -/
 
+/-- The type a stored constant carries is a well-formed term: the six
+`ConstantVal` arms read `cv.ty`, the table's header the closed `Sort 1`.
+(`Refine/Env.lean` proves the *value*; this is the `ExprWF` half its
+`constant_info_type_refines` does not claim.) -/
+private theorem constant_info_type_wf {c : env.ConstantInfo} {t : expr.Expr}
+    (hc : ConstantInfoWF c) (h : env.constant_info_type c = ok t) : ExprWF t := by
+  cases c with
+  | AxiomInfo v =>
+    simp only [env.constant_info_type] at h; rw [Expr.dup_eq h]; exact hc.2.2
+  | DefnInfo v val hint =>
+    simp only [env.constant_info_type] at h; rw [Expr.dup_eq h]; exact hc.1.2.2
+  | ThmInfo v val =>
+    simp only [env.constant_info_type] at h; rw [Expr.dup_eq h]; exact hc.1.2.2
+  | IndInfo v caps =>
+    simp only [env.constant_info_type] at h; rw [Expr.dup_eq h]; exact hc.1.2.2
+  | CtorInfo v np nf =>
+    simp only [env.constant_info_type] at h; rw [Expr.dup_eq h]; exact hc.2.2
+  | RecInfo v mi rp rs =>
+    simp only [env.constant_info_type] at h; rw [Expr.dup_eq h]; exact hc.1.2.2
+  | ProjInfo tbl =>
+    simp only [env.constant_info_type, bind_eq_ok_iff] at h
+    obtain ⟨l, hl, l1, hl1, he⟩ := h
+    exact ExprWF.sort (LevelWF.succ (LevelWF.zero hl) hl1) he
+
 /-- `ConLeche/Kernel/Checker.lean:277-290 divModEnvGuard`,
 `ConLeche/Kernel/DeclCheck.lean:310-319 divModEnvGuardF` — the cited
 `match env2.find? boolTrueName with | some ci => ci.toConstantVal.type
@@ -808,11 +832,21 @@ theorem bool_ctor_typed_refines {fe2 : fenv.FEnv} {lfe : ConLeche.FEnv}
     r = (match lfe.find? (absName n) with
       | some ci => ci.toConstantVal.type == ConLeche.Expr.const ConLeche.boolName []
       | none => false) := by
-  -- `sorry`: `find_refines`, `env::constant_info_type` (`Refine/Env.lean`) and
-  -- `expr::beq`'s exactness (`Refine/Expr.lean`); the one missing step is the
-  -- `ExprWF` of the stored type, which is `FindWF`'s record read through
-  -- `ConstantInfoWF`.
-  sorry
+  rw [checker.bool_ctor_typed] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  cases o with
+  | none => rw [hfe.find_none hn ho]; simpa using (Result.ok_injective h).symm
+  | some ci =>
+    rw [hfe.find_some hn ho]
+    obtain ⟨t, ht, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hn1abs, hn1wf⟩ := CoreK.bool_name_refines hn1
+    have htwf : ExprWF t := constant_info_type_wf (hwf n ci hn ho) ht
+    have he1wf : ExprWF e1 := ExprWF.mk_const hn1wf CoreK.levelsWF_new he1
+    rw [Expr.beq_refines htwf he1wf h, ConRon.Refine.Env.constant_info_type_refines ht,
+      Expr.mk_const_refines he1, hn1abs, CoreK.absLevels_new]
+    rfl
 
 /-- `ConLeche/Kernel/Checker.lean:277-290 divModEnvGuard`,
 `ConLeche/Kernel/DeclCheck.lean:310-319 divModEnvGuardF` —

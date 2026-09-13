@@ -1135,4 +1135,211 @@ theorem check_annot_list_refines {mode : env.CheckMode} {fuel : Std.U64}
       (by scalar_tac) hsw hfw h lst lfe hsr hfr
   exact ⟨lst', by simpa using hrun, rest⟩
 
+/-! ## `checkConstantVal` — the one check every declaration kind runs first
+
+This is the only function in the module that reaches the core, so it carries
+the knot hypotheses; and it is the only one that reads
+`decl_check::consts_resolve_f_fast`, whose refinement belongs to
+`Refine/DeclCheck.lean` — a sibling task-#56 file this one may not import.
+That fact is named here as a `Prop` and travels as a hypothesis, so the
+dependency is visible in every statement that needs it. -/
+
+/-- **What `Refine/DeclCheck.lean` owes this file.**  `decl_check::consts_resolve_f_fast`
+refines `Expr.constsResolveF` (`ConLeche/Kernel/DeclCheck.lean:197-204`, the
+`@[csimp]` twin of the spec walk). -/
+def ConstsResolveFSpec : Prop :=
+  ∀ (fe : fenv.FEnv) (lfe : ConLeche.FEnv) (e : expr.Expr) (b : Bool),
+    FEnvRel fe lfe → FEnvWF fe → ExprWF e →
+    decl_check.consts_resolve_f_fast fe e = ok b →
+    b = ConLeche.Expr.constsResolveF lfe (absExpr e)
+
+open ConLeche.Cached in
+/-- The tail of `checkConstantValF` past the annotation
+(`CheckerBase.lean:91-97`, `DeclCheck.lean:479-485`), written out because the
+port splits the `do` there (task #24's deviation 7: the annotation's
+state-threading call must be a tail call). -/
+def constantValTail (ops : ConLeche.CheckerOps CheckCM) (lfe : ConLeche.FEnv)
+    (cv : ConLeche.ConstantVal) (type : ConLeche.Expr) : CheckCM ConLeche.ConstantVal := do
+  unless ConLeche.Expr.allLevelParamsDefined cv.levelParams type do
+    throw (.invalid s!"undeclared universe parameter in type of {cv.name}")
+  unless ConLeche.Expr.constsResolveF lfe type do
+    throw (.invalid s!"unknown constant in type of {cv.name}")
+  let stype ← ops.inferType lfe.env 0 type
+  let _u ← ops.ensureSort lfe.env 0 stype
+  pure { cv with type := type }
+
+open ConLeche.Cached in
+/-- `checkConstantValF` at a run whose six syntactic guards passed and whose
+annotation succeeded: it *is* the tail, on the post-annotation state. -/
+theorem checkConstantValF_at_annot {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {cv : ConLeche.ConstantVal} {type : ConLeche.Expr}
+    {lst lst1 : CState}
+    (h1 : (lfe.find? cv.name).isSome = false)
+    (h2 : ConLeche.reservedBasisNames.contains cv.name = false)
+    (h3 : cv.name.isProjFnShape = false)
+    (h4 : ConLeche.Name.nodup cv.levelParams = true)
+    (h5 : cv.type.looseBVarsBounded 0 = true)
+    (h6 : cv.type.hasFvar = false)
+    (hann : (ops.annotate lfe.env 0 cv.type).run lst = .ok (type, lst1)) :
+    (ConLeche.checkConstantValF ops lfe cv).run lst
+      = (constantValTail ops lfe cv type).run lst1 := by
+  rw [ConLeche.checkConstantValF]
+  simp only [h1, h2, h3, h4, h5, h6, Bool.false_eq_true, if_false, if_true,
+    reduceIte, bind_pure_comp, StateT.run, Bind.bind, StateT.bind, Except.bind,
+    Pure.pure, StateT.pure]
+  rw [show (ops.annotate lfe.env 0 cv.type) lst = Except.ok (type, lst1) from hann]
+  rfl
+
+/-- `ConLeche/Kernel/CheckerBase.lean:73-97 checkConstantVal`,
+`ConLeche/Kernel/DeclCheck.lean:463-485 checkConstantValF` — the tail past the
+annotation: the level-parameter and resolution guards on the annotated type,
+the type's own sort, and the record update `{ cv with type := type }`. -/
+theorem check_constant_val_after_annot_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    (hcr : ConstsResolveFSpec)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {cv cv' : env.ConstantVal}
+    {ty : expr.Expr}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hty : ExprWF ty)
+    (h : checker_base.check_constant_val_after_annot mode st fe cv ty = ok (.Ok cv', st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ∃ lst', (constantValTail (TypeChecker.lops mode lfe) lfe
+          (absConstantVal cv) (absExpr ty)).run lst
+          = .ok (absConstantVal cv', lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv' := by
+  intro lst lfe hsr hfr
+  obtain ⟨hnwf, hlpwf, htywf⟩ := hcv
+  rw [checker_base.check_constant_val_after_annot] at h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  have hbabs := ExprOps.all_level_params_defined_fast_refines hlpwf hty hb
+  split at h
+  · rename_i hbt
+    subst hbt
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1abs := hcr fe lfe ty b1 hfr hfw hty hb1
+    split at h
+    · rename_i hb1t
+      subst hb1t
+      obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r1, st1⟩ := q
+      cases r1 with
+      | Err er => simp at h
+      | Ok stype =>
+        obtain ⟨lst1, hrun1, hsr1, hsw1, hstwf⟩ :=
+          TypeChecker.infer_type_core_refines hfuel hk st fe 0#u64 ty stype st1
+            hsw hfw hty hq lst lfe hsr hfr
+        obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨r2, st2⟩ := q2
+        cases r2 with
+        | Err er => simp at h
+        | Ok u =>
+          obtain ⟨lst2, hrun2, hsr2, hsw2, huwf⟩ :=
+            TypeChecker.ensure_sort_core_refines hfuel hk st1 fe 0#u64 stype u st2
+              hsw1 hfw hstwf hq2 lst1 lfe hsr1 hfr
+          obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+          simp only [Result.ok.injEq] at h
+          obtain ⟨hcv', rfl⟩ := h
+          have hvv : v.val = cv.level_params.val := PropWhen.names_copy_val hv
+          have hnv : n = cv.name := Name.dup_eq hn
+          refine ⟨lst2, ?_, hsr2, hsw2, ?_⟩
+          · rw [constantValTail]
+            simp only [← hbabs, ← hb1abs, Bool.true_eq_true, reduceIte, StateT.run,
+              Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+              TypeChecker.sharedOpsC_inferType, TypeChecker.sharedOpsC_ensureSort]
+            rw [show (ConLeche.Cached.opE (absMode mode) lfe (·.infer) 0 (absExpr ty)) lst
+              = Except.ok (absExpr stype, lst1) from hrun1]
+            simp only [Except.bind]
+            rw [show (ConLeche.Cached.opS (absMode mode) lfe 0 (absExpr stype)) lst1
+              = Except.ok (absLevel u, lst2) from hrun2]
+            simp only [Except.bind, ← hcv']
+            rfl
+          · rw [← hcv']
+            refine ⟨by rw [hnv]; exact hnwf, ?_, hty⟩
+            intro x hx; exact hlpwf x (by rw [hvv] at hx; exact hx)
+    · simp [bind_eq_ok_iff] at h
+  · simp [bind_eq_ok_iff] at h
+
+/-- `ConLeche/Kernel/CheckerBase.lean:73-97 checkConstantVal`,
+`ConLeche/Kernel/DeclCheck.lean:463-485 checkConstantValF` — the checks common
+to all declarations: fresh name, no reserved name, no reserved projection
+shape, well-formed universe parameters, and a type that is a type and mentions
+only declared parameters.  The result is the constant with its type
+**annotated**. -/
+theorem check_constant_val_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    (hcr : ConstsResolveFSpec)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {cv cv' : env.ConstantVal}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv)
+    (h : checker_base.check_constant_val mode st fe cv = ok (.Ok cv', st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ∃ lst', (ConLeche.checkConstantValF (TypeChecker.lops mode lfe) lfe
+          (absConstantVal cv)).run lst = .ok (absConstantVal cv', lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv' := by
+  intro lst lfe hsr hfr
+  obtain ⟨hnwf, hlpwf, htywf⟩ := hcv
+  rw [checker_base.check_constant_val] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  have hfind := FEnv.find_refines hfr hfw hnwf ho
+  split at h
+  · simp [bind_eq_ok_iff] at h
+  · rename_i hns
+    have h1 : ((lfe.find? (absName cv.name)).isSome) = false := by
+      cases o with
+      | none => rw [← hfind]; simp
+      | some ci => simp [core.option.Option.is_some] at hns
+    obtain ⟨rv, hrv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hrvabs, hrvwf⟩ := BasisNames.reserved_basis_names_refines hrv
+    have hb1abs := Name.contains_refines hrvwf hnwf hb1
+    rw [hrvabs] at hb1abs
+    split at h
+    · simp [bind_eq_ok_iff] at h
+    · rename_i hb1f
+      have h2 : ConLeche.reservedBasisNames.contains (absName cv.name) = false := by
+        rw [← hb1abs]; simpa using hb1f
+      obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+      have hb2abs := CoreK.name_is_proj_fn_shape_refines hnwf hb2
+      split at h
+      · simp [bind_eq_ok_iff] at h
+      · rename_i hb2f
+        have h3 : (absName cv.name).isProjFnShape = false := by
+          rw [← hb2abs]; simpa using hb2f
+        obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+        have hb3abs := name_nodup_refines hlpwf hb3
+        split at h
+        · rename_i hb3t
+          subst hb3t
+          obtain ⟨b4, hb4, h⟩ := bind_eq_ok_iff.mp h
+          have hb4abs := ExprOps.loose_bvars_bounded_refines htywf hb4
+          split at h
+          · rename_i hb4t
+            subst hb4t
+            obtain ⟨b5, hb5, h⟩ := bind_eq_ok_iff.mp h
+            have hb5abs := ExprOps.has_fvar_refines htywf hb5
+            split at h
+            · simp [bind_eq_ok_iff] at h
+            · rename_i hb5f
+              obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨r1, st1⟩ := q
+              cases r1 with
+              | Err er => simp at h
+              | Ok ty =>
+                obtain ⟨lst1, hrun1, hsr1, hsw1, htyawf⟩ :=
+                  TypeChecker.annotate_core_refines hfuel hk st fe 0#u64 cv.ty ty st1
+                    hsw hfw htywf hq lst lfe hsr hfr
+                obtain ⟨lst2, hrun2, hsr2, hsw2, hcv'wf⟩ :=
+                  check_constant_val_after_annot_refines hfuel hk hcr hsw1 hfw
+                    ⟨hnwf, hlpwf, htywf⟩ htyawf h lst1 lfe hsr1 hfr
+                refine ⟨lst2, ?_, hsr2, hsw2, hcv'wf⟩
+                have hann : ((TypeChecker.lops mode lfe).annotate lfe.env 0
+                    (absExpr cv.ty)).run lst = .ok (absExpr ty, lst1) := by
+                  rw [TypeChecker.sharedOpsC_annotate]; exact hrun1
+                rw [checkConstantValF_at_annot h1 h2 h3 ?_ ?_ ?_ hann]
+                · exact hrun2
+                · rw [← hb3abs]
+                · rw [← hb4abs]; rfl
+                · rw [← hb5abs]; simpa using hb5f
+          · simp [bind_eq_ok_iff] at h
+        · simp [bind_eq_ok_iff] at h
+
 end ConRon.Refine.CheckerBase

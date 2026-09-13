@@ -53,8 +53,16 @@ annotated pins are cited on the same items the raw ones are.
   bridge the tier consumes.
 * **The environment is the index** (task #18 deviation 3): `stdAxiomOk (env)`
   and `stdAxiomOkF (fe)` are one Rust function, so the statement is against the
-  `F`-twin, and `stdAxiomOk_eq_stdAxiomOkF` records that the two are the same
-  `Bool` on a matching pair.
+  `F`-twin.  `stdAxiomOkF_eq` re-spells that definition's five conjuncts the way
+  the six guard lemmas spell them and is `rfl`; it is needed because the *same*
+  `match`, written in two modules, elaborates to two `match` auxiliaries, which
+  `rw` will not see through.
+
+Two things this file adds that belong elsewhere, each marked in place:
+`wf_kind_inv` and its ten wrappers (**to be moved to `Refine/Expr.lean`** beside
+`Refine/CoreKGuards.lean`'s three — the lockstep descent cases on the *second*
+term's kind, so it needs the inversion at every kind), and the eleven `bb_*`
+builder steps below.
 
 ## The `Basis/Builder.lean` DSL, locally
 
@@ -1687,6 +1695,43 @@ def EqBasisPinned (fe : fenv.FEnv) (lfe : ConLeche.FEnv) : Prop :=
   ∀ b : Bool, basis_pins.eq_basis_pinned fe = ok b →
     b = decide (lfe.find? ConLeche.eqName = some ConLeche.eqA)
 
+/-- **`stdAxiomOkF`, with its five conjuncts spelled the way the six guard
+lemmas above spell them** — `rfl`, and the one step that makes them rewritable
+into it: the same `match` written in two modules elaborates to two `match`
+auxiliaries, which are definitionally but not syntactically equal. -/
+theorem stdAxiomOkF_eq (lfe : ConLeche.FEnv) (cvA : ConLeche.ConstantVal) :
+    ConLeche.stdAxiomOkF lfe cvA =
+      (if cvA.name = ConLeche.propextName then
+        decide (lfe.find? ConLeche.eqName = some ConLeche.eqA) &&
+        (match lfe.find? ConLeche.iffName with
+         | some (.indInfo cvI _) =>
+             ConLeche.ConstantVal.matchesPin cvI ConLeche.iffA.toConstantVal
+         | _ => false) &&
+        (match lfe.find? ConLeche.iffIntroName with
+         | some (.ctorInfo cvIi 2 2) =>
+             ConLeche.ConstantVal.matchesPin cvIi ConLeche.iffIntroA.toConstantVal
+         | _ => false) &&
+        (match lfe.find? ConLeche.iffRecName with
+         | some (.recInfo cvIr 4 4 _) =>
+             ConLeche.ConstantVal.matchesPin cvIr ConLeche.iffRecA.toConstantVal
+         | _ => false) &&
+        ConLeche.ConstantVal.matchesPin cvA ConLeche.propextA
+      else if cvA.name = ConLeche.choiceName then
+        (match lfe.find? ConLeche.nonemptyName with
+         | some (.indInfo cvN _) =>
+             ConLeche.ConstantVal.matchesPin cvN ConLeche.nonemptyA.toConstantVal
+         | _ => false) &&
+        (match lfe.find? ConLeche.nonemptyIntroName with
+         | some (.ctorInfo cvNi 1 1) =>
+             ConLeche.ConstantVal.matchesPin cvNi ConLeche.nonemptyIntroA.toConstantVal
+         | _ => false) &&
+        (match lfe.find? ConLeche.nonemptyRecName with
+         | some (.recInfo cvNr 3 3 _) =>
+             ConLeche.ConstantVal.matchesPin cvNr ConLeche.nonemptyRecA.toConstantVal
+         | _ => false) &&
+        ConLeche.ConstantVal.matchesPin cvA ConLeche.choiceA
+      else false) := rfl
+
 /-- `ConLeche/Kernel/StdAxioms.lean:322-373 stdAxiomOk`,
 `ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF` —
 **`std_axioms::std_axiom_ok` refines `stdAxiomOkF` exactly.**  The port's
@@ -1711,11 +1756,11 @@ theorem std_axiom_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
   obtain ⟨na, nw⟩ := propext_name_refines hn
   have ebn : bn = decide (absName cv_a.name = ConLeche.propextName) := by
     rw [Name.beq_refines hcv.1 nw hbn, na]
-  simp only [ConLeche.stdAxiomOkF, absConstantVal]
+  rw [stdAxiomOkF_eq]
   by_cases hp : absName cv_a.name = ConLeche.propextName
   · rw [show bn = true by rw [ebn, hp]; simp] at h
     rw [if_pos rfl] at h
-    rw [if_pos hp]
+    rw [if_pos (show (absConstantVal cv_a).name = ConLeche.propextName from hp)]
     simp only [bind_eq_ok_iff] at h
     obtain ⟨b1, hb1, h⟩ := h
     rw [← heqb b1 hb1]
@@ -1749,10 +1794,10 @@ theorem std_axiom_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
             obtain ⟨r1, w1⟩ := propext_raw_refines hcvp
             rw [propextA_matchesPin_raw,
               matches_pin_fast_eq_matches_pin hcv w1 hmp, r1]
-            simp [absConstantVal]
+            simp
   · rw [show bn = false by rw [ebn]; simp [hp]] at h
     rw [if_neg (by simp)] at h
-    rw [if_neg hp]
+    rw [if_neg (show ¬ (absConstantVal cv_a).name = ConLeche.propextName from hp)]
     simp only [bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, bn1, hbn1, h⟩ := h
     obtain ⟨na1, nw1⟩ := choice_name_refines hn1
@@ -1761,7 +1806,7 @@ theorem std_axiom_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     by_cases hc : absName cv_a.name = ConLeche.choiceName
     · rw [show bn1 = true by rw [ebn1, hc]; simp] at h
       rw [if_pos rfl] at h
-      rw [if_pos hc]
+      rw [if_pos (show (absConstantVal cv_a).name = ConLeche.choiceName from hc)]
       simp only [bind_eq_ok_iff] at h
       obtain ⟨b2, hb2, h⟩ := h
       rw [← nonempty_pinned_refines hrel hwf hb2]
@@ -1788,10 +1833,10 @@ theorem std_axiom_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
             obtain ⟨r1, w1⟩ := choice_raw_refines hcvp
             rw [choiceA_matchesPin_raw,
               matches_pin_fast_eq_matches_pin hcv w1 hmp, r1]
-            simp [absConstantVal]
+            simp
     · rw [show bn1 = false by rw [ebn1]; simp [hc]] at h
       rw [if_neg (by simp), Result.ok.injEq] at h
-      rw [if_neg hc]
+      rw [if_neg (show ¬ (absConstantVal cv_a).name = ConLeche.choiceName from hc)]
       exact h.symm
 
 /-- The same over task #46's full relation, which is what the declaration

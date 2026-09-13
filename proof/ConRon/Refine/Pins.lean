@@ -10,9 +10,9 @@ inside the core: `kernel::pins_text::PINS_TEXT` is the text as a `&'static str`
 and `kernel::pins_decode::decode` is a *verified* reader of it, so the pin list
 is now a closed term of the model, `decode PINS_TEXT`.
 
-This file is where that cashes in, and where it does not.  One lemma proved
-(`absText_toStr`, the bridge from the Rust constant to a Lean string literal,
-at zero kernel cost) and three statements:
+This file is where that cashes in, and where it does not.  Two lemmas proved (`absText_toStr`, the bridge from the Rust constant to a
+Lean string literal at zero kernel cost, and — since task #56 —
+`check_decls_pins_refines`) and two open statements:
 
 * `pins_decode_refines` — the Rust decoder computes what the Lean reference
   reader (`ConRon.Dump.parsePins`, task #31) computes.  The exact-result shape
@@ -24,10 +24,11 @@ at zero kernel cost) and three statements:
   `ConRon.Dump.parsePins <the embedded text> = .ok ConLeche.natOpPinSets`.
   **Open, and task #43 measured why it is out of reach in this Lean**: see the
   docstring, which is the task's main finding.
-* `check_decls_pins_refines` — the shape the corollary takes once the two
-  above hold: `check_decls`' pin argument is `decode PINS_TEXT` and no
-  hypothesis about the pins is left.  Stated, `sorry`, because the tiers below
-  it (`cached::installed`) are not refined yet either.
+* `check_decls_pins_refines` — the corollary: `check_decls`' pin argument is
+  `decode PINS_TEXT` and no hypothesis about the pins is left.  **Proved**
+  (task #56) from the two above; the composition needed nothing from the
+  tiers below, which is why task #43's reason for leaving it open did not
+  survive contact.
 
 Nothing here is used by the runtime; `cargo test` and `scripts/gen-pins.sh
 --check` are what hold the embedded text to con-leche's value today.
@@ -260,17 +261,27 @@ theorem pins_text_decodes :
       = .ok ConLeche.natOpPinSets := by
   sorry
 
-/-- **The corollary's shape** (DESIGN.md §1's statement, with the pins closed).
-Once `pins_decode_refines` and `pins_text_decodes` hold, the pin list the
-binary uses is con-leche's own with no hypothesis: the driver passes
-`decode_embedded()`, and that decodes to `natOpPinSets`.  `sorry` here is *not*
-only the two above — `cached::installed::check_decls` is not refined yet
-(DESIGN.md §5, P3.6), so this is the composition written down in advance, to
-show where the pins enter. -/
+/-- **The corollary** (DESIGN.md §1's statement, with the pins closed): the pin
+list the binary uses is con-leche's own, with no hypothesis about it.  The
+driver passes `decode_embedded()`, Aeneas models `str::as_bytes` as the
+identity, so that is `decode PINS_TEXT` — and the two statements above say
+what it decodes to.
+
+**Proved** (task #56): task #43 left this `sorry` because the tier below it
+was not refined either, but the composition needs nothing from that tier — it
+is `pins_decode_refines` at `PINS_TEXT` against `pins_text_decodes`, and
+`Except.ok` is injective.  So the two open statements above are now the
+*only* thing standing between the port and a pin-hypothesis-free main
+theorem, which is a sharper statement of what task #43 measured. -/
 theorem check_decls_pins_refines
     (v : alloc.vec.Vec nat_op_pins.NatOpPinSet)
     (h : pins_decode.decode_embedded = ok (.Ok v)) :
     absPins v = ConLeche.natOpPinSets := by
-  sorry
+  rw [pins_decode.decode_embedded, core.str.Str.as_bytes] at h
+  obtain ⟨t, ht, h2⟩ := bind_eq_ok_iff.mp h
+  rw [show t = pins_text.PINS_TEXT from Result.ok_injective ht.symm] at h2
+  have h1 := pins_decode_refines pins_text.PINS_TEXT v h2
+  rw [pins_text_decodes] at h1
+  exact (Except.ok.inj h1).symm
 
 end ConRon.Refine

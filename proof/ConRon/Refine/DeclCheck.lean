@@ -498,7 +498,7 @@ theorem model_app_refines {t : name.Name} {lps : alloc.vec.Vec name.Name}
   obtain ⟨hvabs, hvwf⟩ := lp_params_refines hlps hv
   obtain ⟨hv1abs, hv1wf⟩ := desc_bvars_refines hv1
   obtain ⟨habs, hwf⟩ :=
-    ExprOpsSpine.mk_app_n_refines (Expr.mk_const_wf hnwf hvwf he) hv1wf hmk
+    ExprOps.mk_app_n_refines (Expr.mk_const_wf hnwf hvwf he) hv1wf hmk
   refine ⟨?_, hwf⟩
   rw [habs, Expr.mk_const_refines he, hnabs, hvabs, hv1abs]
 
@@ -527,7 +527,33 @@ theorem thm_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name}
     (hn : NameWF n) (h : decl_check.thm_probe fe n = ok o) :
     o.map absConstantVal = thmOf (lfe.find? (absName n)) ∧
       ∀ cv, o = some cv → ConstantValWF cv := by
-  sorry
+  rw [decl_check.thm_probe] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨ov, hov, h⟩ := h
+  cases ov with
+  | none =>
+    rw [hfe.find_none hn hov]
+    simp only [Result.ok.injEq] at h; subst h
+    exact ⟨rfl, by simp⟩
+  | some ci =>
+    have hlf := hfe.find_some hn hov
+    have hciwf := hwf n ci hn hov
+    cases ci with
+    | ThmInfo cv v =>
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨cv1, hcv1, ho⟩ := h
+      obtain ⟨hcvabs, hcvwf⟩ := constant_val_dup_abs hcv1
+      rw [← Result.ok_injective ho, hlf]
+      obtain ⟨hw1, -⟩ := hciwf
+      refine ⟨by simp [thmOf, absConstantInfo, hcvabs], ?_⟩
+      intro cv2 heq
+      simp only [Option.some.injEq] at heq
+      subst heq
+      exact hcvwf hw1
+    | AxiomInfo _ | DefnInfo _ _ _ | IndInfo _ _ | CtorInfo _ _ _
+    | RecInfo _ _ _ _ | ProjInfo _ =>
+      simp only [Result.ok.injEq] at h; subst h
+      rw [hlf]; exact ⟨rfl, by simp⟩
 
 /-- `ConLeche/Kernel/DeclCheck.lean:355-358` — the cited per-field
 model-companion level check of `checkEtaThmF`, from field `j`. -/
@@ -602,7 +628,93 @@ theorem eq_spine3_refines {e : expr.Expr}
         = eqSpine3L (absExpr e) ∧
       ∀ q, o = some q →
         LevelWF q.1 ∧ ExprWF q.2.1 ∧ ExprWF q.2.2.1 ∧ ExprWF q.2.2.2 := by
-  sorry
+  obtain ⟨nd⟩ := e; obtain ⟨d, k⟩ := nd
+  rw [decl_check.eq_spine3] at h
+  simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+  cases k with
+  | App f1 rhs_c =>
+    obtain ⟨hf1, hrhs⟩ := wf_app_inv he rfl
+    obtain ⟨nd⟩ := f1; obtain ⟨d1, k1⟩ := nd
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    cases k1 with
+    | App f2 lhs_c =>
+      obtain ⟨hf2, hlhs⟩ := wf_app_inv hf1 rfl
+      obtain ⟨nd⟩ := f2; obtain ⟨d2, k2⟩ := nd
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      cases k2 with
+      | App f3 ty_slot =>
+        obtain ⟨hf3, hty⟩ := wf_app_inv hf2 rfl
+        obtain ⟨nd⟩ := f3; obtain ⟨d3, k3⟩ := nd
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        cases k3 with
+        | Const c us =>
+          obtain ⟨hcwf, huswf⟩ := wf_const_inv hf3 rfl
+          simp only [arc_deref_eq, absExpr_mk, absExprKind, eqSpine3L] at h ⊢
+          by_cases hlen : (alloc.vec.Vec.len us) = 1#usize
+          · rw [if_pos hlen] at h
+            have hlv : us.val.length = 1 := by
+              have := alloc.vec.Vec.len_val us; scalar_tac
+            obtain ⟨u0, hu0⟩ : ∃ u0, us.val = [u0] := by
+              match hus : us.val with
+              | [u0] => exact ⟨u0, rfl⟩
+              | [] => rw [hus] at hlv; simp at hlv
+              | _ :: _ :: _ => rw [hus] at hlv; simp at hlv
+            have habsus : absLevels us = [absLevel u0] := by
+              rw [absLevels, hu0]; simp
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨en, hen, b, hb, h⟩ := h
+            obtain ⟨henabs, henwf⟩ := BasisNames.eq_name_refines hen
+            have hbv := Level.name_beq_exact hcwf henwf hb
+            rw [habsus]
+            cases b with
+            | false =>
+              simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+              subst h
+              rw [if_neg (by rw [← henabs]; simpa using hbv.symm)]
+              exact ⟨rfl, by simp⟩
+            | true =>
+              simp only [if_true, bind_eq_ok_iff, level_dup_eq,
+                ConRon.Refine.State.expr_dup_eq] at h
+              obtain ⟨l, hl, h⟩ := h
+              have hlu : l = u0 := by
+                have hg := ExprOps.vec_index_getElem? hl
+                rw [hu0] at hg; simpa using hg.symm
+              subst hlu
+              have hlwf : LevelWF l := huswf l (by rw [hu0]; simp)
+              simp only [Result.ok.injEq] at h
+              subst h
+              rw [if_pos (by rw [← henabs]; simpa using hbv)]
+              exact ⟨rfl, by simp_all⟩
+          · rw [if_neg hlen, Result.ok.injEq] at h
+            subst h
+            have hlv : us.val.length ≠ 1 := by
+              have := alloc.vec.Vec.len_val us
+              intro hc; exact hlen (by scalar_tac)
+            have : absLevels us ≠ [absLevel (us.val.headD us.val[0]!)] := by
+              intro hc
+              have : (absLevels us).length = 1 := by rw [hc]; simp
+              rw [absLevels] at this; simp at this; exact hlv this
+            refine ⟨?_, by simp⟩
+            match hus : us.val with
+            | [] => rw [absLevels, hus]; simp
+            | [u0] => rw [hus] at hlv; simp at hlv
+            | u0 :: u1 :: rest => rw [absLevels, hus]; simp
+        | _ =>
+          simp only [Result.ok.injEq] at h; subst h
+          simp only [absExpr_mk, absExprKind, eqSpine3L]
+          exact ⟨rfl, by simp⟩
+      | _ =>
+        simp only [Result.ok.injEq] at h; subst h
+        simp only [absExpr_mk, absExprKind, eqSpine3L]
+        exact ⟨rfl, by simp⟩
+    | _ =>
+      simp only [Result.ok.injEq] at h; subst h
+      simp only [absExpr_mk, absExprKind, eqSpine3L]
+      exact ⟨rfl, by simp⟩
+  | _ =>
+    simp only [Result.ok.injEq] at h; subst h
+    simp only [absExpr_mk, absExprKind, eqSpine3L]
+    exact ⟨rfl, by simp⟩
 
 /-- `ConLeche/Kernel/DeclCheck.lean:359-378` — the cited body test of
 `checkEtaThmF`, given the statement's body and the model's telescope body. -/
