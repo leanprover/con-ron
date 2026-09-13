@@ -267,6 +267,40 @@ def CapsOfRefines {C : Type} (inst : inductives.sum_install.CapsOf C) (self : C)
     lcapsOf (IndAbs.absInductiveShape p) = absIndCaps c ∧ IndCapsWF c
 
 
+/-! ## Error-side plumbing (task #67)
+
+`throw` in `CheckCM` and the three `core_types` constructors, restated here:
+`attribute [local simp]` does not travel across files, and the constructor
+equations are what every mirrored `throw` arm below is closed with. -/
+
+/-- **`throw` in `CheckCM`**: the monad-plumbing `simp` set carries no
+`MonadExcept` instance, so `simp` would otherwise leave con-leche's `throw`
+arms un-run. -/
+private theorem checkCM_throw_apply {b : Type} (le : ConLeche.CheckError)
+    (lst : ConLeche.Cached.CState) :
+    (throw le : ConLeche.Cached.CheckCM b) lst = .error le := rfl
+
+attribute [local simp] checkCM_throw_apply
+
+/-- The port's `Err` value at a mirrored `throw` arm: `core_types::internal`
+*is* the `Internal` constructor. -/
+private theorem internal_err {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.internal v = ok ce) :
+    ce = .Internal v :=
+  (Result.ok_injective (by rw [core_types.internal] at h; exact h)).symm
+
+/-- The same for `core_types::invalid`. -/
+private theorem invalid_err {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.invalid v = ok ce) :
+    ce = .Invalid v :=
+  (Result.ok_injective (by rw [core_types.invalid] at h; exact h)).symm
+
+/-- The same for `core_types::not_implemented`. -/
+private theorem not_implemented_err {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.not_implemented v = ok ce) :
+    ce = .NotImplemented v :=
+  (Result.ok_injective (by rw [core_types.not_implemented] at h; exact h)).symm
+
 /-! ## The cited walks, one step at a time -/
 
 section Steps
@@ -300,6 +334,55 @@ theorem whnfTelescope_succ {lenv : ConLeche.Env} {i n : Nat}
   simp only [Except.bind]
   rw [run_bind, hr]
   rfl
+
+/-- `whnfTelescope`'s reduction threw: con-leche's own bind carries it
+(task #67, move 1). -/
+theorem whnfTelescope_err {lenv : ConLeche.Env} {i n : Nat} {e : ConLeche.Expr}
+    {lst : ConLeche.Cached.CState} {ce : core_types.CheckError}
+    (h : ErrSim ce ((ops.whnf lenv i e).run lst)) :
+    ErrSim ce ((ConLeche.whnfTelescope ops lenv i n e).run lst) := by
+  cases n with
+  | zero => rw [ConLeche.whnfTelescope]; exact ErrSim.bindCM h
+  | succ n => rw [ConLeche.whnfTelescope]; exact ErrSim.bindCM h
+
+/-- `whnfTelescope` at `n = 0`, when the whnf'd residual is not a sort: both
+sides throw `invalid` (`sum_install.rs:85`, `SumInstall.lean:57-58`). -/
+theorem whnfTelescope_zero_nonsort {lenv : ConLeche.Env} {i : Nat}
+    {e w : ConLeche.Expr} {lst lst1 : ConLeche.Cached.CState}
+    (h : (ops.whnf lenv i e).run lst = .ok (w, lst1))
+    (hns : ∀ s, w ≠ .sort s) :
+    ∃ s, (ConLeche.whnfTelescope ops lenv i 0 e).run lst
+      = .error (.invalid s) := by
+  rw [ConLeche.whnfTelescope, run_bind, h]
+  cases w with
+  | sort s => exact absurd rfl (hns s)
+  | _ => exact ⟨_, rfl⟩
+
+/-- `whnfTelescope` at `n + 1`, when the whnf'd residual is not a Π
+(`sum_install.rs:97`, `SumInstall.lean:66-67`). -/
+theorem whnfTelescope_succ_nonpi {lenv : ConLeche.Env} {i n : Nat}
+    {e w : ConLeche.Expr} {lst lst1 : ConLeche.Cached.CState}
+    (h : (ops.whnf lenv i e).run lst = .ok (w, lst1))
+    (hnp : ∀ dom body bm, w ≠ .forallE dom body bm) :
+    ∃ s, (ConLeche.whnfTelescope ops lenv i (n + 1) e).run lst
+      = .error (.invalid s) := by
+  rw [ConLeche.whnfTelescope, run_bind, h]
+  cases w with
+  | forallE dom body bm => exact absurd rfl (hnp dom body bm)
+  | _ => exact ⟨_, rfl⟩
+
+/-- `whnfTelescope`'s recursive step threw. -/
+theorem whnfTelescope_succ_err {lenv : ConLeche.Env} {i n : Nat}
+    {e dom body : ConLeche.Expr} {bm : ConLeche.BinderMeta}
+    {lst lst1 : ConLeche.Cached.CState} {ce : core_types.CheckError}
+    (h : (ops.whnf lenv i e).run lst = .ok (.forallE dom body bm, lst1))
+    (hrec : ErrSim ce ((ConLeche.whnfTelescope ops lenv (i + 1) n
+        (body.instantiate1 (.fvar i dom))).run lst1)) :
+    ErrSim ce ((ConLeche.whnfTelescope ops lenv i (n + 1) e).run lst) := by
+  rw [ConLeche.whnfTelescope, run_bind, h]
+  simp only [Except.bind]
+  rw [run_bind]
+  exact ErrSim.bind_run hrec _
 
 /-- `checkStructFieldSortsIF` at an exhausted counter. -/
 theorem checkStructFieldSortsIF_zero {lfe : ConLeche.FEnv} {isProp large : Bool}
@@ -578,21 +661,29 @@ stands in front of what the cited walk conses on the way out. -/
 theorem whnf_telescope_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {i n : Std.U64}
-    {e : expr.Expr} {out bs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
-    {u : level.Level}
+    {e : expr.Expr} {out : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
+    {o : core.result.Result ((alloc.vec.Vec (expr.Expr × expr.BinderMeta))
+        × level.Level) core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (he : ExprWF e)
     (hout : ExprOps.BindersWF out)
     (h : inductives.sum_install.whnf_telescope mode st fe i n e out
-        = ok (.Ok (bs, u), st')) :
+        = ok (o, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lbs,
-        (ConLeche.whnfTelescope (m := ConLeche.Cached.CheckCM)
+      match o with
+      | .Ok q =>
+        ∃ lst' lbs,
+          (ConLeche.whnfTelescope (m := ConLeche.Cached.CheckCM)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) (absEnv fe.env)
+              i.val n.val (absExpr e)).run lst = .ok ((lbs, absLevel q.2), lst')
+          ∧ ExprOps.absBinders q.1 = ExprOps.absBinders out ++ lbs
+          ∧ StateRel st' lst' ∧ StateWF st'
+          ∧ ExprOps.BindersWF q.1 ∧ LevelWF q.2
+      | .Err err =>
+        ErrSim err ((ConLeche.whnfTelescope (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) (absEnv fe.env)
-            i.val n.val (absExpr e)).run lst = .ok ((lbs, absLevel u), lst')
-        ∧ ExprOps.absBinders bs = ExprOps.absBinders out ++ lbs
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprOps.BindersWF bs ∧ LevelWF u := by
+            i.val n.val (absExpr e)).run lst) := by
   generalize hd : n.val = d
-  induction d using Nat.strong_induction_on generalizing st st' i n e out bs u with
+  induction d using Nat.strong_induction_on generalizing st st' i n e out o with
   | _ d ih =>
   subst hd
   intro lst lfe hrel hfer
@@ -601,7 +692,11 @@ theorem whnf_telescope_refines {mode : env.CheckMode}
   obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r, st1⟩ := p
   cases r with
-  | Err err => simp at h
+  | Err err =>
+    -- `core_c::whnf` threw: con-leche's own bind at `ops.whnf` carries it
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact whnfTelescope_err (IndAbs.ops_whnf_err hw hst hfe he hp lst lfe hrel hfer)
   | Ok w =>
     obtain ⟨lst1, hrun, hrel1, hwf1, hwe⟩ :=
       IndAbs.ops_whnf hw hst hfe he hp lst lfe hrel hfer
@@ -615,8 +710,19 @@ theorem whnf_telescope_refines {mode : env.CheckMode}
         obtain ⟨rfl, rfl, rfl⟩ := h
         refine ⟨lst1, [], ?_, by simp, hrel1, hwf1, hout, IndAbs.sort_node_wf hwe⟩
         simpa using whnfTelescope_zero (by simpa using hrun)
-      all_goals simp at h
+      -- the residual is not a sort: both sides throw `invalid`
+      -- (`sum_install.rs:85`, `SumInstall.lean:57-58`)
+      all_goals
+        (simp at h
+         obtain ⟨y, hy, ce, hce, rfl, rfl⟩ := h
+         obtain ⟨msg, hmsg⟩ :=
+           whnfTelescope_zero_nonsort (by simpa using hrun) (by intro s; simp)
+         refine ErrSim.of_eq (x := Except.error (.invalid msg)) ?_ ?_
+         · rw [invalid_err hce]; exact ErrSim.invalid rfl
+         · exact hmsg)
     · -- one more binder: peel it and recurse
+      have hnpos : 1 ≤ n.val := by scalar_tac
+      have hnv : n.val = (n.val - 1) + 1 := by omega
       cases k
       case ForallE dom body bm =>
         obtain ⟨hdom, hbody, hbm⟩ := CoreK.ExprWF.forallE_children hwe rfl
@@ -629,19 +735,38 @@ theorem whnf_telescope_refines {mode : env.CheckMode}
         have hbm1v : bm1 = bm := Expr.binder_meta_dup_eq hbm1
         have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
         have hi3v : i3.val = n.val - 1 := HashMap.uscalar_sub_eq hi3
-        have hnpos : 1 ≤ n.val := by scalar_tac
         have hout1wf : ExprOps.BindersWF out1 :=
           ExprOps.bindersWF_push hout hdom (by rw [hbm1v]; exact hbm) hout1
-        obtain ⟨lst2, lbs, hrun2, habs2, hrel2, hwf2, hbswf, huwf⟩ :=
-          ih i3.val (by omega) hwf1 howf hout1wf h rfl lst1 lfe hrel1 hfer
-        refine ⟨lst2, (absExpr dom, absBinderMeta bm) :: lbs, ?_, ?_,
-          hrel2, hwf2, hbswf, huwf⟩
-        · rw [show n.val = i3.val + 1 by omega]
-          refine whnfTelescope_succ (by simpa using hrun) ?_
-          simpa [hi2v, hoabs, hfvabs] using hrun2
-        · rw [habs2, ExprOps.absBinders_push hout1, hbm1v]
-          simp
-      all_goals simp [hn0] at h
+        have hrunpi : ((ConLeche.Cached.sharedOpsC (absMode mode) lfe).whnf
+            (absEnv fe.env) i.val (absExpr e)).run lst
+            = .ok (.forallE (absExpr dom) (absExpr body) (absBinderMeta bm), lst1) := by
+          simpa using hrun
+        have hih := ih i3.val (by omega) hwf1 howf hout1wf h rfl lst1 lfe hrel1 hfer
+        cases o with
+        | Err err =>
+          -- the recursion threw
+          rw [show n.val = i3.val + 1 by omega]
+          refine whnfTelescope_succ_err hrunpi ?_
+          simpa [hi2v, hoabs, hfvabs] using hih
+        | Ok q =>
+          obtain ⟨lst2, lbs, hrun2, habs2, hrel2, hwf2, hbswf, huwf⟩ := hih
+          refine ⟨lst2, (absExpr dom, absBinderMeta bm) :: lbs, ?_, ?_,
+            hrel2, hwf2, hbswf, huwf⟩
+          · rw [show n.val = i3.val + 1 by omega]
+            refine whnfTelescope_succ hrunpi ?_
+            simpa [hi2v, hoabs, hfvabs] using hrun2
+          · rw [habs2, ExprOps.absBinders_push hout1, hbm1v]
+            simp
+      -- the residual is not a Π: both sides throw `invalid`
+      -- (`sum_install.rs:97`, `SumInstall.lean:66-67`)
+      all_goals
+        (simp [hn0] at h
+         obtain ⟨y, hy, ce, hce, rfl, rfl⟩ := h
+         obtain ⟨msg, hmsg⟩ :=
+           whnfTelescope_succ_nonpi (by simpa using hrun) (by intro a b c; simp)
+         refine ErrSim.of_eq (x := Except.error (.invalid msg)) ?_ ?_
+         · rw [invalid_err hce]; exact ErrSim.invalid rfl
+         · rw [hnv]; exact hmsg)
 
 /-- `ConLeche/Kernel/Inductives/SumInstall.lean:70-78` — `close_telescope`
 refines `closeTelescope` at the binders from `k` on: innermost binder first,
