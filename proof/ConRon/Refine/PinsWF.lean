@@ -1623,4 +1623,170 @@ theorem record_pin_set_wf {t : Slice Std.U8} {i j : Std.Usize}
               · exact ConRon.Refine.Env.exprs_copy_wf
                   (hproofs _ (vec_index_mem hq7 hc7)) hd7
 
+
+/-! ## The pass
+
+`run_records` is a `partial_fixpoint`, so the invariant is carried by the same
+byte budget `Refine/PinsRun.lean` spends on the value half: a record step reads
+at least its own kind byte and the space after it, so the cursor has advanced
+by at least two when the recursion is entered again, and `t.length - i.val` is
+a decreasing measure.  The bounds themselves are not reproved here — they are
+the second and third components of half (A)'s record lemmas. -/
+
+/-- A machine-word step names the index it computes. -/
+private theorem uadd_eq {ty : Std.UScalarTy} {x y z : Std.UScalar ty}
+    (h : x + y = ok z) : z.val = x.val + y.val := by
+  have := Std.UScalar.add_equiv x y
+  rw [h] at this; simpa using this.2.1
+
+/-- The footer installs nothing: it hands back the pin table it was given, so
+the invariant's last clause *is* its conclusion. -/
+theorem run_footer_wf {t : Slice Std.U8} {i : Std.Usize} {tb : pins_decode.Tables}
+    {v : alloc.vec.Vec nat_op_pins.NatOpPinSet} (htb : TablesWF tb)
+    (h : pins_decode.run_footer t i tb = ok (.Ok v)) : PinsWF v := by
+  rw [pins_decode.run_footer] at h
+  obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · exact (err_ne_ok h).elim
+  · obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · exact (err_ne_ok h).elim
+    · obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+      cases r with
+      | Err e => simp at h
+      | Ok i5 =>
+        obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+        cases r1 with
+        | Err e => simp at h
+        | Ok p =>
+          obtain ⟨n, i6⟩ := p
+          obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+          cases r2 with
+          | Err e => simp at h
+          | Ok i7 =>
+            simp only [] at h
+            split at h
+            · exact (err_ne_ok h).elim
+            · split at h
+              · exact (err_ne_ok h).elim
+              · simp only [Result.ok.injEq, core.result.Result.Ok.injEq] at h
+                rw [← h]
+                exact htb.sets
+
+/-- The pass, with the byte budget the record step spends.  Each of the five
+record kinds preserves `TablesWF`, and the footer reads the invariant off the
+table it stops at. -/
+private theorem run_records_wf {t : Slice Std.U8} :
+    ∀ (f : Nat) (i : Std.Usize) (tb : pins_decode.Tables),
+      t.length - i.val ≤ f → TablesWF tb →
+      ∀ (v : alloc.vec.Vec nat_op_pins.NatOpPinSet),
+        pins_decode.run_records t i tb = ok (.Ok v) → PinsWF v := by
+  intro f
+  induction f with
+  | zero =>
+    intro i tb hf htb v h
+    have hnil : bytesFrom t i = [] := bytesFrom_eq_nil (by omega)
+    rw [pins_decode.run_records.eq_def] at h
+    obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
+    have hkv : k.val = 256 := by rw [byte_at_refines hk, hnil]; rfl
+    split at h
+    · rename_i hk101
+      rw [hk101] at hkv; simp at hkv
+    · obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      have hi1v : i1.val = i.val + 1 := uadd_eq hi1
+      obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+      cases r with
+      | Err e => simp at h
+      | Ok jj =>
+        exfalso
+        obtain ⟨-, h1, h2⟩ := after_space_refines hr
+        omega
+  | succ f ih =>
+    intro i tb hf htb v h
+    rw [pins_decode.run_records.eq_def] at h
+    obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      exact run_footer_wf htb h
+    · obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      have hi1v : i1.val = i.val + 1 := uadd_eq hi1
+      obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+      cases r with
+      | Err e => simp at h
+      | Ok jj =>
+        obtain ⟨-, hb1, hb2⟩ := after_space_refines hr
+        obtain ⟨step, hstep, h⟩ := bind_eq_ok_iff.mp h
+        cases step with
+        | Err e => simp at h
+        | Ok sp =>
+          obtain ⟨tb1, m⟩ := sp
+          have hrec : TablesWF tb1 ∧ jj.val ≤ m.val ∧ m.val ≤ t.length := by
+            split at hstep
+            · obtain ⟨-, h1, h2⟩ := PinsRecords.record_name_refines hstep
+              exact ⟨record_name_wf htb hstep, h1, h2⟩
+            · split at hstep
+              · obtain ⟨-, h1, h2⟩ := PinsRecords.record_level_refines hstep
+                exact ⟨record_level_wf htb hstep, h1, h2⟩
+              · split at hstep
+                · obtain ⟨-, h1, h2⟩ := PinsRecords.record_pw_refines hstep
+                  exact ⟨record_pw_wf htb hstep, h1, h2⟩
+                · split at hstep
+                  · obtain ⟨-, h1, h2⟩ := PinsRecords.record_expr_refines hstep
+                    exact ⟨record_expr_wf htb hstep, h1, h2⟩
+                  · split at hstep
+                    · obtain ⟨-, h1, h2⟩ := PinsRun.record_pin_set_refines hstep
+                      exact ⟨record_pin_set_wf htb hstep, h1, h2⟩
+                    · exfalso
+                      obtain ⟨ce, -, hstep⟩ := bind_eq_ok_iff.mp hstep
+                      simp at hstep
+          exact ih m tb1 (by omega) hrec.1 v h
+
+/-! ## The product
+
+`decode_wf` holds for **every** byte slice, so nothing here is evaluated: the
+`conron.*_embedded` capstones get their `PinsWF pins` from the same theorem
+that any other input would get it from. -/
+
+/-- **The product.**  Whatever `kernel::pins_decode` decodes, every node of it
+was built by the port's own smart constructors. -/
+theorem decode_wf {t : Slice Std.U8} {v : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (h : pins_decode.decode t = ok (.Ok v)) : PinsWF v := by
+  rw [pins_decode.decode] at h
+  obtain ⟨hdr, hhdr, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨tn, htn, h⟩ := bind_eq_ok_iff.mp h
+    exact run_records_wf t.length (alloc.vec.Vec.len hdr) tn (by omega)
+      (tables_new_wf htn) v h
+  · exact (err_ne_ok h).elim
+
+/-- The embedded pin text is a byte slice like any other. -/
+theorem decode_embedded_wf {v : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (h : pins_decode.decode_embedded = ok (.Ok v)) : PinsWF v := by
+  rw [pins_decode.decode_embedded] at h
+  obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
+  exact decode_wf h
+
+/-! ## Axiom census (DESIGN.md §5, the P3 gate)
+
+`decode_wf` is the file's product and it is proved for every byte slice, so
+its census is con-leche's own three and nothing else — in particular no
+`native_decide` entry, which is what keeps the `conron.*_embedded` corollaries
+at exactly the two `Refine/Pins.lean` already had.  `decode_embedded_wf` names
+the embedded constant, so it picks up `pins_text.PINS_TEXT._native.decide.ax_1`
+— the one Aeneas's `toStr` already spent on that constant, and the second of
+the two `check_decls_pins_refines` carries; it adds nothing new, and in
+particular not `pins_closed`'s computation. -/
+
+/-- info: 'ConRon.Refine.PinsWF.decode_wf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms decode_wf
+
+/-- info: 'ConRon.Refine.PinsWF.decode_embedded_wf' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms decode_embedded_wf
+
 end ConRon.Refine.PinsWF
