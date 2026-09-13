@@ -78,10 +78,14 @@ else.  (Task #12's two-lemma `Smoke.lean` was folded into `Level.lean`'s
 | `State.lean` | `cached::state_c` (task #46): `StateRel`/`StateWF` over the fourteen memo maps, the fresh state, `flushed`, and the memo probe/insert lemmas |
 | `StateC.lean` | `cached::state_c`'s **operations** (task #52, CORE_PLAN step 5): the pure `*M` wrappers, the three level memos (`simplify_l_m`, `is_non_zero_l_m`, `is_equiv_l_m`, `is_equiv_list_l_m`), `inst_list_m` with the `instC` entry cap and `InstCSize`, the two `ienv` pointer-identity sites (`stored_ty_idx_m`/`stored_val_idx_m`), the three level-instantiated readers and their `fe.find?` probes, `subst_level_trees`, `flush_c` and `record_c_const` |
 | `StateCResolve.lean` | `cached::state_c::consts_resolve_fc` (task #52): the memoized `ExprC` DAG walk of the parsed-index driver, over the call-local memo relation `MemoBOk` |
+| `ExprOpsC.lean` | `cached::expr_ops_c`'s **foundation** (task #51): the module note for all four `ExprOpsC*` files, the `O(1)` field reads (`has_fvar`, `loose_bvars_bounded`), the spine readers, `rev_append_exprs`, the two extra memo probes and `leaf_mem` |
+| `ExprOpsCSubst.lean` | the cached substitutions (task #51): `instantiate1`, the three-layer `instantiate1Lift` (cutoff, budgeted descent, memoised walk) and the statements of the two bulk walks `instantiateList`/`instantiateRev` |
+| `ExprOpsCAbs.lean` | the cached abstractions and level substitution (task #51): `abstract1`, `abstractRange`, `instLevelParams` (the one walk whose probe sits *before* the match) and `ProjEntry.typeAtI` |
+| `ExprOpsCGuards.lean` | the cached scope queries, leaf guard, telescopes and definedness (task #51): `wscopedB` proved, and the statements of `fvarLeaves`, `leafGuard`, `instSpine`, `piResidual`, `allLevelParamsDefined` |
 
 ## Not yet here
 
-`level::zeroness_of` and `level::subst_pw` (added at task #13, the
-`Level`-to-`PropWhen` bridge), `kernel::expr_ops` and everything above the
-state: `Refine/CORE_PLAN.md` is the design for the rest, and tasks #46's four
-files are its steps 1 and 2.
+`cached::core_k`, `cached::state_c`'s `*M` wrappers, `cached::core_c` and
+everything above them: `Refine/CORE_PLAN.md` is the design for the rest, task
+#46's four files are its steps 1 and 2, and task #51's four `ExprOpsC*` files
+are the second half of its step 3.

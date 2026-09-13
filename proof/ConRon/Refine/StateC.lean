@@ -56,6 +56,7 @@ import ConRon.Refine.State
 import ConRon.Refine.FEnv
 import ConRon.Refine.ExprOpsMeta
 import ConRon.Refine.ExprOpsFields
+import ConRon.Refine.ExprOpsCAbs
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
@@ -1874,6 +1875,21 @@ theorem subst_level_trees_refines {ks : alloc.vec.Vec name.Name}
   rw [substLevelTreesM_run, hv]
   simp [absLevels, alloc.vec.Vec.new]
 
+/-! ## One ingredient discharged
+
+Task #51 landed while this file was being written, so one of the two named
+`cached::expr_ops_c` ingredients can be closed here and now:
+`Refine/ExprOpsCAbs.lean`'s `inst_level_params_refines` *is*
+`InstLevelParamsRefines`.  `InstantiateListRefines` stays a hypothesis: task
+#51's `instantiate_list_refines` is one of that task's open `sorry`s, and
+nothing here should depend on it. -/
+
+/-- `Refine/ExprOpsCAbs.lean` discharges `InstLevelParamsRefines`, so the three
+level-instantiated readers can be applied unconditionally. -/
+theorem instLevelParamsRefines : InstLevelParamsRefines :=
+  fun _ks _us _e _r hks hus he h =>
+    ExprOpsC.inst_level_params_refines hks hus he h
+
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
 Lean's own three and nothing else: no `sorry`, nothing from Aeneas's library,
@@ -1881,6 +1897,9 @@ nothing from the `Arc` models, nothing from `native_decide`.
 `Classical.choice` comes in through `DecidableEq` on the generated key types,
 which every `decide (a = b)` inside `Eq2Fwd`, `toFun` and `RelOn` goes
 through (`Refine/State.lean`'s census says the same). -/
+
+/-- info: 'ConRon.Refine.StateC.instLevelParamsRefines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms instLevelParamsRefines
 
 /-- info: 'ConRon.Refine.StateC.is_equiv_l_m_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms is_equiv_l_m_refines

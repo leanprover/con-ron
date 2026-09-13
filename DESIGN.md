@@ -10819,6 +10819,124 @@ the representation stayed negotiable right up to the proof.
 * The deviation list in `env.rs`'s module note is now the place to look before
   writing anything that reads `Env.consts`: index `0` is the *oldest* constant.
 
+### Task #51 — `ExprOpsC` refined (2026-09-13, Opus under Fable)
+
+The refinement of `crates/con-ron-core/src/cached/expr_ops_c.rs` (task #26 —
+the syntactic passes memoised on the term DAG) against
+`ConLeche/Cached/ExprOpsC.lean`, the second half of `Refine/CORE_PLAN.md`
+step 3.  Four files, **4 486 lines**, in `proof/ConRon/Refine/`:
+
+| file | lines | contents |
+|---|---|---|
+| `ExprOpsC.lean` | 529 | the module note for all four; `has_fvar`, `loose_bvars_bounded`, the spine readers (`get_app_fn`/`get_app_args_acc`/`get_app_args`/`mk_app_n_from`/`mk_app_n`), `rev_append_exprs`, the two extra memo probes (`memo_b1_get`, `seen_get`) and `leaf_mem_from`/`leaf_mem` |
+| `ExprOpsCSubst.lean` | 1 440 | `instantiate1_go`/`instantiate1`; the three-layer `instantiate1Lift` (`_b`, `_b_compound`, `_go`, wrapper); the statements of `instantiate_list_{go,bvar,·}` and `instantiate_rev_{go,bvar,·}` |
+| `ExprOpsCAbs.lean` | 1 511 | `abstract1_go`/`abstract1`, `abstract_range_go`/`abstract_range`, `inst_level_params_go`/`inst_level_params`, `proj_entry_type_at_i` |
+| `ExprOpsCGuards.lean` | 1 006 | `wscoped_b_go` + its three callees + `wscoped_b`; the statements of `fvar_leaves`, the `leaves_sub`/`leaf_guard` family, the `alpd` family, `inst_spine` and `pi_residual` |
+
+**Functions in scope**: all 34 executable declarations of the module and its
+three `abbrev` memo-table types (the types carry no lemma: they are
+`ron::hashmap::HashMap` at the same key and value types as `expr_ops`').  Every
+one of the 34 has a statement; of the **64 theorems, 40 are proved outright, 21
+carry a `sorry`**, and three more (`fvar_leaves_refines`,
+`all_level_params_defined_refines`, `pi_residual_refines`) are proved *from* a
+sorried walk lemma (counts below).
+
+#### What the statements are against, and what carried them
+
+`ExprOpsC.lean` is the *executed* tier; `kernel/expr_ops.rs` (task #47) is the
+structural specification.  So every lemma here is stated against the **cited
+`ExprC` definition** — `ConLeche.Cached.ExprC.instantiate1`, `ExprC.abstract1`,
+`ExprC.wscopedB`, … — never against the `ConLeche.Expr` counterpart directly.
+The bridge is con-leche's own `ConLeche/Verify/Cached/OpsC.lean` and
+`…/GuardsC.lean`: one `*_spec` equation per function, which is exactly the
+theorem DESIGN.md §3.1 pointed at when it made the two memo policies binding.
+Each proof therefore has two halves — the port's walk against `ConLeche.Expr`'s
+logical function in task #47's shape, then the cited `*_spec` to land on the
+`ExprC` name the checker's callers use.
+
+Three things carried the work:
+
+1. **`MemoInv` is policy-agnostic.**  Task #47's invariant ("every recorded
+   answer is the real one", `Refine/ExprOps.lean`) says nothing about *which*
+   nodes are recorded, so the same `MemoInv.hit`/`MemoInv.set` pair serves the
+   substitution walks' "compound nodes only" policy and
+   `instLevelParamsGo`/`wscopedBGo`'s "every node kind" one.  What changes is
+   only where in the generated body the probe is inverted — before the match
+   instead of inside the arms — and that is a five-line edit to each script.
+   The two memo policies line up probe by probe because the *port* reproduces
+   the cited shape (§3.1), not because the proof forces them to.
+2. **The cutoffs are one lemma each.**  `bvarB ≤ d` / `fvarB ≤ d` /
+   `fvarB == 0` / `!hasLP` at the head of a walk is
+   `ExprOpsFields.lean`'s `bvar_b_refines`/`fvar_b_refines` composed with
+   con-leche's `instantiate1_eq_self` / `abstract1_of_fvarRange_le` /
+   `abstractRange_eq_self` / `instantiate1Lift_of_bvarBound_le` /
+   `instantiateLevelParams_eq_self`.  Task #47 had already needed three of them
+   (`abstract1_cutoff`, `instantiate1_lift_cutoff`, `ilp_cutoff`) and those are
+   reused verbatim — the `Q` of the memo is the same, because the *value* is the
+   same.
+3. **Two of con-leche's cutoff consequences are `private`**
+   (`wscopedB_of_fvarsBelow_zero`, `Verify/Cached/OpsC.lean:1528`, and
+   `fvarLeaves_nil_of_fvarsBelow_zero`, `…/GuardsC.lean:370`), so the first is
+   re-proved here under its own name in the cited one line.  Worth noting for
+   the tiers above: a `private` helper in con-leche is a wall, and the fix is
+   always cheap, but it has to be found.
+
+Three mechanical traps, all new relative to task #47:
+
+* **`expr::mk_bvar`, not `expr::bvar`.**  The cached walks rebuild bound
+  variables through the pooled constructor, so the `.bvar` arms go through
+  `Expr.mk_bvar_refines` and `ConLeche.Expr.mkBvar_eq` where `expr_ops`' go
+  through `Expr.bvar_refines`.  Same value; two extra rewrites.
+* **`bind_tc_ok` collapses an `ok`-only arm.**  In `wscoped_b_go` the four atom
+  arms are `ok (memo, true)`, so the generated body has *one fewer bind* there
+  than the compound arms do — the insert is the only one left.  Inverting them
+  with the compound script's `obtain` chain silently binds the insert's `old`
+  option as the arm's memo, and the error surfaces two tactics later.
+* **Pattern `let`s that no tactic sees through.**  `let (b, memo1) ← …` in the
+  short-circuiting callees, and `let (i2, e) := …` in `leaf_mem_from`, are
+  `match`es on a *variable*; `split` and `simp` both refuse them.  Two fixes,
+  both used here: name the iota-reduced form with `have h2 : … := h` (which
+  typechecks by definitional unfolding), or hoist the whole inversion into an
+  `*_inv` lemma whose disjunction *is* the short-circuit
+  (`wscoped_b_pair_inv`, `wscoped_b_triple_inv`).  The second reads better and
+  is what the four `Bool` walks should all use.
+
+#### The 21 `sorry`s
+
+All 21 are in three named clusters; each statement is the final one (exact
+result on success, nothing weakened), and only the discharge is owed.
+
+| cluster | count | what is missing |
+|---|---|---|
+| `instantiate_list_{go,bvar,·}`, `instantiate_rev_{go,bvar,·}` (`ExprOpsCSubst.lean`) | 6 | the **two-level induction**: the live prefix `k` is a parameter of the invariant, not of the key (the module's note 3), and the `.bvar` arm's re-entry at a replacement runs under a *fresh* table at a strictly smaller prefix — so the induction is strong on `k` *outside* the induction on the `ExprWF` derivation, exactly as `instantiateListGo_spec` and task #47's `instantiate_list_refines_aux` are.  `MemoLQ` is con-leche's `MemoLInv`. |
+| `proj_entry_type_at_i` (`ExprOpsCAbs.lean`) | 1 | a consequence of `instantiate_list_refines` above, plus `rev_append_exprs_val` (proved) for the `targs.reverse`. |
+| `fvarLeaves`, `leavesSub`/`leafGuard`, `alpd`, `instSpine`, `piResidual` (`ExprOpsCGuards.lean`) | 14 | `fvar_leaves_go` needs the port-side analogue of con-leche's `SeenInv` (`GuardsC.lean:409`) — a *gray set* invariant measured on `sizeF`, the file's one piece of genuinely new design; the `leavesSub` and `alpd` walks are `wscoped_b_go_refines` node for node (with `leaf_mem_refines` / `level::all_params_defined` in place of the scope test), so the `*_inv` idiom above is the template; `instSpine` and `piResidualAcc` are consequences of `instantiate_list_refines`. |
+
+`wscoped_b_go_refines` is the one of the four `Bool` walks that *is* proved, on
+purpose: it is the template the other three follow, and having it green is what
+makes the remaining three mechanical rather than exploratory.
+
+#### Gates
+
+| | |
+|---|---|
+| `scripts/gates.sh` | all OK |
+| `cd proof && lake build` | zero errors; the 21 `sorry`s above, all in `Refine/ExprOpsC*.lean`, plus task #43's three in `Refine/Pins.lean` |
+| axiom census | `#guard_msgs in #print axioms` on `instantiate1_refines`, `abstract1_refines` and `wscoped_b_refines`: the three standard axioms only, nothing reaching `PINS_TEXT` |
+
+#### For whoever picks this up
+
+* The `instantiate_list` cluster is the one to do first: `inst_spine`,
+  `pi_residual` and `proj_entry_type_at_i` are all waiting on it, which is 10 of
+  the 21 `sorry`s behind one proof.
+* `Refine/StateC.lean` (CORE_PLAN step 5) reads nine of this module's wrappers
+  through `pure (ExprC.…)` bodies, so the statements here are already in the
+  shape its `*M` lemmas want: exact result, `ExprWF` out, no state.
+* `core_k::proj_entry_type_at` is still what `core_k::infer_proj_at` calls; the
+  port's own note records the owed retargeting to `proj_entry_type_at_i`, and
+  the two lemmas now sit side by side (`ExprOpsFields`/`ExprOpsCAbs`) for
+  whoever closes that seam.
+
 ### Task #52 — `StateC` refined (2026-09-13, Opus under Fable)
 
 Step 5 of `proof/ConRon/Refine/CORE_PLAN.md`: the **operation** half of
@@ -10830,7 +10948,7 @@ Two new files, both `sorry`-free:
 
 | file | lines | top-level items |
 |---|---:|---:|
-| `proof/ConRon/Refine/StateC.lean` | 1 894 | 68 |
+| `proof/ConRon/Refine/StateC.lean` | 1 913 | 68 |
 | `proof/ConRon/Refine/StateCResolve.lean` | 435 | 10 |
 
 #### What is proved
@@ -10907,7 +11025,7 @@ branch, after its two inlined `lsimpC` probes, which the port spells as two
 times).  Both are `rfl`-identities against the cited definition, so nothing is
 assumed.
 
-#### Two named ingredients, owned elsewhere
+#### Two named ingredients, one of them now discharged
 
 Eight wrappers run a `cached::expr_ops_c` twin and `consts_resolve_fc`'s `.lit`
 arms read two `core_k` guards.  Rather than duplicate work in flight, the facts
@@ -10917,7 +11035,13 @@ are *named* and taken as hypotheses — `InstantiateListRefines`,
 `kernel::basis_names`, which no task owns yet).  Nothing is weakened: the
 conclusions are the exact-result ones under an explicit, discharged-later
 premise, and the premise is a `def`/`structure` so discharging it is a one-line
-`exact`.
+`exact`.  Task #51 landed during this task, so one of the three is already
+closed: `instLevelParamsRefines` *is* `Refine/ExprOpsCAbs.lean`'s
+`inst_level_params_refines`, and its census is clean, so the three
+level-instantiated readers apply unconditionally today.
+`InstantiateListRefines` stays open on purpose — task #51's
+`instantiate_list_refines` is one of its `sorry`s, and nothing here should
+depend on it.
 
 #### Deviations recorded, none new
 
@@ -10934,7 +11058,7 @@ is exactly what the run lemmas show.
 |---|---|
 | `scripts/gates.sh` | **all 7 OK** |
 | `#guard_msgs in #print axioms` | `is_equiv_l_m_refines`, `inst_list_m_refines`, `const_ty_at_m_refines`, `consts_resolve_fc_refines` — `[propext, Classical.choice, Quot.sound]`, nothing else |
-| `sorry` | **zero** in both files (the tier's only ones are still `Refine/Pins.lean`'s three, task #43) |
+| `sorry` | **zero** in both files (the tier's others are task #51's 21 in `Refine/ExprOpsC*.lean` and task #43's three in `Refine/Pins.lean`) |
 
 #### What is left of `cached::state_c`
 
