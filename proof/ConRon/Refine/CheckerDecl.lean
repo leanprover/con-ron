@@ -1621,6 +1621,10 @@ theorem check_div_mod_pin_fenv {mode : env.CheckMode}
     | some t =>
       obtain ⟨_, value2, _⟩ := t
       obtain ⟨fe_pre, hpre, h⟩ := bind_eq_ok_iff.mp h
+      -- task #67: the loop now takes its decline text as an argument, so two
+      -- binds build it (`Array.to_slice`, `code_points`) before the call
+      obtain ⟨sl, _, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨msg, _, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨q, -, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r, st1⟩ := q
       cases r with
