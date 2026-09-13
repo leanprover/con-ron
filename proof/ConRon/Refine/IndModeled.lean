@@ -5960,8 +5960,7 @@ theorem checkIotaRulesF_tail_err {lmode : ConLeche.CheckMode}
         lfe g cvName lps tyA mI rP j (r :: rest)).run lst = .error le := by
   rw [ConLeche.checkIotaRulesF]
   simp only [StateT.run] at h1 h2
-  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
-    StateT.pure, Except.pure, h1, h2]
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, h1, h2]
 
 /-- `check_iota_rules`' index recursion on `rules.len() - i`. -/
 theorem check_iota_rules_val
@@ -6319,6 +6318,43 @@ theorem name_is_model_suffix_refines {n : name.Name} (hn : NameWF n) {b : Bool}
     subst h
     rfl
 
+set_option linter.unusedSimpArgs false in
+omit hw hcb in
+/-- `checkMemberValF`'s **no-model** `throw` (task #67): past a
+`checkConstantValF` that succeeded and a member name that is not itself
+model-shaped, `core_k::defn_probe` answering `None` is exactly "the index has
+no `_model` definition under that name", which is the cited `let some
+(.defnInfo …) := … | throw` (`DeclCheck.lean:493-496`).  The message names the
+block, so it is existential. -/
+theorem checkMemberValF_route_err {lmode : ConLeche.CheckMode}
+    {lfe : ConLeche.FEnv} {blockNames : List ConLeche.Name}
+    {cv cvA : ConLeche.ConstantVal} {lst lst1 : ConLeche.Cached.CState}
+    (hrun1 : (ConLeche.checkConstantValF
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe cv).run lst
+      = .ok (cvA, lst1))
+    (hbm : cvA.name.isModelSuffix = false)
+    (hnone : CoreK.defnOf (lfe.find? (cvA.name.str "_model")) = none) :
+    (ConLeche.checkMemberValF (ConLeche.Cached.sharedOpsC lmode lfe)
+        blockNames lfe cv).run lst
+      = .error (.notImplemented
+          s!"no install route for inductive block \
+            {blockNames.headD cvA.name}: no direct route recognises it and no \
+            model for {cvA.name} was generated") := by
+  rw [ConLeche.checkMemberValF]
+  simp only [StateT.run] at hrun1
+  cases hx : lfe.find? (cvA.name.str "_model") with
+  | none =>
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hrun1, hbm, hx]
+  | some ci =>
+    rw [hx] at hnone
+    cases ci
+    case defnInfo => simp [CoreK.defnOf] at hnone
+    all_goals
+      simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+        StateT.pure, Except.pure, hrun1, hbm, hx]
+
+set_option linter.unusedSimpArgs false in
 set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:487-505` — **`check_member_val` refines
 `checkMemberValF`**: `checkConstantVal`, the member may not itself be
@@ -6328,6 +6364,162 @@ structurally.
 Deviation: the cited type-mismatch message dumps both sides with `reprStr`;
 §3.1 drops the interpolation, so only the message differs. -/
 theorem check_member_val_refines
+    {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
+    {fe2 : fenv.FEnv} {cv : env.ConstantVal}
+    {out : core.result.Result env.ConstantVal core_types.CheckError}
+    (hst : StateWF st) (hfe : FEnvWF fe2) (hbn : NamesWF block_names)
+    (hcv : ConstantValWF cv)
+    (h : inductives.modeled.check_member_val mode st block_names fe2 cv
+        = ok (out, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe2 lfe →
+      match out with
+      | .Ok cv_a =>
+        ∃ lst',
+          (ConLeche.checkMemberValF
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe)
+              (absNames block_names) lfe (absConstantVal cv)).run lst
+            = .ok (absConstantVal cv_a, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv_a
+      | .Err e =>
+        ErrSim e
+          ((ConLeche.checkMemberValF
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe)
+              (absNames block_names) lfe (absConstantVal cv)).run lst) := by
+  intro lst lfe hrel hfer
+  rw [inductives.modeled.check_member_val] at h
+  obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r, st1⟩ := q
+  cases r with
+  | Err err =>
+    -- move 1: `checker_base::check_constant_val` threw
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    refine ErrSim.trans
+      (hcb.checkConstantValErr st fe2 cv err st1 hst hfe hcv hq lst lfe hrel
+        hfer) (fun le hle => ?_)
+    rw [ConLeche.checkMemberValF]
+    simp only [StateT.run] at hle ⊢
+    simp [Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+      Except.pure, hle]
+  | Ok cva =>
+  obtain ⟨lst1, hrun1, hrel1, hwf1, hcvawf⟩ :=
+    hcb.checkConstantVal st fe2 cv cva st1 hst hfe hcv hq lst lfe hrel hfer
+  obtain ⟨bm, hbm, h⟩ := bind_eq_ok_iff.mp h
+  have hbmv : bm = (absConstantVal cva).name.isModelSuffix :=
+    name_is_model_suffix_refines hcvawf.1 hbm
+  by_cases hbmt : bm = true
+  · -- the member is itself model-shaped (`DeclCheck.lean:492`)
+    rw [if_pos hbmt] at h
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    rw [hbmt] at hbmv
+    refine errSim_invalid
+      s!"model-shaped member name {(absConstantVal cva).name}" hce ?_
+    rw [ConLeche.checkMemberValF]
+    simp only [StateT.run] at hrun1 ⊢
+    simp [Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+      Except.pure, hrun1, hbmv.symm]
+  · rw [if_neg hbmt] at h
+    simp only [Bool.not_eq_true] at hbmt
+    rw [hbmt] at hbmv
+    obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hnmv, hnmwf⟩ := model_of_refines hcvawf.1 hnm
+    obtain ⟨hoabs, howf⟩ :=
+      CoreK.defn_probe_refines (FindAgree.of_rel hfer hfe) (FindWF.of_wf hfe)
+        hnmwf ho
+    rw [hnmv] at hoabs
+    cases o with
+    | none =>
+      -- there is no `_model` definition for this member (`DeclCheck.lean:493`)
+      simp at h
+      obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+      simp only [Option.map_none] at hoabs
+      exact errSim_notImplemented _ hce
+        (checkMemberValF_route_err hrun1 hbmv.symm
+          (by
+            show CoreK.defnOf (lfe.find? ((absName cva.name).str "_model"))
+              = none
+            exact hoabs.symm))
+    | some dq =>
+    obtain ⟨cvm, mv, mhint⟩ := dq
+    have hcvmwf : ConstantValWF cvm := (howf cvm mv mhint rfl).1
+    have hfindm : lfe.find? ((absConstantVal cva).name.str "_model")
+        = some (.defnInfo (absConstantVal cvm) (absExpr mv) (absHint mhint)) := by
+      show lfe.find? ((absName cva.name).str "_model") = _
+      exact defnOf_inv (by simpa using hoabs.symm)
+    have hfun : (fun n : ConLeche.Name =>
+        if n ∈ absNames block_names then n.str "_model" else n)
+        = blockRename (absNames block_names) := by
+      funext n
+      rw [blockRename]
+      by_cases hc : n ∈ absNames block_names
+      · rw [if_pos hc, if_pos (by simpa using hc)]
+      · rw [if_neg hc, if_neg (by simpa using hc)]
+    simp at h
+    simp only [StateT.run] at hrun1
+    rcases h with ⟨hb1, v, hv, ce, hce, rfl, rfl⟩
+      | ⟨hb1, nm2, hren, (⟨hbeq, v, hv, ce, hce, rfl, rfl⟩ | ⟨hbeq, rfl, rfl⟩)⟩
+    · -- the model's level parameters disagree (`DeclCheck.lean:497`)
+      have hlpsne : ¬ ((absConstantVal cvm).levelParams
+          = (absConstantVal cva).levelParams) :=
+        of_decide_eq_false
+          (Env.names_beq_refines hcvmwf.2.1 hcvawf.2.1 hb1).symm
+      refine errSim_notImplemented
+        s!"model level parameters mismatch for {(absConstantVal cva).name}"
+        hce ?_
+      rw [ConLeche.checkMemberValF]
+      simp only [StateT.run]
+      simp [Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+        Except.pure, hrun1, hbmv.symm, hfindm, hlpsne]
+    · -- the renamed member type is not the model's (`DeclCheck.lean:499`)
+      obtain ⟨hrenv, hrenwf⟩ :=
+        ExprOps.rename_consts_refines
+          (inst := inductives.modeled.BlockRename.Insts.Con_ron_coreKernelExpr_opsNameToName)
+          (f := { block_names := block_names }) _ (block_rename_renames hbn)
+          hcvawf.2.2 hren
+      have hlpseq : (absConstantVal cvm).levelParams
+          = (absConstantVal cva).levelParams :=
+        of_decide_eq_true
+          (Env.names_beq_refines hcvmwf.2.1 hcvawf.2.1 hb1).symm
+      have htyne : ¬ (ConLeche.Expr.renameConsts
+          (fun n => if n ∈ absNames block_names then n.str "_model" else n)
+          (absConstantVal cva).type = (absConstantVal cvm).type) := by
+        rw [hfun]
+        show ¬ (ConLeche.Expr.renameConsts (blockRename (absNames block_names))
+          (absExpr cva.ty) = absExpr cvm.ty)
+        rw [← hrenv]
+        exact of_decide_eq_false
+          (Expr.beq_refines hrenwf hcvmwf.2.2 hbeq).symm
+      refine errSim_notImplemented' hce ?_
+      rw [ConLeche.checkMemberValF]
+      simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+        StateT.pure, Except.pure, hrun1, hbmv.symm, hfindm, hlpseq, htyne]
+    · obtain ⟨hrenv, hrenwf⟩ :=
+        ExprOps.rename_consts_refines
+          (inst := inductives.modeled.BlockRename.Insts.Con_ron_coreKernelExpr_opsNameToName)
+          (f := { block_names := block_names }) _ (block_rename_renames hbn)
+          hcvawf.2.2 hren
+      have hlpseq : (absConstantVal cvm).levelParams
+          = (absConstantVal cva).levelParams :=
+        of_decide_eq_true
+          (Env.names_beq_refines hcvmwf.2.1 hcvawf.2.1 hb1).symm
+      have htyeq : ConLeche.Expr.renameConsts
+          (fun n => if n ∈ absNames block_names then n.str "_model" else n)
+          (absConstantVal cva).type = (absConstantVal cvm).type := by
+        rw [hfun]
+        show ConLeche.Expr.renameConsts (blockRename (absNames block_names))
+          (absExpr cva.ty) = absExpr cvm.ty
+        rw [← hrenv]
+        exact of_decide_eq_true
+          (Expr.beq_refines hrenwf hcvmwf.2.2 hbeq).symm
+      refine ⟨lst1, ?_, hrel1, hwf1, hcvawf⟩
+      rw [ConLeche.checkMemberValF]
+      simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+        StateT.pure, Except.pure, hrun1, hbmv.symm, hfindm, hlpseq, htyeq]
+
+/-- `check_member_val_refines` at a success, the pre-#67 statement. -/
+theorem check_member_val_refines_ok
     {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
     {fe2 : fenv.FEnv} {cv cv_a : env.ConstantVal}
     (hst : StateWF st) (hfe : FEnvWF fe2) (hbn : NamesWF block_names)
@@ -6340,78 +6532,10 @@ theorem check_member_val_refines
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe)
             (absNames block_names) lfe (absConstantVal cv)).run lst
           = .ok (absConstantVal cv_a, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv_a := by
-  intro lst lfe hrel hfer
-  rw [inductives.modeled.check_member_val] at h
-  obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨r, st1⟩ := q
-  cases r with
-  | Err err => simp at h
-  | Ok cva =>
-  obtain ⟨lst1, hrun1, hrel1, hwf1, hcvawf⟩ :=
-    hcb.checkConstantVal st fe2 cv cva st1 hst hfe hcv hq lst lfe hrel hfer
-  obtain ⟨bm, hbm, h⟩ := bind_eq_ok_iff.mp h
-  have hbmv : bm = (absConstantVal cva).name.isModelSuffix :=
-    name_is_model_suffix_refines hcvawf.1 hbm
-  by_cases hbmt : bm = true
-  · rw [if_pos hbmt] at h; simp at h
-  · rw [if_neg hbmt] at h
-    simp only [Bool.not_eq_true] at hbmt
-    rw [hbmt] at hbmv
-    obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨hnmv, hnmwf⟩ := model_of_refines hcvawf.1 hnm
-    obtain ⟨hoabs, howf⟩ :=
-      CoreK.defn_probe_refines (FindAgree.of_rel hfer hfe) (FindWF.of_wf hfe)
-        hnmwf ho
-    rw [hnmv] at hoabs
-    cases o with
-    | none => simp at h
-    | some dq =>
-    obtain ⟨cvm, mv, mhint⟩ := dq
-    have hcvmwf : ConstantValWF cvm := (howf cvm mv mhint rfl).1
-    have hfindm : lfe.find? ((absConstantVal cva).name.str "_model")
-        = some (.defnInfo (absConstantVal cvm) (absExpr mv) (absHint mhint)) := by
-      show lfe.find? ((absName cva.name).str "_model") = _
-      exact defnOf_inv (by simpa using hoabs.symm)
-    simp at h
-    obtain ⟨hb1, nm2, hren, hbeq, hst1⟩ := h
-    have hb1v : (true : Bool)
-        = decide (absNames cvm.level_params = absNames cva.level_params) :=
-      Env.names_beq_refines hcvmwf.2.1 hcvawf.2.1 hb1
-    have hlpseq : (absConstantVal cvm).levelParams
-        = (absConstantVal cva).levelParams :=
-      of_decide_eq_true hb1v.symm
-    obtain ⟨hrenv, hrenwf⟩ :=
-      ExprOps.rename_consts_refines
-        (inst := inductives.modeled.BlockRename.Insts.Con_ron_coreKernelExpr_opsNameToName)
-        (f := { block_names := block_names }) _ (block_rename_renames hbn)
-        hcvawf.2.2 hren
-    have hbeqv : (true : Bool) = decide (absExpr nm2 = absExpr cvm.ty) :=
-      Expr.beq_refines hrenwf hcvmwf.2.2 hbeq
-    have hfun : (fun n : ConLeche.Name =>
-        if n ∈ absNames block_names then n.str "_model" else n)
-        = blockRename (absNames block_names) := by
-      funext n
-      rw [blockRename]
-      by_cases hc : n ∈ absNames block_names
-      · rw [if_pos hc, if_pos (by simpa using hc)]
-      · rw [if_neg hc, if_neg (by simpa using hc)]
-    have htyeq : ConLeche.Expr.renameConsts
-        (fun n => if n ∈ absNames block_names then n.str "_model" else n)
-        (absConstantVal cva).type = (absConstantVal cvm).type := by
-      rw [hfun]
-      show ConLeche.Expr.renameConsts (blockRename (absNames block_names))
-        (absExpr cva.ty) = absExpr cvm.ty
-      rw [← hrenv]
-      exact of_decide_eq_true hbeqv.symm
-    obtain ⟨rfl, rfl⟩ := hst1
-    refine ⟨lst1, ?_, hrel1, hwf1, hcvawf⟩
-    simp only [StateT.run] at hrun1
-    rw [ConLeche.checkMemberValF]
-    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
-      StateT.pure, Except.pure, hrun1, hbmv.symm, hfindm, hlpseq, htyeq]
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv_a :=
+  check_member_val_refines hw hcb hst hfe hbn hcv h
 
+set_option linter.unusedSimpArgs false in
 /-- `ConLeche/Cached/CheckerC.lean:105-113` (minus the flush) — **the
 `check_ind_member` stage**: one non-recursor member checked against its
 `_model` counterpart and pushed with the block's capability record.
@@ -6419,17 +6543,24 @@ theorem check_member_val_refines
 `StateC.flush_c_refines`. -/
 theorem check_ind_member_refines
     {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
-    {caps : env.IndCaps} {fe2 fe' : fenv.FEnv} {ci : env.ConstantInfo}
+    {caps : env.IndCaps} {fe2 : fenv.FEnv} {ci : env.ConstantInfo}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe2) (hbn : NamesWF block_names)
     (hcaps : IndCapsWF caps) (hci : ConstantInfoWF ci)
     (h : inductives.modeled.check_ind_member mode st block_names caps fe2 ci
-        = ok (.Ok fe', st')) :
+        = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe2 lfe →
-      ∃ lst' lfe',
-        (checkIndMemberN (absMode mode) (absNames block_names)
-            (absIndCaps caps) lfe (absConstantInfo ci)).run lst
-          = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (checkIndMemberN (absMode mode) (absNames block_names)
+              (absIndCaps caps) lfe (absConstantInfo ci)).run lst
+            = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+      | .Err e =>
+        ErrSim e
+          ((checkIndMemberN (absMode mode) (absNames block_names)
+              (absIndCaps caps) lfe (absConstantInfo ci)).run lst) := by
   intro lst lfe hrel hfer
   rw [inductives.modeled.check_ind_member] at h
   obtain ⟨cv, hcv, h⟩ := bind_eq_ok_iff.mp h
@@ -6440,16 +6571,28 @@ theorem check_ind_member_refines
   obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r, st1⟩ := q
   cases r with
-  | Err err => simp at h
+  | Err err =>
+    -- move 1: `check_member_val` threw
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have herr :=
+      check_member_val_refines hw hcb hst hfe hbn hcvwf hq lst lfe hrel hfer
+    rw [hcvv] at herr
+    refine ErrSim.trans herr (fun le hle => ?_)
+    rw [checkIndMemberN]
+    simp only [StateT.run] at hle ⊢
+    simp [Bind.bind, StateT.bind, Except.bind, hle]
   | Ok cva =>
   obtain ⟨lst1, hrun1, hrel1, hwf1, hcvawf⟩ :=
     check_member_val_refines hw hcb hst hfe hbn hcvwf hq lst lfe hrel hfer
   rw [hcvv] at hrun1
   simp only [StateT.run] at hrun1
   rw [checkIndMemberN]
-  cases hcase : ci
+  -- **plain `cases`**, not `cases hcase : ci`: task #67's `match out` motive
+  -- carries the `= ok (out, st')` hypothesis, which mentions `ci`, so
+  -- generalizing `ci` under an equation is not type correct.
+  cases ci
   case IndInfo =>
-    rw [hcase] at h hrun1
     simp only [absConstantInfo] at hrun1
     obtain ⟨ic, hic, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨fnew, hpush, h⟩ := bind_eq_ok_iff.mp h
@@ -6462,7 +6605,6 @@ theorem check_ind_member_refines
     simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
       StateT.pure, Except.pure, hrun1, absConstantInfo]
   case CtorInfo =>
-    rw [hcase] at h hrun1
     simp only [absConstantInfo] at hrun1
     obtain ⟨fnew, hpush, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hprel, hpwf⟩ :=
@@ -6472,7 +6614,32 @@ theorem check_ind_member_refines
     refine ⟨lst1, _, ?_, hrel1, hprel, hwf1, hpwf⟩
     simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
       StateT.pure, Except.pure, hrun1, absConstantInfo]
-  all_goals (rw [hcase] at h; simp at h)
+  -- the six non-inductive members (`Modeled.lean`'s `M_NONIND`)
+  all_goals simp at h
+  all_goals obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+  all_goals
+    refine errSim_invalid
+      s!"non-inductive member {(absConstantVal cva).name} in block" hce ?_
+  all_goals simp only [absConstantInfo] at hrun1
+  all_goals
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hrun1, absConstantInfo]
+
+/-- `check_ind_member_refines` at a success, the pre-#67 statement. -/
+theorem check_ind_member_refines_ok
+    {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
+    {caps : env.IndCaps} {fe2 fe' : fenv.FEnv} {ci : env.ConstantInfo}
+    (hst : StateWF st) (hfe : FEnvWF fe2) (hbn : NamesWF block_names)
+    (hcaps : IndCapsWF caps) (hci : ConstantInfoWF ci)
+    (h : inductives.modeled.check_ind_member mode st block_names caps fe2 ci
+        = ok (.Ok fe', st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe2 lfe →
+      ∃ lst' lfe',
+        (checkIndMemberN (absMode mode) (absNames block_names)
+            (absIndCaps caps) lfe (absConstantInfo ci)).run lst
+          = .ok (lfe', lst')
+        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' :=
+  check_ind_member_refines hw hcb hst hfe hbn hcaps hci h
 
 
 omit hw hcb in
@@ -6496,26 +6663,50 @@ theorem provisionRecsStepN_rec {lmode : ConLeche.CheckMode}
   simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
     StateT.pure, Except.pure, h1]
 
+omit hw hcb in
+/-- `provisionRecsStepN`'s failure twin at a `.recInfo` (task #67): the member
+check threw, and the step's only bind carries it. -/
+theorem provisionRecsStepN_rec_err {lmode : ConLeche.CheckMode}
+    {blockNames : List ConLeche.Name} {feAcc : ConLeche.FEnv}
+    {cv : ConLeche.ConstantVal} {mI rP : Nat}
+    {rules : List ConLeche.RecRule} {lst : ConLeche.Cached.CState}
+    {le : ConLeche.CheckError}
+    (h1 : (ConLeche.checkMemberValF (ConLeche.Cached.sharedOpsC lmode feAcc)
+        blockNames feAcc
+        (ConLeche.ConstantInfo.recInfo cv mI rP rules).toConstantVal).run lst
+      = .error le) :
+    (provisionRecsStepN lmode blockNames feAcc
+        (ConLeche.ConstantInfo.recInfo cv mI rP rules)).run lst = .error le := by
+  rw [provisionRecsStepN]
+  simp only [StateT.run] at h1
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, h1]
+
 /-- `ConLeche/Cached/CheckerC.lean:120-127` (minus the flush) — **the
 `provision_recs_step` stage**: one recursor's constant checked and provisioned
 rule-less on top of the previous ones. -/
 theorem provision_recs_step_refines
     {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
     {fe_acc : fenv.FEnv} {ci : env.ConstantInfo}
-    {q : fenv.FEnv × env.ConstantVal × Std.U64 × Std.U64
-      × alloc.vec.Vec env.RecRule}
+    {out : core.result.Result (fenv.FEnv × env.ConstantVal × Std.U64 × Std.U64
+      × alloc.vec.Vec env.RecRule) core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe_acc) (hbn : NamesWF block_names)
     (hci : ConstantInfoWF ci)
     (h : inductives.modeled.provision_recs_step mode st block_names fe_acc ci
-        = ok (.Ok q, st')) :
+        = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe_acc lfe →
-      ∃ lst' lfe',
-        (provisionRecsStepN (absMode mode) (absNames block_names) lfe
-            (absConstantInfo ci)).run lst
-          = .ok ((lfe', absConstantVal q.2.1, q.2.2.1.val, q.2.2.2.1.val,
-              absRecRules q.2.2.2.2), lst')
-        ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1
-        ∧ ConstantValWF q.2.1 ∧ RecRulesWF q.2.2.2.2 := by
+      match out with
+      | .Ok q =>
+        ∃ lst' lfe',
+          (provisionRecsStepN (absMode mode) (absNames block_names) lfe
+              (absConstantInfo ci)).run lst
+            = .ok ((lfe', absConstantVal q.2.1, q.2.2.1.val, q.2.2.2.1.val,
+                absRecRules q.2.2.2.2), lst')
+          ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1
+          ∧ ConstantValWF q.2.1 ∧ RecRulesWF q.2.2.2.2
+      | .Err e =>
+        ErrSim e
+          ((provisionRecsStepN (absMode mode) (absNames block_names) lfe
+              (absConstantInfo ci)).run lst) := by
   intro lst lfe hrel hfer
   rw [inductives.modeled.provision_recs_step.eq_def] at h
   cases ci
@@ -6530,7 +6721,14 @@ theorem provision_recs_step_refines
     obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r, st1⟩ := p
     cases r with
-    | Err err => simp at h
+    | Err err =>
+      -- move 1: `check_member_val` threw
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      have herr :=
+        check_member_val_refines hw hcb hst hfe hbn hcvwf hp lst lfe hrel hfer
+      rw [hcvv] at herr
+      exact ErrSim.trans herr (fun le hle => provisionRecsStepN_rec_err hle)
     | Ok cva =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, hcvawf⟩ :=
       check_member_val_refines hw hcb hst hfe hbn hcvwf hp lst lfe hrel hfer
@@ -6546,7 +6744,32 @@ theorem provision_recs_step_refines
     obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
     refine ⟨lst1, _, ?_, hrel1, hprel, hwf1, hpwf, hcvawf, hci.2⟩
     exact provisionRecsStepN_rec hrun1
+  -- a non-recursor reached the provisioning fold (`CheckerC.lean:120`)
   all_goals simp at h
+  all_goals obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+  all_goals
+    refine errSim_notImplemented "recursor before other block members" hce ?_
+  all_goals simp [provisionRecsStepN, StateT.run, absConstantInfo]
+
+/-- `provision_recs_step_refines` at a success, the pre-#67 statement. -/
+theorem provision_recs_step_refines_ok
+    {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
+    {fe_acc : fenv.FEnv} {ci : env.ConstantInfo}
+    {q : fenv.FEnv × env.ConstantVal × Std.U64 × Std.U64
+      × alloc.vec.Vec env.RecRule}
+    (hst : StateWF st) (hfe : FEnvWF fe_acc) (hbn : NamesWF block_names)
+    (hci : ConstantInfoWF ci)
+    (h : inductives.modeled.provision_recs_step mode st block_names fe_acc ci
+        = ok (.Ok q, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe_acc lfe →
+      ∃ lst' lfe',
+        (provisionRecsStepN (absMode mode) (absNames block_names) lfe
+            (absConstantInfo ci)).run lst
+          = .ok ((lfe', absConstantVal q.2.1, q.2.2.1.val, q.2.2.2.1.val,
+              absRecRules q.2.2.2.2), lst')
+        ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1
+        ∧ ConstantValWF q.2.1 ∧ RecRulesWF q.2.2.2.2 :=
+  provision_recs_step_refines hw hcb hst hfe hbn hci h
 
 
 omit hw hcb in
@@ -7001,6 +7224,7 @@ theorem check_ind_recs_refines
 /-! ## The projection functions (`Modeled.lean:475-584`,
 `DeclCheck.lean:729-836`) -/
 
+set_option linter.unusedSimpArgs false in
 set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:729-746` — `check_proj_lookups` refines
 `checkProjLookupsF`: the stored constants the projection depends on.  It
@@ -7015,30 +7239,66 @@ to discharge `check_proj_iota_refines`' `hcname` through
 theorem check_proj_lookups_refines
     {fe2 : fenv.FEnv} {lfe : ConLeche.FEnv} {t ctor_name : name.Name}
     {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64}
-    {q : env.ConstantVal × env.ConstantVal}
+    {out : core.result.Result (env.ConstantVal × env.ConstantVal)
+      core_types.CheckError}
     (hrel : FEnvRel fe2 lfe) (hfe : FEnvWF fe2) (ht : NameWF t)
     (hc : NameWF ctor_name) (hlps : NamesWF lps)
     (h : inductives.modeled.check_proj_lookups fe2 t ctor_name lps n_p n_f i
-        = ok (.Ok q)) :
-    (∀ lst, (ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe
-        (absName t) (absName ctor_name) (absNames lps) n_p.val n_f.val
-        i.val).run lst
-          = .ok ((absConstantVal q.1, absConstantVal q.2), lst))
-      ∧ ConstantValWF q.1 ∧ ConstantValWF q.2
-      ∧ lfe.find? (absName ctor_name)
-          = some (.ctorInfo (absConstantVal q.1) n_p.val n_f.val) := by
+        = ok out) :
+    match out with
+    | .Ok q =>
+      (∀ lst, (ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe
+          (absName t) (absName ctor_name) (absNames lps) n_p.val n_f.val
+          i.val).run lst
+            = .ok ((absConstantVal q.1, absConstantVal q.2), lst))
+        ∧ ConstantValWF q.1 ∧ ConstantValWF q.2
+        ∧ lfe.find? (absName ctor_name)
+            = some (.ctorInfo (absConstantVal q.1) n_p.val n_f.val)
+    | .Err e =>
+      ∀ lst, ErrSim e ((ConLeche.checkProjLookupsF
+        (m := ConLeche.Cached.CheckCM) lfe (absName t) (absName ctor_name)
+        (absNames lps) n_p.val n_f.val i.val).run lst) := by
   rw [inductives.modeled.check_proj_lookups] at h
   obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hoabs, howf⟩ :=
     CoreK.ctor_probe_refines (FindAgree.of_rel hrel hfe) (FindWF.of_wf hfe) hc ho
   cases o with
-  | none => simp at h
+  | none =>
+    -- move 2: `DeclCheck.lean:733`, the constructor is not stored
+    obtain ⟨s, -, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨v, -, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain rfl : out = .Err ce := (Result.ok_injective h).symm
+    have hX : CoreK.ctorOf (lfe.find? (absName ctor_name)) = none := by
+      simpa using hoabs.symm
+    intro lst
+    refine errSim_notImplemented "projection constructor not stored" hce ?_
+    rw [ConLeche.checkProjLookupsF]
+    cases hfx : lfe.find? (absName ctor_name) with
+    | none => rfl
+    | some ci =>
+      rw [hfx] at hX
+      cases ci <;> first | rfl | simp [CoreK.ctorOf] at hX
   | some cq =>
     obtain ⟨cv, np1, nf1⟩ := cq
     have hcvwf : ConstantValWF cv := howf cv np1 nf1 rfl
     have hfindc : lfe.find? (absName ctor_name)
         = some (.ctorInfo (absConstantVal cv) np1.val nf1.val) :=
       ctorOf_inv (by simpa using hoabs.symm)
+    -- the cited `unless cnP = nP ∧ cnF = nF do throw` is **one** site; §3.4
+    -- splits it into the two `else if` arms `modeled.rs:1928`/`:1931`, which
+    -- carry the same message and land on this run
+    have harity : ∀ lst : ConLeche.Cached.CState,
+        ¬ (np1.val = n_p.val ∧ nf1.val = n_f.val) →
+        (ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe
+            (absName t) (absName ctor_name) (absNames lps) n_p.val n_f.val
+            i.val).run lst
+          = .error (.notImplemented
+              "projection constructor arity mismatch") := by
+      intro lst hne
+      rw [ConLeche.checkProjLookupsF, hfindc]
+      simp [hne, StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+        StateT.pure, Except.pure]
     simp at h
     by_cases hnp : np1.val = n_p.val
     · rw [if_pos hnp] at h
@@ -7052,7 +7312,27 @@ theorem check_proj_lookups_refines
             hnmwf ho1
         rw [hnmv] at ho1abs
         cases o1 with
-        | none => simp at h
+        | none =>
+          -- move 2: `DeclCheck.lean:736`, no projection model
+          simp at h
+          obtain ⟨v, hv, ce, hce, rfl⟩ := h
+          have hX : CoreK.defnOf
+              (lfe.find? (ConLeche.projModelName (absName t) i.val)) = none := by
+            simpa using ho1abs.symm
+          intro lst
+          refine errSim_notImplemented "missing projection model" hce ?_
+          rw [ConLeche.checkProjLookupsF, hfindc]
+          cases hfx : lfe.find? (ConLeche.projModelName (absName t) i.val) with
+          | none =>
+            simp [hnp, hnf, StateT.run, Bind.bind, StateT.bind, Except.bind,
+              Pure.pure, StateT.pure, Except.pure]
+          | some ci =>
+            rw [hfx] at hX
+            cases ci <;>
+              first
+                | (simp [CoreK.defnOf] at hX; done)
+                | simp [hnp, hnf, StateT.run, Bind.bind, StateT.bind,
+                    Except.bind, Pure.pure, StateT.pure, Except.pure]
         | some dq =>
           obtain ⟨mcv, mv, mhint⟩ := dq
           have hmcvwf : ConstantValWF mcv := (ho1wf mcv mv mhint rfl).1
@@ -7060,42 +7340,97 @@ theorem check_proj_lookups_refines
               = some (.defnInfo (absConstantVal mcv) (absExpr mv)
                   (absHint mhint)) :=
             defnOf_inv (by simpa using ho1abs.symm)
-          simp at h
-          obtain ⟨hb, n1, hn1, o2, ho2, h⟩ := h
-          have hbv : (true : Bool)
-              = decide (absNames mcv.level_params = absNames lps) :=
+          obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+          have hbv : b = decide (absNames mcv.level_params = absNames lps) :=
             Env.names_beq_refines hmcvwf.2.1 hlps hb
-          have hlpseq : (absConstantVal mcv).levelParams = absNames lps := by
-            simpa [absConstantVal] using (of_decide_eq_true hbv.symm)
-          have hn1v : absName n1 = ConLeche.projFnName (absName t) i.val :=
-            Env.proj_fn_name_refines hn1
-          have hn1wf : NameWF n1 := Env.proj_fn_name_wf ht hn1
-          have ho2abs := find_refines hrel hfe hn1wf ho2
-          rw [hn1v] at ho2abs
-          cases o2 with
-          | some ci2 => simp at h
-          | none =>
-            simp only [Option.map_none] at ho2abs
-            simp at h
-            obtain ⟨o3, ho3, h⟩ := h
-            have ho3abs := find_refines hrel hfe ht ho3
-            cases o3 with
-            | none => simp at h
-            | some ci3 =>
-              simp only [Option.map_some] at ho3abs
+          by_cases hbt : b = true
+          · rw [if_pos hbt] at h
+            rw [hbt] at hbv
+            have hlpseq : (absConstantVal mcv).levelParams = absNames lps := by
+              simpa [absConstantVal] using (of_decide_eq_true hbv.symm)
+            obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
+            have hn1v : absName n1 = ConLeche.projFnName (absName t) i.val :=
+              Env.proj_fn_name_refines hn1
+            have hn1wf : NameWF n1 := Env.proj_fn_name_wf ht hn1
+            have ho2abs := find_refines hrel hfe hn1wf ho2
+            rw [hn1v] at ho2abs
+            cases o2 with
+            | some ci2 =>
+              -- move 2: `DeclCheck.lean:740`, the public name is taken
+              simp only [Option.map_some] at ho2abs
               simp at h
-              obtain ⟨hb3, h⟩ := h
-              have hb3v := BasisPins.eq_basis_pinned_refines hrel hfe hb3
-              have heqpin : lfe.find? ConLeche.eqName = some ConLeche.eqA :=
-                of_decide_eq_true hb3v.symm
-              subst h
-              refine ⟨?_, hcvwf, hmcvwf, by simpa [hnp, hnf] using hfindc⟩
+              obtain ⟨v, hv, ce, hce, rfl⟩ := h
               intro lst
+              refine errSim_invalid "projection name taken" hce ?_
               rw [ConLeche.checkProjLookupsF, hfindc]
-              simp [hnp, hnf, hfindm, hlpseq, ← ho2abs, ← ho3abs, heqpin]
-              rfl
-      · rw [if_neg hnf] at h; simp at h
-    · rw [if_neg hnp] at h; simp at h
+              simp [hnp, hnf, hfindm, hlpseq, ← ho2abs, StateT.run, Bind.bind,
+                StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure]
+            | none =>
+              simp only [Option.map_none] at ho2abs
+              simp at h
+              obtain ⟨o3, ho3, h⟩ := h
+              have ho3abs := find_refines hrel hfe ht ho3
+              cases o3 with
+              | none =>
+                -- move 2: `DeclCheck.lean:742`, the parent is not stored
+                simp only [Option.map_none] at ho3abs
+                simp at h
+                obtain ⟨v, hv, ce, hce, rfl⟩ := h
+                intro lst
+                refine errSim_notImplemented "projection parent not stored" hce ?_
+                rw [ConLeche.checkProjLookupsF, hfindc]
+                simp [hnp, hnf, hfindm, hlpseq, ← ho2abs, ← ho3abs, StateT.run,
+                  Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+                  Except.pure]
+              | some ci3 =>
+                simp only [Option.map_some] at ho3abs
+                simp at h
+                rcases h with ⟨hb3, v, hv, ce, hce, rfl⟩ | ⟨hb3, rfl⟩
+                · -- move 2: `DeclCheck.lean:744`, the pinned `Eq` basis
+                  have hb3v := BasisPins.eq_basis_pinned_refines hrel hfe hb3
+                  have hne : lfe.find? ConLeche.eqName ≠ some ConLeche.eqA :=
+                    of_decide_eq_false hb3v.symm
+                  intro lst
+                  refine errSim_notImplemented
+                    "projection iota requires the pinned Eq basis" hce ?_
+                  rw [ConLeche.checkProjLookupsF, hfindc]
+                  simp [hnp, hnf, hfindm, hlpseq, ← ho2abs, ← ho3abs, hne,
+                    StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+                    StateT.pure, Except.pure]
+                · have hb3v := BasisPins.eq_basis_pinned_refines hrel hfe hb3
+                  have heqpin : lfe.find? ConLeche.eqName = some ConLeche.eqA :=
+                    of_decide_eq_true hb3v.symm
+                  refine ⟨?_, hcvwf, hmcvwf, by simpa [hnp, hnf] using hfindc⟩
+                  intro lst
+                  rw [ConLeche.checkProjLookupsF, hfindc]
+                  simp [hnp, hnf, hfindm, hlpseq, ← ho2abs, ← ho3abs, heqpin]
+                  rfl
+          · -- move 2: `DeclCheck.lean:738`, the model's level parameters
+            simp only [Bool.not_eq_true] at hbt
+            rw [if_neg (by simp [hbt])] at h
+            rw [hbt] at hbv
+            have hne : (absConstantVal mcv).levelParams ≠ absNames lps := by
+              simpa [absConstantVal] using of_decide_eq_false hbv.symm
+            simp at h
+            obtain ⟨v, hv, ce, hce, rfl⟩ := h
+            intro lst
+            refine errSim_notImplemented "projection model level mismatch" hce ?_
+            rw [ConLeche.checkProjLookupsF, hfindc]
+            simp [hnp, hnf, hfindm, hne, StateT.run, Bind.bind, StateT.bind,
+              Except.bind, Pure.pure, StateT.pure, Except.pure]
+      · rw [if_neg hnf] at h
+        simp at h
+        obtain ⟨v, hv, ce, hce, rfl⟩ := h
+        intro lst
+        exact errSim_notImplemented "projection constructor arity mismatch" hce
+          (harity lst (by simp [hnf]))
+    · rw [if_neg hnp] at h
+      simp at h
+      obtain ⟨v, hv, ce, hce, rfl⟩ := h
+      intro lst
+      exact errSim_notImplemented "projection constructor arity mismatch" hce
+        (harity lst (by simp [hnp]))
 
 set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:748-761` — `check_proj_ty` refines
