@@ -39,12 +39,19 @@ where the port calls the function, and that lemma proves the two agree.  Error
 *messages* are carried in the transcriptions for readability only -- DESIGN.md
 §3.1 does not require them to match.
 
-**The failure half** (task #67).  Each accept lemma `<fn>_refines` has a
-companion `<fn>_err` next to it, with the same hypotheses and `.Ok r` replaced by
-`.Err ce`, concluding `ErrSim ce <the same con-leche side>`: every one of this
-file's twelve `CheckError` sites is a *mirrored* `throw`, so con-leche throws at
-the same kind.  `invalid_arm`/`not_implemented_arm` below do the shared
-bookkeeping.
+**The failure half** (task #67).  Every `<fn>_refines` below is stated over the
+Rust computation's *whole* inner outcome: a `match out with | .Ok r => <the
+accept direction> | .Err ce => ErrSim ce <the same con-leche side>`.  Every one
+of this file's twelve `CheckError` sites is a *mirrored* `throw`, so con-leche
+throws at the same kind, and `invalid_arm`/`not_implemented_arm` below do the
+shared bookkeeping.  The `.Err` half of each is *also* kept as the companion
+`<fn>_err` stated just above it, because that half needs strictly **fewer**
+hypotheses than the accept half (`infer_lit_nat` does not need `hnat` to
+decline, `infer_fvar` does not need `hty`, `proj_type_at_checked` needs neither
+`hrev` nor `htargs`/`hpe`, `annotate_proj_entry` does not need `he2`): the
+companion is therefore the primitive of each pair, keeping its pre-#67
+signature for its call sites in `Core/Arms/{Infer,Annotate}.lean`, and the
+folded `<fn>_refines` discharges its `.Err` arm with it.
 
 **Five facts are hypotheses**, each owned by a sibling agent of this task and
 stated in exactly the shape that agent proves, so that discharging it at merge
@@ -500,15 +507,29 @@ theorem proj_type_at_checked_err {entry : env.ProjEntry} {sn t : name.Name}
 /-- **`core_k::proj_type_at_checked` refines the cited `.proj` arm's checks**
 (`ConLeche/Kernel/Core.lean:2039-2204 inferBody`, `:2163-2189`; twin
 `:2206-2334 inferBodyIO`): on success all three shape tests and the possibly-`Prop`
-guard pass in the Lean too, and the value is `ProjEntry.typeAt`'s. -/
+guard pass in the Lean too, and the value is `ProjEntry.typeAt`'s.  Stated over
+the whole outcome (task #67): the `.Err` half is `proj_type_at_checked_err`
+above, which needs neither `hrev` nor `htargs`/`hpe` and so stays the primitive
+of the pair. -/
 theorem proj_type_at_checked_refines {entry : env.ProjEntry} {sn t : name.Name}
-    {us : alloc.vec.Vec level.Level} {targs : alloc.vec.Vec expr.Expr} {pe r : expr.Expr}
+    {us : alloc.vec.Vec level.Level} {targs : alloc.vec.Vec expr.Expr} {pe : expr.Expr}
+    {out : core.result.Result expr.Expr core_types.CheckError}
     (hrev : RevAppendExprs) (hfire : ProjEntryFireOk) (hent : ProjEntryWF entry)
     (hsn : NameWF sn) (ht : NameWF t) (hus : LevelsWF us) (htargs : ExprsWF targs)
     (hpe : ExprWF pe)
-    (h : core_k.proj_type_at_checked entry sn t us targs pe = ok (.Ok r)) :
-    projTypeAtCheckedL (absProjEntry entry) (absName sn) (absName t) (absLevels us)
-        (absExprs targs) (absExpr pe) = .ok (absExpr r) ∧ ExprWF r := by
+    (h : core_k.proj_type_at_checked entry sn t us targs pe = ok out) :
+    match out with
+    | .Ok r =>
+      projTypeAtCheckedL (absProjEntry entry) (absName sn) (absName t) (absLevels us)
+        (absExprs targs) (absExpr pe) = .ok (absExpr r) ∧ ExprWF r
+    | .Err ce =>
+      ErrSim ce (projTypeAtCheckedL (absProjEntry entry) (absName sn) (absName t)
+        (absLevels us) (absExprs targs) (absExpr pe)) := by
+  cases out
+  case Err ce => exact proj_type_at_checked_err hfire hent hsn ht hus h
+  rename_i r
+  show projTypeAtCheckedL (absProjEntry entry) (absName sn) (absName t) (absLevels us)
+        (absExprs targs) (absExpr pe) = .ok (absExpr r) ∧ ExprWF r
   rw [core_k.proj_type_at_checked] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨b, hb, h⟩ := h
@@ -652,15 +673,27 @@ theorem infer_proj_at_err {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {sn : name.Name
 inferBodyIO` -- the arm is byte-identical in the two bodies, which is why the
 port has one function).  The environment read is `fenv::find_proj`, through
 `Refine/CoreKProj.lean`'s `find_proj_refines`, so this takes both `FindAgree` and
-`FindWF`. -/
+`FindWF`.  Stated over the whole outcome (task #67): the `.Err` half is
+`infer_proj_at_err` above, which needs neither `hrev` nor `hpe` and so stays the
+primitive of the pair. -/
 theorem infer_proj_at_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {sn : name.Name}
-    {i : Std.U64} {pe te r : expr.Expr}
+    {i : Std.U64} {pe te : expr.Expr}
+    {out : core.result.Result expr.Expr core_types.CheckError}
     (hrev : RevAppendExprs) (hfire : ProjEntryFireOk)
     (hrel : FindAgree fe lfe) (hfwf : FindWF fe)
     (hsn : NameWF sn) (hpe : ExprWF pe) (hte : ExprWF te)
-    (h : core_k.infer_proj_at fe sn i pe te = ok (.Ok r)) :
-    inferProjAtL lfe (absName sn) i.val (absExpr pe) (absExpr te) = .ok (absExpr r)
-      ∧ ExprWF r := by
+    (h : core_k.infer_proj_at fe sn i pe te = ok out) :
+    match out with
+    | .Ok r =>
+      inferProjAtL lfe (absName sn) i.val (absExpr pe) (absExpr te) = .ok (absExpr r)
+        ∧ ExprWF r
+    | .Err ce =>
+      ErrSim ce (inferProjAtL lfe (absName sn) i.val (absExpr pe) (absExpr te)) := by
+  cases out
+  case Err ce => exact infer_proj_at_err hfire hrel hfwf hsn hte h
+  rename_i r
+  show inferProjAtL lfe (absName sn) i.val (absExpr pe) (absExpr te) = .ok (absExpr r)
+      ∧ ExprWF r
   rw [core_k.infer_proj_at] at h
   simp only [bind_eq_ok_iff, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
   obtain ⟨f, hf, h⟩ := h
@@ -794,15 +827,28 @@ theorem annotate_proj_entry_err {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
 /-- **`core_k::annotate_proj_entry` refines the cited `.proj` arm of
 `annotateBody`** (`ConLeche/Kernel/Core.lean:2736-2856`, `:2819-2854`): on
 success the node names the subject type's head, the parameter count matches,
-and the value is the normalized `.proj T i e'`. -/
+and the value is the normalized `.proj T i e'`.  Stated over the whole outcome
+(task #67): the `.Err` half is `annotate_proj_entry_err` above, which needs no
+`he2` and so stays the primitive of the pair. -/
 theorem annotate_proj_entry_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {sn t : name.Name} {i : Std.U64} {e2 r : expr.Expr}
+    {sn t : name.Name} {i : Std.U64} {e2 : expr.Expr}
     {targs : alloc.vec.Vec expr.Expr}
+    {out : core.result.Result expr.Expr core_types.CheckError}
     (hrel : FindAgree fe lfe) (hfwf : FindWF fe)
     (hsn : NameWF sn) (ht : NameWF t) (he2 : ExprWF e2)
-    (h : core_k.annotate_proj_entry fe sn t i e2 targs = ok (.Ok r)) :
-    annotateProjEntryL lfe (absName sn) (absName t) i.val (absExpr e2) (absExprs targs)
-      = .ok (absExpr r) ∧ ExprWF r := by
+    (h : core_k.annotate_proj_entry fe sn t i e2 targs = ok out) :
+    match out with
+    | .Ok r =>
+      annotateProjEntryL lfe (absName sn) (absName t) i.val (absExpr e2) (absExprs targs)
+        = .ok (absExpr r) ∧ ExprWF r
+    | .Err ce =>
+      ErrSim ce (annotateProjEntryL lfe (absName sn) (absName t) i.val (absExpr e2)
+        (absExprs targs)) := by
+  cases out
+  case Err ce => exact annotate_proj_entry_err hrel hfwf hsn ht h
+  rename_i r
+  show annotateProjEntryL lfe (absName sn) (absName t) i.val (absExpr e2) (absExprs targs)
+      = .ok (absExpr r) ∧ ExprWF r
   rw [core_k.annotate_proj_entry] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨o, ho, h⟩ := h
