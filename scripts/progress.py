@@ -91,18 +91,27 @@ def covered_by(name, lineno, cites):
 
 
 def refine_lemmas():
-    """{(ModuleLower, fn)} for every `theorem <fn>_refines` in Refine/<Module>.lean."""
+    """{(ModuleLower, fn)} for every `theorem <fn>_refines` under Refine/,
+    recursively; a file in a subdirectory `Refine/Core/Arms/X.lean` counts
+    for the module `corec` (the knot lives in `cached/core_c.rs`)."""
     out = set()
     d = os.path.join(REPO, REFINE_DIR)
     if not os.path.isdir(d):
         return out
-    for fn in os.listdir(d):
-        if not fn.endswith(".lean"):
-            continue
-        module = fn[:-5].lower().replace("_", "")
-        text = open(os.path.join(d, fn), encoding="utf-8").read()
-        for m in re.finditer(r"^\s*theorem\s+([A-Za-z_][A-Za-z0-9_]*)_refines\b", text, re.M):
-            out.add((module, m.group(1)))
+    for dirpath, _dirs, files in os.walk(d):
+        for fn in files:
+            if not fn.endswith(".lean"):
+                continue
+            rel = os.path.relpath(dirpath, d)
+            if rel == ".":
+                module = fn[:-5].lower().replace("_", "")
+            elif rel.split(os.sep)[0] == "Core":
+                module = "corec"
+            else:
+                module = rel.split(os.sep)[0].lower() + fn[:-5].lower().replace("_", "")
+            text = open(os.path.join(dirpath, fn), encoding="utf-8").read()
+            for m in re.finditer(r"^\s*theorem\s+([A-Za-z_][A-Za-z0-9_]*)_refines\b", text, re.M):
+                out.add((module, m.group(1)))
     return out
 
 
@@ -118,8 +127,16 @@ def lemma_for(lemmas, module, fn):
 
 
 def rust_module_of(item):
+    """The Rust module name a lemma file is matched against.  Modules in a
+    subdirectory carry the directory as a prefix (`inductives/struct_parts.rs`
+    → `indstructparts`, matching `Refine/IndStructParts.lean`; `core_c.rs`
+    under `cached/` stays `corec`, its lemmas live in `Refine/Core/*`)."""
     base = os.path.basename(item.file)
-    return base[:-3].lower().replace("_", "") if base.endswith(".rs") else base
+    name = base[:-3].lower().replace("_", "") if base.endswith(".rs") else base
+    parent = os.path.basename(os.path.dirname(item.file))
+    if parent == "inductives":
+        return "ind" + name
+    return name
 
 
 def count_lines(paths):

@@ -45,12 +45,13 @@ driver — is the sibling file `Refine/StateCResolve.lean`.
   twin (`inst1_m_eq`, …), which is the whole of their content.  Nothing is
   weakened: the conclusions below are the exact-result ones, under an explicit
   ingredient.
-* **`InstCSize`** is `StateRel`'s missing `len` clause, the one the `instC`
-  entry cap needs (`StateC.lean:188-197` drops the map when
-  `size ≥ instCCapC`, `inst_list_m_reset_at` when `len() ≥ inst_c_cap_c`).  It
-  is defined here, **to be unified into `State.lean`'s `StateRel`** when the
-  files are merged; until then it travels as its own hypothesis and its own
-  conclusion, so the memo policies line up probe by probe.
+* **`InstCSize`** is the `instC` entry-count clause the cap needs
+  (`StateC.lean:188-197` drops the map when `size ≥ instCCapC`,
+  `inst_list_m_reset_at` when `len() ≥ inst_c_cap_c`).  Task #61 folded it
+  into `State.lean`'s `StateRel` (the field `StateRel.instCSize`), so it is
+  *derivable* here and the abbreviation below is only a name; it still travels
+  as an explicit hypothesis and an explicit conclusion of the `inst_list_m`
+  lemmas, so the memo policies line up probe by probe.
 -/
 import ConRon.Refine.State
 import ConRon.Refine.FEnv
@@ -88,67 +89,18 @@ attribute [local simp] StateT.run modifyGet MonadStateOf.modifyGet
   StateT.modifyGet Bind.bind StateT.bind Pure.pure StateT.pure Except.bind
   Except.pure
 
-/-- `StateRel`'s missing `len` clause: the `instC` table's entry count agrees
-with con-leche's `Std.HashMap.size`.  **To be unified into
-`State.lean`'s `StateRel`.**  Only `inst_list_m` reads it — it is what makes
-the port's `inst_c.len() < inst_c_cap_c` and con-leche's
-`mp.size < instCCapC` the same test. -/
-def InstCSize (st : cached.state_c.CState) (lst : ConLeche.Cached.CState) : Prop :=
+/-- The `instC` table's entry count agrees with con-leche's
+`Std.HashMap.size`: what makes the port's `inst_c.len() < inst_c_cap_c` and
+con-leche's `mp.size < instCCapC` the same test.  Only `inst_list_m` reads it.
+
+Task #61 folded it into `State.lean`'s `StateRel` (as the field
+`StateRel.instCSize`, with `State.insert_size_step` as its insert lemma), so
+this abbreviation is now *derivable* — `hrel.instCSize` — rather than an extra
+hypothesis a caller has to find from somewhere.  The lemmas below keep it as
+an explicit argument and an explicit conclusion, which is what makes the memo
+policies line up probe by probe; `State.lean` is where it is established. -/
+abbrev InstCSize (st : cached.state_c.CState) (lst : ConLeche.Cached.CState) : Prop :=
   (HashMap.al_v st.inst_c).length = lst.instC.size
-
-/-! ### The generic size step
-
-`State.lean`'s `insert_step` says what an insert does to the relation; this
-says what it does to the *count*, which is the only thing the entry cap looks
-at.  **To be unified into `State.lean`** beside `insert_step`. -/
-
-section Generic
-
-variable {K V K' V' : Type} [DecidableEq K] [BEq K'] [Hashable K']
-  {HashableInst : ron.hashmap.Hashable K} {Eq2Inst : ron.hashmap.Eq2 K}
-  {P : K → Prop} {absK : K → K'} {absV : V → V'}
-  {m m' : ron.hashmap.HashMap K V} {s : _root_.Std.HashMap K' V'}
-
-/-- **One memo insert, on the count.**  The port's entry count follows
-con-leche's `size` through an insert: both grow by one exactly when the key was
-absent, and `RelOn` at the key is what makes "absent" the same question on the
-two sides. -/
-theorem insert_size_step [LawfulBEq K'] [LawfulHashable K']
-    (hkey : KeyOk P Eq2Inst absK) (hinv : HashMap.Inv HashableInst m)
-    (hkeys : HashMap.KeysOk P m) (hrel : HashMap.RelOn P m s absK absV)
-    {k : K} {v : V} (hk : P k) {old : Option V}
-    (h : ron.hashmap.HashMap.insert HashableInst Eq2Inst m k v = ok (old, m'))
-    (hsz : (HashMap.al_v m).length = s.size) :
-    (HashMap.al_v m').length = (s.insert (absK k) (absV v)).size := by
-  obtain ⟨hinv', -, hupd, hkeys'⟩ :=
-    HashMap.insert_refines_wf hkey.eq2 hinv hkeys hk h
-  -- the two sides' counts are the two key sets' cardinalities
-  have hcard : (HashMap.al_v m').length = (HashMap.support m').card :=
-    (HashMap.card_support hinv').symm
-  have hcard0 : (HashMap.al_v m).length = (HashMap.support m).card :=
-    (HashMap.card_support hinv).symm
-  -- `support m' = insert k (support m)`
-  have hsupp : HashMap.support m' = Insert.insert k (HashMap.support m) := by
-    apply Finset.ext
-    intro k'
-    rw [HashMap.mem_support_iff, Finset.mem_insert, HashMap.mem_support_iff, hupd,
-      Function.update_apply]
-    by_cases hkk : k' = k
-    · simp [hkk]
-    · simp [hkk]
-  -- "the key was absent" is the same question on the two sides
-  have habs : (absK k ∈ s) ↔ k ∈ HashMap.support m := by
-    have hlk := hrel k hk
-    rw [HashMap.mem_support_iff, _root_.Std.HashMap.mem_iff_contains,
-      _root_.Std.HashMap.contains_eq_isSome_getElem?, ← hlk]
-    cases HashMap.toFun m k <;> simp
-  rw [hcard, hsupp, _root_.Std.HashMap.size_insert]
-  by_cases hmem : k ∈ HashMap.support m
-  · rw [Finset.insert_eq_self.mpr hmem, if_pos (habs.mpr hmem), ← hcard0, hsz]
-  · rw [Finset.card_insert_of_notMem hmem, if_neg (fun hc => hmem (habs.mp hc)),
-      ← hcard0, hsz]
-
-end Generic
 
 /-! ## The pure wrappers
 
@@ -863,13 +815,14 @@ theorem inst_list_m_reset_over {st st' : cached.state_c.CState}
   simp only [bind_eq_ok_iff] at h
   obtain ⟨m, hm, h⟩ := h
   rw [← Result.ok_injective h]
-  refine ⟨{ hrel with instC := new_rel hm },
+  have hsz' : (HashMap.al_v m).length
+      = ({ lst with instC := ∅ } : ConLeche.Cached.CState).instC.size := by
+    rw [new_alv hm]; simp
+  refine ⟨{ hrel with instC := new_rel hm, instCSize := hsz' },
     { hwf with
       instCInv := new_inv hm, instCKeys := new_keys hm,
       instCVals := new_vals hm }, ?_⟩
-  show (HashMap.al_v m).length = _
-  rw [new_alv hm]
-  simp
+  exact hsz'
 
 /-- `ConLeche/Cached/StateC.lean:186-199` — **`inst_list_m` refines
 `instListM`**: the head cutoff, the probe, and on a miss the entry-bound reset

@@ -301,7 +301,7 @@ pub fn reduce_nat_bin_i(
     match reduce_nat_lits_i(mode, fuel, st, fe, depth, a, b) {
         Err(err) => Err(err),
         Ok(None) => Ok(None),
-        Ok(Some(p)) => Ok(core_k::nat_op_result(c, &p.0, &p.1)),
+        Ok(Some(p)) => core_k::nat_op_result(c, &p.0, &p.1),
     }
 }
 
@@ -509,7 +509,7 @@ pub fn iota_index_ok_i(
         match pi_residual_m(ty_ctor, margs) {
             Some(residual) => {
                 let args = expr_ops::get_app_args(&residual);
-                let rest = core_k::drop_exprs(&args, cn_p as usize);
+                let rest = core_k::drop_exprs_n(&args, cn_p);
                 def_eq_list_i(mode, fuel, st, fe, depth, &rest, idx)
             }
             None => Ok(false),
@@ -921,13 +921,19 @@ pub fn struct_eta_cert_steps_i(
         Err(err) => Err(err),
         Ok(false) => Ok(false),
         Ok(true) => {
-            let tele = if env::certs(mode) {
-                match state_c::const_ty_at_m(st, fe, t, us2) {
-                    Err(err) => Err(err),
-                    Ok(tty) => iota_certs_i(mode, fuel, st, fe, depth, false, &tty, targs),
+            // Task #61: the cited `let tyT ← constTyAtM fe T Tn us'` sits
+            // *before* `certAtI mode` (`CoreC.lean:437`).  `constTyAtM`
+            // memoises and can `throw`, so hoisting it into the gate makes
+            // `.trusted` return `Ok` on a state con-leche has moved.
+            let tele = match state_c::const_ty_at_m(st, fe, t, us2) {
+                Err(err) => Err(err),
+                Ok(tty) => {
+                    if env::certs(mode) {
+                        iota_certs_i(mode, fuel, st, fe, depth, false, &tty, targs)
+                    } else {
+                        Ok(true)
+                    }
                 }
-            } else {
-                Ok(true)
             };
             match tele {
                 Err(err) => Err(err),
@@ -958,7 +964,7 @@ pub fn struct_eta_cert_steps_i(
                         Err(err) => Err(err),
                         Ok(false) => Ok(false),
                         Ok(true) => {
-                            let params = expr_ops::take_exprs(aargs, caps.eta_params as usize);
+                            let params = core_k::take_exprs_n(aargs, caps.eta_params);
                             match def_eq_list_i(mode, fuel, st, fe, depth, &params, targs) {
                                 Err(err) => Err(err),
                                 Ok(false) => Ok(false),
@@ -1013,7 +1019,7 @@ pub fn struct_eta_cert_fields_i(
         Err(err) => Err(err),
         Ok(false) => Ok(false),
         Ok(true) => {
-            let fields = core_k::drop_exprs(aargs, caps.eta_params as usize);
+            let fields = core_k::drop_exprs_n(aargs, caps.eta_params);
             def_eq_list_i(mode, fuel, st, fe, depth, &fields, &projs)
         }
     }
@@ -1115,18 +1121,18 @@ pub fn struct_unit_steps_i(
             Ok(wtb) => match defeq(mode, fuel, st, fe, depth, wta, &wtb) {
                 Err(err) => Err(err),
                 Ok(false) => Ok(false),
-                Ok(true) => {
-                    if env::certs(mode) {
-                        match state_c::const_ty_at_m(st, fe, t, us2) {
-                            Err(err) => Err(err),
-                            Ok(tty) => {
-                                iota_certs_i(mode, fuel, st, fe, depth, false, &tty, targs)
-                            }
+                // Task #61: the read is ungated in the cited Lean
+                // (`CoreC.lean:501-510`).
+                Ok(true) => match state_c::const_ty_at_m(st, fe, t, us2) {
+                    Err(err) => Err(err),
+                    Ok(tty) => {
+                        if env::certs(mode) {
+                            iota_certs_i(mode, fuel, st, fe, depth, false, &tty, targs)
+                        } else {
+                            Ok(true)
                         }
-                    } else {
-                        Ok(true)
                     }
-                }
+                },
             },
         },
     }
@@ -1369,21 +1375,25 @@ pub fn major_to_ctor_k_i(
                     } else if cn_p > targs.len() as u64 {
                         Ok(expr::dup(major))
                     } else {
-                        let params = expr_ops::take_exprs(&targs, cn_p as usize);
+                        let params = core_k::take_exprs_n(&targs, cn_p);
                         let h = expr::mk_const(name::dup(&rl.ctor), env::levels_copy(ust));
                         let fab = state_c::mk_app_n_m(h, &params);
                         if !fab_scope_ok_i(&fab, major, depth) {
                             Ok(expr::dup(major))
                         } else {
-                            let cert = if env::certs(mode) {
-                                match state_c::const_ty_at_m(st, fe, &rl.ctor, ust) {
-                                    Err(err) => Err(err),
-                                    Ok(cty) => iota_certs_i(
-                                        mode, fuel, st, fe, depth, false, &cty, &params,
-                                    ),
+                            // Task #61: ungated in the cited Lean (`CoreC.lean:577`).
+                            let cert = match state_c::const_ty_at_m(st, fe, &rl.ctor, ust)
+                            {
+                                Err(err) => Err(err),
+                                Ok(cty) => {
+                                    if env::certs(mode) {
+                                        iota_certs_i(
+                                            mode, fuel, st, fe, depth, false, &cty, &params,
+                                        )
+                                    } else {
+                                        Ok(true)
+                                    }
                                 }
-                            } else {
-                                Ok(true)
                             };
                             match cert {
                                 Err(err) => Err(err),
@@ -1501,15 +1511,19 @@ pub fn major_to_ctor_eta_i(
                         if !fab_scope_ok_i(&fab, major, depth) {
                             Ok(expr::dup(major))
                         } else {
-                            let cert = if env::certs(mode) {
-                                match state_c::const_ty_at_m(st, fe, &rl.ctor, ust) {
-                                    Err(err) => Err(err),
-                                    Ok(cty) => iota_certs_i(
-                                        mode, fuel, st, fe, depth, false, &cty, &spine,
-                                    ),
+                            // Task #61: ungated in the cited Lean (`CoreC.lean:621`).
+                            let cert = match state_c::const_ty_at_m(st, fe, &rl.ctor, ust)
+                            {
+                                Err(err) => Err(err),
+                                Ok(cty) => {
+                                    if env::certs(mode) {
+                                        iota_certs_i(
+                                            mode, fuel, st, fe, depth, false, &cty, &spine,
+                                        )
+                                    } else {
+                                        Ok(true)
+                                    }
                                 }
-                            } else {
-                                Ok(true)
                             };
                             match cert {
                                 Err(err) => Err(err),
@@ -1603,15 +1617,19 @@ pub fn major_to_ctor_and_i(
                         if !fab_scope_ok_i(&fab, major, depth) {
                             Ok(expr::dup(major))
                         } else {
-                            let cert = if env::certs(mode) {
-                                match state_c::const_ty_at_m(st, fe, &rl.ctor, ust) {
-                                    Err(err) => Err(err),
-                                    Ok(cty) => iota_certs_i(
-                                        mode, fuel, st, fe, depth, false, &cty, &spine,
-                                    ),
+                            // Task #61: ungated in the cited Lean (`CoreC.lean:653`).
+                            let cert = match state_c::const_ty_at_m(st, fe, &rl.ctor, ust)
+                            {
+                                Err(err) => Err(err),
+                                Ok(cty) => {
+                                    if env::certs(mode) {
+                                        iota_certs_i(
+                                            mode, fuel, st, fe, depth, false, &cty, &spine,
+                                        )
+                                    } else {
+                                        Ok(true)
+                                    }
                                 }
-                            } else {
-                                Ok(true)
                             };
                             match cert {
                                 Err(err) => Err(err),
@@ -1930,7 +1948,7 @@ pub fn iota_cmp_args_i(
 ) -> Vec<Expr> {
     match &rl.fire {
         RecRuleFire::Nested(_, pins) => {
-            let pargs = expr_ops::take_exprs(args, r_p as usize);
+            let pargs = core_k::take_exprs_n(args, r_p);
             pin_args_i(
                 lps,
                 us,
@@ -1941,7 +1959,7 @@ pub fn iota_cmp_args_i(
                 Vec::new(),
             )
         }
-        _ => expr_ops::take_exprs(args, rl.ctor_params as usize),
+        _ => core_k::take_exprs_n(args, rl.ctor_params),
     }
 }
 
@@ -1986,7 +2004,7 @@ pub fn iota_rec_checks_i(
             let pcmp = if env::rec_rule_compare_params(rl) {
                 let keep = iota_params_keep_i(rl, c);
                 if env::certs(mode) || keep {
-                    let params = expr_ops::take_exprs(margs, rl.ctor_params as usize);
+                    let params = core_k::take_exprs_n(margs, rl.ctor_params);
                     def_eq_list_i(mode, fuel, st, fe, depth, &params, &cmp_args)
                 } else {
                     Ok(true)
@@ -2056,9 +2074,9 @@ pub fn iota_rec_telescopes_i(
         Ok(true) => match state_c::rule_rhs_at_m(st, fe, c, cj, us) {
             Err(err) => Err(err),
             Ok(rhs) => {
-                let fields = core_k::drop_exprs(margs, rl.ctor_params as usize);
+                let fields = core_k::drop_exprs_n(margs, rl.ctor_params);
                 let spine =
-                    core_k::append_exprs(expr_ops::take_exprs(args, r_p as usize), &fields);
+                    core_k::append_exprs(core_k::take_exprs_n(args, r_p), &fields);
                 Ok(Some(state_c::mk_app_n_m(rhs, &spine)))
             }
         },
@@ -2090,7 +2108,7 @@ pub fn iota_rec_family_i(
     major: &Expr,
 ) -> CheckM<bool> {
     let lic = env::beta_gate(mode);
-    let pre = expr_ops::take_exprs(args, m_i as usize);
+    let pre = core_k::take_exprs_n(args, m_i);
     match state_c::const_ty_at_m(st, fe, c, us) {
         Err(err) => Err(err),
         Ok(rty) => {
@@ -2106,7 +2124,7 @@ pub fn iota_rec_family_i(
                             Err(err) => Err(err),
                             Ok(false) => Ok(false),
                             Ok(true) => {
-                                let idx = core_k::drop_exprs(&pre, r_p as usize);
+                                let idx = core_k::drop_exprs_n(&pre, r_p);
                                 iota_index_ok_i(
                                     mode,
                                     fuel,
@@ -3306,10 +3324,15 @@ pub fn infer_const_i(
 /// `.const` clause reads `constTyAtM`; the `.proj` clause types the node by
 /// its table entry through `ProjEntry.typeAtI`.
 ///
-/// `io` is the grade of the recursive calls in the clauses the io body does
-/// **not** override — only `.proj` makes any (the module note's deviation
-/// 4).  The three clauses the io body does override (`∀`, `λ`, `.app`) are
-/// unreachable at `io = true` and call the full-grade wrappers directly.
+/// Task #61: this body is `inferBodyI` **at the knot itself** — every
+/// recursive call is the full grade.  It used to carry con-leche's `ioView`
+/// as a `Bool` (task #18's deviation 4), but the three clauses the io body
+/// overrides (`∀`, `λ`, `.app`) called the full-grade wrappers there, where
+/// `inferBodyI` at `ioView` calls the io slot: the flag was a divergence in
+/// dead code.  The one view that *is* reached at the io grade, `.proj`, now
+/// has its own clause in `infer_body_io_i`, exactly as `inferBodyIOI`'s `_`
+/// arm at `ioView` does; `infer_proj_i` keeps the grade parameter the two
+/// bodies share.
 pub fn infer_body_i(
     mode: &CheckMode,
     fuel: u64,
@@ -3317,7 +3340,6 @@ pub fn infer_body_i(
     fe: &FEnv,
     depth: u64,
     e: &Expr,
-    io: bool,
 ) -> CheckM<Expr> {
     const M_LET: [u32; 43] = [
         105, 110, 102, 101, 114, 84, 121, 112, 101, 58, 32, 96, 108, 101, 116, 96, 32, 105, 110,
@@ -3352,7 +3374,7 @@ pub fn infer_body_i(
             }
         }
         ExprKind::Proj(sn, i, pe) => {
-            infer_proj_i(mode, fuel, st, fe, depth, sn, *i, pe, io)
+            infer_proj_i(mode, fuel, st, fe, depth, sn, *i, pe, false)
         }
         ExprKind::LetE(_, _, _) => {
             Err(core_types::internal(core_types::code_points(&M_LET)))
@@ -3583,8 +3605,11 @@ pub fn infer_proj_i(
 /// clauses, deliberately not the task-#72 telescope loops (looping the io
 /// lane would owe the whole loop-identification walk family a second,
 /// io-graded instance for a lane whose subjects are internal
-/// re-inferences).  Every other view dispatches to `infer_body_i` at `io =
-/// true`, so there is no textual clone to drift.
+/// re-inferences).  The `.proj` view is the one remaining view whose clause
+/// makes a recursive call, and it makes it at the io grade (`inferBodyIOI`'s
+/// `_` arm runs `inferBodyI` on the record's `ioView`); every other view has
+/// no recursive call at all and dispatches to `infer_body_i`, so there is no
+/// textual clone to drift (task #61).
 pub fn infer_body_io_i(
     mode: &CheckMode,
     fuel: u64,
@@ -3610,7 +3635,10 @@ pub fn infer_body_io_i(
         ExprKind::Lam(ty, body, mb) => {
             infer_lam_io_i(mode, fuel, st, fe, depth, ty, body, mb)
         }
-        _ => infer_body_i(mode, fuel, st, fe, depth, e, true),
+        ExprKind::Proj(sn, i, pe) => {
+            infer_proj_i(mode, fuel, st, fe, depth, sn, *i, pe, true)
+        }
+        _ => infer_body_i(mode, fuel, st, fe, depth, e),
     }
 }
 
@@ -5139,7 +5167,7 @@ pub fn infer(
     } else {
         match infer_probe(st, e) {
             Some(r) => Ok(r),
-            None => match infer_body_i(mode, fuel - 1, st, fe, d, e, false) {
+            None => match infer_body_i(mode, fuel - 1, st, fe, d, e) {
                 Err(err) => Err(err),
                 Ok(r) => {
                     st.infer_c.insert(expr::dup(e), expr::dup(&r));
@@ -5187,7 +5215,7 @@ pub fn infer_io(
     } else {
         match infer_probe(st, e) {
             Some(r) => Ok(r),
-            None => match infer_body_i(mode, fuel - 1, st, fe, d, e, false) {
+            None => match infer_body_i(mode, fuel - 1, st, fe, d, e) {
                 Err(err) => Err(err),
                 Ok(r) => {
                     st.infer_c.insert(expr::dup(e), expr::dup(&r));

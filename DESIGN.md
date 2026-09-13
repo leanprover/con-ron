@@ -545,6 +545,21 @@ theorem states `pins = decode PINS_TEXT` and Lean establishes
 measures whether the kernel can do it directly or via the round-trip
 theorem).  The runtime-data paragraph above is superseded.
 
+**Pins, ruling of 2026-09-13 (maintainer): no upstream change if it can be
+avoided; `native_decide` accepted as an interim.**  The embedded-text route
+of task #43 failed on one 532 KB literal (kernel string reduction is
+quadratic; Aeneas's `toStr` carries `decide +native`; a byte literal of that
+size does not elaborate).  Interim (task #64): the closed computation
+`parsePins PINS = some natOpPinSets` is discharged by `native_decide`, so
+the capstones for the binary's actual pins carry `Lean.ofReduceBool` —
+trusted for exactly one closed computation on static data — beside the
+three standard axioms, while the pins-parametric versions stay at the
+three; the decoder's refinement is an ordinary proof.  Spike #63 measures
+two encodings (chunked byte constants; split generated source with
+generated proofs) that would remove the axiom.  con-leche's `pins-param`
+branch (task #285) remains available as the alternative that also makes the
+theorem pin-independent, but is not required.
+
 ### 3.7 Provenance: keeping the port in sync with con-leche
 
 con-leche keeps moving.  The proofs catch drift eventually — a changed
@@ -11634,7 +11649,724 @@ and `weak.backward.do.legacy = true` under `[leanOptions]`, and **`lake env
 lean FILE` does not apply them**.  Two files in this task checked clean under
 `lake env lean` and failed `lake build`; one of them differed by a single
 `rfl`.  Verify with `lake build ConRon.Refine.<File>`.
+### Task #57 — The inductive routes refined (knot assumed) (2026-09-13, Opus under Fable)
 
+P3, `proof/ConRon/Refine/CORE_PLAN.md` **step 7, second part**: the refinement
+of `crates/con-ron-core/src/kernel/inductives/` — the two install routes for an
+inductive block, task #25's 9 671 lines — against
+`ConLeche/Kernel/Inductives/*.lean` and the cached drivers of
+`ConLeche/Cached/CheckerC.lean`, in ten new `Refine/Ind*.lean` files.  Task #55
+is proving the knot's arms concurrently, so **every lemma here takes the knot
+as a hypothesis** (`Core.Wrappers mode IndAbs.checkFuelU`, or the full
+`KnotSpec`) and reaches the core only through five operation lemmas.  Task #56
+refines the checker tier concurrently and consumes the result through one
+`Prop`, `IndRoutesSpec`.
+
+#### The foundation: `Refine/IndAbs.lean`
+
+What all nine other files import.
+
+* **`checkFuelU`**, `core_k::check_fuel()` *as a value*.  Aeneas gives the
+  zero-argument function the type `Result U64`, so a knot hypothesis cannot
+  literally read `core_k.check_fuel`; `check_fuel_eq : core_k.check_fuel = ok
+  checkFuelU` closes the gap and `checkFuelU_val : checkFuelU.val =
+  ConLeche.checkFuel` is what makes the Rust wrapper's fuel and `sharedOpsC`'s
+  the same number.  Both `@[simp]`.
+* **The record abstractions**, marked *to be unified into `Refine/Abs.lean`*:
+  `absRecFieldKind`, `absRecFieldKinds`, `absKindss`, `absCtors`,
+  `absLevelss`, `absInductiveShape`, `absNativeParts`, `absStructParts`, and
+  their `*WF` predicates.  `NativePass` is the one that cannot abstract by a
+  function — it stores an `FEnv` — so it gets a *relation*, `NativePassRel`.
+  `absNativeParts` is also where task #25's deviation 3 is discharged: Lean's
+  `NativeParts extends InductiveShape` is the port's field `shape`.
+* **The five operations.**  §3.1's knot ruling dissolved con-leche's
+  `CheckerOps` record into direct wrapper calls (task #25's deviation 2), so
+  `ops.whnf env d e` is `core_c::whnf(mode, check_fuel(), st, fe, d, &e)` and
+  `sharedOpsC mode fe`'s fields are `coreKnotI mode fe checkFuel` — the *same*
+  knot at the *same* fuel.  `ops_whnf`/`ops_infer`/`ops_annotate`/`ops_defeq`
+  are therefore the four `Wrappers` fields restated at the `sharedOpsC`
+  spelling, and `ops_ensure_sort` is `whnf` plus con-leche's `.sort` match,
+  with `ExprWF` of the whnf result — which `ops_whnf` hands back — supplying
+  the level's well-formedness through the new `sort_node_wf`.  No `sorry`.
+
+#### The seam: `Refine/IndSpec.lean` and `ind_routes_spec`
+
+`IndRoutesSpec mode` is the one `Prop` task #56 consumes: `check_native_s`
+against `checkNativeS` and `check_ind_decl_s` against `checkIndDeclSF`, in the
+standard exact-result shape with `StateRel`/`FEnvRel` and `∃ lfe'` for the
+returned index.  `IndC.lean`'s `ind_routes_spec (hk : KnotSpec mode
+checkFuelU) : IndRoutesSpec mode` produces it from the two entry-point lemmas.
+Task #56's own `Refine/IndSpec.lean` had not landed when this task started, so
+the same-named `Prop` is defined here and the two tasks meet on one statement.
+
+#### What `inductives_c.rs` is about, and what its refinement is
+
+`Cached/CheckerC.lean`'s inductive stages "mirror their
+`Kernel/Checker.lean` counterparts clause by clause; the differences are
+exactly: `flushC` at environment transitions, `FEnv.push` maintaining the
+index, and every environment lookup routed through the index".  The port has
+one spelling of the index already (deviation 1), so what `inductives_c.rs`
+adds is the **flush policy** — the one thing §3.1 insists must be mirrored,
+because a flush changes the memo hit/miss pattern.  Task #25 *split* three
+stages in `native_install`/`modeled` so that the flush lands exactly where the
+cited `flushC` does, with one body serving both the pure and the cached
+spelling; `IndC.lean`'s work is composing those halves around
+`StateC.flush_c_refines`, which is why its eleven statements are against the
+`*S` drivers rather than against the stages.
+
+Two of the eleven are proved outright: `check_ind_members_s` and
+`install_proj_fns_s`, `checkIndDeclSF`'s two `foldlM`s as index recursions,
+each by strong induction on the remaining length over Aeneas's
+`partial_fixpoint` unfolding from the step lemma above it.
+
+#### Three recurring shapes, and one finding
+
+1. **Aeneas emits every index recursion as a `partial_fixpoint`.**  The
+   working pattern is `rw [<generated name>] at h`, then
+   `generalize hd : <measure> = d; induction d using Nat.strong_induction_on
+   generalizing …`, with the measure `subst`ed in each branch (the goal
+   mentions `d`, not the measure).  `i.val = j.val + 1` comes from
+   `hi : j + 1#u64 = ok i` by `HashMap.uscalar_add_eq hi`.
+   `StructInstall.proj_fn_family_free_from_refines` and
+   `SumParts.sum_split_from_refines` are the two worked examples.
+2. **A tuple bind's `let` does not reduce under `dsimp only` or `split`.**
+   After `simp only [bind_eq_ok_iff] at h; obtain ⟨p, hp, h⟩ := h;
+   obtain ⟨a, b⟩ := p`, the generated `let (a, b) ← f …` leaves an unreduced
+   `let (a, b) := (…, …)` in `h`; neither `dsimp only at h` nor `split at h`
+   touches it, and a **full `simp at h`** does.  Also, `simp only [...,
+   bind_eq_ok_iff, ...] at h` sometimes *reorients* the equation and then
+   fails to fire — peeling the binds one at a time with
+   `obtain ⟨x, hx, h⟩ := bind_eq_ok_iff.mp h` is the reliable form.
+3. **`cases` on an `ExprWF` hypothesis fails when anything else in the context
+   mentions the expression** — dependent elimination cannot solve the
+   resulting equation, because Aeneas's `Result` is coinductive.  Where it
+   does, decompose the node instead (`obtain ⟨⟨d, k⟩⟩ := e; cases k`) and use
+   `Expr.*_inv` / `ExprOps.node_kind` / `arc_deref_eq`.
+   `IndAbs.ops_ensure_sort` is the worked example of both halves.
+
+**The finding.**  `struct_install::check_struct_doms_at` indexes `fvs`/`doms`
+with `UScalar.cast .Usize i` on a `u64` counter, so the port's reading and
+con-leche's `fvs[j]?` agree only under `i.val ≤ Usize.max`.  That is true on
+this target but is *not* derivable from the loop's own guards, which compare
+the **cast**, not the counter.  It is recorded at that lemma's `sorry`: the
+tier wants a `usize`-width fact of the kind `Refine/ExprOps.lean` states for
+indices already known in range, and the same shape will recur wherever a
+`u64` loop counter indexes a `Vec`.
+
+#### What landed, file by file
+
+Ten files, 12 166 lines, 318 refinement lemmas — one per cited Rust item of
+the directory's 9 671 lines, in each Rust file's order, with the sibling
+modules' facts travelling as named `Prop` ingredients wherever two files were
+written in parallel.  Six agents shared this worktree (one per Rust module
+plus the driver tier), each checking its own file with a `lean` invocation
+that bypasses Lake's build lock, which is what made the fan-out possible at
+all.
+
+| file | lines | lemmas | proved | `sorry` |
+|---|---|---|---|---|
+| `IndAbs.lean` | 311 | 6 | 6 | 0 |
+| `IndStructParts.lean` | 3 214 | 71 | 45 of 52 items | 7 |
+| `IndSumParts.lean` | 336 | 9 | all | 0 |
+| `IndNativeParts.lean` | 1 946 | 75 | 38 of 69 items | 31 |
+| `IndStructInstall.lean` | 297 | 5 | 3 | 2 |
+| `IndSumInstall.lean` | 1 127 | 27 | 13 of 23 items | 10 |
+| `IndNativeInstall.lean` | 2 097 | 48 | 21 of 45 items | 23 |
+| `IndModeled.lean` | 2 323 | 65 | 22 of 63 items | 43 |
+| `IndSpec.lean` | 68 | — | — | 0 |
+| `IndC.lean` | 447 | 12 | 2 | 9 |
+
+125 `sorry`s in the group (the library's whole build reports 128, the other
+three being `Refine/Pins.lean`'s).  Every one carries a one-line note naming
+what its proof composes, and every statement is the exact-result one — no
+lemma was weakened to close.  What is missing divides into three kinds, in
+this order of size: the `partial_fixpoint` recursions and their compositions,
+the stages that reach the knot (which task #55 is closing), and
+`IndStructParts`' recogniser group.
+
+**`IndNativeParts` is the one that matters most for trust, and it is clean at
+the level that matters**: its agent checked every generator node-for-node
+against the cited Lean — the lift amounts and cutoffs, the `nF-1-i` arithmetic
+through `expr_ops::sub_nat`, the append orders, the `zeronessOf` binder data —
+and **found no deviation**.  A deviation there would change a verdict, not
+just a term the proof has to relate.
+
+#### The findings
+
+1. **A `usize`-width side condition, in four places.**  The port indexes
+   `Vec`s with a `u64` counter cast by `UScalar.cast .Usize`, and Aeneas keeps
+   `Usize`'s width abstract, so `struct_install::check_struct_doms_at`,
+   `sum_install::opened_resid_ok` (via `take_exprs`, where con-leche's
+   `List.take` takes a `Nat`), five `struct_parts` indexers and two
+   `native_parts` readers each carry `… ≤ Std.Usize.max`.  Vacuous on this
+   target, not derivable from the loops' own guards (they compare the *cast*).
+   The tier wants **one shared `usize`-width fact**; it will recur wherever a
+   `u64` counter indexes a `Vec`.
+2. **A missing bridge in `Refine/FEnv.lean`.**  `dup_refines` relates the copy
+   to `(mkFEnv (absEnv fe.env)).restrictTo fe.visible_below.val`, but
+   `checkNativePassS` passes its own persistent `fe`, so what the callers need
+   is `FEnvRel fe lfe → FEnvRel (fenv::dup fe) lfe`.  It blocks
+   `check_native_pass_former` and `check_native_rec_rules`.
+3. **Three functions are dead in the shipped binary**:
+   `native_install::{check_native_pass, check_native_tail, check_native}`.
+   `inductives_c::check_native_s` calls the five *split* halves with `flushC`
+   between, and nothing else in the crate calls the three; con-leche writes no
+   `*F` twin for them either.
+4. **One citation mismatch worth fixing in the port**: `modeled`'s
+   `iota_stmt_open` opens the telescope with the one-pass
+   `open_pis_at_fvars_f` where `checkIotaThmF` writes `openPisAtFvars` — equal
+   by con-leche's own `openPisAtFvarsF_eq`, so no verdict changes, but the doc
+   comment should say so.
+5. `has_loose_bvar_b_node`'s catch-all arm is con-leche's **unreachable** one
+   and genuinely disagrees with `Expr.hasLooseBVarB` at a leaf, so its lemma
+   carries a `Rebuilding` guard — the walk only ever reaches it on a rebuilt
+   node.
+
+#### Gates and axiom census
+
+| | |
+|---|---|
+| `scripts/gates.sh` | all 7 OK |
+| progress after the green run | `verified 5866 (42%)` of the 13 743 verified-core Lean lines, up from task #54's `3270 (23%)`; `proofs 60183 (857 _refines)` |
+
+`#guard_msgs in #print axioms` pins `SumParts.sum_split_refines` and
+`with_sort_refines` at the three standard axioms.  The two **entry points**
+(`InductivesC.check_native_s_refines`, `check_ind_decl_s_refines`) carry a
+machine-checked census that currently reads `[propext, sorryAx,
+Classical.choice, Quot.sound]`: `sorryAx` leaving those two lines is the gate
+that says the inductive tier is closed, and `#guard_msgs` will fail loudly the
+moment it does.
+### Task #55 — The knot's arms (2026-09-13, Opus under Fable)
+
+`CORE_PLAN.md` step 6's remaining implication — `arms : ∀ fuel,
+Wrappers mode fuel → Bodies mode fuel`, the seven bodies of
+`cached/core_c.rs` against con-leche's bodies applied to `coreKnotI … fuel`
+— and, with task #53's `knot_induction`, `knot_spec : ∀ fuel, KnotSpec mode
+fuel`.  Nineteen files, **17 078 lines**, one coordinator and sixteen
+parallel agents.
+
+#### The block, mapped
+
+`cached/core_c.rs`'s `partial_fixpoint` block is **120 functions** (3 761
+Rust lines, 7 723 generated Lean lines) besides the six memoising wrappers,
+plus 41 `Array U32` message constants that need no lemma (they are reached
+only on the `.Err` path, and §3.5 claims nothing on failure).  Partitioning
+by *which body reaches which helper* gives a decomposition that is acyclic
+apart from the six wrappers — which every helper may assume through the
+`Wrappers mode fuel` hypothesis — and four genuinely mutually recursive
+groups.
+
+| file | fns | lines | sorry | what |
+|---|---|---|---|---|
+| `Shape.lean` | — | 288 | 0 | the three `Sim` shapes, the bridges, `knotV` |
+| `Bridge.lean` | — | 45 | 0 | `StateC`'s two named ingredients, discharged |
+| `Shared.lean` | 2 | 117 | 0 | `ensure_sort_i`, `infer_io_whnf_i` |
+| `Lits.lean` | 5 | 722 | 1 | literal reduction, `unfold_definition_i` |
+| `Certs.lean` | 14 | 1780 | 1 | the certificate cascade |
+| `Iota.lean` | 16 | 2173 | 5 | ι-reduction |
+| `Major.lean` | 8 | 1699 | 3 | major premise → constructor |
+| `App.lean` | 7 | 1026 | 1 | `whnfAppI`/`betaPeelI`, the projection arm |
+| `WhnfCore.lean` | 3 | 323 | 0 | **the `whnf_core` body** |
+| `Whnf.lean` | 3 | 237 | 0 | **the `whnf` body** |
+| `InferSpine.lean` | 1 | 396 | 0 | `inferSpineI` (776 generated lines) |
+| `InferTele.lean` | 8 | 1272 | 0 | the λ/Π telescopes |
+| `Infer.lean` | 8 | 985 | 3 | **the `infer` body**, both grades |
+| `InferSpineIO.lean` | 2 | 421 | 0 | `inferSpineIOI` (786 generated lines) |
+| `InferIO.lean` | 4 | 596 | 0 | **the `infer_io` body** |
+| `DefEqStruct.lean` | 6 | 1509 | 3 | the structural `defeq` analysis |
+| `DefEq.lean` | 14 | 1561 | 0 | **the `defeq` body** |
+| `Annotate.lean` | 18 | 1786 | 0 | **the `annotate` body** |
+| `Arms.lean` | — | 212 | 2 | the discharges, `arms`, `knot_spec` |
+
+#### The shape every arm has
+
+`Shape.lean` fixes three shapes and nothing else varies: `Sim A WF f g`
+(state and environment threaded), `SimS` (state only), `SimP` (neither).
+The remaining arguments are applied *inside* the abstractions, so one shape
+covers every arity in the block; input well-formedness is a hypothesis of
+the lemma, not of `Sim`, so a caller discharges it from what it knows.
+`RefinesE.toSim`/`ofSim` move between `Statements.lean`'s twelve
+propositions and this shape, `Wrappers.whnfCoreSim`, … re-expose the
+hypothesis at one call site, and `knotV mode lfe fuel io` names the record
+the Rust's `io : Bool` selects (task #18's deviation 4).
+
+Cross-file callees travelled as one `<File>Deps` structure per file, so that
+sixteen agents could write against `Shape.lean` alone.  `Arms.lean`
+discharges four of them by `exact` — which is the real check that sixteen
+independently written statements lined up.
+
+#### What is closed
+
+**19 declarations out of roughly 300 carry a `sorry`**, and eleven of the
+nineteen files carry none.  **`annotate` is closed.**  `#print axioms annotate_body_sim` is `[propext,
+Classical.choice, Quot.sound]`: the body, its eighteen arms and everything
+they rest on.  `whnf`, `infer` and `infer_io` are assembled and carry
+`sorryAx` from named findings, not from unfinished proofs.  Seven files are
+sorry-free, `DefEq` and `Annotate` among them.
+
+#### What carried it
+
+* **The fuelled loop.**  con-leche recurses structurally on a `Nat` budget
+  and passes *itself* as the continuation `k`; the Rust threads the budget
+  and calls the loop where con-leche calls `k`.  `Whnf.lean` settled the
+  pattern and the other three loops reused it: state the step lemma
+  **parametric in `k`** plus a hypothesis giving `k`'s refinement, then an
+  induction `∀ (m : Nat) (n : Std.U64), n.val = m → …` supplies it.  The
+  only monad plumbing needed is one lemma, `run_bind`.
+* **One induction per SCC.**  `App.lean` proves `whnfAppI`/`betaPeelI`
+  together by strong induction on the remaining argument count —
+  con-leche's own `(args.length, tag)` order — and `DefEq.lean` proves its
+  whole budget cycle by one induction with six `*_of_loop` corollaries.
+* **Naming the inline subterm.**  Where the port splits one con-leche
+  function into several, the file *names* the clause and proves by `rfl`
+  that the name is the cited subterm (`Refine/StateC.lean`'s `eqvStep`
+  precedent): `whnfCoreProjI`, `majorToCtorI_eq_k`/`_eq_eta`/`_eq_and`,
+  `DefEq`'s nine `*Frag`s, `inferBodyIOI_forallE`/`_lam`.  Nothing is
+  paraphrased.
+* **The tiers below.**  Almost every non-knot callee already had a lemma —
+  tasks #46/#49/#51/#52/#54 — and task #54's closing of
+  `instantiate_list_refines` let `Bridge.lean` discharge `StateC`'s two
+  named hypotheses for good.
+
+#### Four findings, none of them a proof gap
+
+1. **`nat_op_result`, the shift amount** (1 `sorry`, `Lits.lean`; reaches
+   `whnf` and `defeq`).  At `Nat.shiftLeft`/`shiftRight` with an amount that
+   does not fit a `u64`, `nat::to_u64` fails and the port answers `None`
+   where `natOpResult` computes a literal.  Task #49's `OpSpec` already
+   records it as its second `none` disjunct.  The exact-result statement is
+   therefore **false on that branch**.  The cheap fix is in the port: answer
+   `Err` rather than `None`, and §3.5 claims nothing on failure.
+2. **`Bodies.inferView` is false as stated** (3 `sorry`, `Infer.lean`).  At
+   `io = true` the Rust's `.app`, `.forallE` and `.lam` clauses call the
+   full-grade `infer`/`infer_spine_i`/`infer_forall_i`/`infer_lam_i`
+   (`core_c.rs:3338-3352`) while `inferBodyI` at the knot's `ioView` calls
+   the io slot.  Those three views are unreachable at `io = true` —
+   `infer_body_io_i` and `inferBodyIOI` both override them — so the
+   divergence is in dead code, but the statement quantifies over every node.
+   Restrict `Bodies.inferView` to the seven delegated views, or thread `io`
+   through the three arms.
+3. **`as usize` in the ι cone** (5 `sorry`, `Iota.lean`).  `core_c.rs`
+   writes `rP as usize` / `cnP as usize` / `mI as usize` (`:1933`, `:1989`,
+   `:2093`, …).  Aeneas models `as usize` as `UScalar.cast .Usize`, which
+   truncates mod `2 ^ System.Platform.numBits`; each proof closes the 64-bit
+   arm and leaves the 32-bit one open, and nothing in the cone bounds `rP`.
+   **§3.4 rule 3 says such casts are avoided entirely** — the port breaks
+   its own rule here.
+4. **`const_ty_at_m` hoisted inside the `certs` gate** (3 `sorry` in
+   `Major.lean`, 1 in `Certs.lean`, 1 in `DefEqStruct.lean`) — a suspected
+   port bug, and the one finding **three agents reported independently, at
+   five different sites**, which is what makes it systematic rather than
+   incidental.  con-leche evaluates `constTyAtM` *before* the `certAtI mode`
+   gate — `majorToCtorI`'s three rescue arms (`CoreC.lean:577`, `:621`,
+   `:653`), `structEtaCertWithI` (`:437`) and `structUnitCertI` (`:501-510`)
+   — while `core_c.rs` hoists the read *inside* `if env::certs(mode)`
+   (`:919`, `:1120`, `:1377`, `:1500`, `:1610`).  `constTyAtM` memoises **and
+   can `throw`**, so at `.trusted` con-leche moves the state (or fails) where
+   the port returns `Ok` untouched: `StateRel st' lst'` is false on that arm.
+   `.verified` is fully proved in every case, so this is a `--trusted`-only
+   divergence.  Either the port should read `const_ty_at_m` unconditionally,
+   or the twin should move it under `certAtI`; DESIGN.md's "nine `certAtI`
+   sites" does not list this hoist, which is why it reads as unintended.
+
+#### Two gaps that are this task's own
+
+* **`InstCSize`** (1 `sorry`, `App.lean`).  `StateC.inst_list_m_refines`
+  needs the `instC` entry-count clause, which `StateRel` — a lookup
+  agreement — does not imply and cannot.  `Refine/StateC.lean:48` already
+  says where it belongs: folded into `State.lean`'s `StateRel`.  Until it
+  is, no arm that calls `inst_list_m` can thread it.
+* **Two packaging cycles** (2 `sorry`, `Arms.lean`): `whnf_core` and `defeq`
+  are the two bodies not assembled, both because a *pair* of files ended up
+  each assuming the other's `Deps` record.  All four files are proved and
+  build.  In `DefEq`/`DefEqStruct` the cycle is **not** in the code — at the
+  function level `defeq_struct_i → {defeq_apps_i, defeq_binders_i,
+  stuck_irrel_i, eta_cert_i}` and `stuck_irrel_i → {proof_irrel_i,
+  struct_eta_cert_i, struct_unit_cert_i}` is acyclic — it is an artefact of
+  asking each theorem for a *whole* `Deps` record rather than the fields it
+  uses, so splitting `DefEqDeps` along the call order closes it.  In
+  `App`/`WhnfCore` it is real.
+  `whnf_core_loop_i`, `whnf_core_step_i`, `whnf_app_i` and `beta_peel_i` are
+  **one** strongly connected component, and the partition put it in two
+  files with `∀`-quantified `Deps` fields, so neither structure can be built
+  without the other.  The recursion is well founded — loop(n) needs
+  step(n−1) needs whnfApp(n−1) needs loop(n−1) — so the repair is
+  mechanical: merge the two files, or index both `Deps` by the budget.  The
+  lesson for the next fan-out is the one the partition was designed around
+  and this one place violated: **an SCC must live in one file**.
+
+#### Cost
+
+3 761 Rust lines and 7 723 generated Lean lines refined by 17 078 lines of
+proof — **4.5 proof lines per Rust line**, in the same range as the tiers
+below (task #51's `ExprOpsC`, task #49's `CoreK`).  The parallel fan-out was
+worth it: sixteen files written simultaneously against one interface, and
+the four `Deps` discharges that did run went through by `exact`.
+
+One coordination error is worth recording because it cost seven files a
+repair pass: the fan-out brief told the agents to check with `lake env lean`,
+which does **not** apply `proof/lakefile.toml`'s project-wide
+`[leanOptions]`.  `weak.backward.do.legacy = true` changes `do`-notation
+elaboration, so seven files that passed their own check failed the real
+build.  The check command for a single file is
+`lake env lean -Dweak.backward.do.legacy=true
+-Dweak.backward.isDefEq.respectTransparency=false <file>`.  Relatedly,
+`Shape.lean`'s plumbing is `attribute [local simp]`, and a `local` attribute
+does not cross an import — every file re-declared it.
+
+### Task #60 — The fold and the final theorems (hypotheses: knot, pins) (2026-09-13, Opus under Fable)
+
+P3, `proof/ConRon/Refine/CORE_PLAN.md` **steps 7's top and 8** — the top of the
+tower.  Two new files, `proof/ConRon/Refine/Installed.lean` (1 271 lines) and
+`proof/ConRon/Refine/Main.lean` (134), refining
+`crates/con-ron-core/src/cached/installed.rs` against
+`ConLeche/Cached/Installed.lean` and composing the result with
+`ConLeche/MainTheorem.lean`.  The progress line goes `verified 7531 (54%)` →
+`7664 (55%)` and `799 → 1096` `_refines`.
+
+#### 1. What is proved
+
+**`check_decls_refines` is proved**, from the arm lemmas down: an accept of the
+Rust `check_decls` *is* an accept of con-leche's `checkDecls` at the abstracted
+declarations and the abstracted environment.  Everything structural in the
+cited file is closed:
+
+* the phase-A **four-way dispatch** `annot_step_c` and all three arms
+  (`annot_step_defn_c`, `annot_step_thm_c`, `annot_step_opaque_c`) with their
+  three pushes, including the cited RC-linearity read of `fe.visibleBelow`
+  *before* the push and the theorem arm's install **by statement**;
+* `annot_decl_step` — the tagged step, with the flat 3-tuple accumulator of
+  deviation 1 and the Lean accumulator existentially quantified over its index
+  component;
+* **both index recursions** against their `List` counterparts (deviation 3):
+  `annot_decl_fold_from` against `ds.foldlM (annotDeclStep mode)` and
+  `check_pending_list_from` against the cited `List` recursion, each by the
+  `length - i` induction `Refine/CheckerDecl.lean`'s `check_decls_pure_val`
+  established;
+* `check_pending_fresh` — **the fresh `CState` per record**, where
+  `Refine/State.lean`'s `cstate_new_refines` is what says the port's fourteen
+  fresh tables are con-leche's `{}` (task #32's lifetime argument is what makes
+  the port put it in a function of its own; no memo policy moves);
+* the phase boundary `check_decls_phase_b` and `check_decls` itself.
+
+**Nine `sorry`s**, each with a one-line note: `annotConstantValC` and
+`annotValC` with their two tails, `annotValueC` with its tail, and
+`checkPending` with its two halves.  Every one is a guard cascade plus a core
+call — the same bulk `Refine/CheckerSplit.lean`'s four are, since the cited
+`annotConstantValC`/`annotValC` *are* `installConstantVal`/`installValue` minus
+the inference, read through `constsResolveFC` instead of `Expr.constsResolve`.
+None of them is a design question, and none of them is load-bearing for the
+*shape* of the capstone.
+
+#### 2. The four hypotheses that reach the top, and only four
+
+`conron.model_exists` and `conron.no_proof_of_False` (DESIGN.md §1's second and
+third displayed theorems) are `ConLeche.model_exists`/`no_proof_of_False` at
+`check_decls_refines`, and they carry exactly:
+
+1. `hk : Core.KnotSpec .Verified IndAbs.checkFuelU` — **task #55**'s, being
+   proved concurrently.
+2. `hind : IndRoutesSpec .Verified` — **task #59**'s bridge
+   `ind_routes_spec_of_p ∘ ind_routes_spec hk` had not landed when this task
+   was written, so the *consumer's* form is a named hypothesis; when the bridge
+   lands it is discharged from `hk` in one line.
+3. `hpins : absPins pins = ConLeche.natOpPinSets` — the pin parameter (§3.6,
+   task #31/#43).
+4. `hds : ∀ d ∈ ds.val, DeclCWF d` — the parser's own invariant.
+
+`Refine/README.md`'s new "how the tower composes" section is the table of who
+discharges each, and is the thing to read before picking up the next P3 task.
+
+#### 3. `leanCheckDecls`: the pins bump is one line
+
+The pinned con-leche (`3e004805`) bakes the global `natOpPinSets` into
+`checkDeclStepC`; the `pins-param` branch (con-leche task #285,
+`_tmp/con-leche-pins`) makes it `checkDecls mode pins ds`.  So the conclusion of
+`check_decls_refines` is stated against a `def leanCheckDecls mode pins ds :=
+ConLeche.Cached.checkDecls mode ds`, which takes the list and ignores it today.
+When the submodule pin moves, that body becomes `checkDecls mode pins ds`,
+`hpins` disappears from every statement in both files, and **nothing else
+changes** — which is what makes the bump a decision rather than a project.
+
+`hpins` is *inert in today's proofs and live in today's statements*: task #56's
+`check_decl_step_c_refines` does not take it (its pin-route arms are `sorry`,
+and `Refine/CheckerPins.lean`'s `check_div_mod_pin_refines` is the lemma that
+will), so `annot_step_other_c_refines` turns the unused-variable linter off for
+itself rather than dropping the hypothesis.  Carrying it is the honest way
+round: no statement between here and the pin route can assume the two lists
+agree.
+
+#### 4. The axiom census, and the `PINS_TEXT` guard
+
+Six `#guard_msgs`-checked `#print axioms` blocks, four of them in
+`Refine/Main.lean`.  `conron.model_exists` and `conron.no_proof_of_False` read
+`[propext, sorryAx, Classical.choice, Quot.sound]` today and the two con-leche
+theorems they compose with read `[propext, Classical.choice, Quot.sound]`,
+printed beside them so the diff is visible in one screen: **`sorryAx` leaving
+those two lines is the P3 gate**, and what must remain is con-leche's own
+three.
+
+**Nothing reaches `kernel::pins_text::PINS_TEXT`**, and the census is what
+enforces it (task #43): a closed claim about that constant needs
+`decide +native`, whose `Lean.ofReduceBool`/`Lean.trustCompiler` would appear
+here.  It cannot, because `pins` is a *parameter* of `check_decls` in these
+statements and `hpins` is a hypothesis about it — the embedded text is not in
+the proof closure at all.  `Refine/Pins.lean`'s two open statements are what
+would put it there, deliberately, and they are still the only route.
+
+#### 5. For the next agent
+
+* `simp` has **no `Except.ok a >>= f = f a` lemma** at this instance, and the
+  chains in this tier are three and four runs deep.  `Installed.run_bind_ok`
+  (`x.run s = .ok (a, s₁) → (f a).run s₁ = r → (x >>= f).run s = r`, generic in
+  the error type) is the one step; `refine run_bind_ok h₁ (run_bind_ok h₂ ?_)`
+  is how a `do` block is walked, and it also covers `List.foldlM_cons`'s bind.
+* `rw [f]` on a generated function that matches on a *variable* fails ("failed
+  to rewrite using equation theorems"); `cases` first, then `rw`.
+* `rw [ConLeche.Cached.annotStepC]` at a catch-all constructor leaves three
+  "not this constructor" side goals; `· exact …` then `all_goals simp`.
+* `cases b <;> simp_all` on a `Bool` hypothesis in this context blows the
+  recursion depth; `cases b with | false => rfl | true => exact absurd rfl h`
+  is the cheap form.
+
+### Task #62 — `Installed.lean` closed (2026-09-13, Opus under Fable)
+
+P3, `proof/ConRon/Refine/CORE_PLAN.md` step 7's top.  Task #60 landed
+`proof/ConRon/Refine/Installed.lean` with **nine `sorry`s** — the guard
+cascades and the core calls of `cached::installed`'s two phases.  This task
+closed all nine; the file is now `sorry`-free and nothing else in the tree was
+touched but three imports, one new lemma in the same file, and two doc lines.
+No new `_refines` statement: the progress line does not move, what moves is
+that nine of the existing ones stop being `sorry`.  `scripts/gates.sh`: all 7 OK.
+
+#### 1. The nine
+
+| lemma | what it took |
+|---|---|
+| `annot_constant_val_c_after_annot_refines` | `ExprOpsC.all_level_params_defined_refines` + `StateC.consts_resolve_fc_refines`, the three `dup` identities, the two-level `if` |
+| `annot_constant_val_c_refines` | the six guards (`FEnv.find_refines`, `BasisNames.reserved_basis_names_refines`, `Name.contains_refines`, `CoreK.name_is_proj_fn_shape_refines`, `CheckerBase.name_nodup_refines`, `ExprOpsC.loose_bvars_bounded_refines`/`has_fvar_refines`), `TypeChecker.annotate_core_refines`, then the tail |
+| `annot_val_c_after_annot_refines` | the same two guards, then `StateC.record_c_const_refines` over `annot_val_c_record_refines` |
+| `annot_val_c_refines` | the two scope guards, the annotation, the tail |
+| `annot_value_c_tail_refines` | `annot_val_c_refines` and the triple |
+| `annot_value_c_refines` | `StateC.flush_c_refines`, the header half, the tail |
+| `check_pending_tail_refines` | `infer_type_core_refines`, `is_def_eq_core_refines`, `FEnv.restrict_to_refines`/`_wf` |
+| `check_pending_value_refines` | `CheckerSplit.is_thm_refines`, `Level.zero_refines`/`is_equiv_refines`, `core_k::lift_fueled`'s two arms, `annot_val_c_refines`, the tail |
+| `check_pending_refines` | the flush, the view, the inference, `ensure_sort_core_refines` (`parsed_c::op_s_ix_c` *is* `type_checker::ensure_sort_core`), then the value half |
+
+Statements are exactly task #60's: nothing weakened, no hypothesis added.
+
+#### 2. `litGuards`: `LitGuardsRefine` discharged
+
+`Refine/StateCResolve.lean`'s `consts_resolve_fc_refines` carries the named
+ingredient `LitGuardsRefine` (the two `.lit` arms' `core_k::nat_trio_stored` /
+`str_support_stored` readings), which task #46 could not discharge because
+task #49 had not landed.  It can now: `Installed.litGuards` is those two
+lemmas at `FindAgree.of_rel hrel hwf` under `CoreK.pinnedBasisNames`, three
+lines.  It sits in `Installed.lean` because this is the first file that both
+*holds* an `FEnvRel` and *calls* `consts_resolve_fc`; the next consumer should
+move it down to `StateCResolve.lean` (which cannot import `CoreKPinned.lean`
+today without a cycle through `CoreKSupport` → `StateC`).
+
+Three imports were added for the same reason: `CheckerBase` (`name_nodup_refines`),
+`ExprOpsCGuards` (the *cached* `all_level_params_defined_refines`) and
+`StateCResolve`.
+
+#### 3. The census, pinned
+
+`check_decls_refines` still reads `[propext, sorryAx, Classical.choice,
+Quot.sound]` — but **not from this file any more**.  Three new
+`#guard_msgs`-checked censuses pin what is closed:
+
+* `annot_value_c_refines` — phase A's whole install half — three standard axioms;
+* `check_pending_refines` and `check_decls_phase_b_refines` — **the whole of
+  phase B**, from the fresh `CState` through both `checkPending` halves — three
+  standard axioms.
+
+So the `sorryAx` reaching the top comes through exactly one door,
+`annot_step_other_c_refines` → `Refine/CheckerDecl.lean`'s
+`check_decl_step_c_refines` (task #56's arms, task #58's to close).  `hk`,
+`hind` and `hpins` are *hypotheses* and contribute nothing to the census; once
+`check_decl_step_c_refines` is closed, `check_decls_refines` is at the three
+standard axioms with no further work here.
+
+#### 4. For the next agent
+
+* The Rust error arms (`code_points`/`invalid` chains) are killed by
+  `exact absurd h (by simp [bind_eq_ok_iff])`; that one phrase closes every
+  one of them in this file.
+* A tail lemma stated at the **`Except`** level (task #60 wrote
+  `annot_constant_val_c_after_annot_refines` that way) meets a `CheckCM` goal
+  by `exact congrArg (fun r => r.map (fun p => (p, lst))) htail` after the
+  guards are decided — the `StateT` run of a state-free block is the `Except`
+  block mapped with the state pinned on.
+* `by_cases` on a guard the tail lemma does *not* name forces the two dead
+  branches to be closed from the tail's own equation; `simp [hG, throw,
+  throwThe, MonadExceptOf.throw, Bind.bind, Except.bind] at htail` is what
+  reduces `throw e >>= f` to `Except.error e` there (plain `simp` does not).
+* `decide`-valued kind tests (`checker_split::is_thm`) go through
+  `of_decide_eq_true hbv.symm` / `of_decide_eq_false hbv.symm` — `simp_all` on
+  them blows `maxRecDepth`, as task #60 already warned.
+* A `do` block whose continuation is distributed into an `if` (con-leche's
+  `let jv ← if … then … else …` join) is walked by `run_bind_ok` on the
+  *probe* first (`liftFueled`), then `simp only [if_true]`, then `run_bind_ok`
+  again — not by `run_bind_ok` on the `if` as a whole.
+### Task #61 — The knot closed: four port fixes, two SCC repairs, `knot_spec` (2026-09-13, Opus under Fable)
+
+Task #55 left `Refine/Core/` with **19 `sorry`s** in eight files: four port
+deviations it *found* (and correctly refused to paper over), one missing
+clause in `StateRel`, two packaging cycles of its own fan-out, and two
+unfinished literal arms.  This task fixed the port where the port was wrong,
+repaired the packaging, and proved the rest.  `knot_spec` — `CORE_PLAN.md`
+step 6, the twelve statements at every fuel — is now **axiom-clean**:
+
+```
+#print axioms knot_spec  ⇒  [propext, Classical.choice, Quot.sound]
+```
+
+and so is every one of the six `*_body_sim`.
+
+#### The four port deviations
+
+Each was a place where the Rust said something the cited con-leche does not,
+so the refinement statement was *false* rather than unproved.  In every case
+the fix went into the Rust, not the statement.
+
+1. **`nat_op_result`, the shift amount** (`kernel/core_k.rs:1557`,
+   `Kernel/Core.lean:628-655`).  con-leche computes `Nat.shiftLeft`/
+   `shiftRight` at any `Nat`; a `u64`-limited port cannot, and the port
+   answered `None` — a *different verdict*, not a failure, so the exact-result
+   statement was false on that branch.  The port now **fails**
+   (`Err (internal "shift amount beyond u64")`); §3.5 claims nothing on
+   failure, so the refinement holds and the accept direction (§1) is unharmed.
+   `nat_op_result`'s type went from `Option<Expr>` to `CheckM<Option<Expr>>`,
+   its one caller `cached::core_c::reduce_nat_bin_i` propagates instead of
+   wrapping, and task #49's `OpSpec` (`Refine/CoreKLits.lean`) **lost its
+   escape disjunct**: both directions are exact.
+   *Instruction delta:* none measurable — the branch is unreachable on any
+   real input (a shift amount of 2^64 bits is not representable).
+
+2. **`Bodies.inferView` was false** (`cached/core_c.rs:3336`,
+   `Cached/CoreC.lean:1293-1389`).  `infer_body_i` carried con-leche's
+   `ioView` as an `io : Bool` (task #18's deviation 4), but at `io = true`
+   its `.app`, `.forallE` and `.lam` clauses called the **full-grade**
+   wrappers where `inferBodyI` at `ioView` calls the io slot.  Checked
+   reachability: `io = true` *is* reached — `infer_body_io_i`'s fall-through
+   dispatches there — but only at `.proj`, the one delegated view whose
+   clause makes a recursive call; the three divergent clauses are overridden
+   by `inferBodyIOI` and are dead.  So the flag went away: `infer_body_i` is
+   now `inferBodyI` at the knot, flagless, and `infer_body_io_i` grew its own
+   `.proj` clause (`infer_proj_i … true`), exactly as `inferBodyIOI`'s `_`
+   arm at `ioView` does.  `Statements.lean` lost the `Bodies.inferView`
+   field; `Arms/InferIO.lean` gained `InferIODeps.inferProj` and six
+   `inferBodyI_leaf_*` `rfl`s (at the six remaining delegated views
+   `inferBodyI`'s clause makes no recursive call, so the record is
+   irrelevant there).
+   *Instruction delta:* none — same code path, one fewer `Bool` argument.
+
+3. **`rP as usize` and the other `u64 → usize` casts in the ι cone**
+   (§3.4 rule 3).  Aeneas models `as usize` as `UScalar.cast .Usize`, which
+   truncates mod `2 ^ System.Platform.numBits`; nothing in the cone bounds
+   `rP`, so every proof that met one closed the 64-bit arm and left the
+   32-bit one open.  All eleven casts in `cached/core_c.rs` are gone,
+   replaced by two new cast-free helpers in `kernel/core_k.rs` —
+   `take_exprs_n`/`drop_exprs_n` and their `*_from` index recursions — in
+   which a `usize` index walks the `Vec` and a `u64` count counts down, so no
+   value ever crosses between the two widths.  Their refinements
+   (`take_exprs_n_val`/`_refines`, `drop_exprs_n_val`/`_refines`) are in
+   `Refine/CoreKVec.lean`, and `System.Platform.numBits` no longer appears in
+   a single proof of the cone.
+   *Instruction delta:* the counting recursion does the same work as the
+   index recursion it replaces; `init` is within noise (below).
+
+4. **`const_ty_at_m` hoisted inside the `certs` gate, at five sites**
+   (`core_c.rs` `struct_eta_cert_steps_i`, `struct_unit_steps_i`,
+   `major_to_ctor_k_i`, `major_to_ctor_eta_i`, `major_to_ctor_and_i`;
+   `Cached/CoreC.lean:437`, `:501-510`, `:577`, `:621`, `:653`).  con-leche
+   evaluates `constTyAtM` *before* `certAtI mode`; the port read it inside
+   `if env::certs(mode)`.  `constTyAtM` memoises **and can `throw`**, so at
+   `--trusted` con-leche moved the state (or failed) where the port returned
+   `Ok` untouched: `StateRel st' lst'` was false on that arm.  The read moved
+   to where the cited Lean has it, at all five sites; the memo policy is now
+   identical in both modes (§3.1).
+   *Instruction delta:* `--trusted` now does the memoised read it skipped.
+   On `init` this is inside the noise band (below): the read is memoised and
+   the sites are the η/unit/K rescues, which fire rarely.
+
+#### The two assembly gaps
+
+* **`App`/`WhnfCore` is a real SCC.**  `whnf_core_loop_i`,
+  `whnf_core_step_i`, `whnf_app_i` and `beta_peel_i` are one strongly
+  connected component, and task #55's partition put it in two files whose
+  `Deps` fields were `∀`-quantified over the budget, so neither structure
+  could be built.  The recursion is well founded *in the budget* —
+  loop(n+1) is step(n), step(n) calls whnfApp(n) and whnfCoreProj(n), and
+  both of those call loop(n) — so `WhnfCoreDeps` is now **indexed by the
+  budget**, `AppDeps` dropped its loop field in favour of the explicit
+  `KSim` hypothesis `App`'s `*_of_loop` lemmas already took, and
+  `Arms/Arms.lean`'s `whnfCoreLoopSim` runs the one induction on the budget,
+  where both files are in scope.  The SCC is still split across two files,
+  but the *statement* that ties it is in one place, which is what task #55's
+  lesson actually asks for.
+* **`DefEq`/`DefEqStruct` was only packaged circularly.**  At the function
+  level `defeq_struct_i → {defeq_apps_i, defeq_binders_i, stuck_irrel_i}` and
+  `stuck_irrel_i → {proof_irrel_i, struct_eta_cert_i, struct_unit_cert_i}` is
+  acyclic; the cycle came from asking each theorem for the *whole* other
+  file's record.  Both records were split along the call order —
+  `DefEqDepsA` (everything but `defeqStruct`) and `DefEqStructDepsA` (the two
+  `Arms/Certs.lean` callees) — and `Arms/Arms.lean` builds them in four
+  stages.  No statement changed.
+
+#### The `sorry` count, per file
+
+| file | before | after | what closed it |
+|---|---:|---:|---|
+| `Arms/Lits.lean` | 1 | 0 | port fix 1 |
+| `Arms/Iota.lean` | 5 | 0 | port fix 3 |
+| `Arms/Major.lean` | 3 | 0 | port fix 4 |
+| `Arms/Certs.lean` | 1 | 0 | port fix 4 |
+| `Arms/DefEqStruct.lean` | 3 | 0 | port fix 4 (one), two literal arms proved |
+| `Arms/Infer.lean` | 3 | 0 | port fix 2 |
+| `Arms/App.lean` | 1 | 0 | `InstCSize` folded into `StateRel` |
+| `Arms/Arms.lean` | 2 | 0 | the two packaging repairs |
+| **total** | **19** | **0** | |
+
+`InstCSize` — the `instC` entry-count clause `cached::state_c`'s entry cap
+reads — was task #55's one gap that was neither a port bug nor a packaging
+error: `StateRel` is a *lookup* agreement, and a lookup agreement cannot bound
+the Lean map's size.  It is now `StateRel.instCSize`, a fifteenth field of
+`Refine/State.lean`'s `StateRel`, with `State.insert_size_step` (moved up from
+`Refine/StateC.lean`) as its insert lemma; four construction sites needed the
+new clause and the other eleven inherit it through `{ hrel with … }`.
+`Arms/Bridge.lean`'s note and `Arms/Certs.lean`'s `StateCOpen` record both
+close with it.
+
+#### Measurement
+
+`init` (58 002 records), release + mimalloc, `--jobs=1`, `ulimit -v 2600000`,
+`perf stat -e instructions:u,cycles:u`, one run each; instructions are the
+measure of record (CLAUDE.md).
+
+| | before | after | |
+|---|---:|---:|---|
+| `--verified` `instructions:u` | 564.82 G | 565.07 G | 1.0004× |
+| `--verified` `cycles:u` | 286.23 G | 285.22 G | 0.996× (noise) |
+| `--trusted` `instructions:u` | 564.80 G | 565.05 G | 1.0004× |
+| `--trusted` `cycles:u` | 291.61 G | 288.99 G | 0.991× (noise) |
+| verdict | accepted 58 002 | accepted 58 002 | identical |
+
+0.25 G instructions on 565 G is 0.04 %: the four fixes are free.
+`scripts/diff-e2e.sh` 348/348 at `--verified` and at `--trusted`,
+`scripts/diff-fixtures.sh` 315 agree / 0 differ.
+
+#### What this closes
+
+`CORE_PLAN.md` step 6 is done.  `Refine/Core/Statements.lean`'s `KnotSpec`
+holds at every fuel, for every mode, with Lean's three axioms and nothing
+else — which means `cached::core_c`'s six memoising wrappers and six bodies
+compute exactly what `ConLeche.Cached.coreKnotI` computes, on well-formed
+inputs, whenever the Rust succeeds.  Everything above the knot (steps 7 and
+8: the declaration fold, the two inductive routes, `Refine/Main.lean`'s
+capstones) now rests on a theorem rather than on a hypothesis.
 ### Task #58 — `div_mod_env_guard` fixed; the checker tier closed (2026-09-13, Opus under Fable)
 
 The two things task #56 left: the **accept-direction bug** it found in
@@ -11883,3 +12615,37 @@ What the declaration-checker tier now rests on, in full:
 
 Nothing else.  In particular every `*Spec` task #49 and task #56 introduced is
 now discharged, `Refine/BasisPins.lean` included.
+
+#### 8. The P3 gate flipped
+
+Merging tasks #60/#61/#62 (which landed while this one ran) made
+`Refine/Installed.lean`'s `check_decl_step_c_refines` call the version above.
+Threading the two new hypotheses (`hvar`, `hoe`) through `Installed.lean`'s
+eight statements and `Refine/Main.lean`'s three is the whole adaptation — and
+then **both `#guard_msgs` censuses that were pinned with `sorryAx` failed**,
+which is exactly what task #62 wrote them for ("`sorryAx` leaving this line is
+the gate").  The corrected census is:
+
+```
+'ConRon.Refine.conron.model_exists'      depends on axioms: [propext, Classical.choice, Quot.sound]
+'ConRon.Refine.conron.no_proof_of_False' depends on axioms: [propext, Classical.choice, Quot.sound]
+```
+
+con-leche's own three, and nothing else — no `sorryAx`, and nothing
+native-decide-shaped (the `PINS_TEXT` guard of `Refine/Main.lean`'s module
+note).  §1's two main theorems for the Rust checker are therefore **proved**,
+modulo the five hypotheses `Refine/Main.lean`'s table now lists with who closes
+each: `hk` (task #55's knot, proved at #61, not yet plugged in here), `hind`
+(task #57's routes through #59's bridge), `hpins` (`Refine/Pins.lean`'s two
+open statements, task #43's), and task #58's own `hvar` and `hoe`.
+`Refine/Installed.lean`'s `check_decls_refines` is clean on the same terms.
+
+`hvar : CheckerPins.PinsWF pins` is new on `Installed.lean`'s and `Main.lean`'s
+statements and is the sixth of §3's justified additions: `hpins` says the pin
+list *abstracts* to `natOpPinSets`, which does not give that each node is what
+the port's smart constructor built, and without that a stored hash word can
+make `expr::beq` inexact on a pin that nonetheless has the right value.  It is
+the same discipline as the `hds : forall d in ds, DeclCWF d` the file already
+carried for the declarations, and it is discharged the same way — by
+construction, since `kernel::pins_decode` builds through the smart
+constructors.
