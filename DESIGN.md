@@ -1115,6 +1115,79 @@ measured.
   prove and measure.  Delegate anything mechanical.
 * Large artifacts (exports, builds) go to `_tmp/` (gitignored).
 
+### CI
+
+`.github/workflows/ci.yml` (task #77) runs the project's gates on
+GitHub-hosted runners, on every `push` and `pull_request`, in one job
+(`concurrency` cancels a superseded run; `timeout-minutes: 180`).
+
+**What runs**, in order, each step's exit code being its verdict:
+
+| step | what |
+|---|---|
+| `scripts/gates.sh` | all seven gates — `cargo build`/`cargo test` under `-D warnings`, the style lint, `provenance.py check`, `gen-pins --check`, `extract.sh --check` (Charon + Aeneas) and `lake build` of the proof library |
+| `scripts/diff-e2e.sh --timeout=60` | the 348-fixture end-to-end differential, `--jobs=1` (the sequential reference) |
+| `scripts/diff-e2e.sh --timeout=60 --jobs=4` | the same sweep on the worker pool (task #48) |
+| `lake build con-ron-dump con-ron-dump-pins` + `scripts/diff-fixtures.sh` | the checker differential on con-leche's own `List DeclC` dumps (the two dump executables are not default targets, so the gate's `lake build` does not produce them) |
+
+Every fixture the differentials need is vendored (`vendor/con-leche/tests/`,
+arena snapshot included) and the pin list is embedded in the core since task
+#43, so nothing is fetched for them.
+
+**The environment.** Rust, Charon and Aeneas come from `flake.nix`: every
+step that needs them uses `shell: nix develop --command bash -euo pipefail
+{0}`, and the Nix installer is given Aeneas's own binary cache
+(`hacl.cachix.org`, their CI's substituter) so that Charon and Aeneas are
+downloaded rather than built.  Lean is not in the flake: `elan` is installed
+with `--default-toolchain none` (con-leche's CI idiom), so the version comes
+from `lean-toolchain` and is named nowhere in the workflow — the version
+report therefore runs in `proof/`, since elan needs a `lean-toolchain` above
+the cwd.  `vendor/aeneas` needs `submodules: true`; `vendor/con-leche` is a
+vendored subtree and needs nothing.  Mathlib's oleans (~6.6 GB) plus the
+proof build (~1.1 GB) exceed a stock runner's free space, hence a
+disk-clearing step.  `LAKE_JOBS`/`LEAN_NUM_THREADS` are 4 (4 cores, 16 GB).
+
+**Caches** — `actions/cache/restore` + `actions/cache/save` with
+`if: always()`, so a *red* run still leaves its environment behind (plain
+`actions/cache` skips the save when the job fails).  The two Lean saves are
+the last steps of the job, after the differentials, so that the 142 extra
+Lake jobs `lake build con-ron-dump` adds (con-leche's `Frontend/`, which the
+proof library never imports) are cached with the rest:
+
+| path | key |
+|---|---|
+| `_tmp/aeneas-lean/.lake/build` | aeneas submodule sha + `hashFiles('**/aeneas-433.patch')` + `proof/lean-toolchain` |
+| `vendor/con-leche/.lake` | `vendor/CON_LECHE_PIN` + con-leche's `lean-toolchain` and `lakefile.toml` |
+| `proof/.lake/build` | the two above + `hashFiles('proof/**/*.lean', 'proof/lakefile.toml', 'proof/lean-toolchain')`, with restore-keys falling back to an older build of the same environment |
+| `~/.cargo/registry`, `~/.cargo/git` | `Cargo.lock` |
+
+The patch is keyed by `**/aeneas-433.patch` rather than by its path, so
+task #76's move of it does not need a workflow edit.  All four are *build*
+caches whose consumer re-verifies them (Lake and cargo compare trace
+hashes), so a stale entry costs time, never a wrong answer.
+
+**Not cached, deliberately.**  Mathlib's oleans: 6.6 GB is more than a
+repository's whole 10 GB cache quota, and `lake exe cache get` (which the
+workflow runs, since `setup-aeneas-lean.sh` does not — on this machine
+`~/.cache/mathlib` persists) already fetches them in minutes; only the
+Aeneas library built on top of them is cached.  `target/`: measured cold in
+a fresh worktree, `cargo build` is 3 s and `cargo test` 6 s (the crate's
+only real dependency is `mimalloc`), and the 3.5 GB under `target/<triple>/`
+is Charon's, which `charon cargo` recompiles from scratch every time — so
+there is nothing there worth a cache entry.  The Nix store: the substituter
+makes `nix develop` a download.
+
+**Duration.** Cold ≈ an hour (Mathlib clone + `cache get` and the Aeneas
+library ~10 min, the vendored con-leche ~20 CPU-min, the proof library ~5 min
+at `LAKE_JOBS=4`, plus Nix and the sweeps); warm, with every cache hit, well
+under 30 minutes — mostly `extract.sh --check` and the two differentials.
+
+**Not run on CI:** the corpus and frontier runs (`scripts/corpus.sh`,
+`scripts/diff-frontend.sh`), which need `Init`/`Std`/Mathlib exports that are
+not in the repository and are tens of GiB and tens of minutes; and any
+timing, since a shared runner measures noise (the measure of record is
+`perf stat` on the development machine).
+
 ## Task log
 
 `spikes/` was removed at publication (task #76); its contents are in the
@@ -14940,3 +15013,101 @@ out-of-range error.
 `provenance`, `overview-links`, `gen-pins`, `extract-check`, `lake-build`.
 All eight green (lake-build 293 s with `LAKE_JOBS=32`); the proof library
 stays `sorry`-free.
+### Task #77 — CI (2026-09-13, Opus under Fable)
+
+`.github/workflows/ci.yml`: one job, `push` and `pull_request`, everything
+the development machine runs except the frontier.  §7's **CI** subsection is
+the reference description (steps, cache keys, durations, exclusions); this
+entry is what was decided and what was measured.
+
+#### 1. The shape
+
+Nineteen steps: checkout with `submodules: true` (for `vendor/aeneas`;
+`vendor/con-leche` is a subtree and needs nothing), a disk-clearing step, the
+Determinate Systems Nix installer, `elan` with `--default-toolchain none`, a
+dev-shell warm-up that is also the version report, one step computing the two
+cache keys `hashFiles` cannot express, four cache restores, the Aeneas
+library + Mathlib, **`scripts/gates.sh`**, the three differential steps, two
+cache saves and a log upload.
+
+Two idioms carry the whole thing:
+
+* **`shell: nix develop --command bash -euo pipefail {0}`** on every step
+  that needs cargo, Charon, Aeneas or Lake.  `flake.nix` names the toolchain
+  once (Aeneas pins Charon pins the Rust nightly), so the workflow names none
+  of it; and `elan`, installed with no default toolchain, reads
+  `lean-toolchain` — which is why the version report runs *in `proof/`*, the
+  one detail that would have failed on the first push (elan with no default
+  toolchain and no `lean-toolchain` above the cwd has nothing to run).
+* **`actions/cache/restore` + `actions/cache/save` with `if: always()`**
+  rather than plain `actions/cache`, which skips its save when the job
+  fails — under which every push to a red branch would rebuild Mathlib, the
+  Aeneas library and the vendored con-leche from nothing.  The two Lean saves
+  are the last steps before the upload, so that the extra 142 Lake jobs the
+  `con-ron-dump` build adds (con-leche's whole `Frontend/`, which the proof
+  library never imports) are cached too.
+
+#### 2. What is cached, and the two things that are not
+
+The keys are in §7.  The patch is keyed by `hashFiles('**/aeneas-433.patch')`
+and not by its path, so task #76's move of it from `spikes/toolchain/` to
+`patches/` needs no workflow edit — `scripts/setup-aeneas-lean.sh` stays the
+only place that names the path.
+
+**Mathlib's oleans are not cached.**  `_tmp/aeneas-lean/.lake` is 8.6 GB,
+7.2 GB of it Mathlib; a repository's *entire* GitHub cache quota is 10 GB.
+`lake exe cache get` is already a CDN cache for exactly those bytes, so the
+workflow runs it (`setup-aeneas-lean.sh` does not — on this machine
+`~/.cache/mathlib` persists, task #2) and caches only
+`_tmp/aeneas-lean/.lake/build`, the 969 MB of patched Aeneas library that no
+CDN has.
+
+**`target/` is not cached either, and this one is a measurement.**  In a
+fresh worktree with no `target/`: `cargo build` **3 s**, `cargo test`
+**6 s** — the workspace's only real dependency is `mimalloc`.  Of the 4.4 GB
+a full `target/` reaches, 3.5 GB is `target/<triple>/` written by `charon
+cargo`, which drives rustc itself and recompiles every time
+(`scripts/extract.sh`).  So the brief's "cargo's `target/` and registry" is
+implemented as the registry only: caching `target/` would spend a third of
+the quota to save nine seconds.
+
+#### 3. Exercised locally, and what could not be
+
+There is no runner here, so every step's *commands* were run by hand, in the
+workflow's order, in a clean worktree (vendored con-leche build copied,
+`proof/.lake/packages` symlinked at the shared Mathlib, per CLAUDE.md):
+
+| step | result |
+|---|---|
+| `nix develop --command bash -euo pipefail <file>` | works as a step shell; `cargo`, `charon`, `aeneas` from the flake and `lean`/`lake` from elan all resolve inside it |
+| the version report | `charon --version` and `aeneas --version` **do not exist** — `charon version` and `aeneas -version` (one dash) do, and the workflow says so in a comment |
+| `scripts/gates.sh` (`LAKE_JOBS=32`) | all 7 OK; `lake-build` 311 s, `extract-check` 43 s, everything else ≤ 7 s |
+| `scripts/diff-e2e.sh --timeout=60` | **348 agree, 0 differ**, 19 s |
+| `scripts/diff-e2e.sh --timeout=60 --jobs=4` | **348 agree, 0 differ**, 11 s |
+| `lake build con-ron-dump con-ron-dump-pins` | 142 jobs, 67 s at 32 threads — the con-leche `Frontend/` modules the proof library does not import |
+| `scripts/diff-fixtures.sh` | **315 agree, 0 differ, 33 skipped**, 29 s including the dump sweep |
+
+Not exercisable here: the two installer actions, `actions/cache`'s key
+expressions, `scripts/setup-aeneas-lean.sh`'s `lake update` and `lake exe
+cache get` (CLAUDE.md forbids pointing either at the shared
+`_tmp/aeneas-lean`, and a scratch copy would have cloned Mathlib a second
+time), and the disk-clearing step.  The workflow's header says which is
+which, so the first real run is read against a list.
+
+Two further things the first run will settle: whether the `hacl.cachix.org`
+substituter (Aeneas's own, from their CI) serves *Charon* too or the runner
+builds it, and how much slower the proof library is with Aeneas's
+`precompileModules := notCI` — GitHub sets `CI=true`, so `AeneasMeta`, and
+with it the `step` tactic, is interpreted on the runner and compiled at home.
+Both are flagged in comments with the knob to turn.
+
+#### 4. Sizing
+
+Cold, nothing cached: ~10 min for Mathlib and the Aeneas library, ~20 CPU-min
+for the vendored con-leche, ~5 min for the proof library at `LAKE_JOBS=4`,
+plus Nix and the sweeps — an hour, hence `timeout-minutes: 180`.  Warm: the
+sequence above took ~8 min at 32 threads, so well under 30 min on four cores,
+most of it `extract.sh --check` and the two differentials.
+
+`scripts/gates.sh`: all 7 OK.  No source file was touched; the diff is the
+workflow, this entry and §7's CI subsection.
