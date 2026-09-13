@@ -554,9 +554,15 @@ size does not elaborate).  Interim (task #64): the closed computation
 the capstones for the binary's actual pins carry `Lean.ofReduceBool` —
 trusted for exactly one closed computation on static data — beside the
 three standard axioms, while the pins-parametric versions stay at the
-three; the decoder's refinement is an ordinary proof.  Spike #63 measures
-two encodings (chunked byte constants; split generated source with
-generated proofs) that would remove the axiom.  con-leche's `pins-param`
+three; the decoder's refinement is an ordinary proof.  Spike #63 measured
+the two encodings: split generated source is dead (Charon emits a 5 GB
+LLBC); chunked byte constants are axiom-clean, the closed computation is
+4–6 min once (byte lists reduce linearly in the kernel; the decoder's
+lookups need an `n log n` trie in `Dump/Read.lean`), and the only cost is
+Aeneas's scalar-literal elaboration, ~77 CPU-min per pin change, cached by
+Lake.  **Plan:** the `native_decide` interim stands for v1; removing it is
+a later campaign along route A (also the subject of an Aeneas ask on
+numeral elaboration, `AENEAS_FINDINGS.md`).  con-leche's `pins-param`
 branch (task #285) remains available as the alternative that also makes the
 theorem pin-independent, but is not required.
 
