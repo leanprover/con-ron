@@ -1539,5 +1539,138 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
       (fun st fe => cached.core_c.struct_eta_cert_with_i mode fuel st fe d a b wtb)
       (fun lfe => ConLeche.Cached.structEtaCertWithI (absMode mode)
         (knot mode lfe fuel.val) lfe d.val (absExpr a) (absExpr b) (absExpr wtb)) := by
-  sorry
+  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  dsimp only
+  unfold cached.core_c.struct_eta_cert_with_i at hok
+  dsimp only at hok
+  rw [ConLeche.Cached.structEtaCertWithI]
+  obtain ⟨fa, hfa, hok⟩ := bind_eq_ok_iff.mp hok
+  obtain ⟨hfaabs, hfawf⟩ := ExprOps.get_app_fn_refines ha hfa
+  rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hfaabs, CoreK.absExpr_kind fa]
+  simp only [arc_deref_eq, bind_tc_ok] at hok
+  split at hok
+  case h_4 c us hk =>
+    -- the head is a constant
+    obtain ⟨hcwf, huswf⟩ := CoreK.ExprWF.const_children hfawf hk
+    rw [hk]
+    simp only [absExprKind]
+    rw [run_bind _ _ (run_pure _ _)]
+    obtain ⟨o, hprobe, hok⟩ := bind_eq_ok_iff.mp hok
+    cases o with
+    | none =>
+      have hmiss := CoreK.ctor_probe_miss CoreK.envFacts (FindAgree.of_rel hfrel hfe)
+        (FindWF.of_wf hfe) hcwf hprobe
+      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      refine ⟨lst, ?_, hrel, hwf, trivial⟩
+      cases hf : lfe.find? (absName c) with
+      | none => simp
+      | some ci =>
+        cases ci with
+        | ctorInfo cv p f => exact absurd hf (hmiss cv p f)
+        | axiomInfo _ | defnInfo _ _ _ | thmInfo _ _ | indInfo _ _ | recInfo _ _ _ _
+        | projInfo _ => simp
+    | some p =>
+      obtain ⟨cvc, cn_p, cn_f⟩ := p
+      obtain ⟨hfind, hcvcwf⟩ := CoreK.ctor_probe_hit CoreK.envFacts
+        (FindAgree.of_rel hfrel hfe) (FindWF.of_wf hfe) hcwf hprobe
+      rw [hfind]
+      simp only
+      obtain ⟨aargs, haa, hok⟩ := bind_eq_ok_iff.mp hok
+      obtain ⟨haaabs, haawf⟩ := ExprOps.get_app_args_refines ha haa
+      rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← haaabs]
+      rw [run_bind _ _ (run_pure _ _)]
+      obtain ⟨i1, hi1, hok⟩ := bind_eq_ok_iff.mp hok
+      obtain ⟨i2, hi2, hok⟩ := bind_eq_ok_iff.mp hok
+      have hi1v : i1.val = aargs.val.length := by
+        have := ExprOps.usize_cast_u64_val (alloc.vec.Vec.len aargs)
+        have := alloc.vec.Vec.len_val aargs
+        simp only [lift_eq, Result.ok.injEq] at hi1
+        scalar_tac
+      have hi2v : i2.val = cn_p.val + cn_f.val := HashMap.uscalar_add_eq hi2
+      have haalen : (absExprs aargs).length = aargs.val.length := by simp [absExprs]
+      split at hok
+      · -- the arity does not fit
+        rename_i hne
+        have hneL : ¬ ((absExprs aargs).length = cn_p.val + cn_f.val) := by
+          rw [haalen, ← hi1v, ← hi2v]
+          intro hc
+          exact absurd (Std.UScalar.val_eq_imp_iff.mpr hc) (by simpa using hne)
+        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        obtain ⟨rfl, rfl⟩ := hok
+        refine ⟨lst, ?_, hrel, hwf, trivial⟩
+        rw [if_neg hneL]
+        rfl
+      · -- the arity fits
+        rename_i heq
+        have heqL : (absExprs aargs).length = cn_p.val + cn_f.val := by
+          rw [haalen, ← hi1v, ← hi2v]
+          simp only [bne_iff_ne, ne_eq, Decidable.not_not] at heq
+          rw [heq]
+        rw [if_pos heqL]
+        obtain ⟨ftb, hftb, hok⟩ := bind_eq_ok_iff.mp hok
+        obtain ⟨hftbabs, hftbwf⟩ := ExprOps.get_app_fn_refines hwtb hftb
+        rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hftbabs, CoreK.absExpr_kind ftb]
+        split at hok
+        case h_4 t us2 hk2 =>
+          obtain ⟨htwf, hus2wf⟩ := CoreK.ExprWF.const_children hftbwf hk2
+          rw [hk2]
+          simp only [absExprKind]
+          rw [run_bind _ _ (run_pure _ _)]
+          obtain ⟨o1, hprobe2, hok⟩ := bind_eq_ok_iff.mp hok
+          cases o1 with
+          | none =>
+            have hmiss := CoreK.ind_probe_miss CoreK.envFacts (FindAgree.of_rel hfrel hfe)
+              (FindWF.of_wf hfe) htwf hprobe2
+            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+            obtain ⟨rfl, rfl⟩ := hok
+            refine ⟨lst, ?_, hrel, hwf, trivial⟩
+            cases hf : lfe.find? (absName t) with
+            | none => simp
+            | some ci =>
+              cases ci with
+              | indInfo cv cp => exact absurd hf (hmiss cv cp)
+              | axiomInfo _ | defnInfo _ _ _ | thmInfo _ _ | ctorInfo _ _ _
+              | recInfo _ _ _ _ | projInfo _ => simp
+          | some q =>
+            obtain ⟨cvt, caps⟩ := q
+            obtain ⟨hfind2, hcvtwf, hcapswf⟩ := CoreK.ind_probe_hit CoreK.envFacts
+              (FindAgree.of_rel hfrel hfe) (FindWF.of_wf hfe) htwf hprobe2
+            rw [hfind2]
+            simp only
+            obtain ⟨targs, hta, hok⟩ := bind_eq_ok_iff.mp hok
+            obtain ⟨htaabs, htawf⟩ := ExprOps.get_app_args_refines hwtb hta
+            rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← htaabs]
+            rw [run_bind _ _ (run_pure _ _)]
+            obtain ⟨b1, hshape, hok⟩ := bind_eq_ok_iff.mp hok
+            have hshapeabs := CoreK.struct_eta_shape_ok_refines
+              CoreK.pinned_reserved_basis_names (FindAgree.of_rel hfrel hfe)
+              (FindWF.of_wf hfe) hcwf htwf hcvcwf hcvtwf hcapswf hshape
+            split at hok
+            · -- the syntactic block holds: the state-touching steps
+              rename_i hb1t
+              rw [if_pos (of_decide_eq_true (by rw [← hshapeabs]; exact hb1t))]
+              exact (struct_eta_cert_steps_i_refines hsc hw d hcwf htwf huswf hus2wf
+                haawf htawf hb hcvtwf).apply hwf hfe hok hrel hfrel
+            · -- the syntactic block fails
+              rename_i hb1f
+              have hb1ff : b1 = false := by
+                simp only [Bool.not_eq_true] at hb1f; exact hb1f
+              simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+              obtain ⟨rfl, rfl⟩ := hok
+              refine ⟨lst, ?_, hrel, hwf, trivial⟩
+              rw [if_neg (of_decide_eq_false (by rw [← hshapeabs]; exact hb1ff))]
+              rfl
+        all_goals (rename_i hk2
+                   simp only [Result.ok.injEq, Prod.mk.injEq,
+                     core.result.Result.Ok.injEq] at hok
+                   obtain ⟨rfl, rfl⟩ := hok
+                   refine ⟨lst, ?_, hrel, hwf, trivial⟩
+                   rw [hk2]; simp)
+  all_goals (rename_i hk
+             simp only [Result.ok.injEq, Prod.mk.injEq,
+               core.result.Result.Ok.injEq] at hok
+             obtain ⟨rfl, rfl⟩ := hok
+             refine ⟨lst, ?_, hrel, hwf, trivial⟩
+             rw [hk]; simp)
 end ConRon.Refine.Core
