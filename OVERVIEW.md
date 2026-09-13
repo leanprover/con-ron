@@ -238,20 +238,6 @@ port backtracks from a snapshot of the memo state on a mirrored error and
 keeps a `Native` one as the verdict
 ([`or_else_step`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/cached/checker_c.rs#L123-L132)).
 
-The validation pass runs at the entry of `check_decls`
-([`check_decls`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/cached/installed.rs#L728-L760)):
-it walks every declaration, rebuilds every node with the smart
-constructor on the node's own children, and compares the stored word
-with the rebuilt one
-([`validate_expr`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/validate.rs#L427-L440),
-[`validate_decls`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/validate.rs#L812-L830)).
-Con-leche has nothing to check here, its computed fields being correct by
-construction; the port's node fields are ordinary fields the unverified
-frontend fills in, and a forged word would make the checker's `O(1)`
-shortcuts wrong.  The walk is memoised by pointer identity, so a forged
-word can cost time but not correctness, and a declaration that fails is
-declined with `Native`.  It costs 1.5–3 % of instructions (§10).
-
 ### 3.6 The Rust subset
 
 Aeneas translates a subset of Rust, and the port stays inside it by rule
@@ -563,7 +549,7 @@ are `abs*`, the relations `*Rel`, the well-formedness predicates `*WF`.
 
 | where | what |
 |---|---|
-| `crates/con-ron-core/src/kernel/` | the pure checker: `name`, `level`, `prop_when`, `expr`, `expr_ops`, `env`, `fenv`, `core_k`, `checker*`, `decl_check`, `type_checker`, the basis tables, the axiom tables, `inductives/*`, `pins_text`, `pins_decode`, `validate` |
+| `crates/con-ron-core/src/kernel/` | the pure checker: `name`, `level`, `prop_when`, `expr`, `expr_ops`, `env`, `fenv`, `core_k`, `checker*`, `decl_check`, `type_checker`, the basis tables, the axiom tables, `inductives/*`, `pins_text`, `pins_decode` |
 | `crates/con-ron-core/src/cached/` | the memoising checker: `state_c`, `expr_ops_c`, `core_c` (the knot), `checker_c`, `parsed_c`, `installed` (`check_decls`) |
 | `crates/con-ron-core/src/ron/` | `nat`, `hashmap`, `ptr` — what replaces the runtime |
 | `crates/con-ron/src/` | the frontend, the driver, the pool, the two binaries |

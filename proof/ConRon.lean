@@ -97,6 +97,5 @@ import ConRon.Refine.Checker
 import ConRon.Refine.CheckerPins
 import ConRon.Refine.PinsWF
 import ConRon.Refine.CheckerDecl
-import ConRon.Refine.Validate
 import ConRon.Refine.Installed
 import ConRon.Refine.Main

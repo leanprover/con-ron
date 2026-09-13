@@ -22339,7 +22339,7 @@ def cached.state_c.consts_resolve_fc
   ok b
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c_after_annot::M#1]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 183:34-183:171 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 182:34-182:171 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c_after_annot.M_1
   : Array Std.U32 24#usize :=
@@ -22350,7 +22350,7 @@ def cached.installed.annot_constant_val_c_after_annot.M_1
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c_after_annot::M]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 181:34-181:233 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 180:34-180:233 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c_after_annot.M
   : Array Std.U32 37#usize :=
@@ -22363,7 +22363,7 @@ def cached.installed.annot_constant_val_c_after_annot.M
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c_after_annot]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 175:0-192:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 174:0-191:1
     Visibility: public -/
 def cached.installed.annot_constant_val_c_after_annot
   (fe : kernel.fenv.FEnv) (cv : kernel.env.ConstantVal)
@@ -22397,7 +22397,7 @@ def cached.installed.annot_constant_val_c_after_annot
     ok (core.result.Result.Err ce)
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c::M#5]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 160:34-160:208 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 159:34-159:208 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c.M_5 : Array Std.U32 32#usize :=
   Array.make 32#usize [
@@ -22408,7 +22408,7 @@ def cached.installed.annot_constant_val_c.M_5 : Array Std.U32 32#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c::M#4]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 158:34-158:188 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 157:34-157:188 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c.M_4 : Array Std.U32 28#usize :=
   Array.make 28#usize [
@@ -22419,7 +22419,7 @@ def cached.installed.annot_constant_val_c.M_4 : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c::M#3]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 156:34-156:265 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 155:34-155:265 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c.M_3 : Array Std.U32 44#usize :=
   Array.make 44#usize [
@@ -22432,7 +22432,7 @@ def cached.installed.annot_constant_val_c.M_3 : Array Std.U32 44#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c::M#2]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 154:34-154:172 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 153:34-153:172 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c.M_2 : Array Std.U32 24#usize :=
   Array.make 24#usize [
@@ -22442,7 +22442,7 @@ def cached.installed.annot_constant_val_c.M_2 : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c::M#1]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 152:34-152:146 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 151:34-151:146 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c.M_1 : Array Std.U32 19#usize :=
   Array.make 19#usize [
@@ -22452,7 +22452,7 @@ def cached.installed.annot_constant_val_c.M_1 : Array Std.U32 19#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c::M]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 150:34-150:155 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 149:34-149:155 -/
 @[global_simps, irreducible]
 def cached.installed.annot_constant_val_c.M : Array Std.U32 21#usize :=
   Array.make 21#usize [
@@ -22462,7 +22462,7 @@ def cached.installed.annot_constant_val_c.M : Array Std.U32 21#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_constant_val_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 143:0-167:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 142:0-166:1
     Visibility: public -/
 def cached.installed.annot_constant_val_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -22551,7 +22551,7 @@ def cached.state_c.record_c_const
   ok { s with ienv := hm }
 
 /-- [con_ron_core::cached::installed::annot_val_c_record]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 255:0-261:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 254:0-260:1
     Visibility: public -/
 def cached.installed.annot_val_c_record
   (jv : kernel.expr.Expr) (record : Bool) :
@@ -22563,7 +22563,7 @@ def cached.installed.annot_val_c_record
   else ok none
 
 /-- [con_ron_core::cached::installed::annot_val_c_after_annot::M#1]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 237:34-237:175 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 236:34-236:175 -/
 @[global_simps, irreducible]
 def cached.installed.annot_val_c_after_annot.M_1 : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -22574,7 +22574,7 @@ def cached.installed.annot_val_c_after_annot.M_1 : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_val_c_after_annot::M]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 235:34-235:237 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 234:34-234:237 -/
 @[global_simps, irreducible]
 def cached.installed.annot_val_c_after_annot.M : Array Std.U32 38#usize :=
   Array.make 38#usize [
@@ -22586,7 +22586,7 @@ def cached.installed.annot_val_c_after_annot.M : Array Std.U32 38#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_val_c_after_annot]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 226:0-248:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 225:0-247:1
     Visibility: public -/
 def cached.installed.annot_val_c_after_annot
   (st : cached.state_c.CState) (fe : kernel.fenv.FEnv)
@@ -22620,7 +22620,7 @@ def cached.installed.annot_val_c_after_annot
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::cached::installed::annot_val_c::M#1]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 212:34-212:212 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 211:34-211:212 -/
 @[global_simps, irreducible]
 def cached.installed.annot_val_c.M_1 : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -22632,7 +22632,7 @@ def cached.installed.annot_val_c.M_1 : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_val_c::M]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 210:34-210:192 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 209:34-209:192 -/
 @[global_simps, irreducible]
 def cached.installed.annot_val_c.M : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -22643,7 +22643,7 @@ def cached.installed.annot_val_c.M : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::annot_val_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 200:0-219:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 199:0-218:1
     Visibility: public -/
 def cached.installed.annot_val_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -22715,7 +22715,7 @@ def cached.state_c.flush_c
   cached.state_c.flushed s
 
 /-- [con_ron_core::cached::installed::annot_value_c_tail]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 285:0-298:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 284:0-297:1
     Visibility: public -/
 def cached.installed.annot_value_c_tail
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -22731,7 +22731,7 @@ def cached.installed.annot_value_c_tail
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::cached::installed::annot_value_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 267:0-280:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 266:0-279:1
     Visibility: public -/
 def cached.installed.annot_value_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -47006,7 +47006,7 @@ def cached.parsed_c.check_decl_step_c
   cached.parsed_c.check_decl_c mode pins st1 fe pd
 
 /-- [con_ron_core::cached::installed::annot_step_other_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 504:0-516:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 503:0-515:1
     Visibility: public -/
 def cached.installed.annot_step_other_c
   (mode : kernel.env.CheckMode)
@@ -47024,7 +47024,7 @@ def cached.installed.annot_step_other_c
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::cached::installed::annot_step_opaque_c_push]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 478:0-498:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 477:0-497:1
     Visibility: public -/
 def cached.installed.annot_step_opaque_c_push
   (i : Std.U64) (fe : kernel.fenv.FEnv)
@@ -47044,7 +47044,7 @@ def cached.installed.annot_step_opaque_c_push
   ok (fe2, pend1)
 
 /-- [con_ron_core::cached::installed::annot_step_opaque_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 455:0-474:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 454:0-473:1
     Visibility: public -/
 def cached.installed.annot_step_opaque_c
   (mode : kernel.env.CheckMode)
@@ -47071,7 +47071,7 @@ def cached.installed.annot_step_opaque_c
     | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::cached::installed::annot_step_thm_c_push]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 422:0-448:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 421:0-447:1
     Visibility: public -/
 def cached.installed.annot_step_thm_c_push
   (st : cached.state_c.CState) (i : Std.U64) (fe : kernel.fenv.FEnv)
@@ -47097,7 +47097,7 @@ def cached.installed.annot_step_thm_c_push
   ok ((fe2, pend1), st1)
 
 /-- [con_ron_core::cached::installed::annot_step_thm_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 402:0-416:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 401:0-415:1
     Visibility: public -/
 def cached.installed.annot_step_thm_c
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState) (i : Std.U64)
@@ -47118,7 +47118,7 @@ def cached.installed.annot_step_thm_c
   | core.result.Result.Err err => ok (core.result.Result.Err err, st2)
 
 /-- [con_ron_core::cached::installed::annot_step_defn_c_push]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 365:0-393:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 364:0-392:1
     Visibility: public -/
 def cached.installed.annot_step_defn_c_push
   (i : Std.U64) (fe : kernel.fenv.FEnv)
@@ -47141,7 +47141,7 @@ def cached.installed.annot_step_defn_c_push
   ok (fe2, pend1)
 
 /-- [con_ron_core::cached::installed::annot_step_defn_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 336:0-358:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 335:0-357:1
     Visibility: public -/
 def cached.installed.annot_step_defn_c
   (mode : kernel.env.CheckMode)
@@ -47173,7 +47173,7 @@ def cached.installed.annot_step_defn_c
       | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::cached::installed::annot_step_c]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 311:0-330:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 310:0-329:1
     Visibility: public -/
 def cached.installed.annot_step_c
   (mode : kernel.env.CheckMode)
@@ -47200,7 +47200,7 @@ def cached.installed.annot_step_c
     cached.installed.annot_step_other_c mode pins st fe pend pd
 
 /-- [con_ron_core::cached::installed::annot_decl_step]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 526:0-538:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 525:0-537:1
     Visibility: public -/
 def cached.installed.annot_decl_step
   (mode : kernel.env.CheckMode)
@@ -47232,7 +47232,7 @@ def kernel.checker_split.is_thm
   | cached.parsed_c.ValueKind.Opaque => ok false
 
 /-- [con_ron_core::cached::installed::check_pending_tail::M]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 635:50-635:204 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 634:50-634:204 -/
 @[global_simps, irreducible]
 def cached.installed.check_pending_tail.M : Array Std.U32 28#usize :=
   Array.make 28#usize [
@@ -47243,7 +47243,7 @@ def cached.installed.check_pending_tail.M : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::check_pending_tail]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 618:0-641:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 617:0-640:1
     Visibility: public -/
 def cached.installed.check_pending_tail
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -47272,7 +47272,7 @@ def cached.installed.check_pending_tail
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::cached::installed::check_pending_value::M]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 604:46-604:241 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 603:46-603:241 -/
 @[global_simps, irreducible]
 def cached.installed.check_pending_value.M : Array Std.U32 36#usize :=
   Array.make 36#usize [
@@ -47284,7 +47284,7 @@ def cached.installed.check_pending_value.M : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::check_pending_value]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 578:0-611:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 577:0-610:1
     Visibility: public -/
 def cached.installed.check_pending_value
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -47321,7 +47321,7 @@ def cached.installed.check_pending_value
     cached.installed.check_pending_tail mode st fe_v k pc e
 
 /-- [con_ron_core::cached::installed::check_pending]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 554:0-570:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 553:0-569:1
     Visibility: public -/
 def cached.installed.check_pending
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -47382,7 +47382,7 @@ def cached.state_c.cstate_new : Result cached.state_c.CState := do
     }
 
 /-- [con_ron_core::cached::installed::check_pending_fresh]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 672:0-679:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 671:0-678:1
     Visibility: public -/
 def cached.installed.check_pending_fresh
   (mode : kernel.env.CheckMode) (fe : kernel.fenv.FEnv)
@@ -47394,7 +47394,7 @@ def cached.installed.check_pending_fresh
   ok r
 
 /-- [con_ron_core::cached::installed::check_pending_list_from]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 684:0-698:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 683:0-697:1
     Visibility: public -/
 def cached.installed.check_pending_list_from
   (mode : kernel.env.CheckMode) (fe : kernel.fenv.FEnv)
@@ -47418,7 +47418,7 @@ def cached.installed.check_pending_list_from
 partial_fixpoint
 
 /-- [con_ron_core::cached::installed::check_pending_list]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 649:0-655:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 648:0-654:1
     Visibility: public -/
 def cached.installed.check_pending_list
   (mode : kernel.env.CheckMode) (fe : kernel.fenv.FEnv)
@@ -47427,859 +47427,6 @@ def cached.installed.check_pending_list
     Std.U64))
   := do
   cached.installed.check_pending_list_from mode fe pend 0#usize
-
-/-- [con_ron_core::kernel::validate::validate_nat]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 261:0-268:1
-    Visibility: public -/
-def kernel.validate.validate_nat (n : ron.nat.Nat) : Result Bool := do
-  let k := alloc.vec.Vec.len n.limbs
-  if k = 0#usize
-  then ok true
-  else
-    let i ← k - 1#usize
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64)
-        n.limbs i
-    ok (i1 != 0#u64)
-
-/-- [con_ron_core::kernel::validate::is_valid_char]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 231:0-237:1
-    Visibility: public -/
-def kernel.validate.is_valid_char (c : Std.U32) : Result Bool := do
-  if c < 55296#u32
-  then ok true
-  else if c > 57343#u32
-       then ok (c < 1114112#u32)
-       else ok false
-
-/-- [con_ron_core::kernel::validate::validate_str_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 247:0-255:1
-    Visibility: public -/
-def kernel.validate.validate_str_from
-  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) : Result Bool := do
-  let i1 := alloc.vec.Vec.len s
-  if i >= i1
-  then ok true
-  else
-    let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
-    let b ← kernel.validate.is_valid_char i2
-    if b
-    then let i3 ← i + 1#usize
-         kernel.validate.validate_str_from s i3
-    else ok false
-partial_fixpoint
-
-/-- [con_ron_core::kernel::validate::validate_str]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 241:0-243:1
-    Visibility: public -/
-def kernel.validate.validate_str
-  (s : alloc.vec.Vec Std.U32) : Result Bool := do
-  kernel.validate.validate_str_from s 0#usize
-
-/-- [con_ron_core::kernel::validate::validate_literal]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 411:0-416:1
-    Visibility: public -/
-def kernel.validate.validate_literal
-  (l : kernel.expr.Literal) : Result Bool := do
-  match l with
-  | kernel.expr.Literal.NatVal n =>
-    let n1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n
-    kernel.validate.validate_nat n1
-  | kernel.expr.Literal.StrVal s =>
-    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global s
-    kernel.validate.validate_str v
-
-/-- [con_ron_core::kernel::expr::str_copy_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 220:0-228:1
-    Visibility: public -/
-def kernel.expr.str_copy_from
-  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) (out : alloc.vec.Vec Std.U32) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  let i1 := alloc.vec.Vec.len s
-  if i >= i1
-  then ok out
-  else
-    let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
-    let out1 ← alloc.vec.Vec.push out i2
-    let i3 ← i + 1#usize
-    kernel.expr.str_copy_from s i3 out1
-partial_fixpoint
-
-/-- [con_ron_core::kernel::expr::str_copy]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 213:0-215:1
-    Visibility: public -/
-def kernel.expr.str_copy
-  (s : alloc.vec.Vec Std.U32) : Result (alloc.vec.Vec Std.U32) := do
-  kernel.expr.str_copy_from s 0#usize (alloc.vec.Vec.new Std.U32)
-
-/-- [con_ron_core::kernel::validate::validate_name]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 279:0-298:1
-    Visibility: public -/
-def kernel.validate.validate_name (n : kernel.name.Name) : Result Bool := do
-  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
-  match nn.kind with
-  | kernel.name.NameKind.Anonymous =>
-    let i ← kernel.name.hash_data n
-    let n1 ← kernel.name.anonymous
-    let i1 ← kernel.name.hash_data n1
-    ok (i = i1)
-  | kernel.name.NameKind.Str pre s =>
-    let b ← kernel.validate.validate_name pre
-    if b
-    then
-      let b1 ← kernel.validate.validate_str s
-      if b1
-      then
-        let i ← kernel.name.hash_data n
-        let n1 ← kernel.name.dup pre
-        let v ← kernel.expr.str_copy s
-        let n2 ← kernel.name.mk_str n1 v
-        let i1 ← kernel.name.hash_data n2
-        ok (i = i1)
-      else ok false
-    else ok false
-  | kernel.name.NameKind.Num pre k =>
-    let b ← kernel.validate.validate_name pre
-    if b
-    then
-      let i ← kernel.name.hash_data n
-      let n1 ← kernel.name.dup pre
-      let n2 ← kernel.name.mk_num n1 k
-      let i1 ← kernel.name.hash_data n2
-      ok (i = i1)
-    else ok false
-partial_fixpoint
-
-/-- [con_ron_core::kernel::validate::validate_names_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 308:0-316:1
-    Visibility: public -/
-def kernel.validate.validate_names_from
-  (ns : alloc.vec.Vec kernel.name.Name) (i : Std.Usize) : Result Bool := do
-  let i1 := alloc.vec.Vec.len ns
-  if i >= i1
-  then ok true
-  else
-    let n ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.name.Name) ns i
-    let b ← kernel.validate.validate_name n
-    if b
-    then let i2 ← i + 1#usize
-         kernel.validate.validate_names_from ns i2
-    else ok false
-partial_fixpoint
-
-/-- [con_ron_core::kernel::validate::validate_names]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 302:0-304:1
-    Visibility: public -/
-def kernel.validate.validate_names
-  (ns : alloc.vec.Vec kernel.name.Name) : Result Bool := do
-  kernel.validate.validate_names_from ns 0#usize
-
-/-- [con_ron_core::kernel::prop_when::to_list_opt]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 499:0-504:1
-    Visibility: public -/
-def kernel.prop_when.to_list_opt
-  (pw : kernel.prop_when.PropWhen) :
-  Result (Option (alloc.vec.Vec kernel.name.Name))
-  := do
-  match pw.repr with
-  | kernel.prop_when.PropWhenRepr.Never => ok none
-  | kernel.prop_when.PropWhenRepr.Always =>
-    let v ← kernel.prop_when.to_list pw
-    ok (some v)
-  | kernel.prop_when.PropWhenRepr.One _ =>
-    let v ← kernel.prop_when.to_list pw
-    ok (some v)
-  | kernel.prop_when.PropWhenRepr.Two _ _ =>
-    let v ← kernel.prop_when.to_list pw
-    ok (some v)
-  | kernel.prop_when.PropWhenRepr.Many _ =>
-    let v ← kernel.prop_when.to_list pw
-    ok (some v)
-
-/-- [con_ron_core::kernel::validate::validate_prop_when]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 389:0-400:1
-    Visibility: public -/
-def kernel.validate.validate_prop_when
-  (pw : kernel.prop_when.PropWhen) : Result Bool := do
-  let o ← kernel.prop_when.to_list_opt pw
-  match o with
-  | none => ok true
-  | some ps =>
-    let b ← kernel.validate.validate_names ps
-    if b
-    then
-      let pw1 ← kernel.prop_when.if_all_zero ps
-      kernel.prop_when.beq pw pw1
-    else ok false
-
-/-- [con_ron_core::kernel::validate::validate_binder_meta]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 405:0-407:1
-    Visibility: public -/
-def kernel.validate.validate_binder_meta
-  (m : kernel.expr.BinderMeta) : Result Bool := do
-  let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-  kernel.validate.validate_prop_when pw
-
-/-- [con_ron_core::kernel::validate::validate_level]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 322:0-356:1
-    Visibility: public -/
-def kernel.validate.validate_level (u : kernel.level.Level) : Result Bool := do
-  let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global u._0
-  match ln.kind with
-  | kernel.level.LevelKind.Zero =>
-    let i ← kernel.level.hash_data u
-    let l ← kernel.level.zero
-    let i1 ← kernel.level.hash_data l
-    ok (i = i1)
-  | kernel.level.LevelKind.Succ a =>
-    let b ← kernel.validate.validate_level a
-    if b
-    then
-      let i ← kernel.level.hash_data u
-      let l ← kernel.level.dup a
-      let l1 ← kernel.level.succ l
-      let i1 ← kernel.level.hash_data l1
-      ok (i = i1)
-    else ok false
-  | kernel.level.LevelKind.Max a b =>
-    let b1 ← kernel.validate.validate_level a
-    if b1
-    then
-      let b2 ← kernel.validate.validate_level b
-      if b2
-      then
-        let i ← kernel.level.hash_data u
-        let l ← kernel.level.dup a
-        let l1 ← kernel.level.dup b
-        let l2 ← kernel.level.max l l1
-        let i1 ← kernel.level.hash_data l2
-        ok (i = i1)
-      else ok false
-    else ok false
-  | kernel.level.LevelKind.Imax a b =>
-    let b1 ← kernel.validate.validate_level a
-    if b1
-    then
-      let b2 ← kernel.validate.validate_level b
-      if b2
-      then
-        let i ← kernel.level.hash_data u
-        let l ← kernel.level.dup a
-        let l1 ← kernel.level.dup b
-        let l2 ← kernel.level.imax l l1
-        let i1 ← kernel.level.hash_data l2
-        ok (i = i1)
-      else ok false
-    else ok false
-  | kernel.level.LevelKind.Param n =>
-    let b ← kernel.validate.validate_name n
-    if b
-    then
-      let i ← kernel.level.hash_data u
-      let n1 ← kernel.name.dup n
-      let l ← kernel.level.param n1
-      let i1 ← kernel.level.hash_data l
-      ok (i = i1)
-    else ok false
-partial_fixpoint
-
-/-- [con_ron_core::kernel::validate::validate_levels_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 366:0-374:1
-    Visibility: public -/
-def kernel.validate.validate_levels_from
-  (us : alloc.vec.Vec kernel.level.Level) (i : Std.Usize) : Result Bool := do
-  let i1 := alloc.vec.Vec.len us
-  if i >= i1
-  then ok true
-  else
-    let l ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.level.Level) us i
-    let b ← kernel.validate.validate_level l
-    if b
-    then let i2 ← i + 1#usize
-         kernel.validate.validate_levels_from us i2
-    else ok false
-partial_fixpoint
-
-/-- [con_ron_core::kernel::validate::validate_levels]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 360:0-362:1
-    Visibility: public -/
-def kernel.validate.validate_levels
-  (us : alloc.vec.Vec kernel.level.Level) : Result Bool := do
-  kernel.validate.validate_levels_from us 0#usize
-
-/-- [con_ron_core::kernel::validate::seen_extend]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 213:0-219:1
-    Visibility: public -/
-def kernel.validate.seen_extend
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (key : Std.U64) (old : alloc.vec.Vec kernel.expr.Expr) (e : kernel.expr.Expr)
-  :
-  Result (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  := do
-  let e1 ← kernel.expr.dup e
-  let old1 ← alloc.vec.Vec.push old e1
-  let (_, m1) ←
-    ron.hashmap.HashMap.insert U64.Insts.Con_ron_coreRonHashmapHashable
-      U64.Insts.Con_ron_coreRonHashmapEq2 m key old1
-  ok m1
-
-/-- [con_ron_core::kernel::validate::seen_record]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 199:0-208:1
-    Visibility: public -/
-def kernel.validate.seen_record
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (key : Std.U64) (e : kernel.expr.Expr) :
-  Result (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  := do
-  let e1 ← kernel.expr.dup e
-  let es ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.expr.Expr) e1
-  let (old, m1) ←
-    ron.hashmap.HashMap.insert U64.Insts.Con_ron_coreRonHashmapHashable
-      U64.Insts.Con_ron_coreRonHashmapEq2 m key es
-  match old with
-  | none => ok m1
-  | some v => kernel.validate.seen_extend m1 key v e
-
-/-- [con_ron_core::kernel::validate::seen_hit_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 184:0-192:1
-    Visibility: public -/
-def kernel.validate.seen_hit_from
-  (es : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize) (e : kernel.expr.Expr)
-  :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len es
-  if i >= i1
-  then ok false
-  else
-    let e1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.expr.Expr) es i
-    let b ← kernel.expr.ptr_eq e1 e
-    if b
-    then ok true
-    else let i2 ← i + 1#usize
-         kernel.validate.seen_hit_from es i2 e
-partial_fixpoint
-
-/-- [con_ron_core::kernel::validate::seen_hit]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 174:0-179:1
-    Visibility: public -/
-def kernel.validate.seen_hit
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (key : Std.U64) (e : kernel.expr.Expr) :
-  Result Bool
-  := do
-  let o ←
-    ron.hashmap.HashMap.get U64.Insts.Con_ron_coreRonHashmapHashable
-      U64.Insts.Con_ron_coreRonHashmapEq2 m key
-  match o with
-  | none => ok false
-  | some es => kernel.validate.seen_hit_from es 0#usize e
-
-mutual
-
-/-- [con_ron_core::kernel::validate::validate_expr]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 427:0-439:1
-    Visibility: public -/
-def kernel.validate.validate_expr
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (e : kernel.expr.Expr) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  let key ← kernel.expr.hash e
-  let b ← kernel.validate.seen_hit m key e
-  if b
-  then ok (true, m)
-  else
-    let (b1, hm) ← kernel.validate.validate_expr_arm m e
-    if b1
-    then let hm1 ← kernel.validate.seen_record hm key e
-         ok (true, hm1)
-    else ok (false, hm)
-partial_fixpoint
-
-/-- [con_ron_core::kernel::validate::validate_expr_arm]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 446:0-566:1
-    Visibility: public -/
-def kernel.validate.validate_expr_arm
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (e : kernel.expr.Expr) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
-  match en.kind with
-  | kernel.expr.ExprKind.Bvar i =>
-    let i1 ← kernel.expr.data e
-    let e1 ← kernel.expr.bvar i
-    let i2 ← kernel.expr.data e1
-    ok (i1 = i2, m)
-  | kernel.expr.ExprKind.Fvar i ty =>
-    let (b, hm) ← kernel.validate.validate_expr m ty
-    if b
-    then
-      let i1 ← kernel.expr.data e
-      let e1 ← kernel.expr.dup ty
-      let e2 ← kernel.expr.fvar i e1
-      let i2 ← kernel.expr.data e2
-      ok (i1 = i2, hm)
-    else ok (false, hm)
-  | kernel.expr.ExprKind.Sort u =>
-    let b ← kernel.validate.validate_level u
-    if b
-    then
-      let i ← kernel.expr.data e
-      let l ← kernel.level.dup u
-      let e1 ← kernel.expr.sort l
-      let i1 ← kernel.expr.data e1
-      ok (i = i1, m)
-    else ok (false, m)
-  | kernel.expr.ExprKind.Const n us =>
-    let b ← kernel.validate.validate_name n
-    if b
-    then
-      let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
-      let b1 ← kernel.validate.validate_levels v
-      if b1
-      then
-        let i ← kernel.expr.data e
-        let n1 ← kernel.name.dup n
-        let v1 ← kernel.env.levels_copy v
-        let e1 ← kernel.expr.mk_const n1 v1
-        let i1 ← kernel.expr.data e1
-        ok (i = i1, m)
-      else ok (false, m)
-    else ok (false, m)
-  | kernel.expr.ExprKind.App f a =>
-    let (b, hm) ← kernel.validate.validate_expr2 m f a
-    if b
-    then
-      let i ← kernel.expr.data e
-      let e1 ← kernel.expr.dup f
-      let e2 ← kernel.expr.dup a
-      let e3 ← kernel.expr.app e1 e2
-      let i1 ← kernel.expr.data e3
-      ok (i = i1, hm)
-    else ok (false, hm)
-  | kernel.expr.ExprKind.Lam ty b bm =>
-    let (b1, hm) ← kernel.validate.validate_expr2 m ty b
-    if b1
-    then
-      let b2 ← kernel.validate.validate_binder_meta bm
-      if b2
-      then
-        let i ← kernel.expr.data e
-        let e1 ← kernel.expr.dup ty
-        let e2 ← kernel.expr.dup b
-        let bm1 ← kernel.expr.binder_meta_dup bm
-        let e3 ← kernel.expr.lam e1 e2 bm1
-        let i1 ← kernel.expr.data e3
-        ok (i = i1, hm)
-      else ok (false, hm)
-    else ok (false, hm)
-  | kernel.expr.ExprKind.ForallE ty b bm =>
-    let (b1, hm) ← kernel.validate.validate_expr2 m ty b
-    if b1
-    then
-      let b2 ← kernel.validate.validate_binder_meta bm
-      if b2
-      then
-        let i ← kernel.expr.data e
-        let e1 ← kernel.expr.dup ty
-        let e2 ← kernel.expr.dup b
-        let bm1 ← kernel.expr.binder_meta_dup bm
-        let e3 ← kernel.expr.forall_e e1 e2 bm1
-        let i1 ← kernel.expr.data e3
-        ok (i = i1, hm)
-      else ok (false, hm)
-    else ok (false, hm)
-  | kernel.expr.ExprKind.LetE ty v b =>
-    let (b1, hm) ← kernel.validate.validate_expr3 m ty v b
-    if b1
-    then
-      let i ← kernel.expr.data e
-      let e1 ← kernel.expr.dup ty
-      let e2 ← kernel.expr.dup v
-      let e3 ← kernel.expr.dup b
-      let e4 ← kernel.expr.let_e e1 e2 e3
-      let i1 ← kernel.expr.data e4
-      ok (i = i1, hm)
-    else ok (false, hm)
-  | kernel.expr.ExprKind.Lit l =>
-    let b ← kernel.validate.validate_literal l
-    if b
-    then
-      let i ← kernel.expr.data e
-      let l1 ← kernel.expr.literal_dup l
-      let e1 ← kernel.expr.lit l1
-      let i1 ← kernel.expr.data e1
-      ok (i = i1, m)
-    else ok (false, m)
-  | kernel.expr.ExprKind.Proj s i x =>
-    let (b, hm) ← kernel.validate.validate_expr m x
-    if b
-    then
-      let b1 ← kernel.validate.validate_name s
-      if b1
-      then
-        let i1 ← kernel.expr.data e
-        let n ← kernel.name.dup s
-        let e1 ← kernel.expr.dup x
-        let e2 ← kernel.expr.proj n i e1
-        let i2 ← kernel.expr.data e2
-        ok (i1 = i2, hm)
-      else ok (false, hm)
-    else ok (false, hm)
-partial_fixpoint
-
-/-- [con_ron_core::kernel::validate::validate_expr2]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 572:0-579:1
-    Visibility: public -/
-def kernel.validate.validate_expr2
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (a : kernel.expr.Expr) (b : kernel.expr.Expr) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  let (b1, hm) ← kernel.validate.validate_expr m a
-  if b1
-  then kernel.validate.validate_expr hm b
-  else ok (false, hm)
-partial_fixpoint
-
-/-- [con_ron_core::kernel::validate::validate_expr3]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 583:0-590:1
-    Visibility: public -/
-def kernel.validate.validate_expr3
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (a : kernel.expr.Expr) (b : kernel.expr.Expr) (c : kernel.expr.Expr) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  let (b1, hm) ← kernel.validate.validate_expr2 m a b
-  if b1
-  then kernel.validate.validate_expr hm c
-  else ok (false, hm)
-partial_fixpoint
-
-end
-
-/-- [con_ron_core::kernel::validate::validate_exprs_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 600:0-611:1
-    Visibility: public -/
-def kernel.validate.validate_exprs_from
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (es : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  let i1 := alloc.vec.Vec.len es
-  if i >= i1
-  then ok (true, m)
-  else
-    let e ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.expr.Expr) es i
-    let (b, hm) ← kernel.validate.validate_expr m e
-    if b
-    then let i2 ← i + 1#usize
-         kernel.validate.validate_exprs_from hm es i2
-    else ok (false, hm)
-partial_fixpoint
-
-/-- [con_ron_core::kernel::validate::validate_exprs]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 594:0-596:1
-    Visibility: public -/
-def kernel.validate.validate_exprs
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (es : alloc.vec.Vec kernel.expr.Expr) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  kernel.validate.validate_exprs_from m es 0#usize
-
-/-- [con_ron_core::kernel::validate::validate_proj_table]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 690:0-701:1
-    Visibility: public -/
-def kernel.validate.validate_proj_table
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (t : kernel.env.ProjTable) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  let b ← kernel.validate.validate_name t.struct_name
-  if b
-  then
-    let b1 ← kernel.validate.validate_names t.level_params
-    if b1
-    then
-      let b2 ← kernel.validate.validate_name t.ctor
-      if b2
-      then
-        let b3 ← kernel.validate.validate_level t.struct_sort
-        if b3
-        then
-          let b4 ← kernel.validate.validate_levels t.guards
-          if b4
-          then kernel.validate.validate_exprs m t.bodies
-          else ok (false, m)
-        else ok (false, m)
-      else ok (false, m)
-    else ok (false, m)
-  else ok (false, m)
-
-/-- [con_ron_core::kernel::validate::validate_ind_caps]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 683:0-685:1
-    Visibility: public -/
-def kernel.validate.validate_ind_caps
-  (c : kernel.env.IndCaps) : Result Bool := do
-  let b ← kernel.validate.validate_name c.eta_ctor
-  if b
-  then kernel.validate.validate_prop_when c.sort_z
-  else ok false
-
-/-- [con_ron_core::kernel::validate::validate_rec_rule_fire]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 630:0-642:1
-    Visibility: public -/
-def kernel.validate.validate_rec_rule_fire
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (f : kernel.env.RecRuleFire) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  match f with
-  | kernel.env.RecRuleFire.Inert => ok (true, m)
-  | kernel.env.RecRuleFire.Plain => ok (true, m)
-  | kernel.env.RecRuleFire.Nested us es =>
-    let b ← kernel.validate.validate_levels us
-    if b
-    then kernel.validate.validate_exprs m es
-    else ok (false, m)
-
-/-- [con_ron_core::kernel::validate::validate_rec_rule]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 647:0-658:1
-    Visibility: public -/
-def kernel.validate.validate_rec_rule
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (r : kernel.env.RecRule) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  let b ← kernel.validate.validate_name r.ctor
-  if b
-  then
-    let (b1, hm) ← kernel.validate.validate_rec_rule_fire m r.fire
-    if b1
-    then kernel.validate.validate_expr hm r.rhs
-    else ok (false, hm)
-  else ok (false, m)
-
-/-- [con_ron_core::kernel::validate::validate_rec_rules_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 668:0-679:1
-    Visibility: public -/
-def kernel.validate.validate_rec_rules_from
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (rs : alloc.vec.Vec kernel.env.RecRule) (i : Std.Usize) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  let i1 := alloc.vec.Vec.len rs
-  if i >= i1
-  then ok (true, m)
-  else
-    let rr ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.env.RecRule) rs i
-    let (b, hm) ← kernel.validate.validate_rec_rule m rr
-    if b
-    then
-      let i2 ← i + 1#usize
-      kernel.validate.validate_rec_rules_from hm rs i2
-    else ok (false, hm)
-partial_fixpoint
-
-/-- [con_ron_core::kernel::validate::validate_rec_rules]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 662:0-664:1
-    Visibility: public -/
-def kernel.validate.validate_rec_rules
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (rs : alloc.vec.Vec kernel.env.RecRule) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  kernel.validate.validate_rec_rules_from m rs 0#usize
-
-/-- [con_ron_core::kernel::validate::validate_constant_val]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 619:0-625:1
-    Visibility: public -/
-def kernel.validate.validate_constant_val
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (cv : kernel.env.ConstantVal) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  let b ← kernel.validate.validate_name cv.name
-  if b
-  then
-    let b1 ← kernel.validate.validate_names cv.level_params
-    if b1
-    then kernel.validate.validate_expr m cv.ty
-    else ok (false, m)
-  else ok (false, m)
-
-/-- [con_ron_core::kernel::validate::validate_constant_info]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 705:0-743:1
-    Visibility: public -/
-def kernel.validate.validate_constant_info
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (c : kernel.env.ConstantInfo) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  match c with
-  | kernel.env.ConstantInfo.AxiomInfo cv =>
-    kernel.validate.validate_constant_val m cv
-  | kernel.env.ConstantInfo.DefnInfo cv v _ =>
-    let (b, hm) ← kernel.validate.validate_constant_val m cv
-    if b
-    then kernel.validate.validate_expr hm v
-    else ok (false, hm)
-  | kernel.env.ConstantInfo.ThmInfo cv v =>
-    let (b, hm) ← kernel.validate.validate_constant_val m cv
-    if b
-    then kernel.validate.validate_expr hm v
-    else ok (false, hm)
-  | kernel.env.ConstantInfo.IndInfo cv caps =>
-    let (b, hm) ← kernel.validate.validate_constant_val m cv
-    if b
-    then let b1 ← kernel.validate.validate_ind_caps caps
-         ok (b1, hm)
-    else ok (false, hm)
-  | kernel.env.ConstantInfo.CtorInfo cv _ _ =>
-    kernel.validate.validate_constant_val m cv
-  | kernel.env.ConstantInfo.RecInfo cv _ _ rs =>
-    let (b, hm) ← kernel.validate.validate_constant_val m cv
-    if b
-    then kernel.validate.validate_rec_rules hm rs
-    else ok (false, hm)
-  | kernel.env.ConstantInfo.ProjInfo t =>
-    kernel.validate.validate_proj_table m t
-
-/-- [con_ron_core::kernel::validate::validate_constant_infos_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 753:0-768:1
-    Visibility: public -/
-def kernel.validate.validate_constant_infos_from
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (cs : alloc.vec.Vec kernel.env.ConstantInfo) (i : Std.Usize) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  let i1 := alloc.vec.Vec.len cs
-  if i >= i1
-  then ok (true, m)
-  else
-    let ci ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.env.ConstantInfo) cs i
-    let (b, hm) ← kernel.validate.validate_constant_info m ci
-    if b
-    then
-      let i2 ← i + 1#usize
-      kernel.validate.validate_constant_infos_from hm cs i2
-    else ok (false, hm)
-partial_fixpoint
-
-/-- [con_ron_core::kernel::validate::validate_constant_infos]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 747:0-749:1
-    Visibility: public -/
-def kernel.validate.validate_constant_infos
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (cs : alloc.vec.Vec kernel.env.ConstantInfo) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  kernel.validate.validate_constant_infos_from m cs 0#usize
-
-/-- [con_ron_core::kernel::validate::validate_decl]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 778:0-808:1
-    Visibility: public -/
-def kernel.validate.validate_decl
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (d : cached.parsed_c.DeclC) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  match d with
-  | cached.parsed_c.DeclC.AxiomDecl cv =>
-    kernel.validate.validate_constant_val m cv
-  | cached.parsed_c.DeclC.DefnDecl cv v _ =>
-    let (b, hm) ← kernel.validate.validate_constant_val m cv
-    if b
-    then kernel.validate.validate_expr hm v
-    else ok (false, hm)
-  | cached.parsed_c.DeclC.ThmDecl cv v =>
-    let (b, hm) ← kernel.validate.validate_constant_val m cv
-    if b
-    then kernel.validate.validate_expr hm v
-    else ok (false, hm)
-  | cached.parsed_c.DeclC.OpaqueDecl cv v =>
-    let (b, hm) ← kernel.validate.validate_constant_val m cv
-    if b
-    then kernel.validate.validate_expr hm v
-    else ok (false, hm)
-  | cached.parsed_c.DeclC.BasisDecl _ => ok (true, m)
-  | cached.parsed_c.DeclC.IndDecl block _ =>
-    kernel.validate.validate_constant_infos m block
-
-/-- [con_ron_core::kernel::validate::validate_decls_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 820:0-831:1
-    Visibility: public -/
-def kernel.validate.validate_decls_from
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (ds : alloc.vec.Vec cached.parsed_c.DeclC) (i : Std.Usize) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  let i1 := alloc.vec.Vec.len ds
-  if i >= i1
-  then ok (true, m)
-  else
-    let dc ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cached.parsed_c.DeclC) ds i
-    let (b, hm) ← kernel.validate.validate_decl m dc
-    if b
-    then let i2 ← i + 1#usize
-         kernel.validate.validate_decls_from hm ds i2
-    else ok (false, hm)
-partial_fixpoint
-
-/-- [con_ron_core::kernel::validate::validate_decls]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 812:0-814:1
-    Visibility: public -/
-def kernel.validate.validate_decls
-  (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
-  (ds : alloc.vec.Vec cached.parsed_c.DeclC) :
-  Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
-    kernel.expr.Expr)))
-  := do
-  kernel.validate.validate_decls_from m ds 0#usize
-
-/-- [con_ron_core::kernel::validate::seen_new]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 165:0-167:1
-    Visibility: public -/
-def kernel.validate.seen_new
-  : Result (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr)) := do
-  ron.hashmap.HashMap.new Std.U64 (alloc.vec.Vec kernel.expr.Expr)
 
 /-- [con_ron_core::kernel::fenv::mk_fenv]:
     Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 140:0-152:1
@@ -48299,7 +47446,7 @@ def kernel.env.empty : Result kernel.env.Env := do
   ok { consts := (alloc.vec.Vec.new (alloc.sync.Arc kernel.env.ConstantInfo)) }
 
 /-- [con_ron_core::cached::installed::annot_decl_fold_from]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 805:0-821:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 754:0-770:1
     Visibility: public -/
 def cached.installed.annot_decl_fold_from
   (mode : kernel.env.CheckMode)
@@ -48328,7 +47475,7 @@ def cached.installed.annot_decl_fold_from
 partial_fixpoint
 
 /-- [con_ron_core::cached::installed::check_decls_phase_b]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 787:0-796:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 736:0-745:1
     Visibility: public -/
 def cached.installed.check_decls_phase_b
   (mode : kernel.env.CheckMode) (fe : kernel.fenv.FEnv)
@@ -48341,10 +47488,10 @@ def cached.installed.check_decls_phase_b
   | core.result.Result.Ok fe2 => ok (core.result.Result.Ok fe2.env)
   | core.result.Result.Err err => ok (core.result.Result.Err err)
 
-/-- [con_ron_core::cached::installed::check_decls_go]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 765:0-782:1
+/-- [con_ron_core::cached::installed::check_decls]:
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 714:0-731:1
     Visibility: public -/
-def cached.installed.check_decls_go
+def cached.installed.check_decls
   (mode : kernel.env.CheckMode)
   (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
   (ds : alloc.vec.Vec cached.parsed_c.DeclC) :
@@ -48362,47 +47509,6 @@ def cached.installed.check_decls_go
     let (_, f1, v) := p
     cached.installed.check_decls_phase_b mode f1 v
   | core.result.Result.Err err => ok (core.result.Result.Err err)
-
-/-- [con_ron_core::cached::installed::validate_reject_message::M]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 751:4-755:6 -/
-@[global_simps, irreducible]
-def cached.installed.validate_reject_message.M : Array Std.U32 49#usize :=
-  Array.make 49#usize [
-    100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32, 97#u32, 116#u32,
-    105#u32, 111#u32, 110#u32, 32#u32, 114#u32, 101#u32, 106#u32, 101#u32,
-    99#u32, 116#u32, 101#u32, 100#u32, 32#u32, 98#u32, 121#u32, 32#u32,
-    116#u32, 104#u32, 101#u32, 32#u32, 105#u32, 110#u32, 112#u32, 117#u32,
-    116#u32, 32#u32, 118#u32, 97#u32, 108#u32, 105#u32, 100#u32, 97#u32,
-    116#u32, 105#u32, 111#u32, 110#u32, 32#u32, 112#u32, 97#u32, 115#u32,
-    115#u32
-    ]
-
-/-- [con_ron_core::cached::installed::validate_reject_message]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 750:0-757:1
-    Visibility: public -/
-def cached.installed.validate_reject_message
-  : Result (alloc.vec.Vec Std.U32) := do
-  let s ← lift (Array.to_slice cached.installed.validate_reject_message.M)
-  kernel.core_types.code_points s
-
-/-- [con_ron_core::cached::installed::check_decls]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 728:0-743:1
-    Visibility: public -/
-def cached.installed.check_decls
-  (mode : kernel.env.CheckMode)
-  (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
-  (ds : alloc.vec.Vec cached.parsed_c.DeclC) :
-  Result (core.result.Result kernel.env.Env (kernel.core_types.CheckError ×
-    Std.U64))
-  := do
-  let hm ← kernel.validate.seen_new
-  let (ok1, _) ← kernel.validate.validate_decls hm ds
-  if ok1
-  then cached.installed.check_decls_go mode pins ds
-  else
-    let v ← cached.installed.validate_reject_message
-    let ce ← kernel.core_types.native v
-    ok (core.result.Result.Err (ce, 0#u64))
 
 /-- [con_ron_core::cached::parsed_c::value_kind_dup]:
     Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 114:0-120:1
@@ -50506,6 +49612,31 @@ def kernel.expr.literal_str
   (s : alloc.vec.Vec Std.U32) : Result kernel.expr.Literal := do
   let a ← ron.ptr.new s
   ok (kernel.expr.Literal.StrVal a)
+
+/-- [con_ron_core::kernel::expr::str_copy_from]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 220:0-228:1
+    Visibility: public -/
+def kernel.expr.str_copy_from
+  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) (out : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let i1 := alloc.vec.Vec.len s
+  if i >= i1
+  then ok out
+  else
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let out1 ← alloc.vec.Vec.push out i2
+    let i3 ← i + 1#usize
+    kernel.expr.str_copy_from s i3 out1
+partial_fixpoint
+
+/-- [con_ron_core::kernel::expr::str_copy]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 213:0-215:1
+    Visibility: public -/
+def kernel.expr.str_copy
+  (s : alloc.vec.Vec Std.U32) : Result (alloc.vec.Vec Std.U32) := do
+  kernel.expr.str_copy_from s 0#usize (alloc.vec.Vec.new Std.U32)
 
 /-- [con_ron_core::kernel::expr::bvar_pool_size]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1047:0-1049:1
@@ -53560,6 +52691,28 @@ def kernel.prop_when.PropWhen.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   kernel.prop_when.PropWhen := {
   eq2 := kernel.prop_when.PropWhen.Insts.Con_ron_coreRonHashmapEq2.eq2
 }
+
+/-- [con_ron_core::kernel::prop_when::to_list_opt]:
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 499:0-504:1
+    Visibility: public -/
+def kernel.prop_when.to_list_opt
+  (pw : kernel.prop_when.PropWhen) :
+  Result (Option (alloc.vec.Vec kernel.name.Name))
+  := do
+  match pw.repr with
+  | kernel.prop_when.PropWhenRepr.Never => ok none
+  | kernel.prop_when.PropWhenRepr.Always =>
+    let v ← kernel.prop_when.to_list pw
+    ok (some v)
+  | kernel.prop_when.PropWhenRepr.One _ =>
+    let v ← kernel.prop_when.to_list pw
+    ok (some v)
+  | kernel.prop_when.PropWhenRepr.Two _ _ =>
+    let v ← kernel.prop_when.to_list pw
+    ok (some v)
+  | kernel.prop_when.PropWhenRepr.Many _ =>
+    let v ← kernel.prop_when.to_list pw
+    ok (some v)
 
 /-- [con_ron_core::kernel::prop_when::all_zero_from]:
     Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 521:0-532:1

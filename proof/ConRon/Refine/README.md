@@ -287,19 +287,20 @@ only through `IndAbs`'s five operation lemmas.
 
 | file | contents |
 |---|---|
-| `Validate.lean` | `kernel::validate` (task #73): the input validation pass is **sound** — one soundness lemma per validator function, `validate_str`/`validate_nat`/`validate_name`/`validate_level`/`validate_prop_when`/`validate_literal`/`validate_expr`/the record and vector walks/`validate_decls`, each producing the `*WF` derivation the `Refine/Abs.lean` inductives take from the rebuild's own smart-constructor equation.  `seen_hit_false` is the model half of the visited set's trust argument (`ptr_eq` is `false`, so the table is written and never read), `equiv_r_exact` the one exactness lemma `PropWhen` needs, `Expr.ind'` the structural recursor, and `check_decls_gate` the entry gate `Refine/Installed.lean` opens with |
 | `Installed.lean` | `cached::installed` — **the declaration fold**: `absPendingCheck`/`absPendingChecks`/`PendingCheckWF` (marked "to be unified into `Abs.lean`"), the two install halves and their tails, the four-way phase-A dispatch and its three pushes, `annot_decl_step`, phase B's `check_pending` family with its fresh `CState`, both index recursions, `leanCheckDecls` and **`check_decls_refines`** |
 | `Main.lean` | the capstone: `check_decls_verified_refines`, `conron.model_exists` and `conron.no_proof_of_False` from `ConLeche.MainTheorem`'s `model_exists_with`/`no_proof_of_False_with` (the pins-parametric pair, task #74), the primed pair with the knot and the routes discharged, task #75's `conron.model_exists_decoded` / `no_proof_of_False_decoded` — the primed pair at pins the verified decoder returned for *any* byte slice, `hvar` closed by `PinsWF.decode_wf`, the **axiom-free headline** at `[propext, Classical.choice, Quot.sound]` — and the two `_embedded` corollaries, which are that pair's instance at the embedded text.  Each with a `#guard_msgs`-checked axiom census |
 
 ### How the tower composes, and what is still owed
 
 Read bottom-up, `check_decls_refines` is the composition of every file above
-it, and **four hypotheses survive to it** — the same four that
-`Refine/Main.lean`'s general theorems carry, and no others.  All four are
+it, and **five hypotheses survive to it** — the same five that
+`Refine/Main.lean`'s general theorems carry, and no others.  Four of them are
 discharged in `Refine/Main.lean` itself, so the two `conron.*_embedded`
 capstones — the theorems about the binary that ships — carry **the decoded
-pins `hp` and the run `h`, and nothing else**.  The `hds` row the table used
-to have went away at task #73: the port's `check_decls` now *checks* it.
+pins `hp`, the parsed input's well-formedness `hds`, and the run `h`**.  Task
+#73 discharged `hds` too, with a runtime validation pass; **task #81 withdrew
+that pass** (10 GB of resident memory at Mathlib scale, 4 % of the
+instructions) and the row is back — until the ported parser discharges it.
 
 | hypothesis | who discharges it |
 |---|---|
@@ -307,7 +308,7 @@ to have went away at task #73: the port's `check_decls` now *checks* it.
 | `hind : IndRoutesSpec mode` — the two inductive install routes agree on an accept | **task #59** (`IndC.ind_routes_spec_of_p`, the recogniser bridge task #57 owed); the tier is `sorry`-free since task #67 fixed `modeled.rs`'s `u64 → usize` casts.  **Discharged at the capstones** by `IndC.ind_routes_spec'` from the knot (task #67 continued)
 | `hinde : IndRoutesSpecErr mode` — …and throw at the same kind on a mirrored reject, down the same branch of `nativeParts?` | **task #67 continued** (`IndC.ind_routes_spec_err'` / `ind_routes_spec_err_of_p`).  A sibling `Prop` rather than a `match` inside `IndRoutesSpec`, so that every accept-direction proof stated through the latter stayed verbatim while the two tiers landed independently.  **Discharged at the capstones** the same way
 | `hvar : CheckerPins.PinsWF pins` — every node of every pin is what the port's own smart constructor built | **task #66** (`PinsWF.decode_embedded_wf`), for the embedded pins: the same by-construction argument as `hds`, since `ExprWF`'s constructors *are* the port's smart constructors.  The `pins`-parametric theorems keep it, as they must — it is a promise about an argument, and nothing about what the list *abstracts to* implies it: two pin lists can abstract to the same `List NatOpPinSet` with one carrying a stored hash word that makes `expr::beq` inexact (task #58) |
-| ~~`hds : ∀ d ∈ ds.val, DeclCWF d`~~ — the parsed input is well formed | **discharged by task #73's validation pass**: `kernel::validate` runs at the entry of `cached::installed::check_decls`, rebuilds every node with the port's own smart constructor and compares the stored word, and declines a malformed declaration with `CheckError::Native` (about which the full-outcome ruling claims nothing).  `Refine/Validate.lean`'s `validate_decls_sound` supplies the predicate at the accept, so no lemma and no capstone carries it any more |
+| `hds : ∀ d ∈ ds.val, DeclCWF d` — the parsed input is well formed | **the parser**, by construction: `DeclCWF` is the task-#5 inductive invariant whose constructors *are* the port's own smart constructors, so a `DeclC` the frontend built satisfies it.  Task #73 discharged it instead with a runtime validation pass at the entry of `check_decls`; **task #81 withdrew that pass** on the maintainer's ruling — it cost 10 GB of resident memory at Mathlib scale and 4 % of the instructions — and the next con-leche update brings the parser into the verified pipeline, where this falls out of the parser's own refinement |
 
 A sixth, `hpins : absPins pins = ConLeche.natOpPinSets`, stood between the last
 two rows until **task #74** and is **gone, not discharged**.  It said the port's

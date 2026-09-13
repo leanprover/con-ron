@@ -6,18 +6,18 @@
 # or the prose, then regenerate.
 
 == proof/ConRon/Refine/Installed.lean#L3241-L3252
-  3241  theorem check_decls_refines {mode : env.CheckMode}
-  3242      (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
-  3243      (hinde : IndRoutesSpecErr mode)
-  3244      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-  3245      (hvar : CheckerPins.PinsWF pins)
-  3246      {ds : alloc.vec.Vec parsed_c.DeclC}
-  3247      {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
-  3248      (h : cached.installed.check_decls mode pins ds = ok out) :
-  3249      match out with
-  3250      | .Ok e =>
-  3251        leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclC)
-  3252          = .ok (absEnv e)
+  3241      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+  3242      (hvar : CheckerPins.PinsWF pins)
+  3243      {ds : alloc.vec.Vec parsed_c.DeclC}
+  3244      {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
+  3245      (hds : ∀ d ∈ ds.val, DeclCWF d)
+  3246      (h : cached.installed.check_decls mode pins ds = ok out) :
+  3247      match out with
+  3248      | .Ok e =>
+  3249        leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclC)
+  3250          = .ok (absEnv e)
+  3251      | .Err er =>
+  3252        ErrSimPos er
 
 == crates/con-ron-core/src/kernel/core_types.rs#L87-L92
     87  pub enum CheckError {
@@ -28,28 +28,28 @@
     92  }
 
 == proof/ConRon/Refine/Main.lean#L238-L259
-   238  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
-   239      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   240      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   241      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-   242      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   243      Nonempty (ConLeche.Model V (absEnv e)) :=
-   244    conron.model_exists' V (PinsWF.decode_wf hp) h
-   245  
-   246  /-- **The main corollary for the shipped binary, axiom-free** (task #75): at
-   247  decoded pins, an accepted stream never yields a constant of type `False`.
-   248  `conron.no_proof_of_False'` with `hvar` discharged by `PinsWF.decode_wf`; like
-   249  `conron.model_exists_decoded` it carries the decode run and the check run and
-   250  nothing else, and names no string constant, so its census is the three
-   251  standard axioms. -/
-   252  theorem conron.no_proof_of_False_decoded (V : Type w) [ConLeche.SetTheory V]
-   253      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   254      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   255      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-   256      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   257      ¬ ∃ c ∈ (absEnv e).consts,
-   258          c.toConstantVal.type = .const ConLeche.falseName [] :=
-   259    conron.no_proof_of_False' V (PinsWF.decode_wf hp) h
+   238  that `kernel::pins_decode::decode` returned for *some* byte slice, has a model
+   239  in every set theory.  `conron.model_exists'` with `hvar` discharged by
+   240  `PinsWF.decode_wf`, so it carries `hp` (a decode run), `hds` (the parsed
+   241  input's well-formedness) and `h` (the check run), and its census is
+   242  con-leche's own three axioms.
+   243  
+   244  This is the theorem about the binary that ships, up to one fact that lives in
+   245  the unverified crate and not in this tower: that the driver
+   246  (`con_ron::driver::pins_for_run`) calls the decoder on the embedded
+   247  `con-ron-pins/1` text rather than on something else.
+   248  `conron.model_exists_embedded` below is this theorem at exactly that text. -/
+   249  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
+   250      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   251      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   252      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+   253      (hds : ∀ d ∈ ds.val, DeclCWF d)
+   254      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   255      Nonempty (ConLeche.Model V (absEnv e)) :=
+   256    conron.model_exists' V (PinsWF.decode_wf hp) hds h
+   257  
+   258  /-- **The main corollary for the shipped binary, axiom-free** (task #75): at
+   259  decoded pins, an accepted stream never yields a constant of type `False`.
 
 == vendor/con-leche/ConLeche/MainTheorem.lean#L63-L80
     63  theorem model_exists_with (V : Type w) [SetTheory V]
@@ -218,91 +218,91 @@
     58  run extract-check "$root/scripts/extract.sh" --check
 
 == proof/ConRon/Refine/Main.lean#L238-L249
-   238  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
-   239      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   240      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   241      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-   242      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   243      Nonempty (ConLeche.Model V (absEnv e)) :=
-   244    conron.model_exists' V (PinsWF.decode_wf hp) h
-   245  
-   246  /-- **The main corollary for the shipped binary, axiom-free** (task #75): at
-   247  decoded pins, an accepted stream never yields a constant of type `False`.
-   248  `conron.no_proof_of_False'` with `hvar` discharged by `PinsWF.decode_wf`; like
-   249  `conron.model_exists_decoded` it carries the decode run and the check run and
+   238  that `kernel::pins_decode::decode` returned for *some* byte slice, has a model
+   239  in every set theory.  `conron.model_exists'` with `hvar` discharged by
+   240  `PinsWF.decode_wf`, so it carries `hp` (a decode run), `hds` (the parsed
+   241  input's well-formedness) and `h` (the check run), and its census is
+   242  con-leche's own three axioms.
+   243  
+   244  This is the theorem about the binary that ships, up to one fact that lives in
+   245  the unverified crate and not in this tower: that the driver
+   246  (`con_ron::driver::pins_for_run`) calls the decoder on the embedded
+   247  `con-ron-pins/1` text rather than on something else.
+   248  `conron.model_exists_embedded` below is this theorem at exactly that text. -/
+   249  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
 
 == proof/ConRon/Refine/Main.lean#L252-L259
-   252  theorem conron.no_proof_of_False_decoded (V : Type w) [ConLeche.SetTheory V]
-   253      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   254      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   255      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-   256      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   257      ¬ ∃ c ∈ (absEnv e).consts,
-   258          c.toConstantVal.type = .const ConLeche.falseName [] :=
-   259    conron.no_proof_of_False' V (PinsWF.decode_wf hp) h
+   252      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+   253      (hds : ∀ d ∈ ds.val, DeclCWF d)
+   254      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   255      Nonempty (ConLeche.Model V (absEnv e)) :=
+   256    conron.model_exists' V (PinsWF.decode_wf hp) hds h
+   257  
+   258  /-- **The main corollary for the shipped binary, axiom-free** (task #75): at
+   259  decoded pins, an accepted stream never yields a constant of type `False`.
 
 == proof/ConRon/Refine/Main.lean#L261-L265
-   261  /-- info: 'ConRon.Refine.conron.model_exists_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-   262  #guard_msgs in #print axioms conron.model_exists_decoded
-   263  
-   264  /-- info: 'ConRon.Refine.conron.no_proof_of_False_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-   265  #guard_msgs in #print axioms conron.no_proof_of_False_decoded
+   261  `conron.model_exists_decoded` it carries the decode run and the check run and
+   262  nothing else, and names no string constant, so its census is the three
+   263  standard axioms. -/
+   264  theorem conron.no_proof_of_False_decoded (V : Type w) [ConLeche.SetTheory V]
+   265      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
 
 == proof/ConRon/Refine/Main.lean#L139-L150
-   139  theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
-   140      (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
-   141      (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
-   142      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   143      (hvar : CheckerPins.PinsWF pins)
-   144      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-   145      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   146      Nonempty (ConLeche.Model V (absEnv e)) :=
-   147    ConLeche.model_exists_with V (absPins pins) (ds.val.map absDeclC) (absEnv e)
-   148      (check_decls_verified_refines_ok hk hind hinde hvar h)
-   149  
-   150  /-- **The main corollary for the Rust checker** (DESIGN.md §1): an accepted
+   139        = .ok (absEnv e) :=
+   140    check_decls_verified_refines hk hind hinde hvar hds h
+   141  
+   142  /-- **The main theorem for the Rust checker** (DESIGN.md §1): every environment
+   143  `crates/con-ron-core`'s `check_decls` accepts has a model in every set theory.
+   144  `ConLeche.model_exists` at the accept above. -/
+   145  theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
+   146      (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
+   147      (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
+   148      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   149      (hvar : CheckerPins.PinsWF pins)
+   150      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
 
 == proof/ConRon/Refine/Main.lean#L179-L188
-   179  theorem conron.model_exists' (V : Type w) [ConLeche.SetTheory V]
-   180      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   181      (hvar : CheckerPins.PinsWF pins)
-   182      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-   183      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   184      Nonempty (ConLeche.Model V (absEnv e)) :=
-   185    conron.model_exists V (Core.knot_spec IndAbs.checkFuelU)
-   186      (InductivesC.ind_routes_spec' (Core.knot_spec IndAbs.checkFuelU))
-   187      (InductivesC.ind_routes_spec_err' (Core.knot_spec IndAbs.checkFuelU))
-   188      hvar h
+   179  continued for the failure half), so `hk`, `hind` and `hinde` are not
+   180  hypotheses of the theorems below.  The one that remains here is the pin
+   181  argument's well-formedness (`hvar`), and the corollaries further down discharge
+   182  that as well for the list the binary actually folds with; `Refine/README.md`
+   183  names each with its owner.  Task #58's `hoe` is gone: task #65 made a thrown pin attempt the pin
+   184  check's verdict, retiring both halves of the `orElse` deviation (DESIGN.md
+   185  §3). -/
+   186  
+   187  theorem conron.model_exists' (V : Type w) [ConLeche.SetTheory V]
+   188      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
 
 == proof/ConRon/Refine/Main.lean#L323-L336
-   323  theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
-   324      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   325      (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
-   326      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-   327      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   328      Nonempty (ConLeche.Model V (absEnv e)) :=
-   329    conron.model_exists' V (PinsWF.decode_embedded_wf hp) h
-   330  
-   331  /-- **The main corollary for the shipped binary** (tasks #64, #74):
-   332  `conron.no_proof_of_False'` at the embedded pins — equivalently, the instance
-   333  of `conron.no_proof_of_False_decoded` (task #75) at
-   334  `text = core.str.Str.as_bytes kernel.pins_text.PINS_TEXT`.  Its fourth axiom is
-   335  Aeneas's `toStr` artifact on the `&str` constant's definition
-   336  (`AENEAS_FINDINGS.md` §3.8), not anything this proof evaluates; the axiom-free
+   323  embedded text.  It carries `hp` (what the decoder returned) and `hds` (the
+   324  parser's invariant); `hp` is there for `PinsWF` alone, and no hypothesis
+   325  anywhere is about the pins' *value*.
+   326  
+   327  It is the **instance of `conron.model_exists_decoded`** (task #75) at
+   328  `text = core.str.Str.as_bytes kernel.pins_text.PINS_TEXT`, which is what
+   329  `decode_embedded` is, and the one axiom it carries beyond the standard three is
+   330  the price of naming that constant: Aeneas's `toStr` discharges its size bound
+   331  with `by decide +native` in the *definition* of every extracted `&str`
+   332  (`AENEAS_FINDINGS.md` §3.8), so `pins_text.PINS_TEXT._native.decide.ax_1` comes
+   333  in through the closure with nothing evaluated.  The **axiom-free headline** is
+   334  therefore `conron.model_exists_decoded`, which says the same thing for every
+   335  decoder input. -/
+   336  theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
 
 == proof/ConRon/Refine/Installed.lean#L3241-L3252
-  3241  theorem check_decls_refines {mode : env.CheckMode}
-  3242      (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
-  3243      (hinde : IndRoutesSpecErr mode)
-  3244      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-  3245      (hvar : CheckerPins.PinsWF pins)
-  3246      {ds : alloc.vec.Vec parsed_c.DeclC}
-  3247      {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
-  3248      (h : cached.installed.check_decls mode pins ds = ok out) :
-  3249      match out with
-  3250      | .Ok e =>
-  3251        leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclC)
-  3252          = .ok (absEnv e)
+  3241      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+  3242      (hvar : CheckerPins.PinsWF pins)
+  3243      {ds : alloc.vec.Vec parsed_c.DeclC}
+  3244      {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
+  3245      (hds : ∀ d ∈ ds.val, DeclCWF d)
+  3246      (h : cached.installed.check_decls mode pins ds = ok out) :
+  3247      match out with
+  3248      | .Ok e =>
+  3249        leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclC)
+  3250          = .ok (absEnv e)
+  3251      | .Err er =>
+  3252        ErrSimPos er
 
 == crates/con-ron-core/src/kernel/expr.rs#L354-L363
    354  pub struct ExprNode {
@@ -479,78 +479,6 @@
    130          },
    131      }
    132  }
-
-== crates/con-ron-core/src/cached/installed.rs#L728-L760
-   728  pub fn check_decls(
-   729      mode: &CheckMode,
-   730      pins: &Vec<NatOpPinSet>,
-   731      ds: &Vec<DeclC>,
-   732  ) -> Result<Env, (CheckError, u64)> {
-   733      // `.0` on the spot, so the visited set is dropped **here** rather than at
-   734      // the end of the function: a binding that held the whole tuple would keep
-   735      // one table entry per distinct node alive for the length of the fold, and
-   736      // that is 0.5 GB of peak RSS at `Init` scale for nothing (task #73).
-   737      let ok: bool = validate::validate_decls(validate::seen_new(), ds).0;
-   738      if ok {
-   739          check_decls_go(mode, pins, ds)
-   740      } else {
-   741          Err((core_types::native(validate_reject_message()), 0))
-   742      }
-   743  }
-   744  
-   745  /// con-leche: none — task #73, the port's own input check (con-leche's computed fields are correct by construction)
-   746  /// The decline the validation pass produces.  Its own function so that
-   747  /// `check_decls`' two branches are each one call, which is what lets
-   748  /// `Refine/Validate.lean` state the gate (`check_decls_gate`) without naming
-   749  /// the fold's body.
-   750  pub fn validate_reject_message() -> Vec<u32> {
-   751      const M: [u32; 49] = [
-   752          100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 32, 114, 101, 106, 101, 99,
-   753          116, 101, 100, 32, 98, 121, 32, 116, 104, 101, 32, 105, 110, 112, 117, 116, 32,
-   754          118, 97, 108, 105, 100, 97, 116, 105, 111, 110, 32, 112, 97, 115, 115,
-   755      ];
-   756      core_types::code_points(&M)
-   757  }
-   758  
-   759  /// con-leche: ConLeche/Cached/Installed.lean:440-447 checkDecls
-   760  /// **The fold proper**, i.e. the cited `checkDecls` body: `check_decls` above
-
-== crates/con-ron-core/src/kernel/validate.rs#L427-L440
-   427  pub fn validate_expr(m: Seen, e: &Expr) -> (bool, Seen) {
-   428      let key: u64 = expr::hash(e);
-   429      if seen_hit(&m, key, e) {
-   430          (true, m)
-   431      } else {
-   432          let r: (bool, Seen) = validate_expr_arm(m, e);
-   433          if r.0 {
-   434              (true, seen_record(r.1, key, e))
-   435          } else {
-   436              (false, r.1)
-   437          }
-   438      }
-   439  }
-   440  
-
-== crates/con-ron-core/src/kernel/validate.rs#L812-L830
-   812  pub fn validate_decls(m: Seen, ds: &Vec<DeclC>) -> (bool, Seen) {
-   813      validate_decls_from(m, ds, 0)
-   814  }
-   815  
-   816  /// con-leche: none — task #73, the port's own input check (con-leche's computed fields are correct by construction)
-   817  /// The index recursion behind `validate_decls`.  The visited set is threaded
-   818  /// across declarations, which is what makes the pass linear in the *stream's*
-   819  /// distinct nodes rather than in each declaration's.
-   820  pub fn validate_decls_from(m: Seen, ds: &Vec<DeclC>, i: usize) -> (bool, Seen) {
-   821      if i >= ds.len() {
-   822          (true, m)
-   823      } else {
-   824          let r: (bool, Seen) = validate_decl(m, &ds[i]);
-   825          if r.0 {
-   826              validate_decls_from(r.1, ds, i + 1)
-   827          } else {
-   828              (false, r.1)
-   829          }
-   830      }
 
 == Cargo.toml#L21
     21  overflow-checks = true
