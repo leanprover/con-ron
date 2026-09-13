@@ -1592,25 +1592,42 @@ it is discharged at the call site — see `check_native_s_refines`' note. -/
 theorem check_native_pass_s_refines
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {p0 : inductives.native_parts.NativeParts} {is_rec : Bool}
-    {q : inductives.native_install.NativePass × Bool}
+    {out : core.result.Result (inductives.native_install.NativePass × Bool)
+      core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hp0 : IndAbs.NativePartsWF p0)
     (h : inductives.inductives_c.check_native_pass_s mode st fe p0 is_rec
-        = ok (.Ok q, st')) :
+        = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lq,
-        (ConLeche.Cached.checkNativePassS (absMode mode) lfe
-            (IndAbs.absNativeParts p0) is_rec).run lst = .ok ((lq, q.2), lst')
-        ∧ StateRel st' lst' ∧ IndAbs.NativePassRel q.1 lq
-        ∧ StateWF st' ∧ IndAbs.NativePassWF q.1
-        ∧ FEnv.FEnvCanon q.1.env1 ∧ FEnv.FEnvFull q.1.env1 := by
+      match out with
+      | .Ok q =>
+        ∃ lst' lq,
+          (ConLeche.Cached.checkNativePassS (absMode mode) lfe
+              (IndAbs.absNativeParts p0) is_rec).run lst = .ok ((lq, q.2), lst')
+          ∧ StateRel st' lst' ∧ IndAbs.NativePassRel q.1 lq
+          ∧ StateWF st' ∧ IndAbs.NativePassWF q.1
+          ∧ FEnv.FEnvCanon q.1.env1 ∧ FEnv.FEnvFull q.1.env1
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.checkNativePassS (absMode mode) lfe
+          (IndAbs.absNativeParts p0) is_rec).run lst) := by
   -- `check_native_pass_former`, `flush_c_refines`, `check_native_pass_ctors`
   intro lst lfe hrel hfer
   rw [inductives.inductives_c.check_native_pass_s] at h
   obtain ⟨pq, hformer, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨res, st1⟩ := pq
   cases res with
-  | Err err => simp at h
+  | Err err =>
+    -- the former stage threw: the pass's first bind throws it
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hfrm :=
+      NativeInstall.check_native_pass_former_refines
+        (IndIngredients.checkSumIndRefines hw) (IndIngredients.checkSumIndErr hw)
+        IndIngredients.checkSumIndCanon
+        hst hfe hcan hfull hp0 hformer lst lfe hrel hfer
+    show ErrSim err _
+    rw [NativeInstall.checkNativePassS_eq]
+    exact ErrSim.bindCM hfrm
   | Ok r =>
     obtain ⟨lst1, lfe1, hrun1, hrel1, hfrel1, hwf1, hfwf1, hcvwf, hiswf, hcwf,
         hrcan, hrfull⟩ :=
@@ -1620,19 +1637,30 @@ theorem check_native_pass_s_refines
         hst hfe hcan hfull hp0 hformer lst lfe hrel hfer
     obtain ⟨st2, hflush, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hfrun, hrel2, hwf2, _⟩ := StateC.flush_c_refines hrel1 hwf1 hflush
-    obtain ⟨lst', lq, hrun2, hrel3, hqrel, hwf3, hqwf, hqenv⟩ :=
+    have hctors :=
       NativeInstall.check_native_pass_ctors_refines
         (IndIngredients.checkSumCtorsRefines hw) (IndIngredients.checkSumCtorsErr hw)
         IndIngredients.completeRefines
         IndIngredients.withKindsRefines IndIngredients.recCtorKindsRefines
         IndIngredients.recFieldKindBeqRefines hwf2 hfwf1 hcvwf hiswf hp0 hcwf h
         lst1.flushed lfe1 hrel2 hfrel1
-    refine ⟨lst', lq, ?_, hrel3, hqrel, hwf3, hqwf, ?_, ?_⟩
-    · rw [NativeInstall.checkNativePassS_eq]
-      simp only [StateT.run_bind, hrun1, StateC.flushC_run, NativeInstall.exceptOk_bind]
-      exact hrun2
-    · rw [hqenv]; exact hrcan
-    · rw [hqenv]; exact hrfull
+    cases out with
+    | Ok q =>
+      obtain ⟨lst', lq, hrun2, hrel3, hqrel, hwf3, hqwf, hqenv⟩ := hctors
+      refine ⟨lst', lq, ?_, hrel3, hqrel, hwf3, hqwf, ?_, ?_⟩
+      · rw [NativeInstall.checkNativePassS_eq]
+        simp only [StateT.run_bind, hrun1, StateC.flushC_run,
+          NativeInstall.exceptOk_bind]
+        exact hrun2
+      · rw [hqenv]; exact hrcan
+      · rw [hqenv]; exact hrfull
+    | Err e =>
+      -- the constructors' stage threw, past the pass's one flush
+      show ErrSim e _
+      rw [NativeInstall.checkNativePassS_eq]
+      simp only [StateT.run_bind, hrun1, StateC.flushC_run,
+        NativeInstall.exceptOk_bind]
+      exact hctors
 
 /-- `ConLeche/Cached/CheckerC.lean:192-215` — `check_native_tail_s` refines
 `checkNativeTailS`: **one flush entering the recursor's environment**, after
@@ -1644,19 +1672,24 @@ theorem check_native_pass_s_refines
 `fenv::dup`.  `check_native_pass_s_refines` hands them over, so the driver
 never asks for more than it can supply. -/
 theorem check_native_tail_s_refines
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {q : inductives.native_install.NativePass}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hq : IndAbs.NativePassWF q)
     (hcan : FEnv.FEnvCanon q.env1) (hfull : FEnv.FEnvFull q.env1)
     (h : inductives.inductives_c.check_native_tail_s mode st fe q
-        = ok (.Ok fe', st')) :
+        = ok (out, st')) :
     ∀ lst lfe lq, StateRel st lst → FEnvRel fe lfe →
       IndAbs.NativePassRel q lq →
-      ∃ lst' lfe',
-        (ConLeche.Cached.checkNativeTailS (absMode mode) lfe lq).run lst
-          = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.checkNativeTailS (absMode mode) lfe lq).run lst
+            = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.checkNativeTailS (absMode mode) lfe lq).run lst) := by
   -- `check_native_tail_guards`, `check_native_cons`, `flush_c_refines`,
   -- `check_native_install`
   intro lst lfe lq hrel hfer hqrel
@@ -1664,7 +1697,22 @@ theorem check_native_tail_s_refines
   obtain ⟨pq, hguards, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨res, st1⟩ := pq
   cases res with
-  | Err err => simp at h
+  | Err err =>
+    -- the tail's guards threw: the tail's first bind throws it
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hg :=
+      NativeInstall.check_native_tail_guards_refines hw
+        IndIngredients.structInstallConstsResolveFFast
+        IndIngredients.nativeInstallParamsOf IndIngredients.piBindersRefines
+        IndIngredients.nativeInstallOpenPisAtFvarsF IndIngredients.kindGetDRefines
+        IndIngredients.nativeRulesOkRefines
+        (IndIngredients.checkStructFieldSortsIRefines hw)
+        (IndIngredients.checkStructFieldSortsIErr hw) hst hfe hq hguards lst
+        lfe lq hrel hfer hqrel
+    show ErrSim err _
+    rw [NativeInstall.checkNativeTailS_eq]
+    exact ErrSim.bindCM hg
   | Ok u =>
     cases u
     obtain ⟨lst1, hrun1, hrel1, hwf1, hkf⟩ :=
@@ -1696,7 +1744,7 @@ theorem check_native_tail_s_refines
       rw [hcqv]; exact hkf
     obtain ⟨st2, hflush, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hfrun, hrel2, hwf2, _⟩ := StateC.flush_c_refines hrel1 hwf1 hflush
-    obtain ⟨lst', lfe2, hrun2, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
+    have hinst :=
       NativeInstall.check_native_install_refines hw
         IndIngredients.structInstallConstsResolveFFast
         IndIngredients.structRecRhsRRefines IndIngredients.structRecTyRRefines
@@ -1708,11 +1756,22 @@ theorem check_native_tail_s_refines
         IndIngredients.structProjGuardsRefines hwf2 hcwf hconscan.1 hconscan.2
         hcpwf hccvwf hcawf hkf' hsswf h lst1.flushed
         (ConLeche.consSumCtorsF lq.p.nP lq.ctorsA lq.env₁) hrel2 hcrel
-    refine ⟨lst', lfe2, ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
-    rw [NativeInstall.checkNativeTailS_eq]
-    rw [hcp, hccv, hcctors, hcss] at hrun2
-    simp only [StateT.run_bind, hrun1, StateC.flushC_run, NativeInstall.exceptOk_bind]
-    exact hrun2
+    cases out with
+    | Ok fe' =>
+      obtain ⟨lst', lfe2, hrun2, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
+        hinst
+      refine ⟨lst', lfe2, ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
+      rw [NativeInstall.checkNativeTailS_eq]
+      rw [hcp, hccv, hcctors, hcss] at hrun2
+      simp only [StateT.run_bind, hrun1, StateC.flushC_run, NativeInstall.exceptOk_bind]
+      exact hrun2
+    | Err e =>
+      -- the install stage threw, past the tail's one flush
+      show ErrSim e _
+      rw [NativeInstall.checkNativeTailS_eq]
+      rw [hcp, hccv, hcctors, hcss] at hinst
+      simp only [StateT.run_bind, hrun1, StateC.flushC_run, NativeInstall.exceptOk_bind]
+      exact hinst
 
 /-- `ConLeche/Cached/CheckerC.lean:217-231` — **`check_native_s` at a
 `checkNativeS`**: the distinct constructor names, one flush, the pass at the
