@@ -172,6 +172,13 @@ private theorem internal_val {v : alloc.vec.Vec Std.U32}
     ce = .Internal v := by
   rw [core_types.internal] at h; exact (Result.ok_injective h).symm
 
+/-- `core_types::native` is the constructor — the port's own failure, which
+`ErrSim` claims nothing about. -/
+private theorem native_val {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.native v = ok ce) :
+    ce = .Native v := by
+  rw [core_types.native] at h; exact (Result.ok_injective h).symm
+
 /-- A mirrored `throw` at `notImplemented`: the port's error came out of
 `core_types::not_implemented`, and the cited side has been rewritten down to
 its own `throw`. -/
@@ -5897,41 +5904,119 @@ theorem check_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {d : env.Declaration}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclarationWF d)
+    (h : kernel.checker.check_decl mode pins st fe d = ok (out, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → Indexed lfe →
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+              (absDeclaration d)).run lst = Except.ok (lfe'.env, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+          ∧ Indexed lfe'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+          (absDeclaration d)).run lst) := by
+  intro lst lfe hsr hfr hix
+  rw [kernel.checker.check_decl.eq_def] at h
+  cases d with
+  | AxiomDecl cv =>
+    simp only [absDeclaration]
+    cases out with
+    | Ok fe' => exact check_axiom_decl_refines hfuel hk hsw hfw hd h lst lfe hsr hfr hix
+    | Err e => exact check_axiom_decl_refines hfuel hk hsw hfw hd h lst lfe hsr hfr hix
+  | DefnDecl cv value hint =>
+    simp only [absDeclaration]
+    cases out with
+    | Ok fe' =>
+      exact check_defn_decl_refines hfuel hk hvar hpins hsw hfw hd.1 hd.2 h lst lfe hsr
+        hfr hix
+    | Err e =>
+      exact check_defn_decl_refines hfuel hk hvar hpins hsw hfw hd.1 hd.2 h lst lfe hsr
+        hfr hix
+  | ThmDecl cv value =>
+    simp only [absDeclaration]
+    cases out with
+    | Ok fe' => exact check_thm_decl_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr hix
+    | Err e => exact check_thm_decl_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr hix
+  | OpaqueDecl cv value =>
+    simp only [absDeclaration]
+    cases out with
+    | Ok fe' =>
+      exact check_opaque_decl_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr hix
+    | Err e =>
+      exact check_opaque_decl_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr hix
+  | BasisDecl kind =>
+    simp only [absDeclaration]
+    obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+    have hres := check_basis_decl_refines (mode := mode) hfw hr lst lfe hfr hix
+    cases r with
+    | Ok fe2 =>
+      obtain ⟨hout, rfl⟩ := ok_outS h
+      subst hout
+      obtain ⟨lfe', hrun, hrel', hwf', hix'⟩ := hres
+      exact ⟨lst, lfe', hrun, hsr, hsw, hrel', hwf', hix'⟩
+    | Err er =>
+      obtain ⟨hout, rfl⟩ := err_outS h
+      subst hout
+      exact hres
+  | IndDecl block n_p =>
+    -- task #24's third stub: the `Expr`-level arm never returns `.Ok`, and its
+    -- two failures are the port's own `Native` (the routes are unported here,
+    -- so nothing is claimed — DESIGN.md task #67 §1's one checker-tier `Native`
+    -- site) and the cited arm's own parameter-count `throw`.
+    simp only [absDeclaration]
+    cases out with
+    | Ok fe' => exact absurd h check_ind_decl_declines
+    | Err er =>
+      show ErrSim er _
+      replace h : kernel.checker.check_ind_decl mode st fe block n_p
+          = ok (.Err er, st') := h
+      rw [kernel.checker.check_ind_decl] at h
+      obtain ⟨b, hb', h⟩ := bind_eq_ok_iff.mp h
+      have hbv : b = ConLeche.indParamsOk n_p.val (absConstantInfos block) :=
+        Env.ind_params_ok_refines hd hb'
+      cases b with
+      | true =>
+        obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hout, -⟩ := err_outS h
+        have herce : er = ce := by simpa using hout
+        subst herce
+        rw [native_val hce]
+        exact ErrSim.native v
+      | false =>
+        obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hout, -⟩ := err_outS h
+        have herce : er = ce := by simpa using hout
+        subst herce
+        refine errSim_invalid (ls := "number of parameters mismatch") hce rfl ?_
+        rw [ConLeche.checkDecl]
+        rw [if_neg (show ¬ (ConLeche.indParamsOk n_p.val (absConstantInfos block) = true)
+          from by rw [← hbv]; simp)]
+        rfl
+
+/-- `check_decl_refines` at a success, the pre-#67 statement. -/
+theorem check_decl_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hvar : CheckerPins.PinsWF pins)
+    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {d : env.Declaration}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclarationWF d)
     (h : kernel.checker.check_decl mode pins st fe d = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → Indexed lfe →
       ∃ lst' lfe',
         (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
-            (absDeclaration d)).run lst = .ok (lfe'.env, lst')
+            (absDeclaration d)).run lst = Except.ok (lfe'.env, lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
-        ∧ Indexed lfe' := by
-  intro lst lfe hsr hfr hix
-  rw [kernel.checker.check_decl.eq_def] at h
-  cases d with
-  | AxiomDecl cv =>
-    simp only [absDeclaration]
-    exact check_axiom_decl_refines hfuel hk hsw hfw hd h lst lfe hsr hfr hix
-  | DefnDecl cv value hint =>
-    simp only [absDeclaration]
-    exact check_defn_decl_refines hfuel hk hvar hpins hsw hfw hd.1 hd.2 h lst lfe hsr hfr hix
-  | ThmDecl cv value =>
-    simp only [absDeclaration]
-    exact check_thm_decl_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr hix
-  | OpaqueDecl cv value =>
-    simp only [absDeclaration]
-    exact check_opaque_decl_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr hix
-  | BasisDecl kind =>
-    simp only [absDeclaration]
-    obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
-    have hrs : r = .Ok fe' ∧ st = st' := by simpa using h
-    obtain ⟨rfl, rfl⟩ := hrs
-    obtain ⟨lfe', hrun, hrel', hwf', hix'⟩ :=
-      check_basis_decl_refines (mode := mode) hfw hr lst lfe hfr hix
-    exact ⟨lst, lfe', hrun, hsr, hsw, hrel', hwf', hix'⟩
-  | IndDecl block n_p =>
-    -- task #24's third stub: the `Expr`-level arm never returns `.Ok`
-    exact absurd h check_ind_decl_declines
+        ∧ Indexed lfe' :=
+  check_decl_refines hfuel hk hvar hpins hsw hfw hd h
 
 /-! ## The fold
 
