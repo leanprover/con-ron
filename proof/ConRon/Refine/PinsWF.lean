@@ -1771,13 +1771,14 @@ theorem decode_embedded_wf {v : alloc.vec.Vec nat_op_pins.NatOpPinSet}
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
 `decode_wf` is the file's product and it is proved for every byte slice, so
-its census is con-leche's own three and nothing else — in particular no
-`native_decide` entry, which is what keeps the `conron.*_embedded` corollaries
-at exactly the two `Refine/Pins.lean` already had.  `decode_embedded_wf` names
-the embedded constant, so it picks up `pins_text.PINS_TEXT._native.decide.ax_1`
-— the one Aeneas's `toStr` already spent on that constant, and the second of
-the two `check_decls_pins_refines` carries; it adds nothing new, and in
-particular not `pins_closed`'s computation. -/
+its census is con-leche's own three and nothing else — in particular nothing
+native.  `decode_embedded_wf` names the embedded constant, so it picks up
+`pins_text.PINS_TEXT._native.decide.ax_1`, the one Aeneas's `toStr` already
+spent on *that constant's definition* (`AENEAS_FINDINGS.md` §3.8); nothing is
+evaluated by this file.  Since **task #74** that single entry is the whole
+difference between the `conron.*_embedded` corollaries' census and the general
+pair's: task #64's second entry, `pins_closed`'s sealed computation, is gone
+with `pins_closed`. -/
 
 /-- info: 'ConRon.Refine.PinsWF.decode_wf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms decode_wf

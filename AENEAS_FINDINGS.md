@@ -376,6 +376,17 @@ over an embedded text of any real size is out of reach with or without
 the axiom.  Ask: discharge `toStr`'s bound without `decide +native`
 (a `by decide` with the length as a literal, or an `ofNat` proof term).
 
+**Status (task #74).**  con-ron no longer needs a workaround for the
+*closed computation*: con-leche's pin list is a parameter of the fold now,
+so the port's own `native_decide` site (`Refine/Pins.lean`'s `pins_closed`)
+is deleted and no `native_decide` is invoked anywhere under `proof/`.  The
+ask above still stands, and is now the *only* reason the two
+`conron.*_embedded` capstones carry a fourth axiom: their statements name
+`kernel::pins_decode::decode_embedded`, whose definition reaches
+`kernel::pins_text::PINS_TEXT`, whose `toStr` bound carries
+`pins_text.PINS_TEXT._native.decide.ax_1` — inherited through the closure
+with nothing evaluated.
+
 ### 3.9 `Vec::insert` is modelled as `List.set` — an overwrite where Rust inserts (task #46) **[bug]**
 
 The most serious finding in this report, because it is a **semantics** bug in the

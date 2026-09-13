@@ -288,13 +288,13 @@ only through `IndAbs`'s five operation lemmas.
 | file | contents |
 |---|---|
 | `Installed.lean` | `cached::installed` — **the declaration fold**: `absPendingCheck`/`absPendingChecks`/`PendingCheckWF` (marked "to be unified into `Abs.lean`"), the two install halves and their tails, the four-way phase-A dispatch and its three pushes, `annot_decl_step`, phase B's `check_pending` family with its fresh `CState`, both index recursions, `leanCheckDecls` and **`check_decls_refines`** |
-| `Main.lean` | the capstone: `check_decls_verified_refines`, `conron.model_exists` and `conron.no_proof_of_False` from `ConLeche.MainTheorem`, each with a `#guard_msgs`-checked axiom census |
+| `Main.lean` | the capstone: `check_decls_verified_refines`, `conron.model_exists` and `conron.no_proof_of_False` from `ConLeche.MainTheorem`'s `model_exists_with`/`no_proof_of_False_with` (the pins-parametric pair, task #74), the primed pair with the knot and the routes discharged, and the two `_embedded` corollaries — each with a `#guard_msgs`-checked axiom census |
 
 ### How the tower composes, and what is still owed
 
 Read bottom-up, `check_decls_refines` is the composition of every file above
-it, and **six hypotheses survive to it** — the same six that
-`Refine/Main.lean`'s general theorems carry, and no others.  Five of them are
+it, and **five hypotheses survive to it** — the same five that
+`Refine/Main.lean`'s general theorems carry, and no others.  Four of them are
 discharged in `Refine/Main.lean` itself, so the two `conron.*_embedded`
 capstones — the theorems about the binary that ships — carry **`hds` alone**:
 
@@ -303,9 +303,16 @@ capstones — the theorems about the binary that ships — carry **`hds` alone**
 | `hk : Core.KnotSpec mode IndAbs.checkFuelU` — the six core wrappers and bodies refine `coreKnotI` at `checkFuel` | **task #55** (`Refine/Core/Arms/*`, `Refine/Core/Knot.lean`); `Refine/Core/Statements.lean` is the statement it is proving |
 | `hind : IndRoutesSpec mode` — the two inductive install routes agree on an accept | **task #59** (`IndC.ind_routes_spec_of_p`, the recogniser bridge task #57 owed); the tier is `sorry`-free since task #67 fixed `modeled.rs`'s `u64 → usize` casts.  **Discharged at the capstones** by `IndC.ind_routes_spec'` from the knot (task #67 continued)
 | `hinde : IndRoutesSpecErr mode` — …and throw at the same kind on a mirrored reject, down the same branch of `nativeParts?` | **task #67 continued** (`IndC.ind_routes_spec_err'` / `ind_routes_spec_err_of_p`).  A sibling `Prop` rather than a `match` inside `IndRoutesSpec`, so that every accept-direction proof stated through the latter stayed verbatim while the two tiers landed independently.  **Discharged at the capstones** the same way
-| `hvar : CheckerPins.PinsWF pins` — every node of every pin is what the port's own smart constructor built | **task #66** (`PinsWF.decode_embedded_wf`), for the embedded pins: the same by-construction argument as `hds`, since `ExprWF`'s constructors *are* the port's smart constructors.  The `pins`-parametric theorems keep it, as they must — `hpins` alone does not give it, two pin lists can abstract to `natOpPinSets` with one carrying a stored hash word that makes `expr::beq` inexact (task #58) 
-| `hpins : absPins pins = ConLeche.natOpPinSets` — the port's pin list is the global the pinned con-leche bakes into `checkDeclStepC` | `Refine/Pins.lean`'s `check_decls_pins_refines` (open on that file's two statements, task #43), **or** the `pins-param` submodule bump, which deletes the hypothesis: `Installed.leanCheckDecls` is the one line that changes |
+| `hvar : CheckerPins.PinsWF pins` — every node of every pin is what the port's own smart constructor built | **task #66** (`PinsWF.decode_embedded_wf`), for the embedded pins: the same by-construction argument as `hds`, since `ExprWF`'s constructors *are* the port's smart constructors.  The `pins`-parametric theorems keep it, as they must — it is a promise about an argument, and nothing about what the list *abstracts to* implies it: two pin lists can abstract to the same `List NatOpPinSet` with one carrying a stored hash word that makes `expr::beq` inexact (task #58) |
 | `hds : ∀ d ∈ ds.val, DeclCWF d` — the parsed input is well formed | the parser, by construction (the `*WF` predicates of §3.5 are the port's own smart constructors) |
+
+A sixth, `hpins : absPins pins = ConLeche.natOpPinSets`, stood between the last
+two rows until **task #74** and is **gone, not discharged**.  It said the port's
+pin list is the global the pinned con-leche baked into `checkDeclStepC`; the
+vendored con-leche takes the pin list as an argument of the fold (its task
+#285), so the whole tower is stated at `absPins pins` and no statement anywhere
+is about the pins' *value*.  `pins_closed` — the port's one `native_decide` —
+existed to discharge it and went with it.
 
 Everything else is *internal* and already discharged where it is used: task
 #56's four cross-file `Spec`s in `CheckerPinned.lean`, task #49's in
@@ -314,8 +321,8 @@ Everything else is *internal* and already discharged where it is used: task
 them closed as task #67's campaign worked up the tower, and every
 `#guard_msgs`-pinned `#print axioms` census from `Core/Arms/Arms.lean` to
 `Main.lean` now prints con-leche's own three axioms (plus, in the two
-`_embedded` capstones alone, the two native-decide entries `Refine/Pins.lean`
-accounts for).  `sorryAx` leaving `conron.model_exists` was the P3 gate, and it
+`_embedded` capstones alone, the one `toStr` entry Aeneas spends on the
+*definition* of every extracted `&str` constant).  `sorryAx` leaving `conron.model_exists` was the P3 gate, and it
 is passed.
 
 ## Not yet here
@@ -359,12 +366,14 @@ induction.
 (step 7's first half) are task #56's, and task #60's two files above are its
 top and step 8.
 
-## The pins (`Pins*`, task #64)
+## The pins (`Pins*`, tasks #64, #74)
 
 `kernel::pins_decode` — the verified reader of the embedded `con-ron-pins/1`
-text (task #43) — against `ConRon.Dump.parsePins`, and the closed computation
-that says what the embedded text decodes to.  Eight files, because the two
-programs do not have the same shape: the port walks a byte slice with an index,
+text (task #43) — against `ConRon.Dump.parsePins`.  (Task #64's *closed
+computation*, what the embedded text decodes to, went away at task #74: the
+vendored con-leche takes the pin list as an argument of the fold, so no
+statement is about the pins' value.)  Eight files, because the two programs do
+not have the same shape: the port walks a byte slice with an index,
 the reader splits a `String` into lines and each line into space-separated
 tokens.
 
@@ -378,60 +387,59 @@ tokens.
 | `PinsAscii.lean` | every byte the decoder accepts is ASCII — one `Consumes` predicate and one lemma per reader, which is what makes `absText` (a UTF-8 *decode*) readable character for character without a second walk over the port |
 | `PinsSplit.lean` | **(B)** `String.splitOn` at a one-character separator, the two facts the tokenizer bridge rests on, and `absText` on an ASCII text |
 | `PinsRead.lean` | **(B)** `PinsDec` against `parsePins`: the line invariant and the field invariant, per reader and per record; `parsePins_of_decode` is (B)'s product |
-| `Pins.lean` | the statements: `pins_decode_refines` (proved, no axiom), `pins_closed` (the closed computation), `pins_text_decodes`, `check_decls_pins_refines` |
+| `Pins.lean` | the statement: `pins_decode_refines` (proved, no axiom).  Task #64's `pins_closed`, `pins_text_decodes` and `check_decls_pins_refines` are gone — task #74's parametric fold leaves nothing about the embedded text to decide |
 | `PinsWF.lean` | **(C)** task #66: the well-formedness invariant `TablesWF` threaded through the record pass, the `StrWF` and `Nat.NatWF` leaves, and `decode_wf`/`decode_embedded_wf` — what discharges `hvar`.  It sits *above* `CheckerPins.lean` in the import order because `PinsWF` is defined there; when that predicate moves into `Abs.lean` this file belongs beside `PinsRun.lean` |
 
-## Where the native-decide axiom lives
+## Where the native-decide axiom lived, and why it is gone
 
-**In exactly one lemma, `ConRon.Refine.pins_closed`**, and in nothing else the
-port proves.
+**Nowhere, since task #74.**  No `native_decide` is invoked anywhere under
+`proof/`.
 
-`pins_closed` says that the text `kernel::pins_text::PINS_TEXT` embeds decodes,
-under `ConRon.Dump.parsePins`, to con-leche's own `ConLeche.natOpPinSets`.  It
-is **one closed computation on static data** — a fact about two committed
-constants, and about no input the binary will ever be given.  Task #43 measured
-why the Lean kernel cannot check it and none of the three reasons is a matter
-of patience: the reference decoder is a well-founded recursion and does not
-whnf; a 532 KB string literal expands quadratically in the kernel (27 s for
-1 KB, over 300 s for 8 KB); and the round-trip route needs the same literal
-equality plus a `Std.HashMap` in the kernel.  The maintainer's decision (task
-#64) is to take it by `native_decide` **as an interim**, and spike #63 is the
-attempt to remove it — a format whose decoding the kernel *can* check.
+It used to live in exactly one lemma, `ConRon.Refine.pins_closed`: that the text
+`kernel::pins_text::PINS_TEXT` embeds decodes, under `ConRon.Dump.parsePins`, to
+con-leche's own `ConLeche.natOpPinSets` — **one closed computation on static
+data**, a fact about two committed constants and about no input the binary will
+ever be given.  Task #43 measured why the Lean kernel cannot check it and none
+of the three reasons is a matter of patience: the reference decoder is a
+well-founded recursion and does not whnf; a 532 KB string literal expands
+quadratically in the kernel (27 s for 1 KB, over 300 s for 8 KB); and the
+round-trip route needs the same literal equality plus a `Std.HashMap` in the
+kernel.  The maintainer's decision (task #64) was to take it by `native_decide`
+**as an interim**, and spike #63 was the attempt to remove it by changing the
+format.
 
-What that costs, exactly, is two axioms and they are both in the census:
+**Task #74 removed the need instead.**  `pins_closed` existed only to discharge
+`hpins : absPins pins = ConLeche.natOpPinSets`, and the vendored con-leche makes
+the pin list an argument of the fold (its task #285), so no statement in the
+tower is about the pins' value and there is nothing left to compute.
+`pins_closed`, `pins_text_decodes`, `check_decls_pins_refines`,
+`Installed.check_decls_embedded_refines` and `BasisPins.nat_op_pin_sets_refines`
+are all deleted.
 
-* `pins_closed._native.native_decide.ax_…` — Lean 4.33 does **not** emit
-  `Lean.ofReduceBool` for `native_decide`.  `Lean/Meta/Native.lean` compiles the
-  proposition, runs it, and seals the result into a *fresh axiom named after the
-  theorem*, asserting precisely `decide (parsePins … = .ok natOpPinSets) = true`
-  and nothing else.  That is a strictly narrower trust assumption than
-  `ofReduceBool`, and it says in its own name who spends it.  (The older
-  spelling, `of_decide_eq_true (Lean.ofReduceBool …)` written by hand, is not an
-  option here: the interpreter then has to evaluate `absText PINS_TEXT` — a
-  532 K-element `List U8` — rather than the string literal, and does not
-  finish.)
-* `pins_text.PINS_TEXT._native.decide.ax_1` — **not ours**: Aeneas renders a
-  `&str` constant as `toStr "…"` and discharges `toStr`'s bound
-  `s.toByteArray.size ≤ U32.max` with its own default argument
-  `by decide +native` (`Aeneas/Std/String.lean`, whose own comment says it
-  should not).  Every extracted string constant carries it, before any proof of
-  ours.  It is Aeneas's to fix, and `AENEAS_FINDINGS.md` records it.
+**One entry survives in the `_embedded` census, and it is not ours.**
+`pins_text.PINS_TEXT._native.decide.ax_1`: Aeneas renders a `&str` constant as
+`toStr "…"` and discharges `toStr`'s bound `s.toByteArray.size ≤ U32.max` with
+its own default argument `by decide +native` (`Aeneas/Std/String.lean`, whose
+own comment says it should not).  Every extracted string constant carries it,
+before any proof of ours, **in the constant's definition** — so a theorem whose
+statement names the binary's own decode run inherits it through the closure even
+though nothing is evaluated.  It is Aeneas's to fix, and `AENEAS_FINDINGS.md`
+§3.8 records it.
 
-**The decoder refinement itself spends neither.**  `pins_decode_refines` is a
+**The decoder refinement spends nothing at all.**  `pins_decode_refines` is a
 theorem about every byte string, so nothing is ever evaluated, and its census is
 con-leche's own three axioms.
 
-**Both the general and the embedded capstones are kept.**
-`Refine/Main.lean`'s `conron.model_exists'` / `conron.no_proof_of_False'` are
-general in `pins` and carry `hpins : absPins pins = ConLeche.natOpPinSets`;
-they do not mention the embedded text and nothing native-decide-shaped is in
-their closure.  `conron.model_exists_embedded` /
+**Both the general and the embedded capstones are kept**, and what separates
+them is now generality, not trust.  `Refine/Main.lean`'s
+`conron.model_exists'` / `conron.no_proof_of_False'` are general in `pins` and
+say nothing about its value; `conron.model_exists_embedded` /
 `conron.no_proof_of_False_embedded` are the same theorems at the pin list the
 binary actually folds with (`kernel::pins_decode::decode_embedded()`, what
 `con_ron::driver::pins_for_run` passes by default), so they carry neither `hk`
-nor `hpins` — and they carry the two axioms above.  Every one of those censuses
-is pinned with `#guard_msgs in #print axioms`, which is what keeps the boundary
-honest.
+nor `hvar`, and they carry the one `toStr` axiom above.  Every one of those
+censuses is pinned with `#guard_msgs in #print axioms`, which is what keeps the
+boundary honest.
 
 **`hoe` is gone for good.**  Tasks #24/#56/#58 carried two `orElse`
 hypotheses to the capstones (`OrElseErrorStateSound`, `OrElseErrorDeclines`,
@@ -462,4 +470,4 @@ the product, proved for **every** byte slice — nothing is evaluated, so its
 census is con-leche's own three axioms, and `decode_embedded_wf` adds only the
 `toStr` axiom Aeneas already spends on every extracted `&str`.  So
 `conron.model_exists_embedded` / `no_proof_of_False_embedded` carry neither
-`hk`, nor `hpins`, nor `hvar`.
+`hk`, nor `hvar` — and since task #74 there is no `hpins` to carry.

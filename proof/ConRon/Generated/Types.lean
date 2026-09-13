@@ -493,7 +493,7 @@ structure kernel.expr_ops.ExprNatKey where
   d : Std.U64
 
 /-- [con_ron_core::kernel::nat_op_pins::NatOpPinSet]
-    Source: 'crates/con-ron-core/src/kernel/nat_op_pins.rs', lines 46:0-64:1
+    Source: 'crates/con-ron-core/src/kernel/nat_op_pins.rs', lines 49:0-67:1
     Visibility: public -/
 structure kernel.nat_op_pins.NatOpPinSet where
   toolchain : alloc.vec.Vec Std.U32

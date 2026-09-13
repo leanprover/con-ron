@@ -143,7 +143,8 @@ pub fn message(e: &CheckError) -> String {
         .collect()
 }
 
-/// con-leche: none — `checkDecls`' pin argument, which con-leche does not have
+/// con-leche: none — how a run *chooses* `checkDecls`' pin argument, which
+/// con-leche does not have to: its fold defaults to `natOpPinSets`
 /// **The pin list a run checks with** (task #43).  con-leche's shipped fold
 /// defaults to `natOpPinSets` (its last argument since task #285); the port
 /// carries the same value as an

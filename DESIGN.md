@@ -513,10 +513,10 @@ the text, its byte size, costs 27 s at 1 KB and over 300 s at 8 KB.  The task
 #43 log entry has the numbers and the three upstream changes that would lift
 each obstacle.
 
-The upstream ask is unchanged: make
-`natOpPinSets` an argument of `checkDecls` (`checkDecls mode pins ds`, with the
-shipped `checkDecls mode ds := checkDecls mode natOpPinSets ds`) and check that
-`model_exists` is parametric in it.  The basis blocks are *not* hints (their
+The upstream ask — make `natOpPinSets` an argument of
+`checkDecls` (with the shipped fold its default) and check that `model_exists`
+is parametric in it — **landed as con-leche task #285 and is vendored at task
+#74**, so the hypothesis is not merely dischargeable but absent.  The basis blocks are *not* hints (their
 denotations are pinned by the model), so they stay generated source
 (`kernel/basis_tables.rs`, proved in `Refine/BasisTables.lean`).
 
@@ -579,6 +579,28 @@ a later campaign along route A (also the subject of an Aeneas ask on
 numeral elaboration, `AENEAS_FINDINGS.md`).  con-leche's `pins-param`
 branch (task #285) remains available as the alternative that also makes the
 theorem pin-independent, but is not required.
+
+**Superseded, 2026-09-13 (task #74): the alternative was taken, and the
+site is gone.**  `vendor/con-leche` is a vendored `git subtree` of
+con-leche's `pins-param` branch (`732730a5`), so `pins : List NatOpPinSet`
+is an argument of `checkDivModPin{,F}`, `checkDecl`, `checkDeclsPure`,
+`checkDeclC`, `checkDeclStepC`, `annotStepC`, `annotDeclStep` and
+`checkDecls` (last, defaulting to `natOpPinSets`), and `MainTheorem.lean`
+carries `model_exists_with` / `no_proof_of_False_with` at any list.  The
+whole refinement tower is therefore stated at `absPins pins`,
+`hpins : absPins pins = natOpPinSets` is deleted from all 34 statements
+that carried it, and with it `ConRon.Refine.pins_closed` — the port's only
+`native_decide` — and everything that existed to feed it
+(`pins_text_decodes`, `check_decls_pins_refines`,
+`Installed.check_decls_embedded_refines`,
+`BasisPins.nat_op_pin_sets_refines`).  No `native_decide` is invoked
+anywhere under `proof/`.  The `interim` above and spike #63's route A are
+both retired; the *only* native entry left is Aeneas's own
+`pins_text.PINS_TEXT._native.decide.ax_1`, which sits in the extracted
+`&str` constant's **definition** and is inherited by the two
+`conron.*_embedded` capstones because their statements name the binary's
+own decode run (`AENEAS_FINDINGS.md` §3.8 — an upstream ask, nothing
+evaluated on our side).  The interim paragraph above is kept as history.
 
 **`orElse`: an attempt's error is the verdict (ruling of 2026-09-13, task
 #65).**  con-leche has exactly one error-recovery point: the Nat-op pin loop
@@ -689,8 +711,8 @@ naming the consumer.
 /// con-leche: ConLeche/Kernel/Level.lean:82-89 leqCore
 ```
 
-— the file, the line range at the pinned submodule commit, and the Lean
-declaration the range holds.  Several lines are allowed when a Rust item merges or splits Lean ones
+— the file, the line range at the vendored con-leche commit
+(`vendor/CON_LECHE_PIN`), and the Lean declaration the range holds.  Several lines are allowed when a Rust item merges or splits Lean ones
 (a `*_from` index helper cites the `List` recursion it replaces; the
 four-function `imax_rules` cascade all cite `imaxRules`).  A Rust item
 with no Lean counterpart says so and why:
@@ -713,8 +735,9 @@ opening the Lean.
   `#[cfg(test)]`) carries an annotation; and no `CHANGED` marker line
   (below) is left in the tree.  Fails naming the offenders.  Runs in CI
   and before every commit of a port task.
-* `update [--old <commit>]` — the bump workflow.  After the submodule
-  moves, for every annotation: take the cited text at the *old* pin
+* `update [--old <commit>]` — the bump workflow.  After the vendored tree
+  moves (`git subtree pull … --squash`, then `vendor/CON_LECHE_PIN`), for
+  every annotation: take the cited text at the *old* pin
   (`git show <old>:<path>` at the cited range) and the block located by
   name in the file at the *new* pin (a top-level block from its
   `def`/`theorem`/`inductive`/`structure`/`instance`/… keyword,
@@ -730,8 +753,9 @@ opening the Lean.
   and print the unified diff old→new headed `CHANGED <path> <decl> →
   re-port <rust item>, re-run differential tests, re-prove <rust
   item>_refines`.  Not found → *gone*, with a marker too.  `<old>`
-  defaults to the submodule commit recorded in `HEAD` when the bump is
-  uncommitted, else must be given.
+  defaults to `HEAD` (whose `vendor/con-leche` tree is the old one) when the
+  bump is uncommitted, else must be given; for the pre-subtree history it
+  may also be a con-leche commit in the retired submodule's git dir.
 
   Reconciliation is deleting the marker line — there is no `accept`
   mode.  `check` stays red while any marker remains, so a bump cannot
@@ -819,7 +843,7 @@ the module that would have held it; the skip file is the machine-readable index
 of those notes.
 
 **Why no hashes.**  The pin is the single source of truth: a citation is
-`(path, range, name)` and the text it denotes is fixed by the submodule
+`(path, range, name)` and the text it denotes is fixed by the vendored
 commit; `update` diffs pins, and the only churn is line numbers on moved
 items, rewritten mechanically, plus marker lines exactly where work is
 owed.
@@ -14295,3 +14319,168 @@ All seven green (`scripts/gates.sh`), the proof library is `sorry`-free, and
 the two differential gates are unchanged at **`diff-e2e` 348/348** and
 **`diff-fixtures` 315 agree / 0 differ** — as they must be: this task changed
 no Rust at all.
+
+### Task #74 — Vendoring con-leche's `pins-param`, and the parametric refinement (2026-09-13, Opus under Fable)
+
+The maintainer's call on the pins ruling of 2026-09-13 (§3): **take the
+alternative rather than keep the interim.**  `vendor/con-leche` stops being a
+submodule and becomes a vendored `git subtree` of con-leche's `pins-param`
+branch, which makes the `Nat`-op pin list an argument of the fold; the whole
+refinement tower is restated at the *abstract* list, `hpins` disappears from
+forty statements, and the port's single `native_decide` goes with it.
+
+#### 1. The subtree (steps 1–3)
+
+Three commits, and the mechanics are worth writing down because the bump
+workflow changes shape:
+
+| step | commit | what |
+|---|---|---|
+| 1 | `b1b7d7c4` | drop the submodule gitlink (`git rm --cached vendor/con-leche`, `.gitmodules` entry gone) |
+| 2 | `1d005446` + `48ce987d` | `git subtree add --prefix=vendor/con-leche <remote> pins-param --squash` — one squashed content commit, `732730a5` = the old pin `3e004805` + con-leche task #285 |
+| 3 | `8bbc8a85` | `vendor/CON_LECHE_PIN` carries the vendored commit and `provenance.py` reads it instead of the gitlink; `--old` is now a *con-ron* revision (or, for the pre-subtree history, a con-leche commit in the retired submodule's git dir); a citation relocates **by its text** before falling back to the declaration name, which is what lets the anonymous `instance` citations (`decl` = `_`) survive a bump |
+
+`scripts/provenance.py update --old 3e004805` then relocated 44 citations and
+marked **83 `CHANGED`**.
+
+**Going forward the bump is:** `git subtree pull --prefix=vendor/con-leche
+<remote> <branch> --squash`, write the new commit into `vendor/CON_LECHE_PIN`,
+then `scripts/provenance.py update` with **no** `--old` — it diffs against
+`HEAD`'s `vendor/con-leche` tree, which is the old one until the bump is
+committed.  Reconciliation is still deleting the marker lines, and `check`
+stays red while any remains.
+
+#### 2. What task #285 changed, and the 83 markers
+
+`pins : List NatOpPinSet` is an argument of `checkDivModPin{,F}`, `checkDecl`,
+`checkDeclsPure`, `checkDeclC`, `checkDeclStepC`, `annotStepC`,
+`annotDeclStep` and `checkDecls` (**last**, defaulting to `natOpPinSets`, so
+the two shipped statements are token-identical to before), and of
+`InstallRun`/`InstalledEnv`/`FullyChecked`; `DivModPinRun` says
+`∃ ps : NatOpPinSet` where it said `∃ ps ∈ natOpPinSets`; and
+`MainTheorem.lean` gains `model_exists_with` / `no_proof_of_False_with` over
+any list, with the shipped pair derived from them in one line each.
+
+| file | markers | what the reconciliation was |
+|---|---:|---|
+| `kernel/checker.rs` | 15 | `checkDivModPin`/`checkDivModPinF` and `checkDecl`'s ten arms, plus `checkDeclsPure` twice.  The module note's "the pin variants … are the `pins` **parameter** … where the cited code reads the global `natOpPinSets`" and `check_div_mod_pin`'s "**Deviation … `pins` is a parameter**" both become "the arities agree"; the argument *for* the parameter (Charon OOMs on ~26 500 generated nodes; the list is a hint re-checked by `isDefEq`) is kept as the reason the upstream ask was made |
+| `cached/installed.rs` | 12 | `annotStepC` ×8, `annotDeclStep`, `checkDecls` ×3.  Module note 4 keeps the ruling and records that the ask landed; `check_decls`' "Deviation 4" becomes "Note 4" |
+| `cached/parsed_c.rs` | 9 | `checkDeclC` ×8, `checkDeclStepC`.  Nothing claimed a deviation here — marker lines only |
+| `crates/con-ron/src/{driver.rs,pool.rs,bin/con-ron-check.rs}` | 47 | the unverified frontend's citations of `Main.lean`, whose driver types now name `ConLeche.natOpPinSets` outright (`InstalledEnv mode ConLeche.natOpPinSets ds`, `annotDeclStep mode ConLeche.natOpPinSets p pd`).  The port does not mirror those types at all (DESIGN.md §3.7's skip list has the `Prop`-indexed driver evidence), so the only edit is `driver::pins_for_run`'s "con-leche bakes `natOpPinSets` into `checkDivModPin`" |
+
+Also corrected while passing: `kernel/nat_op_pins.rs`' and
+`crates/con-ron-core/src/lib.rs`' module notes, which still described the list
+as driver-supplied runtime data (task #43 moved it into the core).
+
+**Two bugs the first real bump exposed.**  `provenance.py update` rebuilt a
+relocated citation as `Cite(…)` **without `c.pfx`**, so a module-level `//!`
+citation came back as `///` — `pins_text.rs`'s did, and nothing but
+`gen-pins.sh --check` would have noticed.  And `gen-pins.sh` carries that
+citation in its own heredoc, so its range had to be moved by hand
+(`NatOpPins.lean:61-64` → `:62-65`).  With both fixed, `gen-pins --check` is
+green at the same **26 721 records / 532 456 bytes**, which is the measurement
+that task #285 did not touch the pin *values*.
+
+#### 3. Phase B: the tower at `absPins pins`
+
+Phase A (build against the new signatures with a stop-gap) was skipped as the
+brief asked: every site went straight to the parametric spelling.  What the
+edit is, mechanically:
+
+* `ConLeche.checkDivModPinF ops A B c` → `… ops (absPins pins) A B c`
+  (`Refine/CheckerPins.lean`, and the four sites `Refine/CheckerDecl.lean`
+  states the `.defnDecl` arm's gate at);
+* `ConLeche.checkDecl (absMode mode) (lops mode lfe) lfe.env` →
+  `… (lops mode lfe) (absPins pins) lfe.env`;
+* `ConLeche.Cached.checkDeclC / checkDeclStepC / annotStepC / annotDeclStep
+  (absMode mode) …` all take `(absPins pins)` right after the mode;
+* `Installed.leanCheckDecls mode pins ds` **applies** its `pins` argument —
+  the one line §3.6 said the bump would cost, and it was one line;
+* six definitions that quantify over the cited computation gained a
+  `lpins : List ConLeche.NatOpPinSet` parameter: `CheckerDecl.FoldsTo`,
+  `FoldsErr`, `FoldErrSim` and `defnGatesInlined`, `CheckerPins.defnPinsBlockF`
+  and `checkDivModPinF_congr`, plus the private `Installed.annotDeclStep_err`;
+* `hpins : absPins pins = ConLeche.natOpPinSets` deleted from **40** statements
+  (`CheckerDecl` 18, `Installed` 12, `Main` 6, `CheckerPins` 4) and from every
+  call that passed it.  Four lemmas whose statement mentions the pin list but
+  whose *proof* does not (`check_basis_decl{,_c}_refines` and their `_ok`
+  twins, `annot_step_thm_c_refines` and its) had `pins` auto-bound and
+  inferable only through `hpins`; they now declare it and their two call sites
+  pass `(pins := pins)`.
+
+Two `rw [… hpins] at …` steps in `check_div_mod_pin_refines` disappeared and
+**no proof needed anything else**: the loop lemma was already stated over
+`(absPins pins).drop i`, because `checkDivModPinLoopF` always took the variant
+list as an argument.  That is the whole reason this is a restatement and not a
+re-proof.
+
+#### 4. The `native_decide` is gone
+
+Task #64 added `pins_closed` (the closed computation by `native_decide`) and a
+chain of consumers whose only job was to identify the decoded list with
+`ConLeche.natOpPinSets`.  A parametric fold needs no such identification, so
+**exactly that chain was removed**:
+
+| deleted | was |
+|---|---|
+| `Refine/Pins.lean`: `pinsTextLean`, `pins_closed`, `pins_text_decodes`, `check_decls_pins_refines{,_ok}` | task #64 §4 |
+| `Refine/Installed.lean`: `check_decls_embedded_refines{,_ok}` | task #64 §5 |
+| `Refine/BasisPins.lean`: `nat_op_pin_sets_refines` | the same corollary stated twice, "fold it back when that file is next touched" |
+
+`grep -rn native_decide proof/ --include=*.lean` returns only prose (six files
+recording what task #64 did and this task undid); **no `native_decide` is
+invoked anywhere**.  `Refine/Pins.lean` keeps `pins_decode_refines{,_ok}`, the
+decoder's own refinement, which was always an ordinary proof;
+`Refine/PinsWF.lean` keeps `decode_embedded_wf`, which is the only thing the
+capstones still ask of the embedded run and holds for every byte string.
+
+#### 5. The capstones
+
+| theorem | hypotheses |
+|---|---|
+| `conron.model_exists` / `no_proof_of_False` | `hk`, `hind`, `hinde`, `hvar`, `hds`, `h` — five, where task #67 left six |
+| `conron.model_exists'` / `no_proof_of_False'` | `hvar`, `hds`, `h` |
+| `conron.model_exists_embedded` / `no_proof_of_False_embedded` | `hp : decode_embedded = ok (.Ok pins)`, `hds`, `h` — `hp` is there for `PinsWF` alone |
+
+and the censuses, all `#guard_msgs`-pinned:
+
+| theorem | axioms |
+|---|---|
+| `conron.model_exists'` / `no_proof_of_False'` | `[propext, Classical.choice, Quot.sound]` — **unchanged** |
+| `conron.model_exists_embedded` / `no_proof_of_False_embedded` | the three **plus** `pins_text.PINS_TEXT._native.decide.ax_1` — one entry where task #64 had two |
+| `Installed.check_decls_refines`, `pins_decode_refines`, and every other pinned census | the three |
+
+**The surviving entry is Aeneas's, and it is not about evaluation.**  `toStr`
+discharges `s.toByteArray.size ≤ U32.max` with `by decide +native` on *every*
+extracted `&str` constant (`AENEAS_FINDINGS.md` §3.8), so the axiom sits in
+`kernel::pins_text::PINS_TEXT`'s **definition**; the two `_embedded` capstones
+name `kernel::pins_decode::decode_embedded`, whose definition reaches that
+constant, and `#print axioms` walks the closure whether or not anything runs.
+Nothing on our side computes the text any more. Removing it needs the upstream
+change §3.8 asks for, and `AENEAS_FINDINGS.md` now carries that as its status
+line.
+
+#### 6. Numbers and gates
+
+`scripts/progress.py --summary`:
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)  to translate 13761  translated 13761 (100%)  verified 12779 (92%)  skipped 618
+Cherries (ConLeche/Frontend without Scan/Equiv, Main.lean)  to translate 7727  translated 7727 (100%)  verified 0 (0%)  skipped 375
+Rust core 70242 lines (1455 fns) | unverified crates 20478 | generated Lean 53955 | proofs 146504 (1289 _refines) | pin 732730a5
+Campaign (task #67): full-outcome 281 / 281 in scope (100%), accept-direction left 0 | stale (CHANGED marker) 0
+```
+
+`scripts/loc.py --summary`:
+
+```
+LoC: upstream 13711 | rust 36625 | generated 51808 | proof 145878 (tactic 116693 in 3256 thms, grind 0 in 0, term 5988 in 790, other 23197) | study 621 | ratios rust/up 2.67 gen/rust 1.41 proof/rust 3.98 proof/up 10.64
+```
+
+The campaign denominator moves 284 → 281 and the `_refines` count 1292 → 1289:
+three statements were *deleted*, not restated (`check_decls_pins_refines`,
+`check_decls_embedded_refines`, `nat_op_pin_sets_refines`), and everything else
+kept its shape.  `upstream` moves 13694 → 13711 because the vendored con-leche
+is task #285's tree.
+
+All seven `scripts/gates.sh` gates green, the proof library `sorry`-free.
