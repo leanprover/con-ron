@@ -41,11 +41,11 @@ section for every task you land.
   `gates.sh` key their scratch and log directories by checkout for the same
   reason.  Never edit the main tree's `vendor/con-leche` from an agent: it
   is what the main tree's proof build reads.
-* **Disk.** After an agent branch is merged and the gates are green on
-  master, run `scripts/prune-worktrees.sh`: it removes every worktree whose
-  branch is merged, deletes the branch, and deletes the per-checkout scratch
-  under `_tmp/` of checkouts that no longer exist.  An unmerged worktree is
-  kept until its path is passed explicitly.  Task scratch under `_tmp/`
-  (`_tmp/tNN`, spikes, perf outputs) is deleted once its numbers are in
-  DESIGN.md; `_tmp/corpus` and `_tmp/aeneas-lean` stay.
+* **Disk.** Landing an agent branch is three steps: merge it, run the gates
+  on master, then `scripts/drop-worktree.sh <its worktree path>` — which
+  removes exactly that worktree, its branch and its per-checkout scratch
+  under `_tmp/`, and refuses a branch that is not merged.  Nothing sweeps
+  worktrees automatically (an agent may be working in one).  Task scratch
+  under `_tmp/` is deleted once its numbers are in DESIGN.md; `_tmp/corpus`
+  and `_tmp/aeneas-lean` stay.
 * Commit often; the maintainer pushes and opens PRs.
