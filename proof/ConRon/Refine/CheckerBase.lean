@@ -527,4 +527,91 @@ theorem fvar_types_refines {fvs r : alloc.vec.Vec expr.Expr} (hfvs : ExprsWF fvs
   rw [habs]
   simp [absExprs, alloc.vec.Vec.new]
 
+/-! ## `openPisAtFvars` and its one-pass twin
+
+Task #24's deviation 6: `fv :: fvs` is `expr_ops::cons_expr`, a fresh vector
+filled front to back (`O(width)` where Lean's cons is `O(1)`), and the `acc`
+of the one-pass walk is copied on the way down for the same reason. -/
+
+/-- `ConLeche/Kernel/CheckerBase.lean:108-118 openPisAtFvars` — open the first
+`n` `∀`-binders at fresh free variables. -/
+theorem open_pis_at_fvars_refines :
+    ∀ (N : Nat) (n : Std.U64) (e : expr.Expr) (i : Std.U64)
+      (r : Option ((alloc.vec.Vec expr.Expr) × expr.Expr)),
+      n.val = N → ExprWF e →
+      checker_base.open_pis_at_fvars n e i = ok r →
+      (Option.map (fun p => (absExprs p.1, absExpr p.2)) r
+        = ConLeche.openPisAtFvars n.val (absExpr e) i.val)
+      ∧ (∀ p, r = some p → ExprsWF p.1 ∧ ExprWF p.2) := by
+  intro N
+  induction N with
+  | zero =>
+    intro n e i r hN he h
+    rw [checker_base.open_pis_at_fvars.eq_def] at h
+    rw [if_pos (by scalar_tac), Expr.dup_eq_self] at h
+    simp only [bind_tc_ok, Result.ok.injEq] at h
+    rw [← h, hN]
+    refine ⟨by simp [ConLeche.openPisAtFvars, absExprs, alloc.vec.Vec.new], ?_⟩
+    intro p hp
+    simp only [Option.some.injEq] at hp
+    rw [← hp]
+    exact ⟨ExprOps.exprsWF_new, he⟩
+  | succ N ih =>
+    intro n e i r hN he h
+    rw [checker_base.open_pis_at_fvars.eq_def] at h
+    rw [if_neg (by scalar_tac)] at h
+    obtain ⟨nd⟩ := e
+    obtain ⟨d, k⟩ := nd
+    cases k with
+    | ForallE dom body m =>
+      obtain ⟨hdom, hbody, hm⟩ := wf_forall_inv he rfl
+      simp only [arc_deref_eq, ExprOps.node_kind, Expr.dup_eq_self, bind_tc_ok] at h
+      obtain ⟨fv, hfv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨opened, hopened, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+      have hfvwf : ExprWF fv := Expr.fvar_wf hdom hfv
+      have hfvabs : absExpr fv = .fvar i.val (absExpr dom) := Expr.fvar_refines hfv
+      obtain ⟨hoabs, howf⟩ := ExprOps.instantiate1_refines hbody hfvwf hopened
+      have hn1v : n1.val = n.val - 1 := HashMap.uscalar_sub_eq hn1
+      have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+      obtain ⟨habs, hwf⟩ := ih n1 opened i2 o (by omega) howf ho
+      rw [hn1v, hi2v, hoabs] at habs
+      rw [absExpr_mk, absExprKind, hN]
+      rw [show N + 1 = N + 1 from rfl]
+      have hnn : n.val - 1 = N := by omega
+      rw [hnn] at habs
+      cases o with
+      | none =>
+        simp only [Option.map_none] at habs
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine ⟨?_, by simp⟩
+        show _ = ConLeche.openPisAtFvars (N + 1) _ _
+        rw [ConLeche.openPisAtFvars, ← hfvabs, ← habs]
+        simp
+      | some q =>
+        obtain ⟨fvs, b⟩ := q
+        obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+        simp only [Result.ok.injEq] at h
+        obtain ⟨hfvswf, hbwf⟩ := hwf (fvs, b) rfl
+        obtain ⟨hvabs, hvwf⟩ := ExprOps.cons_expr_refines hfvwf hfvswf hv
+        rw [← h]
+        refine ⟨?_, ?_⟩
+        · show _ = ConLeche.openPisAtFvars (N + 1) _ _
+          rw [ConLeche.openPisAtFvars, ← hfvabs, ← habs]
+          simp only [Option.map_some, Option.map_some]
+          rw [hvabs]
+        · intro p hp
+          simp only [Option.some.injEq] at hp
+          rw [← hp]
+          exact ⟨hvwf, hbwf⟩
+    | _ =>
+      simp only [arc_deref_eq, ExprOps.node_kind, Result.ok.injEq] at h
+      rw [← h, hN, absExpr_mk, absExprKind]
+      refine ⟨?_, by simp⟩
+      show _ = ConLeche.openPisAtFvars (N + 1) _ _
+      simp [ConLeche.openPisAtFvars]
+
 end ConRon.Refine.CheckerBase

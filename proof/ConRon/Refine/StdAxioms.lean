@@ -746,6 +746,15 @@ theorem u64_decide_beq (i j : Std.U64) : (decide (i = j)) = (i.val == j.val) := 
   · have hv : i.val ≠ j.val := fun hc => hij (Std.UScalar.eq_of_val_eq hc)
     simp [hij, hv]
 
+/-- The derived `BEq` is `decide` of the equality — the one shape every
+`decide`-valued refinement in `Refine/` differs from the `==` con-leche's
+comparisons are written with. -/
+theorem decide_eq_beq {α : Type} [DecidableEq α] [BEq α] [LawfulBEq α] (x y : α) :
+    decide (x = y) = (x == y) := by
+  by_cases hxy : x = y
+  · simp [hxy]
+  · simp [hxy]
+
 /-- `ConLeche/Kernel/StdAxioms.lean:71-122 Expr.erasePw` —
 `std_axioms::erase_pw` refines `Expr.erasePw`: the specification of the pin
 comparison's type test, which resets every binder's prop-ness datum and leaves
@@ -868,7 +877,7 @@ theorem matches_pin_refines {cv pin : env.ConstantVal} {b : Bool}
       obtain ⟨t1a, t1w⟩ := erase_pw_refines hcv.2.2 t1 ht1
       obtain ⟨t2a, t2w⟩ := erase_pw_refines hpin.2.2 t2 ht2
       rw [Expr.beq_refines t1w t2w hbeq, t1a, t2a]
-      simp [hn, hl]
+      simp [hn, hl, decide_eq_beq]
     · rw [if_neg (by simpa using hl), Result.ok.injEq] at h
       simp [← h, hl]
   · rw [if_neg (by simpa using hn), Result.ok.injEq] at h
@@ -982,7 +991,10 @@ theorem wf_proj_inv {e : expr.Expr} (he : ExprWF e) {d i : Std.U64}
 `std_axioms::erase_pw_eq` refines the **lockstep descent**: `a.erasePw =
 b.erasePw`, decided by descending both terms together and stopping at the first
 disagreement, so the walk is bounded by the pin's tree size however large the
-stream side is. -/
+stream side is.  The induction is on the `ExprWF` derivation of the *first*
+term (which gives the node's shape and the children's well-formedness) and a
+case analysis on the second term's stored kind, whose own derivation
+`wf_kind_inv` recovers. -/
 theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     ∀ (b : expr.Expr), ExprWF b → ∀ c : Bool,
       std_axioms.erase_pw_eq a b = ok c →
@@ -994,8 +1006,8 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     obtain ⟨ndb⟩ := b
     obtain ⟨db, kb⟩ := ndb
     rw [std_axioms.erase_pw_eq.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
-    cases kb <;> simp only [Result.ok.injEq] at h <;>
+    cases kb <;>
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h <;>
       rw [← h] <;> simp [ConLeche.Expr.erasePwEq, u64_decide_beq]
   | @sort u a hu h1 =>
     obtain ⟨d1, bb, -, rfl, -, -, -⟩ := Expr.sort_inv h1
@@ -1003,13 +1015,13 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     obtain ⟨ndb⟩ := b
     obtain ⟨db, kb⟩ := ndb
     rw [std_axioms.erase_pw_eq.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
     cases kb
     case «Sort» v =>
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
       rw [Level.beq_refines hu (wf_sort_inv hb rfl) h]
-      simp [ConLeche.Expr.erasePwEq]
+      simp [ConLeche.Expr.erasePwEq, decide_eq_beq]
     all_goals
-      simp only [Result.ok.injEq] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @mk_const n us a hn hus h1 =>
@@ -1018,23 +1030,21 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     obtain ⟨ndb⟩ := b
     obtain ⟨db, kb⟩ := ndb
     rw [std_axioms.erase_pw_eq.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
     cases kb
     case Const n2 us2 =>
       obtain ⟨hn2, hus2⟩ := wf_const_inv hb rfl
-      simp only [bind_eq_ok_iff] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
       obtain ⟨bn, hbn, h⟩ := h
       rw [Name.beq_refines hn hn2 hbn] at h
       by_cases hne : absName n = absName n2
       · rw [if_pos (by simpa using hne)] at h
-        simp only [arc_deref_eq, bind_tc_ok] at h
         rw [Expr.levels_beq_refines hus hus2 h]
-        simp [ConLeche.Expr.erasePwEq, hne]
+        simp [ConLeche.Expr.erasePwEq, hne, decide_eq_beq]
       · rw [if_neg (by simpa using hne), Result.ok.injEq] at h
         rw [← h]
         simp [ConLeche.Expr.erasePwEq, hne]
     all_goals
-      simp only [Result.ok.injEq] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @lit l a hl h1 =>
@@ -1043,13 +1053,13 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     obtain ⟨ndb⟩ := b
     obtain ⟨db, kb⟩ := ndb
     rw [std_axioms.erase_pw_eq.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
     cases kb
     case Lit l2 =>
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
       rw [Expr.literal_beq_refines hl (wf_lit_inv hb rfl) h]
-      simp [ConLeche.Expr.erasePwEq]
+      simp [ConLeche.Expr.erasePwEq, decide_eq_beq]
     all_goals
-      simp only [Result.ok.injEq] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @fvar idx ty a hty h1 ih =>
@@ -1058,20 +1068,20 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     obtain ⟨ndb⟩ := b
     obtain ⟨db, kb⟩ := ndb
     rw [std_axioms.erase_pw_eq.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
     cases kb
     case Fvar j t2 =>
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
       by_cases hij : idx = j
       · subst hij
         rw [if_pos rfl] at h
         rw [ih t2 (wf_fvar_inv hb rfl) c h]
         simp [ConLeche.Expr.erasePwEq]
-      · rw [if_neg hij, Result.ok.injEq] at h
-        have hv : idx.val ≠ j.val := fun hc => hij (Std.UScalar.eq_of_val_eq hc)
+      · have hv : idx.val ≠ j.val := fun hc => hij (Std.UScalar.eq_of_val_eq hc)
+        rw [if_neg hij, Result.ok.injEq] at h
         rw [← h]
         simp [ConLeche.Expr.erasePwEq, hv]
     all_goals
-      simp only [Result.ok.injEq] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @app f x a hf hx h1 ihf ihx =>
@@ -1080,11 +1090,10 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     obtain ⟨ndb⟩ := b
     obtain ⟨db, kb⟩ := ndb
     rw [std_axioms.erase_pw_eq.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
     cases kb
     case App f2 x2 =>
       obtain ⟨hf2, hx2⟩ := wf_app_inv hb rfl
-      simp only [bind_eq_ok_iff] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
       obtain ⟨b1, hb1, h⟩ := h
       rw [ihf f2 hf2 b1 hb1] at h
       cases hd : ConLeche.Expr.erasePwEq (absExpr f) (absExpr f2)
@@ -1094,7 +1103,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
         rw [ihx x2 hx2 c h]
         simp [ConLeche.Expr.erasePwEq, hd]
     all_goals
-      simp only [Result.ok.injEq] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @lam ty bo m a hty hbo hm h1 ihty ihbo =>
@@ -1103,11 +1112,10 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     obtain ⟨ndb⟩ := b
     obtain ⟨db, kb⟩ := ndb
     rw [std_axioms.erase_pw_eq.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
     cases kb
     case Lam t2 b2 m2 =>
       obtain ⟨ht2, hb2, -⟩ := wf_lam_inv hb rfl
-      simp only [bind_eq_ok_iff] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
       obtain ⟨b1, hb1, h⟩ := h
       rw [ihty t2 ht2 b1 hb1] at h
       cases hd : ConLeche.Expr.erasePwEq (absExpr ty) (absExpr t2)
@@ -1117,7 +1125,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
         rw [ihbo b2 hb2 c h]
         simp [ConLeche.Expr.erasePwEq, hd]
     all_goals
-      simp only [Result.ok.injEq] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @forall_e ty bo m a hty hbo hm h1 ihty ihbo =>
@@ -1126,11 +1134,10 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     obtain ⟨ndb⟩ := b
     obtain ⟨db, kb⟩ := ndb
     rw [std_axioms.erase_pw_eq.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
     cases kb
     case ForallE t2 b2 m2 =>
       obtain ⟨ht2, hb2, -⟩ := wf_forall_e_inv hb rfl
-      simp only [bind_eq_ok_iff] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
       obtain ⟨b1, hb1, h⟩ := h
       rw [ihty t2 ht2 b1 hb1] at h
       cases hd : ConLeche.Expr.erasePwEq (absExpr ty) (absExpr t2)
@@ -1140,7 +1147,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
         rw [ihbo b2 hb2 c h]
         simp [ConLeche.Expr.erasePwEq, hd]
     all_goals
-      simp only [Result.ok.injEq] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @let_e ty v bo a hty hv hbo h1 ihty ihv ihbo =>
@@ -1149,11 +1156,10 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     obtain ⟨ndb⟩ := b
     obtain ⟨db, kb⟩ := ndb
     rw [std_axioms.erase_pw_eq.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
     cases kb
     case LetE t2 v2 b2 =>
       obtain ⟨ht2, hv2, hb2⟩ := wf_let_e_inv hb rfl
-      simp only [bind_eq_ok_iff] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
       obtain ⟨b1, hb1, h⟩ := h
       rw [ihty t2 ht2 b1 hb1] at h
       cases hd : ConLeche.Expr.erasePwEq (absExpr ty) (absExpr t2)
@@ -1170,7 +1176,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
           rw [ihbo b2 hb2 c h]
           simp [ConLeche.Expr.erasePwEq, hd, hd2]
     all_goals
-      simp only [Result.ok.injEq] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @proj sn i x a hs hx h1 ih =>
@@ -1179,11 +1185,10 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     obtain ⟨ndb⟩ := b
     obtain ⟨db, kb⟩ := ndb
     rw [std_axioms.erase_pw_eq.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
     cases kb
     case Proj s2 j e2 =>
       obtain ⟨hs2, he2⟩ := wf_proj_inv hb rfl
-      simp only [bind_eq_ok_iff] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
       obtain ⟨bn, hbn, h⟩ := h
       rw [Name.beq_refines hs hs2 hbn] at h
       by_cases hne : absName sn = absName s2
@@ -1201,7 +1206,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
         rw [← h]
         simp [ConLeche.Expr.erasePwEq, hne]
     all_goals
-      simp only [Result.ok.injEq] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
 
