@@ -11998,3 +11998,118 @@ build.  The check command for a single file is
 -Dweak.backward.isDefEq.respectTransparency=false <file>`.  Relatedly,
 `Shape.lean`'s plumbing is `attribute [local simp]`, and a `local` attribute
 does not cross an import — every file re-declared it.
+
+### Task #60 — The fold and the final theorems (hypotheses: knot, pins) (2026-09-13, Opus under Fable)
+
+P3, `proof/ConRon/Refine/CORE_PLAN.md` **steps 7's top and 8** — the top of the
+tower.  Two new files, `proof/ConRon/Refine/Installed.lean` (1 271 lines) and
+`proof/ConRon/Refine/Main.lean` (134), refining
+`crates/con-ron-core/src/cached/installed.rs` against
+`ConLeche/Cached/Installed.lean` and composing the result with
+`ConLeche/MainTheorem.lean`.  The progress line goes `verified 7531 (54%)` →
+`7664 (55%)` and `799 → 1096` `_refines`.
+
+#### 1. What is proved
+
+**`check_decls_refines` is proved**, from the arm lemmas down: an accept of the
+Rust `check_decls` *is* an accept of con-leche's `checkDecls` at the abstracted
+declarations and the abstracted environment.  Everything structural in the
+cited file is closed:
+
+* the phase-A **four-way dispatch** `annot_step_c` and all three arms
+  (`annot_step_defn_c`, `annot_step_thm_c`, `annot_step_opaque_c`) with their
+  three pushes, including the cited RC-linearity read of `fe.visibleBelow`
+  *before* the push and the theorem arm's install **by statement**;
+* `annot_decl_step` — the tagged step, with the flat 3-tuple accumulator of
+  deviation 1 and the Lean accumulator existentially quantified over its index
+  component;
+* **both index recursions** against their `List` counterparts (deviation 3):
+  `annot_decl_fold_from` against `ds.foldlM (annotDeclStep mode)` and
+  `check_pending_list_from` against the cited `List` recursion, each by the
+  `length - i` induction `Refine/CheckerDecl.lean`'s `check_decls_pure_val`
+  established;
+* `check_pending_fresh` — **the fresh `CState` per record**, where
+  `Refine/State.lean`'s `cstate_new_refines` is what says the port's fourteen
+  fresh tables are con-leche's `{}` (task #32's lifetime argument is what makes
+  the port put it in a function of its own; no memo policy moves);
+* the phase boundary `check_decls_phase_b` and `check_decls` itself.
+
+**Nine `sorry`s**, each with a one-line note: `annotConstantValC` and
+`annotValC` with their two tails, `annotValueC` with its tail, and
+`checkPending` with its two halves.  Every one is a guard cascade plus a core
+call — the same bulk `Refine/CheckerSplit.lean`'s four are, since the cited
+`annotConstantValC`/`annotValC` *are* `installConstantVal`/`installValue` minus
+the inference, read through `constsResolveFC` instead of `Expr.constsResolve`.
+None of them is a design question, and none of them is load-bearing for the
+*shape* of the capstone.
+
+#### 2. The four hypotheses that reach the top, and only four
+
+`conron.model_exists` and `conron.no_proof_of_False` (DESIGN.md §1's second and
+third displayed theorems) are `ConLeche.model_exists`/`no_proof_of_False` at
+`check_decls_refines`, and they carry exactly:
+
+1. `hk : Core.KnotSpec .Verified IndAbs.checkFuelU` — **task #55**'s, being
+   proved concurrently.
+2. `hind : IndRoutesSpec .Verified` — **task #59**'s bridge
+   `ind_routes_spec_of_p ∘ ind_routes_spec hk` had not landed when this task
+   was written, so the *consumer's* form is a named hypothesis; when the bridge
+   lands it is discharged from `hk` in one line.
+3. `hpins : absPins pins = ConLeche.natOpPinSets` — the pin parameter (§3.6,
+   task #31/#43).
+4. `hds : ∀ d ∈ ds.val, DeclCWF d` — the parser's own invariant.
+
+`Refine/README.md`'s new "how the tower composes" section is the table of who
+discharges each, and is the thing to read before picking up the next P3 task.
+
+#### 3. `leanCheckDecls`: the pins bump is one line
+
+The pinned con-leche (`3e004805`) bakes the global `natOpPinSets` into
+`checkDeclStepC`; the `pins-param` branch (con-leche task #285,
+`_tmp/con-leche-pins`) makes it `checkDecls mode pins ds`.  So the conclusion of
+`check_decls_refines` is stated against a `def leanCheckDecls mode pins ds :=
+ConLeche.Cached.checkDecls mode ds`, which takes the list and ignores it today.
+When the submodule pin moves, that body becomes `checkDecls mode pins ds`,
+`hpins` disappears from every statement in both files, and **nothing else
+changes** — which is what makes the bump a decision rather than a project.
+
+`hpins` is *inert in today's proofs and live in today's statements*: task #56's
+`check_decl_step_c_refines` does not take it (its pin-route arms are `sorry`,
+and `Refine/CheckerPins.lean`'s `check_div_mod_pin_refines` is the lemma that
+will), so `annot_step_other_c_refines` turns the unused-variable linter off for
+itself rather than dropping the hypothesis.  Carrying it is the honest way
+round: no statement between here and the pin route can assume the two lists
+agree.
+
+#### 4. The axiom census, and the `PINS_TEXT` guard
+
+Six `#guard_msgs`-checked `#print axioms` blocks, four of them in
+`Refine/Main.lean`.  `conron.model_exists` and `conron.no_proof_of_False` read
+`[propext, sorryAx, Classical.choice, Quot.sound]` today and the two con-leche
+theorems they compose with read `[propext, Classical.choice, Quot.sound]`,
+printed beside them so the diff is visible in one screen: **`sorryAx` leaving
+those two lines is the P3 gate**, and what must remain is con-leche's own
+three.
+
+**Nothing reaches `kernel::pins_text::PINS_TEXT`**, and the census is what
+enforces it (task #43): a closed claim about that constant needs
+`decide +native`, whose `Lean.ofReduceBool`/`Lean.trustCompiler` would appear
+here.  It cannot, because `pins` is a *parameter* of `check_decls` in these
+statements and `hpins` is a hypothesis about it — the embedded text is not in
+the proof closure at all.  `Refine/Pins.lean`'s two open statements are what
+would put it there, deliberately, and they are still the only route.
+
+#### 5. For the next agent
+
+* `simp` has **no `Except.ok a >>= f = f a` lemma** at this instance, and the
+  chains in this tier are three and four runs deep.  `Installed.run_bind_ok`
+  (`x.run s = .ok (a, s₁) → (f a).run s₁ = r → (x >>= f).run s = r`, generic in
+  the error type) is the one step; `refine run_bind_ok h₁ (run_bind_ok h₂ ?_)`
+  is how a `do` block is walked, and it also covers `List.foldlM_cons`'s bind.
+* `rw [f]` on a generated function that matches on a *variable* fails ("failed
+  to rewrite using equation theorems"); `cases` first, then `rw`.
+* `rw [ConLeche.Cached.annotStepC]` at a catch-all constructor leaves three
+  "not this constructor" side goals; `· exact …` then `all_goals simp`.
+* `cases b <;> simp_all` on a `Bool` hypothesis in this context blows the
+  recursion depth; `cases b with | false => rfl | true => exact absurd rfl h`
+  is the cheap form.

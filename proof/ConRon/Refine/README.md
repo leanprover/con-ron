@@ -115,6 +115,36 @@ only through `IndAbs`'s five operation lemmas.
 | `IndSpec.lean` | `IndRoutesSpec`, the one `Prop` the checker tier (task #56) consumes: the two entry points `check_native_s`/`check_ind_decl_s` against `checkNativeS`/`checkIndDeclSF` |
 | `IndC.lean` | `kernel::inductives::inductives_c` — the two routes' cached drivers, i.e. the **flush policy**, and `ind_routes_spec` |
 
+## The top of the tower (task #60, `CORE_PLAN.md` steps 7's top and 8)
+
+| file | contents |
+|---|---|
+| `Installed.lean` | `cached::installed` — **the declaration fold**: `absPendingCheck`/`absPendingChecks`/`PendingCheckWF` (marked "to be unified into `Abs.lean`"), the two install halves and their tails, the four-way phase-A dispatch and its three pushes, `annot_decl_step`, phase B's `check_pending` family with its fresh `CState`, both index recursions, `leanCheckDecls` and **`check_decls_refines`** |
+| `Main.lean` | the capstone: `check_decls_verified_refines`, `conron.model_exists` and `conron.no_proof_of_False` from `ConLeche.MainTheorem`, each with a `#guard_msgs`-checked axiom census |
+
+### How the tower composes, and what is still owed
+
+Read bottom-up, `check_decls_refines` is the composition of every file above
+it, and **exactly four hypotheses survive to the top** — the same four that
+`Refine/Main.lean`'s two theorems carry, and no others:
+
+| hypothesis | who discharges it |
+|---|---|
+| `hk : Core.KnotSpec mode IndAbs.checkFuelU` — the six core wrappers and bodies refine `coreKnotI` at `checkFuel` | **task #55** (`Refine/Core/Arms/*`, `Refine/Core/Knot.lean`); `Refine/Core/Statements.lean` is the statement it is proving |
+| `hind : IndRoutesSpec mode` — the two inductive install routes | **task #57** proved `IndRoutesSpecP` (`IndC.ind_routes_spec`); **task #59** owes `ind_routes_spec_of_p`, the recogniser bridge to the consumer's form |
+| `hpins : absPins pins = ConLeche.natOpPinSets` — the port's pin list is the global the pinned con-leche bakes into `checkDeclStepC` | `Refine/Pins.lean`'s `check_decls_pins_refines` (open on that file's two statements, task #43), **or** the `pins-param` submodule bump, which deletes the hypothesis: `Installed.leanCheckDecls` is the one line that changes |
+| `hds : ∀ d ∈ ds.val, DeclCWF d` — the parsed input is well formed | the parser, by construction (the `*WF` predicates of §3.5 are the port's own smart constructors) |
+
+Everything else is *internal* and already discharged where it is used: task
+#56's four cross-file `Spec`s in `CheckerPinned.lean`, task #49's in
+`CoreKPinned.lean`, and the `FindAgree`/`FindWF` projections in
+`CoreKBase.lean`.  The `sorry`s that remain below the top are arm-level bulk
+(`CheckerSplit` 4, `CheckerDecl` 9, `DeclCheck` 14, `CheckerPins` 8,
+`Checker` 5, `CheckerSplit`/`BasisPins`/`Pins` the rest, `Installed` 9); every
+one of them is a *guard cascade or a core call*, none is a design question, and
+the axiom censuses in `Installed.lean` and `Main.lean` are what will say so:
+`sorryAx` leaving `conron.model_exists` is the P3 gate.
+
 ## Not yet here
 
 `cached::core_c` (the knot's six wrappers and their bodies): `Refine/Core/`
@@ -149,3 +179,5 @@ files are its steps 1 and 2, task #51's four `ExprOpsC*` files the second half
 of its step 3, task #49's twelve `CoreK*`/`BasisNames`/`PropRead` files its
 step 4, and task #52's two `StateC*` files its step 5; step 6 is the
 induction.
+(step 7's first half) are task #56's, and task #60's two files above are its
+top and step 8.
