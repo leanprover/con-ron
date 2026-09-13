@@ -41,6 +41,16 @@ concurrently — and reaches the operations only through these.
 the zero-argument function the type `Result U64`, so the hypothesis cannot
 literally read `core_k.check_fuel`; `check_fuel_eq` is the identity that
 closes the gap, and `checkFuelU_val` is `= ConLeche.checkFuel`.
+
+## The full outcome (task #67, DESIGN.md §3's ruling of 2026-09-13)
+
+Each operation lemma comes in **two** halves, because `Core.Wrappers` is now
+stated over the Rust computation's whole outcome: `ops_*` is the accept
+direction (the pre-#67 statement, `Wrappers.*.ok`) and `ops_*_err` says that
+where the port's wrapper threw a mirrored error, con-leche's `sharedOpsC`
+slot throws at the same *kind* (`Refine/Abs.lean`'s `ErrSim`; messages are
+never compared).  The eight `Ind*.lean` files reach a failing operation only
+through the `_err` companions.
 -/
 import ConRon.Refine.Core.Statements
 import ConRon.Refine.StateC
@@ -206,6 +216,24 @@ theorem sort_node_wf {d : Std.U64} {u : level.Level}
   | lit _ hb => obtain ⟨_, he, -, -, -⟩ := Expr.lit_inv hb; simp at he
   | proj _ _ hb => obtain ⟨_, he, -, -, -⟩ := Expr.proj_inv hb; simp at he
 
+/-- **`throw` in `CheckCM`**: the monad-plumbing `simp` set the `ensureSort`
+proofs use does not carry the `MonadExcept` instance, so `simp` would
+otherwise leave con-leche's `throw` arm un-run
+(`Refine/Core/Arms/Shared.lean` re-declares the same lemma;
+`attribute [local simp]` does not travel across files). -/
+private theorem checkCM_throw_apply {b : Type} (le : ConLeche.CheckError)
+    (lst : ConLeche.Cached.CState) :
+    (throw le : ConLeche.Cached.CheckCM b) lst = .error le := rfl
+
+attribute [local simp] checkCM_throw_apply
+
+/-- The port's `Err` value at `ensure_sort_i`'s one mirrored `throw` arm:
+`core_types::invalid` is the `Invalid` constructor (task #67). -/
+private theorem invalid_err {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.invalid v = ok ce) :
+    ce = .Invalid v :=
+  (Result.ok_injective (by rw [core_types.invalid] at h; exact h)).symm
+
 section Ops
 
 variable {mode : env.CheckMode} (hw : Core.Wrappers mode checkFuelU)
@@ -221,7 +249,18 @@ theorem ops_whnf {st fe d e r st'} (hst : StateWF st) (hfe : FEnvWF fe)
             (absEnv fe.env) d.val (absExpr e)).run lst
           = .ok (absExpr r, lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r :=
-  hw.whnf st fe d e r st' hst hfe he h
+  hw.whnf.ok st fe d e r st' hst hfe he h
+
+/-- `ops.whnf`'s failure half (task #67): the wrapper threw, and con-leche's
+`whnf` slot throws at the same kind. -/
+theorem ops_whnf_err {st fe d e ce st'} (hst : StateWF st) (hfe : FEnvWF fe)
+    (he : ExprWF e)
+    (h : cached.core_c.whnf mode checkFuelU st fe d e = ok (.Err ce, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ErrSim ce (((ConLeche.Cached.sharedOpsC (absMode mode) lfe).whnf
+        (absEnv fe.env) d.val (absExpr e)).run lst) :=
+  fun lst lfe hrel hfrel =>
+    hw.whnf.err st fe d e ce st' hst hfe he h lst lfe hrel hfrel
 
 /-- `ops.inferType`. -/
 theorem ops_infer {st fe d e r st'} (hst : StateWF st) (hfe : FEnvWF fe)
@@ -232,7 +271,17 @@ theorem ops_infer {st fe d e r st'} (hst : StateWF st) (hfe : FEnvWF fe)
             (absEnv fe.env) d.val (absExpr e)).run lst
           = .ok (absExpr r, lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r :=
-  hw.infer st fe d e r st' hst hfe he h
+  hw.infer.ok st fe d e r st' hst hfe he h
+
+/-- `ops.inferType`'s failure half. -/
+theorem ops_infer_err {st fe d e ce st'} (hst : StateWF st) (hfe : FEnvWF fe)
+    (he : ExprWF e)
+    (h : cached.core_c.infer mode checkFuelU st fe d e = ok (.Err ce, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ErrSim ce (((ConLeche.Cached.sharedOpsC (absMode mode) lfe).inferType
+        (absEnv fe.env) d.val (absExpr e)).run lst) :=
+  fun lst lfe hrel hfrel =>
+    hw.infer.err st fe d e ce st' hst hfe he h lst lfe hrel hfrel
 
 /-- `ops.annotate`. -/
 theorem ops_annotate {st fe d e r st'} (hst : StateWF st) (hfe : FEnvWF fe)
@@ -243,7 +292,17 @@ theorem ops_annotate {st fe d e r st'} (hst : StateWF st) (hfe : FEnvWF fe)
             (absEnv fe.env) d.val (absExpr e)).run lst
           = .ok (absExpr r, lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r :=
-  hw.annotate st fe d e r st' hst hfe he h
+  hw.annotate.ok st fe d e r st' hst hfe he h
+
+/-- `ops.annotate`'s failure half. -/
+theorem ops_annotate_err {st fe d e ce st'} (hst : StateWF st) (hfe : FEnvWF fe)
+    (he : ExprWF e)
+    (h : cached.core_c.annotate mode checkFuelU st fe d e = ok (.Err ce, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ErrSim ce (((ConLeche.Cached.sharedOpsC (absMode mode) lfe).annotate
+        (absEnv fe.env) d.val (absExpr e)).run lst) :=
+  fun lst lfe hrel hfrel =>
+    hw.annotate.err st fe d e ce st' hst hfe he h lst lfe hrel hfrel
 
 /-- `ops.isDefEq`. -/
 theorem ops_defeq {st fe d a b r st'} (hst : StateWF st) (hfe : FEnvWF fe)
@@ -254,7 +313,17 @@ theorem ops_defeq {st fe d a b r st'} (hst : StateWF st) (hfe : FEnvWF fe)
             (absEnv fe.env) d.val (absExpr a) (absExpr b)).run lst
           = .ok (r, lst')
         ∧ StateRel st' lst' ∧ StateWF st' :=
-  hw.defeq st fe d a b r st' hst hfe ha hb h
+  hw.defeq.ok st fe d a b r st' hst hfe ha hb h
+
+/-- `ops.isDefEq`'s failure half. -/
+theorem ops_defeq_err {st fe d a b ce st'} (hst : StateWF st) (hfe : FEnvWF fe)
+    (ha : ExprWF a) (hb : ExprWF b)
+    (h : cached.core_c.defeq mode checkFuelU st fe d a b = ok (.Err ce, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ErrSim ce (((ConLeche.Cached.sharedOpsC (absMode mode) lfe).isDefEq
+        (absEnv fe.env) d.val (absExpr a) (absExpr b)).run lst) :=
+  fun lst lfe hrel hfrel =>
+    hw.defeq.err st fe d a b ce st' hst hfe ha hb h lst lfe hrel hfrel
 
 /-- `ops.ensureSort`: `whnf` and con-leche's `.sort` match
 (`ensureSortI`, `Cached/CoreC.lean:1115-1119`).  The Rust reads the whnf'd
@@ -305,6 +374,55 @@ theorem ops_ensure_sort {st fe d e u st'} (hst : StateWF st) (hfe : FEnvWF fe)
     | LetE ty v bo => simp at h
     | Lit l => simp at h
     | Proj s i2 x => simp at h
+
+/-- `ops.ensureSort`'s failure half (task #67), with **two** mirrored arms:
+`whnf` threw, and con-leche's bind fails at the very same step
+(`ErrSim.bindCM`); or the reduced type was not a `Sort`, and both sides throw
+`invalid` — the port at `ensure_sort_i.M`'s code points, con-leche at
+`"expected a sort"` (`Cached/CoreC.lean:1118`).  Messages are never
+compared. -/
+theorem ops_ensure_sort_err {st fe d e ce st'} (hst : StateWF st)
+    (hfe : FEnvWF fe) (he : ExprWF e)
+    (h : cached.core_c.ensure_sort_i mode checkFuelU st fe d e
+        = ok (.Err ce, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ErrSim ce (((ConLeche.Cached.sharedOpsC (absMode mode) lfe).ensureSort
+        (absEnv fe.env) d.val (absExpr e)).run lst) := by
+  intro lst lfe hrel hfer
+  rw [cached.core_c.ensure_sort_i.eq_def] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨p, hp, h⟩ := h
+  obtain ⟨r, st1⟩ := p
+  cases r with
+  | Err err =>
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    simp only [ConLeche.Cached.sharedOpsC, ConLeche.Cached.opS,
+      ConLeche.Cached.ensureSortI]
+    exact ErrSim.bindCM
+      (hw.whnf.err st fe d e err st1 hst hfe he hp lst lfe hrel hfer)
+  | Ok w =>
+    obtain ⟨lst', hrun, hrel', hwf', hwfe⟩ :=
+      ops_whnf hw hst hfe he hp lst lfe hrel hfer
+    obtain ⟨⟨dd, k⟩⟩ := w
+    have hrun' :
+        (ConLeche.Cached.coreKnotI (absMode mode) lfe ConLeche.checkFuel).whnf
+            d.val (absExpr e) lst
+          = Except.ok (absExprKind k, lst') := by
+      simpa [ConLeche.Cached.sharedOpsC, ConLeche.Cached.opE, StateT.run]
+        using hrun
+    try dsimp only at h
+    cases k
+    case «Sort» u0 => simp at h
+    all_goals
+      simp at h
+      obtain ⟨v, -, hce, rfl⟩ := h
+      rw [invalid_err hce]
+      refine ErrSim.invalid (s := "expected a sort") ?_
+      simp only [absExprKind] at hrun'
+      simp [ConLeche.Cached.sharedOpsC, ConLeche.Cached.opS,
+        ConLeche.Cached.ensureSortI, StateT.run, Bind.bind, StateT.bind,
+        Except.bind, hrun']
 
 end Ops
 

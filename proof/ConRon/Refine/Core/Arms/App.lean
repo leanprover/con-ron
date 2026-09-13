@@ -58,6 +58,20 @@ together.
 by an index `i`; con-leche recurses on a `List`.  The correspondence is
 `(absExprs args).drop i.val`, peeled one element at a time by
 `ExprOps.vec_index_expr`.
+
+**The full outcome (task #67, DESIGN.md §3's ruling of 2026-09-13).**  Every
+lemma here is stated over the Rust computation's whole outcome (`Sim`, through
+`Refine/State.lean`'s `Out`): exact result on success, *and* con-leche's own
+throw at the same kind on a failure.  None of this file's five Rust functions
+throws on its own — `proj_cert_i`, `proj_cert_at_i`, `whnf_core_proj_i`,
+`whnf_app_i` and `beta_peel_i` have no `Err(core_types::…)` arm between them —
+so every error half is move 1 of the README's three: the callee's
+`Sim.apply_err` carried through the rest of con-leche's `do` block by
+`ErrSim.bindCM`, one line per bind.  The six callees that can throw are
+`state_c::const_ty_at_m`, `iota_certs_i`, `proj_cert_at_i` itself, `infer_io`,
+`defeq` and the continuation `k`; `inst_list_m`, `fab_scope_ok_i` and
+`pi_residual_m` cannot, and the five stuck-`proj` arms rebuild a node
+(`App.proj_stuck` now reads the outcome off the arm rather than assuming it).
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.CoreKVec
@@ -137,6 +151,16 @@ theorem run_bind {α β : Type} {x : ConLeche.Cached.CheckCM α}
 /-- `pure`'s `run`. -/
 @[simp] theorem run_pure {α : Type} (a : α) (lst : ConLeche.Cached.CState) :
     (pure a : ConLeche.Cached.CheckCM α).run lst = .ok (a, lst) := rfl
+
+/-- **A `Sim` in tail position** (task #67): where the Rust arm *is* a call,
+the callee's whole outcome is the caller's, so neither `Sim.apply` nor
+`Sim.apply_err` alone applies — this is `Sim` unfolded at the undivided
+outcome, in the argument order `Sim.apply` has. -/
+theorem sim_tail {α β : Type} {A : α → β} {WF : α → Prop} {f g}
+    (h : Sim A WF f g) {st fe o st' lst lfe} (hwf : StateWF st) (hfe : FEnvWF fe)
+    (hok : f st fe = Aeneas.Std.Result.ok (o, st')) (hrel : StateRel st lst)
+    (hfrel : FEnvRel fe lfe) : Out A WF o st' ((g lfe).run lst) :=
+  h fe lfe hfe hfrel st o st' hwf hok lst hrel
 
 end App
 
@@ -227,7 +251,7 @@ theorem proj_cert_i_refines (hd : AppDeps mode fuel) (d : Std.U64) (lic : Bool)
       (fun st fe => cached.core_c.proj_cert_i mode fuel st fe d lic c us args)
       (fun lfe => ConLeche.Cached.projCertI (knot mode lfe fuel.val) lfe d.val lic
         (absName c) (absLevels us) (absExprs args)) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st o st' hwf hok lst hrel
   unfold cached.core_c.proj_cert_i at hok
   obtain ⟨b, hb, hok⟩ := bind_eq_ok_iff.mp hok
   have hbv := hd.isCtorStored fe lfe c b hfe hfrel hc hb
@@ -239,9 +263,7 @@ theorem proj_cert_i_refines (hd : AppDeps mode fuel) (d : Std.U64) (lic : Bool)
     simp only at hbv
     subst hbv
     simp only [Bool.false_eq_true, if_false, Result.ok.injEq, Prod.mk.injEq] at hok
-    obtain ⟨hr, rfl⟩ := hok
-    have hrf : r = false := by injection hr with hr'; exact hr'.symm
-    subst hrf
+    obtain ⟨rfl, rfl⟩ := hok
     exact ⟨lst, rfl, hrel, hwf, trivial⟩
   | some ci =>
     cases ci with
@@ -252,14 +274,19 @@ theorem proj_cert_i_refines (hd : AppDeps mode fuel) (d : Std.U64) (lic : Bool)
       simp only [if_true] at hok
       obtain ⟨⟨rc, st1⟩, hcty, hok⟩ := bind_eq_ok_iff.mp hok
       cases rc with
-      | Err err => simp at hok
+      | Err err =>
+        -- `constTyAtM` threw: con-leche's `do` block throws the same (move 1)
+        simp at hok
+        obtain ⟨rfl, rfl⟩ := hok
+        exact ErrSim.bindCM
+          (StateC.const_ty_at_m_err hwf hfe hc hus hcty lst lfe hrel hfrel (absName c))
       | Ok cty =>
         obtain ⟨lst1, hrun1, hrel1, hwf1, hctyWF⟩ :=
           StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf hfe hc hus
             hcty lst lfe hrel hfrel (absName c)
-        obtain ⟨lst2, hrun2, hrel2, hwf2, -⟩ :=
-          (hd.iotaCerts d lic cty args hctyWF hargs).apply hwf1 hfe hok hrel1 hfrel
-        exact ⟨lst2, by rw [App.run_bind hrun1]; exact hrun2, hrel2, hwf2, trivial⟩
+        rw [App.run_bind hrun1]
+        exact (hd.iotaCerts d lic cty args hctyWF hargs) fe lfe hfe hfrel st1 o st'
+          hwf1 hok lst1 hrel1
     | axiomInfo cv | defnInfo cv v h | thmInfo cv v | indInfo cv caps
     | recInfo cv mi rp rules | projInfo tbl =>
       all_goals (
@@ -267,9 +294,7 @@ theorem proj_cert_i_refines (hd : AppDeps mode fuel) (d : Std.U64) (lic : Bool)
         simp only at hbv
         subst hbv
         simp only [Bool.false_eq_true, if_false, Result.ok.injEq, Prod.mk.injEq] at hok
-        obtain ⟨hr, rfl⟩ := hok
-        have hrf : r = false := by injection hr with hr'; exact hr'.symm
-        subst hrf
+        obtain ⟨rfl, rfl⟩ := hok
         exact ⟨lst, rfl, hrel, hwf, trivial⟩)
 
 /-- `ConLeche/Cached/CoreC.lean:850-853` — **`proj_cert_at_i` refines
@@ -285,18 +310,17 @@ theorem proj_cert_at_i_refines (hd : AppDeps mode fuel) (d : Std.U64)
         cached.core_c.proj_cert_at_i mode fuel st fe d verified lic c us args)
       (fun lfe => ConLeche.Cached.projCertAtI (knot mode lfe fuel.val) lfe d.val
         verified lic (absName c) (absLevels us) (absExprs args)) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st o st' hwf hok lst hrel
   unfold cached.core_c.proj_cert_at_i at hok
   cases verified with
   | true =>
     simp only [ConLeche.Cached.projCertAtI, if_true] at hok ⊢
-    exact (proj_cert_i_refines hd d lic hc hus hargs).apply hwf hfe hok hrel hfrel
+    exact proj_cert_i_refines hd d lic hc hus hargs fe lfe hfe hfrel st o st'
+      hwf hok lst hrel
   | false =>
     simp only [ConLeche.Cached.projCertAtI, Bool.false_eq_true, if_false,
       Result.ok.injEq, Prod.mk.injEq] at hok ⊢
-    obtain ⟨hr, rfl⟩ := hok
-    have hrf : r = true := by injection hr with hr'; exact hr'.symm
-    subst hrf
+    obtain ⟨rfl, rfl⟩ := hok
     exact ⟨lst, rfl, hrel, hwf, trivial⟩
 
 end
@@ -373,8 +397,10 @@ theorem whnfCoreStepI_proj (mode : ConLeche.CheckMode)
 namespace App
 
 /-- The five `else` arms of `whnf_core_proj_i`: the redex stays stuck, and the
-node the port rebuilds is con-leche's `Expr.proj sn i e'`. -/
-theorem proj_stuck {sn : name.Name} {i : Std.U64} {x res : expr.Expr}
+node the port rebuilds is con-leche's `Expr.proj sn i e'`.  The arm cannot
+throw, so the outcome it reaches is an `.Ok` (task #67). -/
+theorem proj_stuck {sn : name.Name} {i : Std.U64} {x : expr.Expr}
+    {oc : core.result.Result expr.Expr core_types.CheckError}
     {st st' : cached.state_c.CState} (hsn : NameWF sn) (hx : ExprWF x)
     (h : (do
           let n1 ← name.dup sn
@@ -383,8 +409,9 @@ theorem proj_stuck {sn : name.Name} {i : Std.U64} {x res : expr.Expr}
           ok ((core.result.Result.Ok e1, st) :
             (core.result.Result expr.Expr core_types.CheckError) ×
               cached.state_c.CState))
-        = ok (core.result.Result.Ok res, st')) :
-    absExpr res = .proj (absName sn) i.val (absExpr x) ∧ ExprWF res ∧ st' = st := by
+        = ok (oc, st')) :
+    ∃ res, oc = .Ok res ∧ absExpr res = .proj (absName sn) i.val (absExpr x)
+      ∧ ExprWF res ∧ st' = st := by
   obtain ⟨n1, hn1, h1⟩ := bind_eq_ok_iff.mp h
   obtain ⟨x1, hx1, h2⟩ := bind_eq_ok_iff.mp h1
   obtain ⟨e1, hp, h3⟩ := bind_eq_ok_iff.mp h2
@@ -393,11 +420,9 @@ theorem proj_stuck {sn : name.Name} {i : Std.U64} {x res : expr.Expr}
   have hex : x1 = x := Expr.dup_eq hx1
   rw [hn, hex] at hp
   have h4 := Result.ok_injective h3
-  have hre : e1 = res := by
-    have h5 := congrArg Prod.fst h4; injection h5
   have hst : st = st' := congrArg Prod.snd h4
-  subst hre
-  exact ⟨Expr.proj_refines hp, Expr.proj_wf hsn hx hp, hst.symm⟩
+  exact ⟨e1, (congrArg Prod.fst h4).symm, Expr.proj_refines hp,
+    Expr.proj_wf hsn hx hp, hst.symm⟩
 
 end App
 
@@ -415,7 +440,7 @@ theorem whnf_core_proj_of_loop (hd : AppDeps mode fuel) (d n : Std.U64)
       (fun st fe => cached.core_c.whnf_core_proj_i mode fuel st fe d n sn i e2)
       (fun lfe => whnfCoreProjI (absMode mode) (knot mode lfe fuel.val) lfe d.val
         (k lfe) (absName sn) i.val (absExpr e2)) := by
-  intro fe lfe hfe hfrel st res st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   unfold cached.core_c.whnf_core_proj_i at hok
   obtain ⟨o, ho, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨habs, hpwf⟩ := ConRon.Refine.find_proj_refines
@@ -426,7 +451,7 @@ theorem whnf_core_proj_of_loop (hd : AppDeps mode fuel) (d n : Std.U64)
   cases o with
   | none =>
     simp only [Option.map_none]
-    obtain ⟨hr, hrwf, rfl⟩ := App.proj_stuck hsn he2 hok
+    obtain ⟨res, rfl, hr, hrwf, rfl⟩ := App.proj_stuck hsn he2 hok
     exact ⟨lst, by rw [App.run_pure, hr], hrel, hwf, hrwf⟩
   | some entry =>
     simp only [Option.map_some]
@@ -461,7 +486,7 @@ theorem whnf_core_proj_of_loop (hd : AppDeps mode fuel) (d n : Std.U64)
           exact hnc ⟨by simpa using hcc.1, hcc.2⟩
         rw [if_neg hncond]
         simp only [Bool.false_eq_true, if_false] at hok
-        obtain ⟨hr, hrwf, rfl⟩ := App.proj_stuck hsn he2 hok
+        obtain ⟨res, rfl, hr, hrwf, rfl⟩ := App.proj_stuck hsn he2 hok
         exact ⟨lst, by rw [App.run_pure, hr], hrel, hwf, hrwf⟩
       | true =>
         have hc := of_decide_eq_true hsh.symm
@@ -485,7 +510,15 @@ theorem whnf_core_proj_of_loop (hd : AppDeps mode fuel) (d n : Std.U64)
         rw [Env.beta_gate_refines hb2] at hok
         obtain ⟨⟨rc, st1⟩, hcert, hok⟩ := bind_eq_ok_iff.mp hok
         cases rc with
-        | Err err => simp at hok
+        | Err err =>
+          -- `projCertAtI` threw: so does con-leche's `if ← …` (move 1)
+          simp at hok
+          obtain ⟨rfl, rfl⟩ := hok
+          rw [← habsargs]
+          exact ErrSim.bindCM
+            ((proj_cert_at_i_refines hd d (absMode mode).verifiedChecks
+              (absMode mode).betaGate hcwf huswf hargswf).apply_err
+                hwf hfe hcert hrel hfrel)
         | Ok b3 =>
           obtain ⟨lst1, hrun1, hrel1, hwf1, -⟩ :=
             (proj_cert_at_i_refines hd d (absMode mode).verifiedChecks
@@ -495,21 +528,18 @@ theorem whnf_core_proj_of_loop (hd : AppDeps mode fuel) (d n : Std.U64)
           cases b3 with
           | false =>
             simp only [Bool.false_eq_true, if_false] at hok ⊢
-            obtain ⟨hr, hrwf, rfl⟩ := App.proj_stuck hsn he2 hok
+            obtain ⟨res, rfl, hr, hrwf, rfl⟩ := App.proj_stuck hsn he2 hok
             exact ⟨lst1, by rw [App.run_pure, hr], hrel1, hwf1, hrwf⟩
           | true =>
             simp only [if_true] at hok ⊢
-            obtain ⟨lst2, hrun2, hrel2, hwf2, hreswf⟩ :=
-              (hk arg hargwf).apply hwf1 hfe hok hrel1 hfrel
-            refine ⟨lst2, ?_, hrel2, hwf2, hreswf⟩
             rw [show (absExprs args).getD ((absProjEntry entry).numParams + i.val)
                   (ConLeche.Expr.mkBvar 0) = absExpr arg by
                 rw [habsarg, hi1v, ConLeche.Expr.mkBvar_eq]
                 rfl]
-            exact hrun2
+            exact hk arg hargwf fe lfe hfe hfrel st1 oc st' hwf1 hok lst1 hrel1
     | _ =>
       simp only [absExpr_mk, absExprKind]
-      obtain ⟨hr, hrwf, rfl⟩ := App.proj_stuck hsn he2 hok
+      obtain ⟨res, rfl, hr, hrwf, rfl⟩ := App.proj_stuck hsn he2 hok
       exact ⟨lst, by rw [App.run_pure, hr], hrel, hwf, hrwf⟩
 
 /-- `ConLeche/Cached/CoreC.lean:967-988` — **`whnf_core_proj_i` refines the
@@ -616,7 +646,7 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
     have hge : i ≥ alloc.vec.Vec.len args := by
       have := alloc.vec.Vec.len_val args; scalar_tac
     constructor
-    · intro v hv fe lfe hfe hfrel st res st' hwf hok lst hrel
+    · intro v hv fe lfe hfe hfrel st oc st' hwf hok lst hrel
       unfold cached.core_c.whnf_app_i at hok
       dsimp only at hok
       rw [if_pos hge] at hok
@@ -624,12 +654,12 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
       obtain ⟨c, hdup, hres⟩ := bind_eq_ok_iff.mp hok
       rw [Expr.dup_eq hdup] at hres
       have h4 := Result.ok_injective hres
-      have hre : v = res := by
-        have h5 := congrArg Prod.fst h4; injection h5
+      -- the arm cannot throw: the outcome it reaches is `.Ok v`
+      have hre : oc = .Ok v := (congrArg Prod.fst h4).symm
       have hst : st = st' := congrArg Prod.snd h4
       subst hre; subst hst
       exact ⟨lst, by simp only [ConLeche.Cached.whnfAppI, App.run_pure], hrel, hwf, hv⟩
-    · intro t acc ht hacc fe lfe hfe hfrel st res st' hwf hok lst hrel
+    · intro t acc ht hacc fe lfe hfe hfrel st oc st' hwf hok lst hrel
       unfold cached.core_c.beta_peel_i at hok
       dsimp only at hok
       rw [if_pos hge] at hok
@@ -637,12 +667,9 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
       obtain ⟨⟨e2, st1⟩, hinst, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨lst1, hrun1, hrel1, hwf1, he2wf⟩ :=
         App.inst_list_run hwf ht hacc hinst lst hrel
-      obtain ⟨lst2, hrun2, hrel2, hwf2, hreswf⟩ :=
-        (hk e2 he2wf).apply hwf1 hfe hok hrel1 hfrel
-      refine ⟨lst2, ?_, hrel2, hwf2, hreswf⟩
       simp only [ConLeche.Cached.betaPeelI]
       rw [App.run_bind hrun1]
-      exact hrun2
+      exact App.sim_tail (hk e2 he2wf) hwf1 hfe hok hrel1 hfrel
   case pos =>
   -- one more argument to consume: `args[i]`, and the tail at `i + 1`
   obtain ⟨j, hj, hjv⟩ := usize_add_ok (i := i)
@@ -681,7 +708,7 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
         (fun lfe => ConLeche.Cached.whnfAppI (absMode mode)
           (knot mode lfe fuel.val) lfe d.val (k lfe) (absExpr v)
           ((absExprs args).drop i.val)) := by
-    intro v hv fe lfe hfe hfrel st res st' hwf hok lst hrel
+    intro v hv fe lfe hfe hfrel st oc st' hwf hok lst hrel
     unfold cached.core_c.whnf_app_i at hok
     dsimp only at hok
     rw [if_neg hge] at hok
@@ -711,21 +738,30 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
         have hij : i2 = j := Result.ok_injective (hi2.symm.trans hj)
         subst hij
         rw [← habsacc]
-        exact (hihPeel _ acc hbodywf haccwf).apply hwf hfe hok hrel hfrel
+        exact App.sim_tail (hihPeel _ acc hbodywf haccwf) hwf hfe hok hrel hfrel
       | false =>
         rw [if_neg (by simp)]
         rw [hxe] at hok
         simp only [bind_tc_ok, Bool.false_eq_true, if_false] at hok
         obtain ⟨⟨r0, st1⟩, hio, hok⟩ := bind_eq_ok_iff.mp hok
         cases r0 with
-        | Err err => simp at hok
+        | Err err =>
+          -- the argument's io-grade inference threw (move 1)
+          simp at hok
+          obtain ⟨rfl, rfl⟩ := hok
+          exact ErrSim.bindCM ((hw.inferIOSim d hxwf).apply_err hwf hfe hio hrel hfrel)
         | Ok ta =>
           obtain ⟨lst1, hrun1, hrel1, hwf1, htawf⟩ :=
             (hw.inferIOSim d hxwf).apply hwf hfe hio hrel hfrel
           rw [App.run_bind hrun1]
           obtain ⟨⟨r1, st2⟩, hdq, hok⟩ := bind_eq_ok_iff.mp hok
           cases r1 with
-          | Err err => simp at hok
+          | Err err =>
+            -- the β certificate's `defeq` threw (move 1)
+            simp at hok
+            obtain ⟨rfl, rfl⟩ := hok
+            exact ErrSim.bindCM
+              ((hw.defeqSim d htawf htywf).apply_err hwf1 hfe hdq hrel1 hfrel)
           | Ok b1 =>
             obtain ⟨lst2, hrun2, hrel2, hwf2, -⟩ :=
               (hw.defeqSim d htawf htywf).apply hwf1 hfe hdq hrel1 hfrel
@@ -740,7 +776,7 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
               have hij : i2 = j := Result.ok_injective (hi2.symm.trans hj)
               subst hij
               rw [← habsacc]
-              exact (hihPeel _ acc hbodywf haccwf).apply hwf2 hfe hok hrel2 hfrel
+              exact App.sim_tail (hihPeel _ acc hbodywf haccwf) hwf2 hfe hok hrel2 hfrel
             | false =>
               simp only [Bool.false_eq_true, if_false] at hok ⊢
               obtain ⟨c1, hc1, hok⟩ := bind_eq_ok_iff.mp hok
@@ -756,8 +792,7 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
               obtain ⟨e3, he3, hok⟩ := bind_eq_ok_iff.mp hok
               obtain ⟨habse3, he3wf⟩ := ExprOpsC.mk_app_n_refines hfawf hrestwf he3
               have h4 := Result.ok_injective hok
-              have hre : e3 = res := by
-                have h5 := congrArg Prod.fst h4; injection h5
+              have hre : oc = .Ok e3 := (congrArg Prod.fst h4).symm
               have hst : st2 = st' := congrArg Prod.snd h4
               subst hre; subst hst
               refine ⟨lst2, ?_, hrel2, hwf2, he3wf⟩
@@ -789,7 +824,7 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
           obtain ⟨i2, hi2, hok⟩ := bind_eq_ok_iff.mp hok
           have hij : i2 = j := Result.ok_injective (hi2.symm.trans hj)
           subst hij
-          exact (hihApp fa hfawf).apply hwf hfe hok hrel hfrel
+          exact App.sim_tail (hihApp fa hfawf) hwf hfe hok hrel hfrel
         | true =>
           simp only [if_true] at hok ⊢
           obtain ⟨⟨step1, st2⟩, hiota, hs⟩ := bind_eq_ok_iff.mp hstep
@@ -797,7 +832,11 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
           simp only [Prod.mk.injEq] at hs2
           obtain ⟨rfl, rfl⟩ := hs2
           cases step1 with
-          | Err err => simp at hok
+          | Err err =>
+            -- the ι step threw (move 1)
+            simp at hok
+            obtain ⟨rfl, rfl⟩ := hok
+            exact ErrSim.bindCM ((hd.iotaRec d fa hfawf).apply_err hwf hfe hiota hrel hfrel)
           | Ok o =>
             obtain ⟨lst1, hrun1, hrel1, hwf1, howf⟩ :=
               (hd.iotaRec d fa hfawf).apply hwf hfe hiota hrel hfrel
@@ -808,13 +847,17 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
               obtain ⟨i2, hi2, hok⟩ := bind_eq_ok_iff.mp hok
               have hij : i2 = j := Result.ok_injective (hi2.symm.trans hj)
               subst hij
-              exact (hihApp fa hfawf).apply hwf1 hfe hok hrel1 hfrel
+              exact App.sim_tail (hihApp fa hfawf) hwf1 hfe hok hrel1 hfrel
             | some e21 =>
               simp only [Option.map_some] at hrun1 ⊢
               have he21wf : ExprWF e21 := howf e21 rfl
               obtain ⟨⟨r2, st3⟩, hloop, hok⟩ := bind_eq_ok_iff.mp hok
               cases r2 with
-              | Err err => simp at hok
+              | Err err =>
+                -- the continuation threw on the ι reduct (move 1)
+                simp at hok
+                obtain ⟨rfl, rfl⟩ := hok
+                exact ErrSim.bindCM ((hk e21 he21wf).apply_err hwf1 hfe hloop hrel1 hfrel)
               | Ok v2 =>
                 obtain ⟨lst2, hrun2, hrel2, hwf2, hv2wf⟩ :=
                   (hk e21 he21wf).apply hwf1 hfe hloop hrel1 hfrel
@@ -822,10 +865,10 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
                 obtain ⟨i2, hi2, hok⟩ := bind_eq_ok_iff.mp hok
                 have hij : i2 = j := Result.ok_injective (hi2.symm.trans hj)
                 subst hij
-                exact (hihApp v2 hv2wf).apply hwf2 hfe hok hrel2 hfrel)
+                exact App.sim_tail (hihApp v2 hv2wf) hwf2 hfe hok hrel2 hfrel)
   refine ⟨happ, ?_⟩
   -- the `betaPeel` half, at the same count: it may call `whnfApp` at this `N`
-  intro t acc ht hacc fe lfe hfe hfrel st res st' hwf hok lst hrel
+  intro t acc ht hacc fe lfe hfe hfrel st oc st' hwf hok lst hrel
   unfold cached.core_c.beta_peel_i at hok
   dsimp only at hok
   rw [if_neg hge] at hok
@@ -855,7 +898,7 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
       have hij : i2 = j := Result.ok_injective (hi2.symm.trans hj)
       subst hij
       rw [← habsacc2]
-      exact (hihPeel _ acc2 hbodywf hacc2wf).apply hwf hfe hok hrel hfrel
+      exact App.sim_tail (hihPeel _ acc2 hbodywf hacc2wf) hwf hfe hok hrel hfrel
     | false =>
       rw [if_neg (by simp)] at hok ⊢
       obtain ⟨⟨ty2, st1⟩, hinst, hok⟩ := bind_eq_ok_iff.mp hok
@@ -866,14 +909,23 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
       simp only [bind_tc_ok] at hok
       obtain ⟨⟨r0, st2⟩, hio, hok⟩ := bind_eq_ok_iff.mp hok
       cases r0 with
-      | Err err => simp at hok
+      | Err err =>
+        -- the argument's io-grade inference threw (move 1)
+        simp at hok
+        obtain ⟨rfl, rfl⟩ := hok
+        exact ErrSim.bindCM ((hw.inferIOSim d hxwf).apply_err hwf1 hfe hio hrel1 hfrel)
       | Ok ta =>
         obtain ⟨lst2, hrun2, hrel2, hwf2, htawf⟩ :=
           (hw.inferIOSim d hxwf).apply hwf1 hfe hio hrel1 hfrel
         rw [App.run_bind hrun2]
         obtain ⟨⟨r1, st3⟩, hdq, hok⟩ := bind_eq_ok_iff.mp hok
         cases r1 with
-        | Err err => simp at hok
+        | Err err =>
+          -- the binder's certificate `defeq` threw (move 1)
+          simp at hok
+          obtain ⟨rfl, rfl⟩ := hok
+          exact ErrSim.bindCM
+            ((hw.defeqSim d htawf hty2wf).apply_err hwf2 hfe hdq hrel2 hfrel)
         | Ok b1 =>
           obtain ⟨lst3, hrun3, hrel3, hwf3, -⟩ :=
             (hw.defeqSim d htawf hty2wf).apply hwf2 hfe hdq hrel2 hfrel
@@ -888,7 +940,7 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
             have hij : i2 = j := Result.ok_injective (hi2.symm.trans hj)
             subst hij
             rw [← habsacc2]
-            exact (hihPeel _ acc2 hbodywf hacc2wf).apply hwf3 hfe hok hrel3 hfrel
+            exact App.sim_tail (hihPeel _ acc2 hbodywf hacc2wf) hwf3 hfe hok hrel3 hfrel
           | false =>
             simp only [Bool.false_eq_true, if_false] at hok ⊢
             obtain ⟨⟨f2, st4⟩, hinst2, hok⟩ := bind_eq_ok_iff.mp hok
@@ -908,8 +960,7 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
             obtain ⟨e3, he3, hok⟩ := bind_eq_ok_iff.mp hok
             obtain ⟨habse3, he3wf⟩ := ExprOpsC.mk_app_n_refines hfawf hrestwf he3
             have h4 := Result.ok_injective hok
-            have hre : e3 = res := by
-              have h5 := congrArg Prod.fst h4; injection h5
+            have hre : oc = .Ok e3 := (congrArg Prod.fst h4).symm
             have hst : st4 = st' := congrArg Prod.snd h4
             subst hre; subst hst
             refine ⟨lst4, ?_, hrel4, hwf4, he3wf⟩
@@ -926,12 +977,16 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
       rw [App.run_bind hrun1]
       obtain ⟨⟨r0, st2⟩, hloop, hok⟩ := bind_eq_ok_iff.mp hok
       cases r0 with
-      | Err err => simp at hok
+      | Err err =>
+        -- the continuation threw on the substituted body (move 1)
+        simp at hok
+        obtain ⟨rfl, rfl⟩ := hok
+        exact ErrSim.bindCM ((hk e2 he2wf).apply_err hwf1 hfe hloop hrel1 hfrel)
       | Ok v =>
         obtain ⟨lst2, hrun2, hrel2, hwf2, hvwf⟩ :=
           (hk e2 he2wf).apply hwf1 hfe hloop hrel1 hfrel
         rw [App.run_bind hrun2, ← hdrop]
-        exact (happ v hvwf).apply hwf2 hfe hok hrel2 hfrel)
+        exact App.sim_tail (happ v hvwf) hwf2 hfe hok hrel2 hfrel)
 
 /-- `ConLeche/Cached/CoreC.lean:867-900` — **`whnf_app_i` refines `whnfAppI`**
 at an abstract continuation (`core_c.rs:2218`). -/

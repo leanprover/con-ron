@@ -40,6 +40,21 @@ action (`ConLeche/Cached/StateC.lean:332-349`: on a miss it inserts into
 still moves the state, and the port now moves it too.  Each arm therefore
 applies `const_ty_at_m_refines` *before* splitting on `env::certs`, and the
 two modes differ only in whether `iotaCertsI` runs; nothing here is `sorry`.
+
+## The full outcome (task #67)
+
+Every lemma below is stated with `Refine/State.lean`'s `Out`: the exact result
+on success, and — on a Rust `Err` at one of the three mirrored constructors —
+con-leche's own throw at the *same kind*.  That half is cheap here because
+**none of these functions throws on its own**: `core_c.rs`'s `major_to_ctor_*`
+group has no `Err(core_types::invalid(…))` arm at all, every `match` failure
+falling through to `major` unchanged, so each of the fifteen failure cases is
+move 1 — the callee's `…apply_err` carried across con-leche's `do` block by
+`ErrSim.bindCM` (`ErrSim.bindCM2` where one Rust call, `infer_io_whnf_i`,
+stands for con-leche's *two* steps).  The clauses' own sub-actions —
+`constTyAtM` (`StateC.const_ty_at_m_err`), `iotaCertsI`, `proofIrrelI`,
+`structEtaCertWithI`, the four wrappers — are where an error can enter, and
+each is the same call on both sides.
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.CoreKPinned
@@ -379,6 +394,16 @@ theorem run_bind2 {α β γ : Type} {A : ConLeche.Cached.CheckCM α}
     (A >>= fun a => B a >>= C).run lst = (C x).run lst2 := by
   rw [← bind_assoc]; exact run_bind h
 
+/-- **Move 1 across the same two binds** (task #67): the error half of
+`run_bind2`.  `infer_io_whnf_i` is one Rust call against con-leche's *two*
+steps, so when it throws the error has to be carried past both. -/
+theorem ErrSim.bindCM2 {α β γ : Type} {e : core_types.CheckError}
+    {A : ConLeche.Cached.CheckCM α} {B : α → ConLeche.Cached.CheckCM β}
+    {C : β → ConLeche.Cached.CheckCM γ} {lst : ConLeche.Cached.CState}
+    (h : ErrSim e ((A >>= B).run lst)) :
+    ErrSim e ((A >>= fun a => B a >>= C).run lst) := by
+  rw [← bind_assoc]; exact ErrSim.bindCM h
+
 /-- `pure`, run. -/
 @[local simp] theorem run_pure {α : Type} (x : α) (lst : ConLeche.Cached.CState) :
     (pure x : ConLeche.Cached.CheckCM α).run lst = .ok (x, lst) := rfl
@@ -425,7 +450,7 @@ theorem lit_major_to_ctor_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
       (fun st fe => cached.core_c.lit_major_to_ctor_i mode fuel st fe d e)
       (fun lfe => ConLeche.Cached.litMajorToCtorI (knot mode lfe fuel.val) lfe d.val
         (absExpr e)) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   have hc := ExprWF.children he
   obtain ⟨⟨dg, k⟩⟩ := e
   simp only [ExprOps.node_kind] at hc
@@ -436,7 +461,7 @@ theorem lit_major_to_ctor_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
     cases l with
     | NatVal n =>
       obtain ⟨c, hcl, hok⟩ := bind_eq_ok_iff.mp hok
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨rfl, rfl⟩ := hok
       obtain ⟨hrun, hcwf⟩ := lit_to_ctor_if_nat_run hfe hfrel he hcl lst
       exact ⟨lst, by simpa [ConLeche.Cached.litMajorToCtorI, absExprKind, absLiteral]
@@ -451,7 +476,7 @@ theorem lit_major_to_ctor_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
         simp only [Bool.false_eq_true, if_false] at hok
         obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
         rw [Expr.dup_eq hcd] at hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         exact ⟨lst, by
           simp [ConLeche.Cached.litMajorToCtorI, absExprKind, absLiteral, ← hbv],
@@ -463,16 +488,25 @@ theorem lit_major_to_ctor_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
           CoreK.pinnedBasisNames.char CoreK.pinnedBasisNames.charOfNat
           CoreK.pinnedBasisNames.listNil CoreK.pinnedBasisNames.listCons
           CoreK.pinnedBasisNames.stringOfList hcx
-        obtain ⟨lst', hrun, hrel', hwf', hrwf⟩ :=
-          (hw.whnfSim d hcxwf).apply hwf hfe hok hrel hfrel
-        refine ⟨lst', ?_, hrel', hwf', hrwf⟩
-        simp only [ConLeche.Cached.litMajorToCtorI, absExpr_mk, absExprKind, absLiteral,
-          ← hbv, if_true]
-        simpa [habs] using hrun
+        cases oc with
+        | Ok r =>
+          obtain ⟨lst', hrun, hrel', hwf', hrwf⟩ :=
+            (hw.whnfSim d hcxwf).apply hwf hfe hok hrel hfrel
+          refine ⟨lst', ?_, hrel', hwf', hrwf⟩
+          simp only [ConLeche.Cached.litMajorToCtorI, absExpr_mk, absExprKind, absLiteral,
+            ← hbv, if_true]
+          simpa [habs] using hrun
+        | Err e =>
+          -- the fabrication's `whnf` threw: con-leche's `r.whnf` is the same call
+          refine Out.err (ErrSim.of_eq
+            ((hw.whnfSim d hcxwf).apply_err hwf hfe hok hrel hfrel) ?_)
+          simp only [ConLeche.Cached.litMajorToCtorI, absExpr_mk, absExprKind, absLiteral,
+            ← hbv, if_true]
+          simp [habs]
   | _ =>
     all_goals (
       obtain ⟨c, hcl, hok⟩ := bind_eq_ok_iff.mp hok
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨rfl, rfl⟩ := hok
       obtain ⟨hrun, hcwf⟩ := lit_to_ctor_if_nat_run hfe hfrel he hcl lst
       exact ⟨lst, by simpa [ConLeche.Cached.litMajorToCtorI, absExprKind] using hrun,
@@ -487,7 +521,7 @@ theorem proj_lit_to_ctor_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
       (fun st fe => cached.core_c.proj_lit_to_ctor_i mode fuel st fe d e)
       (fun lfe => ConLeche.Cached.projLitToCtorI (knot mode lfe fuel.val) lfe d.val
         (absExpr e)) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   have hc := ExprWF.children he
   obtain ⟨⟨dg, k⟩⟩ := e
   simp only [ExprOps.node_kind] at hc
@@ -500,9 +534,7 @@ theorem proj_lit_to_ctor_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
       obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
       rw [Expr.dup_eq hcd] at hok
       simp only [Result.ok.injEq, Prod.mk.injEq] at hok
-      obtain ⟨hr, hst⟩ := hok
-      simp only [core.result.Result.Ok.injEq] at hr
-      subst hr; subst hst
+      obtain ⟨rfl, rfl⟩ := hok
       exact ⟨lst, by simp [ConLeche.Cached.projLitToCtorI, absExprKind, absLiteral],
         hrel, hwf, he⟩
     | StrVal s =>
@@ -515,7 +547,7 @@ theorem proj_lit_to_ctor_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
         simp only [Bool.false_eq_true, if_false] at hok
         obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
         rw [Expr.dup_eq hcd] at hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         exact ⟨lst, by
           simp [ConLeche.Cached.projLitToCtorI, absExprKind, absLiteral, ← hbv],
@@ -527,17 +559,25 @@ theorem proj_lit_to_ctor_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
           CoreK.pinnedBasisNames.char CoreK.pinnedBasisNames.charOfNat
           CoreK.pinnedBasisNames.listNil CoreK.pinnedBasisNames.listCons
           CoreK.pinnedBasisNames.stringOfList hcx
-        obtain ⟨lst', hrun, hrel', hwf', hrwf⟩ :=
-          (hw.whnfSim d hcxwf).apply hwf hfe hok hrel hfrel
-        refine ⟨lst', ?_, hrel', hwf', hrwf⟩
-        simp only [ConLeche.Cached.projLitToCtorI, absExpr_mk, absExprKind, absLiteral,
-          ← hbv, if_true]
-        simpa [habs] using hrun
+        cases oc with
+        | Ok r =>
+          obtain ⟨lst', hrun, hrel', hwf', hrwf⟩ :=
+            (hw.whnfSim d hcxwf).apply hwf hfe hok hrel hfrel
+          refine ⟨lst', ?_, hrel', hwf', hrwf⟩
+          simp only [ConLeche.Cached.projLitToCtorI, absExpr_mk, absExprKind, absLiteral,
+            ← hbv, if_true]
+          simpa [habs] using hrun
+        | Err e =>
+          refine Out.err (ErrSim.of_eq
+            ((hw.whnfSim d hcxwf).apply_err hwf hfe hok hrel hfrel) ?_)
+          simp only [ConLeche.Cached.projLitToCtorI, absExpr_mk, absExprKind, absLiteral,
+            ← hbv, if_true]
+          simp [habs]
   | _ =>
     all_goals (
       obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
       rw [Expr.dup_eq hcd] at hok
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨rfl, rfl⟩ := hok
       exact ⟨lst, by simp [ConLeche.Cached.projLitToCtorI, absExprKind], hrel, hwf, he⟩)
 
@@ -560,18 +600,31 @@ theorem k_type_and_irrel_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mod
       (fun st fe => cached.core_c.k_type_and_irrel_i mode fuel st fe d tmaj fab major)
       (fun lfe => kTypeAndIrrelTail (absMode mode) (knot mode lfe fuel.val) lfe d.val
         (absExpr tmaj) (absExpr fab) (absExpr major)) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   unfold cached.core_c.k_type_and_irrel_i at hok
   obtain ⟨⟨rio, st1⟩, hio, hok⟩ := bind_eq_ok_iff.mp hok
   cases rio with
-  | Err e => simp at hok
+  | Err e =>
+    -- `r.inferIO depth fab`, the tail's first step, threw
+    simp at hok
+    obtain ⟨rfl, rfl⟩ := hok
+    refine Out.err ?_
+    simp only [kTypeAndIrrelTail]
+    exact ErrSim.bindCM ((hw.inferIOSim d hfab).apply_err hwf hfe hio hrel hfrel)
   | Ok tfab =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, htfab⟩ :=
       (hw.inferIOSim d hfab).apply hwf hfe hio hrel hfrel
     try dsimp only at hok
     obtain ⟨⟨rdq, st2⟩, hdq, hok⟩ := bind_eq_ok_iff.mp hok
     cases rdq with
-    | Err e => simp at hok
+    | Err e =>
+      -- `r.defeq depth tmaj tfab` threw
+      simp at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      refine Out.err ?_
+      simp only [kTypeAndIrrelTail]
+      rw [run_bind hrun1]
+      exact ErrSim.bindCM ((hw.defeqSim d htmaj htfab).apply_err hwf1 hfe hdq hrel1 hfrel)
     | Ok b =>
       obtain ⟨lst2, hrun2, hrel2, hwf2, -⟩ :=
         (hw.defeqSim d htmaj htfab).apply hwf1 hfe hdq hrel1 hfrel
@@ -580,7 +633,7 @@ theorem k_type_and_irrel_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mod
       | false =>
         obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
         rw [Expr.dup_eq hcd] at hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, hmajor⟩
         simp only [kTypeAndIrrelTail]
@@ -597,7 +650,7 @@ theorem k_type_and_irrel_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mod
           try dsimp only at hok
           obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
           rw [Expr.dup_eq hcd] at hok
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst2, ?_, hrel2, hwf2, hfab⟩
           simp only [kTypeAndIrrelTail]
@@ -612,7 +665,16 @@ theorem k_type_and_irrel_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mod
           rw [← Result.ok_injective hp] at hok
           try dsimp only at hok
           cases irrel with
-          | Err e => simp at hok
+          | Err e =>
+            -- `proofIrrelI` under `certAtI` threw
+            simp at hok
+            obtain ⟨rfl, rfl⟩ := hok
+            refine Out.err ?_
+            simp only [kTypeAndIrrelTail]
+            rw [run_bind hrun1, run_bind hrun2]
+            simp only [id_eq, if_true, ConLeche.Cached.certAtI, ← hb1v, if_true]
+            exact ErrSim.bindCM
+              ((hd.proofIrrel d hfab hmajor).apply_err hwf2 hfe hpi hrel2 hfrel)
           | Ok b2 =>
             obtain ⟨lst3, hrun3, hrel3, hwf3, -⟩ :=
               (hd.proofIrrel d hfab hmajor).apply hwf2 hfe hpi hrel2 hfrel
@@ -621,7 +683,7 @@ theorem k_type_and_irrel_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mod
             | true =>
               obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
               rw [Expr.dup_eq hcd] at hok
-              simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+              simp only [Result.ok.injEq, Prod.mk.injEq] at hok
               obtain ⟨rfl, rfl⟩ := hok
               refine ⟨lst3, ?_, hrel3, hwf3, hfab⟩
               simp only [kTypeAndIrrelTail]
@@ -632,7 +694,7 @@ theorem k_type_and_irrel_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mod
             | false =>
               obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
               rw [Expr.dup_eq hcd] at hok
-              simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+              simp only [Result.ok.injEq, Prod.mk.injEq] at hok
               obtain ⟨rfl, rfl⟩ := hok
               refine ⟨lst3, ?_, hrel3, hwf3, hmajor⟩
               simp only [kTypeAndIrrelTail]
@@ -654,11 +716,18 @@ theorem eta_rescue_certs_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
       (fun lfe => etaRescueCertsTail (absMode mode) (knot mode lfe fuel.val) lfe d.val
         (absExpr fab) (absExpr major) (absExpr tmaj) (absIndCaps caps)) := by
   have hef : (absIndCaps caps).etaFields = caps.eta_fields.val := rfl
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   unfold cached.core_c.eta_rescue_certs_i at hok
   obtain ⟨⟨rc, st1⟩, hc, hok⟩ := bind_eq_ok_iff.mp hok
   cases rc with
-  | Err e => simp at hok
+  | Err e =>
+    -- `structEtaCertWithI`, the tail's first step, threw
+    simp at hok
+    obtain ⟨rfl, rfl⟩ := hok
+    refine Out.err ?_
+    simp only [etaRescueCertsTail]
+    exact ErrSim.bindCM
+      ((hd.structEtaCertWith d hfab hmajor htmaj).apply_err hwf hfe hc hrel hfrel)
   | Ok b =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, -⟩ :=
       (hd.structEtaCertWith d hfab hmajor htmaj).apply hwf hfe hc hrel hfrel
@@ -667,7 +736,7 @@ theorem eta_rescue_certs_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
     | true =>
       obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
       rw [Expr.dup_eq hcd] at hok
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨rfl, rfl⟩ := hok
       refine ⟨lst1, ?_, hrel1, hwf1, hfab⟩
       simp only [etaRescueCertsTail]
@@ -678,7 +747,17 @@ theorem eta_rescue_certs_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
       · simp only [hz, reduceIte] at hok
         obtain ⟨⟨rpi, st2⟩, hpi, hok⟩ := bind_eq_ok_iff.mp hok
         cases rpi with
-        | Err e => simp at hok
+        | Err e =>
+          -- the 0-field `proofIrrelI` rescue threw
+          simp at hok
+          obtain ⟨rfl, rfl⟩ := hok
+          have hz' : (absIndCaps caps).etaFields = 0 := by rw [hef, hz]; rfl
+          refine Out.err ?_
+          simp only [etaRescueCertsTail]
+          rw [run_bind hrun1]
+          simp only [id_eq, Bool.false_eq_true, if_false, hz', if_true]
+          exact ErrSim.bindCM
+            ((hd.proofIrrel d hfab hmajor).apply_err hwf1 hfe hpi hrel1 hfrel)
         | Ok b1 =>
           obtain ⟨lst2, hrun2, hrel2, hwf2, -⟩ :=
             (hd.proofIrrel d hfab hmajor).apply hwf1 hfe hpi hrel1 hfrel
@@ -688,7 +767,7 @@ theorem eta_rescue_certs_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
           | true =>
             obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
             rw [Expr.dup_eq hcd] at hok
-            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
             obtain ⟨rfl, rfl⟩ := hok
             refine ⟨lst2, ?_, hrel2, hwf2, hfab⟩
             simp only [etaRescueCertsTail]
@@ -699,7 +778,7 @@ theorem eta_rescue_certs_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
           | false =>
             obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
             rw [Expr.dup_eq hcd] at hok
-            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
             obtain ⟨rfl, rfl⟩ := hok
             refine ⟨lst2, ?_, hrel2, hwf2, hmajor⟩
             simp only [etaRescueCertsTail]
@@ -710,7 +789,7 @@ theorem eta_rescue_certs_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
       · simp only [if_neg hz] at hok
         obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
         rw [Expr.dup_eq hcd] at hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         have hz' : ¬ ((absIndCaps caps).etaFields = 0) := by
           rw [hef]; intro h; exact hz (by scalar_tac)
@@ -737,11 +816,17 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
       (fun st fe => cached.core_c.major_to_ctor_k_i mode fuel st fe d rl cvj cn_p t major)
       (fun lfe => majorToCtorKClause (absMode mode) (knot mode lfe fuel.val) lfe d.val
         (absRecRule rl) (absConstantVal cvj) cn_p.val (absName t) (absExpr major)) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   unfold cached.core_c.major_to_ctor_k_i at hok
   obtain ⟨⟨riw, st1⟩, hiw, hok⟩ := bind_eq_ok_iff.mp hok
   cases riw with
-  | Err e => simp at hok
+  | Err e =>
+    -- the clause's first two steps, `r.whnf depth (← r.inferIO depth major)`, threw
+    simp at hok
+    obtain ⟨rfl, rfl⟩ := hok
+    refine Out.err ?_
+    simp only [majorToCtorKClause]
+    exact ErrSim.bindCM2 ((hd.inferIOWhnf d hmajor).apply_err hwf hfe hiw hrel hfrel)
   | Ok tmaj =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, htmaj⟩ :=
       (hd.inferIOWhnf d hmajor).apply hwf hfe hiw hrel hfrel
@@ -770,7 +855,7 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
           intro h; rw [h] at hbqv; simp at hbqv
         obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
         rw [Expr.dup_eq hcd] at hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
         simp only [majorToCtorKClause]
@@ -796,7 +881,7 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
             intro hc; exact hlen (by scalar_tac)
           obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
           rw [Expr.dup_eq hcd] at hok
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
           simp only [majorToCtorKClause]
@@ -829,7 +914,7 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
               rw [hlena, ← hi3v]; scalar_tac
             obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
             rw [Expr.dup_eq hcd] at hok
-            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
             obtain ⟨rfl, rfl⟩ := hok
             refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
             simp only [majorToCtorKClause]
@@ -868,7 +953,7 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
             | false =>
               obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
               rw [Expr.dup_eq hcd] at hok
-              simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+              simp only [Result.ok.injEq, Prod.mk.injEq] at hok
               obtain ⟨rfl, rfl⟩ := hok
               refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
               simp only [majorToCtorKClause]
@@ -885,7 +970,20 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
               -- happens after it.
               obtain ⟨⟨rcty, st2⟩, hcty, hok⟩ := bind_eq_ok_iff.mp hok
               cases rcty with
-              | Err e => simp at hok
+              | Err e =>
+                -- the certificate read itself threw, in both modes
+                simp at hok
+                obtain ⟨rfl, rfl⟩ := hok
+                refine Out.err ?_
+                simp only [majorToCtorKClause]
+                rw [run_bind2 hrun1, hhead]
+                simp only [pure_bind]
+                rw [if_pos hc1, hargs, if_pos hle, ConLeche.Cached.mkAppNM]
+                simp only [pure_bind]
+                rw [hfabL, ← hb1v]
+                simp only [if_true]
+                exact ErrSim.bindCM (StateC.const_ty_at_m_err hwf1 hfe hrl.1 hust hcty
+                  lst1 lfe hrel1 hfrel (absRecRule rl).ctor)
               | Ok cty =>
                 obtain ⟨lstc, hrunc, hrelc, hwfc, hctywf⟩ :=
                   StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf1 hfe
@@ -901,27 +999,59 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
                 | false =>
                   rw [← Result.ok_injective hp] at hok
                   try dsimp only at hok
-                  obtain ⟨lstk, hrunk, hrelk, hwfk, hrwf⟩ :=
-                    (k_type_and_irrel_i_refines hw hd d htmaj hfabwf hmajor).apply
+                  cases oc with
+                  | Ok r =>
+                    obtain ⟨lstk, hrunk, hrelk, hwfk, hrwf⟩ :=
+                      (k_type_and_irrel_i_refines hw hd d htmaj hfabwf hmajor).apply
+                        hwfc hfe hok hrelc hfrel
+                    refine ⟨lstk, ?_, hrelk, hwfk, hrwf⟩
+                    simp only [majorToCtorKClause]
+                    rw [run_bind2 hrun1, hhead]
+                    simp only [pure_bind]
+                    rw [if_pos hc1, hargs, if_pos hle, ConLeche.Cached.mkAppNM]
+                    simp only [pure_bind]
+                    rw [hfabL, ← hb1v]
+                    simp only [if_true]
+                    rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
+                    simp only [Bool.false_eq_true, if_false, pure_bind, if_true]
+                    exact hrunk
+                  | Err e =>
+                    refine Out.err ?_
+                    simp only [majorToCtorKClause]
+                    rw [run_bind2 hrun1, hhead]
+                    simp only [pure_bind]
+                    rw [if_pos hc1, hargs, if_pos hle, ConLeche.Cached.mkAppNM]
+                    simp only [pure_bind]
+                    rw [hfabL, ← hb1v]
+                    simp only [if_true]
+                    rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
+                    simp only [Bool.false_eq_true, if_false, pure_bind, if_true]
+                    exact (k_type_and_irrel_i_refines hw hd d htmaj hfabwf hmajor).apply_err
                       hwfc hfe hok hrelc hfrel
-                  refine ⟨lstk, ?_, hrelk, hwfk, hrwf⟩
-                  simp only [majorToCtorKClause]
-                  rw [run_bind2 hrun1, hhead]
-                  simp only [pure_bind]
-                  rw [if_pos hc1, hargs, if_pos hle, ConLeche.Cached.mkAppNM]
-                  simp only [pure_bind]
-                  rw [hfabL, ← hb1v]
-                  simp only [if_true]
-                  rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
-                  simp only [Bool.false_eq_true, if_false, pure_bind, if_true]
-                  exact hrunk
                 | true =>
                   try dsimp only at hp
                   obtain ⟨⟨rcert, st4⟩, hic, hp⟩ := bind_eq_ok_iff.mp hp
                   rw [← Result.ok_injective hp] at hok
                   try dsimp only at hok
                   cases rcert with
-                  | Err e => simp at hok
+                  | Err e =>
+                    -- `iotaCertsI` under `certAtI` threw
+                    simp at hok
+                    obtain ⟨rfl, rfl⟩ := hok
+                    have hicerr := (hd.iotaCerts d false hctywf hpwf).apply_err
+                      hwfc hfe hic hrelc hfrel
+                    rw [hpabs] at hicerr
+                    refine Out.err ?_
+                    simp only [majorToCtorKClause]
+                    rw [run_bind2 hrun1, hhead]
+                    simp only [pure_bind]
+                    rw [if_pos hc1, hargs, if_pos hle, ConLeche.Cached.mkAppNM]
+                    simp only [pure_bind]
+                    rw [hfabL, ← hb1v]
+                    simp only [if_true]
+                    rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
+                    simp only [reduceIte]
+                    exact ErrSim.bindCM hicerr
                   | Ok b3 =>
                     obtain ⟨lsti, hruni, hreli, hwfi, -⟩ :=
                       (hd.iotaCerts d false hctywf hpwf).apply hwfc hfe hic hrelc hfrel
@@ -930,8 +1060,7 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
                     | false =>
                       obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
                       rw [Expr.dup_eq hcd] at hok
-                      simp only [Result.ok.injEq, Prod.mk.injEq,
-                        core.result.Result.Ok.injEq] at hok
+                      simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                       obtain ⟨rfl, rfl⟩ := hok
                       refine ⟨lsti, ?_, hreli, hwfi, hmajor⟩
                       simp only [majorToCtorKClause]
@@ -946,27 +1075,44 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
                       rw [run_bind hruni]
                       simp
                     | true =>
-                      obtain ⟨lstk, hrunk, hrelk, hwfk, hrwf⟩ :=
-                        (k_type_and_irrel_i_refines hw hd d htmaj hfabwf hmajor).apply
-                          hwfi hfe hok hreli hfrel
-                      refine ⟨lstk, ?_, hrelk, hwfk, hrwf⟩
-                      simp only [majorToCtorKClause]
-                      rw [run_bind2 hrun1, hhead]
-                      simp only [pure_bind]
-                      rw [if_pos hc1, hargs, if_pos hle, ConLeche.Cached.mkAppNM]
-                      simp only [pure_bind]
-                      rw [hfabL, ← hb1v]
-                      simp only [if_true]
-                      rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
-                      simp only [reduceIte]
-                      rw [run_bind hruni]
-                      simp only [id_eq, if_true]
-                      exact hrunk
+                      cases oc with
+                      | Ok r =>
+                        obtain ⟨lstk, hrunk, hrelk, hwfk, hrwf⟩ :=
+                          (k_type_and_irrel_i_refines hw hd d htmaj hfabwf hmajor).apply
+                            hwfi hfe hok hreli hfrel
+                        refine ⟨lstk, ?_, hrelk, hwfk, hrwf⟩
+                        simp only [majorToCtorKClause]
+                        rw [run_bind2 hrun1, hhead]
+                        simp only [pure_bind]
+                        rw [if_pos hc1, hargs, if_pos hle, ConLeche.Cached.mkAppNM]
+                        simp only [pure_bind]
+                        rw [hfabL, ← hb1v]
+                        simp only [if_true]
+                        rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
+                        simp only [reduceIte]
+                        rw [run_bind hruni]
+                        simp only [id_eq, if_true]
+                        exact hrunk
+                      | Err e =>
+                        refine Out.err ?_
+                        simp only [majorToCtorKClause]
+                        rw [run_bind2 hrun1, hhead]
+                        simp only [pure_bind]
+                        rw [if_pos hc1, hargs, if_pos hle, ConLeche.Cached.mkAppNM]
+                        simp only [pure_bind]
+                        rw [hfabL, ← hb1v]
+                        simp only [if_true]
+                        rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
+                        simp only [reduceIte]
+                        rw [run_bind hruni]
+                        simp only [id_eq, if_true]
+                        exact (k_type_and_irrel_i_refines hw hd d htmaj hfabwf
+                          hmajor).apply_err hwfi hfe hok hreli hfrel
     | _ =>
       all_goals (
         obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
         rw [Expr.dup_eq hcd] at hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
         simp only [majorToCtorKClause]
@@ -985,11 +1131,16 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
       (fun st fe => cached.core_c.major_to_ctor_and_i mode fuel st fe d rl cvj cn_p t major)
       (fun lfe => majorToCtorAndClause (absMode mode) (knot mode lfe fuel.val) lfe d.val
         (absRecRule rl) (absConstantVal cvj) cn_p.val (absName t) (absExpr major)) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   unfold cached.core_c.major_to_ctor_and_i at hok
   obtain ⟨⟨riw, st1⟩, hiw, hok⟩ := bind_eq_ok_iff.mp hok
   cases riw with
-  | Err e => simp at hok
+  | Err e =>
+    simp at hok
+    obtain ⟨rfl, rfl⟩ := hok
+    refine Out.err ?_
+    simp only [majorToCtorAndClause]
+    exact ErrSim.bindCM2 ((hd.inferIOWhnf d hmajor).apply_err hwf hfe hiw hrel hfrel)
   | Ok tmaj =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, htmaj⟩ :=
       (hd.inferIOWhnf d hmajor).apply hwf hfe hiw hrel hfrel
@@ -1022,7 +1173,7 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
           intro h; rw [h] at hbqv; simp at hbqv
         obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
         rw [Expr.dup_eq hcd] at hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
         simp only [majorToCtorAndClause]
@@ -1044,7 +1195,7 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
             rw [hlena, ← hi1v]; intro hc; exact hnp (by scalar_tac)
           obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
           rw [Expr.dup_eq hcd] at hok
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
           simp only [majorToCtorAndClause]
@@ -1069,7 +1220,7 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
               intro hc; exact hlen (by scalar_tac)
             obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
             rw [Expr.dup_eq hcd] at hok
-            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
             obtain ⟨rfl, rfl⟩ := hok
             refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
             simp only [majorToCtorAndClause]
@@ -1094,7 +1245,7 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
             | false =>
               obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
               rw [Expr.dup_eq hcd] at hok
-              simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+              simp only [Result.ok.injEq, Prod.mk.injEq] at hok
               obtain ⟨rfl, rfl⟩ := hok
               refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
               simp only [majorToCtorAndClause]
@@ -1152,7 +1303,7 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
               | false =>
                 obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
                 rw [Expr.dup_eq hcd] at hok
-                simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+                simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                 obtain ⟨rfl, rfl⟩ := hok
                 refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
                 simp only [majorToCtorAndClause]
@@ -1169,7 +1320,20 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
                 -- both modes move the memo table the same way.
                 obtain ⟨⟨rcty, st2⟩, hcty, hok⟩ := bind_eq_ok_iff.mp hok
                 cases rcty with
-                | Err e => simp at hok
+                | Err e =>
+                  simp at hok
+                  obtain ⟨rfl, rfl⟩ := hok
+                  refine Out.err ?_
+                  simp only [majorToCtorAndClause]
+                  rw [run_bind2 hrun1, hhead]
+                  simp only [pure_bind]
+                  rw [hargs, if_pos hc1]
+                  rw [run_bind (hpjL lst1)]
+                  simp only [ConLeche.Cached.mkAppNM, pure_bind]
+                  rw [hfabL, ← hb1v]
+                  simp only [if_true]
+                  exact ErrSim.bindCM (StateC.const_ty_at_m_err hwf1 hfe hrl.1 hust hcty
+                    lst1 lfe hrel1 hfrel (absRecRule rl).ctor)
                 | Ok cty =>
                   obtain ⟨lstc, hrunc, hrelc, hwfc, hctywf⟩ :=
                     StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf1 hfe
@@ -1185,28 +1349,61 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
                   | false =>
                     rw [← Result.ok_injective hp] at hok
                     try dsimp only at hok
-                    obtain ⟨lstk, hrunk, hrelk, hwfk, hrwf⟩ :=
-                      (k_type_and_irrel_i_refines hw hd d htmaj hfabwf hmajor).apply
-                        hwfc hfe hok hrelc hfrel
-                    refine ⟨lstk, ?_, hrelk, hwfk, hrwf⟩
-                    simp only [majorToCtorAndClause]
-                    rw [run_bind2 hrun1, hhead]
-                    simp only [pure_bind]
-                    rw [hargs, if_pos hc1]
-                    rw [run_bind (hpjL lst1)]
-                    simp only [ConLeche.Cached.mkAppNM, pure_bind]
-                    rw [hfabL, ← hb1v]
-                    simp only [if_true]
-                    rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
-                    simp only [Bool.false_eq_true, if_false, pure_bind, if_true]
-                    exact hrunk
+                    cases oc with
+                    | Ok r =>
+                      obtain ⟨lstk, hrunk, hrelk, hwfk, hrwf⟩ :=
+                        (k_type_and_irrel_i_refines hw hd d htmaj hfabwf hmajor).apply
+                          hwfc hfe hok hrelc hfrel
+                      refine ⟨lstk, ?_, hrelk, hwfk, hrwf⟩
+                      simp only [majorToCtorAndClause]
+                      rw [run_bind2 hrun1, hhead]
+                      simp only [pure_bind]
+                      rw [hargs, if_pos hc1]
+                      rw [run_bind (hpjL lst1)]
+                      simp only [ConLeche.Cached.mkAppNM, pure_bind]
+                      rw [hfabL, ← hb1v]
+                      simp only [if_true]
+                      rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
+                      simp only [Bool.false_eq_true, if_false, pure_bind, if_true]
+                      exact hrunk
+                    | Err e =>
+                      refine Out.err ?_
+                      simp only [majorToCtorAndClause]
+                      rw [run_bind2 hrun1, hhead]
+                      simp only [pure_bind]
+                      rw [hargs, if_pos hc1]
+                      rw [run_bind (hpjL lst1)]
+                      simp only [ConLeche.Cached.mkAppNM, pure_bind]
+                      rw [hfabL, ← hb1v]
+                      simp only [if_true]
+                      rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
+                      simp only [Bool.false_eq_true, if_false, pure_bind, if_true]
+                      exact (k_type_and_irrel_i_refines hw hd d htmaj hfabwf
+                        hmajor).apply_err hwfc hfe hok hrelc hfrel
                   | true =>
                     try dsimp only at hp
                     obtain ⟨⟨rcert, st4⟩, hic, hp⟩ := bind_eq_ok_iff.mp hp
                     rw [← Result.ok_injective hp] at hok
                     try dsimp only at hok
                     cases rcert with
-                    | Err e => simp at hok
+                    | Err e =>
+                      simp at hok
+                      obtain ⟨rfl, rfl⟩ := hok
+                      have hicerr := (hd.iotaCerts d false hctywf hspwf).apply_err
+                        hwfc hfe hic hrelc hfrel
+                      rw [hspabs] at hicerr
+                      refine Out.err ?_
+                      simp only [majorToCtorAndClause]
+                      rw [run_bind2 hrun1, hhead]
+                      simp only [pure_bind]
+                      rw [hargs, if_pos hc1]
+                      rw [run_bind (hpjL lst1)]
+                      simp only [ConLeche.Cached.mkAppNM, pure_bind]
+                      rw [hfabL, ← hb1v]
+                      simp only [if_true]
+                      rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
+                      simp only [reduceIte]
+                      exact ErrSim.bindCM hicerr
                     | Ok b3 =>
                       obtain ⟨lsti, hruni, hreli, hwfi, -⟩ :=
                         (hd.iotaCerts d false hctywf hspwf).apply hwfc hfe hic hrelc hfrel
@@ -1215,8 +1412,7 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
                       | false =>
                         obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
                         rw [Expr.dup_eq hcd] at hok
-                        simp only [Result.ok.injEq, Prod.mk.injEq,
-                          core.result.Result.Ok.injEq] at hok
+                        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                         obtain ⟨rfl, rfl⟩ := hok
                         refine ⟨lsti, ?_, hreli, hwfi, hmajor⟩
                         simp only [majorToCtorAndClause]
@@ -1232,28 +1428,46 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
                         rw [run_bind hruni]
                         simp
                       | true =>
-                        obtain ⟨lstk, hrunk, hrelk, hwfk, hrwf⟩ :=
-                          (k_type_and_irrel_i_refines hw hd d htmaj hfabwf hmajor).apply
-                            hwfi hfe hok hreli hfrel
-                        refine ⟨lstk, ?_, hrelk, hwfk, hrwf⟩
-                        simp only [majorToCtorAndClause]
-                        rw [run_bind2 hrun1, hhead]
-                        simp only [pure_bind]
-                        rw [hargs, if_pos hc1]
-                        rw [run_bind (hpjL lst1)]
-                        simp only [ConLeche.Cached.mkAppNM, pure_bind]
-                        rw [hfabL, ← hb1v]
-                        simp only [if_true]
-                        rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
-                        simp only [reduceIte]
-                        rw [run_bind hruni]
-                        simp only [id_eq, if_true]
-                        exact hrunk
+                        cases oc with
+                        | Ok r =>
+                          obtain ⟨lstk, hrunk, hrelk, hwfk, hrwf⟩ :=
+                            (k_type_and_irrel_i_refines hw hd d htmaj hfabwf hmajor).apply
+                              hwfi hfe hok hreli hfrel
+                          refine ⟨lstk, ?_, hrelk, hwfk, hrwf⟩
+                          simp only [majorToCtorAndClause]
+                          rw [run_bind2 hrun1, hhead]
+                          simp only [pure_bind]
+                          rw [hargs, if_pos hc1]
+                          rw [run_bind (hpjL lst1)]
+                          simp only [ConLeche.Cached.mkAppNM, pure_bind]
+                          rw [hfabL, ← hb1v]
+                          simp only [if_true]
+                          rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
+                          simp only [reduceIte]
+                          rw [run_bind hruni]
+                          simp only [id_eq, if_true]
+                          exact hrunk
+                        | Err e =>
+                          refine Out.err ?_
+                          simp only [majorToCtorAndClause]
+                          rw [run_bind2 hrun1, hhead]
+                          simp only [pure_bind]
+                          rw [hargs, if_pos hc1]
+                          rw [run_bind (hpjL lst1)]
+                          simp only [ConLeche.Cached.mkAppNM, pure_bind]
+                          rw [hfabL, ← hb1v]
+                          simp only [if_true]
+                          rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
+                          simp only [reduceIte]
+                          rw [run_bind hruni]
+                          simp only [id_eq, if_true]
+                          exact (k_type_and_irrel_i_refines hw hd d htmaj hfabwf
+                            hmajor).apply_err hwfi hfe hok hreli hfrel
     | _ =>
       all_goals (
         obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
         rw [Expr.dup_eq hcd] at hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
         simp only [majorToCtorAndClause]
@@ -1273,11 +1487,16 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
       (fun lfe => majorToCtorEtaClause (absMode mode) (knot mode lfe fuel.val) lfe d.val
         (absRecRule rl) (absConstantVal cvt) (absIndCaps caps) (absName t)
         (absExpr major)) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   unfold cached.core_c.major_to_ctor_eta_i at hok
   obtain ⟨⟨riw, st1⟩, hiw, hok⟩ := bind_eq_ok_iff.mp hok
   cases riw with
-  | Err e => simp at hok
+  | Err e =>
+    simp at hok
+    obtain ⟨rfl, rfl⟩ := hok
+    refine Out.err ?_
+    simp only [majorToCtorEtaClause]
+    exact ErrSim.bindCM2 ((hd.inferIOWhnf d hmajor).apply_err hwf hfe hiw hrel hfrel)
   | Ok tmaj =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, htmaj⟩ :=
       (hd.inferIOWhnf d hmajor).apply hwf hfe hiw hrel hfrel
@@ -1311,7 +1530,7 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
           intro h; rw [h] at hbqv; simp at hbqv
         obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
         rw [Expr.dup_eq hcd] at hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
         simp only [majorToCtorEtaClause]
@@ -1333,7 +1552,7 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
             rw [hlena, ← hi1v, hepE]; intro hc; exact hnp (by scalar_tac)
           obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
           rw [Expr.dup_eq hcd] at hok
-          simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
           simp only [majorToCtorEtaClause]
@@ -1358,7 +1577,7 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
               intro hc; exact hlen (by scalar_tac)
             obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
             rw [Expr.dup_eq hcd] at hok
-            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
             obtain ⟨rfl, rfl⟩ := hok
             refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
             simp only [majorToCtorEtaClause]
@@ -1385,7 +1604,7 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
             | false =>
               obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
               rw [Expr.dup_eq hcd] at hok
-              simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+              simp only [Result.ok.injEq, Prod.mk.injEq] at hok
               obtain ⟨rfl, rfl⟩ := hok
               refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
               simp only [majorToCtorEtaClause]
@@ -1440,7 +1659,7 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
               | false =>
                 obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
                 rw [Expr.dup_eq hcd] at hok
-                simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+                simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                 obtain ⟨rfl, rfl⟩ := hok
                 refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
                 simp only [majorToCtorEtaClause]
@@ -1456,7 +1675,19 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
                 -- both modes move the memo table the same way.
                 obtain ⟨⟨rcty, st2⟩, hcty, hok⟩ := bind_eq_ok_iff.mp hok
                 cases rcty with
-                | Err e => simp at hok
+                | Err e =>
+                  simp at hok
+                  obtain ⟨rfl, rfl⟩ := hok
+                  refine Out.err ?_
+                  simp only [majorToCtorEtaClause]
+                  rw [run_bind2 hrun1, hhead]
+                  simp only [pure_bind]
+                  rw [hargs, if_pos hc1, run_bind (hpjL lst1)]
+                  simp only [ConLeche.Cached.mkAppNM, pure_bind]
+                  rw [hfabL, ← hb2v]
+                  simp only [if_true]
+                  exact ErrSim.bindCM (StateC.const_ty_at_m_err hwf1 hfe hrl.1 hust hcty
+                    lst1 lfe hrel1 hfrel (absIndCaps caps).etaCtor)
                 | Ok cty =>
                   obtain ⟨lstc, hrunc, hrelc, hwfc, hctywf⟩ :=
                     StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf1 hfe
@@ -1472,27 +1703,58 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
                   | false =>
                     rw [← Result.ok_injective hp] at hok
                     try dsimp only at hok
-                    obtain ⟨lste, hrune, hrele, hwfe, hrwf⟩ :=
-                      (eta_rescue_certs_i_refines hd d caps hfabwf hmajor htmaj).apply
-                        hwfc hfe hok hrelc hfrel
-                    refine ⟨lste, ?_, hrele, hwfe, hrwf⟩
-                    simp only [majorToCtorEtaClause]
-                    rw [run_bind2 hrun1, hhead]
-                    simp only [pure_bind]
-                    rw [hargs, if_pos hc1, run_bind (hpjL lst1)]
-                    simp only [ConLeche.Cached.mkAppNM, pure_bind]
-                    rw [hfabL, ← hb2v]
-                    simp only [if_true]
-                    rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb3v]
-                    simp only [Bool.false_eq_true, if_false, pure_bind, if_true]
-                    exact hrune
+                    cases oc with
+                    | Ok r =>
+                      obtain ⟨lste, hrune, hrele, hwfe, hrwf⟩ :=
+                        (eta_rescue_certs_i_refines hd d caps hfabwf hmajor htmaj).apply
+                          hwfc hfe hok hrelc hfrel
+                      refine ⟨lste, ?_, hrele, hwfe, hrwf⟩
+                      simp only [majorToCtorEtaClause]
+                      rw [run_bind2 hrun1, hhead]
+                      simp only [pure_bind]
+                      rw [hargs, if_pos hc1, run_bind (hpjL lst1)]
+                      simp only [ConLeche.Cached.mkAppNM, pure_bind]
+                      rw [hfabL, ← hb2v]
+                      simp only [if_true]
+                      rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb3v]
+                      simp only [Bool.false_eq_true, if_false, pure_bind, if_true]
+                      exact hrune
+                    | Err e =>
+                      refine Out.err ?_
+                      simp only [majorToCtorEtaClause]
+                      rw [run_bind2 hrun1, hhead]
+                      simp only [pure_bind]
+                      rw [hargs, if_pos hc1, run_bind (hpjL lst1)]
+                      simp only [ConLeche.Cached.mkAppNM, pure_bind]
+                      rw [hfabL, ← hb2v]
+                      simp only [if_true]
+                      rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb3v]
+                      simp only [Bool.false_eq_true, if_false, pure_bind, if_true]
+                      exact (eta_rescue_certs_i_refines hd d caps hfabwf hmajor
+                        htmaj).apply_err hwfc hfe hok hrelc hfrel
                   | true =>
                     try dsimp only at hp
                     obtain ⟨⟨rcert, st4⟩, hic, hp⟩ := bind_eq_ok_iff.mp hp
                     rw [← Result.ok_injective hp] at hok
                     try dsimp only at hok
                     cases rcert with
-                    | Err e => simp at hok
+                    | Err e =>
+                      simp at hok
+                      obtain ⟨rfl, rfl⟩ := hok
+                      have hicerr := (hd.iotaCerts d false hctywf hspwf).apply_err
+                        hwfc hfe hic hrelc hfrel
+                      rw [hspabs] at hicerr
+                      refine Out.err ?_
+                      simp only [majorToCtorEtaClause]
+                      rw [run_bind2 hrun1, hhead]
+                      simp only [pure_bind]
+                      rw [hargs, if_pos hc1, run_bind (hpjL lst1)]
+                      simp only [ConLeche.Cached.mkAppNM, pure_bind]
+                      rw [hfabL, ← hb2v]
+                      simp only [if_true]
+                      rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb3v]
+                      simp only [reduceIte]
+                      exact ErrSim.bindCM hicerr
                     | Ok b4 =>
                       obtain ⟨lsti, hruni, hreli, hwfi, -⟩ :=
                         (hd.iotaCerts d false hctywf hspwf).apply hwfc hfe hic hrelc hfrel
@@ -1501,8 +1763,7 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
                       | false =>
                         obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
                         rw [Expr.dup_eq hcd] at hok
-                        simp only [Result.ok.injEq, Prod.mk.injEq,
-                          core.result.Result.Ok.injEq] at hok
+                        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                         obtain ⟨rfl, rfl⟩ := hok
                         refine ⟨lsti, ?_, hreli, hwfi, hmajor⟩
                         simp only [majorToCtorEtaClause]
@@ -1517,27 +1778,44 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
                         rw [run_bind hruni]
                         simp
                       | true =>
-                        obtain ⟨lste, hrune, hrele, hwfe, hrwf⟩ :=
-                          (eta_rescue_certs_i_refines hd d caps hfabwf hmajor htmaj).apply
-                            hwfi hfe hok hreli hfrel
-                        refine ⟨lste, ?_, hrele, hwfe, hrwf⟩
-                        simp only [majorToCtorEtaClause]
-                        rw [run_bind2 hrun1, hhead]
-                        simp only [pure_bind]
-                        rw [hargs, if_pos hc1, run_bind (hpjL lst1)]
-                        simp only [ConLeche.Cached.mkAppNM, pure_bind]
-                        rw [hfabL, ← hb2v]
-                        simp only [if_true]
-                        rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb3v]
-                        simp only [reduceIte]
-                        rw [run_bind hruni]
-                        simp only [id_eq, if_true]
-                        exact hrune
+                        cases oc with
+                        | Ok r =>
+                          obtain ⟨lste, hrune, hrele, hwfe, hrwf⟩ :=
+                            (eta_rescue_certs_i_refines hd d caps hfabwf hmajor htmaj).apply
+                              hwfi hfe hok hreli hfrel
+                          refine ⟨lste, ?_, hrele, hwfe, hrwf⟩
+                          simp only [majorToCtorEtaClause]
+                          rw [run_bind2 hrun1, hhead]
+                          simp only [pure_bind]
+                          rw [hargs, if_pos hc1, run_bind (hpjL lst1)]
+                          simp only [ConLeche.Cached.mkAppNM, pure_bind]
+                          rw [hfabL, ← hb2v]
+                          simp only [if_true]
+                          rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb3v]
+                          simp only [reduceIte]
+                          rw [run_bind hruni]
+                          simp only [id_eq, if_true]
+                          exact hrune
+                        | Err e =>
+                          refine Out.err ?_
+                          simp only [majorToCtorEtaClause]
+                          rw [run_bind2 hrun1, hhead]
+                          simp only [pure_bind]
+                          rw [hargs, if_pos hc1, run_bind (hpjL lst1)]
+                          simp only [ConLeche.Cached.mkAppNM, pure_bind]
+                          rw [hfabL, ← hb2v]
+                          simp only [if_true]
+                          rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb3v]
+                          simp only [reduceIte]
+                          rw [run_bind hruni]
+                          simp only [id_eq, if_true]
+                          exact (eta_rescue_certs_i_refines hd d caps hfabwf hmajor
+                            htmaj).apply_err hwfi hfe hok hreli hfrel
     | _ =>
       all_goals (
         obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
         rw [Expr.dup_eq hcd] at hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
         simp only [majorToCtorEtaClause]
@@ -1558,7 +1836,7 @@ theorem major_to_ctor_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode f
       (fun st fe => cached.core_c.major_to_ctor_i mode fuel st fe d rules major)
       (fun lfe => ConLeche.Cached.majorToCtorI (absMode mode) (knot mode lfe fuel.val) lfe
         d.val recName (absRecRules rules) (absExpr major)) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   simp only []
   have hfa : FindAgree fe lfe := FindAgree.of_rel hfrel hfe
   have hfw : FindWF fe := FindWF.of_wf hfe
@@ -1571,7 +1849,7 @@ theorem major_to_ctor_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode f
   | true =>
     obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
     rw [Expr.dup_eq hcd] at hok
-    simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+    simp only [Result.ok.injEq, Prod.mk.injEq] at hok
     obtain ⟨rfl, rfl⟩ := hok
     exact ⟨lst, by rw [majorToCtorI_stuck_ctorApp _ _ _ _ _ hbcv.symm]; simp,
       hrel, hwf, hmajor⟩
@@ -1584,7 +1862,7 @@ theorem major_to_ctor_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode f
       rw [if_pos (bne_iff_ne.mpr hn1)] at hok
       obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
       rw [Expr.dup_eq hcd] at hok
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨rfl, rfl⟩ := hok
       have hlen : (absRecRules rules).length ≠ 1 := by
         simp only [absRecRules, List.length_map]
@@ -1617,7 +1895,7 @@ theorem major_to_ctor_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode f
       | none =>
         obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
         rw [Expr.dup_eq hcd] at hok
-        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         have hmiss := CoreK.ctor_probe_miss CoreK.envFacts hfa hfw hrlwf.1 hprobe
         refine ⟨lst, ?_, hrel, hwf, hmajor⟩
@@ -1646,7 +1924,7 @@ theorem major_to_ctor_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode f
           | none =>
             obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
             rw [Expr.dup_eq hcd] at hok
-            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
             obtain ⟨rfl, rfl⟩ := hok
             have hmiss := CoreK.ind_probe_miss CoreK.envFacts hfa hfw ht1 hind
             refine ⟨lst, ?_, hrel, hwf, hmajor⟩
@@ -1662,13 +1940,20 @@ theorem major_to_ctor_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode f
               have hk : rl.k = true := hkb
               rw [hkb] at hok
               have hok' : cached.core_c.major_to_ctor_k_i mode fuel st fe d rl cvj cn_p t1
-                  major = ok (core.result.Result.Ok r, st') := hok
-              obtain ⟨lstk, hrunk, hrelk, hwfk, hrwf⟩ :=
-                (major_to_ctor_k_i_refines hw hd d cn_p hrlwf hcvjwf ht1 hmajor).apply
-                  hwf hfe hok' hrel hfrel
-              refine ⟨lstk, ?_, hrelk, hwfk, hrwf⟩
-              rw [hrulesL, majorToCtorI_eq_k _ _ _ _ _ hctor rfl hhit hhead hihit hk]
-              exact hrunk
+                  major = ok (oc, st') := hok
+              cases oc with
+              | Ok r =>
+                obtain ⟨lstk, hrunk, hrelk, hwfk, hrwf⟩ :=
+                  (major_to_ctor_k_i_refines hw hd d cn_p hrlwf hcvjwf ht1 hmajor).apply
+                    hwf hfe hok' hrel hfrel
+                refine ⟨lstk, ?_, hrelk, hwfk, hrwf⟩
+                rw [hrulesL, majorToCtorI_eq_k _ _ _ _ _ hctor rfl hhit hhead hihit hk]
+                exact hrunk
+              | Err e =>
+                refine Out.err ?_
+                rw [hrulesL, majorToCtorI_eq_k _ _ _ _ _ hctor rfl hhit hhead hihit hk]
+                exact (major_to_ctor_k_i_refines hw hd d cn_p hrlwf hcvjwf ht1
+                  hmajor).apply_err hwf hfe hok' hrel hfrel
             | false =>
               rw [hkb] at hok
               have hk' : (absRecRule rl).k = false := hkb
@@ -1677,13 +1962,22 @@ theorem major_to_ctor_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode f
                 have he : rl.eta = true := heb
                 rw [heb] at hok
                 have hok' : cached.core_c.major_to_ctor_eta_i mode fuel st fe d rl cvt caps
-                    t1 major = ok (core.result.Result.Ok r, st') := hok
-                obtain ⟨lste, hrune, hrele, hwfe, hrwf⟩ :=
-                  (major_to_ctor_eta_i_refines hd d hrlwf hcvtwf hcapswf ht1 hmajor).apply
-                    hwf hfe hok' hrel hfrel
-                refine ⟨lste, ?_, hrele, hwfe, hrwf⟩
-                rw [hrulesL, majorToCtorI_eq_eta _ _ _ _ _ hctor rfl hhit hhead hihit hk' he]
-                exact hrune
+                    t1 major = ok (oc, st') := hok
+                cases oc with
+                | Ok r =>
+                  obtain ⟨lste, hrune, hrele, hwfe, hrwf⟩ :=
+                    (major_to_ctor_eta_i_refines hd d hrlwf hcvtwf hcapswf ht1 hmajor).apply
+                      hwf hfe hok' hrel hfrel
+                  refine ⟨lste, ?_, hrele, hwfe, hrwf⟩
+                  rw [hrulesL,
+                    majorToCtorI_eq_eta _ _ _ _ _ hctor rfl hhit hhead hihit hk' he]
+                  exact hrune
+                | Err e =>
+                  refine Out.err ?_
+                  rw [hrulesL,
+                    majorToCtorI_eq_eta _ _ _ _ _ hctor rfl hhit hhead hihit hk' he]
+                  exact (major_to_ctor_eta_i_refines hd d hrlwf hcvtwf hcapswf ht1
+                    hmajor).apply_err hwf hfe hok' hrel hfrel
               | false =>
                 rw [heb] at hok
                 have he' : (absRecRule rl).eta = false := heb
@@ -1697,20 +1991,27 @@ theorem major_to_ctor_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode f
                   have hand : absName t1 = ConLeche.andName := by
                     have h' : decide (absName t1 = ConLeche.andName) = true := hbav.symm
                     simpa using h'
-                  obtain ⟨lsta, hruna, hrela, hwfa, hrwf⟩ :=
-                    (major_to_ctor_and_i_refines hw hd d cn_p hrlwf hcvjwf ht1 hmajor).apply
-                      hwf hfe hok hrel hfrel
-                  refine ⟨lsta, ?_, hrela, hwfa, hrwf⟩
-                  rw [hrulesL,
-                    majorToCtorI_eq_and _ _ _ _ _ hctor rfl hhit hhead hihit hk' he' hand]
-                  exact hruna
+                  cases oc with
+                  | Ok r =>
+                    obtain ⟨lsta, hruna, hrela, hwfa, hrwf⟩ :=
+                      (major_to_ctor_and_i_refines hw hd d cn_p hrlwf hcvjwf ht1
+                        hmajor).apply hwf hfe hok hrel hfrel
+                    refine ⟨lsta, ?_, hrela, hwfa, hrwf⟩
+                    rw [hrulesL,
+                      majorToCtorI_eq_and _ _ _ _ _ hctor rfl hhit hhead hihit hk' he' hand]
+                    exact hruna
+                  | Err e =>
+                    refine Out.err ?_
+                    rw [hrulesL,
+                      majorToCtorI_eq_and _ _ _ _ _ hctor rfl hhit hhead hihit hk' he' hand]
+                    exact (major_to_ctor_and_i_refines hw hd d cn_p hrlwf hcvjwf ht1
+                      hmajor).apply_err hwf hfe hok hrel hfrel
                 | false =>
                   have hand : absName t1 ≠ ConLeche.andName := by
                     intro h; rw [h] at hbav; simp at hbav
                   obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
                   rw [Expr.dup_eq hcd] at hok
-                  simp only [Result.ok.injEq, Prod.mk.injEq,
-                    core.result.Result.Ok.injEq] at hok
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst, ?_, hrel, hwf, hmajor⟩
                   rw [hrulesL, majorToCtorI_stuck_bits _ _ _ _ _ hctor hhit hhead hihit
@@ -1720,7 +2021,7 @@ theorem major_to_ctor_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode f
           all_goals (
             obtain ⟨c, hcd, hok⟩ := bind_eq_ok_iff.mp hok
             rw [Expr.dup_eq hcd] at hok
-            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok
             obtain ⟨rfl, rfl⟩ := hok
             refine ⟨lst, ?_, hrel, hwf, hmajor⟩
             rw [hrulesL, majorToCtorI_stuck_head _ _ _ _ _ hctor hhit

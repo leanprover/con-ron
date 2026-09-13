@@ -11,7 +11,7 @@ Two helpers of `crates/con-ron-core/src/cached/core_c.rs`, the io twin of the
   the walk runs when the gate does *not* fire, which con-leche writes inline
   in `inferSpineIOI`'s two `unless` blocks.
 
-Three things cost thought.
+Four things cost thought.
 
 1. **The suffix correspondence.**  con-leche recurses on the argument *list*;
    the Rust walks `args : Vec Expr` by an index `i : Usize`.  The
@@ -40,10 +40,29 @@ Three things cost thought.
    (task #18's rule: a gated certificate whose arms rejoin must be two tail
    calls).
 
-The `.M`-suffixed `Array Std.U32` constants (`infer_spine_io_i.M_FN`,
-`infer_spine_io_cert_i.M_MISMATCH`) are error-message code points reached
-only on the `.Err` path, and nothing is claimed on failure (DESIGN.md §3.5),
-so they carry no theorem.
+4. **The failure half** (task #67, DESIGN.md §3's ruling of 2026-09-13).
+   Both lemmas are stated at the **full outcome** — exact result on success,
+   and on a failure con-leche's own `throw` at the same kind.  Every one of
+   this cluster's failures is mirrored (the census puts all 49 of
+   `cached/core_c.rs`'s sites one-to-one against a `throw` in
+   `ConLeche/Cached/CoreC.lean`), and there are three shapes of them:
+
+   * one of the wrappers threw — `r.whnf`, or the certificate's `r.infer`
+     (which is the io slot) or `r.defeq`; `ErrSim.trans` carries the error
+     through the rest of con-leche's `do` block;
+   * the certificate's `defeq` answered `false`: `core_c.rs:2888` throws
+     `invalid(M_MISMATCH)` where con-leche throws
+     `.invalid "application type mismatch"` — inline in each of
+     `inferSpineIOI`'s two `unless` blocks (`Cached/CoreC.lean:1079`
+     and `:1089`);
+   * the normalized head was not a `∀`: `core_c.rs:2856` throws
+     `invalid(M_FN)` where `inferSpineIOI`'s last clause throws
+     `.invalid "function expected"` (`Cached/CoreC.lean:1091`).
+
+Messages are never compared (DESIGN.md §3.1), so the `.M`-suffixed
+`Array Std.U32` constants (`infer_spine_io_i.M_FN`,
+`infer_spine_io_cert_i.M_MISMATCH`) still carry no theorem of their own: the
+error half only has to name the string con-leche throws.
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.CoreKVec
@@ -93,6 +112,16 @@ private theorem bindP_eq_ok {α β γ : Type} {e : Result (α × β)}
     ∃ x y, e = ok (x, y) ∧ f x y = ok v := by
   obtain ⟨⟨x, y⟩, h1, h2⟩ := bind_eq_ok_iff.mp h
   exact ⟨x, y, h1, h2⟩
+
+/-- The port's `Err` value at a mirrored `throw` arm: `core_types::invalid`
+is the `Invalid` constructor, so an `Err` built from it is `Err (.Invalid v)`
+(task #67).  `Refine/Core/Arms/Shared.lean` keeps the same one-liner for the
+one arm it meets; `attribute [local simp]` and `private` do not travel across
+files, so it is re-declared here. -/
+private theorem invalid_err {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.invalid v = ok ce) :
+    ce = .Invalid v :=
+  (Result.ok_injective (by rw [core_types.invalid] at h; exact h)).symm
 
 /-! ## The io view's slots
 
@@ -194,6 +223,61 @@ private theorem cert_parts (hw : Wrappers mode fuel) (d : Std.U64)
         simp only [StateT.run] at hrun1 hrun2
         exact ⟨absExpr ta, lst1, lst2, hrun1, by simpa using hrun2, hrel2, hwf2⟩
 
+/-- The certificate's **failure half**, the twin of `cert_parts` (task #67).
+Three mirrored ways to fail, and the lemma is the whole of them: the io
+inference threw; the `defeq` threw; or the `defeq` answered `false`, where
+`core_c.rs:2888` throws `invalid(M_MISMATCH)` and con-leche throws
+`.invalid "application type mismatch"` (messages are not compared).
+
+Like `cert_parts`, it hands back the **component runs** rather than a
+composed `ErrSim`: `inferSpineIOI` inlines the certificate into its two
+`unless` blocks, so a composed statement does not match there syntactically
+while these atomic ones rewrite exactly as the accept direction's do. -/
+private theorem cert_parts_err (hw : Wrappers mode fuel) (d : Std.U64)
+    {a dom : expr.Expr} (ha : ExprWF a) (hdom : ExprWF dom)
+    {fe : fenv.FEnv} {lfe : ConLeche.FEnv} (hfe : FEnvWF fe) (hfrel : FEnvRel fe lfe)
+    {st st' : cached.state_c.CState} (hwf : StateWF st)
+    {ce : core_types.CheckError}
+    (hcert : cached.core_c.infer_spine_io_cert_i mode fuel st fe d a dom
+      = ok (.Err ce, st'))
+    {lst : ConLeche.Cached.CState} (hrel : StateRel st lst) :
+    ErrSim ce ((knot mode lfe fuel.val).inferIO d.val (absExpr a) lst)
+      ∨ (∃ ta lst1,
+          (knot mode lfe fuel.val).inferIO d.val (absExpr a) lst = .ok (ta, lst1)
+          ∧ ErrSim ce ((knot mode lfe fuel.val).defeq d.val ta (absExpr dom) lst1))
+      ∨ (∃ ta lst1 lst2 m,
+          (knot mode lfe fuel.val).inferIO d.val (absExpr a) lst = .ok (ta, lst1)
+          ∧ (knot mode lfe fuel.val).defeq d.val ta (absExpr dom) lst1 = .ok (false, lst2)
+          ∧ ce = .Invalid m) := by
+  unfold cached.core_c.infer_spine_io_cert_i at hcert
+  obtain ⟨r0, st1, h1, hcert⟩ := bindP_eq_ok hcert
+  cases r0 with
+  | Err e0 =>
+    simp at hcert
+    obtain ⟨rfl, -⟩ := hcert
+    exact Or.inl ((hw.inferIOSim d ha).apply_err hwf hfe h1 hrel hfrel)
+  | Ok ta =>
+    obtain ⟨lst1, hrun1, hrel1, hwf1, htaWF⟩ :=
+      (hw.inferIOSim d ha).apply hwf hfe h1 hrel hfrel
+    simp only [StateT.run] at hrun1
+    obtain ⟨r1, st2, h2, hcert⟩ := bindP_eq_ok hcert
+    cases r1 with
+    | Err e1 =>
+      simp at hcert
+      obtain ⟨rfl, -⟩ := hcert
+      exact Or.inr (Or.inl ⟨absExpr ta, lst1, hrun1,
+        (hw.defeqSim d htaWF hdom).apply_err hwf1 hfe h2 hrel1 hfrel⟩)
+    | Ok b =>
+      obtain ⟨lst2, hrun2, hrel2, hwf2, -⟩ :=
+        (hw.defeqSim d htaWF hdom).apply hwf1 hfe h2 hrel1 hfrel
+      simp only [StateT.run, id_eq] at hrun2
+      cases b with
+      | true => simp at hcert
+      | false =>
+        simp at hcert
+        obtain ⟨v, -, hce, -⟩ := hcert
+        exact Or.inr (Or.inr ⟨absExpr ta, lst1, lst2, v, hrun1, hrun2, invalid_err hce⟩)
+
 /-- `ConLeche/Cached/CoreC.lean:1076-1079`, `:1087-1089` — **`infer_spine_io_cert_i`
 refines the per-argument certificate** `let ta ← r.infer depth a; unless ←
 r.defeq depth ta dom do throw (.invalid "application type mismatch")`
@@ -202,7 +286,12 @@ two `unless mode.ioSkip …` blocks, so the Lean side here is that `do` block
 and not a named definition; `r` is the record the knot ties the io body to,
 whose `infer` slot is the io slot (`CoreFnsI.ioView`), which is why the port
 calls `infer_io`.  The result is `()`, so the value abstraction is `id` and
-nothing is claimed about it. -/
+nothing is claimed about it.
+
+At the full outcome (task #67) the three failures are `cert_parts_err`'s:
+`r.infer` threw, `r.defeq` threw, or `r.defeq` answered `false` and both
+sides throw `invalid` — the port at `M_MISMATCH`, con-leche at
+`"application type mismatch"`. -/
 theorem infer_spine_io_cert_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
     {a dom : expr.Expr} (ha : ExprWF a) (hdom : ExprWF dom) :
     Sim id (fun _ => True)
@@ -211,10 +300,17 @@ theorem infer_spine_io_cert_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
         let ta ← (knot mode lfe fuel.val).inferIO d.val (absExpr a)
         unless (← (knot mode lfe fuel.val).defeq d.val ta (absExpr dom)) do
           throw (.invalid "application type mismatch")) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
-  obtain ⟨ta, lst1, lst2, hcI, hcD, hrel', hwf'⟩ :=
-    cert_parts hw d ha hdom hfe hfrel hwf hok hrel
-  exact ⟨lst2, by simp [hcI, hcD], hrel', hwf', trivial⟩
+  refine Sim.mk'' ?_ ?_
+  · intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+    obtain ⟨ta, lst1, lst2, hcI, hcD, hrel', hwf'⟩ :=
+      cert_parts hw d ha hdom hfe hfrel hwf hok hrel
+    exact ⟨lst2, by simp [hcI, hcD], hrel', hwf', trivial⟩
+  · intro fe lfe hfe hfrel st ce st' hwf hok lst hrel
+    rcases cert_parts_err hw d ha hdom hfe hfrel hwf hok hrel with
+      hI | ⟨ta, lst1, hcI, hD⟩ | ⟨ta, lst1, lst2, m, hcI, hcD, rfl⟩
+    · exact ErrSim.trans hI (fun le hle => by simp [hle])
+    · exact ErrSim.trans hD (fun le hle => by simp [hcI, hle])
+    · exact ErrSim.invalid (s := "application type mismatch") (by simp [hcI, hcD]; rfl)
 
 /-- The walk, by strong induction on the number of arguments still to
 consume (`args.val.length - i.val`): every recursive call steps `i` up by one
@@ -222,7 +318,13 @@ and `args` never changes, which is the port's spelling of con-leche's
 recursion on the tail of the argument list.  The three clauses of
 `inferSpineIOI` are the three branches below — the empty suffix, the
 syntactic `.forallE` step, and the normalizing step — and the gate splits
-each of the last two in two, as the port's two tail calls do. -/
+each of the last two in two, as the port's two tail calls do.
+
+At the full outcome (task #67) a recursive step needs no case split at all:
+the con-leche side of the tail call *is* the clause's, so the one transport
+carries both halves.  What is new is the four throwing arms — `r.whnf` threw,
+the certificate threw (three ways, `cert_parts_err`), and the normalized head
+was not a `∀`, where both sides throw `invalid` ("function expected"). -/
 private theorem spine_aux (hw : Wrappers mode fuel) (N : Nat) :
     ∀ (d : Std.U64) (ty : expr.Expr) (acc args : alloc.vec.Vec expr.Expr)
       (i : Std.Usize), args.val.length - i.val = N →
@@ -252,7 +354,17 @@ private theorem spine_aux (hw : Wrappers mode fuel) (N : Nat) :
       refine ⟨lst, ?_, hrel, hwf, hresWF⟩
       rw [hdrop, habs]
       simp [ConLeche.Cached.inferSpineIOI, ConLeche.Cached.instListRevM]
-    · obtain ⟨⟨dt, kt⟩⟩ := ty
+    · -- the suffix is a *cons* on con-leche's side, which the failure arms
+      -- need before they have indexed `args` (the accept arms read it off
+      -- `ExprOps.vec_index_expr` instead, at the entry they went on to use)
+      have hltA : i.val < args.val.length := by
+        have hlen := alloc.vec.Vec.len_val args
+        scalar_tac
+      obtain ⟨a0, rest0, hdrop0⟩ :=
+        List.exists_cons_of_ne_nil (l := (absExprs args).drop i.val) (by
+          simp only [absExprs, ne_eq, List.drop_eq_nil_iff, List.length_map]
+          omega)
+      obtain ⟨⟨dt, kt⟩⟩ := ty
       cases kt
       case ForallE =>
         -- the syntactic `∀` step: no normalization, and the accumulator grows
@@ -271,18 +383,18 @@ private theorem spine_aux (hw : Wrappers mode fuel) (N : Nat) :
           have hacc1WF := ExprOps.exprsWF_push hacc haWF hpush
           obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
           have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
-          obtain ⟨lst2, hrun2, hrel2, hwf2, hresWF⟩ :=
-            (ih (args.val.length - i2.val) (by omega) d bd acc1 args i2 rfl
-              hbdWF hacc1WF hargs).apply hwf hfe h hrel hfrel
-          refine ⟨lst2, ?_, hrel2, hwf2, hresWF⟩
-          rw [hi2v, hacc1] at hrun2
+          -- the recursive call carries the *whole* outcome (task #67): the
+          -- con-leche side is literally the tail's, so one transport serves
+          -- the accept and the failure half alike
+          have hstep := (ih (args.val.length - i2.val) (by omega) d bd acc1 args i2 rfl
+            hbdWF hacc1WF hargs) fe lfe hfe hfrel _ _ _ hwf h _ hrel
+          rw [hi2v, hacc1] at hstep
           have hskip : (absMode mode).ioSkip (absPropWhen mtm.pw) = true := by
             rw [← hbv, hbt]
-          simp only [StateT.run] at hrun2
           rw [hdrop]
           simp only [absExpr_mk, absExprKind, absBinderMeta]
           rw [ConLeche.Cached.inferSpineIOI.eq_def]
-          simp [hskip, hrun2]
+          simpa [hskip] using hstep
         · -- the licence does not fire: the certificate runs against the
           -- accumulator-substituted domain
           obtain ⟨dom2, hinstd, h⟩ := bind_eq_ok_iff.mp h
@@ -290,8 +402,25 @@ private theorem spine_aux (hw : Wrappers mode fuel) (N : Nat) :
           obtain ⟨a, hidx, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨hlt, haWF, hdrop⟩ := ExprOps.vec_index_expr hargs hidx
           obtain ⟨rc, st2, hcert, h⟩ := bindP_eq_ok h
+          have hskip : (absMode mode).ioSkip (absPropWhen mtm.pw) = false := by
+            rw [← hbv]; simpa using hbt
           cases rc with
-          | Err err => simp at h
+          | Err err =>
+            -- the certificate threw, and so does con-leche's `unless` block:
+            -- at `r.infer`, at `r.defeq`, or at the mismatch `throw` itself
+            simp only [Result.ok.injEq, Prod.mk.injEq] at h
+            obtain ⟨rfl, rfl⟩ := h
+            rw [hdrop]
+            simp only [absExpr_mk, absExprKind, absBinderMeta] at habsd ⊢
+            rw [ConLeche.Cached.inferSpineIOI.eq_def]
+            rcases cert_parts_err hw d haWF hdom2WF hfe hfrel hwf hcert hrel with
+              hI | ⟨tav, lstA, hcI, hD⟩ | ⟨tav, lstA, lstB, m, hcI, hcD, rfl⟩
+            · exact ErrSim.trans hI (fun le hle => by
+                simp [ConLeche.Cached.instListRevM, ← habsd, hskip, hle])
+            · exact ErrSim.trans hD (fun le hle => by
+                simp [ConLeche.Cached.instListRevM, ← habsd, hskip, hcI, hle])
+            · exact ErrSim.invalid (s := "application type mismatch")
+                (by simp [ConLeche.Cached.instListRevM, ← habsd, hskip, hcI, hcD]; rfl)
           | Ok u =>
             obtain ⟨tav, lstA, lstB, hcI, hcD, hrel2, hwf2⟩ :=
               cert_parts hw d haWF hdom2WF hfe hfrel hwf hcert hrel
@@ -300,18 +429,13 @@ private theorem spine_aux (hw : Wrappers mode fuel) (N : Nat) :
             have hacc1WF := ExprOps.exprsWF_push hacc haWF hpush
             obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
             have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
-            obtain ⟨lst3, hrun3, hrel3, hwf3, hresWF⟩ :=
-              (ih (args.val.length - i2.val) (by omega) d bd acc1 args i2 rfl
-                hbdWF hacc1WF hargs).apply hwf2 hfe h hrel2 hfrel
-            refine ⟨lst3, ?_, hrel3, hwf3, hresWF⟩
-            rw [hi2v, hacc1] at hrun3
-            have hskip : (absMode mode).ioSkip (absPropWhen mtm.pw) = false := by
-              rw [← hbv]; simpa using hbt
-            simp only [StateT.run] at hrun3
+            have hstep := (ih (args.val.length - i2.val) (by omega) d bd acc1 args i2 rfl
+              hbdWF hacc1WF hargs) fe lfe hfe hfrel _ _ _ hwf2 h _ hrel2
+            rw [hi2v, hacc1] at hstep
             rw [hdrop]
             simp only [absExpr_mk, absExprKind, absBinderMeta] at habsd ⊢
             rw [ConLeche.Cached.inferSpineIOI.eq_def]
-            simp [ConLeche.Cached.instListRevM, ← habsd, hskip, hcI, hcD, hrun3]
+            simpa [ConLeche.Cached.instListRevM, ← habsd, hskip, hcI, hcD] using hstep
       -- the nine remaining kinds are con-leche's one `| _ =>` clause, and the
       -- port's generated `match` repeats the same body in each, so one script
       -- discharges them all: substitute, normalize, and look for a `∀` again
@@ -322,7 +446,18 @@ private theorem spine_aux (hw : Wrappers mode fuel) (N : Nat) :
         obtain ⟨habs2, hty2⟩ := inst_list_rev_m_val hty hacc hinst
         obtain ⟨rw0, st1, hwn, h⟩ := bindP_eq_ok h
         cases rw0 with
-        | Err err => simp at h
+        | Err err =>
+          -- `r.whnf` threw, and it is the clause's error on both sides
+          simp only [Result.ok.injEq, Prod.mk.injEq] at h
+          obtain ⟨rfl, rfl⟩ := h
+          refine ErrSim.trans
+            ((hw.whnfSim d hty2).apply_err hwf hfe hwn hrel hfrel) ?_
+          intro le hle
+          simp only [StateT.run] at hle
+          rw [hdrop0]
+          simp only [absExpr_mk, absExprKind, absBinderMeta, absLiteral] at habs2 ⊢
+          rw [ConLeche.Cached.inferSpineIOI.eq_def]
+          simp [ConLeche.Cached.instListRevM, ← habs2, hle]
         | Ok w =>
           obtain ⟨lst1, hrun1, hrel1, hwf1, hwWF⟩ :=
             (hw.whnfSim d hty2).apply hwf hfe hwn hrel hfrel
@@ -346,25 +481,42 @@ private theorem spine_aux (hw : Wrappers mode fuel) (N : Nat) :
               obtain ⟨hacc2, hacc2WF⟩ := CoreK.expr_singleton_refines haWF hsing
               obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
               have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
-              obtain ⟨lst2, hrun2, hrel2, hwf2, hresWF⟩ :=
-                (ih (args.val.length - i2.val) (by omega) d bd acc2 args i2 rfl
-                  hbdWF hacc2WF hargs).apply hwf1 hfe h hrel1 hfrel
-              refine ⟨lst2, ?_, hrel2, hwf2, hresWF⟩
-              rw [hi2v, hacc2] at hrun2
+              have hstep := (ih (args.val.length - i2.val) (by omega) d bd acc2 args i2 rfl
+                hbdWF hacc2WF hargs) fe lfe hfe hfrel _ _ _ hwf1 h _ hrel1
+              rw [hi2v, hacc2] at hstep
               have hskip : (absMode mode).ioSkip (absPropWhen mtm.pw) = true := by
                 rw [← hbv, hbt]
-              simp only [StateT.run] at hrun1 hrun2
+              simp only [StateT.run] at hrun1
               rw [hdrop]
               simp only [absExpr_mk, absExprKind, absBinderMeta,
                 absLiteral] at habs2 ⊢
               rw [ConLeche.Cached.inferSpineIOI.eq_def]
-              simp [ConLeche.Cached.instListRevM, ← habs2, hrun1, hskip, hrun2]
+              simpa [ConLeche.Cached.instListRevM, ← habs2, hrun1, hskip] using hstep
             · -- the licence does not fire: the certificate runs, then the walk
               obtain ⟨a, hidx, h⟩ := bind_eq_ok_iff.mp h
               obtain ⟨hlt, haWF, hdrop⟩ := ExprOps.vec_index_expr hargs hidx
               obtain ⟨rc, st2, hcert, h⟩ := bindP_eq_ok h
+              have hskip : (absMode mode).ioSkip (absPropWhen mtm.pw) = false := by
+                rw [← hbv]; simpa using hbt
+              simp only [StateT.run] at hrun1
               cases rc with
-              | Err err => simp at h
+              | Err err =>
+                simp only [Result.ok.injEq, Prod.mk.injEq] at h
+                obtain ⟨rfl, rfl⟩ := h
+                rw [hdrop]
+                simp only [absExpr_mk, absExprKind, absBinderMeta,
+                  absLiteral] at habs2 ⊢
+                rw [ConLeche.Cached.inferSpineIOI.eq_def]
+                rcases cert_parts_err hw d haWF hdmWF hfe hfrel hwf1 hcert hrel1 with
+                  hI | ⟨tav, lstA, hcI, hD⟩ | ⟨tav, lstA, lstB, m, hcI, hcD, rfl⟩
+                · exact ErrSim.trans hI (fun le hle => by
+                    simp [ConLeche.Cached.instListRevM, ← habs2, hrun1, hskip, hle])
+                · exact ErrSim.trans hD (fun le hle => by
+                    simp [ConLeche.Cached.instListRevM, ← habs2, hrun1, hskip,
+                      hcI, hle])
+                · exact ErrSim.invalid (s := "application type mismatch")
+                    (by simp [ConLeche.Cached.instListRevM, ← habs2, hrun1, hskip,
+                      hcI, hcD]; rfl)
               | Ok u =>
                 obtain ⟨tav, lstA, lstB, hcI, hcD, hrel2, hwf2⟩ :=
                   cert_parts hw d haWF hdmWF hfe hfrel hwf1 hcert hrel1
@@ -372,21 +524,30 @@ private theorem spine_aux (hw : Wrappers mode fuel) (N : Nat) :
                 obtain ⟨hacc2, hacc2WF⟩ := CoreK.expr_singleton_refines haWF hsing
                 obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
                 have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
-                obtain ⟨lst3, hrun3, hrel3, hwf3, hresWF⟩ :=
-                  (ih (args.val.length - i2.val) (by omega) d bd acc2 args i2 rfl
-                    hbdWF hacc2WF hargs).apply hwf2 hfe h hrel2 hfrel
-                refine ⟨lst3, ?_, hrel3, hwf3, hresWF⟩
-                rw [hi2v, hacc2] at hrun3
-                have hskip : (absMode mode).ioSkip (absPropWhen mtm.pw) = false := by
-                  rw [← hbv]; simpa using hbt
-                simp only [StateT.run] at hrun1 hrun3
+                have hstep := (ih (args.val.length - i2.val) (by omega) d bd acc2 args i2 rfl
+                  hbdWF hacc2WF hargs) fe lfe hfe hfrel _ _ _ hwf2 h _ hrel2
+                rw [hi2v, hacc2] at hstep
                 rw [hdrop]
                 simp only [absExpr_mk, absExprKind, absBinderMeta,
                   absLiteral] at habs2 ⊢
                 rw [ConLeche.Cached.inferSpineIOI.eq_def]
-                simp [ConLeche.Cached.instListRevM, ← habs2, hrun1, hskip, hcI,
-                  hcD, hrun3]
-          all_goals simp at h
+                simpa [ConLeche.Cached.instListRevM, ← habs2, hrun1, hskip, hcI,
+                  hcD] using hstep
+          -- the normalized head is not a `∀`: `invalid(M_FN)` against
+          -- `inferSpineIOI`'s last clause, `throw (.invalid "function
+          -- expected")` (`Cached/CoreC.lean:1091`)
+          all_goals
+            simp at h
+            obtain ⟨v, -, ce1, hce, rfl, rfl⟩ := h
+            rw [invalid_err hce]
+            refine ErrSim.invalid (s := "function expected") ?_
+            simp only [StateT.run] at hrun1
+            rw [hdrop0]
+            simp only [absExpr_mk, absExprKind, absBinderMeta,
+              absLiteral] at habs2 ⊢
+            rw [ConLeche.Cached.inferSpineIOI.eq_def]
+            simp [ConLeche.Cached.instListRevM, ← habs2, hrun1]
+            rfl
 
 /-- `ConLeche/Cached/CoreC.lean:1069` — **`infer_spine_io_i` refines
 `inferSpineIOI`** (`core_c.rs:2761`): the io-grade telescope walk, at the
