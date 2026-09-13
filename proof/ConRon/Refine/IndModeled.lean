@@ -8822,6 +8822,126 @@ theorem checkProjFnS_run {lmode : ConLeche.CheckMode} {lfe : ConLeche.FEnv}
   simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
     StateT.pure, Except.pure, h1, h2, h3, h4, h5, h6]
 
+omit hw hcb in
+/-- `checkProjFnS` at a **lookup** that threw (task #67, move 1). -/
+theorem checkProjFnS_lookups_err {lmode : ConLeche.CheckMode}
+    {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF i : Nat} {lst : ConLeche.Cached.CState}
+    {le : ConLeche.CheckError}
+    (h1 : (ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe T
+        ctorName lps nP nF i).run lst = .error le) :
+    (ConLeche.Cached.checkProjFnS lmode lfe T ctorName lps nP nF i).run lst
+      = .error le := by
+  rw [ConLeche.Cached.checkProjFnS]
+  simp only [StateT.run] at h1
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, h1]
+
+omit hw hcb in
+/-- `checkProjFnS` at the **type** stage's `throw` (move 1). -/
+theorem checkProjFnS_ty_err {lmode : ConLeche.CheckMode} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name} {nP nF i : Nat}
+    {cvj mcv : ConLeche.ConstantVal} {lst : ConLeche.Cached.CState}
+    {le : ConLeche.CheckError}
+    (h1 : (ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe T
+        ctorName lps nP nF i).run lst = .ok ((cvj, mcv), lst))
+    (h2 : (ConLeche.checkProjTyF (m := ConLeche.Cached.CheckCM) lfe T ctorName
+        lps mcv.type nP nF).run lst = .error le) :
+    (ConLeche.Cached.checkProjFnS lmode lfe T ctorName lps nP nF i).run lst
+      = .error le := by
+  rw [ConLeche.Cached.checkProjFnS]
+  simp only [StateT.run] at h1 h2
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, h1, h2]
+
+omit hw hcb in
+/-- `checkProjFnS` at the **shape** stage's `throw` (move 1). -/
+theorem checkProjFnS_shape_err {lmode : ConLeche.CheckMode}
+    {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF i : Nat}
+    {cvj mcv : ConLeche.ConstantVal} {pty : ConLeche.Expr}
+    {lst : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+    (h1 : (ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe T
+        ctorName lps nP nF i).run lst = .ok ((cvj, mcv), lst))
+    (h2 : (ConLeche.checkProjTyF (m := ConLeche.Cached.CheckCM) lfe T ctorName
+        lps mcv.type nP nF).run lst = .ok (pty, lst))
+    (h3 : (ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM) pty cvj.type
+        nP nF).run lst = .error le) :
+    (ConLeche.Cached.checkProjFnS lmode lfe T ctorName lps nP nF i).run lst
+      = .error le := by
+  rw [ConLeche.Cached.checkProjFnS]
+  simp only [StateT.run] at h1 h2 h3
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, h1, h2, h3]
+
+omit hw hcb in
+/-- `checkProjFnS`' own `throw` (`Cached/CheckerC.lean:161-162`): the field
+index is out of range (move 2). -/
+theorem checkProjFnS_range_err {lmode : ConLeche.CheckMode}
+    {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF i : Nat}
+    {cvj mcv : ConLeche.ConstantVal} {pty : ConLeche.Expr}
+    {lst : ConLeche.Cached.CState}
+    (h1 : (ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe T
+        ctorName lps nP nF i).run lst = .ok ((cvj, mcv), lst))
+    (h2 : (ConLeche.checkProjTyF (m := ConLeche.Cached.CheckCM) lfe T ctorName
+        lps mcv.type nP nF).run lst = .ok (pty, lst))
+    (h3 : ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM) pty cvj.type
+        nP nF = pure ())
+    (h4 : ¬ i < nF) :
+    (ConLeche.Cached.checkProjFnS lmode lfe T ctorName lps nP nF i).run lst
+      = .error (.invalid "projection index out of range") := by
+  rw [ConLeche.Cached.checkProjFnS]
+  simp only [StateT.run] at h1 h2
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, h1, h2, h3, h4]
+
+omit hw hcb in
+/-- `checkProjFnS` at the **rule** stage's `throw` (move 1). -/
+theorem checkProjFnS_rule_err {lmode : ConLeche.CheckMode}
+    {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF i : Nat}
+    {cvj mcv : ConLeche.ConstantVal} {pty : ConLeche.Expr}
+    {lst : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+    (h1 : (ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe T
+        ctorName lps nP nF i).run lst = .ok ((cvj, mcv), lst))
+    (h2 : (ConLeche.checkProjTyF (m := ConLeche.Cached.CheckCM) lfe T ctorName
+        lps mcv.type nP nF).run lst = .ok (pty, lst))
+    (h3 : ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM) pty cvj.type
+        nP nF = pure ())
+    (h4 : i < nF)
+    (h5 : (ConLeche.checkProjRuleF (ConLeche.Cached.sharedOpsC lmode lfe) lfe
+        pty cvj lps nP nF i).run lst = .error le) :
+    (ConLeche.Cached.checkProjFnS lmode lfe T ctorName lps nP nF i).run lst
+      = .error le := by
+  rw [ConLeche.Cached.checkProjFnS]
+  simp only [StateT.run] at h1 h2 h5
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, h1, h2, h3, h4, h5]
+
+omit hw hcb in
+/-- `checkProjFnS` at the **iota** stage's `throw` (move 1). -/
+theorem checkProjFnS_iota_err {lmode : ConLeche.CheckMode}
+    {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF i : Nat}
+    {cvj mcv : ConLeche.ConstantVal} {pty rhsA : ConLeche.Expr}
+    {lst lst1 : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+    (h1 : (ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe T
+        ctorName lps nP nF i).run lst = .ok ((cvj, mcv), lst))
+    (h2 : (ConLeche.checkProjTyF (m := ConLeche.Cached.CheckCM) lfe T ctorName
+        lps mcv.type nP nF).run lst = .ok (pty, lst))
+    (h3 : ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM) pty cvj.type
+        nP nF = pure ())
+    (h4 : i < nF)
+    (h5 : (ConLeche.checkProjRuleF (ConLeche.Cached.sharedOpsC lmode lfe) lfe
+        pty cvj lps nP nF i).run lst = .ok (rhsA, lst1))
+    (h6 : (ConLeche.checkProjIotaF (m := ConLeche.Cached.CheckCM) lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe T ctorName lps cvj nP nF
+        i).run lst1 = .error le) :
+    (ConLeche.Cached.checkProjFnS lmode lfe T ctorName lps nP nF i).run lst
+      = .error le := by
+  rw [ConLeche.Cached.checkProjFnS]
+  simp only [StateT.run] at h1 h2 h5 h6
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, h1, h2, h3, h4, h5, h6]
+
 /-- `ConLeche/Cached/CheckerC.lean:153-166` — **`check_proj_fn` refines
 `checkProjFnS`**: the public projection function for field `i`, stored as a
 degenerate recursor carrying one rule.  The cited stage has no flush of its
@@ -8834,64 +8954,107 @@ every canonical view; `Refine/IndC.lean` discharges it at the driver from
 `dup_canon`/`mk_fenv_canon`, exactly as it already does for
 `check_ind_recs_refines`. -/
 theorem check_proj_fn_refines
-    {st st' : cached.state_c.CState} {fe2 fe' : fenv.FEnv}
+    {st st' : cached.state_c.CState} {fe2 : fenv.FEnv}
     {t ctor_name : name.Name} {lps : alloc.vec.Vec name.Name}
     {n_p n_f i : Std.U64}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hres : StructInstall.ConstsResolveFFastRefines)
     (hspines : StructSpinesRefine)
     (hst : StateWF st) (hfe : FEnvWF fe2) (hcan : FEnv.FEnvCanon fe2)
     (hfull : FEnv.FEnvFull fe2)
     (ht : NameWF t) (hc : NameWF ctor_name) (hlps : NamesWF lps)
     (h : inductives.modeled.check_proj_fn mode st fe2 t ctor_name lps n_p n_f i
-        = ok (.Ok fe', st')) :
+        = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe2 lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.checkProjFnS (absMode mode) lfe (absName t)
-            (absName ctor_name) (absNames lps) n_p.val n_f.val i.val).run lst
-          = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.checkProjFnS (absMode mode) lfe (absName t)
+              (absName ctor_name) (absNames lps) n_p.val n_f.val i.val).run lst
+            = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.checkProjFnS (absMode mode) lfe (absName t)
+          (absName ctor_name) (absNames lps) n_p.val n_f.val i.val).run lst) := by
   intro lst lfe hrel hfer
   rw [inductives.modeled.check_proj_fn] at h
   obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
   cases r with
-  | Err e => simp at h
+  | Err e =>
+    -- move 1: the lookup stage threw
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact ErrSim.trans (check_proj_lookups_refines hw hcb hfer hfe ht hc hlps
+      hr lst) (fun le hle => checkProjFnS_lookups_err hle)
   | Ok lq =>
   obtain ⟨cvj, mcv⟩ := lq
   obtain ⟨hlk, hcvjwf, hmcvwf, hfindc⟩ :=
     check_proj_lookups_refines hw hcb hfer hfe ht hc hlps hr
   obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
   cases r1 with
-  | Err e => simp at h
+  | Err e =>
+    -- move 1: the type stage threw
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact ErrSim.trans (check_proj_ty_refines hw hcb hres hfer hfe ht hc hlps
+      hmcvwf.2.2 hr1 lst) (fun le hle => checkProjFnS_ty_err (hlk lst) hle)
   | Ok pty =>
   obtain ⟨hty, hptywf⟩ :=
     check_proj_ty_refines hw hcb hres hfer hfe ht hc hlps hmcvwf.2.2 hr1
   obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
   cases r2 with
-  | Err e => simp at h
+  | Err e =>
+    -- move 1: the shape stage threw (`checker_base::check_proj_shape`)
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact ErrSim.trans
+      (hcb.checkProjShapeErr pty cvj.ty n_p n_f e hptywf hcvjwf.2.2 hr2 lst)
+      (fun le hle => checkProjFnS_shape_err (hlk lst) (hty lst) hle)
   | Ok u =>
   cases u
   have hshape := hcb.checkProjShape pty cvj.ty n_p n_f hptywf hcvjwf.2.2 hr2
   by_cases hge : i ≥ n_f
-  · rw [if_pos hge] at h; simp at h
+  · -- move 2: `Cached/CheckerC.lean:161-162`, the field index is out of range
+    rw [if_pos hge] at h
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    exact errSim_invalid "projection index out of range" hce
+      (checkProjFnS_range_err (hlk lst) (hty lst) hshape (by scalar_tac))
   · rw [if_neg hge] at h
     have hlt : i.val < n_f.val := by scalar_tac
     obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r3, st1⟩ := p
     cases r3 with
-    | Err e => simp at h
+    | Err e =>
+      -- move 1: the rule stage threw (`checker_base::check_proj_rule`)
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact ErrSim.trans
+        (hcb.checkProjRuleErr st fe2 pty cvj lps n_p n_f i e st1 hst hfe hptywf
+          hcvjwf hlps hp lst lfe hrel hfer)
+        (fun le hle =>
+          checkProjFnS_rule_err (hlk lst) (hty lst) hshape hlt hle)
     | Ok rhs_a =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, hrhswf⟩ :=
       hcb.checkProjRule st fe2 pty cvj lps n_p n_f i rhs_a st1 hst hfe hptywf
         hcvjwf hlps hp lst lfe hrel hfer
+    have hcname : absName cvj.name = absName ctor_name := by
+      exact FEnv.canon_find_name hcan hfer hc hfindc
     obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r4, st2⟩ := p2
     cases r4 with
-    | Err e => simp at h
+    | Err e =>
+      -- move 1: the iota stage threw
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact ErrSim.trans
+        (check_proj_iota_refines hw hcb hspines hcname hwf1 hfe hfe ht hc hlps
+          hcvjwf hp2 lst1 lfe lfe hrel1 hfer hfer rfl)
+        (fun le hle =>
+          checkProjFnS_iota_err (hlk lst) (hty lst) hshape hlt hrun1 hle)
     | Ok u2 =>
     cases u2
-    have hcname : absName cvj.name = absName ctor_name := by
-      exact FEnv.canon_find_name hcan hfer hc hfindc
     obtain ⟨lst2, hrun2, hrel2, hwf2⟩ :=
       check_proj_iota_refines hw hcb hspines hcname hwf1 hfe hfe ht hc hlps
         hcvjwf hp2 lst1 lfe lfe hrel1 hfer hfer rfl
