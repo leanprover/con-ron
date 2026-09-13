@@ -91,7 +91,7 @@ many-core machine its first build can exhaust memory, and
 
 The one command a contributor runs before committing is
 `scripts/gates.sh`
-([the seven steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L51-L57)):
+([the eight steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L51-L58)):
 the Rust build and tests with warnings denied, the style lint (§3.6),
 the provenance check (§4), the embedded-pins check, the extraction check
 (the committed Lean model must be what Charon and Aeneas produce from the
@@ -367,7 +367,7 @@ design: the Rust may fail where con-leche does not, never the reverse on
 an accept.
 
 The knot is stated as one proposition indexed by the fuel
-([`KnotSpec` in `Statements.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Core/Statements.lean#L191-L196)):
+([`KnotSpec` in `Statements.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Core/Statements.lean#L191-L194)):
 the six wrappers at fuel `n` refine con-leche's knot at `n`, and the six
 bodies at `n` refine con-leche's bodies applied to that knot.  The
 induction on the fuel
