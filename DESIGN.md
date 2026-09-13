@@ -406,7 +406,8 @@ patches/                 aeneas-433.patch: the Aeneas Lean library on
                          setup-aeneas-lean.sh
 scripts/                 gates.sh (run it before every commit), extract.sh,
                          setup-aeneas-lean.sh, lint-rust-style.sh,
-                         provenance.py, dump-fixtures.sh, diff-fixtures.sh,
+                         provenance.py, overview-links.sh (the link gate,
+                         §7), dump-fixtures.sh, diff-fixtures.sh,
                          diff-frontend.sh (the frontend's byte-exact oracle)
                          and diff-e2e.sh (the whole binary), task #37
 ```
@@ -1097,6 +1098,18 @@ measured.
   bottom.  `--by-upstream` is the same per con-leche file, attributed per
   item, with the helper/infrastructure lines reported as not attributable.
   `gates.sh` prints its `--summary` line after `progress.py`'s.
+* `scripts/overview-links.sh` (task #76) is the **link gate**, ported from
+  con-leche's `tests/overview-links.sh` with the same semantics: it extracts
+  every `https://github.com/<owner>/<repo>/blob/master/<path>#L<a>[-L<b>]`
+  link of `OVERVIEW.md` and of this document, in document order, copies the
+  cited lines into `scripts/overview-links-expected.txt` and diffs.  A moved
+  or edited citation is a diff — re-read the citing paragraph, then
+  `scripts/overview-links.sh --update`; a link that pins a sha, names a file
+  that is gone or overruns it is a hard error.  Paths resolve from the
+  repository root, so con-leche code is cited through the vendored copy
+  (`vendor/con-leche/ConLeche/…`).  No build; `gates.sh` runs it between
+  `provenance` and `gen-pins`.  Until `OVERVIEW.md` exists and while no
+  document carries such a link, it passes trivially.
 * Commit often.  The maintainer pushes and opens PRs (see `CLAUDE.md`).
 * Fable designs and states theorems and reviews; Opus agents port, extract,
   prove and measure.  Delegate anything mechanical.
