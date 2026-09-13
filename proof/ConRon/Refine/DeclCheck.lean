@@ -2868,6 +2868,20 @@ theorem app3_of_spine {e g a0 a1 a2 : ConLeche.Expr}
   rw [← hs]
   simp [ConLeche.Expr.mkAppN]
 
+/-- The cited three-argument pattern's arguments, read back. -/
+theorem getAppArgs_app3_const (c : ConLeche.Name) (lu : ConLeche.Level)
+    (t a b : ConLeche.Expr) :
+    (ConLeche.Expr.app (.app (.app (.const c [lu]) t) a) b).getAppArgs
+      = [t, a, b] := by
+  simp [ConLeche.Expr.getAppArgs]
+
+/-- The cited three-argument pattern's head, read back. -/
+theorem getAppFn_app3_const (c : ConLeche.Name) (lu : ConLeche.Level)
+    (t a b : ConLeche.Expr) :
+    (ConLeche.Expr.app (.app (.app (.const c [lu]) t) a) b).getAppFn
+      = .const c [lu] := by
+  simp [ConLeche.Expr.getAppFn]
+
 /-- `isEqHead` accepted: the head *is* the pinned equality former at one
 level (`CheckerBase.lean:186-189`). -/
 theorem isEqHead_inv {e : ConLeche.Expr} (h : ConLeche.isEqHead e = true) :
@@ -3189,17 +3203,24 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {t ctor_name : name.Name}
     {cvj tcv : env.ConstantVal} {lps : alloc.vec.Vec name.Name}
     {n_p n_f i : Std.U64} {sbody : expr.Expr}
+    {out : core.result.Result Unit core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (ht : NameWF t)
     (hcvj : ConstantValWF cvj) (hlps : NamesWF lps) (htcv : ConstantValWF tcv)
     (hsb : ExprWF sbody) (hcn : absName cvj.name = absName ctor_name)
     (h : inductives.modeled.check_proj_iota_body mode st fe t cvj lps n_p n_f i
-      tcv sbody = ok (.Ok (), st')) :
+      tcv sbody = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (projIotaTail (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+      match out with
+      | .Ok _ =>
+        ∃ lst', (projIotaTail (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+              (absName t) (absName ctor_name) (absConstantVal cvj) (absNames lps)
+              n_p.val n_f.val i.val (absExpr tcv.ty) (absExpr sbody)).run lst
+            = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((projIotaTail (absMode mode) (TypeChecker.lops mode lfe) lfe.env
             (absName t) (absName ctor_name) (absConstantVal cvj) (absNames lps)
-            n_p.val n_f.val i.val (absExpr tcv.ty) (absExpr sbody)).run lst
-          = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+            n_p.val n_f.val i.val (absExpr tcv.ty) (absExpr sbody)).run lst) := by
   intro lst lfe hsr hfr
   rw [inductives.modeled.check_proj_iota_body] at h
   obtain ⟨depth, hdepth, h⟩ := bind_eq_ok_iff.mp h
@@ -3252,10 +3273,24 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
   obtain ⟨head1, shaped⟩ := q
   by_cases hl3 : alloc.vec.Vec.len args = 3#usize
   case neg =>
+    -- `modeled.rs:2129` ← `DeclCheck.lean:825`: a spine of other than three
+    -- arguments is not the cited body pattern
     replace hq := ite_neg_eq (c := (alloc.vec.Vec.len args = 3#usize)) hl3 hq
     simp only [Result.ok.injEq, Prod.mk.injEq] at hq
     obtain ⟨rfl, rfl⟩ := hq
-    simp [bind_eq_ok_iff] at h
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    refine errSim_notImplemented hce rfl (projIotaTail_shape ?_)
+    intro c lu t0 a0 b0 hcon
+    have hlen : args.val.length = 3 := by
+      have hl : (absExpr sbody).getAppArgs = [t0, a0, b0] := by
+        rw [hcon]; exact getAppArgs_app3_const _ _ _ _ _
+      have hL := congrArg List.length (hargabs.trans hl)
+      simpa [absExprs] using hL
+    exact hl3 (by have := alloc.vec.Vec.len_val args; scalar_tac)
   replace hq := ite_pos_eq (c := (alloc.vec.Vec.len args = 3#usize)) hl3 hq
   obtain ⟨en, hen, hq⟩ := bind_eq_ok_iff.mp hq
   obtain ⟨bsh, hbsh, hq⟩ := bind_eq_ok_iff.mp hq
@@ -3269,13 +3304,54 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
     rw [← hargabs, absExprs, hxs]; simp
   by_cases hshd : bsh = true
   case neg =>
+    -- `modeled.rs:2129` ← `DeclCheck.lean:825`: a head that is not a
+    -- one-level constant is not the cited body pattern either
     replace h := ite_neg_eq (c := (bsh = true)) hshd h
-    simp [bind_eq_ok_iff] at h
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    refine errSim_notImplemented hce rfl (projIotaTail_shape ?_)
+    intro c lu t0 a0 b0 hcon
+    obtain ⟨n, us, hkind, huslen⟩ :=
+      const_kind_of_abs (e := head) (c := c) (lu := lu)
+        (by rw [hhdabs, hcon]; exact getAppFn_app3_const _ _ _ _ _)
+    have hene : en = head._0 := (Result.ok_injective hen).symm
+    rw [hene, hkind] at hbsh
+    have hbv : bsh = decide (alloc.vec.Vec.len us = 1#usize) := by
+      simpa using hbsh.symm
+    refine hshd ?_
+    rw [hbv]
+    have := alloc.vec.Vec.len_val us
+    simp only [decide_eq_true_eq]
+    scalar_tac
   replace h := ite_pos_eq (c := (bsh = true)) hshd h
   obtain ⟨beq, hbeq, h⟩ := bind_eq_ok_iff.mp h
   have hbeqabs := CheckerBase.is_eq_head_refines hhdwf hbeq
   split at h
-  case isFalse => simp [bind_eq_ok_iff] at h
+  case isFalse =>
+    -- `modeled.rs:2133` ← `DeclCheck.lean:818` (or `:825`, off shape: the two
+    -- cited `throw`s the port's one arm covers are the same kind)
+    rename_i hbeqf
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    by_cases hpat : ∃ (c : ConLeche.Name) (lu : ConLeche.Level)
+        (t0 a0 b0 : ConLeche.Expr),
+        absExpr sbody = .app (.app (.app (.const c [lu]) t0) a0) b0
+    · obtain ⟨c, lu, t0, a0, b0, hpat⟩ := hpat
+      refine errSim_notImplemented hce rfl (projIotaTail_head hpat ?_)
+      intro hceq
+      subst hceq
+      refine hbeqf ?_
+      rw [hbeqabs, hhdabs, hpat, getAppFn_app3_const]
+      simp [ConLeche.isEqHead]
+    · refine errSim_notImplemented hce rfl (projIotaTail_shape ?_)
+      intro c lu t0 a0 b0 hcon
+      exact hpat ⟨c, lu, t0, a0, b0, hcon⟩
   rename_i hbeqt
   rw [hbeqt, hhdabs] at hbeqabs
   obtain ⟨lu, hlu⟩ := isEqHead_inv hbeqabs.symm
@@ -3292,7 +3368,20 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
   have hb1abs := Expr.beq_refines hx1wf hlswf hb1
   rw [he2v] at hb1abs
   split at h
-  case isFalse => simp [bind_eq_ok_iff] at h
+  case isFalse =>
+    -- `modeled.rs:2141` ← `DeclCheck.lean:820`
+    rename_i hb1f
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    refine errSim_notImplemented hce rfl
+      (projIotaTail_redex (lu := lu) (tslot := absExpr x0) hshape ?_)
+    rw [← CheckerBase.decide_eq_beq_expr,
+      show (absConstantVal cvj).levelParams = absNames cvj.level_params from rfl,
+      ← hlsabs, ← hb1abs]
+    simpa using hb1f
   rename_i hb1t
   obtain ⟨e3, he3, h⟩ := bind_eq_ok_iff.mp h
   have he3v : e3 = x2 := by
@@ -3309,14 +3398,44 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
   have hb2abs := Expr.beq_refines hx2wf (Expr.bvar_wf he4) hb2
   rw [Expr.bvar_refines he4, hi3v, he3v] at hb2abs
   split at h
-  case isFalse => simp [bind_eq_ok_iff] at h
+  case isFalse =>
+    -- `modeled.rs:2137` ← `DeclCheck.lean:822`
+    rename_i hb2f
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    refine errSim_notImplemented hce rfl
+      (projIotaTail_field (lu := lu) (tslot := absExpr x0) hshape ?_ ?_)
+    · rw [← CheckerBase.decide_eq_beq_expr,
+        show (absConstantVal cvj).levelParams = absNames cvj.level_params from rfl,
+        ← hlsabs, ← hb1abs]
+      exact hb1t
+    · rw [← CheckerBase.decide_eq_beq_expr, ← hb2abs]
+      simpa using hb2f
   rename_i hb2t
   obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hoabs, howf⟩ := CheckerBase.open_pis_at_fvars_f_refines htcv.2.2 ho
   rw [show ((0#u64 : Std.U64)).val = 0 from rfl, hdv,
     ConLeche.openPisAtFvarsF_eq] at hoabs
   cases o with
-  | none => simp [bind_eq_ok_iff] at h
+  | none =>
+    -- `modeled.rs:2145` ← `DeclCheck.lean:824`
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    refine errSim_notImplemented hce rfl
+      (projIotaTail_telescope (lu := lu) (tslot := absExpr x0) hshape ?_ ?_ ?_)
+    · rw [← CheckerBase.decide_eq_beq_expr,
+        show (absConstantVal cvj).levelParams = absNames cvj.level_params from rfl,
+        ← hlsabs, ← hb1abs]
+      exact hb1t
+    · rw [← CheckerBase.decide_eq_beq_expr, ← hb2abs]
+      exact hb2t
+    · simpa using hoabs.symm
   | some oq =>
     obtain ⟨fvs, sbodyO⟩ := oq
     obtain ⟨hfvswf, hsbowf⟩ := howf (fvs, sbodyO) rfl
@@ -3330,22 +3449,36 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨hr2abs, hr2wf⟩ := arg_get_d_refines htowf hr2
     obtain ⟨la, hla2, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hlaabs2, hlawf2⟩ := CheckerBase.eq_head_level_refines hhdwf hla2
-    obtain ⟨lst', hrun, hsr', hsw'⟩ :=
-      check_iota_sides_ty_refines hfuel hk hsw hfw halwf hl2wf hr2wf hlawf2 h
-        lst lfe (ConLeche.projModelName (absName t) i.val) hsr hfr
-    refine ⟨lst', ?_, hsr', hsw'⟩
-    rw [hdv, halabs, hl2abs, hr2abs, htoabs] at hrun
+    have hres := check_iota_sides_ty_refines hfuel hk hsw hfw halwf hl2wf hr2wf
+      hlawf2 h lst lfe (ConLeche.projModelName (absName t) i.val) hsr hfr
     rw [hhdabs, hlu] at hlaabs2
-    rw [hlaabs2] at hrun
-    refine projIotaTail_run (lu := lu) (tslot := absExpr x0)
-      (fvs := absExprs fvs) (sbodyO := absExpr sbodyO) hshape ?_ ?_ ?_ hrun
-    · rw [← CheckerBase.decide_eq_beq_expr,
-        show (absConstantVal cvj).levelParams = absNames cvj.level_params from rfl,
-        ← hlsabs, ← hb1abs]
-      exact hb1t
-    · rw [← CheckerBase.decide_eq_beq_expr, ← hb2abs]
-      exact hb2t
-    · simpa using hoabs.symm
+    cases out with
+    | Ok u =>
+      obtain ⟨lst', hrun, hsr', hsw'⟩ := hres
+      refine ⟨lst', ?_, hsr', hsw'⟩
+      rw [hdv, halabs, hl2abs, hr2abs, htoabs] at hrun
+      rw [hlaabs2] at hrun
+      refine projIotaTail_run (lu := lu) (tslot := absExpr x0)
+        (fvs := absExprs fvs) (sbodyO := absExpr sbodyO) hshape ?_ ?_ ?_ hrun
+      · rw [← CheckerBase.decide_eq_beq_expr,
+          show (absConstantVal cvj).levelParams = absNames cvj.level_params from rfl,
+          ← hlsabs, ← hb1abs]
+        exact hb1t
+      · rw [← CheckerBase.decide_eq_beq_expr, ← hb2abs]
+        exact hb2t
+      · simpa using hoabs.symm
+    | Err e =>
+      refine ErrSim.trans hres (fun le hle => ?_)
+      rw [hdv, halabs, hl2abs, hr2abs, htoabs, hlaabs2] at hle
+      refine projIotaTail_sides_err (lu := lu) (tslot := absExpr x0)
+        (fvs := absExprs fvs) (sbodyO := absExpr sbodyO) hshape ?_ ?_ ?_ hle
+      · rw [← CheckerBase.decide_eq_beq_expr,
+          show (absConstantVal cvj).levelParams = absNames cvj.level_params from rfl,
+          ← hlsabs, ← hb1abs]
+        exact hb1t
+      · rw [← CheckerBase.decide_eq_beq_expr, ← hb2abs]
+        exact hb2t
+      · simpa using hoabs.symm
 
 /-- `ConLeche/Kernel/DeclCheck.lean:797-836 checkProjIotaF` (and
 `Inductives/Modeled.lean:513-563 checkProjIota`, the generic twin) —
