@@ -91,42 +91,71 @@ that owns each — nothing is weakened this way.
 
 ## What is proved
 
-Twenty-one items are proved outright: `native_caps_at`'s default arm and the
-whole `caps_of` dictionary bridge on top of it, the five `Bool` index
-recursions of the capability record (`kinds_any_rec_from`,
+**Every item: no `sorry` and no `axiom`.**  The capability record and the
+driver: `native_caps_at` (both arms) and the `caps_of` dictionary bridge on top
+of it, the five `Bool` index recursions (`kinds_any_rec_from`,
 `native_is_rec_from`, `native_is_rec`, `native_caps`, `dom_mentions_from`),
-`leaves_any_from` and `mentions_fvar_spec`, `mentions_fvar_ins`'s memo
-preservation and `mentions_fvar` (modulo the walk), the three `all`/`any`
-loops of the opened re-check (`all_resolve_from`, `all_annots_resolve_from`,
-`no_later_mentions_from`), `term_scoped`, `kind_list_any_from`,
-`kinds_any_from`, `elim_restriction_violated`, `check_native_cons`,
-`ctor_names_from`/`ctor_names`, `level::name_nodup`, and the two compositions
-`check_native_pass` / `check_native_tail` (each from its halves).
+`native_raw_rec`, `ctor_names_from`/`ctor_names`, `level::name_nodup` and
+`check_native`.  The `mentionsFvar` family: `leaves_any_from`,
+`mentions_fvar_spec`, `mentions_fvar_ins`'s memo preservation, the memoized
+walk's mutual pair (`mentions_fvar_go`, `mentions_fvar_node`) and
+`mentions_fvar`.  The opened re-check: the three `all`/`any` loops
+(`all_resolve_from`, `all_annots_resolve_from`, `no_later_mentions_from`),
+`native_opened_recursive`, `native_opened_reflexive`,
+`native_opened_fields_from`, `native_opened_ok`, `native_fields_ok_from` and
+`native_fields_ok`.  The pass: `rec_ctor_kinds_all`, `kind_list_any_from`,
+`kinds_any_from`, `classify_fix_kinds`, `check_native_pass_former`,
+`check_native_pass_ctors` and `check_native_pass`.  The tail:
+`elim_restriction_violated`, `check_native_tail_guards`, `check_native_cons`,
+`check_native_install` and `check_native_tail`.  The recursor stage:
+`term_scoped`, `check_native_rules`, `check_native_rec_rules`,
+`check_native_rec` and `check_native_table`.  And the two `do`-block identities
+`checkNativePassS_eq` / `checkNativeTailS_eq`.
 
-## `sorry` count
+## Two side conditions that are *not* slack
 
-23 `sorry`s, each noted at its site: `native_caps_at`'s one-constructor arm,
-`native_raw_rec`, the memoized `mentionsFvar` walk's mutual pair
-(`mentions_fvar_go`, `mentions_fvar_node`), the six opened-re-check stages
-above the three proved loops (`native_opened_recursive`,
-`native_opened_reflexive`, `native_opened_fields_from`, `native_opened_ok`,
-`native_fields_ok_from`, `native_fields_ok`), the recursor stage's four
-(`check_native_rules`, `check_native_rec_rules`, `check_native_rec`,
-`check_native_table`), `rec_ctor_kinds_all` and `classify_fix_kinds`, the four
-split halves (`check_native_pass_former`, `check_native_pass_ctors`,
-`check_native_tail_guards`, `check_native_install`), `check_native`, and the
-two `do`-block identities (`checkNativePassS_eq`, `checkNativeTailS_eq`),
-whose two sides differ only by `bind_assoc` across a `throw`-carrying `if`.
-Every statement is the exact-result one and nothing is weakened.
+* **The unrestricted-canonical pair** (`Refine/FEnv.lean`'s `FEnvCanon` /
+  `FEnvFull`).  `fenv::dup` rebuilds the index, so `dup_refines` relates the
+  copy to the *canonical* Lean `FEnv` of the environment; `FEnv.dup_rel`
+  carries the caller's own `lfe` across the copy and needs `FEnvCanon fe` —
+  and the statement is false without it, because `FEnvRel` pins `lfe.idx` only
+  on the image of the well-formed names.  Two stages copy
+  (`check_native_pass_former`, `check_native_rec_rules`), so `FEnvCanon`
+  travels down every route that reaches one, and `FEnvFull` travels with it
+  wherever the pair has to cross a `push` chain (`FEnv.push_canon`):
+  `cons_sum_ctors_canon` below is the tail's, and the pass's is the
+  `CheckSumIndCanon` ingredient.  Callers discharge the pair from
+  `FEnv.mk_fenv_canon` / `FEnv.dup_canon`: every index the install routes build
+  is `mk_fenv`/`dup` followed by pushes, and `restrict_to` — the only thing
+  that hides — is never called between a copy and its pushes.
+* **The `u64 → usize` cast** (`Refine/Scalars.lean`).  Wherever the port reads
+  `v[i as usize]` and the cited code reads `v[i]?`, the two agree exactly when
+  `i.val ≤ Std.Usize.max`, so `native_opened_fields_from_refines` takes
+  `i.val ≤ Std.Usize.max` and the two per-field arms
+  (`native_opened_recursive`, `native_opened_reflexive`) take
+  `n_p.val ≤ Std.Usize.max` and `i.val + 1 ≤ Std.Usize.max`; all four are
+  discharged inside this file, from the opened telescopes' `Vec`s and at
+  `native_opened_ok`'s entry reading `i = 0`.  The ingredients
+  `KindGetDRefines` and `CheckStructFieldSortsIRefines` carry their owners'
+  form of the same bound; `StructProjGuardsRefines` does not need one (its
+  owner discharges the cast off the `n_f`-long table its own walk builds),
+  which is what lets `check_native_table` — whose single constructor's field
+  count has no `Vec` in hand — go through.  The recursor generators'
+  `RecPosWF` (`StructRecTyRRefines`, `StructRecRhsRRefines`) is the same story
+  at the recursive *positions*: they index the constructor's telescope at
+  `(n_p + i) as usize`.  It travels as `KindsFitCtors` from
+  `check_native_tail_guards` — whose `native_fields_ok` checks
+  `kinds[j].len == ctors_a[j].2` — through the tail and the install to
+  `native_ctors4`, which is where it becomes `RecPosWF` of the four-tuple view,
+  so nothing leaks past `check_native_tail`.  `StructRecRhsRRefines` carries
+  one more of the same, `j.val ≤ Std.Usize.max`, for its own `ctors[j as
+  usize]`; `check_native_rules` discharges it off the counters' invariant
+  `j + k = ctors.len()`.
 
-One `sorry` hides a **missing bridge rather than missing work**:
-`check_native_pass_former` copies the index with `fenv::dup`, and
-`Refine/FEnv.lean`'s `dup_refines` relates the copy to
-`(mkFEnv (absEnv fe.env)).restrictTo fe.visible_below.val`, not to the `lfe`
-the caller holds — con-leche's `checkNativePassS` passes its own `fe`, which is
-persistent, so the composition needs `FEnvRel fe lfe → FEnvRel (dup fe) lfe`.
-`check_native_rec_rules` has the same shape.  That lemma belongs in
-`Refine/FEnv.lean`.
+`openPisAtFvars_len`, `dup_full` and `cons_sum_ctors_canon` are proved locally:
+con-leche has the first in `Model/Inductives/StructBits.lean`, which this file
+does not import, and the other two are one `rw` each off `Refine/FEnv.lean`'s
+`dup`/`push_canon`.
 -/
 import ConRon.Refine.IndAbs
 import ConRon.Refine.IndSumParts
@@ -161,6 +190,29 @@ def Ctors4WF
     Prop :=
   ∀ c ∈ cs.val, NameWF c.1 ∧ ExprWF c.2.2.1
 
+/-- **The classification's kind list is no longer than the field count.**
+`native_ctors4` takes the recursive positions off `kinds[i]` and the field
+count off `ctors_a[i]`, so this is what makes `RecPosWF` of its output true;
+`check_native_tail_guards`' `native_fields_ok` establishes it (with equality)
+before the recursor stage runs. -/
+def KindsFitCtors (ctors_a : alloc.vec.Vec (env.ConstantVal × Std.U64))
+    (kinds : alloc.vec.Vec (alloc.vec.Vec inductives.native_parts.RecFieldKind)) :
+    Prop :=
+  ∀ (i : Nat) (hi : i < ctors_a.val.length) (hk : i < kinds.val.length),
+    kinds.val[i].val.length ≤ ctors_a.val[i].2.val
+
+/-- **Every recorded recursive position of a `nativeCtors4` view is a field
+index.**  `native_parts`'s two generators read the field at `(n_p + i) as
+usize` off the constructor's telescope; the cast is the identity exactly here
+(`Refine/Scalars.lean`), and without it a wrapped position would land in range
+where the cited `cbs.getD (nP + i)` answers `default`.  It is `nativeCtors4`'s
+own property once the classification's kind list is as long as the field count,
+which `check_native_tail_guards`' `native_fields_ok` is what checks. -/
+def RecPosWF
+    (cs : alloc.vec.Vec (name.Name × Std.U64 × expr.Expr × alloc.vec.Vec Std.U64)) :
+    Prop :=
+  ∀ c ∈ cs.val, ∀ x ∈ c.2.2.2.val, x.val ≤ c.2.1.val
+
 /-! ## The ingredients this file does not own
 
 Each is the exact-result refinement of one sibling's item, named here so that
@@ -190,7 +242,11 @@ def ParamsOfRefines : Prop :=
     absLevels us = (absNames lps).map ConLeche.Level.param ∧ LevelsWF us
 
 /-- `struct_parts::struct_proj_guards` refines `structProjGuards`
-(`StructParts.lean:649-656`).  **Owned by `Refine/IndStructParts.lean`.** -/
+(`StructParts.lean:649-656`).  **Owned by `Refine/IndStructParts.lean`.**
+No `n_f.val ≤ Std.Usize.max` side condition: the owner discharges the cast
+internally, off the `n_f`-long `used` table its own walk builds, so this
+ingredient does not have to carry it — and `check_native_table`, whose single
+constructor's field count has no `Vec` in hand, could not supply one. -/
 def StructProjGuardsRefines : Prop :=
   ∀ (cty : expr.Expr) (n_p n_f : Std.U64) (sorts g : alloc.vec.Vec level.Level),
     ExprWF cty → LevelsWF sorts →
@@ -207,10 +263,15 @@ def RecFieldKindBeqRefines : Prop :=
     c = (IndAbs.absRecFieldKind a == IndAbs.absRecFieldKind b)
 
 /-- `native_parts::kind_get_d` is `ks.getD i .ordinary`
-(`NativeInstallF.lean:31`).  **Owned by `Refine/IndNativeParts.lean`.** -/
+(`NativeInstallF.lean:31`).  **Owned by `Refine/IndNativeParts.lean`.**
+The index's `i.val ≤ Std.Usize.max` is the owner's own side condition
+(`Refine/Scalars.lean`: the port reads `ks[i as usize]`, and the cast wraps on
+a 32-bit target), not slack; callers discharge it from the `Vec` the counter
+came from. -/
 def KindGetDRefines : Prop :=
   ∀ (ks : alloc.vec.Vec inductives.native_parts.RecFieldKind) (i : Std.U64)
     (k : inductives.native_parts.RecFieldKind),
+    i.val ≤ Std.Usize.max →
     inductives.native_parts.kind_get_d ks i = ok k →
     IndAbs.absRecFieldKind k = (IndAbs.absRecFieldKinds ks).getD i.val .ordinary
 
@@ -264,20 +325,27 @@ def NativeCtors4Refines : Prop :=
   ∀ (ctors_a : alloc.vec.Vec (env.ConstantVal × Std.U64))
     (kinds : alloc.vec.Vec (alloc.vec.Vec inductives.native_parts.RecFieldKind))
     (r : alloc.vec.Vec (name.Name × Std.U64 × expr.Expr × alloc.vec.Vec Std.U64)),
-    (∀ c ∈ ctors_a.val, ConstantValWF c.1) →
+    (∀ c ∈ ctors_a.val, ConstantValWF c.1) → KindsFitCtors ctors_a kinds →
     inductives.native_parts.native_ctors4 ctors_a kinds = ok r →
     absCtors4 r = ConLeche.nativeCtors4 (IndAbs.absCtors ctors_a)
         (IndAbs.absKindss kinds)
-      ∧ Ctors4WF r
+      ∧ Ctors4WF r ∧ RecPosWF r
 
 /-- `native_parts::struct_rec_ty_r` refines `structRecTyR`
-(`NativeParts.lean:349-366`).  **Owned by `Refine/IndNativeParts.lean`.** -/
+(`NativeParts.lean:349-366`).  **Owned by `Refine/IndNativeParts.lean`.**
+`RecPosWF ctors` — every recorded recursive *position* is a field index — is
+the owner's own side condition (`Refine/Scalars.lean`: the port reads the
+field at `(n_p + i) as usize`, so on a 32-bit target a wrapped position lands
+in range where the cited `cbs.getD (nP + i)` answers `default`), not slack.
+`check_native_tail_guards`' `native_fields_ok` is what establishes it, and the
+tail carries it from there to the recursor stage. -/
 def StructRecTyRRefines : Prop :=
   ∀ (t : name.Name) (lps : alloc.vec.Vec name.Name) (elim : name.Name)
     (large : Bool) (n_p n_idx : Std.U64) (tty : expr.Expr)
     (ctors : alloc.vec.Vec (name.Name × Std.U64 × expr.Expr × alloc.vec.Vec Std.U64))
     (o : Option expr.Expr),
     NameWF t → NamesWF lps → NameWF elim → ExprWF tty → Ctors4WF ctors →
+    RecPosWF ctors →
     inductives.native_parts.struct_rec_ty_r t lps elim large n_p n_idx tty ctors
         = ok o →
     o.map absExpr = ConLeche.structRecTyR (absName t) (absNames lps) (absName elim)
@@ -285,7 +353,15 @@ def StructRecTyRRefines : Prop :=
       ∧ ∀ e, o = some e → ExprWF e
 
 /-- `native_parts::struct_rec_rhs_r` refines `structRecRhsR`
-(`NativeParts.lean:368-388`).  **Owned by `Refine/IndNativeParts.lean`.** -/
+(`NativeParts.lean:368-388`).  **Owned by `Refine/IndNativeParts.lean`.**
+`RecPosWF ctors` is the same side condition `StructRecTyRRefines` carries, for
+the same reason, and `j.val ≤ Std.Usize.max` is one more of the same kind
+(`Refine/Scalars.lean`): the port guards on `(j as usize) >= ctors.len()` and
+then reads `ctors[j as usize]`, where the cited `structRecRhsR` reads
+`ctors[j]?`, so a wrapped `j` would name a constructor the cited code answers
+`none` at.  `check_native_rules` discharges it — its counters satisfy
+`j + k = ctors.len()`, so a step that still has rules left has
+`j < ctors.len()`. -/
 def StructRecRhsRRefines : Prop :=
   ∀ (t : name.Name) (lps : alloc.vec.Vec name.Name) (elim : name.Name)
     (large : Bool) (n_p n_idx : Std.U64) (tty : expr.Expr)
@@ -293,7 +369,7 @@ def StructRecRhsRRefines : Prop :=
     (rec_c : name.Name) (rlvls : alloc.vec.Vec level.Level) (j : Std.U64)
     (o : Option expr.Expr),
     NameWF t → NamesWF lps → NameWF elim → ExprWF tty → Ctors4WF ctors →
-    NameWF rec_c → LevelsWF rlvls →
+    RecPosWF ctors → j.val ≤ Std.Usize.max → NameWF rec_c → LevelsWF rlvls →
     inductives.native_parts.struct_rec_rhs_r t lps elim large n_p n_idx tty ctors
         rec_c rlvls j = ok o →
     o.map absExpr = ConLeche.structRecRhsR (absName t) (absNames lps) (absName elim)
@@ -373,6 +449,26 @@ def CheckSumIndRefines : Prop :=
           ∧ StateRel st' lst' ∧ FEnvRel r.1 lfe' ∧ StateWF st' ∧ FEnvWF r.1
           ∧ ConstantValWF r.2.1 ∧ IndAbs.InductiveShapeWF r.2.2
 
+/-- `sum_install::check_sum_ind` keeps the **unrestricted-canonical** pair: the
+former it installs is `fenv::push`ed onto the index it is handed, and
+`FEnv.push_canon` is exactly that step.  The `FEnvWF r.1` premise is how the
+owner reaches `ConstantInfoWF` of the pushed record (off `EnvWF` of the
+*result*, through `FEnv.push_consts`) without dragging the knot,
+`CapsOfRefines` and `InductiveShapeWF` into a statement that mentions no
+abstraction; every caller has it from `CheckSumIndRefines`.  **Owned by
+`Refine/IndSumInstall.lean`.**  `check_native` needs it because the second pass
+and the tail run at the *pass's* index, where both `FEnv.dup_rel` (through
+`check_native_rec_rules`) and `cons_sum_ctors_canon` ask for `FEnvCanon`. -/
+def CheckSumIndCanon : Prop :=
+  ∀ {C : Type} (inst : inductives.sum_install.CapsOf C) (d : C)
+    (st st' : cached.state_c.CState) (fe : fenv.FEnv)
+    (p : inductives.sum_parts.InductiveShape)
+    (r : fenv.FEnv × env.ConstantVal × inductives.sum_parts.InductiveShape),
+    FEnvWF fe → FEnv.FEnvCanon fe → FEnv.FEnvFull fe →
+    inductives.sum_install.check_sum_ind inst mode st fe p d = ok (.Ok r, st') →
+    FEnvWF r.1 →
+    FEnv.FEnvCanon r.1 ∧ FEnv.FEnvFull r.1
+
 /-- `sum_install::check_sum_ctors` refines `checkSumCtorsF`
 (`SumInstallF.lean:131-141`) at its entry reading — index `0`, both
 accumulators empty, which is the only one `check_native_pass_ctors` spells.
@@ -401,12 +497,18 @@ def CheckSumCtorsRefines : Prop :=
         ∧ (∀ c ∈ r.1.val, ConstantValWF c.1) ∧ (∀ us ∈ r.2.val, LevelsWF us)
 
 /-- `sum_install::check_struct_field_sorts_i` refines `checkStructFieldSortsIF`
-(`SumInstallF.lean:46-64`).  **Owned by `Refine/IndSumInstall.lean`.** -/
+(`SumInstallF.lean:46-64`).  **Owned by `Refine/IndSumInstall.lean`.**
+The counter's `j.val ≤ Std.Usize.max` is the owner's own side condition
+(`Refine/Scalars.lean`: the port guards on `(j - 1) as usize >= fvs.len()`,
+i.e. on the *cast*, which wraps on a 32-bit target), not slack;
+`check_native_tail_guards` discharges it from the opened telescope, whose
+`Vec` has length `nP + nIdx`. -/
 def CheckStructFieldSortsIRefines : Prop :=
   ∀ (st st' : cached.state_c.CState) (fe : fenv.FEnv) (is_prop large : Bool)
     (s : level.Level) (n_p : Std.U64) (fvs idx_args : alloc.vec.Vec expr.Expr)
     (j : Std.U64) (r : alloc.vec.Vec level.Level),
     StateWF st → FEnvWF fe → LevelWF s → ExprsWF fvs → ExprsWF idx_args →
+    j.val ≤ Std.Usize.max →
     inductives.sum_install.check_struct_field_sorts_i mode st fe is_prop large s
         n_p fvs idx_args j = ok (.Ok r, st') →
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
@@ -446,6 +548,55 @@ end Ingredients
 
 /-! ## The capability record (`NativeInstall.lean:57-140`) -/
 
+/-- An `Except.ok`'s bind reduces.  `CheckCM` is `StateT CState (Except …)`,
+so `StateT.run_bind` leaves an `Except` bind at an `ok` behind whenever a
+stage's run is rewritten by its refinement. -/
+theorem exceptOk_bind {ε α β : Type} (x : α) (f : α → Except ε β) :
+    (Except.ok x >>= f) = f x := rfl
+
+/-- A lawful `BEq`'s `==` is its `DecidableEq`'s `decide`.  The port's equality
+tests refine to `decide (_ = _)` while the cited code writes `==`; this is the
+one step between the two. -/
+private theorem beq_decide {α : Type} [BEq α] [LawfulBEq α] [DecidableEq α]
+    (a b : α) : (a == b) = decide (a = b) := by
+  by_cases hab : a = b
+  · simp [hab]
+  · simp [hab]
+
+/-- `fenv::dup` keeps the view unrestricted: it copies the environment and the
+visibility counter and rebuilds only the index.  (`Refine/FEnv.lean` has
+`dup_canon` but not this; it is one `rw` of the copy's two fields.) -/
+private theorem dup_full {fe fe' : fenv.FEnv} (hfull : FEnv.FEnvFull fe)
+    (h : fenv.dup fe = ok fe') : FEnv.FEnvFull fe' := by
+  have henv : fe'.env = fe.env := by
+    rw [fenv.dup] at h
+    obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨_, hdup, h⟩ := bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]; exact Env.env_dup_refines hdup
+  have hvb : fe'.visible_below = fe.visible_below := by
+    rw [fenv.dup] at h
+    obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+  unfold FEnv.FEnvFull
+  rw [henv, hvb]
+  exact hfull
+
+/-- A `u64`'s equality with the literal `0` is its value's: the port's
+`p.n_idx == 0` / `p.ctors[0].1 == 0` tests decide on the scalar, the cited
+record's on the abstracted `Nat`. -/
+private theorem decide_u64_eq_zero (x : Std.U64) :
+    decide (x = 0#u64) = (x.val == 0) := by
+  by_cases hx : x.val = 0
+  · have hx0 : x = 0#u64 := by scalar_tac
+    simp [hx0]
+  · have hx0 : x ≠ 0#u64 := by
+      intro hc; exact hx (by rw [hc]; rfl)
+    simp [hx0, hx]
+
+
 /-- `ConLeche/Kernel/Inductives/NativeInstall.lean:59-98` — `native_caps_at`
 refines `nativeCapsAt`: at a one-constructor block the η / unit-like / rule-K
 record at the given `is_rec` verdict, at any other block the default one.
@@ -460,7 +611,75 @@ theorem native_caps_at_refines {p : inductives.sum_parts.InductiveShape}
   split at h
   · -- the one-constructor arm: the two `n_idx == 0` tests, the field count,
     -- `name::dup` and `level::zeroness_of`, against the cited record literal
-    sorry
+    rename_i hlen
+    have hlen1 : p.ctors.val.length = 1 := by
+      have := alloc.vec.Vec.len_val p.ctors; scalar_tac
+    obtain ⟨c0, hc0⟩ := List.length_eq_one_iff.mp hlen1
+    obtain ⟨cv0, n0⟩ := c0
+    have hget : p.ctors.val[(0#usize : Std.Usize).val]? = some (cv0, n0) := by
+      rw [hc0]; rfl
+    have hidx : alloc.vec.Vec.index
+        (core.slice.index.SliceIndexUsizeSlice (env.ConstantVal × Std.U64))
+        p.ctors 0#usize = ok (cv0, n0) := by
+      rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize,
+        show p.ctors[(0#usize : Std.Usize).val]?
+          = p.ctors.val[(0#usize : Std.Usize).val]? from rfl,
+        hget]
+    have habsc : (IndAbs.absInductiveShape p).ctors
+        = [(absConstantVal cv0, n0.val)] := by
+      simp [IndAbs.absInductiveShape, IndAbs.absCtors, hc0]
+    simp only [hidx, name_dup_eq, bind_tc_ok] at h
+    simp only [ConLeche.nativeCapsAt, habsc]
+    replace h : (do
+        let (rule_k, eta) ← (if p.n_idx = 0#u64 then
+            (if p.is_prop = true then ok (true, false)
+             else ok (false, decide (¬ (is_rec = true))))
+          else ok (p.is_prop, false))
+        let unitlike ← (if p.n_idx = 0#u64 then ok (decide (n0 = 0#u64)) else ok false)
+        let rule_k1 ← (if n0 = 0#u64 then ok rule_k else ok false)
+        let pw ← level.zeroness_of p.res_sort
+        ok ({ eta := eta, eta_ctor := cv0.name, eta_params := p.n_p, eta_fields := n0,
+              unitlike := unitlike, unit_params := p.n_p, rule_k := rule_k1,
+              sort_z := pw } : env.IndCaps)) = ok c := h
+    have hfst : (if p.n_idx = 0#u64 then
+          (if p.is_prop = true then ok (true, false)
+           else ok (false, decide (¬ (is_rec = true))))
+        else ok (p.is_prop, false))
+        = (ok (p.is_prop, decide (p.n_idx = 0#u64) && !p.is_prop && !is_rec)
+            : Result (Bool × Bool)) := by
+      by_cases h1 : p.n_idx = 0#u64 <;> by_cases h2 : p.is_prop = true <;> simp [h1, h2]
+    rw [hfst] at h
+    simp only [bind_tc_ok] at h
+    replace h : (do
+        let unitlike ← (if p.n_idx = 0#u64 then ok (decide (n0 = 0#u64)) else ok false)
+        let rule_k1 ← (if n0 = 0#u64 then ok p.is_prop else ok false)
+        let pw ← level.zeroness_of p.res_sort
+        ok ({ eta := decide (p.n_idx = 0#u64) && !p.is_prop && !is_rec,
+              eta_ctor := cv0.name, eta_params := p.n_p, eta_fields := n0,
+              unitlike := unitlike, unit_params := p.n_p, rule_k := rule_k1,
+              sort_z := pw } : env.IndCaps)) = ok c := h
+    have hsnd : (if p.n_idx = 0#u64 then ok (decide (n0 = 0#u64)) else ok false)
+        = (ok (decide (p.n_idx = 0#u64) && decide (n0 = 0#u64)) : Result Bool) := by
+      by_cases h1 : p.n_idx = 0#u64 <;> simp [h1]
+    have hthd : (if n0 = 0#u64 then ok p.is_prop else ok false)
+        = (ok (decide (n0 = 0#u64) && p.is_prop) : Result Bool) := by
+      by_cases h1 : n0 = 0#u64 <;> simp [h1]
+    rw [hsnd, hthd] at h
+    simp only [bind_tc_ok] at h
+    obtain ⟨pw, hpw, hc⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hzabs, hzwf⟩ := ExprOps.zeroness_of_refines hp.2.2.2.2.1 pw hpw
+    have hcvwf : ConstantValWF cv0 := hp.2.1 (cv0, n0) (by rw [hc0]; simp)
+    have hceq : c =
+        { eta := decide (p.n_idx = 0#u64) && !p.is_prop && !is_rec,
+          eta_ctor := cv0.name, eta_params := p.n_p, eta_fields := n0,
+          unitlike := decide (p.n_idx = 0#u64) && decide (n0 = 0#u64),
+          unit_params := p.n_p, rule_k := decide (n0 = 0#u64) && p.is_prop,
+          sort_z := pw } :=
+      (Result.ok_injective hc).symm
+    subst hceq
+    refine ⟨?_, hcvwf.1, hzwf⟩
+    simp [absIndCaps, IndAbs.absInductiveShape, absConstantVal, decide_u64_eq_zero,
+      hzabs]
   · -- any other block: the default record
     rename_i hlen
     have hne : p.ctors.val.length ≠ 1 := by
@@ -708,7 +927,71 @@ theorem native_raw_rec_refines {p : inductives.native_parts.NativeParts}
     b = ConLeche.nativeRawRec (IndAbs.absNativeParts p) := by
   -- the `len == 1` / `| [c] =>` meeting point, `expr_ops::strip_pis`, then
   -- `dom_mentions_from_refines` at the `nP` cursor
-  sorry
+  rw [inductives.native_install.native_raw_rec] at h
+  split at h
+  · rename_i hlen
+    have hlen1 : p.shape.ctors.val.length = 1 := by
+      have := alloc.vec.Vec.len_val p.shape.ctors; scalar_tac
+    obtain ⟨c0, hc0⟩ := List.length_eq_one_iff.mp hlen1
+    obtain ⟨cv0, n0⟩ := c0
+    have hget : p.shape.ctors.val[(0#usize : Std.Usize).val]? = some (cv0, n0) := by
+      rw [hc0]; rfl
+    have hidx : alloc.vec.Vec.index
+        (core.slice.index.SliceIndexUsizeSlice (env.ConstantVal × Std.U64)) p.shape.ctors
+        0#usize = ok (cv0, n0) := by
+      rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize,
+        show p.shape.ctors[(0#usize : Std.Usize).val]?
+          = p.shape.ctors.val[(0#usize : Std.Usize).val]? from rfl, hget]
+    have habsc : (IndAbs.absNativeParts p).ctors = [(absConstantVal cv0, n0.val)] := by
+      simp [IndAbs.absNativeParts, IndAbs.absInductiveShape, IndAbs.absCtors, hc0]
+    simp only [hidx, lift_eq, bind_tc_ok] at h
+    simp only [ConLeche.nativeRawRec, habsc]
+    replace h : (do
+        let i2 ← p.shape.n_p + n0
+        let o ← expr_ops.strip_pis i2 cv0.ty
+        match o with
+        | none => ok false
+        | some q =>
+            inductives.native_install.dom_mentions_from p.shape.cv_t.name q.1
+              (Std.UScalar.cast .Usize p.shape.n_p)) = ok b := h
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    have hi2v : i2.val = p.shape.n_p.val + n0.val := HashMap.uscalar_add_eq hi2
+    have hcvwf : ConstantValWF cv0 := hp.2.1 (cv0, n0) (by rw [hc0]; simp)
+    obtain ⟨habs, hwf⟩ := ExprOps.strip_pis_refines hcvwf.2.2 ho
+    have hnp : (IndAbs.absNativeParts p).nP = p.shape.n_p.val := rfl
+    have hty : (absConstantVal cv0).type = absExpr cv0.ty := rfl
+    have hcvt : (IndAbs.absNativeParts p).cvT.name = absName p.shape.cv_t.name := rfl
+    rw [hnp, hty, ← hi2v, ← habs, hcvt]
+    cases o with
+    | none => simpa using (Result.ok_injective h).symm
+    | some q =>
+      obtain ⟨hbwf, -⟩ := hwf q rfl
+      have hqlen : (ExprOps.absBinders q.1).length = i2.val :=
+        ConLeche.Expr.stripPis_length _ habs.symm
+      have hqlen' : q.1.val.length = i2.val := by
+        simpa [ExprOps.absBinders] using hqlen
+      have hle : p.shape.n_p.val ≤ q.1.val.length := by omega
+      have hcast : (Std.UScalar.cast .Usize p.shape.n_p : Std.Usize).val
+          = p.shape.n_p.val := Scalars.cast_val_of_le_len hle
+      rw [Option.map_some]
+      simpa [hcast] using
+        dom_mentions_from_refines hmc hp.1.1 hbwf h
+  · rename_i hlen
+    have hne : p.shape.ctors.val.length ≠ 1 := by
+      have := alloc.vec.Vec.len_val p.shape.ctors; scalar_tac
+    have habs : ConLeche.nativeRawRec (IndAbs.absNativeParts p) = false := by
+      rw [ConLeche.nativeRawRec]
+      rcases hl : (IndAbs.absNativeParts p).ctors with _ | ⟨a, rest⟩
+      · rfl
+      · rcases rest with _ | ⟨b1, bs⟩
+        · exfalso
+          apply hne
+          have hone : (IndAbs.absNativeParts p).ctors.length = 1 := by rw [hl]; simp
+          simpa [IndAbs.absNativeParts, IndAbs.absInductiveShape, IndAbs.absCtors]
+            using hone
+        · rfl
+    rw [habs, ← Result.ok_injective h]
 
 /-! ## `Expr.mentionsFvar` and its memoized walk
 (`NativeInstall.lean:139-141`, `:214-257`, `:379-386`) -/
@@ -817,6 +1100,312 @@ theorem mentions_fvar_ins_pres {q : Std.U64}
   subst hmm
   exact ExprOps.MemoInv.set ExprOps.expr_key_exact hm he hr hins
 
+/-- An `ok` pair equation, split. -/
+private theorem pair_ok {A B : Type} {a a' : A} {b b' : B}
+    (h : (ok (a, b) : Result (A × B)) = ok (a', b')) : a = a' ∧ b = b' :=
+  ⟨congrArg Prod.fst (Result.ok_injective h),
+   congrArg Prod.snd (Result.ok_injective h)⟩
+
+/-- "`mentions_fvar_go` answers `Expr.mentionsFvar` at this node and keeps the
+memo invariant" — the walk's half of the mutual induction. -/
+private def MFGoOK (q : Std.U64) (e : expr.Expr) : Prop :=
+  ∀ (memo memo' : ron.hashmap.HashMap expr.Expr Bool) (r : Bool),
+    ExprOps.MemoInv ExprWF absExpr (MFQ q.val) memo →
+    inductives.native_install.mentions_fvar_go q memo e = ok (r, memo') →
+    r = (absExpr e).mentionsFvar q.val
+      ∧ ExprOps.MemoInv ExprWF absExpr (MFQ q.val) memo'
+
+/-- The same for the miss branch's `mentions_fvar_node`. -/
+private def MFNodeOK (q : Std.U64) (e : expr.Expr) : Prop :=
+  ∀ (memo memo' : ron.hashmap.HashMap expr.Expr Bool) (r : Bool),
+    ExprOps.MemoInv ExprWF absExpr (MFQ q.val) memo →
+    inductives.native_install.mentions_fvar_node q memo e = ok (r, memo') →
+    r = (absExpr e).mentionsFvar q.val
+      ∧ ExprOps.MemoInv ExprWF absExpr (MFQ q.val) memo'
+
+/-- The probe-and-record step the six rebuilding arms of `mentions_fvar_go`
+share: a hit is a correct answer (`MemoInv.hit`, over `Expr.beq`'s exactness)
+and a miss recurses and writes the answer back (`mentions_fvar_ins_pres`). -/
+private theorem mfv_probe_step {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
+    (hnode : MFNodeOK q e)
+    {memo memo' : ron.hashmap.HashMap expr.Expr Bool} {o : Option Bool} {r : Bool}
+    (hm : ExprOps.MemoInv ExprWF absExpr (MFQ q.val) memo)
+    (h : (match o with
+          | none => do
+              let (r, memo1) ← inductives.native_install.mentions_fvar_node q memo e
+              let memo2 ← inductives.native_install.mentions_fvar_ins memo1 e r
+              ok (r, memo2)
+          | some r => ok (r, memo)) = ok (r, memo'))
+    (hprobe : inductives.struct_parts.memo_eb_get memo e = ok o) :
+    r = (absExpr e).mentionsFvar q.val
+      ∧ ExprOps.MemoInv ExprWF absExpr (MFQ q.val) memo' := by
+  cases o with
+  | some r0 =>
+    obtain ⟨hr, hmm⟩ := pair_ok h
+    have hq : MFQ q.val (absExpr e) r0 :=
+      ExprOps.MemoInv.hit ExprOps.expr_key_exact hm he (memo_eb_get_hit hprobe)
+    rw [← hr, ← hmm]
+    exact ⟨hq, hm⟩
+  | none =>
+    obtain ⟨p, hnd, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r1, memo1⟩ := p
+    obtain ⟨hr1, hm1⟩ := hnode memo memo1 r1 hm hnd
+    obtain ⟨memo2, hins, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hr, hmm⟩ := pair_ok h
+    rw [← hr, ← hmm]
+    exact ⟨hr1, mentions_fvar_ins_pres hm1 he hr1 hins⟩
+
+/-- `ConLeche/Kernel/Inductives/NativeInstall.lean:221-257` — **the memoized
+`mentionsFvar` walk**, both halves at once (they are mutually recursive), by
+induction on the `ExprWF` derivation.  This is con-leche's
+`mentionsFvarGo_spec` restated over the port's `&mut HashMap`. -/
+private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e) :
+    MFGoOK q e ∧ MFNodeOK q e := by
+  induction he with
+  | @bvar i e h1 =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.bvar_inv h1
+    constructor <;> intro memo memo' r hm h
+    · rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨hr, hmm⟩ := pair_ok h
+      rw [← hr, ← hmm, hde]
+      exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
+    · rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨hr, hmm⟩ := pair_ok h
+      rw [← hr, ← hmm, hde]
+      exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
+  | @sort u e hu h1 =>
+    obtain ⟨d, bw, -, hde, -, -, -⟩ := Expr.sort_inv h1
+    constructor <;> intro memo memo' r hm h
+    · rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨hr, hmm⟩ := pair_ok h
+      rw [← hr, ← hmm, hde]
+      exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
+    · rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨hr, hmm⟩ := pair_ok h
+      rw [← hr, ← hmm, hde]
+      exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
+  | @lit l e hl h1 =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.lit_inv h1
+    constructor <;> intro memo memo' r hm h
+    · rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨hr, hmm⟩ := pair_ok h
+      rw [← hr, ← hmm, hde]
+      exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
+    · rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨hr, hmm⟩ := pair_ok h
+      rw [← hr, ← hmm, hde]
+      exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
+  | @mk_const n us e hn hus h1 =>
+    obtain ⟨d, bw, -, hde, -, -, -⟩ := Expr.mk_const_inv h1
+    constructor <;> intro memo memo' r hm h
+    · rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨hr, hmm⟩ := pair_ok h
+      rw [← hr, ← hmm, hde]
+      exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
+    · rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨hr, hmm⟩ := pair_ok h
+      rw [← hr, ← hmm, hde]
+      exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
+  | @fvar idx ty e hty h1 ih =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.fvar_inv h1
+    have hewf : ExprWF e := ExprWF.fvar hty h1
+    have habs : absExpr e = .fvar idx.val (absExpr ty) := by rw [hde]; simp
+    have hnode : MFNodeOK q e := by
+      intro memo memo' r hm h
+      rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      rw [habs, ConLeche.Expr.mentionsFvar_fvar]
+      split at h
+      · rename_i hc
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm]
+        refine ⟨?_, hm⟩
+        have hiq : idx.val = q.val := by rw [hc]
+        simp [hiq]
+      · rename_i hc
+        obtain ⟨hb, hm1⟩ := ih.1 memo memo' r hm h
+        refine ⟨?_, hm1⟩
+        have hne : ¬ (idx.val = q.val) := by
+          intro hcc; exact hc (by scalar_tac)
+        simp only [hb, beq_eq_false_iff_ne.mpr hne, Bool.false_or]
+    refine ⟨?_, hnode⟩
+    intro memo memo' r hm h
+    rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+    rw [← hde] at hprobe h
+    exact mfv_probe_step hewf hnode hm h hprobe
+  | @app f a e hf ha h1 ihf iha =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.app_inv h1
+    have hewf : ExprWF e := ExprWF.app hf ha h1
+    have habs : absExpr e = .app (absExpr f) (absExpr a) := by rw [hde]; simp
+    have hnode : MFNodeOK q e := by
+      intro memo memo' r hm h
+      rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b1, memo1⟩ := p1
+      obtain ⟨hb1, hm1⟩ := ihf.1 memo memo1 b1 hm h1'
+      replace h : ((if b1 = true then ok (true, memo1) else _)
+          : Result (Bool × ron.hashmap.HashMap expr.Expr Bool))
+          = ok (r, memo') := h
+      rw [habs, ConLeche.Expr.mentionsFvar_app]
+      split at h
+      · rename_i hc
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, ← hb1, hc]
+        exact ⟨by simp, hm1⟩
+      · rename_i hc
+        simp only [Bool.not_eq_true] at hc
+        obtain ⟨hb2, hm2⟩ := iha.1 memo1 memo' r hm1 h
+        rw [← hb1, hc]
+        exact ⟨by simp [hb2], hm2⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' r hm h
+    rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+    rw [← hde] at hprobe h
+    exact mfv_probe_step hewf hnode hm h hprobe
+  | @lam ty bo m e hty hbo hm0 h1 iht ihb =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.lam_inv h1
+    have hewf : ExprWF e := ExprWF.lam hty hbo hm0 h1
+    have habs : absExpr e = .lam (absExpr ty) (absExpr bo) (absBinderMeta m) := by
+      rw [hde]; simp
+    have hnode : MFNodeOK q e := by
+      intro memo memo' r hm h
+      rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b1, memo1⟩ := p1
+      obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 b1 hm h1'
+      replace h : ((if b1 = true then ok (true, memo1) else _)
+          : Result (Bool × ron.hashmap.HashMap expr.Expr Bool))
+          = ok (r, memo') := h
+      rw [habs, ConLeche.Expr.mentionsFvar_lam]
+      split at h
+      · rename_i hc
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, ← hb1, hc]
+        exact ⟨by simp, hm1⟩
+      · rename_i hc
+        simp only [Bool.not_eq_true] at hc
+        obtain ⟨hb2, hm2⟩ := ihb.1 memo1 memo' r hm1 h
+        rw [← hb1, hc]
+        exact ⟨by simp [hb2], hm2⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' r hm h
+    rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+    rw [← hde] at hprobe h
+    exact mfv_probe_step hewf hnode hm h hprobe
+  | @forall_e ty bo m e hty hbo hm0 h1 iht ihb =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.forall_e_inv h1
+    have hewf : ExprWF e := ExprWF.forall_e hty hbo hm0 h1
+    have habs : absExpr e = .forallE (absExpr ty) (absExpr bo) (absBinderMeta m) := by
+      rw [hde]; simp
+    have hnode : MFNodeOK q e := by
+      intro memo memo' r hm h
+      rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b1, memo1⟩ := p1
+      obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 b1 hm h1'
+      replace h : ((if b1 = true then ok (true, memo1) else _)
+          : Result (Bool × ron.hashmap.HashMap expr.Expr Bool))
+          = ok (r, memo') := h
+      rw [habs, ConLeche.Expr.mentionsFvar_forallE]
+      split at h
+      · rename_i hc
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, ← hb1, hc]
+        exact ⟨by simp, hm1⟩
+      · rename_i hc
+        simp only [Bool.not_eq_true] at hc
+        obtain ⟨hb2, hm2⟩ := ihb.1 memo1 memo' r hm1 h
+        rw [← hb1, hc]
+        exact ⟨by simp [hb2], hm2⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' r hm h
+    rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+    rw [← hde] at hprobe h
+    exact mfv_probe_step hewf hnode hm h hprobe
+  | @let_e ty w bo e hty hw hbo h1 iht ihv ihb =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.let_e_inv h1
+    have hewf : ExprWF e := ExprWF.let_e hty hw hbo h1
+    have habs : absExpr e = .letE (absExpr ty) (absExpr w) (absExpr bo) := by
+      rw [hde]; simp
+    have hnode : MFNodeOK q e := by
+      intro memo memo' r hm h
+      rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b1, memo1⟩ := p1
+      obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 b1 hm h1'
+      replace h : ((if b1 = true then ok (true, memo1) else _)
+          : Result (Bool × ron.hashmap.HashMap expr.Expr Bool))
+          = ok (r, memo') := h
+      rw [habs, ConLeche.Expr.mentionsFvar_letE]
+      split at h
+      · rename_i hc
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, ← hb1, hc]
+        exact ⟨by simp, hm1⟩
+      · rename_i hc
+        simp only [Bool.not_eq_true] at hc
+        obtain ⟨p2, h2', h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨b2, memo2⟩ := p2
+        obtain ⟨hb2, hm2⟩ := ihv.1 memo1 memo2 b2 hm1 h2'
+        replace h : ((if b2 = true then ok (true, memo2) else _)
+            : Result (Bool × ron.hashmap.HashMap expr.Expr Bool))
+            = ok (r, memo') := h
+        split at h
+        · rename_i hc2
+          obtain ⟨hr, hmm⟩ := pair_ok h
+          rw [← hr, ← hmm, ← hb1, ← hb2, hc, hc2]
+          exact ⟨by simp, hm2⟩
+        · rename_i hc2
+          simp only [Bool.not_eq_true] at hc2
+          obtain ⟨hb3, hm3⟩ := ihb.1 memo2 memo' r hm2 h
+          rw [← hb1, ← hb2, hc, hc2]
+          exact ⟨by simp [hb3], hm3⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' r hm h
+    rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+    rw [← hde] at hprobe h
+    exact mfv_probe_step hewf hnode hm h hprobe
+  | @proj s j x e hs hx h1 ih =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.proj_inv h1
+    have hewf : ExprWF e := ExprWF.proj hs hx h1
+    have habs : absExpr e = .proj (absName s) j.val (absExpr x) := by rw [hde]; simp
+    have hnode : MFNodeOK q e := by
+      intro memo memo' r hm h
+      rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨hb1, hm1⟩ := ih.1 memo memo' r hm h
+      rw [habs, ConLeche.Expr.mentionsFvar_proj]
+      exact ⟨hb1, hm1⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' r hm h
+    rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+    rw [← hde] at hprobe h
+    exact mfv_probe_step hewf hnode hm h hprobe
+
 /-- `ConLeche/Kernel/Inductives/NativeInstall.lean:221-257` —
 `mentions_fvar_go` refines `Expr.mentionsFvarGo`, stated against the logical
 `Expr.mentionsFvar` as con-leche's own `mentionsFvarGo_spec` is: the four leaf
@@ -831,10 +1420,7 @@ theorem mentions_fvar_go_refines {q : Std.U64} {e : expr.Expr} (he : ExprWF e) :
       inductives.native_install.mentions_fvar_go q memo e = ok (r, memo') →
       r = (absExpr e).mentionsFvar q.val
         ∧ ExprOps.MemoInv ExprWF absExpr (MFQ q.val) memo' := by
-  -- the induction on the `ExprWF` derivation, ten arms, `MemoInv.hit` at the
-  -- probe and `mentions_fvar_ins_pres` at the write-back; mutual with
-  -- `mentions_fvar_node_refines`
-  sorry
+  exact (mentions_fvar_walk he).1
 
 /-- `ConLeche/Kernel/Inductives/NativeInstall.lean:221-257` —
 `mentions_fvar_node` refines the miss branch's inner `match e with`, split off
@@ -846,8 +1432,7 @@ theorem mentions_fvar_node_refines {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
       inductives.native_install.mentions_fvar_node q memo e = ok (r, memo') →
       r = (absExpr e).mentionsFvar q.val
         ∧ ExprOps.MemoInv ExprWF absExpr (MFQ q.val) memo' := by
-  -- proved with `mentions_fvar_go_refines` in one mutual induction
-  sorry
+  exact (mentions_fvar_walk he).2
 
 /-- `ConLeche/Kernel/Inductives/NativeInstall.lean:379-386` — **the executed
 `mentionsFvar`**: `mentions_fvar` refines the logical `Expr.mentionsFvar`,
@@ -1037,6 +1622,7 @@ theorem native_opened_recursive_refines {fe0 : fenv.FEnv} {lfe0 : ConLeche.FEnv}
     {t : name.Name} {lps : alloc.vec.Vec name.Name} {n_p n_idx i : Std.U64}
     {fvs_p x_fvs : alloc.vec.Vec expr.Expr} {xrest dom : expr.Expr} {b : Bool}
     (hres : StructInstall.ConstsResolveFFastRefines) (hpo : ParamsOfRefines)
+    (hnp : n_p.val ≤ Std.Usize.max) (hi : i.val + 1 ≤ Std.Usize.max)
     (hrel : FEnvRel fe0 lfe0) (hfe : FEnvWF fe0) (ht : NameWF t)
     (hlps : NamesWF lps) (hfp : ExprsWF fvs_p) (hx : ExprsWF x_fvs)
     (hxr : ExprWF xrest) (hdom : ExprWF dom)
@@ -1054,7 +1640,104 @@ theorem native_opened_recursive_refines {fe0 : fenv.FEnv} {lfe0 : ConLeche.FEnv}
   -- `get_app_fn`, `expr::mk_const`/`params_of`, `expr::beq`, `take_exprs`,
   -- `exprs_beq`, the length test, `core_k::drop_exprs`, `all_resolve_from`,
   -- `no_later_mentions_from`, `mentions_fvar`
-  sorry
+  rw [inductives.native_install.native_opened_recursive] at h
+  obtain ⟨head, hhead, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨habsh, hheadwf⟩ := ExprOps.get_app_fn_refines hdom hhead
+  simp only [name_dup_eq, bind_tc_ok, lift_eq] at h
+  obtain ⟨us, hus, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨husabs, huswf⟩ := hpo lps us hlps hus
+  obtain ⟨expected, hexp, h⟩ := bind_eq_ok_iff.mp h
+  have hexpabs := Expr.mk_const_refines hexp
+  have hexpwf : ExprWF expected := ExprWF.mk_const ht huswf hexp
+  obtain ⟨b0, hb0, h⟩ := bind_eq_ok_iff.mp h
+  have hb0v := Expr.beq_refines hheadwf hexpwf hb0
+  rw [habsh, hexpabs, husabs, ← beq_decide] at hb0v
+  split at h
+  · rename_i hb0t
+    rw [hb0t] at hb0v
+    obtain ⟨args, hargs, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hargsabs, hargswf⟩ := ExprOps.get_app_args_refines hdom hargs
+    have hcastp : (Std.UScalar.cast .Usize n_p : Std.Usize).val = n_p.val :=
+      ExprOps.u64_cast_usize_val hnp
+    obtain ⟨v1, htake, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨htabs, htwf⟩ := ExprOps.take_exprs_refines hargswf htake
+    rw [hcastp, hargsabs] at htabs
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v := Env.exprs_beq_refines htwf hfp hb1
+    rw [htabs, ← beq_decide] at hb1v
+    split at h
+    · rename_i hb1t
+      rw [hb1t] at hb1v
+      obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+      have hi4v : i4.val = n_p.val + n_idx.val := HashMap.uscalar_add_eq hi4
+      have hlenv : (Std.UScalar.cast .U64
+          (alloc.vec.Vec.len args) : Std.U64).val
+          = ((absExpr dom).getAppArgs).length := by
+        rw [ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val, ← hargsabs]
+        simp [absExprs]
+      split at h
+      · rename_i hne
+        have hfalse : (((absExpr dom).getAppArgs).length == n_p.val + n_idx.val)
+            = false := by
+          simp only [beq_eq_false_iff_ne, ne_eq, ← hlenv, ← hi4v]
+          intro hc
+          exact (bne_iff_ne.mp hne) (by scalar_tac)
+        rw [← Result.ok_injective h]
+        simp [← hb0v, ← hb1v, hfalse]
+      · rename_i heq
+        have heqv : (Std.UScalar.cast .U64 (alloc.vec.Vec.len args) : Std.U64) = i4 := by
+          by_contra hc
+          exact heq (bne_iff_ne.mpr hc)
+        have htrue : (((absExpr dom).getAppArgs).length == n_p.val + n_idx.val)
+            = true := by
+          simp only [beq_iff_eq, ← hlenv, ← hi4v, heqv]
+        obtain ⟨v2, hdrop, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hdabs2, hdwf2⟩ := CoreK.drop_exprs_refines hargswf hdrop
+        rw [hcastp, hargsabs] at hdabs2
+        obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+        have hb2v := all_resolve_from_refines hres hrel hfe hdwf2 hb2
+        rw [hdabs2, show (0#usize : Std.Usize).val = 0 from rfl,
+          List.drop_zero] at hb2v
+        split at h
+        · rename_i hb2t
+          rw [hb2t] at hb2v
+          obtain ⟨i6, hi6, h⟩ := bind_eq_ok_iff.mp h
+          have hi6v : i6.val = n_p.val + i.val := HashMap.uscalar_add_eq hi6
+          obtain ⟨i7, hi7, h⟩ := bind_eq_ok_iff.mp h
+          have hi7v : i7.val = i.val + 1 := HashMap.uscalar_add_eq hi7
+          have hcasti : (Std.UScalar.cast .Usize i7 : Std.Usize).val = i.val + 1 := by
+            rw [ExprOps.u64_cast_usize_val (by omega), hi7v]
+          obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+          have hb3v := no_later_mentions_from_refines hx hb3
+          rw [hcasti, hi6v] at hb3v
+          split at h
+          · rename_i hb3t
+            rw [hb3t] at hb3v
+            obtain ⟨b4, hb4, h⟩ := bind_eq_ok_iff.mp h
+            have hb4v := mentions_fvar_refines hxr hb4
+            rw [hi6v] at hb4v
+            rw [← Result.ok_injective h]
+            simp [← hb0v, ← hb1v, htrue, ← hb2v, ← hb3v, hb4v]
+          · rename_i hb3f
+            simp only [Bool.not_eq_true] at hb3f
+            rw [hb3f] at hb3v
+            rw [← Result.ok_injective h]
+            simp [← hb0v, ← hb1v, htrue, ← hb2v, ← hb3v]
+        · rename_i hb2f
+          simp only [Bool.not_eq_true] at hb2f
+          rw [hb2f] at hb2v
+          rw [← Result.ok_injective h]
+          simp [← hb0v, ← hb1v, htrue, ← hb2v]
+    · rename_i hb1f
+      simp only [Bool.not_eq_true] at hb1f
+      rw [hb1f] at hb1v
+      rw [← Result.ok_injective h]
+      simp [← hb0v, ← hb1v]
+  · rename_i hb0f
+    simp only [Bool.not_eq_true] at hb0f
+    rw [hb0f] at hb0v
+    rw [← Result.ok_injective h]
+    simp [← hb0v]
 
 /-- `ConLeche/Kernel/Inductives/NativeInstallF.lean:40-56` —
 `native_opened_reflexive` refines the `.reflexive` arm: the field's own
@@ -1065,6 +1748,7 @@ theorem native_opened_reflexive_refines {fe0 : fenv.FEnv} {lfe0 : ConLeche.FEnv}
     {fvs_p x_fvs : alloc.vec.Vec expr.Expr} {xrest dom : expr.Expr} {b : Bool}
     (hres : StructInstall.ConstsResolveFFastRefines) (hpo : ParamsOfRefines)
     (hpb : PiBindersRefines) (hop : OpenPisAtFvarsFRefines)
+    (hnp : n_p.val ≤ Std.Usize.max) (hi : i.val + 1 ≤ Std.Usize.max)
     (hrel : FEnvRel fe0 lfe0) (hfe : FEnvWF fe0) (ht : NameWF t)
     (hlps : NamesWF lps) (hfp : ExprsWF fvs_p) (hx : ExprsWF x_fvs)
     (hxr : ExprWF xrest) (hdom : ExprWF dom)
@@ -1086,18 +1770,171 @@ theorem native_opened_reflexive_refines {fe0 : fenv.FEnv} {lfe0 : ConLeche.FEnv}
         | none => false) := by
   -- `pi_binders`, `open_pis_at_fvars_f`, `all_annots_resolve_from`, then the
   -- `.recursive` arm's chain
-  sorry
+  rw [inductives.native_install.native_opened_reflexive] at h
+  obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hqabs, hqwf1, hqwf2⟩ := hpb dom q hdom hq
+  obtain ⟨tele, erest⟩ := q
+  simp only [lift_eq, bind_tc_ok] at h
+  obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+  have hi2v : i2.val = n_p.val + i.val := HashMap.uscalar_add_eq hi2
+  have htlen : (Std.UScalar.cast .U64 (alloc.vec.Vec.len tele) : Std.U64).val
+      = ((absExpr dom).piBinders).1.length := by
+    rw [ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val, ← hqabs]
+    simp [ExprOps.absBinders]
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨habs0, hwf0⟩ := hop _ dom i2 o hdom ho
+  rw [htlen, hi2v] at habs0
+  cases o with
+  | none =>
+    simp only [Option.map_none] at habs0
+    rw [← habs0, ← Result.ok_injective h]
+  | some aq =>
+    simp only [Option.map_some] at habs0
+    obtain ⟨hawf1, hawf2⟩ := hwf0 aq rfl
+    obtain ⟨afvs, body⟩ := aq
+    rw [← habs0]
+    simp only []
+    replace h : ((if (alloc.vec.Vec.len afvs) = 0#usize then ok false else _)
+        : Result Bool) = ok b := h
+    have halen : (absExprs afvs).length = afvs.val.length := by simp [absExprs]
+    split at h
+    · rename_i hz
+      have hzv : afvs.val.length = 0 := by
+        have := alloc.vec.Vec.len_val afvs; scalar_tac
+      rw [← Result.ok_injective h]
+      simp [halen, hzv]
+    · rename_i hnz
+      have hnzv : afvs.val.length ≠ 0 := by
+        have := alloc.vec.Vec.len_val afvs; scalar_tac
+      have hne0 : ((absExprs afvs).length != 0) = true := by
+        simp [halen, hnzv]
+      obtain ⟨b0, hb0, h⟩ := bind_eq_ok_iff.mp h
+      have hb0v := all_annots_resolve_from_refines hres hrel hfe hawf1 hb0
+      rw [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at hb0v
+      split at h
+      · rename_i hb0t
+        rw [hb0t] at hb0v
+        obtain ⟨head, hhead, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨habsh, hheadwf⟩ := ExprOps.get_app_fn_refines hawf2 hhead
+        simp only [name_dup_eq, bind_tc_ok] at h
+        obtain ⟨us, hus, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨husabs, huswf⟩ := hpo lps us hlps hus
+        obtain ⟨expected, hexp, h⟩ := bind_eq_ok_iff.mp h
+        have hexpabs := Expr.mk_const_refines hexp
+        have hexpwf : ExprWF expected := ExprWF.mk_const ht huswf hexp
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1v := Expr.beq_refines hheadwf hexpwf hb1
+        rw [habsh, hexpabs, husabs, ← beq_decide] at hb1v
+        split at h
+        · rename_i hb1t
+          rw [hb1t] at hb1v
+          obtain ⟨args, hargs, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hargsabs, hargswf⟩ := ExprOps.get_app_args_refines hawf2 hargs
+          have hcastp : (Std.UScalar.cast .Usize n_p : Std.Usize).val = n_p.val :=
+            ExprOps.u64_cast_usize_val hnp
+          obtain ⟨v3, htake, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨htabs, htwf⟩ := ExprOps.take_exprs_refines hargswf htake
+          rw [hcastp, hargsabs] at htabs
+          obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+          have hb2v := Env.exprs_beq_refines htwf hfp hb2
+          rw [htabs, ← beq_decide] at hb2v
+          split at h
+          · rename_i hb2t
+            rw [hb2t] at hb2v
+            obtain ⟨i7, hi7, h⟩ := bind_eq_ok_iff.mp h
+            have hi7v : i7.val = n_p.val + n_idx.val := HashMap.uscalar_add_eq hi7
+            have hlenv : (Std.UScalar.cast .U64
+                (alloc.vec.Vec.len args) : Std.U64).val
+                = ((absExpr body).getAppArgs).length := by
+              rw [ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val, ← hargsabs]
+              simp [absExprs]
+            split at h
+            · rename_i hne
+              have hfalse : (((absExpr body).getAppArgs).length
+                  == n_p.val + n_idx.val) = false := by
+                simp only [beq_eq_false_iff_ne, ne_eq, ← hlenv, ← hi7v]
+                intro hc
+                exact (bne_iff_ne.mp hne) (by scalar_tac)
+              rw [← Result.ok_injective h]
+              simp [hne0, ← hb0v, ← hb1v, ← hb2v, hfalse]
+            · rename_i heq
+              have heqv : (Std.UScalar.cast .U64
+                  (alloc.vec.Vec.len args) : Std.U64) = i7 := by
+                by_contra hc
+                exact heq (bne_iff_ne.mpr hc)
+              have htrue : (((absExpr body).getAppArgs).length
+                  == n_p.val + n_idx.val) = true := by
+                simp only [beq_iff_eq, ← hlenv, ← hi7v, heqv]
+              obtain ⟨v4, hdrop, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨hdabs2, hdwf2⟩ := CoreK.drop_exprs_refines hargswf hdrop
+              rw [hcastp, hargsabs] at hdabs2
+              obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+              have hb3v := all_resolve_from_refines hres hrel hfe hdwf2 hb3
+              rw [hdabs2, show (0#usize : Std.Usize).val = 0 from rfl,
+                List.drop_zero] at hb3v
+              split at h
+              · rename_i hb3t
+                rw [hb3t] at hb3v
+                obtain ⟨i9, hi9, h⟩ := bind_eq_ok_iff.mp h
+                have hi9v : i9.val = i.val + 1 := HashMap.uscalar_add_eq hi9
+                have hcasti : (Std.UScalar.cast .Usize i9 : Std.Usize).val
+                    = i.val + 1 := by
+                  rw [ExprOps.u64_cast_usize_val (by omega), hi9v]
+                obtain ⟨b4, hb4, h⟩ := bind_eq_ok_iff.mp h
+                have hb4v := no_later_mentions_from_refines hx hb4
+                rw [hcasti, hi2v] at hb4v
+                split at h
+                · rename_i hb4t
+                  rw [hb4t] at hb4v
+                  obtain ⟨b5, hb5, h⟩ := bind_eq_ok_iff.mp h
+                  have hb5v := mentions_fvar_refines hxr hb5
+                  rw [hi2v] at hb5v
+                  rw [← Result.ok_injective h]
+                  simp [hne0, ← hb0v, ← hb1v, ← hb2v, htrue, ← hb3v, ← hb4v, hb5v]
+                · rename_i hb4f
+                  simp only [Bool.not_eq_true] at hb4f
+                  rw [hb4f] at hb4v
+                  rw [← Result.ok_injective h]
+                  simp [hne0, ← hb0v, ← hb1v, ← hb2v, htrue, ← hb3v, ← hb4v]
+              · rename_i hb3f
+                simp only [Bool.not_eq_true] at hb3f
+                rw [hb3f] at hb3v
+                rw [← Result.ok_injective h]
+                simp [hne0, ← hb0v, ← hb1v, ← hb2v, htrue, ← hb3v]
+          · rename_i hb2f
+            simp only [Bool.not_eq_true] at hb2f
+            rw [hb2f] at hb2v
+            rw [← Result.ok_injective h]
+            simp [hne0, ← hb0v, ← hb1v, ← hb2v]
+        · rename_i hb1f
+          simp only [Bool.not_eq_true] at hb1f
+          rw [hb1f] at hb1v
+          rw [← Result.ok_injective h]
+          simp [hne0, ← hb0v, ← hb1v]
+      · rename_i hb0f
+        simp only [Bool.not_eq_true] at hb0f
+        rw [hb0f] at hb0v
+        rw [← Result.ok_injective h]
+        simp [hne0, ← hb0v]
 
 /-- `ConLeche/Kernel/Inductives/NativeInstallF.lean:30-57` —
 `native_opened_fields_from` refines `nativeOpenedOkF`'s `(List.range nF).all`,
-from index `i`: one clause per field kind. -/
+from index `i`: one clause per field kind.
+
+**`hi` is not a weakening**: the port reads `x_fvs[i as usize]` and guards on
+the *cast*, while the cited code reads `xFvs[i]?` at the `Nat`, so the two
+readings agree exactly when the cast does not wrap (`Refine/Scalars.lean`).
+The recursion carries the bound forward — past the guard `i` is below
+`x_fvs.len()`, so `i + 1` fits too — and `native_opened_ok` discharges it at
+its entry reading `i = 0`. -/
 theorem native_opened_fields_from_refines {fe0 : fenv.FEnv} {lfe0 : ConLeche.FEnv}
     {t : name.Name} {lps : alloc.vec.Vec name.Name} {n_p n_idx n_f i : Std.U64}
     {fvs_p x_fvs : alloc.vec.Vec expr.Expr} {xrest : expr.Expr}
     {ks : alloc.vec.Vec inductives.native_parts.RecFieldKind} {b : Bool}
     (hres : StructInstall.ConstsResolveFFastRefines) (hpo : ParamsOfRefines)
     (hpb : PiBindersRefines) (hop : OpenPisAtFvarsFRefines)
-    (hkg : KindGetDRefines)
+    (hkg : KindGetDRefines) (hi : i.val ≤ Std.Usize.max)
+    (hnp : n_p.val ≤ Std.Usize.max)
     (hrel : FEnvRel fe0 lfe0) (hfe : FEnvWF fe0) (ht : NameWF t)
     (hlps : NamesWF lps) (hfp : ExprsWF fvs_p) (hx : ExprsWF x_fvs)
     (hxr : ExprWF xrest)
@@ -1131,8 +1968,162 @@ theorem native_opened_fields_from_refines {fe0 : fenv.FEnv} {lfe0 : ConLeche.FEn
           !(absExpr xrest).mentionsFvar (n_p.val + j)
         | none => false)
       | _, _ => false) := by
-  -- the `i`-counting recursion, `n_f - i` decreasing, one kind arm a step
-  sorry
+  generalize hd : n_f.val - i.val = d
+  induction d using Nat.strong_induction_on generalizing i b with
+  | _ d ih =>
+    subst hd
+    rw [inductives.native_install.native_opened_fields_from] at h
+    split at h
+    · rename_i hge
+      have hz : n_f.val - i.val = 0 := by scalar_tac
+      rw [hz, ← Result.ok_injective h]
+      simp
+    · rename_i hlt
+      have hltv : i.val < n_f.val := by scalar_tac
+      have hcast : (Std.UScalar.cast .Usize i : Std.Usize).val = i.val :=
+        ExprOps.u64_cast_usize_val hi
+      have hpos : n_f.val - i.val = (n_f.val - (i.val + 1)) + 1 := by omega
+      rw [hpos, List.range'_succ, List.all_cons]
+      simp only [lift_eq, bind_tc_ok] at h
+      split at h
+      · rename_i hge2
+        have hgev : x_fvs.val.length ≤ i.val := by
+          have := alloc.vec.Vec.len_val x_fvs
+          rw [← hcast]; scalar_tac
+        rw [List.getElem?_eq_none (by simp only [absExprs, List.length_map]; omega),
+          ← Result.ok_injective h]
+        simp
+      · rename_i hlt2
+        have hltx : i.val < x_fvs.val.length := by
+          have := alloc.vec.Vec.len_val x_fvs
+          rw [← hcast]; scalar_tac
+        obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+        have heg := ExprOps.vec_index_getElem? he
+        rw [hcast, List.getElem?_eq_getElem hltx] at heg
+        have hev : x_fvs.val[i.val] = e := Option.some_injective _ heg
+        have hewf : ExprWF e := hev ▸ hx _ (List.getElem_mem hltx)
+        have hxg : (absExprs x_fvs)[i.val]? = some (absExpr e) := by
+          simp only [absExprs, List.getElem?_map, List.getElem?_eq_getElem hltx,
+            hev, Option.map_some]
+        rw [hxg]
+        obtain ⟨dom, hdom, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hdabs, hdwf⟩ := ExprOps.fvar_type_d_refines hewf hdom
+        obtain ⟨rfk, hrfk, h⟩ := bind_eq_ok_iff.mp h
+        have hrfkv := hkg ks i rfk hi hrfk
+        rw [← hrfkv]
+        obtain ⟨ok1, hok1, h⟩ := bind_eq_ok_iff.mp h
+        have hok1v : (match (some (absExpr e) : Option ConLeche.Expr),
+              IndAbs.absRecFieldKind rfk with
+            | some x, .ordinary => x.fvarTypeD.constsResolveF lfe0
+            | some x, .recursive =>
+              (x.fvarTypeD.getAppFn
+                == ConLeche.Expr.const (absName t) ((absNames lps).map .param)) &&
+              (x.fvarTypeD.getAppArgs.take n_p.val == absExprs fvs_p) &&
+              (x.fvarTypeD.getAppArgs.length == n_p.val + n_idx.val) &&
+              (x.fvarTypeD.getAppArgs.drop n_p.val).all
+                (fun e => e.constsResolveF lfe0) &&
+              !((absExprs x_fvs).drop (i.val + 1)).any
+                (fun y => y.fvarTypeD.mentionsFvar (n_p.val + i.val)) &&
+              !(absExpr xrest).mentionsFvar (n_p.val + i.val)
+            | some x, .reflexive =>
+              (match ConLeche.openPisAtFvars (x.fvarTypeD.piBinders).1.length
+                  x.fvarTypeD (n_p.val + i.val) with
+              | some (afvs, body) =>
+                (afvs.length != 0) &&
+                afvs.all (fun a => a.fvarTypeD.constsResolveF lfe0) &&
+                (body.getAppFn
+                  == ConLeche.Expr.const (absName t) ((absNames lps).map .param)) &&
+                (body.getAppArgs.take n_p.val == absExprs fvs_p) &&
+                (body.getAppArgs.length == n_p.val + n_idx.val) &&
+                (body.getAppArgs.drop n_p.val).all (fun e => e.constsResolveF lfe0) &&
+                !((absExprs x_fvs).drop (i.val + 1)).any
+                  (fun y => y.fvarTypeD.mentionsFvar (n_p.val + i.val)) &&
+                !(absExpr xrest).mentionsFvar (n_p.val + i.val)
+              | none => false)
+            | _, _ => false) = ok1 := by
+          cases rfk with
+          | Ordinary =>
+            have hok1' : kernel.decl_check.consts_resolve_f_fast fe0 dom = ok ok1 :=
+              hok1
+            simpa [IndAbs.absRecFieldKind, hdabs] using
+              (hres fe0 lfe0 dom ok1 hrel hfe hdwf hok1').symm
+          | Recursive =>
+            have hok1' : inductives.native_install.native_opened_recursive fe0 t lps
+                n_p n_idx fvs_p x_fvs xrest i dom = ok ok1 := hok1
+            simpa [IndAbs.absRecFieldKind, hdabs] using
+              (native_opened_recursive_refines hres hpo hnp
+                (by have := alloc.vec.Vec.len_val x_fvs
+                    have := x_fvs.property
+                    omega)
+                hrel hfe ht hlps hfp hx hxr hdwf hok1').symm
+          | Reflexive =>
+            have hok1' : inductives.native_install.native_opened_reflexive fe0 t lps
+                n_p n_idx fvs_p x_fvs xrest i dom = ok ok1 := hok1
+            simpa [IndAbs.absRecFieldKind, hdabs] using
+              (native_opened_reflexive_refines hres hpo hpb hop hnp
+                (by have := alloc.vec.Vec.len_val x_fvs
+                    have := x_fvs.property
+                    omega)
+                hrel hfe ht hlps hfp hx hxr hdwf hok1').symm
+          | Negative =>
+            have hok1' : (ok false : Result Bool) = ok ok1 := hok1
+            simpa [IndAbs.absRecFieldKind] using hok1'
+          | Unsupported =>
+            have hok1' : (ok false : Result Bool) = ok ok1 := hok1
+            simpa [IndAbs.absRecFieldKind] using hok1'
+        rw [hok1v]
+        split at h
+        · rename_i hokt
+          obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+          have hi4v : i4.val = i.val + 1 := HashMap.uscalar_add_eq hi4
+          have hi4b : i4.val ≤ Std.Usize.max := by
+            have := alloc.vec.Vec.len_val x_fvs
+            have := x_fvs.property
+            omega
+          have hrec := ih (n_f.val - (i.val + 1)) (by omega) hi4b (i := i4)
+            (b := b) h (by rw [hi4v])
+          rw [hi4v] at hrec
+          rw [hrec, hokt]
+          simp
+        · rename_i hokf
+          simp only [Bool.not_eq_true] at hokf
+          rw [← Result.ok_injective h, hokf]
+          simp
+
+/-- A successful `openPisAtFvars` opened exactly `n` binders.  con-leche
+proves this in `Model/Inductives/StructBits.lean`, which this file does not
+import; it is what discharges the `u64 → usize` cast's side condition at
+`native_opened_ok` (`Refine/Scalars.lean`), since the opened variables are a
+`Vec` whose length is the cast counter. -/
+private theorem openPisAtFvars_len :
+    ∀ (n : Nat) {e : ConLeche.Expr} {d : Nat} {fvs : List ConLeche.Expr}
+      {o : ConLeche.Expr},
+      ConLeche.openPisAtFvars n e d = some (fvs, o) → fvs.length = n := by
+  intro n
+  induction n with
+  | zero =>
+    intro e d fvs o h
+    simp only [ConLeche.openPisAtFvars, Option.some.injEq, Prod.mk.injEq] at h
+    simp [← h.1]
+  | succ n ih =>
+    intro e d fvs o h
+    cases e with
+    | forallE dom body mm =>
+      rw [ConLeche.openPisAtFvars] at h
+      split at h
+      · rename_i fvs' e' heq2
+        simp only [Option.some.injEq, Prod.mk.injEq] at h
+        rw [← h.1, List.length_cons, ih heq2]
+      · simp at h
+    | bvar _ => simp [ConLeche.openPisAtFvars] at h
+    | fvar _ _ => simp [ConLeche.openPisAtFvars] at h
+    | sort _ => simp [ConLeche.openPisAtFvars] at h
+    | const _ _ => simp [ConLeche.openPisAtFvars] at h
+    | app _ _ => simp [ConLeche.openPisAtFvars] at h
+    | lam _ _ _ => simp [ConLeche.openPisAtFvars] at h
+    | letE _ _ _ => simp [ConLeche.openPisAtFvars] at h
+    | lit _ => simp [ConLeche.openPisAtFvars] at h
+    | proj _ _ _ => simp [ConLeche.openPisAtFvars] at h
 
 /-- `ConLeche/Kernel/Inductives/NativeInstallF.lean:22-59` — `native_opened_ok`
 refines `nativeOpenedOkF` at `StructWalkers.plain`: the constructor type
@@ -1152,9 +2143,76 @@ theorem native_opened_ok_refines {fe0 : fenv.FEnv} {lfe0 : ConLeche.FEnv}
     b = ConLeche.nativeOpenedOkF ConLeche.StructWalkers.plain lfe0 (absName t)
       (absNames lps) n_p.val n_idx.val (absExpr cty) n_f.val
       (IndAbs.absRecFieldKinds ks) := by
-  -- the two `open_pis_at_fvars_f`s, `all_resolve_from` on the residual, then
-  -- `native_opened_fields_from_refines` at `i = 0`
-  sorry
+  rw [inductives.native_install.native_opened_ok] at h
+  rw [ConLeche.nativeOpenedOkF]
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨habs0, hwf0⟩ := hop n_p cty 0#u64 o hcty ho
+  simp only [show ((0#u64 : Std.U64).val) = (0 : Nat) from rfl] at habs0
+  cases o with
+  | none =>
+    simp only [Option.map_none] at habs0
+    rw [← habs0]
+    simpa using (Result.ok_injective h).symm
+  | some pq =>
+    simp only [Option.map_some] at habs0
+    obtain ⟨hpwf1, hpwf2⟩ := hwf0 pq rfl
+    rw [← habs0]
+    simp only []
+    replace h : (do
+        let o1 ← kernel.checker_base.open_pis_at_fvars_f n_f pq.2 n_p
+        match o1 with
+        | none => ok false
+        | some xq => (do
+            let v2 ← expr_ops.get_app_args xq.2
+            let i ← lift (Std.UScalar.cast .Usize n_p)
+            let resid ← core_k.drop_exprs v2 i
+            let b ← inductives.native_install.all_resolve_from fe0 resid 0#usize
+            if b then
+                inductives.native_install.native_opened_fields_from fe0 t lps n_p
+                  n_idx pq.1 xq.1 xq.2 ks n_f 0#u64
+              else ok false)) = ok b := h
+    obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨habs1, hwf1⟩ := hop n_f pq.2 n_p o1 hpwf2 ho1
+    cases o1 with
+    | none =>
+      simp only [Option.map_none] at habs1
+      rw [← habs1]
+      simpa using (Result.ok_injective h).symm
+    | some xq =>
+      simp only [Option.map_some] at habs1
+      obtain ⟨hxwf1, hxwf2⟩ := hwf1 xq rfl
+      rw [← habs1]
+      simp only [ConLeche.StructWalkers.plain]
+      obtain ⟨v2, hv2, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hv2abs, hv2wf⟩ := ExprOps.get_app_args_refines hxwf2 hv2
+      simp only [lift_eq, bind_tc_ok] at h
+      obtain ⟨resid, hresid, h⟩ := bind_eq_ok_iff.mp h
+      have hplen : (absExprs pq.1).length = n_p.val :=
+        openPisAtFvars_len n_p.val habs0.symm
+      have hplen' : n_p.val ≤ pq.1.val.length := by
+        simp only [absExprs, List.length_map] at hplen; omega
+      have hcast : (Std.UScalar.cast .Usize n_p : Std.Usize).val = n_p.val :=
+        Scalars.cast_val_of_le_len hplen'
+      obtain ⟨hrabs, hrwf⟩ := CoreK.drop_exprs_refines hv2wf hresid
+      rw [hcast, hv2abs] at hrabs
+      obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+      have hb1v := all_resolve_from_refines hres hrel hfe hrwf hb1
+      rw [hrabs, show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at hb1v
+      split at h
+      · rename_i hb
+        rw [hb] at hb1v
+        rw [← hb1v, Bool.true_and,
+          native_opened_fields_from_refines hres hpo hpb hop hkg
+            (by simp [Std.Usize.max]) (Scalars.u64_le_usize_max_of_le_len hplen')
+            hrel hfe ht hlps hpwf1 hxwf1 hxwf2 h]
+        simp only [show (0#u64 : Std.U64).val = 0 from rfl, Nat.sub_zero,
+          List.range_eq_range']
+        rfl
+      · rename_i hb
+        simp only [Bool.not_eq_true] at hb
+        rw [hb] at hb1v
+        rw [← hb1v, ← Result.ok_injective h]
+        simp
 
 /-- `ConLeche/Kernel/Inductives/NativeInstallF.lean:62-69` —
 `native_fields_ok_from` refines `nativeFieldsOkF`'s
@@ -1179,7 +2237,107 @@ theorem native_fields_ok_from_refines {fe0 : fenv.FEnv} {lfe0 : ConLeche.FEnv}
           (absNames lps) n_p.val n_idx.val cA.1.type cA.2 ks
       | _, _ => false) := by
   -- the index recursion on `ctors_a.len() - j`, one `native_opened_ok` a step
-  sorry
+  have hcl : (IndAbs.absCtors ctors_a).length = ctors_a.val.length := by
+    simp [IndAbs.absCtors]
+  have hkl : (IndAbs.absKindss kinds).length = kinds.val.length := by
+    simp [IndAbs.absKindss]
+  generalize hd : ctors_a.val.length - j.val = d
+  induction d using Nat.strong_induction_on generalizing j b with
+  | _ d ih =>
+    rw [inductives.native_install.native_fields_ok_from] at h
+    split at h
+    · rename_i hge
+      have hz : (IndAbs.absCtors ctors_a).length - j.val = 0 := by
+        rw [hcl]; have := alloc.vec.Vec.len_val ctors_a; scalar_tac
+      rw [hz, ← Result.ok_injective h]
+      simp
+    · rename_i hlt
+      have hltv : j.val < ctors_a.val.length := by
+        have := alloc.vec.Vec.len_val ctors_a; scalar_tac
+      have hpos : (IndAbs.absCtors ctors_a).length - j.val
+          = ((IndAbs.absCtors ctors_a).length - (j.val + 1)) + 1 := by
+        rw [hcl]; omega
+      have hcg : (IndAbs.absCtors ctors_a)[j.val]?
+          = some (absConstantVal ctors_a.val[j.val].1, ctors_a.val[j.val].2.val) := by
+        simp only [IndAbs.absCtors, List.getElem?_map,
+          List.getElem?_eq_getElem hltv, Option.map_some]
+      rw [hpos, List.range'_succ, List.all_cons, hcg]
+      simp only [] at h
+      split at h
+      · rename_i hge2
+        have hgev : kinds.val.length ≤ j.val := by
+          have := alloc.vec.Vec.len_val kinds; scalar_tac
+        have hkg0 : (IndAbs.absKindss kinds)[j.val]? = none :=
+          List.getElem?_eq_none (by rw [hkl]; omega)
+        rw [hkg0, ← Result.ok_injective h]
+        simp
+      · rename_i hlt2
+        have hltk : j.val < kinds.val.length := by
+          have := alloc.vec.Vec.len_val kinds; scalar_tac
+        obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+        have hvg := ExprOps.vec_index_getElem? hv
+        rw [List.getElem?_eq_getElem hltk] at hvg
+        have hvv : kinds.val[j.val] = v := Option.some_injective _ hvg
+        have hkgs : (IndAbs.absKindss kinds)[j.val]?
+            = some (IndAbs.absRecFieldKinds v) := by
+          simp only [IndAbs.absKindss, List.getElem?_map,
+            List.getElem?_eq_getElem hltk, hvv, Option.map_some]
+        rw [hkgs]
+        simp only [lift_eq, bind_tc_ok] at h
+        obtain ⟨cvp, hcv, h⟩ := bind_eq_ok_iff.mp h
+        have hcvg := ExprOps.vec_index_getElem? hcv
+        rw [List.getElem?_eq_getElem hltv] at hcvg
+        have hcvv : ctors_a.val[j.val] = cvp := Option.some_injective _ hcvg
+        rw [hcvv]
+        simp only []
+        obtain ⟨i3, hi3⟩ : ∃ i3 : Std.U64,
+            (Std.UScalar.cast .U64 (alloc.vec.Vec.len v) : Std.U64) = i3 := ⟨_, rfl⟩
+        replace h : (if i3 != cvp.2 then ok false
+            else (do
+              let b ← inductives.native_install.native_opened_ok fe0 t lps n_p n_idx
+                cvp.1.ty cvp.2 v
+              if b then (do
+                  let i5 ← j + 1#usize
+                  inductives.native_install.native_fields_ok_from fe0 t lps n_p n_idx
+                    ctors_a kinds i5)
+                else ok false)) = ok b := by rw [← hi3]; exact h
+        have hi3v : i3.val = (IndAbs.absRecFieldKinds v).length := by
+          rw [← hi3, ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+          simp [IndAbs.absRecFieldKinds]
+        split at h
+        · rename_i hne
+          have hfalse : ((IndAbs.absRecFieldKinds v).length == cvp.2.val) = false := by
+            simp only [beq_eq_false_iff_ne, ne_eq, ← hi3v]
+            intro hc
+            exact (bne_iff_ne.mp hne) (by scalar_tac)
+          rw [hfalse, ← Result.ok_injective h]
+          simp
+        · rename_i heq
+          have heqv : i3 = cvp.2 := by
+            by_contra hc
+            exact heq (bne_iff_ne.mpr hc)
+          have hlen : ((IndAbs.absRecFieldKinds v).length == cvp.2.val) = true := by
+            simp only [beq_iff_eq, ← hi3v, heqv]
+          rw [hlen, Bool.true_and,
+            show (absConstantVal cvp.1).type = absExpr cvp.1.ty from rfl]
+          obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          have hcvwf : ConstantValWF cvp.1 := hca cvp (hcvv ▸ List.getElem_mem hltv)
+          have hb1v := native_opened_ok_refines hres hpo hpb hop hkg hrel hfe ht hlps
+            hcvwf.2.2 hb1
+          split at h
+          · rename_i hb
+            rw [hb] at hb1v
+            obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
+            have hi5v : i5.val = j.val + 1 := HashMap.uscalar_add_eq hi5
+            have hrec := ih (ctors_a.val.length - (j.val + 1)) (by scalar_tac)
+              (j := i5) (b := b) h (by rw [hi5v])
+            rw [← hb1v, hrec, hi5v]
+            simp
+          · rename_i hb
+            simp only [Bool.not_eq_true] at hb
+            rw [hb] at hb1v
+            rw [← hb1v, ← Result.ok_injective h]
+            simp
 
 /-- `ConLeche/Kernel/Inductives/NativeInstallF.lean:61-69` — `native_fields_ok`
 refines `nativeFieldsOkF` at `StructWalkers.plain`: the kinds, re-checked on
@@ -1201,7 +2359,31 @@ theorem native_fields_ok_refines {fe0 : fenv.FEnv} {lfe0 : ConLeche.FEnv}
       (IndAbs.absKindss kinds) := by
   -- the `ctorsA.length == kinds.length` test, then
   -- `native_fields_ok_from_refines` at `j = 0`
-  sorry
+  rw [inductives.native_install.native_fields_ok] at h
+  have hcl : (IndAbs.absCtors ctors_a).length = ctors_a.val.length := by
+    simp [IndAbs.absCtors]
+  have hkl : (IndAbs.absKindss kinds).length = kinds.val.length := by
+    simp [IndAbs.absKindss]
+  rw [ConLeche.nativeFieldsOkF, hcl, hkl]
+  split at h
+  · rename_i hlen
+    have hlenv : ctors_a.val.length = kinds.val.length := by
+      have := alloc.vec.Vec.len_val ctors_a
+      have := alloc.vec.Vec.len_val kinds
+      scalar_tac
+    rw [native_fields_ok_from_refines hres hpo hpb hop hkg hrel hfe ht hlps hca h,
+      hlenv]
+    simp only [beq_self_eq_true, Bool.true_and, show (0#usize : Std.Usize).val = 0
+      from rfl, Nat.sub_zero, List.range_eq_range', hcl]
+    rw [hlenv]
+    rfl
+  · rename_i hlen
+    have hlenv : ctors_a.val.length ≠ kinds.val.length := by
+      have := alloc.vec.Vec.len_val ctors_a
+      have := alloc.vec.Vec.len_val kinds
+      scalar_tac
+    rw [← Result.ok_injective h]
+    simp [hlenv]
 
 /-! ## The recursor stage (`NativeInstall.lean:447-519` /
 `NativeInstallF.lean:71-126`) -/
@@ -1270,8 +2452,9 @@ theorem check_native_rules_refines {fe_r : fenv.FEnv} {lfe_r : ConLeche.FEnv}
     (hres : StructInstall.ConstsResolveFFastRefines) (hrhs : StructRecRhsRRefines)
     (hrel : FEnvRel fe_r lfe_r) (hfe : FEnvWF fe_r) (hrlps : NamesWF rlps)
     (ht : NameWF t) (hlps : NamesWF lps) (helim : NameWF elim) (htty : ExprWF tty)
-    (hctors : Ctors4WF ctors) (hrec : NameWF rec_c) (hrlvls : LevelsWF rlvls)
-    (hout : ExprsWF out)
+    (hctors : Ctors4WF ctors) (hcpos : RecPosWF ctors)
+    (hjk : j.val + k.val ≤ ctors.val.length) (hrec : NameWF rec_c)
+    (hrlvls : LevelsWF rlvls) (hout : ExprsWF out)
     (h : inductives.native_install.check_native_rules fe_r rlps t lps elim large
         n_p n_idx tty ctors rec_c rlvls k j out = ok (.Ok r)) :
     (∀ lst, (ConLeche.checkNativeRulesF (m := ConLeche.Cached.CheckCM)
@@ -1283,21 +2466,104 @@ theorem check_native_rules_refines {fe_r : fenv.FEnv} {lfe_r : ConLeche.FEnv}
     ∧ ExprsWF r := by
   -- the `k`-counting recursion, one `struct_rec_rhs_r` and one `term_scoped`
   -- a step
-  sorry
+  generalize hd : k.val = d
+  induction d using Nat.strong_induction_on generalizing k j out r with
+  | _ d ih =>
+    subst hd
+    rw [inductives.native_install.check_native_rules] at h
+    split at h
+    · rename_i hk0
+      have hr : out = r := by
+        have := Result.ok_injective h; simpa using this
+      subst hr
+      have hkv : k.val = 0 := by scalar_tac
+      refine ⟨fun lst => ?_, by simp, hout⟩
+      rw [hkv, ConLeche.checkNativeRulesF]
+      simp only [List.drop_length]
+      rfl
+    · rename_i hkn
+      have hkpos : 0 < k.val := by scalar_tac
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+      have hjlt : j.val < ctors.val.length := by omega
+      obtain ⟨hoabs, howf⟩ := hrhs t lps elim large n_p n_idx tty ctors rec_c rlvls
+        j o ht hlps helim htty hctors hcpos
+        (Scalars.u64_le_usize_max_of_lt_len hjlt) hrec hrlvls ho
+      cases o with
+      | none =>
+        obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+        simp at h
+      | some rhs =>
+        simp only [Option.map_some] at hoabs
+        have hrhswf : ExprWF rhs := howf rhs rfl
+        obtain ⟨b0, hb0, h⟩ := bind_eq_ok_iff.mp h
+        have hb0v := term_scoped_refines hres hrel hfe hrlps hrhswf hb0
+        split at h
+        · rename_i hb0t
+          rw [hb0t] at hb0v
+          obtain ⟨out1, hpush, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+          have hiv : i.val = k.val - 1 := HashMap.uscalar_sub_eq hi
+          obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+          have hi1v : i1.val = j.val + 1 := HashMap.uscalar_add_eq hi1
+          have hout1 : absExprs out1 = absExprs out ++ [absExpr rhs] := by
+            simp [absExprs, vec_push_val hpush]
+          have hout1wf : ExprsWF out1 := by
+            intro e he
+            rw [vec_push_val hpush] at he
+            rcases List.mem_append.mp he with h' | h'
+            · exact hout e h'
+            · simp only [List.mem_singleton] at h'; exact h' ▸ hrhswf
+          obtain ⟨hrun, hsplit, hrwf⟩ := ih (k.val - 1) (by omega) (by omega)
+            hout1wf (k := i) (j := i1) (out := out1) (r := r) h hiv
+          rw [hi1v] at hrun
+          rw [hout1] at hrun hsplit
+          simp only [List.length_append, List.length_cons,
+            List.length_nil] at hrun hsplit
+          refine ⟨?_, ?_, hrwf⟩
+          · intro lst
+            have hkv : k.val = (k.val - 1) + 1 := by omega
+            rw [hkv, ConLeche.checkNativeRulesF, ← hoabs]
+            simp only [ConLeche.unwrapOr, pure_bind,
+              show ConLeche.StructWalkers.plain.resolve lfe_r (absExpr rhs)
+                = (absExpr rhs).constsResolveF lfe_r from rfl]
+            rw [← hb0v]
+            simp only [if_true, StateT.run_bind]
+            rw [hrun lst]
+            simp only [exceptOk_bind, StateT.run_pure]
+            rw [hsplit]
+            simp
+            rfl
+          · rw [hsplit]
+            simp
+        · rename_i hb0f
+          obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+          simp at h
 
 /-- `ConLeche/Kernel/Inductives/NativeInstallF.lean:111-115` —
 `check_native_rec_rules` refines the tail of `checkNativeRecF`: the annotated
 recursor constant, the **ruleless** provisioning of the index the rules are
 scoped at (`fe.push (.recInfo cvRa p.majorIdx p.rulePrefix [])`) and the
-rules.  This is where the module note's second `fenv::dup` happens. -/
+rules.  This is where the module note's second `fenv::dup` happens.
+
+**`hcan` is not a weakening**, for the reason spelled out on
+`check_native_pass_former_refines`: `fenv::dup` rebuilds the index, and
+`FEnv.dup_rel` — the bridge that carries the caller's own `lfe` across the
+copy — needs `FEnvCanon fe`.  Callers discharge it from
+`FEnv.mk_fenv_canon` / `FEnv.dup_canon`. -/
 theorem check_native_rec_rules_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {p : inductives.native_parts.NativeParts} {cv_ta : env.ConstantVal}
     {ctors : alloc.vec.Vec (name.Name × Std.U64 × expr.Expr × alloc.vec.Vec Std.U64)}
     {rec_ty : expr.Expr} {r : env.ConstantVal × alloc.vec.Vec expr.Expr}
     (hres : StructInstall.ConstsResolveFFastRefines) (hrhs : StructRecRhsRRefines)
     (hpo : ParamsOfRefines)
-    (hrel : FEnvRel fe lfe) (hfe : FEnvWF fe) (hp : IndAbs.NativePartsWF p)
-    (hcv : ConstantValWF cv_ta) (hctors : Ctors4WF ctors) (hrt : ExprWF rec_ty)
+    (hrel : FEnvRel fe lfe) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hp : IndAbs.NativePartsWF p)
+    (hcv : ConstantValWF cv_ta) (hctors : Ctors4WF ctors) (hcpos : RecPosWF ctors)
+    (hrt : ExprWF rec_ty)
     (h : inductives.native_install.check_native_rec_rules fe p cv_ta ctors rec_ty
         = ok (.Ok r)) :
     ∃ lrhss,
@@ -1316,17 +2582,83 @@ theorem check_native_rec_rules_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       ∧ absConstantVal r.1 = ⟨absName p.shape.cv_r.name,
           absNames p.shape.cv_r.level_params, absExpr rec_ty⟩
       ∧ absExprs r.2 = lrhss ∧ ConstantValWF r.1 ∧ ExprsWF r.2 := by
-  -- `fenv::push`, `major_idx`/`rule_prefix`, `params_of`, and
-  -- `check_native_rules_refines` at `j = 0`, `out = []`; blocked on the same
-  -- `fenv::dup` bridge as `check_native_pass_former` (module note)
-  sorry
+  rw [inductives.native_install.check_native_rec_rules] at h
+  simp only [name_dup_eq, bind_tc_ok, lift_eq] at h
+  obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨f, hdup, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨cv, hcvdup, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i, hmi, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i1, hrp, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨fe_r, hpush, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨rlvls, hrlvls, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨res, hrules, h⟩ := bind_eq_ok_iff.mp h
+  have hvv : v.val = p.shape.cv_r.level_params.val := PropWhen.names_copy_val hv
+  set cv_ra : env.ConstantVal :=
+    { «name» := p.shape.cv_r.name, level_params := v, ty := rec_ty } with hcvra
+  have hcvv : cv = { «name» := p.shape.cv_r.name, level_params := v, ty := rec_ty } :=
+    Env.constant_val_dup_refines hcvdup
+  subst hcvv
+  obtain ⟨hfrel, hfwf, -⟩ := FEnv.dup_rel hfe hcan hrel hdup
+  have hcvrwf : ConstantValWF p.shape.cv_r := hp.2.2.1
+  have hvwf : NamesWF v := by intro n hn; exact hcvrwf.2.1 n (hvv ▸ hn)
+  have habsv : absNames v = absNames p.shape.cv_r.level_params := by
+    simp only [absNames, hvv]
+  have hciwf : ConstantInfoWF (env.ConstantInfo.RecInfo
+      { «name» := p.shape.cv_r.name, level_params := v, ty := rec_ty } i i1
+      (alloc.vec.Vec.new env.RecRule)) := by
+    refine ⟨⟨hcvrwf.1, hvwf, hrt⟩, ?_⟩
+    intro rr hrr; simp [alloc.vec.Vec.new] at hrr
+  obtain ⟨hrrel, hrwf⟩ := FEnv.push_refines hfrel hfwf hciwf hpush
+  have habsci : absConstantInfo (env.ConstantInfo.RecInfo
+        { «name» := p.shape.cv_r.name, level_params := v, ty := rec_ty } i i1
+        (alloc.vec.Vec.new env.RecRule))
+      = ConLeche.ConstantInfo.recInfo
+        ⟨absName p.shape.cv_r.name, absNames p.shape.cv_r.level_params,
+          absExpr rec_ty⟩
+        (IndAbs.absNativeParts p).majorIdx (IndAbs.absNativeParts p).rulePrefix
+        [] := by
+    simp only [absConstantInfo, absConstantVal, habsv,
+      SumParts.major_idx_refines hmi, SumParts.rule_prefix_refines hrp]
+    simp [alloc.vec.Vec.new]
+    exact ⟨rfl, rfl⟩
+  rw [habsci] at hrrel
+  obtain ⟨hrlvlsabs, hrlvlswf⟩ := hpo p.shape.cv_r.level_params rlvls hcvrwf.2.1 hrlvls
+  have hknat : (Std.UScalar.cast .U64 (alloc.vec.Vec.len ctors) : Std.U64).val
+      = (absCtors4 ctors).length := by
+    rw [ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+    simp [absCtors4]
+  have hout : ExprsWF (alloc.vec.Vec.new expr.Expr) := by
+    intro e he; simp [alloc.vec.Vec.new] at he
+  cases res with
+  | Err err => simp at h
+  | Ok rhss =>
+    replace h : (ok (.Ok (cv_ra, rhss)) : Result (core.result.Result
+          (env.ConstantVal × alloc.vec.Vec expr.Expr) core_types.CheckError))
+        = ok (.Ok r) := h
+    have hok := Result.ok_injective h
+    simp only [core.result.Result.Ok.injEq] at hok
+    subst hok
+    obtain ⟨hrun, -, hrhswf⟩ :=
+      check_native_rules_refines hres hrhs hrrel hrwf hcvrwf.2.1 hp.1.1 hp.1.2.1
+        hp.2.2.2.1 hcv.2.2 hctors hcpos (by simp)
+        hcvrwf.1 hrlvlswf hout hrules
+    refine ⟨absExprs rhss, ?_, ?_, rfl, ⟨hcvrwf.1, hvwf, hrt⟩, hrhswf⟩
+    · intro lst
+      have hr := hrun lst
+      rw [hrlvlsabs, hknat] at hr
+      simpa [absExprs, alloc.vec.Vec.new] using hr
+    · simp [absConstantVal, habsv, hcvra]
 
 /-- `ConLeche/Kernel/Inductives/NativeInstallF.lean:87-115` —
 `check_native_rec` refines `checkNativeRecF` at `StructWalkers.plain`:
 **stage 3, the recursor generated and compared**.  The recursor PIN
 (con-leche task #220) is thrown here: a record naming something other than the
 generated `T.rec`, or contradicting it in its level parameters or its
-argument sums and rules, is INVALID INPUT. -/
+argument sums and rules, is INVALID INPUT.
+
+`hcan` is inherited from `check_native_rec_rules_refines` (see its note): the
+rules' scoping index is a `fenv::dup` of `fe`, and `FEnv.dup_rel` is what
+carries the caller's own `lfe` across the copy. -/
 theorem check_native_rec_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
@@ -1337,8 +2669,10 @@ theorem check_native_rec_refines {mode : env.CheckMode}
     (hty : StructRecTyRRefines) (hc4 : NativeCtors4Refines)
     (hlpsok : NativeRecLpsOkRefines) (hcvr : CheckConstantValRefines mode)
     (hpo : ParamsOfRefines)
-    (hst : StateWF st) (hfe : FEnvWF fe) (hp : IndAbs.NativePartsWF p)
+    (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hp : IndAbs.NativePartsWF p)
     (hcvta : ConstantValWF cv_ta) (hca : ∀ c ∈ ctors_a.val, ConstantValWF c.1)
+    (hkf : KindsFitCtors ctors_a p.kinds)
     (h : inductives.native_install.check_native_rec mode st fe p cv_ta ctors_a
         = ok (.Ok r, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
@@ -1348,24 +2682,180 @@ theorem check_native_rec_refines {mode : env.CheckMode}
             (absConstantVal cv_ta) (IndAbs.absCtors ctors_a)).run lst
           = .ok ((absConstantVal r.1, absExprs r.2), lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF r.1 ∧ ExprsWF r.2 := by
-  -- the three pin guards (`name::mk_str`/`name::beq`, `native_rec_lps_ok`,
-  -- `rec_pinned`), `check_constant_val`, `native_ctors4`, `struct_rec_ty_r`,
-  -- `term_scoped`, `ops_infer`, `ops_ensure_sort`, `ops_defeq`, then
-  -- `check_native_rec_rules_refines`
-  sorry
+  intro lst lfe hrel hfer
+  rw [inductives.native_install.check_native_rec] at h
+  simp only [name_dup_eq, bind_tc_ok] at h
+  obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨cps, hcps, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨exp_rec, her, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨herabs, herwf⟩ := str_lit_step hp.1.1 hsl hcps her
+    (L := [114#u32, 101#u32, 99#u32])
+    (by simp [inductives.native_install.check_native_rec.REC]) (by decide)
+  obtain ⟨b0, hb0, h⟩ := bind_eq_ok_iff.mp h
+  have hb0e : b0 = ((absName p.shape.cv_r.name)
+      == (absName p.shape.cv_t.name).str "rec") := by
+    rw [Name.beq_refines hp.2.2.1.1 herwf hb0, herabs]
+    refine Bool.eq_iff_iff.mpr ?_
+    simp; rfl
+  split at h
+  · rename_i hb0t
+    rw [hb0t] at hb0e
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1e := hlpsok p.shape b1 hp hb1
+    split at h
+    · rename_i hb1t
+      rw [hb1t] at hb1e
+      split at h
+      · rename_i hpin
+        obtain ⟨pq, hcv, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨res, st1⟩ := pq
+        cases res with
+        | Err err => simp at h
+        | Ok cv_ri =>
+          obtain ⟨lst1, hrun1, hrel1, hwf1, hcvriwf⟩ :=
+            hcvr st st1 fe p.shape.cv_r cv_ri hst hfe hp.2.2.1 hcv lst lfe hrel hfer
+          obtain ⟨ctors, hctors, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hcabs, hcwf, hcpos⟩ := hc4 ctors_a p.kinds ctors hca hkf hctors
+          obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hoabs, howf⟩ := hty p.shape.cv_t.name p.shape.cv_t.level_params
+            p.shape.elim p.shape.large p.shape.n_p p.shape.n_idx cv_ta.ty ctors o
+            hp.1.1 hp.1.2.1 hp.2.2.2.1 hcvta.2.2 hcwf hcpos ho
+          cases o with
+          | none =>
+            obtain ⟨s1, hs1, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+            simp at h
+          | some rec_ty =>
+            simp only [Option.map_some] at hoabs
+            have hrtwf : ExprWF rec_ty := howf rec_ty rfl
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            have hb2e := term_scoped_refines hres hfer hfe hp.2.2.1.2.1 hrtwf hb2
+            split at h
+            · rename_i hb2t
+              rw [hb2t] at hb2e
+              simp only [IndAbs.check_fuel_eq, bind_tc_ok] at h
+              obtain ⟨pq1, hinf, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨res1, st2⟩ := pq1
+              cases res1 with
+              | Err err => simp at h
+              | Ok sty =>
+                obtain ⟨lst2, hrun2, hrel2, hwf2, hstywf⟩ :=
+                  IndAbs.ops_infer hw hwf1 hfe hrtwf hinf lst1 lfe hrel1 hfer
+                obtain ⟨pq2, hens, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨res2, st3⟩ := pq2
+                cases res2 with
+                | Err err => simp at h
+                | Ok u =>
+                  obtain ⟨lst3, hrun3, hrel3, hwf3, huwf⟩ :=
+                    IndAbs.ops_ensure_sort hw hwf2 hfe hstywf hens lst2 lfe hrel2
+                      hfer
+                  obtain ⟨pq3, hdefeq, h⟩ := bind_eq_ok_iff.mp h
+                  obtain ⟨res3, st4⟩ := pq3
+                  cases res3 with
+                  | Err err => simp at h
+                  | Ok b3 =>
+                    obtain ⟨lst4, hrun4, hrel4, hwf4⟩ :=
+                      IndAbs.ops_defeq hw hwf3 hfe hcvriwf.2.2 hrtwf hdefeq lst3
+                        lfe hrel3 hfer
+                    replace h : ((if b3 = true then _ else _)
+                        : Result ((core.result.Result (env.ConstantVal
+                            × alloc.vec.Vec expr.Expr) core_types.CheckError)
+                          × cached.state_c.CState)) = ok (.Ok r, st') := h
+                    split at h
+                    · rename_i hb3t
+                      obtain ⟨r4, hrules, h⟩ := bind_eq_ok_iff.mp h
+                      obtain ⟨hr4, hst4⟩ :
+                          r4 = core.result.Result.Ok r ∧ st4 = st' := by
+                        have := Result.ok_injective h; simpa using this
+                      subst hst4
+                      subst hr4
+                      obtain ⟨lrhss, hrunr, hcvra, hrhssv, hcvrawf, hrhsswf⟩ :=
+                        check_native_rec_rules_refines hres hrhs hpo hfer hfe hcan
+                          hp hcvta hcwf hcpos hrtwf hrules
+                      refine ⟨lst4, ?_, hrel4, hwf4, hcvrawf, hrhsswf⟩
+                      have henv : absEnv fe.env = lfe.env := hfer.1
+                      simp only [show ((0#u64 : Std.U64).val) = (0 : Nat) from rfl]
+                        at hrun2 hrun3 hrun4
+                      rw [ConLeche.checkNativeRecF]
+                      simp only [ConLeche.unwrapOr, StateT.run_bind, exceptOk_bind,
+                        pure_bind, StateT.run_pure, ← henv,
+                        show ((absName p.shape.cv_r.name)
+                            == (absName p.shape.cv_t.name).str "rec") = true
+                          from hb0e.symm,
+                        show ConLeche.nativeRecLpsOk
+                            (IndAbs.absNativeParts p).toInductiveShape = true
+                          from hb1e.symm,
+                        show (IndAbs.absNativeParts p).recPinned = true from hpin,
+                        if_true,
+                        show (IndAbs.absNativeParts p).cvR
+                          = absConstantVal p.shape.cv_r from rfl,
+                        show (IndAbs.absNativeParts p).kinds
+                          = IndAbs.absKindss p.kinds from rfl,
+                        show (IndAbs.absNativeParts p).cvT
+                          = absConstantVal p.shape.cv_t from rfl,
+                        show (IndAbs.absNativeParts p).elim
+                          = absName p.shape.elim from rfl,
+                        show (IndAbs.absNativeParts p).large = p.shape.large from rfl,
+                        show (IndAbs.absNativeParts p).nP = p.shape.n_p.val from rfl,
+                        show (IndAbs.absNativeParts p).nIdx
+                          = p.shape.n_idx.val from rfl,
+                        show ∀ cv : env.ConstantVal,
+                          (absConstantVal cv).name = absName cv.name from fun _ => rfl,
+                        show ∀ cv : env.ConstantVal, (absConstantVal cv).levelParams
+                          = absNames cv.level_params from fun _ => rfl,
+                        show ∀ cv : env.ConstantVal,
+                          (absConstantVal cv).type = absExpr cv.ty from fun _ => rfl,
+                        show ∀ (fe0 : ConLeche.FEnv) (e0 : ConLeche.Expr),
+                          ConLeche.StructWalkers.plain.resolve fe0 e0
+                            = e0.constsResolveF fe0 from fun _ _ => rfl,
+                        ← hcabs, ← hoabs, hrun1, hrun2, hrun3, hrun4, ← hb2e,
+                        hb3t, hrunr, hcvra, hrhssv]
+                      rfl
+                    · rename_i hb3f
+                      obtain ⟨s1, hs1, h⟩ := bind_eq_ok_iff.mp h
+                      obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
+                      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+                      simp at h
+            · rename_i hb2f
+              obtain ⟨s1, hs1, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+              simp at h
+      · rename_i hpin
+        obtain ⟨s1, hs1, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+        simp at h
+    · rename_i hb1f
+      obtain ⟨s1, hs1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+      simp at h
+  · rename_i hb0f
+    obtain ⟨s1, hs1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    simp at h
 
 /-- `ConLeche/Kernel/Inductives/NativeInstallF.lean:117-126` —
 `check_native_table` refines `checkNativeTableF` at `StructWalkers.plain`:
 **stage 4, the projection table** at a structure-like block — one
 constructor, no index — at the tagged tower's projection offset `1`; nothing
-at any other block. -/
+at any other block.
+
+The **unrestricted-canonical pair** rides through (task #59): every branch
+either hands the index straight back or takes `check_struct_proj_table`'s one
+`fenv::push`. -/
 theorem check_native_table_refines {p : inductives.native_parts.NativeParts}
     {ctors_a : alloc.vec.Vec (env.ConstantVal × Std.U64)}
     {sortss : alloc.vec.Vec (alloc.vec.Vec level.Level)} {fe fe' : fenv.FEnv}
     {lfe : ConLeche.FEnv}
     (hbodies : StructInstall.StructProjBodiesRefines)
     (hres : StructInstall.ConstsResolveFFastRefines) (hg : StructProjGuardsRefines)
-    (hrel : FEnvRel fe lfe) (hfe : FEnvWF fe) (hp : IndAbs.NativePartsWF p)
+    (hrel : FEnvRel fe lfe) (hfe : FEnvWF fe)
+    (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
+    (hp : IndAbs.NativePartsWF p)
     (hca : ∀ c ∈ ctors_a.val, ConstantValWF c.1)
     (hss : ∀ us ∈ sortss.val, LevelsWF us)
     (h : inductives.native_install.check_native_table p ctors_a sortss fe
@@ -1375,11 +2865,116 @@ theorem check_native_table_refines {p : inductives.native_parts.NativeParts}
           ConLeche.StructWalkers.plain (IndAbs.absNativeParts p)
           (IndAbs.absCtors ctors_a) (IndAbs.absLevelss sortss) lfe).run lst
         = .ok (lfe', lst))
-      ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
-  -- the two `len == 1` tests against `| [cA], [sorts] =>`, the `n_idx == 0`
-  -- guard, `struct_proj_guards` and
-  -- `StructInstall.check_struct_proj_table_refines`
-  sorry
+      ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+      ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+  have htriv : ∀ (cs : List (ConLeche.ConstantVal × Nat))
+      (ss : List (List ConLeche.Level)) (lst : ConLeche.Cached.CState),
+      cs.length ≠ 1 ∨ ss.length ≠ 1 →
+      (ConLeche.checkNativeTableF (m := ConLeche.Cached.CheckCM)
+        ConLeche.StructWalkers.plain (IndAbs.absNativeParts p) cs ss lfe).run lst
+        = .ok (lfe, lst) := by
+    intro cs ss lst hlen
+    match cs, ss with
+    | [], _ => rfl
+    | _ :: _ :: _, _ => rfl
+    | [_], [] => rfl
+    | [_], _ :: _ :: _ => rfl
+    | [_], [_] => simp at hlen
+  have hcl : (IndAbs.absCtors ctors_a).length = ctors_a.val.length := by
+    simp [IndAbs.absCtors]
+  have hsl : (IndAbs.absLevelss sortss).length = sortss.val.length := by
+    simp [IndAbs.absLevelss]
+  rw [inductives.native_install.check_native_table] at h
+  replace h : ((if (alloc.vec.Vec.len ctors_a) = 1#usize then _
+      else ok (.Ok fe))
+      : Result (core.result.Result fenv.FEnv core_types.CheckError))
+      = ok (.Ok fe') := h
+  split at h
+  · rename_i hc1
+    have hc1v : ctors_a.val.length = 1 := by
+      have := alloc.vec.Vec.len_val ctors_a; scalar_tac
+    obtain ⟨c0, hc0⟩ := List.length_eq_one_iff.mp hc1v
+    replace h : ((if (alloc.vec.Vec.len sortss) = 1#usize then _
+        else ok (.Ok fe))
+        : Result (core.result.Result fenv.FEnv core_types.CheckError))
+        = ok (.Ok fe') := h
+    split at h
+    · rename_i hs1
+      have hs1v : sortss.val.length = 1 := by
+        have := alloc.vec.Vec.len_val sortss; scalar_tac
+      obtain ⟨s0, hs0⟩ := List.length_eq_one_iff.mp hs1v
+      have habsc : IndAbs.absCtors ctors_a
+          = [(absConstantVal c0.1, c0.2.val)] := by
+        simp [IndAbs.absCtors, hc0]
+      have habss : IndAbs.absLevelss sortss = [absLevels s0] := by
+        simp [IndAbs.absLevelss, hs0]
+      split at h
+      · rename_i hidx
+        have hgetc : ctors_a.val[(0#usize : Std.Usize).val]? = some c0 := by
+          rw [hc0]; rfl
+        have hidxc : alloc.vec.Vec.index
+            (core.slice.index.SliceIndexUsizeSlice (env.ConstantVal × Std.U64))
+            ctors_a 0#usize = ok c0 := by
+          rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize,
+            show ctors_a[(0#usize : Std.Usize).val]?
+              = ctors_a.val[(0#usize : Std.Usize).val]? from rfl, hgetc]
+        have hgets : sortss.val[(0#usize : Std.Usize).val]? = some s0 := by
+          rw [hs0]; rfl
+        have hidxs : alloc.vec.Vec.index
+            (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec level.Level))
+            sortss 0#usize = ok s0 := by
+          rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize,
+            show sortss[(0#usize : Std.Usize).val]?
+              = sortss.val[(0#usize : Std.Usize).val]? from rfl, hgets]
+        have hcvwf : ConstantValWF c0.1 := hca c0 (by rw [hc0]; simp)
+        have hswf : LevelsWF s0 := hss s0 (by rw [hs0]; simp)
+        simp only [hidxc, hidxs, bind_tc_ok] at h
+        obtain ⟨guards, hgd, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hgabs, hgwf⟩ := hg c0.1.ty p.shape.n_p c0.2 s0 guards hcvwf.2.2
+          hswf hgd
+        obtain ⟨lfe', hrun, hfrel', hfwf', hfcan', hffull'⟩ :=
+          StructInstall.check_struct_proj_table_refines hbodies hres hrel hfe
+            hcan hfull hp.1.1 hcvwf.1 hp.1.2.1 hp.2.2.2.2.1 hgwf hcvwf h
+        refine ⟨lfe', ?_, hfrel', hfwf', hfcan', hffull'⟩
+        intro lst
+        rw [habsc, habss, ConLeche.checkNativeTableF]
+        simp only []
+        rw [if_pos (show ((IndAbs.absNativeParts p).nIdx == 0) = true from by
+          simp only [beq_iff_eq]
+          have : p.shape.n_idx.val = 0 := by rw [hidx]; rfl
+          exact this)]
+        rw [hgabs] at hrun
+        exact hrun lst
+      · rename_i hidx
+        have hidxv : (IndAbs.absNativeParts p).nIdx ≠ 0 := by
+          intro hcc
+          have hcc' : p.shape.n_idx.val = 0 := hcc
+          exact hidx (by scalar_tac)
+        have hfe'e : fe = fe' := by
+          have := Result.ok_injective h; simpa using this
+        subst hfe'e
+        refine ⟨lfe, ?_, hrel, hfe, hcan, hfull⟩
+        intro lst
+        rw [habsc, habss, ConLeche.checkNativeTableF]
+        simp only []
+        rw [if_neg (by simp [hidxv])]
+        rfl
+    · rename_i hs1
+      have hs1v : sortss.val.length ≠ 1 := by
+        have := alloc.vec.Vec.len_val sortss; scalar_tac
+      have hfe'e : fe = fe' := by
+        have := Result.ok_injective h; simpa using this
+      subst hfe'e
+      exact ⟨lfe, fun lst => htriv _ _ lst (Or.inr (by rw [hsl]; exact hs1v)),
+        hrel, hfe, hcan, hfull⟩
+  · rename_i hc1
+    have hc1v : ctors_a.val.length ≠ 1 := by
+      have := alloc.vec.Vec.len_val ctors_a; scalar_tac
+    have hfe'e : fe = fe' := by
+      have := Result.ok_injective h; simpa using this
+    subst hfe'e
+    exact ⟨lfe, fun lst => htriv _ _ lst (Or.inl (by rw [hcl]; exact hc1v)),
+      hrel, hfe, hcan, hfull⟩
 
 /-! ## The pass (`NativeInstall.lean:521-574` / `CheckerC.lean:177-190`) -/
 
@@ -1401,7 +2996,57 @@ theorem rec_ctor_kinds_all_refines {t : name.Name}
           (ConLeche.recCtorKinds (absName t) (absNames lps) n_p.val n_idx.val)).map
             (fun ks => IndAbs.absKindss out ++ ks) := by
   -- the index recursion on `ctors_a.len() - i`, the accumulator in front
-  sorry
+  generalize hd : ctors_a.val.length - i.val = d
+  induction d using Nat.strong_induction_on generalizing i out res with
+  | _ d ih =>
+    rw [inductives.native_install.rec_ctor_kinds_all] at h
+    split at h
+    · rename_i hge
+      have hnil : (IndAbs.absCtors ctors_a).drop i.val = [] := by
+        apply List.drop_eq_nil_of_le
+        simp only [IndAbs.absCtors, List.length_map]
+        scalar_tac
+      rw [hnil, ← Result.ok_injective h]
+      simp
+    · rename_i hlt
+      have hltv : i.val < ctors_a.val.length := by
+        have := alloc.vec.Vec.len_val ctors_a; scalar_tac
+      obtain ⟨y, hy, hyv⟩ :=
+        WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec ctors_a i hltv)
+      subst hyv
+      have hlt2 : i.val < (IndAbs.absCtors ctors_a).length := by
+        simpa [IndAbs.absCtors] using hltv
+      have hcons : (IndAbs.absCtors ctors_a).drop i.val
+          = (absConstantVal ctors_a.val[i.val].1, ctors_a.val[i.val].2.val)
+              :: (IndAbs.absCtors ctors_a).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt2]; simp [IndAbs.absCtors]
+      rw [hcons, List.mapM_cons]
+      simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+      have hov := hrck t lps n_p n_idx ctors_a.val[i.val] o ht hlps
+        (hca _ (List.getElem_mem hltv)) ho
+      cases o with
+      | none =>
+        simp only [Option.map_none] at hov
+        rw [← hov, ← Result.ok_injective h]
+        simp
+      | some ks =>
+        simp only [Option.map_some] at hov
+        rw [← hov]
+        obtain ⟨out1, hpush, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hiv : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hout1 : IndAbs.absKindss out1
+            = IndAbs.absKindss out ++ [IndAbs.absRecFieldKinds ks] := by
+          simp [IndAbs.absKindss, vec_push_val hpush]
+        have hrec := ih (ctors_a.val.length - (i.val + 1)) (by scalar_tac)
+          (i := i2) (out := out1) (res := res) h (by rw [hiv])
+        rw [hiv] at hrec
+        rw [hrec, hout1]
+        cases ((IndAbs.absCtors ctors_a).drop (i.val + 1)).mapM
+            (ConLeche.recCtorKinds (absName t) (absNames lps) n_p.val n_idx.val) with
+        | none => simp
+        | some rest => simp
 
 /-- `ConLeche/Kernel/Inductives/NativeInstall.lean:539-554` —
 `kind_list_any_from` refines the inner `ks.any (· == k)`, from index `i`. -/
@@ -1530,7 +3175,62 @@ theorem classify_fix_kinds_refines {t : name.Name}
       = .ok (IndAbs.absKindss kinds, lst) := by
   -- `rec_ctor_kinds_all_refines` at `i = 0`, then the two `kinds_any_from`
   -- guards
-  sorry
+  intro lst
+  rw [inductives.native_install.classify_fix_kinds] at h
+  rw [ConLeche.classifyFixKinds]
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  have hov := rec_ctor_kinds_all_refines hrck ht hlps hca ho
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at hov
+  have hmapM : ((IndAbs.absCtors ctors_a).mapM
+      (ConLeche.recCtorKinds (absName t) (absNames lps) n_p.val n_idx.val))
+      = Option.map IndAbs.absKindss o := by
+    rw [hov]
+    cases hm : ((IndAbs.absCtors ctors_a).mapM
+        (ConLeche.recCtorKinds (absName t) (absNames lps) n_p.val n_idx.val)) with
+    | none => simp
+    | some x => simp [IndAbs.absKindss, alloc.vec.Vec.new]
+  cases o with
+  | none =>
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    simp at h
+  | some kinds0 =>
+    rw [hmapM]
+    simp only [Option.map_some, ConLeche.unwrapOr, pure_bind]
+    obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+    have hbv := kinds_any_from_refines hbeq hb
+    simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero,
+      IndAbs.absRecFieldKind] at hbv
+    split at h
+    · rename_i hbt
+      obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+      simp at h
+    · rename_i hbf
+      simp only [Bool.not_eq_true] at hbf
+      rw [hbf] at hbv
+      rw [if_neg (by rw [← hbv]; simp)]
+      obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+      have hb1v := kinds_any_from_refines hbeq hb1
+      simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero,
+        IndAbs.absRecFieldKind] at hb1v
+      split at h
+      · rename_i hb1t
+        obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+        simp at h
+      · rename_i hb1f
+        simp only [Bool.not_eq_true] at hb1f
+        rw [hb1f] at hb1v
+        rw [if_neg (by rw [← hb1v]; simp)]
+        have hk : kinds0 = kinds := by
+          have := Result.ok_injective h
+          simpa using this
+        rw [hk]
+        rfl
 
 /-! ### The pass's two halves, named
 
@@ -1578,21 +3278,33 @@ theorem checkNativePassS_eq (mode : ConLeche.CheckMode) (fe : ConLeche.FEnv)
           ConLeche.Cached.flushC
           checkNativePassCtorsF mode q.1 q.2.1 q.2.2.1 p₀ q.2.2.2) := by
   -- the do-block's join points, `bind_assoc` in `StateT CState CheckM`
-  sorry
+  simp only [ConLeche.Cached.checkNativePassS, checkNativePassFormerF,
+    checkNativePassCtorsF, bind_assoc, pure_bind]
 
 /-- `ConLeche/Cached/CheckerC.lean:178-181` — `check_native_pass_former`
 refines `checkNativePassFormerF`.  The pre-block index is copied
 (`fenv::dup`, the module note) and the shape duplicated
 (`sum_parts::inductive_shape_dup`, an identity), so the Lean argument is the
 unchanged one; `caps_of_refines` is what discharges `checkSumIndF`'s closure
-argument. -/
+argument.
+
+**`hcan` is not a weakening.**  `fenv::dup` rebuilds the index, so
+`Refine/FEnv.lean`'s `dup_refines` relates the copy to the *canonical* Lean
+`FEnv` of the environment; carrying the caller's own `lfe` across the copy is
+`FEnv.dup_rel`, which needs `FEnvCanon fe` — and the statement really is false
+without it, because `FEnvRel` pins `lfe.idx` only on the image of the
+well-formed names, so an `lfe` disagreeing with its own environment is related
+to `fe` and not to the rebuild (`Refine/FEnv.lean`'s own note).  Callers
+discharge it from `FEnv.mk_fenv_canon` / `FEnv.dup_canon`: every `FEnv` the
+driver holds was built by `mk_fenv` or copied by `dup`. -/
 theorem check_native_pass_former_refines {mode : env.CheckMode}
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {p0 : inductives.native_parts.NativeParts} {is_rec : Bool}
     {r : fenv.FEnv × env.ConstantVal × inductives.sum_parts.InductiveShape
       × env.IndCaps}
-    (hsi : CheckSumIndRefines mode)
-    (hst : StateWF st) (hfe : FEnvWF fe) (hp0 : IndAbs.NativePartsWF p0)
+    (hsi : CheckSumIndRefines mode) (hsic : CheckSumIndCanon mode)
+    (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hp0 : IndAbs.NativePartsWF p0)
     (h : inductives.native_install.check_native_pass_former mode st fe p0 is_rec
         = ok (.Ok r, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
@@ -1603,11 +3315,47 @@ theorem check_native_pass_former_refines {mode : env.CheckMode}
               absIndCaps r.2.2.2), lst')
         ∧ StateRel st' lst' ∧ FEnvRel r.1 lfe₁ ∧ StateWF st' ∧ FEnvWF r.1
         ∧ ConstantValWF r.2.1 ∧ IndAbs.InductiveShapeWF r.2.2.1
-        ∧ IndCapsWF r.2.2.2 := by
-  -- `inductive_shape_dup`, `check_sum_ind` at the `NativeCapsAt` dictionary
-  -- (`caps_of_refines`), then `native_caps_at`; blocked on the `fenv::dup`
-  -- bridge `FEnvRel fe lfe → FEnvRel (dup fe) lfe` (module note)
-  sorry
+        ∧ IndCapsWF r.2.2.2
+        ∧ FEnv.FEnvCanon r.1 ∧ FEnv.FEnvFull r.1 := by
+  intro lst lfe hrel hfer
+  rw [inductives.native_install.check_native_pass_former] at h
+  obtain ⟨f, hdup, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨is, hisdup, h⟩ := bind_eq_ok_iff.mp h
+  have hise : is = p0.shape := SumParts.inductive_shape_dup_refines hisdup
+  subst hise
+  obtain ⟨hfrel, hfwf, hfcan⟩ := FEnv.dup_rel hfe hcan hfer hdup
+  have hffull : FEnv.FEnvFull f := dup_full hfull hdup
+  obtain ⟨pq, hcsi, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨res, st1⟩ := pq
+  cases res with
+  | Err err => simp at h
+  | Ok q =>
+    replace h : (do
+        let expected ← inductives.native_install.native_caps_at q.2.2 is_rec
+        ok (.Ok (q.1, q.2.1, q.2.2, expected), st1))
+        = (ok (.Ok r, st') : Result ((core.result.Result _ core_types.CheckError)
+            × cached.state_c.CState)) := h
+    obtain ⟨expected, hexp, h⟩ := bind_eq_ok_iff.mp h
+    have hpair := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at hpair
+    obtain ⟨hr, hst'⟩ := hpair
+    obtain ⟨lst', lfe', hrun, hrel1, hfrel1, hwf1, hfwf1, hcvwf, hiswf⟩ :=
+      hsi inductives.native_install.NativeCapsAt.Insts.Con_ron_coreKernelInductivesSum_installCapsOf
+        { is_rec := is_rec } (fun p₁ => ConLeche.nativeCapsAt p₁ is_rec)
+        (fun p c hp hc => caps_of_refines hp hc) st st1 f p0.shape q hst hfwf hp0
+        hcsi lst lfe hrel hfrel
+    obtain ⟨hcabs, hcwf⟩ := native_caps_at_refines hiswf hexp
+    obtain ⟨hqcan, hqfull⟩ :=
+      hsic inductives.native_install.NativeCapsAt.Insts.Con_ron_coreKernelInductivesSum_installCapsOf
+        { is_rec := is_rec } st st1 f p0.shape q hfwf hfcan hffull hcsi hfwf1
+    subst hr
+    subst hst'
+    refine ⟨lst', lfe', ?_, hrel1, hfrel1, hwf1, hfwf1, hcvwf, hiswf, hcwf, hqcan,
+      hqfull⟩
+    have habs : (IndAbs.absNativeParts p0).toInductiveShape
+        = IndAbs.absInductiveShape p0.shape := rfl
+    rw [checkNativePassFormerF, habs, StateT.run_bind, hrun, hcabs]
+    rfl
 
 /-- `ConLeche/Cached/CheckerC.lean:182-190` — `check_native_pass_ctors`
 refines `checkNativePassCtorsF`: the constructors at the former's index, the
@@ -1631,10 +3379,69 @@ theorem check_native_pass_ctors_refines {mode : env.CheckMode}
             (IndAbs.absInductiveShape p1) (IndAbs.absNativeParts p0)
             (absIndCaps expected)).run lst = .ok ((lq, q.2), lst')
         ∧ StateRel st' lst' ∧ IndAbs.NativePassRel q.1 lq ∧ StateWF st'
-        ∧ IndAbs.NativePassWF q.1 := by
-  -- `complete`, `check_sum_ctors`, `classify_fix_kinds`, `with_kinds`,
-  -- `native_caps` and `env::ind_caps_beq`'s exactness
-  sorry
+        ∧ IndAbs.NativePassWF q.1 ∧ q.1.env1 = fe1 := by
+  intro lst lfe₁ hrel hfer
+  rw [inductives.native_install.check_native_pass_ctors] at h
+  obtain ⟨pc, hpc, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hpcabs, hpcwf⟩ := hcomp p0 p1 pc hp0 hp1 hpc
+  obtain ⟨cq, hcq, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨res, st1⟩ := cq
+  cases res with
+  | Err err => simp at h
+  | Ok ca =>
+    obtain ⟨lst', hrun1, hrel1, hwf1, hcawf, hsswf⟩ :=
+      hcc st st1 fe1 fe1 pc.shape.cv_t.name pc.shape.cv_t.level_params
+        pc.shape.n_p pc.shape.n_idx pc.shape.res_sort pc.shape.is_prop
+        pc.shape.large cv_ta pc.shape.ctors ca hst hfe hfe hpcwf.1.1 hpcwf.1.2.1
+        hpcwf.2.2.2.2.1 hcv hpcwf.2.1 hcq lst lfe₁ lfe₁ hrel hfer hfer
+    replace h : (do
+        let r1 ← inductives.native_install.classify_fix_kinds pc.shape.cv_t.name
+          pc.shape.cv_t.level_params pc.shape.n_p pc.shape.n_idx ca.1
+        match r1 with
+        | .Ok kinds => (do
+            let p ← inductives.native_parts.with_kinds pc kinds
+            let ic ← inductives.native_install.native_caps p
+            let settled ← env.ind_caps_beq ic expected
+            ok (.Ok ((⟨fe1, cv_ta, p, ca.1, ca.2⟩
+              : inductives.native_install.NativePass), settled), st1))
+        | .Err err => ok (.Err err, st1))
+        = (ok (.Ok q, st') : Result ((core.result.Result _ core_types.CheckError)
+            × cached.state_c.CState)) := h
+    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err err => simp at h
+    | Ok kinds =>
+      obtain ⟨p, hpk, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hpabs, hpwf⟩ := hwk pc kinds p hpcwf hpk
+      obtain ⟨ic, hic, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hicabs, hicwf⟩ := native_caps_refines hbeq hpwf hic
+      obtain ⟨settled, hset, h⟩ := bind_eq_ok_iff.mp h
+      have hsetv := Env.ind_caps_beq_refines hicwf hexp hset
+      have hq := Result.ok_injective h
+      simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at hq
+      obtain ⟨hq1, hq2⟩ := hq
+      subst hq1
+      subst hq2
+      refine ⟨lst', ⟨lfe₁, absConstantVal cv_ta, IndAbs.absNativeParts p,
+        IndAbs.absCtors ca.1, IndAbs.absLevelss ca.2⟩, ?_, hrel1,
+        ⟨hfer, rfl, rfl, rfl, rfl⟩, hwf1, ⟨hfe, hcv, hpwf, hcawf, hsswf⟩, rfl⟩
+      rw [checkNativePassCtorsF, ← hpcabs,
+        show (IndAbs.absNativeParts pc).cvT.name = absName pc.shape.cv_t.name
+          from rfl,
+        show (IndAbs.absNativeParts pc).cvT.levelParams
+          = absNames pc.shape.cv_t.level_params from rfl,
+        show (IndAbs.absNativeParts pc).nP = pc.shape.n_p.val from rfl,
+        show (IndAbs.absNativeParts pc).nIdx = pc.shape.n_idx.val from rfl,
+        show (IndAbs.absNativeParts pc).resSort = absLevel pc.shape.res_sort
+          from rfl,
+        show (IndAbs.absNativeParts pc).isProp = pc.shape.is_prop from rfl,
+        show (IndAbs.absNativeParts pc).large = pc.shape.large from rfl,
+        show (IndAbs.absNativeParts pc).ctors = IndAbs.absCtors pc.shape.ctors
+          from rfl]
+      simp [StateT.run_bind, hrun1, exceptOk_bind,
+        classify_fix_kinds_refines hrck hbeq hpcwf.1.1 hpcwf.1.2.1 hcawf hr1 lst',
+        hpabs, hsetv, hicabs]
+      rfl
 
 /-- `ConLeche/Kernel/Inductives/NativeInstall.lean:556-574` — the cited
 `checkNativePass` at the index: the two halves composed **without** a flush.
@@ -1651,10 +3458,12 @@ theorem check_native_pass_refines {mode : env.CheckMode}
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {p0 : inductives.native_parts.NativeParts} {is_rec : Bool}
     {q : inductives.native_install.NativePass × Bool}
-    (hsi : CheckSumIndRefines mode) (hcc : CheckSumCtorsRefines mode)
+    (hsi : CheckSumIndRefines mode) (hsic : CheckSumIndCanon mode)
+    (hcc : CheckSumCtorsRefines mode)
     (hcomp : CompleteRefines) (hwk : WithKindsRefines)
     (hrck : RecCtorKindsRefines) (hbeq : RecFieldKindBeqRefines)
-    (hst : StateWF st) (hfe : FEnvWF fe) (hp0 : IndAbs.NativePartsWF p0)
+    (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hp0 : IndAbs.NativePartsWF p0)
     (h : inductives.native_install.check_native_pass mode st fe p0 is_rec
         = ok (.Ok q, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
@@ -1662,7 +3471,8 @@ theorem check_native_pass_refines {mode : env.CheckMode}
         (checkNativePassI (absMode mode) lfe (IndAbs.absNativeParts p0)
             is_rec).run lst = .ok ((lq, q.2), lst')
         ∧ StateRel st' lst' ∧ IndAbs.NativePassRel q.1 lq ∧ StateWF st'
-        ∧ IndAbs.NativePassWF q.1 := by
+        ∧ IndAbs.NativePassWF q.1
+        ∧ FEnv.FEnvCanon q.1.env1 ∧ FEnv.FEnvFull q.1.env1 := by
   intro lst lfe hrel hfer
   rw [inductives.native_install.check_native_pass] at h
   obtain ⟨pq, hformer, h⟩ := bind_eq_ok_iff.mp h
@@ -1670,12 +3480,14 @@ theorem check_native_pass_refines {mode : env.CheckMode}
   cases res with
   | Err err => simp at h
   | Ok r =>
-    obtain ⟨lst1, lfe₁, hrun1, hrel1, hfrel1, hwf1, hfwf1, hcvwf, hiswf, hcapwf⟩ :=
-      check_native_pass_former_refines hsi hst hfe hp0 hformer lst lfe hrel hfer
-    obtain ⟨lst', lq, hrun2, hrel2, hqrel, hwf2, hqwf⟩ :=
+    obtain ⟨lst1, lfe₁, hrun1, hrel1, hfrel1, hwf1, hfwf1, hcvwf, hiswf, hcapwf,
+        hrcan, hrfull⟩ :=
+      check_native_pass_former_refines hsi hsic hst hfe hcan hfull hp0 hformer lst
+        lfe hrel hfer
+    obtain ⟨lst', lq, hrun2, hrel2, hqrel, hwf2, hqwf, hqenv⟩ :=
       check_native_pass_ctors_refines hcc hcomp hwk hrck hbeq hwf1 hfwf1 hcvwf
         hiswf hp0 hcapwf h lst1 lfe₁ hrel1 hfrel1
-    refine ⟨lst', lq, ?_, hrel2, hqrel, hwf2, hqwf⟩
+    refine ⟨lst', lq, ?_, hrel2, hqrel, hwf2, hqwf, hqenv ▸ hrcan, hqenv ▸ hrfull⟩
     rw [checkNativePassI]
     simp only [StateT.run_bind, hrun1]
     exact hrun2
@@ -1764,6 +3576,21 @@ def checkNativeInstallF (mode : ConLeche.CheckMode) (fe₂ : ConLeche.FEnv)
       (ConLeche.sumRules fe₂.find? cvRa.name p.nP p.majorIdx p.rulePrefix cvRa.type
         ctorsA rhss)))
 
+/-- A `throw` swallows the rest of its `do` block: `CheckCM` is
+`StateT CState (Except CheckError)`, where this is definitional.  Used to push
+the split point of `checkNativeTailS` past the guards' `throw`-carrying `if`s. -/
+private theorem throwC_bind {α β : Type} (e : ConLeche.CheckError)
+    (g : α → ConLeche.Cached.CheckCM β) :
+    (throw e >>= g) = throw e := rfl
+
+/-- A `bind` distributes over the `if` a `do`-block guard elaborates to.
+Together with `throwC_bind` this is all the rewriting `checkNativeTailS_eq`
+needs: the split point has to travel past the guards' `throw`-carrying `if`s. -/
+private theorem bind_iteC {α β : Type} (c : Prop) [Decidable c]
+    (a b : ConLeche.Cached.CheckCM α) (g : α → ConLeche.Cached.CheckCM β) :
+    ((if c then a else b) >>= g) = if c then a >>= g else b >>= g := by
+  split <;> rfl
+
 /-- **The cited driver is the three parts around `flushC`.**  `consSumCtorsF`
 is pure, so it may sit on either side; the flush is between it and
 `checkNativeRecF`, exactly where `check_native_cons` and
@@ -1777,7 +3604,8 @@ theorem checkNativeTailS_eq (mode : ConLeche.CheckMode) (fe : ConLeche.FEnv)
           ConLeche.Cached.flushC
           checkNativeInstallF mode fe₂ q.p q.cvTa q.ctorsA q.sortss) := by
   -- the do-block's join points, `bind_assoc` in `StateT CState CheckM`
-  sorry
+  simp only [ConLeche.Cached.checkNativeTailS, checkNativeTailGuardsF,
+    checkNativeInstallF, bind_assoc, pure_bind, bind_iteC, throwC_bind]
 
 /-- `ConLeche/Cached/CheckerC.lean:194-207` — `check_native_tail_guards`
 refines `checkNativeTailGuardsF`.  `structWalkersC` is `StructWalkers.plain`
@@ -1798,12 +3626,218 @@ theorem check_native_tail_guards_refines {mode : env.CheckMode}
       IndAbs.NativePassRel q lq →
       ∃ lst',
         (checkNativeTailGuardsF (absMode mode) lfe lq).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
-  -- `elim_restriction_violated`, `open_pis_at_fvars_f`, `core_k::drop_exprs`,
-  -- `check_struct_field_sorts_i`, `native_fields_ok` (through
-  -- `ConLeche.structWalkersC_eq_plain`), `params_of`, `prop_when::never`,
-  -- `native_rules_ok`
-  sorry
+        ∧ StateRel st' lst' ∧ StateWF st'
+        ∧ KindsFitCtors q.ctors_a q.p.kinds := by
+  intro lst lfe lq hrel hfer hqrel
+  obtain ⟨hqenv, hqcv, hqp, hqctors, hqss⟩ := hqrel
+  obtain ⟨hwenv, hwcv, hwp, hwctors, hwss⟩ := hq
+  rw [inductives.native_install.check_native_tail_guards] at h
+  rw [checkNativeTailGuardsF]
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  have hbv := elim_restriction_violated_refines hb
+  rw [hqp] at hbv
+  split at h
+  · rename_i hbt
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    simp at h
+  · rename_i hbf
+    simp only [Bool.not_eq_true] at hbf
+    rw [if_neg (by rw [← hbv, hbf]; simp)]
+    obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+    have hiv : i.val = lq.p.nP + lq.p.nIdx := by
+      rw [HashMap.uscalar_add_eq hi, ← hqp]; rfl
+    obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨habs0, hwf0⟩ := hop i q.cv_ta.ty 0#u64 o hwcv.2.2 ho
+    rw [show ((0#u64 : Std.U64).val) = (0 : Nat) from rfl, hiv,
+      show absExpr q.cv_ta.ty = lq.cvTa.type from by rw [← hqcv]; rfl] at habs0
+    cases o with
+    | none =>
+      obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+      simp at h
+    | some tq =>
+      simp only [Option.map_some] at habs0
+      obtain ⟨htwf1, htwf2⟩ := hwf0 tq rfl
+      rw [← habs0]
+      simp only [ConLeche.unwrapOr, pure_bind]
+      simp only [lift_eq, bind_tc_ok] at h
+      obtain ⟨idx_fvs, hdrop, h⟩ := bind_eq_ok_iff.mp h
+      have htlen : (absExprs tq.1).length = lq.p.nP + lq.p.nIdx :=
+        openPisAtFvars_len _ habs0.symm
+      have htlen' : q.p.shape.n_p.val ≤ tq.1.val.length := by
+        simp only [absExprs, List.length_map] at htlen
+        have : q.p.shape.n_p.val = lq.p.nP := by rw [← hqp]; rfl
+        omega
+      have hcast : (Std.UScalar.cast .Usize q.p.shape.n_p : Std.Usize).val
+          = q.p.shape.n_p.val := Scalars.cast_val_of_le_len htlen'
+      have hnidxb : q.p.shape.n_idx.val ≤ tq.1.val.length := by
+        simp only [absExprs, List.length_map] at htlen
+        have hnix : q.p.shape.n_idx.val = lq.p.nIdx := by rw [← hqp]; rfl
+        omega
+      obtain ⟨hdabs, hdwf⟩ := CoreK.drop_exprs_refines htwf1 hdrop
+      rw [hcast, show q.p.shape.n_p.val = lq.p.nP from by rw [← hqp]; rfl] at hdabs
+      obtain ⟨pq, hsorts, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨res, st1⟩ := pq
+      cases res with
+      | Err err => simp at h
+      | Ok isorts =>
+        obtain ⟨lst1, hrun1, hrel1, hwf1, -⟩ :=
+          hfs st st1 q.env1 true false q.p.shape.res_sort q.p.shape.n_p idx_fvs
+            (alloc.vec.Vec.new expr.Expr) q.p.shape.n_idx isorts hst hwenv
+            hwp.2.2.2.2.1 hdwf (by intro e he; simp [alloc.vec.Vec.new] at he)
+            (Scalars.u64_le_usize_max_of_le_len hnidxb)
+            hsorts lst lq.env₁ hrel hqenv
+        rw [hdabs, show absLevel q.p.shape.res_sort = lq.p.resSort from by
+            rw [← hqp]; rfl,
+          show q.p.shape.n_p.val = lq.p.nP from by rw [← hqp]; rfl,
+          show q.p.shape.n_idx.val = lq.p.nIdx from by rw [← hqp]; rfl,
+          show absExprs (alloc.vec.Vec.new expr.Expr) = [] from by
+            simp [absExprs, alloc.vec.Vec.new]] at hrun1
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1v := native_fields_ok_refines hres hpo hpb hop hkg hfer hfe
+          hwp.1.1 hwp.1.2.1 hwctors hb1
+        rw [hqctors, show IndAbs.absKindss q.p.kinds = lq.p.kinds from by
+            rw [← hqp]; rfl,
+          show absName q.p.shape.cv_t.name = lq.p.cvT.name from by rw [← hqp]; rfl,
+          show absNames q.p.shape.cv_t.level_params = lq.p.cvT.levelParams from by
+            rw [← hqp]; rfl,
+          show q.p.shape.n_p.val = lq.p.nP from by rw [← hqp]; rfl,
+          show q.p.shape.n_idx.val = lq.p.nIdx from by rw [← hqp]; rfl] at hb1v
+        rw [ConLeche.Cached.structWalkersC_eq_plain]
+        split at h
+        · rename_i hb1t
+          rw [hb1t] at hb1v
+          have hkfit : KindsFitCtors q.ctors_a q.p.kinds := by
+            intro i hi hk
+            have hfok : ConLeche.nativeFieldsOkF ConLeche.StructWalkers.plain lfe
+                lq.p.cvT.name lq.p.cvT.levelParams lq.p.nP lq.p.nIdx lq.ctorsA
+                lq.p.kinds = true := hb1v.symm
+            rw [ConLeche.nativeFieldsOkF, Bool.and_eq_true] at hfok
+            obtain ⟨-, hall⟩ := hfok
+            rw [List.all_eq_true] at hall
+            have hmemi : i ∈ List.range lq.ctorsA.length := by
+              rw [← hqctors]
+              simp only [List.mem_range, IndAbs.absCtors, List.length_map]
+              exact hi
+            have hj := hall i hmemi
+            have hcg : lq.ctorsA[i]? = some (absConstantVal q.ctors_a.val[i].1,
+                q.ctors_a.val[i].2.val) := by
+              rw [← hqctors]
+              simp only [IndAbs.absCtors, List.getElem?_map,
+                List.getElem?_eq_getElem hi, Option.map_some]
+            have hkg : lq.p.kinds[i]?
+                = some (IndAbs.absRecFieldKinds q.p.kinds.val[i]) := by
+              rw [show lq.p.kinds = IndAbs.absKindss q.p.kinds from by
+                rw [← hqp]; rfl]
+              simp only [IndAbs.absKindss, List.getElem?_map,
+                List.getElem?_eq_getElem hk, Option.map_some]
+            rw [hcg, hkg] at hj
+            simp only [Bool.and_eq_true, beq_iff_eq] at hj
+            have heq : q.p.kinds.val[i].val.length = q.ctors_a.val[i].2.val := by
+              simpa [IndAbs.absRecFieldKinds] using hj.1
+            omega
+          obtain ⟨rlvls, hrl, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hrlabs, hrlwf⟩ := hpo q.p.shape.cv_r.level_params rlvls
+            hwp.2.2.1.2.1 hrl
+          obtain ⟨pw, hpw, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+          have hb2v := hro q.p.shape.cv_r.name rlvls pw q.p.shape.n_p
+            (Std.UScalar.cast .U64 (alloc.vec.Vec.len q.p.shape.ctors)) q.ctors_a
+            q.p.kinds q.p.shape.rhss q.p.shape.cv_r.ty b2 hwp.2.2.1.1 hrlwf
+            (PropWhen.never_wf hpw) hwctors hwp.2.2.2.2.2 hwp.2.2.1.2.2 hb2
+          rw [hrlabs, PropWhen.never_refines hpw, hqctors,
+            show (Std.UScalar.cast .U64 (alloc.vec.Vec.len q.p.shape.ctors)
+                : Std.U64).val = lq.p.ctors.length from by
+              rw [ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val, ← hqp]
+              simp [IndAbs.absNativeParts, IndAbs.absInductiveShape, IndAbs.absCtors],
+            show IndAbs.absKindss q.p.kinds = lq.p.kinds from by rw [← hqp]; rfl,
+            show absExprs q.p.shape.rhss = lq.p.rhss from by rw [← hqp]; rfl,
+            show absExpr q.p.shape.cv_r.ty = lq.p.cvR.type from by rw [← hqp]; rfl,
+            show absName q.p.shape.cv_r.name = lq.p.cvR.name from by rw [← hqp]; rfl,
+            show absNames q.p.shape.cv_r.level_params = lq.p.cvR.levelParams from by
+              rw [← hqp]; rfl,
+            show q.p.shape.n_p.val = lq.p.nP from by rw [← hqp]; rfl] at hb2v
+          split at h
+          · rename_i hb2t
+            rw [hb2t] at hb2v
+            have hst'e : st1 = st' := by
+              have := Result.ok_injective h
+              simpa using this
+            subst hst'e
+            refine ⟨lst1, ?_, hrel1, hwf1, hkfit⟩
+            simp only [StateT.run_bind, hrun1, exceptOk_bind, ← hb1v, ← hb2v,
+              if_true, StateT.run_pure]
+            rfl
+          · rename_i hb2f
+            simp only [Bool.not_eq_true] at hb2f
+            rw [hb2f] at hb2v
+            obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+            simp at h
+        · rename_i hb1f
+          simp only [Bool.not_eq_true] at hb1f
+          rw [hb1f] at hb1v
+          obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+          simp at h
+
+/-- `sum_install::cons_sum_ctors` is a chain of `fenv::push`es, so it keeps the
+unrestricted-canonical pair (`FEnv.push_canon`).  `check_native_tail` needs
+this: the recursor stage copies the consed index with `fenv::dup`, and
+`FEnv.dup_rel` asks for `FEnvCanon` there. -/
+theorem cons_sum_ctors_canon {n_p : Std.U64}
+    {cs : alloc.vec.Vec (env.ConstantVal × Std.U64)}
+    (hcs : ∀ c ∈ cs.val, ConstantValWF c.1) :
+    ∀ (k : Nat) (i : Std.Usize) (fe fe' : fenv.FEnv) (lfe : ConLeche.FEnv),
+      cs.val.length - i.val ≤ k →
+      FEnvWF fe → FEnvRel fe lfe → FEnv.FEnvCanon fe → FEnv.FEnvFull fe →
+      inductives.sum_install.cons_sum_ctors n_p cs i fe = ok fe' →
+      FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+  intro k
+  induction k with
+  | zero =>
+    intro i fe fe' lfe hk hfe hrel hcan hfull h
+    have hlv := alloc.vec.Vec.len_val cs
+    rw [inductives.sum_install.cons_sum_ctors.eq_def] at h
+    simp only [] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac),
+      Result.ok.injEq] at h
+    rw [← h]; exact ⟨hcan, hfull⟩
+  | succ k ih =>
+    intro i fe fe' lfe hk hfe hrel hcan hfull h
+    have hlv := alloc.vec.Vec.len_val cs
+    rw [inductives.sum_install.cons_sum_ctors.eq_def] at h
+    simp only [] at h
+    by_cases hi : cs.val.length ≤ i.val
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac),
+        Result.ok.injEq] at h
+      rw [← h]; exact ⟨hcan, hfull⟩
+    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac)] at h
+      have hltv : i.val < cs.val.length := by omega
+      obtain ⟨cvp, hidx, h⟩ := bind_eq_ok_iff.mp h
+      have hcvg := ExprOps.vec_index_getElem? hidx
+      rw [List.getElem?_eq_getElem hltv] at hcvg
+      have hcvv : cs.val[i.val] = cvp := Option.some_injective _ hcvg
+      have hcvwf : ConstantValWF cvp.1 := hcs cvp (hcvv ▸ List.getElem_mem hltv)
+      replace h : (do
+          let cv1 ← env.constant_val_dup cvp.1
+          let fe2 ← fenv.push fe (env.ConstantInfo.CtorInfo cv1 n_p cvp.2)
+          let i3 ← i + 1#usize
+          inductives.sum_install.cons_sum_ctors n_p cs i3 fe2) = ok fe' := h
+      obtain ⟨cv1, hdup, h⟩ := bind_eq_ok_iff.mp h
+      have hcv1 : cv1 = cvp.1 := Env.constant_val_dup_refines hdup
+      subst hcv1
+      obtain ⟨fe2, hpush, h⟩ := bind_eq_ok_iff.mp h
+      have hciwf : ConstantInfoWF (env.ConstantInfo.CtorInfo cvp.1 n_p cvp.2) :=
+        hcvwf
+      obtain ⟨hcan2, hfull2⟩ := FEnv.push_canon hfe hciwf hcan hfull hpush
+      obtain ⟨hrel2, hwf2⟩ := FEnv.push_refines hrel hfe hciwf hpush
+      obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+      have hi3v : i3.val = i.val + 1 := HashMap.uscalar_add_eq hi3
+      exact ih i3 fe2 fe' _ (by omega) hwf2 hrel2 hcan2 hfull2 h
 
 /-- `ConLeche/Cached/CheckerC.lean:208` — `check_native_cons` refines
 `let fe₂ := consSumCtorsF p.nP q.ctorsA q.env₁`: the pass's record taken apart
@@ -1843,7 +3877,18 @@ theorem check_native_cons_refines {q : inductives.native_install.NativePass}
 
 /-- `ConLeche/Cached/CheckerC.lean:209-215` — `check_native_install` refines
 `checkNativeInstallF`: the recursor, its stored rules, and the projection
-table. -/
+table.
+
+`hcan` is inherited from `check_native_rec_refines` (and through it from
+`check_native_rec_rules_refines`): the rules' scoping index is a `fenv::dup`
+of `fe₂`.  Callers discharge it from `FEnv.push_canon` — `fe₂` is
+`consSumCtorsF …`, a push chain off the pass's index.
+
+`hfull` and the two output conjuncts are task #59's: the recursor's record and
+the projection table are two more `fenv::push`es, so the pair comes back out
+the far end and the whole native route preserves it — which is what the
+checker tier's declaration fold needs of the `.indDecl` arm
+(`Refine/IndSpec.lean`'s header). -/
 theorem check_native_install_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU)
     {st st' : cached.state_c.CState} {fe2 fe' : fenv.FEnv}
@@ -1855,8 +3900,11 @@ theorem check_native_install_refines {mode : env.CheckMode}
     (hlpsok : NativeRecLpsOkRefines) (hcvr : CheckConstantValRefines mode)
     (hpo : ParamsOfRefines) (hsr : SumRulesRefines)
     (hbodies : StructInstall.StructProjBodiesRefines) (hg : StructProjGuardsRefines)
-    (hst : StateWF st) (hfe : FEnvWF fe2) (hp : IndAbs.NativePartsWF p)
+    (hst : StateWF st) (hfe : FEnvWF fe2) (hcan : FEnv.FEnvCanon fe2)
+    (hfull : FEnv.FEnvFull fe2)
+    (hp : IndAbs.NativePartsWF p)
     (hcv : ConstantValWF cv_ta) (hca : ∀ c ∈ ctors_a.val, ConstantValWF c.1)
+    (hkf : KindsFitCtors ctors_a p.kinds)
     (hss : ∀ us ∈ sortss.val, LevelsWF us)
     (h : inductives.native_install.check_native_install mode st fe2 p cv_ta ctors_a
         sortss = ok (.Ok fe', st')) :
@@ -1865,10 +3913,60 @@ theorem check_native_install_refines {mode : env.CheckMode}
         (checkNativeInstallF (absMode mode) lfe (IndAbs.absNativeParts p)
             (absConstantVal cv_ta) (IndAbs.absCtors ctors_a)
             (IndAbs.absLevelss sortss)).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
-  -- `check_native_rec`, `major_idx`/`rule_prefix`, `sum_rules`, `fenv::push`,
-  -- `check_native_table`
-  sorry
+        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+  intro lst lfe hrel hfer
+  rw [inductives.native_install.check_native_install] at h
+  obtain ⟨pq, hrec, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨res, st1⟩ := pq
+  cases res with
+  | Err err => simp at h
+  | Ok rq =>
+    obtain ⟨lst1, hrun1, hrel1, hwf1, hcvrawf, hrhsswf⟩ :=
+      check_native_rec_refines hw hres hrhs hty hc4 hlpsok hcvr hpo hst hfe hcan hp
+        hcv hca hkf hrec lst lfe hrel hfer
+    replace h : (do
+        let i ← inductives.sum_parts.major_idx p.shape
+        let i1 ← inductives.sum_parts.rule_prefix p.shape
+        let rules ← inductives.sum_install.sum_rules fe2 rq.1.name p.shape.n_p i i1
+          rq.1.ty ctors_a rq.2
+        let fe3 ← fenv.push fe2 (env.ConstantInfo.RecInfo rq.1 i i1 rules)
+        let r1 ← inductives.native_install.check_native_table p ctors_a sortss fe3
+        ok (r1, st1))
+        = (ok (.Ok fe', st') : Result ((core.result.Result fenv.FEnv
+            core_types.CheckError) × cached.state_c.CState)) := h
+    obtain ⟨i, hmi, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i1, hrp, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨rules, hrules, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hsrabs, hsrwf⟩ := hsr fe2 lfe rq.1.name p.shape.n_p i i1 rq.1.ty ctors_a
+      rq.2 rules hfer hfe hcvrawf.1 hcvrawf.2.2 hca hrhsswf hrules
+    obtain ⟨fe3, hpush, h⟩ := bind_eq_ok_iff.mp h
+    have hciwf : ConstantInfoWF (env.ConstantInfo.RecInfo rq.1 i i1 rules) :=
+      ⟨hcvrawf, hsrwf⟩
+    obtain ⟨hrel3, hwf3⟩ := FEnv.push_refines hfer hfe hciwf hpush
+    have hmiv : i.val = (IndAbs.absNativeParts p).majorIdx :=
+      SumParts.major_idx_refines hmi
+    have hrpv : i1.val = (IndAbs.absNativeParts p).rulePrefix :=
+      SumParts.rule_prefix_refines hrp
+    have habsci : absConstantInfo (env.ConstantInfo.RecInfo rq.1 i i1 rules)
+        = ConLeche.ConstantInfo.recInfo (absConstantVal rq.1) i.val i1.val
+          (ConLeche.sumRules lfe.find? (absName rq.1.name) p.shape.n_p.val i.val
+            i1.val (absExpr rq.1.ty) (IndAbs.absCtors ctors_a) (absExprs rq.2)) := by
+      simp only [absConstantInfo, ← hsrabs, absRecRules]
+    rw [habsci, hmiv, hrpv] at hrel3
+    obtain ⟨r1, htbl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hr1, hst1⟩ : r1 = core.result.Result.Ok fe' ∧ st1 = st' := by
+      have := Result.ok_injective h; simpa using this
+    subst hst1
+    subst hr1
+    obtain ⟨hcan3, hfull3⟩ := FEnv.push_canon hfe hciwf hcan hfull hpush
+    obtain ⟨lfe', hrunt, hfrel', hfwf', hfcan', hffull'⟩ :=
+      check_native_table_refines hbodies hres hg hrel3 hwf3 hcan3 hfull3 hp hca hss
+        htbl
+    refine ⟨lst1, lfe', ?_, hrel1, hfrel', hwf1, hfwf', hfcan', hffull'⟩
+    rw [checkNativeInstallF, ConLeche.Cached.structWalkersC_eq_plain]
+    simp only [StateT.run_bind, exceptOk_bind, hrun1]
+    exact hrunt lst1
 
 /-- `ConLeche/Kernel/Inductives/NativeInstall.lean:576-611` — the cited
 `checkNativeTail` at the index: the three parts composed **without** a flush.
@@ -1881,7 +3979,11 @@ def checkNativeTailI (mode : ConLeche.CheckMode) (fe : ConLeche.FEnv)
   checkNativeInstallF mode fe₂ q.p q.cvTa q.ctorsA q.sortss
 
 /-- `ConLeche/Kernel/Inductives/NativeInstall.lean:576-611` —
-`check_native_tail` refines `checkNativeTailI`. -/
+`check_native_tail` refines `checkNativeTailI`.
+
+`hcan`/`hfull` are inherited from `check_native_install_refines`: the recursor
+stage copies the consed index with `fenv::dup`, and `cons_sum_ctors_canon`
+carries the pair from the pass's index to the consed one. -/
 theorem check_native_tail_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
@@ -1895,12 +3997,14 @@ theorem check_native_tail_refines {mode : env.CheckMode}
     (hcvr : CheckConstantValRefines mode) (hsr : SumRulesRefines)
     (hbodies : StructInstall.StructProjBodiesRefines) (hg : StructProjGuardsRefines)
     (hst : StateWF st) (hfe : FEnvWF fe) (hq : IndAbs.NativePassWF q)
+    (hcan : FEnv.FEnvCanon q.env1) (hfull : FEnv.FEnvFull q.env1)
     (h : inductives.native_install.check_native_tail mode st fe q
         = ok (.Ok fe', st')) :
     ∀ lst lfe lq, StateRel st lst → FEnvRel fe lfe → IndAbs.NativePassRel q lq →
       ∃ lst' lfe',
         (checkNativeTailI (absMode mode) lfe lq).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe lq hrel hfer hqrel
   rw [inductives.native_install.check_native_tail] at h
   obtain ⟨pq, hguards, h⟩ := bind_eq_ok_iff.mp h
@@ -1909,17 +4013,28 @@ theorem check_native_tail_refines {mode : env.CheckMode}
   | Err err => simp at h
   | Ok u =>
     cases u
-    obtain ⟨lst1, hrun1, hrel1, hwf1⟩ :=
+    obtain ⟨lst1, hrun1, hrel1, hwf1, hkfit⟩ :=
       check_native_tail_guards_refines hw hres hpo hpb hop hkg hro hfs hst hfe hq
         hguards lst lfe lq hrel hfer hqrel
     obtain ⟨cq, hcq, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hcrel, hcp, hccv, hcctors, hcss, hcwf, hcpwf, hccvwf, hcawf, hsswf⟩ :=
       check_native_cons_refines hcons hq hcq lq hqrel
-    obtain ⟨lst', lfe', hrun2, hrel2, hfrel2, hwf2, hfwf2⟩ :=
+    have hcq0 := hcq
+    rw [inductives.native_install.check_native_cons] at hcq0
+    obtain ⟨fe2, hcs, hcq1⟩ := bind_eq_ok_iff.mp hcq0
+    have hcq2 : cq = (fe2, q.p, q.cv_ta, q.ctors_a, q.sortss) :=
+      (Result.ok_injective hcq1).symm
+    have hconscan : FEnv.FEnvCanon cq.1 ∧ FEnv.FEnvFull cq.1 := by
+      rw [hcq2]
+      exact cons_sum_ctors_canon hq.2.2.2.1 q.ctors_a.val.length 0#usize q.env1 fe2
+        lq.env₁ (by simp) hq.1 hqrel.1 hcan hfull hcs
+    have hkfit2 : KindsFitCtors cq.2.2.2.1 cq.2.1.kinds := by
+      rw [hcq2]; exact hkfit
+    obtain ⟨lst', lfe', hrun2, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩ :=
       check_native_install_refines hw hres hrhs hty hc4 hlpsok hcvr hpo hsr hbodies
-        hg hwf1 hcwf hcpwf hccvwf hcawf hsswf h lst1
+        hg hwf1 hcwf hconscan.1 hconscan.2 hcpwf hccvwf hcawf hkfit2 hsswf h lst1
         (ConLeche.consSumCtorsF lq.p.nP lq.ctorsA lq.env₁) hrel1 hcrel
-    refine ⟨lst', lfe', ?_, hrel2, hfrel2, hwf2, hfwf2⟩
+    refine ⟨lst', lfe', ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
     rw [checkNativeTailI]
     rw [hcp, hccv, hcctors, hcss] at hrun2
     simp only [StateT.run_bind, hrun1]
@@ -2066,12 +4181,17 @@ def checkNativeI (mode : ConLeche.CheckMode) (fe : ConLeche.FEnv)
 refines `checkNativeI`.  The two-pass shape is the cited one: `nativeRawRec`
 is a superset of official's `is_rec`, strict exactly when a redex over the
 block reduces away; there the block is passed again at the classified verdict,
-which then stands. -/
+which then stands.
+
+`hcan` is inherited from `check_native_pass_former_refines` (see its note):
+the pass copies the index with `fenv::dup`, and `FEnv.dup_rel` is what carries
+the caller's own `lfe` across the copy. -/
 theorem check_native_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {p0 : inductives.native_parts.NativeParts}
     (hsi : CheckSumIndRefines mode) (hcc : CheckSumCtorsRefines mode)
+    (hsic : CheckSumIndCanon mode)
     (hcomp : CompleteRefines) (hwk : WithKindsRefines)
     (hrck : RecCtorKindsRefines) (hbeq : RecFieldKindBeqRefines)
     (hmc : MentionsConstRefines)
@@ -2083,15 +4203,99 @@ theorem check_native_refines {mode : env.CheckMode}
     (hc4 : NativeCtors4Refines) (hlpsok : NativeRecLpsOkRefines)
     (hcvr : CheckConstantValRefines mode) (hsr : SumRulesRefines)
     (hbodies : StructInstall.StructProjBodiesRefines) (hg : StructProjGuardsRefines)
-    (hst : StateWF st) (hfe : FEnvWF fe) (hp0 : IndAbs.NativePartsWF p0)
+    (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hp0 : IndAbs.NativePartsWF p0)
     (h : inductives.native_install.check_native mode st fe p0 = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
         (checkNativeI (absMode mode) lfe (IndAbs.absNativeParts p0)).run lst
           = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
-  -- `ctor_names`, `name_nodup`, `native_raw_rec`, the two `check_native_pass`es
-  -- and `check_native_tail`
-  sorry
+        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+  intro lst lfe hrel hfer
+  rw [inductives.native_install.check_native] at h
+  obtain ⟨names, hnames, h⟩ := bind_eq_ok_iff.mp h
+  have habsn := ctor_names_refines hnames
+  have hnamesv : names.val = p0.shape.ctors.val.map (fun c => c.1.name) := by
+    rw [inductives.native_install.ctor_names] at hnames
+    have hv := ctor_names_from_val p0.shape.ctors p0.shape.ctors.length 0#usize _
+      names (by scalar_tac) hnames
+    simpa [alloc.vec.Vec.new] using hv
+  have hnwf : NamesWF names := by
+    intro n hn
+    rw [hnamesv] at hn
+    simp only [List.mem_map] at hn
+    obtain ⟨c, hc, hce⟩ := hn
+    exact hce ▸ (hp0.2.1 c hc).1
+  obtain ⟨bnd, hbnd, h⟩ := bind_eq_ok_iff.mp h
+  have hbndv := name_nodup_refines hnwf hbnd
+  rw [checkNativeI]
+  split at h
+  · rename_i hb
+    have hnodup : ((IndAbs.absNativeParts p0).ctors.map (fun c => c.1.name)).Nodup := by
+      rw [show (IndAbs.absNativeParts p0).ctors.map (fun c => c.1.name)
+        = absNames names from habsn.symm]
+      exact of_decide_eq_true (hbndv.symm.trans hb)
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v := native_raw_rec_refines hmc hp0 hb1
+    obtain ⟨pq, hpass, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨res, st1⟩ := pq
+    rw [if_pos hnodup]
+    cases res with
+    | Err err => simp at h
+    | Ok q =>
+      obtain ⟨np, b2⟩ := q
+      obtain ⟨lst1, lq, hrun1, hrel1, hqrel, hwf1, hqwf, hqcan, hqfull⟩ :=
+        check_native_pass_refines hsi hsic hcc hcomp hwk hrck hbeq hst hfe hcan
+          hfull hp0 hpass lst lfe hrel hfer
+      rw [hb1v] at hrun1
+      by_cases hb2 : b2 = true
+      · simp only [hb2] at h
+        obtain ⟨lst', lfe2, hrun2, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩ :=
+          check_native_tail_refines hw hres hpo hpb hop hkg hro hfs hcons hrhs hty
+            hc4 hlpsok hcvr hsr hbodies hg hwf1 hfe hqwf hqcan hqfull h lst1 lfe lq
+            hrel1 hfer hqrel
+        refine ⟨lst', lfe2, ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
+        simp only [StateT.run_bind, pure_bind, exceptOk_bind, hrun1, hb2, if_true]
+        exact hrun2
+      · simp only [Bool.not_eq_true] at hb2
+        simp only [hb2] at h
+        obtain ⟨is_rec2, hir, h⟩ := bind_eq_ok_iff.mp h
+        have hirv := native_is_rec_refines hbeq hir
+        rw [show IndAbs.absKindss np.p.kinds = lq.p.kinds from by
+          rw [← hqrel.2.2.1]; rfl] at hirv
+        obtain ⟨pq2, hpass2, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨res2, st2⟩ := pq2
+        cases res2 with
+        | Err err => simp at h
+        | Ok q2 =>
+          obtain ⟨np1, b3⟩ := q2
+          obtain ⟨lst2, lq2, hrun2, hrel2, hq2rel, hwf2, hq2wf, hq2can, hq2full⟩ :=
+            check_native_pass_refines hsi hsic hcc hcomp hwk hrck hbeq hwf1 hfe hcan
+              hfull hp0 hpass2 lst1 lfe hrel1 hfer
+          rw [hirv] at hrun2
+          by_cases hb3 : b3 = true
+          · simp only [hb3] at h
+            obtain ⟨lst', lfe2, hrun3, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
+              check_native_tail_refines hw hres hpo hpb hop hkg hro hfs hcons hrhs
+                hty hc4 hlpsok hcvr hsr hbodies hg hwf2 hfe hq2wf hq2can hq2full h
+                lst2 lfe lq2 hrel2 hfer hq2rel
+            refine ⟨lst', lfe2, ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
+            simp only [StateT.run_bind, pure_bind, exceptOk_bind, hrun1, hb2]
+            rw [if_neg (by simp)]
+            simp only [StateT.run_bind, exceptOk_bind, hrun2, hb3, if_true]
+            exact hrun3
+          · simp only [Bool.not_eq_true] at hb3
+            simp only [hb3] at h
+            obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+            simp at h
+  · rename_i hb
+    simp only [Bool.not_eq_true] at hb
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    simp at h
 
 end ConRon.Refine.NativeInstall

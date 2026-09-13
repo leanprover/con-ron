@@ -56,6 +56,23 @@ Every statement below that reaches the core carries them, and
    binary's own run: `Refine/Pins.lean`'s `check_decls_pins_refines`, modulo
    that file's two open statements.
 
+## The canonical-index pair, and where it stops (task #59)
+
+`Refine/IndSpec.lean`'s `IndRoutesSpec` carries `FEnv.FEnvCanon`/`FEnv.FEnvFull`
+of the index the inductive routes are handed — both routes rebuild it with
+`fenv::dup`, and the clause is false for an index that is not its own
+environment's rebuild.  Phase A is a *fold*, so the pair cannot merely be
+assumed at the top: each step's output index is the next step's input, and
+every lemma on the chain from `annot_step_other_c_refines` up to
+`annot_decl_fold_from_refines` therefore hands the pair back out as well as
+taking it in.  Each install is one `fenv::push`, which is `FEnv.push_canon`.
+
+The cascade **stops at `check_decls_refines`**, which is where the only index
+this file builds comes from: `fenv::mk_fenv env::empty`, closed by
+`FEnv.mk_fenv_canon` and `mk_fenv_full` below.  Nothing between a copy and its
+pushes calls `fenv::restrict_to` — phase B's `restrict_to` is on a view whose
+index is discarded — so `FEnvFull` survives the whole fold.
+
 ## `leanCheckDecls`: the one line the pins parameter costs
 
 The upstream ask of §3.6 is `checkDecls mode pins ds`, with the shipped
@@ -603,7 +620,8 @@ theorem annot_step_other_c_refines {mode : env.CheckMode}
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {pend pend' : alloc.vec.Vec parsed_c.PendingCheck} {pd : parsed_c.DeclC}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclCWF pd)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnvCanon fe) (hfull : FEnvFull fe)
+    (hd : DeclCWF pd)
     (h : cached.installed.annot_step_other_c mode pins st fe pend pd
           = ok (.Ok (fe', pend'), st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
@@ -611,6 +629,7 @@ theorem annot_step_other_c_refines {mode : env.CheckMode}
         (ConLeche.Cached.checkDeclStepC (absMode mode) lfe (absDeclC pd)).run lst
             = .ok (lfe', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnvCanon fe' ∧ FEnvFull fe'
         ∧ pend' = pend := by
   intro lst lfe hsr hfr
   rw [cached.installed.annot_step_other_c] at h
@@ -622,9 +641,10 @@ theorem annot_step_other_c_refines {mode : env.CheckMode}
     have he : fe2 = fe' ∧ pend = pend' ∧ st1 = st' := by simpa using h
     obtain ⟨rfl, rfl, rfl⟩ := he
     obtain ⟨lst', lfe', hrun, rest⟩ :=
-      CheckerDecl.check_decl_step_c_refines IndAbs.check_fuel_eq hk.1 hind hvar
-        hpins hsw hfw hd hstep lst lfe hsr hfr
-    exact ⟨lst', lfe', hrun, rest.1, rest.2.1, rest.2.2.1, rest.2.2.2, rfl⟩
+      CheckerDecl.check_decl_step_c_refines IndAbs.check_fuel_eq hk.1 hind hvar hpins
+        hsw hfw hcan hfull hd hstep lst lfe hsr hfr
+    exact ⟨lst', lfe', hrun, rest.1, rest.2.1, rest.2.2.1, rest.2.2.2.1,
+      rest.2.2.2.2.1, rest.2.2.2.2.2, rfl⟩
 
 /-- **`installed::annot_step_defn_c_push` refines the cited push**
 (`Installed.lean:136-169`, the `.defnDecl` arm's tail): the constant is pushed
@@ -633,7 +653,8 @@ as a `.defnInfo` and the record appended, with the installation counter read
 theorem annot_step_defn_c_push_refines {i : Std.U64} {fe fe' : fenv.FEnv}
     {pend pend' : alloc.vec.Vec parsed_c.PendingCheck} {cv_a : env.ConstantVal}
     {jv : expr.Expr} {hint : env.ReducibilityHint}
-    (hfw : FEnvWF fe) (hcv : ConstantValWF cv_a) (hjv : ExprWF jv)
+    (hfw : FEnvWF fe) (hcan : FEnvCanon fe) (hfull : FEnvFull fe)
+    (hcv : ConstantValWF cv_a) (hjv : ExprWF jv)
     (hpe : PendingChecksWF pend)
     (h : cached.installed.annot_step_defn_c_push i fe pend cv_a jv hint
           = ok (fe', pend')) :
@@ -643,7 +664,8 @@ theorem annot_step_defn_c_push_refines {i : Std.U64} {fe fe' : fenv.FEnv}
       ∧ FEnvWF fe'
       ∧ absPendingChecks pend' = absPendingChecks pend ++
           [⟨⟨.defn, absConstantVal cv_a, absExpr jv⟩, i.val, lfe.visibleBelow⟩]
-      ∧ PendingChecksWF pend' := by
+      ∧ PendingChecksWF pend'
+      ∧ FEnvCanon fe' ∧ FEnvFull fe' := by
   intro lfe hfr
   rw [cached.installed.annot_step_defn_c_push] at h
   obtain ⟨cv, hcvd, h⟩ := bind_eq_ok_iff.mp h
@@ -656,10 +678,11 @@ theorem annot_step_defn_c_push_refines {i : Std.U64} {fe fe' : fenv.FEnv}
   rw [Env.reducibility_hint_dup_refines hrhd] at hpush
   have hci : ConstantInfoWF (env.ConstantInfo.DefnInfo cv_a jv hint) := ⟨hcv, hjv⟩
   obtain ⟨hrel', hwf'⟩ := FEnv.push_refines hfr hfw hci hpush
+  obtain ⟨hcan', hfull'⟩ := FEnv.push_canon hfw hci hcan hfull hpush
   have hfe : fe2 = fe' ∧ pend1 = pend' := by simpa using h
   obtain ⟨rfl, rfl⟩ := hfe
   refine ⟨by simpa [absConstantInfo] using hrel', hwf', ?_,
-    PendingChecksWF_push hpe ⟨hcv, hjv⟩ hppush⟩
+    PendingChecksWF_push hpe ⟨hcv, hjv⟩ hppush, hcan', hfull'⟩
   rw [absPendingChecks_push hppush]
   congr 2
   rw [absPendingCheck, CheckerSplit.absValueGroup, CheckerSplit.absValueKind]
@@ -677,7 +700,8 @@ theorem annot_step_defn_c_refines {mode : env.CheckMode}
     {st st' : cached.state_c.CState} {i : Std.U64} {fe fe' : fenv.FEnv}
     {pend pend' : alloc.vec.Vec parsed_c.PendingCheck} {pd : parsed_c.DeclC}
     {cv : env.ConstantVal} {value : expr.Expr} {hint : env.ReducibilityHint}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnvCanon fe) (hfull : FEnvFull fe)
+    (hcv : ConstantValWF cv)
     (hv : ExprWF value) (hpe : PendingChecksWF pend)
     (hpd : pd = .DefnDecl cv value hint)
     (h : cached.installed.annot_step_defn_c mode pins st i fe pend pd cv value hint
@@ -688,7 +712,7 @@ theorem annot_step_defn_c_refines {mode : env.CheckMode}
             (absPendingChecks pend).toArray (absDeclC pd)).run lst
           = .ok ((lfe', (absPendingChecks pend').toArray), lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
-        ∧ PendingChecksWF pend' := by
+        ∧ PendingChecksWF pend' ∧ FEnvCanon fe' ∧ FEnvFull fe' := by
   intro lst lfe hsr hfr
   subst hpd
   rw [cached.installed.annot_step_defn_c] at h
@@ -706,15 +730,18 @@ theorem annot_step_defn_c_refines {mode : env.CheckMode}
             (ConLeche.Cached.DeclC.defnDecl (absConstantVal cv) (absExpr value)
               (absHint hint))).run lst = .ok (lfe', lst')
         ∧ StateRel st2 lst' ∧ StateWF st2 ∧ FEnvRel fe2 lfe' ∧ FEnvWF fe2
+        ∧ FEnvCanon fe2 ∧ FEnvFull fe2
         ∧ pend2 = pend := by
     intro fe2 pend2 st2 ho
     have hdwf : DeclCWF (parsed_c.DeclC.DefnDecl cv value hint) := ⟨hcv, hv⟩
-    exact annot_step_other_c_refines hk hind hvar hpins hsw hfw hdwf ho lst lfe hsr hfr
+    exact annot_step_other_c_refines hk hind hvar hpins hsw hfw hcan hfull hdwf ho lst
+      lfe hsr hfr
   by_cases hbt : b = true
   · subst hbt
     simp only [if_pos] at h
-    obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', rfl⟩ := hstep fe' pend' st' h
-    refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe⟩
+    obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', hcan', hfull', rfl⟩ :=
+      hstep fe' pend' st' h
+    refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe, hcan', hfull'⟩
     rw [absDeclC, ConLeche.Cached.annotStepC]
     rw [if_pos (by rw [← hbv]; simp)]
     simp only [StateT.run_bind, hrun]
@@ -730,8 +757,9 @@ theorem annot_step_defn_c_refines {mode : env.CheckMode}
     by_cases hb1t : b1 = true
     · subst hb1t
       simp only [if_pos] at h
-      obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', rfl⟩ := hstep fe' pend' st' h
-      refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe⟩
+      obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', hcan', hfull', rfl⟩ :=
+        hstep fe' pend' st' h
+      refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe, hcan', hfull'⟩
       rw [absDeclC, ConLeche.Cached.annotStepC]
       rw [if_pos (by rw [← hbv, ← hb1v]; simp)]
       simp only [StateT.run_bind, hrun]
@@ -751,9 +779,9 @@ theorem annot_step_defn_c_refines {mode : env.CheckMode}
         obtain ⟨rfl, rfl, rfl⟩ := hpe2
         obtain ⟨lst', hrun, hsr', hsw', hcv1, hjty1, hjv1⟩ :=
           annot_value_c_refines IndAbs.check_fuel_eq hk.1 hsw hfw hcv hv hval lst lfe hsr hfr
-        obtain ⟨hfr', hfw', hpabs, hpw⟩ :=
-          annot_step_defn_c_push_refines hfw hcv1 hjv1 hpe hpush lfe hfr
-        refine ⟨lst', _, ?_, hsr', hsw', hfr', hfw', hpw⟩
+        obtain ⟨hfr', hfw', hpabs, hpw, hcan', hfull'⟩ :=
+          annot_step_defn_c_push_refines hfw hcan hfull hcv1 hjv1 hpe hpush lfe hfr
+        refine ⟨lst', _, ?_, hsr', hsw', hfr', hfw', hpw, hcan', hfull'⟩
         rw [absDeclC, ConLeche.Cached.annotStepC]
         rw [if_neg (by rw [← hbv, ← hb1v]; simp)]
         simp only [StateT.run_bind, hrun]
@@ -768,7 +796,8 @@ theorem annot_step_thm_c_push_refines {st st' : cached.state_c.CState}
     {i : Std.U64} {fe fe' : fenv.FEnv}
     {pend pend' : alloc.vec.Vec parsed_c.PendingCheck} {cv_a : env.ConstantVal}
     {jty value : expr.Expr}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv_a)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnvCanon fe) (hfull : FEnvFull fe)
+    (hcv : ConstantValWF cv_a)
     (hjty : ExprWF jty) (hv : ExprWF value) (hpe : PendingChecksWF pend)
     (h : cached.installed.annot_step_thm_c_push st i fe pend cv_a jty value
           = ok ((fe', pend'), st')) :
@@ -781,7 +810,8 @@ theorem annot_step_thm_c_push_refines {st st' : cached.state_c.CState}
         ∧ FEnvWF fe'
         ∧ absPendingChecks pend' = absPendingChecks pend ++
             [⟨⟨.thm, absConstantVal cv_a, absExpr value⟩, i.val, lfe.visibleBelow⟩]
-        ∧ PendingChecksWF pend' := by
+        ∧ PendingChecksWF pend'
+        ∧ FEnvCanon fe' ∧ FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.installed.annot_step_thm_c_push] at h
   obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
@@ -800,11 +830,12 @@ theorem annot_step_thm_c_push_refines {st st' : cached.state_c.CState}
   rw [Expr.dup_eq he1] at hpush hppush
   have hci : ConstantInfoWF (env.ConstantInfo.ThmInfo cv_a value) := ⟨hcv, hv⟩
   obtain ⟨hrel', hwf'⟩ := FEnv.push_refines hfr hfw hci hpush
+  obtain ⟨hcan', hfull'⟩ := FEnv.push_canon hfw hci hcan hfull hpush
   have hfe : fe2 = fe' ∧ pend1 = pend' ∧ st1 = st' := by simpa using h
   obtain ⟨rfl, rfl, rfl⟩ := hfe
   refine ⟨lst', by simpa [absConstantVal] using hrun, hsr', hsw',
     by simpa [absConstantInfo] using hrel', hwf', ?_,
-    PendingChecksWF_push hpe ⟨hcv, hv⟩ hppush⟩
+    PendingChecksWF_push hpe ⟨hcv, hv⟩ hppush, hcan', hfull'⟩
   rw [absPendingChecks_push hppush]
   congr 2
   rw [absPendingCheck, CheckerSplit.absValueGroup, CheckerSplit.absValueKind]
@@ -819,7 +850,8 @@ theorem annot_step_thm_c_refines {mode : env.CheckMode}
     {st st' : cached.state_c.CState} {i : Std.U64} {fe fe' : fenv.FEnv}
     {pend pend' : alloc.vec.Vec parsed_c.PendingCheck}
     {cv : env.ConstantVal} {value : expr.Expr}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnvCanon fe) (hfull : FEnvFull fe)
+    (hcv : ConstantValWF cv)
     (hv : ExprWF value) (hpe : PendingChecksWF pend)
     (h : cached.installed.annot_step_thm_c mode st i fe pend cv value
           = ok (.Ok (fe', pend'), st')) :
@@ -830,7 +862,7 @@ theorem annot_step_thm_c_refines {mode : env.CheckMode}
             (.thmDecl (absConstantVal cv) (absExpr value))).run lst
           = .ok ((lfe', (absPendingChecks pend').toArray), lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
-        ∧ PendingChecksWF pend' := by
+        ∧ PendingChecksWF pend' ∧ FEnvCanon fe' ∧ FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.installed.annot_step_thm_c] at h
   obtain ⟨st1, hflush, h⟩ := bind_eq_ok_iff.mp h
@@ -849,9 +881,10 @@ theorem annot_step_thm_c_refines {mode : env.CheckMode}
     obtain ⟨fe2, pend2⟩ := pr
     have hfe : fe2 = fe' ∧ pend2 = pend' ∧ st3 = st' := by simpa using h
     obtain ⟨rfl, rfl, rfl⟩ := hfe
-    obtain ⟨lst2, hrunr, hsr2, hsw2, hfr2, hfw2, hpabs, hpw⟩ :=
-      annot_step_thm_c_push_refines hsw1 hfw hcv1 hjty1 hv hpe hpush lst1 lfe hsr1 hfr
-    refine ⟨lst2, _, ?_, hsr2, hsw2, hfr2, hfw2, hpw⟩
+    obtain ⟨lst2, hrunr, hsr2, hsw2, hfr2, hfw2, hpabs, hpw, hcan', hfull'⟩ :=
+      annot_step_thm_c_push_refines hsw1 hfw hcan hfull hcv1 hjty1 hv hpe hpush lst1
+        lfe hsr1 hfr
+    refine ⟨lst2, _, ?_, hsr2, hsw2, hfr2, hfw2, hpw, hcan', hfull'⟩
     rw [ConLeche.Cached.annotStepC]
     refine run_bind_ok hrunf (run_bind_ok hrun1 (run_bind_ok hrunr ?_))
     rw [hpabs, ← List.push_toArray]
@@ -863,7 +896,8 @@ installed **as an axiom** — an opaque's value is a discarded witness. -/
 theorem annot_step_opaque_c_push_refines {i : Std.U64} {fe fe' : fenv.FEnv}
     {pend pend' : alloc.vec.Vec parsed_c.PendingCheck} {cv_a : env.ConstantVal}
     {jv : expr.Expr}
-    (hfw : FEnvWF fe) (hcv : ConstantValWF cv_a) (hjv : ExprWF jv)
+    (hfw : FEnvWF fe) (hcan : FEnvCanon fe) (hfull : FEnvFull fe)
+    (hcv : ConstantValWF cv_a) (hjv : ExprWF jv)
     (hpe : PendingChecksWF pend)
     (h : cached.installed.annot_step_opaque_c_push i fe pend cv_a jv
           = ok (fe', pend')) :
@@ -872,7 +906,8 @@ theorem annot_step_opaque_c_push_refines {i : Std.U64} {fe fe' : fenv.FEnv}
       ∧ FEnvWF fe'
       ∧ absPendingChecks pend' = absPendingChecks pend ++
           [⟨⟨.opaque, absConstantVal cv_a, absExpr jv⟩, i.val, lfe.visibleBelow⟩]
-      ∧ PendingChecksWF pend' := by
+      ∧ PendingChecksWF pend'
+      ∧ FEnvCanon fe' ∧ FEnvFull fe' := by
   intro lfe hfr
   rw [cached.installed.annot_step_opaque_c_push] at h
   obtain ⟨cv, hcvd, h⟩ := bind_eq_ok_iff.mp h
@@ -881,10 +916,11 @@ theorem annot_step_opaque_c_push_refines {i : Std.U64} {fe fe' : fenv.FEnv}
   rw [Env.constant_val_dup_refines hcvd] at hpush
   have hci : ConstantInfoWF (env.ConstantInfo.AxiomInfo cv_a) := hcv
   obtain ⟨hrel', hwf'⟩ := FEnv.push_refines hfr hfw hci hpush
+  obtain ⟨hcan', hfull'⟩ := FEnv.push_canon hfw hci hcan hfull hpush
   have hfe : fe2 = fe' ∧ pend1 = pend' := by simpa using h
   obtain ⟨rfl, rfl⟩ := hfe
   refine ⟨by simpa [absConstantInfo] using hrel', hwf', ?_,
-    PendingChecksWF_push hpe ⟨hcv, hjv⟩ hppush⟩
+    PendingChecksWF_push hpe ⟨hcv, hjv⟩ hppush, hcan', hfull'⟩
   rw [absPendingChecks_push hppush]
   congr 2
   rw [absPendingCheck, CheckerSplit.absValueGroup, CheckerSplit.absValueKind]
@@ -902,7 +938,8 @@ theorem annot_step_opaque_c_refines {mode : env.CheckMode}
     {st st' : cached.state_c.CState} {i : Std.U64} {fe fe' : fenv.FEnv}
     {pend pend' : alloc.vec.Vec parsed_c.PendingCheck} {pd : parsed_c.DeclC}
     {cv : env.ConstantVal} {value : expr.Expr}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnvCanon fe) (hfull : FEnvFull fe)
+    (hcv : ConstantValWF cv)
     (hv : ExprWF value) (hpe : PendingChecksWF pend)
     (hpd : pd = .OpaqueDecl cv value)
     (h : cached.installed.annot_step_opaque_c mode pins st i fe pend pd cv value
@@ -913,7 +950,7 @@ theorem annot_step_opaque_c_refines {mode : env.CheckMode}
             (absPendingChecks pend).toArray (absDeclC pd)).run lst
           = .ok ((lfe', (absPendingChecks pend').toArray), lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
-        ∧ PendingChecksWF pend' := by
+        ∧ PendingChecksWF pend' ∧ FEnvCanon fe' ∧ FEnvFull fe' := by
   intro lst lfe hsr hfr
   subst hpd
   rw [cached.installed.annot_step_opaque_c] at h
@@ -926,10 +963,11 @@ theorem annot_step_opaque_c_refines {mode : env.CheckMode}
   · subst hbt
     simp only [if_pos] at h
     have hdwf : DeclCWF (parsed_c.DeclC.OpaqueDecl cv value) := ⟨hcv, hv⟩
-    obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', rfl⟩ :=
-      annot_step_other_c_refines hk hind hvar hpins hsw hfw hdwf h lst lfe hsr hfr
+    obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', hcan', hfull', rfl⟩ :=
+      annot_step_other_c_refines hk hind hvar hpins hsw hfw hcan hfull hdwf h lst lfe
+        hsr hfr
     rw [absDeclC] at hrun
-    refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe⟩
+    refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe, hcan', hfull'⟩
     rw [absDeclC, ConLeche.Cached.annotStepC]
     rw [if_pos (by rw [← hbv])]
     simp only [StateT.run_bind, hrun]
@@ -949,9 +987,9 @@ theorem annot_step_opaque_c_refines {mode : env.CheckMode}
       obtain ⟨rfl, rfl, rfl⟩ := hpe2
       obtain ⟨lst', hrun, hsr', hsw', hcv1, hjty1, hjv1⟩ :=
         annot_value_c_refines IndAbs.check_fuel_eq hk.1 hsw hfw hcv hv hval lst lfe hsr hfr
-      obtain ⟨hfr', hfw', hpabs, hpw⟩ :=
-        annot_step_opaque_c_push_refines hfw hcv1 hjv1 hpe hpush lfe hfr
-      refine ⟨lst', _, ?_, hsr', hsw', hfr', hfw', hpw⟩
+      obtain ⟨hfr', hfw', hpabs, hpw, hcan', hfull'⟩ :=
+        annot_step_opaque_c_push_refines hfw hcan hfull hcv1 hjv1 hpe hpush lfe hfr
+      refine ⟨lst', _, ?_, hsr', hsw', hfr', hfw', hpw, hcan', hfull'⟩
       rw [absDeclC, ConLeche.Cached.annotStepC]
       rw [if_neg (by rw [← hbv]; simp)]
       simp only [StateT.run_bind, hrun]
@@ -968,7 +1006,8 @@ theorem annot_step_c_refines {mode : env.CheckMode}
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {i : Std.U64} {fe fe' : fenv.FEnv}
     {pend pend' : alloc.vec.Vec parsed_c.PendingCheck} {pd : parsed_c.DeclC}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclCWF pd)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnvCanon fe) (hfull : FEnvFull fe)
+    (hd : DeclCWF pd)
     (hpe : PendingChecksWF pend)
     (h : cached.installed.annot_step_c mode pins st i fe pend pd
           = ok (.Ok (fe', pend'), st')) :
@@ -978,47 +1017,48 @@ theorem annot_step_c_refines {mode : env.CheckMode}
             (absPendingChecks pend).toArray (absDeclC pd)).run lst
           = .ok ((lfe', (absPendingChecks pend').toArray), lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
-        ∧ PendingChecksWF pend' := by
+        ∧ PendingChecksWF pend' ∧ FEnvCanon fe' ∧ FEnvFull fe' := by
   intro lst lfe hsr hfr
   cases pd with
   | AxiomDecl cv =>
     rw [cached.installed.annot_step_c] at h
-    obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', rfl⟩ :=
-      annot_step_other_c_refines hk hind hvar hpins hsw hfw hd h lst lfe hsr hfr
+    obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', hcan', hfull', rfl⟩ :=
+      annot_step_other_c_refines hk hind hvar hpins hsw hfw hcan hfull hd h lst lfe hsr hfr
     rw [absDeclC] at hrun
-    refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe⟩
+    refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe, hcan', hfull'⟩
     rw [absDeclC, ConLeche.Cached.annotStepC]
     · exact run_bind_ok hrun rfl
     all_goals simp
   | BasisDecl k =>
     rw [cached.installed.annot_step_c] at h
-    obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', rfl⟩ :=
-      annot_step_other_c_refines hk hind hvar hpins hsw hfw hd h lst lfe hsr hfr
+    obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', hcan', hfull', rfl⟩ :=
+      annot_step_other_c_refines hk hind hvar hpins hsw hfw hcan hfull hd h lst lfe hsr hfr
     rw [absDeclC] at hrun
-    refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe⟩
+    refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe, hcan', hfull'⟩
     rw [absDeclC, ConLeche.Cached.annotStepC]
     · exact run_bind_ok hrun rfl
     all_goals simp
   | IndDecl block n_p =>
     rw [cached.installed.annot_step_c] at h
-    obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', rfl⟩ :=
-      annot_step_other_c_refines hk hind hvar hpins hsw hfw hd h lst lfe hsr hfr
+    obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', hcan', hfull', rfl⟩ :=
+      annot_step_other_c_refines hk hind hvar hpins hsw hfw hcan hfull hd h lst lfe hsr hfr
     rw [absDeclC] at hrun
-    refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe⟩
+    refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe, hcan', hfull'⟩
     rw [absDeclC, ConLeche.Cached.annotStepC]
     · exact run_bind_ok hrun rfl
     all_goals simp
   | DefnDecl cv value hint =>
     rw [cached.installed.annot_step_c] at h
-    exact annot_step_defn_c_refines hk hind hvar hpins hsw hfw hd.1 hd.2 hpe rfl h
-      lst lfe hsr hfr
+    exact annot_step_defn_c_refines hk hind hvar hpins hsw hfw hcan hfull hd.1 hd.2 hpe
+      rfl h lst lfe hsr hfr
   | ThmDecl cv value =>
     rw [cached.installed.annot_step_c] at h
-    exact annot_step_thm_c_refines hk hsw hfw hd.1 hd.2 hpe h lst lfe hsr hfr
+    exact annot_step_thm_c_refines hk hsw hfw hcan hfull hd.1 hd.2 hpe h lst lfe
+      hsr hfr
   | OpaqueDecl cv value =>
     rw [cached.installed.annot_step_c] at h
-    exact annot_step_opaque_c_refines hk hind hvar hpins hsw hfw hd.1 hd.2 hpe rfl h
-      lst lfe hsr hfr
+    exact annot_step_opaque_c_refines hk hind hvar hpins hsw hfw hcan hfull hd.1 hd.2
+      hpe rfl h lst lfe hsr hfr
 
 /-- **`installed::annot_decl_step` refines `annotDeclStep`**
 (`Installed.lean:175-180`): phase A's step with the position carried and the
@@ -1033,7 +1073,8 @@ theorem annot_decl_step_refines {mode : env.CheckMode}
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {pd : parsed_c.DeclC}
     {p q : Std.U64 × fenv.FEnv × alloc.vec.Vec parsed_c.PendingCheck}
-    (hsw : StateWF st) (hfw : FEnvWF p.2.1) (hd : DeclCWF pd)
+    (hsw : StateWF st) (hfw : FEnvWF p.2.1) (hcan : FEnvCanon p.2.1)
+    (hfull : FEnvFull p.2.1) (hd : DeclCWF pd)
     (hpe : PendingChecksWF p.2.2)
     (h : cached.installed.annot_decl_step mode pins st p pd = ok (.Ok q, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel p.2.1 lfe →
@@ -1042,11 +1083,11 @@ theorem annot_decl_step_refines {mode : env.CheckMode}
             (p.1.val, lfe, (absPendingChecks p.2.2).toArray) (absDeclC pd) lst
           = .ok ((q.1.val, lfe', (absPendingChecks q.2.2).toArray), lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel q.2.1 lfe' ∧ FEnvWF q.2.1
-        ∧ PendingChecksWF q.2.2 := by
+        ∧ PendingChecksWF q.2.2 ∧ FEnvCanon q.2.1 ∧ FEnvFull q.2.1 := by
   intro lst lfe hsr hfr
   rw [cached.installed.annot_decl_step] at h
   obtain ⟨i, f, v⟩ := p
-  simp only at h hfw hpe hfr ⊢
+  simp only at h hfw hcan hfull hpe hfr ⊢
   obtain ⟨r, hstep, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨res, st1⟩ := r
   cases res with
@@ -1056,13 +1097,14 @@ theorem annot_decl_step_refines {mode : env.CheckMode}
     obtain ⟨f1, v1⟩ := qq
     have hq : (i1, f1, v1) = q ∧ st1 = st' := by simpa using h
     obtain ⟨rfl, rfl⟩ := hq
-    obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', hpw⟩ :=
-      annot_step_c_refines hk hind hvar hpins hsw hfw hd hpe hstep lst lfe hsr hfr
+    obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', hpw, hcan', hfull'⟩ :=
+      annot_step_c_refines hk hind hvar hpins hsw hfw hcan hfull hd hpe hstep lst lfe
+        hsr hfr
     have hi1v : i1.val = i.val + 1 := by
       have he := Std.UScalar.add_equiv i 1#u64
       rw [hi1] at he
       simpa using he.2.1
-    refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpw⟩
+    refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpw, hcan', hfull'⟩
     have hrun' : ConLeche.Cached.annotStepC (absMode mode) i.val lfe
         (absPendingChecks v).toArray (absDeclC pd) lst
         = .ok ((lfe', (absPendingChecks v1).toArray), lst') := hrun
@@ -1445,6 +1487,24 @@ theorem check_pending_list_refines {mode : env.CheckMode}
   obtain ⟨hwalk, rest⟩ := check_pending_list_from_refines hk hfw hpe h lfe hfr
   exact ⟨by simpa using hwalk, rest⟩
 
+/-- `fenv::mk_fenv` builds an **unrestricted** view: its counter is the one
+`mkFEnvGo` hands out last, which is the constant count (`FEnv.mkFEnvGo_fst`).
+This is `FEnv.mk_fenv_canon`'s missing half — together they discharge the
+canonical pair at the one place `installed::check_decls` builds an index. -/
+theorem mk_fenv_full {e : env.Env} {fe : fenv.FEnv} (he : EnvWF e)
+    (h : fenv.mk_fenv e = ok fe) : FEnvFull fe := by
+  obtain ⟨hrel, -⟩ := FEnv.mk_fenv_refines he h
+  have henv : fe.env = e := by
+    rw [fenv.mk_fenv] at h
+    obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+  unfold FEnvFull
+  rw [henv, hrel.2.1]
+  show (ConLeche.mkFEnvGo (absEnv e).consts).1 = e.consts.val.length
+  rw [FEnv.mkFEnvGo_fst]
+  simp [absEnv, absConstantInfos]
+
 /-! ## The fold
 
 `checkDecls` (`Installed.lean:407-411`) is phase A's `List.foldlM` from
@@ -1462,7 +1522,8 @@ theorem annot_decl_fold_val {mode : env.CheckMode}
     ∀ (st st' : cached.state_c.CState)
       (p q : Std.U64 × fenv.FEnv × alloc.vec.Vec parsed_c.PendingCheck)
       (i : Std.Usize),
-      ds.val.length - i.val ≤ n → StateWF st → FEnvWF p.2.1 → PendingChecksWF p.2.2 →
+      ds.val.length - i.val ≤ n → StateWF st → FEnvWF p.2.1 →
+      FEnvCanon p.2.1 → FEnvFull p.2.1 → PendingChecksWF p.2.2 →
       cached.installed.annot_decl_fold_from mode pins st p ds i = ok (.Ok q, st') →
       ∀ lst lfe, StateRel st lst → FEnvRel p.2.1 lfe →
         ∃ lst' lfe',
@@ -1471,27 +1532,27 @@ theorem annot_decl_fold_val {mode : env.CheckMode}
               (p.1.val, lfe, (absPendingChecks p.2.2).toArray)) lst
             = .ok ((q.1.val, lfe', (absPendingChecks q.2.2).toArray), lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel q.2.1 lfe' ∧ FEnvWF q.2.1
-          ∧ PendingChecksWF q.2.2 := by
+          ∧ PendingChecksWF q.2.2 ∧ FEnvCanon q.2.1 ∧ FEnvFull q.2.1 := by
   induction n with
   | zero =>
-    intro st st' p q i hb hsw hfw hpe h lst lfe hsr hfr
+    intro st st' p q i hb hsw hfw hcan hfull hpe h lst lfe hsr hfr
     rw [cached.installed.annot_decl_fold_from] at h
     rw [if_pos (show i >= alloc.vec.Vec.len ds by
       have := alloc.vec.Vec.len_val ds; scalar_tac)] at h
     have hbs : p = q ∧ st = st' := by simpa using h
     obtain ⟨rfl, rfl⟩ := hbs
-    refine ⟨lst, lfe, ?_, hsr, hsw, hfr, hfw, hpe⟩
+    refine ⟨lst, lfe, ?_, hsr, hsw, hfr, hfw, hpe, hcan, hfull⟩
     rw [List.drop_eq_nil_of_le (by omega)]
     rfl
   | succ n ih =>
-    intro st st' p q i hb hsw hfw hpe h lst lfe hsr hfr
+    intro st st' p q i hb hsw hfw hcan hfull hpe h lst lfe hsr hfr
     rw [cached.installed.annot_decl_fold_from] at h
     by_cases hge : i.val >= ds.val.length
     · rw [if_pos (show i >= alloc.vec.Vec.len ds by
         have := alloc.vec.Vec.len_val ds; scalar_tac)] at h
       have hbs : p = q ∧ st = st' := by simpa using h
       obtain ⟨rfl, rfl⟩ := hbs
-      refine ⟨lst, lfe, ?_, hsr, hsw, hfr, hfw, hpe⟩
+      refine ⟨lst, lfe, ?_, hsr, hsw, hfr, hfw, hpe, hcan, hfull⟩
       rw [List.drop_eq_nil_of_le (by omega)]
       rfl
     · rw [if_neg (show ¬ (i >= alloc.vec.Vec.len ds) by
@@ -1508,10 +1569,12 @@ theorem annot_decl_fold_val {mode : env.CheckMode}
           have he := Std.UScalar.add_equiv i 1#usize
           rw [hi2] at he
           simpa using he.2.1
-        obtain ⟨lst1, lfe1, hrun1, hsr1, hsw1, hfr1, hfw1, hpe1⟩ :=
-          annot_decl_step_refines hk hind hvar hpins hsw hfw (hds d hmem) hpe hstep lst lfe hsr hfr
+        obtain ⟨lst1, lfe1, hrun1, hsr1, hsw1, hfr1, hfw1, hpe1, hcan1, hfull1⟩ :=
+          annot_decl_step_refines hk hind hvar hpins hsw hfw hcan hfull (hds d hmem) hpe
+            hstep lst lfe hsr hfr
         obtain ⟨lst', lfe', hfold, rest⟩ :=
-          ih st1 st' p1 q i2 (by omega) hsw1 hfw1 hpe1 h lst1 lfe1 hsr1 hfr1
+          ih st1 st' p1 q i2 (by omega) hsw1 hfw1 hcan1 hfull1 hpe1 h lst1 lfe1
+            hsr1 hfr1
         rw [hi2v] at hfold
         have hlen : i.val < ds.val.length := by omega
         have hdrop : ds.val.drop i.val = d :: ds.val.drop (i.val + 1) := by
@@ -1535,7 +1598,8 @@ theorem annot_decl_fold_from_refines {mode : env.CheckMode}
     {st st' : cached.state_c.CState}
     {p q : Std.U64 × fenv.FEnv × alloc.vec.Vec parsed_c.PendingCheck}
     {ds : alloc.vec.Vec parsed_c.DeclC} {i : Std.Usize}
-    (hsw : StateWF st) (hfw : FEnvWF p.2.1) (hpe : PendingChecksWF p.2.2)
+    (hsw : StateWF st) (hfw : FEnvWF p.2.1) (hcan : FEnvCanon p.2.1)
+    (hfull : FEnvFull p.2.1) (hpe : PendingChecksWF p.2.2)
     (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.annot_decl_fold_from mode pins st p ds i = ok (.Ok q, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel p.2.1 lfe →
@@ -1545,10 +1609,10 @@ theorem annot_decl_fold_from_refines {mode : env.CheckMode}
             (p.1.val, lfe, (absPendingChecks p.2.2).toArray)) lst
           = .ok ((q.1.val, lfe', (absPendingChecks q.2.2).toArray), lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel q.2.1 lfe' ∧ FEnvWF q.2.1
-        ∧ PendingChecksWF q.2.2 :=
+        ∧ PendingChecksWF q.2.2 ∧ FEnvCanon q.2.1 ∧ FEnvFull q.2.1 :=
   fun lst lfe hsr hfr =>
     annot_decl_fold_val hk hind hvar hpins hds ds.val.length st st' p q i (by omega)
-      hsw hfw hpe h lst lfe hsr hfr
+      hsw hfw hcan hfull hpe h lst lfe hsr hfr
 
 /-- **`installed::check_decls_phase_b` refines the cited
 `checkPendingList mode p.2.1 p.2.2.toList; pure p.2.1.env`**
@@ -1622,9 +1686,11 @@ theorem check_decls_refines {mode : env.CheckMode}
   | Err er => simp at h
   | Ok p =>
     obtain ⟨n0, fe1, pend1⟩ := p
-    obtain ⟨lst', lfe', hrunfold, -, -, hfr1, hfw1, hpe1⟩ :=
+    obtain ⟨lst', lfe', hrunfold, -, -, hfr1, hfw1, hpe1, -, -⟩ :=
       annot_decl_fold_from_refines (p := (0#u64, fe0,
           alloc.vec.Vec.new parsed_c.PendingCheck)) hk hind hvar hpins hsw0 hwf0
+        (FEnv.mk_fenv_canon (Env.empty_wf he0) hfe0)
+        (mk_fenv_full (Env.empty_wf he0) hfe0)
         (by intro pc hpc; simp at hpc) hds hfold
         ({} : ConLeche.Cached.CState) (ConLeche.mkFEnv ConLeche.Env.empty) hsr0 hrel0
     have hphase : cached.installed.check_decls_phase_b mode fe1 pend1 = ok (.Ok e) := by

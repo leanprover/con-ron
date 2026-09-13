@@ -364,6 +364,25 @@ def domsStep (bs₁ bs₂ : List (ConLeche.Expr × ConLeche.BinderMeta)) (o₁ o
   | some b₁, some b₂ => b₁.1 == b₂.1
   | _, _ => false
 
+/-- The cited `(List.range n).all` body at an arbitrary binder view `gl`;
+`domsStep` is this at `gl := fun _ e => e` (`domsStep_eq_view`). -/
+def domsStepView (gl : Nat → ConLeche.Expr → ConLeche.Expr)
+    (bs₁ bs₂ : List (ConLeche.Expr × ConLeche.BinderMeta)) (o₁ o₂ i : Nat) : Bool :=
+  match bs₁[o₁ + i]?, bs₂[o₂ + i]? with
+  | some b₁, some b₂ => b₁.1 == gl i b₂.1
+  | _, _ => false
+
+/-- The identity view's body is the general one. -/
+theorem domsStep_eq_view (bs₁ bs₂ : List (ConLeche.Expr × ConLeche.BinderMeta))
+    (o₁ o₂ : Nat) :
+    domsStep bs₁ bs₂ o₁ o₂ = domsStepView (fun _ e => e) bs₁ bs₂ o₁ o₂ := rfl
+
+/-- `domsMatchAux` at any view *is* `domsStepView`'s `List.range` fold. -/
+theorem domsMatchAux_view (gl : Nat → ConLeche.Expr → ConLeche.Expr)
+    (bs₁ bs₂ : List (ConLeche.Expr × ConLeche.BinderMeta)) (o₁ o₂ n : Nat) :
+    ConLeche.domsMatchAux gl bs₁ bs₂ o₁ o₂ n
+      = (List.range n).all (domsStepView gl bs₁ bs₂ o₁ o₂) := rfl
+
 /-- `domsMatchAux` at the identity view *is* `domsStep`'s `List.range` fold. -/
 theorem domsMatchAux_ident (bs₁ bs₂ : List (ConLeche.Expr × ConLeche.BinderMeta))
     (o₁ o₂ n : Nat) :
@@ -405,16 +424,23 @@ theorem vec_index_binder {bs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
   rfl
 
 /-- `ConLeche/Kernel/CheckerBase.lean:99-106 domsMatchAux` — the index
-recursion behind `doms_match_aux`, at the positions from `i` on. -/
+recursion behind `doms_match_aux`, at the positions from `i` on, at an
+*arbitrary* `checker_base::DomView` dictionary whose one method computes the
+cited binder view `gl`.  The dictionary may not be fixed to `DomIdent` here:
+`modeled::check_proj_iota` (`kernel/inductives/modeled.rs:2080-2087`) calls
+`doms_match_aux` at `DomProjFwd`. -/
 theorem doms_match_aux_from_refines
+    {G : Type} (inst : checker_base.DomView G) (g : G)
+    (gl : Nat → ConLeche.Expr → ConLeche.Expr)
+    (hgl : ∀ (i : Std.U64) (e : expr.Expr), ExprWF e → ∀ r,
+      inst.view g i e = ok r → absExpr r = gl i.val (absExpr e) ∧ ExprWF r)
     {bs1 bs2 : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
     (hb1 : ExprOps.BindersWF bs1) (hb2 : ExprOps.BindersWF bs2) :
     ∀ (N : Nat) (o1 o2 n i : Std.U64), n.val - i.val ≤ N → ∀ b : Bool,
-      checker_base.doms_match_aux_from
-        checker_base.DomIdent.Insts.Con_ron_coreKernelChecker_baseDomView () bs1 bs2 o1 o2 n i
-        = ok b →
+      checker_base.doms_match_aux_from inst g bs1 bs2 o1 o2 n i = ok b →
       b = (List.range' i.val (n.val - i.val)).all
-            (domsStep (ExprOps.absBinders bs1) (ExprOps.absBinders bs2) o1.val o2.val) := by
+            (domsStepView gl (ExprOps.absBinders bs1) (ExprOps.absBinders bs2)
+              o1.val o2.val) := by
   have hlen1 : (ExprOps.absBinders bs1).length = bs1.val.length := by simp [ExprOps.absBinders]
   have hlen2 : (ExprOps.absBinders bs2).length = bs2.val.length := by simp [ExprOps.absBinders]
   intro N
@@ -450,14 +476,14 @@ theorem doms_match_aux_from_refines
       · rename_i hge
         have hnone : (ExprOps.absBinders bs1)[o1.val + i.val]? = none :=
           List.getElem?_eq_none (by rw [hlen1]; scalar_tac)
-        simp only [domsStep, hnone]
+        simp only [domsStepView, hnone]
         simpa using h.symm
       · rename_i hlt1
         split at h
         · rename_i hge
           have hnone : (ExprOps.absBinders bs2)[o2.val + i.val]? = none :=
             List.getElem?_eq_none (by rw [hlen2]; scalar_tac)
-          simp only [domsStep, hnone]
+          simp only [domsStepView, hnone]
           rcases hs : (ExprOps.absBinders bs1)[o1.val + i.val]? with _ | q <;>
             simpa using h.symm
         · rename_i hlt2
@@ -477,9 +503,10 @@ theorem doms_match_aux_from_refines
           obtain ⟨hw1, hg1⟩ := vec_index_binder hb1 hp1
           rw [hi5, hj2v] at hg2
           rw [hi6, hj1v] at hg1
-          rw [dom_ident_view_refines hview] at hc
-          have hcv := Expr.beq_refines hw1 hw2 hc
-          simp only [domsStep, hg1, hg2, ← decide_eq_beq_expr, ← hcv]
+          obtain ⟨hvabs, hvwf⟩ := hgl i e2 hw2 viewed hview
+          have hcv := Expr.beq_refines hw1 hvwf hc
+          rw [hvabs] at hcv
+          simp only [domsStepView, hg1, hg2, ← decide_eq_beq_expr, ← hcv]
           cases c with
           | false =>
             simp only [Bool.false_eq_true, if_false] at h
@@ -493,6 +520,35 @@ theorem doms_match_aux_from_refines
             simpa using hih
 
 /-- `ConLeche/Kernel/CheckerBase.lean:99-106 domsMatchAux` — the wrapper, at
+an arbitrary `checker_base::DomView` dictionary computing the cited view `gl`.
+This is the reading `Refine/IndModeled.lean`'s `CheckerBaseSpec.domsMatchAux`
+ingredient asks for; the two `DomIdent` readings below are its instances. -/
+theorem doms_match_aux_view_refines
+    {G : Type} (inst : checker_base.DomView G) (g : G)
+    (gl : Nat → ConLeche.Expr → ConLeche.Expr)
+    (hgl : ∀ (i : Std.U64) (e : expr.Expr), ExprWF e → ∀ r,
+      inst.view g i e = ok r → absExpr r = gl i.val (absExpr e) ∧ ExprWF r)
+    {bs1 bs2 : alloc.vec.Vec (expr.Expr × expr.BinderMeta)} {o1 o2 n : Std.U64} {b : Bool}
+    (hb1 : ExprOps.BindersWF bs1) (hb2 : ExprOps.BindersWF bs2)
+    (h : checker_base.doms_match_aux inst g bs1 bs2 o1 o2 n = ok b) :
+    b = ConLeche.domsMatchAux gl
+      (ExprOps.absBinders bs1) (ExprOps.absBinders bs2) o1.val o2.val n.val := by
+  rw [checker_base.doms_match_aux] at h
+  have hh := doms_match_aux_from_refines inst g gl hgl hb1 hb2
+    n.val o1 o2 n 0#u64 (by scalar_tac) b h
+  rw [domsMatchAux_view, List.range_eq_range']
+  simpa using hh
+
+/-- `DomIdent`'s dictionary computes the cited identity view. -/
+theorem dom_ident_view_gl :
+    ∀ (i : Std.U64) (e : expr.Expr), ExprWF e → ∀ r,
+      checker_base.DomIdent.Insts.Con_ron_coreKernelChecker_baseDomView.view () i e = ok r →
+      absExpr r = (fun _ e => e) i.val (absExpr e) ∧ ExprWF r := by
+  intro i e he r hr
+  rw [dom_ident_view_refines hr]
+  exact ⟨rfl, he⟩
+
+/-- `ConLeche/Kernel/CheckerBase.lean:99-106 domsMatchAux` — the wrapper, at
 the identity view. -/
 theorem doms_match_aux_refines
     {bs1 bs2 : alloc.vec.Vec (expr.Expr × expr.BinderMeta)} {o1 o2 n : Std.U64} {b : Bool}
@@ -501,11 +557,8 @@ theorem doms_match_aux_refines
       checker_base.DomIdent.Insts.Con_ron_coreKernelChecker_baseDomView () bs1 bs2 o1 o2 n
       = ok b) :
     b = ConLeche.domsMatchAux (fun _ e => e)
-      (ExprOps.absBinders bs1) (ExprOps.absBinders bs2) o1.val o2.val n.val := by
-  rw [checker_base.doms_match_aux] at h
-  have hh := doms_match_aux_from_refines hb1 hb2 n.val o1 o2 n 0#u64 (by scalar_tac) b h
-  rw [domsMatchAux_ident, List.range_eq_range']
-  simpa using hh
+      (ExprOps.absBinders bs1) (ExprOps.absBinders bs2) o1.val o2.val n.val :=
+  doms_match_aux_view_refines _ () _ dom_ident_view_gl hb1 hb2 h
 
 /-- `ConLeche/Kernel/CheckerBase.lean:120-129 domsMatchAuxA` — the `Array`
 twin is the same Rust function (task #24's `F`/`Array` collapse); this is the

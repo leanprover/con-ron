@@ -52,6 +52,7 @@ slot throws at the same *kind* (`Refine/Abs.lean`'s `ErrSim`; messages are
 never compared).  The eight `Ind*.lean` files reach a failing operation only
 through the `_err` companions.
 -/
+import ConRon.Refine.Scalars
 import ConRon.Refine.Core.Statements
 import ConRon.Refine.StateC
 import ConLeche.Cached.CheckerC

@@ -13209,6 +13209,256 @@ gained the matching `check_decls_embedded_refines`.
   suffix of its input", which is what forced `PinsRead`'s `AtField` to carry an
   `Option Bytes`.
 
+### Task #59 — The inductive tier closed; the spec bridge (2026-09-13, Opus under Fable)
+
+P3, `CORE_PLAN.md` **step 7's second half, finished**.  Task #57 landed the ten
+`Refine/Ind*.lean` files with 125 `sorry`s and four named gaps; this task closes
+them.  Nine agents shared one worktree, one per file plus three for the seams.
+
+#### (a) The spec bridge — `ind_routes_spec_of_p`, and it is clean
+
+`Refine/IndSpec.lean` holds two forms of the same `Prop`: `IndRoutesSpecP`, the
+*producer's* (task #57 — the two routes on already-recognised parts), and
+`IndRoutesSpec`, the *consumer's* (task #56 — each clause carrying the
+recogniser's verdict, which is what `cached::parsed_c::check_ind_decl_c`'s
+two-way dispatch consumes).  `IndC.lean`'s
+
+```lean
+theorem ind_routes_spec_of_p (hp : IndRoutesSpecP mode) : IndRoutesSpec mode
+```
+
+is the step between them, and it is exactly `native_parts`' own refinement:
+a recognised block gives the Lean `NativeParts` the native clause quantifies,
+a declined one gives `nativeParts? = none`, which is the modeled clause's first
+conjunct.  That needed `NativeParts.native_parts_refines` — task #57's last
+statement, still a `sorry` — together with its twelve-field `StructGens`
+ingredient.  Both are now proved, and the census is machine-checked:
+
+```
+'ConRon.Refine.InductivesC.ind_routes_spec_of_p' depends on axioms:
+  [propext, Classical.choice, Quot.sound]
+```
+
+So `CheckerDecl.lean`'s `hind : IndRoutesSpec mode` is discharged by
+`ind_routes_spec_of_p (ind_routes_spec hk)` at the knot (task #61's
+`Core.knot_spec`, merged mid-task).
+
+#### (b) 125 `sorry`s → 6
+
+| file | before | after |
+|---|---:|---:|
+| `IndAbs.lean` | 0 | 0 |
+| `IndStructParts.lean` | 7 | **0** |
+| `IndSumParts.lean` | 0 | 0 |
+| `IndNativeParts.lean` | 31 | **0** |
+| `IndStructInstall.lean` | 2 | **0** |
+| `IndSumInstall.lean` | 10 | **0** |
+| `IndNativeInstall.lean` | 23 | **0** |
+| `IndModeled.lean` | 43 | 5 |
+| `IndSpec.lean` | 0 | 0 |
+| `IndC.lean` | 9 | 1 |
+| **total** | **125** | **6** |
+
+Seven of the ten files are `sorry`-free, and `scripts/progress.py` reads
+**`verified 12766 (92%)`** of the 13 743 verified-core Lean lines, up from task
+#61's 54%; `proofs 104500 (1226 _refines)`.  `IndNativeParts` — the generated
+recursor, the file task #57 called "the one that matters most for trust" —
+closed completely: all 69 items, node for node against the cited construction.
+`IndStructParts`' whole `structPartsCore?` recogniser group closed, and so did
+`IndNativeInstall`'s direct route and `IndSumInstall`'s shared stages.
+
+What is left is five `check_iota_thm*` stages in `IndModeled` and one `usize`
+bound in `IndC` — **all six the same port bug**, finding 1 below.  The whole
+`check_iota_rule*` group, the whole projection-function group and the whole
+member/recursor chain closed.  **Nothing was weakened**: every closed lemma has its task-#57
+statement, and every added hypothesis is a case where the statement is *false*
+without it, documented at the lemma and listed in its file's header.
+
+#### (c) The two infrastructure gaps, and what they cost
+
+**1. `Refine/Scalars.lean` — the `u64 → usize` index cast in one place.**  The
+two cast-value lemmas re-exported, plus the *discharges*
+(`u64_le_usize_max_of_le_len`, `…_of_lt_len`, `…_of_cast`, `…_of_le`,
+`cast_val_of_le_len`) that close the side condition from the `Vec` a counter
+came from.  **No platform axiom**: nothing in the tree asserts `Usize.max =
+U64.max`.  Where the bound cannot be discharged it is a *hypothesis*, because
+the port's guards compare the **cast** (`(i as usize) >= v.len()`), so on a
+32-bit target a wrapped index passes a guard the cited `v[i]?` answers `none`
+at, and the refinement is genuinely false.  Roughly twenty such bounds now sit
+in the tier, each discharged at its call site from a `Vec`'s length —
+**except one**, which is finding 1 below.
+
+**2. `Refine/FEnv.lean` — the `dup` bridge, and what it needed.**
+`dup_refines` relates the copy to `mkFEnv` of the copied environment, but the
+cached stages pass their own persistent `lfe` across the copy.  The bridge is
+`dup_rel : FEnvCanon fe → FEnvRel fe lfe → dup fe = ok fe' → FEnvRel fe' lfe ∧
+FEnvWF fe' ∧ FEnvCanon fe'`, where `FEnvCanon fe` says *`fe`'s index is the
+rebuild of its own environment*.  That hypothesis is forced: `FEnvRel` pins
+`lfe.idx` only on the image of the well-formed names, so an `lfe` disagreeing
+with its own environment is related to `fe` and not to the rebuild.  With it
+came `FEnvFull` ("nothing is hidden"), `dup_canon`, `mk_fenv_canon`,
+`push_canon` — and `canon_find_name`, which recovers for the *index* what
+`Env.find? env n = env.consts.find? (·.name == n)` gives on the list reading:
+a found record's name is the name it was found under.  `modeled::check_proj_iota_body`
+needs exactly that, and it is why the tier did **not** grow a key-agreement
+clause on `FEnvWF` (it cannot: `restrict_to` breaks `FEnvFull`, which
+`push_canon` needs, so canonicity is not a hereditary invariant of an `FEnv`).
+
+#### (d) The citation fix
+
+`modeled::iota_stmt_open` opens the telescope with the one-pass
+`checker_base::open_pis_at_fvars_f` where the cited `checkIotaThmF` writes
+`openPisAtFvars`; the doc comment now says so and cites con-leche's own
+`ConLeche/Verify/FastOps.lean:101 openPisAtFvarsF_eq`.  A comment-only Rust
+change, so `scripts/extract.sh` rewrote 107 `Source:` lines in
+`Generated/Funs.lean` and nothing else.
+
+#### Two new files
+
+| file | contents |
+|---|---|
+| `Refine/Scalars.lean` | the `u64 → usize` index cast: the two cast-value lemmas and the discharges that close the bound from a `Vec`'s length |
+| `Refine/IndIngredients.lean` | the tier's **leaf**: ~38 ingredient `Prop`s discharged from the files that own them — `CheckerBaseSpec` (all twelve fields, from `Refine/CheckerBase.lean` under the knot), `structGens` (the twelve `struct_parts` generators), and the install modules' thirty-odd `*Refines` |
+
+`Refine/CheckerBase.lean` also grew the generic reading
+`doms_match_aux_view_refines`, at an abstract `DomView` dictionary: task #24's
+deviation 3 is true of `decl_check.rs` but **not** of `inductives/modeled.rs`,
+whose `check_proj_iota` passes a `DomProjFwd`.  The `DomIdent` corollaries keep
+their statements verbatim.
+
+#### The findings
+
+1. **The port should compare the counter, not the cast.**  DESIGN.md §3.3
+   already rules that `u64 → usize` casts are avoided because their model
+   depends on `System.Platform.numBits`; `kernel/inductives/` has about fifteen
+   of them.  Every one is dischargeable from a `Vec` in hand **except**
+   `modeled::check_eta_thm_shape` / `check_unit_thm_shape`, whose `n_p as
+   usize` is compared against `sbinders.len()`: the bound then has to come from
+   a stored field count that nothing bounds, and it is the tier's **one
+   remaining `sorry` outside `IndModeled`** (`IndC.check_ind_decl_s_refines`'s
+   struct arm).  The fix is one guard in the Rust — compare `n_p` against
+   `sbinders.len() as u64` — after which the bound is derivable and a dozen
+   hypotheses disappear with it.  A follow-up task.
+2. **A cited `match` and any re-spelling of it elaborate to *different*
+   auxiliary matchers**, so `rw` of a refinement into cited code never fires.
+   Three agents hit this independently.  The remedies that work: close by
+   `exact` (with a `runBind_compose`-style helper that takes the stages from
+   the goal), or open the proof with a `show` respelling the goal at the local
+   matchers, or route through a `rfl` equation lemma.
+3. **Task #57's tuple-`let` finding is universal**: `split` and `dsimp` do not
+   see through the `let (a, b) := (…, …)` a destructured pair bind leaves
+   behind; only a full `simp at h` does.  Splitting a `Bool` parameter *before*
+   that `simp` stops it manufacturing a spurious disjunction.
+4. **`has_loose_bvar_b_node` aside, the port matched the citation everywhere
+   the proofs went.**  No deviation was found in `native_parts`' generators,
+   `struct_parts`' recogniser, or either install route.
+5. **The seam grew two hypotheses.**  `IndRoutesSpec` / `IndRoutesSpecP` now
+   carry `FEnvCanon fe` and `FEnvFull fe`.  That is forced by `fenv::dup` (see
+   (c) 2) and is discharged by the consumer from `mk_fenv_canon` / `dup_canon`
+   / `push_canon`: every index the checker builds is a copy followed by pushes,
+   and `restrict_to` is never called between the two.
+
+#### What the tier's entry points say now
+
+```
+'ConRon.Refine.InductivesC.ind_routes_spec_of_p' depends on axioms:
+  [propext, Classical.choice, Quot.sound]
+'ConRon.Refine.InductivesC.check_native_s_refines'  depends on axioms:
+  [propext, sorryAx, Classical.choice, Quot.sound]
+'ConRon.Refine.InductivesC.check_ind_decl_s_refines' depends on axioms:
+  [propext, sorryAx, Classical.choice, Quot.sound]
+```
+
+all three machine-checked with `#guard_msgs`.  The bridge is closed; the two
+entry points' remaining `sorryAx` is **exactly** the six `sorry`s of finding 1
+and nothing else — every other ingredient they compose is proved.
+`CheckerDecl.check_ind_decl_c_refines`, which consumes `IndRoutesSpec`, is back
+to the three standard axioms.
+
+#### The cascade the seam change cost, and why it was right
+
+Adding `FEnvCanon`/`FEnvFull` to `IndRoutesSpec` was not enough on its own:
+`cached::installed`'s **phase A is a fold**, so step *n*'s output index is step
+*n+1*'s input, and every lemma on that chain has to hand the pair *back out* as
+well as take it in — exactly as it already does for `FEnvWF fe'`.  So the four
+clauses also gained `∧ FEnvCanon fe' ∧ FEnvFull fe'`, and the pair now travels
+through `Refine/CheckerDecl.lean` (`check_decl_c`, `check_decl_step_c`, the
+basis-decl install), `Refine/Checker.lean`'s `install_basis_decl` and
+`Refine/Installed.lean`'s whole annotate fold.  It **stops** at
+`Installed.check_decls_refines`: `fenv::mk_fenv env::empty` is the only index
+the checker ever builds, and `FEnv.mk_fenv_canon` plus `Installed.mk_fenv_full`
+close both there.  `Refine/Main.lean` is untouched and every `#print axioms`
+line in the tree is byte-identical to before — except
+`ind_routes_spec_of_p`, which *lost* `sorryAx`.
+
+#### Gates
+
+| | |
+|---|---|
+| `scripts/gates.sh` | all 7 OK |
+| progress | `verified 12766 (92%)` of 13 743, up from 54%; `proofs 104500 (1226 _refines)` |
+
+### Task #68 — Task #59 merged with #64/#65: the canonical pair through the closed arms (2026-09-13, Opus under Fable)
+
+`worktree-agent-a19e5be5f216769dd` (task #59, the inductive tier closed and
+`FEnv.FEnvCanon`/`FEnv.FEnvFull` threaded through the parsed-declaration tier)
+merged into a `master` that had since landed task #64's `*_embedded` capstones
+and task #65's `hoe`/`DivModOrElse` removal.
+
+#### What conflicted, and how
+
+* **`DESIGN.md`** — both sides appended task sections; kept both, #59 last.
+* **`Refine/CheckerDecl.lean`** — the *real* one.  Task #59 strengthened the
+  four value arms' conclusions with `FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'`
+  but left their bodies `sorry` (they were `sorry` at its branch point); task
+  #58, on `master`, had *proved* those bodies at the old conclusion.  Taking
+  either side alone loses something, so the resolution takes **#59's statements
+  with #58's proofs**, and pays the difference.
+* **`Refine/Installed.lean`** — call sites only: `master`'s `hvar` and #59's
+  `hcan`/`hfull` interleaved into one argument list.  The signatures had
+  auto-merged; `check_decls_refines` and everything above it (`Main.lean`'s
+  capstones, the `*_embedded` corollaries) are **unchanged**, because the pair
+  is discharged inside it at `fenv::mk_fenv`.
+
+#### The difference paid: two facts, and a bridge
+
+1. **The pin gates hand the index back unchanged.**  `check_defn_pins`,
+   `check_structural_nat_pin`, `check_defn_div_mod_pin`, `check_div_mod_pin`
+   and `check_reduce_pin` (`kernel/checker.rs:1128-1421`) certify at the
+   pre-insertion view and restore the caller's counter — `restrict_to fe k_pre`
+   then `restrict_to fe_pre fe.visible_below`, a round trip that is the
+   identity on the record (`restrict_round`).  So the defn and opaque arms'
+   `fe'` *is* the `fe2` the push produced, and the pair rides across the gate
+   with no re-proof.
+2. **The push carries it**, which is `FEnv.push_canon` — threaded through
+   `axiom_install_c` and the three `check_*_val_c(_after_annot)_refines`
+   at their single `FEnv.push_refines` site each.  The axiom arm's *tolerated*
+   branch stores nothing, so it hands back the hypothesis unchanged.
+3. **`canon_of_indexed`**: the `Expr`-level tier's own `Indexed lfe`
+   (`lfe = mkFEnv lfe.env`) *implies* the pair for the port's `fe`, because
+   `mkFEnv` is the rebuild at the full count.  That is what lets the
+   non-cached `check_basis_decl_refines` keep its statement while calling the
+   now-stronger `install_basis_decls_refines`.
+
+#### Census moved, in the right direction
+
+`InductivesC.check_native_s_refines` **lost `sorryAx`**: its inherited door was
+task #58's declaration arms, and this merge is the first tree where the closed
+checker tier and the closed inductive tier are both present.  Its `#guard_msgs`
+was corrected (the file's note said it would have to be).
+`check_ind_decl_s_refines` keeps its own `sorry` (the `n_p ≤ Usize.max` bound)
+and `Refine/IndModeled.lean`'s five.  Every other census line in the tree is
+byte-identical, the capstones' included.
+
+#### Gates
+
+| | |
+|---|---|
+| `scripts/gates.sh` | all 7 OK |
+| `sorry` | 6, all in the inductive tier (`IndModeled` ×5, `IndC` ×1) — #59's count, unchanged |
+| capstones | `conron.model_exists'` / `conron.model_exists_embedded` hypotheses **unchanged** |
+| progress | `verified 12766 (92%)` of 13 743; `proofs 119328 (1289 _refines)` |
+
 ### Task #67 — Full-outcome simulation: native errors, `orElse` backtracking, the tower restated (2026-09-13, Opus under Fable)
 
 The ruling of 2026-09-13 (§3), carried out.  Task #65's "an attempt's error is

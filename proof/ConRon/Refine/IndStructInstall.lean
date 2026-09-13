@@ -32,12 +32,19 @@ ingredient, exactly as `Refine/StateC.lean` carries `InstantiateListRefines`.
 reaches `ops.isDefEq` and so takes
 `hw : Core.Wrappers mode IndAbs.checkFuelU`.
 
-2 `sorry`s: `check_struct_doms_at` (the binder-by-binder `isDefEq` recursion,
-which needs the knot's arms) and `check_struct_proj_table` (which needs both
-walkers' refinements).  The two guards are proved, by strong induction on the
-remaining index over Aeneas's `partial_fixpoint` unfolding; the `j = 0` reading
-of the name-family freshness that both routes' drivers call follows from the
-general one.
+0 `sorry`s (task #59).  All four items are proved: the two guards and
+`check_struct_doms_at` by strong induction on the remaining index over Aeneas's
+`partial_fixpoint` unfolding, the table by composing them with `fenv::push`;
+the `j = 0` reading of the name-family freshness that both routes' drivers call
+follows from the general one.
+
+**One hypothesis is added, at `check_struct_doms_at_refines`**: `hjmax`, the
+`usize`-width side condition of `Refine/Scalars.lean`.  The conclusion is false
+without it (the port indexes with `i as usize` on a `u64` counter and guards on
+the *cast*, so a 32-bit target admits a wrapped index con-leche's `fvs[i]?`
+answers `none` at); its own doc-comment says how the single caller discharges
+it.  `Refine/IndSumInstall.lean`'s named ingredient `CheckStructDomsAtRefines`
+therefore wants the same conjunct.
 -/
 import ConRon.Refine.IndAbs
 import ConRon.Refine.ExprOpsFields
@@ -80,16 +87,152 @@ def ConstsResolveFFastRefines : Prop :=
 
 /-! ## The binder-domain comparison -/
 
+open ConLeche.Cached in
+/-- `checkStructDomsAtF` at an exhausted counter. -/
+theorem checkStructDomsAtF_zero {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {off : Nat} {fvs doms : List ConLeche.Expr}
+    {lst : CState} :
+    (ConLeche.checkStructDomsAtF ops lfe off fvs doms 0).run lst
+      = .ok ((), lst) := rfl
+
+open ConLeche.Cached in
+/-- `checkStructDomsAtF`'s step, at a comparison that succeeded. -/
+theorem checkStructDomsAtF_succ {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {off j : Nat} {fvs doms : List ConLeche.Expr}
+    {a b : ConLeche.Expr} {lst lst1 : CState}
+    (ha : fvs[j]? = some a) (hb : doms[j]? = some b)
+    (hstep : (ops.isDefEq lfe.env (off + j) a.fvarTypeD b).run lst
+      = .ok (true, lst1)) :
+    (ConLeche.checkStructDomsAtF ops lfe off fvs doms (j + 1)).run lst
+      = (ConLeche.checkStructDomsAtF ops lfe off fvs doms j).run lst1 := by
+  rw [ConLeche.checkStructDomsAtF]
+  simp only [ConLeche.unwrapOr, ha, hb, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure]
+  rw [show (ops.isDefEq lfe.env (off + j) a.fvarTypeD b) lst
+      = Except.ok (true, lst1) from hstep]
+  rfl
+
+/-- The abstracted `Vec`, read at an index the port read. -/
+theorem absExprs_getElem? {v : alloc.vec.Vec expr.Expr} {i : Nat}
+    {x : expr.Expr} (h : v.val[i]? = some x) :
+    (absExprs v)[i]? = some (absExpr x) := by
+  rw [absExprs, List.getElem?_map, h]; rfl
+
+/-- The binder-domain recursion, with the measure the induction runs on made
+explicit.  `hjmax` is the `usize`-width side condition `Refine/Scalars.lean`
+owns: see `check_struct_doms_at_refines` below. -/
+theorem check_struct_doms_at_refines_aux {mode : env.CheckMode}
+    (hw : Core.Wrappers mode IndAbs.checkFuelU)
+    {fe : fenv.FEnv} {off : Std.U64} {fvs doms : alloc.vec.Vec expr.Expr}
+    {lfe : ConLeche.FEnv}
+    (hfe : FEnvWF fe) (hfvs : ExprsWF fvs) (hdoms : ExprsWF doms)
+    (hfr : FEnvRel fe lfe) :
+    ∀ (N : Nat) (j : Std.U64) (st st' : cached.state_c.CState),
+      j.val ≤ N → j.val ≤ Std.Usize.max → StateWF st →
+      inductives.struct_install.check_struct_doms_at mode st fe off fvs doms j
+          = ok (.Ok (), st') →
+      ∀ lst, StateRel st lst →
+        ∃ lst', (ConLeche.checkStructDomsAtF (m := ConLeche.Cached.CheckCM)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe off.val
+              (absExprs fvs) (absExprs doms) j.val).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st' := by
+  intro N
+  induction N with
+  | zero =>
+    intro j st st' hN hjmax hst h lst hsr
+    have hj0 : j = 0#u64 := by scalar_tac
+    subst hj0
+    rw [inductives.struct_install.check_struct_doms_at] at h
+    simp only [reduceIte, Result.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨-, rfl⟩ := h
+    exact ⟨lst, by simpa using checkStructDomsAtF_zero, hsr, hst⟩
+  | succ N ih =>
+    intro j st st' hN hjmax hst h lst hsr
+    rw [inductives.struct_install.check_struct_doms_at] at h
+    by_cases hj0 : j = 0#u64
+    · subst hj0
+      simp only [reduceIte, Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨-, rfl⟩ := h
+      exact ⟨lst, by simpa using checkStructDomsAtF_zero, hsr, hst⟩
+    · rw [if_neg hj0] at h
+      obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+      have hiv : i.val = j.val - 1 := HashMap.uscalar_sub_eq hi
+      have hjne : j.val ≠ 0 := by
+        intro hc
+        exact hj0 (Std.UScalar.eq_of_val_eq (by simpa using hc))
+      have hjv : j.val = i.val + 1 := by omega
+      have himax : i.val ≤ Std.Usize.max := by omega
+      have hcast : (Std.UScalar.cast .Usize i : Std.Usize).val = i.val :=
+        Scalars.u64_cast_usize_val himax
+      simp only [lift_eq, bind_tc_ok] at h
+      split at h
+      · simp [bind_eq_ok_iff] at h
+      · rename_i hgef
+        split at h
+        · simp [bind_eq_ok_iff] at h
+        · rename_i hged
+          obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨a, ha, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨i6, hi6, h⟩ := bind_eq_ok_iff.mp h
+          have hi6v : i6 = IndAbs.checkFuelU := by
+            rw [IndAbs.check_fuel_eq] at hi6; exact (Result.ok_injective hi6).symm
+          subst hi6v
+          obtain ⟨i7, hi7, h⟩ := bind_eq_ok_iff.mp h
+          have hi7v : i7.val = off.val + i.val := HashMap.uscalar_add_eq hi7
+          obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨r, st1⟩ := p
+          cases r with
+          | Err err => simp at h
+          | Ok b =>
+            cases b with
+            | false => simp [bind_eq_ok_iff] at h
+            | true =>
+              have hew : ExprWF e := (ExprOps.vec_index_expr hfvs he).2.1
+              have he1w : ExprWF e1 := (ExprOps.vec_index_expr hdoms he1).2.1
+              obtain ⟨haabs, haw⟩ := ExprOps.fvar_type_d_refines hew ha
+              obtain ⟨lst1, hrun, hsr1, hst1⟩ :=
+                IndAbs.ops_defeq hw hst hfe haw he1w hp lst lfe hsr hfr
+              obtain ⟨lst2, hrun2, hsr2, hst2⟩ :=
+                ih i st1 st' (by omega) (by omega) hst1 h lst1 hsr1
+              refine ⟨lst2, ?_, hsr2, hst2⟩
+              have hfvsget : (absExprs fvs)[i.val]? = some (absExpr e) := by
+                have hg := ExprOps.vec_index_expr_getElem? he
+                rw [hcast] at hg
+                exact absExprs_getElem? hg
+              have hdomsget : (absExprs doms)[i.val]? = some (absExpr e1) := by
+                have hg := ExprOps.vec_index_expr_getElem? he1
+                rw [hcast] at hg
+                exact absExprs_getElem? hg
+              have hstep :
+                  ((ConLeche.Cached.sharedOpsC (absMode mode) lfe).isDefEq
+                      lfe.env (off.val + i.val) (absExpr e).fvarTypeD
+                      (absExpr e1)).run lst = .ok (true, lst1) := by
+                rw [← hfr.1, ← hi7v, ← haabs]; exact hrun
+              rw [hjv, checkStructDomsAtF_succ hfvsget hdomsget hstep]
+              exact hrun2
+
 /-- `ConLeche/Kernel/Inductives/StructInstallF.lean:27-36` —
 `check_struct_doms_at` refines `checkStructDomsAtF`: the `j`-th opened
 variable's annotation against the `j`-th expected domain, at frame `off + j`,
-from the last binder to the first. -/
+from the last binder to the first.
+
+**`hjmax` is the one added hypothesis of this file** and it cannot be dropped:
+the port indexes `fvs`/`doms` with `i as usize` on the `u64` counter, which
+Aeneas models as `UScalar.cast .Usize i`, of value `i.val % 2 ^ Usize.numBits`,
+while con-leche reads `fvs[i]?` at `i` itself.  The loop's own guard compares
+the *cast* (`(i as usize) >= fvs.len()`, `struct_install.rs:61-64`), so it
+admits a wrapped index, and on a 32-bit target the port then succeeds where
+`checkStructDomsAtF` throws `.internal` — the conclusion is false there.
+`Refine/Scalars.lean` owns the fact and the discharges; the one caller
+(`sum_install.rs:742`) passes `n_p`, the length of a `Vec` returned by
+`open_pis_at_fvars_f`, so `Scalars.u64_le_usize_max_of_le_len` discharges it. -/
 theorem check_struct_doms_at_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {off j : Std.U64}
     {fvs doms : alloc.vec.Vec expr.Expr}
     (hst : StateWF st) (hfe : FEnvWF fe) (hfvs : ExprsWF fvs)
-    (hdoms : ExprsWF doms)
+    (hdoms : ExprsWF doms) (hjmax : j.val ≤ Std.Usize.max)
     (h : inductives.struct_install.check_struct_doms_at mode st fe off fvs doms j
         = ok (.Ok (), st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
@@ -98,14 +241,9 @@ theorem check_struct_doms_at_refines {mode : env.CheckMode}
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe off.val
             (absExprs fvs) (absExprs doms) j.val).run lst = .ok ((), lst')
         ∧ StateRel st' lst' ∧ StateWF st' := by
-  -- the index recursion on `j`, over Aeneas's `partial_fixpoint` unfolding.
-  -- The one obligation that is not routine: the port indexes with
-  -- `UScalar.cast .Usize i` on a `u64` counter, so the two `[i]?` readings
-  -- agree only under `i.val ≤ Usize.max` — true on this target but not from
-  -- the loop's own guards, since the guards compare the *cast*.  It wants a
-  -- `usize`-width fact of the kind `Refine/ExprOps.lean` states for indices
-  -- that are already in range.
-  sorry
+  intro lst lfe hsr hfr
+  exact check_struct_doms_at_refines_aux hw hfe hfvs hdoms hfr j.val j st st'
+    le_rfl hjmax hst h lst hsr
 
 /-! ## The projection table's two guards -/
 
@@ -268,18 +406,51 @@ theorem proj_fn_family_free_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
 
 /-! ## The table -/
 
+open ConLeche.Cached in
+/-- `checkStructProjTableF` on the path where all three guards hold: nothing
+here touches the state, so the run is the pushed index at the same state. -/
+theorem checkStructProjTableF_ok {w : ConLeche.StructWalkers}
+    {T C : ConLeche.Name} {lps : List ConLeche.Name} {nP nF : Nat}
+    {resSort : ConLeche.Level} {guards : List ConLeche.Level} {off : Nat}
+    {cvCa : ConLeche.ConstantVal} {lfe : ConLeche.FEnv}
+    {bodies : Array ConLeche.Expr} {lst : CState}
+    (hb : w.projBodies T nP nF cvCa.type = some bodies)
+    (hsize : bodies.size = nF)
+    (hall : (bodies.all fun b =>
+        !b.hasFvar && ConLeche.Expr.allLevelParamsDefined lps b && w.resolve lfe b
+          && ConLeche.Expr.looseBVarsBounded (nP + 1) b) = true)
+    (hfam : ((List.range nF).all fun j =>
+        (lfe.find? (ConLeche.projFnName T j)).isNone) = true)
+    (htbl : (lfe.find? (ConLeche.projTableName T)).isNone = true) :
+    (ConLeche.checkStructProjTableF (m := CheckCM) w T C lps nP nF resSort guards
+        off cvCa lfe).run lst
+      = .ok (lfe.push (ConLeche.ConstantInfo.projInfo
+          { structName := T, levelParams := lps, numParams := nP, ctor := C,
+            numFields := nF, structSort := resSort, bodies := bodies,
+            guards := guards, off := off }), lst) := by
+  rw [ConLeche.checkStructProjTableF]
+  simp only [ConLeche.unwrapOr, hb, pure_bind]
+  rw [if_pos (show _ ∧ _ from ⟨hsize, hall⟩), if_pos hfam, if_pos htbl]
+  rfl
+
 /-- `ConLeche/Kernel/Inductives/StructInstallF.lean:73-95` —
 `check_struct_proj_table` refines `checkStructProjTableF StructWalkers.plain`:
 the fields' result-type bodies read off the *annotated* constructor type by
 substitution alone, the per-field guard levels, the constructor and the
 counts, pushed as one `projInfo` constant.  Nothing is annotated, inferred or
-pinned here, so no knot hypothesis is needed — only the two walkers. -/
+pinned here, so no knot hypothesis is needed — only the two walkers.
+
+The **unrestricted-canonical pair** rides through (task #59): the one success
+branch is a single `fenv::push`, so `FEnv.push_canon` carries
+`FEnvCanon`/`FEnvFull` from the index handed in to the one handed back.
+`Refine/IndSpec.lean`'s header says why the tier needs the pair at all. -/
 theorem check_struct_proj_table_refines
     {t c : name.Name} {lps : alloc.vec.Vec name.Name} {n_p n_f off : Std.U64}
     {res_sort : level.Level} {guards : alloc.vec.Vec level.Level}
     {cv_ca : env.ConstantVal} {fe fe' : fenv.FEnv} {lfe : ConLeche.FEnv}
     (hbodies : StructProjBodiesRefines) (hres : ConstsResolveFFastRefines)
     (hrel : FEnvRel fe lfe) (hfe : FEnvWF fe)
+    (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
     (ht : NameWF t) (hc : NameWF c) (hlps : NamesWF lps)
     (hsort : LevelWF res_sort) (hguards : LevelsWF guards)
     (hcv : ConstantValWF cv_ca)
@@ -290,8 +461,85 @@ theorem check_struct_proj_table_refines
           ConLeche.StructWalkers.plain (absName t) (absName c) (absNames lps)
           n_p.val n_f.val (absLevel res_sort) (absLevels guards) off.val
           (absConstantVal cv_ca) lfe).run lst = .ok (lfe', lst))
-      ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
-  -- the two guards, then `fenv::push` of the `projInfo` record
-  sorry
+      ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+      ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+  rw [inductives.struct_install.check_struct_proj_table] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  have habs := hbodies t n_p n_f cv_ca.ty o ht hcv.2.2 ho
+  cases o with
+  | none => simp [bind_eq_ok_iff] at h
+  | some bodies =>
+    obtain ⟨habs1, hwf1⟩ := habs
+    have hbw : ExprsWF bodies := hwf1 bodies rfl
+    simp only [Option.map_some] at habs1
+    simp only [lift_eq, bind_tc_ok] at h
+    obtain ⟨sc, hsc, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rename_i hsct
+      subst hsct
+      split at hsc
+      · rename_i hlen
+        have hlenv : bodies.val.length = n_f.val := by
+          have hl := alloc.vec.Vec.len_val bodies
+          have hc := Scalars.usize_cast_u64_val (alloc.vec.Vec.len bodies)
+          rw [hlen] at hc
+          scalar_tac
+        have hscoped := proj_bodies_scoped_from_refines hres hrel hfe hlps hbw hsc
+        obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+        have hbv := proj_fn_family_free_refines hrel hfe ht hb
+        split at h
+        · rename_i hbt
+          subst hbt
+          obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+          have hnabs : absName n = ConLeche.projTableName (absName t) :=
+            Env.proj_table_name_refines hn
+          have hnwf : NameWF n := Env.proj_table_name_wf ht hn
+          have hag : FindAgree fe lfe := FindAgree.of_rel hrel hfe
+          have hiss : core.option.Option.is_some o1
+              = (lfe.find? (absName n)).isSome := CoreK.find_isSome hag hnwf ho1
+          split at h
+          · simp [bind_eq_ok_iff] at h
+          · rename_i hns
+            simp only [Bool.not_eq_true] at hns
+            rw [hns, hnabs] at hiss
+            simp only [name_dup_eq, level_dup_eq, bind_tc_ok] at h
+            obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+            have hvv : v.val = lps.val := PropWhen.names_copy_val hv
+            obtain ⟨f, hf, h⟩ := bind_eq_ok_iff.mp h
+            have hfeq : f = fe' := by
+              simpa using Result.ok_injective h
+            subst hfeq
+            have hciwf : ConstantInfoWF (.ProjInfo
+                { struct_name := t, level_params := v, num_params := n_p,
+                  ctor := c, num_fields := n_f, struct_sort := res_sort,
+                  bodies := bodies, guards := guards, off := off }) := by
+              refine ⟨ht, ?_, hc, hsort, hbw, hguards⟩
+              intro x hx; exact hlps x (by rw [← hvv]; exact hx)
+            obtain ⟨hrel', hfe'⟩ := FEnv.push_refines hrel hfe hciwf hf
+            have hcia : absConstantInfo (.ProjInfo
+                { struct_name := t, level_params := v, num_params := n_p,
+                  ctor := c, num_fields := n_f, struct_sort := res_sort,
+                  bodies := bodies, guards := guards, off := off })
+                = ConLeche.ConstantInfo.projInfo
+                  { structName := absName t, levelParams := absNames lps,
+                    numParams := n_p.val, ctor := absName c,
+                    numFields := n_f.val, structSort := absLevel res_sort,
+                    bodies := (absExprs bodies).toArray,
+                    guards := absLevels guards, off := off.val } := by
+              simp only [absConstantInfo, absProjTable, absNames, hvv]
+            have hpc := FEnv.push_canon hfe hciwf hcan hfull hf
+            refine ⟨_, ?_, hcia ▸ hrel', hfe', hpc.1, hpc.2⟩
+            intro lst
+            refine checkStructProjTableF_ok (bodies := (absExprs bodies).toArray)
+              habs1.symm ?_ ?_ ?_ ?_
+            · simpa [absExprs] using hlenv
+            · rw [List.all_toArray]
+              simpa [ConLeche.StructWalkers.plain] using hscoped.symm
+            · simpa using hbv.symm
+            · simpa using hiss
+        · simp [bind_eq_ok_iff] at h
+      · exact absurd (Result.ok_injective hsc) (by simp)
+    · simp [bind_eq_ok_iff] at h
 
 end ConRon.Refine.StructInstall

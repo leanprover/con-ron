@@ -59,6 +59,7 @@ import ConRon.Refine.IndSumInstall
 import ConRon.Refine.IndNativeInstall
 import ConRon.Refine.IndModeled
 import ConRon.Refine.IndSpec
+import ConRon.Refine.IndIngredients
 import ConRon.Refine.IndC
 import ConRon.Refine.Pins
 import ConRon.Refine.Core.Arms.Shape
