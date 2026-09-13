@@ -10323,6 +10323,261 @@ phase A is sequential by construction (it is the fold).  con-leche's `core`
 rows are 149.64 s / 43.40 s at 1 179.7 G / 1 182.7 G instructions, so the same
 two statements hold there: 0.99× the instructions, 1.71× the wall at eight
 workers.
+### Task #46 — Env, State, FEnv: the foundation relations (2026-09-12, Opus under Fable)
+
+`proof/ConRon/Refine/CORE_PLAN.md`'s steps 1 and 2: the abstraction functions,
+well-formedness predicates and relations that everything above the leaves stands
+on, plus one exact-result lemma per function of `kernel::env`, `kernel::fenv` and
+the state half of `cached::state_c`.  Five files, one of them not in the brief
+(`HashMapWF.lean`, see below), and **one `sorry` — which is a finding, not a
+shortfall**: the Aeneas Lean library models `Vec::insert` as `List.set`.
+
+#### Sizes
+
+| file | lines | declarations | of which `*_refines` |
+|---|---|---|---|
+| `Refine/Abs.lean` (+239) | 686 | 49 `def`/`structure` | — |
+| `Refine/Env.lean` | 1 992 | 119 | 68 |
+| `Refine/FEnv.lean` | 547 | 23 | 9 |
+| `Refine/HashMapWF.lean` | 772 | 26 | — (the `_wf` twins) |
+| `Refine/State.lean` | 1 260 | 91 | 33 |
+
+`env.rs` is 1 508 Rust lines of which ≈1 100 are code, so `Env.lean` is **≈1.8
+proof lines per Rust code line** — the lowest ratio in the project so far
+(task #16's calibration expected ≈3), because two thirds of `env.rs` is
+`*_dup`/`*_copy`/accessor boilerplate whose refinement is an identity, and the
+`*_beq` family — the expensive part — is nine chains of two combinators
+(`Expr.guard_step` and this file's `scalar_step`) rather than nine inductions.
+`abs`'s injectivity on the records is 120 lines for seven types and is what makes
+all nine exact.
+
+#### The finding: `Vec::insert` is `List.set` in the Aeneas model
+
+`_tmp/aeneas-lean/Aeneas/Std/Vec.lean:167-172` models Rust's
+`Vec::insert(index, element)` — which shifts the tail right — as
+`v.val.set index element`, an **overwrite**, guarded by `index < len` where Rust
+allows `index ≤ len`.  So the generated model of `fenv::push` replaces
+`consts[0]` instead of consing onto `Env.consts`, and *fails* on an empty
+environment.  `FEnv.push`'s refinement is therefore **false of today's model**:
+`push_idx_refines` proves the two clauses that survive (the `Name`-keyed index
+and the installation counter), and `push_refines` is the tier's one `sorry`, with
+the diagnosis in its docstring.  The port has four call sites, all of them
+`insert(0, …)`: `kernel/fenv.rs:198` and `kernel/checker_base.rs:239,271,275`.
+The fix is one line in the Aeneas library (`List.insertIdx`, guard `≤`), and it
+is now `AENEAS_FINDINGS.md` §3.9 and ask #1 — the first *semantics* bug we have
+found in the library, and one that no amount of testing the Rust would catch,
+because the Rust is right.
+
+This is the tier earning its keep: the only thing in the project that compares
+the model against the Rust's meaning is a refinement proof of the function.
+
+#### `Eq2Spec` is not usable, and the shape that replaced it
+
+Task #16 closed with a note deferring "the abstract version of the `Eq2`
+hypothesis … to the first client".  This task is the first client, and the
+generalisation needed is *two* changes, not one:
+
+```lean
+-- task #16
+def Eq2Spec (d : Eq2 K) : Prop := ∀ a b, d.eq2 a b = ok (decide (a = b))
+-- task #46, `Refine/HashMapWF.lean`
+def Eq2Fwd (d : Eq2 K) (P : K → Prop) : Prop :=
+  ∀ a b c, P a → P b → d.eq2 a b = ok c → c = decide (a = b)
+```
+
+* **forward**, because `Eq2Spec` asserts that the port's `beq` *cannot fail*, and
+  §3.5's style proves totality for nothing: every lemma in `proof/` reasons from
+  `f x = ok y`.  `Eq2Spec` is therefore not provable for a single one of our key
+  types, not even in principle within this development.
+* **key-restricted**, because `expr::beq` is exact only on `ExprWF` terms
+  (`absExpr` drops the stored word, so two ill-formed nodes can abstract equally
+  while `beq` separates them).
+
+And the *bridge* had to be restricted too, which is the part that was not
+foreseen: `Rel m s absK absV := ∀ k, (toFun m k).map absV = s[absK k]?` is
+**false after the first insert** for our abstractions — a non-well-formed `k'`
+with `absK k' = absK k` has `toFun m' k' = none` while `s'[absK k']?` is `some`.
+So `RelOn P m s absK absV` quantifies over `P`-keys only, and `Rel_insert_wf`
+takes injectivity *on* `P` instead of `Function.Injective absK`.  `StateRel` and
+`FEnvRel` are built from `RelOn`, and `StateWF`/`FEnvWF` carry the
+`HashMap.KeysOk` that feeds it.
+
+`HashMapWF.lean` re-proves the eight `Eq2Spec`-consuming theorems of
+`HashMap.lean` under the new hypothesis (`list_get`, `list_insert`, `get`,
+`insert_no_resize`, `move_elements_from_list`, `move_elements`, `try_resize`,
+`insert`), threading `KeysOk` through the growth path, and one lemma carried the
+whole file:
+
+```lean
+theorem eq2_ite (heq : Eq2Fwd Eq2Inst P) (ha : P a) (hb : P b)
+    (h : (do let c ← Eq2Inst.eq2 a b; if c then x else y) = ok r) :
+    (a = b ∧ x = ok r) ∨ (a ≠ b ∧ y = ok r)
+```
+
+— it replaces `HashMap.lean`'s single `simp [Eq2Spec] at heq; simp [heq] at h`
+step everywhere, so every remaining line of every script is task #16's verbatim.
+It is a separate file rather than a section of `HashMap.lean` only so that this
+task did not edit a finished one; it belongs there, and the one thing to know
+when it moves is that it needs `attribute [local simp]` re-enabling
+`HashMap.lean`'s twelve `@[local simp]` lemmas (without them the copied `simp`
+calls have no simp set and nothing works).
+
+Neither `remove` nor `contains_key` got a `_wf` twin: the memo tables and the
+index only `get` and `insert`.
+
+#### `DecidableEq` on the generated key types is classical, and has to be
+
+`toFun`, `Inv` and `Eq2Fwd` all need `DecidableEq K`, and `deriving instance
+DecidableEq` cannot produce it for `name.Name`/`level.Level`/`expr.Expr`: they
+are three-type mutual inductives whose recursive occurrences sit behind the
+`@[reducible] def alloc.sync.Arc` of §3.2, and the deriving handler does not look
+through the alias ("failed to synthesize `Decidable (a = b)`").  `Refine/Abs.lean`
+therefore supplies `Classical.decEq` for the four leaf types; the five tuple and
+`Vec` key types synthesize from those.  Nothing is lost — every occurrence is
+inside a `Prop`, the port's own decision procedure is `beq` and *that* is what
+the refinement lemmas are about — but it does mean every lemma mentioning the
+abstract map lists `Classical.choice`, which is one of the three allowed axioms.
+
+#### What `Env.lean` says, and the two places it is not mechanical
+
+68 `*_refines` in `env.rs`'s order.  The mechanical two thirds: the five mode
+accessors and the two skip predicates; the four `Vec` copies (each an index
+recursion whose conclusion is `v.val = xs.val`, hence `v = xs` by `Subtype.ext`,
+hence the identity under `abs` — the strongest form); the ten `*_dup`s, all
+identities because `P` is the identity in the model; `rec_rule_parsed`,
+`ind_caps_default` and `default_expr`, which are the *Lean's field defaults*
+(`sortZ := .ifAllZero []` is the one that is not the obvious zero, and `default :
+Expr` does reduce to `.bvar 0`, so no fallback spelling was needed);
+`proj_table_entry` with both `getD` fallbacks; `declaration_name`; the three
+accessors; `env_of`; and the tag pass `recs_form_suffix`/`block_rec_suffix_ok`.
+
+The two that are not:
+
+1. **The reserved names.**  `proj_fn_name`/`proj_table_name` are the port's only
+   string *literals* below the basis, and the refinement has to read them: the
+   `Vec<u32>` that `core_types::code_points` builds from `env::PROJ_STR` really
+   is `"proj"`, and every one of its code points is a valid `Char` (`StrWF`,
+   without which `absString` is not injective).  35 lines, and the same shape
+   will serve every other `code_points` literal in the crate.
+2. **`abs`'s injectivity and the `*_beq` family.**  `constant_info_beq` is *the*
+   equality the two pinned-basis guards read (`env.find? eqName == some eqA`,
+   `decide (env.find? natName = some natA)`), so its exactness is load-bearing
+   for the accept direction.  It needs `absConstantInfo` injective under
+   `ConstantInfoWF`, which needs the same for the six records under it, which
+   needs `absNames`/`absExprs`/`absLevels`/`absPropWhen` injective — all
+   available, and the composite is 120 mechanical lines.  Two list equalities
+   had no top-level lemma yet (`prop_when::names_beq`, `expr::exprs_beq`); they
+   are here rather than in the two finished files they belong to.
+
+`find`/`find_from` is `List.find?` over `consts` in its newest-first order on the
+nose, and `find_wf` — a lookup hands its caller a *well-formed* record — is the
+half the knot's induction will actually consume.
+
+#### `FEnvRel` is three clauses, and `find` agreement is a lemma
+
+```lean
+def FEnvRel (fe : fenv.FEnv) (lfe : ConLeche.FEnv) : Prop :=
+  absEnv fe.env = lfe.env ∧
+  fe.visible_below.val = lfe.visibleBelow ∧
+  HashMap.RelOn NameWF fe.idx lfe.idx absName absIdxEntry
+```
+
+The `Env` clause is an *equation* because `Env.consts` is a list on both sides in
+the same order; `find?`/`findProj?` agreement is then derived, which is the form
+`coreKnotI_congr` consumes.  `FEnvWF` adds `EnvWF`, `ron::HashMap`'s own `Inv`,
+`KeysOk NameWF`, and — new here — `ValsOk`, "every value the table denotes is a
+well-formed record", stated over `toFun` so that `insert`'s
+`toFun m' = Function.update (toFun m) k (some v)` discharges it in one line.
+Without `ValsOk` a memo hit cannot hand its caller an `ExprWF`/`ConstantInfoWF`
+result, and the knot's induction needs exactly that.
+
+`mk_fenv_go_refines` is the file's one real proof (60 lines): the build is from
+the back, so the counter, the relation, `Inv`, `KeysOk` and `ValsOk` all come out
+of the same induction because the insertion step needs all five of the previous
+one.  `dup_refines`' conclusion is `FEnvRel fe' ((mkFEnv (absEnv fe.env)).restrictTo
+fe.visible_below.val)` rather than "the same `lfe`": `dup` *rebuilds* the index
+(`ron::hashmap` has no iteration API), and `FEnvRel` constrains the source index
+only through its abstract map, so the honest Lean counterpart is `mkFEnv` of the
+same environment — con-leche's own `mkFEnv_push` is what makes the two agree on
+every reachable `FEnv`.
+
+`tower_slots_all_f`/`rec_slots_all_f` are left out on purpose: their citations are
+`Core.lean`'s `towerSlotsAll`/`recSlotsAll`, their content is `List.range'`
+bookkeeping for a `u64` loop and nothing to do with the relation, so they go with
+`CORE_PLAN.md` step 4.  `rec_slot_ok` — the one of the four the relation does
+settle — is here.
+
+#### `StateRel` is fourteen `RelOn` clauses, and the eight key dictionaries are exact
+
+`CORE_PLAN.md` asked for one `HashMap.Rel` clause per map; it is `RelOn` for the
+reason above, and both `StateRel` and `StateWF` are `structure … : Prop` with
+fields named after con-leche's maps in `CState`'s field order.  `StateWF` has
+**39** fields: per map `HashMap.Inv`, `HashMap.KeysOk` at the key's WF predicate,
+and — for the eleven term-valued maps — well-formedness of the stored values, so
+that a memo *hit* hands its caller an `ExprWF`/`LevelWF` result.
+
+The eight key dictionaries (`Name`, `Level`, `Expr`, and the five tuple keys
+`(Name × List Level)`, `(Name × Name × List Level)`, `(Expr × Expr)`,
+`(Level × Level)`, `(Expr × List Expr × Nat)`, which the port spells out with
+Lean's *derived* `mixHash`/`BEq` instances) each get an `Eq2Fwd` lemma, and **all
+eight are proved**: the dictionary's `eq2` *is* the `beq` (by `rfl`), the
+component `*_refines` lemmas give `decide (abs a = abs b)`, and injectivity of
+`abs` under the key's `*WF` turns that into `decide (a = b)`.  That is the payoff
+of the `Eq2Fwd` shape: not one hypothesis about a hash map is left over.
+
+Rather than eight hand-written `get`/`insert` pairs the file bundles the two facts
+a key type needs into `structure KeyOk P Eq2Inst absK` (`Eq2Fwd` plus
+injectivity-on-`P`), gives eight instances, and proves two polymorphic lemmas —
+`get_step` (the relation, plus "a hit is well formed", via `lookupK_mem`) and
+`insert_step` (`Inv`, `KeysOk`, value WF, `RelOn` of the inserted map).  On top of
+those sit the nine `state_c::*_probe` lemmas, six memo-read lemmas for the maps
+`core_c` reads off the state directly (`st.whnf_core_c.get(e)`, …) in
+`CORE_PLAN.md`'s shape, and fourteen `*_insert_refines` that rebuild `StateRel`
+and `StateWF` from one changed clause.  `cstate_new_refines` and
+`flushed_refines` are the fresh state (`Inhabited CState := ⟨{}⟩`) and
+`CState.flushed`'s ten-fresh/four-surviving split.
+
+No `LawfulHashable` instance had to be written: Lean's
+`instLawfulHashableOfLawfulBEq` derives it from con-leche's exported `LawfulBEq`
+for `Name`/`Level`/`Expr`, and core lifts it to `Prod`/`List` — so
+`ConLeche/Verify/*` (the proof tier, which has its own copies) stays unimported.
+
+
+#### Hard spots
+
+1. **The tuple-`let` trap (AENEAS_FINDINGS §3.4) is unavoidable in this tier and
+   the escape is always the same**: `have h2 : <the explicitly written reduced
+   form> := h`, letting the *unifier* whnf through the pattern-`let` that `simp
+   only []`, `dsimp only` and `split at` all refuse.  Three sites
+   (`fenv::find`, `fenv::push`, `fenv::mk_fenv_go`), and in `mk_fenv_go` the
+   trick that made it bearable is **not** destructuring the pair at all: write
+   the ascription with `p.1`/`p.2` in place of the bound pattern variables, which
+   is defeq by structure eta and leaves nothing to reduce.
+2. `attribute [simp]` on an `abs` function is not free: putting `absBasisKind`
+   and friends in the global `simp` set turned task #22's `simp only
+   [absBasisKind]` finisher into a no-op ("`simp` made no progress") and broke
+   `BasisTables.lean`.  The `abs` functions above `Expr` are deliberately not
+   `@[simp]`, with a note saying why.
+3. `List.find?_cons` produces a `match … with | true => … | false => …`, not an
+   `if`, so `rw [if_neg …]` does not apply; `rw [show (a == b) = false from …]`
+   and let the iota reduction happen does.
+4. `Std.Usize.max` and `Std.UScalar.max .Usize` are the same term but `omega`
+   treats them as two atoms; one `have : … = … := rfl` in between fixes it.
+   `scalar_tac` does not know `x.val ≤ UScalar.max .U64` for a `Usize` either.
+
+#### How the work was split
+
+Three agents in parallel in one worktree, checking their files with `lake env
+lean <file>` (which writes no oleans, so concurrent checks are safe) while the
+parent ran the occasional `lake build <module>` to publish an olean:
+`HashMapWF.lean` first (it is the dependency), then `State.lean` and the
+mechanical two thirds of `Env.lean` at the same time as the parent wrote
+`Env.lean`'s injectivity/`beq`/`find` half and `FEnv.lean`.  The two halves of
+`Env.lean` were staged as `EnvA.lean`/`EnvB.lean` and merged by script; the one
+interface between them — `proj_table_name`'s refinement, which the accessors
+need — was carried as an explicit hypothesis in the half that did not own it and
+discharged at the merge.  That is a pattern worth reusing: **one file, two
+agents, the seam an explicit hypothesis.**
 
 #### Gates
 
@@ -10372,3 +10627,25 @@ extraction gate is confirming a crate this task did not touch.
 * `con-leche`'s `--no-mark-persistent` A/B has no counterpart to measure here,
   and `CON_LECHE_ROUTE_TRACE` is still the only unported `Main.lean`
   environment switch.
+| `scripts/gates.sh` | **all 7 OK** (`cargo build`, `cargo test`, lint, provenance, gen-pins, `extract.sh --check`, `lake build`) |
+| `cd proof && lake build` | 2 113 jobs, zero errors; the only `ConRon` warning is the one `sorry` |
+| `sorry` | **1**, `FEnv.push_refines`, diagnosed above |
+| axiom census | `[propext, Classical.choice, Quot.sound]` on every main lemma of all five files; nothing reaches `PINS_TEXT` |
+
+#### Left for next time
+
+* **Fix or route around `Vec::insert`** and close `push_refines`.  It is on the
+  critical path for `Refine/Installed.lean` (the fold pushes) and for
+  `Refine/Checker.lean`, so it should be the next task's first item.  The Rust
+  side has four call sites and the Aeneas side one line; patching
+  `spikes/toolchain/aeneas-433.patch` is the smaller change and the one that also
+  fixes `checker_base.rs`.
+* **Fold `HashMapWF.lean` into `HashMap.lean`** once a second client exists, and
+  `Eq2Fwd`/`KeysOk`/`RelOn` with it.
+* `Refine/Env.lean` holds `prop_when::names_beq`'s and `expr::exprs_beq`'s
+  refinement lemmas, which belong in `Refine/PropWhen.lean` and
+  `Refine/Expr.lean`; move them when one of those files is next touched.
+  `expr_dup_val` (here) and `expr_dup_eq` (`BasisTables.lean`) are the same fact
+  twice.
+* `tower_slots_all_f`/`rec_slots_all_f` (see above) and the `instC` cap
+  (`instCCapC`, `instListM`'s clear-on-cap) are `CORE_PLAN.md` steps 4 and 5.

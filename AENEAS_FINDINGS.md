@@ -376,6 +376,47 @@ over an embedded text of any real size is out of reach with or without
 the axiom.  Ask: discharge `toStr`'s bound without `decide +native`
 (a `by decide` with the length as a literal, or an `ofNat` proof term).
 
+### 3.9 `Vec::insert` is modelled as `List.set` — an overwrite where Rust inserts (task #46) **[bug]**
+
+The most serious finding in this report, because it is a **semantics** bug in the
+Lean library rather than a translator gap: `backends/lean/Aeneas/Std/Vec.lean:167-172`
+
+```lean
+@[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::insert" (keepParams := [true, false])]
+def Vec.insert {α : Type u} (v: Vec α) (i: Usize) (x: α) : Result (Vec α) :=
+  if i.val < v.length then ok (.from (v.val.set i x) …) else fail arrayOutOfBounds
+```
+
+models Rust's `Vec::insert(index, element)` — which shifts the tail right and
+*inserts* — as `List.set index element`, which **replaces** element `index` and
+drops nothing in.  Two consequences, both visible:
+
+* the modelled function has the wrong value: `v.len()` is unchanged where Rust's
+  grows by one, and the element at `index` is lost;
+* the guard is wrong at the boundary: Rust permits `index == len` (that is a
+  push), the model rejects it, so the model *fails* on `Vec::insert(0, x)` into
+  an empty vector — the commonest use there is.
+
+We found it from the proof side, which is the point of having one:
+`kernel::fenv::push`'s `consts.insert(0, rc)` is con-leche's `ci ::
+fe.env.consts`, and the refinement lemma is simply false of the model — the two
+other clauses of the relation (the `Name`-keyed index and the installation
+counter) go through, the list clause cannot.  `ConRon/Refine/FEnv.lean`'s
+`push_refines` is our one `sorry` and its docstring is this paragraph.  The port
+has four call sites (`kernel/fenv.rs:198`, `kernel/checker_base.rs:239,271,275`),
+all of them `insert(0, …)`, i.e. all of them prepends.
+
+The fix is one line — `v.val.insertIdx i x`, with the guard relaxed to
+`i.val ≤ v.length` and `Vec.insert_spec` restated — and the `List` lemmas it
+needs (`List.length_insertIdx`, `List.insertIdx_zero`) are all in core.  Until
+then, **`Vec::insert` is not usable by a project that proves anything**, and
+since it is neither rejected by Charon nor flagged by the coverage check, a
+client has no warning: the translation succeeds, the model type-checks, and only
+a refinement proof of that function ever notices.  We would also ask that the
+library's `rust_fun` models carry a test per function comparing against the Rust
+reference semantics; `Vec.insert` is the kind of one-liner that a table of
+`#assert`s like `Casts.lean`'s would have caught.
+
 ## 4. Scale numbers
 
 Data points on a crate an order of magnitude larger than the test suite.  One machine (96
@@ -417,30 +458,34 @@ cost too.
 
 In rough order of value to us:
 
-1. **Qualified names in generated code** — `_root_.env.Env.find`, or qualification by the
+1. **Fix `Vec::insert`'s model** (§3.9) — it is `List.set` where Rust inserts, so any
+   proof about a function that prepends to a `Vec` is unprovable, and nothing warns the
+   client.  One line, and the highest-value item here because it is a *soundness*-shaped
+   defect in the library rather than a gap.
+2. **Qualified names in generated code** — `_root_.env.Env.find`, or qualification by the
    `-namespace` argument.  Today a Rust local named like a module silently shadows it, and the
    only defence is a naming convention in the *source* crate (F13, #14).
-2. **An `Rc`/`Arc` builtin, modelled as `Box` already is.**  `new`, `deref`, `clone` are the
+3. **An `Rc`/`Arc` builtin, modelled as `Box` already is.**  `new`, `deref`, `clone` are the
    same three `ok x` definitions as `Box`'s, and `ptr_eq` as `ok false` is sound for any client
    that treats it as a fast path (which then owes one reflexivity lemma per site).  We wrote
    all four by hand, and the `@[reducible]` requirement (§3.6) is a trap a builtin would
    remove.  A shared *module* for such models would also fix F14, provided the
    `@[rust_type]`/`@[rust_fun]` coverage check follows imports.
-3. **A model for `Vec::is_empty`, `Vec::pop`/`truncate`, and `vec![…]`.**  `is_empty` is one
+4. **A model for `Vec::is_empty`, `Vec::pop`/`truncate`, and `vec![…]`.**  `is_empty` is one
    line and we hit it immediately; `vec![]` dragging in `MaybeUninit` is a trap for every new
    user, since it is the *natural* spelling; `pop`/`truncate` shaped two of our data structures.
-4. **A way to evaluate a closed `Result` term** — `DecidableEq` on `Result` for the first-order
+5. **A way to evaluate a closed `Result` term** — `DecidableEq` on `Result` for the first-order
    fragment, a `norm_result` evaluator, or a non-`ITree` `Result` where coinduction is not
    needed.  This decides whether a generated data table can be *proved* equal to a reference
    value or has to become untrusted runtime data (§3.2, #22).
-5. **The `backward.*` options (or whatever replaces them) must reach downstream packages**, or
+6. **The `backward.*` options (or whatever replaces them) must reach downstream packages**, or
    `step` should diagnose the transparency mismatch instead of reporting "no lemma applies".
    Eight of our tasks were written without the project's main tactic and did not know it
    (§3.1, #22).
-6. **Small library additions:** the `.val`-of-scalar-literal `simp` lemmas (#20), a
+7. **Small library additions:** the `.val`-of-scalar-literal `simp` lemmas (#20), a
    `UScalar.div_equiv`, `*_equiv` stated over `= ok` rather than `.match`, and a documented
    `spec`→forward-equation bridge for refinement proofs (§3.3, §3.5).
-7. **Better diagnostics for the borrow-join failures of §2.1** — one naming the join point and
+8. **Better diagnostics for the borrow-join failures of §2.1** — one naming the join point and
    the loan still live would have saved most of the 18 fixes' debugging time.  And if the
    *shape* can be supported — an `if`/`match` inside a `&mut`-threaded arm whose branches
    rejoin — that is the single biggest expressiveness win available, because it is what forces

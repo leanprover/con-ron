@@ -51,6 +51,7 @@ else.  (Task #12's two-lemma `Smoke.lean` was folded into `Level.lean`'s
 `zero_refines` / `succ_refines` at task #17 and deleted.)
 
 ## What is here (tasks #17, #20 and #47, P3.3)
+## What is here (tasks #17, #20, #22 and #46)
 
 | file | contents |
 |---|---|
@@ -70,3 +71,15 @@ else.  (Task #12's two-lemma `Smoke.lean` was folded into `Level.lean`'s
 ## Not yet here
 
 `kernel::env`, `kernel::fenv` and everything above them.
+| `BasisTables.lean` | `kernel::basis_tables` (task #22): the generated basis tables are the value they were generated from |
+| `HashMapWF.lean` | task #16's deferred `Eq2` generalisation, written for its first client (task #46): the bucket walks and the `Std.HashMap` bridge under a *forward*, key-restricted exactness hypothesis (`Eq2Fwd`) instead of `Eq2Spec` |
+| `Env.lean` | `kernel::env` (task #46): the mode accessors, the `Vec` copies and the `*_dup` identities, `rec_rule_parsed`/`ind_caps_default`/`default_expr` (the Lean's field defaults), `proj_table_entry`, `pi_sort_tele_len`, `ind_params_ok`, the reserved names `proj_fn_name`/`proj_table_name`, `abs`'s injectivity on the well-formed records, the whole `*_beq` family exactly, the accessors, and `find`/`find_proj` |
+| `FEnv.lean` | `kernel::fenv` (task #46): `FEnvRel`/`FEnvWF`, `mk_fenv_go`/`mk_fenv`, `find`/`find_proj`, `restrict_to`, `dup`, and `push`'s two sound clauses (`push_refines` itself is the tier's one `sorry`: the Aeneas model of `Vec::insert` is `List.set`, see the file) |
+| `State.lean` | `cached::state_c` (task #46): `StateRel`/`StateWF` over the fourteen memo maps, the fresh state, `flushed`, and the memo probe/insert lemmas |
+
+## Not yet here
+
+`level::zeroness_of` and `level::subst_pw` (added at task #13, the
+`Level`-to-`PropWhen` bridge), `kernel::expr_ops` and everything above the
+state: `Refine/CORE_PLAN.md` is the design for the rest, and tasks #46's four
+files are its steps 1 and 2.
