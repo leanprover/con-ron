@@ -14083,7 +14083,8 @@ a hard line), against the brief task #67's section had already written down.
 | `IndSpec` | (2 structures) | the seam's failure half |
 | `IndIngredients` | (10 discharges) | |
 
-21 112 lines added, 4 489 removed, across 24 files, in 112 commits.  **No port
+21 136 lines added, 4 503 removed, across 24 files under
+`proof/ConRon/Refine/`, in 114 commits.  **No port
 deviation was found anywhere**: every failure half every agent attempted came
 out true as stated, which is the census of task #67 §1 being confirmed one
 `throw` at a time — 303 mirrored sites, all now proved mirrored, and the 31
