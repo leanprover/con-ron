@@ -634,6 +634,27 @@ differential gates measure:
 * **the pin loop's error arm** (this ruling): a thrown attempt declines the
   stream instead of trying the remaining variants.
 
+**Ruling of 2026-09-13 (maintainer): full-outcome simulation, partial only
+in the Rust-only errors.**  Task #65's "an attempt's error is the verdict"
+is superseded.  The architecture: (1) `CheckError` gets a fourth
+constructor `native` for failures with no con-leche counterpart (word
+overflow, the shift amount beyond `u64`, index-width checks); the three
+mirrored constructors keep con-leche's meaning; `absErr` maps mirrored
+errors to con-leche's kind (messages are not compared) and `native` to
+nothing.  (2) `orElse` backtracks on a *mirrored* error, continuing from
+the pre-attempt state (a `CState` snapshot, con-leche's `k (some e) s`),
+and treats a `native` error as the verdict.  (3) Every refinement lemma is
+stated over the full outcome: `Ok r ↦ .ok (abs r)` with the state related;
+`Err (mirrored e) ↦ .error e'` with `absErr e = e'.kind`; `Err (native _)`
+unconstrained; aborts (Aeneas `fail`) unconstrained.  §3.5's "exact on
+success" becomes "exact on every outcome but the native ones".  This is a
+restatement of `RefinesE`/`RefinesB` and their siblings and a re-proof pass
+over the tower in dependency order (leaves → `StateC` → the knot → the
+checker → the inductive routes → the fold): the accept-direction proofs are
+the bulk of every full-outcome proof, so the pass adds the `throw` arms
+(mirrored guards, already proved exact) and error propagation through
+binds.  Campaign: task #67.
+
 ### 3.7 Provenance: keeping the port in sync with con-leche
 
 con-leche keeps moving.  The proofs catch drift eventually — a changed
