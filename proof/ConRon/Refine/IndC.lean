@@ -84,10 +84,26 @@ cited term.  Every composition against the cited code is therefore closed with
 — and `runBind_compose` is the one helper that makes that possible for a
 two-stage `do` block, by taking the stages from the goal.
 
+## The full outcome (task #67)
+
+Every lemma here is stated over the Rust computation's **whole** inner
+outcome: `.Ok r` is the accept direction, unchanged, and `.Err e` is
+`ErrSim e` — con-leche throws at the same kind.  `inductives_c.rs`' six
+`CheckError` construction sites are all *mirrored* (DESIGN.md task #67 §1), so
+every one of them is proved and none is excused with `ErrSim.native`.  The
+four throws the drivers own are the modeled route's unpinned `Eq` basis, its
+eta constructor residual and taken projection name family, its block whose
+recursors do not form a suffix, and the direct route's duplicate constructor
+names and unsettled capability record; everything else is a bind whose callee
+threw.  `ind_routes_spec_err` / `ind_routes_spec_err_of_p` /
+`ind_routes_spec_err'` at the bottom are the seam's failure half, the exact
+mirror of the three accept ones.
+
 The statements are the exact-result ones and nothing below is weakened.  The
-two `#print axioms` censuses at the bottom are machine-checked with
+four `#print axioms` censuses at the bottom are machine-checked with
 `#guard_msgs`: `sorryAx` leaving them is the gate that says the inductive tier
-is closed, and as of task #62 **both are clean**.
+is closed, and as of task #62 (accept) and task #67 (failure) **all are
+clean**.
 -/
 import ConRon.Refine.IndSpec
 import ConRon.Refine.IndStructParts
@@ -2033,6 +2049,53 @@ theorem ind_routes_spec' {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU) : IndRoutesSpec mode :=
   ind_routes_spec_of_p (ind_routes_spec hk)
 
+/-! ### The failure half of the seam (task #67 continued)
+
+The same three theorems again, at `.Err`.  Both entry points are now stated
+over the whole outcome, so each clause is the *same* lemma read at the other
+constructor of the `match`: `inductives_c.rs`' six `CheckError` sites are all
+mirrored (DESIGN.md task #67 §1), none is excused with `ErrSim.native`, and
+the two routes therefore throw exactly where `checkNativeS` /
+`checkIndDeclSF` do.
+
+The bridge is the same one clause for clause.  `native_parts_refines` gives
+the recogniser's equation from `native_parts`' own outcome and the block's
+well-formedness *alone*, with no reference to what the route then did, so it
+is available in the failure half exactly as in the accept half — which is why
+`IndRoutesSpecErr` can carry the verdict `checkDeclC` needs to know which
+branch it took. -/
+
+/-- **The two inductive routes' mirrored throws**, under the knot. -/
+theorem ind_routes_spec_err {mode : env.CheckMode}
+    (hk : Core.KnotSpec mode IndAbs.checkFuelU) : IndRoutesSpecPErr mode where
+  checkNative := fun _ _ _ _ _ hst hfe hcan hfull hp0 h lst lfe hrel hfer =>
+    check_native_s_refines hk.1 hst hfe hcan hfull hp0 h lst lfe hrel hfer
+  checkIndDecl := fun _ _ _ _ _ hst hfe hcan hfull hb h lst lfe hrel hfer =>
+    check_ind_decl_s_refines hk.1 hst hfe hcan hfull hb h lst lfe hrel hfer
+
+/-- **The seam's failure half**: the producer's form implies the consumer's,
+through the same recogniser refinement. -/
+theorem ind_routes_spec_err_of_p {mode : env.CheckMode}
+    (hp : IndRoutesSpecPErr mode) : IndRoutesSpecErr mode where
+  native := by
+    intro st fe n_p block p e st' hst hfe hcan hfull hblock hrec h lst lfe hrel hfer
+    obtain ⟨habs, hwf⟩ :=
+      NativeParts.native_parts_refines IndIngredients.structGens hblock hrec
+    exact ⟨IndAbs.absNativeParts p, habs.symm,
+      hp.checkNative st fe p e st' hst hfe hcan hfull (hwf p rfl) h lst lfe hrel hfer⟩
+  modeled := by
+    intro st fe n_p block e st' hst hfe hcan hfull hblock hrec h lst lfe hrel hfer
+    obtain ⟨habs, _⟩ :=
+      NativeParts.native_parts_refines IndIngredients.structGens hblock hrec
+    exact ⟨habs.symm,
+      hp.checkIndDecl st fe block e st' hst hfe hcan hfull hblock h lst lfe hrel hfer⟩
+
+/-- **`IndRoutesSpecErr`, the failure half the checker tier consumes**, from
+the knot. -/
+theorem ind_routes_spec_err' {mode : env.CheckMode}
+    (hk : Core.KnotSpec mode IndAbs.checkFuelU) : IndRoutesSpecErr mode :=
+  ind_routes_spec_err_of_p (ind_routes_spec_err hk)
+
 /-! ## The axiom census
 
 DESIGN.md §5's P3 gate on the two entry points, machine-checked: `sorryAx`
@@ -2060,5 +2123,14 @@ five stages are proved. -/
 -- consumer's carries no `sorryAx` at all.
 /-- info: 'ConRon.Refine.InductivesC.ind_routes_spec_of_p' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ind_routes_spec_of_p
+
+-- **The failure half is closed too** (task #67): the two entry points are
+-- stated over the whole outcome and all six of `inductives_c.rs`' `CheckError`
+-- sites are mirrored, so neither seam theorem carries a `sorryAx`.
+/-- info: 'ConRon.Refine.InductivesC.ind_routes_spec_err' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ind_routes_spec_err
+
+/-- info: 'ConRon.Refine.InductivesC.ind_routes_spec_err_of_p' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ind_routes_spec_err_of_p
 
 end ConRon.Refine.InductivesC
