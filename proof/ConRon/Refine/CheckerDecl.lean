@@ -4524,6 +4524,60 @@ theorem installBasisDecl_fold_env :
         rfl] at h
       simp [Bind.bind, Except.bind] at h
 
+open ConLeche.Cached in
+/-- The same at a **failure**: the two folds throw the same `duplicate
+declaration`, because `Indexed` makes the two `find?`s agree. -/
+theorem installBasisDecl_fold_env_err :
+    ∀ (l : List ConLeche.ConstantInfo) (lfe : ConLeche.FEnv) (lst : CState)
+      (le : ConLeche.CheckError),
+      Indexed lfe →
+      (l.foldlM (ConLeche.installBasisDeclF (m := CheckCM)) lfe).run lst = .error le →
+      (l.foldlM (ConLeche.installBasisDecl (m := CheckCM)) lfe.env).run lst
+        = .error le := by
+  intro l
+  induction l with
+  | nil =>
+    intro lfe lst le hix h
+    exact absurd h (by
+      simp only [List.foldlM_nil, StateT.run, Pure.pure, StateT.pure, Except.pure]
+      simp)
+  | cons ci l ih =>
+    intro lfe lst le hix h
+    rw [List.foldlM_cons, StateT.run_bind] at h
+    by_cases hg : (lfe.find? ci.name).isNone = true
+    · have hstep : (ConLeche.installBasisDeclF (m := CheckCM) lfe ci).run lst
+          = .ok (lfe.push ci, lst) := by
+        simp only [ConLeche.installBasisDeclF, hg, if_true, StateT.run, Bind.bind,
+          Pure.pure, StateT.pure, Except.pure]
+      rw [hstep] at h
+      have hstepE : (ConLeche.installBasisDecl (m := CheckCM) lfe.env ci).run lst
+          = .ok ((lfe.push ci).env, lst) := by
+        simp only [ConLeche.installBasisDecl, ← hix.find_eq ci.name, hg, if_true,
+          StateT.run, Bind.bind, Pure.pure, StateT.pure, Except.pure]
+        rfl
+      rw [List.foldlM_cons, StateT.run_bind, hstepE]
+      exact ih (lfe.push ci) lst le (hix.push ci) h
+    · have hgf : (lfe.find? ci.name).isNone = false := (Bool.not_eq_true _).mp hg
+      have hstep : (ConLeche.installBasisDeclF (m := CheckCM) lfe ci).run lst
+          = .error (.invalid s!"duplicate declaration {ci.name}") := by
+        simp only [ConLeche.installBasisDeclF, hgf, Bool.false_eq_true, if_false,
+          StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+          Except.pure]
+        rfl
+      rw [hstep] at h
+      have hle : ConLeche.CheckError.invalid s!"duplicate declaration {ci.name}" = le := by
+        simp only [Bind.bind, Except.bind] at h
+        simpa using h
+      have hstepE : (ConLeche.installBasisDecl (m := CheckCM) lfe.env ci).run lst
+          = .error le := by
+        rw [← hle]
+        simp only [ConLeche.installBasisDecl, ← hix.find_eq ci.name, hgf,
+          Bool.false_eq_true, if_false, StateT.run, Bind.bind, StateT.bind, Except.bind,
+          Pure.pure, StateT.pure, Except.pure]
+        rfl
+      rw [List.foldlM_cons]
+      exact run_bind_err_head hstepE
+
 /-! ### `Indexed`, applied: the `F`-twin is the `Env` original
 
 `ConLeche/Verify/CheckerF.lean` states every guard's index twin against its
@@ -5401,57 +5455,120 @@ gate, `install_basis_decls_refines` above for the fold, and
 `installBasisDecl_fold_env` to move that fold from `installBasisDeclF` at the
 index to `installBasisDecl` at its environment. -/
 theorem check_basis_decl_refines {mode : env.CheckMode}
+    {fe : fenv.FEnv} {kind : env.BasisKind}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
+    (hfw : FEnvWF fe)
+    (h : kernel.checker.check_basis_decl fe kind = ok out) :
+    ∀ lst lfe, FEnvRel fe lfe → Indexed lfe →
+      match out with
+      | .Ok fe' =>
+        ∃ lfe',
+          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+              (ConLeche.Declaration.basisDecl (absBasisKind kind))).run lst
+            = Except.ok (lfe'.env, lst)
+          ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' ∧ Indexed lfe'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+          (ConLeche.Declaration.basisDecl (absBasisKind kind))).run lst) := by
+  intro lst lfe hfr hix
+  rw [kernel.checker.check_basis_decl.eq_def] at h
+  rw [ConLeche.checkDecl]
+  -- the install, shared by all six arms, at the `Env` spelling
+  have install : ∀ (v : alloc.vec.Vec env.ConstantInfo)
+      (o : core.result.Result fenv.FEnv core_types.CheckError),
+      basis_tables.basis_decls_a kind = ok v →
+      kernel.checker.install_basis_decls fe v 0#usize = ok o →
+      match o with
+      | .Ok fe' =>
+        ∃ lfe₂,
+          ((ConLeche.BasisKind.declsA (absBasisKind kind)).foldlM
+              (ConLeche.installBasisDecl (m := ConLeche.Cached.CheckCM)) lfe.env).run lst
+            = Except.ok (lfe₂.env, lst)
+          ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe' ∧ Indexed lfe₂
+      | .Err e =>
+        ErrSim e (((ConLeche.BasisKind.declsA (absBasisKind kind)).foldlM
+          (ConLeche.installBasisDecl (m := ConLeche.Cached.CheckCM)) lfe.env).run lst) := by
+    intro v o hv hi
+    have habs : absConstantInfos v = ConLeche.BasisKind.declsA (absBasisKind kind) := by
+      have := ConRon.Refine.absBasisDecls_eq kind
+      rw [ConRon.Refine.absBasisDecls, hv] at this
+      simpa using this
+    have hr :=
+      install_basis_decls_refines hfw (canon_of_indexed hfr hix).1
+        (canon_of_indexed hfr hix).2 (BasisPins.basis_decls_a_wf hv) hi lfe lst hfr
+    rw [habs] at hr
+    cases o with
+    | Ok fe' =>
+      obtain ⟨lfe₂, hfold, hrel, hwf, -, -⟩ := hr
+      obtain ⟨hfoldE, hix₂⟩ := installBasisDecl_fold_env _ lfe lfe₂ lst hix hfold
+      exact ⟨lfe₂, hfoldE, hrel, hwf, hix₂⟩
+    | Err e =>
+      show ErrSim e _
+      exact ErrSim.trans hr (fun le hle =>
+        installBasisDecl_fold_env_err _ lfe lst le hix hle)
+  cases kind with
+  | QuotK =>
+    obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+    have hbv := BasisPins.eq_basis_pinned_refines hfr hfw hb
+    cases b with
+    | false =>
+      obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+      have hout : out = .Err ce := err_out h
+      subst hout
+      have hne : ¬ (lfe.env.find? ConLeche.eqName = some ConLeche.eqA) := by
+        rw [← hix.find_eq]; simpa using hbv.symm
+      show ErrSim ce _
+      refine errSim_notImplemented
+        (ls := "quotient basis requires the pinned Eq basis") hce rfl ?_
+      simp only [absBasisKind]
+      rw [if_pos trivial, if_neg hne]
+      rfl
+    | true =>
+      obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+      have hr := install v out hv h
+      have heq : (lfe.env.find? ConLeche.eqName = some ConLeche.eqA) := by
+        rw [← hix.find_eq]; simpa using hbv.symm
+      cases out with
+      | Ok fe' =>
+        obtain ⟨lfe₂, hfold, rest⟩ := hr
+        refine ⟨lfe₂, ?_, rest⟩
+        simp only [absBasisKind] at hfold ⊢
+        rw [show (lfe.env.find? ConLeche.eqName = some ConLeche.eqA) from heq]
+        simpa using hfold
+      | Err e =>
+        show ErrSim e _
+        simp only [absBasisKind] at hr ⊢
+        rw [show (lfe.env.find? ConLeche.eqName = some ConLeche.eqA) from heq]
+        simpa using hr
+  | EqK | NatK | PunitK | EmptyK | FalseK =>
+    all_goals (
+      obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+      have hr := install v out hv h
+      cases out with
+      | Ok fe' =>
+        obtain ⟨lfe₂, hfold, rest⟩ := hr
+        refine ⟨lfe₂, ?_, rest⟩
+        simp only [absBasisKind] at hfold ⊢
+        simpa using hfold
+      | Err e =>
+        show ErrSim e _
+        simp only [absBasisKind] at hr ⊢
+        simpa using hr)
+
+/-- `check_basis_decl_refines` at a success, the pre-#67 statement. -/
+theorem check_basis_decl_refines_ok {mode : env.CheckMode}
     {fe fe' : fenv.FEnv} {kind : env.BasisKind}
     (hfw : FEnvWF fe)
     (h : kernel.checker.check_basis_decl fe kind = ok (.Ok fe')) :
     ∀ lst lfe, FEnvRel fe lfe → Indexed lfe →
       ∃ lfe',
         (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
-            (ConLeche.Declaration.basisDecl (absBasisKind kind))).run lst = .ok (lfe'.env, lst)
-        ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' ∧ Indexed lfe' := by
-  intro lst lfe hfr hix
-  rw [kernel.checker.check_basis_decl.eq_def] at h
-  rw [ConLeche.checkDecl]
-  -- the install, shared by all six arms, at the `Env` spelling
-  have install : ∀ v : alloc.vec.Vec env.ConstantInfo,
-      basis_tables.basis_decls_a kind = ok v →
-      kernel.checker.install_basis_decls fe v 0#usize = ok (.Ok fe') →
-      ∃ lfe₂,
-        ((ConLeche.BasisKind.declsA (absBasisKind kind)).foldlM
-            (ConLeche.installBasisDecl (m := ConLeche.Cached.CheckCM)) lfe.env).run lst
-          = .ok (lfe₂.env, lst)
-        ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe' ∧ Indexed lfe₂ := by
-    intro v hv hi
-    have habs : absConstantInfos v = ConLeche.BasisKind.declsA (absBasisKind kind) := by
-      have := ConRon.Refine.absBasisDecls_eq kind
-      rw [ConRon.Refine.absBasisDecls, hv] at this
-      simpa using this
-    obtain ⟨lfe₂, hfold, hrel, hwf, -, -⟩ :=
-      install_basis_decls_refines hfw (canon_of_indexed hfr hix).1
-        (canon_of_indexed hfr hix).2 (BasisPins.basis_decls_a_wf hv) hi lfe lst hfr
-    rw [habs] at hfold
-    obtain ⟨hfoldE, hix₂⟩ := installBasisDecl_fold_env _ lfe lfe₂ lst hix hfold
-    exact ⟨lfe₂, hfoldE, hrel, hwf, hix₂⟩
-  cases kind with
-  | QuotK =>
-    obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
-    have hbv := BasisPins.eq_basis_pinned_refines hfr hfw hb
-    cases b with
-    | false => simp at h
-    | true =>
-      obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨lfe₂, hfold, rest⟩ := install v hv h
-      refine ⟨lfe₂, ?_, rest⟩
-      simp only [absBasisKind] at hfold ⊢
-      rw [show (lfe.env.find? ConLeche.eqName = some ConLeche.eqA) from by
-        rw [← hix.find_eq]; simpa using hbv.symm]
-      simpa using hfold
-  | EqK | NatK | PunitK | EmptyK | FalseK =>
-    obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨lfe₂, hfold, rest⟩ := install v hv h
-    refine ⟨lfe₂, ?_, rest⟩
-    simp only [absBasisKind] at hfold ⊢
-    simpa using hfold
+            (ConLeche.Declaration.basisDecl (absBasisKind kind))).run lst
+          = Except.ok (lfe'.env, lst)
+        ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' ∧ Indexed lfe' :=
+  check_basis_decl_refines hfw h
 
 /-- **`kernel::checker::check_decl` refines `checkDecl`**
 (`ConLeche/Kernel/Checker.lean:419-562`), at the cached operation record.  The
