@@ -724,8 +724,12 @@ pub fn check_decls(
     pins: &Vec<NatOpPinSet>,
     ds: &Vec<DeclC>,
 ) -> Result<Env, (CheckError, u64)> {
-    let v: (bool, validate::Seen) = validate::validate_decls(validate::seen_new(), ds);
-    if v.0 {
+    // `.0` on the spot, so the visited set is dropped **here** rather than at
+    // the end of the function: a binding that held the whole tuple would keep
+    // one table entry per distinct node alive for the length of the fold, and
+    // that is 0.5 GB of peak RSS at `Init` scale for nothing (task #73).
+    let ok: bool = validate::validate_decls(validate::seen_new(), ds).0;
+    if ok {
         check_decls_go(mode, pins, ds)
     } else {
         Err((core_types::native(validate_reject_message()), 0))

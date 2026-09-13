@@ -53,21 +53,30 @@
 //! unmemoised walk of a term is exponential in the DAG's depth.  The `Expr`
 //! walk therefore carries a visited set in the exact shape of the `beq` pair
 //! memo (DESIGN.md §3.2, `expr::BeqMap`): a `ron::HashMap<u64, Vec<Expr>>`,
-//! keyed by the node's stored `data` word, whose buckets hold whole `Expr`
-//! handles and whose probe verifies a candidate by **identity**
-//! (`ron::ptr::ptr_eq`).
+//! keyed by the node's stored **hash word** — `expr::hash`, the top 32 bits of
+//! the packed `data` word, which is the field `expr::beq_key` mixes — whose
+//! buckets hold whole `Expr` handles and whose probe verifies a candidate by
+//! **identity** (`ron::ptr::ptr_eq`).
 //!
-//! The key is untrusted here — it is the very word the pass is checking — and
-//! that costs nothing: a forged word only puts the node in the wrong bucket,
-//! so the probe misses and the node is validated the long way.  A *hit* is a
-//! `ptr_eq` hit, i.e. the bucket holds **this same object**, and only nodes
-//! that completed the walk with `true` are ever recorded, so a hit repeats an
-//! answer this deterministic pass has already produced for that object.  That
-//! is the same argument as `expr::beq_go`'s, for the same reason.  In the
-//! model `ptr_eq` is `false` (DESIGN.md §3.2), so the table is written and
-//! never read and the model's pass is the plain structural descent — which is
-//! what makes `Refine/Validate.lean` an induction on the term and nothing
-//! else.
+//! **The key is the hash field and not the whole word**, which is a
+//! measurement and not a taste: `ron::hashmap::bucket_index` masks the *low*
+//! bits of the key, and the low 32 bits of `data` are the two 15-bit range
+//! fields and the level-param bit, which are zero for the overwhelming
+//! majority of nodes.  Keyed by `data` the whole table lands in a handful of
+//! buckets and the pass is quadratic — `Init` does not finish in eleven
+//! minutes where the checker itself takes sixty-five seconds (task #73).
+//!
+//! The key is untrusted here — it is part of the very word the pass is
+//! checking — and that costs nothing: a forged word only puts the node in the
+//! wrong bucket, so the probe misses and the node is validated the long way.
+//! A *hit* is a `ptr_eq` hit, i.e. the bucket holds **this same object**, and
+//! only nodes that completed the walk with `true` are ever recorded, so a hit
+//! repeats an answer this deterministic pass has already produced for that
+//! object.  That is the same argument as `expr::beq_go`'s, for the same
+//! reason.  In the model `ptr_eq` is `false` (DESIGN.md §3.2), so the table is
+//! written and never read and the model's pass is the plain structural
+//! descent — which is what makes `Refine/Validate.lean` an induction on the
+//! term and nothing else.
 //!
 //! `Name` and `Level` walks carry no memo: they are shallow (a name is a few
 //! components, a level a few nodes) and the table operations would cost more
@@ -144,8 +153,9 @@ pub type SeenBucket = Vec<Expr>;
 
 /// con-leche: none — task #73, the port's own input check (con-leche's computed fields are correct by construction)
 /// The pass's visited set, in the shape of `expr::BeqMap` (task #38): keyed by
-/// the node's stored `data` word, **a bucket of terms per key**, each
-/// candidate verified on a probe by `ron::ptr::ptr_eq`.  The key is the very
+/// the node's stored **hash word** (`expr::hash`, see the module note on why
+/// not the whole `data` word), **a bucket of terms per key**, each candidate
+/// verified on a probe by `ron::ptr::ptr_eq`.  The key is part of the very
 /// word under test, so a forged one can only miss its bucket and cost a walk;
 /// a hit is an identity hit on a term this pass has already accepted.
 pub type Seen = HashMap<u64, SeenBucket>;
@@ -415,7 +425,7 @@ pub fn validate_literal(l: &Literal) -> bool {
 /// `validate_expr_arm` is fixed, which is what lets `Refine/Validate.lean`
 /// peel it once and induct on the term.
 pub fn validate_expr(m: Seen, e: &Expr) -> (bool, Seen) {
-    let key: u64 = expr::data(e);
+    let key: u64 = expr::hash(e);
     if seen_hit(&m, key, e) {
         (true, m)
     } else {
@@ -905,6 +915,6 @@ mod tests {
         let e = expr::app(expr::dup(&shared), expr::dup(&shared));
         let r = validate::validate_expr(validate::seen_new(), &e);
         assert!(r.0);
-        assert!(validate::seen_hit(&r.1, expr::data(&shared), &shared));
+        assert!(validate::seen_hit(&r.1, expr::hash(&shared), &shared));
     }
 }

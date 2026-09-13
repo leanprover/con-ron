@@ -571,8 +571,8 @@ pub fn check_decls_driver<O: PhaseObserver + Send>(
     // step (its deviation 5): the driver IS that function's body, so it runs
     // the same check, and a forged term is declined here too rather than only
     // on the `--jobs=1`, no-observer lane.
-    let v: (bool, validate::Seen) = validate::validate_decls(validate::seen_new(), ds);
-    if !v.0 {
+    let ok: bool = validate::validate_decls(validate::seen_new(), ds).0;
+    if !ok {
         return Err((core_types::native(installed::validate_reject_message()), 0));
     }
     let total = ds.len();

@@ -47429,7 +47429,7 @@ def cached.installed.check_pending_list
   cached.installed.check_pending_list_from mode fe pend 0#usize
 
 /-- [con_ron_core::kernel::validate::validate_nat]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 251:0-258:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 261:0-268:1
     Visibility: public -/
 def kernel.validate.validate_nat (n : ron.nat.Nat) : Result Bool := do
   let k := alloc.vec.Vec.len n.limbs
@@ -47443,7 +47443,7 @@ def kernel.validate.validate_nat (n : ron.nat.Nat) : Result Bool := do
     ok (i1 != 0#u64)
 
 /-- [con_ron_core::kernel::validate::is_valid_char]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 221:0-227:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 231:0-237:1
     Visibility: public -/
 def kernel.validate.is_valid_char (c : Std.U32) : Result Bool := do
   if c < 55296#u32
@@ -47453,7 +47453,7 @@ def kernel.validate.is_valid_char (c : Std.U32) : Result Bool := do
        else ok false
 
 /-- [con_ron_core::kernel::validate::validate_str_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 237:0-245:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 247:0-255:1
     Visibility: public -/
 def kernel.validate.validate_str_from
   (s : alloc.vec.Vec Std.U32) (i : Std.Usize) : Result Bool := do
@@ -47471,14 +47471,14 @@ def kernel.validate.validate_str_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::validate::validate_str]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 231:0-233:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 241:0-243:1
     Visibility: public -/
 def kernel.validate.validate_str
   (s : alloc.vec.Vec Std.U32) : Result Bool := do
   kernel.validate.validate_str_from s 0#usize
 
 /-- [con_ron_core::kernel::validate::validate_literal]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 401:0-406:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 411:0-416:1
     Visibility: public -/
 def kernel.validate.validate_literal
   (l : kernel.expr.Literal) : Result Bool := do
@@ -47516,7 +47516,7 @@ def kernel.expr.str_copy
   kernel.expr.str_copy_from s 0#usize (alloc.vec.Vec.new Std.U32)
 
 /-- [con_ron_core::kernel::validate::validate_name]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 269:0-288:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 279:0-298:1
     Visibility: public -/
 def kernel.validate.validate_name (n : kernel.name.Name) : Result Bool := do
   let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
@@ -47554,7 +47554,7 @@ def kernel.validate.validate_name (n : kernel.name.Name) : Result Bool := do
 partial_fixpoint
 
 /-- [con_ron_core::kernel::validate::validate_names_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 298:0-306:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 308:0-316:1
     Visibility: public -/
 def kernel.validate.validate_names_from
   (ns : alloc.vec.Vec kernel.name.Name) (i : Std.Usize) : Result Bool := do
@@ -47573,7 +47573,7 @@ def kernel.validate.validate_names_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::validate::validate_names]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 292:0-294:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 302:0-304:1
     Visibility: public -/
 def kernel.validate.validate_names
   (ns : alloc.vec.Vec kernel.name.Name) : Result Bool := do
@@ -47602,7 +47602,7 @@ def kernel.prop_when.to_list_opt
     ok (some v)
 
 /-- [con_ron_core::kernel::validate::validate_prop_when]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 379:0-390:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 389:0-400:1
     Visibility: public -/
 def kernel.validate.validate_prop_when
   (pw : kernel.prop_when.PropWhen) : Result Bool := do
@@ -47618,7 +47618,7 @@ def kernel.validate.validate_prop_when
     else ok false
 
 /-- [con_ron_core::kernel::validate::validate_binder_meta]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 395:0-397:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 405:0-407:1
     Visibility: public -/
 def kernel.validate.validate_binder_meta
   (m : kernel.expr.BinderMeta) : Result Bool := do
@@ -47626,7 +47626,7 @@ def kernel.validate.validate_binder_meta
   kernel.validate.validate_prop_when pw
 
 /-- [con_ron_core::kernel::validate::validate_level]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 312:0-346:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 322:0-356:1
     Visibility: public -/
 def kernel.validate.validate_level (u : kernel.level.Level) : Result Bool := do
   let ln ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global u._0
@@ -47689,7 +47689,7 @@ def kernel.validate.validate_level (u : kernel.level.Level) : Result Bool := do
 partial_fixpoint
 
 /-- [con_ron_core::kernel::validate::validate_levels_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 356:0-364:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 366:0-374:1
     Visibility: public -/
 def kernel.validate.validate_levels_from
   (us : alloc.vec.Vec kernel.level.Level) (i : Std.Usize) : Result Bool := do
@@ -47708,14 +47708,14 @@ def kernel.validate.validate_levels_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::validate::validate_levels]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 350:0-352:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 360:0-362:1
     Visibility: public -/
 def kernel.validate.validate_levels
   (us : alloc.vec.Vec kernel.level.Level) : Result Bool := do
   kernel.validate.validate_levels_from us 0#usize
 
 /-- [con_ron_core::kernel::validate::seen_extend]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 203:0-209:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 213:0-219:1
     Visibility: public -/
 def kernel.validate.seen_extend
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -47731,7 +47731,7 @@ def kernel.validate.seen_extend
   ok m1
 
 /-- [con_ron_core::kernel::validate::seen_record]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 189:0-198:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 199:0-208:1
     Visibility: public -/
 def kernel.validate.seen_record
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -47748,7 +47748,7 @@ def kernel.validate.seen_record
   | some v => kernel.validate.seen_extend m1 key v e
 
 /-- [con_ron_core::kernel::validate::seen_hit_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 174:0-182:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 184:0-192:1
     Visibility: public -/
 def kernel.validate.seen_hit_from
   (es : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize) (e : kernel.expr.Expr)
@@ -47770,7 +47770,7 @@ def kernel.validate.seen_hit_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::validate::seen_hit]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 164:0-169:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 174:0-179:1
     Visibility: public -/
 def kernel.validate.seen_hit
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -47787,7 +47787,7 @@ def kernel.validate.seen_hit
 mutual
 
 /-- [con_ron_core::kernel::validate::validate_expr]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 417:0-429:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 427:0-439:1
     Visibility: public -/
 def kernel.validate.validate_expr
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -47795,7 +47795,7 @@ def kernel.validate.validate_expr
   Result (Bool × (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec
     kernel.expr.Expr)))
   := do
-  let key ← kernel.expr.data e
+  let key ← kernel.expr.hash e
   let b ← kernel.validate.seen_hit m key e
   if b
   then ok (true, m)
@@ -47808,7 +47808,7 @@ def kernel.validate.validate_expr
 partial_fixpoint
 
 /-- [con_ron_core::kernel::validate::validate_expr_arm]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 436:0-556:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 446:0-566:1
     Visibility: public -/
 def kernel.validate.validate_expr_arm
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -47942,7 +47942,7 @@ def kernel.validate.validate_expr_arm
 partial_fixpoint
 
 /-- [con_ron_core::kernel::validate::validate_expr2]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 562:0-569:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 572:0-579:1
     Visibility: public -/
 def kernel.validate.validate_expr2
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -47957,7 +47957,7 @@ def kernel.validate.validate_expr2
 partial_fixpoint
 
 /-- [con_ron_core::kernel::validate::validate_expr3]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 573:0-580:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 583:0-590:1
     Visibility: public -/
 def kernel.validate.validate_expr3
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -47974,7 +47974,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::kernel::validate::validate_exprs_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 590:0-601:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 600:0-611:1
     Visibility: public -/
 def kernel.validate.validate_exprs_from
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -47997,7 +47997,7 @@ def kernel.validate.validate_exprs_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::validate::validate_exprs]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 584:0-586:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 594:0-596:1
     Visibility: public -/
 def kernel.validate.validate_exprs
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -48008,7 +48008,7 @@ def kernel.validate.validate_exprs
   kernel.validate.validate_exprs_from m es 0#usize
 
 /-- [con_ron_core::kernel::validate::validate_proj_table]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 680:0-691:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 690:0-701:1
     Visibility: public -/
 def kernel.validate.validate_proj_table
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -48038,7 +48038,7 @@ def kernel.validate.validate_proj_table
   else ok (false, m)
 
 /-- [con_ron_core::kernel::validate::validate_ind_caps]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 673:0-675:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 683:0-685:1
     Visibility: public -/
 def kernel.validate.validate_ind_caps
   (c : kernel.env.IndCaps) : Result Bool := do
@@ -48048,7 +48048,7 @@ def kernel.validate.validate_ind_caps
   else ok false
 
 /-- [con_ron_core::kernel::validate::validate_rec_rule_fire]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 620:0-632:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 630:0-642:1
     Visibility: public -/
 def kernel.validate.validate_rec_rule_fire
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -48066,7 +48066,7 @@ def kernel.validate.validate_rec_rule_fire
     else ok (false, m)
 
 /-- [con_ron_core::kernel::validate::validate_rec_rule]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 637:0-648:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 647:0-658:1
     Visibility: public -/
 def kernel.validate.validate_rec_rule
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -48084,7 +48084,7 @@ def kernel.validate.validate_rec_rule
   else ok (false, m)
 
 /-- [con_ron_core::kernel::validate::validate_rec_rules_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 658:0-669:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 668:0-679:1
     Visibility: public -/
 def kernel.validate.validate_rec_rules_from
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -48108,7 +48108,7 @@ def kernel.validate.validate_rec_rules_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::validate::validate_rec_rules]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 652:0-654:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 662:0-664:1
     Visibility: public -/
 def kernel.validate.validate_rec_rules
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -48119,7 +48119,7 @@ def kernel.validate.validate_rec_rules
   kernel.validate.validate_rec_rules_from m rs 0#usize
 
 /-- [con_ron_core::kernel::validate::validate_constant_val]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 609:0-615:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 619:0-625:1
     Visibility: public -/
 def kernel.validate.validate_constant_val
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -48137,7 +48137,7 @@ def kernel.validate.validate_constant_val
   else ok (false, m)
 
 /-- [con_ron_core::kernel::validate::validate_constant_info]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 695:0-733:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 705:0-743:1
     Visibility: public -/
 def kernel.validate.validate_constant_info
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -48175,7 +48175,7 @@ def kernel.validate.validate_constant_info
     kernel.validate.validate_proj_table m t
 
 /-- [con_ron_core::kernel::validate::validate_constant_infos_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 743:0-758:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 753:0-768:1
     Visibility: public -/
 def kernel.validate.validate_constant_infos_from
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -48199,7 +48199,7 @@ def kernel.validate.validate_constant_infos_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::validate::validate_constant_infos]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 737:0-739:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 747:0-749:1
     Visibility: public -/
 def kernel.validate.validate_constant_infos
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -48210,7 +48210,7 @@ def kernel.validate.validate_constant_infos
   kernel.validate.validate_constant_infos_from m cs 0#usize
 
 /-- [con_ron_core::kernel::validate::validate_decl]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 768:0-798:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 778:0-808:1
     Visibility: public -/
 def kernel.validate.validate_decl
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -48241,7 +48241,7 @@ def kernel.validate.validate_decl
     kernel.validate.validate_constant_infos m block
 
 /-- [con_ron_core::kernel::validate::validate_decls_from]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 810:0-821:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 820:0-831:1
     Visibility: public -/
 def kernel.validate.validate_decls_from
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -48264,7 +48264,7 @@ def kernel.validate.validate_decls_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::validate::validate_decls]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 802:0-804:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 812:0-814:1
     Visibility: public -/
 def kernel.validate.validate_decls
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr))
@@ -48275,7 +48275,7 @@ def kernel.validate.validate_decls
   kernel.validate.validate_decls_from m ds 0#usize
 
 /-- [con_ron_core::kernel::validate::seen_new]:
-    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 155:0-157:1
+    Source: 'crates/con-ron-core/src/kernel/validate.rs', lines 165:0-167:1
     Visibility: public -/
 def kernel.validate.seen_new
   : Result (ron.hashmap.HashMap Std.U64 (alloc.vec.Vec kernel.expr.Expr)) := do
@@ -48299,7 +48299,7 @@ def kernel.env.empty : Result kernel.env.Env := do
   ok { consts := (alloc.vec.Vec.new (alloc.sync.Arc kernel.env.ConstantInfo)) }
 
 /-- [con_ron_core::cached::installed::annot_decl_fold_from]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 795:0-811:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 799:0-815:1
     Visibility: public -/
 def cached.installed.annot_decl_fold_from
   (mode : kernel.env.CheckMode)
@@ -48328,7 +48328,7 @@ def cached.installed.annot_decl_fold_from
 partial_fixpoint
 
 /-- [con_ron_core::cached::installed::check_decls_phase_b]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 777:0-786:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 781:0-790:1
     Visibility: public -/
 def cached.installed.check_decls_phase_b
   (mode : kernel.env.CheckMode) (fe : kernel.fenv.FEnv)
@@ -48342,7 +48342,7 @@ def cached.installed.check_decls_phase_b
   | core.result.Result.Err err => ok (core.result.Result.Err err)
 
 /-- [con_ron_core::cached::installed::check_decls_go]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 755:0-772:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 759:0-776:1
     Visibility: public -/
 def cached.installed.check_decls_go
   (mode : kernel.env.CheckMode)
@@ -48364,7 +48364,7 @@ def cached.installed.check_decls_go
   | core.result.Result.Err err => ok (core.result.Result.Err err)
 
 /-- [con_ron_core::cached::installed::validate_reject_message::M]
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 741:4-745:6 -/
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 745:4-749:6 -/
 @[global_simps, irreducible]
 def cached.installed.validate_reject_message.M : Array Std.U32 49#usize :=
   Array.make 49#usize [
@@ -48378,7 +48378,7 @@ def cached.installed.validate_reject_message.M : Array Std.U32 49#usize :=
     ]
 
 /-- [con_ron_core::cached::installed::validate_reject_message]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 740:0-747:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 744:0-751:1
     Visibility: public -/
 def cached.installed.validate_reject_message
   : Result (alloc.vec.Vec Std.U32) := do
@@ -48386,7 +48386,7 @@ def cached.installed.validate_reject_message
   kernel.core_types.code_points s
 
 /-- [con_ron_core::cached::installed::check_decls]:
-    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 722:0-733:1
+    Source: 'crates/con-ron-core/src/cached/installed.rs', lines 722:0-737:1
     Visibility: public -/
 def cached.installed.check_decls
   (mode : kernel.env.CheckMode)
@@ -48396,8 +48396,8 @@ def cached.installed.check_decls
     Std.U64))
   := do
   let hm ← kernel.validate.seen_new
-  let (b, _) ← kernel.validate.validate_decls hm ds
-  if b
+  let (ok1, _) ← kernel.validate.validate_decls hm ds
+  if ok1
   then cached.installed.check_decls_go mode pins ds
   else
     let v ← cached.installed.validate_reject_message
