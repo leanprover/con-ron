@@ -1522,8 +1522,168 @@ theorem check_def_eq_list_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
   check_def_eq_list_refines hfuel hk hsw hfw hxs hys h
 
 /-- `ConLeche/Kernel/CheckerBase.lean:156-168 checkTypedList` — the index
-recursion, on the two suffixes at the cursor. -/
+recursion, on the two suffixes at the cursor, over the whole outcome.  The
+port's two `not_implemented` sites (`kernel/checker_base.rs:326`, `336`) are
+the cited walk's arity `throw` (`:168`, reached from either of the port's two
+index tests) and its mismatch `throw` (`:166`); everything else it can answer
+is what `infer_type_core` or `is_def_eq_core` threw. -/
 theorem check_typed_list_from_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {xs ts : alloc.vec.Vec expr.Expr} (hxs : ExprsWF xs) (hts : ExprsWF ts) :
+    ∀ (N : Nat) (i : Std.Usize) (st st' : cached.state_c.CState) (fe : fenv.FEnv)
+      (depth : Std.U64) (out : core.result.Result Unit core_types.CheckError),
+      xs.val.length - i.val ≤ N → StateWF st → FEnvWF fe →
+      checker_base.check_typed_list_from mode st fe depth xs ts i = ok (out, st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        match out with
+        | .Ok _ =>
+          ∃ lst', (ConLeche.checkTypedList (TypeChecker.lops mode lfe) lfe.env depth.val
+              ((absExprs xs).drop i.val) ((absExprs ts).drop i.val)).run lst = .ok ((), lst')
+            ∧ StateRel st' lst' ∧ StateWF st'
+        | .Err e =>
+          ErrSim e ((ConLeche.checkTypedList (TypeChecker.lops mode lfe) lfe.env depth.val
+              ((absExprs xs).drop i.val) ((absExprs ts).drop i.val)).run lst) := by
+  -- the cited walk's arity `throw`, at the two ways the port's two index
+  -- tests can disagree
+  have arityL : ∀ (i : Std.Usize) (lfe : ConLeche.FEnv) (depth : Std.U64)
+      (lst : ConLeche.Cached.CState) (ce : core_types.CheckError)
+      (v : alloc.vec.Vec Std.U32), xs.val.length ≤ i.val → i.val < ts.val.length →
+      core_types.not_implemented v = ok ce →
+      ErrSim ce ((ConLeche.checkTypedList (TypeChecker.lops mode lfe) lfe.env depth.val
+        ((absExprs xs).drop i.val) ((absExprs ts).drop i.val)).run lst) := by
+    intro i lfe depth lst ce v h1 h2 hce
+    obtain ⟨t, rest, hd⟩ := absExprs_drop_cons h2
+    rw [absExprs_drop_nil h1, hd]
+    exact errSim_notImplemented hce rfl checkTypedList_arity_nil_cons
+  have arityR : ∀ (i : Std.Usize) (lfe : ConLeche.FEnv) (depth : Std.U64)
+      (lst : ConLeche.Cached.CState) (ce : core_types.CheckError)
+      (v : alloc.vec.Vec Std.U32), ts.val.length ≤ i.val → i.val < xs.val.length →
+      core_types.not_implemented v = ok ce →
+      ErrSim ce ((ConLeche.checkTypedList (TypeChecker.lops mode lfe) lfe.env depth.val
+        ((absExprs xs).drop i.val) ((absExprs ts).drop i.val)).run lst) := by
+    intro i lfe depth lst ce v h1 h2 hce
+    obtain ⟨a, rest, hd⟩ := absExprs_drop_cons h2
+    rw [absExprs_drop_nil h1, hd]
+    exact errSim_notImplemented hce rfl checkTypedList_arity_cons_nil
+  intro N
+  induction N with
+  | zero =>
+    intro i st st' fe depth out hN hsw hfw h lst lfe hsr hfr
+    rw [checker_base.check_typed_list_from.eq_def] at h
+    simp only [] at h
+    rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
+    split at h
+    · rename_i hy
+      obtain ⟨hout, rfl⟩ := ok_outS h
+      subst hout
+      refine ⟨lst, ?_, hsr, hsw⟩
+      rw [absExprs_drop_nil (by scalar_tac), absExprs_drop_nil (by scalar_tac)]
+      exact checkTypedList_nil
+    · rename_i hy
+      rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      exact arityL i lfe depth lst ce v (by scalar_tac) (by scalar_tac) hce
+  | succ N ih =>
+    intro i st st' fe depth out hN hsw hfw h lst lfe hsr hfr
+    rw [checker_base.check_typed_list_from.eq_def] at h
+    simp only [] at h
+    by_cases hix : i.val ≥ xs.val.length
+    · rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
+      split at h
+      · rename_i hy
+        obtain ⟨hout, rfl⟩ := ok_outS h
+        subst hout
+        refine ⟨lst, ?_, hsr, hsw⟩
+        rw [absExprs_drop_nil (by scalar_tac), absExprs_drop_nil (by scalar_tac)]
+        exact checkTypedList_nil
+      · rename_i hy
+        rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        exact arityL i lfe depth lst ce v (by scalar_tac) (by scalar_tac) hce
+    · rw [if_neg (show ¬ i >= alloc.vec.Vec.len xs by scalar_tac),
+        if_neg (show ¬ i >= alloc.vec.Vec.len xs by scalar_tac)] at h
+      split at h
+      · rename_i hy
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        exact arityR i lfe depth lst ce v (by scalar_tac) (by scalar_tac) hce
+      · rename_i hy
+        obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨rr, st1⟩ := q
+        obtain ⟨hltx, hewf, hdropx⟩ := ExprOps.vec_index_expr hxs he
+        cases rr with
+        | Err er =>
+          -- move 1: `infer_type_core` threw, and the cited walk's first bind throws
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          have herr := (TypeChecker.infer_type_core_refines hfuel hk).err st fe depth e
+            er st1 hsw hfw hewf hq lst lfe hsr hfr
+          obtain ⟨t, rest, hdropt⟩ :=
+            absExprs_drop_cons (xs := ts) (i := i) (show i.val < ts.val.length by scalar_tac)
+          rw [hdropx, hdropt]
+          exact ErrSim.trans herr (fun le hle => checkTypedList_infer_err hle)
+        | Ok ty =>
+          obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨rr2, st2⟩ := q2
+          obtain ⟨hltt, he1wf, hdropt⟩ := ExprOps.vec_index_expr hts he1
+          obtain ⟨lst1, hrun, hsr1, hsw1, htywf⟩ :=
+            (TypeChecker.infer_type_core_refines hfuel hk).ok st fe depth e ty st1
+              hsw hfw hewf hq lst lfe hsr hfr
+          have hinf : ((TypeChecker.lops mode lfe).inferType lfe.env depth.val
+              (absExpr e)).run lst = .ok (absExpr ty, lst1) := by
+            rw [TypeChecker.sharedOpsC_inferType]; exact hrun
+          cases rr2 with
+          | Err er =>
+            -- move 1 again: `is_def_eq_core` threw, one bind further in
+            obtain ⟨hout, -⟩ := err_outS h
+            subst hout
+            have herr := (TypeChecker.is_def_eq_core_refines hfuel hk).err st1 fe depth ty e1
+              er st2 hsw1 hfw htywf he1wf hq2 lst1 lfe hsr1 hfr
+            rw [hdropx, hdropt]
+            exact ErrSim.trans herr (fun le hle => checkTypedList_defeq_err hinf hle)
+          | Ok ok1 =>
+            cases ok1 with
+            | false =>
+              -- the mismatch `throw` (`CheckerBase.lean:166`)
+              obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨hout, -⟩ := err_outS h
+              subst hout
+              obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
+                (TypeChecker.is_def_eq_core_refines hfuel hk).ok st1 fe depth ty e1 false st2
+                  hsw1 hfw htywf he1wf hq2 lst1 lfe hsr1 hfr
+              have hdef : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
+                  (absExpr ty) (absExpr e1)).run lst1 = .ok (false, lst2) := by
+                rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun2
+              rw [hdropx, hdropt]
+              exact errSim_notImplemented hce rfl (checkTypedList_cons_false hinf hdef)
+            | true =>
+              simp only [reduceIte] at h
+              obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
+              have hi5v : i5.val = i.val + 1 := HashMap.uscalar_add_eq hi5
+              obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
+                (TypeChecker.is_def_eq_core_refines hfuel hk).ok st1 fe depth ty e1 true st2
+                  hsw1 hfw htywf he1wf hq2 lst1 lfe hsr1 hfr
+              have hdef : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
+                  (absExpr ty) (absExpr e1)).run lst1 = .ok (true, lst2) := by
+                rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun2
+              have hrec := ih i5 st2 st' fe depth out (by omega) hsw2 hfw h lst2 lfe hsr2 hfr
+              rw [hdropx, hdropt, checkTypedList_cons hinf hdef, ← hi5v]
+              exact hrec
+
+/-- `check_typed_list_from_refines` at a success, the pre-#67 statement. -/
+theorem check_typed_list_from_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {xs ts : alloc.vec.Vec expr.Expr} (hxs : ExprsWF xs) (hts : ExprsWF ts) :
     ∀ (N : Nat) (i : Std.Usize) (st st' : cached.state_c.CState) (fe : fenv.FEnv)
@@ -1533,84 +1693,41 @@ theorem check_typed_list_from_refines {mode : env.CheckMode} {fuel : Std.U64}
       ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
         ∃ lst', (ConLeche.checkTypedList (TypeChecker.lops mode lfe) lfe.env depth.val
             ((absExprs xs).drop i.val) ((absExprs ts).drop i.val)).run lst = .ok ((), lst')
-          ∧ StateRel st' lst' ∧ StateWF st' := by
-  intro N
-  induction N with
-  | zero =>
-    intro i st st' fe depth hN hsw hfw h lst lfe hsr hfr
-    rw [checker_base.check_typed_list_from.eq_def] at h
-    simp only [] at h
-    rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
-    split at h
-    · rename_i hy
-      simp only [Result.ok.injEq] at h
-      obtain ⟨-, rfl⟩ := h
-      refine ⟨lst, ?_, hsr, hsw⟩
-      rw [absExprs_drop_nil (by scalar_tac), absExprs_drop_nil (by scalar_tac)]
-      exact checkTypedList_nil
-    · rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
-      simp [bind_eq_ok_iff] at h
-  | succ N ih =>
-    intro i st st' fe depth hN hsw hfw h lst lfe hsr hfr
-    rw [checker_base.check_typed_list_from.eq_def] at h
-    simp only [] at h
-    by_cases hix : i.val ≥ xs.val.length
-    · rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
-      split at h
-      · rename_i hy
-        simp only [Result.ok.injEq] at h
-        obtain ⟨-, rfl⟩ := h
-        refine ⟨lst, ?_, hsr, hsw⟩
-        rw [absExprs_drop_nil (by scalar_tac), absExprs_drop_nil (by scalar_tac)]
-        exact checkTypedList_nil
-      · rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
-        simp [bind_eq_ok_iff] at h
-    · rw [if_neg (show ¬ i >= alloc.vec.Vec.len xs by scalar_tac),
-        if_neg (show ¬ i >= alloc.vec.Vec.len xs by scalar_tac)] at h
-      split at h
-      · simp [bind_eq_ok_iff] at h
-      · rename_i hy
-        obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨rr, st1⟩ := q
-        obtain ⟨hltx, hewf, hdropx⟩ := ExprOps.vec_index_expr hxs he
-        cases rr with
-        | Err er => simp at h
-        | Ok ty =>
-          obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨rr2, st2⟩ := q2
-          obtain ⟨hltt, he1wf, hdropt⟩ := ExprOps.vec_index_expr hts he1
-          obtain ⟨lst1, hrun, hsr1, hsw1, htywf⟩ :=
-            (TypeChecker.infer_type_core_refines hfuel hk).ok st fe depth e ty st1
-              hsw hfw hewf hq lst lfe hsr hfr
-          cases rr2 with
-          | Err er => simp at h
-          | Ok ok1 =>
-            cases ok1 with
-            | false => simp [bind_eq_ok_iff] at h
-            | true =>
-              simp only [reduceIte] at h
-              obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
-              have hi5v : i5.val = i.val + 1 := HashMap.uscalar_add_eq hi5
-              obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
-                (TypeChecker.is_def_eq_core_refines hfuel hk).ok st1 fe depth ty e1 true st2
-                  hsw1 hfw htywf he1wf hq2 lst1 lfe hsr1 hfr
-              have hinf : ((TypeChecker.lops mode lfe).inferType lfe.env depth.val
-                  (absExpr e)).run lst = .ok (absExpr ty, lst1) := by
-                rw [TypeChecker.sharedOpsC_inferType]; exact hrun
-              have hdef : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
-                  (absExpr ty) (absExpr e1)).run lst1 = .ok (true, lst2) := by
-                rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun2
-              obtain ⟨lst3, hrun3, hsr3, hsw3⟩ :=
-                ih i5 st2 st' fe depth (by omega) hsw2 hfw h lst2 lfe hsr2 hfr
-              refine ⟨lst3, ?_, hsr3, hsw3⟩
-              rw [hdropx, hdropt, checkTypedList_cons hinf hdef, ← hi5v]
-              exact hrun3
+          ∧ StateRel st' lst' ∧ StateWF st' :=
+  fun N i st st' fe depth hN hsw hfw h =>
+    check_typed_list_from_refines hfuel hk hxs hts N i st st' fe depth (.Ok ())
+      hN hsw hfw h
 
 /-- `ConLeche/Kernel/CheckerBase.lean:156-168 checkTypedList` — each
 expression's inferred type against the corresponding expected type. -/
 theorem check_typed_list_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {depth : Std.U64}
+    {xs ts : alloc.vec.Vec expr.Expr}
+    {out : core.result.Result Unit core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hxs : ExprsWF xs) (hts : ExprsWF ts)
+    (h : checker_base.check_typed_list mode st fe depth xs ts = ok (out, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      match out with
+      | .Ok _ =>
+        ∃ lst', (ConLeche.checkTypedList (TypeChecker.lops mode lfe) lfe.env depth.val
+            (absExprs xs) (absExprs ts)).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkTypedList (TypeChecker.lops mode lfe) lfe.env depth.val
+            (absExprs xs) (absExprs ts)).run lst) := by
+  intro lst lfe hsr hfr
+  rw [checker_base.check_typed_list] at h
+  have hrun :=
+    check_typed_list_from_refines hfuel hk hxs hts xs.val.length 0#usize st st' fe depth
+      out (by scalar_tac) hsw hfw h lst lfe hsr hfr
+  rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero, List.drop_zero] at hrun
+  cases out with
+  | Ok u => exact hrun
+  | Err e => exact hrun
+
+/-- `check_typed_list_refines` at a success, the pre-#67 statement. -/
+theorem check_typed_list_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {depth : Std.U64}
     {xs ts : alloc.vec.Vec expr.Expr}
@@ -1619,46 +1736,49 @@ theorem check_typed_list_refines {mode : env.CheckMode} {fuel : Std.U64}
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst', (ConLeche.checkTypedList (TypeChecker.lops mode lfe) lfe.env depth.val
           (absExprs xs) (absExprs ts)).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
-  intro lst lfe hsr hfr
-  rw [checker_base.check_typed_list] at h
-  obtain ⟨lst', hrun, rest⟩ :=
-    check_typed_list_from_refines hfuel hk hxs hts xs.val.length 0#usize st st' fe depth
-      (by scalar_tac) hsw hfw h lst lfe hsr hfr
-  exact ⟨lst', by simpa using hrun, rest⟩
+        ∧ StateRel st' lst' ∧ StateWF st' :=
+  check_typed_list_refines hfuel hk hsw hfw hxs hts h
 
 /-- `ConLeche/Kernel/CheckerBase.lean:170-184 checkAnnotList` — the index
-recursion, on the suffix at the cursor. -/
+recursion, on the suffix at the cursor, over the whole outcome.  The port's
+one `not_implemented` site (`kernel/checker_base.rs:377`) is the cited walk's
+mismatch `throw` (`:183`); everything else it can answer is what
+`annotate_core` threw. -/
 theorem check_annot_list_from_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {xs : alloc.vec.Vec expr.Expr} (hxs : ExprsWF xs) :
     ∀ (N : Nat) (i : Std.Usize) (st st' : cached.state_c.CState) (fe : fenv.FEnv)
-      (depth : Std.U64),
+      (depth : Std.U64) (out : core.result.Result Unit core_types.CheckError),
       xs.val.length - i.val ≤ N → StateWF st → FEnvWF fe →
-      checker_base.check_annot_list_from mode st fe depth xs i = ok (.Ok (), st') →
+      checker_base.check_annot_list_from mode st fe depth xs i = ok (out, st') →
       ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-        ∃ lst', (ConLeche.checkAnnotList (TypeChecker.lops mode lfe) lfe.env depth.val
-            ((absExprs xs).drop i.val)).run lst = .ok ((), lst')
-          ∧ StateRel st' lst' ∧ StateWF st' := by
+        match out with
+        | .Ok _ =>
+          ∃ lst', (ConLeche.checkAnnotList (TypeChecker.lops mode lfe) lfe.env depth.val
+              ((absExprs xs).drop i.val)).run lst = .ok ((), lst')
+            ∧ StateRel st' lst' ∧ StateWF st'
+        | .Err e =>
+          ErrSim e ((ConLeche.checkAnnotList (TypeChecker.lops mode lfe) lfe.env depth.val
+              ((absExprs xs).drop i.val)).run lst) := by
   intro N
   induction N with
   | zero =>
-    intro i st st' fe depth hN hsw hfw h lst lfe hsr hfr
+    intro i st st' fe depth out hN hsw hfw h lst lfe hsr hfr
     rw [checker_base.check_annot_list_from.eq_def] at h
     simp only [] at h
     rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
-    simp only [Result.ok.injEq] at h
-    obtain ⟨-, rfl⟩ := h
+    obtain ⟨hout, rfl⟩ := ok_outS h
+    subst hout
     refine ⟨lst, ?_, hsr, hsw⟩
     rw [absExprs_drop_nil (by scalar_tac)]
     exact checkAnnotList_nil
   | succ N ih =>
-    intro i st st' fe depth hN hsw hfw h lst lfe hsr hfr
+    intro i st st' fe depth out hN hsw hfw h lst lfe hsr hfr
     rw [checker_base.check_annot_list_from.eq_def] at h
     simp only [] at h
     split at h
-    · simp only [Result.ok.injEq] at h
-      obtain ⟨-, rfl⟩ := h
+    · obtain ⟨hout, rfl⟩ := ok_outS h
+      subst hout
       refine ⟨lst, ?_, hsr, hsw⟩
       rw [absExprs_drop_nil (by scalar_tac)]
       exact checkAnnotList_nil
@@ -1668,33 +1788,91 @@ theorem check_annot_list_from_refines {mode : env.CheckMode} {fuel : Std.U64}
       obtain ⟨rr, st1⟩ := q
       obtain ⟨hltx, hewf, hdropx⟩ := ExprOps.vec_index_expr hxs he
       cases rr with
-      | Err er => simp at h
+      | Err er =>
+        -- move 1: `annotate_core` threw, and the cited walk's first bind throws
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        have herr := (TypeChecker.annotate_core_refines hfuel hk).err st fe depth e
+          er st1 hsw hfw hewf hq lst lfe hsr hfr
+        rw [hdropx]
+        exact ErrSim.trans herr (fun le hle => checkAnnotList_annot_err hle)
       | Ok aA =>
         obtain ⟨lst1, hrun, hsr1, hsw1, hawf⟩ :=
           (TypeChecker.annotate_core_refines hfuel hk).ok st fe depth e aA st1
             hsw hfw hewf hq lst lfe hsr hfr
+        have hann : ((TypeChecker.lops mode lfe).annotate lfe.env depth.val
+            (absExpr e)).run lst = .ok (absExpr aA, lst1) := by
+          rw [TypeChecker.sharedOpsC_annotate]; exact hrun
         obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
         have hcv := Expr.beq_refines hawf hewf hc
         cases c with
-        | false => simp [bind_eq_ok_iff] at h
+        | false =>
+          -- the mismatch `throw` (`CheckerBase.lean:183`)
+          obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          have heq : (absExpr aA == absExpr e) = false := by
+            rw [← decide_eq_beq_expr, ← hcv]
+          rw [hdropx]
+          exact errSim_notImplemented hce rfl (checkAnnotList_cons_false hann heq)
         | true =>
           simp only [reduceIte] at h
           obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
           have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
-          have hann : ((TypeChecker.lops mode lfe).annotate lfe.env depth.val
-              (absExpr e)).run lst = .ok (absExpr aA, lst1) := by
-            rw [TypeChecker.sharedOpsC_annotate]; exact hrun
           have heq : (absExpr aA == absExpr e) = true := by
             rw [← decide_eq_beq_expr, ← hcv]
-          obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
-            ih i2 st1 st' fe depth (by omega) hsw1 hfw h lst1 lfe hsr1 hfr
-          refine ⟨lst2, ?_, hsr2, hsw2⟩
+          have hrec := ih i2 st1 st' fe depth out (by omega) hsw1 hfw h lst1 lfe hsr1 hfr
           rw [hdropx, checkAnnotList_cons hann heq, ← hi2v]
-          exact hrun2
+          exact hrec
+
+/-- `check_annot_list_from_refines` at a success, the pre-#67 statement. -/
+theorem check_annot_list_from_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {xs : alloc.vec.Vec expr.Expr} (hxs : ExprsWF xs) :
+    ∀ (N : Nat) (i : Std.Usize) (st st' : cached.state_c.CState) (fe : fenv.FEnv)
+      (depth : Std.U64),
+      xs.val.length - i.val ≤ N → StateWF st → FEnvWF fe →
+      checker_base.check_annot_list_from mode st fe depth xs i = ok (.Ok (), st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ∃ lst', (ConLeche.checkAnnotList (TypeChecker.lops mode lfe) lfe.env depth.val
+            ((absExprs xs).drop i.val)).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st' :=
+  fun N i st st' fe depth hN hsw hfw h =>
+    check_annot_list_from_refines hfuel hk hxs N i st st' fe depth (.Ok ())
+      hN hsw hfw h
 
 /-- `ConLeche/Kernel/CheckerBase.lean:170-184 checkAnnotList` — each
 expression is a fixed point of the annotation pass. -/
 theorem check_annot_list_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {depth : Std.U64}
+    {xs : alloc.vec.Vec expr.Expr}
+    {out : core.result.Result Unit core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hxs : ExprsWF xs)
+    (h : checker_base.check_annot_list mode st fe depth xs = ok (out, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      match out with
+      | .Ok _ =>
+        ∃ lst', (ConLeche.checkAnnotList (TypeChecker.lops mode lfe) lfe.env depth.val
+            (absExprs xs)).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkAnnotList (TypeChecker.lops mode lfe) lfe.env depth.val
+            (absExprs xs)).run lst) := by
+  intro lst lfe hsr hfr
+  rw [checker_base.check_annot_list] at h
+  have hrun :=
+    check_annot_list_from_refines hfuel hk hxs xs.val.length 0#usize st st' fe depth
+      out (by scalar_tac) hsw hfw h lst lfe hsr hfr
+  rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at hrun
+  cases out with
+  | Ok u => exact hrun
+  | Err e => exact hrun
+
+/-- `check_annot_list_refines` at a success, the pre-#67 statement. -/
+theorem check_annot_list_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {depth : Std.U64}
     {xs : alloc.vec.Vec expr.Expr}
@@ -1703,13 +1881,8 @@ theorem check_annot_list_refines {mode : env.CheckMode} {fuel : Std.U64}
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst', (ConLeche.checkAnnotList (TypeChecker.lops mode lfe) lfe.env depth.val
           (absExprs xs)).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
-  intro lst lfe hsr hfr
-  rw [checker_base.check_annot_list] at h
-  obtain ⟨lst', hrun, rest⟩ :=
-    check_annot_list_from_refines hfuel hk hxs xs.val.length 0#usize st st' fe depth
-      (by scalar_tac) hsw hfw h lst lfe hsr hfr
-  exact ⟨lst', by simpa using hrun, rest⟩
+        ∧ StateRel st' lst' ∧ StateWF st' :=
+  check_annot_list_refines hfuel hk hsw hfw hxs h
 
 
 /-! ## `checkConstantVal` — the one check every declaration kind runs first
