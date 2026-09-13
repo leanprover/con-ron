@@ -1173,6 +1173,89 @@ point 7).  `thm_witness_core` at the cited `throw`s.
 theorem check_thm_val_witness_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     (hp : CoreK.PinnedBasisNames)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
+    {cv : env.ConstantVal} {value : expr.Expr}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
+    (h : kernel.checker.check_thm_val_witness mode st fe cv value = ok (out, st')) :
+    ∀ lst lfe (lenv : ConLeche.Env), StateRel st lst → FEnvRel fe lfe →
+      (∀ n : ConLeche.Name, lfe.find? n = lenv.find? n) → lenv = lfe.env →
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (do
+            let lv := absExpr value
+            if ¬ lv.looseBVarsBounded 0 then
+              throw (ConLeche.CheckError.invalid "loose bound variable in value")
+            else if lv.hasFvar then
+              throw (ConLeche.CheckError.invalid "unexpected free variable in value")
+            else do
+              let jv ← (TypeChecker.lops mode lfe).annotate lenv 0 lv
+              if ¬ jv.allLevelParamsDefined (absConstantVal cv).levelParams then
+                throw (ConLeche.CheckError.invalid "undeclared universe parameter")
+              else if ¬ jv.constsResolve lenv then
+                throw (ConLeche.CheckError.invalid "unknown constant")
+              else do
+                let vtype ← (TypeChecker.lops mode lfe).inferType lenv 0 jv
+                let okv ← (TypeChecker.lops mode lfe).isDefEq lenv 0 vtype
+                  (absConstantVal cv).type
+                if okv then
+                  pure (⟨ConLeche.ConstantInfo.thmInfo (absConstantVal cv) lv
+                    :: lenv.consts⟩ : ConLeche.Env)
+                else throw (ConLeche.CheckError.invalid "type mismatch")).run lst
+            = .ok (lfe'.env, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+      | .Err ce =>
+        ErrSim ce ((do
+            let lv := absExpr value
+            if ¬ lv.looseBVarsBounded 0 then
+              throw (ConLeche.CheckError.invalid "loose bound variable in value")
+            else if lv.hasFvar then
+              throw (ConLeche.CheckError.invalid "unexpected free variable in value")
+            else do
+              let jv ← (TypeChecker.lops mode lfe).annotate lenv 0 lv
+              if ¬ jv.allLevelParamsDefined (absConstantVal cv).levelParams then
+                throw (ConLeche.CheckError.invalid "undeclared universe parameter")
+              else if ¬ jv.constsResolve lenv then
+                throw (ConLeche.CheckError.invalid "unknown constant")
+              else do
+                let vtype ← (TypeChecker.lops mode lfe).inferType lenv 0 jv
+                let okv ← (TypeChecker.lops mode lfe).isDefEq lenv 0 vtype
+                  (absConstantVal cv).type
+                if okv then
+                  pure (⟨ConLeche.ConstantInfo.thmInfo (absConstantVal cv) lv
+                    :: lenv.consts⟩ : ConLeche.Env)
+                else throw (ConLeche.CheckError.invalid "type mismatch")).run lst) := by
+  intro lst lfe lenv hsr hfr henv hlenv
+  have hcore :=
+    thm_witness_core hfuel hk hp hsw hfw hcv hv h lst lfe lenv hsr hfr henv hlenv
+  cases out with
+  | Ok fe' =>
+    obtain ⟨lst', hsr', hsw', hwf', hrel', hrun⟩ := hcore
+    exact ⟨lst', _, by
+      simpa only [ite_not] using hrun
+        (throw (ConLeche.CheckError.invalid "loose bound variable in value"))
+        (throw (ConLeche.CheckError.invalid "unexpected free variable in value"))
+        (fun _ => throw (ConLeche.CheckError.invalid "undeclared universe parameter"))
+        (fun _ => throw (ConLeche.CheckError.invalid "unknown constant"))
+        (fun _ => throw (ConLeche.CheckError.invalid "type mismatch")),
+      hsr', hsw', hrel', hwf'⟩
+  | Err ce =>
+    exact by
+      simpa only [ite_not] using hcore
+        (throw (ConLeche.CheckError.invalid "loose bound variable in value"))
+        (throw (ConLeche.CheckError.invalid "unexpected free variable in value"))
+        (fun _ => throw (ConLeche.CheckError.invalid "undeclared universe parameter"))
+        (fun _ => throw (ConLeche.CheckError.invalid "unknown constant"))
+        (fun _ => throw (ConLeche.CheckError.invalid "type mismatch"))
+        (fun _ => ⟨_, rfl⟩) (fun _ => ⟨_, rfl⟩) (fun _ _ => ⟨_, rfl⟩)
+        (fun _ _ => ⟨_, rfl⟩) (fun _ _ => ⟨_, rfl⟩)
+
+/-- The success half of `check_thm_val_witness_refines`, at the pre-task-#67
+statement. -/
+theorem check_thm_val_witness_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    (hp : CoreK.PinnedBasisNames)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
@@ -1201,18 +1284,8 @@ theorem check_thm_val_witness_refines {mode : env.CheckMode} {fuel : Std.U64}
                   :: lenv.consts⟩ : ConLeche.Env)
               else throw (ConLeche.CheckError.invalid "type mismatch")).run lst
           = .ok (lfe'.env, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
-  intro lst lfe lenv hsr hfr henv hlenv
-  obtain ⟨lst', hsr', hsw', hwf', hrel', hrun⟩ :=
-    thm_witness_core hfuel hk hp hsw hfw hcv hv h lst lfe lenv hsr hfr henv hlenv
-  exact ⟨lst', _, by
-    simpa only [ite_not] using hrun
-      (throw (ConLeche.CheckError.invalid "loose bound variable in value"))
-      (throw (ConLeche.CheckError.invalid "unexpected free variable in value"))
-      (fun _ => throw (ConLeche.CheckError.invalid "undeclared universe parameter"))
-      (fun _ => throw (ConLeche.CheckError.invalid "unknown constant"))
-      (fun _ => throw (ConLeche.CheckError.invalid "type mismatch")),
-    hsr', hsw', hrel', hwf'⟩
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' :=
+  check_thm_val_witness_refines hfuel hk hp hsw hfw hcv hv h
 
 /-- **`checker::check_opaque_val` refines `checkOpaqueVal`**
 (`ConLeche/Kernel/Checker.lean:84-107`): exactly the theorem check without the
