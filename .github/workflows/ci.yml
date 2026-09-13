@@ -147,7 +147,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # A stock GitHub runner is 4 cores / 16 GB.  `gates.sh` turns LAKE_JOBS
