@@ -92,7 +92,11 @@ set_option backward.do.legacy true
 @[local step] theorem ptr_clone_spec {T : Type} (x : T) :
     ron.ptr.clone x ⦃ r => r = x ⦄ := by rw [ptr_clone_eq]; exact .ret rfl
 
-@[simp] theorem expr_dup_eq (e : expr.Expr) : expr.dup e = ok e := by
+/-- `expr::dup` is `Arc::clone`, i.e. the identity (`level_dup_eq`/`name_dup_eq`
+are in `Refine/Abs.lean`; this one has been here since task #22).  It joins the
+task-#71 normaliser's simp sets from here, `Refine/SimpSets.lean` being the
+module that declares them. -/
+@[simp, rust_reduce, rust_invert] theorem expr_dup_eq (e : expr.Expr) : expr.dup e = ok e := by
   cases e; simp [expr.dup]
 
 @[local step] theorem name_dup_spec (n : name.Name) : name.dup n ⦃ r => r = n ⦄ := by

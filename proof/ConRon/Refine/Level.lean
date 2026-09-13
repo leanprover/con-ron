@@ -648,6 +648,18 @@ abbrev LeqCoreSpec (fuel : Std.U64) : Prop :=
     level.leq_core fuel l r diff = ok o →
       ConLeche.Level.leqCore fuel.val (absLevel l) (absLevel r) diff.val = o
 
+/-- `LeqCoreSpec` as an E-matching entry point (task #71, the README rule
+"a `use` lemma beside every `Spec`"): the **Rust success equation first**, so
+that the trigger `level.leq_core fuel l r d = ok o` is what an inverted bind
+provides.  `grind` also E-matches a local `∀` hypothesis, but infers its
+pattern from the *conclusion* — `leqCore ↑fuel (absLevel l) (absLevel r) ↑d`,
+which never appears in a goal once `absLevel ⟨_, .Succ t⟩` has become
+`.succ (absLevel t)`. -/
+theorem LeqCoreSpec.use {fuel : Std.U64} (hQ : LeqCoreSpec fuel) {l r : level.Level}
+    (hl : LevelWF l) (hr : LevelWF r) {d : Std.I64} {o : Option Bool}
+    (h : level.leq_core fuel l r d = ok o) :
+    ConLeche.Level.leqCore fuel.val (absLevel l) (absLevel r) d.val = o := hQ l r hl hr d o h
+
 theorem by_cases_refines_aux {fuel : Std.U64} (hQ : LeqCoreSpec fuel)
     {p : name.Name} {l r : level.Level} (hp : NameWF p) (hl : LevelWF l) (hr : LevelWF r)
     {diff : Std.I64} {o : Option Bool} :
@@ -1464,6 +1476,25 @@ theorem imax_wf {u v w : level.Level} (hu : LevelWF u) (hv : LevelWF v) :
 theorem param_wf {n : name.Name} {u : level.Level} (hn : NameWF n) :
     level.param n = ok u → LevelWF u := LevelWF.param hn
 
+/-! The same five with the **Rust equation first** (task #71), which is what a
+`grind [→ …]` lemma needs: `→` takes its patterns from the propositional
+hypotheses in order, so `succ_wf`'s `LevelWF u` would make it fire at every
+well-formed level. -/
+
+theorem zero_wf' {u : level.Level} (h : level.zero = ok u) : LevelWF u := LevelWF.zero h
+
+theorem succ_wf' {a u : level.Level} (h : level.succ a = ok u) (ha : LevelWF a) : LevelWF u :=
+  LevelWF.succ ha h
+
+theorem max_wf' {a b u : level.Level} (h : level.max a b = ok u) (ha : LevelWF a)
+    (hb : LevelWF b) : LevelWF u := LevelWF.max ha hb h
+
+theorem imax_wf' {a b u : level.Level} (h : level.imax a b = ok u) (ha : LevelWF a)
+    (hb : LevelWF b) : LevelWF u := LevelWF.imax ha hb h
+
+theorem param_wf' {n : name.Name} {u : level.Level} (h : level.param n = ok u) (hn : NameWF n) :
+    LevelWF u := LevelWF.param hn h
+
 theorem zero_refines {u : level.Level} : level.zero = ok u → absLevel u = .zero := by
   intro h; rw [level_zero_inv h]; simp
 
@@ -1504,6 +1535,15 @@ theorem subst_refines {u u' : level.Level} {ks : alloc.vec.Vec name.Name}
       ∧ LevelWF u' :=
   subst_refines' u hu ks vs hks hvs u'
 
+/-- `subst_refines` keyed on the Rust equation (task #71). -/
+theorem subst_use {u u' : level.Level} {ks : alloc.vec.Vec name.Name}
+    {vs : alloc.vec.Vec level.Level}
+    (h : level.subst ks vs u = ok u') (hu : LevelWF u)
+    (hks : ∀ k ∈ ks.val, NameWF k) (hvs : ∀ v ∈ vs.val, LevelWF v) :
+    absLevel u' = ConLeche.Level.subst (ks.val.map absName) (vs.val.map absLevel) (absLevel u)
+      ∧ LevelWF u' :=
+  subst_refines' u hu ks vs hks hvs u' h
+
 theorem is_never_zero_refines {u : level.Level} {b : Bool} :
     level.is_never_zero u = ok b → b = ConLeche.Level.isNeverZero (absLevel u) :=
   is_never_zero_refines' u b
@@ -1512,6 +1552,10 @@ theorem simplify_refines {u u' : level.Level} (hu : LevelWF u) :
     level.simplify u = ok u' →
       absLevel u' = ConLeche.Level.simplify (absLevel u) ∧ LevelWF u' :=
   simplify_refines' u hu u'
+
+/-- `simplify_refines` keyed on the Rust equation (task #71). -/
+theorem simplify_use {u u' : level.Level} (h : level.simplify u = ok u') (hu : LevelWF u) :
+    absLevel u' = ConLeche.Level.simplify (absLevel u) ∧ LevelWF u' := simplify_refines' u hu u' h
 
 theorem leq_core_refines {fuel : Std.U64} {l r : level.Level} {diff : Std.I64}
     {o : Option Bool} (hl : LevelWF l) (hr : LevelWF r) :
@@ -1558,3 +1602,45 @@ the three standard Lean axioms only. -/
 #print axioms beq_refines
 
 end ConRon.Refine.Level
+
+/-! ## The node-shaped induction on `LevelWF` (task #71)
+
+The `Level` twin of `Refine/Expr.lean`'s `ExprWF.ind_node`, for the tuned idiom
+(`Refine/AUTOMATION.md`, `Refine/README.md`): `induction hu` leaves `u` a
+variable and `level.succ a = ok u` as a hypothesis, and a generated body's
+`match u._0.kind` is stuck until that equation has been inverted.  Stating the
+motive on `.mk (.mk h kind)` moves the inversion into the principle, once, so a
+walk over levels is one line.  The motive depends on the derivation
+(`motive u hu`) because `induction u, hu using …` needs both targets explicit;
+the induction hypotheses then come out as `∀ w, motive a w`, which `grind` uses
+like any local implication.
+
+The children's well-formedness — the `Level` counterpart of `ExprWF.*_kids` —
+already exists above under the older name `Level.LevelWF.succ_inv`/`max_inv`/
+`imax_inv`/`param_inv`; those are the forward lemmas to register. -/
+
+namespace ConRon.Refine
+
+theorem LevelWF.ind_node {motive : (u : level.Level) → LevelWF u → Prop}
+    (zero : ∀ h (w : LevelWF (.mk (.mk h .Zero))), motive (.mk (.mk h .Zero)) w)
+    (succ : ∀ h a (w : LevelWF (.mk (.mk h (.Succ a)))), (∀ w, motive a w) →
+      motive (.mk (.mk h (.Succ a))) w)
+    (max : ∀ h a b (w : LevelWF (.mk (.mk h (.Max a b)))), (∀ w, motive a w) →
+      (∀ w, motive b w) → motive (.mk (.mk h (.Max a b))) w)
+    (imax : ∀ h a b (w : LevelWF (.mk (.mk h (.Imax a b)))), (∀ w, motive a w) →
+      (∀ w, motive b w) → motive (.mk (.mk h (.Imax a b))) w)
+    (param : ∀ h n (w : LevelWF (.mk (.mk h (.Param n)))), motive (.mk (.mk h (.Param n))) w)
+    (u : level.Level) (hu : LevelWF u) : motive u hu := by
+  induction hu with
+  | @zero u h1 => obtain rfl := level_zero_inv h1; exact zero _ (.zero h1)
+  | @succ a u ha h1 ih =>
+    obtain ⟨_, rfl⟩ := level_succ_inv h1; exact succ _ a (.succ ha h1) (fun _ => ih)
+  | @max a b u ha hb h1 iha ihb =>
+    obtain ⟨_, rfl⟩ := level_max_inv h1
+    exact max _ a b (.max ha hb h1) (fun _ => iha) (fun _ => ihb)
+  | @imax a b u ha hb h1 iha ihb =>
+    obtain ⟨_, rfl⟩ := level_imax_inv h1
+    exact imax _ a b (.imax ha hb h1) (fun _ => iha) (fun _ => ihb)
+  | @param n u hn h1 => obtain ⟨_, rfl⟩ := level_param_inv h1; exact param _ n (.param hn h1)
+
+end ConRon.Refine

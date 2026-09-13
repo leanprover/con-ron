@@ -394,3 +394,50 @@ info: 'ConRon.Refine.Name.str_eq_refines' depends on axioms: [propext, Classical
 #guard_msgs in #print axioms str_eq_refines
 
 end ConRon.Refine.Name
+
+/-! ## The node-shaped induction on `NameWF` (task #71)
+
+The `Name` twin of `Refine/Expr.lean`'s `ExprWF.ind_node`, for the tuned idiom
+(`Refine/AUTOMATION.md`, `Refine/README.md`): `induction hn` leaves `n` a
+variable and the smart-constructor equation `name.mk_str pre s = ok n` as a
+hypothesis, and a generated body's `match n._0.kind` is stuck until that
+equation has been inverted.  Stating the motive on `.mk (.mk h kind)` moves the
+inversion into the principle, once, so a walk over names is one line.  The
+motive depends on the derivation (`motive n hn`) because `induction n, hn
+using …` needs both targets explicit; the induction hypotheses then come out as
+`∀ w, motive pre w`, which `grind` uses like any local implication.
+
+`NameWF.str_kids`/`num_kids` are the children's well-formedness as forward
+lemmas, the `Name` counterpart of `ExprWF.*_kids` (`Level`'s already exist
+under the older name `Level.LevelWF.*_inv`). -/
+
+namespace ConRon.Refine
+
+theorem NameWF.str_kids {h pre s} (w : NameWF (.mk (.mk h (.Str pre s)))) :
+    NameWF pre ∧ StrWF s := by
+  cases w with
+  | @anonymous n hn => exact absurd (name_anonymous_inv hn) (by simp)
+  | @str q t n hq ht hn => obtain ⟨_, hn⟩ := mk_str_inv hn; cases hn; exact ⟨hq, ht⟩
+  | @num q m n hq hn => obtain ⟨_, hn⟩ := mk_num_inv hn; simp at hn
+
+theorem NameWF.num_kids {h pre m} (w : NameWF (.mk (.mk h (.Num pre m)))) : NameWF pre := by
+  cases w with
+  | @anonymous n hn => exact absurd (name_anonymous_inv hn) (by simp)
+  | @str q t n hq ht hn => obtain ⟨_, hn⟩ := mk_str_inv hn; simp at hn
+  | @num q k n hq hn => obtain ⟨_, hn⟩ := mk_num_inv hn; cases hn; exact hq
+
+theorem NameWF.ind_node {motive : (n : name.Name) → NameWF n → Prop}
+    (anonymous : ∀ h (w : NameWF (.mk (.mk h .Anonymous))), motive (.mk (.mk h .Anonymous)) w)
+    (str : ∀ h pre s (w : NameWF (.mk (.mk h (.Str pre s)))), (∀ w, motive pre w) →
+      motive (.mk (.mk h (.Str pre s))) w)
+    (num : ∀ h pre m (w : NameWF (.mk (.mk h (.Num pre m)))), (∀ w, motive pre w) →
+      motive (.mk (.mk h (.Num pre m))) w)
+    (n : name.Name) (hn : NameWF n) : motive n hn := by
+  induction hn with
+  | @anonymous n h1 => obtain rfl := name_anonymous_inv h1; exact anonymous _ (.anonymous h1)
+  | @str pre s n hpre hs h1 ih =>
+    obtain ⟨_, rfl⟩ := mk_str_inv h1; exact str _ pre s (.str hpre hs h1) (fun _ => ih)
+  | @num pre m n hpre h1 ih =>
+    obtain ⟨_, rfl⟩ := mk_num_inv h1; exact num _ pre m (.num hpre h1) (fun _ => ih)
+
+end ConRon.Refine

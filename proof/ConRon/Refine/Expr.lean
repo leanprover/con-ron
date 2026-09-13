@@ -635,6 +635,47 @@ theorem proj_wf {s : name.Name} {i : Std.U64} {x e : expr.Expr}
     (hs : NameWF s) (hx : ExprWF x) : expr.proj s i x = ok e → ExprWF e :=
   ExprWF.proj hs hx
 
+/-! ### The same, with the Rust equation first (task #71)
+
+What a `grind [→ …]` forward lemma needs: `→` takes its E-matching patterns
+from the propositional hypotheses **in order**, so `app_wf hf ha : expr.app f a
+= ok e → ExprWF e` — whose first two hypotheses are `ExprWF f`, `ExprWF a` —
+would be instantiated at every pair of well-formed terms (task #70 measured
+that: quadratic junk, and the real instance never reached).  `grind_pattern`
+cannot substitute, an `Eq` not being an admissible pattern, so the order is
+part of the statement.  `bvar_wf` needs no twin: its only hypothesis is the
+equation already.  `Refine/README.md` §"Writing a new refinement lemma" states
+the rule. -/
+
+theorem fvar_wf' {idx : Std.U64} {ty e : expr.Expr} (h : expr.fvar idx ty = ok e)
+    (hty : ExprWF ty) : ExprWF e := fvar_wf hty h
+
+theorem sort_wf' {u : level.Level} {e : expr.Expr} (h : expr.sort u = ok e) (hu : LevelWF u) :
+    ExprWF e := sort_wf hu h
+
+theorem mk_const_wf' {n : name.Name} {us : alloc.vec.Vec level.Level} {e : expr.Expr}
+    (h : expr.mk_const n us = ok e) (hn : NameWF n) (hus : LevelsWF us) : ExprWF e :=
+  mk_const_wf hn hus h
+
+theorem app_wf' {f a e : expr.Expr} (h : expr.app f a = ok e) (hf : ExprWF f) (ha : ExprWF a) :
+    ExprWF e := app_wf hf ha h
+
+theorem lam_wf' {ty bo e : expr.Expr} {m : expr.BinderMeta} (h : expr.lam ty bo m = ok e)
+    (hty : ExprWF ty) (hbo : ExprWF bo) (hm : BinderMetaWF m) : ExprWF e := lam_wf hty hbo hm h
+
+theorem forall_e_wf' {ty bo e : expr.Expr} {m : expr.BinderMeta} (h : expr.forall_e ty bo m = ok e)
+    (hty : ExprWF ty) (hbo : ExprWF bo) (hm : BinderMetaWF m) : ExprWF e :=
+  forall_e_wf hty hbo hm h
+
+theorem let_e_wf' {ty v bo e : expr.Expr} (h : expr.let_e ty v bo = ok e)
+    (hty : ExprWF ty) (hv : ExprWF v) (hbo : ExprWF bo) : ExprWF e := let_e_wf hty hv hbo h
+
+theorem lit_wf' {l : expr.Literal} {e : expr.Expr} (h : expr.lit l = ok e) (hl : LiteralWF l) :
+    ExprWF e := lit_wf hl h
+
+theorem proj_wf' {s : name.Name} {i : Std.U64} {x e : expr.Expr} (h : expr.proj s i x = ok e)
+    (hs : NameWF s) (hx : ExprWF x) : ExprWF e := proj_wf hs hx h
+
 theorem bvar_refines {i : Std.U64} {e : expr.Expr} (h : expr.bvar i = ok e) :
     absExpr e = .bvar i.val := by
   obtain ⟨d, rfl, -, -, -⟩ := bvar_inv h; simp
@@ -2684,3 +2725,127 @@ info: 'ConRon.Refine.Expr.bvar_b_raw_refines' depends on axioms: [propext, Class
 #print axioms bvar_b_raw_refines
 
 end ConRon.Refine.Expr
+
+/-! ## The node-shaped induction on `ExprWF` (task #71)
+
+This is the piece of the tuned idiom (`Refine/AUTOMATION.md`,
+`Refine/README.md`) that makes a memoised `Expr` walk **one line**.
+
+`induction he` leaves `e` a variable and the smart-constructor equation
+`expr.app f a = ok e` as a hypothesis, and the generated body's
+`match e._0.kind` is stuck until that equation has been inverted — that was the
+per-constructor shape line of task #69's study.  `ExprWF.ind_node` states the
+motive on `.mk (.mk d k)`, so the inversion happens inside the principle, once:
+`induction e, he using ExprWF.ind_node <;> ⟨close⟩` is the whole proof.  The
+motive has to depend on the derivation (`motive e he`, both targets explicit —
+the non-dependent forms are rejected as "too many targets" or make the WF
+hypothesis an alternative), so the induction hypotheses come out as
+`∀ h, motive f h`, which `grind` uses like any local implication.
+
+`ExprWF.kids` is the children's well-formedness indexed by the observed kind,
+and the nine `ExprWF.*_kids` are the forward lemmas to register with
+`grind →` — the shape a `rust_norm`'d goal can trigger.  (`Refine/CoreKSupport.
+lean`'s `CoreK.ExprWF.children` is the same fact, added at task #49 for the
+guards; it is not reachable from here — that file imports this one — so the
+node-shaped copy lives here, where `ExprWF`'s inversion lemmas are.  Collapse
+the two when `CoreKSupport.lean` is next touched.) -/
+
+namespace ConRon.Refine
+
+/-- **The children of a well-formed node are well formed**, indexed by the
+observed kind. -/
+theorem ExprWF.kids {e : expr.Expr} (h : ExprWF e) :
+    match e._0.kind with
+    | .Bvar _ => True
+    | .Fvar _ ty => ExprWF ty
+    | .«Sort» u => LevelWF u
+    | .Const n us => NameWF n ∧ LevelsWF us
+    | .App f a => ExprWF f ∧ ExprWF a
+    | .Lam ty b m => ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m
+    | .ForallE ty b m => ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m
+    | .LetE ty v b => ExprWF ty ∧ ExprWF v ∧ ExprWF b
+    | .Lit l => LiteralWF l
+    | .Proj s _ x => NameWF s ∧ ExprWF x := by
+  cases h with
+  | @bvar i e h1 => obtain ⟨_, rfl, -, -, -⟩ := Expr.bvar_inv h1; exact trivial
+  | @fvar idx ty e hty h1 => obtain ⟨_, rfl, -, -, -⟩ := Expr.fvar_inv h1; exact hty
+  | @sort u e hu h1 => obtain ⟨_, _, -, rfl, -, -, -⟩ := Expr.sort_inv h1; exact hu
+  | @mk_const n us e hn hus h1 =>
+    obtain ⟨_, _, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1; exact ⟨hn, hus⟩
+  | @app f a e hf ha h1 => obtain ⟨_, rfl, -, -, -⟩ := Expr.app_inv h1; exact ⟨hf, ha⟩
+  | @lam ty b m e hty hb hm h1 => obtain ⟨_, rfl, -, -, -⟩ := Expr.lam_inv h1; exact ⟨hty, hb, hm⟩
+  | @forall_e ty b m e hty hb hm h1 =>
+    obtain ⟨_, rfl, -, -, -⟩ := Expr.forall_e_inv h1; exact ⟨hty, hb, hm⟩
+  | @let_e ty v b e hty hv hb h1 =>
+    obtain ⟨_, rfl, -, -, -⟩ := Expr.let_e_inv h1; exact ⟨hty, hv, hb⟩
+  | @lit l e hl h1 => obtain ⟨_, rfl, -, -, -⟩ := Expr.lit_inv h1; exact hl
+  | @proj s i x e hs hx h1 => obtain ⟨_, rfl, -, -, -⟩ := Expr.proj_inv h1; exact ⟨hs, hx⟩
+
+/-! The nine forward readings, one per kind that has children. -/
+
+theorem ExprWF.fvar_kids {d idx ty} (h : ExprWF (.mk (.mk d (.Fvar idx ty)))) : ExprWF ty :=
+  ExprWF.kids h
+theorem ExprWF.sort_kids {d u} (h : ExprWF (.mk (.mk d (.«Sort» u)))) : LevelWF u :=
+  ExprWF.kids h
+theorem ExprWF.const_kids {d n us} (h : ExprWF (.mk (.mk d (.Const n us)))) :
+    NameWF n ∧ LevelsWF us := ExprWF.kids h
+theorem ExprWF.app_kids {d f a} (h : ExprWF (.mk (.mk d (.App f a)))) : ExprWF f ∧ ExprWF a :=
+  ExprWF.kids h
+theorem ExprWF.lam_kids {d ty b m} (h : ExprWF (.mk (.mk d (.Lam ty b m)))) :
+    ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m := ExprWF.kids h
+theorem ExprWF.forall_e_kids {d ty b m} (h : ExprWF (.mk (.mk d (.ForallE ty b m)))) :
+    ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m := ExprWF.kids h
+theorem ExprWF.let_e_kids {d ty v b} (h : ExprWF (.mk (.mk d (.LetE ty v b)))) :
+    ExprWF ty ∧ ExprWF v ∧ ExprWF b := ExprWF.kids h
+theorem ExprWF.lit_kids {d l} (h : ExprWF (.mk (.mk d (.Lit l)))) : LiteralWF l := ExprWF.kids h
+theorem ExprWF.proj_kids {d s i x} (h : ExprWF (.mk (.mk d (.Proj s i x)))) :
+    NameWF s ∧ ExprWF x := ExprWF.kids h
+
+/-- The induction principle with the motive stated on the node. -/
+theorem ExprWF.ind_node {motive : (e : expr.Expr) → ExprWF e → Prop}
+    (bvar : ∀ d i (h : ExprWF (.mk (.mk d (.Bvar i)))), motive (.mk (.mk d (.Bvar i))) h)
+    (fvar : ∀ d idx ty (h : ExprWF (.mk (.mk d (.Fvar idx ty)))), (∀ h, motive ty h) →
+      motive (.mk (.mk d (.Fvar idx ty))) h)
+    (sort : ∀ d u (h : ExprWF (.mk (.mk d (.«Sort» u)))), motive (.mk (.mk d (.«Sort» u))) h)
+    (mk_const : ∀ d n us (h : ExprWF (.mk (.mk d (.Const n us)))),
+      motive (.mk (.mk d (.Const n us))) h)
+    (app : ∀ d f a (h : ExprWF (.mk (.mk d (.App f a)))), (∀ h, motive f h) → (∀ h, motive a h) →
+      motive (.mk (.mk d (.App f a))) h)
+    (lam : ∀ d ty b m (h : ExprWF (.mk (.mk d (.Lam ty b m)))), (∀ h, motive ty h) →
+      (∀ h, motive b h) → motive (.mk (.mk d (.Lam ty b m))) h)
+    (forall_e : ∀ d ty b m (h : ExprWF (.mk (.mk d (.ForallE ty b m)))), (∀ h, motive ty h) →
+      (∀ h, motive b h) → motive (.mk (.mk d (.ForallE ty b m))) h)
+    (let_e : ∀ d ty v b (h : ExprWF (.mk (.mk d (.LetE ty v b)))), (∀ h, motive ty h) →
+      (∀ h, motive v h) → (∀ h, motive b h) → motive (.mk (.mk d (.LetE ty v b))) h)
+    (lit : ∀ d l (h : ExprWF (.mk (.mk d (.Lit l)))), motive (.mk (.mk d (.Lit l))) h)
+    (proj : ∀ d s i x (h : ExprWF (.mk (.mk d (.Proj s i x)))), (∀ h, motive x h) →
+      motive (.mk (.mk d (.Proj s i x))) h)
+    (e : expr.Expr) (he : ExprWF e) : motive e he := by
+  induction he with
+  | @bvar i e h1 => obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1; exact bvar d i (.bvar h1)
+  | @fvar idx ty e hty h1 ih =>
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
+    exact fvar d idx ty (.fvar hty h1) (fun _ => ih)
+  | @sort u e hu h1 =>
+    obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1; exact sort d u (.sort hu h1)
+  | @mk_const n us e hn hus h1 =>
+    obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
+    exact mk_const d n us (.mk_const hn hus h1)
+  | @app f a e hf ha h1 ihf iha =>
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
+    exact app d f a (.app hf ha h1) (fun _ => ihf) (fun _ => iha)
+  | @lam ty bo m e hty hbo hm h1 ihty ihbo =>
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
+    exact lam d ty bo m (.lam hty hbo hm h1) (fun _ => ihty) (fun _ => ihbo)
+  | @forall_e ty bo m e hty hbo hm h1 ihty ihbo =>
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
+    exact forall_e d ty bo m (.forall_e hty hbo hm h1) (fun _ => ihty) (fun _ => ihbo)
+  | @let_e ty vv bo e hty hvv hbo h1 ihty ihvv ihbo =>
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
+    exact let_e d ty vv bo (.let_e hty hvv hbo h1) (fun _ => ihty) (fun _ => ihvv) (fun _ => ihbo)
+  | @lit l e hl h1 => obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1; exact lit d l (.lit hl h1)
+  | @proj s i x e hs hx h1 ih =>
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
+    exact proj d s i x (.proj hs hx h1) (fun _ => ih)
+
+end ConRon.Refine

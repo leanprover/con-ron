@@ -275,6 +275,22 @@ theorem Wrappers.whnfSim (hw : Wrappers mode fuel) (d : Std.U64)
       (fun lfe => (knot mode lfe fuel.val).whnf d.val (absExpr e)) :=
   hw.whnf.toSim d he
 
+/-- The same wrapper hypothesis as an **E-matching entry point** for the task-#71
+idiom: the Rust success equation first, so that a `rust_norm`'d body triggers it
+(`Refine/README.md` §"Writing a new refinement lemma"; `Refine/Automation/Study.
+lean` is where it was measured).  The other five wrappers take the same shape;
+they are written when an arm that needs them is proved this way. -/
+theorem Wrappers.whnf_use {st : cached.state_c.CState} {fe : fenv.FEnv} {d : Std.U64}
+    {e r : expr.Expr} {st' : cached.state_c.CState}
+    (hok : cached.core_c.whnf mode fuel st fe d e = ok (.Ok r, st'))
+    (hw : Wrappers mode fuel)
+    {lst : ConLeche.Cached.CState} {lfe : ConLeche.FEnv}
+    (hrel : StateRel st lst) (hfrel : FEnvRel fe lfe)
+    (hwf : StateWF st) (hfe : FEnvWF fe) (he : ExprWF e) :
+    ∃ lst', ((knot mode lfe fuel.val).whnf d.val (absExpr e)).run lst = .ok (absExpr r, lst')
+      ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r :=
+  (hw.whnfSim d he).apply hwf hfe hok hrel hfrel
+
 /-- `r.infer depth e` at one call site. -/
 theorem Wrappers.inferSim (hw : Wrappers mode fuel) (d : Std.U64)
     {e : expr.Expr} (he : ExprWF e) :

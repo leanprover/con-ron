@@ -47,7 +47,7 @@ are stated as `simp` lemmas so that the bind they add collapses inside the
 `simp only [arc_deref_eq, bind_tc_ok, …]` step every walk below already runs. -/
 
 /-- `expr::binder_meta` is the pointer wrapper, i.e. the identity. -/
-@[simp] theorem binder_meta_eq (pw : prop_when.PropWhen) :
+@[simp, rust_reduce, rust_invert] theorem binder_meta_eq (pw : prop_when.PropWhen) :
     expr.binder_meta pw = ok ⟨pw⟩ := by
   simp [expr.binder_meta]
 
@@ -469,6 +469,27 @@ theorem MemoInv.set {KWF : K → Prop} {absK : K → A} {Q : A → V → Prop}
     exact ⟨h2.1, by rw [hx k2 k1 h2.1 h1.1 heq]; exact h1.2⟩
   intro k1 r1 hmem
   exact insert_pres hc (fun p hp => hm p.1 p.2 hp) ⟨hk, hq⟩ h (k1, r1) hmem
+
+/-! ### The same two, keyed on the Rust equation (task #71)
+
+`MemoInv.hit`/`MemoInv.set` take the invariant first, which is what a hand
+proof wants; a `grind [→ …]` lemma needs the **Rust equation first**, so that
+its E-matching trigger is the probe or the insert the inverted body provides
+rather than every memo invariant in scope (`Refine/README.md` §"Writing a new
+refinement lemma", the first keying rule).  These two are what every memoised
+walk registers. -/
+
+theorem hit' {A : Type} {KWF : K → Prop} {absK : K → A} {Q : A → V → Prop}
+    {m : ron.hashmap.HashMap K V} {k : K} {r : V}
+    (h : ron.hashmap.HashMap.get HashableInst Eq2Inst m k = ok (some r))
+    (hm : MemoInv KWF absK Q m) (hx : KeyExact Eq2Inst KWF absK) (hk : KWF k) :
+    Q (absK k) r := MemoInv.hit hx hm hk h
+
+theorem set' {A : Type} {KWF : K → Prop} {absK : K → A} {Q : A → V → Prop}
+    {m m' : ron.hashmap.HashMap K V} {k : K} {v : V} {old : Option V}
+    (h : ron.hashmap.HashMap.insert HashableInst Eq2Inst m k v = ok (old, m'))
+    (hm : MemoInv KWF absK Q m) (hx : KeyExact Eq2Inst KWF absK) (hk : KWF k)
+    (hq : Q (absK k) v) : MemoInv KWF absK Q m' := MemoInv.set hx hm hk hq h
 
 end Memo
 
