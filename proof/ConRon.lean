@@ -55,9 +55,10 @@ import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.Core.Arms.Bridge
 import ConRon.Refine.Core.Arms.Shared
 import ConRon.Refine.Core.Arms.InferTele
-import ConRon.Refine.Core.Arms.Certs
 import ConRon.Refine.Core.Arms.DefEq
+import ConRon.Refine.Core.Arms.Arms
 import ConRon.Refine.Core.Arms.Iota
+import ConRon.Refine.Core.Arms.Major
 import ConRon.Refine.Core.Arms.Infer
 import ConRon.Refine.Core.Arms.InferIO
 import ConRon.Refine.Core.Arms.Annotate
