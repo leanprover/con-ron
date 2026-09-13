@@ -1,0 +1,246 @@
+# Expected exit codes for the vendored arena tutorial tests, read by
+# tests/arena.sh (0 accept, 1 reject, 2 decline, 3 error).
+#
+# An expectation is a single exit code.
+#
+# Task #175 W4c (2026-09-05): the direct simple-structure route is the
+# priority route for every recognised block (the former master switch
+# `structsEnabled` and the artifact-absence gate are gone, see
+# `ConLeche/Kernel/Direct.lean`); the three duplicate-declaration
+# fixtures below carry the reference-correct reject again.  (Between
+# task #148 T0b and W4c the switch shipped `false`; before T0b an
+# expectation could be a pair "<on>|<off>" run against two binaries.)
+# TASK #207 (2026-09-07) — the preprocessor is GONE, and with it the
+# ruling "a preprocessor reject is our reject" (task #180): there is no
+# external verdict left to pass through.  Every verdict below is now
+# con-leche's own.  Two groups of rows moved with the drop, and both
+# are recorded here deliberately rather than papered over.
+#
+# A. TASK #220 (2026-09-07) — the fixpoint route's TYPE-AND-CONSTRUCTOR
+#    GATE now rejects independently of the recursor pin, and TEN of the
+#    fifteen F1 rows are back at the reference verdict, REJECT (1):
+#    049, 050, 054 ("invalid constructor return type", official's
+#    `is_valid_ind_app` on the constructor's result), 052, 116 ("non
+#    positive occurrence"), 059 ("field universe too large"), 117 (the
+#    constructor's declared type is ill-typed — `reflOccInIndex` is
+#    applied to the `Nat` binder), 071 ("recursor rules are not the
+#    generated ones") and 135, 136 ("the block's recursor is not the
+#    generated T.rec").  Official reads no recursor from the stream:
+#    `add_inductive` GENERATES it and the replay then compares each
+#    exported recursor record with the generated one structurally,
+#    rejecting a mismatch ("Invalid recursor", "No such recursor" —
+#    Lean4Checker/Replay.lean), which is why a stub or misnamed record
+#    is a reject and not a decline.  138 keeps its 1 from the route's
+#    own pairwise duplicate-constructor guard.
+#
+#    FIVE rows stayed at 2 after #220, both for stated reasons; ONE
+#    does now:
+#      * 045 declines earlier still, at a NON-STANDARD AXIOM, and never
+#        reaches its inductive at all (standing user ruling: a
+#        non-standard axiom is never accepted; the reference verdict is
+#        1 for a reason con-leche reaches later than the reference
+#        does).  048, 051 and 055 were in that group and TASK #271
+#        (2026-09-10) moved all three to the reference verdict, REJECT
+#        (1): the parse now checks the RECURSOR records' own counts
+#        against the block (`numParams`, `numMotives`, `numMinors`,
+#        `numIndices` and the K flag, which is what official's replay
+#        compares an exported recursor with the generated one for), and
+#        all three carry a stub recursor record — `numMotives := 0`,
+#        `numMinors := 0`, and 048 also `numParams := 0` at a
+#        one-parameter block — written by the arena's `bad_raw_consts`
+#        helper.  The reject comes out at the block, ahead of the
+#        axiom decline at the end of the stream.
+#      * 047 was the fifth, and TASK #228 (2026-09-08) moved it to the
+#        reference verdict, REJECT (1): the parse now carries the
+#        block's DECLARED parameter count into the declaration record
+#        (`Declaration.indDecl`'s `numParams`, official's own
+#        `Declaration.inductDecl lparams nparams types`) and
+#        `indParamsOk` checks the block against it before either route
+#        — the type formers' telescopes, as `check_inductive_types`
+#        does ("number of parameters mismatch"), and every constructor
+#        record's own count, as the replay's postponed comparison does.
+#        047 declares `numParams = 2` on a type former with ONE Π
+#        binder and carries neither a constructor nor a recursor
+#        record; before #228 the count was READ off the constructors
+#        (before #220 off the recursor), so a declaration that lied was
+#        never contradicted.
+#
+# B. THREE good tutorial tests fell to a DECLINE (2) at task #207, so
+#    the accepted count read 87/92: 053_reduceCtorParam.mk,
+#    118_reduceCtorParamRefl.mk and 119_reduceCtorParamRefl2.mk.  All
+#    three are the SAME class — a constructor field whose type is a
+#    DEFINITION REDEX that only whnf's to a recursive occurrence
+#    (`constType (T α) (T α)`).  Official whnf's the field before
+#    classifying it (`check_positivity`/`is_rec_argument`); con-leche's
+#    fixpoint positivity check was syntactic (audit finding #206-A5,
+#    the e2e fixtures ind_pos_whnf_id / ind_pos_whnf_fn).  Task #210
+#    Part D (2026-09-07): the fixpoint route normalises every field
+#    domain the block occurs in by official's positivity walk before
+#    classifying it (`normPosDom`, ConLeche/Kernel/Inductives/SumInstall.lean),
+#    and all three ACCEPT (0): 90/92, the two remaining declines the
+#    custom-axiom tests 032/033.
+0 good/tutorial/001_basicDef.ndjson
+0 good/tutorial/003_arrowType.ndjson
+0 good/tutorial/004_dependentType.ndjson
+0 good/tutorial/005_constType.ndjson
+0 good/tutorial/006_betaReduction.ndjson
+0 good/tutorial/007_betaReduction2.ndjson
+0 good/tutorial/008_forallSortWhnf.ndjson
+0 good/tutorial/013_levelComp1.ndjson
+0 good/tutorial/014_levelComp2.ndjson
+0 good/tutorial/015_levelComp3.ndjson
+0 good/tutorial/016_levelParams.ndjson
+0 good/tutorial/018_levelComp4.ndjson
+0 good/tutorial/019_levelComp5.ndjson
+0 good/tutorial/020_imax1.ndjson
+0 good/tutorial/021_imax2.ndjson
+0 good/tutorial/022_levelMaxComm.ndjson
+0 good/tutorial/023_levelMaxAssoc.ndjson
+0 good/tutorial/024_levelMaxIdem.ndjson
+0 good/tutorial/025_levelMaxAbsorb.ndjson
+0 good/tutorial/026_inferVar.ndjson
+0 good/tutorial/027_defEqLambda.ndjson
+0 good/tutorial/028_peano1.ndjson
+0 good/tutorial/029_peano2.ndjson
+0 good/tutorial/030_peano3.ndjson
+0 good/tutorial/031_letType.ndjson
+2 good/tutorial/032_letTypeDep.ndjson
+2 good/tutorial/033_letRed.ndjson
+0 good/tutorial/034_empty.ndjson
+0 good/tutorial/035_boolType.ndjson
+0 good/tutorial/036_twoBool.ndjson
+0 good/tutorial/037_andType.ndjson
+0 good/tutorial/038_prodType.ndjson
+0 good/tutorial/039_pprodType.ndjson
+0 good/tutorial/040_pUnitType.ndjson
+0 good/tutorial/041_eqType.ndjson
+0 good/tutorial/042_natDef.ndjson
+0 good/tutorial/043_rbTreeDef.ndjson
+0 good/tutorial/053_reduceCtorParam.mk.ndjson
+0 good/tutorial/056_predWithTypeField.ndjson
+0 good/tutorial/057_typeWithTypeField.ndjson
+0 good/tutorial/058_typeWithTypeFieldPoly.ndjson
+0 good/tutorial/060_emptyRec.ndjson
+0 good/tutorial/061_boolRec.ndjson
+0 good/tutorial/062_twoBoolRec.ndjson
+0 good/tutorial/063_andRec.ndjson
+0 good/tutorial/064_prodRec.ndjson
+0 good/tutorial/065_pprodRec.ndjson
+0 good/tutorial/066_punitRec.ndjson
+0 good/tutorial/067_eqRec.ndjson
+0 good/tutorial/068_nRec.ndjson
+0 good/tutorial/069_rbTreeRef.ndjson
+0 good/tutorial/070_boolPropRec.ndjson
+0 good/tutorial/072_existsRec.ndjson
+0 good/tutorial/073_typeSingletonRecReduction.ndjson
+0 good/tutorial/074_sortElimPropRec.ndjson
+0 good/tutorial/075_sortElimProp2Rec.ndjson
+0 good/tutorial/076_boolRecEqns.ndjson
+0 good/tutorial/077_prodRecEqns.ndjson
+0 good/tutorial/078_nRecReduction.ndjson
+0 good/tutorial/079_listRecReduction.ndjson
+0 good/tutorial/080_RBTree.id_spec.ndjson
+0 good/tutorial/081_And.right.ndjson
+0 good/tutorial/082_Prod.snd.ndjson
+0 good/tutorial/083_PProd.snd.ndjson
+0 good/tutorial/084_PSigma.snd.ndjson
+0 good/tutorial/087_projProp1.ndjson
+0 good/tutorial/089_projProp3.ndjson
+0 good/tutorial/093_projDataIndexRec.ndjson
+0 good/tutorial/096_projRed.ndjson
+0 good/tutorial/097_ruleK.ndjson
+0 good/tutorial/100_aNatLit.ndjson
+0 good/tutorial/101_natLitEq.ndjson
+0 good/tutorial/102_proofIrrelevance.ndjson
+0 good/tutorial/104_proofIrrelevanceWhnf.ndjson
+0 good/tutorial/105_unitEta1.ndjson
+0 good/tutorial/106_unitEta2.ndjson
+0 good/tutorial/107_unitEta3.ndjson
+0 good/tutorial/109_structEta.ndjson
+0 good/tutorial/111_funEta.ndjson
+0 good/tutorial/112_funEtaDep.ndjson
+0 good/tutorial/118_reduceCtorParamRefl.mk.ndjson
+0 good/tutorial/119_reduceCtorParamRefl2.mk.ndjson
+0 good/tutorial/120_rTreeRec.ndjson
+0 good/tutorial/121_rtreeRecReduction.ndjson
+0 good/tutorial/122_accRecType.ndjson
+0 good/tutorial/123_accRecReduction.ndjson
+0 good/tutorial/125_quotMkType.ndjson
+0 good/tutorial/126_quotIndType.ndjson
+0 good/tutorial/127_quotLiftType.ndjson
+0 good/tutorial/128_quotSoundType.ndjson
+0 good/tutorial/129_quotLiftReduction.ndjson
+0 good/tutorial/130_quotIndReduction.ndjson
+1 bad/tutorial/002_badDef.ndjson
+1 bad/tutorial/009_forallSortBad.ndjson
+1 bad/tutorial/010_nonTypeType.ndjson
+1 bad/tutorial/011_nonTypeAxiom.ndjson
+1 bad/tutorial/012_nonPropThm.ndjson
+1 bad/tutorial/017_tut06_bad01.ndjson
+1 bad/tutorial/044_inductBadNonSort.ndjson
+2 bad/tutorial/045_inductBadNonSort2.ndjson
+1 bad/tutorial/046_inductLevelParam.ndjson
+1 bad/tutorial/047_inductTooFewParams.ndjson
+1 bad/tutorial/048_inductWrongCtorParams.ndjson
+1 bad/tutorial/049_inductWrongCtorResParams.ndjson
+1 bad/tutorial/050_inductWrongCtorResLevel.ndjson
+1 bad/tutorial/051_inductInIndex.ndjson
+1 bad/tutorial/052_indNeg.ndjson
+1 bad/tutorial/054_reduceCtorType.mk.ndjson
+1 bad/tutorial/055_indNegReducible.ndjson
+1 bad/tutorial/059_typeWithTooHighTypeField.mk.ndjson
+1 bad/tutorial/071_BogusRecursor.ndjson
+1 bad/tutorial/085_projOutOfRange.ndjson
+2 bad/tutorial/086_projNotStruct.ndjson
+1 bad/tutorial/088_projProp2.ndjson
+1 bad/tutorial/090_projProp4.ndjson
+1 bad/tutorial/091_projProp5.ndjson
+1 bad/tutorial/092_projProp6.ndjson
+1 bad/tutorial/094_projIndexData.ndjson
+1 bad/tutorial/095_projIndexData2.ndjson
+1 bad/tutorial/098_ruleKbad.ndjson
+1 bad/tutorial/099_ruleKAcc.ndjson
+1 bad/tutorial/103_proofIrrelevanceBad.ndjson
+1 bad/tutorial/108_indexedUnitEta.ndjson
+# 110: structure eta asserted on an INDEXED one-constructor family
+# (IndexedSingleton, one index).  Official rejects (no eta: not
+# `is_non_rec_structure`).  Until task #175 SigmaHom (2026-09-06) we
+# declined at the block's install instead — the preprocessor's
+# `_model.proj_0` artifact for the indexed family hit the modeled
+# route's structure-shaped residual pin; the install now ignores such
+# artifacts and the eta claim is rejected for the reference's reason.
+#
+# 116/117 (reflOccLeft, reflOccInIndex): DECLINE since task #207 — see
+# group A of the header (stub recursor records).
+1 bad/tutorial/110_indexedStructEta.ndjson
+1 bad/tutorial/113_funEtaBad.ndjson
+1 bad/tutorial/114_etaRuleK.ndjson
+1 bad/tutorial/115_etaCtor.ndjson
+1 bad/tutorial/116_reflOccLeft.ndjson
+1 bad/tutorial/117_reflOccInIndex.ndjson
+1 bad/tutorial/124_accRecNoEta.ndjson
+1 bad/tutorial/131_dup_defs.ndjson
+1 bad/tutorial/132_dup_ind_def.ndjson
+# The three duplicate-declaration fixtures below (13{3,4,7}) declined
+# before the direct install path existed (task #82), rejected while it
+# shipped on (the reference-correct verdict for a duplicate name),
+# declined again while task #148 T0b had it switched off (the modeled
+# fallback had no `_model` companion and declined first), and reject
+# once more since task #175 W4c made the direct route the priority
+# route: the duplicate name is caught by the direct install's own
+# freshness check.
+1 bad/tutorial/133_dup_ctor_def.ndjson
+1 bad/tutorial/134_dup_rec_def.ndjson
+1 bad/tutorial/135_misnamed_rec_user.ndjson
+1 bad/tutorial/136_dup_rec_def2.ndjson
+1 bad/tutorial/137_dup_ctor_rec.ndjson
+# 138_DupConCon (task #175 sum-types, 2026-09-06): a two-constructor
+# block whose constructors share a name.  The direct SUM route checks
+# all constructors at the former's environment and conses them
+# afterwards, so it guards the names pairwise distinct up front and
+# REJECTS (the reference-correct verdict; the modeled route declined
+# at the model check).  Task #180 briefly had the preprocessor's own
+# duplicate-declaration check reject it one step earlier; with the
+# tool gone (task #207) the sum route's pairwise guard is again what
+# rejects the stream ("invalid: direct sum: duplicate constructor").
+1 bad/tutorial/138_DupConCon.ndjson
