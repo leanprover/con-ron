@@ -1,4 +1,5 @@
 import ConRon.Refine.Installed
+import ConRon.Refine.Core.Arms.Arms
 import ConLeche.MainTheorem
 
 /-! # The capstone: `conron.model_exists` and `conron.no_proof_of_False` (task #60)
@@ -118,6 +119,44 @@ theorem conron.no_proof_of_False (V : Type w) [ConLeche.SetTheory V]
         c.toConstantVal.type = .const ConLeche.falseName [] :=
   ConLeche.no_proof_of_False V (ds.val.map absDeclC) (absEnv e)
     (check_decls_verified_refines hk hind hoe hvar hpins hds h)
+
+/-! ## The knot discharged
+
+`Core.knot_spec` (task #61) proves `KnotSpec mode fuel` at every fuel, so `hk`
+is not a hypothesis of the theorems below; the four that remain are named in
+`Refine/README.md` with their owners (`hind`: task #59; `hpins`/`hvar`: task
+#64; `hoe`: the `orElse` failure-direction assumption, DESIGN.md §3.6). -/
+
+theorem conron.model_exists' (V : Type w) [ConLeche.SetTheory V]
+    (hind : IndRoutesSpec .Verified)
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hoe : CheckerDecl.DivModOrElse .Verified)
+    (hvar : CheckerPins.PinsWF pins)
+    (hpins : absPins pins = ConLeche.natOpPinSets)
+    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    Nonempty (ConLeche.Model V (absEnv e)) :=
+  conron.model_exists V (Core.knot_spec IndAbs.checkFuelU) hind hoe hvar hpins hds h
+
+theorem conron.no_proof_of_False' (V : Type w) [ConLeche.SetTheory V]
+    (hind : IndRoutesSpec .Verified)
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hoe : CheckerDecl.DivModOrElse .Verified)
+    (hvar : CheckerPins.PinsWF pins)
+    (hpins : absPins pins = ConLeche.natOpPinSets)
+    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    ¬ ∃ c ∈ (absEnv e).consts,
+        c.toConstantVal.type = .const ConLeche.falseName [] :=
+  conron.no_proof_of_False V (Core.knot_spec IndAbs.checkFuelU) hind hoe hvar hpins hds h
+
+/-- info: 'ConRon.Refine.conron.model_exists'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms conron.model_exists'
+
+/-- info: 'ConRon.Refine.conron.no_proof_of_False'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms conron.no_proof_of_False'
 
 /-! ## The census (DESIGN.md §5, the P3 gate) — **passed**
 
