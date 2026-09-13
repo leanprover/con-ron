@@ -1194,10 +1194,15 @@ is Charon's, which `charon cargo` recompiles from scratch every time — so
 there is nothing there worth a cache entry.  The Nix store: the substituter
 makes `nix develop` a download.
 
-**Duration.** Cold ≈ an hour (Mathlib clone + `cache get` and the Aeneas
-library ~10 min, the vendored con-leche ~20 CPU-min, the proof library ~5 min
-at `LAKE_JOBS=4`, plus Nix and the sweeps); warm, with every cache hit, well
-under 30 minutes — mostly `extract.sh --check` and the two differentials.
+**Duration, measured** (the first two green runs, `c8913fef` cold and
+`cb54c9a4` warm, 2026-09-13): cold **71 min** — 13 min for the Aeneas library
+with Mathlib's oleans, 52 min for the gates (the vendored con-leche and the
+proof library from nothing at `LAKE_JOBS=4`), 3 min for the dev shell, 1 min
+for the differential; warm, every cache hit, **11 min** — the gates 3.6 min,
+the Aeneas-library step 2.5 min (the restore), the dev shell 2.4 min, the
+differential 42 s.  The first run also found the bug of task #82
+(`setup-aeneas-lean.sh` carried upstream's manifest, so `cache get` fetched
+the wrong Mathlib), which nothing local could have shown.
 
 **Not run on CI:** the corpus and frontier run (`scripts/corpus.sh`), which
 needs `Init`/`Std`/Mathlib exports that are not in the repository and are
