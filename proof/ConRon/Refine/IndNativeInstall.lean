@@ -3400,8 +3400,9 @@ either hands the index straight back or takes `check_struct_proj_table`'s one
 `fenv::push`. -/
 theorem check_native_table_refines {p : inductives.native_parts.NativeParts}
     {ctors_a : alloc.vec.Vec (env.ConstantVal × Std.U64)}
-    {sortss : alloc.vec.Vec (alloc.vec.Vec level.Level)} {fe fe' : fenv.FEnv}
+    {sortss : alloc.vec.Vec (alloc.vec.Vec level.Level)} {fe : fenv.FEnv}
     {lfe : ConLeche.FEnv}
+    {o : core.result.Result fenv.FEnv core_types.CheckError}
     (hbodies : StructInstall.StructProjBodiesRefines)
     (hres : StructInstall.ConstsResolveFFastRefines) (hg : StructProjGuardsRefines)
     (hrel : FEnvRel fe lfe) (hfe : FEnvWF fe)
@@ -3410,14 +3411,20 @@ theorem check_native_table_refines {p : inductives.native_parts.NativeParts}
     (hca : ∀ c ∈ ctors_a.val, ConstantValWF c.1)
     (hss : ∀ us ∈ sortss.val, LevelsWF us)
     (h : inductives.native_install.check_native_table p ctors_a sortss fe
-        = ok (.Ok fe')) :
-    ∃ lfe',
-      (∀ lst, (ConLeche.checkNativeTableF (m := ConLeche.Cached.CheckCM)
+        = ok o) :
+    match o with
+    | .Ok fe' =>
+      ∃ lfe',
+        (∀ lst, (ConLeche.checkNativeTableF (m := ConLeche.Cached.CheckCM)
+            ConLeche.StructWalkers.plain (IndAbs.absNativeParts p)
+            (IndAbs.absCtors ctors_a) (IndAbs.absLevelss sortss) lfe).run lst
+          = .ok (lfe', lst))
+        ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+    | .Err e =>
+      ∀ lst, ErrSim e ((ConLeche.checkNativeTableF (m := ConLeche.Cached.CheckCM)
           ConLeche.StructWalkers.plain (IndAbs.absNativeParts p)
-          (IndAbs.absCtors ctors_a) (IndAbs.absLevelss sortss) lfe).run lst
-        = .ok (lfe', lst))
-      ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
-      ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+          (IndAbs.absCtors ctors_a) (IndAbs.absLevelss sortss) lfe).run lst) := by
   have htriv : ∀ (cs : List (ConLeche.ConstantVal × Nat))
       (ss : List (List ConLeche.Level)) (lst : ConLeche.Cached.CState),
       cs.length ≠ 1 ∨ ss.length ≠ 1 →
@@ -3439,7 +3446,7 @@ theorem check_native_table_refines {p : inductives.native_parts.NativeParts}
   replace h : ((if (alloc.vec.Vec.len ctors_a) = 1#usize then _
       else ok (.Ok fe))
       : Result (core.result.Result fenv.FEnv core_types.CheckError))
-      = ok (.Ok fe') := h
+      = ok o := h
   split at h
   · rename_i hc1
     have hc1v : ctors_a.val.length = 1 := by
@@ -3448,7 +3455,7 @@ theorem check_native_table_refines {p : inductives.native_parts.NativeParts}
     replace h : ((if (alloc.vec.Vec.len sortss) = 1#usize then _
         else ok (.Ok fe))
         : Result (core.result.Result fenv.FEnv core_types.CheckError))
-        = ok (.Ok fe') := h
+        = ok o := h
     split at h
     · rename_i hs1
       have hs1v : sortss.val.length = 1 := by
@@ -3483,27 +3490,38 @@ theorem check_native_table_refines {p : inductives.native_parts.NativeParts}
         obtain ⟨guards, hgd, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨hgabs, hgwf⟩ := hg c0.1.ty p.shape.n_p c0.2 s0 guards hcvwf.2.2
           hswf hgd
-        obtain ⟨lfe', hrun, hfrel', hfwf', hfcan', hffull'⟩ :=
-          StructInstall.check_struct_proj_table_refines hbodies hres hrel hfe
-            hcan hfull hp.1.1 hcvwf.1 hp.1.2.1 hp.2.2.2.2.1 hgwf hcvwf h
-        refine ⟨lfe', ?_, hfrel', hfwf', hfcan', hffull'⟩
-        intro lst
-        rw [habsc, habss, ConLeche.checkNativeTableF]
-        simp only []
-        rw [if_pos (show ((IndAbs.absNativeParts p).nIdx == 0) = true from by
+        have hkey := StructInstall.check_struct_proj_table_refines hbodies hres
+          hrel hfe hcan hfull hp.1.1 hcvwf.1 hp.1.2.1 hp.2.2.2.2.1 hgwf hcvwf h
+        have hpos : ((IndAbs.absNativeParts p).nIdx == 0) = true := by
           simp only [beq_iff_eq]
           have : p.shape.n_idx.val = 0 := by rw [hidx]; rfl
-          exact this)]
-        rw [hgabs] at hrun
-        exact hrun lst
+          exact this
+        cases o with
+        | Ok fe' =>
+          obtain ⟨lfe', hrun, hfrel', hfwf', hfcan', hffull'⟩ := hkey
+          refine ⟨lfe', ?_, hfrel', hfwf', hfcan', hffull'⟩
+          intro lst
+          rw [habsc, habss, ConLeche.checkNativeTableF]
+          simp only []
+          rw [if_pos hpos]
+          rw [hgabs] at hrun
+          exact hrun lst
+        | Err e =>
+          intro lst
+          rw [habsc, habss, ConLeche.checkNativeTableF]
+          simp only []
+          rw [if_pos hpos]
+          rw [hgabs] at hkey
+          exact hkey lst
       · rename_i hidx
         have hidxv : (IndAbs.absNativeParts p).nIdx ≠ 0 := by
           intro hcc
           have hcc' : p.shape.n_idx.val = 0 := hcc
           exact hidx (by scalar_tac)
-        have hfe'e : fe = fe' := by
-          have := Result.ok_injective h; simpa using this
-        subst hfe'e
+        have hoe : (core.result.Result.Ok fe
+            : core.result.Result fenv.FEnv core_types.CheckError) = o :=
+          Result.ok_injective h
+        subst hoe
         refine ⟨lfe, ?_, hrel, hfe, hcan, hfull⟩
         intro lst
         rw [habsc, habss, ConLeche.checkNativeTableF]
@@ -3513,17 +3531,19 @@ theorem check_native_table_refines {p : inductives.native_parts.NativeParts}
     · rename_i hs1
       have hs1v : sortss.val.length ≠ 1 := by
         have := alloc.vec.Vec.len_val sortss; scalar_tac
-      have hfe'e : fe = fe' := by
-        have := Result.ok_injective h; simpa using this
-      subst hfe'e
+      have hoe : (core.result.Result.Ok fe
+          : core.result.Result fenv.FEnv core_types.CheckError) = o :=
+        Result.ok_injective h
+      subst hoe
       exact ⟨lfe, fun lst => htriv _ _ lst (Or.inr (by rw [hsl]; exact hs1v)),
         hrel, hfe, hcan, hfull⟩
   · rename_i hc1
     have hc1v : ctors_a.val.length ≠ 1 := by
       have := alloc.vec.Vec.len_val ctors_a; scalar_tac
-    have hfe'e : fe = fe' := by
-      have := Result.ok_injective h; simpa using this
-    subst hfe'e
+    have hoe : (core.result.Result.Ok fe
+        : core.result.Result fenv.FEnv core_types.CheckError) = o :=
+      Result.ok_injective h
+    subst hoe
     exact ⟨lfe, fun lst => htriv _ _ lst (Or.inl (by rw [hcl]; exact hc1v)),
       hrel, hfe, hcan, hfull⟩
 
