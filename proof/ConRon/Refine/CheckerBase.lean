@@ -39,46 +39,43 @@ theorem name_nodup_from_refines {ns : alloc.vec.Vec name.Name} (hns : NamesWF ns
     rw [level.name_nodup_from.eq_def] at hb; simp only [] at hb
     rw [if_pos (by scalar_tac)] at hb
     rw [absNames, ← List.map_drop, List.drop_eq_nil_of_le (by scalar_tac)]
-    simp only [ConLeche.Name.nodup]
+    simp only [List.map_nil, show ConLeche.Name.nodup ([] : List ConLeche.Name) = true from rfl]
     simpa using hb.symm
   | succ k ih =>
     intro i h b hb
     rw [level.name_nodup_from.eq_def] at hb; simp only [] at hb
     split at hb
     · rw [absNames, ← List.map_drop, List.drop_eq_nil_of_le (by scalar_tac)]
-      simp only [ConLeche.Name.nodup]
+      simp only [List.map_nil, show ConLeche.Name.nodup ([] : List ConLeche.Name) = true from rfl]
       simpa using hb.symm
     · rename_i hlt
       have hb2 : i.val < ns.val.length := by scalar_tac
       have hmax : i.val + 1 ≤ Std.Usize.max := by have := ns.slice.property; scalar_tac
       obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec ns i hb2)
-      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw] at hb
-      obtain ⟨c, hc, hb⟩ := hb
+      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff] at hb
+      obtain ⟨i2, hi2, y, hy, c, hc, hb⟩ := hb
+      have hi2v : i2.val = i.val + 1 := by
+        rw [hw] at hi2; simp only [Result.ok.injEq] at hi2; rw [← hi2, hwv]
+      have hyv : y = ns.val[i.val] := by
+        obtain ⟨y', hy', hy'v⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec ns i hb2)
+        rw [hy'] at hy; simp only [Result.ok.injEq] at hy; rw [← hy, hy'v]
       subst hyv
       have hyWF : NameWF ns.val[i.val] := hns _ (List.getElem_mem hb2)
-      have hcabs := Name.contains_from_refines hns hyWF ns.val.length w (by scalar_tac) c hc
-      rw [hwv] at hcabs
+      have hcabs := Name.contains_from_refines hns hyWF ns.val.length i2 (by scalar_tac) c hc
+      rw [hi2v] at hcabs
+      have hcc : (List.map absName (List.drop (i.val + 1) ns.val)).contains
+            (absName ns.val[i.val]) = c := by
+        rw [hcabs, Bool.eq_iff_iff, decide_eq_true_iff, List.contains_iff_mem]
       rw [absNames, ← List.map_drop, List.drop_eq_getElem_cons hb2]
       simp only [List.map_cons, ConLeche.Name.nodup]
+      rw [hcc]
       cases c with
-      | true =>
-        simp only [reduceIte, Result.ok.injEq] at hb
-        rw [← hb]
-        have hm : (absName ns.val[i.val]) ∈ (ns.val.drop (i.val + 1)).map absName :=
-          of_decide_eq_true hcabs.symm
-        simp only [Bool.and_eq_false_imp, Bool.not_eq_eq_eq_not, Bool.not_true]
-        intro _
-        simpa [List.map_drop] using hm
+      | true => simp only [Bool.not_true, Bool.false_and]; simpa using hb.symm
       | false =>
-        simp only [Bool.false_eq_true, reduceIte, bind_tc_ok] at hb
-        have hih := ih w (by scalar_tac) b hb
-        rw [hwv, absNames, ← List.map_drop] at hih
-        have hm : ¬ (absName ns.val[i.val]) ∈ (ns.val.drop (i.val + 1)).map absName :=
-          of_decide_eq_false hcabs.symm
-        rw [hih]
-        simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true]
-        simp [List.map_drop, hm]
+        simp only [Bool.false_eq_true, if_false] at hb
+        have hih := ih i2 (by scalar_tac) b hb
+        rw [hi2v, absNames, ← List.map_drop] at hih
+        simpa using hih
 
 /-- `ConLeche/Kernel/Level.lean:213-216` — `level::name_nodup` refines
 `Name.nodup`. -/
