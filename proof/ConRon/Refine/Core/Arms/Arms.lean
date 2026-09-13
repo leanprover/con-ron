@@ -134,9 +134,18 @@ theorem infer_body_io_sim (hw : Wrappers mode fuel) (d : Std.U64) {e : expr.Expr
         (knot mode lfe fuel.val).ioView lfe d.val (absExpr e)) :=
   infer_body_io_i_refines hw (inferIODeps hw) d he
 
--- sorry: waits on `Arms/DefEqStruct.lean`'s `defeq_struct_i_refines`,
--- `struct_eta_cert_i_refines` and `struct_unit_cert_i_refines`, three of
--- `Arms/DefEq.lean`'s eight `DefEqDeps` fields (the other five have landed).
+-- sorry: the same packaging cycle as `whnf_core`, in its second instance.
+-- `Arms/DefEq.lean` and `Arms/DefEqStruct.lean` have both landed and both
+-- build, but each file's theorems take the *whole* other file's `Deps`:
+-- `DefEqDeps.defeqStruct` is `Arms/DefEqStruct.lean`'s, and
+-- `DefEqStructDeps.defeqApps`/`defeqBinders`/`stuckIrrel` are
+-- `Arms/DefEq.lean`'s, so neither structure can be built first.  Unlike
+-- `whnf_core`'s, this cycle is *not* in the code — at the function level
+-- `defeq_struct_i → {defeq_apps_i, defeq_binders_i, stuck_irrel_i,
+-- eta_cert_i}` and `stuck_irrel_i → {proof_irrel_i, struct_eta_cert_i,
+-- struct_unit_cert_i}` is acyclic — it is purely an artefact of asking each
+-- theorem for a whole `Deps` record instead of the fields it uses.  Splitting
+-- `DefEqDeps` along that order, or merging the two files, closes it.
 theorem defeq_body_sim (hw : Wrappers mode fuel) (d : Std.U64) {a b : expr.Expr}
     (ha : ExprWF a) (hb : ExprWF b) :
     Sim id (fun _ => True) (fun st fe => cached.core_c.defeq_body_i mode fuel st fe d a b)

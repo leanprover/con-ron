@@ -11590,8 +11590,16 @@ sorry-free, `DefEq` and `Annotate` among them.
   agreement — does not imply and cannot.  `Refine/StateC.lean:48` already
   says where it belongs: folded into `State.lean`'s `StateRel`.  Until it
   is, no arm that calls `inst_list_m` can thread it.
-* **The `App`/`WhnfCore` split** (2 `sorry`, `Arms.lean`; `whnf_core` and,
-  through `DefEqStruct`, `defeq` are the two bodies not yet assembled).
+* **Two packaging cycles** (2 `sorry`, `Arms.lean`): `whnf_core` and `defeq`
+  are the two bodies not assembled, both because a *pair* of files ended up
+  each assuming the other's `Deps` record.  All four files are proved and
+  build.  In `DefEq`/`DefEqStruct` the cycle is **not** in the code — at the
+  function level `defeq_struct_i → {defeq_apps_i, defeq_binders_i,
+  stuck_irrel_i, eta_cert_i}` and `stuck_irrel_i → {proof_irrel_i,
+  struct_eta_cert_i, struct_unit_cert_i}` is acyclic — it is an artefact of
+  asking each theorem for a *whole* `Deps` record rather than the fields it
+  uses, so splitting `DefEqDeps` along the call order closes it.  In
+  `App`/`WhnfCore` it is real.
   `whnf_core_loop_i`, `whnf_core_step_i`, `whnf_app_i` and `beta_peel_i` are
   **one** strongly connected component, and the partition put it in two
   files with `∀`-quantified `Deps` fields, so neither structure can be built
