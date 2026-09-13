@@ -229,11 +229,16 @@ attempt to remove it — a format whose decoding the kernel *can* check.
 
 What that costs, exactly, is two axioms and they are both in the census:
 
-* `pins_closed._native.native_decide.ax_…` — Lean 4.33 does not emit
-  `Lean.ofReduceBool` for `native_decide`; it seals each use into its own
-  axiom, which asserts precisely `decide (parsePins … = .ok natOpPinSets) =
-  true` and nothing else.  That is a *narrower* trust assumption than
-  `ofReduceBool`, and it is named after the theorem that spends it.
+* `pins_closed._native.native_decide.ax_…` — Lean 4.33 does **not** emit
+  `Lean.ofReduceBool` for `native_decide`.  `Lean/Meta/Native.lean` compiles the
+  proposition, runs it, and seals the result into a *fresh axiom named after the
+  theorem*, asserting precisely `decide (parsePins … = .ok natOpPinSets) = true`
+  and nothing else.  That is a strictly narrower trust assumption than
+  `ofReduceBool`, and it says in its own name who spends it.  (The older
+  spelling, `of_decide_eq_true (Lean.ofReduceBool …)` written by hand, is not an
+  option here: the interpreter then has to evaluate `absText PINS_TEXT` — a
+  532 K-element `List U8` — rather than the string literal, and does not
+  finish.)
 * `pins_text.PINS_TEXT._native.decide.ax_1` — **not ours**: Aeneas renders a
   `&str` constant as `toStr "…"` and discharges `toStr`'s bound
   `s.toByteArray.size ≤ U32.max` with its own default argument
@@ -246,12 +251,25 @@ theorem about every byte string, so nothing is ever evaluated, and its census is
 con-leche's own three axioms.
 
 **Both the general and the embedded capstones are kept.**
-`Refine/Main.lean`'s `conron.model_exists` / `conron.no_proof_of_False` are
+`Refine/Main.lean`'s `conron.model_exists'` / `conron.no_proof_of_False'` are
 general in `pins` and carry `hpins : absPins pins = ConLeche.natOpPinSets`;
 they do not mention the embedded text and nothing native-decide-shaped is in
 their closure.  `conron.model_exists_embedded` /
 `conron.no_proof_of_False_embedded` are the same theorems at the pin list the
 binary actually folds with (`kernel::pins_decode::decode_embedded()`, what
-`con_ron::driver::pins_for_run` passes by default), with no hypothesis about
-the pins and with the two axioms above.  Every one of those censuses is pinned
-with `#guard_msgs in #print axioms`, which is what keeps the boundary honest.
+`con_ron::driver::pins_for_run` passes by default), so they carry neither `hk`
+nor `hpins` — and they carry the two axioms above.  Every one of those censuses
+is pinned with `#guard_msgs in #print axioms`, which is what keeps the boundary
+honest.
+
+**What is still owed on the pins: `hvar : CheckerPins.PinsWF pins`.**  The
+`_embedded` corollaries discharge the pins' *value* and not their *well
+formedness*.  `PinsWF` is `ExprWF` for each of the eight pinned expressions and
+each certificate list, so discharging it from `decode_embedded` means threading
+a full well-formedness invariant — names, levels, prop-whens and expressions —
+through `PinsBytes` and `PinsRecords`.  It is cheap in kind and not in bulk:
+`ExprWF`'s constructors *are* the port's smart constructors and every record
+already applies exactly one, but every reader lemma in half (A) gains a
+hypothesis and a conjunct.  Task #64 drafted that invariant (`TablesWF`) for the
+`Name` half and then removed it when the `W` record turned out not to need it;
+the full version is the next step.

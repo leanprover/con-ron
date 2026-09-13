@@ -69,7 +69,12 @@ pub fn true_intro_name() -> Name {
 }
 
 /// con-leche: none — the `Lean` namespace prefix of the compiler-trust family
-/// Lean spells it inline four times (`anonymous |>.str "Lean"`).
+/// There is no declaration to cite: `ConLeche/Kernel/TrustAxioms.lean:56-68`
+/// spells `(anonymous |>.str "Lean")` inline in each of the five `Lean.*`
+/// names below (`trustCompilerName`, `reduceNatName`, `reduceBoolName`,
+/// `ofReduceNatName`, `ofReduceBoolName`), so the port factors the shared
+/// prefix out and `Refine/TrustAxioms.lean`'s `lean_ns_refines` states it
+/// against that prefix (task #56's deviation 3, closed at task #58).
 pub fn lean_ns() -> Name {
     name::mk_str(name::anonymous(), { const S: [u32; 4] = [76, 101, 97, 110]; core_types::code_points(&S) })
 }

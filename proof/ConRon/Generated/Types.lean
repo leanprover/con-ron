@@ -706,12 +706,6 @@ inductive kernel.env.Declaration where
   Std.U64 →
   kernel.env.Declaration
 
-/-- [con_ron_core::kernel::decl_check::ModelRename]
-    Source: 'crates/con-ron-core/src/kernel/decl_check.rs', lines 176:0-178:1
-    Visibility: public -/
-structure kernel.decl_check.ModelRename where
-  block_names : alloc.vec.Vec kernel.name.Name
-
 /-- [con_ron_core::kernel::inductives::struct_parts::StructParts]
     Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 295:0-306:1
     Visibility: public -/

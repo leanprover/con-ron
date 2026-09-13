@@ -210,9 +210,21 @@ file.
 * `check_decls_pins_refines` inherits both, because it is about the embedded
   text.  `Refine/Main.lean`'s general theorems do not. -/
 
--- TASK64-CENSUS-PLACEHOLDER
-#print axioms pins_decode_refines
-#print axioms pins_closed
-#print axioms check_decls_pins_refines
+/-- info: 'ConRon.Refine.pins_decode_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pins_decode_refines
+
+/-- info: 'ConRon.Refine.pins_closed' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ pins_closed._native.native_decide.ax_1_2,
+ pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms pins_closed
+
+/-- info: 'ConRon.Refine.check_decls_pins_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ pins_closed._native.native_decide.ax_1_2,
+ pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms check_decls_pins_refines
 
 end ConRon.Refine

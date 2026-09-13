@@ -511,26 +511,7 @@ the text, its byte size, costs 27 s at 1 KB and over 300 s at 8 KB.  The task
 #43 log entry has the numbers and the three upstream changes that would lift
 each obstacle.
 
-**The pins hypothesis is discharged, with `native_decide` accepted as an
-interim (decision, maintainer, 2026-09-13; task #64).**  The refinement
-`pins_decode_refines` — the port's decoder computes what
-`ConRon.Dump.parsePins` computes, on *every* byte string — is an **ordinary
-proof** and censuses at con-leche's own three axioms; it goes through a
-byte-level reference decoder (`Refine/PinsDec.lean`) that splits the problem
-into the Aeneas refinement and the tokenizer bridge, and it needed **no extra
-hypothesis**.  The closed computation is taken by `native_decide`, confined to
-the single lemma `ConRon.Refine.pins_closed`, whose census is pinned: one
-sealed axiom asserting exactly that the embedded text decodes to
-`natOpPinSets`, plus the one Aeneas's `toStr` already spends on any extracted
-`&str`.  `Refine/Main.lean` therefore carries **both** capstones — the
-`pins`-parametric `conron.model_exists` / `conron.no_proof_of_False`, which
-never name the embedded text and stay free of native evaluation, and
-`conron.model_exists_embedded` / `conron.no_proof_of_False_embedded`, which are
-the same theorems at the pin list the binary actually folds with and carry the
-two axioms.  Spike #63 is the attempt to remove the interim: a pin encoding
-whose decoding the *kernel* can check.  `proof/ConRon/Refine/README.md`'s
-"Where the native-decide axiom lives" is the standing statement of what is
-trusted.  The upstream ask is unchanged: make
+The upstream ask is unchanged: make
 `natOpPinSets` an argument of `checkDecls` (`checkDecls mode pins ds`, with the
 shipped `checkDecls mode ds := checkDecls mode natOpPinSets ds`) and check that
 `model_exists` is parametric in it.  The basis blocks are *not* hints (their
@@ -564,6 +545,71 @@ theorem states `pins = decode PINS_TEXT` and Lean establishes
 `decode PINS_TEXT = natOpPinSets` as a closed computation (task #43
 measures whether the kernel can do it directly or via the round-trip
 theorem).  The runtime-data paragraph above is superseded.
+
+**Pins, ruling of 2026-09-13 (maintainer): no upstream change if it can be
+avoided; `native_decide` accepted as an interim.**  The embedded-text route
+of task #43 failed on one 532 KB literal (kernel string reduction is
+quadratic; Aeneas's `toStr` carries `decide +native`; a byte literal of that
+size does not elaborate).  Interim (task #64): the closed computation
+`parsePins PINS = some natOpPinSets` is discharged by `native_decide` in
+the single lemma `ConRon.Refine.pins_closed`, so the capstones for the
+binary's actual pins carry two native-evaluation axioms beside the three
+standard ones, while the pins-parametric versions stay at the three; the
+decoder's refinement is an ordinary proof at the three.  **Not
+`Lean.ofReduceBool`, as first written:** Lean 4.33 does not emit it for
+`native_decide` — `Lean/Meta/Native.lean` compiles the proposition and
+seals the result into a *fresh axiom named after the theorem*, asserting
+precisely `decide P = true`, which is a strictly narrower assumption.  The
+second entry is not ours either: Aeneas's `toStr` spends
+`decide +native` on every extracted `&str` constant, so `PINS_TEXT`
+carries one before any proof of ours (`AENEAS_FINDINGS.md`).  Writing the
+`of_decide_eq_true (Lean.ofReduceBool …)` term by hand to get the older
+spelling does not terminate: the interpreter then evaluates
+`absText PINS_TEXT`, a 532 K-element `List U8`, instead of the literal.
+Spike #63 measured
+the two encodings: split generated source is dead (Charon emits a 5 GB
+LLBC); chunked byte constants are axiom-clean, the closed computation is
+4–6 min once (byte lists reduce linearly in the kernel; the decoder's
+lookups need an `n log n` trie in `Dump/Read.lean`), and the only cost is
+Aeneas's scalar-literal elaboration, ~77 CPU-min per pin change, cached by
+Lake.  **Plan:** the `native_decide` interim stands for v1; removing it is
+a later campaign along route A (also the subject of an Aeneas ask on
+numeral elaboration, `AENEAS_FINDINGS.md`).  con-leche's `pins-param`
+branch (task #285) remains available as the alternative that also makes the
+theorem pin-independent, but is not required.
+
+**The `orElse` hypothesis (`DivModOrElse`, tasks #56/#58; Fable's
+analysis 2026-09-13).**  con-leche has exactly one error-recovery point:
+the Nat-op pin loop tries the pin variants in order and `orElse` moves to
+the next on a thrown `CheckError` (`Kernel/CheckerBase.lean:53`).  Every
+other refinement lemma in this tier is stated in the accept direction
+only (§3.5) and says nothing when the Rust fails; but the loop *observes*
+failure: if the Rust attempt at pin `i` fails where con-leche's succeeds,
+con-leche installs at pin `i` and the Rust moves on, and the two memo
+states diverge even when both accept.  So the loop's refinement needs
+the failure direction of one function, `check_div_mod_pin_at`: "the Rust
+attempt fails at a pin exactly when con-leche's does" — packaged as the
+named hypothesis `DivModOrElse mode` (state soundness of a failed attempt,
+and agreement of the final decline).  It is not derivable from the
+accept-direction tower.  Two ways to discharge it: (a) prove a second lemma
+family `*_err_refines` ("the Rust returns `Err e` only where con-leche
+throws") by the same lock-step induction over everything the pin attempt
+reaches — the whole knot, since the certificates are theorem checks — after
+making every Rust-only failure (overflow, shift amount) an abort
+(Aeneas `fail`, unconstrained) rather than a `CheckError`; mechanical but
+of the same size as the tower; or (b) keep it as the port's one documented
+failure-direction assumption, reviewable at one function.  A cheaper
+targeted fix — relaxing `StateRel` to a soundness invariant for the maps
+that survive `flushC` — does not work: the cached `orElse`
+(`CheckerC.lean:93`) keeps the post-attempt state on `false` and discards
+it on `error`, so a spurious Rust failure diverges the per-declaration
+memos too, and characterising those by soundness is the memo-soundness
+proof §3.1 avoids by mirroring.  Hence (a) is the full-outcome
+restatement of the tower ("`Ok r ↦ ok (abs r)`, `Err ↦ throw`, aborts
+unconstrained"), preceded by turning the Rust-only `CheckError`s into
+aborts.  Recommendation: ship v1 with (b); run (a) as the next campaign.
+Decision pending the maintainer; the capstones carry the hypothesis
+either way.
 
 ### 3.7 Provenance: keeping the port in sync with con-leche
 
@@ -12372,3 +12418,683 @@ compute exactly what `ConLeche.Cached.coreKnotI` computes, on well-formed
 inputs, whenever the Rust succeeds.  Everything above the knot (steps 7 and
 8: the declaration fold, the two inductive routes, `Refine/Main.lean`'s
 capstones) now rests on a theorem rather than on a hypothesis.
+### Task #58 — `div_mod_env_guard` fixed; the checker tier closed (2026-09-13, Opus under Fable)
+
+The two things task #56 left: the **accept-direction bug** it found in
+`checker::div_mod_env_guard`, and the **41 `sorry`s** of the declaration-checker
+tier.  Both are closed.
+
+#### 1. The bug: `deps_all_stored` is `natOpGuard`'s `.all`, not `divModEnvGuard`'s
+
+`divModEnvGuard` (`ConLeche/Kernel/Checker.lean:277-290`; the index twin
+`divModEnvGuardF`, `Kernel/DeclCheck.lean:310-319`) tests each entry of
+`natOpDeps c` with **`natOpStoredOk`** — stored as a level-monomorphic
+definition *at the pinned type* (`natOpTyPinnedF`: `Nat → Nat → Nat`, or
+`Nat → Nat → Bool` for the two `Bool`-valued ops, with `Bool` itself stored at
+`Sort 1`).  The port called `core_k::deps_all_stored`, which is a *different*
+`.all` — `natOpGuard`'s own (`Kernel/Core.lean:656-672`), whose per-dependency
+test is `defn_lp_empty`: the empty-level-parameter half and nothing else.
+`check_structural_nat_pin` (`checkDecl`'s structural-`Nat` gate,
+`Checker.lean:419-562`) made the same call and had the same gap.
+
+So the port took the `Nat.div`/`Nat.mod` pin route, and the structural-`Nat`
+route, on environments where con-leche declines — a divergence in the one
+direction §1 does not permit.  The fix is `checker::deps_all_stored_ok`, the
+index recursion over `core_k::nat_op_stored_ok` (which was already in the port,
+just not called here), at both sites; `core_k::deps_all_stored` stays where it
+belongs, inside `nat_op_guard`.
+
+**The fixture.**  There is none in `vendor/con-leche/tests/e2e`: every `Nat.div`
+stream in the corpus came out of a real `lean4export` run, so its dependencies
+carry the types Lean gave them, and `grep -l` finds only `nat_div_declined` and
+the three `natop_*` reorder fixtures, none of which mis-types a dependency.
+The stream is therefore hand-built, as `checker.rs`'s own tests are:
+`crates/con-ron-core/tests/div_mod_env_guard.rs` installs the pinned `Eq` and
+`Nat` basis blocks through `check_basis_decl`, pushes `Bool` and its two values
+as axioms and `natOpDeps Nat.div = [Nat.pred, Nat.sub, Nat.ble, Nat.div]` as
+definitions, and checks `Nat.div : Nat → Nat → Nat := Nat.sub` — well typed in
+both runs, so the only thing that moves is `Nat.ble`'s stored codomain.  With
+`Bool` it reaches the pin loop ("unsupported Nat.div/mod spelling"); with `Nat`
+it must decline at the guard ("unsupported Nat.div/mod environment").  Against
+the pre-fix code both assertions fail, and the test additionally pins *why*:
+`core_k::deps_all_stored` still holds on the bad environment.
+
+`scripts/diff-e2e.sh` 348/348 and `scripts/diff-fixtures.sh` 315/0 are
+unchanged — the route the bug opened is one no fixture walks, which is exactly
+why differential testing did not find it and reading the two definitions side
+by side did.
+
+`Refine/CheckerPins.lean`'s `div_mod_env_guard_refines` loses task #56's
+`DepsTyPinned` hypothesis (the `Prop` is deleted) and is now unconditional;
+`deps_all_stored_ok_refines` above it is `CoreKNatOps`' `deps_all_stored_from`
+with `nat_op_stored_ok_refines` in place of `defn_lp_empty_refines`.
+
+#### 2. The dead `decl_check.rs` duplicates, deleted
+
+Task #56's deviation 2: `kernel/decl_check.rs` carried a second copy of
+`checkEtaThmF`, `checkUnitThmF`, `indBlockCapsF`, `checkMemberValF`,
+`checkProjLookupsF`, `thm_probe` and their fifteen helpers, under the same
+con-leche citations as `kernel/inductives/modeled.rs`'s — two Rust functions per
+cited Lean definition, a §3.1 one-to-one violation, and the `modeled.rs` copies
+are the ones the install routes call.  The `decl_check.rs` copies are gone
+(-543 Rust lines); what is left there is the memoized `constsResolveF` walk and
+nothing else.  Its module note, which task #56 also called stale, now says
+where each `F`-mirror of `DeclCheck.lean:344-830` lives — including
+`checkProjTyF`/`checkProjIotaF`, which it still listed as unported although
+task #25 ported both.  `provenance.py coverage` is unchanged at 911/911: every
+citation the deleted copies carried is carried by the surviving one.
+
+`trust_axioms::lean_ns` keeps its `con-leche: none` line, now spelled out: there
+is no declaration to cite because `TrustAxioms.lean:56-68` writes
+`(anonymous |>.str "Lean")` inline in each of the five `Lean.*` names.
+
+#### 3. The checker tier's 41 `sorry`s are 0
+
+Task #56 stated every public function of the declaration-checker tier exactly and
+left 41 of the 274 statements open, each with a one-line note.  All 41 are now
+proved, **as stated**, by seven agents in parallel (one per file, then two
+rounds of unblocking):
+
+| file | `sorry` before | after | what it took |
+|---|---|---|---|
+| `DeclCheck.lean` | 14 | 0 | (see §4 — the file also lost the dead copies' lemmas) |
+| `CheckerPins.lean` | 8 | 0 | `div_mod_cert_stmts`, the two `check_div_mod_certs` recursions, the per-variant attempt, the loop, the three install gates — and then the round-2 additions of §5 |
+| `CheckerDecl.lean` | 9 | 0 | the four cached arms, the four `Expr`-level arms, `check_basis_decl` |
+| `Checker.lean` | 5 | 0 | the three value checks and their two tails |
+| `CheckerSplit.lean` | 4 | 0 | the install/check seam |
+| `BasisPins.lean` | 1 | 0 | `basis_decls_a_wf` (see §6) |
+
+`Refine/CheckerDecl.lean`'s `#print axioms` census now reads
+`[propext, Classical.choice, Quot.sound]` for **every** lemma in the file,
+`check_decl_c_refines`, `check_decl_refines` and `check_decls_pure_refines`
+included — the `sorryAx` line task #56 pinned there is gone.
+
+**Seven statements gained a hypothesis, each because it is false without it**
+(DESIGN.md's rule since task #54's `j < len`); every one is written out at the
+lemma and in its file's header:
+
+1. `CheckerSplit.check_value_group_refines` gained
+   `∀ n, lfe.find? n = lfe.env.find? n`.  Task #56's note claimed this was
+   `FEnvRel`'s first clause; it is not — `FEnvRel` relates `fe.env ↔ lfe.env`
+   and `fe.idx ↔ lfe.idx`, and nothing ties a `ConLeche.FEnv`'s *index* to its
+   own `Env` (con-leche proves `FEnv.find? = Env.find?` only for `mkFEnv`).
+   Without it an index holding a name its `env` does not makes
+   `core_k::consts_resolve` accept a value `Expr.constsResolve lfe.env` rejects.
+2. `Checker`'s `check_thm_val_refines`, `check_thm_val_witness_refines` and
+   `check_opaque_val_refines` gained `lenv = lfe.env`.  All three *return* an
+   environment, and `FEnvRel`'s first clause forces the returned `lfe'.env` to
+   be `⟨absConstantInfo ci :: lfe.env.consts⟩`; at an `lenv` with different
+   `consts` the goal is unsatisfiable.  `certify_nat_eqs_refines` is
+   deliberately *not* changed — it returns a `Bool`, and task #56's point that
+   it holds at an arbitrary `Env` stands.
+3. `CheckerPins.check_div_mod_pin_loop_refines` (and everything above it) gained
+   `OrElseErrorDeclines`, the **second half of task #24's `orElse` deviation**.
+   `OrElseErrorStateSound` fixes what a failed attempt does to the state;
+   nothing fixes *when* the error arm is taken, because `Core.Wrappers` is the
+   `ok`-direction only and cannot turn a port-side `.Err` into a model-side
+   `.error`.  A port attempt that throws where the model answers `true` stops
+   the model loop at that variant while the port walks on.  One port-side fix —
+   the `CState` snapshot around `check_div_mod_pin_at` — discharges both halves.
+4. `CheckerDecl`'s six `Expr`-level statements gained `Indexed lfe`
+   (`lfe = mkFEnv lfe.env`), with `∧ Indexed lfe'` in the conclusion so the fold
+   re-establishes it.  `checkDecl` reads an unbounded `Env.find?`; the port reads
+   `fenv::find`, bounded by `visibleBelow`.  An index whose bound hides a stored
+   `c` makes the port call a declaration named `c` fresh where `checkDecl`
+   throws `duplicate declaration` — accept where the Lean rejects.  The *cached*
+   tier needed nothing: `checkDeclC` is index-based throughout, and
+   `check_decls_pure_refines` starts at `mkFEnv Env.empty`.
+5. `CheckerDecl`'s six pin-threading statements gained `absPins pins =
+   natOpPinSets` (`checkDecl` reads the *global* table, so an arbitrary `pins`
+   would let the port accept a `Nat.div` spelling the Lean declines), `PinsWF
+   pins` (the argument's own WF), and `DivModOrElse` (3's two `Prop`s bundled).
+6. `DeclCheck.check_proj_iota_refines` gained `absName cvj.name = absName
+   ctor_name`.  `checkProjIotaF` builds the redex head from
+   `ctorName.str "_model"`; `modeled::check_proj_iota` has `ctor_name` but does
+   not pass it to `check_proj_iota_body`, which spells the same thing as
+   `model_of(&cvj.name)`.  The two agree exactly when `cvj.name = ctorName` —
+   true at every call site (`cvj` is what `check_proj_lookups` read out of
+   `fenv::find(fe2, ctor_name)`) but *not* a consequence of `ConstantValWF cvj`.
+   **The faithful repair is for `modeled::check_proj_iota_body` to take
+   `ctor_name`**; that is `modeled.rs`, so task #57's, and the hypothesis then
+   disappears.  This is the same *shape* of finding as §1's, caught the same way
+   — by reading the citation beside the port rather than by testing.
+
+And one hypothesis got *weaker*, which makes its lemma stronger:
+`CheckerPins.check_reduce_pin_refines`' per-view `TrustGuardsSpec` premise
+gained `FEnvWF fp`.  Every route to `TrustGuardsSpec` runs through `FindWF`, so
+the task-#56 shape was not dischargeable at all.
+
+#### 4. `Refine/DeclCheck.lean` is now about the file, not about a dead copy
+
+Deleting the Rust (§2) deleted twenty-two `_refines` lemmas and nine Lean-side
+mirror `def`s with it, and renamed the two `modeled_*` restatements to the plain
+name — there is only one Rust copy now.  What the file keeps is exactly what has
+live Rust behind it: `decl_check::consts_resolve_f{,_go,_fast}`, and the
+`inductives::modeled`/`checker_base` lemmas that carry `DeclCheck.lean`'s own
+citations because the Lean declaration is there (`check_member_val`,
+`check_proj_lookups`, `check_proj_ty`, `check_proj_shape`, `check_proj_rule`,
+`check_proj_iota`).  The rest of `modeled.rs` stays task #57's.
+
+Two of those — `check_proj_ty_refines` and `check_proj_iota_refines` — were
+task #56's "task #57's to supply".  They are proved here instead, from fifteen
+new *step* lemmas about `modeled.rs` stated in this file in the
+`one_level_step` idiom: the two `partial_fixpoint` slot searches
+(`find_proj_model_slot`, `find_proj_fn_slot`, by strong induction on the
+`n_f - j` measure through the unfolding equation), the two renaming dictionaries
+(`ProjBack`/`ProjFwd`'s `NameToName::rename` against `projBack`/`projFwd`), and
+the iota chain (`check_iota_sides_ty`, `iota_stmt_open`, `arg_get_d`,
+`proj_iota_name`, `thm_probe`, the `struct_parts` index recursions, and the
+spine bridge `mkAppN_append`/`spine_eq`/`app3_of_spine`/`isEqHead_inv`).
+**One of them is a generalisation the tier wants anyway**: `doms_match_aux` is
+re-derived over an arbitrary `DomView` dictionary
+(`doms_match_aux_from_view`), where `Refine/CheckerBase.lean`'s induction is
+pinned to `DomIdent`; when task #57 lands, `CheckerBase` should be generalised
+to this and recover its own version as the instance.
+
+#### 5. Two gaps in the tier that nobody owned
+
+Closing `CheckerDecl` turned up two holes task #56's file split had left, both
+now filled in `Refine/CheckerPins.lean`:
+
+* **`checker.rs:1299-1400` was refined nowhere.**  `check_defn_pins` (the
+  `.defnDecl` arm's two pinned-`Nat` gates), `check_defn_div_mod_pin`,
+  `check_structural_nat_pin` and `nat_eqs_subst` fell between "`:365-1232` is
+  `CheckerPins`'" and "`:1234-end` is the driver's".  They are `CheckerPins`'
+  now.  The structural gate has **no con-leche sibling** — it is inlined in
+  `checkDecl`/`checkDeclC` — so its conclusion is that block's three facts (the
+  `unless` guard, the `match fe2.find?` arm, the `certifyNatEqs` run) rather
+  than one run equation, plus `fe' = fe2`, the `restrict_to` round trip that is
+  what lets a caller carry a `*Spec` about `fe2` past the gate.  Its dependency
+  clause is §1's `deps_all_stored_ok_refines`.
+* **The install gates are stated at `lfe.restrictTo k_pre` and called at the
+  pre-insertion index**, which agree on `find?` and differ on `.env`.
+  `ConLeche/Verify/Cached/KnotCongr.lean` stops at `sharedOpsC_congr`, so the
+  gates' own congruences are new here: `checkReducePinF_congr`,
+  `checkDivModPinF_congr`, and the nine they rest on
+  (`constsResolveF_congr` by structural induction on `ConLeche.Expr`,
+  `reduceElemOkF`/`reduceStoredOkF`/`reducePinGuardF`/`divModCertGuardF`/
+  `divModPinGuardF`/`divModCertsGuardF`/`checkDivModCertsF`/
+  `checkDivModPinAtF`/`checkDivModPinLoopF`, and `certifyNatEqs_env_congr` —
+  `certifyNatEqs`' `Env` argument is dead).  These are the right upstream ask:
+  con-leche could carry them next to `sharedOpsC_congr`.
+
+#### 6. `basis_decls_a_wf`, and a tactic worth stealing
+
+Task #56 predicted "`Refine/BasisTables.lean`'s `step` tier re-run with a
+`⦃ r => abs… ∧ …WF r ⦄` specification per smart constructor — 192 interned
+nodes, no new idea".  It is not that.  A `⦃ ⦄` specification must prove the call
+*succeeds*, which is why task #22 needed the whole `mix_hash`/`str_hash`
+totality tier; well-formedness is asked of a table we are **given**
+(`h : basis_decls_a k = ok v`), so every node's `ok` equation is already in hand,
+and §3.5's inductive-`*WF` rule makes each clause literally one constructor.
+So it is a *loop*: `wf_peel h` inverts one `bind` and tries 23 branches, one per
+smart constructor's `*_wf` lemma; `basis_wf_block h` is `repeat wf_peel h`; six
+one-line block theorems and a `cases k` finish it.  210 lines for 804 binds.
+
+**The load-bearing discovery is `with_reducible` on each branch.**  At default
+transparency, matching `hx : expr.lam ty b m = ok e` against
+`expr.dup ?e = ok ?r` unfolds both generated bodies and reduces a `lam` node's
+entire hash computation *before failing* — ~100 s per attempt, and the four
+blocks that build a `lam` never finished.  At `reducible` transparency a
+mismatch is two distinct constants and fails instantly: `.punitK` went from
+not-terminating to 1.5 s, the whole file to 30 s wall.  The device generalises
+to any WF obligation about a value built by a straight-line generated `do` chain
+of smart constructors — `BasisNames.reserved_basis_names` and `StdAxioms`'
+builder steps are the obvious next customers — and it gives **only** WF, never
+the `abs …` equation.
+
+#### 7. Numbers, and what the tier stands on now
+
+`scripts/gates.sh` green; the progress line reads **verified 7412 (53 %)** of
+the verified core and **808 `_refines`** (task #56: 7531 / 799 — the count went
+*down* because §2 deleted 543 lines of Rust that were being counted as ported).
+`scripts/diff-e2e.sh` 348/348, `scripts/diff-fixtures.sh` 315/0, provenance
+911/911 covered.
+
+What the declaration-checker tier now rests on, in full:
+
+* **the knot**, as a hypothesis (`core_k.check_fuel = ok fuel` +
+  `Core.Wrappers mode fuel`), consumed once per entry point in
+  `Refine/TypeChecker.lean` — task #55's to discharge;
+* **`IndRoutesSpec`** (`Refine/IndSpec.lean`), the two-clause seam task #57 fills;
+* **task #24's `orElse` deviation**, now *two* named `Prop`s rather than one
+  (`OrElseErrorStateSound` + `OrElseErrorDeclines`, §3.3), both discharged by the
+  same one-line port change;
+* **`absPins pins = natOpPinSets`**, which `Refine/Pins.lean`'s two open
+  statements (task #43's, on the Lean 4.33 kernel) turn into a closed fact;
+* **`modeled::check_proj_iota_body` taking `ctor_name`** (§3.6).
+
+Nothing else.  In particular every `*Spec` task #49 and task #56 introduced is
+now discharged, `Refine/BasisPins.lean` included.
+
+#### 8. The P3 gate flipped
+
+Merging tasks #60/#61/#62 (which landed while this one ran) made
+`Refine/Installed.lean`'s `check_decl_step_c_refines` call the version above.
+Threading the two new hypotheses (`hvar`, `hoe`) through `Installed.lean`'s
+eight statements and `Refine/Main.lean`'s three is the whole adaptation — and
+then **both `#guard_msgs` censuses that were pinned with `sorryAx` failed**,
+which is exactly what task #62 wrote them for ("`sorryAx` leaving this line is
+the gate").  The corrected census is:
+
+```
+'ConRon.Refine.conron.model_exists'      depends on axioms: [propext, Classical.choice, Quot.sound]
+'ConRon.Refine.conron.no_proof_of_False' depends on axioms: [propext, Classical.choice, Quot.sound]
+```
+
+con-leche's own three, and nothing else — no `sorryAx`, and nothing
+native-decide-shaped (the `PINS_TEXT` guard of `Refine/Main.lean`'s module
+note).  §1's two main theorems for the Rust checker are therefore **proved**,
+modulo the five hypotheses `Refine/Main.lean`'s table now lists with who closes
+each: `hk` (task #55's knot, proved at #61, not yet plugged in here), `hind`
+(task #57's routes through #59's bridge), `hpins` (`Refine/Pins.lean`'s two
+open statements, task #43's), and task #58's own `hvar` and `hoe`.
+`Refine/Installed.lean`'s `check_decls_refines` is clean on the same terms.
+
+`hvar : CheckerPins.PinsWF pins` is new on `Installed.lean`'s and `Main.lean`'s
+statements and is the sixth of §3's justified additions: `hpins` says the pin
+list *abstracts* to `natOpPinSets`, which does not give that each node is what
+the port's smart constructor built, and without that a stored hash word can
+make `expr::beq` inexact on a pin that nonetheless has the right value.  It is
+the same discipline as the `hds : forall d in ds, DeclCWF d` the file already
+carried for the declarations, and it is discharged the same way — by
+construction, since `kernel::pins_decode` builds through the smart
+constructors.
+
+### Task #63 — Pins without upstream changes: two encodings measured (2026-09-13, Opus under Fable)
+
+A spike with one question: can `absPins (decode PINS) = ConLeche.natOpPinSets`
+be established in Lean **with no con-leche change**?  Task #43 measured three
+obstacles against the 532 456-byte `&str` constant — (a) Aeneas's `toStr`
+discharges its bound with `decide +native`, so the constant already carries a
+native-decide axiom; (b) the reference decoder is well-founded and does not
+whnf; (c) kernel reduction of a string literal is quadratic.  This task
+measures the two encodings that could lift them: **A**, chunked byte constants
+evaluated by the kernel; **B**, the value as generated Rust source with
+generated proofs.  Nothing in `crates/` or `proof/ConRon/Refine/` was touched;
+the scripts are `spikes/pins-encoding/` and every run is logged in
+`spikes/pins-encoding/results.txt`.
+
+Measuring note (DESIGN.md's rule): 96 cores / 125 GB, shared.  `aeneas` and
+`lean` are multithreaded, so `instructions:u` and user CPU are the columns to
+read; wall time is quoted only where the machine was idle, and the two early
+`aeneas` numbers taken against a concurrent job are marked as such in
+`results.txt` and are not used below.
+
+#### 1. The kernel: obstacle (c) is about `String`, not about the kernel
+
+A trivial decoder (count `0x0a`) over prefixes of the real text, closed by
+`rfl` so the kernel must reduce it.  `kernel` is the final `type checking`.
+
+| the data | 1 KB | 4 KB | 16 KB | 64 KB | per byte | 532 456 B |
+|---|---|---|---|---|---|---|
+| `List UInt8` | 0.040 s | 0.115 | 0.468 | **2.12** | 32 µs | **≈ 17 s** |
+| `List Nat` | 0.016 | 0.066 | 0.315 | **1.02** | 16 µs | **≈ 8 s** |
+| one `Nat` literal, `% 256` / `/ 256` | 0.068 | 0.401 | 2.17 | **11.0** | — | ≈ n^1.2 |
+| `String` literal, via `.data` | **6.9 s at 256 B** | **SIGABRT after 143 s** | — | — | — | — |
+
+A byte-list literal reduces **linearly** (4.1×, 3.9×, 5.2× per quadrupling), so
+532 KB is about 17 s of kernel for one pass.  Task #43's quadratic is the
+*string literal's* expansion, not a property of kernel reduction — and a
+chunked `&str` would not rescue it either: 256 bytes already costs 6.9 s.  The
+big-`Nat` encoding is the worst of the three that work: GMP makes `% 256` cheap
+but each `/ 256` copies the whole remaining bignum, so the pass is superlinear
+and 5× the `List Nat` cost at equal size.
+
+#### 2. The kernel: the *table* is the cost, and a trie removes it
+
+`ConRon.Dump.parsePins` resolves every record's operand ids against the table
+of nodes decoded so far — 26 512 lookups into a table that grows to 26 512.
+That, not the byte scan, is what the closed computation is made of.  N inserts
+plus N lookups, kernel only:
+
+| N | table a `List`, lookup by index recursion | table a binary trie on the id's bits |
+|---|---|---|
+| 1 000 | 16.0 s | 3.16 s |
+| 2 000 | **72.5 s** (×4.53 — quadratic) | **6.54 s** (×2.07) |
+| 4 000 | — | **15.2 s** (×2.32 — n log n) |
+| at 26 512 | ≈ **3.5 hours** | ≈ **110 s** |
+
+So **obstacle (b) is ours to lift and costs nothing upstream**: a reference
+reader written *for* kernel evaluation — structural recursion over a
+`List UInt8`, `Nat`-keyed tries instead of `Array`s, which is what task #43's
+"what would lift each obstacle" paragraph guessed — puts the whole closed
+computation at ≈ 17 s of byte scan + ≈ 110 s of table + the parser's own
+per-byte work: **four to six minutes, once**.  That is the encouraging number
+of this task, and it does not depend on which encoding carries the bytes.
+
+#### 3. Route A through the pipeline: axiom-clean, and one factor of 100
+
+`const C_i: [u8; N]` × n plus `pub const PINS: &[&[u8]]` translates cleanly:
+`Array Std.U8 N#usize` per chunk, `Slice (Slice Std.U8)` for the table.
+**`#print axioms` on the constants is `[propext, Classical.choice, Quot.sound]`
+— obstacle (a) is lifted with no Aeneas change at all.**  One gap: a
+zero-argument `pub fn pins_nl() -> usize { total_nl(PINS, 0, 0) }` is
+`Error: Unimplemented`, while the same function with the table as a *parameter*
+translates — so the driver would pass `PINS` in.  A new Aeneas finding, not a
+hole in the trusted base.
+
+The cost splits between two stages that want opposite chunk sizes.
+
+**Aeneas is superlinear in the number of globals** (chunk fixed at 1 700 B,
+machine idle):
+
+| globals | bytes | instructions | user | wall |
+|---|---|---|---|---|
+| 64 | 108 800 | 178.0 G | 38.2 s | 2.8 s |
+| 128 | 217 600 | 623.6 G | 136.6 s | 11.7 s (×3.50) |
+| 256 | 435 200 | 2 053.4 G | 650.0 s | 68.2 s (×3.29) |
+| **314** | **532 456 — the whole text** | **3 250.9 G** | **1 150.6 s** | **112.8 s** |
+
+≈ O(globals^1.75).  At 314 globals the whole text costs **113 s of wall**, a 3×
+regression of `extract.sh`'s aeneas step (37 s) and perfectly affordable; at
+128-byte chunks (4 160 globals) the same law gives ~10⁵ s of CPU, which is not.
+
+**Lean wants the opposite.**  Elaborating the generated `Funs.lean`, 8 192
+bytes, by chunk size (`aeneas -max-recdepth 1000000`):
+
+| chunk | globals | instructions | user | wall |
+|---|---|---|---|---|
+| 128 | 64 | 117.5 G | 17.0 s | 10.3 s |
+| 512 | 16 | 207.2 G | 23.5 s | 20.3 s |
+| 1 024 | 8 | 332.9 G | 37.1 s | 34.7 s |
+| 1 700 | 5 | 477.1 G | 52.9 s | 55.3 s |
+
+linear in the total at a fixed chunk size, and at 1 700 `wall = user`: the file
+elaborates serially.  **Where that cost is** was worth pinning down, because
+the obvious suspect is wrong.  `Aeneas.Std.Array.make`'s
+`hl : init.length = n.val := by simp` is only why the *default* `maxRecDepth
+2048` fails above ~256 elements; it is not the time.  Filling `hl` explicitly:
+
+| `hl` | lean on 5 × 1 700 B |
+|---|---|
+| the default `by simp` | 55.3 s |
+| `(by rfl)` | 50.8 s |
+| `(sorry)` | **52.3 s** |
+
+The cost is the **element notation**.  The same 1 700 bytes as a Lean `def`:
+
+| | instructions | user |
+|---|---|---|
+| `List Std.U8` in Aeneas's `99#u8` notation | **98.2 G** | **11.2 s** |
+| core `List UInt8`, plain numerals | **9.8 G** | **1.3 s** |
+
+both including ~1.2 s of `import Aeneas` — **about 100× per element.**
+
+Route A's bill for the whole text, by chunk size:
+
+| chunk | globals | aeneas CPU | lean CPU | total |
+|---|---|---|---|---|
+| 128 | 4 160 | ~10⁵ s | ~1 105 s | ~28 h |
+| 512 | 1 040 | ~9 400 s | ~1 530 s | ~3 h |
+| 1 024 | 520 | ~2 780 s | ~2 410 s | ~1.4 h |
+| **1 700** | **314** | **1 151 s** | **~3 440 s** | **~77 min** (≈ 65 min wall) |
+
+Route A *works* — it is axiom-clean, it reduces in the kernel, and the closed
+computation is minutes — but it adds about an hour to every
+`extract.sh` + `lake build` cycle, and **three quarters of that hour is the
+`#u8` numeral.**
+
+#### 4. Route B: rustc is fixed by splitting, Charon and Aeneas are not
+
+`lake exe con-ron-gen-tables --pins 0` emits the v4.33.0 variant as one
+function: 25 001 lines, 20 183 interned nodes.
+`spikes/pins-encoding/splitpins.py` splits it into `part_<k>` functions
+threading an explicit `Arena { ns, us, es }`, so the DAG sharing is preserved
+exactly — a reference to an earlier part's node becomes `&a.es[K]`, and node K
+always sits at index K because the emitter numbers in emission order.
+
+| stage | 500-node parts (41 fns, 45 258 lines) | 100-node parts (202 fns, 46 324 lines) |
+|---|---|---|
+| `cargo build` | **OK, 10.55 s at the default 8 MB stack** (task #22: SIGSEGV at the default, 73 s at 256 MB) | — |
+| `charon cargo`, `ulimit -v` 30 GB | **abort: "memory allocation of 270336 bytes failed"** | **OK** — but the `.llbc` is **5 348 778 744 B** |
+| control: the same crate with the module removed | — | OK, 186 549 901 B |
+| `aeneas` on that `.llbc` | — | **abort: "allocation failure during minor GC"**, after 136.7 s / 1 149.8 G |
+
+So splitting moves the wall one stage: task #22's `rustc` stack overflow is
+gone, and Charon survives only at 100 nodes per function, at the price of a
+**5.35 GB LLBC for one of the three toolchain variants** — 29× the whole crate
+— on which Aeneas exhausts 30 GB (the whole crate needs 16.9 GB).  No split
+size is both small enough for Charon and coarse enough to keep the LLBC sane:
+the blow-up is in how many `Expr` values the crate builds in source, not in any
+one body's length.
+
+The *proof* half would have been the affordable one.  `step`'s cost per
+interned node, measured on the file that already has the style
+(`proof/ConRon/Refine/BasisTables.lean`, read-only, profiler on):
+
+| block, interned nodes | 18 | 19 | 25 | 48 | 54 | 98 |
+|---|---|---|---|---|---|---|
+| `step*` | 0.914 s | 0.932 | 1.93 | 3.62 | 3.67 | **11.4** |
+| per node | 51 ms | 49 | 77 | 75 | 68 | **116** |
+
+plus one `simp_all` (0.21–0.50 s) and 0.34–0.62 s of kernel per block — so
+`step*` is about n^1.3 in the block, which is exactly why small blocks are the
+right shape.  At 100-node functions, 20 183 nodes is ≈ 1 000–1 500 s of CPU in
+202 files that Lake runs in parallel: tens of seconds of wall on 96 cores, and
+a cached rebuild touches one file.  Route B does not die of proofs.
+
+#### 5. Recommendation: neither today, and the ask is Aeneas's, not con-leche's
+
+* **Route B: no, and not fixable by tuning.**  Charon and Aeneas both run out
+  of memory on a crate that builds 20 183 `Expr` values in source, and the
+  LLBC alone is 5.35 GB per toolchain variant.  Task #22's verdict stands, one
+  stage further along than it was measured.
+* **Route A: viable, at about an hour per extraction — and worth revisiting the
+  moment Aeneas emits cheaper numerals.**  Everything the theorem needs is
+  there: the constants are axiom-clean, a `List UInt8` reduces linearly, and a
+  trie-based reference reader closes the computation in four to six minutes.
+  What makes it cost an hour is one measured factor of 100 in elaborating
+  `99#u8`, and behind it Aeneas's O(globals^1.75).
+* **So the upstream ask moves.**  Task #43 asked Aeneas for a `toStr` whose
+  bound is not `decide +native`; the chunked byte encoding makes that ask
+  unnecessary (§3's axiom line).  What replaces it: **emit scalar literals in a
+  form that elaborates in O(1)** — a plain numeral with one coercion, or an
+  `Array.make` variant taking a `ByteArray` literal — and, second,
+  **translation cost linear in the number of globals**.  Both are
+  `backends/lean` changes, neither touches con-leche, and the first alone turns
+  route A's hour into ~20 minutes.
+* **Meanwhile the position is task #43's, unchanged**: the embedded text is
+  held to con-leche's value by `scripts/gen-pins.sh --check` and `cargo test`,
+  and `Refine/Pins.lean`'s `pins_text_decodes` stays open with its reason.  One
+  clause of that docstring is now wrong, though, and should be corrected when
+  the file is next touched: it blames the Lean *kernel* for the quadratic, and
+  §1 above shows the kernel is linear on bytes — the quadratic belongs to
+  `String` literals alone.
+
+**Left for next time.**  If route A is taken up, do the half with no upstream
+dependency first: rewrite `ConRon/Dump/Read.lean`'s reader over `List UInt8`
+with `Nat`-keyed tries, which §2 has already priced.  Then the chunked
+constants at 1 700 bytes, `-max-recdepth` in `scripts/extract.sh`, and `driver`
+passing `PINS` as an argument (§3's `Unimplemented`).
+
+### Task #64 — Pins: the decoder refined; the closed computation by `native_decide` (interim) (2026-09-13, Opus under Fable)
+
+The maintainer's decision on task #43's two open statements: **discharge the
+pins hypothesis, with `native_decide` accepted as an interim for the closed
+computation only.**  Both landed.  `ConRon/Refine/Pins.lean` is `sorry`-free,
+`pins_decode_refines` is an **ordinary proof** at con-leche's own three axioms,
+and native evaluation is confined to one lemma whose census is machine-checked.
+
+The task also found **a real bug in the port** — a truncating cast that makes
+the decoder wrong on a 32-bit `usize` — which is what the exercise is for, and
+which was fixed in the Rust rather than papered over in the statement.
+
+#### 1. Why two halves, and what `PinsDec` is
+
+`pins_decode_refines` relates two programs of different shape:
+`kernel::pins_decode::decode` walks a `&[u8]` with an index, `ConRon.Dump.
+parsePins` splits a `String` on `"\n"` and each line on `" "`.  Task #43 named
+the missing piece "the tokenizer bridge" and put it first in the dependency
+order.  The joint is a new file, `Refine/PinsDec.lean`: the **same decoder over
+a byte suffix** (`Bytes := List Nat`, `Option` for failure, con-leche values in
+the tables), which splits the problem into
+
+| half | statement | files |
+|---|---|---|
+| **(A)** the model against `PinsDec` | `decode t = ok (.Ok v) → PinsDec.decode (bytesOf t) = some (absPins v)` | `PinsBytes`, `PinsRecords`, `PinsRun` |
+| **(B)** `PinsDec` against the reader | `PinsDec.decode bs = some ps → parsePins (text bs) = .ok ps` | `PinsSplit`, `PinsRead` |
+
+(A) is ordinary Aeneas refinement with no string anywhere; (B) is pure Lean and
+is where `String.splitOn` is met.  The ASCII fact `absText` (a UTF-8 *decode*)
+needs is a third small file, `PinsAscii`, proved over `PinsDec`'s own equations
+rather than by a second walk over the port.
+
+| file | lines | contents |
+|---|---|---|
+| `PinsDec.lean` | 738 | the byte-level reference decoder, and its `#guard` self-tests |
+| `PinsAbs.lean` | 145 | task #43's `absText`/`absPins`/`absText_toStr`, moved, plus `bytesOf`/`absTables` |
+| `PinsBytes.lean` | 1 383 | (A) the scalars, the escape, the references, the counted lists — 25 lemmas |
+| `PinsRecords.lean` | 1 223 | (A) the `N`/`L`/`W`/`E` records — 20 lemmas |
+| `PinsRun.lean` | 621 | (A) the `S` record and the pass; `decode_refines` |
+| `PinsAscii.lean` | 658 | every byte the decoder accepts is ASCII — 57 lemmas |
+| `PinsSplit.lean` | 334 | (B) `String.splitOn` at one character, and `absText` on an ASCII text |
+| `PinsRead.lean` | 2 169 | (B) the tokenizer bridge; `parsePins_of_decode` |
+| `Pins.lean` | 226 | the four statements |
+
+**`PinsDec` was validated by execution before a line of proof was written**,
+and the `#guard`s stay in the file: they run `kernel::pins_decode`'s own twelve
+unit-test texts through the mirror and compare accept with accept, then read a
+dump exercising **every** record kind (`N`×3, `L`×5, `W`×2, `E`×10, `S`, the
+footer, the escape including an astral code point and the surrogate rejection)
+both ways and compare *value for value* — `pins_decode_refines` on those
+inputs.  That is what made it safe to fan the proof out to six agents at once.
+
+#### 2. The port bug: a truncating cast
+
+`read_index` was `read_nat` then `n as usize`, with the comment "`usize` is 64
+bits on every target it builds for, and `read_nat` has already bounded the
+value well below that".  Both halves are wrong: `read_nat`'s accumulator guard
+admits up to `10^19 + 9` — inside `u64`, well outside `u32` — and Aeneas models
+`usize` platform-generically, knowing only `Usize.max ∈ {U32.max, U64.max}`,
+with `as usize` a **truncating** cast.  So at `usize = u32` the text
+`4294967296` truncates to `0` and *passes* `expect_id(_, _, 0)`: the decoder
+does not refine `parsePins` there, and the failure is a property of the
+program, not an artefact of the model.
+
+It blocked thirteen of `PinsBytes`' twenty-five lemmas, and the alternative was
+a platform hypothesis threaded through three files and into the capstones.  The
+port was fixed instead: `read_index` rejects `n > 4294967295` before the cast.
+`U32.max ≤ Usize.max` is what `scalar_tac` knows on every platform, so the cast
+is provably the identity on every accepted value and **no platform hypothesis
+appears anywhere**.  Ids, counts and string lengths here are at most 26 721, so
+nothing legitimate is rejected; on a 64-bit host the guard is behaviourally
+invisible, because every value it now rejects failed a later check anyway.
+`cargo test` gained `an_index_wider_than_u32_is_rejected`, and `extract.sh` was
+re-run: the `Funs.lean` diff is **53 insertions, 49 deletions — one changed
+body and `Source:` line numbers**, nothing else.
+
+`PinsDec.readIndex` deliberately does **not** carry the guard.  The refinement
+runs one way, model-accepts ⟹ mirror-accepts, so a mirror that also accepts
+what the port rejects claims nothing extra; it stays the more permissive of the
+two there, as it already is about spaces and record kinds.
+
+#### 3. Two statement corrections, and one that was not needed
+
+* **The counted-list helpers were false as stated.**  `name_list_from`,
+  `level_list_from`, `expr_list_from`, `pins_eight_from` and
+  `proofs_eight_from` return `ok (.Ok (out, i))` at `k = 0` for *every* `i`,
+  including one past the end of the slice, so `j.val ≤ t.length` cannot hold —
+  witness `t = []`, `i = j = 1`, `k = 0`.  They take `(hi : i.val ≤ t.length)`
+  now: vacuous at every call site (`k ≠ 0` forces an `after_space`, which
+  supplies the bound), confined to the `*_from` layer, and
+  `pins_decode_refines` carries nothing.
+* **The `W` record looked like it needed a well-formedness invariant, and does
+  not.**  `prop_when::if_all_zero` *normalises*, sorting with
+  `prop_when::name_cmp`, and `Refine/PropWhen.lean`'s `if_all_zero_shape` asks
+  for `NamesWF`.  A `TablesWF` invariant was drafted and threaded through three
+  files before the better answer appeared: `name_cmp` never reads the stored
+  hash word and compares a `Str` payload as a raw `u32` list and a `Num`
+  payload as a raw `u64`, so `name_cmp a b = ok .Eq` forces the same kind tree
+  and the same payloads — everything `absName` looks at — hence
+  `absName a = absName b`, **well formed or not**.  The threading was reverted
+  on the rule that a hypothesis goes in only if the statement is false without
+  it.  `if_all_zero_abs` is the unconditional generalisation of
+  `if_all_zero_shape`; it is ~250 lines of `prop_when` theory **parked in
+  `PinsRecords.lean` and owed to `Refine/PropWhen.lean`**.
+
+#### 4. The closed computation, and exactly what is trusted
+
+`pins_closed : parsePins pinsTextLean = .ok ConLeche.natOpPinSets`, by
+`native_decide`, in about ten seconds.  What makes it cheap is task #43's
+`absText_toStr`: `rw [PINS_TEXT, absText_toStr]` turns the model's `Str` into
+the 532 KB Lean string literal at **zero** kernel cost (the `toStr` bound is a
+parameter and is never touched), so the compiled computation is `parsePins "…"`
+and nothing about `Slice`, `U8` or `toStr` is ever run.  `DecidableEq
+ConLeche.NatOpPinSet` is derived in `PinsDec.lean`, where the self-tests
+already need it.  Task #43's three obstacles all still hold, and spike #63
+measured the alternatives, so the interim stands (§3).
+
+**One correction to the brief, and it is load-bearing for the census.**  Lean
+4.33 does **not** emit `Lean.ofReduceBool` for `native_decide`.
+`Lean/Meta/Native.lean` compiles the proposition, runs it, and seals the result
+into a *fresh axiom named after the theorem*, asserting precisely
+`decide P = true` — a strictly narrower assumption than `ofReduceBool`, and one
+that names its own spender.  Writing the older term
+`of_decide_eq_true (Lean.ofReduceBool …)` by hand to get the requested spelling
+does **not** terminate: the interpreter then evaluates `absText PINS_TEXT`, a
+532 K-element `List U8`, instead of the literal (killed at 3 GB RSS).  The
+second native entry is not ours either — Aeneas's `toStr` spends
+`decide +native` on every extracted `&str`, so `PINS_TEXT` carries one before
+any proof of ours (`AENEAS_FINDINGS.md`).
+
+The censuses, all `#guard_msgs`-pinned:
+
+| theorem | axioms |
+|---|---|
+| `pins_decode_refines` | `[propext, Classical.choice, Quot.sound]` |
+| `PinsRun.decode_refines`, `PinsRead.parsePins_of_decode`, `PinsDec.decode_ascii`, `PinsSplit.absText_of_ascii` | the same three |
+| `conron.model_exists'` / `no_proof_of_False'` | the same three — **unchanged** |
+| `pins_closed`, `check_decls_pins_refines`, `conron.{model_exists,no_proof_of_False}_embedded` | the three **plus** `pins_closed._native.native_decide.ax_1_2` and `pins_text.PINS_TEXT._native.decide.ax_1` |
+
+#### 5. The capstones: both kept
+
+`conron.model_exists'` / `conron.no_proof_of_False'` are **unchanged** —
+general in `pins`, carrying `hpins`, naming no embedded constant, with no
+native evaluation in their closure.  Appended beside them are
+`conron.model_exists_embedded` / `conron.no_proof_of_False_embedded`: the same
+theorems at the pin list the binary actually folds with
+(`kernel::pins_decode::decode_embedded()`, what `con_ron::driver::pins_for_run`
+passes by default), carrying **neither `hk` nor `hpins`**.  `Installed.lean`
+gained the matching `check_decls_embedded_refines`.
+
+#### Gates
+
+| gate | result |
+|---|---|
+| `cargo build` | OK, warning-free at `-D warnings` |
+| `cargo test` | **234/234** |
+| `lint-rust-style.sh` | OK |
+| `provenance.py check` | OK — 2 105 items, 2 230 citations at pin 3e004805 |
+| `gen-pins.sh --check` | OK — 26 721 records, 532 456 bytes |
+| `extract.sh --check` | OK — externals 1 type, 5 fns |
+| `cd proof && lake build` | **2 583 jobs, zero errors**; no `sorry` in any `Pins*` file |
+
+#### Left for next time
+
+* **`hvar : CheckerPins.PinsWF pins`** is the one hypothesis the `_embedded`
+  corollaries still carry, and the piece of task #64 that is owed.  It needs
+  `ExprWF` for every expression the decoder installs, i.e. a full
+  well-formedness invariant (names, levels, prop-whens, expressions) threaded
+  through `PinsBytes` and `PinsRecords`.  Cheap in kind — `ExprWF`'s
+  constructors *are* the port's smart constructors and every record already
+  applies exactly one, and `StrWF` comes straight from `read_string`'s
+  `is_valid_char` guard — but every reader lemma in half (A) gains a hypothesis
+  and a conjunct.  The `TablesWF` draft this task wrote and removed is the
+  shape to start from.
+* **Move `if_all_zero_abs` and its ~250 lines of `prop_when` theory** from
+  `PinsRecords.lean` to `Refine/PropWhen.lean`, beside the conditional
+  `if_all_zero_shape` it generalises.
+* **`reduceIte` does not fire on the outer `if 115 = 97`** of `recordExpr`'s
+  eleven-deep dispatch even when listed explicitly, though it fires on every
+  inner one; the eleven delegating arms work around it with a trailing full
+  `simp`, which is why `record_expr_refines` needs `maxHeartbeats 1000000`.
+  Worth an MWE.
+* **`PinsDec` niggles the proofs paid for**, all cosmetic and all recorded by
+  the agents who hit them: `unescapeFrom`'s `let d := hexDigit b` blocks
+  `split at h` until a `dsimp only`; guards written `a || b` over `Prop`s cost a
+  `simp only [Bool.or_eq_true, decide_eq_true_eq]` each where `∨` would let
+  `omega` read them; `runFooter`'s negated-disjunction guard would be more
+  mechanical written positively; and nothing exports "a record's remainder is a
+  suffix of its input", which is what forced `PinsRead`'s `AtField` to carry an
+  `Option Bytes`.
