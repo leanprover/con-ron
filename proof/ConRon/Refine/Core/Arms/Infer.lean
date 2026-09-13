@@ -476,152 +476,152 @@ theorem proj_type_at_checked_i_refines {entry : env.ProjEntry} {sn t : name.Name
         (absLevels us) (absExprs targs) (absExpr pe)).run lst) := by
   cases out with
   | Ok r =>
-      unfold cached.core_c.proj_type_at_checked_i at h
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨b, hb, h⟩ := h
-      have hbv : b = decide (absName t = absName sn) := Name.beq_refines ht hsn hb
-      split at h
-      case isFalse =>
-        simp only [bind_eq_ok_iff, lift_eq, Result.ok.injEq, reduceCtorEq,
-          and_false, exists_false] at h
-      rename_i hbt
-      have hname : absName t = absName sn := by
-        rw [hbv] at hbt; exact of_decide_eq_true hbt
-      simp only [bind_eq_ok_iff, lift_eq, Result.ok.injEq, exists_eq_left'] at h
-      split at h
-      case isTrue => simp only [bind_eq_ok_iff, Result.ok.injEq, reduceCtorEq, and_false,
-          exists_false] at h
-      rename_i hnp
-      have hnpv : (absExprs targs).length = (absProjEntry entry).numParams := by
-        have hc : (Std.UScalar.cast .U64 (alloc.vec.Vec.len targs) : Std.U64).val
-            = targs.val.length := by
-          rw [ExprOps.usize_cast_u64_val]
-          exact alloc.vec.Vec.len_val targs
-        simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hnp
-        rw [hnp] at hc
-        simp only [absExprs, List.length_map, absProjEntry]
-        exact hc.symm
-      split at h
-      case isTrue => simp only [bind_eq_ok_iff, Result.ok.injEq, reduceCtorEq, and_false,
-          exists_false] at h
-      rename_i hlp
-      have hlpv : (absLevels us).length = (absProjEntry entry).levelParams.length := by
-        simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hlp
-        have h1 : (alloc.vec.Vec.len us).val = us.val.length := alloc.vec.Vec.len_val us
-        have h2 : (alloc.vec.Vec.len entry.level_params).val
-            = entry.level_params.val.length := alloc.vec.Vec.len_val entry.level_params
-        have h3 : (alloc.vec.Vec.len us).val
-            = (alloc.vec.Vec.len entry.level_params).val := by rw [hlp]
-        simp only [absLevels, absProjEntry, absNames, List.length_map]
-        omega
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨c, hc, h⟩ := h
-      have hcv := CoreK.projEntryFireOk entry us c hent hus hc
-      split at h
-      case isFalse => simp only [bind_eq_ok_iff, Result.ok.injEq, reduceCtorEq, and_false,
-          exists_false] at h
-      rename_i hct
-      simp only [bind_eq_ok_iff, Result.ok.injEq] at h
-      obtain ⟨e, he, hr⟩ := h
-      cases hr
-      obtain ⟨habs, hwf⟩ :=
-        ExprOpsC.proj_entry_type_at_i_refines hent hus htargs hpe he
-      refine ⟨?_, hwf⟩
-      rw [projTypeAtCheckedIL, if_pos ⟨hname, hnpv, hlpv⟩, projPropGuardIL,
-        if_pos (show (absProjEntry entry).fireOk (absLevels us) = true by
-          rw [← hcv]; exact hct), habs]
-  | Err ce =>
-      intro lst
-      unfold cached.core_c.proj_type_at_checked_i at h
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨b, hb, h⟩ := h
-      have hbv : b = decide (absName t = absName sn) := Name.beq_refines ht hsn hb
-      split at h
-      case isFalse =>
-        -- the head name is not the node's structure name
-        rename_i hbf
-        have hne : absName t ≠ absName sn := by rw [hbv] at hbf; simpa using hbf
-        simp only [bind_eq_ok_iff, lift_eq] at h
-        obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
-        obtain rfl := err_eq hr
-        refine not_implemented_throw (s := "projection without a native entry") hce1 ?_
-        rw [projTypeAtCheckedIL, if_neg (fun hcon => hne hcon.1)]
-        simp
-      rename_i hbt
-      have hname : absName t = absName sn := by
-        rw [hbv] at hbt; exact of_decide_eq_true hbt
-      have hcl : (Std.UScalar.cast .U64 (alloc.vec.Vec.len targs) : Std.U64).val
+    unfold cached.core_c.proj_type_at_checked_i at h
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨b, hb, h⟩ := h
+    have hbv : b = decide (absName t = absName sn) := Name.beq_refines ht hsn hb
+    split at h
+    case isFalse =>
+      simp only [bind_eq_ok_iff, lift_eq, Result.ok.injEq, reduceCtorEq,
+        and_false, exists_false] at h
+    rename_i hbt
+    have hname : absName t = absName sn := by
+      rw [hbv] at hbt; exact of_decide_eq_true hbt
+    simp only [bind_eq_ok_iff, lift_eq, Result.ok.injEq, exists_eq_left'] at h
+    split at h
+    case isTrue => simp only [bind_eq_ok_iff, Result.ok.injEq, reduceCtorEq, and_false,
+        exists_false] at h
+    rename_i hnp
+    have hnpv : (absExprs targs).length = (absProjEntry entry).numParams := by
+      have hc : (Std.UScalar.cast .U64 (alloc.vec.Vec.len targs) : Std.U64).val
           = targs.val.length := by
         rw [ExprOps.usize_cast_u64_val]
         exact alloc.vec.Vec.len_val targs
-      simp only [bind_eq_ok_iff, lift_eq, Result.ok.injEq, exists_eq_left'] at h
-      split at h
-      case isTrue =>
-        -- the wrong number of structure parameters
-        rename_i hnp
-        have hnpv : (absExprs targs).length ≠ (absProjEntry entry).numParams := by
-          simp only [bne_iff_ne, ne_eq] at hnp
-          simp only [absExprs, List.length_map, absProjEntry]
-          intro hEq
-          exact hnp (by scalar_tac)
-        simp only [bind_eq_ok_iff] at h
-        obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
-        obtain rfl := err_eq hr
-        refine not_implemented_throw (s := "projection without a native entry") hce1 ?_
-        rw [projTypeAtCheckedIL, if_neg (fun hcon => hnpv hcon.2.1)]
-        simp
+      simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hnp
+      rw [hnp] at hc
+      simp only [absExprs, List.length_map, absProjEntry]
+      exact hc.symm
+    split at h
+    case isTrue => simp only [bind_eq_ok_iff, Result.ok.injEq, reduceCtorEq, and_false,
+        exists_false] at h
+    rename_i hlp
+    have hlpv : (absLevels us).length = (absProjEntry entry).levelParams.length := by
+      simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hlp
+      have h1 : (alloc.vec.Vec.len us).val = us.val.length := alloc.vec.Vec.len_val us
+      have h2 : (alloc.vec.Vec.len entry.level_params).val
+          = entry.level_params.val.length := alloc.vec.Vec.len_val entry.level_params
+      have h3 : (alloc.vec.Vec.len us).val
+          = (alloc.vec.Vec.len entry.level_params).val := by rw [hlp]
+      simp only [absLevels, absProjEntry, absNames, List.length_map]
+      omega
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨c, hc, h⟩ := h
+    have hcv := CoreK.projEntryFireOk entry us c hent hus hc
+    split at h
+    case isFalse => simp only [bind_eq_ok_iff, Result.ok.injEq, reduceCtorEq, and_false,
+        exists_false] at h
+    rename_i hct
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨e, he, hr⟩ := h
+    cases hr
+    obtain ⟨habs, hwf⟩ :=
+      ExprOpsC.proj_entry_type_at_i_refines hent hus htargs hpe he
+    refine ⟨?_, hwf⟩
+    rw [projTypeAtCheckedIL, if_pos ⟨hname, hnpv, hlpv⟩, projPropGuardIL,
+      if_pos (show (absProjEntry entry).fireOk (absLevels us) = true by
+        rw [← hcv]; exact hct), habs]
+  | Err ce =>
+    intro lst
+    unfold cached.core_c.proj_type_at_checked_i at h
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨b, hb, h⟩ := h
+    have hbv : b = decide (absName t = absName sn) := Name.beq_refines ht hsn hb
+    split at h
+    case isFalse =>
+      -- the head name is not the node's structure name
+      rename_i hbf
+      have hne : absName t ≠ absName sn := by rw [hbv] at hbf; simpa using hbf
+      simp only [bind_eq_ok_iff, lift_eq] at h
+      obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+      obtain rfl := err_eq hr
+      refine not_implemented_throw (s := "projection without a native entry") hce1 ?_
+      rw [projTypeAtCheckedIL, if_neg (fun hcon => hne hcon.1)]
+      simp
+    rename_i hbt
+    have hname : absName t = absName sn := by
+      rw [hbv] at hbt; exact of_decide_eq_true hbt
+    have hcl : (Std.UScalar.cast .U64 (alloc.vec.Vec.len targs) : Std.U64).val
+        = targs.val.length := by
+      rw [ExprOps.usize_cast_u64_val]
+      exact alloc.vec.Vec.len_val targs
+    simp only [bind_eq_ok_iff, lift_eq, Result.ok.injEq, exists_eq_left'] at h
+    split at h
+    case isTrue =>
+      -- the wrong number of structure parameters
       rename_i hnp
-      have hnpv : (absExprs targs).length = (absProjEntry entry).numParams := by
-        simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hnp
-        rw [hnp] at hcl
+      have hnpv : (absExprs targs).length ≠ (absProjEntry entry).numParams := by
+        simp only [bne_iff_ne, ne_eq] at hnp
         simp only [absExprs, List.length_map, absProjEntry]
-        exact hcl.symm
-      split at h
-      case isTrue =>
-        -- the wrong number of universe levels
-        rename_i hlp
-        have hlpv : (absLevels us).length ≠ (absProjEntry entry).levelParams.length := by
-          simp only [bne_iff_ne, ne_eq] at hlp
-          have h1 : (alloc.vec.Vec.len us).val = us.val.length := alloc.vec.Vec.len_val us
-          have h2 : (alloc.vec.Vec.len entry.level_params).val
-              = entry.level_params.val.length := alloc.vec.Vec.len_val entry.level_params
-          simp only [absLevels, absProjEntry, absNames, List.length_map]
-          intro hEq
-          exact hlp (by scalar_tac)
-        simp only [bind_eq_ok_iff] at h
-        obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
-        obtain rfl := err_eq hr
-        refine not_implemented_throw (s := "projection without a native entry") hce1 ?_
-        rw [projTypeAtCheckedIL, if_neg (fun hcon => hlpv hcon.2.2)]
-        simp
-      rename_i hlp
-      have hlpv : (absLevels us).length = (absProjEntry entry).levelParams.length := by
-        simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hlp
-        have h1 : (alloc.vec.Vec.len us).val = us.val.length := alloc.vec.Vec.len_val us
-        have h2 : (alloc.vec.Vec.len entry.level_params).val
-            = entry.level_params.val.length := alloc.vec.Vec.len_val entry.level_params
-        have h3 : (alloc.vec.Vec.len us).val
-            = (alloc.vec.Vec.len entry.level_params).val := by rw [hlp]
-        simp only [absLevels, absProjEntry, absNames, List.length_map]
-        omega
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨c, hcf, h⟩ := h
-      have hcv := CoreK.projEntryFireOk entry us c hent hus hcf
-      split at h
-      case isTrue =>
-        simp only [bind_eq_ok_iff, Result.ok.injEq] at h
-        obtain ⟨_, -, hcontra⟩ := h
-        exact absurd hcontra (by simp)
-      rename_i hcfalse
-      -- the projection is out of a propositional structure into a non-proposition
+        intro hEq
+        exact hnp (by scalar_tac)
       simp only [bind_eq_ok_iff] at h
       obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
       obtain rfl := err_eq hr
-      refine invalid_throw
-        (s := "projection from a propositional structure must be a proposition") hce1 ?_
-      rw [projTypeAtCheckedIL, if_pos ⟨hname, hnpv, hlpv⟩, projPropGuardIL,
-        if_neg (by rw [← hcv]; exact hcfalse)]
+      refine not_implemented_throw (s := "projection without a native entry") hce1 ?_
+      rw [projTypeAtCheckedIL, if_neg (fun hcon => hnpv hcon.2.1)]
       simp
+    rename_i hnp
+    have hnpv : (absExprs targs).length = (absProjEntry entry).numParams := by
+      simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hnp
+      rw [hnp] at hcl
+      simp only [absExprs, List.length_map, absProjEntry]
+      exact hcl.symm
+    split at h
+    case isTrue =>
+      -- the wrong number of universe levels
+      rename_i hlp
+      have hlpv : (absLevels us).length ≠ (absProjEntry entry).levelParams.length := by
+        simp only [bne_iff_ne, ne_eq] at hlp
+        have h1 : (alloc.vec.Vec.len us).val = us.val.length := alloc.vec.Vec.len_val us
+        have h2 : (alloc.vec.Vec.len entry.level_params).val
+            = entry.level_params.val.length := alloc.vec.Vec.len_val entry.level_params
+        simp only [absLevels, absProjEntry, absNames, List.length_map]
+        intro hEq
+        exact hlp (by scalar_tac)
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+      obtain rfl := err_eq hr
+      refine not_implemented_throw (s := "projection without a native entry") hce1 ?_
+      rw [projTypeAtCheckedIL, if_neg (fun hcon => hlpv hcon.2.2)]
+      simp
+    rename_i hlp
+    have hlpv : (absLevels us).length = (absProjEntry entry).levelParams.length := by
+      simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hlp
+      have h1 : (alloc.vec.Vec.len us).val = us.val.length := alloc.vec.Vec.len_val us
+      have h2 : (alloc.vec.Vec.len entry.level_params).val
+          = entry.level_params.val.length := alloc.vec.Vec.len_val entry.level_params
+      have h3 : (alloc.vec.Vec.len us).val
+          = (alloc.vec.Vec.len entry.level_params).val := by rw [hlp]
+      simp only [absLevels, absProjEntry, absNames, List.length_map]
+      omega
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨c, hcf, h⟩ := h
+    have hcv := CoreK.projEntryFireOk entry us c hent hus hcf
+    split at h
+    case isTrue =>
+      simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+      obtain ⟨_, -, hcontra⟩ := h
+      exact absurd hcontra (by simp)
+    rename_i hcfalse
+    -- the projection is out of a propositional structure into a non-proposition
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+    obtain rfl := err_eq hr
+    refine invalid_throw
+      (s := "projection from a propositional structure must be a proposition") hce1 ?_
+    rw [projTypeAtCheckedIL, if_pos ⟨hname, hnpv, hlpv⟩, projPropGuardIL,
+      if_neg (by rw [← hcv]; exact hcfalse)]
+    simp
 
 /-- `proj_type_at_checked_i_refines` at a failure, the pre-#67 statement.  The
 two well-formedness hypotheses on `targs` and `pe` are the shared statement's;
@@ -641,57 +641,113 @@ theorem proj_type_at_checked_i_err {entry : env.ProjEntry} {sn t : name.Name}
 cited clause's tail** (`core_c.rs:3484`): the head shape of the reduced subject
 type, the projection-table lookup (`Refine/CoreKProj.lean`'s
 `find_proj_refines`, which also hands back the entry's well-formedness) and
-`proj_type_at_checked_i`.  State-free; the failure half is
-`infer_proj_at_i_err` below (task #67). -/
+`proj_type_at_checked_i`.  State-free, so the accept verdict is a monadic
+equation, not a `Sim`.
+
+Stated over the whole outcome (task #67): a head that is not a `.const` and a
+missing table entry are the cited clause's two other
+`throw (.notImplemented "projection without a native entry")`s
+(`CoreC.lean:1380` and `:1379`), and the `some entry` route is
+`proj_type_at_checked_i_refines`'s own `.Err` arm.  The `.Err` arm is also
+available on its own as `infer_proj_at_i_err` below. -/
 theorem infer_proj_at_i_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {sn : name.Name} {i : Std.U64} {pe te r : expr.Expr}
+    {sn : name.Name} {i : Std.U64} {pe te : expr.Expr}
+    {out : core.result.Result expr.Expr core_types.CheckError}
     (hrel : FEnvRel fe lfe) (hfwf : FEnvWF fe)
     (hsn : NameWF sn) (hpe : ExprWF pe) (hte : ExprWF te)
-    (h : cached.core_c.infer_proj_at_i fe sn i pe te = ok (.Ok r)) :
-    inferProjAtIL lfe (absName sn) i.val (absExpr pe) (absExpr te)
-        = pure (absExpr r) ∧ ExprWF r := by
-  unfold cached.core_c.infer_proj_at_i at h
-  simp only [bind_eq_ok_iff, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
-  obtain ⟨f, hf, h⟩ := h
-  obtain ⟨hfabs, hfnwf⟩ := ExprOps.get_app_fn_refines hte hf
-  obtain ⟨⟨fd, fk⟩⟩ := f
-  cases fk
-  case Const t us' =>
-    simp only [ExprOps.node_kind, bind_eq_ok_iff] at h
-    obtain ⟨o, ho, h⟩ := h
-    obtain ⟨hnwf, huswf⟩ := CoreK.constKind_wf_inv hfnwf rfl
-    obtain ⟨hoabs, howf⟩ := ConRon.Refine.find_proj_refines
-      (ConRon.Refine.FindAgree.of_rel hrel hfwf)
-      (ConRon.Refine.FindWF.of_wf hfwf) hnwf ho
-    have hgf : ConLeche.Cached.ExprC.getAppFn (absExpr te)
-        = .const (absName t) (absLevels us') := by
-      rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hfabs]; rfl
-    cases o with
-    | none =>
-      simp only [bind_eq_ok_iff, lift_eq, Result.ok.injEq, reduceCtorEq,
-        and_false, exists_false] at h
-    | some entry =>
-      simp only [Option.map_some] at hoabs
-      simp only [bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h
-      obtain ⟨targs, hta, h⟩ := h
-      obtain ⟨htabs, htawf⟩ := ExprOps.get_app_args_refines hte hta
-      obtain ⟨hres, hrwf⟩ := proj_type_at_checked_i_refines (howf entry rfl)
-        hsn hnwf huswf htawf hpe h
-      refine ⟨?_, hrwf⟩
-      have htabs' : ConLeche.Cached.ExprC.getAppArgs (absExpr te)
-          = absExprs targs := by
-        rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← htabs]
-      have hfp : lfe.findProj? (absName t) i.val = some (absProjEntry entry) := hoabs.symm
-      simpa only [inferProjAtIL, hgf, htabs', hfp] using hres
-  all_goals
-    simp only [ExprOps.node_kind, bind_eq_ok_iff, lift_eq, Result.ok.injEq,
-      reduceCtorEq, and_false, exists_false] at h
+    (h : cached.core_c.infer_proj_at_i fe sn i pe te = ok out) :
+    match out with
+    | .Ok r =>
+      inferProjAtIL lfe (absName sn) i.val (absExpr pe) (absExpr te)
+          = pure (absExpr r) ∧ ExprWF r
+    | .Err ce => ∀ lst : ConLeche.Cached.CState,
+      ErrSim ce ((inferProjAtIL lfe (absName sn) i.val (absExpr pe)
+        (absExpr te)).run lst) := by
+  cases out with
+  | Ok r =>
+    unfold cached.core_c.infer_proj_at_i at h
+    simp only [bind_eq_ok_iff, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
+    obtain ⟨f, hf, h⟩ := h
+    obtain ⟨hfabs, hfnwf⟩ := ExprOps.get_app_fn_refines hte hf
+    obtain ⟨⟨fd, fk⟩⟩ := f
+    cases fk
+    case Const t us' =>
+      simp only [ExprOps.node_kind, bind_eq_ok_iff] at h
+      obtain ⟨o, ho, h⟩ := h
+      obtain ⟨hnwf, huswf⟩ := CoreK.constKind_wf_inv hfnwf rfl
+      obtain ⟨hoabs, howf⟩ := ConRon.Refine.find_proj_refines
+        (ConRon.Refine.FindAgree.of_rel hrel hfwf)
+        (ConRon.Refine.FindWF.of_wf hfwf) hnwf ho
+      have hgf : ConLeche.Cached.ExprC.getAppFn (absExpr te)
+          = .const (absName t) (absLevels us') := by
+        rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hfabs]; rfl
+      cases o with
+      | none =>
+        simp only [bind_eq_ok_iff, lift_eq, Result.ok.injEq, reduceCtorEq,
+          and_false, exists_false] at h
+      | some entry =>
+        simp only [Option.map_some] at hoabs
+        simp only [bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h
+        obtain ⟨targs, hta, h⟩ := h
+        obtain ⟨htabs, htawf⟩ := ExprOps.get_app_args_refines hte hta
+        obtain ⟨hres, hrwf⟩ := proj_type_at_checked_i_refines (howf entry rfl)
+          hsn hnwf huswf htawf hpe h
+        refine ⟨?_, hrwf⟩
+        have htabs' : ConLeche.Cached.ExprC.getAppArgs (absExpr te)
+            = absExprs targs := by
+          rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← htabs]
+        have hfp : lfe.findProj? (absName t) i.val = some (absProjEntry entry) := hoabs.symm
+        simpa only [inferProjAtIL, hgf, htabs', hfp] using hres
+    all_goals
+      simp only [ExprOps.node_kind, bind_eq_ok_iff, lift_eq, Result.ok.injEq,
+        reduceCtorEq, and_false, exists_false] at h
+  | Err ce =>
+    intro lst
+    unfold cached.core_c.infer_proj_at_i at h
+    simp only [bind_eq_ok_iff, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
+    obtain ⟨f, hf, h⟩ := h
+    obtain ⟨hfabs, hfnwf⟩ := ExprOps.get_app_fn_refines hte hf
+    obtain ⟨⟨fd, fk⟩⟩ := f
+    cases fk
+    case Const t us' =>
+      simp only [ExprOps.node_kind, bind_eq_ok_iff] at h
+      obtain ⟨o, ho, h⟩ := h
+      obtain ⟨hnwf, huswf⟩ := CoreK.constKind_wf_inv hfnwf rfl
+      obtain ⟨hoabs, howf⟩ := ConRon.Refine.find_proj_refines
+        (ConRon.Refine.FindAgree.of_rel hrel hfwf)
+        (ConRon.Refine.FindWF.of_wf hfwf) hnwf ho
+      have hgf : ConLeche.Cached.ExprC.getAppFn (absExpr te)
+          = .const (absName t) (absLevels us') := by
+        rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hfabs]; rfl
+      cases o with
+      | none =>
+        simp only [Option.map_none] at hoabs
+        simp only [bind_eq_ok_iff, lift_eq] at h
+        obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+        obtain rfl := err_eq hr
+        refine not_implemented_throw (s := "projection without a native entry") hce1 ?_
+        simp only [inferProjAtIL, hgf, ← hoabs]
+        simp
+      | some entry =>
+        simp only [Option.map_some] at hoabs
+        simp only [bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h
+        obtain ⟨targs, hta, h⟩ := h
+        obtain ⟨htabs, htawf⟩ := ExprOps.get_app_args_refines hte hta
+        have hres := proj_type_at_checked_i_err (howf entry rfl) hsn hnwf huswf
+          htawf hpe h lst
+        have htabs' : ConLeche.Cached.ExprC.getAppArgs (absExpr te) = absExprs targs := by
+          rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← htabs]
+        have hfp : lfe.findProj? (absName t) i.val = some (absProjEntry entry) := hoabs.symm
+        simpa only [inferProjAtIL, hgf, htabs', hfp] using hres
+    all_goals
+      simp only [ExprOps.node_kind, bind_eq_ok_iff, lift_eq] at h
+      obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
+      obtain rfl := err_eq hr
+      refine not_implemented_throw (s := "projection without a native entry") hce1 ?_
+      rw [inferProjAtIL, ConLeche.Cached.ExprC.getAppFn_spec, ← hfabs]
+      simp
 
-/-- **`infer_proj_at_i`'s failure half** (task #67): a head that is not a
-`.const` and a missing table entry are the cited clause's two other
-`throw (.notImplemented "projection without a native entry")`s
-(`CoreC.lean:1380` and `:1379`); the `some entry` route is
-`proj_type_at_checked_i_err`. -/
+/-- `infer_proj_at_i_refines` at a failure, the pre-#67 statement. -/
 theorem infer_proj_at_i_err {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {sn : name.Name} {i : Std.U64} {pe te : expr.Expr}
     {ce : core_types.CheckError}
@@ -699,50 +755,8 @@ theorem infer_proj_at_i_err {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     (hsn : NameWF sn) (hpe : ExprWF pe) (hte : ExprWF te)
     (h : cached.core_c.infer_proj_at_i fe sn i pe te = ok (.Err ce))
     (lst : ConLeche.Cached.CState) :
-    ErrSim ce ((inferProjAtIL lfe (absName sn) i.val (absExpr pe) (absExpr te)).run lst) := by
-  unfold cached.core_c.infer_proj_at_i at h
-  simp only [bind_eq_ok_iff, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
-  obtain ⟨f, hf, h⟩ := h
-  obtain ⟨hfabs, hfnwf⟩ := ExprOps.get_app_fn_refines hte hf
-  obtain ⟨⟨fd, fk⟩⟩ := f
-  cases fk
-  case Const t us' =>
-    simp only [ExprOps.node_kind, bind_eq_ok_iff] at h
-    obtain ⟨o, ho, h⟩ := h
-    obtain ⟨hnwf, huswf⟩ := CoreK.constKind_wf_inv hfnwf rfl
-    obtain ⟨hoabs, howf⟩ := ConRon.Refine.find_proj_refines
-      (ConRon.Refine.FindAgree.of_rel hrel hfwf)
-      (ConRon.Refine.FindWF.of_wf hfwf) hnwf ho
-    have hgf : ConLeche.Cached.ExprC.getAppFn (absExpr te)
-        = .const (absName t) (absLevels us') := by
-      rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hfabs]; rfl
-    cases o with
-    | none =>
-      simp only [Option.map_none] at hoabs
-      simp only [bind_eq_ok_iff, lift_eq] at h
-      obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
-      obtain rfl := err_eq hr
-      refine not_implemented_throw (s := "projection without a native entry") hce1 ?_
-      simp only [inferProjAtIL, hgf, ← hoabs]
-      simp
-    | some entry =>
-      simp only [Option.map_some] at hoabs
-      simp only [bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h
-      obtain ⟨targs, hta, h⟩ := h
-      obtain ⟨htabs, htawf⟩ := ExprOps.get_app_args_refines hte hta
-      have hres := proj_type_at_checked_i_err (howf entry rfl) hsn hnwf huswf
-        htawf hpe h lst
-      have htabs' : ConLeche.Cached.ExprC.getAppArgs (absExpr te) = absExprs targs := by
-        rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← htabs]
-      have hfp : lfe.findProj? (absName t) i.val = some (absProjEntry entry) := hoabs.symm
-      simpa only [inferProjAtIL, hgf, htabs', hfp] using hres
-  all_goals
-    simp only [ExprOps.node_kind, bind_eq_ok_iff, lift_eq] at h
-    obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
-    obtain rfl := err_eq hr
-    refine not_implemented_throw (s := "projection without a native entry") hce1 ?_
-    rw [inferProjAtIL, ConLeche.Cached.ExprC.getAppFn_spec, ← hfabs]
-    simp
+    ErrSim ce ((inferProjAtIL lfe (absName sn) i.val (absExpr pe) (absExpr te)).run lst) :=
+  infer_proj_at_i_refines hrel hfwf hsn hpe hte h lst
 
 /-- `ConLeche/Cached/CoreC.lean:1353-1381` — **`infer_proj_i` refines
 `inferBodyI`'s `.proj` clause** (`core_c.rs:3558`): the subject's type at the
