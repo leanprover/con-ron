@@ -54,8 +54,12 @@ where `hds` falls out of the parser's own refinement (DESIGN.md, task #81).
 `hpins : absPins pins = ConLeche.natOpPinSets` was a sixth until **task #74**.
 It said that the pin list the port threads is the global the pinned con-leche
 baked into `checkDeclStepC`; the vendored con-leche takes the list as an
-argument of the fold instead (its task #285), so the whole tower is stated at
-`absPins pins` and there is no hypothesis about the pins' value anywhere.
+argument of the fold instead (its task #304, on upstream master since task #83's
+bump: `pins` is `checkDecls`' explicit second argument with no default), so the
+whole tower is stated at `absPins pins` and there is no hypothesis about the
+pins' value anywhere.  The same bump retired `ConLeche.model_exists_with` /
+`no_proof_of_False_with`: there is one pair of upstream theorems now, and it is
+already over every pin list, so this file composes with that pair directly.
 
 ## The axiom census
 
@@ -92,7 +96,6 @@ open ConRon.Refine ConRon.Refine.State ConRon.Refine.FEnv
 
 namespace ConRon.Refine
 
-open ConRon.Refine.CheckerDecl (absDeclaration DeclarationWF)
 open ConRon.Refine.Installed (leanCheckDecls check_decls_refines)
 
 universe w
@@ -105,6 +108,7 @@ in the stream.  The port's own `Native` claims nothing (`ErrSimPos`).  The two
 corollaries below feed the accept half to con-leche's theorems. -/
 theorem check_decls_verified_refines
     (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
+    (hraw : CheckerDecl.BasisRawSpec)
     (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
@@ -120,7 +124,7 @@ theorem check_decls_verified_refines
       Installed.ErrSimPos er
         (ConLeche.Cached.checkDecls .verified (absPins pins)
           ⟨ds.val.map absDeclaration⟩) := by
-  have hr := check_decls_refines hk hind hinde hvar hds h
+  have hr := check_decls_refines hk hraw hind hinde hvar hds h
   rw [leanCheckDecls] at hr
   cases out with
   | Ok e => exact hr
@@ -130,6 +134,7 @@ theorem check_decls_verified_refines
 the two capstones below consume. -/
 theorem check_decls_verified_refines_ok
     (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
+    (hraw : CheckerDecl.BasisRawSpec)
     (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
@@ -138,13 +143,14 @@ theorem check_decls_verified_refines_ok
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ConLeche.Cached.checkDecls .verified (absPins pins)
       ⟨ds.val.map absDeclaration⟩ = .ok (absEnv e) :=
-  check_decls_verified_refines hk hind hinde hvar hds h
+  check_decls_verified_refines hk hraw hind hinde hvar hds h
 
 /-- **The main theorem for the Rust checker** (DESIGN.md §1): every environment
 `crates/con-ron-core`'s `check_decls` accepts has a model in every set theory.
 `ConLeche.model_exists` at the accept above. -/
 theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
     (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
+    (hraw : CheckerDecl.BasisRawSpec)
     (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
@@ -153,7 +159,7 @@ theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e)) :=
   ConLeche.model_exists V (absPins pins) ⟨ds.val.map absDeclaration⟩ (absEnv e)
-    (check_decls_verified_refines_ok hk hind hinde hvar hds h)
+    (check_decls_verified_refines_ok hk hraw hind hinde hvar hds h)
 
 /-- **The main corollary for the Rust checker** (DESIGN.md §1): an accepted
 stream never yields a constant of type `False`.  con-leche's
@@ -163,6 +169,7 @@ accept.  The *chunk*-level corollary, `ConLeche.no_False_declaration`, is about
 the whole pipeline including the parser, and is con-ron's task #84. -/
 theorem conron.no_proof_of_False (V : Type w) [ConLeche.SetTheory V]
     (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
+    (hraw : CheckerDecl.BasisRawSpec)
     (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
@@ -174,7 +181,7 @@ theorem conron.no_proof_of_False (V : Type w) [ConLeche.SetTheory V]
   fun hc =>
     let ⟨c, hmem, hty⟩ := hc
     ConLeche.Cached.no_proof_of_False_cached V (μ := .verified) rfl
-      (check_decls_verified_refines_ok hk hind hinde hvar hds h) c hmem hty
+      (check_decls_verified_refines_ok hk hraw hind hinde hvar hds h) c hmem hty
 
 /-! ## The knot and the inductive routes discharged
 
@@ -286,7 +293,8 @@ theorem conron.no_proof_of_False_decoded (V : Type w) [ConLeche.SetTheory V]
 
 The theorems above are general in `pins` and, since **task #74**, say nothing
 about its *value*: the vendored con-leche's fold takes the pin list as an
-argument (its task #285), so `conron.model_exists'` is already the statement at
+argument (its task #304, upstream on master), so `conron.model_exists'` is
+already the statement at
 whatever list `con_ron::driver::pins_for_run` hands `check_decls`.  What it
 still asks is `hvar : CheckerPins.PinsWF pins`, the argument's own
 well-formedness, which is a promise about the argument and not implied by
@@ -393,9 +401,7 @@ the two `_embedded` corollaries carry is the decoded pins `hp`, the parser's
 /-- info: 'ConLeche.model_exists' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConLeche.model_exists
 
-/-- info: 'ConLeche.Cached.no_proof_of_False_cached' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
+/-- info: 'ConLeche.Cached.no_proof_of_False_cached' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConLeche.Cached.no_proof_of_False_cached
 
 -- The binary-instance corollaries (task #64, restated at task #74).  ONE entry
