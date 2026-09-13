@@ -1,5 +1,6 @@
 /-
-`kernel::pins_decode` — the embedded pin text and its decoder (tasks #43, #64).
+`kernel::pins_decode` — the embedded pin text and its decoder (tasks #43, #64,
+#74).
 
 DESIGN.md §3's pin paragraph used to say that the `Nat`-operation pin sets are
 *runtime data*: the unverified driver read them from a `con-ron-pins/1` file and
@@ -10,20 +11,23 @@ inside the core: `kernel::pins_text::PINS_TEXT` is the text as a `&'static str`
 and `kernel::pins_decode::decode` is a *verified* reader of it, so the pin list
 is a closed term of the model, `decode PINS_TEXT`.
 
-**Task #64 closes both of task #43's open statements**, one by proof and one by
-`native_decide`, which the maintainer accepted as an interim (DESIGN.md §3's
-pins paragraph, and `Refine/README.md`'s "where the native-decide axiom lives"):
+**Task #64 closed both of task #43's open statements**, one by proof and one by
+`native_decide` (accepted as an interim), and **task #74 retired the second
+one**: con-leche's own fold takes the pin list as an argument now (its task
+#285, vendored here), so there is no `absPins pins = natOpPinSets` left to
+discharge and nothing in the port is evaluated natively.  What this file states
+is the one statement that was always an ordinary proof:
 
 | statement | how |
 |---|---|
 | `pins_decode_refines` | **proved**, no axiom: `Refine/PinsDec.lean`'s byte-level reference decoder splits it into (A) the Aeneas model against `PinsDec` and (B) `PinsDec` against `ConRon.Dump.parsePins` |
-| `pins_closed` | **`native_decide`**: one closed computation on static data, and the *only* place in the port where native evaluation is trusted |
-| `pins_text_decodes` | `pins_closed`, verbatim — task #43's spelling of it |
-| `check_decls_pins_refines` | the corollary, from the two above (task #56's proof, unchanged) |
 
 `Refine/PinsDec.lean`'s module note is the map of the proof; the files are
 `PinsDec`, `PinsAbs`, `PinsBytes`, `PinsRecords`, `PinsRun` (half A),
-`PinsAscii`, `PinsSplit`, `PinsRead` (half B).
+`PinsAscii`, `PinsSplit`, `PinsRead` (half B).  What the *decoded* list is good
+for beyond its own refinement is `Refine/PinsWF.lean`'s `decode_embedded_wf`:
+`PinsWF` for the embedded run, which is the one thing `Refine/Main.lean`'s
+`conron.*_embedded` corollaries still ask of the pins.
 
 **No hypothesis was added.**  `pins_decode_refines` is task #43's statement,
 character for character: the decoder's extra strictness (single spaces, one
@@ -32,26 +36,20 @@ direction free, and no well-formedness side condition is needed anywhere —
 every value a record installs is built by a *smart constructor* whose own
 refinement lemma already says what it abstracts to.
 
-## What `native_decide` is trusted for here
+## Nothing is trusted to native evaluation here any more
 
-Exactly one closed computation on static data: that the text
-`kernel::pins_text::PINS_TEXT` embeds decodes, under `ConRon.Dump.parsePins`,
-to con-leche's own `ConLeche.natOpPinSets`.  It is a fact about two committed
-constants and about no input the binary will ever be given.  Task #43 measured
-why the kernel cannot check it (a well-founded reference decoder does not whnf;
-a 532 KB string literal expands quadratically) and spike #63 is the attempt to
-remove the need; until then the axiom is confined to `pins_closed` below, whose
-census is pinned by `#guard_msgs`, and to the `conron.*_embedded` corollaries
-that use it.  The general, `pins`-parametric theorems of `Refine/Main.lean` do
-not mention the embedded text at all and keep their own census.
-
-Note that Aeneas already spends a native-decide axiom on any extracted `&str`
-constant: `toStr`'s bound `s.toByteArray.size ≤ U32.max` is discharged by its
-own default argument `by decide +native` (`Aeneas/Std/String.lean`, whose own
-comment says it should not be).  So `PINS_TEXT` carries
-`pins_text.PINS_TEXT._native.decide.ax_1` before any proof of ours, and every
-statement *about the embedded constant* inherits it.  That is Aeneas's to fix,
-and it is why the embedded census has two native entries rather than one.
+Task #64's `pins_closed` was the port's single `native_decide` site, and
+`Refine/README.md`'s "where the native-decide axiom lives" was the standing
+statement of what it bought.  It is gone (task #74, the section below says
+exactly what went with it).  Note that Aeneas still spends a native-decide
+axiom on any extracted `&str` constant — `toStr`'s bound
+`s.toByteArray.size ≤ U32.max` is discharged by its own default argument
+`by decide +native` (`Aeneas/Std/String.lean`, whose own comment says it should
+not be) — so `kernel::pins_text::PINS_TEXT` carries
+`pins_text.PINS_TEXT._native.decide.ax_1` before any proof of ours, and any
+statement whose closure *evaluates* the constant would inherit it.  None does:
+`pins_decode_refines` is generic in the byte string, and `decode_embedded_wf`
+holds for every byte string too.
 
 ## `sorry` count in this file: 0
 -/
@@ -125,155 +123,45 @@ theorem pins_decode_refines_ok (t : Str)
     ConRon.Dump.parsePins (absText t) = .ok (absPins v) :=
   pins_decode_refines t (.Ok v) h
 
-/-! ## The closed computation
+/-! ## The closed computation is gone (task #74)
 
-The statement task #43 set out to prove and could not, with the reasons it
-measured — none a matter of patience:
+Task #64 proved one more statement here, `pins_closed`, by `native_decide`:
+that the embedded text decodes to con-leche's own `ConLeche.natOpPinSets`.  It
+was needed because the cited `checkDivModPin` read that global, so the tower's
+statements carried `hpins : absPins pins = ConLeche.natOpPinSets` and somebody
+had to discharge it for the list the binary threads.  Three obstacles made the
+kernel unable to check it — Aeneas's `toStr` already spends a native-decide
+axiom on every extracted `&str`; a well-founded reference decoder does not
+whnf; kernel reduction of a string literal is quadratic, so even the byte size
+of a 532 KB literal is out of reach — and DESIGN.md §3 recorded the interim.
 
-**(a) The Aeneas string model already spends a native-decide axiom.**  Aeneas
-renders a `&str` constant as `toStr "…"`, and `toStr`'s bound
-`s.toByteArray.size ≤ U32.max` is discharged by its own default argument
-`by decide +native` (`Aeneas/Std/String.lean`, with the library's own TODO
-saying it should not be).  So, *before any proof of ours*,
+**Task #74 removes the need instead of the obstacles.**  con-leche's task #285
+makes the pin list an argument of the fold, so `check_decls_refines` is
+*already* the statement at whatever list the binary threads and there is
+nothing to identify with a constant.  `pins_closed`, `pins_text_decodes`,
+`pinsTextLean` and `check_decls_pins_refines` are therefore deleted, with
+`Refine/Installed.lean`'s `check_decls_embedded_refines` and
+`Refine/Main.lean`'s two uses of it, and `Refine/BasisPins.lean`'s
+`nat_op_pin_sets_refines`, which was the same corollary stated twice.  No
+`native_decide` is invoked anywhere in `proof/` any more, and the port's own
+sealed axiom is gone from the `conron.*_embedded` census; what those two still
+inherit is Aeneas's `toStr` axiom on the *definition* of the extracted `&str`
+constant they name (`AENEAS_FINDINGS.md` §3.8), which no proof of ours can
+drop.
 
-    #print axioms ConRon.Generated.kernel.pins_text.PINS_TEXT
-    -- [propext, Classical.choice, Quot.sound,
-    --  pins_text.PINS_TEXT._native.decide.ax_1]
-
-`decode` itself is clean (`[propext, Classical.choice, Quot.sound]`).  A
-native-decide-free theorem *about the constant* is therefore impossible without
-an upstream change to Aeneas.
-
-**(b) The reference decoder does not reduce in the kernel at all.**
-`ConRon.Dump.parsePins` was `partial def` (nothing can be proved about a
-`partial def`, and nothing reduces); task #43 made `runLines` total with
-`termination_by`, which buys the *statements* but not evaluation: a
-well-founded recursion does not whnf.  Measured on the smallest possible pin
-text, 23 bytes:
-
-    example : (parsePins "con-ron-pins/1\nend 0\n").isOk = true := by rfl
-    -- Tactic `rfl` failed … is not definitionally equal to `true`   (1.3 s)
-
-**(c) Kernel reduction of a string literal is quadratic**, so even the byte
-size of the embedded text is out of reach: 3.0 s for a 256-byte prefix, 27 s
-for 1 KB, over 300 s for 8 KB, ≈10⁶–10⁷ s for the real 532 KB by the fit.
-
-So the direct route dies by (b) and (c), and the round-trip route (prove
-`parsePins (dumpPins v) = .ok v` generically, then `PINS_TEXT = dumpPins
-ConLeche.natOpPinSets` by `rfl`) by (c) twice over.  **Task #64's ruling is to
-take the computation by `native_decide` as an interim** and to confine it to
-the single lemma below; spike #63 is the attempt to remove it. -/
-
--- `DecidableEq ConLeche.NatOpPinSet` — what the closed computation below has to
--- decide — is derived in `Refine/PinsDec.lean`, where that file's own `#guard`
--- self-tests already need it.  Derived means con-leche's `instDecidableEqExpr`
--- on the eight pins and the eight certificate lists: the structural walk, which
--- is what makes it exact, and it is only ever run by compiled code.
-
-/-- **The embedded text, as a Lean `String`.**  `PINS_TEXT` is by definition
-`toStr "…"` and `absText_toStr` undoes `toStr` generically, so this is that
-literal after a `delta` step and **nothing is evaluated** — which is what makes
-a statement about the Rust constant a statement about a string literal at zero
-kernel cost. -/
-def pinsTextLean : String := absText pins_text.PINS_TEXT
-
-/-- **The closed computation, by `native_decide`** — the *only* place in the
-port where native evaluation is trusted (`Refine/README.md`).  The embedded
-`con-ron-pins/1` text decodes, under the Lean reference reader, to con-leche's
-own `ConLeche.natOpPinSets`: a fact about two committed constants and about no
-input the binary will ever be given.
-
-The `rw` is what makes it cheap: `absText_toStr` turns the model's `Str` into
-the 532 KB string literal without touching the `toStr` bound, so the compiled
-computation is `parsePins "…"` and nothing about `Slice`, `U8` or `toStr` is
-ever run.  It takes about ten seconds end to end. -/
-theorem pins_closed :
-    ConRon.Dump.parsePins pinsTextLean = .ok ConLeche.natOpPinSets := by
-  rw [pinsTextLean, kernel.pins_text.PINS_TEXT, absText_toStr]
-  native_decide
-
-/-- Task #43's spelling of the closed computation, which
-`check_decls_pins_refines` is written against: `pins_closed`, with
-`pinsTextLean` unfolded. -/
-theorem pins_text_decodes :
-    ConRon.Dump.parsePins (absText pins_text.PINS_TEXT)
-      = .ok ConLeche.natOpPinSets := pins_closed
-
-/-- **The corollary** (DESIGN.md §1's statement, with the pins closed): the pin
-list the binary uses is con-leche's own, with no hypothesis about it.  The
-driver passes `decode_embedded()`, Aeneas models `str::as_bytes` as the
-identity, so that is `decode PINS_TEXT` — and the two statements above say
-what it decodes to.
-
-**Proved** (task #56): task #43 left this `sorry` because the tier below it
-was not refined either, but the composition needs nothing from that tier — it
-is `pins_decode_refines` at `PINS_TEXT` against `pins_text_decodes`, and
-`Except.ok` is injective.
-
-**Over the whole outcome** (task #67).  The statement is not about a con-leche
-`Except` at all — there is no con-leche decoder — so its `.Err` branch is the
-`Native` half of the convention spelled directly: `absErrKind ce = none`, which
-is `ErrSim`'s vacuous case and claims nothing.  It is `decode`'s own failure
-half, carried up from `pins_decode_refines`; `bad_text` is the only way
-`decode_embedded` can fail.  The outcome is an explicit argument because the
-result binder `v` it replaces was one, and `check_decls_pins_refines_ok` below
-is the pre-#67 statement, verbatim. -/
-theorem check_decls_pins_refines
-    (o : core.result.Result (alloc.vec.Vec nat_op_pins.NatOpPinSet)
-        core_types.CheckError)
-    (h : pins_decode.decode_embedded = ok o) :
-    match o with
-    | .Ok v => absPins v = ConLeche.natOpPinSets
-    | .Err ce => absErrKind ce = none := by
-  rw [pins_decode.decode_embedded, core.str.Str.as_bytes] at h
-  obtain ⟨t, ht, h2⟩ := bind_eq_ok_iff.mp h
-  rw [show t = pins_text.PINS_TEXT from Result.ok_injective ht.symm] at h2
-  cases o with
-  | Err ce => exact pins_decode_refines pins_text.PINS_TEXT _ h2
-  | Ok v =>
-    have h1 : ConRon.Dump.parsePins (absText pins_text.PINS_TEXT)
-        = .ok (absPins v) := pins_decode_refines pins_text.PINS_TEXT _ h2
-    rw [pins_text_decodes] at h1
-    exact (Except.ok.inj h1).symm
-
-/-- `check_decls_pins_refines` at a success, the pre-#67 statement. -/
-theorem check_decls_pins_refines_ok
-    (v : alloc.vec.Vec nat_op_pins.NatOpPinSet)
-    (h : pins_decode.decode_embedded = ok (.Ok v)) :
-    absPins v = ConLeche.natOpPinSets :=
-  check_decls_pins_refines (.Ok v) h
+What survives about the embedded text is what does not need evaluating:
+`pins_decode_refines` above (an ordinary proof, about *every* byte string) and
+`Refine/PinsWF.lean`'s `decode_embedded_wf`, which is what the `_embedded`
+corollaries still use — for `PinsWF`, never for the pins' value. -/
 
 /-! ## The census (DESIGN.md §5)
 
-Three lines, and the difference between them is the whole trust story of this
-file.
-
-* `pins_decode_refines` is an **ordinary proof**: con-leche's own three axioms
-  and nothing else.  It is a theorem about every byte string, so nothing is
-  ever evaluated.
-* `pins_closed` is the **one** native-decide site: `pins_closed._native.
-  native_decide.ax_1_1` is the axiom Lean 4.33 seals the computation into (it
-  asserts exactly `decide (parsePins … = .ok natOpPinSets) = true`, and nothing
-  else), and `pins_text.PINS_TEXT._native.decide.ax_1` is the one Aeneas's
-  `toStr` already spent on the constant before we touched it.
-* `check_decls_pins_refines` inherits both, because it is about the embedded
-  text.  `Refine/Main.lean`'s general theorems do not. -/
+One line, and it is an **ordinary proof**: `pins_decode_refines` depends on
+con-leche's own three axioms and nothing else.  It is a theorem about every
+byte string, so nothing is ever evaluated — which is why the file that used to
+be the port's one native-evaluation site now has none at all (task #74). -/
 
 /-- info: 'ConRon.Refine.pins_decode_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms pins_decode_refines
-
-/-- info: 'ConRon.Refine.pins_closed' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- pins_closed._native.native_decide.ax_1_2,
- pins_text.PINS_TEXT._native.decide.ax_1] -/
-#guard_msgs in #print axioms pins_closed
-
-/-- info: 'ConRon.Refine.check_decls_pins_refines' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- pins_closed._native.native_decide.ax_1_2,
- pins_text.PINS_TEXT._native.decide.ax_1] -/
-#guard_msgs in #print axioms check_decls_pins_refines
 
 end ConRon.Refine

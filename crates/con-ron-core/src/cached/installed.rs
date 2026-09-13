@@ -69,17 +69,21 @@
 //!    `check_pending_list_from(…, pend, i)` the cited `List` recursion at
 //!    `pend[i..]`.
 //! 4. **`check_decls` takes the pin list as a parameter** (§3.6's task-#22
-//!    ruling): `pins : Vec NatOpPinSet` is data, not code, and the upstream
-//!    change the ruling asks for is `checkDecls mode pins ds`, where the
-//!    cited code reads the global `natOpPinSets`.  Task #31 threaded it all
-//!    the way down — `annot_decl_fold_from` → `annot_decl_step` →
+//!    ruling): `pins : Vec NatOpPinSet` is data, not code.  This was a
+//!    deviation while the cited code read the global `natOpPinSets`; the
+//!    upstream change the ruling asked for — `checkDecls mode ds pins`, with
+//!    the shipped fold its default — landed as con-leche task #285 and is
+//!    vendored at task #74, so **the cited fold takes the list too** and the
+//!    refinement is stated at the abstract list with no hypothesis about it.
+//!    Task #31 threaded it all the way down —
+//!    `annot_decl_fold_from` → `annot_decl_step` →
 //!    `annot_step_c` → `parsed_c::check_decl_step_c` → … →
 //!    `checker::check_div_mod_pin_loop`, whose `variants` it *is* — and
 //!    deleted `kernel::nat_op_pins`' empty stub.  An **empty** list is still
 //!    the loop's `[]` arm, i.e. a `Nat.div`/`Nat.mod` stream declines, which
-//!    is sound for the accept direction (§1); the driver
-//!    (`con-ron-check --pins FILE`) is what supplies con-leche's own list,
-//!    read from a `con-ron-pins/1` dump.
+//!    is sound for the accept direction (§1); the binary's own list is the
+//!    embedded text `kernel::pins_text::PINS_TEXT`, decoded in the core
+//!    (task #43), and `con-ron-check --pins FILE` is a test override.
 //! 5. **Message strings** are the cited ones minus their interpolated names
 //!    (§3.1: the theorem never reads them), spelled as `core_types`' code
 //!    points — the same texts `parsed_c` and `kernel::checker_split` use, so
@@ -293,7 +297,6 @@ pub fn annot_value_c_tail(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove installed::annot_step_c_refines, then delete this line
 /// Phase A's step body: annotate-and-install for the three value kinds, the
 /// ordinary step `parsed_c::check_decl_step_c` for everything else.  `i` is
 /// the fold position the record is tagged with.
@@ -326,7 +329,6 @@ pub fn annot_step_c(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove installed::annot_step_defn_c_refines, then delete this line
 /// The `.defnDecl` arm: a pin-certified operation takes the ordinary step
 /// (its check is not separable from its install), everything else is
 /// annotated, installed, and recorded as pending.
@@ -355,7 +357,6 @@ pub fn annot_step_defn_c(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove installed::annot_step_defn_c_push_refines, then delete this line
 /// The cited push, with the RC-linearity read the comment there insists on:
 /// **the counter is read BEFORE the push**, so that the index reaches `push`
 /// unshared.  The annotated type `r.2.1` is not read — it is `r.1`'s own
@@ -391,7 +392,6 @@ pub fn annot_step_defn_c_push(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove installed::annot_step_thm_c_refines, then delete this line
 /// The `.thmDecl` arm: **a theorem installs BY STATEMENT**.  The header's
 /// install half runs and the constant is pushed with the record's own raw
 /// value, which nothing ever reads (a theorem is opaque to reduction), so
@@ -415,7 +415,6 @@ pub fn annot_step_thm_c(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove installed::annot_step_thm_c_push_refines, then delete this line
 /// The theorem arm's record and push.  The raw value is stored twice — in the
 /// environment and in the `ValueGroup` — where Lean shares one node (§3.2's
 /// copy rule).
@@ -448,7 +447,6 @@ pub fn annot_step_thm_c_push(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove installed::annot_step_opaque_c_refines, then delete this line
 /// The `.opaqueDecl` arm: a `reduce*` witness takes the ordinary step (its
 /// identity certificate is part of its install), everything else is
 /// annotated, installed **as an axiom** — the cited `.axiomInfo`, an opaque's
@@ -475,7 +473,6 @@ pub fn annot_step_opaque_c(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove installed::annot_step_opaque_c_push_refines, then delete this line
 /// The opaque arm's push, the counter read before it.
 pub fn annot_step_opaque_c_push(
     i: u64,
@@ -500,7 +497,6 @@ pub fn annot_step_opaque_c_push(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove installed::annot_step_other_c_refines, then delete this line
 /// The catch-all arm, shared by the three gated branches above: the ordinary
 /// step, which leaves the records untouched — axioms, inductive and basis
 /// blocks and the pinned branches are checked in full at their install.
@@ -519,7 +515,6 @@ pub fn annot_step_other_c(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:187-197 annotDeclStep
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove installed::annot_decl_step_refines, then delete this line
 /// Phase A's step with the position carried and the error tagged: the
 /// accumulator is `(i, fe, pend)`, and a failing step reports the
 /// `CheckError` together with `i`, the fold position of the declaration that
@@ -706,15 +701,16 @@ pub fn check_pending_list_from(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/Installed.lean:440-447 checkDecls
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove installed::check_decls_refines, then delete this line
 /// **The declaration fold**: install every record (phase A), check every
 /// recorded declaration (phase B), return the environment.  This is the
 /// function `ConLeche.no_proof_of_False` is stated about and the algorithm
 /// the binary's driver runs.
 ///
-/// Deviation 4 (the module note): `pins` is the `Nat`-operation pin list,
-/// §3.6's parameter, threaded from here through `annot_decl_step` to
-/// `checker::check_div_mod_pin_loop` (task #31).
+/// Note 4 (the module note): `pins` is the `Nat`-operation pin list, §3.6's
+/// parameter, threaded from here through `annot_decl_step` to
+/// `checker::check_div_mod_pin_loop` (task #31).  It is the cited fold's own
+/// last argument since con-leche task #285 (vendored at task #74), where it
+/// defaults to `natOpPinSets`, so this is no longer a deviation.
 pub fn check_decls(
     mode: &CheckMode,
     pins: &Vec<NatOpPinSet>,
@@ -735,7 +731,6 @@ pub fn check_decls(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:440-447 checkDecls
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove installed::check_decls_phase_b_refines, then delete this line
 /// The cited `checkPendingList mode p.2.1 p.2.2.toList; pure p.2.1.env`: the
 /// records walked, then the environment of the index phase A built.
 pub fn check_decls_phase_b(
@@ -750,7 +745,6 @@ pub fn check_decls_phase_b(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:440-447 checkDecls
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove installed::annot_decl_fold_from_refines, then delete this line
 /// The cited `ds.foldlM (annotDeclStep mode) (0, mkFEnv Env.empty, #[])` as
 /// an index recursion threading the accumulator by value (deviation 3), i.e.
 /// the fold applied to `ds[i..]`.  The `CState` is the caller's — the cited

@@ -29,7 +29,7 @@
 //! | `std_axioms` | `ConLeche/Kernel/StdAxioms.lean` |
 //! | `trust_pins` | `ConLeche/Kernel/TrustPins.lean` |
 //! | `trust_axioms` | `ConLeche/Kernel/TrustAxioms.lean` |
-//! | `nat_op_pins` | `ConLeche/Kernel/NatOpPinSet.lean` + `Kernel/NatOpPins.lean` (the record only: `natOpPinSets` is runtime data, a parameter of `check_decls` — §3.6, task #31) |
+//! | `nat_op_pins` | `ConLeche/Kernel/NatOpPinSet.lean` + `Kernel/NatOpPins.lean` (the record only: `natOpPinSets` is data, the last argument of `checkDecls` on both sides — §3.6, tasks #31/#43/#74) |
 //! | `basis_tables` | `ConLeche/Kernel/BasisA.lean`'s `BasisKind.declsA` — **generated** from con-leche's own value (task #22) |
 //! | `basis_pins` | `ConLeche/Kernel/BasisA.lean`'s two exactly-compared pins (`eqA`, `natA`), read off `basis_tables` (task #27) |
 //! | `checker_base` | `ConLeche/Kernel/CheckerBase.lean` |

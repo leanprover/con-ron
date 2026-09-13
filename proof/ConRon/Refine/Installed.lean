@@ -47,17 +47,13 @@ Every statement below that reaches the core carries them, and
    line.  `hinde` is what makes the inductive routes' rejections mirrored
    rather than unspoken, and so what makes this file statable at the full
    outcome at all.
-3. `hpins : absPins pins = ConLeche.natOpPinSets` — the pinned con-leche
-   (`3e004805`) bakes the global `natOpPinSets` into `checkDeclStepC`, where
-   the port threads the list as a parameter (DESIGN.md §3.6, task #31).
-   `Refine/CheckerPins.lean`'s `check_div_mod_pin_refines` is the lemma that
-   actually consumes it; it is carried from here down so that no statement in
-   between can quietly assume the two lists agree.  (Task #56's
-   `check_decl_step_c_refines` does not yet take it — its pin-route arms are
-   `sorry` — so the hypothesis is inert in today's proofs and live in today's
-   statements, which is the honest way round.)  It is *dischargeable* for the
-   binary's own run: `Refine/Pins.lean`'s `check_decls_pins_refines`, modulo
-   that file's two open statements.
+3. `hpins : absPins pins = ConLeche.natOpPinSets` stood here until **task
+   #74** and is **gone**: the vendored con-leche takes the pin list as an
+   argument of `checkDecls`/`annotDeclStep`/`annotStepC`/`checkDeclStepC` (its
+   task #285), so every statement in this file is at the abstract list
+   `absPins pins` and none of them assumes anything about its value.  What is
+   left of the pins here is `hvar : CheckerPins.PinsWF pins`, the argument's
+   own well-formedness.
 
 ## The canonical-index pair, and where it stops (task #59)
 
@@ -76,16 +72,14 @@ this file builds comes from: `fenv::mk_fenv env::empty`, closed by
 pushes calls `fenv::restrict_to` — phase B's `restrict_to` is on a view whose
 index is discarded — so `FEnvFull` survives the whole fold.
 
-## `leanCheckDecls`: the one line the pins parameter costs
+## `leanCheckDecls`: the pins parameter, applied
 
-The upstream ask of §3.6 is `checkDecls mode pins ds`, with the shipped
-`checkDecls mode ds := checkDecls mode natOpPinSets ds`; the `pins-param`
-branch (con-leche task #285, `_tmp/con-leche-pins`) has it.  So the conclusion
-of `check_decls_refines` is stated against `leanCheckDecls`, which takes the
-pin list and ignores it today.  When the submodule pin moves,
-`leanCheckDecls`'s body becomes `ConLeche.Cached.checkDecls mode pins ds`,
-`hpins` disappears from every statement, and nothing else in this file or in
-`Refine/Main.lean` changes.
+The upstream ask of §3.6 was `checkDecls mode ds pins`, with the shipped
+`checkDecls mode ds := checkDecls mode ds natOpPinSets`.  **It landed** (con-leche
+task #285) and is vendored at task #74, so `leanCheckDecls` — the abbreviation
+`check_decls_refines`'s conclusion is stated against — applies the pin list
+instead of ignoring it, and `hpins` is gone from every statement in this file
+and in `Refine/Main.lean`.
 
 ## `sorry` count in this file: 0 (task #62)
 
@@ -1412,13 +1406,12 @@ mode fe pd, pend)`** (`Installed.lean:136-169`): the ordinary step, which
 leaves the records untouched — axioms, inductive and basis blocks and the
 pinned branches are checked in full at their install.
 
-`hpins` is **no longer inert** (task #58): `check_decl_step_c_refines`'s
-pin-route arms are proved, and the lemma now takes `hpins` together with
-`hvar : CheckerPins.PinsWF pins` (the argument's own well-formedness — without
-it a corrupt stored hash word makes `expr::beq` inexact on a pin that
-nonetheless abstracts to the right value).  Both are threaded from here.  A
-third, `CheckerDecl.DivModOrElse mode`, travelled with them until **task
-#65** made a thrown pin attempt the check's verdict.
+`hvar : CheckerPins.PinsWF pins` is threaded from here — the pin argument's own
+well-formedness, without which a corrupt stored hash word makes `expr::beq`
+inexact on a pin that nonetheless abstracts to the right value.  `hpins`
+travelled beside it until **task #74** made the cited fold take the pin list
+too, and `CheckerDecl.DivModOrElse mode` until **task #65** made a thrown pin
+attempt the check's verdict.
 
 Over the whole outcome (task #67): this step *is* the ordinary step, so both
 halves are `check_decl_step_c_refines`'s, and `hinde` — `IndRoutesSpecErr`, the
@@ -1429,7 +1422,6 @@ theorem annot_step_other_c_refines {mode : env.CheckMode}
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {pend : alloc.vec.Vec parsed_c.PendingCheck} {pd : parsed_c.DeclC}
     {out : core.result.Result (fenv.FEnv × alloc.vec.Vec parsed_c.PendingCheck)
@@ -1442,20 +1434,20 @@ theorem annot_step_other_c_refines {mode : env.CheckMode}
       match out with
       | .Ok (fe', pend') =>
         ∃ lst' lfe',
-          (ConLeche.Cached.checkDeclStepC (absMode mode) lfe (absDeclC pd)).run lst
+          (ConLeche.Cached.checkDeclStepC (absMode mode) (absPins pins) lfe (absDeclC pd)).run lst
               = .ok (lfe', lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ FEnvCanon fe' ∧ FEnvFull fe'
           ∧ pend' = pend
       | .Err e =>
         ErrSim e
-          ((ConLeche.Cached.checkDeclStepC (absMode mode) lfe (absDeclC pd)).run lst) := by
+          ((ConLeche.Cached.checkDeclStepC (absMode mode) (absPins pins) lfe (absDeclC pd)).run lst) := by
   intro lst lfe hsr hfr
   rw [cached.installed.annot_step_other_c] at h
   obtain ⟨q, hstep, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r, st1⟩ := q
   have hrest := CheckerDecl.check_decl_step_c_refines IndAbs.check_fuel_eq hk.1 hind
-    hinde hvar hpins hsw hfw hcan hfull hd hstep lst lfe hsr hfr
+    hinde hvar hsw hfw hcan hfull hd hstep lst lfe hsr hfr
   cases r with
   | Ok fe2 =>
     obtain ⟨hout, rfl⟩ := ok_outS h
@@ -1474,7 +1466,6 @@ theorem annot_step_other_c_refines_ok {mode : env.CheckMode}
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {pend pend' : alloc.vec.Vec parsed_c.PendingCheck} {pd : parsed_c.DeclC}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnvCanon fe) (hfull : FEnvFull fe)
@@ -1483,12 +1474,12 @@ theorem annot_step_other_c_refines_ok {mode : env.CheckMode}
           = ok (.Ok (fe', pend'), st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
-        (ConLeche.Cached.checkDeclStepC (absMode mode) lfe (absDeclC pd)).run lst
+        (ConLeche.Cached.checkDeclStepC (absMode mode) (absPins pins) lfe (absDeclC pd)).run lst
             = .ok (lfe', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ FEnvCanon fe' ∧ FEnvFull fe'
         ∧ pend' = pend :=
-  annot_step_other_c_refines hk hind hinde hvar hpins hsw hfw hcan hfull hd h
+  annot_step_other_c_refines hk hind hinde hvar hsw hfw hcan hfull hd h
 
 /-- **`installed::annot_step_defn_c_push` refines the cited push**
 (`Installed.lean:136-169`, the `.defnDecl` arm's tail): the constant is pushed
@@ -1541,7 +1532,6 @@ theorem annot_step_defn_c_refines {mode : env.CheckMode}
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {i : Std.U64} {fe : fenv.FEnv}
     {pend : alloc.vec.Vec parsed_c.PendingCheck} {pd : parsed_c.DeclC}
     {cv : env.ConstantVal} {value : expr.Expr} {hint : env.ReducibilityHint}
@@ -1557,14 +1547,14 @@ theorem annot_step_defn_c_refines {mode : env.CheckMode}
       match out with
       | .Ok (fe', pend') =>
         ∃ lst' lfe',
-          (ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+          (ConLeche.Cached.annotStepC (absMode mode) (absPins pins) i.val lfe
               (absPendingChecks pend).toArray (absDeclC pd)).run lst
             = .ok ((lfe', (absPendingChecks pend').toArray), lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ PendingChecksWF pend' ∧ FEnvCanon fe' ∧ FEnvFull fe'
       | .Err e =>
         ErrSim e
-          ((ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+          ((ConLeche.Cached.annotStepC (absMode mode) (absPins pins) i.val lfe
               (absPendingChecks pend).toArray (absDeclC pd)).run lst) := by
   intro lst lfe hsr hfr
   subst hpd
@@ -1578,7 +1568,7 @@ theorem annot_step_defn_c_refines {mode : env.CheckMode}
   by_cases hbt : b = true
   · subst hbt
     simp only [if_pos] at h
-    have hres := annot_step_other_c_refines hk hind hinde hvar hpins hsw hfw hcan hfull
+    have hres := annot_step_other_c_refines hk hind hinde hvar hsw hfw hcan hfull
       hdwf h lst lfe hsr hfr
     rw [absDeclC] at hres
     cases out with
@@ -1606,7 +1596,7 @@ theorem annot_step_defn_c_refines {mode : env.CheckMode}
     by_cases hb1t : b1 = true
     · subst hb1t
       simp only [if_pos] at h
-      have hres := annot_step_other_c_refines hk hind hinde hvar hpins hsw hfw hcan
+      have hres := annot_step_other_c_refines hk hind hinde hvar hsw hfw hcan
         hfull hdwf h lst lfe hsr hfr
       rw [absDeclC] at hres
       cases out with
@@ -1662,7 +1652,6 @@ theorem annot_step_defn_c_refines_ok {mode : env.CheckMode}
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {i : Std.U64} {fe fe' : fenv.FEnv}
     {pend pend' : alloc.vec.Vec parsed_c.PendingCheck} {pd : parsed_c.DeclC}
     {cv : env.ConstantVal} {value : expr.Expr} {hint : env.ReducibilityHint}
@@ -1674,12 +1663,12 @@ theorem annot_step_defn_c_refines_ok {mode : env.CheckMode}
           = ok (.Ok (fe', pend'), st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
-        (ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+        (ConLeche.Cached.annotStepC (absMode mode) (absPins pins) i.val lfe
             (absPendingChecks pend).toArray (absDeclC pd)).run lst
           = .ok ((lfe', (absPendingChecks pend').toArray), lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ PendingChecksWF pend' ∧ FEnvCanon fe' ∧ FEnvFull fe' :=
-  annot_step_defn_c_refines hk hind hinde hvar hpins hsw hfw hcan hfull hcv hv hpe hpd h
+  annot_step_defn_c_refines hk hind hinde hvar hsw hfw hcan hfull hcv hv hpe hpd h
 
 /-- **`installed::annot_step_thm_c_push` refines the cited record and push**
 (`Installed.lean:136-169`, the `.thmDecl` arm's tail): the `ienv` record with
@@ -1740,6 +1729,7 @@ install half runs and the constant is pushed with the record's own raw value,
 which nothing ever reads, so phase A never enters a theorem's body. -/
 theorem annot_step_thm_c_refines {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU)
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     {st st' : cached.state_c.CState} {i : Std.U64} {fe : fenv.FEnv}
     {pend : alloc.vec.Vec parsed_c.PendingCheck}
     {cv : env.ConstantVal} {value : expr.Expr}
@@ -1754,7 +1744,7 @@ theorem annot_step_thm_c_refines {mode : env.CheckMode}
       match out with
       | .Ok (fe', pend') =>
         ∃ lst' lfe',
-          (ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+          (ConLeche.Cached.annotStepC (absMode mode) (absPins pins) i.val lfe
               (absPendingChecks pend).toArray
               (.thmDecl (absConstantVal cv) (absExpr value))).run lst
             = .ok ((lfe', (absPendingChecks pend').toArray), lst')
@@ -1762,7 +1752,7 @@ theorem annot_step_thm_c_refines {mode : env.CheckMode}
           ∧ PendingChecksWF pend' ∧ FEnvCanon fe' ∧ FEnvFull fe'
       | .Err e =>
         ErrSim e
-          ((ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+          ((ConLeche.Cached.annotStepC (absMode mode) (absPins pins) i.val lfe
               (absPendingChecks pend).toArray
               (.thmDecl (absConstantVal cv) (absExpr value))).run lst) := by
   intro lst lfe hsr hfr
@@ -1801,6 +1791,7 @@ theorem annot_step_thm_c_refines {mode : env.CheckMode}
 /-- `annot_step_thm_c_refines` at a success, the pre-#67 statement. -/
 theorem annot_step_thm_c_refines_ok {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU)
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     {st st' : cached.state_c.CState} {i : Std.U64} {fe fe' : fenv.FEnv}
     {pend pend' : alloc.vec.Vec parsed_c.PendingCheck}
     {cv : env.ConstantVal} {value : expr.Expr}
@@ -1811,7 +1802,7 @@ theorem annot_step_thm_c_refines_ok {mode : env.CheckMode}
           = ok (.Ok (fe', pend'), st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
-        (ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+        (ConLeche.Cached.annotStepC (absMode mode) (absPins pins) i.val lfe
             (absPendingChecks pend).toArray
             (.thmDecl (absConstantVal cv) (absExpr value))).run lst
           = .ok ((lfe', (absPendingChecks pend').toArray), lst')
@@ -1864,7 +1855,6 @@ theorem annot_step_opaque_c_refines {mode : env.CheckMode}
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {i : Std.U64} {fe : fenv.FEnv}
     {pend : alloc.vec.Vec parsed_c.PendingCheck} {pd : parsed_c.DeclC}
     {cv : env.ConstantVal} {value : expr.Expr}
@@ -1880,14 +1870,14 @@ theorem annot_step_opaque_c_refines {mode : env.CheckMode}
       match out with
       | .Ok (fe', pend') =>
         ∃ lst' lfe',
-          (ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+          (ConLeche.Cached.annotStepC (absMode mode) (absPins pins) i.val lfe
               (absPendingChecks pend).toArray (absDeclC pd)).run lst
             = .ok ((lfe', (absPendingChecks pend').toArray), lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ PendingChecksWF pend' ∧ FEnvCanon fe' ∧ FEnvFull fe'
       | .Err e =>
         ErrSim e
-          ((ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+          ((ConLeche.Cached.annotStepC (absMode mode) (absPins pins) i.val lfe
               (absPendingChecks pend).toArray (absDeclC pd)).run lst) := by
   intro lst lfe hsr hfr
   subst hpd
@@ -1901,7 +1891,7 @@ theorem annot_step_opaque_c_refines {mode : env.CheckMode}
   by_cases hbt : b = true
   · subst hbt
     simp only [if_pos] at h
-    have hres := annot_step_other_c_refines hk hind hinde hvar hpins hsw hfw hcan hfull
+    have hres := annot_step_other_c_refines hk hind hinde hvar hsw hfw hcan hfull
       hdwf h lst lfe hsr hfr
     rw [absDeclC] at hres
     cases out with
@@ -1956,7 +1946,6 @@ theorem annot_step_opaque_c_refines_ok {mode : env.CheckMode}
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {i : Std.U64} {fe fe' : fenv.FEnv}
     {pend pend' : alloc.vec.Vec parsed_c.PendingCheck} {pd : parsed_c.DeclC}
     {cv : env.ConstantVal} {value : expr.Expr}
@@ -1968,12 +1957,12 @@ theorem annot_step_opaque_c_refines_ok {mode : env.CheckMode}
           = ok (.Ok (fe', pend'), st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
-        (ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+        (ConLeche.Cached.annotStepC (absMode mode) (absPins pins) i.val lfe
             (absPendingChecks pend).toArray (absDeclC pd)).run lst
           = .ok ((lfe', (absPendingChecks pend').toArray), lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ PendingChecksWF pend' ∧ FEnvCanon fe' ∧ FEnvFull fe' :=
-  annot_step_opaque_c_refines hk hind hinde hvar hpins hsw hfw hcan hfull hcv hv hpe
+  annot_step_opaque_c_refines hk hind hinde hvar hsw hfw hcan hfull hcv hv hpe
     hpd h
 
 /-- **`installed::annot_step_c` refines `annotStepC`** (`Installed.lean:136-169`):
@@ -1984,7 +1973,6 @@ theorem annot_step_c_refines {mode : env.CheckMode}
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {i : Std.U64} {fe : fenv.FEnv}
     {pend : alloc.vec.Vec parsed_c.PendingCheck} {pd : parsed_c.DeclC}
     {out : core.result.Result (fenv.FEnv × alloc.vec.Vec parsed_c.PendingCheck)
@@ -1997,20 +1985,20 @@ theorem annot_step_c_refines {mode : env.CheckMode}
       match out with
       | .Ok (fe', pend') =>
         ∃ lst' lfe',
-          (ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+          (ConLeche.Cached.annotStepC (absMode mode) (absPins pins) i.val lfe
               (absPendingChecks pend).toArray (absDeclC pd)).run lst
             = .ok ((lfe', (absPendingChecks pend').toArray), lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ PendingChecksWF pend' ∧ FEnvCanon fe' ∧ FEnvFull fe'
       | .Err e =>
         ErrSim e
-          ((ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+          ((ConLeche.Cached.annotStepC (absMode mode) (absPins pins) i.val lfe
               (absPendingChecks pend).toArray (absDeclC pd)).run lst) := by
   intro lst lfe hsr hfr
   cases pd with
   | AxiomDecl cv =>
     rw [cached.installed.annot_step_c] at h
-    have hres := annot_step_other_c_refines hk hind hinde hvar hpins hsw hfw hcan hfull
+    have hres := annot_step_other_c_refines hk hind hinde hvar hsw hfw hcan hfull
       hd h lst lfe hsr hfr
     rw [absDeclC] at hres
     cases out with
@@ -2028,7 +2016,7 @@ theorem annot_step_c_refines {mode : env.CheckMode}
       all_goals simp
   | BasisDecl k =>
     rw [cached.installed.annot_step_c] at h
-    have hres := annot_step_other_c_refines hk hind hinde hvar hpins hsw hfw hcan hfull
+    have hres := annot_step_other_c_refines hk hind hinde hvar hsw hfw hcan hfull
       hd h lst lfe hsr hfr
     rw [absDeclC] at hres
     cases out with
@@ -2046,7 +2034,7 @@ theorem annot_step_c_refines {mode : env.CheckMode}
       all_goals simp
   | IndDecl block n_p =>
     rw [cached.installed.annot_step_c] at h
-    have hres := annot_step_other_c_refines hk hind hinde hvar hpins hsw hfw hcan hfull
+    have hres := annot_step_other_c_refines hk hind hinde hvar hsw hfw hcan hfull
       hd h lst lfe hsr hfr
     rw [absDeclC] at hres
     cases out with
@@ -2064,21 +2052,21 @@ theorem annot_step_c_refines {mode : env.CheckMode}
       all_goals simp
   | DefnDecl cv value hint =>
     rw [cached.installed.annot_step_c] at h
-    have hres := annot_step_defn_c_refines hk hind hinde hvar hpins hsw hfw hcan hfull
+    have hres := annot_step_defn_c_refines hk hind hinde hvar hsw hfw hcan hfull
       hd.1 hd.2 hpe rfl h lst lfe hsr hfr
     cases out with
     | Ok p => obtain ⟨fe', pend'⟩ := p; exact hres
     | Err e => exact hres
   | ThmDecl cv value =>
     rw [cached.installed.annot_step_c] at h
-    have hres := annot_step_thm_c_refines hk hsw hfw hcan hfull hd.1 hd.2 hpe h lst
-      lfe hsr hfr
+    have hres := annot_step_thm_c_refines (pins := pins) hk hsw hfw hcan hfull hd.1 hd.2
+      hpe h lst lfe hsr hfr
     cases out with
     | Ok p => obtain ⟨fe', pend'⟩ := p; exact hres
     | Err e => exact hres
   | OpaqueDecl cv value =>
     rw [cached.installed.annot_step_c] at h
-    have hres := annot_step_opaque_c_refines hk hind hinde hvar hpins hsw hfw hcan
+    have hres := annot_step_opaque_c_refines hk hind hinde hvar hsw hfw hcan
       hfull hd.1 hd.2 hpe rfl h lst lfe hsr hfr
     cases out with
     | Ok p => obtain ⟨fe', pend'⟩ := p; exact hres
@@ -2090,7 +2078,6 @@ theorem annot_step_c_refines_ok {mode : env.CheckMode}
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {i : Std.U64} {fe fe' : fenv.FEnv}
     {pend pend' : alloc.vec.Vec parsed_c.PendingCheck} {pd : parsed_c.DeclC}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnvCanon fe) (hfull : FEnvFull fe)
@@ -2100,22 +2087,23 @@ theorem annot_step_c_refines_ok {mode : env.CheckMode}
           = ok (.Ok (fe', pend'), st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
-        (ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+        (ConLeche.Cached.annotStepC (absMode mode) (absPins pins) i.val lfe
             (absPendingChecks pend).toArray (absDeclC pd)).run lst
           = .ok ((lfe', (absPendingChecks pend').toArray), lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ PendingChecksWF pend' ∧ FEnvCanon fe' ∧ FEnvFull fe' :=
-  annot_step_c_refines hk hind hinde hvar hpins hsw hfw hcan hfull hd hpe h
+  annot_step_c_refines hk hind hinde hvar hsw hfw hcan hfull hd hpe h
 
 open ConLeche.Cached in
 /-- `annotDeclStep` at a step that threw: the error **tagged with the fold
 position** (`ConLeche/Cached/Installed.lean:175-180`), which is the accumulator's
 own counter — the same number the port tags with. -/
 private theorem annotDeclStep_err {mode : ConLeche.CheckMode} {n : Nat}
+    {lpins : List ConLeche.NatOpPinSet}
     {lfe : ConLeche.FEnv} {pend : Array ConLeche.Cached.PendingCheck}
     {pd : ConLeche.Cached.DeclC} {s : CState} {le : ConLeche.CheckError}
-    (h : annotStepC mode n lfe pend pd s = .error le) :
-    annotDeclStep mode (n, lfe, pend) pd s = .error (le, n) := by
+    (h : annotStepC mode lpins n lfe pend pd s = .error le) :
+    annotDeclStep mode lpins (n, lfe, pend) pd s = .error (le, n) := by
   rw [ConLeche.Cached.annotDeclStep, h]
 
 /-- **`installed::annot_decl_step` refines `annotDeclStep`**
@@ -2133,7 +2121,6 @@ theorem annot_decl_step_refines {mode : env.CheckMode}
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {pd : parsed_c.DeclC}
     {p : Std.U64 × fenv.FEnv × alloc.vec.Vec parsed_c.PendingCheck}
     {out : core.result.Result (Std.U64 × fenv.FEnv × alloc.vec.Vec parsed_c.PendingCheck)
@@ -2146,14 +2133,14 @@ theorem annot_decl_step_refines {mode : env.CheckMode}
       match out with
       | .Ok q =>
         ∃ lst' lfe',
-          ConLeche.Cached.annotDeclStep (absMode mode)
+          ConLeche.Cached.annotDeclStep (absMode mode) (absPins pins)
               (p.1.val, lfe, (absPendingChecks p.2.2).toArray) (absDeclC pd) lst
             = .ok ((q.1.val, lfe', (absPendingChecks q.2.2).toArray), lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel q.2.1 lfe' ∧ FEnvWF q.2.1
           ∧ PendingChecksWF q.2.2 ∧ FEnvCanon q.2.1 ∧ FEnvFull q.2.1
       | .Err e =>
         ErrSimPos e
-          (ConLeche.Cached.annotDeclStep (absMode mode)
+          (ConLeche.Cached.annotDeclStep (absMode mode) (absPins pins)
             (p.1.val, lfe, (absPendingChecks p.2.2).toArray) (absDeclC pd) lst) := by
   intro lst lfe hsr hfr
   rw [cached.installed.annot_decl_step] at h
@@ -2161,7 +2148,7 @@ theorem annot_decl_step_refines {mode : env.CheckMode}
   simp only at h hfw hcan hfull hpe hfr ⊢
   obtain ⟨r, hstep, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨res, st1⟩ := r
-  have hres := annot_step_c_refines hk hind hinde hvar hpins hsw hfw hcan hfull hd hpe
+  have hres := annot_step_c_refines hk hind hinde hvar hsw hfw hcan hfull hd hpe
     hstep lst lfe hsr hfr
   cases res with
   | Err e =>
@@ -2181,7 +2168,7 @@ theorem annot_decl_step_refines {mode : env.CheckMode}
       rw [hi1] at he
       simpa using he.2.1
     refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpw, hcan', hfull'⟩
-    have hrun' : ConLeche.Cached.annotStepC (absMode mode) i.val lfe
+    have hrun' : ConLeche.Cached.annotStepC (absMode mode) (absPins pins) i.val lfe
         (absPendingChecks v).toArray (absDeclC pd) lst
         = .ok ((lfe', (absPendingChecks v1).toArray), lst') := hrun
     rw [ConLeche.Cached.annotDeclStep, hrun', hi1v]
@@ -2192,7 +2179,6 @@ theorem annot_decl_step_refines_ok {mode : env.CheckMode}
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {pd : parsed_c.DeclC}
     {p q : Std.U64 × fenv.FEnv × alloc.vec.Vec parsed_c.PendingCheck}
     (hsw : StateWF st) (hfw : FEnvWF p.2.1) (hcan : FEnvCanon p.2.1)
@@ -2201,12 +2187,12 @@ theorem annot_decl_step_refines_ok {mode : env.CheckMode}
     (h : cached.installed.annot_decl_step mode pins st p pd = ok (.Ok q, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel p.2.1 lfe →
       ∃ lst' lfe',
-        ConLeche.Cached.annotDeclStep (absMode mode)
+        ConLeche.Cached.annotDeclStep (absMode mode) (absPins pins)
             (p.1.val, lfe, (absPendingChecks p.2.2).toArray) (absDeclC pd) lst
           = .ok ((q.1.val, lfe', (absPendingChecks q.2.2).toArray), lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel q.2.1 lfe' ∧ FEnvWF q.2.1
         ∧ PendingChecksWF q.2.2 ∧ FEnvCanon q.2.1 ∧ FEnvFull q.2.1 :=
-  annot_decl_step_refines hk hind hinde hvar hpins hsw hfw hcan hfull hd hpe h
+  annot_decl_step_refines hk hind hinde hvar hsw hfw hcan hfull hd hpe h
 
 /-! ## Phase B: the check
 
@@ -3001,7 +2987,6 @@ theorem annot_decl_fold_val {mode : env.CheckMode}
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} (hds : ∀ d ∈ ds.val, DeclCWF d) (n : Nat) :
     ∀ (st st' : cached.state_c.CState)
       (p : Std.U64 × fenv.FEnv × alloc.vec.Vec parsed_c.PendingCheck)
@@ -3017,7 +3002,7 @@ theorem annot_decl_fold_val {mode : env.CheckMode}
         | .Ok q =>
           ∃ lst' lfe',
             (((ds.val.drop i.val).map absDeclC).foldlM
-                (ConLeche.Cached.annotDeclStep (absMode mode))
+                (ConLeche.Cached.annotDeclStep (absMode mode) (absPins pins))
                 (p.1.val, lfe, (absPendingChecks p.2.2).toArray)) lst
               = .ok ((q.1.val, lfe', (absPendingChecks q.2.2).toArray), lst')
             ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel q.2.1 lfe' ∧ FEnvWF q.2.1
@@ -3025,7 +3010,7 @@ theorem annot_decl_fold_val {mode : env.CheckMode}
         | .Err e =>
           ErrSimPos e
             ((((ds.val.drop i.val).map absDeclC).foldlM
-                (ConLeche.Cached.annotDeclStep (absMode mode))
+                (ConLeche.Cached.annotDeclStep (absMode mode) (absPins pins))
                 (p.1.val, lfe, (absPendingChecks p.2.2).toArray)) lst) := by
   induction n with
   | zero =>
@@ -3062,7 +3047,7 @@ theorem annot_decl_fold_val {mode : env.CheckMode}
         have h1 : ds.val[i.val]? = some d := ExprOps.vec_index_getElem? hdi
         rw [List.getElem?_eq_getElem hlen] at h1
         exact Option.some_inj.mp h1
-      have hstepr := annot_decl_step_refines hk hind hinde hvar hpins hsw hfw hcan hfull
+      have hstepr := annot_decl_step_refines hk hind hinde hvar hsw hfw hcan hfull
         (hds d hmem) hpe hstep lst lfe hsr hfr
       cases res with
       | Err e =>
@@ -3101,7 +3086,6 @@ theorem annot_decl_fold_from_refines {mode : env.CheckMode}
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState}
     {p : Std.U64 × fenv.FEnv × alloc.vec.Vec parsed_c.PendingCheck}
     {ds : alloc.vec.Vec parsed_c.DeclC} {i : Std.Usize}
@@ -3117,7 +3101,7 @@ theorem annot_decl_fold_from_refines {mode : env.CheckMode}
       | .Ok q =>
         ∃ lst' lfe',
           (((ds.val.drop i.val).map absDeclC).foldlM
-              (ConLeche.Cached.annotDeclStep (absMode mode))
+              (ConLeche.Cached.annotDeclStep (absMode mode) (absPins pins))
               (p.1.val, lfe, (absPendingChecks p.2.2).toArray)) lst
             = .ok ((q.1.val, lfe', (absPendingChecks q.2.2).toArray), lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel q.2.1 lfe' ∧ FEnvWF q.2.1
@@ -3125,15 +3109,15 @@ theorem annot_decl_fold_from_refines {mode : env.CheckMode}
       | .Err e =>
         ErrSimPos e
           ((((ds.val.drop i.val).map absDeclC).foldlM
-              (ConLeche.Cached.annotDeclStep (absMode mode))
+              (ConLeche.Cached.annotDeclStep (absMode mode) (absPins pins))
               (p.1.val, lfe, (absPendingChecks p.2.2).toArray)) lst) := by
   intro lst lfe hsr hfr
   cases out with
   | Ok q =>
-    exact annot_decl_fold_val hk hind hinde hvar hpins hds ds.val.length st st' p i
+    exact annot_decl_fold_val hk hind hinde hvar hds ds.val.length st st' p i
       (.Ok q) (by omega) hsw hfw hcan hfull hpe h lst lfe hsr hfr
   | Err e =>
-    exact annot_decl_fold_val hk hind hinde hvar hpins hds ds.val.length st st' p i
+    exact annot_decl_fold_val hk hind hinde hvar hds ds.val.length st st' p i
       (.Err e) (by omega) hsw hfw hcan hfull hpe h lst lfe hsr hfr
 
 /-- `annot_decl_fold_from_refines` at a success, the pre-#67 statement. -/
@@ -3142,7 +3126,6 @@ theorem annot_decl_fold_from_refines_ok {mode : env.CheckMode}
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState}
     {p q : Std.U64 × fenv.FEnv × alloc.vec.Vec parsed_c.PendingCheck}
     {ds : alloc.vec.Vec parsed_c.DeclC} {i : Std.Usize}
@@ -3153,12 +3136,12 @@ theorem annot_decl_fold_from_refines_ok {mode : env.CheckMode}
     ∀ lst lfe, StateRel st lst → FEnvRel p.2.1 lfe →
       ∃ lst' lfe',
         (((ds.val.drop i.val).map absDeclC).foldlM
-            (ConLeche.Cached.annotDeclStep (absMode mode))
+            (ConLeche.Cached.annotDeclStep (absMode mode) (absPins pins))
             (p.1.val, lfe, (absPendingChecks p.2.2).toArray)) lst
           = .ok ((q.1.val, lfe', (absPendingChecks q.2.2).toArray), lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel q.2.1 lfe' ∧ FEnvWF q.2.1
         ∧ PendingChecksWF q.2.2 ∧ FEnvCanon q.2.1 ∧ FEnvFull q.2.1 :=
-  annot_decl_fold_from_refines hk hind hinde hvar hpins hsw hfw hcan hfull hpe hds h
+  annot_decl_fold_from_refines hk hind hinde hvar hsw hfw hcan hfull hpe hds h
 
 /-- **`installed::check_decls_phase_b` refines the cited
 `checkPendingList mode p.2.1 p.2.2.toList; pure p.2.1.env`**
@@ -3224,19 +3207,20 @@ theorem check_decls_phase_b_refines_ok {mode : env.CheckMode}
         = .ok (absEnv e) :=
   check_decls_phase_b_refines hk hfw hpe h
 
-/-! ## `check_decls`, and the pin parameter's one line
+/-! ## `check_decls`, and the pin parameter
 
 `leanCheckDecls` is con-leche's fold with the pin list as the parameter the
-upstream ask of DESIGN.md §3.6 makes it.  At the pinned submodule (`3e004805`)
-`checkDecls` reads the global `natOpPinSets`, so the parameter is ignored here
-and `hpins` says the port's list is that global; on the `pins-param` branch the
-body becomes `ConLeche.Cached.checkDecls mode pins ds` and `hpins` goes away. -/
+upstream ask of DESIGN.md §3.6 made it.  **The ask landed** (con-leche task
+#285, vendored at task #74): `checkDecls mode ds pins` is the real signature,
+with `pins` defaulting to `natOpPinSets`, so this abbreviation now *applies*
+the list instead of ignoring it and `hpins` is gone from every statement in
+this file and in `Refine/Main.lean`. -/
 
 /-- con-leche's declaration fold, with the pin list as a parameter. -/
 def leanCheckDecls (mode : ConLeche.CheckMode)
-    (_pins : List ConLeche.NatOpPinSet) (ds : List ConLeche.Cached.DeclC) :
+    (pins : List ConLeche.NatOpPinSet) (ds : List ConLeche.Cached.DeclC) :
     Except (ConLeche.CheckError × Nat) ConLeche.Env :=
-  ConLeche.Cached.checkDecls mode ds
+  ConLeche.Cached.checkDecls mode ds pins
 
 /-- **`installed::check_decls` refines `checkDecls`** (`Installed.lean:407-411`)
 — DESIGN.md §1's `check_decls_refines`, at the shape the rest of the tower
@@ -3245,15 +3229,16 @@ same environment on an accept, and on a mirrored reject the same kind at the
 same declaration (`ErrSimPos`).
 
 The hypotheses the tier still owes are the module note's: `hk` (task #55),
-`hind`/`hinde` (task #59, the inductive routes' two halves) and `hpins` (the pin
-parameter).  `hds` is the well-formedness of the parsed input, which the parser
-establishes and which no lemma below can invent. -/
+`hind`/`hinde` (task #59, the inductive routes' two halves) and `hvar` (the pin
+argument's well-formedness).  The fold is **parametric in the pins** since task
+#74, so there is no hypothesis about their *value*.  `hds` is the
+well-formedness of the parsed input, which the parser establishes and which no
+lemma below can invent. -/
 theorem check_decls_refines {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC}
     {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
     (hds : ∀ d ∈ ds.val, DeclCWF d)
@@ -3278,7 +3263,7 @@ theorem check_decls_refines {mode : env.CheckMode}
     simp [absPendingChecks]
   have hfoldr :=
     annot_decl_fold_from_refines (p := (0#u64, fe0,
-        alloc.vec.Vec.new parsed_c.PendingCheck)) hk hind hinde hvar hpins hsw0 hwf0
+        alloc.vec.Vec.new parsed_c.PendingCheck)) hk hind hinde hvar hsw0 hwf0
       (FEnv.mk_fenv_canon (Env.empty_wf he0) hfe0)
       (mk_fenv_full (Env.empty_wf he0) hfe0)
       (by intro pc hpc; simp at hpc) hds hfold
@@ -3291,7 +3276,7 @@ theorem check_decls_refines {mode : env.CheckMode}
     show ErrSimPos er _
     have hfold2 : ErrSimPos er
         (((ds.val.map absDeclC).foldlM
-            (ConLeche.Cached.annotDeclStep (absMode mode))
+            (ConLeche.Cached.annotDeclStep (absMode mode) (absPins pins))
             (0, ConLeche.mkFEnv ConLeche.Env.empty, #[]))
           ({} : ConLeche.Cached.CState)) := by
       simpa [hpempty] using hfoldr
@@ -3304,7 +3289,7 @@ theorem check_decls_refines {mode : env.CheckMode}
       simpa using h
     have hrun2 := check_decls_phase_b_refines hk hfw1 hpe1 hphase lfe' hfr1
     have hfold2 : ((ds.val.map absDeclC).foldlM
-        (ConLeche.Cached.annotDeclStep (absMode mode))
+        (ConLeche.Cached.annotDeclStep (absMode mode) (absPins pins))
         (0, ConLeche.mkFEnv ConLeche.Env.empty, #[]))
           ({} : ConLeche.Cached.CState)
         = .ok ((n0.val, lfe', (absPendingChecks pend1).toArray), lst') := by
@@ -3329,69 +3314,26 @@ theorem check_decls_refines_ok {mode : env.CheckMode}
     (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
     (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls mode pins ds = ok (.Ok e)) :
     leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclC)
       = .ok (absEnv e) :=
-  check_decls_refines hk hind hinde hvar hpins hds h
+  check_decls_refines hk hind hinde hvar hds h
 
-/-! ## The instance at the binary's own pins (task #64)
+/-! ## No instance at the binary's own pins is needed any more (task #74)
 
-`check_decls_refines` above is general in `pins` and carries
-`hpins : absPins pins = ConLeche.natOpPinSets` — a hypothesis about an argument.
-For a real run the argument is not free: `con_ron::driver::pins_for_run` passes
-`kernel::pins_decode::decode_embedded()`, the *verified* decoder applied to the
-embedded `con-ron-pins/1` constant, and `Refine/Pins.lean`'s
-`check_decls_pins_refines` says what that equals.  The corollary below is
-`check_decls_refines` with the hypothesis discharged that way, for the pin list
-the binary actually folds with.
-
-The general theorem stays exactly as task #60 stated it, and is what a reader
-should look at first: it is the one with no native evaluation anywhere in its
-closure (`Refine/Main.lean`'s census).  This one inherits the two axioms
-`Refine/Pins.lean`'s `pins_closed` spends, and its own census says so. -/
-
-/-- **The port's verdict is con-leche's verdict, at the binary's own pins**
-(task #64): the same statement as `check_decls_refines` with `hpins` replaced
-by "`pins` is what the embedded text decodes to", which is a fact about the
-binary rather than a promise about its argument. -/
-theorem check_decls_embedded_refines {mode : env.CheckMode}
-    (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
-    (hinde : IndRoutesSpecErr mode)
-    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hvar : CheckerPins.PinsWF pins)
-    (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
-    {ds : alloc.vec.Vec parsed_c.DeclC}
-    {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
-    (h : cached.installed.check_decls mode pins ds = ok out) :
-    match out with
-    | .Ok e =>
-      leanCheckDecls (absMode mode) ConLeche.natOpPinSets (ds.val.map absDeclC)
-        = .ok (absEnv e)
-    | .Err er =>
-      ErrSimPos er
-        (leanCheckDecls (absMode mode) ConLeche.natOpPinSets
-          (ds.val.map absDeclC)) := by
-  have hpins := ConRon.Refine.check_decls_pins_refines_ok pins hp
-  have hr := check_decls_refines hk hind hinde hvar hpins hds h
-  rwa [hpins] at hr
-
-/-- `check_decls_embedded_refines` at a success, the pre-#67 statement. -/
-theorem check_decls_embedded_refines_ok {mode : env.CheckMode}
-    (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
-    (hinde : IndRoutesSpecErr mode)
-    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hvar : CheckerPins.PinsWF pins)
-    (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
-    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
-    (h : cached.installed.check_decls mode pins ds = ok (.Ok e)) :
-    leanCheckDecls (absMode mode) ConLeche.natOpPinSets (ds.val.map absDeclC)
-      = .ok (absEnv e) :=
-  check_decls_embedded_refines hk hind hinde hvar hp hds h
+Task #64 appended `check_decls_embedded_refines` here: `check_decls_refines`
+with `hpins : absPins pins = ConLeche.natOpPinSets` discharged by
+`Refine/Pins.lean`'s `check_decls_pins_refines`, so that the corollary spoke
+about the pin list `con_ron::driver::pins_for_run` actually passes.  It existed
+only to feed `pins_closed`'s `native_decide`, and the pins-parametric fold
+retires it: `check_decls_refines` is *already* the statement at the list the
+binary threads, whatever that list is, so there is nothing left to identify
+with a constant and nothing native-decide-shaped in this file's closure.
+`Refine/Main.lean`'s `conron.*_embedded` corollaries now go through the general
+pair directly, and carry `hp : decode_embedded = ok (.Ok pins)` only to get
+`hvar` out of `PinsWF.decode_embedded_wf`. -/
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
@@ -3412,10 +3354,11 @@ that they would fail the moment it did.  They did; this is the corrected
 census, and `check_decls_refines` now depends on exactly the three standard
 axioms.  What it still depends on is *hypotheses*, which are not axioms:
 `hk` (task #55's knot, discharged at #61), `hind`/`hinde` (task #57's routes,
-both halves since task #67), `hpins` (`Refine/Pins.lean`'s two open statements,
-task #43's), and task #58's `hvar` — the pin argument's well-formedness.  Task
-#58's `hoe` is gone: task #65 made a thrown pin attempt the check's verdict,
-which retires both halves of task #24's `orElse` deviation.
+both halves since task #67), and task #58's `hvar` — the pin argument's
+well-formedness.  Task #58's `hoe` is gone: task #65 made a thrown pin attempt
+the check's verdict, which retires both halves of task #24's `orElse`
+deviation; and task #64's `hpins` is gone too, retired by task #74's parametric
+fold.
 
 **Task #67** restated every `*_refines` here over the Rust computation's whole
 inner outcome: the accept halves are the ones task #62 proved, word for word,

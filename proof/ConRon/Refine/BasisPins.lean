@@ -54,15 +54,18 @@ verified reader `kernel::pins_decode::decode`.  The record's abstraction
 (`absNatOpPinSet`) and the decoder's refinement therefore live in
 `Refine/Pins.lean`, and nothing about a table is owed here.
 
-`Refine/Pins.lean`'s `pins_text_decodes` — the closed computation
-`parsePins (absText PINS_TEXT) = .ok ConLeche.natOpPinSets` — is open, and
-task #43 *measured* why (a `native_decide` axiom already inside Aeneas's `Str`
-model, a reference decoder that does not whnf, and quadratic kernel expansion
-of a 532 KB literal).  The honest statement here is the one about the
-**decoded list**, and it is proved below from that statement and
-`pins_decode_refines`: `nat_op_pin_sets_refines`.  It is what `Refine/Pins.lean`
-wrote down as `check_decls_pins_refines` and left `sorry`, and it should be
-folded back there when that file is next touched.
+Nothing is owed about the *value* of the decoded list either, since **task
+#74**.  Task #43's closed computation
+`parsePins (absText PINS_TEXT) = .ok ConLeche.natOpPinSets` was out of the
+kernel's reach (a `native_decide` axiom already inside Aeneas's `Str` model, a
+reference decoder that does not whnf, and quadratic kernel expansion of a
+532 KB literal), task #64 took it by `native_decide`, and this file carried the
+corollary about the decoded list, `nat_op_pin_sets_refines`.  The vendored
+con-leche makes the pin list an argument of the fold (its task #285), so no
+statement anywhere needs the decoded list to *be* `natOpPinSets`:
+`pins_closed`, `pins_text_decodes` and `nat_op_pin_sets_refines` are all gone,
+and what the tower asks of the embedded pins is only `PinsWF`
+(`Refine/PinsWF.lean`'s `decode_embedded_wf`).
 
 Task #58 closed the one `sorry` this file had, `basis_decls_a_wf`; the section
 below it says how, and why it is not the second `step` tier task #56 expected.
@@ -491,47 +494,13 @@ theorem nat_basis_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : Boo
 
 The module declares the `NatOpPinSet` record and nothing else (the module
 note, and DESIGN.md tasks #31/#43); its abstraction is `Refine/Pins.lean`'s
-`absNatOpPinSet`, reused here and not redefined.  What stands where
-`nat_op_pin_sets()` would have stood is the statement about the **decoded**
-list. -/
-
-/-- `ConLeche/Kernel/NatOpPins.lean:61 natOpPinSets` — the variant list the
-binary runs on **is** con-leche's, with no hypothesis about an argument: the
-driver hands `check_decls` `pins_decode::decode_embedded()`, and that decodes
-the embedded text to `ConLeche.natOpPinSets`, in file order — which is the
-order `checkDivModPinLoop` tries the variants in, so the order is part of the
-claim.
-
-Proved, from `Refine/Pins.lean`'s `pins_decode_refines` (the decoder refines
-`ConRon.Dump.parsePins`) and `pins_text_decodes` (the closed computation,
-measured out of reach in this kernel — task #43).  `decode_embedded` is
-`decode PINS_TEXT` because Aeneas models `str::as_bytes` as the identity
-(`Generated/FunsExternal.lean:72`).  This is `Refine/Pins.lean`'s
-`check_decls_pins_refines` with its proof; fold it back there.
-
-**Over the whole outcome** (task #67).  This is not a statement about a
-con-leche `Except` — con-leche has no byte decoder, its `natOpPinSets` being
-elaboration-time data — so the `.Err` branch is the `Native` half of the
-convention spelled directly: `absErrKind ce = none`, `ErrSim`'s vacuous case,
-which claims nothing.  It is `pins_decode::decode`'s own failure half, and all
-twenty-eight of that module's throws go through `bad_text`.  The outcome binder
-is **implicit**, as the result binder `v` it replaces was, so a call site that
-knows the decoder succeeded is unchanged. -/
-theorem nat_op_pin_sets_refines
-    {o : core.result.Result (alloc.vec.Vec nat_op_pins.NatOpPinSet)
-        core_types.CheckError}
-    (h : pins_decode.decode_embedded = ok o) :
-    match o with
-    | .Ok v => absPins v = ConLeche.natOpPinSets
-    | .Err ce => absErrKind ce = none := by
-  rw [pins_decode.decode_embedded, core.str.Str.as_bytes] at h
-  simp only [bind_tc_ok] at h
-  cases o with
-  | Err ce => exact pins_decode_refines _ _ h
-  | Ok v =>
-    have h1 : ConRon.Dump.parsePins (absText pins_text.PINS_TEXT)
-        = .ok (absPins v) := pins_decode_refines _ _ h
-    rw [pins_text_decodes] at h1
-    exact (Except.ok.inj h1).symm
+`absNatOpPinSet`, reused here and not redefined.  Nothing stands where
+`nat_op_pin_sets()` would have stood: since **task #74** the tower is stated at
+the abstract pin list, so there is no statement to make about the decoded
+list's value, and `nat_op_pin_sets_refines` — this file's copy of task #64's
+`check_decls_pins_refines`, which read the embedded text through
+`pins_text_decodes` — is deleted with it.  `Refine/Pins.lean`'s
+`pins_decode_refines` is what remains about the decoder, and
+`Refine/PinsWF.lean`'s `decode_embedded_wf` is what the capstones use. -/
 
 end ConRon.Refine.BasisPins

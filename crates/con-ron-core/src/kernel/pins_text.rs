@@ -1,7 +1,7 @@
 //! The embedded `con-ron-pins/1` text of con-leche's `natOpPinSets`
 //! (DESIGN.md §3, task #43).
 //!
-/// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
+//! con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
 //!
 //! **Generated file — do not edit.**  Written by `scripts/gen-pins.sh` from
 //! con-leche's own value: `lake exe con-ron-dump-pins` writes

@@ -28,7 +28,8 @@ Four things make this file the interesting one of the task.
 `checkDivModPinLoopF`, `DeclCheck.lean:887-901`) is the **only** place the
 checker recovers from a thrown error.  The Rust is an index recursion over the
 `Vec<NatOpPinSet>` `check_decls` was given, the Lean a list recursion over the
-global `natOpPinSets`, so the statement is about `(absPins pins).drop i`
+list `checkDivModPinF` was given (its own argument since con-leche task #285,
+vendored at task #74), so the statement is about `(absPins pins).drop i`
 (`absPins`/`absNatOpPinSet` are `Refine/Pins.lean`'s, task #43 — nothing new is
 defined for them here), in the index-vs-list shape `Refine/FEnv.lean`'s
 `absPrefixIdx` and `Refine/CoreKVec.lean`'s walks already use.
@@ -69,7 +70,7 @@ they are dead, and on the decline path nothing is claimed.
 Task #24's note: `check_div_mod_pin` and `check_reduce_pin` return the index
 where the Lean returns `Unit`, because the two environments con-leche holds at
 once (`env` pre-insertion, `env2` extended) are one index at two bounds.  Both
-statements below are therefore about `checkDivModPinF ops fe fe2 c` /
+statements below are therefore about `checkDivModPinF ops pins fe fe2 c` /
 `checkReducePinF ops fe fe2 c value` with `fe := lfe.restrictTo k_pre` and
 `fe2 := lfe`, and both conclude `FEnvRel fe' lfe` — the bound restored.  That
 goes through `Refine/FEnv.lean`'s `restrict_to_refines`/`restrict_to_wf`.
@@ -185,10 +186,13 @@ here.
    it is `checkDecl`'s inlined block — so its conclusion is that block's three
    facts.  Since task #58 it reads `checker::deps_all_stored_ok`, so
    `deps_all_stored_ok_refines` above is what its dependency clause needs.
-4. `hpins` stays a caller obligation, threaded unchanged through
-   `check_defn_div_mod_pin_refines` and `check_defn_pins_refines`; task #58's
-   two `orElse` obligations travelled with it until task #65 removed them,
-   and task #67 proves what they assumed rather than restoring them.
+4. **The pins are a parameter of the cited gate too** (task #74, vendoring
+   con-leche task #285), so nothing here carries
+   `hpins : absPins pins = natOpPinSets` any more: every statement is at the
+   abstract list `absPins pins`, and what the caller threads is what the cited
+   gate tries.  Task #58's two `orElse` obligations travelled with `hpins`
+   until task #65 removed them, and task #67 proves what they assumed rather
+   than restoring them.
 
 ## The full outcome, and the three blocks it had to name (task #67)
 
@@ -3519,15 +3523,20 @@ the index the port hands `type_checker`. -/
 /-- `ConLeche/Kernel/Checker.lean:362-380 checkDivModPin`,
 `ConLeche/Kernel/DeclCheck.lean:903-912 checkDivModPinF` —
 `checker::check_div_mod_pin` refines it: the dependency and pinned-`Eq` guards
-at the extended environment, then the pin variants in `natOpPinSets` order at
-the pre-insertion one.  No variant matching is a decline, never a silent
-accept.
+at the extended environment, then the pin variants in `pins` order at the
+pre-insertion one.  No variant matching is a decline, never a silent accept.
 
-Two deviations are in the statement rather than glossed: the index comes in at
-the extended bound and goes back out there (`fe'` is related to `lfe`, not to
-the restricted view), and **`pins` is a parameter** (DESIGN.md §3.6, task #31),
-so `hpins : absPins pins = ConLeche.natOpPinSets` says the list the driver
-threads is the global the cited code reads.
+**The statement is parametric in the pins** (task #74).  The cited
+`checkDivModPin`/`checkDivModPinF` take `pins : List NatOpPinSet` as an
+argument (con-leche task #285), so the refinement is stated at the *abstract*
+list `absPins pins` and carries **no** hypothesis about its value: whatever
+list the caller threads, the port's gate is the cited gate at that list.  What
+used to stand here was `hpins : absPins pins = ConLeche.natOpPinSets`, a
+promise about an argument; it is gone.
+
+One deviation is still in the statement rather than glossed: the index comes in
+at the extended bound and goes back out there (`fe'` is related to `lfe`, not
+to the restricted view).
 
 **Gained one hypothesis (task #58)**, a sibling's statement travelling rather
 than a weakening of the conclusion: `EqBasisPinnedSpec fe lfe`, which
@@ -3543,18 +3552,17 @@ theorem check_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
     {c : name.Name}
     {o : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hvar : PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     (h : checker.check_div_mod_pin mode pins st fe k_pre c = ok (o, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → EqBasisPinnedSpec fe lfe →
       match o with
       | .Ok fe' =>
         ∃ lst', (ConLeche.checkDivModPinF
-              (TypeChecker.lops mode (lfe.restrictTo k_pre.val))
+              (TypeChecker.lops mode (lfe.restrictTo k_pre.val)) (absPins pins)
               (lfe.restrictTo k_pre.val) lfe (absName c)).run lst = .ok ((), lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe'
       | .Err e =>
         ErrSim e ((ConLeche.checkDivModPinF
-            (TypeChecker.lops mode (lfe.restrictTo k_pre.val))
+            (TypeChecker.lops mode (lfe.restrictTo k_pre.val)) (absPins pins)
             (lfe.restrictTo k_pre.val) lfe (absName c)).run lst) := by
   intro lst lfe hsr hfr heqb
   rw [checker.check_div_mod_pin] at h
@@ -3632,8 +3640,7 @@ theorem check_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
         -- move 1: the variant loop threw, at the cited loop's own arm
         have herr := check_div_mod_pin_loop_err hfuel hk hsw hfpwf hc hvwf hvar hq
           lst (lfe.restrictTo k_pre.val) [] hsr hfprel
-        rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero,
-          hpins] at herr
+        rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at herr
         simp at h
         obtain ⟨rfl, -⟩ := h
         simp only [ConLeche.checkDivModPinF, hgv, if_true, hfind]
@@ -3643,8 +3650,7 @@ theorem check_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
           check_div_mod_pin_loop_refines hfuel hk
             hsw hfpwf hc hvwf hvar (by cases u; exact hq) lst
             (lfe.restrictTo k_pre.val) [] hsr hfprel
-        rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero,
-          hpins] at hrun
+        rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at hrun
         simp at h
         obtain ⟨fe3, hf, rfl, rfl⟩ := h
         rw [fenv.restrict_to, Result.ok.injEq] at hfp
@@ -4152,9 +4158,10 @@ the `.defnDecl` arm may hand it any index that agrees with the view the
 statement above is about. -/
 theorem checkDivModPinF_congr {lmode : ConLeche.CheckMode}
     {fe₁ fe₂ fe2 : ConLeche.FEnv} (hfe : fe₁.find? = fe₂.find?)
-    (c : ConLeche.Name) :
-    ConLeche.checkDivModPinF (ConLeche.Cached.sharedOpsC lmode fe₁) fe₁ fe2 c
-      = ConLeche.checkDivModPinF (ConLeche.Cached.sharedOpsC lmode fe₂) fe₂ fe2 c := by
+    (lpins : List ConLeche.NatOpPinSet) (c : ConLeche.Name) :
+    ConLeche.checkDivModPinF (ConLeche.Cached.sharedOpsC lmode fe₁) lpins fe₁ fe2 c
+      = ConLeche.checkDivModPinF (ConLeche.Cached.sharedOpsC lmode fe₂) lpins fe₂
+          fe2 c := by
   rw [ConLeche.Cached.sharedOpsC_congr hfe]
   simp only [ConLeche.checkDivModPinF, checkDivModPinLoopF_congr hfe]
 
@@ -4199,22 +4206,21 @@ theorem check_div_mod_pin_refines_at_view {mode : env.CheckMode} {fuel : Std.U64
     {c : name.Name}
     {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hvar : PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     (h : checker.check_div_mod_pin mode pins st fe k_pre c = ok (out, st')) :
     ∀ lst lfe (lfp : ConLeche.FEnv), StateRel st lst → FEnvRel fe lfe →
       EqBasisPinnedSpec fe lfe →
       lfp.find? = (lfe.restrictTo k_pre.val).find? →
       match out with
       | .Ok fe' =>
-        ∃ lst', (ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) lfp lfe
-              (absName c)).run lst = .ok ((), lst')
+        ∃ lst', (ConLeche.checkDivModPinF (TypeChecker.lops mode lfp)
+              (absPins pins) lfp lfe (absName c)).run lst = .ok ((), lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe'
       | .Err e =>
-        ErrSim e ((ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) lfp lfe
-            (absName c)).run lst) := by
+        ErrSim e ((ConLeche.checkDivModPinF (TypeChecker.lops mode lfp)
+            (absPins pins) lfp lfe (absName c)).run lst) := by
   intro lst lfe lfp hsr hfr heqb hlfp
   rw [checkDivModPinF_congr hlfp]
-  exact check_div_mod_pin_refines hfuel hk hsw hfw hc hvar hpins h
+  exact check_div_mod_pin_refines hfuel hk hsw hfw hc hvar h
     lst lfe hsr hfr heqb
 
 /-- `check_reduce_pin_refines` at any `find?`-agreeing pre-insertion index,
@@ -4838,7 +4844,6 @@ theorem check_defn_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
     {n : name.Name}
     {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe2) (hn : NameWF n) (hvar : PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     (h : checker.check_defn_div_mod_pin mode pins st fe2 k_pre n
       = ok (out, st')) :
     ∀ lst lfe (lfp : ConLeche.FEnv), StateRel st lst → FEnvRel fe2 lfe →
@@ -4847,14 +4852,14 @@ theorem check_defn_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
       match out with
       | .Ok fe' =>
         ∃ lst', ((if ConLeche.natDivModNames.contains (absName n) then
-              ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) lfp lfe
-                (absName n)
+              ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) (absPins pins)
+                lfp lfe (absName n)
             else pure ()) : ConLeche.Cached.CheckCM Unit).run lst = .ok ((), lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe'
       | .Err e =>
         ErrSim e (((if ConLeche.natDivModNames.contains (absName n) then
-              ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) lfp lfe
-                (absName n)
+              ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) (absPins pins)
+                lfp lfe (absName n)
             else pure ()) : ConLeche.Cached.CheckCM Unit).run lst) := by
   intro lst lfe lfp hsr hfr heqb hlfp
   rw [checker.check_defn_div_mod_pin] at h
@@ -4871,7 +4876,7 @@ theorem check_defn_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
       hsr, hsw, hfr, hfw⟩
   | true =>
     simp only [if_true] at h
-    have hres := check_div_mod_pin_refines_at_view hfuel hk hsw hfw hn hvar hpins h
+    have hres := check_div_mod_pin_refines_at_view hfuel hk hsw hfw hn hvar h
       lst lfe lfp hsr hfr heqb hlfp
     revert hres
     cases out with
@@ -4892,12 +4897,13 @@ of `natOpNames`, then the `Nat.div`/`Nat.mod` gate when it is one of
 back one by one (the cited Lean inlines it); the failure direction needs the
 whole thing as a computation, and this is it. -/
 def defnPinsBlockF (ops : ConLeche.CheckerOps ConLeche.Cached.CheckCM)
+    (lpins : List ConLeche.NatOpPinSet)
     (lfp lfe2 : ConLeche.FEnv) (lenv : ConLeche.Env) (c : ConLeche.Name) :
     ConLeche.Cached.CheckCM Unit := do
   let _ ← (if ConLeche.natOpNames.contains c then
       structuralNatBlockF ops lfe2 lenv c else pure ())
   if ConLeche.natDivModNames.contains c then
-    ConLeche.checkDivModPinF ops lfp lfe2 c
+    ConLeche.checkDivModPinF ops lpins lfp lfe2 c
   else pure ()
 
 /-- `ConLeche/Cached/ParsedC.lean:164-183` — **`checker::check_defn_pins`
@@ -4923,7 +4929,6 @@ theorem check_defn_pins_refines {mode : env.CheckMode} {fuel : Std.U64}
     {n : name.Name}
     {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe2) (hn : NameWF n) (hvar : PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     (h : checker.check_defn_pins mode pins st fe2 k_pre n = ok (out, st')) :
     ∀ lst lfe (lfp : ConLeche.FEnv), StateRel st lst → FEnvRel fe2 lfe →
       EqBasisPinnedSpec fe2 lfe →
@@ -4946,14 +4951,14 @@ theorem check_defn_pins_refines {mode : env.CheckMode} {fuel : Std.U64}
                       = .ok (true, lst1))
           ∧ (ConLeche.natOpNames.contains (absName n) = false → lst1 = lst)
           ∧ ((if ConLeche.natDivModNames.contains (absName n) then
-                ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) lfp lfe
-                  (absName n)
+                ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) (absPins pins)
+                  lfp lfe (absName n)
               else pure ()) : ConLeche.Cached.CheckCM Unit).run lst1 = .ok ((), lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe'
       | .Err e =>
         ∀ lenv : ConLeche.Env,
-          ErrSim e ((defnPinsBlockF (TypeChecker.lops mode lfp) lfp lfe lenv
-              (absName n)).run lst) := by
+          ErrSim e ((defnPinsBlockF (TypeChecker.lops mode lfp) (absPins pins)
+              lfp lfe lenv (absName n)).run lst) := by
   intro lst lfe lfp hsr hfr heqb hlfp
   rw [checker.check_defn_pins] at h
   obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
@@ -4964,7 +4969,7 @@ theorem check_defn_pins_refines {mode : env.CheckMode} {fuel : Std.U64}
   cases b with
   | false =>
     simp only [Bool.false_eq_true, if_false] at h
-    have hres := check_defn_div_mod_pin_refines hfuel hk hsw hfw hn hvar hpins h
+    have hres := check_defn_div_mod_pin_refines hfuel hk hsw hfw hn hvar h
       lst lfe lfp hsr hfr heqb hlfp
     revert hres
     cases out with
@@ -5007,7 +5012,7 @@ theorem check_defn_pins_refines {mode : env.CheckMode} {fuel : Std.U64}
         intro lenv
         rw [TypeChecker.lops, ConLeche.Cached.sharedOpsC_congr hlfp]
         exact hcertL lenv
-      have hres := check_defn_div_mod_pin_refines hfuel hk hswC hfw hn hvar hpins h2
+      have hres := check_defn_div_mod_pin_refines hfuel hk hswC hfw hn hvar h2
         lstC lfe lfp hsrC hfr heqb hlfp
       revert hres
       cases out with

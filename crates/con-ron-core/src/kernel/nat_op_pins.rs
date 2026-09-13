@@ -20,20 +20,23 @@
 //!
 //! **The list is a *parameter*, not a constant here** (DESIGN.md §3.6's
 //! runtime-data decision; task #31 landed it).  con-leche splices
-//! `natOpPinSets` (`NatOpPins.lean:61`) out of the committed `pins/*.json`
-//! dumps with an elaboration-time command and reads it as a global inside
-//! `checkDivModPin`.  The port cannot: the table is ~26 500 nodes and Charon
-//! OOMs on the generated Rust (task #22 measured it).  It does not have to
-//! either — every pin is re-checked by `isDefEq` against the stream's own
-//! stored value and every certificate proof is kernel-checked against
-//! `div_mod_cert_stmts`, so the list is a *hint* list whose only effect is on
-//! completeness.  So `cached::installed::check_decls` takes it as
-//! `pins : &Vec<NatOpPinSet>` and threads it down to the loop, and the
-//! unverified driver (`con-ron-check --pins FILE`, format `con-ron-pins/1`,
-//! `proof/ConRon/Dump/FORMAT.md` §7) is what reads con-leche's own value out
-//! of a dump.  **This module therefore declares the record and nothing else**:
-//! there is no `nat_op_pin_sets()` (§3.4 forbids the global, and the data is
-//! not code).  The upstream change this asks for is `checkDecls mode pins ds`.
+//! `natOpPinSets` (`NatOpPins.lean:62`) out of the committed `pins/*.json`
+//! dumps with an elaboration-time command.  The port cannot: the table is
+//! ~26 500 nodes and Charon OOMs on the generated Rust (task #22 measured
+//! it).  It does not have to either — every pin is re-checked by `isDefEq`
+//! against the stream's own stored value and every certificate proof is
+//! kernel-checked against `div_mod_cert_stmts`, so the list is a *hint* list
+//! whose only effect is on completeness.  So
+//! `cached::installed::check_decls` takes it as `pins : &Vec<NatOpPinSet>`
+//! and threads it down to the loop, and the binary's own value is the
+//! embedded `con-ron-pins/1` text decoded inside the core (task #43,
+//! `kernel::pins_text` + `kernel::pins_decode`; `con-ron-check --pins FILE`
+//! survives as a test override).  **This module therefore declares the record
+//! and nothing else**: there is no `nat_op_pin_sets()` (§3.4 forbids the
+//! global, and the data is not code).  The upstream change this asked for
+//! landed as con-leche task #285 — `checkDecls mode ds pins`, defaulting to
+//! `natOpPinSets` — and is vendored at task #74, so the cited
+//! `checkDivModPin{,F}` take the list as an argument as well.
 
 use crate::kernel::expr::Expr;
 use std::vec::Vec;

@@ -719,7 +719,7 @@ def cmd_update(args):
             continue
         na, nb = loc
         new_text = [l.rstrip() for l in lines[na - 1:nb]]
-        newcite = Cite(c.rust_file, c.lineno, c.path, na, nb, c.decl)
+        newcite = Cite(c.rust_file, c.lineno, c.path, na, nb, c.decl, c.pfx)
 
         if old_text != new_text and olines is not None:
             # The cited range may already have been rewritten (a second

@@ -144,8 +144,9 @@ pub fn message(e: &CheckError) -> String {
 }
 
 /// con-leche: none — `checkDecls`' pin argument, which con-leche does not have
-/// **The pin list a run checks with** (task #43).  con-leche bakes
-/// `natOpPinSets` into `checkDivModPin`; the port carries the same value as an
+/// **The pin list a run checks with** (task #43).  con-leche's shipped fold
+/// defaults to `natOpPinSets` (its last argument since task #285); the port
+/// carries the same value as an
 /// *embedded text constant inside the verified core*
 /// (`kernel::pins_text::PINS_TEXT`) and decodes it with a verified decoder
 /// (`kernel::pins_decode::decode_embedded`), so a run of either binary uses
@@ -320,7 +321,6 @@ pub fn default_jobs() -> u64 {
 }
 
 /// con-leche: Main.lean:339-458 checkDeclsIO
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::workers_for_refines, then delete this line
 /// The cited `workers := max 1 (min jobs pend.size)`: the count the summary
 /// reports and the pool spawns.  A stream with fewer pending checks than `jobs`
 /// gets one worker per check and no more.
@@ -406,7 +406,6 @@ pub fn retired_flag(s: &str) -> Option<String> {
 }
 
 /// con-leche: Main.lean:339-458 checkDeclsIO
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// **`--no-mark-persistent`: accepted, and a no-op here.**  The line this
 /// function returns is what a run that passes the flag prints, and the reason
 /// is that the mark it turns off does not exist in Rust.
@@ -449,9 +448,7 @@ pub fn mark_persistent_note() -> &'static str {
 // ---------------------------------------------------------------------------
 
 /// con-leche: Main.lean:163-178 checkHeartbeat
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::PhaseObserver_refines, then delete this line
 /// con-leche: Main.lean:339-458 checkDeclsIO
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::PhaseObserver_refines, then delete this line
 /// What a caller wants to know between the steps of the fold.  Every method
 /// defaults to nothing, so a caller implements the lines it prints and no
 /// more; a run with no observer does not use this trait at all
@@ -467,19 +464,16 @@ pub fn mark_persistent_note() -> &'static str {
 /// `SIGKILL` — names on its last line the declaration it died in.
 pub trait PhaseObserver {
     /// con-leche: Main.lean:67-161 installLoop
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::install_before_refines, then delete this line
     /// Before record `pos` of `total` is installed.
     fn install_before(&mut self, _pos: u64, _total: usize, _d: &DeclC) {}
 
     /// con-leche: Main.lean:67-161 installLoop
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::install_after_refines, then delete this line
     /// After record `done` of `total` was installed, with the memo state and
     /// the index it produced (`con-ron-check --stats-every` reads them).
     fn install_after(&mut self, _done: usize, _total: usize, _st: &CState, _fe: &FEnv, _pend: usize) {
     }
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::install_failed_refines, then delete this line
     /// Phase A failed at fold position `pos`, in this memo state.  The index
     /// is *not* passed: `annot_decl_step` consumed it and the error came back
     /// in its place, which is con-leche's shape too (`installLoop` returns
@@ -487,18 +481,15 @@ pub trait PhaseObserver {
     fn install_failed(&mut self, _pos: u64, _total: usize, _st: &CState) {}
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::install_done_refines, then delete this line
     /// The phase boundary: every record installed, `pend` checks pending.
     fn install_done(&mut self, _total: usize, _pend: usize, _st: &CState, _fe: &FEnv) {}
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::phase_b_workers_refines, then delete this line
     /// The worker count phase B is about to run on (the cited `workers`), so
     /// that the summary reports the lane the run actually took.
     fn phase_b_workers(&mut self, _workers: usize) {}
 
     /// con-leche: Main.lean:260-280 checkOne
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::wants_check_lines_refines, then delete this line
     /// **Does this observer want a line per completed check?**  The port's
     /// spelling of the cited `stride > 0` guard, which con-leche reads off the
     /// stride the pool was handed: `false` and no worker touches the shared
@@ -511,7 +502,6 @@ pub trait PhaseObserver {
     }
 
     /// con-leche: Main.lean:163-178 checkHeartbeat
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::check_after_refines, then delete this line
     /// After the `done`-th of `m` recorded checks completed — the record it
     /// was, the memo state it used, the index it left.
     fn check_after(
@@ -525,25 +515,19 @@ pub trait PhaseObserver {
     }
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::check_failed_refines, then delete this line
     /// Phase B failed at fold position `pos`, in this record's own memo
     /// state.
     fn check_failed(&mut self, _pos: u64, _st: &CState) {}
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::check_done_refines, then delete this line
     /// Every recorded check passed.
     fn check_done(&mut self, _m: usize) {}
 }
 
 /// con-leche: Main.lean:339-458 checkDeclsIO
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// con-leche: Main.lean:67-161 installLoop
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// con-leche: Main.lean:180-211 checkLoop
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// con-leche: ConLeche/Cached/Installed.lean:440-447 checkDecls
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// **The driver**: phase A installs every record, phase B checks every
 /// recorded declaration against the prefix view of the installed index from a
 /// fresh memo state.  This IS `check_decls`' body with the boundary visible,
@@ -650,9 +634,7 @@ pub fn check_decls_driver<O: PhaseObserver + Send>(
 // ---------------------------------------------------------------------------
 
 /// con-leche: Main.lean:339-458 checkDeclsIO
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// con-leche: Main.lean:163-178 checkHeartbeat
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// **The heartbeat**, `OVERVIEW.md` §0's line shapes with con-leche's
 /// `con-leche: ` prefix replaced by `con-ron: `:
 ///
@@ -698,7 +680,6 @@ pub struct Heartbeat {
 }
 
 /// con-leche: Main.lean:339-458 checkDeclsIO
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::impl Heartbeat_refines, then delete this line
 /// The heartbeat's own lines: the parse's, and the closing summary the
 /// failure and success arms share.
 impl Heartbeat {
@@ -742,7 +723,6 @@ impl Heartbeat {
     }
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::summary_refines, then delete this line
     /// The `done:` summary — the three phase durations and the worker count.
     /// `check`'s duration is `None` when phase A failed, which is con-leche's
     /// `check not reached`.
@@ -772,13 +752,10 @@ impl Heartbeat {
 }
 
 /// con-leche: Main.lean:163-178 checkHeartbeat
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::impl PhaseObserver for Heartbeat_refines, then delete this line
 /// con-leche: Main.lean:339-458 checkDeclsIO
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::impl PhaseObserver for Heartbeat_refines, then delete this line
 /// The heartbeat as an observer of the two phases.
 impl PhaseObserver for Heartbeat {
     /// con-leche: Main.lean:67-161 installLoop
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::install_before_refines, then delete this line
     /// `con-leche: install <i>/<N> <decl> t=<s>s`, before the install.
     fn install_before(&mut self, pos: u64, total: usize, d: &DeclC) {
         if self.stride > 0 && pos % self.stride == 0 {
@@ -793,7 +770,6 @@ impl PhaseObserver for Heartbeat {
     }
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::install_failed_refines, then delete this line
     /// `con-leche: install failed at <i>/<N> …`, then the summary.
     fn install_failed(&mut self, pos: u64, total: usize, _st: &CState) {
         if self.stride > 0 {
@@ -810,14 +786,12 @@ impl PhaseObserver for Heartbeat {
     }
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::phase_b_workers_refines, then delete this line
     /// The cited `workers`, for the summary's last field.
     fn phase_b_workers(&mut self, workers: usize) {
         self.workers = workers;
     }
 
     /// con-leche: Main.lean:260-280 checkOne
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::wants_check_lines_refines, then delete this line
     /// The cited `stride > 0`: with no heartbeat no worker bumps the shared
     /// completed-counter.
     fn wants_check_lines(&self) -> bool {
@@ -825,7 +799,6 @@ impl PhaseObserver for Heartbeat {
     }
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::install_done_refines, then delete this line
     /// `con-leche: install done: <N>/<N> …, <M> checks pending …`.
     fn install_done(&mut self, total: usize, pend: usize, _st: &CState, _fe: &FEnv) {
         self.t_install = self.now();
@@ -843,7 +816,6 @@ impl PhaseObserver for Heartbeat {
     }
 
     /// con-leche: Main.lean:163-178 checkHeartbeat
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::check_after_refines, then delete this line
     /// `con-leche: check <done>/<M> <kind> <name> t=<s>s`, after the check.
     fn check_after(&mut self, done: usize, m: usize, pc: &PendingCheck, _st: &CState, _fe: &FEnv) {
         if self.stride > 0 && (done as u64) % self.stride == 0 {
@@ -859,7 +831,6 @@ impl PhaseObserver for Heartbeat {
     }
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::check_failed_refines, then delete this line
     /// `con-leche: check failed at fold position <i> …`, then the summary.
     fn check_failed(&mut self, pos: u64, _st: &CState) {
         let now = self.now();
@@ -875,7 +846,6 @@ impl PhaseObserver for Heartbeat {
     }
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove driver::check_done_refines, then delete this line
     /// `con-leche: check done: <M>/<M> …`, then the summary.
     fn check_done(&mut self, m: usize) {
         let now = self.now();

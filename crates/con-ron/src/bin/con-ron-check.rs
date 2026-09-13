@@ -323,7 +323,6 @@ fn fenv_line(fe: &FEnv, pend: usize) -> String {
 }
 
 /// con-leche: Main.lean:163-178 checkHeartbeat
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove con-ron-check::Stats_refines, then delete this line
 /// **`--stats`/`--stats-every` as a `PhaseObserver`**, beside the heartbeat it
 /// wraps: the two flags print different lines at the same points of the same
 /// loop (`driver::check_decls_driver`), so this observer forwards every event
@@ -337,18 +336,15 @@ struct Stats {
 }
 
 /// con-leche: Main.lean:163-178 checkHeartbeat
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove con-ron-check::impl PhaseObserver for Stats_refines, then delete this line
 /// The forwarding observer.
 impl PhaseObserver for Stats {
     /// con-leche: Main.lean:67-161 installLoop
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove con-ron-check::install_before_refines, then delete this line
     /// The heartbeat's install line.
     fn install_before(&mut self, pos: u64, total: usize, d: &DeclC) {
         self.hb.install_before(pos, total, d);
     }
 
     /// con-leche: Main.lean:67-161 installLoop
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove con-ron-check::install_after_refines, then delete this line
     /// `[A <i>/<N>]` with the memo state and the index, every `every`
     /// declarations.
     fn install_after(&mut self, done: usize, total: usize, st: &CState, fe: &FEnv, pend: usize) {
@@ -365,7 +361,6 @@ impl PhaseObserver for Stats {
     }
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove con-ron-check::install_failed_refines, then delete this line
     /// Phase A failed: the heartbeat's line, and the memo state it failed in
     /// (which is what `--stats` reports in place of the phase-A summary the
     /// boundary never reached).
@@ -375,7 +370,6 @@ impl PhaseObserver for Stats {
     }
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove con-ron-check::install_done_refines, then delete this line
     /// The boundary: the heartbeat's line, `[A done]`, and the phase-A
     /// summary `--stats` prints at the end.
     fn install_done(&mut self, total: usize, pend: usize, st: &CState, fe: &FEnv) {
@@ -387,14 +381,12 @@ impl PhaseObserver for Stats {
     }
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove con-ron-check::phase_b_workers_refines, then delete this line
     /// The worker count, for the heartbeat's summary.
     fn phase_b_workers(&mut self, workers: usize) {
         self.hb.phase_b_workers(workers);
     }
 
     /// con-leche: Main.lean:260-280 checkOne
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove con-ron-check::wants_check_lines_refines, then delete this line
     /// The cited `stride > 0`, plus `--stats-every`'s own per-check line: the
     /// pool's workers bump the completed-counter and call this observer when
     /// EITHER flag wants a line.
@@ -403,7 +395,6 @@ impl PhaseObserver for Stats {
     }
 
     /// con-leche: Main.lean:163-178 checkHeartbeat
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove con-ron-check::check_after_refines, then delete this line
     /// The heartbeat's check line, and `[B <done>/<M>]`.
     fn check_after(&mut self, done: usize, m: usize, pc: &PendingCheck, st: &CState, fe: &FEnv) {
         self.hb.check_after(done, m, pc, st, fe);
@@ -419,7 +410,6 @@ impl PhaseObserver for Stats {
     }
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove con-ron-check::check_failed_refines, then delete this line
     /// Phase B failed: the heartbeat's line, and the record's memo state.
     fn check_failed(&mut self, pos: u64, st: &CState) {
         self.hb.check_failed(pos, st);
@@ -427,7 +417,6 @@ impl PhaseObserver for Stats {
     }
 
     /// con-leche: Main.lean:339-458 checkDeclsIO
-    /// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove con-ron-check::check_done_refines, then delete this line
     /// Every check passed.
     fn check_done(&mut self, m: usize) {
         self.hb.check_done(m);

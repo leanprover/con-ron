@@ -90,16 +90,21 @@ nothing of the kind (`checkDeclC` is index-based throughout).  `Indexed` is
 re-established at every arm and every fold step, and `check_decls_pure_refines`
 starts from `mkFEnv Env.empty`, so no caller supplies it by hand.
 
-## The `.defnDecl` arms' three threaded hypotheses
+## The `.defnDecl` arms' one threaded hypothesis
 
-`Refine/CheckerPins.lean`'s pin gate has three caller obligations and this file
-is the caller, so the six statements that thread `pins` carry them: `hvar :
-PinsWF pins` (the argument's own well-formedness, the analogue of `hd :
-DeclarationWF d`), `hpins : absPins pins = natOpPinSets` — **needed**: the
-cited `checkDecl` reads the *global* `natOpPinSets`, so an arbitrary `pins`
-argument lets the port accept a `Nat.div` spelling the Lean declines (DESIGN.md
-§3.6, task #31's deviation).  Neither is derivable from `Core.Wrappers`, which
-is the `ok`-direction only.  A third, `DivModOrElse mode` — tasks #24/#58's two
+`Refine/CheckerPins.lean`'s pin gate has one caller obligation left and this
+file is the caller, so the six statements that thread `pins` carry it: `hvar :
+PinsWF pins`, the argument's own well-formedness (the analogue of `hd :
+DeclarationWF d`), which is not derivable from `Core.Wrappers`, the
+`ok`-direction only.
+
+`hpins : absPins pins = natOpPinSets` used to stand beside it — the cited
+`checkDecl` read the *global* `natOpPinSets`, so an arbitrary `pins` argument
+would have let the port accept a `Nat.div` spelling the Lean declined.  **Task
+#74 retired it**: the vendored con-leche takes the pin list as an argument of
+`checkDecl`/`checkDeclC`/`checkDeclStepC`/`checkDeclsPure` too (its task #285),
+so every statement below is at the abstract list `absPins pins` and claims
+nothing about its value.  A third, `DivModOrElse mode` — tasks #24/#58's two
 halves of the `orElse` deviation — travelled here until **task #65** made a
 thrown attempt the pin check's verdict; see `Refine/CheckerC.lean`'s module
 note.
@@ -291,13 +296,13 @@ theorem check_ind_decl_c_refines {mode : env.CheckMode} (hind : IndRoutesSpec mo
       match out with
       | .Ok fe' =>
         ∃ lst' lfe',
-          (ConLeche.Cached.checkDeclC (absMode mode) lfe
+          (ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
               (.indDecl (absConstantInfos block) n_p.val)).run lst
             = Except.ok (lfe', lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
       | .Err e =>
-        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) lfe
+        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
           (.indDecl (absConstantInfos block) n_p.val)).run lst) := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_ind_decl_c] at h
@@ -365,7 +370,7 @@ theorem check_ind_decl_c_refines_ok {mode : env.CheckMode} (hind : IndRoutesSpec
     (h : cached.parsed_c.check_ind_decl_c mode st fe block n_p = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
-        (ConLeche.Cached.checkDeclC (absMode mode) lfe
+        (ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
             (.indDecl (absConstantInfos block) n_p.val)).run lst = Except.ok (lfe', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' :=
@@ -608,6 +613,7 @@ Over the whole outcome (task #67): the port's own `not_implemented` site
 (`kernel/checker.rs:1571`) is the quotient gate, which is the cited arm's own
 `throw`; every other failure is one the install fold passed on. -/
 theorem check_basis_decl_c_refines {mode : env.CheckMode} {fe : fenv.FEnv}
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     {out : core.result.Result fenv.FEnv core_types.CheckError}
     {kind : env.BasisKind} (hfw : FEnvWF fe)
     (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
@@ -616,12 +622,12 @@ theorem check_basis_decl_c_refines {mode : env.CheckMode} {fe : fenv.FEnv}
       match out with
       | .Ok fe' =>
         ∃ lfe',
-          (ConLeche.Cached.checkDeclC (absMode mode) lfe
+          (ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
               (.basisDecl (absBasisKind kind))).run lst = Except.ok (lfe', lst)
           ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
       | .Err e =>
-        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) lfe
+        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
             (.basisDecl (absBasisKind kind))).run lst) := by
   intro lst lfe hfr
   rw [cached.parsed_c.check_basis_decl_c, kernel.checker.check_basis_decl.eq_def] at h
@@ -708,12 +714,13 @@ theorem check_basis_decl_c_refines {mode : env.CheckMode} {fe : fenv.FEnv}
 
 /-- `check_basis_decl_c_refines` at a success, the pre-#67 statement. -/
 theorem check_basis_decl_c_refines_ok {mode : env.CheckMode} {fe fe' : fenv.FEnv}
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     {kind : env.BasisKind} (hfw : FEnvWF fe)
     (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
     (h : cached.parsed_c.check_basis_decl_c fe kind = ok (.Ok fe')) :
     ∀ lst lfe, FEnvRel fe lfe →
       ∃ lfe',
-        (ConLeche.Cached.checkDeclC (absMode mode) lfe
+        (ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
             (.basisDecl (absBasisKind kind))).run lst = Except.ok (lfe', lst)
         ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' :=
@@ -3477,6 +3484,7 @@ into every branch (the join point is inlined).  `Refine/CheckerPins.lean`
 states the gate's refinement over `defnPinsBlockF`, the same two gates as one
 computation; `defnGatesInlined_run` is the bridge. -/
 def defnGatesInlined {α : Type} (ops : ConLeche.CheckerOps CheckCM)
+    (lpins : List ConLeche.NatOpPinSet)
     (lfp lfe2 : ConLeche.FEnv) (lenv : ConLeche.Env) (c : ConLeche.Name)
     (k : CheckCM α) : CheckCM α := do
   if ConLeche.natOpNames.contains c then
@@ -3494,17 +3502,18 @@ def defnGatesInlined {α : Type} (ops : ConLeche.CheckerOps CheckCM)
         throw (.notImplemented s!"nonstandard structural Nat operation ({c})")
     | _ => throw (.internal s!"structural Nat operation not stored ({c})")
   if ConLeche.natDivModNames.contains c then
-    ConLeche.checkDivModPinF ops lfp lfe2 c
+    ConLeche.checkDivModPinF ops lpins lfp lfe2 c
   k
 
 open ConLeche.Cached in
 /-- Inlining the join point changes nothing: the arm's tail is
 `defnPinsBlockF` followed by the continuation. -/
 theorem defnGatesInlined_eq {α : Type} (ops : ConLeche.CheckerOps CheckCM)
+    (lpins : List ConLeche.NatOpPinSet)
     (lfp lfe2 : ConLeche.FEnv) (lenv : ConLeche.Env) (c : ConLeche.Name)
     (k : CheckCM α) :
-    defnGatesInlined ops lfp lfe2 lenv c k
-      = ((CheckerPins.defnPinsBlockF ops lfp lfe2 lenv c) >>= fun _ => k) := by
+    defnGatesInlined ops lpins lfp lfe2 lenv c k
+      = ((CheckerPins.defnPinsBlockF ops lpins lfp lfe2 lenv c) >>= fun _ => k) := by
   rw [defnGatesInlined, CheckerPins.defnPinsBlockF, CheckerPins.structuralNatBlockF]
   by_cases hn : ConLeche.natOpNames.contains c = true
   · by_cases hg : (ConLeche.natOpGuardF lfe2 c
@@ -3545,7 +3554,6 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr} {hint : env.ReducibilityHint}
     {out : core.result.Result fenv.FEnv core_types.CheckError}
@@ -3557,13 +3565,13 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
       match out with
       | .Ok fe' =>
         ∃ lst' lfe',
-          (ConLeche.Cached.checkDeclC (absMode mode) lfe
+          (ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
               (.defnDecl (absConstantVal cv) (absExpr value) (absHint hint))).run lst
             = Except.ok (lfe', lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
       | .Err e =>
-        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) lfe
+        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
           (.defnDecl (absConstantVal cv) (absExpr value) (absHint hint))).run lst) := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_defn_decl_c] at h
@@ -3610,7 +3618,7 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
                                eq.2))).run lst2 = .ok (true, lst3))
           ∧ (ConLeche.natOpNames.contains (absConstantVal cv_a).name = false → lst3 = lst2)
           ∧ ((if ConLeche.natDivModNames.contains (absConstantVal cv_a).name then
-                ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) lfe (lfe.push ci)
+                ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) (absPins pins) lfe (lfe.push ci)
                   (absConstantVal cv_a).name
               else pure ()) : ConLeche.Cached.CheckCM Unit).run lst3 = .ok ((), lst4)
           ∧ StateRel st' lst4 ∧ StateWF st' ∧ FEnvRel fe' (lfe.push ci) ∧ FEnvWF fe'
@@ -3625,7 +3633,7 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
           = ((lfe.push ci).restrictTo (fe.visible_below).val).find? := by
         rw [hfr.2.1, push_restrict_find hcifresh]
       obtain ⟨lst3, lst4, hA, hB, hC, hsr4, hsw4, hrel4, hwf4⟩ :=
-        CheckerPins.check_defn_pins_refines hfuel hk hsw2 hwf2 hcvawf.1 hvar hpins
+        CheckerPins.check_defn_pins_refines hfuel hk hsw2 hwf2 hcvawf.1 hvar
           (hpin : checker.check_defn_pins mode pins st2 fe2 fe.visible_below cv_a.name
             = ok (.Ok fe', st'))
           lst2 (lfe.push ci) lfe hsr2 hrel2
@@ -3653,7 +3661,7 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
             = ok (.Ok fe2, st2) →
         cached.parsed_c.check_defn_pins_c mode pins st2 fe2 fe.visible_below cv_a.name
             = ok (.Err er, st') →
-        ErrSim er ((ConLeche.Cached.checkDeclC (absMode mode) lfe
+        ErrSim er ((ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
           (.defnDecl (absConstantVal cv) (absExpr value) (absHint hint))).run lst) := by
       intro st2 fe2 er hcond hval hpin
       obtain ⟨lst2, ci, hrun2, hciname, hsr2, hsw2, hrel2, hwf2, hcan2, hfull2⟩ :=
@@ -3665,7 +3673,6 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
           = ((lfe.push ci).restrictTo (fe.visible_below).val).find? := by
         rw [hfr.2.1, push_restrict_find hcifresh]
       have herr := CheckerPins.check_defn_pins_refines hfuel hk hsw2 hwf2 hcvawf.1 hvar
-        hpins
         (hpin : checker.check_defn_pins mode pins st2 fe2 fe.visible_below cv_a.name
           = ok (.Err er, st'))
         lst2 (lfe.push ci) lfe hsr2 hrel2
@@ -3677,7 +3684,7 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
       rw [hcond]
       simp only [if_true]
       refine run_bind_ok hrun2 ?_
-      show (defnGatesInlined (TypeChecker.lops mode lfe) lfe (lfe.push ci)
+      show (defnGatesInlined (TypeChecker.lops mode lfe) (absPins pins) lfe (lfe.push ci)
           lfe.env (absName cv_a.name) (pure (lfe.push ci))).run lst2 = Except.error le
       rw [defnGatesInlined_eq]
       exact run_bind_err_head hle
@@ -3687,7 +3694,7 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
           ConLeche.natDivModNames.contains (absConstantVal cv_a).name) = true →
         cached.parsed_c.check_defn_val_c mode st1 fe cv_a jty value hint
             = ok (.Err er, st') →
-        ErrSim er ((ConLeche.Cached.checkDeclC (absMode mode) lfe
+        ErrSim er ((ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
           (.defnDecl (absConstantVal cv) (absExpr value) (absHint hint))).run lst) := by
       intro er hcond hval
       have herr := check_defn_val_c_refines hfuel hk hsw1 hfw hcan hfull hcvawf hjtywf hv
@@ -3702,11 +3709,11 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     -- the `Nat.div`/`Nat.mod` gate, with the arm's `pure fe2` continuation
     have divmod : ∀ (ci : ConLeche.ConstantInfo) (l3 l4 : ConLeche.Cached.CState),
         ((if ConLeche.natDivModNames.contains (absConstantVal cv_a).name then
-            ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) lfe (lfe.push ci)
+            ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) (absPins pins) lfe (lfe.push ci)
               (absConstantVal cv_a).name
           else pure ()) : ConLeche.Cached.CheckCM Unit).run l3 = .ok ((), l4) →
         ((if ConLeche.natDivModNames.contains (absConstantVal cv_a).name then
-            (do ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) lfe (lfe.push ci)
+            (do ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) (absPins pins) lfe (lfe.push ci)
                   (absConstantVal cv_a).name
                 pure (lfe.push ci))
           else pure (lfe.push ci)) : ConLeche.Cached.CheckCM ConLeche.FEnv).run l3
@@ -3835,7 +3842,6 @@ theorem check_defn_decl_c_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr} {hint : env.ReducibilityHint}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
@@ -3844,12 +3850,12 @@ theorem check_defn_decl_c_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
         = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
-        (ConLeche.Cached.checkDeclC (absMode mode) lfe
+        (ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
             (.defnDecl (absConstantVal cv) (absExpr value) (absHint hint))).run lst
           = Except.ok (lfe', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' :=
-  check_defn_decl_c_refines hfuel hk hvar hpins hsw hfw hcan hfull hcv hv h
+  check_defn_decl_c_refines hfuel hk hvar hsw hfw hcan hfull hcv hv h
 
 /-- `checkDeclC`'s `.thmDecl` arm (`ParsedC.lean:186-188`).
 
@@ -3866,13 +3872,13 @@ theorem check_thm_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
       match out with
       | .Ok fe' =>
         ∃ lst' lfe',
-          (ConLeche.Cached.checkDeclC (absMode mode) lfe
+          (ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
               (.thmDecl (absConstantVal cv) (absExpr value))).run lst
             = Except.ok (lfe', lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
       | .Err e =>
-        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) lfe
+        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
           (.thmDecl (absConstantVal cv) (absExpr value))).run lst) := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_thm_decl_c] at h
@@ -3915,7 +3921,7 @@ theorem check_thm_decl_c_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (h : cached.parsed_c.check_thm_decl_c mode st fe cv value = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
-        (ConLeche.Cached.checkDeclC (absMode mode) lfe
+        (ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
             (.thmDecl (absConstantVal cv) (absExpr value))).run lst
           = Except.ok (lfe', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
@@ -3944,13 +3950,13 @@ theorem check_opaque_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
       match out with
       | .Ok fe' =>
         ∃ lst' lfe',
-          (ConLeche.Cached.checkDeclC (absMode mode) lfe
+          (ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
               (.opaqueDecl (absConstantVal cv) (absExpr value))).run lst
             = Except.ok (lfe', lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
       | .Err e =>
-        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) lfe
+        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
           (.opaqueDecl (absConstantVal cv) (absExpr value))).run lst) := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_opaque_decl_c] at h
@@ -4075,7 +4081,7 @@ theorem check_opaque_decl_c_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (h : cached.parsed_c.check_opaque_decl_c mode st fe cv value = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
-        (ConLeche.Cached.checkDeclC (absMode mode) lfe
+        (ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
             (.opaqueDecl (absConstantVal cv) (absExpr value))).run lst
           = Except.ok (lfe', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
@@ -4103,12 +4109,12 @@ theorem check_axiom_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
       match out with
       | .Ok fe' =>
         ∃ lst' lfe',
-          (ConLeche.Cached.checkDeclC (absMode mode) lfe
+          (ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
               (.axiomDecl (absConstantVal cv))).run lst = Except.ok (lfe', lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
       | .Err e =>
-        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) lfe
+        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
           (.axiomDecl (absConstantVal cv))).run lst) := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_axiom_decl_c] at h
@@ -4415,7 +4421,7 @@ theorem check_axiom_decl_c_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (h : cached.parsed_c.check_axiom_decl_c mode st fe cv = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
-        (ConLeche.Cached.checkDeclC (absMode mode) lfe
+        (ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
             (.axiomDecl (absConstantVal cv))).run lst = Except.ok (lfe', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' :=
@@ -4434,7 +4440,6 @@ theorem check_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hind : IndRoutesSpec mode) (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {pd : parsed_c.DeclC}
     {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
@@ -4444,12 +4449,12 @@ theorem check_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
       match out with
       | .Ok fe' =>
         ∃ lst' lfe',
-          (ConLeche.Cached.checkDeclC (absMode mode) lfe (absDeclC pd)).run lst
+          (ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe (absDeclC pd)).run lst
               = Except.ok (lfe', lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
       | .Err e =>
-        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) lfe
+        ErrSim e ((ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe
           (absDeclC pd)).run lst) := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_decl_c.eq_def] at h
@@ -4465,10 +4470,10 @@ theorem check_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     simp only [absDeclC]
     cases out with
     | Ok fe' =>
-      exact check_defn_decl_c_refines hfuel hk hvar hpins hsw hfw hcan hfull hd.1 hd.2 h
+      exact check_defn_decl_c_refines hfuel hk hvar hsw hfw hcan hfull hd.1 hd.2 h
         lst lfe hsr hfr
     | Err e =>
-      exact check_defn_decl_c_refines hfuel hk hvar hpins hsw hfw hcan hfull hd.1 hd.2 h
+      exact check_defn_decl_c_refines hfuel hk hvar hsw hfw hcan hfull hd.1 hd.2 h
         lst lfe hsr hfr
   | ThmDecl cv value =>
     simp only [absDeclC]
@@ -4491,7 +4496,8 @@ theorem check_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
   | BasisDecl kind =>
     simp only [absDeclC]
     obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
-    have hres := check_basis_decl_c_refines (mode := mode) hfw hcan hfull hr lst lfe hfr
+    have hres := check_basis_decl_c_refines (mode := mode) (pins := pins) hfw hcan hfull hr
+      lst lfe hfr
     cases r with
     | Ok fe2 =>
       obtain ⟨hout, rfl⟩ := ok_outS h
@@ -4516,18 +4522,17 @@ theorem check_decl_c_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hind : IndRoutesSpec mode) (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {pd : parsed_c.DeclC}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hd : DeclCWF pd)
     (h : cached.parsed_c.check_decl_c mode pins st fe pd = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
-        (ConLeche.Cached.checkDeclC (absMode mode) lfe (absDeclC pd)).run lst
+        (ConLeche.Cached.checkDeclC (absMode mode) (absPins pins) lfe (absDeclC pd)).run lst
             = Except.ok (lfe', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' :=
-  check_decl_c_refines hfuel hk hind hinde hvar hpins hsw hfw hcan hfull hd h
+  check_decl_c_refines hfuel hk hind hinde hvar hsw hfw hcan hfull hd h
 
 /-- **`cached::parsed_c::check_decl_step_c` refines `checkDeclStepC`**
 (`ConLeche/Cached/ParsedC.lean:259-262`): `flushC`, then `checkDeclC`.  The
@@ -4542,7 +4547,6 @@ theorem check_decl_step_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hind : IndRoutesSpec mode) (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {pd : parsed_c.DeclC}
     {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
@@ -4552,19 +4556,19 @@ theorem check_decl_step_c_refines {mode : env.CheckMode} {fuel : Std.U64}
       match out with
       | .Ok fe' =>
         ∃ lst' lfe',
-          (ConLeche.Cached.checkDeclStepC (absMode mode) lfe (absDeclC pd)).run lst
+          (ConLeche.Cached.checkDeclStepC (absMode mode) (absPins pins) lfe (absDeclC pd)).run lst
               = Except.ok (lfe', lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
       | .Err e =>
-        ErrSim e ((ConLeche.Cached.checkDeclStepC (absMode mode) lfe
+        ErrSim e ((ConLeche.Cached.checkDeclStepC (absMode mode) (absPins pins) lfe
           (absDeclC pd)).run lst) := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_decl_step_c] at h
   obtain ⟨st1, hflush, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hrunf, hrel1, hwf1, -⟩ := StateC.flush_c_refines hsr hsw hflush
   have hres :=
-    check_decl_c_refines hfuel hk hind hinde hvar hpins hwf1 hfw hcan hfull hd h
+    check_decl_c_refines hfuel hk hind hinde hvar hwf1 hfw hcan hfull hd h
       lst.flushed lfe hrel1 hfr
   cases out with
   | Ok fe' =>
@@ -4586,18 +4590,17 @@ theorem check_decl_step_c_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hind : IndRoutesSpec mode) (hinde : IndRoutesSpecErr mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {pd : parsed_c.DeclC}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hd : DeclCWF pd)
     (h : cached.parsed_c.check_decl_step_c mode pins st fe pd = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
-        (ConLeche.Cached.checkDeclStepC (absMode mode) lfe (absDeclC pd)).run lst
+        (ConLeche.Cached.checkDeclStepC (absMode mode) (absPins pins) lfe (absDeclC pd)).run lst
             = Except.ok (lfe', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' :=
-  check_decl_step_c_refines hfuel hk hind hinde hvar hpins hsw hfw hcan hfull hd h
+  check_decl_step_c_refines hfuel hk hind hinde hvar hsw hfw hcan hfull hd h
 
 /-! ## `Indexed`: the one hypothesis the `Expr`-level statements need
 
@@ -5106,7 +5109,6 @@ theorem check_defn_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr} {hint : env.ReducibilityHint}
     {out : core.result.Result fenv.FEnv core_types.CheckError}
@@ -5116,14 +5118,14 @@ theorem check_defn_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
       match out with
       | .Ok fe' =>
         ∃ lst' lfe',
-          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
               (ConLeche.Declaration.defnDecl (absConstantVal cv) (absExpr value)
                 (absHint hint))).run lst
             = Except.ok (lfe'.env, lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ Indexed lfe'
       | .Err e =>
-        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
           (ConLeche.Declaration.defnDecl (absConstantVal cv) (absExpr value)
             (absHint hint))).run lst) := by
   intro lst lfe hsr hfr hix
@@ -5210,7 +5212,7 @@ theorem check_defn_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
               (fe.visible_below).val).find? := by
         rw [hfr.2.1, push_restrict_find hcifresh]
       have hres :=
-        CheckerPins.check_defn_pins_refines hfuel hk hsw2 hwf2 hcvawf.1 hvar hpins h lst2
+        CheckerPins.check_defn_pins_refines hfuel hk hsw2 hwf2 hcvawf.1 hvar h lst2
           (lfe.push (absConstantInfo (env.ConstantInfo.DefnInfo cv_a value_a hint))) lfe
           hsr2 hrel2 (fun _ hr => BasisPins.eq_basis_pinned_refines hrel2 hwf2 hr) hlfp
       -- the four `Env`-vs-index spellings the arm reads
@@ -5230,22 +5232,22 @@ theorem check_defn_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
           = (lfe.push (absConstantInfo
             (env.ConstantInfo.DefnInfo cv_a value_a hint))).find?
               (absConstantVal cv_a).name := (hix2.find_eq _).symm
-      have hdmE : ConLeche.checkDivModPin (TypeChecker.lops mode lfe) lfe.env
+      have hdmE : ConLeche.checkDivModPin (TypeChecker.lops mode lfe) (absPins pins) lfe.env
             (lfe.push (absConstantInfo
               (env.ConstantInfo.DefnInfo cv_a value_a hint))).env (absConstantVal cv_a).name
-          = ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) lfe
+          = ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) (absPins pins) lfe
             (lfe.push (absConstantInfo
               (env.ConstantInfo.DefnInfo cv_a value_a hint))) (absConstantVal cv_a).name := by
         rw [← ConLeche.checkDivModPinF_eq, ← hix, ← hix2]
       -- the `Nat.div`/`Nat.mod` gate, with the arm's `pure env2` continuation
       have divmod : ∀ (l3 l4 : ConLeche.Cached.CState),
           ((if ConLeche.natDivModNames.contains (absConstantVal cv_a).name then
-              ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) lfe
+              ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) (absPins pins) lfe
                 (lfe.push (absConstantInfo (env.ConstantInfo.DefnInfo cv_a value_a hint)))
                 (absConstantVal cv_a).name
             else pure ()) : ConLeche.Cached.CheckCM Unit).run l3 = .ok ((), l4) →
           ((if ConLeche.natDivModNames.contains (absConstantVal cv_a).name then
-              (do ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) lfe
+              (do ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) (absPins pins) lfe
                     (lfe.push (absConstantInfo
                       (env.ConstantInfo.DefnInfo cv_a value_a hint)))
                     (absConstantVal cv_a).name
@@ -5274,7 +5276,7 @@ theorem check_defn_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
         refine run_bind_ok hruncvF ?_
         refine run_bind_ok hrunE ?_
         rw [hdmE, hguard, hstored, hfindE]
-        show (defnGatesInlined (TypeChecker.lops mode lfe) lfe
+        show (defnGatesInlined (TypeChecker.lops mode lfe) (absPins pins) lfe
             (lfe.push (absConstantInfo (env.ConstantInfo.DefnInfo cv_a value_a hint)))
             lfe.env (absConstantVal cv_a).name
             (pure (lfe.push (absConstantInfo
@@ -5285,7 +5287,7 @@ theorem check_defn_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
       | Ok fe' =>
         obtain ⟨lst3, lst4, hA, hB, hC, hsr4, hsw4, hrel4, hwf4⟩ := hres
         have hC' : ((if ConLeche.natDivModNames.contains (absConstantVal cv_a).name then
-              ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) lfe
+              ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) (absPins pins) lfe
                 (lfe.push (absConstantInfo (env.ConstantInfo.DefnInfo cv_a value_a hint)))
                 (absConstantVal cv_a).name
             else pure ()) : ConLeche.Cached.CheckCM Unit).run lst3 = .ok ((), lst4) := hC
@@ -5336,7 +5338,6 @@ theorem check_defn_decl_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr} {hint : env.ReducibilityHint}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
@@ -5344,13 +5345,13 @@ theorem check_defn_decl_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
         = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → Indexed lfe →
       ∃ lst' lfe',
-        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
             (ConLeche.Declaration.defnDecl (absConstantVal cv) (absExpr value)
               (absHint hint))).run lst
           = Except.ok (lfe'.env, lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ Indexed lfe' :=
-  check_defn_decl_refines hfuel hk hvar hpins hsw hfw hcv hv h
+  check_defn_decl_refines hfuel hk hvar hsw hfw hcv hv h
 
 /-- `checkDecl`'s `.thmDecl` arm (`Checker.lean:501-503`).
 
@@ -5368,13 +5369,13 @@ theorem check_thm_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
       match out with
       | .Ok fe' =>
         ∃ lst' lfe',
-          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
               (ConLeche.Declaration.thmDecl (absConstantVal cv) (absExpr value))).run lst
             = Except.ok (lfe'.env, lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ Indexed lfe'
       | .Err e =>
-        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
           (ConLeche.Declaration.thmDecl (absConstantVal cv) (absExpr value))).run lst) := by
   intro lst lfe hsr hfr hix
   rw [kernel.checker.check_thm_decl] at h
@@ -5431,7 +5432,7 @@ theorem check_thm_decl_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (h : kernel.checker.check_thm_decl mode st fe cv value = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → Indexed lfe →
       ∃ lst' lfe',
-        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
             (ConLeche.Declaration.thmDecl (absConstantVal cv) (absExpr value))).run lst
           = Except.ok (lfe'.env, lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
@@ -5458,13 +5459,13 @@ theorem check_opaque_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
       match out with
       | .Ok fe' =>
         ∃ lst' lfe',
-          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
               (ConLeche.Declaration.opaqueDecl (absConstantVal cv)
                 (absExpr value))).run lst = Except.ok (lfe'.env, lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ Indexed lfe'
       | .Err e =>
-        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
           (ConLeche.Declaration.opaqueDecl (absConstantVal cv)
             (absExpr value))).run lst) := by
   intro lst lfe hsr hfr hix
@@ -5596,7 +5597,7 @@ theorem check_opaque_decl_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (h : kernel.checker.check_opaque_decl mode st fe cv value = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → Indexed lfe →
       ∃ lst' lfe',
-        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
             (ConLeche.Declaration.opaqueDecl (absConstantVal cv)
               (absExpr value))).run lst = Except.ok (lfe'.env, lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
@@ -5625,13 +5626,13 @@ theorem check_axiom_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
       match out with
       | .Ok fe' =>
         ∃ lst' lfe',
-          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
               (ConLeche.Declaration.axiomDecl (absConstantVal cv))).run lst
             = Except.ok (lfe'.env, lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ Indexed lfe'
       | .Err e =>
-        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
           (ConLeche.Declaration.axiomDecl (absConstantVal cv))).run lst) := by
   intro lst lfe hsr hfr hix
   rw [kernel.checker.check_axiom_decl] at h
@@ -5923,7 +5924,7 @@ theorem check_axiom_decl_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (h : kernel.checker.check_axiom_decl mode st fe cv = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → Indexed lfe →
       ∃ lst' lfe',
-        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
             (ConLeche.Declaration.axiomDecl (absConstantVal cv))).run lst
           = Except.ok (lfe'.env, lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
@@ -5940,6 +5941,7 @@ gate, `install_basis_decls_refines` above for the fold, and
 `installBasisDecl_fold_env` to move that fold from `installBasisDeclF` at the
 index to `installBasisDecl` at its environment. -/
 theorem check_basis_decl_refines {mode : env.CheckMode}
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     {fe : fenv.FEnv} {kind : env.BasisKind}
     {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hfw : FEnvWF fe)
@@ -5948,12 +5950,12 @@ theorem check_basis_decl_refines {mode : env.CheckMode}
       match out with
       | .Ok fe' =>
         ∃ lfe',
-          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
               (ConLeche.Declaration.basisDecl (absBasisKind kind))).run lst
             = Except.ok (lfe'.env, lst)
           ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' ∧ Indexed lfe'
       | .Err e =>
-        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
           (ConLeche.Declaration.basisDecl (absBasisKind kind))).run lst) := by
   intro lst lfe hfr hix
   rw [kernel.checker.check_basis_decl.eq_def] at h
@@ -6044,12 +6046,13 @@ theorem check_basis_decl_refines {mode : env.CheckMode}
 
 /-- `check_basis_decl_refines` at a success, the pre-#67 statement. -/
 theorem check_basis_decl_refines_ok {mode : env.CheckMode}
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     {fe fe' : fenv.FEnv} {kind : env.BasisKind}
     (hfw : FEnvWF fe)
     (h : kernel.checker.check_basis_decl fe kind = ok (.Ok fe')) :
     ∀ lst lfe, FEnvRel fe lfe → Indexed lfe →
       ∃ lfe',
-        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
             (ConLeche.Declaration.basisDecl (absBasisKind kind))).run lst
           = Except.ok (lfe'.env, lst)
         ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' ∧ Indexed lfe' :=
@@ -6067,7 +6070,6 @@ theorem check_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {d : env.Declaration}
     {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclarationWF d)
@@ -6076,12 +6078,12 @@ theorem check_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
       match out with
       | .Ok fe' =>
         ∃ lst' lfe',
-          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+          (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
               (absDeclaration d)).run lst = Except.ok (lfe'.env, lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ Indexed lfe'
       | .Err e =>
-        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+        ErrSim e ((ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
           (absDeclaration d)).run lst) := by
   intro lst lfe hsr hfr hix
   rw [kernel.checker.check_decl.eq_def] at h
@@ -6095,10 +6097,10 @@ theorem check_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
     simp only [absDeclaration]
     cases out with
     | Ok fe' =>
-      exact check_defn_decl_refines hfuel hk hvar hpins hsw hfw hd.1 hd.2 h lst lfe hsr
+      exact check_defn_decl_refines hfuel hk hvar hsw hfw hd.1 hd.2 h lst lfe hsr
         hfr hix
     | Err e =>
-      exact check_defn_decl_refines hfuel hk hvar hpins hsw hfw hd.1 hd.2 h lst lfe hsr
+      exact check_defn_decl_refines hfuel hk hvar hsw hfw hd.1 hd.2 h lst lfe hsr
         hfr hix
   | ThmDecl cv value =>
     simp only [absDeclaration]
@@ -6115,7 +6117,7 @@ theorem check_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
   | BasisDecl kind =>
     simp only [absDeclaration]
     obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
-    have hres := check_basis_decl_refines (mode := mode) hfw hr lst lfe hfr hix
+    have hres := check_basis_decl_refines (mode := mode) (pins := pins) hfw hr lst lfe hfr hix
     cases r with
     | Ok fe2 =>
       obtain ⟨hout, rfl⟩ := ok_outS h
@@ -6170,17 +6172,16 @@ theorem check_decl_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {d : env.Declaration}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclarationWF d)
     (h : kernel.checker.check_decl mode pins st fe d = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → Indexed lfe →
       ∃ lst' lfe',
-        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+        (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) (absPins pins) lfe.env
             (absDeclaration d)).run lst = Except.ok (lfe'.env, lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ Indexed lfe' :=
-  check_decl_refines hfuel hk hvar hpins hsw hfw hd h
+  check_decl_refines hfuel hk hvar hsw hfw hd h
 
 /-! ## The fold
 
@@ -6204,48 +6205,48 @@ last file, a later task) can reuse it verbatim. -/
 /-- **The port's fold, exactly**: `checkDecl` at each step's own index.  `nil`
 is the exhausted fold; `cons` runs one declaration at the current index and
 continues at the index the port pushed. -/
-inductive FoldsTo (mode : env.CheckMode) :
+inductive FoldsTo (mode : env.CheckMode) (lpins : List ConLeche.NatOpPinSet) :
     ConLeche.Cached.CState -> ConLeche.FEnv -> List ConLeche.Declaration ->
     ConLeche.Cached.CState -> ConLeche.FEnv -> Prop where
-  | nil {lst lfe} : FoldsTo mode lst lfe [] lst lfe
+  | nil {lst lfe} : FoldsTo mode lpins lst lfe [] lst lfe
   | cons {lst lst₁ lst₂ lfe lfe₁ lfe₂ d ds} :
-      (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env d).run lst
+      (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lpins lfe.env d).run lst
           = .ok (lfe₁.env, lst₁) →
-      FoldsTo mode lst₁ lfe₁ ds lst₂ lfe₂ →
-      FoldsTo mode lst lfe (d :: ds) lst₂ lfe₂
+      FoldsTo mode lpins lst₁ lfe₁ ds lst₂ lfe₂ →
+      FoldsTo mode lpins lst lfe (d :: ds) lst₂ lfe₂
 
 /-- **The port's fold, throwing** (task #67): a prefix of the declarations goes
 through, each step at its own index, and then one step throws.  This is
 `FoldsTo`'s failure twin — the fold has no single computation to point
 `ErrSim` at (the operation record is rebuilt at every step, section note), so
 the failure half names the step that threw. -/
-inductive FoldsErr (mode : env.CheckMode) :
+inductive FoldsErr (mode : env.CheckMode) (lpins : List ConLeche.NatOpPinSet) :
     ConLeche.Cached.CState -> ConLeche.FEnv -> List ConLeche.Declaration ->
     ConLeche.CheckError -> Prop where
   | head {lst lfe d ds le} :
-      (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env d).run lst
+      (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lpins lfe.env d).run lst
           = .error le →
-      FoldsErr mode lst lfe (d :: ds) le
+      FoldsErr mode lpins lst lfe (d :: ds) le
   | cons {lst lst₁ lfe lfe₁ d ds le} :
-      (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env d).run lst
+      (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lpins lfe.env d).run lst
           = .ok (lfe₁.env, lst₁) →
-      FoldsErr mode lst₁ lfe₁ ds le →
-      FoldsErr mode lst lfe (d :: ds) le
+      FoldsErr mode lpins lst₁ lfe₁ ds le →
+      FoldsErr mode lpins lst lfe (d :: ds) le
 
 /-- `Refine/Abs.lean`'s `ErrSim`, at the fold: the port's error has a kind only
 if some step of the cited fold throws at that kind.  `Native` makes it vacuous,
 exactly as `ErrSim` does. -/
-def FoldErrSim (mode : env.CheckMode) (e : core_types.CheckError)
+def FoldErrSim (mode : env.CheckMode) (lpins : List ConLeche.NatOpPinSet)
+    (e : core_types.CheckError)
     (lst : ConLeche.Cached.CState) (lfe : ConLeche.FEnv)
     (ds : List ConLeche.Declaration) : Prop :=
-  ∀ k, absErrKind e = some k → ∃ le, FoldsErr mode lst lfe ds le ∧ lErrKind le = k
+  ∀ k, absErrKind e = some k → ∃ le, FoldsErr mode lpins lst lfe ds le ∧ lErrKind le = k
 
 /-- The fold with an explicit bound to recurse on. -/
 theorem check_decls_pure_val {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec env.Declaration} (hds : ∀ d ∈ ds.val, DeclarationWF d) (n : Nat) :
     ∀ (st st' : cached.state_c.CState) (fe : fenv.FEnv)
       (out : core.result.Result fenv.FEnv core_types.CheckError) (i : Std.Usize),
@@ -6255,11 +6256,11 @@ theorem check_decls_pure_val {mode : env.CheckMode} {fuel : Std.U64}
         match out with
         | .Ok fe' =>
           ∃ lst' lfe',
-            FoldsTo mode lst lfe ((ds.val.drop i.val).map absDeclaration) lst' lfe'
+            FoldsTo mode (absPins pins) lst lfe ((ds.val.drop i.val).map absDeclaration) lst' lfe'
             ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ Indexed lfe'
         | .Err e =>
-          FoldErrSim mode e lst lfe ((ds.val.drop i.val).map absDeclaration) := by
+          FoldErrSim mode (absPins pins) e lst lfe ((ds.val.drop i.val).map absDeclaration) := by
   induction n with
   | zero =>
     intro st st' fe out i hb hsw hfw h lst lfe hsr hfr hix
@@ -6300,9 +6301,9 @@ theorem check_decls_pure_val {mode : env.CheckMode} {fuel : Std.U64}
         -- the step threw, and it is the cited fold's first failing step
         obtain ⟨hout, -⟩ := err_outS h
         subst hout
-        show FoldErrSim mode e lst lfe _
+        show FoldErrSim mode (absPins pins) e lst lfe _
         have herr :=
-          check_decl_refines hfuel hk hvar hpins hsw hfw (hds d hmem) hstep lst lfe hsr
+          check_decl_refines hfuel hk hvar hsw hfw (hds d hmem) hstep lst lfe hsr
             hfr hix
         intro k hkk
         obtain ⟨le, hrun, hkind⟩ := herr k hkk
@@ -6311,7 +6312,7 @@ theorem check_decls_pure_val {mode : env.CheckMode} {fuel : Std.U64}
         exact .head hrun
       | Ok fe1 =>
         obtain ⟨lst1, lfe1, hrun, hsr1, hsw1, hfr1, hfw1, hix1⟩ :=
-          check_decl_refines hfuel hk hvar hpins hsw hfw (hds d hmem) hstep lst lfe hsr hfr hix
+          check_decl_refines hfuel hk hvar hsw hfw (hds d hmem) hstep lst lfe hsr hfr hix
         obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
         have hi2v : i2.val = i.val + 1 := by
           have he := Std.UScalar.add_equiv i 1#usize
@@ -6326,7 +6327,7 @@ theorem check_decls_pure_val {mode : env.CheckMode} {fuel : Std.U64}
           rw [hdrop, List.map_cons]
           exact .cons hrun hfold
         | Err e =>
-          show FoldErrSim mode e lst lfe _
+          show FoldErrSim mode (absPins pins) e lst lfe _
           intro k hkk
           obtain ⟨le, hfe, hkind⟩ := hrec k hkk
           refine ⟨le, ?_, hkind⟩
@@ -6339,7 +6340,6 @@ theorem check_decls_pure_from_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {out : core.result.Result fenv.FEnv core_types.CheckError}
     {ds : alloc.vec.Vec env.Declaration} {i : Std.Usize}
@@ -6349,13 +6349,13 @@ theorem check_decls_pure_from_refines {mode : env.CheckMode} {fuel : Std.U64}
       match out with
       | .Ok fe' =>
         ∃ lst' lfe',
-          FoldsTo mode lst lfe ((ds.val.drop i.val).map absDeclaration) lst' lfe'
+          FoldsTo mode (absPins pins) lst lfe ((ds.val.drop i.val).map absDeclaration) lst' lfe'
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ Indexed lfe'
       | .Err e =>
-        FoldErrSim mode e lst lfe ((ds.val.drop i.val).map absDeclaration) := by
+        FoldErrSim mode (absPins pins) e lst lfe ((ds.val.drop i.val).map absDeclaration) := by
   intro lst lfe hsr hfr hix
-  have hres := check_decls_pure_val hfuel hk hvar hpins hds ds.val.length st st' fe out i
+  have hres := check_decls_pure_val hfuel hk hvar hds ds.val.length st st' fe out i
     (by omega) hsw hfw h lst lfe hsr hfr hix
   cases out with
   | Ok fe' => exact hres
@@ -6366,17 +6366,16 @@ theorem check_decls_pure_from_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {ds : alloc.vec.Vec env.Declaration} {i : Std.Usize}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : kernel.checker.check_decls_pure_from mode pins st fe ds i = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → Indexed lfe →
       ∃ lst' lfe',
-        FoldsTo mode lst lfe ((ds.val.drop i.val).map absDeclaration) lst' lfe'
+        FoldsTo mode (absPins pins) lst lfe ((ds.val.drop i.val).map absDeclaration) lst' lfe'
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ Indexed lfe' :=
-  check_decls_pure_from_refines hfuel hk hvar hpins hsw hfw hds h
+  check_decls_pure_from_refines hfuel hk hvar hsw hfw hds h
 
 /-- **`kernel::checker::check_decls_pure` refines `checkDeclsPure`**
 (`Checker.lean:564-567`): the whole stream from the empty environment, at the
@@ -6388,7 +6387,6 @@ theorem check_decls_pure_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState}
     {out : core.result.Result fenv.FEnv core_types.CheckError}
     {ds : alloc.vec.Vec env.Declaration}
@@ -6398,12 +6396,12 @@ theorem check_decls_pure_refines {mode : env.CheckMode} {fuel : Std.U64}
       match out with
       | .Ok fe' =>
         ∃ lst' lfe',
-          FoldsTo mode lst (ConLeche.mkFEnv ConLeche.Env.empty)
+          FoldsTo mode (absPins pins) lst (ConLeche.mkFEnv ConLeche.Env.empty)
               (ds.val.map absDeclaration) lst' lfe'
           ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
           ∧ Indexed lfe'
       | .Err e =>
-        FoldErrSim mode e lst (ConLeche.mkFEnv ConLeche.Env.empty)
+        FoldErrSim mode (absPins pins) e lst (ConLeche.mkFEnv ConLeche.Env.empty)
           (ds.val.map absDeclaration) := by
   intro lst hsr
   rw [kernel.checker.check_decls_pure] at h
@@ -6412,14 +6410,14 @@ theorem check_decls_pure_refines {mode : env.CheckMode} {fuel : Std.U64}
   obtain ⟨hrel0, hwf0⟩ := FEnv.mk_fenv_refines (Env.empty_wf he) hfe0
   rw [Env.empty_refines he] at hrel0
   have hres :=
-    check_decls_pure_from_refines hfuel hk hvar hpins hsw hwf0 hds h lst
+    check_decls_pure_from_refines hfuel hk hvar hsw hwf0 hds h lst
       (ConLeche.mkFEnv ConLeche.Env.empty) hsr hrel0 (Indexed.mk _)
   cases out with
   | Ok fe' =>
     obtain ⟨lst', lfe', hfold, rest⟩ := hres
     exact ⟨lst', lfe', by simpa using hfold, rest⟩
   | Err er =>
-    show FoldErrSim mode er lst _ _
+    show FoldErrSim mode (absPins pins) er lst _ _
     intro k hkk
     obtain ⟨le, hfe, hkind⟩ := hres k hkk
     exact ⟨le, by simpa using hfe, hkind⟩
@@ -6429,18 +6427,17 @@ theorem check_decls_pure_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe' : fenv.FEnv}
     {ds : alloc.vec.Vec env.Declaration}
     (hsw : StateWF st) (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : kernel.checker.check_decls_pure mode pins st ds = ok (.Ok fe', st')) :
     ∀ lst, StateRel st lst →
       ∃ lst' lfe',
-        FoldsTo mode lst (ConLeche.mkFEnv ConLeche.Env.empty)
+        FoldsTo mode (absPins pins) lst (ConLeche.mkFEnv ConLeche.Env.empty)
             (ds.val.map absDeclaration) lst' lfe'
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ Indexed lfe' :=
-  check_decls_pure_refines hfuel hk hvar hpins hsw hds h
+  check_decls_pure_refines hfuel hk hvar hsw hds h
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 

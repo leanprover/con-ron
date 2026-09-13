@@ -65,8 +65,12 @@
 //!   `ConstantInfo`s are `kernel::basis_pins` over that table (task #27).
 //!   The pin variants `checkDivModPinLoop` walks are the `pins` **parameter**
 //!   threaded down from `cached::installed::check_decls` (DESIGN.md §3.6,
-//!   task #31), where the cited code reads the global `natOpPinSets`; an
-//!   empty list is the loop's `[]` arm, i.e. a decline.
+//!   task #31).  Since task #74 that is **no longer a deviation**: the cited
+//!   `checkDivModPin`/`checkDivModPinF` take `pins : List NatOpPinSet` as an
+//!   argument too (con-leche task #285, vendored here), so the port and the
+//!   cited code have the same arity and the refinement is stated at the
+//!   *abstract* list.  An empty list is still the loop's `[]` arm, i.e. a
+//!   decline.
 
 use crate::cached::checker_c;
 use crate::cached::checker_c::OrElseStep;
@@ -1129,27 +1133,26 @@ pub fn check_div_mod_pin_loop(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:362-387 checkDivModPin
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::check_div_mod_pin_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:903-913 checkDivModPinF
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::check_div_mod_pin_refines, then delete this line
 /// The pin-certified operations' install gate, run after the ordinary
 /// definition check: the dependency and pinned-`Eq` guards at the *extended*
-/// environment, then the pin variants in `natOpPinSets` order at the
-/// *pre-insertion* one.  No variant matching is a decline, never a silent
-/// accept.
+/// environment, then the pin variants in `pins` order at the *pre-insertion*
+/// one.  No variant matching is a decline, never a silent accept.
 ///
 /// Deviation (module note 1): the two environments are one index at two
 /// visibility bounds, so this takes the index by value at the extended bound
 /// and hands it back there, where the Lean returns `Unit`.
-/// **Deviation (DESIGN.md §3.6, task #31): `pins` is a parameter.**  con-leche
-/// bakes `natOpPinSets` (`ConLeche/Kernel/NatOpPins.lean:61`) into
-/// `checkDivModPin` as a global constant; the port threads the list from
-/// `check_decls` instead, because the ~26 500-node table cannot be generated
+///
+/// **`pins` is a parameter on both sides** (DESIGN.md §3.6, task #31; task
+/// #74).  It was a deviation while the cited `checkDivModPin` read the global
+/// `natOpPinSets` (`ConLeche/Kernel/NatOpPins.lean:62`): the port threads the
+/// list from `check_decls` because the ~26 500-node table cannot be generated
 /// as Rust (Charon OOMs on it, task #22) and it is a *hint* list — every pin
 /// is re-checked by `isDefEq` against the stream's own stored value and every
 /// certificate against the hand-pinned `div_mod_cert_stmts`, so a wrong list
-/// costs a decline and never an accept.  The upstream change this asks for is
-/// `checkDecls mode pins ds`.
+/// costs a decline and never an accept.  The upstream change that argument
+/// asked for landed as con-leche task #285 and is vendored here, so the cited
+/// code takes the list too and the arities now agree.
 pub fn check_div_mod_pin(
     mode: &CheckMode,
     pins: &Vec<NatOpPinSet>,
@@ -1293,7 +1296,6 @@ pub fn check_reduce_identity(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::check_decl_refines, then delete this line
 /// Check a single declaration, extending the environment on success.  The
 /// cited `match d with` becomes one dispatch and six arm functions, so every
 /// arm stays a tail call.
@@ -1321,7 +1323,6 @@ pub fn check_decl(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::check_defn_decl_refines, then delete this line
 /// The `.defnDecl` arm: the common constant check, the value check, then the
 /// two pinned-`Nat` gates.  `pins` is `check_div_mod_pin`'s parameter,
 /// threaded (task #31).
@@ -1357,7 +1358,6 @@ pub fn check_constant_val_borrowed(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::check_defn_pins_refines, then delete this line
 /// The `.defnDecl` arm's two pinned-`Nat` gates.  **Structural-`Nat` pins**:
 /// the fast-path ops must be the standard structural recursions, so their
 /// recurrence equations are checked by definitional equality here, once, in
@@ -1386,7 +1386,6 @@ pub fn check_defn_pins(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::check_defn_div_mod_pin_refines, then delete this line
 /// The `natDivModNames.contains` gate of the `.defnDecl` arm.  `pins` is
 /// `check_div_mod_pin`'s parameter, threaded (task #31).
 pub fn check_defn_div_mod_pin(
@@ -1405,7 +1404,6 @@ pub fn check_defn_div_mod_pin(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::check_structural_nat_pin_refines, then delete this line
 /// The structural-`Nat` gate: the environment guards at the extended
 /// environment, then `certifyNatEqs` at the pre-insertion one over the
 /// equations with the operation's self-references substituted.
@@ -1473,7 +1471,6 @@ pub fn nat_eqs_subst_from(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::check_thm_decl_refines, then delete this line
 /// The `.thmDecl` arm.
 pub fn check_thm_decl(
     mode: &CheckMode,
@@ -1489,7 +1486,6 @@ pub fn check_thm_decl(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::check_opaque_decl_refines, then delete this line
 /// The `.opaqueDecl` arm: the opaque check, then the compiler-trust gate for
 /// `Lean.reduceNat`/`Lean.reduceBool`.
 pub fn check_opaque_decl(
@@ -1516,7 +1512,6 @@ pub fn check_opaque_decl(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::check_axiom_decl_refines, then delete this line
 /// The `.axiomDecl` arm.  Pinned axioms are *installed*: the two standard
 /// axioms and the `Init` compiler-trust family, with all types and the shapes
 /// of the inductives they quantify over pinned.  The tolerated whitelist
@@ -1564,7 +1559,6 @@ pub fn check_axiom_decl(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::check_basis_decl_refines, then delete this line
 /// The `.basisDecl` arm: install the pinned (pre-annotated) basis block; the
 /// frontend has already matched the incoming record against the pinned
 /// shapes.  The quotient block's types mention the pinned equality former, so
@@ -1589,7 +1583,6 @@ pub fn check_basis_decl(fe: FEnv, kind: &BasisKind) -> CheckM<FEnv> {
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::install_basis_decls_refines, then delete this line
 /// The `kind.declsA.foldlM installBasisDecl env` of the `.basisDecl` arm, as
 /// an index recursion threading the index by value.
 pub fn install_basis_decls(fe: FEnv, decls: &Vec<ConstantInfo>, i: usize) -> CheckM<FEnv> {
@@ -1604,7 +1597,6 @@ pub fn install_basis_decls(fe: FEnv, decls: &Vec<ConstantInfo>, i: usize) -> Che
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::check_ind_decl_refines, then delete this line
 /// The `.indDecl` arm.  **The declared parameter count first, and for both
 /// routes** (con-leche task #228): official reads `nparams` off the
 /// declaration and checks the block against it, and `indParamsOk` is that
@@ -1640,7 +1632,6 @@ pub fn check_ind_decl(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:572-576 checkDeclsPure
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::check_decls_pure_refines, then delete this line
 /// Check a list of declarations in order, starting from the empty
 /// environment.  Deviation: the fold starts at the *index* of the empty
 /// environment, and the `CState` the memoizing knot needs is the caller's.
@@ -1654,7 +1645,6 @@ pub fn check_decls_pure(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:572-576 checkDeclsPure
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove checker::check_decls_pure_from_refines, then delete this line
 /// The cited `foldlM` as an index recursion threading the index by value.
 pub fn check_decls_pure_from(
     mode: &CheckMode,

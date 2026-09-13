@@ -116,7 +116,6 @@ fn internal(msg: &str) -> CheckError {
 }
 
 /// con-leche: Main.lean:260-280 checkOne
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove pool::check_one_refines, then delete this line
 /// **One claimed record of one worker.**  Below the shared `limit` it is
 /// checked from a fresh memo state and its result appended; a failure lowers
 /// the limit to its index; on the heartbeat lane the completed-count is bumped
@@ -173,7 +172,6 @@ fn check_one<O: PhaseObserver + Send>(
 }
 
 /// con-leche: Main.lean:282-298 checkWorker
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove pool::check_worker_refines, then delete this line
 /// **One worker**: claim ONE record off the shared counter, check it, repeat
 /// until the counter is past the records.  One record per claim is con-leche's
 /// choice and its reason is the port's: the work is millions of mostly tiny
@@ -210,7 +208,6 @@ fn check_worker<O: PhaseObserver + Send>(
 }
 
 /// con-leche: Main.lean:300-307 mergeResults
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove pool::merge_results_refines, then delete this line
 /// The workers' arrays merged **by record index** into one table.  The table is
 /// the pool's whole interface to the verdict: which worker produced a result,
 /// and when, is recorded nowhere.
@@ -233,7 +230,6 @@ pub fn merge_results(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:394-418 collectChecks
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove pool::collect_checks_refines, then delete this line
 /// **The results, assembled in record order.**  Slot `j` holds record `j`'s
 /// result; the walk stops at the first failure, so its verdict is
 /// `check_pending_list`'s whatever order the results were produced in.  An
@@ -262,7 +258,6 @@ pub fn collect_checks(pend: &[PendingCheck], tab: Vec<Option<RecordResult>>) -> 
 }
 
 /// con-leche: Main.lean:309-337 checkPool
-/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove pool::check_pool_refines, then delete this line
 /// **Phase B on a pool of `workers` worker threads.**  Spawns them inside a
 /// `std::thread::scope` — which is what lets them hold `&FEnv` and
 /// `&[PendingCheck]` into the installed environment with no `Arc<Mutex<…>>` and

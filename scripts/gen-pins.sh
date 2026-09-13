@@ -6,7 +6,7 @@
 #   scripts/gen-pins.sh --check    regenerate into `_tmp/` and diff; non-zero
 #                                  on any difference.  This is the freshness
 #                                  rule "the embedded text is con-leche's own
-#                                  `natOpPinSets` at the pinned submodule
+#                                  `natOpPinSets` at the vendored tree's
 #                                  commit" -- the pin analogue of
 #                                  `scripts/extract.sh --check`.
 #
@@ -49,7 +49,7 @@ echo "gen-pins: lake exe con-ron-dump-pins (con-leche's natOpPinSets)"
 [ -s "$work/pins.dump" ] || { echo "error: no pin dump written" >&2; exit 1; }
 
 # The Rust source.  A multi-line string literal, one dump line per source
-# line, so that a submodule bump shows as a line diff and not as one 532 KB
+# line, so that a con-leche bump shows as a line diff and not as one 532 KB
 # line.  Only `\` and `"` need escaping: every other byte of the format is a
 # printable ASCII character, a space or the newline (FORMAT.md §3's escape is
 # what makes that true), and the literal's value is therefore the dump's bytes
@@ -59,7 +59,7 @@ emit() {
 //! The embedded `con-ron-pins/1` text of con-leche's `natOpPinSets`
 //! (DESIGN.md §3, task #43).
 //!
-//! con-leche: ConLeche/Kernel/NatOpPins.lean:61-64 _
+//! con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
 //!
 //! **Generated file — do not edit.**  Written by `scripts/gen-pins.sh` from
 //! con-leche's own value: `lake exe con-ron-dump-pins` writes
@@ -87,7 +87,7 @@ emit() {
 //! that Lean cannot elaborate (task #43: `std::bad_alloc`).  The decoder
 //! therefore takes `PINS_TEXT.as_bytes()`.
 
-/// con-leche: ConLeche/Kernel/NatOpPins.lean:61-64 _
+/// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
 /// (The range is `#load_natop_pins`, the command that produces
 /// `natOpPinSets` out of the committed `pins/*.json` while `NatOpPins.lean`
 /// elaborates: the declaration has no source line of its own, hence `_`.)
@@ -112,7 +112,7 @@ if [ "$check" -eq 1 ]; then
     echo "gen-pins --check: FAIL -- run scripts/gen-pins.sh and commit the result" >&2
     exit 1
   fi
-  echo "gen-pins --check: OK (embedded text = natOpPinSets at the pinned commit, $lines records, $bytes bytes)"
+  echo "gen-pins --check: OK (embedded text = natOpPinSets at the vendored commit, $lines records, $bytes bytes)"
 else
   cp "$work/pins_text.rs" "$out"
   echo "gen-pins: wrote crates/con-ron-core/src/kernel/pins_text.rs ($lines lines, $bytes bytes of text)"
