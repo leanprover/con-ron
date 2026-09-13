@@ -11556,3 +11556,87 @@ the **cast**, not the counter.  It is recorded at that lemma's `sorry`: the
 tier wants a `usize`-width fact of the kind `Refine/ExprOps.lean` states for
 indices already known in range, and the same shape will recur wherever a
 `u64` loop counter indexes a `Vec`.
+
+#### What landed, file by file
+
+Ten files, 12 166 lines, 318 refinement lemmas — one per cited Rust item of
+the directory's 9 671 lines, in each Rust file's order, with the sibling
+modules' facts travelling as named `Prop` ingredients wherever two files were
+written in parallel.  Six agents shared this worktree (one per Rust module
+plus the driver tier), each checking its own file with a `lean` invocation
+that bypasses Lake's build lock, which is what made the fan-out possible at
+all.
+
+| file | lines | lemmas | proved | `sorry` |
+|---|---|---|---|---|
+| `IndAbs.lean` | 311 | 6 | 6 | 0 |
+| `IndStructParts.lean` | 3 214 | 71 | 45 of 52 items | 7 |
+| `IndSumParts.lean` | 336 | 9 | all | 0 |
+| `IndNativeParts.lean` | 1 946 | 75 | 38 of 69 items | 31 |
+| `IndStructInstall.lean` | 297 | 5 | 3 | 2 |
+| `IndSumInstall.lean` | 1 127 | 27 | 13 of 23 items | 10 |
+| `IndNativeInstall.lean` | 2 097 | 48 | 21 of 45 items | 23 |
+| `IndModeled.lean` | 2 323 | 65 | 22 of 63 items | 43 |
+| `IndSpec.lean` | 68 | — | — | 0 |
+| `IndC.lean` | 447 | 12 | 2 | 9 |
+
+125 `sorry`s in the group (the library's whole build reports 128, the other
+three being `Refine/Pins.lean`'s).  Every one carries a one-line note naming
+what its proof composes, and every statement is the exact-result one — no
+lemma was weakened to close.  What is missing divides into three kinds, in
+this order of size: the `partial_fixpoint` recursions and their compositions,
+the stages that reach the knot (which task #55 is closing), and
+`IndStructParts`' recogniser group.
+
+**`IndNativeParts` is the one that matters most for trust, and it is clean at
+the level that matters**: its agent checked every generator node-for-node
+against the cited Lean — the lift amounts and cutoffs, the `nF-1-i` arithmetic
+through `expr_ops::sub_nat`, the append orders, the `zeronessOf` binder data —
+and **found no deviation**.  A deviation there would change a verdict, not
+just a term the proof has to relate.
+
+#### The findings
+
+1. **A `usize`-width side condition, in four places.**  The port indexes
+   `Vec`s with a `u64` counter cast by `UScalar.cast .Usize`, and Aeneas keeps
+   `Usize`'s width abstract, so `struct_install::check_struct_doms_at`,
+   `sum_install::opened_resid_ok` (via `take_exprs`, where con-leche's
+   `List.take` takes a `Nat`), five `struct_parts` indexers and two
+   `native_parts` readers each carry `… ≤ Std.Usize.max`.  Vacuous on this
+   target, not derivable from the loops' own guards (they compare the *cast*).
+   The tier wants **one shared `usize`-width fact**; it will recur wherever a
+   `u64` counter indexes a `Vec`.
+2. **A missing bridge in `Refine/FEnv.lean`.**  `dup_refines` relates the copy
+   to `(mkFEnv (absEnv fe.env)).restrictTo fe.visible_below.val`, but
+   `checkNativePassS` passes its own persistent `fe`, so what the callers need
+   is `FEnvRel fe lfe → FEnvRel (fenv::dup fe) lfe`.  It blocks
+   `check_native_pass_former` and `check_native_rec_rules`.
+3. **Three functions are dead in the shipped binary**:
+   `native_install::{check_native_pass, check_native_tail, check_native}`.
+   `inductives_c::check_native_s` calls the five *split* halves with `flushC`
+   between, and nothing else in the crate calls the three; con-leche writes no
+   `*F` twin for them either.
+4. **One citation mismatch worth fixing in the port**: `modeled`'s
+   `iota_stmt_open` opens the telescope with the one-pass
+   `open_pis_at_fvars_f` where `checkIotaThmF` writes `openPisAtFvars` — equal
+   by con-leche's own `openPisAtFvarsF_eq`, so no verdict changes, but the doc
+   comment should say so.
+5. `has_loose_bvar_b_node`'s catch-all arm is con-leche's **unreachable** one
+   and genuinely disagrees with `Expr.hasLooseBVarB` at a leaf, so its lemma
+   carries a `Rebuilding` guard — the walk only ever reaches it on a rebuilt
+   node.
+
+#### Gates and axiom census
+
+| | |
+|---|---|
+| `scripts/gates.sh` | all 7 OK |
+| progress after the green run | `verified 5866 (42%)` of the 13 743 verified-core Lean lines, up from task #54's `3270 (23%)`; `proofs 60183 (857 _refines)` |
+
+`#guard_msgs in #print axioms` pins `SumParts.sum_split_refines` and
+`with_sort_refines` at the three standard axioms.  The two **entry points**
+(`InductivesC.check_native_s_refines`, `check_ind_decl_s_refines`) carry a
+machine-checked census that currently reads `[propext, sorryAx,
+Classical.choice, Quot.sound]`: `sorryAx` leaving those two lines is the gate
+that says the inductive tier is closed, and `#guard_msgs` will fail loudly the
+moment it does.
