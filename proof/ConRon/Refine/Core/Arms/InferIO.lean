@@ -1,0 +1,596 @@
+/-
+# The io-grade inference body (task #55, `CORE_PLAN.md` step 6)
+
+`cached::core_c::infer_body_io_i` (`core_c.rs:3588`) is con-leche's
+**`inferBodyIOI`** (`ConLeche/Cached/CoreC.lean:1399-1448`): `inferBodyI` with
+exactly three clauses changed — the application spine walk is the gated
+`inferSpineIOI` (the ONE io-graded check), and the `∀`/`λ` clauses are the
+*chained* pure io clauses, deliberately not the task-#72 telescope loops.
+Every other node view dispatches to `inferBodyI` itself, which on the Rust
+side is `infer_body_i … true` (task #18's deviation 4: con-leche hands the
+body the record's `ioView`, the Rust carries a `Bool`).
+
+So this file owns four Rust functions:
+
+| Rust | con-leche |
+|---|---|
+| `infer_body_io_i` (`:3588`) | `inferBodyIOI` (`CoreC.lean:1399`) |
+| `infer_forall_io_i` (`:3622`) | its `.forallE` clause |
+| `infer_lam_io_i` (`:3684`) | its `.lam` clause |
+| `infer_lam_cod_io_i` (`:3723`) | that clause's codomain validation |
+
+The last three have no *named* con-leche twin — con-leche writes them inline
+in `inferBodyIOI`'s `match`.  Following `Refine/StateC.lean`'s convention for
+inline subterms (`eqvStep`, `nodeL`), the three blocks are **named** below and
+tied back to `inferBodyIOI` by `inferBodyIOI_forallE` (a `rfl`-identity) and
+`inferBodyIOI_lam` (two monad laws — Lean's `do` elaborator inlines a clause's
+continuation into each arm of a gate, where the Rust returns the gate as its
+own `CheckM<()>`), so nothing is assumed: the named block *is* the clause.
+
+The `.M`-suffixed `Array Std.U32` constants (`infer_forall_io_i.M`,
+`.M_COD`, `infer_lam_cod_io_i.M_CHAIN`, `.M_LEAF`) are error-message code
+points, reached only on the `.Err` path; nothing is claimed on failure
+(DESIGN.md §3.5), so they carry no theorem.
+-/
+import ConRon.Refine.Core.Arms.Shape
+import ConRon.Refine.CoreKGuards
+import ConRon.Refine.ExprOpsCSubst
+import ConRon.Refine.ExprOpsCAbs
+import ConRon.Refine.ExprOpsSpine
+import ConRon.Refine.ExprOpsMeta
+import ConRon.Refine.PropWhen
+import ConRon.Refine.Level
+import ConRon.Refine.Env
+
+open Aeneas Aeneas.Std Result
+open ConRon.Generated ConRon.Generated.kernel ConRon.Generated.cached
+open ConRon.Refine ConRon.Refine.State ConRon.Refine.FEnv
+
+namespace ConRon.Refine.Core
+
+/-! ## The three inline blocks of `inferBodyIOI`
+
+Each is the cited clause verbatim, with `r` the record the knot hands the
+body (`(knot …).ioView`, so `r.infer` is the io slot).  The two
+`inferBodyIOI_*` identities below are what ties them back. -/
+
+/-- `ConLeche/Cached/CoreC.lean:1434-1445` — the io `λ` clause's
+codomain-sort validation, the block `inferBodyIOI` runs under
+`mode.verifiedChecks`: **the chain rule** at an outer binder (datum equality
+with the neighbour's own `lamPw`, no inference), the leaf computation at the
+innermost binder. -/
+def inferLamCodIOI (r : ConLeche.Cached.CoreFnsI) (depth : Nat)
+    (body : ConLeche.Expr) (mb : ConLeche.BinderMeta) (bt : ConLeche.Expr) :
+    ConLeche.Cached.CheckCM Unit := do
+  match body.lamPw with
+  | some pwI =>
+    unless mb.pw == pwI do
+      throw (.notImplemented "sort-annotation mismatch (lam-cod-chain)")
+  | none =>
+    let btt ← r.infer (depth + 1) bt
+    let vb ← ConLeche.Cached.ensureSortI r (depth + 1) btt
+    unless ConLeche.Level.zeronessOf vb == mb.pw do
+      throw (.notImplemented "sort-annotation mismatch (lam-cod-leaf)")
+
+/-- `ConLeche/Cached/CoreC.lean:1428-1447` — the io `λ` clause, chained and
+with **no domain-sort run** (con-leche's task #168 stage 2). -/
+def inferLamIOI (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
+    (depth : Nat) (ty body : ConLeche.Expr) (mb : ConLeche.BinderMeta) :
+    ConLeche.Cached.CheckCM ConLeche.Expr := do
+  let fv ← pure (ConLeche.Expr.fvar depth ty)
+  let ob ← ConLeche.Cached.inst1M body fv
+  let bt ← r.infer (depth + 1) ob
+  if mode.verifiedChecks then
+    inferLamCodIOI r depth body mb bt
+  let bAbs ← ConLeche.Cached.abstract1M bt depth
+  pure (ConLeche.Expr.forallE ty bAbs mb)
+
+/-- `ConLeche/Cached/CoreC.lean:1407-1426` — the io `∀` clause, chained. -/
+def inferForallIOI (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
+    (depth : Nat) (ty body : ConLeche.Expr) (mb : ConLeche.BinderMeta) :
+    ConLeche.Cached.CheckCM ConLeche.Expr := do
+  let tty ← r.infer depth ty
+  let wtty ← r.whnf depth tty
+  match wtty with
+  | .sort u => do
+    let fv ← pure (ConLeche.Expr.fvar depth ty)
+    let ob ← ConLeche.Cached.inst1M body fv
+    let bt ← r.infer (depth + 1) ob
+    let v ← ConLeche.Cached.ensureSortI r (depth + 1) bt
+    if mode.verifiedChecks then
+      unless ConLeche.Level.zeronessOf v == mb.pw do
+        throw (.notImplemented "sort-annotation mismatch (forall-cod)")
+    let iu ← pure (ConLeche.Level.imax u v)
+    pure (ConLeche.Expr.sort iu)
+  | _ => throw (.invalid "expected a sort")
+
+/-- The `.forallE` clause of `inferBodyIOI` *is* `inferForallIOI`. -/
+theorem inferBodyIOI_forallE (mode : ConLeche.CheckMode)
+    (r : ConLeche.Cached.CoreFnsI) (fe : ConLeche.FEnv) (depth : Nat)
+    (ty body : ConLeche.Expr) (mb : ConLeche.BinderMeta) :
+    ConLeche.Cached.inferBodyIOI mode r fe depth (.forallE ty body mb)
+      = inferForallIOI mode r depth ty body mb := rfl
+
+/-! ### Monad plumbing
+
+Lean's `do` elaborator inlines a clause's continuation (here the
+`abstract1M`/rebuild join point) into each arm of a gate, where the Rust
+returns the gate as its own `CheckM<()>`: `gate_bind` and `check_bind` are the
+whole of that difference.  `run_bind` is the one step every proof below takes
+on the con-leche side — `Arms/Shape.lean` declares `Refine/StateC.lean`'s
+`CheckCM = StateT CState (Except CheckError)` plumbing `local`, so it does not
+export, and this is the only form of it these proofs need. -/
+
+/-- `(if c then G) >>= k` is the gate with `k` inlined into both arms. -/
+private theorem gate_bind {α : Type} (c : Bool)
+    (G : ConLeche.Cached.CheckCM PUnit) (k : ConLeche.Cached.CheckCM α) :
+    ((if c = true then G else pure PUnit.unit) >>= fun _ => k)
+      = if c = true then (G >>= fun _ => k) else k := by
+  cases c <;> simp
+
+/-- One step of a con-leche run: a `.run` that succeeded lets the bind through
+to its continuation at the resulting state. -/
+private theorem run_bind {α β : Type} (x : ConLeche.Cached.CheckCM α)
+    (f : α → ConLeche.Cached.CheckCM β) {s s' : ConLeche.Cached.CState} {a : α}
+    (h : x.run s = .ok (a, s')) : (x >>= f).run s = (f a).run s' := by
+  simp only [StateT.run] at h ⊢
+  simp [StateT.bind, Bind.bind, Except.bind, h]
+
+/-- `(unless b do throw err) >>= k` is the check with `k` inlined into both
+arms. -/
+private theorem check_bind {α : Type} (b : Bool) (err : ConLeche.CheckError)
+    (k : ConLeche.Cached.CheckCM α) :
+    ((if b = true then (pure PUnit.unit : ConLeche.Cached.CheckCM PUnit)
+        else throw err) >>= fun _ => k)
+      = if b = true then k
+        else ((throw err : ConLeche.Cached.CheckCM PUnit) >>= fun _ => k) := by
+  cases b <;> simp
+
+/-- The `.lam` clause of `inferBodyIOI` *is* `inferLamIOI` — the two
+identities above, at the codomain gate and at each of its two checks. -/
+theorem inferBodyIOI_lam (mode : ConLeche.CheckMode)
+    (r : ConLeche.Cached.CoreFnsI) (fe : ConLeche.FEnv) (depth : Nat)
+    (ty body : ConLeche.Expr) (mb : ConLeche.BinderMeta) :
+    ConLeche.Cached.inferBodyIOI mode r fe depth (.lam ty body mb)
+      = inferLamIOI mode r depth ty body mb := by
+  simp only [ConLeche.Cached.inferBodyIOI, inferLamIOI, inferLamCodIOI]
+  cases body.lamPw with
+  | none => simp only [bind_assoc, check_bind, pure_bind]
+  | some pwI => simp only [check_bind, pure_bind]
+
+/-! ## The foreign callees -/
+
+/-- The three helpers of *other* arms files that the io body calls, each
+field the exact statement that helper's own `<fn>_refines` has.
+
+* `inferBody` — `Arms/Infer.lean`'s `infer_body_i_refines` at the `io : Bool`
+  flag (`knotV mode lfe fuel.val io` is Shape.lean's name for the record the
+  flag selects);
+* `inferSpineIO` — `Arms/InferSpineIO.lean`'s `infer_spine_io_i_refines`, the
+  index-loop shape (the `acc` accumulator, the argument suffix
+  `(absExprs args).drop i.val`);
+* `ensureSort` — `Arms/Shared.lean`'s `ensure_sort_i_refines`. -/
+structure InferIODeps (mode : env.CheckMode) (fuel : Std.U64) : Prop where
+  inferBody : ∀ (d : Std.U64) (e : expr.Expr) (io : Bool), ExprWF e →
+    Sim absExpr ExprWF
+      (fun st fe => cached.core_c.infer_body_i mode fuel st fe d e io)
+      (fun lfe => ConLeche.Cached.inferBodyI (absMode mode)
+        (knotV mode lfe fuel.val io) lfe d.val (absExpr e))
+  inferSpineIO : ∀ (d : Std.U64) (t : expr.Expr)
+      (acc args : alloc.vec.Vec expr.Expr) (i : Std.Usize),
+      ExprWF t → ExprsWF acc → ExprsWF args →
+    Sim absExpr ExprWF
+      (fun st fe => cached.core_c.infer_spine_io_i mode fuel st fe d t acc args i)
+      (fun lfe => ConLeche.Cached.inferSpineIOI (absMode mode)
+        (knot mode lfe fuel.val).ioView lfe d.val (absExpr t)
+        (absExprs acc).toArray ((absExprs args).drop i.val))
+  ensureSort : ∀ (d : Std.U64) (e : expr.Expr), ExprWF e →
+    Sim absLevel LevelWF
+      (fun st fe => cached.core_c.ensure_sort_i mode fuel st fe d e)
+      (fun lfe => ConLeche.Cached.ensureSortI (knot mode lfe fuel.val) d.val
+        (absExpr e))
+
+/-- The io view's `infer` slot is the io slot (the whole of the view). -/
+private theorem ioView_infer (r : ConLeche.Cached.CoreFnsI) :
+    r.ioView.infer = r.inferIO := rfl
+
+/-- The io view's `whnf` slot is the record's. -/
+private theorem ioView_whnf (r : ConLeche.Cached.CoreFnsI) :
+    r.ioView.whnf = r.whnf := rfl
+
+/-- `ensureSortI` reads the record only through its `whnf` slot, which the io
+view does not change, so the `Arms/Shared.lean` statement is the io-lane one. -/
+private theorem ensureSortI_ioView (r : ConLeche.Cached.CoreFnsI) (depth : Nat)
+    (e : ConLeche.Expr) :
+    ConLeche.Cached.ensureSortI r.ioView depth e
+      = ConLeche.Cached.ensureSortI r depth e := rfl
+
+/-- `expr_ops::lam_pw` answers `some` only at a `Lam` node, whose annotation is
+well formed when the node is.  (A `Refine/ExprOpsMeta.lean` fact; kept local
+until the arms are merged.) -/
+private theorem lam_pw_wf {t : expr.Expr} (ht : ExprWF t)
+    {pw : prop_when.PropWhen} (h : expr_ops.lam_pw t = ok (some pw)) :
+    PropWhenWF pw := by
+  cases ht with
+  | @lam ty bo m e hty hbo hm h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
+    rw [expr_ops.lam_pw.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    obtain ⟨pw1, hpw1, ho⟩ := h
+    rw [PropWhen.dup_eq hpw1] at ho
+    have hp : pw = m.pw := by simpa using (Result.ok_injective ho).symm
+    rw [hp]; exact hm
+  | @bvar i e h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1; simp [expr_ops.lam_pw] at h
+  | @fvar idx ty e _ h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1; simp [expr_ops.lam_pw] at h
+  | @sort u e _ h1 =>
+    obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1; simp [expr_ops.lam_pw] at h
+  | @mk_const n us e _ _ h1 =>
+    obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1; simp [expr_ops.lam_pw] at h
+  | @app f a e _ _ h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1; simp [expr_ops.lam_pw] at h
+  | @forall_e ty bo m e _ _ _ h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1; simp [expr_ops.lam_pw] at h
+  | @let_e ty v bo e _ _ _ h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1; simp [expr_ops.lam_pw] at h
+  | @lit l e _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1; simp [expr_ops.lam_pw] at h
+  | @proj s i x e _ _ h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1; simp [expr_ops.lam_pw] at h
+
+/-! ## The monad plumbing
+
+`CheckCM = StateT CState (Except CheckError)`: `Refine/StateC.lean`'s set,
+which `Arms/Shape.lean` declares `local` and so does not export.  `Bind.bind`
+is deliberately **not** in it — unfolding it would also unfold the Aeneas
+`Result` bind and stop `bind_eq_ok_iff` from firing on the Rust side — so the
+`simp` calls that finish a con-leche run name it themselves. -/
+
+attribute [local simp] except_pure' StateT.run modifyGet MonadStateOf.modifyGet
+  StateT.modifyGet StateT.bind Pure.pure StateT.pure Except.bind Except.pure
+
+section
+variable {mode : env.CheckMode} {fuel : Std.U64}
+
+/-- `ConLeche/Cached/CoreC.lean:1434-1445` — **`infer_lam_cod_io_i` refines
+`inferBodyIOI`'s λ-codomain validation** (`core_c.rs:3723`): `expr_ops::lam_pw`
+of the body picks the chain rule (`prop_when::beq` against the neighbour's
+datum) or the leaf computation (`infer_io` then `ensure_sort_i` then the same
+`beq`).  Unit-valued: on success there is nothing to abstract. -/
+theorem infer_lam_cod_io_i_refines (hw : Wrappers mode fuel)
+    (hd : InferIODeps mode fuel) (d : Std.U64) {body bt : expr.Expr}
+    {mb : expr.BinderMeta} (hbody : ExprWF body) (hbt : ExprWF bt)
+    (hmb : BinderMetaWF mb) :
+    Sim id (fun _ => True)
+      (fun st fe => cached.core_c.infer_lam_cod_io_i mode fuel st fe d body mb bt)
+      (fun lfe => inferLamCodIOI (knot mode lfe fuel.val).ioView d.val
+        (absExpr body) (absBinderMeta mb) (absExpr bt)) := by
+  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  unfold cached.core_c.infer_lam_cod_io_i at hok
+  simp only [bind_eq_ok_iff] at hok
+  obtain ⟨o, ho, hok⟩ := hok
+  have habs := ExprOps.lam_pw_refines ho
+  cases o with
+  | some pwI =>
+    -- the chain rule: datum equality with the inner λ's own annotation
+    simp only [Option.map_some] at habs
+    simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at hok
+    obtain ⟨b, hb, hok⟩ := hok
+    have hbeq := PropWhen.beq_shape (PropWhen.wf_shape hmb)
+      (PropWhen.wf_shape (lam_pw_wf hbody ho)) hb
+    cases b with
+    | false => simp at hok
+    | true =>
+      have hst : st' = st := (congrArg Prod.snd (Result.ok_injective hok)).symm
+      subst hst
+      refine ⟨lst, ?_, hrel, hwf, trivial⟩
+      simp [inferLamCodIOI, ← habs, absBinderMeta, of_decide_eq_true hbeq.symm]
+  | none =>
+    -- the leaf: infer the body type's own type, then its sort
+    simp only [Option.map_none] at habs
+    simp only [bind_eq_ok_iff] at hok
+    obtain ⟨i, hi, hok⟩ := hok
+    obtain ⟨⟨r0, st1⟩, h1, hok⟩ := hok
+    have hiv : i.val = d.val + 1 := HashMap.uscalar_add_eq hi
+    cases r0 with
+    | Err err => simp at hok
+    | Ok btt =>
+      obtain ⟨lst1, hrun1, hrel1, hwf1, hbttWF⟩ :=
+        (hw.inferIOSim i hbt).apply hwf hfe h1 hrel hfrel
+      obtain ⟨⟨r1, st2⟩, h2, hok⟩ := bind_eq_ok_iff.mp hok
+      cases r1 with
+      | Err err => simp at hok
+      | Ok vb =>
+        obtain ⟨lst2, hrun2, hrel2, hwf2, hvbWF⟩ :=
+          (hd.ensureSort i btt hbttWF).apply hwf1 hfe h2 hrel1 hfrel
+        simp only [arc_deref_eq, bind_tc_ok] at hok
+        obtain ⟨pw, hpw, hok⟩ := bind_eq_ok_iff.mp hok
+        obtain ⟨b, hb, hok⟩ := bind_eq_ok_iff.mp hok
+        obtain ⟨hpwabs, hpwWF⟩ := ExprOps.zeroness_of_refines hvbWF pw hpw
+        have hbeq := PropWhen.beq_shape (PropWhen.wf_shape hpwWF)
+          (PropWhen.wf_shape hmb) hb
+        cases b with
+        | false => simp at hok
+        | true =>
+          have hst : st' = st2 := (congrArg Prod.snd (Result.ok_injective hok)).symm
+          subst hst
+          refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
+          simp only [hiv, StateT.run] at hrun1 hrun2
+          simp [inferLamCodIOI, ← habs, absBinderMeta, ioView_infer,
+            ensureSortI_ioView, Bind.bind, hrun1, hrun2, ← hpwabs,
+            of_decide_eq_true hbeq.symm]
+
+/-- `ConLeche/Cached/CoreC.lean:1428-1447` — **`infer_lam_io_i` refines
+`inferBodyIOI`'s `.lam` clause** (`core_c.rs:3684`). -/
+theorem infer_lam_io_i_refines (hw : Wrappers mode fuel)
+    (hd : InferIODeps mode fuel) (d : Std.U64) {ty body : expr.Expr}
+    {mb : expr.BinderMeta} (hty : ExprWF ty) (hbody : ExprWF body)
+    (hmb : BinderMetaWF mb) :
+    Sim absExpr ExprWF
+      (fun st fe => cached.core_c.infer_lam_io_i mode fuel st fe d ty body mb)
+      (fun lfe => inferLamIOI (absMode mode) (knot mode lfe fuel.val).ioView
+        d.val (absExpr ty) (absExpr body) (absBinderMeta mb)) := by
+  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  unfold cached.core_c.infer_lam_io_i at hok
+  obtain ⟨tyc, hdup, hok⟩ := bind_eq_ok_iff.mp hok
+  rw [Expr.dup_eq hdup] at hok
+  obtain ⟨fv, hfv, hok⟩ := bind_eq_ok_iff.mp hok
+  obtain ⟨ob, hob, hok⟩ := bind_eq_ok_iff.mp hok
+  obtain ⟨i, hi, hok⟩ := bind_eq_ok_iff.mp hok
+  obtain ⟨⟨r0, st1⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
+  have hiv : i.val = d.val + 1 := HashMap.uscalar_add_eq hi
+  have hfvWF : ExprWF fv := ExprWF.fvar hty hfv
+  rw [StateC.inst1_m_eq] at hob
+  obtain ⟨hobabs, hobWF⟩ := ExprOpsC.instantiate1_refines hbody hfvWF hob
+  rw [Expr.fvar_refines hfv] at hobabs
+  cases r0 with
+  | Err err => simp at hok
+  | Ok bt =>
+    obtain ⟨lst1, hrun1, hrel1, hwf1, hbtWF⟩ :=
+      (hw.inferIOSim i hobWF).apply hwf hfe h1 hrel hfrel
+    obtain ⟨b, hb, hok⟩ := bind_eq_ok_iff.mp hok
+    have hbv := Env.verified_checks_refines hb
+    obtain ⟨⟨st2, chk⟩, h2, hok⟩ := bind_eq_ok_iff.mp hok
+    cases chk with
+    | Err err => simp at hok
+    | Ok u =>
+      -- the codomain gate: run it at the verified modes, skip it otherwise
+      have key : ∃ lst2, StateRel st2 lst2 ∧ StateWF st2 ∧
+          (if (absMode mode).verifiedChecks = true then
+              inferLamCodIOI (knot mode lfe fuel.val).ioView d.val (absExpr body)
+                (absBinderMeta mb) (absExpr bt)
+            else pure ()).run lst1 = Except.ok ((), lst2) := by
+        cases b with
+        | false =>
+          have hst : st2 = st1 := (congrArg Prod.fst (Result.ok_injective h2)).symm
+          subst hst
+          exact ⟨lst1, hrel1, hwf1, by simp [← hbv]⟩
+        | true =>
+          obtain ⟨⟨chk1, st3⟩, h3, h2⟩ := bind_eq_ok_iff.mp h2
+          have hst : st2 = st3 := (congrArg Prod.fst (Result.ok_injective h2)).symm
+          have hchk : chk1 = .Ok u := (congrArg Prod.snd (Result.ok_injective h2))
+          subst hst; subst hchk
+          obtain ⟨lst2, hrun, hrel2, hwf2, -⟩ :=
+            (infer_lam_cod_io_i_refines hw hd d hbody hbtWF hmb).apply hwf1 hfe h3
+              hrel1 hfrel
+          refine ⟨lst2, hrel2, hwf2, ?_⟩
+          simp only [StateT.run] at hrun
+          simpa [← hbv] using hrun
+      obtain ⟨lst2, hrel2, hwf2, hgate⟩ := key
+      obtain ⟨e1, he1, hok⟩ := bind_eq_ok_iff.mp hok
+      obtain ⟨bm, hbm, hok⟩ := bind_eq_ok_iff.mp hok
+      obtain ⟨e2, he2, hok⟩ := bind_eq_ok_iff.mp hok
+      have hpair := Result.ok_injective hok
+      have hre : r = e2 := by simpa using (congrArg Prod.fst hpair).symm
+      have hst' : st' = st2 := (congrArg Prod.snd hpair).symm
+      subst hst'
+      rw [StateC.abstract1_m_eq] at he1
+      obtain ⟨he1abs, he1WF⟩ := ExprOpsC.abstract1_refines hbtWF he1
+      rw [Expr.binder_meta_dup_eq hbm] at he2
+      have hrabs : absExpr r
+          = .forallE (absExpr ty) (absExpr e1) (absBinderMeta mb) := by
+        rw [hre]; exact Expr.forall_e_refines he2
+      refine ⟨lst2, ?_, hrel2, hwf2, hre ▸ Expr.forall_e_wf hty he1WF hmb he2⟩
+      simp only [hiv] at hrun1
+      simp only [show ((0#u64 : Std.U64)).val = 0 from rfl] at hobabs he1abs
+      simp only [inferLamIOI, ConLeche.Cached.inst1M, ConLeche.Cached.abstract1M,
+        ioView_infer, pure_bind, ← hobabs]
+      rw [run_bind _ _ hrun1, ← gate_bind, run_bind _ _ hgate]
+      simp [StateT.run, StateT.pure, ← he1abs, hrabs]
+
+/-- `ConLeche/Cached/CoreC.lean:1407-1426` — **`infer_forall_io_i` refines
+`inferBodyIOI`'s `.forallE` clause** (`core_c.rs:3622`). -/
+theorem infer_forall_io_i_refines (hw : Wrappers mode fuel)
+    (hd : InferIODeps mode fuel) (d : Std.U64) {ty body : expr.Expr}
+    {mb : expr.BinderMeta} (hty : ExprWF ty) (hbody : ExprWF body)
+    (hmb : BinderMetaWF mb) :
+    Sim absExpr ExprWF
+      (fun st fe => cached.core_c.infer_forall_io_i mode fuel st fe d ty body mb)
+      (fun lfe => inferForallIOI (absMode mode) (knot mode lfe fuel.val).ioView
+        d.val (absExpr ty) (absExpr body) (absBinderMeta mb)) := by
+  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  unfold cached.core_c.infer_forall_io_i at hok
+  obtain ⟨⟨r0, st1⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
+  cases r0 with
+  | Err err => simp at hok
+  | Ok tty =>
+    obtain ⟨lst1, hrun1, hrel1, hwf1, httyWF⟩ :=
+      (hw.inferIOSim d hty).apply hwf hfe h1 hrel hfrel
+    obtain ⟨⟨r1, st2⟩, h2, hok⟩ := bind_eq_ok_iff.mp hok
+    cases r1 with
+    | Err err => simp at hok
+    | Ok wtty =>
+      obtain ⟨lst2, hrun2, hrel2, hwf2, hwttyWF⟩ :=
+        (hw.whnfSim d httyWF).apply hwf1 hfe h2 hrel1 hfrel
+      obtain ⟨⟨dw, kd⟩⟩ := wtty
+      simp only [arc_deref_eq, bind_tc_ok] at hok
+      cases kd with
+      | «Sort» u =>
+        have huWF : LevelWF u := CoreK.wf_sort_inv hwttyWF rfl
+        obtain ⟨u1, hu1, hok⟩ := bind_eq_ok_iff.mp hok
+        simp only [level_dup_eq, Result.ok.injEq] at hu1
+        rw [← hu1] at hok
+        obtain ⟨tyc, hdup, hok⟩ := bind_eq_ok_iff.mp hok
+        rw [Expr.dup_eq hdup] at hok
+        obtain ⟨fv, hfv, hok⟩ := bind_eq_ok_iff.mp hok
+        obtain ⟨ob, hob, hok⟩ := bind_eq_ok_iff.mp hok
+        obtain ⟨i, hi, hok⟩ := bind_eq_ok_iff.mp hok
+        obtain ⟨⟨r2, st3⟩, h3, hok⟩ := bind_eq_ok_iff.mp hok
+        have hiv : i.val = d.val + 1 := HashMap.uscalar_add_eq hi
+        have hfvWF : ExprWF fv := ExprWF.fvar hty hfv
+        rw [StateC.inst1_m_eq] at hob
+        obtain ⟨hobabs, hobWF⟩ := ExprOpsC.instantiate1_refines hbody hfvWF hob
+        rw [Expr.fvar_refines hfv] at hobabs
+        cases r2 with
+        | Err err => simp at hok
+        | Ok bt =>
+          obtain ⟨lst3, hrun3, hrel3, hwf3, hbtWF⟩ :=
+            (hw.inferIOSim i hobWF).apply hwf2 hfe h3 hrel2 hfrel
+          obtain ⟨⟨r3, st4⟩, h4, hok⟩ := bind_eq_ok_iff.mp hok
+          cases r3 with
+          | Err err => simp at hok
+          | Ok v =>
+            obtain ⟨lst4, hrun4, hrel4, hwf4, hvWF⟩ :=
+              (hd.ensureSort i bt hbtWF).apply hwf3 hfe h4 hrel3 hfrel
+            -- the shared leaf: `.sort (.imax u v)`, whichever way the gate went
+            have hK : ∀ stx : cached.state_c.CState,
+                (do let l ← kernel.level.imax u v
+                    let e1 ← kernel.expr.sort l
+                    ok ((core.result.Result.Ok e1 :
+                      core.result.Result expr.Expr core_types.CheckError), stx))
+                  = ok (.Ok r, st') →
+                absExpr r = .sort (.imax (absLevel u) (absLevel v)) ∧ ExprWF r
+                  ∧ st' = stx := by
+              intro stx h
+              obtain ⟨l, hl, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+              have hp := Result.ok_injective h
+              have hre : r = e1 := by simpa using (congrArg Prod.fst hp).symm
+              refine ⟨?_, ?_, (congrArg Prod.snd hp).symm⟩
+              · rw [hre, Expr.sort_refines he1, Level.imax_refines hl]
+              · exact hre ▸ Expr.sort_wf (LevelWF.imax huWF hvWF hl) he1
+            obtain ⟨b, hb, hok⟩ := bind_eq_ok_iff.mp hok
+            have hbv := Env.verified_checks_refines hb
+            -- the codomain annotation check, at the verified modes only
+            have hgate : (absExpr r = .sort (.imax (absLevel u) (absLevel v))
+                ∧ ExprWF r ∧ st' = st4)
+                ∧ ((absMode mode).verifiedChecks = true →
+                  ConLeche.Level.zeronessOf (absLevel v) = absPropWhen mb.pw) := by
+              cases b with
+              | false =>
+                exact ⟨hK st4 hok, fun h => absurd (hbv.trans h) (by decide)⟩
+              | true =>
+                obtain ⟨pw, hpw, hok⟩ := bind_eq_ok_iff.mp hok
+                obtain ⟨b1, hb1, hok⟩ := bind_eq_ok_iff.mp hok
+                obtain ⟨hpwabs, hpwWF⟩ := ExprOps.zeroness_of_refines hvWF pw hpw
+                have hbeq := PropWhen.beq_shape (PropWhen.wf_shape hpwWF)
+                  (PropWhen.wf_shape hmb) hb1
+                cases b1 with
+                | false => simp at hok
+                | true =>
+                  exact ⟨hK st4 hok, fun _ => by
+                    rw [← hpwabs]; exact of_decide_eq_true hbeq.symm⟩
+            obtain ⟨⟨hrabs, hrWF, hst'⟩, hcheck⟩ := hgate
+            subst hst'
+            refine ⟨lst4, ?_, hrel4, hwf4, hrWF⟩
+            simp only [hiv] at hrun3 hrun4
+            simp only [show ((0#u64 : Std.U64)).val = 0 from rfl] at hobabs
+            simp only [inferForallIOI, ConLeche.Cached.inst1M, ioView_infer,
+              ioView_whnf, pure_bind, ← hobabs]
+            rw [run_bind _ _ hrun1, run_bind _ _ hrun2]
+            simp only [absExpr_mk, absExprKind]
+            rw [run_bind _ _ hrun3, ensureSortI_ioView, run_bind _ _ hrun4]
+            cases hvc : (absMode mode).verifiedChecks with
+            | false => simp [StateT.run, StateT.pure, hrabs]
+            | true =>
+              simp [StateT.run, StateT.pure, hrabs, hcheck hvc]
+      | _ => simp at hok
+
+/-- `ConLeche/Cached/CoreC.lean:1399` — **`infer_body_io_i` refines
+`inferBodyIOI`** (`core_c.rs:3588`), the `infer_io` body: the three io clauses
+above, and every other node view handed to `inferBodyI` at the io view (the
+Rust `infer_body_i … true`). -/
+theorem infer_body_io_i_refines (hw : Wrappers mode fuel)
+    (hd : InferIODeps mode fuel) (d : Std.U64) {e : expr.Expr} (he : ExprWF e) :
+    Sim absExpr ExprWF
+      (fun st fe => cached.core_c.infer_body_io_i mode fuel st fe d e)
+      (fun lfe => ConLeche.Cached.inferBodyIOI (absMode mode)
+        (knot mode lfe fuel.val).ioView lfe d.val (absExpr e)) := by
+  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  unfold cached.core_c.infer_body_io_i at hok
+  cases he with
+  | @bvar i e0 h1 =>
+    obtain ⟨dd, rfl, -, -, -⟩ := Expr.bvar_inv h1
+    simp only [arc_deref_eq, bind_tc_ok] at hok
+    have h := (hd.inferBody d _ true (ExprWF.bvar h1)).apply hwf hfe hok hrel hfrel
+    simpa [ConLeche.Cached.inferBodyIOI] using h
+  | @fvar idx tyf e0 htyf h1 =>
+    obtain ⟨dd, rfl, -, -, -⟩ := Expr.fvar_inv h1
+    simp only [arc_deref_eq, bind_tc_ok] at hok
+    have h := (hd.inferBody d _ true (ExprWF.fvar htyf h1)).apply hwf hfe hok hrel hfrel
+    simpa [ConLeche.Cached.inferBodyIOI] using h
+  | @sort u e0 hu h1 =>
+    obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
+    simp only [arc_deref_eq, bind_tc_ok] at hok
+    have h := (hd.inferBody d _ true (ExprWF.sort hu h1)).apply hwf hfe hok hrel hfrel
+    simpa [ConLeche.Cached.inferBodyIOI] using h
+  | @mk_const n us e0 hn hus h1 =>
+    obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
+    simp only [arc_deref_eq, bind_tc_ok] at hok
+    have h := (hd.inferBody d _ true (ExprWF.mk_const hn hus h1)).apply hwf hfe hok
+      hrel hfrel
+    simpa [ConLeche.Cached.inferBodyIOI] using h
+  | @let_e tyl vl bl e0 htyl hvl hbl h1 =>
+    obtain ⟨dd, rfl, -, -, -⟩ := Expr.let_e_inv h1
+    simp only [arc_deref_eq, bind_tc_ok] at hok
+    have h := (hd.inferBody d _ true (ExprWF.let_e htyl hvl hbl h1)).apply hwf hfe hok
+      hrel hfrel
+    simpa [ConLeche.Cached.inferBodyIOI] using h
+  | @lit l e0 hl h1 =>
+    obtain ⟨dd, rfl, -, -, -⟩ := Expr.lit_inv h1
+    simp only [arc_deref_eq, bind_tc_ok] at hok
+    have h := (hd.inferBody d _ true (ExprWF.lit hl h1)).apply hwf hfe hok hrel hfrel
+    simpa [ConLeche.Cached.inferBodyIOI] using h
+  | @proj sn idx x e0 hsn hx h1 =>
+    obtain ⟨dd, rfl, -, -, -⟩ := Expr.proj_inv h1
+    simp only [arc_deref_eq, bind_tc_ok] at hok
+    have h := (hd.inferBody d _ true (ExprWF.proj hsn hx h1)).apply hwf hfe hok hrel hfrel
+    simpa [ConLeche.Cached.inferBodyIOI] using h
+  | @lam tyl bo m e0 htyl hbo hm h1 =>
+    obtain ⟨dd, rfl, -, -, -⟩ := Expr.lam_inv h1
+    simp only [arc_deref_eq, bind_tc_ok] at hok
+    have h := (infer_lam_io_i_refines hw hd d htyl hbo hm).apply hwf hfe hok hrel hfrel
+    simpa [inferBodyIOI_lam] using h
+  | @forall_e tyf bo m e0 htyf hbo hm h1 =>
+    obtain ⟨dd, rfl, -, -, -⟩ := Expr.forall_e_inv h1
+    simp only [arc_deref_eq, bind_tc_ok] at hok
+    have h := (infer_forall_io_i_refines hw hd d htyf hbo hm).apply hwf hfe hok hrel hfrel
+    simpa [inferBodyIOI_forallE] using h
+  | @app f a e0 hf ha h1 =>
+    -- the one io-graded clause: the spine walk is `inferSpineIOI`
+    have heWF := ExprWF.app hf ha h1
+    obtain ⟨dd, rfl, -, -, -⟩ := Expr.app_inv h1
+    simp only [arc_deref_eq, bind_tc_ok] at hok
+    obtain ⟨hh, hhok, hok⟩ := bind_eq_ok_iff.mp hok
+    obtain ⟨args, hargs, hok⟩ := bind_eq_ok_iff.mp hok
+    obtain ⟨⟨r0, st1⟩, h2, hok⟩ := bind_eq_ok_iff.mp hok
+    obtain ⟨hhabs, hhWF⟩ := ExprOps.get_app_fn_refines heWF hhok
+    obtain ⟨hargsabs, hargsWF⟩ := ExprOps.get_app_args_refines heWF hargs
+    cases r0 with
+    | Err err => simp at hok
+    | Ok tf =>
+      obtain ⟨lst1, hrun1, hrel1, hwf1, htfWF⟩ :=
+        (hw.inferIOSim d hhWF).apply hwf hfe h2 hrel hfrel
+      obtain ⟨lst2, hrun2, hrel2, hwf2, hrWF⟩ :=
+        (hd.inferSpineIO d tf (alloc.vec.Vec.new expr.Expr) args 0#usize htfWF
+          ExprOps.exprsWF_new hargsWF).apply hwf1 hfe hok hrel1 hfrel
+      refine ⟨lst2, ?_, hrel2, hwf2, hrWF⟩
+      simp only [absExpr_mk, absExprKind] at hhabs hargsabs
+      simp only [ConLeche.Cached.inferBodyIOI, absExpr_mk, absExprKind,
+        ConLeche.Cached.ExprC.getAppFn_spec, ConLeche.Cached.ExprC.getAppArgs_spec,
+        ioView_infer, pure_bind, ← hhabs, ← hargsabs]
+      rw [run_bind _ _ hrun1]
+      simpa [absExprs, alloc.vec.Vec.new] using hrun2
+
+end
+
+end ConRon.Refine.Core

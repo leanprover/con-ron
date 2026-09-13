@@ -54,6 +54,9 @@ import ConRon.Refine.Pins
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.Core.Arms.Bridge
 import ConRon.Refine.Core.Arms.Shared
+import ConRon.Refine.Core.Arms.Infer
+import ConRon.Refine.Core.Arms.InferIO
+import ConRon.Refine.Core.Arms.Lits
 import ConRon.Refine.Core.Arms.Whnf
 import ConRon.Refine.Core.Arms.WhnfCore
 import ConRon.Refine.Core.Arms.App
