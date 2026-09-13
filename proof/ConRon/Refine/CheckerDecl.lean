@@ -6050,6 +6050,32 @@ inductive FoldsTo (mode : env.CheckMode) :
       FoldsTo mode lst₁ lfe₁ ds lst₂ lfe₂ →
       FoldsTo mode lst lfe (d :: ds) lst₂ lfe₂
 
+/-- **The port's fold, throwing** (task #67): a prefix of the declarations goes
+through, each step at its own index, and then one step throws.  This is
+`FoldsTo`'s failure twin — the fold has no single computation to point
+`ErrSim` at (the operation record is rebuilt at every step, section note), so
+the failure half names the step that threw. -/
+inductive FoldsErr (mode : env.CheckMode) :
+    ConLeche.Cached.CState -> ConLeche.FEnv -> List ConLeche.Declaration ->
+    ConLeche.CheckError -> Prop where
+  | head {lst lfe d ds le} :
+      (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env d).run lst
+          = .error le →
+      FoldsErr mode lst lfe (d :: ds) le
+  | cons {lst lst₁ lfe lfe₁ d ds le} :
+      (ConLeche.checkDecl (absMode mode) (TypeChecker.lops mode lfe) lfe.env d).run lst
+          = .ok (lfe₁.env, lst₁) →
+      FoldsErr mode lst₁ lfe₁ ds le →
+      FoldsErr mode lst lfe (d :: ds) le
+
+/-- `Refine/Abs.lean`'s `ErrSim`, at the fold: the port's error has a kind only
+if some step of the cited fold throws at that kind.  `Native` makes it vacuous,
+exactly as `ErrSim` does. -/
+def FoldErrSim (mode : env.CheckMode) (e : core_types.CheckError)
+    (lst : ConLeche.Cached.CState) (lfe : ConLeche.FEnv)
+    (ds : List ConLeche.Declaration) : Prop :=
+  ∀ k, absErrKind e = some k → ∃ le, FoldsErr mode lst lfe ds le ∧ lErrKind le = k
+
 /-- The fold with an explicit bound to recurse on. -/
 theorem check_decls_pure_val {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
@@ -6057,33 +6083,38 @@ theorem check_decls_pure_val {mode : env.CheckMode} {fuel : Std.U64}
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec env.Declaration} (hds : ∀ d ∈ ds.val, DeclarationWF d) (n : Nat) :
-    ∀ (st st' : cached.state_c.CState) (fe fe' : fenv.FEnv) (i : Std.Usize),
+    ∀ (st st' : cached.state_c.CState) (fe : fenv.FEnv)
+      (out : core.result.Result fenv.FEnv core_types.CheckError) (i : Std.Usize),
       ds.val.length - i.val ≤ n → StateWF st → FEnvWF fe →
-      kernel.checker.check_decls_pure_from mode pins st fe ds i = ok (.Ok fe', st') →
+      kernel.checker.check_decls_pure_from mode pins st fe ds i = ok (out, st') →
       ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → Indexed lfe →
-        ∃ lst' lfe',
-          FoldsTo mode lst lfe ((ds.val.drop i.val).map absDeclaration) lst' lfe'
-          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
-        ∧ Indexed lfe' := by
+        match out with
+        | .Ok fe' =>
+          ∃ lst' lfe',
+            FoldsTo mode lst lfe ((ds.val.drop i.val).map absDeclaration) lst' lfe'
+            ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+          ∧ Indexed lfe'
+        | .Err e =>
+          FoldErrSim mode e lst lfe ((ds.val.drop i.val).map absDeclaration) := by
   induction n with
   | zero =>
-    intro st st' fe fe' i hb hsw hfw h lst lfe hsr hfr hix
+    intro st st' fe out i hb hsw hfw h lst lfe hsr hfr hix
     rw [kernel.checker.check_decls_pure_from] at h
     rw [if_pos (show i >= alloc.vec.Vec.len ds by
       have := alloc.vec.Vec.len_val ds; scalar_tac)] at h
-    have hbs : fe = fe' ∧ st = st' := by simpa using h
-    obtain ⟨rfl, rfl⟩ := hbs
+    obtain ⟨hout, rfl⟩ := ok_outS h
+    subst hout
     refine ⟨lst, lfe, ?_, hsr, hsw, hfr, hfw, hix⟩
     rw [List.drop_eq_nil_of_le (by omega)]
     exact .nil
   | succ n ih =>
-    intro st st' fe fe' i hb hsw hfw h lst lfe hsr hfr hix
+    intro st st' fe out i hb hsw hfw h lst lfe hsr hfr hix
     rw [kernel.checker.check_decls_pure_from] at h
     by_cases hge : i.val >= ds.val.length
     · rw [if_pos (show i >= alloc.vec.Vec.len ds by
         have := alloc.vec.Vec.len_val ds; scalar_tac)] at h
-      have hbs : fe = fe' ∧ st = st' := by simpa using h
-      obtain ⟨rfl, rfl⟩ := hbs
+      obtain ⟨hout, rfl⟩ := ok_outS h
+      subst hout
       refine ⟨lst, lfe, ?_, hsr, hsw, hfr, hfw, hix⟩
       rw [List.drop_eq_nil_of_le (by omega)]
       exact .nil
@@ -6091,10 +6122,29 @@ theorem check_decls_pure_val {mode : env.CheckMode} {fuel : Std.U64}
         have := alloc.vec.Vec.len_val ds; scalar_tac)] at h
       obtain ⟨d, hdi, h⟩ := bind_eq_ok_iff.mp h
       have hmem : d ∈ ds.val := List.mem_of_getElem? (ExprOps.vec_index_getElem? hdi)
+      have hlen : i.val < ds.val.length := by omega
+      have hdrop : ds.val.drop i.val = d :: ds.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlen]
+        congr 1
+        have h1 : ds.val[i.val]? = some d := ExprOps.vec_index_getElem? hdi
+        rw [List.getElem?_eq_getElem hlen] at h1
+        exact Option.some_inj.mp h1
       obtain ⟨q, hstep, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r, st1⟩ := q
       cases r with
-      | Err e => simp at h
+      | Err e =>
+        -- the step threw, and it is the cited fold's first failing step
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        show FoldErrSim mode e lst lfe _
+        have herr :=
+          check_decl_refines hfuel hk hvar hpins hsw hfw (hds d hmem) hstep lst lfe hsr
+            hfr hix
+        intro k hkk
+        obtain ⟨le, hrun, hkind⟩ := herr k hkk
+        refine ⟨le, ?_, hkind⟩
+        rw [hdrop, List.map_cons]
+        exact .head hrun
       | Ok fe1 =>
         obtain ⟨lst1, lfe1, hrun, hsr1, hsw1, hfr1, hfw1, hix1⟩ :=
           check_decl_refines hfuel hk hvar hpins hsw hfw (hds d hmem) hstep lst lfe hsr hfr hix
@@ -6103,23 +6153,52 @@ theorem check_decls_pure_val {mode : env.CheckMode} {fuel : Std.U64}
           have he := Std.UScalar.add_equiv i 1#usize
           rw [hi2] at he
           simpa using he.2.1
-        obtain ⟨lst', lfe', hfold, rest⟩ :=
-          ih st1 st' fe1 fe' i2 (by omega) hsw1 hfw1 h lst1 lfe1 hsr1 hfr1 hix1
-        rw [hi2v] at hfold
-        have hlen : i.val < ds.val.length := by omega
-        have hdrop : ds.val.drop i.val = d :: ds.val.drop (i.val + 1) := by
-          rw [List.drop_eq_getElem_cons hlen]
-          congr 1
-          have h1 : ds.val[i.val]? = some d := ExprOps.vec_index_getElem? hdi
-          rw [List.getElem?_eq_getElem hlen] at h1
-          exact Option.some_inj.mp h1
-        refine ⟨lst', lfe', ?_, rest⟩
-        rw [hdrop, List.map_cons]
-        exact .cons hrun hfold
+        have hrec := ih st1 st' fe1 out i2 (by omega) hsw1 hfw1 h lst1 lfe1 hsr1 hfr1 hix1
+        rw [hi2v] at hrec
+        cases out with
+        | Ok fe' =>
+          obtain ⟨lst', lfe', hfold, rest⟩ := hrec
+          refine ⟨lst', lfe', ?_, rest⟩
+          rw [hdrop, List.map_cons]
+          exact .cons hrun hfold
+        | Err e =>
+          show FoldErrSim mode e lst lfe _
+          intro k hkk
+          obtain ⟨le, hfe, hkind⟩ := hrec k hkk
+          refine ⟨le, ?_, hkind⟩
+          rw [hdrop, List.map_cons]
+          exact .cons hrun hfe
 
 /-- **`kernel::checker::check_decls_pure_from` refines the cited fold's tail**:
 the declarations from position `i` take the index where the port says. -/
 theorem check_decls_pure_from_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hvar : CheckerPins.PinsWF pins)
+    (hpins : absPins pins = ConLeche.natOpPinSets)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
+    {ds : alloc.vec.Vec env.Declaration} {i : Std.Usize}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hds : ∀ d ∈ ds.val, DeclarationWF d)
+    (h : kernel.checker.check_decls_pure_from mode pins st fe ds i = ok (out, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → Indexed lfe →
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          FoldsTo mode lst lfe ((ds.val.drop i.val).map absDeclaration) lst' lfe'
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+          ∧ Indexed lfe'
+      | .Err e =>
+        FoldErrSim mode e lst lfe ((ds.val.drop i.val).map absDeclaration) := by
+  intro lst lfe hsr hfr hix
+  have hres := check_decls_pure_val hfuel hk hvar hpins hds ds.val.length st st' fe out i
+    (by omega) hsw hfw h lst lfe hsr hfr hix
+  cases out with
+  | Ok fe' => exact hres
+  | Err e => exact hres
+
+/-- `check_decls_pure_from_refines` at a success, the pre-#67 statement. -/
+theorem check_decls_pure_from_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
@@ -6132,10 +6211,8 @@ theorem check_decls_pure_from_refines {mode : env.CheckMode} {fuel : Std.U64}
       ∃ lst' lfe',
         FoldsTo mode lst lfe ((ds.val.drop i.val).map absDeclaration) lst' lfe'
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
-        ∧ Indexed lfe' := by
-  intro lst lfe hsr hfr
-  exact check_decls_pure_val hfuel hk hvar hpins hds ds.val.length st st' fe fe' i (by omega)
-    hsw hfw h lst lfe hsr hfr
+        ∧ Indexed lfe' :=
+  check_decls_pure_from_refines hfuel hk hvar hpins hsw hfw hds h
 
 /-- **`kernel::checker::check_decls_pure` refines `checkDeclsPure`**
 (`Checker.lean:564-567`): the whole stream from the empty environment, at the
@@ -6144,6 +6221,47 @@ per-step record (section note).
 Proved: `check_decls_pure_from_refines` at `i = 0` plus `Refine/FEnv.lean`'s
 `mk_fenv_refines` at `env::empty`, whose index is `Indexed` by construction. -/
 theorem check_decls_pure_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hvar : CheckerPins.PinsWF pins)
+    (hpins : absPins pins = ConLeche.natOpPinSets)
+    {st st' : cached.state_c.CState}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
+    {ds : alloc.vec.Vec env.Declaration}
+    (hsw : StateWF st) (hds : ∀ d ∈ ds.val, DeclarationWF d)
+    (h : kernel.checker.check_decls_pure mode pins st ds = ok (out, st')) :
+    ∀ lst, StateRel st lst →
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          FoldsTo mode lst (ConLeche.mkFEnv ConLeche.Env.empty)
+              (ds.val.map absDeclaration) lst' lfe'
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+          ∧ Indexed lfe'
+      | .Err e =>
+        FoldErrSim mode e lst (ConLeche.mkFEnv ConLeche.Env.empty)
+          (ds.val.map absDeclaration) := by
+  intro lst hsr
+  rw [kernel.checker.check_decls_pure] at h
+  obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨fe0, hfe0, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hrel0, hwf0⟩ := FEnv.mk_fenv_refines (Env.empty_wf he) hfe0
+  rw [Env.empty_refines he] at hrel0
+  have hres :=
+    check_decls_pure_from_refines hfuel hk hvar hpins hsw hwf0 hds h lst
+      (ConLeche.mkFEnv ConLeche.Env.empty) hsr hrel0 (Indexed.mk _)
+  cases out with
+  | Ok fe' =>
+    obtain ⟨lst', lfe', hfold, rest⟩ := hres
+    exact ⟨lst', lfe', by simpa using hfold, rest⟩
+  | Err er =>
+    show FoldErrSim mode er lst _ _
+    intro k hkk
+    obtain ⟨le, hfe, hkind⟩ := hres k hkk
+    exact ⟨le, by simpa using hfe, hkind⟩
+
+/-- `check_decls_pure_refines` at a success, the pre-#67 statement. -/
+theorem check_decls_pure_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
@@ -6157,17 +6275,8 @@ theorem check_decls_pure_refines {mode : env.CheckMode} {fuel : Std.U64}
         FoldsTo mode lst (ConLeche.mkFEnv ConLeche.Env.empty)
             (ds.val.map absDeclaration) lst' lfe'
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
-        ∧ Indexed lfe' := by
-  intro lst hsr
-  rw [kernel.checker.check_decls_pure] at h
-  obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨fe0, hfe0, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨hrel0, hwf0⟩ := FEnv.mk_fenv_refines (Env.empty_wf he) hfe0
-  rw [Env.empty_refines he] at hrel0
-  obtain ⟨lst', lfe', hfold, rest⟩ :=
-    check_decls_pure_from_refines hfuel hk hvar hpins hsw hwf0 hds h lst
-      (ConLeche.mkFEnv ConLeche.Env.empty) hsr hrel0 (Indexed.mk _)
-  exact ⟨lst', lfe', by simpa using hfold, rest⟩
+        ∧ Indexed lfe' :=
+  check_decls_pure_refines hfuel hk hvar hpins hsw hds h
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
