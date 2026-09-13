@@ -18,7 +18,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 src="$root/vendor/aeneas/backends/lean"
 patch_file="$root/patches/aeneas-433.patch"
-dest="$root/_tmp/aeneas-lean"
+dest="${AENEAS_LEAN_DEST:-$root/_tmp/aeneas-lean}"  # override for testing the script itself
 stamp="$dest/.con-ron-setup-stamp"
 
 force=0
@@ -54,8 +54,11 @@ rm -rf "$work"
 mkdir -p "$work"
 trap 'rm -rf "$work"' EXIT
 
-# 1. copy the pinned library (never the build tree)
-tar -C "$src" --exclude=./.lake -cf - . | tar -C "$work" -xf -
+# 1. copy the pinned library (never the build tree, and never upstream's
+#    manifest: it pins the Mathlib of upstream's toolchain, and carrying it
+#    is what made a fresh machine's `lake exe cache get` fetch the wrong
+#    Mathlib — task #82)
+tar -C "$src" --exclude=./.lake --exclude=./lake-manifest.json -cf - . | tar -C "$work" -xf -
 
 # 2. apply the 4.33 patch -- must be clean
 if ! ( cd "$work" && patch -p1 --forward --dry-run < "$patch_file" ); then
@@ -83,9 +86,15 @@ rm -rf "$dest.old"
 # 4. resolve dependencies.  `lake-manifest.json` is deliberately not in the
 #    patch: upstream pins Mathlib v4.31.0 and the patched lakefile asks for
 #    v4.33.0, so the manifest has to be regenerated rather than carried.
-if [ "$do_update" -eq 1 ] && [ ! -f "$dest/lake-manifest.json" ]; then
-  echo "aeneas-lean: lake update (this fetches Mathlib v4.33.0)"
-  ( cd "$dest" && lake update )
+#    The update runs when there is no manifest, or when the manifest's
+#    Mathlib is not the one the patched lakefile asks for.
+mathlib_rev="$(sed -n 's/.*mathlib4.git" @ "\([^"]*\)".*/\1/p' "$dest/lakefile.lean" | head -1)"
+if [ "$do_update" -eq 1 ]; then
+  if [ ! -f "$dest/lake-manifest.json" ] \
+     || ! grep -q "\"inputRev\": \"$mathlib_rev\"" "$dest/lake-manifest.json"; then
+    echo "aeneas-lean: lake update (this fetches Mathlib $mathlib_rev)"
+    ( cd "$dest" && lake update )
+  fi
 fi
 
 # 5. let `proof/` share this package set instead of cloning Mathlib twice.
