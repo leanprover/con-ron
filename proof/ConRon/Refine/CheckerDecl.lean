@@ -2684,26 +2684,204 @@ theorem check_opaque_val_c_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
         ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' :=
   check_opaque_val_c_refines hfuel hk hsw hfw hcan hfull hcv hjty hv h
 
+open ConLeche.Cached in
+/-- `core_k::lift_fueled`'s failure arm, run in `CheckCM`
+(`ConLeche/Kernel/Core.lean:109-111 liftFueled`): `none` is an `internal`
+error on both sides. -/
+theorem lift_fueled_run_err {o : Option Bool} {ce : core_types.CheckError}
+    {lst : CState} (h : core_k.lift_fueled o = ok (.Err ce)) :
+    ErrSim ce ((ConLeche.liftFueled (m := CheckCM) "level comparison" o).run lst) := by
+  cases o with
+  | some a =>
+    simp only [core_k.lift_fueled] at h
+    exact absurd h (by simp)
+  | none =>
+    simp only [core_k.lift_fueled, bind_eq_ok_iff] at h
+    obtain ⟨s, hs, v, hv, ce1, hce1, hr⟩ := h
+    have hce : ce1 = ce := by simpa using hr
+    exact errSim_internal hce1 hce rfl
+
+open ConLeche.Cached in
+/-- `checkThmValC` passes on what the statement's inference threw. -/
+theorem checkThmValC_infer_err {mode : env.CheckMode} {lfe : ConLeche.FEnv}
+    {cvA : ConLeche.ConstantVal} {jty value : ExprC} {lst : CState}
+    {le : ConLeche.CheckError}
+    (hinf : ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).infer 0 jty).run lst
+      = .error le) :
+    (checkThmValC (absMode mode) lfe cvA jty value).run lst = .error le := by
+  rw [checkThmValC]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).infer 0 jty) lst
+      = Except.error le from hinf]
+
+open ConLeche.Cached in
+/-- `checkThmValC` passes on what the statement's sort check threw. -/
+theorem checkThmValC_sort_err {mode : env.CheckMode} {lfe : ConLeche.FEnv}
+    {cvA : ConLeche.ConstantVal} {jty value jsty : ExprC} {lst lsta : CState}
+    {le : ConLeche.CheckError}
+    (hinf : ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).infer 0 jty).run lst
+      = .ok (jsty, lsta))
+    (hsort : (opSIxC (absMode mode) lfe 0 jsty).run lsta = .error le) :
+    (checkThmValC (absMode mode) lfe cvA jty value).run lst = .error le := by
+  rw [checkThmValC]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).infer 0 jty) lst
+      = Except.ok (jsty, lsta) from hinf]
+  simp only []
+  rw [show (opSIxC (absMode mode) lfe 0 jsty) lsta = Except.error le from hsort]
+
+open ConLeche.Cached in
+/-- `checkThmValC` passes on what the fuel-lift threw. -/
+theorem checkThmValC_lift_err {mode : env.CheckMode} {lfe : ConLeche.FEnv}
+    {cvA : ConLeche.ConstantVal} {jty value jsty : ExprC} {ul : ConLeche.Level}
+    {lst lsta lstb : CState} {le : ConLeche.CheckError}
+    (hinf : ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).infer 0 jty).run lst
+      = .ok (jsty, lsta))
+    (hsort : (opSIxC (absMode mode) lfe 0 jsty).run lsta = .ok (ul, lstb))
+    (hprop : (ConLeche.liftFueled (m := CheckCM) "level comparison"
+      (ConLeche.Level.isEquiv ul .zero)).run lstb = .error le) :
+    (checkThmValC (absMode mode) lfe cvA jty value).run lst = .error le := by
+  rw [checkThmValC]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).infer 0 jty) lst
+      = Except.ok (jsty, lsta) from hinf]
+  simp only []
+  rw [show (opSIxC (absMode mode) lfe 0 jsty) lsta = Except.ok (ul, lstb) from hsort]
+  simp only []
+  rw [show (ConLeche.liftFueled (m := CheckCM) "level comparison"
+      (ConLeche.Level.isEquiv ul .zero)) lstb = Except.error le from hprop]
+
+open ConLeche.Cached in
+/-- `checkThmValC`'s is-a-proposition `throw` (`ParsedC.lean:124-125`). -/
+theorem checkThmValC_notprop_throw {mode : env.CheckMode} {lfe : ConLeche.FEnv}
+    {cvA : ConLeche.ConstantVal} {jty value jsty : ExprC} {ul : ConLeche.Level}
+    {lst lsta lstb lstc : CState}
+    (hinf : ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).infer 0 jty).run lst
+      = .ok (jsty, lsta))
+    (hsort : (opSIxC (absMode mode) lfe 0 jsty).run lsta = .ok (ul, lstb))
+    (hprop : (ConLeche.liftFueled (m := CheckCM) "level comparison"
+      (ConLeche.Level.isEquiv ul .zero)).run lstb = .ok (false, lstc)) :
+    (checkThmValC (absMode mode) lfe cvA jty value).run lst
+      = .error (.invalid s!"type of theorem {cvA.name} is not a proposition") := by
+  rw [checkThmValC]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).infer 0 jty) lst
+      = Except.ok (jsty, lsta) from hinf]
+  simp only []
+  rw [show (opSIxC (absMode mode) lfe 0 jsty) lsta = Except.ok (ul, lstb) from hsort]
+  simp only []
+  rw [show (ConLeche.liftFueled (m := CheckCM) "level comparison"
+      (ConLeche.Level.isEquiv ul .zero)) lstb = Except.ok (false, lstc) from hprop]
+  simp only [Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkThmValC`'s loose-bound-variable `throw` (`ParsedC.lean:126-127`). -/
+theorem checkThmValC_loose_throw {mode : env.CheckMode} {lfe : ConLeche.FEnv}
+    {cvA : ConLeche.ConstantVal} {jty value jsty : ExprC} {ul : ConLeche.Level}
+    {lst lsta lstb lstc : CState}
+    (hinf : ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).infer 0 jty).run lst
+      = .ok (jsty, lsta))
+    (hsort : (opSIxC (absMode mode) lfe 0 jsty).run lsta = .ok (ul, lstb))
+    (hprop : (ConLeche.liftFueled (m := CheckCM) "level comparison"
+      (ConLeche.Level.isEquiv ul .zero)).run lstb = .ok (true, lstc))
+    (h1 : ExprC.looseBVarsBounded 0 value = false) :
+    (checkThmValC (absMode mode) lfe cvA jty value).run lst
+      = .error (.invalid s!"loose bound variable in value of {cvA.name}") := by
+  rw [checkThmValC]
+  simp only [h1, Bool.false_eq_true, if_false, StateT.run, Bind.bind, StateT.bind,
+    Except.bind]
+  rw [show ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).infer 0 jty) lst
+      = Except.ok (jsty, lsta) from hinf]
+  simp only []
+  rw [show (opSIxC (absMode mode) lfe 0 jsty) lsta = Except.ok (ul, lstb) from hsort]
+  simp only []
+  rw [show (ConLeche.liftFueled (m := CheckCM) "level comparison"
+      (ConLeche.Level.isEquiv ul .zero)) lstb = Except.ok (true, lstc) from hprop]
+  simp only [if_true, Bind.bind, StateT.bind, Except.bind]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkThmValC`'s free-variable `throw` (`ParsedC.lean:128-129`). -/
+theorem checkThmValC_fvar_throw {mode : env.CheckMode} {lfe : ConLeche.FEnv}
+    {cvA : ConLeche.ConstantVal} {jty value jsty : ExprC} {ul : ConLeche.Level}
+    {lst lsta lstb lstc : CState}
+    (hinf : ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).infer 0 jty).run lst
+      = .ok (jsty, lsta))
+    (hsort : (opSIxC (absMode mode) lfe 0 jsty).run lsta = .ok (ul, lstb))
+    (hprop : (ConLeche.liftFueled (m := CheckCM) "level comparison"
+      (ConLeche.Level.isEquiv ul .zero)).run lstb = .ok (true, lstc))
+    (h1 : ExprC.looseBVarsBounded 0 value = true)
+    (h2 : ExprC.hasFvar value = true) :
+    (checkThmValC (absMode mode) lfe cvA jty value).run lst
+      = .error (.invalid s!"unexpected free variable in value of {cvA.name}") := by
+  rw [checkThmValC]
+  simp only [h1, h2, if_true, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).infer 0 jty) lst
+      = Except.ok (jsty, lsta) from hinf]
+  simp only []
+  rw [show (opSIxC (absMode mode) lfe 0 jsty) lsta = Except.ok (ul, lstb) from hsort]
+  simp only []
+  rw [show (ConLeche.liftFueled (m := CheckCM) "level comparison"
+      (ConLeche.Level.isEquiv ul .zero)) lstb = Except.ok (true, lstc) from hprop]
+  simp only [if_true, Bind.bind, StateT.bind, Except.bind]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkThmValC` passes on what the witness's annotation threw. -/
+theorem checkThmValC_annot_err {mode : env.CheckMode} {lfe : ConLeche.FEnv}
+    {cvA : ConLeche.ConstantVal} {jty value jsty : ExprC} {ul : ConLeche.Level}
+    {lst lsta lstb lstc : CState} {le : ConLeche.CheckError}
+    (hinf : ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).infer 0 jty).run lst
+      = .ok (jsty, lsta))
+    (hsort : (opSIxC (absMode mode) lfe 0 jsty).run lsta = .ok (ul, lstb))
+    (hprop : (ConLeche.liftFueled (m := CheckCM) "level comparison"
+      (ConLeche.Level.isEquiv ul .zero)).run lstb = .ok (true, lstc))
+    (h1 : ExprC.looseBVarsBounded 0 value = true)
+    (h2 : ExprC.hasFvar value = false)
+    (hann : ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).annotate 0 value).run lstc
+      = .error le) :
+    (checkThmValC (absMode mode) lfe cvA jty value).run lst = .error le := by
+  rw [checkThmValC]
+  simp only [h1, h2, Bool.false_eq_true, if_false, if_true, StateT.run, Bind.bind,
+    StateT.bind, Except.bind, Pure.pure]
+  rw [show ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).infer 0 jty) lst
+      = Except.ok (jsty, lsta) from hinf]
+  simp only []
+  rw [show (opSIxC (absMode mode) lfe 0 jsty) lsta = Except.ok (ul, lstb) from hsort]
+  simp only []
+  rw [show (ConLeche.liftFueled (m := CheckCM) "level comparison"
+      (ConLeche.Level.isEquiv ul .zero)) lstb = Except.ok (true, lstc) from hprop]
+  simp only [if_true, Bind.bind, StateT.bind, Except.bind]
+  rw [show ((coreKnotI (absMode mode) lfe ConLeche.checkFuel).annotate 0 value) lstc
+      = Except.error le from hann]
+
 /-- **The tail of `cached::parsed_c::check_thm_val_c` past the annotation**
 (`ConLeche/Cached/ParsedC.lean:126-137`): a theorem is stored by its statement,
 so the record keeps the parse's own `value`. -/
 theorem check_thm_val_c_checked_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv_a : env.ConstantVal}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {cv_a : env.ConstantVal}
     {jty value jv : expr.Expr}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv_a)
     (hjty : ExprWF jty) (hval : ExprWF value) (hjv : ExprWF jv)
     (h : cached.parsed_c.check_thm_val_c_checked mode st fe cv_a jty value jv
-      = ok (.Ok fe', st')) :
+      = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst',
-        (thmValCTail mode lfe (absConstantVal cv_a) (absExpr jty) (absExpr value)
-            (absExpr jv)).run lst
-          = .ok (lfe.push (.thmInfo (absConstantVal cv_a) (absExpr value)), lst')
-        ∧ StateRel st' lst' ∧ StateWF st'
-        ∧ FEnvRel fe' (lfe.push (.thmInfo (absConstantVal cv_a) (absExpr value)))
-        ∧ FEnvWF fe' ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst',
+          (thmValCTail mode lfe (absConstantVal cv_a) (absExpr jty) (absExpr value)
+              (absExpr jv)).run lst
+            = Except.ok (lfe.push (.thmInfo (absConstantVal cv_a) (absExpr value)), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+          ∧ FEnvRel fe' (lfe.push (.thmInfo (absConstantVal cv_a) (absExpr value)))
+          ∧ FEnvWF fe' ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((thmValCTail mode lfe (absConstantVal cv_a) (absExpr jty)
+          (absExpr value) (absExpr jv)).run lst) := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_thm_val_c_checked] at h
   obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
@@ -2724,10 +2902,23 @@ theorem check_thm_val_c_checked_refines {mode : env.CheckMode} {fuel : Std.U64}
       rw [hnv, hev, he1v] at hrec
       obtain ⟨lst1, hrecrun, hsr1, hsw1⟩ :=
         StateC.record_c_const_refines hsw hcv.1 hcv.2.2 hjty (by simp) hrec lst hsr
+      have hg1 : ConLeche.Cached.ExprC.allLevelParamsDefined (absConstantVal cv_a).levelParams
+          (absExpr jv) = true := by rw [absConstantVal_levelParams, ← hbabs]
+      have hg2 : ConLeche.Cached.constsResolveFC lfe (absExpr jv) = true := by
+        rw [← hb1abs]
+      have hgrec : (ConLeche.Cached.recordCConst (absConstantVal cv_a).name
+          (absConstantVal cv_a).type (absExpr jty) none).run lst = .ok ((), lst1) := by
+        rw [absConstantVal_name, absConstantVal_type]; simpa using hrecrun
       obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r1, st2⟩ := q
       cases r1 with
-      | Err er => simp at h
+      | Err er =>
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        show ErrSim er _
+        have herr := (TypeChecker.infer_type_core_refines hfuel hk).err st1 fe 0#u64 jv
+          er st2 hsw1 hfw hjv hq lst1 lfe hsr1 hfr
+        exact ErrSim.trans herr (fun _ hle => thmValCTail_infer_err hg1 hg2 hgrec hle)
       | Ok jvt =>
         obtain ⟨lst2, hrun2, hsr2, hsw2, hjvtwf⟩ :=
           (TypeChecker.infer_type_core_refines hfuel hk).ok st1 fe 0#u64 jv jvt st2
@@ -2735,20 +2926,35 @@ theorem check_thm_val_c_checked_refines {mode : env.CheckMode} {fuel : Std.U64}
         obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨r2, st3⟩ := q2
         cases r2 with
-        | Err er => simp at h
+        | Err er =>
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          show ErrSim er _
+          have herr := (TypeChecker.is_def_eq_core_refines hfuel hk).err st2 fe 0#u64
+            jvt jty er st3 hsw2 hfw hjvtwf hjty hq2 lst2 lfe hsr2 hfr
+          exact ErrSim.trans herr (fun _ hle =>
+            thmValCTail_defeq_err hg1 hg2 hgrec hrun2 hle)
         | Ok ok1 =>
           obtain ⟨lst3, hrun3, hsr3, hsw3⟩ :=
             (TypeChecker.is_def_eq_core_refines hfuel hk).ok st2 fe 0#u64 jvt jty ok1 st3
               hsw2 hfw hjvtwf hjty hq2 lst2 lfe hsr2 hfr
           cases ok1 with
-          | false => simp at h
+          | false =>
+            obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨hout, -⟩ := err_outS h
+            subst hout
+            show ErrSim ce _
+            exact errSim_invalid hce rfl
+              (thmValCTail_mismatch_throw hg1 hg2 hgrec hrun2 hrun3)
           | true =>
             simp only [] at h
             obtain ⟨cv, hcvd, h⟩ := bind_eq_ok_iff.mp h
             obtain ⟨e2, he2, h⟩ := bind_eq_ok_iff.mp h
             obtain ⟨f, hpush, h⟩ := bind_eq_ok_iff.mp h
-            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
-            obtain ⟨rfl, rfl⟩ := h
+            obtain ⟨hout, rfl⟩ := ok_outS h
+            subst hout
             have hcvv : cv = cv_a := Env.constant_val_dup_refines hcvd
             have he2v : e2 = value := Expr.dup_eq he2
             subst hcvv; subst he2v
@@ -2758,36 +2964,84 @@ theorem check_thm_val_c_checked_refines {mode : env.CheckMode} {fuel : Std.U64}
               (show ConstantInfoWF (env.ConstantInfo.ThmInfo cv e2) from ⟨hcv, hval⟩)
               hcan hfull hpush
             refine ⟨lst3, ?_, hsr3, hsw3, hrel', hwf', hcan', hfull'⟩
-            refine thmValCTail_run (by rw [absConstantVal_levelParams, ← hbabs])
-              (by rw [← hb1abs])
-              (by rw [absConstantVal_name, absConstantVal_type]; simpa using hrecrun)
-              hrun2 hrun3
-    · simp [bind_eq_ok_iff] at h
-  · simp [bind_eq_ok_iff] at h
+            exact thmValCTail_run hg1 hg2 hgrec hrun2 hrun3
+    · rename_i hb1f
+      obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      show ErrSim ce _
+      exact errSim_invalid hce rfl
+        (thmValCTail_resolve_throw (lst := lst)
+          (by rw [absConstantVal_levelParams, ← hbabs])
+          (by rw [← hb1abs]; simpa using hb1f))
+  · rename_i hbf
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    show ErrSim ce _
+    exact errSim_invalid hce rfl
+      (thmValCTail_lp_throw (lst := lst)
+        (by rw [absConstantVal_levelParams, ← hbabs]; simpa using hbf))
+
+/-- `check_thm_val_c_checked_refines` at a success, the pre-#67 statement. -/
+theorem check_thm_val_c_checked_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv_a : env.ConstantVal}
+    {jty value jv : expr.Expr}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv_a)
+    (hjty : ExprWF jty) (hval : ExprWF value) (hjv : ExprWF jv)
+    (h : cached.parsed_c.check_thm_val_c_checked mode st fe cv_a jty value jv
+      = ok (.Ok fe', st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ∃ lst',
+        (thmValCTail mode lfe (absConstantVal cv_a) (absExpr jty) (absExpr value)
+            (absExpr jv)).run lst
+          = Except.ok (lfe.push (.thmInfo (absConstantVal cv_a) (absExpr value)), lst')
+        ∧ StateRel st' lst' ∧ StateWF st'
+        ∧ FEnvRel fe' (lfe.push (.thmInfo (absConstantVal cv_a) (absExpr value)))
+        ∧ FEnvWF fe' ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' :=
+  check_thm_val_c_checked_refines hfuel hk hsw hfw hcan hfull hcv hjty hval hjv h
 
 /-- **`cached::parsed_c::check_thm_val_c` refines `checkThmValC`**
 (`ConLeche/Cached/ParsedC.lean:118-137`): the statement's sort, the
 is-a-proposition gate, then the witness's guards, annotation and check. -/
 theorem check_thm_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv_a : env.ConstantVal}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {cv_a : env.ConstantVal}
     {jty value : expr.Expr}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv_a)
     (hjty : ExprWF jty) (hv : ExprWF value)
-    (h : cached.parsed_c.check_thm_val_c mode st fe cv_a jty value = ok (.Ok fe', st')) :
+    (h : cached.parsed_c.check_thm_val_c mode st fe cv_a jty value = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.checkThmValC (absMode mode) lfe (absConstantVal cv_a)
-            (absExpr jty) (absExpr value)).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.checkThmValC (absMode mode) lfe (absConstantVal cv_a)
+              (absExpr jty) (absExpr value)).run lst = Except.ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.checkThmValC (absMode mode) lfe (absConstantVal cv_a)
+          (absExpr jty) (absExpr value)).run lst) := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_thm_val_c] at h
   obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r1, sta⟩ := q
   cases r1 with
-  | Err er => simp at h
+  | Err er =>
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    show ErrSim er _
+    have herr := (TypeChecker.infer_type_core_refines hfuel hk).err st fe 0#u64 jty
+      er sta hsw hfw hjty hq lst lfe hsr hfr
+    exact ErrSim.trans herr (fun _ hle => checkThmValC_infer_err hle)
   | Ok jsty =>
     obtain ⟨lsta, hruna, hsra, hswa, hjstywf⟩ :=
       (TypeChecker.infer_type_core_refines hfuel hk).ok st fe 0#u64 jty jsty sta
@@ -2795,7 +3049,15 @@ theorem check_thm_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r2, stb⟩ := q2
     cases r2 with
-    | Err er => simp at h
+    | Err er =>
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      show ErrSim er _
+      have herr := (TypeChecker.ensure_sort_core_refines hfuel hk).err sta fe 0#u64 jsty
+        er stb hswa hfw hjstywf
+        (hq2 : type_checker.ensure_sort_core mode sta fe 0#u64 jsty = ok (.Err er, stb))
+        lsta lfe hsra hfr
+      exact ErrSim.trans herr (fun _ hle => checkThmValC_sort_err hruna hle)
     | Ok ul =>
       obtain ⟨lstb, hrunb, hsrb, hswb, hulwf⟩ :=
         (TypeChecker.ensure_sort_core_refines hfuel hk).ok sta fe 0#u64 jsty ul stb
@@ -2808,10 +3070,30 @@ theorem check_thm_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
       have hoabs := Level.is_equiv_refines hulwf (Level.zero_wf hz) ho
       rw [Level.zero_refines hz] at hoabs
       cases r3 with
-      | Err er => simp at h
+      | Err er =>
+        -- the fuel-lift's `internal`, mirrored (`ConLeche/Kernel/Core.lean:109-111`)
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        show ErrSim er _
+        have herr : ErrSim er ((ConLeche.liftFueled (m := ConLeche.Cached.CheckCM)
+            "level comparison" (ConLeche.Level.isEquiv (absLevel ul) .zero)).run lstb) := by
+          rw [hoabs]; exact lift_fueled_run_err hr3
+        exact ErrSim.trans herr (fun _ hle => checkThmValC_lift_err hruna hrunb hle)
       | Ok is_prop =>
         cases is_prop with
-        | false => simp at h
+        | false =>
+          -- the is-a-proposition `throw` (`ParsedC.lean:124-125`)
+          obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨v, hv1, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          have hprop : (ConLeche.liftFueled (m := ConLeche.Cached.CheckCM)
+              "level comparison" (ConLeche.Level.isEquiv (absLevel ul) .zero)).run lstb
+              = .ok (false, lstb) := by rw [hoabs]; exact lift_fueled_run hr3
+          show ErrSim ce _
+          exact errSim_invalid hce rfl
+            (checkThmValC_notprop_throw (cvA := absConstantVal cv_a) hruna hrunb hprop)
         | true =>
           simp only [if_pos] at h
           have hprop : (ConLeche.liftFueled (m := ConLeche.Cached.CheckCM)
@@ -2826,24 +3108,79 @@ theorem check_thm_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
             obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
             have hb1abs := ExprOpsC.has_fvar_refines hv hb1
             split at h
-            · simp [bind_eq_ok_iff] at h
+            · -- the free-variable `throw` (`ParsedC.lean:128-129`)
+              rename_i hb1t
+              obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨v, hv1, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨hout, -⟩ := err_outS h
+              subst hout
+              show ErrSim ce _
+              exact errSim_invalid hce rfl
+                (checkThmValC_fvar_throw (cvA := absConstantVal cv_a) hruna hrunb hprop
+                  (by rw [← hbabs]) (by rw [← hb1abs]; exact hb1t))
             · rename_i hb1f
               obtain ⟨q3, hq3, h⟩ := bind_eq_ok_iff.mp h
               obtain ⟨r4, stc⟩ := q3
               cases r4 with
-              | Err er => simp at h
+              | Err er =>
+                obtain ⟨hout, -⟩ := err_outS h
+                subst hout
+                show ErrSim er _
+                have herr := (TypeChecker.annotate_core_refines hfuel hk).err stb fe
+                  0#u64 value er stc hswb hfw hv hq3 lstb lfe hsrb hfr
+                exact ErrSim.trans herr (fun _ hle =>
+                  checkThmValC_annot_err (cvA := absConstantVal cv_a) hruna hrunb hprop
+                    (by rw [← hbabs]) (by rw [← hb1abs]; simpa using hb1f) hle)
               | Ok jv =>
                 obtain ⟨lstc, hrunc, hsrc, hswc, hjvwf⟩ :=
                   (TypeChecker.annotate_core_refines hfuel hk).ok stb fe 0#u64 value jv stc
                     hswb hfw hv hq3 lstb lfe hsrb hfr
-                obtain ⟨lst2, hrun2, rest⟩ :=
+                have hrest :=
                   check_thm_val_c_checked_refines hfuel hk hswc hfw hcan hfull hcv hjty
                     hv hjvwf h lstc lfe hsrc hfr
-                refine ⟨lst2, _, ?_, rest⟩
-                rw [checkThmValC_at_annot (cvA := absConstantVal cv_a) hruna hrunb hprop
-                  (by rw [← hbabs]) (by rw [← hb1abs]; simpa using hb1f) hrunc]
-                exact hrun2
-          · simp [bind_eq_ok_iff] at h
+                have hhead : (ConLeche.Cached.checkThmValC (absMode mode) lfe
+                      (absConstantVal cv_a) (absExpr jty) (absExpr value)).run lst
+                    = (thmValCTail mode lfe (absConstantVal cv_a) (absExpr jty)
+                        (absExpr value) (absExpr jv)).run lstc :=
+                  checkThmValC_at_annot (cvA := absConstantVal cv_a) hruna hrunb hprop
+                    (by rw [← hbabs]) (by rw [← hb1abs]; simpa using hb1f) hrunc
+                cases out with
+                | Ok fe' =>
+                  obtain ⟨lst2, hrun2, rest⟩ := hrest
+                  exact ⟨lst2, _, by rw [hhead]; exact hrun2, rest⟩
+                | Err e =>
+                  show ErrSim e _
+                  rw [hhead]
+                  exact hrest
+          · -- the loose-bound-variable `throw` (`ParsedC.lean:126-127`)
+            rename_i hbf
+            obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨v, hv1, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨hout, -⟩ := err_outS h
+            subst hout
+            show ErrSim ce _
+            exact errSim_invalid hce rfl
+              (checkThmValC_loose_throw (cvA := absConstantVal cv_a) hruna hrunb hprop
+                (by rw [← hbabs]; simpa using hbf))
+
+/-- `check_thm_val_c_refines` at a success, the pre-#67 statement. -/
+theorem check_thm_val_c_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv_a : env.ConstantVal}
+    {jty value : expr.Expr}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv_a)
+    (hjty : ExprWF jty) (hv : ExprWF value)
+    (h : cached.parsed_c.check_thm_val_c mode st fe cv_a jty value = ok (.Ok fe', st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ∃ lst' lfe',
+        (ConLeche.Cached.checkThmValC (absMode mode) lfe (absConstantVal cv_a)
+            (absExpr jty) (absExpr value)).run lst = Except.ok (lfe', lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' :=
+  check_thm_val_c_refines hfuel hk hsw hfw hcan hfull hcv hjty hv h
 
 /-! ### The four value arms of `checkDeclC`
 
