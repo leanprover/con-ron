@@ -208,6 +208,25 @@ private theorem errSim_invalid {γ : Type} {v : alloc.vec.Vec Std.U32}
     (hx : x = .error (.invalid ls)) : ErrSim ce x := by
   rw [← heq, invalid_inv hce]; exact ErrSim.invalid hx
 
+/-- The port's `Err` return, read off (the state-carrying shape). -/
+private theorem err_outS {α : Type} {ce : core_types.CheckError}
+    {st1 st' : cached.state_c.CState}
+    {out : core.result.Result α core_types.CheckError}
+    (h : (ok (core.result.Result.Err ce, st1) :
+      Result ((core.result.Result α core_types.CheckError) × cached.state_c.CState))
+      = ok (out, st')) : out = .Err ce ∧ st' = st1 := by
+  have h1 := Result.ok_injective h
+  exact ⟨(congrArg Prod.fst h1).symm, (congrArg Prod.snd h1).symm⟩
+
+/-- The port's `Ok` return, read off (the state-carrying shape). -/
+private theorem ok_outS {α : Type} {r : α} {st1 st' : cached.state_c.CState}
+    {out : core.result.Result α core_types.CheckError}
+    (h : (ok (core.result.Result.Ok r, st1) :
+      Result ((core.result.Result α core_types.CheckError) × cached.state_c.CState))
+      = ok (out, st')) : out = .Ok r ∧ st' = st1 := by
+  have h1 := Result.ok_injective h
+  exact ⟨(congrArg Prod.fst h1).symm, (congrArg Prod.snd h1).symm⟩
+
 /-- A mirrored `throw` at `internal`, the same bookkeeping. -/
 private theorem errSim_internal {γ : Type} {v : alloc.vec.Vec Std.U32}
     {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
@@ -2368,6 +2387,15 @@ theorem run_bind {α β : Type} {x : ConLeche.Cached.CheckCM α}
   simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
   rw [show x s = Except.ok (a, s') from h]
 
+/-- The failing twin of `run_bind` (task #67's move 1, spelled as a rewrite):
+a step that threw makes the rest of the `do` block throw, at its error. -/
+theorem run_bind_err {α β : Type} {x : ConLeche.Cached.CheckCM α}
+    {f : α → ConLeche.Cached.CheckCM β} {s : ConLeche.Cached.CState}
+    {le : ConLeche.CheckError} (h : x.run s = .error le) :
+    (x >>= f).run s = .error le := by
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show x s = Except.error le from h]
+
 /-- The Rust reads the fuel constant and hands it to the wrapper; this is the
 `type_checker::infer_type_core` spelling `Refine/TypeChecker.lean` refines. -/
 theorem infer_at_fuel {mode : env.CheckMode} {fuel : Std.U64}
@@ -2432,6 +2460,162 @@ theorem checkIotaSidesTy_run_tt {mode' : ConLeche.CheckMode}
   simp only [reduceIte]
   rfl
 
+/-! The six operation calls of `checkIotaSidesTy` and its three `throw`s, as
+the nine failure arms of the lemma below (task #67).  The `throw` messages are
+the cited ones verbatim: `ErrSim` never compares them, but spelling them out
+keeps the closing `simp` off a metavariable. -/
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy` passes on what the left side's inference threw. -/
+theorem checkIotaSidesTy_err_lhs_infer {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS : ConLeche.Expr} {lA : ConLeche.Level} {nm : ConLeche.Name}
+    {lst : CState} {le : ConLeche.CheckError}
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .error le) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error le := by
+  rw [ConLeche.checkIotaSidesTy]; exact run_bind_err h1
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy` passes on what the left side's comparison threw. -/
+theorem checkIotaSidesTy_err_lhs_defeq {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl : ConLeche.Expr} {lA : ConLeche.Level} {nm : ConLeche.Name}
+    {lst lst1 : CState} {le : ConLeche.CheckError}
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .error le) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error le := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1]; exact run_bind_err h2
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy`'s left-side `throw` (`Modeled.lean:43`). -/
+theorem checkIotaSidesTy_lhs_mismatch {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl : ConLeche.Expr} {lA : ConLeche.Level} {nm : ConLeche.Name}
+    {lst lst1 lst2 : CState}
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .ok (false, lst2)) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error (.notImplemented s!"iota statement lhs type for {nm}") := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1, run_bind h2]
+  simp only
+  exact run_bind_err (throw_apply _ _)
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy` passes on what the right side's inference threw. -/
+theorem checkIotaSidesTy_err_rhs_infer {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl : ConLeche.Expr} {lA : ConLeche.Level} {nm : ConLeche.Name}
+    {lst lst1 lst2 : CState} {le : ConLeche.CheckError}
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .ok (true, lst2))
+    (h3 : (ops.inferType lenv depth rhsS).run lst2 = .error le) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error le := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1, run_bind h2]
+  simp only [reduceIte]
+  exact run_bind_err h3
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy` passes on what the right side's comparison threw. -/
+theorem checkIotaSidesTy_err_rhs_defeq {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl tr : ConLeche.Expr} {lA : ConLeche.Level}
+    {nm : ConLeche.Name} {lst lst1 lst2 lst3 : CState} {le : ConLeche.CheckError}
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .ok (true, lst2))
+    (h3 : (ops.inferType lenv depth rhsS).run lst2 = .ok (tr, lst3))
+    (h4 : (ops.isDefEq lenv depth tr alphaS).run lst3 = .error le) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error le := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1, run_bind h2]
+  simp only [reduceIte]
+  rw [run_bind h3]
+  exact run_bind_err h4
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy`'s right-side `throw` (`Modeled.lean:46`). -/
+theorem checkIotaSidesTy_rhs_mismatch {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl tr : ConLeche.Expr} {lA : ConLeche.Level}
+    {nm : ConLeche.Name} {lst lst1 lst2 lst3 lst4 : CState}
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .ok (true, lst2))
+    (h3 : (ops.inferType lenv depth rhsS).run lst2 = .ok (tr, lst3))
+    (h4 : (ops.isDefEq lenv depth tr alphaS).run lst3 = .ok (false, lst4)) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error (.notImplemented s!"iota statement rhs type for {nm}") := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1, run_bind h2]
+  simp only [reduceIte]
+  rw [run_bind h3, run_bind h4]
+  exact run_bind_err (throw_apply _ _)
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy` passes on what the slot's inference threw (TT lane). -/
+theorem checkIotaSidesTy_err_slot_infer {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl tr : ConLeche.Expr} {lA : ConLeche.Level}
+    {nm : ConLeche.Name} {lst lst1 lst2 lst3 lst4 : CState}
+    {le : ConLeche.CheckError} (htt : mode'.ttChecks = true)
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .ok (true, lst2))
+    (h3 : (ops.inferType lenv depth rhsS).run lst2 = .ok (tr, lst3))
+    (h4 : (ops.isDefEq lenv depth tr alphaS).run lst3 = .ok (true, lst4))
+    (h5 : (ops.inferType lenv depth alphaS).run lst4 = .error le) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error le := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1, run_bind h2]
+  simp only [reduceIte]
+  rw [run_bind h3, run_bind h4]
+  simp only [reduceIte, htt]
+  exact run_bind_err h5
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy` passes on what the slot's comparison threw (TT lane). -/
+theorem checkIotaSidesTy_err_slot_defeq {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl tr ta : ConLeche.Expr} {lA : ConLeche.Level}
+    {nm : ConLeche.Name} {lst lst1 lst2 lst3 lst4 lst5 : CState}
+    {le : ConLeche.CheckError} (htt : mode'.ttChecks = true)
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .ok (true, lst2))
+    (h3 : (ops.inferType lenv depth rhsS).run lst2 = .ok (tr, lst3))
+    (h4 : (ops.isDefEq lenv depth tr alphaS).run lst3 = .ok (true, lst4))
+    (h5 : (ops.inferType lenv depth alphaS).run lst4 = .ok (ta, lst5))
+    (h6 : (ops.isDefEq lenv depth ta (.sort lA)).run lst5 = .error le) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error le := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1, run_bind h2]
+  simp only [reduceIte]
+  rw [run_bind h3, run_bind h4]
+  simp only [reduceIte, htt]
+  rw [run_bind h5]
+  exact run_bind_err h6
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy`'s slot-sort `throw` (`Modeled.lean:52`, TT lane). -/
+theorem checkIotaSidesTy_slot_mismatch {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl tr ta : ConLeche.Expr} {lA : ConLeche.Level}
+    {nm : ConLeche.Name} {lst lst1 lst2 lst3 lst4 lst5 lst6 : CState}
+    (htt : mode'.ttChecks = true)
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .ok (true, lst2))
+    (h3 : (ops.inferType lenv depth rhsS).run lst2 = .ok (tr, lst3))
+    (h4 : (ops.isDefEq lenv depth tr alphaS).run lst3 = .ok (true, lst4))
+    (h5 : (ops.inferType lenv depth alphaS).run lst4 = .ok (ta, lst5))
+    (h6 : (ops.isDefEq lenv depth ta (.sort lA)).run lst5 = .ok (false, lst6)) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error (.notImplemented
+          s!"iota statement type slot sort for {nm}") := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1, run_bind h2]
+  simp only [reduceIte]
+  rw [run_bind h3, run_bind h4]
+  simp only [reduceIte, htt]
+  rw [run_bind h5, run_bind h6]
+  exact throw_apply _ _
+
 /-- `ConLeche/Kernel/Inductives/Modeled.lean:40-53 checkIotaSidesTy` —
 **`modeled::check_iota_sides_ty` refines it**: the two sides' inferred types
 are the slot, and in the TT lane the slot is a sort at the head's level.  The
@@ -2441,139 +2625,193 @@ theorem check_iota_sides_ty_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {depth : Std.U64}
     {alpha_s lhs_s rhs_s : expr.Expr} {l_a : level.Level}
+    {out : core.result.Result Unit core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (ha : ExprWF alpha_s)
     (hl : ExprWF lhs_s) (hr : ExprWF rhs_s) (hla : LevelWF l_a)
     (h : inductives.modeled.check_iota_sides_ty mode st fe depth alpha_s lhs_s
-      rhs_s l_a = ok (.Ok (), st')) :
+      rhs_s l_a = ok (out, st')) :
     ∀ (lst : ConLeche.Cached.CState) (lfe : ConLeche.FEnv) (nm : ConLeche.Name),
       StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.checkIotaSidesTy (absMode mode)
+      match out with
+      | .Ok _ =>
+        ∃ lst', (ConLeche.checkIotaSidesTy (absMode mode)
+              (TypeChecker.lops mode lfe) lfe.env depth.val (absExpr alpha_s)
+              (absExpr lhs_s) (absExpr rhs_s) (absLevel l_a) nm).run lst
+            = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkIotaSidesTy (absMode mode)
             (TypeChecker.lops mode lfe) lfe.env depth.val (absExpr alpha_s)
-            (absExpr lhs_s) (absExpr rhs_s) (absLevel l_a) nm).run lst
-          = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+            (absExpr lhs_s) (absExpr rhs_s) (absLevel l_a) nm).run lst) := by
   intro lst lfe nm hsr hfr
   rw [inductives.modeled.check_iota_sides_ty] at h
   replace h := TypeChecker.at_check_fuel hfuel h
   obtain ⟨q1, hq1, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r1, st1⟩ := q1
   cases r1 with
-  | Err e1 => simp at h
+  | Err e1 =>
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    exact ErrSim.trans
+      ((TypeChecker.infer_type_core_refines hfuel hk).err st fe depth lhs_s e1 st1
+        hsw hfw hl (infer_at_fuel hfuel hq1) lst lfe hsr hfr)
+      (fun le hle => checkIotaSidesTy_err_lhs_infer hle)
   | Ok tl =>
     obtain ⟨lst1, hrun1, hsr1, hsw1, htlwf⟩ :=
       (TypeChecker.infer_type_core_refines hfuel hk).ok st fe depth lhs_s tl st1
         hsw hfw hl (infer_at_fuel hfuel hq1) lst lfe hsr hfr
+    have e1 : ((TypeChecker.lops mode lfe).inferType lfe.env depth.val
+        (absExpr lhs_s)).run lst = .ok (absExpr tl, lst1) := by
+      rw [TypeChecker.sharedOpsC_inferType]; exact hrun1
     obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r2, st2⟩ := q2
     cases r2 with
-    | Err e2 => simp at h
+    | Err e2 =>
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      exact ErrSim.trans
+        ((TypeChecker.is_def_eq_core_refines hfuel hk).err st1 fe depth tl alpha_s
+          e2 st2 hsw1 hfw htlwf ha (defeq_at_fuel hfuel hq2) lst1 lfe hsr1 hfr)
+        (fun le hle => checkIotaSidesTy_err_lhs_defeq e1 hle)
     | Ok b =>
       obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
         (TypeChecker.is_def_eq_core_refines hfuel hk).ok st1 fe depth tl alpha_s b st2
           hsw1 hfw htlwf ha (defeq_at_fuel hfuel hq2) lst1 lfe hsr1 hfr
+      have e2 : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
+          (absExpr tl) (absExpr alpha_s)).run lst1 = .ok (b, lst2) := by
+        rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun2
       cases b with
-      | false => simp [bind_eq_ok_iff] at h
+      | false =>
+        -- `modeled.rs:288` ← `Modeled.lean:43`
+        simp only at h
+        obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        exact errSim_notImplemented hce rfl (checkIotaSidesTy_lhs_mismatch e1 e2)
       | true =>
         simp only at h
         obtain ⟨q3, hq3, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨r3, st3⟩ := q3
         cases r3 with
-        | Err e3 => simp at h
+        | Err e3 =>
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          exact ErrSim.trans
+            ((TypeChecker.infer_type_core_refines hfuel hk).err st2 fe depth rhs_s
+              e3 st3 hsw2 hfw hr (infer_at_fuel hfuel hq3) lst2 lfe hsr2 hfr)
+            (fun le hle => checkIotaSidesTy_err_rhs_infer e1 e2 hle)
         | Ok tr =>
           obtain ⟨lst3, hrun3, hsr3, hsw3, htrwf⟩ :=
             (TypeChecker.infer_type_core_refines hfuel hk).ok st2 fe depth rhs_s tr st3
               hsw2 hfw hr (infer_at_fuel hfuel hq3) lst2 lfe hsr2 hfr
+          have e3 : ((TypeChecker.lops mode lfe).inferType lfe.env depth.val
+              (absExpr rhs_s)).run lst2 = .ok (absExpr tr, lst3) := by
+            rw [TypeChecker.sharedOpsC_inferType]; exact hrun3
           obtain ⟨q4, hq4, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨r4, st4⟩ := q4
           cases r4 with
-          | Err e4 => simp at h
+          | Err e4 =>
+            obtain ⟨hout, -⟩ := err_outS h
+            subst hout
+            exact ErrSim.trans
+              ((TypeChecker.is_def_eq_core_refines hfuel hk).err st3 fe depth tr
+                alpha_s e4 st4 hsw3 hfw htrwf ha (defeq_at_fuel hfuel hq4) lst3 lfe
+                hsr3 hfr)
+              (fun le hle => checkIotaSidesTy_err_rhs_defeq e1 e2 e3 hle)
           | Ok b1 =>
             obtain ⟨lst4, hrun4, hsr4, hsw4⟩ :=
               (TypeChecker.is_def_eq_core_refines hfuel hk).ok st3 fe depth tr alpha_s
                 b1 st4 hsw3 hfw htrwf ha (defeq_at_fuel hfuel hq4) lst3 lfe hsr3 hfr
+            have e4 : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
+                (absExpr tr) (absExpr alpha_s)).run lst3 = .ok (b1, lst4) := by
+              rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun4
             cases b1 with
-            | false => simp [bind_eq_ok_iff] at h
+            | false =>
+              -- `modeled.rs:292` ← `Modeled.lean:46`
+              simp only at h
+              obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨hout, -⟩ := err_outS h
+              subst hout
+              exact errSim_notImplemented hce rfl
+                (checkIotaSidesTy_rhs_mismatch e1 e2 e3 e4)
             | true =>
               simp only at h
               obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
               have hb2abs := Env.tt_checks_refines hb2
               cases b2 with
               | false =>
-                simp only [Bool.false_eq_true, if_false, Result.ok.injEq,
-                  Prod.mk.injEq] at h
-                obtain ⟨-, rfl⟩ := h
-                have e1 : ((TypeChecker.lops mode lfe).inferType lfe.env depth.val
-                    (absExpr lhs_s)).run lst = .ok (absExpr tl, lst1) := by
-                  rw [TypeChecker.sharedOpsC_inferType]; exact hrun1
-                have e2 : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
-                    (absExpr tl) (absExpr alpha_s)).run lst1 = .ok (true, lst2) := by
-                  rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun2
-                have e3 : ((TypeChecker.lops mode lfe).inferType lfe.env depth.val
-                    (absExpr rhs_s)).run lst2 = .ok (absExpr tr, lst3) := by
-                  rw [TypeChecker.sharedOpsC_inferType]; exact hrun3
-                have e4 : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
-                    (absExpr tr) (absExpr alpha_s)).run lst3 = .ok (true, lst4) := by
-                  rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun4
+                simp only [Bool.false_eq_true, if_false] at h
+                obtain ⟨hout, rfl⟩ := ok_outS h
+                subst hout
                 exact ⟨lst4, checkIotaSidesTy_run_ff (by rw [← hb2abs]) e1 e2 e3 e4,
                   hsr4, hsw4⟩
               | true =>
+                have htt : (absMode mode).ttChecks = true := by rw [← hb2abs]
                 simp only [reduceIte] at h
                 obtain ⟨q5, hq5, h⟩ := bind_eq_ok_iff.mp h
                 obtain ⟨r5, st5⟩ := q5
                 cases r5 with
-                | Err e5 => simp at h
+                | Err e5 =>
+                  obtain ⟨hout, -⟩ := err_outS h
+                  subst hout
+                  exact ErrSim.trans
+                    ((TypeChecker.infer_type_core_refines hfuel hk).err st4 fe depth
+                      alpha_s e5 st5 hsw4 hfw ha (infer_at_fuel hfuel hq5) lst4 lfe
+                      hsr4 hfr)
+                    (fun le hle =>
+                      checkIotaSidesTy_err_slot_infer htt e1 e2 e3 e4 hle)
                 | Ok ta =>
                   obtain ⟨lst5, hrun5, hsr5, hsw5, htawf⟩ :=
                     (TypeChecker.infer_type_core_refines hfuel hk).ok st4 fe depth
                       alpha_s ta st5 hsw4 hfw ha (infer_at_fuel hfuel hq5) lst4
                       lfe hsr4 hfr
+                  have e5 : ((TypeChecker.lops mode lfe).inferType lfe.env depth.val
+                      (absExpr alpha_s)).run lst4 = .ok (absExpr ta, lst5) := by
+                    rw [TypeChecker.sharedOpsC_inferType]; exact hrun5
                   simp only [level_dup_eq, bind_tc_ok] at h
                   obtain ⟨se, hse, h⟩ := bind_eq_ok_iff.mp h
                   obtain ⟨q6, hq6, h⟩ := bind_eq_ok_iff.mp h
                   obtain ⟨r6, st6⟩ := q6
                   cases r6 with
-                  | Err e6 => simp at h
+                  | Err e6 =>
+                    obtain ⟨hout, -⟩ := err_outS h
+                    subst hout
+                    have hsim := (TypeChecker.is_def_eq_core_refines hfuel hk).err st5
+                      fe depth ta se e6 st6 hsw5 hfw htawf (Expr.sort_wf hla hse)
+                      (defeq_at_fuel hfuel hq6) lst5 lfe hsr5 hfr
+                    rw [Expr.sort_refines hse] at hsim
+                    exact ErrSim.trans hsim
+                      (fun le hle =>
+                        checkIotaSidesTy_err_slot_defeq htt e1 e2 e3 e4 e5 hle)
                   | Ok b3 =>
                     obtain ⟨lst6, hrun6, hsr6, hsw6⟩ :=
                       (TypeChecker.is_def_eq_core_refines hfuel hk).ok st5 fe depth ta
                         se b3 st6 hsw5 hfw htawf (Expr.sort_wf hla hse)
                         (defeq_at_fuel hfuel hq6) lst5 lfe hsr5 hfr
                     rw [Expr.sort_refines hse] at hrun6
+                    have e6 : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
+                        (absExpr ta) (ConLeche.Expr.sort (absLevel l_a))).run lst5
+                        = .ok (b3, lst6) := by
+                      rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun6
                     cases b3 with
-                    | false => simp [bind_eq_ok_iff] at h
+                    | false =>
+                      -- `modeled.rs:296` ← `Modeled.lean:52`
+                      obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+                      obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+                      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+                      obtain ⟨hout, -⟩ := err_outS h
+                      subst hout
+                      exact errSim_notImplemented hce rfl
+                        (checkIotaSidesTy_slot_mismatch htt e1 e2 e3 e4 e5 e6)
                     | true =>
-                      have hst : ((core.result.Result.Ok ()
-                            : core.result.Result Unit core_types.CheckError), st6)
-                          = (.Ok (), st') := Result.ok_injective h
-                      simp only [Prod.mk.injEq, true_and] at hst
-                      subst hst
-                      have e1 : ((TypeChecker.lops mode lfe).inferType lfe.env
-                          depth.val (absExpr lhs_s)).run lst
-                          = .ok (absExpr tl, lst1) := by
-                        rw [TypeChecker.sharedOpsC_inferType]; exact hrun1
-                      have e2 : ((TypeChecker.lops mode lfe).isDefEq lfe.env
-                          depth.val (absExpr tl) (absExpr alpha_s)).run lst1
-                          = .ok (true, lst2) := by
-                        rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun2
-                      have e3 : ((TypeChecker.lops mode lfe).inferType lfe.env
-                          depth.val (absExpr rhs_s)).run lst2
-                          = .ok (absExpr tr, lst3) := by
-                        rw [TypeChecker.sharedOpsC_inferType]; exact hrun3
-                      have e4 : ((TypeChecker.lops mode lfe).isDefEq lfe.env
-                          depth.val (absExpr tr) (absExpr alpha_s)).run lst3
-                          = .ok (true, lst4) := by
-                        rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun4
-                      have e5 : ((TypeChecker.lops mode lfe).inferType lfe.env
-                          depth.val (absExpr alpha_s)).run lst4
-                          = .ok (absExpr ta, lst5) := by
-                        rw [TypeChecker.sharedOpsC_inferType]; exact hrun5
-                      have e6 : ((TypeChecker.lops mode lfe).isDefEq lfe.env
-                          depth.val (absExpr ta)
-                          (ConLeche.Expr.sort (absLevel l_a))).run lst5
-                          = .ok (true, lst6) := by
-                        rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun6
-                      exact ⟨lst6, checkIotaSidesTy_run_tt (by rw [← hb2abs])
-                        e1 e2 e3 e4 e5 e6, hsr6, hsw6⟩
+                      obtain ⟨hout, rfl⟩ := ok_outS h
+                      subst hout
+                      exact ⟨lst6, checkIotaSidesTy_run_tt htt e1 e2 e3 e4 e5 e6,
+                        hsr6, hsw6⟩
 
 /-! ### The iota body and the spine shape
 
