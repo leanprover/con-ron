@@ -445,7 +445,7 @@ theorem whnf_core_proj_of_loop (hd : AppDeps mode fuel) (d n : Std.U64)
   obtain ⟨o, ho, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨habs, hpwf⟩ := ConRon.Refine.find_proj_refines
     (FindAgree.of_rel hfrel hfe) (FindWF.of_wf hfe) hsn ho
-  simp only [whnfCoreProjI, pure_bind, ConLeche.Expr.getAppFn_spec,
+  simp only [whnfCoreProjI, pure_bind,
     ConLeche.Expr.getAppArgsC_spec]
   rw [← habs]
   cases o with

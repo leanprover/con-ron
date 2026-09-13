@@ -300,7 +300,7 @@ theorem iota_arity_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
   rw [cached.core_c.iota_arity_ok] at h
   obtain ⟨f, hf, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hfabs, hfwf⟩ := ExprOps.get_app_fn_refines he hf
-  rw [ConLeche.Cached.iotaArityOk, ConLeche.Expr.getAppFn_spec, ← hfabs]
+  rw [ConLeche.Cached.iotaArityOk, ← hfabs]
   obtain ⟨⟨d, k⟩⟩ := f
   cases k with
   | Const n us =>
@@ -2026,7 +2026,7 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
   unfold cached.core_c.iota_rec_rule_i at hok
   obtain ⟨fj, hfj, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨hfjv, hfjw⟩ := ExprOps.get_app_fn_refines hmajor hfj
-  rw [ConLeche.Expr.getAppFn_spec, ← hfjv]
+  rw [← hfjv]
   obtain ⟨⟨dd, kk⟩⟩ := fj
   cases kk with
   | Const cj usj =>
@@ -2207,7 +2207,7 @@ theorem iota_rec_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
   unfold cached.core_c.iota_rec_i at hok
   obtain ⟨f, hf, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨hfv, hfw⟩ := ExprOps.get_app_fn_refines he hf
-  rw [ConLeche.Expr.getAppFn_spec, ← hfv]
+  rw [← hfv]
   obtain ⟨⟨dd, kk⟩⟩ := f
   cases kk with
   | Const c us =>

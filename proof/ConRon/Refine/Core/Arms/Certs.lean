@@ -2106,7 +2106,7 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
   rw [ConLeche.Cached.structEtaCertWithI]
   obtain ⟨fa, hfa, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨hfaabs, hfawf⟩ := ExprOps.get_app_fn_refines ha hfa
-  rw [ConLeche.Expr.getAppFn_spec, ← hfaabs, CoreK.absExpr_kind fa]
+  rw [← hfaabs, CoreK.absExpr_kind fa]
   simp only [arc_deref_eq, bind_tc_ok] at hok
   split at hok
   case h_4 c us hk =>
@@ -2170,7 +2170,7 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
         rw [if_pos heqL]
         obtain ⟨ftb, hftb, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨hftbabs, hftbwf⟩ := ExprOps.get_app_fn_refines hwtb hftb
-        rw [ConLeche.Expr.getAppFn_spec, ← hftbabs, CoreK.absExpr_kind ftb]
+        rw [← hftbabs, CoreK.absExpr_kind ftb]
         split at hok
         case h_4 t us2 hk2 =>
           obtain ⟨htwf, hus2wf⟩ := CoreK.ExprWF.const_children hftbwf hk2

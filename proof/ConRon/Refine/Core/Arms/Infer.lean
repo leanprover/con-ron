@@ -680,7 +680,7 @@ theorem infer_proj_at_i_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
         (ConRon.Refine.FindWF.of_wf hfwf) hnwf ho
       have hgf : ConLeche.Expr.getAppFn (absExpr te)
           = .const (absName t) (absLevels us') := by
-        rw [ConLeche.Expr.getAppFn_spec, ← hfabs]; rfl
+        rw [← hfabs]; rfl
       cases o with
       | none =>
         simp only [bind_eq_ok_iff, lift_eq, Result.ok.injEq, reduceCtorEq,
@@ -718,7 +718,7 @@ theorem infer_proj_at_i_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
         (ConRon.Refine.FindWF.of_wf hfwf) hnwf ho
       have hgf : ConLeche.Expr.getAppFn (absExpr te)
           = .const (absName t) (absLevels us') := by
-        rw [ConLeche.Expr.getAppFn_spec, ← hfabs]; rfl
+        rw [← hfabs]; rfl
       cases o with
       | none =>
         simp only [Option.map_none] at hoabs
@@ -744,7 +744,7 @@ theorem infer_proj_at_i_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
       obtain rfl := err_eq hr
       refine not_implemented_throw (s := "projection without a native entry") hce1 ?_
-      rw [inferProjAtIL, ConLeche.Expr.getAppFn_spec, ← hfabs]
+      rw [inferProjAtIL, ← hfabs]
       simp
 
 /-- `infer_proj_at_i_refines` at a failure, the pre-#67 statement. -/
@@ -1287,7 +1287,7 @@ theorem infer_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨⟨r0, st1⟩, h1, k4⟩ := bind_eq_ok_iff.mp k3
     have hfn : ConLeche.Expr.getAppFn
         (ConLeche.Expr.app (absExpr f) (absExpr a)) = absExpr hd1 := by
-      rw [ConLeche.Expr.getAppFn_spec, hdabs]; rfl
+      rw [hdabs]; rfl
     have hag : ConLeche.Expr.getAppArgsC
         (ConLeche.Expr.app (absExpr f) (absExpr a)) = absExprs args := by
       rw [ConLeche.Expr.getAppArgsC_spec]; exact haabs.symm

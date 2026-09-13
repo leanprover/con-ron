@@ -487,16 +487,14 @@ private theorem unfoldableHeadC_eq {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {e : expr.Expr} {b : Bool} (hfe : FindAgree fe lfe) (he : ExprWF e)
     (h : core_k.unfoldable_head fe e = ok b) :
     b = ConLeche.Cached.unfoldableHeadC lfe (absExpr e) := by
-  rw [CoreK.unfoldable_head_refines hfe he h, ConLeche.Cached.unfoldableHeadC,
-    ConLeche.Expr.getAppFn_spec]
+  rw [CoreK.unfoldable_head_refines hfe he h, ConLeche.Cached.unfoldableHeadC]
   rfl
 
 private theorem headHintC_eq {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Expr}
     {r : env.ReducibilityHint} (hfe : FindAgree fe lfe) (hwf : FindWF fe)
     (he : ExprWF e) (h : core_k.head_hint fe e = ok r) :
     absHint r = ConLeche.Cached.headHintC lfe (absExpr e) := by
-  rw [CoreK.head_hint_refines hfe hwf he h, ConLeche.Cached.headHintC,
-    ConLeche.Expr.getAppFn_spec]
+  rw [CoreK.head_hint_refines hfe hwf he h, ConLeche.Cached.headHintC]
   generalize ConLeche.Expr.getAppFn (absExpr e) = f
   cases f with
   | const n us =>
@@ -509,8 +507,7 @@ private theorem headHintC_eq {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Ex
 private theorem sameConstHeadsC_eq (a b : ConLeche.Expr) :
     ConLeche.Cached.sameConstHeadsC a b = ConLeche.sameConstHeads a b := by
   cases a <;> cases b <;>
-    simp [ConLeche.Cached.sameConstHeadsC, ConLeche.sameConstHeads,
-      ConLeche.Expr.getAppFn_spec]
+    simp [ConLeche.Cached.sameConstHeadsC, ConLeche.sameConstHeads]
   rfl
 
 /-- `(pure a >>= f).run lst` is `(f a).run lst`: the cited `let x ← pure e`
@@ -763,7 +760,7 @@ theorem defeq_spine_i_refines (hd : DefEqDepsA mode fuel) (d : Std.U64)
   obtain ⟨fb, hfb, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨hfaabs, hfawf⟩ := ExprOps.get_app_fn_refines ha hfa
   obtain ⟨hfbabs, hfbwf⟩ := ExprOps.get_app_fn_refines hb hfb
-  simp only [ConLeche.Cached.defeqSpineI, ConLeche.Expr.getAppFn_spec,
+  simp only [ConLeche.Cached.defeqSpineI,
     ← hfaabs, ← hfbabs]
   obtain ⟨⟨da, ka⟩⟩ := fa
   obtain ⟨⟨db, kb⟩⟩ := fb
@@ -1013,7 +1010,7 @@ theorem defeq_apps_i_refines (hw : Wrappers mode fuel) (hd : DefEqDepsA mode fue
     obtain ⟨fb, hfb, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨hfaabs, hfawf⟩ := ExprOps.get_app_fn_refines ha hfa
     obtain ⟨hfbabs, hfbwf⟩ := ExprOps.get_app_fn_refines hb hfb
-    simp only [ConLeche.Expr.getAppFn_spec, ← hfaabs, ← hfbabs]
+    simp only [← hfaabs, ← hfbabs]
     obtain ⟨⟨r1, st1⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
     cases r1 with
     | Err err =>

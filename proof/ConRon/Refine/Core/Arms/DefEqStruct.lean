@@ -892,7 +892,7 @@ theorem struct_unit_cert_i_refines (hw : Wrappers mode fuel)
           simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
-          simp [structUnitCertI_eq, ConLeche.Expr.getAppFn_spec,
+          simp [structUnitCertI_eq,
               ConLeche.Expr.getAppArgsC_spec, hrun1, hrun2, ← hfabs, ind_find_eq hpabs]
         | some p =>
           obtain ⟨cvt, caps⟩ := p
@@ -910,7 +910,7 @@ theorem struct_unit_cert_i_refines (hw : Wrappers mode fuel)
             refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
             replace hsbabs := hsbabs.symm
             simp only [decide_eq_false_iff_not] at hsbabs
-            simp [structUnitCertI_eq, ConLeche.Expr.getAppFn_spec,
+            simp [structUnitCertI_eq,
               ConLeche.Expr.getAppArgsC_spec, hrun1, hrun2, ← hfabs, ind_find_eq hpabs,
               hargs]
             rw [if_neg (by simpa using hsbabs)]
@@ -921,7 +921,7 @@ theorem struct_unit_cert_i_refines (hw : Wrappers mode fuel)
               fe lfe hfe hfrel st2 o st' hwf2 hok lst2 hrel2) ?_
             replace hsbabs := hsbabs.symm
             simp only [decide_eq_true_eq] at hsbabs
-            simp [structUnitCertI_eq, ConLeche.Expr.getAppFn_spec,
+            simp [structUnitCertI_eq,
               ConLeche.Expr.getAppArgsC_spec, hrun1, hrun2, ← hfabs, ind_find_eq hpabs,
               hargs]
             rw [if_pos (by simpa using hsbabs)]
@@ -929,7 +929,7 @@ theorem struct_unit_cert_i_refines (hw : Wrappers mode fuel)
         simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
-        simp [structUnitCertI_eq, ConLeche.Expr.getAppFn_spec,
+        simp [structUnitCertI_eq,
               hrun1, hrun2, ← hfabs]
 
 /-! ## The η certificate

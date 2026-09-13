@@ -317,8 +317,7 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
         refine ⟨lst2, ?_, hrel2, hwf2, hrwf⟩
         simp only [absExpr_mk, absExprKind] at hhabs haabs
         rw [hhabs] at hrun1
-        simp only [absExpr_mk, absExprKind, ConLeche.Cached.whnfCoreStepI, pure_bind,
-          ConLeche.Expr.getAppFn_spec, ConLeche.Expr.getAppArgsC_spec]
+        simp only [absExpr_mk, absExprKind, ConLeche.Cached.whnfCoreStepI, pure_bind, ConLeche.Expr.getAppArgsC_spec]
         rw [run_bind hrun1]
         simpa [haabs] using hrun2
     | @proj sn i pe e hsn hpe h1 =>
@@ -405,8 +404,7 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
       obtain ⟨hhabs, hhwf⟩ := ExprOps.get_app_fn_refines he hh
       obtain ⟨haabs, hawf⟩ := ExprOps.get_app_args_refines he hargs
       simp only [absExpr_mk, absExprKind] at hhabs haabs
-      simp only [absExpr_mk, absExprKind, ConLeche.Cached.whnfCoreStepI, pure_bind,
-        ConLeche.Expr.getAppFn_spec, ConLeche.Expr.getAppArgsC_spec]
+      simp only [absExpr_mk, absExprKind, ConLeche.Cached.whnfCoreStepI, pure_bind, ConLeche.Expr.getAppArgsC_spec]
       cases rc with
       | Err err =>
         simp at hok

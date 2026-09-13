@@ -841,7 +841,7 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
       obtain ⟨ht2, hust⟩ := CoreK.wf_const_inv hhwf rfl
       have hhead : ConLeche.Expr.getAppFn (absExpr tmaj)
           = ConLeche.Expr.const (absName t2) (absLevels ust) := by
-        rw [ConLeche.Expr.getAppFn_spec, ← hhabs]; simp [absExprKind]
+        rw [← hhabs]; simp [absExprKind]
       obtain ⟨targs, hta, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨htaabs, htawf⟩ := ExprOps.get_app_args_refines htmaj hta
       have hargs : ConLeche.Expr.getAppArgsC (absExpr tmaj) = absExprs targs := by
@@ -1116,7 +1116,7 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
         simp only [majorToCtorKClause]
-        rw [run_bind2 hrun1, ConLeche.Expr.getAppFn_spec, ← hhabs]
+        rw [run_bind2 hrun1, ← hhabs]
         simp [absExprKind])
 
 /-- `ConLeche/Cached/CoreC.lean:638-666` — **`major_to_ctor_and_i` refines the
@@ -1155,7 +1155,7 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
       obtain ⟨ht2, hust⟩ := CoreK.wf_const_inv hhwf rfl
       have hhead : ConLeche.Expr.getAppFn (absExpr tmaj)
           = ConLeche.Expr.const (absName t2) (absLevels ust) := by
-        rw [ConLeche.Expr.getAppFn_spec, ← hhabs]; simp [absExprKind]
+        rw [← hhabs]; simp [absExprKind]
       obtain ⟨targs, hta, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨htaabs, htawf⟩ := ExprOps.get_app_args_refines htmaj hta
       have hargs : ConLeche.Expr.getAppArgsC (absExpr tmaj) = absExprs targs := by
@@ -1471,7 +1471,7 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
         simp only [majorToCtorAndClause]
-        rw [run_bind2 hrun1, ConLeche.Expr.getAppFn_spec, ← hhabs]
+        rw [run_bind2 hrun1, ← hhabs]
         simp [absExprKind])
 
 /-- `ConLeche/Cached/CoreC.lean:599-637` — **`major_to_ctor_eta_i` refines the
@@ -1511,7 +1511,7 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
       obtain ⟨ht2, hust⟩ := CoreK.wf_const_inv hhwf rfl
       have hhead : ConLeche.Expr.getAppFn (absExpr tmaj)
           = ConLeche.Expr.const (absName t2) (absLevels ust) := by
-        rw [ConLeche.Expr.getAppFn_spec, ← hhabs]; simp [absExprKind]
+        rw [← hhabs]; simp [absExprKind]
       obtain ⟨targs, hta, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨htaabs, htawf⟩ := ExprOps.get_app_args_refines htmaj hta
       have hargs : ConLeche.Expr.getAppArgsC (absExpr tmaj) = absExprs targs := by
@@ -1819,7 +1819,7 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
         simp only [majorToCtorEtaClause]
-        rw [run_bind2 hrun1, ConLeche.Expr.getAppFn_spec, ← hhabs]
+        rw [run_bind2 hrun1, ← hhabs]
         simp [absExprKind])
 
 set_option maxRecDepth 8000 in
@@ -1843,7 +1843,7 @@ theorem major_to_ctor_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode f
   unfold cached.core_c.major_to_ctor_i at hok
   obtain ⟨bc, hbc, hok⟩ := bind_eq_ok_iff.mp hok
   have hbcv : bc = ConLeche.Cached.isCtorAppC lfe (absExpr major) := by
-    rw [ConLeche.Cached.isCtorAppC, ConLeche.Expr.getAppFn_spec]
+    rw [ConLeche.Cached.isCtorAppC]
     exact CoreK.is_ctor_app_refines hfa hmajor hbc
   cases bc with
   | true =>

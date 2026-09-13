@@ -114,7 +114,7 @@ theorem unfold_definition_i_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨f, hf, hok⟩ := hok
     obtain ⟨hfabs, hfwf'⟩ := ExprOps.get_app_fn_refines he hf
     have hkey : ConLeche.Expr.getAppFn (absExpr e) = absExprKind f._0.kind := by
-      rw [ConLeche.Expr.getAppFn_spec, ← hfabs, CoreK.absExpr_kind]
+      rw [← hfabs, CoreK.absExpr_kind]
     simp only [ConLeche.Cached.unfoldDefinitionI, hkey]
     cases hk : f._0.kind
     all_goals rw [hk] at hok
@@ -208,7 +208,7 @@ theorem unfold_definition_i_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨f, hf, hok⟩ := hok
     obtain ⟨hfabs, hfwf'⟩ := ExprOps.get_app_fn_refines he hf
     have hkey : ConLeche.Expr.getAppFn (absExpr e) = absExprKind f._0.kind := by
-      rw [ConLeche.Expr.getAppFn_spec, ← hfabs, CoreK.absExpr_kind]
+      rw [← hfabs, CoreK.absExpr_kind]
     simp only [ConLeche.Cached.unfoldDefinitionI, hkey]
     cases hk : f._0.kind
     all_goals rw [hk] at hok

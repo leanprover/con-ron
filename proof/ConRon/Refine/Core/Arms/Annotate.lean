@@ -1794,8 +1794,7 @@ theorem annotate_proj_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mod
       obtain ⟨en, hen, hok⟩ := hok
       rw [← Result.ok_injective hen] at hok
       obtain ⟨habsF, hfWF⟩ := ExprOps.get_app_fn_refines hteWF hf
-      rw [annotateBodyI_proj, bind_run hrun1, bind_assoc', bind_run hrun2,
-        ConLeche.Expr.getAppFn_spec, ← habsF]
+      rw [annotateBodyI_proj, bind_run hrun1, bind_assoc', bind_run hrun2, ← habsF]
       cases hfWF with
       | @mk_const n us e hn hus h3 =>
         obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h3
