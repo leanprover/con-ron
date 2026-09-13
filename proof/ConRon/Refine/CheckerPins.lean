@@ -3898,31 +3898,51 @@ theorem check_reduce_pin_pre_refines {mode : env.CheckMode} {fuel : Std.U64}
 `ConLeche/Kernel/DeclCheck.lean:914-933 checkReducePinF` —
 `checker::check_reduce_pin` refines it: the `Lean.reduceNat`/`Lean.reduceBool`
 install gate.  As `check_div_mod_pin`, the index comes in at the extended bound
-and goes back out there (task #24's visibility-bound note). -/
+and goes back out there (task #24's visibility-bound note).
+
+**The whole outcome** (task #67, DESIGN.md §3's ruling of 2026-09-13): the
+gate's own `throw` is the `reduceStoredOkF` half of the cited `unless A ∧ B`
+(the census's "two Rust arms, one con-leche `throw`" case — the other arm is
+`check_reduce_pin_pre`'s, and both are `notImplemented`), and everything else
+is `check_reduce_pin_pre`'s failure half carried through unchanged. -/
 theorem check_reduce_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     (htp : TrustPinsSpec)
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {k_pre : Std.U64}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {k_pre : Std.U64}
     {c : name.Name} {value : expr.Expr}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hval : ExprWF value)
-    (h : checker.check_reduce_pin mode st fe k_pre c value = ok (.Ok fe', st')) :
+    (h : checker.check_reduce_pin mode st fe k_pre c value = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       TrustGuardsSpec fe lfe →
       (∀ fp : fenv.FEnv, FEnvRel fp (lfe.restrictTo k_pre.val) → FEnvWF fp →
         TrustGuardsSpec fp (lfe.restrictTo k_pre.val)) →
-      ∃ lst', (ConLeche.checkReducePinF
+      match out with
+      | .Ok fe' =>
+        ∃ lst', (ConLeche.checkReducePinF
+              (TypeChecker.lops mode (lfe.restrictTo k_pre.val))
+              (lfe.restrictTo k_pre.val) lfe (absName c) (absExpr value)).run lst
+            = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkReducePinF
             (TypeChecker.lops mode (lfe.restrictTo k_pre.val))
-            (lfe.restrictTo k_pre.val) lfe (absName c) (absExpr value)).run lst
-          = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe' := by
+            (lfe.restrictTo k_pre.val) lfe (absName c) (absExpr value)).run lst) := by
   intro lst lfe hsr hfr htg htgp
   rw [checker.check_reduce_pin] at h
   obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
   have hbv := htg.storedOk c b hc hb
   cases b with
   | false =>
-    simp only [Bool.false_eq_true, if_false] at h
-    exact (err_tail_ne_ok h).elim
+    -- the extended bound does not store the pinned type: the cited
+    -- `reduceStoredOkF && reduceElemOkF` is false and both sides throw
+    simp at h
+    obtain ⟨v, hv, ce0, hce0, rfl, rfl⟩ := h
+    have hce : ce0 = core_types.CheckError.NotImplemented v := not_implemented_inv hce0
+    subst hce
+    simp only [ConLeche.checkReducePinF, ← hbv, Bool.false_and,
+      Bool.false_eq_true, if_false]
+    exact ErrSim.notImplemented rfl
   | true =>
     have hstored : ConLeche.reduceStoredOkF lfe (absName c) = true := hbv.symm
     simp only [if_true] at h
@@ -3932,21 +3952,28 @@ theorem check_reduce_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨res, st1⟩ := q
     cases res with
-    | Err e => simp at h
-    | Ok u =>
-    obtain ⟨lst', hrun, hsr', hsw'⟩ :=
-      check_reduce_pin_pre_refines (lfe2 := lfe) hfuel hk htp hsw hfpwf hc hval
-        hstored (by cases u; exact hq) lst (lfe.restrictTo k_pre.val) hsr hfprel
+    | Err e =>
+      -- move 1: the pre-insertion body threw
+      have herr := check_reduce_pin_pre_refines (lfe2 := lfe) hfuel hk htp hsw hfpwf
+        hc hval hstored hq lst (lfe.restrictTo k_pre.val) hsr hfprel
         (htgp fp hfprel hfpwf)
-    simp at h
-    obtain ⟨hf, rfl⟩ := h
-    -- `restrict_to` is a field update, so the round trip is the record it
-    -- started from: the pre-insertion view handed back at the extended bound.
-    rw [fenv.restrict_to, Result.ok.injEq] at hfp
-    subst hfp
-    rw [fenv.restrict_to, Result.ok.injEq] at hf
-    subst hf
-    exact ⟨lst', hrun, hsr', hsw', hfr, hfw⟩
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact herr
+    | Ok u =>
+      obtain ⟨lst', hrun, hsr', hsw'⟩ :=
+        check_reduce_pin_pre_refines (lfe2 := lfe) hfuel hk htp hsw hfpwf hc hval
+          hstored (by cases u; exact hq) lst (lfe.restrictTo k_pre.val) hsr hfprel
+          (htgp fp hfprel hfpwf)
+      simp at h
+      obtain ⟨fe3, hf, rfl, rfl⟩ := h
+      -- `restrict_to` is a field update, so the round trip is the record it
+      -- started from: the pre-insertion view handed back at the extended bound.
+      rw [fenv.restrict_to, Result.ok.injEq] at hfp
+      subst hfp
+      rw [fenv.restrict_to, Result.ok.injEq] at hf
+      subst hf
+      exact ⟨lst', hrun, hsr', hsw', hfr, hfw⟩
 
 /-! ## The index congruences (task #58, round 2)
 
@@ -4134,42 +4161,56 @@ the congruences to whatever index the caller actually holds, which need only
 agree with `lfe.restrictTo k_pre` on `find?`.  Nothing is weakened — each is
 its own lemma at `lfp := lfe.restrictTo k_pre.val`, `hlfp := rfl`. -/
 
-/-- `check_div_mod_pin_refines` at any `find?`-agreeing pre-insertion index. -/
+/-- `check_div_mod_pin_refines` at any `find?`-agreeing pre-insertion index,
+over the whole outcome (task #67). -/
 theorem check_div_mod_pin_refines_at_view {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {k_pre : Std.U64}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {k_pre : Std.U64}
     {c : name.Name}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hvar : PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
-    (h : checker.check_div_mod_pin mode pins st fe k_pre c = ok (.Ok fe', st')) :
+    (h : checker.check_div_mod_pin mode pins st fe k_pre c = ok (out, st')) :
     ∀ lst lfe (lfp : ConLeche.FEnv), StateRel st lst → FEnvRel fe lfe →
       EqBasisPinnedSpec fe lfe →
       lfp.find? = (lfe.restrictTo k_pre.val).find? →
-      ∃ lst', (ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) lfp lfe
-            (absName c)).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst', (ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) lfp lfe
+              (absName c)).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkDivModPinF (TypeChecker.lops mode lfp) lfp lfe
+            (absName c)).run lst) := by
   intro lst lfe lfp hsr hfr heqb hlfp
   rw [checkDivModPinF_congr hlfp]
   exact check_div_mod_pin_refines hfuel hk hsw hfw hc hvar hpins h
     lst lfe hsr hfr heqb
 
-/-- `check_reduce_pin_refines` at any `find?`-agreeing pre-insertion index. -/
+/-- `check_reduce_pin_refines` at any `find?`-agreeing pre-insertion index,
+over the whole outcome (task #67). -/
 theorem check_reduce_pin_refines_at_view {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     (htp : TrustPinsSpec)
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {k_pre : Std.U64}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {k_pre : Std.U64}
     {c : name.Name} {value : expr.Expr}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hval : ExprWF value)
-    (h : checker.check_reduce_pin mode st fe k_pre c value = ok (.Ok fe', st')) :
+    (h : checker.check_reduce_pin mode st fe k_pre c value = ok (out, st')) :
     ∀ lst lfe (lfp : ConLeche.FEnv), StateRel st lst → FEnvRel fe lfe →
       TrustGuardsSpec fe lfe →
       (∀ fp : fenv.FEnv, FEnvRel fp (lfe.restrictTo k_pre.val) → FEnvWF fp →
         TrustGuardsSpec fp (lfe.restrictTo k_pre.val)) →
       lfp.find? = (lfe.restrictTo k_pre.val).find? →
-      ∃ lst', (ConLeche.checkReducePinF (TypeChecker.lops mode lfp) lfp lfe
-            (absName c) (absExpr value)).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst', (ConLeche.checkReducePinF (TypeChecker.lops mode lfp) lfp lfe
+              (absName c) (absExpr value)).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkReducePinF (TypeChecker.lops mode lfp) lfp lfe
+            (absName c) (absExpr value)).run lst) := by
   intro lst lfe lfp hsr hfr htg htgp hlfp
   rw [checkReducePinF_congr hlfp]
   exact check_reduce_pin_refines hfuel hk htp hsw hfw hc hval h lst lfe hsr hfr
