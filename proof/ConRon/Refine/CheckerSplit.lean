@@ -60,6 +60,16 @@ value whose `Expr.constsResolve lfe.env` rejects, so the Rust succeeds where
 the cited Lean throws.  The two install lemmas already carried it, and at
 every real call site the `FEnv` is a `mkFEnv`/`push` chain, where it holds.
 
+**The full outcome (task #67).**  The four `*_refines` below are stated over
+the Rust computation's whole inner outcome: an `.Ok` is the pre-#67 accept
+direction verbatim, an `.Err` is `ErrSim` — con-leche throws at the same kind.
+All fourteen `CheckError` sites of `kernel/checker_split.rs` are mirrored
+(there is no `Native` here), and each is met by one `installConstantVal_*` /
+`installValue_*` / `check_value_group_*` / `tail_*` lemma that rewrites the
+cited `do` block down to its own `throw`; the binds whose callee threw are
+`ErrSim.trans` over the callee's `.err`.  The outcome binder is implicit in
+all four, so no call site changes and no `*_refines_ok` corollary is needed.
+
 `sorry` count in this file: 0.
 -/
 open Aeneas Aeneas.Std Result
@@ -472,6 +482,129 @@ theorem check_value_group_head_thm {ops : ConLeche.CheckerOps CheckCM}
   simp only [hprop, ConLeche.liftFueled, StateT.bind, StateT.pure,
     Pure.pure, Except.pure, reduceIte]
   rw [show (ConLeche.installValue ops lenv g.cvA g.jv) lst2 = Except.ok (jv, lst3) from hiv]
+  rfl
+
+/-! ### `checkValueGroup`'s own `throw`s
+
+The cited `do` block throws in five ways: its inference, its sort, its level
+comparison and — on the theorem branch — the value's install pass theirs on,
+and the is-a-proposition test is the port's one `core_types::invalid` site
+(`checker_split.rs:153`). -/
+
+open ConLeche.Cached in
+/-- `checkValueGroup` passes on what its inference threw. -/
+theorem check_value_group_infer_err {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {g : ConLeche.ValueGroup} {lst : CState}
+    {le : ConLeche.CheckError}
+    (hinf : (ops.inferType lenv 0 g.cvA.type).run lst = .error le) :
+    (ConLeche.checkValueGroup ops lenv g).run lst = .error le := by
+  rw [ConLeche.checkValueGroup]
+  simp only [StateT.run, Bind.bind, StateT.bind]
+  rw [show (ops.inferType lenv 0 g.cvA.type) lst = Except.error le from hinf]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkValueGroup` passes on what its sort threw. -/
+theorem check_value_group_sort_err {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {g : ConLeche.ValueGroup} {stype : ConLeche.Expr}
+    {lst lst1 : CState} {le : ConLeche.CheckError}
+    (hinf : (ops.inferType lenv 0 g.cvA.type).run lst = .ok (stype, lst1))
+    (hsort : (ops.ensureSort lenv 0 stype).run lst1 = .error le) :
+    (ConLeche.checkValueGroup ops lenv g).run lst = .error le := by
+  rw [ConLeche.checkValueGroup]
+  simp only [StateT.run, Bind.bind, StateT.bind]
+  rw [show (ops.inferType lenv 0 g.cvA.type) lst = Except.ok (stype, lst1) from hinf]
+  simp only [Except.bind]
+  rw [show (ops.ensureSort lenv 0 stype) lst1 = Except.error le from hsort]
+
+open ConLeche.Cached in
+/-- `checkValueGroup`'s level comparison ran out of fuel: the cited
+`liftFueled` (`Core.lean:108-111`) throws `internal`. -/
+theorem check_value_group_fuel_none {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {g : ConLeche.ValueGroup} {stype : ConLeche.Expr}
+    {u : ConLeche.Level} {lst lst1 lst2 : CState}
+    (hkind : g.kind = ConLeche.ValueKind.thm)
+    (hinf : (ops.inferType lenv 0 g.cvA.type).run lst = .ok (stype, lst1))
+    (hsort : (ops.ensureSort lenv 0 stype).run lst1 = .ok (u, lst2))
+    (hnone : ConLeche.Level.isEquiv u ConLeche.Level.zero = none) :
+    (ConLeche.checkValueGroup ops lenv g).run lst
+      = .error (.internal (toString "fuel exhausted: " ++ toString "level comparison")) := by
+  rw [ConLeche.checkValueGroup]
+  simp only [if_pos hkind]
+  simp only [StateT.run, Bind.bind, StateT.bind]
+  rw [show (ops.inferType lenv 0 g.cvA.type) lst = Except.ok (stype, lst1) from hinf]
+  simp only [Except.bind]
+  rw [show (ops.ensureSort lenv 0 stype) lst1 = Except.ok (u, lst2) from hsort]
+  simp only [hnone, ConLeche.liftFueled]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkValueGroup` passes on what its level comparison threw, at the
+comparison's own value. -/
+theorem check_value_group_fuel_err {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {g : ConLeche.ValueGroup} {stype : ConLeche.Expr}
+    {u : ConLeche.Level} {o : Option Bool} {lst lst1 lst2 : CState}
+    {le : ConLeche.CheckError}
+    (hkind : g.kind = ConLeche.ValueKind.thm)
+    (hinf : (ops.inferType lenv 0 g.cvA.type).run lst = .ok (stype, lst1))
+    (hsort : (ops.ensureSort lenv 0 stype).run lst1 = .ok (u, lst2))
+    (ho : ConLeche.Level.isEquiv u ConLeche.Level.zero = o)
+    (hlf : ConLeche.liftFueled (m := ConLeche.CheckM) "level comparison" o = .error le) :
+    (ConLeche.checkValueGroup ops lenv g).run lst = .error le := by
+  cases o with
+  | some a =>
+    have hlf' : (Except.ok a : Except ConLeche.CheckError Bool) = Except.error le := hlf
+    exact absurd hlf' (by simp)
+  | none =>
+    have hlf' : (Except.error (ConLeche.CheckError.internal
+        (toString "fuel exhausted: " ++ toString "level comparison")) :
+        Except ConLeche.CheckError Bool) = Except.error le := hlf
+    injection hlf' with hh
+    rw [← hh]
+    exact check_value_group_fuel_none hkind hinf hsort ho
+
+open ConLeche.Cached in
+/-- `checkValueGroup`'s is-a-proposition `throw` (`CheckerSplit.lean:113`). -/
+theorem check_value_group_notprop {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {g : ConLeche.ValueGroup} {stype : ConLeche.Expr}
+    {u : ConLeche.Level} {lst lst1 lst2 : CState}
+    (hkind : g.kind = ConLeche.ValueKind.thm)
+    (hinf : (ops.inferType lenv 0 g.cvA.type).run lst = .ok (stype, lst1))
+    (hsort : (ops.ensureSort lenv 0 stype).run lst1 = .ok (u, lst2))
+    (hprop : ConLeche.Level.isEquiv u ConLeche.Level.zero = some false) :
+    (ConLeche.checkValueGroup ops lenv g).run lst
+      = .error (.invalid s!"type of theorem {g.cvA.name} is not a proposition") := by
+  rw [ConLeche.checkValueGroup]
+  simp only [if_pos hkind]
+  simp only [StateT.run, Bind.bind, StateT.bind]
+  rw [show (ops.inferType lenv 0 g.cvA.type) lst = Except.ok (stype, lst1) from hinf]
+  simp only [Except.bind]
+  rw [show (ops.ensureSort lenv 0 stype) lst1 = Except.ok (u, lst2) from hsort]
+  simp only [hprop, ConLeche.liftFueled, StateT.bind, StateT.pure,
+    Pure.pure, Except.pure, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkValueGroup`'s theorem branch passes on what the value's install
+threw. -/
+theorem check_value_group_iv_err {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {g : ConLeche.ValueGroup} {stype : ConLeche.Expr}
+    {u : ConLeche.Level} {lst lst1 lst2 : CState} {le : ConLeche.CheckError}
+    (hkind : g.kind = ConLeche.ValueKind.thm)
+    (hinf : (ops.inferType lenv 0 g.cvA.type).run lst = .ok (stype, lst1))
+    (hsort : (ops.ensureSort lenv 0 stype).run lst1 = .ok (u, lst2))
+    (hprop : ConLeche.Level.isEquiv u ConLeche.Level.zero = some true)
+    (hiv : (ConLeche.installValue ops lenv g.cvA g.jv).run lst2 = .error le) :
+    (ConLeche.checkValueGroup ops lenv g).run lst = .error le := by
+  rw [ConLeche.checkValueGroup]
+  simp only [if_pos hkind]
+  simp only [StateT.run, Bind.bind, StateT.bind]
+  rw [show (ops.inferType lenv 0 g.cvA.type) lst = Except.ok (stype, lst1) from hinf]
+  simp only [Except.bind]
+  rw [show (ops.ensureSort lenv 0 stype) lst1 = Except.ok (u, lst2) from hsort]
+  simp only [hprop, ConLeche.liftFueled, StateT.bind, StateT.pure,
+    Pure.pure, Except.pure, reduceIte]
+  rw [show (ConLeche.installValue ops lenv g.cvA g.jv) lst2 = Except.error le from hiv]
   rfl
 
 open ConLeche.Cached in
@@ -958,35 +1091,57 @@ theorem check_value_group_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     (hp : CoreK.PinnedBasisNames)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {g : parsed_c.ValueGroup}
+    {out : core.result.Result Unit core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hg : ValueGroupWF g)
-    (h : checker_split.check_value_group mode st fe g = ok (.Ok (), st')) :
+    (h : checker_split.check_value_group mode st fe g = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       (∀ n : ConLeche.Name, lfe.find? n = lfe.env.find? n) →
-      ∃ lst',
-        (ConLeche.checkValueGroup (TypeChecker.lops mode lfe) lfe.env
-            (absValueGroup g)).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+      match out with
+      | .Ok _ =>
+        ∃ lst',
+          (ConLeche.checkValueGroup (TypeChecker.lops mode lfe) lfe.env
+              (absValueGroup g)).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkValueGroup (TypeChecker.lops mode lfe) lfe.env
+            (absValueGroup g)).run lst) := by
   intro lst lfe hsr hfr henv
   rw [checker_split.check_value_group] at h
   obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r0, st1⟩ := q
   cases r0 with
-  | Err er => simp at h
+  | Err er =>
+    -- move 1: the inference threw, and the cited `do` throws at it
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    have herr : ErrSim er (((TypeChecker.lops mode lfe).inferType lfe.env 0
+        (absValueGroup g).cvA.type).run lst) :=
+      (TypeChecker.infer_type_core_refines hfuel hk).err st fe 0#u64 g.cv_a.ty er st1
+        hsw hfw hg.1.2.2 hq lst lfe hsr hfr
+    exact ErrSim.trans herr (fun le hle => check_value_group_infer_err hle)
   | Ok stype =>
     obtain ⟨lst1, hrun1, hsr1, hsw1, hstw⟩ :=
       (TypeChecker.infer_type_core_refines hfuel hk).ok st fe 0#u64 g.cv_a.ty stype st1
         hsw hfw hg.1.2.2 hq lst lfe hsr hfr
+    have hinf : ((TypeChecker.lops mode lfe).inferType lfe.env 0
+        (absValueGroup g).cvA.type).run lst = .ok (absExpr stype, lst1) := by
+      rw [TypeChecker.sharedOpsC_inferType]; exact hrun1
     obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r1, st2⟩ := q2
     cases r1 with
-    | Err er => simp at h
+    | Err er =>
+      -- move 1 again, at the sort
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      have herr : ErrSim er (((TypeChecker.lops mode lfe).ensureSort lfe.env 0
+          (absExpr stype)).run lst1) :=
+        (TypeChecker.ensure_sort_core_refines hfuel hk).err st1 fe 0#u64 stype er st2
+          hsw1 hfw hstw hq2 lst1 lfe hsr1 hfr
+      exact ErrSim.trans herr (fun le hle => check_value_group_sort_err hinf hle)
     | Ok u =>
       obtain ⟨lst2, hrun2, hsr2, hsw2, huw⟩ :=
         (TypeChecker.ensure_sort_core_refines hfuel hk).ok st1 fe 0#u64 stype u st2
           hsw1 hfw hstw hq2 lst1 lfe hsr1 hfr
-      have hinf : ((TypeChecker.lops mode lfe).inferType lfe.env 0
-          (absValueGroup g).cvA.type).run lst = .ok (absExpr stype, lst1) := by
-        rw [TypeChecker.sharedOpsC_inferType]; exact hrun1
       have hsort : ((TypeChecker.lops mode lfe).ensureSort lfe.env 0
           (absExpr stype)).run lst1 = .ok (absLevel u, lst2) := by
         rw [TypeChecker.sharedOpsC_ensureSort]; exact hrun2
@@ -997,19 +1152,32 @@ theorem check_value_group_refines {mode : env.CheckMode} {fuel : Std.U64}
         obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
         have hee : g.jv = e := by simpa using he
         subst hee
-        obtain ⟨lst', hrunt, hsrt, hswt⟩ :=
+        have ht :=
           check_value_group_tail_refines hfuel hk hsw2 hfw hg hg.2 h lst2 lfe hsr2 hfr
-        refine ⟨lst', ?_, hsrt, hswt⟩
-        rw [check_value_group_head_plain (by simpa [absValueGroup] using hbabs.symm) hinf hsort]
-        exact hrunt
+        have heq := check_value_group_head_plain
+          (by simpa [absValueGroup] using hbabs.symm) hinf hsort
+        cases out with
+        | Ok u2 =>
+          obtain ⟨lst', hrunt, hsrt, hswt⟩ := ht
+          refine ⟨lst', ?_, hsrt, hswt⟩
+          rw [heq]; exact hrunt
+        | Err e2 => exact ErrSim.of_eq ht heq
       | true =>
+        have hkindthm : (absValueGroup g).kind = ConLeche.ValueKind.thm := by
+          simpa [absValueGroup] using hbabs.symm
         obtain ⟨l, hl, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
         have hlz : absLevel l = ConLeche.Level.zero := by rw [level_zero_inv hl]; rfl
         have hoabs := Level.is_equiv_refines huw (LevelWF.zero hl) ho
         cases r2 with
-        | Err er => simp at h
+        | Err er =>
+          -- the level comparison ran out of fuel; `liftFueled` throws `internal`
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          refine ErrSim.trans (CoreK.lift_fueled_err hr2) (fun le hle =>
+            check_value_group_fuel_err hkindthm hinf hsort ?_ hle)
+          rw [← hlz]; exact hoabs
         | Ok is_prop =>
           have hlf := CoreK.lift_fueled_refines hr2
           have hoq : o = some is_prop := by
@@ -1017,23 +1185,46 @@ theorem check_value_group_refines {mode : env.CheckMode} {fuel : Std.U64}
             | none => simp [ConLeche.liftFueled] at hlf
             | some a => simpa [ConLeche.liftFueled, Pure.pure, Except.pure] using hlf
           cases is_prop with
-          | false => simp [bind_eq_ok_iff] at h
+          | false =>
+            -- the is-a-proposition `throw` (`CheckerSplit.lean:113`)
+            obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨hout, -⟩ := err_outS h
+            subst hout
+            have hnp : ConLeche.Level.isEquiv (absLevel u) ConLeche.Level.zero = some false := by
+              rw [← hlz, hoabs, hoq]
+            exact errSim_invalid hce rfl
+              (check_value_group_notprop hkindthm hinf hsort hnp)
           | true =>
             have hprop : ConLeche.Level.isEquiv (absLevel u) ConLeche.Level.zero = some true := by
               rw [← hlz, hoabs, hoq]
             obtain ⟨q3, hq3, h⟩ := bind_eq_ok_iff.mp h
             obtain ⟨r3, st3⟩ := q3
             cases r3 with
-            | Err er => simp at h
+            | Err er =>
+              -- move 1 at the value's install
+              obtain ⟨hout, -⟩ := err_outS h
+              subst hout
+              have hiv : ErrSim er ((ConLeche.installValue (TypeChecker.lops mode lfe)
+                  lfe.env (absValueGroup g).cvA (absValueGroup g).jv).run lst2) :=
+                install_value_refines hfuel hk hp hsw2 hfw hg.1 hg.2 hq3 lst2 lfe lfe.env
+                  hsr2 hfr henv
+              exact ErrSim.trans hiv (fun le hle =>
+                check_value_group_iv_err hkindthm hinf hsort hprop hle)
             | Ok jv =>
               obtain ⟨lst3, hrun3, hsr3, hsw3, hjvw⟩ :=
                 install_value_refines hfuel hk hp hsw2 hfw hg.1 hg.2 hq3 lst2 lfe lfe.env
                   hsr2 hfr henv
-              obtain ⟨lst', hrunt, hsrt, hswt⟩ :=
+              have ht :=
                 check_value_group_tail_refines hfuel hk hsw3 hfw hg hjvw h lst3 lfe hsr3 hfr
-              refine ⟨lst', ?_, hsrt, hswt⟩
-              rw [check_value_group_head_thm (by simpa [absValueGroup] using hbabs.symm) hinf hsort hprop hrun3]
-              exact hrunt
+              have heq := check_value_group_head_thm hkindthm hinf hsort hprop hrun3
+              cases out with
+              | Ok u2 =>
+                obtain ⟨lst', hrunt, hsrt, hswt⟩ := ht
+                refine ⟨lst', ?_, hsrt, hswt⟩
+                rw [heq]; exact hrunt
+              | Err e2 => exact ErrSim.of_eq ht heq
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
