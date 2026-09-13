@@ -560,6 +560,30 @@ generated proofs) that would remove the axiom.  con-leche's `pins-param`
 branch (task #285) remains available as the alternative that also makes the
 theorem pin-independent, but is not required.
 
+**The `orElse` hypothesis (`DivModOrElse`, tasks #56/#58; Fable's
+analysis 2026-09-13).**  con-leche has exactly one error-recovery point:
+the Nat-op pin loop tries the pin variants in order and `orElse` moves to
+the next on a thrown `CheckError` (`Kernel/CheckerBase.lean:53`).  Every
+other refinement lemma in this tier is stated in the accept direction
+only (§3.5) and says nothing when the Rust fails; but the loop *observes*
+failure: if the Rust attempt at pin `i` fails where con-leche's succeeds,
+con-leche installs at pin `i` and the Rust moves on, and the two memo
+states diverge even when both accept.  So the loop's refinement needs
+the failure direction of one function, `check_div_mod_pin_at`: "the Rust
+attempt fails at a pin exactly when con-leche's does" — packaged as the
+named hypothesis `DivModOrElse mode` (state soundness of a failed attempt,
+and agreement of the final decline).  It is not derivable from the
+accept-direction tower.  Two ways to discharge it: (a) prove a second lemma
+family `*_err_refines` ("the Rust returns `Err e` only where con-leche
+throws") by the same lock-step induction over everything the pin attempt
+reaches — the whole knot, since the certificates are theorem checks — after
+making every Rust-only failure (overflow, shift amount) an abort
+(Aeneas `fail`, unconstrained) rather than a `CheckError`; mechanical but
+of the same size as the tower; or (b) keep it as the port's one documented
+failure-direction assumption, reviewable at one function.  Decision
+pending the maintainer; the capstones carry it as a named hypothesis
+either way.
+
 ### 3.7 Provenance: keeping the port in sync with con-leche
 
 con-leche keeps moving.  The proofs catch drift eventually — a changed
