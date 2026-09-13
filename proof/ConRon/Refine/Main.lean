@@ -30,9 +30,12 @@ con-leche reads it — nothing is re-checked on the Lean side.
 ## The hypotheses, and who discharges each
 
 `conron.model_exists` and `conron.no_proof_of_False` are the fully general
-form and carry `Refine/Installed.lean`'s six.  **Every one of them but `hds`
-is discharged below** (task #67 continued), so the two `_embedded` corollaries
-at the bottom of this file carry `hds` and nothing else:
+form and carry `Refine/Installed.lean`'s five.  **Every one of them is
+discharged below** (task #67 continued for four of them, task #64/#66 for the
+pins), so the two `_embedded` corollaries at the bottom of this file carry
+`hp` — the decoded pins — and the run `h`, and nothing else.  The sixth
+hypothesis the tier used to owe, `hds`, is gone: **task #73 makes
+`check_decls` check it** (`kernel::validate`, `Refine/Validate.lean`).
 
 | hypothesis | what it says | who closes it |
 |---|---|---|
@@ -41,7 +44,7 @@ at the bottom of this file carry `hds` and nothing else:
 | `hinde : IndRoutesSpecErr .Verified` | …and throw at the same kind on a mirrored reject, down the same branch of `nativeParts?` | `IndC.ind_routes_spec_err'` from the knot (task #67 continued) — **discharged below** |
 | `hpins : absPins pins = ConLeche.natOpPinSets` | the `Nat`-op pin list the port threads is the global the pinned con-leche bakes into `checkDeclStepC` | `Refine/Pins.lean`'s `check_decls_pins_refines` for the binary's own list, or the `pins-param` submodule bump, which deletes the hypothesis |
 | `hvar : CheckerPins.PinsWF pins` | every node of every pin is what the port's own smart constructor built | `PinsWF.decode_embedded_wf` (task #66), for the embedded pins — **discharged below**.  The `pins`-parametric theorems keep it: task #58 added it because `hpins` alone does not give it, two pin lists can abstract to `natOpPinSets` with one carrying a stored hash word that makes `expr::beq` inexact |
-| `hds : ∀ d ∈ ds.val, DeclCWF d` | every parsed term is well formed | the parser: `DeclCWF` is the task-#5 inductive invariant whose constructors *are* the port's smart constructors, so a `DeclC` built by `crates/con-ron/src/frontend` satisfies it by construction |
+| ~~`hds : ∀ d ∈ ds.val, DeclCWF d`~~ | every parsed term is well formed | **gone (task #73)**: `cached::installed::check_decls` now *validates* its input — `kernel::validate` rebuilds every node with the port's own smart constructor and compares the stored word — and `Refine/Validate.lean`'s `validate_decls_sound` supplies the predicate at the accept.  A malformed declaration is declined with `CheckError::Native`, about which the full-outcome ruling claims nothing |
 
 ## The axiom census
 
@@ -89,13 +92,12 @@ theorem check_decls_verified_refines
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC}
     {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok out) :
     match out with
     | .Ok e => ConLeche.Cached.checkDecls .verified (ds.val.map absDeclC) = .ok (absEnv e)
     | .Err er =>
       Installed.ErrSimPos er (ConLeche.Cached.checkDecls .verified (ds.val.map absDeclC)) := by
-  have hr := check_decls_refines hk hind hinde hvar hpins hds h
+  have hr := check_decls_refines hk hind hinde hvar hpins h
   rw [leanCheckDecls] at hr
   cases out with
   | Ok e => exact hr
@@ -110,10 +112,9 @@ theorem check_decls_verified_refines_ok
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ConLeche.Cached.checkDecls .verified (ds.val.map absDeclC) = .ok (absEnv e) :=
-  check_decls_verified_refines hk hind hinde hvar hpins hds h
+  check_decls_verified_refines hk hind hinde hvar hpins h
 
 /-- **The main theorem for the Rust checker** (DESIGN.md §1): every environment
 `crates/con-ron-core`'s `check_decls` accepts has a model in every set theory.
@@ -125,11 +126,10 @@ theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e)) :=
   ConLeche.model_exists V (ds.val.map absDeclC) (absEnv e)
-    (check_decls_verified_refines_ok hk hind hinde hvar hpins hds h)
+    (check_decls_verified_refines_ok hk hind hinde hvar hpins h)
 
 /-- **The main corollary for the Rust checker** (DESIGN.md §1): an accepted
 stream never yields a constant of type `False`.  `ConLeche.no_proof_of_False`
@@ -141,12 +141,11 @@ theorem conron.no_proof_of_False (V : Type w) [ConLeche.SetTheory V]
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ¬ ∃ c ∈ (absEnv e).consts,
         c.toConstantVal.type = .const ConLeche.falseName [] :=
   ConLeche.no_proof_of_False V (ds.val.map absDeclC) (absEnv e)
-    (check_decls_verified_refines_ok hk hind hinde hvar hpins hds h)
+    (check_decls_verified_refines_ok hk hind hinde hvar hpins h)
 
 /-! ## The knot and the inductive routes discharged
 
@@ -166,27 +165,25 @@ theorem conron.model_exists' (V : Type w) [ConLeche.SetTheory V]
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e)) :=
   conron.model_exists V (Core.knot_spec IndAbs.checkFuelU)
     (InductivesC.ind_routes_spec' (Core.knot_spec IndAbs.checkFuelU))
     (InductivesC.ind_routes_spec_err' (Core.knot_spec IndAbs.checkFuelU))
-    hvar hpins hds h
+    hvar hpins h
 
 theorem conron.no_proof_of_False' (V : Type w) [ConLeche.SetTheory V]
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ¬ ∃ c ∈ (absEnv e).consts,
         c.toConstantVal.type = .const ConLeche.falseName [] :=
   conron.no_proof_of_False V (Core.knot_spec IndAbs.checkFuelU)
     (InductivesC.ind_routes_spec' (Core.knot_spec IndAbs.checkFuelU))
     (InductivesC.ind_routes_spec_err' (Core.knot_spec IndAbs.checkFuelU))
-    hvar hpins hds h
+    hvar hpins h
 
 /-- info: 'ConRon.Refine.conron.model_exists'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms conron.model_exists'
@@ -227,12 +224,13 @@ argument DESIGN.md §3.5 fixed at task #5, that the `*WF` predicates are
 inductives whose constructors **are** the port's smart constructors — and it
 holds for every byte string, so nothing is evaluated by it.
 
-So **these two carry `hds` and nothing else**: not `hk` (`Core.knot_spec`,
-task #61), not `hind`/`hinde` (`IndC.ind_routes_spec'` /
+So **these two carry `hp` and `h` and nothing else**: not `hk`
+(`Core.knot_spec`, task #61), not `hind`/`hinde` (`IndC.ind_routes_spec'` /
 `ind_routes_spec_err'`, task #67 continued), not `hpins`
-(`check_decls_pins_refines_ok`, task #64), not `hvar`.  `hds` is the parser's,
-by construction, and is the one place where something outside this proof has
-to hold up its end. -/
+(`check_decls_pins_refines_ok`, task #64), not `hvar`
+(`PinsWF.decode_embedded_wf`, task #66) — and, since task #73, not `hds`
+either: `check_decls` validates its own input, so there is no longer anything
+outside this proof that has to hold up its end. -/
 
 /-- **The main theorem for the shipped binary** (task #64): the same
 statement as `conron.model_exists'`, for the pin list
@@ -243,11 +241,10 @@ theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e)) :=
   conron.model_exists' V (PinsWF.decode_embedded_wf hp)
-    (check_decls_pins_refines_ok pins hp) hds h
+    (check_decls_pins_refines_ok pins hp) h
 
 /-- **The main corollary for the shipped binary** (task #64):
 `conron.no_proof_of_False'` at the embedded pins. -/
@@ -255,12 +252,11 @@ theorem conron.no_proof_of_False_embedded (V : Type w) [ConLeche.SetTheory V]
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ¬ ∃ c ∈ (absEnv e).consts,
         c.toConstantVal.type = .const ConLeche.falseName [] :=
   conron.no_proof_of_False' V (PinsWF.decode_embedded_wf hp)
-    (check_decls_pins_refines_ok pins hp) hds h
+    (check_decls_pins_refines_ok pins hp) h
 
 /-! ## The census (DESIGN.md §5, the P3 gate) — **passed**
 
@@ -274,8 +270,9 @@ What remained after that was *hypotheses*, which are not axioms; since task
 #67's campaign closed, five of the six are discharged in this file — `hk`
 (`Core.knot_spec`), `hind`/`hinde` (`IndC.ind_routes_spec'` /
 `ind_routes_spec_err'`), `hpins` (`check_decls_pins_refines_ok`) and `hvar`
-(`PinsWF.decode_embedded_wf`) — and what the two `_embedded` corollaries carry
-is `hds` alone: the parser's own invariant, by construction. -/
+(`PinsWF.decode_embedded_wf`) — and the sixth, `hds`, went away at task #73 by
+being **checked** rather than assumed.  What the two `_embedded` corollaries
+carry is the decoded pins `hp` and the run `h`. -/
 
 /-- info: 'ConRon.Refine.conron.model_exists' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms conron.model_exists

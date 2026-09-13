@@ -14295,3 +14295,259 @@ All seven green (`scripts/gates.sh`), the proof library is `sorry`-free, and
 the two differential gates are unchanged at **`diff-e2e` 348/348** and
 **`diff-fixtures` 315 agree / 0 differ** — as they must be: this task changed
 no Rust at all.
+
+### Task #73 — The input validation pass: con-ron's own certification tax (2026-09-13, Opus under Fable)
+
+The maintainer's ruling of 2026-09-13: `Refine/Main.lean`'s last input
+hypothesis, `hds : ∀ d ∈ ds.val, DeclCWF d`, **goes away by being checked**.  A
+verified pass at the entry of `cached::installed::check_decls` validates every
+parsed declaration and declines a malformed one, so a forged term is *rejected*
+rather than assumed away.  The capstones lose `hds`, and the two embedded
+corollaries — the theorems about the binary that ships — end up carrying the
+decoded pins `hp` and the run `h` and nothing else.
+
+Why the port needs this and con-leche does not: con-leche's
+`@[computed_field]` words are written by the elaborator and there is no way to
+forge one, so `DeclCWF` holds there by construction.  The port's node fields
+are `pub`, so a caller *could* hand `check_decls` a term whose stored word
+disagrees with its children, and under such a term `expr::beq` is not exact and
+the refinement is false.  That gap was the hypothesis.
+
+#### 1. The obligations, enumerated from the `*WF` definitions
+
+`DeclCWF` (`Refine/CheckerDecl.lean:166`) over `Refine/Abs.lean`'s predicates,
+read off the definitions before a line of Rust was written:
+
+| predicate | conjuncts | what the pass does |
+|---|---|---|
+| `DeclCWF` | six arms; `.BasisDecl` is `True` | one arm each |
+| `ConstantValWF` | `NameWF name ∧ NamesWF level_params ∧ ExprWF ty` | three walks |
+| `ConstantInfoWF` / `ConstantInfosWF` | seven arms, reaching `IndCapsWF`, `RecRulesWF`, `ProjTableWF` | one arm each |
+| `IndCapsWF` | `NameWF eta_ctor ∧ PropWhenWF sort_z` | two walks |
+| `RecRuleWF` / `RecRuleFireWF` | `NameWF ctor ∧ RecRuleFireWF fire ∧ ExprWF rhs`; `.Nested` adds `LevelsWF ∧ ExprsWF` | five walks |
+| `ProjTableWF` | two names, `NamesWF`, `LevelWF struct_sort`, `ExprsWF bodies`, `LevelsWF guards` | six walks |
+| `ExprWF` | inductive, ten constructors | rebuild + word compare |
+| `LevelWF` | inductive, five constructors | rebuild + word compare |
+| `NameWF` | inductive, three constructors | rebuild + word compare |
+| `BinderMetaWF` | `PropWhenWF m.pw` | the datum |
+| `PropWhenWF` | inductive, four producers (`never`, `if_all_zero`, `inter`, `bind_z`) | rebuild through the public view |
+| `LiteralWF` | `Nat.NatWF` / `StrWF` | the limb test / the code-point test |
+| `StrWF` | `∀ c ∈ s, Nat.isValidChar c` | the one clause no equation supplies |
+| `Nat.NatWF` | `LimbsWF`: no trailing zero limb | one index test |
+
+**Nothing was found that a runtime check cannot establish.**  Two of the
+fourteen needed a design decision rather than a transcription:
+
+* **`PropWhenWF`'s four producers are not four cases.**  `prop_when::inter` and
+  `bind_z` build their results *through* `if_all_zero`, and the sealed
+  representation (`PropWhenRepr`, module-private as the cited `private
+  inductive` is) cannot be matched on from outside `prop_when.rs` at all.  The
+  pass therefore rebuilds through the **public view**: `to_list_opt` is `None`
+  exactly at `never` and otherwise hands out the parameter list, `if_all_zero`
+  normalises it back into a datum, and `prop_when::beq` — which *is*
+  con-leche's `equivR`, representation equality — compares.  A `Two(q, p)` with
+  `q > p`, a `Many` of length ≤ 2 and an unsorted `Many` all fail that
+  comparison, which is exactly right: none of them is reachable from a smart
+  constructor and none is well formed.  No change to `prop_when.rs` was needed,
+  and the module cycle a repr-matching validator would have forced never
+  happened.
+* **`ExprWF`'s `.Const` arm carries `P<Vec<Level>>`**, so the rebuild copies the
+  level vector (`env::levels_copy`) where the other nine arms bump a handle.
+  Level lists are almost always empty or one long.
+
+#### 2. Rebuild, do not recompute
+
+For every node with a stored derived word the pass validates the children, then
+calls the node's **own smart constructor** on them (a `P` bump each) and
+compares the stored word with the rebuilt node's, as one `u64` equality.  That
+is the check the *proof* wants.  §3.5's `*WF` predicates are inductives whose
+constructors *are* the smart constructors, so at the point the walk accepts a
+node the context already holds `expr.app f a = ok e'` — the rebuild's own Rust
+equation — and `e.data = e'.data`, the comparison; `Refine/Expr.lean`'s `*_inv`
+shape lemma says `e' = .mk (.mk d' (.App f a))` while the case analysis says
+`e = .mk (.mk d (.App f a))`; one `u64` equality later `e' = e`, the equation
+is about `e`, and the constructor applies.  That is the whole proof, ten times
+for `Expr`, five for `Level`, three for `Name`.  Computing the hash formula
+instead would have made every soundness lemma name a hash formula, which is
+what the inductive shape exists to avoid.
+
+#### 3. The memo, and the key that is *not* the `data` word
+
+The `Expr` walk carries a visited set in the shape of the `beq` pair memo
+(§3.2, task #38): `ron::HashMap<u64, Vec<Expr>>`, buckets of whole handles,
+each candidate verified on a probe by `ron::ptr::ptr_eq`.  Parsed declarations
+are DAGs with heavy sharing, so an unmemoised walk is exponential in the DAG's
+depth.
+
+**A forged word cannot hurt.**  The key is derived from the very word under
+test, and that costs only time: a forged word puts the node in the wrong
+bucket, the probe misses, and the node is validated the long way.  A *hit* is a
+`ptr_eq` hit — the bucket holds **this same object** — and only nodes that
+completed the walk with `true` are ever recorded, so a hit repeats an answer
+this deterministic pass has already produced for that object.  That is
+`expr::beq_go`'s argument verbatim.  In the model `ptr_eq` is `false`, so the
+table is written and never read (`Refine/Validate.lean`'s `seen_hit_false`),
+the model's pass is the plain structural descent, and no lemma needs a memo
+invariant — which is what makes the soundness proof an induction on the term
+and nothing else.
+
+**The key is `expr::hash`, not `expr::data`, and that is a measurement.**
+`ron::hashmap::bucket_index` masks the **low** bits of the key, and the low 32
+bits of `data` are the two 15-bit range fields and the level-param bit — zero
+for the overwhelming majority of nodes.  Keyed by `data` the whole table lands
+in a handful of buckets, every probe and every insert walks a bucket of size
+`O(n)`, and the pass is quadratic: `Init` burned **eleven minutes of CPU
+without finishing** where the checker itself takes sixty-five seconds.  Keyed by
+the hash field — the top 32 bits, which is exactly what `expr::beq_key` mixes —
+it is the +1.5 % of §5.  `Name` and `Level` walks carry no memo: a name is a
+handful of components and a level a handful of nodes, and the table operations
+would cost more than the walk.
+
+The set is local to the pass, threaded by value as `beq_go`'s is, and **not**
+part of `CState`.  It is bound as `validate_decls(…).0`, so it is dropped at
+the end of that statement rather than living through the fold: a binding that
+held the whole tuple kept one entry per distinct node alive for the length of
+the run and cost **270 MB of peak RSS** at `Init` scale for nothing (1.49 GB
+against 1.22 GB, i.e. 3.1× con-leche's 481 MB against 2.5×, where CLAUDE.md's
+budget is 3×).
+
+#### 4. The wiring
+
+`cached::installed::check_decls` is now the pass followed by `check_decls_go`,
+which is the cited `checkDecls` body moved out unchanged.  The split is what
+lets `Refine/Validate.lean` state the entry gate (`check_decls_gate`) without
+spelling the fold out, and it makes each branch of `check_decls` one call.  A
+reject is `Err((core_types::native(validate_reject_message()), 0))` — the
+port's own failure, about which the full-outcome ruling (§3) claims nothing, so
+`Installed.ErrSimPos` is vacuous at it and the position is rendering only.
+Every item of `kernel/validate.rs` and `check_decls`' new deviation 5 carry
+`con-leche: none — task #73, the port's own input check (con-leche's computed
+fields are correct by construction)`.
+
+`con_ron::driver::check_decls_driver` runs the same pass, because that function
+*is* `check_decls`' body with the phase boundary visible: without it the
+`--jobs>1` and `--progress` lanes of the shipped binary would skip a check the
+`--jobs=1` lane makes.
+
+#### 5. Cost
+
+`con-ron --verified --jobs=1 <export>`, release + mimalloc, `perf stat -e
+instructions:u,cycles:u` (the measure of record, CLAUDE.md), `/usr/bin/time -v`,
+`ulimit -v` per `driver.rs`'s own arithmetic — `3 × RSS + 1 GiB` for the fold
+thread's stack *reservation*, i.e. 2.6 GB for `Init` and 5 GB for `core`.
+Binaries: master `5d16d0d` and this task's, same flags.
+
+| | `Init` before | `Init` after | | `core` before | `core` after | |
+|---|---:|---:|---:|---:|---:|---:|
+| `instructions:u` | 540.13 G | 548.10 G | **+1.48 %** | 1 158.34 G | 1 192.52 G | **+2.95 %** |
+| `cycles:u` | 284.78 G | 292.12 G | +2.6 % | 695.71 G | 713.87 G | +2.6 % |
+| peak RSS | 879 MB | 1 224 MB | +39 % | 2 439 MB | 2 440 MB | ±0 % |
+| verdict | accepted 57 972 | accepted 57 972 | identical | accepted 163 391 | accepted 163 391 | identical |
+
+Wall, `Init` only and from three runs each (CLAUDE.md: a single run of a large
+benchmark says nothing): 65.02 s (64.39–65.61, a 1.9 % range) before, **66.52 s** (66.22–66.76, 0.8 %) after — **+2.3 %**.  `core` is one run each,
+158.66 s → 162.35 s, reported for completeness and not as a measurement.
+
+The instruction cost is the pass itself — one smart-constructor call, one
+`P` allocation and one table operation per *distinct* node, plus an unmemoised
+name walk per `const`/`proj` node — and it is well inside the ~5 % the task was
+given.  `core`'s 2.95 % against `Init`'s 1.48 % is the larger stream's larger
+share of distinct nodes per declaration.  Peak RSS on `core` does not move at
+all: the pass's table is dropped before phase A, whose own memos set the peak.
+
+#### 6. The proof, and the idiom's first real outing
+
+`Refine/Validate.lean` (1 077 lines, 0 `sorry`) is one soundness lemma per
+validator function.  By task #71's ruling these are *new* proofs, so the idiom
+was tried first — `⟨shape step⟩ ; rust_norm h ; all_goals rust_grind` over
+attribute-registered lemma sets — and it closed everything it was pointed at,
+**first try except for one missing rule**.
+
+Elaboration times by task #71's method (one real proof per file, everything
+else `sorry`, minimum of two `lake env lean` runs with the project's two
+`backward` options, net of a 2.08 s all-`sorry` baseline):
+
+| lemma | how | net |
+|---|---|---:|
+| `validate_name_sound` (3 cases) | **idiom** | 0.16 s |
+| `validate_level_sound` (5 cases) | **idiom** | 0.30 s |
+| `validate_expr_sound` (10 arms) | **idiom** | 1.23 s |
+| `validate_constant_val_sound` | **idiom** | 0.12 s |
+| `validate_proj_table_sound` | **idiom** | 0.22 s |
+| `validate_ind_caps_sound` | **idiom** | 0.08 s |
+| `validate_rec_rule_fire_sound` | **idiom** | 0.11 s |
+| `validate_rec_rule_sound` | **idiom** | 0.08 s |
+| `equiv_r_exact` (25 cases) | hand | 0.07 s |
+| `validate_prop_when_sound` | hand | 0.04 s |
+| `validate_str_from_sound` | hand (index recursion) | 0.15 s |
+| `validate_nat_sound` | hand | 0.11 s |
+| `validate_exprs_from_sound` | hand (index recursion) | 0.28 s |
+| `validate_decls_from_sound` | hand (index recursion) | 0.34 s |
+| `validate_constant_info_sound` | hand (7-way dispatch) | 0.06 s |
+| `validate_decl_sound` | hand (6-way dispatch) | 0.08 s |
+| `check_decls_gate` | hand | 0.07 s |
+| whole file | | 4.4 s |
+
+The split is exactly `Refine/README.md`'s scope line: the idiom took the
+**leaves and the walks**, the hand proofs are the **index recursions and the
+`match` dispatches**, which are list folds and which the README already puts
+outside it.  Nothing had to be rewritten by hand after an idiom attempt
+failed — the one failure was diagnostic and not mysterious (below).
+
+**What the idiom needed beyond what task #71 landed.**  Two `rust_reduce` head
+rules (`name_hash_data_mk`, `expr_data_mk`: the stored word of a node is a
+projection, and every walk compares two of them); the three `NameWF`
+constructors in the equation-first `*_wf'` form, since `Level` and `Expr`
+already had theirs and `Name` did not; and ten **trimmed** shape lemmas
+`*_node` beside `Refine/Expr.lean`'s `*_inv` — `∃ d, e = .mk (.mk d (.App f
+a))` without the packed-word clauses, because a `grind` rule's conclusion is
+internalised at every instance and the bit clauses are dead weight here.  The
+one failure: `lam`/`forall_e` were the two arms that did not close on the first
+run, and the missing rule was `Expr.binder_meta_dup_eq`, visible at a glance in
+`grind`'s asserted-facts list as an unconsumed `expr.binder_meta_dup bm = ok w`.
+
+Three pieces are new infrastructure and belong to the tier rather than to this
+task: **`Expr.ind'`**, the structural recursor with the `Arc` and node layers
+skipped (the `Expr` twin of `Level.ind'` / `Name.ind'`, which `Refine/Abs.lean`
+had and `Expr` did not); **`seen_hit_false`**, the model half of the memo's
+trust argument, the twin of `Refine/Expr.lean`'s `probe_hit_false`; and
+**`equiv_r_exact`**, "`equivR` is equality on representations whose stored
+names are well formed".  `PropWhen.beq_iff` could not serve: it wants `WFShape`
+on *both* sides and the left one is the datum whose well-formedness is being
+established.
+
+`scripts/loc.py`'s `grind` column, 0 since task #72 by the ruling's "new proofs
+only", now reads **120 lines in 8 theorems**.
+
+#### 7. The hypothesis table, after
+
+| hypothesis | who closes it |
+|---|---|
+| `hk : Core.KnotSpec .Verified checkFuelU` | `Core.knot_spec` (task #61) |
+| `hind : IndRoutesSpec .Verified` | `IndC.ind_routes_spec'` (task #67 continued) |
+| `hinde : IndRoutesSpecErr .Verified` | `IndC.ind_routes_spec_err'` (task #67 continued) |
+| `hpins : absPins pins = natOpPinSets` | `check_decls_pins_refines_ok` (task #64) |
+| `hvar : CheckerPins.PinsWF pins` | `PinsWF.decode_embedded_wf` (task #66) |
+| ~~`hds : ∀ d ∈ ds.val, DeclCWF d`~~ | **gone (this task)**: `check_decls` checks it |
+
+`conron.model_exists_embedded` and `conron.no_proof_of_False_embedded` now read
+
+```lean
+theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
+    (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    Nonempty (ConLeche.Model V (absEnv e))
+```
+
+— the decoded pins and the run, and **nothing about the input**.  All four
+`#guard_msgs` axiom censuses are unchanged: con-leche's own three for the
+`pins`-parametric pair, those plus `pins_closed`'s sealed native-decide axiom
+and Aeneas's `toStr` one for the embedded pair.
+
+#### 8. Gates
+
+All seven green (`scripts/gates.sh`), the proof library `sorry`-free, and the
+two differential gates unchanged at **`diff-e2e` 348/348** and
+**`diff-fixtures` 315 agree / 0 differ** — which is the empirical half of §1's
+"no false reject": every declaration in con-leche's whole fixture corpus, and
+every declaration of `Init` and of `Init+Std+Lean`, passes the validator.
