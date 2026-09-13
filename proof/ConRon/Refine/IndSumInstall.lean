@@ -107,6 +107,42 @@ imported; `ConLeche.Verify.FastOps` *is* imported, for `openPisAtFvarsF_eq`
 (`normCtorValF` and `checkSumCtorF` spell `openPisAtFvars` where the port calls
 `open_pis_at_fvars_f`) and `checkStructDomsAtFA_eq`.
 
+## The full outcome (task #67)
+
+All ten state-touching statements are over the Rust computation's **whole**
+inner outcome (`Refine/README.md`'s convention).  `sum_install.rs` has 20
+`CheckError` construction sites and **not one is `Native`**, so every failure
+half names con-leche's:
+
+| port | con-leche |
+|---|---|
+| `whnf_telescope`'s `M_SORT`/`M_TELE` (`:85`, `:97`) | `SumInstall.lean:57-58`, `:66-67` |
+| `check_sum_ind`'s `M_TELE`/`M_SORT` (`:216`, `:220`) | `SumInstallF.lean:37-40` |
+| `check_struct_field_sorts_i`'s `M_IDX`/`M_BIG`/`M_ELIM` (`:307`, `:328`, `:341`) | `SumInstallF.lean:49`, `:54`, `:57-58` |
+| `norm_pos_dom`'s `M_FUEL`/`M_NEG` (`:400`, `:413`) | `SumInstall.lean:168`, `:175` |
+| `norm_field_doms`' `M_TELE` (`:481`) | `SumInstall.lean:188` |
+| `norm_ctor_val`'s two `M_TELE`s (`:508`, `:510`) | `SumInstallF.lean:86-89` |
+| `check_sum_ctor`'s eight (`:719`, `:726`, `:729`, `:736`, `:751`, `:769`, `:777`, `:785`) | `SumInstallF.lean:103-125` |
+
+plus `core_k::lift_fueled`'s `internal`, which is con-leche's `liftFueled`
+(`Core.lean:109-111`).  Every other failure is a callee's, and travels by
+con-leche's own bind (`ErrSim.bindCM` / `ErrSim.bind_run`).
+
+Six of the ten are stated through `State.Out` rather than a written-out
+`match`: a `match o with` in a statement picks the `= ok (o, st')` hypothesis
+up as a second discriminant, which makes the outcome untransportable from one
+lemma to the next, and `Out` — a definition — has no such dependency.  Its
+`.Ok` branch is the pre-#67 statement verbatim, so no call site reads
+differently.  The four that do not fit `Out` (`whnf_telescope`,
+`norm_field_doms`, `check_sum_ind`, `check_sum_ctors`: an extra existential or
+an accumulator relation in the success half) keep the written-out `match`.
+
+**Two of the named ingredients moved with them**: `CheckConstantValRefines` and
+`CheckStructDomsAtRefines` are stated at the full outcome here, because
+`check_sum_tele_whnf`, `check_sum_ind`, `norm_ctor_val`, `check_sum_ctor` reach
+their failure halves only through them.  Their discharges live in
+`Refine/IndIngredients.lean`.
+
 Two statements are ordered against the Rust for a dependency: the port-only
 split `check_sum_tele_whnf` is proved *before* `check_sum_tele`, which calls
 it, and `norm_ctor_val` *after* the binder helpers `zip_param_binders` and
@@ -1322,6 +1358,37 @@ theorem checkSumCtorF_sorts_err
 
 end SumCtorErr
 
+/-- `checkSumCtorsF`: this constructor's stage threw. -/
+theorem checkSumCtorsF_cons_err1 {lfe0 lfe : ConLeche.FEnv} {T : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nIdx : Nat} {resSort : ConLeche.Level}
+    {isProp large : Bool} {cvTa : ConLeche.ConstantVal}
+    {c : ConLeche.ConstantVal × Nat} {cs : List (ConLeche.ConstantVal × Nat)}
+    {lst : ConLeche.Cached.CState} {ce : core_types.CheckError}
+    (h : ErrSim ce ((ConLeche.checkSumCtorF ops lfe0 lfe T lps nP nIdx resSort
+      isProp large c.1 c.2 cvTa).run lst)) :
+    ErrSim ce ((ConLeche.checkSumCtorsF ops lfe0 lfe T lps nP nIdx resSort isProp
+      large cvTa (c :: cs)).run lst) := by
+  rw [ConLeche.checkSumCtorsF]
+  exact ErrSim.bindCM h
+
+/-- `checkSumCtorsF`: the remaining constructors threw. -/
+theorem checkSumCtorsF_cons_err2 {lfe0 lfe : ConLeche.FEnv} {T : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nIdx : Nat} {resSort : ConLeche.Level}
+    {isProp large : Bool} {cvTa cvCa : ConLeche.ConstantVal}
+    {c : ConLeche.ConstantVal × Nat} {cs : List (ConLeche.ConstantVal × Nat)}
+    {sorts : List ConLeche.Level} {lst lst1 : ConLeche.Cached.CState}
+    {ce : core_types.CheckError}
+    (h1 : (ConLeche.checkSumCtorF ops lfe0 lfe T lps nP nIdx resSort isProp large
+      c.1 c.2 cvTa).run lst = .ok ((cvCa, sorts), lst1))
+    (h2 : ErrSim ce ((ConLeche.checkSumCtorsF ops lfe0 lfe T lps nP nIdx resSort
+      isProp large cvTa cs).run lst1)) :
+    ErrSim ce ((ConLeche.checkSumCtorsF ops lfe0 lfe T lps nP nIdx resSort isProp
+      large cvTa (c :: cs)).run lst) := by
+  rw [ConLeche.checkSumCtorsF, run_bind, h1]
+  simp only [Except.bind]
+  rw [run_bind]
+  exact ErrSim.bind_run h2 _
+
 end Steps
 
 /-! ## The former's telescope (`SumInstall.lean:43-107`) -/
@@ -2049,7 +2116,8 @@ theorem check_struct_field_sorts_i_refines {mode : env.CheckMode}
                   obtain ⟨rfl, rfl⟩ := hfin
                   rw [hjsucc]
                   exact checkStructFieldSortsIF_succ_err hfvget hrunty' hrunu'
-                    (fun _ => hleqabs) (by simp) (ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer)
+                    (fun _ => hleqabs) (by simp)
+                    (ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer)
                 | Ok rest =>
                   simp at hfin
                   obtain ⟨rest1, hpush, rfl, rfl⟩ := hfin
@@ -2108,7 +2176,8 @@ theorem check_struct_field_sorts_i_refines {mode : env.CheckMode}
                   obtain ⟨rfl, rfl⟩ := hfin
                   rw [hjsucc]
                   exact checkStructFieldSortsIF_succ_err hfvget hrunty' hrunu'
-                    (fun _ => hleqabs) (by simp) (ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer)
+                    (fun _ => hleqabs) (by simp)
+                    (ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer)
                 | Ok rest =>
                   simp at hfin
                   obtain ⟨rest1, hpush, rfl, rfl⟩ := hfin
@@ -2131,7 +2200,8 @@ theorem check_struct_field_sorts_i_refines {mode : env.CheckMode}
               obtain ⟨rfl, rfl⟩ := hfin
               rw [hjsucc]
               exact checkStructFieldSortsIF_succ_err hfvget hrunty' hrunu'
-                (by simp) (by simp) (ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer)
+                (by simp) (by simp)
+                (ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer)
             | Ok rest =>
               simp at hfin
               obtain ⟨rest1, hpush, rfl, rfl⟩ := hfin
@@ -2205,7 +2275,8 @@ theorem check_struct_field_sorts_i_refines {mode : env.CheckMode}
                 obtain ⟨rfl, rfl⟩ := hfin
                 rw [hjsucc]
                 exact checkStructFieldSortsIF_succ_err hfvget hrunty' hrunu'
-                  (by simp) (fun _ _ => helimok) (ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer)
+                  (by simp) (fun _ _ => helimok)
+                  (ih y.val (by omega) hwf2' (by omega) hrec rfl lst2' lfe hrel2' hfer)
               | Ok rest =>
                 simp at hfin
                 obtain ⟨rest1, hpush, rfl, rfl⟩ := hfin
@@ -3181,8 +3252,10 @@ theorem check_sum_ctors_refines {mode : env.CheckMode}
     {st st' : cached.state_c.CState} {fe0 fe : fenv.FEnv} {lfe0 : ConLeche.FEnv}
     {t : name.Name} {lps : alloc.vec.Vec name.Name} {n_p n_idx : Std.U64}
     {res_sort : level.Level} {is_prop large : Bool} {cv_ta : env.ConstantVal}
-    {cs out r : alloc.vec.Vec (env.ConstantVal × Std.U64)} {i : Std.Usize}
-    {souts sr : alloc.vec.Vec (alloc.vec.Vec level.Level)}
+    {cs out : alloc.vec.Vec (env.ConstantVal × Std.U64)} {i : Std.Usize}
+    {souts : alloc.vec.Vec (alloc.vec.Vec level.Level)}
+    {o : core.result.Result ((alloc.vec.Vec (env.ConstantVal × Std.U64))
+      × alloc.vec.Vec (alloc.vec.Vec level.Level)) core_types.CheckError}
     (hst : StateWF st) (hfe0 : FEnvWF fe0) (hfe : FEnvWF fe)
     (hrel0 : FEnvRel fe0 lfe0) (ht : NameWF t) (hlps : NamesWF lps)
     (hsort : LevelWF res_sort) (hcvta : ConstantValWF cv_ta)
@@ -3190,20 +3263,27 @@ theorem check_sum_ctors_refines {mode : env.CheckMode}
     (hout : ∀ c ∈ out.val, ConstantValWF c.1)
     (hsouts : ∀ us ∈ souts.val, LevelsWF us)
     (h : inductives.sum_install.check_sum_ctors mode st fe0 fe t lps n_p n_idx
-        res_sort is_prop large cv_ta cs i out souts = ok (.Ok (r, sr), st')) :
+        res_sort is_prop large cv_ta cs i out souts = ok (o, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lcs lss,
-        (ConLeche.checkSumCtorsF (m := ConLeche.Cached.CheckCM)
+      match o with
+      | .Ok q =>
+        ∃ lst' lcs lss,
+          (ConLeche.checkSumCtorsF (m := ConLeche.Cached.CheckCM)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe0 lfe (absName t)
+              (absNames lps) n_p.val n_idx.val (absLevel res_sort) is_prop large
+              (absConstantVal cv_ta) ((IndAbs.absCtors cs).drop i.val)).run lst
+            = .ok ((lcs, lss), lst')
+          ∧ IndAbs.absCtors q.1 = IndAbs.absCtors out ++ lcs
+          ∧ IndAbs.absLevelss q.2 = IndAbs.absLevelss souts ++ lss
+          ∧ StateRel st' lst' ∧ StateWF st'
+          ∧ (∀ c ∈ q.1.val, ConstantValWF c.1) ∧ (∀ us ∈ q.2.val, LevelsWF us)
+      | .Err ce =>
+        ErrSim ce ((ConLeche.checkSumCtorsF (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe0 lfe (absName t)
             (absNames lps) n_p.val n_idx.val (absLevel res_sort) is_prop large
-            (absConstantVal cv_ta) ((IndAbs.absCtors cs).drop i.val)).run lst
-          = .ok ((lcs, lss), lst')
-        ∧ IndAbs.absCtors r = IndAbs.absCtors out ++ lcs
-        ∧ IndAbs.absLevelss sr = IndAbs.absLevelss souts ++ lss
-        ∧ StateRel st' lst' ∧ StateWF st'
-        ∧ (∀ c ∈ r.val, ConstantValWF c.1) ∧ (∀ us ∈ sr.val, LevelsWF us) := by
+            (absConstantVal cv_ta) ((IndAbs.absCtors cs).drop i.val)).run lst) := by
   generalize hd : cs.val.length - i.val = d
-  induction d using Nat.strong_induction_on generalizing st st' i out souts r sr with
+  induction d using Nat.strong_induction_on generalizing st st' i out souts o with
   | _ d ih =>
   intro lst lfe hrel hfer
   rw [inductives.sum_install.check_sum_ctors] at h
@@ -3226,14 +3306,20 @@ theorem check_sum_ctors_refines {mode : env.CheckMode}
     simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
     obtain ⟨pp, hstep, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r0, st1⟩ := pp
+    have hctorkey :=
+      check_sum_ctor_refines hw hcv hmc hop hft hdoms hresid hpo hres hst hfe0 hfe
+        hrel0 ht hlps hsort (hcs _ (List.getElem_mem hlt)) hcvta hstep lst lfe
+        hrel hfer
     cases r0 with
-    | Err err => simp at h
+    | Err err =>
+      -- this constructor's stage threw: con-leche's own first bind carries it
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      rw [absCtors_drop_cons (cs := cs) hlt]
+      exact checkSumCtorsF_cons_err1 hctorkey
     | Ok q =>
       obtain ⟨cv1, sorts⟩ := q
-      obtain ⟨lst1, hrun1, hrel1, hwf1, hcv1wf, hsortswf⟩ :=
-        check_sum_ctor_refines hw hcv hmc hop hft hdoms hresid hpo hres hst hfe0 hfe
-          hrel0 ht hlps hsort (hcs _ (List.getElem_mem hlt)) hcvta hstep lst lfe
-          hrel hfer
+      obtain ⟨lst1, hrun1, hrel1, hwf1, hcv1wf, hsortswf⟩ := hctorkey
       simp at h
       obtain ⟨out1, hout1, souts1, hsouts1, i2, hi2, h⟩ := h
       have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
@@ -3249,18 +3335,25 @@ theorem check_sum_ctors_refines {mode : env.CheckMode}
         rcases hu with hu | hu
         · exact hsouts us hu
         · rw [List.mem_singleton.mp hu]; exact hsortswf
-      obtain ⟨lst2, lcs, lss, hrun2, habsr, habssr, hrel2, hwf2, hrwf, hsrwf⟩ :=
-        ih (cs.val.length - i1.val) (by scalar_tac) hwf1 hout1wf hsouts1wf h
-          (by rw [hi2v, hi1v]) lst1 lfe hrel1 hfer
-      refine ⟨lst2, (absConstantVal cv1, cs.val[i.val].2.val) :: lcs,
-        absLevels sorts :: lss, ?_, ?_, ?_, hrel2, hwf2, hrwf, hsrwf⟩
-      · rw [absCtors_drop_cons (cs := cs) hlt]
-        rw [hi2v] at hrun2
-        exact checkSumCtorsF_cons hrun1 hrun2
-      · rw [habsr, IndAbs.absCtors, vec_push_val hout1]
-        simp [IndAbs.absCtors]
-      · rw [habssr, IndAbs.absLevelss, vec_push_val hsouts1]
-        simp [IndAbs.absLevelss]
+      have hih := ih (cs.val.length - i1.val) (by scalar_tac) hwf1 hout1wf hsouts1wf
+        h (by rw [hi2v, hi1v]) lst1 lfe hrel1 hfer
+      rw [hi2v] at hih
+      cases o with
+      | Err ce =>
+        -- the remaining constructors threw
+        rw [absCtors_drop_cons (cs := cs) hlt]
+        exact checkSumCtorsF_cons_err2 hrun1 hih
+      | Ok q2 =>
+        obtain ⟨lst2, lcs, lss, hrun2, habsr, habssr, hrel2, hwf2, hrwf, hsrwf⟩ := hih
+        refine ⟨lst2, (absConstantVal cv1, cs.val[i.val].2.val) :: lcs,
+          absLevels sorts :: lss, ?_, ?_, ?_, hrel2, hwf2, hrwf, hsrwf⟩
+        · rw [absCtors_drop_cons (cs := cs) hlt]
+          exact checkSumCtorsF_cons hrun1 hrun2
+        · rw [habsr, IndAbs.absCtors, vec_push_val hout1]
+          simp [IndAbs.absCtors]
+        · rw [habssr, IndAbs.absLevelss, vec_push_val hsouts1]
+          simp [IndAbs.absLevelss]
+
 
 /-- `ConLeche/Kernel/Inductives/SumInstall.lean:269-272` and
 `SumInstallF.lean:142-145` — `cons_sum_ctors` refines `consSumCtorsF`: the
