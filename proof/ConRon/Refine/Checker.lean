@@ -1297,6 +1297,198 @@ the checked value is a realizability witness, and the official kernel's
 theorem check_opaque_val_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     (hp : CoreK.PinnedBasisNames)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
+    {cv : env.ConstantVal} {value : expr.Expr}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
+    (h : kernel.checker.check_opaque_val mode st fe cv value = ok (out, st')) :
+    ∀ lst lfe (lenv : ConLeche.Env), StateRel st lst → FEnvRel fe lfe →
+      (∀ n : ConLeche.Name, lfe.find? n = lenv.find? n) → lenv = lfe.env →
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.checkOpaqueVal (TypeChecker.lops mode lfe) lenv (absConstantVal cv)
+              (absExpr value)).run lst = .ok (lfe'.env, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+      | .Err ce =>
+        ErrSim ce ((ConLeche.checkOpaqueVal (TypeChecker.lops mode lfe) lenv
+          (absConstantVal cv) (absExpr value)).run lst) := by
+  intro lst lfe lenv hsr hfr henv hlenv
+  subst hlenv
+  rw [kernel.checker.check_opaque_val] at h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  have hbv : b = (absExpr value).looseBVarsBounded 0 :=
+    ExprOps.loose_bvars_bounded_refines hv hb
+  cases b with
+  | false =>
+    -- `checker.rs:288` ← `Checker.lean:96`
+    simp at h
+    obtain ⟨v, -, ce, hce, rfl, rfl⟩ := h
+    show ErrSim ce _
+    rw [invalid_err hce, ConLeche.checkOpaqueVal, if_neg (by rw [← hbv]; simp)]
+    exact ErrSim.invalid
+      (s := s!"loose bound variable in value of {(absConstantVal cv).name}") rfl
+  | true =>
+    simp only [if_true] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v : b1 = (absExpr value).hasFvar := ExprOps.has_fvar_refines hv hb1
+    cases b1 with
+    | true =>
+      -- `checker.rs:290` ← `Checker.lean:98`
+      simp at h
+      obtain ⟨v, -, ce, hce, rfl, rfl⟩ := h
+      show ErrSim ce _
+      rw [invalid_err hce, ConLeche.checkOpaqueVal, if_pos hbv.symm,
+        if_pos (by rw [← hb1v])]
+      exact ErrSim.invalid
+        (s := s!"unexpected free variable in value of {(absConstantVal cv).name}") rfl
+    | false =>
+      obtain ⟨p, hann, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r, st1⟩ := p
+      cases r with
+      | Err e =>
+        -- the annotation threw
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        show ErrSim e _
+        rw [ConLeche.checkOpaqueVal, if_pos hbv.symm, if_neg (by rw [← hb1v]; simp)]
+        exact ErrSim.bindCM
+          ((TypeChecker.annotate_core_refines hfuel hk).err st fe 0#u64 value e st1
+            hsw hfw hv hann lst lfe hsr hfr)
+      | Ok value_a =>
+        obtain ⟨lst1, hruna, hsr1, hsw1, hvaw⟩ :=
+          (TypeChecker.annotate_core_refines hfuel hk).ok st fe 0#u64 value value_a st1
+            hsw hfw hv hann lst lfe hsr hfr
+        have hra : (ConLeche.Cached.opE (absMode mode) lfe (·.annotate) 0
+            (absExpr value)).run lst = .ok (absExpr value_a, lst1) := hruna
+        -- the cited `do` past the annotation, at an arbitrary tail: every arm
+        -- of `check_opaque_val_after_annot` below travels through it
+        have hhead : ∀ f : ConLeche.Expr → ConLeche.Cached.CheckCM ConLeche.Env,
+            ((TypeChecker.lops mode lfe).annotate lfe.env 0 (absExpr value)
+                >>= f).run lst = (f (absExpr value_a)).run lst1 := by
+          intro f
+          simp only [StateT.run_bind, TypeChecker.sharedOpsC_annotate, hra,
+            except_ok_bind]
+        have h : kernel.checker.check_opaque_val_after_annot mode st1 fe cv value_a
+            = ok (out, st') := h
+        rw [kernel.checker.check_opaque_val_after_annot] at h
+        obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+        have hb2v : b2 = (absExpr value_a).allLevelParamsDefined
+            (absConstantVal cv).levelParams :=
+          ExprOps.all_level_params_defined_fast_refines hcv.2.1 hvaw hb2
+        cases b2 with
+        | false =>
+          -- `checker.rs:310` ← `Checker.lean:101`
+          simp at h
+          obtain ⟨v, -, ce, hce, rfl, rfl⟩ := h
+          show ErrSim ce _
+          rw [invalid_err hce, ConLeche.checkOpaqueVal, if_pos hbv.symm,
+            if_neg (by rw [← hb1v]; simp), hhead, if_neg (by rw [← hb2v]; simp)]
+          exact ErrSim.invalid
+            (s := s!"undeclared universe parameter in value of {(absConstantVal cv).name}")
+            rfl
+        | true =>
+          simp only [if_true] at h
+          obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+          have hb3v : b3 = (absExpr value_a).constsResolve lfe.env :=
+            CoreK.consts_resolve_refines hp (FindAgree.of_rel hfr hfw) henv hvaw b3 hb3
+          cases b3 with
+          | false =>
+            -- `checker.rs:312` ← `Checker.lean:103`
+            simp at h
+            obtain ⟨v, -, ce, hce, rfl, rfl⟩ := h
+            show ErrSim ce _
+            rw [invalid_err hce, ConLeche.checkOpaqueVal, if_pos hbv.symm,
+              if_neg (by rw [← hb1v]; simp), hhead, if_pos hb2v.symm,
+              if_neg (by rw [← hb3v]; simp)]
+            exact ErrSim.invalid
+              (s := s!"unknown constant in value of {(absConstantVal cv).name}") rfl
+          | true =>
+            simp only [if_true] at h
+            obtain ⟨q, hinf, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨r1, st2⟩ := q
+            cases r1 with
+            | Err e =>
+              -- the inference threw
+              simp at h
+              obtain ⟨rfl, rfl⟩ := h
+              show ErrSim e _
+              rw [ConLeche.checkOpaqueVal, if_pos hbv.symm,
+                if_neg (by rw [← hb1v]; simp), hhead, if_pos hb2v.symm,
+                if_pos hb3v.symm]
+              exact ErrSim.bindCM
+                ((TypeChecker.infer_type_core_refines hfuel hk).err st1 fe 0#u64 value_a
+                  e st2 hsw1 hfw hvaw hinf lst1 lfe hsr1 hfr)
+            | Ok vtype =>
+              obtain ⟨lst2, hrun2, hsr2, hsw2, hvw⟩ :=
+                (TypeChecker.infer_type_core_refines hfuel hk).ok st1 fe 0#u64 value_a vtype st2
+                  hsw1 hfw hvaw hinf lst1 lfe hsr1 hfr
+              have hr2 : (ConLeche.Cached.opE (absMode mode) lfe (·.infer) 0
+                  (absExpr value_a)).run lst1 = .ok (absExpr vtype, lst2) := hrun2
+              have hinfer : ∀ f : ConLeche.Expr → ConLeche.Cached.CheckCM ConLeche.Env,
+                  ((TypeChecker.lops mode lfe).inferType lfe.env 0 (absExpr value_a)
+                      >>= f).run lst1 = (f (absExpr vtype)).run lst2 := by
+                intro f
+                simp only [StateT.run_bind, TypeChecker.sharedOpsC_inferType, hr2,
+                  except_ok_bind]
+              obtain ⟨q2, hdef, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨r2, st3⟩ := q2
+              cases r2 with
+              | Err e =>
+                -- the conversion threw
+                simp at h
+                obtain ⟨rfl, rfl⟩ := h
+                show ErrSim e _
+                rw [ConLeche.checkOpaqueVal, if_pos hbv.symm,
+                  if_neg (by rw [← hb1v]; simp), hhead, if_pos hb2v.symm,
+                  if_pos hb3v.symm, hinfer]
+                exact ErrSim.bindCM
+                  ((TypeChecker.is_def_eq_core_refines hfuel hk).err st2 fe 0#u64 vtype
+                    cv.ty e st3 hsw2 hfw hvw hcv.2.2 hdef lst2 lfe hsr2 hfr)
+              | Ok okv =>
+                obtain ⟨lst3, hrun3, hsr3, hsw3⟩ :=
+                  (TypeChecker.is_def_eq_core_refines hfuel hk).ok st2 fe 0#u64 vtype cv.ty
+                    okv st3 hsw2 hfw hvw hcv.2.2 hdef lst2 lfe hsr2 hfr
+                have hr3 : (ConLeche.Cached.opB (absMode mode) lfe 0 (absExpr vtype)
+                    (absConstantVal cv).type).run lst2 = .ok (okv, lst3) := hrun3
+                have hdefeq : ∀ f : Bool → ConLeche.Cached.CheckCM ConLeche.Env,
+                    ((TypeChecker.lops mode lfe).isDefEq lfe.env 0 (absExpr vtype)
+                        (absConstantVal cv).type >>= f).run lst2 = (f okv).run lst3 := by
+                  intro f
+                  simp only [StateT.run_bind, TypeChecker.sharedOpsC_isDefEq, hr3,
+                    except_ok_bind]
+                cases okv with
+                | false =>
+                  -- `checker.rs:325` ← `Checker.lean:106`
+                  simp at h
+                  obtain ⟨v, -, ce, hce, rfl, rfl⟩ := h
+                  show ErrSim ce _
+                  rw [invalid_err hce, ConLeche.checkOpaqueVal, if_pos hbv.symm,
+                    if_neg (by rw [← hb1v]; simp), hhead, if_pos hb2v.symm,
+                    if_pos hb3v.symm, hinfer, hdefeq]
+                  simp only [Bool.false_eq_true, if_false]
+                  exact ErrSim.invalid
+                    (s := s!"type mismatch in opaque {(absConstantVal cv).name}") rfl
+                | true =>
+                  obtain ⟨cv1, hcv1, h⟩ := bind_eq_ok_iff.mp h
+                  obtain ⟨f, hpush, h⟩ := bind_eq_ok_iff.mp h
+                  rw [Env.constant_val_dup_refines hcv1] at hpush
+                  obtain ⟨rfl, rfl⟩ : core.result.Result.Ok f = out ∧ st3 = st' := by
+                    simpa using h
+                  obtain ⟨hrel', hwf'⟩ :=
+                    push_refines hfr hfw (show ConstantInfoWF (.AxiomInfo cv) from hcv)
+                      hpush
+                  refine ⟨lst3, _, ?_, hsr3, hsw3, hrel', hwf'⟩
+                  rw [ConLeche.checkOpaqueVal, if_pos hbv.symm,
+                    if_neg (by rw [← hb1v]; simp), hhead, if_pos hb2v.symm,
+                    if_pos hb3v.symm, hinfer, hdefeq]
+                  rfl
+
+/-- The success half of `check_opaque_val_refines`, at the pre-task-#67
+statement. -/
+theorem check_opaque_val_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    (hp : CoreK.PinnedBasisNames)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
@@ -1306,89 +1498,9 @@ theorem check_opaque_val_refines {mode : env.CheckMode} {fuel : Std.U64}
       ∃ lst' lfe',
         (ConLeche.checkOpaqueVal (TypeChecker.lops mode lfe) lenv (absConstantVal cv)
             (absExpr value)).run lst = .ok (lfe'.env, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
-  intro lst lfe lenv hsr hfr henv hlenv
-  subst hlenv
-  rw [kernel.checker.check_opaque_val] at h
-  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
-  have hbv : b = (absExpr value).looseBVarsBounded 0 :=
-    ExprOps.loose_bvars_bounded_refines hv hb
-  cases b with
-  | false => simp at h
-  | true =>
-    simp only [if_true] at h
-    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
-    have hb1v : b1 = (absExpr value).hasFvar := ExprOps.has_fvar_refines hv hb1
-    cases b1 with
-    | true => simp at h
-    | false =>
-      obtain ⟨p, hann, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨r, st1⟩ := p
-      cases r with
-      | Err e => simp at h
-      | Ok value_a =>
-        obtain ⟨lst1, hruna, hsr1, hsw1, hvaw⟩ :=
-          (TypeChecker.annotate_core_refines hfuel hk).ok st fe 0#u64 value value_a st1
-            hsw hfw hv hann lst lfe hsr hfr
-        have h : kernel.checker.check_opaque_val_after_annot mode st1 fe cv value_a
-            = ok (.Ok fe', st') := h
-        rw [kernel.checker.check_opaque_val_after_annot] at h
-        obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
-        have hb2v : b2 = (absExpr value_a).allLevelParamsDefined
-            (absConstantVal cv).levelParams :=
-          ExprOps.all_level_params_defined_fast_refines hcv.2.1 hvaw hb2
-        cases b2 with
-        | false => simp at h
-        | true =>
-          simp only [if_true] at h
-          obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
-          have hb3v : b3 = (absExpr value_a).constsResolve lfe.env :=
-            CoreK.consts_resolve_refines hp (FindAgree.of_rel hfr hfw) henv hvaw b3 hb3
-          cases b3 with
-          | false => simp at h
-          | true =>
-            simp only [if_true] at h
-            obtain ⟨q, hinf, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨r1, st2⟩ := q
-            cases r1 with
-            | Err e => simp at h
-            | Ok vtype =>
-              obtain ⟨lst2, hrun2, hsr2, hsw2, hvw⟩ :=
-                (TypeChecker.infer_type_core_refines hfuel hk).ok st1 fe 0#u64 value_a vtype st2
-                  hsw1 hfw hvaw hinf lst1 lfe hsr1 hfr
-              obtain ⟨q2, hdef, h⟩ := bind_eq_ok_iff.mp h
-              obtain ⟨r2, st3⟩ := q2
-              cases r2 with
-              | Err e => simp at h
-              | Ok okv =>
-                obtain ⟨lst3, hrun3, hsr3, hsw3⟩ :=
-                  (TypeChecker.is_def_eq_core_refines hfuel hk).ok st2 fe 0#u64 vtype cv.ty
-                    okv st3 hsw2 hfw hvw hcv.2.2 hdef lst2 lfe hsr2 hfr
-                cases okv with
-                | false => simp at h
-                | true =>
-                  obtain ⟨cv1, hcv1, h⟩ := bind_eq_ok_iff.mp h
-                  obtain ⟨f, hpush, h⟩ := bind_eq_ok_iff.mp h
-                  rw [Env.constant_val_dup_refines hcv1] at hpush
-                  obtain ⟨rfl, rfl⟩ : f = fe' ∧ st3 = st' := by simpa using h
-                  obtain ⟨hrel', hwf'⟩ :=
-                    push_refines hfr hfw (show ConstantInfoWF (.AxiomInfo cv) from hcv)
-                      hpush
-                  refine ⟨lst3, _, ?_, hsr3, hsw3, hrel', hwf'⟩
-                  have hra : (ConLeche.Cached.opE (absMode mode) lfe (·.annotate) 0
-                      (absExpr value)).run lst = .ok (absExpr value_a, lst1) := hruna
-                  have hr2 : (ConLeche.Cached.opE (absMode mode) lfe (·.infer) 0
-                      (absExpr value_a)).run lst1 = .ok (absExpr vtype, lst2) := hrun2
-                  have hr3 : (ConLeche.Cached.opB (absMode mode) lfe 0 (absExpr vtype)
-                      (absConstantVal cv).type).run lst2 = .ok (true, lst3) := hrun3
-                  rw [ConLeche.checkOpaqueVal, if_pos hbv.symm,
-                    if_neg (by rw [← hb1v]; simp)]
-                  simp only [StateT.run_bind, TypeChecker.sharedOpsC_annotate, hra,
-                    except_ok_bind]
-                  rw [if_pos hb2v.symm, if_pos hb3v.symm]
-                  simp only [StateT.run_bind, TypeChecker.sharedOpsC_inferType,
-                    TypeChecker.sharedOpsC_isDefEq, except_ok_bind, hr2, hr3]
-                  rfl
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' :=
+  check_opaque_val_refines hfuel hk hp hsw hfw hcv hv h
+
 
 /-! ## The structural-`Nat` certification
 
