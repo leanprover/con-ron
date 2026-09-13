@@ -141,7 +141,8 @@ proofs.  This section says where the time went, what removes it, what the
 three additions to the question (a one-line induction, `grind cases`/`grind
 ext` on the node types, `grind =>`/`sym =>` doing the inversion itself) turned
 out to be worth, and ends with the idiom as it should be adopted.  All the
-evidence is in `Automation/Study.lean` §"Task #70" and `Automation/SimpSets.lean`;
+evidence is in `Automation/Study.lean` §"Task #70" and `Automation/SimpSets.lean`
+(task #71 moved both into the library -- see §"Status (task #71)" at the end);
 the numbers are net of the 1.9 s import, the minimum of two `lake env lean`
 runs on the shared machine, ±0.1 s.
 
@@ -345,3 +346,47 @@ equations, `RunOk` as `SimS`'s conclusion), plus the two shape rules above,
 `rust_grind`, attribute-registered lemma sets, `ExprWF.ind_node`), during the
 task #67 restatement, leaves and walks first, measuring the first file's
 build time against its hand version and stopping at 3×.
+
+## Status (task #71, 2026-09-13)
+
+**Adopted for new proofs only.**  The maintainer's ruling (DESIGN.md §3, the
+second ruling of 2026-09-13): land the infrastructure, use the idiom for new
+leaf, memo-walk and knot-arm lemmas from now on, and **do not rewrite existing
+hand proofs** — neither the full-outcome ones nor the accept-direction ones
+task #67's campaign still has to restate.
+
+The library-side pieces are out of the study: `Refine/SimpSets.lean` registers
+`rust_reduce`/`rust_invert`, `Refine/Abs.lean` populates them and holds
+`bind_arc_deref`, `rust_pairs`, `rust_norm` and `rust_grind`,
+`Refine/Expr.lean` holds `ExprWF.kids`/`*_kids`/`ind_node` with the `LevelWF`
+and `NameWF` twins in `Refine/Level.lean`/`Refine/Name.lean`, and the
+equation-first `use`/WF lemmas sit beside what they are about.  The recipe,
+the piece-by-piece map and the three `use`-lemma keying rules are
+`Refine/README.md` §"Writing a new refinement lemma (task #71)".
+`Automation/Study.lean` keeps the six worked examples and the three "before"
+experiments (with `rust_inv`, task #69's untuned normaliser, so the 4–8×
+measurement above stays reproducible) and nothing else.
+
+Re-timed after the move, same method, one real proof per file and everything
+else `sorry`, net of a 2.36 s all-`sorry` baseline, minimum of four `lake env
+lean` runs, ±0.1 s:
+
+| lemma | task #70 | task #71 |
+|---|---|---|
+| `Level.rest_refines_tuned` | 2.3 s | **2.3 s** |
+| `Level.by_cases_refines_tuned` | 0.8 s | **0.8 s** |
+| `ExprOps.instantiate1_go_tuned` | 2.2 s | **1.9 s** |
+| `ExprOpsMeta.reset_meta_go_tuned` | 2.0 s | **1.6 s** |
+| `Lits.reduce_nat_lits_i_tuned` | 0.6 s | **0.5 s** |
+| `Lits.reduce_nat_bin_i_tuned` | 0.5 s | **0.3 s** |
+| — the three "before" experiments, as controls — | 6.9 / 4.7 / 0.84 s | 7.1 / 4.8 / 0.9 s |
+
+No regression: the controls (which still use the in-file `rust_inv` and a
+literal `grind [thirty names]` list) reproduce, while the four tuned walks and
+arms come out 0.1–0.4 s *faster* — the simp sets and the two macros are now
+elaborated once at import instead of once per file.
+
+Measure this way, not on the whole study file: Lean 4.33 elaborates commands
+in parallel, and with the `attribute` block that used to separate them gone,
+the six tuned proofs overlap with the expensive "before" ones — a whole-file
+subtraction then reports `rest_refines_tuned` at 0.1 s.

@@ -657,6 +657,21 @@ the bulk of every full-outcome proof, so the pass adds the `throw` arms
 (mirrored guards, already proved exact) and error propagation through
 binds.  Campaign: task #67.
 
+**Ruling of 2026-09-13 (maintainer): land the automation infrastructure, use
+the idiom for new proofs only.**  Tasks #69/#70 showed that a leaf, a memoised
+walk and a knot arm each go through with one idiom — `⟨shape step⟩ ; rust_norm
+h ; all_goals rust_grind` over attribute-registered lemma sets — for 1.2×–3.8×
+the elaboration time of the hand proof and 5–10× fewer lines
+(`proof/ConRon/Refine/AUTOMATION.md`).  The ruling: the library-side pieces
+move out of the study into the proof library (task #71), so that any *new*
+refinement lemma can be written that way; **existing hand proofs are not
+rewritten** — not the 109 full-outcome ones, and not the 154 accept-direction
+ones task #67's campaign still has to restate, which get their failure halves
+added by hand with the accept half kept verbatim.  The idiom is the default
+for new leaf, memo-walk and knot-arm lemmas from now on (new arms, future
+con-leche bump campaigns); `HashMap`/`Nat` (mathematical), `Pins*`
+(byte-level) and `Ind*` (list folds) stay out of its scope.
+
 ### 3.7 Provenance: keeping the port in sync with con-leche
 
 con-leche keeps moving.  The proofs catch drift eventually — a changed
@@ -13932,3 +13947,99 @@ diagnostics, and the largest arms were not exercised.
 Gates: `scripts/gates.sh` all seven OK in the task's worktree; `Study.lean` elaborates in 19 s (was 12 s: the
 six tuned proofs and the two induction principles added).  Nothing outside
 `proof/ConRon/Refine/Automation/` and `AUTOMATION.md` changed.
+
+### Task #71 — The idiom's infrastructure landed in the library (2026-09-13, Fable)
+
+The maintainer's ruling after tasks #69/#70 (§3, the second ruling of
+2026-09-13): **land the infrastructure, use the idiom for new proofs only.**
+The library-side pieces move out of `Automation/Study.lean` into the proof
+library so that any *new* leaf, memo-walk or knot-arm refinement lemma can be
+written as `⟨shape step⟩ ; rust_norm h ; all_goals rust_grind` over
+attribute-registered lemma sets; **no existing hand proof is rewritten** —
+neither the 108 full-outcome ones nor the 154 accept-direction ones task #67's
+campaign still has to restate.  `HashMap`/`Nat`, `Pins*` and `Ind*` stay out
+of scope.
+
+**What moved where.**
+
+| piece | from | to |
+|---|---|---|
+| `register_simp_attr rust_reduce` / `rust_invert` | `Automation/SimpSets.lean` | `Refine/SimpSets.lean` (deleted the old module) |
+| the two sets' entries (pointer ops, `dup`s, node projections; bind inversion and the injectivity/pair/`∃` cleanup) | `Study.lean` | `Refine/Abs.lean`, plus `ExprOps.binder_meta_eq` and `BasisTables.expr_dup_eq` at their own declarations |
+| `bind_arc_deref`, `rust_pairs`, `rust_norm`, `rust_grind` | `Study.lean` | `Refine/Abs.lean` |
+| `push_new_val` | `Study.lean` | `Refine/Abs.lean` (beside `vec_singleton`) |
+| `ExprWF.ind_node`, the nine `ExprWF.*_kids` | `Study.lean` | `Refine/Expr.lean`, with a new `ExprWF.kids` they derive from |
+| `LevelWF.ind_node`; `NameWF.ind_node` + `NameWF.str_kids`/`num_kids` | new (5 and 3 cases, mechanical) | `Refine/Level.lean`, `Refine/Name.lean` |
+| the equation-first `*_wf'` reorderings | `Study.lean` (6) | `Refine/Expr.lean` (9: the study's six plus `sort`/`mk_const`/`lit`) and `Refine/Level.lean` (5) |
+| `LeqCoreSpec.use`, `subst_use`, `simplify_use` | `Study.lean` | `Refine/Level.lean` |
+| `hit'`, `set'` | `Study.lean` | `Refine/ExprOps.lean` (beside `MemoInv.hit`/`.set`) |
+| `Wrappers.whnf_use` | `Study.lean` | `Refine/Core/Arms/Shape.lean` (beside `Wrappers.whnfSim`) |
+| `RunOk`/`RunOk_ok`/`RunOk_error`, `run_bind_eq`/`run_pure_eq`, `except_bind_ok`/`except_bind_error` | duplicated in `Study.lean` | deleted — task #67 had already carried them to `Refine/Abs.lean` and `Arms/Shape.lean` |
+
+The macros went into `Abs.lean` rather than a separate `Refine/Tactics.lean`
+imported by it: `rust_norm`'s pre-order head rules *are* `Abs.lean`'s lemmas
+(`arc_deref_eq`, `bind_tc_ok`), so a `Tactics.lean` below `Abs.lean` could not
+name them and one above it would have to be imported by `Name.lean` instead,
+inverting the tier's root.  `Refine/SimpSets.lean` stays its own module for
+the reason task #70 gave: a `register_simp_attr` cannot be used in the file
+that declares it.
+
+`ExprWF.kids` restates `CoreK.ExprWF.children` (`Refine/CoreKSupport.lean`,
+task #49) on the node.  The reuse check the ruling asked for says that lemma
+*is* the kids — but `CoreKSupport.lean` imports `Expr.lean`, so it cannot be
+reached from the `Expr`/`ExprOps` tier where the walks live and where the
+idiom is to be adopted first.  Putting the nine `*_kids` there instead would
+have left the idiom unusable exactly where AUTOMATION.md says to start.  The
+duplication is one 22-line proof, flagged in `Expr.lean`'s doc comment to be
+collapsed when `CoreKSupport.lean` is next touched.  `Level`'s kids needed
+nothing: `LevelWF.{succ,max,imax,param}_inv` already say it, and
+`LevelWF.ind_node` points at them.
+
+**Re-timed** (the study's method, one real proof per file and everything else
+`sorry`, net of a 2.36 s all-`sorry` baseline, minimum of four `lake env lean`
+runs with the project's two `backward` options, ±0.1 s):
+
+| lemma | task #70 | task #71 |
+|---|---|---|
+| `rest_refines_tuned` | 2.3 s | 2.3 s |
+| `by_cases_refines_tuned` | 0.8 s | 0.8 s |
+| `instantiate1_go_tuned` | 2.2 s | 1.9 s |
+| `reset_meta_go_tuned` | 2.0 s | 1.6 s |
+| `reduce_nat_lits_i_tuned` | 0.6 s | 0.5 s |
+| `reduce_nat_bin_i_tuned` | 0.5 s | 0.3 s |
+| controls: the three "before" experiments | 6.9 / 4.7 / 0.84 s | 7.1 / 4.8 / 0.9 s |
+
+No regression.  The controls reproduce (they still use the in-file `rust_inv`
+and a literal `grind [thirty names]` list); the four tuned walks and arms come
+out 0.1–0.4 s faster, the simp sets and the two macros now being elaborated
+once at import rather than once per file.  **A methodological finding worth
+keeping**: measure one lemma per file, not by subtraction on the whole study.
+Lean 4.33 elaborates commands in parallel, and with the `attribute` block that
+used to separate them gone the tuned proofs overlap with the expensive
+"before" ones — a whole-file subtraction reports `rest_refines_tuned` at 0.1 s.
+
+**What stayed in the study, and why.**  `Inst1Spec`/`ResetSpec` with their
+`use`/`iff` lemmas: both predicates are defined in the study (the tower states
+those two walks without a `Spec`), so their `use` lemmas have no other home
+yet.  The twelve `rest_*` arm-selection specialisations: they serve `rest`
+alone, and the hand proof does not use them.  `SimOk`/`SimOk.ofRun`: a study
+device — the library's `Sim.ofRun`/`SimS.ofRun` take both halves, and it
+should not grow an accept-half-only form.  `rawNatLitC_eq'` (a copy of a
+`private` lemma), `raw_nat_lit_use`, `nat_op_result_use`/`nat_op_some_use`/
+`nat_op_none_use`, `lits_use`, `natBinI_eq`: arm-specific keying, one
+experiment each.  `rust_inv`, task #69's untuned normaliser: the three
+"before" experiments are the measurement of record for the 4–8× cost and must
+stay runnable.
+
+**Documentation.**  `Refine/README.md` gains §"Writing a new refinement lemma
+(task #71)" — the idiom in five lines, the piece-by-piece map, the three
+`use`-lemma keying rules (Rust equation first; the constructor in the equation
+for an optional clause; components, not pairs), the one-equation-per-inlined-
+fragment and no-side-condition rules, the scope, and the statement that
+existing hand proofs are not rewritten.  `Refine/AUTOMATION.md` gains a
+closing §"Status (task #71)" with the re-timed table.
+
+Gates: `scripts/gates.sh` all seven OK in the task's worktree.  Nothing
+outside `proof/ConRon/Refine/` and the three documents changed; every change
+to a file outside `Abs.lean`/`Expr.lean`/`Level.lean`/`Name.lean`/
+`Automation/Study.lean` is an added declaration or an added attribute.

@@ -110,18 +110,115 @@ The port's own failures are exactly the `Native` sites of the census in
 DESIGN.md's task #67 section, and adding a new one is a deliberate,
 documented accept-direction deviation, not a way out of a proof.
 
+## Writing a new refinement lemma (task #71)
+
+DESIGN.md §3's ruling of 2026-09-13: **the automation infrastructure is
+landed, and the idiom is the default for new proofs only.**  Existing hand
+proofs are not rewritten — not the full-outcome ones, and not the
+accept-direction ones task #67's campaign still has to restate (those get
+their failure halves added by hand, accept half kept verbatim).
+
+### The idiom, in five lines
+
+```lean
+attribute [local grind →] ⟨use lemmas, WF lemmas — Rust equation first⟩
+attribute [local grind =] ⟨arm-selection equations, abstraction reductions⟩
+attribute [local grind]   ⟨the con-leche definitions to unfold⟩
+
+theorem f_refines … (he : ExprWF e) : Spec e := by
+  induction e, he using ExprWF.ind_node <;>   -- the shape step
+    (intro …; rw [rust_f.eq_def] at h; rust_norm h; all_goals rust_grind)
+```
+
+The shape step is whatever destructures what the generated body matches on: an
+`ExprWF.ind_node`/`LevelWF.ind_node`/`NameWF.ind_node` induction for a walk,
+`obtain ⟨⟨_, k⟩⟩ := l` for a `Level` leaf (`split` inside `rust_norm` does the
+`cases`), `Sim.ofRun` + `unfold` for a knot arm.  Everything after it is the
+same two lines in every lemma.
+
+### Where each piece lives
+
+| piece | file |
+|---|---|
+| `register_simp_attr rust_reduce` / `rust_invert` | `SimpSets.lean` |
+| `rust_norm`, `rust_grind`, `rust_pairs`, `bind_arc_deref`, the populated simp sets | `Abs.lean` |
+| `RunOk`/`RunErr`, `except_bind_ok`/`except_bind_error`, `push_new_val` | `Abs.lean` |
+| `ExprWF.ind_node`, `ExprWF.kids`, the nine `ExprWF.*_kids`, the `*_wf'` reorderings | `Expr.lean` |
+| `LevelWF.ind_node`; the children as `LevelWF.{succ,max,imax,param}_inv`; `*_wf'`, `LeqCoreSpec.use`, `subst_use`, `simplify_use` | `Level.lean` |
+| `NameWF.ind_node`, `NameWF.str_kids`/`num_kids` | `Name.lean` |
+| `hit'` / `set'` (the memo probe and write-back) | `ExprOps.lean` |
+| `Sim.ofRun`/`SimS.ofRun`, `run_bind_eq`/`run_pure_eq`, `Wrappers.whnf_use` | `Core/Arms/Shape.lean` |
+| the six worked examples, and `rust_inv` (task #69's untuned normaliser) | `Automation/Study.lean` |
+
+`rust_norm h` = one pre-order `simp only` on the head (`↓bind_arc_deref` and
+the node projections) with `rust_reduce`, then `repeat' (first | obtain | split
+| simp only [rust_invert] | rust_pairs)`; `rust_grind` = `grind (ematch := 12)
+(gen := 24)`, one fixed budget for every lemma — a lemma that needs more says
+so with the `[limit]` line in its diagnostics, and raising the macro's default
+is the answer, not a per-lemma override.
+
+### The three keying rules for a `use` lemma
+
+A lemma given to `grind` with `→` takes its E-matching patterns from its
+propositional hypotheses **in order**, so how a `use` lemma is stated is the
+whole difference between one instance and quadratic junk.  The failure mode
+when one is keyed wrong is a `grind` failure with a multi-screen diagnostic,
+not a hint.
+
+1. **The Rust equation first.**  `app_wf hf ha : expr.app f a = ok e → ExprWF
+   e` fires at every pair of well-formed terms; `app_wf'`, the same lemma with
+   `h : expr.app f a = ok e` first, fires on the node the inverted bind
+   produced.  Every `*_wf'`, `*_use` and `Spec.use` in the table above is the
+   reordered form.  `grind_pattern` cannot substitute: an `Eq` is not an
+   admissible pattern.
+2. **The constructor in the equation, for an optional clause.**  A `Spec`
+   clause `∀ e, o = some e → …` takes its pattern from its *conclusion* and
+   instantiates at every expression in sight but the right one.  State it as a
+   `use` lemma keyed on the Rust equation with the constructor in it:
+   `nat_op_some_use : nat_op_result c a b = ok (.Ok (some e)) → …`.
+3. **Components, not pairs.**  A clause `∀ p, o = some p → NatWF p.1 ∧ …`
+   instantiates at the pair and leaves `(fst, snd).1` unreduced; quantify over
+   the components instead (`∀ m n, o = some (m, n) → …`).
+
+Two more statement-shape rules, from the same six lemmas:
+
+* **one equation per inlined fragment.**  Where con-leche writes inline what
+  the Rust factors into a helper, do not quantify the continuation: state once
+  that the con-leche function *is* the helper followed by the continuation
+  (`natBinI … = natLitsI … >>= k`, a monad-law `rfl` per branch) and let
+  `grind` chain the helper's refinement through it.
+* **arm-selection equations without side conditions.**  A con-leche equation
+  carrying `(h : ∀ s, r ≠ .succ s)` makes `grind` diverge (the instantiated
+  side condition becomes an E-matching theorem of its own).  One
+  `rfl`-level specialisation per constructor pair is the fix.
+* **a `use` lemma beside every `Spec`**, and a `Spec` beside what it is the
+  induction hypothesis of.  An inductive hypothesis given to `grind` as a bare
+  local `∀` is E-matched on its *conclusion*, which the abstraction has
+  usually already rewritten away.
+
+### Scope
+
+Leaves, memoised walks and knot arms — the simulation proofs whose shape the
+study measured.  **Not** `HashMap.lean`/`Nat.lean` (genuinely mathematical,
+`omega`/`scalar_tac` heavy), **not** `Pins*` (byte-level decoding), **not**
+`Ind*` (list folds).  Untested at the largest arms (`defeq_body_i`), where
+`grind`'s per-goal internalisation of a bigger context will cost more.
+`Refine/AUTOMATION.md` is the study these rules come from and carries the
+measurements; `Refine/Automation/Study.lean` the six worked examples.
+
 ## What is here (tasks #17, #20 and #47, P3.3)
 ## What is here (tasks #17, #20, #22 and #46)
 
 | file | contents |
 |---|---|
-| `Abs.lean` | the plumbing `simp` set, `absString`/`absName`/`absLevel`/`absNames`/`absLevels`/`absOrdering`/`absPropWhen`/`absLiteral`/`absBinderMeta`/`absExpr`, the `*_inv` smart-constructor shapes, `StrWF`/`NameWF`/`LevelWF`/`NamesWF`/`PropWhenWF`/`LevelsWF`/`LiteralWF`/`BinderMetaWF`/`ExprWF`, and `Level.ind'`/`Name.ind'` |
-| `Name.lean` | `absString`/`absName` injectivity, `str_eq`, `beq`, `contains`, `singleton` |
-| `Level.lean` | the task-#5 development: `absLevel` injectivity, `beq`, `level_has_param`, `subst`, `is_never_zero`, `simplify`, and the `leq_core`/`rest`/`imax_rules`/`by_cases`/`leq`/`is_equiv` cascade |
+| `SimpSets.lean` | nothing but `register_simp_attr rust_reduce` / `rust_invert` (task #71); `Abs.lean` and later files populate them |
+| `Abs.lean` | the plumbing `simp` set, the task-#71 normaliser (`bind_arc_deref`, `rust_pairs`, `rust_norm`, `rust_grind`, the two populated simp sets), `absString`/`absName`/`absLevel`/`absNames`/`absLevels`/`absOrdering`/`absPropWhen`/`absLiteral`/`absBinderMeta`/`absExpr`, the `*_inv` smart-constructor shapes, `StrWF`/`NameWF`/`LevelWF`/`NamesWF`/`PropWhenWF`/`LevelsWF`/`LiteralWF`/`BinderMetaWF`/`ExprWF`, `Level.ind'`/`Name.ind'`, and `RunOk`/`RunErr` |
+| `Name.lean` | `absString`/`absName` injectivity, `str_eq`, `beq`, `contains`, `singleton`, and `NameWF.ind_node`/`*_kids` |
+| `Level.lean` | the task-#5 development: `absLevel` injectivity, `beq`, `level_has_param`, `subst`, `is_never_zero`, `simplify`, and the `leq_core`/`rest`/`imax_rules`/`by_cases`/`leq`/`is_equiv` cascade, plus `LevelWF.ind_node` and the equation-first `*_wf'`/`*_use` forms |
 | `PropWhen.lean` | `name_cmp` (through `str_compare`/`nat_compare`/`ord_then`), `merge`/`canon`, the smart constructors, `to_list`/`to_list_opt`, `is_never`/`has_params`/`holds`/`params_defined`, `inter`, `bind_z`, `beq`, and (task #20) `absPropWhen`'s injectivity and `beq`'s reflexivity |
 | `Nat.lean` | `ron::nat` (task #15), plus (task #20) `cmp`/`beq` reflexivity |
 | `HashMap.lean` | `ron::hashmap` (task #16) |
-| `Expr.lean` | `kernel::expr` (task #20): the packed word (`pack_bits`, the `*_val` readings, `wf_data`), the ten smart constructors, the three exact accessors, `beq_recursive`, `levels_beq`, the copies, `absExpr`'s injectivity, and `beq`'s reflexivity and exactness |
+| `Expr.lean` | `kernel::expr` (task #20): the packed word (`pack_bits`, the `*_val` readings, `wf_data`), the ten smart constructors, the three exact accessors, `beq_recursive`, `levels_beq`, the copies, `absExpr`'s injectivity, and `beq`'s reflexivity and exactness; `ExprWF.kids`/`*_kids`/`ind_node` and the equation-first `*_wf'` forms (task #71) |
 | `ExprOps.lean` | `kernel::expr_ops`'s **foundation** (tasks #21/#47): the memo facts (`get_mem`, `insert_pres`, `MemoInv` and its `empty`/`hit`/`set`), the two key types and their `KeyExact`, the four owning probes, the shared `Vec`/scalar plumbing and `Vec` copies, and `instantiate1` |
 | `ExprOpsFields.lean` | the derived fields: `size_b`/`size_f`, `wscoped_b`, the `bvar_bound`/`fvar_range` spec walks and their memoized twins, the exact accessors `bvar_b`/`fvar_b`, `loose_bvars_bounded`, `has_fvar`, `abstract_range` and `lift_loose_bvars` |
 | `ExprOpsSubst.lean` | the substitutions: `instantiate_list` (spec, memoized walk and `*_fast`), `take_exprs`, `abstract1`, `lower_bvars`, `instantiate1_lift` and `inst_pis_at_lift` |
