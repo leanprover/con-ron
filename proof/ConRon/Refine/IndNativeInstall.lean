@@ -574,6 +574,24 @@ def CheckStructFieldSortsIRefines : Prop :=
           = .ok (absLevels r, lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ LevelsWF r
 
+/-- `sum_install::check_struct_field_sorts_i`'s **failure half** (task #67),
+with the same `usize`-width side condition.  **Owned by
+`Refine/IndSumInstall.lean`**; a second ingredient beside
+`CheckStructFieldSortsIRefines` for the reason given on
+`CheckConstantValErr`. -/
+def CheckStructFieldSortsIErr : Prop :=
+  ∀ (st st' : cached.state_c.CState) (fe : fenv.FEnv) (is_prop large : Bool)
+    (s : level.Level) (n_p : Std.U64) (fvs idx_args : alloc.vec.Vec expr.Expr)
+    (j : Std.U64) (ce : core_types.CheckError),
+    StateWF st → FEnvWF fe → LevelWF s → ExprsWF fvs → ExprsWF idx_args →
+    j.val ≤ Std.Usize.max →
+    inductives.sum_install.check_struct_field_sorts_i mode st fe is_prop large s
+        n_p fvs idx_args j = ok (.Err ce, st') →
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ErrSim ce ((ConLeche.checkStructFieldSortsIF
+        (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe is_prop large
+        (absLevel s) n_p.val (absExprs fvs) (absExprs idx_args) j.val).run lst)
+
 /-- `sum_install::cons_sum_ctors` refines `consSumCtorsF`
 (`SumInstallF.lean:143-145`), from index `i`.
 **Owned by `Refine/IndSumInstall.lean`.** -/
@@ -4337,19 +4355,25 @@ theorem check_native_tail_guards_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {q : inductives.native_install.NativePass}
+    {outc : core.result.Result Unit core_types.CheckError}
     (hres : StructInstall.ConstsResolveFFastRefines) (hpo : ParamsOfRefines)
     (hpb : PiBindersRefines) (hop : OpenPisAtFvarsFRefines)
     (hkg : KindGetDRefines) (hro : NativeRulesOkRefines)
     (hfs : CheckStructFieldSortsIRefines mode)
+    (hfse : CheckStructFieldSortsIErr mode)
     (hst : StateWF st) (hfe : FEnvWF fe) (hq : IndAbs.NativePassWF q)
     (h : inductives.native_install.check_native_tail_guards mode st fe q
-        = ok (.Ok (), st')) :
+        = ok (outc, st')) :
     ∀ lst lfe lq, StateRel st lst → FEnvRel fe lfe →
       IndAbs.NativePassRel q lq →
-      ∃ lst',
-        (checkNativeTailGuardsF (absMode mode) lfe lq).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st'
-        ∧ KindsFitCtors q.ctors_a q.p.kinds := by
+      match outc with
+      | .Ok _ =>
+        ∃ lst',
+          (checkNativeTailGuardsF (absMode mode) lfe lq).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+          ∧ KindsFitCtors q.ctors_a q.p.kinds
+      | .Err e =>
+        ErrSim e ((checkNativeTailGuardsF (absMode mode) lfe lq).run lst) := by
   intro lst lfe lq hrel hfer hqrel
   obtain ⟨hqenv, hqcv, hqp, hqctors, hqss⟩ := hqrel
   obtain ⟨hwenv, hwcv, hwp, hwctors, hwss⟩ := hq
@@ -4364,6 +4388,12 @@ theorem check_native_tail_guards_refines {mode : env.CheckMode}
     obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
     simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    refine errSim_invalid hce rfl
+      (ls := "direct rec: large eliminator on a multi-constructor inductive \
+        whose sort may be Prop") ?_
+    rw [if_pos (by rw [← hbv, hbt])]
+    simp [checkCM_throw_apply, StateT.run, Bind.bind, StateT.bind, Except.bind]
   · rename_i hbf
     simp only [Bool.not_eq_true] at hbf
     rw [if_neg (by rw [← hbv, hbf]; simp)]
@@ -4376,10 +4406,17 @@ theorem check_native_tail_guards_refines {mode : env.CheckMode}
       show absExpr q.cv_ta.ty = lq.cvTa.type from by rw [← hqcv]; rfl] at habs0
     cases o with
     | none =>
+      simp only [Option.map_none] at habs0
       obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
       simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      refine errSim_internal hce rfl
+        (ls := "direct rec: type former telescope") ?_
+      rw [← habs0]
+      simp [ConLeche.unwrapOr, checkCM_throw_apply, StateT.run, Bind.bind,
+        StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure]
     | some tq =>
       simp only [Option.map_some] at habs0
       obtain ⟨htwf1, htwf2⟩ := hwf0 tq rfl
@@ -4404,7 +4441,22 @@ theorem check_native_tail_guards_refines {mode : env.CheckMode}
       obtain ⟨pq, hsorts, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨res, st1⟩ := pq
       cases res with
-      | Err err => simp at h
+      | Err err =>
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        have hkey := hfse st st1 q.env1 true false q.p.shape.res_sort
+          q.p.shape.n_p idx_fvs (alloc.vec.Vec.new expr.Expr) q.p.shape.n_idx err
+          hst hwenv hwp.2.2.2.2.1 hdwf
+          (by intro e he; simp [alloc.vec.Vec.new] at he)
+          (Scalars.u64_le_usize_max_of_le_len hnidxb) hsorts lst lq.env₁ hrel
+          hqenv
+        rw [hdabs, show absLevel q.p.shape.res_sort = lq.p.resSort from by
+            rw [← hqp]; rfl,
+          show q.p.shape.n_p.val = lq.p.nP from by rw [← hqp]; rfl,
+          show q.p.shape.n_idx.val = lq.p.nIdx from by rw [← hqp]; rfl,
+          show absExprs (alloc.vec.Vec.new expr.Expr) = [] from by
+            simp [absExprs, alloc.vec.Vec.new]] at hkey
+        exact ErrSim.bindCM hkey
       | Ok isorts =>
         obtain ⟨lst1, hrun1, hrel1, hwf1, -⟩ :=
           hfs st st1 q.env1 true false q.p.shape.res_sort q.p.shape.n_p idx_fvs
@@ -4485,10 +4537,13 @@ theorem check_native_tail_guards_refines {mode : env.CheckMode}
           split at h
           · rename_i hb2t
             rw [hb2t] at hb2v
-            have hst'e : st1 = st' := by
+            obtain ⟨hoe, hst'e⟩ :
+                (core.result.Result.Ok () : core.result.Result Unit
+                  core_types.CheckError) = outc ∧ st1 = st' := by
               have := Result.ok_injective h
               simpa using this
             subst hst'e
+            subst hoe
             refine ⟨lst1, ?_, hrel1, hwf1, hkfit⟩
             simp only [StateT.run_bind, hrun1, exceptOk_bind, ← hb1v, ← hb2v,
               if_true, StateT.run_pure]
@@ -4499,12 +4554,24 @@ theorem check_native_tail_guards_refines {mode : env.CheckMode}
             obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
             obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
             simp at h
+            obtain ⟨rfl, rfl⟩ := h
+            refine errSim_invalid hce rfl
+              (ls := "direct rec: recursor rules are not the generated ones") ?_
+            simp only [StateT.run_bind, hrun1, exceptOk_bind, ← hb1v, ← hb2v,
+              hb1t, if_true]
+            simp [checkCM_throw_apply, StateT.run, Bind.bind, StateT.bind,
+              Except.bind]
         · rename_i hb1f
           simp only [Bool.not_eq_true] at hb1f
           rw [hb1f] at hb1v
           obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
           simp at h
+          obtain ⟨rfl, rfl⟩ := h
+          refine errSim_internal hce rfl (ls := "direct rec: field kinds") ?_
+          simp only [StateT.run_bind, hrun1, exceptOk_bind, ← hb1v]
+          simp [checkCM_throw_apply, StateT.run, Bind.bind, StateT.bind,
+            Except.bind]
 
 /-- `sum_install::cons_sum_ctors` is a chain of `fenv::push`es, so it keeps the
 unrestricted-canonical pair (`FEnv.push_canon`).  `check_native_tail` needs
@@ -4714,7 +4781,8 @@ theorem check_native_tail_refines {mode : env.CheckMode}
     (hres : StructInstall.ConstsResolveFFastRefines) (hpo : ParamsOfRefines)
     (hpb : PiBindersRefines) (hop : OpenPisAtFvarsFRefines)
     (hkg : KindGetDRefines) (hro : NativeRulesOkRefines)
-    (hfs : CheckStructFieldSortsIRefines mode) (hcons : ConsSumCtorsRefines)
+    (hfs : CheckStructFieldSortsIRefines mode)
+    (hfse : CheckStructFieldSortsIErr mode) (hcons : ConsSumCtorsRefines)
     (hrhs : StructRecRhsRRefines) (hty : StructRecTyRRefines)
     (hc4 : NativeCtors4Refines) (hlpsok : NativeRecLpsOkRefines)
     (hcvr : CheckConstantValRefines mode) (hcvre : CheckConstantValErr mode)
@@ -4738,8 +4806,8 @@ theorem check_native_tail_refines {mode : env.CheckMode}
   | Ok u =>
     cases u
     obtain ⟨lst1, hrun1, hrel1, hwf1, hkfit⟩ :=
-      check_native_tail_guards_refines hw hres hpo hpb hop hkg hro hfs hst hfe hq
-        hguards lst lfe lq hrel hfer hqrel
+      check_native_tail_guards_refines hw hres hpo hpb hop hkg hro hfs hfse hst
+        hfe hq hguards lst lfe lq hrel hfer hqrel
     obtain ⟨cq, hcq, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hcrel, hcp, hccv, hcctors, hcss, hcwf, hcpwf, hccvwf, hcawf, hsswf⟩ :=
       check_native_cons_refines hcons hq hcq lq hqrel
@@ -4923,7 +4991,8 @@ theorem check_native_refines {mode : env.CheckMode}
     (hres : StructInstall.ConstsResolveFFastRefines) (hpo : ParamsOfRefines)
     (hpb : PiBindersRefines) (hop : OpenPisAtFvarsFRefines)
     (hkg : KindGetDRefines) (hro : NativeRulesOkRefines)
-    (hfs : CheckStructFieldSortsIRefines mode) (hcons : ConsSumCtorsRefines)
+    (hfs : CheckStructFieldSortsIRefines mode)
+    (hfse : CheckStructFieldSortsIErr mode) (hcons : ConsSumCtorsRefines)
     (hrhs : StructRecRhsRRefines) (hty : StructRecTyRRefines)
     (hc4 : NativeCtors4Refines) (hlpsok : NativeRecLpsOkRefines)
     (hcvr : CheckConstantValRefines mode) (hcvre : CheckConstantValErr mode)
@@ -4978,9 +5047,9 @@ theorem check_native_refines {mode : env.CheckMode}
       by_cases hb2 : b2 = true
       · simp only [hb2] at h
         obtain ⟨lst', lfe2, hrun2, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩ :=
-          check_native_tail_refines hw hres hpo hpb hop hkg hro hfs hcons hrhs hty
-            hc4 hlpsok hcvr hcvre hsr hbodies hg hwf1 hfe hqwf hqcan hqfull h lst1 lfe lq
-            hrel1 hfer hqrel
+          check_native_tail_refines hw hres hpo hpb hop hkg hro hfs hfse hcons
+            hrhs hty hc4 hlpsok hcvr hcvre hsr hbodies hg hwf1 hfe hqwf hqcan
+            hqfull h lst1 lfe lq hrel1 hfer hqrel
         refine ⟨lst', lfe2, ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
         simp only [StateT.run_bind, pure_bind, exceptOk_bind, hrun1, hb2, if_true]
         exact hrun2
@@ -5003,9 +5072,9 @@ theorem check_native_refines {mode : env.CheckMode}
           by_cases hb3 : b3 = true
           · simp only [hb3] at h
             obtain ⟨lst', lfe2, hrun3, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
-              check_native_tail_refines hw hres hpo hpb hop hkg hro hfs hcons hrhs
-                hty hc4 hlpsok hcvr hcvre hsr hbodies hg hwf2 hfe hq2wf hq2can hq2full h
-                lst2 lfe lq2 hrel2 hfer hq2rel
+              check_native_tail_refines hw hres hpo hpb hop hkg hro hfs hfse
+                hcons hrhs hty hc4 hlpsok hcvr hcvre hsr hbodies hg hwf2 hfe
+                hq2wf hq2can hq2full h lst2 lfe lq2 hrel2 hfer hq2rel
             refine ⟨lst', lfe2, ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
             simp only [StateT.run_bind, pure_bind, exceptOk_bind, hrun1, hb2]
             rw [if_neg (by simp)]
