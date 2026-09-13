@@ -204,6 +204,63 @@ private theorem provisionRecsS_cons {lmode : ConLeche.CheckMode}
     simp [Modeled.provisionRecsStepN, StateT.run, throw, throwThe,
       MonadExceptOf.throw, StateT.lift, Bind.bind, Except.bind] at h1
 
+/-- `provisionRecsS_cons`' failure halves (task #67).  The cons arm throws
+exactly what its step threw, and — the step having succeeded — exactly what its
+tail threw; the per-recursor `flushC` in front cannot throw, so the two are the
+whole of the arm's failure behaviour. -/
+private theorem provisionRecsS_cons_err {lmode : ConLeche.CheckMode}
+    {blockNames : List ConLeche.Name} {feAcc : ConLeche.FEnv}
+    {ci : ConLeche.ConstantInfo} {rest : List ConLeche.ConstantInfo}
+    {lst : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+    (h1 : (Modeled.provisionRecsStepN lmode blockNames feAcc ci).run lst.flushed
+      = .error le) :
+    (ConLeche.Cached.provisionRecsS lmode blockNames feAcc (ci :: rest)).run lst
+      = .error le := by
+  cases ci
+  case recInfo cv0 mI0 rP0 rules0 =>
+    rw [Modeled.provisionRecsStepN] at h1
+    rw [ConLeche.Cached.provisionRecsS]
+    rw [StateT.run_bind, StateC.flushC_run, NativeInstall.exceptOk_bind]
+    simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure] at h1 ⊢
+    split at h1
+    · simp only [Except.error.injEq] at h1 ⊢
+      exact h1
+    · simp at h1
+  all_goals
+    simp_all [Modeled.provisionRecsStepN, ConLeche.Cached.provisionRecsS,
+      StateT.run, throw, throwThe, MonadExceptOf.throw, StateT.lift, Bind.bind,
+      Except.bind]
+
+/-- The same at a step that succeeded and a tail that threw. -/
+private theorem provisionRecsS_cons_tail_err {lmode : ConLeche.CheckMode}
+    {blockNames : List ConLeche.Name} {feAcc fe1 : ConLeche.FEnv}
+    {ci : ConLeche.ConstantInfo} {rest : List ConLeche.ConstantInfo}
+    {cv : ConLeche.ConstantVal} {mI rP : Nat} {rules : List ConLeche.RecRule}
+    {lst lst1 : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+    (h1 : (Modeled.provisionRecsStepN lmode blockNames feAcc ci).run lst.flushed
+      = .ok ((fe1, cv, mI, rP, rules), lst1))
+    (h2 : (ConLeche.Cached.provisionRecsS lmode blockNames fe1 rest).run lst1
+      = .error le) :
+    (ConLeche.Cached.provisionRecsS lmode blockNames feAcc (ci :: rest)).run lst
+      = .error le := by
+  cases ci
+  case recInfo cv0 mI0 rP0 rules0 =>
+    rw [Modeled.provisionRecsStepN] at h1
+    rw [ConLeche.Cached.provisionRecsS]
+    rw [StateT.run_bind, StateC.flushC_run, NativeInstall.exceptOk_bind]
+    simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure] at h1 h2 ⊢
+    split at h1
+    · simp at h1
+    · rename_i v heq
+      simp only [Except.ok.injEq, Prod.mk.injEq] at h1
+      obtain ⟨⟨rfl, rfl, rfl, rfl, rfl⟩, rfl⟩ := h1
+      rw [h2]
+  all_goals
+    simp [Modeled.provisionRecsStepN, StateT.run, throw, throwThe,
+      MonadExceptOf.throw, StateT.lift, Bind.bind, Except.bind] at h1
+
 set_option linter.unusedSimpArgs false in
 /-- **The cited recursor group is the guards, the phase and the fold around one
 `flushC`.**  `Refine/IndModeled.lean`'s `checkIndRecsFoldN` is the fold and its
@@ -634,31 +691,36 @@ private theorem provision_recs_s_val
     {fe_acc : fenv.FEnv} {recs : alloc.vec.Vec env.ConstantInfo} {i : Std.Usize}
     {out : alloc.vec.Vec (env.ConstantVal × Std.U64 × Std.U64
       × alloc.vec.Vec env.RecRule)}
-    {q : fenv.FEnv × alloc.vec.Vec (env.ConstantVal × Std.U64 × Std.U64
-      × alloc.vec.Vec env.RecRule)}
+    {oq : core.result.Result (fenv.FEnv × alloc.vec.Vec (env.ConstantVal × Std.U64
+      × Std.U64 × alloc.vec.Vec env.RecRule)) core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe_acc) (hbn : NamesWF block_names)
     (hrecs : ConstantInfosWF recs)
     (h : inductives.inductives_c.provision_recs_s mode st block_names fe_acc recs
-        i out = ok (.Ok q, st')) :
+        i out = ok (oq, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe_acc lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.provisionRecsS (absMode mode) (absNames block_names) lfe
-            ((absConstantInfos recs).drop i.val)).run lst
-          = .ok ((lfe', absCheckedRecs q.2 |>.drop (absCheckedRecs out).length),
-              lst')
-        ∧ absCheckedRecs q.2 = absCheckedRecs out
-            ++ (absCheckedRecs q.2).drop (absCheckedRecs out).length
-        ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1
-        ∧ ((∀ c ∈ out.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2) →
-            ∀ c ∈ q.2.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2) := by
+      match oq with
+      | .Ok q =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.provisionRecsS (absMode mode) (absNames block_names) lfe
+              ((absConstantInfos recs).drop i.val)).run lst
+            = .ok ((lfe', absCheckedRecs q.2 |>.drop (absCheckedRecs out).length),
+                lst')
+          ∧ absCheckedRecs q.2 = absCheckedRecs out
+              ++ (absCheckedRecs q.2).drop (absCheckedRecs out).length
+          ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1
+          ∧ ((∀ c ∈ out.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2) →
+              ∀ c ∈ q.2.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2)
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.provisionRecsS (absMode mode)
+          (absNames block_names) lfe ((absConstantInfos recs).drop i.val)).run lst) := by
   generalize hd : recs.length - i.val = d
-  induction d using Nat.strong_induction_on generalizing st fe_acc i out q with
+  induction d using Nat.strong_induction_on generalizing st fe_acc i out oq with
   | _ d ih =>
     intro lst lfe hrel hfer
     rw [inductives.inductives_c.provision_recs_s] at h
     split at h
     · rename_i hge
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       have hnil : (absConstantInfos recs).drop i.val = [] := by
         apply List.drop_eq_nil_of_le
@@ -677,10 +739,24 @@ private theorem provision_recs_s_val
       subst hyv
       simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
       have hciwf : ConstantInfoWF recs.val[i.val] := hrecs _ (List.getElem_mem hlt)
+      have hlt2 : i.val < (absConstantInfos recs).length := by
+        simpa [absConstantInfos] using hlt
+      have hcons : (absConstantInfos recs).drop i.val
+          = absConstantInfo recs.val[i.val]
+            :: (absConstantInfos recs).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt2]; simp [absConstantInfos]
       obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r, st2⟩ := p
       cases r with
-      | Err err => simp at h
+      | Err err =>
+        -- the step threw: the cons arm throws it, past its own flush
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        have hstep :=
+          Modeled.provision_recs_step_refines hw (IndIngredients.checkerBaseSpec hw)
+            hwff hfe hbn hciwf hp lst.flushed lfe hrelf hfer
+        rw [hcons]
+        exact hstep.trans fun le hle => provisionRecsS_cons_err hle
       | Ok q0 =>
         obtain ⟨fe1, cv, mi, rp, rules⟩ := q0
         obtain ⟨lst1, lfe1, hrun1, hrel1, hprel1, hwf1, hpwf1, hcvwf, hruleswf⟩ :=
@@ -698,40 +774,42 @@ private theorem provision_recs_s_val
           · simp only [List.mem_singleton] at hc
             subst hc
             exact ⟨hcvwf, hruleswf⟩
-        obtain ⟨lst', lfe', hrunT, hdrop, hrel', hprel', hwf', hpwf', hqwf⟩ :=
+        have htail :=
           ih (recs.length - i4.val) (by scalar_tac) hwf1 hpwf1 h rfl lst1 lfe1
             hrel1 hprel1
-        rw [hi4v] at hrunT
         have hout1v : absCheckedRecs out1
             = absCheckedRecs out
               ++ [(absConstantVal cv, mi.val, rp.val, absRecRules rules)] := by
           rw [absCheckedRecs, vec_push_val hout1, List.map_append]
           rfl
-        have hlt2 : i.val < (absConstantInfos recs).length := by
-          simpa [absConstantInfos] using hlt
-        have hcons : (absConstantInfos recs).drop i.val
-            = absConstantInfo recs.val[i.val]
-              :: (absConstantInfos recs).drop (i.val + 1) := by
-          rw [List.drop_eq_getElem_cons hlt2]; simp [absConstantInfos]
-        rw [hout1v] at hdrop hrunT
-        simp only [List.length_append, List.length_cons, List.length_nil,
-          Nat.zero_add] at hdrop hrunT
-        have hkey : (absCheckedRecs q.2).drop (absCheckedRecs out).length
-            = (absConstantVal cv, mi.val, rp.val, absRecRules rules)
-              :: (absCheckedRecs q.2).drop ((absCheckedRecs out).length + 1) := by
-          conv_lhs => rw [hdrop]
-          rw [show (absCheckedRecs out).length
-              = (absCheckedRecs out
-                ++ [(absConstantVal cv, mi.val, rp.val,
-                    absRecRules rules)]).length - 1 by simp]
-          simp
-        refine ⟨lst', lfe', ?_, ?_, hrel', hprel', hwf', hpwf',
-          fun hout => hqwf (hout1wf hout)⟩
-        · rw [hcons, hkey]
-          exact provisionRecsS_cons hrun1 hrunT
-        · rw [hkey]
-          conv_lhs => rw [hdrop]
-          simp
+        cases oq with
+        | Err e =>
+          -- the tail threw, and the step's success carries it to the whole arm
+          rw [hi4v] at htail
+          rw [hcons]
+          exact htail.trans fun le hle => provisionRecsS_cons_tail_err hrun1 hle
+        | Ok q =>
+          obtain ⟨lst', lfe', hrunT, hdrop, hrel', hprel', hwf', hpwf', hqwf⟩ := htail
+          rw [hi4v] at hrunT
+          rw [hout1v] at hdrop hrunT
+          simp only [List.length_append, List.length_cons, List.length_nil,
+            Nat.zero_add] at hdrop hrunT
+          have hkey : (absCheckedRecs q.2).drop (absCheckedRecs out).length
+              = (absConstantVal cv, mi.val, rp.val, absRecRules rules)
+                :: (absCheckedRecs q.2).drop ((absCheckedRecs out).length + 1) := by
+            conv_lhs => rw [hdrop]
+            rw [show (absCheckedRecs out).length
+                = (absCheckedRecs out
+                  ++ [(absConstantVal cv, mi.val, rp.val,
+                      absRecRules rules)]).length - 1 by simp]
+            simp
+          refine ⟨lst', lfe', ?_, ?_, hrel', hprel', hwf', hpwf',
+            fun hout => hqwf (hout1wf hout)⟩
+          · rw [hcons, hkey]
+            exact provisionRecsS_cons hrun1 hrunT
+          · rw [hkey]
+            conv_lhs => rw [hdrop]
+            simp
 
 /-- `ConLeche/Cached/CheckerC.lean:115-129` — `provision_recs_s` refines
 `provisionRecsS`: **one flush per recursor** before its constant is checked,
@@ -743,26 +821,34 @@ theorem provision_recs_s_refines
     {fe_acc : fenv.FEnv} {recs : alloc.vec.Vec env.ConstantInfo} {i : Std.Usize}
     {out : alloc.vec.Vec (env.ConstantVal × Std.U64 × Std.U64
       × alloc.vec.Vec env.RecRule)}
-    {q : fenv.FEnv × alloc.vec.Vec (env.ConstantVal × Std.U64 × Std.U64
-      × alloc.vec.Vec env.RecRule)}
+    {oq : core.result.Result (fenv.FEnv × alloc.vec.Vec (env.ConstantVal × Std.U64
+      × Std.U64 × alloc.vec.Vec env.RecRule)) core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe_acc) (hbn : NamesWF block_names)
     (hrecs : ConstantInfosWF recs)
     (h : inductives.inductives_c.provision_recs_s mode st block_names fe_acc recs
-        i out = ok (.Ok q, st')) :
+        i out = ok (oq, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe_acc lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.provisionRecsS (absMode mode) (absNames block_names) lfe
-            ((absConstantInfos recs).drop i.val)).run lst
-          = .ok ((lfe', absCheckedRecs q.2 |>.drop (absCheckedRecs out).length),
-              lst')
-        ∧ absCheckedRecs q.2 = absCheckedRecs out
-            ++ (absCheckedRecs q.2).drop (absCheckedRecs out).length
-        ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1 := by
+      match oq with
+      | .Ok q =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.provisionRecsS (absMode mode) (absNames block_names) lfe
+              ((absConstantInfos recs).drop i.val)).run lst
+            = .ok ((lfe', absCheckedRecs q.2 |>.drop (absCheckedRecs out).length),
+                lst')
+          ∧ absCheckedRecs q.2 = absCheckedRecs out
+              ++ (absCheckedRecs q.2).drop (absCheckedRecs out).length
+          ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.provisionRecsS (absMode mode)
+          (absNames block_names) lfe ((absConstantInfos recs).drop i.val)).run lst) := by
   -- the index recursion over `recs`, one flush plus `provision_recs_step` a step
   intro lst lfe hrel hfer
-  obtain ⟨lst', lfe', a, b, c, d, e, f, _⟩ :=
-    provision_recs_s_val hw hst hfe hbn hrecs h lst lfe hrel hfer
-  exact ⟨lst', lfe', a, b, c, d, e, f⟩
+  have hv := provision_recs_s_val hw hst hfe hbn hrecs h lst lfe hrel hfer
+  cases oq with
+  | Err e => exact hv
+  | Ok q =>
+    obtain ⟨lst', lfe', a, b, c, d, e, f, _⟩ := hv
+    exact ⟨lst', lfe', a, b, c, d, e, f⟩
 
 /-- `ConLeche/Cached/CheckerC.lean:131-151` — `check_ind_recs_s` refines
 `checkIndRecsS`: **all iota-rule checks run at `envSelf`** — one flush entering
