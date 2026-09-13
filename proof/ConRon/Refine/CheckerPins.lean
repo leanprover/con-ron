@@ -4343,6 +4343,113 @@ private theorem certify_nat_eqs_step {mode : env.CheckMode} {fuel : Std.U64}
       (by omega) hsw h lst lfe lenv hsr hfr
   exact ⟨lst', by simpa using hrun, rest⟩
 
+/-- The **failure half** of `certify_nat_eqs_val_step` (task #67).
+`certifyNatEqs` has no `throw` of its own — a mismatched equation is `pure
+false`, not an error — so every mirrored failure of the port's fold is the
+step's `is_def_eq_core`, and move 1 carries it through the cited `do`. -/
+private theorem certify_nat_eqs_err_val_step {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {fe : fenv.FEnv} {eqs : alloc.vec.Vec (expr.Expr × expr.Expr)}
+    (hfw : FEnvWF fe) (heq : ∀ p ∈ eqs.val, ExprWF p.1 ∧ ExprWF p.2) (n : Nat) :
+    ∀ (st st' : cached.state_c.CState) (i : Std.Usize)
+      (ce : core_types.CheckError),
+      eqs.val.length - i.val ≤ n → StateWF st →
+      kernel.checker.certify_nat_eqs_from mode st fe eqs i = ok (.Err ce, st') →
+      ∀ lst lfe (lenv : ConLeche.Env), StateRel st lst → FEnvRel fe lfe →
+        ErrSim ce
+          ((ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lenv
+              ((eqs.val.drop i.val).map (fun p => (absExpr p.1, absExpr p.2)))).run lst) := by
+  induction n with
+  | zero =>
+    intro st st' i ce hb hsw h lst lfe lenv hsr hfr
+    rw [kernel.checker.certify_nat_eqs_from] at h
+    rw [if_pos (show i >= alloc.vec.Vec.len eqs by
+      have := alloc.vec.Vec.len_val eqs; scalar_tac)] at h
+    simp at h
+  | succ n ih =>
+    intro st st' i ce hb hsw h lst lfe lenv hsr hfr
+    rw [kernel.checker.certify_nat_eqs_from] at h
+    by_cases hge : i.val >= eqs.val.length
+    · rw [if_pos (show i >= alloc.vec.Vec.len eqs by
+        have := alloc.vec.Vec.len_val eqs; scalar_tac)] at h
+      simp at h
+    · rw [if_neg (show ¬ (i >= alloc.vec.Vec.len eqs) by
+        have := alloc.vec.Vec.len_val eqs; scalar_tac)] at h
+      obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨e1, e2⟩ := q
+      have hmem : (e1, e2) ∈ eqs.val :=
+        List.mem_of_getElem? (ExprOps.vec_index_getElem? hq)
+      obtain ⟨hw1, hw2⟩ := heq (e1, e2) hmem
+      have hlen : i.val < eqs.val.length := by omega
+      have hdrop : eqs.val.drop i.val = (e1, e2) :: eqs.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlen]
+        congr 1
+        have h1 : eqs.val[i.val]? = some (e1, e2) := ExprOps.vec_index_getElem? hq
+        rw [List.getElem?_eq_getElem hlen] at h1
+        exact Option.some_inj.mp h1
+      obtain ⟨q2, hdef, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r, st1⟩ := q2
+      cases r with
+      | Err e =>
+        -- move 1: the equation's comparison threw
+        have herr : ErrSim e ((ConLeche.Cached.opB (absMode mode) lfe 2
+            (absExpr e1) (absExpr e2)).run lst) :=
+          (TypeChecker.is_def_eq_core_refines hfuel hk).err st fe 2#u64 e1 e2 e st1
+            hsw hfw hw1 hw2 hdef lst lfe hsr hfr
+        have hbs : e = ce ∧ st1 = st' := by simpa using h
+        obtain ⟨rfl, rfl⟩ := hbs
+        rw [hdrop]
+        simp only [List.map_cons, ConLeche.certifyNatEqs, StateT.run_bind,
+          TypeChecker.sharedOpsC_isDefEq]
+        exact ErrSim.bind herr _
+      | Ok ok1 =>
+        obtain ⟨lst1, hrun, hsr1, hsw1⟩ :=
+          (TypeChecker.is_def_eq_core_refines hfuel hk).ok st fe 2#u64 e1 e2 ok1 st1
+            hsw hfw hw1 hw2 hdef lst lfe hsr hfr
+        have hrun2 : (ConLeche.Cached.opB (absMode mode) lfe 2
+            (absExpr e1) (absExpr e2)).run lst = .ok (ok1, lst1) := hrun
+        have hstep : (ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lenv
+              ((eqs.val.drop i.val).map (fun p => (absExpr p.1, absExpr p.2)))).run lst
+            = (if ok1 then
+                (ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lenv
+                  ((eqs.val.drop (i.val + 1)).map (fun p => (absExpr p.1, absExpr p.2)))).run lst1
+              else .ok (false, lst1)) := by
+          simp only [hdrop, List.map_cons, ConLeche.certifyNatEqs, StateT.run_bind,
+            TypeChecker.sharedOpsC_isDefEq, hrun2]
+          cases ok1 <;> simp [List.map_drop] <;> rfl
+        cases ok1 with
+        | false => simp at h
+        | true =>
+          obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+          have hi2v : i2.val = i.val + 1 := by
+            have he := Std.UScalar.add_equiv i 1#usize
+            rw [hi2] at he
+            simpa using he.2.1
+          have herr := ih st1 st' i2 ce (by omega) hsw1 h lst1 lfe lenv hsr1 hfr
+          rw [hi2v] at herr
+          rw [hstep]
+          simpa using herr
+
+/-- The failure half of `certify_nat_eqs_step`, at the bound the `Vec`
+supplies. -/
+private theorem certify_nat_eqs_err_step {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
+    {eqs : alloc.vec.Vec (expr.Expr × expr.Expr)} {ce : core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe)
+    (heq : ∀ p ∈ eqs.val, ExprWF p.1 ∧ ExprWF p.2)
+    (h : checker.certify_nat_eqs mode st fe eqs = ok (.Err ce, st')) :
+    ∀ lst lfe (lenv : ConLeche.Env), StateRel st lst → FEnvRel fe lfe →
+      ErrSim ce
+        ((ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lenv
+            (eqs.val.map (fun p => (absExpr p.1, absExpr p.2)))).run lst) := by
+  intro lst lfe lenv hsr hfr
+  rw [checker.certify_nat_eqs] at h
+  have herr :=
+    certify_nat_eqs_err_val_step hfuel hk hfw heq eqs.val.length st st' 0#usize ce
+      (by omega) hsw h lst lfe lenv hsr hfr
+  simpa using herr
+
 /-! ### `checker::nat_eqs_subst` — the cited `List.map` -/
 
 /-- `con-leche: none` — the equation table's substitution
@@ -4424,6 +4531,35 @@ theorem nat_eqs_subst_refines {n : name.Name} {value2 : expr.Expr}
 
 /-! ### The structural-`Nat` gate (`checker.rs:1359-1393`) -/
 
+/-- `ConLeche/Cached/ParsedC.lean:165-181`, `ConLeche/Kernel/Checker.lean:436-450`
+— **`checkDecl`'s inlined structural-`Nat` block, named**.  The cited Lean has
+no function for it (it is three statements inside the `.defnDecl` arm), which is
+what makes the accept direction below a conjunction of facts rather than one
+refinement; the *failure* direction needs a computation to point at, so the
+block is spelled out here, clause for clause, and is the con-leche side of
+`checker::check_structural_nat_pin`'s three `throw`s.
+
+`lenv` is a parameter because `certifyNatEqs`' `Env` argument is dead at
+`sharedOpsC` (`certifyNatEqs_env_congr`, task #24's note 3), and `ops` because
+the cited block runs it at the *pre-insertion* index while the guards read the
+extended one. -/
+def structuralNatBlockF (ops : ConLeche.CheckerOps ConLeche.Cached.CheckCM)
+    (lfe2 : ConLeche.FEnv) (lenv : ConLeche.Env) (c : ConLeche.Name) :
+    ConLeche.Cached.CheckCM Unit := do
+  unless ConLeche.natOpGuardF lfe2 c
+      && (ConLeche.natOpDeps c).all (ConLeche.natOpStoredOkF lfe2) do
+    throw (.notImplemented
+      s!"nonstandard structural Nat operation environment ({c})")
+  match lfe2.find? c with
+  | some (.defnInfo _ value' _) =>
+    let ok ← ConLeche.certifyNatEqs ops lenv
+      ((ConLeche.natOpEquations 0 c).map fun eq =>
+        (ConLeche.Expr.substConst0 c value' eq.1,
+         ConLeche.Expr.substConst0 c value' eq.2))
+    unless ok do
+      throw (.notImplemented s!"nonstandard structural Nat operation ({c})")
+  | _ => throw (.internal s!"structural Nat operation not stored ({c})")
+
 /-- `ConLeche/Kernel/Checker.lean:419-562 checkDecl`'s inlined structural-`Nat`
 block, `ConLeche/Cached/ParsedC.lean:164-181` at the index —
 **`checker::check_structural_nat_pin` refines it**: the operation and its
@@ -4440,30 +4576,46 @@ universally quantified because `certifyNatEqs`' `Env` argument is dead
 (task #24's note 3).  The last conjunct, `fe' = fe2`, is the `restrict_to`
 round trip: the gate hands the index back exactly as it got it (§2's
 visibility-bound note), which is what lets a caller carry a `*Spec` about
-`fe2` past it. -/
+`fe2` past it.
+
+**The whole outcome** (task #67, DESIGN.md §3's ruling of 2026-09-13): the
+failure arm is stated over `structuralNatBlockF`, the cited block named.  All
+three of the gate's `throw`s are mirrored — the guard cascade's
+`notImplemented` (two Rust arms, one con-leche `unless A ∧ B`, the census's
+split case), the missing stored definition's `internal`, and the failed
+certification's `notImplemented` — and the certification's own failures are
+move 1 through `certify_nat_eqs_err_step`. -/
 theorem check_structural_nat_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
-    {st st' : cached.state_c.CState} {fe2 fe' : fenv.FEnv} {k_pre : Std.U64}
+    {st st' : cached.state_c.CState} {fe2 : fenv.FEnv} {k_pre : Std.U64}
     {n : name.Name}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe2) (hn : NameWF n)
     (h : checker.check_structural_nat_pin mode st fe2 k_pre n
-      = ok (.Ok fe', st')) :
+      = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe2 lfe →
-      ConLeche.natOpGuardF lfe (absName n) = true
-      ∧ ((ConLeche.natOpDeps (absName n)).all
-          (ConLeche.natOpStoredOkF lfe)) = true
-      ∧ (∃ (cvL : ConLeche.ConstantVal) (value' : ConLeche.Expr)
-           (hintL : ConLeche.ReducibilityHint) (lst' : ConLeche.Cached.CState),
-          lfe.find? (absName n) = some (.defnInfo cvL value' hintL)
-          ∧ (∀ lenv : ConLeche.Env,
-              (ConLeche.certifyNatEqs
-                  (TypeChecker.lops mode (lfe.restrictTo k_pre.val)) lenv
-                  ((ConLeche.natOpEquations 0 (absName n)).map fun eq =>
-                    (ConLeche.Expr.substConst0 (absName n) value' eq.1,
-                     ConLeche.Expr.substConst0 (absName n) value' eq.2))).run lst
-                = .ok (true, lst'))
-          ∧ StateRel st' lst' ∧ StateWF st')
-      ∧ FEnvRel fe' lfe ∧ FEnvWF fe' ∧ fe' = fe2 := by
+      match out with
+      | .Ok fe' =>
+        ConLeche.natOpGuardF lfe (absName n) = true
+        ∧ ((ConLeche.natOpDeps (absName n)).all
+            (ConLeche.natOpStoredOkF lfe)) = true
+        ∧ (∃ (cvL : ConLeche.ConstantVal) (value' : ConLeche.Expr)
+             (hintL : ConLeche.ReducibilityHint) (lst' : ConLeche.Cached.CState),
+            lfe.find? (absName n) = some (.defnInfo cvL value' hintL)
+            ∧ (∀ lenv : ConLeche.Env,
+                (ConLeche.certifyNatEqs
+                    (TypeChecker.lops mode (lfe.restrictTo k_pre.val)) lenv
+                    ((ConLeche.natOpEquations 0 (absName n)).map fun eq =>
+                      (ConLeche.Expr.substConst0 (absName n) value' eq.1,
+                       ConLeche.Expr.substConst0 (absName n) value' eq.2))).run lst
+                  = .ok (true, lst'))
+            ∧ StateRel st' lst' ∧ StateWF st')
+        ∧ FEnvRel fe' lfe ∧ FEnvWF fe' ∧ fe' = fe2
+      | .Err e =>
+        ∀ lenv : ConLeche.Env,
+          ErrSim e ((structuralNatBlockF
+              (TypeChecker.lops mode (lfe.restrictTo k_pre.val)) lfe lenv
+              (absName n)).run lst) := by
   intro lst lfe hsr hfr
   have hfa : FindAgree fe2 lfe := FindAgree.of_rel hfr hfw
   have hfwf : FindWF fe2 := FindWF.of_wf hfw
@@ -4477,8 +4629,17 @@ theorem check_structural_nat_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
     CoreK.pinned_bool_false_name hb
   cases b with
   | false =>
+    -- the operation's own guard declined: the cited `unless natOpGuardF && …`
     simp only [Bool.false_eq_true, if_false] at h
-    exact (err_tail_ne_ok h).elim
+    simp at h
+    obtain ⟨vv, hvv, ce0, hce0, rfl, rfl⟩ := h
+    have hce : ce0 = core_types.CheckError.NotImplemented vv :=
+      not_implemented_inv hce0
+    subst hce
+    intro lenv
+    simp only [structuralNatBlockF, ← hbv, Bool.false_and, Bool.false_eq_true,
+      if_false, StateT.run_bind]
+    exact ErrSim.notImplemented rfl
   | true =>
     simp only [if_true] at h
     obtain ⟨deps, hdeps, h⟩ := bind_eq_ok_iff.mp h
@@ -4491,14 +4652,46 @@ theorem check_structural_nat_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
     rw [hdabs] at hb1v
     cases b1 with
     | false =>
+      -- a dependency is not stored in the pinned shape: the same cited `throw`,
+      -- the second conjunct of the one `unless`
       simp only [Bool.false_eq_true, if_false] at h
-      exact (err_tail_ne_ok h).elim
+      simp at h
+      obtain ⟨vv, hvv, ce0, hce0, rfl, rfl⟩ := h
+      have hce : ce0 = core_types.CheckError.NotImplemented vv :=
+        not_implemented_inv hce0
+      subst hce
+      intro lenv
+      simp only [structuralNatBlockF, ← hbv, ← hb1v, Bool.true_and,
+        Bool.false_eq_true, if_false, StateT.run_bind]
+      exact ErrSim.notImplemented rfl
     | true =>
       simp only [if_true] at h
       obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨hpabs, hpwf⟩ := CoreK.defn_probe_refines hfa hfwf hn hprobe
       cases o with
-      | none => exact (err_tail_ne_ok h).elim
+      | none =>
+        -- the probe missed: the cited `match` takes its catch-all arm and both
+        -- sides throw `internal`
+        simp at h
+        obtain ⟨vv, hvv, ce0, hce0, rfl, rfl⟩ := h
+        have hce : ce0 = core_types.CheckError.Internal vv := internal_inv hce0
+        subst hce
+        intro lenv
+        simp only [Option.map_none] at hpabs
+        simp only [structuralNatBlockF, ← hbv, ← hb1v, Bool.and_self, if_true,
+          pure_bind]
+        cases hf : lfe.find? (absName n) with
+        | none => exact ErrSim.internal rfl
+        | some ci =>
+          rw [hf] at hpabs
+          cases ci with
+          | defnInfo cv1 v1 h1 => simp [CoreK.defnOf] at hpabs
+          | axiomInfo cv1 => exact ErrSim.internal rfl
+          | thmInfo cv1 v1 => exact ErrSim.internal rfl
+          | indInfo cv1 c1 => exact ErrSim.internal rfl
+          | ctorInfo cv1 a1 b1 => exact ErrSim.internal rfl
+          | recInfo cv1 a1 b1 r1 => exact ErrSim.internal rfl
+          | projInfo t1 => exact ErrSim.internal rfl
       | some t =>
         obtain ⟨cv, value2, hint⟩ := t
         obtain ⟨-, hvwf⟩ := hpwf cv value2 hint rfl
@@ -4523,21 +4716,46 @@ theorem check_structural_nat_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
         obtain ⟨heqvabs, heqvwf⟩ := nat_eqs_subst_refines hn hvwf heqtwf heqv
         have hfprel : FEnvRel fp (lfe.restrictTo k_pre.val) := restrict_to_refines hfr hfp
         have hfpwf : FEnvWF fp := restrict_to_wf hfw hfp
+        have hmap : eqv.val.map (fun q => (absExpr q.1, absExpr q.2))
+            = (ConLeche.natOpEquations 0 (absName n)).map (fun eq =>
+                (ConLeche.Expr.substConst0 (absName n) (absExpr value2) eq.1,
+                 ConLeche.Expr.substConst0 (absName n) (absExpr value2) eq.2)) := by
+          rw [show ((0#u64 : Std.U64)).val = 0 from rfl] at heqtabs
+          rw [heqvabs, ← heqtabs, List.map_map]; rfl
         cases res with
-        | Err e => simp at h
+        | Err e =>
+          -- move 1: the certification threw
+          simp at h
+          obtain ⟨rfl, rfl⟩ := h
+          intro lenv
+          have herr := certify_nat_eqs_err_step hfuel hk hsw hfpwf heqvwf hcert lst
+            (lfe.restrictTo k_pre.val) lenv hsr hfprel
+          rw [hmap] at herr
+          simp only [structuralNatBlockF, ← hbv, ← hb1v, Bool.and_self, if_true,
+            StateT.run_bind, pure_bind, hfind]
+          exact ErrSim.bind herr _
         | Ok ok1 =>
           cases ok1 with
-          | false => simp at h
+          | false =>
+            -- an equation did not certify: the cited `unless ok do throw`
+            simp at h
+            obtain ⟨vv, hvv, ce0, hce0, rfl, rfl⟩ := h
+            have hce : ce0 = core_types.CheckError.NotImplemented vv :=
+              not_implemented_inv hce0
+            subst hce
+            intro lenv
+            obtain ⟨lstC, hrunC, hsrC, hswC⟩ :=
+              certify_nat_eqs_step hfuel hk hsw hfpwf heqvwf hcert lst
+                (lfe.restrictTo k_pre.val) lenv hsr hfprel
+            rw [hmap] at hrunC
+            simp only [structuralNatBlockF, ← hbv, ← hb1v, Bool.and_self, if_true,
+              StateT.run_bind, pure_bind, except_ok_bind, hfind,
+              hrunC, Bool.false_eq_true, if_false]
+            exact ErrSim.notImplemented rfl
           | true =>
             obtain ⟨lstC, hrunC, hsrC, hswC⟩ :=
               certify_nat_eqs_step hfuel hk hsw hfpwf heqvwf hcert lst
                 (lfe.restrictTo k_pre.val) lfe.env hsr hfprel
-            have hmap : eqv.val.map (fun q => (absExpr q.1, absExpr q.2))
-                = (ConLeche.natOpEquations 0 (absName n)).map (fun eq =>
-                    (ConLeche.Expr.substConst0 (absName n) (absExpr value2) eq.1,
-                     ConLeche.Expr.substConst0 (absName n) (absExpr value2) eq.2)) := by
-              rw [show ((0#u64 : Std.U64)).val = 0 from rfl] at heqtabs
-              rw [heqvabs, ← heqtabs, List.map_map]; rfl
             rw [hmap] at hrunC
             simp at h
             obtain ⟨rfl, rfl⟩ := h
