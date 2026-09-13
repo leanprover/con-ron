@@ -1,30 +1,42 @@
 //! `ConLeche/Frontend/ExportC.lean` — the **semantic layer** of the parse:
 //! `apply_line` resolves a scanned record's stream indices against the parse
-//! tables, builds the `Name`/`Level`/`Expr` nodes through con-ron-core's smart
-//! constructors, and runs the taint policy, the prelude dedupe, the
-//! projection rewrite and (in con-leche) the in-process modeller.
+//! tables and builds the `Name`/`Level`/`Expr` nodes through con-ron-core's
+//! smart constructors.
 //!
 //! The export's `ie`-indices *are* the sharing: the format already
 //! externalises exactly the DAG structure an arena would reconstruct, so the
 //! parse keeps a stream-index-keyed table of `Expr` **values** and a table hit
 //! is a shared node by reference (an `Rc` clone).  Nothing rebuilds a term.
 //!
-//! **Three pure transformations of the parsed list happen here**, below the
-//! verified fold — the fold sees their result as an ordinary list of records,
-//! and the main theorem quantifies over that list: the built-in prelude
-//! (`push_decl`), the ground hoist (`nat_op_ground`, applied by
-//! `parse_result_of_state`), and the projection-function rewrite
-//! (`proj_rec`).
+//! **THE DECODER EMITS THE FILE'S RECORDS AND NOTHING ELSE** (con-leche task
+//! #293).  Every inductive block parses to an `IndDecl` — `Nat` and `Eq` like
+//! any other — and every `#QUOT` record to a `QuotDecl` carrying the constant
+//! the file declares at the kind it declares it at.  No basis recognition, no
+//! reserved-name logic, no prelude, no dedupe and no reordering happen here:
+//! the checker's own prelude is put in front, the pinned shapes are recognised
+//! and the pinned `Nat` operations' ground is hoisted by
+//! `crate::frontend::prepare`, between this parse and the fold, and every
+//! VERDICT — a basis redefinition, a quotient mismatch, a stream copy of a
+//! prelude record that differs — is the fold's.
 //!
-//! ## The in-process modeller (task #39)
+//! **Two non-decoding steps are left here**, and both die with the in-process
+//! modeller (con-leche task #279):
 //!
-//! con-leche generates a `_model` family for every **mutual or nested**
-//! inductive block at parse time and pushes it ahead of the block, which then
-//! installs through the modeled route.  `process_line_core_d` does that here:
-//! at the point `InModel.wants` (ported as `in_model_wants`) says yes it
-//! builds the `BlockRec` (`block_rec_of`), calls `in_model::generate`, pushes
-//! the records it returns through `push_gen_d` and books each of them with
-//! `note_gen_names`, and only then pushes the block.  A generator decline is
+//! * **the projection-function rewrite** (`crate::frontend::proj_rec`), the
+//!   one surface rewrite this parse performs on a definition record: a
+//!   projection function `fun p⃗ self => .proj T i self` of a structure-like
+//!   owner the direct install does not serve is replaced, before it reaches
+//!   the checker, by the recursor application that module documents.  Two
+//!   bookkeeping tables feed it — `proj_owners` and `proj_levels`;
+//! * **the in-process modeller** (`crate::in_model`): a mutual or nested
+//!   block's `_model` family is generated here and pushed ahead of the block.
+//!
+//! ## The in-process modeller
+//!
+//! `install_ind_d` does that at the point `in_model_wants` says yes: it builds
+//! the `BlockRec` (`block_rec_of`), calls `in_model::generate`, pushes the
+//! records it returns through `push_gen_list` — which books each of them with
+//! `note_gen_names` — and only then pushes the block.  A generator decline is
 //! the run's decline, naming the class.
 //!
 //! Three `StateD` fields exist for it and for nothing else — `const_types`
@@ -43,6 +55,17 @@
 //! pushes the block bare instead of declining the parse, so one parse lists
 //! every block's outcome.
 //!
+//! ## Two parser tightenings (con-leche task #290)
+//!
+//! * **an index is bound once**: a line that binds a table index a previous
+//!   line already bound is a parse error (`rebound_error`, the three
+//!   `st_fresh_*` tests).  What the rule buys is the one property a theorem
+//!   about the FILE needs of the tables — the entry a line bound is the entry
+//!   every later line reads, whatever else the file holds;
+//! * **the size guard**: the byte reader addresses its buffer by machine
+//!   word, so an input of `USize.size` bytes or more is refused before any of
+//!   it is read (`size_error`, and the running `total` the chunk step carries).
+//!
 //! ## Other deviations
 //!
 //! * `M (StateD ⊕ RecordVerdict)` becomes `Result<(), LineErr>` over a
@@ -50,10 +73,16 @@
 //!   sum, and the state threaded by mutable reference instead of returned.
 //!   con-leche threads it linearly for the same reason Rust's `&mut` gives
 //!   for free (`ExportC.lean`'s task-#78 note: a handler that closes over the
-//!   state holds it at RC 2 and every insert inside copies it).
-//! * `PreludeIx.byName` maps a `Name` to the prelude record's **index** in
-//!   `decls`, not to the record: `DeclC` derives nothing, `Clone` included
-//!   (task #10's note), so a map of records would need a copy.
+//!   state holds it at RC 2 and every insert inside copies it).  The two
+//!   `LineErr` arms become `(CheckError, line)` at the two call sites that
+//!   know the line (`apply_final_line`, `feed_chunk`).
+//! * `IdTable.bound` has no counterpart in `scan_types` (it arrived with
+//!   con-leche task #290 and its only consumers are the three tests below), so
+//!   the three read the table through `id_table_get(…).is_some()` —
+//!   `IdTable.bound_eq`, which con-leche proves beside the definition.
+//!   con-leche writes the test against a BORROWED state because an owned one
+//!   made its compiler project and `inc` every field before the test; `&StateD`
+//!   is that, by construction.
 //! * `feed_chunk` and `parse_export_handle_d` read `&[u8]` slices of a
 //!   `Vec<u8>` buffer rather than a `ByteArray`; the chunk size, the carried
 //!   tail and the "position 0 means an incomplete tail" contract are
@@ -62,10 +91,13 @@
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
 
-use con_ron_core::cached::parsed_c::DeclC;
-use con_ron_core::kernel::basis_names as bnm;
+use con_ron_core::kernel::basis_raw;
+use con_ron_core::kernel::core_types;
+use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::env;
-use con_ron_core::kernel::env::{BasisKind, ConstantInfo, ConstantVal, ReducibilityHint};
+use con_ron_core::kernel::env::{
+    ConstantInfo, ConstantVal, Declaration, QuotKind, ReducibilityHint,
+};
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::{Expr, ExprKind};
 use con_ron_core::kernel::expr_ops;
@@ -75,30 +107,25 @@ use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::{Name, NameKind};
 use con_ron_core::kernel::prop_when;
 use con_ron_core::kernel::prop_when::PropWhen;
-use con_ron_core::kernel::std_axioms;
 
-use crate::frontend::basis_raw;
-use crate::frontend::export::{
-    canon_eq_list, constant_info_canon_eq, constant_val_canon_eq, name_str, FrontendError,
-    RecordVerdict, TAINT_SENTINEL,
-};
-use crate::frontend::nat_op_ground::{decl_names, hoist_nat_op_ground, NameKey};
+use crate::frontend::export::{cps, name_str, record_verdict_to_error, RecordVerdict};
+use crate::frontend::nat_op_ground::NameKey;
 use crate::frontend::proj_rec;
 use crate::frontend::scan_fast;
-use crate::in_model;
 use crate::frontend::scan_types::{
     id_table_get, id_table_insert, id_table_singleton, scan_err_render, CVRec, DeclRec, ExprRec,
     HintsRec, IdTable, IndCtorRec, IndRecRec, IndTypeRec, LevelRec, LineRec, NameRec, PwRec,
     RuleRec,
 };
+use crate::in_model;
 
 /// con-leche: ConLeche/Frontend/Export.lean:117 M
 /// con-leche: ConLeche/Frontend/Export.lean:71-79 RecordVerdict
 /// The two ways applying one line can fail: a parse message (con-leche's
 /// `M = Except String`) or a record verdict (its `StateD ⊕ RecordVerdict`'s
 /// right summand).  Merging them into one `Result` is this module's first
-/// deviation; the taint sentinel is still told apart by its message, exactly
-/// as `applyDeclD` tells it apart.
+/// deviation; the two arms are told apart again at `line_err_to_check`, where
+/// the line number is in hand.
 pub enum LineErr {
     Msg(String),
     Verdict(RecordVerdict),
@@ -121,216 +148,93 @@ pub fn invalid<T>(what: String) -> Result<T, LineErr> {
     Err(LineErr::Verdict(RecordVerdict::Invalid(what)))
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:340-344 BasisKind
-/// Lean's `deriving DecidableEq` on `BasisKind`, which the prelude dedupe and
-/// the pin match compare with `==`.  con-ron-core has no counterpart: the
-/// verified core never compares two kinds (it dispatches on one), so the
-/// comparison lives with its only consumer.
-pub fn basis_kind_beq(a: &BasisKind, b: &BasisKind) -> bool {
-    matches!(
-        (a, b),
-        (BasisKind::EqK, BasisKind::EqK)
-            | (BasisKind::NatK, BasisKind::NatK)
-            | (BasisKind::PunitK, BasisKind::PunitK)
-            | (BasisKind::EmptyK, BasisKind::EmptyK)
-            | (BasisKind::FalseK, BasisKind::FalseK)
-            | (BasisKind::QuotK, BasisKind::QuotK)
-    )
-}
-
-/// con-leche: ConLeche/Frontend/ExportC.lean:94-102 DeclC.asInfo?
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::decl_as_info_refines, then delete this line
-/// The constant a definition-like record would store, for the canon
-/// comparison (`opaqueDecl` is told apart from `defnDecl` by
-/// `decl_same_canon`'s constructor test, not here).
-pub fn decl_as_info(d: &DeclC) -> Option<ConstantInfo> {
-    match d {
-        DeclC::AxiomDecl(cv) => Some(ConstantInfo::AxiomInfo(env::constant_val_dup(cv))),
-        DeclC::DefnDecl(cv, v, h) => Some(ConstantInfo::DefnInfo(
-            env::constant_val_dup(cv),
-            expr::dup(v),
-            env::reducibility_hint_dup(h),
-        )),
-        DeclC::ThmDecl(cv, v) => Some(ConstantInfo::ThmInfo(
-            env::constant_val_dup(cv),
-            expr::dup(v),
-        )),
-        DeclC::OpaqueDecl(cv, v) => Some(ConstantInfo::DefnInfo(
-            env::constant_val_dup(cv),
-            expr::dup(v),
-            ReducibilityHint::Opaque,
-        )),
-        _ => None,
+/// con-leche: none — the `M`/verdict pair resolved against the line it was
+/// read at: the `applyFinalLine`/`feedChunk` arms that turn `M`'s message into
+/// `(.internal msg, line)` and a record verdict into `(v.toError, line)`.
+pub fn line_err_to_check(e: LineErr, line_no: u64) -> (CheckError, u64) {
+    match e {
+        LineErr::Msg(m) => (core_types::internal(cps(&m)), line_no),
+        LineErr::Verdict(v) => (record_verdict_to_error(v), line_no),
     }
-}
-
-/// con-leche: ConLeche/Frontend/ExportC.lean:104-114 DeclC.sameCanon
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::decl_same_canon_refines, then delete this line
-/// Two parsed records are the same declaration: same kind, and equal up to the
-/// basis-matching canonical form.
-pub fn decl_same_canon(a: &DeclC, b: &DeclC) -> bool {
-    match (a, b) {
-        (DeclC::BasisDecl(k), DeclC::BasisDecl(k2)) => basis_kind_beq(k, k2),
-        (DeclC::IndDecl(bl, np), DeclC::IndDecl(bl2, np2)) => np == np2 && canon_eq_list(bl, bl2),
-        (DeclC::OpaqueDecl(_, _), DeclC::DefnDecl(_, _, _)) => false,
-        (DeclC::DefnDecl(_, _, _), DeclC::OpaqueDecl(_, _)) => false,
-        _ => match (decl_as_info(a), decl_as_info(b)) {
-            (Some(x), Some(y)) => constant_info_canon_eq(&x, &y),
-            _ => false,
-        },
-    }
-}
-
-/// con-leche: ConLeche/Frontend/Prepare.lean:83-88 PreludeIx
-/// The built-in prelude, indexed: its records in order, the definition-like
-/// and inductive records by every name they declare, and the basis blocks by
-/// kind.  Deviation: `by_name` holds the record's index in `decls` (the module
-/// note).
-pub struct PreludeIx {
-    pub decls: Vec<DeclC>,
-    pub by_name: HashMap<NameKey, usize>,
-    pub basis: Vec<BasisKind>,
-}
-
-/// con-leche: ConLeche/Frontend/Prepare.lean:83-88 PreludeIx
-/// The empty prelude (Lean's field defaults), which the prelude's own parse
-/// runs against.
-pub fn prelude_ix_empty() -> PreludeIx {
-    PreludeIx {
-        decls: Vec::new(),
-        by_name: HashMap::new(),
-        basis: Vec::new(),
-    }
-}
-
-/// con-leche: ConLeche/Frontend/ExportC.lean:124-129 PreludeIx.ofDecls
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::prelude_ix_of_decls_refines, then delete this line
-pub fn prelude_ix_of_decls(ds: Vec<DeclC>) -> PreludeIx {
-    let mut ix = prelude_ix_empty();
-    for d in ds {
-        match &d {
-            DeclC::BasisDecl(k) => {
-                ix.basis.push(env::basis_kind_dup(k));
-            }
-            _ => {
-                let at = ix.decls.len();
-                for n in decl_names(&d) {
-                    ix.by_name.insert(NameKey(n), at);
-                }
-            }
-        }
-        ix.decls.push(d);
-    }
-    ix
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:78-134 StateD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::StateD_refines, then delete this line
 /// The direct parse state: stream-index-keyed tables of *values* (names and
 /// levels as trees, expressions as `Expr` — a table hit is a shared node by
-/// reference), the parsed declarations as `DeclC`, and the taint bookkeeping.
-/// The four modeller-only fields are not here (the module note).
+/// reference) and the parsed declarations as `Declaration`.  `inModelGen`, the
+/// debug dump's field, is not ported (the module note).
 pub struct StateD {
     pub names: IdTable<Name>,
     pub levels: IdTable<Level>,
     pub exprs: IdTable<Expr>,
-    pub decls: Vec<DeclC>,
-    pub tainted: HashMap<u64, Name>,
-    pub tainted_names: HashMap<NameKey, Name>,
-    pub taint_skipped: Vec<(Name, Name)>,
+    pub decls: Vec<Declaration>,
     /// structure-like owners the projection rewrite serves, by type name
     pub proj_owners: HashMap<NameKey, proj_rec::ProjRecOwner>,
     /// field sorts, by artifact iota name `T._model.proj_i.iota` (the
     /// in-process modeller's own, and only those)
     pub proj_levels: HashMap<NameKey, Level>,
-    /// the declared types of every declaration pushed so far (the prelude's
-    /// included), by name: the in-process modeller's sort inferer reads them
+    /// projection functions rewritten so far (names, for the driver's trace)
+    pub proj_rewrites: Vec<Name>,
+    /// the declared types of every declaration pushed so far, by name: the
+    /// in-process modeller's sort inferer reads them
     pub const_types: HashMap<NameKey, (Vec<Name>, Expr)>,
     /// the definitional heights of the definitions pushed so far (the hints
     /// of the generated definitions are computed from them)
     pub heights: HashMap<NameKey, u64>,
-    /// the parsed inductive blocks, by member type name (the in-process
-    /// modeller's nested rung reads a container's shape off it)
-    pub ind_blocks: HashMap<NameKey, std::rc::Rc<in_model::mutual::BlockRec>>,
-    /// the `PUnit` basis block has been parsed
-    pub punit_seen: bool,
-    /// projection functions rewritten so far (names, for the driver's trace)
-    pub proj_rewrites: Vec<Name>,
-    /// the built-in prelude this parse dedupes against
-    pub prelude: PreludeIx,
     /// in-process modelling of mutual/nested blocks is on
     pub in_model: bool,
     /// the blocks modelled in-process, in stream order
     pub in_modelled: Vec<Name>,
-    /// how many records the in-process modeller GENERATED and pushed
+    /// how many records the in-process modeller GENERATED and pushed: they are
+    /// declarations of the fold like any other, but they are not records of
+    /// the FILE, so the driver's headline count subtracts them
     pub gen_records: u64,
     /// each generated record's leading name ↦ the block it models
     pub gen_owner: HashMap<NameKey, Name>,
     /// the number of `inductive` records seen so far
     pub ind_count: u64,
-    /// CENSUS mode (`CON_LECHE_INMODEL_CENSUS=1`)
+    /// the parsed inductive blocks, by member type name (the in-process
+    /// modeller's nested rung reads a container's shape off it)
+    pub ind_blocks: HashMap<NameKey, std::rc::Rc<in_model::mutual::BlockRec>>,
+    /// CENSUS mode (`CON_LECHE_INMODEL_CENSUS=1`): a generator decline is
+    /// recorded and the block pushed bare instead of declining the parse
     pub in_model_census: bool,
     /// the census's declines: block name and reason
     pub in_model_declined: Vec<(Name, String)>,
-    /// stream records dropped as identical copies of prelude records
-    pub prelude_dropped: u64,
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:755-758 StateD.init
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::state_d_init_refines, then delete this line
-/// The initial parse state over a prelude: `PUnit` counts as seen for the
-/// projection rewrite when the prelude installs it, and `note_decl` is folded
-/// over the prelude's records to seed the modeller's declaration table (the
-/// prelude's `Nat`, `Eq`, `PUnit`, … are constants the sort inferer meets).
-pub fn state_d_init(prelude: PreludeIx, in_model: bool, census: bool) -> StateD {
-    let punit_seen = prelude
-        .basis
-        .iter()
-        .any(|k| basis_kind_beq(k, &BasisKind::PunitK));
-    let mut st = StateD {
+/// The initial parse state.  There is no prelude here any more (con-leche task
+/// #293): the parse starts from the file's first record, and putting the
+/// prelude's declarations in front is `prepare::prepare_prelude`'s.
+pub fn state_d_init(in_model: bool, census: bool) -> StateD {
+    StateD {
         names: id_table_singleton(name::anonymous()),
         levels: id_table_singleton(level::zero()),
         exprs: crate::frontend::scan_types::id_table_empty(),
         decls: Vec::new(),
-        tainted: HashMap::new(),
-        tainted_names: HashMap::new(),
-        taint_skipped: Vec::new(),
         proj_owners: HashMap::new(),
         proj_levels: HashMap::new(),
+        proj_rewrites: Vec::new(),
         const_types: HashMap::new(),
         heights: HashMap::new(),
-        ind_blocks: HashMap::new(),
-        punit_seen,
-        proj_rewrites: Vec::new(),
-        prelude,
         in_model,
         in_modelled: Vec::new(),
         gen_records: 0,
         gen_owner: HashMap::new(),
         ind_count: 0,
+        ind_blocks: HashMap::new(),
         in_model_census: census,
         in_model_declined: Vec::new(),
-        prelude_dropped: 0,
-    };
-    // `prelude.decls.foldl noteDecl`: the entries are collected first because
-    // they are read out of the state the fold writes into (Lean's value
-    // semantics make the fold's argument a separate object).
-    let mut es: Vec<(Name, Vec<Name>, Expr, Option<u64>)> = Vec::new();
-    for d in st.prelude.decls.iter() {
-        for e in note_decl_entries(d) {
-            es.push(e);
-        }
     }
-    note_entries(&mut st, es);
-    st
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:135-153 noteDecl
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::note_decl_entries_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Basis.lean:40-47 BasisKind.decls
 /// The constants one pushed declaration declares, with their level
 /// parameters, declared types and (for a definition) definitional height:
 /// the cited `cvs`.
-pub fn note_decl_entries(d: &DeclC) -> Vec<(Name, Vec<Name>, Expr, Option<u64>)> {
+pub fn note_decl_entries(d: &Declaration) -> Vec<(Name, Vec<Name>, Expr, Option<u64>)> {
     let one = |cv: &ConstantVal, h: Option<u64>| -> Vec<(Name, Vec<Name>, Expr, Option<u64>)> {
         vec![(
             name::dup(&cv.name),
@@ -339,40 +243,31 @@ pub fn note_decl_entries(d: &DeclC) -> Vec<(Name, Vec<Name>, Expr, Option<u64>)>
             h,
         )]
     };
+    let block = |bl: &Vec<ConstantInfo>| -> Vec<(Name, Vec<Name>, Expr, Option<u64>)> {
+        bl.iter()
+            .map(|ci| {
+                let cv = env::to_constant_val(ci);
+                (
+                    name::dup(&cv.name),
+                    cv.level_params.iter().map(name::dup).collect(),
+                    expr::dup(&cv.ty),
+                    None,
+                )
+            })
+            .collect()
+    };
     match d {
-        DeclC::AxiomDecl(cv) => one(cv, None),
-        DeclC::DefnDecl(cv, _, h) => one(cv, Some(in_model::kit::hint_height(h))),
-        DeclC::ThmDecl(cv, _) => one(cv, None),
-        DeclC::OpaqueDecl(cv, _) => one(cv, None),
-        DeclC::BasisDecl(k) => basis_raw::basis_decls(k)
-            .iter()
-            .map(|ci| {
-                let cv = env::to_constant_val(ci);
-                (
-                    name::dup(&cv.name),
-                    cv.level_params.iter().map(name::dup).collect(),
-                    expr::dup(&cv.ty),
-                    None,
-                )
-            })
-            .collect(),
-        DeclC::IndDecl(block, _) => block
-            .iter()
-            .map(|ci| {
-                let cv = env::to_constant_val(ci);
-                (
-                    name::dup(&cv.name),
-                    cv.level_params.iter().map(name::dup).collect(),
-                    expr::dup(&cv.ty),
-                    None,
-                )
-            })
-            .collect(),
+        Declaration::AxiomDecl(cv) => one(cv, None),
+        Declaration::DefnDecl(cv, _, h) => one(cv, Some(in_model::kit::hint_height(h))),
+        Declaration::ThmDecl(cv, _) => one(cv, None),
+        Declaration::OpaqueDecl(cv, _) => one(cv, None),
+        Declaration::BasisDecl(k) => block(&basis_raw::basis_kind_decls(k)),
+        Declaration::QuotDecl(_, cv) => one(cv, None),
+        Declaration::IndDecl(bl, _) => block(bl),
     }
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:135-153 noteDecl
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::note_entries_refines, then delete this line
 /// The insert half of `noteDecl`: the cited `cvs.foldl` over `constTypes`
 /// and `heights`.
 pub fn note_entries(st: &mut StateD, es: Vec<(Name, Vec<Name>, Expr, Option<u64>)>) {
@@ -385,59 +280,23 @@ pub fn note_entries(st: &mut StateD, es: Vec<(Name, Vec<Name>, Expr, Option<u64>
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:135-153 noteDecl
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::note_decl_refines, then delete this line
 /// Record a pushed declaration's constants in the declaration table
 /// (`const_types`, `heights`).
-pub fn note_decl(st: &mut StateD, d: &DeclC) {
+pub fn note_decl(st: &mut StateD, d: &Declaration) {
     let es = note_decl_entries(d);
     note_entries(st, es);
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:155-162 pushDecl
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::push_decl_refines, then delete this line
-/// **The prelude dedupe**, at every declaration push: a basis block the
-/// prelude holds is dropped by kind; a record under a prelude name is dropped
-/// when it is the same declaration (`decl_same_canon`) and declines the stream
-/// when it differs.  Every record that is actually pushed goes through
-/// `note_decl` (the cited `.inl (noteDecl … d)`), which is what feeds the
-/// modeller's declaration table.
-pub fn push_decl(st: &mut StateD, d: DeclC) -> Result<(), LineErr> {
-    match &d {
-        DeclC::BasisDecl(k) => {
-            if st.prelude.basis.iter().any(|p| basis_kind_beq(p, k)) {
-                st.prelude_dropped += 1;
-            } else {
-                note_decl(st, &d);
-                st.decls.push(d);
-            }
-            Ok(())
-        }
-        _ => {
-            let hit = decl_names(&d)
-                .into_iter()
-                .find_map(|n| st.prelude.by_name.get(&NameKey(name::dup(&n))).map(|i| (n, *i)));
-            match hit {
-                None => {
-                    note_decl(st, &d);
-                    st.decls.push(d);
-                    Ok(())
-                }
-                Some((n, at)) => {
-                    if decl_same_canon(&d, &st.prelude.decls[at]) {
-                        st.prelude_dropped += 1;
-                        Ok(())
-                    } else {
-                        declined(format!(
-                            "declaration {} differs from the checker's built-in prelude \
-                             (the toolchain's own {}, installed first)",
-                            name_str(&n),
-                            name_str(&n)
-                        ))
-                    }
-                }
-            }
-        }
-    }
+/// **One parsed record, appended** (con-leche task #293): the decoder keeps
+/// the file's records in the file's order, so this is total — it cannot
+/// decline and it cannot drop.  What used to sit here was the prelude dedupe —
+/// a basis block the prelude held dropped by kind, a record under a prelude
+/// name dropped when identical and DECLINING the stream when different — and
+/// it is `prepare::prepare_prelude`'s and the fold's now.
+pub fn push_decl(st: &mut StateD, d: Declaration) {
+    note_decl(st, &d);
+    st.decls.push(d);
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:164-167 StateD.name
@@ -465,15 +324,11 @@ pub fn st_expr(st: &StateD, i: u64) -> Result<Expr, LineErr> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:179-189 getDeclD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::get_decl_d_refines, then delete this line
-/// Declaration-level expression lookup: the taint sentinel, then the table
-/// read.  (The frontend tree-size budget that used to sit here was retired at
-/// con-leche task #215; the DAG-tower fixtures are the standing gate in its
-/// place.)
+/// Declaration-level expression lookup: the table read.  (The frontend
+/// tree-size budget that used to sit here was retired at con-leche task #215,
+/// and the taint sentinel that stood beside it at task #292; the DAG-tower
+/// fixtures are the standing gate in the budget's place.)
 pub fn get_decl_d(st: &StateD, i: u64) -> Result<Expr, LineErr> {
-    if st.tainted.contains_key(&i) {
-        return merr(TAINT_SENTINEL.to_string());
-    }
     st_expr(st, i)
 }
 
@@ -492,17 +347,68 @@ pub fn parse_pw_d(st: &StateD, r: &PwRec) -> Result<PropWhen, LineErr> {
     }
 }
 
+/// con-leche: ConLeche/Frontend/ExportC.lean:207-209 reboundError
+/// The rebinding error, named once.
+pub fn rebound_error(what: &str, i: u64) -> String {
+    format!("{} index {} is already bound", what, i)
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:211-220 StateD.freshName
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:363-372 IdTable.bound
+/// Every table entry is bound once (con-leche task #290): a line that binds an
+/// index a previous line already bound is a parse error.  The tables let a
+/// later line overwrite an entry all the same (they are resolved eagerly, so
+/// nothing already built could change); what the rule buys is the one property
+/// a theorem about the FILE needs of them — the entry a line bound is the
+/// entry every later line reads, whatever else the file holds.
+///
+/// `scan_types` has no `bound`, so the test reads the table instead —
+/// `IdTable.bound_eq`, which con-leche proves beside the definition.  The
+/// state is BORROWED for the same reason con-leche's is: an owned one made its
+/// compiler project and `inc` every field before the test.
+pub fn st_fresh_name(st: &StateD, i: u64) -> Result<(), LineErr> {
+    if id_table_get(&st.names, i).is_some() {
+        merr(rebound_error("name", i))
+    } else {
+        Ok(())
+    }
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:221-222 StateD.freshLevel
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:363-372 IdTable.bound
+/// `st_fresh_name` on the level table.
+pub fn st_fresh_level(st: &StateD, i: u64) -> Result<(), LineErr> {
+    if id_table_get(&st.levels, i).is_some() {
+        merr(rebound_error("level", i))
+    } else {
+        Ok(())
+    }
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:223-224 StateD.freshExpr
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:363-372 IdTable.bound
+/// `st_fresh_name` on the expression table.
+pub fn st_fresh_expr(st: &StateD, i: u64) -> Result<(), LineErr> {
+    if id_table_get(&st.exprs, i).is_some() {
+        merr(rebound_error("expression", i))
+    } else {
+        Ok(())
+    }
+}
+
 /// con-leche: ConLeche/Frontend/ExportC.lean:228-237 parseNameEntryD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_name_entry_d_refines, then delete this line
-/// A name-table entry: the name value is built directly.
+/// A name-table entry: the name value is built directly.  The parent index is
+/// resolved before the freshness test, as in the cited `do` block.
 pub fn parse_name_entry_d(st: &mut StateD, i: u64, r: &NameRec) -> Result<(), LineErr> {
     let v = match r {
         NameRec::Str(pre, s) => {
             let p = st_name(st, *pre)?;
+            st_fresh_name(st, i)?;
             name::mk_str(p, s.clone())
         }
         NameRec::Num(pre, n) => {
             let p = st_name(st, *pre)?;
+            st_fresh_name(st, i)?;
             name::mk_num(p, *n)
         }
     };
@@ -511,9 +417,9 @@ pub fn parse_name_entry_d(st: &mut StateD, i: u64, r: &NameRec) -> Result<(), Li
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:239-247 parseLevelEntryD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_level_entry_d_refines, then delete this line
 /// A level-table entry.
 pub fn parse_level_entry_d(st: &mut StateD, i: u64, r: &LevelRec) -> Result<(), LineErr> {
+    st_fresh_level(st, i)?;
     let l = match r {
         LevelRec::Succ(u) => level::succ(st_level(st, *u)?),
         LevelRec::Max(a, b) => level::max(st_level(st, *a)?, st_level(st, *b)?),
@@ -524,98 +430,49 @@ pub fn parse_level_entry_d(st: &mut StateD, i: u64, r: &LevelRec) -> Result<(), 
     Ok(())
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:296-304 exprRecChildren
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::expr_rec_children_refines, then delete this line
-/// The child expression-table indices of an entry (for taint propagation).
-pub fn expr_rec_children(r: &ExprRec) -> Vec<u64> {
-    match r {
-        ExprRec::App(f, a) => vec![*f, *a],
-        ExprRec::Lam(ty, bd, _) => vec![*ty, *bd],
-        ExprRec::ForallE(ty, bd, _) => vec![*ty, *bd],
-        ExprRec::LetE(ty, vl, bd) => vec![*ty, *vl, *bd],
-        ExprRec::Proj(_, _, s) => vec![*s],
-        _ => Vec::new(),
-    }
-}
-
 /// con-leche: ConLeche/Frontend/ExportC.lean:249-279 parseExprEntryD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_expr_entry_d_refines, then delete this line
 /// An expression-table entry: build the node from the children's table values
-/// (the derived fields are the smart constructors'), with the taint
-/// bookkeeping unchanged.  Binder names are display data the official
-/// kernel's equality and hash ignore; ours are `.anonymous` on every parsed
-/// binder, so `==` is α-equivalence downstream.
+/// (the derived fields are the smart constructors').  Binder names are display
+/// data the official kernel's equality and hash ignore; ours are `.anonymous`
+/// on every parsed binder, so `==` is α-equivalence downstream.
 pub fn parse_expr_entry_d(st: &mut StateD, i: u64, r: &ExprRec) -> Result<(), LineErr> {
-    let (e, taint_const): (Expr, Option<Name>) = match r {
-        ExprRec::Bvar(k) => (expr::mk_bvar(*k), None),
-        ExprRec::Sort(u) => (expr::sort(st_level(st, *u)?), None),
+    st_fresh_expr(st, i)?;
+    let e: Expr = match r {
+        ExprRec::Bvar(k) => expr::mk_bvar(*k),
+        ExprRec::Sort(u) => expr::sort(st_level(st, *u)?),
         ExprRec::Const(n, us) => {
             let nm = st_name(st, *n)?;
             let mut ls: Vec<Level> = Vec::new();
             for u in us {
                 ls.push(st_level(st, *u)?);
             }
-            let taint_c = if st.tainted_names.is_empty() {
-                None
-            } else {
-                st.tainted_names
-                    .get(&NameKey(name::dup(&nm)))
-                    .map(name::dup)
-            };
-            (expr::mk_const(nm, ls), taint_c)
+            expr::mk_const(nm, ls)
         }
-        ExprRec::App(f, a) => (expr::app(st_expr(st, *f)?, st_expr(st, *a)?), None),
-        ExprRec::Lam(ty, bd, pw) => (
-            expr::lam(
-                st_expr(st, *ty)?,
-                st_expr(st, *bd)?,
-                expr::binder_meta(parse_pw_d(st, pw)?),
-            ),
-            None,
+        ExprRec::App(f, a) => expr::app(st_expr(st, *f)?, st_expr(st, *a)?),
+        ExprRec::Lam(ty, bd, pw) => expr::lam(
+            st_expr(st, *ty)?,
+            st_expr(st, *bd)?,
+            expr::binder_meta(parse_pw_d(st, pw)?),
         ),
-        ExprRec::ForallE(ty, bd, pw) => (
-            expr::forall_e(
-                st_expr(st, *ty)?,
-                st_expr(st, *bd)?,
-                expr::binder_meta(parse_pw_d(st, pw)?),
-            ),
-            None,
+        ExprRec::ForallE(ty, bd, pw) => expr::forall_e(
+            st_expr(st, *ty)?,
+            st_expr(st, *bd)?,
+            expr::binder_meta(parse_pw_d(st, pw)?),
         ),
-        ExprRec::LetE(ty, vl, bd) => (
-            expr::let_e(st_expr(st, *ty)?, st_expr(st, *vl)?, st_expr(st, *bd)?),
-            None,
-        ),
-        ExprRec::Proj(tn, ix, s) => (
-            expr::proj(st_name(st, *tn)?, *ix, st_expr(st, *s)?),
-            None,
-        ),
+        ExprRec::LetE(ty, vl, bd) => {
+            expr::let_e(st_expr(st, *ty)?, st_expr(st, *vl)?, st_expr(st, *bd)?)
+        }
+        ExprRec::Proj(tn, ix, s) => expr::proj(st_name(st, *tn)?, *ix, st_expr(st, *s)?),
         ExprRec::NatVal(digits) => {
             let n = match con_ron_dump::natdec::from_decimal(digits) {
                 Ok(n) => n,
                 Err(e) => return merr(format!("malformed natVal literal: {}", e)),
             };
-            (expr::lit(expr::literal_nat(n)), None)
+            expr::lit(expr::literal_nat(n))
         }
-        ExprRec::StrVal(s) => (expr::lit(expr::literal_str(s.clone())), None),
-    };
-    // the child scan runs only once a tolerated axiom has put something in
-    // the table: an entry can be tainted only below one
-    let taint: Option<Name> = match taint_const {
-        Some(n) => Some(n),
-        None => {
-            if st.tainted.is_empty() {
-                None
-            } else {
-                expr_rec_children(r)
-                    .into_iter()
-                    .find_map(|c| st.tainted.get(&c).map(name::dup))
-            }
-        }
+        ExprRec::StrVal(s) => expr::lit(expr::literal_str(s.clone())),
     };
     id_table_insert(&mut st.exprs, i, e);
-    if let Some(root) = taint {
-        st.tainted.insert(i, root);
-    }
     Ok(())
 }
 
@@ -636,11 +493,14 @@ pub fn parse_cv_d(st: &StateD, cv: &CVRec) -> Result<ConstantVal, LineErr> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:291-302 projRewriteD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::proj_rewrite_d_refines, then delete this line
 /// The projection-function rewrite at a definition record: the value is
 /// `fun p⃗ self => .proj T i self` for a recorded owner `T`, the field's sort
-/// is on record from the artifact, `PUnit` is available, and the definition's
-/// level parameters are the block's.  `None` = leave the record as parsed.
+/// is on record from the artifact, and the definition's level parameters are
+/// the block's.  `None` = leave the record as parsed.  (The `punitSeen` guard
+/// that stood here went with con-leche task #293: the `PUnit` block the
+/// constant motives need is the prelude's, put in front of every fold by
+/// `prepare::prepare_prelude`, so the parse no longer tracks whether the
+/// stream has declared one.)
 ///
 /// **Always `None` until task #38**: `proj_levels` is filled only by
 /// `note_proj_iota` on a record the in-process modeller generated.
@@ -654,9 +514,6 @@ pub fn proj_rewrite_d(st: &StateD, cv: &ConstantVal, vl: &Expr) -> Option<Expr> 
         _ => return None,
     };
     let o = st.proj_owners.get(&NameKey(name::dup(&t)))?;
-    if !st.punit_seen {
-        return None;
-    }
     if !crate::frontend::export::names_beq(&cv.level_params, &o.lps) {
         return None;
     }
@@ -680,12 +537,11 @@ pub fn note_proj_iota(st: &mut StateD, cvp: &ConstantVal) {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:319-326 pushGenD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::push_gen_d_refines, then delete this line
 /// Push one record the in-process modeller generated: `push_decl`, plus the
-/// projection-iota registration (the ONLY place it runs).  Unreachable until
-/// task #38, and the entry point that task calls.
-pub fn push_gen_d(st: &mut StateD, d: DeclC) -> Result<(), LineErr> {
-    if let DeclC::ThmDecl(cv, _) = &d {
+/// projection-iota registration (the ONLY place it runs).  Total since
+/// con-leche task #293, as `push_decl` is.
+pub fn push_gen_d(st: &mut StateD, d: Declaration) {
+    if let Declaration::ThmDecl(cv, _) = &d {
         let cv2 = env::constant_val_dup(cv);
         note_proj_iota(st, &cv2);
     }
@@ -697,20 +553,31 @@ pub fn push_gen_d(st: &mut StateD, d: DeclC) -> Result<(), LineErr> {
 /// declaration of the FOLD, never a record of the file, so the driver's
 /// headline count subtracts it and a failure at it is reported with the block
 /// it models.
-pub fn note_gen(st: &mut StateD, d: &DeclC, t0: &Name) {
-    note_gen_names(st, decl_names(d), t0);
+pub fn note_gen(st: &mut StateD, d: &Declaration, t0: &Name) {
+    note_gen_names(st, env::declaration_names(d), t0);
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:328-336 noteGen
-/// `note_gen` at the record's names already in hand.  The call site needs
-/// this half: `push_gen_d` takes the `DeclC` by value (it is pushed into the
-/// state), and whether it pushed — the cited `st'.decls.size > before` — is
-/// known only afterwards, when the record is gone.  con-leche reads `d.names`
-/// at that point because a Lean value is still there to read.
+/// `note_gen` at the record's names already in hand.  `push_gen_list` needs
+/// this half: `push_gen_d` takes the `Declaration` by value (it is pushed into
+/// the state), and con-leche reads `d.names` afterwards because a Lean value
+/// is still there to read.
 pub fn note_gen_names(st: &mut StateD, names: Vec<Name>, t0: &Name) {
     st.gen_records += 1;
     for n in names {
         st.gen_owner.insert(NameKey(n), name::dup(t0));
+    }
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:398-404 pushGenList
+/// Push the records the in-process modeller generated (the loop of
+/// `install_ind_d`, as a function), each booked as a declaration of the fold
+/// and not a record of the file.
+pub fn push_gen_list(st: &mut StateD, gen: Vec<Declaration>, t0: &Name) {
+    for d in gen {
+        let names = env::declaration_names(&d);
+        push_gen_d(st, d);
+        note_gen_names(st, names, t0);
     }
 }
 
@@ -808,10 +675,9 @@ pub fn in_model_wants(tys: &[IndTypeRec]) -> bool {
     tys.len() > 1 || tys.iter().any(|t| t.num_nested > 0)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:377-396 processLineCoreD.registerProjOwners
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::register_proj_owners_refines, then delete this line
+/// con-leche: ConLeche/Frontend/ExportC.lean:377-396 registerProjOwners
 /// Record the structure-like owners of a parsed block that the projection
-/// rewrite serves.
+/// rewrite serves (`proj_rec::proj_rec_owners`).
 pub fn register_proj_owners(
     st: &mut StateD,
     tys: &[IndTypeRec],
@@ -862,115 +728,24 @@ pub fn register_proj_owners(
     Ok(())
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:625-697 processLineCoreD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::process_line_core_d_refines, then delete this line
-/// The record's own semantics: the declaration kinds, producing `DeclC`
-/// records.  Every branch, guard and error string is the one the `Lean.Json`
-/// reader this replaced had; only the reads changed, from key lookups in a DOM
-/// to fields of a syntax record.
-pub fn process_line_core_d(st: &mut StateD, d: &DeclRec) -> Result<(), LineErr> {
-    match d {
-        DeclRec::Ax(cvr, is_unsafe) => {
-            let cvp = parse_cv_d(st, cvr)?;
-            if *is_unsafe {
-                return declined("unsafe axiom".to_string());
-            }
-            if name::beq(&cvp.name, &bnm::quot_sound_name()) {
-                let pin = &basis_raw::quot_basis()[4];
-                return if constant_info_canon_eq(&ConstantInfo::AxiomInfo(cvp), pin) {
-                    Ok(())
-                } else {
-                    declined("quotient soundness axiom mismatch".to_string())
-                };
-            }
-            push_decl(st, DeclC::AxiomDecl(cvp))
-        }
-        DeclRec::Defn(cvr, value, hints, safety) => {
-            let cvp = parse_cv_d(st, cvr)?;
-            if safety != "safe" {
-                return declined(format!("definition with safety '{}'", safety));
-            }
-            let vl = get_decl_d(st, *value)?;
-            let h = match hints {
-                HintsRec::Abbrev => ReducibilityHint::Abbrev,
-                HintsRec::Opaque => ReducibilityHint::Opaque,
-                HintsRec::Regular(n) => ReducibilityHint::Regular(*n),
-            };
-            // the projection-function rewrite: a non-direct structure-like's
-            // `fun p⃗ self => .proj T i self` becomes the recursor
-            // application, at the field sort the artifact names
-            match proj_rewrite_d(st, &cvp, &vl) {
-                Some(vl2) => {
-                    let n = name::dup(&cvp.name);
-                    push_decl(st, DeclC::DefnDecl(cvp, vl2, h))?;
-                    st.proj_rewrites.push(n);
-                    Ok(())
-                }
-                None => push_decl(st, DeclC::DefnDecl(cvp, vl, h)),
-            }
-        }
-        DeclRec::Thm(cvr, value) => {
-            let cvp = parse_cv_d(st, cvr)?;
-            let vl = get_decl_d(st, *value)?;
-            // a proof field's projection function is exported as a theorem
-            // (the elaborator's choice for a `Prop`-valued field): the same
-            // rewrite applies
-            match proj_rewrite_d(st, &cvp, &vl) {
-                Some(vl2) => {
-                    let n = name::dup(&cvp.name);
-                    push_decl(st, DeclC::ThmDecl(cvp, vl2))?;
-                    st.proj_rewrites.push(n);
-                    Ok(())
-                }
-                None => push_decl(st, DeclC::ThmDecl(cvp, vl)),
-            }
-        }
-        DeclRec::Opaq(cvr, value, is_unsafe) => {
-            let cvp = parse_cv_d(st, cvr)?;
-            if *is_unsafe {
-                return declined("unsafe opaque declaration".to_string());
-            }
-            let vl = get_decl_d(st, *value)?;
-            push_decl(st, DeclC::OpaqueDecl(cvp, vl))
-        }
-        DeclRec::Quot(cvr, kind) => {
-            let cv = parse_cv_d(st, cvr)?;
-            let slot: usize = match kind.as_str() {
-                "type" => 0,
-                "ctor" => 1,
-                "lift" => 2,
-                "ind" => 3,
-                k => return merr(format!("unknown quotient kind '{}'", k)),
-            };
-            let pin = &basis_raw::quot_basis()[slot];
-            // the two records are compared at `toConstantVal`
-            if constant_val_canon_eq(&cv, &env::to_constant_val(pin)) {
-                if slot == 0 {
-                    push_decl(st, DeclC::BasisDecl(BasisKind::QuotK))
-                } else {
-                    Ok(())
-                }
-            } else {
-                declined("quotient declaration mismatch".to_string())
-            }
-        }
-        DeclRec::Ind(tys, cts, rcs) => process_ind_decl_d(st, tys, cts, rcs),
-    }
-}
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:625-697 processLineCoreD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::process_ind_decl_d_refines, then delete this line
-/// `processLineCoreD`'s `.ind` arm, which is two thirds of the function: the
-/// unsafe decline, the declared parameter count (task #228), the block's
-/// redundant fields (task #271), the block's `ConstantInfo`s, the projection
-/// owners, the basis-pin match, and the modeller point task #38 fills in.
-pub fn process_ind_decl_d(
-    st: &mut StateD,
+/// con-leche: ConLeche/Frontend/ExportC.lean:406-558 validateIndD
+/// **An inductive record, validated** (con-leche tasks #217, #228, #271): the
+/// half of the record's processing that reads the state and changes nothing —
+/// the verdict, or the block's constructors in the block's own order with the
+/// declared parameter count.  Split from `install_ind_d` at con-leche task
+/// #290 so that a proof about what the parse does to its state need not look
+/// here at all; the state is BORROWED, which is that split in the type.
+///
+/// Deviation: con-leche returns `RecordVerdict ⊕ (List IndCtorRec × Nat)` and
+/// the port returns the verdict through `LineErr`, the module's one merged
+/// error channel.
+pub fn validate_ind_d(
+    st: &StateD,
     tys: &[IndTypeRec],
     cts: &[IndCtorRec],
     rcs: &[IndRecRec],
-) -> Result<(), LineErr> {
-    st.ind_count += 1;
+) -> Result<(Vec<IndCtorRec>, u64), LineErr> {
     // an `unsafe inductive` is DECLINED, not an error: the official kernel
     // admits unsafe blocks (it skips positivity for them); we support no
     // unsafe declaration at all.
@@ -1176,6 +951,20 @@ pub fn process_ind_decl_d(
             }
         }
     }
+    Ok((cts, n_pd))
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:560-623 installIndD
+/// **An inductive record, installed**: the block's constants, the
+/// projection-owner table, the in-process modeller, the push.  Every change
+/// to the state a validated inductive record makes is here.
+pub fn install_ind_d(
+    st: &mut StateD,
+    tys: &[IndTypeRec],
+    cts: Vec<IndCtorRec>,
+    rcs: &[IndRecRec],
+    n_pd: u64,
+) -> Result<(), LineErr> {
     let mut block: Vec<ConstantInfo> = Vec::new();
     for t in tys {
         block.push(ConstantInfo::IndInfo(
@@ -1204,38 +993,20 @@ pub fn process_ind_decl_d(
     }
     // the projection rewrite's owner table (the export's own shape data)
     register_proj_owners(st, tys, &cts, rcs, &block)?;
-    // TASK #215 — the basis-pin NAME pre-filter.  `canon` renames only
-    // *level parameters* — it leaves every constant name alone — so a block
-    // can match a pin only when its members' names are the pin's, member for
-    // member.  Selecting the candidate by name first is a handful of `Name`
-    // comparisons, and no canonical form is built at all for any block that is
-    // not one of the five.
-    let block_names: Vec<Name> = block.iter().map(env::constant_info_name).collect();
-    let mut pin_hit: Option<BasisKind> = None;
-    for k in basis_raw::block_pin_kinds() {
-        let pin = basis_raw::basis_decls(&k);
-        let pin_names: Vec<Name> = pin.iter().map(env::constant_info_name).collect();
-        if crate::frontend::export::names_beq(&pin_names, &block_names) {
-            if canon_eq_list(&block, &pin) {
-                pin_hit = Some(k);
-            }
-            break;
-        }
-    }
-    if let Some(k) = pin_hit {
-        if basis_kind_beq(&k, &BasisKind::PunitK) {
-            st.punit_seen = true;
-        }
-        return push_decl(st, DeclC::BasisDecl(k));
-    }
+    // **EVERY BLOCK IS AN `IndDecl`** (con-leche task #293): the basis-pin
+    // match that used to stand here - a name pre-filter and then
+    // `canon_eq_list` against the five pinned blocks - is the FOLD's
+    // (`checker::check_decl` asks `basis_raw::basis_pin_hit`).  A block under
+    // a pinned name that does NOT match keeps its `IndDecl` form and is
+    // rejected by the fold's reserved-name check, exactly as before.
     // THE IN-PROCESS MODELLER (the ONLY model source, and the only one there
     // IS — a stream `_model` record is an ordinary declaration and is never
     // consulted): a mutual or nested block gets its `_model` family generated
     // here and pushed ahead of it; the block then installs through the modeled
     // route.  A generator decline is the run's decline, naming the class (the
     // residual: infinitary nesting, a `Prop` block with a large eliminator).
-    let t0 = match block_names.first() {
-        Some(n) => name::dup(n),
+    let t0 = match block.first() {
+        Some(ci) => env::constant_info_name(ci),
         None => name::anonymous(),
     };
     let b = std::rc::Rc::new(block_rec_of(st, tys, &cts, rcs)?);
@@ -1270,106 +1041,140 @@ pub fn process_ind_decl_d(
             Err(why) => {
                 if st.in_model_census {
                     st.in_model_declined.push((name::dup(&t0), why));
-                    return push_decl(st, DeclC::IndDecl(block, n_pd));
+                    push_decl(st, Declaration::IndDecl(block, n_pd));
+                    return Ok(());
                 }
                 return declined(format!("in-process model of {}: {}", name_str(&t0), why));
             }
             Ok(gen) => {
-                for d in gen {
-                    // a generated record is a declaration of the FOLD and not
-                    // a record of the file: booked here, so the verdict line
-                    // reports the file's own count
-                    let before = st.decls.len();
-                    let names = decl_names(&d);
-                    push_gen_d(st, d)?;
-                    if st.decls.len() > before {
-                        note_gen_names(st, names, &t0);
-                    }
-                }
+                // a generated record is a declaration of the FOLD and not a
+                // record of the file: booked in `push_gen_list`, so the
+                // verdict line reports the file's own count
+                push_gen_list(st, gen, &t0);
                 st.in_modelled.push(name::dup(&t0));
-                return push_decl(st, DeclC::IndDecl(block, n_pd));
+                push_decl(st, Declaration::IndDecl(block, n_pd));
+                return Ok(());
             }
         }
     }
-    push_decl(st, DeclC::IndDecl(block, n_pd))
+    push_decl(st, Declaration::IndDecl(block, n_pd));
+    Ok(())
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:769-793 declRecordScanD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::decl_record_scan_d_refines, then delete this line
-/// The read-only pre-scan for the taint policy: the names a declaration
-/// record declares, and the expression indices it reads.
-pub fn decl_record_scan_d(st: &StateD, d: &DeclRec) -> Result<(Vec<Name>, Vec<u64>), LineErr> {
+/// con-leche: ConLeche/Frontend/ExportC.lean:625-697 processLineCoreD
+/// The record's own semantics: the declaration kinds, producing `Declaration`
+/// records.  Every branch, guard and error string is the one the `Lean.Json`
+/// reader this replaced had; only the reads changed, from key lookups in a DOM
+/// to fields of a syntax record.
+pub fn process_line_core_d(st: &mut StateD, d: &DeclRec) -> Result<(), LineErr> {
     match d {
-        DeclRec::Ax(cv, _) => Ok((vec![st_name(st, cv.name)?], vec![cv.ty])),
-        DeclRec::Quot(cv, _) => Ok((vec![st_name(st, cv.name)?], vec![cv.ty])),
-        DeclRec::Defn(cv, v, _, _) => Ok((vec![st_name(st, cv.name)?], vec![cv.ty, *v])),
-        DeclRec::Thm(cv, v) => Ok((vec![st_name(st, cv.name)?], vec![cv.ty, *v])),
-        DeclRec::Opaq(cv, v, _) => Ok((vec![st_name(st, cv.name)?], vec![cv.ty, *v])),
-        DeclRec::Ind(tys, cts, rcs) => {
-            let mut names: Vec<Name> = Vec::new();
-            let mut idxs: Vec<u64> = Vec::new();
-            for t in tys {
-                names.push(st_name(st, t.cv.name)?);
-                idxs.push(t.cv.ty);
+        DeclRec::Ax(cvr, is_unsafe) => {
+            let cvp = parse_cv_d(st, cvr)?;
+            if *is_unsafe {
+                return declined("unsafe axiom".to_string());
             }
-            for c in cts {
-                names.push(st_name(st, c.cv.name)?);
-                idxs.push(c.cv.ty);
+            // **`Quot.sound` is the FOLD's** (con-leche task #293): the axiom
+            // record is forwarded like any other, and the fold compares it
+            // with the pinned soundness axiom — the decline on a mismatch was
+            // the parser's and is not any more.  **`sorryAx` is the fold's
+            // too** (task #292): the record is forwarded, installs nothing,
+            // and a *use* of it declines at the record that uses it.
+            push_decl(st, Declaration::AxiomDecl(cvp));
+            Ok(())
+        }
+        DeclRec::Defn(cvr, value, hints, safety) => {
+            let cvp = parse_cv_d(st, cvr)?;
+            if safety != "safe" {
+                return declined(format!("definition with safety '{}'", safety));
             }
-            for r in rcs {
-                names.push(st_name(st, r.cv.name)?);
-                idxs.push(r.cv.ty);
-            }
-            for r in rcs {
-                for ru in &r.rules {
-                    idxs.push(ru.rhs);
+            let vl = get_decl_d(st, *value)?;
+            let h = match hints {
+                HintsRec::Abbrev => ReducibilityHint::Abbrev,
+                HintsRec::Opaque => ReducibilityHint::Opaque,
+                HintsRec::Regular(n) => ReducibilityHint::Regular(*n),
+            };
+            // the projection-function rewrite: a non-direct structure-like's
+            // `fun p⃗ self => .proj T i self` becomes the recursor
+            // application, at the field sort the artifact names
+            match proj_rewrite_d(st, &cvp, &vl) {
+                Some(vl2) => {
+                    let n = name::dup(&cvp.name);
+                    push_decl(st, Declaration::DefnDecl(cvp, vl2, h));
+                    st.proj_rewrites.push(n);
+                    Ok(())
+                }
+                None => {
+                    push_decl(st, Declaration::DefnDecl(cvp, vl, h));
+                    Ok(())
                 }
             }
-            Ok((names, idxs))
+        }
+        DeclRec::Thm(cvr, value) => {
+            let cvp = parse_cv_d(st, cvr)?;
+            let vl = get_decl_d(st, *value)?;
+            // a proof field's projection function is exported as a theorem
+            // (the elaborator's choice for a `Prop`-valued field): the same
+            // rewrite applies
+            match proj_rewrite_d(st, &cvp, &vl) {
+                Some(vl2) => {
+                    let n = name::dup(&cvp.name);
+                    push_decl(st, Declaration::ThmDecl(cvp, vl2));
+                    st.proj_rewrites.push(n);
+                    Ok(())
+                }
+                None => {
+                    push_decl(st, Declaration::ThmDecl(cvp, vl));
+                    Ok(())
+                }
+            }
+        }
+        DeclRec::Opaq(cvr, value, is_unsafe) => {
+            let cvp = parse_cv_d(st, cvr)?;
+            if *is_unsafe {
+                return declined("unsafe opaque declaration".to_string());
+            }
+            let vl = get_decl_d(st, *value)?;
+            push_decl(st, Declaration::OpaqueDecl(cvp, vl));
+            Ok(())
+        }
+        DeclRec::Quot(cvr, kind) => {
+            // **ONE RECORD PER `#QUOT` LINE** (con-leche task #293): the file
+            // declares the quotient package as four records, and the decoder
+            // emits four — the constant as the file declares it, at the kind
+            // the file declares it at.  The comparison with the pinned block
+            // and the decline on a mismatch are the fold's `.quotDecl` arm's,
+            // not the parser's any more.
+            let cv = parse_cv_d(st, cvr)?;
+            let qk = match kind.as_str() {
+                "type" => QuotKind::Type,
+                "ctor" => QuotKind::Ctor,
+                "lift" => QuotKind::Lift,
+                "ind" => QuotKind::Ind,
+                k => return merr(format!("unknown quotient kind '{}'", k)),
+            };
+            push_decl(st, Declaration::QuotDecl(qk, cv));
+            Ok(())
+        }
+        DeclRec::Ind(tys, cts, rcs) => {
+            st.ind_count += 1;
+            let (cts, n_pd) = validate_ind_d(st, tys, cts, rcs)?;
+            install_ind_d(st, tys, cts, rcs, n_pd)
         }
     }
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:699-711 applyDeclD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::apply_decl_d_refines, then delete this line
-/// The taint policy at a declaration record.
+/// A declaration record.  **`sorryAx` is the FOLD's** (con-leche task #292):
+/// the parse forwards every declaration record, the `sorryAx` axiom record
+/// included — the fold checks its type, installs nothing for it, and declines
+/// at the first record that USES the name.  What used to stand here was a
+/// read-only taint pre-scan (`declRecordScanD`) that dropped the axiom record
+/// without even parsing its type and skipped every declaration reaching it,
+/// transitively, with the driver turning a non-empty skip list into a decline
+/// at the END of the run.  The verdict was the same; the position was not, and
+/// the parser owned a semantic decision.
 pub fn apply_decl_d(st: &mut StateD, d: &DeclRec) -> Result<(), LineErr> {
-    if let DeclRec::Ax(cv, _) = d {
-        let nm = st_name(st, cv.name)?;
-        if name::contains(&std_axioms::tolerated_axiom_names(), &nm) {
-            st.tainted_names
-                .insert(NameKey(name::dup(&nm)), name::dup(&nm));
-            return Ok(());
-        }
-    }
-    if !st.tainted.is_empty() {
-        let (names, idxs) = decl_record_scan_d(st, d)?;
-        let root = idxs
-            .into_iter()
-            .find_map(|i| st.tainted.get(&i).map(name::dup));
-        if let Some(root) = root {
-            let head = match names.first() {
-                Some(n) => name::dup(n),
-                None => name::anonymous(),
-            };
-            for n in names {
-                st.tainted_names.insert(NameKey(n), name::dup(&root));
-            }
-            st.taint_skipped.push((head, root));
-            return Ok(());
-        }
-    }
-    match process_line_core_d(st, d) {
-        Ok(()) => Ok(()),
-        Err(LineErr::Msg(e)) => {
-            if e == TAINT_SENTINEL {
-                declined("declaration uses a skipped (non-pinned) axiom".to_string())
-            } else {
-                Err(LineErr::Msg(e))
-            }
-        }
-        Err(v) => Err(v),
-    }
+    process_line_core_d(st, d)
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:713-726 applyLine
@@ -1386,25 +1191,21 @@ pub fn apply_line(st: &mut StateD, r: &LineRec) -> Result<(), LineErr> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:730-753 ParseResultD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::ParseResultD_refines, then delete this line
-/// The direct parse result: declarations over `Expr` and the taint skips.
+/// The direct parse result: the declarations over `Expr`, and the parse's
+/// receipts.  No arena, and — since con-leche task #293 — no prelude, no
+/// dedupe count and no hoist receipt: those are `prepare::Prepared`'s.
 pub struct ParseResultD {
-    /// the built-in prelude's records first, then the stream's
-    pub decls: Vec<DeclC>,
-    pub taint_skipped: Vec<(Name, Name)>,
+    /// the FILE's declaration records, in the file's order, plus the records
+    /// the in-process modeller generated
+    pub decls: Vec<Declaration>,
     /// projection functions rewritten to recursor form
     pub proj_rewrites: Vec<Name>,
-    /// how many of `decls` are the prelude's, and how many stream records
-    /// were dropped as identical copies of prelude records: the stream's
-    /// accepted-record count is `decls.len() - prelude_count + prelude_dropped`
-    pub prelude_count: u64,
-    pub prelude_dropped: u64,
-    /// the records moved ahead of a pinned `Nat` operation they ground
-    pub hoisted: Vec<Name>,
-    /// the blocks modelled in-process, in stream order (always empty: #38)
+    /// the blocks modelled in-process, in stream order
     pub in_modelled: Vec<Name>,
     /// how many of `decls` the in-process modeller generated, and which block
-    /// each of them models (always empty: #38)
+    /// each of them models: the driver subtracts the count from its headline
+    /// number — a generated record is a declaration of the fold, never a
+    /// record of the file — and names the block when one of them fails
     pub gen_records: u64,
     pub gen_owner: HashMap<NameKey, Name>,
     /// the census's declines (block, reason)
@@ -1412,52 +1213,28 @@ pub struct ParseResultD {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:760-763 ParseResultD.ofState
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_result_of_state_refines, then delete this line
-/// The result: the prelude's records, then the stream's with every pinned
-/// operation's stream-certified ground hoisted ahead of it.
+/// The result: the file's records, in the file's order.
 pub fn parse_result_of_state(st: StateD) -> ParseResultD {
     let StateD {
         decls,
-        taint_skipped,
         proj_rewrites,
-        prelude,
+        in_modelled,
         gen_records,
         gen_owner,
-        in_modelled,
         in_model_declined,
-        prelude_dropped,
         ..
     } = st;
-    let (stream, hoisted) = hoist_nat_op_ground(decls);
-    let prelude_count = prelude.decls.len() as u64;
-    let mut out = prelude.decls;
-    out.extend(stream);
     ParseResultD {
-        decls: out,
-        taint_skipped,
+        decls,
         proj_rewrites,
-        prelude_count,
-        prelude_dropped,
-        hoisted,
         in_modelled,
         gen_records,
         gen_owner,
         in_model_declined,
-    }
-}
-
-/// con-leche: none — `FrontendError` from a `LineErr`, at a line number: the
-/// `applyFinalLine`/`feedChunk` arms that turn `M`'s message into
-/// `.parseError line msg` and a record verdict into its own error.
-pub fn line_err_to_frontend(e: LineErr, line_no: u64) -> FrontendError {
-    match e {
-        LineErr::Msg(m) => FrontendError::ParseError(line_no, m),
-        LineErr::Verdict(v) => crate::frontend::export::record_verdict_to_error(v),
     }
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:765-775 applyFinalLine
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::apply_final_line_refines, then delete this line
 /// Scan and apply the LAST line of a stream — the one no newline ends.  A
 /// syntactic failure is reported at its offset in the line.
 pub fn apply_final_line(
@@ -1465,21 +1242,22 @@ pub fn apply_final_line(
     b: &[u8],
     i: usize,
     line_no: u64,
-) -> Result<(), FrontendError> {
+) -> Result<(), (CheckError, u64)> {
     match scan_fast::scan_line_fwd(b, i) {
-        Err(e) => Err(FrontendError::ParseError(
+        Err(e) => Err((
+            core_types::internal(cps(&scan_err_render(
+                &crate::frontend::scan_types::ScanErr {
+                    offset: e.offset - i,
+                    what: e.what,
+                },
+            ))),
             line_no,
-            scan_err_render(&crate::frontend::scan_types::ScanErr {
-                offset: e.offset - i,
-                what: e.what,
-            }),
         )),
-        Ok((r, _)) => apply_line(st, &r).map_err(|e| line_err_to_frontend(e, line_no)),
+        Ok((r, _)) => apply_line(st, &r).map_err(|e| line_err_to_check(e, line_no)),
     }
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:777-811 feedChunk
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::feed_chunk_refines, then delete this line
 /// Every COMPLETE line of the chunk from `i`, applied in order: the line count
 /// and where the incomplete tail begins (the caller carries it into the next
 /// chunk).  A line a chunk cut in half is told from a malformed one by whether
@@ -1490,19 +1268,21 @@ pub fn feed_chunk(
     b: &[u8],
     i: usize,
     line_no: u64,
-) -> Result<(u64, usize), FrontendError> {
+) -> Result<(u64, usize), (CheckError, u64)> {
     let mut i = i;
     let mut line_no = line_no;
     while i < b.len() {
         match scan_fast::scan_line_fwd(b, i) {
             Err(e) => {
                 return if scan_fast::newline_from(b, i) {
-                    Err(FrontendError::ParseError(
+                    Err((
+                        core_types::internal(cps(&scan_err_render(
+                            &crate::frontend::scan_types::ScanErr {
+                                offset: e.offset - i,
+                                what: e.what,
+                            },
+                        ))),
                         line_no + 1,
-                        scan_err_render(&crate::frontend::scan_types::ScanErr {
-                            offset: e.offset - i,
-                            what: e.what,
-                        }),
                     ))
                 } else {
                     Ok((line_no, i))
@@ -1514,11 +1294,11 @@ pub fn feed_chunk(
                 if j == 0 {
                     return Ok((line_no, i));
                 }
-                apply_line(st, &r).map_err(|e| line_err_to_frontend(e, line_no + 1))?;
+                apply_line(st, &r).map_err(|e| line_err_to_check(e, line_no + 1))?;
                 if i >= j {
-                    return Err(FrontendError::ParseError(
+                    return Err((
+                        core_types::internal(cps("the line scanner made no progress")),
                         line_no + 1,
-                        "the line scanner made no progress".to_string(),
                     ));
                 }
                 i = j;
@@ -1533,27 +1313,147 @@ pub fn feed_chunk(
 /// How many bytes the streaming driver asks for at a time.
 pub const CHUNK_SIZE: usize = 4 * 1024 * 1024;
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:841-846 parseExportD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_export_d_refines, then delete this line
-/// Wholesale direct parse (tests and small inputs).  `prelude` is the built-in
-/// prelude the result is prepended with and deduped against (empty for the
-/// prelude's own parse).
-pub fn parse_export_d(
-    contents: &[u8],
-    prelude: PreludeIx,
+/// con-leche: none — `USize.size`, the number of machine words.  Rust spells
+/// it `usize::BITS`, and the comparison is in `u128` because `1 << 64` does
+/// not fit the type it bounds.
+pub const USIZE_SIZE: u128 = 1u128 << usize::BITS;
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:816-825 sizeError
+/// **The size guard** (con-leche task #290).  The byte reader addresses its
+/// buffer by machine word, so an input of `USize.size` bytes or more is
+/// refused before any of it is read — the wholesale parse at its length, the
+/// streaming parse when the bytes read so far would reach it.  No real input
+/// comes near, and the guard is what lets con-leche's file theorem stand
+/// without a size hypothesis: an accepted parse is a parse of a buffer the
+/// word addresses.
+///
+/// The error carries line 0: there is no line to name, the input is refused
+/// before one is read.
+pub fn size_error() -> (CheckError, u64) {
+    (
+        core_types::not_implemented(cps(&format!("an input of {} bytes or more", USIZE_SIZE))),
+        0,
+    )
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:827-839 parseBytes
+/// **Wholesale direct parse of a byte buffer**: the whole input fed at once,
+/// then the last line.  The specification the streaming parse is proved equal
+/// to.
+///
+/// A `&[u8]`'s length is a `usize` by construction, so on this target the
+/// guard cannot fire; it is kept because it is the shape con-leche's theorem
+/// reads, and because `chunk_step`'s running total — which is not a slice
+/// length — can reach it on a narrow word.
+pub fn parse_bytes(
+    b: &[u8],
     in_model: bool,
     census: bool,
-) -> Result<ParseResultD, FrontendError> {
-    let mut st = state_d_init(prelude, in_model, census);
-    let (line_no, tail) = feed_chunk(&mut st, contents, 0, 0)?;
-    if tail < contents.len() {
-        apply_final_line(&mut st, contents, tail, line_no + 1)?;
+) -> Result<ParseResultD, (CheckError, u64)> {
+    if (b.len() as u128) >= USIZE_SIZE {
+        return Err(size_error());
+    }
+    let mut st = state_d_init(in_model, census);
+    let (line_no, tail) = feed_chunk(&mut st, b, 0, 0)?;
+    if tail < b.len() {
+        apply_final_line(&mut st, b, tail, line_no + 1)?;
     }
     Ok(parse_result_of_state(st))
 }
 
+/// con-leche: ConLeche/Frontend/ExportC.lean:841-846 parseExportD
+/// Wholesale direct parse of a string (the built-in prelude, tests and small
+/// inputs): `parse_bytes` of its UTF-8.
+pub fn parse_export_d(
+    contents: &str,
+    in_model: bool,
+    census: bool,
+) -> Result<ParseResultD, (CheckError, u64)> {
+    parse_bytes(contents.as_bytes(), in_model, census)
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:848-865 chunkStep
+/// **One chunk of the stream, applied** (con-leche task #290): the carried
+/// incomplete tail is put in front of the new bytes, every complete line of
+/// the buffer is fed, and the new incomplete tail is cut off for the next
+/// chunk; `total` counts the bytes read before this chunk, for the size guard.
+/// This is the step the streaming reader takes, pure, so that `parse_chunks` —
+/// the same step folded over a list of chunks — is exactly what the binary
+/// computes and can be compared with the wholesale parse.
+pub fn chunk_step(
+    st: &mut StateD,
+    carry: Vec<u8>,
+    line_no: u64,
+    total: u64,
+    buf0: &[u8],
+) -> Result<(Vec<u8>, u64, u64), (CheckError, u64)> {
+    if (total as u128) + (buf0.len() as u128) >= USIZE_SIZE {
+        return Err(size_error());
+    }
+    let buf: Vec<u8> = if carry.is_empty() {
+        buf0.to_vec()
+    } else {
+        let mut v = carry;
+        v.extend_from_slice(buf0);
+        v
+    };
+    let (line_no, tail) = feed_chunk(st, &buf, 0, line_no)?;
+    Ok((buf[tail..].to_vec(), line_no, total + buf0.len() as u64))
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:867-874 chunkFinish
+/// The end of the stream: the carried tail, if any, is its last line.
+pub fn chunk_finish(
+    mut st: StateD,
+    carry: &[u8],
+    line_no: u64,
+) -> Result<ParseResultD, (CheckError, u64)> {
+    if carry.is_empty() {
+        return Ok(parse_result_of_state(st));
+    }
+    apply_final_line(&mut st, carry, 0, line_no + 1)?;
+    Ok(parse_result_of_state(st))
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:876-880 concatBytes
+/// The bytes of a list of chunks, in order: what the chunks a handle hands out
+/// add up to.
+pub fn concat_bytes(chunks: &[Vec<u8>]) -> Vec<u8> {
+    let mut out: Vec<u8> = Vec::new();
+    for c in chunks {
+        out.extend_from_slice(c);
+    }
+    out
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:882-901 parseChunks
+/// **The streaming parse, purely** (con-leche task #290): `chunk_step` folded
+/// over a list of chunks, `chunk_finish` at its end — what
+/// `parse_export_handle_d` does with the chunks its handle hands out, minus
+/// the reads.  The list is folded whole (task #294): an empty chunk
+/// contributes nothing and the fold goes on, so the parse of a list of chunks
+/// is the parse of their concatenation, however it was cut.  The loop's
+/// end-of-input decision — an empty READ is the end of the file — is the
+/// loop's own, not the step's.
+pub fn parse_chunks(
+    chunks: &[Vec<u8>],
+    in_model: bool,
+    census: bool,
+) -> Result<ParseResultD, (CheckError, u64)> {
+    let mut st = state_d_init(in_model, census);
+    let mut carry: Vec<u8> = Vec::new();
+    let mut line_no: u64 = 0;
+    let mut total: u64 = 0;
+    for c in chunks {
+        let (c2, l, t) = chunk_step(&mut st, carry, line_no, total, c)?;
+        carry = c2;
+        line_no = l;
+        total = t;
+    }
+    chunk_finish(st, &carry, line_no)
+}
+
 /// con-leche: ConLeche/Frontend/ExportC.lean:903-931 parseExportHandleD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_export_handle_d_refines, then delete this line
 /// Streaming direct parse off an open reader.
 ///
 /// The reader is read strictly forward, 4 MiB at a time, and is never seeked,
@@ -1561,40 +1461,31 @@ pub fn parse_export_d(
 /// well as a file (con-leche task #180: no scratch file at all, anywhere).
 /// It is a property to preserve: a seek or a re-open here would silently
 /// re-introduce a temp file.  The unconsumed tail of a chunk — at most one
-/// incomplete line — is carried into the next one.
+/// incomplete line — is carried into the next one.  Each step is `chunk_step`,
+/// the end `chunk_finish`: the loop is `parse_chunks`' with the reads
+/// interleaved, stopping at the first empty read.
 pub fn parse_export_handle_d<R: Read>(
     h: &mut R,
-    prelude: PreludeIx,
     in_model: bool,
     census: bool,
     chunk: usize,
-) -> std::io::Result<Result<ParseResultD, FrontendError>> {
-    let mut st = state_d_init(prelude, in_model, census);
+) -> std::io::Result<Result<ParseResultD, (CheckError, u64)>> {
+    let mut st = state_d_init(in_model, census);
     let mut carry: Vec<u8> = Vec::new();
     let mut line_no: u64 = 0;
+    let mut total: u64 = 0;
     let mut buf0: Vec<u8> = vec![0u8; chunk];
     loop {
         let n = read_up_to(h, &mut buf0)?;
         if n == 0 {
-            if !carry.is_empty() {
-                if let Err(e) = apply_final_line(&mut st, &carry, 0, line_no + 1) {
-                    return Ok(Err(e));
-                }
-            }
-            return Ok(Ok(parse_result_of_state(st)));
+            return Ok(chunk_finish(st, &carry, line_no));
         }
-        let buf: Vec<u8> = if carry.is_empty() {
-            buf0[..n].to_vec()
-        } else {
-            let mut v = std::mem::take(&mut carry);
-            v.extend_from_slice(&buf0[..n]);
-            v
-        };
-        match feed_chunk(&mut st, &buf, 0, line_no) {
+        match chunk_step(&mut st, carry, line_no, total, &buf0[..n]) {
             Err(e) => return Ok(Err(e)),
-            Ok((l, tail)) => {
+            Ok((c, l, t)) => {
+                carry = c;
                 line_no = l;
-                carry = buf[tail..].to_vec();
+                total = t;
             }
         }
     }
@@ -1618,25 +1509,55 @@ pub fn read_up_to<R: Read>(h: &mut R, buf: &mut [u8]) -> std::io::Result<usize> 
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:933-938 parseExportStreamD
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export_c::parse_export_stream_d_refines, then delete this line
 /// Streaming direct parse of a file.
 pub fn parse_export_stream_d(
     path: &str,
-    prelude: PreludeIx,
     in_model: bool,
     census: bool,
     chunk: usize,
-) -> std::io::Result<Result<ParseResultD, FrontendError>> {
+) -> std::io::Result<Result<ParseResultD, (CheckError, u64)>> {
     let mut f = std::fs::File::open(path)?;
-    parse_export_handle_d(&mut f, prelude, in_model, census, chunk)
+    parse_export_handle_d(&mut f, in_model, census, chunk)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn parse(text: &str) -> Result<ParseResultD, FrontendError> {
-        parse_export_d(text.as_bytes(), prelude_ix_empty(), true, false)
+    fn parse(text: &str) -> Result<ParseResultD, (CheckError, u64)> {
+        parse_export_d(text, true, false)
+    }
+
+    /// The message of a `CheckError`, as a Rust string: `CheckError` carries
+    /// code points and derives no `Debug`, so the tests render it themselves.
+    fn msg(e: &CheckError) -> String {
+        let m = match e {
+            CheckError::NotImplemented(m)
+            | CheckError::Invalid(m)
+            | CheckError::Internal(m)
+            | CheckError::Native(m) => m,
+        };
+        m.iter().filter_map(|c| char::from_u32(*c)).collect()
+    }
+
+    /// A failed parse, rendered for a panic message: the class, the line and
+    /// the message.
+    fn show(e: &(CheckError, u64)) -> String {
+        let tag = match e.0 {
+            CheckError::NotImplemented(_) => "declined",
+            CheckError::Invalid(_) => "invalid",
+            CheckError::Internal(_) => "internal",
+            CheckError::Native(_) => "native",
+        };
+        format!("{} at line {}: {}", tag, e.1, msg(&e.0))
+    }
+
+    /// A result that was expected to fail, rendered for a panic message.
+    fn shown(r: Result<ParseResultD, (CheckError, u64)>) -> String {
+        match r {
+            Ok(_) => "an accepted parse".to_string(),
+            Err(e) => show(&e),
+        }
     }
 
     /// A minimal stream: the header, one name, one level, one sort and an
@@ -1650,11 +1571,10 @@ mod tests {
             "{\"ie\":0,\"sort\":1}\n",
             "{\"axiom\":{\"isUnsafe\":false,\"levelParams\":[],\"name\":1,\"type\":0}}\n"
         );
-        let r = parse(s).unwrap_or_else(|e| panic!("{:?}", e));
+        let r = parse(s).unwrap_or_else(|e| panic!("{}", show(&e)));
         assert_eq!(r.decls.len(), 1);
-        assert_eq!(r.prelude_count, 0);
         match &r.decls[0] {
-            DeclC::AxiomDecl(cv) => assert_eq!(name_str(&cv.name), "A"),
+            Declaration::AxiomDecl(cv) => assert_eq!(name_str(&cv.name), "A"),
             _ => panic!("not an axiom"),
         }
     }
@@ -1664,11 +1584,43 @@ mod tests {
     fn an_undefined_index_is_a_parse_error() {
         let s = "{\"ie\":0,\"sort\":7}\n";
         match parse(s) {
-            Err(FrontendError::ParseError(line, msg)) => {
+            Err((CheckError::Internal(msg), line)) => {
                 assert_eq!(line, 1);
-                assert!(msg.contains("undefined level index 7"), "{}", msg);
+                let m: String = msg.iter().filter_map(|c| char::from_u32(*c)).collect();
+                assert!(m.contains("undefined level index 7"), "{}", m);
             }
-            other => panic!("{:?}", other.err()),
+            other => panic!("{}", shown(other)),
+        }
+    }
+
+    /// **An index is bound once** (con-leche task #290): a second entry at an
+    /// index a previous line bound is a parse error naming the table.
+    #[test]
+    fn rebinding_a_table_index_is_a_parse_error() {
+        for (s, what) in [
+            (
+                concat!(
+                    "{\"in\":1,\"str\":{\"pre\":0,\"str\":\"A\"}}\n",
+                    "{\"in\":1,\"str\":{\"pre\":0,\"str\":\"B\"}}\n"
+                ),
+                "name index 1 is already bound",
+            ),
+            (
+                concat!("{\"il\":1,\"succ\":0}\n", "{\"il\":1,\"succ\":0}\n"),
+                "level index 1 is already bound",
+            ),
+            (
+                concat!("{\"ie\":0,\"sort\":0}\n", "{\"ie\":0,\"sort\":0}\n"),
+                "expression index 0 is already bound",
+            ),
+        ] {
+            match parse(s) {
+                Err((CheckError::Internal(msg), 2)) => {
+                    let m: String = msg.iter().filter_map(|c| char::from_u32(*c)).collect();
+                    assert_eq!(m, what);
+                }
+                other => panic!("{}: {}", what, shown(other)),
+            }
         }
     }
 
@@ -1681,14 +1633,55 @@ mod tests {
             "{\"axiom\":{\"isUnsafe\":true,\"levelParams\":[],\"name\":1,\"type\":0}}\n"
         );
         match parse(s) {
-            Err(FrontendError::Unsupported(w)) => assert_eq!(w, "unsafe axiom"),
-            other => panic!("{:?}", other.err()),
+            Err((CheckError::NotImplemented(w), _)) => {
+                let m: String = w.iter().filter_map(|c| char::from_u32(*c)).collect();
+                assert_eq!(m, "unsafe axiom");
+            }
+            other => panic!("{}", shown(other)),
+        }
+    }
+
+    /// **One record per `#QUOT` line** (con-leche task #293): the decoder
+    /// emits the constant the file declares, at the kind it declares it at,
+    /// and matches nothing against a pin.
+    #[test]
+    fn a_quot_record_is_one_quot_decl() {
+        let s = concat!(
+            "{\"in\":1,\"str\":{\"pre\":0,\"str\":\"Whatever\"}}\n",
+            "{\"ie\":0,\"sort\":0}\n",
+            "{\"quot\":{\"kind\":\"lift\",\"levelParams\":[],\"name\":1,\"type\":0}}\n"
+        );
+        let r = parse(s).unwrap_or_else(|e| panic!("{}", show(&e)));
+        assert_eq!(r.decls.len(), 1);
+        match &r.decls[0] {
+            Declaration::QuotDecl(k, cv) => {
+                assert_eq!(env::quot_kind_slot(k), 2);
+                assert_eq!(name_str(&cv.name), "Whatever");
+            }
+            _ => panic!("not a quotient record"),
+        }
+    }
+
+    /// An unknown quotient kind is a parse error.
+    #[test]
+    fn an_unknown_quotient_kind_is_a_parse_error() {
+        let s = concat!(
+            "{\"in\":1,\"str\":{\"pre\":0,\"str\":\"Q\"}}\n",
+            "{\"ie\":0,\"sort\":0}\n",
+            "{\"quot\":{\"kind\":\"nope\",\"levelParams\":[],\"name\":1,\"type\":0}}\n"
+        );
+        match parse(s) {
+            Err((CheckError::Internal(msg), 3)) => {
+                let m: String = msg.iter().filter_map(|c| char::from_u32(*c)).collect();
+                assert_eq!(m, "unknown quotient kind 'nope'");
+            }
+            other => panic!("{}", shown(other)),
         }
     }
 
     /// A mutual block reaches the modeller and the modeller declines it,
     /// naming the block AND the class: this one has no recursors, so the
-    /// generator's own shape check is what refuses it (task #39).
+    /// generator's own shape check is what refuses it.
     #[test]
     fn a_mutual_block_declines_at_the_modeller_point() {
         // two type formers `T : Type` and `U : Type`, one constructor each,
@@ -1716,23 +1709,22 @@ mod tests {
             "\"numParams\":0,\"type\":0}]}}\n"
         );
         match parse(s) {
-            Err(FrontendError::Unsupported(w)) => {
-                assert!(w.starts_with("in-process model of T:"), "{}", w);
+            Err((CheckError::NotImplemented(w), _)) => {
+                let m: String = w.iter().filter_map(|c| char::from_u32(*c)).collect();
+                assert!(m.starts_with("in-process model of T:"), "{}", m);
                 assert!(
-                    w.contains("recursor count differs from member count"),
+                    m.contains("recursor count differs from member count"),
                     "{}",
-                    w
+                    m
                 );
             }
-            other => panic!("{:?}", other.err()),
+            other => panic!("{}", shown(other)),
         }
         // with the modeller off the block is pushed bare, as in con-leche
-        let r = parse_export_d(s.as_bytes(), prelude_ix_empty(), false, false)
-            .unwrap_or_else(|e| panic!("{:?}", e));
+        let r = parse_export_d(s, false, false).unwrap_or_else(|e| panic!("{}", show(&e)));
         assert_eq!(r.decls.len(), 1);
         // and in census mode it is reported and the parse continues
-        let r = parse_export_d(s.as_bytes(), prelude_ix_empty(), true, true)
-            .unwrap_or_else(|e| panic!("{:?}", e));
+        let r = parse_export_d(s, true, true).unwrap_or_else(|e| panic!("{}", show(&e)));
         assert_eq!(r.in_model_declined.len(), 1);
         assert_eq!(name_str(&r.in_model_declined[0].0), "T");
     }
@@ -1755,16 +1747,19 @@ mod tests {
             "\"numParams\":0,\"type\":0}]}}\n"
         );
         match parse(s) {
-            Err(FrontendError::Invalid(w)) => {
-                assert!(w.contains("declares 3 fields"), "{}", w);
+            Err((CheckError::Invalid(w), _)) => {
+                let m: String = w.iter().filter_map(|c| char::from_u32(*c)).collect();
+                assert!(m.contains("declares 3 fields"), "{}", m);
             }
-            other => panic!("{:?}", other.err()),
+            other => panic!("{}", shown(other)),
         }
     }
 
-    /// The chunk boundary: the same stream parsed in 8-byte chunks gives the
+    /// The chunk boundary: the same stream parsed in small chunks gives the
     /// same records, because an incomplete line is carried and not
-    /// misreported.
+    /// misreported.  Both the reader loop and the pure `parse_chunks` are
+    /// checked, and an empty chunk anywhere contributes nothing (con-leche
+    /// task #294).
     #[test]
     fn chunking_does_not_change_the_parse() {
         let s = concat!(
@@ -1773,14 +1768,34 @@ mod tests {
             "{\"ie\":0,\"sort\":0}\n",
             "{\"axiom\":{\"isUnsafe\":false,\"levelParams\":[],\"name\":1,\"type\":0}}\n"
         );
-        let whole = parse(s).unwrap_or_else(|e| panic!("{:?}", e));
+        let whole = parse(s).unwrap_or_else(|e| panic!("{}", show(&e)));
         for chunk in [1usize, 2, 7, 8, 13, 64] {
             let mut cur = std::io::Cursor::new(s.as_bytes().to_vec());
-            let r = parse_export_handle_d(&mut cur, prelude_ix_empty(), true, false, chunk)
+            let r = parse_export_handle_d(&mut cur, true, false, chunk)
                 .expect("io")
-                .unwrap_or_else(|e| panic!("chunk {}: {:?}", chunk, e));
+                .unwrap_or_else(|e| panic!("chunk {}: {}", chunk, show(&e)));
             assert_eq!(r.decls.len(), whole.decls.len(), "chunk {}", chunk);
+            let cs: Vec<Vec<u8>> = s
+                .as_bytes()
+                .chunks(chunk)
+                .map(|c| c.to_vec())
+                .collect::<Vec<_>>();
+            let r = parse_chunks(&cs, true, false)
+                .unwrap_or_else(|e| panic!("pure chunk {}: {}", chunk, show(&e)));
+            assert_eq!(r.decls.len(), whole.decls.len(), "pure chunk {}", chunk);
+            assert_eq!(concat_bytes(&cs), s.as_bytes());
         }
+        // an empty chunk anywhere is a no-op
+        let b = s.as_bytes();
+        let cs: Vec<Vec<u8>> = vec![
+            b[..70].to_vec(),
+            Vec::new(),
+            b[70..71].to_vec(),
+            b[71..].to_vec(),
+            Vec::new(),
+        ];
+        let r = parse_chunks(&cs, true, false).unwrap_or_else(|e| panic!("{}", show(&e)));
+        assert_eq!(r.decls.len(), whole.decls.len());
     }
 
     /// A final line with no newline is applied (`applyFinalLine`).
@@ -1791,7 +1806,7 @@ mod tests {
             "{\"ie\":0,\"sort\":0}\n",
             "{\"axiom\":{\"isUnsafe\":false,\"levelParams\":[],\"name\":1,\"type\":0}}"
         );
-        let r = parse(s).unwrap_or_else(|e| panic!("{:?}", e));
+        let r = parse(s).unwrap_or_else(|e| panic!("{}", show(&e)));
         assert_eq!(r.decls.len(), 1);
     }
 }

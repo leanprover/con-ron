@@ -17,7 +17,7 @@
 //!   front-to-back, which is con-leche's `List (Name × Nat)` with `find?`.
 //! * The four-component tuples of `Kit.recTy`/`recRhs` are `kit::KCtor`.
 
-use con_ron_core::cached::parsed_c::DeclC;
+use con_ron_core::kernel::env::Declaration;
 use con_ron_core::kernel::basis_names as bnm;
 use con_ron_core::kernel::core_k;
 use con_ron_core::kernel::env;
@@ -186,7 +186,7 @@ pub fn need<T>(what: &str, o: Option<T>) -> Result<T, String> {
 /// **The mutual rung** (B1 index-free, B2 indexed).  The records, in stream
 /// order: the tag block, the auxiliary block, the member/constructor/recursor
 /// models, the iota theorems, the projection artifacts.
-pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
+pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
     let t0 = b.types.first().ok_or_else(|| "empty block".to_string())?;
     let t_name = name::dup(&t0.cv.name);
     let lps: Vec<Name> = t0.cv.level_params.iter().map(name::dup).collect();
@@ -403,7 +403,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
     let tag = kit::tag_name(&t_name);
     let aux = kit::aux_name(&t_name);
     let ps0 = vars_at(0, n_p);
-    let mut out: Vec<DeclC> = Vec::new();
+    let mut out: Vec<Declaration> = Vec::new();
     let mut heights: Vec<(Name, u64)> = Vec::new();
     // 1. the tag block: `tag : ∀ p⃗, Sort W`, `tag.m : ∀ p⃗ ı⃗_m, tag p⃗` with
     // `W = max 1 (the sorts of the index domains)` (B2; `Type` at an
@@ -525,7 +525,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
             tag_rules,
         ));
     }
-    out.push(DeclC::IndDecl(tag_block, n_p));
+    out.push(Declaration::IndDecl(tag_block, n_p));
     // 2. the auxiliary family
     let aux_ty = need(
         "aux type",
@@ -617,7 +617,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
         n_p + 1 + n,
         aux_rules,
     ));
-    out.push(DeclC::IndDecl(aux_block, n_p));
+    out.push(Declaration::IndDecl(aux_block, n_p));
     // 3. the member models `T_m._model := λ p⃗ ı⃗, aux p⃗ (tag.m p⃗ ı⃗)`
     for m in 0..k {
         let t = &b.types[m as usize];
@@ -644,7 +644,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
             kit::hint_for(&hof, &value)
         };
         heights.insert(0, (model_name(&t.cv.name), kit::hint_height(&h)));
-        out.push(DeclC::DefnDecl(
+        out.push(Declaration::DefnDecl(
             ConstantVal {
                 name: model_name(&t.cv.name),
                 level_params: lps.iter().map(name::dup).collect(),
@@ -679,7 +679,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
             kit::hint_for(&hof, &value)
         };
         heights.insert(0, (model_name(&mc.c.cv.name), kit::hint_height(&h)));
-        out.push(DeclC::DefnDecl(
+        out.push(Declaration::DefnDecl(
             ConstantVal {
                 name: model_name(&mc.c.cv.name),
                 level_params: lps.iter().map(name::dup).collect(),
@@ -760,7 +760,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
             kit::hint_for(&hof, &value)
         };
         heights.insert(0, (model_name(&r.cv.name), kit::hint_height(&h)));
-        out.push(DeclC::DefnDecl(
+        out.push(Declaration::DefnDecl(
             ConstantVal {
                 name: model_name(&r.cv.name),
                 level_params: rlps.iter().map(name::dup).collect(),
@@ -874,7 +874,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
                     ),
                 ),
             )?;
-            out.push(DeclC::ThmDecl(
+            out.push(Declaration::ThmDecl(
                 ConstantVal {
                     name: iota_name(&r.cv.name, j),
                     level_params: rlps.iter().map(name::dup).collect(),
@@ -1023,7 +1023,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
                         kit::hint_height(&h),
                     ),
                 );
-                out.push(DeclC::DefnDecl(
+                out.push(Declaration::DefnDecl(
                     ConstantVal {
                         name: core_k::proj_model_name(&t.cv.name, i),
                         level_params: lps.iter().map(name::dup).collect(),
@@ -1071,7 +1071,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
                         continue;
                     }
                 };
-                out.push(DeclC::ThmDecl(
+                out.push(Declaration::ThmDecl(
                     ConstantVal {
                         name: kit::nstr(core_k::proj_model_name(&t.cv.name, i), "iota"),
                         level_params: lps.iter().map(name::dup).collect(),

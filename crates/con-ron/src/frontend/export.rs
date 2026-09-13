@@ -1,224 +1,53 @@
 //! `ConLeche/Frontend/Export.lean` — the representation-free half of the
-//! parse: the level-parameter canonicalisation the basis and prelude matching
-//! compare up to, the frontend's error type, the taint sentinel and the
-//! driver's decline messages.
+//! parse: the parse's error monad, the record verdicts, and the driver's name
+//! rendering.
 //!
-//! **Only the lockstep twins are ported.**  con-leche spells each comparison
-//! twice: `canonEq*`, which builds `ConstantInfo.canon` of BOTH sides, is the
-//! SPECIFICATION, and `canonEq*Fast`, which descends the two terms together
-//! and stops at the first disagreement, is what `@[csimp]` swaps in and what
-//! runs.  The reason is the `tower_*` fixtures: `canonExpr` rebuilds every
-//! node, so a depth-60 shared tower (2^60 nodes unshared) exhausts memory in
-//! the specification and is a few dozen node visits in the twin.  This module
-//! ports the twins and cites both — the spec citation is what the provenance
-//! gate watches, the twin is what the port is.
+//! **One error type for the whole accept path** (con-leche task #295).  The
+//! prelude, the parse and the fold all fail in `Except (CheckError × Nat)`, so
+//! the three steps chain in one `do` block — which is what con-leche's main
+//! corollary states.  The frontend therefore has no error type of its own:
+//! `FrontendError` is gone, and its `parseError`/`unsupported`/`invalid` were
+//! the same three verdict classes as `CheckError`'s
+//! `internal`/`notImplemented`/`invalid` under other names (the driver already
+//! mapped both onto the same three exit codes).  The `Nat` beside the error is
+//! the failure's POSITION read in the step's own unit: the **input line
+//! number** in the frontend's half (0 where no line is meant — the size guard,
+//! which refuses the input before reading it), the record's position in the
+//! list the fold folds.
 //!
-//! `canonLevel` and `canonNameMap` are ported as they stand: a level is a
-//! handful of nodes, and `canonExprEqFast`'s `sort`/`const` arms compare
-//! *built* canonical levels, so there is nothing to fuse there.
+//! **The canonical form is the KERNEL's** (con-leche task #293).
+//! `canonLevel`/`canonExpr`/`ConstantInfo.canon` and the lockstep `canonEq*`
+//! twins used to live here, because the parse did the basis matching.  The
+//! fold does it now, and the kernel may not import the frontend, so they moved
+//! to `ConLeche/Kernel/Canon.lean` — `con_ron_core::kernel::canon` in the
+//! port.  Nothing in `crates/con-ron/src` builds a canonical form any more.
 //!
-//! **`canonExpr` renames only level parameters** and resets the binder
-//! metadata to the same constant on both sides; the name/annotation erasure
-//! it also documents has been the identity on both sides since con-leche task
-//! #203.  That is why the basis-pin match can pre-filter by NAME (task #215)
-//! and why `pw` never enters a comparison.
+//! **The taint machinery is gone too** (con-leche task #292): `taintSentinel`,
+//! `taintDetail` and `taintSummary` went with the parser's `sorryAx` pre-scan.
+//! A `sorryAx` axiom record is now forwarded like any other record and
+//! installs nothing, and a *use* of it declines at the record that uses it
+//! (`core_k::unknown_const_error`, `checker_base::unresolved_consts_error`).
+//! Nothing in the frontend looks at `sorryAx`.
 //!
-//! Not ported, deliberately: the six `*_iff` theorems and the four `@[csimp]`
-//! lemmas that tie each spec to its twin (§3.1 — a `Prop` is not code), the
-//! retired tree-size budget (a `/-! … -/` section, not a declaration), and
-//! `M`, which is `Except String` and becomes `Result<_, String>`.
+//! Not ported, deliberately: the retired tree-size budget (a `/-! … -/`
+//! section, not a declaration).
 
-use con_ron_core::kernel::env;
-use con_ron_core::kernel::env::{ConstantInfo, ConstantVal, RecRule};
-use con_ron_core::kernel::expr;
-use con_ron_core::kernel::expr::{Expr, ExprKind};
-use con_ron_core::kernel::level;
-use con_ron_core::kernel::level::{Level, LevelKind};
-use con_ron_core::kernel::name;
+use con_ron_core::kernel::core_types;
+use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::prop_when;
 
 /// con-leche: ConLeche/Frontend/Export.lean:117 M
-/// The parse's error monad: a message, which the driver reports with the line
-/// number.
+/// The parse's error monad: a message, which the caller pairs with the line
+/// number it was read at.
 pub type M<T> = Result<T, String>;
 
-/// con-leche: ConLeche/Kernel/Canon.lean:67-73 canonNameMap
-/// The level-parameter renaming a constant's own parameter list induces: the
-/// `i`-th parameter becomes `⟨i⟩`, anything else is left alone.  Lean returns
-/// the closure `Name → Name`; the port passes the list and the name together,
-/// which is the same function applied.
-pub fn canon_name_map(ps: &Vec<Name>, n: &Name) -> Name {
-    let mut i: u64 = 0;
-    for p in ps {
-        if name::beq(p, n) {
-            return name::mk_num(name::anonymous(), i);
-        }
-        i += 1;
-    }
-    name::dup(n)
-}
-
-/// con-leche: ConLeche/Kernel/Canon.lean:27-34 canonLevel
-/// Rename level parameters (for basis-block matching up to level-parameter
-/// names).
-pub fn canon_level(ps: &Vec<Name>, l: &Level) -> Level {
-    match &l.0.kind {
-        LevelKind::Zero => level::zero(),
-        LevelKind::Succ(u) => level::succ(canon_level(ps, u)),
-        LevelKind::Max(u, v) => level::max(canon_level(ps, u), canon_level(ps, v)),
-        LevelKind::Imax(u, v) => level::imax(canon_level(ps, u), canon_level(ps, v)),
-        LevelKind::Param(n) => level::param(canon_name_map(ps, n)),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Canon.lean:27-34 canonLevel
-/// `us.map (canonLevel m)`, the `const` arm's list.
-pub fn canon_level_list(ps: &Vec<Name>, ls: &Vec<Level>) -> Vec<Level> {
-    ls.iter().map(|l| canon_level(ps, l)).collect()
-}
-
-/// con-leche: ConLeche/Kernel/Canon.lean:126-146 canonExprEqFast
-/// con-leche: ConLeche/Kernel/Canon.lean:36-65 canonExpr
-/// Lockstep twin of `canonExpr m a == canonExpr m' b`.  `canonExpr` preserves
-/// every node's constructor (it rewrites only levels, and resets the binder
-/// metadata to the same constant on both sides), so the two canonical forms
-/// are equal iff the originals agree constructor by constructor down to their
-/// leaves — which is what this descent tests.
-pub fn canon_expr_eq_fast(ps: &Vec<Name>, ps2: &Vec<Name>, a: &Expr, b: &Expr) -> bool {
-    match (&a.0.kind, &b.0.kind) {
-        (ExprKind::Bvar(i), ExprKind::Bvar(j)) => i == j,
-        (ExprKind::Fvar(i, t), ExprKind::Fvar(j, t2)) => {
-            i == j && canon_expr_eq_fast(ps, ps2, t, t2)
-        }
-        (ExprKind::Sort(u), ExprKind::Sort(v)) => {
-            level::beq(&canon_level(ps, u), &canon_level(ps2, v))
-        }
-        (ExprKind::Const(n, us), ExprKind::Const(n2, us2)) => {
-            name::beq(n, n2)
-                && expr::levels_beq(&canon_level_list(ps, us), &canon_level_list(ps2, us2))
-        }
-        (ExprKind::App(f, x), ExprKind::App(f2, x2)) => {
-            canon_expr_eq_fast(ps, ps2, f, f2) && canon_expr_eq_fast(ps, ps2, x, x2)
-        }
-        (ExprKind::Lam(t, bd, _), ExprKind::Lam(t2, bd2, _)) => {
-            canon_expr_eq_fast(ps, ps2, t, t2) && canon_expr_eq_fast(ps, ps2, bd, bd2)
-        }
-        (ExprKind::ForallE(t, bd, _), ExprKind::ForallE(t2, bd2, _)) => {
-            canon_expr_eq_fast(ps, ps2, t, t2) && canon_expr_eq_fast(ps, ps2, bd, bd2)
-        }
-        (ExprKind::LetE(t, v, bd), ExprKind::LetE(t2, v2, bd2)) => {
-            canon_expr_eq_fast(ps, ps2, t, t2)
-                && canon_expr_eq_fast(ps, ps2, v, v2)
-                && canon_expr_eq_fast(ps, ps2, bd, bd2)
-        }
-        (ExprKind::Lit(l), ExprKind::Lit(l2)) => expr::literal_beq(l, l2),
-        (ExprKind::Proj(s, i, e), ExprKind::Proj(s2, i2, e2)) => {
-            name::beq(s, s2) && i == i2 && canon_expr_eq_fast(ps, ps2, e, e2)
-        }
-        _ => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Canon.lean:201-206 ConstantVal.canonEqFast
-/// con-leche: ConLeche/Kernel/Canon.lean:195-199 ConstantVal.canonEq
-/// con-leche: ConLeche/Kernel/Canon.lean:75-80 ConstantVal.canon
-/// Two constants have the same canonical common data.  The numbered
-/// level-parameter lists are equal exactly when they are equally long.
-pub fn constant_val_canon_eq(cv: &ConstantVal, cv2: &ConstantVal) -> bool {
-    name::beq(&cv.name, &cv2.name)
-        && cv.level_params.len() == cv2.level_params.len()
-        && canon_expr_eq_fast(&cv.level_params, &cv2.level_params, &cv.ty, &cv2.ty)
-}
-
-/// con-leche: ConLeche/Kernel/Canon.lean:224-231 canonRulesEqFast
-/// Rule lists compared through the canonical form of each rule's right-hand
-/// side.  `{r with rhs := .bvar 0} == {r' with rhs := .bvar 0}` is every
-/// field but `rhs` under Lean's derived equality, which is what the first
-/// conjunct below spells out.
-pub fn canon_rules_eq_fast(
-    ps: &Vec<Name>,
-    ps2: &Vec<Name>,
-    rs: &Vec<RecRule>,
-    rs2: &Vec<RecRule>,
-) -> bool {
-    if rs.len() != rs2.len() {
-        return false;
-    }
-    for (r, r2) in rs.iter().zip(rs2.iter()) {
-        let same_but_rhs = name::beq(&r.ctor, &r2.ctor)
-            && r.nfields == r2.nfields
-            && r.ctor_params == r2.ctor_params
-            && env::rec_rule_fire_beq(&r.fire, &r2.fire)
-            && r.k == r2.k
-            && r.eta == r2.eta
-            && r.params_blind == r2.params_blind;
-        if !(same_but_rhs && canon_expr_eq_fast(ps, ps2, &r.rhs, &r2.rhs)) {
-            return false;
-        }
-    }
-    true
-}
-
-/// con-leche: ConLeche/Kernel/Canon.lean:254-273 ConstantInfo.canonEqFast
-/// con-leche: ConLeche/Kernel/Canon.lean:250-252 ConstantInfo.canonEq
-/// con-leche: ConLeche/Kernel/Canon.lean:82-97 ConstantInfo.canon
-/// Two stored constants have the same canonical form.  `indInfo`'s `IndCaps`
-/// is reset on both sides by `canon`, so it is not compared; a `projInfo`
-/// never occurs in parsed input and the arm keeps the match total.
-pub fn constant_info_canon_eq(ci: &ConstantInfo, ci2: &ConstantInfo) -> bool {
-    match (ci, ci2) {
-        (ConstantInfo::AxiomInfo(cv), ConstantInfo::AxiomInfo(cv2)) => {
-            constant_val_canon_eq(cv, cv2)
-        }
-        (ConstantInfo::DefnInfo(cv, v, h), ConstantInfo::DefnInfo(cv2, v2, h2)) => {
-            constant_val_canon_eq(cv, cv2)
-                && canon_expr_eq_fast(&cv.level_params, &cv2.level_params, v, v2)
-                && env::reducibility_hint_beq(h, h2)
-        }
-        (ConstantInfo::ThmInfo(cv, v), ConstantInfo::ThmInfo(cv2, v2)) => {
-            constant_val_canon_eq(cv, cv2)
-                && canon_expr_eq_fast(&cv.level_params, &cv2.level_params, v, v2)
-        }
-        (ConstantInfo::IndInfo(cv, _), ConstantInfo::IndInfo(cv2, _)) => {
-            constant_val_canon_eq(cv, cv2)
-        }
-        (ConstantInfo::CtorInfo(cv, np, nf), ConstantInfo::CtorInfo(cv2, np2, nf2)) => {
-            constant_val_canon_eq(cv, cv2) && np == np2 && nf == nf2
-        }
-        (ConstantInfo::RecInfo(cv, mi, rp, rs), ConstantInfo::RecInfo(cv2, mi2, rp2, rs2)) => {
-            constant_val_canon_eq(cv, cv2)
-                && mi == mi2
-                && rp == rp2
-                && canon_rules_eq_fast(&cv.level_params, &cv2.level_params, rs, rs2)
-        }
-        (ConstantInfo::ProjInfo(t), ConstantInfo::ProjInfo(t2)) => env::proj_table_beq(t, t2),
-        _ => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Canon.lean:294-298 canonEqListFast
-/// con-leche: ConLeche/Kernel/Canon.lean:289-292 canonEqList
-/// Two blocks are the same, member for member, up to the canonical form.
-pub fn canon_eq_list(xs: &[ConstantInfo], ys: &[ConstantInfo]) -> bool {
-    xs.len() == ys.len()
-        && xs
-            .iter()
-            .zip(ys.iter())
-            .all(|(x, y)| constant_info_canon_eq(x, y))
-}
-
-/// con-leche: ConLeche/Frontend/Export.lean:347-351 FrontendError
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::FrontendError_refines, then delete this line
-/// Declaration kinds the checker cannot represent yet map to `Unsupported`,
-/// which the driver turns into the arena's "declined" exit code — as opposed
-/// to malformed input, which is a hard error.  A record that CONTRADICTS
-/// ITSELF maps to `Invalid`, the arena's "rejected" code.
-#[derive(Debug, Clone)]
-pub enum FrontendError {
-    ParseError(u64, String),
-    Unsupported(String),
-    Invalid(String),
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code
+/// points (DESIGN.md §3.3), while the frontend's own messages are Rust
+/// `String`s: this is the one conversion between them, at the boundary where a
+/// frontend message becomes a `CheckError`.
+pub fn cps(s: &str) -> Vec<u32> {
+    s.chars().map(|c| c as u32).collect()
 }
 
 /// con-leche: ConLeche/Frontend/Export.lean:71-79 RecordVerdict
@@ -233,22 +62,14 @@ pub enum RecordVerdict {
 }
 
 /// con-leche: ConLeche/Frontend/Export.lean:81-85 RecordVerdict.toError
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::record_verdict_to_error_refines, then delete this line
-/// The frontend error a record verdict becomes.
-pub fn record_verdict_to_error(v: RecordVerdict) -> FrontendError {
+/// The checker error a record verdict becomes; the caller pairs it with the
+/// line the record was read at.
+pub fn record_verdict_to_error(v: RecordVerdict) -> CheckError {
     match v {
-        RecordVerdict::Declined(what) => FrontendError::Unsupported(what),
-        RecordVerdict::Invalid(what) => FrontendError::Invalid(what),
+        RecordVerdict::Declined(what) => core_types::not_implemented(cps(&what)),
+        RecordVerdict::Invalid(what) => core_types::invalid(cps(&what)),
     }
 }
-
-/// con-leche: ConLeche/Frontend/Export.lean:368-373 taintSentinel
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::TAINT_SENTINEL_refines, then delete this line
-/// Internal sentinel: a declaration-level expression lookup hit a tainted
-/// entry.  Backstop only — `apply_decl_d`'s read-only pre-scan skips tainted
-/// declarations before any parsing; if it fires anyway it is converted to a
-/// decline at the record level.
-pub const TAINT_SENTINEL: &str = "\u{0}uses-skipped-axiom";
 
 /// con-leche: none — `Name.toString`, which DESIGN.md §3.7's skip list keeps
 /// out of the verified core as driver-only rendering ("the theorem never
@@ -272,41 +93,7 @@ pub fn name_str(n: &Name) -> String {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Export.lean:407-417 taintDetail
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::taint_detail_refines, then delete this line
-/// The taint skips WITHOUT the total: per-root counts and the first few
-/// skipped names.  Used where the caller already states the count.
-pub fn taint_detail(skips: &[(Name, Name)]) -> String {
-    let mut per_root: Vec<String> = Vec::new();
-    for r in con_ron_core::kernel::std_axioms::tolerated_axiom_names() {
-        let c = skips.iter().filter(|p| name::beq(&p.1, &r)).count();
-        if c != 0 {
-            per_root.push(format!("{} via {}", c, name_str(&r)));
-        }
-    }
-    let names: Vec<String> = skips.iter().take(8).map(|p| name_str(&p.0)).collect();
-    let more = if skips.len() > 8 { ", …" } else { "" };
-    format!(
-        "{}; first skipped: {}{}",
-        per_root.join("; "),
-        names.join(", "),
-        more
-    )
-}
-
-/// con-leche: ConLeche/Frontend/Export.lean:419-422 taintSummary
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove export::taint_summary_refines, then delete this line
-/// Diagnostic summary of the taint skips: total, per-root counts, and the
-/// first few skipped names.
-pub fn taint_summary(skips: &[(Name, Name)]) -> String {
-    format!(
-        "skipped {} declarations that use a tolerated axiom ({})",
-        skips.len(),
-        taint_detail(skips)
-    )
-}
-
-/// con-leche: none — `prop_when::names_beq` under a name the canon
+/// con-leche: none — `prop_when::names_beq` under a name the frontend's list
 /// comparisons read as a list equality; re-exported so this module's callers
 /// need not reach into the core for it.
 pub fn names_beq(a: &Vec<Name>, b: &Vec<Name>) -> bool {
@@ -316,76 +103,34 @@ pub fn names_beq(a: &Vec<Name>, b: &Vec<Name>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use con_ron_core::kernel::basis_builder::{bn, cnst, pi, srt};
+    use con_ron_core::kernel::basis_builder::bn;
+    use con_ron_core::kernel::name;
 
     fn nm(s: &str) -> Name {
-        bn(s.chars().map(|c| c as u32).collect())
+        bn(cps(s))
     }
 
-    /// `canonNameMap` numbers the constant's own parameters and leaves
-    /// anything else alone.
+    /// A declined record becomes `notImplemented` and an invalid one
+    /// `invalid`: the two classes the driver turns into exit 2 and exit 1.
     #[test]
-    fn canon_name_map_numbers_own_params() {
-        let ps = vec![nm("u"), nm("v")];
-        assert!(name::beq(
-            &canon_name_map(&ps, &nm("u")),
-            &name::mk_num(name::anonymous(), 0)
-        ));
-        assert!(name::beq(
-            &canon_name_map(&ps, &nm("v")),
-            &name::mk_num(name::anonymous(), 1)
-        ));
-        assert!(name::beq(&canon_name_map(&ps, &nm("w")), &nm("w")));
+    fn a_record_verdict_is_a_check_error() {
+        match record_verdict_to_error(RecordVerdict::Declined("nope".to_string())) {
+            CheckError::NotImplemented(m) => assert_eq!(m, cps("nope")),
+            _ => panic!("a decline is not `notImplemented`"),
+        }
+        match record_verdict_to_error(RecordVerdict::Invalid("bad".to_string())) {
+            CheckError::Invalid(m) => assert_eq!(m, cps("bad")),
+            _ => panic!("an invalid record is not `invalid`"),
+        }
     }
 
-    /// Two constants that differ ONLY in their level-parameter names are the
-    /// same declaration up to the canonical form; one that differs in a
-    /// constant name is not, and one with a different number of parameters is
-    /// not either.
+    /// The driver's name rendering: the anonymous root prints as itself and a
+    /// component is appended after a dot.
     #[test]
-    fn canon_eq_is_level_parameter_renaming() {
-        let mk = |p: &str, head: &str| ConstantVal {
-            name: nm("T"),
-            level_params: vec![nm(p)],
-            ty: pi(srt(level::param(nm(p))), cnst(nm(head), vec![])),
-        };
-        assert!(constant_val_canon_eq(&mk("u", "X"), &mk("w", "X")));
-        assert!(!constant_val_canon_eq(&mk("u", "X"), &mk("u", "Y")));
-        let two = ConstantVal {
-            name: nm("T"),
-            level_params: vec![nm("u"), nm("v")],
-            ty: pi(srt(level::param(nm("u"))), cnst(nm("X"), vec![])),
-        };
-        assert!(!constant_val_canon_eq(&mk("u", "X"), &two));
-    }
-
-    /// A block matches member for member, and a block of another length does
-    /// not.
-    #[test]
-    fn canon_eq_list_is_member_for_member() {
-        let a = ConstantInfo::AxiomInfo(ConstantVal {
-            name: nm("A"),
-            level_params: vec![nm("u")],
-            ty: srt(level::param(nm("u"))),
-        });
-        let b = ConstantInfo::AxiomInfo(ConstantVal {
-            name: nm("A"),
-            level_params: vec![nm("x")],
-            ty: srt(level::param(nm("x"))),
-        });
-        let c = ConstantInfo::AxiomInfo(ConstantVal {
-            name: nm("B"),
-            level_params: Vec::new(),
-            ty: srt(level::zero()),
-        });
-        assert!(canon_eq_list(&[a], &[b]));
-        assert!(!canon_eq_list(
-            &[ConstantInfo::AxiomInfo(ConstantVal {
-                name: nm("A"),
-                level_params: vec![nm("u")],
-                ty: srt(level::param(nm("u"))),
-            })],
-            &[c]
-        ));
+    fn name_str_renders_dotted_names() {
+        assert_eq!(name_str(&name::anonymous()), "[anonymous]");
+        assert_eq!(name_str(&nm("Nat")), "Nat");
+        assert_eq!(name_str(&name::mk_str(nm("Nat"), cps("succ"))), "Nat.succ");
+        assert_eq!(name_str(&name::mk_num(nm("Nat"), 3)), "Nat.3");
     }
 }

@@ -295,13 +295,16 @@ pub fn read_nat_at(b: &[u8], i: usize, e: usize) -> Result<u64, ScanErr> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:502-523 strClose
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove scan_fast::str_close_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:108-126 naiveStrBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove scan_fast::str_close_refines, then delete this line
 /// The position of the closing quote of the string whose *contents* start at
-/// `j`; `0` when it is unterminated or holds a raw control byte (`0` is not a
-/// possible answer — a closing quote is at least one byte past the opening
-/// one).
+/// `j`; `0` when it is unterminated or holds a raw control byte, **before or
+/// after a backslash** (`0` is not a possible answer — a closing quote is at
+/// least one byte past the opening one).
+///
+/// A control byte after a backslash is no escape the format has, so the
+/// decoder would refuse it anyway; refusing it here is what keeps a line
+/// inside its line (con-leche task #290: no scanner of the dialect steps over
+/// a newline, so `\` + newline no longer consumes the newline).
 pub fn str_close(b: &[u8], j: usize) -> usize {
     let mut j = j;
     while j < b.len() {
@@ -310,6 +313,9 @@ pub fn str_close(b: &[u8], j: usize) -> usize {
             return j;
         } else if c == 92 {
             if j + 1 < b.len() {
+                if b[j + 1] < 32 {
+                    return 0;
+                }
                 j += 2;
             } else {
                 return 0;
@@ -463,12 +469,16 @@ pub fn unescape(b: &[u8], j: usize, e: usize) -> Option<Vec<u32>> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:627-647 scanString
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove scan_fast::scan_string_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:128-147 naiveStr
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove scan_fast::scan_string_refines, then delete this line
 /// A JSON string at `i`: the no-escape body is sliced out of the chunk and
 /// UTF-8-validated; a backslash diverts to `unescape`.  The value is the
 /// port's string, a code-point vector (§3.3).
+///
+/// **The decoder is handed the BODY, sliced out** (con-leche task #290): its
+/// `\u` lookahead then reads nothing outside the string, so the verdict on a
+/// line is the line's alone, whatever follows it.  The slice is a borrow here
+/// where con-leche's `ByteArray.extract` copies; the offsets are the same
+/// `0 … body.size`.
 pub fn scan_string(b: &[u8], i: usize) -> ScanRes<Vec<u32>> {
     if byte_at(b, i) != 34 {
         return err(i, ErrTag::ExpectedString);
@@ -478,7 +488,8 @@ pub fn scan_string(b: &[u8], i: usize) -> ScanRes<Vec<u32>> {
         return err(i, ErrTag::ExpectedString);
     }
     if has_escape(b, i + 1, e) {
-        match unescape(b, i + 1, e) {
+        let body = &b[i + 1..e];
+        match unescape(body, 0, body.len()) {
             Some(s) => Ok((s, e + 1)),
             None => err(i, ErrTag::BadEscape),
         }
@@ -659,13 +670,15 @@ pub fn scan_hints(b: &[u8], i: usize) -> ScanRes<HintsRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:751-775 skipBraced
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove scan_fast::skip_braced_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:310-330 naiveSkipBraced
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove scan_fast::skip_braced_refines, then delete this line
 /// Skip a `{`/`[`-opened value whose opening bracket is at `i - 1`, counting
-/// brackets and stepping over strings; `0` when it does not close.  The
-/// `meta` header is validated *loosely* — its value must be a bracket- and
-/// string-balanced JSON value — and skipped.
+/// brackets and stepping over strings; `0` when it does not close, **or when
+/// a newline comes first**.  The `meta` header is validated *loosely* — its
+/// value must be a bracket- and string-balanced JSON value — and skipped.
+///
+/// The newline arm is con-leche task #290: the header is one line like every
+/// other record, and without it a header cut by a newline swallowed the
+/// following lines into itself.
 pub fn skip_braced(b: &[u8], i: usize, depth: u64) -> usize {
     let mut i = i;
     let mut depth = depth;
@@ -677,6 +690,8 @@ pub fn skip_braced(b: &[u8], i: usize, depth: u64) -> usize {
                 return 0;
             }
             i = e + 1;
+        } else if c == 10 {
+            return 0;
         } else if c == 123 || c == 91 {
             i += 1;
             depth += 1;
@@ -2850,5 +2865,25 @@ mod tests {
             Ok((_, j)) => assert_eq!(j, 0),
             Err(e) => panic!("{}", scan_err_render(&e)),
         }
+    }
+
+    /// **A line ends at the first newline, always** (con-leche task #290).
+    /// Two scanners used to step over one, and each tightening only ever
+    /// refuses more: a raw control byte after a backslash inside a string,
+    /// and a newline inside the `meta` header's braced value.
+    #[test]
+    fn no_scanner_steps_over_a_newline() {
+        // `\` + newline is no escape the format has, so the string does not
+        // close and the bytes after the newline are not swallowed
+        let body = b"a\\\nb\"";
+        assert_eq!(str_close(body, 0), 0);
+        // a string that closes on the same line still does
+        let ok = b"a\\nb\"";
+        assert_eq!(str_close(ok, 0), 4);
+        // the header's braced value stops at a newline rather than
+        // swallowing the next line into itself
+        let hdr = b"{\"x\":\n{\"in\":1}}\n";
+        assert_eq!(skip_braced(hdr, 1, 0), 0);
+        assert_eq!(bad("{\"meta\":{\"x\":\n{\"in\":1}}"), ErrTag::BadHeader);
     }
 }

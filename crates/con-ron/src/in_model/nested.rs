@@ -26,7 +26,7 @@
 //!   field `I` is `i_name` (`I` is not a Rust identifier convention and
 //!   `Self` is taken).
 
-use con_ron_core::cached::parsed_c::DeclC;
+use con_ron_core::kernel::env::Declaration;
 use con_ron_core::kernel::basis_names as bnm;
 use con_ron_core::kernel::core_k;
 use con_ron_core::kernel::env;
@@ -2338,7 +2338,7 @@ impl<'b, 'a> Iota<'b, 'a> {
 /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
 /// The cited function's `push` local: emit a definition and record its height.
 pub fn push_defn(
-    out: &mut Vec<DeclC>,
+    out: &mut Vec<Declaration>,
     heights: &mut Vec<(Name, u64)>,
     ctx: &Ctx,
     nm: Name,
@@ -2351,7 +2351,7 @@ pub fn push_defn(
         kit::hint_for(&hof, &v)
     };
     heights.insert(0, (name::dup(&nm), kit::hint_height(&h)));
-    out.push(DeclC::DefnDecl(
+    out.push(Declaration::DefnDecl(
         ConstantVal {
             name: nm,
             level_params: l,
@@ -2366,7 +2366,7 @@ pub fn push_defn(
 /// **The generic in-process rung**: mutual, nested, both.  (The mutual rung of
 /// `mutual::gen_mutual` is the special case without mimics; it stays as the
 /// B1/B2 landing.)
-pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
+pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
     let t0 = b.types.first().ok_or_else(|| "empty block".to_string())?;
     let t_name = name::dup(&t0.cv.name);
     let lps: Vec<Name> = dup_names(&t0.cv.level_params);
@@ -2748,7 +2748,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
     let unpack_all = impl_name(&t_name, "unpack");
     let pack_unpack_all = impl_name(&t_name, "packUnpack");
     let rec_all = impl_name(&t_name, "rec");
-    let mut out: Vec<DeclC> = Vec::new();
+    let mut out: Vec<Declaration> = Vec::new();
     let mut heights: Vec<(Name, u64)> = Vec::new();
     // -----------------------------------------------------------------
     // 1. the tag block
@@ -2864,7 +2864,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
             tag_rules,
         ));
     }
-    out.push(DeclC::IndDecl(tag_block, n_p));
+    out.push(Declaration::IndDecl(tag_block, n_p));
     // 2. the auxiliary family
     let aux_ty = need(
         "aux type",
@@ -2957,7 +2957,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
         n_p + 1 + n,
         aux_rules,
     ));
-    out.push(DeclC::IndDecl(aux_block, n_p));
+    out.push(Declaration::IndDecl(aux_block, n_p));
     // 2b. the member models `T_m._model := λ p⃗ ı⃗, aux p⃗ (tag.m p⃗ ı⃗)` — the
     // model-side carriers of the mimics mention them
     for m in 0..r {
@@ -3221,7 +3221,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
                     ),
                 ),
             );
-            out.push(DeclC::ThmDecl(
+            out.push(Declaration::ThmDecl(
                 ConstantVal {
                     name: gen.impl_nm("unpackPack", mem.j),
                     level_params: dup_names(&lps),
@@ -3265,7 +3265,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
             ),
         ),
     );
-    out.push(DeclC::ThmDecl(
+    out.push(Declaration::ThmDecl(
         ConstantVal {
             name: name::dup(&pack_unpack_all),
             level_params: dup_names(&lps),
@@ -3318,7 +3318,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
                 ),
             ),
         );
-        out.push(DeclC::ThmDecl(
+        out.push(Declaration::ThmDecl(
             ConstantVal {
                 name: gen.impl_nm("packUnpack", mem.j),
                 level_params: dup_names(&lps),
@@ -3607,7 +3607,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
                 let body = iota.nest(&packed, 0, &none_v, &none_v);
                 need("iota proof", expr_ops::pis_to_lams(r_p + n_f, &stmt, &body))?
             };
-            out.push(DeclC::ThmDecl(
+            out.push(Declaration::ThmDecl(
                 ConstantVal {
                     name: iota_name(&rr.cv.name, c.j_in),
                     level_params: dup_names(&rlps),
@@ -3927,7 +3927,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
                         continue;
                     }
                 };
-                out.push(DeclC::ThmDecl(
+                out.push(Declaration::ThmDecl(
                     ConstantVal {
                         name: kit::nstr(core_k::proj_model_name(&t.cv.name, i), "iota"),
                         level_params: dup_names(&lps),

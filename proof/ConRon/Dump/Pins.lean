@@ -36,14 +36,13 @@ kept.  The record grammar below the payload is what the two formats shared.
 
 Nothing here is a theorem: this is a test and porting tool.
 -/
-import ConLeche.Expr
+import ConLeche.Cached.ExprNodes
 import ConLeche.Kernel.NatOpPinSet
 import ConLeche.Kernel.NatOpPins
 
 namespace ConRon.Dump
 
 open ConLeche
-open ConLeche.Cached
 
 /-- The version header, the whole first line of a pin dump. -/
 def pinsHeader : String := "con-ron-pins/1"

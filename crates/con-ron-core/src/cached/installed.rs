@@ -775,7 +775,7 @@ pub fn annot_decl_fold_from(
 #[cfg(test)]
 mod tests {
     use crate::cached::installed;
-    use crate::cached::parsed_c::Declaration;
+    use crate::kernel::env::Declaration;
     use crate::cached::state_c;
     use crate::kernel::core_types::CheckError;
     use crate::kernel::env;

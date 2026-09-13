@@ -39,14 +39,14 @@ pub mod kit;
 pub mod mutual;
 pub mod nested;
 
-use con_ron_core::cached::parsed_c::DeclC;
+use con_ron_core::kernel::env::Declaration;
 
 use crate::in_model::mutual::{BlockRec, Ctx};
 
 /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
 /// Generate the model records of a block, in stream order, or the reason the
 /// block is declined.
-pub fn generate(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
+pub fn generate(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
     if b.types.iter().any(|t| t.num_nested > 0) {
         nested::gen_nested(ctx, b)
     } else {
@@ -56,23 +56,29 @@ pub fn generate(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
 
 #[cfg(test)]
 mod tests {
+    use crate::driver::message;
     use crate::frontend::export::name_str;
-    use crate::frontend::export_c::{parse_export_d, prelude_ix_empty, ParseResultD};
-    use crate::frontend::nat_op_ground::decl_names;
-    use crate::frontend::prelude::builtin_prelude_e;
+    use crate::frontend::export_c::{parse_bytes, ParseResultD};
+    use con_ron_core::kernel::env::declaration_names;
 
-    /// con-leche's own `tests/e2e` streams for the three rungs, read at test
-    /// time from the pinned submodule (the crate already hard-requires it:
-    /// `frontend::prelude` embeds a file from it at build time).
-    fn parse_fixture(name: &str) -> ParseResultD {
+    /// The fixture's bytes, read at test time from the pinned submodule (the
+    /// crate already hard-requires it: `frontend::prelude` embeds a file from
+    /// it at build time).
+    fn fixture_bytes(name: &str) -> Vec<u8> {
         let p = format!(
             "{}/../../vendor/con-leche/tests/e2e/{}",
             env!("CARGO_MANIFEST_DIR"),
             name
         );
-        let text = std::fs::read(&p).unwrap_or_else(|e| panic!("{}: {}", p, e));
-        let ix = builtin_prelude_e().unwrap_or_else(|e| panic!("{:?}", e));
-        parse_export_d(&text, ix, true, false).unwrap_or_else(|e| panic!("{}: {:?}", name, e))
+        std::fs::read(&p).unwrap_or_else(|e| panic!("{}: {}", p, e))
+    }
+
+    /// con-leche's own `tests/e2e` streams for the three rungs.  The parse
+    /// takes no prelude since con-leche task #293: it decodes the file's
+    /// records, and `frontend::prepare` is what puts the prelude in front.
+    fn parse_fixture(name: &str) -> ParseResultD {
+        parse_bytes(&fixture_bytes(name), true, false)
+            .unwrap_or_else(|(e, l)| panic!("{}:{}: {}", name, l, message(&e)))
     }
 
     /// **The modeller runs, and every record it emits belongs to the block it
@@ -110,7 +116,7 @@ mod tests {
         // declarations like any other
         let mut seen = 0u64;
         for d in r.decls.iter() {
-            for n in decl_names(d) {
+            for n in declaration_names(d) {
                 if r.gen_owner.contains_key(&crate::frontend::nat_op_ground::NameKey(n)) {
                     seen += 1;
                     break;
@@ -172,30 +178,19 @@ mod tests {
     /// pushed bare, nothing is generated, and the decline is left to the fold.
     #[test]
     fn the_modeller_can_be_turned_off() {
-        let p = format!(
-            "{}/../../vendor/con-leche/tests/e2e/inmodel_mutual.ndjson",
-            env!("CARGO_MANIFEST_DIR")
-        );
-        let text = std::fs::read(&p).unwrap_or_else(|e| panic!("{}: {}", p, e));
-        let ix = builtin_prelude_e().unwrap_or_else(|e| panic!("{:?}", e));
-        let r = parse_export_d(&text, ix, false, false).unwrap_or_else(|e| panic!("{:?}", e));
+        let r = parse_bytes(&fixture_bytes("inmodel_mutual.ndjson"), false, false)
+            .unwrap_or_else(|(e, l)| panic!("{}: {}", l, message(&e)));
         assert!(r.in_modelled.is_empty());
         assert_eq!(r.gen_records, 0);
         assert!(r.gen_owner.is_empty());
     }
 
-    /// An empty prelude changes nothing about the modeller's reach: the sort
-    /// inferer's table is the parse's own, and a fixture that declares its
-    /// own `Nat`/`List` models just as well.
+    /// The prelude is not the modeller's business at all — the parse never
+    /// sees one since con-leche task #293 — and the nested fixture, which
+    /// declares its own `Nat`/`List`, models every one of its seven blocks.
     #[test]
     fn the_modeller_needs_no_prelude() {
-        let p = format!(
-            "{}/../../vendor/con-leche/tests/e2e/inmodel_nested.ndjson",
-            env!("CARGO_MANIFEST_DIR")
-        );
-        let text = std::fs::read(&p).unwrap_or_else(|e| panic!("{}: {}", p, e));
-        let r = parse_export_d(&text, prelude_ix_empty(), true, false)
-            .unwrap_or_else(|e| panic!("{:?}", e));
+        let r = parse_fixture("inmodel_nested.ndjson");
         assert_eq!(r.in_modelled.len(), 7);
         assert!(r.gen_records > 0);
     }

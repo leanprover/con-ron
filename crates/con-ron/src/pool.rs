@@ -1,14 +1,14 @@
-//! `pool` — con-leche's `Main.lean:213-328`: **phase B on a pool of worker
+//! `pool` — con-leche's `Main.lean:193-316`: **phase B on a pool of worker
 //! threads** (task #48).
 //!
 //! The recorded checks are independent by construction — each reads the
 //! installed index at its own prefix view, its own record, and a *fresh* memo
 //! state — so phase B is `n` workers over one shared claim counter.  This
 //! module is that pool, `checkPool` with its three helpers ported one to one:
-//! `check_one` (`Main.lean:255-274`), `check_worker` (`:276-291`),
-//! `merge_results` (`:293-300`) and `check_pool` (`:302-328`), plus the walk
+//! `check_one` (`Main.lean:240-260`), `check_worker` (`:262-278`),
+//! `merge_results` (`:280-287`) and `check_pool` (`:289-316`), plus the walk
 //! that turns the merged table into a verdict (`collect_checks`,
-//! `ConLeche/Cached/Installed.lean:360-383 collectChecks`).
+//! `ConLeche/Cached/Installed.lean:392-416 collectChecks`).
 //!
 //! ## The guarantee, and why it is the sequential walk's
 //!
