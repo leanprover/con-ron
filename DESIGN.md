@@ -11452,3 +11452,107 @@ instantiation) and `fvar_leaves_refines` (the gray-set walk).  Nothing reaches
 The progress line after the green run reads `verified 3270 (23%)` of the 13 743
 verified-core Lean lines — up from task #47's `957 (6%)` — and
 `proofs 34243 (367 _refines)`.
+
+### Task #57 — The inductive routes refined (knot assumed) (2026-09-13, Opus under Fable)
+
+P3, `proof/ConRon/Refine/CORE_PLAN.md` **step 7, second part**: the refinement
+of `crates/con-ron-core/src/kernel/inductives/` — the two install routes for an
+inductive block, task #25's 9 671 lines — against
+`ConLeche/Kernel/Inductives/*.lean` and the cached drivers of
+`ConLeche/Cached/CheckerC.lean`, in ten new `Refine/Ind*.lean` files.  Task #55
+is proving the knot's arms concurrently, so **every lemma here takes the knot
+as a hypothesis** (`Core.Wrappers mode IndAbs.checkFuelU`, or the full
+`KnotSpec`) and reaches the core only through five operation lemmas.  Task #56
+refines the checker tier concurrently and consumes the result through one
+`Prop`, `IndRoutesSpec`.
+
+#### The foundation: `Refine/IndAbs.lean`
+
+What all nine other files import.
+
+* **`checkFuelU`**, `core_k::check_fuel()` *as a value*.  Aeneas gives the
+  zero-argument function the type `Result U64`, so a knot hypothesis cannot
+  literally read `core_k.check_fuel`; `check_fuel_eq : core_k.check_fuel = ok
+  checkFuelU` closes the gap and `checkFuelU_val : checkFuelU.val =
+  ConLeche.checkFuel` is what makes the Rust wrapper's fuel and `sharedOpsC`'s
+  the same number.  Both `@[simp]`.
+* **The record abstractions**, marked *to be unified into `Refine/Abs.lean`*:
+  `absRecFieldKind`, `absRecFieldKinds`, `absKindss`, `absCtors`,
+  `absLevelss`, `absInductiveShape`, `absNativeParts`, `absStructParts`, and
+  their `*WF` predicates.  `NativePass` is the one that cannot abstract by a
+  function — it stores an `FEnv` — so it gets a *relation*, `NativePassRel`.
+  `absNativeParts` is also where task #25's deviation 3 is discharged: Lean's
+  `NativeParts extends InductiveShape` is the port's field `shape`.
+* **The five operations.**  §3.1's knot ruling dissolved con-leche's
+  `CheckerOps` record into direct wrapper calls (task #25's deviation 2), so
+  `ops.whnf env d e` is `core_c::whnf(mode, check_fuel(), st, fe, d, &e)` and
+  `sharedOpsC mode fe`'s fields are `coreKnotI mode fe checkFuel` — the *same*
+  knot at the *same* fuel.  `ops_whnf`/`ops_infer`/`ops_annotate`/`ops_defeq`
+  are therefore the four `Wrappers` fields restated at the `sharedOpsC`
+  spelling, and `ops_ensure_sort` is `whnf` plus con-leche's `.sort` match,
+  with `ExprWF` of the whnf result — which `ops_whnf` hands back — supplying
+  the level's well-formedness through the new `sort_node_wf`.  No `sorry`.
+
+#### The seam: `Refine/IndSpec.lean` and `ind_routes_spec`
+
+`IndRoutesSpec mode` is the one `Prop` task #56 consumes: `check_native_s`
+against `checkNativeS` and `check_ind_decl_s` against `checkIndDeclSF`, in the
+standard exact-result shape with `StateRel`/`FEnvRel` and `∃ lfe'` for the
+returned index.  `IndC.lean`'s `ind_routes_spec (hk : KnotSpec mode
+checkFuelU) : IndRoutesSpec mode` produces it from the two entry-point lemmas.
+Task #56's own `Refine/IndSpec.lean` had not landed when this task started, so
+the same-named `Prop` is defined here and the two tasks meet on one statement.
+
+#### What `inductives_c.rs` is about, and what its refinement is
+
+`Cached/CheckerC.lean`'s inductive stages "mirror their
+`Kernel/Checker.lean` counterparts clause by clause; the differences are
+exactly: `flushC` at environment transitions, `FEnv.push` maintaining the
+index, and every environment lookup routed through the index".  The port has
+one spelling of the index already (deviation 1), so what `inductives_c.rs`
+adds is the **flush policy** — the one thing §3.1 insists must be mirrored,
+because a flush changes the memo hit/miss pattern.  Task #25 *split* three
+stages in `native_install`/`modeled` so that the flush lands exactly where the
+cited `flushC` does, with one body serving both the pure and the cached
+spelling; `IndC.lean`'s work is composing those halves around
+`StateC.flush_c_refines`, which is why its eleven statements are against the
+`*S` drivers rather than against the stages.
+
+Two of the eleven are proved outright: `check_ind_members_s` and
+`install_proj_fns_s`, `checkIndDeclSF`'s two `foldlM`s as index recursions,
+each by strong induction on the remaining length over Aeneas's
+`partial_fixpoint` unfolding from the step lemma above it.
+
+#### Three recurring shapes, and one finding
+
+1. **Aeneas emits every index recursion as a `partial_fixpoint`.**  The
+   working pattern is `rw [<generated name>] at h`, then
+   `generalize hd : <measure> = d; induction d using Nat.strong_induction_on
+   generalizing …`, with the measure `subst`ed in each branch (the goal
+   mentions `d`, not the measure).  `i.val = j.val + 1` comes from
+   `hi : j + 1#u64 = ok i` by `HashMap.uscalar_add_eq hi`.
+   `StructInstall.proj_fn_family_free_from_refines` and
+   `SumParts.sum_split_from_refines` are the two worked examples.
+2. **A tuple bind's `let` does not reduce under `dsimp only` or `split`.**
+   After `simp only [bind_eq_ok_iff] at h; obtain ⟨p, hp, h⟩ := h;
+   obtain ⟨a, b⟩ := p`, the generated `let (a, b) ← f …` leaves an unreduced
+   `let (a, b) := (…, …)` in `h`; neither `dsimp only at h` nor `split at h`
+   touches it, and a **full `simp at h`** does.  Also, `simp only [...,
+   bind_eq_ok_iff, ...] at h` sometimes *reorients* the equation and then
+   fails to fire — peeling the binds one at a time with
+   `obtain ⟨x, hx, h⟩ := bind_eq_ok_iff.mp h` is the reliable form.
+3. **`cases` on an `ExprWF` hypothesis fails when anything else in the context
+   mentions the expression** — dependent elimination cannot solve the
+   resulting equation, because Aeneas's `Result` is coinductive.  Where it
+   does, decompose the node instead (`obtain ⟨⟨d, k⟩⟩ := e; cases k`) and use
+   `Expr.*_inv` / `ExprOps.node_kind` / `arc_deref_eq`.
+   `IndAbs.ops_ensure_sort` is the worked example of both halves.
+
+**The finding.**  `struct_install::check_struct_doms_at` indexes `fvs`/`doms`
+with `UScalar.cast .Usize i` on a `u64` counter, so the port's reading and
+con-leche's `fvs[j]?` agree only under `i.val ≤ Usize.max`.  That is true on
+this target but is *not* derivable from the loop's own guards, which compare
+the **cast**, not the counter.  It is recorded at that lemma's `sorry`: the
+tier wants a `usize`-width fact of the kind `Refine/ExprOps.lean` states for
+indices already known in range, and the same shape will recur wherever a
+`u64` loop counter indexes a `Vec`.
