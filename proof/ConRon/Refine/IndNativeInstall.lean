@@ -465,6 +465,25 @@ def CheckSumIndRefines : Prop :=
           ∧ StateRel st' lst' ∧ FEnvRel r.1 lfe' ∧ StateWF st' ∧ FEnvWF r.1
           ∧ ConstantValWF r.2.1 ∧ IndAbs.InductiveShapeWF r.2.2
 
+/-- `sum_install::check_sum_ind`'s **failure half** (task #67), at the same
+dictionary hypothesis.  **Owned by `Refine/IndSumInstall.lean`**; a second
+ingredient beside `CheckSumIndRefines` for the reason given on
+`CheckConstantValErr`. -/
+def CheckSumIndErr : Prop :=
+  ∀ {C : Type} (inst : inductives.sum_install.CapsOf C) (d : C)
+    (capsOf : ConLeche.InductiveShape → ConLeche.IndCaps),
+    (∀ p c, IndAbs.InductiveShapeWF p → inst.caps_of d p = ok c →
+      absIndCaps c = capsOf (IndAbs.absInductiveShape p) ∧ IndCapsWF c) →
+    ∀ (st st' : cached.state_c.CState) (fe : fenv.FEnv)
+      (p : inductives.sum_parts.InductiveShape) (ce : core_types.CheckError),
+      StateWF st → FEnvWF fe → IndAbs.InductiveShapeWF p →
+      inductives.sum_install.check_sum_ind inst mode st fe p d
+          = ok (.Err ce, st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ErrSim ce ((ConLeche.checkSumIndF
+          (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
+          (IndAbs.absInductiveShape p) capsOf).run lst)
+
 /-- `sum_install::check_sum_ind` keeps the **unrestricted-canonical** pair: the
 former it installs is `fenv::push`ed onto the index it is handed, and
 `FEnv.push_canon` is exactly that step.  The `FEnvWF r.1` premise is how the
@@ -511,6 +530,26 @@ def CheckSumCtorsRefines : Prop :=
           = .ok ((IndAbs.absCtors r.1, IndAbs.absLevelss r.2), lst')
         ∧ StateRel st' lst' ∧ StateWF st'
         ∧ (∀ c ∈ r.1.val, ConstantValWF c.1) ∧ (∀ us ∈ r.2.val, LevelsWF us)
+
+/-- `sum_install::check_sum_ctors`'s **failure half** (task #67), at the same
+entry reading.  **Owned by `Refine/IndSumInstall.lean`**; a second ingredient
+beside `CheckSumCtorsRefines` for the reason given on `CheckConstantValErr`. -/
+def CheckSumCtorsErr : Prop :=
+  ∀ (st st' : cached.state_c.CState) (fe0 fe : fenv.FEnv) (t : name.Name)
+    (lps : alloc.vec.Vec name.Name) (n_p n_idx : Std.U64) (res_sort : level.Level)
+    (is_prop large : Bool) (cv_ta : env.ConstantVal)
+    (cs : alloc.vec.Vec (env.ConstantVal × Std.U64)) (ce : core_types.CheckError),
+    StateWF st → FEnvWF fe0 → FEnvWF fe → NameWF t → NamesWF lps →
+    LevelWF res_sort → ConstantValWF cv_ta → (∀ c ∈ cs.val, ConstantValWF c.1) →
+    inductives.sum_install.check_sum_ctors mode st fe0 fe t lps n_p n_idx res_sort
+        is_prop large cv_ta cs 0#usize
+        (alloc.vec.Vec.new (env.ConstantVal × Std.U64))
+        (alloc.vec.Vec.new (alloc.vec.Vec level.Level)) = ok (.Err ce, st') →
+    ∀ lst lfe0 lfe, StateRel st lst → FEnvRel fe0 lfe0 → FEnvRel fe lfe →
+      ErrSim ce ((ConLeche.checkSumCtorsF
+        (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe0 lfe (absName t)
+        (absNames lps) n_p.val n_idx.val (absLevel res_sort) is_prop large
+        (absConstantVal cv_ta) (IndAbs.absCtors cs)).run lst)
 
 /-- `sum_install::check_struct_field_sorts_i` refines `checkStructFieldSortsIF`
 (`SumInstallF.lean:46-64`).  **Owned by `Refine/IndSumInstall.lean`.**
@@ -3735,15 +3774,24 @@ classified at install** on the stored constructors; a negative kind is
 theorem classify_fix_kinds_refines {t : name.Name}
     {lps : alloc.vec.Vec name.Name} {n_p n_idx : Std.U64}
     {ctors_a : alloc.vec.Vec (env.ConstantVal × Std.U64)}
-    {kinds : alloc.vec.Vec (alloc.vec.Vec inductives.native_parts.RecFieldKind)}
+    {res : core.result.Result
+      (alloc.vec.Vec (alloc.vec.Vec inductives.native_parts.RecFieldKind))
+      core_types.CheckError}
     (hrck : RecCtorKindsRefines) (hbeq : RecFieldKindBeqRefines)
     (ht : NameWF t) (hlps : NamesWF lps)
     (hca : ∀ c ∈ ctors_a.val, ConstantValWF c.1)
     (h : inductives.native_install.classify_fix_kinds t lps n_p n_idx ctors_a
-        = ok (.Ok kinds)) :
-    ∀ lst, (ConLeche.classifyFixKinds (m := ConLeche.Cached.CheckCM) (absName t)
-        (absNames lps) n_p.val n_idx.val (IndAbs.absCtors ctors_a)).run lst
-      = .ok (IndAbs.absKindss kinds, lst) := by
+        = ok res) :
+    ∀ lst,
+      match res with
+      | .Ok kinds =>
+        (ConLeche.classifyFixKinds (m := ConLeche.Cached.CheckCM) (absName t)
+            (absNames lps) n_p.val n_idx.val (IndAbs.absCtors ctors_a)).run lst
+          = .ok (IndAbs.absKindss kinds, lst)
+      | .Err e =>
+        ErrSim e ((ConLeche.classifyFixKinds (m := ConLeche.Cached.CheckCM)
+          (absName t) (absNames lps) n_p.val n_idx.val
+          (IndAbs.absCtors ctors_a)).run lst) := by
   -- `rec_ctor_kinds_all_refines` at `i = 0`, then the two `kinds_any_from`
   -- guards
   intro lst
@@ -3766,6 +3814,12 @@ theorem classify_fix_kinds_refines {t : name.Name}
     obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
     simp at h
+    subst h
+    refine errSim_notImplemented hce rfl
+      (ls := "direct rec: constructor telescope") ?_
+    rw [hmapM]
+    simp [ConLeche.unwrapOr, checkCM_throw_apply, StateT.run, Bind.bind,
+      StateT.bind, Except.bind]
   | some kinds0 =>
     rw [hmapM]
     simp only [Option.map_some, ConLeche.unwrapOr, pure_bind]
@@ -3779,6 +3833,14 @@ theorem classify_fix_kinds_refines {t : name.Name}
       obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
       simp at h
+      subst h
+      rw [hbt] at hbv
+      refine errSim_invalid hce rfl
+        (ls :=
+          "direct rec: non positive or non valid occurrence of the inductive type")
+        ?_
+      rw [← hbv]
+      simp [checkCM_throw_apply, StateT.run, Bind.bind, StateT.bind, Except.bind]
     · rename_i hbf
       simp only [Bool.not_eq_true] at hbf
       rw [hbf] at hbv
@@ -3793,14 +3855,26 @@ theorem classify_fix_kinds_refines {t : name.Name}
         obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
         simp at h
+        subst h
+        rw [hb1t] at hb1v
+        refine errSim_notImplemented hce rfl
+          (ls :=
+            "direct rec: a nested occurrence of the block (not modeled here)")
+          ?_
+        rw [← hb1v]
+        simp [checkCM_throw_apply, StateT.run, Bind.bind, StateT.bind,
+          Except.bind]
       · rename_i hb1f
         simp only [Bool.not_eq_true] at hb1f
         rw [hb1f] at hb1v
         rw [if_neg (by rw [← hb1v]; simp)]
-        have hk : kinds0 = kinds := by
+        have hk : (core.result.Result.Ok kinds0
+            : core.result.Result
+              (alloc.vec.Vec (alloc.vec.Vec inductives.native_parts.RecFieldKind))
+              core_types.CheckError) = res := by
           have := Result.ok_injective h
           simpa using this
-        rw [hk]
+        subst hk
         rfl
 
 /-! ### The pass's two halves, named
@@ -3871,23 +3945,29 @@ driver holds was built by `mk_fenv` or copied by `dup`. -/
 theorem check_native_pass_former_refines {mode : env.CheckMode}
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {p0 : inductives.native_parts.NativeParts} {is_rec : Bool}
-    {r : fenv.FEnv × env.ConstantVal × inductives.sum_parts.InductiveShape
-      × env.IndCaps}
-    (hsi : CheckSumIndRefines mode) (hsic : CheckSumIndCanon mode)
+    {o : core.result.Result (fenv.FEnv × env.ConstantVal
+      × inductives.sum_parts.InductiveShape × env.IndCaps) core_types.CheckError}
+    (hsi : CheckSumIndRefines mode) (hsie : CheckSumIndErr mode)
+    (hsic : CheckSumIndCanon mode)
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hp0 : IndAbs.NativePartsWF p0)
     (h : inductives.native_install.check_native_pass_former mode st fe p0 is_rec
-        = ok (.Ok r, st')) :
+        = ok (o, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe₁,
-        (checkNativePassFormerF (absMode mode) lfe (IndAbs.absNativeParts p0)
-            is_rec).run lst
-          = .ok ((lfe₁, absConstantVal r.2.1, IndAbs.absInductiveShape r.2.2.1,
-              absIndCaps r.2.2.2), lst')
-        ∧ StateRel st' lst' ∧ FEnvRel r.1 lfe₁ ∧ StateWF st' ∧ FEnvWF r.1
-        ∧ ConstantValWF r.2.1 ∧ IndAbs.InductiveShapeWF r.2.2.1
-        ∧ IndCapsWF r.2.2.2
-        ∧ FEnv.FEnvCanon r.1 ∧ FEnv.FEnvFull r.1 := by
+      match o with
+      | .Ok r =>
+        ∃ lst' lfe₁,
+          (checkNativePassFormerF (absMode mode) lfe (IndAbs.absNativeParts p0)
+              is_rec).run lst
+            = .ok ((lfe₁, absConstantVal r.2.1, IndAbs.absInductiveShape r.2.2.1,
+                absIndCaps r.2.2.2), lst')
+          ∧ StateRel st' lst' ∧ FEnvRel r.1 lfe₁ ∧ StateWF st' ∧ FEnvWF r.1
+          ∧ ConstantValWF r.2.1 ∧ IndAbs.InductiveShapeWF r.2.2.1
+          ∧ IndCapsWF r.2.2.2
+          ∧ FEnv.FEnvCanon r.1 ∧ FEnv.FEnvFull r.1
+      | .Err e =>
+        ErrSim e ((checkNativePassFormerF (absMode mode) lfe
+          (IndAbs.absNativeParts p0) is_rec).run lst) := by
   intro lst lfe hrel hfer
   rw [inductives.native_install.check_native_pass_former] at h
   obtain ⟨f, hdup, h⟩ := bind_eq_ok_iff.mp h
@@ -3899,16 +3979,25 @@ theorem check_native_pass_former_refines {mode : env.CheckMode}
   obtain ⟨pq, hcsi, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨res, st1⟩ := pq
   cases res with
-  | Err err => simp at h
+  | Err err =>
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    rw [checkNativePassFormerF]
+    refine ErrSim.bindCM ?_
+    exact hsie
+      inductives.native_install.NativeCapsAt.Insts.Con_ron_coreKernelInductivesSum_installCapsOf
+      { is_rec := is_rec } (fun p₁ => ConLeche.nativeCapsAt p₁ is_rec)
+      (fun p c hp hc => caps_of_refines hp hc) st st1 f p0.shape err hst hfwf
+      hp0 hcsi lst lfe hrel hfrel
   | Ok q =>
     replace h : (do
         let expected ← inductives.native_install.native_caps_at q.2.2 is_rec
         ok (.Ok (q.1, q.2.1, q.2.2, expected), st1))
-        = (ok (.Ok r, st') : Result ((core.result.Result _ core_types.CheckError)
+        = (ok (o, st') : Result ((core.result.Result _ core_types.CheckError)
             × cached.state_c.CState)) := h
     obtain ⟨expected, hexp, h⟩ := bind_eq_ok_iff.mp h
     have hpair := Result.ok_injective h
-    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at hpair
+    simp only [Prod.mk.injEq] at hpair
     obtain ⟨hr, hst'⟩ := hpair
     obtain ⟨lst', lfe', hrun, hrel1, hfrel1, hwf1, hfwf1, hcvwf, hiswf⟩ :=
       hsi inductives.native_install.NativeCapsAt.Insts.Con_ron_coreKernelInductivesSum_installCapsOf
@@ -3935,30 +4024,65 @@ theorem check_native_pass_ctors_refines {mode : env.CheckMode}
     {st st' : cached.state_c.CState} {fe1 : fenv.FEnv} {cv_ta : env.ConstantVal}
     {p1 : inductives.sum_parts.InductiveShape}
     {p0 : inductives.native_parts.NativeParts} {expected : env.IndCaps}
-    {q : inductives.native_install.NativePass × Bool}
-    (hcc : CheckSumCtorsRefines mode) (hcomp : CompleteRefines)
+    {o : core.result.Result (inductives.native_install.NativePass × Bool)
+      core_types.CheckError}
+    (hcc : CheckSumCtorsRefines mode) (hcce : CheckSumCtorsErr mode)
+    (hcomp : CompleteRefines)
     (hwk : WithKindsRefines) (hrck : RecCtorKindsRefines)
     (hbeq : RecFieldKindBeqRefines)
     (hst : StateWF st) (hfe : FEnvWF fe1) (hcv : ConstantValWF cv_ta)
     (hp1 : IndAbs.InductiveShapeWF p1) (hp0 : IndAbs.NativePartsWF p0)
     (hexp : IndCapsWF expected)
     (h : inductives.native_install.check_native_pass_ctors mode st fe1 cv_ta p1 p0
-        expected = ok (.Ok q, st')) :
+        expected = ok (o, st')) :
     ∀ lst lfe₁, StateRel st lst → FEnvRel fe1 lfe₁ →
-      ∃ lst' lq,
-        (checkNativePassCtorsF (absMode mode) lfe₁ (absConstantVal cv_ta)
-            (IndAbs.absInductiveShape p1) (IndAbs.absNativeParts p0)
-            (absIndCaps expected)).run lst = .ok ((lq, q.2), lst')
-        ∧ StateRel st' lst' ∧ IndAbs.NativePassRel q.1 lq ∧ StateWF st'
-        ∧ IndAbs.NativePassWF q.1 ∧ q.1.env1 = fe1 := by
+      match o with
+      | .Ok q =>
+        ∃ lst' lq,
+          (checkNativePassCtorsF (absMode mode) lfe₁ (absConstantVal cv_ta)
+              (IndAbs.absInductiveShape p1) (IndAbs.absNativeParts p0)
+              (absIndCaps expected)).run lst = .ok ((lq, q.2), lst')
+          ∧ StateRel st' lst' ∧ IndAbs.NativePassRel q.1 lq ∧ StateWF st'
+          ∧ IndAbs.NativePassWF q.1 ∧ q.1.env1 = fe1
+      | .Err e =>
+        ErrSim e ((checkNativePassCtorsF (absMode mode) lfe₁
+          (absConstantVal cv_ta) (IndAbs.absInductiveShape p1)
+          (IndAbs.absNativeParts p0) (absIndCaps expected)).run lst) := by
   intro lst lfe₁ hrel hfer
   rw [inductives.native_install.check_native_pass_ctors] at h
   obtain ⟨pc, hpc, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hpcabs, hpcwf⟩ := hcomp p0 p1 pc hp0 hp1 hpc
   obtain ⟨cq, hcq, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨res, st1⟩ := cq
+  have hshow : checkNativePassCtorsF (absMode mode) lfe₁ (absConstantVal cv_ta)
+      (IndAbs.absInductiveShape p1) (IndAbs.absNativeParts p0)
+      (absIndCaps expected)
+      = (do
+        let ca ← ConLeche.checkSumCtorsF
+          (ConLeche.Cached.sharedOpsC (absMode mode) lfe₁) lfe₁ lfe₁
+          (absName pc.shape.cv_t.name) (absNames pc.shape.cv_t.level_params)
+          pc.shape.n_p.val pc.shape.n_idx.val (absLevel pc.shape.res_sort)
+          pc.shape.is_prop pc.shape.large (absConstantVal cv_ta)
+          (IndAbs.absCtors pc.shape.ctors)
+        let kinds ← ConLeche.classifyFixKinds (m := ConLeche.Cached.CheckCM)
+          (absName pc.shape.cv_t.name) (absNames pc.shape.cv_t.level_params)
+          pc.shape.n_p.val pc.shape.n_idx.val ca.1
+        pure (⟨lfe₁, absConstantVal cv_ta,
+            (IndAbs.absNativeParts pc).withKinds kinds, ca.1, ca.2⟩,
+          ConLeche.nativeCaps ((IndAbs.absNativeParts pc).withKinds kinds)
+            == absIndCaps expected)) := by
+    rw [checkNativePassCtorsF, ← hpcabs]
+    rfl
   cases res with
-  | Err err => simp at h
+  | Err err =>
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    rw [hshow]
+    refine ErrSim.bindCM ?_
+    exact hcce st st1 fe1 fe1 pc.shape.cv_t.name pc.shape.cv_t.level_params
+      pc.shape.n_p pc.shape.n_idx pc.shape.res_sort pc.shape.is_prop
+      pc.shape.large cv_ta pc.shape.ctors err hst hfe hfe hpcwf.1.1 hpcwf.1.2.1
+      hpcwf.2.2.2.2.1 hcv hpcwf.2.1 hcq lst lfe₁ lfe₁ hrel hfer hfer
   | Ok ca =>
     obtain ⟨lst', hrun1, hrel1, hwf1, hcawf, hsswf⟩ :=
       hcc st st1 fe1 fe1 pc.shape.cv_t.name pc.shape.cv_t.level_params
@@ -3976,11 +4100,17 @@ theorem check_native_pass_ctors_refines {mode : env.CheckMode}
             ok (.Ok ((⟨fe1, cv_ta, p, ca.1, ca.2⟩
               : inductives.native_install.NativePass), settled), st1))
         | .Err err => ok (.Err err, st1))
-        = (ok (.Ok q, st') : Result ((core.result.Result _ core_types.CheckError)
+        = (ok (o, st') : Result ((core.result.Result _ core_types.CheckError)
             × cached.state_c.CState)) := h
     obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
     cases r1 with
-    | Err err => simp at h
+    | Err err =>
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      rw [hshow, StateT.run_bind, hrun1]
+      simp only [exceptOk_bind]
+      exact ErrSim.bindCM (classify_fix_kinds_refines hrck hbeq hpcwf.1.1
+        hpcwf.1.2.1 hcawf hr1 lst')
     | Ok kinds =>
       obtain ⟨p, hpk, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨hpabs, hpwf⟩ := hwk pc kinds p hpcwf hpk
@@ -3989,7 +4119,7 @@ theorem check_native_pass_ctors_refines {mode : env.CheckMode}
       obtain ⟨settled, hset, h⟩ := bind_eq_ok_iff.mp h
       have hsetv := Env.ind_caps_beq_refines hicwf hexp hset
       have hq := Result.ok_injective h
-      simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at hq
+      simp only [Prod.mk.injEq] at hq
       obtain ⟨hq1, hq2⟩ := hq
       subst hq1
       subst hq2
@@ -4028,40 +4158,61 @@ def checkNativePassI (mode : ConLeche.CheckMode) (fe : ConLeche.FEnv)
 theorem check_native_pass_refines {mode : env.CheckMode}
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {p0 : inductives.native_parts.NativeParts} {is_rec : Bool}
-    {q : inductives.native_install.NativePass × Bool}
-    (hsi : CheckSumIndRefines mode) (hsic : CheckSumIndCanon mode)
-    (hcc : CheckSumCtorsRefines mode)
+    {o : core.result.Result (inductives.native_install.NativePass × Bool)
+      core_types.CheckError}
+    (hsi : CheckSumIndRefines mode) (hsie : CheckSumIndErr mode)
+    (hsic : CheckSumIndCanon mode)
+    (hcc : CheckSumCtorsRefines mode) (hcce : CheckSumCtorsErr mode)
     (hcomp : CompleteRefines) (hwk : WithKindsRefines)
     (hrck : RecCtorKindsRefines) (hbeq : RecFieldKindBeqRefines)
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hp0 : IndAbs.NativePartsWF p0)
     (h : inductives.native_install.check_native_pass mode st fe p0 is_rec
-        = ok (.Ok q, st')) :
+        = ok (o, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lq,
-        (checkNativePassI (absMode mode) lfe (IndAbs.absNativeParts p0)
-            is_rec).run lst = .ok ((lq, q.2), lst')
-        ∧ StateRel st' lst' ∧ IndAbs.NativePassRel q.1 lq ∧ StateWF st'
-        ∧ IndAbs.NativePassWF q.1
-        ∧ FEnv.FEnvCanon q.1.env1 ∧ FEnv.FEnvFull q.1.env1 := by
+      match o with
+      | .Ok q =>
+        ∃ lst' lq,
+          (checkNativePassI (absMode mode) lfe (IndAbs.absNativeParts p0)
+              is_rec).run lst = .ok ((lq, q.2), lst')
+          ∧ StateRel st' lst' ∧ IndAbs.NativePassRel q.1 lq ∧ StateWF st'
+          ∧ IndAbs.NativePassWF q.1
+          ∧ FEnv.FEnvCanon q.1.env1 ∧ FEnv.FEnvFull q.1.env1
+      | .Err e =>
+        ErrSim e ((checkNativePassI (absMode mode) lfe
+          (IndAbs.absNativeParts p0) is_rec).run lst) := by
   intro lst lfe hrel hfer
   rw [inductives.native_install.check_native_pass] at h
   obtain ⟨pq, hformer, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨res, st1⟩ := pq
   cases res with
-  | Err err => simp at h
+  | Err err =>
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    rw [checkNativePassI]
+    refine ErrSim.bindCM ?_
+    exact check_native_pass_former_refines hsi hsie hsic hst hfe hcan hfull hp0
+      hformer lst lfe hrel hfer
   | Ok r =>
     obtain ⟨lst1, lfe₁, hrun1, hrel1, hfrel1, hwf1, hfwf1, hcvwf, hiswf, hcapwf,
         hrcan, hrfull⟩ :=
-      check_native_pass_former_refines hsi hsic hst hfe hcan hfull hp0 hformer lst
-        lfe hrel hfer
-    obtain ⟨lst', lq, hrun2, hrel2, hqrel, hwf2, hqwf, hqenv⟩ :=
-      check_native_pass_ctors_refines hcc hcomp hwk hrck hbeq hwf1 hfwf1 hcvwf
-        hiswf hp0 hcapwf h lst1 lfe₁ hrel1 hfrel1
-    refine ⟨lst', lq, ?_, hrel2, hqrel, hwf2, hqwf, hqenv ▸ hrcan, hqenv ▸ hrfull⟩
-    rw [checkNativePassI]
-    simp only [StateT.run_bind, hrun1]
-    exact hrun2
+      check_native_pass_former_refines hsi hsie hsic hst hfe hcan hfull hp0
+        hformer lst lfe hrel hfer
+    have hkey :=
+      check_native_pass_ctors_refines hcc hcce hcomp hwk hrck hbeq hwf1 hfwf1
+        hcvwf hiswf hp0 hcapwf h lst1 lfe₁ hrel1 hfrel1
+    cases o with
+    | Err e =>
+      rw [checkNativePassI]
+      simp only [StateT.run_bind, hrun1, exceptOk_bind]
+      exact hkey
+    | Ok q =>
+      obtain ⟨lst', lq, hrun2, hrel2, hqrel, hwf2, hqwf, hqenv⟩ := hkey
+      refine ⟨lst', lq, ?_, hrel2, hqrel, hwf2, hqwf, hqenv ▸ hrcan,
+        hqenv ▸ hrfull⟩
+      rw [checkNativePassI]
+      simp only [StateT.run_bind, hrun1]
+      exact hrun2
 
 /-! ## The tail (`NativeInstall.lean:576-611` / `CheckerC.lean:192-215`) -/
 
@@ -4763,7 +4914,8 @@ theorem check_native_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {p0 : inductives.native_parts.NativeParts}
-    (hsi : CheckSumIndRefines mode) (hcc : CheckSumCtorsRefines mode)
+    (hsi : CheckSumIndRefines mode) (hsie : CheckSumIndErr mode)
+    (hcc : CheckSumCtorsRefines mode) (hcce : CheckSumCtorsErr mode)
     (hsic : CheckSumIndCanon mode)
     (hcomp : CompleteRefines) (hwk : WithKindsRefines)
     (hrck : RecCtorKindsRefines) (hbeq : RecFieldKindBeqRefines)
@@ -4820,8 +4972,8 @@ theorem check_native_refines {mode : env.CheckMode}
     | Ok q =>
       obtain ⟨np, b2⟩ := q
       obtain ⟨lst1, lq, hrun1, hrel1, hqrel, hwf1, hqwf, hqcan, hqfull⟩ :=
-        check_native_pass_refines hsi hsic hcc hcomp hwk hrck hbeq hst hfe hcan
-          hfull hp0 hpass lst lfe hrel hfer
+        check_native_pass_refines hsi hsie hsic hcc hcce hcomp hwk hrck hbeq hst
+          hfe hcan hfull hp0 hpass lst lfe hrel hfer
       rw [hb1v] at hrun1
       by_cases hb2 : b2 = true
       · simp only [hb2] at h
@@ -4845,8 +4997,8 @@ theorem check_native_refines {mode : env.CheckMode}
         | Ok q2 =>
           obtain ⟨np1, b3⟩ := q2
           obtain ⟨lst2, lq2, hrun2, hrel2, hq2rel, hwf2, hq2wf, hq2can, hq2full⟩ :=
-            check_native_pass_refines hsi hsic hcc hcomp hwk hrck hbeq hwf1 hfe hcan
-              hfull hp0 hpass2 lst1 lfe hrel1 hfer
+            check_native_pass_refines hsi hsie hsic hcc hcce hcomp hwk hrck hbeq
+              hwf1 hfe hcan hfull hp0 hpass2 lst1 lfe hrel1 hfer
           rw [hirv] at hrun2
           by_cases hb3 : b3 = true
           · simp only [hb3] at h
