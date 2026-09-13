@@ -52,6 +52,49 @@ use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
 
+// ---------------------------------------------------------------------------
+// `vec![…]` without the macro (§3.4)
+// ---------------------------------------------------------------------------
+
+/// con-leche: none — `vec![a]`, spelled out.  The `vec!` macro builds its
+/// array through `Box::new_uninit`, which pulls `core::mem::MaybeUninit` into
+/// the extraction as a third hand-written model for nothing (§3.5's hole list
+/// is exactly `Arc` and `Arc::ptr_eq`); these five spell the literal instead.
+pub fn vec1<T>(a: T) -> Vec<T> {
+    let mut v: Vec<T> = Vec::new();
+    v.push(a);
+    v
+}
+
+/// con-leche: none — `vec![a, b]`, spelled out (see `vec1`)
+pub fn vec2<T>(a: T, b: T) -> Vec<T> {
+    let mut v: Vec<T> = vec1(a);
+    v.push(b);
+    v
+}
+
+/// con-leche: none — `vec![a, b, c]`, spelled out (see `vec1`)
+pub fn vec3<T>(a: T, b: T, c: T) -> Vec<T> {
+    let mut v: Vec<T> = vec2(a, b);
+    v.push(c);
+    v
+}
+
+/// con-leche: none — `vec![a, b, c, d]`, spelled out (see `vec1`)
+pub fn vec4<T>(a: T, b: T, c: T, d: T) -> Vec<T> {
+    let mut v: Vec<T> = vec3(a, b, c);
+    v.push(d);
+    v
+}
+
+/// con-leche: none — `vec![a, b, c, d, e]`, spelled out (see `vec1`)
+pub fn vec5<T>(a: T, b: T, c: T, d: T, e: T) -> Vec<T> {
+    let mut v: Vec<T> = vec4(a, b, c, d);
+    v.push(e);
+    v
+}
+
+
 /// con-leche: none — `ConstantVal.mk` at the anonymous-constructor literal
 /// `⟨name, lps, ty⟩` every pin below opens with.
 pub fn cv(n: Name, lps: Vec<Name>, ty: Expr) -> ConstantVal {
@@ -82,7 +125,7 @@ pub fn eq_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
         cv(
             bnm::eq_name(),
-            vec![u_n()],
+            vec1(u_n()),
             pi(srt(u()), pi(bv(0), pi(bv(1), prop()))),
         ),
         caps,
@@ -95,12 +138,12 @@ pub fn eq_refl_raw() -> ConstantInfo {
     ConstantInfo::CtorInfo(
         cv(
             bnm::eq_refl_name(),
-            vec![u_n()],
+            vec1(u_n()),
             pi(
                 srt(u()),
                 pi(
                     bv(0),
-                    ap3(cnst(bnm::eq_name(), vec![u()]), bv(1), bv(0), bv(0)),
+                    ap3(cnst(bnm::eq_name(), vec1(u())), bv(1), bv(0), bv(0)),
                 ),
             ),
         ),
@@ -116,7 +159,7 @@ pub fn eq_rec_motive() -> Expr {
     pi(
         bv(1),
         pi(
-            ap3(cnst(bnm::eq_name(), vec![u()]), bv(2), bv(1), bv(0)),
+            ap3(cnst(bnm::eq_name(), vec1(u())), bv(2), bv(1), bv(0)),
             srt(u1()),
         ),
     )
@@ -128,7 +171,7 @@ pub fn eq_rec_refl_dom() -> Expr {
     ap2(
         bv(0),
         bv(1),
-        ap2(cnst(bnm::eq_refl_name(), vec![u()]), bv(2), bv(1)),
+        ap2(cnst(bnm::eq_refl_name(), vec1(u())), bv(2), bv(1)),
     )
 }
 
@@ -139,7 +182,7 @@ pub fn eq_rec_raw() -> ConstantInfo {
     ConstantInfo::RecInfo(
         cv(
             bnm::rec_of(bnm::eq_name()),
-            vec![u1_n(), u_n()],
+            vec2(u1_n(), u_n()),
             pi(
                 srt(u()),
                 pi(
@@ -151,7 +194,7 @@ pub fn eq_rec_raw() -> ConstantInfo {
                             pi(
                                 bv(3),
                                 pi(
-                                    ap3(cnst(bnm::eq_name(), vec![u()]), bv(4), bv(3), bv(0)),
+                                    ap3(cnst(bnm::eq_name(), vec1(u())), bv(4), bv(3), bv(0)),
                                     ap2(bv(3), bv(1), bv(0)),
                                 ),
                             ),
@@ -162,7 +205,7 @@ pub fn eq_rec_raw() -> ConstantInfo {
         ),
         5,
         4,
-        vec![rule(
+        vec1(rule(
             bnm::eq_refl_name(),
             0,
             lm(
@@ -172,14 +215,14 @@ pub fn eq_rec_raw() -> ConstantInfo {
                     lm(eq_rec_motive(), lm(eq_rec_refl_dom(), bv(0))),
                 ),
             ),
-        )],
+        )),
     )
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:63-64 eqBasis
 /// The pinned `Eq` basis block, in install order.
 pub fn eq_basis() -> Vec<ConstantInfo> {
-    vec![eq_raw(), eq_refl_raw(), eq_rec_raw()]
+    vec3(eq_raw(), eq_refl_raw(), eq_rec_raw())
 }
 
 // --- Nat -------------------------------------------------------------------
@@ -251,7 +294,7 @@ pub fn nat_rec_raw() -> ConstantInfo {
     ConstantInfo::RecInfo(
         cv(
             name::dup(&rec_name),
-            vec![u_n()],
+            vec1(u_n()),
             pi(
                 nat_rec_motive(),
                 pi(
@@ -265,16 +308,14 @@ pub fn nat_rec_raw() -> ConstantInfo {
         ),
         3,
         3,
-        vec![
-            rule(
+        vec2(rule(
                 bnm::nat_zero_name(),
                 0,
                 lm(
                     nat_rec_motive(),
                     lm(nat_rec_zero_dom(), lm(nat_rec_succ(), bv(1))),
                 ),
-            ),
-            rule(
+            ), rule(
                 bnm::nat_succ_name(),
                 1,
                 lm(
@@ -290,7 +331,7 @@ pub fn nat_rec_raw() -> ConstantInfo {
                                     bv(0),
                                     expr::app(
                                         ap3(
-                                            cnst(name::dup(&rec_name), vec![u()]),
+                                            cnst(name::dup(&rec_name), vec1(u())),
                                             bv(3),
                                             bv(2),
                                             bv(1),
@@ -302,15 +343,14 @@ pub fn nat_rec_raw() -> ConstantInfo {
                         ),
                     ),
                 ),
-            ),
-        ],
+            )),
     )
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:67-68 natBasis
 /// The pinned `Nat` basis block, in install order.
 pub fn nat_basis() -> Vec<ConstantInfo> {
-    vec![nat_raw(), nat_zero_raw(), nat_succ_raw(), nat_rec_raw()]
+    vec4(nat_raw(), nat_zero_raw(), nat_succ_raw(), nat_rec_raw())
 }
 
 // --- PUnit -----------------------------------------------------------------
@@ -324,10 +364,10 @@ pub fn punit_raw() -> ConstantInfo {
         eta_params: 0,
         eta_fields: 0,
         unitlike: true,
-        sort_z: prop_when::if_all_zero(vec![u_n()]),
+        sort_z: prop_when::if_all_zero(vec1(u_n())),
         ..env::ind_caps_default()
     };
-    ConstantInfo::IndInfo(cv(bnm::punit_name(), vec![u_n()], srt(u())), caps)
+    ConstantInfo::IndInfo(cv(bnm::punit_name(), vec1(u_n()), srt(u())), caps)
 }
 
 /// con-leche: ConLeche/Kernel/Basis/PUnit.lean:31-33 punitUnitRaw
@@ -336,8 +376,8 @@ pub fn punit_unit_raw() -> ConstantInfo {
     ConstantInfo::CtorInfo(
         cv(
             bnm::punit_unit_name(),
-            vec![u_n()],
-            cnst(bnm::punit_name(), vec![u()]),
+            vec1(u_n()),
+            cnst(bnm::punit_name(), vec1(u())),
         ),
         0,
         0,
@@ -347,13 +387,13 @@ pub fn punit_unit_raw() -> ConstantInfo {
 /// con-leche: ConLeche/Kernel/Basis/PUnit.lean:35-37 punitRecMotive
 /// The motive of `PUnit.rec`: `∀ (t : PUnit.{u}), Sort u_1`.
 pub fn punit_rec_motive() -> Expr {
-    pi(cnst(bnm::punit_name(), vec![u()]), srt(u1()))
+    pi(cnst(bnm::punit_name(), vec1(u())), srt(u1()))
 }
 
 /// con-leche: none — `PUnit.rec`'s `unit` minor premise, `motive PUnit.unit`,
 /// which `punitRecRaw` spells twice (its type and its iota rule).
 pub fn punit_rec_unit_dom() -> Expr {
-    expr::app(bv(0), cnst(bnm::punit_unit_name(), vec![u()]))
+    expr::app(bv(0), cnst(bnm::punit_unit_name(), vec1(u())))
 }
 
 /// con-leche: ConLeche/Kernel/Basis/PUnit.lean:39-50 punitRecRaw
@@ -363,13 +403,13 @@ pub fn punit_rec_raw() -> ConstantInfo {
     ConstantInfo::RecInfo(
         cv(
             bnm::punit_rec_name(),
-            vec![u1_n(), u_n()],
+            vec2(u1_n(), u_n()),
             pi(
                 punit_rec_motive(),
                 pi(
                     punit_rec_unit_dom(),
                     pi(
-                        cnst(bnm::punit_name(), vec![u()]),
+                        cnst(bnm::punit_name(), vec1(u())),
                         expr::app(bv(2), bv(0)),
                     ),
                 ),
@@ -377,18 +417,18 @@ pub fn punit_rec_raw() -> ConstantInfo {
         ),
         2,
         2,
-        vec![rule(
+        vec1(rule(
             bnm::punit_unit_name(),
             0,
             lm(punit_rec_motive(), lm(punit_rec_unit_dom(), bv(0))),
-        )],
+        )),
     )
 }
 
 /// con-leche: ConLeche/Kernel/Basis/PUnit.lean:52-53 punitBasis
 /// The pinned `PUnit` basis block, in install order.
 pub fn punit_basis() -> Vec<ConstantInfo> {
-    vec![punit_raw(), punit_unit_raw(), punit_rec_raw()]
+    vec3(punit_raw(), punit_unit_raw(), punit_rec_raw())
 }
 
 // --- Empty -----------------------------------------------------------------
@@ -410,7 +450,7 @@ pub fn empty_rec_raw() -> ConstantInfo {
     ConstantInfo::RecInfo(
         cv(
             bnm::rec_of(bnm::empty_name()),
-            vec![u_n()],
+            vec1(u_n()),
             pi(
                 pi(cnst(bnm::empty_name(), Vec::new()), srt(u())),
                 pi(
@@ -428,7 +468,7 @@ pub fn empty_rec_raw() -> ConstantInfo {
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:34-35 emptyBasis
 /// The pinned `Empty` basis block, in install order.
 pub fn empty_basis() -> Vec<ConstantInfo> {
-    vec![empty_raw(), empty_rec_raw()]
+    vec2(empty_raw(), empty_rec_raw())
 }
 
 // --- False -----------------------------------------------------------------
@@ -450,7 +490,7 @@ pub fn false_rec_raw() -> ConstantInfo {
     ConstantInfo::RecInfo(
         cv(
             bnm::rec_of(bnm::false_name()),
-            vec![u_n()],
+            vec1(u_n()),
             pi(
                 pi(cnst(bnm::false_name(), Vec::new()), srt(u())),
                 pi(
@@ -468,7 +508,7 @@ pub fn false_rec_raw() -> ConstantInfo {
 /// con-leche: ConLeche/Kernel/Basis/False.lean:51-52 falseBasis
 /// The pinned `False` basis block, in install order.
 pub fn false_basis() -> Vec<ConstantInfo> {
-    vec![false_raw(), false_rec_raw()]
+    vec2(false_raw(), false_rec_raw())
 }
 
 // --- Quot ------------------------------------------------------------------
@@ -485,7 +525,7 @@ pub fn quot_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
         cv(
             bnm::quot_name(),
-            vec![u_n()],
+            vec1(u_n()),
             pi(srt(u()), pi(quot_rel(), srt(u()))),
         ),
         env::ind_caps_default(),
@@ -498,14 +538,14 @@ pub fn quot_mk_raw() -> ConstantInfo {
     ConstantInfo::CtorInfo(
         cv(
             bnm::quot_mk_name(),
-            vec![u_n()],
+            vec1(u_n()),
             pi(
                 srt(u()),
                 pi(
                     quot_rel(),
                     pi(
                         bv(1),
-                        ap2(cnst(bnm::quot_name(), vec![u()]), bv(2), bv(1)),
+                        ap2(cnst(bnm::quot_name(), vec1(u())), bv(2), bv(1)),
                     ),
                 ),
             ),
@@ -532,7 +572,7 @@ pub fn quot_lift_h() -> Expr {
             pi(
                 ap2(bv(4), bv(1), bv(0)),
                 ap3(
-                    cnst(bnm::eq_name(), vec![v()]),
+                    cnst(bnm::eq_name(), vec1(v())),
                     bv(4),
                     expr::app(bv(3), bv(2)),
                     expr::app(bv(3), bv(1)),
@@ -549,7 +589,7 @@ pub fn quot_lift_raw() -> ConstantInfo {
     ConstantInfo::RecInfo(
         cv(
             bnm::quot_lift_name(),
-            vec![u_n(), v_n()],
+            vec2(u_n(), v_n()),
             pi(
                 srt(u()),
                 pi(
@@ -561,7 +601,7 @@ pub fn quot_lift_raw() -> ConstantInfo {
                             pi(
                                 quot_lift_h(),
                                 pi(
-                                    ap2(cnst(bnm::quot_name(), vec![u()]), bv(4), bv(3)),
+                                    ap2(cnst(bnm::quot_name(), vec1(u())), bv(4), bv(3)),
                                     bv(3),
                                 ),
                             ),
@@ -572,7 +612,7 @@ pub fn quot_lift_raw() -> ConstantInfo {
         ),
         5,
         5,
-        vec![rule(
+        vec1(rule(
             bnm::quot_mk_name(),
             1,
             lm(
@@ -591,7 +631,7 @@ pub fn quot_lift_raw() -> ConstantInfo {
                     ),
                 ),
             ),
-        )],
+        )),
     )
 }
 
@@ -599,7 +639,7 @@ pub fn quot_lift_raw() -> ConstantInfo {
 /// `Quot.ind`'s motive slot, in the `α`/`r` context: `Quot α r → Prop`.
 pub fn quot_ind_motive() -> Expr {
     pi(
-        ap2(cnst(bnm::quot_name(), vec![u()]), bv(1), bv(0)),
+        ap2(cnst(bnm::quot_name(), vec1(u())), bv(1), bv(0)),
         prop(),
     )
 }
@@ -612,7 +652,7 @@ pub fn quot_ind_mk() -> Expr {
         bv(2),
         expr::app(
             bv(1),
-            ap3(cnst(bnm::quot_mk_name(), vec![u()]), bv(3), bv(2), bv(0)),
+            ap3(cnst(bnm::quot_mk_name(), vec1(u())), bv(3), bv(2), bv(0)),
         ),
     )
 }
@@ -624,7 +664,7 @@ pub fn quot_ind_raw() -> ConstantInfo {
     ConstantInfo::RecInfo(
         cv(
             bnm::quot_ind_name(),
-            vec![u_n()],
+            vec1(u_n()),
             pi(
                 srt(u()),
                 pi(
@@ -634,7 +674,7 @@ pub fn quot_ind_raw() -> ConstantInfo {
                         pi(
                             quot_ind_mk(),
                             pi(
-                                ap2(cnst(bnm::quot_name(), vec![u()]), bv(3), bv(2)),
+                                ap2(cnst(bnm::quot_name(), vec1(u())), bv(3), bv(2)),
                                 expr::app(bv(2), bv(0)),
                             ),
                         ),
@@ -644,7 +684,7 @@ pub fn quot_ind_raw() -> ConstantInfo {
         ),
         4,
         4,
-        vec![rule(
+        vec1(rule(
             bnm::quot_mk_name(),
             1,
             lm(
@@ -660,7 +700,7 @@ pub fn quot_ind_raw() -> ConstantInfo {
                     ),
                 ),
             ),
-        )],
+        )),
     )
 }
 
@@ -670,7 +710,7 @@ pub fn quot_ind_raw() -> ConstantInfo {
 pub fn quot_sound_raw() -> ConstantInfo {
     ConstantInfo::AxiomInfo(cv(
         bnm::quot_sound_name(),
-        vec![u_n()],
+        vec1(u_n()),
         pi(
             srt(u()),
             pi(
@@ -682,10 +722,10 @@ pub fn quot_sound_raw() -> ConstantInfo {
                         pi(
                             ap2(bv(2), bv(1), bv(0)),
                             ap3(
-                                cnst(bnm::eq_name(), vec![u()]),
-                                ap2(cnst(bnm::quot_name(), vec![u()]), bv(4), bv(3)),
-                                ap3(cnst(bnm::quot_mk_name(), vec![u()]), bv(4), bv(3), bv(2)),
-                                ap3(cnst(bnm::quot_mk_name(), vec![u()]), bv(4), bv(3), bv(1)),
+                                cnst(bnm::eq_name(), vec1(u())),
+                                ap2(cnst(bnm::quot_name(), vec1(u())), bv(4), bv(3)),
+                                ap3(cnst(bnm::quot_mk_name(), vec1(u())), bv(4), bv(3), bv(2)),
+                                ap3(cnst(bnm::quot_mk_name(), vec1(u())), bv(4), bv(3), bv(1)),
                             ),
                         ),
                     ),
@@ -698,13 +738,7 @@ pub fn quot_sound_raw() -> ConstantInfo {
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:116-118 quotBasis
 /// The pinned `Quot` basis block, in install order.
 pub fn quot_basis() -> Vec<ConstantInfo> {
-    vec![
-        quot_raw(),
-        quot_mk_raw(),
-        quot_lift_raw(),
-        quot_ind_raw(),
-        quot_sound_raw(),
-    ]
+    vec5(quot_raw(), quot_mk_raw(), quot_lift_raw(), quot_ind_raw(), quot_sound_raw())
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:40-47 BasisKind.decls
@@ -726,13 +760,7 @@ pub fn basis_kind_decls(k: &BasisKind) -> Vec<ConstantInfo> {
 /// `basisPinHit`'s `List.find?`.  `quot` is not among them — its records
 /// arrive one at a time and are matched slot by slot (`quot_pin_hit`).
 pub fn block_pin_kinds() -> Vec<BasisKind> {
-    vec![
-        BasisKind::EqK,
-        BasisKind::NatK,
-        BasisKind::PunitK,
-        BasisKind::EmptyK,
-        BasisKind::FalseK,
-    ]
+    vec5(BasisKind::EqK, BasisKind::NatK, BasisKind::PunitK, BasisKind::EmptyK, BasisKind::FalseK)
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:60-71 basisPinHit
