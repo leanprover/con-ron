@@ -23,7 +23,7 @@ the tower was changed.
 | `ExprOps.instantiate1_go_refines` (10 cases, memo) | 340 lines | 10 shape lines + a 9-line closing macro + 8 one-line wrappers | 0.65 s → 5.3 s |
 | `Core.reduce_nat_lits_i_refines` (`lits_replay`, 2 wrapper calls) | 79 lines | 5 lines + 3 `use`/plumbing lemmas | 0.2 s → 1.0 s |
 
-Times are single `lake env lean` runs on the shared machine, import cost
+Times are single `lake env lean` runs on a shared machine, import cost
 subtracted; treat them as ratios.  **Task #70 (§"Cost, and the tuned idiom"
 below) explains the 5× and brings it to 1.2–3.8× with the same idiom tuned.**
 
@@ -144,7 +144,7 @@ out to be worth, and ends with the idiom as it should be adopted.  All the
 evidence is in `Automation/Study.lean` §"Task #70" and `Automation/SimpSets.lean`
 (task #71 moved both into the library -- see §"Status (task #71)" at the end);
 the numbers are net of the 1.9 s import, the minimum of two `lake env lean`
-runs on the shared machine, ±0.1 s.
+runs on a shared machine, ±0.1 s.
 
 ### Where the time went
 

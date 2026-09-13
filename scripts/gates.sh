@@ -12,8 +12,8 @@
 #   6. scripts/extract.sh --check           committed generated Lean == crate
 #   7. cd proof && lake build               the whole proof library elaborates
 #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
-#      has no jobs flag: the first build of the vendored con-leche at this
-#      machine's 96 cores runs the session out of memory, task #74)
+#      has no jobs flag: on a many-core machine the first build of the
+#      vendored con-leche can exhaust memory, task #74)
 #
 # One OK/FAIL line per gate; non-zero exit on the first failure.  Full output
 # of every gate goes to `_tmp/gates/<n>-<name>.log`.
