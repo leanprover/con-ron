@@ -192,6 +192,29 @@ private theorem throw_apply {β : Type} (le : ConLeche.CheckError)
     (lst : ConLeche.Cached.CState) :
     (throw le : ConLeche.Cached.CheckCM β) lst = .error le := rfl
 
+/-- A mirrored `throw` at `notImplemented`: the port's error came out of
+`core_types::not_implemented`, so its kind is con-leche's `.notImplemented`,
+and the cited side has been rewritten down to its `throw`. -/
+private theorem errSim_notImplemented {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.not_implemented v = ok ce1) (heq : ce1 = ce)
+    (hx : x = .error (.notImplemented ls)) : ErrSim ce x := by
+  rw [← heq, not_implemented_inv hce]; exact ErrSim.notImplemented hx
+
+/-- A mirrored `throw` at `invalid`, the same bookkeeping. -/
+private theorem errSim_invalid {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.invalid v = ok ce1) (heq : ce1 = ce)
+    (hx : x = .error (.invalid ls)) : ErrSim ce x := by
+  rw [← heq, invalid_inv hce]; exact ErrSim.invalid hx
+
+/-- A mirrored `throw` at `internal`, the same bookkeeping. -/
+private theorem errSim_internal {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.internal v = ok ce1) (heq : ce1 = ce)
+    (hx : x = .error (.internal ls)) : ErrSim ce x := by
+  rw [← heq, internal_inv hce]; exact ErrSim.internal hx
+
 /-! ## 1. `Expr.constsResolveF` and its memoized walk (`DeclCheck.lean:37-204`)
 
 `core_k::consts_resolve` is the port's single spelling of `Expr.constsResolve`
@@ -1013,6 +1036,142 @@ theorem checkProjLookupsF_run {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
   simp only [h1, h2, h3, h4, h5, h6, StateT.run, Bind.bind, Pure.pure,
     StateT.pure, Except.pure, and_self, if_true]
 
+open ConLeche.Cached in
+/-- `checkProjLookupsF`'s first `throw` (`DeclCheck.lean:732`): the
+constructor is not stored (or is stored as something else). -/
+theorem checkProjLookupsF_ctor_none {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF i : Nat} {lst : CState}
+    (h1 : ctorOf (lfe.find? ctorName) = none) :
+    (ConLeche.checkProjLookupsF (m := CheckCM) lfe T ctorName lps nP nF i).run lst
+      = .error (.notImplemented "projection constructor not stored") := by
+  rw [ConLeche.checkProjLookupsF]
+  simp only [StateT.run, Bind.bind]
+  cases hx : lfe.find? ctorName with
+  | none => rfl
+  | some ci =>
+    rw [hx] at h1
+    cases ci with
+    | axiomInfo _ => rfl
+    | defnInfo _ _ _ => rfl
+    | thmInfo _ _ => rfl
+    | indInfo _ _ => rfl
+    | ctorInfo _ _ _ => simp [ctorOf] at h1
+    | recInfo _ _ _ _ => rfl
+    | projInfo _ => rfl
+
+open ConLeche.Cached in
+/-- `checkProjLookupsF`'s arity `throw` (`DeclCheck.lean:734`), which the port
+splits into two `else if` arms carrying the same message (task #67's census:
+two Rust sites, one cited `throw`, the same kind). -/
+theorem checkProjLookupsF_arity {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF cnP cnF i : Nat} {cvj : ConLeche.ConstantVal}
+    {lst : CState} (h1 : lfe.find? ctorName = some (.ctorInfo cvj cnP cnF))
+    (h2 : ¬ (cnP = nP ∧ cnF = nF)) :
+    (ConLeche.checkProjLookupsF (m := CheckCM) lfe T ctorName lps nP nF i).run lst
+      = .error (.notImplemented "projection constructor arity mismatch") := by
+  rw [ConLeche.checkProjLookupsF]
+  simp only [h1, StateT.run, Bind.bind]
+  rw [if_neg h2]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjLookupsF`'s missing-model `throw` (`DeclCheck.lean:737`). -/
+theorem checkProjLookupsF_model_none {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name} {nP nF i : Nat}
+    {cvj : ConLeche.ConstantVal} {lst : CState}
+    (h1 : lfe.find? ctorName = some (.ctorInfo cvj nP nF))
+    (h2 : defnOf (lfe.find? (ConLeche.projModelName T i)) = none) :
+    (ConLeche.checkProjLookupsF (m := CheckCM) lfe T ctorName lps nP nF i).run lst
+      = .error (.notImplemented "missing projection model") := by
+  rw [ConLeche.checkProjLookupsF]
+  simp only [h1, StateT.run, Bind.bind, and_self,
+    if_true]
+  cases hx : lfe.find? (ConLeche.projModelName T i) with
+  | none => rfl
+  | some ci =>
+    rw [hx] at h2
+    cases ci with
+    | axiomInfo _ => rfl
+    | defnInfo _ _ _ => simp [defnOf] at h2
+    | thmInfo _ _ => rfl
+    | indInfo _ _ => rfl
+    | ctorInfo _ _ _ => rfl
+    | recInfo _ _ _ _ => rfl
+    | projInfo _ => rfl
+
+open ConLeche.Cached in
+/-- `checkProjLookupsF`'s model-level `throw` (`DeclCheck.lean:739`). -/
+theorem checkProjLookupsF_lps {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF i : Nat} {cvj mcv : ConLeche.ConstantVal}
+    {mval : ConLeche.Expr} {hint : ConLeche.ReducibilityHint} {lst : CState}
+    (h1 : lfe.find? ctorName = some (.ctorInfo cvj nP nF))
+    (h2 : lfe.find? (ConLeche.projModelName T i) = some (.defnInfo mcv mval hint))
+    (h3 : mcv.levelParams ≠ lps) :
+    (ConLeche.checkProjLookupsF (m := CheckCM) lfe T ctorName lps nP nF i).run lst
+      = .error (.notImplemented "projection model level mismatch") := by
+  rw [ConLeche.checkProjLookupsF]
+  simp only [h1, h2, StateT.run, Bind.bind, and_self,
+    if_true]
+  rw [if_neg h3]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjLookupsF`'s taken-name `throw` (`DeclCheck.lean:741`), the one
+`invalid` of the cited function. -/
+theorem checkProjLookupsF_name_taken {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name} {nP nF i : Nat}
+    {cvj mcv : ConLeche.ConstantVal} {mval : ConLeche.Expr}
+    {hint : ConLeche.ReducibilityHint} {lst : CState}
+    (h1 : lfe.find? ctorName = some (.ctorInfo cvj nP nF))
+    (h2 : lfe.find? (ConLeche.projModelName T i) = some (.defnInfo mcv mval hint))
+    (h3 : mcv.levelParams = lps)
+    (h4 : (lfe.find? (ConLeche.projFnName T i)).isNone = false) :
+    (ConLeche.checkProjLookupsF (m := CheckCM) lfe T ctorName lps nP nF i).run lst
+      = .error (.invalid "projection name taken") := by
+  rw [ConLeche.checkProjLookupsF]
+  simp only [h1, h2, h3, h4, StateT.run, Bind.bind, StateT.bind, Except.bind,
+    and_self, if_true, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjLookupsF`'s missing-parent `throw` (`DeclCheck.lean:743`). -/
+theorem checkProjLookupsF_parent {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name} {nP nF i : Nat}
+    {cvj mcv : ConLeche.ConstantVal} {mval : ConLeche.Expr}
+    {hint : ConLeche.ReducibilityHint} {lst : CState}
+    (h1 : lfe.find? ctorName = some (.ctorInfo cvj nP nF))
+    (h2 : lfe.find? (ConLeche.projModelName T i) = some (.defnInfo mcv mval hint))
+    (h3 : mcv.levelParams = lps)
+    (h4 : (lfe.find? (ConLeche.projFnName T i)).isNone = true)
+    (h5 : (lfe.find? T).isSome = false) :
+    (ConLeche.checkProjLookupsF (m := CheckCM) lfe T ctorName lps nP nF i).run lst
+      = .error (.notImplemented "projection parent not stored") := by
+  rw [ConLeche.checkProjLookupsF]
+  simp only [h1, h2, h3, h4, h5, StateT.run, Bind.bind, StateT.bind, Except.bind,
+    and_self, if_true, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjLookupsF`'s pinned-`Eq` `throw` (`DeclCheck.lean:745`). -/
+theorem checkProjLookupsF_eq_pin {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name} {nP nF i : Nat}
+    {cvj mcv : ConLeche.ConstantVal} {mval : ConLeche.Expr}
+    {hint : ConLeche.ReducibilityHint} {lst : CState}
+    (h1 : lfe.find? ctorName = some (.ctorInfo cvj nP nF))
+    (h2 : lfe.find? (ConLeche.projModelName T i) = some (.defnInfo mcv mval hint))
+    (h3 : mcv.levelParams = lps)
+    (h4 : (lfe.find? (ConLeche.projFnName T i)).isNone = true)
+    (h5 : (lfe.find? T).isSome = true)
+    (h6 : lfe.find? ConLeche.eqName ≠ some ConLeche.eqA) :
+    (ConLeche.checkProjLookupsF (m := CheckCM) lfe T ctorName lps nP nF i).run lst
+      = .error (.notImplemented
+          "projection iota requires the pinned Eq basis") := by
+  rw [ConLeche.checkProjLookupsF]
+  simp only [h1, h2, h3, h4, h5, StateT.run, Bind.bind,
+    and_self, if_true]
+  rw [if_neg h6]
+  rfl
+
 /-- `ConLeche/Kernel/DeclCheck.lean:729-746 checkProjLookupsF` —
 **`inductives::modeled::check_proj_lookups`**: the projection install's five
 environment lookups — the stored constructor at the expected arity, the
@@ -1021,23 +1180,39 @@ projection-function name, the stored parent, and the pinned `Eq` basis.  No
 state: the cited Lean is `ops`-free, so the run leaves `lst` alone. -/
 theorem check_proj_lookups_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {t ctor_name : name.Name} {lps : alloc.vec.Vec name.Name}
-    {n_p n_f i : Std.U64} {cvj mcv : env.ConstantVal}
+    {n_p n_f i : Std.U64}
+    {out : core.result.Result (env.ConstantVal × env.ConstantVal)
+      core_types.CheckError}
     (hfe : FindAgree fe lfe) (hwf : FindWF fe) (ht : NameWF t)
     (hc : NameWF ctor_name) (hlps : NamesWF lps)
     (h : inductives.modeled.check_proj_lookups fe t ctor_name lps n_p n_f i
-      = ok (.Ok (cvj, mcv))) :
+      = ok out) :
     ∀ lst : ConLeche.Cached.CState,
-      (ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe
-          (absName t) (absName ctor_name) (absNames lps)
-          n_p.val n_f.val i.val).run lst
-        = .ok ((absConstantVal cvj, absConstantVal mcv), lst)
-      ∧ ConstantValWF cvj ∧ ConstantValWF mcv := by
+      match out with
+      | .Ok (cvj, mcv) =>
+        (ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe
+            (absName t) (absName ctor_name) (absNames lps)
+            n_p.val n_f.val i.val).run lst
+          = .ok ((absConstantVal cvj, absConstantVal mcv), lst)
+        ∧ ConstantValWF cvj ∧ ConstantValWF mcv
+      | .Err e =>
+        ErrSim e ((ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe
+            (absName t) (absName ctor_name) (absNames lps)
+            n_p.val n_f.val i.val).run lst) := by
   intro lst
   rw [inductives.modeled.check_proj_lookups] at h
   obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hoabs, howf⟩ := ctor_probe_refines hfe hwf hc ho
   cases o with
-  | none => simp [bind_eq_ok_iff] at h
+  | none =>
+    -- `modeled.rs:1894` ← `DeclCheck.lean:732`
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+    cases out with
+    | Ok q => simp at h
+    | Err e =>
+      exact errSim_notImplemented hce (by simpa using h)
+        (checkProjLookupsF_ctor_none (by simpa using hoabs.symm))
   | some cq =>
     obtain ⟨cv, cn_p, cn_f⟩ := cq
     have hcvwf := howf cv cn_p cn_f rfl
@@ -1046,16 +1221,31 @@ theorem check_proj_lookups_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       ctorOf_eq_some hoabs.symm
     by_cases hp : cn_p.val = n_p.val
     case neg =>
+      -- `modeled.rs:1898`, the first of the two arms the port splits the
+      -- cited `unless cnP = nP ∧ cnF = nF` into
       replace h := ite_pos_eq (c := ((cn_p != n_p) = true))
         (by simp only [bne_iff_ne, ne_eq]; scalar_tac) h
-      simp [bind_eq_ok_iff] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      cases out with
+      | Ok q => simp at h
+      | Err e =>
+        exact errSim_notImplemented hce (by simpa using h)
+          (checkProjLookupsF_arity hctor (fun hq => hp hq.1))
     by_cases hf : cn_f.val = n_f.val
     case neg =>
+      -- `modeled.rs:1898`, the second arm, at the same cited `throw`
       replace h := ite_neg_eq (c := ((cn_p != n_p) = true))
         (by simp only [bne_iff_ne, ne_eq, Decidable.not_not]; scalar_tac) h
       replace h := ite_pos_eq (c := ((cn_f != n_f) = true))
         (by simp only [bne_iff_ne, ne_eq]; scalar_tac) h
-      simp [bind_eq_ok_iff] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      cases out with
+      | Ok q => simp at h
+      | Err e =>
+        exact errSim_notImplemented hce (by simpa using h)
+          (checkProjLookupsF_arity hctor (fun hq => hf hq.2))
     rw [hp, hf] at hctor
     replace h := ite_neg_eq (c := ((cn_p != n_p) = true))
       (by simp only [bne_iff_ne, ne_eq, Decidable.not_not]; scalar_tac) h
@@ -1066,7 +1256,16 @@ theorem check_proj_lookups_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ho1abs, ho1wf⟩ := defn_probe_refines hfe hwf hnwf ho1
     cases o1 with
-    | none => simp [bind_eq_ok_iff] at h
+    | none =>
+      -- `modeled.rs:1903` ← `DeclCheck.lean:737`
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      cases out with
+      | Ok q => simp at h
+      | Err e =>
+        exact errSim_notImplemented hce (by simpa using h)
+          (checkProjLookupsF_model_none hctor
+            (by rw [← hnabs]; simpa using ho1abs.symm))
     | some dq =>
       obtain ⟨cv1, v1, hint1⟩ := dq
       obtain ⟨hcv1wf, -⟩ := ho1wf cv1 v1 hint1 rfl
@@ -1079,49 +1278,93 @@ theorem check_proj_lookups_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       split at h
       · rename_i hbt
         subst hbt
+        have hlpseq : (absConstantVal cv1).levelParams = absNames lps := by
+          show absNames cv1.level_params = absNames lps
+          simpa using hbabs.symm
         obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨hn1abs, hn1wf⟩ := proj_fn_name_refines ht hn1
         obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
         have ho2abs := find_isSome hfe hn1wf ho2
         rw [hn1abs] at ho2abs
         by_cases ho2f : core.option.Option.is_some o2 = true
-        · replace h := ite_pos_eq (c := (core.option.Option.is_some o2 = true))
+        · -- `modeled.rs:1911` ← `DeclCheck.lean:741`, the one `invalid`
+          replace h := ite_pos_eq (c := (core.option.Option.is_some o2 = true))
             ho2f h
-          simp [bind_eq_ok_iff] at h
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+          cases out with
+          | Ok q => simp at h
+          | Err e =>
+            refine errSim_invalid hce (by simpa using h)
+              (checkProjLookupsF_name_taken hctor hmodel hlpseq ?_)
+            have hs : (lfe.find? (ConLeche.projFnName (absName t) i.val)).isSome
+                = true := by rw [← ho2abs]; exact ho2f
+            cases hx : lfe.find? (ConLeche.projFnName (absName t) i.val) with
+            | none => rw [hx] at hs; simp at hs
+            | some ci => simp
         · replace h := ite_neg_eq (c := (core.option.Option.is_some o2 = true))
             ho2f h
+          have hnone : (lfe.find? (ConLeche.projFnName (absName t) i.val)).isNone
+              = true := by
+            have hs : (lfe.find? (ConLeche.projFnName (absName t) i.val)).isSome
+                = false := by rw [← ho2abs]; simpa using ho2f
+            cases hx : lfe.find? (ConLeche.projFnName (absName t) i.val) with
+            | none => simp
+            | some ci => rw [hx] at hs; simp at hs
           obtain ⟨o3, ho3, h⟩ := bind_eq_ok_iff.mp h
           have ho3abs := find_isSome hfe ht ho3
           by_cases ho3f : core.option.Option.is_none o3 = true
-          · replace h := ite_pos_eq
+          · -- `modeled.rs:1915` ← `DeclCheck.lean:743`
+            replace h := ite_pos_eq
               (c := (core.option.Option.is_none o3 = true)) ho3f h
-            simp [bind_eq_ok_iff] at h
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+            cases out with
+            | Ok q => simp at h
+            | Err e =>
+              refine errSim_notImplemented hce (by simpa using h)
+                (checkProjLookupsF_parent hctor hmodel hlpseq hnone ?_)
+              rw [← ho3abs]
+              cases o3 with
+              | none => simp [core.option.Option.is_some]
+              | some ci => simp [core.option.Option.is_none] at ho3f
           · replace h := ite_neg_eq
               (c := (core.option.Option.is_none o3 = true)) ho3f h
+            have hsome : (lfe.find? (absName t)).isSome = true := by
+              rw [← ho3abs]
+              cases o3 with
+              | none => simp [core.option.Option.is_none] at ho3f
+              | some ci => simp
             obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
             have hb3abs := eq_basis_pinned_find_refines hfe hwf hb3
             split at h
             · rename_i hb3t
               subst hb3t
-              simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
-                Prod.mk.injEq] at h
-              obtain ⟨rfl, rfl⟩ := h
-              refine ⟨checkProjLookupsF_run hctor hmodel ?_ ?_ ?_ ?_,
-                hcvwf, hcv1wf⟩
-              · show absNames cv1.level_params = absNames lps
-                simpa using hbabs.symm
-              · have hs : (lfe.find? (ConLeche.projFnName (absName t) i.val)).isSome
-                    = false := by rw [← ho2abs]; simpa using ho2f
-                cases hx : lfe.find? (ConLeche.projFnName (absName t) i.val) with
-                | none => simp
-                | some ci => rw [hx] at hs; simp at hs
-              · rw [← ho3abs]
-                cases o3 with
-                | none => simp [core.option.Option.is_none] at ho3f
-                | some ci => simp
-              · simpa using hb3abs.symm
-            · simp [bind_eq_ok_iff] at h
-      · simp [bind_eq_ok_iff] at h
+              simp only [Result.ok.injEq] at h
+              subst h
+              exact ⟨checkProjLookupsF_run hctor hmodel hlpseq hnone hsome
+                (by simpa using hb3abs.symm), hcvwf, hcv1wf⟩
+            · -- `modeled.rs:1919` ← `DeclCheck.lean:745`
+              rename_i hb3f
+              simp only [bind_eq_ok_iff] at h
+              obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+              cases out with
+              | Ok q => simp at h
+              | Err e =>
+                exact errSim_notImplemented hce (by simpa using h)
+                  (checkProjLookupsF_eq_pin hctor hmodel hlpseq hnone hsome
+                    (by simpa [hb3abs] using hb3f))
+      · -- `modeled.rs:1907` ← `DeclCheck.lean:739`
+        rename_i hbf
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+        cases out with
+        | Ok q => simp at h
+        | Err e =>
+          refine errSim_notImplemented hce (by simpa using h)
+            (checkProjLookupsF_lps hctor hmodel ?_)
+          show absNames cv1.level_params ≠ absNames lps
+          simpa [hbabs] using hbf
 
 /-! ### The two projection renaming dictionaries, as steps
 
