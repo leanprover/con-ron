@@ -64,7 +64,10 @@ of a 532 KB literal).  The honest statement here is the one about the
 wrote down as `check_decls_pins_refines` and left `sorry`, and it should be
 folded back there when that file is next touched.
 
-`sorry` count in this file: 1.
+Task #58 closed the one `sorry` this file had, `basis_decls_a_wf`; the section
+below it says how, and why it is not the second `step` tier task #56 expected.
+
+`sorry` count in this file: 0.
 -/
 import ConRon.Refine.BasisTables
 import ConRon.Refine.BasisNames
@@ -86,18 +89,247 @@ does need more: `Refine/Env.lean`'s `constant_info_beq_refines` is exact only
 on well-formed constants, `ConstantInfoWF` being the inductive-predicate
 invariant that pins the stored word.  The table's entries satisfy it — every
 node of the generated source is a call to the port's own smart constructor —
-but that is a second walk over the same 192 interned nodes, with the `*_inv`
-shapes instead of the value specification. -/
+and the tier below is that second walk, over all 810 generated nodes.
 
-/-- The generated basis table's entries are well formed.
+**It is not a second `step` tier**, which is what task #56's note expected.  A
+`⦃ ⦄` specification has to prove that the call *succeeds*, and that is why task
+#22 needed the whole `mix_hash`/`str_hash`/`levels_hash`/`level_has_param`
+totality tier before it could say anything about a node at all.
+Well-formedness is asked of a table we are **given** (`h : basis_decls_a k =
+ok v`), so the `ok` equation of every node is already in hand, and DESIGN.md
+§3.5's rule — a `*WF` predicate is an *inductive* one whose constructors are
+the port's own smart constructors — makes each node's clause literally one
+constructor applied to that equation.  Those constructors are already
+packaged, one per smart constructor, as `Name.mk_str_wf`, `Level.param_wf`,
+`Expr.forall_e_wf`, `PropWhen.if_all_zero_wf` and friends, so nothing new is
+proved here: the walk is a *loop*.  `wf_peel` splits one bind off the chain
+with `bind_eq_ok_iff` and hands the equation to the first `*_wf` lemma that
+fits; `repeat` does it 804 times over the six blocks, and the file elaborates
+in 30 s (51 s of CPU: the six are independent).
 
-`sorry`: needs `Refine/BasisTables.lean`'s `step` tier re-run with a
-`⦃ r => abs… ∧ …WF r ⦄` specification per smart constructor instead of the
-value-only one — 192 interned nodes, no new idea. -/
+The one thing that has to be said out loud is **`with_reducible`**.  Without
+it the `first` alternation is not merely wasteful but catastrophic: matching
+`hx : expr.lam ty b m = ok e` against `expr.dup ?e = ok ?r` at default
+transparency unfolds *both* generated bodies and reduces a `lam` node's whole
+hash computation before failing, at ~100 s for that one step, so the four
+blocks that build a `lam` never finish.  At `reducible` transparency a
+mismatch is two distinct constants and fails at once, while the branch that
+does fit matches syntactically.  With it the largest block (`.QuotK`, 300 of
+the 804 binds) takes 26 s and the rest a few seconds each. -/
+
+/-- Every entry of a pushed vector is well formed if every entry of the vector
+pushed onto is and the pushed element is.  `StrWF`, `NamesWF`, `LevelsWF`,
+`ExprsWF`, `RecRulesWF` and `ConstantInfosWF` are all this shape, so the six
+wrappers below are the same proof. -/
+theorem vec_all_push {α : Type} {P : α → Prop} {v w : alloc.vec.Vec α} {x : α}
+    (hv : ∀ y ∈ v.val, P y) (hx : P x)
+    (h : alloc.vec.Vec.push v x = ok w) : ∀ y ∈ w.val, P y := by
+  intro y hy
+  rw [vec_push_val h] at hy
+  rcases List.mem_append.mp hy with hy | hy
+  · exact hv y hy
+  · simp only [List.mem_singleton] at hy; subst hy; exact hx
+
+theorem str_push_wf {v w : alloc.vec.Vec Std.U32} {x : Std.U32}
+    (hv : StrWF v) (hx : Nat.isValidChar x.val)
+    (h : alloc.vec.Vec.push v x = ok w) : StrWF w := vec_all_push hv hx h
+
+theorem names_push_wf {v w : alloc.vec.Vec name.Name} {x : name.Name}
+    (hv : NamesWF v) (hx : NameWF x)
+    (h : alloc.vec.Vec.push v x = ok w) : NamesWF w := vec_all_push hv hx h
+
+theorem levels_push_wf {v w : alloc.vec.Vec level.Level} {x : level.Level}
+    (hv : LevelsWF v) (hx : LevelWF x)
+    (h : alloc.vec.Vec.push v x = ok w) : LevelsWF w := vec_all_push hv hx h
+
+theorem exprs_push_wf {v w : alloc.vec.Vec expr.Expr} {x : expr.Expr}
+    (hv : ExprsWF v) (hx : ExprWF x)
+    (h : alloc.vec.Vec.push v x = ok w) : ExprsWF w := vec_all_push hv hx h
+
+theorem rules_push_wf {v w : alloc.vec.Vec env.RecRule} {x : env.RecRule}
+    (hv : RecRulesWF v) (hx : RecRuleWF x)
+    (h : alloc.vec.Vec.push v x = ok w) : RecRulesWF w := vec_all_push hv hx h
+
+theorem infos_push_wf {v w : alloc.vec.Vec env.ConstantInfo} {x : env.ConstantInfo}
+    (hv : ConstantInfosWF v) (hx : ConstantInfoWF x)
+    (h : alloc.vec.Vec.push v x = ok w) : ConstantInfosWF w := vec_all_push hv hx h
+
+/-! The three `dup`s and `expr::binder_meta` are the identity in the model
+(DESIGN.md §3.2), so they transport well-formedness rather than build it; the
+`*WF` predicates have no constructor for them. -/
+
+theorem name_dup_wf {n r : name.Name} (hn : NameWF n) (h : name.dup n = ok r) :
+    NameWF r := by
+  simp only [name_dup_eq, Result.ok.injEq] at h; exact h ▸ hn
+
+theorem level_dup_wf {u r : level.Level} (hu : LevelWF u) (h : level.dup u = ok r) :
+    LevelWF r := by
+  simp only [level_dup_eq, Result.ok.injEq] at h; exact h ▸ hu
+
+theorem expr_dup_wf {e r : expr.Expr} (he : ExprWF e) (h : expr.dup e = ok r) :
+    ExprWF r := by rw [Expr.dup_eq h]; exact he
+
+theorem binder_meta_wf {pw : prop_when.PropWhen} {m : expr.BinderMeta}
+    (hpw : PropWhenWF pw) (h : expr.binder_meta pw = ok m) : BinderMetaWF m := by
+  simp only [expr.binder_meta, ptr_new_eq, bind_tc_ok, Result.ok.injEq] at h
+  subst h; exact hpw
+
+/-! The empty vector, at each of the six element types the tables push onto. -/
+
+theorem str_wf_new : StrWF (alloc.vec.Vec.new Std.U32) := by
+  simp [StrWF, alloc.vec.Vec.new]
+
+theorem names_wf_new : NamesWF (alloc.vec.Vec.new name.Name) := by
+  simp [NamesWF, alloc.vec.Vec.new]
+
+theorem levels_wf_new : LevelsWF (alloc.vec.Vec.new level.Level) := by
+  simp [LevelsWF, alloc.vec.Vec.new]
+
+theorem exprs_wf_new : ExprsWF (alloc.vec.Vec.new expr.Expr) := by
+  simp [ExprsWF, alloc.vec.Vec.new]
+
+theorem rules_wf_new : RecRulesWF (alloc.vec.Vec.new env.RecRule) := by
+  simp [RecRulesWF, alloc.vec.Vec.new]
+
+theorem infos_wf_new : ConstantInfosWF (alloc.vec.Vec.new env.ConstantInfo) := by
+  simp [ConstantInfosWF, alloc.vec.Vec.new]
+
+/-! ### The loop
+
+`wf_elem` discharges the *argument* obligations of a `*_wf` lemma: a
+well-formedness fact already in context, one of the six empty vectors, a code
+point's `Nat.isValidChar` (`decide`), or — for the `RecRule` and
+`ConstantInfo` literals the tables push — the record's conjunction, unfolded
+and split into facts that are again in context.  `wf_peel` takes the
+hypothesis carrying the rest of the generated `do` chain, splits one bind off
+it and applies the smart constructor's `*WF` lemma; the branches are ordered
+by how often the tables use them. -/
+
+local syntax "wf_elem" : tactic
+local macro_rules
+  | `(tactic| wf_elem) => `(tactic|
+      first
+      | assumption
+      | exact str_wf_new
+      | exact names_wf_new
+      | exact levels_wf_new
+      | exact exprs_wf_new
+      | exact rules_wf_new
+      | exact infos_wf_new
+      | exact True.intro
+      | decide
+      | (simp only [ConstantInfoWF, ConstantValWF, IndCapsWF, RecRuleWF,
+            RecRuleFireWF, ProjTableWF]
+         repeat' first
+           | assumption
+           | apply And.intro
+           | exact True.intro
+           | exact str_wf_new
+           | exact names_wf_new
+           | exact levels_wf_new
+           | exact exprs_wf_new
+           | exact rules_wf_new))
+
+local syntax "wf_peel" ident : tactic
+local macro_rules
+  | `(tactic| wf_peel $h:ident) => `(tactic|
+      (obtain ⟨_, hx, $h⟩ := bind_eq_ok_iff.mp $h
+       first
+       | (with_reducible have := expr_dup_wf (by assumption) hx)
+       | (with_reducible have := names_push_wf (by wf_elem) (by wf_elem) hx)
+       | (with_reducible have := str_push_wf (by wf_elem) (by wf_elem) hx)
+       | (with_reducible have := binder_meta_wf (by assumption) hx)
+       | (with_reducible have := Expr.forall_e_wf (by assumption) (by assumption) (by assumption) hx)
+       | (with_reducible have := Expr.app_wf (by assumption) (by assumption) hx)
+       | (with_reducible have := PropWhen.if_all_zero_wf (by wf_elem) hx)
+       | (with_reducible have := name_dup_wf (by assumption) hx)
+       | (with_reducible have := Name.mk_str_wf (by assumption) (by wf_elem) hx)
+       | (with_reducible have := Expr.lam_wf (by assumption) (by assumption) (by assumption) hx)
+       | (with_reducible have := Expr.mk_bvar_wf hx)
+       | (with_reducible have := level_dup_wf (by assumption) hx)
+       | (with_reducible have := Expr.sort_wf (by assumption) hx)
+       | (with_reducible have := Expr.mk_const_wf (by assumption) (by wf_elem) hx)
+       | (with_reducible have := Level.param_wf (by assumption) hx)
+       | (with_reducible have := PropWhen.never_wf hx)
+       | (with_reducible have := Name.anonymous_wf hx)
+       | (with_reducible have := Level.zero_wf hx)
+       | (with_reducible have := Level.succ_wf (by assumption) hx)
+       | (with_reducible have := levels_push_wf (by wf_elem) (by wf_elem) hx)
+       | (with_reducible have := exprs_push_wf (by wf_elem) (by wf_elem) hx)
+       | (with_reducible have := rules_push_wf (by wf_elem) (by wf_elem) hx)
+       | (with_reducible have := infos_push_wf (by wf_elem) (by wf_elem) hx)
+       clear hx))
+
+/-- A whole block: peel until the chain is one `Vec::push` long, then read the
+last push off.  Every generated table ends by pushing its last
+`ConstantInfo`. -/
+local syntax "basis_wf_block" ident : tactic
+local macro_rules
+  | `(tactic| basis_wf_block $h:ident) => `(tactic|
+      (repeat wf_peel $h
+       exact infos_push_wf (by wf_elem) (by wf_elem) $h))
+
+set_option maxRecDepth 1000000 in
+set_option maxHeartbeats 1000000 in
+/-- `ConLeche/Kernel/BasisA.lean` — the `.FalseK` block's entries are well
+formed. -/
+theorem basis_decls_false_wf {v : alloc.vec.Vec env.ConstantInfo}
+    (h : basis_tables.basis_decls_false = ok v) : ConstantInfosWF v := by
+  rw [basis_tables.basis_decls_false] at h
+  basis_wf_block h
+
+set_option maxRecDepth 1000000 in
+set_option maxHeartbeats 1000000 in
+/-- The `.EmptyK` block's entries are well formed. -/
+theorem basis_decls_empty_wf {v : alloc.vec.Vec env.ConstantInfo}
+    (h : basis_tables.basis_decls_empty = ok v) : ConstantInfosWF v := by
+  rw [basis_tables.basis_decls_empty] at h
+  basis_wf_block h
+
+set_option maxRecDepth 1000000 in
+set_option maxHeartbeats 1000000 in
+/-- The `.PunitK` block's entries are well formed. -/
+theorem basis_decls_punit_wf {v : alloc.vec.Vec env.ConstantInfo}
+    (h : basis_tables.basis_decls_punit = ok v) : ConstantInfosWF v := by
+  rw [basis_tables.basis_decls_punit] at h
+  basis_wf_block h
+
+set_option maxRecDepth 1000000 in
+set_option maxHeartbeats 1000000 in
+/-- The `.QuotK` block's entries are well formed. -/
+theorem basis_decls_quot_wf {v : alloc.vec.Vec env.ConstantInfo}
+    (h : basis_tables.basis_decls_quot = ok v) : ConstantInfosWF v := by
+  rw [basis_tables.basis_decls_quot] at h
+  basis_wf_block h
+
+set_option maxRecDepth 1000000 in
+set_option maxHeartbeats 1000000 in
+/-- The `.NatK` block's entries are well formed. -/
+theorem basis_decls_nat_wf {v : alloc.vec.Vec env.ConstantInfo}
+    (h : basis_tables.basis_decls_nat = ok v) : ConstantInfosWF v := by
+  rw [basis_tables.basis_decls_nat] at h
+  basis_wf_block h
+
+set_option maxRecDepth 1000000 in
+set_option maxHeartbeats 1000000 in
+/-- The `.EqK` block's entries are well formed. -/
+theorem basis_decls_eq_wf {v : alloc.vec.Vec env.ConstantInfo}
+    (h : basis_tables.basis_decls_eq = ok v) : ConstantInfosWF v := by
+  rw [basis_tables.basis_decls_eq] at h
+  basis_wf_block h
+
+/-- The generated basis table's entries are well formed, at every kind. -/
 theorem basis_decls_a_wf {k : env.BasisKind}
     {v : alloc.vec.Vec env.ConstantInfo}
     (h : basis_tables.basis_decls_a k = ok v) : ConstantInfosWF v := by
-  sorry
+  rw [basis_tables.basis_decls_a.eq_def] at h
+  cases k <;> simp only [] at h
+  · exact basis_decls_eq_wf h
+  · exact basis_decls_nat_wf h
+  · exact basis_decls_punit_wf h
+  · exact basis_decls_empty_wf h
+  · exact basis_decls_false_wf h
+  · exact basis_decls_quot_wf h
 
 /-! ## The two pins -/
 

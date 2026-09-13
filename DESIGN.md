@@ -11634,3 +11634,252 @@ and `weak.backward.do.legacy = true` under `[leanOptions]`, and **`lake env
 lean FILE` does not apply them**.  Two files in this task checked clean under
 `lake env lean` and failed `lake build`; one of them differed by a single
 `rfl`.  Verify with `lake build ConRon.Refine.<File>`.
+
+### Task #58 — `div_mod_env_guard` fixed; the checker tier closed (2026-09-13, Opus under Fable)
+
+The two things task #56 left: the **accept-direction bug** it found in
+`checker::div_mod_env_guard`, and the **41 `sorry`s** of the declaration-checker
+tier.  Both are closed.
+
+#### 1. The bug: `deps_all_stored` is `natOpGuard`'s `.all`, not `divModEnvGuard`'s
+
+`divModEnvGuard` (`ConLeche/Kernel/Checker.lean:277-290`; the index twin
+`divModEnvGuardF`, `Kernel/DeclCheck.lean:310-319`) tests each entry of
+`natOpDeps c` with **`natOpStoredOk`** — stored as a level-monomorphic
+definition *at the pinned type* (`natOpTyPinnedF`: `Nat → Nat → Nat`, or
+`Nat → Nat → Bool` for the two `Bool`-valued ops, with `Bool` itself stored at
+`Sort 1`).  The port called `core_k::deps_all_stored`, which is a *different*
+`.all` — `natOpGuard`'s own (`Kernel/Core.lean:656-672`), whose per-dependency
+test is `defn_lp_empty`: the empty-level-parameter half and nothing else.
+`check_structural_nat_pin` (`checkDecl`'s structural-`Nat` gate,
+`Checker.lean:419-562`) made the same call and had the same gap.
+
+So the port took the `Nat.div`/`Nat.mod` pin route, and the structural-`Nat`
+route, on environments where con-leche declines — a divergence in the one
+direction §1 does not permit.  The fix is `checker::deps_all_stored_ok`, the
+index recursion over `core_k::nat_op_stored_ok` (which was already in the port,
+just not called here), at both sites; `core_k::deps_all_stored` stays where it
+belongs, inside `nat_op_guard`.
+
+**The fixture.**  There is none in `vendor/con-leche/tests/e2e`: every `Nat.div`
+stream in the corpus came out of a real `lean4export` run, so its dependencies
+carry the types Lean gave them, and `grep -l` finds only `nat_div_declined` and
+the three `natop_*` reorder fixtures, none of which mis-types a dependency.
+The stream is therefore hand-built, as `checker.rs`'s own tests are:
+`crates/con-ron-core/tests/div_mod_env_guard.rs` installs the pinned `Eq` and
+`Nat` basis blocks through `check_basis_decl`, pushes `Bool` and its two values
+as axioms and `natOpDeps Nat.div = [Nat.pred, Nat.sub, Nat.ble, Nat.div]` as
+definitions, and checks `Nat.div : Nat → Nat → Nat := Nat.sub` — well typed in
+both runs, so the only thing that moves is `Nat.ble`'s stored codomain.  With
+`Bool` it reaches the pin loop ("unsupported Nat.div/mod spelling"); with `Nat`
+it must decline at the guard ("unsupported Nat.div/mod environment").  Against
+the pre-fix code both assertions fail, and the test additionally pins *why*:
+`core_k::deps_all_stored` still holds on the bad environment.
+
+`scripts/diff-e2e.sh` 348/348 and `scripts/diff-fixtures.sh` 315/0 are
+unchanged — the route the bug opened is one no fixture walks, which is exactly
+why differential testing did not find it and reading the two definitions side
+by side did.
+
+`Refine/CheckerPins.lean`'s `div_mod_env_guard_refines` loses task #56's
+`DepsTyPinned` hypothesis (the `Prop` is deleted) and is now unconditional;
+`deps_all_stored_ok_refines` above it is `CoreKNatOps`' `deps_all_stored_from`
+with `nat_op_stored_ok_refines` in place of `defn_lp_empty_refines`.
+
+#### 2. The dead `decl_check.rs` duplicates, deleted
+
+Task #56's deviation 2: `kernel/decl_check.rs` carried a second copy of
+`checkEtaThmF`, `checkUnitThmF`, `indBlockCapsF`, `checkMemberValF`,
+`checkProjLookupsF`, `thm_probe` and their fifteen helpers, under the same
+con-leche citations as `kernel/inductives/modeled.rs`'s — two Rust functions per
+cited Lean definition, a §3.1 one-to-one violation, and the `modeled.rs` copies
+are the ones the install routes call.  The `decl_check.rs` copies are gone
+(-543 Rust lines); what is left there is the memoized `constsResolveF` walk and
+nothing else.  Its module note, which task #56 also called stale, now says
+where each `F`-mirror of `DeclCheck.lean:344-830` lives — including
+`checkProjTyF`/`checkProjIotaF`, which it still listed as unported although
+task #25 ported both.  `provenance.py coverage` is unchanged at 911/911: every
+citation the deleted copies carried is carried by the surviving one.
+
+`trust_axioms::lean_ns` keeps its `con-leche: none` line, now spelled out: there
+is no declaration to cite because `TrustAxioms.lean:56-68` writes
+`(anonymous |>.str "Lean")` inline in each of the five `Lean.*` names.
+
+#### 3. The checker tier's 41 `sorry`s are 0
+
+Task #56 stated every public function of the declaration-checker tier exactly and
+left 41 of the 274 statements open, each with a one-line note.  All 41 are now
+proved, **as stated**, by seven agents in parallel (one per file, then two
+rounds of unblocking):
+
+| file | `sorry` before | after | what it took |
+|---|---|---|---|
+| `DeclCheck.lean` | 14 | 0 | (see §4 — the file also lost the dead copies' lemmas) |
+| `CheckerPins.lean` | 8 | 0 | `div_mod_cert_stmts`, the two `check_div_mod_certs` recursions, the per-variant attempt, the loop, the three install gates — and then the round-2 additions of §5 |
+| `CheckerDecl.lean` | 9 | 0 | the four cached arms, the four `Expr`-level arms, `check_basis_decl` |
+| `Checker.lean` | 5 | 0 | the three value checks and their two tails |
+| `CheckerSplit.lean` | 4 | 0 | the install/check seam |
+| `BasisPins.lean` | 1 | 0 | `basis_decls_a_wf` (see §6) |
+
+`Refine/CheckerDecl.lean`'s `#print axioms` census now reads
+`[propext, Classical.choice, Quot.sound]` for **every** lemma in the file,
+`check_decl_c_refines`, `check_decl_refines` and `check_decls_pure_refines`
+included — the `sorryAx` line task #56 pinned there is gone.
+
+**Seven statements gained a hypothesis, each because it is false without it**
+(DESIGN.md's rule since task #54's `j < len`); every one is written out at the
+lemma and in its file's header:
+
+1. `CheckerSplit.check_value_group_refines` gained
+   `∀ n, lfe.find? n = lfe.env.find? n`.  Task #56's note claimed this was
+   `FEnvRel`'s first clause; it is not — `FEnvRel` relates `fe.env ↔ lfe.env`
+   and `fe.idx ↔ lfe.idx`, and nothing ties a `ConLeche.FEnv`'s *index* to its
+   own `Env` (con-leche proves `FEnv.find? = Env.find?` only for `mkFEnv`).
+   Without it an index holding a name its `env` does not makes
+   `core_k::consts_resolve` accept a value `Expr.constsResolve lfe.env` rejects.
+2. `Checker`'s `check_thm_val_refines`, `check_thm_val_witness_refines` and
+   `check_opaque_val_refines` gained `lenv = lfe.env`.  All three *return* an
+   environment, and `FEnvRel`'s first clause forces the returned `lfe'.env` to
+   be `⟨absConstantInfo ci :: lfe.env.consts⟩`; at an `lenv` with different
+   `consts` the goal is unsatisfiable.  `certify_nat_eqs_refines` is
+   deliberately *not* changed — it returns a `Bool`, and task #56's point that
+   it holds at an arbitrary `Env` stands.
+3. `CheckerPins.check_div_mod_pin_loop_refines` (and everything above it) gained
+   `OrElseErrorDeclines`, the **second half of task #24's `orElse` deviation**.
+   `OrElseErrorStateSound` fixes what a failed attempt does to the state;
+   nothing fixes *when* the error arm is taken, because `Core.Wrappers` is the
+   `ok`-direction only and cannot turn a port-side `.Err` into a model-side
+   `.error`.  A port attempt that throws where the model answers `true` stops
+   the model loop at that variant while the port walks on.  One port-side fix —
+   the `CState` snapshot around `check_div_mod_pin_at` — discharges both halves.
+4. `CheckerDecl`'s six `Expr`-level statements gained `Indexed lfe`
+   (`lfe = mkFEnv lfe.env`), with `∧ Indexed lfe'` in the conclusion so the fold
+   re-establishes it.  `checkDecl` reads an unbounded `Env.find?`; the port reads
+   `fenv::find`, bounded by `visibleBelow`.  An index whose bound hides a stored
+   `c` makes the port call a declaration named `c` fresh where `checkDecl`
+   throws `duplicate declaration` — accept where the Lean rejects.  The *cached*
+   tier needed nothing: `checkDeclC` is index-based throughout, and
+   `check_decls_pure_refines` starts at `mkFEnv Env.empty`.
+5. `CheckerDecl`'s six pin-threading statements gained `absPins pins =
+   natOpPinSets` (`checkDecl` reads the *global* table, so an arbitrary `pins`
+   would let the port accept a `Nat.div` spelling the Lean declines), `PinsWF
+   pins` (the argument's own WF), and `DivModOrElse` (3's two `Prop`s bundled).
+6. `DeclCheck.check_proj_iota_refines` gained `absName cvj.name = absName
+   ctor_name`.  `checkProjIotaF` builds the redex head from
+   `ctorName.str "_model"`; `modeled::check_proj_iota` has `ctor_name` but does
+   not pass it to `check_proj_iota_body`, which spells the same thing as
+   `model_of(&cvj.name)`.  The two agree exactly when `cvj.name = ctorName` —
+   true at every call site (`cvj` is what `check_proj_lookups` read out of
+   `fenv::find(fe2, ctor_name)`) but *not* a consequence of `ConstantValWF cvj`.
+   **The faithful repair is for `modeled::check_proj_iota_body` to take
+   `ctor_name`**; that is `modeled.rs`, so task #57's, and the hypothesis then
+   disappears.  This is the same *shape* of finding as §1's, caught the same way
+   — by reading the citation beside the port rather than by testing.
+
+And one hypothesis got *weaker*, which makes its lemma stronger:
+`CheckerPins.check_reduce_pin_refines`' per-view `TrustGuardsSpec` premise
+gained `FEnvWF fp`.  Every route to `TrustGuardsSpec` runs through `FindWF`, so
+the task-#56 shape was not dischargeable at all.
+
+#### 4. `Refine/DeclCheck.lean` is now about the file, not about a dead copy
+
+Deleting the Rust (§2) deleted twenty-two `_refines` lemmas and nine Lean-side
+mirror `def`s with it, and renamed the two `modeled_*` restatements to the plain
+name — there is only one Rust copy now.  What the file keeps is exactly what has
+live Rust behind it: `decl_check::consts_resolve_f{,_go,_fast}`, and the
+`inductives::modeled`/`checker_base` lemmas that carry `DeclCheck.lean`'s own
+citations because the Lean declaration is there (`check_member_val`,
+`check_proj_lookups`, `check_proj_ty`, `check_proj_shape`, `check_proj_rule`,
+`check_proj_iota`).  The rest of `modeled.rs` stays task #57's.
+
+Two of those — `check_proj_ty_refines` and `check_proj_iota_refines` — were
+task #56's "task #57's to supply".  They are proved here instead, from fifteen
+new *step* lemmas about `modeled.rs` stated in this file in the
+`one_level_step` idiom: the two `partial_fixpoint` slot searches
+(`find_proj_model_slot`, `find_proj_fn_slot`, by strong induction on the
+`n_f - j` measure through the unfolding equation), the two renaming dictionaries
+(`ProjBack`/`ProjFwd`'s `NameToName::rename` against `projBack`/`projFwd`), and
+the iota chain (`check_iota_sides_ty`, `iota_stmt_open`, `arg_get_d`,
+`proj_iota_name`, `thm_probe`, the `struct_parts` index recursions, and the
+spine bridge `mkAppN_append`/`spine_eq`/`app3_of_spine`/`isEqHead_inv`).
+**One of them is a generalisation the tier wants anyway**: `doms_match_aux` is
+re-derived over an arbitrary `DomView` dictionary
+(`doms_match_aux_from_view`), where `Refine/CheckerBase.lean`'s induction is
+pinned to `DomIdent`; when task #57 lands, `CheckerBase` should be generalised
+to this and recover its own version as the instance.
+
+#### 5. Two gaps in the tier that nobody owned
+
+Closing `CheckerDecl` turned up two holes task #56's file split had left, both
+now filled in `Refine/CheckerPins.lean`:
+
+* **`checker.rs:1299-1400` was refined nowhere.**  `check_defn_pins` (the
+  `.defnDecl` arm's two pinned-`Nat` gates), `check_defn_div_mod_pin`,
+  `check_structural_nat_pin` and `nat_eqs_subst` fell between "`:365-1232` is
+  `CheckerPins`'" and "`:1234-end` is the driver's".  They are `CheckerPins`'
+  now.  The structural gate has **no con-leche sibling** — it is inlined in
+  `checkDecl`/`checkDeclC` — so its conclusion is that block's three facts (the
+  `unless` guard, the `match fe2.find?` arm, the `certifyNatEqs` run) rather
+  than one run equation, plus `fe' = fe2`, the `restrict_to` round trip that is
+  what lets a caller carry a `*Spec` about `fe2` past the gate.  Its dependency
+  clause is §1's `deps_all_stored_ok_refines`.
+* **The install gates are stated at `lfe.restrictTo k_pre` and called at the
+  pre-insertion index**, which agree on `find?` and differ on `.env`.
+  `ConLeche/Verify/Cached/KnotCongr.lean` stops at `sharedOpsC_congr`, so the
+  gates' own congruences are new here: `checkReducePinF_congr`,
+  `checkDivModPinF_congr`, and the nine they rest on
+  (`constsResolveF_congr` by structural induction on `ConLeche.Expr`,
+  `reduceElemOkF`/`reduceStoredOkF`/`reducePinGuardF`/`divModCertGuardF`/
+  `divModPinGuardF`/`divModCertsGuardF`/`checkDivModCertsF`/
+  `checkDivModPinAtF`/`checkDivModPinLoopF`, and `certifyNatEqs_env_congr` —
+  `certifyNatEqs`' `Env` argument is dead).  These are the right upstream ask:
+  con-leche could carry them next to `sharedOpsC_congr`.
+
+#### 6. `basis_decls_a_wf`, and a tactic worth stealing
+
+Task #56 predicted "`Refine/BasisTables.lean`'s `step` tier re-run with a
+`⦃ r => abs… ∧ …WF r ⦄` specification per smart constructor — 192 interned
+nodes, no new idea".  It is not that.  A `⦃ ⦄` specification must prove the call
+*succeeds*, which is why task #22 needed the whole `mix_hash`/`str_hash`
+totality tier; well-formedness is asked of a table we are **given**
+(`h : basis_decls_a k = ok v`), so every node's `ok` equation is already in hand,
+and §3.5's inductive-`*WF` rule makes each clause literally one constructor.
+So it is a *loop*: `wf_peel h` inverts one `bind` and tries 23 branches, one per
+smart constructor's `*_wf` lemma; `basis_wf_block h` is `repeat wf_peel h`; six
+one-line block theorems and a `cases k` finish it.  210 lines for 804 binds.
+
+**The load-bearing discovery is `with_reducible` on each branch.**  At default
+transparency, matching `hx : expr.lam ty b m = ok e` against
+`expr.dup ?e = ok ?r` unfolds both generated bodies and reduces a `lam` node's
+entire hash computation *before failing* — ~100 s per attempt, and the four
+blocks that build a `lam` never finished.  At `reducible` transparency a
+mismatch is two distinct constants and fails instantly: `.punitK` went from
+not-terminating to 1.5 s, the whole file to 30 s wall.  The device generalises
+to any WF obligation about a value built by a straight-line generated `do` chain
+of smart constructors — `BasisNames.reserved_basis_names` and `StdAxioms`'
+builder steps are the obvious next customers — and it gives **only** WF, never
+the `abs …` equation.
+
+#### 7. Numbers, and what the tier stands on now
+
+`scripts/gates.sh` green; the progress line reads **verified 7412 (53 %)** of
+the verified core and **808 `_refines`** (task #56: 7531 / 799 — the count went
+*down* because §2 deleted 543 lines of Rust that were being counted as ported).
+`scripts/diff-e2e.sh` 348/348, `scripts/diff-fixtures.sh` 315/0, provenance
+911/911 covered.
+
+What the declaration-checker tier now rests on, in full:
+
+* **the knot**, as a hypothesis (`core_k.check_fuel = ok fuel` +
+  `Core.Wrappers mode fuel`), consumed once per entry point in
+  `Refine/TypeChecker.lean` — task #55's to discharge;
+* **`IndRoutesSpec`** (`Refine/IndSpec.lean`), the two-clause seam task #57 fills;
+* **task #24's `orElse` deviation**, now *two* named `Prop`s rather than one
+  (`OrElseErrorStateSound` + `OrElseErrorDeclines`, §3.3), both discharged by the
+  same one-line port change;
+* **`absPins pins = natOpPinSets`**, which `Refine/Pins.lean`'s two open
+  statements (task #43's, on the Lean 4.33 kernel) turn into a closed fact;
+* **`modeled::check_proj_iota_body` taking `ctor_name`** (§3.6).
+
+Nothing else.  In particular every `*Spec` task #49 and task #56 introduced is
+now discharged, `Refine/BasisPins.lean` included.

@@ -892,6 +892,27 @@ pub fn check_div_mod_certs_from(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:277-290 divModEnvGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:310-319 divModEnvGuardF
+/// The cited `(natOpDeps c).all (natOpStoredOkF fe2)`, as an index recursion
+/// (task #14's per-element rule; DESIGN.md §3.4 forbids the closure).
+///
+/// **Not `core_k::deps_all_stored`** (task #58): that is `natOpGuard`'s own
+/// `.all`, whose per-dependency test is only `defnLpEmptyF` — level
+/// parameters empty.  `divModEnvGuard`/`checkDecl` demand `natOpStoredOk`,
+/// which additionally pins the dependency's *type*, and using the weaker one
+/// here let the port take the `Nat.div`/`Nat.mod` pin route where con-leche
+/// declines (§1's accept direction).
+pub fn deps_all_stored_ok(fe2: &FEnv, deps: &Vec<Name>, i: usize) -> bool {
+    if i >= deps.len() {
+        true
+    } else if core_k::nat_op_stored_ok(fe2, &deps[i]) {
+        deps_all_stored_ok(fe2, deps, i + 1)
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Checker.lean:277-290 divModEnvGuard
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:310-319 divModEnvGuardF
 /// Environment prerequisites of a certified `Nat.div`/`Nat.mod`: dependency
 /// guard, pinned dependencies, the pinned `Eq` basis (the certificate
 /// statements are equations in the pinned equality), and the `Bool`
@@ -899,7 +920,7 @@ pub fn check_div_mod_certs_from(
 pub fn div_mod_env_guard(fe2: &FEnv, c: &Name) -> bool {
     if !core_k::nat_op_guard(fe2, c) {
         false
-    } else if !core_k::deps_all_stored(fe2, &core_k::nat_op_deps(c), 0) {
+    } else if !deps_all_stored_ok(fe2, &core_k::nat_op_deps(c), 0) {
         false
     } else if !basis_pins::eq_basis_pinned(fe2) {
         false
@@ -1343,7 +1364,7 @@ pub fn check_structural_nat_pin(
     n: &Name,
 ) -> CheckM<FEnv> {
     if !core_k::nat_op_guard(&fe2, n)
-        || !core_k::deps_all_stored(&fe2, &core_k::nat_op_deps(n), 0)
+        || !deps_all_stored_ok(&fe2, &core_k::nat_op_deps(n), 0)
     {
         Err(core_types::not_implemented({ const M: [u32; 48] = [110, 111, 110, 115, 116, 97, 110, 100, 97, 114, 100, 32, 115, 116, 114, 117, 99, 116, 117, 114, 97, 108, 32, 78, 97, 116, 32, 111, 112, 101, 114, 97, 116, 105, 111, 110, 32, 101, 110, 118, 105, 114, 111, 110, 109, 101, 110, 116]; core_types::code_points(&M) }))
     } else {
