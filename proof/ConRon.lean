@@ -52,4 +52,5 @@ import ConRon.Refine.CoreKInfer
 import ConRon.Refine.CoreKPinned
 import ConRon.Refine.Pins
 import ConRon.Refine.Core.Arms.Shape
+import ConRon.Refine.Core.Arms.Shared
 import ConRon.Dump.Read
