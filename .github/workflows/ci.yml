@@ -1,0 +1,369 @@
+# con-ron CI (task #77).
+#
+# ---------------------------------------------------------------------
+# WHAT THIS JOB COVERS
+#
+#   scripts/gates.sh     THE gate (CLAUDE.md, DESIGN.md §7), all seven:
+#                          1 cargo build      (RUSTFLAGS=-D warnings)
+#                          2 cargo test       (ditto)
+#                          3 lint-rust-style  the Aeneas subset, §3.4
+#                          4 provenance.py    every item cites con-leche
+#                          5 gen-pins --check  the embedded `natOpPinSets`
+#                                              text is con-leche's own
+#                                              (runs `lake exe
+#                                              con-ron-dump-pins`)
+#                          6 extract.sh --check  the committed
+#                                              `proof/ConRon/Generated/`
+#                                              is what Charon+Aeneas
+#                                              produce from the crate
+#                          7 lake build       the whole proof library
+#                                              elaborates, sorry-free
+#                        It stops at the first FAIL and exits non-zero,
+#                        so the step's exit code is the verdict; every
+#                        gate's full output is under `_tmp/gates-*/` and
+#                        uploaded as an artifact.
+#   scripts/diff-e2e.sh  the end-to-end differential (task #37): the
+#                        `con-ron` binary on all 348 vendored fixtures
+#                        against con-leche's pinned expectations.  Both
+#                        lanes: `--jobs=1` (the sequential reference the
+#                        expectations were pinned against) and `--jobs=4`
+#                        (the worker pool of task #48, which must read the
+#                        same numbers).
+#   scripts/diff-fixtures.sh
+#                        the checker differential (task #28): con-leche's
+#                        OWN frontend dumps each fixture's `List DeclC`
+#                        (`lake exe con-ron-dump`, task #10) and
+#                        `con-ron-check` is run on the dump.  Needs the two
+#                        Lean dump executables, which are NOT default
+#                        targets, hence the explicit `lake build` below.
+#
+# Everything the differentials need is in the tree: the fixtures and the
+# arena tarball are vendored under `vendor/con-leche/tests/` (con-leche
+# pins its own arena snapshot so CI never depends on the live arena), and
+# since task #43 the `Nat`-op pin list is an embedded constant inside the
+# verified core, so no pin file has to be dumped for them either.
+#
+# WHAT IT DELIBERATELY DOES **NOT** COVER
+#
+#   * the corpus runs (`scripts/corpus.sh`, `scripts/diff-frontend.sh`):
+#     they need `Init`/`Std`/Mathlib exports produced by `lean4export` on
+#     this project's toolchain -- tens of GiB and tens of minutes, and the
+#     export itself is not in the repository.  They are the frontier
+#     measurement, not a regression gate (DESIGN.md's frontier sections).
+#   * timings.  A shared runner measures noise; DESIGN.md's rule is
+#     `perf stat` on the development machine.
+#   * `scripts/dump-check-fixtures.sh`, the round-trip half of the dump
+#     format: `dump-fixtures.sh`'s own exit code already covers it in the
+#     `diff-fixtures.sh` step below.
+#
+# ---------------------------------------------------------------------
+# THE ENVIRONMENT
+#
+#   * Rust, Charon and Aeneas come from `flake.nix` -- Charon pins the Rust
+#     nightly it understands and Aeneas pins Charon, so the toolchain is
+#     named in exactly one place and every step that needs any of them runs
+#     inside `nix develop --command bash`.  The `hacl.cachix.org`
+#     substituter below is Aeneas's own binary cache (their
+#     `.github/workflows/ci.yml` uses it): without it the runner would
+#     *build* Charon and Aeneas from source.
+#   * Lean is NOT in the flake (`flake.nix` says so: toolchains are per
+#     project via `lean-toolchain`).  `elan` is installed with
+#     `--default-toolchain none`, exactly as con-leche's CI does, so the
+#     version comes from `proof/lean-toolchain` /
+#     `vendor/con-leche/lean-toolchain` (both v4.33.0) on the first `lake`
+#     call and is named nowhere here.
+#   * `vendor/aeneas` is a submodule and must be checked out
+#     (`scripts/setup-aeneas-lean.sh` copies `backends/lean` out of it);
+#     `vendor/con-leche` is a vendored `git subtree` (task #74), i.e.
+#     ordinary tracked files, and needs nothing.
+#   * Disk.  Mathlib's oleans alone are ~6.6 GB and the proof library's
+#     build ~1.1 GB, which is more than a stock runner has spare -- hence
+#     the "free disk space" step.
+#
+# CACHES (`actions/cache/restore` + `actions/cache/save` with
+# `if: always()`, so that a RED run still leaves its environment behind --
+# plain `actions/cache` skips the save when the job fails, which would make
+# every push to a broken branch pay the cold cost again):
+#
+#   | what                           | key                                  |
+#   |--------------------------------|--------------------------------------|
+#   | `_tmp/aeneas-lean/.lake/build` | aeneas submodule sha + the patch's   |
+#   |   the patched Aeneas library   | hash + `proof/lean-toolchain`        |
+#   | `vendor/con-leche/.lake`       | `vendor/CON_LECHE_PIN` + con-leche's |
+#   |   ~20 CPU-minutes of con-leche | `lean-toolchain` + `lakefile.toml`   |
+#   | `proof/.lake/build`            | the two keys above + a hash of every |
+#   |   the proof library            | `proof/**/*.lean`; restore-keys fall |
+#   |                                | back to an older build of the same   |
+#   |                                | environment                          |
+#   | `~/.cargo/registry`, `~/.cargo/git` | `Cargo.lock`                    |
+#
+#   Every one of these is a *build* cache whose consumer re-verifies it:
+#   Lake compares trace hashes and rebuilds whatever moved, and cargo does
+#   the same, so a stale entry costs time and never a wrong answer.
+#
+#   NOT cached, deliberately:
+#     * Mathlib's oleans (`_tmp/aeneas-lean/.lake/packages`).  They are
+#       6.6 GB -- more than a repository's entire 10 GB cache quota -- and
+#       `lake exe cache get` already fetches them from Mathlib's own olean
+#       cache in a few minutes.  Only the *Aeneas* library built on top of
+#       them is cached, which is the part no CDN has.
+#     * `target/`.  Measured on the development machine with an empty
+#       `target/`: `cargo build` 3 s, `cargo test` 6 s (the crate has one
+#       real dependency, `mimalloc`).  The 3.5 GB under `target/<triple>/`
+#       is Charon's, and `charon cargo` drives rustc itself and always
+#       recompiles (see `scripts/extract.sh`), so caching it would buy
+#       nothing at all.  The registry is cached because it is tiny.
+#     * the Nix store.  The substituter above makes `nix develop` a
+#       download; if Charon ever has to be built from source here, add
+#       `nix-community/cache-nix-action` or a FlakeHub cache.
+#
+# TIME.  Cold (no caches): ~10 min for Mathlib (clone + `cache get`) and
+# the Aeneas library, ~20 CPU-min for the vendored con-leche, ~5 min for
+# the proof library at `LAKE_JOBS=4`, plus a few minutes of Nix and of the
+# differentials -- call it an hour, which is why `timeout-minutes` is 180
+# and not tuned.  Warm (every cache hit): well under 30 min, most of it
+# `extract.sh --check` (Charon re-compiles the crate) and the two
+# differential sweeps.
+#
+# WHAT WAS EXERCISED LOCALLY, and what could not be (task #77; a runner is
+# not available here):
+#   exercised, in the order below, in a clean worktree -- `nix develop
+#     --command bash` as a step shell, `scripts/gates.sh` with `LAKE_JOBS`,
+#     the explicit `lake build con-ron-dump con-ron-dump-pins`,
+#     `scripts/diff-fixtures.sh` and `scripts/diff-e2e.sh` (both lanes),
+#     and the log paths the upload step names;
+#   NOT exercised -- the two installer actions, `actions/cache`'s keys,
+#     `scripts/setup-aeneas-lean.sh`'s `lake update` and `lake exe cache
+#     get` (running either against the shared `_tmp/aeneas-lean` is
+#     forbidden by CLAUDE.md), and the disk-space step.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # A stock GitHub runner is 4 cores / 16 GB.  `gates.sh` turns LAKE_JOBS
+  # into LEAN_NUM_THREADS (Lake 5 has no jobs flag); the other `lake` calls
+  # here get it directly.  Task #74: unbounded parallelism on the first
+  # build of the vendored con-leche is what runs a machine out of memory.
+  LAKE_JOBS: 4
+  LEAN_NUM_THREADS: 4
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `vendor/aeneas` only; `vendor/con-leche` is a vendored subtree.
+          submodules: true
+
+      # Mathlib's oleans (~6.6 GB) plus the proof library (~1.1 GB) plus the
+      # Nix store do not fit in what a stock runner leaves free.
+      - name: Free disk space
+        run: |
+          set -euo pipefail
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      # Charon and Aeneas come from the flake; `hacl.cachix.org` is Aeneas's
+      # own binary cache, so this is a download and not a build.
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          extra-conf: |
+            extra-substituters = https://hacl.cachix.org
+            extra-trusted-public-keys = hacl.cachix.org-1:FzsZ2xsByOwKwIWNPII7yMOelJNDZ12mDAj3d1eGX0c=
+
+      # `--default-toolchain none` on purpose (con-leche's CI idiom): elan
+      # then reads `lean-toolchain` on the first `lake` call, so the Lean
+      # version lives in that file and nowhere else.
+      - name: Install elan (the toolchain comes from lean-toolchain)
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      # Realises the dev shell as its own step so that a Charon/Aeneas
+      # substitution (or, if the cache misses, a build) is visible in the
+      # log instead of hiding inside the first gate.
+      - name: Warm the dev shell and report versions
+        shell: nix develop --command bash -euo pipefail {0}
+        run: |
+          cargo --version
+          rustc --version
+          charon version     # `charon --version` is not a thing
+          aeneas -version    # nor is `aeneas --version`: one dash
+          # In `proof/`, not at the root: elan was installed with
+          # `--default-toolchain none`, so it needs a `lean-toolchain` above
+          # the cwd to know what to run (and this is where it installs it).
+          cd proof
+          lean --version
+          lake --version
+
+      # The cache keys that are not a plain `hashFiles`: the pinned Aeneas
+      # commit (a gitlink, which `hashFiles` cannot see) and the vendored
+      # con-leche commit (the first word of `vendor/CON_LECHE_PIN`).
+      - name: Compute cache keys
+        id: keys
+        run: |
+          set -euo pipefail
+          echo "aeneas=$(git -C vendor/aeneas rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "conleche=$(cut -d' ' -f1 vendor/CON_LECHE_PIN)" >> "$GITHUB_OUTPUT"
+
+      # ---- caches -------------------------------------------------------
+      # `**/aeneas-433.patch` rather than a fixed path: the patch is moving
+      # from `spikes/toolchain/` to `patches/` (task #76) and
+      # `scripts/setup-aeneas-lean.sh` is the one place that names it.
+      - name: Restore the patched Aeneas library build
+        id: cache-aeneas
+        uses: actions/cache/restore@v4
+        with:
+          path: _tmp/aeneas-lean/.lake/build
+          key: aeneas-lean-${{ runner.os }}-${{ steps.keys.outputs.aeneas }}-${{ hashFiles('**/aeneas-433.patch') }}-${{ hashFiles('proof/lean-toolchain') }}
+
+      - name: Restore the vendored con-leche build
+        id: cache-conleche
+        uses: actions/cache/restore@v4
+        with:
+          path: vendor/con-leche/.lake
+          key: con-leche-lake-${{ runner.os }}-${{ steps.keys.outputs.conleche }}-${{ hashFiles('vendor/con-leche/lean-toolchain', 'vendor/con-leche/lakefile.toml') }}
+
+      # ORDER MATTERS HERE: this key is computed before
+      # `setup-aeneas-lean.sh` links `proof/.lake/packages` at the shared
+      # Mathlib checkout, so `proof/**/*.lean` sees the project's own Lean
+      # files and not Mathlib's.  The save step at the bottom reuses this
+      # step's `cache-primary-key` rather than hashing again, for the same
+      # reason.  Do not move either past the Aeneas step.
+      - name: Restore the proof library build
+        id: cache-proof
+        uses: actions/cache/restore@v4
+        with:
+          path: proof/.lake/build
+          key: proof-build-${{ runner.os }}-${{ steps.keys.outputs.aeneas }}-${{ steps.keys.outputs.conleche }}-${{ hashFiles('proof/**/*.lean', 'proof/lakefile.toml', 'proof/lean-toolchain') }}
+          restore-keys: |
+            proof-build-${{ runner.os }}-${{ steps.keys.outputs.aeneas }}-${{ steps.keys.outputs.conleche }}-
+            proof-build-${{ runner.os }}-
+
+      - name: Cache the cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-
+
+      # ---- the Aeneas Lean library --------------------------------------
+      # The script copies `vendor/aeneas/backends/lean` to
+      # `_tmp/aeneas-lean`, applies the 4.33 patch (failing loudly if the
+      # submodule moved under it), carries any existing `.lake/` over --
+      # which is how the restored cache above survives the copy -- runs
+      # `lake update` to resolve Mathlib v4.33.0, and links
+      # `proof/.lake/packages` at the result so the proof project shares
+      # this one package set instead of cloning Mathlib twice.
+      #
+      # `lake exe cache get` is Mathlib's own olean cache and is what keeps
+      # this step in the minutes.  It is NOT in the script, because on the
+      # development machine `~/.cache/mathlib` persists (DESIGN.md task #2).
+      #
+      # ONE DIFFERENCE FROM A LOCAL BUILD, and it is upstream's choice:
+      # Aeneas's lakefile sets `precompileModules := notCI` on `AeneasMeta`
+      # ("Precompiling modules triggers issues in CI so we deactivate
+      # this"), and GitHub sets `CI=true`, so the meta code -- including the
+      # `step` tactic every proof file uses -- is interpreted here and
+      # compiled at home.  If the proof build turns out to be much slower
+      # than the ~5 min it takes locally, `env: CI: ''` on this step is the
+      # knob; it is left at upstream's default until there is a measurement.
+      - name: Build the patched Aeneas Lean library (+ Mathlib oleans)
+        shell: nix develop --command bash -euo pipefail {0}
+        run: |
+          scripts/setup-aeneas-lean.sh
+          cd _tmp/aeneas-lean
+          lake exe cache get
+          lake build
+
+      - name: Save the patched Aeneas library build
+        if: always() && steps.cache-aeneas.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: _tmp/aeneas-lean/.lake/build
+          key: ${{ steps.cache-aeneas.outputs.cache-primary-key }}
+
+      # ---- THE GATE -----------------------------------------------------
+      # One OK/FAIL line per gate, non-zero exit on the first FAIL.
+      - name: scripts/gates.sh
+        shell: nix develop --command bash -euo pipefail {0}
+        run: scripts/gates.sh
+
+      # ---- the differentials --------------------------------------------
+      # `con-ron` on the raw NDJSON of all 348 vendored fixtures.  Green is
+      # `differ`, `other` and `timed out` all zero, which is the script's
+      # exit code.  `--timeout=60`: nothing has taken anywhere near that
+      # since task #38, so a stall is a regression and not a slow runner.
+      - name: scripts/diff-e2e.sh (the end-to-end differential, 348 fixtures)
+        shell: nix develop --command bash -euo pipefail {0}
+        run: scripts/diff-e2e.sh --timeout=60
+
+      # The same sweep on the worker pool (task #48): the same verdict at
+      # every worker count is the pool's promise, tested rather than argued.
+      - name: scripts/diff-e2e.sh --jobs=4 (the pool lane)
+        shell: nix develop --command bash -euo pipefail {0}
+        # `LOG` absolute: the script `cd`s to the repository root itself.
+        run: LOG="$PWD/_tmp/diff-e2e-jobs4.log" scripts/diff-e2e.sh --timeout=60 --jobs=4
+
+      # `con-ron-check` on the `List DeclC` con-leche's own frontend dumps.
+      # The two dump executables are not default targets, so `gates.sh`'s
+      # `lake build` did not produce `con-ron-dump` (gate 5 did produce
+      # `con-ron-dump-pins`); `diff-fixtures.sh` runs `dump-fixtures.sh
+      # --no-check` itself when the dumps are missing, which they are here.
+      - name: scripts/diff-fixtures.sh (the checker differential)
+        shell: nix develop --command bash -euo pipefail {0}
+        run: |
+          cd proof && lake build con-ron-dump con-ron-dump-pins && cd ..
+          scripts/diff-fixtures.sh
+
+      # The two Lean saves are LAST, and `if: always()`, on purpose: the
+      # `con-ron-dump` build above adds con-leche's whole `Frontend/` (142
+      # jobs the proof library never asks for) to both trees, and a red run
+      # must still leave its environment behind or every push to a broken
+      # branch pays the cold cost again.
+      - name: Save the vendored con-leche build
+        if: always() && steps.cache-conleche.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: vendor/con-leche/.lake
+          key: ${{ steps.cache-conleche.outputs.cache-primary-key }}
+
+      - name: Save the proof library build
+        if: always() && steps.cache-proof.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: proof/.lake/build
+          key: ${{ steps.cache-proof.outputs.cache-primary-key }}
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs
+          path: |
+            _tmp/gates-*/*.log
+            _tmp/diff-e2e.log
+            _tmp/diff-e2e-jobs4.log
+            _tmp/diff-fixtures.log
+            _tmp/dump-fixtures/run.log
+          if-no-files-found: ignore
