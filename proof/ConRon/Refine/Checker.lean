@@ -1509,38 +1509,46 @@ index recursion over the `Vec` (task #3's pattern), so the statement is about
 the list's `drop i`.  The `Env` argument is **universally quantified** — see
 the module note; that is what carries `checkDecl`'s pre-insertion deviation. -/
 
-/-- The tail fold with an explicit bound to recurse on. -/
+/-- The tail fold with an explicit bound to recurse on.  The outcome is an
+explicit argument (the recursion instantiates it at each step), so the
+pre-task-#67 statement lives on as `certify_nat_eqs_from_refines_ok`. -/
 theorem certify_nat_eqs_val {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {fe : fenv.FEnv} {eqs : alloc.vec.Vec (expr.Expr × expr.Expr)}
     (hfw : FEnvWF fe) (heq : ∀ p ∈ eqs.val, ExprWF p.1 ∧ ExprWF p.2) (n : Nat) :
-    ∀ (st st' : cached.state_c.CState) (i : Std.Usize) (b : Bool),
+    ∀ (st st' : cached.state_c.CState) (i : Std.Usize)
+      (o : core.result.Result Bool core_types.CheckError),
       eqs.val.length - i.val ≤ n → StateWF st →
-      kernel.checker.certify_nat_eqs_from mode st fe eqs i = ok (.Ok b, st') →
+      kernel.checker.certify_nat_eqs_from mode st fe eqs i = ok (o, st') →
       ∀ lst lfe (lenv : ConLeche.Env), StateRel st lst → FEnvRel fe lfe →
-        ∃ lst',
-          (ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lenv
-              ((eqs.val.drop i.val).map (fun p => (absExpr p.1, absExpr p.2)))).run lst
-            = .ok (b, lst')
-          ∧ StateRel st' lst' ∧ StateWF st' := by
+        match o with
+        | .Ok b =>
+          ∃ lst',
+            (ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lenv
+                ((eqs.val.drop i.val).map (fun p => (absExpr p.1, absExpr p.2)))).run lst
+              = .ok (b, lst')
+            ∧ StateRel st' lst' ∧ StateWF st'
+        | .Err ce =>
+          ErrSim ce ((ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lenv
+            ((eqs.val.drop i.val).map (fun p => (absExpr p.1, absExpr p.2)))).run lst) := by
   induction n with
   | zero =>
-    intro st st' i b hb hsw h lst lfe lenv hsr hfr
+    intro st st' i o hb hsw h lst lfe lenv hsr hfr
     rw [kernel.checker.certify_nat_eqs_from] at h
     rw [if_pos (show i >= alloc.vec.Vec.len eqs by
       have := alloc.vec.Vec.len_val eqs; scalar_tac)] at h
-    have hbs : b = true ∧ st = st' := by simpa using h
+    have hbs : core.result.Result.Ok true = o ∧ st = st' := by simpa using h
     obtain ⟨rfl, rfl⟩ := hbs
     refine ⟨lst, ?_, hsr, hsw⟩
     rw [List.drop_eq_nil_of_le (by omega)]
     rfl
   | succ n ih =>
-    intro st st' i b hb hsw h lst lfe lenv hsr hfr
+    intro st st' i o hb hsw h lst lfe lenv hsr hfr
     rw [kernel.checker.certify_nat_eqs_from] at h
     by_cases hge : i.val >= eqs.val.length
     · rw [if_pos (show i >= alloc.vec.Vec.len eqs by
         have := alloc.vec.Vec.len_val eqs; scalar_tac)] at h
-      have hbs : b = true ∧ st = st' := by simpa using h
+      have hbs : core.result.Result.Ok true = o ∧ st = st' := by simpa using h
       obtain ⟨rfl, rfl⟩ := hbs
       refine ⟨lst, ?_, hsr, hsw⟩
       rw [List.drop_eq_nil_of_le (by omega)]
@@ -1552,23 +1560,33 @@ theorem certify_nat_eqs_val {mode : env.CheckMode} {fuel : Std.U64}
       have hmem : (e1, e2) ∈ eqs.val :=
         List.mem_of_getElem? (ExprOps.vec_index_getElem? hq)
       obtain ⟨hw1, hw2⟩ := heq (e1, e2) hmem
+      have hlen : i.val < eqs.val.length := by omega
+      have hdrop : eqs.val.drop i.val = (e1, e2) :: eqs.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlen]
+        congr 1
+        have h1 : eqs.val[i.val]? = some (e1, e2) := ExprOps.vec_index_getElem? hq
+        rw [List.getElem?_eq_getElem hlen] at h1
+        exact Option.some_inj.mp h1
       obtain ⟨q2, hdef, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r, st1⟩ := q2
       cases r with
-      | Err e => simp at h
+      | Err e =>
+        -- the conversion threw; con-leche's `do` fails at the same step
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        show ErrSim e _
+        rw [hdrop]
+        simp only [List.map_cons, ConLeche.certifyNatEqs,
+          TypeChecker.sharedOpsC_isDefEq]
+        exact ErrSim.bindCM
+          ((TypeChecker.is_def_eq_core_refines hfuel hk).err st fe 2#u64 e1 e2 e st1
+            hsw hfw hw1 hw2 hdef lst lfe hsr hfr)
       | Ok ok1 =>
         obtain ⟨lst1, hrun, hsr1, hsw1⟩ :=
           (TypeChecker.is_def_eq_core_refines hfuel hk).ok st fe 2#u64 e1 e2 ok1 st1
             hsw hfw hw1 hw2 hdef lst lfe hsr hfr
         have hrun2 : (ConLeche.Cached.opB (absMode mode) lfe 2
             (absExpr e1) (absExpr e2)).run lst = .ok (ok1, lst1) := hrun
-        have hlen : i.val < eqs.val.length := by omega
-        have hdrop : eqs.val.drop i.val = (e1, e2) :: eqs.val.drop (i.val + 1) := by
-          rw [List.drop_eq_getElem_cons hlen]
-          congr 1
-          have h1 : eqs.val[i.val]? = some (e1, e2) := ExprOps.vec_index_getElem? hq
-          rw [List.getElem?_eq_getElem hlen] at h1
-          exact Option.some_inj.mp h1
         have hstep : (ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lenv
               ((eqs.val.drop i.val).map (fun p => (absExpr p.1, absExpr p.2)))).run lst
             = (if ok1 then
@@ -1580,7 +1598,7 @@ theorem certify_nat_eqs_val {mode : env.CheckMode} {fuel : Std.U64}
           cases ok1 <;> simp [List.map_drop] <;> rfl
         cases ok1 with
         | false =>
-          have hbs : b = false ∧ st1 = st' := by simpa using h
+          have hbs : core.result.Result.Ok false = o ∧ st1 = st' := by simpa using h
           obtain ⟨rfl, rfl⟩ := hbs
           exact ⟨lst1, by rw [hstep]; simp, hsr1, hsw1⟩
         | true =>
@@ -1589,16 +1607,57 @@ theorem certify_nat_eqs_val {mode : env.CheckMode} {fuel : Std.U64}
             have he := Std.UScalar.add_equiv i 1#usize
             rw [hi2] at he
             simpa using he.2.1
-          obtain ⟨lst', hrun', hsr', hsw'⟩ :=
-            ih st1 st' i2 b (by omega) hsw1 h lst1 lfe lenv hsr1 hfr
-          rw [hi2v] at hrun'
-          exact ⟨lst', by rw [hstep]; simpa using hrun', hsr', hsw'⟩
+          have hih := ih st1 st' i2 o (by omega) hsw1 h lst1 lfe lenv hsr1 hfr
+          cases o with
+          | Ok b =>
+            obtain ⟨lst', hrun', hsr', hsw'⟩ := hih
+            rw [hi2v] at hrun'
+            exact ⟨lst', by rw [hstep]; simpa using hrun', hsr', hsw'⟩
+          | Err ce =>
+            show ErrSim ce _
+            have hih' : ErrSim ce ((ConLeche.certifyNatEqs (TypeChecker.lops mode lfe)
+                lenv ((eqs.val.drop i2.val).map
+                  (fun p => (absExpr p.1, absExpr p.2)))).run lst1) := hih
+            rw [hi2v] at hih'
+            rw [hstep]
+            simpa using hih'
 
 /-- **`checker::certify_nat_eqs_from` refines `certifyNatEqs` on the tail**:
 certify the equations from position `i` by definitional equality at depth 2
 (the equations' variables are `fvar 0`/`fvar 1`).  Exact in both directions of
 the Boolean, which is what `checkDecl`'s `unless ok` branches on. -/
 theorem certify_nat_eqs_from_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
+    {eqs : alloc.vec.Vec (expr.Expr × expr.Expr)} {i : Std.Usize}
+    {out : core.result.Result Bool core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe)
+    (heq : ∀ p ∈ eqs.val, ExprWF p.1 ∧ ExprWF p.2)
+    (h : kernel.checker.certify_nat_eqs_from mode st fe eqs i = ok (out, st')) :
+    ∀ lst lfe (lenv : ConLeche.Env), StateRel st lst → FEnvRel fe lfe →
+      match out with
+      | .Ok b =>
+        ∃ lst',
+          (ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lenv
+              ((eqs.val.drop i.val).map (fun p => (absExpr p.1, absExpr p.2)))).run lst
+            = .ok (b, lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err ce =>
+        ErrSim ce ((ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lenv
+          ((eqs.val.drop i.val).map (fun p => (absExpr p.1, absExpr p.2)))).run lst) := by
+  intro lst lfe lenv hsr hfr
+  -- the hypothesis `h` mentions `out`, so this statement's `match` is the
+  -- *dependent* one; `certify_nat_eqs_val`'s is not, and the two agree only
+  -- once `out` is a constructor
+  have hval := certify_nat_eqs_val hfuel hk hfw heq eqs.val.length st st' i out
+    (by omega) hsw h lst lfe lenv hsr hfr
+  cases out with
+  | Ok b => exact hval
+  | Err ce => exact hval
+
+/-- The success half of `certify_nat_eqs_from_refines`, at the pre-task-#67
+statement. -/
+theorem certify_nat_eqs_from_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {eqs : alloc.vec.Vec (expr.Expr × expr.Expr)} {i : Std.Usize} {b : Bool}
@@ -1611,12 +1670,46 @@ theorem certify_nat_eqs_from_refines {mode : env.CheckMode} {fuel : Std.U64}
             ((eqs.val.drop i.val).map (fun p => (absExpr p.1, absExpr p.2)))).run lst
           = .ok (b, lst')
         ∧ StateRel st' lst' ∧ StateWF st' :=
-  certify_nat_eqs_val hfuel hk hfw heq eqs.val.length st st' i b (by omega) hsw h
+  certify_nat_eqs_from_refines hfuel hk hsw hfw heq h
 
 /-- **`checker::certify_nat_eqs` refines `certifyNatEqs`**
 (`Checker.lean:108-116`), the whole list.  `certify_nat_eqs_from_refines` at
 `i = 0`. -/
 theorem certify_nat_eqs_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
+    {eqs : alloc.vec.Vec (expr.Expr × expr.Expr)}
+    {out : core.result.Result Bool core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe)
+    (heq : ∀ p ∈ eqs.val, ExprWF p.1 ∧ ExprWF p.2)
+    (h : kernel.checker.certify_nat_eqs mode st fe eqs = ok (out, st')) :
+    ∀ lst lfe (lenv : ConLeche.Env), StateRel st lst → FEnvRel fe lfe →
+      match out with
+      | .Ok b =>
+        ∃ lst',
+          (ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lenv
+              (eqs.val.map (fun p => (absExpr p.1, absExpr p.2)))).run lst = .ok (b, lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err ce =>
+        ErrSim ce ((ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lenv
+          (eqs.val.map (fun p => (absExpr p.1, absExpr p.2)))).run lst) := by
+  intro lst lfe lenv hsr hfr
+  rw [kernel.checker.certify_nat_eqs] at h
+  have hfrom := certify_nat_eqs_from_refines hfuel hk hsw hfw heq h lst lfe lenv hsr hfr
+  cases out with
+  | Ok b =>
+    obtain ⟨lst', hrun, rest⟩ := hfrom
+    exact ⟨lst', by simpa using hrun, rest⟩
+  | Err ce =>
+    show ErrSim ce _
+    have hfrom' : ErrSim ce ((ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lenv
+        ((eqs.val.drop (0#usize).val).map
+          (fun p => (absExpr p.1, absExpr p.2)))).run lst) := hfrom
+    simpa using hfrom'
+
+/-- The success half of `certify_nat_eqs_refines`, at the pre-task-#67
+statement. -/
+theorem certify_nat_eqs_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {eqs : alloc.vec.Vec (expr.Expr × expr.Expr)} {b : Bool}
@@ -1627,12 +1720,9 @@ theorem certify_nat_eqs_refines {mode : env.CheckMode} {fuel : Std.U64}
       ∃ lst',
         (ConLeche.certifyNatEqs (TypeChecker.lops mode lfe) lenv
             (eqs.val.map (fun p => (absExpr p.1, absExpr p.2)))).run lst = .ok (b, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
-  intro lst lfe lenv hsr hfr
-  rw [kernel.checker.certify_nat_eqs] at h
-  obtain ⟨lst', hrun, rest⟩ :=
-    certify_nat_eqs_from_refines hfuel hk hsw hfw heq h lst lfe lenv hsr hfr
-  exact ⟨lst', by simpa using hrun, rest⟩
+        ∧ StateRel st' lst' ∧ StateWF st' :=
+  certify_nat_eqs_refines hfuel hk hsw hfw heq h
+
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
