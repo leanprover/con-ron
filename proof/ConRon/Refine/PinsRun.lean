@@ -576,18 +576,22 @@ theorem run_footer_refines {t : Slice Std.U8} {i : Std.Usize}
 
 /-- The pass, with the byte budget the record step spends: each step reads at
 least the record's own kind byte and the space after it, so the index has
-advanced by at least two when the recursion is entered again. -/
+advanced by at least two when the recursion is entered again.  Over the whole
+outcome (task #67): the `.Err` branch is the module's one `Native` error,
+about which nothing is claimed — see the module note. -/
 private theorem run_records_aux {t : Slice Std.U8} :
     ∀ (f : Nat) (i : Std.Usize) (tb : pins_decode.Tables)
-      (v : alloc.vec.Vec nat_op_pins.NatOpPinSet),
-      pins_decode.run_records t i tb = ok (.Ok v) →
+      (o : core.result.Result (alloc.vec.Vec nat_op_pins.NatOpPinSet)
+          core_types.CheckError),
+      pins_decode.run_records t i tb = ok o →
       t.length - i.val ≤ f →
-      PinsDec.runRecords f (bytesFrom t i) (absTables tb) = some (absPins v) := by
+      match o with
+      | .Ok v => PinsDec.runRecords f (bytesFrom t i) (absTables tb) = some (absPins v)
+      | .Err ce => absErrKind ce = none := by
   intro f
   induction f with
   | zero =>
-    intro i tb v h hf
-    exfalso
+    intro i tb o h hf
     have hnil : bytesFrom t i = [] := bytesFrom_eq_nil (by omega)
     rw [pins_decode.run_records.eq_def] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
@@ -598,10 +602,15 @@ private theorem run_records_aux {t : Slice Std.U8} :
       have hi1v : i1.val = i.val + 1 := uadd_eq hi1
       obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
       cases r with
-      | Err e => simp at h
-      | Ok j => obtain ⟨_, h1, h2⟩ := after_space_refines hr; omega
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        subst h
+        exact after_space_refines hr
+      | Ok j =>
+        exfalso
+        obtain ⟨_, h1, h2⟩ := after_space_refines hr; omega
   | succ f ih =>
-    intro i tb v h hf
+    intro i tb o h hf
     rw [pins_decode.run_records.eq_def] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     have hkv := byte_at_refines hk
@@ -609,17 +618,23 @@ private theorem run_records_aux {t : Slice Std.U8} :
     · rename_i hk101
       obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
       have hi1v : i1.val = i.val + 1 := uadd_eq hi1
-      have hcons : bytesFrom t i = 101 :: bytesFrom t i1 :=
-        bytesFrom_cons_byte (by rw [← hkv, hk101]; rfl) (by omega) hi1v
-      rw [hcons]
-      simp only [PinsDec.runRecords, reduceIte]
-      exact run_footer_refines h
+      cases o with
+      | Err ce => exact run_footer_refines h
+      | Ok v =>
+        have hcons : bytesFrom t i = 101 :: bytesFrom t i1 :=
+          bytesFrom_cons_byte (by rw [← hkv, hk101]; rfl) (by omega) hi1v
+        rw [hcons]
+        simp only [PinsDec.runRecords, reduceIte]
+        exact run_footer_refines h
     · rename_i hk101
       obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
       have hi1v : i1.val = i.val + 1 := uadd_eq hi1
       obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
       cases r with
-      | Err e => simp at h
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        subst h
+        exact after_space_refines hr
       | Ok jj =>
         obtain ⟨hsp, hb1, hb2⟩ := after_space_refines hr
         have hne : k.val ≠ 101 := by
@@ -630,7 +645,24 @@ private theorem run_records_aux {t : Slice Std.U8} :
           rw [hkv]; exact bytesFrom_cons hilt hi1v
         obtain ⟨step, hstep, h⟩ := bind_eq_ok_iff.mp h
         cases step with
-        | Err e => simp at h
+        | Err e =>
+          -- The record dispatch threw; every arm of it is the module's one
+          -- `Native` error, either a record's own or the final `bad_text`.
+          simp only [Result.ok.injEq] at h
+          subst h
+          split at hstep
+          · exact record_name_refines hstep
+          · split at hstep
+            · exact record_level_refines hstep
+            · split at hstep
+              · exact record_pw_refines hstep
+              · split at hstep
+                · exact record_expr_refines hstep
+                · split at hstep
+                  · exact record_pin_set_refines hstep
+                  · obtain ⟨ce, hce, hcc⟩ := err_native hstep
+                    cases hce
+                    exact hcc
         | Ok sp =>
           obtain ⟨tb1, m⟩ := sp
           have hrec : PinsDec.recordStep k.val (bytesFrom t jj) (absTables tb)
@@ -671,25 +703,41 @@ private theorem run_records_aux {t : Slice Std.U8} :
                       simp at hstep
           obtain ⟨hstepd, hm1, hm2⟩ := hrec
           have hfuel : t.length - m.val ≤ f := by omega
-          rw [hcons]
-          simp only [PinsDec.runRecords, if_neg hne, hsp, hstepd]
-          exact ih m tb1 v h hfuel
+          cases o with
+          | Err ce => exact ih m tb1 _ h hfuel
+          | Ok v =>
+            rw [hcons]
+            simp only [PinsDec.runRecords, if_neg hne, hsp, hstepd]
+            exact ih m tb1 _ h hfuel
 
 /-- The pass, with the byte budget the record step spends.  `fuel` is anything
-at least the number of bytes left, which is what `decode` hands it. -/
+at least the number of bytes left, which is what `decode` hands it.  Over the
+whole outcome (task #67); the `.Err` branch claims nothing. -/
 theorem run_records_refines {t : Slice Std.U8} {i : Std.Usize}
-    {tb : pins_decode.Tables} {v : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (h : pins_decode.run_records t i tb = ok (.Ok v)) :
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (alloc.vec.Vec nat_op_pins.NatOpPinSet)
+        core_types.CheckError}
+    (h : pins_decode.run_records t i tb = ok o) :
     ∀ f : Nat, t.length - i.val ≤ f →
-      PinsDec.runRecords f (bytesFrom t i) (absTables tb) = some (absPins v) := by
+      match o with
+      | .Ok v => PinsDec.runRecords f (bytesFrom t i) (absTables tb) = some (absPins v)
+      | .Err ce => absErrKind ce = none := by
   intro f hf
-  exact run_records_aux f i tb v h hf
+  cases o with
+  | Ok v => exact run_records_aux f i tb _ h hf
+  | Err ce => exact run_records_aux f i tb _ h hf
 
-/-- **(A): the model's decoder refines `PinsDec`.** -/
+/-- **(A): the model's decoder refines `PinsDec`.**  Over the whole outcome
+(task #67): the `.Err` branch is the module's one `Native` error, about which
+nothing is claimed — `kernel::pins_decode` is the one module con-leche has no
+counterpart for, so all twenty-eight throws go through `bad_text`. -/
 theorem decode_refines {t : Slice Std.U8}
-    {v : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (h : pins_decode.decode t = ok (.Ok v)) :
-    PinsDec.decode (bytesOf t) = some (absPins v) := by
+    {o : core.result.Result (alloc.vec.Vec nat_op_pins.NatOpPinSet)
+        core_types.CheckError}
+    (h : pins_decode.decode t = ok o) :
+    match o with
+    | .Ok v => PinsDec.decode (bytesOf t) = some (absPins v)
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.decode] at h
   obtain ⟨hdr, hhdr, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
@@ -697,6 +745,11 @@ theorem decode_refines {t : Slice Std.U8}
   · rename_i hbt
     subst hbt
     obtain ⟨tn, htn, h⟩ := bind_eq_ok_iff.mp h
+    cases o with
+    | Err ce =>
+      exact run_records_aux (bytesOf t).length (alloc.vec.Vec.len hdr) tn _ h
+        (by simp [bytesOf, Slice.length])
+    | Ok v =>
     have hhv : hdr.val.map (fun c => c.val) = PinsDec.headerBytes :=
       pins_header_refines hhdr
     have hlen : hdr.val.length = 15 := by
@@ -712,14 +765,15 @@ theorem decode_refines {t : Slice Std.U8}
       subst htn
       simp [absTables, PinsDec.tablesNew, alloc.vec.Vec.new]
     have hrun := run_records_aux (t := t) (bytesOf t).length
-      (alloc.vec.Vec.len hdr) tn v h (by simp [bytesOf, Slice.length])
+      (alloc.vec.Vec.len hdr) tn _ h (by simp [bytesOf, Slice.length])
     rw [PinsDec.decode, if_pos hsw]
     rw [htn'] at hrun
     rw [show (bytesOf t).drop PinsDec.headerBytes.length
         = bytesFrom t (alloc.vec.Vec.len hdr) by
       simp [bytesFrom, PinsDec.headerBytes, hlen]]
     exact hrun
-  · obtain ⟨ce, _, h⟩ := bind_eq_ok_iff.mp h; simp at h
+  · obtain ⟨ce, rfl, hce⟩ := err_native h
+    exact hce
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
