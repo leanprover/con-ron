@@ -188,3 +188,70 @@ step 4, and task #52's two `StateC*` files its step 5; step 6 is the
 induction.
 (step 7's first half) are task #56's, and task #60's two files above are its
 top and step 8.
+
+## The pins (`Pins*`, task #64)
+
+`kernel::pins_decode` — the verified reader of the embedded `con-ron-pins/1`
+text (task #43) — against `ConRon.Dump.parsePins`, and the closed computation
+that says what the embedded text decodes to.  Eight files, because the two
+programs do not have the same shape: the port walks a byte slice with an index,
+the reader splits a `String` into lines and each line into space-separated
+tokens.
+
+| file | contents |
+|---|---|
+| `PinsDec.lean` | the **byte-level reference decoder**: `kernel::pins_decode` function for function in Lean, over a `List Nat` *suffix* with `Option` for failure and con-leche values in the tables.  It is the joint the whole proof turns on, and its module note is the map |
+| `PinsAbs.lean` | `absText`/`absNatOpPinSet`/`absPins` and the `absText_toStr` bridge (task #43's, moved here), plus `bytesOf` and `absTables` |
+| `PinsBytes.lean` | **(A)** the model's scalars, escape and references against `PinsDec`'s: "the model's reader at `(t, i)` is `PinsDec`'s at `bytesFrom t i`" |
+| `PinsRecords.lean` | **(A)** the `N`/`L`/`W`/`E` records, one smart-constructor lemma each |
+| `PinsRun.lean` | **(A)** the `S` record and the pass, where the byte index becomes `PinsDec.runRecords`' fuel; `decode_refines` is (A)'s product |
+| `PinsAscii.lean` | every byte the decoder accepts is ASCII — one `Consumes` predicate and one lemma per reader, which is what makes `absText` (a UTF-8 *decode*) readable character for character without a second walk over the port |
+| `PinsSplit.lean` | **(B)** `String.splitOn` at a one-character separator, the two facts the tokenizer bridge rests on, and `absText` on an ASCII text |
+| `PinsRead.lean` | **(B)** `PinsDec` against `parsePins`: the line invariant and the field invariant, per reader and per record; `parsePins_of_decode` is (B)'s product |
+| `Pins.lean` | the statements: `pins_decode_refines` (proved, no axiom), `pins_closed` (the closed computation), `pins_text_decodes`, `check_decls_pins_refines` |
+
+## Where the native-decide axiom lives
+
+**In exactly one lemma, `ConRon.Refine.pins_closed`**, and in nothing else the
+port proves.
+
+`pins_closed` says that the text `kernel::pins_text::PINS_TEXT` embeds decodes,
+under `ConRon.Dump.parsePins`, to con-leche's own `ConLeche.natOpPinSets`.  It
+is **one closed computation on static data** — a fact about two committed
+constants, and about no input the binary will ever be given.  Task #43 measured
+why the Lean kernel cannot check it and none of the three reasons is a matter
+of patience: the reference decoder is a well-founded recursion and does not
+whnf; a 532 KB string literal expands quadratically in the kernel (27 s for
+1 KB, over 300 s for 8 KB); and the round-trip route needs the same literal
+equality plus a `Std.HashMap` in the kernel.  The maintainer's decision (task
+#64) is to take it by `native_decide` **as an interim**, and spike #63 is the
+attempt to remove it — a format whose decoding the kernel *can* check.
+
+What that costs, exactly, is two axioms and they are both in the census:
+
+* `pins_closed._native.native_decide.ax_…` — Lean 4.33 does not emit
+  `Lean.ofReduceBool` for `native_decide`; it seals each use into its own
+  axiom, which asserts precisely `decide (parsePins … = .ok natOpPinSets) =
+  true` and nothing else.  That is a *narrower* trust assumption than
+  `ofReduceBool`, and it is named after the theorem that spends it.
+* `pins_text.PINS_TEXT._native.decide.ax_1` — **not ours**: Aeneas renders a
+  `&str` constant as `toStr "…"` and discharges `toStr`'s bound
+  `s.toByteArray.size ≤ U32.max` with its own default argument
+  `by decide +native` (`Aeneas/Std/String.lean`, whose own comment says it
+  should not).  Every extracted string constant carries it, before any proof of
+  ours.  It is Aeneas's to fix, and `AENEAS_FINDINGS.md` records it.
+
+**The decoder refinement itself spends neither.**  `pins_decode_refines` is a
+theorem about every byte string, so nothing is ever evaluated, and its census is
+con-leche's own three axioms.
+
+**Both the general and the embedded capstones are kept.**
+`Refine/Main.lean`'s `conron.model_exists` / `conron.no_proof_of_False` are
+general in `pins` and carry `hpins : absPins pins = ConLeche.natOpPinSets`;
+they do not mention the embedded text and nothing native-decide-shaped is in
+their closure.  `conron.model_exists_embedded` /
+`conron.no_proof_of_False_embedded` are the same theorems at the pin list the
+binary actually folds with (`kernel::pins_decode::decode_embedded()`, what
+`con_ron::driver::pins_for_run` passes by default), with no hypothesis about
+the pins and with the two axioms above.  Every one of those censuses is pinned
+with `#guard_msgs in #print axioms`, which is what keeps the boundary honest.

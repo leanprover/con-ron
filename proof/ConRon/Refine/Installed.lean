@@ -1631,6 +1631,39 @@ theorem check_decls_refines {mode : env.CheckMode}
     rw [leanCheckDecls, ConLeche.Cached.checkDecls, hfold2]
     exact hrun2
 
+/-! ## The instance at the binary's own pins (task #64)
+
+`check_decls_refines` above is general in `pins` and carries
+`hpins : absPins pins = ConLeche.natOpPinSets` — a hypothesis about an argument.
+For a real run the argument is not free: `con_ron::driver::pins_for_run` passes
+`kernel::pins_decode::decode_embedded()`, the *verified* decoder applied to the
+embedded `con-ron-pins/1` constant, and `Refine/Pins.lean`'s
+`check_decls_pins_refines` says what that equals.  The corollary below is
+`check_decls_refines` with the hypothesis discharged that way, for the pin list
+the binary actually folds with.
+
+The general theorem stays exactly as task #60 stated it, and is what a reader
+should look at first: it is the one with no native evaluation anywhere in its
+closure (`Refine/Main.lean`'s census).  This one inherits the two axioms
+`Refine/Pins.lean`'s `pins_closed` spends, and its own census says so. -/
+
+/-- **The port's accept is con-leche's accept, at the binary's own pins**
+(task #64): the same statement as `check_decls_refines` with `hpins` replaced
+by "`pins` is what the embedded text decodes to", which is a fact about the
+binary rather than a promise about its argument. -/
+theorem check_decls_embedded_refines {mode : env.CheckMode}
+    (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
+    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    (h : cached.installed.check_decls mode pins ds = ok (.Ok e)) :
+    leanCheckDecls (absMode mode) ConLeche.natOpPinSets (ds.val.map absDeclC)
+      = .ok (absEnv e) := by
+  have hpins := ConRon.Refine.check_decls_pins_refines pins hp
+  have hr := check_decls_refines hk hind hpins hds h
+  rwa [hpins] at hr
+
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
 While the tier below is open the capstone's census carries `sorryAx`, and it is

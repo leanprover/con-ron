@@ -402,8 +402,9 @@ scripts/                 gates.sh (run it before every commit), extract.sh,
 
 **`scripts/gates.sh` is the one command every task runs before committing**
 (task #12): `cargo build`, `cargo test`, `lint-rust-style.sh`,
-`provenance.py check`, `extract.sh --check`, `cd proof && lake build`, one
-OK/FAIL line each, stopping at the first failure.
+`provenance.py check`, `gen-pins.sh --check` (task #43), `extract.sh --check`,
+`cd proof && lake build`, one OK/FAIL line each, stopping at the first
+failure.
 
 Refinement lemma shape — **exact result on success** (task #5): a Rust
 function that returns `ok y` computes *exactly* what the Lean function
@@ -508,9 +509,28 @@ well-founded reference decoder does not whnf (measured on a 23-byte text); and
 kernel reduction of a string literal is quadratic — the *cheapest* claim about
 the text, its byte size, costs 27 s at 1 KB and over 300 s at 8 KB.  The task
 #43 log entry has the numbers and the three upstream changes that would lift
-each obstacle.  `proof/ConRon/Refine/Pins.lean` states the refinement, the
-closed computation and the corollary; the first and third are open work, the
-second is open on the toolchain.  The upstream ask is unchanged: make
+each obstacle.
+
+**The pins hypothesis is discharged, with `native_decide` accepted as an
+interim (decision, maintainer, 2026-09-13; task #64).**  The refinement
+`pins_decode_refines` — the port's decoder computes what
+`ConRon.Dump.parsePins` computes, on *every* byte string — is an **ordinary
+proof** and censuses at con-leche's own three axioms; it goes through a
+byte-level reference decoder (`Refine/PinsDec.lean`) that splits the problem
+into the Aeneas refinement and the tokenizer bridge, and it needed **no extra
+hypothesis**.  The closed computation is taken by `native_decide`, confined to
+the single lemma `ConRon.Refine.pins_closed`, whose census is pinned: one
+sealed axiom asserting exactly that the embedded text decodes to
+`natOpPinSets`, plus the one Aeneas's `toStr` already spends on any extracted
+`&str`.  `Refine/Main.lean` therefore carries **both** capstones — the
+`pins`-parametric `conron.model_exists` / `conron.no_proof_of_False`, which
+never name the embedded text and stay free of native evaluation, and
+`conron.model_exists_embedded` / `conron.no_proof_of_False_embedded`, which are
+the same theorems at the pin list the binary actually folds with and carry the
+two axioms.  Spike #63 is the attempt to remove the interim: a pin encoding
+whose decoding the *kernel* can check.  `proof/ConRon/Refine/README.md`'s
+"Where the native-decide axiom lives" is the standing statement of what is
+trusted.  The upstream ask is unchanged: make
 `natOpPinSets` an argument of `checkDecls` (`checkDecls mode pins ds`, with the
 shipped `checkDecls mode ds := checkDecls mode natOpPinSets ds`) and check that
 `model_exists` is parametric in it.  The basis blocks are *not* hints (their
