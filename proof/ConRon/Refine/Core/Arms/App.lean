@@ -22,10 +22,10 @@ head-normalization loop's continuation as `k : ExprC → CheckCM ExprC`; the
 Rust defunctionalizes it into the loop's step budget `n` and a call to
 `whnf_core_loop_i … n` (task #18's pattern 2).  The two big lemmas below are
 therefore proved with `k` *abstract*, under one hypothesis — `KSim`, a `Sim`
-between `whnf_core_loop_i … n` and `k` — and the canonical corollaries
-instantiate `k` at `whnfCoreLoopI` through `AppDeps.whnfCoreLoop`.  The
-general form is what `Arms/WhnfCore.lean` wants at its call site, since
-`whnfCoreStepI` passes exactly that `k`.
+between `whnf_core_loop_i … n` and `k` — and the canonical corollaries take
+that hypothesis at `k := whnfCoreLoopI … n`.  The general form is what
+`Arms/WhnfCore.lean` wants at its call site, since `whnfCoreStepI` passes
+exactly that `k`.
 
 **The two big lemmas are one induction.**  `whnfAppI`/`betaPeelI` are one
 con-leche `mutual` block at `termination_by _ args => (args.length, 0)` /
@@ -35,11 +35,24 @@ each count: `whnfAppI` at `L` calls `betaPeelI`/`whnfAppI` at `L - 1`, and
 `betaPeelI` at `L` calls `whnfAppI` at `L`.  `whnf_app_i_refines` and
 `beta_peel_i_refines` are its two corollaries.
 
-**One `sorry`, and it is not this file's.**  `beta_peel_i` ends each peeled
-group with `state_c::inst_list_m`, whose refinement needs `StateC.InstCSize` —
-the `instC` entry-count clause `Refine/State.lean`'s `StateRel` does not yet
-carry (`Refine/StateC.lean:48` says where it belongs).  It is isolated in
-`App.instCSize_of_rel` and nothing else here is unproved.
+**No `sorry`.**  `beta_peel_i` ends each peeled group with
+`state_c::inst_list_m`, whose refinement needs the `instC` entry-count clause;
+task #55 could not derive it from `StateRel` (a lookup agreement does not bound
+the Lean map's size) and left `App.instCSize_of_rel` a `sorry`.  Task #61
+folded the clause into `Refine/State.lean`'s `StateRel` (`StateRel.instCSize`,
+with `State.insert_size_step` as its insert lemma), so `instCSize_of_rel` is a
+projection and this file is closed.
+
+**The continuation is a hypothesis, not a `Deps` field.**  `whnf_core_loop_i`,
+`whnf_core_step_i`, `whnf_app_i` and `beta_peel_i` are **one** strongly
+connected component of the Rust block — loop(n) → step(n−1) → whnfApp(n−1) →
+loop(n−1) — and task #55's partition put it in two files with `∀`-quantified
+`Deps` fields, so neither `AppDeps` nor `WhnfCoreDeps` could be built without
+the other.  Task #61's repair: `AppDeps` keeps only the acyclic callees
+(`Arms/Iota.lean`, `Arms/Certs.lean`), the continuation travels as the explicit
+`KSim mode fuel d n k` hypothesis the `*_of_loop` lemmas already took, and
+`Arms/Arms.lean` runs the one induction on the budget that ties the component
+together.
 
 **The remaining arguments are a suffix.**  The Rust walks `args : Vec Expr`
 by an index `i`; con-leche recurses on a `List`.  The correspondence is
@@ -64,20 +77,15 @@ namespace ConRon.Refine.Core
 
 /-! ## The foreign helpers
 
-Five callees of this file live in another agent's arm file
-(`Arms/WhnfCore.lean`, `Arms/Iota.lean`, `Arms/Certs.lean`).  Each is a field
-here, at the exact statement its own `<fn>_refines` has; the coordinator
-discharges the structure in `Arms/Arms.lean`. -/
+Four callees of this file live in another arm file (`Arms/Iota.lean`,
+`Arms/Certs.lean`).  Each is a field here, at the exact statement its own
+`<fn>_refines` has; the coordinator discharges the structure in
+`Arms/Arms.lean`.  The fifth, `Arms/WhnfCore.lean`'s `whnf_core_loop_i`, is
+**not** a field: it is the other half of this file's strongly connected
+component, and travels as the `KSim` hypothesis below (task #61). -/
 
 /-- The arms this file calls but does not own. -/
 structure AppDeps (mode : env.CheckMode) (fuel : Std.U64) : Prop where
-  /-- `Arms/WhnfCore.lean` — `whnf_core_loop_i` (`core_c.rs:2483`) refines
-  `whnfCoreLoopI` (`CoreC.lean:998-1004`). -/
-  whnfCoreLoop : ∀ (d n : Std.U64) (e : expr.Expr), ExprWF e →
-    Sim absExpr ExprWF
-      (fun st fe => cached.core_c.whnf_core_loop_i mode fuel st fe d n e)
-      (fun lfe => ConLeche.Cached.whnfCoreLoopI (absMode mode)
-        (knot mode lfe fuel.val) lfe d.val n.val (absExpr e))
   /-- `Arms/Iota.lean` — `iota_arity_ok` (`core_c.rs:1043`) refines
   `iotaArityOk` (`CoreC.lean:734-742`): state-free and environment-only. -/
   iotaArityOk : ∀ (fe : fenv.FEnv) (lfe : ConLeche.FEnv) (e : expr.Expr)
@@ -311,13 +319,6 @@ def KSim (mode : env.CheckMode) (fuel d n : Std.U64)
       (fun st fe => cached.core_c.whnf_core_loop_i mode fuel st fe d n e)
       (fun lfe => k lfe (absExpr e))
 
-/-- `AppDeps.whnfCoreLoop`, as a `KSim` at the con-leche loop. -/
-theorem AppDeps.kSim {mode : env.CheckMode} {fuel : Std.U64}
-    (hd : AppDeps mode fuel) (d n : Std.U64) :
-    KSim mode fuel d n (fun lfe => ConLeche.Cached.whnfCoreLoopI (absMode mode)
-      (knot mode lfe fuel.val) lfe d.val n.val) :=
-  fun e he => hd.whnfCoreLoop d n e he
-
 /-! ## `whnf_core_proj_i` — the `.proj` continuation (`core_c.rs:2429`)
 
 `ConLeche/Cached/CoreC.lean:963-988` writes this arm *inline* inside
@@ -515,6 +516,8 @@ theorem whnf_core_proj_of_loop (hd : AppDeps mode fuel) (d n : Std.U64)
 `.proj` continuation of `whnfCoreStepI`** (`core_c.rs:2429`), the continuation
 being the head-normalization loop at the budget the Rust carries. -/
 theorem whnf_core_proj_i_refines (hd : AppDeps mode fuel) (d n : Std.U64)
+    (hk : KSim mode fuel d n (fun lfe => ConLeche.Cached.whnfCoreLoopI (absMode mode)
+      (knot mode lfe fuel.val) lfe d.val n.val))
     {sn : name.Name} {i : Std.U64} {e2 : expr.Expr} (hsn : NameWF sn)
     (he2 : ExprWF e2) :
     Sim absExpr ExprWF
@@ -522,7 +525,7 @@ theorem whnf_core_proj_i_refines (hd : AppDeps mode fuel) (d n : Std.U64)
       (fun lfe => whnfCoreProjI (absMode mode) (knot mode lfe fuel.val) lfe d.val
         (ConLeche.Cached.whnfCoreLoopI (absMode mode) (knot mode lfe fuel.val) lfe
           d.val n.val) (absName sn) i.val (absExpr e2)) :=
-  whnf_core_proj_of_loop hd d n (hd.kSim d n) hsn he2
+  whnf_core_proj_of_loop hd d n hk hsn he2
 
 end
 
@@ -545,17 +548,14 @@ namespace App
     (ConLeche.Cached.mkAppNM f xs).run lst
       = .ok (ConLeche.Cached.ExprC.mkAppN f xs, lst) := rfl
 
-/-- `StateRel`'s missing `len` clause (`Refine/StateC.lean:48`): the `instC`
-table's entry count on the two sides.  `StateRel` is a *lookup* agreement and
-does not bound the Lean map's size, so this cannot be derived — the fix is to
-fold `InstCSize` into `Refine/State.lean`'s `StateRel`, which is a follow-up
-task (it touches the file every arm compiles against). -/
--- sorry: InstCSize is StateRel's missing len clause (StateC.lean:48); the fix
--- is to fold it into StateRel (follow-up)
+/-- The `instC` table's entry count on the two sides.  `StateRel` is a *lookup*
+agreement, and a lookup agreement does not bound the Lean map's size, so this
+used to be underivable (task #55's finding); task #61 folded it into
+`Refine/State.lean`'s `StateRel` as the field `StateRel.instCSize`, with
+`State.insert_size_step` as its insert lemma, so it is now just a projection. -/
 theorem instCSize_of_rel {st : cached.state_c.CState}
     {lst : ConLeche.Cached.CState} (hwf : StateWF st) (hrel : StateRel st lst) :
-    StateC.InstCSize st lst := by
-  sorry
+    StateC.InstCSize st lst := hrel.instCSize
 
 /-- `ConLeche/Cached/StateC.lean:186-199` — `inst_list_m` refines `instListM`
 at the cursor `0`, in the shape the peel loop consumes.  This is
@@ -966,7 +966,10 @@ theorem beta_peel_of_loop (hw : Wrappers mode fuel) (hd : AppDeps mode fuel)
 (`core_c.rs:2218`), the continuation being the head-normalization loop at the
 budget the Rust carries. -/
 theorem whnf_app_i_refines (hw : Wrappers mode fuel) (hd : AppDeps mode fuel)
-    (d n : Std.U64) {v : expr.Expr} {args : alloc.vec.Vec expr.Expr}
+    (d n : Std.U64)
+    (hk : KSim mode fuel d n (fun lfe => ConLeche.Cached.whnfCoreLoopI (absMode mode)
+      (knot mode lfe fuel.val) lfe d.val n.val))
+    {v : expr.Expr} {args : alloc.vec.Vec expr.Expr}
     {i : Std.Usize} (hv : ExprWF v) (hargs : ExprsWF args) :
     Sim absExpr ExprWF
       (fun st fe => cached.core_c.whnf_app_i mode fuel st fe d n v args i)
@@ -975,13 +978,16 @@ theorem whnf_app_i_refines (hw : Wrappers mode fuel) (hd : AppDeps mode fuel)
         (ConLeche.Cached.whnfCoreLoopI (absMode mode) (knot mode lfe fuel.val) lfe
           d.val n.val)
         (absExpr v) ((absExprs args).drop i.val)) :=
-  whnf_app_of_loop hw hd d n (hd.kSim d n) hv hargs
+  whnf_app_of_loop hw hd d n hk hv hargs
 
 /-- `ConLeche/Cached/CoreC.lean:907-935` — **`beta_peel_i` refines
 `betaPeelI`** (`core_c.rs:2296`), the continuation being the
 head-normalization loop at the budget the Rust carries. -/
 theorem beta_peel_i_refines (hw : Wrappers mode fuel) (hd : AppDeps mode fuel)
-    (d n : Std.U64) {t : expr.Expr} {acc args : alloc.vec.Vec expr.Expr}
+    (d n : Std.U64)
+    (hk : KSim mode fuel d n (fun lfe => ConLeche.Cached.whnfCoreLoopI (absMode mode)
+      (knot mode lfe fuel.val) lfe d.val n.val))
+    {t : expr.Expr} {acc args : alloc.vec.Vec expr.Expr}
     {i : Std.Usize} (ht : ExprWF t) (hacc : ExprsWF acc) (hargs : ExprsWF args) :
     Sim absExpr ExprWF
       (fun st fe => cached.core_c.beta_peel_i mode fuel st fe d n t acc args i)
@@ -990,17 +996,15 @@ theorem beta_peel_i_refines (hw : Wrappers mode fuel) (hd : AppDeps mode fuel)
         (ConLeche.Cached.whnfCoreLoopI (absMode mode) (knot mode lfe fuel.val) lfe
           d.val n.val)
         (absExpr t) (absExprs acc) ((absExprs args).drop i.val)) :=
-  beta_peel_of_loop hw hd d n (hd.kSim d n) ht hacc hargs
+  beta_peel_of_loop hw hd d n hk ht hacc hargs
 
 end
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
-Five of the seven are Lean's own three and nothing else.  The two big ones
-carry `sorryAx` through exactly one declaration, `App.instCSize_of_rel`: the
-`instC` entry-count clause `StateRel` does not yet have
-(`Refine/StateC.lean:48`), which `beta_peel_i`'s bulk substitution needs and
-which is a follow-up change to `Refine/State.lean`. -/
+All seven are Lean's own three and nothing else: task #61 closed
+`App.instCSize_of_rel` by folding the `instC` entry-count clause into
+`Refine/State.lean`'s `StateRel`. -/
 
 /-- info: 'ConRon.Refine.Core.pi_residual_m_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms pi_residual_m_refines
@@ -1017,10 +1021,10 @@ which is a follow-up change to `Refine/State.lean`. -/
 /-- info: 'ConRon.Refine.Core.whnf_core_proj_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms whnf_core_proj_i_refines
 
-/-- info: 'ConRon.Refine.Core.whnf_app_i_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine.Core.whnf_app_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms whnf_app_i_refines
 
-/-- info: 'ConRon.Refine.Core.beta_peel_i_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine.Core.beta_peel_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms beta_peel_i_refines
 
 end ConRon.Refine.Core

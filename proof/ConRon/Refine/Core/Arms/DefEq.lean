@@ -30,6 +30,25 @@ Rust function, verbatim from the cited lines, with the tail replaced by the
 next fragment.  `defeqStepI_eq` is the (definitional) equation that says the
 transcription is the cited body.
 
+**The two `Deps` records.**  DESIGN.md task #55 found that one `DefEqDeps`
+made this file and `Arms/DefEqStruct.lean` mutually unbuildable: each asked
+for the whole of the other's record.  The cycle is in the packaging only —
+at the function level the call order is acyclic,
+
+    struct_eta_cert_i, struct_unit_cert_i  →  stuck_irrel_i
+    stuck_irrel_i, def_eq_list_i           →  defeq_apps_i, defeq_binders_i
+    defeq_apps_i, defeq_binders_i          →  defeq_struct_i
+    defeq_struct_i                         →  the budget loop
+
+so task #61 splits the record along it.  `DefEqDepsA` is everything
+`defeq_struct_i` does not depend on; `DefEqDeps` is `DefEqDepsA` plus
+`defeqStruct`.  `prop_irrel_i_refines`, `stuck_irrel_i_refines`,
+`defeq_spine_i_refines` and `defeq_apps_i_refines` ask only for
+`DefEqDepsA`, so the coordinator builds `DefEqDepsA` first, discharges
+`Arms/DefEqStruct.lean`'s `DefEqStructDeps` with them, and only then
+assembles `DefEqDeps` for the loop.  `extends` keeps `hd.structEtaCert` and
+friends working unchanged on a `DefEqDeps`.
+
 The `.M`-suffixed `Array Std.U32` constants of the block
 (`defeq_loop_i.M`, `defeq_binders_i.M_PI`, `defeq_binders_i.M_LAM`) are error
 message code points on the `.Err` path; nothing is claimed on failure
@@ -306,20 +325,15 @@ end DefEq
 /-! ## The foreign callees
 
 Eight helpers of the block live in other agents' files; here each is a field
-of one structure, stated exactly as that file's `<fn>_refines` is.  The
-coordinator discharges the structure. -/
+of a structure, stated exactly as that file's `<fn>_refines` is.  The
+coordinator discharges the structures, in the order the module note gives:
+`DefEqDepsA` first, `DefEqDeps` — which adds `defeq_struct_i` — after. -/
 
-/-- What `Arms/DefEq.lean` borrows: `Arms/DefEqStruct.lean`'s three,
-`Arms/Certs.lean`'s three and `Arms/Lits.lean`'s two. -/
-structure DefEqDeps (mode : env.CheckMode) (fuel : Std.U64) : Prop where
-  /-- `CoreC.lean:1519-1614` — `defeq_struct_i` refines the `| false, false`
-  arm of `defeqStepI` (`core_c.rs:4033`).  The arm mentions `defeqStepI`'s
-  continuation nowhere, so the statement carries no budget. -/
-  defeqStruct : ∀ (d : Std.U64) {a b : expr.Expr}, ExprWF a → ExprWF b →
-    Sim id (fun _ => True)
-      (fun st fe => cached.core_c.defeq_struct_i mode fuel st fe d a b)
-      (fun lfe => DefEq.defeqStructFrag (absMode mode) (knot mode lfe fuel.val) lfe
-        d.val (absExpr a) (absExpr b))
+/-- What `Arms/DefEq.lean` borrows *before* `defeq_struct_i` is available:
+`Arms/Certs.lean`'s three, `Arms/Lits.lean`'s two and `Arms/Whnf.lean`'s
+two.  The arms this file owes `Arms/DefEqStruct.lean` need only this much
+— see the module note. -/
+structure DefEqDepsA (mode : env.CheckMode) (fuel : Std.U64) : Prop where
   /-- `CoreC.lean:476` — `struct_eta_cert_i` refines `structEtaCertI`
   (`core_c.rs:1141`). -/
   structEtaCert : ∀ (d : Std.U64) {a b : expr.Expr}, ExprWF a → ExprWF b →
@@ -370,6 +384,19 @@ structure DefEqDeps (mode : env.CheckMode) (fuel : Std.U64) : Prop where
     Sim (Option.map absExpr) (fun o => ∀ e', o = some e' → ExprWF e')
       (fun st fe => cached.core_c.unfold_definition_i st fe e)
       (fun lfe => ConLeche.Cached.unfoldDefinitionI lfe (absExpr e))
+
+/-- All of it: `DefEqDepsA` plus `Arms/DefEqStruct.lean`'s `defeq_struct_i`,
+which only the budget-loop chain below needs. -/
+structure DefEqDeps (mode : env.CheckMode) (fuel : Std.U64) : Prop
+    extends DefEqDepsA mode fuel where
+  /-- `CoreC.lean:1519-1614` — `defeq_struct_i` refines the `| false, false`
+  arm of `defeqStepI` (`core_c.rs:4033`).  The arm mentions `defeqStepI`'s
+  continuation nowhere, so the statement carries no budget. -/
+  defeqStruct : ∀ (d : Std.U64) {a b : expr.Expr}, ExprWF a → ExprWF b →
+    Sim id (fun _ => True)
+      (fun st fe => cached.core_c.defeq_struct_i mode fuel st fe d a b)
+      (fun lfe => DefEq.defeqStructFrag (absMode mode) (knot mode lfe fuel.val) lfe
+        d.val (absExpr a) (absExpr b))
 
 /-! ## Four `Cached` guards against their `Kernel` twins
 
@@ -494,7 +521,7 @@ theorem bool_true_shortcut_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
 fast arms in front of the `Prop` legs.  Charon duplicates the cited `else`
 tail (the two `isProofFast` arms share it), so the tail is one `SimS` here and
 used twice. -/
-theorem prop_irrel_i_refines (hw : Wrappers mode fuel) (hd : DefEqDeps mode fuel)
+theorem prop_irrel_i_refines (hw : Wrappers mode fuel) (hd : DefEqDepsA mode fuel)
     (d : Std.U64) {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     Sim id (fun _ => True)
       (fun st fe => cached.core_c.prop_irrel_i mode fuel st fe d a b)
@@ -577,7 +604,7 @@ theorem prop_irrel_i_refines (hw : Wrappers mode fuel) (hd : DefEqDeps mode fuel
 /-- `ConLeche/Cached/CoreC.lean:536` — **`stuck_irrel_i` refines
 `stuckIrrelI`** (`core_c.rs:1215`): structural eta in either direction, then
 unit-likeness, else proof irrelevance. -/
-theorem stuck_irrel_i_refines (hd : DefEqDeps mode fuel) (d : Std.U64)
+theorem stuck_irrel_i_refines (hd : DefEqDepsA mode fuel) (d : Std.U64)
     {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     Sim id (fun _ => True)
       (fun st fe => cached.core_c.stuck_irrel_i mode fuel st fe d a b)
@@ -637,7 +664,7 @@ theorem stuck_irrel_i_refines (hd : DefEqDeps mode fuel) (d : Std.U64)
 `defeqSpineI`** (`core_c.rs:527`): the lazy-delta same-head short-circuit,
 levels through `isEquivListLM` and then the argument lists.  A `false` verdict
 is never final, so an inconclusive level comparison simply answers `false`. -/
-theorem defeq_spine_i_refines (hd : DefEqDeps mode fuel) (d : Std.U64)
+theorem defeq_spine_i_refines (hd : DefEqDepsA mode fuel) (d : Std.U64)
     {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     Sim id (fun _ => True)
       (fun st fe => cached.core_c.defeq_spine_i mode fuel st fe d a b)
@@ -826,7 +853,7 @@ theorem defeq_binders_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
 `.app`/`.app` arm** (`core_c.rs:4225`): spine-wise congruence — equal spine
 lengths, one head comparison, the argument lists pairwise, then the stuck
 fallbacks. -/
-theorem defeq_apps_i_refines (hw : Wrappers mode fuel) (hd : DefEqDeps mode fuel)
+theorem defeq_apps_i_refines (hw : Wrappers mode fuel) (hd : DefEqDepsA mode fuel)
     (d : Std.U64) {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     Sim id (fun _ => True)
       (fun st fe => cached.core_c.defeq_apps_i mode fuel st fe d a b)
@@ -1046,7 +1073,8 @@ private theorem defeq_delta_both_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U
           | Err err => simp at hok
           | Ok v =>
             obtain ⟨lst1, hrun1, hrel1, hwf1, -⟩ :=
-              (defeq_spine_i_refines hd d ha hb).apply hwf hfe h1 hrel hfrel
+              (defeq_spine_i_refines hd.toDefEqDepsA d ha hb).apply hwf hfe h1 hrel
+                hfrel
             simp only [id] at hrun1
             rw [run_bind' hrun1]
             cases v with
@@ -1265,7 +1293,8 @@ private theorem defeq_after_whnf_of_loop (hw : Wrappers mode fuel)
       | Err err => simp at hok
       | Ok v =>
         obtain ⟨lst1, hrun1, hrel1, hwf1, -⟩ :=
-          (prop_irrel_i_refines hw hd d ha hb).apply hwf hfe hpi hrel hfrel
+          (prop_irrel_i_refines hw hd.toDefEqDepsA d ha hb).apply hwf hfe hpi hrel
+            hfrel
         simp only [id] at hrun1
         rw [run_bind' hrun1]
         cases v with

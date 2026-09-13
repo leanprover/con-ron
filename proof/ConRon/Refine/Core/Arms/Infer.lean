@@ -5,16 +5,22 @@
 helpers its clauses are factored into, against con-leche's `inferBodyI`
 (`ConLeche/Cached/CoreC.lean:1293-1389`).
 
-## The `io` flag (task #18, deviation 4)
+## The `io` flag (task #18, deviation 4; narrowed by task #61)
 
 con-leche hands a body the record's io view (`CoreFnsI.ioView`, whose `infer`
-slot is the io slot); the Rust carries that choice as the `io : Bool`
-argument of `infer_body_i` and `infer_proj_i`.  `Arms/Shape.lean`'s
-`knotV mode lfe fuel io` names the record the flag selects, so every helper
-that runs under *both* records is stated once, at `knotV … io`; the two
-helpers whose Rust signature has **no** `io` (`infer_forall_i`,
-`infer_lam_i`) are stated at the full-grade `knot`, which is what their
-callers hand them.
+slot is the io slot); the Rust carries that choice as an `io : Bool`.
+**Task #61 removed the flag from `infer_body_i`**: it used to be there, and
+at `io = true` the Rust's `.app`, `.forallE` and `.lam` clauses called the
+*full-grade* wrappers where `inferBodyI` at `ioView` calls the io slot, so
+the `io = true` instance of this file's body lemma was **false as stated**.
+Those three views are overridden by `inferBodyIOI`, so the flag only ever
+mattered at `.proj`, which now has its own clause in `infer_body_io_i`
+(`core_c.rs:3638`) and reaches `infer_proj_i … true` from there.
+
+`infer_proj_i` therefore keeps the flag — it is the one helper that runs
+under *both* records — and is stated once at `Arms/Shape.lean`'s
+`knotV mode lfe fuel io`.  Every other helper here, `infer_body_i` included,
+is stated at the full-grade `knot`.
 
 ## The clause lemmas are stated *against `inferBodyI` itself*
 
@@ -28,25 +34,6 @@ sub-helpers of the `.proj` clause (`infer_proj_at_i`,
 #49's `inferProjAtL`/`projTypeAtCheckedL` (`Refine/CoreKInfer.lean`), with
 `ProjEntry.typeAtI` in place of `ProjEntry.typeAt`; `inferBodyI_proj` is the
 `rfl` that ties them back to the cited clause.
-
-## THE ONE GAP, and it is a **statement** bug, not a proof gap
-
-`Statements.lean`'s `Bodies.inferView` — the `io = true` instance of
-`infer_body_i_refines` — is **false as stated**, at exactly three of the ten
-views.  At `io = true` the Rust's `.app`, `.forallE` and `.lam` clauses call
-the **full-grade** `infer`/`infer_spine_i`/`infer_forall_i`/`infer_lam_i`
-(`core_c.rs:3344-3356`, and the doc comment says so: *"The three clauses the
-io body does override (`∀`, `λ`, `.app`) are unreachable at `io = true` and
-call the full-grade wrappers directly"*), while `inferBodyI` applied to
-`(knot …).ioView` calls the io slot in all three.  Those three views are
-unreachable at `io = true` — `infer_body_io_i` (`core_c.rs:3588`) and
-`inferBodyIOI` (`CoreC.lean:1399`) both override all three and dispatch only
-the other seven to `infer_body_i` / `inferBodyI` — so nothing is lost, but
-`Bodies.inferView` must be restricted to the seven views the io body
-delegates, or `inferBodyIOI`'s fall-through must be unfolded before the
-handoff.  The three `sorry`s below are exactly those three views at
-`io = true`; everything else is proved, and at `io = false` the theorem is
-complete.
 
 ## Foreign callees
 
@@ -788,22 +775,15 @@ theorem inferBodyI_app (lmode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFns
           (ConLeche.Cached.ExprC.getAppArgs (.app f a))) := rfl
 
 /-- `ConLeche/Cached/CoreC.lean:1293-1389` — **`infer_body_i` refines
-`inferBodyI`** (`core_c.rs:3313`), at the record the `io` flag selects
-(task #18, deviation 4: `io = false` is `Bodies.infer`, `io = true` is
-`Bodies.inferView`).
-
-**Three of the ten arms are `sorry` at `io = true` only** — see the module
-note: the Rust's `.app`, `.forallE` and `.lam` clauses call the *full-grade*
-wrappers there, where `inferBodyI` at `(knot …).ioView` calls the io slot, so
-`Bodies.inferView` is false as stated at those three views.  They are
-unreachable at `io = true` (`infer_body_io_i` / `inferBodyIOI` override all
-three), so the fix is to the statement, not to a proof. -/
+`inferBodyI`** (`core_c.rs:3336`), at the knot itself: task #61 removed the
+`io` flag (see the module note), so every clause here runs at the full grade
+and the statement is exact at every one of the ten views. -/
 theorem infer_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hw : Wrappers mode fuel) (hd : InferDeps mode fuel)
-    (d : Std.U64) (io : Bool) {e : expr.Expr} (he : ExprWF e) :
+    (d : Std.U64) {e : expr.Expr} (he : ExprWF e) :
     Sim absExpr ExprWF
-      (fun st fe => cached.core_c.infer_body_i mode fuel st fe d e io)
-      (fun lfe => ConLeche.Cached.inferBodyI (absMode mode) (knotV mode lfe fuel.val io) lfe
+      (fun st fe => cached.core_c.infer_body_i mode fuel st fe d e)
+      (fun lfe => ConLeche.Cached.inferBodyI (absMode mode) (knot mode lfe fuel.val) lfe
         d.val (absExpr e)) := by
   intro fe lfe hfe hfrel st r st' hwf hok lst hrel
   have hch := CoreK.ExprWF.children he
@@ -853,7 +833,7 @@ theorem infer_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨v, hv, k2⟩ := bind_eq_ok_iff.mp k1
     rw [arc_deref_eq] at hv
     rw [← Result.ok_injective hv] at k2
-    exact (infer_const_i_refines io hch.1 hch.2 d).apply hwf hfe k2 hrel hfrel
+    exact (infer_const_i_refines false hch.1 hch.2 d).apply hwf hfe k2 hrel hfrel
   case Lit l =>
     cases l with
     | NatVal nn =>
@@ -887,41 +867,20 @@ theorem infer_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
         simp [inferBodyI_litStr, hs, ← hval]
       · rw [if_neg hs] at hval; simp at hval
   case Proj sn i pe =>
-    exact (infer_proj_i_refines hw d io hch.1 hch.2).apply hwf hfe k1 hrel hfrel
+    exact (infer_proj_i_refines hw d false hch.1 hch.2).apply hwf hfe k1 hrel hfrel
   case ForallE ty body mb =>
-    cases io with
-    | false =>
-      simpa using
-        (infer_forall_i_refines hw hd d hch.1 hch.2.1 hch.2.2).apply hwf hfe k1 hrel hfrel
-    | true =>
-      -- sorry: FALSE AS STATED (module note).  `infer_forall_i` calls the
-      -- full-grade `infer`/`infer_pis_i`; `inferBodyI` at `(knot …).ioView`
-      -- calls the io slot.  This view is unreachable at `io = true`.
-      sorry
+    simpa using
+      (infer_forall_i_refines hw hd d hch.1 hch.2.1 hch.2.2).apply hwf hfe k1 hrel hfrel
   case Lam ty body mb =>
-    cases io with
-    | false =>
-      simpa using
-        (infer_lam_i_refines hw hd d hch.1 hch.2.1 hch.2.2).apply hwf hfe k1 hrel hfrel
-    | true =>
-      -- sorry: FALSE AS STATED (module note).  `infer_lam_i` calls the
-      -- full-grade `infer`/`infer_lams_i`; `inferBodyI` at `(knot …).ioView`
-      -- calls the io slot.  This view is unreachable at `io = true`.
-      sorry
+    simpa using
+      (infer_lam_i_refines hw hd d hch.1 hch.2.1 hch.2.2).apply hwf hfe k1 hrel hfrel
   case App f a =>
     obtain ⟨hd1, hargs, k2⟩ := bind_eq_ok_iff.mp k1
     obtain ⟨hdabs, hdwf⟩ := ExprOps.get_app_fn_refines he hargs
     obtain ⟨args, hargs2, k3⟩ := bind_eq_ok_iff.mp k2
     obtain ⟨haabs, hawf⟩ := ExprOps.get_app_args_refines he hargs2
     obtain ⟨⟨r0, st1⟩, h1, k4⟩ := bind_eq_ok_iff.mp k3
-    cases io with
-    | true =>
-      -- sorry: FALSE AS STATED (module note).  The Rust calls the full-grade
-      -- `infer`/`infer_spine_i`; `inferBodyI` at `(knot …).ioView` calls the
-      -- io slot in both places.  This view is unreachable at `io = true`.
-      sorry
-    | false =>
-      cases r0 with
+    cases r0 with
       | Err err => simp at k4
       | Ok tf =>
         obtain ⟨lst1, hrun1, hrel1, hwf1, htfWF⟩ :=
@@ -947,16 +906,22 @@ theorem infer_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
               (ConLeche.Expr.app (absExpr f) (absExpr a)) = absExprs args by
             rw [ConLeche.Cached.ExprC.getAppArgs_spec]; exact haabs.symm]
           simpa using hrun2
-        simp only [absExpr_mk, absExprKind, knotV_false, inferBodyI_app]
+        simp only [absExpr_mk, absExprKind, inferBodyI_app]
         simp [e1, e2]
 
 end
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
-The seven helper refinements are axiom-clean; only `infer_body_i_refines`
-carries the three `sorry`s of the module note, and it carries them at
-`io = true` alone. -/
+Every refinement in this file is axiom-clean since task #61 removed the `io`
+flag from `infer_body_i` (the module note). -/
+
+/--
+info: 'ConRon.Refine.Core.infer_body_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms infer_body_i_refines
+
 
 /--
 info: 'ConRon.Refine.Core.infer_const_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound]

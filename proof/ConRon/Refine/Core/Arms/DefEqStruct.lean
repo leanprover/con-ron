@@ -5,12 +5,12 @@ Six helpers of `crates/con-ron-core/src/cached/core_c.rs`'s
 `partial_fixpoint` block:
 
 * the three *certificates* the stuck fallback runs — `struct_eta_cert_i`
-  (`core_c.rs:1028`, con-leche's `structEtaCertI`,
-  `ConLeche/Cached/CoreC.lean:476`), `struct_unit_cert_i` (`:1056`,
+  (`core_c.rs:1034`, con-leche's `structEtaCertI`,
+  `ConLeche/Cached/CoreC.lean:476`), `struct_unit_cert_i` (`:1062`,
   `structUnitCertI`, `CoreC.lean:487`) with its state-touching tail
-  `struct_unit_steps_i` (`:1099`), and `eta_cert_i` (`:1142`, `etaCertI`,
-  `CoreC.lean:516`) with its tail `eta_cert_body_i` (`:1179`);
-* `defeq_struct_i` (`:4033`), the **kind-by-kind case analysis** of
+  `struct_unit_steps_i` (`:1105`), and `eta_cert_i` (`:1148`, `etaCertI`,
+  `CoreC.lean:516`) with its tail `eta_cert_body_i` (`:1185`);
+* `defeq_struct_i` (`:4061`), the **kind-by-kind case analysis** of
   `defeqStepI` (`CoreC.lean:1456-1616`).
 
 ## What `defeq_struct_i` is, exactly
@@ -40,12 +40,30 @@ because `defeqStructL` mentions them; `Arms/DefEq.lean`'s own
 `defeq_apps_i_refines`/`defeq_binders_i_refines` will name the same two
 subterms, and the two namings are `rfl`-equal by construction.
 
+## The two literal arms and their matchers
+
+Four of `defeq_struct_i`'s arms — `.app`/`.lit` and `.lit`/`.app`, each at a
+`Nat` and at a `String` literal — read their verdict out of a *guard*
+(`core_k::succ_of`, `core_k::str_expansion_fires`), where the cited Lean
+writes an inline `match`.  `succ_match_eq` and `str_match_eq` below turn the
+cited `match` into the guard's shape, and they do fire on `defeqStructL`:
+matchers are shared inside this module.  What is *not* shared is the copy of
+the same `match` in the statements of `CoreKLits.lean`'s `succ_of_refines` and
+`CoreKGuards.lean`'s `str_expansion_fires_refines` — those modules built their
+own matcher constant, so `rw` will not see through it.  Each of the four arms
+therefore restates the guard's answer once, `have h : … := h0`, in this
+module's matcher; the two matchers are definitionally equal, so the restating
+`have` is by `rfl` and assumes nothing.
+
 ## What is not here
 
 The `.M`-suffixed `Array Std.U32` constants of these functions
 (`eta_cert_body_i.M`) are error-message code points, reached only on the
 `.Err` path; nothing is claimed on failure (DESIGN.md §3.5), so they carry no
 theorem.
+
+The file is `sorry`-free: every theorem below closes on
+`[propext, Classical.choice, Quot.sound]`.
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.CoreKPinned
@@ -181,10 +199,10 @@ theorem wf_kind_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
 /-! ## The structural case analysis
 
 `defeqStepI` (`ConLeche/Cached/CoreC.lean:1456-1614`) is one `do` block, which
-the port splits into seven functions.  `defeq_struct_i` (`core_c.rs:4033`) is
+the port splits into seven functions.  `defeq_struct_i` (`core_c.rs:4061`) is
 its **`| false, false =>` arm** — neither head unfoldable, so `match a', b'
 with …` decides structurally — and `defeq_apps_i`/`defeq_binders_i`
-(`core_c.rs:4227`/`:4167`) are two arms inside it.  The three definitions below
+(`core_c.rs:4253`/`:4167`) are two arms inside it.  The three definitions below
 are verbatim transcriptions of those three subterms, and `defeqStepI_eq` is the
 cited definition with all three named: it is `rfl`, so the naming assumes
 nothing. -/
@@ -390,7 +408,9 @@ identity in the model). -/
   simp [expr.literal_nat]
 
 /-- `core_k::succ_of`'s answer decides the cited `match nn, f with | k + 1,
-.const c [] => … | _, _ => …` of the `Nat`-literal-against-`Nat.succ` arms. -/
+.const c [] => … | _, _ => …` of the `Nat`-literal-against-`Nat.succ` arms.
+Stated in *this* module's matcher, the one `defeqStructL` uses; see the module
+note on why `succ_of_refines`'s own copy has to be restated before use. -/
 theorem succ_match_eq {α : Type} {n : Nat} {f : ConLeche.Expr}
     {g : Nat → α} {z : α} :
     (match n, f with
@@ -417,7 +437,9 @@ theorem succ_match_eq {α : Type} {n : Nat} {f : ConLeche.Expr}
 
 /-- `core_k::str_expansion_fires`'s answer decides the cited
 `match fO with | .const cO usO => if … then … else … | _ => …` of the
-string-literal expansion arms. -/
+string-literal expansion arms.  As with `succ_match_eq`, the `match` here is
+this module's matcher, so `str_expansion_fires_refines`'s answer is restated
+in it at each use site. -/
 theorem str_match_eq {α : Type} {f : ConLeche.Expr} {lfe : ConLeche.FEnv} {g z : α} :
     (match f with
       | .const cO usO =>
@@ -440,31 +462,45 @@ theorem str_match_eq {α : Type} {f : ConLeche.Expr} {lfe : ConLeche.FEnv} {g z 
 Five helpers of *other* arms files, each field verbatim the statement that
 file's own `<fn>_refines` has. -/
 
-/-- The cross-file helpers this file calls: `struct_eta_cert_with_i` and
-`iota_certs_i` (`Arms/Certs.lean`), `stuck_irrel_i`, `defeq_apps_i` and
-`defeq_binders_i` (`Arms/DefEq.lean`). -/
-structure DefEqStructDeps (mode : env.CheckMode) (fuel : Std.U64) : Prop where
-  /-- `core_c.rs:960` — `structEtaCertWithI` (`CoreC.lean:387`). -/
+/-- The two `Arms/Certs.lean` helpers this file calls — everything
+`struct_eta_cert_i` and `struct_unit_cert_i` need, and nothing that comes back
+from `Arms/DefEq.lean`.
+
+**Task #61 split the record here.**  `Arms/DefEq.lean`'s
+`stuck_irrel_i` reaches `struct_eta_cert_i`/`struct_unit_cert_i`, and
+`defeq_struct_i` reaches `stuck_irrel_i`, so asking *both* files' theorems for
+the whole other file's `Deps` record made the two mutually unconstructible even
+though the call graph is acyclic (DESIGN.md, task #55's second packaging
+cycle).  Splitting along that order — this record for the certificates,
+`DefEqStructDeps` below for `defeq_struct_i` — closes it, with no statement
+changed. -/
+structure DefEqStructDepsA (mode : env.CheckMode) (fuel : Std.U64) : Prop where
+  /-- `core_c.rs:839` — `structEtaCertWithI` (`CoreC.lean:387`). -/
   structEtaCertWith : ∀ (d : Std.U64) {a b wtb : expr.Expr},
     ExprWF a → ExprWF b → ExprWF wtb →
     Sim id (fun _ => True)
       (fun st fe => cached.core_c.struct_eta_cert_with_i mode fuel st fe d a b wtb)
       (fun lfe => ConLeche.Cached.structEtaCertWithI (absMode mode)
         (knot mode lfe fuel.val) lfe d.val (absExpr a) (absExpr b) (absExpr wtb))
-  /-- `core_c.rs:1301` — `iotaCertsI` (`CoreC.lean:337`). -/
+  /-- `core_c.rs:415` — `iotaCertsI` (`CoreC.lean:337`). -/
   iotaCerts : ∀ (d : Std.U64) (lic : Bool) {ty : expr.Expr}
     {args : alloc.vec.Vec expr.Expr}, ExprWF ty → ExprsWF args →
     Sim id (fun _ => True)
       (fun st fe => cached.core_c.iota_certs_i mode fuel st fe d lic ty args)
       (fun lfe => ConLeche.Cached.iotaCertsI (knot mode lfe fuel.val) lfe d.val lic
         (absExpr ty) (absExprs args))
-  /-- `core_c.rs:4227` — `defeqStepI`'s `.app`/`.app` arm, `defeqAppsL`. -/
+/-- The cross-file helpers `defeq_struct_i` calls, in full: the two of
+`DefEqStructDepsA` and the three of `Arms/DefEq.lean` that do not themselves
+go through `defeq_struct_i`. -/
+structure DefEqStructDeps (mode : env.CheckMode) (fuel : Std.U64) : Prop
+    extends DefEqStructDepsA mode fuel where
+  /-- `core_c.rs:4253` — `defeqStepI`'s `.app`/`.app` arm, `defeqAppsL`. -/
   defeqApps : ∀ (d : Std.U64) {a b : expr.Expr}, ExprWF a → ExprWF b →
     Sim id (fun _ => True)
       (fun st fe => cached.core_c.defeq_apps_i mode fuel st fe d a b)
       (fun lfe => defeqAppsL (absMode mode) (knot mode lfe fuel.val) lfe d.val
         (absExpr a) (absExpr b))
-  /-- `core_c.rs:4167` — `defeqStepI`'s two binder arms, `defeqBindersL`. -/
+  /-- `core_c.rs:4195` — `defeqStepI`'s two binder arms, `defeqBindersL`. -/
   defeqBinders : ∀ (d : Std.U64) (isForall : Bool) {t1 b1 t2 b2 : expr.Expr}
     {m1 m2 : expr.BinderMeta}, ExprWF t1 → ExprWF b1 → BinderMetaWF m1 →
     ExprWF t2 → ExprWF b2 → BinderMetaWF m2 →
@@ -474,7 +510,7 @@ structure DefEqStructDeps (mode : env.CheckMode) (fuel : Std.U64) : Prop where
       (fun lfe => defeqBindersL (absMode mode) (knot mode lfe fuel.val) lfe d.val
         (absExpr t1) (absExpr b1) (absBinderMeta m1) (absExpr t2) (absExpr b2)
         (absBinderMeta m2) isForall)
-  /-- `core_c.rs:1215` — `stuckIrrelI` (`CoreC.lean:536`). -/
+  /-- `core_c.rs:1221` — `stuckIrrelI` (`CoreC.lean:536`). -/
   stuckIrrel : ∀ (d : Std.U64) {a b : expr.Expr}, ExprWF a → ExprWF b →
     Sim id (fun _ => True)
       (fun st fe => cached.core_c.stuck_irrel_i mode fuel st fe d a b)
@@ -487,11 +523,11 @@ variable {mode : env.CheckMode} {fuel : Std.U64}
 /-! ## The structure-η certificate -/
 
 /-- `ConLeche/Cached/CoreC.lean:476-484` — **`struct_eta_cert_i` refines
-`structEtaCertI`** (`core_c.rs:1028`): the constructor-shape gate first (the
+`structEtaCertI`** (`core_c.rs:1034`): the constructor-shape gate first (the
 divergence audit's D13), and only then `b`'s type, whnf'd, handed to
 `structEtaCertWithI`. -/
 theorem struct_eta_cert_i_refines (hw : Wrappers mode fuel)
-    (hd : DefEqStructDeps mode fuel) (d : Std.U64) {a b : expr.Expr}
+    (hd : DefEqStructDepsA mode fuel) (d : Std.U64) {a b : expr.Expr}
     (ha : ExprWF a) (hb : ExprWF b) :
     Sim id (fun _ => True)
       (fun st fe => cached.core_c.struct_eta_cert_i mode fuel st fe d a b)
@@ -535,7 +571,7 @@ theorem struct_eta_cert_i_refines (hw : Wrappers mode fuel)
 
 `structUnitCertI` (`ConLeche/Cached/CoreC.lean:487-512`) is one `do` block; the
 port splits its state-touching tail into `struct_unit_steps_i`
-(`core_c.rs:1099`).  `structUnitStepsL` names that tail and
+(`core_c.rs:1105`).  `structUnitStepsL` names that tail and
 `structUnitCertI_eq` — `rfl` — is the cited definition with it named. -/
 
 /-- `ConLeche/Cached/CoreC.lean:501-510` — `structUnitCertI`'s tail, named:
@@ -576,17 +612,16 @@ theorem structUnitCertI_eq (mode : ConLeche.CheckMode) (r : ConLeche.Cached.Core
 
 
 /-- `ConLeche/Cached/CoreC.lean:501-510` — **`struct_unit_steps_i` refines
-`structUnitStepsL`** (`core_c.rs:1099`), `structUnitCertI`'s state-touching
+`structUnitStepsL`** (`core_c.rs:1105`), `structUnitCertI`'s state-touching
 tail.
 
-**Port deviation, not provable at `.Trusted`.**  The cited tail runs
-`constTyAtM` *before* `certAtI mode`, so at a mode with `certs = false` it
-still reads (and memoises, and may `throw` on) the type-former's type; the
-port hoists the `env::certs` test above the read and returns `Ok(true)`
-without it.  At `certs = true` the two agree; the `certs = false` branch is the
-one `sorry` below. -/
+The cited tail runs `constTyAtM` *before* `certAtI mode`, so at every mode it
+reads (and memoises, and may `throw` on) the type-former's type; task #61 made
+the port's read ungated too, so `StateC.const_ty_at_m_refines` applies once,
+above the mode split, and both branches of `certAtI` continue from the state it
+leaves. -/
 theorem struct_unit_steps_i_refines (hw : Wrappers mode fuel)
-    (hd : DefEqStructDeps mode fuel) (d : Std.U64) {wta b : expr.Expr}
+    (hd : DefEqStructDepsA mode fuel) (d : Std.U64) {wta b : expr.Expr}
     {t : name.Name} {us2 : alloc.vec.Vec level.Level}
     {targs : alloc.vec.Vec expr.Expr} (hwta : ExprWF wta) (hb : ExprWF b)
     (ht : NameWF t) (hus : LevelsWF us2) (htargs : ExprsWF targs) :
@@ -628,38 +663,39 @@ theorem struct_unit_steps_i_refines (hw : Wrappers mode fuel)
         | true =>
           simp only [if_true] at hok
           res_step hok
-          obtain ⟨cb, hcb, hok⟩ := hok
-          have hcbabs : cb = (absMode mode).certs := Env.certs_refines hcb
-          cases cb with
-          | false =>
-            -- sorry: the port hoists `env::certs` above the cited
-            -- `constTyAtM`, so at `certs = false` con-leche still reads (and
-            -- memoises) the type-former's type and the port does not — the
-            -- states diverge.  See the doc comment: a port deviation.
-            sorry
-          | true =>
-            simp only [if_true] at hok
+          obtain ⟨⟨r3, st4⟩, h4, hok⟩ := hok
+          cases r3 with
+          | Err err => simp at hok
+          | Ok tty =>
+            obtain ⟨lst4, hrun4, hrel4, hwf4, httyWF⟩ :=
+              StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf3 hfe ht
+                hus h4 lst3 lfe hrel3 hfrel (absName t)
+            simp only [StateT.run] at hrun4
             res_step hok
-            obtain ⟨⟨r3, st4⟩, h4, hok⟩ := hok
-            cases r3 with
-            | Err err => simp at hok
-            | Ok tty =>
-              obtain ⟨lst4, hrun4, hrel4, hwf4, httyWF⟩ :=
-                StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf3 hfe ht hus h4
-                  lst3 lfe hrel3 hfrel (absName t)
+            obtain ⟨cb, hcb, hok⟩ := hok
+            have hcbabs : cb = (absMode mode).certs := Env.certs_refines hcb
+            cases cb with
+            | false =>
+              simp only [Bool.false_eq_true, if_false, Result.ok.injEq, Prod.mk.injEq,
+                core.result.Result.Ok.injEq] at hok
+              obtain ⟨rfl, rfl⟩ := hok
+              refine ⟨lst4, ?_, hrel4, hwf4, trivial⟩
+              simp only [structUnitStepsL, ConLeche.Cached.certAtI]
+              simp [hrun1, hrun2, hrun3, hrun4, ← hcbabs]
+            | true =>
+              simp only [if_true] at hok
               obtain ⟨lst5, hrun5, hrel5, hwf5, -⟩ :=
                 (hd.iotaCerts d false httyWF htargs).apply hwf4 hfe hok hrel4 hfrel
-              simp only [StateT.run, id_eq] at hrun4 hrun5
+              simp only [StateT.run, id_eq] at hrun5
               refine ⟨lst5, ?_, hrel5, hwf5, trivial⟩
               simp only [structUnitStepsL, ConLeche.Cached.certAtI]
               simp [hrun1, hrun2, hrun3, hrun4, hrun5, ← hcbabs]
 
 /-- `ConLeche/Cached/CoreC.lean:487-512` — **`struct_unit_cert_i` refines
-`structUnitCertI`** (`core_c.rs:1056`): `a`'s reduced type must be a stored
-unit-like family applied to its parameters, and then `structUnitStepsL`.  The
-`certs = false` gap of `struct_unit_steps_i_refines` is inherited. -/
+`structUnitCertI`** (`core_c.rs:1062`): `a`'s reduced type must be a stored
+unit-like family applied to its parameters, and then `structUnitStepsL`. -/
 theorem struct_unit_cert_i_refines (hw : Wrappers mode fuel)
-    (hd : DefEqStructDeps mode fuel) (d : Std.U64) {a b : expr.Expr}
+    (hd : DefEqStructDepsA mode fuel) (d : Std.U64) {a b : expr.Expr}
     (ha : ExprWF a) (hb : ExprWF b) :
     Sim id (fun _ => True)
       (fun st fe => cached.core_c.struct_unit_cert_i mode fuel st fe d a b)
@@ -750,7 +786,7 @@ theorem struct_unit_cert_i_refines (hw : Wrappers mode fuel)
 
 `etaCertI` (`ConLeche/Cached/CoreC.lean:516-533`) is one `do` block; the port
 splits the part after the domain comparison into `eta_cert_body_i`
-(`core_c.rs:1179`).  `etaCertBodyL` names it and `etaCertI_eq` — `rfl` — is the
+(`core_c.rs:1185`).  `etaCertBodyL` names it and `etaCertI_eq` — `rfl` — is the
 cited definition with it named.  The port carries `m₂.pw` (the `∀`'s own
 prop-ness annotation) across the split as `pw2`, which is why the named tail
 takes it as an argument. -/
@@ -787,7 +823,7 @@ theorem etaCertI_eq (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
 
 
 /-- `ConLeche/Cached/CoreC.lean:521-531` — **`eta_cert_body_i` refines
-`etaCertBodyL`** (`core_c.rs:1179`), `etaCertI`'s tail once the domains have
+`etaCertBodyL`** (`core_c.rs:1185`), `etaCertI`'s tail once the domains have
 matched. -/
 theorem eta_cert_body_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
     {ty1 body1 b : expr.Expr} {m1 : expr.BinderMeta} {pw2 : prop_when.PropWhen}
@@ -855,7 +891,7 @@ theorem eta_cert_body_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
           simp [etaCertBodyL, ConLeche.Cached.inst1M, hrun1, ← hvcabs, absBinderMeta, hpweq]
 
 /-- `ConLeche/Cached/CoreC.lean:516-533` — **`eta_cert_i` refines `etaCertI`**
-(`core_c.rs:1142`): `b`'s type whnfs to a `∀` whose domain is definitionally
+(`core_c.rs:1148`): `b`'s type whnfs to a `∀` whose domain is definitionally
 equal to the λ's, and then `etaCertBodyL`. -/
 theorem eta_cert_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
     {ty1 body1 b : expr.Expr} {m1 : expr.BinderMeta}
@@ -920,7 +956,7 @@ theorem eta_cert_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
         simp [etaCertI_eq, hrun1, hrun2]
 
 /-- `ConLeche/Cached/CoreC.lean:1520-1614` — **`defeq_struct_i` refines
-`defeqStructL`** (`core_c.rs:4033`), the `| false, false =>` arm of
+`defeqStructL`** (`core_c.rs:4061`), the `| false, false =>` arm of
 `defeqStepI`: neither head unfolds, so the pair of kinds decides. -/
 theorem defeq_struct_i_refines (hw : Wrappers mode fuel)
     (hd : DefEqStructDeps mode fuel) (d : Std.U64) {a b : expr.Expr}
@@ -1209,11 +1245,78 @@ theorem defeq_struct_i_refines (hw : Wrappers mode fuel)
       simp only [StateT.run, id_eq, absExpr_mk, absExprKind, absBinderMeta] at hr
       simp [defeqStructL, hr]
     | Lit l =>
-      -- sorry: the two `Nat.succ`/`String.ofList` literal arms.  `succ_match_eq`
-      -- and `str_match_eq` above are the shape lemmas, but the cited inline
-      -- `match` inside `defeqStructL` is a *different* matcher constant, so the
-      -- rewrite does not fire; what is missing is that bridge.
-      sorry
+      obtain ⟨hf1, hx1⟩ := wf_kind_inv ha rfl
+      cases l with
+      | NatVal nn =>
+        have hnnwf : Nat.NatWF nn := wf_kind_inv hb rfl
+        res_step hok
+        obtain ⟨o, ho, hok⟩ := hok
+        obtain ⟨hoabs0, howf⟩ :=
+          CoreK.succ_of_refines hnnwf hf1 CoreK.pinned_nat_succ_name ho
+        have hoabs : Option.map Nat.toNat o =
+            (match Nat.toNat nn, absExpr f1 with
+              | k + 1, .const c [] => if c = ConLeche.natSuccName then some k else none
+              | _, _ => none) := hoabs0
+        cases o with
+        | none =>
+          obtain ⟨lx, hr, hre, hwe⟩ := Hstuck hwf hrel hok
+          refine ⟨lx, ?_, hre, hwe, trivial⟩
+          simp only [absExprKind, absLiteral, StateT.run] at hr
+          simp only [defeqStructL, absExpr_mk, absExprKind, absLiteral, pure_bind,
+            succ_match_eq]
+          rw [← hoabs]
+          simp [hr]
+        | some k =>
+          have hkwf : Nat.NatWF k := howf k rfl
+          simp only [literal_nat_eq', bind_tc_ok] at hok
+          res_step hok
+          obtain ⟨lke, hlke, hok⟩ := hok
+          obtain ⟨lx, hr, hre, hwe⟩ :=
+            Hdq hx1 (Expr.lit_wf (l := expr.Literal.NatVal k) hkwf hlke) hwf hrel hok
+          refine ⟨lx, ?_, hre, hwe, trivial⟩
+          simp only [StateT.run, Expr.lit_refines hlke, absLiteral] at hr
+          simp only [defeqStructL, absExpr_mk, absExprKind, absLiteral, pure_bind,
+            succ_match_eq]
+          rw [← hoabs]
+          simp [hr]
+      | StrVal ss =>
+        have hsswf : StrWF ss := wf_kind_inv hb rfl
+        res_step hok
+        obtain ⟨bf, hbf, hok⟩ := hok
+        have hfabs0 := CoreK.str_expansion_fires_refines CoreK.pinned_string_of_list_name
+          (CoreK.strLitSupportedSpec (FindAgree.of_rel hfrel hfe)
+            (FindWF.of_wf hfe)) hf1 hbf
+        have hfabs : bf =
+            (match absExpr f1 with
+              | .const cO usO =>
+                decide (cO = ConLeche.stringOfListName) && decide (usO = []) &&
+                  ConLeche.strLitSupportedF lfe
+              | _ => false) := hfabs0
+        cases bf with
+        | false =>
+          simp only [Bool.false_eq_true, if_false] at hok
+          obtain ⟨lx, hr, hre, hwe⟩ := Hstuck hwf hrel hok
+          refine ⟨lx, ?_, hre, hwe, trivial⟩
+          simp only [absExprKind, absLiteral, StateT.run] at hr
+          simp only [defeqStructL, absExpr_mk, absExprKind, absLiteral, pure_bind,
+            str_match_eq]
+          rw [← hfabs]
+          simp [hr]
+        | true =>
+          simp only [if_true] at hok
+          res_step hok
+          obtain ⟨sc, hsc, hok⟩ := hok
+          obtain ⟨hscabs, hscwf⟩ := CoreK.str_lit_to_constructor_refines hsswf
+            CoreK.pinned_char_name CoreK.pinned_char_of_nat_name
+            CoreK.pinned_list_nil_name CoreK.pinned_list_cons_name
+            CoreK.pinned_string_of_list_name hsc
+          obtain ⟨lx, hr, hre, hwe⟩ := Hdq ha hscwf hwf hrel hok
+          refine ⟨lx, ?_, hre, hwe, trivial⟩
+          simp only [StateT.run, hscabs, absExpr_mk, absExprKind] at hr
+          simp only [defeqStructL, absExpr_mk, absExprKind, absLiteral, pure_bind,
+            str_match_eq]
+          rw [← hfabs]
+          simp [hr]
     | Lam t2 b2 m2 =>
       obtain ⟨ht2, hb2, hm2⟩ := wf_kind_inv hb rfl
       res_step hok
@@ -1389,8 +1492,78 @@ theorem defeq_struct_i_refines (hw : Wrappers mode fuel)
         obtain ⟨l, hr, hre, hwe⟩ := Hstuck hwf hrel hok
         exact ⟨l, by simpa [defeqStructL] using hr, hre, hwe, trivial⟩
     | App f2 x2 =>
-      -- sorry: the two `Nat.succ`/`String.ofList` literal arms, mirrored.
-      sorry
+      obtain ⟨hf2, hx2⟩ := wf_kind_inv hb rfl
+      cases l1 with
+      | NatVal nn =>
+        have hnnwf : Nat.NatWF nn := wf_kind_inv ha rfl
+        res_step hok
+        obtain ⟨o, ho, hok⟩ := hok
+        obtain ⟨hoabs0, howf⟩ :=
+          CoreK.succ_of_refines hnnwf hf2 CoreK.pinned_nat_succ_name ho
+        have hoabs : Option.map Nat.toNat o =
+            (match Nat.toNat nn, absExpr f2 with
+              | k + 1, .const c [] => if c = ConLeche.natSuccName then some k else none
+              | _, _ => none) := hoabs0
+        cases o with
+        | none =>
+          obtain ⟨lx, hr, hre, hwe⟩ := Hstuck hwf hrel hok
+          refine ⟨lx, ?_, hre, hwe, trivial⟩
+          simp only [absExprKind, absLiteral, StateT.run] at hr
+          simp only [defeqStructL, absExpr_mk, absExprKind, absLiteral, pure_bind,
+            succ_match_eq]
+          rw [← hoabs]
+          simp [hr]
+        | some k =>
+          have hkwf : Nat.NatWF k := howf k rfl
+          simp only [literal_nat_eq', bind_tc_ok] at hok
+          res_step hok
+          obtain ⟨lke, hlke, hok⟩ := hok
+          obtain ⟨lx, hr, hre, hwe⟩ :=
+            Hdq (Expr.lit_wf (l := expr.Literal.NatVal k) hkwf hlke) hx2 hwf hrel hok
+          refine ⟨lx, ?_, hre, hwe, trivial⟩
+          simp only [StateT.run, Expr.lit_refines hlke, absLiteral] at hr
+          simp only [defeqStructL, absExpr_mk, absExprKind, absLiteral, pure_bind,
+            succ_match_eq]
+          rw [← hoabs]
+          simp [hr]
+      | StrVal ss =>
+        have hsswf : StrWF ss := wf_kind_inv ha rfl
+        res_step hok
+        obtain ⟨bf, hbf, hok⟩ := hok
+        have hfabs0 := CoreK.str_expansion_fires_refines CoreK.pinned_string_of_list_name
+          (CoreK.strLitSupportedSpec (FindAgree.of_rel hfrel hfe)
+            (FindWF.of_wf hfe)) hf2 hbf
+        have hfabs : bf =
+            (match absExpr f2 with
+              | .const cO usO =>
+                decide (cO = ConLeche.stringOfListName) && decide (usO = []) &&
+                  ConLeche.strLitSupportedF lfe
+              | _ => false) := hfabs0
+        cases bf with
+        | false =>
+          simp only [Bool.false_eq_true, if_false] at hok
+          obtain ⟨lx, hr, hre, hwe⟩ := Hstuck hwf hrel hok
+          refine ⟨lx, ?_, hre, hwe, trivial⟩
+          simp only [absExprKind, absLiteral, StateT.run] at hr
+          simp only [defeqStructL, absExpr_mk, absExprKind, absLiteral, pure_bind,
+            str_match_eq]
+          rw [← hfabs]
+          simp [hr]
+        | true =>
+          simp only [if_true] at hok
+          res_step hok
+          obtain ⟨sc, hsc, hok⟩ := hok
+          obtain ⟨hscabs, hscwf⟩ := CoreK.str_lit_to_constructor_refines hsswf
+            CoreK.pinned_char_name CoreK.pinned_char_of_nat_name
+            CoreK.pinned_list_nil_name CoreK.pinned_list_cons_name
+            CoreK.pinned_string_of_list_name hsc
+          obtain ⟨lx, hr, hre, hwe⟩ := Hdq hscwf hb hwf hrel hok
+          refine ⟨lx, ?_, hre, hwe, trivial⟩
+          simp only [StateT.run, hscabs, absExpr_mk, absExprKind] at hr
+          simp only [defeqStructL, absExpr_mk, absExprKind, absLiteral, pure_bind,
+            str_match_eq]
+          rw [← hfabs]
+          simp [hr]
     | Lit l2 =>
       res_step hok
       have hl1 : LiteralWF l1 := wf_kind_inv ha rfl
@@ -1505,5 +1678,47 @@ theorem defeq_struct_i_refines (hw : Wrappers mode fuel)
       exact ⟨l, by simpa [defeqStructL] using hr, hre, hwe, trivial⟩
 
 end
+
+/-! ## Axiom census (DESIGN.md §5, the P3 gate)
+
+Every refinement in this file is axiom-clean since task #61 ungated
+`const_ty_at_m` in `struct_unit_steps_i` and the four literal arms of
+`defeq_struct_i` were proved (the module note). -/
+
+/--
+info: 'ConRon.Refine.Core.struct_eta_cert_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms struct_eta_cert_i_refines
+
+/--
+info: 'ConRon.Refine.Core.struct_unit_steps_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms struct_unit_steps_i_refines
+
+/--
+info: 'ConRon.Refine.Core.struct_unit_cert_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms struct_unit_cert_i_refines
+
+/--
+info: 'ConRon.Refine.Core.eta_cert_body_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms eta_cert_body_i_refines
+
+/--
+info: 'ConRon.Refine.Core.eta_cert_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms eta_cert_i_refines
+
+/--
+info: 'ConRon.Refine.Core.defeq_struct_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms defeq_struct_i_refines
 
 end ConRon.Refine.Core

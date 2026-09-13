@@ -11,6 +11,16 @@ Every state-free ingredient is task #49's (`Refine/CoreKLits.lean`,
 `Refine/CoreKNatOps.lean`) and every cached one task #51/#52's
 (`Refine/ExprOpsC.lean`, `Refine/StateC.lean`).  Nothing new is assumed except
 the pins, which `Refine/CoreKPinned.lean` discharges unconditionally.
+
+**Task #61 retired the group's one `sorry`.**  `core_k::nat_op_result` used to
+answer `none` on a `Nat.shiftLeft`/`Nat.shiftRight` amount that does not fit a
+`u64`, where the cited `natOpResult` computes a literal; `none` is a different
+verdict, so `reduce_nat_bin_i`'s exact-result claim was false in that one spot.
+The port now *fails* there instead, which §3.5 leaves unconstrained, so
+`Refine/CoreKLits.lean`'s `OpSpec` is exact in both directions and the arm goes
+through.  What the arm gained is one `core::result::Result` layer to
+destructure, and the census at the foot of the file records that nothing here
+is owed.
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.Core.Arms.Bridge
@@ -383,12 +393,16 @@ theorem reduce_nat_bin_i_refines {mode : env.CheckMode} {fuel : Std.U64}
         | none => pure none)
     | some p =>
       obtain ⟨n1, n2⟩ := p
-      obtain ⟨o1, ho1, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨hn1wf, hn2wf⟩ := hnwf (n1, n2) rfl
-      have hspec := CoreK.nat_op_result_refines hc hn1wf hn2wf CoreK.natOpPinned ho1
+      -- The fold's own `core::result::Result` layer (task #61): the bind's
+      -- value is `nat_op_result`'s verdict, and `hok` pins it to `.Ok r`, so
+      -- the `.Err` rung -- a shift amount beyond `u64` -- never reaches the
+      -- conclusion (DESIGN.md §3.5 claims nothing on failure).
+      obtain ⟨r1, ho1, hok⟩ := bind_eq_ok_iff.mp hok
       have h2 := Result.ok_injective hok
-      simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at h2
+      simp only [Prod.mk.injEq] at h2
       obtain ⟨rfl, rfl⟩ := h2
+      have hspec := CoreK.nat_op_result_refines hc hn1wf hn2wf CoreK.natOpPinned ho1
       have hg := hrun (β := Option ConLeche.Expr) (fun o => match o with
         | some q => match ConLeche.natOpResult (absName c) q.1 q.2 with
           | some x => do
@@ -397,7 +411,7 @@ theorem reduce_nat_bin_i_refines {mode : env.CheckMode} {fuel : Std.U64}
           | none => pure none
         | none => pure none)
       simp only [Option.map_some] at hg
-      cases o1 with
+      cases r with
       | some x =>
         obtain ⟨hx, hxwf⟩ := hspec.1 x rfl
         refine ⟨lst1, ?_, hrel1, hwf1, ?_⟩
@@ -408,19 +422,10 @@ theorem reduce_nat_bin_i_refines {mode : env.CheckMode} {fuel : Std.U64}
           simp only [Option.some.injEq] at he'
           exact he' ▸ hxwf
       | none =>
-        rcases hspec.2 rfl with hnone | ⟨hshift, hbig⟩
-        · refine ⟨lst1, ?_, hrel1, hwf1, by simp⟩
-          rw [hg]
-          simp only [hnone]
-          rfl
-        -- sorry: `core_k::nat_op_result` is *not* an exact refinement of
-        -- `natOpResult` at `Nat.shiftLeft`/`Nat.shiftRight` with a shift amount
-        -- that does not fit a `u64` (`Refine/CoreKLits.lean`'s `OpSpec`, second
-        -- `none` disjunct): the port answers `none` where con-leche computes a
-        -- literal.  So `reduce_nat_bin_i` declines where the cited body reduces,
-        -- and this one branch of the statement is false as written.  See the
-        -- task report: the deviation is the port's, not the proof's.
-        · sorry
+        refine ⟨lst1, ?_, hrel1, hwf1, by simp⟩
+        rw [hg]
+        simp only [hspec.2 rfl]
+        rfl
 
 /-! ## `reduce_nat_i` — literal acceleration -/
 
@@ -716,6 +721,23 @@ theorem reduce_nat_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at h2
     obtain ⟨rfl, rfl⟩ := h2
     exact ⟨lst, by simp, hrel, hwf, by simp⟩
+
+/-! ## Axiom census (DESIGN.md §5, the P3 gate)
+
+The two entry points of the group, on Lean's own three axioms and nothing else:
+no `sorryAx` (task #61), no Aeneas library axiom, nothing from con-leche. -/
+
+/--
+info: 'ConRon.Refine.Core.unfold_definition_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms unfold_definition_i_refines
+
+/--
+info: 'ConRon.Refine.Core.reduce_nat_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms reduce_nat_i_refines
 
 end ConRon.Refine.Core
 
