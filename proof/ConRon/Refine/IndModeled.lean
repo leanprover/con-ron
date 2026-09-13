@@ -5927,6 +5927,42 @@ theorem checkIotaRulesF_cons {lmode : ConLeche.CheckMode}
   simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
     StateT.pure, Except.pure, h1, h2]
 
+omit hw hcb in
+/-- `checkIotaRulesF` at a cons whose **head** threw (task #67). -/
+theorem checkIotaRulesF_head_err {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name} {tyA : ConLeche.Expr}
+    {mI rP j : Nat} {r : ConLeche.RecRule} {rest : List ConLeche.RecRule}
+    {lst : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+    (h1 : (ConLeche.checkIotaRuleF lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe2 lfe g cvName lps tyA mI rP
+        j r).run lst = .error le) :
+    (ConLeche.checkIotaRulesF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j (r :: rest)).run lst = .error le := by
+  rw [ConLeche.checkIotaRulesF]
+  simp only [StateT.run] at h1
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, h1]
+
+omit hw hcb in
+/-- `checkIotaRulesF` at a cons whose **tail** threw. -/
+theorem checkIotaRulesF_tail_err {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name} {tyA : ConLeche.Expr}
+    {mI rP j : Nat} {r r' : ConLeche.RecRule} {rest : List ConLeche.RecRule}
+    {lst lst1 : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+    (h1 : (ConLeche.checkIotaRuleF lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe2 lfe g cvName lps tyA mI rP
+        j r).run lst = .ok (r', lst1))
+    (h2 : (ConLeche.checkIotaRulesF lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe2 lfe g cvName lps tyA mI rP
+        (j + 1) rest).run lst1 = .error le) :
+    (ConLeche.checkIotaRulesF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j (r :: rest)).run lst = .error le := by
+  rw [ConLeche.checkIotaRulesF]
+  simp only [StateT.run] at h1 h2
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, h1, h2]
+
 /-- `check_iota_rules`' index recursion on `rules.len() - i`. -/
 theorem check_iota_rules_val
     (hres : StructInstall.ConstsResolveFFastRefines)
@@ -5938,29 +5974,39 @@ theorem check_iota_rules_val
     (hcv : NameWF cv_name) (hlps : NamesWF lps) (hty : ExprWF ty_a)
     {rules : alloc.vec.Vec env.RecRule} (hrules : RecRulesWF rules) :
     ∀ n : Nat, ∀ (st st' : cached.state_c.CState) (j : Std.U64)
-      (i : Std.Usize) (out v : alloc.vec.Vec env.RecRule),
+      (i : Std.Usize) (out : alloc.vec.Vec env.RecRule)
+      (o : core.result.Result (alloc.vec.Vec env.RecRule)
+        core_types.CheckError),
       rules.length - i.val ≤ n → StateWF st → RecRulesWF out →
       inductives.modeled.check_iota_rules mode st fe2 fe_self f cv_name lps
-        ty_a m_i r_p j rules i out = ok (.Ok v, st') →
+        ty_a m_i r_p j rules i out = ok (o, st') →
       ∀ lst lfe2 lfe, StateRel st lst → FEnvRel fe2 lfe2 →
         FEnvRel fe_self lfe →
-        ∃ lst',
-          (ConLeche.checkIotaRulesF (absMode mode)
-              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
-              (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
-              j.val ((absRecRules rules).drop i.val)).run lst
-            = .ok ((absRecRules v).drop (absRecRules out).length, lst')
-          ∧ absRecRules v
-              = absRecRules out ++ (absRecRules v).drop (absRecRules out).length
-          ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRulesWF v := by
+        match o with
+        | .Ok v =>
+          ∃ lst',
+            (ConLeche.checkIotaRulesF (absMode mode)
+                (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
+                (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
+                j.val ((absRecRules rules).drop i.val)).run lst
+              = .ok ((absRecRules v).drop (absRecRules out).length, lst')
+            ∧ absRecRules v
+                = absRecRules out ++ (absRecRules v).drop (absRecRules out).length
+            ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRulesWF v
+        | .Err e =>
+          ErrSim e
+            ((ConLeche.checkIotaRulesF (absMode mode)
+                (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
+                (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
+                j.val ((absRecRules rules).drop i.val)).run lst) := by
   intro n
   induction n with
   | zero =>
-    intro st st' j i out v hk hst hout h lst lfe2 lfe hrel hr2 hrS
+    intro st st' j i out o hk hst hout h lst lfe2 lfe hrel hr2 hrS
     rw [inductives.modeled.check_iota_rules,
       if_pos (show i ≥ alloc.vec.Vec.len rules by
         have := alloc.vec.Vec.len_val rules; scalar_tac), Result.ok.injEq,
-      Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+      Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     have hnil : (absRecRules rules).drop i.val = [] := by
       apply List.drop_eq_nil_of_le
@@ -5971,12 +6017,12 @@ theorem check_iota_rules_val
       simp [StateT.run, Pure.pure, StateT.pure, Except.pure]
     · simp
   | succ n ih =>
-    intro st st' j i out v hk hst hout h lst lfe2 lfe hrel hr2 hrS
+    intro st st' j i out o hk hst hout h lst lfe2 lfe hrel hr2 hrS
     rw [inductives.modeled.check_iota_rules] at h
     by_cases hi : i.val ≥ rules.length
     · rw [if_pos (show i ≥ alloc.vec.Vec.len rules by
         have := alloc.vec.Vec.len_val rules; scalar_tac), Result.ok.injEq,
-        Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+        Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       have hnil : (absRecRules rules).drop i.val = [] := by
         apply List.drop_eq_nil_of_le
@@ -5997,8 +6043,20 @@ theorem check_iota_rules_val
       have hrrwf : RecRuleWF rules.val[i.val] := hrules _ (List.getElem_mem hlt)
       obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r0, st1⟩ := p
+      have hcons : (absRecRules rules).drop i.val
+          = absRecRule rules.val[i.val] :: (absRecRules rules).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons (by simpa [absRecRules] using hlt)]
+        simp [absRecRules]
       cases r0 with
-      | Err err => simp at h
+      | Err err =>
+        -- move 1: the rule at the cursor threw
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        rw [hcons]
+        exact ErrSim.trans
+          (check_iota_rule_refines hw hcb hres hspines hf hst hfe2 hfe hcv hlps
+            hty hrrwf hp lst lfe2 lfe hrel hr2 hrS)
+          (fun le hle => checkIotaRulesF_head_err hle)
       | Ok r2 =>
       obtain ⟨lst1, hrun1, hrel1, hwf1, hr2wf⟩ :=
         check_iota_rule_refines hw hcb hres hspines hf hst hfe2 hfe hcv hlps
@@ -6018,9 +6076,17 @@ theorem check_iota_rules_val
         rcases List.mem_append.mp hx with hx1 | hx1
         · exact hout x hx1
         · simp only [List.mem_singleton] at hx1; rw [hx1]; exact hr2wf
-      obtain ⟨lst', hrunT, hvsplit, hrel', hwf', hvwf⟩ :=
-        ih st1 st' j2 i3 out1 v (by omega) hwf1 hout1wf h lst1 lfe2 lfe hrel1
+      have hrec :=
+        ih st1 st' j2 i3 out1 o (by omega) hwf1 hout1wf h lst1 lfe2 lfe hrel1
           hr2 hrS
+      cases o with
+      | Err e =>
+        -- move 1: the tail fold threw
+        rw [hi3v, hj2v] at hrec
+        rw [hcons]
+        exact ErrSim.trans hrec (fun le hle => checkIotaRulesF_tail_err hrun1 hle)
+      | Ok v =>
+      obtain ⟨lst', hrunT, hvsplit, hrel', hwf', hvwf⟩ := hrec
       rw [hi3v, hj2v, hout1v] at hrunT
       rw [hout1v] at hvsplit
       have hlen : ((absRecRules out) ++ [absRecRule r2]).length
@@ -6033,11 +6099,6 @@ theorem check_iota_rules_val
         rw [show (absRecRules out).length
             = (absRecRules out).length from rfl]
         simp
-      have hltm : i.val < (absRecRules rules).length := by
-        simpa [absRecRules] using hlt
-      have hcons : (absRecRules rules).drop i.val
-          = absRecRule rules.val[i.val] :: (absRecRules rules).drop (i.val + 1) := by
-        rw [List.drop_eq_getElem_cons hltm]; simp [absRecRules]
       refine ⟨lst', ?_, ?_, hrel', hwf', hvwf⟩
       · rw [hcons, hdrop]
         exact checkIotaRulesF_cons hrun1 hrunT
@@ -6049,6 +6110,47 @@ theorem check_iota_rules_val
 where con-leche conses on the way out, so the accumulator is carried in
 front. -/
 theorem check_iota_rules_refines
+    {st st' : cached.state_c.CState} {fe2 fe_self : fenv.FEnv}
+    {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
+    {cv_name : name.Name} {lps : alloc.vec.Vec name.Name} {ty_a : expr.Expr}
+    {m_i r_p j : Std.U64} {rules out : alloc.vec.Vec env.RecRule}
+    {i : Std.Usize}
+    {o : core.result.Result (alloc.vec.Vec env.RecRule) core_types.CheckError}
+    (hres : StructInstall.ConstsResolveFFastRefines)
+    (hspines : StructSpinesRefine)
+    (hf : RenamesTo f g) (hst : StateWF st) (hfe2 : FEnvWF fe2)
+    (hfe : FEnvWF fe_self) (hcv : NameWF cv_name) (hlps : NamesWF lps)
+    (hty : ExprWF ty_a) (hrules : RecRulesWF rules) (hout : RecRulesWF out)
+    (h : inductives.modeled.check_iota_rules mode st fe2 fe_self f cv_name lps
+        ty_a m_i r_p j rules i out = ok (o, st')) :
+    ∀ lst lfe2 lfe, StateRel st lst → FEnvRel fe2 lfe2 → FEnvRel fe_self lfe →
+      match o with
+      | .Ok v =>
+        ∃ lst',
+          (ConLeche.checkIotaRulesF (absMode mode)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
+              (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
+              j.val ((absRecRules rules).drop i.val)).run lst
+            = .ok ((absRecRules v).drop (absRecRules out).length, lst')
+          ∧ absRecRules v
+              = absRecRules out ++ (absRecRules v).drop (absRecRules out).length
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRulesWF v
+      | .Err e =>
+        ErrSim e
+          ((ConLeche.checkIotaRulesF (absMode mode)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
+              (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
+              j.val ((absRecRules rules).drop i.val)).run lst) := by
+  intro lst lfe2 lfe hrel hr2 hrS
+  have hkey := check_iota_rules_val hw hcb hres hspines hf hfe2 hfe hcv hlps hty
+    hrules rules.length st st' j i out o (by scalar_tac) hst hout h lst lfe2 lfe
+    hrel hr2 hrS
+  cases o with
+  | Ok v => exact hkey
+  | Err e => exact hkey
+
+/-- `check_iota_rules_refines` at a success, the pre-#67 statement. -/
+theorem check_iota_rules_refines_ok
     {st st' : cached.state_c.CState} {fe2 fe_self : fenv.FEnv}
     {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
     {cv_name : name.Name} {lps : alloc.vec.Vec name.Name} {ty_a : expr.Expr}
@@ -6070,9 +6172,9 @@ theorem check_iota_rules_refines
           = .ok ((absRecRules v).drop (absRecRules out).length, lst')
         ∧ absRecRules v
             = absRecRules out ++ (absRecRules v).drop (absRecRules out).length
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRulesWF v := by
-  exact check_iota_rules_val hw hcb hres hspines hf hfe2 hfe hcv hlps hty hrules
-    rules.length st st' j i out v (by scalar_tac) hst hout h
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRulesWF v :=
+  check_iota_rules_refines hw hcb hres hspines hf hst hfe2 hfe hcv hlps hty
+    hrules hout h
 
 /-! ## The members (`Modeled.lean:373-455`, `DeclCheck.lean:487-505`) -/
 
