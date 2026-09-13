@@ -923,6 +923,65 @@ structure CheckerBaseSpec (mode : env.CheckMode) : Prop where
               lfe (absExpr pty) (absConstantVal cvj) (absNames lps) n_p.val
               n_f.val i.val).run lst = .ok (absExpr r, lst')
           ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r
+  /-- **Task #67's failure halves.**  `kernel/checker_base.rs` has no `Native`
+  site either, so each of the six `CheckM` items above throws only where the
+  cited body throws.  Each of the six fields below is the `.Err` half of the
+  very same `Refine/CheckerBase.lean` lemma — that lemma's full-outcome
+  statement instantiated at `.Err ce`, where its `match` reduces — so
+  `Refine/IndIngredients.lean` discharges it from exactly the term it already
+  uses for the accept half.
+
+  `checker_base::check_constant_val`'s failure half. -/
+  checkConstantValErr :
+    ∀ st fe cv ce st', StateWF st → FEnvWF fe → ConstantValWF cv →
+      checker_base.check_constant_val mode st fe cv = ok (.Err ce, st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ErrSim ce ((ConLeche.checkConstantValF
+          (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
+          (absConstantVal cv)).run lst)
+  /-- `checker_base::check_def_eq_list`'s failure half. -/
+  checkDefEqListErr :
+    ∀ st fe (d : Std.U64) xs ys ce st', StateWF st → FEnvWF fe →
+      ExprsWF xs → ExprsWF ys →
+      checker_base.check_def_eq_list mode st fe d xs ys = ok (.Err ce, st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ErrSim ce ((ConLeche.checkDefEqList (m := ConLeche.Cached.CheckCM)
+          (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe.env d.val
+          (absExprs xs) (absExprs ys)).run lst)
+  /-- `checker_base::check_annot_list`'s failure half. -/
+  checkAnnotListErr :
+    ∀ st fe (d : Std.U64) xs ce st', StateWF st → FEnvWF fe → ExprsWF xs →
+      checker_base.check_annot_list mode st fe d xs = ok (.Err ce, st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ErrSim ce ((ConLeche.checkAnnotList (m := ConLeche.Cached.CheckCM)
+          (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe.env d.val
+          (absExprs xs)).run lst)
+  /-- `checker_base::check_typed_list`'s failure half. -/
+  checkTypedListErr :
+    ∀ st fe (d : Std.U64) xs ts ce st', StateWF st → FEnvWF fe →
+      ExprsWF xs → ExprsWF ts →
+      checker_base.check_typed_list mode st fe d xs ts = ok (.Err ce, st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ErrSim ce ((ConLeche.checkTypedList (m := ConLeche.Cached.CheckCM)
+          (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe.env d.val
+          (absExprs xs) (absExprs ts)).run lst)
+  /-- `checker_base::check_proj_shape`'s failure half. -/
+  checkProjShapeErr :
+    ∀ pty cty (n_p n_f : Std.U64) ce, ExprWF pty → ExprWF cty →
+      checker_base.check_proj_shape pty cty n_p n_f = ok (.Err ce) →
+      ∀ lst : ConLeche.Cached.CState,
+        ErrSim ce ((ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM)
+          (absExpr pty) (absExpr cty) n_p.val n_f.val).run lst)
+  /-- `checker_base::check_proj_rule`'s failure half. -/
+  checkProjRuleErr :
+    ∀ st fe pty cvj lps (n_p n_f i : Std.U64) ce st',
+      StateWF st → FEnvWF fe → ExprWF pty → ConstantValWF cvj → NamesWF lps →
+      checker_base.check_proj_rule mode st fe pty cvj lps n_p n_f i
+          = ok (.Err ce, st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ErrSim ce ((ConLeche.checkProjRuleF
+          (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe (absExpr pty)
+          (absConstantVal cvj) (absNames lps) n_p.val n_f.val i.val).run lst)
 
 
 
