@@ -26,8 +26,14 @@ Two groups: the verified core (`ConLeche/Kernel`, `ConLeche/Cached`) and the
 cherries (`ConLeche/Frontend` without the parser's equivalence proofs,
 `Main.lean`).  Plus the size of the Rust, the generated Lean and the proofs.
 
-Usage: scripts/progress.py [--md | --summary]   (run from anywhere in the repo)
-`--summary` prints only the totals (what scripts/gates.sh shows).
+Usage: scripts/progress.py [--md | --summary] [--shape OLD_RE NEW_RE]
+`--summary` prints only the totals (what scripts/gates.sh shows).  The
+lemma-shape line counts statements in the old vs the new convention of a
+running campaign (default: accept-direction vs full-outcome, task #67); the
+stale count lists lemmas whose Rust item carries a provenance CHANGED marker
+(a con-leche bump that moved or changed the cited code, before anyone
+rebuilds).  A lemma that still builds against the regenerated model is
+current by construction; the gates are the oracle for code drift.
 """
 import os
 import re
@@ -90,10 +96,70 @@ def covered_by(name, lineno, cites):
                for c in cites)
 
 
-def refine_lemmas():
+# Statement-shape classification (campaigns).  A lemma's statement is the
+# text from `theorem` to `:= by`/`:=`/`where`; ACCEPT matches the accept-
+# direction convention of §3.5 (a hypothesis `= ok (.Ok …`), FULL the
+# full-outcome convention of the 2026-09-13 ruling (an `.Err` clause, or one
+# of the restated `Refines*` definitions).  Override with `--shape OLD NEW`.
+SHAPE_OLD = r"= ok \(\.Ok |core\.result\.Result\.Ok"
+SHAPE_NEW = r"\.Err\b|core\.result\.Result\.Err"
+LEMMA_SHAPES = {}  # (module, fn) -> "full" | "accept" | "na" | "other"
+SHAPE_DEFS = {}    # name of a statement-packaging `def`/`structure` -> its shape
+
+
+def shape_defs(old_re, new_re):
+    """Shared statement shapes (`RefinesE`, `Sim`, `KnotSpec`, …): every
+    `def`/`structure`/`abbrev` under Refine/ whose body mentions `= ok`; each
+    gets the shape of its own body, so a lemma stated through it inherits it
+    even though the lemma's text never changes when the def is restated."""
+    d = os.path.join(REPO, REFINE_DIR)
+    for dirpath, _dirs, files in os.walk(d):
+        for fn in files:
+            if not fn.endswith(".lean"):
+                continue
+            text = open(os.path.join(dirpath, fn), encoding="utf-8").read()
+            for m in re.finditer(r"^(?:def|abbrev|structure)\s+([A-Za-z_][A-Za-z0-9_.]*)\b(.*?)(?=^(?:def|abbrev|structure|theorem|lemma|end|namespace|section|/--|/-!)\b)", text, re.M | re.S):
+                body = m.group(2)
+                if "= ok" not in body:
+                    continue
+                name = m.group(1).split(".")[-1]
+                SHAPE_DEFS[name] = classify_text(body, old_re, new_re)
+
+
+def classify_text(stmt, old_re, new_re):
+    if re.search(new_re, stmt):
+        return "full"
+    if re.search(old_re, stmt):
+        return "accept"
+    if re.search(SHAPE_NA, stmt) and not re.search(r"\.Ok\b", stmt):
+        return "na"
+    return "other"
+
+
+SHAPE_NA = r"= ok [a-zA-Z_(\[]"  # a `Result T` with no `CheckError` inside: no error arm to restate
+
+
+def classify(stmt, old_re, new_re):
+    """full: restated in the new convention; accept: still in the old one;
+    n/a: the function cannot return a `CheckError` (a plain `= ok r`), so the
+    campaign does not touch it; other: unclassified.  A statement written
+    through a shared shape definition inherits that definition's shape."""
+    direct = classify_text(stmt, old_re, new_re)
+    if direct in ("full", "accept"):
+        return direct
+    for name, shape in SHAPE_DEFS.items():
+        if re.search(r"\b%s\b" % re.escape(name), stmt):
+            return shape
+    return direct
+
+
+def refine_lemmas(old_re=SHAPE_OLD, new_re=SHAPE_NEW):
     """{(ModuleLower, fn)} for every `theorem <fn>_refines` under Refine/,
     recursively; a file in a subdirectory `Refine/Core/Arms/X.lean` counts
-    for the module `corec` (the knot lives in `cached/core_c.rs`)."""
+    for the module `corec` (the knot lives in `cached/core_c.rs`).  Also
+    fills LEMMA_SHAPES with each lemma's statement shape."""
+    if not SHAPE_DEFS:
+        shape_defs(old_re, new_re)
     out = set()
     d = os.path.join(REPO, REFINE_DIR)
     if not os.path.isdir(d):
@@ -110,8 +176,10 @@ def refine_lemmas():
             else:
                 module = rel.split(os.sep)[0].lower() + fn[:-5].lower().replace("_", "")
             text = open(os.path.join(dirpath, fn), encoding="utf-8").read()
-            for m in re.finditer(r"^\s*theorem\s+([A-Za-z_][A-Za-z0-9_]*)_refines\b", text, re.M):
-                out.add((module, m.group(1)))
+            for m in re.finditer(r"^\s*theorem\s+([A-Za-z_][A-Za-z0-9_]*)_refines\b(.*?)(?::=|\bwhere\b)", text, re.M | re.S):
+                key = (module, m.group(1))
+                out.add(key)
+                LEMMA_SHAPES[key] = classify(m.group(2), old_re, new_re)
     return out
 
 
@@ -162,8 +230,22 @@ def walk(root, ext):
 def main(argv):
     md = "--md" in argv
     summary = "--summary" in argv
-    items, cites, _malformed, _markers = P.collect([os.path.join(REPO, r) for r in RUST_ROOTS])
-    lemmas = refine_lemmas()
+    old_re, new_re = SHAPE_OLD, SHAPE_NEW
+    if "--shape" in argv:
+        i = argv.index("--shape")
+        old_re, new_re = argv[i + 1], argv[i + 2]
+    items, cites, _malformed, markers = P.collect([os.path.join(REPO, r) for r in RUST_ROOTS])
+    lemmas = refine_lemmas(old_re, new_re)
+    # Stale lemmas: the Rust item carries a provenance CHANGED marker (a
+    # con-leche bump moved or changed its source; scripts/provenance.py update).
+    marked = set()
+    for mk in markers:  # (path, lineno, body) from provenance.scan_rust_file
+        f, ln = mk[0], mk[1]
+        for it in sorted((i for i in items if i.file == f), key=lambda i: i.lineno):
+            if it.lineno >= ln:
+                marked.add((rust_module_of(it), it.name()))
+                break
+    stale = sorted(k for k in lemmas if k in marked)
 
     # Citations per con-leche file, and the subset that belongs to a Rust item
     # with its `_refines` lemma.
@@ -248,9 +330,17 @@ def main(argv):
                   if it.kind == "fn" and it.file.startswith(core_dir))
     n_lemmas = len(lemmas)
     pin = (P.current_submodule_commit() or "?")[:8]
+    shapes = {"full": 0, "accept": 0, "na": 0, "other": 0}
+    for k in lemmas:
+        shapes[LEMMA_SHAPES.get(k, "other")] += 1
     if summary:
         print("Rust core %d lines (%d fns) | unverified crates %d | generated Lean %d | proofs %d (%d _refines) | pin %s"
               % (rust, n_items, rust_unverified, gen, proofs, n_lemmas, pin))
+        camp = shapes["full"] + shapes["accept"]
+        print("Campaign (task #67): full-outcome %d / %d in scope (%d%%), accept-direction left %d; no error arm %d, unclassified %d | stale (CHANGED marker) %d"
+              % (shapes["full"], camp, 100 * shapes["full"] // max(camp, 1), shapes["accept"], shapes["na"], shapes["other"], len(stale)))
+        if stale:
+            print("  stale: " + ", ".join("%s.%s" % k for k in stale[:20]) + (" …" if len(stale) > 20 else ""))
     elif md:
         print("### Sizes\n")
         print("| what | lines |\n|---|---:|")
@@ -259,6 +349,8 @@ def main(argv):
         print("| generated Lean (`%s`) | %d |" % (GENERATED_DIR, gen))
         print("| refinement proofs (`%s`) | %d |" % (REFINE_DIR, proofs))
         print("| Rust functions / `_refines` lemmas | %d / %d |" % (n_items, n_lemmas))
+        print("| campaign: full-outcome / accept-direction left / no error arm / unclassified | %d / %d / %d / %d |" % (shapes["full"], shapes["accept"], shapes["na"], shapes["other"]))
+        print("| stale lemmas (provenance CHANGED marker on the Rust item) | %d |" % len(stale))
         print("\ncon-leche pin `%s`.  Core: %d%% translated, %d%% verified." % (
             pin, 100 * core[2] // max(core[1], 1), 100 * core[3] // max(core[1], 1)))
     else:
