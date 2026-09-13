@@ -38,10 +38,11 @@ name arguments carry `NameWF` and the `PinnedName` hypotheses carry the
 `∧ NameWF n` conjunct.
 
 **No arithmetic is re-proved.**  Every operation `nat_op_result` dispatches on
-is `Refine/Nat.lean`'s, used as a black box; the two places the port *declines*
-where con-leche computes (a `shiftLeft`/`shiftRight` amount beyond `u64`) are
-the module note's deviations, so those arms are stated with the port's `none`
-and the lemma says nothing --- see `nat_op_result_refines`'s doc comment.
+is `Refine/Nat.lean`'s, used as a black box.  Task #61 removed the one place
+the port used to answer `none` where con-leche computes (a
+`shiftLeft`/`shiftRight` amount beyond `u64`): the port now *fails* there, and
+§3.5 claims nothing on failure, so `OpSpec` is an exact refinement in both
+directions --- see `nat_op_result_refines`'s doc comment.
 
 Two local helpers, `const_wf_inv` and `lit_wf_inv`, invert `ExprWF` at a `Const`
 and at a `Lit` node (the head name's `NameWF`, the payload's `LiteralWF`); they
@@ -733,20 +734,20 @@ theorem op_step {α : Type} {f : Result name.Name} {ln : ConLeche.Name} {c : nam
     exact Or.inr ⟨hcl, h⟩
 
 /-- **The conclusion of `nat_op_result_refines`**, named because every arm
-proves it.  Two clauses rather than one `Option.map` equation, because of the
-module note's deviation: on a `shiftLeft`/`shiftRight` amount that does not fit
-a `u64` the port answers `none` where con-leche computes, so only the `some`
-direction is an exact refinement, and the `none` direction is stated with that
-one escape spelled out.  Answering `none` where Lean answers `some` can only
-make the Rust *reject*, which is sound for the accept direction (DESIGN.md §1). -/
+proves it.  Two clauses rather than one `Option.map` equation only because the
+`some` arm also carries `ExprWF`; both directions are **exact** (task #61: the
+port's one escape, a `shiftLeft`/`shiftRight` amount beyond `u64`, is now a
+failure, and §3.5 claims nothing on failure). -/
 def OpSpec (c : name.Name) (a b : ron.nat.Nat) (o : Option expr.Expr) : Prop :=
   (∀ e, o = some e →
       ConLeche.natOpResult (absName c) (Nat.toNat a) (Nat.toNat b) = some (absExpr e) ∧
         ExprWF e) ∧
-    (o = none →
-      ConLeche.natOpResult (absName c) (Nat.toNat a) (Nat.toNat b) = none ∨
-        ((absName c = ConLeche.natShiftLeftName ∨ absName c = ConLeche.natShiftRightName) ∧
-          2 ^ 64 ≤ Nat.toNat b))
+    (o = none → ConLeche.natOpResult (absName c) (Nat.toNat a) (Nat.toNat b) = none)
+
+/-- The value `nat_op_result` now answers in (task #61): an `Option` under a
+`CheckError`, so that a shift amount beyond `u64` can *fail* rather than
+decline. -/
+abbrev OpRes := core.result.Result (Option expr.Expr) core_types.CheckError
 
 /-- A literal-producing arm: `expr::lit (expr::literal_nat ·)` of a bignum whose
 value is the cited one. -/
@@ -754,18 +755,20 @@ theorem lit_arm_done {c : name.Name} {a b n : ron.nat.Nat} {o : Option expr.Expr
     (hspec : ConLeche.natOpResult (absName c) (Nat.toNat a) (Nat.toNat b)
       = some (.lit (.natVal x)))
     (hn : Nat.NatWF n) (hx : Nat.toNat n = x)
-    (h : (do let l ← expr.literal_nat n; let e ← expr.lit l; ok (some e)) = ok o) :
+    (h : (do let l ← expr.literal_nat n; let e ← expr.lit l
+             ok (core.result.Result.Ok (some e) : OpRes)) = ok (.Ok o)) :
     OpSpec c a b o := by
   simp only [bind_eq_ok_iff] at h
   obtain ⟨l, hlit, e, hlv, ho⟩ := h
+  have ho' : o = some e := by simpa using (Result.ok_injective ho).symm
   have hlwf : LiteralWF l := by rw [literal_nat_eq hlit]; exact hn
   have habs : absExpr e = ConLeche.Expr.lit (.natVal x) := by
     rw [Expr.lit_refines hlv, literal_nat_eq hlit]
     simp only [absLiteral]
     rw [hx]
-  refine ⟨?_, by rw [← Result.ok_injective ho]; simp⟩
+  refine ⟨?_, by rw [ho']; simp⟩
   intro e' he'
-  rw [← Result.ok_injective ho, Option.some.injEq] at he'
+  rw [ho', Option.some.injEq] at he'
   subst he'
   exact ⟨by rw [hspec, habs], Expr.lit_wf hlwf hlv⟩
 
@@ -776,44 +779,48 @@ theorem const_arm_done {c n : name.Name} {a b : ron.nat.Nat} {o : Option expr.Ex
     (hspec : ConLeche.natOpResult (absName c) (Nat.toNat a) (Nat.toNat b)
       = some (.const ln []))
     (hnabs : absName n = ln) (hnwf : NameWF n)
-    (h : (do let e ← expr.mk_const n (alloc.vec.Vec.new level.Level); ok (some e)) = ok o) :
+    (h : (do let e ← expr.mk_const n (alloc.vec.Vec.new level.Level)
+             ok (core.result.Result.Ok (some e) : OpRes)) = ok (.Ok o)) :
     OpSpec c a b o := by
   simp only [bind_eq_ok_iff] at h
   obtain ⟨e, hmk, ho⟩ := h
-  refine ⟨?_, by rw [← Result.ok_injective ho]; simp⟩
+  have ho' : o = some e := by simpa using (Result.ok_injective ho).symm
+  refine ⟨?_, by rw [ho']; simp⟩
   intro e' he'
-  rw [← Result.ok_injective ho, Option.some.injEq] at he'
+  rw [ho', Option.some.injEq] at he'
   subst he'
   refine ⟨?_, Expr.mk_const_wf hnwf levels_wf_new hmk⟩
   rw [hspec, Expr.mk_const_refines hmk, hnabs, absLevels_new]
 
-/-- An arm that declines: the port answered `none`. -/
+/-- An arm that declines: the port answered `none`, and so does the cited
+`natOpResult`. -/
 theorem none_arm_done {c : name.Name} {a b : ron.nat.Nat} {o : Option expr.Expr}
-    (h : (ok none : Result (Option expr.Expr)) = ok o)
-    (hn : ConLeche.natOpResult (absName c) (Nat.toNat a) (Nat.toNat b) = none ∨
-      ((absName c = ConLeche.natShiftLeftName ∨ absName c = ConLeche.natShiftRightName) ∧
-        2 ^ 64 ≤ Nat.toNat b)) :
+    (h : (ok (.Ok none) : Result OpRes) = ok (.Ok o))
+    (hn : ConLeche.natOpResult (absName c) (Nat.toNat a) (Nat.toNat b) = none) :
     OpSpec c a b o := by
-  have ho : o = none := (Result.ok_injective h).symm
+  have ho : o = none := by
+    have := Result.ok_injective h; simpa using this.symm
   exact ⟨by intro e he; rw [ho] at he; simp at he, fun _ => hn⟩
 
 /-- **`core_k::nat_op_result` refines `natOpResult`** (`Core.lean:628-654`): the
 reduct of op `c` on literal arguments, `pred` ignoring the second slot.
 
-The port's two deviations, both in the direction of declining, are exactly the
-ones `OpSpec` records:
+The port's one remaining deviation is in the direction of declining and is the
+cited `b > 16777216` guard on `pow` (the audit's S2 bound), which is mirrored
+exactly; the port then narrows the exponent to `u64` for `nat::pow`, and the
+narrowing cannot fail under the bound, so that arm too is an *exact*
+refinement.
 
-* the cited `b > 16777216` guard on `pow` (the audit's S2 bound) is mirrored,
-  and the port then narrows the exponent to `u64` for `nat::pow`; the narrowing
-  cannot fail under the bound, so this arm is an *exact* refinement;
-* `shiftLeft`/`shiftRight` take a `u64` shift amount, so an amount beyond `u64`
-  answers `none` where con-leche computes -- the second disjunct of `OpSpec`'s
-  `none` clause, and the only place this lemma is not an exact refinement.
+`shiftLeft`/`shiftRight` take a `u64` shift amount.  Task #61: on an amount
+beyond `u64` the port **fails** (`Err (internal "shift amount beyond u64")`)
+rather than answering `none`; a failure is unconstrained by §3.5, where a
+`none` would have been a different verdict.  The lemma is therefore exact in
+both directions.
 
 Every arithmetic operation is `Refine/Nat.lean`'s, used as a black box. -/
 theorem nat_op_result_refines {c : name.Name} {a b : ron.nat.Nat} {o : Option expr.Expr}
     (hc : NameWF c) (ha : Nat.NatWF a) (hb : Nat.NatWF b) (hpin : NatOpPinned)
-    (h : core_k.nat_op_result c a b = ok o) :
+    (h : core_k.nat_op_result c a b = ok (.Ok o)) :
     OpSpec c a b o := by
   rw [core_k.nat_op_result] at h
   -- pred
@@ -845,7 +852,7 @@ theorem nat_op_result_refines {c : name.Name} {a b : ron.nat.Nat} {o : Option ex
     rw [Nat.blt_refines hlimwf hb hbl] at h
     by_cases hgt : Nat.toNat lim < Nat.toNat b
     · simp only [hgt, decide_true, if_true] at h
-      refine none_arm_done h (Or.inl ?_)
+      refine none_arm_done h ?_
       rw [hc5, natOpResult_pow, if_pos (by omega)]
     · simp only [hgt, decide_false, Bool.false_eq_true, if_false] at h
       obtain ⟨oo, hoo, h⟩ := bind_eq_ok_iff.mp h
@@ -895,14 +902,12 @@ theorem nat_op_result_refines {c : name.Name} {a b : ron.nat.Nat} {o : Option ex
   · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
     exact lit_arm_done (by rw [hc11]; exact natOpResult_xor _ _)
       (Nat.xor_refines hp).2 (Nat.xor_refines hp).1 h
-  -- shiftLeft: the deviation -- an amount beyond `u64` declines
+  -- shiftLeft: task #61 -- an amount beyond `u64` FAILS, so the `none` arm of
+  -- `nat::to_u64` cannot produce an `ok` and there is nothing to prove there
   rcases op_step hpin.shl hc h with ⟨hc12, h⟩ | ⟨hc12, h⟩
   · obtain ⟨oo, hoo, h⟩ := bind_eq_ok_iff.mp h
     cases oo with
-    | none =>
-      rcases Nat.to_u64_refines hb hoo with ⟨x, hx, -⟩ | ⟨-, hge⟩
-      · simp at hx
-      · exact none_arm_done h (Or.inr ⟨Or.inl hc12, hge⟩)
+    | none => exfalso; simp [bind_eq_ok_iff] at h
     | some k =>
       rcases Nat.to_u64_refines hb hoo with ⟨x, hx, hxv⟩ | ⟨hn, -⟩
       · simp only [Option.some.injEq] at hx
@@ -917,10 +922,7 @@ theorem nat_op_result_refines {c : name.Name} {a b : ron.nat.Nat} {o : Option ex
   rcases op_step hpin.shr hc h with ⟨hc13, h⟩ | ⟨hc13, h⟩
   · obtain ⟨oo, hoo, h⟩ := bind_eq_ok_iff.mp h
     cases oo with
-    | none =>
-      rcases Nat.to_u64_refines hb hoo with ⟨x, hx, -⟩ | ⟨-, hge⟩
-      · simp at hx
-      · exact none_arm_done h (Or.inr ⟨Or.inr hc13, hge⟩)
+    | none => exfalso; simp [bind_eq_ok_iff] at h
     | some k =>
       rcases Nat.to_u64_refines hb hoo with ⟨x, hx, hxv⟩ | ⟨hn, -⟩
       · simp only [Option.some.injEq] at hx
@@ -961,8 +963,8 @@ theorem nat_op_result_refines {c : name.Name} {a b : ron.nat.Nat} {o : Option ex
       rw [hc15, natOpResult_ble, if_neg hab]
   -- the fall-through
   exact none_arm_done h
-    (Or.inl (natOpResult_none _ _ hc1 hc2 hc3 hc4 hc5 hc6 hc7 hc8 hc9 hc10 hc11 hc12 hc13
-      hc14 hc15))
+    (natOpResult_none _ _ hc1 hc2 hc3 hc4 hc5 hc6 hc7 hc8 hc9 hc10 hc11 hc12 hc13
+      hc14 hc15)
 
 /-! ## The equation table
 

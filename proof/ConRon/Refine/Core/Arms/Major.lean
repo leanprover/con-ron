@@ -28,16 +28,18 @@ cited lines, and `majorToCtorI_eq_k` / `_eq_eta` / `_eq_and` / `_eq_stuck`
 clause under the dispatch's guards.  Each arm's theorem is then stated against
 its clause, and `major_to_ctor_i_refines` glues them back onto `majorToCtorI`.
 
-## The deviation that is a gap
+## The certificate read, at both modes
 
 `majorToCtorI` runs `constTyAtM fe ctorI rl.ctor ust` **outside** `certAtI` in
-all three arms; the port runs it **inside** `if env::certs(mode)`
-(`core_c.rs:1377`, `:1500`, `:1610`).  `constTyAtM` is a *memoising* action
-(`ConLeche/Cached/StateC.lean:332-349`: on a miss it inserts into
-`CState.constTyAt`), so at `.trusted`, where `certs = false`, con-leche moves
-the state and the port does not: `StateRel st' lst'` is then false.  The three
-arms are therefore proved at `.verified` and left `sorry` at `.trusted`; see
-the note at each `sorry` and the report.
+all three arms (`ConLeche/Cached/CoreC.lean:574`, `:619`, `:653`), and since
+task #61 so does the port (`core_c.rs:1385`, `:1515`, `:1621`): the read is
+unconditional and only the `iotaCertsI` behind it sits under
+`if env::certs(mode)`.  That matters because `constTyAtM` is a *memoising*
+action (`ConLeche/Cached/StateC.lean:332-349`: on a miss it inserts into
+`CState.constTyAt`), so at `.trusted` — where `certs = false` — con-leche
+still moves the state, and the port now moves it too.  Each arm therefore
+applies `const_ty_at_m_refines` *before* splitting on `env::certs`, and the
+two modes differ only in whether `iotaCertsI` runs; nothing here is `sorry`.
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.CoreKPinned
@@ -330,14 +332,14 @@ structure MajorDeps (mode : env.CheckMode) (fuel : Std.U64) : Prop where
     (∀ lst, (ConLeche.Cached.projAppsI lfe (absName t) (absName t) (absLevels us)
         (absExprs targs) (absExpr b) nf.val).run lst = .ok (absExprs res, lst)) ∧
       ExprsWF res
-  /-- `fab_scope_ok_i` (`core_c.rs:1266`) refines the three-conjunct scope
+  /-- `fab_scope_ok_i` (`core_c.rs:1272`) refines the three-conjunct scope
   guard the three rescues run on their fabrication. -/
   fabScopeOk : ∀ {fab major : expr.Expr} {d : Std.U64} {c : Bool}, ExprWF fab →
     ExprWF major → cached.core_c.fab_scope_ok_i fab major d = ok c →
     c = (ConLeche.Cached.ExprC.wscopedB d.val (absExpr fab) &&
       ConLeche.Cached.ExprC.looseBVarsBounded 0 (absExpr fab) &&
       ConLeche.Cached.ExprC.leafGuard (absExpr fab) (absExpr major))
-  /-- `infer_io_whnf_i` (`core_c.rs:1445`) refines
+  /-- `infer_io_whnf_i` (`core_c.rs:1455`) refines
   `r.whnf depth (← r.inferIO depth e)`. -/
   inferIOWhnf : ∀ (d : Std.U64) {e : expr.Expr}, ExprWF e →
     Sim absExpr ExprWF (fun st fe => cached.core_c.infer_io_whnf_i mode fuel st fe d e)
@@ -414,7 +416,7 @@ private theorem lit_to_ctor_if_nat_run {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
   simp
 
 /-- `ConLeche/Cached/CoreC.lean:672` — **`lit_major_to_ctor_i` refines
-`litMajorToCtorI`** (`core_c.rs:1638`): a `Nat` literal one layer
+`litMajorToCtorI`** (`core_c.rs:1656`): a `Nat` literal one layer
 (`litToCtorIfNatI`), a `String` literal to its *reduced* constructor form
 (`String.ofList` is a definition, so the fabrication is `whnf`'d). -/
 theorem lit_major_to_ctor_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
@@ -477,7 +479,7 @@ theorem lit_major_to_ctor_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
         hrel, hwf, hcwf⟩)
 
 /-- `ConLeche/Cached/CoreC.lean:683` — **`proj_lit_to_ctor_i` refines
-`projLitToCtorI`** (`core_c.rs:1665`): a `String` literal to its *reduced*
+`projLitToCtorI`** (`core_c.rs:1683`): a `String` literal to its *reduced*
 constructor form, everything else unchanged. -/
 theorem proj_lit_to_ctor_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
     {e : expr.Expr} (he : ExprWF e) :
@@ -547,7 +549,7 @@ section Tails
 variable {mode : env.CheckMode} {fuel : Std.U64}
 
 /-- `ConLeche/Cached/CoreC.lean:589-596` — **`k_type_and_irrel_i` refines the
-K arm's last two certificates** (`core_c.rs:1410`), shared with the `And` arm:
+K arm's last two certificates** (`core_c.rs:1420`), shared with the `And` arm:
 the fabrication's type against the major's (the official check, run in *both*
 modes) and then proof irrelevance as the soundness certificate — a certificate
 family, so `certAtI mode`. -/
@@ -640,7 +642,7 @@ theorem k_type_and_irrel_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mod
               simp
 
 /-- `ConLeche/Cached/CoreC.lean:628-635` — **`eta_rescue_certs_i` refines the η
-arm's certificate** (`core_c.rs:1537`): the structure-eta certificate against
+arm's certificate** (`core_c.rs:1551`): the structure-eta certificate against
 the major's own reduced type, with the **0-field rescue** behind it (the
 generic certificate excludes reserved names; the fabrication is the bare
 constructor, certified by proof irrelevance's unit-likeness branch). -/
@@ -726,10 +728,10 @@ section Arms
 variable {mode : env.CheckMode} {fuel : Std.U64}
 
 /-- `ConLeche/Cached/CoreC.lean:556-598` — **`major_to_ctor_k_i` refines the
-`rl.k` clause** of `majorToCtorI` (`core_c.rs:1348`). -/
+`rl.k` clause** of `majorToCtorI` (`core_c.rs:1354`). -/
 theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode fuel)
     (d : Std.U64) {rl : env.RecRule} {cvj : env.ConstantVal} (cn_p : Std.U64)
-    {t : name.Name} {major : expr.Expr} (hrl : RecRuleWF rl) (hcvj : ConstantValWF cvj)
+    {t : name.Name} {major : expr.Expr} (hrl : RecRuleWF rl) (_hcvj : ConstantValWF cvj)
     (ht : NameWF t) (hmajor : ExprWF major) :
     Sim absExpr ExprWF
       (fun st fe => cached.core_c.major_to_ctor_k_i mode fuel st fe d rl cvj cn_p t major)
@@ -839,17 +841,8 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
             rw [if_neg hgt] at hok
             have hle : cn_p.val ≤ (absExprs targs).length := by
               rw [hlena, ← hi3v]; scalar_tac
-            obtain ⟨i4, hi4, hok⟩ := bind_eq_ok_iff.mp hok
-            have hi4v : i4.val = cn_p.val := by
-              simp only [lift_eq, Result.ok.injEq] at hi4
-              rw [← hi4]
-              refine ExprOps.u64_cast_usize_val ?_
-              have := targs.property
-              rw [hlena] at hle
-              omega
             obtain ⟨params, hpa, hok⟩ := bind_eq_ok_iff.mp hok
-            obtain ⟨hpabs, hpwf⟩ := ExprOps.take_exprs_refines htawf hpa
-            rw [hi4v] at hpabs
+            obtain ⟨hpabs, hpwf⟩ := CoreK.take_exprs_n_refines htawf hpa
             obtain ⟨nn, hnn, hok⟩ := bind_eq_ok_iff.mp hok
             rw [name_dup_eq] at hnn
             have hnnv : nn = rl.ctor := (Result.ok_injective hnn).symm
@@ -886,30 +879,43 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
               rw [hfabL, ← hb1v]
               simp
             | true =>
-              obtain ⟨b2, hb2, hok⟩ := bind_eq_ok_iff.mp hok
-              have hb2v := Env.certs_refines hb2
-              cases b2 with
-              | false =>
-                -- sorry: at `.trusted` the port skips `const_ty_at_m` while
-                -- `majorToCtorI` runs `constTyAtM` outside `certAtI`; that is a
-                -- *memoising* action, so con-leche's state moves and the port's
-                -- does not and `StateRel st' lst'` fails.  A port bug (the file
-                -- header and the report).
-                sorry
-              | true =>
+              -- `const_ty_at_m` is read *outside* the `certs` gate, exactly where
+              -- `ConLeche/Cached/CoreC.lean:574` has `constTyAtM` (task #61), so
+              -- both modes move the memo table the same way and the mode split
+              -- happens after it.
+              obtain ⟨⟨rcty, st2⟩, hcty, hok⟩ := bind_eq_ok_iff.mp hok
+              cases rcty with
+              | Err e => simp at hok
+              | Ok cty =>
+                obtain ⟨lstc, hrunc, hrelc, hwfc, hctywf⟩ :=
+                  StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf1 hfe
+                    hrl.1 hust hcty lst1 lfe hrel1 hfrel (absRecRule rl).ctor
+                have hruncL : (ConLeche.Cached.constTyAtM lfe (absRecRule rl).ctor
+                    (absRecRule rl).ctor (absLevels v1)).run lst1
+                    = .ok (absExpr cty, lstc) := hrunc
+                try dsimp only at hok
                 obtain ⟨p, hp, hok⟩ := bind_eq_ok_iff.mp hok
-                obtain ⟨⟨rcty, st3⟩, hcty, hp⟩ := bind_eq_ok_iff.mp hp
-                cases rcty with
-                | Err e =>
+                obtain ⟨b2, hb2, hp⟩ := bind_eq_ok_iff.mp hp
+                have hb2v := Env.certs_refines hb2
+                cases b2 with
+                | false =>
                   rw [← Result.ok_injective hp] at hok
-                  simp at hok
-                | Ok cty =>
-                  obtain ⟨lstc, hrunc, hrelc, hwfc, hctywf⟩ :=
-                    StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf1 hfe
-                      hrl.1 hust hcty lst1 lfe hrel1 hfrel (absRecRule rl).ctor
-                  have hruncL : (ConLeche.Cached.constTyAtM lfe (absRecRule rl).ctor
-                      (absRecRule rl).ctor (absLevels v1)).run lst1
-                      = .ok (absExpr cty, lstc) := hrunc
+                  try dsimp only at hok
+                  obtain ⟨lstk, hrunk, hrelk, hwfk, hrwf⟩ :=
+                    (k_type_and_irrel_i_refines hw hd d htmaj hfabwf hmajor).apply
+                      hwfc hfe hok hrelc hfrel
+                  refine ⟨lstk, ?_, hrelk, hwfk, hrwf⟩
+                  simp only [majorToCtorKClause]
+                  rw [run_bind2 hrun1, hhead]
+                  simp only [pure_bind]
+                  rw [if_pos hc1, hargs, if_pos hle, ConLeche.Cached.mkAppNM]
+                  simp only [pure_bind]
+                  rw [hfabL, ← hb1v]
+                  simp only [if_true]
+                  rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
+                  simp only [Bool.false_eq_true, if_false, pure_bind, if_true]
+                  exact hrunk
+                | true =>
                   try dsimp only at hp
                   obtain ⟨⟨rcert, st4⟩, hic, hp⟩ := bind_eq_ok_iff.mp hp
                   rw [← Result.ok_injective hp] at hok
@@ -968,12 +974,12 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
         simp [absExprKind])
 
 /-- `ConLeche/Cached/CoreC.lean:638-666` — **`major_to_ctor_and_i` refines the
-`And` clause** of `majorToCtorI` (`core_c.rs:1571`): `And.rec F h` at a stuck
+`And` clause** of `majorToCtorI` (`core_c.rs:1585`): `And.rec F h` at a stuck
 PROOF `h` fires through the fabrication `And.intro a b (.proj And 0 h)
 (.proj And 1 h)`, certified the K branch's way. -/
 theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode fuel)
     (d : Std.U64) {rl : env.RecRule} {cvj : env.ConstantVal} (cn_p : Std.U64)
-    {t : name.Name} {major : expr.Expr} (hrl : RecRuleWF rl) (hcvj : ConstantValWF cvj)
+    {t : name.Name} {major : expr.Expr} (hrl : RecRuleWF rl) (_hcvj : ConstantValWF cvj)
     (ht : NameWF t) (hmajor : ExprWF major) :
     Sim absExpr ExprWF
       (fun st fe => cached.core_c.major_to_ctor_and_i mode fuel st fe d rl cvj cn_p t major)
@@ -1158,28 +1164,43 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
                 rw [hfabL, ← hb1v]
                 simp
               | true =>
-                obtain ⟨b2, hb2, hok⟩ := bind_eq_ok_iff.mp hok
-                have hb2v := Env.certs_refines hb2
-                cases b2 with
-                | false =>
-                  -- sorry: at `.trusted` the port skips `const_ty_at_m` while
-                  -- `majorToCtorI` runs `constTyAtM` outside `certAtI` — a memoising
-                  -- action, so con-leche's state moves and the port's does not.
-                  sorry
-                | true =>
+                -- `const_ty_at_m` is read *outside* the `certs` gate, exactly where
+                -- `ConLeche/Cached/CoreC.lean:653` has `constTyAtM` (task #61), so
+                -- both modes move the memo table the same way.
+                obtain ⟨⟨rcty, st2⟩, hcty, hok⟩ := bind_eq_ok_iff.mp hok
+                cases rcty with
+                | Err e => simp at hok
+                | Ok cty =>
+                  obtain ⟨lstc, hrunc, hrelc, hwfc, hctywf⟩ :=
+                    StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf1 hfe
+                      hrl.1 hust hcty lst1 lfe hrel1 hfrel (absRecRule rl).ctor
+                  have hruncL : (ConLeche.Cached.constTyAtM lfe (absRecRule rl).ctor
+                      (absRecRule rl).ctor (absLevels v1)).run lst1
+                      = .ok (absExpr cty, lstc) := hrunc
+                  try dsimp only at hok
                   obtain ⟨p, hp, hok⟩ := bind_eq_ok_iff.mp hok
-                  obtain ⟨⟨rcty, st3⟩, hcty, hp⟩ := bind_eq_ok_iff.mp hp
-                  cases rcty with
-                  | Err e =>
+                  obtain ⟨b2, hb2, hp⟩ := bind_eq_ok_iff.mp hp
+                  have hb2v := Env.certs_refines hb2
+                  cases b2 with
+                  | false =>
                     rw [← Result.ok_injective hp] at hok
-                    simp at hok
-                  | Ok cty =>
-                    obtain ⟨lstc, hrunc, hrelc, hwfc, hctywf⟩ :=
-                      StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf1 hfe
-                        hrl.1 hust hcty lst1 lfe hrel1 hfrel (absRecRule rl).ctor
-                    have hruncL : (ConLeche.Cached.constTyAtM lfe (absRecRule rl).ctor
-                        (absRecRule rl).ctor (absLevels v1)).run lst1
-                        = .ok (absExpr cty, lstc) := hrunc
+                    try dsimp only at hok
+                    obtain ⟨lstk, hrunk, hrelk, hwfk, hrwf⟩ :=
+                      (k_type_and_irrel_i_refines hw hd d htmaj hfabwf hmajor).apply
+                        hwfc hfe hok hrelc hfrel
+                    refine ⟨lstk, ?_, hrelk, hwfk, hrwf⟩
+                    simp only [majorToCtorAndClause]
+                    rw [run_bind2 hrun1, hhead]
+                    simp only [pure_bind]
+                    rw [hargs, if_pos hc1]
+                    rw [run_bind (hpjL lst1)]
+                    simp only [ConLeche.Cached.mkAppNM, pure_bind]
+                    rw [hfabL, ← hb1v]
+                    simp only [if_true]
+                    rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb2v]
+                    simp only [Bool.false_eq_true, if_false, pure_bind, if_true]
+                    exact hrunk
+                  | true =>
                     try dsimp only at hp
                     obtain ⟨⟨rcert, st4⟩, hic, hp⟩ := bind_eq_ok_iff.mp hp
                     rw [← Result.ok_injective hp] at hok
@@ -1240,7 +1261,7 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
         simp [absExprKind])
 
 /-- `ConLeche/Cached/CoreC.lean:599-637` — **`major_to_ctor_eta_i` refines the
-`rl.eta` clause** of `majorToCtorI` (`core_c.rs:1467`): for an eta-capable
+`rl.eta` clause** of `majorToCtorI` (`core_c.rs:1477`): for an eta-capable
 structure the constructor of the major's projections is fabricated
 (`projAppsI`) and certified by the structure-eta certificate. -/
 theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
@@ -1430,28 +1451,42 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
                 rw [hfabL, ← hb2v]
                 simp
               | true =>
-                obtain ⟨b3, hb3, hok⟩ := bind_eq_ok_iff.mp hok
-                have hb3v := Env.certs_refines hb3
-                cases b3 with
-                | false =>
-                  -- sorry: at `.trusted` the port skips `const_ty_at_m` while
-                  -- `majorToCtorI` runs `constTyAtM` outside `certAtI` — a memoising
-                  -- action, so con-leche's state moves and the port's does not.
-                  sorry
-                | true =>
+                -- `const_ty_at_m` is read *outside* the `certs` gate, exactly where
+                -- `ConLeche/Cached/CoreC.lean:619` has `constTyAtM` (task #61), so
+                -- both modes move the memo table the same way.
+                obtain ⟨⟨rcty, st2⟩, hcty, hok⟩ := bind_eq_ok_iff.mp hok
+                cases rcty with
+                | Err e => simp at hok
+                | Ok cty =>
+                  obtain ⟨lstc, hrunc, hrelc, hwfc, hctywf⟩ :=
+                    StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf1 hfe
+                      hrl.1 hust hcty lst1 lfe hrel1 hfrel (absIndCaps caps).etaCtor
+                  have hruncL : (ConLeche.Cached.constTyAtM lfe (absIndCaps caps).etaCtor
+                      (absRecRule rl).ctor (absLevels v2)).run lst1
+                      = .ok (absExpr cty, lstc) := hrunc
+                  try dsimp only at hok
                   obtain ⟨p, hp, hok⟩ := bind_eq_ok_iff.mp hok
-                  obtain ⟨⟨rcty, st3⟩, hcty, hp⟩ := bind_eq_ok_iff.mp hp
-                  cases rcty with
-                  | Err e =>
+                  obtain ⟨b3, hb3, hp⟩ := bind_eq_ok_iff.mp hp
+                  have hb3v := Env.certs_refines hb3
+                  cases b3 with
+                  | false =>
                     rw [← Result.ok_injective hp] at hok
-                    simp at hok
-                  | Ok cty =>
-                    obtain ⟨lstc, hrunc, hrelc, hwfc, hctywf⟩ :=
-                      StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf1 hfe
-                        hrl.1 hust hcty lst1 lfe hrel1 hfrel (absIndCaps caps).etaCtor
-                    have hruncL : (ConLeche.Cached.constTyAtM lfe (absIndCaps caps).etaCtor
-                        (absRecRule rl).ctor (absLevels v2)).run lst1
-                        = .ok (absExpr cty, lstc) := hrunc
+                    try dsimp only at hok
+                    obtain ⟨lste, hrune, hrele, hwfe, hrwf⟩ :=
+                      (eta_rescue_certs_i_refines hd d caps hfabwf hmajor htmaj).apply
+                        hwfc hfe hok hrelc hfrel
+                    refine ⟨lste, ?_, hrele, hwfe, hrwf⟩
+                    simp only [majorToCtorEtaClause]
+                    rw [run_bind2 hrun1, hhead]
+                    simp only [pure_bind]
+                    rw [hargs, if_pos hc1, run_bind (hpjL lst1)]
+                    simp only [ConLeche.Cached.mkAppNM, pure_bind]
+                    rw [hfabL, ← hb2v]
+                    simp only [if_true]
+                    rw [run_bind hruncL, ConLeche.Cached.certAtI, ← hb3v]
+                    simp only [Bool.false_eq_true, if_false, pure_bind, if_true]
+                    exact hrune
+                  | true =>
                     try dsimp only at hp
                     obtain ⟨⟨rcert, st4⟩, hic, hp⟩ := bind_eq_ok_iff.mp hp
                     rw [← Result.ok_injective hp] at hok
@@ -1511,7 +1546,7 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
 
 set_option maxRecDepth 8000 in
 /-- `ConLeche/Cached/CoreC.lean:544` — **`major_to_ctor_i` refines
-`majorToCtorI`** (`core_c.rs:1292`): the cheap syntactic dispatch — already a
+`majorToCtorI`** (`core_c.rs:1298`): the cheap syntactic dispatch — already a
 constructor application, a *single* recursor rule whose constructor is stored
 and whose type's `piResult` is headed by a stored inductive — and then the
 three rescue clauses, one per install-time bit.  The cited `_recName` is unused
@@ -1695,5 +1730,35 @@ theorem major_to_ctor_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode f
             simp)
 
 end Arms
+
+/-! ## The census
+
+Every statement in this file is unconditional in the mode: since task #61 put
+`const_ty_at_m` back outside the `certs` gate, the three rescue arms hold at
+`.trusted` as well as at `.verified`, and nothing here depends on `sorryAx`. -/
+
+/-- info: 'ConRon.Refine.Core.lit_major_to_ctor_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lit_major_to_ctor_i_refines
+
+/-- info: 'ConRon.Refine.Core.proj_lit_to_ctor_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms proj_lit_to_ctor_i_refines
+
+/-- info: 'ConRon.Refine.Core.k_type_and_irrel_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms k_type_and_irrel_i_refines
+
+/-- info: 'ConRon.Refine.Core.eta_rescue_certs_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms eta_rescue_certs_i_refines
+
+/-- info: 'ConRon.Refine.Core.major_to_ctor_k_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms major_to_ctor_k_i_refines
+
+/-- info: 'ConRon.Refine.Core.major_to_ctor_eta_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms major_to_ctor_eta_i_refines
+
+/-- info: 'ConRon.Refine.Core.major_to_ctor_and_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms major_to_ctor_and_i_refines
+
+/-- info: 'ConRon.Refine.Core.major_to_ctor_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms major_to_ctor_i_refines
 
 end ConRon.Refine.Core

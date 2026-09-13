@@ -6,9 +6,19 @@
 exactly three clauses changed — the application spine walk is the gated
 `inferSpineIOI` (the ONE io-graded check), and the `∀`/`λ` clauses are the
 *chained* pure io clauses, deliberately not the task-#72 telescope loops.
-Every other node view dispatches to `inferBodyI` itself, which on the Rust
-side is `infer_body_i … true` (task #18's deviation 4: con-leche hands the
-body the record's `ioView`, the Rust carries a `Bool`).
+Every other node view dispatches to `inferBodyI` itself, on the record the
+knot hands this body — the `ioView`.
+
+**Task #61.**  `infer_body_i` used to carry that choice as an `io : Bool`
+(task #18's deviation 4), and the `io = true` instance was *false*: the Rust's
+`.app`/`.forallE`/`.lam` clauses called the full-grade wrappers there.  Those
+three views are overridden right here, so the flag only ever mattered at
+`.proj` — the one delegated view whose clause makes a recursive call, and at
+`ioView` that call is the io slot.  `infer_body_io_i` therefore spells the
+`.proj` clause itself (`infer_proj_i … true`, `InferIODeps.inferProj`), and
+`infer_body_i` is flagless; at the six remaining views `inferBodyI`'s clause
+makes no recursive call at all, so the record is irrelevant there and the six
+`inferBodyI_leaf_*` `rfl`s below say so.
 
 So this file owns four Rust functions:
 
@@ -171,11 +181,29 @@ field the exact statement that helper's own `<fn>_refines` has.
   `(absExprs args).drop i.val`);
 * `ensureSort` — `Arms/Shared.lean`'s `ensure_sort_i_refines`. -/
 structure InferIODeps (mode : env.CheckMode) (fuel : Std.U64) : Prop where
-  inferBody : ∀ (d : Std.U64) (e : expr.Expr) (io : Bool), ExprWF e →
+  /-- `Arms/Infer.lean`'s `infer_body_i_refines` (`core_c.rs:3336`,
+  `CoreC.lean:1293-1389 inferBodyI`).  Task #61: `infer_body_i` carries no
+  grade flag any more, so this is `inferBodyI` at the knot itself; the views
+  it is used for here make **no** recursive call, so the record is
+  irrelevant at each of them (`inferBodyI_leaf` below). -/
+  inferBody : ∀ (d : Std.U64) (e : expr.Expr), ExprWF e →
     Sim absExpr ExprWF
-      (fun st fe => cached.core_c.infer_body_i mode fuel st fe d e io)
+      (fun st fe => cached.core_c.infer_body_i mode fuel st fe d e)
       (fun lfe => ConLeche.Cached.inferBodyI (absMode mode)
-        (knotV mode lfe fuel.val io) lfe d.val (absExpr e))
+        (knot mode lfe fuel.val) lfe d.val (absExpr e))
+  /-- `Arms/Infer.lean`'s `infer_proj_i_refines` at `io = true`
+  (`core_c.rs:3581`, `CoreC.lean:1353-1381`).  Task #61: the `.proj` view is
+  the one view `inferBodyIOI`'s fall-through reaches that *does* make a
+  recursive call, and at `ioView` that call is the io slot, so
+  `infer_body_io_i` spells the clause itself rather than handing it to
+  `infer_body_i`. -/
+  inferProj : ∀ (d : Std.U64) (sn : name.Name) (i : Std.U64) (pe : expr.Expr),
+      NameWF sn → ExprWF pe →
+    Sim absExpr ExprWF
+      (fun st fe => cached.core_c.infer_proj_i mode fuel st fe d sn i pe true)
+      (fun lfe => ConLeche.Cached.inferBodyI (absMode mode)
+        (knot mode lfe fuel.val).ioView lfe d.val
+        (.proj (absName sn) i.val (absExpr pe)))
   inferSpineIO : ∀ (d : Std.U64) (t : expr.Expr)
       (acc args : alloc.vec.Vec expr.Expr) (i : Std.Usize),
       ExprWF t → ExprsWF acc → ExprsWF args →
@@ -189,6 +217,51 @@ structure InferIODeps (mode : env.CheckMode) (fuel : Std.U64) : Prop where
       (fun st fe => cached.core_c.ensure_sort_i mode fuel st fe d e)
       (fun lfe => ConLeche.Cached.ensureSortI (knot mode lfe fuel.val) d.val
         (absExpr e))
+
+/-! ## The views the fall-through delegates
+
+`inferBodyIOI`'s `_` arm is `inferBodyI` on the record it was handed — the
+knot's `ioView`.  At every view it reaches **except `.proj`**, `inferBodyI`'s
+clause makes no recursive call at all, so the clause does not mention the
+record and the io view and the knot itself give the same action.  These six
+`rfl`s are what lets `InferIODeps.inferBody` be stated at the knot (task #61);
+`.proj` is `InferIODeps.inferProj`. -/
+
+private theorem inferBodyI_leaf_bvar (lmode : ConLeche.CheckMode)
+    (r r' : ConLeche.Cached.CoreFnsI) (lfe : ConLeche.FEnv) (d i : Nat) :
+    ConLeche.Cached.inferBodyI lmode r lfe d (.bvar i)
+      = ConLeche.Cached.inferBodyI lmode r' lfe d (.bvar i) := rfl
+
+private theorem inferBodyI_leaf_fvar (lmode : ConLeche.CheckMode)
+    (r r' : ConLeche.Cached.CoreFnsI) (lfe : ConLeche.FEnv) (d idx : Nat)
+    (ty : ConLeche.Expr) :
+    ConLeche.Cached.inferBodyI lmode r lfe d (.fvar idx ty)
+      = ConLeche.Cached.inferBodyI lmode r' lfe d (.fvar idx ty) := rfl
+
+private theorem inferBodyI_leaf_sort (lmode : ConLeche.CheckMode)
+    (r r' : ConLeche.Cached.CoreFnsI) (lfe : ConLeche.FEnv) (d : Nat)
+    (u : ConLeche.Level) :
+    ConLeche.Cached.inferBodyI lmode r lfe d (.sort u)
+      = ConLeche.Cached.inferBodyI lmode r' lfe d (.sort u) := rfl
+
+private theorem inferBodyI_leaf_const (lmode : ConLeche.CheckMode)
+    (r r' : ConLeche.Cached.CoreFnsI) (lfe : ConLeche.FEnv) (d : Nat)
+    (n : ConLeche.Name) (us : List ConLeche.Level) :
+    ConLeche.Cached.inferBodyI lmode r lfe d (.const n us)
+      = ConLeche.Cached.inferBodyI lmode r' lfe d (.const n us) := rfl
+
+private theorem inferBodyI_leaf_lit (lmode : ConLeche.CheckMode)
+    (r r' : ConLeche.Cached.CoreFnsI) (lfe : ConLeche.FEnv) (d : Nat)
+    (l : ConLeche.Literal) :
+    ConLeche.Cached.inferBodyI lmode r lfe d (.lit l)
+      = ConLeche.Cached.inferBodyI lmode r' lfe d (.lit l) := by
+  cases l <;> rfl
+
+private theorem inferBodyI_leaf_letE (lmode : ConLeche.CheckMode)
+    (r r' : ConLeche.Cached.CoreFnsI) (lfe : ConLeche.FEnv) (d : Nat)
+    (ty v b : ConLeche.Expr) :
+    ConLeche.Cached.inferBodyI lmode r lfe d (.letE ty v b)
+      = ConLeche.Cached.inferBodyI lmode r' lfe d (.letE ty v b) := rfl
 
 /-- The io view's `infer` slot is the io slot (the whole of the view). -/
 private theorem ioView_infer (r : ConLeche.Cached.CoreFnsI) :
@@ -521,39 +594,47 @@ theorem infer_body_io_i_refines (hw : Wrappers mode fuel)
   | @bvar i e0 h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.bvar_inv h1
     simp only [arc_deref_eq, bind_tc_ok] at hok
-    have h := (hd.inferBody d _ true (ExprWF.bvar h1)).apply hwf hfe hok hrel hfrel
-    simpa [ConLeche.Cached.inferBodyIOI] using h
+    have h := (hd.inferBody d _ (ExprWF.bvar h1)).apply hwf hfe hok hrel hfrel
+    simpa [ConLeche.Cached.inferBodyIOI,
+      inferBodyI_leaf_bvar _ (knot mode lfe fuel.val) (knot mode lfe fuel.val).ioView] using h
   | @fvar idx tyf e0 htyf h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.fvar_inv h1
     simp only [arc_deref_eq, bind_tc_ok] at hok
-    have h := (hd.inferBody d _ true (ExprWF.fvar htyf h1)).apply hwf hfe hok hrel hfrel
-    simpa [ConLeche.Cached.inferBodyIOI] using h
+    have h := (hd.inferBody d _ (ExprWF.fvar htyf h1)).apply hwf hfe hok hrel hfrel
+    simpa [ConLeche.Cached.inferBodyIOI,
+      inferBodyI_leaf_fvar _ (knot mode lfe fuel.val) (knot mode lfe fuel.val).ioView] using h
   | @sort u e0 hu h1 =>
     obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     simp only [arc_deref_eq, bind_tc_ok] at hok
-    have h := (hd.inferBody d _ true (ExprWF.sort hu h1)).apply hwf hfe hok hrel hfrel
-    simpa [ConLeche.Cached.inferBodyIOI] using h
+    have h := (hd.inferBody d _ (ExprWF.sort hu h1)).apply hwf hfe hok hrel hfrel
+    simpa [ConLeche.Cached.inferBodyIOI,
+      inferBodyI_leaf_sort _ (knot mode lfe fuel.val) (knot mode lfe fuel.val).ioView] using h
   | @mk_const n us e0 hn hus h1 =>
     obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     simp only [arc_deref_eq, bind_tc_ok] at hok
-    have h := (hd.inferBody d _ true (ExprWF.mk_const hn hus h1)).apply hwf hfe hok
+    have h := (hd.inferBody d _ (ExprWF.mk_const hn hus h1)).apply hwf hfe hok
       hrel hfrel
-    simpa [ConLeche.Cached.inferBodyIOI] using h
+    simpa [ConLeche.Cached.inferBodyIOI,
+      inferBodyI_leaf_const _ (knot mode lfe fuel.val) (knot mode lfe fuel.val).ioView] using h
   | @let_e tyl vl bl e0 htyl hvl hbl h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.let_e_inv h1
     simp only [arc_deref_eq, bind_tc_ok] at hok
-    have h := (hd.inferBody d _ true (ExprWF.let_e htyl hvl hbl h1)).apply hwf hfe hok
+    have h := (hd.inferBody d _ (ExprWF.let_e htyl hvl hbl h1)).apply hwf hfe hok
       hrel hfrel
-    simpa [ConLeche.Cached.inferBodyIOI] using h
+    simpa [ConLeche.Cached.inferBodyIOI,
+      inferBodyI_leaf_letE _ (knot mode lfe fuel.val) (knot mode lfe fuel.val).ioView] using h
   | @lit l e0 hl h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.lit_inv h1
     simp only [arc_deref_eq, bind_tc_ok] at hok
-    have h := (hd.inferBody d _ true (ExprWF.lit hl h1)).apply hwf hfe hok hrel hfrel
-    simpa [ConLeche.Cached.inferBodyIOI] using h
+    have h := (hd.inferBody d _ (ExprWF.lit hl h1)).apply hwf hfe hok hrel hfrel
+    simpa [ConLeche.Cached.inferBodyIOI,
+      inferBodyI_leaf_lit _ (knot mode lfe fuel.val) (knot mode lfe fuel.val).ioView] using h
   | @proj sn idx x e0 hsn hx h1 =>
+    -- task #61: the one delegated view with a recursive call, and at `ioView`
+    -- that call is the io slot, so the Rust spells the clause here
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.proj_inv h1
     simp only [arc_deref_eq, bind_tc_ok] at hok
-    have h := (hd.inferBody d _ true (ExprWF.proj hsn hx h1)).apply hwf hfe hok hrel hfrel
+    have h := (hd.inferProj d sn idx x hsn hx).apply hwf hfe hok hrel hfrel
     simpa [ConLeche.Cached.inferBodyIOI] using h
   | @lam tyl bo m e0 htyl hbo hm h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.lam_inv h1

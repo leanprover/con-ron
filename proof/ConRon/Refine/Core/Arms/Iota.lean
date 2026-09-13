@@ -113,7 +113,7 @@ structure IotaDeps (mode : env.CheckMode) (fuel : Std.U64) : Prop where
         (knot mode lfe fuel.val) lfe d.val rn (absRecRules rules)
         (absExpr major))
 
-/-! ## `iota_num_args` — the spine length (`core_c.rs:1763`) -/
+/-! ## `iota_num_args` — the spine length (`core_c.rs:1781`) -/
 
 /-- The index recursion of `iota_num_args`, on the `ExprWF` derivation (the
 generated function is a `partial_fixpoint`, so there is no equation to induct
@@ -189,7 +189,7 @@ private theorem iota_num_args_val {e : expr.Expr} (he : ExprWF e) :
 
 /-- `ConLeche/Cached/CoreC.lean:722-726` — **`iota_num_args` refines
 `iotaNumArgs`**: the length of an application spine, without building its
-argument list (`core_c.rs:1763`). -/
+argument list (`core_c.rs:1781`). -/
 theorem iota_num_args_refines {e : expr.Expr} (he : ExprWF e) (n : Std.U64) :
     SimP (fun r : Std.U64 => r.val) (fun _ => True)
       (cached.core_c.iota_num_args e n)
@@ -198,7 +198,7 @@ theorem iota_num_args_refines {e : expr.Expr} (he : ExprWF e) (n : Std.U64) :
   exact ⟨iota_num_args_val he n r h, trivial⟩
 
 /-! ## `rec_arity_probe` and `iota_arity_ok` — the ι step's arity pre-check
-(`core_c.rs:1775`, `:1792`)
+(`core_c.rs:1793`, `:1792`)
 
 `iotaArityOk` (`ConLeche/Cached/CoreC.lean:728-741`) destructures
 `fe.find? c` inline; the port's probe is that destructuring as its own
@@ -207,7 +207,7 @@ this guard never reads), so its Lean side is the cited `match` itself. -/
 
 /-- `ConLeche/Cached/CoreC.lean:728-741` — **`rec_arity_probe` is
 `iotaArityOk`'s `some (.recInfo cv mI _ _)` destructuring**, at the two numbers
-the guard reads (`core_c.rs:1775`). -/
+the guard reads (`core_c.rs:1793`). -/
 theorem rec_arity_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {c : name.Name} (hfe : FEnvWF fe) (hrel : FEnvRel fe lfe) (hc : NameWF c) :
     SimP (fun o : Option (Std.U64 × Std.Usize) => o.map (fun p => (p.1.val, p.2.val)))
@@ -243,7 +243,7 @@ theorem rec_arity_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
 
 /-- `ConLeche/Cached/CoreC.lean:728-741` — **`iota_arity_ok` refines
 `iotaArityOk`**: the head is a stored recursor applied to exactly `majorIdx+1`
-arguments with the recursor's own number of levels (`core_c.rs:1792`).  This is
+arguments with the recursor's own number of levels (`core_c.rs:1810`).  This is
 what `Arms/App.lean`'s spine loop asks before every ι attempt. -/
 theorem iota_arity_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {e : expr.Expr} (hfe : FEnvWF fe) (hrel : FEnvRel fe lfe) (he : ExprWF e) :
@@ -317,7 +317,7 @@ theorem iota_arity_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     simp only [absExpr_mk, absExprKind, id_eq]
 
 /-! ## `is_ctor_stored_i` — `projCertI`'s stored-constructor test
-(`core_c.rs:2139`) -/
+(`core_c.rs:2157`) -/
 
 /-- `ConLeche/Cached/CoreC.lean:840-848` — **`is_ctor_stored_i` is `projCertI`'s
 `some (.ctorInfo _ _ _)` test**, as its own function (task #23's Aeneas error:
@@ -346,30 +346,20 @@ theorem is_ctor_stored_i_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     rw [id_eq, this]
     cases ci <;> rfl
 
-/-! ## The `u64 → usize` casts
+/-! ## No `u64 → usize` casts
 
-The port writes `rP as usize`, `cnP as usize` and `mI as usize` where
-con-leche indexes a list with a `Nat` (`core_c.rs:1934`, `:1994`, `:2045`,
-`:2057`, `:2085`, `:2113`).  Aeneas models `as usize` as
-`UScalar.cast .Usize`, which **truncates** modulo `2 ^ System.Platform.numBits`
-— the identity on a 64-bit target, where `Usize.max = U64.max`, and a real
-truncation on a 32-bit one.  DESIGN.md §3.4's rule 3 ("`u64 → usize` casts are
-avoided entirely, because their model depends on `System.Platform.numBits`") is
-the rule `core_c.rs` breaks here.
+Where con-leche indexes a list with a `Nat`, the ι cone counts with a `u64`
+and consumes it with `core_k::take_exprs_n` / `core_k::drop_exprs_n`
+(`core_c.rs:512`, `:1951`, `:1962`, `:2007`, `:2077`, `:2079`, `:2111`,
+`:2127`): the cursor walking the `Vec` is a `usize`, the count counting down is
+a `u64`, and nothing crosses between the two widths.  So DESIGN.md §3.4's rule
+3 ("`u64 → usize` casts are avoided entirely, because their model depends on
+`System.Platform.numBits`") holds here, `System.Platform.numBits` never appears,
+and the proofs below face `List.take`/`List.drop` at the `u64`'s `.val`
+directly, through `Refine/CoreKVec.lean`'s `take_exprs_n_*` and
+`drop_exprs_n_*`. -/
 
-`mI` and `cnP` are bounded by an argument list's length at each call site, so a
-*caller* can discharge the bound; `rP` is read straight out of the stored
-`recInfo` and nothing bounds it.  So each theorem below whose statement faces
-an unbounded cast splits on `System.Platform.numBits_eq` and leaves the 32-bit
-arm open; nothing is weakened, and the gap is one named platform fact. -/
-
-/-- On a 64-bit target the `u64 → usize` cast is the identity. -/
-private theorem cast_usize_val_64 (h : System.Platform.numBits = 64)
-    (x : Std.U64) : (Std.UScalar.cast .Usize x : Std.Usize).val = x.val := by
-  rw [Std.UScalar.cast_val_eq, Std.UScalarTy.Usize_numBits_eq, h]
-  exact Nat.mod_eq_of_lt (by have := x.hBounds; simpa [Std.U64.size] using this)
-
-/-! ## `params_as_levels` — `cvj.levelParams.map Level.param` (`core_c.rs:1751`)
+/-! ## `params_as_levels` — `cvj.levelParams.map Level.param` (`core_c.rs:1769`)
 
 `iotaRecI`'s canonical (`.plain`) comparand arm is
 `substLevelTreesM cv.levelParams us (cvj.levelParams.map Level.param)`; §3.4
@@ -431,7 +421,7 @@ private theorem params_as_levels_val {ps : alloc.vec.Vec name.Name}
 
 /-- `ConLeche/Cached/CoreC.lean:743-838` — **`params_as_levels` is
 `cvj.levelParams.map Level.param`** at the accumulator and cursor
-(`core_c.rs:1751`). -/
+(`core_c.rs:1769`). -/
 theorem params_as_levels_refines {ps : alloc.vec.Vec name.Name} {i : Std.Usize}
     {out : alloc.vec.Vec level.Level} (hps : NamesWF ps) (hout : LevelsWF out) :
     SimP absLevels LevelsWF (cached.core_c.params_as_levels ps i out)
@@ -442,7 +432,7 @@ theorem params_as_levels_refines {ps : alloc.vec.Vec name.Name} {i : Std.Usize}
   rw [hv, absNames, List.map_drop]
   simp [Function.comp_def]
 
-/-! ## `pin_args_i` — the nested-rule pin instantiations (`core_c.rs:1727`)
+/-! ## `pin_args_i` — the nested-rule pin instantiations (`core_c.rs:1745`)
 
 `pinArgsI` (`ConLeche/Cached/CoreC.lean:710-720`) recurses on a `List Expr`
 while the port walks the `Vec` by index into an accumulator, so the
@@ -531,7 +521,7 @@ private theorem pin_args_i_val {lps : alloc.vec.Vec name.Name}
         List.map_nil, List.append_assoc, List.cons_append, List.nil_append]
 
 /-- `ConLeche/Cached/CoreC.lean:710-720` — **`pin_args_i` refines `pinArgsI`**
-at the accumulator and cursor (`core_c.rs:1727`). -/
+at the accumulator and cursor (`core_c.rs:1745`). -/
 theorem pin_args_i_refines {lps : alloc.vec.Vec name.Name}
     {us : alloc.vec.Vec level.Level} {args pins out : alloc.vec.Vec expr.Expr}
     {t : Std.U64} {i : Std.Usize} (hlps : NamesWF lps) (hus : LevelsWF us)
@@ -553,7 +543,7 @@ theorem pin_args_i_refines {lps : alloc.vec.Vec name.Name}
   simp [absExprs, Function.comp_def]
 
 /-! ## `iota_cmp_levels_i` and `iota_cmp_args_i` — the firing comparands
-(`core_c.rs:1905`, `:1924`)
+(`core_c.rs:1923`, `:1924`)
 
 `iotaRecI`'s `let cmpLvls ← match rl.fire with …` and
 `let cmpArgs ← match rl.fire with …`, each as its own function.  Both are
@@ -578,7 +568,7 @@ private theorem subst_level_trees_val {ks : alloc.vec.Vec name.Name}
 
 /-- `ConLeche/Cached/CoreC.lean:743-838` — **`iota_cmp_levels_i` is
 `iotaRecI`'s `cmpLvls`**: the stored level trees for a certified nested rule,
-the constructor's level parameters for a canonical one (`core_c.rs:1905`). -/
+the constructor's level parameters for a canonical one (`core_c.rs:1923`). -/
 theorem iota_cmp_levels_i_refines {rl : env.RecRule}
     {lps cvj_lps : alloc.vec.Vec name.Name} {us : alloc.vec.Vec level.Level}
     (hrl : RecRuleWF rl) (hlps : NamesWF lps) (hus : LevelsWF us)
@@ -628,7 +618,7 @@ theorem iota_cmp_levels_i_refines {rl : env.RecRule}
 
 /-- `ConLeche/Cached/CoreC.lean:743-838` — **`iota_cmp_args_i` is `iotaRecI`'s
 `cmpArgs`**: the `pinArgsI` instantiations for a nested rule, the recursor's
-leading arguments for a canonical one (`core_c.rs:1924`). -/
+leading arguments for a canonical one (`core_c.rs:1942`). -/
 theorem iota_cmp_args_i_refines {rl : env.RecRule} {lps : alloc.vec.Vec name.Name}
     {us : alloc.vec.Vec level.Level} {args : alloc.vec.Vec expr.Expr}
     {r_p : Std.U64} (hrl : RecRuleWF rl) (hlps : NamesWF lps)
@@ -645,21 +635,14 @@ theorem iota_cmp_args_i_refines {rl : env.RecRule} {lps : alloc.vec.Vec name.Nam
   intro r h
   rw [cached.core_c.iota_cmp_args_i] at h
   obtain ⟨-, hfw, -⟩ := hrl
-  -- sorry: on a 32-bit target `rP as usize` / `cnP as usize`
-  -- (`core_c.rs:1934`, `:1944`) truncate, and the port's `take_exprs` then
-  -- peels a different prefix from con-leche's `args.take rP`.  Nothing in the
-  -- ι cone bounds `rP`; see the module note above.
-  rcases System.Platform.numBits_eq with h32 | h64
-  · sorry
   cases hfire : rl.fire with
   | Nested lvls pins =>
     rw [hfire] at h
     obtain ⟨-, hpinsw⟩ : LevelsWF lvls ∧ ExprsWF pins := by
       rw [hfire] at hfw; exact hfw
-    simp only [lift_eq, bind_eq_ok_iff] at h
-
-    obtain ⟨i0, hi0, pargs, hpargs, t1, ht1, h⟩ := h
-    have hpargsv := ExprOps.take_exprs_val hpargs
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨pargs, hpargs, t1, ht1, h⟩ := h
+    have hpargsv := CoreK.take_exprs_n_val hpargs
     have hpargsw : ExprsWF pargs := by
       intro x hx; rw [hpargsv] at hx; exact hargs x (List.mem_of_mem_take hx)
     have ht1v := ExprOps.sub_nat_val ht1
@@ -671,40 +654,33 @@ theorem iota_cmp_args_i_refines {rl : env.RecRule} {lps : alloc.vec.Vec name.Nam
     simp only [absRecRule, hfire, absFire]
     simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
       StateT.pure, Except.pure, pinArgsI_run]
-    rw [hv, absExprs, absExprs, hpargsv, ht1v, ← Result.ok_injective hi0,
-      cast_usize_val_64 h64]
+    rw [hv, absExprs, absExprs, hpargsv, ht1v]
     simp [absExprs, alloc.vec.Vec.new, List.map_take]
   | Inert =>
     rw [hfire] at h
-    simp only [lift_eq, bind_eq_ok_iff] at h
-    obtain ⟨i1, hi1, h⟩ := h
     refine ⟨?_, ?_⟩
     · simp only [absRecRule, hfire, absFire]
-      have hrv := ExprOps.take_exprs_val h
-      rw [absExprs, hrv, ← Result.ok_injective hi1, cast_usize_val_64 h64]
+      rw [absExprs, CoreK.take_exprs_n_val h]
       simp [absExprs, List.map_take]
     · intro x hx
-      rw [ExprOps.take_exprs_val h] at hx
+      rw [CoreK.take_exprs_n_val h] at hx
       exact hargs x (List.mem_of_mem_take hx)
   | Plain =>
     rw [hfire] at h
-    simp only [lift_eq, bind_eq_ok_iff] at h
-    obtain ⟨i1, hi1, h⟩ := h
     refine ⟨?_, ?_⟩
     · simp only [absRecRule, hfire, absFire]
-      have hrv := ExprOps.take_exprs_val h
-      rw [absExprs, hrv, ← Result.ok_injective hi1, cast_usize_val_64 h64]
+      rw [absExprs, CoreK.take_exprs_n_val h]
       simp [absExprs, List.map_take]
     · intro x hx
-      rw [ExprOps.take_exprs_val h] at hx
+      rw [CoreK.take_exprs_n_val h] at hx
       exact hargs x (List.mem_of_mem_take hx)
 
 /-! ## `iota_params_keep_i` — the parameter comparison's `keep`
-(`core_c.rs:2013`) -/
+(`core_c.rs:2031`) -/
 
 /-- `ConLeche/Cached/CoreC.lean:743-838` — **`iota_params_keep_i` is the `keep`
 argument of `iotaRecI`'s `certUnlessI`**: a nested rule, or a
-projection-function recursor (`core_c.rs:2013`). -/
+projection-function recursor (`core_c.rs:2031`). -/
 theorem iota_params_keep_i_refines {rl : env.RecRule} {c : name.Name}
     (_hrl : RecRuleWF rl) (hc : NameWF c) :
     SimP id (fun _ => True) (cached.core_c.iota_params_keep_i rl c)
@@ -775,26 +751,18 @@ theorem iota_index_ok_i_refines (hd : IotaDeps mode fuel)
       have hresw : ExprWF residual := how residual rfl
       obtain ⟨sargs, hsargs, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨hsav, hsaw⟩ := ExprOps.get_app_args_refines hresw hsargs
-      simp only [lift_eq, bind_eq_ok_iff] at hok
-      obtain ⟨i0, hi0, rest, hrest, hok⟩ := hok
-      obtain ⟨hrestv, hrestw⟩ := CoreK.drop_exprs_refines hsaw hrest
+      obtain ⟨rest, hrest, hok⟩ := bind_eq_ok_iff.mp hok
+      obtain ⟨hrestv, hrestw⟩ := CoreK.drop_exprs_n_refines hsaw hrest
       obtain ⟨lst', hrun, hrel', hwf', -⟩ :=
         (hd.defEqList d rest idx hrestw hidx).apply hwf hfe hok hrel hfrel
       refine ⟨lst', ?_, hrel', hwf', trivial⟩
-      -- sorry: on a 32-bit target `cnP as usize` (`core_c.rs:512`) truncates,
-      -- so the port's `drop_exprs` drops a different prefix from con-leche's
-      -- `resArgs.drop cnP`; see the module note on the `u64 → usize` casts.
-      rcases System.Platform.numBits_eq with h32 | h64
-      · sorry
-      have hi0v : i0.val = cn_p.val := by
-        rw [← Result.ok_injective hi0]; exact cast_usize_val_64 h64 cn_p
       simp only [Option.map_some]
       simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
         StateT.pure, Except.pure]
-      rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← hsav, ← hi0v, ← hrestv]
+      rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← hsav, ← hrestv]
       simpa using hrun
 
-/-! ## `iota_rec_family_i` — the ONE certificate family (`core_c.rs:2075`)
+/-! ## `iota_rec_family_i` — the ONE certificate family (`core_c.rs:2093`)
 
 `iotaRecI`'s `certAtI mode (do let tyRec ← constTyAtM …; …)` argument: the
 recursor's telescope against the non-major prefix plus the prepared major, the
@@ -803,7 +771,7 @@ comparison.  Both telescope runs are licensed off `mode.betaGate`, the same
 function the β site reads. -/
 
 /-- `ConLeche/Cached/CoreC.lean:743-838` — **`iota_rec_family_i` is
-`iotaRecI`'s certificate family** (`core_c.rs:2075`). -/
+`iotaRecI`'s certificate family** (`core_c.rs:2093`). -/
 theorem iota_rec_family_i_refines (hd : IotaDeps mode fuel)
     (d : Std.U64) {c cj : name.Name} (m_i r_p : Std.U64) {rl : env.RecRule}
     {us usj : alloc.vec.Vec level.Level} {args margs : alloc.vec.Vec expr.Expr}
@@ -829,27 +797,12 @@ theorem iota_rec_family_i_refines (hd : IotaDeps mode fuel)
           else pure false
         else pure false) := by
   intro fe lfe hfe hfrel st r st' hwf hok lst hrel
-  -- sorry: on a 32-bit target `mI as usize` (`core_c.rs:2084`) and
-  -- `rP as usize` (`core_c.rs:2113`) truncate, so the port's `take_exprs` /
-  -- `drop_exprs` peel different prefixes from con-leche's `args.take mI` and
-  -- `(args.take mI).drop rP`; see the module note on the `u64 → usize` casts.
-  rcases System.Platform.numBits_eq with h32 | h64
-  · sorry
   simp only []
   unfold cached.core_c.iota_rec_family_i at hok
   obtain ⟨lic, hlic, hok⟩ := bind_eq_ok_iff.mp hok
   have hlicv := Env.beta_gate_refines hlic
-  rw [lift_eq] at hok
-  obtain ⟨i0, hi0, hok⟩ := bind_eq_ok_iff.mp hok
-  have hi0v : i0.val = m_i.val := by
-    rw [← Result.ok_injective hi0]; exact cast_usize_val_64 h64 m_i
   obtain ⟨pre, hpre, hok⟩ := bind_eq_ok_iff.mp hok
-  have hprev : absExprs pre = (absExprs args).take m_i.val := by
-    rw [absExprs, ExprOps.take_exprs_val hpre, hi0v, absExprs, List.map_take]
-  have hprew : ExprsWF pre := by
-    intro x hx
-    rw [ExprOps.take_exprs_val hpre] at hx
-    exact hargs x (List.mem_of_mem_take hx)
+  obtain ⟨hprev, hprew⟩ := CoreK.take_exprs_n_refines hargs hpre
   obtain ⟨p1, hp1, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨rr, st1⟩ := p1
   cases rr with
@@ -894,13 +847,9 @@ theorem iota_rec_family_i_refines (hd : IotaDeps mode fuel)
     rw [hlicv] at hrun4
     cases b1 with
     | true =>
-      rw [lift_eq] at hok
-      obtain ⟨i1, hi1, hok⟩ := bind_eq_ok_iff.mp hok
-      have hi1v : i1.val = r_p.val := by
-        rw [← Result.ok_injective hi1]; exact cast_usize_val_64 h64 r_p
       obtain ⟨idx, hidx, hok⟩ := bind_eq_ok_iff.mp hok
-      obtain ⟨hidxv, hidxw⟩ := CoreK.drop_exprs_refines hprew hidx
-      rw [hprev, hi1v] at hidxv
+      obtain ⟨hidxv, hidxw⟩ := CoreK.drop_exprs_n_refines hprew hidx
+      rw [hprev] at hidxv
       obtain ⟨lst5, hrun5, hrel5, hwf5, -⟩ :=
         (iota_index_ok_i_refines hd d m_i r_p rl.ctor_params hctyw hmargs
           hidxw).apply hwf4 hfe hok hrel4 hfrel
@@ -941,7 +890,7 @@ theorem iota_rec_family_i_refines (hd : IotaDeps mode fuel)
     simp
 
 /-! ## `iota_rec_telescopes_i` — the family under `certAtI`, then the reduct
-(`core_c.rs:2029`)
+(`core_c.rs:2047`)
 
 `iotaRecI`'s `if ← certAtI mode (…) then do let rhs ← ruleRhsAtM …; let red ←
 mkAppNM …; pure (some red) else pure none`. -/
@@ -952,18 +901,15 @@ private theorem telescopes_tail {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {c cj : name.Name} (r_p : Std.U64) {rl : env.RecRule}
     {us : alloc.vec.Vec level.Level} {args margs : alloc.vec.Vec expr.Expr}
     (hc : NameWF c) (hcj : NameWF cj) (hus : LevelsWF us) (hargs : ExprsWF args)
-    (hmargs : ExprsWF margs) (h64 : System.Platform.numBits = 64)
-    {stA : cached.state_c.CState} {lstA : ConLeche.Cached.CState}
+    (hmargs : ExprsWF margs) {stA : cached.state_c.CState} {lstA : ConLeche.Cached.CState}
     {r : Option expr.Expr} {st' : cached.state_c.CState}
     (hrelA : StateRel stA lstA) (hwfA : StateWF stA)
     (hok : (do
         let (r0, st2) ← cached.state_c.rule_rhs_at_m stA fe c cj us
         match r0 with
         | .Ok rhs =>
-          let i ← lift (Std.UScalar.cast .Usize rl.ctor_params)
-          let fields ← kernel.core_k.drop_exprs margs i
-          let i1 ← lift (Std.UScalar.cast .Usize r_p)
-          let v ← kernel.expr_ops.take_exprs args i1
+          let fields ← kernel.core_k.drop_exprs_n margs rl.ctor_params
+          let v ← kernel.core_k.take_exprs_n args r_p
           let spine ← kernel.core_k.append_exprs v fields
           let e ← cached.state_c.mk_app_n_m rhs spine
           ok (core.result.Result.Ok (some e), st2)
@@ -985,24 +931,10 @@ private theorem telescopes_tail {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
   obtain ⟨lst2, hrunR, hrel2, hwf2, hrhsw⟩ :=
     StateC.rule_rhs_at_m_refines StateC.instLevelParamsRefines hwfA hfe hc hcj hus
       hp lstA lfe hrelA hfrel (absName c) (absName cj)
-  rw [lift_eq] at hok
-  obtain ⟨i0, hi0, hok⟩ := bind_eq_ok_iff.mp hok
-  have hi0v : i0.val = rl.ctor_params.val := by
-    rw [← Result.ok_injective hi0]; exact cast_usize_val_64 h64 _
   obtain ⟨fields, hfields, hok⟩ := bind_eq_ok_iff.mp hok
-  obtain ⟨hfv, hfw⟩ := CoreK.drop_exprs_refines hmargs hfields
-  rw [hi0v] at hfv
-  rw [lift_eq] at hok
-  obtain ⟨i1, hi1, hok⟩ := bind_eq_ok_iff.mp hok
-  have hi1v : i1.val = r_p.val := by
-    rw [← Result.ok_injective hi1]; exact cast_usize_val_64 h64 _
+  obtain ⟨hfv, hfw⟩ := CoreK.drop_exprs_n_refines hmargs hfields
   obtain ⟨v, hv, hok⟩ := bind_eq_ok_iff.mp hok
-  have hvv : absExprs v = (absExprs args).take r_p.val := by
-    rw [absExprs, ExprOps.take_exprs_val hv, hi1v, absExprs, List.map_take]
-  have hvw : ExprsWF v := by
-    intro x hx
-    rw [ExprOps.take_exprs_val hv] at hx
-    exact hargs x (List.mem_of_mem_take hx)
+  obtain ⟨hvv, hvw⟩ := CoreK.take_exprs_n_refines hargs hv
   obtain ⟨spine, hspine, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨hsv, hsw⟩ := CoreK.append_exprs_refines hvw hfw hspine
   rw [hvv, hfv] at hsv
@@ -1026,7 +958,7 @@ private theorem telescopes_tail {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     rw [← ht]; exact hew
 
 /-- `ConLeche/Cached/CoreC.lean:743-838` — **`iota_rec_telescopes_i` is
-`iotaRecI`'s `certAtI` block and the reduct it licenses** (`core_c.rs:2029`). -/
+`iotaRecI`'s `certAtI` block and the reduct it licenses** (`core_c.rs:2047`). -/
 theorem iota_rec_telescopes_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
     {c cj : name.Name} (m_i r_p : Std.U64) {rl : env.RecRule}
     {us usj : alloc.vec.Vec level.Level} {args margs : alloc.vec.Vec expr.Expr}
@@ -1060,11 +992,6 @@ theorem iota_rec_telescopes_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
           pure (some red)
         else pure none) := by
   intro fe lfe hfe hfrel st r st' hwf hok lst hrel
-  -- sorry: on a 32-bit target `cnP as usize` (`core_c.rs:2056`) and
-  -- `rP as usize` (`core_c.rs:2058`) truncate; see the module note on the
-  -- `u64 → usize` casts.
-  rcases System.Platform.numBits_eq with h32 | h64
-  · sorry
   simp only [ConLeche.Cached.certAtI]
   unfold cached.core_c.iota_rec_telescopes_i at hok
   obtain ⟨b, hb, hok⟩ := bind_eq_ok_iff.mp hok
@@ -1091,7 +1018,7 @@ theorem iota_rec_telescopes_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
     cases fb with
     | true =>
       obtain ⟨lst', hrunT, hrel', hwf', hrw⟩ :=
-        telescopes_tail hfe hfrel r_p hc hcj hus hargs hmargs h64 hrel1 hwf1 hok
+        telescopes_tail hfe hfrel r_p hc hcj hus hargs hmargs hrel1 hwf1 hok
       refine ⟨lst', ?_, hrel', hwf', hrw⟩
       simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
         StateT.pure, Except.pure, if_true, ↓reduceIte] at hrunF hrunT ⊢
@@ -1120,20 +1047,20 @@ theorem iota_rec_telescopes_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
     obtain ⟨hs1, hf1⟩ := hpe
     rw [← hs1, ← hf1] at hok
     obtain ⟨lst', hrunT, hrel', hwf', hrw⟩ :=
-      telescopes_tail hfe hfrel r_p hc hcj hus hargs hmargs h64 hrel hwf hok
+      telescopes_tail hfe hfrel r_p hc hcj hus hargs hmargs hrel hwf hok
     refine ⟨lst', ?_, hrel', hwf', hrw⟩
     simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
       StateT.pure, Except.pure] at hrunT ⊢
     simp only [Bool.false_eq_true, ↓reduceIte]
     exact hrunT
 
-/-! ## `prepare_major_i` — the major premise's preparation (`core_c.rs:1693`) -/
+/-! ## `prepare_major_i` — the major premise's preparation (`core_c.rs:1711`) -/
 
 /-- `ConLeche/Cached/CoreC.lean:698-708` — **`prepare_major_i` refines
 `prepareMajorI`**: at a K-flagged recursor the K rescue runs on the *raw*
 major and only then is the major head-normalized and its literal converted;
 elsewhere the major is head-normalized first, its literal converted, and the
-structure-eta rescue tried on the reduct (`core_c.rs:1693`).  The cited
+structure-eta rescue tried on the reduct (`core_c.rs:1711`).  The cited
 `recName` argument is unused in `majorToCtorI` and dropped by the port, so it
 is quantified. -/
 theorem prepare_major_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
@@ -1193,7 +1120,7 @@ theorem prepare_major_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fu
     rw [run_bind hrun1, run_bind hrun2]
     exact hrun3
 
-/-! ## `iota_rec_checks_i` — the firing cascade (`core_c.rs:1956`)
+/-! ## `iota_rec_checks_i` — the firing cascade (`core_c.rs:1974`)
 
 `iotaRecI`'s two comparand `let`s, the level comparison and the parameter
 comparison (`certUnlessI mode keep`), and the telescopes block they gate. -/
@@ -1219,7 +1146,7 @@ private theorem run_pure {α : Type} (a : α) (lst : ConLeche.Cached.CState) :
 /-- `ConLeche/Cached/CoreC.lean:743-838` — **`iota_rec_checks_i` is `iotaRecI`'s
 firing cascade**: the constructor's levels against the rule's comparands, then
 the parameter comparison under `certUnlessI mode keep`, then the telescopes
-block (`core_c.rs:1956`). -/
+block (`core_c.rs:1974`). -/
 theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
     {c cj : name.Name} {cv cvj : env.ConstantVal} (m_i r_p : Std.U64)
     {rl : env.RecRule} {us usj : alloc.vec.Vec level.Level}
@@ -1282,11 +1209,6 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
           else pure none
         else pure none) := by
   intro fe lfe hfe hfrel st r st' hwf hok lst hrel
-  -- sorry: on a 32-bit target `cnP as usize` (`core_c.rs:1994`) truncates, so
-  -- the port's `take_exprs` peels a different prefix from con-leche's
-  -- `margs.take rl.ctorParams`; see the module note on the `u64 → usize` casts.
-  rcases System.Platform.numBits_eq with h32 | h64
-  · sorry
   obtain ⟨-, hcvlps, -⟩ := hcv
   obtain ⟨-, hcvjlps, -⟩ := hcvj
   unfold cached.core_c.iota_rec_checks_i at hok
@@ -1362,18 +1284,8 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
           cases b2 with
           | true =>
             simp only [Bool.true_or, ↓reduceIte]
-            rw [lift_eq] at hp1
-            obtain ⟨i0, hi0, hp1⟩ := bind_eq_ok_iff.mp hp1
-            have hi0v : i0.val = rl.ctor_params.val := by
-              rw [← Result.ok_injective hi0]; exact cast_usize_val_64 h64 _
             obtain ⟨params, hparams, hp1⟩ := bind_eq_ok_iff.mp hp1
-            have hpv : absExprs params = (absExprs margs).take rl.ctor_params.val := by
-              rw [absExprs, ExprOps.take_exprs_val hparams, hi0v, absExprs,
-                List.map_take]
-            have hpw : ExprsWF params := by
-              intro x hx
-              rw [ExprOps.take_exprs_val hparams] at hx
-              exact hmargs x (List.mem_of_mem_take hx)
+            obtain ⟨hpv, hpw⟩ := CoreK.take_exprs_n_refines hmargs hparams
             obtain ⟨p2, hp2, hp1⟩ := bind_eq_ok_iff.mp hp1
             obtain ⟨pc, st3⟩ := p2
             have he : (ok (st3, rl, pc) :
@@ -1392,19 +1304,8 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
             simp only [Bool.false_or]
             cases keep with
             | true =>
-              rw [lift_eq] at hp1
-              obtain ⟨i0, hi0, hp1⟩ := bind_eq_ok_iff.mp hp1
-              have hi0v : i0.val = rl.ctor_params.val := by
-                rw [← Result.ok_injective hi0]; exact cast_usize_val_64 h64 _
               obtain ⟨params, hparams, hp1⟩ := bind_eq_ok_iff.mp hp1
-              have hpv : absExprs params
-                  = (absExprs margs).take rl.ctor_params.val := by
-                rw [absExprs, ExprOps.take_exprs_val hparams, hi0v, absExprs,
-                  List.map_take]
-              have hpw : ExprsWF params := by
-                intro x hx
-                rw [ExprOps.take_exprs_val hparams] at hx
-                exact hmargs x (List.mem_of_mem_take hx)
+              obtain ⟨hpv, hpw⟩ := CoreK.take_exprs_n_refines hmargs hparams
               obtain ⟨p2, hp2, hp1⟩ := bind_eq_ok_iff.mp hp1
               obtain ⟨pc, st3⟩ := p2
               have he : (ok (st3, rl, pc) :
@@ -1506,18 +1407,8 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
           cases b2 with
           | true =>
             simp only [Bool.true_or, ↓reduceIte]
-            rw [lift_eq] at hp1
-            obtain ⟨i0, hi0, hp1⟩ := bind_eq_ok_iff.mp hp1
-            have hi0v : i0.val = rl.ctor_params.val := by
-              rw [← Result.ok_injective hi0]; exact cast_usize_val_64 h64 _
             obtain ⟨params, hparams, hp1⟩ := bind_eq_ok_iff.mp hp1
-            have hpv : absExprs params = (absExprs margs).take rl.ctor_params.val := by
-              rw [absExprs, ExprOps.take_exprs_val hparams, hi0v, absExprs,
-                List.map_take]
-            have hpw : ExprsWF params := by
-              intro x hx
-              rw [ExprOps.take_exprs_val hparams] at hx
-              exact hmargs x (List.mem_of_mem_take hx)
+            obtain ⟨hpv, hpw⟩ := CoreK.take_exprs_n_refines hmargs hparams
             obtain ⟨p2, hp2, hp1⟩ := bind_eq_ok_iff.mp hp1
             obtain ⟨pc, st3⟩ := p2
             have he : (ok (st3, rl, pc) :
@@ -1536,19 +1427,8 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
             simp only [Bool.false_or]
             cases keep with
             | true =>
-              rw [lift_eq] at hp1
-              obtain ⟨i0, hi0, hp1⟩ := bind_eq_ok_iff.mp hp1
-              have hi0v : i0.val = rl.ctor_params.val := by
-                rw [← Result.ok_injective hi0]; exact cast_usize_val_64 h64 _
               obtain ⟨params, hparams, hp1⟩ := bind_eq_ok_iff.mp hp1
-              have hpv : absExprs params
-                  = (absExprs margs).take rl.ctor_params.val := by
-                rw [absExprs, ExprOps.take_exprs_val hparams, hi0v, absExprs,
-                  List.map_take]
-              have hpw : ExprsWF params := by
-                intro x hx
-                rw [ExprOps.take_exprs_val hparams] at hx
-                exact hmargs x (List.mem_of_mem_take hx)
+              obtain ⟨hpv, hpw⟩ := CoreK.take_exprs_n_refines hmargs hparams
               obtain ⟨p2, hp2, hp1⟩ := bind_eq_ok_iff.mp hp1
               obtain ⟨pc, st3⟩ := p2
               have he : (ok (st3, rl, pc) :
@@ -1658,18 +1538,8 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
           cases b2 with
           | true =>
             simp only [Bool.true_or, ↓reduceIte]
-            rw [lift_eq] at hp1
-            obtain ⟨i0, hi0, hp1⟩ := bind_eq_ok_iff.mp hp1
-            have hi0v : i0.val = rl.ctor_params.val := by
-              rw [← Result.ok_injective hi0]; exact cast_usize_val_64 h64 _
             obtain ⟨params, hparams, hp1⟩ := bind_eq_ok_iff.mp hp1
-            have hpv : absExprs params = (absExprs margs).take rl.ctor_params.val := by
-              rw [absExprs, ExprOps.take_exprs_val hparams, hi0v, absExprs,
-                List.map_take]
-            have hpw : ExprsWF params := by
-              intro x hx
-              rw [ExprOps.take_exprs_val hparams] at hx
-              exact hmargs x (List.mem_of_mem_take hx)
+            obtain ⟨hpv, hpw⟩ := CoreK.take_exprs_n_refines hmargs hparams
             obtain ⟨p2, hp2, hp1⟩ := bind_eq_ok_iff.mp hp1
             obtain ⟨pc, st3⟩ := p2
             have he : (ok (st3, rl, pc) :
@@ -1688,19 +1558,8 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
             simp only [Bool.false_or]
             cases keep with
             | true =>
-              rw [lift_eq] at hp1
-              obtain ⟨i0, hi0, hp1⟩ := bind_eq_ok_iff.mp hp1
-              have hi0v : i0.val = rl.ctor_params.val := by
-                rw [← Result.ok_injective hi0]; exact cast_usize_val_64 h64 _
               obtain ⟨params, hparams, hp1⟩ := bind_eq_ok_iff.mp hp1
-              have hpv : absExprs params
-                  = (absExprs margs).take rl.ctor_params.val := by
-                rw [absExprs, ExprOps.take_exprs_val hparams, hi0v, absExprs,
-                  List.map_take]
-              have hpw : ExprsWF params := by
-                intro x hx
-                rw [ExprOps.take_exprs_val hparams] at hx
-                exact hmargs x (List.mem_of_mem_take hx)
+              obtain ⟨hpv, hpw⟩ := CoreK.take_exprs_n_refines hmargs hparams
               obtain ⟨p2, hp2, hp1⟩ := bind_eq_ok_iff.mp hp1
               obtain ⟨pc, st3⟩ := p2
               have he : (ok (st3, rl, pc) :
@@ -1745,14 +1604,14 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
         exact ⟨lstP, by simp, hrelP, hwfP, by simp⟩
 
 
-/-! ## `iota_rec_rule_i` — the prepared major's rule (`core_c.rs:1852`)
+/-! ## `iota_rec_rule_i` — the prepared major's rule (`core_c.rs:1870`)
 
 `iotaRecI`'s `match ExprC.getAppFn major with | .const cj usj => …`: the head
 must be a stored constructor with a matching rule at a matching spine length,
 and a matched **inert** rule declines with `notImplemented`. -/
 
 /-- `ConLeche/Cached/CoreC.lean:743-838` — **`iota_rec_rule_i` is `iotaRecI`'s
-constructor-head/rule dispatch** (`core_c.rs:1852`). -/
+constructor-head/rule dispatch** (`core_c.rs:1870`). -/
 theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
     {c : name.Name} {cv : env.ConstantVal} (m_i r_p : Std.U64)
     {rules : alloc.vec.Vec env.RecRule} {us : alloc.vec.Vec level.Level}
@@ -1985,13 +1844,13 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
     cases hr; cases hs
     exact ⟨lst, by simp, hrel, hwf, by simp⟩
 
-/-! ## `iota_rec_i` — the ι step (`core_c.rs:1814`)
+/-! ## `iota_rec_i` — the ι step (`core_c.rs:1832`)
 
 The head/arity dispatch, and the whole ι cone behind it: this is the theorem
 `Arms/App.lean`'s spine loop consumes, together with `iota_arity_ok_refines`. -/
 
 /-- `ConLeche/Cached/CoreC.lean:743-838` — **`iota_rec_i` refines `iotaRecI`**:
-one ι step (`core_c.rs:1814`).  The `Option` result carries `ExprWF` in the
+one ι step (`core_c.rs:1832`).  The `Option` result carries `ExprWF` in the
 `∀ x ∈ o` form `Arms/App.lean` consumes. -/
 theorem iota_rec_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
     (d : Std.U64) {e : expr.Expr} (he : ExprWF e) :
@@ -2169,5 +2028,39 @@ theorem is_ctor_stored_i_eq (fe : fenv.FEnv) (lfe : ConLeche.FEnv)
   (is_ctor_stored_i_refines hfe hrel hc b h).1
 
 end
+
+/-! ## Axiom census (DESIGN.md §5, the P3 gate)
+
+Task #61 made the ι cone consume its `u64` counts with `core_k::take_exprs_n`
+and `core_k::drop_exprs_n` instead of casting them to `usize`, which retired
+the five `System.Platform.numBits` case splits this file used to carry.  Every
+declaration below is now Lean's own three axioms and nothing else. -/
+
+/-- info: 'ConRon.Refine.Core.iota_cmp_args_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms iota_cmp_args_i_refines
+
+/-- info: 'ConRon.Refine.Core.iota_index_ok_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms iota_index_ok_i_refines
+
+/-- info: 'ConRon.Refine.Core.iota_rec_family_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms iota_rec_family_i_refines
+
+/-- info: 'ConRon.Refine.Core.iota_rec_telescopes_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms iota_rec_telescopes_i_refines
+
+/-- info: 'ConRon.Refine.Core.iota_rec_checks_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms iota_rec_checks_i_refines
+
+/-- info: 'ConRon.Refine.Core.prepare_major_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms prepare_major_i_refines
+
+/-- info: 'ConRon.Refine.Core.iota_rec_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms iota_rec_i_refines
+
+/-- info: 'ConRon.Refine.Core.iota_arity_ok_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms iota_arity_ok_eq
+
+/-- info: 'ConRon.Refine.Core.is_ctor_stored_i_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms is_ctor_stored_i_eq
 
 end ConRon.Refine.Core

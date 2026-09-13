@@ -12195,3 +12195,160 @@ standard axioms with no further work here.
   `let jv ← if … then … else …` join) is walked by `run_bind_ok` on the
   *probe* first (`liftFueled`), then `simp only [if_true]`, then `run_bind_ok`
   again — not by `run_bind_ok` on the `if` as a whole.
+### Task #61 — The knot closed: four port fixes, two SCC repairs, `knot_spec` (2026-09-13, Opus under Fable)
+
+Task #55 left `Refine/Core/` with **19 `sorry`s** in eight files: four port
+deviations it *found* (and correctly refused to paper over), one missing
+clause in `StateRel`, two packaging cycles of its own fan-out, and two
+unfinished literal arms.  This task fixed the port where the port was wrong,
+repaired the packaging, and proved the rest.  `knot_spec` — `CORE_PLAN.md`
+step 6, the twelve statements at every fuel — is now **axiom-clean**:
+
+```
+#print axioms knot_spec  ⇒  [propext, Classical.choice, Quot.sound]
+```
+
+and so is every one of the six `*_body_sim`.
+
+#### The four port deviations
+
+Each was a place where the Rust said something the cited con-leche does not,
+so the refinement statement was *false* rather than unproved.  In every case
+the fix went into the Rust, not the statement.
+
+1. **`nat_op_result`, the shift amount** (`kernel/core_k.rs:1557`,
+   `Kernel/Core.lean:628-655`).  con-leche computes `Nat.shiftLeft`/
+   `shiftRight` at any `Nat`; a `u64`-limited port cannot, and the port
+   answered `None` — a *different verdict*, not a failure, so the exact-result
+   statement was false on that branch.  The port now **fails**
+   (`Err (internal "shift amount beyond u64")`); §3.5 claims nothing on
+   failure, so the refinement holds and the accept direction (§1) is unharmed.
+   `nat_op_result`'s type went from `Option<Expr>` to `CheckM<Option<Expr>>`,
+   its one caller `cached::core_c::reduce_nat_bin_i` propagates instead of
+   wrapping, and task #49's `OpSpec` (`Refine/CoreKLits.lean`) **lost its
+   escape disjunct**: both directions are exact.
+   *Instruction delta:* none measurable — the branch is unreachable on any
+   real input (a shift amount of 2^64 bits is not representable).
+
+2. **`Bodies.inferView` was false** (`cached/core_c.rs:3336`,
+   `Cached/CoreC.lean:1293-1389`).  `infer_body_i` carried con-leche's
+   `ioView` as an `io : Bool` (task #18's deviation 4), but at `io = true`
+   its `.app`, `.forallE` and `.lam` clauses called the **full-grade**
+   wrappers where `inferBodyI` at `ioView` calls the io slot.  Checked
+   reachability: `io = true` *is* reached — `infer_body_io_i`'s fall-through
+   dispatches there — but only at `.proj`, the one delegated view whose
+   clause makes a recursive call; the three divergent clauses are overridden
+   by `inferBodyIOI` and are dead.  So the flag went away: `infer_body_i` is
+   now `inferBodyI` at the knot, flagless, and `infer_body_io_i` grew its own
+   `.proj` clause (`infer_proj_i … true`), exactly as `inferBodyIOI`'s `_`
+   arm at `ioView` does.  `Statements.lean` lost the `Bodies.inferView`
+   field; `Arms/InferIO.lean` gained `InferIODeps.inferProj` and six
+   `inferBodyI_leaf_*` `rfl`s (at the six remaining delegated views
+   `inferBodyI`'s clause makes no recursive call, so the record is
+   irrelevant there).
+   *Instruction delta:* none — same code path, one fewer `Bool` argument.
+
+3. **`rP as usize` and the other `u64 → usize` casts in the ι cone**
+   (§3.4 rule 3).  Aeneas models `as usize` as `UScalar.cast .Usize`, which
+   truncates mod `2 ^ System.Platform.numBits`; nothing in the cone bounds
+   `rP`, so every proof that met one closed the 64-bit arm and left the
+   32-bit one open.  All eleven casts in `cached/core_c.rs` are gone,
+   replaced by two new cast-free helpers in `kernel/core_k.rs` —
+   `take_exprs_n`/`drop_exprs_n` and their `*_from` index recursions — in
+   which a `usize` index walks the `Vec` and a `u64` count counts down, so no
+   value ever crosses between the two widths.  Their refinements
+   (`take_exprs_n_val`/`_refines`, `drop_exprs_n_val`/`_refines`) are in
+   `Refine/CoreKVec.lean`, and `System.Platform.numBits` no longer appears in
+   a single proof of the cone.
+   *Instruction delta:* the counting recursion does the same work as the
+   index recursion it replaces; `init` is within noise (below).
+
+4. **`const_ty_at_m` hoisted inside the `certs` gate, at five sites**
+   (`core_c.rs` `struct_eta_cert_steps_i`, `struct_unit_steps_i`,
+   `major_to_ctor_k_i`, `major_to_ctor_eta_i`, `major_to_ctor_and_i`;
+   `Cached/CoreC.lean:437`, `:501-510`, `:577`, `:621`, `:653`).  con-leche
+   evaluates `constTyAtM` *before* `certAtI mode`; the port read it inside
+   `if env::certs(mode)`.  `constTyAtM` memoises **and can `throw`**, so at
+   `--trusted` con-leche moved the state (or failed) where the port returned
+   `Ok` untouched: `StateRel st' lst'` was false on that arm.  The read moved
+   to where the cited Lean has it, at all five sites; the memo policy is now
+   identical in both modes (§3.1).
+   *Instruction delta:* `--trusted` now does the memoised read it skipped.
+   On `init` this is inside the noise band (below): the read is memoised and
+   the sites are the η/unit/K rescues, which fire rarely.
+
+#### The two assembly gaps
+
+* **`App`/`WhnfCore` is a real SCC.**  `whnf_core_loop_i`,
+  `whnf_core_step_i`, `whnf_app_i` and `beta_peel_i` are one strongly
+  connected component, and task #55's partition put it in two files whose
+  `Deps` fields were `∀`-quantified over the budget, so neither structure
+  could be built.  The recursion is well founded *in the budget* —
+  loop(n+1) is step(n), step(n) calls whnfApp(n) and whnfCoreProj(n), and
+  both of those call loop(n) — so `WhnfCoreDeps` is now **indexed by the
+  budget**, `AppDeps` dropped its loop field in favour of the explicit
+  `KSim` hypothesis `App`'s `*_of_loop` lemmas already took, and
+  `Arms/Arms.lean`'s `whnfCoreLoopSim` runs the one induction on the budget,
+  where both files are in scope.  The SCC is still split across two files,
+  but the *statement* that ties it is in one place, which is what task #55's
+  lesson actually asks for.
+* **`DefEq`/`DefEqStruct` was only packaged circularly.**  At the function
+  level `defeq_struct_i → {defeq_apps_i, defeq_binders_i, stuck_irrel_i}` and
+  `stuck_irrel_i → {proof_irrel_i, struct_eta_cert_i, struct_unit_cert_i}` is
+  acyclic; the cycle came from asking each theorem for the *whole* other
+  file's record.  Both records were split along the call order —
+  `DefEqDepsA` (everything but `defeqStruct`) and `DefEqStructDepsA` (the two
+  `Arms/Certs.lean` callees) — and `Arms/Arms.lean` builds them in four
+  stages.  No statement changed.
+
+#### The `sorry` count, per file
+
+| file | before | after | what closed it |
+|---|---:|---:|---|
+| `Arms/Lits.lean` | 1 | 0 | port fix 1 |
+| `Arms/Iota.lean` | 5 | 0 | port fix 3 |
+| `Arms/Major.lean` | 3 | 0 | port fix 4 |
+| `Arms/Certs.lean` | 1 | 0 | port fix 4 |
+| `Arms/DefEqStruct.lean` | 3 | 0 | port fix 4 (one), two literal arms proved |
+| `Arms/Infer.lean` | 3 | 0 | port fix 2 |
+| `Arms/App.lean` | 1 | 0 | `InstCSize` folded into `StateRel` |
+| `Arms/Arms.lean` | 2 | 0 | the two packaging repairs |
+| **total** | **19** | **0** | |
+
+`InstCSize` — the `instC` entry-count clause `cached::state_c`'s entry cap
+reads — was task #55's one gap that was neither a port bug nor a packaging
+error: `StateRel` is a *lookup* agreement, and a lookup agreement cannot bound
+the Lean map's size.  It is now `StateRel.instCSize`, a fifteenth field of
+`Refine/State.lean`'s `StateRel`, with `State.insert_size_step` (moved up from
+`Refine/StateC.lean`) as its insert lemma; four construction sites needed the
+new clause and the other eleven inherit it through `{ hrel with … }`.
+`Arms/Bridge.lean`'s note and `Arms/Certs.lean`'s `StateCOpen` record both
+close with it.
+
+#### Measurement
+
+`init` (58 002 records), release + mimalloc, `--jobs=1`, `ulimit -v 2600000`,
+`perf stat -e instructions:u,cycles:u`, one run each; instructions are the
+measure of record (CLAUDE.md).
+
+| | before | after | |
+|---|---:|---:|---|
+| `--verified` `instructions:u` | 564.82 G | 565.07 G | 1.0004× |
+| `--verified` `cycles:u` | 286.23 G | 285.22 G | 0.996× (noise) |
+| `--trusted` `instructions:u` | 564.80 G | 565.05 G | 1.0004× |
+| `--trusted` `cycles:u` | 291.61 G | 288.99 G | 0.991× (noise) |
+| verdict | accepted 58 002 | accepted 58 002 | identical |
+
+0.25 G instructions on 565 G is 0.04 %: the four fixes are free.
+`scripts/diff-e2e.sh` 348/348 at `--verified` and at `--trusted`,
+`scripts/diff-fixtures.sh` 315 agree / 0 differ.
+
+#### What this closes
+
+`CORE_PLAN.md` step 6 is done.  `Refine/Core/Statements.lean`'s `KnotSpec`
+holds at every fuel, for every mode, with Lean's three axioms and nothing
+else — which means `cached::core_c`'s six memoising wrappers and six bodies
+compute exactly what `ConLeche.Cached.coreKnotI` computes, on well-formed
+inputs, whenever the Rust succeeds.  Everything above the knot (steps 7 and
+8: the declaration fold, the two inductive routes, `Refine/Main.lean`'s
+capstones) now rests on a theorem rather than on a hypothesis.

@@ -106,6 +106,127 @@ theorem drop_exprs_refines {xs k r} (hxs : ExprsWF xs)
   obtain ⟨habs, hwf⟩ := drop_exprs_from_refines hxs ExprOps.exprsWF_new h
   exact ⟨by rw [habs]; simp, hwf⟩
 
+/-! ## `drop_exprs_n` / `take_exprs_n` — `List.drop`/`List.take` at a **`u64`**
+count (`core_k.rs:161`, `:166`, `:178`, `:184`)
+
+Task #61.  The counts the ι cone carries (a recursor's parameter count `rP`, a
+constructor's `ctorParams`, a major-premise index `mI`) are `u64`s, and `Vec`
+indexing is `usize`; the port used to spell the call `take_exprs(xs, n as
+usize)`, which Aeneas models as a **truncating** cast (`UScalar.cast .Usize`),
+so nothing below 64-bit `usize` was provable and nothing in the cone bounds
+`rP`.  DESIGN.md §3.4 rules the cast out, so the count is consumed by the
+recursion instead: `i : Usize` walks the `Vec` and `n : U64` counts down, and
+no value crosses between the two widths. -/
+
+/-- The index recursion behind `take_exprs_n`: `n` entries of `xs` from `i`,
+appended to the accumulator. -/
+theorem take_exprs_n_from_val (N : Nat) :
+    ∀ (xs : alloc.vec.Vec expr.Expr) (n : Std.U64) (i : Std.Usize)
+      (out r : alloc.vec.Vec expr.Expr),
+      n.val = N →
+      core_k.take_exprs_n_from xs n i out = ok r →
+      r.val = out.val ++ (xs.val.drop i.val).take n.val := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro xs n i out r hN h
+    rw [core_k.take_exprs_n_from.eq_def] at h
+    dsimp only at h
+    split at h
+    · rename_i hz
+      rw [← Result.ok_injective h, show n.val = 0 by rw [hz]; rfl]
+      simp
+    · rename_i hz
+      split at h
+      · rename_i hge
+        have hlen : xs.val.length ≤ i.val := by
+          have := alloc.vec.Vec.len_val xs; scalar_tac
+        rw [← Result.ok_injective h, List.drop_eq_nil_of_le hlen]
+        simp
+      · rename_i hge
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨x, hidx, c, hdup, out1, hpush, n1, hn1, i1, hi1, hrec⟩ := h
+        have hg := ExprOps.vec_index_getElem? hidx
+        have hlt : i.val < xs.val.length := by
+          have := alloc.vec.Vec.len_val xs; scalar_tac
+        have hx : xs.val[i.val] = x := by
+          rw [List.getElem?_eq_getElem hlt] at hg; exact Option.some_injective _ hg
+        have hcx : c = x := Expr.dup_eq hdup
+        subst hcx
+        have hnz : n.val ≠ 0 := by
+          intro hc; exact hz (by scalar_tac)
+        have hn1v : n1.val = n.val - 1 := (ConRon.Refine.Nat.usub_val hn1).2.trans (by simp)
+        have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+        rw [ih n1.val (by omega) xs n1 i1 out1 r rfl hrec,
+          vec_push_val hpush, hi1v, hn1v, List.drop_eq_getElem_cons hlt, hx,
+          show n.val = (n.val - 1) + 1 by omega]
+        simp
+
+/-- **`core_k::take_exprs_n` is `List.take`** at a `u64` count. -/
+theorem take_exprs_n_val {xs r : alloc.vec.Vec expr.Expr} {n : Std.U64}
+    (h : core_k.take_exprs_n xs n = ok r) : r.val = xs.val.take n.val := by
+  rw [core_k.take_exprs_n] at h
+  have := take_exprs_n_from_val n.val xs n 0#usize (alloc.vec.Vec.new expr.Expr) r rfl h
+  simpa [alloc.vec.Vec.new] using this
+
+/-- `take_exprs_n`, as the abstraction and the invariant see it. -/
+theorem take_exprs_n_refines {xs r : alloc.vec.Vec expr.Expr} {n : Std.U64}
+    (hxs : ExprsWF xs) (h : core_k.take_exprs_n xs n = ok r) :
+    absExprs r = (absExprs xs).take n.val ∧ ExprsWF r := by
+  refine ⟨by rw [absExprs, absExprs, take_exprs_n_val h, List.map_take], ?_⟩
+  intro x hx
+  rw [take_exprs_n_val h] at hx
+  exact hxs x (List.mem_of_mem_take hx)
+
+/-- The index recursion behind `drop_exprs_n`: skip `n` entries from `i`, then
+copy the rest. -/
+theorem drop_exprs_n_from_val (N : Nat) :
+    ∀ (xs : alloc.vec.Vec expr.Expr) (n : Std.U64) (i : Std.Usize)
+      (r : alloc.vec.Vec expr.Expr),
+      n.val = N →
+      core_k.drop_exprs_n_from xs n i = ok r →
+      r.val = xs.val.drop (i.val + n.val) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro xs n i r hN h
+    rw [core_k.drop_exprs_n_from.eq_def] at h
+    dsimp only at h
+    split at h
+    · rename_i hz
+      have hnz : n.val = 0 := by rw [hz]; rfl
+      rw [drop_exprs_from_val _ xs i (alloc.vec.Vec.new expr.Expr) r rfl h, hnz]
+      simp [alloc.vec.Vec.new]
+    · rename_i hz
+      have hnz : n.val ≠ 0 := fun hc => hz (by scalar_tac)
+      split at h
+      · rename_i hge
+        have hlen : xs.val.length ≤ i.val := by
+          have := alloc.vec.Vec.len_val xs; scalar_tac
+        rw [← Result.ok_injective h, List.drop_eq_nil_of_le (by omega)]
+        simp [alloc.vec.Vec.new]
+      · rename_i hge
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨n1, hn1, i1, hi1, hrec⟩ := h
+        have hn1v : n1.val = n.val - 1 := (ConRon.Refine.Nat.usub_val hn1).2.trans (by simp)
+        have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+        rw [ih n1.val (by omega) xs n1 i1 r rfl hrec, hi1v, hn1v,
+          show i.val + 1 + (n.val - 1) = i.val + n.val by omega]
+
+/-- **`core_k::drop_exprs_n` is `List.drop`** at a `u64` count. -/
+theorem drop_exprs_n_val {xs r : alloc.vec.Vec expr.Expr} {n : Std.U64}
+    (h : core_k.drop_exprs_n xs n = ok r) : r.val = xs.val.drop n.val := by
+  rw [core_k.drop_exprs_n] at h
+  have := drop_exprs_n_from_val n.val xs n 0#usize r rfl h
+  simpa using this
+
+/-- `drop_exprs_n`, as the abstraction and the invariant see it. -/
+theorem drop_exprs_n_refines {xs r : alloc.vec.Vec expr.Expr} {n : Std.U64}
+    (hxs : ExprsWF xs) (h : core_k.drop_exprs_n xs n = ok r) :
+    absExprs r = (absExprs xs).drop n.val ∧ ExprsWF r := by
+  refine ⟨by rw [absExprs, absExprs, drop_exprs_n_val h, List.map_drop], ?_⟩
+  intro x hx
+  rw [drop_exprs_n_val h] at hx
+  exact hxs x (List.mem_of_mem_drop hx)
+
 /-! ## `append_exprs` — `List.append` on a `Vec` (`core_k.rs:155`, `:160`) -/
 
 /-- The index recursion behind `append_exprs`: `ys`' entries from `i` on,

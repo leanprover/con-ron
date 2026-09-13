@@ -150,6 +150,47 @@ pub fn drop_exprs_from(xs: &Vec<Expr>, k: usize, out: Vec<Expr>) -> Vec<Expr> {
     }
 }
 
+/// con-leche: none — `List.drop` at a `u64` count, without a `usize` cast
+/// `xs.drop n` where the count is a machine word of the checker's own
+/// arithmetic (a parameter count, a major-premise index).  Task #61: the
+/// arity is a `u64` and `Vec` indexing is `usize`, so the obvious spelling
+/// is `drop_exprs(xs, n as usize)` — which Aeneas models as a *truncating*
+/// cast (DESIGN.md §3.4: no `as` on data).  The count is therefore consumed
+/// by the recursion instead of converted: `i` walks the `Vec` and `n`
+/// counts down, so no value ever crosses between the two widths.
+pub fn drop_exprs_n(xs: &Vec<Expr>, n: u64) -> Vec<Expr> {
+    drop_exprs_n_from(xs, n, 0)
+}
+
+/// con-leche: none — the index recursion behind `drop_exprs_n`
+pub fn drop_exprs_n_from(xs: &Vec<Expr>, n: u64, i: usize) -> Vec<Expr> {
+    if n == 0 {
+        drop_exprs_from(xs, i, Vec::new())
+    } else if i >= xs.len() {
+        Vec::new()
+    } else {
+        drop_exprs_n_from(xs, n - 1, i + 1)
+    }
+}
+
+/// con-leche: none — `List.take` at a `u64` count, without a `usize` cast
+/// `xs.take n`, the counting twin of `drop_exprs_n` (task #61).
+pub fn take_exprs_n(xs: &Vec<Expr>, n: u64) -> Vec<Expr> {
+    take_exprs_n_from(xs, n, 0, Vec::new())
+}
+
+/// con-leche: none — the index recursion behind `take_exprs_n`
+/// The accumulator is passed by value and returned (task #6's rule).
+pub fn take_exprs_n_from(xs: &Vec<Expr>, n: u64, i: usize, out: Vec<Expr>) -> Vec<Expr> {
+    if n == 0 || i >= xs.len() {
+        out
+    } else {
+        let mut out = out;
+        out.push(expr::dup(&xs[i]));
+        take_exprs_n_from(xs, n - 1, i + 1, out)
+    }
+}
+
 /// con-leche: none — `List.append` on a `Vec`; Lean's `++` shares the tail
 /// `xs ++ ys`, consuming `xs` and copying `ys`' spine.
 pub fn append_exprs(xs: Vec<Expr>, ys: &Vec<Expr>) -> Vec<Expr> {
@@ -1558,54 +1599,61 @@ pub fn nat_op_equations(d: u64, c: &Name) -> Vec<(Expr, Expr)> {
 /// The reduct of op `c` on literal arguments (`pred` ignores the second
 /// slot).  The arithmetic is `ron::Nat`'s (DESIGN.md §3.3).
 ///
-/// Two deviations, both in the direction of declining:
-/// * the cited `b > 16777216` guard on `pow` is the audit's S2 bound; the
-///   port compares bignums and then narrows the exponent to `u64` for
-///   `nat::pow`, which takes a machine exponent (the bound makes that safe);
-/// * `shiftLeft`/`shiftRight` take a `u64` shift amount, so an amount beyond
-///   `u64` answers `None` — the fast path declines and the `whnf` loop
-///   unfolds the definition instead.  Lean would compute (and exhaust
-///   memory); answering `None` where Lean answers `some` can only make the
-///   Rust *reject*, which is sound for the accept direction (DESIGN.md §1).
-pub fn nat_op_result(c: &Name, a: &Nat, b: &Nat) -> Option<Expr> {
+/// One deviation, in the direction of declining: the cited `b > 16777216`
+/// guard on `pow` is the audit's S2 bound; the port compares bignums and
+/// then narrows the exponent to `u64` for `nat::pow`, which takes a machine
+/// exponent (the bound makes that safe).
+///
+/// `shiftLeft`/`shiftRight` take a `u64` shift amount, so an amount beyond
+/// `u64` cannot be computed at all.  Task #61: the port **fails** there
+/// rather than answering `None`.  `None` is a different *verdict* — the
+/// fast path declines and the caller goes on — and the exact-result
+/// statement (§3.5) is then false on that branch; a failure is claimed
+/// nothing about, so the refinement holds and the accept direction (§1) is
+/// unharmed.  (Lean would compute the shift and exhaust memory.)
+pub fn nat_op_result(c: &Name, a: &Nat, b: &Nat) -> CheckM<Option<Expr>> {
+    const M_SHIFT: [u32; 23] = [
+        115, 104, 105, 102, 116, 32, 97, 109, 111, 117, 110, 116, 32, 98, 101, 121, 111, 110,
+        100, 32, 117, 54, 52,
+    ];
     if name::beq(c, &nat_pred_name()) {
-        Some(expr::lit(expr::literal_nat(nat::pred(a))))
+        Ok(Some(expr::lit(expr::literal_nat(nat::pred(a)))))
     } else if name::beq(c, &nat_add_name()) {
-        Some(expr::lit(expr::literal_nat(nat::add(a, b))))
+        Ok(Some(expr::lit(expr::literal_nat(nat::add(a, b)))))
     } else if name::beq(c, &nat_sub_name()) {
-        Some(expr::lit(expr::literal_nat(nat::sub(a, b))))
+        Ok(Some(expr::lit(expr::literal_nat(nat::sub(a, b)))))
     } else if name::beq(c, &nat_mul_name()) {
-        Some(expr::lit(expr::literal_nat(nat::mul(a, b))))
+        Ok(Some(expr::lit(expr::literal_nat(nat::mul(a, b)))))
     } else if name::beq(c, &nat_pow_name()) {
         if nat::blt(&nat::from_u64(16777216), b) {
-            None
+            Ok(None)
         } else {
             match nat::to_u64(b) {
-                Some(e) => Some(expr::lit(expr::literal_nat(nat::pow(a, e)))),
-                None => None,
+                Some(e) => Ok(Some(expr::lit(expr::literal_nat(nat::pow(a, e))))),
+                None => Ok(None),
             }
         }
     } else if name::beq(c, &nat_div_name()) {
-        Some(expr::lit(expr::literal_nat(nat::div(a, b))))
+        Ok(Some(expr::lit(expr::literal_nat(nat::div(a, b)))))
     } else if name::beq(c, &nat_mod_name()) {
-        Some(expr::lit(expr::literal_nat(nat::modulo(a, b))))
+        Ok(Some(expr::lit(expr::literal_nat(nat::modulo(a, b)))))
     } else if name::beq(c, &nat_gcd_name()) {
-        Some(expr::lit(expr::literal_nat(nat::gcd(a, b))))
+        Ok(Some(expr::lit(expr::literal_nat(nat::gcd(a, b)))))
     } else if name::beq(c, &nat_land_name()) {
-        Some(expr::lit(expr::literal_nat(nat::land(a, b))))
+        Ok(Some(expr::lit(expr::literal_nat(nat::land(a, b)))))
     } else if name::beq(c, &nat_lor_name()) {
-        Some(expr::lit(expr::literal_nat(nat::lor(a, b))))
+        Ok(Some(expr::lit(expr::literal_nat(nat::lor(a, b)))))
     } else if name::beq(c, &nat_xor_name()) {
-        Some(expr::lit(expr::literal_nat(nat::xor(a, b))))
+        Ok(Some(expr::lit(expr::literal_nat(nat::xor(a, b)))))
     } else if name::beq(c, &nat_shift_left_name()) {
         match nat::to_u64(b) {
-            Some(k) => Some(expr::lit(expr::literal_nat(nat::shift_left(a, k)))),
-            None => None,
+            Some(k) => Ok(Some(expr::lit(expr::literal_nat(nat::shift_left(a, k))))),
+            None => Err(core_types::internal(core_types::code_points(&M_SHIFT))),
         }
     } else if name::beq(c, &nat_shift_right_name()) {
         match nat::to_u64(b) {
-            Some(k) => Some(expr::lit(expr::literal_nat(nat::shift_right(a, k)))),
-            None => None,
+            Some(k) => Ok(Some(expr::lit(expr::literal_nat(nat::shift_right(a, k))))),
+            None => Err(core_types::internal(core_types::code_points(&M_SHIFT))),
         }
     } else if name::beq(c, &nat_beq_name()) {
         let n = if nat::beq(a, b) {
@@ -1613,16 +1661,16 @@ pub fn nat_op_result(c: &Name, a: &Nat, b: &Nat) -> Option<Expr> {
         } else {
             bool_false_name()
         };
-        Some(expr::mk_const(n, Vec::new()))
+        Ok(Some(expr::mk_const(n, Vec::new())))
     } else if name::beq(c, &nat_ble_name()) {
         let n = if nat::ble(a, b) {
             bool_true_name()
         } else {
             bool_false_name()
         };
-        Some(expr::mk_const(n, Vec::new()))
+        Ok(Some(expr::mk_const(n, Vec::new())))
     } else {
-        None
+        Ok(None)
     }
 }
 
@@ -3195,8 +3243,8 @@ mod tests {
             &nat::from_u64(3),
         );
         match five {
-            Some(e) => assert!(expr::beq(&e, &lit(5))),
-            None => panic!("add must fold"),
+            Ok(Some(e)) => assert!(expr::beq(&e, &lit(5))),
+            _ => panic!("add must fold"),
         }
         // the `pow` blow-up bound declines instead of computing
         assert!(core_k::nat_op_result(
@@ -3204,7 +3252,15 @@ mod tests {
             &nat::from_u64(2),
             &nat::from_u64(16777217)
         )
-        .is_none());
-        assert!(core_k::nat_op_result(&nm(122), &nat::zero(), &nat::zero()).is_none());
+        .is_ok_and(|o| o.is_none()));
+        assert!(core_k::nat_op_result(&nm(122), &nat::zero(), &nat::zero())
+            .is_ok_and(|o| o.is_none()));
+        // task #61: a shift amount beyond `u64` fails rather than declining
+        assert!(core_k::nat_op_result(
+            &core_k::nat_shift_left_name(),
+            &nat::from_u64(1),
+            &nat::mul(&nat::from_u64(0xFFFF_FFFF_FFFF_FFFF), &nat::from_u64(2))
+        )
+        .is_err());
     }
 }

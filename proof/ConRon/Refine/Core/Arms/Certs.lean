@@ -12,7 +12,7 @@
 | proof irrelevance | `proof_irrel_i`, `prop_legs_i` | `proofIrrelI` `:241` (and `propIrrelI` `:333`, whose `Prop` legs are the same block) |
 | structure eta | `struct_eta_proj_certs_i(_from)`, `struct_eta_cert_with_i`, `struct_eta_cert_steps_i`, `struct_eta_cert_fields_i` | `structEtaProjCertsI` `:389`, `structEtaCertWithI` `:408` |
 
-Three things cost thought.
+Four things cost thought.
 
 1. **The three projection-spine builders are pure in the port** (`Vec<Expr>`,
    no `CState`) where con-leche writes them in `CheckCM` — `mkAppNM` is
@@ -39,6 +39,15 @@ Three things cost thought.
    spell out *verbatim*, hoisted in the port so that both twins call it.
    `propLegsI` below is that block, written out once; the identity against the
    cited definition is `rfl`, so nothing is assumed.
+
+4. **The two `certAtI` gates of the structure-eta certificate.**  The cited
+   body reads the type former's type *before* the first gate (`:437`), so
+   `constTyAtM` moves the state — and can `throw` — at `.trusted` too; the
+   port does the same since task #61, and `struct_eta_cert_steps_i_refines`
+   therefore applies `StateC.const_ty_at_m_refines` **before** splitting on
+   `env::certs`.  Each gate is discharged into one local record,
+   `∀ f, (certAtI … >>= f).run lst = (f b).run lst'`, which is what a caller
+   needs to step through the `do` block at either mode.
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.CoreKVec
@@ -1450,7 +1459,7 @@ theorem struct_eta_proj_certs_i_refines (hsc : StateCOpen) {mode : env.CheckMode
 
 `ConLeche/Cached/CoreC.lean:407-473 structEtaCertWithI` (`core_c.rs:839`).
 The port hoists the cited definition's tail into two helpers
-(`struct_eta_cert_steps_i` `:902`, `struct_eta_cert_fields_i` `:984`); the two
+(`struct_eta_cert_steps_i` `:902`, `struct_eta_cert_fields_i` `:990`); the two
 definitions below are those tails, written once, so that the hoisting is a
 `rfl`-identity against the cited body and each helper gets a statement of its
 own.  The cited `(Tn T : Name)` pair is one parameter in the port. -/
@@ -1497,14 +1506,13 @@ def structEtaCertStepsI (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFns
   else pure false
 
 /-- `ConLeche/Cached/CoreC.lean:452-472` — **`struct_eta_cert_fields_i` refines
-the cited last two steps** (`core_c.rs:984`). -/
+the cited last two steps** (`core_c.rs:990`). -/
 theorem struct_eta_cert_fields_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
     {fuel : Std.U64} (hw : Wrappers mode fuel) (d : Std.U64) {c t : name.Name}
     {us us2 : alloc.vec.Vec level.Level} {aargs targs : alloc.vec.Vec expr.Expr}
     {b : expr.Expr} {cvc : env.ConstantVal} {caps : env.IndCaps}
     (hc : NameWF c) (ht : NameWF t) (hus : LevelsWF us) (hus2 : LevelsWF us2)
-    (haargs : ExprsWF aargs) (htargs : ExprsWF targs) (hb : ExprWF b)
-    (hep : caps.eta_params.val ≤ Std.Usize.max) :
+    (haargs : ExprsWF aargs) (htargs : ExprsWF targs) (hb : ExprWF b) :
     Sim id (fun _ => True)
       (fun st fe => cached.core_c.struct_eta_cert_fields_i mode fuel st fe d c us us2
         aargs targs b cvc caps t)
@@ -1528,8 +1536,7 @@ theorem struct_eta_cert_fields_i_refines (hsc : StateCOpen) {mode : env.CheckMod
   have tail : ∀ (st2 : cached.state_c.CState) (lst2 : ConLeche.Cached.CState) (b2 : Bool),
       StateWF st2 → StateRel st2 lst2 →
       ((if b2 = true then
-          (do let i ← lift (Std.UScalar.cast .Usize caps.eta_params)
-              let fields ← kernel.core_k.drop_exprs aargs i
+          (do let fields ← kernel.core_k.drop_exprs_n aargs caps.eta_params
               cached.core_c.def_eq_list_i mode fuel st2 fe d fields projs)
         else ok (core.result.Result.Ok b2, st2)) = ok (core.result.Result.Ok r, st')) →
       ∃ lst', (if b2 = true then
@@ -1541,16 +1548,12 @@ theorem struct_eta_cert_fields_i_refines (hsc : StateCOpen) {mode : env.CheckMod
     split at htl
     · rename_i hb2
       rw [if_pos hb2]
-      obtain ⟨i, hi, htl⟩ := bind_eq_ok_iff.mp htl
-      simp only [lift_eq, Result.ok.injEq] at hi
-      have hiv : i.val = caps.eta_params.val := by
-        rw [← hi]; exact ExprOps.u64_cast_usize_val hep
       obtain ⟨fields, hfields, htl⟩ := bind_eq_ok_iff.mp htl
-      obtain ⟨hfabs, hfwf⟩ := CoreK.drop_exprs_refines haargs hfields
+      obtain ⟨hfabs, hfwf⟩ := CoreK.drop_exprs_n_refines haargs hfields
       obtain ⟨lst3, hrun3, hrel3, hwf3, -⟩ :=
         (def_eq_list_i_refines hw d hfwf hpwf).apply hwf2 hfe htl hrel2 hfrel
       refine ⟨lst3, ?_, hrel3, hwf3, trivial⟩
-      rw [hfabs, hiv] at hrun3
+      rw [hfabs] at hrun3
       exact hrun3
     · rename_i hb2
       have hb2f : b2 = false := by simp only [Bool.not_eq_true] at hb2; exact hb2
@@ -1602,29 +1605,253 @@ theorem struct_eta_cert_fields_i_refines (hsc : StateCOpen) {mode : env.CheckMod
     exact tail _ _ true hwf hrel hok
 
 /-- `ConLeche/Cached/CoreC.lean:431-472` — **`struct_eta_cert_steps_i` refines
-the cited state-touching steps** (`core_c.rs:902`). -/
+the cited state-touching steps** (`core_c.rs:902`).  The type former's type is
+read *before* the `certAtI` gate on both sides, so the `.trusted` arm threads
+the `constTyAtM` memo through too (task #61).  Every peeled hypothesis gets a
+name of its own: a reused one is *shadowed*, not cleared, and a later `cases`
+hands the name back to the shadowed hypothesis. -/
 theorem struct_eta_cert_steps_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
     {fuel : Std.U64} (hw : Wrappers mode fuel) (d : Std.U64) {c t : name.Name}
     {us us2 : alloc.vec.Vec level.Level} {aargs targs : alloc.vec.Vec expr.Expr}
     {b : expr.Expr} {cvc cvt : env.ConstantVal} {caps : env.IndCaps}
     (hc : NameWF c) (ht : NameWF t) (hus : LevelsWF us) (hus2 : LevelsWF us2)
     (haargs : ExprsWF aargs) (htargs : ExprsWF targs) (hb : ExprWF b)
-    (hcvt : ConstantValWF cvt) (hep : caps.eta_params.val ≤ Std.Usize.max) :
+    (hcvt : ConstantValWF cvt) :
     Sim id (fun _ => True)
       (fun st fe => cached.core_c.struct_eta_cert_steps_i mode fuel st fe d c us us2
         aargs targs b cvc cvt caps t)
       (fun lfe => structEtaCertStepsI (absMode mode) (knot mode lfe fuel.val) lfe d.val
         (absName c) (absLevels us) (absLevels us2) (absExprs aargs) (absExprs targs)
         (absExpr b) (absConstantVal cvt) (absIndCaps caps) (absName t)) := by
-  -- sorry: the port and the twin diverge at `mode.certs = false` (`.trusted`).
-  -- The twin evaluates `constTyAtM fe T Tn us'` **before** the `certAtI` gate
-  -- (`CoreC.lean:437`), so at `.trusted` it still writes the `constTyAt` memo
-  -- (and can `throw`); `core_c.rs:919-927` hoists that read *inside* the
-  -- `env::certs(mode)` gate, so the port touches neither.  `StateRel` therefore
-  -- fails on that arm.  The `.verified` arm is the straight step chaining
-  -- (`isEquivListLM` → `constTyAtM` → `iota_certs_i` → the slot certificates →
-  -- `def_eq_list_i` → `struct_eta_cert_fields_i`) and goes through.
-  sorry
+  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  dsimp only
+  unfold cached.core_c.struct_eta_cert_steps_i at hok
+  dsimp only at hok
+  rw [structEtaCertStepsI]
+  simp only [absIndCaps, absConstantVal]
+  -- the level lists
+  obtain ⟨eqv, st1, heqv, hA⟩ := bind_pair_eq_ok hok
+  obtain ⟨lst1, hrun1, hrel1, hwf1⟩ :=
+    StateC.is_equiv_list_l_m_refines hwf hus hus2 heqv lst hrel
+  obtain ⟨rq, hlift, hB⟩ := bind_eq_ok_iff.mp hA
+  cases rq with
+  | Err err => simp at hB
+  | Ok b1 =>
+    have heqvsome : eqv = some b1 := lift_fueled_some hlift
+    rw [run_bind _ _ hrun1, run_bind _ _ (run_liftFueled _ _ heqvsome)]
+    dsimp only at hB
+    split at hB
+    · -- the level lists agree
+      rename_i hb1t
+      subst hb1t
+      rw [if_pos rfl]
+      -- the type former's type, read *before* the gate
+      obtain ⟨r1, st2, hcty, hC⟩ := bind_pair_eq_ok hB
+      cases r1 with
+      | Err err => simp at hC
+      | Ok tty =>
+        obtain ⟨lst2, hrun2, hrel2, hwf2, htywf⟩ :=
+          StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf1 hfe ht hus2 hcty
+            lst1 lfe hrel1 hfrel (absName t)
+        rw [run_bind _ _ hrun2]
+        obtain ⟨st3, tele, htele, hD⟩ := bind_pair_eq_ok hC
+        -- the telescope certificate: a certificate family, so `certAtI`-gated
+        have hgate : ∀ b2 : Bool, tele = core.result.Result.Ok b2 →
+            ∃ lst3, StateRel st3 lst3 ∧ StateWF st3 ∧
+              ∀ f : Bool → ConLeche.Cached.CheckCM Bool,
+                (ConLeche.Cached.certAtI (absMode mode)
+                    (ConLeche.Cached.iotaCertsI (knot mode lfe fuel.val) lfe d.val false
+                      (absExpr tty) (absExprs targs)) >>= f).run lst2
+                      = (f b2).run lst3 := by
+          intro b2 hb2
+          obtain ⟨cg, hcg, htl⟩ := bind_eq_ok_iff.mp htele
+          have hcgabs : cg = (absMode mode).certs := Env.certs_refines hcg
+          split at htl
+          · -- the family runs
+            rename_i hcgt
+            have hcerts : (absMode mode).certs = true := by rw [← hcgabs]; exact hcgt
+            obtain ⟨tele1, st4, hio, htl2⟩ := bind_pair_eq_ok htl
+            simp only [Result.ok.injEq, Prod.mk.injEq] at htl2
+            obtain ⟨hst, hte⟩ := htl2
+            rw [hst, hte, hb2] at hio
+            obtain ⟨lst3, hrun3, hrel3, hwf3, -⟩ :=
+              (iota_certs_i_refines hsc hw d false htywf htargs).apply hwf2 hfe hio hrel2
+                hfrel
+            refine ⟨lst3, hrel3, hwf3, fun f => ?_⟩
+            rw [ConLeche.Cached.certAtI, if_pos hcerts]
+            exact run_bind _ _ (by simpa using hrun3)
+          · -- the family is off: `true` without running, on the moved state
+            rename_i hcgf
+            have hcerts : ¬ ((absMode mode).certs = true) := by rw [← hcgabs]; exact hcgf
+            simp only [Result.ok.injEq, Prod.mk.injEq] at htl
+            obtain ⟨hst, hte⟩ := htl
+            have hb2t : b2 = true := by simpa using (hte.trans hb2).symm
+            refine ⟨lst2, hst ▸ hrel2, hst ▸ hwf2, fun f => ?_⟩
+            rw [ConLeche.Cached.certAtI, if_neg hcerts, hb2t]
+            exact run_bind _ _ (run_pure _ _)
+        cases tele with
+        | Err err => simp at hD
+        | Ok b2 =>
+          obtain ⟨lst3, hrel3, hwf3, hrun3⟩ := hgate b2 rfl
+          rw [hrun3]
+          dsimp only at hD
+          split at hD
+          · -- the telescope is certified
+            rename_i hb2t
+            subst hb2t
+            rw [if_pos rfl]
+            -- the per-slot certificates: a certificate family too
+            obtain ⟨cg2, hcg2, hE⟩ := bind_eq_ok_iff.mp hD
+            have hcg2abs : cg2 = (absMode mode).certs := Env.certs_refines hcg2
+            obtain ⟨st4, cs, hslots, hF⟩ := bind_pair_eq_ok hE
+            obtain ⟨caps1, slots⟩ := cs
+            -- the destructuring `let` the triple leaves behind (see
+            -- `bind_pair_eq_ok`): this `replace` is the iota step
+            replace hF : (match slots with
+                | core.result.Result.Ok b4 =>
+                  if b4 = true then
+                    (do let params ← kernel.core_k.take_exprs_n aargs caps1.eta_params
+                        let (r2, st5) ← cached.core_c.def_eq_list_i mode fuel st4 fe d
+                          params targs
+                        match r2 with
+                        | core.result.Result.Ok b5 =>
+                          if b5 = true then
+                            cached.core_c.struct_eta_cert_fields_i mode fuel st5 fe d c
+                              us us2 aargs targs b cvc caps1 t
+                          else ok (r2, st5)
+                        | core.result.Result.Err _ => ok (r2, st5))
+                  else ok (slots, st4)
+                | core.result.Result.Err _ => ok (slots, st4))
+                = ok (core.result.Result.Ok r, st') := hF
+            have hgate2 : ∀ b3 : Bool, slots = core.result.Result.Ok b3 →
+                caps1 = caps ∧ ∃ lst4, StateRel st4 lst4 ∧ StateWF st4 ∧
+                  ∀ f : Bool → ConLeche.Cached.CheckCM Bool,
+                    (ConLeche.Cached.certAtI (absMode mode)
+                        (if lfe.towerSlotsAllF (absName t) caps.eta_fields.val
+                         then pure true
+                         else ConLeche.Cached.structEtaProjCertsI (knot mode lfe fuel.val)
+                           lfe d.val (absName t) (absName t) (absLevels us2)
+                           (absExprs targs) (absExpr b) (absNames cvt.level_params)
+                           (List.range caps.eta_fields.val)) >>= f).run lst3
+                      = (f b3).run lst4 := by
+              intro b3 hb3
+              split at hslots
+              · -- the family runs
+                rename_i hcg2t
+                have hcerts : (absMode mode).certs = true := by
+                  rw [← hcg2abs]; exact hcg2t
+                obtain ⟨tw, htw, hsl1⟩ := bind_eq_ok_iff.mp hslots
+                have htwabs : tw = lfe.towerSlotsAllF (absName t) caps.eta_fields.val :=
+                  ConRon.Refine.tower_slots_all_f_refines (FindAgree.of_rel hfrel hfe)
+                    (FindWF.of_wf hfe) ht htw
+                obtain ⟨c1, r2, hinner, hsl2⟩ := bind_pair_eq_ok hsl1
+                simp only [Result.ok.injEq, Prod.mk.injEq] at hsl2
+                obtain ⟨hc1, hcaps, hr2⟩ := hsl2
+                refine ⟨hcaps.symm, ?_⟩
+                split at hinner
+                · -- an all-tower slot family has no per-slot certificates
+                  rename_i htwt
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hinner
+                  obtain ⟨hc1', hr2'⟩ := hinner
+                  have hb3t : b3 = true := by
+                    simpa using ((hr2'.trans hr2).trans hb3).symm
+                  refine ⟨lst3, ?_, ?_, fun f => ?_⟩
+                  · rw [← hc1, ← hc1']; exact hrel3
+                  · rw [← hc1, ← hc1']; exact hwf3
+                  · rw [ConLeche.Cached.certAtI, if_pos hcerts, ← htwabs, if_pos htwt,
+                      hb3t]
+                    exact run_bind _ _ (run_pure _ _)
+                · -- the projection-function slots are certified one by one
+                  rename_i htwf
+                  obtain ⟨slots1, st5, hsp, hin2⟩ := bind_pair_eq_ok hinner
+                  simp only [Result.ok.injEq, Prod.mk.injEq] at hin2
+                  obtain ⟨hst5, hsl⟩ := hin2
+                  rw [hst5, hc1, hsl, hr2, hb3] at hsp
+                  obtain ⟨lst4, hrun4, hrel4, hwf4, -⟩ :=
+                    (struct_eta_proj_certs_i_refines hsc hw d caps.eta_fields ht hus2
+                      htargs hb hcvt.2.1).apply hwf3 hfe hsp hrel3 hfrel
+                  refine ⟨lst4, hrel4, hwf4, fun f => ?_⟩
+                  rw [ConLeche.Cached.certAtI, if_pos hcerts, ← htwabs, if_neg htwf]
+                  exact run_bind _ _ (by simpa using hrun4)
+              · -- the family is off: `true` without running
+                rename_i hcg2f
+                have hcerts : ¬ ((absMode mode).certs = true) := by
+                  rw [← hcg2abs]; exact hcg2f
+                simp only [Result.ok.injEq, Prod.mk.injEq] at hslots
+                obtain ⟨hst4, hcaps, hsl⟩ := hslots
+                have hb3t : b3 = true := by simpa using (hsl.trans hb3).symm
+                refine ⟨hcaps.symm, lst3, hst4 ▸ hrel3, hst4 ▸ hwf3, fun f => ?_⟩
+                rw [ConLeche.Cached.certAtI, if_neg hcerts, hb3t]
+                exact run_bind _ _ (run_pure _ _)
+            cases slots with
+            | Err err => simp at hF
+            | Ok b3 =>
+              obtain ⟨hcaps, lst4, hrel4, hwf4, hrun4⟩ := hgate2 b3 rfl
+              subst hcaps
+              rw [hrun4]
+              dsimp only at hF
+              split at hF
+              · -- the slots are certified: the parameter comparison
+                rename_i hb3t
+                subst hb3t
+                rw [if_pos rfl]
+                obtain ⟨params, hparams, hG⟩ := bind_eq_ok_iff.mp hF
+                obtain ⟨hpabs, hpwf⟩ := CoreK.take_exprs_n_refines haargs hparams
+                obtain ⟨r2, st5, hdq, hH⟩ := bind_pair_eq_ok hG
+                cases r2 with
+                | Err err => simp at hH
+                | Ok b4 =>
+                  obtain ⟨lst5, hrun5, hrel5, hwf5, -⟩ :=
+                    (def_eq_list_i_refines hw d hpwf htargs).apply hwf4 hfe hdq hrel4
+                      hfrel
+                  rw [hpabs] at hrun5
+                  rw [run_bind _ _ (by simpa using hrun5)]
+                  dsimp only at hH
+                  split at hH
+                  · -- the parameters agree: on to the fields
+                    rename_i hb4t
+                    subst hb4t
+                    rw [if_pos rfl]
+                    exact (struct_eta_cert_fields_i_refines hsc hw d hc ht hus hus2 haargs
+                      htargs hb).apply hwf5 hfe hH hrel5 hfrel
+                  · -- the parameters differ
+                    rename_i hb4f
+                    have hb4ff : b4 = false := by simpa using hb4f
+                    subst hb4ff
+                    simp only [Result.ok.injEq, Prod.mk.injEq,
+                      core.result.Result.Ok.injEq] at hH
+                    obtain ⟨rfl, rfl⟩ := hH
+                    refine ⟨lst5, ?_, hrel5, hwf5, trivial⟩
+                    rw [if_neg (by simp)]
+                    rfl
+              · -- a slot certificate failed
+                rename_i hb3f
+                have hb3ff : b3 = false := by simpa using hb3f
+                subst hb3ff
+                simp only [Result.ok.injEq, Prod.mk.injEq,
+                  core.result.Result.Ok.injEq] at hF
+                obtain ⟨rfl, rfl⟩ := hF
+                refine ⟨lst4, ?_, hrel4, hwf4, trivial⟩
+                rw [if_neg (by simp)]
+                rfl
+          · -- the telescope certificate failed
+            rename_i hb2f
+            have hb2ff : b2 = false := by simpa using hb2f
+            subst hb2ff
+            simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hD
+            obtain ⟨rfl, rfl⟩ := hD
+            refine ⟨lst3, ?_, hrel3, hwf3, trivial⟩
+            rw [if_neg (by simp)]
+            rfl
+    · -- the level lists differ
+      rename_i hb1f
+      have hb1ff : b1 = false := by simpa using hb1f
+      subst hb1ff
+      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hB
+      obtain ⟨rfl, rfl⟩ := hB
+      refine ⟨lst1, ?_, hrel1, hwf1, trivial⟩
+      rw [if_neg (by simp)]
+      rfl
 
 /-- `ConLeche/Cached/CoreC.lean:407-473` — **`struct_eta_cert_with_i` refines
 `structEtaCertWithI`** (`core_c.rs:839`): the structure-eta certificate against
@@ -1748,14 +1975,9 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
               rename_i hb1t
               have hshapeconj := of_decide_eq_true (show decide _ = true by
                 rw [← hshapeabs]; exact hb1t)
-              have hep : caps.eta_params.val ≤ Std.Usize.max := by
-                have h5 := hshapeconj.2.2.2.2.1
-                simp only [absIndCaps, absExprs, List.length_map] at h5
-                have := alloc.vec.Vec.len_val targs
-                scalar_tac
               rw [if_pos hshapeconj]
               exact (struct_eta_cert_steps_i_refines hsc hw d hcwf htwf huswf hus2wf
-                haawf htawf hb hcvtwf hep).apply hwf hfe hok hrel hfrel
+                haawf htawf hb hcvtwf).apply hwf hfe hok hrel hfrel
             · -- the syntactic block fails
               rename_i hb1f
               have hb1ff : b1 = false := by

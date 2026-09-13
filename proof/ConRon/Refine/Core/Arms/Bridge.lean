@@ -10,15 +10,14 @@ than duplicating other files' work:
   hypothesis once, for every arm that calls `inst_list_m`.
 * **`InstLevelParamsRefines`** — likewise for `inst_level_params`.
 
-`InstCSize` (`StateC.lean:96`) is the *third* ingredient and it is **not**
-dischargeable here: it is `StateRel`'s missing `len` clause, and `StateRel` —
-a lookup agreement, `∀ k, (toFun m k).map absV = s[absK k]?` — does not imply
-it (a `Std.HashMap` may hold keys outside `absK`'s image without contradicting
-any lookup).  StateC.lean's own note says where it belongs: *"to be unified
-into `State.lean`'s `StateRel`"*.  Until it is, an arm that calls
-`inst_list_m` cannot thread it, because `Sim` carries `StateRel`/`StateWF` and
-nothing else — see the task #55 entry in DESIGN.md and the `sorry` notes in
-`Arms/App.lean` and the spine files.
+`InstCSize` was the *third* ingredient and task #55 could not discharge it: it
+is the `instC` entry-count clause, and `StateRel` — a lookup agreement,
+`∀ k, (toFun m k).map absV = s[absK k]?` — does not imply it (a `Std.HashMap`
+may hold keys outside `absK`'s image without contradicting any lookup).
+StateC.lean's own note said where it belonged, and **task #61 put it there**:
+`Refine/State.lean`'s `StateRel` now carries the field `StateRel.instCSize`
+(with `State.insert_size_step` as its insert lemma), so every arm that calls
+`inst_list_m` threads it out of the `StateRel` it already has.
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.ExprOpsCSubst
