@@ -161,6 +161,19 @@ private theorem errSim_notImplemented {γ : Type} {v : alloc.vec.Vec Std.U32}
     (hx : x = .error (.notImplemented ls)) : ErrSim ce x := by
   rw [not_implemented_val hce]; exact ErrSim.notImplemented hx
 
+/-- `core_types::invalid` is the constructor. -/
+private theorem invalid_val {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.invalid v = ok ce) :
+    ce = .Invalid v := by
+  rw [core_types.invalid] at h; exact (Result.ok_injective h).symm
+
+/-- A mirrored `throw` at `invalid`, the same bookkeeping. -/
+private theorem errSim_invalid {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.invalid v = ok ce)
+    (hx : x = .error (.invalid ls)) : ErrSim ce x := by
+  rw [invalid_val hce]; exact ErrSim.invalid hx
+
 /-- Two stages' runs composed, **without naming either stage**.  The cited code
 and this file spell the same `match` with different auxiliary matchers, so a
 `rw` of a stage's refinement into the cited term never fires; applying this with
@@ -1158,24 +1171,31 @@ casts with `expr_ops::dom_at_n`, which counts the `u64` down a `usize`
 cursor, so the bound is gone from every statement in the chain — and with it
 the one `sorry` `check_ind_decl_s_refines` could not discharge. -/
 theorem check_ind_decl_struct_s_refines
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {block_names : alloc.vec.Vec name.Name}
     {nonrecs recs : alloc.vec.Vec env.ConstantInfo}
     {cv_t cv_c : env.ConstantVal} {n_p n_f : Std.U64}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hbn : NamesWF block_names)
     (hnr : ConstantInfosWF nonrecs) (hrecs : ConstantInfosWF recs)
     (hct : ConstantValWF cv_t) (hcc : ConstantValWF cv_c)
     (h : inductives.inductives_c.check_ind_decl_struct_s mode st fe block_names
-        nonrecs recs cv_t cv_c n_p n_f = ok (.Ok fe', st')) :
+        nonrecs recs cv_t cv_c n_p n_f = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (checkIndDeclStructS (absMode mode) lfe (absNames block_names)
-            (absConstantInfos nonrecs) (absConstantInfos recs)
-            (absConstantVal cv_t) (absConstantVal cv_c) n_p.val n_f.val).run lst
-          = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (checkIndDeclStructS (absMode mode) lfe (absNames block_names)
+              (absConstantInfos nonrecs) (absConstantInfos recs)
+              (absConstantVal cv_t) (absConstantVal cv_c) n_p.val n_f.val).run lst
+            = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((checkIndDeclStructS (absMode mode) lfe (absNames block_names)
+          (absConstantInfos nonrecs) (absConstantInfos recs)
+          (absConstantVal cv_t) (absConstantVal cv_c) n_p.val n_f.val).run lst) := by
   -- `ind_block_caps`, the two folds above, `ctor_residual_ok`,
   -- `StructInstall.proj_fn_family_free_refines`, `ctor_targets_fam`
   intro lst lfe hrel hfer
@@ -1187,17 +1207,40 @@ theorem check_ind_decl_struct_s_refines
   obtain ⟨p1, hmem, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r, st1⟩ := p1
   cases r with
-  | Err e => simp at h
+  | Err e =>
+    -- the members' fold threw: the arm's first effect throws it
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hme :=
+      check_ind_members_s_refines hw hst hfe hbn hcapswf hnr hmem lst lfe hrel hfer
+    simp only [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero,
+      hcapsabs] at hme
+    show ErrSim e _
+    rw [checkIndDeclStructS]
+    simp only [pure_bind]
+    exact ErrSim.bindCM hme
   | Ok fe2 =>
     obtain ⟨lst1, lfe2, hrun1, hrel1, hfer1, hwf1, hfew1⟩ :=
       check_ind_members_s_refines hw hst hfe hbn hcapswf hnr hmem lst lfe hrel hfer
     obtain ⟨hcan2, hfull2⟩ :=
       check_ind_members_s_canon hw hst hfe hbn hcapswf hnr hcan hfull hmem lst lfe
         hrel hfer
+    simp only [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero,
+      hcapsabs] at hrun1
     obtain ⟨p2, hrecp, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r1, st2⟩ := p2
     cases r1 with
-    | Err e => simp at h
+    | Err e =>
+      -- the recursor group threw, past the members' fold
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      have hre :=
+        check_ind_recs_s_refines hw hwf1 hfew1 hcan2 hfull2 hbn hrecs hrecp lst1
+          lfe2 hrel1 hfer1
+      show ErrSim e _
+      rw [checkIndDeclStructS]
+      simp only [pure_bind, StateT.run_bind, hrun1, NativeInstall.exceptOk_bind]
+      exact ErrSim.bind hre _
     | Ok fe3 =>
       obtain ⟨lst2, lfe3, hrun2, hrel2, hfer2, hwf2, hfew2, hfcan2, hffull2⟩ :=
         check_ind_recs_s_refines hw hwf1 hfew1 hcan2 hfull2 hbn hrecs hrecp lst1
@@ -1205,8 +1248,6 @@ theorem check_ind_decl_struct_s_refines
       obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
       have hbv := Modeled.ctor_residual_ok_refines IndIngredients.structFamRefines
         hfer2 hfew2 hct.1 hcc.1 hct.2.1 hb
-      simp only [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero,
-        hcapsabs] at hrun1
       have hetav : (ConLeche.indBlockCapsF (absMode mode) lfe
           (absConstantVal cv_t) (absConstantVal cv_c) n_p.val n_f.val).eta
           = caps.eta := by rw [← hcapsabs]; rfl
@@ -1239,32 +1280,56 @@ theorem check_ind_decl_struct_s_refines
                 (absExpr cv_c.ty) (absName cv_t.name)
                 (absNames cv_t.level_params) n_p.val n_f.val = true from by
               rw [← hb2v]; exact hb2t)]
-            obtain ⟨lst', lfe', hrun3, hrel3, hfer3, hwf3, hfew3, hfcan3, hffull3⟩ :=
+            have hproj :=
               install_proj_fns_s_refines hw hwf2 hfew2 hfcan2 hffull2 hct.1 hcc.1
                 hct.2.1 h lst2 lfe3 hrel2 hfer2
-            rw [show ((0#u64 : Std.U64)).val = 0 from rfl, Nat.sub_zero,
-              ← List.range_eq_range'] at hrun3
-            exact ⟨lst', lfe', hrun3, hrel3, hfer3, hwf3, hfew3, hfcan3, hffull3⟩
+            cases out with
+            | Ok fe' =>
+              obtain ⟨lst', lfe', hrun3, hrel3, hfer3, hwf3, hfew3, hfcan3,
+                hffull3⟩ := hproj
+              rw [show ((0#u64 : Std.U64)).val = 0 from rfl, Nat.sub_zero,
+                ← List.range_eq_range'] at hrun3
+              exact ⟨lst', lfe', hrun3, hrel3, hfer3, hwf3, hfew3, hfcan3, hffull3⟩
+            | Err e =>
+              rw [show ((0#u64 : Std.U64)).val = 0 from rfl, Nat.sub_zero,
+                ← List.range_eq_range'] at hproj
+              exact hproj
           · rename_i hb2f
             simp only [Bool.not_eq_true] at hb2f
             rw [if_neg (show ¬ (ConLeche.ctorTargetsFam
                 (absExpr cv_c.ty) (absName cv_t.name)
                 (absNames cv_t.level_params) n_p.val n_f.val = true) from by
               rw [← hb2v, hb2f]; simp)]
-            simp only [Result.ok.injEq, Prod.mk.injEq,
-              core.result.Result.Ok.injEq] at h
+            simp only [Result.ok.injEq, Prod.mk.injEq] at h
             obtain ⟨rfl, rfl⟩ := h
             exact ⟨lst2, lfe3, rfl, hrel2, hfer2, hwf2, hfew2, hfcan2, hffull2⟩
         · rename_i hb1f
+          -- the projection name family is taken: **a mirrored `throw`**, at
+          -- `CheckerC.lean`'s `invalid "projection name family taken"`
+          rw [if_neg (show ¬ ((List.range n_f.val).all
+              (fun j => (lfe3.find? (ConLeche.projFnName
+                (absName cv_t.name) j)).isNone) = true) from by
+            rw [← hb1v]; exact hb1f)]
           obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
           simp at h
+          obtain ⟨rfl, rfl⟩ := h
+          exact errSim_invalid (ls := "projection name family taken") hce rfl
       · rename_i hbf
+        -- the eta constructor residual does not reduce: **a mirrored `throw`**,
+        -- at `CheckerC.lean`'s `notImplemented`
+        rw [if_neg (show ¬ ((ConLeche.ctorResidualOkF (absMode mode) lfe3
+            (absName cv_t.name) (absName cv_c.name)
+            (absNames cv_t.level_params) n_p.val n_f.val caps.eta) = true) from by
+          rw [← hbv]; exact hbf)]
         obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
         simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        exact errSim_notImplemented
+          (ls := "modeled structure: eta constructor residual") hce rfl
 
 /-- `ConLeche/Cached/CheckerC.lean:233-268` — **`check_ind_decl_s` refines
 `checkIndDeclSF`**: the modeled inductive block, returning the extended index.
