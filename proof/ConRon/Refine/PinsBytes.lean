@@ -2,12 +2,25 @@
 `kernel::pins_decode`'s byte readers against `ConRon.Refine.PinsDec` — half (A)
 of task #64's decoder refinement, the part below the records.
 
-Every lemma here has the same shape: *if the model's reader accepts the slice
-`t` at index `i` and stops at index `j`, then `PinsDec`'s reader accepts the
-byte suffix `bytesFrom t i` and stops at `bytesFrom t j`, with the same value.*
-Nothing is claimed when the model fails (DESIGN.md §3.5's exact-result shape),
-and the two index facts `i ≤ j` and `j ≤ t.length` travel with the equation
-because the pass above needs them for its fuel.
+Every lemma here is stated over the model's **whole** outcome (task #67): *if
+the model's reader accepts the slice `t` at index `i` and stops at index `j`,
+then `PinsDec`'s reader accepts the byte suffix `bytesFrom t i` and stops at
+`bytesFrom t j`, with the same value; and if the model declines, it declines
+with a `Native` error* — `absErrKind ce = none`, which claims nothing and is
+what `ErrSim.of_none` turns into an `ErrSim` at a caller.  The two index facts
+`i ≤ j` and `j ≤ t.length` travel with the accept branch because the pass
+above needs them for its fuel.
+
+**Why the failure branch claims nothing.**  `kernel::pins_decode` is the one
+module of the crate whose errors are *wholly* the port's own: con-leche has no
+decoder at all — its `natOpPinSets` is elaboration-time data
+(`#load_natop_pins`, `ConLeche/Kernel/NatOpPins.lean:61-64`, over an
+`include_str` JSON) — so not one of the module's twenty-eight throws mirrors a
+`throw`, and every one of them goes through the single constructor
+`bad_text` (`pins_decode.rs:100`), which builds a `CheckError::Native`.  This
+is what DESIGN.md's task-#67 error-site census records for the file, and
+`bad_text_native` below is the one lemma the whole group's failure branch
+rests on.
 
 `Refine/PinsRecords.lean` is the next layer (the `N`/`L`/`W`/`E` records),
 `Refine/PinsRun.lean` the pass; `Refine/PinsDec.lean`'s module note has the
@@ -108,6 +121,36 @@ exactly the tail `bytesFrom_cons` exposes. -/
 private theorem bytesFrom_step {t : Slice Std.U8} {i j : Std.Usize}
     (h : j.val = i.val + 1) : bytesFrom t j = (bytesOf t).drop (i.val + 1) := by
   simp [bytesFrom, h]
+
+/-! ### The module's one error
+
+`bad_text` is the decoder's only error constructor, and it is `Native`: the
+port's own decline, which a refinement lemma claims nothing about.  So every
+`.Err` branch below reads `absErrKind ce = none`, and every proof of one is
+either `err_native` (the throw itself) or the callee's own `.Err` branch. -/
+
+/-- **The module's one error is `Native`.**  `kernel::pins_decode::bad_text`
+(`pins_decode.rs:94-101`) builds `core_types::native`, so `absErrKind` sends it
+to `none` and `ErrSim.of_none` discharges any `ErrSim` about it. -/
+theorem bad_text_native {ce : core_types.CheckError}
+    (h : pins_decode.bad_text = ok ce) : absErrKind ce = none := by
+  rw [pins_decode.bad_text] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨s, hs, v, hv, h⟩ := h
+  rw [core_types.native, Result.ok.injEq] at h
+  subst h
+  rfl
+
+/-- Every error arm of the decoder is that one constructor, in the shape the
+generated model gives it: `bad_text >>= fun ce => ok (.Err ce)`. -/
+theorem err_native {T : Type} {o : core.result.Result T core_types.CheckError}
+    (h : (pins_decode.bad_text >>= fun ce =>
+            ok (core.result.Result.Err ce : core.result.Result T core_types.CheckError))
+        = ok o) : ∃ ce, o = .Err ce ∧ absErrKind ce = none := by
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨ce, hce, h⟩ := h
+  simp only [Result.ok.injEq] at h
+  exact ⟨ce, h.symm, bad_text_native hce⟩
 
 /-! ## Bytes -/
 
@@ -256,10 +299,15 @@ theorem pins_header_refines {v : alloc.vec.Vec Std.U8}
   simp [alloc.vec.Vec.new, Array.val_to_slice, pins_decode.pins_header.H,
     Array.make, PinsDec.headerBytes]
 
-theorem after_space_refines {t : Slice Std.U8} {i j : Std.Usize}
-    (h : pins_decode.after_space t i = ok (.Ok j)) :
-    PinsDec.afterSpace (bytesFrom t i) = some (bytesFrom t j)
-      ∧ i.val < j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67): on `.Err` the decoder declined with its own
+`Native` error, which claims nothing about con-leche — see the module note. -/
+theorem after_space_refines {t : Slice Std.U8} {i : Std.Usize}
+    {o : core.result.Result Std.Usize core_types.CheckError}
+    (h : pins_decode.after_space t i = ok o) :
+    match o with
+    | .Ok j => PinsDec.afterSpace (bytesFrom t i) = some (bytesFrom t j)
+        ∧ i.val < j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.after_space] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨b, hb, h⟩ := h
@@ -268,21 +316,23 @@ theorem after_space_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi : i.val < t.length := byte_at_lt hb (by scalar_tac)
     obtain ⟨w, hw, hwv⟩ := step_ok hi
     rw [hw] at h
-    simp only [bind_tc_ok, Result.ok.injEq, core.result.Result.Ok.injEq] at h
+    simp only [bind_tc_ok, Result.ok.injEq] at h
     subst h
     have hx : t.val[i.val].val = 32 := by rw [byte_at_head hb hi]; scalar_tac
     refine ⟨?_, by omega, by omega⟩
     rw [bytesFrom_cons hi, hx, bytesFrom_step hwv]
     rfl
-  · exfalso
-    simp only [bind_eq_ok_iff] at h
-    obtain ⟨ce, -, h⟩ := h
-    simp at h
+  · obtain ⟨ce, rfl, hce⟩ := err_native h
+    exact hce
 
-theorem after_newline_refines {t : Slice Std.U8} {i j : Std.Usize}
-    (h : pins_decode.after_newline t i = ok (.Ok j)) :
-    PinsDec.afterNewline (bytesFrom t i) = some (bytesFrom t j)
-      ∧ i.val < j.val ∧ j.val ≤ t.length := by
+/-- The full outcome; see `after_space_refines`. -/
+theorem after_newline_refines {t : Slice Std.U8} {i : Std.Usize}
+    {o : core.result.Result Std.Usize core_types.CheckError}
+    (h : pins_decode.after_newline t i = ok o) :
+    match o with
+    | .Ok j => PinsDec.afterNewline (bytesFrom t i) = some (bytesFrom t j)
+        ∧ i.val < j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.after_newline] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨b, hb, h⟩ := h
@@ -291,16 +341,14 @@ theorem after_newline_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi : i.val < t.length := byte_at_lt hb (by scalar_tac)
     obtain ⟨w, hw, hwv⟩ := step_ok hi
     rw [hw] at h
-    simp only [bind_tc_ok, Result.ok.injEq, core.result.Result.Ok.injEq] at h
+    simp only [bind_tc_ok, Result.ok.injEq] at h
     subst h
     have hx : t.val[i.val].val = 10 := by rw [byte_at_head hb hi]; scalar_tac
     refine ⟨?_, by omega, by omega⟩
     rw [bytesFrom_cons hi, hx, bytesFrom_step hwv]
     rfl
-  · exfalso
-    simp only [bind_eq_ok_iff] at h
-    obtain ⟨ce, -, h⟩ := h
-    simp at h
+  · obtain ⟨ce, rfl, hce⟩ := err_native h
+    exact hce
 
 /-! ## Scalars -/
 
@@ -311,15 +359,6 @@ private theorem byte_at_end {t : Slice Std.U8} {i : Std.Usize} {b : Std.U64}
   have hr := byte_at_refines h
   rw [bytesFrom_eq_nil hi] at hr
   simpa [PinsDec.byteAt] using hr
-
-/-- Every error arm of the decoder is `bad_text`, which never yields an `Ok`. -/
-private theorem err_ne_ok {T : Type} {y : T}
-    (h : (pins_decode.bad_text >>= fun ce =>
-            ok (core.result.Result.Err ce : core.result.Result T core_types.CheckError))
-        = ok (core.result.Result.Ok y)) : False := by
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨ce, -, h⟩ := h
-  simp at h
 
 /-- A non-digit that ends a `<nat>` field stops `readNatFrom` where it stands. -/
 private theorem readNatFrom_stop {r : PinsDec.Bytes} {c acc : Nat}
@@ -336,15 +375,17 @@ private theorem readBigNatFrom_stop {r : PinsDec.Bytes} {c acc : Nat}
 the index by a byte per digit, so `t.length - i` is a measure. -/
 private theorem read_nat_from_aux {t : Slice Std.U8} :
     ∀ k (i : Std.Usize) (acc : Std.U64), t.length - i.val ≤ k →
-      ∀ (n : Std.U64) (j : Std.Usize),
-        pins_decode.read_nat_from t i acc = ok (.Ok (n, j)) →
-        PinsDec.readNatFrom (bytesFrom t i) acc.val = some (n.val, bytesFrom t j)
-          ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+      ∀ (o : core.result.Result (Std.U64 × Std.Usize) core_types.CheckError),
+        pins_decode.read_nat_from t i acc = ok o →
+        match o with
+        | .Ok (n, j) =>
+            PinsDec.readNatFrom (bytesFrom t i) acc.val = some (n.val, bytesFrom t j)
+              ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+        | .Err ce => absErrKind ce = none := by
   intro k
   induction k with
   | zero =>
-    intro i acc hk n j h
-    exfalso
+    intro i acc hk o h
     rw [pins_decode.read_nat_from.eq_def] at h
     simp only [bind_eq_ok_iff] at h
     obtain ⟨b, hb, h⟩ := h
@@ -352,53 +393,57 @@ private theorem read_nat_from_aux {t : Slice Std.U8} :
     rw [if_neg (show ¬ (b < 48#u64) by scalar_tac), if_pos (show b > 57#u64 by scalar_tac),
         if_neg (show ¬ (b = 32#u64) by scalar_tac),
         if_neg (show ¬ (b = 10#u64) by scalar_tac)] at h
-    exact err_ne_ok h
+    obtain ⟨ce, rfl, hce⟩ := err_native h
+    exact hce
   | succ k ih =>
-    intro i acc hk n j h
+    intro i acc hk o h
     rw [pins_decode.read_nat_from.eq_def] at h
     simp only [bind_eq_ok_iff] at h
     obtain ⟨b, hb, h⟩ := h
     by_cases hend : t.length ≤ i.val
-    · exfalso
-      have hbv := byte_at_end hb hend
+    · have hbv := byte_at_end hb hend
       rw [if_neg (show ¬ (b < 48#u64) by scalar_tac), if_pos (show b > 57#u64 by scalar_tac),
           if_neg (show ¬ (b = 32#u64) by scalar_tac),
           if_neg (show ¬ (b = 10#u64) by scalar_tac)] at h
-      exact err_ne_ok h
+      obtain ⟨ce, rfl, hce⟩ := err_native h
+      exact hce
     · have hi : i.val < t.length := by omega
       have hcons : bytesFrom t i = b.val :: (bytesOf t).drop (i.val + 1) := by
         rw [bytesFrom_cons hi, byte_at_head hb hi]
       split at h
       · split at h
         · rename_i h32
-          simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-          obtain ⟨rfl, rfl⟩ := h
+          simp only [Result.ok.injEq] at h
+          subst h
           exact ⟨by rw [hcons]; exact readNatFrom_stop (Or.inl (by scalar_tac)),
             le_refl _, by omega⟩
         · split at h
           · rename_i h10
-            simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-            obtain ⟨rfl, rfl⟩ := h
+            simp only [Result.ok.injEq] at h
+            subst h
             exact ⟨by rw [hcons]; exact readNatFrom_stop (Or.inr (by scalar_tac)),
               le_refl _, by omega⟩
-          · exact (err_ne_ok h).elim
+          · obtain ⟨ce, rfl, hce⟩ := err_native h
+            exact hce
       · split at h
         · split at h
           · rename_i h32
-            simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-            obtain ⟨rfl, rfl⟩ := h
+            simp only [Result.ok.injEq] at h
+            subst h
             exact ⟨by rw [hcons]; exact readNatFrom_stop (Or.inl (by scalar_tac)),
               le_refl _, by omega⟩
           · split at h
             · rename_i h10
-              simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-              obtain ⟨rfl, rfl⟩ := h
+              simp only [Result.ok.injEq] at h
+              subst h
               exact ⟨by rw [hcons]; exact readNatFrom_stop (Or.inr (by scalar_tac)),
                 le_refl _, by omega⟩
-            · exact (err_ne_ok h).elim
+            · obtain ⟨ce, rfl, hce⟩ := err_native h
+              exact hce
         · rename_i hge48 hle57
           split at h
-          · exact (err_ne_ok h).elim
+          · obtain ⟨ce, rfl, hce⟩ := err_native h
+            exact hce
           · rename_i hacc
             have hd1 : 48 ≤ b.val := by scalar_tac
             have hd2 : b.val ≤ 57 := by scalar_tac
@@ -410,7 +455,11 @@ private theorem read_nat_from_aux {t : Slice Std.U8} :
             rw [show (10#u64 : Std.U64).val = 10 from by scalar_tac] at hw2v
             rw [show (48#u64 : Std.U64).val = 48 from by scalar_tac] at hw3v
             simp only [hw1, hw2, hw3, hw4, bind_tc_ok] at h
-            obtain ⟨hrec, hij, hjt⟩ := ih w1 w4 (by omega) n j h
+            cases o with
+            | Err ce => exact ih w1 w4 (by omega) _ h
+            | Ok pr =>
+            obtain ⟨n, j⟩ := pr
+            obtain ⟨hrec, hij, hjt⟩ := ih w1 w4 (by omega) _ h
             rw [bytesFrom_step hw1v] at hrec
             refine ⟨?_, by omega, hjt⟩
             rw [hcons]
@@ -421,24 +470,39 @@ private theorem read_nat_from_aux {t : Slice Std.U8} :
             rw [show acc.val * 10 + (b.val - 48) = w4.val by omega]
             exact hrec
 
-theorem read_nat_from_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {acc n : Std.U64} (h : pins_decode.read_nat_from t i acc = ok (.Ok (n, j))) :
-    PinsDec.readNatFrom (bytesFrom t i) acc.val = some (n.val, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length :=
-  read_nat_from_aux (t.length - i.val) i acc (le_refl _) n j h
+/-- The full outcome; the `.Err` branch is the module's one `Native` error. -/
+theorem read_nat_from_refines {t : Slice Std.U8} {i : Std.Usize} {acc : Std.U64}
+    {o : core.result.Result (Std.U64 × Std.Usize) core_types.CheckError}
+    (h : pins_decode.read_nat_from t i acc = ok o) :
+    match o with
+    | .Ok (n, j) =>
+        PinsDec.readNatFrom (bytesFrom t i) acc.val = some (n.val, bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
+  cases o <;> exact read_nat_from_aux (t.length - i.val) i acc (le_refl _) _ h
 
-theorem read_nat_refines {t : Slice Std.U8} {i j : Std.Usize} {n : Std.U64}
-    (h : pins_decode.read_nat t i = ok (.Ok (n, j))) :
-    PinsDec.readNat (bytesFrom t i) = some (n.val, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome; the `.Err` branch is the module's one `Native` error. -/
+theorem read_nat_refines {t : Slice Std.U8} {i : Std.Usize}
+    {o : core.result.Result (Std.U64 × Std.Usize) core_types.CheckError}
+    (h : pins_decode.read_nat t i = ok o) :
+    match o with
+    | .Ok (n, j) => PinsDec.readNat (bytesFrom t i) = some (n.val, bytesFrom t j)
+        ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.read_nat] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨b, hb, h⟩ := h
   split at h
-  · exact (err_ne_ok h).elim
+  · obtain ⟨ce, rfl, hce⟩ := err_native h
+    exact hce
   · split at h
-    · exact (err_ne_ok h).elim
+    · obtain ⟨ce, rfl, hce⟩ := err_native h
+      exact hce
     · rename_i hge48 hle57
+      cases o with
+      | Err ce => exact read_nat_from_refines h
+      | Ok pr =>
+      obtain ⟨n, j⟩ := pr
       have hd1 : 48 ≤ b.val := by scalar_tac
       have hd2 : b.val ≤ 57 := by scalar_tac
       obtain ⟨hrec, hij, hjt⟩ := read_nat_from_refines h
@@ -462,25 +526,32 @@ private theorem u64_cast_usize_val {x : Std.U64} (h : x.val ≤ 4294967295) :
   have h2 : 4294967295 ≤ Std.Usize.max := by scalar_tac
   omega
 
-theorem read_index_refines {t : Slice Std.U8} {i j : Std.Usize} {n : Std.Usize}
-    (h : pins_decode.read_index t i = ok (.Ok (n, j))) :
-    PinsDec.readIndex (bytesFrom t i) = some (n.val, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome; the `.Err` branch is the module's one `Native` error,
+either `read_nat`'s or the `> u32::MAX` guard's own. -/
+theorem read_index_refines {t : Slice Std.U8} {i : Std.Usize}
+    {o : core.result.Result (Std.Usize × Std.Usize) core_types.CheckError}
+    (h : pins_decode.read_index t i = ok o) :
+    match o with
+    | .Ok (n, j) => PinsDec.readIndex (bytesFrom t i) = some (n.val, bytesFrom t j)
+        ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.read_index] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨r, hr, h⟩ := h
   cases r with
-  | Err e => simp at h
+  | Err e =>
+    simp only [Result.ok.injEq] at h
+    subst h
+    exact read_nat_refines hr
   | Ok pr =>
     obtain ⟨m, j1⟩ := pr
-    replace h : (if m > 4294967295#u64 then _ else _)
-        = ok (core.result.Result.Ok (n, j)) := h
+    replace h : (if m > 4294967295#u64 then _ else _) = ok o := h
     split at h
-    · exact (err_ne_ok h).elim
+    · obtain ⟨ce, rfl, hce⟩ := err_native h
+      exact hce
     · rename_i hbig
-      simp only [Std.lift, bind_tc_ok, Result.ok.injEq,
-        core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h
+      simp only [Std.lift, bind_tc_ok, Result.ok.injEq] at h
+      subst h
       obtain ⟨hrec, hij, hjt⟩ := read_nat_refines hr
       refine ⟨?_, hij, hjt⟩
       unfold PinsDec.readIndex
@@ -493,16 +564,18 @@ machine word, and `Refine/Nat.lean`'s lemmas carry both the value and the
 `NatWF` invariant the next step needs. -/
 private theorem read_big_nat_from_aux {t : Slice Std.U8} :
     ∀ k (i : Std.Usize) (acc : ron.nat.Nat), t.length - i.val ≤ k → Nat.NatWF acc →
-      ∀ (n : ron.nat.Nat) (j : Std.Usize),
-        pins_decode.read_big_nat_from t i acc = ok (.Ok (n, j)) →
-        PinsDec.readBigNatFrom (bytesFrom t i) (Nat.toNat acc)
-            = some (Nat.toNat n, bytesFrom t j)
-          ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+      ∀ (o : core.result.Result (ron.nat.Nat × Std.Usize) core_types.CheckError),
+        pins_decode.read_big_nat_from t i acc = ok o →
+        match o with
+        | .Ok (n, j) =>
+            PinsDec.readBigNatFrom (bytesFrom t i) (Nat.toNat acc)
+                = some (Nat.toNat n, bytesFrom t j)
+              ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+        | .Err ce => absErrKind ce = none := by
   intro k
   induction k with
   | zero =>
-    intro i acc hk hwf n j h
-    exfalso
+    intro i acc hk hwf o h
     rw [pins_decode.read_big_nat_from.eq_def] at h
     simp only [bind_eq_ok_iff] at h
     obtain ⟨b, hb, h⟩ := h
@@ -510,46 +583,49 @@ private theorem read_big_nat_from_aux {t : Slice Std.U8} :
     rw [if_neg (show ¬ (b < 48#u64) by scalar_tac), if_pos (show b > 57#u64 by scalar_tac),
         if_neg (show ¬ (b = 32#u64) by scalar_tac),
         if_neg (show ¬ (b = 10#u64) by scalar_tac)] at h
-    exact err_ne_ok h
+    obtain ⟨ce, rfl, hce⟩ := err_native h
+    exact hce
   | succ k ih =>
-    intro i acc hk hwf n j h
+    intro i acc hk hwf o h
     rw [pins_decode.read_big_nat_from.eq_def] at h
     simp only [bind_eq_ok_iff] at h
     obtain ⟨b, hb, h⟩ := h
     by_cases hend : t.length ≤ i.val
-    · exfalso
-      have hbv := byte_at_end hb hend
+    · have hbv := byte_at_end hb hend
       rw [if_neg (show ¬ (b < 48#u64) by scalar_tac), if_pos (show b > 57#u64 by scalar_tac),
           if_neg (show ¬ (b = 32#u64) by scalar_tac),
           if_neg (show ¬ (b = 10#u64) by scalar_tac)] at h
-      exact err_ne_ok h
+      obtain ⟨ce, rfl, hce⟩ := err_native h
+      exact hce
     · have hi : i.val < t.length := by omega
       have hcons : bytesFrom t i = b.val :: (bytesOf t).drop (i.val + 1) := by
         rw [bytesFrom_cons hi, byte_at_head hb hi]
       split at h
       · split at h
-        · simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-          obtain ⟨rfl, rfl⟩ := h
+        · simp only [Result.ok.injEq] at h
+          subst h
           exact ⟨by rw [hcons]; exact readBigNatFrom_stop (Or.inl (by scalar_tac)),
             le_refl _, by omega⟩
         · split at h
-          · simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-            obtain ⟨rfl, rfl⟩ := h
+          · simp only [Result.ok.injEq] at h
+            subst h
             exact ⟨by rw [hcons]; exact readBigNatFrom_stop (Or.inr (by scalar_tac)),
               le_refl _, by omega⟩
-          · exact (err_ne_ok h).elim
+          · obtain ⟨ce, rfl, hce⟩ := err_native h
+            exact hce
       · split at h
         · split at h
-          · simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-            obtain ⟨rfl, rfl⟩ := h
+          · simp only [Result.ok.injEq] at h
+            subst h
             exact ⟨by rw [hcons]; exact readBigNatFrom_stop (Or.inl (by scalar_tac)),
               le_refl _, by omega⟩
           · split at h
-            · simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-              obtain ⟨rfl, rfl⟩ := h
+            · simp only [Result.ok.injEq] at h
+              subst h
               exact ⟨by rw [hcons]; exact readBigNatFrom_stop (Or.inr (by scalar_tac)),
                 le_refl _, by omega⟩
-            · exact (err_ne_ok h).elim
+            · obtain ⟨ce, rfl, hce⟩ := err_native h
+              exact hce
         · rename_i hge48 hle57
           have hd1 : 48 ≤ b.val := by scalar_tac
           have hd2 : b.val ≤ 57 := by scalar_tac
@@ -565,7 +641,11 @@ private theorem read_big_nat_from_aux {t : Slice Std.U8} :
           rw [hw2, Result.ok.injEq] at hw1
           subst hw1
           obtain ⟨hnnv, hnnwf⟩ := Nat.add_refines hnn
-          obtain ⟨hrec, hij, hjt⟩ := ih w2 nn (by omega) hnnwf n j h
+          cases o with
+          | Err ce => exact ih w2 nn (by omega) hnnwf _ h
+          | Ok pr =>
+          obtain ⟨n, j⟩ := pr
+          obtain ⟨hrec, hij, hjt⟩ := ih w2 nn (by omega) hnnwf _ h
           rw [bytesFrom_step hw2v] at hrec
           refine ⟨?_, by omega, hjt⟩
           rw [hcons]
@@ -578,31 +658,47 @@ private theorem read_big_nat_from_aux {t : Slice Std.U8} :
               show (48#u64 : Std.U64).val = 48 from by scalar_tac]]
           exact hrec
 
-theorem read_big_nat_from_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {acc n : ron.nat.Nat} (hacc : Nat.NatWF acc)
-    (h : pins_decode.read_big_nat_from t i acc = ok (.Ok (n, j))) :
-    PinsDec.readBigNatFrom (bytesFrom t i) (Nat.toNat acc)
-        = some (Nat.toNat n, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length :=
-  read_big_nat_from_aux (t.length - i.val) i acc (le_refl _) hacc n j h
+/-- The full outcome; the `.Err` branch is the module's one `Native` error. -/
+theorem read_big_nat_from_refines {t : Slice Std.U8} {i : Std.Usize}
+    {acc : ron.nat.Nat}
+    {o : core.result.Result (ron.nat.Nat × Std.Usize) core_types.CheckError}
+    (hacc : Nat.NatWF acc)
+    (h : pins_decode.read_big_nat_from t i acc = ok o) :
+    match o with
+    | .Ok (n, j) =>
+        PinsDec.readBigNatFrom (bytesFrom t i) (Nat.toNat acc)
+            = some (Nat.toNat n, bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
+  cases o <;> exact read_big_nat_from_aux (t.length - i.val) i acc (le_refl _) hacc _ h
 
-theorem read_big_nat_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {n : ron.nat.Nat} (h : pins_decode.read_big_nat t i = ok (.Ok (n, j))) :
-    PinsDec.readBigNat (bytesFrom t i) = some (Nat.toNat n, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome; the `.Err` branch is the module's one `Native` error. -/
+theorem read_big_nat_refines {t : Slice Std.U8} {i : Std.Usize}
+    {o : core.result.Result (ron.nat.Nat × Std.Usize) core_types.CheckError}
+    (h : pins_decode.read_big_nat t i = ok o) :
+    match o with
+    | .Ok (n, j) => PinsDec.readBigNat (bytesFrom t i) = some (Nat.toNat n, bytesFrom t j)
+        ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.read_big_nat] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨b, hb, h⟩ := h
   split at h
-  · exact (err_ne_ok h).elim
+  · obtain ⟨ce, rfl, hce⟩ := err_native h
+    exact hce
   · split at h
-    · exact (err_ne_ok h).elim
+    · obtain ⟨ce, rfl, hce⟩ := err_native h
+      exact hce
     · rename_i hge48 hle57
       have hd1 : 48 ≤ b.val := by scalar_tac
       have hd2 : b.val ≤ 57 := by scalar_tac
       simp only [bind_eq_ok_iff] at h
       obtain ⟨z, hz, h⟩ := h
       obtain ⟨hzv, hzwf⟩ := Nat.zero_refines hz
+      cases o with
+      | Err ce => exact read_big_nat_from_refines hzwf h
+      | Ok pr =>
+      obtain ⟨n, j⟩ := pr
       obtain ⟨hrec, hij, hjt⟩ := read_big_nat_from_refines hzwf h
       rw [hzv] at hrec
       refine ⟨?_, hij, hjt⟩
@@ -612,29 +708,37 @@ theorem read_big_nat_refines {t : Slice Std.U8} {i j : Std.Usize}
         simp only [PinsDec.isDigit, Bool.and_eq_true, decide_eq_true_eq]; omega)]
       exact hrec
 
-theorem expect_id_refines {t : Slice Std.U8} {i j want : Std.Usize}
-    (h : pins_decode.expect_id t i want = ok (.Ok j)) :
-    PinsDec.expectId (bytesFrom t i) want.val = some (bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome; the `.Err` branch is the module's one `Native` error,
+either `read_index`'s or the tag mismatch's own. -/
+theorem expect_id_refines {t : Slice Std.U8} {i want : Std.Usize}
+    {o : core.result.Result Std.Usize core_types.CheckError}
+    (h : pins_decode.expect_id t i want = ok o) :
+    match o with
+    | .Ok j => PinsDec.expectId (bytesFrom t i) want.val = some (bytesFrom t j)
+        ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.expect_id] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨r, hr, h⟩ := h
   cases r with
-  | Err e => simp at h
+  | Err e =>
+    simp only [Result.ok.injEq] at h
+    subst h
+    exact read_index_refines hr
   | Ok pr =>
     obtain ⟨got, j1⟩ := pr
-    replace h : (if got = want then _ else _)
-        = ok (core.result.Result.Ok j) := h
+    replace h : (if got = want then _ else _) = ok o := h
     split at h
     · rename_i hgw
-      simp only [Result.ok.injEq, core.result.Result.Ok.injEq] at h
+      simp only [Result.ok.injEq] at h
       subst h
       obtain ⟨hidx, hij, hjt⟩ := read_index_refines hr
       refine ⟨?_, hij, hjt⟩
       unfold PinsDec.expectId
       simp only [hidx]
       rw [if_pos (show got.val = want.val from by scalar_tac)]
-    · exact (err_ne_ok h).elim
+    · obtain ⟨ce, rfl, hce⟩ := err_native h
+      exact hce
 
 /-! ## Strings -/
 
@@ -719,16 +823,19 @@ private theorem push_map {out w : alloc.vec.Vec Std.U32} {x : Std.U32}
 private theorem unescape_from_aux {t : Slice Std.U8} :
     ∀ k (i : Std.Usize) (v : Std.U64) (inEsc : Bool) (out : alloc.vec.Vec Std.U32),
       t.length - i.val ≤ k →
-      ∀ (s : alloc.vec.Vec Std.U32) (j : Std.Usize),
-        pins_decode.unescape_from t i v inEsc out = ok (.Ok (s, j)) →
-        PinsDec.unescapeFrom (bytesFrom t i) v.val inEsc (out.val.map (fun c => c.val))
-            = some (s.val.map (fun c => c.val), bytesFrom t j)
-          ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+      ∀ (o : core.result.Result (alloc.vec.Vec Std.U32 × Std.Usize)
+              core_types.CheckError),
+        pins_decode.unescape_from t i v inEsc out = ok o →
+        match o with
+        | .Ok (s, j) =>
+            PinsDec.unescapeFrom (bytesFrom t i) v.val inEsc (out.val.map (fun c => c.val))
+                = some (s.val.map (fun c => c.val), bytesFrom t j)
+              ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+        | .Err ce => absErrKind ce = none := by
   intro k
   induction k with
   | zero =>
-    intro i v inEsc out hk s j h
-    exfalso
+    intro i v inEsc out hk o h
     rw [pins_decode.unescape_from.eq_def] at h
     simp only [bind_eq_ok_iff] at h
     obtain ⟨b, hb, h⟩ := h
@@ -736,19 +843,20 @@ private theorem unescape_from_aux {t : Slice Std.U8} :
     rw [if_neg (show ¬ (b = 32#u64) by scalar_tac),
         if_neg (show ¬ (b = 10#u64) by scalar_tac),
         if_pos (show b = 256#u64 by scalar_tac)] at h
-    exact err_ne_ok h
+    obtain ⟨ce, rfl, hce⟩ := err_native h
+    exact hce
   | succ k ih =>
-    intro i v inEsc out hk s j h
+    intro i v inEsc out hk o h
     rw [pins_decode.unescape_from.eq_def] at h
     simp only [bind_eq_ok_iff] at h
     obtain ⟨b, hb, h⟩ := h
     by_cases hend : t.length ≤ i.val
-    · exfalso
-      have hbv := byte_at_end hb hend
+    · have hbv := byte_at_end hb hend
       rw [if_neg (show ¬ (b = 32#u64) by scalar_tac),
           if_neg (show ¬ (b = 10#u64) by scalar_tac),
           if_pos (show b = 256#u64 by scalar_tac)] at h
-      exact err_ne_ok h
+      obtain ⟨ce, rfl, hce⟩ := err_native h
+      exact hce
     · have hi : i.val < t.length := by omega
       have hcons : bytesFrom t i = b.val :: (bytesOf t).drop (i.val + 1) := by
         rw [bytesFrom_cons hi, byte_at_head hb hi]
@@ -757,11 +865,12 @@ private theorem unescape_from_aux {t : Slice Std.U8} :
         rename_i h32
         have hbv : b.val = 32 := by scalar_tac
         split at h
-        · exact (err_ne_ok h).elim
+        · obtain ⟨ce, rfl, hce⟩ := err_native h
+          exact hce
         · rename_i hesc
           simp only [Bool.not_eq_true] at hesc
-          simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-          obtain ⟨rfl, rfl⟩ := h
+          simp only [Result.ok.injEq] at h
+          subst h
           refine ⟨?_, le_refl _, by omega⟩
           rw [hcons, hbv]
           simp [PinsDec.unescapeFrom, hesc]
@@ -770,11 +879,12 @@ private theorem unescape_from_aux {t : Slice Std.U8} :
           rename_i h10
           have hbv : b.val = 10 := by scalar_tac
           split at h
-          · exact (err_ne_ok h).elim
+          · obtain ⟨ce, rfl, hce⟩ := err_native h
+            exact hce
           · rename_i hesc
             simp only [Bool.not_eq_true] at hesc
-            simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-            obtain ⟨rfl, rfl⟩ := h
+            simp only [Result.ok.injEq] at h
+            subst h
             refine ⟨?_, le_refl _, by omega⟩
             rw [hcons, hbv]
             simp [PinsDec.unescapeFrom, hesc]
@@ -782,7 +892,8 @@ private theorem unescape_from_aux {t : Slice Std.U8} :
           have hn32 : b.val ≠ 32 := by scalar_tac
           have hn10 : b.val ≠ 10 := by scalar_tac
           split at h
-          · exact (err_ne_ok h).elim
+          · obtain ⟨ce, rfl, hce⟩ := err_native h
+            exact hce
           · split at h
             · -- inside an escape
               rename_i hesc
@@ -804,14 +915,19 @@ private theorem unescape_from_aux {t : Slice Std.U8} :
                   obtain ⟨w', hw', hw'v⟩ := step_ok hi
                   rw [hw', Result.ok.injEq] at hw
                   subst hw
-                  obtain ⟨hrec, hij, hjt⟩ := ih w' 0#u64 false out1 (by omega) s j h
+                  cases o with
+                  | Err ce => exact ih w' 0#u64 false out1 (by omega) _ h
+                  | Ok pr =>
+                  obtain ⟨s, j⟩ := pr
+                  obtain ⟨hrec, hij, hjt⟩ := ih w' 0#u64 false out1 (by omega) _ h
                   rw [bytesFrom_step hw'v, push_map hpush,
                     u64_cast_u32_val (by have := isValidChar_lt hvalid; omega),
                     show (0#u64 : Std.U64).val = 0 from by scalar_tac] at hrec
                   refine ⟨?_, by omega, hjt⟩
                   rw [hcons, hbv]
                   simpa [PinsDec.unescapeFrom, hesc, hvalid] using hrec
-                · exact (err_ne_ok h).elim
+                · obtain ⟨ce, rfl, hce⟩ := err_native h
+                  exact hce
               · -- a hexadecimal digit of the escape
                 rename_i h59
                 have hn59 : b.val ≠ 59 := by scalar_tac
@@ -819,10 +935,12 @@ private theorem unescape_from_aux {t : Slice Std.U8} :
                 obtain ⟨d, hd, h⟩ := h
                 have hdv := hex_digit_refines hd
                 split at h
-                · exact (err_ne_ok h).elim
+                · obtain ⟨ce, rfl, hce⟩ := err_native h
+                  exact hce
                 · rename_i hd16
                   split at h
-                  · exact (err_ne_ok h).elim
+                  · obtain ⟨ce, rfl, hce⟩ := err_native h
+                    exact hce
                   · rename_i hvbig
                     have hd16' : PinsDec.hexDigit b.val ≠ 16 := by
                       rw [← hdv]; scalar_tac
@@ -841,7 +959,11 @@ private theorem unescape_from_aux {t : Slice Std.U8} :
                       rw [← hdv] at hdle; scalar_tac)
                     rw [ha, Result.ok.injEq] at hw3
                     subst hw3
-                    obtain ⟨hrec, hij, hjt⟩ := ih w' a true out (by omega) s j h
+                    cases o with
+                    | Err ce => exact ih w' a true out (by omega) _ h
+                    | Ok pr =>
+                    obtain ⟨s, j⟩ := pr
+                    obtain ⟨hrec, hij, hjt⟩ := ih w' a true out (by omega) _ h
                     rw [bytesFrom_step hw'v,
                       show a.val = v.val * 16 + PinsDec.hexDigit b.val from by
                         rw [hav, hmv, hdv]] at hrec
@@ -868,7 +990,11 @@ private theorem unescape_from_aux {t : Slice Std.U8} :
                 obtain ⟨w', hw', hw'v⟩ := step_ok hi
                 rw [hw', Result.ok.injEq] at hw
                 subst hw
-                obtain ⟨hrec, hij, hjt⟩ := ih w' 0#u64 true out (by omega) s j h
+                cases o with
+                | Err ce => exact ih w' 0#u64 true out (by omega) _ h
+                | Ok pr =>
+                obtain ⟨s, j⟩ := pr
+                obtain ⟨hrec, hij, hjt⟩ := ih w' 0#u64 true out (by omega) _ h
                 rw [bytesFrom_step hw'v,
                   show (0#u64 : Std.U64).val = 0 from by scalar_tac] at hrec
                 refine ⟨?_, by omega, hjt⟩
@@ -877,10 +1003,12 @@ private theorem unescape_from_aux {t : Slice Std.U8} :
               · rename_i h92
                 have hn92 : b.val ≠ 92 := by scalar_tac
                 split at h
-                · exact (err_ne_ok h).elim
+                · obtain ⟨ce, rfl, hce⟩ := err_native h
+                  exact hce
                 · rename_i h33
                   split at h
-                  · exact (err_ne_ok h).elim
+                  · obtain ⟨ce, rfl, hce⟩ := err_native h
+                    exact hce
                   · rename_i h126
                     have hb33 : 33 ≤ b.val := by scalar_tac
                     have hb126 : b.val ≤ 126 := by scalar_tac
@@ -891,7 +1019,11 @@ private theorem unescape_from_aux {t : Slice Std.U8} :
                     obtain ⟨w', hw', hw'v⟩ := step_ok hi
                     rw [hw', Result.ok.injEq] at hw
                     subst hw
-                    obtain ⟨hrec, hij, hjt⟩ := ih w' 0#u64 false out1 (by omega) s j h
+                    cases o with
+                    | Err ce => exact ih w' 0#u64 false out1 (by omega) _ h
+                    | Ok pr =>
+                    obtain ⟨s, j⟩ := pr
+                    obtain ⟨hrec, hij, hjt⟩ := ih w' 0#u64 false out1 (by omega) _ h
                     rw [bytesFrom_step hw'v, push_map hpush,
                       u64_cast_u32_val (by omega),
                       show (0#u64 : Std.U64).val = 0 from by scalar_tac] at hrec
@@ -906,46 +1038,63 @@ private theorem unescape_from_aux {t : Slice Std.U8} :
                     rw [hstep]
                     exact hrec
 
-theorem unescape_from_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {v : Std.U64} {inEsc : Bool} {out s : alloc.vec.Vec Std.U32}
-    (h : pins_decode.unescape_from t i v inEsc out = ok (.Ok (s, j))) :
-    PinsDec.unescapeFrom (bytesFrom t i) v.val inEsc (out.val.map (fun c => c.val))
-        = some (s.val.map (fun c => c.val), bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length :=
-  unescape_from_aux (t.length - i.val) i v inEsc out (le_refl _) s j h
+/-- The full outcome; the `.Err` branch is the module's one `Native` error. -/
+theorem unescape_from_refines {t : Slice Std.U8} {i : Std.Usize}
+    {v : Std.U64} {inEsc : Bool} {out : alloc.vec.Vec Std.U32}
+    {o : core.result.Result (alloc.vec.Vec Std.U32 × Std.Usize) core_types.CheckError}
+    (h : pins_decode.unescape_from t i v inEsc out = ok o) :
+    match o with
+    | .Ok (s, j) =>
+        PinsDec.unescapeFrom (bytesFrom t i) v.val inEsc (out.val.map (fun c => c.val))
+            = some (s.val.map (fun c => c.val), bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
+  cases o <;> exact unescape_from_aux (t.length - i.val) i v inEsc out (le_refl _) _ h
 
-theorem read_string_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {s : alloc.vec.Vec Std.U32}
-    (h : pins_decode.read_string t i = ok (.Ok (s, j))) :
-    PinsDec.readString (bytesFrom t i) = some (s.val.map (fun c => c.val), bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome; the `.Err` branch is the module's one `Native` error —
+`read_index`'s, `after_space`'s, `unescape_from`'s, or the length check's. -/
+theorem read_string_refines {t : Slice Std.U8} {i : Std.Usize}
+    {o : core.result.Result (alloc.vec.Vec Std.U32 × Std.Usize) core_types.CheckError}
+    (h : pins_decode.read_string t i = ok o) :
+    match o with
+    | .Ok (s, j) =>
+        PinsDec.readString (bytesFrom t i) = some (s.val.map (fun c => c.val), bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.read_string] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨r, hr, h⟩ := h
   cases r with
-  | Err e => simp at h
+  | Err e =>
+    simp only [Result.ok.injEq] at h
+    subst h
+    exact read_index_refines hr
   | Ok pr =>
     obtain ⟨n, j1⟩ := pr
-    replace h : (pins_decode.after_space t j1 >>= _)
-        = ok (core.result.Result.Ok (s, j)) := h
+    replace h : (pins_decode.after_space t j1 >>= _) = ok o := h
     simp only [bind_eq_ok_iff] at h
     obtain ⟨r1, hr1, h⟩ := h
     cases r1 with
-    | Err e => simp at h
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      subst h
+      exact after_space_refines hr1
     | Ok k =>
       simp only [] at h
       simp only [bind_eq_ok_iff] at h
       obtain ⟨r2, hr2, h⟩ := h
       cases r2 with
-      | Err e => simp at h
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        subst h
+        exact unescape_from_refines hr2
       | Ok p1 =>
         obtain ⟨s1, m⟩ := p1
-        replace h : (if alloc.vec.Vec.len s1 = n then _ else _)
-            = ok (core.result.Result.Ok (s, j)) := h
+        replace h : (if alloc.vec.Vec.len s1 = n then _ else _) = ok o := h
         split at h
         · rename_i hlen
-          simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-          obtain ⟨rfl, rfl⟩ := h
+          simp only [Result.ok.injEq] at h
+          subst h
           obtain ⟨hidx, hij1, hj1t⟩ := read_index_refines hr
           obtain ⟨hsp, hj1k, hkt⟩ := after_space_refines hr1
           obtain ⟨hun, hkm, hmt⟩ := unescape_from_refines hr2
@@ -956,7 +1105,8 @@ theorem read_string_refines {t : Slice Std.U8} {i j : Std.Usize}
           refine ⟨?_, by omega, hmt⟩
           simp only [PinsDec.readString, hidx, hsp, hun]
           rw [if_pos hl]
-        · exact (err_ne_ok h).elim
+        · obtain ⟨ce, rfl, hce⟩ := err_native h
+          exact hce
 
 /-- The string a field decodes to is `Refine/Abs.lean`'s `absString` of the
 port's `Vec<u32>` — the bridge between (A)'s code-point lists and the
@@ -967,78 +1117,102 @@ theorem decString_absString (s : alloc.vec.Vec Std.U32) :
 
 /-! ## Backward references -/
 
-theorem name_ref_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb : pins_decode.Tables} {n : name.Name}
-    (h : pins_decode.name_ref t i tb = ok (.Ok (n, j))) :
-    PinsDec.nameRef (bytesFrom t i) (absTables tb) = some (absName n, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome; the `.Err` branch is the module's one `Native` error,
+either `read_index`'s or the out-of-range back-reference's own. -/
+theorem name_ref_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (name.Name × Std.Usize) core_types.CheckError}
+    (h : pins_decode.name_ref t i tb = ok o) :
+    match o with
+    | .Ok (n, j) =>
+        PinsDec.nameRef (bytesFrom t i) (absTables tb) = some (absName n, bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.name_ref] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨r, hr, h⟩ := h
   cases r with
-  | Err e => simp at h
+  | Err e =>
+    simp only [Result.ok.injEq] at h
+    subst h
+    exact read_index_refines hr
   | Ok pr =>
     obtain ⟨kk, j1⟩ := pr
-    replace h : (if kk < alloc.vec.Vec.len tb.names then _ else _)
-        = ok (core.result.Result.Ok (n, j)) := h
+    replace h : (if kk < alloc.vec.Vec.len tb.names then _ else _) = ok o := h
     split at h
     · rename_i hkb
       have hkl : kk.val < tb.names.length := by scalar_tac
       rw [vec_index_ok hkl] at h
-      simp only [bind_tc_ok, name_dup_eq, Result.ok.injEq,
-        core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h
+      simp only [bind_tc_ok, name_dup_eq, Result.ok.injEq] at h
+      subst h
       obtain ⟨hidx, hij, hjt⟩ := read_index_refines hr
       refine ⟨?_, hij, hjt⟩
       have htab : (absTables tb).names[kk.val]? = some (absName tb.names.val[kk.val]) := by
         simp only [absTables, List.getElem?_map, List.getElem?_eq_getElem hkl]
         rfl
       simp only [PinsDec.nameRef, hidx, htab]
-    · exact (err_ne_ok h).elim
+    · obtain ⟨ce, rfl, hce⟩ := err_native h
+      exact hce
 
-theorem level_ref_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb : pins_decode.Tables} {u : level.Level}
-    (h : pins_decode.level_ref t i tb = ok (.Ok (u, j))) :
-    PinsDec.levelRef (bytesFrom t i) (absTables tb) = some (absLevel u, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome; the `.Err` branch is the module's one `Native` error,
+either `read_index`'s or the out-of-range back-reference's own. -/
+theorem level_ref_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (level.Level × Std.Usize) core_types.CheckError}
+    (h : pins_decode.level_ref t i tb = ok o) :
+    match o with
+    | .Ok (u, j) =>
+        PinsDec.levelRef (bytesFrom t i) (absTables tb) = some (absLevel u, bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.level_ref] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨r, hr, h⟩ := h
   cases r with
-  | Err e => simp at h
+  | Err e =>
+    simp only [Result.ok.injEq] at h
+    subst h
+    exact read_index_refines hr
   | Ok pr =>
     obtain ⟨kk, j1⟩ := pr
-    replace h : (if kk < alloc.vec.Vec.len tb.levels then _ else _)
-        = ok (core.result.Result.Ok (u, j)) := h
+    replace h : (if kk < alloc.vec.Vec.len tb.levels then _ else _) = ok o := h
     split at h
     · rename_i hkb
       have hkl : kk.val < tb.levels.length := by scalar_tac
       rw [vec_index_ok hkl] at h
-      simp only [bind_tc_ok, level_dup_eq, Result.ok.injEq,
-        core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h
+      simp only [bind_tc_ok, level_dup_eq, Result.ok.injEq] at h
+      subst h
       obtain ⟨hidx, hij, hjt⟩ := read_index_refines hr
       refine ⟨?_, hij, hjt⟩
       have htab : (absTables tb).levels[kk.val]? = some (absLevel tb.levels.val[kk.val]) := by
         simp only [absTables, List.getElem?_map, List.getElem?_eq_getElem hkl]
         rfl
       simp only [PinsDec.levelRef, hidx, htab]
-    · exact (err_ne_ok h).elim
+    · obtain ⟨ce, rfl, hce⟩ := err_native h
+      exact hce
 
-theorem pw_ref_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb : pins_decode.Tables} {p : prop_when.PropWhen}
-    (h : pins_decode.pw_ref t i tb = ok (.Ok (p, j))) :
-    PinsDec.pwRef (bytesFrom t i) (absTables tb) = some (absPropWhen p, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome; the `.Err` branch is the module's one `Native` error,
+either `read_index`'s or the out-of-range back-reference's own. -/
+theorem pw_ref_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (prop_when.PropWhen × Std.Usize) core_types.CheckError}
+    (h : pins_decode.pw_ref t i tb = ok o) :
+    match o with
+    | .Ok (p, j) =>
+        PinsDec.pwRef (bytesFrom t i) (absTables tb) = some (absPropWhen p, bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.pw_ref] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨r, hr, h⟩ := h
   cases r with
-  | Err e => simp at h
+  | Err e =>
+    simp only [Result.ok.injEq] at h
+    subst h
+    exact read_index_refines hr
   | Ok pr =>
     obtain ⟨kk, j1⟩ := pr
-    replace h : (if kk < alloc.vec.Vec.len tb.pws then _ else _)
-        = ok (core.result.Result.Ok (p, j)) := h
+    replace h : (if kk < alloc.vec.Vec.len tb.pws then _ else _) = ok o := h
     split at h
     · rename_i hkb
       have hkl : kk.val < tb.pws.length := by scalar_tac
@@ -1047,30 +1221,39 @@ theorem pw_ref_refines {t : Slice Std.U8} {i j : Std.Usize}
       obtain ⟨c, hc, h⟩ := h
       have hcv := PropWhen.dup_eq hc
       subst hcv
-      simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h
+      simp only [Result.ok.injEq] at h
+      subst h
       obtain ⟨hidx, hij, hjt⟩ := read_index_refines hr
       refine ⟨?_, hij, hjt⟩
       have htab : (absTables tb).pws[kk.val]? = some (absPropWhen tb.pws.val[kk.val]) := by
         simp only [absTables, List.getElem?_map, List.getElem?_eq_getElem hkl]
         rfl
       simp only [PinsDec.pwRef, hidx, htab]
-    · exact (err_ne_ok h).elim
+    · obtain ⟨ce, rfl, hce⟩ := err_native h
+      exact hce
 
-theorem expr_ref_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb : pins_decode.Tables} {e : expr.Expr}
-    (h : pins_decode.expr_ref t i tb = ok (.Ok (e, j))) :
-    PinsDec.exprRef (bytesFrom t i) (absTables tb) = some (absExpr e, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome; the `.Err` branch is the module's one `Native` error,
+either `read_index`'s or the out-of-range back-reference's own. -/
+theorem expr_ref_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (expr.Expr × Std.Usize) core_types.CheckError}
+    (h : pins_decode.expr_ref t i tb = ok o) :
+    match o with
+    | .Ok (e, j) =>
+        PinsDec.exprRef (bytesFrom t i) (absTables tb) = some (absExpr e, bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.expr_ref] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨r, hr, h⟩ := h
   cases r with
-  | Err e => simp at h
+  | Err e =>
+    simp only [Result.ok.injEq] at h
+    subst h
+    exact read_index_refines hr
   | Ok pr =>
     obtain ⟨kk, j1⟩ := pr
-    replace h : (if kk < alloc.vec.Vec.len tb.exprs then _ else _)
-        = ok (core.result.Result.Ok (e, j)) := h
+    replace h : (if kk < alloc.vec.Vec.len tb.exprs then _ else _) = ok o := h
     split at h
     · rename_i hkb
       have hkl : kk.val < tb.exprs.length := by scalar_tac
@@ -1079,15 +1262,16 @@ theorem expr_ref_refines {t : Slice Std.U8} {i j : Std.Usize}
       obtain ⟨c, hc, h⟩ := h
       have hcv := Expr.dup_eq hc
       subst hcv
-      simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h
+      simp only [Result.ok.injEq] at h
+      subst h
       obtain ⟨hidx, hij, hjt⟩ := read_index_refines hr
       refine ⟨?_, hij, hjt⟩
       have htab : (absTables tb).exprs[kk.val]? = some (absExpr tb.exprs.val[kk.val]) := by
         simp only [absTables, List.getElem?_map, List.getElem?_eq_getElem hkl]
         rfl
       simp only [PinsDec.exprRef, hidx, htab]
-    · exact (err_ne_ok h).elim
+    · obtain ⟨ce, rfl, hce⟩ := err_native h
+      exact hce
 
 /-! ## Counted lists -/
 
@@ -1097,27 +1281,30 @@ that arm accepts any index, in range or not. -/
 private theorem name_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} :
     ∀ (kf : Nat) (i k : Std.Usize) (out : alloc.vec.Vec name.Name),
       k.val ≤ kf → i.val ≤ t.length →
-      ∀ (res : alloc.vec.Vec name.Name) (j : Std.Usize),
-        pins_decode.name_list_from t i tb k out = ok (.Ok (res, j)) →
-        PinsDec.nameListFrom (bytesFrom t i) (absTables tb) k.val (absNames out)
-            = some (absNames res, bytesFrom t j)
-          ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+      ∀ (o : core.result.Result (alloc.vec.Vec name.Name × Std.Usize) core_types.CheckError),
+        pins_decode.name_list_from t i tb k out = ok o →
+        match o with
+        | .Ok (res, j) =>
+            PinsDec.nameListFrom (bytesFrom t i) (absTables tb) k.val (absNames out)
+                = some (absNames res, bytesFrom t j)
+              ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+        | .Err ce => absErrKind ce = none := by
   intro kf
   induction kf with
   | zero =>
-    intro i k out hk hi res j h
+    intro i k out hk hi o h
     rw [pins_decode.name_list_from.eq_def] at h
     rw [if_pos (show k = 0#usize from by scalar_tac)] at h
-    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
+    simp only [Result.ok.injEq] at h
+    subst h
     rw [show k.val = 0 from by scalar_tac]
     exact ⟨by simp [PinsDec.nameListFrom], le_refl _, hi⟩
   | succ kf ih =>
-    intro i k out hk hi res j h
+    intro i k out hk hi o h
     rw [pins_decode.name_list_from.eq_def] at h
     split at h
-    · simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h
+    · simp only [Result.ok.injEq] at h
+      subst h
       rename_i hk0
       rw [show k.val = 0 from by scalar_tac]
       exact ⟨by simp [PinsDec.nameListFrom], le_refl _, hi⟩
@@ -1125,17 +1312,22 @@ private theorem name_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} 
       simp only [bind_eq_ok_iff] at h
       obtain ⟨r, hr, h⟩ := h
       cases r with
-      | Err e => simp at h
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        subst h
+        exact after_space_refines hr
       | Ok j1 =>
         simp only [] at h
         simp only [bind_eq_ok_iff] at h
         obtain ⟨r1, hr1, h⟩ := h
         cases r1 with
-        | Err e => simp at h
+        | Err e =>
+          simp only [Result.ok.injEq] at h
+          subst h
+          exact name_ref_refines hr1
         | Ok pr =>
           obtain ⟨x0, m⟩ := pr
-          replace h : (alloc.vec.Vec.push out x0 >>= _)
-              = ok (core.result.Result.Ok (res, j)) := h
+          replace h : (alloc.vec.Vec.push out x0 >>= _) = ok o := h
           simp only [bind_eq_ok_iff] at h
           obtain ⟨out1, hpush, k1, hk1, h⟩ := h
           obtain ⟨hsp, hij1, hj1t⟩ := after_space_refines hr
@@ -1143,7 +1335,11 @@ private theorem name_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} 
           obtain ⟨w, hw, hwv⟩ := usize_sub_ok (i := k) (show 1 ≤ k.val from by scalar_tac)
           rw [hw, Result.ok.injEq] at hk1
           subst hk1
-          obtain ⟨hrec, hmj, hjt⟩ := ih m w out1 (by omega) hmt res j h
+          cases o with
+          | Err ce => exact ih m w out1 (by omega) hmt _ h
+          | Ok pr1 =>
+          obtain ⟨res, j⟩ := pr1
+          obtain ⟨hrec, hmj, hjt⟩ := ih m w out1 (by omega) hmt _ h
           refine ⟨?_, by omega, hjt⟩
           obtain ⟨kv, hkv⟩ : ∃ kv, k.val = kv + 1 := ⟨k.val - 1, by scalar_tac⟩
           rw [hkv]
@@ -1153,30 +1349,46 @@ private theorem name_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} 
           rw [show kv = w.val from by omega]
           exact hrec
 
-theorem name_list_from_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb : pins_decode.Tables} {k : Std.Usize} {out ns : alloc.vec.Vec name.Name}
+/-- The full outcome; the `.Err` branch is the module's one `Native` error. -/
+theorem name_list_from_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables} {k : Std.Usize} {out : alloc.vec.Vec name.Name}
+    {o : core.result.Result (alloc.vec.Vec name.Name × Std.Usize) core_types.CheckError}
     (hi : i.val ≤ t.length)
-    (h : pins_decode.name_list_from t i tb k out = ok (.Ok (ns, j))) :
-    PinsDec.nameListFrom (bytesFrom t i) (absTables tb) k.val (absNames out)
-        = some (absNames ns, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length :=
-  name_list_from_aux k.val i k out (le_refl _) hi ns j h
+    (h : pins_decode.name_list_from t i tb k out = ok o) :
+    match o with
+    | .Ok (ns, j) =>
+        PinsDec.nameListFrom (bytesFrom t i) (absTables tb) k.val (absNames out)
+            = some (absNames ns, bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
+  cases o <;> exact name_list_from_aux k.val i k out (le_refl _) hi _ h
 
-theorem name_list_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb : pins_decode.Tables} {ns : alloc.vec.Vec name.Name}
-    (h : pins_decode.name_list t i tb = ok (.Ok (ns, j))) :
-    PinsDec.nameList (bytesFrom t i) (absTables tb) = some (absNames ns, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome; the `.Err` branch is the module's one `Native` error. -/
+theorem name_list_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (alloc.vec.Vec name.Name × Std.Usize) core_types.CheckError}
+    (h : pins_decode.name_list t i tb = ok o) :
+    match o with
+    | .Ok (ns, j) =>
+        PinsDec.nameList (bytesFrom t i) (absTables tb) = some (absNames ns, bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.name_list] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨r, hr, h⟩ := h
   cases r with
-  | Err e => simp at h
+  | Err e =>
+    simp only [Result.ok.injEq] at h
+    subst h
+    exact read_index_refines hr
   | Ok pr =>
     obtain ⟨n0, j1⟩ := pr
-    replace h : pins_decode.name_list_from t j1 tb n0 (alloc.vec.Vec.new name.Name)
-        = ok (core.result.Result.Ok (ns, j)) := h
+    replace h : pins_decode.name_list_from t j1 tb n0 (alloc.vec.Vec.new name.Name) = ok o := h
     obtain ⟨hidx, hij1, hj1t⟩ := read_index_refines hr
+    cases o with
+    | Err ce => exact name_list_from_refines hj1t h
+    | Ok pr1 =>
+    obtain ⟨ns, j⟩ := pr1
     obtain ⟨hrec, hj1j, hjt⟩ := name_list_from_refines hj1t h
     refine ⟨?_, by omega, hjt⟩
     rw [show absNames (alloc.vec.Vec.new name.Name) = [] from rfl] at hrec
@@ -1187,27 +1399,30 @@ theorem name_list_refines {t : Slice Std.U8} {i j : Std.Usize}
 private theorem level_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} :
     ∀ (kf : Nat) (i k : Std.Usize) (out : alloc.vec.Vec level.Level),
       k.val ≤ kf → i.val ≤ t.length →
-      ∀ (res : alloc.vec.Vec level.Level) (j : Std.Usize),
-        pins_decode.level_list_from t i tb k out = ok (.Ok (res, j)) →
-        PinsDec.levelListFrom (bytesFrom t i) (absTables tb) k.val (absLevels out)
-            = some (absLevels res, bytesFrom t j)
-          ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+      ∀ (o : core.result.Result (alloc.vec.Vec level.Level × Std.Usize) core_types.CheckError),
+        pins_decode.level_list_from t i tb k out = ok o →
+        match o with
+        | .Ok (res, j) =>
+            PinsDec.levelListFrom (bytesFrom t i) (absTables tb) k.val (absLevels out)
+                = some (absLevels res, bytesFrom t j)
+              ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+        | .Err ce => absErrKind ce = none := by
   intro kf
   induction kf with
   | zero =>
-    intro i k out hk hi res j h
+    intro i k out hk hi o h
     rw [pins_decode.level_list_from.eq_def] at h
     rw [if_pos (show k = 0#usize from by scalar_tac)] at h
-    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
+    simp only [Result.ok.injEq] at h
+    subst h
     rw [show k.val = 0 from by scalar_tac]
     exact ⟨by simp [PinsDec.levelListFrom], le_refl _, hi⟩
   | succ kf ih =>
-    intro i k out hk hi res j h
+    intro i k out hk hi o h
     rw [pins_decode.level_list_from.eq_def] at h
     split at h
-    · simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h
+    · simp only [Result.ok.injEq] at h
+      subst h
       rename_i hk0
       rw [show k.val = 0 from by scalar_tac]
       exact ⟨by simp [PinsDec.levelListFrom], le_refl _, hi⟩
@@ -1215,17 +1430,22 @@ private theorem level_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables}
       simp only [bind_eq_ok_iff] at h
       obtain ⟨r, hr, h⟩ := h
       cases r with
-      | Err e => simp at h
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        subst h
+        exact after_space_refines hr
       | Ok j1 =>
         simp only [] at h
         simp only [bind_eq_ok_iff] at h
         obtain ⟨r1, hr1, h⟩ := h
         cases r1 with
-        | Err e => simp at h
+        | Err e =>
+          simp only [Result.ok.injEq] at h
+          subst h
+          exact level_ref_refines hr1
         | Ok pr =>
           obtain ⟨x0, m⟩ := pr
-          replace h : (alloc.vec.Vec.push out x0 >>= _)
-              = ok (core.result.Result.Ok (res, j)) := h
+          replace h : (alloc.vec.Vec.push out x0 >>= _) = ok o := h
           simp only [bind_eq_ok_iff] at h
           obtain ⟨out1, hpush, k1, hk1, h⟩ := h
           obtain ⟨hsp, hij1, hj1t⟩ := after_space_refines hr
@@ -1233,7 +1453,11 @@ private theorem level_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables}
           obtain ⟨w, hw, hwv⟩ := usize_sub_ok (i := k) (show 1 ≤ k.val from by scalar_tac)
           rw [hw, Result.ok.injEq] at hk1
           subst hk1
-          obtain ⟨hrec, hmj, hjt⟩ := ih m w out1 (by omega) hmt res j h
+          cases o with
+          | Err ce => exact ih m w out1 (by omega) hmt _ h
+          | Ok pr1 =>
+          obtain ⟨res, j⟩ := pr1
+          obtain ⟨hrec, hmj, hjt⟩ := ih m w out1 (by omega) hmt _ h
           refine ⟨?_, by omega, hjt⟩
           obtain ⟨kv, hkv⟩ : ∃ kv, k.val = kv + 1 := ⟨k.val - 1, by scalar_tac⟩
           rw [hkv]
@@ -1243,30 +1467,46 @@ private theorem level_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables}
           rw [show kv = w.val from by omega]
           exact hrec
 
-theorem level_list_from_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb : pins_decode.Tables} {k : Std.Usize} {out us : alloc.vec.Vec level.Level}
+/-- The full outcome; the `.Err` branch is the module's one `Native` error. -/
+theorem level_list_from_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables} {k : Std.Usize} {out : alloc.vec.Vec level.Level}
+    {o : core.result.Result (alloc.vec.Vec level.Level × Std.Usize) core_types.CheckError}
     (hi : i.val ≤ t.length)
-    (h : pins_decode.level_list_from t i tb k out = ok (.Ok (us, j))) :
-    PinsDec.levelListFrom (bytesFrom t i) (absTables tb) k.val (absLevels out)
-        = some (absLevels us, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length :=
-  level_list_from_aux k.val i k out (le_refl _) hi us j h
+    (h : pins_decode.level_list_from t i tb k out = ok o) :
+    match o with
+    | .Ok (us, j) =>
+        PinsDec.levelListFrom (bytesFrom t i) (absTables tb) k.val (absLevels out)
+            = some (absLevels us, bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
+  cases o <;> exact level_list_from_aux k.val i k out (le_refl _) hi _ h
 
-theorem level_list_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb : pins_decode.Tables} {us : alloc.vec.Vec level.Level}
-    (h : pins_decode.level_list t i tb = ok (.Ok (us, j))) :
-    PinsDec.levelList (bytesFrom t i) (absTables tb) = some (absLevels us, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome; the `.Err` branch is the module's one `Native` error. -/
+theorem level_list_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (alloc.vec.Vec level.Level × Std.Usize) core_types.CheckError}
+    (h : pins_decode.level_list t i tb = ok o) :
+    match o with
+    | .Ok (us, j) =>
+        PinsDec.levelList (bytesFrom t i) (absTables tb) = some (absLevels us, bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.level_list] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨r, hr, h⟩ := h
   cases r with
-  | Err e => simp at h
+  | Err e =>
+    simp only [Result.ok.injEq] at h
+    subst h
+    exact read_index_refines hr
   | Ok pr =>
     obtain ⟨n0, j1⟩ := pr
-    replace h : pins_decode.level_list_from t j1 tb n0 (alloc.vec.Vec.new level.Level)
-        = ok (core.result.Result.Ok (us, j)) := h
+    replace h : pins_decode.level_list_from t j1 tb n0 (alloc.vec.Vec.new level.Level) = ok o := h
     obtain ⟨hidx, hij1, hj1t⟩ := read_index_refines hr
+    cases o with
+    | Err ce => exact level_list_from_refines hj1t h
+    | Ok pr1 =>
+    obtain ⟨us, j⟩ := pr1
     obtain ⟨hrec, hj1j, hjt⟩ := level_list_from_refines hj1t h
     refine ⟨?_, by omega, hjt⟩
     rw [show absLevels (alloc.vec.Vec.new level.Level) = [] from rfl] at hrec
@@ -1277,27 +1517,30 @@ theorem level_list_refines {t : Slice Std.U8} {i j : Std.Usize}
 private theorem expr_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} :
     ∀ (kf : Nat) (i k : Std.Usize) (out : alloc.vec.Vec expr.Expr),
       k.val ≤ kf → i.val ≤ t.length →
-      ∀ (res : alloc.vec.Vec expr.Expr) (j : Std.Usize),
-        pins_decode.expr_list_from t i tb k out = ok (.Ok (res, j)) →
-        PinsDec.exprListFrom (bytesFrom t i) (absTables tb) k.val (absExprs out)
-            = some (absExprs res, bytesFrom t j)
-          ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+      ∀ (o : core.result.Result (alloc.vec.Vec expr.Expr × Std.Usize) core_types.CheckError),
+        pins_decode.expr_list_from t i tb k out = ok o →
+        match o with
+        | .Ok (res, j) =>
+            PinsDec.exprListFrom (bytesFrom t i) (absTables tb) k.val (absExprs out)
+                = some (absExprs res, bytesFrom t j)
+              ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+        | .Err ce => absErrKind ce = none := by
   intro kf
   induction kf with
   | zero =>
-    intro i k out hk hi res j h
+    intro i k out hk hi o h
     rw [pins_decode.expr_list_from.eq_def] at h
     rw [if_pos (show k = 0#usize from by scalar_tac)] at h
-    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
+    simp only [Result.ok.injEq] at h
+    subst h
     rw [show k.val = 0 from by scalar_tac]
     exact ⟨by simp [PinsDec.exprListFrom], le_refl _, hi⟩
   | succ kf ih =>
-    intro i k out hk hi res j h
+    intro i k out hk hi o h
     rw [pins_decode.expr_list_from.eq_def] at h
     split at h
-    · simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h
+    · simp only [Result.ok.injEq] at h
+      subst h
       rename_i hk0
       rw [show k.val = 0 from by scalar_tac]
       exact ⟨by simp [PinsDec.exprListFrom], le_refl _, hi⟩
@@ -1305,17 +1548,22 @@ private theorem expr_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} 
       simp only [bind_eq_ok_iff] at h
       obtain ⟨r, hr, h⟩ := h
       cases r with
-      | Err e => simp at h
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        subst h
+        exact after_space_refines hr
       | Ok j1 =>
         simp only [] at h
         simp only [bind_eq_ok_iff] at h
         obtain ⟨r1, hr1, h⟩ := h
         cases r1 with
-        | Err e => simp at h
+        | Err e =>
+          simp only [Result.ok.injEq] at h
+          subst h
+          exact expr_ref_refines hr1
         | Ok pr =>
           obtain ⟨x0, m⟩ := pr
-          replace h : (alloc.vec.Vec.push out x0 >>= _)
-              = ok (core.result.Result.Ok (res, j)) := h
+          replace h : (alloc.vec.Vec.push out x0 >>= _) = ok o := h
           simp only [bind_eq_ok_iff] at h
           obtain ⟨out1, hpush, k1, hk1, h⟩ := h
           obtain ⟨hsp, hij1, hj1t⟩ := after_space_refines hr
@@ -1323,7 +1571,11 @@ private theorem expr_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} 
           obtain ⟨w, hw, hwv⟩ := usize_sub_ok (i := k) (show 1 ≤ k.val from by scalar_tac)
           rw [hw, Result.ok.injEq] at hk1
           subst hk1
-          obtain ⟨hrec, hmj, hjt⟩ := ih m w out1 (by omega) hmt res j h
+          cases o with
+          | Err ce => exact ih m w out1 (by omega) hmt _ h
+          | Ok pr1 =>
+          obtain ⟨res, j⟩ := pr1
+          obtain ⟨hrec, hmj, hjt⟩ := ih m w out1 (by omega) hmt _ h
           refine ⟨?_, by omega, hjt⟩
           obtain ⟨kv, hkv⟩ : ∃ kv, k.val = kv + 1 := ⟨k.val - 1, by scalar_tac⟩
           rw [hkv]
@@ -1333,30 +1585,46 @@ private theorem expr_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} 
           rw [show kv = w.val from by omega]
           exact hrec
 
-theorem expr_list_from_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb : pins_decode.Tables} {k : Std.Usize} {out es : alloc.vec.Vec expr.Expr}
+/-- The full outcome; the `.Err` branch is the module's one `Native` error. -/
+theorem expr_list_from_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables} {k : Std.Usize} {out : alloc.vec.Vec expr.Expr}
+    {o : core.result.Result (alloc.vec.Vec expr.Expr × Std.Usize) core_types.CheckError}
     (hi : i.val ≤ t.length)
-    (h : pins_decode.expr_list_from t i tb k out = ok (.Ok (es, j))) :
-    PinsDec.exprListFrom (bytesFrom t i) (absTables tb) k.val (absExprs out)
-        = some (absExprs es, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length :=
-  expr_list_from_aux k.val i k out (le_refl _) hi es j h
+    (h : pins_decode.expr_list_from t i tb k out = ok o) :
+    match o with
+    | .Ok (es, j) =>
+        PinsDec.exprListFrom (bytesFrom t i) (absTables tb) k.val (absExprs out)
+            = some (absExprs es, bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
+  cases o <;> exact expr_list_from_aux k.val i k out (le_refl _) hi _ h
 
-theorem expr_list_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb : pins_decode.Tables} {es : alloc.vec.Vec expr.Expr}
-    (h : pins_decode.expr_list t i tb = ok (.Ok (es, j))) :
-    PinsDec.exprList (bytesFrom t i) (absTables tb) = some (absExprs es, bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome; the `.Err` branch is the module's one `Native` error. -/
+theorem expr_list_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (alloc.vec.Vec expr.Expr × Std.Usize) core_types.CheckError}
+    (h : pins_decode.expr_list t i tb = ok o) :
+    match o with
+    | .Ok (es, j) =>
+        PinsDec.exprList (bytesFrom t i) (absTables tb) = some (absExprs es, bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.expr_list] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨r, hr, h⟩ := h
   cases r with
-  | Err e => simp at h
+  | Err e =>
+    simp only [Result.ok.injEq] at h
+    subst h
+    exact read_index_refines hr
   | Ok pr =>
     obtain ⟨n0, j1⟩ := pr
-    replace h : pins_decode.expr_list_from t j1 tb n0 (alloc.vec.Vec.new expr.Expr)
-        = ok (core.result.Result.Ok (es, j)) := h
+    replace h : pins_decode.expr_list_from t j1 tb n0 (alloc.vec.Vec.new expr.Expr) = ok o := h
     obtain ⟨hidx, hij1, hj1t⟩ := read_index_refines hr
+    cases o with
+    | Err ce => exact expr_list_from_refines hj1t h
+    | Ok pr1 =>
+    obtain ⟨es, j⟩ := pr1
     obtain ⟨hrec, hj1j, hjt⟩ := expr_list_from_refines hj1t h
     refine ⟨?_, by omega, hjt⟩
     rw [show absExprs (alloc.vec.Vec.new expr.Expr) = [] from rfl] at hrec

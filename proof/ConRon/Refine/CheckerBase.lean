@@ -83,6 +83,83 @@ has the same lemma `@[local simp]`. -/
 @[local simp] theorem expr_dup_eq (e : expr.Expr) : expr.dup e = ok e := by
   obtain ⟨r⟩ := e; simp [expr.dup]
 
+/-! ## The full-outcome convention (task #67)
+
+Every `*_refines` lemma below is stated over the Rust computation's *whole*
+outcome: the hypothesis is `= ok (o, st')` (or `= ok o` where there is no
+state) and the conclusion a `match o with | .Ok r => … | .Err e => ErrSim e …`.
+The `.Ok` branch is the pre-#67 statement, reachable as `foo_refines_ok`; the
+`.Err` branch says con-leche's side throws at the *same kind* (messages are
+never compared).  All 29 `CheckError` sites of `kernel/checker_base.rs` mirror
+a con-leche `throw`, so no arm here is the port's own `Native`.
+
+Three small pieces of vocabulary make the error halves short: the inversions
+of the three `core_types` error constructors, and one `throw`-at-`CheckCM`
+simp lemma (the plumbing simp set has no `MonadExcept` instance, so a `throw`
+arm has to be reduced on its *applied* form). -/
+
+/-- `core_types::not_implemented` is the constructor. -/
+private theorem not_implemented_val {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.not_implemented v = ok ce) :
+    ce = .NotImplemented v := by
+  rw [core_types.not_implemented] at h; exact (Result.ok_injective h).symm
+
+/-- `core_types::invalid` is the constructor. -/
+private theorem invalid_val {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.invalid v = ok ce) :
+    ce = .Invalid v := by
+  rw [core_types.invalid] at h; exact (Result.ok_injective h).symm
+
+/-- A mirrored `throw` at `notImplemented`: the port's error came out of
+`core_types::not_implemented`, so its kind is con-leche's `.notImplemented`,
+and the cited side has been rewritten down to its `throw`. -/
+private theorem errSim_notImplemented {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.not_implemented v = ok ce1) (heq : ce1 = ce)
+    (hx : x = .error (.notImplemented ls)) : ErrSim ce x := by
+  rw [← heq, not_implemented_val hce]; exact ErrSim.notImplemented hx
+
+/-- A mirrored `throw` at `invalid`, the same bookkeeping. -/
+private theorem errSim_invalid {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.invalid v = ok ce1) (heq : ce1 = ce)
+    (hx : x = .error (.invalid ls)) : ErrSim ce x := by
+  rw [← heq, invalid_val hce]; exact ErrSim.invalid hx
+
+/-- con-leche's `throw`, at the executed monad and on its *applied* form: the
+plumbing simp set unfolds `StateT.run`/`StateT.bind`/`Except.bind` but carries
+no `MonadExcept` instance, so this is what a `throw` arm ends at. -/
+@[local simp] theorem throw_run {β : Type} (le : ConLeche.CheckError)
+    (lst : ConLeche.Cached.CState) :
+    (throw le : ConLeche.Cached.CheckCM β) lst = Except.error le := rfl
+
+/-- The port's `Err` return, read off: `ok (.Err ce) = ok out` says `out` is
+`.Err ce` (the state-free shape). -/
+private theorem err_out {α : Type} {ce : core_types.CheckError}
+    {out : core.result.Result α core_types.CheckError}
+    (h : (ok (core.result.Result.Err ce) :
+      Result (core.result.Result α core_types.CheckError)) = ok out) :
+    out = .Err ce := (Result.ok_injective h).symm
+
+/-- The port's `Err` return, read off (the state-carrying shape). -/
+private theorem err_outS {α : Type} {ce : core_types.CheckError}
+    {st1 st' : cached.state_c.CState}
+    {out : core.result.Result α core_types.CheckError}
+    (h : (ok (core.result.Result.Err ce, st1) :
+      Result ((core.result.Result α core_types.CheckError) × cached.state_c.CState))
+      = ok (out, st')) : out = .Err ce ∧ st' = st1 := by
+  have h1 := Result.ok_injective h
+  exact ⟨(congrArg Prod.fst h1).symm, (congrArg Prod.snd h1).symm⟩
+
+/-- The port's `Ok` return, read off (the state-carrying shape). -/
+private theorem ok_outS {α : Type} {r : α} {st1 st' : cached.state_c.CState}
+    {out : core.result.Result α core_types.CheckError}
+    (h : (ok (core.result.Result.Ok r, st1) :
+      Result ((core.result.Result α core_types.CheckError) × cached.state_c.CState))
+      = ok (out, st')) : out = .Ok r ∧ st' = st1 := by
+  have h1 := Result.ok_injective h
+  exact ⟨(congrArg Prod.fst h1).symm, (congrArg Prod.snd h1).symm⟩
+
 /-! ## `level::name_nodup` — the one leaf `Refine/Level.lean` left
 
 `Name.nodup` (`ConLeche/Kernel/Level.lean:213-216`) is spelled in `level.rs`
@@ -184,18 +261,45 @@ theorem wf_forall_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
 `eqHeadLevel` touch neither the state nor the core, so each is a plain
 equality (DESIGN.md §3.5's pure shape). -/
 
+/-- con-leche's `unwrapOr` at `none` *is* its argument thrown, so whatever
+kind the caller's `err` stands for is the kind the cited side throws: this is
+the `ErrSim` the `.Err` branch of `unwrap_or_refines` hands its caller, at
+whichever payload and con-leche error the caller instantiated. -/
+theorem unwrapOr_none_errSim {γ : Type} {e : core_types.CheckError}
+    {lerr : ConLeche.CheckError} (hk : absErrKind e = some (lErrKind lerr)) :
+    ErrSim e (ConLeche.unwrapOr (m := ConLeche.CheckM) (none : Option γ) lerr) :=
+  ErrSim.mk rfl hk
+
 /-- `ConLeche/Kernel/CheckerBase.lean:211-217 unwrapOr` — the port's
-`Result`-valued spelling: an `.Ok a` says the option *was* `some a`, which is
-the clause con-leche's `pure a` reads.  (The port is generic in the payload,
-so this is the statement at every abstraction at once: `unwrapOr (o.map f)`
-is `pure (f a)` as soon as `o = some a`.)  Its call sites are
-`DeclCheck.lean`'s iota-theorem mirrors, which the port does not have yet. -/
-theorem unwrap_or_refines {T : Type} {o : Option T} {err : core_types.CheckError} {a : T}
-    (h : checker_base.unwrap_or o err = ok (.Ok a)) : o = some a := by
+`Result`-valued spelling, over the whole outcome: an `.Ok a` says the option
+*was* `some a`, which is the clause con-leche's `pure a` reads, and an `.Err`
+says the option was `none` and the error is **the caller's own `err`**, which
+is exactly what con-leche's `throw err` throws.  (The port is generic in the
+payload, so this is the statement at every abstraction at once: `unwrapOr
+(o.map f)` is `pure (f a)` as soon as `o = some a`, and `throw` at the same
+`none`.)  The error half is stated as the equation rather than an `ErrSim`
+because the cited side's thrown error is a *parameter*: `unwrapOr_none_errSim`
+turns it into the `ErrSim` as soon as a caller says which con-leche error
+`err` stands for.  Its call sites are `DeclCheck.lean`'s iota-theorem mirrors,
+which the port does not have yet. -/
+theorem unwrap_or_refines {T : Type} {o : Option T} {err : core_types.CheckError}
+    {out : core.result.Result T core_types.CheckError}
+    (h : checker_base.unwrap_or o err = ok out) :
+    match out with
+    | .Ok a => o = some a
+    | .Err e => o = none ∧ e = err := by
   cases o with
-  | none => simp [checker_base.unwrap_or] at h
-  | some x => simp only [checker_base.unwrap_or, Result.ok.injEq,
-      core.result.Result.Ok.injEq] at h; rw [h]
+  | none =>
+    simp only [checker_base.unwrap_or, Result.ok.injEq] at h
+    subst h; exact ⟨rfl, rfl⟩
+  | some x =>
+    simp only [checker_base.unwrap_or, Result.ok.injEq] at h
+    subst h; rfl
+
+/-- `unwrap_or_refines` at a success, the pre-#67 statement. -/
+theorem unwrap_or_refines_ok {T : Type} {o : Option T} {err : core_types.CheckError} {a : T}
+    (h : checker_base.unwrap_or o err = ok (.Ok a)) : o = some a :=
+  unwrap_or_refines h
 
 /-- `ConLeche/Kernel/CheckerBase.lean:219-225 Env.findCV?`,
 `ConLeche/Kernel/DeclCheck.lean:33-35 FEnv.findCV?` — the stored constant as a
@@ -826,61 +930,183 @@ The cited definition is monad-polymorphic but touches neither the state nor
 the core, so it is run here at `ConLeche.Cached.CheckCM` — the monad the
 executed checker uses — and leaves the state where it found it. -/
 
+open ConLeche.Cached in
+/-- `checkProjShape`'s first `throw`, run (`CheckerBase.lean:243`). -/
+theorem checkProjShape_pty_none {pty ctorTy : ConLeche.Expr} {nP nF : Nat} {lst : CState}
+    (h1 : pty.stripPis nP = none) :
+    (ConLeche.checkProjShape (m := CheckCM) pty ctorTy nP nF).run lst
+      = .error (.notImplemented "projection type telescope") := by
+  rw [ConLeche.checkProjShape]
+  simp only [h1, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjShape`'s second `throw`, run (`CheckerBase.lean:245`). -/
+theorem checkProjShape_ctor_none {pty ctorTy x : ConLeche.Expr} {nP nF : Nat}
+    {abinders : List (ConLeche.Expr × ConLeche.BinderMeta)} {lst : CState}
+    (h1 : pty.stripPis nP = some (abinders, x))
+    (h2 : ctorTy.stripPis (nP + nF) = none) :
+    (ConLeche.checkProjShape (m := CheckCM) pty ctorTy nP nF).run lst
+      = .error (.notImplemented "projection constructor telescope") := by
+  rw [ConLeche.checkProjShape]
+  simp only [h1, h2, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjShape`'s third `throw`, run (`CheckerBase.lean:247`). -/
+theorem checkProjShape_arity {pty ctorTy x cbody : ConLeche.Expr} {nP nF : Nat}
+    {abinders cbinders : List (ConLeche.Expr × ConLeche.BinderMeta)} {lst : CState}
+    (h1 : pty.stripPis nP = some (abinders, x))
+    (h2 : ctorTy.stripPis (nP + nF) = some (cbinders, cbody))
+    (h3 : (cbody.getAppArgs.length == nP) = false) :
+    (ConLeche.checkProjShape (m := CheckCM) pty ctorTy nP nF).run lst
+      = .error (.notImplemented "projection constructor residual arity") := by
+  rw [ConLeche.checkProjShape]
+  simp only [h1, h2, h3, Bool.false_eq_true, if_false, StateT.run, Bind.bind,
+    StateT.bind, Except.bind]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjShape`'s fourth `throw`, run (`CheckerBase.lean:250`): the
+residual head is not a constant. -/
+theorem checkProjShape_head {pty ctorTy x cbody : ConLeche.Expr} {nP nF : Nat}
+    {abinders cbinders : List (ConLeche.Expr × ConLeche.BinderMeta)} {lst : CState}
+    (h1 : pty.stripPis nP = some (abinders, x))
+    (h2 : ctorTy.stripPis (nP + nF) = some (cbinders, cbody))
+    (h3 : (cbody.getAppArgs.length == nP) = true)
+    (h4 : ∀ c us, cbody.getAppFn ≠ ConLeche.Expr.const c us) :
+    (ConLeche.checkProjShape (m := CheckCM) pty ctorTy nP nF).run lst
+      = .error (.notImplemented "projection constructor residual head") := by
+  rw [ConLeche.checkProjShape]
+  simp only [h1, h2, h3, if_true, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  cases hf : cbody.getAppFn with
+  | const c us => exact absurd hf (h4 c us)
+  | _ => rfl
+
 /-- `ConLeche/Kernel/CheckerBase.lean:235-250 checkProjShape` — the projection
 type's parameter telescope is syntactically the constructor's, and the
-constructor's residual is the family applied to exactly the parameters. -/
+constructor's residual is the family applied to exactly the parameters.
+
+Over the whole outcome: the port's four `not_implemented` sites
+(`kernel/checker_base.rs:507`, `509`, `513`, `518`) are the cited definition's
+four `throw`s (`:243`, `:245`, `:247`, `:250`), in order. -/
 theorem check_proj_shape_refines {pty ctor_ty : expr.Expr} {n_p n_f : Std.U64}
+    {out : core.result.Result Unit core_types.CheckError}
     (hp : ExprWF pty) (hc : ExprWF ctor_ty)
-    (h : checker_base.check_proj_shape pty ctor_ty n_p n_f = ok (.Ok ())) :
+    (h : checker_base.check_proj_shape pty ctor_ty n_p n_f = ok out) :
     ∀ lst : ConLeche.Cached.CState,
-      (ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM)
-        (absExpr pty) (absExpr ctor_ty) n_p.val n_f.val).run lst = .ok ((), lst) := by
+      match out with
+      | .Ok _ => (ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM)
+            (absExpr pty) (absExpr ctor_ty) n_p.val n_f.val).run lst = .ok ((), lst)
+      | .Err e => ErrSim e ((ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM)
+            (absExpr pty) (absExpr ctor_ty) n_p.val n_f.val).run lst) := by
   intro lst
   rw [checker_base.check_proj_shape] at h
   obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨habs1, -⟩ := ExprOps.strip_pis_refines hp ho
   cases o with
-  | none => simp at h
+  | none =>
+    -- `checker_base.rs:507` ← `CheckerBase.lean:243`
+    have e1 : ConLeche.Expr.stripPis n_p.val (absExpr pty) = none := by rw [← habs1]; rfl
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+    cases out with
+    | Ok u => simp at h
+    | Err e =>
+      exact errSim_notImplemented hce (by simpa using h) (checkProjShape_pty_none e1)
   | some q1 =>
+    have e1 : ConLeche.Expr.stripPis n_p.val (absExpr pty)
+        = some (ExprOps.absBinders q1.1, absExpr q1.2) := by rw [← habs1]; rfl
     obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
     have hi1v : i1.val = n_p.val + n_f.val := HashMap.uscalar_add_eq hi1
     obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨habs2, hwf2⟩ := ExprOps.strip_pis_refines hc ho1
     rw [hi1v] at habs2
     cases o1 with
-    | none => simp at h
+    | none =>
+      -- `checker_base.rs:509` ← `CheckerBase.lean:245`
+      have e2 : ConLeche.Expr.stripPis (n_p.val + n_f.val) (absExpr ctor_ty) = none := by
+        rw [← habs2]; rfl
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      cases out with
+      | Ok u => simp at h
+      | Err e =>
+        exact errSim_notImplemented hce (by simpa using h)
+          (checkProjShape_ctor_none e1 e2)
     | some q2 =>
       obtain ⟨cbinders, cbody⟩ := q2
       obtain ⟨-, hcbodywf⟩ := hwf2 (cbinders, cbody) rfl
+      have e2 : ConLeche.Expr.stripPis (n_p.val + n_f.val) (absExpr ctor_ty)
+          = some (ExprOps.absBinders cbinders, absExpr cbody) := by rw [← habs2]; rfl
       obtain ⟨args, hargs, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨hargsabs, hargswf⟩ := ExprOps.get_app_args_refines hcbodywf hargs
+      have hcast : (Std.UScalar.cast .U64 (alloc.vec.Vec.len args) : Std.U64).val
+          = args.val.length := by
+        rw [ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
       simp only [lift_eq, bind_tc_ok] at h
       split at h
-      · simp at h
+      · -- `checker_base.rs:513` ← `CheckerBase.lean:247`
+        rename_i hne
+        have hlen : args.val.length ≠ n_p.val := by
+          simp only [bne_iff_ne, ne_eq] at hne
+          rw [← hcast]; intro hcon; exact hne (by scalar_tac)
+        have e3 : ((absExpr cbody).getAppArgs.length == n_p.val) = false := by
+          rw [← hargsabs]
+          simp only [absExprs, List.length_map, beq_eq_false_iff_ne, ne_eq]
+          exact hlen
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨v, hv, ce, hce, h⟩ := h
+        have hout : out = .Err ce := err_out h
+        subst hout
+        exact errSim_notImplemented hce rfl (checkProjShape_arity e1 e2 e3)
       · rename_i hne
         have hlen : args.val.length = n_p.val := by
-          have hcast : (Std.UScalar.cast .U64 (alloc.vec.Vec.len args) : Std.U64).val
-              = args.val.length := by
-            rw [ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
           simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hne
           rw [← hcast, hne]
+        have e3 : ((absExpr cbody).getAppArgs.length == n_p.val) = true := by
+          rw [← hargsabs]
+          simp only [absExprs, List.length_map, beq_iff_eq]
+          exact hlen
         obtain ⟨f, hf, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨hfabs, hfwf⟩ := ExprOps.get_app_fn_refines hcbodywf hf
         obtain ⟨nd⟩ := f
         obtain ⟨df, kf⟩ := nd
-        rw [ConLeche.checkProjShape]
-        simp only [← habs1, ← habs2, Option.map_some]
         cases kf with
         | Const cn cus =>
           rw [absExpr_mk, absExprKind] at hfabs
-          simp only [← hargsabs, ← hfabs]
-          have : (absExprs args).length = n_p.val := by
+          cases out with
+          | Err e => simp at h
+          | Ok u =>
+          rw [ConLeche.checkProjShape]
+          simp only [← habs1, ← habs2, Option.map_some, ← hargsabs, ← hfabs]
+          have hl : (absExprs args).length = n_p.val := by
             simp only [absExprs, List.length_map]; exact hlen
-          simp [this]
+          simp [hl]
           rfl
         | _ =>
-          simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
-          simp at h
+          -- `checker_base.rs:518` ← `CheckerBase.lean:250`
+          all_goals (
+            rw [absExpr_mk, absExprKind] at hfabs
+            simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok,
+              bind_eq_ok_iff] at h
+            obtain ⟨v, hv, ce, hce, h⟩ := h
+            have hout : out = .Err ce := err_out h
+            subst hout
+            refine errSim_notImplemented hce rfl
+              (checkProjShape_head e1 e2 e3 ?_)
+            intro c us hcon
+            rw [← hfabs] at hcon
+            simp at hcon)
+
+/-- `check_proj_shape_refines` at a success, the pre-#67 statement. -/
+theorem check_proj_shape_refines_ok {pty ctor_ty : expr.Expr} {n_p n_f : Std.U64}
+    (hp : ExprWF pty) (hc : ExprWF ctor_ty)
+    (h : checker_base.check_proj_shape pty ctor_ty n_p n_f = ok (.Ok ())) :
+    ∀ lst : ConLeche.Cached.CState,
+      (ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM)
+        (absExpr pty) (absExpr ctor_ty) n_p.val n_f.val).run lst = .ok ((), lst) :=
+  check_proj_shape_refines hp hc h
 
 /-! ## The three list walks
 
@@ -954,59 +1180,247 @@ theorem checkAnnotList_cons {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche
   simp only [Except.bind, heq]
   rfl
 
+/-! ### The list walks' `throw` arms, run
+
+Each cited walk throws on an arity mismatch and on a comparison that came back
+`false`, and passes on whatever its `ops` call threw; these are the four run
+lemmas the error halves close with. -/
+
+open ConLeche.Cached in
+/-- `checkDefEqList`'s arity `throw` (`CheckerBase.lean:209`), left short. -/
+theorem checkDefEqList_arity_nil_cons {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {d : Nat} {b : ConLeche.Expr} {ys : List ConLeche.Expr}
+    {lst : CState} :
+    (ConLeche.checkDefEqList ops lenv d [] (b :: ys)).run lst
+      = .error (.notImplemented "iota statement component arity") := rfl
+
+open ConLeche.Cached in
+/-- `checkDefEqList`'s arity `throw` (`CheckerBase.lean:209`), right short. -/
+theorem checkDefEqList_arity_cons_nil {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {d : Nat} {a : ConLeche.Expr} {xs : List ConLeche.Expr}
+    {lst : CState} :
+    (ConLeche.checkDefEqList ops lenv d (a :: xs) []).run lst
+      = .error (.notImplemented "iota statement component arity") := rfl
+
+open ConLeche.Cached in
+/-- `checkDefEqList`'s mismatch `throw` (`CheckerBase.lean:207`). -/
+theorem checkDefEqList_cons_false {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {d : Nat} {a b : ConLeche.Expr}
+    {xs ys : List ConLeche.Expr} {lst lst' : CState}
+    (hstep : (ops.isDefEq lenv d a b).run lst = .ok (false, lst')) :
+    (ConLeche.checkDefEqList ops lenv d (a :: xs) (b :: ys)).run lst
+      = .error (.notImplemented "iota statement component mismatch") := by
+  rw [ConLeche.checkDefEqList]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ops.isDefEq lenv d a b) lst = Except.ok (false, lst') from hstep]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkDefEqList` passes on what its comparison threw. -/
+theorem checkDefEqList_cons_err {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {d : Nat} {a b : ConLeche.Expr}
+    {xs ys : List ConLeche.Expr} {lst : CState} {le : ConLeche.CheckError}
+    (hstep : (ops.isDefEq lenv d a b).run lst = .error le) :
+    (ConLeche.checkDefEqList ops lenv d (a :: xs) (b :: ys)).run lst = .error le := by
+  rw [ConLeche.checkDefEqList]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ops.isDefEq lenv d a b) lst = Except.error le from hstep]
+
+open ConLeche.Cached in
+/-- `checkTypedList`'s arity `throw` (`CheckerBase.lean:168`), left short. -/
+theorem checkTypedList_arity_nil_cons {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {d : Nat} {t : ConLeche.Expr} {ts : List ConLeche.Expr}
+    {lst : CState} :
+    (ConLeche.checkTypedList ops lenv d [] (t :: ts)).run lst
+      = .error (.notImplemented "nested pin arity mismatch") := rfl
+
+open ConLeche.Cached in
+/-- `checkTypedList`'s arity `throw` (`CheckerBase.lean:168`), right short. -/
+theorem checkTypedList_arity_cons_nil {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {d : Nat} {a : ConLeche.Expr} {xs : List ConLeche.Expr}
+    {lst : CState} :
+    (ConLeche.checkTypedList ops lenv d (a :: xs) []).run lst
+      = .error (.notImplemented "nested pin arity mismatch") := rfl
+
+open ConLeche.Cached in
+/-- `checkTypedList` passes on what its inference threw. -/
+theorem checkTypedList_infer_err {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {d : Nat} {a t : ConLeche.Expr}
+    {xs ts : List ConLeche.Expr} {lst : CState} {le : ConLeche.CheckError}
+    (hinf : (ops.inferType lenv d a).run lst = .error le) :
+    (ConLeche.checkTypedList ops lenv d (a :: xs) (t :: ts)).run lst = .error le := by
+  rw [ConLeche.checkTypedList]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ops.inferType lenv d a) lst = Except.error le from hinf]
+
+open ConLeche.Cached in
+/-- `checkTypedList` passes on what its comparison threw. -/
+theorem checkTypedList_defeq_err {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {d : Nat} {a t ty : ConLeche.Expr}
+    {xs ts : List ConLeche.Expr} {lst lst1 : CState} {le : ConLeche.CheckError}
+    (hinf : (ops.inferType lenv d a).run lst = .ok (ty, lst1))
+    (hdef : (ops.isDefEq lenv d ty t).run lst1 = .error le) :
+    (ConLeche.checkTypedList ops lenv d (a :: xs) (t :: ts)).run lst = .error le := by
+  rw [ConLeche.checkTypedList]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ops.inferType lenv d a) lst = Except.ok (ty, lst1) from hinf]
+  simp only [Except.bind]
+  rw [show (ops.isDefEq lenv d ty t) lst1 = Except.error le from hdef]
+
+open ConLeche.Cached in
+/-- `checkTypedList`'s mismatch `throw` (`CheckerBase.lean:166`). -/
+theorem checkTypedList_cons_false {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {d : Nat} {a t ty : ConLeche.Expr}
+    {xs ts : List ConLeche.Expr} {lst lst1 lst2 : CState}
+    (hinf : (ops.inferType lenv d a).run lst = .ok (ty, lst1))
+    (hdef : (ops.isDefEq lenv d ty t).run lst1 = .ok (false, lst2)) :
+    (ConLeche.checkTypedList ops lenv d (a :: xs) (t :: ts)).run lst
+      = .error (.notImplemented "nested pin type mismatch") := by
+  rw [ConLeche.checkTypedList]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ops.inferType lenv d a) lst = Except.ok (ty, lst1) from hinf]
+  simp only [Except.bind]
+  rw [show (ops.isDefEq lenv d ty t) lst1 = Except.ok (false, lst2) from hdef]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkAnnotList` passes on what its annotation threw. -/
+theorem checkAnnotList_annot_err {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {d : Nat} {a : ConLeche.Expr} {xs : List ConLeche.Expr}
+    {lst : CState} {le : ConLeche.CheckError}
+    (hann : (ops.annotate lenv d a).run lst = .error le) :
+    (ConLeche.checkAnnotList ops lenv d (a :: xs)).run lst = .error le := by
+  rw [ConLeche.checkAnnotList]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ops.annotate lenv d a) lst = Except.error le from hann]
+
+open ConLeche.Cached in
+/-- `checkAnnotList`'s mismatch `throw` (`CheckerBase.lean:183`). -/
+theorem checkAnnotList_cons_false {ops : ConLeche.CheckerOps CheckCM}
+    {lenv : ConLeche.Env} {d : Nat} {a aA : ConLeche.Expr} {xs : List ConLeche.Expr}
+    {lst lst1 : CState}
+    (hann : (ops.annotate lenv d a).run lst = .ok (aA, lst1))
+    (heq : (aA == a) = false) :
+    (ConLeche.checkAnnotList ops lenv d (a :: xs)).run lst
+      = .error (.notImplemented "nested pin annotation mismatch") := by
+  rw [ConLeche.checkAnnotList]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ops.annotate lenv d a) lst = Except.ok (aA, lst1) from hann]
+  simp only [heq, Bool.false_eq_true, if_false]
+  rfl
+
 /-- A `drop` past the end is the empty list, on the abstracted side. -/
 theorem absExprs_drop_nil {xs : alloc.vec.Vec expr.Expr} {i : Std.Usize}
     (h : xs.val.length ≤ i.val) : (absExprs xs).drop i.val = [] :=
   List.drop_eq_nil_of_le (by simp only [absExprs, List.length_map]; omega)
 
+/-- A `drop` before the end is a `cons`, on the abstracted side — which is how
+the cited walk's arity `throw` is reached: one side is `[]` and the other is
+not. -/
+theorem absExprs_drop_cons {xs : alloc.vec.Vec expr.Expr} {i : Std.Usize}
+    (h : i.val < xs.val.length) :
+    ∃ a rest, (absExprs xs).drop i.val = a :: rest := by
+  cases hd : (absExprs xs).drop i.val with
+  | nil =>
+    exfalso
+    have hl : (absExprs xs).length ≤ i.val := List.drop_eq_nil_iff.mp hd
+    simp only [absExprs, List.length_map] at hl
+    omega
+  | cons a rest => exact ⟨a, rest, rfl⟩
+
 /-- `ConLeche/Kernel/CheckerBase.lean:200-209 checkDefEqList` — the index
-recursion, on the two suffixes at the cursor. -/
+recursion, on the two suffixes at the cursor, over the whole outcome.  The
+port's two `not_implemented` sites (`kernel/checker_base.rs:444`, `452`) are
+the cited walk's arity `throw` (`:209`) and its mismatch `throw` (`:207`);
+everything else it can answer is what `is_def_eq_core` threw. -/
 theorem check_def_eq_list_from_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {xs ys : alloc.vec.Vec expr.Expr} (hxs : ExprsWF xs) (hys : ExprsWF ys) :
     ∀ (N : Nat) (i : Std.Usize) (st st' : cached.state_c.CState) (fe : fenv.FEnv)
-      (depth : Std.U64),
+      (depth : Std.U64) (out : core.result.Result Unit core_types.CheckError),
       xs.val.length - i.val ≤ N → StateWF st → FEnvWF fe →
-      checker_base.check_def_eq_list_from mode st fe depth xs ys i = ok (.Ok (), st') →
+      checker_base.check_def_eq_list_from mode st fe depth xs ys i = ok (out, st') →
       ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-        ∃ lst', (ConLeche.checkDefEqList (TypeChecker.lops mode lfe) lfe.env depth.val
-            ((absExprs xs).drop i.val) ((absExprs ys).drop i.val)).run lst = .ok ((), lst')
-          ∧ StateRel st' lst' ∧ StateWF st' := by
+        match out with
+        | .Ok _ =>
+          ∃ lst', (ConLeche.checkDefEqList (TypeChecker.lops mode lfe) lfe.env depth.val
+              ((absExprs xs).drop i.val) ((absExprs ys).drop i.val)).run lst = .ok ((), lst')
+            ∧ StateRel st' lst' ∧ StateWF st'
+        | .Err e =>
+          ErrSim e ((ConLeche.checkDefEqList (TypeChecker.lops mode lfe) lfe.env depth.val
+              ((absExprs xs).drop i.val) ((absExprs ys).drop i.val)).run lst) := by
+  -- the cited walk's arity `throw`, at the two ways the port's two index
+  -- tests can disagree
+  have arityL : ∀ (i : Std.Usize) (lfe : ConLeche.FEnv) (depth : Std.U64)
+      (lst : ConLeche.Cached.CState) (ce : core_types.CheckError)
+      (v : alloc.vec.Vec Std.U32), xs.val.length ≤ i.val → i.val < ys.val.length →
+      core_types.not_implemented v = ok ce →
+      ErrSim ce ((ConLeche.checkDefEqList (TypeChecker.lops mode lfe) lfe.env depth.val
+        ((absExprs xs).drop i.val) ((absExprs ys).drop i.val)).run lst) := by
+    intro i lfe depth lst ce v h1 h2 hce
+    obtain ⟨b, bs, hd⟩ := absExprs_drop_cons h2
+    rw [absExprs_drop_nil h1, hd]
+    exact errSim_notImplemented hce rfl checkDefEqList_arity_nil_cons
+  have arityR : ∀ (i : Std.Usize) (lfe : ConLeche.FEnv) (depth : Std.U64)
+      (lst : ConLeche.Cached.CState) (ce : core_types.CheckError)
+      (v : alloc.vec.Vec Std.U32), ys.val.length ≤ i.val → i.val < xs.val.length →
+      core_types.not_implemented v = ok ce →
+      ErrSim ce ((ConLeche.checkDefEqList (TypeChecker.lops mode lfe) lfe.env depth.val
+        ((absExprs xs).drop i.val) ((absExprs ys).drop i.val)).run lst) := by
+    intro i lfe depth lst ce v h1 h2 hce
+    obtain ⟨a, rest, hd⟩ := absExprs_drop_cons h2
+    rw [absExprs_drop_nil h1, hd]
+    exact errSim_notImplemented hce rfl checkDefEqList_arity_cons_nil
   intro N
   induction N with
   | zero =>
-    intro i st st' fe depth hN hsw hfw h lst lfe hsr hfr
+    intro i st st' fe depth out hN hsw hfw h lst lfe hsr hfr
     rw [checker_base.check_def_eq_list_from.eq_def] at h
     simp only [] at h
     rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
     split at h
     · rename_i hy
-      simp only [Result.ok.injEq] at h
-      obtain ⟨-, rfl⟩ := h
+      obtain ⟨hout, rfl⟩ := ok_outS h
+      subst hout
       refine ⟨lst, ?_, hsr, hsw⟩
       rw [absExprs_drop_nil (by scalar_tac), absExprs_drop_nil (by scalar_tac)]
       exact checkDefEqList_nil
-    · rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
-      simp [bind_eq_ok_iff] at h
+    · rename_i hy
+      rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      exact arityL i lfe depth lst ce v (by scalar_tac) (by scalar_tac) hce
   | succ N ih =>
-    intro i st st' fe depth hN hsw hfw h lst lfe hsr hfr
+    intro i st st' fe depth out hN hsw hfw h lst lfe hsr hfr
     rw [checker_base.check_def_eq_list_from.eq_def] at h
     simp only [] at h
     by_cases hix : i.val ≥ xs.val.length
     · rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
       split at h
       · rename_i hy
-        simp only [Result.ok.injEq] at h
-        obtain ⟨-, rfl⟩ := h
+        obtain ⟨hout, rfl⟩ := ok_outS h
+        subst hout
         refine ⟨lst, ?_, hsr, hsw⟩
         rw [absExprs_drop_nil (by scalar_tac), absExprs_drop_nil (by scalar_tac)]
         exact checkDefEqList_nil
-      · rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
-        simp [bind_eq_ok_iff] at h
+      · rename_i hy
+        rw [if_pos (show i >= alloc.vec.Vec.len xs by scalar_tac)] at h
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        exact arityL i lfe depth lst ce v (by scalar_tac) (by scalar_tac) hce
     · rw [if_neg (show ¬ i >= alloc.vec.Vec.len xs by scalar_tac),
         if_neg (show ¬ i >= alloc.vec.Vec.len xs by scalar_tac)] at h
       split at h
-      · simp [bind_eq_ok_iff] at h
+      · rename_i hy
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        exact arityR i lfe depth lst ce v (by scalar_tac) (by scalar_tac) hce
       · rename_i hy
         obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
@@ -1015,10 +1429,28 @@ theorem check_def_eq_list_from_refines {mode : env.CheckMode} {fuel : Std.U64}
         obtain ⟨hltx, hewf, hdropx⟩ := ExprOps.vec_index_expr hxs he
         obtain ⟨hlty, he1wf, hdropy⟩ := ExprOps.vec_index_expr hys he1
         cases rr with
-        | Err er => simp at h
+        | Err er =>
+          -- move 1: `is_def_eq_core` threw, and the cited walk's first bind throws
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          have herr := (TypeChecker.is_def_eq_core_refines hfuel hk).err st fe depth e e1
+            er st1 hsw hfw hewf he1wf hq lst lfe hsr hfr
+          rw [hdropx, hdropy]
+          exact ErrSim.trans herr (fun le hle => checkDefEqList_cons_err hle)
         | Ok ok1 =>
           cases ok1 with
-          | false => simp [bind_eq_ok_iff] at h
+          | false =>
+            -- the mismatch `throw` (`CheckerBase.lean:207`)
+            obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨hout, -⟩ := err_outS h
+            subst hout
+            obtain ⟨lst1, hrun, hsr1, hsw1⟩ :=
+              (TypeChecker.is_def_eq_core_refines hfuel hk).ok st fe depth e e1 false st1
+                hsw hfw hewf he1wf hq lst lfe hsr hfr
+            rw [hdropx, hdropy]
+            exact errSim_notImplemented hce rfl (checkDefEqList_cons_false hrun)
           | true =>
             simp only [reduceIte] at h
             obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
@@ -1029,15 +1461,55 @@ theorem check_def_eq_list_from_refines {mode : env.CheckMode} {fuel : Std.U64}
             have hstep : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
                 (absExpr e) (absExpr e1)).run lst = .ok (true, lst1) := by
               rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun
-            obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
-              ih i4 st1 st' fe depth (by omega) hsw1 hfw h lst1 lfe hsr1 hfr
-            refine ⟨lst2, ?_, hsr2, hsw2⟩
+            have hrec := ih i4 st1 st' fe depth out (by omega) hsw1 hfw h lst1 lfe hsr1 hfr
             rw [hdropx, hdropy, checkDefEqList_cons hstep, ← hi4v]
-            exact hrun2
+            exact hrec
 
+/-- `check_def_eq_list_from_refines` at a success, the pre-#67 statement. -/
+theorem check_def_eq_list_from_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {xs ys : alloc.vec.Vec expr.Expr} (hxs : ExprsWF xs) (hys : ExprsWF ys) :
+    ∀ (N : Nat) (i : Std.Usize) (st st' : cached.state_c.CState) (fe : fenv.FEnv)
+      (depth : Std.U64),
+      xs.val.length - i.val ≤ N → StateWF st → FEnvWF fe →
+      checker_base.check_def_eq_list_from mode st fe depth xs ys i = ok (.Ok (), st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ∃ lst', (ConLeche.checkDefEqList (TypeChecker.lops mode lfe) lfe.env depth.val
+            ((absExprs xs).drop i.val) ((absExprs ys).drop i.val)).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st' :=
+  fun N i st st' fe depth hN hsw hfw h =>
+    check_def_eq_list_from_refines hfuel hk hxs hys N i st st' fe depth (.Ok ())
+      hN hsw hfw h
 /-- `ConLeche/Kernel/CheckerBase.lean:200-209 checkDefEqList` — the pairwise
 definitional-equality check of two spines. -/
 theorem check_def_eq_list_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {depth : Std.U64}
+    {xs ys : alloc.vec.Vec expr.Expr}
+    {out : core.result.Result Unit core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hxs : ExprsWF xs) (hys : ExprsWF ys)
+    (h : checker_base.check_def_eq_list mode st fe depth xs ys = ok (out, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      match out with
+      | .Ok _ =>
+        ∃ lst', (ConLeche.checkDefEqList (TypeChecker.lops mode lfe) lfe.env depth.val
+            (absExprs xs) (absExprs ys)).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkDefEqList (TypeChecker.lops mode lfe) lfe.env depth.val
+            (absExprs xs) (absExprs ys)).run lst) := by
+  intro lst lfe hsr hfr
+  rw [checker_base.check_def_eq_list] at h
+  have hrun :=
+    check_def_eq_list_from_refines hfuel hk hxs hys xs.val.length 0#usize st st' fe depth
+      out (by scalar_tac) hsw hfw h lst lfe hsr hfr
+  rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero, List.drop_zero] at hrun
+  cases out with
+  | Ok u => exact hrun
+  | Err e => exact hrun
+
+/-- `check_def_eq_list_refines` at a success, the pre-#67 statement. -/
+theorem check_def_eq_list_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {depth : Std.U64}
     {xs ys : alloc.vec.Vec expr.Expr}
@@ -1046,13 +1518,8 @@ theorem check_def_eq_list_refines {mode : env.CheckMode} {fuel : Std.U64}
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst', (ConLeche.checkDefEqList (TypeChecker.lops mode lfe) lfe.env depth.val
           (absExprs xs) (absExprs ys)).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
-  intro lst lfe hsr hfr
-  rw [checker_base.check_def_eq_list] at h
-  obtain ⟨lst', hrun, rest⟩ :=
-    check_def_eq_list_from_refines hfuel hk hxs hys xs.val.length 0#usize st st' fe depth
-      (by scalar_tac) hsw hfw h lst lfe hsr hfr
-  exact ⟨lst', by simpa using hrun, rest⟩
+        ∧ StateRel st' lst' ∧ StateWF st' :=
+  check_def_eq_list_refines hfuel hk hsw hfw hxs hys h
 
 /-- `ConLeche/Kernel/CheckerBase.lean:156-168 checkTypedList` — the index
 recursion, on the two suffixes at the cursor. -/

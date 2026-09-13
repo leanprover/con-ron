@@ -9,6 +9,16 @@ cached datum itself, so the node the port installs abstracts to the node
 `ConRon.Dump.Read.lean` installs, and nothing about hashes or packed words is
 ever unfolded here.
 
+Every lemma is stated over the model's **whole** outcome (task #67), and its
+`.Err` branch claims *nothing*: `absErrKind ce = none`.  `kernel::pins_decode`
+is the one module whose errors are wholly the port's own — con-leche has no
+decoder to mirror (`natOpPinSets` is elaboration-time data there), so all
+twenty-eight throws go through `pins_decode::bad_text`, which builds a
+`CheckError::Native`.  `Refine/PinsBytes.lean`'s module note and its
+`bad_text_native`/`err_native` are where that is pinned down; here the failure
+branch is always either a reader's own `.Err` branch (carried by `peel`) or
+that one `bad_text` arm.
+
 `Refine/PinsRun.lean` is the layer above (the payload record and the pass).
 -/
 import ConRon.Refine.PinsBytes
@@ -29,13 +39,17 @@ private theorem peel {α β : Type}
     {x : Result (core.result.Result α core_types.CheckError)}
     {g : core.result.Result α core_types.CheckError →
       Result (core.result.Result β core_types.CheckError)}
-    {b : β} (h : x >>= g = ok (.Ok b))
+    {o : core.result.Result β core_types.CheckError} (h : x >>= g = ok o)
     (herr : ∀ e, g (.Err e) = ok (.Err e) := by intro e; rfl) :
-    ∃ a, x = ok (.Ok a) ∧ g (.Ok a) = ok (.Ok b) := by
+    (∃ a, x = ok (.Ok a) ∧ g (.Ok a) = ok o)
+      ∨ (∃ e, x = ok (.Err e) ∧ o = .Err e) := by
   obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
   cases r with
-  | Err e => rw [herr] at h; simp at h
-  | Ok a => exact ⟨a, hr, h⟩
+  | Err e =>
+    rw [herr] at h
+    simp only [Result.ok.injEq] at h
+    exact Or.inr ⟨e, hr, h.symm⟩
+  | Ok a => exact Or.inl ⟨a, hr, h⟩
 
 /-- The suffix at an index whose byte is known, split into that byte and the
 rest: `PinsDec`'s dispatch matches `k :: r` where the model reads `byte_at t i`
@@ -63,68 +77,101 @@ private theorem step_val {i i' : Std.Usize} (h : i + 1#usize = ok i') :
 
 /-! ## `N` — the name records -/
 
-theorem record_name_str_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_name_str t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordNameStr (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_name_str_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_name_str t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordNameStr (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_name_str] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨pre, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨pre, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact name_ref_refines hce
   obtain ⟨e2, b3, b4⟩ := name_ref_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e3, b5, b6⟩ := after_space_refines hr2
-  obtain ⟨⟨str, i4⟩, hr3, h⟩ := peel h
+  obtain ⟨⟨str, i4⟩, hr3, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact read_string_refines hce
   obtain ⟨e4, b7, b8⟩ := read_string_refines hr3
-  obtain ⟨i5, hr4, h⟩ := peel h
+  obtain ⟨i5, hr4, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e5, b9, b10⟩ := after_newline_refines hr4
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  simp only [Result.ok.injEq] at h
+  subst h
   refine ⟨?_, by omega, by omega⟩
   simp only [PinsDec.recordNameStr, e1, e2, e3, e4, e5]
   simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
     List.map_nil, Name.mk_str_refines hnd, decString_absString]
 
-theorem record_name_num_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_name_num t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordNameNum (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_name_num_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_name_num t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordNameNum (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_name_num] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨pre, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨pre, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact name_ref_refines hce
   obtain ⟨e2, b3, b4⟩ := name_ref_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e3, b5, b6⟩ := after_space_refines hr2
-  obtain ⟨⟨kk, i4⟩, hr3, h⟩ := peel h
+  obtain ⟨⟨kk, i4⟩, hr3, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact read_nat_refines hce
   obtain ⟨e4, b7, b8⟩ := read_nat_refines hr3
-  obtain ⟨i5, hr4, h⟩ := peel h
+  obtain ⟨i5, hr4, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e5, b9, b10⟩ := after_newline_refines hr4
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  simp only [Result.ok.injEq] at h
+  subst h
   refine ⟨?_, by omega, by omega⟩
   simp only [PinsDec.recordNameNum, e1, e2, e3, e4, e5]
   simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
     List.map_nil, Name.mk_num_refines hnd]
 
-theorem record_name_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_name t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordName (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_name_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_name t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordName (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_name] at h
-  obtain ⟨i2, hr, h⟩ := peel h
+  obtain ⟨i2, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact expect_id_refines hce
   obtain ⟨e1, b1, b2⟩ := expect_id_refines hr
-  obtain ⟨i3, hr1, h⟩ := peel h
+  obtain ⟨i3, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e2, b3, b4⟩ := after_space_refines hr1
   obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
   have hkv := byte_at_refines hk
@@ -137,12 +184,13 @@ theorem record_name_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 97 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
-    obtain ⟨i5, hr2, h⟩ := peel h
+    obtain ⟨i5, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+    case inr => exact after_newline_refines hce
     obtain ⟨e3, b5, b6⟩ := after_newline_refines hr2
     obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
+    simp only [Result.ok.injEq] at h
+    subst h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordName, hlen, e1, e2, hc, reduceIte, e3]
     simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
@@ -154,6 +202,10 @@ theorem record_name_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 115 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_name_str_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_name_str_refines h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordName, hlen, e1, e2, hc]
@@ -165,59 +217,85 @@ theorem record_name_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 110 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_name_num_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_name_num_refines h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordName, hlen, e1, e2, hc]
     simp [e3]
-  · obtain ⟨ce, -, h⟩ := bind_eq_ok_iff.mp h
-    simp at h
+  · obtain ⟨ce, rfl, hce⟩ := err_native h
+    exact hce
 
 /-! ## `L` — the level records -/
 
-theorem record_level_succ_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_level_succ t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordLevelSucc (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_level_succ_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_level_succ t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordLevelSucc (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_level_succ] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨u, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨u, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact level_ref_refines hce
   obtain ⟨e2, b3, b4⟩ := level_ref_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e3, b5, b6⟩ := after_newline_refines hr2
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  simp only [Result.ok.injEq] at h
+  subst h
   refine ⟨?_, by omega, by omega⟩
   simp only [PinsDec.recordLevelSucc, e1, e2, e3]
   simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
     List.map_nil, Level.succ_refines hnd]
 
-theorem record_level_binop_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables} {isMax : Bool}
-    (h : pins_decode.record_level_binop t i tb isMax = ok (.Ok (tb', j))) :
-    PinsDec.recordLevelBinop (bytesFrom t i) (absTables tb) isMax
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_level_binop_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables} {isMax : Bool}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_level_binop t i tb isMax = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordLevelBinop (bytesFrom t i) (absTables tb) isMax
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_level_binop] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨u, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨u, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact level_ref_refines hce
   obtain ⟨e2, b3, b4⟩ := level_ref_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e3, b5, b6⟩ := after_space_refines hr2
-  obtain ⟨⟨v, i4⟩, hr3, h⟩ := peel h
+  obtain ⟨⟨v, i4⟩, hr3, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact level_ref_refines hce
   obtain ⟨e4, b7, b8⟩ := level_ref_refines hr3
-  obtain ⟨i5, hr4, h⟩ := peel h
+  obtain ⟨i5, hr4, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e5, b9, b10⟩ := after_newline_refines hr4
   cases isMax
   · obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
+    simp only [Result.ok.injEq] at h
+    subst h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordLevelBinop, e1, e2, e3, e4, e5, Bool.false_eq_true,
       if_false]
@@ -225,45 +303,64 @@ theorem record_level_binop_refines {t : Slice Std.U8} {i j : Std.Usize}
       List.map_nil, Level.imax_refines hnd]
   · obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
+    simp only [Result.ok.injEq] at h
+    subst h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordLevelBinop, e1, e2, e3, e4, e5, if_true]
     simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
       List.map_nil, Level.max_refines hnd]
 
-theorem record_level_param_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_level_param t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordLevelParam (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_level_param_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_level_param t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordLevelParam (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_level_param] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨n, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨n, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact name_ref_refines hce
   obtain ⟨e2, b3, b4⟩ := name_ref_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e3, b5, b6⟩ := after_newline_refines hr2
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  simp only [Result.ok.injEq] at h
+  subst h
   refine ⟨?_, by omega, by omega⟩
   simp only [PinsDec.recordLevelParam, e1, e2, e3]
   simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
     List.map_nil, Level.param_refines hnd]
 
-theorem record_level_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_level t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordLevel (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_level_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_level t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordLevel (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_level] at h
-  obtain ⟨i2, hr, h⟩ := peel h
+  obtain ⟨i2, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact expect_id_refines hce
   obtain ⟨e1, b1, b2⟩ := expect_id_refines hr
-  obtain ⟨i3, hr1, h⟩ := peel h
+  obtain ⟨i3, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e2, b3, b4⟩ := after_space_refines hr1
   obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
   have hkv := byte_at_refines hk
@@ -276,12 +373,13 @@ theorem record_level_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 122 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
-    obtain ⟨i5, hr2, h⟩ := peel h
+    obtain ⟨i5, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+    case inr => exact after_newline_refines hce
     obtain ⟨e3, b5, b6⟩ := after_newline_refines hr2
     obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
+    simp only [Result.ok.injEq] at h
+    subst h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordLevel, hlen, e1, e2, hc, reduceIte, e3]
     simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
@@ -293,6 +391,10 @@ theorem record_level_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 115 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_level_succ_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_level_succ_refines h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordLevel, hlen, e1, e2, hc]
@@ -304,6 +406,10 @@ theorem record_level_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 109 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_level_binop_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_level_binop_refines h
     rw [hkb] at e3
     simp only [PinsDec.recordLevel, hlen, e1, e2, hc]
@@ -317,6 +423,10 @@ theorem record_level_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 105 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_level_binop_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_level_binop_refines h
     rw [hkb] at e3
     simp only [PinsDec.recordLevel, hlen, e1, e2, hc]
@@ -330,12 +440,16 @@ theorem record_level_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 112 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_level_param_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_level_param_refines h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordLevel, hlen, e1, e2, hc]
     simp [e3]
-  · obtain ⟨ce, -, h⟩ := bind_eq_ok_iff.mp h
-    simp at h
+  · obtain ⟨ce, rfl, hce⟩ := err_native h
+    exact hce
 
 /-! ## `prop_when::if_all_zero` without a well-formedness side condition
 
@@ -713,38 +827,57 @@ private theorem if_all_zero_abs {ps : alloc.vec.Vec name.Name}
 
 /-! ## `W` — the prop-when records -/
 
-theorem record_pw_zero_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_pw_zero t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordPwZero (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_pw_zero_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_pw_zero t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordPwZero (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_pw_zero] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨ns, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨ns, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact name_list_refines hce
   obtain ⟨e2, b3, b4⟩ := name_list_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e3, b5, b6⟩ := after_newline_refines hr2
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  simp only [Result.ok.injEq] at h
+  subst h
   refine ⟨?_, by omega, by omega⟩
   simp only [PinsDec.recordPwZero, e1, e2, e3]
   simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
     List.map_nil, if_all_zero_abs hnd]
 
-theorem record_pw_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_pw t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordPw (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_pw_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_pw t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordPw (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_pw] at h
-  obtain ⟨i2, hr, h⟩ := peel h
+  obtain ⟨i2, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact expect_id_refines hce
   obtain ⟨e1, b1, b2⟩ := expect_id_refines hr
-  obtain ⟨i3, hr1, h⟩ := peel h
+  obtain ⟨i3, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e2, b3, b4⟩ := after_space_refines hr1
   obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
   have hkv := byte_at_refines hk
@@ -757,12 +890,13 @@ theorem record_pw_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 110 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
-    obtain ⟨i5, hr2, h⟩ := peel h
+    obtain ⟨i5, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+    case inr => exact after_newline_refines hce
     obtain ⟨e3, b5, b6⟩ := after_newline_refines hr2
     obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
+    simp only [Result.ok.injEq] at h
+    subst h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordPw, hlen, e1, e2, hc, reduceIte, e3]
     simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
@@ -774,157 +908,231 @@ theorem record_pw_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 122 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_pw_zero_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_pw_zero_refines h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordPw, hlen, e1, e2, hc]
     simp [e3]
-  · obtain ⟨ce, -, h⟩ := bind_eq_ok_iff.mp h
-    simp at h
+  · obtain ⟨ce, rfl, hce⟩ := err_native h
+    exact hce
 
 /-! ## `E` — the expression records -/
 
-theorem record_expr_bvar_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_expr_bvar t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordExprBvar (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_expr_bvar_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_expr_bvar t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordExprBvar (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_expr_bvar] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨kk, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨kk, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact read_nat_refines hce
   obtain ⟨e2, b3, b4⟩ := read_nat_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e3, b5, b6⟩ := after_newline_refines hr2
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  simp only [Result.ok.injEq] at h
+  subst h
   refine ⟨?_, by omega, by omega⟩
   simp only [PinsDec.recordExprBvar, e1, e2, e3]
   simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
     List.map_nil, Expr.bvar_refines hnd]
 
-theorem record_expr_fvar_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_expr_fvar t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordExprFvar (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_expr_fvar_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_expr_fvar t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordExprFvar (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_expr_fvar] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨idx, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨idx, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact read_nat_refines hce
   obtain ⟨e2, b3, b4⟩ := read_nat_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e3, b5, b6⟩ := after_space_refines hr2
-  obtain ⟨⟨ty, i4⟩, hr3, h⟩ := peel h
+  obtain ⟨⟨ty, i4⟩, hr3, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact expr_ref_refines hce
   obtain ⟨e4, b7, b8⟩ := expr_ref_refines hr3
-  obtain ⟨i5, hr4, h⟩ := peel h
+  obtain ⟨i5, hr4, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e5, b9, b10⟩ := after_newline_refines hr4
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  simp only [Result.ok.injEq] at h
+  subst h
   refine ⟨?_, by omega, by omega⟩
   simp only [PinsDec.recordExprFvar, e1, e2, e3, e4, e5]
   simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
     List.map_nil, Expr.fvar_refines hnd]
 
-theorem record_expr_sort_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_expr_sort t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordExprSort (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_expr_sort_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_expr_sort t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordExprSort (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_expr_sort] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨ha, ha1, ha2⟩ := after_space_refines hr
-  obtain ⟨⟨u, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨u, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact level_ref_refines hce
   obtain ⟨hb, hb1, hb2⟩ := level_ref_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨hc, hc1, hc2⟩ := after_newline_refines hr2
   obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  simp only [Result.ok.injEq] at h
+  subst h
   refine ⟨?_, by omega, by omega⟩
   simp only [PinsDec.recordExprSort, ha, hb, hc]
   simp only [absTables, vec_push_val hv, List.map_append, List.map_cons,
     List.map_nil, Expr.sort_refines he]
 
-theorem record_expr_const_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_expr_const t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordExprConst (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_expr_const_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_expr_const t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordExprConst (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_expr_const] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨n, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨n, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact name_ref_refines hce
   obtain ⟨e2, b3, b4⟩ := name_ref_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e3, b5, b6⟩ := after_space_refines hr2
-  obtain ⟨⟨us, i4⟩, hr3, h⟩ := peel h
+  obtain ⟨⟨us, i4⟩, hr3, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact level_list_refines hce
   obtain ⟨e4, b7, b8⟩ := level_list_refines hr3
-  obtain ⟨i5, hr4, h⟩ := peel h
+  obtain ⟨i5, hr4, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e5, b9, b10⟩ := after_newline_refines hr4
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  simp only [Result.ok.injEq] at h
+  subst h
   refine ⟨?_, by omega, by omega⟩
   simp only [PinsDec.recordExprConst, e1, e2, e3, e4, e5]
   simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
     List.map_nil, Expr.mk_const_refines hnd]
 
-theorem record_expr_app_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_expr_app t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordExprApp (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_expr_app_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_expr_app t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordExprApp (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_expr_app] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨f, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨f, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact expr_ref_refines hce
   obtain ⟨e2, b3, b4⟩ := expr_ref_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e3, b5, b6⟩ := after_space_refines hr2
-  obtain ⟨⟨a, i4⟩, hr3, h⟩ := peel h
+  obtain ⟨⟨a, i4⟩, hr3, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact expr_ref_refines hce
   obtain ⟨e4, b7, b8⟩ := expr_ref_refines hr3
-  obtain ⟨i5, hr4, h⟩ := peel h
+  obtain ⟨i5, hr4, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e5, b9, b10⟩ := after_newline_refines hr4
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  simp only [Result.ok.injEq] at h
+  subst h
   refine ⟨?_, by omega, by omega⟩
   simp only [PinsDec.recordExprApp, e1, e2, e3, e4, e5]
   simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
     List.map_nil, Expr.app_refines hnd]
 
-theorem record_expr_binder_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables} {isLam : Bool}
-    (h : pins_decode.record_expr_binder t i tb isLam = ok (.Ok (tb', j))) :
-    PinsDec.recordExprBinder (bytesFrom t i) (absTables tb) isLam
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_expr_binder_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables} {isLam : Bool}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_expr_binder t i tb isLam = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordExprBinder (bytesFrom t i) (absTables tb) isLam
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_expr_binder] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨ty, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨ty, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact expr_ref_refines hce
   obtain ⟨e2, b3, b4⟩ := expr_ref_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e3, b5, b6⟩ := after_space_refines hr2
-  obtain ⟨⟨body, i4⟩, hr3, h⟩ := peel h
+  obtain ⟨⟨body, i4⟩, hr3, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact expr_ref_refines hce
   obtain ⟨e4, b7, b8⟩ := expr_ref_refines hr3
-  obtain ⟨i5, hr4, h⟩ := peel h
+  obtain ⟨i5, hr4, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e5, b9, b10⟩ := after_space_refines hr4
-  obtain ⟨⟨pw, i6⟩, hr5, h⟩ := peel h
+  obtain ⟨⟨pw, i6⟩, hr5, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact pw_ref_refines hce
   obtain ⟨e6, b11, b12⟩ := pw_ref_refines hr5
-  obtain ⟨i7, hr6, h⟩ := peel h
+  obtain ⟨i7, hr6, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e7, b13, b14⟩ := after_newline_refines hr6
   obtain ⟨m, hm, h⟩ := bind_eq_ok_iff.mp h
   simp only [expr.binder_meta, ptr_new_eq, bind_tc_ok, Result.ok.injEq] at hm
@@ -932,8 +1140,8 @@ theorem record_expr_binder_refines {t : Slice Std.U8} {i j : Std.Usize}
   cases isLam
   · obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
+    simp only [Result.ok.injEq] at h
+    subst h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordExprBinder, e1, e2, e3, e4, e5, e6, e7,
       Bool.false_eq_true, if_false]
@@ -941,134 +1149,191 @@ theorem record_expr_binder_refines {t : Slice Std.U8} {i j : Std.Usize}
       List.map_nil, Expr.forall_e_refines hnd, absBinderMeta]
   · obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
+    simp only [Result.ok.injEq] at h
+    subst h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordExprBinder, e1, e2, e3, e4, e5, e6, e7, if_true]
     simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
       List.map_nil, Expr.lam_refines hnd, absBinderMeta]
 
-theorem record_expr_let_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_expr_let t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordExprLet (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_expr_let_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_expr_let t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordExprLet (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_expr_let] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨ty, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨ty, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact expr_ref_refines hce
   obtain ⟨e2, b3, b4⟩ := expr_ref_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e3, b5, b6⟩ := after_space_refines hr2
-  obtain ⟨⟨va, i4⟩, hr3, h⟩ := peel h
+  obtain ⟨⟨va, i4⟩, hr3, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact expr_ref_refines hce
   obtain ⟨e4, b7, b8⟩ := expr_ref_refines hr3
-  obtain ⟨i5, hr4, h⟩ := peel h
+  obtain ⟨i5, hr4, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e5, b9, b10⟩ := after_space_refines hr4
-  obtain ⟨⟨body, i6⟩, hr5, h⟩ := peel h
+  obtain ⟨⟨body, i6⟩, hr5, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact expr_ref_refines hce
   obtain ⟨e6, b11, b12⟩ := expr_ref_refines hr5
-  obtain ⟨i7, hr6, h⟩ := peel h
+  obtain ⟨i7, hr6, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e7, b13, b14⟩ := after_newline_refines hr6
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  simp only [Result.ok.injEq] at h
+  subst h
   refine ⟨?_, by omega, by omega⟩
   simp only [PinsDec.recordExprLet, e1, e2, e3, e4, e5, e6, e7]
   simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
     List.map_nil, Expr.let_e_refines hnd]
 
-theorem record_expr_nat_lit_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_expr_nat_lit t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordExprNatLit (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_expr_nat_lit_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_expr_nat_lit t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordExprNatLit (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_expr_nat_lit] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨n, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨n, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact read_big_nat_refines hce
   obtain ⟨e2, b3, b4⟩ := read_big_nat_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e3, b5, b6⟩ := after_newline_refines hr2
   obtain ⟨lit, hlit, h⟩ := bind_eq_ok_iff.mp h
   simp only [expr.literal_nat, ptr_new_eq, bind_tc_ok, Result.ok.injEq] at hlit
   subst hlit
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  simp only [Result.ok.injEq] at h
+  subst h
   refine ⟨?_, by omega, by omega⟩
   simp only [PinsDec.recordExprNatLit, e1, e2, e3]
   simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
     List.map_nil, Expr.lit_refines hnd, absLiteral]
 
-theorem record_expr_str_lit_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_expr_str_lit t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordExprStrLit (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_expr_str_lit_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_expr_str_lit t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordExprStrLit (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_expr_str_lit] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨str, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨str, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact read_string_refines hce
   obtain ⟨e2, b3, b4⟩ := read_string_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e3, b5, b6⟩ := after_newline_refines hr2
   obtain ⟨lit, hlit, h⟩ := bind_eq_ok_iff.mp h
   simp only [expr.literal_str, ptr_new_eq, bind_tc_ok, Result.ok.injEq] at hlit
   subst hlit
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  simp only [Result.ok.injEq] at h
+  subst h
   refine ⟨?_, by omega, by omega⟩
   simp only [PinsDec.recordExprStrLit, e1, e2, e3]
   simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
     List.map_nil, Expr.lit_refines hnd, absLiteral, decString_absString]
 
-theorem record_expr_proj_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_expr_proj t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordExprProj (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_expr_proj_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_expr_proj t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordExprProj (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_expr_proj] at h
-  obtain ⟨i1, hr, h⟩ := peel h
+  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨sn, i2⟩, hr1, h⟩ := peel h
+  obtain ⟨⟨sn, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact name_ref_refines hce
   obtain ⟨e2, b3, b4⟩ := name_ref_refines hr1
-  obtain ⟨i3, hr2, h⟩ := peel h
+  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e3, b5, b6⟩ := after_space_refines hr2
-  obtain ⟨⟨idx, i4⟩, hr3, h⟩ := peel h
+  obtain ⟨⟨idx, i4⟩, hr3, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact read_nat_refines hce
   obtain ⟨e4, b7, b8⟩ := read_nat_refines hr3
-  obtain ⟨i5, hr4, h⟩ := peel h
+  obtain ⟨i5, hr4, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e5, b9, b10⟩ := after_space_refines hr4
-  obtain ⟨⟨st, i6⟩, hr5, h⟩ := peel h
+  obtain ⟨⟨st, i6⟩, hr5, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact expr_ref_refines hce
   obtain ⟨e6, b11, b12⟩ := expr_ref_refines hr5
-  obtain ⟨i7, hr6, h⟩ := peel h
+  obtain ⟨i7, hr6, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_newline_refines hce
   obtain ⟨e7, b13, b14⟩ := after_newline_refines hr6
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  simp only [Result.ok.injEq] at h
+  subst h
   refine ⟨?_, by omega, by omega⟩
   simp only [PinsDec.recordExprProj, e1, e2, e3, e4, e5, e6, e7]
   simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
     List.map_nil, Expr.proj_refines hnd]
 
 set_option maxHeartbeats 1000000 in
-theorem record_expr_refines {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables}
-    (h : pins_decode.record_expr t i tb = ok (.Ok (tb', j))) :
-    PinsDec.recordExpr (bytesFrom t i) (absTables tb)
-        = some (absTables tb', bytesFrom t j)
-      ∧ i.val ≤ j.val ∧ j.val ≤ t.length := by
+/-- The full outcome (task #67).  The `.Err` branch is the module's one
+`Native` error, about which nothing is claimed: con-leche has no decoder
+to mirror, so every failure here is `bad_text` — see the module note. -/
+theorem record_expr_refines {t : Slice Std.U8} {i : Std.Usize}
+    {tb : pins_decode.Tables}
+    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
+    (h : pins_decode.record_expr t i tb = ok o) :
+    match o with
+    | .Ok (tb', j) =>
+        PinsDec.recordExpr (bytesFrom t i) (absTables tb)
+            = some (absTables tb', bytesFrom t j)
+          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.record_expr] at h
-  obtain ⟨i2, hr, h⟩ := peel h
+  obtain ⟨i2, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact expect_id_refines hce
   obtain ⟨e1, b1, b2⟩ := expect_id_refines hr
-  obtain ⟨i3, hr1, h⟩ := peel h
+  obtain ⟨i3, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
+  case inr => exact after_space_refines hce
   obtain ⟨e2, b3, b4⟩ := after_space_refines hr1
   obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
   have hkv := byte_at_refines hk
@@ -1081,6 +1346,10 @@ theorem record_expr_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 98 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_expr_bvar_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_expr_bvar_refines h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordExpr, hlen, e1, e2, hc]
@@ -1092,6 +1361,10 @@ theorem record_expr_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 118 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_expr_fvar_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_expr_fvar_refines h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordExpr, hlen, e1, e2, hc]
@@ -1103,6 +1376,10 @@ theorem record_expr_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 115 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_expr_sort_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_expr_sort_refines h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordExpr, hlen, e1, e2, hc]
@@ -1114,6 +1391,10 @@ theorem record_expr_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 99 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_expr_const_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_expr_const_refines h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordExpr, hlen, e1, e2, hc]
@@ -1125,6 +1406,10 @@ theorem record_expr_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 97 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_expr_app_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_expr_app_refines h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordExpr, hlen, e1, e2, hc]
@@ -1136,6 +1421,10 @@ theorem record_expr_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 108 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_expr_binder_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_expr_binder_refines h
     rw [hkb] at e3
     simp only [PinsDec.recordExpr, hlen, e1, e2, hc]
@@ -1149,6 +1438,10 @@ theorem record_expr_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 102 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_expr_binder_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_expr_binder_refines h
     rw [hkb] at e3
     simp only [PinsDec.recordExpr, hlen, e1, e2, hc]
@@ -1162,6 +1455,10 @@ theorem record_expr_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 116 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_expr_let_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_expr_let_refines h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordExpr, hlen, e1, e2, hc]
@@ -1173,6 +1470,10 @@ theorem record_expr_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 110 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_expr_nat_lit_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_expr_nat_lit_refines h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordExpr, hlen, e1, e2, hc]
@@ -1184,6 +1485,10 @@ theorem record_expr_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 103 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_expr_str_lit_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_expr_str_lit_refines h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordExpr, hlen, e1, e2, hc]
@@ -1195,12 +1500,16 @@ theorem record_expr_refines {t : Slice Std.U8} {i j : Std.Usize}
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 112 :: bytesFrom t i4 :=
       bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
+    cases o with
+    | Err ce => exact record_expr_proj_refines h
+    | Ok pr =>
+    obtain ⟨tb', j⟩ := pr
     obtain ⟨e3, b5, b6⟩ := record_expr_proj_refines h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordExpr, hlen, e1, e2, hc]
     simp [e3]
-  · obtain ⟨ce, -, h⟩ := bind_eq_ok_iff.mp h
-    simp at h
+  · obtain ⟨ce, rfl, hce⟩ := err_native h
+    exact hce
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 

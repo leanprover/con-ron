@@ -157,6 +157,41 @@ theorem decide_eq_beq {α : Type} [BEq α] [LawfulBEq α] [DecidableEq α] (a b 
   · subst hab; simp
   · simp [hab]
 
+/-! ### The full outcome's small change (task #67)
+
+DESIGN.md §3's ruling of 2026-09-13: every `*_refines` below is stated over the
+Rust computation's whole outcome.  Every `CheckError` site of
+`kernel::decl_check` and of the `modeled`/`checker_base` functions this file
+refines is **mirrored** (DESIGN.md's task-#67 census), so each failure arm ends
+in `ErrSim.notImplemented` / `.invalid` / `.internal` at the cited `throw`, and
+no `Native` arm appears.  These four are the vocabulary that turns the port's
+`Err` value into the constructor it is, and runs con-leche's `throw`. -/
+
+/-- `core_types::invalid v = ok ce → ce = .Invalid v`. -/
+private theorem invalid_inv {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.invalid v = ok ce) :
+    ce = .Invalid v := by
+  rw [core_types.invalid] at h; exact (Result.ok_injective h).symm
+
+/-- `core_types::not_implemented v = ok ce → ce = .NotImplemented v`. -/
+private theorem not_implemented_inv {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.not_implemented v = ok ce) :
+    ce = .NotImplemented v := by
+  rw [core_types.not_implemented] at h; exact (Result.ok_injective h).symm
+
+/-- `core_types::internal v = ok ce → ce = .Internal v`. -/
+private theorem internal_inv {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.internal v = ok ce) :
+    ce = .Internal v := by
+  rw [core_types.internal] at h; exact (Result.ok_injective h).symm
+
+/-- `throw` in `CheckCM`, at the *applied* form: the plumbing `simp` set
+carries `StateT.run` but no `MonadExcept` instance, so a `throw` arm would
+otherwise be left un-run. -/
+private theorem throw_apply {β : Type} (le : ConLeche.CheckError)
+    (lst : ConLeche.Cached.CState) :
+    (throw le : ConLeche.Cached.CheckCM β) lst = .error le := rfl
+
 /-! ## 1. `Expr.constsResolveF` and its memoized walk (`DeclCheck.lean:37-204`)
 
 `core_k::consts_resolve` is the port's single spelling of `Expr.constsResolve`

@@ -314,6 +314,41 @@ once a step's `run` is known. -/
 private theorem except_ok_bind {ε α β : Type} (a : α) (f : α → Except ε β) :
     (Except.ok a : Except ε α) >>= f = f a := rfl
 
+/-! ### The full outcome's small change (task #67)
+
+DESIGN.md §3's ruling of 2026-09-13.  Every `CheckError` site of
+`kernel/checker.rs`'s pin gates is **mirrored** (DESIGN.md's task-#67 census),
+so each failure arm below either propagates a callee's error (move 1) or ends
+at an explicit `throw` whose kind is the cited one; the single exception is the
+port's own `CheckError::Native` reaching `OrElseStep::Failed`, which claims
+nothing.  These four are the vocabulary that reads the port's `Err` value as
+the constructor it is and runs con-leche's `throw`. -/
+
+/-- `core_types::invalid v = ok ce → ce = .Invalid v`. -/
+private theorem invalid_inv {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.invalid v = ok ce) :
+    ce = .Invalid v := by
+  rw [core_types.invalid] at h; exact (Result.ok_injective h).symm
+
+/-- `core_types::not_implemented v = ok ce → ce = .NotImplemented v`. -/
+private theorem not_implemented_inv {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.not_implemented v = ok ce) :
+    ce = .NotImplemented v := by
+  rw [core_types.not_implemented] at h; exact (Result.ok_injective h).symm
+
+/-- `core_types::internal v = ok ce → ce = .Internal v`. -/
+private theorem internal_inv {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.internal v = ok ce) :
+    ce = .Internal v := by
+  rw [core_types.internal] at h; exact (Result.ok_injective h).symm
+
+/-- `throw` in `CheckCM`, at the *applied* form: the plumbing `simp` set
+carries `StateT.run` but no `MonadExcept` instance, so a `throw` arm would
+otherwise be left un-run. -/
+private theorem throw_apply {β : Type} (le : ConLeche.CheckError)
+    (lst : ConLeche.Cached.CState) :
+    (throw le : ConLeche.Cached.CheckCM β) lst = .error le := rfl
+
 /-- A thrown-error tail never answers `.Ok`. -/
 private theorem err_tail_ne_ok {α A B : Type} {x : Result A} {f : A → Result B}
     {g : B → Result core_types.CheckError} {y : α}
@@ -1987,7 +2022,7 @@ two-list recursion is one index recursion (task #24's point 5), so the
 statement is about the two dropped tails.  The checks run in the
 *pre-insertion* environment, with the op's self-references replaced by the
 stored annotated value; nothing is installed. -/
-theorem check_div_mod_certs_from_refines {mode : env.CheckMode} {fuel : Std.U64}
+theorem check_div_mod_certs_from_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {c : name.Name}
     {ann_val : expr.Expr}
@@ -2008,7 +2043,7 @@ theorem check_div_mod_certs_from_refines {mode : env.CheckMode} {fuel : Std.U64}
 
 /-- `ConLeche/Kernel/Checker.lean:252-275 checkDivModCerts` —
 `checker::check_div_mod_certs` is the recursion at index 0. -/
-theorem check_div_mod_certs_refines {mode : env.CheckMode} {fuel : Std.U64}
+theorem check_div_mod_certs_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {c : name.Name}
     {ann_val : expr.Expr}
@@ -2026,7 +2061,7 @@ theorem check_div_mod_certs_refines {mode : env.CheckMode} {fuel : Std.U64}
   intro lst lfe hsr hfr
   rw [checker.check_div_mod_certs] at h
   obtain ⟨lst', hrun, rest⟩ :=
-    check_div_mod_certs_from_refines hfuel hk hsw hfw hc hav hst hpr h lst lfe hsr hfr
+    check_div_mod_certs_from_refines_ok hfuel hk hsw hfw hc hav hst hpr h lst lfe hsr hfr
   exact ⟨lst', by simpa using hrun, rest⟩
 
 /-! ### The attempt's failure half (task #67, DESIGN.md §3's ruling of
@@ -2253,6 +2288,84 @@ theorem check_div_mod_certs_err {mode : env.CheckMode} {fuel : Std.U64}
   have hrun :=
     check_div_mod_certs_from_err hfuel hk hsw hfw hc hav hst hpr h lst lfe hsr hfr
   simpa using hrun
+
+/-- `ConLeche/Kernel/Checker.lean:252-275 checkDivModCerts`,
+`ConLeche/Kernel/DeclCheck.lean:861-875 checkDivModCertsF` —
+**`checker::check_div_mod_certs_from` refines it over the whole outcome**
+(task #67, DESIGN.md §3's ruling of 2026-09-13): an `Ok` is
+`check_div_mod_certs_from_refines_ok`, an `Err` is
+`check_div_mod_certs_from_err`.  The fold has no `throw` of its own, so every
+mirrored failure is one of the three `type_checker` calls or the tail, and
+con-leche's fold throws at the same kind. -/
+theorem check_div_mod_certs_from_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {c : name.Name}
+    {ann_val : expr.Expr}
+    {stmts : alloc.vec.Vec (alloc.vec.Vec expr.Expr × expr.Expr)}
+    {proofs : alloc.vec.Vec expr.Expr} {i : Std.Usize}
+    {o : core.result.Result Bool core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hav : ExprWF ann_val)
+    (hst : StmtsWF stmts) (hpr : ExprsWF proofs)
+    (h : checker.check_div_mod_certs_from mode st fe c ann_val stmts proofs i
+      = ok (o, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      match o with
+      | .Ok r =>
+        ∃ lst', (ConLeche.checkDivModCertsF (TypeChecker.lops mode lfe) lfe
+              (absName c) (absExpr ann_val) ((absStmts stmts).drop i.val)
+              ((absExprs proofs).drop i.val)).run lst = .ok (r, lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkDivModCertsF (TypeChecker.lops mode lfe) lfe
+              (absName c) (absExpr ann_val) ((absStmts stmts).drop i.val)
+              ((absExprs proofs).drop i.val)).run lst) := by
+  intro lst lfe hsr hfr
+  revert h
+  cases o with
+  | Ok r =>
+    intro h
+    exact check_div_mod_certs_from_refines_ok hfuel hk hsw hfw hc hav hst hpr h
+      lst lfe hsr hfr
+  | Err ce =>
+    intro h
+    exact check_div_mod_certs_from_err hfuel hk hsw hfw hc hav hst hpr h
+      lst lfe hsr hfr
+
+/-- `ConLeche/Kernel/Checker.lean:252-275 checkDivModCerts` — the whole outcome
+at index 0. -/
+theorem check_div_mod_certs_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {c : name.Name}
+    {ann_val : expr.Expr}
+    {stmts : alloc.vec.Vec (alloc.vec.Vec expr.Expr × expr.Expr)}
+    {proofs : alloc.vec.Vec expr.Expr}
+    {o : core.result.Result Bool core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hav : ExprWF ann_val)
+    (hst : StmtsWF stmts) (hpr : ExprsWF proofs)
+    (h : checker.check_div_mod_certs mode st fe c ann_val stmts proofs
+      = ok (o, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      match o with
+      | .Ok r =>
+        ∃ lst', (ConLeche.checkDivModCertsF (TypeChecker.lops mode lfe) lfe
+              (absName c) (absExpr ann_val) (absStmts stmts)
+              (absExprs proofs)).run lst = .ok (r, lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkDivModCertsF (TypeChecker.lops mode lfe) lfe
+              (absName c) (absExpr ann_val) (absStmts stmts)
+              (absExprs proofs)).run lst) := by
+  intro lst lfe hsr hfr
+  revert h
+  cases o with
+  | Ok r =>
+    intro h
+    exact check_div_mod_certs_refines_ok hfuel hk hsw hfw hc hav hst hpr h
+      lst lfe hsr hfr
+  | Err ce =>
+    intro h
+    exact check_div_mod_certs_err hfuel hk hsw hfw hc hav hst hpr h
+      lst lfe hsr hfr
 
 /-! ## The environment guards (`Checker.lean:277-306`) -/
 
@@ -2781,7 +2894,7 @@ variant's pin by definitional equality, and on a match the variant's
 certificates.  `true` = matched; `false` = the pin is not definitionally equal,
 or a certificate did not check; the third outcome is an error thrown from
 inside, which `or_else_step` turns into "this variant does not match". -/
-theorem check_div_mod_pin_at_refines {mode : env.CheckMode} {fuel : Std.U64}
+theorem check_div_mod_pin_at_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {c : name.Name}
     {value2 : expr.Expr} {ps : nat_op_pins.NatOpPinSet} {r : Bool}
@@ -2833,7 +2946,7 @@ theorem check_div_mod_pin_at_refines {mode : env.CheckMode} {fuel : Std.U64}
         obtain ⟨hsvabs, hsvwf⟩ := div_mod_cert_stmts_refines hc hsv
         obtain ⟨hpvabs, hpvwf⟩ := div_mod_cert_proofs_refines hps hc hpv
         obtain ⟨lst3, hrun3, hsr3, hsw3⟩ :=
-          check_div_mod_certs_refines hfuel hk hsw2 hfw hc hv hsvwf hpvwf h
+          check_div_mod_certs_refines_ok hfuel hk hsw2 hfw hc hv hsvwf hpvwf h
             lst2 lfe hsr2 hfr
         rw [hsvabs, hpvabs] at hrun3
         refine ⟨lst3, ?_, hsr3, hsw3⟩
@@ -2929,6 +3042,42 @@ theorem check_div_mod_pin_at_err {mode : env.CheckMode} {fuel : Std.U64}
           TypeChecker.sharedOpsC_annotate, TypeChecker.sharedOpsC_isDefEq,
           hrunA', hrunD', if_true]
         exact hrun3
+
+/-- `ConLeche/Kernel/Checker.lean:308-328 checkDivModPinAt`,
+`ConLeche/Kernel/DeclCheck.lean:877-885 checkDivModPinAtF` — **the whole
+outcome** (task #67, DESIGN.md §3's ruling of 2026-09-13): an `Ok` is
+`check_div_mod_pin_at_refines_ok`, an `Err` is `check_div_mod_pin_at_err`.
+The attempt throws nothing of its own, so a mirrored failure is one of
+`annotate_core`, `is_def_eq_core` or the certificates, and con-leche's attempt
+throws at the same kind. -/
+theorem check_div_mod_pin_at_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {c : name.Name}
+    {value2 : expr.Expr} {ps : nat_op_pins.NatOpPinSet}
+    {o : core.result.Result Bool core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hv : ExprWF value2)
+    (hps : NatOpPinSetWF ps)
+    (h : checker.check_div_mod_pin_at mode st fe c value2 ps = ok (o, st')) :
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      match o with
+      | .Ok r =>
+        ∃ lst', (ConLeche.checkDivModPinAtF (TypeChecker.lops mode lfe) lfe
+              (absName c) (absExpr value2) (absNatOpPinSet ps)).run lst
+            = .ok (r, lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkDivModPinAtF (TypeChecker.lops mode lfe) lfe
+              (absName c) (absExpr value2) (absNatOpPinSet ps)).run lst) := by
+  intro lst lfe hsr hfr
+  revert h
+  cases o with
+  | Ok r =>
+    intro h
+    exact check_div_mod_pin_at_refines_ok hfuel hk hsw hfw hc hv hps h
+      lst lfe hsr hfr
+  | Err ce =>
+    intro h
+    exact check_div_mod_pin_at_err hfuel hk hsw hfw hc hv hps h lst lfe hsr hfr
 
 /-! ## The variant loop — the port's one error-recovery point
 
@@ -3112,7 +3261,7 @@ which declines — a documented accept-direction deviation,
 `tried` is quantified on both sides (section note above): the port's
 `Vec<u32>` reason and the cited `List String` accumulator only ever reach a
 decline message. -/
-theorem check_div_mod_pin_loop_refines {mode : env.CheckMode} {fuel : Std.U64}
+theorem check_div_mod_pin_loop_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {c : name.Name}
     {value2 : expr.Expr} {variants : alloc.vec.Vec nat_op_pins.NatOpPinSet}
@@ -3129,6 +3278,204 @@ theorem check_div_mod_pin_loop_refines {mode : env.CheckMode} {fuel : Std.U64}
   intro lst lfe ltried hsr hfr
   exact check_div_mod_pin_loop_val hfuel hk hfw hc hv hvar
     variants.val.length st st' i tried (by omega) hsw h lst lfe ltried hsr hfr
+
+/-- Past the end, the abstracted variant tail is empty. -/
+private theorem drop_absPins_nil {v : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    {k : Nat} (h : v.val.length ≤ k) : (absPins v).drop k = [] :=
+  List.drop_eq_nil_of_le (by rw [absPins, List.length_map]; exact h)
+
+/-- The **failure half** of the variant loop, with an explicit bound to
+recurse on (the twin of `check_div_mod_pin_loop_val`; task #67, DESIGN.md §3's
+ruling of 2026-09-13).  Three of the loop's four outcomes can fail:
+
+* **the exhausted-variants arm** (`checker.rs:1099` ← `Checker.lean:350`), the
+  loop's one `throw` of its own: the port throws `notImplemented` carrying its
+  accumulated decline text, the cited `[]` clause throws `notImplemented` with
+  its `String.intercalate` of the per-variant reasons — the same kind, and
+  messages are never compared (`kernel::checker`'s module note 2);
+* **`OrElseStep::Failed`**, which is reached only at the port's own
+  `CheckError::Native` (`CheckerC.or_else_step_error_native`) and claims
+  nothing;
+* **the tail**, at any of the three arms that recurse — move 1 through the
+  induction hypothesis, since the cited loop's tail is literally the tail. -/
+private theorem check_div_mod_pin_loop_err_val {mode : env.CheckMode}
+    {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {fe : fenv.FEnv} {c : name.Name} {value2 : expr.Expr}
+    {variants : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hfw : FEnvWF fe) (hc : NameWF c) (hv : ExprWF value2)
+    (hvar : PinsWF variants) (n : Nat) :
+    ∀ (st st' : cached.state_c.CState) (i : Std.Usize)
+      (tried : alloc.vec.Vec Std.U32) (ce : core_types.CheckError),
+      variants.val.length - i.val ≤ n → StateWF st →
+      checker.check_div_mod_pin_loop mode st fe c value2 variants i tried
+        = ok (.Err ce, st') →
+      ∀ lst lfe (ltried : List String), StateRel st lst → FEnvRel fe lfe →
+        ErrSim ce ((ConLeche.checkDivModPinLoopF (TypeChecker.lops mode lfe) lfe
+              (absName c) (absExpr value2) ((absPins variants).drop i.val)
+              ltried).run lst) := by
+  have hlenV := alloc.vec.Vec.len_val variants
+  induction n with
+  | zero =>
+    intro st st' i tried ce hle hsw h lst lfe ltried hsr hfr
+    rw [checker.check_div_mod_pin_loop] at h
+    rw [if_pos (show i >= alloc.vec.Vec.len variants by scalar_tac)] at h
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨ce0, hce0, h⟩ := h
+    rw [not_implemented_inv hce0] at h
+    simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Err.injEq] at h
+    obtain ⟨rfl, -⟩ := h
+    rw [drop_absPins_nil (by omega)]
+    exact ErrSim.notImplemented rfl
+  | succ n ih =>
+    intro st st' i tried ce hle hsw h lst lfe ltried hsr hfr
+    rw [checker.check_div_mod_pin_loop] at h
+    by_cases hge : variants.val.length ≤ i.val
+    · rw [if_pos (show i >= alloc.vec.Vec.len variants by scalar_tac)] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨ce0, hce0, h⟩ := h
+      rw [not_implemented_inv hce0] at h
+      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Err.injEq] at h
+      obtain ⟨rfl, -⟩ := h
+      rw [drop_absPins_nil hge]
+      exact ErrSim.notImplemented rfl
+    · have hlt : i.val < variants.val.length := by omega
+      rw [if_neg (show ¬ (i >= alloc.vec.Vec.len variants) by scalar_tac)] at h
+      obtain ⟨nops, hidx, h⟩ := bind_eq_ok_iff.mp h
+      have hx := vec_index_val hidx hlt
+      have hnwf : NatOpPinSetWF nops :=
+        hvar nops (by rw [← hx]; exact List.getElem_mem hlt)
+      have hfa : FindAgree fe lfe := FindAgree.of_rel hfr hfw
+      have hdrop : (absPins variants).drop i.val
+          = absNatOpPinSet nops :: (absPins variants).drop (i.val + 1) :=
+        drop_absPins_cons hlt hx
+      obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+      have hbv := div_mod_pin_guard_f_step CoreK.pinnedBasisNames hfa hnwf hc hb
+      cases b with
+      | false =>
+        simp only [Bool.false_eq_true, if_false] at h
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        rw [hdrop]
+        simp only [ConLeche.checkDivModPinLoopF, ← hbv, Bool.false_eq_true,
+          Bool.false_and, if_false, ← hi2v]
+        exact ih st st' i2 tried ce (by omega) hsw h lst lfe _ hsr hfr
+      | true =>
+        simp only [if_true] at h
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1v := div_mod_certs_guard_f_step CoreK.pinnedBasisNames hfa hnwf hc hv hb1
+        cases b1 with
+        | false =>
+          simp only [Bool.false_eq_true, if_false] at h
+          obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+          have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+          rw [hdrop]
+          simp only [ConLeche.checkDivModPinLoopF, ← hbv, ← hb1v,
+            Bool.and_false, Bool.false_eq_true, if_false, ← hi2v]
+          exact ih st st' i2 tried ce (by omega) hsw h lst lfe _ hsr hfr
+        | true =>
+          simp only [if_true] at h
+          obtain ⟨snapshot, hsnap, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨attempt, st1⟩ := q
+          cases attempt with
+          | Ok ok1 =>
+            obtain ⟨lst1, hxrun, hsr1, hsw1⟩ :=
+              check_div_mod_pin_at_refines_ok hfuel hk hsw hfw hc hv hnwf hq
+                lst lfe hsr hfr
+            cases ok1 with
+            | true =>
+              -- a matched attempt is the whole: the port answers `Ok ()`
+              simp at h
+            | false =>
+              simp at h
+              obtain ⟨i2, hi2, h⟩ := h
+              have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+              rw [hdrop]
+              simp only [ConLeche.checkDivModPinLoopF, ← hbv, ← hb1v,
+                Bool.and_self, if_true]
+              rw [CheckerC.orElse_run_declined hxrun, ← hi2v]
+              exact ih st1 st' i2 tried ce (by omega) hsw1 h lst1 lfe _ hsr1 hfr
+          | Err e =>
+            by_cases hnat : ∃ m, e = core_types.CheckError.Native m
+            · -- `OrElseStep::Failed`: the port's own decline is the verdict,
+              -- and `ErrSim` claims nothing about it
+              obtain ⟨m, rfl⟩ := hnat
+              simp at h
+              obtain ⟨rfl, -⟩ := h
+              exact ErrSim.native m
+            · -- the recovery arm: both sides took their error arm and the
+              -- loop continues from the pre-attempt state
+              simp only [not_exists] at hnat
+              simp [CheckerC.or_else_step_error_mirrored hnat] at h
+              obtain ⟨i2, hi2, v, -, h⟩ := h
+              have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+              obtain ⟨le, hxerr⟩ := errSim_error hnat
+                (check_div_mod_pin_at_err hfuel hk hsw hfw hc hv hnwf hq
+                  lst lfe hsr hfr)
+              rw [dup_state_eq hsnap] at h
+              rw [hdrop]
+              simp only [ConLeche.checkDivModPinLoopF, ← hbv, ← hb1v,
+                Bool.and_self, if_true]
+              rw [CheckerC.orElse_run_error hxerr, ← hi2v]
+              exact ih st st' i2 v ce (by omega) hsw h lst lfe _ hsr hfr
+
+/-- The failure half of `check_div_mod_pin_loop_refines_ok`, at the bound the
+`Vec` supplies. -/
+theorem check_div_mod_pin_loop_err {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {c : name.Name}
+    {value2 : expr.Expr} {variants : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    {i : Std.Usize} {tried : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hv : ExprWF value2)
+    (hvar : PinsWF variants)
+    (h : checker.check_div_mod_pin_loop mode st fe c value2 variants i tried
+      = ok (.Err ce, st')) :
+    ∀ lst lfe (ltried : List String), StateRel st lst → FEnvRel fe lfe →
+      ErrSim ce ((ConLeche.checkDivModPinLoopF (TypeChecker.lops mode lfe) lfe
+            (absName c) (absExpr value2) ((absPins variants).drop i.val)
+            ltried).run lst) := by
+  intro lst lfe ltried hsr hfr
+  exact check_div_mod_pin_loop_err_val hfuel hk hfw hc hv hvar
+    variants.val.length st st' i tried ce (by omega) hsw h lst lfe ltried hsr hfr
+
+/-- `checker::check_div_mod_pin_loop` refines `checkDivModPinLoopF` over the
+**whole** outcome (task #67): an `Ok` is `check_div_mod_pin_loop_refines_ok`,
+an `Err` is `check_div_mod_pin_loop_err`. -/
+theorem check_div_mod_pin_loop_refines {mode : env.CheckMode} {fuel : Std.U64}
+    (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {c : name.Name}
+    {value2 : expr.Expr} {variants : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    {i : Std.Usize} {tried : alloc.vec.Vec Std.U32}
+    {o : core.result.Result Unit core_types.CheckError}
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hv : ExprWF value2)
+    (hvar : PinsWF variants)
+    (h : checker.check_div_mod_pin_loop mode st fe c value2 variants i tried
+      = ok (o, st')) :
+    ∀ lst lfe (ltried : List String), StateRel st lst → FEnvRel fe lfe →
+      match o with
+      | .Ok _ =>
+        ∃ lst', (ConLeche.checkDivModPinLoopF (TypeChecker.lops mode lfe) lfe
+              (absName c) (absExpr value2) ((absPins variants).drop i.val)
+              ltried).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkDivModPinLoopF (TypeChecker.lops mode lfe) lfe
+              (absName c) (absExpr value2) ((absPins variants).drop i.val)
+              ltried).run lst) := by
+  intro lst lfe ltried hsr hfr
+  revert h
+  cases o with
+  | Ok u =>
+    intro h
+    cases u
+    exact check_div_mod_pin_loop_refines_ok hfuel hk hsw hfw hc hv hvar h
+      lst lfe ltried hsr hfr
+  | Err ce =>
+    intro h
+    exact check_div_mod_pin_loop_err hfuel hk hsw hfw hc hv hvar h
+      lst lfe ltried hsr hfr
 
 /-! ## The two install gates (`Checker.lean:362-417`)
 
@@ -3163,16 +3510,23 @@ back. -/
 theorem check_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {k_pre : Std.U64}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {k_pre : Std.U64}
     {c : name.Name}
+    {o : core.result.Result fenv.FEnv core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hvar : PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
-    (h : checker.check_div_mod_pin mode pins st fe k_pre c = ok (.Ok fe', st')) :
+    (h : checker.check_div_mod_pin mode pins st fe k_pre c = ok (o, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe → EqBasisPinnedSpec fe lfe →
-      ∃ lst', (ConLeche.checkDivModPinF
+      match o with
+      | .Ok fe' =>
+        ∃ lst', (ConLeche.checkDivModPinF
+              (TypeChecker.lops mode (lfe.restrictTo k_pre.val))
+              (lfe.restrictTo k_pre.val) lfe (absName c)).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkDivModPinF
             (TypeChecker.lops mode (lfe.restrictTo k_pre.val))
-            (lfe.restrictTo k_pre.val) lfe (absName c)).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe' := by
+            (lfe.restrictTo k_pre.val) lfe (absName c)).run lst) := by
   intro lst lfe hsr hfr heqb
   rw [checker.check_div_mod_pin] at h
   obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
@@ -3187,15 +3541,42 @@ theorem check_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
     CoreK.pinned_bool_false_name heqb hb
   cases b with
   | false =>
-    simp only [Bool.false_eq_true, if_false] at h
-    exact (err_tail_ne_ok h).elim
+    -- the environment guard declined: both sides throw `notImplemented`
+    simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff] at h
+    obtain ⟨sl, hsl, v, hv, ce0, hce0, h⟩ := h
+    rw [not_implemented_inv hce0] at h
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, -⟩ := h
+    simp only [ConLeche.checkDivModPinF, ← hbv, Bool.false_eq_true, if_false]
+    exact ErrSim.notImplemented rfl
   | true =>
     have hgv : ConLeche.divModEnvGuardF lfe (absName c) = true := hbv.symm
     simp only [if_true] at h
-    obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨op, hprobe, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hpabs, hpwf⟩ := CoreK.defn_probe_refines hfa hfwf hc hprobe
-    cases o with
-    | none => exact (err_tail_ne_ok h).elim
+    cases op with
+    | none =>
+      -- the probe missed: the port throws `internal`, and the cited `match`
+      -- takes its catch-all arm and throws `internal` too
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce0, hce0, h⟩ := h
+      rw [internal_inv hce0] at h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, -⟩ := h
+      simp only [Option.map_none] at hpabs
+      simp only [ConLeche.checkDivModPinF, hgv, if_true]
+      cases hf : lfe.find? (absName c) with
+      | none => exact ErrSim.internal rfl
+      | some ci =>
+        rw [hf] at hpabs
+        cases ci with
+        | defnInfo cv1 v1 h1 => simp [CoreK.defnOf] at hpabs
+        | axiomInfo cv1 => exact ErrSim.internal rfl
+        | thmInfo cv1 v1 => exact ErrSim.internal rfl
+        | indInfo cv1 c1 => exact ErrSim.internal rfl
+        | ctorInfo cv1 a1 b1 => exact ErrSim.internal rfl
+        | recInfo cv1 a1 b1 r1 => exact ErrSim.internal rfl
+        | projInfo t1 => exact ErrSim.internal rfl
     | some t =>
       obtain ⟨cv, value2, hint⟩ := t
       obtain ⟨-, hvwf⟩ := hpwf cv value2 hint rfl
@@ -3218,7 +3599,16 @@ theorem check_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
       have hfprel : FEnvRel fp (lfe.restrictTo k_pre.val) := restrict_to_refines hfr hfp
       have hfpwf : FEnvWF fp := restrict_to_wf hfw hfp
       cases res with
-      | Err e => simp at h
+      | Err e =>
+        -- move 1: the variant loop threw, at the cited loop's own arm
+        have herr := check_div_mod_pin_loop_err hfuel hk hsw hfpwf hc hvwf hvar hq
+          lst (lfe.restrictTo k_pre.val) [] hsr hfprel
+        rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero,
+          hpins] at herr
+        simp at h
+        obtain ⟨rfl, -⟩ := h
+        simp only [ConLeche.checkDivModPinF, hgv, if_true, hfind]
+        exact herr
       | Ok u =>
         obtain ⟨lst1, hrun, hsr1, hsw1⟩ :=
           check_div_mod_pin_loop_refines hfuel hk
@@ -3227,7 +3617,7 @@ theorem check_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
         rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero,
           hpins] at hrun
         simp at h
-        obtain ⟨hf, rfl⟩ := h
+        obtain ⟨fe3, hf, rfl, rfl⟩ := h
         rw [fenv.restrict_to, Result.ok.injEq] at hfp
         subst hfp
         rw [fenv.restrict_to, Result.ok.injEq] at hf
