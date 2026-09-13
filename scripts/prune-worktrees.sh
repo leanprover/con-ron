@@ -16,8 +16,10 @@ run() { if [ "$dry" = 1 ]; then echo "  would: $*"; else "$@"; fi; }
 key() { printf '%s' "$1" | sha256sum | cut -c1-12; }
 
 kept=0; removed=0
-while read -r path _ branch; do
-  branch=${branch#[}; branch=${branch%]}
+while read -r line; do
+  path=${line%% *}
+  branch=$(sed -n 's/.*\[\([^]]*\)\].*/\1/p' <<<"$line")
+  [ -n "$branch" ] || continue
   [ "$path" = "$root" ] && continue
   if git merge-base --is-ancestor "$branch" master 2>/dev/null; then
     echo "merged   $branch  ($path)"
