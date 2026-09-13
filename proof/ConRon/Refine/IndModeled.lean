@@ -9082,8 +9082,7 @@ theorem check_proj_fn_refines
       rw [hx]; exact hrrwf
     obtain ⟨hprel, hpwf⟩ := FEnv.push_refines hfer hfe hcivwf hf
     obtain ⟨hpcan, hpfull⟩ := FEnv.push_canon hfe hcivwf hcan hfull hf
-    simp only [Result.ok.injEq, Prod.mk.injEq,
-      core.result.Result.Ok.injEq] at h
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     have hrulesv : (rules.val.map absRecRule) = [absRecRule rr] := by
       rw [vec_push_val hrules]
@@ -9112,21 +9111,28 @@ model's projection artifact is absent.
 see its note. -/
 theorem install_proj_fn_step_refines
     {st st' : cached.state_c.CState} {t ctor_name : name.Name}
-    {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64} {fe2 fe' : fenv.FEnv}
+    {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64} {fe2 : fenv.FEnv}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hres : StructInstall.ConstsResolveFFastRefines)
     (hspines : StructSpinesRefine)
     (hst : StateWF st) (hfe : FEnvWF fe2) (hcan : FEnv.FEnvCanon fe2)
     (hfull : FEnv.FEnvFull fe2)
     (ht : NameWF t) (hc : NameWF ctor_name) (hlps : NamesWF lps)
     (h : inductives.modeled.install_proj_fn_step mode st t ctor_name lps n_p n_f
-        fe2 i = ok (.Ok fe', st')) :
+        fe2 i = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe2 lfe →
-      ∃ lst' lfe',
-        (installProjFnStepN (absMode mode) (absName t) (absName ctor_name)
-            (absNames lps) n_p.val n_f.val lfe i.val).run lst
-          = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (installProjFnStepN (absMode mode) (absName t) (absName ctor_name)
+              (absNames lps) n_p.val n_f.val lfe i.val).run lst
+            = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((installProjFnStepN (absMode mode) (absName t)
+          (absName ctor_name) (absNames lps) n_p.val n_f.val lfe i.val).run
+          lst) := by
   intro lst lfe hrel hfer
   rw [inductives.modeled.install_proj_fn_step] at h
   obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
@@ -9144,16 +9150,21 @@ theorem install_proj_fn_step_refines
   replace h : (if (core.option.Option.is_some o) = true then
         inductives.modeled.check_proj_fn mode st fe2 t ctor_name lps n_p n_f i
       else ok (.Ok fe2, st))
-      = (ok (.Ok fe', st') : Result ((core.result.Result _ core_types.CheckError)
+      = (ok (out, st') : Result ((core.result.Result _ core_types.CheckError)
           × cached.state_c.CState)) := h
   split at h
   · rename_i hb
     rw [if_pos (by rw [← hsome]; exact hb)]
-    exact check_proj_fn_refines hw hcb hres hspines hst hfe hcan hfull ht hc hlps
-      h lst lfe hrel hfer
+    have hfn := check_proj_fn_refines hw hcb hres hspines hst hfe hcan hfull ht
+      hc hlps h lst lfe hrel hfer
+    -- the `match out` conclusions agree once the outcome is a constructor:
+    -- both motives carry their own `= ok (out, st')` hypothesis
+    cases out with
+    | Ok fe' => exact hfn
+    | Err e => exact hfn
   · rename_i hb
     rw [if_neg (by rw [← hsome]; exact hb)]
-    simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     exact ⟨lst, lfe, rfl, hrel, hfer, hst, hfe, hcan, hfull⟩
 
