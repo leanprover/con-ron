@@ -14439,6 +14439,15 @@ no Rust at all.
 
 ### Task #73 — The input validation pass: con-ron's own certification tax (2026-09-13, Opus under Fable)
 
+> **Withdrawn at task #81** (below): the pass's visited set is one entry per
+> distinct node of the *whole* export, which is ~10 GB of resident memory at
+> Mathlib scale, and the per-declaration set that fixes the memory costs
+> +4.4 % of instructions on `core`.  The maintainer's ruling — "if the
+> checking of the invariants is expensive, just undo it" — took the pass out
+> and put `hds` back as a hypothesis, to be discharged by the ported parser's
+> own refinement when the parser joins the verified pipeline.  What follows is
+> the record of the pass as it was built.
+
 The maintainer's ruling of 2026-09-13: `Refine/Main.lean`'s last input
 hypothesis, `hds : ∀ d ∈ ds.val, DeclCWF d`, **goes away by being checked**.  A
 verified pass at the entry of `cached::installed::check_decls` validates every
@@ -15231,3 +15240,170 @@ reader, now reading `_tmp/gen-pins/pins.dump` rather than the retired
 differ, 0 timed out, 0 other errors**, 12 s.  `--pins-file` (the rewired
 route, now reading `_tmp/gen-pins/pins.dump`): **348 agree, 0 differ**, 11 s.
 All eight gates green.
+### Task #81 — the validation pass's visited set at Mathlib scale, and the pass withdrawn (2026-09-13, Opus under Fable)
+
+Task #73's input validation pass made the Mathlib run impossible.  `con-ron
+--verified --jobs=1 _tmp/corpus/mathlib.ndjson` under CLAUDE.md's `ulimit -v
+27000000` aborts at 126 s with `memory allocation of 10737418240 bytes
+failed`, resident set 17.9 GB, 384 G instructions into a 12 817 G run.  This
+task diagnosed that, built the fix the brief named, measured it — and, on the
+maintainer's ruling, **withdrew task #73 entirely**.
+
+#### 1. The diagnosis: one table entry per node of the whole export
+
+An instrumented build (a `debug_stats` walk over `ron::HashMap`'s slot vector
+and the per-key buckets, removed before the commit) reports the visited set at
+the end of the pass:
+
+| export | keys | distinct `Expr` nodes | slots | occupied slots | slot vector |
+|---|---:|---:|---:|---:|---:|
+| `Init` | 6 133 490 | 6 141 802 | 8 388 608 (2^23) | 4 352 906 | 335.5 MB |
+| `Init+Std+Lean` | 12 256 120 | 13 217 432 | 16 777 216 (2^24) | 8 705 910 | 671.1 MB |
+
+`size_of::<AList<u64, Vec<Expr>>>()` is **40 bytes**, so a table of `n` buckets
+costs `40n` in the slot vector alone, plus 40 bytes per chain block (`keys −
+occupied`) and one heap block per bucket `Vec` (8 bytes of payload, a 16-byte
+allocator class).  `Init`: 335.5 + 71.2 + ~98 ≈ **505 MB**, which is where task
+#73's +345 MB of peak RSS came from.  `core`: 671.1 + 142.0 + ~196 ≈ **1.0 GB**,
+invisible in task #73's table only because phase A's own memos set that run's
+peak.
+
+**The 10 GiB allocation is the table's last resize, and the arithmetic is
+exact**: 10 737 418 240 = 2^28 × 40, the slot vector doubling from 2^27 to 2^28
+buckets.  That doubling fires when the entry count passes `max_load = 3/4 ×
+2^27 = 100 663 296`, so Mathlib's export holds **more than 10^8 distinct `Expr`
+nodes** (the nodes-per-`app`-line ratio of the two smaller exports puts it near
+1.1 × 10^8).  At the moment of the request the table already held ~5.4 GB of
+slots, ~1.6 GB of bucket `Vec`s and ~1.2 GB of chain blocks on top of the
+parsed stream — the 17.9 GB the run died at — and the request asks for 10.7 GB
+more while the old vector is still live.  The maintainer's `--jobs=8` run
+confirms the size from the other side: it *finished*, at **28.0 GB** peak
+against con-leche's 9.1 GB at eight workers and con-ron's own pre-#73 15.97 GB
+at one.  **The pass costs about 10 GB of resident memory at Mathlib scale**,
+not one or two.
+
+#### 2. The fix the brief named: a per-declaration visited set
+
+`validate_decls_from` calls `seen_new()` for each declaration and binds
+`validate_decl(seen_new(), &ds[i]).0`, so the table is dropped at that
+declaration's `let` — task #73's own drop-point finding, one level down.
+Residency becomes the largest single declaration's DAG; the price is that a
+node shared by several declarations is walked once per declaration that reaches
+it.  Both halves measured, on the same instrumented build:
+
+| | `Init` | `core` |
+|---|---:|---:|
+| node visits, global set | 6 141 802 | 13 217 432 |
+| node visits, per declaration | 12 137 118 (**1.98×**) | 28 057 590 (**2.12×**) |
+| largest declaration | 27 643 nodes | 138 137 nodes |
+| largest table | 65 536 slots (2.6 MB) | 131 072 slots (5.2 MB) |
+
+The memory problem is gone — 5.2 MB where the global set was 1.0 GB on `core`,
+and ~8 GB on Mathlib — and peak RSS returns to its pre-#73 value.  The
+instruction cost does not:
+
+| | `Init` | | `core` | |
+|---|---:|---:|---:|---:|
+| pre-#73 (`5d16d0d`) | 540.13 G | — | 1 158.34 G | — |
+| task #73, global set | 548.10 G | +1.48 % | 1 192.52 G | +2.95 % |
+| **task #81, per declaration** | **559.30 G** | **+3.55 %** | **1 208.87 G** | **+4.36 %** |
+| peak RSS, per declaration | 889 MB (#73: 1 224 MB) | | 2 434 MB (#73: 2 440 MB) | |
+
+`Init` from three runs — 559.298 / 559.304 / 559.311 G instructions, the pass
+is deterministic to 0.002 % — 292.5–294.5 G cycles, wall 66.98 / 67.29 /
+67.74 s; `core` one run, 744.52 G cycles, 176.5 s wall, all under
+`perf stat -e instructions:u,cycles:u`.
+
+#### 3. The ruling, and the withdrawal
+
+The maintainer's ruling of 2026-09-13, verbatim: **"if the checking of the
+invariants is expensive, just undo it"**.  Concretely: keep the pass only if,
+after the fix, Mathlib at `--jobs=1` finishes under `ulimit -v 27000000` with
+peak RSS within about 5 % of the pre-#73 15.97 GB **and** the instruction
+overhead stays at or below task #73's, about +3 % on `core`.  The
+per-declaration set meets the memory half and misses the cost half — **+4.36 %
+on `core`**, against task #73's +2.95 % — so the conjunction fails and task #73
+is **reverted**.  No third design was tried: the ruling is undo, not tune.  (The
+brief's fallback, storing only the nodes that are actually shared, needs
+`Arc::strong_count` or raw pointers, both outside the Aeneas subset and the
+style rules.)
+
+Why that is acceptable rather than a loss.  The pass existed to discharge one
+input hypothesis, `hds : ∀ d ∈ ds.val, DeclCWF d`, which is true of everything
+the port's own frontend builds and false only of a term forged through the
+`pub` node fields.  **The next con-leche update brings the parser into the
+verified pipeline**, and then `hds` is discharged by the ported parser's own
+refinement — the frontend's output well formed by construction in the proof and
+not only in fact — so the runtime pass becomes unnecessary either way.  Paying
+10 GB of resident memory and 4 % of the instructions on every run, to close a
+hypothesis the parser is about to close for free, is the trade the ruling
+declines.
+
+#### 4. What the revert removes, and what comes back
+
+* `crates/con-ron-core/src/kernel/validate.rs` (910 lines) and its `pub mod`;
+* `cached::installed::check_decls`' deviation 5 — the function is again the
+  cited `checkDecls` body, `check_decls_go` and `validate_reject_message` are
+  gone, and so are the two tests task #73 added (with `ron::ptr`'s import);
+* `con_ron::driver::check_decls_driver`'s copy of the pass, and the two `use`
+  lines it needed;
+* `proof/ConRon/Refine/Validate.lean` (1 077 lines, 0 `sorry`) and its two
+  imports.  Nothing outside that file used `Expr.ind'`, `seen_hit_false`,
+  `equiv_r_exact` or the `*_wf'` / `*_node` rule sets, so the deletion is
+  local; `Refine/Installed.lean`'s `check_decls_refines` opens with `rw
+  [cached.installed.check_decls]` again.  `scripts/loc.py`'s `grind` column is
+  back to **0 lines in 0 theorems**.
+
+What comes back is the binder.  `hds : ∀ d ∈ ds.val, DeclCWF d` is again a
+hypothesis of `check_decls_refines`, `check_decls_refines_ok` and all eight of
+`Refine/Main.lean`'s theorems — `check_decls_verified_refines` and its `_ok`,
+the general pair, the primed pair, task #75's decoded pair and the two
+`_embedded` corollaries — so the two capstones about the shipped binary carry
+`hp`, `hds` and the run `h`.  **Every `#guard_msgs` axiom census is unchanged**,
+which is the check that nothing else moved: a hypothesis is not an axiom.
+`Refine/README.md`'s hypothesis table has its fifth row again, reading "the
+parser, by construction", and `Refine/Main.lean`'s table says the same.
+
+| hypothesis | who closes it |
+|---|---|
+| `hk : Core.KnotSpec .Verified checkFuelU` | `Core.knot_spec` (task #61) |
+| `hind : IndRoutesSpec .Verified` | `IndC.ind_routes_spec'` (task #67 continued) |
+| `hinde : IndRoutesSpecErr .Verified` | `IndC.ind_routes_spec_err'` (task #67 continued) |
+| `hvar : CheckerPins.PinsWF pins` | `PinsWF.decode_wf` / `decode_embedded_wf` (tasks #66, #75) |
+| `hds : ∀ d ∈ ds.val, DeclCWF d` | **the parser, by construction** — and the ported parser's refinement, when it lands |
+
+#### 5. The final binary
+
+`con-ron --verified --jobs=1`, release + mimalloc, `perf stat -e
+instructions:u,cycles:u` (the measure of record), peak RSS and wall from
+`_tmp/perf-overview/measure.py`, `ulimit -v` at 4 GB / 8 GB / 27 GB:
+
+| export | instructions | cycles | wall | peak RSS | verdict |
+|---|---:|---:|---:|---:|---|
+| `Init` (3 runs) | **540.25 G** | 279.0–292.9 G | 65.2 s (63.65–67.62) | 901 MB | accepted 57 972 |
+| `Init+Std+Lean` | **1 158.56 G** | 687.01 G | 156.2 s | 2 442 MB | accepted 163 391 |
+| Mathlib | **11 381.13 G** | 8 392.70 G | 1 938.4 s | 15.85 GB | accepted 691 123 |
+
+con-leche at the vendored commit, same flags: `Init` 586 G / 59 s / 0.48 GB,
+`core` 1 180 G / 150 s / 1.24 GB, Mathlib 12 817 G / 1 228 s / 8.6 GB.
+
+**Mathlib finishes**, under `ulimit -v 27000000`, at **15.85 GB** — task #38's
+pre-#73 figure was 15.97 GB, so the revert puts it back exactly where it was,
+0.8 % under, against the 17.9 GB at which task #73's build died 126 s in.
+`Init` and `core` are the pre-#73 numbers to within 0.02 % (540.13 G and
+1 158.34 G), which is the check that the revert is complete: the binary does
+exactly the work it did before task #73.  (Mathlib's 11 381 G is *below*
+con-leche's 12 817 G and below the 12 797 G task #38 recorded, on a machine
+that was otherwise busy; the instruction count is not a function of load, so
+this is the pre-#73 binary's own number at the present vendored con-leche and
+the present frontend, not a change this task made.)  The `Init` wall spread is 6.2 %,
+wider than task #73's 0.8 %, because several agent worktrees were benchmarking
+on this machine at the same time; the instruction counts, which is why they are
+the measure of record, agree to five significant figures across the three runs.
+
+`scripts/diff-e2e.sh`: **348/348 agree, 0 differ**.  The forged-node unit tests
+went with `validate.rs`; what they protected is again a promise about the
+frontend rather than a runtime check, which is exactly the pre-#73 state.
+
+**Gates**: all eight green (`lake-build` 310 s at `LAKE_JOBS=32`), the proof
+library `sorry`-free, the census unchanged.
