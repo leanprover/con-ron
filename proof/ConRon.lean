@@ -57,4 +57,5 @@ import ConRon.Refine.IndSpec
 import ConRon.Refine.CheckerC
 import ConRon.Refine.BasisPins
 import ConRon.Refine.CheckerSplit
+import ConRon.Refine.Checker
 import ConRon.Refine.CheckerDecl

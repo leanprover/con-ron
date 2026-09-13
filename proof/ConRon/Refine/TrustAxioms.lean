@@ -329,7 +329,7 @@ theorem never_meta_step {m : expr.BinderMeta} (h : basis_builder.never_meta = ok
   obtain ⟨pw, hpw, h⟩ := bind_eq_ok_iff.mp h
   rw [expr.binder_meta] at h
   simp only [ptr_new_eq, bind_tc_ok, Result.ok.injEq] at h
-  replace h := (Result.ok_injective h).symm; subst h
+  subst h
   exact ⟨by simp [PropWhen.never_refines hpw], PropWhenWF.never hpw⟩
 
 /-- `Basis/Builder.lean:85-97 pi`/`piI`/`piA` — `∀ (x : ty), body` at the raw
@@ -528,8 +528,225 @@ theorem reduce_op_raw_refines {c : name.Name} {cv : env.ConstantVal} (hc : NameW
   obtain ⟨htabs, htwf⟩ := reduce_elem_ty_refines hc ht
   obtain ⟨hpabs, hpwf⟩ := pi_step htwf htwf hp
   replace h := (Result.ok_injective h).symm; subst h
-  refine ⟨?_, ⟨by rw [← Name.dup_eq hn]; exact hc, namesWF_new, hpwf⟩⟩
-  simp only [absConstantVal, Name.dup_refines hn, absNames_new, hpabs, htabs,
+  have hnc : absName n = absName c := Name.dup_refines hn
+  have hnwf : NameWF n := by
+    rw [name_dup_eq] at hn; rw [← Result.ok_injective hn]; exact hc
+  refine ⟨?_, ⟨hnwf, namesWF_new, hpwf⟩⟩
+  simp only [absConstantVal, hnc, absNames_new, hpabs, htabs,
     ConLeche.reduceOpRaw, ConLeche.BasisDSL.pi]
+
+/-- `ConLeche/Kernel/TrustAxioms.lean:110-120 ofReduceRaw` —
+`trust_axioms::eq_app` is `ofReduceRaw`'s local `eqApp` lambda, `Eq.{1} τ x y`
+at the operation's element type; §3.4 forbids the closure, so the port has it
+as a named function (task #18's point 5) and it refines exactly that body. -/
+theorem eq_app_refines {c : name.Name} {x y e : expr.Expr} (hc : NameWF c)
+    (hx : ExprWF x) (hy : ExprWF y) (h : trust_axioms.eq_app c x y = ok e) :
+    absExpr e = ConLeche.BasisDSL.ap3 (ConLeche.BasisDSL.cnst ConLeche.eqName [.succ .zero])
+        (ConLeche.reduceElemTy (absName c)) (absExpr x) (absExpr y) ∧ ExprWF e := by
+  rw [trust_axioms.eq_app] at h
+  obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨f, hf, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨t, ht, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hnabs, hnwf⟩ := BasisNames.eq_name_refines hn
+  obtain ⟨hvabs, hvwf⟩ := one_level_step hv
+  obtain ⟨hfabs, hfwf⟩ := cnst_step hnwf hvwf hf
+  obtain ⟨htabs, htwf⟩ := reduce_elem_ty_refines hc ht
+  obtain ⟨habs, hwf⟩ := ap3_step hfwf htwf hx hy h
+  refine ⟨?_, hwf⟩
+  rw [habs, hfabs, hnabs, hvabs, htabs]
+  rfl
+
+/-- `ConLeche/Kernel/TrustAxioms.lean:110-120 ofReduceRaw` —
+`trust_axioms::of_reduce_raw` refines `ofReduceRaw`: the raw pinned type
+`∀ (a b : τ), reduce a = b → a = b`. -/
+theorem of_reduce_raw_refines {n : name.Name} {cv : env.ConstantVal} (hn : NameWF n)
+    (h : trust_axioms.of_reduce_raw n = ok cv) :
+    absConstantVal cv = ConLeche.ofReduceRaw (absName n) ∧ ConstantValWF cv := by
+  rw [trust_axioms.of_reduce_raw] at h
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨t, ht, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨n2, hn2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e2, he2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e3, he3, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e4, he4, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e5, he5, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e6, he6, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e7, he7, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e8, he8, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e9, he9, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e10, he10, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hcabs, hcwf⟩ := of_reduce_op_refines hn hc
+  have hn1wf : NameWF n1 := by
+    rw [name_dup_eq] at hn1; rw [← Result.ok_injective hn1]; exact hn
+  have hn2wf : NameWF n2 := by
+    rw [name_dup_eq] at hn2; rw [← Result.ok_injective hn2]; exact hcwf
+  obtain ⟨htabs, htwf⟩ := reduce_elem_ty_refines hcwf ht
+  obtain ⟨h1abs, h1wf⟩ := cnst_step hn2wf levelsWF_new he1
+  obtain ⟨h2abs, h2wf⟩ := bv_step he2
+  obtain ⟨h4abs, h4wf⟩ := bv_step he4
+  obtain ⟨h6abs, h6wf⟩ := bv_step he6
+  have h3abs : absExpr e3 = .app (absExpr e1) (absExpr e2) := Expr.app_refines he3
+  have h3wf : ExprWF e3 := ExprWF.app h1wf h2wf he3
+  obtain ⟨h5abs, h5wf⟩ := eq_app_refines hcwf h3wf h4wf he5
+  obtain ⟨h7abs, h7wf⟩ := eq_app_refines hcwf h6wf h2wf he7
+  obtain ⟨h8abs, h8wf⟩ := pi_step h5wf h7wf he8
+  obtain ⟨h9abs, h9wf⟩ := pi_step htwf h8wf he9
+  obtain ⟨h10abs, h10wf⟩ := pi_step htwf h9wf he10
+  replace h := (Result.ok_injective h).symm; subst h
+  refine ⟨?_, ⟨hn1wf, namesWF_new, h10wf⟩⟩
+  have hn1abs : absName n1 = absName n := Name.dup_refines hn1
+  have hn2abs : absName n2 = absName c := Name.dup_refines hn2
+  simp only [absConstantVal, hn1abs, absNames_new, h10abs, h9abs, h8abs, h7abs, h5abs,
+    h3abs, h1abs, hn2abs, h2abs, h4abs, h6abs, htabs, hcabs, ConLeche.ofReduceRaw,
+    ConLeche.BasisDSL.pi, ConLeche.BasisDSL.cnst, ConLeche.BasisDSL.bv,
+    ConLeche.BasisDSL.ap3, ConLeche.BasisDSL.ap2, absLevels_new]
+  rfl
+
+/-- `ConLeche/Kernel/TrustAxioms.lean:146-148 reduceOpCvA`,
+`:137-139` (the `#annotate_pins` command) — `trust_axioms::reduce_op_cv_a`
+returns the **raw** pin at the selected operation, which `matchesPin` cannot
+tell from the annotated `reduceOpCvA` (`matchesPin_reduceOpCvA`; the module
+note has the argument). -/
+theorem reduce_op_cv_a_refines {c : name.Name} {cv : env.ConstantVal} (hc : NameWF c)
+    (h : trust_axioms.reduce_op_cv_a c = ok cv) :
+    absConstantVal cv
+        = (if absName c = ConLeche.reduceNatName then
+              ConLeche.reduceOpRaw ConLeche.reduceNatName
+            else ConLeche.reduceOpRaw ConLeche.reduceBoolName)
+      ∧ ConstantValWF cv := by
+  rw [trust_axioms.reduce_op_cv_a] at h
+  obtain ⟨a, ha, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨ea, fa⟩ := reduce_nat_name_refines ha
+  rw [Name.beq_refines hc fa hb, ea] at h
+  by_cases hq : absName c = ConLeche.reduceNatName
+  · rw [if_pos hq]
+    simp only [hq, decide_true, if_pos] at h
+    obtain ⟨habs, hwf⟩ := reduce_op_raw_refines fa h
+    exact ⟨by rw [habs, ea], hwf⟩
+  · rw [if_neg hq]
+    simp only [hq, decide_false, Bool.false_eq_true, if_false] at h
+    obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨e1, f1⟩ := reduce_bool_name_refines hn1
+    obtain ⟨habs, hwf⟩ := reduce_op_raw_refines f1 h
+    exact ⟨by rw [habs, e1], hwf⟩
+
+/-- `ConLeche/Kernel/TrustAxioms.lean:150-152 ofReducePinA`, `:141-144` (the
+`#annotate_pins` command) — `trust_axioms::of_reduce_pin_a` returns the **raw**
+pin an `ofReduce*` axiom is matched against (`matchesPin_ofReducePinA`). -/
+theorem of_reduce_pin_a_refines {n : name.Name} {cv : env.ConstantVal} (hn : NameWF n)
+    (h : trust_axioms.of_reduce_pin_a n = ok cv) :
+    absConstantVal cv
+        = (if absName n = ConLeche.ofReduceNatName then
+              ConLeche.ofReduceRaw ConLeche.ofReduceNatName
+            else ConLeche.ofReduceRaw ConLeche.ofReduceBoolName)
+      ∧ ConstantValWF cv := by
+  rw [trust_axioms.of_reduce_pin_a] at h
+  obtain ⟨a, ha, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨ea, fa⟩ := of_reduce_nat_name_refines ha
+  rw [Name.beq_refines hn fa hb, ea] at h
+  by_cases hq : absName n = ConLeche.ofReduceNatName
+  · rw [if_pos hq]
+    simp only [hq, decide_true, if_pos] at h
+    obtain ⟨habs, hwf⟩ := of_reduce_raw_refines fa h
+    exact ⟨by rw [habs, ea], hwf⟩
+  · rw [if_neg hq]
+    simp only [hq, decide_false, Bool.false_eq_true, if_false] at h
+    obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨e1, f1⟩ := of_reduce_bool_name_refines hn1
+    obtain ⟨habs, hwf⟩ := of_reduce_raw_refines f1 h
+    exact ⟨by rw [habs, e1], hwf⟩
+
+/-! ## `kernel::trust_pins` — the two hand-pinned identity values
+
+`ConLeche/Kernel/TrustPins.lean` (48 lines, 2 definitions).  Nothing here reads
+the compiling environment (con-leche task #273): the pin has been `fun b => b`
+on every toolchain that had the opaques, so it is written down once, and these
+two lemmas say the port wrote down the same thing. -/
+
+/-- `ConLeche/Kernel/TrustPins.lean:42-43 reduceBoolDeclPin` —
+`trust_pins::reduce_bool_decl_pin` refines `reduceBoolDeclPin`,
+`fun (b : Bool) => b`. -/
+theorem reduce_bool_decl_pin_refines {e : expr.Expr}
+    (h : trust_pins.reduce_bool_decl_pin = ok e) :
+    absExpr e = ConLeche.reduceBoolDeclPin ∧ ExprWF e := by
+  rw [trust_pins.reduce_bool_decl_pin] at h
+  obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨t, ht, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  rw [basis_builder.bn] at hn
+  obtain ⟨a, ha, hmk⟩ := bind_eq_ok_iff.mp hn
+  obtain ⟨hnabs, hnwf⟩ := str_lit_step (Name.anonymous_wf ha) hs hv hmk
+    (L := [66#u32, 111#u32, 111#u32, 108#u32])
+    (by simp [trust_pins.reduce_bool_decl_pin.S]) (by decide)
+  obtain ⟨htabs, htwf⟩ := cnst_step hnwf levelsWF_new ht
+  obtain ⟨hbabs, hbwf⟩ := bv_step hb
+  obtain ⟨habs, hwf⟩ := lm_step htwf hbwf h
+  refine ⟨?_, hwf⟩
+  rw [habs, htabs, hbabs, hnabs, Name.anonymous_refines ha, absLevels_new]
+  rfl
+
+/-- `ConLeche/Kernel/TrustPins.lean:45-46 reduceNatDeclPin` —
+`trust_pins::reduce_nat_decl_pin` refines `reduceNatDeclPin`,
+`fun (n : Nat) => n`. -/
+theorem reduce_nat_decl_pin_refines {e : expr.Expr}
+    (h : trust_pins.reduce_nat_decl_pin = ok e) :
+    absExpr e = ConLeche.reduceNatDeclPin ∧ ExprWF e := by
+  rw [trust_pins.reduce_nat_decl_pin] at h
+  obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨t, ht, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  rw [basis_builder.bn] at hn
+  obtain ⟨a, ha, hmk⟩ := bind_eq_ok_iff.mp hn
+  obtain ⟨hnabs, hnwf⟩ := str_lit_step (Name.anonymous_wf ha) hs hv hmk
+    (L := [78#u32, 97#u32, 116#u32])
+    (by simp [trust_pins.reduce_nat_decl_pin.S]) (by decide)
+  obtain ⟨htabs, htwf⟩ := cnst_step hnwf levelsWF_new ht
+  obtain ⟨hbabs, hbwf⟩ := bv_step hb
+  obtain ⟨habs, hwf⟩ := lm_step htwf hbwf h
+  refine ⟨?_, hwf⟩
+  rw [habs, htabs, hbabs, hnabs, Name.anonymous_refines ha, absLevels_new]
+  rfl
+
+/-! ## The reduce-operation install pin (`TrustAxioms.lean:198-216`) -/
+
+/-- `ConLeche/Kernel/TrustAxioms.lean:200-205 reduceDeclPin` —
+`trust_axioms::reduce_decl_pin` refines `reduceDeclPin`: the pinned defining
+expression of a reduce operation. -/
+theorem reduce_decl_pin_refines {c : name.Name} {e : expr.Expr} (hc : NameWF c)
+    (h : trust_axioms.reduce_decl_pin c = ok e) :
+    absExpr e = ConLeche.reduceDeclPin (absName c) ∧ ExprWF e := by
+  rw [trust_axioms.reduce_decl_pin] at h
+  obtain ⟨a, ha, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨ea, fa⟩ := reduce_nat_name_refines ha
+  rw [Name.beq_refines hc fa hb, ea] at h
+  rw [ConLeche.reduceDeclPin]
+  by_cases hq : absName c = ConLeche.reduceNatName
+  · rw [if_pos hq]
+    simp only [hq, decide_true, if_pos] at h
+    exact reduce_nat_decl_pin_refines h
+  · rw [if_neg hq]
+    simp only [hq, decide_false, Bool.false_eq_true, if_false] at h
+    exact reduce_bool_decl_pin_refines h
+
+/-- `ConLeche/Kernel/TrustAxioms.lean:213-216 reduceCertVar` —
+`trust_axioms::reduce_cert_var` refines `reduceCertVar`: the identity
+certificate's variable, `fvar 0` at the element type. -/
+theorem reduce_cert_var_refines {c : name.Name} {e : expr.Expr} (hc : NameWF c)
+    (h : trust_axioms.reduce_cert_var c = ok e) :
+    absExpr e = ConLeche.reduceCertVar (absName c) ∧ ExprWF e := by
+  rw [trust_axioms.reduce_cert_var] at h
+  obtain ⟨t, ht, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨htabs, htwf⟩ := reduce_elem_ty_refines hc ht
+  exact ⟨by rw [Expr.fvar_refines h, htabs]; rfl, ExprWF.fvar htwf h⟩
 
 end ConRon.Refine.TrustAxioms
