@@ -13859,3 +13859,76 @@ introduction rules, which are purely additive — every existing statement,
 proof and call site stands.  `Automation/Study.lean` had to move with the
 restatement, since the gates build it: its `Sim.ofRun` now concludes `SimOk`,
 the accept half on its own, which is what its experiment 3 measures.
+### Task #70 — The grind idiom's elaboration cost (2026-09-13, Fable)
+
+The maintainer paused the adoption of task #69's idiom on its 4–8×
+elaboration cost and asked why, how much of it is `grind`, whether a
+narrowed lemma set or a few badly activating lemmas explain it, and — in
+three additions — whether the per-constructor shape line can go (a one-line
+`induction … <;> …`, or `grind cases`/`grind ext` on the node types) and
+whether `grind =>`/`sym =>` could do the bind inversion inside one E-graph.
+The write-up is `proof/ConRon/Refine/AUTOMATION.md` §"Cost, and the tuned
+idiom"; the evidence `proof/ConRon/Refine/Automation/Study.lean` §"Task #70"
+(originals kept) and the new `Automation/SimpSets.lean`.
+
+**It is not E-matching.**  `grind`'s own categories are 5–10 % of the idiom's
+time and no lemma activates badly (single-digit instance counts).  Four
+costs, and what removes them (net of import, min of two runs):
+
+| | `rest` | `instantiate1_go` | `reduce_nat_lits_i` |
+|---|---|---|---|
+| hand | 2.0 s | 0.65 s | 0.16 s |
+| #69 idiom | 6.9 s | 4.7 s | 0.84 s |
+| tuned | 2.3 s | 2.2 s | 0.6 s |
+
+1. The `grind [thirty lemmas]` list is elaborated at every call — 25 calls
+   for `rest`, 3.9 s of 6.9 s.  Fix: `attribute [local grind …]` per section.
+2. `rust_inv`'s `simp at h` is the default simp set on the whole body,
+   retried after every `obtain`.  Fix: two registered simp sets
+   (`SimpSets.lean`), the loop ordered `obtain`/`split`/`simp`, and the head
+   (`Arc::deref` bind, the `match`-defined node projections) reduced in
+   pre-order so the dead arms are never visited: 2.5 s → 0.9 s on the walk.
+3. `grind`'s round limit: `(ematch := 12) (gen := 24)` is the closing macro's
+   fixed configuration, no per-lemma tuning.
+4. What remains (~100 ms per goal in the walks) is `grind` internalising the
+   context per call, half of it the arithmetic modules probing `ℤ`/`Result`
+   for ring/order instances; `-ring -linarith -order -lia` buys 10–15 % and
+   is not taken.  This is the floor: one E-graph per branch.
+
+**The additions.**  (a) One line per lemma — yes: `ExprWF.ind_node`, the
+induction principle with the motive on `.mk (.mk d k)`, moves the inversion
+into the principle; `induction e, he using ExprWF.ind_node <;> close` is the
+whole walk (the motive must depend on the derivation; the IHs come out as
+`∀ h, motive f h`, which `grind` uses).  (b) `grind ext` is rejected on the
+node types (not structures), `grind cases` is for inductive predicates; the
+no-shape variant with them and the inversion lemmas as rules: 49 s, 75
+failures.  (c) `sym => intro hok; finish` on the smallest lemma: 8.5 s and a
+failure at split depth 24, same as plain `grind` on the unnormalised goal
+(8.6 s); the whole body is internalised before the first split.  The
+normaliser's one `simp only` pass that shrinks the hypothesis to the
+reachable arm is what makes every branch cheap; nothing inside `grind` does it.
+
+**One more of each kind**: `Level.by_cases_refines_aux` 0.44 → 0.8 s (5
+lines for 75), `ExprOpsMeta.reset_meta_go_refines` 0.62 → 2.0 s (1 line for
+330), `Lits.reduce_nat_bin_i_refines` 0.5 s (4 lines + a 16-line monad-law
+equation for 73 on top of `lits_replay`).  The arm added two statement-shape
+rules: an inlined fragment needs its `natBinI = natLitsI >>= k` equation, and
+quantified clauses inside a `Spec` (`∀ e, o = some e → …`, `∀ p, o = some p →
+NatWF p.1`) never fire — they become `use` lemmas keyed on the Rust equation
+with the constructor in it, or quantified over the components.  One
+normaliser rule: the `let (n, n1) := val` of a `Some((n, n1))` pattern is a
+one-alternative `match` nothing opens while `val` is a variable —
+`rust_pairs`, a syntactic scan that `cases` the pairs in context, ends the
+loop (`‹_ × _›` times out unfolding the `Spec` predicates).
+
+**Recommendation: adopt with the tuning.**  1.2–1.8× the hand proof on the
+leaves, 3.3–3.8× on the walks and arms (the maintainer's ~2× is met on the
+leaves only; per file ~2–3× build time for 5–10× fewer lines), during the
+task #67 restatement, measuring the first file and stopping at 3×.  Limits
+stated in `AUTOMATION.md`: the cost floor is the per-goal context, the
+`use`-lemma keying rules are learned from failures with multi-screen
+diagnostics, and the largest arms were not exercised.
+
+Gates: `scripts/gates.sh` all seven OK in the task's worktree; `Study.lean` elaborates in 19 s (was 12 s: the
+six tuned proofs and the two induction principles added).  Nothing outside
+`proof/ConRon/Refine/Automation/` and `AUTOMATION.md` changed.
