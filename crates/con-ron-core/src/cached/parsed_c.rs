@@ -44,11 +44,10 @@
 //! dispatches to task #25's two install routes (`check_ind_decl_c`).
 //!
 //! **There is one declaration record**, `kernel::env::Declaration`: con-leche's
-//! task #285 merged its cached `DeclC` twin into `Declaration` (the payloads
-//! were already `Expr`, task #10 surprise 1), and the port followed at task
-//! #83.  The port derives nothing on it, as con-leche's `deriving DecidableEq,
-//! Repr, Inhabited` buys the checker nothing it uses (task #10's note on the
-//! round-trip comparison).  Its `indDecl` carries *installed*
+//! task #285 merged its cached `DeclC` twin into it (the payloads were already
+//! `Expr`, task #10 surprise 1) and the port followed at task #83.  The port
+//! derives nothing on it — con-leche's `deriving DecidableEq, Repr, Inhabited`
+//! buys the checker nothing (task #10's note).  Its `indDecl` carries *installed*
 //! `ConstantInfo`s, so a parsed declaration transitively contains `IndCaps`,
 //! `RecRule` (with `RecRuleFire`) and `ProjTable`, whose install-computed
 //! fields are at their parse placeholders (task #10, surprise 2;
