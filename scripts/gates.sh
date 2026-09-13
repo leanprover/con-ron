@@ -17,7 +17,9 @@
 set -uo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-logdir="$root/_tmp/gates"
+# Per-checkout log dir: `_tmp` is shared between agent worktrees (a symlink),
+# and concurrent gate runs must not overwrite each other's logs.
+logdir="$root/_tmp/gates-$(printf '%s' "$root" | sha256sum | cut -c1-12)"
 rm -rf "$logdir"
 mkdir -p "$logdir"
 n=0
