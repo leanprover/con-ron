@@ -22,6 +22,10 @@ import ConRon.Refine.ExprOpsFields
 import ConRon.Refine.ExprOpsSubst
 import ConRon.Refine.ExprOpsSpine
 import ConRon.Refine.ExprOpsMeta
+import ConRon.Refine.ExprOpsC
+import ConRon.Refine.ExprOpsCSubst
+import ConRon.Refine.ExprOpsCAbs
+import ConRon.Refine.ExprOpsCGuards
 import ConRon.Refine.HashMap
 import ConRon.Refine.Core.Statements
 import ConRon.Refine.HashMapWF
