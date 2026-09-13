@@ -45,18 +45,18 @@ arms; this file assumes them.
 
 ## `sorry` count
 
-**1** (task #59 closed all nine drivers).  Every driver of both routes is
-proved and so are the two entry points; the one `sorry` left is not a driver
-and not a missing proof.  It is a `≤ Std.Usize.max` bound inside
-`check_ind_decl_s_refines`' structured arm: `Modeled.ind_block_caps_refines`
-asks for `n_p ≤ Usize.max` because `modeled::check_eta_thm_shape` /
-`check_unit_thm_shape` compare `n_p as usize` against `sbinders.len()`
-(`Refine/Scalars.lean`'s deviation), and `n_p` there is a count
-`single_ind_ctor` read off a `.CtorInfo` inside the block, which nothing
-bounds.  It is deliberately *not* pushed onto `Refine/IndSpec.lean`'s clauses,
-which tasks #56/#58/#60 could not discharge either; the fix is in the Rust —
-the two guards should compare `n_p` against `sbinders.len() as u64` — and is
-recorded as a port-level finding.  The arm's own note spells all of this out.
+**0** (task #59 closed all nine drivers; task #62 closed the last bound).
+Task #59 left one `sorry` here, and it was never a missing proof: a
+`≤ Std.Usize.max` bound inside `check_ind_decl_s_refines`' structured arm that
+`Modeled.ind_block_caps_refines` asked for because
+`modeled::check_eta_thm_shape` / `check_unit_thm_shape` compared
+`n_p as usize` against `sbinders.len()` (`Refine/Scalars.lean`'s deviation),
+where `n_p` is a count `single_ind_ctor` read off a `.CtorInfo` inside the
+block that nothing bounds.  The fix was in the Rust, as recorded: task #62
+made those two read the subject binder with `expr_ops::dom_at_n`, a counting
+recursion over the `u64`, and the bound left every statement in the chain —
+`ind_block_caps`, `check_eta_thm`, `check_unit_thm`, their two shapes and
+`check_ind_decl_struct_s_refines` here.
 
 ## The index-canonicity seam
 
@@ -87,9 +87,7 @@ two-stage `do` block, by taking the stages from the goal.
 The statements are the exact-result ones and nothing below is weakened.  The
 two `#print axioms` censuses at the bottom are machine-checked with
 `#guard_msgs`: `sorryAx` leaving them is the gate that says the inductive tier
-is closed.  It is **not** this file's any more — what is left comes through
-`Refine/IndIngredients.lean` from the sibling stage files that are still being
-finished (`Refine/IndModeled.lean`, `Refine/IndNativeParts.lean`).
+is closed, and as of task #62 **both are clean**.
 -/
 import ConRon.Refine.IndSpec
 import ConRon.Refine.IndStructParts
@@ -796,6 +794,7 @@ theorem check_ind_recs_s_refines
         obtain ⟨lst', lfe', hrunT, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
           Modeled.check_ind_recs_fold_refines hw (IndIngredients.checkerBaseSpec hw)
             IndIngredients.structInstallConstsResolveFFast
+            IndIngredients.structSpinesRefine
             (Modeled.block_rename_rename_refines hbn) hwf2 hwfe hpwf1 hfe hcan hfull
             hchecked h lst1.flushed lfe lfe1 lfe hrel2 hrele hprel1 hfer
         refine ⟨lst', lfe', ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
@@ -936,21 +935,19 @@ projection functions.
 handed, so the canonical pair has to travel with it.  See
 `check_ind_recs_s_refines`' note.
 
-`hnp` is `Refine/Scalars.lean`'s side condition, arriving through
+Task #59 carried an `hnp : n_p.val ≤ Std.Usize.max` here, arriving through
 `Modeled.ind_block_caps_refines` from `check_eta_thm_shape` /
-`check_unit_thm_shape`'s `n_p as usize`: the port compares the *cast* against a
-`Vec`'s length, so on a 32-bit target the two sides genuinely disagree once
-`n_p` exceeds `Usize.max`.  It is a hypothesis of this internal helper only —
-`check_ind_decl_s_refines`' note says what it costs there and where the real
-fix is. -/
+`check_unit_thm_shape`'s `n_p as usize`.  Task #62's sweep replaced those
+casts with `expr_ops::dom_at_n`, which counts the `u64` down a `usize`
+cursor, so the bound is gone from every statement in the chain — and with it
+the one `sorry` `check_ind_decl_s_refines` could not discharge. -/
 theorem check_ind_decl_struct_s_refines
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {block_names : alloc.vec.Vec name.Name}
     {nonrecs recs : alloc.vec.Vec env.ConstantInfo}
     {cv_t cv_c : env.ConstantVal} {n_p n_f : Std.U64}
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
-    (hfull : FEnv.FEnvFull fe) (hnp : n_p.val ≤ Std.Usize.max)
-    (hbn : NamesWF block_names)
+    (hfull : FEnv.FEnvFull fe) (hbn : NamesWF block_names)
     (hnr : ConstantInfosWF nonrecs) (hrecs : ConstantInfosWF recs)
     (hct : ConstantValWF cv_t) (hcc : ConstantValWF cv_c)
     (h : inductives.inductives_c.check_ind_decl_struct_s mode st fe block_names
@@ -970,7 +967,7 @@ theorem check_ind_decl_struct_s_refines
   obtain ⟨caps, hcaps, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hcapsabs, hcapswf⟩ :=
     Modeled.ind_block_caps_refines (IndIngredients.checkerBaseSpec hw)
-      IndIngredients.structSpinesRefine hfer hfe hct hcc hnp hcaps
+      IndIngredients.structSpinesRefine hfer hfe hct hcc hcaps
   obtain ⟨p1, hmem, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r, st1⟩ := p1
   cases r with
@@ -1151,27 +1148,16 @@ theorem check_ind_decl_s_refines
               = some (cvT, cvC, nP, nF) := hsic
           simp only [Option.some.injEq, Prod.mk.injEq] at hsic
           obtain ⟨hT, hC, hp, hf⟩ := hsic
-          -- **The one thing this arm cannot produce** (task #59).
-          -- `Modeled.ind_block_caps_refines` asks for `n_p ≤ Usize.max`, which
-          -- is `Refine/Scalars.lean`'s side condition on
-          -- `modeled::check_eta_thm_shape` / `check_unit_thm_shape`: both
-          -- compare `n_p as usize` against `sbinders.len()`, so on a 32-bit
-          -- target the guard reads a wrapped counter.  Here `n_p` is
-          -- `sq.2.2.1`, a field `single_ind_ctor` read off a `.CtorInfo` buried
-          -- in `block`, and nothing in `ConstantInfosWF block` bounds a stored
-          -- count -- so it cannot be discharged, and it must not be pushed onto
-          -- `Refine/IndSpec.lean`'s clauses either, which tasks #56/#58/#60
-          -- could not discharge from anything they hold.
-          --
-          -- **The fix is in the Rust**, not here: those two guards should
-          -- compare `n_p` against `sbinders.len() as u64` rather than the cast
-          -- against `sbinders.len()`, after which the bound is derivable from
-          -- the `Vec` and this hypothesis -- with the tier's other bounds in
-          -- that neighbourhood -- disappears.  Recorded as a port-level finding
-          -- for a follow-up task; the Rust is not this task's to change.
-          have hnp : sq.2.2.1.val ≤ Std.Usize.max := by sorry
+          -- Task #59's one open bound, gone at task #62: the arm used to owe
+          -- `check_ind_decl_struct_s_refines` an `n_p ≤ Usize.max` it could not
+          -- produce -- `n_p` is `sq.2.2.1`, a count `single_ind_ctor` read off
+          -- a `.CtorInfo` buried in `block`, and nothing in
+          -- `ConstantInfosWF block` bounds a stored count.  The port no longer
+          -- asks: `check_eta_thm_shape` / `check_unit_thm_shape` read the
+          -- subject binder with `expr_ops::dom_at_n`, a counting recursion, so
+          -- the hypothesis is off the whole chain.
           obtain ⟨lst', lfe', hrun, hrel', hfer', hwf', hfew', hfcan', hffull'⟩ :=
-            check_ind_decl_struct_s_refines hw hst hfe hcan hfull hnp hbnwf hnrwf
+            check_ind_decl_struct_s_refines hw hst hfe hcan hfull hbnwf hnrwf
               hrecswf hct hcc h lst lfe hrel hfer
           refine ⟨lst', lfe', ?_, hrel', hfer', hwf', hfew', hfcan', hffull'⟩
           rw [hbnabs, hnrabs', hrecsabs', hT, hC, hp, hf] at hrun
@@ -1534,25 +1520,24 @@ theorem ind_routes_spec' {mode : env.CheckMode}
 
 /-! ## The axiom census
 
-DESIGN.md §5's P3 gate on the two entry points.  While the tier is open the
-census carries `sorryAx`, and it is machine-checked: `sorryAx` leaving these
-two lines is the gate that says the inductive routes are closed.
+DESIGN.md §5's P3 gate on the two entry points, machine-checked: `sorryAx`
+leaving these two lines is the gate that says the inductive routes are closed.
 
-**Almost none of it is this file's `sorryAx` any more** (task #59): every
-driver is proved and both entry points with them.  **`check_native_s_refines`
-carries none at all** (task #68, when task #58's closed checker tier joined
-task #59's inductive one): the native route's own stages are proved, and
-nothing it reaches is open any more.  `check_ind_decl_s_refines` still carries
-this file's one `sorry`, the `n_p ≤ Usize.max` bound its structured arm cannot
-produce (see the `sorry` count above, and the note on the arm), and inherits
-`Refine/IndModeled.lean`'s remaining stages through the modeled route.  Landing
-the Rust fix and closing those stages closes that line too; the second
-docstring below then loses `sorryAx` and must be corrected to match. -/
+**Both lines are closed** (task #62).  `check_native_s_refines` lost its
+`sorryAx` at task #68, when task #58's closed checker tier joined task #59's
+inductive one.  `check_ind_decl_s_refines` lost its last one here: task #59
+left this file a single `sorry` — the `n_p ≤ Usize.max` bound its structured
+arm could not produce — and five open stages in `Refine/IndModeled.lean`, and
+both were a port bug rather than work.  `modeled.rs` split and indexed `Vec`s
+at a `u64 → usize` cast; task #62 swept it onto the counting
+`core_k::take_exprs_n` / `drop_exprs_n` / `expr_ops::dom_at_n`, every
+`≤ Usize.max` side condition in the tier went away with the casts, and the
+five stages are proved. -/
 
 /-- info: 'ConRon.Refine.InductivesC.check_native_s_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms check_native_s_refines
 
-/-- info: 'ConRon.Refine.InductivesC.check_ind_decl_s_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine.InductivesC.check_ind_decl_s_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms check_ind_decl_s_refines
 
 -- **The spec bridge is closed** (task #59): `NativeParts.native_parts_refines`,
