@@ -32,9 +32,9 @@ The three copies are stated as **identities** (`v = cs`, `p' = p`), which is
 the strongest form a copy can have and the form `Refine/Env.lean` gives every
 other copy in the port; the `abs` reading follows by `congrArg`.
 
-1 `sorry`: `sum_split_from_refines`, the `partial_fixpoint` index recursion
-over the block (the accumulator form is stated exactly; only the recursion is
-missing).  Everything else is proved.
+No `sorry`: the whole module is proved, and `#guard_msgs in #print axioms` at
+the bottom pins `sum_split_refines` — the recogniser's entry point — at the
+three standard axioms.
 -/
 import ConRon.Refine.IndAbs
 
@@ -150,8 +150,103 @@ theorem sum_split_from_refines {block : alloc.vec.Vec env.ConstantInfo}
     o.map absSumSplit
       = (ConLeche.sumSplit ((absConstantInfos block).drop i.val)).map
           (fun q => (absCtorSpecs out ++ q.1, q.2)) := by
-  -- the `partial_fixpoint` index recursion over the block
-  sorry
+  generalize hd : block.length - i.val = d
+  induction d using Nat.strong_induction_on generalizing i out o with
+  | _ d ih =>
+    rw [inductives.sum_parts.sum_split_from] at h
+    split at h
+    · -- past the end: `sumSplit []` is `none`
+      rename_i hge
+      have hnil : (absConstantInfos block).drop i.val = [] := by
+        apply List.drop_eq_nil_of_le
+        simp only [absConstantInfos, List.length_map]
+        scalar_tac
+      rw [hnil, ← Result.ok_injective h]
+      rfl
+    · rename_i hlt
+      have hlt' : i.val < block.val.length := by
+        have := alloc.vec.Vec.len_val block; scalar_tac
+      obtain ⟨y, hy, hyv⟩ :=
+        WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec block i hlt')
+      subst hyv
+      have hlt2 : i.val < (absConstantInfos block).length := by
+        simpa [absConstantInfos] using hlt'
+      have hcons : (absConstantInfos block).drop i.val
+          = absConstantInfo block.val[i.val]
+            :: (absConstantInfos block).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt2]; simp [absConstantInfos]
+      simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
+      rw [hcons]
+      -- `block[i]`'s tag decides the arm on both sides
+      cases hci : block.val[i.val] with
+      | AxiomInfo cv => rw [hci] at h; rw [← Result.ok_injective h]; rfl
+      | DefnInfo cv v hint => rw [hci] at h; rw [← Result.ok_injective h]; rfl
+      | ThmInfo cv v => rw [hci] at h; rw [← Result.ok_injective h]; rfl
+      | IndInfo cv caps => rw [hci] at h; rw [← Result.ok_injective h]; rfl
+      | ProjInfo t => rw [hci] at h; rw [← Result.ok_injective h]; rfl
+      | CtorInfo cv_c n_p n_f =>
+        -- a constructor: push and recurse
+        rw [hci] at h
+        obtain ⟨cv, hcv, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hout : CtorSpecsWF out1 := by
+          intro c hc
+          rw [vec_push_val hout1] at hc
+          rcases List.mem_append.mp hc with hc' | hc'
+          · exact hout c hc'
+          · simp only [List.mem_singleton] at hc'
+            subst hc'
+            rw [Env.constant_val_dup_refines hcv]
+            have hciwf := hblock _ (List.getElem_mem hlt')
+            rw [hci] at hciwf
+            exact hciwf
+        have hrec := ih (block.length - i2.val) (by scalar_tac) hout h (by scalar_tac)
+        have habs : absCtorSpecs out1
+            = absCtorSpecs out ++ [(absConstantVal cv_c, n_p.val, n_f.val)] := by
+          rw [absCtorSpecs, vec_push_val hout1, Env.constant_val_dup_refines hcv]
+          simp [absCtorSpecs]
+        rw [hi2v] at hrec
+        have hcs : ConLeche.sumSplit (ConLeche.ConstantInfo.ctorInfo
+              (absConstantVal cv_c) n_p.val n_f.val
+              :: (absConstantInfos block).drop (i.val + 1))
+            = (ConLeche.sumSplit ((absConstantInfos block).drop (i.val + 1))).map
+                (fun q => ((absConstantVal cv_c, n_p.val, n_f.val) :: q.1, q.2)) :=
+          rfl
+        rw [hrec, habs, absConstantInfo, hcs]
+        cases ConLeche.sumSplit ((absConstantInfos block).drop (i.val + 1)) with
+        | none => rfl
+        | some q => simp
+      | RecInfo cv_r m_i r_p rules =>
+        -- the closing recursor: only when it is the last member
+        rw [hci] at h
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hdrop : (absConstantInfos block).drop (i.val + 1) = []
+            ↔ i.val + 1 = block.val.length := by
+          rw [List.drop_eq_nil_iff]
+          simp only [absConstantInfos, List.length_map]
+          omega
+        split at h
+        · rename_i heq
+          have hlen : i.val + 1 = block.val.length := by
+            have := alloc.vec.Vec.len_val block; scalar_tac
+          obtain ⟨cv, hcv, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+          rw [← Result.ok_injective h, hdrop.mpr hlen,
+            Env.constant_val_dup_refines hcv, Env.rec_rules_copy_refines hv]
+          simp [absSumSplit, absConstantInfo, absRecRules, ConLeche.sumSplit]
+        · rename_i hne
+          have hlen : i.val + 1 ≠ block.val.length := by
+            have := alloc.vec.Vec.len_val block; scalar_tac
+          obtain ⟨rest, hrest⟩ : ∃ rest,
+              (absConstantInfos block).drop (i.val + 1) = rest ∧ rest ≠ [] :=
+            ⟨_, rfl, fun hc => hlen (hdrop.mp hc)⟩
+          rw [← Result.ok_injective h]
+          rcases hr : (absConstantInfos block).drop (i.val + 1) with _ | ⟨a, rest'⟩
+          · exact absurd (hdrop.mp hr) hlen
+          · simp [absConstantInfo, ConLeche.sumSplit]
 
 /-- `ConLeche/Kernel/Inductives/SumParts.lean:103-110` — `sum_split` refines
 `sumSplit`: the entry point, where the accumulator is empty. -/
@@ -229,5 +324,13 @@ theorem major_idx_refines {p : inductives.sum_parts.InductiveShape}
   have hrv : r.val = i.val + p.n_idx.val := HashMap.uscalar_add_eq h
   rw [ConLeche.InductiveShape.majorIdx, hrv, hiv]
   simp [IndAbs.absInductiveShape]
+
+/-! ## Axiom census (DESIGN.md §5, the P3 gate) -/
+
+/-- info: 'ConRon.Refine.SumParts.sum_split_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms sum_split_refines
+
+/-- info: 'ConRon.Refine.SumParts.with_sort_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms with_sort_refines
 
 end ConRon.Refine.SumParts
