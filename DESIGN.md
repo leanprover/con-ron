@@ -11490,7 +11490,7 @@ groups.
 | `Infer.lean` | 8 | 985 | 3 | **the `infer` body**, both grades |
 | `InferSpineIO.lean` | 2 | 421 | 0 | `inferSpineIOI` (786 generated lines) |
 | `InferIO.lean` | 4 | 596 | 0 | **the `infer_io` body** |
-| `DefEqStruct.lean` | 6 | 1411 | 3 | the structural `defeq` analysis |
+| `DefEqStruct.lean` | 6 | 1509 | 3 | the structural `defeq` analysis |
 | `DefEq.lean` | 14 | 1561 | 0 | **the `defeq` body** |
 | `Annotate.lean` | 18 | 1786 | 0 | **the `annotate` body** |
 | `Arms.lean` | — | 212 | 2 | the discharges, `arms`, `knot_spec` |
@@ -11570,18 +11570,20 @@ sorry-free, `DefEq` and `Annotate` among them.
    **§3.4 rule 3 says such casts are avoided entirely** — the port breaks
    its own rule here.
 4. **`const_ty_at_m` hoisted inside the `certs` gate** (3 `sorry` in
-   `Major.lean`, 1 in `Certs.lean`) — a suspected port bug, and the one
-   finding **two agents reported independently, at different sites**, which
-   is what makes it look systematic rather than incidental.  con-leche
-   evaluates `constTyAtM` *before* the `certAtI mode` gate — in
-   `majorToCtorI`'s three rescue arms (`CoreC.lean:577`, `:621`, `:653`) and
-   in `structEtaCertWithI` (`:437`) — while `core_c.rs` hoists the read
-   *inside* `if env::certs(mode)` (`:919`, `:1377`, `:1500`, `:1610`).
-   `constTyAtM` memoises (and can `throw`), so at `.trusted` con-leche moves
-   the state and the port does not: `StateRel st' lst'` is false on that arm.
-   `.verified` is fully proved in every case.  Either the port should read
-   `const_ty_at_m` unconditionally, or the twin should move it under
-   `certAtI`; DESIGN.md's "nine `certAtI` sites" does not list this hoist.
+   `Major.lean`, 1 in `Certs.lean`, 1 in `DefEqStruct.lean`) — a suspected
+   port bug, and the one finding **three agents reported independently, at
+   five different sites**, which is what makes it systematic rather than
+   incidental.  con-leche evaluates `constTyAtM` *before* the `certAtI mode`
+   gate — `majorToCtorI`'s three rescue arms (`CoreC.lean:577`, `:621`,
+   `:653`), `structEtaCertWithI` (`:437`) and `structUnitCertI` (`:501-510`)
+   — while `core_c.rs` hoists the read *inside* `if env::certs(mode)`
+   (`:919`, `:1120`, `:1377`, `:1500`, `:1610`).  `constTyAtM` memoises **and
+   can `throw`**, so at `.trusted` con-leche moves the state (or fails) where
+   the port returns `Ok` untouched: `StateRel st' lst'` is false on that arm.
+   `.verified` is fully proved in every case, so this is a `--trusted`-only
+   divergence.  Either the port should read `const_ty_at_m` unconditionally,
+   or the twin should move it under `certAtI`; DESIGN.md's "nine `certAtI`
+   sites" does not list this hoist, which is why it reads as unintended.
 
 #### Two gaps that are this task's own
 
