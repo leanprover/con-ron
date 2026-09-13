@@ -1056,6 +1056,14 @@ measured.
   citation that names a declaration credits the whole declaration, so a
   narrow range on a long doc comment no longer reads as a gap).  Task-log
   entries quote its totals.
+* `scripts/loc.py [--md | --summary | --by-upstream]` (task #72) puts the
+  four sizes side by side per Rust module — con-leche lines cited, Rust lines
+  outside tests, Aeneas-generated lines, proof lines — and splits the proof
+  lines by how each theorem is proved (`by` block without `grind`; `grind`,
+  i.e. the task #71 idiom; term mode; non-theorem), with the ratios at the
+  bottom.  `--by-upstream` is the same per con-leche file, attributed per
+  item, with the helper/infrastructure lines reported as not attributable.
+  `gates.sh` prints its `--summary` line after `progress.py`'s.
 * Commit often.  The maintainer pushes and opens PRs (see `CLAUDE.md`).
 * Fable designs and states theorems and reviews; Opus agents port, extract,
   prove and measure.  Delegate anything mechanical.
@@ -14043,3 +14051,39 @@ Gates: `scripts/gates.sh` all seven OK in the task's worktree.  Nothing
 outside `proof/ConRon/Refine/` and the three documents changed; every change
 to a file outside `Abs.lean`/`Expr.lean`/`Level.lean`/`Name.lean`/
 `Automation/Study.lean` is an added declaration or an added attribute.
+
+### Task #72 — `scripts/loc.py`: the four sizes side by side (2026-09-13, Fable)
+
+The maintainer asked for a script relating upstream, Rust, generated and
+proof lines, with manual and `grind` proofs told apart.  `scripts/loc.py`
+reuses `progress.py`'s ledger (a con-leche declaration's definitional block,
+claimed by a citation) and `provenance.py`'s Rust scanner, and adds two
+attributions that were not written down before: a generated-Lean chunk
+belongs to the Rust file its Aeneas `Source:` marker names (so the model's
+size is exact per module, and an item's Rust span is the marker's line
+range), and a `Refine/` file belongs to the Rust module `progress.py`'s
+naming convention gives it (`Refine/Pins*.lean` → `kernel/pins_decode.rs`
+and `Refine/IndC.lean` → `kernel/inductives/inductives_c.rs` are the two
+aliases; `Abs`, `State`, `Main`, `IndSpec`, `IndAbs`, `IndIngredients`,
+`Scalars`, `SimpSets` are the shared infrastructure row; `Automation/*` is
+the study, outside the total).  A theorem is `grind` if its proof text
+mentions `grind`/`rust_grind`, `tactic` if it has a `by` block, `term`
+otherwise; a file's non-theorem lines are `other`.  `kernel/pins_text.rs`
+(the embedded pins text, 26 762 lines) is data and stays out of the totals.
+
+At master `7e7c6c6`:
+
+| | lines |
+|---|---:|
+| upstream (con-leche core, cited) | 13 694 |
+| Rust (core, outside tests, without the pins text) | 36 611 |
+| generated Lean | 51 808 |
+| proof | 129 452 — tactic 103 506 in 2 892 theorems, term 4 257 in 680, other 21 689, `grind` 0 |
+| study (`Refine/Automation`, not in the total) | 621 — 79 `grind` lines in 6 theorems |
+
+Ratios: Rust/upstream 2.67, generated/Rust 1.42, proof/Rust 3.54,
+proof/upstream 9.45.  The `--by-upstream` view attributes 62 922 of the
+129 452 proof lines to a single item through its `<fn>_refines*` theorems;
+the other 66 530 are helpers, relations and infrastructure.  The `grind`
+column is 0 by task #71's ruling (new proofs only) and will start counting
+with the first new lemma written in the idiom.

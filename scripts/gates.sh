@@ -59,3 +59,4 @@ echo "gates: all $n OK"
 # every landing shows where the port and the proof stand.
 echo
 python3 "$root/scripts/progress.py" --summary
+python3 "$root/scripts/loc.py" --summary
