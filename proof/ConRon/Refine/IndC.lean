@@ -45,7 +45,9 @@ arms; this file assumes them.
 
 ## `sorry` count
 
-11 `sorry`s, one per driver lemma: each waits on its sibling module's stage
+9 `sorry`s: the nine driver lemmas that reach a stage.  The two index folds
+(`check_ind_members_s`, `install_proj_fns_s`) are proved from the step lemmas
+above them.  Each remaining one waits on its sibling module's stage
 refinement (`Refine/IndModeled.lean`, `Refine/IndNativeInstall.lean`), which is
 being written concurrently.  The statements are the exact-result ones and
 nothing below is weakened.  The two `#print axioms` censuses at the bottom are
@@ -140,8 +142,55 @@ theorem check_ind_members_s_refines
             (ConLeche.Cached.checkIndMemberS (absMode mode) (absNames block_names)
               (absIndCaps caps)) lfe).run lst = .ok (lfe', lst')
         ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
-  -- the index recursion over `nonrecs`, one `check_ind_member_s_refines` a step
-  sorry
+  generalize hd : nonrecs.length - i.val = d
+  induction d using Nat.strong_induction_on generalizing st fe i with
+  | _ d ih =>
+    intro lst lfe hrel hfer
+    rw [inductives.inductives_c.check_ind_members_s] at h
+    split at h
+    · -- the index is past the end: the fold is over the empty list
+      rename_i hge
+      have hnil : (absConstantInfos nonrecs).drop i.val = [] := by
+        apply List.drop_eq_nil_of_le
+        simp only [absConstantInfos, List.length_map]
+        scalar_tac
+      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact ⟨lst, lfe, by
+        simp only [hnil, List.foldlM_nil, StateT.run, Pure.pure, StateT.pure]
+        rfl, hrel, hfer, hst, hfe⟩
+    · rename_i hlt
+      have hlt' : i.val < nonrecs.val.length := by
+        have := alloc.vec.Vec.len_val nonrecs; scalar_tac
+      obtain ⟨y, hy, hyv⟩ :=
+        WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec nonrecs i hlt')
+      subst hyv
+      simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
+      obtain ⟨p, hstep, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r, st1⟩ := p
+      cases r with
+      | Err e => simp at h
+      | Ok fe2 =>
+        obtain ⟨i2, hi2, h⟩ := by simpa using bind_eq_ok_iff.mp (by simpa using h)
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hciwf : ConstantInfoWF nonrecs.val[i.val] := hnr _ (List.getElem_mem hlt')
+        obtain ⟨lst1, lfe1, hrun1, hrel1, hfer1, hwf1, hfew1⟩ :=
+          check_ind_member_s_refines hw hst hfe hbn hcaps hciwf hstep lst lfe hrel hfer
+        obtain ⟨lst', lfe', hrunr, hrelr, hferr, hwfr, hfewr⟩ :=
+          ih (nonrecs.length - i2.val) (by scalar_tac) hwf1 hfew1 h rfl lst1 lfe1
+            hrel1 hfer1
+        refine ⟨lst', lfe', ?_, hrelr, hferr, hwfr, hfewr⟩
+        have hlt2 : i.val < (absConstantInfos nonrecs).length := by
+          simpa [absConstantInfos] using hlt'
+        have hcons : (absConstantInfos nonrecs).drop i.val
+            = absConstantInfo nonrecs.val[i.val]
+              :: (absConstantInfos nonrecs).drop i2.val := by
+          rw [List.drop_eq_getElem_cons hlt2, hi2v]
+          simp [absConstantInfos]
+        rw [hcons, List.foldlM_cons]
+        simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at hrun1 hrunr ⊢
+        rw [hrun1]
+        exact hrunr
 
 /-- `ConLeche/Cached/CheckerC.lean:115-129` — `provision_recs_s` refines
 `provisionRecsS`: **one flush per recursor** before its constant is checked,
@@ -226,8 +275,40 @@ theorem install_proj_fns_s_refines
               (absName ctor_name) (absNames lps) n_p.val n_f.val) lfe).run lst
           = .ok (lfe', lst')
         ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
-  -- the `i`-counting recursion, `n_f - i` decreasing
-  sorry
+  generalize hd : n_f.val - i.val = d
+  induction d using Nat.strong_induction_on generalizing st fe i with
+  | _ d ih =>
+    intro lst lfe hrel hfer
+    rw [inductives.inductives_c.install_proj_fns_s] at h
+    split at h
+    · rename_i hge
+      have hz : d = 0 := by rw [← hd]; scalar_tac
+      subst hz
+      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact ⟨lst, lfe, by
+        simp only [List.range'_zero, List.foldlM_nil, StateT.run, Pure.pure,
+          StateT.pure]
+        rfl, hrel, hfer, hst, hfe⟩
+    · rename_i hlt
+      obtain ⟨p, hstep, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r, st1⟩ := p
+      cases r with
+      | Err e => simp at h
+      | Ok fe2 =>
+        obtain ⟨i1, hi1, h⟩ := by simpa using bind_eq_ok_iff.mp (by simpa using h)
+        have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+        obtain ⟨lst1, lfe1, hrun1, hrel1, hfer1, hwf1, hfew1⟩ :=
+          install_proj_fn_step_s_refines hw hst hfe ht hc hlps hstep lst lfe hrel hfer
+        have hsplit : d = (n_f.val - i1.val) + 1 := by rw [← hd]; scalar_tac
+        subst hsplit
+        obtain ⟨lst', lfe', hrunr, hrelr, hferr, hwfr, hfewr⟩ :=
+          ih (n_f.val - i1.val) (by omega) hwf1 hfew1 h rfl lst1 lfe1 hrel1 hfer1
+        refine ⟨lst', lfe', ?_, hrelr, hferr, hwfr, hfewr⟩
+        rw [List.range'_succ, List.foldlM_cons, ← hi1v]
+        simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at hrun1 hrunr ⊢
+        rw [hrun1]
+        exact hrunr
 
 /-- `ConLeche/Cached/CheckerC.lean:233-268` — `check_ind_decl_struct_s` refines
 the single-type-former, single-constructor arm of `checkIndDeclSF`: the
