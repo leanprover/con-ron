@@ -10915,6 +10915,88 @@ result on success, nothing weakened), and only the discharge is owed.
 `wscoped_b_go_refines` is the one of the four `Bool` walks that *is* proved, on
 purpose: it is the template the other three follow, and having it green is what
 makes the remaining three mechanical rather than exploratory.
+### Task #53 — The knot's skeleton: memo wrappers and the fuel induction (2026-09-13, Opus under Fable)
+
+`CORE_PLAN.md` step 6's third file: `proof/ConRon/Refine/Core/Knot.lean`
+(590 lines, 20 theorems, no `sorry`).  It closes everything about the knot
+that is *not* a body's arm — the memo wrappers and the recursion — so that
+tasks #54 and on can be exactly "prove one arm", against a fixed interface.
+
+#### What is proved
+
+| theorem | statement |
+|---|---|
+| `wrappers_zero mode` | `Wrappers mode 0#u64` |
+| `wrappers_succ` | `fuel'.val = fuel.val + 1 → Bodies mode fuel → Wrappers mode fuel'` |
+| `knot_induction` | `(∀ fuel, Wrappers mode fuel → Bodies mode fuel) → ∀ fuel, KnotSpec mode fuel` |
+
+Plus the pieces they are assembled from, each worth its own name because the
+arm files will want them: four `memoEI`/`memoBI` run lemmas, six
+`knot_succ_*` projections of `coreKnotI`'s successor arm, and six
+`*_probe_refines` lemmas for the Rust probes.
+
+`Refine/Core/Statements.lean` needed **no change**: the twelve statements
+Fable wrote are provable as written, and the `Wrappers`/`Bodies` split (the
+bodies at `fuel`, the wrappers at `fuel + 1`) is exactly what the memo
+argument wants.  Nothing was added to `Refine/State.lean` either — task #46
+had already put every probe and every insert there, value invariant included.
+
+#### Fuel zero is vacuous, and that is the whole point of §3.5's shape
+
+Every wrapper's first test is `fuel == 0`, and its `then` branch returns
+`CheckError::internal("fuel exhausted: …")`.  `RefinesE`/`RefinesB` assume an
+`.Ok` result, so the hypothesis is absurd: `rw [….eq_def] at h; simp at h`,
+six times.  "Exact result on success, nothing on failure" is what makes the
+base case free — a total-correctness statement would have had to *relate* the
+two fuel-exhaustion errors, and con-leche's message (`"fuel exhausted: infer"`
+for both `infer` and `inferIO`) is not the port's.
+
+#### The memo step, per wrapper
+
+The Rust wrapper at `fuel + 1` is `probe → body at fuel → insert`, and
+con-leche's `memoEI` is `probe → body → modify`.  So each arm splits on the
+probe:
+
+* **hit**: `StateRel`'s clause for that map (through `*_probe_refines`, which
+  is task #46's `get_step` composed with the generated probe) turns the Rust
+  `Some r` into con-leche's `[absExpr e]? = some (absExpr r)`, and
+  `memoEI_run_hit` returns it with the state untouched.  `StateWF`'s *value*
+  clause is what supplies `ExprWF r` here — a memo hit must hand its caller a
+  well-formed term, and nothing else in the state can prove that.
+* **miss**: `fuel' - 1#u64 = ok fuel` (`fuel_pred`, from
+  `fuel'.val = fuel.val + 1`), then the body lemma at `fuel` — the Rust's
+  decrement against con-leche's `prev ()`, which is a `Unit` closure and so
+  `coreKnotI fe fuel` by iota, no `Thunk` to unfold (con-leche's task #179) —
+  then the map's insert lemma from `Refine/State.lean`.
+
+`memoEI_run_miss` carries con-leche's **detach-and-insert** verbatim:
+`let mp := get' st; let st := set' st ∅; set' st (mp.insert e r)`, the
+linear-update dance task #14 dropped on the Rust side.  Its `hs` argument is
+`set' (set' lst' ∅) ((get' lst').insert e r) = lst''`, and at each of the five
+concrete maps that is `rfl` — a nested structure update collapses by
+projection-of-constructor, so the net effect really is one `Std.HashMap.insert`
+and the insert lemmas apply unchanged.
+
+`defeq` is the same with `memoBI` and the `(a, b)` key; `absExprPair (a, b)`
+is `(absExpr a, absExpr b)` by `rfl`, so the pair key needs no bridging.
+
+`inferIO` is the one arm with a case split, and it mirrors the Lean's:
+`env::io_gate(mode)` (`Env.io_gate_refines`) against `mode.ioGate`, at the
+gate the io body under `inferIOC` tied to the previous level's `ioView`
+(`Bodies.inferIO`), off the gate the full inference body under `inferC`
+(`Bodies.infer`).  The second arm is dead at both modes — `ioGate` is
+constantly `true` — and is proved anyway, as it is ported anyway.
+
+#### The recursion
+
+`knot_induction` is `Nat.rec` on `fuel.val`, the shape task #5 used for
+`leq_core`/`rest`/`by_cases`.  The successor step needs a `Std.U64` whose
+value is `n`, which `Std.UScalar.ofNatCore n` supplies with `n < 2^64` from
+`fuel.bv.isLt` — no `U64.max` side condition survives into the statement,
+because `fuel.val = n + 1` already bounds `n`.  The bodies at any fuel are the
+arms applied to the wrappers at the *same* fuel: a body's recursive calls go
+through wrappers, and the decrement lives in the wrapper, so there is exactly
+one induction and it is on the wrapper side.
 
 #### Gates
 
@@ -11223,3 +11305,11 @@ Aeneas, nothing from `pins_text`.  The three representative ones:
 * `scripts/gates.sh`: all 7 OK.  The progress line afterwards reads
   `verified 5866 (42%)` of the 13 743 verified-core Lean lines, and
   `proofs 43999 (586 _refines)`.
+| `#print axioms` | `wrappers_succ`, `knot_induction`: `[propext, Classical.choice, Quot.sound]`, pinned with `#guard_msgs` |
+
+#### What is left
+
+`Wrappers mode fuel → Bodies mode fuel` — the six arms, one file per body
+under `Refine/Core/Arms/`.  Each may now assume the six wrapper lemmas at its
+own fuel and has to prove one `Bodies` field; `knot_induction` closes the loop
+the moment the last one lands.
