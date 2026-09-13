@@ -42,7 +42,6 @@ use crate::kernel::prop_when;
 use crate::kernel::type_checker;
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:64-85 installConstantVal
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove checker_split::install_constant_val_refines, then delete this line
 /// `checkConstantVal` minus its inference: the syntactic guards and the
 /// annotation of the type.  The **install half** of the seam.
 pub fn install_constant_val(
@@ -84,7 +83,6 @@ pub fn install_constant_val(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:87-100 installValue
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove checker_split::install_value_refines, then delete this line
 /// The value half of `check{Defn,Thm,Opaque}Val` minus its inference: the
 /// guards and the annotation of the value.
 pub fn install_value(

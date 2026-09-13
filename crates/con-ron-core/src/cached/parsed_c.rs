@@ -58,6 +58,7 @@ use crate::cached::state_c;
 use crate::cached::state_c::CState;
 use crate::cached::state_c::CheckCM;
 use crate::kernel::basis_names;
+use crate::kernel::basis_raw;
 use crate::kernel::checker;
 use crate::kernel::core_k;
 use crate::kernel::checker_base;
@@ -67,6 +68,8 @@ use crate::kernel::env::BasisKind;
 use crate::kernel::env::CheckMode;
 use crate::kernel::env::ConstantInfo;
 use crate::kernel::env::ConstantVal;
+use crate::kernel::env::Declaration;
+use crate::kernel::env::QuotKind;
 use crate::kernel::env::ReducibilityHint;
 use crate::kernel::expr;
 use crate::kernel::expr::Expr;
@@ -84,20 +87,6 @@ use crate::kernel::std_axioms;
 use crate::kernel::trust_axioms;
 use crate::kernel::type_checker;
 use std::vec::Vec;
-
-/// con-leche: ConLeche/Kernel/Env.lean:506-560 Declaration
-/// A parsed declaration over `ExprC`.  Its constant-value records *are*
-/// `ConLeche.ConstantVal` (con-leche task #198: the separate `ConstantValC`
-/// is gone), so the header's type is an ordinary `Expr` — which is the same
-/// type as the value payloads here, `ExprC` being `Expr`.
-pub enum DeclC {
-    AxiomDecl(ConstantVal),
-    DefnDecl(ConstantVal, Expr, ReducibilityHint),
-    ThmDecl(ConstantVal, Expr),
-    OpaqueDecl(ConstantVal, Expr),
-    BasisDecl(BasisKind),
-    IndDecl(Vec<ConstantInfo>, u64),
-}
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:38-42 ValueKind
 /// The three declaration kinds whose value check is separable from their
@@ -165,7 +154,6 @@ pub fn op_s_ix_c(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:55-80 checkConstantValC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_constant_val_c_refines, then delete this line
 /// `checkConstantVal` on a *parsed* declaration: the checks of
 /// `checkConstantValF` with the syntactic passes memoised on the `ExprC` DAG
 /// and the operations on `ExprC` values.  Returns the constant with its type
@@ -205,7 +193,6 @@ pub fn check_constant_val_c(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:55-80 checkConstantValC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_constant_val_c_after_annot_refines, then delete this line
 /// The tail past the annotation: the level-parameter and resolution guards on
 /// the annotated type, the type's own sort through `opSIxC`, and the record
 /// update.  Split off so the annotation's state-threading call is a tail call
@@ -241,7 +228,6 @@ pub fn check_constant_val_c_after_annot(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:82-99 checkDefnValC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_defn_val_c_refines, then delete this line
 /// `checkDefnValP` over `ExprC`: the value's syntactic guards, its
 /// annotation, the `ienv` record, and the comparison of its inferred type
 /// against the declared one, returning the pushed index.
@@ -267,7 +253,6 @@ pub fn check_defn_val_c(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:82-99 checkDefnValC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_defn_val_c_after_annot_refines, then delete this line
 /// The tail past the annotation.  `recordCConst` runs **between** the
 /// resolution guard and the inference, as the cited code has it: the `ienv`
 /// entry is what the cached lazy accessors (`constTyAtM`, `constValAtM`)
@@ -318,7 +303,6 @@ pub fn check_defn_val_c_after_annot(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:101-122 checkThmValC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_thm_val_c_refines, then delete this line
 /// `checkThmValP` over `ExprC`: the statement must be a proposition first.
 /// Deviation: the cited `liftFueled "level comparison"` is monomorphic and
 /// stringless (task #18's deviation 1), i.e. `core_k::lift_fueled`.
@@ -349,7 +333,6 @@ pub fn check_thm_val_c(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:101-122 checkThmValC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_thm_val_c_witness_refines, then delete this line
 /// The witness half: the value's syntactic guards and its annotation.  Split
 /// off so the is-a-proposition gate is a tail call (task #24's deviation 7).
 pub fn check_thm_val_c_witness(
@@ -373,7 +356,6 @@ pub fn check_thm_val_c_witness(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:101-122 checkThmValC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_thm_val_c_checked_refines, then delete this line
 /// The tail past the witness annotation.  The `ienv` record carries **no**
 /// value (`recordCConst … none`) and the push stores the record's own *raw*
 /// value, unread: a theorem is stored by its statement and is opaque to
@@ -422,7 +404,6 @@ pub fn check_thm_val_c_checked(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:124-140 checkOpaqueValC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_opaque_val_c_refines, then delete this line
 /// `checkOpaqueValP` over `ExprC`: exactly the theorem check without the
 /// is-a-proposition requirement, stored as an `axiomInfo` because the
 /// official kernel's `is_delta` never unfolds an opaque.
@@ -447,7 +428,6 @@ pub fn check_opaque_val_c(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:124-140 checkOpaqueValC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_opaque_val_c_after_annot_refines, then delete this line
 /// The tail past the annotation.
 pub fn check_opaque_val_c_after_annot(
     mode: &CheckMode,
@@ -489,7 +469,6 @@ pub fn check_opaque_val_c_after_annot(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_decl_c_refines, then delete this line
 /// One parsed declaration, mirroring `checkDeclSPPlain` branch by branch.
 /// The six arms are six functions, so every one of them is a tail call
 /// (task #18's rule for a gated cascade).
@@ -498,22 +477,35 @@ pub fn check_decl_c(
     pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe: FEnv,
-    pd: &DeclC,
+    pd: &Declaration,
 ) -> CheckCM<FEnv> {
     match pd {
-        DeclC::DefnDecl(cv, value, hint) => {
+        Declaration::DefnDecl(cv, value, hint) => {
             check_defn_decl_c(mode, pins, st, fe, cv, value, hint)
         }
-        DeclC::ThmDecl(cv, value) => check_thm_decl_c(mode, st, fe, cv, value),
-        DeclC::OpaqueDecl(cv, value) => check_opaque_decl_c(mode, st, fe, cv, value),
-        DeclC::AxiomDecl(cv) => check_axiom_decl_c(mode, st, fe, cv),
-        DeclC::BasisDecl(kind) => check_basis_decl_c(fe, kind),
-        DeclC::IndDecl(block, n_p) => check_ind_decl_c(mode, st, fe, block, *n_p),
+        Declaration::ThmDecl(cv, value) => check_thm_decl_c(mode, st, fe, cv, value),
+        Declaration::OpaqueDecl(cv, value) => check_opaque_decl_c(mode, st, fe, cv, value),
+        Declaration::AxiomDecl(cv) => check_axiom_decl_c(mode, st, fe, cv),
+        Declaration::BasisDecl(kind) => check_basis_decl_c(fe, kind),
+        Declaration::IndDecl(block, n_p) => check_ind_decl_c(mode, st, fe, block, *n_p),
+        Declaration::QuotDecl(k, cv) => check_quot_decl_c(fe, k, cv),
     }
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_defn_decl_c_refines, then delete this line
+/// The `.quotDecl` arm (con-leche task #293): the export writes the quotient
+/// package as four records, each compared with the pinned block's constant at
+/// its own kind; the FIRST that matches installs the pinned block whole, the
+/// other three add nothing, and a record that does not match is the decline
+/// the parser used to issue.
+///
+/// Deviation: the cited arm is `checkDecl`'s character for character, so this
+/// is a wrapper over `checker::check_quot_decl` rather than a second copy.
+pub fn check_quot_decl_c(fe: FEnv, k: &QuotKind, cv: &ConstantVal) -> CheckCM<FEnv> {
+    checker::check_quot_decl(fe, k, cv)
+}
+
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
 /// The `.defnDecl` arm.  **The pinned-name test comes first**, which is the
 /// cited arm's own RC-linearity shape: with `fe` still live after the push —
 /// the pin gates read it at the pre-insertion bound — `checkDefnValC`'s
@@ -553,7 +545,6 @@ pub fn check_defn_decl_c(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_defn_pins_c_refines, then delete this line
 /// The `.defnDecl` arm's two pinned-`Nat` gates — the structural-operation
 /// recurrence certificates and the `Nat.div`/`Nat.mod` pin variants.
 ///
@@ -577,7 +568,6 @@ pub fn check_defn_pins_c(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_thm_decl_c_refines, then delete this line
 /// The `.thmDecl` arm.
 pub fn check_thm_decl_c(
     mode: &CheckMode,
@@ -593,7 +583,6 @@ pub fn check_thm_decl_c(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_opaque_decl_c_refines, then delete this line
 /// The `.opaqueDecl` arm: the compiler-trust gate for
 /// `Lean.reduceNat`/`Lean.reduceBool`, tested before the push for the cited
 /// RC-linearity reason (the comment in `checkDeclC` itself), then the opaque
@@ -625,7 +614,6 @@ pub fn check_opaque_decl_c(
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_axiom_decl_c_refines, then delete this line
 /// The `.axiomDecl` arm.  The one thing it adds to `checkDecl`'s is the
 /// `recordCConst` before each install: the cached lane keeps the accepted
 /// constant's annotated type in `ienv`, tagged with the very `Expr` object
@@ -633,6 +621,21 @@ pub fn check_opaque_decl_c(
 /// well-formedness-checked and **not** recorded and not stored, as the cited
 /// `pure fe` arm has it.
 pub fn check_axiom_decl_c(
+    mode: &CheckMode,
+    st: &mut CState,
+    fe: FEnv,
+    cv: &ConstantVal,
+) -> CheckCM<FEnv> {
+    if name::beq(&cv.name, &basis_names::quot_sound_name()) {
+        checker::check_quot_sound_record(fe, cv)
+    } else {
+        check_axiom_decl_std_c(mode, st, fe, cv)
+    }
+}
+
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
+/// The rest of the `.axiomDecl` arm, past the `Quot.sound` record test.
+pub fn check_axiom_decl_std_c(
     mode: &CheckMode,
     st: &mut CState,
     fe: FEnv,
@@ -691,10 +694,10 @@ pub fn check_axiom_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_basis_decl_c_refines, then delete this line
-/// The `.basisDecl` arm: the pinned `Eq` basis prerequisite of the quotient
-/// block, then the install fold.
+/// con-leche: ConLeche/Cached/ParsedC.lean:142-148 checkBasisDeclC
+/// `check_basis_decl`'s cached twin: the body the three records that install
+/// a pinned basis block share (con-leche task #293) — the pinned `Eq` basis
+/// prerequisite of the quotient block, then the install fold.
 ///
 /// Deviation: the cited arm is `checkDecl`'s character for character —
 /// `installBasisDeclF` is `installBasisDecl`'s indexed twin and the port has
@@ -706,7 +709,6 @@ pub fn check_basis_decl_c(fe: FEnv, kind: &BasisKind) -> CheckCM<FEnv> {
 }
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove parsed_c::check_ind_decl_c_refines, then delete this line
 /// The `.indDecl` arm.  **The declared parameter count first, and for both
 /// routes** (con-leche task #228): `indParamsOk` is official's own check,
 /// one-sided, and it runs before the dispatch because it is a property of the
@@ -725,6 +727,22 @@ pub fn check_basis_decl_c(fe: FEnv, kind: &BasisKind) -> CheckCM<FEnv> {
 ///
 /// No placeholder is left in this module: `checkDeclC` is complete.
 pub fn check_ind_decl_c(
+    mode: &CheckMode,
+    st: &mut CState,
+    fe: FEnv,
+    block: &Vec<ConstantInfo>,
+    n_p: u64,
+) -> CheckCM<FEnv> {
+    match basis_raw::basis_pin_hit(block) {
+        Some(kind) => check_basis_decl_c(fe, &kind),
+        None => check_ind_decl_route_c(mode, st, fe, block, n_p),
+    }
+}
+
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
+/// The `.indDecl` arm past the pin recognition: the declared parameter count,
+/// then the one-route dispatch.
+pub fn check_ind_decl_route_c(
     mode: &CheckMode,
     st: &mut CState,
     fe: FEnv,
@@ -751,7 +769,7 @@ pub fn check_decl_step_c(
     pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe: FEnv,
-    pd: &DeclC,
+    pd: &Declaration,
 ) -> CheckCM<FEnv> {
     state_c::flush_c(st);
     check_decl_c(mode, pins, st, fe, pd)
@@ -781,7 +799,7 @@ mod tests {
         Vec::new()
     }
     use crate::cached::parsed_c;
-    use crate::cached::parsed_c::DeclC;
+    use crate::kernel::env::Declaration;
     use crate::cached::parsed_c::ValueKind;
     use crate::cached::state_c;
     use crate::cached::state_c::CState;
@@ -1026,7 +1044,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
             &no_pins(),
             &mut st,
             fe_k,
-            &DeclC::AxiomDecl(cvt("k", sort1())),
+            &Declaration::AxiomDecl(cvt("k", sort1())),
         ) {
             Ok(_) => panic!("a duplicate axiom must not check"),
             Err(e) => assert!(is_invalid(&e)),
@@ -1053,7 +1071,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
             &no_pins(),
             &mut st_i,
             empty_fenv(),
-            &DeclC::IndDecl(good_block, 0),
+            &Declaration::IndDecl(good_block, 0),
         ) {
             Ok(_) => panic!("a `T : Sort 0` block with no model must not install"),
             Err(_) => (),
@@ -1069,7 +1087,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
             &no_pins(),
             &mut st2,
             empty_fenv(),
-            &DeclC::IndDecl(bad_block, 3),
+            &Declaration::IndDecl(bad_block, 3),
         ) {
             Ok(_) => panic!("a wrong `nparams` must not check"),
             Err(e) => assert!(is_invalid(&e), "a wrong `nparams` is official's own reject"),
@@ -1083,7 +1101,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
             &no_pins(),
             &mut st3,
             empty_fenv(),
-            &DeclC::AxiomDecl(cvt("myAxiom", sort1())),
+            &Declaration::AxiomDecl(cvt("myAxiom", sort1())),
         ) {
             Ok(_) => panic!("a non-standard axiom must not be installed"),
             Err(e) => assert!(is_not_implemented(&e)),
@@ -1095,9 +1113,9 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
     #[test]
     fn decl_list_shape() {
         let ds = vec![
-            DeclC::AxiomDecl(cv("ax")),
-            DeclC::BasisDecl(BasisKind::NatK),
-            DeclC::IndDecl(
+            Declaration::AxiomDecl(cv("ax")),
+            Declaration::BasisDecl(BasisKind::NatK),
+            Declaration::IndDecl(
                 vec![
                     ConstantInfo::IndInfo(cv("T"), env::ind_caps_default()),
                     ConstantInfo::CtorInfo(cv("T.mk"), 0, 0),
@@ -1113,7 +1131,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
         ];
         assert_eq!(ds.len(), 3);
         match &ds[2] {
-            DeclC::IndDecl(block, n_p) => {
+            Declaration::IndDecl(block, n_p) => {
                 assert_eq!(*n_p, 0);
                 assert!(env::recs_form_suffix(block));
                 assert!(env::ind_params_ok(*n_p, block));

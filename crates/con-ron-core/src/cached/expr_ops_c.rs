@@ -595,7 +595,6 @@ pub fn instantiate_list(e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:356-425 instantiateRevGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::instantiate_rev_go_refines, then delete this line
 /// As `instantiateListGo`, but the replacement array holds the innermost
 /// binder **last** (the binder loops' push order — lean4lean's
 /// `instantiateRev`).  Same key, same fresh table on re-entry, same
@@ -663,7 +662,6 @@ pub fn instantiate_rev_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, d
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:356-425 instantiateRevGo
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr_ops_c::instantiate_rev_bvar_refines, then delete this line
 /// The `.bvar` arm's inner block, reading the replacement from the **end** of
 /// the array (`vs[vs.size - 1 - j]`).  Lifted into a callee as
 /// `instantiate_list_bvar` is.

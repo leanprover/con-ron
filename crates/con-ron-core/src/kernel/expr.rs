@@ -17,15 +17,19 @@
 //! (this is task #6's `modulo` rule).  `Expr.hash` is `hash`, and the stored
 //! word itself is `data`.
 //!
-//! **`Cached/ExprC.lean` is this file too** (task #33).  Since con-leche's
-//! task #172 B3a the cached engine's `ExprC` *is* `ConLeche.Expr` (`abbrev
-//! ExprC := ConLeche.Expr`) and its ten `mk*` names are `@[inline]` aliases
-//! of the constructors — `ExprC.mkApp f a = Expr.app f a` and so on, the
-//! file's own `mkApp_eq` &c. being the `rfl` equations.  The port has one
-//! spelling of each (§3.1: nothing exists twice), so each constructor here
-//! carries the `ExprC` alias as a second citation and the type itself cites
-//! `abbrev ExprC`.  The ten `@[simp] theorem`s of that file are the *spec*,
-//! not implementation (§3.1).
+//! **`Cached/ExprNodes.lean` is this file too** (task #33).  Since
+//! con-leche's task #172 B3a the cached engine's `ExprC` *was* `ConLeche.Expr`
+//! (`abbrev ExprC := ConLeche.Expr`), and con-leche's task #285 finished the
+//! job: the abbreviation, the namespace and `Cached/ExprC.lean` are gone, the
+//! file is `Cached/ExprNodes.lean`, and what is left in it is the nine node
+//! constructors — `mkApp f a = Expr.app f a` and so on, the file's own
+//! `mkApp_eq` &c. being the `rfl` equations.  The port has one spelling of
+//! each (§3.1: nothing exists twice), so each constructor here carries the
+//! `ExprNodes` name as a second citation; the type itself has no second
+//! citation any more, the abbreviation it cited having been retired.  The ten
+//! `@[simp] theorem`s of that file are the *spec*, not implementation (§3.1).
+//! `mkBVar` went with the rest: `Expr.mkBvar` (`Kernel/Expr.lean`) is the
+//! one bvar builder.
 //!
 //! The packed word's arithmetic is transliterated with `wrapping_*`, because
 //! Lean's `UInt64` `+`/`*` wrap: the port must be bit-exact here, since the
@@ -323,8 +327,6 @@ pub fn sat_pred(x: u64) -> u64 {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: ConLeche/Cached/ExprC.lean:102-109 ExprC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::ExprKind_refines, then delete this line
 /// The ten constructors of `inductive Expr`; the cited
 /// `@[computed_field] data` word sits in `ExprNode` (DESIGN.md §3.2).
 /// Deviation: the `Nat` indices are `u64` (§3.3), and `const`'s `List Level`
@@ -349,8 +351,6 @@ pub enum ExprKind {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: ConLeche/Cached/ExprC.lean:102-109 ExprC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::ExprNode_refines, then delete this line
 /// The heap node of an `Expr`: the cited inductive's `@[computed_field]
 /// data` beside the constructor data.
 pub struct ExprNode {
@@ -359,8 +359,6 @@ pub struct ExprNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: ConLeche/Cached/ExprC.lean:102-109 ExprC
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove expr::Expr_refines, then delete this line
 /// A kernel expression, as a `P` tree — Lean's value semantics made
 /// sharing (DESIGN.md §3.2).
 pub struct Expr(pub P<ExprNode>);

@@ -81,9 +81,7 @@ pub fn unresolved_consts_error(e: &Expr) -> CheckError {
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:95-119 checkConstantVal
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:463-485 checkConstantValF
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// Checks common to all declarations: fresh name, no reserved name, no
 /// reserved projection shape, well-formed universe parameters, and a type
 /// that is a type and mentions only declared parameters.  Returns the
@@ -116,9 +114,7 @@ pub fn check_constant_val(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:95-119 checkConstantVal
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove checker_base::check_constant_val_after_annot_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:463-485 checkConstantValF
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove checker_base::check_constant_val_after_annot_refines, then delete this line
 /// The tail of `check_constant_val` past the annotation: the level-parameter
 /// and resolution guards on the annotated type, the type's own sort, and the
 /// record update `{ cv with type := type }`.  Split off so the annotation's

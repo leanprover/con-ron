@@ -878,11 +878,55 @@ pub fn constant_info_beq(a: &ConstantInfo, b: &ConstantInfo) -> bool {
     }
 }
 
+/// con-leche: ConLeche/Kernel/Env.lean:488-499 QuotKind
+/// Which of the four quotient constants a `#QUOT` record declares — the
+/// record's `kind` field, decoded — plus `Sound`, which is not a kind the
+/// decoder reads but the slot `Quot.sound`'s own axiom record is compared at
+/// (con-leche task #293).
+pub enum QuotKind {
+    Type,
+    Ctor,
+    Lift,
+    Ind,
+    Sound,
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:501-504 QuotKind.slot
+/// The quotient constant's position in the pinned block.
+///
+/// Deviation: the cited `Nat` is a `u64` (§3.3).
+pub fn quot_kind_slot(k: &QuotKind) -> u64 {
+    match k {
+        QuotKind::Type => 0,
+        QuotKind::Ctor => 1,
+        QuotKind::Lift => 2,
+        QuotKind::Ind => 3,
+        QuotKind::Sound => 4,
+    }
+}
+
+/// con-leche: none — the copy of a `QuotKind` (Lean's value semantics)
+pub fn quot_kind_dup(k: &QuotKind) -> QuotKind {
+    match k {
+        QuotKind::Type => QuotKind::Type,
+        QuotKind::Ctor => QuotKind::Ctor,
+        QuotKind::Lift => QuotKind::Lift,
+        QuotKind::Ind => QuotKind::Ind,
+        QuotKind::Sound => QuotKind::Sound,
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Env.lean:506-560 Declaration
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove env::Declaration_refines, then delete this line
-/// A declaration presented to the checker.  `indDecl` carries the parameter
-/// count the *stream declares* (con-leche task #228), checked by
-/// `ind_params_ok`.
+/// A declaration presented to the checker — the ONE declaration record of the
+/// tree since con-leche task #285 (the cached tier's `DeclC` twin is gone;
+/// this is what the parser produces and what `check_decls` folds).
+/// `IndDecl` carries the parameter count the *stream declares* (con-leche
+/// task #228), checked by `ind_params_ok`; `BasisDecl` is the fold's own
+/// record for "install the pinned basis block", which no frontend function
+/// produces — `check_decl`'s `IndDecl` arm recognises a block as one of the
+/// five pins (`basis_raw::basis_pin_hit`) and its `QuotDecl` arm the quotient
+/// package (con-leche task #293); `QuotDecl` is a quotient record as the file
+/// declares it, one per `#QUOT` line.
 pub enum Declaration {
     AxiomDecl(ConstantVal),
     DefnDecl(ConstantVal, Expr, ReducibilityHint),
@@ -890,10 +934,10 @@ pub enum Declaration {
     OpaqueDecl(ConstantVal, Expr),
     BasisDecl(BasisKind),
     IndDecl(Vec<ConstantInfo>, u64),
+    QuotDecl(QuotKind, ConstantVal),
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:564-568 Declaration.name
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove env::declaration_name_refines, then delete this line
 /// The name of a non-basis declaration (basis and inductive blocks install
 /// several, so they answer `.anonymous`).
 pub fn declaration_name(d: &Declaration) -> Name {
@@ -902,8 +946,49 @@ pub fn declaration_name(d: &Declaration) -> Name {
         Declaration::DefnDecl(v, _, _) => name::dup(&v.name),
         Declaration::ThmDecl(v, _) => name::dup(&v.name),
         Declaration::OpaqueDecl(v, _) => name::dup(&v.name),
+        Declaration::QuotDecl(_, v) => name::dup(&v.name),
         Declaration::BasisDecl(_) => name::anonymous(),
         Declaration::IndDecl(_, _) => name::anonymous(),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:659-670 Declaration.names
+/// **The names a declaration record declares**: the ground hoist's name index
+/// and `prepare::prepare_prelude`'s lookup of the stream's own copy of a
+/// prelude declaration read it.  A quotient record declares the one constant
+/// it carries; a `BasisDecl`, which no frontend function produces, declares
+/// nothing.
+pub fn declaration_names(d: &Declaration) -> Vec<Name> {
+    match d {
+        Declaration::AxiomDecl(cv)
+        | Declaration::DefnDecl(cv, _, _)
+        | Declaration::ThmDecl(cv, _)
+        | Declaration::OpaqueDecl(cv, _)
+        | Declaration::QuotDecl(_, cv) => {
+            let mut ns: Vec<Name> = Vec::new();
+            ns.push(name::dup(&cv.name));
+            ns
+        }
+        Declaration::IndDecl(block, _) => constant_info_names_from(block, 0, Vec::new()),
+        Declaration::BasisDecl(_) => Vec::new(),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:659-670 Declaration.names
+/// The index recursion behind `declaration_names`' `block.map (·.name)`
+/// (§3.4 forbids closures); the accumulator is passed by value and returned
+/// (task #6's rule).
+pub fn constant_info_names_from(
+    block: &Vec<ConstantInfo>,
+    i: usize,
+    out: Vec<Name>,
+) -> Vec<Name> {
+    if i >= block.len() {
+        out
+    } else {
+        let mut out = out;
+        out.push(constant_info_name(&block[i]));
+        constant_info_names_from(block, i + 1, out)
     }
 }
 

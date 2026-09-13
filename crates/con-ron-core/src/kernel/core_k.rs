@@ -2490,9 +2490,7 @@ pub fn whnf_loop_fuel() -> u64 {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::infer_lit_nat_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::infer_lit_nat_refines, then delete this line
 /// A `Nat` literal types as `Nat`, and without the basis declarations it is
 /// *invalid* (not merely unimplemented).
 pub fn infer_lit_nat(fe: &FEnv) -> CheckM<Expr> {
@@ -2509,9 +2507,7 @@ pub fn infer_lit_nat(fe: &FEnv) -> CheckM<Expr> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::infer_lit_str_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::infer_lit_str_refines, then delete this line
 /// A string literal types as `String`; without the pinned support
 /// declarations this is a positively detected unsupported feature — decline.
 pub fn infer_lit_str(fe: &FEnv) -> CheckM<Expr> {
@@ -2528,9 +2524,7 @@ pub fn infer_lit_str(fe: &FEnv) -> CheckM<Expr> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::infer_fvar_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::infer_fvar_refines, then delete this line
 /// The `.fvar` arm's scope check at the leaf of a traversal that happens
 /// anyway (`O(1)`, never a fresh walk): a free variable must refer to an
 /// enclosing opened binder.  On raw (closed) input at depth 0 this rejects
@@ -2548,9 +2542,7 @@ pub fn infer_fvar(idx: u64, ty: &Expr, depth: u64) -> CheckM<Expr> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::proj_type_at_checked_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::proj_type_at_checked_refines, then delete this line
 /// The cited propositional-structure restriction of the two `.proj` arms
 /// (official `infer_proj`'s task #175 W4c/O4 test): at a `Prop`-declared
 /// structure the field must be a proposition at this instantiation.  The two
@@ -2589,9 +2581,7 @@ pub fn proj_type_at_checked(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::infer_proj_at_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_k::infer_proj_at_refines, then delete this line
 /// The table lookup and the checks of the two `.proj` clauses, on the already
 /// reduced type of the subject — byte-identical in the two bodies, so one
 /// function here.

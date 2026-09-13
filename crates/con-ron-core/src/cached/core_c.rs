@@ -2671,7 +2671,6 @@ pub fn infer_at_i(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1011-1042 inferSpineI
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_spine_i_refines, then delete this line
 /// **Application-inference spine loop** (con-leche's task #50): walk the raw
 /// Π-telescope against the arguments with *deferred* substitution — each
 /// argument's certificate substitutes only its own domain
@@ -2763,7 +2762,6 @@ pub fn infer_spine_i(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1044-1091 inferSpineIOI
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_spine_io_i_refines, then delete this line
 /// **The io-grade spine walk**: `infer_spine_i` with the per-argument
 /// certificate gated — the ONE io-graded check, in bulk telescope form.  At
 /// a ∀ step whose annotation datum licenses it the argument's inference and
@@ -2939,7 +2937,6 @@ pub fn infer_lams_out_i(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1162-1206 inferLamsLeafI
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lams_leaf_i_refines, then delete this line
 /// **Leaf phase of `infer_lams_i`**: bulk-open the residual body, infer it,
 /// then rebuild outward.  At the verified modes the chain's body type is
 /// sort-checked here — the spec's codomain check, which fires at the
@@ -3058,7 +3055,6 @@ pub fn infer_lams_prev_pw_i(t: &Expr, stk: &Vec<InferLamEntry>) -> PropWhen {
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1208-1228 inferLamsI
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lams_i_refines, then delete this line
 /// **λ-telescope inference loop** (con-leche's task #72): peel the raw
 /// λ-chain, checking each opened domain to be a type on the way in.  `k`
 /// counts the opened binders (`≥ 1`: the caller peels the first binder
@@ -3124,7 +3120,6 @@ pub fn infer_lams_i(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1230-1254 inferPisOutI
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_pis_out_i_refines, then delete this line
 /// **Rebuild loop of `infer_pis_i`**: fold the accumulated domain sorts by
 /// `imax`, innermost binder first — exactly the chained `∀`-rule's result
 /// value — validating each node's prop-ness annotation against its inferred
@@ -3162,7 +3157,6 @@ pub fn infer_pis_out_i(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1256-1267 inferPisLeafI
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_pis_leaf_i_refines, then delete this line
 /// Leaf phase of `infer_pis_i`: bulk-open the residual body, infer its sort,
 /// then fold the domain sorts outward.
 pub fn infer_pis_leaf_i(
@@ -3200,7 +3194,6 @@ pub fn infer_pis_leaf_i(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1269-1290 inferPisI
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_pis_i_refines, then delete this line
 /// **∀-telescope inference loop**: peel the raw ∀-chain, checking each
 /// opened domain to be a type on the way in and accumulating its sort, infer
 /// the bulk-opened leaf's sort once, and fold `imax` outward.  The `∀`-rule
@@ -3269,7 +3262,6 @@ pub fn infer_pis_i(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::const_shape_probe_i_refines, then delete this line
 /// The two facts the `.const` clause's guards read off the stored
 /// declaration — is it a projection-table entry, and how many level
 /// parameters does it carry — as an owning probe, so the index's borrow dies
@@ -3286,9 +3278,7 @@ pub fn const_shape_probe_i(fe: &FEnv, n: &Name) -> Option<(bool, usize)> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_const_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_const_i_refines, then delete this line
 /// The `.const` clause: the constant is stored, is not a projection table,
 /// carries the right number of universe levels — and its type comes from
 /// `constTyAtM`, i.e. the `constTyAt` memo over the `ienv` conversion.  That
@@ -3323,9 +3313,7 @@ pub fn infer_const_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_body_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_body_i_refines, then delete this line
 /// **The inference body.**  The `∀` and `λ` clauses peel their whole binder
 /// telescope (`infer_pis_i` / `infer_lams_i`) after checking the first
 /// binder's domain inline; the `.app` clause infers the spine head once and
@@ -3395,7 +3383,6 @@ pub fn infer_body_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_forall_i_refines, then delete this line
 /// The `∀` clause: the first binder's domain is checked to be a type inline,
 /// and the rest of the chain goes to the telescope loop at the peel fuel.
 pub fn infer_forall_i(
@@ -3443,7 +3430,6 @@ pub fn infer_forall_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lam_i_refines, then delete this line
 /// The `λ` clause: the first binder's domain is checked to be a type inline
 /// (the io body skips that run — official's `infer_lambda` at `infer_only`),
 /// and the rest of the chain goes to the telescope loop.
@@ -3492,9 +3478,7 @@ pub fn infer_lam_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron-core/src/cached/core_c.rs_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove crates/con-ron-core/src/cached/core_c.rs_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:609-628 ProjEntry.typeAtI
 /// The table lookup and the checks of the cached `.proj` clause, on the
 /// already reduced type of the subject: `core_k::infer_proj_at`'s twin with
@@ -3545,9 +3529,7 @@ pub fn infer_proj_at_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::proj_type_at_checked_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::proj_type_at_checked_i_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:609-628 ProjEntry.typeAtI
 /// `core_k::proj_type_at_checked`'s cached twin: the same three guards and
 /// the same propositional-structure restriction (`ProjEntry.fireOk`, which
@@ -3586,9 +3568,7 @@ pub fn proj_type_at_checked_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_proj_i_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_proj_i_refines, then delete this line
 /// The `.proj` clause: a `.proj` node is typed by its projection-table
 /// entry, through `ProjEntry.typeAtI` — which is `infer_proj_at_i` above.
 /// The propositional-structure restriction reads `Level.isEquiv`
@@ -3616,7 +3596,6 @@ pub fn infer_proj_i(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1391-1448 inferBodyIOI
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_body_io_i_refines, then delete this line
 /// **The io-grade inference body**: `infer_body_i` with exactly three clauses
 /// changed — the application spine walk is the gated `infer_spine_io_i` (the
 /// ONE io-graded check), and the `∀`/`λ` clauses are the **chained** pure io
@@ -3662,7 +3641,6 @@ pub fn infer_body_io_i(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1391-1448 inferBodyIOI
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_forall_io_i_refines, then delete this line
 /// The io `∀` clause, chained: the domain's sort, the body opened with
 /// `inst1M` at the io grade, `ensureSortI` on its type, the annotation
 /// validation at the verified modes, and `.sort (.imax u v)`.
@@ -3723,7 +3701,6 @@ pub fn infer_forall_io_i(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1391-1448 inferBodyIOI
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lam_io_i_refines, then delete this line
 /// The io `λ` clause, chained and with **no domain-sort run** (con-leche's
 /// task #168 stage 2, as in the spec): the body opened with `inst1M` at the
 /// io grade, the codomain validation at the verified modes (the chain rule
@@ -3763,7 +3740,6 @@ pub fn infer_lam_io_i(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1391-1448 inferBodyIOI
 /// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
-/// con-leche: CHANGED since 405d06b7 — re-port, re-test, re-prove core_c::infer_lam_cod_io_i_refines, then delete this line
 /// The io λ clause's codomain-sort validation: **the chain rule** at an
 /// outer binder (an outer λ's codomain is the inner λ's own ∀-type, whose
 /// sort's zero-ness is the inner codomain's — datum equality with the
