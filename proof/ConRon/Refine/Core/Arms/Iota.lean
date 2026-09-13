@@ -25,9 +25,24 @@ consumes, together with `iota_arity_ok_refines`.
 `prepareMajorI` built from `hw.whnfSim` and the two `Arms/Major.lean`
 helpers.
 
-The `.M`-suffixed code-point tables (`iota_rec_rule_i.M`) are reached only on
-the `.Err` path, which DESIGN.md §3.5 claims nothing about; they get no
-theorem.
+**The full outcome** (task #67, DESIGN.md §3's ruling of 2026-09-13).  Every
+`Sim` below is claimed at *both* outcomes: exact result on success, and on a
+failure con-leche's own throw at the same *kind*.  The ι cone's failures are
+all mirrored, and there are exactly three sources of them:
+
+* the calls out — `def_eq_list_i`, `iota_certs_i`, the wrappers,
+  `major_to_ctor_i`/`lit_major_to_ctor_i`, `const_ty_at_m` and
+  `rule_rhs_at_m` — carried through the con-leche `do` block by
+  `ErrSim.bindCM` / `ErrSim.trans` (`Refine/State.lean`, `Refine/Abs.lean`);
+* `core_k::lift_fueled` on an exhausted level comparison, which is
+  con-leche's `liftFueled "level comparison"` — both `.internal`;
+* `iota_rec_rule_i`'s **inert** decline (`core_c.rs:1900`), which is the
+  cited `throw (.notImplemented …)` of `Cached/CoreC.lean:767` — both
+  `.notImplemented`.
+
+The `.M`-suffixed code-point tables (`iota_rec_rule_i.M`) carry the port's
+message, which a refinement lemma never reads (only the kind is compared), so
+they still get no theorem.
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.CoreKVec
@@ -57,6 +72,37 @@ private theorem run_bind {α β : Type} {f : ConLeche.Cached.CheckCM α}
     (f >>= k).run lst = (k v).run lst1 := by
   simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at h ⊢
   rw [h]
+
+/-- The same step when the sub-action *threw*: the whole `do` block throws it
+(`ErrSim.bindCM` as an equation, so that it composes with `run_bind` along a
+prefix of successful steps). -/
+private theorem run_bind_err {α β : Type} {f : ConLeche.Cached.CheckCM α}
+    {k : α → ConLeche.Cached.CheckCM β} {lst : ConLeche.Cached.CState}
+    {le : ConLeche.CheckError} (h : f.run lst = .error le) :
+    (f >>= k).run lst = .error le := by
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at h ⊢
+  rw [h]
+
+/-- The full outcome (task #67) transported along an equation on the con-leche
+side: the shape a tail call meets, where the Rust function *is* its callee and
+the con-leche `do` block has to be rewritten down to the callee's own run. -/
+private theorem out_of_eq {α β : Type} {A : α → β} {WF : α → Prop}
+    {o : core.result.Result α core_types.CheckError}
+    {st' : cached.state_c.CState}
+    {x y : Except ConLeche.CheckError (β × ConLeche.Cached.CState)}
+    (h : Out A WF o st' x) (hxy : y = x) : Out A WF o st' y := hxy ▸ h
+
+/-- `core_types::not_implemented v = ok ce → ce = .NotImplemented v`. -/
+private theorem not_implemented_inv {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.not_implemented v = ok ce) :
+    ce = .NotImplemented v := by
+  rw [core_types.not_implemented] at h; exact (Result.ok_injective h).symm
+
+/-- `core_types::internal v = ok ce → ce = .Internal v`. -/
+private theorem internal_inv {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.internal v = ok ce) :
+    ce = .Internal v := by
+  rw [core_types.internal] at h; exact (Result.ok_injective h).symm
 
 /-! ## The foreign helpers
 
@@ -726,7 +772,7 @@ theorem iota_index_ok_i_refines (hd : IotaDeps mode fuel)
       (fun lfe => ConLeche.Cached.iotaIndexOkI (knot mode lfe fuel.val) lfe d.val
         m_i.val r_p.val cn_p.val (absExpr ty_ctor) (absExprs margs)
         (absExprs idx)) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   unfold cached.core_c.iota_index_ok_i at hok
   simp only [ConLeche.Cached.iotaIndexOkI]
   split at hok
@@ -753,14 +799,14 @@ theorem iota_index_ok_i_refines (hd : IotaDeps mode fuel)
       obtain ⟨hsav, hsaw⟩ := ExprOps.get_app_args_refines hresw hsargs
       obtain ⟨rest, hrest, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨hrestv, hrestw⟩ := CoreK.drop_exprs_n_refines hsaw hrest
-      obtain ⟨lst', hrun, hrel', hwf', -⟩ :=
-        (hd.defEqList d rest idx hrestw hidx).apply hwf hfe hok hrel hfrel
-      refine ⟨lst', ?_, hrel', hwf', trivial⟩
+      -- the tail call: the Rust *is* `def_eq_list_i`, at both outcomes
+      refine out_of_eq
+        ((hd.defEqList d rest idx hrestw hidx) fe lfe hfe hfrel st oc st' hwf hok
+          lst hrel) ?_
       simp only [Option.map_some]
       simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
         StateT.pure, Except.pure]
       rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← hsav, ← hrestv]
-      simpa using hrun
 
 /-! ## `iota_rec_family_i` — the ONE certificate family (`core_c.rs:2093`)
 
@@ -796,7 +842,7 @@ theorem iota_rec_family_i_refines (hd : IotaDeps mode fuel)
               (((absExprs args).take m_i.val).drop r_p.val)
           else pure false
         else pure false) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   simp only []
   unfold cached.core_c.iota_rec_family_i at hok
   obtain ⟨lic, hlic, hok⟩ := bind_eq_ok_iff.mp hok
@@ -806,7 +852,13 @@ theorem iota_rec_family_i_refines (hd : IotaDeps mode fuel)
   obtain ⟨p1, hp1, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨rr, st1⟩ := p1
   cases rr with
-  | Err err => simp at hok
+  | Err err =>
+    -- `const_ty_at_m` threw: con-leche's `constTyAtM` throws at the same kind,
+    -- and the rest of its `do` block never runs
+    simp at hok
+    obtain ⟨rfl, rfl⟩ := hok
+    exact Out.err (ErrSim.bindCM
+      (StateC.const_ty_at_m_err hwf hfe hc hus hp1 lst lfe hrel hfrel (absName c)))
   | Ok rty =>
   obtain ⟨lst1, hrun1, hrel1, hwf1, htyw⟩ :=
     StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf hfe hc hus hp1
@@ -822,7 +874,16 @@ theorem iota_rec_family_i_refines (hd : IotaDeps mode fuel)
   obtain ⟨p2, hp2, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨rr1, st2⟩ := p2
   cases rr1 with
-  | Err err => simp at hok
+  | Err err =>
+    simp at hok
+    obtain ⟨rfl, rfl⟩ := hok
+    refine Out.err (ErrSim.trans
+      ((hd.iotaCerts d lic rty rspine htyw hrsw).apply_err hwf1 hfe hp2 hrel1
+        hfrel) ?_)
+    intro le hle
+    rw [hlicv, hrsv] at hle
+    rw [run_bind hrun1]
+    exact run_bind_err hle
   | Ok b =>
   obtain ⟨lst2, hrun2, hrel2, hwf2, -⟩ :=
     (hd.iotaCerts d lic rty rspine htyw hrsw).apply hwf1 hfe hp2 hrel1 hfrel
@@ -832,7 +893,16 @@ theorem iota_rec_family_i_refines (hd : IotaDeps mode fuel)
     obtain ⟨p3, hp3, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨rr2, st3⟩ := p3
     cases rr2 with
-    | Err err => simp at hok
+    | Err err =>
+      simp at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      refine Out.err (ErrSim.trans
+        (StateC.const_ty_at_m_err hwf2 hfe hcj husj hp3 lst2 lfe hrel2 hfrel
+          (absName cj)) ?_)
+      intro le hle
+      rw [run_bind hrun1, run_bind hrun2]
+      simp only [id_eq, ↓reduceIte]
+      exact run_bind_err hle
     | Ok cty =>
     obtain ⟨lst3, hrun3, hrel3, hwf3, hctyw⟩ :=
       StateC.const_ty_at_m_refines StateC.instLevelParamsRefines hwf2 hfe hcj husj
@@ -840,7 +910,18 @@ theorem iota_rec_family_i_refines (hd : IotaDeps mode fuel)
     obtain ⟨p4, hp4, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨rr3, st4⟩ := p4
     cases rr3 with
-    | Err err => simp at hok
+    | Err err =>
+      simp at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      refine Out.err (ErrSim.trans
+        ((hd.iotaCerts d lic cty margs hctyw hmargs).apply_err hwf3 hfe hp4 hrel3
+          hfrel) ?_)
+      intro le hle
+      rw [hlicv] at hle
+      rw [run_bind hrun1, run_bind hrun2]
+      simp only [id_eq, ↓reduceIte]
+      rw [run_bind hrun3]
+      exact run_bind_err hle
     | Ok b1 =>
     obtain ⟨lst4, hrun4, hrel4, hwf4, -⟩ :=
       (hd.iotaCerts d lic cty margs hctyw hmargs).apply hwf3 hfe hp4 hrel3 hfrel
@@ -850,24 +931,17 @@ theorem iota_rec_family_i_refines (hd : IotaDeps mode fuel)
       obtain ⟨idx, hidx, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨hidxv, hidxw⟩ := CoreK.drop_exprs_n_refines hprew hidx
       rw [hprev] at hidxv
-      obtain ⟨lst5, hrun5, hrel5, hwf5, -⟩ :=
-        (iota_index_ok_i_refines hd d m_i r_p rl.ctor_params hctyw hmargs
-          hidxw).apply hwf4 hfe hok hrel4 hfrel
-      rw [hidxv] at hrun5
-      refine ⟨lst5, ?_, hrel5, hwf5, trivial⟩
-      simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
-        StateT.pure, Except.pure] at hrun1 hrun2 hrun3 hrun4 hrun5 ⊢
-      simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
-        StateT.pure, Except.pure, hrun1, hrun2, hrun3, hrun4, id_eq, ↓reduceIte]
-      simpa [absRecRule] using hrun5
+      -- the tail call, at both outcomes
+      refine out_of_eq
+        ((iota_index_ok_i_refines hd d m_i r_p rl.ctor_params hctyw hmargs hidxw)
+          fe lfe hfe hfrel st4 oc st' hwf4 hok lst4 hrel4) ?_
+      rw [run_bind hrun1, run_bind hrun2]
+      simp only [id_eq, ↓reduceIte]
+      rw [run_bind hrun3, run_bind hrun4]
+      simp only [id_eq, ↓reduceIte, hidxv, absRecRule]
     | false =>
-      have hok' : (ok (core.result.Result.Ok false, st4) :
-          Result ((core.result.Result Bool core_types.CheckError) ×
-            cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-      simp only [Result.ok.injEq, Prod.mk.injEq,
-        core.result.Result.Ok.injEq] at hok'
-      obtain ⟨hr, hs⟩ := hok'
-      cases hr; cases hs
+      simp at hok
+      obtain ⟨rfl, rfl⟩ := hok
       refine ⟨lst4, ?_, hrel4, hwf4, trivial⟩
       simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
         StateT.pure, Except.pure] at hrun1 hrun2 hrun3 hrun4 ⊢
@@ -875,13 +949,8 @@ theorem iota_rec_family_i_refines (hd : IotaDeps mode fuel)
         StateT.pure, Except.pure, hrun1, hrun2, hrun3, hrun4, id_eq, ↓reduceIte]
       simp
   | false =>
-    have hok' : (ok (core.result.Result.Ok false, st2) :
-        Result ((core.result.Result Bool core_types.CheckError) ×
-          cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-    simp only [Result.ok.injEq, Prod.mk.injEq,
-      core.result.Result.Ok.injEq] at hok'
-    obtain ⟨hr, hs⟩ := hok'
-    cases hr; cases hs
+    simp at hok
+    obtain ⟨rfl, rfl⟩ := hok
     refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
     simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
       StateT.pure, Except.pure] at hrun1 hrun2 ⊢
@@ -895,14 +964,18 @@ theorem iota_rec_family_i_refines (hd : IotaDeps mode fuel)
 `iotaRecI`'s `if ← certAtI mode (…) then do let rhs ← ruleRhsAtM …; let red ←
 mkAppNM …; pure (some red) else pure none`. -/
 
-/-- The reduct branch, shared by the two modes: `ruleRhsAtM` then `mkAppNM`. -/
+/-- The reduct branch, shared by the two modes: `ruleRhsAtM` then `mkAppNM`,
+at the **full outcome** — `rule_rhs_at_m` is the one step here that can throw,
+and `Refine/StateC.lean`'s `rule_rhs_at_m_err` says con-leche throws
+`.internal` there too. -/
 private theorem telescopes_tail {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     (hfe : FEnvWF fe) (hfrel : FEnvRel fe lfe)
     {c cj : name.Name} (r_p : Std.U64) {rl : env.RecRule}
     {us : alloc.vec.Vec level.Level} {args margs : alloc.vec.Vec expr.Expr}
     (hc : NameWF c) (hcj : NameWF cj) (hus : LevelsWF us) (hargs : ExprsWF args)
     (hmargs : ExprsWF margs) {stA : cached.state_c.CState} {lstA : ConLeche.Cached.CState}
-    {r : Option expr.Expr} {st' : cached.state_c.CState}
+    {oc : core.result.Result (Option expr.Expr) core_types.CheckError}
+    {st' : cached.state_c.CState}
     (hrelA : StateRel stA lstA) (hwfA : StateWF stA)
     (hok : (do
         let (r0, st2) ← cached.state_c.rule_rhs_at_m stA fe c cj us
@@ -914,19 +987,26 @@ private theorem telescopes_tail {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
           let e ← cached.state_c.mk_app_n_m rhs spine
           ok (core.result.Result.Ok (some e), st2)
         | .Err err => ok (core.result.Result.Err err, st2)) =
-      ok (core.result.Result.Ok r, st')) :
-    ∃ lst', (do
+      ok (oc, st')) :
+    Out (Option.map absExpr) (fun o => ∀ t, o = some t → ExprWF t) oc st'
+      ((do
         let rhs ← ConLeche.Cached.ruleRhsAtM lfe (absName c) (absName cj)
           (absName c) (absName cj) (absLevels us)
         let red ← ConLeche.Cached.mkAppNM rhs
           ((absExprs args).take r_p.val
             ++ (absExprs margs).drop (absRecRule rl).ctorParams)
-        pure (some red)).run lstA = .ok (Option.map absExpr r, lst')
-      ∧ StateRel st' lst' ∧ StateWF st' ∧ (∀ t, r = some t → ExprWF t) := by
+        pure (some red)).run lstA) := by
   obtain ⟨p, hp, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨r0, st2⟩ := p
   cases r0 with
-  | Err err => simp at hok
+  | Err err =>
+    -- `rule_rhs_at_m` threw; con-leche's `ruleRhsAtM` throws at the same kind
+    -- (`Refine/StateC.lean`'s `rule_rhs_at_m_err` merges its two messages)
+    simp at hok
+    obtain ⟨rfl, rfl⟩ := hok
+    exact Out.err (ErrSim.bindCM
+      (StateC.rule_rhs_at_m_err hwfA hfe hc hcj hus hp lstA lfe hrelA hfrel
+        (absName c) (absName cj)))
   | Ok rhs =>
   obtain ⟨lst2, hrunR, hrel2, hwf2, hrhsw⟩ :=
     StateC.rule_rhs_at_m_refines StateC.instLevelParamsRefines hwfA hfe hc hcj hus
@@ -944,8 +1024,8 @@ private theorem telescopes_tail {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
   rw [hsv] at hev
   have hok' : (ok (core.result.Result.Ok (some e), st2) :
       Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
-        cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-  simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok'
+        cached.state_c.CState)) = ok (oc, st') := hok
+  simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
   obtain ⟨hr, hs⟩ := hok'
   cases hr; cases hs
   refine ⟨lst2, ?_, hrel2, hwf2, ?_⟩
@@ -991,7 +1071,7 @@ theorem iota_rec_telescopes_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
               ++ (absExprs margs).drop (absRecRule rl).ctorParams)
           pure (some red)
         else pure none) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   simp only [ConLeche.Cached.certAtI]
   unfold cached.core_c.iota_rec_telescopes_i at hok
   obtain ⟨b, hb, hok⟩ := bind_eq_ok_iff.mp hok
@@ -1010,26 +1090,34 @@ theorem iota_rec_telescopes_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
     obtain ⟨hs1, hf1⟩ := hpe
     rw [← hs1, ← hf1] at hok
     cases fam1 with
-    | Err err => simp at hok
+    | Err err =>
+      -- the certificate family threw: the `certAtI` block is the whole `do`'s
+      -- first step, so con-leche throws it too
+      simp at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      refine Out.err (ErrSim.trans
+        ((iota_rec_family_i_refines hd d m_i r_p hc hcj hus husj hargs hmargs
+          hmajor).apply_err hwf hfe hp1 hrel hfrel) ?_)
+      intro le hle
+      simp only [↓reduceIte]
+      exact run_bind_err hle
     | Ok fb =>
     obtain ⟨lst1, hrunF, hrel1, hwf1, -⟩ :=
       (iota_rec_family_i_refines hd d m_i r_p hc hcj hus husj hargs hmargs
         hmajor).apply hwf hfe hp1 hrel hfrel
     cases fb with
     | true =>
-      obtain ⟨lst', hrunT, hrel', hwf', hrw⟩ :=
-        telescopes_tail hfe hfrel r_p hc hcj hus hargs hmargs hrel1 hwf1 hok
-      refine ⟨lst', ?_, hrel', hwf', hrw⟩
+      refine out_of_eq
+        (telescopes_tail hfe hfrel r_p hc hcj hus hargs hmargs hrel1 hwf1 hok) ?_
       simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
-        StateT.pure, Except.pure, if_true, ↓reduceIte] at hrunF hrunT ⊢
+        StateT.pure, Except.pure, ↓reduceIte] at hrunF ⊢
       simp only [hrunF, id_eq, ↓reduceIte]
-      exact hrunT
+      rfl
     | false =>
       have hok' : (ok (core.result.Result.Ok none, st2) :
           Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
-            cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-      simp only [Result.ok.injEq, Prod.mk.injEq,
-        core.result.Result.Ok.injEq] at hok'
+            cached.state_c.CState)) = ok (oc, st') := hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
       obtain ⟨hr, hs⟩ := hok'
       cases hr; cases hs
       refine ⟨lst1, ?_, hrel1, hwf1, by simp⟩
@@ -1046,13 +1134,11 @@ theorem iota_rec_telescopes_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
     simp only [Result.ok.injEq, Prod.mk.injEq] at hpe
     obtain ⟨hs1, hf1⟩ := hpe
     rw [← hs1, ← hf1] at hok
-    obtain ⟨lst', hrunT, hrel', hwf', hrw⟩ :=
-      telescopes_tail hfe hfrel r_p hc hcj hus hargs hmargs hrel hwf hok
-    refine ⟨lst', ?_, hrel', hwf', hrw⟩
+    refine out_of_eq
+      (telescopes_tail hfe hfrel r_p hc hcj hus hargs hmargs hrel hwf hok) ?_
     simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
-      StateT.pure, Except.pure] at hrunT ⊢
-    simp only [Bool.false_eq_true, ↓reduceIte]
-    exact hrunT
+      StateT.pure, Except.pure]
+    rfl
 
 /-! ## `prepare_major_i` — the major premise's preparation (`core_c.rs:1711`) -/
 
@@ -1071,7 +1157,7 @@ theorem prepare_major_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fu
       (fun lfe => ConLeche.Cached.prepareMajorI (absMode mode)
         (knot mode lfe fuel.val) lfe d.val rn (absRecRules rules)
         (absExpr major)) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   unfold cached.core_c.prepare_major_i at hok
   simp only [ConLeche.Cached.prepareMajorI]
   obtain ⟨b, hb, hok⟩ := bind_eq_ok_iff.mp hok
@@ -1082,43 +1168,64 @@ theorem prepare_major_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fu
     obtain ⟨p, hp, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨r0, st1⟩ := p
     cases r0 with
-    | Err err => simp at hok
+    | Err err =>
+      simp at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      exact Out.err (ErrSim.bindCM
+        ((hd.majorToCtor d rn rules major hrules hmajor).apply_err hwf hfe hp hrel
+          hfrel))
     | Ok major_k =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, hmkw⟩ :=
       (hd.majorToCtor d rn rules major hrules hmajor).apply hwf hfe hp hrel hfrel
     obtain ⟨p1, hp1, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨r1, st2⟩ := p1
     cases r1 with
-    | Err err => simp at hok
+    | Err err =>
+      simp at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      refine Out.err (ErrSim.trans
+        ((hw.whnfSim d hmkw).apply_err hwf1 hfe hp1 hrel1 hfrel) ?_)
+      intro le hle
+      rw [run_bind hrun1]
+      exact run_bind_err hle
     | Ok major0 =>
     obtain ⟨lst2, hrun2, hrel2, hwf2, hm0w⟩ :=
       (hw.whnfSim d hmkw).apply hwf1 hfe hp1 hrel1 hfrel
-    obtain ⟨lst3, hrun3, hrel3, hwf3, hrw⟩ :=
-      (hd.litMajorToCtor d major0 hm0w).apply hwf2 hfe hok hrel2 hfrel
-    refine ⟨lst3, ?_, hrel3, hwf3, hrw⟩
+    refine out_of_eq
+      ((hd.litMajorToCtor d major0 hm0w) fe lfe hfe hfrel st2 oc st' hwf2 hok lst2
+        hrel2) ?_
     rw [run_bind hrun1, run_bind hrun2]
-    exact hrun3
   | false =>
     simp only [Bool.false_eq_true, ↓reduceIte]
     obtain ⟨p, hp, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨r0, st1⟩ := p
     cases r0 with
-    | Err err => simp at hok
+    | Err err =>
+      simp at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      exact Out.err (ErrSim.bindCM ((hw.whnfSim d hmajor).apply_err hwf hfe hp hrel
+        hfrel))
     | Ok major0 =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, hm0w⟩ :=
       (hw.whnfSim d hmajor).apply hwf hfe hp hrel hfrel
     obtain ⟨p1, hp1, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨r1, st2⟩ := p1
     cases r1 with
-    | Err err => simp at hok
+    | Err err =>
+      simp at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      refine Out.err (ErrSim.trans
+        ((hd.litMajorToCtor d major0 hm0w).apply_err hwf1 hfe hp1 hrel1 hfrel) ?_)
+      intro le hle
+      rw [run_bind hrun1]
+      exact run_bind_err hle
     | Ok major1 =>
     obtain ⟨lst2, hrun2, hrel2, hwf2, hm1w⟩ :=
       (hd.litMajorToCtor d major0 hm0w).apply hwf1 hfe hp1 hrel1 hfrel
-    obtain ⟨lst3, hrun3, hrel3, hwf3, hrw⟩ :=
-      (hd.majorToCtor d rn rules major1 hrules hm1w).apply hwf2 hfe hok hrel2 hfrel
-    refine ⟨lst3, ?_, hrel3, hwf3, hrw⟩
+    refine out_of_eq
+      ((hd.majorToCtor d rn rules major1 hrules hm1w) fe lfe hfe hfrel st2 oc st'
+        hwf2 hok lst2 hrel2) ?_
     rw [run_bind hrun1, run_bind hrun2]
-    exact hrun3
 
 /-! ## `iota_rec_checks_i` — the firing cascade (`core_c.rs:1974`)
 
@@ -1138,6 +1245,26 @@ private theorem lift_fueled_some {o : Option Bool} {b : Bool}
     simp only [kernel.core_k.lift_fueled, Result.ok.injEq,
       core.result.Result.Ok.injEq] at h
     rw [h]
+
+/-- `core_k::lift_fueled` answers `.Err` only on `none`, and only at the
+port's `Internal` — which is the kind con-leche's `liftFueled` throws
+(`Kernel/Core.lean:109-111`), so the level comparison's exhaustion is
+mirrored. -/
+private theorem lift_fueled_none {o : Option Bool} {ce : core_types.CheckError}
+    (h : kernel.core_k.lift_fueled o = ok (core.result.Result.Err ce)) :
+    o = none ∧ ∃ v, ce = .Internal v := by
+  cases o with
+  | some a =>
+    simp only [kernel.core_k.lift_fueled, Result.ok.injEq] at h
+    simp at h
+  | none =>
+    refine ⟨rfl, ?_⟩
+    simp only [kernel.core_k.lift_fueled, bind_eq_ok_iff] at h
+    obtain ⟨s, -, v, -, ce1, hce, hr⟩ := h
+    refine ⟨v, ?_⟩
+    simp only [Result.ok.injEq, core.result.Result.Err.injEq] at hr
+    rw [← hr]
+    exact internal_inv hce
 
 /-- `pure`'s `run`. -/
 private theorem run_pure {α : Type} (a : α) (lst : ConLeche.Cached.CState) :
@@ -1208,7 +1335,7 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
             else pure none
           else pure none
         else pure none) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   obtain ⟨-, hcvlps, -⟩ := hcv
   obtain ⟨-, hcvjlps, -⟩ := hcvj
   unfold cached.core_c.iota_rec_checks_i at hok
@@ -1229,7 +1356,15 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
       StateC.is_equiv_list_l_m_refines hwf husj hclw hp lst hrel
     obtain ⟨rr, hlf, hok⟩ := bind_eq_ok_iff.mp hok
     cases rr with
-    | Err err => simp at hok
+    | Err err =>
+      -- the level comparison ran out of fuel: `core_k::lift_fueled` declines
+      -- with `internal`, and so does con-leche's `liftFueled`, at the same step
+      simp at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      obtain ⟨hnone, v, rfl⟩ := lift_fueled_none hlf
+      subst hnone
+      rw [run_bind (run_pure _ lst), run_bind (run_pure _ lst), run_bind hrunE]
+      exact Out.err (ErrSim.internal rfl)
     | Ok b =>
     rw [lift_fueled_some hlf] at hrunE
     rw [run_bind (run_pure _ lst), run_bind (run_pure _ lst), run_bind hrunE]
@@ -1239,8 +1374,8 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
     | false =>
       have hok' : (ok (core.result.Result.Ok none, st1) :
           Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
-            cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok'
+            cached.state_c.CState)) = ok (oc, st') := hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
       obtain ⟨hr, hs⟩ := hok'
       cases hr; cases hs
       exact ⟨lst1, by simp, hrel1, hwf1, by simp⟩
@@ -1252,7 +1387,67 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
       obtain ⟨p1, hp1, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨st2, rl1, pcmp⟩ := p1
       cases pcmp with
-      | Err err => simp at hok
+      | Err err =>
+        -- the parameter comparison threw: only `def_eq_list_i` inside
+        -- `certUnlessI` can, and con-leche's `defEqListI` throws the same kind
+        simp at hok
+        obtain ⟨rfl, rfl⟩ := hok
+        refine Out.err (ErrSim.bindCM ?_)
+        cases b1 with
+        | false =>
+          have he : (ok (st1, rl, core.result.Result.Ok true) :
+              Result (cached.state_c.CState × env.RecRule ×
+                (core.result.Result Bool core_types.CheckError)))
+              = ok (st2, rl1, core.result.Result.Err err) := hp1
+          simp at he
+        | true =>
+          obtain ⟨keep, hkeep, hp1⟩ := bind_eq_ok_iff.mp hp1
+          have hkeepv := (iota_params_keep_i_refines hrl hc keep hkeep).1
+          simp only [hfa] at hkeepv
+          obtain ⟨b2, hb2, hp1⟩ := bind_eq_ok_iff.mp hp1
+          have hb2v := Env.certs_refines hb2
+          simp only [ConLeche.Cached.certUnlessI, ← hb2v, ↓reduceIte]
+          cases b2 with
+          | true =>
+            simp only [Bool.true_or, ↓reduceIte]
+            obtain ⟨params, hparams, hp1⟩ := bind_eq_ok_iff.mp hp1
+            obtain ⟨hpv, hpw⟩ := CoreK.take_exprs_n_refines hmargs hparams
+            obtain ⟨p2, hp2, hp1⟩ := bind_eq_ok_iff.mp hp1
+            obtain ⟨pc, st3⟩ := p2
+            have he : (ok (st3, rl, pc) :
+                Result (cached.state_c.CState × env.RecRule ×
+                  (core.result.Result Bool core_types.CheckError)))
+                = ok (st2, rl1, core.result.Result.Err err) := hp1
+            simp only [Result.ok.injEq, Prod.mk.injEq] at he
+            obtain ⟨hs, hr1, hb⟩ := he
+            cases hs; cases hr1; cases hb
+            have hpv' : absExprs params
+                = (absExprs margs).take (absRecRule rl).ctorParams := hpv
+            rw [← hpv']
+            exact (hd.defEqList d params cmp_args hpw hcaw).apply_err hwf1 hfe hp2
+              hrel1 hfrel
+          | false =>
+            simp only [Bool.false_or]
+            cases keep with
+            | true =>
+              obtain ⟨params, hparams, hp1⟩ := bind_eq_ok_iff.mp hp1
+              obtain ⟨hpv, hpw⟩ := CoreK.take_exprs_n_refines hmargs hparams
+              obtain ⟨p2, hp2, hp1⟩ := bind_eq_ok_iff.mp hp1
+              obtain ⟨pc, st3⟩ := p2
+              have he : (ok (st3, rl, pc) :
+                  Result (cached.state_c.CState × env.RecRule ×
+                    (core.result.Result Bool core_types.CheckError)))
+                  = ok (st2, rl1, core.result.Result.Err err) := hp1
+              simp only [Result.ok.injEq, Prod.mk.injEq] at he
+              obtain ⟨hs, hr1, hb⟩ := he
+              cases hs; cases hr1; cases hb
+              have hpv' : absExprs params
+                  = (absExprs margs).take (absRecRule rl).ctorParams := hpv
+              rw [← hpv']
+              exact (hd.defEqList d params cmp_args hpw hcaw).apply_err hwf1 hfe hp2
+                hrel1 hfrel
+            | false =>
+              simp at hkeepv
       | Ok pb =>
       obtain ⟨lstP, hrunP, hrelP, hwfP, hrl1⟩ :
           ∃ lstP, (if b1 then
@@ -1327,16 +1522,14 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
       cases pb with
       | true =>
         simp only [↓reduceIte]
-        obtain ⟨lst3, hrun3, hrel3, hwf3, hrw⟩ :=
-          (iota_rec_telescopes_i_refines hd d m_i r_p hc hcj hus husj hargs hmargs
-            hmajor).apply hwfP hfe hok hrelP hfrel
-        exact ⟨lst3, hrun3, hrel3, hwf3, hrw⟩
+        -- the tail call, at both outcomes
+        exact (iota_rec_telescopes_i_refines hd d m_i r_p hc hcj hus husj hargs
+          hmargs hmajor) fe lfe hfe hfrel st2 oc st' hwfP hok lstP hrelP
       | false =>
         have hok' : (ok (core.result.Result.Ok none, st2) :
             Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
-              cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-        simp only [Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq] at hok'
+              cached.state_c.CState)) = ok (oc, st') := hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
         obtain ⟨hr, hs⟩ := hok'
         cases hr; cases hs
         exact ⟨lstP, by simp, hrelP, hwfP, by simp⟩
@@ -1352,7 +1545,15 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
       StateC.is_equiv_list_l_m_refines hwf husj hclw hp lst hrel
     obtain ⟨rr, hlf, hok⟩ := bind_eq_ok_iff.mp hok
     cases rr with
-    | Err err => simp at hok
+    | Err err =>
+      -- the level comparison ran out of fuel: `core_k::lift_fueled` declines
+      -- with `internal`, and so does con-leche's `liftFueled`, at the same step
+      simp at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      obtain ⟨hnone, v, rfl⟩ := lift_fueled_none hlf
+      subst hnone
+      rw [run_bind (run_pure _ lst), run_bind (run_pure _ lst), run_bind hrunE]
+      exact Out.err (ErrSim.internal rfl)
     | Ok b =>
     rw [lift_fueled_some hlf] at hrunE
     rw [run_bind (run_pure _ lst), run_bind (run_pure _ lst), run_bind hrunE]
@@ -1362,8 +1563,8 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
     | false =>
       have hok' : (ok (core.result.Result.Ok none, st1) :
           Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
-            cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok'
+            cached.state_c.CState)) = ok (oc, st') := hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
       obtain ⟨hr, hs⟩ := hok'
       cases hr; cases hs
       exact ⟨lst1, by simp, hrel1, hwf1, by simp⟩
@@ -1375,7 +1576,71 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
       obtain ⟨p1, hp1, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨st2, rl1, pcmp⟩ := p1
       cases pcmp with
-      | Err err => simp at hok
+      | Err err =>
+        -- the parameter comparison threw: only `def_eq_list_i` inside
+        -- `certUnlessI` can, and con-leche's `defEqListI` throws the same kind
+        simp at hok
+        obtain ⟨rfl, rfl⟩ := hok
+        refine Out.err (ErrSim.bindCM ?_)
+        cases b1 with
+        | false =>
+          have he : (ok (st1, rl, core.result.Result.Ok true) :
+              Result (cached.state_c.CState × env.RecRule ×
+                (core.result.Result Bool core_types.CheckError)))
+              = ok (st2, rl1, core.result.Result.Err err) := hp1
+          simp at he
+        | true =>
+          obtain ⟨keep, hkeep, hp1⟩ := bind_eq_ok_iff.mp hp1
+          have hkeepv := (iota_params_keep_i_refines hrl hc keep hkeep).1
+          simp only [hfa] at hkeepv
+          obtain ⟨b2, hb2, hp1⟩ := bind_eq_ok_iff.mp hp1
+          have hb2v := Env.certs_refines hb2
+          simp only [ConLeche.Cached.certUnlessI, ← hb2v, ← hkeepv, ↓reduceIte]
+          cases b2 with
+          | true =>
+            simp only [Bool.true_or, ↓reduceIte]
+            obtain ⟨params, hparams, hp1⟩ := bind_eq_ok_iff.mp hp1
+            obtain ⟨hpv, hpw⟩ := CoreK.take_exprs_n_refines hmargs hparams
+            obtain ⟨p2, hp2, hp1⟩ := bind_eq_ok_iff.mp hp1
+            obtain ⟨pc, st3⟩ := p2
+            have he : (ok (st3, rl, pc) :
+                Result (cached.state_c.CState × env.RecRule ×
+                  (core.result.Result Bool core_types.CheckError)))
+                = ok (st2, rl1, core.result.Result.Err err) := hp1
+            simp only [Result.ok.injEq, Prod.mk.injEq] at he
+            obtain ⟨hs, hr1, hb⟩ := he
+            cases hs; cases hr1; cases hb
+            have hpv' : absExprs params
+                = (absExprs margs).take (absRecRule rl).ctorParams := hpv
+            rw [← hpv']
+            exact (hd.defEqList d params cmp_args hpw hcaw).apply_err hwf1 hfe hp2
+              hrel1 hfrel
+          | false =>
+            simp only [Bool.false_or]
+            cases keep with
+            | true =>
+              obtain ⟨params, hparams, hp1⟩ := bind_eq_ok_iff.mp hp1
+              obtain ⟨hpv, hpw⟩ := CoreK.take_exprs_n_refines hmargs hparams
+              obtain ⟨p2, hp2, hp1⟩ := bind_eq_ok_iff.mp hp1
+              obtain ⟨pc, st3⟩ := p2
+              have he : (ok (st3, rl, pc) :
+                  Result (cached.state_c.CState × env.RecRule ×
+                    (core.result.Result Bool core_types.CheckError)))
+                  = ok (st2, rl1, core.result.Result.Err err) := hp1
+              simp only [Result.ok.injEq, Prod.mk.injEq] at he
+              obtain ⟨hs, hr1, hb⟩ := he
+              cases hs; cases hr1; cases hb
+              have hpv' : absExprs params
+                  = (absExprs margs).take (absRecRule rl).ctorParams := hpv
+              rw [← hpv']
+              exact (hd.defEqList d params cmp_args hpw hcaw).apply_err hwf1 hfe hp2
+                hrel1 hfrel
+            | false =>
+              have he : (ok (st1, rl, core.result.Result.Ok true) :
+                  Result (cached.state_c.CState × env.RecRule ×
+                    (core.result.Result Bool core_types.CheckError)))
+                  = ok (st2, rl1, core.result.Result.Err err) := hp1
+              simp at he
       | Ok pb =>
       obtain ⟨lstP, hrunP, hrelP, hwfP, hrl1⟩ :
           ∃ lstP, (if b1 then
@@ -1458,16 +1723,14 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
       cases pb with
       | true =>
         simp only [↓reduceIte]
-        obtain ⟨lst3, hrun3, hrel3, hwf3, hrw⟩ :=
-          (iota_rec_telescopes_i_refines hd d m_i r_p hc hcj hus husj hargs hmargs
-            hmajor).apply hwfP hfe hok hrelP hfrel
-        exact ⟨lst3, hrun3, hrel3, hwf3, hrw⟩
+        -- the tail call, at both outcomes
+        exact (iota_rec_telescopes_i_refines hd d m_i r_p hc hcj hus husj hargs
+          hmargs hmajor) fe lfe hfe hfrel st2 oc st' hwfP hok lstP hrelP
       | false =>
         have hok' : (ok (core.result.Result.Ok none, st2) :
             Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
-              cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-        simp only [Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq] at hok'
+              cached.state_c.CState)) = ok (oc, st') := hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
         obtain ⟨hr, hs⟩ := hok'
         cases hr; cases hs
         exact ⟨lstP, by simp, hrelP, hwfP, by simp⟩
@@ -1483,7 +1746,15 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
       StateC.is_equiv_list_l_m_refines hwf husj hclw hp lst hrel
     obtain ⟨rr, hlf, hok⟩ := bind_eq_ok_iff.mp hok
     cases rr with
-    | Err err => simp at hok
+    | Err err =>
+      -- the level comparison ran out of fuel: `core_k::lift_fueled` declines
+      -- with `internal`, and so does con-leche's `liftFueled`, at the same step
+      simp at hok
+      obtain ⟨rfl, rfl⟩ := hok
+      obtain ⟨hnone, v, rfl⟩ := lift_fueled_none hlf
+      subst hnone
+      rw [run_bind (run_pure _ lst), run_bind (run_pure _ lst), run_bind hrunE]
+      exact Out.err (ErrSim.internal rfl)
     | Ok b =>
     rw [lift_fueled_some hlf] at hrunE
     rw [run_bind (run_pure _ lst), run_bind (run_pure _ lst), run_bind hrunE]
@@ -1493,8 +1764,8 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
     | false =>
       have hok' : (ok (core.result.Result.Ok none, st1) :
           Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
-            cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok'
+            cached.state_c.CState)) = ok (oc, st') := hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
       obtain ⟨hr, hs⟩ := hok'
       cases hr; cases hs
       exact ⟨lst1, by simp, hrel1, hwf1, by simp⟩
@@ -1506,7 +1777,71 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
       obtain ⟨p1, hp1, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨st2, rl1, pcmp⟩ := p1
       cases pcmp with
-      | Err err => simp at hok
+      | Err err =>
+        -- the parameter comparison threw: only `def_eq_list_i` inside
+        -- `certUnlessI` can, and con-leche's `defEqListI` throws the same kind
+        simp at hok
+        obtain ⟨rfl, rfl⟩ := hok
+        refine Out.err (ErrSim.bindCM ?_)
+        cases b1 with
+        | false =>
+          have he : (ok (st1, rl, core.result.Result.Ok true) :
+              Result (cached.state_c.CState × env.RecRule ×
+                (core.result.Result Bool core_types.CheckError)))
+              = ok (st2, rl1, core.result.Result.Err err) := hp1
+          simp at he
+        | true =>
+          obtain ⟨keep, hkeep, hp1⟩ := bind_eq_ok_iff.mp hp1
+          have hkeepv := (iota_params_keep_i_refines hrl hc keep hkeep).1
+          simp only [hfa] at hkeepv
+          obtain ⟨b2, hb2, hp1⟩ := bind_eq_ok_iff.mp hp1
+          have hb2v := Env.certs_refines hb2
+          simp only [ConLeche.Cached.certUnlessI, ← hb2v, ← hkeepv, ↓reduceIte]
+          cases b2 with
+          | true =>
+            simp only [Bool.true_or, ↓reduceIte]
+            obtain ⟨params, hparams, hp1⟩ := bind_eq_ok_iff.mp hp1
+            obtain ⟨hpv, hpw⟩ := CoreK.take_exprs_n_refines hmargs hparams
+            obtain ⟨p2, hp2, hp1⟩ := bind_eq_ok_iff.mp hp1
+            obtain ⟨pc, st3⟩ := p2
+            have he : (ok (st3, rl, pc) :
+                Result (cached.state_c.CState × env.RecRule ×
+                  (core.result.Result Bool core_types.CheckError)))
+                = ok (st2, rl1, core.result.Result.Err err) := hp1
+            simp only [Result.ok.injEq, Prod.mk.injEq] at he
+            obtain ⟨hs, hr1, hb⟩ := he
+            cases hs; cases hr1; cases hb
+            have hpv' : absExprs params
+                = (absExprs margs).take (absRecRule rl).ctorParams := hpv
+            rw [← hpv']
+            exact (hd.defEqList d params cmp_args hpw hcaw).apply_err hwf1 hfe hp2
+              hrel1 hfrel
+          | false =>
+            simp only [Bool.false_or]
+            cases keep with
+            | true =>
+              obtain ⟨params, hparams, hp1⟩ := bind_eq_ok_iff.mp hp1
+              obtain ⟨hpv, hpw⟩ := CoreK.take_exprs_n_refines hmargs hparams
+              obtain ⟨p2, hp2, hp1⟩ := bind_eq_ok_iff.mp hp1
+              obtain ⟨pc, st3⟩ := p2
+              have he : (ok (st3, rl, pc) :
+                  Result (cached.state_c.CState × env.RecRule ×
+                    (core.result.Result Bool core_types.CheckError)))
+                  = ok (st2, rl1, core.result.Result.Err err) := hp1
+              simp only [Result.ok.injEq, Prod.mk.injEq] at he
+              obtain ⟨hs, hr1, hb⟩ := he
+              cases hs; cases hr1; cases hb
+              have hpv' : absExprs params
+                  = (absExprs margs).take (absRecRule rl).ctorParams := hpv
+              rw [← hpv']
+              exact (hd.defEqList d params cmp_args hpw hcaw).apply_err hwf1 hfe hp2
+                hrel1 hfrel
+            | false =>
+              have he : (ok (st1, rl, core.result.Result.Ok true) :
+                  Result (cached.state_c.CState × env.RecRule ×
+                    (core.result.Result Bool core_types.CheckError)))
+                  = ok (st2, rl1, core.result.Result.Err err) := hp1
+              simp at he
       | Ok pb =>
       obtain ⟨lstP, hrunP, hrelP, hwfP, hrl1⟩ :
           ∃ lstP, (if b1 then
@@ -1589,16 +1924,14 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
       cases pb with
       | true =>
         simp only [↓reduceIte]
-        obtain ⟨lst3, hrun3, hrel3, hwf3, hrw⟩ :=
-          (iota_rec_telescopes_i_refines hd d m_i r_p hc hcj hus husj hargs hmargs
-            hmajor).apply hwfP hfe hok hrelP hfrel
-        exact ⟨lst3, hrun3, hrel3, hwf3, hrw⟩
+        -- the tail call, at both outcomes
+        exact (iota_rec_telescopes_i_refines hd d m_i r_p hc hcj hus husj hargs
+          hmargs hmajor) fe lfe hfe hfrel st2 oc st' hwfP hok lstP hrelP
       | false =>
         have hok' : (ok (core.result.Result.Ok none, st2) :
             Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
-              cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-        simp only [Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq] at hok'
+              cached.state_c.CState)) = ok (oc, st') := hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
         obtain ⟨hr, hs⟩ := hok'
         cases hr; cases hs
         exact ⟨lstP, by simp, hrelP, hwfP, by simp⟩
@@ -1689,7 +2022,7 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
             | none => pure none
           | _ => pure none
         | _ => pure none) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   unfold cached.core_c.iota_rec_rule_i at hok
   obtain ⟨fj, hfj, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨hfjv, hfjw⟩ := ExprOps.get_app_fn_refines hmajor hfj
@@ -1712,9 +2045,8 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
       subst hov
       have hok' : (ok (core.result.Result.Ok none, st) :
           Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
-            cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-      simp only [Result.ok.injEq, Prod.mk.injEq,
-        core.result.Result.Ok.injEq] at hok'
+            cached.state_c.CState)) = ok (oc, st') := hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
       obtain ⟨hr, hs⟩ := hok'
       cases hr; cases hs
       exact ⟨lst, by simp, hrel, hwf, by simp⟩
@@ -1739,9 +2071,8 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
           have hok' : (ok (core.result.Result.Ok none, st) :
               Result ((core.result.Result (Option expr.Expr)
                 core_types.CheckError) × cached.state_c.CState))
-              = ok (core.result.Result.Ok r, st') := hok
-          simp only [Result.ok.injEq, Prod.mk.injEq,
-            core.result.Result.Ok.injEq] at hok'
+              = ok (oc, st') := hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
           obtain ⟨hr, hs⟩ := hok'
           cases hr; cases hs
           exact ⟨lst, by simp, hrel, hwf, by simp⟩
@@ -1785,9 +2116,8 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
             have hok' : (ok (core.result.Result.Ok none, st) :
                 Result ((core.result.Result (Option expr.Expr)
                   core_types.CheckError) × cached.state_c.CState))
-                = ok (core.result.Result.Ok r, st') := hok
-            simp only [Result.ok.injEq, Prod.mk.injEq,
-              core.result.Result.Ok.injEq] at hok'
+                = ok (oc, st') := hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
             obtain ⟨hr, hs⟩ := hok'
             cases hr; cases hs
             exact ⟨lst, by simp, hrel, hwf, by simp⟩
@@ -1802,11 +2132,24 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
             have hbiv := CoreK.fire_is_inert_refines hbi
             cases bi with
             | true =>
-              exfalso
+              -- the matched rule is **inert**: the port declines with
+              -- `notImplemented` and so does the cited `iotaRecI`, at the same
+              -- step and the same kind (`Cached/CoreC.lean:767`)
+              have hinert : (absRecRule rl).fire = ConLeche.RecRuleFire.inert := by
+                simp only [absRecRule]
+                cases hf : absFire rl.fire with
+                | inert => rfl
+                | plain => rw [hf] at hbiv; simp at hbiv
+                | nested lvls pins => rw [hf] at hbiv; simp at hbiv
+              rw [if_pos hinert]
               obtain ⟨s1, -, hok⟩ := bind_eq_ok_iff.mp hok
               obtain ⟨v1, -, hok⟩ := bind_eq_ok_iff.mp hok
-              obtain ⟨ce, -, hok⟩ := bind_eq_ok_iff.mp hok
-              simp at hok
+              obtain ⟨ce, hce, hok⟩ := bind_eq_ok_iff.mp hok
+              simp only [Result.ok.injEq, Prod.mk.injEq] at hok
+              obtain ⟨hr, hs⟩ := hok
+              cases hr; cases hs
+              rw [not_implemented_inv hce]
+              exact Out.err (ErrSim.notImplemented rfl)
             | false =>
               rw [if_neg (show ¬ ((absRecRule rl).fire = ConLeche.RecRuleFire.inert) by
                 intro hcon
@@ -1815,10 +2158,12 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
                 simp at hbiv)]
               have hok2 : cached.core_c.iota_rec_checks_i mode fuel st fe d c cj
                   cv cvj0 m_i r_p rl us usj args margs major
-                  = ok (core.result.Result.Ok r, st') := hok
+                  = ok (oc, st') := hok
               rw [← hcvj0]
+              -- the tail call, at both outcomes
               exact (iota_rec_checks_i_refines hd d m_i r_p hc hcjw hcv hcvj0w
-                hrlw hus husjw hargs hmaw hmajor).apply hwf hfe hok2 hrel hfrel
+                hrlw hus husjw hargs hmaw hmajor) fe lfe hfe hfrel st oc st' hwf
+                hok2 lst hrel
       | axiomInfo _ | defnInfo _ _ _ | thmInfo _ _ | indInfo _ _
       | recInfo _ _ _ _ | projInfo _ =>
         simp only [hfind]
@@ -1826,9 +2171,8 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
         subst hov
         have hok' : (ok (core.result.Result.Ok none, st) :
             Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
-              cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-        simp only [Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq] at hok'
+              cached.state_c.CState)) = ok (oc, st') := hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
         obtain ⟨hr, hs⟩ := hok'
         cases hr; cases hs
         exact ⟨lst, by simp, hrel, hwf, by simp⟩
@@ -1838,8 +2182,8 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
     simp only [absExpr_mk, absExprKind]
     have hok' : (ok (core.result.Result.Ok none, st) :
         Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
-          cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-    simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok'
+          cached.state_c.CState)) = ok (oc, st') := hok
+    simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
     obtain ⟨hr, hs⟩ := hok'
     cases hr; cases hs
     exact ⟨lst, by simp, hrel, hwf, by simp⟩
@@ -1858,7 +2202,7 @@ theorem iota_rec_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
       (fun st fe => cached.core_c.iota_rec_i mode fuel st fe d e)
       (fun lfe => ConLeche.Cached.iotaRecI (absMode mode) (knot mode lfe fuel.val)
         lfe d.val (absExpr e)) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   simp only [ConLeche.Cached.iotaRecI]
   unfold cached.core_c.iota_rec_i at hok
   obtain ⟨f, hf, hok⟩ := bind_eq_ok_iff.mp hok
@@ -1882,9 +2226,8 @@ theorem iota_rec_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
       subst hov
       have hok' : (ok (core.result.Result.Ok none, st) :
           Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
-            cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-      simp only [Result.ok.injEq, Prod.mk.injEq,
-        core.result.Result.Ok.injEq] at hok'
+            cached.state_c.CState)) = ok (oc, st') := hok
+      simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
       obtain ⟨hr, hs⟩ := hok'
       cases hr; cases hs
       exact ⟨lst, by simp, hrel, hwf, by simp⟩
@@ -1935,7 +2278,15 @@ theorem iota_rec_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
             obtain ⟨p, hp, hok⟩ := bind_eq_ok_iff.mp hok
             obtain ⟨rr0, st1⟩ := p
             cases rr0 with
-            | Err err => simp at hok
+            | Err err =>
+              -- the major's preparation threw; it is the `do` block's first step
+              simp at hok
+              obtain ⟨rfl, rfl⟩ := hok
+              have herr := (prepare_major_i_refines hw hd d (absName c) hruleswf
+                hraww).apply_err hwf hfe hp hrel hfrel
+              rw [hrawv] at herr
+              simp only [ConLeche.Expr.mkBvar_eq]
+              exact Out.err (ErrSim.bindCM herr)
             | Ok major =>
             obtain ⟨lst1, hrun1, hrel1, hwf1, hmajw⟩ :=
               (prepare_major_i_refines hw hd d (absName c) hruleswf hraww).apply
@@ -1943,8 +2294,9 @@ theorem iota_rec_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
             rw [hrawv] at hrun1
             simp only [ConLeche.Expr.mkBvar_eq]
             rw [run_bind hrun1]
+            -- the tail call, at both outcomes
             exact (iota_rec_rule_i_refines hd d m_i r_p hcw hcvw hruleswf husw
-              hargsw hmajw).apply hwf1 hfe hok hrel1 hfrel
+              hargsw hmajw) fe lfe hfe hfrel st1 oc st' hwf1 hok lst1 hrel1
           · rename_i heq2
             rw [if_neg (show ¬ ((absExprs args).length = m_i.val + 1
                 ∧ (absLevels us).length
@@ -1958,9 +2310,8 @@ theorem iota_rec_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
             have hok' : (ok (core.result.Result.Ok none, st) :
                 Result ((core.result.Result (Option expr.Expr)
                   core_types.CheckError) × cached.state_c.CState))
-                = ok (core.result.Result.Ok r, st') := hok
-            simp only [Result.ok.injEq, Prod.mk.injEq,
-              core.result.Result.Ok.injEq] at hok'
+                = ok (oc, st') := hok
+            simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
             obtain ⟨hr, hs⟩ := hok'
             cases hr; cases hs
             exact ⟨lst, by simp, hrel, hwf, by simp⟩
@@ -1975,9 +2326,8 @@ theorem iota_rec_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
           have hok' : (ok (core.result.Result.Ok none, st) :
               Result ((core.result.Result (Option expr.Expr)
                 core_types.CheckError) × cached.state_c.CState))
-              = ok (core.result.Result.Ok r, st') := hok
-          simp only [Result.ok.injEq, Prod.mk.injEq,
-            core.result.Result.Ok.injEq] at hok'
+              = ok (oc, st') := hok
+          simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
           obtain ⟨hr, hs⟩ := hok'
           cases hr; cases hs
           exact ⟨lst, by simp, hrel, hwf, by simp⟩
@@ -1988,9 +2338,8 @@ theorem iota_rec_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
         subst hov
         have hok' : (ok (core.result.Result.Ok none, st) :
             Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
-              cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-        simp only [Result.ok.injEq, Prod.mk.injEq,
-          core.result.Result.Ok.injEq] at hok'
+              cached.state_c.CState)) = ok (oc, st') := hok
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
         obtain ⟨hr, hs⟩ := hok'
         cases hr; cases hs
         exact ⟨lst, by simp, hrel, hwf, by simp⟩
@@ -2000,8 +2349,8 @@ theorem iota_rec_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
     simp only [absExpr_mk, absExprKind]
     have hok' : (ok (core.result.Result.Ok none, st) :
         Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
-          cached.state_c.CState)) = ok (core.result.Result.Ok r, st') := hok
-    simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok'
+          cached.state_c.CState)) = ok (oc, st') := hok
+    simp only [Result.ok.injEq, Prod.mk.injEq] at hok'
     obtain ⟨hr, hs⟩ := hok'
     cases hr; cases hs
     exact ⟨lst, by simp, hrel, hwf, by simp⟩
