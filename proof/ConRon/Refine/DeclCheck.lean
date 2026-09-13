@@ -2387,6 +2387,12 @@ theorem run_bind {α β : Type} {x : ConLeche.Cached.CheckCM α}
   simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
   rw [show x s = Except.ok (a, s') from h]
 
+/-- The `pure ()` step of a `do` block, run: what a passed `unless` guard
+leaves behind. -/
+theorem run_pure_bind {α : Type} {f : Unit → ConLeche.Cached.CheckCM α}
+    {s : ConLeche.Cached.CState} :
+    ((pure () : ConLeche.Cached.CheckCM Unit) >>= f).run s = (f ()).run s := rfl
+
 /-- The failing twin of `run_bind` (task #67's move 1, spelled as a rewrite):
 a step that threw makes the rest of the `do` block throw, at its error. -/
 theorem run_bind_err {α β : Type} {x : ConLeche.Cached.CheckCM α}
@@ -2974,6 +2980,175 @@ theorem projIotaTail_run {mode' : ConLeche.CheckMode}
   rw [projIotaTail_at, projIotaTailAt]
   simp only [h7, h8, h9, ConLeche.unwrapOr, reduceIte]
   exact h10
+
+open ConLeche.Cached in
+/-- `projIotaTail`'s off-shape `throw` (`DeclCheck.lean:825`): the statement's
+body is not the cited three-argument application of a one-level constant. -/
+theorem projIotaTail_shape {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {T ctorName : ConLeche.Name} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat} {tcvTy sbody : ConLeche.Expr}
+    {lst : CState}
+    (hs : ∀ (c : ConLeche.Name) (lu : ConLeche.Level) (t a b : ConLeche.Expr),
+      sbody ≠ .app (.app (.app (.const c [lu]) t) a) b) :
+    (projIotaTail mode' ops lenv T ctorName cvj lps nP nF i tcvTy sbody).run lst
+      = .error (.notImplemented "projection iota body shape") := by
+  rw [projIotaTail]
+  · exact run_bind_err (throw_apply _ _)
+  · intro c lu t a b heq
+    exact hs c lu t a b heq
+
+open ConLeche.Cached in
+/-- `projIotaTail`'s head `throw` (`DeclCheck.lean:818`). -/
+theorem projIotaTail_head {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {T ctorName : ConLeche.Name} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat}
+    {tcvTy sbody tslot lhsC rhsC : ConLeche.Expr} {c : ConLeche.Name}
+    {lu : ConLeche.Level} {lst : CState}
+    (hshape : sbody = .app (.app (.app (.const c [lu]) tslot) lhsC) rhsC)
+    (hc : c ≠ ConLeche.eqName) :
+    (projIotaTail mode' ops lenv T ctorName cvj lps nP nF i tcvTy sbody).run lst
+      = .error (.notImplemented "projection iota head") := by
+  subst hshape
+  rw [projIotaTail_at, projIotaTailAt]
+  simp only [if_neg hc]
+  exact run_bind_err (throw_apply _ _)
+
+open ConLeche.Cached in
+/-- `projIotaTail`'s redex `throw` (`DeclCheck.lean:820`). -/
+theorem projIotaTail_redex {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {T ctorName : ConLeche.Name} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat}
+    {tcvTy sbody tslot lhsC rhsC : ConLeche.Expr} {lu : ConLeche.Level}
+    {lst : CState}
+    (hshape : sbody
+        = .app (.app (.app (.const ConLeche.eqName [lu]) tslot) lhsC) rhsC)
+    (h7 : (lhsC == ConLeche.Expr.mkAppN
+        (.const (ConLeche.projModelName T i) (lps.map .param))
+        (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+          ++ [ConLeche.Expr.mkAppN
+              (.const (ctorName.str "_model") (cvj.levelParams.map .param))
+              (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+                ++ ((List.range nF).map fun k =>
+                      ConLeche.Expr.bvar (nF - 1 - k)))])) = false) :
+    (projIotaTail mode' ops lenv T ctorName cvj lps nP nF i tcvTy sbody).run lst
+      = .error (.notImplemented "projection iota redex mismatch") := by
+  subst hshape
+  rw [projIotaTail_at, projIotaTailAt]
+  simp only [h7, reduceIte, Bool.false_eq_true, if_false, run_pure_bind]
+  exact run_bind_err (throw_apply _ _)
+
+open ConLeche.Cached in
+/-- `projIotaTail`'s field `throw` (`DeclCheck.lean:822`). -/
+theorem projIotaTail_field {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {T ctorName : ConLeche.Name} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat}
+    {tcvTy sbody tslot lhsC rhsC : ConLeche.Expr} {lu : ConLeche.Level}
+    {lst : CState}
+    (hshape : sbody
+        = .app (.app (.app (.const ConLeche.eqName [lu]) tslot) lhsC) rhsC)
+    (h7 : (lhsC == ConLeche.Expr.mkAppN
+        (.const (ConLeche.projModelName T i) (lps.map .param))
+        (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+          ++ [ConLeche.Expr.mkAppN
+              (.const (ctorName.str "_model") (cvj.levelParams.map .param))
+              (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+                ++ ((List.range nF).map fun k =>
+                      ConLeche.Expr.bvar (nF - 1 - k)))])) = true)
+    (h8 : (rhsC == ConLeche.Expr.bvar (nF - 1 - i)) = false) :
+    (projIotaTail mode' ops lenv T ctorName cvj lps nP nF i tcvTy sbody).run lst
+      = .error (.notImplemented "projection iota field mismatch") := by
+  subst hshape
+  rw [projIotaTail_at, projIotaTailAt]
+  simp only [h7, h8, reduceIte, Bool.false_eq_true, if_false, run_pure_bind]
+  exact run_bind_err (throw_apply _ _)
+
+open ConLeche.Cached in
+/-- `projIotaTail`'s telescope `throw` (`DeclCheck.lean:824`). -/
+theorem projIotaTail_telescope {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {T ctorName : ConLeche.Name} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat}
+    {tcvTy sbody tslot lhsC rhsC : ConLeche.Expr} {lu : ConLeche.Level}
+    {lst : CState}
+    (hshape : sbody
+        = .app (.app (.app (.const ConLeche.eqName [lu]) tslot) lhsC) rhsC)
+    (h7 : (lhsC == ConLeche.Expr.mkAppN
+        (.const (ConLeche.projModelName T i) (lps.map .param))
+        (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+          ++ [ConLeche.Expr.mkAppN
+              (.const (ctorName.str "_model") (cvj.levelParams.map .param))
+              (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+                ++ ((List.range nF).map fun k =>
+                      ConLeche.Expr.bvar (nF - 1 - k)))])) = true)
+    (h8 : (rhsC == ConLeche.Expr.bvar (nF - 1 - i)) = true)
+    (h9 : ConLeche.openPisAtFvars (nP + nF) tcvTy 0 = none) :
+    (projIotaTail mode' ops lenv T ctorName cvj lps nP nF i tcvTy sbody).run lst
+      = .error (.notImplemented "projection iota telescope") := by
+  subst hshape
+  rw [projIotaTail_at, projIotaTailAt]
+  simp only [h7, h8, h9, ConLeche.unwrapOr, reduceIte, run_pure_bind]
+  exact run_bind_err (throw_apply _ _)
+
+open ConLeche.Cached in
+/-- `projIotaTail` passes on what the two side certificates threw. -/
+theorem projIotaTail_sides_err {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {T ctorName : ConLeche.Name} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat}
+    {tcvTy sbody tslot lhsC rhsC sbodyO : ConLeche.Expr} {lu : ConLeche.Level}
+    {fvs : List ConLeche.Expr} {lst : CState} {le : ConLeche.CheckError}
+    (hshape : sbody
+        = .app (.app (.app (.const ConLeche.eqName [lu]) tslot) lhsC) rhsC)
+    (h7 : (lhsC == ConLeche.Expr.mkAppN
+        (.const (ConLeche.projModelName T i) (lps.map .param))
+        (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+          ++ [ConLeche.Expr.mkAppN
+              (.const (ctorName.str "_model") (cvj.levelParams.map .param))
+              (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+                ++ ((List.range nF).map fun k =>
+                      ConLeche.Expr.bvar (nF - 1 - k)))])) = true)
+    (h8 : (rhsC == ConLeche.Expr.bvar (nF - 1 - i)) = true)
+    (h9 : ConLeche.openPisAtFvars (nP + nF) tcvTy 0 = some (fvs, sbodyO))
+    (h10 : (ConLeche.checkIotaSidesTy mode' ops lenv (nP + nF)
+        (sbodyO.getAppArgs.getD 0 (.bvar 0)) (sbodyO.getAppArgs.getD 1 (.bvar 0))
+        (sbodyO.getAppArgs.getD 2 (.bvar 0))
+        (ConLeche.eqHeadLevel (.const ConLeche.eqName [lu]))
+        (ConLeche.projModelName T i)).run lst = .error le) :
+    (projIotaTail mode' ops lenv T ctorName cvj lps nP nF i tcvTy sbody).run lst
+      = .error le := by
+  subst hshape
+  rw [projIotaTail_at, projIotaTailAt]
+  simp only [h7, h8, h9, ConLeche.unwrapOr, reduceIte]
+  exact h10
+
+/-- The port's head-shape test, inverted: an abstracted head that is a
+one-level `.const` has a `Const` node kind at a one-element level vector, which
+is what `check_proj_iota_body`'s shape `match` answers `true` on. -/
+private theorem const_kind_of_abs {e : expr.Expr} {c : ConLeche.Name}
+    {lu : ConLeche.Level} (h : absExpr e = .const c [lu]) :
+    ∃ (n : name.Name) (us : alloc.vec.Vec level.Level),
+      e._0.kind = .Const n us ∧ us.val.length = 1 := by
+  rw [absExpr_kind] at h
+  cases hk : e._0.kind with
+  | Const n us =>
+    refine ⟨n, us, rfl, ?_⟩
+    rw [hk] at h
+    simp only [absExprKind, ConLeche.Expr.const.injEq] at h
+    have hl := congrArg List.length h.2
+    simpa [absLevels] using hl
+  | Bvar _ => rw [hk] at h; simp [absExprKind] at h
+  | Fvar _ _ => rw [hk] at h; simp [absExprKind] at h
+  | «Sort» _ => rw [hk] at h; simp [absExprKind] at h
+  | App _ _ => rw [hk] at h; simp [absExprKind] at h
+  | Lam _ _ _ => rw [hk] at h; simp [absExprKind] at h
+  | ForallE _ _ _ => rw [hk] at h; simp [absExprKind] at h
+  | LetE _ _ _ => rw [hk] at h; simp [absExprKind] at h
+  | Lit _ => rw [hk] at h; simp [absExprKind] at h
+  | Proj _ _ _ => rw [hk] at h; simp [absExprKind] at h
 
 open ConLeche.Cached in
 /-- `ConLeche/Kernel/DeclCheck.lean:797-836 checkProjIotaF` — the cited
