@@ -90,13 +90,19 @@ theorem constant_info_name_wf {ci : env.ConstantInfo} {n : name.Name}
 /-- **`checker::install_basis_decl` refines `installBasisDeclF`**
 (`ConLeche/Kernel/DeclCheck.lean:855-859`, the index twin of
 `Checker.lean:26-30 installBasisDecl`): install one pinned basis declaration,
-duplicate-checked, returning the pushed index. -/
+duplicate-checked, returning the pushed index.
+
+The **unrestricted-canonical pair** rides through (task #59): the success
+branch is one `fenv::push`, so `FEnv.push_canon` carries it.
+`Refine/IndSpec.lean`'s header says why the checker tier needs the pair. -/
 theorem install_basis_decl_refines {fe fe' : fenv.FEnv} {ci : env.ConstantInfo}
     (hfw : FEnvWF fe) (hci : ConstantInfoWF ci)
+    (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
     (h : kernel.checker.install_basis_decl fe ci = ok (.Ok fe')) :
     ∀ lfe, FEnvRel fe lfe →
       FEnvRel fe' (lfe.push (absConstantInfo ci)) ∧ FEnvWF fe'
-        ∧ (lfe.find? (absConstantInfo ci).name).isNone := by
+        ∧ (lfe.find? (absConstantInfo ci).name).isNone
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lfe hfr
   rw [kernel.checker.install_basis_decl] at h
   obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
@@ -115,7 +121,8 @@ theorem install_basis_decl_refines {fe fe' : fenv.FEnv} {ci : env.ConstantInfo}
     have hfe' : f = fe' := by simpa using h3
     subst hfe'
     obtain ⟨hrel', hwf'⟩ := push_refines hfr hfw hci hpush
-    exact ⟨hrel', hwf', by rw [← hnm, ← hfind]; rfl⟩
+    obtain ⟨hcan', hfull'⟩ := push_canon hfw hci hcan hfull hpush
+    exact ⟨hrel', hwf', by rw [← hnm, ← hfind]; rfl, hcan', hfull'⟩
 
 /-! ## Two shapes every `do`-block lemma below travels through -/
 

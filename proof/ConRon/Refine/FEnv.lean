@@ -502,6 +502,194 @@ theorem dup_refines {fe fe' : fenv.FEnv} (hwf : FEnvWF fe)
   · exact hrel
   · rw [hee]; exact hwf.env
 
+/-! ### The bridge the callers of `dup` need (task #59)
+
+`dup_refines` relates the copy to the *canonical* Lean `FEnv` — `mkFEnv` of the
+copied environment, restricted to the visibility counter — because that is what
+the rebuild computes.  But `ConLeche/Cached/CheckerC.lean`'s stages pass their
+own persistent `lfe` across the copy (`checkNativePassS` is the first one), so
+what those compositions need is `FEnvRel fe lfe → FEnvRel (dup fe) lfe`.
+
+That is **not** true of an arbitrary `lfe`: `FEnvRel` pins `lfe.idx` only on
+the image of the well-formed names, so an `lfe` whose index disagrees with its
+own environment is related to `fe` and not to the rebuild.  The missing
+ingredient is a property of `fe` alone — that `fe`'s index already *is* the
+rebuild of `fe`'s environment — and that is exactly `dup_refines`' own
+conclusion, so it is named here and carried:
+
+* `dup` establishes it (`dup_canon`), and so does `mk_fenv` (`mk_fenv_canon`),
+
+which is how every `FEnv` a stage copies was built, so the hypothesis is
+discharged at the call sites and nothing is weakened.  (`push` does *not*
+preserve it on a **restricted** view: `FEnv.push` stamps the new entry with
+`visibleBelow`, while the rebuild stamps it with the constant count, and the
+two differ exactly when the view hides something.  The stages that copy an
+index copy a `dup`/`mk_fenv` product, so that gap is not in the way.) -/
+
+/-- **The index is the rebuild of the environment.**  Equivalently: `fe` is
+related to the canonical Lean `FEnv` of its own environment.  Every `FEnv` the
+checker holds has this property — `mk_fenv` and `dup` establish it and `push`
+preserves it — and it is what turns `dup_refines`' canonical conclusion into a
+statement about the caller's own `lfe`. -/
+def FEnvCanon (fe : fenv.FEnv) : Prop :=
+  FEnvRel fe ((ConLeche.mkFEnv (absEnv fe.env)).restrictTo fe.visible_below.val)
+
+/-- `dup` establishes `FEnvCanon`: that is `dup_refines` read as a property of
+the copy. -/
+theorem dup_canon {fe fe' : fenv.FEnv} (hwf : FEnvWF fe)
+    (h : fenv.dup fe = ok fe') : FEnvCanon fe' := by
+  obtain ⟨hrel, _⟩ := dup_refines hwf h
+  have henv : fe'.env = fe.env := by
+    rw [fenv.dup] at h
+    obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨e2, hdup, h⟩ := bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]; exact Env.env_dup_refines hdup
+  have hvb : fe'.visible_below = fe.visible_below := by
+    rw [fenv.dup] at h
+    obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+  unfold FEnvCanon
+  rw [henv, hvb]
+  exact hrel
+
+/-- **The bridge**: under `FEnvCanon`, `dup` keeps the caller's own `lfe`.
+This is what `native_install`'s `check_native_pass_former` and
+`check_native_rec_rules` compose across `fenv::dup`. -/
+theorem dup_rel {fe fe' : fenv.FEnv} {lfe : ConLeche.FEnv} (hwf : FEnvWF fe)
+    (hcan : FEnvCanon fe) (hrel : FEnvRel fe lfe) (h : fenv.dup fe = ok fe') :
+    FEnvRel fe' lfe ∧ FEnvWF fe' ∧ FEnvCanon fe' := by
+  obtain ⟨hrel', hwf'⟩ := dup_refines hwf h
+  refine ⟨⟨?_, ?_, ?_⟩, hwf', dup_canon hwf h⟩
+  · rw [hrel'.1]; exact hrel.1
+  · rw [hrel'.2.1]; exact hrel.2.1
+  · intro k hk
+    rw [hrel'.2.2 k hk]
+    exact (hcan.2.2 k hk).symm.trans (hrel.2.2 k hk)
+
+/-- The counter `mkFEnvGo` hands out last is the constant count. -/
+theorem mkFEnvGo_fst (l : List ConLeche.ConstantInfo) :
+    (ConLeche.mkFEnvGo l).1 = l.length := by
+  induction l with
+  | nil => rfl
+  | cons ci cs ih => rw [ConLeche.mkFEnvGo, List.length_cons, ih]
+
+/-- **An unrestricted view**: nothing is hidden, i.e. the visibility counter is
+the constant count.  `mk_fenv` and `push` produce one; `restrict_to` is the
+only thing that breaks it.  `push_canon` needs it because `FEnv.push` stamps
+the new entry with `visibleBelow` while the rebuild stamps it with the count,
+and the two agree exactly here. -/
+def FEnvFull (fe : fenv.FEnv) : Prop :=
+  fe.visible_below.val = fe.env.consts.val.length
+
+/-- `mk_fenv` establishes `FEnvCanon`: it *is* the rebuild, at the full
+visibility counter. -/
+theorem mk_fenv_canon {e : env.Env} {fe : fenv.FEnv} (he : EnvWF e)
+    (h : fenv.mk_fenv e = ok fe) : FEnvCanon fe := by
+  obtain ⟨hrel, _⟩ := mk_fenv_refines he h
+  have henv : fe.env = e := by
+    rw [fenv.mk_fenv] at h
+    obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+  unfold FEnvCanon
+  rw [henv]
+  refine ⟨hrel.1, ?_, ?_⟩
+  · rw [hrel.2.1]; rfl
+  · intro k hk; rw [hrel.2.2 k hk]; rfl
+
+/-- `push` preserves `FEnvCanon` **on an unrestricted view**, and keeps it
+unrestricted.  `FEnv.push` stamps the new entry with `visibleBelow` and the
+rebuild stamps it with the constant count, so the two agree exactly when
+nothing is hidden — which is every index the install routes build
+(`mk_fenv`/`dup` then a chain of pushes; `restrict_to` is the only thing that
+hides, and no install route calls it between a copy and its pushes). -/
+theorem push_canon {fe fe' : fenv.FEnv} {ci : env.ConstantInfo}
+    (hwf : FEnvWF fe) (hci : ConstantInfoWF ci) (hcan : FEnvCanon fe)
+    (hfull : FEnvFull fe) (h : fenv.push fe ci = ok fe') :
+    FEnvCanon fe' ∧ FEnvFull fe' := by
+  obtain ⟨hrel, _⟩ := push_refines hcan hwf hci h
+  have hlist := push_consts h
+  have hvb : fe'.visible_below.val = fe.visible_below.val + 1 := by
+    have := hrel.2.1
+    simpa [ConLeche.FEnv.push, ConLeche.FEnv.restrictTo] using this
+  have hfull' : FEnvFull fe' := by
+    unfold FEnvFull
+    rw [hvb, hlist, List.length_append, List.length_singleton]
+    exact congrArg (· + 1) hfull
+  refine ⟨?_, hfull'⟩
+  -- the canonical Lean `FEnv` of `fe'` *is* the push of `fe`'s canonical one
+  have henv : absEnv fe'.env
+      = ⟨absConstantInfo ci :: (absEnv fe.env).consts⟩ := by
+    rw [absEnv, absEnv, absConstantInfos, absConstantInfos, hlist]; simp
+  have hpush : ((ConLeche.mkFEnv (absEnv fe.env)).restrictTo
+        fe.visible_below.val).push (absConstantInfo ci)
+      = (ConLeche.mkFEnv (absEnv fe'.env)).restrictTo fe'.visible_below.val := by
+    rw [ConLeche.FEnv.push, ConLeche.FEnv.restrictTo, ConLeche.FEnv.restrictTo,
+      ConLeche.mkFEnv, ConLeche.mkFEnv, henv, hvb]
+    have hcount : (absEnv fe.env).consts.length = fe.visible_below.val := by
+      rw [absEnv]; simpa [absConstantInfos] using hfull.symm
+    simp only [ConLeche.mkFEnvGo, mkFEnvGo_fst, hcount]
+  unfold FEnvCanon
+  rw [← hpush]
+  exact hrel
+
+/-! ### The index key *is* the stored constant's name (task #59)
+
+`ConLeche/Kernel/Env.lean:636` defines `Env.find? env n = env.consts.find?
+(·.name == n)`, so a found record's name is the name it was found under.  The
+*indexed* reading cannot see that on its own — `FEnv.find?` reads a hash map,
+and `FEnvRel` says nothing about which key a value sits at — but the rebuild
+`mkFEnvGo` only ever inserts `ci` at `ci.name`, so it holds of every canonical
+view.  `modeled::check_proj_iota_body` needs exactly this: it builds the
+constructor spine head from the *looked-up* `cvj.name` where `checkProjIotaF`
+writes the name it looked up under. -/
+
+/-- `mkFEnvGo` stores each constant under its own name. -/
+theorem mkFEnvGo_name : ∀ (l : List ConLeche.ConstantInfo) {n : ConLeche.Name}
+    {p : Nat × ConLeche.ConstantInfo},
+    (ConLeche.mkFEnvGo l).2[n]? = some p → p.2.name = n := by
+  intro l
+  induction l with
+  | nil => intro n p h; simp [ConLeche.mkFEnvGo] at h
+  | cons ci cs ih =>
+    intro n p h
+    rw [ConLeche.mkFEnvGo] at h
+    by_cases hn : ci.name = n
+    · rw [Std.HashMap.getElem?_insert] at h
+      rw [if_pos (by simp [hn])] at h
+      rw [← Option.some_inj.mp h]; exact hn
+    · rw [Std.HashMap.getElem?_insert, if_neg (by simpa using fun hc => hn hc)] at h
+      exact ih h
+
+/-- **A canonical view answers under the name it stores**: what `Env.find?`'s
+`(·.name == n)` gives on the list reading, recovered for the index. -/
+theorem canon_find_name {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name}
+    {ci : ConLeche.ConstantInfo} (hcan : FEnvCanon fe) (hrel : FEnvRel fe lfe)
+    (hn : NameWF n) (h : lfe.find? (absName n) = some ci) :
+    ci.name = absName n := by
+  rw [ConLeche.FEnv.find?] at h
+  -- the two indices agree at every well-formed name's image
+  have hidx : lfe.idx[absName n]?
+      = ((ConLeche.mkFEnv (absEnv fe.env)).restrictTo fe.visible_below.val).idx[absName n]? :=
+    (hrel.2.2 n hn).symm.trans (hcan.2.2 n hn)
+  rw [hidx] at h
+  cases hg : (ConLeche.mkFEnv (absEnv fe.env)).idx[absName n]? with
+  | none => rw [show ((ConLeche.mkFEnv (absEnv fe.env)).restrictTo
+      fe.visible_below.val).idx = (ConLeche.mkFEnv (absEnv fe.env)).idx from rfl, hg] at h
+            simp at h
+  | some p =>
+    rw [show ((ConLeche.mkFEnv (absEnv fe.env)).restrictTo
+      fe.visible_below.val).idx = (ConLeche.mkFEnv (absEnv fe.env)).idx from rfl, hg] at h
+    have hname : p.2.name = absName n := mkFEnvGo_name _ hg
+    obtain ⟨c, cc⟩ := p
+    simp only at h hname
+    by_cases hlt : c < lfe.visibleBelow
+    · rw [if_pos hlt] at h; rw [← Option.some_inj.mp h]; exact hname
+    · rw [if_neg hlt] at h; simp at h
+
 /-! ## The projection lookup and the slot queries -/
 
 /-- `ConLeche/Kernel/FEnv.lean:92-95` — `fenv::find_proj` refines
@@ -613,6 +801,12 @@ info: 'ConRon.Refine.FEnv.dup_refines' depends on axioms: [propext, Classical.ch
 -/
 #guard_msgs in
 #print axioms dup_refines
+
+/--
+info: 'ConRon.Refine.FEnv.dup_rel' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms dup_rel
 
 /--
 info: 'ConRon.Refine.FEnv.restrict_to_refines' depends on axioms: [propext, Classical.choice, Quot.sound]

@@ -379,6 +379,12 @@ pub fn check_iota_sides_ty(
 /// its level parameters pinned, its telescope opened at `rP + cnF` variables,
 /// and its body read as an equation at one level.  Shared by `checkIotaThm`
 /// and `checkIotaThmN`, which spell it identically.
+///
+/// Deviation: the telescope is opened with the one-pass
+/// `checker_base::open_pis_at_fvars_f` where the cited `checkIotaThmF` writes
+/// `openPisAtFvars`.  The two are equal by con-leche's own
+/// `ConLeche/Verify/FastOps.lean:101 openPisAtFvarsF_eq`, so no verdict
+/// changes; every other opener in this module already cites the `F` spelling.
 pub fn iota_stmt_open(
     fe2: &FEnv,
     cv_name: &Name,

@@ -33668,7 +33668,7 @@ def kernel.inductives.inductives_c.check_native_s
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::inductives::modeled::single_ind_ctor_from]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2742:0-2771:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2748:0-2777:1
     Visibility: public -/
 def kernel.inductives.modeled.single_ind_ctor_from
   (block : alloc.vec.Vec kernel.env.ConstantInfo) (i : Std.Usize)
@@ -33725,7 +33725,7 @@ def kernel.inductives.modeled.single_ind_ctor_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::inductives::modeled::single_ind_ctor]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2717:0-2736:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2723:0-2742:1
     Visibility: public -/
 def kernel.inductives.modeled.single_ind_ctor
   (block : alloc.vec.Vec kernel.env.ConstantInfo) :
@@ -33750,7 +33750,7 @@ def kernel.inductives.modeled.single_ind_ctor
   else ok none
 
 /-- [con_ron_core::kernel::inductives::modeled::block_names_of_from]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2697:0-2709:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2703:0-2715:1
     Visibility: public -/
 def kernel.inductives.modeled.block_names_of_from
   (block : alloc.vec.Vec kernel.env.ConstantInfo) (i : Std.Usize)
@@ -33771,7 +33771,7 @@ def kernel.inductives.modeled.block_names_of_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::inductives::modeled::block_names_of]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2691:0-2693:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2697:0-2699:1
     Visibility: public -/
 def kernel.inductives.modeled.block_names_of
   (block : alloc.vec.Vec kernel.env.ConstantInfo) :
@@ -33837,7 +33837,7 @@ def kernel.env.constant_info_dup
     ok (kernel.env.ConstantInfo.ProjInfo pt)
 
 /-- [con_ron_core::kernel::inductives::modeled::filter_recs_from]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2671:0-2687:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2677:0-2693:1
     Visibility: public -/
 def kernel.inductives.modeled.filter_recs_from
   (block : alloc.vec.Vec kernel.env.ConstantInfo) (keep : Bool) (i : Std.Usize)
@@ -33864,7 +33864,7 @@ def kernel.inductives.modeled.filter_recs_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::inductives::modeled::filter_recs]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2665:0-2667:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2671:0-2673:1
     Visibility: public -/
 def kernel.inductives.modeled.filter_recs
   (block : alloc.vec.Vec kernel.env.ConstantInfo) (keep : Bool) :
@@ -33888,7 +33888,7 @@ def kernel.inductives.struct_parts.struct_fam
   kernel.expr_ops.mk_app_n head v1
 
 /-- [con_ron_core::kernel::inductives::modeled::ctor_residual_ok]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2629:0-2654:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2635:0-2660:1
     Visibility: public -/
 def kernel.inductives.modeled.ctor_residual_ok
   (mode : kernel.env.CheckMode) (fe3 : kernel.fenv.FEnv) (t : kernel.name.Name)
@@ -34064,7 +34064,7 @@ def kernel.checker_base.DomIdent.Insts.Con_ron_coreKernelChecker_baseDomView :
 }
 
 /-- [con_ron_core::kernel::inductives::modeled::check_unit_thm_shape]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2476:0-2537:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2482:0-2543:1
     Visibility: public -/
 def kernel.inductives.modeled.check_unit_thm_shape
   (mode : kernel.env.CheckMode) (t : kernel.name.Name)
@@ -34710,7 +34710,7 @@ def kernel.basis_pins.eq_basis_pinned
   | some ci => kernel.basis_pins.is_pinned_eq_basis ci
 
 /-- [con_ron_core::kernel::inductives::modeled::check_unit_thm]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2447:0-2471:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2453:0-2477:1
     Visibility: public -/
 def kernel.inductives.modeled.check_unit_thm
   (mode : kernel.env.CheckMode) (fe2 : kernel.fenv.FEnv) (t : kernel.name.Name)
@@ -34800,7 +34800,7 @@ def kernel.core_k.proj_model_name
   kernel.name.mk_str head s4
 
 /-- [con_ron_core::kernel::inductives::modeled::eta_projs_from]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2309:0-2329:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2315:0-2335:1
     Visibility: public -/
 def kernel.inductives.modeled.eta_projs_from
   (t : kernel.name.Name) (lps : alloc.vec.Vec kernel.name.Name)
@@ -34824,7 +34824,7 @@ def kernel.inductives.modeled.eta_projs_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::inductives::modeled::eta_rhs]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2296:0-2304:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2302:0-2310:1
     Visibility: public -/
 def kernel.inductives.modeled.eta_rhs
   (t : kernel.name.Name) (ctor_name : kernel.name.Name)
@@ -34841,7 +34841,7 @@ def kernel.inductives.modeled.eta_rhs
   kernel.expr_ops.mk_app_n e args1
 
 /-- [con_ron_core::kernel::inductives::modeled::check_eta_thm_shape]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2381:0-2440:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2387:0-2446:1
     Visibility: public -/
 def kernel.inductives.modeled.check_eta_thm_shape
   (mode : kernel.env.CheckMode) (t : kernel.name.Name)
@@ -34933,7 +34933,7 @@ def kernel.inductives.modeled.check_eta_thm_shape
       else ok false
 
 /-- [con_ron_core::kernel::inductives::modeled::proj_models_at_lps_from]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2274:0-2289:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2280:0-2295:1
     Visibility: public -/
 def kernel.inductives.modeled.proj_models_at_lps_from
   (fe2 : kernel.fenv.FEnv) (t : kernel.name.Name)
@@ -34974,7 +34974,7 @@ def kernel.inductives.modeled.eta_thm_name
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::inductives::modeled::check_eta_thm]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2338:0-2373:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2344:0-2379:1
     Visibility: public -/
 def kernel.inductives.modeled.check_eta_thm
   (mode : kernel.env.CheckMode) (fe2 : kernel.fenv.FEnv) (t : kernel.name.Name)
@@ -35078,7 +35078,7 @@ def kernel.core_k.pi_result_is_prop (e : kernel.expr.Expr) : Result Bool := do
   | kernel.expr.ExprKind.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::inductives::modeled::ind_block_caps]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2583:0-2619:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2589:0-2625:1
     Visibility: public -/
 def kernel.inductives.modeled.ind_block_caps
   (mode : kernel.env.CheckMode) (fe2 : kernel.fenv.FEnv)
@@ -35115,7 +35115,7 @@ def kernel.inductives.modeled.ind_block_caps
     }
 
 /-- [con_ron_core::kernel::inductives::modeled::ctor_targets_fam]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2546:0-2551:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2552:0-2557:1
     Visibility: public -/
 def kernel.inductives.modeled.ctor_targets_fam
   (ctor_ty : kernel.expr.Expr) (t : kernel.name.Name)
@@ -35158,7 +35158,7 @@ def kernel.inductives.inductives_c.check_ind_decl_struct_s.M_ETA
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_fn::M_RANGE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2206:4-2209:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2212:4-2215:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_fn.M_RANGE : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -35169,7 +35169,7 @@ def kernel.inductives.modeled.check_proj_fn.M_RANGE : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_iota_body::M_TELE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2132:4-2135:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2138:4-2141:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_iota_body.M_TELE
   : Array Std.U32 29#usize :=
@@ -35181,7 +35181,7 @@ def kernel.inductives.modeled.check_proj_iota_body.M_TELE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_iota_body::M_SHAPE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2128:4-2131:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2134:4-2137:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_iota_body.M_SHAPE
   : Array Std.U32 28#usize :=
@@ -35193,7 +35193,7 @@ def kernel.inductives.modeled.check_proj_iota_body.M_SHAPE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_iota_body::M_FIELD]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2124:4-2127:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2130:4-2133:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_iota_body.M_FIELD
   : Array Std.U32 31#usize :=
@@ -35205,7 +35205,7 @@ def kernel.inductives.modeled.check_proj_iota_body.M_FIELD
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_iota_body::M_REDEX]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2120:4-2123:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2126:4-2129:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_iota_body.M_REDEX
   : Array Std.U32 31#usize :=
@@ -35217,7 +35217,7 @@ def kernel.inductives.modeled.check_proj_iota_body.M_REDEX
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_iota_body::M_HEAD]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2116:4-2119:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2122:4-2125:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_iota_body.M_HEAD
   : Array Std.U32 21#usize :=
@@ -35353,7 +35353,7 @@ def kernel.inductives.modeled.arg_get_d
   else kernel.expr.bvar 0#u64
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_iota_body]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2103:0-2186:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2109:0-2192:1
     Visibility: public -/
 def kernel.inductives.modeled.check_proj_iota_body
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -35472,7 +35472,7 @@ def kernel.inductives.modeled.check_proj_iota_body
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_iota::M_DOM]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2055:4-2058:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2061:4-2064:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_iota.M_DOM : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -35483,7 +35483,7 @@ def kernel.inductives.modeled.check_proj_iota.M_DOM : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_iota::M_CTELE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2050:4-2054:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2056:4-2060:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_iota.M_CTELE
   : Array Std.U32 36#usize :=
@@ -35496,7 +35496,7 @@ def kernel.inductives.modeled.check_proj_iota.M_CTELE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_iota::M_TELE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2046:4-2049:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2052:4-2055:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_iota.M_TELE
   : Array Std.U32 29#usize :=
@@ -35508,7 +35508,7 @@ def kernel.inductives.modeled.check_proj_iota.M_TELE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_iota::M_LPS]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2042:4-2045:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2048:4-2051:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_iota.M_LPS : Array Std.U32 32#usize :=
   Array.make 32#usize [
@@ -35519,7 +35519,7 @@ def kernel.inductives.modeled.check_proj_iota.M_LPS : Array Std.U32 32#usize :=
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_iota::M_MISS]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2038:4-2041:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2044:4-2047:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_iota.M_MISS
   : Array Std.U32 32#usize :=
@@ -36165,7 +36165,7 @@ def
 }
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_iota]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2025:0-2097:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2031:0-2103:1
     Visibility: public -/
 def kernel.inductives.modeled.check_proj_iota
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -36235,7 +36235,7 @@ def kernel.inductives.modeled.check_proj_iota
       ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_ty::M_TELE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1978:4-1981:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1984:4-1987:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_ty.M_TELE : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -36246,7 +36246,7 @@ def kernel.inductives.modeled.check_proj_ty.M_TELE : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_ty::M_WF]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1974:4-1977:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1980:4-1983:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_ty.M_WF : Array Std.U32 35#usize :=
   Array.make 35#usize [
@@ -36258,7 +36258,7 @@ def kernel.inductives.modeled.check_proj_ty.M_WF : Array Std.U32 35#usize :=
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_ty::M_RES]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1970:4-1973:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1976:4-1979:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_ty.M_RES : Array Std.U32 30#usize :=
   Array.make 30#usize [
@@ -36269,7 +36269,7 @@ def kernel.inductives.modeled.check_proj_ty.M_RES : Array Std.U32 30#usize :=
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_ty::M_ROUND]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1966:4-1969:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1972:4-1975:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_ty.M_ROUND : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -36333,7 +36333,7 @@ def
 }
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_ty]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1957:0-2016:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1963:0-2022:1
     Visibility: public -/
 def kernel.inductives.modeled.check_proj_ty
   (fe2 : kernel.fenv.FEnv) (t : kernel.name.Name)
@@ -36399,7 +36399,7 @@ def kernel.inductives.modeled.check_proj_ty
     ok (core.result.Result.Err ce)
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_lookups::M_EQ]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1913:4-1917:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1919:4-1923:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_lookups.M_EQ
   : Array Std.U32 43#usize :=
@@ -36413,7 +36413,7 @@ def kernel.inductives.modeled.check_proj_lookups.M_EQ
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_lookups::M_PARENT]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1909:4-1912:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1915:4-1918:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_lookups.M_PARENT
   : Array Std.U32 29#usize :=
@@ -36425,7 +36425,7 @@ def kernel.inductives.modeled.check_proj_lookups.M_PARENT
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_lookups::M_TAKEN]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1905:4-1908:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1911:4-1914:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_lookups.M_TAKEN
   : Array Std.U32 22#usize :=
@@ -36436,7 +36436,7 @@ def kernel.inductives.modeled.check_proj_lookups.M_TAKEN
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_lookups::M_MLPS]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1901:4-1904:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1907:4-1910:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_lookups.M_MLPS
   : Array Std.U32 33#usize :=
@@ -36448,7 +36448,7 @@ def kernel.inductives.modeled.check_proj_lookups.M_MLPS
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_lookups::M_MODEL]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1897:4-1900:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1903:4-1906:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_lookups.M_MODEL
   : Array Std.U32 26#usize :=
@@ -36460,7 +36460,7 @@ def kernel.inductives.modeled.check_proj_lookups.M_MODEL
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_lookups::M_ARITY]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1892:4-1896:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1898:4-1902:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_lookups.M_ARITY
   : Array Std.U32 39#usize :=
@@ -36473,7 +36473,7 @@ def kernel.inductives.modeled.check_proj_lookups.M_ARITY
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_lookups::M_CTOR]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1888:4-1891:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1894:4-1897:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_proj_lookups.M_CTOR
   : Array Std.U32 34#usize :=
@@ -36486,7 +36486,7 @@ def kernel.inductives.modeled.check_proj_lookups.M_CTOR
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_lookups]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1879:0-1951:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1885:0-1957:1
     Visibility: public -/
 def kernel.inductives.modeled.check_proj_lookups
   (fe2 : kernel.fenv.FEnv) (t : kernel.name.Name)
@@ -37465,7 +37465,7 @@ def kernel.checker_base.check_proj_shape
           ok (core.result.Result.Err ce)
 
 /-- [con_ron_core::kernel::inductives::modeled::check_proj_fn]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2195:0-2263:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2201:0-2269:1
     Visibility: public -/
 def kernel.inductives.modeled.check_proj_fn
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -37572,7 +37572,7 @@ def kernel.inductives.inductives_c.install_proj_fns_s
 partial_fixpoint
 
 /-- [con_ron_core::kernel::inductives::modeled::iota_rule_stored]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1528:0-1547:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1534:0-1553:1
     Visibility: public -/
 def kernel.inductives.modeled.iota_rule_stored
   (fe2 : kernel.fenv.FEnv) (cv_name : kernel.name.Name)
@@ -37593,7 +37593,7 @@ def kernel.inductives.modeled.iota_rule_stored
     }
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n_frames::M_MIS]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1235:4-1238:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1241:4-1244:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_n_frames.M_MIS
   : Array Std.U32 24#usize :=
@@ -37604,7 +37604,7 @@ def kernel.inductives.modeled.check_iota_thm_n_frames.M_MIS
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n_frames::M_RULE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1231:4-1234:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1237:4-1240:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_n_frames.M_RULE
   : Array Std.U32 19#usize :=
@@ -37615,7 +37615,7 @@ def kernel.inductives.modeled.check_iota_thm_n_frames.M_RULE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n_frames::M_ARITY]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1227:4-1230:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1233:4-1236:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_n_frames.M_ARITY
   : Array Std.U32 23#usize :=
@@ -37626,7 +37626,7 @@ def kernel.inductives.modeled.check_iota_thm_n_frames.M_ARITY
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n_frames::M_CTELE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1223:4-1226:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1229:4-1232:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_n_frames.M_CTELE
   : Array Std.U32 26#usize :=
@@ -37638,7 +37638,7 @@ def kernel.inductives.modeled.check_iota_thm_n_frames.M_CTELE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n_frames::M_RTELE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1219:4-1222:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1225:4-1228:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_n_frames.M_RTELE
   : Array Std.U32 23#usize :=
@@ -37680,7 +37680,7 @@ def kernel.expr_ops.inst_spine
   kernel.expr_ops.inst_spine_from args 0#usize t e
 
 /-- [con_ron_core::kernel::inductives::modeled::inst_pins_plain]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 948:0-966:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 954:0-972:1
     Visibility: public -/
 def kernel.inductives.modeled.inst_pins_plain
   (pins : alloc.vec.Vec kernel.expr.Expr)
@@ -38487,7 +38487,7 @@ def kernel.checker_base.check_typed_list
   kernel.checker_base.check_typed_list_from mode st fe depth xs ts 0#usize
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n_frames]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1199:0-1369:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1205:0-1375:1
     Visibility: public -/
 def kernel.inductives.modeled.check_iota_thm_n_frames
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -38614,7 +38614,7 @@ def kernel.inductives.modeled.check_iota_thm_n_frames
     | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n_ctor::M_RTELE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1115:4-1118:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1121:4-1124:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_n_ctor.M_RTELE
   : Array Std.U32 23#usize :=
@@ -38625,7 +38625,7 @@ def kernel.inductives.modeled.check_iota_thm_n_ctor.M_RTELE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n_ctor::M_CIDX]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1111:4-1114:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1117:4-1120:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_n_ctor.M_CIDX
   : Array Std.U32 23#usize :=
@@ -38636,7 +38636,7 @@ def kernel.inductives.modeled.check_iota_thm_n_ctor.M_CIDX
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n_ctor::M_CTELE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1107:4-1110:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1113:4-1116:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_n_ctor.M_CTELE
   : Array Std.U32 26#usize :=
@@ -38648,7 +38648,7 @@ def kernel.inductives.modeled.check_iota_thm_n_ctor.M_CTELE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n_ctor]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1084:0-1191:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1090:0-1197:1
     Visibility: public -/
 def kernel.inductives.modeled.check_iota_thm_n_ctor
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -38750,7 +38750,7 @@ def kernel.inductives.modeled.check_iota_thm_n_ctor
       | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n::M_RHEAD]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1006:4-1009:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1012:4-1015:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_n.M_RHEAD
   : Array Std.U32 31#usize :=
@@ -38762,7 +38762,7 @@ def kernel.inductives.modeled.check_iota_thm_n.M_RHEAD
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n::M_CTELE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1002:4-1005:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1008:4-1011:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_n.M_CTELE
   : Array Std.U32 26#usize :=
@@ -38774,7 +38774,7 @@ def kernel.inductives.modeled.check_iota_thm_n.M_CTELE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n::M_MAJ]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 998:4-1001:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1004:4-1007:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_n.M_MAJ
   : Array Std.U32 29#usize :=
@@ -38786,7 +38786,7 @@ def kernel.inductives.modeled.check_iota_thm_n.M_MAJ
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n::M_HEAD]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 994:4-997:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1000:4-1003:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_n.M_HEAD
   : Array Std.U32 28#usize :=
@@ -38798,7 +38798,7 @@ def kernel.inductives.modeled.check_iota_thm_n.M_HEAD
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::inst_pins_renamed]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 917:0-937:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 923:0-943:1
     Visibility: public -/
 def kernel.inductives.modeled.inst_pins_renamed
   (pins : alloc.vec.Vec kernel.expr.Expr)
@@ -38826,7 +38826,7 @@ def kernel.inductives.modeled.inst_pins_renamed
 partial_fixpoint
 
 /-- [con_ron_core::kernel::inductives::modeled::pins_wf_from]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 818:0-838:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 824:0-844:1
     Visibility: public -/
 def kernel.inductives.modeled.pins_wf_from
   (fe_self : kernel.fenv.FEnv) (lps : alloc.vec.Vec kernel.name.Name)
@@ -38861,7 +38861,7 @@ def kernel.inductives.modeled.pins_wf_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::inductives::modeled::lift_all_0]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 804:0-812:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 810:0-818:1
     Visibility: public -/
 def kernel.inductives.modeled.lift_all_0
   (k : Std.U64) (pins : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize)
@@ -39305,7 +39305,7 @@ def kernel.expr_ops.lower_bvars
   ok e1
 
 /-- [con_ron_core::kernel::inductives::modeled::lower_all]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 789:0-799:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 795:0-805:1
     Visibility: public -/
 def kernel.inductives.modeled.lower_all
   (k : Std.U64) (args : alloc.vec.Vec kernel.expr.Expr) (cn_p : Std.Usize)
@@ -39348,7 +39348,7 @@ def kernel.inductives.modeled.iota_thm_name
   kernel.name.mk_str head s3
 
 /-- [con_ron_core::kernel::inductives::modeled::nested_rule_shape]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 849:0-906:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 855:0-912:1
     Visibility: public -/
 def kernel.inductives.modeled.nested_rule_shape
   (fe2 : kernel.fenv.FEnv) (fe_self : kernel.fenv.FEnv)
@@ -39442,7 +39442,7 @@ def kernel.inductives.modeled.nested_rule_shape
   else ok none
 
 /-- [con_ron_core::kernel::inductives::modeled::iota_lhs_prefix_ok]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 438:0-461:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 444:0-467:1
     Visibility: public -/
 def kernel.inductives.modeled.iota_lhs_prefix_ok
   (f : kernel.inductives.modeled.BlockRename) (cv_name : kernel.name.Name)
@@ -39474,7 +39474,7 @@ def kernel.inductives.modeled.iota_lhs_prefix_ok
   else ok false
 
 /-- [con_ron_core::kernel::inductives::modeled::iota_stmt_open::M_EQ]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 402:4-405:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 408:4-411:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.iota_stmt_open.M_EQ : Array Std.U32 28#usize :=
   Array.make 28#usize [
@@ -39485,7 +39485,7 @@ def kernel.inductives.modeled.iota_stmt_open.M_EQ : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::iota_stmt_open::M_SHAPE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 398:4-401:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 404:4-407:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.iota_stmt_open.M_SHAPE
   : Array Std.U32 30#usize :=
@@ -39497,7 +39497,7 @@ def kernel.inductives.modeled.iota_stmt_open.M_SHAPE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::iota_stmt_open::M_LPS]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 394:4-397:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 400:4-403:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.iota_stmt_open.M_LPS : Array Std.U32 27#usize :=
   Array.make 27#usize [
@@ -39508,7 +39508,7 @@ def kernel.inductives.modeled.iota_stmt_open.M_LPS : Array Std.U32 27#usize :=
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::iota_stmt_open::M_MISS]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 390:4-393:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 396:4-399:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.iota_stmt_open.M_MISS : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -39532,7 +39532,7 @@ def kernel.checker_base.find_cv
                ok (some cv)
 
 /-- [con_ron_core::kernel::inductives::modeled::iota_stmt_open]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 382:0-431:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 388:0-437:1
     Visibility: public -/
 def kernel.inductives.modeled.iota_stmt_open
   (fe2 : kernel.fenv.FEnv) (cv_name : kernel.name.Name)
@@ -39614,7 +39614,7 @@ def kernel.inductives.modeled.arg_get_last_d
     kernel.expr.dup e
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_n]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 976:0-1076:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 982:0-1082:1
     Visibility: public -/
 def kernel.inductives.modeled.check_iota_thm_n
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -39773,7 +39773,7 @@ def kernel.inductives.modeled.check_iota_thm_n
     | core.result.Result.Err err => ok (core.result.Result.Err err, st)
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_frames::M_MIS]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 688:4-691:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 694:4-697:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_frames.M_MIS
   : Array Std.U32 24#usize :=
@@ -39784,7 +39784,7 @@ def kernel.inductives.modeled.check_iota_thm_frames.M_MIS
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_frames::M_RULE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 684:4-687:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 690:4-693:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_frames.M_RULE
   : Array Std.U32 19#usize :=
@@ -39795,7 +39795,7 @@ def kernel.inductives.modeled.check_iota_thm_frames.M_RULE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_frames::M_CTELE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 680:4-683:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 686:4-689:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_frames.M_CTELE
   : Array Std.U32 26#usize :=
@@ -39807,7 +39807,7 @@ def kernel.inductives.modeled.check_iota_thm_frames.M_CTELE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_frames::M_RTELE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 676:4-679:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 682:4-685:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_frames.M_RTELE
   : Array Std.U32 23#usize :=
@@ -39818,7 +39818,7 @@ def kernel.inductives.modeled.check_iota_thm_frames.M_RTELE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_frames]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 659:0-778:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 665:0-784:1
     Visibility: public -/
 def kernel.inductives.modeled.check_iota_thm_frames
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -39920,7 +39920,7 @@ def kernel.inductives.modeled.check_iota_thm_frames
       | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_ctor::M_RTELE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 568:4-571:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 574:4-577:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_ctor.M_RTELE
   : Array Std.U32 23#usize :=
@@ -39931,7 +39931,7 @@ def kernel.inductives.modeled.check_iota_thm_ctor.M_RTELE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_ctor::M_CIDX]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 564:4-567:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 570:4-573:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_ctor.M_CIDX
   : Array Std.U32 23#usize :=
@@ -39942,7 +39942,7 @@ def kernel.inductives.modeled.check_iota_thm_ctor.M_CIDX
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_ctor::M_CTELE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 560:4-563:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 566:4-569:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm_ctor.M_CTELE
   : Array Std.U32 26#usize :=
@@ -39954,7 +39954,7 @@ def kernel.inductives.modeled.check_iota_thm_ctor.M_CTELE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm_ctor]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 540:0-650:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 546:0-656:1
     Visibility: public -/
 def kernel.inductives.modeled.check_iota_thm_ctor
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -40064,7 +40064,7 @@ def kernel.inductives.modeled.check_iota_thm_ctor
         | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm::M_MAJ]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 492:4-495:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 498:4-501:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm.M_MAJ : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -40075,7 +40075,7 @@ def kernel.inductives.modeled.check_iota_thm.M_MAJ : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm::M_HEAD]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 488:4-491:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 494:4-497:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_thm.M_HEAD : Array Std.U32 28#usize :=
   Array.make 28#usize [
@@ -40086,7 +40086,7 @@ def kernel.inductives.modeled.check_iota_thm.M_HEAD : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_thm]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 470:0-532:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 476:0-538:1
     Visibility: public -/
 def kernel.inductives.modeled.check_iota_thm
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -40144,7 +40144,7 @@ def kernel.inductives.modeled.check_iota_thm
   | core.result.Result.Err err => ok (core.result.Result.Err err, st)
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_rule_fire]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1476:0-1518:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1482:0-1524:1
     Visibility: public -/
 def kernel.inductives.modeled.check_iota_rule_fire
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -40182,7 +40182,7 @@ def kernel.inductives.modeled.check_iota_rule_fire
     | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_rule::M_SHAPE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1420:4-1423:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1426:4-1429:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_rule.M_SHAPE
   : Array Std.U32 19#usize :=
@@ -40193,7 +40193,7 @@ def kernel.inductives.modeled.check_iota_rule.M_SHAPE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_rule::M_RESOLVE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1416:4-1419:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1422:4-1425:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_rule.M_RESOLVE
   : Array Std.U32 29#usize :=
@@ -40205,7 +40205,7 @@ def kernel.inductives.modeled.check_iota_rule.M_RESOLVE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_rule::M_LPS]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1412:4-1415:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1418:4-1421:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_rule.M_LPS : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -40216,7 +40216,7 @@ def kernel.inductives.modeled.check_iota_rule.M_LPS : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_rule::M_FVAR]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1408:4-1411:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1414:4-1417:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_rule.M_FVAR
   : Array Std.U32 26#usize :=
@@ -40228,7 +40228,7 @@ def kernel.inductives.modeled.check_iota_rule.M_FVAR
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_rule::M_BVAR]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1404:4-1407:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1410:4-1413:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_rule.M_BVAR
   : Array Std.U32 29#usize :=
@@ -40240,7 +40240,7 @@ def kernel.inductives.modeled.check_iota_rule.M_BVAR
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_rule::M_NF]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1400:4-1403:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1406:4-1409:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_rule.M_NF : Array Std.U32 26#usize :=
   Array.make 26#usize [
@@ -40251,7 +40251,7 @@ def kernel.inductives.modeled.check_iota_rule.M_NF : Array Std.U32 26#usize :=
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_rule::M_CTOR]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1396:4-1399:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1402:4-1405:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_iota_rule.M_CTOR
   : Array Std.U32 26#usize :=
@@ -40263,7 +40263,7 @@ def kernel.inductives.modeled.check_iota_rule.M_CTOR
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_rule]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1382:0-1469:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1388:0-1475:1
     Visibility: public -/
 def kernel.inductives.modeled.check_iota_rule
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -40361,7 +40361,7 @@ def kernel.inductives.modeled.check_iota_rule
         ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::inductives::modeled::check_iota_rules]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1553:0-1598:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1559:0-1604:1
     Visibility: public -/
 def kernel.inductives.modeled.check_iota_rules
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -40395,7 +40395,7 @@ def kernel.inductives.modeled.check_iota_rules
 partial_fixpoint
 
 /-- [con_ron_core::kernel::inductives::modeled::check_ind_recs_fold]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1779:0-1824:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1785:0-1830:1
     Visibility: public -/
 def kernel.inductives.modeled.check_ind_recs_fold
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -40445,7 +40445,7 @@ def kernel.inductives.inductives_c.check_ind_recs_s.M_EQ
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::provision_recs_step::M_ORDER]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1716:4-1720:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1722:4-1726:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.provision_recs_step.M_ORDER
   : Array Std.U32 40#usize :=
@@ -40512,7 +40512,7 @@ def kernel.level.name_is_model_suffix
   | kernel.name.NameKind.Num _ _ => ok false
 
 /-- [con_ron_core::kernel::inductives::modeled::check_member_val::M_MTY]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1633:4-1636:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1639:4-1642:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_member_val.M_MTY
   : Array Std.U32 26#usize :=
@@ -40524,7 +40524,7 @@ def kernel.inductives.modeled.check_member_val.M_MTY
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_member_val::M_MLPS]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1628:4-1632:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1634:4-1638:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_member_val.M_MLPS
   : Array Std.U32 38#usize :=
@@ -40537,7 +40537,7 @@ def kernel.inductives.modeled.check_member_val.M_MLPS
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_member_val::M_NO_ROUTE]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1623:4-1627:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1629:4-1633:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_member_val.M_NO_ROUTE
   : Array Std.U32 47#usize :=
@@ -40551,7 +40551,7 @@ def kernel.inductives.modeled.check_member_val.M_NO_ROUTE
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_member_val::M_MODEL_NAME]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1619:4-1622:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1625:4-1628:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_member_val.M_MODEL_NAME
   : Array Std.U32 27#usize :=
@@ -40563,7 +40563,7 @@ def kernel.inductives.modeled.check_member_val.M_MODEL_NAME
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_member_val]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1612:0-1668:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1618:0-1674:1
     Visibility: public -/
 def kernel.inductives.modeled.check_member_val
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -40625,7 +40625,7 @@ def kernel.inductives.modeled.check_member_val
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::kernel::inductives::modeled::provision_recs_step]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1709:0-1745:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1715:0-1751:1
     Visibility: public -/
 def kernel.inductives.modeled.provision_recs_step
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -40765,7 +40765,7 @@ def kernel.inductives.inductives_c.check_ind_recs_s
       ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::inductives::modeled::check_ind_member::M_NONIND]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1683:4-1686:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1689:4-1692:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_ind_member.M_NONIND
   : Array Std.U32 30#usize :=
@@ -40777,7 +40777,7 @@ def kernel.inductives.modeled.check_ind_member.M_NONIND
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_ind_member]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1675:0-1701:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1681:0-1707:1
     Visibility: public -/
 def kernel.inductives.modeled.check_ind_member
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -49662,7 +49662,7 @@ def kernel.expr_ops.has_level_param (e : kernel.expr.Expr) : Result Bool := do
 partial_fixpoint
 
 /-- [con_ron_core::kernel::inductives::modeled::provision_recs]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1752:0-1773:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1758:0-1779:1
     Visibility: public -/
 def kernel.inductives.modeled.provision_recs
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -49696,7 +49696,7 @@ def kernel.inductives.modeled.provision_recs
 partial_fixpoint
 
 /-- [con_ron_core::kernel::inductives::modeled::check_ind_recs::M_EQ]
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1840:4-1844:6 -/
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1846:4-1850:6 -/
 @[global_simps, irreducible]
 def kernel.inductives.modeled.check_ind_recs.M_EQ : Array Std.U32 48#usize :=
   Array.make 48#usize [
@@ -49709,7 +49709,7 @@ def kernel.inductives.modeled.check_ind_recs.M_EQ : Array Std.U32 48#usize :=
     ]
 
 /-- [con_ron_core::kernel::inductives::modeled::check_ind_recs]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1833:0-1867:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 1839:0-1873:1
     Visibility: public -/
 def kernel.inductives.modeled.check_ind_recs
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -49744,7 +49744,7 @@ def kernel.inductives.modeled.check_ind_recs
       ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::inductives::modeled::install_proj_fn_step]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2558:0-2574:1
+    Source: 'crates/con-ron-core/src/kernel/inductives/modeled.rs', lines 2564:0-2580:1
     Visibility: public -/
 def kernel.inductives.modeled.install_proj_fn_step
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)

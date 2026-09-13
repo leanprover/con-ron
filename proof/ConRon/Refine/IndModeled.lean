@@ -91,6 +91,47 @@ linearly (task #14) and takes two `fenv::dup`s.  `Refine/FEnv.lean`'s
    `checker_base::open_pis_at_fvars_f`, where `checkIotaThmF`/`checkIotaThmNF`
    write `openPisAtFvars`; con-leche's own `openPisAtFvarsF_eq` says the two
    are the same function (`checkProjRuleF` already uses the `F` spelling).
+6. **Three added hypotheses (task #59), all of them `Refine/Scalars.lean`'s
+   sanctioned `u64 → usize` case or its `instSpine` twin; each is *needed*,
+   because the statement is false without it on a 32-bit target, and each is
+   discharged at the call site from the `Vec` the counter came from.**
+   - `inst_pins_renamed`/`inst_pins_plain`: `pfx.length ≤ rP`.  The walk hands
+     `pfx` to `expr_ops::inst_spine` whole, and `Expr.instSpine` consumes its
+     whole argument list (its `t - 1` is truncated, so an argument past index
+     `t` is still instantiated at `bvar 0`), so the cited `fvs.take rP`
+     spelling is the port's answer exactly when `pfx` is already that prefix.
+     Both call sites build `pfx` with `expr_ops::take_exprs (·) rP`
+     (`modeled.rs:1030`, `:1248`).
+   - `iota_lhs_prefix_ok`: `rP ≤ Usize.max`.  Its two `take_exprs` calls index
+     at `rP as usize`, which Aeneas models as `rP.val % 2 ^ Usize.numBits`.
+     `fvs` is `openPisAtFvars rP tyA 0`, whose length is `rP`, so
+     `Scalars.u64_le_usize_max_of_le_len` discharges it.
+   - `nested_rule_shape`: `cnP ≤ Usize.max`, for its three `cn_p as usize`
+     casts (`lower_all`'s bound, `take_exprs` and `core_k::drop_exprs`).
+   - The same shape at `check_eta_thm_shape`/`check_unit_thm_shape`
+     (`sbinders[nP as usize]`), where it **cascades**: the two halves take
+     `nP ≤ Usize.max`, so `check_unit_thm`, `check_eta_thm` and
+     `ind_block_caps` take it too.  Without it a 32-bit target reads a wrapped
+     binder slot where the cited `sbinders[nP]?` reads `none`, so the two
+     genuinely disagree; the port's guard `(nP as usize) + 1 ≥ sbinders.len()`
+     *is* the cited `sbinders[nP + 1]? = none` once it holds (at the boundary
+     `len = nP + 1` both answer `false`).  `ind_block_caps` is the boundary
+     with `Refine/IndC.lean`, which reads `nP` off the block's stored
+     `.ctorInfo`.
+7. Two more **statement changes** in the member/recursor chain (task #59), both
+   facts the caller already holds rather than new assumptions:
+   - `check_ind_recs` takes `hcan : FEnv.FEnvCanon fe2`.  It runs the
+     provisioning fold on a `fenv::dup` of its index and then the rule fold
+     against *both* views, so the copy has to be the same index again;
+     `FEnv.dup_rel` is what says so and it needs `FEnvCanon`.
+     `Refine/IndNativeInstall.lean` takes it the same way, and
+     `Refine/IndC.lean` discharges it at the driver.
+   - `provision_recs` takes `hout`, the entry-wise well-formedness of its
+     accumulator, and **also concludes it of the answer**.  The conclusion is
+     what `check_ind_recs_fold` needs of `checked` (`provision_recs_step`
+     proves it one entry at a time but the fold had nowhere to put it); the
+     hypothesis is the same fact at the accumulator, and the one call site
+     starts from `Vec::new`.
 
 ## Ingredients this file does not own
 
@@ -105,21 +146,144 @@ result shape — `CheckerBaseSpec`, `StructFamRefines`, `StructSpinesRefine`,
 their exact conclusions under an explicit hypothesis and nothing is weakened;
 the same device `Refine/StateC.lean` uses for `InstantiateListRefines`.
 
+Task #59 added six imports, all of them already-committed siblings and none of
+them a new ingredient: `Refine/CoreKGuards.lean` (`defn_probe`/`ctor_probe` and
+`defnOf`/`ctorOf`), `Refine/CoreKVec.lean` (`drop_exprs`),
+`Refine/CoreKPinned.lean` (`CoreK.envFacts`, which discharges `EnvFacts` for
+`rec_rule_bits`), `Refine/BasisPins.lean` (`eq_basis_pinned`) and con-leche's
+own `ConLeche/Verify/FastOps.lean` (`openPisAtFvarsF_eq`, deviation 5) and
+`ConLeche/Verify/InferLemmas.lean` (`Expr.mkAppN_getApp`, which is what
+deviation 3's spine test needs; `expr_app3_of_spine` below packages it).
+
+Task #59 also gave `StructSpinesRefine` **two more conjuncts**:
+`struct_parts::field_spine` against
+`(List.range m).map (fun j => .bvar (m - 1 - j))`, which `nested_rule_shape`
+reads the major premise's index spine with, and `struct_parts::struct_ps_at`
+against `ConLeche.structPsAt`, which the two `*_thm_shape` halves read the
+subject binder's domain and the type slot with.  `StructSpinesRefine` is the
+only route this file has to `struct_parts`;
+`IndIngredients.structSpinesRefine` discharges both from
+`StructParts.field_spine_refines` / `struct_ps_at_refines`.
+
 ## `sorry` count
 
-43 `sorry`s out of 65 lemmas — one per item that reaches the knot, the shared
-checker base, or a `partial_fixpoint` index recursion this file has no
-foundation for yet.  Every item's statement is the exact-result one of
-DESIGN.md §3.5 and **none is weakened**; each `sorry` carries a one-line note
-naming the pieces its proof composes.
+5 `sorry`s out of 65 lemmas (43 at task #57; task #59 closed thirty-eight) —
+`check_iota_thm`, `check_iota_thm_ctor` and the three `check_iota_thm_n*`
+stages.  Every item's statement is the
+exact-result one of DESIGN.md §3.5 and **none is weakened**; each `sorry`
+carries a one-line note naming the pieces its proof composes.
 
-Proved outright (22): the whole name-map group — `model_str`, `model_of`, the
-four `NameToName`/`DomView` dictionaries against `blockRename`, `projBack`,
-`projFwd` and `projFwd`-as-a-binder-view, `DomIdent`'s identity view, and the
-two `find?` slot searches `find_proj_model_slot`/`find_proj_fn_slot` — the four
-pinned suffix names `iota_thm_name`/`proj_iota_name`/`eta_thm_name`/
-`unit_thm_name`, the readers `thm_probe`/`arg_get_d`/`arg_get_last_d`, and the
-block split's `filter_recs`/`block_names_of` with their index recursions.
+Proved outright (60).  Task #57's 22: the whole name-map group — `model_str`,
+`model_of`, the four `NameToName`/`DomView` dictionaries against `blockRename`,
+`projBack`, `projFwd` and `projFwd`-as-a-binder-view, `DomIdent`'s identity
+view, and the two `find?` slot searches
+`find_proj_model_slot`/`find_proj_fn_slot` — the four pinned suffix names
+`iota_thm_name`/`proj_iota_name`/`eta_thm_name`/`unit_thm_name`, the readers
+`thm_probe`/`arg_get_d`/`arg_get_last_d`, and the block split's
+`filter_recs`/`block_names_of` with their index recursions.
+
+Task #59's 38: the five index recursions `lower_all`, `lift_all_0`,
+`pins_wf_from`, `inst_pins_renamed` and `inst_pins_plain`; the two `nF - j`
+recursions `eta_projs_from` and `proj_models_at_lps_from`; the block split's
+`single_ind_ctor_from` and `single_ind_ctor`; the nested shape's
+`nested_rule_shape`; the canonical statement's `iota_stmt_open`,
+`iota_lhs_prefix_ok` and `check_iota_sides_ty` (the knot's
+`inferType`/`isDefEq` pairs, both lanes); the rules' `iota_rule_stored`; the
+capability artifacts `eta_rhs`, `check_eta_thm`, `check_unit_thm`,
+`ind_block_caps`, `ctor_residual_ok` and `ctor_targets_fam`; and the
+projection functions' `check_proj_lookups` and `check_proj_ty`; the rules' `iota_rule_stored`; and
+the **whole member/recursor chain** — `level::is_model_str` and
+`name_is_model_suffix` (the two `Refine/Level.lean` readings `checkMemberValF`
+needs, proved here because this is their only caller), `check_member_val`,
+`check_ind_member`, `provision_recs_step`, `provision_recs`,
+`check_ind_recs_fold` and `check_ind_recs`, which is what `Refine/IndC.lean`'s
+`check_ind_member_s` / `provision_recs_s` / `check_ind_recs_s` drivers sit on;
+the two statement-shape halves `check_unit_thm_shape` and
+`check_eta_thm_shape`, the first consumers of deviation 3's spine bridge; and
+the **whole projection-function group** — `check_proj_iota_body`,
+`check_proj_iota`, `check_proj_fn` and `install_proj_fn_step`; the rules'
+`check_iota_rule_fire`, `check_iota_rule` and `check_iota_rules`, the last an
+index recursion that carries the accumulator in front of con-leche's cons; and
+the iota statement's `check_iota_thm_frames`.
+
+The five that remain are **blocked on a port bug, not on work** — task #59's
+principal finding.  Every one of them indexes a `Vec<Expr>` at a `u64 → usize`
+cast where the cited body indexes at a `Nat`: `core_k::drop_exprs fvs (r_p as
+usize)`, `expr_ops::take_exprs fvs (cn_p as usize)` and four more like them.
+That is `Refine/Scalars.lean`'s hazard — the cast's model is
+`i.val % 2 ^ System.Platform.numBits` — so on a 32-bit target the statements
+are **false** as written.
+
+A `r_p.val ≤ Std.Usize.max` bound could travel as a hypothesis: `r_p` is a
+parameter of every stage out through `check_iota_rule_fire`,
+`check_iota_rule`, `check_iota_rules`, `check_ind_recs_fold` and
+`check_ind_recs` to `Refine/IndC.lean`.  A `cn_p.val ≤ Std.Usize.max` one
+**cannot**: `check_iota_rule` reads `cn_p` out of its own
+`core_k::ctor_probe`, so it is in scope at no caller, and the bound would have
+to be bought as an invariant on the index.
+
+The fix is in the Rust.  DESIGN.md §3.3 already rules that a `u64` count is
+consumed by a counting recursion rather than cast, and task #61 added
+`core_k::take_exprs_n` / `drop_exprs_n` for exactly this and swept `core_c.rs`
+with them; `modeled.rs` was not swept.  Calling the `_n` forms in
+`modeled.rs`'s five iota-theorem stages makes all five statements
+unconditionally true and deletes the `r_p` cascade with them.  The stages
+below stay `sorry` until that lands, rather than being bought with a
+`ScalarsWF`-style invariant that would paper the bug over.
+
+`check_iota_thm_frames` is the one of the six that *is* proved, because its
+`cn_p` is a parameter: it carries `hcnp : cn_p.val ≤ Std.Usize.max`, the one
+hypothesis the port bug forces, and that hypothesis disappears the moment
+`modeled.rs` calls `take_exprs_n`.  Nothing green depends on it — its only
+consumer, `check_iota_thm_ctor`, is still `sorry`.
+
+The projection group's one statement question, settled at task #59: the port's
+iota body builds the constructor spine head from `cvj.name`
+(`modeled.rs:2149`) where `checkProjIotaF` writes `ctorName`, and the indexed
+reading cannot see that the two are the same name.  So
+`check_proj_iota_refines` takes `hcname : absName cvj.name = absName
+ctor_name` — false without it, since `cvj` is a *parameter* there — and
+`check_proj_fn_refines`, the only caller, discharges it from `FEnvCanon fe2`
+(also new on its statement, and on `install_proj_fn_step_refines`) through
+`FEnv.canon_find_name`, applied to a conjunct added to
+`check_proj_lookups_refines`' conclusion (a strengthening: the constant it
+returns is the one stored under `ctorName`).  `StructSpinesRefine` travels
+with the group for the same reason it travels with `check_unit_thm_shape`:
+`Refine/IndStructParts.lean` owns the spine builders, and
+`IndIngredients.structSpinesRefine` discharges it at the driver.
+
+Five shapes carried the work and are worth reusing.
+* An index recursion goes by `induction` on a `Nat` bound with the
+  `partial_fixpoint` equation rewritten in each branch (`lower_all_val` is the
+  smallest example).
+* A `core::result` `match` is peeled with `cases` on the `Result` and
+  `bind_eq_ok_iff.mp` *through* the unreduced tuple `let` — never
+  `rw [if_pos]`, whose pattern would mention the match's shadowed binder.  Past
+  the second nested `let`, a full `simp at h` turns the rest of the body into
+  an explicit disjunction of `(guard = ok false ∧ b = false)` cases, which
+  `rcases` reads off directly (`check_unit_thm_refines`).
+* A `CheckCM` run equation is assembled by `simp` from the operation lemmas'
+  `.run` facts, or — when the cited body's string interpolation gets in the way
+  — by a local `*_run` lemma stated at the facts the success path pins
+  (`iotaStmtOpen_run`).
+* A `Bool` guard cascade that the cited body writes as one multi-scrutinee
+  `match` is re-read through the port's owning probes first
+  (`unitThmF_read`/`etaThmF_read`), by nested `cases` on each `find?` with
+  `try rfl`; a 7^k blow-up of `cases ci₁ <;> cases ci₂ <;> …` does not
+  elaborate, the nested form does.
+* A transcription's own `match` on an abstracted record (`checkIndMemberN`,
+  `provisionRecsStepN`) will not reduce by `rw`/`simp [absConstantInfo]`: the
+  matcher's motive depends on the scrutinee, so neither can rewrite it.  Either
+  destructure with plain `cases ci` (which substitutes in the hypotheses too,
+  so `absConstantInfo` unfolds on both sides), or — when that is not enough —
+  state a `*_rec`-style run lemma at a *literal* constructor and apply it up to
+  defeq (`provisionRecsStepN_rec`).
+* An `Expr` node is decomposed as `obtain ⟨⟨d, k⟩⟩ := e; cases k` with
+  `absExpr_mk`/`absExprKind` on the goal and `ExprOps.node_kind` on the
+  hypothesis; **do not name the constructor fields in `case`** — `cases` on a
+  kind under reverted hypotheses shifts the names, so refer to the children
+  only through `CoreK.ExprWF.forallE_children`/`const_children` and the
+  refinement equations (`nested_rule_shape_refines`).
 -/
 import ConRon.Refine.IndAbs
 import ConRon.Refine.IndSumParts
@@ -128,6 +292,12 @@ import ConRon.Refine.ExprOpsMeta
 import ConRon.Refine.ExprOpsSpine
 import ConRon.Refine.CoreKBase
 import ConRon.Refine.CoreKNames
+import ConRon.Refine.CoreKGuards
+import ConRon.Refine.CoreKVec
+import ConRon.Refine.CoreKPinned
+import ConRon.Refine.BasisPins
+import ConLeche.Verify.FastOps
+import ConLeche.Verify.InferLemmas
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel ConRon.Generated.kernel.inductives
@@ -426,6 +596,21 @@ theorem dom_ident_view_refines :
   intro i e r h
   rw [checker_base.DomIdent.Insts.Con_ron_coreKernelChecker_baseDomView.view] at h
   simpa using (Result.ok_injective (by simpa [expr_dup_eq] using h)).symm
+
+/-- `DomIdent`'s view in the shape `CheckerBaseSpec.domsMatchAux` consumes: the
+field asks for the `gl`-valued reading with the `ExprWF` bookkeeping, where
+`dom_ident_view_refines` above is the sharper `r = e`.  (`Refine/CheckerBase.lean`
+carries the same adapter as `dom_ident_view_gl` for its own corollary; it is
+repeated here so that this file does not import the checker-base tier for three
+lines.) -/
+theorem dom_ident_view_gl :
+    ∀ (i : Std.U64) (e : expr.Expr), ExprWF e → ∀ r,
+      checker_base.DomIdent.Insts.Con_ron_coreKernelChecker_baseDomView.view
+          () i e = ok r →
+      absExpr r = (fun _ e => e) i.val (absExpr e) ∧ ExprWF r := by
+  intro i e he r hr
+  rw [dom_ident_view_refines i e r hr]
+  exact ⟨rfl, he⟩
 
 
 
@@ -1091,6 +1276,51 @@ theorem block_rename_renames {bn : alloc.vec.Vec name.Name} (hbn : NamesWF bn) :
     RenamesTo { block_names := bn } (blockRename (absNames bn)) :=
   block_rename_rename_refines hbn
 
+/-- `struct_parts::struct_fam` refines `structFam`, the constructor residual
+`T p⃗` an index-free single-constructor family targets.  **Owned by
+`Refine/IndStructParts.lean`**; named here so that `ctor_targets_fam` and
+`ctor_residual_ok` keep their exact conclusions under an explicit
+ingredient. -/
+def StructFamRefines : Prop :=
+  ∀ (t : name.Name) (lps : alloc.vec.Vec name.Name) (n_p o : Std.U64)
+    (e : expr.Expr), NameWF t → NamesWF lps →
+    inductives.struct_parts.struct_fam t lps n_p o = ok e →
+    absExpr e = ConLeche.structFam (absName t) (absNames lps) n_p.val o.val
+      ∧ ExprWF e
+
+/-- `struct_parts`' three spine builders — `params_of` (`lps.map .param`),
+`struct_proj_ps` (the parameter `bvar` spine) and `field_spine`/`struct_ps_at`
+(the field and parameter spines `checkProjIota`/`checkEtaThm` write out).
+**Owned by `Refine/IndStructParts.lean`.** -/
+def StructSpinesRefine : Prop :=
+  (∀ (lps : alloc.vec.Vec name.Name) (v : alloc.vec.Vec level.Level),
+      NamesWF lps → inductives.struct_parts.params_of lps = ok v →
+      absLevels v = (absNames lps).map ConLeche.Level.param ∧ LevelsWF v)
+  ∧ (∀ (n_p : Std.U64) (v : alloc.vec.Vec expr.Expr),
+      inductives.struct_parts.struct_proj_ps n_p = ok v →
+      absExprs v
+          = (List.range n_p.val).map (fun k => ConLeche.Expr.bvar (n_p.val - k))
+        ∧ ExprsWF v)
+  ∧ (∀ (m : Std.U64) (v : alloc.vec.Vec expr.Expr),
+      inductives.struct_parts.field_spine m = ok v →
+      absExprs v
+          = (List.range m.val).map (fun j => ConLeche.Expr.bvar (m.val - 1 - j))
+        ∧ ExprsWF v)
+  ∧ (∀ (o n_p : Std.U64) (v : alloc.vec.Vec expr.Expr),
+      inductives.struct_parts.struct_ps_at o n_p = ok v →
+      absExprs v = ConLeche.structPsAt o.val n_p.val ∧ ExprsWF v)
+
+/-- The three-argument spine, backwards: `getAppFn`/`getAppArgs` decompose
+exactly the nested `.app` the cited bodies pattern-match on, so deviation 3's
+spine test and their four nested matches agree on every `Expr`.  con-leche's
+own `Expr.mkAppN_getApp` (`Verify/InferLemmas.lean:648`) is what says it. -/
+theorem expr_app3_of_spine {e hd a b c : ConLeche.Expr}
+    (hfn : e.getAppFn = hd) (hargs : e.getAppArgs = [a, b, c]) :
+    e = .app (.app (.app hd a) b) c := by
+  conv_lhs => rw [← ConLeche.Expr.mkAppN_getApp e]
+  rw [hfn, hargs]
+  rfl
+
 section Stages
 
 variable {mode : env.CheckMode} (hw : Core.Wrappers mode IndAbs.checkFuelU)
@@ -1098,8 +1328,31 @@ variable {mode : env.CheckMode} (hw : Core.Wrappers mode IndAbs.checkFuelU)
 
 include hw hcb
 
+omit hw hcb in
+/-- `CoreK.ctorOf`'s inversion: a `some` answer pins the stored constant. -/
+theorem ctorOf_inv {X : Option ConLeche.ConstantInfo}
+    {cv : ConLeche.ConstantVal} {nP nF : Nat}
+    (h : CoreK.ctorOf X = some (cv, nP, nF)) :
+    X = some (.ctorInfo cv nP nF) := by
+  cases X with
+  | none => simp [CoreK.ctorOf] at h
+  | some ci => cases ci <;> simp_all [CoreK.ctorOf]
+
+omit hw hcb in
+/-- `CoreK.defnOf`'s inversion: a `some` answer pins the stored constant. -/
+theorem defnOf_inv {X : Option ConLeche.ConstantInfo}
+    {cv : ConLeche.ConstantVal} {v : ConLeche.Expr}
+    {hint : ConLeche.ReducibilityHint}
+    (h : CoreK.defnOf X = some (cv, v, hint)) :
+    X = some (.defnInfo cv v hint) := by
+  cases X with
+  | none => simp [CoreK.defnOf] at h
+  | some ci => cases ci <;> simp_all [CoreK.defnOf]
+
+
 /-! ## The side certificates (`Modeled.lean:31-53`) -/
 
+set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/Inductives/Modeled.lean:31-53` — `check_iota_sides_ty`
 refines `checkIotaSidesTy`: both sides of a modeled iota equation inhabit the
 equation's type, and (in the TT lane) the type slot inhabits the sort the
@@ -1119,13 +1372,118 @@ theorem check_iota_sides_ty_refines
             (absExpr alpha_s) (absExpr lhs_s) (absExpr rhs_s) (absLevel l_a)
             lcvName).run lst = .ok ((), lst')
         ∧ StateRel st' lst' ∧ StateWF st' := by
-  -- `IndAbs.ops_infer` twice, `IndAbs.ops_defeq` twice, then the `ttChecks`
-  -- arm's third pair
-  sorry
+  intro lst lfe lcvName hrel hfer
+  rw [inductives.modeled.check_iota_sides_ty] at h
+  simp only [IndAbs.check_fuel_eq, bind_tc_ok] at h
+  obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r, st1⟩ := p
+  cases r with
+  | Err err => simp at h
+  | Ok tl =>
+  obtain ⟨lst1, hrun1, hrel1, hwf1, htlwf⟩ :=
+    IndAbs.ops_infer hw hst hfe hl hp lst lfe hrel hfer
+  obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r2, st2⟩ := p2
+  cases r2 with
+  | Err err => simp at h
+  | Ok b =>
+  obtain ⟨lst2, hrun2, hrel2, hwf2⟩ :=
+    IndAbs.ops_defeq hw hwf1 hfe htlwf ha hp2 lst1 lfe hrel1 hfer
+  cases b with
+  | false => simp at h
+  | true =>
+  obtain ⟨p3, hp3, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r3, st3⟩ := p3
+  cases r3 with
+  | Err err => simp at h
+  | Ok tr =>
+  obtain ⟨lst3, hrun3, hrel3, hwf3, htrwf⟩ :=
+    IndAbs.ops_infer hw hwf2 hfe hr hp3 lst2 lfe hrel2 hfer
+  obtain ⟨p4, hp4, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r4, st4⟩ := p4
+  cases r4 with
+  | Err err => simp at h
+  | Ok b1 =>
+  obtain ⟨lst4, hrun4, hrel4, hwf4⟩ :=
+    IndAbs.ops_defeq hw hwf3 hfe htrwf ha hp4 lst3 lfe hrel3 hfer
+  cases b1 with
+  | false => simp at h
+  | true =>
+  obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+  have hb2v : b2 = (absMode mode).ttChecks := Env.tt_checks_refines hb2
+  have henv : absEnv fe_self.env = lfe.env := hfer.1
+  rw [henv] at hrun1 hrun2 hrun3 hrun4
+  cases hb2t : b2 with
+  | false =>
+    rw [hb2t] at h hb2v
+    rw [if_neg (by simp), Result.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨-, rfl⟩ := h
+    refine ⟨lst4, ?_, hrel4, hwf4⟩
+    simp only [StateT.run] at hrun1 hrun2 hrun3 hrun4
+    rw [ConLeche.checkIotaSidesTy]
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hrun1, hrun2, hrun3, hrun4, ← hb2v]
+  | true =>
+  rw [hb2t] at h hb2v
+  obtain ⟨p5, hp5, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r5, st5⟩ := p5
+  cases r5 with
+  | Err err => simp at h
+  | Ok talpha =>
+  obtain ⟨lst5, hrun5, hrel5, hwf5, htawf⟩ :=
+    IndAbs.ops_infer hw hwf4 hfe ha hp5 lst4 lfe hrel4 hfer
+  rw [henv] at hrun5
+  obtain ⟨l, hlq, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨srt, hsrt, h⟩ := bind_eq_ok_iff.mp h
+  have hlv : l = l_a := by
+    rw [level_dup_eq] at hlq; exact (Result.ok_injective hlq).symm
+  have hsrtv : absExpr srt = ConLeche.Expr.sort (absLevel l_a) := by
+    rw [Expr.sort_refines hsrt, hlv]
+  have hsrtwf : ExprWF srt := ExprWF.sort (by rw [hlv]; exact hla) hsrt
+  obtain ⟨p6, hp6, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r6, st6⟩ := p6
+  cases r6 with
+  | Err err => simp at h
+  | Ok b3 =>
+  obtain ⟨lst6, hrun6, hrel6, hwf6⟩ :=
+    IndAbs.ops_defeq hw hwf5 hfe htawf hsrtwf hp6 lst5 lfe hrel5 hfer
+  rw [henv, hsrtv] at hrun6
+  cases b3 with
+  | false => simp at h
+  | true =>
+  have h6 : (ok (core.result.Result.Ok (), st6)
+      : Result ((core.result.Result Unit core_types.CheckError)
+        × cached.state_c.CState)) = ok (.Ok (), st') := h
+  rw [Result.ok.injEq, Prod.mk.injEq] at h6
+  obtain ⟨-, rfl⟩ := h6
+  refine ⟨lst6, ?_, hrel6, hwf6⟩
+  simp only [StateT.run] at hrun1 hrun2 hrun3 hrun4 hrun5 hrun6
+  rw [ConLeche.checkIotaSidesTy]
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, hrun1, hrun2, hrun3, hrun4, hrun5, hrun6,
+    ← hb2v]
 
 /-! ## The canonical iota statement (`Modeled.lean:55-149`,
 `DeclCheck.lean:507-573`) -/
 
+omit hw hcb in
+/-- `iotaStmtOpen`'s run, at the five facts the port's success path pins. -/
+theorem iotaStmtOpen_run {lfe : ConLeche.FEnv} {cvName : ConLeche.Name}
+    {lps : List ConLeche.Name} {rP cnF j : Nat} {cvt : ConLeche.ConstantVal}
+    {fvs : List ConLeche.Expr} {tb : ConLeche.Expr}
+    {lst : ConLeche.Cached.CState}
+    (h1 : lfe.findCV? ((cvName.str "_model").str s!"iota_{j}") = some cvt)
+    (h2 : cvt.levelParams = lps)
+    (h3 : ConLeche.openPisAtFvars (rP + cnF) cvt.type 0 = some (fvs, tb))
+    (h4 : ConLeche.isEqHead tb.getAppFn = true)
+    (h5 : tb.getAppArgs.length = 3) :
+    (iotaStmtOpen lfe cvName lps rP cnF j).run lst
+      = .ok ((fvs, tb.getAppArgs, ConLeche.eqHeadLevel tb.getAppFn), lst) := by
+  rw [iotaStmtOpen, h1]
+  simp [ConLeche.unwrapOr, h2, h3, h4, h5, StateT.run, Bind.bind,
+    StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure]
+
+set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:512-528` — `iota_stmt_open` refines
 `checkIotaThmF`'s statement head (`iotaStmtOpen`).  It touches no state, so the
 conclusion is an equation in `CheckCM` at *every* state.
@@ -1146,29 +1504,215 @@ theorem iota_stmt_open_refines
         j.val).run lst
           = .ok ((absExprs q.1, absExprs q.2.1, absLevel q.2.2), lst))
       ∧ ExprsWF q.1 ∧ ExprsWF q.2.1 ∧ LevelWF q.2.2 := by
-  -- `iota_thm_name_refines`, the `findCv` ingredient, `openPisAtFvarsF`,
-  -- `get_app_fn`/`get_app_args` and the two `isEqHead` guards
-  sorry
+  rw [inductives.modeled.iota_stmt_open] at h
+  obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hnv, hnwf⟩ := iota_thm_name_refines hcv hn
+  obtain ⟨hoabs, howf⟩ := hcb.findCv fe2 lfe n o hrel hfe hnwf ho
+  rw [hnv] at hoabs
+  cases o with
+  | none => simp at h
+  | some cvt =>
+  have hcvtwf : ConstantValWF cvt := howf cvt rfl
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  have hbv : b = decide (absNames cvt.level_params = absNames lps) :=
+    Env.names_beq_refines hcvtwf.2.1 hlps hb
+  cases b with
+  | false => simp at h
+  | true =>
+  have hlpseq : (absConstantVal cvt).levelParams = absNames lps := by
+    simpa [absConstantVal] using (of_decide_eq_true hbv.symm)
+  obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+  have hkv : k.val = r_p.val + cn_f.val := HashMap.uscalar_add_eq hk
+  obtain ⟨ho1abs, ho1wf⟩ := hcb.openPisAtFvarsF k cvt.ty 0#u64 o1 hcvtwf.2.2 ho1
+  rw [hkv, show ((0#u64 : Std.U64)).val = 0 from rfl,
+    ConLeche.openPisAtFvarsF_eq] at ho1abs
+  cases o1 with
+  | none => simp at h
+  | some z =>
+  obtain ⟨fvs, tb⟩ := z
+  obtain ⟨hfvswf, htbwf⟩ := ho1wf _ rfl
+  simp only [Option.map_some] at ho1abs
+  obtain ⟨head, hhead, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨targs, htargs, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hheadv, hheadwf⟩ := ExprOps.get_app_fn_refines htbwf hhead
+  obtain ⟨htargsv, htargswf⟩ := ExprOps.get_app_args_refines htbwf htargs
+  have hb1v : b1 = ConLeche.isEqHead (absExpr head) :=
+    hcb.isEqHead head b1 hheadwf hb1
+  cases b1 with
+  | false => simp at h
+  | true =>
+  by_cases hlen : (alloc.vec.Vec.len targs) != 3#usize
+  · rw [if_pos hlen] at h; simp at h
+  · rw [if_neg hlen] at h
+    obtain ⟨l, hl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hlv, hlwf⟩ := hcb.eqHeadLevel head l hheadwf hl
+    rw [Result.ok.injEq, core.result.Result.Ok.injEq] at h
+    subst h
+    have hlenv : (ConLeche.Expr.getAppArgs (absExpr tb)).length = 3 := by
+      rw [← htargsv]
+      simp only [absExprs, List.length_map]
+      have := alloc.vec.Vec.len_val targs
+      simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hlen
+      scalar_tac
+    simp only [Option.map_some] at hoabs
+    rw [show ("iota_" ++ toString j.val)
+        = (toString "iota_" ++ toString j.val) from rfl] at hoabs
+    refine ⟨?_, hfvswf, htargswf, hlwf⟩
+    intro lst
+    rw [show absExpr cvt.ty = (absConstantVal cvt).type from rfl] at ho1abs
+    have h4 : ConLeche.isEqHead (absExpr tb).getAppFn = true := by
+      rw [← hheadv]; exact hb1v.symm
+    rw [iotaStmtOpen_run hoabs.symm hlpseq ho1abs.symm h4 hlenv, ← htargsv,
+      ← hheadv, ← hlv]
 
+set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:529-534` — `iota_lhs_prefix_ok` refines the
-left side's head, arity and prefix pins (`iotaLhsPrefixOk`). -/
+left side's head, arity and prefix pins (`iotaLhsPrefixOk`).
+
+`hrp` (added at task #59, the sanctioned `Refine/Scalars.lean` case): the two
+`take_exprs` calls index at `rP as usize`, and Aeneas models that cast as
+`rP.val % 2 ^ Usize.numBits`, so on a 32-bit target with `rP.val > Usize.max`
+the port takes a *wrapped* prefix where the cited `largs.take rP` takes the
+whole list — the statement is false without the bound.  Callers have it:
+`fvs` is `openPisAtFvars rP tyA 0`, whose length is `rP`, so
+`Scalars.u64_le_usize_max_of_le_len` discharges it. -/
 theorem iota_lhs_prefix_ok_refines
     {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
     {cv_name : name.Name} {lps : alloc.vec.Vec name.Name} {m_i r_p : Std.U64}
     {fvs largs : alloc.vec.Vec expr.Expr} {lhs_s : expr.Expr} {b : Bool}
+    (hspines : StructSpinesRefine)
     (hf : RenamesTo f g) (hcv : NameWF cv_name) (hlps : NamesWF lps)
     (hfvs : ExprsWF fvs) (hlargs : ExprsWF largs) (hlhs : ExprWF lhs_s)
+    (hrp : r_p.val ≤ Std.Usize.max)
     (h : inductives.modeled.iota_lhs_prefix_ok f cv_name lps m_i r_p fvs lhs_s
         largs = ok b) :
     b = iotaLhsPrefixOk g (absName cv_name) (absNames lps) m_i.val r_p.val
       (absExprs fvs) (absExpr lhs_s) (absExprs largs) := by
-  -- `ExprOpsSpine.get_app_fn_refines`, `Expr.beq` exactly, `take_exprs`
-  sorry
+  rw [inductives.modeled.iota_lhs_prefix_ok] at h
+  obtain ⟨head, hhead, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨us, hus, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨expected, hexp, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b0, hb0, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hheadv, hheadwf⟩ := ExprOps.get_app_fn_refines hlhs hhead
+  obtain ⟨hnmv, hnmwf⟩ := hf cv_name hcv nm hnm
+  obtain ⟨husv, huswf⟩ := hspines.1 lps us hlps hus
+  have hexpv : absExpr expected
+      = ConLeche.Expr.const (g (absName cv_name))
+          ((absNames lps).map ConLeche.Level.param) := by
+    rw [Expr.mk_const_refines hexp, hnmv, husv]
+  have hexpwf : ExprWF expected := ExprWF.mk_const hnmwf huswf hexp
+  have hb0v : b0 = decide (absExpr head = absExpr expected) :=
+    Expr.beq_refines hheadwf hexpwf hb0
+  rw [iotaLhsPrefixOk, ← hheadv, ← hexpv,
+    show ((absExpr head == absExpr expected) : Bool) = b0 by
+      rw [hb0v, Bool.eq_iff_iff]; simp]
+  by_cases hb0t : b0 = true
+  · rw [if_pos hb0t] at h
+    obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    simp only [lift_eq, Result.ok.injEq] at hi1
+    subst hi1
+    have hi1v : (Std.UScalar.cast .U64 (alloc.vec.Vec.len largs) : Std.U64).val
+        = largs.val.length := by
+      rw [ExprOps.usize_cast_u64_val]
+      have := alloc.vec.Vec.len_val largs
+      scalar_tac
+    have hi2v : i2.val = m_i.val + 1 := HashMap.uscalar_add_eq hi2
+    have hlenv : (absExprs largs).length = largs.val.length := by
+      simp [absExprs]
+    by_cases hne :
+        (Std.UScalar.cast .U64 (alloc.vec.Vec.len largs) : Std.U64) != i2
+    · rw [if_pos hne, Result.ok.injEq] at h
+      rw [← h, hb0t]
+      simp only [bne_iff_ne, ne_eq] at hne
+      rw [show (((absExprs largs).length == m_i.val + 1) : Bool) = false by
+        simp only [beq_eq_false_iff_ne, ne_eq, hlenv]
+        intro hc; exact hne (by scalar_tac)]
+      simp
+    · rw [if_neg hne] at h
+      simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hne
+      rw [show (((absExprs largs).length == m_i.val + 1) : Bool) = true by
+        rw [hlenv, ← hi1v, hne, hi2v]; simp]
+      obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨v2, hv2, h⟩ := bind_eq_ok_iff.mp h
+      simp only [lift_eq, Result.ok.injEq] at hi3 hi4
+      have hcast : (Std.UScalar.cast .Usize r_p : Std.Usize).val = r_p.val :=
+        ExprOps.u64_cast_usize_val hrp
+      obtain ⟨hv1v, hv1wf⟩ := ExprOps.take_exprs_refines hlargs hv1
+      obtain ⟨hv2v, hv2wf⟩ := ExprOps.take_exprs_refines hfvs hv2
+      rw [← hi3, hcast] at hv1v
+      rw [← hi4, hcast] at hv2v
+      rw [Env.exprs_beq_refines hv1wf hv2wf h, hv1v, hv2v, hb0t,
+        Bool.eq_iff_iff]
+      simp
+  · simp only [Bool.not_eq_true] at hb0t
+    rw [if_neg (by simp [hb0t]), Result.ok.injEq] at h
+    rw [← h, hb0t]
+    simp
+
+omit hw hcb in
+/-- `checkIotaThmFrames`' success path, run: the recursor telescope, the
+constructor telescope instantiated at the parameter head, the three frame
+comparisons and the rule's own applied right-hand side, then the side
+certificates. -/
+theorem checkIotaThmFrames_run {lmode : ConLeche.CheckMode}
+    {lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {tyA rhsA lhsS rhsS : ConLeche.Expr}
+    {rP cnP cnF : Nat} {cvj : ConLeche.ConstantVal}
+    {fvs targs : List ConLeche.Expr} {lA : ConLeche.Level}
+    {fvsP tyRest cdomsP crestP xFvsP xrest ldoms lrest : _}
+    {lst lst1 lst2 lst3 lst4 : ConLeche.Cached.CState}
+    (h1 : ConLeche.openPisAtFvars rP tyA 0 = some (fvsP, tyRest))
+    (h2 : ConLeche.Expr.instPisAt (fvsP.take cnP) cvj.type
+      = some (cdomsP, crestP))
+    (h3 : (ConLeche.checkDefEqList (m := ConLeche.Cached.CheckCM)
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe.env (rP + cnF)
+        ((fvsP.take cnP).map ConLeche.Expr.fvarTypeD) cdomsP).run lst
+      = .ok ((), lst1))
+    (h4 : ConLeche.openPisAtFvars cnF crestP rP = some (xFvsP, xrest))
+    (h5 : ConLeche.Expr.instLamsAt (fvsP ++ xFvsP) rhsA = some (ldoms, lrest))
+    (h6 : (ConLeche.checkDefEqList (m := ConLeche.Cached.CheckCM)
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe.env (rP + cnF)
+        ((fvsP ++ xFvsP).map ConLeche.Expr.fvarTypeD) ldoms).run lst1
+      = .ok ((), lst2))
+    (h7 : ((ConLeche.Cached.sharedOpsC lmode lfe).isDefEq lfe.env (rP + cnF)
+        rhsS (ConLeche.Expr.mkAppN (rhsA.renameConsts g) fvs)).run lst2
+      = .ok (true, lst3))
+    (h8 : (ConLeche.checkIotaSidesTy (m := ConLeche.Cached.CheckCM) lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe.env (rP + cnF)
+        (targs.getD 0 (.bvar 0)) lhsS rhsS lA cvName).run lst3
+      = .ok ((), lst4)) :
+    (checkIotaThmFrames lmode lfe g cvName tyA rP cvj cnP cnF rhsA fvs targs
+        lhsS rhsS lA).run lst = .ok ((), lst4) := by
+  rw [checkIotaThmFrames]
+  simp only [StateT.run] at h3 h6 h7 h8
+  simp only [List.map_take, List.map_append] at h3 h6
+  simp only [List.getD_eq_getElem?_getD] at h8
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, ConLeche.unwrapOr, h1, h2, h3, h4, h5, h6, h7, h8]
 
 /-- `ConLeche/Kernel/DeclCheck.lean:556-572` — `check_iota_thm_frames` refines
 `checkIotaThmFrames`: the rule's λ-domains are the public recursor prefix and
 constructor field domains, the right side is definitionally the rule's applied
-rhs, and both sides inhabit the equation's type slot. -/
+rhs, and both sides inhabit the equation's type slot.
+
+`hcnp` (added at task #59) — the statement is **false** without it, and only
+because of a port bug: the body reads the parameter head as
+`expr_ops::take_exprs fvsP (cn_p as usize)` where the cited body writes
+`fvsP.take cnP`, and `Refine/Scalars.lean`'s hazard says a `u64 → usize` cast
+wraps on a 32-bit target.  DESIGN.md §3.3 rules that a `u64` count is consumed
+by a counting recursion; task #61 added `core_k::take_exprs_n`/`drop_exprs_n`
+and swept `core_c.rs`, but not `modeled.rs`.  When this line calls
+`take_exprs_n`, `hcnp` comes straight off the statement.  Here `cn_p` *is* a
+parameter, so the bound can be carried; at `check_iota_rule`, where `cn_p`
+comes out of `core_k::ctor_probe`, it cannot — which is why the four stages
+that sit between the two are still `sorry`. -/
 theorem check_iota_thm_frames_refines
     {st st' : cached.state_c.CState} {fe_self : fenv.FEnv}
     {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
@@ -1178,7 +1722,7 @@ theorem check_iota_thm_frames_refines
     (hf : RenamesTo f g) (hst : StateWF st) (hfe : FEnvWF fe_self)
     (hty : ExprWF ty_a) (hcvj : ConstantValWF cvj) (hrhs : ExprWF rhs_a)
     (hfvs : ExprsWF fvs) (htargs : ExprsWF targs) (hl : ExprWF lhs_s)
-    (hr : ExprWF rhs_s) (hla : LevelWF l_a)
+    (hr : ExprWF rhs_s) (hla : LevelWF l_a) (hcnp : cn_p.val ≤ Std.Usize.max)
     (h : inductives.modeled.check_iota_thm_frames mode st fe_self f ty_a r_p cvj
         cn_p cn_f rhs_a fvs targs lhs_s rhs_s l_a = ok (.Ok (), st')) :
     ∀ lst lfe lcvName, StateRel st lst → FEnvRel fe_self lfe →
@@ -1188,9 +1732,122 @@ theorem check_iota_thm_frames_refines
             (absExprs fvs) (absExprs targs) (absExpr lhs_s) (absExpr rhs_s)
             (absLevel l_a)).run lst = .ok ((), lst')
         ∧ StateRel st' lst' ∧ StateWF st' := by
-  -- the two telescope opens, `inst_pis_at`/`inst_lams_at`, three
-  -- `checkDefEqList`s, `IndAbs.ops_defeq` and `check_iota_sides_ty_refines`
-  sorry
+  intro lst lfe lcvName hrel hfer
+  rw [inductives.modeled.check_iota_thm_frames] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hoabs, howf⟩ :=
+    hcb.openPisAtFvarsF r_p ty_a 0#u64 o hty ho
+  cases o with
+  | none => simp at h
+  | some pq =>
+  obtain ⟨fvsP, tyRest⟩ := pq
+  obtain ⟨hfvsPwf, htyRestwf⟩ := howf _ rfl
+  simp only [Option.map_some] at hoabs
+  rw [show ((0#u64 : Std.U64)).val = 0 from rfl,
+    ConLeche.openPisAtFvarsF_eq] at hoabs
+  obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+  simp only [lift_eq, Result.ok.injEq] at hi
+  have hcast : (Std.UScalar.cast .Usize cn_p : Std.Usize).val = cn_p.val :=
+    ExprOps.u64_cast_usize_val hcnp
+  obtain ⟨pHead, hpHead, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hpHeadv, hpHeadwf⟩ := ExprOps.take_exprs_refines hfvsPwf hpHead
+  rw [← hi, hcast] at hpHeadv
+  obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨ho1abs, ho1wf⟩ :=
+    ExprOps.inst_pis_at_refines hcvj.2.2 hpHeadwf ho1
+  rw [hpHeadv] at ho1abs
+  cases o1 with
+  | none => simp at h
+  | some cq =>
+  obtain ⟨cdomsP, crestP⟩ := cq
+  obtain ⟨hcdomswf, hcrestwf⟩ := ho1wf _ rfl
+  simp only [Option.map_some] at ho1abs
+  obtain ⟨pDoms, hpDoms, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hpDomsv, hpDomswf⟩ := hcb.fvarTypes pHead pDoms hpHeadwf hpDoms
+  rw [hpHeadv] at hpDomsv
+  obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+  have hi1v : i1.val = r_p.val + cn_f.val := HashMap.uscalar_add_eq hi1
+  obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r1, st1⟩ := p1
+  cases r1 with
+  | Err err => simp at h
+  | Ok u1 =>
+  cases u1
+  obtain ⟨lst1, hrun1, hrel1, hwf1⟩ :=
+    hcb.checkDefEqList st fe_self i1 pDoms cdomsP st1 hst hfe hpDomswf
+      hcdomswf hp1 lst lfe hrel hfer
+  rw [hi1v, hpDomsv] at hrun1
+  obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨ho2abs, ho2wf⟩ :=
+    hcb.openPisAtFvarsF cn_f crestP r_p o2 hcrestwf ho2
+  cases o2 with
+  | none => simp at h
+  | some xq =>
+  obtain ⟨xFvsP, xrest⟩ := xq
+  obtain ⟨hxFvswf, hxrestwf⟩ := ho2wf _ rfl
+  simp only [Option.map_some] at ho2abs
+  rw [ConLeche.openPisAtFvarsF_eq] at ho2abs
+  obtain ⟨v2, hv2, h⟩ := bind_eq_ok_iff.mp h
+  have hv2e : v2 = fvsP := Env.exprs_copy_refines hv2
+  obtain ⟨frame, hframe, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hframev, hframewf⟩ :=
+    CoreK.append_exprs_refines (by rw [hv2e]; exact hfvsPwf) hxFvswf hframe
+  rw [hv2e] at hframev
+  obtain ⟨o3, ho3, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨ho3abs, ho3wf⟩ :=
+    ExprOps.inst_lams_at_refines hrhs hframewf ho3
+  rw [hframev] at ho3abs
+  cases o3 with
+  | none => simp at h
+  | some lq =>
+  obtain ⟨ldoms, lrest⟩ := lq
+  obtain ⟨hldomswf, hlrestwf⟩ := ho3wf _ rfl
+  simp only [Option.map_some] at ho3abs
+  obtain ⟨fDoms, hfDoms, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hfDomsv, hfDomswf⟩ := hcb.fvarTypes frame fDoms hframewf hfDoms
+  rw [hframev] at hfDomsv
+  obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r2, st2⟩ := p2
+  cases r2 with
+  | Err err => simp at h
+  | Ok u2 =>
+  cases u2
+  obtain ⟨lst2, hrun2, hrel2, hwf2⟩ :=
+    hcb.checkDefEqList st1 fe_self i1 fDoms ldoms st2 hwf1 hfe hfDomswf
+      hldomswf hp2 lst1 lfe hrel1 hfer
+  rw [hi1v, hfDomsv] at hrun2
+  obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨he1v, he1wf⟩ :=
+    ExprOps.rename_consts_refines _ (fun n hn r hr => hf n hn r hr) hrhs he1
+  obtain ⟨applied, happlied, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨happliedv, happliedwf⟩ :=
+    ExprOps.mk_app_n_refines he1wf hfvs happlied
+  rw [he1v] at happliedv
+  simp only [IndAbs.check_fuel_eq, bind_tc_ok] at h
+  obtain ⟨p3, hp3, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r3, st3⟩ := p3
+  cases r3 with
+  | Err err => simp at h
+  | Ok b =>
+  obtain ⟨lst3, hrun3, hrel3, hwf3⟩ :=
+    IndAbs.ops_defeq hw hwf2 hfe hr happliedwf hp3 lst2 lfe hrel2 hfer
+  rw [hi1v, happliedv, hfer.1] at hrun3
+  by_cases hbt : b = true
+  · subst hbt
+    simp at h
+    obtain ⟨alpha, halpha, h⟩ := h
+    obtain ⟨halphav, halphawf⟩ := arg_get_d_refines htargs halpha
+    rw [show ((0#usize : Std.Usize)).val = 0 from rfl] at halphav
+    obtain ⟨lst4, hrun4, hrel4, hwf4⟩ :=
+      check_iota_sides_ty_refines hw hcb hwf3 hfe halphawf hl hr hla h lst3
+        lfe lcvName hrel3 hfer
+    rw [hi1v, halphav] at hrun4
+    refine ⟨lst4, ?_, hrel4, hwf4⟩
+    exact checkIotaThmFrames_run hoabs.symm ho1abs.symm hrun1 ho2abs.symm
+      ho3abs.symm hrun2 hrun3 hrun4
+  · simp only [Bool.not_eq_true] at hbt
+    subst hbt
+    simp at h
 
 /-- `ConLeche/Kernel/DeclCheck.lean:540-555` — `check_iota_thm_ctor` refines
 `checkIotaThmCtor`: the constructor's telescope (renamed) instantiated at the
@@ -1220,7 +1877,24 @@ theorem check_iota_thm_ctor_refines
           = .ok ((), lst')
         ∧ StateRel st' lst' ∧ StateWF st' := by
   -- `strip_pis`, `rename_consts`, `inst_pis_at`, two `checkDefEqList`s and
-  -- `check_iota_thm_frames_refines`
+  -- `check_iota_thm_frames_refines`.
+  -- **Blocked on a port bug, not on work** (task #59's principal finding).
+  -- The port indexes at a `u64 → usize` cast where the cited body indexes at
+  -- a `Nat`, which is `Refine/Scalars.lean`'s hazard: the cast's model is
+  -- `i.val % 2 ^ System.Platform.numBits`, so on a 32-bit target the
+  -- statement is **false**.  A `r_p.val ≤ Usize.max` bound *could* travel as
+  -- a hypothesis (`r_p` is a parameter of every stage out to
+  -- `check_ind_recs`), but a `cn_p.val ≤ Usize.max` one **cannot**:
+  -- `check_iota_rule` reads `cn_p` out of its own `core_k::ctor_probe`, so it
+  -- is in scope at no caller.  The fix is in the Rust, not here — DESIGN.md
+  -- §3.3 already rules that a `u64` count is consumed by a counting
+  -- recursion, and task #61 added `core_k::take_exprs_n`/`drop_exprs_n` for
+  -- exactly this and swept `core_c.rs` with them; `modeled.rs` was not swept.
+  -- Calling the `_n` forms here makes these statements unconditionally true
+  -- and deletes the `r_p` cascade with them.
+  -- Here the casts are `drop_exprs largs (r_p as usize)`,
+  -- `take_exprs · (i4 as usize)`, `drop_exprs cres_args (cn_p as usize)`,
+  -- `drop_exprs · (cn_p as usize)` and `take_exprs fvs (r_p as usize)`.
   sorry
 
 /-- `ConLeche/Kernel/DeclCheck.lean:507-573` — **`check_iota_thm` refines
@@ -1247,25 +1921,199 @@ theorem check_iota_thm_refines
             (absExpr rhs_a)).run lst = .ok ((), lst')
         ∧ StateRel st' lst' ∧ StateWF st' := by
   -- `iota_stmt_open_refines`, `iota_lhs_prefix_ok_refines`, the major pin and
-  -- `check_iota_thm_ctor_refines`
+  -- `check_iota_thm_ctor_refines`.
+  -- **Blocked on a port bug, not on work** (task #59's principal finding).
+  -- The port indexes at a `u64 → usize` cast where the cited body indexes at
+  -- a `Nat`, which is `Refine/Scalars.lean`'s hazard: the cast's model is
+  -- `i.val % 2 ^ System.Platform.numBits`, so on a 32-bit target the
+  -- statement is **false**.  A `r_p.val ≤ Usize.max` bound *could* travel as
+  -- a hypothesis (`r_p` is a parameter of every stage out to
+  -- `check_ind_recs`), but a `cn_p.val ≤ Usize.max` one **cannot**:
+  -- `check_iota_rule` reads `cn_p` out of its own `core_k::ctor_probe`, so it
+  -- is in scope at no caller.  The fix is in the Rust, not here — DESIGN.md
+  -- §3.3 already rules that a `u64` count is consumed by a counting
+  -- recursion, and task #61 added `core_k::take_exprs_n`/`drop_exprs_n` for
+  -- exactly this and swept `core_c.rs` with them; `modeled.rs` was not swept.
+  -- Calling the `_n` forms here makes these statements unconditionally true
+  -- and deletes the `r_p` cascade with them.
+  -- Here the casts are `drop_exprs fvs (r_p as usize)` and
+  -- `take_exprs fvs (cn_p as usize)`, against the cited `fvs.drop rP` and
+  -- `fvs.take cnP`.  (`iota_lhs_prefix_ok_refines` already takes the `r_p`
+  -- bound, and `StructSpinesRefine` with it, so both travel in anyway.)
   sorry
 
 /-! ## The nested-auxiliary shape (`Modeled.lean:151-190`,
 `DeclCheck.lean:575-599`) -/
 
+omit hw hcb in
+/-- `lower_all`'s index recursion on `args.len() - i`, in the shape the
+`partial_fixpoint` equation is usable in. -/
+theorem lower_all_val (k : Std.U64) (args : alloc.vec.Vec expr.Expr)
+    (hargs : ExprsWF args) (cn_p : Std.Usize) :
+    ∀ n : Nat, ∀ (i : Std.Usize) (out v : alloc.vec.Vec expr.Expr),
+      args.length - i.val ≤ n → ExprsWF out →
+      inductives.modeled.lower_all k args cn_p i out = ok v →
+      absExprs v = absExprs out
+          ++ (((absExprs args).take cn_p.val).drop i.val).map
+              (ConLeche.Expr.lowerBVars k.val 0)
+        ∧ ExprsWF v := by
+  intro n
+  induction n with
+  | zero =>
+    intro i out v hk hout h
+    rw [inductives.modeled.lower_all] at h
+    have hnil : ((absExprs args).take cn_p.val).drop i.val = [] := by
+      apply List.drop_eq_nil_of_le
+      simp only [absExprs, List.length_take, List.length_map]
+      have := alloc.vec.Vec.len_val args
+      scalar_tac
+    split at h
+    · rw [Result.ok.injEq] at h; subst h
+      exact ⟨by rw [hnil]; simp, hout⟩
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len args by
+        have := alloc.vec.Vec.len_val args; scalar_tac), Result.ok.injEq] at h
+      subst h
+      exact ⟨by rw [hnil]; simp, hout⟩
+  | succ n ih =>
+    intro i out v hk hout h
+    rw [inductives.modeled.lower_all] at h
+    by_cases hcp : i.val ≥ cn_p.val
+    · rw [if_pos (show i ≥ cn_p by scalar_tac), Result.ok.injEq] at h
+      subst h
+      have hnil : ((absExprs args).take cn_p.val).drop i.val = [] := by
+        apply List.drop_eq_nil_of_le
+        simp only [absExprs, List.length_take, List.length_map]
+        scalar_tac
+      exact ⟨by rw [hnil]; simp, hout⟩
+    · rw [if_neg (show ¬ i ≥ cn_p by scalar_tac)] at h
+      by_cases hi : i.val ≥ args.length
+      · rw [if_pos (show i ≥ alloc.vec.Vec.len args by
+          have := alloc.vec.Vec.len_val args; scalar_tac), Result.ok.injEq] at h
+        subst h
+        have hnil : ((absExprs args).take cn_p.val).drop i.val = [] := by
+          apply List.drop_eq_nil_of_le
+          simp only [absExprs, List.length_take, List.length_map]
+          scalar_tac
+        exact ⟨by rw [hnil]; simp, hout⟩
+      · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len args by
+          have := alloc.vec.Vec.len_val args; scalar_tac)] at h
+        have hlt : i.val < args.val.length := by
+          have := alloc.vec.Vec.len_val args; scalar_tac
+        obtain ⟨y, hy, hyv⟩ :=
+          WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec args i hlt)
+        subst hyv
+        simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
+        obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hewf : ExprWF args.val[i.val] := hargs _ (List.getElem_mem hlt)
+        obtain ⟨he1v, he1wf⟩ := ExprOps.lower_bvars_refines hewf he1
+        have hout1wf : ExprsWF out1 := by
+          intro x hx
+          rw [vec_push_val hout1, List.mem_append] at hx
+          cases hx with
+          | inl hx => exact hout x hx
+          | inr hx => rw [List.mem_singleton.mp hx]; exact he1wf
+        obtain ⟨hrec, hrecwf⟩ := ih i2 out1 v (by scalar_tac) hout1wf h
+        rw [hi2v] at hrec
+        have hlt2 : i.val < ((absExprs args).take cn_p.val).length := by
+          simp only [absExprs, List.length_take, List.length_map]
+          scalar_tac
+        have hcons : ((absExprs args).take cn_p.val).drop i.val
+            = absExpr args.val[i.val]
+              :: ((absExprs args).take cn_p.val).drop (i.val + 1) := by
+          rw [List.drop_eq_getElem_cons hlt2]
+          congr 1
+          simp [absExprs]
+        refine ⟨?_, hrecwf⟩
+        rw [hrec, hcons, List.map_cons, absExprs, vec_push_val hout1,
+          List.map_append, List.append_assoc]
+        simp [absExprs, he1v]
+
+set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:585` — `lower_all` refines
 `(args.take cnP).map (Expr.lowerBVars k 0)` from index `i`, accumulating on the
-way in. -/
+way in.  (The knot hypotheses stay on the statement even though the walk does
+not reach the core, so that the section's shape is uniform.) -/
 theorem lower_all_refines {k : Std.U64} {args out v : alloc.vec.Vec expr.Expr}
     {cn_p i : Std.Usize} (hargs : ExprsWF args) (hout : ExprsWF out)
     (h : inductives.modeled.lower_all k args cn_p i out = ok v) :
     absExprs v = absExprs out
         ++ (((absExprs args).take cn_p.val).drop i.val).map
             (ConLeche.Expr.lowerBVars k.val 0)
-      ∧ ExprsWF v := by
-  -- the index recursion on `cn_p - i`
-  sorry
+      ∧ ExprsWF v :=
+  lower_all_val k args hargs cn_p args.length i out v (by scalar_tac) hout h
 
+omit hw hcb in
+/-- `lift_all_0`'s index recursion on `pins.len() - i`. -/
+theorem lift_all_0_val (k : Std.U64) (pins : alloc.vec.Vec expr.Expr)
+    (hpins : ExprsWF pins) :
+    ∀ n : Nat, ∀ (i : Std.Usize) (out v : alloc.vec.Vec expr.Expr),
+      pins.length - i.val ≤ n → ExprsWF out →
+      inductives.modeled.lift_all_0 k pins i out = ok v →
+      absExprs v = absExprs out
+          ++ ((absExprs pins).drop i.val).map
+              (ConLeche.Expr.liftLooseBVars k.val 0)
+        ∧ ExprsWF v := by
+  intro n
+  induction n with
+  | zero =>
+    intro i out v hk hout h
+    rw [inductives.modeled.lift_all_0] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len pins by
+      have := alloc.vec.Vec.len_val pins; scalar_tac), Result.ok.injEq] at h
+    subst h
+    have hnil : (absExprs pins).drop i.val = [] := by
+      apply List.drop_eq_nil_of_le
+      simp only [absExprs, List.length_map]
+      scalar_tac
+    exact ⟨by rw [hnil]; simp, hout⟩
+  | succ n ih =>
+    intro i out v hk hout h
+    rw [inductives.modeled.lift_all_0] at h
+    by_cases hi : i.val ≥ pins.length
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len pins by
+        have := alloc.vec.Vec.len_val pins; scalar_tac), Result.ok.injEq] at h
+      subst h
+      have hnil : (absExprs pins).drop i.val = [] := by
+        apply List.drop_eq_nil_of_le
+        simp only [absExprs, List.length_map]
+        scalar_tac
+      exact ⟨by rw [hnil]; simp, hout⟩
+    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len pins by
+        have := alloc.vec.Vec.len_val pins; scalar_tac)] at h
+      have hlt : i.val < pins.val.length := by
+        have := alloc.vec.Vec.len_val pins; scalar_tac
+      obtain ⟨y, hy, hyv⟩ :=
+        WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec pins i hlt)
+      subst hyv
+      simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
+      obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+      have hewf : ExprWF pins.val[i.val] := hpins _ (List.getElem_mem hlt)
+      obtain ⟨he1v, he1wf⟩ := ExprOps.lift_loose_bvars_refines hewf he1
+      have hout1wf : ExprsWF out1 := by
+        intro x hx
+        rw [vec_push_val hout1, List.mem_append] at hx
+        cases hx with
+        | inl hx => exact hout x hx
+        | inr hx => rw [List.mem_singleton.mp hx]; exact he1wf
+      obtain ⟨hrec, hrecwf⟩ := ih i2 out1 v (by scalar_tac) hout1wf h
+      rw [hi2v] at hrec
+      have hlt2 : i.val < (absExprs pins).length := by
+        simpa [absExprs] using hlt
+      have hcons : (absExprs pins).drop i.val
+          = absExpr pins.val[i.val] :: (absExprs pins).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt2]; simp [absExprs]
+      refine ⟨?_, hrecwf⟩
+      rw [hrec, hcons, List.map_cons, absExprs, vec_push_val hout1,
+        List.map_append, List.append_assoc]
+      simp [absExprs, he1v]
+
+set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:587` — `lift_all_0` refines
 `pins.map (Expr.liftLooseBVars k 0)`, the lift-back roundtrip that certifies
 that no index variable occurs in a pin. -/
@@ -1275,10 +2123,117 @@ theorem lift_all_0_refines {k : Std.U64} {pins out v : alloc.vec.Vec expr.Expr}
     absExprs v = absExprs out
         ++ ((absExprs pins).drop i.val).map
             (ConLeche.Expr.liftLooseBVars k.val 0)
-      ∧ ExprsWF v := by
-  -- the index recursion on `pins.len() - i`
-  sorry
+      ∧ ExprsWF v :=
+  lift_all_0_val k pins hpins pins.length i out v (by scalar_tac) hout h
 
+omit hw hcb in
+/-- `pins_wf_from`'s index recursion on `pins.len() - i`. -/
+theorem pins_wf_from_val {fe_self : fenv.FEnv} {lfe : ConLeche.FEnv}
+    {lps : alloc.vec.Vec name.Name} {r_p : Std.U64}
+    {pins : alloc.vec.Vec expr.Expr}
+    (hres : StructInstall.ConstsResolveFFastRefines)
+    (hrel : FEnvRel fe_self lfe) (hfe : FEnvWF fe_self) (hlps : NamesWF lps)
+    (hpins : ExprsWF pins) :
+    ∀ n : Nat, ∀ (i : Std.Usize) (b : Bool),
+      pins.length - i.val ≤ n →
+      inductives.modeled.pins_wf_from fe_self lps r_p pins i = ok b →
+      b = ((absExprs pins).drop i.val).all (fun p =>
+        !p.hasFvar && p.looseBVarsBounded r_p.val && p.constsResolveF lfe
+          && p.allLevelParamsDefined (absNames lps)) := by
+  intro n
+  induction n with
+  | zero =>
+    intro i b hk h
+    rw [inductives.modeled.pins_wf_from] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len pins by
+      have := alloc.vec.Vec.len_val pins; scalar_tac), Result.ok.injEq] at h
+    subst h
+    have hnil : (absExprs pins).drop i.val = [] := by
+      apply List.drop_eq_nil_of_le
+      simp only [absExprs, List.length_map]
+      scalar_tac
+    rw [hnil]; simp
+  | succ n ih =>
+    intro i b hk h
+    rw [inductives.modeled.pins_wf_from] at h
+    by_cases hi : i.val ≥ pins.length
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len pins by
+        have := alloc.vec.Vec.len_val pins; scalar_tac), Result.ok.injEq] at h
+      subst h
+      have hnil : (absExprs pins).drop i.val = [] := by
+        apply List.drop_eq_nil_of_le
+        simp only [absExprs, List.length_map]
+        scalar_tac
+      rw [hnil]; simp
+    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len pins by
+        have := alloc.vec.Vec.len_val pins; scalar_tac)] at h
+      have hlt : i.val < pins.val.length := by
+        have := alloc.vec.Vec.len_val pins; scalar_tac
+      obtain ⟨y, hy, hyv⟩ :=
+        WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec pins i hlt)
+      subst hyv
+      simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
+      have hewf : ExprWF pins.val[i.val] := hpins _ (List.getElem_mem hlt)
+      have hlt2 : i.val < (absExprs pins).length := by
+        simpa [absExprs] using hlt
+      have hcons : (absExprs pins).drop i.val
+          = absExpr pins.val[i.val] :: (absExprs pins).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt2]; simp [absExprs]
+      rw [hcons, List.all_cons]
+      obtain ⟨bf, hbf, h⟩ := bind_eq_ok_iff.mp h
+      have hbfv : bf = (absExpr pins.val[i.val]).hasFvar :=
+        ExprOps.has_fvar_refines hewf hbf
+      by_cases hbf1 : bf = true
+      · rw [if_pos hbf1, Result.ok.injEq] at h
+        subst h
+        rw [hbf1] at hbfv
+        simp [← hbfv]
+      · rw [if_neg hbf1] at h
+        simp only [Bool.not_eq_true] at hbf1
+        rw [hbf1] at hbfv
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1v : b1 = (absExpr pins.val[i.val]).looseBVarsBounded r_p.val :=
+          ExprOps.loose_bvars_bounded_refines hewf hb1
+        by_cases hb1t : b1 = true
+        · rw [if_pos hb1t] at h
+          rw [hb1t] at hb1v
+          obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+          have hb2v : b2 = (absExpr pins.val[i.val]).constsResolveF lfe :=
+            hres fe_self lfe _ b2 hrel hfe hewf hb2
+          by_cases hb2t : b2 = true
+          · rw [if_pos hb2t] at h
+            rw [hb2t] at hb2v
+            obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+            have hb3v : b3
+                = (absExpr pins.val[i.val]).allLevelParamsDefined
+                    (absNames lps) :=
+              ExprOps.all_level_params_defined_fast_refines hlps hewf hb3
+            by_cases hb3t : b3 = true
+            · rw [if_pos hb3t] at h
+              rw [hb3t] at hb3v
+              obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+              have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+              have := ih i2 b (by scalar_tac) h
+              rw [hi2v] at this
+              rw [this, ← hbfv, ← hb1v, ← hb2v, ← hb3v]
+              simp
+            · simp only [Bool.not_eq_true] at hb3t
+              rw [if_neg (by simp [hb3t]), Result.ok.injEq] at h
+              subst h
+              rw [hb3t] at hb3v
+              simp [← hb3v]
+          · simp only [Bool.not_eq_true] at hb2t
+            rw [if_neg (by simp [hb2t]), Result.ok.injEq] at h
+            subst h
+            rw [hb2t] at hb2v
+            simp [← hb2v]
+        · simp only [Bool.not_eq_true] at hb1t
+          rw [if_neg (by simp [hb1t]), Result.ok.injEq] at h
+          subst h
+          rw [hb1t] at hb1v
+          simp [← hb1v]
+
+set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:590-591` — `pins_wf_from` refines
 `nestedRuleShapeF`'s `pins.all` conjunct from index `i`: closed, bounded by the
 prefix telescope, constants resolving, levels declared — the facts `EnvWF`
@@ -1292,9 +2247,8 @@ theorem pins_wf_from_refines {fe_self : fenv.FEnv} {lfe : ConLeche.FEnv}
     (h : inductives.modeled.pins_wf_from fe_self lps r_p pins i = ok b) :
     b = ((absExprs pins).drop i.val).all (fun p =>
       !p.hasFvar && p.looseBVarsBounded r_p.val && p.constsResolveF lfe
-        && p.allLevelParamsDefined (absNames lps)) := by
-  -- the index recursion on `pins.len() - i`
-  sorry
+        && p.allLevelParamsDefined (absNames lps)) :=
+  pins_wf_from_val hres hrel hfe hlps hpins pins.length i b (by scalar_tac) h
 
 /-- `ConLeche/Kernel/DeclCheck.lean:575-599` — `nested_rule_shape` refines
 `nestedRuleShapeF`: the constructor's level and parameter instantiations, read
@@ -1303,63 +2257,485 @@ inert.
 
 Deviation: the artifact probe is `fenv::find(fe₂, iotaThmName).is_some()` where
 con-leche writes `(fe'.findCV? …).isSome`; `FEnv.findCV?` is
-`(fe.find? n).map (·.toConstantVal)`, so the two `Bool`s are the same. -/
+`(fe.find? n).map (·.toConstantVal)`, so the two `Bool`s are the same.
+
+`hcnp` (added at task #59, the sanctioned `Refine/Scalars.lean` case): the
+three `cn_p as usize` casts are `cn_p.val % 2 ^ Usize.numBits`, so without the
+bound a 32-bit target splits the argument list at a wrapped index where the
+cited `args.take cnP`/`args.drop cnP` do not.  The caller has it — `cnP` is the
+constructor's stored parameter count. -/
 theorem nested_rule_shape_refines
     {fe2 fe_self : fenv.FEnv} {lfe2 lfe : ConLeche.FEnv} {cv_name : name.Name}
     {lps : alloc.vec.Vec name.Name} {ty_a : expr.Expr}
     {m_i r_p cn_p j : Std.U64}
     {o : Option (alloc.vec.Vec level.Level × alloc.vec.Vec expr.Expr)}
     (hres : StructInstall.ConstsResolveFFastRefines)
+    (hspines : StructSpinesRefine)
     (hrel2 : FEnvRel fe2 lfe2) (hfe2 : FEnvWF fe2)
     (hrel : FEnvRel fe_self lfe) (hfe : FEnvWF fe_self) (hcv : NameWF cv_name)
-    (hlps : NamesWF lps) (hty : ExprWF ty_a)
+    (hlps : NamesWF lps) (hty : ExprWF ty_a) (hcnp : cn_p.val ≤ Std.Usize.max)
     (h : inductives.modeled.nested_rule_shape fe2 fe_self cv_name lps ty_a m_i
         r_p cn_p j = ok o) :
     o.map (fun q => (absLevels q.1, absExprs q.2))
         = ConLeche.nestedRuleShapeF lfe2 lfe (absName cv_name) (absNames lps)
             (absExpr ty_a) m_i.val r_p.val cn_p.val j.val
       ∧ ∀ q, o = some q → LevelsWF q.1 ∧ ExprsWF q.2 := by
-  -- `iota_thm_name_refines`, `strip_pis`, the `.forallE` read, `lower_all`,
-  -- `lift_all_0`, `pins_wf_from` and `level::all_params_defined`
-  sorry
+  rw [inductives.modeled.nested_rule_shape] at h
+  obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨oc, hoc, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hnmv, hnmwf⟩ := iota_thm_name_refines hcv hnm
+  have hocabs := FEnv.find_refines hrel2 hfe2 hnmwf hoc
+  rw [hnmv, show ("iota_" ++ toString j.val)
+      = (toString "iota_" ++ toString j.val) from rfl] at hocabs
+  have hsome : (core.option.Option.is_some oc)
+      = (lfe2.findCV? (((absName cv_name).str "_model").str
+          (toString "iota_" ++ toString j.val))).isSome := by
+    rw [ConLeche.FEnv.findCV?, ← hocabs]
+    cases oc <;> rfl
+  obtain ⟨gate, hgate, h⟩ := bind_eq_ok_iff.mp h
+  have hgatev : gate = ((lfe2.findCV? (((absName cv_name).str "_model").str
+        (toString "iota_" ++ toString j.val))).isSome
+      && decide (r_p.val ≤ m_i.val)) := by
+    by_cases hs : (core.option.Option.is_some oc) = true
+    · rw [if_pos hs, Result.ok.injEq] at hgate
+      rw [hs] at hsome
+      rw [← hgate, ← hsome]
+      simp only [Bool.true_and, decide_eq_decide]
+      constructor <;> intro hc <;> scalar_tac
+    · simp only [Bool.not_eq_true] at hs
+      rw [if_neg (by rw [hs]; simp), Result.ok.injEq] at hgate
+      rw [hs] at hsome
+      rw [← hgate, ← hsome]
+      simp
+  have hnew : absExprs (alloc.vec.Vec.new expr.Expr) = [] := by
+    simp [absExprs, alloc.vec.Vec.new]
+  rw [ConLeche.nestedRuleShapeF]
+  by_cases hgt : gate = true
+  case neg =>
+    simp only [Bool.not_eq_true] at hgt
+    rw [if_neg (by simp [hgt]), Result.ok.injEq] at h
+    rw [hgt] at hgatev
+    rw [if_neg (by
+      have hg := hgatev.symm
+      simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at hg
+      rcases hg with h' | h'
+      · intro hc; rw [hc.1] at h'; simp at h'
+      · intro hc; exact h' hc.2)]
+    rw [← h]
+    simp
+  rw [if_pos hgt] at h
+  rw [hgt] at hgatev
+  rw [if_pos (by
+    have hg := hgatev.symm
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at hg
+    exact hg)]
+  obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨ho1abs, ho1wf⟩ := ExprOps.strip_pis_refines hty ho1
+  cases o1 with
+  | none =>
+    simp only [Option.map_none] at ho1abs
+    rw [← ho1abs]
+    simp only [Result.ok.injEq] at h
+    rw [← h]
+    simp
+  | some tq =>
+  obtain ⟨tbs, e⟩ := tq
+  obtain ⟨htbswf, hewf⟩ := ho1wf _ rfl
+  simp only [Option.map_some] at ho1abs
+  rw [← ho1abs]
+  obtain ⟨en, hen, h⟩ := bind_eq_ok_iff.mp h
+  rw [arc_deref_eq, Result.ok.injEq] at hen
+  subst hen
+  obtain ⟨⟨d, k⟩⟩ := e
+  cases k
+  case ForallE =>
+    obtain ⟨hdomwf, -, -⟩ := CoreK.ExprWF.forallE_children hewf rfl
+    simp only [ExprOps.node_kind] at h
+    obtain ⟨head, hhead, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hheadv, hheadwf⟩ := ExprOps.get_app_fn_refines hdomwf hhead
+    obtain ⟨en1, hen1, h⟩ := bind_eq_ok_iff.mp h
+    rw [arc_deref_eq, Result.ok.injEq] at hen1
+    subst hen1
+    obtain ⟨⟨d1, k1⟩⟩ := head
+    simp only [absExpr_mk, absExprKind]
+    rw [← hheadv]
+    cases k1
+    case Const =>
+      obtain ⟨-, hlvlswf⟩ := CoreK.ExprWF.const_children hheadwf rfl
+      simp only [ExprOps.node_kind] at h
+      simp only [absExpr_mk, absExprKind]
+      obtain ⟨args, hargs, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hargsv, hargswf⟩ := ExprOps.get_app_args_refines hdomwf hargs
+      rw [← hargsv]
+      obtain ⟨kk, hkk, h⟩ := bind_eq_ok_iff.mp h
+      have hkkv : kk.val = m_i.val - r_p.val := HashMap.uscalar_sub_eq hkk
+      obtain ⟨ii, hii, h⟩ := bind_eq_ok_iff.mp h
+      simp only [lift_eq, Result.ok.injEq] at hii
+      have hcast : (Std.UScalar.cast .Usize cn_p : Std.Usize).val = cn_p.val :=
+        ExprOps.u64_cast_usize_val hcnp
+      obtain ⟨pins, hpins, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hpinsv, hpinswf⟩ :=
+        lower_all_refines hw hcb hargswf ExprOps.exprsWF_new hpins
+      rw [← hii, hcast, show ((0#usize : Std.Usize)).val = 0 from rfl,
+        List.drop_zero, hkkv, hnew, List.nil_append] at hpinsv
+      rw [← hpinsv]
+      obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+      simp only [lift_eq, Result.ok.injEq] at hi2
+      obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+      have hi3v : i3.val = cn_p.val + kk.val := HashMap.uscalar_add_eq hi3
+      have hi2v : i2.val = args.val.length := by
+        rw [← hi2, ExprOps.usize_cast_u64_val]
+        have := alloc.vec.Vec.len_val args
+        scalar_tac
+      have hargslen : (absExprs args).length = args.val.length := by
+        simp [absExprs]
+      by_cases hne : i2 != i3
+      · rw [if_pos hne, Result.ok.injEq] at h
+        simp only [bne_iff_ne, ne_eq] at hne
+        rw [if_neg (by
+          rintro ⟨hA, -⟩
+          rw [hargslen, ← hkkv] at hA
+          exact hne (by scalar_tac)), ← h]
+        simp
+      · rw [if_neg hne] at h
+        simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hne
+        have hA : (absExprs args).length = cn_p.val + (m_i.val - r_p.val) := by
+          rw [hargslen, ← hi2v, hne, hi3v, hkkv]
+        obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        simp only [lift_eq, Result.ok.injEq] at hi4
+        obtain ⟨hvv, hvwf⟩ := ExprOps.take_exprs_refines hargswf hv
+        obtain ⟨hv1v, hv1wf⟩ :=
+          lift_all_0_refines hw hcb hpinswf ExprOps.exprsWF_new hv1
+        rw [← hi4, hcast] at hvv
+        rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero,
+          hkkv, hnew, List.nil_append] at hv1v
+        have hb1v : b1 = decide (absExprs v = absExprs v1) :=
+          Env.exprs_beq_refines hvwf hv1wf hb1
+        rw [hvv, hv1v] at hb1v
+        by_cases hb1t : b1 = true
+        · rw [if_pos hb1t] at h
+          rw [hb1t] at hb1v
+          have hB : (((absExprs args).take cn_p.val ==
+              (absExprs pins).map
+                (ConLeche.Expr.liftLooseBVars (m_i.val - r_p.val) 0)) : Bool)
+              = true := by
+            rw [Bool.eq_iff_iff]
+            simp only [beq_iff_eq, iff_true]
+            exact of_decide_eq_true hb1v.symm
+          obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨v2, hv2, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨v3, hv3, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+          simp only [lift_eq, Result.ok.injEq] at hi5
+          obtain ⟨hv2v, hv2wf⟩ := CoreK.drop_exprs_refines hargswf hv2
+          obtain ⟨hv3v, hv3wf⟩ := hspines.2.2.1 kk v3 hv3
+          rw [← hi5, hcast] at hv2v
+          rw [hkkv] at hv3v
+          have hb2v : b2 = decide (absExprs v2 = absExprs v3) :=
+            Env.exprs_beq_refines hv2wf hv3wf hb2
+          rw [hv2v, hv3v] at hb2v
+          by_cases hb2t : b2 = true
+          · rw [if_pos hb2t] at h
+            rw [hb2t] at hb2v
+            have hC : (((absExprs args).drop cn_p.val ==
+                (List.range (m_i.val - r_p.val)).map
+                  (fun i => ConLeche.Expr.bvar
+                    (m_i.val - r_p.val - 1 - i))) : Bool) = true := by
+              rw [Bool.eq_iff_iff]
+              simp only [beq_iff_eq, iff_true]
+              exact of_decide_eq_true hb2v.symm
+            obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+            have hb3v :=
+              pins_wf_from_refines hw hcb hres hrel hfe hlps hpinswf hb3
+            rw [show ((0#usize : Std.Usize)).val = 0 from rfl,
+              List.drop_zero] at hb3v
+            by_cases hb3t : b3 = true
+            · rw [if_pos hb3t] at h
+              rw [hb3t] at hb3v
+              obtain ⟨v4, hv4, h⟩ := bind_eq_ok_iff.mp h
+              rw [arc_deref_eq, Result.ok.injEq] at hv4
+              subst hv4
+              obtain ⟨b4, hb4, h⟩ := bind_eq_ok_iff.mp h
+              have hb4v := ExprOps.levels_all_params_defined_refines hlps
+                hlvlswf _ 0#usize b4 le_rfl hb4
+              rw [show ((0#usize : Std.Usize)).val = 0 from rfl,
+                List.drop_zero] at hb4v
+              by_cases hb4t : b4 = true
+              · rw [if_pos hb4t] at h
+                rw [hb4t] at hb4v
+                obtain ⟨v5, hv5, h⟩ := bind_eq_ok_iff.mp h
+                have hv5e := Env.levels_copy_refines hv5
+                rw [Result.ok.injEq] at h
+                subst h
+                rw [if_pos ⟨hA, hB, hC, hb3v.symm, hb4v.symm⟩]
+                refine ⟨?_, ?_⟩
+                · simp only [Option.map_some, hv5e]
+                · intro q hq
+                  rw [Option.some.injEq] at hq
+                  subst hq
+                  exact ⟨by rw [hv5e]; exact hlvlswf, hpinswf⟩
+              · simp only [Bool.not_eq_true] at hb4t
+                rw [if_neg (by simp [hb4t]), Result.ok.injEq] at h
+                rw [hb4t] at hb4v
+                rw [if_neg (by
+                  rintro ⟨-, -, -, -, hE⟩
+                  simp only [absLevels] at hE
+                  rw [← hb4v] at hE
+                  simp at hE), ← h]
+                simp
+            · simp only [Bool.not_eq_true] at hb3t
+              rw [if_neg (by simp [hb3t]), Result.ok.injEq] at h
+              rw [hb3t] at hb3v
+              rw [if_neg (by
+                rintro ⟨-, -, -, hD, -⟩
+                rw [← hb3v] at hD
+                simp at hD), ← h]
+              simp
+          · simp only [Bool.not_eq_true] at hb2t
+            rw [if_neg (by simp [hb2t]), Result.ok.injEq] at h
+            rw [hb2t] at hb2v
+            rw [if_neg (by
+              rintro ⟨-, -, hC, -, -⟩
+              simp only [beq_iff_eq] at hC
+              rw [hC] at hb2v
+              simp at hb2v), ← h]
+            simp
+        · simp only [Bool.not_eq_true] at hb1t
+          rw [if_neg (by simp [hb1t]), Result.ok.injEq] at h
+          rw [hb1t] at hb1v
+          rw [if_neg (by
+            rintro ⟨-, hB, -, -, -⟩
+            simp only [beq_iff_eq] at hB
+            rw [hB] at hb1v
+            simp at hb1v), ← h]
+          simp
+    all_goals
+      simp only [ExprOps.node_kind] at h
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      simp
+  all_goals
+    simp only [ExprOps.node_kind] at h
+    simp only [Result.ok.injEq] at h
+    rw [← h]
+    simp
+
 
 /-! ## The nested iota statement (`Modeled.lean:192-317`,
 `DeclCheck.lean:601-685`) -/
 
+omit hw hcb in
+/-- `inst_pins_renamed`'s index recursion on `pins.len() - i`. -/
+theorem inst_pins_renamed_val {pins pfx : alloc.vec.Vec expr.Expr}
+    {r_p : Std.U64} {f : inductives.modeled.BlockRename}
+    {g : ConLeche.Name → ConLeche.Name} (hf : RenamesTo f g)
+    (hpins : ExprsWF pins) (hpfx : ExprsWF pfx) (hlen : pfx.length ≤ r_p.val) :
+    ∀ n : Nat, ∀ (i : Std.Usize) (out v : alloc.vec.Vec expr.Expr),
+      pins.length - i.val ≤ n → ExprsWF out →
+      inductives.modeled.inst_pins_renamed pins pfx r_p f i out = ok v →
+      absExprs v = absExprs out
+          ++ ((absExprs pins).drop i.val).map (fun p =>
+              ConLeche.Expr.instSpine ((absExprs pfx).take r_p.val)
+                (r_p.val - 1) (p.renameConsts g))
+        ∧ ExprsWF v := by
+  have htake : List.take r_p.val (List.map absExpr pfx.val)
+      = List.map absExpr pfx.val := by
+    apply List.take_of_length_le
+    simpa using hlen
+  intro n
+  induction n with
+  | zero =>
+    intro i out v hk hout h
+    rw [inductives.modeled.inst_pins_renamed] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len pins by
+      have := alloc.vec.Vec.len_val pins; scalar_tac), Result.ok.injEq] at h
+    subst h
+    have hnil : (absExprs pins).drop i.val = [] := by
+      apply List.drop_eq_nil_of_le
+      simp only [absExprs, List.length_map]
+      scalar_tac
+    exact ⟨by rw [hnil]; simp, hout⟩
+  | succ n ih =>
+    intro i out v hk hout h
+    rw [inductives.modeled.inst_pins_renamed] at h
+    by_cases hi : i.val ≥ pins.length
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len pins by
+        have := alloc.vec.Vec.len_val pins; scalar_tac), Result.ok.injEq] at h
+      subst h
+      have hnil : (absExprs pins).drop i.val = [] := by
+        apply List.drop_eq_nil_of_le
+        simp only [absExprs, List.length_map]
+        scalar_tac
+      exact ⟨by rw [hnil]; simp, hout⟩
+    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len pins by
+        have := alloc.vec.Vec.len_val pins; scalar_tac)] at h
+      have hlt : i.val < pins.val.length := by
+        have := alloc.vec.Vec.len_val pins; scalar_tac
+      obtain ⟨y, hy, hyv⟩ :=
+        WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec pins i hlt)
+      subst hyv
+      simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
+      obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨t, ht, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+      have hi3v : i3.val = i.val + 1 := HashMap.uscalar_add_eq hi3
+      have hewf : ExprWF pins.val[i.val] := hpins _ (List.getElem_mem hlt)
+      obtain ⟨hpv, hpwf⟩ :=
+        ExprOps.rename_consts_refines
+          (inst := inductives.modeled.BlockRename.Insts.Con_ron_coreKernelExpr_opsNameToName)
+          (f := f) g hf hewf hp
+      have htv : t.val = r_p.val - 1 := by
+        rw [ExprOps.sub_nat_val ht]; scalar_tac
+      obtain ⟨he1v, he1wf⟩ := ExprOps.inst_spine_refines hpwf hpfx he1
+      have hout1wf : ExprsWF out1 := by
+        intro x hx
+        rw [vec_push_val hout1, List.mem_append] at hx
+        cases hx with
+        | inl hx => exact hout x hx
+        | inr hx => rw [List.mem_singleton.mp hx]; exact he1wf
+      obtain ⟨hrec, hrecwf⟩ := ih i3 out1 v (by scalar_tac) hout1wf h
+      rw [hi3v] at hrec
+      have hlt2 : i.val < (absExprs pins).length := by
+        simpa [absExprs] using hlt
+      have hcons : (absExprs pins).drop i.val
+          = absExpr pins.val[i.val] :: (absExprs pins).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt2]; simp [absExprs]
+      refine ⟨?_, hrecwf⟩
+      rw [hrec, hcons, List.map_cons, absExprs, vec_push_val hout1,
+        List.map_append, List.append_assoc]
+      simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append,
+        he1v, hpv, htv, htake, absExprs]
+
+set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:627-628` — `inst_pins_renamed` refines
-`pins.map fun p => Expr.instSpine (fvs.take rP) (rP - 1) (p.renameConsts f)`. -/
+`pins.map fun p => Expr.instSpine (fvs.take rP) (rP - 1) (p.renameConsts f)`.
+
+`hlen` (added at task #59): the walk passes `pfx` to `expr_ops::inst_spine`
+whole, and `Expr.instSpine` consumes its whole argument list (`t - 1` is
+truncated), so the cited `fvs.take rP` spelling is the port's answer only when
+`pfx` is already that prefix.  Both call sites build it with
+`expr_ops::take_exprs (·) rP` (`modeled.rs:1030`, `:1248`), so the caller
+discharges `hlen` from `ExprOps.take_exprs_val`. -/
 theorem inst_pins_renamed_refines
     {pins pfx out v : alloc.vec.Vec expr.Expr} {r_p : Std.U64}
     {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
     {i : Std.Usize} (hf : RenamesTo f g) (hpins : ExprsWF pins)
-    (hpfx : ExprsWF pfx) (hout : ExprsWF out)
+    (hpfx : ExprsWF pfx) (hout : ExprsWF out) (hlen : pfx.length ≤ r_p.val)
     (h : inductives.modeled.inst_pins_renamed pins pfx r_p f i out = ok v) :
     absExprs v = absExprs out
         ++ ((absExprs pins).drop i.val).map (fun p =>
             ConLeche.Expr.instSpine ((absExprs pfx).take r_p.val) (r_p.val - 1)
               (p.renameConsts g))
-      ∧ ExprsWF v := by
-  -- the index recursion on `pins.len() - i`, one `rename_consts_refines` and
-  -- one `inst_spine_refines` a step
-  sorry
+      ∧ ExprsWF v :=
+  inst_pins_renamed_val hf hpins hpfx hlen pins.length i out v (by scalar_tac)
+    hout h
 
+omit hw hcb in
+/-- `inst_pins_plain`'s index recursion on `pins.len() - i`. -/
+theorem inst_pins_plain_val {pins pfx : alloc.vec.Vec expr.Expr} {r_p : Std.U64}
+    (hpins : ExprsWF pins) (hpfx : ExprsWF pfx) (hlen : pfx.length ≤ r_p.val) :
+    ∀ n : Nat, ∀ (i : Std.Usize) (out v : alloc.vec.Vec expr.Expr),
+      pins.length - i.val ≤ n → ExprsWF out →
+      inductives.modeled.inst_pins_plain pins pfx r_p i out = ok v →
+      absExprs v = absExprs out
+          ++ ((absExprs pins).drop i.val).map (fun p =>
+              ConLeche.Expr.instSpine ((absExprs pfx).take r_p.val)
+                (r_p.val - 1) p)
+        ∧ ExprsWF v := by
+  have htake : List.take r_p.val (List.map absExpr pfx.val)
+      = List.map absExpr pfx.val := by
+    apply List.take_of_length_le
+    simpa using hlen
+  intro n
+  induction n with
+  | zero =>
+    intro i out v hk hout h
+    rw [inductives.modeled.inst_pins_plain] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len pins by
+      have := alloc.vec.Vec.len_val pins; scalar_tac), Result.ok.injEq] at h
+    subst h
+    have hnil : (absExprs pins).drop i.val = [] := by
+      apply List.drop_eq_nil_of_le
+      simp only [absExprs, List.length_map]
+      scalar_tac
+    exact ⟨by rw [hnil]; simp, hout⟩
+  | succ n ih =>
+    intro i out v hk hout h
+    rw [inductives.modeled.inst_pins_plain] at h
+    by_cases hi : i.val ≥ pins.length
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len pins by
+        have := alloc.vec.Vec.len_val pins; scalar_tac), Result.ok.injEq] at h
+      subst h
+      have hnil : (absExprs pins).drop i.val = [] := by
+        apply List.drop_eq_nil_of_le
+        simp only [absExprs, List.length_map]
+        scalar_tac
+      exact ⟨by rw [hnil]; simp, hout⟩
+    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len pins by
+        have := alloc.vec.Vec.len_val pins; scalar_tac)] at h
+      have hlt : i.val < pins.val.length := by
+        have := alloc.vec.Vec.len_val pins; scalar_tac
+      obtain ⟨t, ht, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨y, hy, hyv⟩ :=
+        WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec pins i hlt)
+      subst hyv
+      simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
+      obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+      have hi3v : i3.val = i.val + 1 := HashMap.uscalar_add_eq hi3
+      have hewf : ExprWF pins.val[i.val] := hpins _ (List.getElem_mem hlt)
+      have htv : t.val = r_p.val - 1 := by
+        rw [ExprOps.sub_nat_val ht]; scalar_tac
+      obtain ⟨he1v, he1wf⟩ := ExprOps.inst_spine_refines hewf hpfx he1
+      have hout1wf : ExprsWF out1 := by
+        intro x hx
+        rw [vec_push_val hout1, List.mem_append] at hx
+        cases hx with
+        | inl hx => exact hout x hx
+        | inr hx => rw [List.mem_singleton.mp hx]; exact he1wf
+      obtain ⟨hrec, hrecwf⟩ := ih i3 out1 v (by scalar_tac) hout1wf h
+      rw [hi3v] at hrec
+      have hlt2 : i.val < (absExprs pins).length := by
+        simpa [absExprs] using hlt
+      have hcons : (absExprs pins).drop i.val
+          = absExpr pins.val[i.val] :: (absExprs pins).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt2]; simp [absExprs]
+      refine ⟨?_, hrecwf⟩
+      rw [hrec, hcons, List.map_cons, absExprs, vec_push_val hout1,
+        List.map_append, List.append_assoc]
+      simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append,
+        he1v, htv, htake, absExprs]
+
+set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:666-667` — `inst_pins_plain` refines
 `pins.map fun p => Expr.instSpine (fvsP.take rP) (rP - 1) p`, the *public*
 spelling.
 
 Deviation: con-leche writes one `map` whose function either renames or does
 not; the port has two functions, because a single one would take the renaming
-as `Option<&BlockRename>` and Aeneas rejects a nested borrow. -/
+as `Option<&BlockRename>` and Aeneas rejects a nested borrow.
+
+`hlen` (added at task #59): as in `inst_pins_renamed_refines` — `inst_spine`
+gets `pfx` whole and `Expr.instSpine` consumes its whole list, so the cited
+`fvsP.take rP` spelling is the port's answer exactly when `pfx` is already that
+prefix; the one call site builds it with `expr_ops::take_exprs (·) rP`
+(`modeled.rs:1248`). -/
 theorem inst_pins_plain_refines
     {pins pfx out v : alloc.vec.Vec expr.Expr} {r_p : Std.U64} {i : Std.Usize}
     (hpins : ExprsWF pins) (hpfx : ExprsWF pfx) (hout : ExprsWF out)
+    (hlen : pfx.length ≤ r_p.val)
     (h : inductives.modeled.inst_pins_plain pins pfx r_p i out = ok v) :
     absExprs v = absExprs out
         ++ ((absExprs pins).drop i.val).map (fun p =>
             ConLeche.Expr.instSpine ((absExprs pfx).take r_p.val) (r_p.val - 1) p)
-      ∧ ExprsWF v := by
-  -- the index recursion on `pins.len() - i`
-  sorry
+      ∧ ExprsWF v :=
+  inst_pins_plain_val hpins hpfx hlen pins.length i out v (by scalar_tac) hout h
 
 /-- `ConLeche/Kernel/DeclCheck.lean:661-684` — `check_iota_thm_n_frames`
 refines `checkIotaThmNFrames`. -/
@@ -1386,7 +2762,22 @@ theorem check_iota_thm_n_frames_refines
           = .ok ((), lst')
         ∧ StateRel st' lst' ∧ StateWF st' := by
   -- `inst_pins_plain_refines`, `checkAnnotList`, `checkTypedList`, the two
-  -- telescope opens, `IndAbs.ops_defeq` and `check_iota_sides_ty_refines`
+  -- telescope opens, `IndAbs.ops_defeq` and `check_iota_sides_ty_refines`.
+  -- **Blocked on a port bug, not on work** (task #59's principal finding).
+  -- The port indexes at a `u64 → usize` cast where the cited body indexes at
+  -- a `Nat`, which is `Refine/Scalars.lean`'s hazard: the cast's model is
+  -- `i.val % 2 ^ System.Platform.numBits`, so on a 32-bit target the
+  -- statement is **false**.  A `r_p.val ≤ Usize.max` bound *could* travel as
+  -- a hypothesis (`r_p` is a parameter of every stage out to
+  -- `check_ind_recs`), but a `cn_p.val ≤ Usize.max` one **cannot**:
+  -- `check_iota_rule` reads `cn_p` out of its own `core_k::ctor_probe`, so it
+  -- is in scope at no caller.  The fix is in the Rust, not here — DESIGN.md
+  -- §3.3 already rules that a `u64` count is consumed by a counting
+  -- recursion, and task #61 added `core_k::take_exprs_n`/`drop_exprs_n` for
+  -- exactly this and swept `core_c.rs` with them; `modeled.rs` was not swept.
+  -- Calling the `_n` forms here makes these statements unconditionally true
+  -- and deletes the `r_p` cascade with them.
+  -- Here the cast is `take_exprs · (r_p as usize)`.
   sorry
 
 /-- `ConLeche/Kernel/DeclCheck.lean:648-660` — `check_iota_thm_n_ctor` refines
@@ -1416,7 +2807,24 @@ theorem check_iota_thm_n_ctor_refines
             (absExprs pins) (absExprs pins_f)).run lst = .ok ((), lst')
         ∧ StateRel st' lst' ∧ StateWF st' := by
   -- `instantiate_level_params`, `rename_consts`, `inst_pis_at`, two
-  -- `checkDefEqList`s and `check_iota_thm_n_frames_refines`
+  -- `checkDefEqList`s and `check_iota_thm_n_frames_refines`.
+  -- **Blocked on a port bug, not on work** (task #59's principal finding).
+  -- The port indexes at a `u64 → usize` cast where the cited body indexes at
+  -- a `Nat`, which is `Refine/Scalars.lean`'s hazard: the cast's model is
+  -- `i.val % 2 ^ System.Platform.numBits`, so on a 32-bit target the
+  -- statement is **false**.  A `r_p.val ≤ Usize.max` bound *could* travel as
+  -- a hypothesis (`r_p` is a parameter of every stage out to
+  -- `check_ind_recs`), but a `cn_p.val ≤ Usize.max` one **cannot**:
+  -- `check_iota_rule` reads `cn_p` out of its own `core_k::ctor_probe`, so it
+  -- is in scope at no caller.  The fix is in the Rust, not here — DESIGN.md
+  -- §3.3 already rules that a `u64` count is consumed by a counting
+  -- recursion, and task #61 added `core_k::take_exprs_n`/`drop_exprs_n` for
+  -- exactly this and swept `core_c.rs` with them; `modeled.rs` was not swept.
+  -- Calling the `_n` forms here makes these statements unconditionally true
+  -- and deletes the `r_p` cascade with them.
+  -- Here the casts are `drop_exprs largs (r_p as usize)`,
+  -- `take_exprs · (i2 as usize)`, `drop_exprs cres_args (cn_p as usize)`,
+  -- `drop_exprs · (cn_p as usize)` and `take_exprs fvs (r_p as usize)`.
   sorry
 
 /-- `ConLeche/Kernel/DeclCheck.lean:601-685` — **`check_iota_thm_n` refines
@@ -1446,11 +2854,29 @@ theorem check_iota_thm_n_refines
         ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRuleFireWF fire := by
   -- `nested_rule_shape_refines`, `iota_stmt_open_refines`,
   -- `inst_pins_renamed_refines`, the major pin, the residual-head read and
-  -- `check_iota_thm_n_ctor_refines`
+  -- `check_iota_thm_n_ctor_refines`.
+  -- **Blocked on a port bug, not on work** (task #59's principal finding).
+  -- The port indexes at a `u64 → usize` cast where the cited body indexes at
+  -- a `Nat`, which is `Refine/Scalars.lean`'s hazard: the cast's model is
+  -- `i.val % 2 ^ System.Platform.numBits`, so on a 32-bit target the
+  -- statement is **false**.  A `r_p.val ≤ Usize.max` bound *could* travel as
+  -- a hypothesis (`r_p` is a parameter of every stage out to
+  -- `check_ind_recs`), but a `cn_p.val ≤ Usize.max` one **cannot**:
+  -- `check_iota_rule` reads `cn_p` out of its own `core_k::ctor_probe`, so it
+  -- is in scope at no caller.  The fix is in the Rust, not here — DESIGN.md
+  -- §3.3 already rules that a `u64` count is consumed by a counting
+  -- recursion, and task #61 added `core_k::take_exprs_n`/`drop_exprs_n` for
+  -- exactly this and swept `core_c.rs` with them; `modeled.rs` was not swept.
+  -- Calling the `_n` forms here makes these statements unconditionally true
+  -- and deletes the `r_p` cascade with them.
+  -- Here the casts are `drop_exprs fvs (r_p as usize)` and
+  -- `take_exprs fvs (r_p as usize)`, against the cited `fvs.drop rP` and
+  -- `fvs.take rP`.
   sorry
 
 /-! ## The rules (`Modeled.lean:319-371`, `DeclCheck.lean:687-727`) -/
 
+set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:713-716` — `iota_rule_stored` refines
 `recRuleBits fe'.find? cvName { r with rhs := rhsA, ctorParams := cnP,
 fire := fire, paramsBlind := false }`. -/
@@ -1467,8 +2893,66 @@ theorem iota_rule_stored_refines
             rhs := absExpr rhs_a, ctorParams := cn_p.val,
             fire := absFire fire, paramsBlind := false }
       ∧ RecRuleWF r' := by
-  -- `CoreKShapes.rec_rule_bits_refines` at the rebuilt record
-  sorry
+  rw [inductives.modeled.iota_rule_stored] at h
+  obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+  have hnmv : nm = r.ctor := by
+    rw [name_dup_eq] at hnm; exact (Result.ok_injective hnm).symm
+  rw [hnmv] at h
+  have hrl : RecRuleWF
+      { r with
+        ctor := r.ctor, ctor_params := cn_p, fire := fire, rhs := rhs_a,
+        params_blind := false } :=
+    ⟨hr.1, hfire, hrhs⟩
+  obtain ⟨habs, hwf⟩ :=
+    CoreK.rec_rule_bits_refines CoreK.envFacts (FindAgree.of_rel hrel hfe)
+      (FindWF.of_wf hfe) hcv hrl h
+  refine ⟨?_, hwf⟩
+  rw [habs]
+  rfl
+
+omit hw hcb in
+/-- `checkIotaRuleFire`'s plain arm, run. -/
+theorem checkIotaRuleFire_plain_run {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA : ConLeche.Expr} {mI rP j cnP cnF : Nat} {r : ConLeche.RecRule}
+    {cvj : ConLeche.ConstantVal} {lst lst1 : ConLeche.Cached.CState}
+    (hp : ConLeche.Expr.recRulePlain tyA mI rP cnP = true)
+    (h1 : (ConLeche.checkIotaThmF lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe2 lfe g cvName lps tyA mI rP
+        j r cvj cnP cnF rhsA).run lst = .ok ((), lst1)) :
+    (checkIotaRuleFire lmode lfe2 lfe g cvName lps tyA mI rP j r cvj cnP cnF
+        rhsA).run lst
+      = .ok (ConLeche.recRuleBits lfe2.find? cvName
+          { r with rhs := rhsA, ctorParams := cnP,
+                   fire := ConLeche.RecRuleFire.plain,
+                   paramsBlind := false }, lst1) := by
+  rw [checkIotaRuleFire]
+  simp only [StateT.run] at h1
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, hp, h1]
+
+omit hw hcb in
+/-- `checkIotaRuleFire`'s nested arm, run. -/
+theorem checkIotaRuleFire_nested_run {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA : ConLeche.Expr} {mI rP j cnP cnF : Nat} {r : ConLeche.RecRule}
+    {cvj : ConLeche.ConstantVal} {fire : ConLeche.RecRuleFire}
+    {lst lst1 : ConLeche.Cached.CState}
+    (hp : ConLeche.Expr.recRulePlain tyA mI rP cnP = false)
+    (h1 : (ConLeche.checkIotaThmNF lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe2 lfe g cvName lps tyA mI rP
+        j r cvj cnP cnF rhsA).run lst = .ok (fire, lst1)) :
+    (checkIotaRuleFire lmode lfe2 lfe g cvName lps tyA mI rP j r cvj cnP cnF
+        rhsA).run lst
+      = .ok (ConLeche.recRuleBits lfe2.find? cvName
+          { r with rhs := rhsA, ctorParams := cnP, fire := fire,
+                   paramsBlind := false }, lst1) := by
+  rw [checkIotaRuleFire]
+  simp only [StateT.run] at h1
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, hp, h1]
 
 /-- `ConLeche/Kernel/DeclCheck.lean:706-716` — `check_iota_rule_fire` refines
 `checkIotaRuleFire`: the firing-mode decision and the stored rule. -/
@@ -1492,9 +2976,85 @@ theorem check_iota_rule_fire_refines
             (absConstantVal cvj) cn_p.val cn_f.val (absExpr rhs_a)).run lst
           = .ok (absRecRule r', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRuleWF r' := by
-  -- `ExprOpsSpine.rec_rule_plain_refines`, then `check_iota_thm_refines` or
-  -- `check_iota_thm_n_refines`, then `iota_rule_stored_refines`
-  sorry
+  intro lst lfe2 lfe hrel hr2 hrS
+  rw [inductives.modeled.check_iota_rule_fire] at h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  have hbv := ExprOps.rec_rule_plain_refines hty hb
+  by_cases hbt : b = true
+  · rw [if_pos hbt] at h
+    rw [hbt] at hbv
+    obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r1, st1⟩ := p
+    cases r1 with
+    | Err err => simp at h
+    | Ok u =>
+    cases u
+    obtain ⟨lst1, hrun1, hrel1, hwf1⟩ :=
+      check_iota_thm_refines hw hcb hf hst hfe2 hfe hcv hlps hty hrw hcvj hrhs
+        hp lst lfe2 lfe hrel hr2 hrS
+    obtain ⟨rr, hrr, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hrrv, hrrwf⟩ :=
+      iota_rule_stored_refines hw hcb hr2 hfe2 hcv hrw
+        (show RecRuleFireWF env.RecRuleFire.Plain from trivial) hrhs hrr
+    simp only [Result.ok.injEq, Prod.mk.injEq,
+      core.result.Result.Ok.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    refine ⟨lst1, ?_, hrel1, hwf1, hrrwf⟩
+    rw [hrrv]
+    exact checkIotaRuleFire_plain_run hbv.symm hrun1
+  · simp only [Bool.not_eq_true] at hbt
+    rw [if_neg (by simp [hbt])] at h
+    rw [hbt] at hbv
+    obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r1, st1⟩ := p
+    cases r1 with
+    | Err err => simp at h
+    | Ok fr =>
+    obtain ⟨lst1, hrun1, hrel1, hwf1, hfrwf⟩ :=
+      check_iota_thm_n_refines hw hcb hres hf hst hfe2 hfe hcv hlps hty hrw
+        hcvj hrhs hp lst lfe2 lfe hrel hr2 hrS
+    obtain ⟨rr, hrr, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hrrv, hrrwf⟩ :=
+      iota_rule_stored_refines hw hcb hr2 hfe2 hcv hrw hfrwf hrhs hrr
+    simp only [Result.ok.injEq, Prod.mk.injEq,
+      core.result.Result.Ok.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    refine ⟨lst1, ?_, hrel1, hwf1, hrrwf⟩
+    rw [hrrv]
+    exact checkIotaRuleFire_nested_run hbv.symm hrun1
+
+omit hw hcb in
+/-- `checkIotaRuleF`'s head discharged: past the constructor lookup, the four
+syntactic guards, the annotation and the residual `inferType`, the cited body
+*is* `checkIotaRuleFire` (the port's split point). -/
+theorem checkIotaRuleF_run {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA rhsTy : ConLeche.Expr} {mI rP j cnP cnF : Nat}
+    {r r' : ConLeche.RecRule} {cvj : ConLeche.ConstantVal}
+    {bs : List (ConLeche.Expr × ConLeche.BinderMeta)} {bd : ConLeche.Expr}
+    {lst lst1 lst2 lst3 : ConLeche.Cached.CState}
+    (hfind : lfe2.find? r.ctor = some (.ctorInfo cvj cnP cnF))
+    (hnf : r.nfields = cnF)
+    (hbv : r.rhs.looseBVarsBounded 0 = true)
+    (hfv : r.rhs.hasFvar = false)
+    (hann : ((ConLeche.Cached.sharedOpsC lmode lfe).annotate lfe.env 0
+        r.rhs).run lst = .ok (rhsA, lst1))
+    (hlp : ConLeche.Expr.allLevelParamsDefined lps rhsA = true)
+    (hcr : rhsA.constsResolveF lfe = true)
+    (hsl : rhsA.stripLams (rP + cnF) = some (bs, bd))
+    (hinf : ((ConLeche.Cached.sharedOpsC lmode lfe).inferType lfe.env 0
+        rhsA).run lst1 = .ok (rhsTy, lst2))
+    (hfire : (checkIotaRuleFire lmode lfe2 lfe g cvName lps tyA mI rP j r cvj
+        cnP cnF rhsA).run lst2 = .ok (r', lst3)) :
+    (ConLeche.checkIotaRuleF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j r).run lst = .ok (r', lst3) := by
+  rw [ConLeche.checkIotaRuleF]
+  rw [checkIotaRuleFire] at hfire
+  simp only [StateT.run] at hann hinf
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, hfind,
+    hnf, hbv, hfv, hann, hlp, hcr, hsl, hinf] at hfire ⊢
+  exact hfire
 
 /-- `ConLeche/Kernel/DeclCheck.lean:687-716` — **`check_iota_rule` refines
 `checkIotaRuleF`**: generic well-formedness of the right-hand side, then the
@@ -1517,9 +3077,225 @@ theorem check_iota_rule_refines
             (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
             j.val (absRecRule r)).run lst = .ok (absRecRule r', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRuleWF r' := by
-  -- `CoreKGuards.ctor_probe_refines`, the four syntactic guards,
-  -- `IndAbs.ops_annotate`, `IndAbs.ops_infer` and `check_iota_rule_fire_refines`
-  sorry
+  intro lst lfe2 lfe hrel hr2 hrS
+  rw [inductives.modeled.check_iota_rule] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hoabs, howf⟩ :=
+    CoreK.ctor_probe_refines (FindAgree.of_rel hr2 hfe2) (FindWF.of_wf hfe2)
+      hrw.1 ho
+  cases o with
+  | none => simp at h
+  | some cq =>
+  obtain ⟨cvj, cn_p, cn_f⟩ := cq
+  have hcvjwf : ConstantValWF cvj := howf cvj cn_p cn_f rfl
+  simp only [Option.map_some] at hoabs
+  have hfind : lfe2.find? (absName r.ctor)
+      = some (.ctorInfo (absConstantVal cvj) cn_p.val cn_f.val) :=
+    ctorOf_inv (by simpa using hoabs.symm)
+  simp at h
+  by_cases hnf : r.nfields.val = cn_f.val
+  · rw [if_pos hnf] at h
+    obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+    have hbv := ExprOps.loose_bvars_bounded_refines hrw.2.2 hb
+    by_cases hbt : b = true
+    · rw [if_pos hbt] at h
+      rw [hbt] at hbv
+      obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+      have hb1v := ExprOps.has_fvar_refines hrw.2.2 hb1
+      by_cases hb1t : b1 = true
+      · rw [if_pos hb1t] at h; simp at h
+      · simp only [Bool.not_eq_true] at hb1t
+        rw [hb1t] at hb1v
+        rw [if_neg (by simp [hb1t])] at h
+        obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨r1, st1⟩ := p
+        cases r1 with
+        | Err err => simp at h
+        | Ok rhs_a =>
+        obtain ⟨lst1, hrun1, hrel1, hwf1, hrhswf⟩ :=
+          IndAbs.ops_annotate hw hst hfe hrw.2.2 hp lst lfe hrel hrS
+        rw [hrS.1] at hrun1
+        obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+        have hb2v :=
+          ExprOps.all_level_params_defined_fast_refines hlps hrhswf hb2
+        by_cases hb2t : b2 = true
+        · rw [if_pos hb2t] at h
+          rw [hb2t] at hb2v
+          obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+          have hb3v := hres fe_self lfe rhs_a b3 hrS hfe hrhswf hb3
+          by_cases hb3t : b3 = true
+          · rw [if_pos hb3t] at h
+            rw [hb3t] at hb3v
+            obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+            have hi1v : i1.val = r_p.val + cn_f.val := HashMap.uscalar_add_eq hi1
+            obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨ho1abs, ho1wf⟩ := ExprOps.strip_lams_refines hrhswf ho1
+            rw [hi1v] at ho1abs
+            cases o1 with
+            | none => simp at h
+            | some sq =>
+            obtain ⟨bs, bd⟩ := sq
+            simp only [Option.map_some] at ho1abs
+            rw [if_neg (by simp)] at h
+            obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨r2, st2⟩ := p2
+            cases r2 with
+            | Err err => simp at h
+            | Ok rhsTy =>
+            obtain ⟨lst2, hrun2, hrel2, hwf2, hrhsTywf⟩ :=
+              IndAbs.ops_infer hw hwf1 hfe hrhswf hp2 lst1 lfe hrel1 hrS
+            rw [hrS.1] at hrun2
+            obtain ⟨lst3, hrun3, hrel3, hwf3, hr'wf⟩ :=
+              check_iota_rule_fire_refines hw hcb hres hf hwf2 hfe2 hfe hcv
+                hlps hty hrw hcvjwf hrhswf h lst2 lfe2 lfe hrel2 hr2 hrS
+            refine ⟨lst3, ?_, hrel3, hwf3, hr'wf⟩
+            exact checkIotaRuleF_run hfind (by simpa [absRecRule] using hnf)
+              hbv.symm hb1v.symm hrun1 hb2v.symm hb3v.symm ho1abs.symm hrun2
+              hrun3
+          · simp only [Bool.not_eq_true] at hb3t
+            rw [if_neg (by simp [hb3t])] at h; simp at h
+        · simp only [Bool.not_eq_true] at hb2t
+          rw [if_neg (by simp [hb2t])] at h; simp at h
+    · simp only [Bool.not_eq_true] at hbt
+      rw [if_neg (by simp [hbt])] at h; simp at h
+  · rw [if_neg hnf] at h; simp at h
+
+omit hw hcb in
+/-- `checkIotaRulesF`'s cons step, run: one rule checked, the tail folded. -/
+theorem checkIotaRulesF_cons {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name} {tyA : ConLeche.Expr}
+    {mI rP j : Nat} {r r' : ConLeche.RecRule}
+    {rest rest' : List ConLeche.RecRule}
+    {lst lst1 lst2 : ConLeche.Cached.CState}
+    (h1 : (ConLeche.checkIotaRuleF lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe2 lfe g cvName lps tyA mI rP
+        j r).run lst = .ok (r', lst1))
+    (h2 : (ConLeche.checkIotaRulesF lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe2 lfe g cvName lps tyA mI rP
+        (j + 1) rest).run lst1 = .ok (rest', lst2)) :
+    (ConLeche.checkIotaRulesF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j (r :: rest)).run lst
+      = .ok (r' :: rest', lst2) := by
+  rw [ConLeche.checkIotaRulesF]
+  simp only [StateT.run] at h1 h2
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, h1, h2]
+
+/-- `check_iota_rules`' index recursion on `rules.len() - i`. -/
+theorem check_iota_rules_val
+    (hres : StructInstall.ConstsResolveFFastRefines)
+    {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
+    (hf : RenamesTo f g) {fe2 fe_self : fenv.FEnv} (hfe2 : FEnvWF fe2)
+    (hfe : FEnvWF fe_self) {cv_name : name.Name}
+    {lps : alloc.vec.Vec name.Name} {ty_a : expr.Expr} {m_i r_p : Std.U64}
+    (hcv : NameWF cv_name) (hlps : NamesWF lps) (hty : ExprWF ty_a)
+    {rules : alloc.vec.Vec env.RecRule} (hrules : RecRulesWF rules) :
+    ∀ n : Nat, ∀ (st st' : cached.state_c.CState) (j : Std.U64)
+      (i : Std.Usize) (out v : alloc.vec.Vec env.RecRule),
+      rules.length - i.val ≤ n → StateWF st → RecRulesWF out →
+      inductives.modeled.check_iota_rules mode st fe2 fe_self f cv_name lps
+        ty_a m_i r_p j rules i out = ok (.Ok v, st') →
+      ∀ lst lfe2 lfe, StateRel st lst → FEnvRel fe2 lfe2 →
+        FEnvRel fe_self lfe →
+        ∃ lst',
+          (ConLeche.checkIotaRulesF (absMode mode)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
+              (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
+              j.val ((absRecRules rules).drop i.val)).run lst
+            = .ok ((absRecRules v).drop (absRecRules out).length, lst')
+          ∧ absRecRules v
+              = absRecRules out ++ (absRecRules v).drop (absRecRules out).length
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRulesWF v := by
+  intro n
+  induction n with
+  | zero =>
+    intro st st' j i out v hk hst hout h lst lfe2 lfe hrel hr2 hrS
+    rw [inductives.modeled.check_iota_rules,
+      if_pos (show i ≥ alloc.vec.Vec.len rules by
+        have := alloc.vec.Vec.len_val rules; scalar_tac), Result.ok.injEq,
+      Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hnil : (absRecRules rules).drop i.val = [] := by
+      apply List.drop_eq_nil_of_le
+      simp only [absRecRules, List.length_map]
+      scalar_tac
+    refine ⟨lst, ?_, ?_, hrel, hst, hout⟩
+    · rw [hnil, ConLeche.checkIotaRulesF]
+      simp [StateT.run, Pure.pure, StateT.pure, Except.pure]
+    · simp
+  | succ n ih =>
+    intro st st' j i out v hk hst hout h lst lfe2 lfe hrel hr2 hrS
+    rw [inductives.modeled.check_iota_rules] at h
+    by_cases hi : i.val ≥ rules.length
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len rules by
+        have := alloc.vec.Vec.len_val rules; scalar_tac), Result.ok.injEq,
+        Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      have hnil : (absRecRules rules).drop i.val = [] := by
+        apply List.drop_eq_nil_of_le
+        simp only [absRecRules, List.length_map]
+        scalar_tac
+      refine ⟨lst, ?_, ?_, hrel, hst, hout⟩
+      · rw [hnil, ConLeche.checkIotaRulesF]
+        simp [StateT.run, Pure.pure, StateT.pure, Except.pure]
+      · simp
+    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len rules by
+        have := alloc.vec.Vec.len_val rules; scalar_tac)] at h
+      have hlt : i.val < rules.val.length := by
+        have := alloc.vec.Vec.len_val rules; scalar_tac
+      obtain ⟨y, hy, hyv⟩ :=
+        WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec rules i hlt)
+      subst hyv
+      simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
+      have hrrwf : RecRuleWF rules.val[i.val] := hrules _ (List.getElem_mem hlt)
+      obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r0, st1⟩ := p
+      cases r0 with
+      | Err err => simp at h
+      | Ok r2 =>
+      obtain ⟨lst1, hrun1, hrel1, hwf1, hr2wf⟩ :=
+        check_iota_rule_refines hw hcb hres hf hst hfe2 hfe hcv hlps hty hrrwf
+          hp lst lfe2 lfe hrel hr2 hrS
+      obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨j2, hj2, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+      have hj2v : j2.val = j.val + 1 := HashMap.uscalar_add_eq hj2
+      have hi3v : i3.val = i.val + 1 := HashMap.uscalar_add_eq hi3
+      have hout1v : absRecRules out1 = absRecRules out ++ [absRecRule r2] := by
+        rw [absRecRules, absRecRules, vec_push_val hout1, List.map_append]
+        rfl
+      have hout1wf : RecRulesWF out1 := by
+        intro x hx
+        rw [vec_push_val hout1] at hx
+        rcases List.mem_append.mp hx with hx1 | hx1
+        · exact hout x hx1
+        · simp only [List.mem_singleton] at hx1; rw [hx1]; exact hr2wf
+      obtain ⟨lst', hrunT, hvsplit, hrel', hwf', hvwf⟩ :=
+        ih st1 st' j2 i3 out1 v (by omega) hwf1 hout1wf h lst1 lfe2 lfe hrel1
+          hr2 hrS
+      rw [hi3v, hj2v, hout1v] at hrunT
+      rw [hout1v] at hvsplit
+      have hlen : ((absRecRules out) ++ [absRecRule r2]).length
+          = (absRecRules out).length + 1 := by simp
+      rw [hlen] at hrunT hvsplit
+      have hdrop : (absRecRules v).drop (absRecRules out).length
+          = absRecRule r2 :: (absRecRules v).drop ((absRecRules out).length + 1) := by
+        conv_lhs => rw [hvsplit]
+        rw [List.append_assoc]
+        rw [show (absRecRules out).length
+            = (absRecRules out).length from rfl]
+        simp
+      have hltm : i.val < (absRecRules rules).length := by
+        simpa [absRecRules] using hlt
+      have hcons : (absRecRules rules).drop i.val
+          = absRecRule rules.val[i.val] :: (absRecRules rules).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hltm]; simp [absRecRules]
+      refine ⟨lst', ?_, ?_, hrel', hwf', hvwf⟩
+      · rw [hcons, hdrop]
+        exact checkIotaRulesF_cons hrun1 hrunT
+      · rw [hdrop]
+        simpa using hvsplit
 
 /-- `ConLeche/Kernel/DeclCheck.lean:718-727` — `check_iota_rules` refines
 `checkIotaRulesF`, the per-rule fold.  The port accumulates on the way *in*
@@ -1547,11 +3323,153 @@ theorem check_iota_rules_refines
         ∧ absRecRules v
             = absRecRules out ++ (absRecRules v).drop (absRecRules out).length
         ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRulesWF v := by
-  -- the index recursion over `rules`, one `check_iota_rule_refines` a step
-  sorry
+  exact check_iota_rules_val hw hcb hres hf hfe2 hfe hcv hlps hty hrules
+    rules.length st st' j i out v (by scalar_tac) hst hout h
 
 /-! ## The members (`Modeled.lean:373-455`, `DeclCheck.lean:487-505`) -/
 
+omit hw hcb in
+/-- `"_model"`'s code points as a `Vec<u32>`, the witness `absString`'s
+injectivity needs to read `level::is_model_str` backwards. -/
+theorem modelStr_witness :
+    ∃ v : alloc.vec.Vec Std.U32,
+      v.val = [95#u32, 109#u32, 111#u32, 100#u32, 101#u32, 108#u32]
+        ∧ StrWF v ∧ absString v = "_model" := by
+  refine ⟨alloc.vec.Vec.from [95#u32, 109#u32, 111#u32, 100#u32, 101#u32,
+    108#u32] (by simp only [List.length_cons, List.length_nil]; scalar_tac),
+    ?_, ?_, ?_⟩
+  · exact alloc.vec.Vec.from_val _ _
+  · intro c hc
+    rw [alloc.vec.Vec.from_val] at hc
+    fin_cases hc <;> decide
+  · rw [absString_eq, alloc.vec.Vec.from_val]; rfl
+
+omit hw hcb in
+/-- `ConLeche/Kernel/Level.lean:219 Name.isModelSuffix` — `level::is_model_str`
+decides `absString s = "_model"`.  (`Refine/Level.lean`'s in spirit; it is here
+because `check_member_val` is its only caller in this directory.) -/
+theorem is_model_str_refines {s : alloc.vec.Vec Std.U32} (hs : StrWF s)
+    {b : Bool} (h : level.is_model_str s = ok b) :
+    b = decide (absString s = "_model") := by
+  obtain ⟨w, hwv, hwwf, hwabs⟩ := modelStr_witness
+  have hiff : absString s = "_model" ↔ s.val = w.val := by
+    constructor
+    · intro hstr
+      rw [Name.absString_inj hs hwwf (by rw [hstr, hwabs])]
+    · intro hval
+      rw [absString_eq, hval, ← absString_eq, hwabs]
+  have hgoal : decide (absString s = "_model") = decide (s.val = w.val) := by
+    rw [Bool.eq_iff_iff]
+    simpa using hiff
+  rw [hgoal, hwv]
+  have hgi : ∀ (i : Std.Usize) (x : Std.U32), i.val < s.val.length →
+      s.val[i.val]? = some x →
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+        = ok x := by
+    intro i x hi hx
+    obtain ⟨y, hy, hyv⟩ :=
+      WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec s i hi)
+    subst hyv
+    rw [alloc.vec.Vec.index_slice_index, hy]
+    rw [List.getElem?_eq_getElem hi] at hx
+    congr 1
+    exact Option.some_inj.mp hx
+  rw [level.is_model_str] at h
+  by_cases hlen : s.val.length = 6
+  · rw [if_pos (show alloc.vec.Vec.len s = 6#usize by
+      have := alloc.vec.Vec.len_val s; scalar_tac)] at h
+    obtain ⟨a0, a1, a2, a3, a4, a5, hval⟩ :
+        ∃ a0 a1 a2 a3 a4 a5 : Std.U32, s.val = [a0, a1, a2, a3, a4, a5] := by
+      rcases hl : s.val with _ | ⟨a0, l1⟩
+      · rw [hl] at hlen; simp at hlen
+      rcases l1 with _ | ⟨a1, l2⟩
+      · rw [hl] at hlen; simp at hlen
+      rcases l2 with _ | ⟨a2, l3⟩
+      · rw [hl] at hlen; simp at hlen
+      rcases l3 with _ | ⟨a3, l4⟩
+      · rw [hl] at hlen; simp at hlen
+      rcases l4 with _ | ⟨a4, l5⟩
+      · rw [hl] at hlen; simp at hlen
+      rcases l5 with _ | ⟨a5, l6⟩
+      · rw [hl] at hlen; simp at hlen
+      rcases l6 with _ | ⟨a6, l7⟩
+      · exact ⟨a0, a1, a2, a3, a4, a5, rfl⟩
+      · rw [hl] at hlen; simp at hlen
+    rw [hval]
+    rw [hgi 0#usize a0 (by rw [hlen]; scalar_tac) (by rw [hval]; rfl),
+      bind_tc_ok] at h
+    by_cases hc0 : a0 = 95#u32
+    case neg => rw [if_neg hc0, Result.ok.injEq] at h; simp [← h, hc0]
+    rw [if_pos hc0] at h
+    rw [hgi 1#usize a1 (by rw [hlen]; scalar_tac) (by rw [hval]; rfl),
+      bind_tc_ok] at h
+    by_cases hc1 : a1 = 109#u32
+    case neg => rw [if_neg hc1, Result.ok.injEq] at h; simp [← h, hc1]
+    rw [if_pos hc1] at h
+    rw [hgi 2#usize a2 (by rw [hlen]; scalar_tac) (by rw [hval]; rfl),
+      bind_tc_ok] at h
+    by_cases hc2 : a2 = 111#u32
+    case neg => rw [if_neg hc2, Result.ok.injEq] at h; simp [← h, hc2]
+    rw [if_pos hc2] at h
+    rw [hgi 3#usize a3 (by rw [hlen]; scalar_tac) (by rw [hval]; rfl),
+      bind_tc_ok] at h
+    by_cases hc3 : a3 = 100#u32
+    case neg => rw [if_neg hc3, Result.ok.injEq] at h; simp [← h, hc3]
+    rw [if_pos hc3] at h
+    rw [hgi 4#usize a4 (by rw [hlen]; scalar_tac) (by rw [hval]; rfl),
+      bind_tc_ok] at h
+    by_cases hc4 : a4 = 101#u32
+    case neg => rw [if_neg hc4, Result.ok.injEq] at h; simp [← h, hc4]
+    rw [if_pos hc4] at h
+    rw [hgi 5#usize a5 (by rw [hlen]; scalar_tac) (by rw [hval]; rfl),
+      bind_tc_ok, Result.ok.injEq] at h
+    rw [← h, hc0, hc1, hc2, hc3, hc4]
+    simp
+  · rw [if_neg (show ¬ alloc.vec.Vec.len s = 6#usize by
+      have := alloc.vec.Vec.len_val s
+      intro hc; apply hlen; scalar_tac), Result.ok.injEq] at h
+    rw [← h]
+    have hne : s.val ≠ [95#u32, 109#u32, 111#u32, 100#u32, 101#u32, 108#u32] := by
+      intro hc; apply hlen; rw [hc]; rfl
+    simp [hne]
+
+omit hw hcb in
+/-- `ConLeche/Kernel/Level.lean:219` — `Name.isModelSuffix` at a `.str`
+node. -/
+theorem isModelSuffix_str (p : ConLeche.Name) (x : String) :
+    ConLeche.Name.isModelSuffix (.str p x) = decide (x = "_model") := by
+  by_cases hx : x = "_model"
+  · subst hx; rfl
+  · simp only [ConLeche.Name.isModelSuffix, hx, decide_false]
+    split <;> simp_all
+
+omit hw hcb in
+/-- `ConLeche/Kernel/Level.lean:219` — `level::name_is_model_suffix` refines
+`Name.isModelSuffix`. -/
+theorem name_is_model_suffix_refines {n : name.Name} (hn : NameWF n) {b : Bool}
+    (h : level.name_is_model_suffix n = ok b) :
+    b = (absName n).isModelSuffix := by
+  cases hn with
+  | @anonymous n' hmk =>
+    rw [name_anonymous_inv hmk] at h ⊢
+    rw [level.name_is_model_suffix] at h
+    simp at h
+    subst h
+    rfl
+  | @str pre str n' hpre hstr hmk =>
+    obtain ⟨hh, rfl⟩ := mk_str_inv hmk
+    rw [level.name_is_model_suffix] at h
+    simp only [arc_deref_eq, bind_tc_ok] at h
+    rw [is_model_str_refines hstr h, absName_mk, absNameKind,
+      isModelSuffix_str]
+  | @num pre m n' hpre hmk =>
+    obtain ⟨hh, rfl⟩ := mk_num_inv hmk
+    rw [level.name_is_model_suffix] at h
+    simp at h
+    subst h
+    rfl
+
+set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:487-505` — **`check_member_val` refines
 `checkMemberValF`**: `checkConstantVal`, the member may not itself be
 model-shaped, and its type is the model's under the block renaming —
@@ -1573,10 +3491,76 @@ theorem check_member_val_refines
             (absNames block_names) lfe (absConstantVal cv)).run lst
           = .ok (absConstantVal cv_a, lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv_a := by
-  -- the `checkConstantVal` ingredient, `level::name_is_model_suffix`,
-  -- `CoreKGuards.defn_probe_refines` and `rename_consts_refines` at
-  -- `block_rename_renames`
-  sorry
+  intro lst lfe hrel hfer
+  rw [inductives.modeled.check_member_val] at h
+  obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r, st1⟩ := q
+  cases r with
+  | Err err => simp at h
+  | Ok cva =>
+  obtain ⟨lst1, hrun1, hrel1, hwf1, hcvawf⟩ :=
+    hcb.checkConstantVal st fe2 cv cva st1 hst hfe hcv hq lst lfe hrel hfer
+  obtain ⟨bm, hbm, h⟩ := bind_eq_ok_iff.mp h
+  have hbmv : bm = (absConstantVal cva).name.isModelSuffix :=
+    name_is_model_suffix_refines hcvawf.1 hbm
+  by_cases hbmt : bm = true
+  · rw [if_pos hbmt] at h; simp at h
+  · rw [if_neg hbmt] at h
+    simp only [Bool.not_eq_true] at hbmt
+    rw [hbmt] at hbmv
+    obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hnmv, hnmwf⟩ := model_of_refines hcvawf.1 hnm
+    obtain ⟨hoabs, howf⟩ :=
+      CoreK.defn_probe_refines (FindAgree.of_rel hfer hfe) (FindWF.of_wf hfe)
+        hnmwf ho
+    rw [hnmv] at hoabs
+    cases o with
+    | none => simp at h
+    | some dq =>
+    obtain ⟨cvm, mv, mhint⟩ := dq
+    have hcvmwf : ConstantValWF cvm := (howf cvm mv mhint rfl).1
+    have hfindm : lfe.find? ((absConstantVal cva).name.str "_model")
+        = some (.defnInfo (absConstantVal cvm) (absExpr mv) (absHint mhint)) := by
+      show lfe.find? ((absName cva.name).str "_model") = _
+      exact defnOf_inv (by simpa using hoabs.symm)
+    simp at h
+    obtain ⟨hb1, nm2, hren, hbeq, hst1⟩ := h
+    have hb1v : (true : Bool)
+        = decide (absNames cvm.level_params = absNames cva.level_params) :=
+      Env.names_beq_refines hcvmwf.2.1 hcvawf.2.1 hb1
+    have hlpseq : (absConstantVal cvm).levelParams
+        = (absConstantVal cva).levelParams :=
+      of_decide_eq_true hb1v.symm
+    obtain ⟨hrenv, hrenwf⟩ :=
+      ExprOps.rename_consts_refines
+        (inst := inductives.modeled.BlockRename.Insts.Con_ron_coreKernelExpr_opsNameToName)
+        (f := { block_names := block_names }) _ (block_rename_renames hbn)
+        hcvawf.2.2 hren
+    have hbeqv : (true : Bool) = decide (absExpr nm2 = absExpr cvm.ty) :=
+      Expr.beq_refines hrenwf hcvmwf.2.2 hbeq
+    have hfun : (fun n : ConLeche.Name =>
+        if n ∈ absNames block_names then n.str "_model" else n)
+        = blockRename (absNames block_names) := by
+      funext n
+      rw [blockRename]
+      by_cases hc : n ∈ absNames block_names
+      · rw [if_pos hc, if_pos (by simpa using hc)]
+      · rw [if_neg hc, if_neg (by simpa using hc)]
+    have htyeq : ConLeche.Expr.renameConsts
+        (fun n => if n ∈ absNames block_names then n.str "_model" else n)
+        (absConstantVal cva).type = (absConstantVal cvm).type := by
+      rw [hfun]
+      show ConLeche.Expr.renameConsts (blockRename (absNames block_names))
+        (absExpr cva.ty) = absExpr cvm.ty
+      rw [← hrenv]
+      exact of_decide_eq_true hbeqv.symm
+    obtain ⟨rfl, rfl⟩ := hst1
+    refine ⟨lst1, ?_, hrel1, hwf1, hcvawf⟩
+    simp only [StateT.run] at hrun1
+    rw [ConLeche.checkMemberValF]
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hrun1, hbmv.symm, hfindm, hlpseq, htyeq]
 
 /-- `ConLeche/Cached/CheckerC.lean:105-113` (minus the flush) — **the
 `check_ind_member` stage**: one non-recursor member checked against its
@@ -1596,9 +3580,71 @@ theorem check_ind_member_refines
             (absIndCaps caps) lfe (absConstantInfo ci)).run lst
           = .ok (lfe', lst')
         ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
-  -- `Env.to_constant_val_refines`, `check_member_val_refines`, the three-arm
-  -- match and `FEnv.push_refines`
-  sorry
+  intro lst lfe hrel hfer
+  rw [inductives.modeled.check_ind_member] at h
+  obtain ⟨cv, hcv, h⟩ := bind_eq_ok_iff.mp h
+  have hcvv : absConstantVal cv
+      = ConLeche.ConstantInfo.toConstantVal (absConstantInfo ci) :=
+    Env.to_constant_val_refines hcv
+  have hcvwf : ConstantValWF cv := StateC.to_constant_val_wf hci hcv
+  obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨r, st1⟩ := q
+  cases r with
+  | Err err => simp at h
+  | Ok cva =>
+  obtain ⟨lst1, hrun1, hrel1, hwf1, hcvawf⟩ :=
+    check_member_val_refines hw hcb hst hfe hbn hcvwf hq lst lfe hrel hfer
+  rw [hcvv] at hrun1
+  simp only [StateT.run] at hrun1
+  rw [checkIndMemberN]
+  cases hcase : ci
+  case IndInfo =>
+    rw [hcase] at h hrun1
+    simp only [absConstantInfo] at hrun1
+    obtain ⟨ic, hic, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨fnew, hpush, h⟩ := bind_eq_ok_iff.mp h
+    rw [Env.ind_caps_dup_refines hic] at hpush
+    obtain ⟨hprel, hpwf⟩ :=
+      FEnv.push_refines hfer hfe (by exact ⟨hcvawf, hcaps⟩) hpush
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    refine ⟨lst1, _, ?_, hrel1, hprel, hwf1, hpwf⟩
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hrun1, absConstantInfo]
+  case CtorInfo =>
+    rw [hcase] at h hrun1
+    simp only [absConstantInfo] at hrun1
+    obtain ⟨fnew, hpush, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hprel, hpwf⟩ :=
+      FEnv.push_refines hfer hfe (by exact hcvawf) hpush
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    refine ⟨lst1, _, ?_, hrel1, hprel, hwf1, hpwf⟩
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hrun1, absConstantInfo]
+  all_goals (rw [hcase] at h; simp at h)
+
+
+omit hw hcb in
+/-- `provisionRecsStepN`'s run at a `.recInfo`: the one arm the port's success
+path takes.  Stated at a literal `.recInfo` so that the transcription's `match`
+reduces — `absConstantInfo (.RecInfo …)` *is* that constructor, so the caller
+applies it up to defeq without rewriting a dependent matcher's scrutinee. -/
+theorem provisionRecsStepN_rec {lmode : ConLeche.CheckMode}
+    {blockNames : List ConLeche.Name} {feAcc : ConLeche.FEnv}
+    {cv cvA : ConLeche.ConstantVal} {mI rP : Nat}
+    {rules : List ConLeche.RecRule} {lst lst1 : ConLeche.Cached.CState}
+    (h1 : (ConLeche.checkMemberValF (ConLeche.Cached.sharedOpsC lmode feAcc)
+        blockNames feAcc
+        (ConLeche.ConstantInfo.recInfo cv mI rP rules).toConstantVal).run lst
+      = .ok (cvA, lst1)) :
+    (provisionRecsStepN lmode blockNames feAcc
+        (ConLeche.ConstantInfo.recInfo cv mI rP rules)).run lst
+      = .ok ((feAcc.push (.recInfo cvA mI rP []), cvA, mI, rP, rules), lst1) := by
+  rw [provisionRecsStepN]
+  simp only [StateT.run] at h1
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, h1]
 
 /-- `ConLeche/Cached/CheckerC.lean:120-127` (minus the flush) — **the
 `provision_recs_step` stage**: one recursor's constant checked and provisioned
@@ -1620,9 +3666,173 @@ theorem provision_recs_step_refines
               absRecRules q.2.2.2.2), lst')
         ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1
         ∧ ConstantValWF q.2.1 ∧ RecRulesWF q.2.2.2.2 := by
-  -- the `.recInfo` arm, `env::rec_rules_copy`, `check_member_val_refines` and
-  -- `FEnv.push_refines` of the rule-less recursor
-  sorry
+  intro lst lfe hrel hfer
+  rw [inductives.modeled.provision_recs_step.eq_def] at h
+  cases ci
+  case RecInfo =>
+    obtain ⟨cv, hcv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨rules2, hrules2, h⟩ := bind_eq_ok_iff.mp h
+    have hcvv : absConstantVal cv
+        = ConLeche.ConstantInfo.toConstantVal (absConstantInfo _) :=
+      Env.to_constant_val_refines hcv
+    have hcvwf : ConstantValWF cv := StateC.to_constant_val_wf hci hcv
+    rw [Env.rec_rules_copy_refines hrules2] at h
+    obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r, st1⟩ := p
+    cases r with
+    | Err err => simp at h
+    | Ok cva =>
+    obtain ⟨lst1, hrun1, hrel1, hwf1, hcvawf⟩ :=
+      check_member_val_refines hw hcb hst hfe hbn hcvwf hp lst lfe hrel hfer
+    rw [hcvv] at hrun1
+    obtain ⟨cv1, hcv1, h⟩ := bind_eq_ok_iff.mp h
+    rw [Env.constant_val_dup_refines hcv1] at h
+    obtain ⟨fnew, hpush, h⟩ := bind_eq_ok_iff.mp h
+    have hnilwf : RecRulesWF (alloc.vec.Vec.new env.RecRule) := by
+      intro x hx; simp [alloc.vec.Vec.new] at hx
+    obtain ⟨hprel, hpwf⟩ :=
+      FEnv.push_refines hfer hfe (by exact ⟨hcvawf, hnilwf⟩) hpush
+    simp at h
+    obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
+    refine ⟨lst1, _, ?_, hrel1, hprel, hwf1, hpwf, hcvawf, hci.2⟩
+    exact provisionRecsStepN_rec hrun1
+  all_goals simp at h
+
+
+omit hw hcb in
+/-- `provisionRecsN` at a cons: the step then the tail. -/
+theorem provisionRecsN_cons {lmode : ConLeche.CheckMode}
+    {blockNames : List ConLeche.Name} {feAcc fe1 fe2 : ConLeche.FEnv}
+    {ci : ConLeche.ConstantInfo} {rest : List ConLeche.ConstantInfo}
+    {cv : ConLeche.ConstantVal} {mI rP : Nat} {rules : List ConLeche.RecRule}
+    {tail : List (ConLeche.ConstantVal × Nat × Nat × List ConLeche.RecRule)}
+    {lst lst1 lst2 : ConLeche.Cached.CState}
+    (h1 : (provisionRecsStepN lmode blockNames feAcc ci).run lst
+      = .ok ((fe1, cv, mI, rP, rules), lst1))
+    (h2 : (provisionRecsN lmode blockNames fe1 rest).run lst1
+      = .ok ((fe2, tail), lst2)) :
+    (provisionRecsN lmode blockNames feAcc (ci :: rest)).run lst
+      = .ok ((fe2, (cv, mI, rP, rules) :: tail), lst2) := by
+  rw [provisionRecsN]
+  simp only [StateT.run] at h1 h2
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, h1, h2]
+
+/-- `provision_recs`'s index recursion on `recs.len() - i`. -/
+theorem provision_recs_val {block_names : alloc.vec.Vec name.Name}
+    (hbn : NamesWF block_names) {recs : alloc.vec.Vec env.ConstantInfo}
+    (hrecs : ConstantInfosWF recs) :
+    ∀ n : Nat, ∀ (st st' : cached.state_c.CState) (fe_acc : fenv.FEnv)
+      (i : Std.Usize)
+      (out : alloc.vec.Vec (env.ConstantVal × Std.U64 × Std.U64
+        × alloc.vec.Vec env.RecRule))
+      (q : fenv.FEnv × alloc.vec.Vec (env.ConstantVal × Std.U64 × Std.U64
+        × alloc.vec.Vec env.RecRule)),
+      recs.length - i.val ≤ n → StateWF st → FEnvWF fe_acc →
+      (∀ c ∈ out.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2) →
+      inductives.modeled.provision_recs mode st block_names fe_acc recs i out
+        = ok (.Ok q, st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe_acc lfe →
+        ∃ lst' lfe',
+          (provisionRecsN (absMode mode) (absNames block_names) lfe
+              ((absConstantInfos recs).drop i.val)).run lst
+            = .ok ((lfe',
+                (absCheckedRecs q.2).drop (absCheckedRecs out).length), lst')
+          ∧ absCheckedRecs q.2
+              = absCheckedRecs out
+                ++ (absCheckedRecs q.2).drop (absCheckedRecs out).length
+          ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1
+          ∧ (∀ c ∈ q.2.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2) := by
+  intro n
+  induction n with
+  | zero =>
+    intro st st' fe_acc i out q hk hst hfe hout h lst lfe hrel hfer
+    rw [inductives.modeled.provision_recs,
+      if_pos (show i ≥ alloc.vec.Vec.len recs by
+        have := alloc.vec.Vec.len_val recs; scalar_tac), Result.ok.injEq,
+      Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hnil : (absConstantInfos recs).drop i.val = [] := by
+      apply List.drop_eq_nil_of_le
+      simp only [absConstantInfos, List.length_map]
+      scalar_tac
+    refine ⟨lst, lfe, ?_, by simp, hrel, hfer, hst, hfe, hout⟩
+    rw [hnil, provisionRecsN]
+    simp [StateT.run, Pure.pure, StateT.pure, Except.pure]
+  | succ n ih =>
+    intro st st' fe_acc i out q hk hst hfe hout h lst lfe hrel hfer
+    rw [inductives.modeled.provision_recs] at h
+    by_cases hi : i.val ≥ recs.length
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len recs by
+        have := alloc.vec.Vec.len_val recs; scalar_tac), Result.ok.injEq,
+        Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      have hnil : (absConstantInfos recs).drop i.val = [] := by
+        apply List.drop_eq_nil_of_le
+        simp only [absConstantInfos, List.length_map]
+        scalar_tac
+      refine ⟨lst, lfe, ?_, by simp, hrel, hfer, hst, hfe, hout⟩
+      rw [hnil, provisionRecsN]
+      simp [StateT.run, Pure.pure, StateT.pure, Except.pure]
+    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len recs by
+        have := alloc.vec.Vec.len_val recs; scalar_tac)] at h
+      have hlt : i.val < recs.val.length := by
+        have := alloc.vec.Vec.len_val recs; scalar_tac
+      obtain ⟨y, hy, hyv⟩ :=
+        WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec recs i hlt)
+      subst hyv
+      simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
+      have hciwf : ConstantInfoWF recs.val[i.val] :=
+        hrecs _ (List.getElem_mem hlt)
+      obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r, st1⟩ := p
+      cases r with
+      | Err err => simp at h
+      | Ok q0 =>
+      obtain ⟨fe1, cv, mi, rp, rules⟩ := q0
+      obtain ⟨lst1, lfe1, hrun1, hrel1, hprel1, hwf1, hpwf1, hcvwf, hruleswf⟩ :=
+        provision_recs_step_refines hw hcb hst hfe hbn hciwf hp lst lfe hrel hfer
+      simp at h
+      obtain ⟨out1, hout1, i4, hi4, h⟩ := h
+      have hi4v : i4.val = i.val + 1 := HashMap.uscalar_add_eq hi4
+      have hout1wf : ∀ c ∈ out1.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2 := by
+        intro c hc
+        rw [vec_push_val hout1, List.mem_append] at hc
+        cases hc with
+        | inl hc => exact hout c hc
+        | inr hc => rw [List.mem_singleton.mp hc]; exact ⟨hcvwf, hruleswf⟩
+      obtain ⟨lst', lfe', hrunT, hdrop, hrel', hprel', hwf', hpwf', hqwf⟩ :=
+        ih st1 st' fe1 i4 out1 q (by scalar_tac) hwf1 hpwf1 hout1wf h lst1 lfe1
+          hrel1 hprel1
+      rw [hi4v] at hrunT
+      have hout1v : absCheckedRecs out1
+          = absCheckedRecs out
+            ++ [(absConstantVal cv, mi.val, rp.val, absRecRules rules)] := by
+        rw [absCheckedRecs, vec_push_val hout1, List.map_append]
+        rfl
+      have hlt2 : i.val < (absConstantInfos recs).length := by
+        simpa [absConstantInfos] using hlt
+      have hcons : (absConstantInfos recs).drop i.val
+          = absConstantInfo recs.val[i.val]
+            :: (absConstantInfos recs).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt2]; simp [absConstantInfos]
+      rw [hout1v] at hdrop hrunT
+      simp only [List.length_append, List.length_cons, List.length_nil] at hdrop hrunT
+      have hkey : (absCheckedRecs q.2).drop (absCheckedRecs out).length
+          = (absConstantVal cv, mi.val, rp.val, absRecRules rules)
+            :: (absCheckedRecs q.2).drop ((absCheckedRecs out).length + 1) := by
+        conv_lhs => rw [hdrop]
+        rw [show (absCheckedRecs out).length
+            = (absCheckedRecs out
+              ++ [(absConstantVal cv, mi.val, rp.val,
+                  absRecRules rules)]).length - 1 by simp]
+        simp
+      refine ⟨lst', lfe', ?_, ?_, hrel', hprel', hwf', hpwf', hqwf⟩
+      · rw [hcons, hkey]
+        exact provisionRecsN_cons hrun1 hrunT
+      · rw [hkey]
+        conv_lhs => rw [hdrop]
+        simp
 
 /-- `ConLeche/Cached/CheckerC.lean:116-129` (minus the flushes) —
 `provision_recs` refines `provisionRecsN`, the fold over the block's
@@ -1639,6 +3849,7 @@ theorem provision_recs_refines
       × alloc.vec.Vec env.RecRule)}
     (hst : StateWF st) (hfe : FEnvWF fe_acc) (hbn : NamesWF block_names)
     (hrecs : ConstantInfosWF recs)
+    (hout : ∀ c ∈ out.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2)
     (h : inductives.modeled.provision_recs mode st block_names fe_acc recs i out
         = ok (.Ok q, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe_acc lfe →
@@ -1650,9 +3861,143 @@ theorem provision_recs_refines
         ∧ absCheckedRecs q.2
             = absCheckedRecs out
               ++ (absCheckedRecs q.2).drop (absCheckedRecs out).length
-        ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1 := by
-  -- the index recursion over `recs`, one `provision_recs_step_refines` a step
-  sorry
+        ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1
+        ∧ (∀ c ∈ q.2.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2) :=
+  provision_recs_val hw hcb hbn hrecs recs.length st st' fe_acc i out q
+    (by scalar_tac) hst hfe hout h
+
+omit hw hcb in
+set_option linter.unusedSimpArgs false in
+/-- `checkIndRecsFoldN` at a cons: one `checkIotaRulesF` then the tail. -/
+theorem checkIndRecsFoldN_cons {lmode : ConLeche.CheckMode}
+    {lfe2 lfeS : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {c : ConLeche.ConstantVal × Nat × Nat × List ConLeche.RecRule}
+    {rest : List (ConLeche.ConstantVal × Nat × Nat × List ConLeche.RecRule)}
+    {lacc lacc' : ConLeche.FEnv} {rules2 : List ConLeche.RecRule}
+    {lst lst1 lst2 : ConLeche.Cached.CState}
+    (h1 : (ConLeche.checkIotaRulesF lmode
+        (ConLeche.Cached.sharedOpsC lmode lfeS) lfe2 lfeS g c.1.name
+        c.1.levelParams c.1.type c.2.1 c.2.2.1 0 c.2.2.2).run lst
+      = .ok (rules2, lst1))
+    (h2 : (checkIndRecsFoldN lmode lfe2 lfeS g rest
+        (lacc.push (.recInfo c.1 c.2.1 c.2.2.1 rules2))).run lst1
+      = .ok (lacc', lst2)) :
+    (checkIndRecsFoldN lmode lfe2 lfeS g (c :: rest) lacc).run lst
+      = .ok (lacc', lst2) := by
+  rw [checkIndRecsFoldN] at h2 ⊢
+  rw [List.foldlM_cons]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure] at h1 h2
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, h1, h2]
+
+/-- `check_ind_recs_fold`'s index recursion on `checked.len() - i`.
+
+The accumulator's **unrestricted-canonical pair** rides along (task #59): each
+step is one `fenv::push` onto it, which is `FEnv.push_canon`.  The checker
+tier's declaration fold needs the pair back out of the modeled route, because
+the index an `.indDecl` step returns is the next step's input. -/
+theorem check_ind_recs_fold_val
+    (hres : StructInstall.ConstsResolveFFastRefines)
+    {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
+    (hf : RenamesTo f g) {fe2 fe_self : fenv.FEnv} (hfe2 : FEnvWF fe2)
+    (hfe : FEnvWF fe_self)
+    {checked : alloc.vec.Vec (env.ConstantVal × Std.U64 × Std.U64
+      × alloc.vec.Vec env.RecRule)}
+    (hchecked : ∀ c ∈ checked.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2) :
+    ∀ n : Nat, ∀ (st st' : cached.state_c.CState) (acc fe' : fenv.FEnv)
+      (i : Std.Usize),
+      checked.length - i.val ≤ n → StateWF st → FEnvWF acc →
+      FEnv.FEnvCanon acc → FEnv.FEnvFull acc →
+      inductives.modeled.check_ind_recs_fold mode st fe2 fe_self f checked i acc
+        = ok (.Ok fe', st') →
+      ∀ lst lfe2 lfe lacc, StateRel st lst → FEnvRel fe2 lfe2 →
+        FEnvRel fe_self lfe → FEnvRel acc lacc →
+        ∃ lst' lfe',
+          (checkIndRecsFoldN (absMode mode) lfe2 lfe g
+              ((absCheckedRecs checked).drop i.val) lacc).run lst
+            = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+  intro n
+  induction n with
+  | zero =>
+    intro st st' acc fe' i hk hst hacc hacan hafull h lst lfe2 lfe lacc hrel hr2
+      hrS hra
+    rw [inductives.modeled.check_ind_recs_fold,
+      if_pos (show i ≥ alloc.vec.Vec.len checked by
+        have := alloc.vec.Vec.len_val checked; scalar_tac), Result.ok.injEq,
+      Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hnil : (absCheckedRecs checked).drop i.val = [] := by
+      apply List.drop_eq_nil_of_le
+      simp only [absCheckedRecs, List.length_map]
+      scalar_tac
+    refine ⟨lst, lacc, ?_, hrel, hra, hst, hacc, hacan, hafull⟩
+    rw [hnil, checkIndRecsFoldN]
+    simp [StateT.run, Pure.pure, StateT.pure, Except.pure]
+  | succ n ih =>
+    intro st st' acc fe' i hk hst hacc hacan hafull h lst lfe2 lfe lacc hrel hr2
+      hrS hra
+    rw [inductives.modeled.check_ind_recs_fold] at h
+    by_cases hi : i.val ≥ checked.length
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len checked by
+        have := alloc.vec.Vec.len_val checked; scalar_tac), Result.ok.injEq,
+        Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      have hnil : (absCheckedRecs checked).drop i.val = [] := by
+        apply List.drop_eq_nil_of_le
+        simp only [absCheckedRecs, List.length_map]
+        scalar_tac
+      refine ⟨lst, lacc, ?_, hrel, hra, hst, hacc, hacan, hafull⟩
+      rw [hnil, checkIndRecsFoldN]
+      simp [StateT.run, Pure.pure, StateT.pure, Except.pure]
+    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len checked by
+        have := alloc.vec.Vec.len_val checked; scalar_tac)] at h
+      have hlt : i.val < checked.val.length := by
+        have := alloc.vec.Vec.len_val checked; scalar_tac
+      obtain ⟨y, hy, hyv⟩ :=
+        WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec checked i hlt)
+      subst hyv
+      simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
+      obtain ⟨hcvwf, hruleswf⟩ := hchecked _ (List.getElem_mem hlt)
+      obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r, st1⟩ := p
+      cases r with
+      | Err err => simp at h
+      | Ok rules2 =>
+      have hnewwf : RecRulesWF (alloc.vec.Vec.new env.RecRule) := by
+        intro x hx; simp [alloc.vec.Vec.new] at hx
+      obtain ⟨lst1, hrun1, hdrop1, hrel1, hwf1, hr2wf⟩ :=
+        check_iota_rules_refines hw hcb hres hf hst hfe2 hfe hcvwf.1
+          hcvwf.2.1 hcvwf.2.2 hruleswf hnewwf hp lst lfe2 lfe hrel hr2 hrS
+      obtain ⟨cv1, hcv1, h⟩ := bind_eq_ok_iff.mp h
+      rw [Env.constant_val_dup_refines hcv1] at h
+      obtain ⟨acc2, hpush, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+      have hi4v : i4.val = i.val + 1 := HashMap.uscalar_add_eq hi4
+      obtain ⟨hprel, hpwf⟩ :=
+        FEnv.push_refines hra hacc (by exact ⟨hcvwf, hr2wf⟩) hpush
+      obtain ⟨hpcan, hpfull⟩ :=
+        FEnv.push_canon hacc (by exact ⟨hcvwf, hr2wf⟩) hacan hafull hpush
+      obtain ⟨lst', lfe', hrunT, hrel', hprel', hwf', hpwf', hpcan', hpfull'⟩ :=
+        ih st1 st' acc2 fe' i4 (by omega) hwf1 hpwf hpcan hpfull h lst1 lfe2 lfe
+          (lacc.push (absConstantInfo
+            (.RecInfo checked.val[i.val].1 checked.val[i.val].2.1
+              checked.val[i.val].2.2.1 rules2))) hrel1 hr2 hrS hprel
+      rw [hi4v] at hrunT
+      have hlt2 : i.val < (absCheckedRecs checked).length := by
+        simpa [absCheckedRecs] using hlt
+      have hcons : (absCheckedRecs checked).drop i.val
+          = (absConstantVal checked.val[i.val].1,
+              checked.val[i.val].2.1.val, checked.val[i.val].2.2.1.val,
+              absRecRules checked.val[i.val].2.2.2)
+            :: (absCheckedRecs checked).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt2]; simp [absCheckedRecs]
+      refine ⟨lst', lfe', ?_, hrel', hprel', hwf', hpwf', hpcan', hpfull'⟩
+      rw [hcons]
+      exact checkIndRecsFoldN_cons (lst1 := lst1) (rules2 := absRecRules rules2)
+        hrun1 hrunT
 
 /-- `ConLeche/Cached/CheckerC.lean:146-151` — **the `check_ind_recs_fold`
 stage**: `checkIndRecsS`' `checked.foldlM`, every recursor's rules checked at
@@ -1666,6 +4011,7 @@ theorem check_ind_recs_fold_refines
     (hres : StructInstall.ConstsResolveFFastRefines)
     (hf : RenamesTo f g) (hst : StateWF st) (hfe2 : FEnvWF fe2)
     (hfe : FEnvWF fe_self) (hacc : FEnvWF acc)
+    (hacan : FEnv.FEnvCanon acc) (hafull : FEnv.FEnvFull acc)
     (hchecked : ∀ c ∈ checked.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2)
     (h : inductives.modeled.check_ind_recs_fold mode st fe2 fe_self f checked i
         acc = ok (.Ok fe', st')) :
@@ -1675,10 +4021,32 @@ theorem check_ind_recs_fold_refines
         (checkIndRecsFoldN (absMode mode) lfe2 lfe g
             ((absCheckedRecs checked).drop i.val) lacc).run lst
           = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
-  -- the index recursion over `checked`, one `check_iota_rules_refines` and one
-  -- `FEnv.push_refines` a step
-  sorry
+        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' :=
+  check_ind_recs_fold_val hw hcb hres hf hfe2 hfe hchecked checked.length st st'
+    acc fe' i (by scalar_tac) hst hacc hacan hafull h
+
+/-! ### The recursor group's two steps -/
+
+omit hw hcb in
+/-- `checkIndRecsN`'s non-empty branch: the `Eq` pin, the provisioning fold and
+the rule fold. -/
+theorem checkIndRecsN_step {lmode : ConLeche.CheckMode}
+    {blockNames : List ConLeche.Name} {lfe fe1 fe' : ConLeche.FEnv}
+    {recs : List ConLeche.ConstantInfo}
+    {checked : List (ConLeche.ConstantVal × Nat × Nat × List ConLeche.RecRule)}
+    {lst lst1 lst2 : ConLeche.Cached.CState}
+    (hne : recs.isEmpty = false)
+    (heq : lfe.find? ConLeche.eqName = some ConLeche.eqA)
+    (h1 : (provisionRecsN lmode blockNames lfe recs).run lst
+      = .ok ((fe1, checked), lst1))
+    (h2 : (checkIndRecsFoldN lmode lfe fe1 (blockRename blockNames) checked
+        lfe).run lst1 = .ok (fe', lst2)) :
+    (checkIndRecsN lmode blockNames lfe recs).run lst = .ok (fe', lst2) := by
+  rw [checkIndRecsN]
+  simp only [StateT.run] at h1 h2
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, hne, heq, h1, h2]
 
 /-- `ConLeche/Cached/CheckerC.lean:136-151` (minus every flush) —
 `check_ind_recs` refines `checkIndRecsN`: the block's recursors as a *group*.
@@ -1686,30 +4054,109 @@ theorem check_ind_recs_fold_refines
 Deviation: the port takes two `fenv::dup`s, because it threads the index
 linearly (task #14) where con-leche's is persistent and holds three views at
 once — `env₂`, the fully provisioned `envSelf`, and the fold's accumulator.
-`Refine/FEnv.lean`'s `dup_refines` is what says a dup is the same index. -/
+`Refine/FEnv.lean`'s `dup_refines` is what says a dup is the same index.
+
+`hcan` (added at task #59): `check_ind_recs` takes a `fenv::dup` of its
+index and runs the provisioning fold on the copy, so the copy has to be the
+*same* index again — `FEnv.dup_rel` needs `FEnvCanon`, exactly as
+`Refine/IndNativeInstall.lean` takes it.  `Refine/IndC.lean` discharges it at
+the driver from `dup_canon`/`mk_fenv_canon`. -/
 theorem check_ind_recs_refines
     {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
     {fe2 fe' : fenv.FEnv} {recs : alloc.vec.Vec env.ConstantInfo}
     (hres : StructInstall.ConstsResolveFFastRefines)
-    (hst : StateWF st) (hfe : FEnvWF fe2) (hbn : NamesWF block_names)
-    (hrecs : ConstantInfosWF recs)
+    (hst : StateWF st) (hfe : FEnvWF fe2) (hcan : FEnv.FEnvCanon fe2)
+    (hfull : FEnv.FEnvFull fe2)
+    (hbn : NamesWF block_names) (hrecs : ConstantInfosWF recs)
     (h : inductives.modeled.check_ind_recs mode st block_names fe2 recs
         = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe2 lfe →
       ∃ lst' lfe',
         (checkIndRecsN (absMode mode) (absNames block_names) lfe
             (absConstantInfos recs)).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
-  -- the emptiness test, `basis_pins::eq_basis_pinned`, the two `fenv::dup`s,
-  -- `provision_recs_refines` and `check_ind_recs_fold_refines`
-  sorry
+        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+  intro lst lfe hrel hfer
+  rw [inductives.modeled.check_ind_recs] at h
+  by_cases hemp : alloc.vec.Vec.len recs = 0#usize
+  · rw [if_pos hemp, Result.ok.injEq, Prod.mk.injEq,
+      core.result.Result.Ok.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hnil : absConstantInfos recs = [] := by
+      have := alloc.vec.Vec.len_val recs
+      have hz : recs.val.length = 0 := by scalar_tac
+      simp only [absConstantInfos, List.map_eq_nil_iff]
+      exact List.eq_nil_of_length_eq_zero hz
+    refine ⟨lst, lfe, ?_, hrel, hfer, hst, hfe, hcan, hfull⟩
+    rw [checkIndRecsN, hnil]
+    simp [StateT.run, Pure.pure, StateT.pure, Except.pure]
+  · rw [if_neg hemp] at h
+    have hnotnil : (absConstantInfos recs).isEmpty = false := by
+      have := alloc.vec.Vec.len_val recs
+      rcases hl : absConstantInfos recs with _ | ⟨x, xs⟩
+      · exfalso
+        apply hemp
+        have hz : recs.val.length = 0 := by
+          have : (absConstantInfos recs).length = 0 := by rw [hl]; rfl
+          simpa [absConstantInfos] using this
+        scalar_tac
+      · rfl
+    obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+    have hbv := BasisPins.eq_basis_pinned_refines hfer hfe hb
+    by_cases hbt : b = true
+    · rw [if_pos hbt] at h
+      rw [hbt] at hbv
+      have heqp : lfe.find? ConLeche.eqName = some ConLeche.eqA :=
+        of_decide_eq_true hbv.symm
+      obtain ⟨feD, hdup, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hdrel, hdwf, hdcan⟩ := FEnv.dup_rel hfe hcan hfer hdup
+      obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r, st1⟩ := p
+      cases r with
+      | Err err => simp at h
+      | Ok pq =>
+      obtain ⟨feSelf, checkedv⟩ := pq
+      have hnewwf : ∀ c ∈ (alloc.vec.Vec.new (env.ConstantVal × Std.U64
+          × Std.U64 × alloc.vec.Vec env.RecRule)).val,
+          ConstantValWF c.1 ∧ RecRulesWF c.2.2.2 := by
+        intro c hc; simp [alloc.vec.Vec.new] at hc
+      obtain ⟨lst1, lfe1, hrun1, hdrop1, hrel1, hprel1, hwf1, hpwf1,
+        hcheckedwf⟩ :=
+        provision_recs_refines hw hcb hst hdwf hbn hrecs hnewwf hp lst lfe hrel
+          hdrel
+      simp only [show ((0#usize : Std.Usize)).val = 0 from rfl,
+        List.drop_zero] at hrun1
+      have hnewabs : absCheckedRecs (alloc.vec.Vec.new (env.ConstantVal
+          × Std.U64 × Std.U64 × alloc.vec.Vec env.RecRule)) = [] := by
+        simp [absCheckedRecs, alloc.vec.Vec.new]
+      rw [hnewabs] at hrun1
+      simp only [List.length_nil, List.drop_zero] at hrun1
+      obtain ⟨lst', lfe', hrunT, hrel', hprel', hwf', hpwf', hpcan', hpfull'⟩ :=
+        check_ind_recs_fold_refines hw hcb hres (block_rename_renames hbn) hwf1
+          hdwf hpwf1 hfe hcan hfull hcheckedwf h lst1 lfe lfe1 lfe hrel1 hdrel
+          hprel1 hfer
+      simp only [show ((0#usize : Std.Usize)).val = 0 from rfl,
+        List.drop_zero] at hrunT
+      exact ⟨lst', lfe', checkIndRecsN_step hnotnil heqp hrun1 hrunT, hrel',
+        hprel', hwf', hpwf', hpcan', hpfull'⟩
+    · simp only [Bool.not_eq_true] at hbt
+      rw [if_neg (by simp [hbt])] at h
+      simp at h
 
 /-! ## The projection functions (`Modeled.lean:475-584`,
 `DeclCheck.lean:729-836`) -/
 
+set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:729-746` — `check_proj_lookups` refines
 `checkProjLookupsF`: the stored constants the projection depends on.  It
-touches no state. -/
+touches no state, and so needs neither the knot nor the checker base; the two
+stay on the statement so that the section's shape is uniform.
+
+The last conjunct (added at task #59) is a *strengthening*, not a weakening:
+the cited body reads `cvj` out of `fe.find? ctorName`, so the answer is the
+constant stored under `ctorName`.  `check_proj_fn_refines` needs exactly that
+to discharge `check_proj_iota_refines`' `hcname` through
+`FEnv.canon_find_name`. -/
 theorem check_proj_lookups_refines
     {fe2 : fenv.FEnv} {lfe : ConLeche.FEnv} {t ctor_name : name.Name}
     {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64}
@@ -1722,14 +4169,85 @@ theorem check_proj_lookups_refines
         (absName t) (absName ctor_name) (absNames lps) n_p.val n_f.val
         i.val).run lst
           = .ok ((absConstantVal q.1, absConstantVal q.2), lst))
-      ∧ ConstantValWF q.1 ∧ ConstantValWF q.2 := by
-  -- `CoreKGuards.ctor_probe`/`defn_probe`, `CoreK.proj_model_name_refines`,
-  -- `Env.proj_fn_name_refines` and `basis_pins::eq_basis_pinned`
-  sorry
+      ∧ ConstantValWF q.1 ∧ ConstantValWF q.2
+      ∧ lfe.find? (absName ctor_name)
+          = some (.ctorInfo (absConstantVal q.1) n_p.val n_f.val) := by
+  rw [inductives.modeled.check_proj_lookups] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hoabs, howf⟩ :=
+    CoreK.ctor_probe_refines (FindAgree.of_rel hrel hfe) (FindWF.of_wf hfe) hc ho
+  cases o with
+  | none => simp at h
+  | some cq =>
+    obtain ⟨cv, np1, nf1⟩ := cq
+    have hcvwf : ConstantValWF cv := howf cv np1 nf1 rfl
+    have hfindc : lfe.find? (absName ctor_name)
+        = some (.ctorInfo (absConstantVal cv) np1.val nf1.val) :=
+      ctorOf_inv (by simpa using hoabs.symm)
+    simp at h
+    by_cases hnp : np1.val = n_p.val
+    · rw [if_pos hnp] at h
+      by_cases hnf : nf1.val = n_f.val
+      · rw [if_pos hnf] at h
+        obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hnmv, hnmwf⟩ := CoreK.proj_model_name_refines ht hnm
+        obtain ⟨ho1abs, ho1wf⟩ :=
+          CoreK.defn_probe_refines (FindAgree.of_rel hrel hfe) (FindWF.of_wf hfe)
+            hnmwf ho1
+        rw [hnmv] at ho1abs
+        cases o1 with
+        | none => simp at h
+        | some dq =>
+          obtain ⟨mcv, mv, mhint⟩ := dq
+          have hmcvwf : ConstantValWF mcv := (ho1wf mcv mv mhint rfl).1
+          have hfindm : lfe.find? (ConLeche.projModelName (absName t) i.val)
+              = some (.defnInfo (absConstantVal mcv) (absExpr mv)
+                  (absHint mhint)) :=
+            defnOf_inv (by simpa using ho1abs.symm)
+          simp at h
+          obtain ⟨hb, n1, hn1, o2, ho2, h⟩ := h
+          have hbv : (true : Bool)
+              = decide (absNames mcv.level_params = absNames lps) :=
+            Env.names_beq_refines hmcvwf.2.1 hlps hb
+          have hlpseq : (absConstantVal mcv).levelParams = absNames lps := by
+            simpa [absConstantVal] using (of_decide_eq_true hbv.symm)
+          have hn1v : absName n1 = ConLeche.projFnName (absName t) i.val :=
+            Env.proj_fn_name_refines hn1
+          have hn1wf : NameWF n1 := Env.proj_fn_name_wf ht hn1
+          have ho2abs := find_refines hrel hfe hn1wf ho2
+          rw [hn1v] at ho2abs
+          cases o2 with
+          | some ci2 => simp at h
+          | none =>
+            simp only [Option.map_none] at ho2abs
+            simp at h
+            obtain ⟨o3, ho3, h⟩ := h
+            have ho3abs := find_refines hrel hfe ht ho3
+            cases o3 with
+            | none => simp at h
+            | some ci3 =>
+              simp only [Option.map_some] at ho3abs
+              simp at h
+              obtain ⟨hb3, h⟩ := h
+              have hb3v := BasisPins.eq_basis_pinned_refines hrel hfe hb3
+              have heqpin : lfe.find? ConLeche.eqName = some ConLeche.eqA :=
+                of_decide_eq_true hb3v.symm
+              subst h
+              refine ⟨?_, hcvwf, hmcvwf, by simpa [hnp, hnf] using hfindc⟩
+              intro lst
+              rw [ConLeche.checkProjLookupsF, hfindc]
+              simp [hnp, hnf, hfindm, hlpseq, ← ho2abs, ← ho3abs, heqpin]
+              rfl
+      · rw [if_neg hnf] at h; simp at h
+    · rw [if_neg hnp] at h; simp at h
 
+set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/DeclCheck.lean:748-761` — `check_proj_ty` refines
 `checkProjTyF`: the public projection type is the model's, renamed back
-(pinned by the renaming roundtrip), well-formed and parameter-led. -/
+(pinned by the renaming roundtrip), well-formed and parameter-led.  It is
+purely syntactic: the knot and the checker base stay on the statement only so
+that the section's shape is uniform. -/
 theorem check_proj_ty_refines
     {fe2 : fenv.FEnv} {lfe : ConLeche.FEnv} {t ctor_name : name.Name}
     {lps : alloc.vec.Vec name.Name} {mty pty : expr.Expr} {n_p n_f : Std.U64}
@@ -1742,9 +4260,131 @@ theorem check_proj_ty_refines
         (absName t) (absName ctor_name) (absNames lps) (absExpr mty) n_p.val
         n_f.val).run lst = .ok (absExpr pty, lst))
       ∧ ExprWF pty := by
-  -- `rename_consts_refines` at `proj_back_rename_refines`/`proj_fwd_…`, the
-  -- roundtrip `Expr.beq`, and the four syntactic guards
-  sorry
+  rw [inductives.modeled.check_proj_ty] at h
+  obtain ⟨pty0, hpty0, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨round, hround, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hpv, hpwf⟩ :=
+    ExprOps.rename_consts_refines _ (proj_back_rename_refines ht hc) hmty hpty0
+  obtain ⟨hrv, hrwf⟩ :=
+    ExprOps.rename_consts_refines _ (proj_fwd_rename_refines ht hc) hpwf hround
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  have hbv : b = decide (absExpr round = absExpr mty) :=
+    Expr.beq_refines hrwf hmty hb
+  by_cases hbt : b = true
+  · rw [if_pos hbt] at h
+    rw [hbt] at hbv
+    have hround' : (absExpr pty0).renameConsts
+        (ConLeche.projFwd (absName t) (absName ctor_name) n_f.val)
+        = absExpr mty := by
+      rw [← hrv]; exact of_decide_eq_true hbv.symm
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v : b1 = (absExpr pty0).constsResolveF lfe :=
+      hres fe2 lfe pty0 b1 hrel hfe hpwf hb1
+    by_cases hb1t : b1 = true
+    · rw [if_pos hb1t] at h
+      rw [hb1t] at hb1v
+      obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+      have hb2v : b2 = (absExpr pty0).looseBVarsBounded 0 :=
+        ExprOps.loose_bvars_bounded_refines hpwf hb2
+      obtain ⟨wf, hwf, h⟩ := bind_eq_ok_iff.mp h
+      have hwfv : wf = ((absExpr pty0).looseBVarsBounded 0
+          && !(absExpr pty0).hasFvar
+          && (absExpr pty0).allLevelParamsDefined (absNames lps)) := by
+        by_cases hb2t : b2 = true
+        · rw [if_pos hb2t] at hwf
+          rw [hb2t] at hb2v
+          obtain ⟨b3, hb3, hwf⟩ := bind_eq_ok_iff.mp hwf
+          have hb3v : b3 = (absExpr pty0).hasFvar :=
+            ExprOps.has_fvar_refines hpwf hb3
+          by_cases hb3t : b3 = true
+          · rw [if_pos hb3t, Result.ok.injEq] at hwf
+            rw [hb3t] at hb3v
+            rw [← hwf, ← hb2v, ← hb3v]; simp
+          · simp only [Bool.not_eq_true] at hb3t
+            rw [if_neg (by simp [hb3t])] at hwf
+            rw [hb3t] at hb3v
+            rw [ExprOps.all_level_params_defined_fast_refines hlps hpwf hwf,
+              ← hb2v, ← hb3v]
+            simp
+        · simp only [Bool.not_eq_true] at hb2t
+          rw [if_neg (by simp [hb2t]), Result.ok.injEq] at hwf
+          rw [hb2t] at hb2v
+          rw [← hwf, ← hb2v]; simp
+      by_cases hwft : wf = true
+      · rw [if_pos hwft] at h
+        rw [hwft] at hwfv
+        obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+        have hkv : k.val = n_p.val + 1 := HashMap.uscalar_add_eq hk
+        obtain ⟨hoabs, -⟩ := ExprOps.strip_pis_refines hpwf ho
+        rw [hkv] at hoabs
+        cases o with
+        | none =>
+          simp at h
+        | some z =>
+          rw [if_neg (show ¬ (core.option.Option.is_none (some z)) = true from
+            by simp [core.option.Option.is_none]), Result.ok.injEq,
+            core.result.Result.Ok.injEq] at h
+
+          subst h
+          refine ⟨?_, hpwf⟩
+          have hres1 : (absExpr pty0).constsResolveF lfe = true := hb1v.symm
+          have hwf3 : ((absExpr pty0).looseBVarsBounded 0) = true
+              ∧ ((absExpr pty0).hasFvar) = false
+              ∧ ((absExpr pty0).allLevelParamsDefined (absNames lps)) = true := by
+            revert hwfv
+            cases (absExpr pty0).looseBVarsBounded 0 <;>
+              cases (absExpr pty0).hasFvar <;>
+              cases (absExpr pty0).allLevelParamsDefined (absNames lps) <;> simp
+          intro lst
+          rw [ConLeche.checkProjTyF, ← hpv]
+          simp only [Option.map_some] at hoabs
+          simp [hround', hres1, hwf3.1, hwf3.2.1, hwf3.2.2, ← hoabs]
+          rfl
+      · simp only [Bool.not_eq_true] at hwft
+        rw [if_neg (by simp [hwft])] at h; simp at h
+    · simp only [Bool.not_eq_true] at hb1t
+      rw [if_neg (by simp [hb1t])] at h; simp at h
+  · simp only [Bool.not_eq_true] at hbt
+    rw [if_neg (by simp [hbt])] at h; simp at h
+
+omit hw hcb in
+/-- `checkProjIotaBody`'s success path, run: the body matched at the spine, the
+head pinned to `Eq`, the two `==` pins discharged, the telescope opened, and
+the side certificates' own run supplied.  `check_proj_iota_body_refines`
+assembles the port's answers into exactly these. -/
+theorem checkProjIotaBody_run {lmode : ConLeche.CheckMode}
+    {lfeS : ConLeche.FEnv} {T : ConLeche.Name} {cvj tcv : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat} {c : ConLeche.Name}
+    {la : ConLeche.Level} {tySlot lhsC rhsC sbodyO : ConLeche.Expr}
+    {fvs : List ConLeche.Expr} {lst lst' : ConLeche.Cached.CState}
+    (hc : c = ConLeche.eqName)
+    (hlhs : (lhsC == ConLeche.Expr.mkAppN
+        (.const (ConLeche.projModelName T i) (lps.map .param))
+        (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+          ++ [ConLeche.Expr.mkAppN
+                (.const (cvj.name.str "_model") (cvj.levelParams.map .param))
+                (((List.range nP).map fun k =>
+                    ConLeche.Expr.bvar (nP + nF - 1 - k))
+                  ++ (List.range nF).map fun k =>
+                       ConLeche.Expr.bvar (nF - 1 - k))])) = true)
+    (hrhs : (rhsC == ConLeche.Expr.bvar (nF - 1 - i)) = true)
+    (hopen : ConLeche.openPisAtFvars (nP + nF) tcv.type 0 = some (fvs, sbodyO))
+    (hside : (ConLeche.checkIotaSidesTy (m := ConLeche.Cached.CheckCM) lmode
+        (ConLeche.Cached.sharedOpsC lmode lfeS) lfeS.env (nP + nF)
+        (sbodyO.getAppArgs.getD 0 (.bvar 0))
+        (sbodyO.getAppArgs.getD 1 (.bvar 0))
+        (sbodyO.getAppArgs.getD 2 (.bvar 0))
+        (ConLeche.eqHeadLevel (ConLeche.Expr.const c [la]))
+        (ConLeche.projModelName T i)).run lst = .ok ((), lst')) :
+    (checkProjIotaBody lmode lfeS T cvj lps nP nF i tcv
+        (.app (.app (.app (.const c [la]) tySlot) lhsC) rhsC)).run lst
+      = .ok ((), lst') := by
+  rw [checkProjIotaBody]
+  simp only [ConLeche.Expr.getAppFn, ConLeche.unwrapOr, hopen, hc, hlhs, hrhs,
+    StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+    Except.pure, ite_true]
+  exact hside
 
 /-- `ConLeche/Kernel/DeclCheck.lean:816-836` — `check_proj_iota_body` refines
 `checkProjIotaBody`.
@@ -1758,6 +4398,7 @@ theorem check_proj_iota_body_refines
     {st st' : cached.state_c.CState} {fe_self : fenv.FEnv} {t : name.Name}
     {cvj tcv : env.ConstantVal} {lps : alloc.vec.Vec name.Name}
     {n_p n_f i : Std.U64} {sbody : expr.Expr}
+    (hspines : StructSpinesRefine)
     (hst : StateWF st) (hfe : FEnvWF fe_self) (ht : NameWF t)
     (hcvj : ConstantValWF cvj) (hlps : NamesWF lps) (htcv : ConstantValWF tcv)
     (hsb : ExprWF sbody)
@@ -1769,16 +4410,314 @@ theorem check_proj_iota_body_refines
             (absNames lps) n_p.val n_f.val i.val (absConstantVal tcv)
             (absExpr sbody)).run lst = .ok ((), lst')
         ∧ StateRel st' lst' ∧ StateWF st' := by
-  -- `struct_parts::struct_ps_at`/`field_spine`, `mk_app_n`, the three pins,
-  -- `open_pis_at_fvars_f` and `check_iota_sides_ty_refines`
-  sorry
+  intro lst lfe hrel hfer
+  rw [inductives.modeled.check_proj_iota_body] at h
+  obtain ⟨depth, hdepth, h⟩ := bind_eq_ok_iff.mp h
+  have hdepthv : depth.val = n_p.val + n_f.val := HashMap.uscalar_add_eq hdepth
+  obtain ⟨pargs, hpargs, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hpav, hpawf⟩ := hspines.2.2.2 n_f n_p pargs hpargs
+  have hpav' : absExprs pargs
+      = (List.range n_p.val).map
+          (fun k => ConLeche.Expr.bvar (n_p.val + n_f.val - 1 - k)) := by
+    rw [hpav, ConLeche.structPsAt, Nat.add_comm n_f.val n_p.val]
+  obtain ⟨xargs, hxargs, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hxav, hxawf⟩ := hspines.2.2.1 n_f xargs hxargs
+  obtain ⟨spine, hsp, h⟩ := bind_eq_ok_iff.mp h
+  have hspv : absExprs spine = absExprs pargs := by
+    rw [Env.exprs_copy_refines hsp]
+  have hspwf : ExprsWF spine := Env.exprs_copy_wf hpawf hsp
+  obtain ⟨spine1, hsp1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hsp1v, hsp1wf⟩ := CoreK.append_exprs_refines hspwf hxawf hsp1
+  obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hnmv, hnmwf⟩ := model_of_refines hcvj.1 hnm
+  obtain ⟨us, hus, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨husv, huswf⟩ := hspines.1 cvj.level_params us hcvj.2.1 hus
+  obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+  have hev : absExpr e = ConLeche.Expr.const ((absName cvj.name).str "_model")
+      ((absNames cvj.level_params).map ConLeche.Level.param) := by
+    rw [Expr.mk_const_refines he, hnmv, husv]
+  have hewf : ExprWF e := ExprWF.mk_const hnmwf huswf he
+  obtain ⟨mkspine, hmk, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hmkv, hmkwf⟩ := ExprOps.mk_app_n_refines hewf hsp1wf hmk
+  obtain ⟨largs, hlargs, h⟩ := bind_eq_ok_iff.mp h
+  have hlargsv : absExprs largs = absExprs spine ++ [absExpr mkspine] :=
+    ExprOps.absExprs_push hlargs
+  have hlargswf : ExprsWF largs := ExprOps.exprsWF_push hspwf hmkwf hlargs
+  obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hn1v, hn1wf⟩ := CoreK.proj_model_name_refines ht hn1
+  obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hv1v, hv1wf⟩ := hspines.1 lps v1 hlps hv1
+  obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+  have he1v : absExpr e1
+      = ConLeche.Expr.const (ConLeche.projModelName (absName t) i.val)
+          ((absNames lps).map ConLeche.Level.param) := by
+    rw [Expr.mk_const_refines he1, hn1v, hv1v]
+  have he1wf : ExprWF e1 := ExprWF.mk_const hn1wf hv1wf he1
+  obtain ⟨lhss, hlhss, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hlhssv, hlhsswf⟩ := ExprOps.mk_app_n_refines he1wf hlargswf hlhss
+  obtain ⟨head, hhead, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hheadv, hheadwf⟩ := ExprOps.get_app_fn_refines hsb hhead
+  obtain ⟨args, hargs, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hargsv, hargswf⟩ := ExprOps.get_app_args_refines hsb hargs
+  -- the shape probe: three arguments and a one-level `.const` head
+  obtain ⟨pq, hpq, hz⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨head1, shaped⟩ := pq
+  by_cases hlen : alloc.vec.Vec.len args = 3#usize
+  · rw [if_pos hlen] at hpq
+    obtain ⟨⟨d0, k0⟩⟩ := head
+    cases k0
+    case Const =>
+      rename_i n0 us0 _
+      obtain ⟨hn0wf, hus0wf⟩ := CoreK.ExprWF.const_children hheadwf rfl
+      simp only [ExprOps.node_kind, arc_deref_eq, bind_tc_ok, Result.ok.injEq,
+        Prod.mk.injEq] at hpq
+      obtain ⟨rfl, rfl⟩ := hpq
+      simp at hz
+      split at hz
+      · rename_i hus1
+        have hlen3 : args.val.length = 3 := by
+          have := alloc.vec.Vec.len_val args; scalar_tac
+        have hus0len : us0.val.length = 1 := by
+          have := alloc.vec.Vec.len_val us0; scalar_tac
+        obtain ⟨l0, hl0⟩ : ∃ l0, us0.val = [l0] := by
+          rcases hl : us0.val with _ | ⟨x, xs⟩
+          · rw [hl] at hus0len; simp at hus0len
+          · rcases xs with _ | ⟨y, ys⟩
+            · exact ⟨x, rfl⟩
+            · rw [hl] at hus0len; simp at hus0len
+        have hheadabs : absExpr (expr.Expr.mk (expr.ExprNode.mk d0
+            (expr.ExprKind.Const n0 us0)))
+            = ConLeche.Expr.const (absName n0) [absLevel l0] := by
+          simp only [absExpr_mk, absExprKind, absLevels, hl0]
+          rfl
+        obtain ⟨a0, a1, a2, hav⟩ : ∃ a0 a1 a2, args.val = [a0, a1, a2] := by
+          rcases hl : args.val with _ | ⟨a0, l1⟩
+          · rw [hl] at hlen3; simp at hlen3
+          rcases l1 with _ | ⟨a1, l2⟩
+          · rw [hl] at hlen3; simp at hlen3
+          rcases l2 with _ | ⟨a2, l3⟩
+          · rw [hl] at hlen3; simp at hlen3
+          rcases l3 with _ | ⟨a3, l4⟩
+          · exact ⟨a0, a1, a2, rfl⟩
+          · rw [hl] at hlen3; simp at hlen3
+        have hargidx : ∀ (j : Std.Usize) (hj : j.val < args.val.length),
+            alloc.vec.Vec.index_usize args j = ok (args.val[j.val]'hj) := by
+          intro j hj
+          obtain ⟨y0, hy0, hy0v⟩ :=
+            WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec args j hj)
+          subst hy0v
+          exact hy0
+        have hspine : absExpr sbody
+            = .app (.app (.app (.const (absName n0) [absLevel l0])
+                (absExpr a0)) (absExpr a1)) (absExpr a2) := by
+          refine expr_app3_of_spine ?_ ?_
+          · rw [← hheadv, hheadabs]
+          · rw [← hargsv, absExprs, hav]; rfl
+        have ha0wf : ExprWF a0 := hargswf a0 (by rw [hav]; simp)
+        have ha1wf : ExprWF a1 := hargswf a1 (by rw [hav]; simp)
+        have ha2wf : ExprWF a2 := hargswf a2 (by rw [hav]; simp)
+        obtain ⟨b, hb, hz⟩ := bind_eq_ok_iff.mp hz
+        have hbv : b = ConLeche.isEqHead (absExpr (expr.Expr.mk
+            (expr.ExprNode.mk d0 (expr.ExprKind.Const n0 us0)))) :=
+          hcb.isEqHead _ b hheadwf hb
+        rw [hheadabs] at hbv
+        by_cases hbt : b = true
+        · rw [if_pos hbt] at hz
+          rw [hbt] at hbv
+          have hceq : absName n0 = ConLeche.eqName := by
+            have hx := hbv.symm
+            simp only [ConLeche.isEqHead] at hx
+            exact of_decide_eq_true (by simpa using hx)
+          obtain ⟨e2, he2, hz⟩ := bind_eq_ok_iff.mp hz
+          obtain ⟨b1, hb1, hz⟩ := bind_eq_ok_iff.mp hz
+          have he2v : e2 = a1 := by
+            have hx := hargidx 1#usize (by rw [hav]; norm_num)
+            rw [he2, Result.ok.injEq] at hx
+            rw [hx]; simp [hav]
+          have hb1v : b1 = decide (absExpr e2 = absExpr lhss) :=
+            Expr.beq_refines (by rw [he2v]; exact ha1wf) hlhsswf hb1
+          by_cases hb1t : b1 = true
+          · rw [if_pos hb1t] at hz
+            rw [hb1t] at hb1v
+            obtain ⟨e3, he3, hz⟩ := bind_eq_ok_iff.mp hz
+            obtain ⟨i2, hi2, hz⟩ := bind_eq_ok_iff.mp hz
+            obtain ⟨i3, hi3, hz⟩ := bind_eq_ok_iff.mp hz
+            obtain ⟨e4, he4, hz⟩ := bind_eq_ok_iff.mp hz
+            obtain ⟨b2, hb2, hz⟩ := bind_eq_ok_iff.mp hz
+            have hi2v : i2.val = 1 + i.val := HashMap.uscalar_add_eq hi2
+            have hi3v : i3.val = n_f.val - 1 - i.val := by
+              rw [ExprOps.sub_nat_val hi3, hi2v]; omega
+            have he4v : absExpr e4
+                = ConLeche.Expr.bvar (n_f.val - 1 - i.val) := by
+              rw [Expr.bvar_refines he4, hi3v]
+            have he3v : e3 = a2 := by
+              have hx := hargidx 2#usize (by rw [hav]; norm_num)
+              rw [he3, Result.ok.injEq] at hx
+              rw [hx]; simp [hav]
+            have hb2v : b2 = decide (absExpr e3 = absExpr e4) :=
+              Expr.beq_refines (by rw [he3v]; exact ha2wf) (ExprWF.bvar he4) hb2
+            by_cases hb2t : b2 = true
+            · rw [if_pos hb2t] at hz
+              rw [hb2t] at hb2v
+              obtain ⟨o, ho, hz⟩ := bind_eq_ok_iff.mp hz
+              obtain ⟨hoabs, howf⟩ :=
+                hcb.openPisAtFvarsF depth tcv.ty 0#u64 o htcv.2.2 ho
+              cases o with
+              | none => simp at hz
+              | some oq =>
+              obtain ⟨fvs, e5⟩ := oq
+              obtain ⟨hfvswf, he5wf⟩ := howf _ rfl
+              simp only [Option.map_some] at hoabs
+              rw [hdepthv, show ((0#u64 : Std.U64)).val = 0 from rfl,
+                ConLeche.openPisAtFvarsF_eq] at hoabs
+              obtain ⟨targs, htargs, hz⟩ := bind_eq_ok_iff.mp hz
+              obtain ⟨htargsv, htargswf⟩ :=
+                ExprOps.get_app_args_refines he5wf htargs
+              obtain ⟨alpha, halpha, hz⟩ := bind_eq_ok_iff.mp hz
+              obtain ⟨lft, hlft, hz⟩ := bind_eq_ok_iff.mp hz
+              obtain ⟨rgt, hrgt, hz⟩ := bind_eq_ok_iff.mp hz
+              obtain ⟨la, hla, hz⟩ := bind_eq_ok_iff.mp hz
+              obtain ⟨halphav, halphawf⟩ := arg_get_d_refines htargswf halpha
+              obtain ⟨hlftv, hlftwf⟩ := arg_get_d_refines htargswf hlft
+              obtain ⟨hrgtv, hrgtwf⟩ := arg_get_d_refines htargswf hrgt
+              obtain ⟨hlav, hlawf⟩ := hcb.eqHeadLevel _ la hheadwf hla
+              rw [hheadabs] at hlav
+              obtain ⟨lst', hrun, hrel', hwf'⟩ :=
+                check_iota_sides_ty_refines hw hcb hst hfe halphawf hlftwf
+                  hrgtwf hlawf hz lst lfe
+                  (ConLeche.projModelName (absName t) i.val) hrel hfer
+              refine ⟨lst', ?_, hrel', hwf'⟩
+              rw [hspine]
+              have heqa1 : absExpr a1 = absExpr lhss := by
+                rw [← he2v]; exact of_decide_eq_true hb1v.symm
+              have heqa2 : absExpr a2
+                  = ConLeche.Expr.bvar (n_f.val - 1 - i.val) := by
+                rw [← he4v, ← he3v]; exact of_decide_eq_true hb2v.symm
+              have hlhstarget : absExpr lhss = ConLeche.Expr.mkAppN
+                  (.const (ConLeche.projModelName (absName t) i.val)
+                    ((absNames lps).map ConLeche.Level.param))
+                  (((List.range n_p.val).map fun k =>
+                      ConLeche.Expr.bvar (n_p.val + n_f.val - 1 - k))
+                    ++ [ConLeche.Expr.mkAppN
+                          (.const ((absName cvj.name).str "_model")
+                            ((absNames cvj.level_params).map
+                              ConLeche.Level.param))
+                          (((List.range n_p.val).map fun k =>
+                              ConLeche.Expr.bvar (n_p.val + n_f.val - 1 - k))
+                            ++ (List.range n_f.val).map fun k =>
+                                 ConLeche.Expr.bvar (n_f.val - 1 - k))]) := by
+                rw [hlhssv, he1v, hlargsv, hmkv, hev, hsp1v, hspv, hpav', hxav]
+              have hside : (ConLeche.checkIotaSidesTy
+                  (m := ConLeche.Cached.CheckCM) (absMode mode)
+                  (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe.env
+                  (n_p.val + n_f.val)
+                  ((absExpr e5).getAppArgs.getD 0 (.bvar 0))
+                  ((absExpr e5).getAppArgs.getD 1 (.bvar 0))
+                  ((absExpr e5).getAppArgs.getD 2 (.bvar 0))
+                  (ConLeche.eqHeadLevel
+                    (ConLeche.Expr.const (absName n0) [absLevel l0]))
+                  (ConLeche.projModelName (absName t) i.val)).run lst
+                  = .ok ((), lst') := by
+                rw [show ((0#usize : Std.Usize)).val = 0 from rfl] at halphav
+                rw [show ((1#usize : Std.Usize)).val = 1 from rfl] at hlftv
+                rw [show ((2#usize : Std.Usize)).val = 2 from rfl] at hrgtv
+                rw [← hdepthv, ← htargsv, ← halphav, ← hlftv, ← hrgtv, ← hlav]
+                exact hrun
+              exact checkProjIotaBody_run (fvs := absExprs fvs)
+                (sbodyO := absExpr e5) hceq
+                (by rw [heqa1, hlhstarget]; simp [absConstantVal])
+                (by rw [heqa2]; simp)
+                (by simpa [absConstantVal] using hoabs.symm) hside
+            · simp only [Bool.not_eq_true] at hb2t
+              rw [if_neg (by simp [hb2t])] at hz; simp at hz
+          · simp only [Bool.not_eq_true] at hb1t
+            rw [if_neg (by simp [hb1t])] at hz; simp at hz
+        · simp only [Bool.not_eq_true] at hbt
+          rw [if_neg (by simp [hbt])] at hz; simp at hz
+      · simp at hz
+    all_goals simp only [ExprOps.node_kind, arc_deref_eq, bind_tc_ok,
+      Result.ok.injEq, Prod.mk.injEq] at hpq
+    all_goals rw [← hpq.2] at hz
+    all_goals simp at hz
+  · rw [if_neg hlen, Result.ok.injEq, Prod.mk.injEq] at hpq
+    rw [← hpq.2] at hz
+    simp at hz
+
+omit hw hcb in
+/-- `thm_probe`'s inversion: a `some` answer pins the stored constant to a
+theorem record, which is what the cited `let some (.thmInfo tcv _) := …`
+pattern reads.  The twin of `ctorOf_inv`/`defnOf_inv`. -/
+theorem thmOf_inv {X : Option ConLeche.ConstantInfo}
+    {cv : ConLeche.ConstantVal}
+    (h : (match X with
+          | some (.thmInfo tcv _) => some tcv
+          | _ => none) = some cv) :
+    ∃ v, X = some (.thmInfo cv v) := by
+  cases X with
+  | none => simp at h
+  | some ci =>
+    cases ci
+    case thmInfo cv0 v0 =>
+      simp only [Option.some.injEq] at h
+      exact ⟨v0, by rw [h]⟩
+    all_goals simp at h
+
+omit hw hcb in
+/-- `checkProjIotaF`'s pins discharged: past the `.thmInfo` lookup, the level
+pin and the two telescopes, the cited body *is* `checkProjIotaBody` — at the
+stored constant's own name, which is the name it was found under
+(`FEnv.canon_find_name`), so the two spine heads are one. -/
+theorem checkProjIotaF_run {lmode : ConLeche.CheckMode} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj tcv : ConLeche.ConstantVal} {nP nF i : Nat} {rh : ConLeche.Expr}
+    {sbs cbs : List (ConLeche.Expr × ConLeche.BinderMeta)}
+    {sbody cbody : ConLeche.Expr} {lst lst' : ConLeche.Cached.CState}
+    (hname : cvj.name = ctorName)
+    (hfind : lfe.find? ((ConLeche.projModelName T i).str "iota")
+      = some (.thmInfo tcv rh))
+    (hlp : tcv.levelParams = lps)
+    (hsp : tcv.type.stripPis (nP + nF) = some (sbs, sbody))
+    (hcp : cvj.type.stripPis (nP + nF) = some (cbs, cbody))
+    (hdm : ConLeche.domsMatchAux
+        (fun _ e => ConLeche.Expr.renameConsts
+          (ConLeche.projFwd T ctorName nF) e) sbs cbs 0 0 (nP + nF) = true)
+    (hbody : (checkProjIotaBody lmode lfe T cvj lps nP nF i tcv sbody).run lst
+      = .ok ((), lst')) :
+    (ConLeche.checkProjIotaF (m := ConLeche.Cached.CheckCM) lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe T ctorName lps cvj nP nF
+        i).run lst = .ok ((), lst') := by
+  subst hname
+  have key : ConLeche.checkProjIotaF (m := ConLeche.Cached.CheckCM) lmode
+      (ConLeche.Cached.sharedOpsC lmode lfe) lfe T cvj.name lps cvj nP nF i
+      = checkProjIotaBody lmode lfe T cvj lps nP nF i tcv sbody := by
+    rw [ConLeche.checkProjIotaF, checkProjIotaBody.eq_def]
+    simp only [hfind, hlp, hsp, hcp, hdm, if_true, pure_bind]
+    split
+    · rfl
+    · rename_i hne
+      split
+      · exact ((hne _ _ _ _ _) rfl).elim
+      · rfl
+  rw [key]
+  exact hbody
 
 /-- `ConLeche/Kernel/DeclCheck.lean:797-836` — **`check_proj_iota` refines
-`checkProjIotaF`**: the model's `proj_i.iota` theorem pins the rule. -/
+`checkProjIotaF`**: the model's `proj_i.iota` theorem pins the rule.
+
+`hcname` (added at task #59) — the statement is **false** without it.  The
+port's body (`modeled.rs:2149`) builds the constructor spine head from the
+*passed* `cvj.name`, where the cited `checkProjIotaF` writes the *looked-up*
+`ctorName`; here `cvj` is a parameter, so nothing ties the two together.  The
+only caller, `check_proj_fn_refines`, discharges it: its `cvj` comes out of
+`check_proj_lookups`' `fe.find? ctorName`, and a canonical index answers under
+the name it stores (`FEnv.canon_find_name`), which is why `FEnvCanon fe2`
+appears there rather than here. -/
 theorem check_proj_iota_refines
     {st st' : cached.state_c.CState} {fe2 fe_self : fenv.FEnv}
     {t ctor_name : name.Name} {lps : alloc.vec.Vec name.Name}
     {cvj : env.ConstantVal} {n_p n_f i : Std.U64}
+    (hspines : StructSpinesRefine)
+    (hcname : absName cvj.name = absName ctor_name)
     (hst : StateWF st) (hfe2 : FEnvWF fe2) (hfe : FEnvWF fe_self)
     (ht : NameWF t) (hc : NameWF ctor_name) (hlps : NamesWF lps)
     (hcvj : ConstantValWF cvj)
@@ -1792,22 +4731,120 @@ theorem check_proj_iota_refines
             (absName ctor_name) (absNames lps) (absConstantVal cvj) n_p.val
             n_f.val i.val).run lst = .ok ((), lst')
         ∧ StateRel st' lst' ∧ StateWF st' := by
-  -- `proj_iota_name_refines`, `thm_probe_refines`, two `strip_pis`, the
-  -- `domsMatchAux` ingredient at `dom_proj_fwd_view_refines`, then
-  -- `check_proj_iota_body_refines`
-  sorry
+  intro lst lfe2 lfe hrel hr2 hrS heq
+  subst heq
+  rw [inductives.modeled.check_proj_iota] at h
+  obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hnv, hnwf⟩ := proj_iota_name_refines ht hn
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hoabs, howf⟩ := thm_probe_refines hr2 hfe2 hnwf ho
+  rw [hnv] at hoabs
+  cases o with
+  | none => simp at h
+  | some tcv =>
+  have htcvwf : ConstantValWF tcv := howf tcv rfl
+  simp only [Option.map_some] at hoabs
+  obtain ⟨rh, hfind⟩ := thmOf_inv hoabs.symm
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  have hbv := Env.names_beq_refines htcvwf.2.1 hlps hb
+  by_cases hbt : b = true
+  · rw [if_pos hbt] at h
+    rw [hbt] at hbv
+    have hlpseq : absNames tcv.level_params = absNames lps :=
+      of_decide_eq_true hbv.symm
+    obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+    have hi1v : i1.val = n_p.val + n_f.val := HashMap.uscalar_add_eq hi1
+    obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ho1abs, ho1wf⟩ := ExprOps.strip_pis_refines htcvwf.2.2 ho1
+    rw [hi1v] at ho1abs
+    cases o1 with
+    | none => simp at h
+    | some sq =>
+    obtain ⟨sbs, sbody⟩ := sq
+    obtain ⟨hsbswf, hsbodywf⟩ := ho1wf _ rfl
+    simp only [Option.map_some] at ho1abs
+    obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ho2abs, ho2wf⟩ := ExprOps.strip_pis_refines hcvj.2.2 ho2
+    rw [hi1v] at ho2abs
+    cases o2 with
+    | none => simp at h
+    | some cq =>
+    obtain ⟨cbs, cbody⟩ := cq
+    obtain ⟨hcbswf, hcbodywf⟩ := ho2wf _ rfl
+    simp only [Option.map_some] at ho2abs
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v := hcb.domsMatchAux
+      inductives.modeled.DomProjFwd.Insts.Con_ron_coreKernelChecker_baseDomView
+      { t := t, ctor := ctor_name, n_f := n_f }
+      (fun _ e => ConLeche.Expr.renameConsts
+        (ConLeche.projFwd (absName t) (absName ctor_name) n_f.val) e)
+      (dom_proj_fwd_view_refines ht hc) sbs cbs 0#u64 0#u64 i1 b1 hsbswf hcbswf
+      hb1
+    rw [hi1v, show ((0#u64 : Std.U64)).val = 0 from rfl] at hb1v
+    by_cases hb1t : b1 = true
+    · rw [if_pos hb1t] at h
+      rw [hb1t] at hb1v
+      obtain ⟨lst', hrun, hrel', hwf'⟩ :=
+        check_proj_iota_body_refines hw hcb hspines hst hfe ht hcvj hlps htcvwf
+          hsbodywf h lst lfe2 hrel hrS
+      refine ⟨lst', ?_, hrel', hwf'⟩
+      exact checkProjIotaF_run (rh := rh) (cbody := absExpr cbody) hcname hfind
+        hlpseq ho1abs.symm ho2abs.symm hb1v.symm hrun
+    · simp only [Bool.not_eq_true] at hb1t
+      rw [if_neg (by simp [hb1t])] at h; simp at h
+  · simp only [Bool.not_eq_true] at hbt
+    rw [if_neg (by simp [hbt])] at h; simp at h
+
+omit hw hcb in
+/-- `checkProjFnS`' success path, run: the two lookups (both state-neutral),
+the shape pin, the index bound and the two stateful stages, composed into the
+cited stage's own run.  `check_proj_fn_refines` supplies each from the port's
+answer. -/
+theorem checkProjFnS_run {lmode : ConLeche.CheckMode} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name} {nP nF i : Nat}
+    {cvj mcv : ConLeche.ConstantVal} {pty rhsA : ConLeche.Expr}
+    {lst lst1 lst2 : ConLeche.Cached.CState}
+    (h1 : (ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe T
+        ctorName lps nP nF i).run lst = .ok ((cvj, mcv), lst))
+    (h2 : (ConLeche.checkProjTyF (m := ConLeche.Cached.CheckCM) lfe T ctorName
+        lps mcv.type nP nF).run lst = .ok (pty, lst))
+    (h3 : ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM) pty cvj.type
+        nP nF = pure ())
+    (h4 : i < nF)
+    (h5 : (ConLeche.checkProjRuleF (ConLeche.Cached.sharedOpsC lmode lfe) lfe
+        pty cvj lps nP nF i).run lst = .ok (rhsA, lst1))
+    (h6 : (ConLeche.checkProjIotaF (m := ConLeche.Cached.CheckCM) lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe T ctorName lps cvj nP nF
+        i).run lst1 = .ok ((), lst2)) :
+    (ConLeche.Cached.checkProjFnS lmode lfe T ctorName lps nP nF i).run lst
+      = .ok (lfe.push (.recInfo ⟨ConLeche.projFnName T i, lps, pty⟩ nP nP
+          [ConLeche.projFnRule lfe.find? T ctorName pty nP nF i rhsA]),
+        lst2) := by
+  rw [ConLeche.Cached.checkProjFnS]
+  simp only [StateT.run] at h1 h2 h5 h6
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure, h1, h2, h3, h4, h5, h6]
 
 /-- `ConLeche/Cached/CheckerC.lean:153-166` — **`check_proj_fn` refines
 `checkProjFnS`**: the public projection function for field `i`, stored as a
 degenerate recursor carrying one rule.  The cited stage has no flush of its
-own, so this statement is against `checkProjFnS` unmodified. -/
+own, so this statement is against `checkProjFnS` unmodified.
+
+`hcan` (added at task #59): the stage feeds its looked-up `cvj` to
+`check_proj_iota_refines`, whose `hcname` needs the index to answer under the
+name it stores.  `FEnv.canon_find_name` is what says that, and it holds of
+every canonical view; `Refine/IndC.lean` discharges it at the driver from
+`dup_canon`/`mk_fenv_canon`, exactly as it already does for
+`check_ind_recs_refines`. -/
 theorem check_proj_fn_refines
     {st st' : cached.state_c.CState} {fe2 fe' : fenv.FEnv}
     {t ctor_name : name.Name} {lps : alloc.vec.Vec name.Name}
     {n_p n_f i : Std.U64}
     (hres : StructInstall.ConstsResolveFFastRefines)
-    (hst : StateWF st) (hfe : FEnvWF fe2) (ht : NameWF t)
-    (hc : NameWF ctor_name) (hlps : NamesWF lps)
+    (hspines : StructSpinesRefine)
+    (hst : StateWF st) (hfe : FEnvWF fe2) (hcan : FEnv.FEnvCanon fe2)
+    (hfull : FEnv.FEnvFull fe2)
+    (ht : NameWF t) (hc : NameWF ctor_name) (hlps : NamesWF lps)
     (h : inductives.modeled.check_proj_fn mode st fe2 t ctor_name lps n_p n_f i
         = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe2 lfe →
@@ -1815,21 +4852,112 @@ theorem check_proj_fn_refines
         (ConLeche.Cached.checkProjFnS (absMode mode) lfe (absName t)
             (absName ctor_name) (absNames lps) n_p.val n_f.val i.val).run lst
           = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
-  -- `check_proj_lookups_refines`, `check_proj_ty_refines`, the
-  -- `checkProjShape`/`checkProjRule` ingredients, `check_proj_iota_refines`,
-  -- `CoreKShapes.proj_fn_rule_refines` and `FEnv.push_refines`
-  sorry
+        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+  intro lst lfe hrel hfer
+  rw [inductives.modeled.check_proj_fn] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => simp at h
+  | Ok lq =>
+  obtain ⟨cvj, mcv⟩ := lq
+  obtain ⟨hlk, hcvjwf, hmcvwf, hfindc⟩ :=
+    check_proj_lookups_refines hw hcb hfer hfe ht hc hlps hr
+  obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+  cases r1 with
+  | Err e => simp at h
+  | Ok pty =>
+  obtain ⟨hty, hptywf⟩ :=
+    check_proj_ty_refines hw hcb hres hfer hfe ht hc hlps hmcvwf.2.2 hr1
+  obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+  cases r2 with
+  | Err e => simp at h
+  | Ok u =>
+  cases u
+  have hshape := hcb.checkProjShape pty cvj.ty n_p n_f hptywf hcvjwf.2.2 hr2
+  by_cases hge : i ≥ n_f
+  · rw [if_pos hge] at h; simp at h
+  · rw [if_neg hge] at h
+    have hlt : i.val < n_f.val := by scalar_tac
+    obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r3, st1⟩ := p
+    cases r3 with
+    | Err e => simp at h
+    | Ok rhs_a =>
+    obtain ⟨lst1, hrun1, hrel1, hwf1, hrhswf⟩ :=
+      hcb.checkProjRule st fe2 pty cvj lps n_p n_f i rhs_a st1 hst hfe hptywf
+        hcvjwf hlps hp lst lfe hrel hfer
+    obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r4, st2⟩ := p2
+    cases r4 with
+    | Err e => simp at h
+    | Ok u2 =>
+    cases u2
+    have hcname : absName cvj.name = absName ctor_name := by
+      exact FEnv.canon_find_name hcan hfer hc hfindc
+    obtain ⟨lst2, hrun2, hrel2, hwf2⟩ :=
+      check_proj_iota_refines hw hcb hspines hcname hwf1 hfe hfe ht hc hlps
+        hcvjwf hp2 lst1 lfe lfe hrel1 hfer hfer rfl
+    obtain ⟨rr, hrr, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hrrv, hrrwf⟩ :=
+      CoreK.proj_fn_rule_refines CoreK.envFacts
+        (FindAgree.of_rel hfer hfe) (FindWF.of_wf hfe) ht hc hptywf hrhswf hrr
+    obtain ⟨rules, hrules, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+    have hnmv : absName nm = ConLeche.projFnName (absName t) i.val :=
+      Env.proj_fn_name_refines hnm
+    have hnmwf : NameWF nm := Env.proj_fn_name_wf ht hnm
+    obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+    have hvv : absNames v = absNames lps := by
+      rw [absNames, absNames, PropWhen.names_copy_val hv]
+    have hvwf : NamesWF v := by
+      intro x hx; exact hlps x (by rwa [PropWhen.names_copy_val hv] at hx)
+    obtain ⟨f, hf, h⟩ := bind_eq_ok_iff.mp h
+    have hcivwf : ConstantInfoWF (env.ConstantInfo.RecInfo
+        { «name» := nm, level_params := v, ty := pty } n_p n_p rules) := by
+      refine ⟨⟨hnmwf, hvwf, hptywf⟩, ?_⟩
+      intro x hx
+      rw [vec_push_val hrules] at hx
+      simp at hx
+      rw [hx]; exact hrrwf
+    obtain ⟨hprel, hpwf⟩ := FEnv.push_refines hfer hfe hcivwf hf
+    obtain ⟨hpcan, hpfull⟩ := FEnv.push_canon hfe hcivwf hcan hfull hf
+    simp only [Result.ok.injEq, Prod.mk.injEq,
+      core.result.Result.Ok.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hrulesv : (rules.val.map absRecRule) = [absRecRule rr] := by
+      rw [vec_push_val hrules]
+      simp [alloc.vec.Vec.new]
+    refine ⟨lst2, lfe.push (.recInfo ⟨ConLeche.projFnName (absName t) i.val,
+      absNames lps, absExpr pty⟩ n_p.val n_p.val
+      [ConLeche.projFnRule lfe.find? (absName t) (absName ctor_name)
+        (absExpr pty) n_p.val n_f.val i.val (absExpr rhs_a)]), ?_, hrel2, ?_,
+      hwf2, hpwf, hpcan, hpfull⟩
+    · exact checkProjFnS_run (hlk lst) (hty lst) hshape hlt hrun1 hrun2
+    · have hci : absConstantInfo (env.ConstantInfo.RecInfo
+          { «name» := nm, level_params := v, ty := pty } n_p n_p rules)
+          = .recInfo ⟨ConLeche.projFnName (absName t) i.val, absNames lps,
+              absExpr pty⟩ n_p.val n_p.val
+              [ConLeche.projFnRule lfe.find? (absName t) (absName ctor_name)
+                (absExpr pty) n_p.val n_f.val i.val (absExpr rhs_a)] := by
+        simp only [absConstantInfo, absConstantVal, hnmv, hvv, hrulesv, hrrv]
+      rw [← hci]
+      exact hprel
 
 /-- `ConLeche/Cached/CheckerC.lean:171-175` (minus the flush) — **the
 `install_proj_fn_step` stage**: one projection install, skipped where the
-model's projection artifact is absent. -/
+model's projection artifact is absent.
+
+`hcan` and `hspines` are here only to be handed to `check_proj_fn_refines`;
+see its note. -/
 theorem install_proj_fn_step_refines
     {st st' : cached.state_c.CState} {t ctor_name : name.Name}
     {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64} {fe2 fe' : fenv.FEnv}
     (hres : StructInstall.ConstsResolveFFastRefines)
-    (hst : StateWF st) (hfe : FEnvWF fe2) (ht : NameWF t)
-    (hc : NameWF ctor_name) (hlps : NamesWF lps)
+    (hspines : StructSpinesRefine)
+    (hst : StateWF st) (hfe : FEnvWF fe2) (hcan : FEnv.FEnvCanon fe2)
+    (hfull : FEnv.FEnvFull fe2)
+    (ht : NameWF t) (hc : NameWF ctor_name) (hlps : NamesWF lps)
     (h : inductives.modeled.install_proj_fn_step mode st t ctor_name lps n_p n_f
         fe2 i = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe2 lfe →
@@ -1837,10 +4965,37 @@ theorem install_proj_fn_step_refines
         (installProjFnStepN (absMode mode) (absName t) (absName ctor_name)
             (absNames lps) n_p.val n_f.val lfe i.val).run lst
           = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
-  -- `CoreK.proj_model_name_refines`, `FEnv.find_refines` and
-  -- `check_proj_fn_refines`
-  sorry
+        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+  intro lst lfe hrel hfer
+  rw [inductives.modeled.install_proj_fn_step] at h
+  obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hnabs, hnwf⟩ := CoreK.proj_model_name_refines ht hn
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  have hoabs : o.map absConstantInfo
+      = lfe.find? (ConLeche.projModelName (absName t) i.val) := by
+    rw [← hnabs]; exact FEnv.find_refines hfer hfe hnwf ho
+  have hsome : (core.option.Option.is_some o)
+      = (lfe.find? (ConLeche.projModelName (absName t) i.val)).isSome := by
+    rw [← hoabs]; cases o <;> rfl
+  rw [installProjFnStepN]
+  -- the `let b := …` Aeneas emits for the `is_some` test is not a monadic
+  -- bind, so it goes by ascription before `split` can fire
+  replace h : (if (core.option.Option.is_some o) = true then
+        inductives.modeled.check_proj_fn mode st fe2 t ctor_name lps n_p n_f i
+      else ok (.Ok fe2, st))
+      = (ok (.Ok fe', st') : Result ((core.result.Result _ core_types.CheckError)
+          × cached.state_c.CState)) := h
+  split at h
+  · rename_i hb
+    rw [if_pos (by rw [← hsome]; exact hb)]
+    exact check_proj_fn_refines hw hcb hres hspines hst hfe hcan hfull ht hc hlps
+      h lst lfe hrel hfer
+  · rename_i hb
+    rw [if_neg (by rw [← hsome]; exact hb)]
+    simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact ⟨lst, lfe, rfl, hrel, hfer, hst, hfe, hcan, hfull⟩
 
 end Stages
 
@@ -1849,31 +5004,75 @@ end Stages
 /-! ## The capability artifacts (`Modeled.lean:586-779`,
 `DeclCheck.lean:344-441`) -/
 
-/-- `struct_parts::struct_fam` refines `structFam`, the constructor residual
-`T p⃗` an index-free single-constructor family targets.  **Owned by
-`Refine/IndStructParts.lean`**; named here so that `ctor_targets_fam` and
-`ctor_residual_ok` keep their exact conclusions under an explicit
-ingredient. -/
-def StructFamRefines : Prop :=
-  ∀ (t : name.Name) (lps : alloc.vec.Vec name.Name) (n_p o : Std.U64)
-    (e : expr.Expr), NameWF t → NamesWF lps →
-    inductives.struct_parts.struct_fam t lps n_p o = ok e →
-    absExpr e = ConLeche.structFam (absName t) (absNames lps) n_p.val o.val
-      ∧ ExprWF e
+/-- The `defnInfo` match of `checkEtaThmF`'s conjunct, read through
+`CoreK.defnOf` — which is the shape `CoreK.defn_probe_refines` hands over. -/
+theorem defn_lps_match_step (x : Option ConLeche.ConstantInfo)
+    (lps : List ConLeche.Name) :
+    (match x with
+     | some (.defnInfo cvmj _ _) => cvmj.levelParams == lps
+     | _ => false)
+      = (match CoreK.defnOf x with
+         | some (cv, _, _) => cv.levelParams == lps
+         | none => false) := by
+  cases x with
+  | none => rfl
+  | some ci => cases ci <;> rfl
 
-/-- `struct_parts`' three spine builders — `params_of` (`lps.map .param`),
-`struct_proj_ps` (the parameter `bvar` spine) and `field_spine`/`struct_ps_at`
-(the field and parameter spines `checkProjIota`/`checkEtaThm` write out).
-**Owned by `Refine/IndStructParts.lean`.** -/
-def StructSpinesRefine : Prop :=
-  (∀ (lps : alloc.vec.Vec name.Name) (v : alloc.vec.Vec level.Level),
-      NamesWF lps → inductives.struct_parts.params_of lps = ok v →
-      absLevels v = (absNames lps).map ConLeche.Level.param ∧ LevelsWF v)
-  ∧ (∀ (n_p : Std.U64) (v : alloc.vec.Vec expr.Expr),
-      inductives.struct_parts.struct_proj_ps n_p = ok v →
-      absExprs v
-          = (List.range n_p.val).map (fun k => ConLeche.Expr.bvar (n_p.val - k))
-        ∧ ExprsWF v)
+/-- `proj_models_at_lps_from`'s index recursion on `n_f - j`. -/
+theorem proj_models_at_lps_from_val {fe2 : fenv.FEnv} {lfe : ConLeche.FEnv}
+    {t : name.Name} {lps : alloc.vec.Vec name.Name}
+    (hfa : FindAgree fe2 lfe) (hfw : FindWF fe2) (ht : NameWF t)
+    (hlps : NamesWF lps) :
+    ∀ N : Nat, ∀ (n_f j : Std.U64) (b : Bool), n_f.val - j.val ≤ N →
+      inductives.modeled.proj_models_at_lps_from fe2 t lps n_f j = ok b →
+      b = (List.range' j.val (n_f.val - j.val)).all (fun k =>
+        match lfe.find? (ConLeche.projModelName (absName t) k) with
+        | some (.defnInfo cvmj _ _) => cvmj.levelParams == absNames lps
+        | _ => false) := by
+  intro N
+  induction N with
+  | zero =>
+    intro n_f j b hk h
+    rw [inductives.modeled.proj_models_at_lps_from,
+      if_pos (show j ≥ n_f by scalar_tac), Result.ok.injEq] at h
+    rw [← h, show n_f.val - j.val = 0 by omega]
+    rfl
+  | succ N ih =>
+    intro n_f j b hk h
+    rw [inductives.modeled.proj_models_at_lps_from] at h
+    by_cases hj : j.val ≥ n_f.val
+    · rw [if_pos (show j ≥ n_f by scalar_tac), Result.ok.injEq] at h
+      rw [← h, show n_f.val - j.val = 0 by omega]
+      rfl
+    · rw [if_neg (show ¬ j ≥ n_f by scalar_tac)] at h
+      obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hnmv, hnmwf⟩ := CoreK.proj_model_name_refines ht hnm
+      obtain ⟨hoabs, howf⟩ := CoreK.defn_probe_refines hfa hfw hnmwf ho
+      rw [hnmv] at hoabs
+      have hrange : List.range' j.val (n_f.val - j.val)
+          = j.val :: List.range' (j.val + 1) (n_f.val - (j.val + 1)) := by
+        rw [show n_f.val - j.val = (n_f.val - (j.val + 1)) + 1 by omega]
+        rfl
+      rw [hrange, List.all_cons, defn_lps_match_step, ← hoabs]
+      cases o with
+      | none =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]; simp
+      | some p =>
+        obtain ⟨cvmj, v0, hint0⟩ := p
+        have hcvwf : ConstantValWF cvmj := (howf cvmj v0 hint0 rfl).1
+        simp only [] at h
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1v : b1 = ((absConstantVal cvmj).levelParams == absNames lps) := by
+          rw [Env.names_beq_refines hcvwf.2.1 hlps hb1, Bool.eq_iff_iff]
+          simp [absConstantVal]
+        simp only [Option.map_some]
+        refine CoreK.and_step hb1v h ?_
+        intro c1 h1
+        obtain ⟨j2, hj2, hrec⟩ := bind_eq_ok_iff.mp h1
+        have hj2val : j2.val = j.val + 1 := HashMap.uscalar_add_eq hj2
+        rw [ih n_f j2 c1 (by scalar_tac) hrec, hj2val]
 
 /-- `ConLeche/Kernel/DeclCheck.lean:355-358` — `proj_models_at_lps_from`
 refines `checkEtaThmF`'s `(List.range nF).all` conjunct from index `j`: the
@@ -1887,10 +5086,94 @@ theorem proj_models_at_lps_from_refines
     b = (List.range' j.val (n_f.val - j.val)).all (fun k =>
       match lfe.find? (ConLeche.projModelName (absName t) k) with
       | some (.defnInfo cvmj _ _) => cvmj.levelParams == absNames lps
-      | _ => false) := by
-  -- the index recursion on `n_f - j`, `CoreK.proj_model_name_refines` and
-  -- `CoreKGuards.defn_probe_refines` a step
-  sorry
+      | _ => false) :=
+  proj_models_at_lps_from_val (FindAgree.of_rel hrel hfe) (FindWF.of_wf hfe) ht
+    hlps (n_f.val - j.val) n_f j b le_rfl h
+
+/-- `eta_projs_from`'s index recursion on `n_f - j`. -/
+theorem eta_projs_from_val {t : name.Name} {lps : alloc.vec.Vec name.Name}
+    {ps : alloc.vec.Vec expr.Expr} {n_f : Std.U64}
+    (hspines : StructSpinesRefine) (ht : NameWF t) (hlps : NamesWF lps)
+    (hps : ExprsWF ps) :
+    ∀ n : Nat, ∀ (j : Std.U64) (out v : alloc.vec.Vec expr.Expr),
+      n_f.val - j.val ≤ n → ExprsWF out →
+      inductives.modeled.eta_projs_from t lps ps n_f j out = ok v →
+      absExprs v = absExprs out
+          ++ (List.range' j.val (n_f.val - j.val)).map (fun k =>
+              ConLeche.Expr.mkAppN
+                (.const (ConLeche.projModelName (absName t) k)
+                  ((absNames lps).map .param))
+                (absExprs ps ++ [ConLeche.Expr.bvar 0]))
+        ∧ ExprsWF v := by
+  intro n
+  induction n with
+  | zero =>
+    intro j out v hk hout h
+    rw [inductives.modeled.eta_projs_from,
+      if_pos (show j ≥ n_f by scalar_tac), Result.ok.injEq] at h
+    subst h
+    refine ⟨?_, hout⟩
+    rw [show n_f.val - j.val = 0 by omega]
+    simp
+  | succ n ih =>
+    intro j out v hk hout h
+    rw [inductives.modeled.eta_projs_from] at h
+    by_cases hj : j.val ≥ n_f.val
+    · rw [if_pos (show j ≥ n_f by scalar_tac), Result.ok.injEq] at h
+      subst h
+      refine ⟨?_, hout⟩
+      rw [show n_f.val - j.val = 0 by omega]
+      simp
+    · rw [if_neg (show ¬ j ≥ n_f by scalar_tac)] at h
+      obtain ⟨pargs, hpargs, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨pargs1, hpargs1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨us, hus, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨e2, he2, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨j1, hj1, h⟩ := bind_eq_ok_iff.mp h
+      have hj1v : j1.val = j.val + 1 := HashMap.uscalar_add_eq hj1
+      rw [Env.exprs_copy_refines hpargs] at hpargs1
+      have hewf : ExprWF e := ExprWF.bvar he
+      have hev : absExpr e = ConLeche.Expr.bvar 0 := by
+        rw [Expr.bvar_refines he]; rfl
+      have hpargs1v : List.map absExpr pargs1.val
+          = List.map absExpr ps.val ++ [ConLeche.Expr.bvar 0] := by
+        rw [vec_push_val hpargs1, List.map_append]
+        simp [hev]
+      have hpargs1wf : ExprsWF pargs1 := by
+        intro x hx
+        rw [vec_push_val hpargs1, List.mem_append] at hx
+        cases hx with
+        | inl hx => exact hps x hx
+        | inr hx => rw [List.mem_singleton.mp hx]; exact hewf
+      obtain ⟨hnmv, hnmwf⟩ := CoreK.proj_model_name_refines ht hnm
+      obtain ⟨husv, huswf⟩ := hspines.1 lps us hlps hus
+      have he1v : absExpr e1
+          = ConLeche.Expr.const (ConLeche.projModelName (absName t) j.val)
+              ((absNames lps).map ConLeche.Level.param) := by
+        rw [Expr.mk_const_refines he1, hnmv, husv]
+      have he1wf : ExprWF e1 := ExprWF.mk_const hnmwf huswf he1
+      obtain ⟨he2v, he2wf⟩ := ExprOps.mk_app_n_refines he1wf hpargs1wf he2
+      have hout1wf : ExprsWF out1 := by
+        intro x hx
+        rw [vec_push_val hout1, List.mem_append] at hx
+        cases hx with
+        | inl hx => exact hout x hx
+        | inr hx => rw [List.mem_singleton.mp hx]; exact he2wf
+      obtain ⟨hrec, hrecwf⟩ := ih j1 out1 v (by scalar_tac) hout1wf h
+      rw [hj1v] at hrec
+      refine ⟨?_, hrecwf⟩
+      have hrange : List.range' j.val (n_f.val - j.val)
+          = j.val :: List.range' (j.val + 1) (n_f.val - (j.val + 1)) := by
+        rw [show n_f.val - j.val = (n_f.val - (j.val + 1)) + 1 by omega]
+        rfl
+      rw [hrec, hrange, List.map_cons, absExprs, vec_push_val hout1,
+        List.map_append, List.append_assoc]
+      simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append,
+        he2v, he1v, hpargs1v, absExprs]
 
 /-- `ConLeche/Kernel/DeclCheck.lean:375-381` — `eta_projs_from` refines the
 `(List.range nF).map` of the eta statement's right-hand side: each field's
@@ -1907,9 +5190,8 @@ theorem eta_projs_from_refines
               (.const (ConLeche.projModelName (absName t) k)
                 ((absNames lps).map .param))
               (absExprs ps ++ [ConLeche.Expr.bvar 0]))
-      ∧ ExprsWF v := by
-  -- the index recursion on `n_f - j`
-  sorry
+      ∧ ExprsWF v :=
+  eta_projs_from_val hspines ht hlps hps (n_f.val - j.val) j out v le_rfl hout h
 
 /-- `ConLeche/Kernel/DeclCheck.lean:373-381` — `eta_rhs` refines the eta
 statement's right-hand side
@@ -1930,9 +5212,35 @@ theorem eta_rhs_refines
            (((List.range n_p.val).map fun k => ConLeche.Expr.bvar (n_p.val - k))
             ++ [ConLeche.Expr.bvar 0]))
       ∧ ExprWF e := by
-  -- `struct_proj_ps`, `eta_projs_from_refines`, `model_of_refines`,
-  -- `params_of` and `mk_app_n`
-  sorry
+  rw [inductives.modeled.eta_rhs] at h
+  obtain ⟨ps, hps, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨args, hargs, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨args1, hargs1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨us, hus, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e0, he0, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hpsv, hpswf⟩ := hspines.2.1 n_p ps hps
+  rw [Env.exprs_copy_refines hargs] at hargs1
+  obtain ⟨hargs1v, hargs1wf⟩ :=
+    eta_projs_from_refines hspines ht hlps hpswf hpswf hargs1
+  obtain ⟨hnmv, hnmwf⟩ := model_of_refines hc hnm
+  obtain ⟨husv, huswf⟩ := hspines.1 lps us hlps hus
+  have he0v : absExpr e0
+      = ConLeche.Expr.const ((absName ctor_name).str "_model")
+          ((absNames lps).map ConLeche.Level.param) := by
+    rw [Expr.mk_const_refines he0, hnmv, husv]
+  have he0wf : ExprWF e0 := ExprWF.mk_const hnmwf huswf he0
+  obtain ⟨hev, hewf⟩ := ExprOps.mk_app_n_refines he0wf hargs1wf h
+  refine ⟨?_, hewf⟩
+  rw [hev, he0v, hargs1v, hpsv,
+    show ((0#u64 : Std.U64)).val = 0 from rfl, Nat.sub_zero,
+    ← List.range_eq_range']
+
+/-- `Expr`'s `BEq` is its `decide`, as `Refine/Expr.lean`'s `beq_refines`
+states it. -/
+theorem beq_eq_decide_expr (a b : ConLeche.Expr) :
+    (a == b) = decide (a = b) := by
+  rw [Bool.eq_iff_iff]; simp
 
 /-- `ConLeche/Kernel/DeclCheck.lean:359-381` — `check_eta_thm_shape` refines
 `checkEtaThmShape`, the statement-shape half of `checkEtaThmF`. -/
@@ -1941,14 +5249,357 @@ theorem check_eta_thm_shape_refines {mode : env.CheckMode}
     {n_p n_f : Std.U64} {tty tty_m : expr.Expr} {b : Bool}
     (hcb : CheckerBaseSpec mode) (hspines : StructSpinesRefine)
     (ht : NameWF t) (hc : NameWF ctor_name) (hlps : NamesWF lps)
-    (htty : ExprWF tty) (httym : ExprWF tty_m)
+    (htty : ExprWF tty) (httym : ExprWF tty_m) (hnp : n_p.val ≤ Std.Usize.max)
     (h : inductives.modeled.check_eta_thm_shape mode t ctor_name lps n_p n_f tty
         tty_m = ok b) :
     b = checkEtaThmShape (absMode mode) (absName t) (absName ctor_name)
       (absNames lps) n_p.val n_f.val (absExpr tty) (absExpr tty_m) := by
-  -- two `strip_pis`, the `domsMatchAux` ingredient at `dom_ident_view_refines`,
-  -- the subject binder's domain, the equation's four pins and `eta_rhs_refines`
-  sorry
+  rw [inductives.modeled.check_eta_thm_shape] at h
+  rw [checkEtaThmShape]
+  obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
+  have hkv : k.val = n_p.val + 1 := HashMap.uscalar_add_eq hk
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hoabs, howf⟩ := ExprOps.strip_pis_refines htty ho
+  rw [hkv] at hoabs
+  rw [← hoabs]
+  cases o with
+  | none => simp only [Option.map_none]; simp at h; simp [← h]
+  | some sq =>
+  obtain ⟨sbs, sbody⟩ := sq
+  obtain ⟨hsbswf, hsbodywf⟩ := howf _ rfl
+  obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨ho1abs, ho1wf⟩ := ExprOps.strip_pis_refines httym ho1
+  rw [← ho1abs]
+  cases o1 with
+  | none => simp only [Option.map_none, Option.map_some]; simp at h; simp [← h]
+  | some mq =>
+  obtain ⟨tbs, tbody⟩ := mq
+  obtain ⟨htbswf, htbodywf⟩ := ho1wf _ rfl
+  simp only [Option.map_some]
+  simp at h
+  have hcast : (Std.UScalar.cast .Usize n_p : Std.Usize).val = n_p.val :=
+    ExprOps.u64_cast_usize_val hnp
+  have hz : ((0#u64 : Std.U64)).val = 0 := rfl
+  have hmod : n_p.val % 2 ^ System.Platform.numBits = n_p.val := by
+    refine Nat.mod_eq_of_lt ?_
+    have hpos : 0 < 2 ^ System.Platform.numBits := Nat.two_pow_pos _
+    have hmaxv : Std.Usize.max = 2 ^ System.Platform.numBits - 1 := by
+      simp only [Std.Usize.max, Std.Usize.numBits, Std.UScalarTy.numBits]
+    omega
+  have hbl : (ExprOps.absBinders sbs).length = sbs.val.length := by
+    simp [ExprOps.absBinders]
+  have hidx : ∀ (j : Std.Usize) (x : expr.Expr × expr.BinderMeta)
+      (hj : j.val < sbs.val.length),
+      alloc.vec.Vec.index_usize sbs j = ok x →
+      (ExprOps.absBinders sbs)[j.val]?
+        = some (absExpr x.1, absBinderMeta x.2) := by
+    intro j x hj hx
+    obtain ⟨y0, hy0, hy0v⟩ :=
+      WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec sbs j hj)
+    subst hy0v
+    rw [hy0, Result.ok.injEq] at hx
+    subst hx
+    rw [ExprOps.absBinders, List.getElem?_map, List.getElem?_eq_getElem hj]
+    rfl
+  have hEq_inv : ∀ (e : ConLeche.Expr), ConLeche.isEqHead e = true →
+      ∃ c lA, e = .const c [lA] := by
+    intro e he
+    cases e with
+    | const c us =>
+      cases us with
+      | nil => simp [ConLeche.isEqHead] at he
+      | cons l ls =>
+        cases ls with
+        | nil => exact ⟨c, l, rfl⟩
+        | cons _ _ => simp [ConLeche.isEqHead] at he
+    | _ => simp [ConLeche.isEqHead] at he
+  rcases h with ⟨hbd, rfl⟩ | ⟨hbd, h⟩
+  · have hbdv := hcb.domsMatchAux _ () (fun _ e => e) dom_ident_view_gl sbs tbs
+      0#u64 0#u64 n_p false hsbswf htbswf hbd
+    rw [hz] at hbdv
+    rw [← hbdv]
+    simp
+  · have hbdv := hcb.domsMatchAux _ () (fun _ e => e) dom_ident_view_gl sbs tbs
+      0#u64 0#u64 n_p true hsbswf htbswf hbd
+    rw [hz] at hbdv
+    by_cases hge : sbs.val.length ≤ n_p.val
+    · rw [if_pos (by rw [hmod]; exact hge)] at h
+      simp at h
+      subst h
+      have hnone : (ExprOps.absBinders sbs)[n_p.val]? = none := by
+        apply List.getElem?_eq_none
+        rw [hbl]; omega
+      rw [← hbdv, hnone]
+      simp
+    · rw [if_neg (by rw [hmod]; exact hge)] at h
+      simp at h
+      have hlt0 : n_p.val < sbs.val.length := by omega
+      have hj0 : (Std.UScalar.cast .Usize n_p : Std.Usize).val
+          < sbs.val.length := by rw [hcast]; exact hlt0
+      obtain ⟨nm, hnm, us, hus, fam, hfam, v3, hv3, xdom, hxdom,
+        e3, ⟨bm3, he3⟩, hcase1⟩ := h
+      obtain ⟨hnmv, hnmwf⟩ := model_of_refines ht hnm
+      obtain ⟨husv, huswf⟩ := hspines.1 lps us hlps hus
+      have hfamv : absExpr fam
+          = ConLeche.Expr.const ((absName t).str "_model")
+              ((absNames lps).map ConLeche.Level.param) := by
+        rw [Expr.mk_const_refines hfam, hnmv, husv]
+      have hfamwf : ExprWF fam := ExprWF.mk_const hnmwf huswf hfam
+      obtain ⟨hv3v, hv3wf⟩ := hspines.2.2.2 0#u64 n_p v3 hv3
+      obtain ⟨hxdomv, hxdomwf⟩ := ExprOps.mk_app_n_refines hfamwf hv3wf hxdom
+      have he3wf : ExprWF e3 := by
+        obtain ⟨y0, hy0, hy0v⟩ :=
+          WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec sbs _ hj0)
+        subst hy0v
+        rw [hy0, Result.ok.injEq] at he3
+        have hm := (hsbswf _ (List.getElem_mem hj0)).1
+        rw [he3] at hm
+        exact hm
+      have he3idx : (ExprOps.absBinders sbs)[n_p.val]?
+          = some (absExpr e3, absBinderMeta bm3) := by
+        have hx := hidx (Std.UScalar.cast .Usize n_p) (e3, bm3) hj0 he3
+        rwa [hcast] at hx
+      have hxtarget : absExpr xdom
+          = ConLeche.Expr.mkAppN
+              (.const ((absName t).str "_model")
+                ((absNames lps).map ConLeche.Level.param))
+              ((List.range n_p.val).map
+                (fun k => ConLeche.Expr.bvar (n_p.val - 1 - k))) := by
+        rw [hxdomv, hfamv, hv3v, ConLeche.structPsAt]
+        simp
+      rw [← hbdv, he3idx]
+      rcases hcase1 with ⟨hb1, rfl⟩ | ⟨hb1, head, hhead, args, hargs, h⟩
+      · have hb1v : (false : Bool) = decide (absExpr e3 = absExpr xdom) :=
+          Expr.beq_refines he3wf hxdomwf hb1
+        have hne : absExpr e3 ≠ absExpr xdom := of_decide_eq_false hb1v.symm
+        rw [hxtarget] at hne
+        simp [hne]
+      · have hb1v : (true : Bool) = decide (absExpr e3 = absExpr xdom) :=
+          Expr.beq_refines he3wf hxdomwf hb1
+        have heq1 : absExpr e3 = absExpr xdom := of_decide_eq_true hb1v.symm
+        rw [hxtarget] at heq1
+        rw [heq1]
+        simp only [beq_self_eq_true, Bool.true_and]
+        obtain ⟨hheadv, hheadwf⟩ := ExprOps.get_app_fn_refines hsbodywf hhead
+        obtain ⟨hargsv, hargswf⟩ := ExprOps.get_app_args_refines hsbodywf hargs
+        by_cases hlen3 : args.val.length = 3
+        · rw [if_pos hlen3] at h
+          obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+          have hb2v : b2 = ConLeche.isEqHead (absExpr head) :=
+            hcb.isEqHead head b2 hheadwf hb2
+          by_cases hb2t : b2 = true
+          · rw [if_pos hb2t] at h
+            rw [hb2t] at hb2v
+            obtain ⟨c, lA, hheadc⟩ := hEq_inv _ hb2v.symm
+            obtain ⟨a0, a1, a2, hav⟩ : ∃ a0 a1 a2, args.val = [a0, a1, a2] := by
+              rcases hl : args.val with _ | ⟨a0, l1⟩
+              · rw [hl] at hlen3; simp at hlen3
+              rcases l1 with _ | ⟨a1, l2⟩
+              · rw [hl] at hlen3; simp at hlen3
+              rcases l2 with _ | ⟨a2, l3⟩
+              · rw [hl] at hlen3; simp at hlen3
+              rcases l3 with _ | ⟨a3, l4⟩
+              · exact ⟨a0, a1, a2, rfl⟩
+              · rw [hl] at hlen3; simp at hlen3
+            have hargidx : ∀ (j : Std.Usize) (hj : j.val < args.val.length),
+                alloc.vec.Vec.index_usize args j = ok (args.val[j.val]'hj) := by
+              intro j hj
+              obtain ⟨y0, hy0, hy0v⟩ :=
+                WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec args j hj)
+              subst hy0v
+              exact hy0
+            have hspine : absExpr sbody
+                = .app (.app (.app (.const c [lA]) (absExpr a0))
+                    (absExpr a1)) (absExpr a2) := by
+              refine expr_app3_of_spine ?_ ?_
+              · rw [← hheadv, hheadc]
+              · rw [← hargsv, absExprs, hav]; rfl
+            have hceq : (c == ConLeche.eqName) = true := by
+              have hx := hb2v.symm
+              rw [hheadc] at hx
+              simpa [ConLeche.isEqHead] using hx
+            rw [hspine]
+            simp only []
+            rw [hceq]
+            obtain ⟨e4, he4, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨e5, he5, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+            have he4v : e4 = a1 := by
+              have hx := hargidx 1#usize (by rw [hav]; norm_num)
+              rw [he4, Result.ok.injEq] at hx
+              rw [hx]; simp [hav]
+            have he5v : absExpr e5 = ConLeche.Expr.bvar 0 := by
+              rw [Expr.bvar_refines he5]; rfl
+            have ha1wf : ExprWF a1 := hargswf a1 (by rw [hav]; simp)
+            have hb3v : b3 = decide (absExpr e4 = absExpr e5) :=
+              Expr.beq_refines (by rw [he4v]; exact ha1wf) (ExprWF.bvar he5) hb3
+            rw [he4v, he5v] at hb3v
+            by_cases hb3t : b3 = true
+            · rw [if_pos hb3t] at h
+              rw [hb3t] at hb3v
+              rw [of_decide_eq_true hb3v.symm]
+              simp only [beq_self_eq_true, Bool.true_and]
+              obtain ⟨fam2, hfam2, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨v4, hv4, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨slot, hslot, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨e7, he7, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨b4, hb4, h⟩ := bind_eq_ok_iff.mp h
+              have hfam2v : absExpr fam2
+                  = ConLeche.Expr.const ((absName t).str "_model")
+                      ((absNames lps).map ConLeche.Level.param) := by
+                rw [Expr.mk_const_refines hfam2, hnmv, husv]
+              have hfam2wf : ExprWF fam2 := ExprWF.mk_const hnmwf huswf hfam2
+              obtain ⟨hv4v, hv4wf⟩ := hspines.2.1 n_p v4 hv4
+              obtain ⟨hslotv, hslotwf⟩ :=
+                ExprOps.mk_app_n_refines hfam2wf hv4wf hslot
+              have hstarget : absExpr slot
+                  = ConLeche.Expr.mkAppN
+                      (.const ((absName t).str "_model")
+                        ((absNames lps).map ConLeche.Level.param))
+                      ((List.range n_p.val).map
+                        (fun k => ConLeche.Expr.bvar (n_p.val - k))) := by
+                rw [hslotv, hfam2v, hv4v]
+              have he7v : e7 = a0 := by
+                have hx := hargidx 0#usize (by rw [hav]; norm_num)
+                rw [he7, Result.ok.injEq] at hx
+                rw [hx]; simp [hav]
+              have ha0wf : ExprWF a0 := hargswf a0 (by rw [hav]; simp)
+              have hb4v : b4 = decide (absExpr e7 = absExpr slot) :=
+                Expr.beq_refines (by rw [he7v]; exact ha0wf) hslotwf hb4
+              rw [he7v, hstarget] at hb4v
+              by_cases hb4t : b4 = true
+              · rw [if_pos hb4t] at h
+                rw [hb4t] at hb4v
+                rw [of_decide_eq_true hb4v.symm]
+                simp only [beq_self_eq_true, Bool.true_and]
+                obtain ⟨e8, he8, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨e9, he9, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨b5, hb5, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨he9v, he9wf⟩ := eta_rhs_refines hspines ht hc hlps he9
+                have he8v : e8 = a2 := by
+                  have hx := hargidx 2#usize (by rw [hav]; norm_num)
+                  rw [he8, Result.ok.injEq] at hx
+                  rw [hx]; simp [hav]
+                have ha2wf : ExprWF a2 := hargswf a2 (by rw [hav]; simp)
+                have hb5v : b5 = decide (absExpr e8 = absExpr e9) :=
+                  Expr.beq_refines (by rw [he8v]; exact ha2wf) he9wf hb5
+                rw [he8v, he9v] at hb5v
+                by_cases hb5t : b5 = true
+                · rw [if_pos hb5t] at h
+                  rw [hb5t] at hb5v
+                  rw [of_decide_eq_true hb5v.symm]
+                  simp only [beq_self_eq_true, Bool.true_and]
+                  obtain ⟨b6, hb6, h⟩ := bind_eq_ok_iff.mp h
+                  have hb6v : b6 = (absMode mode).ttChecks :=
+                    Env.tt_checks_refines hb6
+                  by_cases hb6t : b6 = true
+                  · rw [if_pos hb6t] at h
+                    rw [hb6t] at hb6v
+                    obtain ⟨la, hla, h⟩ := bind_eq_ok_iff.mp h
+                    obtain ⟨srt, hsrt, h⟩ := bind_eq_ok_iff.mp h
+                    obtain ⟨hlav, hlawf⟩ := hcb.eqHeadLevel head la hheadwf hla
+                    rw [hheadc] at hlav
+                    have hsrtv : absExpr srt = ConLeche.Expr.sort lA := by
+                      rw [Expr.sort_refines hsrt, hlav]; rfl
+                    have hsrtwf : ExprWF srt := ExprWF.sort hlawf hsrt
+                    rw [Expr.beq_refines htbodywf hsrtwf h, hsrtv, ← hb6v]
+                    simp [beq_eq_decide_expr]
+                  · simp only [Bool.not_eq_true] at hb6t
+                    rw [if_neg (by simp [hb6t]), Result.ok.injEq] at h
+                    rw [hb6t] at hb6v
+                    rw [← h, ← hb6v]
+                    simp
+                · simp only [Bool.not_eq_true] at hb5t
+                  rw [if_neg (by simp [hb5t]), Result.ok.injEq] at h
+                  rw [hb5t] at hb5v
+                  rw [← h]
+                  have hne : absExpr a2 ≠ _ := of_decide_eq_false hb5v.symm
+                  simp [hne]
+              · simp only [Bool.not_eq_true] at hb4t
+                rw [if_neg (by simp [hb4t]), Result.ok.injEq] at h
+                rw [hb4t] at hb4v
+                rw [← h]
+                have hne : absExpr a0 ≠ _ := of_decide_eq_false hb4v.symm
+                simp [hne]
+            · simp only [Bool.not_eq_true] at hb3t
+              rw [if_neg (by simp [hb3t]), Result.ok.injEq] at h
+              rw [hb3t] at hb3v
+              rw [← h]
+              have hne : absExpr a1 ≠ ConLeche.Expr.bvar 0 :=
+                of_decide_eq_false hb3v.symm
+              simp [hne]
+          · simp only [Bool.not_eq_true] at hb2t
+            rw [if_neg (by simp [hb2t]), Result.ok.injEq] at h
+            rw [hb2t] at hb2v
+            rw [← h]
+            split
+            · rename_i c lA tS lC rC hpat
+              have hfn : (absExpr sbody).getAppFn = .const c [lA] := by
+                rw [hpat]; rfl
+              rw [hheadv, hfn] at hb2v
+              simp only [ConLeche.isEqHead] at hb2v
+              simp [← hb2v]
+            · rfl
+        · rw [if_neg hlen3, Result.ok.injEq] at h
+          rw [← h]
+          split
+          · rename_i c lA tS lC rC hpat
+            exfalso
+            apply hlen3
+            have hga : (absExpr sbody).getAppArgs = [tS, lC, rC] := by
+              rw [hpat]; simp [ConLeche.Expr.getAppArgs]
+            rw [← hargsv] at hga
+            have hx := congrArg List.length hga
+            simpa [absExprs] using hx
+          · rfl
+
+/-- `ConstantInfo`'s `BEq` is its `decide`; the cited body writes `==` where
+`basis_pins::eq_basis_pinned` is stated with `decide`. -/
+theorem beq_eq_decide_ci (x y : ConLeche.ConstantInfo) :
+    (x == y) = decide (x = y) := by
+  rw [Bool.eq_iff_iff]; simp
+
+/-- `checkEtaThmF` re-read through the three owning probes, as `unitThmF_read`
+does for `checkUnitThmF`. -/
+theorem etaThmF_read (lmode : ConLeche.CheckMode) (lfe : ConLeche.FEnv)
+    (t ctorName : ConLeche.Name) (lps : List ConLeche.Name) (n_p n_f : Nat) :
+    ConLeche.checkEtaThmF lmode lfe t ctorName lps n_p n_f
+      = (match (match lfe.find? ((t.str "_model").str "eta") with
+                | some (.thmInfo tcv _) => some tcv
+                | _ => none),
+               (CoreK.defnOf (lfe.find? (t.str "_model"))).map Prod.fst,
+               (CoreK.defnOf
+                 (lfe.find? (ctorName.str "_model"))).map Prod.fst with
+         | some tcv, some cvmT, some cvmC =>
+           decide (lfe.find? ConLeche.eqName = some ConLeche.eqA)
+             && (tcv.levelParams == lps) && (cvmT.levelParams == lps)
+             && (cvmC.levelParams == lps)
+             && (List.range n_f).all (fun j =>
+                  match lfe.find? (ConLeche.projModelName t j) with
+                  | some (.defnInfo cvmj _ _) => cvmj.levelParams == lps
+                  | _ => false)
+             && checkEtaThmShape lmode t ctorName lps n_p n_f tcv.type
+                  cvmT.type
+         | _, _, _ => false) := by
+  rw [ConLeche.checkEtaThmF]
+  simp only [CoreK.defnOf]
+  cases hf1 : lfe.find? ((t.str "_model").str "eta") with
+  | none => rfl
+  | some ci1 =>
+  cases ci1 <;> try rfl
+  cases hf2 : lfe.find? (t.str "_model") with
+  | none => rfl
+  | some ci2 =>
+  cases ci2 <;> try rfl
+  cases hf3 : lfe.find? (ctorName.str "_model") with
+  | none => rfl
+  | some ci3 =>
+  cases ci3 <;> try rfl
+  cases hf4 : lfe.find? ConLeche.eqName with
+  | none => rfl
+  | some ci4 =>
+  simp only [beq_eq_decide_ci, Option.some.injEq]
+  rfl
 
 /-- `ConLeche/Kernel/DeclCheck.lean:344-382` — **`check_eta_thm` refines
 `checkEtaThmF`**: does the model document structural eta for this
@@ -1960,13 +5611,111 @@ theorem check_eta_thm_refines {mode : env.CheckMode}
     (hcb : CheckerBaseSpec mode) (hspines : StructSpinesRefine)
     (hrel : FEnvRel fe2 lfe) (hfe : FEnvWF fe2) (ht : NameWF t)
     (hc : NameWF ctor_name) (hlps : NamesWF lps)
+    (hnp : n_p.val ≤ Std.Usize.max)
     (h : inductives.modeled.check_eta_thm mode fe2 t ctor_name lps n_p n_f
         = ok b) :
     b = ConLeche.checkEtaThmF (absMode mode) lfe (absName t)
       (absName ctor_name) (absNames lps) n_p.val n_f.val := by
-  -- `eta_thm_name_refines`, `thm_probe_refines`, the two `defn_probe`s, the
-  -- `eqA` pin, `proj_models_at_lps_from_refines` and the shape half
-  sorry
+  rw [inductives.modeled.check_eta_thm] at h
+  obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hnmv, hnmwf⟩ := eta_thm_name_refines ht hnm
+  obtain ⟨hoabs, howf⟩ := thm_probe_refines hrel hfe hnmwf ho
+  rw [hnmv] at hoabs
+  rw [etaThmF_read, ← hoabs]
+  cases o with
+  | none =>
+    simp only [Option.map_none, Result.ok.injEq] at h ⊢
+    rw [← h]
+  | some tcv =>
+  have htcvwf : ConstantValWF tcv := howf tcv rfl
+  obtain ⟨nm1, hnm1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hnm1v, hnm1wf⟩ := model_of_refines ht hnm1
+  obtain ⟨ho1abs, ho1wf⟩ :=
+    CoreK.defn_probe_refines (FindAgree.of_rel hrel hfe) (FindWF.of_wf hfe)
+      hnm1wf ho1
+  rw [hnm1v] at ho1abs
+  rw [← ho1abs]
+  cases o1 with
+  | none =>
+    simp only [Option.map_none, Option.map_some, Result.ok.injEq] at h ⊢
+    rw [← h]
+  | some dt =>
+  obtain ⟨cvm, mv, mhint⟩ := dt
+  have hcvmwf : ConstantValWF cvm := (ho1wf cvm mv mhint rfl).1
+  obtain ⟨nm2, hnm2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hnm2v, hnm2wf⟩ := model_of_refines hc hnm2
+  obtain ⟨ho2abs, ho2wf⟩ :=
+    CoreK.defn_probe_refines (FindAgree.of_rel hrel hfe) (FindWF.of_wf hfe)
+      hnm2wf ho2
+  rw [hnm2v] at ho2abs
+  rw [← ho2abs]
+  cases o2 with
+  | none =>
+    simp only [Option.map_none, Option.map_some, Result.ok.injEq] at h ⊢
+    rw [← h]
+  | some dc =>
+  obtain ⟨cvc, cv2, chint⟩ := dc
+  have hcvcwf : ConstantValWF cvc := (ho2wf cvc cv2 chint rfl).1
+  simp only [Option.map_some]
+  simp at h
+  rcases h with ⟨hbp, rfl⟩ | ⟨hbp, h⟩
+  · have hbpv := BasisPins.eq_basis_pinned_refines hrel hfe hbp
+    have hne : lfe.find? ConLeche.eqName ≠ some ConLeche.eqA :=
+      of_decide_eq_false hbpv.symm
+    simp [hne]
+  · have hbpv := BasisPins.eq_basis_pinned_refines hrel hfe hbp
+    have heqp : lfe.find? ConLeche.eqName = some ConLeche.eqA :=
+      of_decide_eq_true hbpv.symm
+    rcases h with ⟨hb1, rfl⟩ | ⟨hb1, h⟩
+    · have hb1v : (false : Bool)
+          = decide (absNames tcv.level_params = absNames lps) :=
+        Env.names_beq_refines htcvwf.2.1 hlps hb1
+      have hb1ne : absNames tcv.level_params ≠ absNames lps :=
+        of_decide_eq_false hb1v.symm
+      simp [heqp, absConstantVal, hb1ne]
+    · have hb1v : (true : Bool)
+          = decide (absNames tcv.level_params = absNames lps) :=
+        Env.names_beq_refines htcvwf.2.1 hlps hb1
+      have hb1eq : absNames tcv.level_params = absNames lps :=
+        of_decide_eq_true hb1v.symm
+      rcases h with ⟨hb2, rfl⟩ | ⟨hb2, h⟩
+      · have hb2v : (false : Bool)
+            = decide (absNames cvm.level_params = absNames lps) :=
+          Env.names_beq_refines hcvmwf.2.1 hlps hb2
+        have hb2ne : absNames cvm.level_params ≠ absNames lps :=
+          of_decide_eq_false hb2v.symm
+        simp [heqp, absConstantVal, hb1eq, hb2ne]
+      · have hb2v : (true : Bool)
+            = decide (absNames cvm.level_params = absNames lps) :=
+          Env.names_beq_refines hcvmwf.2.1 hlps hb2
+        have hb2eq : absNames cvm.level_params = absNames lps :=
+          of_decide_eq_true hb2v.symm
+        rcases h with ⟨hb3, rfl⟩ | ⟨hb3, h⟩
+        · have hb3v : (false : Bool)
+              = decide (absNames cvc.level_params = absNames lps) :=
+            Env.names_beq_refines hcvcwf.2.1 hlps hb3
+          have hb3ne : absNames cvc.level_params ≠ absNames lps :=
+            of_decide_eq_false hb3v.symm
+          simp [heqp, absConstantVal, hb1eq, hb2eq, hb3ne]
+        · have hb3v : (true : Bool)
+              = decide (absNames cvc.level_params = absNames lps) :=
+            Env.names_beq_refines hcvcwf.2.1 hlps hb3
+          have hb3eq : absNames cvc.level_params = absNames lps :=
+            of_decide_eq_true hb3v.symm
+          rcases h with ⟨hb4, rfl⟩ | ⟨hb4, h⟩
+          · have hb4v := proj_models_at_lps_from_refines hrel hfe ht hlps hb4
+            rw [show ((0#u64 : Std.U64)).val = 0 from rfl, Nat.sub_zero,
+              ← List.range_eq_range'] at hb4v
+            simp [heqp, absConstantVal, hb1eq, hb2eq, hb3eq, ← hb4v]
+          · have hb4v := proj_models_at_lps_from_refines hrel hfe ht hlps hb4
+            rw [show ((0#u64 : Std.U64)).val = 0 from rfl, Nat.sub_zero,
+              ← List.range_eq_range'] at hb4v
+            rw [check_eta_thm_shape_refines hcb hspines ht hc hlps htcvwf.2.2
+              hcvmwf.2.2 hnp h]
+            simp [heqp, absConstantVal, hb1eq, hb2eq, hb3eq, ← hb4v]
 
 /-- `ConLeche/Kernel/DeclCheck.lean:403-413` — `check_unit_thm_shape` refines
 `checkUnitThmShape`, the statement-shape half of `checkUnitThmF`. -/
@@ -1975,14 +5724,385 @@ theorem check_unit_thm_shape_refines {mode : env.CheckMode}
     {tty tty_m : expr.Expr} {b : Bool}
     (hcb : CheckerBaseSpec mode) (hspines : StructSpinesRefine)
     (ht : NameWF t) (hlps : NamesWF lps) (htty : ExprWF tty)
-    (httym : ExprWF tty_m)
+    (httym : ExprWF tty_m) (hnp : n_p.val ≤ Std.Usize.max)
     (h : inductives.modeled.check_unit_thm_shape mode t lps n_p tty tty_m
         = ok b) :
     b = checkUnitThmShape (absMode mode) (absName t) (absNames lps) n_p.val
       (absExpr tty) (absExpr tty_m) := by
-  -- two `strip_pis`, the `domsMatchAux` ingredient, the two subject binders'
-  -- domains and the equation's four pins
-  sorry
+  rw [inductives.modeled.check_unit_thm_shape] at h
+  rw [checkUnitThmShape]
+  obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
+  have hkv : k.val = n_p.val + 2 := HashMap.uscalar_add_eq hk
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hoabs, howf⟩ := ExprOps.strip_pis_refines htty ho
+  rw [hkv] at hoabs
+  rw [← hoabs]
+  cases o with
+  | none => simp only [Option.map_none]; simp at h; simp [← h]
+  | some sq =>
+  obtain ⟨sbs, sbody⟩ := sq
+  obtain ⟨hsbswf, hsbodywf⟩ := howf _ rfl
+  obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨ho1abs, ho1wf⟩ := ExprOps.strip_pis_refines httym ho1
+  rw [← ho1abs]
+  cases o1 with
+  | none => simp only [Option.map_none, Option.map_some]; simp at h; simp [← h]
+  | some mq =>
+  obtain ⟨tbs, tbody⟩ := mq
+  obtain ⟨htbswf, htbodywf⟩ := ho1wf _ rfl
+  simp only [Option.map_some]
+  simp at h
+  have hcast : (Std.UScalar.cast .Usize n_p : Std.Usize).val = n_p.val :=
+    ExprOps.u64_cast_usize_val hnp
+  have hz : ((0#u64 : Std.U64)).val = 0 := rfl
+  rcases h with ⟨hbd, rfl⟩ | ⟨hbd, y, hy, h⟩
+  · have hbdv := hcb.domsMatchAux _ () (fun _ e => e) dom_ident_view_gl sbs tbs
+      0#u64 0#u64 n_p false hsbswf htbswf hbd
+    rw [hz] at hbdv
+    rw [← hbdv]
+    simp
+  · have hbdv := hcb.domsMatchAux _ () (fun _ e => e) dom_ident_view_gl sbs tbs
+      0#u64 0#u64 n_p true hsbswf htbswf hbd
+    rw [hz] at hbdv
+    have hyv : y.val = n_p.val + 1 := by
+      have h1 := HashMap.uscalar_add_eq hy
+      rw [hcast] at h1
+      scalar_tac
+    have hbl : (ExprOps.absBinders sbs).length = sbs.val.length := by
+      simp [ExprOps.absBinders]
+    by_cases hge : sbs.val.length ≤ y.val
+    · rw [if_pos hge] at h
+      simp at h
+      subst h
+      have hnone : (ExprOps.absBinders sbs)[n_p.val + 1]? = none := by
+        apply List.getElem?_eq_none
+        rw [hbl]; omega
+      rw [← hbdv, hnone]
+      simp
+    · rw [if_neg hge] at h
+      simp at h
+      have hlt0 : n_p.val < sbs.val.length := by omega
+      have hlt1 : n_p.val + 1 < sbs.val.length := by omega
+      have hidx : ∀ (j : Std.Usize) (x : expr.Expr × expr.BinderMeta)
+          (hj : j.val < sbs.val.length),
+          alloc.vec.Vec.index_usize sbs j = ok x →
+          (ExprOps.absBinders sbs)[j.val]?
+            = some (absExpr x.1, absBinderMeta x.2) := by
+        intro j x hj hx
+        obtain ⟨y0, hy0, hy0v⟩ :=
+          WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec sbs j hj)
+        subst hy0v
+        rw [hy0, Result.ok.injEq] at hx
+        subst hx
+        rw [ExprOps.absBinders, List.getElem?_map,
+          List.getElem?_eq_getElem hj]
+        rfl
+      have hEq_inv : ∀ (e : ConLeche.Expr), ConLeche.isEqHead e = true →
+          ∃ c lA, e = .const c [lA] := by
+        intro e he
+        cases e with
+        | const c us =>
+          cases us with
+          | nil => simp [ConLeche.isEqHead] at he
+          | cons l ls =>
+            cases ls with
+            | nil => exact ⟨c, l, rfl⟩
+            | cons _ _ => simp [ConLeche.isEqHead] at he
+        | _ => simp [ConLeche.isEqHead] at he
+      obtain ⟨nm, hnm, us, hus, fam, hfam, v3, hv3, xdom, hxdom, v4, hv4,
+        ydom, hydom, e3, ⟨bm3, he3⟩, hcase1⟩ := h
+      obtain ⟨hnmv, hnmwf⟩ := model_of_refines ht hnm
+      obtain ⟨husv, huswf⟩ := hspines.1 lps us hlps hus
+      have hfamv : absExpr fam
+          = ConLeche.Expr.const ((absName t).str "_model")
+              ((absNames lps).map ConLeche.Level.param) := by
+        rw [Expr.mk_const_refines hfam, hnmv, husv]
+      have hfamwf : ExprWF fam := ExprWF.mk_const hnmwf huswf hfam
+      obtain ⟨hv3v, hv3wf⟩ := hspines.2.2.2 0#u64 n_p v3 hv3
+      obtain ⟨hxdomv, hxdomwf⟩ := ExprOps.mk_app_n_refines hfamwf hv3wf hxdom
+      obtain ⟨hv4v, hv4wf⟩ := hspines.2.1 n_p v4 hv4
+      obtain ⟨hydomv, hydomwf⟩ := ExprOps.mk_app_n_refines hfamwf hv4wf hydom
+      have hj0 : (Std.UScalar.cast .Usize n_p : Std.Usize).val < sbs.val.length := by
+        rw [hcast]; exact hlt0
+      have he3wf : ExprWF e3 := by
+        obtain ⟨y0, hy0, hy0v⟩ :=
+          WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec sbs _ hj0)
+        subst hy0v
+        rw [hy0, Result.ok.injEq] at he3
+        have hm := (hsbswf _ (List.getElem_mem hj0)).1
+        rw [he3] at hm
+        exact hm
+      have he3idx : (ExprOps.absBinders sbs)[n_p.val]?
+          = some (absExpr e3, absBinderMeta bm3) := by
+        have hx := hidx (Std.UScalar.cast .Usize n_p) (e3, bm3) hj0 he3
+        rwa [hcast] at hx
+      have hxtarget : absExpr xdom
+          = ConLeche.Expr.mkAppN
+              (.const ((absName t).str "_model")
+                ((absNames lps).map ConLeche.Level.param))
+              ((List.range n_p.val).map
+                (fun k => ConLeche.Expr.bvar (n_p.val - 1 - k))) := by
+        rw [hxdomv, hfamv, hv3v, ConLeche.structPsAt]
+        simp
+      have hytarget : absExpr ydom
+          = ConLeche.Expr.mkAppN
+              (.const ((absName t).str "_model")
+                ((absNames lps).map ConLeche.Level.param))
+              ((List.range n_p.val).map
+                (fun k => ConLeche.Expr.bvar (n_p.val - k))) := by
+        rw [hydomv, hfamv, hv4v]
+      rcases hcase1 with ⟨hb1, rfl⟩ | ⟨hb1, y2, hy2, e4, ⟨bm4, he4⟩, hcase2⟩
+      · have hb1v : (false : Bool) = decide (absExpr e3 = absExpr xdom) :=
+          Expr.beq_refines he3wf hxdomwf hb1
+        have hne : absExpr e3 ≠ absExpr xdom := of_decide_eq_false hb1v.symm
+        rw [hxtarget] at hne
+        rw [← hbdv, he3idx]
+        simp [hne]
+      · have hb1v : (true : Bool) = decide (absExpr e3 = absExpr xdom) :=
+          Expr.beq_refines he3wf hxdomwf hb1
+        have heq1 : absExpr e3 = absExpr xdom := of_decide_eq_true hb1v.symm
+        rw [hxtarget] at heq1
+        have hy2v : y2.val = n_p.val + 1 := by
+          have h1 := HashMap.uscalar_add_eq hy2
+          rw [hcast] at h1
+          scalar_tac
+        have hj1 : y2.val < sbs.val.length := by omega
+        have he4wf : ExprWF e4 := by
+          obtain ⟨y0, hy0, hy0v⟩ :=
+            WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec sbs _ hj1)
+          subst hy0v
+          rw [hy0, Result.ok.injEq] at he4
+          have hm := (hsbswf _ (List.getElem_mem hj1)).1
+          rw [he4] at hm
+          exact hm
+        have he4idx : (ExprOps.absBinders sbs)[n_p.val + 1]?
+            = some (absExpr e4, absBinderMeta bm4) := by
+          have hx := hidx y2 (e4, bm4) hj1 he4
+          rwa [hy2v] at hx
+        rw [← hbdv, he3idx, he4idx, heq1]
+        rcases hcase2 with ⟨hb2, rfl⟩ | ⟨hb2, head, hhead, args, hargs, h⟩
+        · have hb2v : (false : Bool) = decide (absExpr e4 = absExpr ydom) :=
+            Expr.beq_refines he4wf hydomwf hb2
+          have hne : absExpr e4 ≠ absExpr ydom := of_decide_eq_false hb2v.symm
+          rw [hytarget] at hne
+          simp [hne]
+        · have hb2v : (true : Bool) = decide (absExpr e4 = absExpr ydom) :=
+            Expr.beq_refines he4wf hydomwf hb2
+          have heq2 : absExpr e4 = absExpr ydom := of_decide_eq_true hb2v.symm
+          rw [hytarget] at heq2
+          rw [heq2]
+          simp only [beq_self_eq_true, Bool.true_and, Bool.and_true]
+          obtain ⟨hheadv, hheadwf⟩ := ExprOps.get_app_fn_refines hsbodywf hhead
+          obtain ⟨hargsv, hargswf⟩ :=
+            ExprOps.get_app_args_refines hsbodywf hargs
+          by_cases hlen3 : args.val.length = 3
+          · rw [if_pos hlen3] at h
+            obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+            have hb3v : b3 = ConLeche.isEqHead (absExpr head) :=
+              hcb.isEqHead head b3 hheadwf hb3
+            by_cases hb3t : b3 = true
+            · rw [if_pos hb3t] at h
+              rw [hb3t] at hb3v
+              obtain ⟨c, lA, hheadc⟩ := hEq_inv _ hb3v.symm
+              obtain ⟨a0, a1, a2, hav⟩ :
+                  ∃ a0 a1 a2, args.val = [a0, a1, a2] := by
+                rcases hl : args.val with _ | ⟨a0, l1⟩
+                · rw [hl] at hlen3; simp at hlen3
+                rcases l1 with _ | ⟨a1, l2⟩
+                · rw [hl] at hlen3; simp at hlen3
+                rcases l2 with _ | ⟨a2, l3⟩
+                · rw [hl] at hlen3; simp at hlen3
+                rcases l3 with _ | ⟨a3, l4⟩
+                · exact ⟨a0, a1, a2, rfl⟩
+                · rw [hl] at hlen3; simp at hlen3
+              have hargidx : ∀ (j : Std.Usize) (hj : j.val < args.val.length),
+                  alloc.vec.Vec.index_usize args j
+                    = ok (args.val[j.val]'hj) := by
+                intro j hj
+                obtain ⟨y0, hy0, hy0v⟩ :=
+                  WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec args j hj)
+                subst hy0v
+                exact hy0
+              have hawf : ∀ x ∈ args.val, ExprWF x := hargswf
+              have hspine : absExpr sbody
+                  = .app (.app (.app (.const c [lA]) (absExpr a0))
+                      (absExpr a1)) (absExpr a2) := by
+                refine expr_app3_of_spine ?_ ?_
+                · rw [← hheadv, hheadc]
+                · rw [← hargsv, absExprs, hav]; rfl
+              rw [hspine]
+              simp only []
+              obtain ⟨e5, he5, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨e6, he6, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨b4, hb4, h⟩ := bind_eq_ok_iff.mp h
+              have he5v : e5 = a1 := by
+                have := hargidx 1#usize (by rw [hav]; norm_num)
+                rw [he5, Result.ok.injEq] at this
+                rw [this]
+                simp [hav]
+              have he6v : absExpr e6 = ConLeche.Expr.bvar 1 := by
+                rw [Expr.bvar_refines he6]; rfl
+              have ha1wf : ExprWF a1 := hawf a1 (by rw [hav]; simp)
+              have he6wf : ExprWF e6 := ExprWF.bvar he6
+              have hb4v : b4 = decide (absExpr e5 = absExpr e6) :=
+                Expr.beq_refines (by rw [he5v]; exact ha1wf) he6wf hb4
+              rw [he5v, he6v] at hb4v
+              have hceq : (c == ConLeche.eqName) = true := by
+                have := hb3v.symm
+                rw [hheadc] at this
+                simpa [ConLeche.isEqHead] using this
+              rw [hceq]
+              by_cases hb4t : b4 = true
+              · rw [if_pos hb4t] at h
+                rw [hb4t] at hb4v
+                rw [of_decide_eq_true hb4v.symm]
+                obtain ⟨e7, he7, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨e8, he8, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨b5, hb5, h⟩ := bind_eq_ok_iff.mp h
+                have he7v : e7 = a2 := by
+                  have := hargidx 2#usize (by rw [hav]; norm_num)
+                  rw [he7, Result.ok.injEq] at this
+                  rw [this]
+                  simp [hav]
+                have he8v : absExpr e8 = ConLeche.Expr.bvar 0 := by
+                  rw [Expr.bvar_refines he8]; rfl
+                have ha2wf : ExprWF a2 := hawf a2 (by rw [hav]; simp)
+                have hb5v : b5 = decide (absExpr e7 = absExpr e8) :=
+                  Expr.beq_refines (by rw [he7v]; exact ha2wf)
+                    (ExprWF.bvar he8) hb5
+                rw [he7v, he8v] at hb5v
+                by_cases hb5t : b5 = true
+                · rw [if_pos hb5t] at h
+                  rw [hb5t] at hb5v
+                  rw [of_decide_eq_true hb5v.symm]
+                  simp only [beq_self_eq_true, Bool.true_and]
+                  obtain ⟨v5, hv5, h⟩ := bind_eq_ok_iff.mp h
+                  obtain ⟨slot, hslot, h⟩ := bind_eq_ok_iff.mp h
+                  obtain ⟨e9, he9, h⟩ := bind_eq_ok_iff.mp h
+                  obtain ⟨b6, hb6, h⟩ := bind_eq_ok_iff.mp h
+                  obtain ⟨hv5v, hv5wf⟩ := hspines.2.2.2 2#u64 n_p v5 hv5
+                  obtain ⟨hslotv, hslotwf⟩ :=
+                    ExprOps.mk_app_n_refines hfamwf hv5wf hslot
+                  have hstarget : absExpr slot
+                      = ConLeche.Expr.mkAppN
+                          (.const ((absName t).str "_model")
+                            ((absNames lps).map ConLeche.Level.param))
+                          ((List.range n_p.val).map
+                            (fun k => ConLeche.Expr.bvar
+                              (n_p.val + 1 - k))) := by
+                    rw [hslotv, hfamv, hv5v, ConLeche.structPsAt]
+                    have : ∀ k, (2#u64 : Std.U64).val + n_p.val - 1 - k
+                        = n_p.val + 1 - k := by intro k; simp; omega
+                    simp only [this]
+                  have he9v : e9 = a0 := by
+                    have := hargidx 0#usize (by rw [hav]; norm_num)
+                    rw [he9, Result.ok.injEq] at this
+                    rw [this]
+                    simp [hav]
+                  have ha0wf : ExprWF a0 := hawf a0 (by rw [hav]; simp)
+                  have hb6v : b6 = decide (absExpr e9 = absExpr slot) :=
+                    Expr.beq_refines (by rw [he9v]; exact ha0wf) hslotwf hb6
+                  rw [he9v, hstarget] at hb6v
+                  by_cases hb6t : b6 = true
+                  · rw [if_pos hb6t] at h
+                    rw [hb6t] at hb6v
+                    rw [of_decide_eq_true hb6v.symm]
+                    simp only [beq_self_eq_true, Bool.true_and]
+                    obtain ⟨b7, hb7, h⟩ := bind_eq_ok_iff.mp h
+                    have hb7v : b7 = (absMode mode).ttChecks :=
+                      Env.tt_checks_refines hb7
+                    by_cases hb7t : b7 = true
+                    · rw [if_pos hb7t] at h
+                      rw [hb7t] at hb7v
+                      obtain ⟨la, hla, h⟩ := bind_eq_ok_iff.mp h
+                      obtain ⟨srt, hsrt, h⟩ := bind_eq_ok_iff.mp h
+                      obtain ⟨hlav, hlawf⟩ :=
+                        hcb.eqHeadLevel head la hheadwf hla
+                      rw [hheadc] at hlav
+                      have hsrtv : absExpr srt
+                          = ConLeche.Expr.sort lA := by
+                        rw [Expr.sort_refines hsrt, hlav]; rfl
+                      have hsrtwf : ExprWF srt := ExprWF.sort hlawf hsrt
+                      rw [Expr.beq_refines htbodywf hsrtwf h, hsrtv, ← hb7v]
+                      simp [beq_eq_decide_expr]
+                    · simp only [Bool.not_eq_true] at hb7t
+                      rw [if_neg (by simp [hb7t]), Result.ok.injEq] at h
+                      rw [hb7t] at hb7v
+                      rw [← h, ← hb7v]
+                      simp
+                  · simp only [Bool.not_eq_true] at hb6t
+                    rw [if_neg (by simp [hb6t]), Result.ok.injEq] at h
+                    rw [hb6t] at hb6v
+                    rw [← h]
+                    have : absExpr a0 ≠ _ := of_decide_eq_false hb6v.symm
+                    simp [this]
+                · simp only [Bool.not_eq_true] at hb5t
+                  rw [if_neg (by simp [hb5t]), Result.ok.injEq] at h
+                  rw [hb5t] at hb5v
+                  rw [← h]
+                  have : absExpr a2 ≠ ConLeche.Expr.bvar 0 :=
+                    of_decide_eq_false hb5v.symm
+                  simp [this]
+              · simp only [Bool.not_eq_true] at hb4t
+                rw [if_neg (by simp [hb4t]), Result.ok.injEq] at h
+                rw [hb4t] at hb4v
+                rw [← h]
+                have : absExpr a1 ≠ ConLeche.Expr.bvar 1 :=
+                  of_decide_eq_false hb4v.symm
+                simp [this]
+            · simp only [Bool.not_eq_true] at hb3t
+              rw [if_neg (by simp [hb3t]), Result.ok.injEq] at h
+              rw [hb3t] at hb3v
+              rw [← h]
+              split
+              · rename_i c lA tS lC rC hpat
+                have hfn : (absExpr sbody).getAppFn = .const c [lA] := by
+                  rw [hpat]; rfl
+                rw [hheadv, hfn] at hb3v
+                simp only [ConLeche.isEqHead] at hb3v
+                simp [← hb3v]
+              · rfl
+          · rw [if_neg hlen3, Result.ok.injEq] at h
+            rw [← h]
+            split
+            · rename_i c lA tS lC rC hpat
+              exfalso
+              apply hlen3
+              have hga : (absExpr sbody).getAppArgs = [tS, lC, rC] := by
+                rw [hpat]; simp [ConLeche.Expr.getAppArgs]
+              rw [← hargsv] at hga
+              have := congrArg List.length hga
+              simpa [absExprs] using this
+            · rfl
+
+
+/-- `checkUnitThmF` re-read through the two owning probes the port uses: the
+`.thmInfo` match `thm_probe` answers, `CoreK.defnOf`'s `.defnInfo` match, and
+the `Eq` pin as `basis_pins::eq_basis_pinned`'s `decide`.  The cited three-way
+match and this two-way one agree on every index: a missing `eqName` makes both
+`false`. -/
+theorem unitThmF_read (lmode : ConLeche.CheckMode) (lfe : ConLeche.FEnv)
+    (t : ConLeche.Name) (lps : List ConLeche.Name) (n_p : Nat) :
+    ConLeche.checkUnitThmF lmode lfe t lps n_p
+      = (match (match lfe.find? ((t.str "_model").str "unitlike") with
+                | some (.thmInfo tcv _) => some tcv
+                | _ => none),
+               (CoreK.defnOf (lfe.find? (t.str "_model"))).map Prod.fst with
+         | some tcv, some cvmT =>
+           decide (lfe.find? ConLeche.eqName = some ConLeche.eqA)
+             && (tcv.levelParams == lps) && (cvmT.levelParams == lps)
+             && checkUnitThmShape lmode t lps n_p tcv.type cvmT.type
+         | _, _ => false) := by
+  rw [ConLeche.checkUnitThmF]
+  rcases hf1 : lfe.find? ((t.str "_model").str "unitlike") with _ | ci1 <;>
+    rcases hf2 : lfe.find? (t.str "_model") with _ | ci2 <;>
+    rcases hf3 : lfe.find? ConLeche.eqName with _ | ci3 <;>
+    simp only [CoreK.defnOf] <;>
+    first
+      | rfl
+      | (cases ci1 <;> cases ci2 <;>
+          (try simp only [beq_eq_decide_ci, Option.some.injEq]) <;> rfl)
+      | (cases ci1 <;> rfl)
 
 /-- `ConLeche/Kernel/DeclCheck.lean:384-414` — **`check_unit_thm` refines
 `checkUnitThmF`**: does the model document unit-likeness for this block? -/
@@ -1991,13 +6111,76 @@ theorem check_unit_thm_refines {mode : env.CheckMode}
     {lps : alloc.vec.Vec name.Name} {n_p : Std.U64} {b : Bool}
     (hcb : CheckerBaseSpec mode) (hspines : StructSpinesRefine)
     (hrel : FEnvRel fe2 lfe) (hfe : FEnvWF fe2) (ht : NameWF t)
-    (hlps : NamesWF lps)
+    (hlps : NamesWF lps) (hnp : n_p.val ≤ Std.Usize.max)
     (h : inductives.modeled.check_unit_thm mode fe2 t lps n_p = ok b) :
     b = ConLeche.checkUnitThmF (absMode mode) lfe (absName t) (absNames lps)
       n_p.val := by
-  -- `unit_thm_name_refines`, `thm_probe_refines`, the `defn_probe`, the `eqA`
-  -- pin and the shape half
-  sorry
+  rw [inductives.modeled.check_unit_thm] at h
+  obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hnmv, hnmwf⟩ := unit_thm_name_refines ht hnm
+  obtain ⟨hoabs, howf⟩ := thm_probe_refines hrel hfe hnmwf ho
+  rw [hnmv] at hoabs
+  rw [unitThmF_read, ← hoabs]
+  cases o with
+  | none =>
+    simp only [Option.map_none, Result.ok.injEq] at h ⊢
+    rw [← h]
+  | some tcv =>
+  have htcvwf : ConstantValWF tcv := howf tcv rfl
+  obtain ⟨nm1, hnm1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hnm1v, hnm1wf⟩ := model_of_refines ht hnm1
+  obtain ⟨ho1abs, ho1wf⟩ :=
+    CoreK.defn_probe_refines (FindAgree.of_rel hrel hfe) (FindWF.of_wf hfe)
+      hnm1wf ho1
+  rw [hnm1v] at ho1abs
+  rw [← ho1abs]
+  cases o1 with
+  | none =>
+    simp only [Option.map_none, Option.map_some, Result.ok.injEq] at h ⊢
+    rw [← h]
+  | some dt =>
+  obtain ⟨cvm, mv, mhint⟩ := dt
+  have hcvmwf : ConstantValWF cvm := (ho1wf cvm mv mhint rfl).1
+  simp only [Option.map_some]
+  simp at h
+  rcases h with ⟨hbp, rfl⟩ | ⟨hbp, h⟩
+  · have hbpv := BasisPins.eq_basis_pinned_refines hrel hfe hbp
+    have hne : lfe.find? ConLeche.eqName ≠ some ConLeche.eqA :=
+      of_decide_eq_false hbpv.symm
+    simp [hne]
+  · have hbpv := BasisPins.eq_basis_pinned_refines hrel hfe hbp
+    have heqp : lfe.find? ConLeche.eqName = some ConLeche.eqA :=
+      of_decide_eq_true hbpv.symm
+    rcases h with ⟨hb1, rfl⟩ | ⟨hb1, h⟩
+    · have hb1v : (false : Bool)
+          = decide (absNames tcv.level_params = absNames lps) :=
+        Env.names_beq_refines htcvwf.2.1 hlps hb1
+      have hb1ne : absNames tcv.level_params ≠ absNames lps :=
+        of_decide_eq_false hb1v.symm
+      simp [heqp, absConstantVal, hb1ne]
+    · have hb1v : (true : Bool)
+          = decide (absNames tcv.level_params = absNames lps) :=
+        Env.names_beq_refines htcvwf.2.1 hlps hb1
+      have hb1eq : absNames tcv.level_params = absNames lps :=
+        of_decide_eq_true hb1v.symm
+      rcases h with ⟨hb2, rfl⟩ | ⟨hb2, h⟩
+      · have hb2v : (false : Bool)
+            = decide (absNames cvm.level_params = absNames lps) :=
+          Env.names_beq_refines hcvmwf.2.1 hlps hb2
+        have hb2ne : absNames cvm.level_params ≠ absNames lps :=
+          of_decide_eq_false hb2v.symm
+        simp [heqp, absConstantVal, hb1eq, hb2ne]
+      · have hb2v : (true : Bool)
+            = decide (absNames cvm.level_params = absNames lps) :=
+          Env.names_beq_refines hcvmwf.2.1 hlps hb2
+        have hb2eq : absNames cvm.level_params = absNames lps :=
+          of_decide_eq_true hb2v.symm
+        rw [check_unit_thm_shape_refines hcb hspines ht hlps htcvwf.2.2
+          hcvmwf.2.2 hnp h]
+        simp [heqp, absConstantVal, hb1eq, hb2eq]
+
 
 /-- `ConLeche/Kernel/DeclCheck.lean:430-441` — **`ind_block_caps` refines
 `indBlockCapsF`**: the capabilities recorded for a single-constructor modeled
@@ -2013,15 +6196,67 @@ theorem ind_block_caps_refines {mode : env.CheckMode}
     {n_p n_f : Std.U64} {caps : env.IndCaps}
     (hcb : CheckerBaseSpec mode) (hspines : StructSpinesRefine)
     (hrel : FEnvRel fe2 lfe) (hfe : FEnvWF fe2) (hct : ConstantValWF cv_t)
-    (hcc : ConstantValWF cv_c)
+    (hcc : ConstantValWF cv_c) (hnp : n_p.val ≤ Std.Usize.max)
     (h : inductives.modeled.ind_block_caps mode fe2 cv_t cv_c n_p n_f
         = ok caps) :
     absIndCaps caps = ConLeche.indBlockCapsF (absMode mode) lfe
         (absConstantVal cv_t) (absConstantVal cv_c) n_p.val n_f.val
       ∧ IndCapsWF caps := by
-  -- `prop_when::names_beq`, `check_eta_thm_refines`, `check_unit_thm_refines`,
-  -- `CoreKGuards.pi_result_is_prop_refines` and `pi_result_z_refines`
-  sorry
+  rw [inductives.modeled.ind_block_caps] at h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨eta, heta, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨rk, hrk, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨u, hu, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨pw, hpw, h⟩ := bind_eq_ok_iff.mp h
+  have hbv : b = decide (absNames cv_c.level_params = absNames cv_t.level_params) :=
+    Env.names_beq_refines hcc.2.1 hct.2.1 hb
+  have hetav : eta
+      = ((decide ((absConstantVal cv_c).levelParams
+              = (absConstantVal cv_t).levelParams))
+        && ConLeche.checkEtaThmF (absMode mode) lfe (absConstantVal cv_t).name
+            (absConstantVal cv_c).name (absConstantVal cv_t).levelParams
+            n_p.val n_f.val) := by
+    by_cases hbt : b = true
+    · rw [if_pos hbt] at heta
+      rw [hbt] at hbv
+      rw [check_eta_thm_refines hcb hspines hrel hfe hct.1 hcc.1 hct.2.1 hnp
+          heta,
+        show (decide ((absConstantVal cv_c).levelParams
+            = (absConstantVal cv_t).levelParams)) = true from hbv.symm]
+      simp [absConstantVal]
+    · simp only [Bool.not_eq_true] at hbt
+      rw [if_neg (by simp [hbt]), Result.ok.injEq] at heta
+      rw [hbt] at hbv
+      rw [← heta,
+        show (decide ((absConstantVal cv_c).levelParams
+            = (absConstantVal cv_t).levelParams)) = false from hbv.symm]
+      simp
+  have hrkv : rk = ((n_f.val == 0)
+      && ConLeche.piResultIsProp (absConstantVal cv_t).type) := by
+    by_cases hnf : n_f = 0#u64
+    · rw [if_pos hnf] at hrk
+      rw [CoreK.pi_result_is_prop_refines hct.2.2 hrk,
+        show (n_f.val == 0) = true by rw [hnf]; rfl]
+      simp [absConstantVal]
+    · rw [if_neg hnf, Result.ok.injEq] at hrk
+      rw [← hrk, show (n_f.val == 0) = false by
+        simp only [beq_eq_false_iff_ne, ne_eq]
+        intro hc'
+        exact hnf (by scalar_tac)]
+      simp
+  have huv : u = ConLeche.checkUnitThmF (absMode mode) lfe
+      (absConstantVal cv_t).name (absConstantVal cv_t).levelParams n_p.val :=
+    check_unit_thm_refines hcb hspines hrel hfe hct.1 hct.2.1 hnp hu
+  obtain ⟨hpwv, hpwwf⟩ := CoreK.pi_result_z_refines hct.2.2 hpw
+  have hnmv : nm = cv_c.name := by
+    rw [name_dup_eq] at hnm; exact (Result.ok_injective hnm).symm
+  rw [Result.ok.injEq] at h
+  subst h
+  refine ⟨?_, ?_⟩
+  · rw [ConLeche.indBlockCapsF]
+    simp only [absIndCaps, hetav, hrkv, huv, hnmv, hpwv, absConstantVal]
+  · exact ⟨by rw [hnmv]; exact hcc.1, hpwwf⟩
 
 /-- `ConLeche/Kernel/DeclCheck.lean:416-428` — **`ctor_residual_ok` refines
 `ctorResidualOkF`** (task #136): an eta-capable family's constructor returns
@@ -2038,9 +6273,65 @@ theorem ctor_residual_ok_refines {mode : env.CheckMode}
         eta = ok b) :
     b = ConLeche.ctorResidualOkF (absMode mode) lfe (absName t)
       (absName ctor_name) (absNames lps) n_p.val n_f.val eta := by
-  -- `env::tt_checks`, `CoreKGuards.ctor_probe_refines`,
-  -- `ExprOpsSpine.strip_pis_refines`, `struct_fam` and `Expr.beq` exactly
-  sorry
+  rw [inductives.modeled.ctor_residual_ok] at h
+  obtain ⟨tt, htt, h⟩ := bind_eq_ok_iff.mp h
+  have httv : tt = (absMode mode).ttChecks := Env.tt_checks_refines htt
+  rw [ConLeche.ctorResidualOkF, ← httv]
+  by_cases htt1 : tt = true
+  · rw [if_pos htt1] at h
+    rw [htt1]
+    by_cases heta : eta = true
+    · rw [if_pos heta] at h
+      rw [heta]
+      simp only [Bool.not_true, Bool.false_or]
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hoabs, howf⟩ :=
+        CoreK.ctor_probe_refines (FindAgree.of_rel hrel hfe)
+          (FindWF.of_wf hfe) hc ho
+      cases o with
+      | none =>
+        simp only [Option.map_none] at hoabs
+        simp only [Result.ok.injEq] at h
+        revert hoabs
+        cases hx : lfe.find? (absName ctor_name) with
+        | none => intro _; simp [← h]
+        | some ci => cases ci <;> intro hy <;> simp_all [CoreK.ctorOf]
+      | some cq =>
+        obtain ⟨cvca, np1, nf1⟩ := cq
+        have hcvwf : ConstantValWF cvca := howf cvca np1 nf1 rfl
+        have hfindc : lfe.find? (absName ctor_name)
+            = some (.ctorInfo (absConstantVal cvca) np1.val nf1.val) :=
+          ctorOf_inv (by simpa using hoabs.symm)
+        rw [hfindc]
+        simp at h
+        obtain ⟨k, hk, o1, ho1, h⟩ := h
+        have hkv : k.val = n_p.val + n_f.val := HashMap.uscalar_add_eq hk
+        obtain ⟨ho1abs, ho1wf⟩ := ExprOps.strip_pis_refines hcvwf.2.2 ho1
+        rw [hkv] at ho1abs
+        simp only []
+        rw [show (absConstantVal cvca).type = absExpr cvca.ty from rfl,
+          ← ho1abs]
+        cases o1 with
+        | none =>
+          simp only [Result.ok.injEq] at h
+          simp [← h]
+        | some z =>
+          obtain ⟨bs, e⟩ := z
+          have hewf : ExprWF e := (ho1wf _ rfl).2
+          simp at h
+          obtain ⟨e1, he1, h⟩ := h
+          obtain ⟨he1v, he1wf⟩ := hfam t lps n_p n_f e1 ht hlps he1
+          simp only [Option.map_some]
+          rw [Expr.beq_refines hewf he1wf h, he1v, Bool.eq_iff_iff]
+          simp
+    · simp only [Bool.not_eq_true] at heta
+      rw [if_neg (by simp [heta]), Result.ok.injEq] at h
+      rw [← h, heta]
+      simp
+  · simp only [Bool.not_eq_true] at htt1
+    rw [if_neg (by simp [htt1]), Result.ok.injEq] at h
+    rw [← h, htt1]
+    simp
 
 /-- `ConLeche/Kernel/Inductives/Modeled.lean:682-710` — **`ctor_targets_fam`
 refines `ctorTargetsFam`**: official's structure-likeness, read off the block's
@@ -2054,8 +6345,26 @@ theorem ctor_targets_fam_refines
     (h : inductives.modeled.ctor_targets_fam ctor_ty t lps n_p n_f = ok b) :
     b = ConLeche.ctorTargetsFam (absExpr ctor_ty) (absName t) (absNames lps)
       n_p.val n_f.val := by
-  -- `ExprOpsSpine.strip_pis_refines`, `struct_fam` and `Expr.beq` exactly
-  sorry
+  rw [inductives.modeled.ctor_targets_fam] at h
+  obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  have hkv : k.val = n_p.val + n_f.val := HashMap.uscalar_add_eq hk
+  obtain ⟨hoabs, howf⟩ := ExprOps.strip_pis_refines hcty ho
+  rw [hkv] at hoabs
+  rw [ConLeche.ctorTargetsFam, ← hoabs]
+  cases o with
+  | none =>
+    simp only [Result.ok.injEq] at h
+    simp [← h]
+  | some z =>
+    obtain ⟨bs, e⟩ := z
+    have hewf : ExprWF e := (howf _ rfl).2
+    simp at h
+    obtain ⟨e1, he1, h⟩ := h
+    obtain ⟨he1v, he1wf⟩ := hfam t lps n_p n_f e1 ht hlps he1
+    simp only [Option.map_some]
+    rw [Expr.beq_refines hewf he1wf h, he1v, Bool.eq_iff_iff]
+    simp
 
 /-! ## The block split (`Modeled.lean:781-834`, `CheckerC.lean:233-268`) -/
 
@@ -2273,6 +6582,196 @@ theorem block_names_of_refines {block : alloc.vec.Vec env.ConstantInfo}
 /-- `ConLeche/Cached/CheckerC.lean:242-247` — `single_ind_ctor_from` counts the
 two filters of `checkIndDeclSF`'s `match` over `block[i..]` and remembers their
 first element, which is what the two one-element list patterns decide. -/
+theorem single_ind_ctor_from_val (block : alloc.vec.Vec env.ConstantInfo) :
+    ∀ k : Nat, ∀ (i : Std.Usize) (t : Option env.ConstantVal)
+      (c : Option (env.ConstantVal × Std.U64 × Std.U64)) (n_ind n_ctor : Std.U64)
+      (q : (Option env.ConstantVal)
+        × (Option (env.ConstantVal × Std.U64 × Std.U64)) × Std.U64 × Std.U64),
+      block.length - i.val ≤ k →
+      inductives.modeled.single_ind_ctor_from block i t c n_ind n_ctor = ok q →
+      q.1.map absConstantVal
+          = (t.map absConstantVal).orElse (fun _ =>
+              ((absConstantInfos block).drop i.val).findSome? (fun ci =>
+                match ci with | .indInfo cv _ => some cv | _ => none))
+        ∧ q.2.1.map (fun p => (absConstantVal p.1, p.2.1.val, p.2.2.val))
+            = (c.map (fun p => (absConstantVal p.1, p.2.1.val, p.2.2.val))).orElse
+                (fun _ => ((absConstantInfos block).drop i.val).findSome?
+                  (fun ci => match ci with
+                    | .ctorInfo cv nP nF => some (cv, nP, nF) | _ => none))
+        ∧ q.2.2.1.val = n_ind.val
+            + (((absConstantInfos block).drop i.val).filter
+                (fun ci => match ci with | .indInfo _ _ => true | _ => false)).length
+        ∧ q.2.2.2.val = n_ctor.val
+            + (((absConstantInfos block).drop i.val).filter
+                (fun ci => match ci with
+                  | .ctorInfo _ _ _ => true | _ => false)).length := by
+  intro k
+  induction k with
+  | zero =>
+    intro i t c n_ind n_ctor q hk h
+    rw [inductives.modeled.single_ind_ctor_from,
+      if_pos (show i ≥ alloc.vec.Vec.len block by
+        have := alloc.vec.Vec.len_val block; scalar_tac), Result.ok.injEq] at h
+    subst h
+    have hnil : (absConstantInfos block).drop i.val = [] := by
+      apply List.drop_eq_nil_of_le
+      simp only [absConstantInfos, List.length_map]
+      scalar_tac
+    rw [hnil]
+    cases t <;> cases c <;> simp [Option.orElse]
+  | succ k ih =>
+    intro i t c n_ind n_ctor q hk h
+    rw [inductives.modeled.single_ind_ctor_from] at h
+    by_cases hi : i.val ≥ block.length
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len block by
+        have := alloc.vec.Vec.len_val block; scalar_tac), Result.ok.injEq] at h
+      subst h
+      have hnil : (absConstantInfos block).drop i.val = [] := by
+        apply List.drop_eq_nil_of_le
+        simp only [absConstantInfos, List.length_map]
+        scalar_tac
+      rw [hnil]
+      cases t <;> cases c <;> simp [Option.orElse]
+    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len block by
+        have := alloc.vec.Vec.len_val block; scalar_tac)] at h
+      have hlt : i.val < block.val.length := by
+        have := alloc.vec.Vec.len_val block; scalar_tac
+      obtain ⟨y, hy, hyv⟩ :=
+        WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec block i hlt)
+      subst hyv
+      simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
+      have hlt2 : i.val < (absConstantInfos block).length := by
+        simpa [absConstantInfos] using hlt
+      have hcons : (absConstantInfos block).drop i.val
+          = absConstantInfo block.val[i.val]
+            :: (absConstantInfos block).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt2]; simp [absConstantInfos]
+      rw [hcons]
+      -- the five inert kinds, then the two that record
+      cases hci : block.val[i.val] with
+      | AxiomInfo cv =>
+        rw [hci] at h
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        obtain ⟨h1, h2, h3, h4⟩ := ih i2 t c n_ind n_ctor q (by scalar_tac) h
+        rw [hi2v] at h1 h2 h3 h4
+        exact ⟨by rw [h1]; simp [absConstantInfo],
+          by rw [h2]; simp [absConstantInfo],
+          by rw [h3]; simp [absConstantInfo],
+          by rw [h4]; simp [absConstantInfo]⟩
+      | DefnInfo cv v hint =>
+        rw [hci] at h
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        obtain ⟨h1, h2, h3, h4⟩ := ih i2 t c n_ind n_ctor q (by scalar_tac) h
+        rw [hi2v] at h1 h2 h3 h4
+        exact ⟨by rw [h1]; simp [absConstantInfo],
+          by rw [h2]; simp [absConstantInfo],
+          by rw [h3]; simp [absConstantInfo],
+          by rw [h4]; simp [absConstantInfo]⟩
+      | ThmInfo cv v =>
+        rw [hci] at h
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        obtain ⟨h1, h2, h3, h4⟩ := ih i2 t c n_ind n_ctor q (by scalar_tac) h
+        rw [hi2v] at h1 h2 h3 h4
+        exact ⟨by rw [h1]; simp [absConstantInfo],
+          by rw [h2]; simp [absConstantInfo],
+          by rw [h3]; simp [absConstantInfo],
+          by rw [h4]; simp [absConstantInfo]⟩
+      | RecInfo cv mi rp rs =>
+        rw [hci] at h
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        obtain ⟨h1, h2, h3, h4⟩ := ih i2 t c n_ind n_ctor q (by scalar_tac) h
+        rw [hi2v] at h1 h2 h3 h4
+        exact ⟨by rw [h1]; simp [absConstantInfo],
+          by rw [h2]; simp [absConstantInfo],
+          by rw [h3]; simp [absConstantInfo],
+          by rw [h4]; simp [absConstantInfo]⟩
+      | ProjInfo tb =>
+        rw [hci] at h
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        obtain ⟨h1, h2, h3, h4⟩ := ih i2 t c n_ind n_ctor q (by scalar_tac) h
+        rw [hi2v] at h1 h2 h3 h4
+        exact ⟨by rw [h1]; simp [absConstantInfo],
+          by rw [h2]; simp [absConstantInfo],
+          by rw [h3]; simp [absConstantInfo],
+          by rw [h4]; simp [absConstantInfo]⟩
+      | IndInfo cv caps =>
+        rw [hci] at h
+        obtain ⟨cv1, hcv1, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hi3v : i3.val = n_ind.val + 1 := HashMap.uscalar_add_eq hi3
+        obtain ⟨h1, h2, h3, h4⟩ :=
+          ih i2 (some cv1) c i3 n_ctor q (by scalar_tac) h
+        rw [hi2v] at h1 h2 h3 h4
+        have hcv1v : absConstantVal cv1
+            = (t.map absConstantVal).getD (absConstantVal cv) := by
+          cases t with
+          | none =>
+            simp only [Option.map_none, Option.getD_none]
+            simp only [] at hcv1
+            rw [Env.constant_val_dup_refines hcv1]
+          | some old =>
+            simp only [Option.map_some, Option.getD_some]
+            simp only [Result.ok.injEq] at hcv1
+            rw [hcv1]
+        refine ⟨?_, ?_, ?_, ?_⟩
+        · rw [h1]
+          cases t with
+          | none =>
+            simp only [Option.map_none, Option.getD_none] at hcv1v
+            simp [absConstantInfo, hcv1v, Option.orElse]
+          | some old =>
+            simp only [Option.map_some, Option.getD_some] at hcv1v
+            simp [absConstantInfo, hcv1v, Option.orElse]
+        · rw [h2]; simp [absConstantInfo]
+        · rw [h3, hi3v]; simp [absConstantInfo]; omega
+        · rw [h4]; simp [absConstantInfo]
+      | CtorInfo cv n_p n_f =>
+        rw [hci] at h
+        obtain ⟨t1, ht1, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hi3v : i3.val = n_ctor.val + 1 := HashMap.uscalar_add_eq hi3
+        obtain ⟨h1, h2, h3, h4⟩ :=
+          ih i2 t (some t1) n_ind i3 q (by scalar_tac) h
+        rw [hi2v] at h1 h2 h3 h4
+        have ht1v : (absConstantVal t1.1, t1.2.1.val, t1.2.2.val)
+            = (c.map (fun p => (absConstantVal p.1, p.2.1.val, p.2.2.val))).getD
+                (absConstantVal cv, n_p.val, n_f.val) := by
+          cases c with
+          | none =>
+            simp only [Option.map_none, Option.getD_none]
+            simp only [bind_eq_ok_iff, Result.ok.injEq] at ht1
+            obtain ⟨cv1, hcv1, ht1⟩ := ht1
+            rw [← ht1, Env.constant_val_dup_refines hcv1]
+          | some old =>
+            simp only [Option.map_some, Option.getD_some]
+            simp only [Result.ok.injEq] at ht1
+            rw [ht1]
+        refine ⟨?_, ?_, ?_, ?_⟩
+        · rw [h1]; simp [absConstantInfo]
+        · rw [h2]
+          cases c with
+          | none =>
+            simp only [Option.map_none, Option.getD_none] at ht1v
+            simp [absConstantInfo, ht1v, Option.orElse]
+          | some old =>
+            simp only [Option.map_some, Option.getD_some] at ht1v
+            simp [absConstantInfo, ht1v, Option.orElse]
+        · rw [h3]; simp [absConstantInfo]
+        · rw [h4, hi3v]; simp [absConstantInfo]; omega
+
+set_option linter.unusedVariables false in
+/-- `single_ind_ctor_from` at its own statement.  (`hblock` stays on the
+statement for uniformity with the rest of the block split; the count and the
+two `findSome?`s do not read the entries' well-formedness.) -/
 theorem single_ind_ctor_from_refines
     {block : alloc.vec.Vec env.ConstantInfo} {i : Std.Usize}
     {t : Option env.ConstantVal}
@@ -2297,9 +6796,58 @@ theorem single_ind_ctor_from_refines
       ∧ q.2.2.2.val = n_ctor.val
           + (((absConstantInfos block).drop i.val).filter
               (fun ci => match ci with
-                | .ctorInfo _ _ _ => true | _ => false)).length := by
-  -- the index recursion over `block`
-  sorry
+                | .ctorInfo _ _ _ => true | _ => false)).length :=
+  single_ind_ctor_from_val block block.length i t c n_ind n_ctor q
+    (by scalar_tac) h
+
+/-- A `findSome?` whose partial function succeeds exactly where a filter keeps
+an element reads that filter's head. -/
+theorem findSome?_eq_head?_bind {α β : Type} (f : α → Option β) (p : α → Bool)
+    (hp : ∀ x, (f x).isSome = p x) (L : List α) :
+    L.findSome? f = (L.filter p).head?.bind f := by
+  induction L with
+  | nil => rfl
+  | cons x xs ih =>
+    have hx := hp x
+    cases hfx : f x with
+    | some v =>
+      rw [hfx] at hx
+      have hpx : p x = true := by simpa using hx.symm
+      rw [List.filter_cons, if_pos hpx]
+      simp [hfx]
+    | none =>
+      rw [hfx] at hx
+      have hpx : p x = false := by simpa using hx.symm
+      rw [List.filter_cons, if_neg (by simp [hpx])]
+      simp [hfx, ih]
+
+theorem indP_isSome (x : ConLeche.ConstantInfo) :
+    ((match x with | .indInfo cv _ => some cv | _ => none) : Option _).isSome
+      = (match x with | .indInfo _ _ => true | _ => false) := by
+  cases x <;> rfl
+
+theorem ctorP_isSome (x : ConLeche.ConstantInfo) :
+    ((match x with
+        | .ctorInfo cv nP nF => some (cv, nP, nF) | _ => none) : Option _).isSome
+      = (match x with | .ctorInfo _ _ _ => true | _ => false) := by
+  cases x <;> rfl
+
+theorem filter_ind_shape {L : List ConLeche.ConstantInfo}
+    {x : ConLeche.ConstantInfo}
+    (h : x ∈ L.filter (fun ci => match ci with | .indInfo _ _ => true | _ => false)) :
+    ∃ cv caps, x = .indInfo cv caps := by
+  have hx := (List.mem_filter.mp h).2
+  cases x <;> simp at hx
+  exact ⟨_, _, rfl⟩
+
+theorem filter_ctor_shape {L : List ConLeche.ConstantInfo}
+    {x : ConLeche.ConstantInfo}
+    (h : x ∈ L.filter
+      (fun ci => match ci with | .ctorInfo _ _ _ => true | _ => false)) :
+    ∃ cv nP nF, x = .ctorInfo cv nP nF := by
+  have hx := (List.mem_filter.mp h).2
+  cases x <;> simp at hx
+  exact ⟨_, _, _, rfl⟩
 
 /-- `ConLeche/Cached/CheckerC.lean:242-247` — **`single_ind_ctor` refines
 `checkIndDeclSF`'s two one-element list patterns**: the block's single type
@@ -2316,8 +6864,77 @@ theorem single_ind_ctor_refines {block : alloc.vec.Vec env.ConstantInfo}
             (fun ci => match ci with | .ctorInfo _ _ _ => true | _ => false) with
          | [.indInfo cvT _], [.ctorInfo cvC nP nF] => some (cvT, cvC, nP, nF)
          | _, _ => none) := by
-  -- `single_ind_ctor_from_refines` at `i = 0`, then the two length-one reads
-  sorry
+  rw [inductives.modeled.single_ind_ctor] at h
+  obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o0, o1, nI, nC⟩ := p
+  obtain ⟨h1, h2, h3, h4⟩ := single_ind_ctor_from_refines hblock hp
+  simp only [] at h1 h2 h3 h4
+  simp at h
+  rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at h1 h2 h3 h4
+  rw [show ((0#u64 : Std.U64)).val = 0 from rfl] at h3 h4
+  simp only [Option.map_none, Nat.zero_add] at h1 h2 h3 h4
+  simp only [Option.orElse] at h1 h2
+  rw [findSome?_eq_head?_bind _ _ indP_isSome] at h1
+  rw [findSome?_eq_head?_bind _ _ ctorP_isSome] at h2
+  -- the two filters, read as lists
+  cases hfi : (absConstantInfos block).filter
+      (fun ci => match ci with | .indInfo _ _ => true | _ => false) with
+  | nil =>
+    rw [hfi] at h1 h3
+    rw [if_neg (show ¬ nI = 1#u64 by
+      intro hc; rw [hc] at h3; simp at h3), Result.ok.injEq] at h
+    rw [← h]; rfl
+  | cons x xs =>
+    obtain ⟨cvT, caps, rfl⟩ := filter_ind_shape (by rw [hfi]; exact List.mem_cons_self)
+    cases xs with
+    | cons y ys =>
+      rw [hfi] at h3
+      rw [if_neg (show ¬ nI = 1#u64 by
+        intro hc; rw [hc] at h3; simp at h3), Result.ok.injEq] at h
+      rw [← h]; rfl
+    | nil =>
+      rw [hfi] at h1 h3
+      simp only [List.head?_cons, Option.bind_some] at h1
+      rw [if_pos (show nI = 1#u64 by
+        have : nI.val = 1 := by rw [h3]; rfl
+        scalar_tac)] at h
+      cases hfc : (absConstantInfos block).filter
+          (fun ci => match ci with | .ctorInfo _ _ _ => true | _ => false) with
+      | nil =>
+        rw [hfc] at h4
+        rw [if_neg (show ¬ nC = 1#u64 by
+          intro hc; rw [hc] at h4; simp at h4), Result.ok.injEq] at h
+        rw [← h]; rfl
+      | cons z zs =>
+        obtain ⟨cvC, nP, nF, rfl⟩ :=
+          filter_ctor_shape (by rw [hfc]; exact List.mem_cons_self)
+        cases zs with
+        | cons w ws =>
+          rw [hfc] at h4
+          rw [if_neg (show ¬ nC = 1#u64 by
+            intro hc; rw [hc] at h4; simp at h4), Result.ok.injEq] at h
+          rw [← h]; rfl
+        | nil =>
+          rw [hfc] at h2 h4
+          simp only [List.head?_cons, Option.bind_some] at h2
+          rw [if_pos (show nC = 1#u64 by
+            have : nC.val = 1 := by rw [h4]; rfl
+            scalar_tac)] at h
+          cases o0 with
+          | none => simp at h1
+          | some cvt0 =>
+            cases o1 with
+            | none => simp at h2
+            | some cq =>
+              obtain ⟨cvc0, np0, nf0⟩ := cq
+              simp at h
+              simp only [Option.map_some, Option.some.injEq] at h1 h2
+              subst h
+              simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq]
+              refine ⟨h1, ?_, ?_, ?_⟩
+              · exact congrArg (fun r => r.1) h2
+              · exact congrArg (fun r => r.2.1) h2
+              · exact congrArg (fun r => r.2.2) h2
 
 
 end ConRon.Refine.Modeled

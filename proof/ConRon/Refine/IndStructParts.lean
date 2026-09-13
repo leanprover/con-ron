@@ -66,16 +66,23 @@ gate stays in step with its source.  So:
 5. **Every count is a `U64`** (§3.3), read by `.val`; Lean's `Nat` subtraction
    truncates where `u64`'s fails, so a Rust success is a Nat equation
    (`nat_sub` is task #13's helper, `expr_ops::sub_nat`).
-6. **The `u64 → usize` index casts.**  Four functions index a `Vec` at a `u64`
-   count — `sort_get_d`, `struct_proj_guard_at` and the three `struct_shape_*`
-   clauses write `xs[(i as usize)]` behind an `(i as usize) < xs.len()` test —
-   and Aeneas keeps `usize`'s width abstract (`System.Platform.numBits_eq`), so
-   the cast may wrap in the *model*.  Those lemmas therefore carry a
-   **platform** side condition (`i.val ≤ Std.Usize.max`, and `n_f.val ≤
-   Std.Usize.max` where it propagates, as in `struct_proj_guards_refines`).
-   It is vacuous on the 64-bit targets the port builds for, where
-   `Usize.max = U64.max`; it is a statement about the platform, not a weakening
-   of the refinement claim.
+6. **The `u64 → usize` index casts** — `Refine/Scalars.lean` (task #59) is the
+   one place for this fact and every site below goes through it.  Four
+   functions index a `Vec` at a `u64` count — `sort_get_d`,
+   `struct_proj_guard_at` and the three `struct_shape_*` clauses write
+   `xs[(i as usize)]` behind an `(i as usize) < xs.len()` test — and Aeneas
+   keeps `usize`'s width abstract (`System.Platform.numBits_eq`), so the cast
+   may wrap in the *model*.  Those five lemmas therefore carry the side
+   condition as a **hypothesis** (`i.val ≤ Std.Usize.max`), because their
+   counter is a free `u64` with no `Vec` to bound it: it is the *declared*
+   parameter or field count.  Everywhere the counter does come from a `Vec`
+   the bound is **discharged** instead, by
+   `Scalars.u64_le_usize_max_of_le_len` / `Scalars.vec_len_le_usize_max`, and
+   the hypothesis is gone: `struct_ctor_resid_ok_refines` reads it off the
+   argument spine, `struct_shape_refines` off the `nP + 3` binders
+   `strip_pis` returned (so it supplies all three `struct_shape_*` clauses
+   theirs), and `struct_proj_guards_refines` off the `nF`-long `used` table
+   its own walk just built.  Nothing here assumes a platform width.
 
 ## What this file owes its siblings
 
@@ -95,21 +102,36 @@ task #210 Part C), so this file is the only reader of both.
 
 ## `sorry`s
 
-7 `sorry`s, and they are all in **one group** — `structPartsCore?`'s recogniser
-(`struct_shape_motive`, `struct_shape_minor`, `struct_shape`,
+**None** (task #59 closed the last seven).  `structPartsCore?`'s recogniser —
+`struct_shape_motive`/`_minor`/`_major`, `struct_shape`,
 `struct_parts_front_ok`, `struct_parts_large`, `struct_parts_small_ok`,
-`struct_parts_core`), the ten-armed `&&`/`match` cascade that reads the three
-stored types.  Every statement is the exact one and nothing is weakened: each
-is `b = <the cited Bool>` (or `o.map abs = <the cited Option>` for the
-recogniser itself), with the platform side condition of deviation 6 where the
-port indexes `rbs` at `nP`.  `binders_index`/`binders_index_none` below are the
-reading of `rbs[k]?` those proofs need, and `struct_shape_major_refines` — the
-one clause of the four that is proved — is the worked example of the shape.
+`struct_parts_core`, the ten-armed `&&`/`match` cascade that reads the three
+stored types — is proved at its stated shape: each clause is
+`b = <the cited Bool>`, and the recogniser itself
+`o.map absStructParts = structPartsCore? (absConstantInfos block)` together
+with `StructPartsWF` of what it returns.  `binders_index`/`binders_index_none`
+are the reading of `rbs[k]?` the three clauses need, `wf_forall_inv`/
+`wf_sort_inv` the two `ExprWF` inversions their `match … .kind` arms need, and
+`core_none`/`core_none_len`/`list_three`/`list_one` the block-pattern
+bookkeeping the recogniser's eleven `none` arms share.
 
-Everything else in the module is proved, including all three `@[csimp]`
-families end to end (`has_loose_bvar_b_walk` and `mentions_const_walk` are the
-two mutual `ExprWF` inductions, `struct_proj_guards_refines` the guard table),
-the two `Π`-rewrites, the projection bodies and `struct_proj_resid_p`.
+Two proof notes, because they recur:
+
+* **con-leche builds its own `match_*` auxiliaries.**  A `match` written in
+  this file and the syntactically identical one inside `structShape` /
+  `structPartsCore?` are *different constants* (definitionally equal, but `rw`
+  matches syntactically), so `struct_shape_refines` and
+  `struct_parts_core_refines` each open with a `show` that respells the goal at
+  this file's matchers.  After that the ingredient lemmas rewrite straight in.
+* **A tuple bind's `let (e, _) := (…, …)` does not reduce under `dsimp`**
+  (task #57's finding 2); `struct_shape_motive_refines` needs a full `simp at h`
+  before it can case on the node's kind.
+
+Everything else in the module was already proved, including all three
+`@[csimp]` families end to end (`has_loose_bvar_b_walk` and
+`mentions_const_walk` are the two mutual `ExprWF` inductions,
+`struct_proj_guards_refines` the guard table), the two `Π`-rewrites, the
+projection bodies and `struct_proj_resid_p`.
 -/
 import ConRon.Refine.IndAbs
 import ConRon.Refine.ExprOpsSpine
@@ -799,7 +821,7 @@ theorem struct_ctor_resid_ok_refines {t : name.Name}
     have hi1v : i1.val = args.val.length := by
       have hlv := alloc.vec.Vec.len_val args
       have hc : (Std.UScalar.cast .U64 args.len).val = args.len.val :=
-        ExprOps.usize_cast_u64_val _
+        Scalars.usize_cast_u64_val _
       simp only [lift, Result.ok.injEq] at hi1
       rw [← hi1, hc, hlv]
     have hi2v : i2.val = n_p.val + n_idx.val := HashMap.uscalar_add_eq hi2
@@ -812,13 +834,12 @@ theorem struct_ctor_resid_ok_refines {t : name.Name}
       obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨v2, hv2, h⟩ := bind_eq_ok_iff.mp h
-      have hnp : n_p.val ≤ Std.Usize.max := by
-        have hb : args.val.length ≤ Std.Usize.max := by scalar_tac
-        omega
+      -- the `u64 → usize` cast is the identity here, discharged from the
+      -- `Vec` the count came from (`Refine/Scalars.lean`)
       have hi3v : i3.val = n_p.val := by
         simp only [lift, Result.ok.injEq] at hi3
         rw [← hi3]
-        exact ExprOps.u64_cast_usize_val hnp
+        exact Scalars.cast_val_of_le_len (v := args) (by omega)
       obtain ⟨hv1abs, hv1wf⟩ := ExprOps.take_exprs_refines hargswf hv1
       obtain ⟨hv2abs, hv2wf⟩ := struct_ps_at_refines hv2
       rw [Env.exprs_beq_refines hv1wf hv2wf h, hv1abs, hv2abs, hargsabs, hi3v]
@@ -896,10 +917,99 @@ theorem binders_index {bs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
     List.getElem?_eq_getElem hlt, hx]
   simp
 
+/-- A list of length three, read off.  (The port's three-element `Vec` pattern
+is an index match; con-leche's is a list pattern.) -/
+theorem list_three {α : Type} : ∀ {l : List α}, l.length = 3 → ∃ a b c, l = [a, b, c]
+  | [], h => by simp at h
+  | [_], h => by simp at h
+  | [_, _], h => by simp at h
+  | [a, b, c], _ => ⟨a, b, c, rfl⟩
+  | _ :: _ :: _ :: _ :: _, h => by simp at h
+
+/-- …and a list of length one (the single recursor rule). -/
+theorem list_one {α : Type} : ∀ {l : List α}, l.length = 1 → ∃ a, l = [a]
+  | [], h => by simp at h
+  | [a], _ => ⟨a, rfl⟩
+  | _ :: _ :: _, h => by simp at h
+
+/-- `structPartsCore?`'s block pattern, read backwards: anything it does not
+match is `none`.  This is what every `ok none` arm of the port's three
+`ConstantInfo` matches, its two length tests and its `strip_pis` fall-through
+needs, and it is one lemma instead of one case analysis per arm. -/
+theorem core_none {L : List ConLeche.ConstantInfo}
+    (hL : ∀ cvT caps cvC nP nF cvR mI rP rule,
+      L ≠ [.indInfo cvT caps, .ctorInfo cvC nP nF, .recInfo cvR mI rP [rule]]) :
+    ConLeche.structPartsCore? L = none := by
+  -- the `rw` closes the equation by the default arm and leaves its side
+  -- condition, which is exactly `hL`
+  rw [ConLeche.structPartsCore?]
+  intro cvT caps cvC nP nF cvR mI rP rule hc
+  exact hL _ _ _ _ _ _ _ _ _ hc
+
+/-- …in particular at a block that is not three constants long. -/
+theorem core_none_len {L : List ConLeche.ConstantInfo} (h : L.length ≠ 3) :
+    ConLeche.structPartsCore? L = none :=
+  core_none (fun _ _ _ _ _ _ _ _ _ hc => by rw [hc] at h; simp at h)
+
 /-- Past the end, the abstracted binder list has no entry. -/
 theorem binders_index_none {bs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
     {n : Nat} (h : bs.val.length ≤ n) : (ExprOps.absBinders bs)[n]? = none := by
   rw [ExprOps.absBinders, List.getElem?_eq_none (by simpa using h)]
+
+/-! ### Two `ExprWF` inversions the recogniser's `match … .kind` arms need
+
+Casing on a node's *kind* throws the `ExprWF` derivation away, so each arm that
+descends has to recover the sub-derivation from the shape.  `Refine/CheckerBase.lean`
+and `Refine/CoreKGuards.lean` carry the same two copies for the same reason;
+**to be unified into `Refine/Expr.lean`** beside the `*_inv` lemmas (neither of
+those files is in this one's import closure). -/
+
+/-- A well-formed `ForallE` node has well-formed parts. -/
+theorem wf_forall_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
+    {ty bo : expr.Expr} {m : expr.BinderMeta}
+    (hk : e = .mk (.mk d (.ForallE ty bo m))) :
+    ExprWF ty ∧ ExprWF bo ∧ BinderMetaWF m := by
+  cases he with
+  | @bvar i _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1; simp at hk
+  | @fvar idx ty1 _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1; simp at hk
+  | @sort u1 _ _ h1 => obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1; simp at hk
+  | @mk_const n1 us1 _ _ _ h1 =>
+    obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1; simp at hk
+  | @app f1 a1 _ _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1; simp at hk
+  | @lam ty1 bo1 m1 _ _ _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1; simp at hk
+  | @forall_e ty1 bo1 m1 _ hty hbo hm h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
+    simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq,
+      expr.ExprKind.ForallE.injEq] at hk
+    obtain ⟨-, rfl, rfl, rfl⟩ := hk
+    exact ⟨hty, hbo, hm⟩
+  | @let_e ty1 v1 bo1 _ _ _ _ h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1; simp at hk
+  | @lit l _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1; simp at hk
+  | @proj s i x _ _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1; simp at hk
+
+/-- A well-formed `Sort` node has a well-formed level. -/
+theorem wf_sort_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64} {u : level.Level}
+    (hk : e = .mk (.mk d (.Sort u))) : LevelWF u := by
+  cases he with
+  | @bvar i _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1; simp at hk
+  | @fvar idx ty _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1; simp at hk
+  | @sort u1 _ hu h1 =>
+    obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
+    simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq,
+      expr.ExprKind.Sort.injEq] at hk
+    obtain ⟨-, rfl⟩ := hk
+    exact hu
+  | @mk_const n1 us1 _ _ _ h1 =>
+    obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1; simp at hk
+  | @app f a _ _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1; simp at hk
+  | @lam ty bo m _ _ _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1; simp at hk
+  | @forall_e ty bo m _ _ _ _ h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1; simp at hk
+  | @let_e ty v bo _ _ _ _ h1 =>
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1; simp at hk
+  | @lit l _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1; simp at hk
+  | @proj s i x _ _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1; simp at hk
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:246-281` —
 `struct_shape_motive` refines `structShape`'s motive-binder clause: the
@@ -908,9 +1018,11 @@ small one, and its own major domain is the family at the parameters.  Split
 off in the port so that every `else` arm of the cited `&&` cascade stays a
 tail position (task #18's pattern 3).
 
-`n_p.val ≤ Std.Usize.max` is the platform side condition of `sort_get_d_refines`
-(the port writes `rbs[n_p as usize]`, and Aeneas keeps `usize`'s width
-abstract); on the 64-bit targets the port builds for it is vacuous. -/
+`n_p.val ≤ Std.Usize.max` is the `u64 → usize` width side condition of
+`Refine/Scalars.lean` (the port writes `rbs[n_p as usize]`, and Aeneas keeps
+`usize`'s width abstract).  It stays a hypothesis because `n_p` is the
+*declared* parameter count, a free `u64` here; `struct_shape_refines`
+discharges it from the `nP + 3` binders `strip_pis` gave it. -/
 theorem struct_shape_motive_refines {t : name.Name}
     {lps : alloc.vec.Vec name.Name} {elim : name.Name} {large : Bool}
     {n_p : Std.U64} {rbs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
@@ -924,13 +1036,90 @@ theorem struct_shape_motive_refines {t : name.Name}
          else s' == ConLeche.Level.zero)
           && mmaj == ConLeche.structFam (absName t) (absNames lps) n_p.val 0
       | _ => false) := by
-  -- the bounds test, the two node reads (`ForallE` then `Sort`) and the two
-  -- `beq`s; `binders_index` above is the reading of `rbs[nP]?`
-  sorry
+  rw [inductives.struct_parts.struct_shape_motive] at h
+  simp only [lift_eq, bind_tc_ok] at h
+  have hcv : (Std.UScalar.cast .Usize n_p : Std.Usize).val = n_p.val :=
+    Scalars.u64_cast_usize_val hnp
+  split at h
+  · rename_i hlt
+    obtain ⟨x, hidx, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨e0, m0⟩ := x
+    obtain ⟨hgx, hewf, hmwf⟩ := binders_index hrbs hidx
+    rw [hcv] at hgx
+    rw [hgx]
+    obtain ⟨⟨dd, kk⟩⟩ := e0
+    -- the tuple bind's `let (e, _) := (…, …)` needs a full `simp` to reduce
+    simp at h
+    cases kk with
+    | ForallE mmaj cod mm =>
+      obtain ⟨hmajwf, hcodwf, -⟩ := wf_forall_inv hewf rfl
+      obtain ⟨⟨d2, k2⟩⟩ := cod
+      simp only [ExprOps.node_kind] at h
+      cases k2 with
+      | «Sort» u =>
+        have huwf : LevelWF u := wf_sort_inv hcodwf rfl
+        obtain ⟨ok1, hok1, h⟩ := bind_eq_ok_iff.mp h
+        have hok1e : ok1
+            = (if large then absLevel u == ConLeche.Level.param (absName elim)
+               else absLevel u == ConLeche.Level.zero) := by
+          cases large with
+          | true =>
+            simp only [if_true] at hok1 ⊢
+            obtain ⟨l, hl, hok1⟩ := bind_eq_ok_iff.mp hok1
+            rw [Level.beq_refines huwf (LevelWF.param helim hl) hok1,
+              Level.param_refines hl]
+            refine Bool.eq_iff_iff.mpr ?_
+            simp
+          | false =>
+            simp only [Bool.false_eq_true, if_false] at hok1 ⊢
+            obtain ⟨l, hl, hok1⟩ := bind_eq_ok_iff.mp hok1
+            rw [Level.beq_refines huwf (LevelWF.zero hl) hok1, Level.zero_refines hl]
+            refine Bool.eq_iff_iff.mpr ?_
+            simp
+        cases hok1d : ok1 with
+        | false =>
+          rw [hok1d] at h hok1e
+          simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+          rw [← h]
+          simp only [absExpr_mk, absExprKind, ← hok1e, Bool.false_and]
+        | true =>
+          rw [hok1d] at h hok1e
+          simp only [if_true] at h
+          obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hfabs, hfwf⟩ := struct_fam_refines ht hlps he1
+          rw [Expr.beq_refines hmajwf hfwf h]
+          simp only [absExpr_mk, absExprKind, ← hok1e, Bool.true_and, hfabs]
+          refine Bool.eq_iff_iff.mpr ?_
+          simp
+      | Bvar _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+      | Fvar _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+      | Const _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+      | App _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+      | Lam _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+      | ForallE _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+      | LetE _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+      | Lit _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+      | Proj _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | Bvar _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | Fvar _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | «Sort» _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | Const _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | App _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | Lam _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | LetE _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | Lit _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | Proj _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+  · rename_i hge
+    have hgev : rbs.val.length ≤ n_p.val := by
+      have := alloc.vec.Vec.len_val rbs; scalar_tac
+    rw [binders_index_none hgev, ← Result.ok_injective h]
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:246-281` —
 `struct_shape_minor` refines `structShape`'s minor-binder clause: the minor's
-own `nF`-binder telescope ends in `motive (C p⃗ f⃗)`. -/
+own `nF`-binder telescope ends in `motive (C p⃗ f⃗)`.
+
+`n_p.val + 1 ≤ Std.Usize.max` is `Refine/Scalars.lean`'s width side condition
+at `rbs[nP + 1]`; `struct_shape_refines` discharges it. -/
 theorem struct_shape_minor_refines {c : name.Name}
     {lps : alloc.vec.Vec name.Name} {n_p n_f : Std.U64}
     {rbs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)} {b : Bool}
@@ -945,13 +1134,53 @@ theorem struct_shape_minor_refines {c : name.Name}
             (ConLeche.structCtorSpine (absName c) (absNames lps) n_p.val n_f.val)
         | none => false
       | none => false) := by
-  -- the bounds test, `strip_pis` and the `beq`; `binders_index` above is the
-  -- reading of `rbs[nP + 1]?`
-  sorry
+  rw [inductives.struct_parts.struct_shape_minor] at h
+  simp only [lift_eq, bind_tc_ok] at h
+  have hcv : (Std.UScalar.cast .Usize n_p : Std.Usize).val = n_p.val :=
+    Scalars.u64_cast_usize_val (by omega)
+  obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+  have hi1v : i1.val = n_p.val + 1 := by rw [HashMap.uscalar_add_eq hi1, hcv]; rfl
+  split at h
+  · rename_i hlt
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    have hi2v : i2.val = n_p.val + 1 := by rw [HashMap.uscalar_add_eq hi2, hcv]; rfl
+    obtain ⟨x, hidx, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨e0, m0⟩ := x
+    obtain ⟨hgx, hewf, hmwf⟩ := binders_index hrbs hidx
+    rw [hi2v] at hgx
+    rw [hgx]
+    simp at h
+    obtain ⟨o, ho, h⟩ := h
+    obtain ⟨hoabs, howf⟩ := ExprOps.strip_pis_refines hewf ho
+    cases o with
+    | none =>
+      simp only [Option.map_none] at hoabs
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      simp [← hoabs]
+    | some q =>
+      obtain ⟨bs, mbody⟩ := q
+      simp only [Option.map_some] at hoabs
+      obtain ⟨hbswf, hmbwf⟩ := howf _ rfl
+      simp at h
+      obtain ⟨e2, he2, e3, he3, e4, he4, h⟩ := h
+      obtain ⟨hspabs, hspwf⟩ := struct_ctor_spine_refines hc hlps he3
+      rw [Expr.beq_refines hmbwf (Expr.app_wf (Expr.bvar_wf he2) hspwf he4) h,
+        Expr.app_refines he4, Expr.bvar_refines he2, hspabs]
+      simp only [← hoabs]
+      refine Bool.eq_iff_iff.mpr ?_
+      simp
+  · rename_i hge
+    have hgev : rbs.val.length ≤ n_p.val + 1 := by
+      have := alloc.vec.Vec.len_val rbs; scalar_tac
+    rw [binders_index_none hgev, ← Result.ok_injective h]
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:246-281` —
 `struct_shape_major` refines `structShape`'s major-binder clause: its domain is
-the family at the parameters, two binders down. -/
+the family at the parameters, two binders down.
+
+`n_p.val + 2 ≤ Std.Usize.max` is `Refine/Scalars.lean`'s width side condition
+at `rbs[nP + 2]`; `struct_shape_refines` discharges it. -/
 theorem struct_shape_major_refines {t : name.Name}
     {lps : alloc.vec.Vec name.Name} {n_p : Std.U64}
     {rbs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)} {b : Bool}
@@ -965,7 +1194,7 @@ theorem struct_shape_major_refines {t : name.Name}
   rw [inductives.struct_parts.struct_shape_major] at h
   simp only [lift_eq, bind_tc_ok] at h
   have hcv : (Std.UScalar.cast .Usize n_p).val = n_p.val :=
-    ExprOps.u64_cast_usize_val (by omega)
+    Scalars.u64_cast_usize_val (by omega)
   obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
   have hi1v : i1.val = n_p.val + 2 := by rw [HashMap.uscalar_add_eq hi1, hcv]; rfl
   split at h
@@ -1001,8 +1230,162 @@ theorem struct_shape_refines {t c : name.Name} {lps : alloc.vec.Vec name.Name}
     b = ConLeche.structShape (absName t) (absName c) (absNames lps)
       (absName elim) large n_p.val n_f.val (absExpr tty) (absExpr cty)
       (absExpr rty) := by
-  -- the three `strip_pis`, the `.sort` read and the three clauses above
-  sorry
+  rw [inductives.struct_parts.struct_shape] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨htabs, htwf⟩ := ExprOps.strip_pis_refines htty ho
+  rw [ConLeche.structShape]
+  cases o with
+  | none =>
+    simp only [Option.map_none] at htabs
+    simp only [Result.ok.injEq] at h
+    rw [← h, ← htabs]
+  | some tq =>
+    obtain ⟨tbs, tbody⟩ := tq
+    have htbwf : ExprWF tbody := (htwf _ rfl).2
+    simp only [Option.map_some] at htabs
+    obtain ⟨⟨td, tk⟩⟩ := tbody
+    simp at h
+    rw [← htabs]
+    cases tk with
+    | «Sort» su =>
+      obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+      have hiv : i.val = n_p.val + n_f.val := HashMap.uscalar_add_eq hi
+      obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hcabs, hcwf⟩ := ExprOps.strip_pis_refines hcty ho1
+      rw [hiv] at hcabs
+      cases o1 with
+      | none =>
+        simp only [Option.map_none] at hcabs
+        simp only [Result.ok.injEq] at h
+        rw [← h, ← hcabs]
+        simp
+      | some cq =>
+        obtain ⟨cbs, cbody⟩ := cq
+        have hcbwf : ExprWF cbody := (hcwf _ rfl).2
+        simp only [Option.map_some] at hcabs
+        obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+        have hi1v : i1.val = n_p.val + 3 := by rw [HashMap.uscalar_add_eq hi1]; rfl
+        obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hrabs, hrwf⟩ := ExprOps.strip_pis_refines hrty ho2
+        rw [hi1v] at hrabs
+        cases o2 with
+        | none =>
+          simp only [Option.map_none] at hrabs
+          simp only [Result.ok.injEq] at h
+          rw [← h, ← hrabs]
+          simp
+        | some rq =>
+          obtain ⟨rbs, rbody⟩ := rq
+          have hrbswf : ExprOps.BindersWF rbs := (hrwf _ rfl).1
+          have hrbwf : ExprWF rbody := (hrwf _ rfl).2
+          simp only [Option.map_some] at hrabs
+          -- the platform bound of the three clauses, discharged from the `Vec`
+          -- the `nP + 3` binders came back in (`Refine/Scalars.lean`)
+          have hrlen : rbs.val.length = n_p.val + 3 := by
+            have := ConLeche.Expr.stripPis_length _ hrabs.symm
+            simpa [ExprOps.absBinders] using this
+          have hbnd : n_p.val + 3 ≤ Std.Usize.max := by
+            have := Scalars.vec_len_le_usize_max rbs; omega
+          rw [← hcabs, ← hrabs]
+          -- respell the three clauses at *this* file's matchers, so that the
+          -- three clause lemmas above rewrite into the goal (con-leche's
+          -- `structShape` builds its own `match_*` auxiliaries for the same
+          -- patterns, and `rw` matches syntactically)
+          show b = (absExpr cbody
+                == ConLeche.structFam (absName t) (absNames lps) n_p.val n_f.val &&
+              absExpr rbody == ConLeche.Expr.app (.bvar 2) (.bvar 0) &&
+              (match (ExprOps.absBinders rbs)[n_p.val]? with
+               | some (.forallE mmaj (.sort s') _, _) =>
+                 (if large then s' == ConLeche.Level.param (absName elim)
+                  else s' == ConLeche.Level.zero)
+                   && mmaj == ConLeche.structFam (absName t) (absNames lps) n_p.val 0
+               | _ => false) &&
+              (match (ExprOps.absBinders rbs)[n_p.val + 1]? with
+               | some (mindom, _) =>
+                 match mindom.stripPis n_f.val with
+                 | some (_, mbody) =>
+                   mbody == ConLeche.Expr.app (.bvar n_f.val)
+                     (ConLeche.structCtorSpine (absName c) (absNames lps) n_p.val n_f.val)
+                 | none => false
+               | none => false) &&
+              (match (ExprOps.absBinders rbs)[n_p.val + 2]? with
+               | some (majdom, _) =>
+                 majdom == ConLeche.structFam (absName t) (absNames lps) n_p.val 2
+               | none => false))
+          obtain ⟨e2, he2, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hfabs, hfwf⟩ := struct_fam_refines ht hlps he2
+          obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+          have hbbe : bb
+              = (absExpr cbody
+                  == ConLeche.structFam (absName t) (absNames lps) n_p.val n_f.val) := by
+            rw [Expr.beq_refines hcbwf hfwf hbb, hfabs]
+            refine Bool.eq_iff_iff.mpr ?_
+            simp
+          cases hbbd : bb with
+          | false =>
+            rw [hbbd] at h hbbe
+            simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+            rw [← h, ← hbbe]
+            simp
+          | true =>
+            rw [hbbd] at h hbbe
+            simp only [if_true] at h
+            obtain ⟨e4, he4, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨e5, he5, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨e6, he6, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+            have hb1e : b1
+                = (absExpr rbody
+                    == ConLeche.Expr.app (.bvar 2) (.bvar 0)) := by
+              rw [Expr.beq_refines hrbwf
+                    (Expr.app_wf (Expr.bvar_wf he4) (Expr.bvar_wf he5) he6) hb1,
+                Expr.app_refines he6, Expr.bvar_refines he4, Expr.bvar_refines he5]
+              refine Bool.eq_iff_iff.mpr ?_
+              simp
+            cases hb1d : b1 with
+            | false =>
+              rw [hb1d] at h hb1e
+              simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+              rw [← h, ← hbbe, ← hb1e]
+              simp
+            | true =>
+              rw [hb1d] at h hb1e
+              simp only [if_true] at h
+              obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+              have hb2e := struct_shape_motive_refines ht hlps helim hrbswf
+                (by omega) hb2
+              cases hb2d : b2 with
+              | false =>
+                rw [hb2d] at h hb2e
+                simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+                rw [← h, ← hbbe, ← hb1e, ← hb2e]
+                simp
+              | true =>
+                rw [hb2d] at h hb2e
+                simp only [if_true] at h
+                obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+                have hb3e := struct_shape_minor_refines hc hlps hrbswf (by omega) hb3
+                cases hb3d : b3 with
+                | false =>
+                  rw [hb3d] at h hb3e
+                  simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+                  rw [← h, ← hbbe, ← hb1e, ← hb2e, ← hb3e]
+                  simp
+                | true =>
+                  rw [hb3d] at h hb3e
+                  simp only [if_true] at h
+                  rw [struct_shape_major_refines ht hlps hrbswf (by omega) h,
+                    ← hbbe, ← hb1e, ← hb2e, ← hb3e]
+                  simp
+    | Bvar _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | Fvar _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | Const _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | App _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | Lam _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | ForallE _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | LetE _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | Lit _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | Proj _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:283-329` —
 `struct_parts_front_ok` refines the block-independent front guards of
@@ -1027,8 +1410,139 @@ theorem struct_parts_front_ok_refines {cv_t cv_c cv_r : env.ConstantVal}
       && (match (absRecRule rule).rhs.stripLams (n_p.val + 2 + n_f.val) with
           | some (_, rbody) => rbody == ConLeche.structRuleBody n_f.val
           | none => false)) := by
-  -- the pinned `.str "rec"` (`str_lit_step`), `reservedBasisNames`, `strip_lams`
-  sorry
+  rw [inductives.struct_parts.struct_parts_front_ok] at h
+  obtain ⟨tn, htn, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨cps, hcps, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨er, her, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨reserved, hres, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b0, hb0, h⟩ := bind_eq_ok_iff.mp h
+  have htne : tn = cv_t.name := (by simpa using htn : cv_t.name = tn).symm
+  rw [htne] at her
+  obtain ⟨herabs, herwf⟩ := str_lit_step hcvt.1 hsl hcps her
+    (L := [114#u32, 101#u32, 99#u32])
+    (by simp [inductives.struct_parts.struct_parts_front_ok.REC]) (by decide)
+  obtain ⟨hresabs, hreswf⟩ := BasisNames.reserved_basis_names_refines hres
+  have hb0e : b0 = (absName cv_r.name == (absName cv_t.name).str "rec") := by
+    rw [Name.beq_refines hcvr.1 herwf hb0, herabs]
+    refine Bool.eq_iff_iff.mpr ?_
+    simp; rfl
+  cases hb0d : b0 with
+  | false =>
+    rw [hb0d] at h hb0e
+    simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+    rw [← h, ← hb0e]; simp
+  | true =>
+    rw [hb0d] at h hb0e
+    simp only [if_true] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1e : b1 = (absNames cv_c.level_params == absNames cv_t.level_params) := by
+      rw [Env.names_beq_refines hcvc.2.1 hcvt.2.1 hb1]
+      refine Bool.eq_iff_iff.mpr ?_; simp
+    cases hb1d : b1 with
+    | false =>
+      rw [hb1d] at h hb1e
+      simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+      rw [← h, ← hb0e, ← hb1e]; simp
+    | true =>
+      rw [hb1d] at h hb1e
+      simp only [if_true] at h
+      obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+      have hb2e : b2 = ConLeche.reservedBasisNames.contains (absName cv_t.name) := by
+        rw [Name.contains_refines hreswf hcvt.1 hb2, hresabs]
+      cases hb2d : b2 with
+      | true =>
+        rw [hb2d] at h hb2e
+        simp only [if_true, Result.ok.injEq] at h
+        rw [← h, ← hb0e, ← hb1e, ← hb2e]; simp
+      | false =>
+        rw [hb2d] at h hb2e
+        simp only [Bool.false_eq_true, if_false] at h
+        obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+        have hb3e : b3 = ConLeche.reservedBasisNames.contains (absName cv_c.name) := by
+          rw [Name.contains_refines hreswf hcvc.1 hb3, hresabs]
+        cases hb3d : b3 with
+        | true =>
+          rw [hb3d] at h hb3e
+          simp only [if_true, Result.ok.injEq] at h
+          rw [← h, ← hb0e, ← hb1e, ← hb2e, ← hb3e]; simp
+        | false =>
+          rw [hb3d] at h hb3e
+          simp only [Bool.false_eq_true, if_false] at h
+          obtain ⟨b4, hb4, h⟩ := bind_eq_ok_iff.mp h
+          have hb4e : b4 = ConLeche.reservedBasisNames.contains (absName cv_r.name) := by
+            rw [Name.contains_refines hreswf hcvr.1 hb4, hresabs]
+          cases hb4d : b4 with
+          | true =>
+            rw [hb4d] at h hb4e
+            simp only [if_true, Result.ok.injEq] at h
+            rw [← h, ← hb0e, ← hb1e, ← hb2e, ← hb3e, ← hb4e]; simp
+          | false =>
+            rw [hb4d] at h hb4e
+            simp only [Bool.false_eq_true, if_false] at h
+            obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+            have hiv : i.val = n_p.val + 2 := HashMap.uscalar_add_eq hi
+            rw [← hb0e, ← hb1e, ← hb2e, ← hb3e, ← hb4e]
+            by_cases hmi : m_i = i
+            · rw [if_pos hmi] at h
+              have hmiv : m_i.val = n_p.val + 2 := by rw [hmi, hiv]
+              by_cases hrp : r_p = i
+              · rw [if_pos hrp] at h
+                have hrpv : r_p.val = n_p.val + 2 := by rw [hrp, hiv]
+                obtain ⟨b5, hb5, h⟩ := bind_eq_ok_iff.mp h
+                have hb5e : b5 = ((absRecRule rule).ctor == absName cv_c.name) := by
+                  rw [Name.beq_refines hrule.1 hcvc.1 hb5]
+                  refine Bool.eq_iff_iff.mpr ?_; simp [absRecRule]
+                cases hb5d : b5 with
+                | false =>
+                  rw [hb5d] at h hb5e
+                  simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+                  rw [← h, ← hb5e]; simp [hmiv, hrpv]
+                | true =>
+                  rw [hb5d] at h hb5e
+                  simp only [if_true] at h
+                  rw [← hb5e]
+                  by_cases hnf : rule.nfields = n_f
+                  · rw [if_pos hnf] at h
+                    have hnfv : (absRecRule rule).nfields = n_f.val := by
+                      simp only [absRecRule]; rw [hnf]
+                    obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+                    have hi1v : i1.val = n_p.val + 2 + n_f.val := by
+                      rw [HashMap.uscalar_add_eq hi1, hiv]
+                    obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+                    obtain ⟨hoabs, howf⟩ := ExprOps.strip_lams_refines hrule.2.2 ho
+                    rw [hi1v] at hoabs
+                    have hrhs : (absRecRule rule).rhs = absExpr rule.rhs := rfl
+                    rw [hrhs]
+                    cases o with
+                    | none =>
+                      simp only [Option.map_none] at hoabs
+                      simp only [Result.ok.injEq] at h
+                      rw [← h, ← hoabs]; simp [hmiv, hrpv, hnfv]
+                    | some q =>
+                      obtain ⟨qbs, qbody⟩ := q
+                      have hqwf : ExprWF qbody := (howf _ rfl).2
+                      simp only [Option.map_some] at hoabs
+                      rw [← hoabs]
+                      obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+                      obtain ⟨hsrb, hsrbwf⟩ := struct_rule_body_refines he1
+                      rw [Expr.beq_refines hqwf hsrbwf h, hsrb]
+                      simp only [hmiv, hrpv, hnfv]
+                      refine Bool.eq_iff_iff.mpr ?_
+                      simp
+                  · rw [if_neg hnf, Result.ok.injEq] at h
+                    have hnfv : ¬ ((absRecRule rule).nfields = n_f.val) := by
+                      simp only [absRecRule]
+                      intro hc; exact hnf (Std.UScalar.eq_of_val_eq hc)
+                    rw [← h]; simp [hmiv, hrpv, hnfv]
+              · rw [if_neg hrp, Result.ok.injEq] at h
+                have hrpv : ¬ (r_p.val = n_p.val + 2) := by
+                  intro hc; exact hrp (Std.UScalar.eq_of_val_eq (by rw [hc, hiv]))
+                rw [← h]; simp [hmiv, hrpv]
+            · rw [if_neg hmi, Result.ok.injEq] at h
+              have hmiv : ¬ (m_i.val = n_p.val + 2) := by
+                intro hc; exact hmi (Std.UScalar.eq_of_val_eq (by rw [hc, hiv]))
+              rw [← h]; simp [hmiv]
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:283-329` —
 `struct_parts_large` refines `structPartsCore?`'s `large?` reading: a fresh
@@ -1051,8 +1565,87 @@ theorem struct_parts_large_refines {cv_t cv_c cv_r : env.ConstantVal}
         else none
       | [] => none)
     ∧ ∀ n, o = some n → NameWF n := by
-  -- the length test, `prop_when::append_from`, `names_beq`, `contains`, the shape
-  sorry
+  rw [inductives.struct_parts.struct_parts_large] at h
+  split at h
+  · rename_i hz
+    have h0 : cv_r.level_params.val = [] := by
+      have := alloc.vec.Vec.len_val cv_r.level_params
+      exact List.eq_nil_of_length_eq_zero (by scalar_tac)
+    have hnil : absNames cv_r.level_params = [] := by simp [absNames, h0]
+    have ho : none = o := Result.ok_injective h
+    rw [← ho]
+    exact ⟨by simp [hnil], by simp⟩
+  · rename_i hz
+    obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨el, hel, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨relps, hrelps, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hlt, hnwf, hdrop⟩ := vec_index_name hcvr.2.1 hn
+    have hele : el = n := (by simpa using hel : n = el).symm
+    rw [hele] at h
+    simp only [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero,
+      Nat.zero_add] at hdrop
+    have hrelpsv : relps.val = cv_r.level_params.val.drop 1 := by
+      have := PropWhen.append_from_val cv_r.level_params cv_r.level_params.val.length
+        1#usize _ relps (by scalar_tac) hrelps
+      simpa [alloc.vec.Vec.new] using this
+    have hrelpsabs : absNames relps = (absNames cv_r.level_params).drop 1 := by
+      simp [absNames, hrelpsv]
+    have hrelpswf : NamesWF relps := by
+      intro x hx
+      rw [hrelpsv] at hx
+      exact hcvr.2.1 x (List.mem_of_mem_drop hx)
+    have hbbe : bb
+        = ((absNames cv_r.level_params).drop 1 == absNames cv_t.level_params) := by
+      rw [Env.names_beq_refines hrelpswf hcvt.2.1 hbb, hrelpsabs]
+      refine Bool.eq_iff_iff.mpr ?_; simp
+    rw [hdrop]
+    show (o.map absName = (if ((absNames cv_r.level_params).drop 1
+              == absNames cv_t.level_params
+            && !(absNames cv_t.level_params).contains (absName n)
+            && ConLeche.structShape (absName cv_t.name) (absName cv_c.name)
+                (absNames cv_t.level_params) (absName n) true n_p.val n_f.val
+                (absExpr cv_t.ty) (absExpr cv_c.ty) (absExpr cv_r.ty)) then
+            some (absName n) else none))
+      ∧ ∀ m, o = some m → NameWF m
+    cases hbbd : bb with
+    | false =>
+      rw [hbbd] at h hbbe
+      simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+      rw [← h]
+      exact ⟨by rw [← hbbe]; simp, by simp⟩
+    | true =>
+      rw [hbbd] at h hbbe
+      simp only [if_true] at h
+      obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+      have hb1e : b1 = (absNames cv_t.level_params).contains (absName n) :=
+        Name.contains_refines hcvt.2.1 hnwf hb1
+      cases hb1d : b1 with
+      | true =>
+        rw [hb1d] at h hb1e
+        simp only [if_true, Result.ok.injEq] at h
+        rw [← h]
+        exact ⟨by rw [← hbbe, ← hb1e]; simp, by simp⟩
+      | false =>
+        rw [hb1d] at h hb1e
+        simp only [Bool.false_eq_true, if_false] at h
+        obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+        have hb2e := struct_shape_refines hcvt.1 hcvc.1 hcvt.2.1 hnwf hcvt.2.2
+          hcvc.2.2 hcvr.2.2 hb2
+        cases hb2d : b2 with
+        | false =>
+          rw [hb2d] at h hb2e
+          simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+          rw [← h]
+          exact ⟨by rw [← hbbe, ← hb1e, ← hb2e]; simp, by simp⟩
+        | true =>
+          rw [hb2d] at h hb2e
+          simp only [if_true, Result.ok.injEq] at h
+          rw [← h]
+          refine ⟨by rw [← hbbe, ← hb1e, ← hb2e]; simp, ?_⟩
+          intro m hm
+          simp only [Option.some.injEq] at hm
+          rw [← hm]; exact hnwf
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:283-329` —
 `struct_parts_small_ok` refines `structPartsCore?`'s `large? = none` branch
@@ -1068,8 +1661,24 @@ theorem struct_parts_small_ok_refines {cv_t cv_c cv_r : env.ConstantVal}
       && ConLeche.structShape (absName cv_t.name) (absName cv_c.name)
           (absNames cv_t.level_params) .anonymous false n_p.val n_f.val
           (absExpr cv_t.ty) (absExpr cv_c.ty) (absExpr cv_r.ty)) := by
-  -- `names_beq` and `struct_shape_refines` at `.anonymous`
-  sorry
+  rw [inductives.struct_parts.struct_parts_small_ok] at h
+  obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+  have hbbe : bb = (absNames cv_r.level_params == absNames cv_t.level_params) := by
+    rw [Env.names_beq_refines hcvr.2.1 hcvt.2.1 hbb]
+    refine Bool.eq_iff_iff.mpr ?_; simp
+  cases hbbd : bb with
+  | false =>
+    rw [hbbd] at h hbbe
+    simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+    rw [← h, ← hbbe]; simp
+  | true =>
+    rw [hbbd] at h hbbe
+    simp only [if_true] at h
+    obtain ⟨an, han, h⟩ := bind_eq_ok_iff.mp h
+    rw [struct_shape_refines hcvt.1 hcvc.1 hcvt.2.1 (Name.anonymous_wf han) hcvt.2.2
+        hcvc.2.2 hcvr.2.2 h,
+      Name.anonymous_refines han, ← hbbe]
+    simp
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:283-329` —
 `struct_parts_core` refines `structPartsCore?`: a recognised direct
@@ -1084,9 +1693,239 @@ theorem struct_parts_core_refines {block : alloc.vec.Vec env.ConstantInfo}
     o.map IndAbs.absStructParts
         = ConLeche.structPartsCore? (absConstantInfos block)
       ∧ ∀ p, o = some p → IndAbs.StructPartsWF p := by
-  -- the three `ConstantInfo` matches, the front guards, `strip_pis`, the two
-  -- eliminator branches
-  sorry
+  rw [inductives.struct_parts.struct_parts_core] at h
+  have hblen := alloc.vec.Vec.len_val block
+  split at h
+  · rename_i hne
+    have hne3 : block.val.length ≠ 3 := by scalar_tac
+    have hne3' : (absConstantInfos block).length ≠ 3 := by
+      simpa [absConstantInfos] using hne3
+    rw [← Result.ok_injective h]
+    simp [core_none_len hne3']
+  · rename_i he3
+    have he3' : block.val.length = 3 := by scalar_tac
+    obtain ⟨ci, hci, h1⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ci1, hci1, h2⟩ := bind_eq_ok_iff.mp h1
+    obtain ⟨ci2, hci2, h3⟩ := bind_eq_ok_iff.mp h2
+    clear h h1 h2
+    obtain ⟨x0, x1, x2, hbl⟩ := list_three he3'
+    have hbl' : block.val = [ci, ci1, ci2] := by
+      have g0 := ExprOps.vec_index_getElem? hci
+      have g1 := ExprOps.vec_index_getElem? hci1
+      have g2 := ExprOps.vec_index_getElem? hci2
+      rw [hbl] at g0 g1 g2 ⊢
+      simp only [show ((0#usize : Std.Usize).val) = 0 from rfl,
+        show ((1#usize : Std.Usize).val) = 1 from rfl,
+        show ((2#usize : Std.Usize).val) = 2 from rfl] at g0 g1 g2
+      simp at g0 g1 g2
+      rw [g0, g1, g2]
+    have habs : absConstantInfos block
+        = [absConstantInfo ci, absConstantInfo ci1, absConstantInfo ci2] := by
+      simp [absConstantInfos, hbl']
+    have hw0 : ConstantInfoWF ci := hblock ci (by rw [hbl']; simp)
+    have hw1 : ConstantInfoWF ci1 := hblock ci1 (by rw [hbl']; simp)
+    have hw2 : ConstantInfoWF ci2 := hblock ci2 (by rw [hbl']; simp)
+    rw [habs]
+    clear habs hbl' hbl hci hci1 hci2 he3' hblen he3 hblock x0 x1 x2
+    cases ci
+    case IndInfo cv_t caps =>
+      cases ci1
+      case CtorInfo cv_c n_p n_f =>
+        cases ci2
+        case RecInfo cv_r m_i r_p rules =>
+          obtain ⟨hcvtwf, -⟩ := hw0
+          have hcvcwf : ConstantValWF cv_c := hw1
+          obtain ⟨hcvrwf, hruleswf⟩ := hw2
+          dsimp only at h3
+          split at h3
+          · rename_i hr1
+            have hrl1 : rules.val.length ≠ 1 := by
+              have := alloc.vec.Vec.len_val rules; scalar_tac
+            rw [← Result.ok_injective h3]
+            refine ⟨?_, by simp⟩
+            rw [core_none (fun _ _ _ _ _ _ _ _ rule hc => by
+              simp only [absConstantInfo, List.cons.injEq, and_true] at hc
+              injection hc.2.2 with _ _ _ e4
+              exact hrl1 (by simpa using congrArg List.length e4))]
+            simp
+          · rename_i hr1
+            have hrl1 : rules.val.length = 1 := by
+              have := alloc.vec.Vec.len_val rules; scalar_tac
+            obtain ⟨rr, hrr, h4⟩ := bind_eq_ok_iff.mp h3
+            clear h3
+            obtain ⟨r0, hr0⟩ := list_one hrl1
+            have hrlv : rules.val = [rr] := by
+              have hg := ExprOps.vec_index_getElem? hrr
+              rw [hr0] at hg ⊢
+              simp only [show ((0#usize : Std.Usize).val) = 0 from rfl] at hg
+              simp at hg
+              rw [hg]
+            have hrrwf : RecRuleWF rr := hruleswf rr (by rw [hrlv]; simp)
+            have hrmap : rules.val.map absRecRule = [absRecRule rr] := by rw [hrlv]; simp
+            obtain ⟨bf, hbf, h5⟩ := bind_eq_ok_iff.mp h4
+            clear h4
+            have hbfe := struct_parts_front_ok_refines hcvtwf hcvcwf hcvrwf hrrwf hbf
+            simp only [absConstantInfo, hrmap]
+            rw [ConLeche.structPartsCore?]
+            -- respell `structPartsCore?`'s body at *this* file's matchers, so
+            -- that the four ingredient lemmas above rewrite into it (con-leche
+            -- builds its own `match_*` auxiliaries for the same patterns, and
+            -- `rw` matches syntactically); the two readings are definitionally
+            -- equal, which is what `show` checks
+            show (Option.map IndAbs.absStructParts o
+                = (if ((absName cv_r.name == (absName cv_t.name).str "rec")
+                      && (absNames cv_c.level_params == absNames cv_t.level_params)
+                      && (ConLeche.reservedBasisNames.contains (absName cv_t.name) == false)
+                      && (ConLeche.reservedBasisNames.contains (absName cv_c.name) == false)
+                      && (ConLeche.reservedBasisNames.contains (absName cv_r.name) == false)
+                      && (m_i.val == n_p.val + 2) && (r_p.val == n_p.val + 2)
+                      && ((absRecRule rr).ctor == absName cv_c.name)
+                      && ((absRecRule rr).nfields == n_f.val)
+                      && (match (absRecRule rr).rhs.stripLams (n_p.val + 2 + n_f.val) with
+                          | some (_, rbody) => rbody == ConLeche.structRuleBody n_f.val
+                          | none => false)) then
+                    (match (absExpr cv_t.ty).stripPis n_p.val with
+                     | some (_, .sort s) =>
+                       (match (match absNames cv_r.level_params with
+                               | elim :: relps =>
+                                 if relps == absNames cv_t.level_params
+                                     && !(absNames cv_t.level_params).contains elim
+                                     && ConLeche.structShape (absName cv_t.name)
+                                         (absName cv_c.name) (absNames cv_t.level_params)
+                                         elim true n_p.val n_f.val (absExpr cv_t.ty)
+                                         (absExpr cv_c.ty) (absExpr cv_r.ty) then
+                                   some elim
+                                 else none
+                               | [] => none) with
+                        | some elim =>
+                          some ⟨absConstantVal cv_t, absConstantVal cv_c, n_p.val, n_f.val,
+                            absConstantVal cv_r, elim, s, absExpr rr.rhs, true,
+                            ConLeche.Level.isEquiv s .zero == some true⟩
+                        | none =>
+                          if ((absNames cv_r.level_params == absNames cv_t.level_params)
+                              && ConLeche.structShape (absName cv_t.name) (absName cv_c.name)
+                                  (absNames cv_t.level_params) .anonymous false n_p.val
+                                  n_f.val (absExpr cv_t.ty) (absExpr cv_c.ty)
+                                  (absExpr cv_r.ty)) then
+                            some ⟨absConstantVal cv_t, absConstantVal cv_c, n_p.val, n_f.val,
+                              absConstantVal cv_r, .anonymous, s, absExpr rr.rhs, false,
+                              ConLeche.Level.isEquiv s .zero == some true⟩
+                          else none)
+                     | _ => none)
+                  else none))
+              ∧ ∀ p, o = some p → IndAbs.StructPartsWF p
+            rw [← hbfe]
+            cases bf with
+            | false =>
+              simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h5
+              rw [← h5]
+              exact ⟨by simp, by simp⟩
+            | true =>
+              simp only [if_true] at h5 ⊢
+              obtain ⟨so, hso, h6⟩ := bind_eq_ok_iff.mp h5
+              clear h5
+              obtain ⟨hsoabs, hsowf⟩ := ExprOps.strip_pis_refines hcvtwf.2.2 hso
+              rw [← hsoabs]
+              cases so with
+              | none =>
+                simp only [Result.ok.injEq] at h6
+                rw [← h6]
+                exact ⟨by simp, by simp⟩
+              | some q =>
+                obtain ⟨sbs, sbody⟩ := q
+                have hsbwf : ExprWF sbody := (hsowf _ rfl).2
+                obtain ⟨⟨sd, sk⟩⟩ := sbody
+                simp at h6
+                simp only [Option.map_some, absExpr_mk]
+                cases sk with
+                | «Sort» su =>
+                  have hsuwf : LevelWF su := wf_sort_inv hsbwf rfl
+                  obtain ⟨ip, hip, h7⟩ := bind_eq_ok_iff.mp h6
+                  have hipe := level_is_prop_refines hsuwf hip
+                  obtain ⟨o1, ho1, h8⟩ := bind_eq_ok_iff.mp h7
+                  obtain ⟨hlabs, hlwf⟩ :=
+                    struct_parts_large_refines hcvtwf hcvcwf hcvrwf ho1
+                  rw [← hlabs]
+                  cases o1 with
+                  | some elim =>
+                    simp only [Option.map_some]
+                    obtain ⟨cv, hcv, h9⟩ := bind_eq_ok_iff.mp h8
+                    obtain ⟨cv1, hcv1, h10⟩ := bind_eq_ok_iff.mp h9
+                    obtain ⟨cv2, hcv2, h11⟩ := bind_eq_ok_iff.mp h10
+                    have e1 : cv = cv_t := Env.constant_val_dup_refines hcv
+                    have e2 : cv1 = cv_c := Env.constant_val_dup_refines hcv1
+                    have e3 : cv2 = cv_r := Env.constant_val_dup_refines hcv2
+                    simp only [Result.ok.injEq] at h11
+                    rw [← h11]
+                    refine ⟨?_, ?_⟩
+                    · simp only [absExprKind, Option.map_some, IndAbs.absStructParts,
+                        e1, e2, e3, hipe]
+                    · intro p hp
+                      simp only [Option.some.injEq] at hp
+                      rw [← hp]
+                      exact ⟨by rw [e1]; exact hcvtwf, by rw [e2]; exact hcvcwf,
+                        by rw [e3]; exact hcvrwf, hlwf elim rfl, hsuwf, hrrwf.2.2⟩
+                  | none =>
+                    simp only [Option.map_none]
+                    obtain ⟨b1, hb1, h9⟩ := bind_eq_ok_iff.mp h8
+                    have hb1e := struct_parts_small_ok_refines hcvtwf hcvcwf hcvrwf hb1
+                    rw [← hb1e]
+                    cases b1 with
+                    | false =>
+                      simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h9
+                      rw [← h9]; exact ⟨by simp, by simp⟩
+                    | true =>
+                      simp only [if_true] at h9 ⊢
+                      obtain ⟨cv, hcv, h10⟩ := bind_eq_ok_iff.mp h9
+                      obtain ⟨cv1, hcv1, h11⟩ := bind_eq_ok_iff.mp h10
+                      obtain ⟨cv2, hcv2, h12⟩ := bind_eq_ok_iff.mp h11
+                      obtain ⟨an, han, h13⟩ := bind_eq_ok_iff.mp h12
+                      have e1 : cv = cv_t := Env.constant_val_dup_refines hcv
+                      have e2 : cv1 = cv_c := Env.constant_val_dup_refines hcv1
+                      have e3 : cv2 = cv_r := Env.constant_val_dup_refines hcv2
+                      simp only [Result.ok.injEq] at h13
+                      rw [← h13]
+                      refine ⟨?_, ?_⟩
+                      · simp only [absExprKind, Option.map_some, IndAbs.absStructParts,
+                          e1, e2, e3, hipe, Name.anonymous_refines han]
+                      · intro p hp
+                        simp only [Option.some.injEq] at hp
+                        rw [← hp]
+                        exact ⟨by rw [e1]; exact hcvtwf, by rw [e2]; exact hcvcwf,
+                          by rw [e3]; exact hcvrwf, Name.anonymous_wf han, hsuwf, hrrwf.2.2⟩
+                | Bvar _ =>
+                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                | Fvar _ _ =>
+                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                | Const _ _ =>
+                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                | App _ _ =>
+                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                | Lam _ _ _ =>
+                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                | ForallE _ _ _ =>
+                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                | LetE _ _ _ =>
+                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                | Lit _ =>
+                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                | Proj _ _ _ =>
+                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+        all_goals
+          (rw [← Result.ok_injective h3]
+           refine ⟨?_, by simp⟩
+           rw [core_none (fun _ _ _ _ _ _ _ _ _ hc => by simp [absConstantInfo] at hc)]
+           simp)
+      all_goals
+        (rw [← Result.ok_injective h3]
+         refine ⟨?_, by simp⟩
+         rw [core_none (fun _ _ _ _ _ _ _ _ _ hc => by simp [absConstantInfo] at hc)]
+         simp)
+    all_goals
+      (rw [← Result.ok_injective h3]
+       refine ⟨?_, by simp⟩
+       rw [core_none (fun _ _ _ _ _ _ _ _ _ hc => by simp [absConstantInfo] at hc)]
+       simp)
 
 /-! ## The projection table's pieces (`StructParts.lean:335-356`) -/
 
@@ -2301,18 +3140,19 @@ theorem struct_used_later_list_refines {cty : expr.Expr} {n_p : Std.U64}
 /-- `struct_parts::sort_get_d` is the out-of-range fallback the guard fold
 spells at every read (`sorts.getD i .zero`; no cited definition of its own).
 
-`i.val ≤ Std.Usize.max` is a **platform** side condition, not a weakening: the
-port writes `(i as usize) < sorts.len()`, and Aeneas keeps `usize`'s width
-abstract (`System.Platform.numBits_eq`), so the model has to say that the cast
-does not wrap.  On the 64-bit targets the port builds for it is vacuous
-(`Usize.max = U64.max`). -/
+`i.val ≤ Std.Usize.max` is `Refine/Scalars.lean`'s `u64 → usize` width side
+condition, not a weakening: the port writes `(i as usize) < sorts.len()`, and
+Aeneas keeps `usize`'s width abstract (`System.Platform.numBits_eq`), so the
+model has to say that the cast does not wrap.  It stays a hypothesis because
+`i` is a free `u64` here — nothing relates it to `sorts` — and every caller
+discharges it from the `Vec` its own counter came from. -/
 theorem sort_get_d_refines {sorts : alloc.vec.Vec level.Level} {i : Std.U64}
     {u : level.Level} (hsorts : LevelsWF sorts) (hi : i.val ≤ Std.Usize.max)
     (h : inductives.struct_parts.sort_get_d sorts i = ok u) :
     absLevel u = (absLevels sorts).getD i.val .zero ∧ LevelWF u := by
   rw [inductives.struct_parts.sort_get_d] at h
   simp only [lift_eq, bind_tc_ok] at h
-  have hcv : (Std.UScalar.cast .Usize i).val = i.val := ExprOps.u64_cast_usize_val hi
+  have hcv : (Std.UScalar.cast .Usize i).val = i.val := Scalars.u64_cast_usize_val hi
   split at h
   · rename_i hlt
     have hltv : i.val < sorts.val.length := by
@@ -2338,7 +3178,7 @@ theorem sort_get_d_refines {sorts : alloc.vec.Vec level.Level} {i : Std.U64}
 `struct_proj_guard_at` refines the inner `(List.range i).foldl` of the guard
 table from index `j`: field `i`'s own sort joined with the sorts of the earlier
 fields a later field uses.  `i.val ≤ Std.Usize.max` is `sort_get_d_refines`'
-platform side condition, which every `j < i` inherits. -/
+width side condition (`Refine/Scalars.lean`), which every `j < i` inherits. -/
 theorem struct_proj_guard_at_refines {used : alloc.vec.Vec Bool}
     {sorts : alloc.vec.Vec level.Level} (hsorts : LevelsWF sorts) (N : Nat) :
     ∀ (i j : Std.U64) (acc u : level.Level), i.val - j.val = N →
@@ -2364,7 +3204,7 @@ theorem struct_proj_guard_at_refines {used : alloc.vec.Vec Bool}
       have hlt : j.val < i.val := by scalar_tac
       have hjmax : j.val ≤ Std.Usize.max := by omega
       have hcv : (Std.UScalar.cast .Usize j).val = j.val :=
-        ExprOps.u64_cast_usize_val hjmax
+        Scalars.u64_cast_usize_val hjmax
       simp only [lift_eq, bind_tc_ok, bind_eq_ok_iff] at h
       obtain ⟨ub, hub, acc2, hacc2, i3, hi3, h⟩ := h
       have hubv : ub = used.val.getD j.val false := by
@@ -2407,7 +3247,11 @@ theorem struct_proj_guard_at_refines {used : alloc.vec.Vec Bool}
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:722-732` —
 `struct_proj_guards_from` refines the outer `(List.range nF).map` of
-`structProjGuardsFast` from index `i`, accumulator in front. -/
+`structProjGuardsFast` from index `i`, accumulator in front.
+
+`n_f.val ≤ Std.Usize.max` is `sort_get_d_refines`' width side condition
+(`Refine/Scalars.lean`) at the `i < n_f` this walk reads;
+`struct_proj_guards_refines` discharges it from its own `used` table. -/
 theorem struct_proj_guards_from_refines {used : alloc.vec.Vec Bool}
     {sorts : alloc.vec.Vec level.Level} {n_f : Std.U64} (hsorts : LevelsWF sorts)
     (hnf : n_f.val ≤ Std.Usize.max) :
@@ -2460,10 +3304,14 @@ memo, then the fold.  The cited `@[csimp]` lemma
 `structProjGuards_eq_structProjGuardsFast` is what lets the port implement the
 fast form and still refine the definition the model stage tables consume; the
 proof is con-leche's own, `structUsedLaterList_spec` supplying the `used`
-table's pointwise reading. -/
+table's pointwise reading.
+
+No platform side condition: the `used` table this builds is `nF` long and a
+`Vec`'s length fits a `usize`, so `Refine/Scalars.lean`'s width bound on `nF`
+is **discharged** here rather than assumed (task #59). -/
 theorem struct_proj_guards_refines {cty : expr.Expr} {n_p n_f : Std.U64}
     {sorts v : alloc.vec.Vec level.Level} (hcty : ExprWF cty)
-    (hsorts : LevelsWF sorts) (hnf : n_f.val ≤ Std.Usize.max)
+    (hsorts : LevelsWF sorts)
     (h : inductives.struct_parts.struct_proj_guards cty n_p n_f sorts = ok v) :
     absLevels v = ConLeche.structProjGuards (absExpr cty) n_p.val n_f.val
         (absLevels sorts)
@@ -2474,6 +3322,14 @@ theorem struct_proj_guards_refines {cty : expr.Expr} {n_p n_f : Std.U64}
   obtain ⟨used, memo'⟩ := p
   obtain ⟨hused, -⟩ := struct_used_later_list_refines hcty n_f.val n_f 0#u64 memo
     memo' _ used rfl (ExprOps.new_memo_inv hnew) hlist
+  -- **the width side condition, discharged** (`Refine/Scalars.lean`): the
+  -- `used` table the walk just built is `nF` long, and a `Vec`'s length fits a
+  -- `usize`, so `struct_proj_guards_from_refines`' hypothesis is free here
+  have hnf : n_f.val ≤ Std.Usize.max := by
+    have hlen : used.val.length = n_f.val := by
+      rw [hused]; simp [alloc.vec.Vec.new]
+    rw [← hlen]
+    exact Scalars.vec_len_le_usize_max used
   have hout : LevelsWF (alloc.vec.Vec.new level.Level) := by
     intro u hu; simp [alloc.vec.Vec.new] at hu
   obtain ⟨habs, hwf⟩ := struct_proj_guards_from_refines hsorts hnf 0#u64 _ v hout h

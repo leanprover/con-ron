@@ -46,6 +46,20 @@ declining past the parameter check, and a Rust function that never returns
 `.Ok` refines everything vacuously (§3.5) — `check_ind_decl_refines` records
 that, and records that it is a *decline*, never an accept.
 
+## The canonical-index pair rides through the parsed tier (task #59)
+
+`Refine/IndSpec.lean`'s `IndRoutesSpec` carries `FEnv.FEnvCanon`/`FEnv.FEnvFull`
+of the index it is handed — both inductive routes open by *rebuilding* the
+index with `fenv::dup`, and the clause is false for an index that is not its
+own environment's rebuild (that file's header has the argument).  So
+`check_ind_decl_c_refines`, `check_decl_c_refines` and
+`check_decl_step_c_refines` take the pair, and they **hand it back** with the
+answer, because `cached::installed`'s phase A is a fold that feeds one step's
+index into the next.  Every arm that installs is a `fenv::push`
+(`FEnv.push_canon`), the basis fold below included; the pair is discharged
+where the index is *built*, at `installed::check_decls`' `fenv::mk_fenv`
+(`FEnv.mk_fenv_canon` and `Installed.mk_fenv_full`).
+
 ## Two environments, one index — why the generic `checkDecl` is still the target
 
 `checkDecl` holds `env` (pre-insertion) and `env2` (extended) at once; the port
@@ -139,17 +153,29 @@ parameter count first and for both routes (con-leche task #228), then the
 one-route dispatch by the recogniser alone (task #210/#219).  Proved, with
 task #57's `IndRoutesSpec` as a named hypothesis: `Refine/Env.lean`'s
 `ind_params_ok_refines` gives the gate, and `IndRoutesSpec`'s two clauses give
-the recogniser's verdict *and* the chosen route together. -/
+the recogniser's verdict *and* the chosen route together.
+
+**`hcan`/`hfull` are not slack** (task #59).  `IndRoutesSpec`'s two clauses
+carry them, because `native_install::check_native_pass_former` and
+`inductives_c::check_ind_recs_s` copy the index with `fenv::dup`, which
+*rebuilds* it from the environment; `Refine/IndSpec.lean`'s header spells out
+why the clause is false for an index that is not its own environment's rebuild.
+They come back out with the answer, which is what `cached::installed`'s
+declaration fold needs, and they are discharged where the index is *built* —
+`FEnv.mk_fenv_canon` at `installed::check_decls`, `FEnv.push_canon` at every
+step in between. -/
 theorem check_ind_decl_c_refines {mode : env.CheckMode} (hind : IndRoutesSpec mode)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {block : alloc.vec.Vec env.ConstantInfo} {n_p : Std.U64}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hb : ConstantInfosWF block)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hb : ConstantInfosWF block)
     (h : cached.parsed_c.check_ind_decl_c mode st fe block n_p = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
         (ConLeche.Cached.checkDeclC (absMode mode) lfe
             (.indDecl (absConstantInfos block) n_p.val)).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_ind_decl_c] at h
   obtain ⟨b, hb', h⟩ := bind_eq_ok_iff.mp h
@@ -165,14 +191,14 @@ theorem check_ind_decl_c_refines {mode : env.CheckMode} (hind : IndRoutesSpec mo
     cases o with
     | none =>
       obtain ⟨lst', lfe', hnp, hrun, hrest⟩ :=
-        hind.modeled st fe n_p block fe' st' hsw hfw hb ho h lst lfe hsr hfr
+        hind.modeled st fe n_p block fe' st' hsw hfw hcan hfull hb ho h lst lfe hsr hfr
       refine ⟨lst', lfe', ?_, hrest⟩
       rw [ConLeche.Cached.checkDeclC]
       simp only [← hbv, if_pos, hnp]
       exact hrun
     | some p =>
       obtain ⟨lst', lfe', lp, hnp, hrun, hrest⟩ :=
-        hind.native st fe n_p block p fe' st' hsw hfw hb ho h lst lfe hsr hfr
+        hind.native st fe n_p block p fe' st' hsw hfw hcan hfull hb ho h lst lfe hsr hfr
       refine ⟨lst', lfe', ?_, hrest⟩
       rw [ConLeche.Cached.checkDeclC]
       simp only [← hbv, if_pos, hnp]
@@ -203,38 +229,43 @@ theorem check_ind_decl_declines {mode : env.CheckMode} {st st' : cached.state_c.
 `install_basis_decl_refines` is one step.  Neither the fold nor a step touches
 the `CState`, which is why the state comes out unchanged. -/
 
-/-- The index fold, with an explicit bound to recurse on. -/
+/-- The index fold, with an explicit bound to recurse on.  The
+**unrestricted-canonical pair** rides along (task #59): each step is one
+`fenv::push`, so `FEnv.push_canon` carries it, and the checker tier's
+declaration fold needs it back out (`Refine/IndSpec.lean`'s header). -/
 theorem install_basis_decls_from (n : Nat) :
     ∀ (fe fe' : fenv.FEnv) (decls : alloc.vec.Vec env.ConstantInfo) (i : Std.Usize),
-      decls.val.length - i.val ≤ n → FEnvWF fe → ConstantInfosWF decls →
+      decls.val.length - i.val ≤ n → FEnvWF fe → FEnv.FEnvCanon fe →
+      FEnv.FEnvFull fe → ConstantInfosWF decls →
       kernel.checker.install_basis_decls fe decls i = ok (.Ok fe') →
       ∀ lfe (lst : ConLeche.Cached.CState), FEnvRel fe lfe →
         ∃ lfe₂,
           (((absConstantInfos decls).drop i.val).foldlM
               (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst
             = .ok (lfe₂, lst)
-          ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe' := by
+          ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   induction n with
   | zero =>
-    intro fe fe' decls i hb hfw hd h lfe lst hfr
+    intro fe fe' decls i hb hfw hcan hfull hd h lfe lst hfr
     rw [kernel.checker.install_basis_decls] at h
     rw [if_pos (show i >= alloc.vec.Vec.len decls by
       have := alloc.vec.Vec.len_val decls; scalar_tac)] at h
     have hfe : fe = fe' := by simpa using h
     subst hfe
-    refine ⟨lfe, ?_, hfr, hfw⟩
+    refine ⟨lfe, ?_, hfr, hfw, hcan, hfull⟩
     rw [List.drop_eq_nil_of_le (by
       simp only [absConstantInfos, List.length_map]; omega)]
     rfl
   | succ n ih =>
-    intro fe fe' decls i hb hfw hd h lfe lst hfr
+    intro fe fe' decls i hb hfw hcan hfull hd h lfe lst hfr
     rw [kernel.checker.install_basis_decls] at h
     by_cases hge : i.val >= decls.val.length
     · rw [if_pos (show i >= alloc.vec.Vec.len decls by
         have := alloc.vec.Vec.len_val decls; scalar_tac)] at h
       have hfe : fe = fe' := by simpa using h
       subst hfe
-      refine ⟨lfe, ?_, hfr, hfw⟩
+      refine ⟨lfe, ?_, hfr, hfw, hcan, hfull⟩
       rw [List.drop_eq_nil_of_le (by
         simp only [absConstantInfos, List.length_map]; omega)]
       rfl
@@ -252,17 +283,17 @@ theorem install_basis_decls_from (n : Nat) :
       cases r with
       | Err e => simp at h
       | Ok fe2 =>
-        obtain ⟨hrel2, hwf2, hnone⟩ :=
-          Checker.install_basis_decl_refines hfw hciwf hins lfe hfr
+        obtain ⟨hrel2, hwf2, hnone, hcan2, hfull2⟩ :=
+          Checker.install_basis_decl_refines hfw hciwf hcan hfull hins lfe hfr
         obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
         have hi2v : i2.val = i.val + 1 := by
           have he := Std.UScalar.add_equiv i 1#usize
           rw [hi2] at he
           simpa using he.2.1
-        obtain ⟨lfe₂, hfold, hrel', hwf'⟩ :=
-          ih fe2 fe' decls i2 (by omega) hwf2 hd h
+        obtain ⟨lfe₂, hfold, hrel', hwf', hcan', hfull'⟩ :=
+          ih fe2 fe' decls i2 (by omega) hwf2 hcan2 hfull2 hd h
             (lfe.push (absConstantInfo ci1)) lst hrel2
-        refine ⟨lfe₂, ?_, hrel', hwf'⟩
+        refine ⟨lfe₂, ?_, hrel', hwf', hcan', hfull'⟩
         -- the list step: `drop i` is `absConstantInfo ci1 :: drop (i+1)`
         have hget : (absConstantInfos decls)[i.val]? = some (absConstantInfo ci1) := by
           simp only [absConstantInfos, List.getElem?_map, ExprOps.vec_index_getElem? hci]
@@ -288,17 +319,20 @@ theorem install_basis_decls_from (n : Nat) :
 installBasisDeclF`**, the whole table: the fold from index 0. -/
 theorem install_basis_decls_refines {fe fe' : fenv.FEnv}
     {decls : alloc.vec.Vec env.ConstantInfo}
-    (hfw : FEnvWF fe) (hd : ConstantInfosWF decls)
+    (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
+    (hd : ConstantInfosWF decls)
     (h : kernel.checker.install_basis_decls fe decls 0#usize = ok (.Ok fe')) :
     ∀ lfe (lst : ConLeche.Cached.CState), FEnvRel fe lfe →
       ∃ lfe₂,
         ((absConstantInfos decls).foldlM
             (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst
           = .ok (lfe₂, lst)
-        ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe' := by
+        ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lfe lst hfr
   obtain ⟨lfe₂, hfold, rest⟩ :=
-    install_basis_decls_from decls.val.length fe fe' decls 0#usize (by simp) hfw hd h lfe lst hfr
+    install_basis_decls_from decls.val.length fe fe' decls 0#usize (by simp) hfw hcan
+      hfull hd h lfe lst hfr
   exact ⟨lfe₂, by simpa using hfold, rest⟩
 
 /-- **`cached::parsed_c::check_basis_decl_c` refines `checkDeclC`'s
@@ -312,12 +346,14 @@ exactly.  The table's `ConstantInfosWF` is `Refine/BasisPins.lean`'s
 `basis_decls_a_wf`, used here rather than re-derived. -/
 theorem check_basis_decl_c_refines {mode : env.CheckMode} {fe fe' : fenv.FEnv}
     {kind : env.BasisKind} (hfw : FEnvWF fe)
+    (hcan : FEnv.FEnvCanon fe) (hfull : FEnv.FEnvFull fe)
     (h : cached.parsed_c.check_basis_decl_c fe kind = ok (.Ok fe')) :
     ∀ lst lfe, FEnvRel fe lfe →
       ∃ lfe',
         (ConLeche.Cached.checkDeclC (absMode mode) lfe
             (.basisDecl (absBasisKind kind))).run lst = .ok (lfe', lst)
-        ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hfr
   rw [cached.parsed_c.check_basis_decl_c, kernel.checker.check_basis_decl.eq_def] at h
   rw [ConLeche.Cached.checkDeclC]
@@ -329,14 +365,16 @@ theorem check_basis_decl_c_refines {mode : env.CheckMode} {fe fe' : fenv.FEnv}
         ((ConLeche.BasisKind.declsA (absBasisKind kind)).foldlM
             (ConLeche.installBasisDeclF (m := ConLeche.Cached.CheckCM)) lfe).run lst
           = .ok (lfe₂, lst)
-        ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe' := by
+        ∧ FEnvRel fe' lfe₂ ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
     intro v hv hi
     have habs : absConstantInfos v = ConLeche.BasisKind.declsA (absBasisKind kind) := by
       have := ConRon.Refine.absBasisDecls_eq kind
       rw [ConRon.Refine.absBasisDecls, hv] at this
       simpa using this
     obtain ⟨lfe₂, hfold, rest⟩ :=
-      install_basis_decls_refines hfw (BasisPins.basis_decls_a_wf hv) hi lfe lst hfr
+      install_basis_decls_refines hfw hcan hfull (BasisPins.basis_decls_a_wf hv) hi
+        lfe lst hfr
     exact ⟨lfe₂, habs ▸ hfold, rest⟩
   cases kind with
   | QuotK =>
@@ -863,7 +901,8 @@ the guard left.  `Refine/StateC.lean`'s `record_c_const` and
 `Refine/FEnv.lean`'s `push_refines`, composed. -/
 theorem axiom_install_c {st st1 : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {cv_a : env.ConstantVal} {jty : expr.Expr} {n : name.Name} {e : expr.Expr}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv_a) (hjty : ExprWF jty)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv_a) (hjty : ExprWF jty)
     (hn : name.dup cv_a.name = ok n) (he : expr.dup cv_a.ty = ok e)
     (hrec : cached.state_c.record_c_const st n e jty none = ok st1)
     (hpush : fenv.push fe (env.ConstantInfo.AxiomInfo cv_a) = ok fe') :
@@ -874,7 +913,8 @@ theorem axiom_install_c {st st1 : cached.state_c.CState} {fe fe' : fenv.FEnv}
             pure (lfe.push (.axiomInfo (absConstantVal cv_a)))).run lst
           = .ok (lfe.push (.axiomInfo (absConstantVal cv_a)), lst1)
         ∧ StateRel st1 lst1 ∧ StateWF st1
-        ∧ FEnvRel fe' (lfe.push (.axiomInfo (absConstantVal cv_a))) ∧ FEnvWF fe' := by
+        ∧ FEnvRel fe' (lfe.push (.axiomInfo (absConstantVal cv_a))) ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   have hnv : n = cv_a.name := by simpa using hn.symm
   have hev : e = cv_a.ty := Expr.dup_eq he
@@ -883,12 +923,14 @@ theorem axiom_install_c {st st1 : cached.state_c.CState} {fe fe' : fenv.FEnv}
     StateC.record_c_const_refines hsw hcv.1 hcv.2.2 hjty (by simp) hrec lst hsr
   obtain ⟨hrel', hwf'⟩ := FEnv.push_refines hfr hfw
     (show ConstantInfoWF (env.ConstantInfo.AxiomInfo cv_a) from hcv) hpush
+  obtain ⟨hcan', hfull'⟩ := FEnv.push_canon hfw
+    (show ConstantInfoWF (env.ConstantInfo.AxiomInfo cv_a) from hcv) hcan hfull hpush
   have hrr : (recordCConst (absConstantVal cv_a).name (absConstantVal cv_a).type
       (absExpr jty) none).run lst = .ok ((), lst1) := by
     show (recordCConst (absName cv_a.name) (absExpr cv_a.ty) (absExpr jty) none).run lst
       = .ok ((), lst1)
     simpa using hrecrun
-  refine ⟨lst1, ?_, hsr1, hsw1, hrel', hwf'⟩
+  refine ⟨lst1, ?_, hsr1, hsw1, hrel', hwf', hcan', hfull'⟩
   exact run_bind_ok hrr rfl
 
 /-! ### `cached::parsed_c`'s three value checks
@@ -1118,7 +1160,8 @@ theorem check_defn_val_c_after_annot_refines {mode : env.CheckMode} {fuel : Std.
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv_a : env.ConstantVal}
     {jty jv : expr.Expr} {hint : env.ReducibilityHint}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv_a)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv_a)
     (hjty : ExprWF jty) (hjv : ExprWF jv)
     (h : cached.parsed_c.check_defn_val_c_after_annot mode st fe cv_a jty jv hint
       = ok (.Ok fe', st')) :
@@ -1130,7 +1173,7 @@ theorem check_defn_val_c_after_annot_refines {mode : env.CheckMode} {fuel : Std.
         ∧ StateRel st' lst' ∧ StateWF st'
         ∧ FEnvRel fe' (lfe.push (.defnInfo (absConstantVal cv_a) (absExpr jv)
             (absHint hint)))
-        ∧ FEnvWF fe' := by
+        ∧ FEnvWF fe' ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_defn_val_c_after_annot] at h
   obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
@@ -1185,7 +1228,10 @@ theorem check_defn_val_c_after_annot_refines {mode : env.CheckMode} {fuel : Std.
             subst hcvv; subst hrhv
             obtain ⟨hrel', hwf'⟩ := FEnv.push_refines hfr hfw
               (show ConstantInfoWF (env.ConstantInfo.DefnInfo cv jv rh) from ⟨hcv, hjv⟩) hpush
-            refine ⟨lst3, ?_, hsr3, hsw3, hrel', hwf'⟩
+            obtain ⟨hcan', hfull'⟩ := FEnv.push_canon hfw
+              (show ConstantInfoWF (env.ConstantInfo.DefnInfo cv jv rh) from ⟨hcv, hjv⟩)
+              hcan hfull hpush
+            refine ⟨lst3, ?_, hsr3, hsw3, hrel', hwf', hcan', hfull'⟩
             refine defnValCTail_run (by rw [absConstantVal_levelParams, ← hbabs])
               (by rw [← hb1abs])
               (by rw [absConstantVal_name, absConstantVal_type]; simpa using hrecrun)
@@ -1199,7 +1245,8 @@ theorem check_defn_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv_a : env.ConstantVal}
     {jty value : expr.Expr} {hint : env.ReducibilityHint}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv_a)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv_a)
     (hjty : ExprWF jty) (hv : ExprWF value)
     (h : cached.parsed_c.check_defn_val_c mode st fe cv_a jty value hint
       = ok (.Ok fe', st')) :
@@ -1208,7 +1255,8 @@ theorem check_defn_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
         (ConLeche.Cached.checkDefnValC (absMode mode) lfe (absConstantVal cv_a)
             (absExpr jty) (absExpr value) (absHint hint)).run lst = .ok (lfe.push ci, lst')
         ∧ ci.name = (absConstantVal cv_a).name
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' (lfe.push ci) ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' (lfe.push ci) ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_defn_val_c] at h
   obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
@@ -1230,7 +1278,8 @@ theorem check_defn_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
           TypeChecker.annotate_core_refines hfuel hk st fe 0#u64 value jv st1
             hsw hfw hv hq lst lfe hsr hfr
         obtain ⟨lst2, hrun2, rest⟩ :=
-          check_defn_val_c_after_annot_refines hfuel hk hsw1 hfw hcv hjty hjvwf h lst1 lfe
+          check_defn_val_c_after_annot_refines hfuel hk hsw1 hfw hcan hfull hcv hjty
+            hjvwf h lst1 lfe
             hsr1 hfr
         refine ⟨lst2, .defnInfo (absConstantVal cv_a) (absExpr jv) (absHint hint), ?_,
           rfl, rest⟩
@@ -1245,7 +1294,8 @@ theorem check_opaque_val_c_after_annot_refines {mode : env.CheckMode} {fuel : St
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv_a : env.ConstantVal}
     {jty jv : expr.Expr}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv_a)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv_a)
     (hjty : ExprWF jty) (hjv : ExprWF jv)
     (h : cached.parsed_c.check_opaque_val_c_after_annot mode st fe cv_a jty jv
       = ok (.Ok fe', st')) :
@@ -1254,7 +1304,8 @@ theorem check_opaque_val_c_after_annot_refines {mode : env.CheckMode} {fuel : St
         (opaqueValCTail mode lfe (absConstantVal cv_a) (absExpr jty) (absExpr jv)).run lst
           = .ok (lfe.push (.axiomInfo (absConstantVal cv_a)), lst')
         ∧ StateRel st' lst' ∧ StateWF st'
-        ∧ FEnvRel fe' (lfe.push (.axiomInfo (absConstantVal cv_a))) ∧ FEnvWF fe' := by
+        ∧ FEnvRel fe' (lfe.push (.axiomInfo (absConstantVal cv_a))) ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_opaque_val_c_after_annot] at h
   obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
@@ -1303,7 +1354,9 @@ theorem check_opaque_val_c_after_annot_refines {mode : env.CheckMode} {fuel : St
             subst hcvv
             obtain ⟨hrel', hwf'⟩ := FEnv.push_refines hfr hfw
               (show ConstantInfoWF (env.ConstantInfo.AxiomInfo cv) from hcv) hpush
-            refine ⟨lst3, ?_, hsr3, hsw3, hrel', hwf'⟩
+            obtain ⟨hcan', hfull'⟩ := FEnv.push_canon hfw
+              (show ConstantInfoWF (env.ConstantInfo.AxiomInfo cv) from hcv) hcan hfull hpush
+            refine ⟨lst3, ?_, hsr3, hsw3, hrel', hwf', hcan', hfull'⟩
             refine opaqueValCTail_run (by rw [absConstantVal_levelParams, ← hbabs])
               (by rw [← hb1abs])
               (by rw [absConstantVal_name, absConstantVal_type]; simpa using hrecrun)
@@ -1317,7 +1370,8 @@ theorem check_opaque_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv_a : env.ConstantVal}
     {jty value : expr.Expr}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv_a)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv_a)
     (hjty : ExprWF jty) (hv : ExprWF value)
     (h : cached.parsed_c.check_opaque_val_c mode st fe cv_a jty value
       = ok (.Ok fe', st')) :
@@ -1326,7 +1380,8 @@ theorem check_opaque_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
         (ConLeche.Cached.checkOpaqueValC (absMode mode) lfe (absConstantVal cv_a)
             (absExpr jty) (absExpr value)).run lst = .ok (lfe.push ci, lst')
         ∧ ci.name = (absConstantVal cv_a).name
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' (lfe.push ci) ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' (lfe.push ci) ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_opaque_val_c] at h
   obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
@@ -1348,7 +1403,8 @@ theorem check_opaque_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
           TypeChecker.annotate_core_refines hfuel hk st fe 0#u64 value jv st1
             hsw hfw hv hq lst lfe hsr hfr
         obtain ⟨lst2, hrun2, rest⟩ :=
-          check_opaque_val_c_after_annot_refines hfuel hk hsw1 hfw hcv hjty hjvwf h lst1 lfe
+          check_opaque_val_c_after_annot_refines hfuel hk hsw1 hfw hcan hfull hcv hjty
+            hjvwf h lst1 lfe
             hsr1 hfr
         refine ⟨lst2, .axiomInfo (absConstantVal cv_a), ?_, rfl, rest⟩
         rw [checkOpaqueValC_at_annot (cvA := absConstantVal cv_a) (by rw [← hbabs])
@@ -1363,7 +1419,8 @@ theorem check_thm_val_c_checked_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv_a : env.ConstantVal}
     {jty value jv : expr.Expr}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv_a)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv_a)
     (hjty : ExprWF jty) (hval : ExprWF value) (hjv : ExprWF jv)
     (h : cached.parsed_c.check_thm_val_c_checked mode st fe cv_a jty value jv
       = ok (.Ok fe', st')) :
@@ -1374,7 +1431,7 @@ theorem check_thm_val_c_checked_refines {mode : env.CheckMode} {fuel : Std.U64}
           = .ok (lfe.push (.thmInfo (absConstantVal cv_a) (absExpr value)), lst')
         ∧ StateRel st' lst' ∧ StateWF st'
         ∧ FEnvRel fe' (lfe.push (.thmInfo (absConstantVal cv_a) (absExpr value)))
-        ∧ FEnvWF fe' := by
+        ∧ FEnvWF fe' ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_thm_val_c_checked] at h
   obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
@@ -1425,7 +1482,10 @@ theorem check_thm_val_c_checked_refines {mode : env.CheckMode} {fuel : Std.U64}
             subst hcvv; subst he2v
             obtain ⟨hrel', hwf'⟩ := FEnv.push_refines hfr hfw
               (show ConstantInfoWF (env.ConstantInfo.ThmInfo cv e2) from ⟨hcv, hval⟩) hpush
-            refine ⟨lst3, ?_, hsr3, hsw3, hrel', hwf'⟩
+            obtain ⟨hcan', hfull'⟩ := FEnv.push_canon hfw
+              (show ConstantInfoWF (env.ConstantInfo.ThmInfo cv e2) from ⟨hcv, hval⟩)
+              hcan hfull hpush
+            refine ⟨lst3, ?_, hsr3, hsw3, hrel', hwf', hcan', hfull'⟩
             refine thmValCTail_run (by rw [absConstantVal_levelParams, ← hbabs])
               (by rw [← hb1abs])
               (by rw [absConstantVal_name, absConstantVal_type]; simpa using hrecrun)
@@ -1440,14 +1500,16 @@ theorem check_thm_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv_a : env.ConstantVal}
     {jty value : expr.Expr}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv_a)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv_a)
     (hjty : ExprWF jty) (hv : ExprWF value)
     (h : cached.parsed_c.check_thm_val_c mode st fe cv_a jty value = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
         (ConLeche.Cached.checkThmValC (absMode mode) lfe (absConstantVal cv_a)
             (absExpr jty) (absExpr value)).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_thm_val_c] at h
   obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
@@ -1503,8 +1565,8 @@ theorem check_thm_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
                   TypeChecker.annotate_core_refines hfuel hk stb fe 0#u64 value jv stc
                     hswb hfw hv hq3 lstb lfe hsrb hfr
                 obtain ⟨lst2, hrun2, rest⟩ :=
-                  check_thm_val_c_checked_refines hfuel hk hswc hfw hcv hjty hv hjvwf h
-                    lstc lfe hsrc hfr
+                  check_thm_val_c_checked_refines hfuel hk hswc hfw hcan hfull hcv hjty
+                    hv hjvwf h lstc lfe hsrc hfr
                 refine ⟨lst2, _, ?_, rest⟩
                 rw [checkThmValC_at_annot (cvA := absConstantVal cv_a) hruna hrunb hprop
                   (by rw [← hbabs]) (by rw [← hb1abs]; simpa using hb1f) hrunc]
@@ -1519,6 +1581,150 @@ checks with `checkConstantValC`'s recorded judgement type threaded (the
 the push, which is the cited arm's own RC-linearity shape.  Stated here so
 that `check_decl_c_refines` is a `cases`; their bodies belong with
 `cached::parsed_c`, which `CORE_PLAN.md` step 7 places after this file. -/
+
+/-! ### The pin gates hand the index back unchanged (task #59)
+
+`checker::check_defn_pins` and the two halves it dispatches to
+(`crates/con-ron-core/src/kernel/checker.rs`, lines 1128-1350) certify at the
+*pre-insertion* view and then restore the caller's own counter: each accepting
+path is `fenv::restrict_to fe k_pre` followed by
+`fenv::restrict_to fe_pre fe.visible_below`, a round trip that rebuilds the
+record it started from.  So the pushed index the defn arm hands the gates comes
+back out, and with it `FEnv.FEnvCanon`/`FEnv.FEnvFull` — which is what
+`Refine/IndSpec.lean`'s `IndRoutesSpec` asks the declaration fold to carry. -/
+
+/-- `ConLeche/Kernel/FEnv.lean:79-80` — `fenv::restrict_to` is the one-field
+record update, read as an equation on its result. -/
+theorem restrict_to_eq {fe fe' : fenv.FEnv} {k : Std.U64}
+    (h : fenv.restrict_to fe k = ok fe') : fe' = { fe with visible_below := k } :=
+  (Result.ok_injective h).symm
+
+/-- Down to a bound and back up to the caller's own counter is the identity. -/
+theorem restrict_round {fe fe' fe'' : fenv.FEnv} {k : Std.U64}
+    (h1 : fenv.restrict_to fe k = ok fe')
+    (h2 : fenv.restrict_to fe' fe.visible_below = ok fe'') : fe'' = fe := by
+  rw [restrict_to_eq h2, restrict_to_eq h1]
+
+/-- `checker::check_div_mod_pin` (`kernel/checker.rs:1128-1163`) accepts with
+the index it was given. -/
+theorem check_div_mod_pin_fenv {mode : env.CheckMode}
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet} {st st' : cached.state_c.CState}
+    {fe fe' : fenv.FEnv} {k_pre : Std.U64} {c : name.Name}
+    (h : checker.check_div_mod_pin mode pins st fe k_pre c = ok (.Ok fe', st')) :
+    fe' = fe := by
+  rw [checker.check_div_mod_pin] at h
+  obtain ⟨b, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨o, -, h⟩ := bind_eq_ok_iff.mp h
+    cases o with
+    | none => simp [bind_eq_ok_iff] at h
+    | some t =>
+      obtain ⟨_, value2, _⟩ := t
+      obtain ⟨fe_pre, hpre, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨q, -, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r, st1⟩ := q
+      cases r with
+      | Err er => simp at h
+      | Ok _ =>
+        obtain ⟨f, hf, h⟩ := bind_eq_ok_iff.mp h
+        have hround := restrict_round hpre hf
+        simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+        rw [← h.1, hround]
+  · simp [bind_eq_ok_iff] at h
+
+/-- `checker::check_structural_nat_pin` (`kernel/checker.rs:1381-1421`) accepts
+with the index it was given. -/
+theorem check_structural_nat_pin_fenv {mode : env.CheckMode}
+    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {k_pre : Std.U64}
+    {n : name.Name}
+    (h : checker.check_structural_nat_pin mode st fe k_pre n = ok (.Ok fe', st')) :
+    fe' = fe := by
+  rw [checker.check_structural_nat_pin] at h
+  obtain ⟨b, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨v, -, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · obtain ⟨o, -, h⟩ := bind_eq_ok_iff.mp h
+      cases o with
+      | none => simp [bind_eq_ok_iff] at h
+      | some t =>
+        obtain ⟨_, value2, _⟩ := t
+        obtain ⟨v1, -, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨eqs, -, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨fe_pre, hpre, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨q, -, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨r, st1⟩ := q
+        obtain ⟨fe21, hf, h⟩ := bind_eq_ok_iff.mp h
+        have hround := restrict_round hpre hf
+        cases r with
+        | Err er => simp at h
+        | Ok ok1 =>
+          cases ok1 with
+          | false => simp [bind_eq_ok_iff] at h
+          | true =>
+            simp only [if_pos, Result.ok.injEq, Prod.mk.injEq,
+              core.result.Result.Ok.injEq] at h
+            rw [← h.1, hround]
+    · simp [bind_eq_ok_iff] at h
+  · simp [bind_eq_ok_iff] at h
+
+/-- `checker::check_defn_div_mod_pin` (`kernel/checker.rs:1355-1368`) accepts
+with the index it was given: the gate either runs `check_div_mod_pin` or is
+skipped outright. -/
+theorem check_defn_div_mod_pin_fenv {mode : env.CheckMode}
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet} {st st' : cached.state_c.CState}
+    {fe fe' : fenv.FEnv} {k_pre : Std.U64} {n : name.Name}
+    (h : checker.check_defn_div_mod_pin mode pins st fe k_pre n = ok (.Ok fe', st')) :
+    fe' = fe := by
+  rw [checker.check_defn_div_mod_pin] at h
+  obtain ⟨v, -, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · exact check_div_mod_pin_fenv h
+  · simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+    exact h.1.symm
+
+/-- `checker::check_reduce_pin` (`kernel/checker.rs:1302-1329`) accepts with the
+index it was given: the same pre-insertion round trip. -/
+theorem check_reduce_pin_fenv {mode : env.CheckMode} {st st' : cached.state_c.CState}
+    {fe fe' : fenv.FEnv} {k_pre : Std.U64} {c : name.Name} {value : expr.Expr}
+    (h : checker.check_reduce_pin mode st fe k_pre c value = ok (.Ok fe', st')) :
+    fe' = fe := by
+  rw [checker.check_reduce_pin] at h
+  obtain ⟨b, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨fe_pre, hpre, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨q, -, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r, st1⟩ := q
+    cases r with
+    | Err er => simp at h
+    | Ok _ =>
+      obtain ⟨f, hf, h⟩ := bind_eq_ok_iff.mp h
+      have hround := restrict_round hpre hf
+      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+      rw [← h.1, hround]
+  · simp [bind_eq_ok_iff] at h
+
+/-- **`checker::check_defn_pins` accepts with the index it was given**
+(`kernel/checker.rs:1334-1350`): the two gates above, composed. -/
+theorem check_defn_pins_fenv {mode : env.CheckMode}
+    {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet} {st st' : cached.state_c.CState}
+    {fe fe' : fenv.FEnv} {k_pre : Std.U64} {n : name.Name}
+    (h : checker.check_defn_pins mode pins st fe k_pre n = ok (.Ok fe', st')) :
+    fe' = fe := by
+  rw [checker.check_defn_pins] at h
+  obtain ⟨v, -, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨b, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r, st1⟩ := q
+    cases r with
+    | Err er => simp at h
+    | Ok fe3 =>
+      rw [← check_structural_nat_pin_fenv hq]
+      exact check_defn_div_mod_pin_fenv h
+  · exact check_defn_div_mod_pin_fenv h
 
 /-- `checkDeclC`'s `.defnDecl` arm (`ParsedC.lean:161-185`): the constant
 check, the value check, then the two pinned-`Nat` gates at the pre-insertion
@@ -1537,7 +1743,8 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr} {hint : env.ReducibilityHint}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
     (h : cached.parsed_c.check_defn_decl_c mode pins st fe cv value hint
         = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
@@ -1545,7 +1752,8 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
         (ConLeche.Cached.checkDeclC (absMode mode) lfe
             (.defnDecl (absConstantVal cv) (absExpr value) (absHint hint))).run lst
           = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_defn_decl_c] at h
   obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
@@ -1586,10 +1794,12 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
                 ConLeche.checkDivModPinF (TypeChecker.lops mode lfe) lfe (lfe.push ci)
                   (absConstantVal cv_a).name
               else pure ()) : ConLeche.Cached.CheckCM Unit).run lst3 = .ok ((), lst4)
-          ∧ StateRel st' lst4 ∧ StateWF st' ∧ FEnvRel fe' (lfe.push ci) ∧ FEnvWF fe' := by
+          ∧ StateRel st' lst4 ∧ StateWF st' ∧ FEnvRel fe' (lfe.push ci) ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
       intro st2 fe2 hval hpin
-      obtain ⟨lst2, ci, hrun2, hciname, hsr2, hsw2, hrel2, hwf2⟩ :=
-        check_defn_val_c_refines hfuel hk hsw1 hfw hcvawf hjtywf hv hval lst1 lfe hsr1 hfr
+      obtain ⟨lst2, ci, hrun2, hciname, hsr2, hsw2, hrel2, hwf2, hcan2, hfull2⟩ :=
+        check_defn_val_c_refines hfuel hk hsw1 hfw hcan hfull hcvawf hjtywf hv hval
+          lst1 lfe hsr1 hfr
       have hcifresh : lfe.find? ci.name = none := by
         rw [hciname, absConstantVal_name, hnameq]; exact hfresh
       have hlfp : lfe.find?
@@ -1601,7 +1811,12 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
             = ok (.Ok fe', st'))
           lst2 (lfe.push ci) lfe hsr2 hrel2
           (fun _ hr => BasisPins.eq_basis_pinned_refines hrel2 hwf2 hr) hlfp
-      refine ⟨lst2, lst3, lst4, ci, hrun2, hciname, ?_, ?_, ?_, hsr4, hsw4, hrel4, hwf4⟩
+      have hfe' : fe' = fe2 :=
+        check_defn_pins_fenv
+          (hpin : checker.check_defn_pins mode pins st2 fe2 fe.visible_below cv_a.name
+            = ok (.Ok fe', st'))
+      refine ⟨lst2, lst3, lst4, ci, hrun2, hciname, ?_, ?_, ?_, hsr4, hsw4, hrel4, hwf4,
+        by rw [hfe']; exact hcan2, by rw [hfe']; exact hfull2⟩
       · intro hc
         obtain ⟨hg, hd2, cvL, value', hintL, hfind, hcert⟩ :=
           hA (by rw [← absConstantVal_name]; exact hc)
@@ -1704,7 +1919,8 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
           rw [absConstantVal_name, ← hbv, ← hb1v]; simp
         simp only [Bool.false_eq_true, if_false] at h
         obtain ⟨lst2, ci, hrun2, hciname, rest⟩ :=
-          check_defn_val_c_refines hfuel hk hsw1 hfw hcvawf hjtywf hv h lst1 lfe hsr1 hfr
+          check_defn_val_c_refines hfuel hk hsw1 hfw hcan hfull hcvawf hjtywf hv h lst1
+            lfe hsr1 hfr
         refine ⟨lst2, lfe.push ci, ?_, rest⟩
         rw [ConLeche.Cached.checkDeclC]
         refine run_bind_ok hruncv ?_
@@ -1720,13 +1936,15 @@ theorem check_thm_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
     (h : cached.parsed_c.check_thm_decl_c mode st fe cv value = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
         (ConLeche.Cached.checkDeclC (absMode mode) lfe
             (.thmDecl (absConstantVal cv) (absExpr value))).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_thm_decl_c] at h
   obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
@@ -1738,7 +1956,8 @@ theorem check_thm_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨lst1, hruncv, hsr1, hsw1, hcvawf, hjtywf, hnameq, hfresh⟩ :=
       check_constant_val_c_refines hfuel hk hsw hfw hcv hq lst lfe hsr hfr
     obtain ⟨lst2, lfe2, hrun2, rest⟩ :=
-      check_thm_val_c_refines hfuel hk hsw1 hfw hcvawf hjtywf hv h lst1 lfe hsr1 hfr
+      check_thm_val_c_refines hfuel hk hsw1 hfw hcan hfull hcvawf hjtywf hv h lst1 lfe
+        hsr1 hfr
     refine ⟨lst2, lfe2, ?_, rest⟩
     rw [ConLeche.Cached.checkDeclC]
     exact run_bind_ok hruncv hrun2
@@ -1757,13 +1976,15 @@ theorem check_opaque_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv) (hv : ExprWF value)
     (h : cached.parsed_c.check_opaque_decl_c mode st fe cv value = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
         (ConLeche.Cached.checkDeclC (absMode mode) lfe
             (.opaqueDecl (absConstantVal cv) (absExpr value))).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_opaque_decl_c] at h
   obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
@@ -1785,7 +2006,8 @@ theorem check_opaque_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
         rw [absConstantVal_name, ← hbv]
       simp only [Bool.false_eq_true, if_false] at h
       obtain ⟨lst2, ci, hrun2, hciname, rest⟩ :=
-        check_opaque_val_c_refines hfuel hk hsw1 hfw hcvawf hjtywf hv h lst1 lfe hsr1 hfr
+        check_opaque_val_c_refines hfuel hk hsw1 hfw hcan hfull hcvawf hjtywf hv h lst1 lfe
+          hsr1 hfr
       refine ⟨lst2, lfe.push ci, ?_, rest⟩
       rw [ConLeche.Cached.checkDeclC]
       refine run_bind_ok hruncv ?_
@@ -1802,9 +2024,13 @@ theorem check_opaque_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
       cases r1 with
       | Err er => simp at h
       | Ok fe2 =>
-        obtain ⟨lst2, ci, hrun2, hciname, hsr2, hsw2, hrel2, hwf2⟩ :=
-          check_opaque_val_c_refines hfuel hk hsw1 hfw hcvawf hjtywf hv hq2 lst1 lfe
-            hsr1 hfr
+        obtain ⟨lst2, ci, hrun2, hciname, hsr2, hsw2, hrel2, hwf2, hcan2, hfull2⟩ :=
+          check_opaque_val_c_refines hfuel hk hsw1 hfw hcan hfull hcvawf hjtywf hv hq2
+            lst1 lfe hsr1 hfr
+        have hfe' : fe' = fe2 :=
+          check_reduce_pin_fenv
+            (h : checker.check_reduce_pin mode st2 fe2 fe.visible_below cv_a.name value
+              = ok (.Ok fe', st'))
         have hcifresh : lfe.find? ci.name = none := by
           rw [hciname, absConstantVal_name, hnameq]; exact hfresh
         have hlfp : lfe.find?
@@ -1814,7 +2040,8 @@ theorem check_opaque_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
           CheckerPins.check_reduce_pin_refines_at_view hfuel hk trustPinsSpec hsw2 hwf2
             hcvawf.1 hv h lst2 (lfe.push ci) lfe hsr2 hrel2
             (trustGuardsSpec hrel2 hwf2) (fun _ hr hw => trustGuardsSpec hr hw) hlfp
-        refine ⟨lst3, lfe.push ci, ?_, hsr3, hsw3, hrel3, hwf3⟩
+        refine ⟨lst3, lfe.push ci, ?_, hsr3, hsw3, hrel3, hwf3,
+          by rw [hfe']; exact hcan2, by rw [hfe']; exact hfull2⟩
         rw [ConLeche.Cached.checkDeclC]
         refine run_bind_ok hruncv ?_
         simp only []
@@ -1838,13 +2065,15 @@ and the shared install step `axiom_install_c` (`record_c_const` +
 theorem check_axiom_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {cv : env.ConstantVal}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hcv : ConstantValWF cv)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hcv : ConstantValWF cv)
     (h : cached.parsed_c.check_axiom_decl_c mode st fe cv = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
         (ConLeche.Cached.checkDeclC (absMode mode) lfe
             (.axiomDecl (absConstantVal cv))).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_axiom_decl_c] at h
   obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
@@ -1868,7 +2097,7 @@ theorem check_axiom_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
       simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       obtain ⟨lst2, hrun, rest⟩ :=
-        axiom_install_c hsw1 hfw hcvawf hjtywf hn he hrec hpush lst1 lfe hsr1 hfr
+        axiom_install_c hsw1 hfw hcan hfull hcvawf hjtywf hn he hrec hpush lst1 lfe hsr1 hfr
       refine ⟨lst2, lfe.push (.axiomInfo (absConstantVal cv_a)), ?_, rest⟩
       rw [ConLeche.Cached.checkDeclC]
       refine run_bind_ok hruncv ?_
@@ -1902,7 +2131,7 @@ theorem check_axiom_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
           simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
           obtain ⟨rfl, rfl⟩ := h
           obtain ⟨lst2, hrun, rest⟩ :=
-            axiom_install_c hsw1 hfw hcvawf hjtywf hn he hrec hpush lst1 lfe hsr1 hfr
+            axiom_install_c hsw1 hfw hcan hfull hcvawf hjtywf hn he hrec hpush lst1 lfe hsr1 hfr
           refine ⟨lst2, lfe.push (.axiomInfo (absConstantVal cv_a)), ?_, rest⟩
           rw [ConLeche.Cached.checkDeclC]
           refine run_bind_ok hruncv ?_
@@ -1937,7 +2166,7 @@ theorem check_axiom_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
             simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
             obtain ⟨rfl, rfl⟩ := h
             obtain ⟨lst2, hrun, rest⟩ :=
-              axiom_install_c hsw1 hfw hcvawf hjtywf hn he hrec hpush lst1 lfe hsr1 hfr
+              axiom_install_c hsw1 hfw hcan hfull hcvawf hjtywf hn he hrec hpush lst1 lfe hsr1 hfr
             refine ⟨lst2, lfe.push (.axiomInfo (absConstantVal cv_a)), ?_, rest⟩
             rw [ConLeche.Cached.checkDeclC]
             refine run_bind_ok hruncv ?_
@@ -1972,7 +2201,7 @@ theorem check_axiom_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
               simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
               obtain ⟨rfl, rfl⟩ := h
               obtain ⟨lst2, hrun, rest⟩ :=
-                axiom_install_c hsw1 hfw hcvawf hjtywf hn he hrec hpush lst1 lfe hsr1 hfr
+                axiom_install_c hsw1 hfw hcan hfull hcvawf hjtywf hn he hrec hpush lst1 lfe hsr1 hfr
               refine ⟨lst2, lfe.push (.axiomInfo (absConstantVal cv_a)), ?_, rest⟩
               rw [ConLeche.Cached.checkDeclC]
               refine run_bind_ok hruncv ?_
@@ -2022,7 +2251,7 @@ theorem check_axiom_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
                   simp only [if_pos, Result.ok.injEq, Prod.mk.injEq,
                     core.result.Result.Ok.injEq] at h
                   obtain ⟨rfl, rfl⟩ := h
-                  refine ⟨lst1, lfe, ?_, hsr1, hsw1, hfr, hfw⟩
+                  refine ⟨lst1, lfe, ?_, hsr1, hsw1, hfr, hfw, hcan, hfull⟩
                   rw [ConLeche.Cached.checkDeclC]
                   refine run_bind_ok hruncv ?_
                   simp only []
@@ -2047,39 +2276,44 @@ theorem check_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {pd : parsed_c.DeclC}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclCWF pd)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hd : DeclCWF pd)
     (h : cached.parsed_c.check_decl_c mode pins st fe pd = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
         (ConLeche.Cached.checkDeclC (absMode mode) lfe (absDeclC pd)).run lst
             = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_decl_c.eq_def] at h
   cases pd with
   | AxiomDecl cv =>
     simp only [absDeclC]
-    exact check_axiom_decl_c_refines hfuel hk hsw hfw hd h lst lfe hsr hfr
+    exact check_axiom_decl_c_refines hfuel hk hsw hfw hcan hfull hd h lst lfe hsr hfr
   | DefnDecl cv value hint =>
     simp only [absDeclC]
-    exact check_defn_decl_c_refines hfuel hk hvar hpins hsw hfw hd.1 hd.2 h lst lfe hsr hfr
+    exact check_defn_decl_c_refines hfuel hk hvar hpins hsw hfw hcan hfull hd.1 hd.2 h
+      lst lfe hsr hfr
   | ThmDecl cv value =>
     simp only [absDeclC]
-    exact check_thm_decl_c_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr
+    exact check_thm_decl_c_refines hfuel hk hsw hfw hcan hfull hd.1 hd.2 h lst lfe
+      hsr hfr
   | OpaqueDecl cv value =>
     simp only [absDeclC]
-    exact check_opaque_decl_c_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr
+    exact check_opaque_decl_c_refines hfuel hk hsw hfw hcan hfull hd.1 hd.2 h lst lfe
+      hsr hfr
   | BasisDecl kind =>
     simp only [absDeclC]
     obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
     have hrs : r = .Ok fe' ∧ st = st' := by simpa using h
     obtain ⟨rfl, rfl⟩ := hrs
-    obtain ⟨lfe', hrun, hrel', hwf'⟩ :=
-      check_basis_decl_c_refines (mode := mode) hfw hr lst lfe hfr
-    exact ⟨lst, lfe', hrun, hsr, hsw, hrel', hwf'⟩
+    obtain ⟨lfe', hrun, hrel', hwf', hcan', hfull'⟩ :=
+      check_basis_decl_c_refines (mode := mode) hfw hcan hfull hr lst lfe hfr
+    exact ⟨lst, lfe', hrun, hsr, hsw, hrel', hwf', hcan', hfull'⟩
   | IndDecl block n_p =>
     simp only [absDeclC]
-    exact check_ind_decl_c_refines hind hsw hfw hd h lst lfe hsr hfr
+    exact check_ind_decl_c_refines hind hsw hfw hcan hfull hd h lst lfe hsr hfr
 
 /-- **`cached::parsed_c::check_decl_step_c` refines `checkDeclStepC`**
 (`ConLeche/Cached/ParsedC.lean:259-262`): `flushC`, then `checkDeclC`.  The
@@ -2096,19 +2330,22 @@ theorem check_decl_step_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {pd : parsed_c.DeclC}
-    (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclCWF pd)
+    (hsw : StateWF st) (hfw : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
+    (hfull : FEnv.FEnvFull fe) (hd : DeclCWF pd)
     (h : cached.parsed_c.check_decl_step_c mode pins st fe pd = ok (.Ok fe', st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
       ∃ lst' lfe',
         (ConLeche.Cached.checkDeclStepC (absMode mode) lfe (absDeclC pd)).run lst
             = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe' := by
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
   intro lst lfe hsr hfr
   rw [cached.parsed_c.check_decl_step_c] at h
   obtain ⟨st1, hflush, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hrunf, hrel1, hwf1, -⟩ := StateC.flush_c_refines hsr hsw hflush
   obtain ⟨lst', lfe', hrun, rest⟩ :=
-    check_decl_c_refines hfuel hk hind hvar hpins hwf1 hfw hd h lst.flushed lfe hrel1 hfr
+    check_decl_c_refines hfuel hk hind hvar hpins hwf1 hfw hcan hfull hd h lst.flushed lfe
+      hrel1 hfr
   refine ⟨lst', lfe', ?_, rest⟩
   rw [ConLeche.Cached.checkDeclStepC]
   simp only [StateT.run_bind, hrunf]
@@ -2142,6 +2379,29 @@ def Indexed (lfe : ConLeche.FEnv) : Prop := lfe = ConLeche.mkFEnv lfe.env
 
 /-- A freshly built index is `Indexed`. -/
 theorem Indexed.mk (e : ConLeche.Env) : Indexed (ConLeche.mkFEnv e) := rfl
+
+/-- **An `Indexed` Lean view forces the port's index to be canonical and
+unrestricted** (task #59): `mkFEnv` *is* the rebuild, at the full constant
+count, so the `Expr`-level tier's own hypothesis discharges the pair the
+`cached` tier carries. -/
+theorem canon_of_indexed {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    (hfr : FEnvRel fe lfe) (hix : Indexed lfe) :
+    FEnv.FEnvCanon fe ∧ FEnv.FEnvFull fe := by
+  have henv : ConLeche.mkFEnv (absEnv fe.env) = lfe := by
+    conv_rhs => rw [hix]
+    rw [hfr.1]
+  have hvb : fe.visible_below.val = lfe.visibleBelow := hfr.2.1
+  have hfull : FEnv.FEnvFull fe := by
+    unfold FEnv.FEnvFull
+    rw [hvb]
+    conv_lhs => rw [hix]
+    show (ConLeche.mkFEnvGo lfe.env.consts).1 = _
+    rw [FEnv.mkFEnvGo_fst, ← hfr.1]
+    simp [absEnv, absConstantInfos]
+  refine ⟨?_, hfull⟩
+  unfold FEnv.FEnvCanon
+  rw [henv, hvb]
+  exact hfr
 
 /-- An `Indexed` index answers `Env.find?` (`mkFEnv_find?`). -/
 theorem Indexed.find_eq {lfe : ConLeche.FEnv} (h : Indexed lfe) (n : ConLeche.Name) :
@@ -3109,8 +3369,9 @@ theorem check_basis_decl_refines {mode : env.CheckMode}
       have := ConRon.Refine.absBasisDecls_eq kind
       rw [ConRon.Refine.absBasisDecls, hv] at this
       simpa using this
-    obtain ⟨lfe₂, hfold, hrel, hwf⟩ :=
-      install_basis_decls_refines hfw (BasisPins.basis_decls_a_wf hv) hi lfe lst hfr
+    obtain ⟨lfe₂, hfold, hrel, hwf, -, -⟩ :=
+      install_basis_decls_refines hfw (canon_of_indexed hfr hix).1
+        (canon_of_indexed hfr hix).2 (BasisPins.basis_decls_a_wf hv) hi lfe lst hfr
     rw [habs] at hfold
     obtain ⟨hfoldE, hix₂⟩ := installBasisDecl_fold_env _ lfe lfe₂ lst hix hfold
     exact ⟨lfe₂, hfoldE, hrel, hwf, hix₂⟩
