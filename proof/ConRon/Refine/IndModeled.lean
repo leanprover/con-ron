@@ -8097,8 +8097,9 @@ theorem checkProjIotaBody_shape {lmode : ConLeche.CheckMode}
       = .error (.notImplemented "projection iota body shape") := by
   rw [checkProjIotaBody]
   simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
-  split <;> trace_state
-  all_goals sorry
+  · simp
+  · intro c la tySlot lhsC rhsC hx
+    exact absurd hx (h c la tySlot lhsC rhsC)
 
 /-- `ConLeche/Kernel/DeclCheck.lean:816-836` — `check_proj_iota_body` refines
 `checkProjIotaBody`.
