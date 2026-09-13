@@ -22,14 +22,14 @@ Four things cost thought.
 2. **The accumulator's orientation.**  The deferred substitution is consumed
    by `state_c::inst_list_rev_m`, which *is* `expr_ops_c::instantiate_rev`
    (`Refine/StateC.lean`'s `inst_list_rev_m_eq`) and refines
-   `ExprC.instantiateRev` — the substitution on the **reversed** accumulator
+   `Expr.instantiateRev` — the substitution on the **reversed** accumulator
    (`Refine/ExprOpsCSubst.lean`'s `instantiate_rev_refines` states it as
    `Expr.instantiateList … (absExprs vs).reverse`, and con-leche's
    `instantiateRev_spec` reads the cited definition the same way).  So the
    accumulator itself is *not* reversed: the Rust `Vec` and con-leche's
    `Array` carry the arguments in spine order, oldest first, and the reversal
    happens inside the substitution.  con-leche's accumulator is an
-   `Array ExprC`, so the abstraction is `(absExprs acc).toArray`; a `push` on
+   `Array Expr`, so the abstraction is `(absExprs acc).toArray`; a `push` on
    either side is `++ [a]` on the underlying list.
 
 3. **The gate is mode-parametric.**  `env::io_skip mode mt.pw` refines
@@ -149,12 +149,12 @@ it is deliberately not memoised), so this is a plain value equation and not a
 private theorem inst_list_rev_m_val {e r : expr.Expr}
     {vs : alloc.vec.Vec expr.Expr} (he : ExprWF e) (hvs : ExprsWF vs)
     (h : cached.state_c.inst_list_rev_m e vs 0#u64 = ok r) :
-    absExpr r = ConLeche.Cached.ExprC.instantiateRev (absExpr e)
+    absExpr r = ConLeche.Expr.instantiateRev (absExpr e)
         (absExprs vs).toArray 0 ∧ ExprWF r := by
   rw [StateC.inst_list_rev_m_eq] at h
   obtain ⟨habs, hwf⟩ := ExprOpsC.instantiate_rev_refines he hvs h
   refine ⟨?_, hwf⟩
-  rw [habs, ConLeche.Cached.ExprC.instantiateRev_spec]
+  rw [habs, ConLeche.Expr.instantiateRev_spec]
   simp
 
 /-- A well-formed `ForallE` node has well-formed parts — the `ForallE` twin of

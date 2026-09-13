@@ -888,7 +888,7 @@ theorem infer_body_io_i_refines (hw : Wrappers mode fuel)
         (congrArg Prod.fst (Result.ok_injective hok)).symm
       refine Out.err ?_
       simp only [ConLeche.Cached.inferBodyIOI, absExpr_mk, absExprKind,
-        ConLeche.Cached.ExprC.getAppFn_spec, ConLeche.Cached.ExprC.getAppArgs_spec,
+        ConLeche.Expr.getAppFn_spec, ConLeche.Expr.getAppArgsC_spec,
         ioView_infer, pure_bind, ← hhabs, ← hargsabs]
       exact ErrSim.bindCM ((hw.inferIOSim d hhWF).apply_err hwf hfe h2 hrel hfrel)
     | Ok tf =>
@@ -902,7 +902,7 @@ theorem infer_body_io_i_refines (hw : Wrappers mode fuel)
           hsp.apply hwf1 hfe hok hrel1 hfrel
         refine Out.ok (lst' := lst2) ?_ hrel2 hwf2 hrWF
         simp only [ConLeche.Cached.inferBodyIOI, absExpr_mk, absExprKind,
-          ConLeche.Cached.ExprC.getAppFn_spec, ConLeche.Cached.ExprC.getAppArgs_spec,
+          ConLeche.Expr.getAppFn_spec, ConLeche.Expr.getAppArgsC_spec,
           ioView_infer, pure_bind, ← hhabs, ← hargsabs]
         rw [run_bind _ _ hrun1]
         simpa [absExprs, alloc.vec.Vec.new] using hrun2
@@ -911,7 +911,7 @@ theorem infer_body_io_i_refines (hw : Wrappers mode fuel)
         refine Out.err (ErrSim.trans (hsp.apply_err hwf1 hfe hok hrel1 hfrel) ?_)
         intro le hle
         simp only [ConLeche.Cached.inferBodyIOI, absExpr_mk, absExprKind,
-          ConLeche.Cached.ExprC.getAppFn_spec, ConLeche.Cached.ExprC.getAppArgs_spec,
+          ConLeche.Expr.getAppFn_spec, ConLeche.Expr.getAppArgsC_spec,
           ioView_infer, pure_bind, ← hhabs, ← hargsabs]
         rw [run_bind _ _ hrun1]
         simpa [absExprs, alloc.vec.Vec.new] using hle

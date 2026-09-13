@@ -36,7 +36,7 @@ kept.  The record grammar below the payload is what the two formats shared.
 
 Nothing here is a theorem: this is a test and porting tool.
 -/
-import ConLeche.Cached.ExprC
+import ConLeche.Expr
 import ConLeche.Kernel.NatOpPinSet
 import ConLeche.Kernel.NatOpPins
 
@@ -472,28 +472,28 @@ def parseRecord (kind : String) : R Unit := do
   else if kind == "E" then
     expectId (← get).exprs.size "expr"
     let t ← nextTok
-    let v ← if t == "b" then do pure (ExprC.mkBVar (← natTok))
+    let v ← if t == "b" then do pure (Expr.mkBvar (← natTok))
       else if t == "v" then do
-        let idx ← natTok; let ty ← exprRef; pure (ExprC.mkFVar idx ty)
-      else if t == "s" then do pure (ExprC.mkSort (← levelRef))
+        let idx ← natTok; let ty ← exprRef; pure (Expr.mkFVar idx ty)
+      else if t == "s" then do pure (Expr.mkSort (← levelRef))
       else if t == "c" then do
-        let n ← nameRef; let us ← listTok levelRef; pure (ExprC.mkConst n us)
+        let n ← nameRef; let us ← listTok levelRef; pure (Expr.mkConst n us)
       else if t == "a" then do
-        let f ← exprRef; let a ← exprRef; pure (ExprC.mkApp f a)
+        let f ← exprRef; let a ← exprRef; pure (Expr.mkApp f a)
       else if t == "l" then do
         let ty ← exprRef; let b ← exprRef; let p ← pwRef
-        pure (ExprC.mkLam ty b ⟨p⟩)
+        pure (Expr.mkLam ty b ⟨p⟩)
       else if t == "f" then do
         let ty ← exprRef; let b ← exprRef; let p ← pwRef
-        pure (ExprC.mkForallE ty b ⟨p⟩)
+        pure (Expr.mkForallE ty b ⟨p⟩)
       else if t == "t" then do
         let ty ← exprRef; let val ← exprRef; let b ← exprRef
-        pure (ExprC.mkLetE ty val b)
-      else if t == "n" then do pure (ExprC.mkLit (.natVal (← natTok)))
-      else if t == "g" then do pure (ExprC.mkLit (.strVal (← strTok)))
+        pure (Expr.mkLetE ty val b)
+      else if t == "n" then do pure (Expr.mkLit (.natVal (← natTok)))
+      else if t == "g" then do pure (Expr.mkLit (.strVal (← strTok)))
       else if t == "p" then do
         let sn ← nameRef; let i ← natTok; let s ← exprRef
-        pure (ExprC.mkProj sn i s)
+        pure (Expr.mkProj sn i s)
       else rerr ("unknown expr record '" ++ t ++ "'")
     modify fun st => { st with exprs := st.exprs.push v }
   else if kind == "S" then

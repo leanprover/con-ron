@@ -85,14 +85,14 @@ below its two leading reductions: the structural rule
 `fireOk` level guard and `projCertAtI`. -/
 def whnfCoreProjArmI (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
     (fe : ConLeche.FEnv) (depth : Nat)
-    (k : ConLeche.Cached.ExprC → ConLeche.Cached.CheckCM ConLeche.Cached.ExprC)
-    (sn : ConLeche.Name) (i : Nat) (e' : ConLeche.Cached.ExprC) :
-    ConLeche.Cached.CheckCM ConLeche.Cached.ExprC :=
+    (k : ConLeche.Expr → ConLeche.Cached.CheckCM ConLeche.Expr)
+    (sn : ConLeche.Name) (i : Nat) (e' : ConLeche.Expr) :
+    ConLeche.Cached.CheckCM ConLeche.Expr :=
   match fe.findProj? sn i with
   | some entry =>
-    match ConLeche.Cached.ExprC.getAppFn e' with
+    match ConLeche.Expr.getAppFn e' with
     | .const c us => do
-      let args ← pure (ConLeche.Cached.ExprC.getAppArgs e')
+      let args ← pure (ConLeche.Expr.getAppArgsC e')
       if (← pure (c == entry.ctor)) ∧ i < entry.numFields ∧
           args.length = entry.numParams + entry.numFields ∧
           us.length = entry.levelParams.length ∧
@@ -110,8 +110,8 @@ def whnfCoreProjArmI (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
 /-- `whnfCoreProjArmI` is literally `whnfCoreStepI`'s `.proj` arm. -/
 theorem whnfCoreStepI_proj (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
     (fe : ConLeche.FEnv) (depth : Nat)
-    (k : ConLeche.Cached.ExprC → ConLeche.Cached.CheckCM ConLeche.Cached.ExprC)
-    (sn : ConLeche.Name) (i : Nat) (pe : ConLeche.Cached.ExprC) :
+    (k : ConLeche.Expr → ConLeche.Cached.CheckCM ConLeche.Expr)
+    (sn : ConLeche.Name) (i : Nat) (pe : ConLeche.Expr) :
     ConLeche.Cached.whnfCoreStepI mode r fe depth k (.proj sn i pe)
       = (do
           let e' ← r.whnf depth pe
@@ -128,7 +128,7 @@ both (task #67).  Each is a `rfl` equation on the `run`: `throw` in
 `M_BVAR`. -/
 theorem whnfCoreStepI_bvar (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
     (fe : ConLeche.FEnv) (depth : Nat)
-    (k : ConLeche.Cached.ExprC → ConLeche.Cached.CheckCM ConLeche.Cached.ExprC)
+    (k : ConLeche.Expr → ConLeche.Cached.CheckCM ConLeche.Expr)
     (i : Nat) (lst : ConLeche.Cached.CState) :
     (ConLeche.Cached.whnfCoreStepI mode r fe depth k (.bvar i)).run lst
       = .error (.notImplemented "whnf beyond the supported fragment") := rfl
@@ -137,8 +137,8 @@ theorem whnfCoreStepI_bvar (mode : ConLeche.CheckMode) (r : ConLeche.Cached.Core
 `M_LET`. -/
 theorem whnfCoreStepI_letE (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
     (fe : ConLeche.FEnv) (depth : Nat)
-    (k : ConLeche.Cached.ExprC → ConLeche.Cached.CheckCM ConLeche.Cached.ExprC)
-    (ty v bo : ConLeche.Cached.ExprC) (lst : ConLeche.Cached.CState) :
+    (k : ConLeche.Expr → ConLeche.Cached.CheckCM ConLeche.Expr)
+    (ty v bo : ConLeche.Expr) (lst : ConLeche.Cached.CState) :
     (ConLeche.Cached.whnfCoreStepI mode r fe depth k (.letE ty v bo)).run lst
       = .error (.internal "whnfCore: `let` in an annotated expression") := rfl
 
@@ -149,7 +149,7 @@ open WhnfCore
 /-- `CoreC.lean:1000-1004` — one unrolling of `whnfCoreLoopI`: the step at the
 decremented budget, with the loop itself as the continuation `k`. -/
 theorem whnfCoreLoopI_succ (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
-    (fe : ConLeche.FEnv) (depth m : Nat) (e : ConLeche.Cached.ExprC) :
+    (fe : ConLeche.FEnv) (depth m : Nat) (e : ConLeche.Expr) :
     ConLeche.Cached.whnfCoreLoopI mode r fe depth (m + 1) e
       = ConLeche.Cached.whnfCoreStepI mode r fe depth
           (ConLeche.Cached.whnfCoreLoopI mode r fe depth m) e := by
@@ -159,7 +159,7 @@ theorem whnfCoreLoopI_succ (mode : ConLeche.CheckMode) (r : ConLeche.Cached.Core
 `internal "fuel exhausted: whnfCore loop"`, which `core_c.rs:2515`'s `M`
 mirrors (task #67). -/
 theorem whnfCoreLoopI_zero (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
-    (fe : ConLeche.FEnv) (depth : Nat) (e : ConLeche.Cached.ExprC)
+    (fe : ConLeche.FEnv) (depth : Nat) (e : ConLeche.Expr)
     (lst : ConLeche.Cached.CState) :
     (ConLeche.Cached.whnfCoreLoopI mode r fe depth 0 e).run lst
       = .error (.internal "fuel exhausted: whnfCore loop") := rfl
@@ -318,7 +318,7 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
         simp only [absExpr_mk, absExprKind] at hhabs haabs
         rw [hhabs] at hrun1
         simp only [absExpr_mk, absExprKind, ConLeche.Cached.whnfCoreStepI, pure_bind,
-          ConLeche.Cached.ExprC.getAppFn_spec, ConLeche.Cached.ExprC.getAppArgs_spec]
+          ConLeche.Expr.getAppFn_spec, ConLeche.Expr.getAppArgsC_spec]
         rw [run_bind hrun1]
         simpa [haabs] using hrun2
     | @proj sn i pe e hsn hpe h1 =>
@@ -406,7 +406,7 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
       obtain ⟨haabs, hawf⟩ := ExprOps.get_app_args_refines he hargs
       simp only [absExpr_mk, absExprKind] at hhabs haabs
       simp only [absExpr_mk, absExprKind, ConLeche.Cached.whnfCoreStepI, pure_bind,
-        ConLeche.Cached.ExprC.getAppFn_spec, ConLeche.Cached.ExprC.getAppArgs_spec]
+        ConLeche.Expr.getAppFn_spec, ConLeche.Expr.getAppArgsC_spec]
       cases rc with
       | Err err =>
         simp at hok

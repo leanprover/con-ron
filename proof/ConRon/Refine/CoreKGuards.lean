@@ -4,7 +4,7 @@ readers, shape guards and owning environment probes** of
 `crates/con-ron-core/src/kernel/core_k.rs`, against `ConLeche/Kernel/Core.lean`
 (with `ConLeche/Kernel/FEnv.lean` supplying the indexed environment and
 `ConLeche/Cached/StateC.lean` the `*C` twins, which are the *same* functions on
-`ExprC` and are named in each doc comment rather than stated twice).
+`Expr` and are named in each doc comment rather than stated twice).
 
 Twenty-seven functions, in three groups:
 
@@ -863,7 +863,7 @@ theorem caps_never_zero_refines {lps : alloc.vec.Vec name.Name}
 
 /-- **`core_k::same_const_heads` refines `sameConstHeads`**
 (`Core.lean:255-264`; `Cached/StateC.lean:89-96 sameConstHeadsC` is the same
-function on `ExprC`): the lazy-delta same-head short-circuit.  Both sides must
+function on `Expr`): the lazy-delta same-head short-circuit.  Both sides must
 actually be applications. -/
 theorem same_const_heads_refines {a b : expr.Expr} {c : Bool}
     (ha : ExprWF a) (hb : ExprWF b) (h : core_k.same_const_heads a b = ok c) :
@@ -936,10 +936,10 @@ theorem annot_binder_meta_refines {pw : Option prop_when.PropWhen}
 
 Each is stated against the cited `Core.lean` definition's body with `lfe.find?`
 in place of `env.find?` (file note, point 1); the `Cached/StateC.lean` twin
-named in each doc comment is that same body on `ExprC`. -/
+named in each doc comment is that same body on `Expr`. -/
 
 /-- **`core_k::is_ctor_app` refines `isCtorApp`** (`Core.lean:118-125`;
-`Cached/StateC.lean:62-69 isCtorAppC` is the same function on `ExprC`): is the
+`Cached/StateC.lean:62-69 isCtorAppC` is the same function on `Expr`): is the
 expression headed by a stored constructor? -/
 theorem is_ctor_app_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Expr}
     {b : Bool} (hfe : FindAgree fe lfe) (he : ExprWF e)
@@ -976,7 +976,7 @@ theorem is_ctor_app_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Exp
 
 /-- **`core_k::unfoldable_head` refines `unfoldableHead`**
 (`Core.lean:229-242`; `Cached/StateC.lean:80-87 unfoldableHeadC` is the same
-function on `ExprC`): may the delta step unfold `e`'s head?  The *decision* the
+function on `Expr`): may the delta step unfold `e`'s head?  The *decision* the
 lazy delta step takes. -/
 theorem unfoldable_head_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {e : expr.Expr} {b : Bool} (hfe : FindAgree fe lfe) (he : ExprWF e)
@@ -1039,7 +1039,7 @@ theorem hintOf_defnOf (X : Option ConLeche.ConstantInfo) :
   · cases ci <;> rfl
 
 /-- **`core_k::head_hint` refines `headHint`** (`Core.lean:244-253`;
-`Cached/StateC.lean:71-78 headHintC` is the same function on `ExprC`): the
+`Cached/StateC.lean:71-78 headHintC` is the same function on `Expr`): the
 reducibility hint of the constant at the head of `e`, `opaque` when the head is
 not a stored definition (a theorem included).  `FindWF` is here only because the
 port routes the lookup through `defn_probe`, whose lemma concludes the copies'
@@ -1166,7 +1166,7 @@ theorem is_punit_rec_shape_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       simp only [Result.ok.injEq] at h; rw [← h]; simp [absConstantInfo]
 
 /-- **`core_k::is_unit_like_ty` refines `isUnitLikeTy`** (`Core.lean:169-206`;
-`Cached/StateC.lean:48-60 isUnitLikeTyC` is the same function on `ExprC`): is
+`Cached/StateC.lean:48-60 isUnitLikeTyC` is the same function on `Expr`): is
 this (whnf'd) type expression a unit-like inductive type?  con-leche's task #161
 item C1 computation downgrade -- the head-name comparison against the single pin
 that can pass (`PUnit`) comes first, then the two stored-shape checks

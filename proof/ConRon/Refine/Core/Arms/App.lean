@@ -18,7 +18,7 @@ projection rule
 Three things are worth saying before the proofs.
 
 **The continuation is a parameter.**  con-leche abstracts the
-head-normalization loop's continuation as `k : ExprC → CheckCM ExprC`; the
+head-normalization loop's continuation as `k : Expr → CheckCM Expr`; the
 Rust defunctionalizes it into the loop's step budget `n` and a call to
 `whnf_core_loop_i … n` (task #18's pattern 2).  The two big lemmas below are
 therefore proved with `k` *abstract*, under one hypothesis — `KSim`, a `Sim`
@@ -166,24 +166,24 @@ end App
 
 /-! ## `pi_residual_m` — the tenth `*M` wrapper (`core_c.rs:483`)
 
-`ConLeche/Cached/StateC.lean:219-221`: `piResidualM` is `pure (ExprC.piResidual
+`ConLeche/Cached/StateC.lean:219-221`: `piResidualM` is `pure (Expr.piResidual
 e args)`, so the wrapper is state-free and the refinement is the pure shape
 against the value the `pure` carries. -/
 
-/-- `piResidualM`'s `run`: the `pure` of `ExprC.piResidual`. -/
+/-- `piResidualM`'s `run`: the `pure` of `Expr.piResidual`. -/
 @[simp] theorem piResidualM_run {lst : ConLeche.Cached.CState}
-    (e : ConLeche.Cached.ExprC) (args : List ConLeche.Cached.ExprC) :
+    (e : ConLeche.Expr) (args : List ConLeche.Expr) :
     (ConLeche.Cached.piResidualM e args).run lst
-      = .ok (ConLeche.Cached.ExprC.piResidual e args, lst) := rfl
+      = .ok (ConLeche.Expr.piResidual e args, lst) := rfl
 
 /-- `ConLeche/Cached/StateC.lean:219-221` — **`pi_residual_m` refines
-`piResidualM`**: `pure (ExprC.piResidual e args)`, the bulk form of the
+`piResidualM`**: `pure (Expr.piResidual e args)`, the bulk form of the
 `∀`-telescope residual (`core_c.rs:483`). -/
 theorem pi_residual_m_refines {e : expr.Expr} {args : alloc.vec.Vec expr.Expr}
     (he : ExprWF e) (hargs : ExprsWF args) :
     SimP (Option.map absExpr) (fun o => ∀ x ∈ o, ExprWF x)
       (cached.core_c.pi_residual_m e args)
-      (ConLeche.Cached.ExprC.piResidual (absExpr e) (absExprs args)) := by
+      (ConLeche.Expr.piResidual (absExpr e) (absExprs args)) := by
   intro o h
   rw [cached.core_c.pi_residual_m] at h
   exact ExprOpsC.pi_residual_refines he hargs (by simpa using h)
@@ -191,8 +191,8 @@ theorem pi_residual_m_refines {e : expr.Expr} {args : alloc.vec.Vec expr.Expr}
 /-! ## `fab_scope_ok_i` — the cached scope guard (`core_c.rs:1266`)
 
 `ConLeche/Cached/CoreC.lean:543-670 majorToCtorI` runs the cited
-`ExprC.wscopedB depth fab && ExprC.looseBVarsBounded 0 fab &&
-ExprC.leafGuard fab major` on every rescue fabrication; the port lifts it into
+`Expr.wscopedBC depth fab && Expr.looseBVarsBounded 0 fab &&
+Expr.leafGuard fab major` on every rescue fabrication; the port lifts it into
 its own function (task #32's memo policy note) and short-circuits it exactly
 as `&&` does. -/
 
@@ -203,9 +203,9 @@ cached tier's scope guard** of `majorToCtorI`'s three rescue branches:
 theorem fab_scope_ok_i_refines {fab major : expr.Expr} {depth : Std.U64}
     (hfab : ExprWF fab) (hmajor : ExprWF major) :
     SimP id (fun _ => True) (cached.core_c.fab_scope_ok_i fab major depth)
-      (ConLeche.Cached.ExprC.wscopedB depth.val (absExpr fab) &&
+      (ConLeche.Expr.wscopedBC depth.val (absExpr fab) &&
         ((absExpr fab).looseBVarsBounded 0 &&
-          ConLeche.Cached.ExprC.leafGuard (absExpr fab) (absExpr major))) := by
+          ConLeche.Expr.leafGuard (absExpr fab) (absExpr major))) := by
   intro b h
   refine ⟨?_, trivial⟩
   rw [cached.core_c.fab_scope_ok_i] at h
@@ -328,7 +328,7 @@ end
 /-! ## The abstract continuation
 
 con-leche threads the head-normalization loop's continuation as a function
-argument `k : ExprC → CheckCM ExprC`; the Rust carries the loop's step budget
+argument `k : Expr → CheckCM Expr`; the Rust carries the loop's step budget
 `n` instead and calls `whnf_core_loop_i … n` where con-leche writes `k x`
 (task #18's pattern 2).  `KSim` is the one hypothesis that crosses that call,
 and `AppDeps.whnfCoreLoop` is what discharges it at
@@ -336,8 +336,8 @@ and `AppDeps.whnfCoreLoop` is what discharges it at
 
 /-- The Rust loop at budget `n` refines the con-leche continuation `k`. -/
 def KSim (mode : env.CheckMode) (fuel d n : Std.U64)
-    (k : ConLeche.FEnv → ConLeche.Cached.ExprC →
-      ConLeche.Cached.CheckCM ConLeche.Cached.ExprC) : Prop :=
+    (k : ConLeche.FEnv → ConLeche.Expr →
+      ConLeche.Cached.CheckCM ConLeche.Expr) : Prop :=
   ∀ e : expr.Expr, ExprWF e →
     Sim absExpr ExprWF
       (fun st fe => cached.core_c.whnf_core_loop_i mode fuel st fe d n e)
@@ -358,15 +358,15 @@ possibly-`Prop` level guard and `projCertAtI`; the fired field goes to the
 loop's continuation `k`, not back through the knot. -/
 def whnfCoreProjI (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
     (fe : ConLeche.FEnv) (depth : Nat)
-    (k : ConLeche.Cached.ExprC → ConLeche.Cached.CheckCM ConLeche.Cached.ExprC)
-    (sn : ConLeche.Name) (i : Nat) (e' : ConLeche.Cached.ExprC) :
-    ConLeche.Cached.CheckCM ConLeche.Cached.ExprC := do
+    (k : ConLeche.Expr → ConLeche.Cached.CheckCM ConLeche.Expr)
+    (sn : ConLeche.Name) (i : Nat) (e' : ConLeche.Expr) :
+    ConLeche.Cached.CheckCM ConLeche.Expr := do
   let snn ← pure sn
   match fe.findProj? snn i with
   | some entry =>
-    match ConLeche.Cached.ExprC.getAppFn e' with
+    match ConLeche.Expr.getAppFn e' with
     | .const c us => do
-      let args ← pure (ConLeche.Cached.ExprC.getAppArgs e')
+      let args ← pure (ConLeche.Expr.getAppArgsC e')
       if (← pure (c == entry.ctor)) ∧ i < entry.numFields ∧
           args.length = entry.numParams + entry.numFields ∧
           us.length = entry.levelParams.length ∧
@@ -386,8 +386,8 @@ def whnfCoreProjI (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
 nothing. -/
 theorem whnfCoreStepI_proj (mode : ConLeche.CheckMode)
     (r : ConLeche.Cached.CoreFnsI) (fe : ConLeche.FEnv) (depth : Nat)
-    (k : ConLeche.Cached.ExprC → ConLeche.Cached.CheckCM ConLeche.Cached.ExprC)
-    (sn : ConLeche.Name) (i : Nat) (pe : ConLeche.Cached.ExprC) :
+    (k : ConLeche.Expr → ConLeche.Cached.CheckCM ConLeche.Expr)
+    (sn : ConLeche.Name) (i : Nat) (pe : ConLeche.Expr) :
     ConLeche.Cached.whnfCoreStepI mode r fe depth k (.proj sn i pe)
       = (do
           let e' ← r.whnf depth pe
@@ -432,8 +432,8 @@ variable {mode : env.CheckMode} {fuel : Std.U64}
 /-- `ConLeche/Cached/CoreC.lean:967-988` — **`whnf_core_proj_i` refines
 `whnfCoreProjI`** (`core_c.rs:2429`), at an abstract continuation. -/
 theorem whnf_core_proj_of_loop (hd : AppDeps mode fuel) (d n : Std.U64)
-    {k : ConLeche.FEnv → ConLeche.Cached.ExprC →
-      ConLeche.Cached.CheckCM ConLeche.Cached.ExprC} (hk : KSim mode fuel d n k)
+    {k : ConLeche.FEnv → ConLeche.Expr →
+      ConLeche.Cached.CheckCM ConLeche.Expr} (hk : KSim mode fuel d n k)
     {sn : name.Name} {i : Std.U64} {e2 : expr.Expr} (hsn : NameWF sn)
     (he2 : ExprWF e2) :
     Sim absExpr ExprWF
@@ -445,8 +445,8 @@ theorem whnf_core_proj_of_loop (hd : AppDeps mode fuel) (d n : Std.U64)
   obtain ⟨o, ho, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨habs, hpwf⟩ := ConRon.Refine.find_proj_refines
     (FindAgree.of_rel hfrel hfe) (FindWF.of_wf hfe) hsn ho
-  simp only [whnfCoreProjI, pure_bind, ConLeche.Cached.ExprC.getAppFn_spec,
-    ConLeche.Cached.ExprC.getAppArgs_spec]
+  simp only [whnfCoreProjI, pure_bind, ConLeche.Expr.getAppFn_spec,
+    ConLeche.Expr.getAppArgsC_spec]
   rw [← habs]
   cases o with
   | none =>
@@ -571,12 +571,12 @@ and `betaPeelI` at `L - 1`. -/
 
 namespace App
 
-/-- `mkAppNM`'s `run`: the `pure` of `ExprC.mkAppN`
+/-- `mkAppNM`'s `run`: the `pure` of `Expr.mkAppN`
 (`ConLeche/Cached/StateC.lean:212-213`). -/
 @[simp] theorem run_mkAppNM {lst : ConLeche.Cached.CState}
-    (f : ConLeche.Cached.ExprC) (xs : List ConLeche.Cached.ExprC) :
+    (f : ConLeche.Expr) (xs : List ConLeche.Expr) :
     (ConLeche.Cached.mkAppNM f xs).run lst
-      = .ok (ConLeche.Cached.ExprC.mkAppN f xs, lst) := rfl
+      = .ok (ConLeche.Expr.mkAppN f xs, lst) := rfl
 
 /-- The `instC` table's entry count on the two sides.  `StateRel` is a *lookup*
 agreement, and a lookup agreement does not bound the Lean map's size, so this
@@ -617,8 +617,8 @@ variable {mode : env.CheckMode} {fuel : Std.U64}
 con-leche's `(args.length, tag)` order requires. -/
 theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel)
     (d n : Std.U64)
-    {k : ConLeche.FEnv → ConLeche.Cached.ExprC →
-      ConLeche.Cached.CheckCM ConLeche.Cached.ExprC} (hk : KSim mode fuel d n k) :
+    {k : ConLeche.FEnv → ConLeche.Expr →
+      ConLeche.Cached.CheckCM ConLeche.Expr} (hk : KSim mode fuel d n k) :
     ∀ (N : Nat) (args : alloc.vec.Vec expr.Expr) (i : Std.Usize),
       args.val.length - i.val = N → ExprsWF args →
       (∀ v : expr.Expr, ExprWF v →
@@ -992,8 +992,8 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
 at an abstract continuation (`core_c.rs:2218`). -/
 theorem whnf_app_of_loop (hw : Wrappers mode fuel) (hd : AppDeps mode fuel)
     (d n : Std.U64)
-    {k : ConLeche.FEnv → ConLeche.Cached.ExprC →
-      ConLeche.Cached.CheckCM ConLeche.Cached.ExprC} (hk : KSim mode fuel d n k)
+    {k : ConLeche.FEnv → ConLeche.Expr →
+      ConLeche.Cached.CheckCM ConLeche.Expr} (hk : KSim mode fuel d n k)
     {v : expr.Expr} {args : alloc.vec.Vec expr.Expr} {i : Std.Usize}
     (hv : ExprWF v) (hargs : ExprsWF args) :
     Sim absExpr ExprWF
@@ -1006,8 +1006,8 @@ theorem whnf_app_of_loop (hw : Wrappers mode fuel) (hd : AppDeps mode fuel)
 `betaPeelI`** at an abstract continuation (`core_c.rs:2296`). -/
 theorem beta_peel_of_loop (hw : Wrappers mode fuel) (hd : AppDeps mode fuel)
     (d n : Std.U64)
-    {k : ConLeche.FEnv → ConLeche.Cached.ExprC →
-      ConLeche.Cached.CheckCM ConLeche.Cached.ExprC} (hk : KSim mode fuel d n k)
+    {k : ConLeche.FEnv → ConLeche.Expr →
+      ConLeche.Cached.CheckCM ConLeche.Expr} (hk : KSim mode fuel d n k)
     {t : expr.Expr} {acc args : alloc.vec.Vec expr.Expr} {i : Std.Usize}
     (ht : ExprWF t) (hacc : ExprsWF acc) (hargs : ExprsWF args) :
     Sim absExpr ExprWF

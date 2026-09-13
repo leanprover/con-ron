@@ -3363,7 +3363,7 @@ by the subject's projection `.proj T i (bvar 0)` before the walk continues.
 Lean conses `fdom` on the way out; the port pushes it on the way in, which is
 the same outermost-first list (task #13's pattern 3), so the accumulator sits
 in front.  The cached driver's walker `structProjBodiesGoC` is the same walk at
-`ExprC.instantiate1Lift`, which is this substitution (`structProjBodiesC_eq`). -/
+`Expr.instantiate1LiftC`, which is this substitution (`structProjBodiesC_eq`). -/
 theorem struct_proj_bodies_go_refines_aux {t : name.Name} (ht : NameWF t)
     (N : Nat) :
     ∀ (k i : Std.U64) (e : expr.Expr) (out : alloc.vec.Vec expr.Expr)

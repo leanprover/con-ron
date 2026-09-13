@@ -127,11 +127,11 @@ theorem majorDeps (hw : Wrappers mode fuel) : MajorDeps mode fuel where
     intro fab major d c hfab hmajor h
     -- `Arms/App.lean` brackets the three conjuncts to the right and states the
     -- middle one with the *spec* walk `Expr.looseBVarsBounded`, the field to
-    -- the left and with the `O(1)` field read `ExprC.looseBVarsBounded`; `&&`
-    -- is associative and `ExprC.looseBVarsBounded_spec` is con-leche's own
+    -- the left and with the `O(1)` field read `Expr.looseBVarsBounded`; `&&`
+    -- is associative and `Expr.looseBVarsBounded_spec` is con-leche's own
     -- identification of the two.
     have := (fab_scope_ok_i_refines hfab hmajor c h).1
-    simpa [Bool.and_assoc, ConLeche.Cached.ExprC.looseBVarsBounded_spec] using this
+    simpa [Bool.and_assoc, ConLeche.Expr.looseBVarsBounded_spec] using this
   inferIOWhnf := by intro d e he; exact infer_io_whnf_i_refines hw d he
 
 /-- `Arms/Iota.lean`'s callees: two in `Arms/Certs.lean`, `pi_residual_m`
@@ -228,8 +228,8 @@ theorem defeqAppsL_eq : @defeqAppsL = @DefEq.defeqAppsFrag := rfl
 theorem defeqStructL_eq : @defeqStructL = @DefEq.defeqStructFrag := rfl
 
 theorem defeqBindersL_eq (lmode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
-    (lfe : ConLeche.FEnv) (depth : Nat) (ty₁ body₁ : ConLeche.Cached.ExprC)
-    (m₁ : ConLeche.BinderMeta) (ty₂ body₂ : ConLeche.Cached.ExprC)
+    (lfe : ConLeche.FEnv) (depth : Nat) (ty₁ body₁ : ConLeche.Expr)
+    (m₁ : ConLeche.BinderMeta) (ty₂ body₂ : ConLeche.Expr)
     (m₂ : ConLeche.BinderMeta) (isForall : Bool) :
     defeqBindersL lmode r lfe depth ty₁ body₁ m₁ ty₂ body₂ m₂ isForall
       = DefEq.defeqBindersFrag lmode r depth

@@ -113,8 +113,8 @@ theorem unfold_definition_i_refines {e : expr.Expr} (he : ExprWF e) :
     simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at hok
     obtain ⟨f, hf, hok⟩ := hok
     obtain ⟨hfabs, hfwf'⟩ := ExprOps.get_app_fn_refines he hf
-    have hkey : ConLeche.Cached.ExprC.getAppFn (absExpr e) = absExprKind f._0.kind := by
-      rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hfabs, CoreK.absExpr_kind]
+    have hkey : ConLeche.Expr.getAppFn (absExpr e) = absExprKind f._0.kind := by
+      rw [ConLeche.Expr.getAppFn_spec, ← hfabs, CoreK.absExpr_kind]
     simp only [ConLeche.Cached.unfoldDefinitionI, hkey]
     cases hk : f._0.kind
     all_goals rw [hk] at hok
@@ -183,7 +183,7 @@ theorem unfold_definition_i_refines {e : expr.Expr} (he : ExprWF e) :
                   simp only [StateT.run, StateT.bind, StateT.pure, Bind.bind, Pure.pure,
                     Except.bind, Except.pure, ConLeche.Cached.mkAppNM, hfind,
                     if_pos (hiff.mp hlen), hrun']
-                  rw [Option.map_some, he1abs, ConLeche.Cached.ExprC.getAppArgs_spec,
+                  rw [Option.map_some, he1abs, ConLeche.Expr.getAppArgsC_spec,
                     ← hargsabs]
                 · intro x hx
                   simp only [Option.some.injEq] at hx
@@ -207,8 +207,8 @@ theorem unfold_definition_i_refines {e : expr.Expr} (he : ExprWF e) :
     simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at hok
     obtain ⟨f, hf, hok⟩ := hok
     obtain ⟨hfabs, hfwf'⟩ := ExprOps.get_app_fn_refines he hf
-    have hkey : ConLeche.Cached.ExprC.getAppFn (absExpr e) = absExprKind f._0.kind := by
-      rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hfabs, CoreK.absExpr_kind]
+    have hkey : ConLeche.Expr.getAppFn (absExpr e) = absExprKind f._0.kind := by
+      rw [ConLeche.Expr.getAppFn_spec, ← hfabs, CoreK.absExpr_kind]
     simp only [ConLeche.Cached.unfoldDefinitionI, hkey]
     cases hk : f._0.kind
     all_goals rw [hk] at hok
@@ -326,7 +326,7 @@ private theorem notImplemented_arm {γ : Type} {v : alloc.vec.Vec Std.U32}
 
 
 /-- `Cached/StateC.lean:99-103` — `rawNatLitC?` *is* `rawNatLit?`
-(`ExprC = Expr`), which is the form `Refine/CoreKLits.lean` states. -/
+(`Expr = Expr`), which is the form `Refine/CoreKLits.lean` states. -/
 private theorem rawNatLitC_eq (e : ConLeche.Expr) :
     ConLeche.Cached.rawNatLitC? e = ConLeche.rawNatLit? e := by
   cases e with

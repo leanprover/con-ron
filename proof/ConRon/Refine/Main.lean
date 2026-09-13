@@ -48,7 +48,7 @@ where `hds` falls out of the parser's own refinement (DESIGN.md, task #81).
 | `hind : IndRoutesSpec .Verified` | the two inductive install routes refine theirs on an accept | `IndC.ind_routes_spec'` from the knot (task #57's `IndRoutesSpecP`, task #59's `ind_routes_spec_of_p`) — **discharged below** |
 | `hinde : IndRoutesSpecErr .Verified` | …and throw at the same kind on a mirrored reject, down the same branch of `nativeParts?` | `IndC.ind_routes_spec_err'` from the knot (task #67 continued) — **discharged below** |
 | `hvar : CheckerPins.PinsWF pins` | every node of every pin is what the port's own smart constructor built | `PinsWF.decode_embedded_wf` (task #66), for the embedded pins — **discharged below**.  The `pins`-parametric theorems keep it: it is a promise about an argument, and no statement about the pins' *value* implies it — two pin lists can abstract to the same `List NatOpPinSet` with one carrying a stored hash word that makes `expr::beq` inexact |
-| `hds : ∀ d ∈ ds.val, DeclCWF d` | every parsed term is well formed | the parser: `DeclCWF` is the task-#5 inductive invariant whose constructors *are* the port's smart constructors, so a `DeclC` built by `crates/con-ron/src/frontend` satisfies it by construction.  Task #73 discharged it with a runtime validation pass and **task #81 withdrew that pass** (it cost 10 GB at Mathlib scale); the ported parser will discharge it for good |
+| `hds : ∀ d ∈ ds.val, DeclarationWF d` | every parsed term is well formed | the parser: `DeclarationWF` is the task-#5 inductive invariant whose constructors *are* the port's smart constructors, so a `DeclC` built by `crates/con-ron/src/frontend` satisfies it by construction.  Task #73 discharged it with a runtime validation pass and **task #81 withdrew that pass** (it cost 10 GB at Mathlib scale); the ported parser will discharge it for good |
 
 `hpins : absPins pins = ConLeche.natOpPinSets` was a sixth until **task #74**.
 It said that the pin list the port threads is the global the pinned con-leche
@@ -91,7 +91,7 @@ open ConRon.Refine ConRon.Refine.State ConRon.Refine.FEnv
 
 namespace ConRon.Refine
 
-open ConRon.Refine.CheckerDecl (absDeclC DeclCWF)
+open ConRon.Refine.CheckerDecl (absDeclaration DeclarationWF)
 open ConRon.Refine.Installed (leanCheckDecls check_decls_refines)
 
 universe w
@@ -107,17 +107,17 @@ theorem check_decls_verified_refines
     (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    {ds : alloc.vec.Vec parsed_c.DeclC}
+    {ds : alloc.vec.Vec env.Declaration}
     {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok out) :
     match out with
     | .Ok e =>
-      ConLeche.Cached.checkDecls .verified (ds.val.map absDeclC) (absPins pins)
+      ConLeche.Cached.checkDecls .verified (ds.val.map absDeclaration) (absPins pins)
         = .ok (absEnv e)
     | .Err er =>
       Installed.ErrSimPos er
-        (ConLeche.Cached.checkDecls .verified (ds.val.map absDeclC)
+        (ConLeche.Cached.checkDecls .verified (ds.val.map absDeclaration)
           (absPins pins)) := by
   have hr := check_decls_refines hk hind hinde hvar hds h
   rw [leanCheckDecls] at hr
@@ -132,10 +132,10 @@ theorem check_decls_verified_refines_ok
     (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-    ConLeche.Cached.checkDecls .verified (ds.val.map absDeclC) (absPins pins)
+    ConLeche.Cached.checkDecls .verified (ds.val.map absDeclaration) (absPins pins)
       = .ok (absEnv e) :=
   check_decls_verified_refines hk hind hinde hvar hds h
 
@@ -147,11 +147,11 @@ theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
     (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e)) :=
-  ConLeche.model_exists_with V (absPins pins) (ds.val.map absDeclC) (absEnv e)
+  ConLeche.model_exists_with V (absPins pins) (ds.val.map absDeclaration) (absEnv e)
     (check_decls_verified_refines_ok hk hind hinde hvar hds h)
 
 /-- **The main corollary for the Rust checker** (DESIGN.md §1): an accepted
@@ -162,12 +162,12 @@ theorem conron.no_proof_of_False (V : Type w) [ConLeche.SetTheory V]
     (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ¬ ∃ c ∈ (absEnv e).consts,
         c.toConstantVal.type = .const ConLeche.falseName [] :=
-  ConLeche.no_proof_of_False_with V (absPins pins) (ds.val.map absDeclC)
+  ConLeche.no_proof_of_False_with V (absPins pins) (ds.val.map absDeclaration)
     (absEnv e)
     (check_decls_verified_refines_ok hk hind hinde hvar hds h)
 
@@ -187,8 +187,8 @@ check's verdict, retiring both halves of the `orElse` deviation (DESIGN.md
 theorem conron.model_exists' (V : Type w) [ConLeche.SetTheory V]
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e)) :=
   conron.model_exists V (Core.knot_spec IndAbs.checkFuelU)
@@ -199,8 +199,8 @@ theorem conron.model_exists' (V : Type w) [ConLeche.SetTheory V]
 theorem conron.no_proof_of_False' (V : Type w) [ConLeche.SetTheory V]
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hvar : CheckerPins.PinsWF pins)
-    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ¬ ∃ c ∈ (absEnv e).consts,
         c.toConstantVal.type = .const ConLeche.falseName [] :=
@@ -249,8 +249,8 @@ the unverified crate and not in this tower: that the driver
 theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
     {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e)) :=
   conron.model_exists' V (PinsWF.decode_wf hp) hds h
@@ -264,8 +264,8 @@ standard axioms. -/
 theorem conron.no_proof_of_False_decoded (V : Type w) [ConLeche.SetTheory V]
     {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ¬ ∃ c ∈ (absEnv e).consts,
         c.toConstantVal.type = .const ConLeche.falseName [] :=
@@ -336,8 +336,8 @@ decoder input. -/
 theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
-    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e)) :=
   conron.model_exists' V (PinsWF.decode_embedded_wf hp) hds h
@@ -352,8 +352,8 @@ headline is the decoded corollary. -/
 theorem conron.no_proof_of_False_embedded (V : Type w) [ConLeche.SetTheory V]
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
-    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
+    {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ¬ ∃ c ∈ (absEnv e).consts,
         c.toConstantVal.type = .const ConLeche.falseName [] :=

@@ -75,7 +75,7 @@ open ConLeche ConLeche.Cached
 /-- `ConLeche/Cached/CoreC.lean:589-596` and `:655-662` — the K arm's last two
 certificates, shared with the `And` arm: the port's `k_type_and_irrel_i`. -/
 def kTypeAndIrrelTail (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (tmaj fab major : ExprC) : CheckCM ExprC := do
+    (tmaj fab major : Expr) : CheckCM Expr := do
   let tfab ← r.inferIO depth fab
   if ← r.defeq depth tmaj tfab then
     if ← certAtI mode (proofIrrelI r fe depth fab major) then
@@ -86,7 +86,7 @@ def kTypeAndIrrelTail (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat
 /-- `ConLeche/Cached/CoreC.lean:628-635` — the η arm's certificate and its
 0-field proof-irrelevance rescue: the port's `eta_rescue_certs_i`. -/
 def etaRescueCertsTail (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (fab major tmaj : ExprC) (caps : IndCaps) : CheckCM ExprC := do
+    (fab major tmaj : Expr) (caps : IndCaps) : CheckCM Expr := do
   if ← structEtaCertWithI mode r fe depth fab major tmaj then
     pure fab
   else if caps.etaFields = 0 then
@@ -96,20 +96,20 @@ def etaRescueCertsTail (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Na
 /-- `ConLeche/Cached/CoreC.lean:556-598` — **the `rl.k` clause** of
 `majorToCtorI`: the port's `major_to_ctor_k_i`. -/
 def majorToCtorKClause (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (rl : RecRule) (cvj : ConstantVal) (cnP : Nat) (T : Name) (major : ExprC) :
-    CheckCM ExprC := do
+    (rl : RecRule) (cvj : ConstantVal) (cnP : Nat) (T : Name) (major : Expr) :
+    CheckCM Expr := do
   let tmaj₀ ← r.inferIO depth major
   let tmaj ← r.whnf depth tmaj₀
-  match ExprC.getAppFn tmaj with
+  match Expr.getAppFn tmaj with
   | .const T' ust =>
     if (← pure (T' == T)) ∧ cvj.levelParams.length = ust.length then do
-      let margs ← pure (ExprC.getAppArgs tmaj)
+      let margs ← pure (Expr.getAppArgsC tmaj)
       if cnP ≤ margs.length then do
         let ctorI ← pure rl.ctor
         let h ← pure (Expr.const ctorI ust)
         let fab ← mkAppNM h (margs.take cnP)
-        if ← pure (ExprC.wscopedB depth fab && ExprC.looseBVarsBounded 0 fab &&
-            ExprC.leafGuard fab major) then do
+        if ← pure (Expr.wscopedBC depth fab && Expr.looseBVarsBounded 0 fab &&
+            Expr.leafGuard fab major) then do
           let tyCtor ← constTyAtM fe ctorI rl.ctor ust
           if ← certAtI mode (iotaCertsI r fe depth false tyCtor (margs.take cnP)) then
             kTypeAndIrrelTail mode r fe depth tmaj fab major
@@ -122,13 +122,13 @@ def majorToCtorKClause (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Na
 /-- `ConLeche/Cached/CoreC.lean:599-637` — **the `rl.eta` clause** of
 `majorToCtorI`: the port's `major_to_ctor_eta_i`. -/
 def majorToCtorEtaClause (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (rl : RecRule) (cvT : ConstantVal) (caps : IndCaps) (T : Name) (major : ExprC) :
-    CheckCM ExprC := do
+    (rl : RecRule) (cvT : ConstantVal) (caps : IndCaps) (T : Name) (major : Expr) :
+    CheckCM Expr := do
   let tmaj₀ ← r.inferIO depth major
   let tmaj ← r.whnf depth tmaj₀
-  match ExprC.getAppFn tmaj with
+  match Expr.getAppFn tmaj with
   | .const T' ust => do
-    let margs ← pure (ExprC.getAppArgs tmaj)
+    let margs ← pure (Expr.getAppArgsC tmaj)
     let ustL ← pure ust
     if (← pure (T' == T)) ∧ margs.length = caps.etaParams ∧
         ust.length = cvT.levelParams.length ∧
@@ -138,8 +138,8 @@ def majorToCtorEtaClause (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : 
       let ctorI ← pure caps.etaCtor
       let h ← pure (Expr.const ctorI ust)
       let fab ← mkAppNM h (margs ++ projs)
-      if ← pure (ExprC.wscopedB depth fab && ExprC.looseBVarsBounded 0 fab &&
-          ExprC.leafGuard fab major) then do
+      if ← pure (Expr.wscopedBC depth fab && Expr.looseBVarsBounded 0 fab &&
+          Expr.leafGuard fab major) then do
         let tyCtor ← constTyAtM fe ctorI rl.ctor ust
         if ← certAtI mode (iotaCertsI r fe depth false tyCtor (margs ++ projs)) then
           etaRescueCertsTail mode r fe depth fab major tmaj caps
@@ -151,13 +151,13 @@ def majorToCtorEtaClause (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : 
 /-- `ConLeche/Cached/CoreC.lean:638-666` — **the `And` clause** of
 `majorToCtorI`: the port's `major_to_ctor_and_i`. -/
 def majorToCtorAndClause (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (rl : RecRule) (cvj : ConstantVal) (cnP : Nat) (T : Name) (major : ExprC) :
-    CheckCM ExprC := do
+    (rl : RecRule) (cvj : ConstantVal) (cnP : Nat) (T : Name) (major : Expr) :
+    CheckCM Expr := do
   let tmaj₀ ← r.inferIO depth major
   let tmaj ← r.whnf depth tmaj₀
-  match ExprC.getAppFn tmaj with
+  match Expr.getAppFn tmaj with
   | .const T' ust => do
-    let margs ← pure (ExprC.getAppArgs tmaj)
+    let margs ← pure (Expr.getAppArgsC tmaj)
     if (← pure (T' == T)) ∧ margs.length = cnP ∧
         cvj.levelParams.length = ust.length ∧
         fe.andRescueSlotsF rl.ctor cnP ust = true then do
@@ -166,8 +166,8 @@ def majorToCtorAndClause (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : 
       let ctorI ← pure rl.ctor
       let h ← pure (Expr.const ctorI ust)
       let fab ← mkAppNM h (margs ++ projs)
-      if ← pure (ExprC.wscopedB depth fab && ExprC.looseBVarsBounded 0 fab &&
-          ExprC.leafGuard fab major) then do
+      if ← pure (Expr.wscopedBC depth fab && Expr.looseBVarsBounded 0 fab &&
+          Expr.leafGuard fab major) then do
         let tyCtor ← constTyAtM fe ctorI rl.ctor ust
         if ← certAtI mode (iotaCertsI r fe depth false tyCtor (margs ++ projs)) then
           kTypeAndIrrelTail mode r fe depth tmaj fab major
@@ -190,7 +190,7 @@ variable (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat) (recName : 
 
 /-- The `rl.k` clause. -/
 theorem majorToCtorI_eq_k {rules : List RecRule} {rl : RecRule} {cvj cvT : ConstantVal}
-    {cnP cnF : Nat} {T : Name} {us : List Level} {caps : IndCaps} {major : ExprC}
+    {cnP cnF : Nat} {T : Name} {us : List Level} {caps : IndCaps} {major : Expr}
     (hctor : isCtorAppC fe major = false) (hrules : rules = [rl])
     (hfind : fe.find? rl.ctor = some (.ctorInfo cvj cnP cnF))
     (hhead : (cvj.type.piResult).getAppFn = .const T us)
@@ -204,7 +204,7 @@ theorem majorToCtorI_eq_k {rules : List RecRule} {rl : RecRule} {cvj cvT : Const
 
 /-- The `rl.eta` clause. -/
 theorem majorToCtorI_eq_eta {rules : List RecRule} {rl : RecRule} {cvj cvT : ConstantVal}
-    {cnP cnF : Nat} {T : Name} {us : List Level} {caps : IndCaps} {major : ExprC}
+    {cnP cnF : Nat} {T : Name} {us : List Level} {caps : IndCaps} {major : Expr}
     (hctor : isCtorAppC fe major = false) (hrules : rules = [rl])
     (hfind : fe.find? rl.ctor = some (.ctorInfo cvj cnP cnF))
     (hhead : (cvj.type.piResult).getAppFn = .const T us)
@@ -219,7 +219,7 @@ theorem majorToCtorI_eq_eta {rules : List RecRule} {rl : RecRule} {cvj cvT : Con
 
 /-- The `And` clause. -/
 theorem majorToCtorI_eq_and {rules : List RecRule} {rl : RecRule} {cvj cvT : ConstantVal}
-    {cnP cnF : Nat} {T : Name} {us : List Level} {caps : IndCaps} {major : ExprC}
+    {cnP cnF : Nat} {T : Name} {us : List Level} {caps : IndCaps} {major : Expr}
     (hctor : isCtorAppC fe major = false) (hrules : rules = [rl])
     (hfind : fe.find? rl.ctor = some (.ctorInfo cvj cnP cnF))
     (hhead : (cvj.type.piResult).getAppFn = .const T us)
@@ -234,12 +234,12 @@ theorem majorToCtorI_eq_and {rules : List RecRule} {rl : RecRule} {cvj cvT : Con
 
 /-! ### The five ways the dispatch stays stuck -/
 
-theorem majorToCtorI_stuck_ctorApp {rules : List RecRule} {major : ExprC}
+theorem majorToCtorI_stuck_ctorApp {rules : List RecRule} {major : Expr}
     (hctor : isCtorAppC fe major = true) :
     majorToCtorI mode r fe depth recName rules major = pure major := by
   rw [majorToCtorI.eq_def]; simp only [hctor, pure_bind, if_true]
 
-theorem majorToCtorI_stuck_rules {rules : List RecRule} {major : ExprC}
+theorem majorToCtorI_stuck_rules {rules : List RecRule} {major : Expr}
     (hctor : isCtorAppC fe major = false) (hrules : rules.length ≠ 1) :
     majorToCtorI mode r fe depth recName rules major = pure major := by
   rw [majorToCtorI.eq_def]
@@ -249,7 +249,7 @@ theorem majorToCtorI_stuck_rules {rules : List RecRule} {major : ExprC}
   | [_], h => simp at h
   | _ :: _ :: _, _ => rfl
 
-theorem majorToCtorI_stuck_ctor {rl : RecRule} {major : ExprC}
+theorem majorToCtorI_stuck_ctor {rl : RecRule} {major : Expr}
     (hctor : isCtorAppC fe major = false)
     (hfind : ∀ cv nP nF, fe.find? rl.ctor ≠ some (.ctorInfo cv nP nF)) :
     majorToCtorI mode r fe depth recName [rl] major = pure major := by
@@ -262,7 +262,7 @@ theorem majorToCtorI_stuck_ctor {rl : RecRule} {major : ExprC}
   | some (.indInfo _ _) | some (.recInfo _ _ _ _) | some (.projInfo _) => rfl
 
 theorem majorToCtorI_stuck_head {rl : RecRule} {cvj : ConstantVal} {cnP cnF : Nat}
-    {major : ExprC} (hctor : isCtorAppC fe major = false)
+    {major : Expr} (hctor : isCtorAppC fe major = false)
     (hfind : fe.find? rl.ctor = some (.ctorInfo cvj cnP cnF))
     (hhead : ∀ T us, (cvj.type.piResult).getAppFn ≠ .const T us) :
     majorToCtorI mode r fe depth recName [rl] major = pure major := by
@@ -274,7 +274,7 @@ theorem majorToCtorI_stuck_head {rl : RecRule} {cvj : ConstantVal} {cnP cnF : Na
   | .letE _ _ _ | .lit _ | .proj _ _ _ => rfl
 
 theorem majorToCtorI_stuck_ind {rl : RecRule} {cvj : ConstantVal} {cnP cnF : Nat}
-    {T : Name} {us : List Level} {major : ExprC} (hctor : isCtorAppC fe major = false)
+    {T : Name} {us : List Level} {major : Expr} (hctor : isCtorAppC fe major = false)
     (hfind : fe.find? rl.ctor = some (.ctorInfo cvj cnP cnF))
     (hhead : (cvj.type.piResult).getAppFn = .const T us)
     (hind : ∀ cv caps, fe.find? T ≠ some (.indInfo cv caps)) :
@@ -288,7 +288,7 @@ theorem majorToCtorI_stuck_ind {rl : RecRule} {cvj : ConstantVal} {cnP cnF : Nat
   | some (.ctorInfo _ _ _) | some (.recInfo _ _ _ _) | some (.projInfo _) => rfl
 
 theorem majorToCtorI_stuck_bits {rl : RecRule} {cvj cvT : ConstantVal} {cnP cnF : Nat}
-    {T : Name} {us : List Level} {caps : IndCaps} {major : ExprC}
+    {T : Name} {us : List Level} {caps : IndCaps} {major : Expr}
     (hctor : isCtorAppC fe major = false)
     (hfind : fe.find? rl.ctor = some (.ctorInfo cvj cnP cnF))
     (hhead : (cvj.type.piResult).getAppFn = .const T us)
@@ -351,9 +351,9 @@ structure MajorDeps (mode : env.CheckMode) (fuel : Std.U64) : Prop where
   guard the three rescues run on their fabrication. -/
   fabScopeOk : ∀ {fab major : expr.Expr} {d : Std.U64} {c : Bool}, ExprWF fab →
     ExprWF major → cached.core_c.fab_scope_ok_i fab major d = ok c →
-    c = (ConLeche.Cached.ExprC.wscopedB d.val (absExpr fab) &&
-      ConLeche.Cached.ExprC.looseBVarsBounded 0 (absExpr fab) &&
-      ConLeche.Cached.ExprC.leafGuard (absExpr fab) (absExpr major))
+    c = (ConLeche.Expr.wscopedBC d.val (absExpr fab) &&
+      ConLeche.Expr.looseBVarsBounded 0 (absExpr fab) &&
+      ConLeche.Expr.leafGuard (absExpr fab) (absExpr major))
   /-- `infer_io_whnf_i` (`core_c.rs:1455`) refines
   `r.whnf depth (← r.inferIO depth e)`. -/
   inferIOWhnf : ∀ (d : Std.U64) {e : expr.Expr}, ExprWF e →
@@ -415,7 +415,7 @@ variable {mode : env.CheckMode} {fuel : Std.U64}
 
 /-- `litToCtorIfNatI` *is* task #49's `litToCtorIfNatBody` under a `pure`:
 `ConLeche/Cached/CoreC.lean:84-90` against `Refine/CoreKLits.lean:342`. -/
-theorem litToCtorIfNatI_eq (lfe : ConLeche.FEnv) (e : ConLeche.Cached.ExprC) :
+theorem litToCtorIfNatI_eq (lfe : ConLeche.FEnv) (e : ConLeche.Expr) :
     ConLeche.Cached.litToCtorIfNatI lfe e
       = pure (litToCtorIfNatBody (ConLeche.natLitSupportedF lfe) e) := by
   match e with
@@ -839,13 +839,13 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
     cases kh with
     | Const t2 ust =>
       obtain ⟨ht2, hust⟩ := CoreK.wf_const_inv hhwf rfl
-      have hhead : ConLeche.Cached.ExprC.getAppFn (absExpr tmaj)
+      have hhead : ConLeche.Expr.getAppFn (absExpr tmaj)
           = ConLeche.Expr.const (absName t2) (absLevels ust) := by
-        rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hhabs]; simp [absExprKind]
+        rw [ConLeche.Expr.getAppFn_spec, ← hhabs]; simp [absExprKind]
       obtain ⟨targs, hta, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨htaabs, htawf⟩ := ExprOps.get_app_args_refines htmaj hta
-      have hargs : ConLeche.Cached.ExprC.getAppArgs (absExpr tmaj) = absExprs targs := by
-        rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← htaabs]
+      have hargs : ConLeche.Expr.getAppArgsC (absExpr tmaj) = absExprs targs := by
+        rw [ConLeche.Expr.getAppArgsC_spec, ← htaabs]
       obtain ⟨bq, hbq, hok⟩ := bind_eq_ok_iff.mp hok
       have hbqv := Name.beq_refines ht2 ht hbq
       try simp only [arc_deref_eq, bind_tc_ok] at hok
@@ -944,7 +944,7 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
             rw [StateC.mk_app_n_m_eq] at hfb
             obtain ⟨hfabs, hfabwf⟩ := ExprOpsC.mk_app_n_refines hhwf2 hpwf hfb
             rw [hhabs2, hpabs] at hfabs
-            have hfabL : ConLeche.Cached.ExprC.mkAppN
+            have hfabL : ConLeche.Expr.mkAppN
                 (ConLeche.Expr.const (absRecRule rl).ctor (absLevels v1))
                 (List.take cn_p.val (absExprs targs)) = absExpr fab := hfabs.symm
             obtain ⟨b1, hb1, hok⟩ := bind_eq_ok_iff.mp hok
@@ -1116,7 +1116,7 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
         simp only [majorToCtorKClause]
-        rw [run_bind2 hrun1, ConLeche.Cached.ExprC.getAppFn_spec, ← hhabs]
+        rw [run_bind2 hrun1, ConLeche.Expr.getAppFn_spec, ← hhabs]
         simp [absExprKind])
 
 /-- `ConLeche/Cached/CoreC.lean:638-666` — **`major_to_ctor_and_i` refines the
@@ -1153,13 +1153,13 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
     cases kh with
     | Const t2 ust =>
       obtain ⟨ht2, hust⟩ := CoreK.wf_const_inv hhwf rfl
-      have hhead : ConLeche.Cached.ExprC.getAppFn (absExpr tmaj)
+      have hhead : ConLeche.Expr.getAppFn (absExpr tmaj)
           = ConLeche.Expr.const (absName t2) (absLevels ust) := by
-        rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hhabs]; simp [absExprKind]
+        rw [ConLeche.Expr.getAppFn_spec, ← hhabs]; simp [absExprKind]
       obtain ⟨targs, hta, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨htaabs, htawf⟩ := ExprOps.get_app_args_refines htmaj hta
-      have hargs : ConLeche.Cached.ExprC.getAppArgs (absExpr tmaj) = absExprs targs := by
-        rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← htaabs]
+      have hargs : ConLeche.Expr.getAppArgsC (absExpr tmaj) = absExprs targs := by
+        rw [ConLeche.Expr.getAppArgsC_spec, ← htaabs]
       obtain ⟨bq, hbq, hok⟩ := bind_eq_ok_iff.mp hok
       have hbqv := Name.beq_refines ht2 ht hbq
       try simp only [arc_deref_eq, bind_tc_ok] at hok
@@ -1294,7 +1294,7 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
               rw [StateC.mk_app_n_m_eq] at hfb
               obtain ⟨hfabs, hfabwf⟩ := ExprOpsC.mk_app_n_refines hhwf2 hspwf hfb
               rw [hhabs2, hspabs] at hfabs
-              have hfabL : ConLeche.Cached.ExprC.mkAppN
+              have hfabL : ConLeche.Expr.mkAppN
                   (ConLeche.Expr.const (absRecRule rl).ctor (absLevels v1))
                   (absExprs targs ++ absExprs projs) = absExpr fab := hfabs.symm
               obtain ⟨b1, hb1, hok⟩ := bind_eq_ok_iff.mp hok
@@ -1471,7 +1471,7 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
         simp only [majorToCtorAndClause]
-        rw [run_bind2 hrun1, ConLeche.Cached.ExprC.getAppFn_spec, ← hhabs]
+        rw [run_bind2 hrun1, ConLeche.Expr.getAppFn_spec, ← hhabs]
         simp [absExprKind])
 
 /-- `ConLeche/Cached/CoreC.lean:599-637` — **`major_to_ctor_eta_i` refines the
@@ -1509,13 +1509,13 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
     cases kh with
     | Const t2 ust =>
       obtain ⟨ht2, hust⟩ := CoreK.wf_const_inv hhwf rfl
-      have hhead : ConLeche.Cached.ExprC.getAppFn (absExpr tmaj)
+      have hhead : ConLeche.Expr.getAppFn (absExpr tmaj)
           = ConLeche.Expr.const (absName t2) (absLevels ust) := by
-        rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hhabs]; simp [absExprKind]
+        rw [ConLeche.Expr.getAppFn_spec, ← hhabs]; simp [absExprKind]
       obtain ⟨targs, hta, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨htaabs, htawf⟩ := ExprOps.get_app_args_refines htmaj hta
-      have hargs : ConLeche.Cached.ExprC.getAppArgs (absExpr tmaj) = absExprs targs := by
-        rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← htaabs]
+      have hargs : ConLeche.Expr.getAppArgsC (absExpr tmaj) = absExprs targs := by
+        rw [ConLeche.Expr.getAppArgsC_spec, ← htaabs]
       obtain ⟨bq, hbq, hok⟩ := bind_eq_ok_iff.mp hok
       have hbqv := Name.beq_refines ht2 ht hbq
       try simp only [arc_deref_eq, bind_tc_ok] at hok
@@ -1650,7 +1650,7 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
               rw [StateC.mk_app_n_m_eq] at hfb
               obtain ⟨hfabs, hfabwf⟩ := ExprOpsC.mk_app_n_refines hhwf2 hspwf hfb
               rw [hhabs2, hspabs] at hfabs
-              have hfabL : ConLeche.Cached.ExprC.mkAppN
+              have hfabL : ConLeche.Expr.mkAppN
                   (ConLeche.Expr.const (absIndCaps caps).etaCtor (absLevels v2))
                   (absExprs targs ++ absExprs projs) = absExpr fab := hfabs.symm
               obtain ⟨b2, hb2, hok⟩ := bind_eq_ok_iff.mp hok
@@ -1819,7 +1819,7 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst1, ?_, hrel1, hwf1, hmajor⟩
         simp only [majorToCtorEtaClause]
-        rw [run_bind2 hrun1, ConLeche.Cached.ExprC.getAppFn_spec, ← hhabs]
+        rw [run_bind2 hrun1, ConLeche.Expr.getAppFn_spec, ← hhabs]
         simp [absExprKind])
 
 set_option maxRecDepth 8000 in
@@ -1843,7 +1843,7 @@ theorem major_to_ctor_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode f
   unfold cached.core_c.major_to_ctor_i at hok
   obtain ⟨bc, hbc, hok⟩ := bind_eq_ok_iff.mp hok
   have hbcv : bc = ConLeche.Cached.isCtorAppC lfe (absExpr major) := by
-    rw [ConLeche.Cached.isCtorAppC, ConLeche.Cached.ExprC.getAppFn_spec]
+    rw [ConLeche.Cached.isCtorAppC, ConLeche.Expr.getAppFn_spec]
     exact CoreK.is_ctor_app_refines hfa hmajor hbc
   cases bc with
   | true =>

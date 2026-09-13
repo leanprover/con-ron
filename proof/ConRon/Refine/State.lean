@@ -88,7 +88,7 @@ and `name_dup_eq` have in `Refine/Abs.lean` (the probes answer a copy). -/
 /-! ## The abstractions and their well-formedness predicates -/
 
 /-- `ConLeche/Cached/StateC.lean:122-126` — one `ienv` entry: the stored
-constant's tagged type and optional tagged value (`ExprC` is `Expr`). -/
+constant's tagged type and optional tagged value (`Expr` is `Expr`). -/
 def absCConstE (c : cached.state_c.CConstE) : ConLeche.Cached.CConstE :=
   { tyE := absExpr c.ty_e, ty := absExpr c.ty,
     val := c.val.map fun p => (absExpr p.1, absExpr p.2) }
@@ -103,7 +103,7 @@ def absNameNameLevels
     ConLeche.Name × ConLeche.Name × List ConLeche.Level :=
   (absName k.1, absName k.2.1, absLevels k.2.2)
 
-/-- The `defeqC` key `(ExprC × ExprC)`. -/
+/-- The `defeqC` key `(Expr × Expr)`. -/
 def absExprPair (k : expr.Expr × expr.Expr) : ConLeche.Expr × ConLeche.Expr :=
   (absExpr k.1, absExpr k.2)
 
@@ -111,7 +111,7 @@ def absExprPair (k : expr.Expr × expr.Expr) : ConLeche.Expr × ConLeche.Expr :=
 def absLevelPair (k : level.Level × level.Level) :
     ConLeche.Level × ConLeche.Level := (absLevel k.1, absLevel k.2)
 
-/-- The `instC` key `(ExprC, List ExprC, Nat)`; the cursor is a `u64` in the
+/-- The `instC` key `(Expr, List Expr, Nat)`; the cursor is a `u64` in the
 port and a `Nat` in con-leche (DESIGN.md §3.3). -/
 def absInstKey (k : expr.Expr × alloc.vec.Vec expr.Expr × Std.U64) :
     ConLeche.Expr × List ConLeche.Expr × Nat :=
@@ -171,7 +171,7 @@ theorem absExprs_inj {xs ys : alloc.vec.Vec expr.Expr} (hx : ExprsWF xs)
 
 /-! ## `state_c::exprs_beq`
 
-The `instC` key's `List ExprC` equality.  A different Rust function from
+The `instC` key's `List Expr` equality.  A different Rust function from
 `expr::exprs_beq` with the same body, so this is `Refine/Env.lean`'s proof at
 the `!=` length test `state_c`'s entry point uses. -/
 

@@ -555,26 +555,26 @@ inductive kernel.env.BasisKind where
     Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 92:0-99:1
     Visibility: public -/
 @[discriminant isize]
-inductive cached.parsed_c.DeclC where
-| AxiomDecl : kernel.env.ConstantVal → cached.parsed_c.DeclC
+inductive cached.env.Declaration where
+| AxiomDecl : kernel.env.ConstantVal → cached.env.Declaration
 | DefnDecl :
   kernel.env.ConstantVal →
   kernel.expr.Expr →
   kernel.env.ReducibilityHint →
-  cached.parsed_c.DeclC
+  cached.env.Declaration
 | ThmDecl :
   kernel.env.ConstantVal →
   kernel.expr.Expr →
-  cached.parsed_c.DeclC
+  cached.env.Declaration
 | OpaqueDecl :
   kernel.env.ConstantVal →
   kernel.expr.Expr →
-  cached.parsed_c.DeclC
-| BasisDecl : kernel.env.BasisKind → cached.parsed_c.DeclC
+  cached.env.Declaration
+| BasisDecl : kernel.env.BasisKind → cached.env.Declaration
 | IndDecl :
   alloc.vec.Vec kernel.env.ConstantInfo →
   Std.U64 →
-  cached.parsed_c.DeclC
+  cached.env.Declaration
 
 /-- [con_ron_core::kernel::inductives::sum_parts::InductiveShape]
     Source: 'crates/con-ron-core/src/kernel/inductives/sum_parts.rs', lines 28:0-39:1

@@ -46972,23 +46972,23 @@ def cached.parsed_c.check_decl_c
   (mode : kernel.env.CheckMode)
   (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
   (st : cached.state_c.CState) (fe : kernel.fenv.FEnv)
-  (pd : cached.parsed_c.DeclC) :
+  (pd : cached.env.Declaration) :
   Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
   match pd with
-  | cached.parsed_c.DeclC.AxiomDecl cv =>
+  | cached.env.Declaration.AxiomDecl cv =>
     cached.parsed_c.check_axiom_decl_c mode st fe cv
-  | cached.parsed_c.DeclC.DefnDecl cv value hint =>
+  | cached.env.Declaration.DefnDecl cv value hint =>
     cached.parsed_c.check_defn_decl_c mode pins st fe cv value hint
-  | cached.parsed_c.DeclC.ThmDecl cv value =>
+  | cached.env.Declaration.ThmDecl cv value =>
     cached.parsed_c.check_thm_decl_c mode st fe cv value
-  | cached.parsed_c.DeclC.OpaqueDecl cv value =>
+  | cached.env.Declaration.OpaqueDecl cv value =>
     cached.parsed_c.check_opaque_decl_c mode st fe cv value
-  | cached.parsed_c.DeclC.BasisDecl kind =>
+  | cached.env.Declaration.BasisDecl kind =>
     let r ← cached.parsed_c.check_basis_decl_c fe kind
     ok (r, st)
-  | cached.parsed_c.DeclC.IndDecl block n_p =>
+  | cached.env.Declaration.IndDecl block n_p =>
     cached.parsed_c.check_ind_decl_c mode st fe block n_p
 
 /-- [con_ron_core::cached::parsed_c::check_decl_step_c]:
@@ -46998,7 +46998,7 @@ def cached.parsed_c.check_decl_step_c
   (mode : kernel.env.CheckMode)
   (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
   (st : cached.state_c.CState) (fe : kernel.fenv.FEnv)
-  (pd : cached.parsed_c.DeclC) :
+  (pd : cached.env.Declaration) :
   Result ((core.result.Result kernel.fenv.FEnv kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
@@ -47013,7 +47013,7 @@ def cached.installed.annot_step_other_c
   (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
   (st : cached.state_c.CState) (fe : kernel.fenv.FEnv)
   (pend : alloc.vec.Vec cached.parsed_c.PendingCheck)
-  (pd : cached.parsed_c.DeclC) :
+  (pd : cached.env.Declaration) :
   Result ((core.result.Result (kernel.fenv.FEnv × (alloc.vec.Vec
     cached.parsed_c.PendingCheck)) kernel.core_types.CheckError) ×
     cached.state_c.CState)
@@ -47051,7 +47051,7 @@ def cached.installed.annot_step_opaque_c
   (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
   (st : cached.state_c.CState) (i : Std.U64) (fe : kernel.fenv.FEnv)
   (pend : alloc.vec.Vec cached.parsed_c.PendingCheck)
-  (pd : cached.parsed_c.DeclC) (cv : kernel.env.ConstantVal)
+  (pd : cached.env.Declaration) (cv : kernel.env.ConstantVal)
   (value : kernel.expr.Expr) :
   Result ((core.result.Result (kernel.fenv.FEnv × (alloc.vec.Vec
     cached.parsed_c.PendingCheck)) kernel.core_types.CheckError) ×
@@ -47148,7 +47148,7 @@ def cached.installed.annot_step_defn_c
   (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
   (st : cached.state_c.CState) (i : Std.U64) (fe : kernel.fenv.FEnv)
   (pend : alloc.vec.Vec cached.parsed_c.PendingCheck)
-  (pd : cached.parsed_c.DeclC) (cv : kernel.env.ConstantVal)
+  (pd : cached.env.Declaration) (cv : kernel.env.ConstantVal)
   (value : kernel.expr.Expr) (hint : kernel.env.ReducibilityHint) :
   Result ((core.result.Result (kernel.fenv.FEnv × (alloc.vec.Vec
     cached.parsed_c.PendingCheck)) kernel.core_types.CheckError) ×
@@ -47180,23 +47180,23 @@ def cached.installed.annot_step_c
   (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
   (st : cached.state_c.CState) (i : Std.U64) (fe : kernel.fenv.FEnv)
   (pend : alloc.vec.Vec cached.parsed_c.PendingCheck)
-  (pd : cached.parsed_c.DeclC) :
+  (pd : cached.env.Declaration) :
   Result ((core.result.Result (kernel.fenv.FEnv × (alloc.vec.Vec
     cached.parsed_c.PendingCheck)) kernel.core_types.CheckError) ×
     cached.state_c.CState)
   := do
   match pd with
-  | cached.parsed_c.DeclC.AxiomDecl _ =>
+  | cached.env.Declaration.AxiomDecl _ =>
     cached.installed.annot_step_other_c mode pins st fe pend pd
-  | cached.parsed_c.DeclC.DefnDecl cv value hint =>
+  | cached.env.Declaration.DefnDecl cv value hint =>
     cached.installed.annot_step_defn_c mode pins st i fe pend pd cv value hint
-  | cached.parsed_c.DeclC.ThmDecl cv value =>
+  | cached.env.Declaration.ThmDecl cv value =>
     cached.installed.annot_step_thm_c mode st i fe pend cv value
-  | cached.parsed_c.DeclC.OpaqueDecl cv value =>
+  | cached.env.Declaration.OpaqueDecl cv value =>
     cached.installed.annot_step_opaque_c mode pins st i fe pend pd cv value
-  | cached.parsed_c.DeclC.BasisDecl _ =>
+  | cached.env.Declaration.BasisDecl _ =>
     cached.installed.annot_step_other_c mode pins st fe pend pd
-  | cached.parsed_c.DeclC.IndDecl _ _ =>
+  | cached.env.Declaration.IndDecl _ _ =>
     cached.installed.annot_step_other_c mode pins st fe pend pd
 
 /-- [con_ron_core::cached::installed::annot_decl_step]:
@@ -47207,7 +47207,7 @@ def cached.installed.annot_decl_step
   (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
   (st : cached.state_c.CState)
   (p : (Std.U64 × kernel.fenv.FEnv × (alloc.vec.Vec
-  cached.parsed_c.PendingCheck))) (pd : cached.parsed_c.DeclC) :
+  cached.parsed_c.PendingCheck))) (pd : cached.env.Declaration) :
   Result ((core.result.Result (Std.U64 × kernel.fenv.FEnv × (alloc.vec.Vec
     cached.parsed_c.PendingCheck)) (kernel.core_types.CheckError × Std.U64))
     × cached.state_c.CState)
@@ -47453,7 +47453,7 @@ def cached.installed.annot_decl_fold_from
   (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
   (st : cached.state_c.CState)
   (p : (Std.U64 × kernel.fenv.FEnv × (alloc.vec.Vec
-  cached.parsed_c.PendingCheck))) (ds : alloc.vec.Vec cached.parsed_c.DeclC)
+  cached.parsed_c.PendingCheck))) (ds : alloc.vec.Vec cached.env.Declaration)
   (i : Std.Usize) :
   Result ((core.result.Result (Std.U64 × kernel.fenv.FEnv × (alloc.vec.Vec
     cached.parsed_c.PendingCheck)) (kernel.core_types.CheckError × Std.U64))
@@ -47465,7 +47465,7 @@ def cached.installed.annot_decl_fold_from
   else
     let dc ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cached.parsed_c.DeclC) ds i
+        cached.env.Declaration) ds i
     let (r, st1) ← cached.installed.annot_decl_step mode pins st p dc
     match r with
     | core.result.Result.Ok q =>
@@ -47494,7 +47494,7 @@ def cached.installed.check_decls_phase_b
 def cached.installed.check_decls
   (mode : kernel.env.CheckMode)
   (pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
-  (ds : alloc.vec.Vec cached.parsed_c.DeclC) :
+  (ds : alloc.vec.Vec cached.env.Declaration) :
   Result (core.result.Result kernel.env.Env (kernel.core_types.CheckError ×
     Std.U64))
   := do
