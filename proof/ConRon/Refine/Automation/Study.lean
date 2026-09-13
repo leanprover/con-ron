@@ -668,7 +668,12 @@ theorem reset_meta_go_tuned {e : expr.Expr} (he : ExprWF e) : ResetSpec e := by
   induction e, he using ExprWF.ind_node <;> reset_close_tuned
 end ExprOps70
 
-/-! ### Experiment 3, tuned: 0.84 s → 0.6 s (hand 0.16 s). -/
+/-! ### Experiment 3, tuned: 0.84 s → 0.6 s (hand 0.16 s).
+
+As in experiment 3 above, the two arms conclude `SimOk`, the accept half of
+task #67's full-outcome `Sim` (its failure half is the tower's business, done
+by hand in `Arms/Lits.lean`); `lits_use` reads the tower's `Sim` through
+`Sim.apply`. -/
 section Arm70
 open ConRon.Refine.State ConRon.Refine.FEnv ConRon.Refine.Core
 attribute [local grind =] run_bind_eq except_bind_ok except_bind_error run_pure_eq rawNatLitC_eq'
@@ -678,11 +683,11 @@ attribute [local grind →] Wrappers.whnf_use raw_nat_lit_use
 theorem reduce_nat_lits_i_tuned {mode : env.CheckMode} {fuel : Std.U64}
     (hw : Wrappers mode fuel) (d : Std.U64) {a b : expr.Expr}
     (ha : ExprWF a) (hb : ExprWF b) :
-    Sim (Option.map (fun p : ron.nat.Nat × ron.nat.Nat => (Nat.toNat p.1, Nat.toNat p.2)))
+    SimOk (Option.map (fun p : ron.nat.Nat × ron.nat.Nat => (Nat.toNat p.1, Nat.toNat p.2)))
       (fun o => ∀ p, o = some p → Nat.NatWF p.1 ∧ Nat.NatWF p.2)
       (fun st fe => cached.core_c.reduce_nat_lits_i mode fuel st fe d a b)
       (fun lfe => natLitsI (knot mode lfe fuel.val) d.val (absExpr a) (absExpr b)) := by
-  refine Sim.ofRun fun fe lfe hfwf hfrel st r st' hwf hok lst hrel => ?_
+  refine SimOk.ofRun fun fe lfe hfwf hfrel st r st' hwf hok lst hrel => ?_
   unfold cached.core_c.reduce_nat_lits_i at hok
   rust_norm hok
   all_goals simp only [natLitsI]
@@ -752,7 +757,7 @@ theorem lits_use {mode : env.CheckMode} {fuel : Std.U64} {st st1 : cached.state_
         = .ok (o.map (fun p => (Nat.toNat p.1, Nat.toNat p.2)), lst1)
       ∧ StateRel st1 lst1 ∧ StateWF st1 ∧ ∀ m n, o = some (m, n) → Nat.NatWF m ∧ Nat.NatWF n := by
   obtain ⟨lst1, h1, h2, h3, h4⟩ :=
-    reduce_nat_lits_i_refines hw d ha hb fe lfe hfwf hfrel st o st1 hwf h lst hrel
+    (reduce_nat_lits_i_refines hw d ha hb).apply hwf hfwf h hrel hfrel
   exact ⟨lst1, h1, h2, h3, fun m n hmn => h4 (m, n) hmn⟩
 
 attribute [local grind →] nat_op_some_use nat_op_none_use lits_use
@@ -762,10 +767,10 @@ attribute [local grind =] natBinI_eq Option.map.eq_def
 theorem reduce_nat_bin_i_tuned {mode : env.CheckMode} {fuel : Std.U64}
     (hw : Wrappers mode fuel) (d : Std.U64) {c : name.Name} {a b : expr.Expr}
     (hc : NameWF c) (ha : ExprWF a) (hb : ExprWF b) :
-    Sim (Option.map absExpr) (fun o => ∀ e', o = some e' → ExprWF e')
+    SimOk (Option.map absExpr) (fun o => ∀ e', o = some e' → ExprWF e')
       (fun st fe => cached.core_c.reduce_nat_bin_i mode fuel st fe d c a b)
       (fun lfe => natBinI (knot mode lfe fuel.val) d.val (absName c) (absExpr a) (absExpr b)) := by
-  refine Sim.ofRun fun fe lfe hfwf hfrel st r st' hwf hok lst hrel => ?_
+  refine SimOk.ofRun fun fe lfe hfwf hfrel st r st' hwf hok lst hrel => ?_
   unfold cached.core_c.reduce_nat_bin_i at hok
   rust_norm hok
   all_goals rust_grind
