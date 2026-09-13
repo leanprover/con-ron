@@ -1,6 +1,7 @@
 import ConRon.Refine.State
 import ConRon.Refine.FEnv
 import ConLeche.Cached.CheckerC
+import ConRon.Refine.IndAbs
 
 /-! # `IndRoutesSpec` — the seam between task #56 and task #57
 
@@ -80,5 +81,36 @@ structure IndRoutesSpec (mode : env.CheckMode) : Prop where
         ∧ (ConLeche.Cached.checkIndDeclSF (absMode mode) lfe
               (absConstantInfos block)).run lst = .ok (lfe', lst')
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
+
+/-- **The producer's form** (task #57): the two routes on already-recognised
+parts, without the recogniser clause.  `IndRoutesSpec` (the consumer's form,
+task #56) follows from it together with the recogniser's refinement
+(`native_parts_refines`) — task #59 proves that bridge. -/
+structure IndRoutesSpecP (mode : env.CheckMode) : Prop where
+  /-- The direct (fixpoint) route: `check_native_s` against `checkNativeS`. -/
+  checkNative :
+    ∀ st fe p0 fe' st',
+      StateWF st → FEnvWF fe → IndAbs.NativePartsWF p0 →
+      kernel.inductives.inductives_c.check_native_s mode st fe p0
+          = ok (.Ok fe', st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ∃ lst' lfe',
+          (ConLeche.Cached.checkNativeS (absMode mode) lfe
+              (IndAbs.absNativeParts p0)).run lst = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe'
+          ∧ StateWF st' ∧ FEnvWF fe'
+  /-- The modeled route: `check_ind_decl_s` against `checkIndDeclSF`. -/
+  checkIndDecl :
+    ∀ st fe block fe' st',
+      StateWF st → FEnvWF fe → ConstantInfosWF block →
+      kernel.inductives.inductives_c.check_ind_decl_s mode st fe block
+          = ok (.Ok fe', st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ∃ lst' lfe',
+          (ConLeche.Cached.checkIndDeclSF (absMode mode) lfe
+              (absConstantInfos block)).run lst = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe'
+          ∧ StateWF st' ∧ FEnvWF fe'
+
 
 end ConRon.Refine

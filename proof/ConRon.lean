@@ -50,6 +50,16 @@ import ConRon.Refine.PropRead
 import ConRon.Refine.CoreKShapes
 import ConRon.Refine.CoreKInfer
 import ConRon.Refine.CoreKPinned
+import ConRon.Refine.IndAbs
+import ConRon.Refine.IndStructParts
+import ConRon.Refine.IndSumParts
+import ConRon.Refine.IndNativeParts
+import ConRon.Refine.IndStructInstall
+import ConRon.Refine.IndSumInstall
+import ConRon.Refine.IndNativeInstall
+import ConRon.Refine.IndModeled
+import ConRon.Refine.IndSpec
+import ConRon.Refine.IndC
 import ConRon.Refine.Pins
 import ConRon.Dump.Read
 import ConRon.Refine.TypeChecker
