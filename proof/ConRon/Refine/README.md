@@ -94,11 +94,33 @@ else.  (Task #12's two-lemma `Smoke.lean` was folded into `Level.lean`'s
 | `CoreKPinned.lean` | task #49's closing file: every hypothesis the eleven parallel files import — the pinned names, `NatOpPinned`, `PinnedBasisNames`, `VecFacts`, `EnvFacts`, the four `*Spec`s — discharged from the lemmas that prove them |
 | `PropRead.lean` | `kernel::prop_read` (task #49): all eleven readers of the fast prop-ness path, each against the cited Lean instantiated at `lfe.find?` |
 
+## The inductive routes (task #57, `CORE_PLAN.md` step 7)
+
+`kernel::inductives` — the two install routes for an inductive block (task
+#25) — refined against `ConLeche/Kernel/Inductives/*.lean` and the cached
+drivers of `Cached/CheckerC.lean`.  Every lemma of this group **assumes the
+knot** (`Core.KnotSpec mode IndAbs.checkFuelU`, task #55) and reaches the core
+only through `IndAbs`'s five operation lemmas.
+
+| file | contents |
+|---|---|
+| `IndAbs.lean` | the group's foundation: `checkFuelU` (`core_k::check_fuel()` as a value) and its two identities, the record abstractions `absRecFieldKind`/`absRecFieldKinds`/`absKindss`/`absCtors`/`absLevelss`/`absInductiveShape`/`absNativeParts`/`absStructParts` and the *relation* `NativePassRel`, the `*WF` predicates for all four records (all marked "to be unified into `Abs.lean`"), and the five `sharedOpsC` operations `ops_whnf`/`ops_infer`/`ops_annotate`/`ops_defeq`/`ops_ensure_sort` |
+| `IndStructParts.lean` | `kernel::inductives::struct_parts` — the structure recogniser, its three `@[csimp]` walkers and the projection-body builder |
+| `IndSumParts.lean` | `kernel::inductives::sum_parts` — the block-shape record, its copies (as identities), the member split `sum_split`, and `with_sort`/`rule_prefix`/`major_idx` |
+| `IndNativeParts.lean` | `kernel::inductives::native_parts` — the **generated recursor**: every generator against its cited construction, node for node |
+| `IndStructInstall.lean` | `kernel::inductives::struct_install` — the binder-domain comparison, the projection table's two guards and the table itself, against the `*F` spelling |
+| `IndSumInstall.lean` | `kernel::inductives::sum_install` — the direct route's shared stages, parametric in the `CapsOf` dictionary |
+| `IndNativeInstall.lean` | `kernel::inductives::native_install` — the direct route's pass and tail, split at the cached driver's two flush points |
+| `IndModeled.lean` | `kernel::inductives::modeled` — the modeled route: the member checks, the recursor group and the projection functions |
+| `IndSpec.lean` | `IndRoutesSpec`, the one `Prop` the checker tier (task #56) consumes: the two entry points `check_native_s`/`check_ind_decl_s` against `checkNativeS`/`checkIndDeclSF` |
+| `IndC.lean` | `kernel::inductives::inductives_c` — the two routes' cached drivers, i.e. the **flush policy**, and `ind_routes_spec` |
+
 ## Not yet here
 
-`cached::core_c` (the knot's six wrappers and their bodies) and everything
-above it: `Refine/CORE_PLAN.md` is the design for the rest.  Task #46's four
-files are its steps 1 and 2, task #51's four `ExprOpsC*` files the second half
-of its step 3, task #49's twelve `CoreK*`/`BasisNames`/`PropRead` files its
-step 4, and task #52's two `StateC*` files its step 5; step 6 is the
-induction.
+`cached::core_c` (the knot's six wrappers and their bodies): `Refine/Core/`
+holds `CORE_PLAN.md` step 6's statements (task #53) and its arms are task #55's.
+Task #46's four files are steps 1 and 2, task #51's four `ExprOpsC*` files the
+second half of step 3, task #49's twelve `CoreK*`/`BasisNames`/`PropRead` files
+step 4, task #52's two `StateC*` files step 5, and task #57's ten `Ind*` files
+the second half of step 7; `Refine/Checker.lean` and `Refine/DeclCheck.lean`
+(step 7's first half) are task #56's.
