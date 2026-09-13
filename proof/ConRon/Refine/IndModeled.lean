@@ -5421,9 +5421,138 @@ theorem checkIotaRuleFire_nested_run {lmode : ConLeche.CheckMode}
   simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
     StateT.pure, Except.pure, hp, h1]
 
+omit hw hcb in
+/-- `checkIotaRuleFire`'s two arms at a `throw` (task #67): whichever of the
+two iota checks the firing-mode decision selected, its error is the whole
+block's. -/
+theorem checkIotaRuleFire_plain_err {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA : ConLeche.Expr} {mI rP j cnP cnF : Nat} {r : ConLeche.RecRule}
+    {cvj : ConLeche.ConstantVal} {lst : ConLeche.Cached.CState}
+    {le : ConLeche.CheckError}
+    (hp : ConLeche.Expr.recRulePlain tyA mI rP cnP = true)
+    (h1 : (ConLeche.checkIotaThmF lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe2 lfe g cvName lps tyA mI rP
+        j r cvj cnP cnF rhsA).run lst = .error le) :
+    (checkIotaRuleFire lmode lfe2 lfe g cvName lps tyA mI rP j r cvj cnP cnF
+        rhsA).run lst = .error le := by
+  rw [checkIotaRuleFire]
+  simp only [StateT.run] at h1
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, hp, h1]
+
+omit hw hcb in
+/-- The same in the nested arm. -/
+theorem checkIotaRuleFire_nested_err {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA : ConLeche.Expr} {mI rP j cnP cnF : Nat} {r : ConLeche.RecRule}
+    {cvj : ConLeche.ConstantVal} {lst : ConLeche.Cached.CState}
+    {le : ConLeche.CheckError}
+    (hp : ConLeche.Expr.recRulePlain tyA mI rP cnP = false)
+    (h1 : (ConLeche.checkIotaThmNF lmode
+        (ConLeche.Cached.sharedOpsC lmode lfe) lfe2 lfe g cvName lps tyA mI rP
+        j r cvj cnP cnF rhsA).run lst = .error le) :
+    (checkIotaRuleFire lmode lfe2 lfe g cvName lps tyA mI rP j r cvj cnP cnF
+        rhsA).run lst = .error le := by
+  rw [checkIotaRuleFire]
+  simp only [StateT.run] at h1
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, hp, h1]
+
+set_option linter.unusedSimpArgs false in
 /-- `ConLeche/Kernel/DeclCheck.lean:706-716` — `check_iota_rule_fire` refines
 `checkIotaRuleFire`: the firing-mode decision and the stored rule. -/
 theorem check_iota_rule_fire_refines
+    {st st' : cached.state_c.CState} {fe2 fe_self : fenv.FEnv}
+    {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
+    {cv_name : name.Name} {lps : alloc.vec.Vec name.Name}
+    {ty_a rhs_a : expr.Expr} {m_i r_p j cn_p cn_f : Std.U64}
+    {r : env.RecRule} {cvj : env.ConstantVal}
+    {out : core.result.Result env.RecRule core_types.CheckError}
+    (hres : StructInstall.ConstsResolveFFastRefines)
+    (hspines : StructSpinesRefine)
+    (hf : RenamesTo f g) (hst : StateWF st) (hfe2 : FEnvWF fe2)
+    (hfe : FEnvWF fe_self) (hcv : NameWF cv_name) (hlps : NamesWF lps)
+    (hty : ExprWF ty_a) (hrw : RecRuleWF r) (hcvj : ConstantValWF cvj)
+    (hrhs : ExprWF rhs_a)
+    (h : inductives.modeled.check_iota_rule_fire mode st fe2 fe_self f cv_name
+        lps ty_a m_i r_p j r cvj cn_p cn_f rhs_a = ok (out, st')) :
+    ∀ lst lfe2 lfe, StateRel st lst → FEnvRel fe2 lfe2 → FEnvRel fe_self lfe →
+      match out with
+      | .Ok r' =>
+        ∃ lst',
+          (checkIotaRuleFire (absMode mode) lfe2 lfe g (absName cv_name)
+              (absNames lps) (absExpr ty_a) m_i.val r_p.val j.val (absRecRule r)
+              (absConstantVal cvj) cn_p.val cn_f.val (absExpr rhs_a)).run lst
+            = .ok (absRecRule r', lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRuleWF r'
+      | .Err e =>
+        ErrSim e
+          ((checkIotaRuleFire (absMode mode) lfe2 lfe g (absName cv_name)
+              (absNames lps) (absExpr ty_a) m_i.val r_p.val j.val (absRecRule r)
+              (absConstantVal cvj) cn_p.val cn_f.val (absExpr rhs_a)).run lst) := by
+  intro lst lfe2 lfe hrel hr2 hrS
+  rw [inductives.modeled.check_iota_rule_fire] at h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  have hbv := ExprOps.rec_rule_plain_refines hty hb
+  by_cases hbt : b = true
+  · rw [if_pos hbt] at h
+    rw [hbt] at hbv
+    obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r1, st1⟩ := p
+    cases r1 with
+    | Err err =>
+      -- move 1: the canonical iota check threw
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact ErrSim.trans
+        (check_iota_thm_refines hw hcb hspines hf hst hfe2 hfe hcv hlps hty hrw
+          hcvj hrhs hp lst lfe2 lfe hrel hr2 hrS)
+        (fun le hle => checkIotaRuleFire_plain_err hbv.symm hle)
+    | Ok u =>
+    cases u
+    obtain ⟨lst1, hrun1, hrel1, hwf1⟩ :=
+      check_iota_thm_refines hw hcb hspines hf hst hfe2 hfe hcv hlps hty hrw
+        hcvj hrhs
+        hp lst lfe2 lfe hrel hr2 hrS
+    obtain ⟨rr, hrr, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hrrv, hrrwf⟩ :=
+      iota_rule_stored_refines hw hcb hr2 hfe2 hcv hrw
+        (show RecRuleFireWF env.RecRuleFire.Plain from trivial) hrhs hrr
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    refine ⟨lst1, ?_, hrel1, hwf1, hrrwf⟩
+    rw [hrrv]
+    exact checkIotaRuleFire_plain_run hbv.symm hrun1
+  · simp only [Bool.not_eq_true] at hbt
+    rw [if_neg (by simp [hbt])] at h
+    rw [hbt] at hbv
+    obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r1, st1⟩ := p
+    cases r1 with
+    | Err err =>
+      -- move 1: the nested iota check threw
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact ErrSim.trans
+        (check_iota_thm_n_refines hw hcb hres hspines hf hst hfe2 hfe hcv hlps
+          hty hrw hcvj hrhs hp lst lfe2 lfe hrel hr2 hrS)
+        (fun le hle => checkIotaRuleFire_nested_err hbv.symm hle)
+    | Ok fr =>
+    obtain ⟨lst1, hrun1, hrel1, hwf1, hfrwf⟩ :=
+      check_iota_thm_n_refines hw hcb hres hspines hf hst hfe2 hfe hcv hlps hty hrw
+        hcvj hrhs hp lst lfe2 lfe hrel hr2 hrS
+    obtain ⟨rr, hrr, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hrrv, hrrwf⟩ :=
+      iota_rule_stored_refines hw hcb hr2 hfe2 hcv hrw hfrwf hrhs hrr
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    refine ⟨lst1, ?_, hrel1, hwf1, hrrwf⟩
+    rw [hrrv]
+    exact checkIotaRuleFire_nested_run hbv.symm hrun1
+
+/-- `check_iota_rule_fire_refines` at a success, the pre-#67 statement. -/
+theorem check_iota_rule_fire_refines_ok
     {st st' : cached.state_c.CState} {fe2 fe_self : fenv.FEnv}
     {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
     {cv_name : name.Name} {lps : alloc.vec.Vec name.Name}
@@ -5443,59 +5572,45 @@ theorem check_iota_rule_fire_refines
             (absNames lps) (absExpr ty_a) m_i.val r_p.val j.val (absRecRule r)
             (absConstantVal cvj) cn_p.val cn_f.val (absExpr rhs_a)).run lst
           = .ok (absRecRule r', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRuleWF r' := by
-  intro lst lfe2 lfe hrel hr2 hrS
-  rw [inductives.modeled.check_iota_rule_fire] at h
-  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
-  have hbv := ExprOps.rec_rule_plain_refines hty hb
-  by_cases hbt : b = true
-  · rw [if_pos hbt] at h
-    rw [hbt] at hbv
-    obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨r1, st1⟩ := p
-    cases r1 with
-    | Err err => simp at h
-    | Ok u =>
-    cases u
-    obtain ⟨lst1, hrun1, hrel1, hwf1⟩ :=
-      check_iota_thm_refines hw hcb hspines hf hst hfe2 hfe hcv hlps hty hrw
-        hcvj hrhs
-        hp lst lfe2 lfe hrel hr2 hrS
-    obtain ⟨rr, hrr, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨hrrv, hrrwf⟩ :=
-      iota_rule_stored_refines hw hcb hr2 hfe2 hcv hrw
-        (show RecRuleFireWF env.RecRuleFire.Plain from trivial) hrhs hrr
-    simp only [Result.ok.injEq, Prod.mk.injEq,
-      core.result.Result.Ok.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
-    refine ⟨lst1, ?_, hrel1, hwf1, hrrwf⟩
-    rw [hrrv]
-    exact checkIotaRuleFire_plain_run hbv.symm hrun1
-  · simp only [Bool.not_eq_true] at hbt
-    rw [if_neg (by simp [hbt])] at h
-    rw [hbt] at hbv
-    obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨r1, st1⟩ := p
-    cases r1 with
-    | Err err => simp at h
-    | Ok fr =>
-    obtain ⟨lst1, hrun1, hrel1, hwf1, hfrwf⟩ :=
-      check_iota_thm_n_refines hw hcb hres hspines hf hst hfe2 hfe hcv hlps hty hrw
-        hcvj hrhs hp lst lfe2 lfe hrel hr2 hrS
-    obtain ⟨rr, hrr, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨hrrv, hrrwf⟩ :=
-      iota_rule_stored_refines hw hcb hr2 hfe2 hcv hrw hfrwf hrhs hrr
-    simp only [Result.ok.injEq, Prod.mk.injEq,
-      core.result.Result.Ok.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
-    refine ⟨lst1, ?_, hrel1, hwf1, hrrwf⟩
-    rw [hrrv]
-    exact checkIotaRuleFire_nested_run hbv.symm hrun1
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRuleWF r' :=
+  check_iota_rule_fire_refines hw hcb hres hspines hf hst hfe2 hfe hcv hlps hty
+    hrw hcvj hrhs h
+
 
 omit hw hcb in
 /-- `checkIotaRuleF`'s head discharged: past the constructor lookup, the four
 syntactic guards, the annotation and the residual `inferType`, the cited body
 *is* `checkIotaRuleFire` (the port's split point). -/
+theorem checkIotaRuleF_tail {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA rhsTy : ConLeche.Expr} {mI rP j cnP cnF : Nat}
+    {r : ConLeche.RecRule} {cvj : ConLeche.ConstantVal}
+    {bs : List (ConLeche.Expr × ConLeche.BinderMeta)} {bd : ConLeche.Expr}
+    {lst lst1 lst2 : ConLeche.Cached.CState}
+    (hfind : lfe2.find? r.ctor = some (.ctorInfo cvj cnP cnF))
+    (hnf : r.nfields = cnF)
+    (hbv : r.rhs.looseBVarsBounded 0 = true)
+    (hfv : r.rhs.hasFvar = false)
+    (hann : ((ConLeche.Cached.sharedOpsC lmode lfe).annotate lfe.env 0
+        r.rhs).run lst = .ok (rhsA, lst1))
+    (hlp : ConLeche.Expr.allLevelParamsDefined lps rhsA = true)
+    (hcr : rhsA.constsResolveF lfe = true)
+    (hsl : rhsA.stripLams (rP + cnF) = some (bs, bd))
+    (hinf : ((ConLeche.Cached.sharedOpsC lmode lfe).inferType lfe.env 0
+        rhsA).run lst1 = .ok (rhsTy, lst2)) :
+    (ConLeche.checkIotaRuleF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j r).run lst
+      = (checkIotaRuleFire lmode lfe2 lfe g cvName lps tyA mI rP j r cvj
+          cnP cnF rhsA).run lst2 := by
+  rw [ConLeche.checkIotaRuleF, checkIotaRuleFire]
+  simp only [StateT.run] at hann hinf ⊢
+  simp [Bind.bind, StateT.bind, Except.bind, Pure.pure, hfind,
+    hnf, hbv, hfv, hann, hlp, hcr, hsl, hinf]
+
+omit hw hcb in
+/-- `checkIotaRuleF`'s success path, run: `checkIotaRuleF_tail` composed with a
+`checkIotaRuleFire` that also succeeded. -/
 theorem checkIotaRuleF_run {lmode : ConLeche.CheckMode}
     {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
     {cvName : ConLeche.Name} {lps : List ConLeche.Name}
@@ -5517,13 +5632,8 @@ theorem checkIotaRuleF_run {lmode : ConLeche.CheckMode}
     (hfire : (checkIotaRuleFire lmode lfe2 lfe g cvName lps tyA mI rP j r cvj
         cnP cnF rhsA).run lst2 = .ok (r', lst3)) :
     (ConLeche.checkIotaRuleF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
-        lfe g cvName lps tyA mI rP j r).run lst = .ok (r', lst3) := by
-  rw [ConLeche.checkIotaRuleF]
-  rw [checkIotaRuleFire] at hfire
-  simp only [StateT.run] at hann hinf
-  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, hfind,
-    hnf, hbv, hfv, hann, hlp, hcr, hsl, hinf] at hfire ⊢
-  exact hfire
+        lfe g cvName lps tyA mI rP j r).run lst = .ok (r', lst3) :=
+  (checkIotaRuleF_tail hfind hnf hbv hfv hann hlp hcr hsl hinf).trans hfire
 
 /-- `ConLeche/Kernel/DeclCheck.lean:687-716` — **`check_iota_rule` refines
 `checkIotaRuleF`**: generic well-formedness of the right-hand side, then the
