@@ -4747,6 +4747,267 @@ theorem run_seq_pure {a1 b1 : Type} {m : ConLeche.Cached.CheckCM a1} {a : a1}
     StateT.pure, Except.pure, h]
 
 omit hw hcb in
+/-- `run_seq_pure`'s failure twin: the sequenced action threw. -/
+theorem run_seq_pure_err {a1 b1 : Type} {m : ConLeche.Cached.CheckCM a1}
+    {v : b1} {lst : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+    (h : m.run lst = .error le) :
+    ((m >>= fun _ => pure v : ConLeche.Cached.CheckCM b1)).run lst
+      = .error le := by
+  simp only [StateT.run] at h
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, h]
+
+omit hw hcb in
+/-- **The nested statement head's four `throw`s** (task #67): past the shape
+probe, `checkIotaThmNF` opens with exactly `iotaStmtOpen`'s body. -/
+theorem checkIotaThmNF_stmt_err {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA : ConLeche.Expr} {mI rP j cnP cnF : Nat}
+    {r : ConLeche.RecRule} {cvj : ConLeche.ConstantVal}
+    {pins : List ConLeche.Expr} {lvls : List ConLeche.Level}
+    {lst : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+    (hn : ConLeche.nestedRuleShapeF lfe2 lfe cvName lps tyA mI rP cnP j
+      = some (lvls, pins))
+    (hle : (iotaStmtOpen lfe2 cvName lps rP cnF j).run lst = .error le) :
+    (ConLeche.checkIotaThmNF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j r cvj cnP cnF rhsA).run lst
+      = .error le := by
+  rw [iotaStmtOpen] at hle
+  rw [ConLeche.checkIotaThmNF, hn]
+  cases hfd : lfe2.findCV? ((cvName.str "_model").str s!"iota_{j}") with
+  | none =>
+    rw [hfd] at hle
+    simpa [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure] using hle
+  | some cvt =>
+  rw [hfd] at hle
+  by_cases h2 : cvt.levelParams = lps
+  · cases ho : ConLeche.openPisAtFvars (rP + cnF) cvt.type 0 with
+    | none =>
+      simp [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, h2, ho] at hle ⊢
+      exact hle
+    | some q =>
+    obtain ⟨fvs, tb⟩ := q
+    by_cases h4 : ConLeche.isEqHead tb.getAppFn = true
+    · by_cases h5 : tb.getAppArgs.length = 3
+      · simp [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, h2, ho, h4, h5] at hle
+      · simp [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, h2, ho, h4, h5] at hle ⊢
+        exact hle
+    · simp only [Bool.not_eq_true] at h4
+      simp [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, h2, ho, h4] at hle ⊢
+      exact hle
+  · simp [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, h2] at hle ⊢
+    exact hle
+
+omit hw hcb in
+/-- The nested left side's three `throw`s, as the port's one `Bool`. -/
+theorem checkIotaThmNF_lhs_err {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA tb : ConLeche.Expr} {mI rP j cnP cnF : Nat}
+    {r : ConLeche.RecRule} {cvj cvt : ConLeche.ConstantVal}
+    {fvs pins : List ConLeche.Expr}
+    {lvls : List ConLeche.Level} {lst : ConLeche.Cached.CState}
+    (hn : ConLeche.nestedRuleShapeF lfe2 lfe cvName lps tyA mI rP cnP j
+      = some (lvls, pins))
+    (k1 : lfe2.findCV? ((cvName.str "_model").str s!"iota_{j}") = some cvt)
+    (k2 : cvt.levelParams = lps)
+    (k3 : ConLeche.openPisAtFvars (rP + cnF) cvt.type 0 = some (fvs, tb))
+    (k4 : ConLeche.isEqHead tb.getAppFn = true)
+    (k5 : tb.getAppArgs.length = 3)
+    (h6 : iotaLhsPrefixOk g cvName lps mI rP fvs
+        (tb.getAppArgs.getD 1 (.bvar 0))
+        (tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs = false) :
+    ∃ s, (ConLeche.checkIotaThmNF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j r cvj cnP cnF rhsA).run lst
+      = .error (.notImplemented s) := by
+  rw [ConLeche.checkIotaThmNF, hn, k1]
+  simp only [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, k2, k3, k4, k5, beq_iff_eq, if_true]
+  by_cases c1 : (tb.getAppArgs.getD 1 (ConLeche.Expr.bvar 0)).getAppFn
+      = ConLeche.Expr.const (g cvName) (lps.map ConLeche.Level.param)
+  · rw [if_pos c1]
+    by_cases c2 : (tb.getAppArgs.getD 1 (ConLeche.Expr.bvar 0)).getAppArgs.length
+        = mI + 1
+    · rw [if_pos c2]
+      have c3 : ¬ ((tb.getAppArgs.getD 1 (ConLeche.Expr.bvar 0)).getAppArgs.take rP
+          = fvs.take rP) := by
+        intro hc
+        rw [iotaLhsPrefixOk, c1, c2, hc] at h6
+        simp at h6
+      rw [if_neg c3]
+      exact ⟨_, rfl⟩
+    · rw [if_neg c2]
+      exact ⟨_, rfl⟩
+  · rw [if_neg c1]
+    exact ⟨_, rfl⟩
+
+omit hw hcb in
+/-- The nested major premise's `throw`. -/
+theorem checkIotaThmNF_major_err {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA tb : ConLeche.Expr} {mI rP j cnP cnF : Nat}
+    {r : ConLeche.RecRule} {cvj cvt : ConLeche.ConstantVal}
+    {fvs pins : List ConLeche.Expr}
+    {lvls : List ConLeche.Level} {lst : ConLeche.Cached.CState}
+    (hn : ConLeche.nestedRuleShapeF lfe2 lfe cvName lps tyA mI rP cnP j
+      = some (lvls, pins))
+    (k1 : lfe2.findCV? ((cvName.str "_model").str s!"iota_{j}") = some cvt)
+    (k2 : cvt.levelParams = lps)
+    (k3 : ConLeche.openPisAtFvars (rP + cnF) cvt.type 0 = some (fvs, tb))
+    (k4 : ConLeche.isEqHead tb.getAppFn = true)
+    (k5 : tb.getAppArgs.length = 3)
+    (h6 : iotaLhsPrefixOk g cvName lps mI rP fvs
+        (tb.getAppArgs.getD 1 (.bvar 0))
+        (tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs = true)
+    (h7 : ((tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs.getLastD (.bvar 0)
+        == ConLeche.Expr.mkAppN (.const (g r.ctor) lvls)
+            ((pins.map fun p => ConLeche.Expr.instSpine (fvs.take rP) (rP - 1)
+              (p.renameConsts g)) ++ fvs.drop rP)) = false) :
+    (ConLeche.checkIotaThmNF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j r cvj cnP cnF rhsA).run lst
+      = .error (.notImplemented s!"iota statement major mismatch for {cvName}") := by
+  rw [ConLeche.checkIotaThmNF, hn, k1]
+  simp only [iotaLhsPrefixOk, Bool.and_eq_true, beq_iff_eq] at h6
+  obtain ⟨⟨hhd, har⟩, hpx⟩ := h6
+  have h7' : ¬ ((tb.getAppArgs.getD 1 (ConLeche.Expr.bvar 0)).getAppArgs.getLastD
+      (ConLeche.Expr.bvar 0) = ConLeche.Expr.mkAppN (.const (g r.ctor) lvls)
+        ((pins.map fun p => ConLeche.Expr.instSpine (fvs.take rP) (rP - 1)
+          (p.renameConsts g)) ++ fvs.drop rP)) := by
+    intro hc; rw [hc] at h7; simp at h7
+  simp only [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, k2, k3, k4, k5, hhd, har, hpx, beq_iff_eq, if_true]
+  rw [if_neg h7']
+  rfl
+
+omit hw hcb in
+/-- The nested constructor telescope's `throw`. -/
+theorem checkIotaThmNF_ctele_err {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA tb : ConLeche.Expr} {mI rP j cnP cnF : Nat}
+    {r : ConLeche.RecRule} {cvj cvt : ConLeche.ConstantVal}
+    {fvs pins : List ConLeche.Expr}
+    {lvls : List ConLeche.Level} {lst : ConLeche.Cached.CState}
+    (hn : ConLeche.nestedRuleShapeF lfe2 lfe cvName lps tyA mI rP cnP j
+      = some (lvls, pins))
+    (k1 : lfe2.findCV? ((cvName.str "_model").str s!"iota_{j}") = some cvt)
+    (k2 : cvt.levelParams = lps)
+    (k3 : ConLeche.openPisAtFvars (rP + cnF) cvt.type 0 = some (fvs, tb))
+    (k4 : ConLeche.isEqHead tb.getAppFn = true)
+    (k5 : tb.getAppArgs.length = 3)
+    (h6 : iotaLhsPrefixOk g cvName lps mI rP fvs
+        (tb.getAppArgs.getD 1 (.bvar 0))
+        (tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs = true)
+    (h7 : ((tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs.getLastD (.bvar 0)
+        == ConLeche.Expr.mkAppN (.const (g r.ctor) lvls)
+            ((pins.map fun p => ConLeche.Expr.instSpine (fvs.take rP) (rP - 1)
+              (p.renameConsts g)) ++ fvs.drop rP)) = true)
+    (h8 : ConLeche.Expr.stripPis (cnP + cnF) cvj.type = none) :
+    (ConLeche.checkIotaThmNF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j r cvj cnP cnF rhsA).run lst
+      = .error (.notImplemented s!"iota constructor telescope for {cvName}") := by
+  rw [ConLeche.checkIotaThmNF, hn, k1]
+  simp only [iotaLhsPrefixOk, Bool.and_eq_true, beq_iff_eq] at h6
+  obtain ⟨⟨hhd, har⟩, hpx⟩ := h6
+  simp only [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, k2, k3, k4, k5, hhd, har, hpx, h7, h8,
+    beq_self_eq_true, if_true]
+  rfl
+
+omit hw hcb in
+/-- The nested residual head's `throw`. -/
+theorem checkIotaThmNF_rhead_err {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA tb cbody0 : ConLeche.Expr} {mI rP j cnP cnF : Nat}
+    {r : ConLeche.RecRule} {cvj cvt : ConLeche.ConstantVal}
+    {fvs pins : List ConLeche.Expr}
+    {cb : List (ConLeche.Expr × ConLeche.BinderMeta)}
+    {lvls : List ConLeche.Level} {lst : ConLeche.Cached.CState}
+    (hn : ConLeche.nestedRuleShapeF lfe2 lfe cvName lps tyA mI rP cnP j
+      = some (lvls, pins))
+    (k1 : lfe2.findCV? ((cvName.str "_model").str s!"iota_{j}") = some cvt)
+    (k2 : cvt.levelParams = lps)
+    (k3 : ConLeche.openPisAtFvars (rP + cnF) cvt.type 0 = some (fvs, tb))
+    (k4 : ConLeche.isEqHead tb.getAppFn = true)
+    (k5 : tb.getAppArgs.length = 3)
+    (h6 : iotaLhsPrefixOk g cvName lps mI rP fvs
+        (tb.getAppArgs.getD 1 (.bvar 0))
+        (tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs = true)
+    (h7 : ((tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs.getLastD (.bvar 0)
+        == ConLeche.Expr.mkAppN (.const (g r.ctor) lvls)
+            ((pins.map fun p => ConLeche.Expr.instSpine (fvs.take rP) (rP - 1)
+              (p.renameConsts g)) ++ fvs.drop rP)) = true)
+    (h8 : ConLeche.Expr.stripPis (cnP + cnF) cvj.type = some (cb, cbody0))
+    (h9 : ∀ c us, cbody0.getAppFn ≠ ConLeche.Expr.const c us) :
+    (ConLeche.checkIotaThmNF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j r cvj cnP cnF rhsA).run lst
+      = .error (.notImplemented s!"iota constructor residual head for {cvName}") := by
+  rw [ConLeche.checkIotaThmNF, hn, k1]
+  simp only [iotaLhsPrefixOk, Bool.and_eq_true, beq_iff_eq] at h6
+  obtain ⟨⟨hhd, har⟩, hpx⟩ := h6
+  simp only [ConLeche.unwrapOr, StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure, k2, k3, k4, k5, hhd, har, hpx, h7, h8,
+    beq_self_eq_true, if_true]
+  cases hg : cbody0.getAppFn
+  case const c us => exact absurd hg (h9 c us)
+  all_goals rfl
+
+omit hw hcb in
+/-- `checkIotaThmNF`'s success path down to its **tail call** (task #67): the
+cited body reaches `checkIotaThmNCtor`, and returns `.nested lvls pins`. -/
+theorem checkIotaThmNF_tail {lmode : ConLeche.CheckMode}
+    {lfe2 lfe : ConLeche.FEnv} {g : ConLeche.Name → ConLeche.Name}
+    {cvName : ConLeche.Name} {lps : List ConLeche.Name}
+    {tyA rhsA tb cbody0 : ConLeche.Expr} {mI rP j cnP cnF : Nat}
+    {r : ConLeche.RecRule} {cvj cvt : ConLeche.ConstantVal}
+    {fvs pins : List ConLeche.Expr}
+    {cb : List (ConLeche.Expr × ConLeche.BinderMeta)}
+    {lvls : List ConLeche.Level} {lst : ConLeche.Cached.CState}
+    (hn : ConLeche.nestedRuleShapeF lfe2 lfe cvName lps tyA mI rP cnP j
+      = some (lvls, pins))
+    (k1 : lfe2.findCV? ((cvName.str "_model").str s!"iota_{j}") = some cvt)
+    (k2 : cvt.levelParams = lps)
+    (k3 : ConLeche.openPisAtFvars (rP + cnF) cvt.type 0 = some (fvs, tb))
+    (k4 : ConLeche.isEqHead tb.getAppFn = true)
+    (k5 : tb.getAppArgs.length = 3)
+    (h6 : iotaLhsPrefixOk g cvName lps mI rP fvs
+        (tb.getAppArgs.getD 1 (.bvar 0))
+        (tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs = true)
+    (h7 : ((tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs.getLastD (.bvar 0)
+        == ConLeche.Expr.mkAppN (.const (g r.ctor) lvls)
+            ((pins.map fun p => ConLeche.Expr.instSpine (fvs.take rP) (rP - 1)
+              (p.renameConsts g)) ++ fvs.drop rP)) = true)
+    (h8 : ConLeche.Expr.stripPis (cnP + cnF) cvj.type = some (cb, cbody0))
+    (h9 : ∃ c us, cbody0.getAppFn = .const c us) :
+    (ConLeche.checkIotaThmNF lmode (ConLeche.Cached.sharedOpsC lmode lfe) lfe2
+        lfe g cvName lps tyA mI rP j r cvj cnP cnF rhsA).run lst
+      = ((checkIotaThmNCtor lmode lfe g cvName tyA mI rP cvj cnP cnF rhsA fvs
+          (fvs.drop rP) (tb.getAppArgs.getD 1 (.bvar 0)).getAppArgs tb.getAppArgs
+          (tb.getAppArgs.getD 1 (.bvar 0)) (tb.getAppArgs.getD 2 (.bvar 0))
+          (ConLeche.eqHeadLevel tb.getAppFn) lvls pins
+          (pins.map fun p => ConLeche.Expr.instSpine (fvs.take rP) (rP - 1)
+            (p.renameConsts g)))
+        >>= fun _ => (pure (.nested lvls pins) :
+          ConLeche.Cached.CheckCM ConLeche.RecRuleFire)).run lst := by
+  obtain ⟨c, us, hc⟩ := h9
+  rw [ConLeche.checkIotaThmNF, hn, k1]
+  simp only [iotaLhsPrefixOk, Bool.and_eq_true, beq_iff_eq] at h6
+  obtain ⟨⟨hhd, har⟩, hpx⟩ := h6
+  simp only [ConLeche.unwrapOr, pure_bind, k2, k3, k4, k5, hhd, har, hpx, h7,
+    h8, hc, beq_self_eq_true, if_true]
+  refine congrArg (fun x => StateT.run x lst) ?_
+  simp only [checkIotaThmNCtor, checkIotaThmNFrames, bind_assoc, bind_iteC,
+    ConLeche.unwrapOr, pure_bind]
+
+omit hw hcb in
 /-- `checkIotaThmNF`'s success path, run.  Like `checkIotaThmF_run` this is
 where the port's halves — `nested_rule_shape`, `iota_stmt_open`,
 `inst_pins_renamed`, the major pin, the residual-head read and
@@ -4796,6 +5057,7 @@ theorem checkIotaThmNF_run {lmode : ConLeche.CheckMode}
   simp only [checkIotaThmNCtor, checkIotaThmNFrames, bind_assoc, bind_iteC,
     ConLeche.unwrapOr, pure_bind]
 
+set_option linter.unusedSimpArgs false in
 /-- `ConLeche/Kernel/DeclCheck.lean:601-685` — **`check_iota_thm_n` refines
 `checkIotaThmNF`**: the generalization of `checkIotaThmF` to rules whose
 constructor parameters and levels are fixed instantiations.  A rule with no
@@ -4805,7 +5067,8 @@ theorem check_iota_thm_n_refines
     {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
     {cv_name : name.Name} {lps : alloc.vec.Vec name.Name}
     {ty_a rhs_a : expr.Expr} {m_i r_p j cn_p cn_f : Std.U64}
-    {r : env.RecRule} {cvj : env.ConstantVal} {fire : env.RecRuleFire}
+    {r : env.RecRule} {cvj : env.ConstantVal}
+    {out : core.result.Result env.RecRuleFire core_types.CheckError}
     (hres : StructInstall.ConstsResolveFFastRefines)
     (hspines : StructSpinesRefine)
     (hf : RenamesTo f g) (hst : StateWF st) (hfe2 : FEnvWF fe2)
@@ -4813,15 +5076,24 @@ theorem check_iota_thm_n_refines
     (hty : ExprWF ty_a) (hrw : RecRuleWF r) (hcvj : ConstantValWF cvj)
     (hrhs : ExprWF rhs_a)
     (h : inductives.modeled.check_iota_thm_n mode st fe2 fe_self f cv_name lps
-        ty_a m_i r_p j r cvj cn_p cn_f rhs_a = ok (.Ok fire, st')) :
+        ty_a m_i r_p j r cvj cn_p cn_f rhs_a = ok (out, st')) :
     ∀ lst lfe2 lfe, StateRel st lst → FEnvRel fe2 lfe2 → FEnvRel fe_self lfe →
-      ∃ lst',
-        (ConLeche.checkIotaThmNF (absMode mode)
-            (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
-            (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
-            j.val (absRecRule r) (absConstantVal cvj) cn_p.val cn_f.val
-            (absExpr rhs_a)).run lst = .ok (absFire fire, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRuleFireWF fire := by
+      match out with
+      | .Ok fire =>
+        ∃ lst',
+          (ConLeche.checkIotaThmNF (absMode mode)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
+              (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
+              j.val (absRecRule r) (absConstantVal cvj) cn_p.val cn_f.val
+              (absExpr rhs_a)).run lst = .ok (absFire fire, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRuleFireWF fire
+      | .Err e =>
+        ErrSim e
+          ((ConLeche.checkIotaThmNF (absMode mode)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
+              (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
+              j.val (absRecRule r) (absConstantVal cvj) cn_p.val cn_f.val
+              (absExpr rhs_a)).run lst) := by
   -- `nested_rule_shape_refines`, `iota_stmt_open_refines`,
   -- `inst_pins_renamed_refines`, the major pin, the residual-head read and
   -- `check_iota_thm_n_ctor_refines`, composed back into the *unsplit* cited
@@ -4837,8 +5109,7 @@ theorem check_iota_thm_n_refines
   cases o with
   | none =>
     simp only [Option.map_none] at hoabs
-    simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq]
-      at h
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     refine ⟨lst, ?_, hrel, hst, trivial⟩
     rw [ConLeche.checkIotaThmNF, ← hoabs]
@@ -4849,7 +5120,14 @@ theorem check_iota_thm_n_refines
   simp only [Option.map_some] at hoabs
   obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
   cases r1 with
-  | Err err => simp at h
+  | Err err =>
+    -- move 1: `iota_stmt_open` threw, and the unsplit nested body throws at
+    -- the same guard (`DeclCheck.lean:608-625`)
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact ErrSim.trans
+      (iota_stmt_open_refines hw hcb hr2 hfe2 hcv hlps hr1 lst)
+      (fun le hle => checkIotaThmNF_stmt_err hoabs.symm hle)
   | Ok oq =>
   obtain ⟨fvs, targs, l_a⟩ := oq
   obtain ⟨hopen, hfvswf, htargswf, hlawf⟩ :=
@@ -4925,7 +5203,20 @@ theorem check_iota_thm_n_refines
       obtain ⟨ho1abs, ho1wf⟩ := ExprOps.strip_pis_refines hcvj.2.2 ho1
       rw [hiv] at ho1abs
       cases o1 with
-      | none => simp at h
+      | none =>
+        -- the constructor telescope will not strip (`DeclCheck.lean:641`)
+        simp at h
+        obtain ⟨v1, hv1, ce, hce, rfl, rfl⟩ := h
+        simp only [Option.map_none] at ho1abs
+        exact errSim_notImplemented
+          s!"iota constructor telescope for {absName cv_name}" hce
+          (checkIotaThmNF_ctele_err (lmode := absMode mode) (lfe2 := lfe2) (lfe := lfe)
+          (lst := lst) (tyA := absExpr ty_a) (rhsA := absExpr rhs_a)
+          (j := j.val) (r := absRecRule r) (cnP := cn_p.val)
+          (cvj := absConstantVal cvj)
+            hoabs.symm k1 k2 k3 k4 k5 hbv.symm
+            (by simpa [absRecRule] using of_decide_eq_true hb1v.symm)
+            ho1abs.symm)
       | some bq =>
       obtain ⟨cbs, e1⟩ := bq
       obtain ⟨hcbswf, he1wf⟩ := ho1wf _ rfl
@@ -4944,38 +5235,111 @@ theorem check_iota_thm_n_refines
           rw [← hrheadv]
           simp only [absExpr_mk, absExprKind]
           exact ⟨_, _, rfl⟩
+        have htail := checkIotaThmNF_tail (lmode := absMode mode) (lfe2 := lfe2) (lfe := lfe)
+          (lst := lst) (tyA := absExpr ty_a) (rhsA := absExpr rhs_a)
+          (j := j.val) (r := absRecRule r) (cnP := cn_p.val)
+          (cvj := absConstantVal cvj)
+          hoabs.symm k1 k2 k3 k4 k5 hbv.symm
+          (by simpa [absRecRule] using of_decide_eq_true hb1v.symm)
+          ho1abs.symm hconst
         obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨r2, st1⟩ := p1
-        cases r2 with
-        | Err e2 => simp at h
-        | Ok u2 =>
-        cases u2
-        obtain ⟨lst', hrun, hrel', hwf'⟩ :=
+        have hctor :=
           check_iota_thm_n_ctor_refines hw hcb hf hst hfe hty hcvj hrhs hfvswf
             hxfvswf hlargswf htargswf hlhswf hrhsswf hlawf hlvlswf hpinswf
             hpinsfwf hp1 lst lfe (absName cv_name) hrel hrS
+        rw [hxfvsv, hlargsv, k6, hlhsv, hrhssv, k7, hpinsfv] at hctor
+        cases r2 with
+        | Err e2 =>
+          -- move 1: the constructor half threw
+          simp at h
+          obtain ⟨rfl, rfl⟩ := h
+          exact ErrSim.trans hctor
+            (fun le hle => htail.trans (run_seq_pure_err hle))
+        | Ok u2 =>
+        cases u2
+        obtain ⟨lst', hrun, hrel', hwf'⟩ := hctor
         have hx := Result.ok_injective h
         have hst1 : st1 = st' := congrArg Prod.snd hx
-        have hfire : env.RecRuleFire.Nested lvls pins = fire := by
-          simpa using congrArg Prod.fst hx
+        have hfire : core.result.Result.Ok (env.RecRuleFire.Nested lvls pins)
+            = out := congrArg Prod.fst hx
         subst hst1
         subst hfire
-        rw [hxfvsv, hlargsv, k6, hlhsv, hrhssv, k7, hpinsfv] at hrun
         refine ⟨lst', ?_, hrel', hwf', hlvlswf, hpinswf⟩
         rw [show absFire (env.RecRuleFire.Nested lvls pins)
             = ConLeche.RecRuleFire.nested (absLevels lvls) (absExprs pins)
             from rfl]
-        exact checkIotaThmNF_run hoabs.symm k1 k2 k3 k4 k5 hbv.symm
-          (by simpa [absRecRule] using of_decide_eq_true hb1v.symm) ho1abs.symm
-          hconst hrun
+        exact htail.trans (run_seq_pure hrun)
+      -- the nine other residual heads (`DeclCheck.lean:643`)
       all_goals simp only [ExprOps.node_kind] at h
       all_goals simp [bind_eq_ok_iff] at h
-    · simp only [Bool.not_eq_true] at hb1t
+      all_goals obtain ⟨v1, hv1, ce, hce, rfl, rfl⟩ := h
+      all_goals
+        refine errSim_notImplemented
+          s!"iota constructor residual head for {absName cv_name}" hce
+          (checkIotaThmNF_rhead_err (lmode := absMode mode) (lfe2 := lfe2) (lfe := lfe)
+          (lst := lst) (tyA := absExpr ty_a) (rhsA := absExpr rhs_a)
+          (j := j.val) (r := absRecRule r) (cnP := cn_p.val)
+          (cvj := absConstantVal cvj)
+            hoabs.symm k1 k2 k3 k4 k5 hbv.symm
+            (by simpa [absRecRule] using of_decide_eq_true hb1v.symm)
+            ho1abs.symm (fun c us hc => ?_))
+      all_goals rw [← hrheadv] at hc
+      all_goals simp only [absExpr_mk, absExprKind] at hc
+      all_goals exact ConLeche.Expr.noConfusion hc
+    · -- the major premise mismatch (`DeclCheck.lean:638`)
+      simp only [Bool.not_eq_true] at hb1t
       rw [if_neg (by simp [hb1t])] at h
       simp [bind_eq_ok_iff] at h
-  · simp only [Bool.not_eq_true] at hbt
+      obtain ⟨v1, hv1, ce, hce, rfl, rfl⟩ := h
+      rw [hb1t] at hb1v
+      exact errSim_notImplemented
+        s!"iota statement major mismatch for {absName cv_name}" hce
+        (checkIotaThmNF_major_err (lmode := absMode mode) (lfe2 := lfe2) (lfe := lfe)
+          (lst := lst) (tyA := absExpr ty_a) (rhsA := absExpr rhs_a)
+          (j := j.val) (r := absRecRule r) (cnP := cn_p.val)
+          (cvj := absConstantVal cvj)
+          hoabs.symm k1 k2 k3 k4 k5 hbv.symm
+          (by simpa [absRecRule] using of_decide_eq_false hb1v.symm))
+  · -- the left side head, arity or prefix (`DeclCheck.lean:630-634`)
+    simp only [Bool.not_eq_true] at hbt
     rw [if_neg (by simp [hbt])] at h
     simp [bind_eq_ok_iff] at h
+    obtain ⟨v1, hv1, ce, hce, rfl, rfl⟩ := h
+    rw [hbt] at hbv
+    exact errSim_notImplemented' hce
+      (checkIotaThmNF_lhs_err (lmode := absMode mode) (lfe2 := lfe2) (lfe := lfe)
+          (lst := lst) (tyA := absExpr ty_a) (rhsA := absExpr rhs_a)
+          (j := j.val) (r := absRecRule r) (cnP := cn_p.val)
+          (cvj := absConstantVal cvj)
+        hoabs.symm k1 k2 k3 k4 k5 hbv.symm)
+
+/-- `check_iota_thm_n_refines` at a success, the pre-#67 statement. -/
+theorem check_iota_thm_n_refines_ok
+    {st st' : cached.state_c.CState} {fe2 fe_self : fenv.FEnv}
+    {f : inductives.modeled.BlockRename} {g : ConLeche.Name → ConLeche.Name}
+    {cv_name : name.Name} {lps : alloc.vec.Vec name.Name}
+    {ty_a rhs_a : expr.Expr} {m_i r_p j cn_p cn_f : Std.U64}
+    {r : env.RecRule} {cvj : env.ConstantVal} {fire : env.RecRuleFire}
+    (hres : StructInstall.ConstsResolveFFastRefines)
+    (hspines : StructSpinesRefine)
+    (hf : RenamesTo f g) (hst : StateWF st) (hfe2 : FEnvWF fe2)
+    (hfe : FEnvWF fe_self) (hcv : NameWF cv_name) (hlps : NamesWF lps)
+    (hty : ExprWF ty_a) (hrw : RecRuleWF r) (hcvj : ConstantValWF cvj)
+    (hrhs : ExprWF rhs_a)
+    (h : inductives.modeled.check_iota_thm_n mode st fe2 fe_self f cv_name lps
+        ty_a m_i r_p j r cvj cn_p cn_f rhs_a = ok (.Ok fire, st')) :
+    ∀ lst lfe2 lfe, StateRel st lst → FEnvRel fe2 lfe2 → FEnvRel fe_self lfe →
+      ∃ lst',
+        (ConLeche.checkIotaThmNF (absMode mode)
+            (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe2 lfe g
+            (absName cv_name) (absNames lps) (absExpr ty_a) m_i.val r_p.val
+            j.val (absRecRule r) (absConstantVal cvj) cn_p.val cn_f.val
+            (absExpr rhs_a)).run lst = .ok (absFire fire, lst')
+        ∧ StateRel st' lst' ∧ StateWF st' ∧ RecRuleFireWF fire :=
+  check_iota_thm_n_refines hw hcb hres hspines hf hst hfe2 hfe hcv hlps hty hrw
+    hcvj hrhs h
+
 
 /-! ## The rules (`Modeled.lean:319-371`, `DeclCheck.lean:687-727`) -/
 
