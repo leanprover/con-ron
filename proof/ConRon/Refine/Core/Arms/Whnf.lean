@@ -17,9 +17,19 @@ con-leche's `k`, and the induction is what supplies it.
 
 Two callees live in `Arms/Lits.lean` and travel as `WhnfDeps`:
 `reduce_nat_i` (`reduceNatI`, `CoreC.lean:93`) and `unfold_definition_i`
-(`unfoldDefinitionI`, `CoreC.lean:69`), both `Option`-valued.  The
-`.M`-suffixed code-point tables are the `.Err` message of the exhausted
-budget; nothing is claimed about them (DESIGN.md §3.5).
+(`unfoldDefinitionI`, `CoreC.lean:69`), both `Option`-valued.
+
+**The full outcome (task #67).**  `Sim` claims con-leche's whole outcome, so
+the exhausted budget is now a *proof obligation* rather than a vacuity: the
+Rust's `whnf_loop_i` at `n == 0` throws `internal` at the message its
+`.M` code-point table spells (`core_c.rs:2594`) and con-leche's `whnfLoopI 0`
+throws `.internal "fuel exhausted: whnf loop"` (`Cached/CoreC.lean:1107`) —
+the same kind at the same step, exactly as `Core/Knot.lean`'s `wrappers_zero`
+now proves for the six wrappers.  Messages are never compared, so the
+`.M` table itself still goes unread (DESIGN.md §3.5).  Every other failure
+here belongs to a callee — `whnf_core`, `reduce_nat_i`,
+`unfold_definition_i`, or the loop's own continuation — and is carried over
+by one `errSim_run_bind` line per bind.
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.CoreKVec
@@ -68,6 +78,36 @@ theorem run_bind {α β : Type} {x : ConLeche.Cached.CheckCM α}
   rw [h]
   rfl
 
+/-- The failure twin of `run_bind`: a `do` block whose first step throws
+throws, whatever the rest of it is. -/
+private theorem run_bind_err {α β : Type} {x : ConLeche.Cached.CheckCM α}
+    {f : α → ConLeche.Cached.CheckCM β} {lst : ConLeche.Cached.CState}
+    {le : ConLeche.CheckError} (h : x.run lst = .error le) :
+    (x >>= f).run lst = .error le := by
+  simp only [StateT.run, Bind.bind, StateT.bind] at h ⊢
+  rw [h]
+  rfl
+
+/-- Task #67's move 1 at a `CheckCM` bind: the callee's `ErrSim` is the whole
+block's.  One line per bind, which is all the error halves below need. -/
+private theorem errSim_run_bind {α β : Type} {e : kernel.core_types.CheckError}
+    {x : ConLeche.Cached.CheckCM α} {f : α → ConLeche.Cached.CheckCM β}
+    {lst : ConLeche.Cached.CState} (h : ErrSim e (x.run lst)) :
+    ErrSim e ((x >>= f).run lst) :=
+  h.trans fun _ hle => run_bind_err hle
+
+/-- The Rust's `Err` arm of a `match` on a callee's outcome: it hands the
+error straight on, which pins both the outcome and the state. -/
+private theorem err_arm {α : Type} {err : kernel.core_types.CheckError}
+    {o : core.result.Result α kernel.core_types.CheckError}
+    {st1 st' : cached.state_c.CState}
+    (h : Aeneas.Std.Result.ok (core.result.Result.Err err, st1)
+      = Aeneas.Std.Result.ok (o, st')) :
+    o = .Err err ∧ st' = st1 := by
+  have h2 := Result.ok_injective h
+  simp only [Prod.mk.injEq] at h2
+  exact ⟨h2.1.symm, h2.2.symm⟩
+
 /-- `CoreC.lean:1105-1107` — one unrolling of `whnfLoopI`: the step at the
 decremented budget. -/
 theorem whnfLoopI_succ (r : ConLeche.Cached.CoreFnsI) (fe : ConLeche.FEnv) (depth m : Nat)
@@ -75,6 +115,16 @@ theorem whnfLoopI_succ (r : ConLeche.Cached.CoreFnsI) (fe : ConLeche.FEnv) (dept
     ConLeche.Cached.whnfLoopI r fe depth (m + 1) e
       = ConLeche.Cached.whnfStepI r fe depth (ConLeche.Cached.whnfLoopI r fe depth m) e := by
   rw [ConLeche.Cached.whnfLoopI]
+
+/-- `CoreC.lean:1107` — **the exhausted budget, mirrored**: `whnfLoopI … 0`
+throws `.internal`, where `whnf_loop_i`'s `n == 0` arm builds
+`core_types::internal` from its `.M` table (`core_c.rs:2594`).  Same kind,
+same step; the messages happen to agree too, but task #67 never compares
+them. -/
+theorem whnfLoopI_zero_run (r : ConLeche.Cached.CoreFnsI) (fe : ConLeche.FEnv)
+    (depth : Nat) (e : ConLeche.Expr) (lst : ConLeche.Cached.CState) :
+    (ConLeche.Cached.whnfLoopI r fe depth 0 e).run lst
+      = .error (.internal "fuel exhausted: whnf loop") := rfl
 
 /-! ## The three helpers -/
 
@@ -97,49 +147,55 @@ private theorem whnf_step_of_loop (hw : Wrappers mode fuel) (hd : WhnfDeps mode 
       (fun st fe => cached.core_c.whnf_step_i mode fuel st fe d n e)
       (fun lfe => ConLeche.Cached.whnfStepI (knot mode lfe fuel.val) lfe d.val
         (k lfe) (absExpr e)) := by
-  intro fe lfe hfe hfrel st res st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st o st' hwf hok lst hrel
   unfold cached.core_c.whnf_step_i at hok
   obtain ⟨⟨rc, st1⟩, hc, hok⟩ := bind_eq_ok_iff.mp hok
   cases rc with
-  | Err err => simp at hok
+  | Err err =>
+    -- `whnf_core` threw: the whole step throws, and so does con-leche's `do`
+    obtain ⟨rfl, rfl⟩ := err_arm hok
+    exact errSim_run_bind ((hw.whnfCoreSim d he).apply_err hwf hfe hc hrel hfrel)
   | Ok e1 =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, hwe1⟩ :=
       (hw.whnfCoreSim d he).apply hwf hfe hc hrel hfrel
     simp only [ConLeche.Cached.whnfStepI, run_bind hrun1]
     obtain ⟨⟨rn, st2⟩, hn2, hok⟩ := bind_eq_ok_iff.mp hok
     cases rn with
-    | Err err => simp at hok
-    | Ok o =>
+    | Err err =>
+      obtain ⟨rfl, rfl⟩ := err_arm hok
+      exact errSim_run_bind ((hd.reduceNat d hwe1).apply_err hwf1 hfe hn2 hrel1 hfrel)
+    | Ok on =>
       obtain ⟨lst2, hrun2, hrel2, hwf2, hwo⟩ :=
         (hd.reduceNat d hwe1).apply hwf1 hfe hn2 hrel1 hfrel
-      cases o with
+      cases on with
       | some e2 =>
+        -- the literal accelerator fired: the loop's continuation, at *its*
+        -- whole outcome
         simp only [Option.map_some] at hrun2
-        obtain ⟨lst3, hrun3, hrel3, hwf3, hwr⟩ :=
-          (hk e2 (hwo e2 rfl)).apply hwf2 hfe hok hrel2 hfrel
-        refine ⟨lst3, ?_, hrel3, hwf3, hwr⟩
         rw [run_bind hrun2]
-        exact hrun3
+        exact (hk e2 (hwo e2 rfl)) fe lfe hfe hfrel st2 o st' hwf2 hok lst2 hrel2
       | none =>
         simp only [Option.map_none] at hrun2
         rw [run_bind hrun2]
         obtain ⟨⟨ru, st3⟩, hu, hok⟩ := bind_eq_ok_iff.mp hok
         cases ru with
-        | Err err => simp at hok
+        | Err err =>
+          obtain ⟨rfl, rfl⟩ := err_arm hok
+          exact errSim_run_bind
+            ((hd.unfoldDefinition hwe1).apply_err hwf2 hfe hu hrel2 hfrel)
         | Ok o1 =>
           obtain ⟨lst3, hrun3, hrel3, hwf3, hwo1⟩ :=
             (hd.unfoldDefinition hwe1).apply hwf2 hfe hu hrel2 hfrel
           cases o1 with
           | some e2 =>
             simp only [Option.map_some] at hrun3
-            obtain ⟨lst4, hrun4, hrel4, hwf4, hwr⟩ :=
-              (hk e2 (hwo1 e2 rfl)).apply hwf3 hfe hok hrel3 hfrel
-            refine ⟨lst4, ?_, hrel4, hwf4, hwr⟩
             rw [run_bind hrun3]
-            exact hrun4
+            exact (hk e2 (hwo1 e2 rfl)) fe lfe hfe hfrel st3 o st' hwf3 hok lst3 hrel3
           | none =>
+            -- nothing fired: the step is its own head normal form, and
+            -- neither side can throw here
             simp only [Option.map_none] at hrun3
-            obtain ⟨rfl, rfl⟩ : e1 = res ∧ st3 = st' := by
+            obtain ⟨rfl, rfl⟩ : core.result.Result.Ok e1 = o ∧ st3 = st' := by
               simpa using Result.ok_injective hok
             refine ⟨lst3, ?_, hrel3, hwf3, hwe1⟩
             rw [run_bind hrun3]
@@ -157,13 +213,20 @@ private theorem whnf_loop_aux (hw : Wrappers mode fuel) (hd : WhnfDeps mode fuel
   intro m
   induction m with
   | zero =>
-    -- the budget is spent: the Rust answers `.Err`, so there is nothing to show
-    intro n hn e he fe lfe hfe hfrel st res st' hwf hok lst hrel
+    -- the budget is spent on both sides at once: the Rust builds
+    -- `internal(<M>)` and `whnfLoopI … 0` throws `.internal` (task #67)
+    intro n hn e he fe lfe hfe hfrel st o st' hwf hok lst hrel
     have hz : n = 0#u64 := Std.UScalar.eq_of_val_eq (by simp [hn])
     unfold cached.core_c.whnf_loop_i at hok
     simp [hz, bind_eq_ok_iff] at hok
+    obtain ⟨v, _, ce, hce, ho, _⟩ := hok
+    have hce' : ce = .Internal v := by
+      rw [core_types.internal] at hce; exact (Result.ok_injective hce).symm
+    subst hce'
+    rw [← ho]
+    exact ErrSim.internal (whnfLoopI_zero_run (knot mode lfe fuel.val) lfe d.val (absExpr e) lst)
   | succ m ih =>
-    intro n hn e he fe lfe hfe hfrel st res st' hwf hok lst hrel
+    intro n hn e he fe lfe hfe hfrel st o st' hwf hok lst hrel
     have hz : ¬ (n = 0#u64) := by
       intro hc
       rw [hc] at hn
@@ -181,7 +244,7 @@ private theorem whnf_loop_aux (hw : Wrappers mode fuel) (hd : WhnfDeps mode fuel
       (fun e' he' => by simpa [hiv] using ih i hiv e' he') he
     dsimp only
     rw [whnfLoopI_succ]
-    exact hstep.apply hwf hfe hok hrel hfrel
+    exact hstep fe lfe hfe hfrel st o st' hwf hok lst hrel
 
 /-- `ConLeche/Cached/CoreC.lean:1105` — **`whnf_loop_i` refines `whnfLoopI`**
 (`core_c.rs:2562`): the `U64` budget is con-leche's `Nat` one. -/
@@ -213,13 +276,13 @@ theorem whnf_body_i_refines (hw : Wrappers mode fuel) (hd : WhnfDeps mode fuel)
       (fun st fe => cached.core_c.whnf_body_i mode fuel st fe d e)
       (fun lfe => ConLeche.Cached.whnfBodyI (knot mode lfe fuel.val) lfe d.val
         (absExpr e)) := by
-  intro fe lfe hfe hfrel st res st' hwf hok lst hrel
+  intro fe lfe hfe hfrel st o st' hwf hok lst hrel
   unfold cached.core_c.whnf_body_i at hok
   obtain ⟨i, hi, hok⟩ := bind_eq_ok_iff.mp hok
   have hiv : i.val = ConLeche.whnfLoopFuel := CoreK.whnf_loop_fuel_refines hi
-  have := (whnf_loop_i_refines hw hd d i he).apply hwf hfe hok hrel hfrel
-  rw [hiv] at this
-  simpa [ConLeche.Cached.whnfBodyI] using this
+  have h := (whnf_loop_i_refines hw hd d i he) fe lfe hfe hfrel st o st' hwf hok lst hrel
+  rw [hiv] at h
+  exact h
 
 end
 
