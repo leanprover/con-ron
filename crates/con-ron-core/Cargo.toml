@@ -2,6 +2,7 @@
 name = "con-ron-core"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
 description = "The verified core of con-ron: con-leche's checkDecls, transliterated (DESIGN.md §3)"
 
 [lib]
