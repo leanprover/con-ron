@@ -21,8 +21,10 @@ Three groups carry real content and the rest are mechanical:
   pinned-basis guards read (`env.find? eqName == some eqA`,
   `decide (env.find? natName = some natA)`), so its exactness is load-bearing
   for the accept direction and not a convenience;
-* **`find`/`find_proj`** — the linear search over `Env.consts` in its
-  newest-first order, `= Env.find?`/`Env.findProj?` on the nose, plus the fact
+* **`find`/`find_proj`** — the linear search over `Env.consts`, read from the
+  back because the port stores that list reversed (task #50, `absEnv`), so what
+  is scanned is the cited newest-first order and the newest binding of a name
+  still wins; `= Env.find?`/`Env.findProj?` on the nose, plus the fact
   a lookup hands its caller a well-formed record (`find_wf`), which is what the
   knot's induction consumes.
 
@@ -1109,64 +1111,77 @@ theorem constant_info_rc_dup_refines {c p : env.ConstantInfo}
     (h : env.constant_info_rc_dup c = ok p) : p = c := by
   rw [constant_info_rc_dup_val, Result.ok.injEq] at h; exact h.symm
 
-/-- `env::env_of_from` shares the rest of the records onto its accumulator. -/
+/-- `env::env_of_from` shares `cs[..i]` onto its accumulator **back to front**:
+`Env.consts` is the cited list reversed (task #50; `Refine/Abs.lean`'s
+`absEnv`), and `env_of` is where the reversal happens. -/
 theorem env_of_from_val (cs : alloc.vec.Vec env.ConstantInfo) :
     ∀ k : Nat, ∀ (i : Std.Usize) (out v : alloc.vec.Vec env.ConstantInfo),
-      cs.length - i.val ≤ k → env.env_of_from cs i out = ok v →
-      v.val = out.val ++ cs.val.drop i.val := by
+      i.val ≤ k → i.val ≤ cs.length → env.env_of_from cs i out = ok v →
+      v.val = out.val ++ (cs.val.take i.val).reverse := by
   intro k
   induction k with
   | zero =>
-    intro i out v hk h
-    rw [env.env_of_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
-    rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]; simp
+    intro i out v hk hi h
+    rw [env.env_of_from.eq_def] at h
+    rw [if_pos (show i = 0#usize by scalar_tac), Result.ok.injEq] at h
+    rw [← h, show i.val = 0 by scalar_tac]; simp
   | succ k ih =>
-    intro i out v hk h
-    rw [env.env_of_from.eq_def] at h; simp only [] at h
-    by_cases hi : i.val ≥ cs.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
-      rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]; simp
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac)] at h
-      have hlt : i.val < cs.val.length := by scalar_tac
-      have hmax : i.val + 1 ≤ Std.Usize.max := by have := cs.slice.property; scalar_tac
-      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec cs i hlt)
+    intro i out v hk hi h
+    rw [env.env_of_from.eq_def] at h
+    by_cases h0 : i = 0#usize
+    · rw [if_pos h0, Result.ok.injEq] at h
+      rw [← h, show i.val = 0 by scalar_tac]; simp
+    · rw [if_neg h0] at h
+      obtain ⟨w, hw, hwv⟩ := usize_sub_ok (show 1 ≤ i.val by scalar_tac)
+      have hlt : w.val < cs.val.length := by scalar_tac
+      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec cs w hlt)
       subst hyv
       simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw,
         constant_info_share_val, Result.ok.injEq, exists_eq_left'] at h
       obtain ⟨c1, hc1, out1, hout1, h⟩ := h
       rw [constant_info_dup_refines hc1] at hout1
-      rw [ih w out1 v (by scalar_tac) h, vec_push_val hout1, hwv,
-        List.drop_eq_getElem_cons hlt]
+      rw [ih w out1 v (by scalar_tac) (by scalar_tac) h, vec_push_val hout1,
+        show i.val = w.val + 1 by scalar_tac, list_take_reverse_cons hlt]
       simp
 
-/-- `env::env_of_from` at its own statement. -/
+/-- `env::env_of_from` at its own statement, at the entry point's `i`. -/
 theorem env_of_from_refines {cs out v : alloc.vec.Vec env.ConstantInfo}
-    {i : Std.Usize} (h : env.env_of_from cs i out = ok v) :
-    v.val = out.val ++ cs.val.drop i.val :=
-  env_of_from_val cs cs.length i out v (by scalar_tac) h
+    {i : Std.Usize} (hi : i.val ≤ cs.length) (h : env.env_of_from cs i out = ok v) :
+    v.val = out.val ++ (cs.val.take i.val).reverse :=
+  env_of_from_val cs i.val i out v (by scalar_tac) hi h
 
-/-- `ConLeche/Kernel/Env.lean:627-629` -- `env::env_of` is the Lean's `⟨cs⟩`. -/
+/-- `env::env_of_from` from the entry point: the whole list, reversed. -/
+theorem env_of_from_all {cs v : alloc.vec.Vec env.ConstantInfo}
+    {out : alloc.vec.Vec env.ConstantInfo} (hout : out.val = [])
+    (h : env.env_of_from cs (alloc.vec.Vec.len cs) out = ok v) :
+    v.val = cs.val.reverse := by
+  rw [env_of_from_refines (by scalar_tac) h, hout,
+    show (alloc.vec.Vec.len cs).val = cs.val.length by simp, List.take_length,
+    List.nil_append]
+
+/-- `ConLeche/Kernel/Env.lean:627-629` -- `env::env_of` is the Lean's `⟨cs⟩`:
+the argument is in the *cited* (newest-first) order, and `env_of` reverses it
+into the stored one, which `absEnv` reverses back. -/
 theorem env_of_refines {cs : alloc.vec.Vec env.ConstantInfo} {e : env.Env}
     (h : env.env_of cs = ok e) : absEnv e = ⟨absConstantInfos cs⟩ := by
   simp only [env.env_of, bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨v, hv, rfl⟩ := h
-  have hvv : v = cs := alloc.vec.Vec.ext _ _ (by
-    simpa [alloc.vec.Vec.with_capacity] using
-      env_of_from_val cs cs.length 0#usize _ v (by scalar_tac) hv)
-  rw [absEnv, hvv]
+  have hvv : v.val = cs.val.reverse :=
+    env_of_from_all (by simp [alloc.vec.Vec.with_capacity]) hv
+  rw [absEnv, absConstantInfos, absConstantInfos, hvv, List.map_reverse,
+    List.reverse_reverse]
 
 /-- `env::env_of` is well formed when its records are. -/
 theorem env_of_wf {cs : alloc.vec.Vec env.ConstantInfo} {e : env.Env}
     (hcs : ConstantInfosWF cs) (h : env.env_of cs = ok e) : EnvWF e := by
   simp only [env.env_of, bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨v, hv, rfl⟩ := h
-  have hvv : v = cs := alloc.vec.Vec.ext _ _ (by
-    simpa [alloc.vec.Vec.with_capacity] using
-      env_of_from_val cs cs.length 0#usize _ v (by scalar_tac) hv)
-  rw [show EnvWF { consts := v } = ConstantInfosWF v from rfl, hvv]
-  exact hcs
+  have hvv : v.val = cs.val.reverse :=
+    env_of_from_all (by simp [alloc.vec.Vec.with_capacity]) hv
+  intro c hc
+  rw [show (({ consts := v } : env.Env).consts).val = v.val from rfl, hvv,
+    List.mem_reverse] at hc
+  exact hcs c hc
 
 /-! ## The block's recursor suffix, decided on the tags -/
 
@@ -1800,117 +1815,115 @@ theorem constant_info_name_wf {c : env.ConstantInfo} {n : name.Name}
   case RecInfo v _ _ _ => rw [← h]; exact hc.1.1
   case ProjInfo tbl => exact proj_table_name_wf hc.1 h
 
-/-- The index recursion behind `find`: `find_from cs i n` is `List.find?` over
-`cs[i..]`, in the cited (newest-first) order. -/
+/-- The index recursion behind `find`: `find_from cs i n` searches `cs[..i]`
+**from the top**, which is the cited (newest-first) list from the front — the
+stored list is that list reversed (task #50), so `List.find?` reads
+`(cs.take i).reverse`. -/
 theorem find_from_refines {cs : alloc.vec.Vec env.ConstantInfo} {n : name.Name}
     (hcs : ConstantInfosWF cs) (hn : NameWF n) :
     ∀ k : Nat, ∀ (i : Std.Usize) (o : Option env.ConstantInfo),
-      cs.val.length - i.val ≤ k → env.find_from cs i n = ok o →
+      i.val ≤ k → i.val ≤ cs.val.length → env.find_from cs i n = ok o →
       o.map absConstantInfo = List.find? (fun ci => ci.name == absName n)
-        ((cs.val.drop i.val).map absConstantInfo) := by
+        ((cs.val.take i.val).reverse.map absConstantInfo) := by
   intro k
   induction k with
   | zero =>
-    intro i o hk h
-    rw [env.find_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
-    rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]
+    intro i o hk hi h
+    rw [env.find_from.eq_def] at h
+    rw [if_pos (show i = 0#usize by scalar_tac), Result.ok.injEq] at h
+    rw [← h, show i.val = 0 by scalar_tac]
     simp
   | succ k ih =>
-    intro i o hk h
-    rw [env.find_from.eq_def] at h; simp only [] at h
-    by_cases hi : i.val ≥ cs.val.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
-      rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]
+    intro i o hk hi h
+    rw [env.find_from.eq_def] at h
+    by_cases h0 : i = 0#usize
+    · rw [if_pos h0, Result.ok.injEq] at h
+      rw [← h, show i.val = 0 by scalar_tac]
       simp
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac)] at h
-      have hl : i.val < cs.val.length := by scalar_tac
-      have hmax : i.val + 1 ≤ Std.Usize.max := by have := cs.slice.property; scalar_tac
-      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec cs i hl)
+    · rw [if_neg h0] at h
+      obtain ⟨w, hw, hwv⟩ := usize_sub_ok (show 1 ≤ i.val by scalar_tac)
+      have hl : w.val < cs.val.length := by scalar_tac
+      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec cs w hl)
       subst hyv
-      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, arc_deref_eq,
-        Result.ok.injEq, exists_eq_left'] at h
+      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw,
+        arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
       obtain ⟨n1, hn1, b, hb, h⟩ := h
       have hwfc := hcs _ (List.getElem_mem hl)
       have hb' := Name.beq_refines (constant_info_name_wf hwfc hn1) hn hb
       rw [constant_info_name_refines hn1] at hb'
-      rw [List.drop_eq_getElem_cons hl, List.map_cons, List.find?_cons]
+      rw [show i.val = w.val + 1 by scalar_tac, list_take_reverse_cons hl,
+        List.map_cons, List.find?_cons]
       cases hc : b
       · rw [hc] at hb' h
-        simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff, hw,
+        simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff,
           Result.ok.injEq, exists_eq_left'] at h
         have hne := of_decide_eq_false hb'.symm
-        rw [show ((absConstantInfo cs.val[i.val]).name == absName n) = false from
+        rw [show ((absConstantInfo cs.val[w.val]).name == absName n) = false from
           by simpa using hne]
-        have hrec := ih w o (by scalar_tac) h
-        rw [hwv] at hrec
-        exact hrec
+        exact ih w o (by scalar_tac) (by scalar_tac) h
       · rw [hc] at hb' h
         simp only [if_true, bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h
         have heq := of_decide_eq_true hb'.symm
-        rw [show ((absConstantInfo cs.val[i.val]).name == absName n) = true from
+        rw [show ((absConstantInfo cs.val[w.val]).name == absName n) = true from
           by simpa using heq, ← h]
         simp
 
 /-- `ConLeche/Kernel/Env.lean:636-637` — `env::find` refines `Env.find?`: the
-linear search over `consts` in its newest-first order, so the newest binding of
-a name wins. -/
+linear search over `consts`, from the back of the stored list, i.e. over the
+cited newest-first order, so the newest binding of a name wins. -/
 theorem find_refines {e : env.Env} {n : name.Name} {o : Option env.ConstantInfo}
     (he : EnvWF e) (hn : NameWF n) (h : env.find e n = ok o) :
     o.map absConstantInfo = (absEnv e).find? (absName n) := by
   rw [env.find] at h
-  have hfrom := find_from_refines he hn e.consts.val.length 0#usize o
-    (by scalar_tac) h
-  have h0 : (0#usize : Std.Usize).val = 0 := rfl
-  rw [h0, List.drop_zero] at hfrom
-  rw [hfrom, ConLeche.Env.find?, absEnv, absConstantInfos]
+  have hfrom := find_from_refines he hn e.consts.val.length
+    (alloc.vec.Vec.len e.consts) o (by scalar_tac) (by scalar_tac) h
+  rw [show (alloc.vec.Vec.len e.consts).val = e.consts.val.length by simp,
+    List.take_length] at hfrom
+  rw [hfrom, ConLeche.Env.find?, absEnv, absConstantInfos, List.map_reverse]
 
 /-- `env::find` answers a well-formed stored constant. -/
 theorem find_wf {e : env.Env} {n : name.Name} {o : Option env.ConstantInfo}
     (he : EnvWF e) (h : env.find e n = ok o) :
     ∀ c, o = some c → ConstantInfoWF c := by
   have key : ∀ k : Nat, ∀ (i : Std.Usize) (o : Option env.ConstantInfo),
-      e.consts.val.length - i.val ≤ k → env.find_from e.consts i n = ok o →
+      i.val ≤ k → i.val ≤ e.consts.val.length →
+      env.find_from e.consts i n = ok o →
       ∀ c, o = some c → ConstantInfoWF c := by
     intro k
     induction k with
     | zero =>
-      intro i o hk h c hc
-      rw [env.find_from.eq_def] at h; simp only [] at h
-      rw [if_pos (show i ≥ alloc.vec.Vec.len e.consts by scalar_tac),
-        Result.ok.injEq] at h
+      intro i o hk hi h c hc
+      rw [env.find_from.eq_def] at h
+      rw [if_pos (show i = 0#usize by scalar_tac), Result.ok.injEq] at h
       rw [← h] at hc; simp at hc
     | succ k ih =>
-      intro i o hk h c hc
-      rw [env.find_from.eq_def] at h; simp only [] at h
-      by_cases hi : i.val ≥ e.consts.val.length
-      · rw [if_pos (show i ≥ alloc.vec.Vec.len e.consts by scalar_tac),
-          Result.ok.injEq] at h
+      intro i o hk hi h c hc
+      rw [env.find_from.eq_def] at h
+      by_cases h0 : i = 0#usize
+      · rw [if_pos h0, Result.ok.injEq] at h
         rw [← h] at hc; simp at hc
-      · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len e.consts by scalar_tac)] at h
-        have hl : i.val < e.consts.val.length := by scalar_tac
-        have hmax : i.val + 1 ≤ Std.Usize.max := by
-          have := e.consts.slice.property; scalar_tac
-        obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
+      · rw [if_neg h0] at h
+        obtain ⟨w, hw, hwv⟩ := usize_sub_ok (show 1 ≤ i.val by scalar_tac)
+        have hl : w.val < e.consts.val.length := by scalar_tac
         obtain ⟨y, hy, hyv⟩ :=
-          WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec e.consts i hl)
+          WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec e.consts w hl)
         subst hyv
-        simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, arc_deref_eq,
-          Result.ok.injEq, exists_eq_left'] at h
+        simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw,
+          arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
         obtain ⟨n1, hn1, b, hb, h⟩ := h
         cases hcb : b
         · rw [hcb] at h
-          simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff, hw,
+          simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff,
             Result.ok.injEq, exists_eq_left'] at h
-          exact ih w o (by scalar_tac) h c hc
+          exact ih w o (by scalar_tac) (by scalar_tac) h c hc
         · rw [hcb] at h
           simp only [if_true, bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h
           rw [← h, Option.some.injEq] at hc
           rw [← hc]
           exact he _ (List.getElem_mem hl)
   rw [env.find] at h
-  exact key e.consts.val.length 0#usize o (by scalar_tac) h
+  exact key e.consts.val.length (alloc.vec.Vec.len e.consts) o (by scalar_tac)
+    (by scalar_tac) h
 
 /-! ## The projection lookup -/
 

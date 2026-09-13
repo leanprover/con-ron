@@ -838,8 +838,8 @@ mod tests {
 
     /// `def b : Type := Prop`, `def c : Type := b` — the separable install
     /// twice, the second reading the first through the prefix view.  Both
-    /// phases accept and the environment holds the two constants
-    /// newest-first.
+    /// phases accept and the environment holds the two constants in
+    /// installation order (`Env.consts` is the cited list reversed, task #50).
     #[test]
     fn a_stream_of_definitions_is_accepted() {
         let ds: Vec<DeclC> = vec![
@@ -850,8 +850,8 @@ mod tests {
             Ok(e) => {
                 let ns: Vec<Name> = env_names(&e);
                 assert_eq!(ns.len(), 2);
-                assert!(name::beq(&ns[0], &nm("c")));
-                assert!(name::beq(&ns[1], &nm("b")));
+                assert!(name::beq(&ns[0], &nm("b")));
+                assert!(name::beq(&ns[1], &nm("c")));
             }
             Err(_) => panic!("the two definitions accept"),
         }

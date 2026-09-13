@@ -222,9 +222,11 @@ where
 /// fvar's type is the binder domain, instantiated with the earlier fvars).
 /// Returns the fvars and the opened body.
 ///
-/// Deviation: `fv :: fvs` is a front insertion into a `Vec`, `O(width)` where
-/// Lean's cons is `O(1)` — deliberate, and bounded by the telescope width
-/// (task #14's point 5 for `Env.consts`).
+/// Deviation: `fv :: fvs` is `expr_ops::cons_expr`, the project's spelling of
+/// a cons on a `Vec<Expr>` — a fresh vector filled front to back, `O(width)`
+/// where Lean's cons is `O(1)`, deliberate and bounded by the telescope width
+/// (task #14's point 5).  It is *not* `Vec::insert`: no function of the port
+/// calls that primitive (task #50, `AENEAS_FINDINGS.md` §3.9).
 pub fn open_pis_at_fvars(n: u64, e: &Expr, i: u64) -> Option<(Vec<Expr>, Expr)> {
     if n == 0 {
         Some((Vec::new(), expr::dup(e)))
@@ -234,11 +236,7 @@ pub fn open_pis_at_fvars(n: u64, e: &Expr, i: u64) -> Option<(Vec<Expr>, Expr)> 
                 let fv: Expr = expr::fvar(i, expr::dup(dom));
                 let opened: Expr = expr_ops::instantiate1(body, &fv, 0);
                 match open_pis_at_fvars(n - 1, &opened, i + 1) {
-                    Some((fvs, b)) => {
-                        let mut out: Vec<Expr> = fvs;
-                        out.insert(0, fv);
-                        Some((out, b))
-                    }
+                    Some((fvs, b)) => Some((expr_ops::cons_expr(&fv, &fvs), b)),
                     None => None,
                 }
             }
@@ -252,9 +250,10 @@ pub fn open_pis_at_fvars(n: u64, e: &Expr, i: u64) -> Option<(Vec<Expr>, Expr)> 
 /// innermost binder first.  One `instantiateList` pass per domain instead of
 /// one whole-telescope `instantiate1` pass per binder.
 ///
-/// Deviation: `fv :: acc` and `fv :: fvs` are front insertions (see
+/// Deviation: `fv :: acc` and `fv :: fvs` are `expr_ops::cons_expr` (see
 /// `open_pis_at_fvars`); `acc` is passed by shared reference and copied on
-/// the way down, because a `Vec` has no shared tail.
+/// the way down, because a `Vec` has no shared tail — the cons *is* that copy,
+/// so the step is one pass, not a copy and an insertion.
 pub fn open_pis_at_fvars_f_go(
     acc: &Vec<Expr>,
     n: u64,
@@ -267,14 +266,9 @@ pub fn open_pis_at_fvars_f_go(
         match &e.0.kind {
             ExprKind::ForallE(dom, body, _) => {
                 let fv: Expr = expr::fvar(i, expr_ops::instantiate_list_fast(dom, acc, 0));
-                let mut acc2: Vec<Expr> = env::exprs_copy(acc);
-                acc2.insert(0, expr::dup(&fv));
+                let acc2: Vec<Expr> = expr_ops::cons_expr(&fv, acc);
                 match open_pis_at_fvars_f_go(&acc2, n - 1, body, i + 1) {
-                    Some((fvs, b)) => {
-                        let mut out: Vec<Expr> = fvs;
-                        out.insert(0, fv);
-                        Some((out, b))
-                    }
+                    Some((fvs, b)) => Some((expr_ops::cons_expr(&fv, &fvs), b)),
                     None => None,
                 }
             }

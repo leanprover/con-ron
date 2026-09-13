@@ -10649,3 +10649,172 @@ extraction gate is confirming a crate this task did not touch.
   twice.
 * `tower_slots_all_f`/`rec_slots_all_f` (see above) and the `instC` cap
   (`instCCapC`, `instListM`'s clear-on-cap) are `CORE_PLAN.md` steps 4 and 5.
+
+### Task #50 — No `Vec::insert` in the core; `push_refines` (2026-09-13, Opus under Fable)
+
+Task #46's finding was that the Aeneas Lean library models Rust's `Vec::insert`
+as `List.set` — an overwrite where Rust inserts — so `fenv::push`'s model
+*replaces* `consts[0]` instead of consing, and `Refine/FEnv.lean`'s
+`push_refines` was not merely unproved but **false of the model**.  This task
+takes the other of the two routes: rather than patch the library, **remove the
+primitive from the port**, so that no model of ours depends on it.  Four call
+sites, two answers, one flipped list, and the `sorry` is gone.
+
+#### The four sites
+
+| site | was | is |
+|---|---|---|
+| `fenv::push` (`fenv.rs:198`) | `consts.insert(0, rc)` | `consts.push(rc)` — `Env.consts` stored **reversed** |
+| `checker_base::open_pis_at_fvars` (`:239`) | `out.insert(0, fv)` | `expr_ops::cons_expr(&fv, &fvs)` |
+| `checker_base::open_pis_at_fvars_f_go` (`:271`) | `exprs_copy` + `insert(0, …)` | `expr_ops::cons_expr(&fv, acc)` |
+| `checker_base::open_pis_at_fvars_f_go` (`:275`) | `out.insert(0, fv)` | `expr_ops::cons_expr(&fv, &fvs)` |
+
+The three `checker_base` sites needed no new helper and no reverse:
+`expr_ops::cons_expr` — task #13's spelling of `a :: acc` on a `Vec<Expr>`, a
+fresh vector filled *front to back* — is already the project's cons and already
+refined (`ExprOps.lean`'s `cons_expr_val`, `ExprOpsSpine.lean`'s
+`cons_expr_refines`).  Site `:271` gets *cheaper*: the old line copied the
+accumulator and then shifted it, the new one builds it in one pass.  The other
+two are asymptotically what they were (`O(width)` per binder, bounded by the
+telescope width, `O(width²)` of pointer bumps in total instead of `O(width²)` of
+pointer moves) and they are the *fallback* walk plus one cons per binder of the
+executed one.
+
+`Env.consts` is the interesting one, because a `Vec` has no cheap front
+insertion at all: a copying cons would be `O(n)` *record handles* per push,
+i.e. 60 000² /2 refcount pairs on `init`.  So the list is **stored reversed** —
+oldest first, newest last — and `push` is `Vec::push`, `O(1)` amortised, which
+is what Lean's cons is.  Everything that reads the list reads it the other way:
+
+* `env::find` scans **from the back** (`find_from(cs, i, n)` searches `cs[..i]`
+  from the top, counting *down*), so what is scanned is the cited newest-first
+  order and the newest binding of a name still wins;
+* `fenv::mk_fenv_go` now runs **forward** with the table and the counter
+  threaded down, each constant inserted under its own index as its installation
+  counter — the newest is inserted last and still wins, and the recursion became
+  a tail call with the pre-sized table hoisted to the entry point;
+* `env::env_of` is the boundary converter: its argument stays in the *cited*
+  newest-first order and it reverses while it shares, so every caller (all of
+  them tests and the basis fixtures) is unchanged and `env_of_refines` still
+  reads `absEnv e = ⟨absConstantInfos cs⟩`;
+* three tests asserted the old order and now assert the new one
+  (`fenv::push_then_restrict_is_the_prefix_view`,
+  `checker::install_basis_decl`'s fresh-constant case,
+  `installed::a_stream_of_definitions_is_accepted`).  Nothing else in the
+  workspace reads `consts` positionally: the driver and `con-ron-check` take
+  `.len()`, and the dump crate never sees an `Env` (declarations are their own
+  list, so the byte-exact round trip is untouched).
+
+#### The sweep: what `Vec` primitives the core still uses, and why each is safe
+
+`backends/lean/Aeneas/Std/Vec.lean` (in `vendor/aeneas`), checked line by line
+against the non-test core:
+
+| primitive | model | verdict |
+|---|---|---|
+| `Vec::push` | `:152-159`, `List.concat v.val x`, guard `len+1 ≤ Usize.max` | correct; the one mutator the core uses |
+| `Vec::len` | `:85-87`, `v.val.length` | correct |
+| `Vec::with_capacity` | `:399-400`, `Vec.new` | correct — the capacity is invisible to the model, as it is to `abs` |
+| `Vec::new`, `v[i]`, `&mut v[i]` | `:78`, `:180-186` (`index_usize`), `:211-217` | correct |
+| `Vec::insert` | `:167-172`, `List.set` | **wrong** (`AENEAS_FINDINGS.md` §3.9) — **0 uses as of this task** |
+| `Vec::remove`, `pop`, `truncate`, `drain`, `extend`, `swap`, `reverse`, `sort`, `retain`, `append`, `split_off`, `first`, `last`, `vec![…]` | **no model at all** | 0 uses; absence is safe (the translation would leave a hole the coverage check reports) |
+
+The 49 surviving `.insert(` calls are all on `ron::hashmap::HashMap` — the memo
+tables, `cached::state_c`'s caches and `FEnv.idx` — which is *our* code,
+translated like the rest and proved in `Refine/HashMap.lean`/`HashMapWF.lean`,
+not an Aeneas primitive.  `.remove(` survives only in a `#[cfg(test)]` oracle
+that Charon never sees.
+
+#### The proof side: one definition changed, every statement stayed
+
+The abstraction absorbs the flip:
+
+```lean
+def absEnv (e : env.Env) : ConLeche.Env := ⟨(absConstantInfos e.consts).reverse⟩
+```
+
+and that is the *whole* interface change.  Not one `*_refines` statement about
+the environment moved — `find_refines`, `find_proj_refines`, `env_of_refines`,
+`empty_refines`, `FEnvRel`'s three clauses, `mk_fenv_refines`, `dup_refines`,
+`push_refines` all read exactly as task #46 wrote them.  What changed is
+*proofs*, plus two helpers in `Refine/Abs.lean`:
+
+* `usize_sub_ok` — `i - 1` in the forward `= ok` shape, the companion of
+  `usize_add_ok` for the downward index recursions;
+* `list_take_reverse_cons : (l.take (i+1)).reverse = l[i] :: (l.take i).reverse`
+  — the one list fact a downward recursion over a reversed list needs, and the
+  shape every rewritten proof turns on.
+
+`Refine/FEnv.lean` gained the loop invariant the accumulator build needs,
+
+```lean
+def absPrefixIdx (cs) (i : Nat) := ConLeche.mkFEnvGo ((cs.val.take i).reverse.map absConstantInfo)
+```
+
+with `_zero`/`_succ`/`_all` (the `_succ` step is exactly `mkFEnvGo`'s cons
+equation), and `mk_fenv_go_refines` became a five-property accumulator lemma —
+the table's relation, `Inv`, `KeysOk` and `ValsOk` are hypotheses as well as
+conclusions, because the insertion step needs all five of the previous one.
+
+**`push_refines` is proved**, in two halves: `push_consts` says the pushed
+constant lands at the back of the `Vec` (`Vec.push`'s model, `vec_push_val`),
+and `absEnv` reversing turns that into the cited `ci :: fe.env.consts` — a push
+at the back *is* the cons, read through the abstraction.  `push_idx_refines`
+survives unchanged apart from the `Vec::insert` → `Vec::push` line in its
+ascription, and `push_refines` composes the two and re-establishes `EnvWF` by
+`List.mem_append`.  `Refine/FEnv.lean` is 623 lines (was 547), 26 declarations,
+**zero `sorry`** — the refinement tier's only remaining ones are
+`Refine/Pins.lean`'s three, task #43's deliberately-stated-and-open decoder
+lemmas; the axiom census is `[propext, Classical.choice, Quot.sound]` on
+`push_refines` like everything else.
+
+#### Measurement: the flip is free, and very slightly positive
+
+`init` (58 002 records), release + mimalloc, `con-ron-check --verified
+--jobs=1`, `ulimit -v 2600000`, `perf stat -e instructions:u,cycles:u`, one run
+each — instructions are the measure of record (CLAUDE.md):
+
+| | before | after | |
+|---|---:|---:|---|
+| `instructions:u` | 565.25 G | 564.64 G | **0.999×** |
+| `cycles:u` | 285.70 G | 287.51 G | 1.006× (noise) |
+| wall | 64.93 s | 65.04 s | — |
+| peak RSS | 824 MB | 821 MB | — |
+| verdict | accepted 58 002 | accepted 58 002 | identical |
+
+0.6 G instructions is what the front insertion cost: 60 000 pushes shifting a
+mean of 30 000 eight-byte handles is ~14 GB of `memmove`, which a vectorised
+copy does in roughly that many instructions.  It is a rounding error on `init`
+and it is the *right* sign — the asymptotic improvement (`O(n²)` handle moves →
+`O(n)`) only starts to matter on an environment an order of magnitude larger
+than Mathlib's.
+
+#### Gates
+
+| | |
+|---|---|
+| `scripts/gates.sh` | **all 7 OK** (`cargo build`, `cargo test` 163+16+4+1, lint, provenance 2 101 items / 2 230 citations, gen-pins, `extract.sh --check`, `lake build`) |
+| `cd proof && lake build` | zero errors; **no `sorry` outside `Refine/Pins.lean`** (task #43's three); externals still **1 type + 5 functions** |
+| `scripts/diff-fixtures.sh` | 348 fixtures, **315 agree, 0 differ**, 33 skipped |
+| `scripts/diff-e2e.sh` | **348 agree, 0 differ** |
+| `scripts/dump-check-fixtures.sh` | OK, round trip **byte-identical** |
+
+#### What this says about the tier, and what is left
+
+The model of a function nobody proves anything about can be wrong for months
+without a symptom: `Vec::insert` translates, type-checks, and produces a Lean
+definition that *looks* like the Rust.  It took a refinement proof to notice,
+and it took a one-line change in `absEnv` — not a patch to the library — to
+route around it, because the deviation the port needed (store the list the other
+way) is invisible above the abstraction function.  That is the argument for
+abstracting a data structure by a *function* wherever it is possible at all:
+the representation stayed negotiable right up to the proof.
+
+* `AENEAS_FINDINGS.md` §3.9 keeps the bug and ask #1 keeps the request — the
+  library should still be fixed, and `spikes/toolchain/aeneas-433.patch` is
+  still the place — but nothing in this repo waits on it any more.
+* `Refine/Installed.lean` and `Refine/Checker.lean` (the folds that push) no
+  longer have a blocked dependency; `push_refines` was task #46's named item for
+  "next time" and it is done.
+* The deviation list in `env.rs`'s module note is now the place to look before
+  writing anything that reads `Env.consts`: index `0` is the *oldest* constant.

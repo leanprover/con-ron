@@ -1905,7 +1905,12 @@ mod tests {
         match checker::install_basis_decl(fe2, ax(nm("B"), expr::sort(level::zero()))) {
             Ok(fe3) => {
                 assert!(fenv::find(&fe3, &nm("B")).is_some());
-                assert_eq!(env::constant_info_name(&fe3.env.consts[0]).0.hash, nm("B").0.hash);
+                // `consts` is oldest first, so the fresh constant is last
+                let last = fe3.env.consts.len() - 1;
+                assert_eq!(
+                    env::constant_info_name(&fe3.env.consts[last]).0.hash,
+                    nm("B").0.hash
+                );
             }
             Err(_) => panic!("a fresh basis constant installs"),
         }

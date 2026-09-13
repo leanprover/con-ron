@@ -8,7 +8,8 @@ function of ours reproduces.  So the tier's currency here is a **relation**,
 `FEnvRel fe lfe`, with three clauses:
 
 * `absEnv fe.env = lfe.env` — an equation, because `Env.consts` is a list on
-  both sides and in the same (newest-first) order;
+  both sides (the port stores it reversed, which `absEnv` reverses back: task
+  #50);
 * `fe.visible_below.val = lfe.visibleBelow` — the installation counter bound
   (`u64` in the port, `Nat` in the Lean, DESIGN.md §3.3);
 * `HashMap.RelOn NameWF fe.idx lfe.idx absName absIdxEntry` — task #16's
@@ -184,7 +185,44 @@ theorem restrict_to_wf {fe fe' : fenv.FEnv} {k : Std.U64} (hwf : FEnvWF fe)
   rw [← h]
   exact ⟨hwf.env, hwf.inv, hwf.keys, hwf.vals⟩
 
-/-! ## The index build -/
+/-! ## The index build
+
+The port builds the index *forward* over `env.consts`, which is the cited list
+**reversed** (task #50), threading the table and the counter down; the cited
+`mkFEnvGo` recurses over the cited list, i.e. from this `Vec`'s back.  The
+invariant that connects them is `absPrefixIdx`: the abstract index of the first
+`i` stored constants. -/
+
+/-- `ConLeche/Kernel/FEnv.lean:56-60` — the cited index of the first `i` stored
+constants, i.e. of the cited list's `i`-long tail (`consts[..i]` read back to
+front).  `mk_fenv_go`'s loop invariant. -/
+def absPrefixIdx (cs : alloc.vec.Vec env.ConstantInfo) (i : Nat) :
+    Nat × Std.HashMap ConLeche.Name (Nat × ConLeche.ConstantInfo) :=
+  ConLeche.mkFEnvGo ((cs.val.take i).reverse.map absConstantInfo)
+
+/-- Nothing installed: the counter is `0` and the table is empty. -/
+theorem absPrefixIdx_zero (cs : alloc.vec.Vec env.ConstantInfo) :
+    absPrefixIdx cs 0
+      = (0, (∅ : Std.HashMap ConLeche.Name (Nat × ConLeche.ConstantInfo))) := by
+  rw [absPrefixIdx]
+  simp [ConLeche.mkFEnvGo]
+
+/-- One installation: the `i`-th stored constant is the *head* of the cited
+list's `(i+1)`-long tail, so it is inserted last and wins. -/
+theorem absPrefixIdx_succ {cs : alloc.vec.Vec env.ConstantInfo} {i : Nat}
+    (h : i < cs.val.length) :
+    absPrefixIdx cs (i + 1) =
+      ((absPrefixIdx cs i).1 + 1,
+       (absPrefixIdx cs i).2.insert (absConstantInfo cs.val[i]).name
+         ((absPrefixIdx cs i).1, absConstantInfo cs.val[i])) := by
+  rw [absPrefixIdx, absPrefixIdx, list_take_reverse_cons h, List.map_cons,
+    ConLeche.mkFEnvGo]
+
+/-- Everything installed: the whole cited list, which is what `mkFEnv` reads. -/
+theorem absPrefixIdx_all (cs : alloc.vec.Vec env.ConstantInfo) :
+    absPrefixIdx cs cs.val.length
+      = ConLeche.mkFEnvGo (absEnv { consts := cs }).consts := by
+  rw [absPrefixIdx, List.take_length, absEnv, absConstantInfos, List.map_reverse]
 
 /-- `x + y = ok z` on a `u64` in the forward shape. -/
 theorem u64_add_val {x y z : Std.U64} (h : x + y = ok z) : z.val = x.val + y.val := by
@@ -208,98 +246,96 @@ theorem empty_idx {m : ron.hashmap.HashMap name.Name (Std.U64 × env.ConstantInf
   rw [hav] at hp
   nomatch hp
 
-/-- `ConLeche/Kernel/FEnv.lean:56-60` — `fenv::mk_fenv_go` refines `mkFEnvGo` on
-`cs[i..]`: the index is built from the back, so the newest (front) constant is
-inserted last and wins, exactly as `List.find?` takes the first match — which is
-why the agreement with `Env.find?` needs no freshness assumption.  The counter,
-the relation, `ron::HashMap`'s invariant, the keys and the stored values come
-out together, because the insertion step needs all five of the previous one. -/
+/-- `ConLeche/Kernel/FEnv.lean:56-60` — `fenv::mk_fenv_go` refines `mkFEnvGo`:
+the port inserts `cs[i..]` into the table it is given, in increasing `i`, each
+constant under its own index as its counter — and since `cs` is the cited list
+reversed (task #50), increasing `i` is the cited recursion *unwinding*, so the
+newest constant is inserted last and wins, exactly as `List.find?` takes the
+first match; the agreement with `Env.find?` needs no freshness assumption.  The
+table and the counter are threaded **down**, so this is an accumulator lemma:
+the five properties of the table are hypotheses as well as conclusions, because
+the insertion step needs all five of the previous one. -/
 theorem mk_fenv_go_refines {cs : alloc.vec.Vec env.ConstantInfo}
     (hcs : ConstantInfosWF cs) :
-    ∀ k : Nat, ∀ (i : Std.Usize) (c : Std.U64)
-      (m : ron.hashmap.HashMap name.Name (Std.U64 × env.ConstantInfo)),
-      cs.val.length - i.val ≤ k → fenv.mk_fenv_go cs i = ok (c, m) →
-      c.val = (ConLeche.mkFEnvGo ((cs.val.drop i.val).map absConstantInfo)).1 ∧
-      HashMap.RelOn NameWF m
-        (ConLeche.mkFEnvGo ((cs.val.drop i.val).map absConstantInfo)).2
+    ∀ k : Nat, ∀ (i : Std.Usize) (c c' : Std.U64)
+      (m m' : ron.hashmap.HashMap name.Name (Std.U64 × env.ConstantInfo)),
+      cs.val.length - i.val ≤ k → i.val ≤ cs.val.length →
+      c.val = (absPrefixIdx cs i.val).1 →
+      HashMap.RelOn NameWF m (absPrefixIdx cs i.val).2 absName absIdxEntry →
+      HashMap.Inv name.Name.Insts.Con_ron_coreRonHashmapHashable m →
+      HashMap.KeysOk NameWF m → ValsOk (fun p => ConstantInfoWF p.2) m →
+      fenv.mk_fenv_go cs i c m = ok (c', m') →
+      c'.val = (absPrefixIdx cs cs.val.length).1 ∧
+      HashMap.RelOn NameWF m' (absPrefixIdx cs cs.val.length).2
         absName absIdxEntry ∧
-      HashMap.Inv name.Name.Insts.Con_ron_coreRonHashmapHashable m ∧
-      HashMap.KeysOk NameWF m ∧ ValsOk (fun p => ConstantInfoWF p.2) m := by
-  have base : ∀ (i : Std.Usize) (c : Std.U64)
-      (m : ron.hashmap.HashMap name.Name (Std.U64 × env.ConstantInfo)),
-      cs.val.length ≤ i.val → fenv.mk_fenv_go cs i = ok (c, m) →
-      c.val = (ConLeche.mkFEnvGo ((cs.val.drop i.val).map absConstantInfo)).1 ∧
-      HashMap.RelOn NameWF m
-        (ConLeche.mkFEnvGo ((cs.val.drop i.val).map absConstantInfo)).2
+      HashMap.Inv name.Name.Insts.Con_ron_coreRonHashmapHashable m' ∧
+      HashMap.KeysOk NameWF m' ∧ ValsOk (fun p => ConstantInfoWF p.2) m' := by
+  have base : ∀ (i : Std.Usize) (c c' : Std.U64)
+      (m m' : ron.hashmap.HashMap name.Name (Std.U64 × env.ConstantInfo)),
+      cs.val.length ≤ i.val → i.val ≤ cs.val.length →
+      c.val = (absPrefixIdx cs i.val).1 →
+      HashMap.RelOn NameWF m (absPrefixIdx cs i.val).2 absName absIdxEntry →
+      HashMap.Inv name.Name.Insts.Con_ron_coreRonHashmapHashable m →
+      HashMap.KeysOk NameWF m → ValsOk (fun p => ConstantInfoWF p.2) m →
+      fenv.mk_fenv_go cs i c m = ok (c', m') →
+      c'.val = (absPrefixIdx cs cs.val.length).1 ∧
+      HashMap.RelOn NameWF m' (absPrefixIdx cs cs.val.length).2
         absName absIdxEntry ∧
-      HashMap.Inv name.Name.Insts.Con_ron_coreRonHashmapHashable m ∧
-      HashMap.KeysOk NameWF m ∧ ValsOk (fun p => ConstantInfoWF p.2) m := by
-    intro i c m hi h
+      HashMap.Inv name.Name.Insts.Con_ron_coreRonHashmapHashable m' ∧
+      HashMap.KeysOk NameWF m' ∧ ValsOk (fun p => ConstantInfoWF p.2) m' := by
+    intro i c c' m m' hge hle hc hrel hinv hkeys hvals h
     rw [fenv.mk_fenv_go.eq_def] at h
     simp only [] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac)] at h
-    obtain ⟨hm, hwc, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨hrel, hinv, hkeys, hvals⟩ := empty_idx hwc
-    have e := Result.ok_injective h
-    have ec : c = 0#u64 := (congrArg Prod.fst e).symm
-    have em : m = hm := (congrArg Prod.snd e).symm
-    rw [List.drop_eq_nil_of_le hi, List.map_nil, ConLeche.mkFEnvGo]
+    rw [if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+    have ei : i.val = cs.val.length := by omega
+    have ec : c = c' := congrArg Prod.fst h
+    have em : m = m' := congrArg Prod.snd h
     subst ec; subst em
-    exact ⟨rfl, hrel, hinv, hkeys, hvals⟩
+    rw [ei] at hc hrel
+    exact ⟨hc, hrel, hinv, hkeys, hvals⟩
   intro k
   induction k with
-  | zero => intro i c m hk h; exact base i c m (by omega) h
+  | zero =>
+    intro i c c' m m' hk hle hc hrel hinv hkeys hvals h
+    exact base i c c' m m' (by omega) hle hc hrel hinv hkeys hvals h
   | succ k ih =>
-    intro i c m hk h
-    by_cases hi : cs.val.length ≤ i.val
-    · exact base i c m hi h
+    intro i c c' m m' hk hle hc hrel hinv hkeys hvals h
+    by_cases hge : cs.val.length ≤ i.val
+    · exact base i c c' m m' hge hle hc hrel hinv hkeys hvals h
     rw [fenv.mk_fenv_go.eq_def] at h
     simp only [] at h
     rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac)] at h
     have hl : i.val < cs.val.length := by omega
-    obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-    have hwv : w.val = i.val + 1 := HashMap.uscalar_add_eq hw
-    obtain ⟨p, hrec, h⟩ := bind_eq_ok_iff.mp h
-    -- the pattern-`let`s Aeneas emits for the two pair results: only the
-    -- unifier sees through them (task #16's hard spot 1), so they go by
-    -- ascription, with `p.1`/`p.2` in place of the bound pattern variables
-    have h3 : (do
-        let a ← alloc.vec.Vec.index
-          (core.slice.index.SliceIndexUsizeSlice (alloc.sync.Arc env.ConstantInfo)) cs i
-        let ci ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a
-        let n ← env.constant_info_name ci
-        let a1 ← env.constant_info_rc_dup a
-        let q ← ron.hashmap.HashMap.insert
-          name.Name.Insts.Con_ron_coreRonHashmapHashable
-          name.Name.Insts.Con_ron_coreRonHashmapEq2 p.2 n (p.1, a1)
-        let i4 ← p.1 + 1#u64
-        ok (i4, q.2)) = ok (c, m) := h
-    obtain ⟨hc0, hrel0, hinv0, hkeys0, hvals0⟩ := ih w p.1 p.2 (by omega) hrec
-    rw [hwv] at hc0 hrel0
     obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec cs i hl)
     subst hyv
     simp only [alloc.vec.Vec.index_slice_index, hy, arc_deref_eq,
       env.constant_info_rc_dup, ptr_clone_eq, bind_eq_ok_iff, Result.ok.injEq,
-      exists_eq_left'] at h3
-    obtain ⟨n, hn, q, hins, h3⟩ := h3
+      exists_eq_left'] at h
+    obtain ⟨n, hn, q, hins, h⟩ := h
+    -- the pattern-`let` Aeneas emits for the insert's pair result: only the
+    -- *unifier* sees through it (task #16's hard spot 1), so it goes by
+    -- ascription, with `q.2` in place of the bound pattern variable
+    have h3 : (do
+        let i2 ← i + 1#usize
+        let i3 ← c + 1#u64
+        fenv.mk_fenv_go cs i2 i3 q.2) = ok (c', m') := h
+    obtain ⟨i2, hi2, h4⟩ := bind_eq_ok_iff.mp h3
+    obtain ⟨i3, hi3, h5⟩ := bind_eq_ok_iff.mp h4
+    have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
     have hwfc := hcs _ (List.getElem_mem hl)
     have hnwf : NameWF n := Env.constant_info_name_wf hwfc hn
     obtain ⟨hinv1, -, hupd, hkeys1⟩ :=
-      HashMap.insert_refines_wf name_eq2_fwd hinv0 hkeys0 hnwf hins
-    obtain ⟨hrel1, -⟩ := HashMap.Rel_insert_wf name_eq2_fwd absName_inj_on hinv0
-      hkeys0 hrel0 hnwf hins
+      HashMap.insert_refines_wf name_eq2_fwd hinv hkeys hnwf hins
+    obtain ⟨hrel1, -⟩ := HashMap.Rel_insert_wf name_eq2_fwd absName_inj_on hinv
+      hkeys hrel hnwf hins
     have hvals1 : ValsOk (fun r => ConstantInfoWF r.2) q.2 :=
-      ValsOk_insert hvals0 hwfc hupd
-    obtain ⟨i4, hi4, e⟩ := h3
-    have ec : c = i4 := (congrArg Prod.fst e).symm
-    have em : m = q.2 := (congrArg Prod.snd e).symm
-    subst ec; subst em
-    rw [List.drop_eq_getElem_cons hl, List.map_cons, ConLeche.mkFEnvGo]
-    refine ⟨?_, ?_, hinv1, hkeys1, hvals1⟩
-    · rw [u64_add_val hi4, hc0]; rfl
-    · rw [Env.constant_info_name_refines hn] at hrel1
-      rw [show absIdxEntry (p.1, cs.val[i.val]) = (p.1.val, absConstantInfo cs.val[i.val])
-        from rfl, hc0] at hrel1
+      ValsOk_insert hvals hwfc hupd
+    refine ih i2 i3 c' q.2 m' (by omega) (by omega) ?_ ?_ hinv1 hkeys1 hvals1 h5
+    · rw [hi2v, absPrefixIdx_succ hl, u64_add_val hi3, hc]; rfl
+    · rw [hi2v, absPrefixIdx_succ hl]
+      rw [Env.constant_info_name_refines hn] at hrel1
+      rw [show absIdxEntry (c, cs.val[i.val]) = (c.val, absConstantInfo cs.val[i.val])
+        from rfl, hc] at hrel1
       exact hrel1
 
 /-- `ConLeche/Kernel/FEnv.lean:64-66` — `fenv::mk_fenv` refines `mkFEnv`: the
@@ -308,51 +344,66 @@ theorem mk_fenv_refines {e : env.Env} {fe : fenv.FEnv} (he : EnvWF e)
     (h : fenv.mk_fenv e = ok fe) :
     FEnvRel fe (ConLeche.mkFEnv (absEnv e)) ∧ FEnvWF fe := by
   rw [fenv.mk_fenv] at h
-  obtain ⟨p, hgo, h⟩ := bind_eq_ok_iff.mp h
-  have h2 : (ok { env := e, idx := p.2, visible_below := p.1 } : Result fenv.FEnv)
-      = ok fe := h
+  obtain ⟨hm, hwc, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hrel0, hinv0, hkeys0, hvals0⟩ := empty_idx hwc
+  -- the pattern-`let` for `mk_fenv_go`'s pair result, by ascription
+  have h2 : (do
+      let p ← fenv.mk_fenv_go e.consts 0#usize 0#u64 hm
+      ok { env := e, idx := p.2, visible_below := p.1 }) = ok fe := h
+  obtain ⟨p, hgo, h3⟩ := bind_eq_ok_iff.mp h2
+  have hz : (absPrefixIdx e.consts (0#usize : Std.Usize).val)
+      = (0, (∅ : Std.HashMap ConLeche.Name (Nat × ConLeche.ConstantInfo))) :=
+    absPrefixIdx_zero e.consts
   obtain ⟨hc, hrel, hinv, hkeys, hvals⟩ :=
-    mk_fenv_go_refines he e.consts.val.length 0#usize p.1 p.2 (by scalar_tac) hgo
-  have h0 : (0#usize : Std.Usize).val = 0 := rfl
-  rw [h0, List.drop_zero] at hc hrel
-  rw [← Result.ok_injective h2]
+    mk_fenv_go_refines he e.consts.val.length 0#usize 0#u64 p.1 hm p.2
+      (by scalar_tac) (by scalar_tac) (by rw [hz]; rfl) (by rw [hz]; exact hrel0)
+      hinv0 hkeys0 hvals0 hgo
+  rw [absPrefixIdx_all e.consts] at hc hrel
+  rw [← Result.ok_injective h3]
   exact ⟨⟨rfl, hc, hrel⟩, ⟨he, hinv, hkeys, hvals⟩⟩
 
 /-! ## `push`
 
-**`fenv::push`'s `env.consts` clause does not hold of the generated model, and
-the fault is in the Aeneas Lean library, not in the port.**  The port's
-`consts.insert(0, rc)` is Rust's `Vec::insert`, which shifts and prepends;
-`_tmp/aeneas-lean/Aeneas/Std/Vec.lean:167-172` models it as
+`ci :: fe.env.consts` is `Vec::push` in the port: `Env.consts` is the cited list
+**reversed** (task #50, `env.rs`'s `Env` deviation), so the cons is a push at the
+back — `O(1)` amortised, as Lean's is, and modelled exactly
+(`Aeneas/Std/Vec.lean:152-159`: `List.concat`).
 
-```lean
-def Vec.insert (v) (i) (x) : Result (Vec α) :=
-  if i.val < v.length then ok (.from (v.val.set i x) …) else fail arrayOutOfBounds
-```
+This is where the tier earned its keep.  Until task #50 the port wrote the cons
+as `consts.insert(0, rc)`, i.e. Rust's `Vec::insert`, and
+`Aeneas/Std/Vec.lean:167-172` models *that* as `v.val.set i x` — an **overwrite**
+where Rust inserts, failing outright at `i = len`.  The `idx` and
+`visible_below` clauses were provable (`push_idx_refines` below), the `absEnv`
+clause was *false of the model*, and `push_refines` was this tier's one `sorry`
+with nothing wrong in the Rust.  The library bug is `AENEAS_FINDINGS.md` §3.9 and
+ask #1, and the port's answer is to store the list the other way round: no
+function of `crates/con-ron-core` calls `Vec::insert` any more, so no model of
+ours depends on that primitive. -/
 
-i.e. as `List.set` — an *overwrite*, where Rust inserts.  So the model of
-`fenv::push` **replaces** `consts[0]` instead of consing onto the list, and
-fails outright on an empty environment (`0 < 0` is false).  The `idx` and
-`visible_below` clauses are unaffected and are proved below
-(`push_idx_refines`); the `absEnv` clause is *false* of today's model, so
-`push_refines` is `sorry` and stays that way until one of:
+/-- `fenv::push`'s list clause at the level of the `Vec`: the constant lands at
+the **back** of the stored list, which is the front of the cited one. -/
+theorem push_consts {fe fe' : fenv.FEnv} {ci : env.ConstantInfo}
+    (h : fenv.push fe ci = ok fe') :
+    fe'.env.consts.val = fe.env.consts.val ++ [ci] := by
+  rw [fenv.push] at h
+  simp only [env.constant_info_share, ptr_new_eq, arc_deref_eq,
+    env.constant_info_rc_dup, ptr_clone_eq, bind_eq_ok_iff, Result.ok.injEq,
+    exists_eq_left'] at h
+  obtain ⟨n, hn, q, hins, h⟩ := h
+  have h3 : (do
+      let consts ← alloc.vec.Vec.push fe.env.consts ci
+      let i ← fe.visible_below + 1#u64
+      ok { env := { consts := consts }, idx := q.2, visible_below := i }) = ok fe' := h
+  obtain ⟨consts, hconsts, h4⟩ := bind_eq_ok_iff.mp h3
+  obtain ⟨i, hi, e0⟩ := bind_eq_ok_iff.mp h4
+  have e := Result.ok_injective e0
+  have ec : fe'.env.consts = consts :=
+    (congrArg (fun z : fenv.FEnv => z.env.consts) e).symm
+  rw [ec, vec_push_val hconsts]
 
-* the Aeneas library is corrected (`List.set i x` → `List.insertIdx i x`, and
-  the guard relaxed from Rust's `i ≤ length`), carried in
-  `spikes/toolchain/aeneas-433.patch` — the fix is one line and is owed
-  upstream;
-* or the port stops using `Vec::insert`.  `env.rs`'s `Env.consts` is
-  newest-first only so that `fenv::mk_fenv_go`'s counters can be positions
-  counted from the bottom; a push-at-the-back spelling read in reverse would
-  avoid the call.  `kernel/checker_base.rs:239,271,275` has the other three
-  uses, so a Rust fix is four call sites.
-
-Either way it is a *model* defect that the refinement tier caught, which is
-what the tier is for; nothing about the running binary changes. -/
-
-/-- `fenv::push`'s index and counter clauses — the two that hold.  The new entry
-gets the next installation counter, so a push is visible to everything checked
-after it and to nothing checked before (con-leche task #108). -/
+/-- `fenv::push`'s index and counter clauses.  The new entry gets the next
+installation counter, so a push is visible to everything checked after it and to
+nothing checked before (con-leche task #108). -/
 theorem push_idx_refines {fe fe' : fenv.FEnv} {lfe : ConLeche.FEnv}
     {ci : env.ConstantInfo} (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe)
     (hci : ConstantInfoWF ci) (h : fenv.push fe ci = ok fe') :
@@ -375,7 +426,7 @@ theorem push_idx_refines {fe fe' : fenv.FEnv} {lfe : ConLeche.FEnv}
   have hvals1 : ValsOk (fun r => ConstantInfoWF r.2) q.2 :=
     ValsOk_insert hwf.vals hci hupd
   have h3 : (do
-      let consts ← alloc.vec.Vec.insert fe.env.consts 0#usize ci
+      let consts ← alloc.vec.Vec.push fe.env.consts ci
       let i ← fe.visible_below + 1#u64
       ok { env := { consts := consts }, idx := q.2, visible_below := i }) = ok fe' := h
   obtain ⟨consts, hconsts, h4⟩ := bind_eq_ok_iff.mp h3
@@ -392,14 +443,27 @@ theorem push_idx_refines {fe fe' : fenv.FEnv} {lfe : ConLeche.FEnv}
       = (fe.visible_below.val, absConstantInfo ci) from rfl, hrel.2.1] at hrel1
     exact hrel1
 
-/-- `ConLeche/Kernel/FEnv.lean:87-89` — `fenv::push` refines `FEnv.push`.
-**Open, and not merely unproved**: the section note above has the reason — the
-`absEnv` clause is *false* of the current Aeneas model of `Vec::insert`. -/
+/-- `ConLeche/Kernel/FEnv.lean:87-89` — `fenv::push` refines `FEnv.push`: the
+index of the cons-extended environment.  The list clause is `push_consts` read
+through `absEnv`, which reverses — so a push at the back *is* the cited cons —
+and the other two are `push_idx_refines`. -/
 theorem push_refines {fe fe' : fenv.FEnv} {lfe : ConLeche.FEnv}
     {ci : env.ConstantInfo} (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe)
     (hci : ConstantInfoWF ci) (h : fenv.push fe ci = ok fe') :
     FEnvRel fe' (lfe.push (absConstantInfo ci)) ∧ FEnvWF fe' := by
-  sorry
+  obtain ⟨hvb, hidx, hinv, hkeys, hvals⟩ := push_idx_refines hrel hwf hci h
+  have hlist := push_consts h
+  have henv : absEnv fe'.env = (lfe.push (absConstantInfo ci)).env := by
+    rw [ConLeche.FEnv.push, ← hrel.1, absEnv, absEnv, absConstantInfos,
+      absConstantInfos, hlist]
+    simp
+  refine ⟨⟨henv, hvb, hidx⟩, ⟨?_, hinv, hkeys, hvals⟩⟩
+  intro c hc
+  rw [show (fe'.env.consts).val = fe.env.consts.val ++ [ci] from hlist,
+    List.mem_append] at hc
+  cases hc with
+  | inl hc => exact hwf.env c hc
+  | inr hc => rw [List.mem_singleton.mp hc]; exact hci
 
 /-! ## `dup` -/
 
@@ -417,15 +481,20 @@ theorem dup_refines {fe fe' : fenv.FEnv} (hwf : FEnvWF fe)
       ((ConLeche.mkFEnv (absEnv fe.env)).restrictTo fe.visible_below.val) ∧
     FEnvWF fe' := by
   rw [fenv.dup] at h
+  obtain ⟨hm, hwc, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hrel0, hinv0, hkeys0, hvals0⟩ := empty_idx hwc
   obtain ⟨p, hgo, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨e2, hdup, h⟩ := bind_eq_ok_iff.mp h
   have h2 : (ok { env := e2, idx := p.2, visible_below := fe.visible_below }
       : Result fenv.FEnv) = ok fe' := h
+  have hz : (absPrefixIdx fe.env.consts (0#usize : Std.Usize).val)
+      = (0, (∅ : Std.HashMap ConLeche.Name (Nat × ConLeche.ConstantInfo))) :=
+    absPrefixIdx_zero fe.env.consts
   obtain ⟨hc, hrel, hinv, hkeys, hvals⟩ :=
-    mk_fenv_go_refines hwf.env fe.env.consts.val.length 0#usize p.1 p.2
-      (by scalar_tac) hgo
-  have h0 : (0#usize : Std.Usize).val = 0 := rfl
-  rw [h0, List.drop_zero] at hrel
+    mk_fenv_go_refines hwf.env fe.env.consts.val.length 0#usize 0#u64 p.1 hm p.2
+      (by scalar_tac) (by scalar_tac) (by rw [hz]; rfl) (by rw [hz]; exact hrel0)
+      hinv0 hkeys0 hvals0 hgo
+  rw [absPrefixIdx_all fe.env.consts] at hrel
   have hee : e2 = fe.env := Env.env_dup_refines hdup
   rw [← Result.ok_injective h2]
   refine ⟨⟨?_, rfl, ?_⟩, ⟨?_, hinv, hkeys, hvals⟩⟩
@@ -504,9 +573,10 @@ Lean's own three axioms and no more.  `Classical.choice` appears because the
 abstract map `HashMap.toFun` is defined with `DecidableEq` on the port's key
 type, which `Refine/Abs.lean` supplies classically (see the note there); nothing
 here reaches `ConRon.Generated.kernel.pins_text.PINS_TEXT`, whose string
-constant carries a `native_decide` axiom (task #43).  `push_refines` is
-deliberately **not** in the census: it is the one `sorry`, and the section note
-above says why it is not merely unproved. -/
+constant carries a `native_decide` axiom (task #43).  Task #46 left
+`push_refines` a `sorry` because it was false of the model of `Vec::insert`;
+task #50 removed that call from the port and the lemma is now in the census
+with the rest. -/
 
 /--
 info: 'ConRon.Refine.FEnv.find_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -531,6 +601,12 @@ info: 'ConRon.Refine.FEnv.push_idx_refines' depends on axioms: [propext, Classic
 -/
 #guard_msgs in
 #print axioms push_idx_refines
+
+/--
+info: 'ConRon.Refine.FEnv.push_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms push_refines
 
 /--
 info: 'ConRon.Refine.FEnv.dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound]

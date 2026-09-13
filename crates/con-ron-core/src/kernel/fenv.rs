@@ -3,8 +3,9 @@
 //! The spec environment (`env::Env`) together with a `Name`-keyed index whose
 //! lookup function agrees with `env::find`, built once per top-level entry
 //! call.  Every index entry carries its **installation counter** — the number
-//! of constants installed before it, i.e. its position counted from the
-//! *bottom* of `env.consts` — and the record carries a **visibility bound**,
+//! of constants installed before it, i.e. its index into `env.consts`, which
+//! the port stores oldest-first (`env::Env`'s deviation, task #50) — and the
+//! record carries a **visibility bound**,
 //! `visible_below`: `find` answers `None` for an entry whose counter is at or
 //! above the bound, so a single `FEnv` value answers lookups against any
 //! prefix of itself in `O(1)` (con-leche task #108).
@@ -97,34 +98,39 @@ pub struct FEnv {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:56-60 mkFEnvGo
-/// The index build, from the back: the newest (front) constant is inserted
-/// last and wins, exactly as `List.find?` takes the first match — so the
-/// agreement with `Env.find?` is unconditional (no freshness assumption).
-/// The `u64` component is the running counter, so the build stays linear
-/// (the tail's length is returned, not recomputed).
+/// The index build, from the back of the cited list: the newest constant is
+/// inserted last and wins, exactly as `List.find?` takes the first match — so
+/// the agreement with `Env.find?` is unconditional (no freshness assumption).
+/// The `u64` component is the running counter, so the build stays linear (the
+/// tail's length is returned, not recomputed).
 ///
-/// Deviations: the cited `List` recursion is the index recursion of task #3 —
-/// `mk_fenv_go(cs, i)` is the cited function applied to `cs[i..]`, so the
-/// entry point below passes `0`.  The base case's `∅` is
-/// `HashMap::with_capacity(cs.len())` rather than `HashMap::new()` — the same
-/// empty table (task #7 documented the capacity as invisible to the abstract
-/// map), sized for the inserts that follow, so a build no longer rehashes its
-/// way up through `log n` capacities (`move_elements_from_list` was 0.54 % of
-/// `Init` before task #34).  And the record is shared, not copied.
+/// Deviations: the cited `List` recursion is the index recursion of task #3,
+/// and since `env.consts` is stored oldest-first (`env::Env`'s deviation) "the
+/// back of the cited list" is the **front** of this `Vec`: `mk_fenv_go(cs, i,
+/// c, m)` inserts `cs[i..]` into `m` in *increasing* `i`, each entry with its
+/// own index as its counter, so the table and the counter are threaded down
+/// rather than built up and the recursion is a tail call.  The empty `∅` is
+/// `HashMap::with_capacity(cs.len())` at the entry point rather than
+/// `HashMap::new()` — the same empty table (task #7 documented the capacity as
+/// invisible to the abstract map), sized for the inserts that follow, so a
+/// build no longer rehashes its way up through `log n` capacities
+/// (`move_elements_from_list` was 0.54 % of `Init` before task #34).  And the
+/// record is shared, not copied.
 pub fn mk_fenv_go(
     cs: &Vec<P<ConstantInfo>>,
     i: usize,
+    c: u64,
+    m: HashMap<Name, (u64, P<ConstantInfo>)>,
 ) -> (u64, HashMap<Name, (u64, P<ConstantInfo>)>) {
     if i >= cs.len() {
-        (0, HashMap::with_capacity(cs.len()))
+        (c, m)
     } else {
-        let p = mk_fenv_go(cs, i + 1);
-        let mut m = p.1;
+        let mut m = m;
         m.insert(
             env::constant_info_name(&cs[i]),
-            (p.0, env::constant_info_rc_dup(&cs[i])),
+            (c, env::constant_info_rc_dup(&cs[i])),
         );
-        (p.0 + 1, m)
+        mk_fenv_go(cs, i + 1, c + 1, m)
     }
 }
 
@@ -132,7 +138,12 @@ pub fn mk_fenv_go(
 /// Build the index of `env`, with nothing hidden (`visibleBelow` is the
 /// constant count).  Takes the environment by value: the `FEnv` owns it.
 pub fn mk_fenv(env: Env) -> FEnv {
-    let p = mk_fenv_go(&env.consts, 0);
+    let p = mk_fenv_go(
+        &env.consts,
+        0,
+        0,
+        HashMap::with_capacity(env.consts.len()),
+    );
     FEnv {
         env,
         idx: p.1,
@@ -178,15 +189,13 @@ pub fn restrict_to(fe: FEnv, k: u64) -> FEnv {
 /// before (con-leche task #108).
 ///
 /// Deviations: the record is taken by value and returned (the module note),
-/// and `ci :: fe.env.consts` is `Vec::insert(0, ci)` — the port keeps
-/// `Env.consts`' newest-first order, so the cons is a front insertion, `O(n)`
-/// where Lean's is `O(1)`.  Since task #34 the element moved is a *pointer*,
-/// so the front insertion moves eight bytes per constant; the list is on no
-/// hot path either way (every lookup goes through the index, and `consts` is
-/// read only by `mk_fenv`, by `dup` and by the driver's final environment).
-/// The constant is stored **once** and reached from both the list and the
-/// index, as Lean's runtime stores it (`env::constant_info_share`); before
-/// task #34 the index held a `constant_info_dup` of it.
+/// and `ci :: fe.env.consts` is `Vec::push(ci)` — `Env.consts` is the cited
+/// list *reversed* (`env::Env`'s deviation, task #50), so the cons is a push
+/// at the back: `O(1)` amortised, as Lean's is, and **not** `Vec::insert`,
+/// whose Aeneas model is an overwrite (`AENEAS_FINDINGS.md` §3.9).  The
+/// constant is stored **once** and reached from both the list and the index,
+/// as Lean's runtime stores it (`env::constant_info_share`); before task #34
+/// the index held a `constant_info_dup` of it.
 pub fn push(fe: FEnv, ci: ConstantInfo) -> FEnv {
     let mut consts = fe.env.consts;
     let mut idx = fe.idx;
@@ -195,7 +204,7 @@ pub fn push(fe: FEnv, ci: ConstantInfo) -> FEnv {
         env::constant_info_name(&rc),
         (fe.visible_below, env::constant_info_rc_dup(&rc)),
     );
-    consts.insert(0, rc);
+    consts.push(rc);
     FEnv {
         env: Env { consts },
         idx,
@@ -287,7 +296,12 @@ pub fn rec_slot_ok(fe: &FEnv, n: &Name) -> bool {
 /// pre-sized table (the module note has the measurement that kept the index a
 /// flat owned map instead of a shared one).
 pub fn dup(fe: &FEnv) -> FEnv {
-    let p = mk_fenv_go(&fe.env.consts, 0);
+    let p = mk_fenv_go(
+        &fe.env.consts,
+        0,
+        0,
+        HashMap::with_capacity(fe.env.consts.len()),
+    );
     FEnv {
         env: env::env_dup(&fe.env),
         idx: p.1,
@@ -346,14 +360,15 @@ mod tests {
         let fe = fenv::push(fe, ax("b"));
         let fe = fenv::push(fe, ax("c"));
         assert_eq!(fe.visible_below, 3);
-        // `consts` is newest first
+        // `consts` is the cited list reversed: oldest first, newest last
+        // (`env::Env`'s deviation, task #50)
         assert!(name::beq(
             &env::constant_info_name(&fe.env.consts[0]),
-            &nm("c")
+            &nm("a")
         ));
         assert!(name::beq(
             &env::constant_info_name(&fe.env.consts[2]),
-            &nm("a")
+            &nm("c")
         ));
         // and `mkFEnv_push`: pushing onto the index is building it afresh
         let fresh = fenv::mk_fenv(env::env_dup(&fe.env));

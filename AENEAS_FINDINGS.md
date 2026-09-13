@@ -417,6 +417,34 @@ library's `rust_fun` models carry a test per function comparing against the Rust
 reference semantics; `Vec.insert` is the kind of one-liner that a table of
 `#assert`s like `Casts.lean`'s would have caught.
 
+**Resolution on our side (task #50): we removed the primitive rather than wait.**
+All four call sites were prepends, and a client can always spell a prepend
+another way, so `crates/con-ron-core` now contains **no `Vec::insert` at all**:
+
+* `kernel/checker_base.rs`'s three sites became the project's existing cons on a
+  `Vec<Expr>` (`expr_ops::cons_expr`: allocate, push the head, copy the tail —
+  the same `O(n)` it already was, and one pass instead of two at the site that
+  copied first);
+* `kernel/fenv.rs`'s `push` became `Vec::push`, by **storing `Env.consts`
+  reversed** — oldest first — and reading it from the back (`env::find` counts
+  down, `fenv::mk_fenv_go` runs forward threading the counter, `env::env_of`
+  reverses at the boundary).  The Lean side absorbed the whole change in one
+  definition, `absEnv e = ⟨(absConstantInfos e.consts).reverse⟩`: not one
+  refinement *statement* moved, and `push_refines` — task #46's `sorry` — is
+  proved.  `Vec::push`'s model (`Vec.lean:152-159`, `List.concat`) is correct,
+  and the port is now `O(1)` amortised where it was `O(n)`, worth 0.6 G
+  instructions on `init`.
+
+So the bug cost us a task, not a proof, and the ask below stands for the next
+client — who will not have the option if the prepend is load-bearing (a
+mid-vector `insert` has no such workaround).  We also checked the rest of the
+`Vec` surface we touch while we were there: `push`, `len`, `new`,
+`with_capacity`, `index_usize`, `index_mut_usize` are all faithfully modelled,
+and `remove`/`pop`/`truncate`/`drain`/`extend`/`swap`/`reverse`/`sort`/`retain`/
+`append`/`split_off`/`first`/`last`/`vec![…]` have **no model at all** — which is
+the safe failure mode, and which is why §5's ask #4 asks for the ones that
+shaped our data structures.
+
 ## 4. Scale numbers
 
 Data points on a crate an order of magnitude larger than the test suite.  One machine (96
@@ -461,7 +489,10 @@ In rough order of value to us:
 1. **Fix `Vec::insert`'s model** (§3.9) — it is `List.set` where Rust inserts, so any
    proof about a function that prepends to a `Vec` is unprovable, and nothing warns the
    client.  One line, and the highest-value item here because it is a *soundness*-shaped
-   defect in the library rather than a gap.
+   defect in the library rather than a gap.  (Task #50 routed *our* four call sites
+   around it — see §3.9's resolution note — so this is no longer blocking us; it is
+   still the first thing we would fix, because the next client's prepend may not be
+   removable and nothing in the toolchain will tell them.)
 2. **Qualified names in generated code** — `_root_.env.Env.find`, or qualification by the
    `-namespace` argument.  Today a Rust local named like a module silently shadows it, and the
    only defence is a naming convention in the *source* crate (F13, #14).

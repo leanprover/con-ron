@@ -8,10 +8,17 @@
 //!   Rust failure — harmless for the accept direction.  Where such a count
 //!   indexes a `Vec` it is cast to `usize` at the index site.
 //! * **`List` fields are `Vec`s** (`levelParams`, `guards`, `rules`,
-//!   `block`, `Env.consts`), with the *same order*.  `Env.consts` is
-//!   con-leche's own "newest first": index `0` is the most recently
-//!   installed constant, and `find?` is the linear search over that order,
-//!   exactly as `List.find?` is.
+//!   `block`), with the *same order* — with **one exception**, `Env.consts`,
+//!   which is stored **reversed**: index `0` is the *oldest* constant and the
+//!   newest is at the back, so `fenv::push` is a `Vec::push` (`O(1)`
+//!   amortised) instead of a front insertion, and no function of the port
+//!   calls `Vec::insert` (task #50; the model of `Vec::insert` is an
+//!   overwrite, `AENEAS_FINDINGS.md` §3.9).  Every reader of the list goes
+//!   through this module's `find` — which scans it from the *back*, i.e. the
+//!   cited list from the front, so the newest binding of a name still wins,
+//!   exactly as `List.find?` does — or through `fenv`'s index; `env_of`
+//!   takes the cited newest-first list and reverses it, and the model reads
+//!   `Env.consts` reversed (`Refine/Abs.lean`'s `absEnv`).
 //! * **No `Repr`, no `Inhabited`, and the derived equality written out by
 //!   hand.**  `deriving DecidableEq` on these records has two executable
 //!   consumers and no more: the block-partition decision con-leche
@@ -1077,8 +1084,12 @@ pub fn constant_info_type(c: &ConstantInfo) -> Expr {
 /// The global environment: the constants accepted so far, **newest first**.
 /// Names are unique (the checker rejects duplicates), so the order is
 /// irrelevant for lookup; it is kept anyway, because `FEnv`'s installation
-/// counters are positions counted from the *bottom* of this list
-/// (`fenv::mk_fenv_go`).
+/// counters are positions counted from the *bottom* of the cited list, i.e.
+/// indices into this one (`fenv::mk_fenv_go`).
+///
+/// Deviation (task #50): the `Vec` is the cited list **reversed** — oldest
+/// first, newest last — so that `fenv::push` is `Vec::push`.  The module note
+/// has the reason and the list of readers; `abs` reverses.
 ///
 /// Deviation (task #34): the element is `P<ConstantInfo>`, DESIGN.md §3.2's
 /// `P` around the *stored record*, because the Lean's one record is reached
@@ -1120,29 +1131,34 @@ pub fn constant_info_rc_dup(c: &P<ConstantInfo>) -> P<ConstantInfo> {
 
 /// con-leche: ConLeche/Kernel/Env.lean:627-629 Env
 /// An `Env` over records that are not shared yet — `⟨cs⟩` where the Lean's
-/// `cs` is already a list of stored records.  The entry point of the index
-/// recursion below; it is how the basis tables and the tests build an
-/// environment from a plain record list.
+/// `cs` is already a list of stored records, in the cited **newest-first**
+/// order.  The entry point of the index recursion below; it is how the tests
+/// build an environment from a plain record list.  Since `Env.consts` is
+/// stored reversed (the `Env` deviation), this is where the reversal happens:
+/// `env_of(cs).consts` is `cs` back to front, so a caller writes its list in
+/// the Lean's order and `abs` reads it back in the Lean's order.
 pub fn env_of(cs: &Vec<ConstantInfo>) -> Env {
     Env {
-        consts: env_of_from(cs, 0, Vec::with_capacity(cs.len())),
+        consts: env_of_from(cs, cs.len(), Vec::with_capacity(cs.len())),
     }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:627-629 Env
-/// The index recursion behind `env_of`: `cs[i..]`, each record shared, pushed
-/// onto the accumulator in the cited order.
+/// The index recursion behind `env_of`: `cs[..i]`, each record shared, pushed
+/// onto the accumulator **back to front**, so the accumulator comes out in
+/// the stored (oldest-first) order.  `i` counts down; the entry point passes
+/// `cs.len()`, and `i > cs.len()` is unreachable from it.
 pub fn env_of_from(
     cs: &Vec<ConstantInfo>,
     i: usize,
     out: Vec<P<ConstantInfo>>,
 ) -> Vec<P<ConstantInfo>> {
-    if i >= cs.len() {
+    if i == 0 {
         out
     } else {
         let mut out = out;
-        out.push(constant_info_share(constant_info_dup(&cs[i])));
-        env_of_from(cs, i + 1, out)
+        out.push(constant_info_share(constant_info_dup(&cs[i - 1])));
+        env_of_from(cs, i - 1, out)
     }
 }
 
@@ -1150,27 +1166,31 @@ pub fn env_of_from(
 /// `env.consts.find? (·.name == n)` — the linear search over the cited list,
 /// in its order (newest first), so the newest binding of a name wins.
 ///
-/// Deviation: Lean returns `Option ConstantInfo` by sharing the stored
+/// Deviations: Lean returns `Option ConstantInfo` by sharing the stored
 /// record; Rust returns a borrow of it, since a copy would be `O(size)` per
-/// lookup (task #9's "Lean's sharing costs a copy").
+/// lookup (task #9's "Lean's sharing costs a copy").  And the search runs
+/// **from the back**, because the stored list is the cited one reversed (the
+/// `Env` deviation) — the cited order is what is scanned either way.
 pub fn find<'a>(env: &'a Env, n: &Name) -> Option<&'a ConstantInfo> {
-    find_from(&env.consts, 0, n)
+    find_from(&env.consts, env.consts.len(), n)
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:636-637 Env.find?
-/// The index recursion the cited `List.find?` becomes (task #3's pattern);
-/// the predicate is inlined because §3.4 forbids closures.
+/// The index recursion the cited `List.find?` becomes (task #3's pattern),
+/// counting **down**: `find_from(cs, i, n)` searches `cs[..i]` from the top,
+/// which is the cited list from the front.  The predicate is inlined because
+/// §3.4 forbids closures.
 pub fn find_from<'a>(
     cs: &'a Vec<P<ConstantInfo>>,
     i: usize,
     n: &Name,
 ) -> Option<&'a ConstantInfo> {
-    if i >= cs.len() {
+    if i == 0 {
         None
-    } else if name::beq(&constant_info_name(&cs[i]), n) {
-        Some(&cs[i])
+    } else if name::beq(&constant_info_name(&cs[i - 1]), n) {
+        Some(&cs[i - 1])
     } else {
-        find_from(cs, i + 1, n)
+        find_from(cs, i - 1, n)
     }
 }
 

@@ -221,7 +221,7 @@ def kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::kernel::fenv::find]:
-    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 149:0-160:1
+    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 160:0-171:1
     Visibility: public -/
 def kernel.fenv.find
   (fe : kernel.fenv.FEnv) (n : kernel.name.Name) :
@@ -343,7 +343,7 @@ def kernel.level.dup (u : kernel.level.Level) : Result kernel.level.Level := do
   ok (kernel.level.Level.mk a)
 
 /-- [con_ron_core::kernel::env::levels_copy_from]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 147:0-155:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 154:0-162:1
     Visibility: public -/
 def kernel.env.levels_copy_from
   (us : alloc.vec.Vec kernel.level.Level) (i : Std.Usize)
@@ -364,7 +364,7 @@ def kernel.env.levels_copy_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::levels_copy]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 141:0-143:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 148:0-150:1
     Visibility: public -/
 def kernel.env.levels_copy
   (us : alloc.vec.Vec kernel.level.Level) :
@@ -3207,7 +3207,7 @@ def kernel.prop_read.is_prop
   kernel.prop_when.beq pw pw1
 
 /-- [con_ron_core::kernel::env::is_tower_entry]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1046:0-1056:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1053:0-1063:1
     Visibility: public -/
 def kernel.env.is_tower_entry (c : kernel.env.ConstantInfo) : Result Bool := do
   match c with
@@ -3273,7 +3273,7 @@ def kernel.name.mk_str
   ok (kernel.name.Name.mk a)
 
 /-- [con_ron_core::kernel::env::PROJ_TABLE_STR]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 978:0-978:76 -/
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 985:0-985:76 -/
 @[global_simps, irreducible]
 def kernel.env.PROJ_TABLE_STR : Array Std.U32 9#usize :=
   Array.make 9#usize [
@@ -3282,7 +3282,7 @@ def kernel.env.PROJ_TABLE_STR : Array Std.U32 9#usize :=
     ]
 
 /-- [con_ron_core::kernel::env::proj_table_name]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 993:0-998:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1000:0-1005:1
     Visibility: public -/
 def kernel.env.proj_table_name
   (t : kernel.name.Name) : Result kernel.name.Name := do
@@ -3293,7 +3293,7 @@ def kernel.env.proj_table_name
   kernel.name.mk_num n1 0#u64
 
 /-- [con_ron_core::kernel::env::constant_val_dup]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 190:0-196:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 197:0-203:1
     Visibility: public -/
 def kernel.env.constant_val_dup
   (cv : kernel.env.ConstantVal) : Result kernel.env.ConstantVal := do
@@ -3303,7 +3303,7 @@ def kernel.env.constant_val_dup
   ok { «name» := n, level_params := v, ty := e }
 
 /-- [con_ron_core::kernel::env::to_constant_val]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1013:0-1027:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1020:0-1034:1
     Visibility: public -/
 def kernel.env.to_constant_val
   (c : kernel.env.ConstantInfo) : Result kernel.env.ConstantVal := do
@@ -3649,13 +3649,13 @@ def kernel.expr.bvar (i : Std.U64) : Result kernel.expr.Expr := do
   ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::env::default_expr]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 465:0-467:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 472:0-474:1
     Visibility: public -/
 def kernel.env.default_expr : Result kernel.expr.Expr := do
   kernel.expr.bvar 0#u64
 
 /-- [con_ron_core::kernel::env::proj_table_entry]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 474:0-497:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 481:0-504:1
     Visibility: public -/
 def kernel.env.proj_table_entry
   (tbl : kernel.env.ProjTable) (i : Std.U64) :
@@ -3704,7 +3704,7 @@ def kernel.env.proj_table_entry
     }
 
 /-- [con_ron_core::kernel::fenv::find_proj]:
-    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 208:0-220:1
+    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 217:0-229:1
     Visibility: public -/
 def kernel.fenv.find_proj
   (fe : kernel.fenv.FEnv) (t : kernel.name.Name) (i : Std.U64) :
@@ -3729,7 +3729,7 @@ def kernel.fenv.find_proj
       else ok none
 
 /-- [con_ron_core::kernel::fenv::tower_slots_all_f_from]:
-    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 234:0-242:1
+    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 243:0-251:1
     Visibility: public -/
 def kernel.fenv.tower_slots_all_f_from
   (fe : kernel.fenv.FEnv) (t : kernel.name.Name) (n_f : Std.U64) (j : Std.U64)
@@ -3748,7 +3748,7 @@ def kernel.fenv.tower_slots_all_f_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::fenv::tower_slots_all_f]:
-    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 227:0-229:1
+    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 236:0-238:1
     Visibility: public -/
 def kernel.fenv.tower_slots_all_f
   (fe : kernel.fenv.FEnv) (t : kernel.name.Name) (n_f : Std.U64) :
@@ -4096,13 +4096,13 @@ def kernel.expr.literal_nat
   ok (kernel.expr.Literal.NatVal a)
 
 /-- [con_ron_core::kernel::env::PROJ_STR]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 974:0-974:48 -/
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 981:0-981:48 -/
 @[global_simps, irreducible]
 def kernel.env.PROJ_STR : Array Std.U32 4#usize :=
   Array.make 4#usize [ 112#u32, 114#u32, 111#u32, 106#u32 ]
 
 /-- [con_ron_core::kernel::env::proj_fn_name]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 983:0-988:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 990:0-995:1
     Visibility: public -/
 def kernel.env.proj_fn_name
   (t : kernel.name.Name) (i : Std.U64) : Result kernel.name.Name := do
@@ -4113,7 +4113,7 @@ def kernel.env.proj_fn_name
   kernel.name.mk_num n1 i
 
 /-- [con_ron_core::kernel::env::reducibility_hint_same_regular]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 325:0-335:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 332:0-342:1
     Visibility: public -/
 def kernel.env.reducibility_hint_same_regular
   (h1 : kernel.env.ReducibilityHint) (h2 : kernel.env.ReducibilityHint) :
@@ -4129,7 +4129,7 @@ def kernel.env.reducibility_hint_same_regular
     | kernel.env.ReducibilityHint.Regular b => ok (a = b)
 
 /-- [con_ron_core::kernel::env::reducibility_hint_lt]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 307:0-321:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 314:0-328:1
     Visibility: public -/
 def kernel.env.reducibility_hint_lt
   (h1 : kernel.env.ReducibilityHint) (h2 : kernel.env.ReducibilityHint) :
@@ -4149,7 +4149,7 @@ def kernel.env.reducibility_hint_lt
     | kernel.env.ReducibilityHint.Regular h1h => ok (h1h < h2h)
 
 /-- [con_ron_core::kernel::env::rec_rule_compare_params]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 273:0-279:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 280:0-286:1
     Visibility: public -/
 def kernel.env.rec_rule_compare_params
   (rl : kernel.env.RecRule) : Result Bool := do
@@ -4159,7 +4159,7 @@ def kernel.env.rec_rule_compare_params
   | kernel.env.RecRuleFire.Nested _ _ => ok true
 
 /-- [con_ron_core::kernel::env::exprs_copy_from]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 165:0-173:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 172:0-180:1
     Visibility: public -/
 def kernel.env.exprs_copy_from
   (es : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize)
@@ -4180,7 +4180,7 @@ def kernel.env.exprs_copy_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::exprs_copy]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 159:0-161:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 166:0-168:1
     Visibility: public -/
 def kernel.env.exprs_copy
   (es : alloc.vec.Vec kernel.expr.Expr) :
@@ -4191,7 +4191,7 @@ def kernel.env.exprs_copy
   kernel.env.exprs_copy_from es 0#usize v
 
 /-- [con_ron_core::kernel::env::rec_rule_fire_dup]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 209:0-217:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 216:0-224:1
     Visibility: public -/
 def kernel.env.rec_rule_fire_dup
   (f : kernel.env.RecRuleFire) : Result kernel.env.RecRuleFire := do
@@ -4204,7 +4204,7 @@ def kernel.env.rec_rule_fire_dup
     ok (kernel.env.RecRuleFire.Nested v v1)
 
 /-- [con_ron_core::kernel::env::rec_rule_dup]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 238:0-249:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 245:0-256:1
     Visibility: public -/
 def kernel.env.rec_rule_dup
   (r : kernel.env.RecRule) : Result kernel.env.RecRule := do
@@ -4214,7 +4214,7 @@ def kernel.env.rec_rule_dup
   ok { r with ctor := n, fire := rrf, rhs := e }
 
 /-- [con_ron_core::kernel::env::certs]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 116:0-121:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 123:0-128:1
     Visibility: public -/
 def kernel.env.certs (m : kernel.env.CheckMode) : Result Bool := do
   match m with
@@ -4222,7 +4222,7 @@ def kernel.env.certs (m : kernel.env.CheckMode) : Result Bool := do
   | kernel.env.CheckMode.Trusted => ok false
 
 /-- [con_ron_core::kernel::env::io_skip]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 131:0-133:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 138:0-140:1
     Visibility: public -/
 def kernel.env.io_skip
   (m : kernel.env.CheckMode) (pw : kernel.prop_when.PropWhen) :
@@ -4234,7 +4234,7 @@ def kernel.env.io_skip
   else ok true
 
 /-- [con_ron_core::kernel::env::beta_gate]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 96:0-101:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 103:0-108:1
     Visibility: public -/
 def kernel.env.beta_gate (m : kernel.env.CheckMode) : Result Bool := do
   match m with
@@ -4242,7 +4242,7 @@ def kernel.env.beta_gate (m : kernel.env.CheckMode) : Result Bool := do
   | kernel.env.CheckMode.Trusted => ok false
 
 /-- [con_ron_core::kernel::env::beta_skip]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 125:0-127:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 132:0-134:1
     Visibility: public -/
 def kernel.env.beta_skip
   (m : kernel.env.CheckMode) (pw : kernel.prop_when.PropWhen) :
@@ -4258,7 +4258,7 @@ def kernel.env.beta_skip
   else ok true
 
 /-- [con_ron_core::kernel::env::io_gate]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 106:0-111:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 113:0-118:1
     Visibility: public -/
 def kernel.env.io_gate (m : kernel.env.CheckMode) : Result Bool := do
   match m with
@@ -4266,7 +4266,7 @@ def kernel.env.io_gate (m : kernel.env.CheckMode) : Result Bool := do
   | kernel.env.CheckMode.Trusted => ok true
 
 /-- [con_ron_core::kernel::env::verified_checks]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 87:0-92:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 94:0-99:1
     Visibility: public -/
 def kernel.env.verified_checks (m : kernel.env.CheckMode) : Result Bool := do
   match m with
@@ -4274,7 +4274,7 @@ def kernel.env.verified_checks (m : kernel.env.CheckMode) : Result Bool := do
   | kernel.env.CheckMode.Trusted => ok false
 
 /-- [con_ron_core::kernel::env::tt_checks]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 78:0-83:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 85:0-90:1
     Visibility: public -/
 def kernel.env.tt_checks (m : kernel.env.CheckMode) : Result Bool := do
   match m with
@@ -6474,7 +6474,7 @@ def kernel.core_k.eta_ctor_shape
   | kernel.expr.ExprKind.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::env::is_rec_info]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1201:0-1211:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1221:0-1231:1
     Visibility: public -/
 def kernel.env.is_rec_info (c : kernel.env.ConstantInfo) : Result Bool := do
   match c with
@@ -6487,7 +6487,7 @@ def kernel.env.is_rec_info (c : kernel.env.ConstantInfo) : Result Bool := do
   | kernel.env.ConstantInfo.ProjInfo _ => ok false
 
 /-- [con_ron_core::kernel::fenv::rec_slot_ok]:
-    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 268:0-273:1
+    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 277:0-282:1
     Visibility: public -/
 def kernel.fenv.rec_slot_ok
   (fe : kernel.fenv.FEnv) (n : kernel.name.Name) : Result Bool := do
@@ -6497,7 +6497,7 @@ def kernel.fenv.rec_slot_ok
   | some ci => kernel.env.is_rec_info ci
 
 /-- [con_ron_core::kernel::fenv::rec_slots_all_f_from]:
-    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 254:0-262:1
+    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 263:0-271:1
     Visibility: public -/
 def kernel.fenv.rec_slots_all_f_from
   (fe : kernel.fenv.FEnv) (t : kernel.name.Name) (n_f : Std.U64) (j : Std.U64)
@@ -6516,7 +6516,7 @@ def kernel.fenv.rec_slots_all_f_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::fenv::rec_slots_all_f]:
-    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 248:0-250:1
+    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 257:0-259:1
     Visibility: public -/
 def kernel.fenv.rec_slots_all_f
   (fe : kernel.fenv.FEnv) (t : kernel.name.Name) (n_f : Std.U64) :
@@ -7929,7 +7929,7 @@ def kernel.core_k.same_const_heads
   | kernel.expr.ExprKind.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::env::reducibility_hint_dup]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 294:0-300:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 301:0-307:1
     Visibility: public -/
 def kernel.env.reducibility_hint_dup
   (h : kernel.env.ReducibilityHint) : Result kernel.env.ReducibilityHint := do
@@ -8181,7 +8181,7 @@ def kernel.core_k.lift_fueled
   | some a => ok (core.result.Result.Ok a)
 
 /-- [con_ron_core::kernel::env::rec_rules_copy_from]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 519:0-527:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 526:0-534:1
     Visibility: public -/
 def kernel.env.rec_rules_copy_from
   (rs : alloc.vec.Vec kernel.env.RecRule) (i : Std.Usize)
@@ -8202,7 +8202,7 @@ def kernel.env.rec_rules_copy_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::rec_rules_copy]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 513:0-515:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 520:0-522:1
     Visibility: public -/
 def kernel.env.rec_rules_copy
   (rs : alloc.vec.Vec kernel.env.RecRule) :
@@ -8237,7 +8237,7 @@ def kernel.core_k.rec_probe
     | kernel.env.ConstantInfo.ProjInfo _ => ok none
 
 /-- [con_ron_core::kernel::env::ind_caps_dup]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 399:0-410:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 406:0-417:1
     Visibility: public -/
 def kernel.env.ind_caps_dup
   (c : kernel.env.IndCaps) : Result kernel.env.IndCaps := do
@@ -26025,7 +26025,7 @@ def kernel.inductives.struct_install.proj_bodies_scoped_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::constant_info_rc_dup]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1117:0-1119:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1128:0-1130:1
     Visibility: public -/
 def kernel.env.constant_info_rc_dup
   (c : alloc.sync.Arc kernel.env.ConstantInfo) :
@@ -26034,7 +26034,7 @@ def kernel.env.constant_info_rc_dup
   ron.ptr.clone c
 
 /-- [con_ron_core::kernel::env::constant_info_share]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1111:0-1113:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1122:0-1124:1
     Visibility: public -/
 def kernel.env.constant_info_share
   (c : kernel.env.ConstantInfo) :
@@ -26043,7 +26043,7 @@ def kernel.env.constant_info_share
   ron.ptr.new c
 
 /-- [con_ron_core::kernel::env::constant_info_name]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1032:0-1042:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1039:0-1049:1
     Visibility: public -/
 def kernel.env.constant_info_name
   (c : kernel.env.ConstantInfo) : Result kernel.name.Name := do
@@ -26058,7 +26058,7 @@ def kernel.env.constant_info_name
     kernel.env.proj_table_name tbl.struct_name
 
 /-- [con_ron_core::kernel::fenv::push]:
-    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 190:0-204:1
+    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 199:0-213:1
     Visibility: public -/
 def kernel.fenv.push
   (fe : kernel.fenv.FEnv) (ci : kernel.env.ConstantInfo) :
@@ -26073,7 +26073,7 @@ def kernel.fenv.push
       kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
       kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 fe.idx n
       (fe.visible_below, a)
-  let consts ← alloc.vec.Vec.insert fe.env.consts 0#usize rc
+  let consts ← alloc.vec.Vec.push fe.env.consts rc
   let i ← fe.visible_below + 1#u64
   ok { env := { consts }, idx, visible_below := i }
 
@@ -27392,25 +27392,20 @@ def ron.hashmap.HashMap.with_capacity
   ron.hashmap.HashMap.new_with_capacity_pow2 K V c
 
 /-- [con_ron_core::kernel::fenv::mk_fenv_go]:
-    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 114:0-129:1
+    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 119:0-135:1
     Visibility: public -/
 def kernel.fenv.mk_fenv_go
   (cs : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)) (i : Std.Usize)
-  :
+  (c : Std.U64)
+  (m : ron.hashmap.HashMap kernel.name.Name (Std.U64 × (alloc.sync.Arc
+  kernel.env.ConstantInfo))) :
   Result (Std.U64 × (ron.hashmap.HashMap kernel.name.Name (Std.U64 ×
     (alloc.sync.Arc kernel.env.ConstantInfo))))
   := do
   let i1 := alloc.vec.Vec.len cs
   if i >= i1
-  then
-    let i2 := alloc.vec.Vec.len cs
-    let hm ←
-      ron.hashmap.HashMap.with_capacity kernel.name.Name (Std.U64 ×
-        (alloc.sync.Arc kernel.env.ConstantInfo)) i2
-    ok (0#u64, hm)
+  then ok (c, m)
   else
-    let i2 ← i + 1#usize
-    let (i3, m) ← kernel.fenv.mk_fenv_go cs i2
     let a ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
         (alloc.sync.Arc kernel.env.ConstantInfo)) cs i
@@ -27420,13 +27415,14 @@ def kernel.fenv.mk_fenv_go
     let (_, m1) ←
       ron.hashmap.HashMap.insert
         kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
-        kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 m n (i3, a1)
-    let i4 ← i3 + 1#u64
-    ok (i4, m1)
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 m n (c, a1)
+    let i2 ← i + 1#usize
+    let i3 ← c + 1#u64
+    kernel.fenv.mk_fenv_go cs i2 i3 m1
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::constant_infos_copy_from]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 569:0-581:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 576:0-588:1
     Visibility: public -/
 def kernel.env.constant_infos_copy_from
   (cs : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)) (i : Std.Usize)
@@ -27447,7 +27443,7 @@ def kernel.env.constant_infos_copy_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::constant_infos_copy]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 563:0-565:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 570:0-572:1
     Visibility: public -/
 def kernel.env.constant_infos_copy
   (cs : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)) :
@@ -27459,20 +27455,24 @@ def kernel.env.constant_infos_copy
   kernel.env.constant_infos_copy_from cs 0#usize v
 
 /-- [con_ron_core::kernel::env::env_dup]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1096:0-1100:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1107:0-1111:1
     Visibility: public -/
 def kernel.env.env_dup (e : kernel.env.Env) : Result kernel.env.Env := do
   let v ← kernel.env.constant_infos_copy e.consts
   ok { consts := v }
 
 /-- [con_ron_core::kernel::fenv::dup]:
-    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 289:0-296:1
+    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 298:0-310:1
     Visibility: public -/
 def kernel.fenv.dup (fe : kernel.fenv.FEnv) : Result kernel.fenv.FEnv := do
-  let p ← kernel.fenv.mk_fenv_go fe.env.consts 0#usize
+  let i := alloc.vec.Vec.len fe.env.consts
+  let hm ←
+    ron.hashmap.HashMap.with_capacity kernel.name.Name (Std.U64 ×
+      (alloc.sync.Arc kernel.env.ConstantInfo)) i
+  let p ← kernel.fenv.mk_fenv_go fe.env.consts 0#usize 0#u64 hm
   let e ← kernel.env.env_dup fe.env
-  let (_, hm) := p
-  ok { fe with env := e, idx := hm }
+  let (_, hm1) := p
+  ok { fe with env := e, idx := hm1 }
 
 /-- [con_ron_core::kernel::inductives::native_install::check_native_rec_rules]:
     Source: 'crates/con-ron-core/src/kernel/inductives/native_install.rs', lines 806:0-848:1
@@ -29777,7 +29777,7 @@ def kernel.expr_ops.instantiate_list_fast
   ok e1
 
 /-- [con_ron_core::kernel::checker_base::open_pis_at_fvars_f_go]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 258:0-284:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 257:0-278:1
     Visibility: public -/
 def kernel.checker_base.open_pis_at_fvars_f_go
   (acc : alloc.vec.Vec kernel.expr.Expr) (n : Std.U64) (e : kernel.expr.Expr)
@@ -29800,18 +29800,16 @@ def kernel.checker_base.open_pis_at_fvars_f_go
     | kernel.expr.ExprKind.ForallE dom body _ =>
       let e1 ← kernel.expr_ops.instantiate_list_fast dom acc 0#u64
       let fv ← kernel.expr.fvar i e1
-      let acc2 ← kernel.env.exprs_copy acc
-      let e2 ← kernel.expr.dup fv
-      let acc21 ← alloc.vec.Vec.insert acc2 0#usize e2
+      let acc2 ← kernel.expr_ops.cons_expr fv acc
       let i1 ← n - 1#u64
       let i2 ← i + 1#u64
-      let o ← kernel.checker_base.open_pis_at_fvars_f_go acc21 i1 body i2
+      let o ← kernel.checker_base.open_pis_at_fvars_f_go acc2 i1 body i2
       match o with
       | none => ok none
       | some p =>
         let (fvs, b) := p
-        let fvs1 ← alloc.vec.Vec.insert fvs 0#usize fv
-        ok (some (fvs1, b))
+        let v ← kernel.expr_ops.cons_expr fv fvs
+        ok (some (v, b))
     | kernel.expr.ExprKind.LetE _ _ _ => ok none
     | kernel.expr.ExprKind.Lit _ => ok none
     | kernel.expr.ExprKind.Proj _ _ _ => ok none
@@ -30213,7 +30211,7 @@ def kernel.expr_ops.instantiate1
   ok e1
 
 /-- [con_ron_core::kernel::checker_base::open_pis_at_fvars]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 228:0-248:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 230:0-246:1
     Visibility: public -/
 def kernel.checker_base.open_pis_at_fvars
   (n : Std.U64) (e : kernel.expr.Expr) (i : Std.U64) :
@@ -30243,15 +30241,15 @@ def kernel.checker_base.open_pis_at_fvars
       | none => ok none
       | some p =>
         let (fvs, b) := p
-        let fvs1 ← alloc.vec.Vec.insert fvs 0#usize fv
-        ok (some (fvs1, b))
+        let v ← kernel.expr_ops.cons_expr fv fvs
+        ok (some (v, b))
     | kernel.expr.ExprKind.LetE _ _ _ => ok none
     | kernel.expr.ExprKind.Lit _ => ok none
     | kernel.expr.ExprKind.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker_base::open_pis_at_fvars_f]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 290:0-295:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 284:0-289:1
     Visibility: public -/
 def kernel.checker_base.open_pis_at_fvars_f
   (n : Std.U64) (e : kernel.expr.Expr) (i : Std.U64) :
@@ -31686,7 +31684,7 @@ def kernel.inductives.struct_install.check_struct_doms_at
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker_base::fvar_types_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 705:0-713:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 699:0-707:1
     Visibility: public -/
 def kernel.checker_base.fvar_types_from
   (fvs : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize)
@@ -31707,7 +31705,7 @@ def kernel.checker_base.fvar_types_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker_base::fvar_types]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 699:0-701:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 693:0-695:1
     Visibility: public -/
 def kernel.checker_base.fvar_types
   (fvs : alloc.vec.Vec kernel.expr.Expr) :
@@ -32933,7 +32931,7 @@ def kernel.inductives.native_install.classify_fix_kinds
       else ok (core.result.Result.Ok kinds)
 
 /-- [con_ron_core::kernel::env::ind_caps_default]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 384:0-395:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 391:0-402:1
     Visibility: public -/
 def kernel.env.ind_caps_default : Result kernel.env.IndCaps := do
   let n ← kernel.name.anonymous
@@ -33007,7 +33005,7 @@ def kernel.inductives.native_install.native_caps
   kernel.inductives.native_install.native_caps_at p.shape b
 
 /-- [con_ron_core::kernel::env::ind_caps_beq]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 710:0-740:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 717:0-747:1
     Visibility: public -/
 def kernel.env.ind_caps_beq
   (a : kernel.env.IndCaps) (b : kernel.env.IndCaps) : Result Bool := do
@@ -33715,7 +33713,7 @@ def kernel.inductives.modeled.block_names_of
     (alloc.vec.Vec.new kernel.name.Name)
 
 /-- [con_ron_core::kernel::env::proj_table_dup]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 430:0-442:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 437:0-449:1
     Visibility: public -/
 def kernel.env.proj_table_dup
   (t : kernel.env.ProjTable) : Result kernel.env.ProjTable := do
@@ -33738,7 +33736,7 @@ def kernel.env.proj_table_dup
     }
 
 /-- [con_ron_core::kernel::env::constant_info_dup]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 532:0-557:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 539:0-564:1
     Visibility: public -/
 def kernel.env.constant_info_dup
   (c : kernel.env.ConstantInfo) : Result kernel.env.ConstantInfo := do
@@ -33874,7 +33872,7 @@ def kernel.inductives.modeled.model_of
   kernel.name.mk_str n1 v
 
 /-- [con_ron_core::kernel::checker_base::eq_head_level]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 409:0-420:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 403:0-414:1
     Visibility: public -/
 def kernel.checker_base.eq_head_level
   (e : kernel.expr.Expr) : Result kernel.level.Level := do
@@ -33901,7 +33899,7 @@ def kernel.checker_base.eq_head_level
   | kernel.expr.ExprKind.Proj _ _ _ => kernel.level.zero
 
 /-- [con_ron_core::kernel::checker_base::is_eq_head]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 392:0-403:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 386:0-397:1
     Visibility: public -/
 def kernel.checker_base.is_eq_head (e : kernel.expr.Expr) : Result Bool := do
   let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
@@ -34142,7 +34140,7 @@ def kernel.inductives.modeled.unit_thm_name
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::env::proj_table_beq]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 745:0-779:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 752:0-786:1
     Visibility: public -/
 def kernel.env.proj_table_beq
   (a : kernel.env.ProjTable) (b : kernel.env.ProjTable) : Result Bool := do
@@ -34178,7 +34176,7 @@ def kernel.env.proj_table_beq
   else ok false
 
 /-- [con_ron_core::kernel::env::reducibility_hint_beq]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 690:0-705:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 697:0-712:1
     Visibility: public -/
 def kernel.env.reducibility_hint_beq
   (a : kernel.env.ReducibilityHint) (b : kernel.env.ReducibilityHint) :
@@ -34203,7 +34201,7 @@ def kernel.env.reducibility_hint_beq
       lift (core.cmp.impls.PartialEqU64.eq h1 h2)
 
 /-- [con_ron_core::kernel::env::rec_rule_fire_beq]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 607:0-628:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 614:0-635:1
     Visibility: public -/
 def kernel.env.rec_rule_fire_beq
   (a : kernel.env.RecRuleFire) (b : kernel.env.RecRuleFire) : Result Bool := do
@@ -34229,7 +34227,7 @@ def kernel.env.rec_rule_fire_beq
       else ok false
 
 /-- [con_ron_core::kernel::env::rec_rule_beq]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 634:0-664:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 641:0-671:1
     Visibility: public -/
 def kernel.env.rec_rule_beq
   (a : kernel.env.RecRule) (b : kernel.env.RecRule) : Result Bool := do
@@ -34259,7 +34257,7 @@ def kernel.env.rec_rule_beq
   else ok false
 
 /-- [con_ron_core::kernel::env::rec_rules_beq_from]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 678:0-686:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 685:0-693:1
     Visibility: public -/
 def kernel.env.rec_rules_beq_from
   (a : alloc.vec.Vec kernel.env.RecRule) (b : alloc.vec.Vec kernel.env.RecRule)
@@ -34284,7 +34282,7 @@ def kernel.env.rec_rules_beq_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::rec_rules_beq]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 668:0-674:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 675:0-681:1
     Visibility: public -/
 def kernel.env.rec_rules_beq
   (a : alloc.vec.Vec kernel.env.RecRule) (b : alloc.vec.Vec kernel.env.RecRule)
@@ -34298,7 +34296,7 @@ def kernel.env.rec_rules_beq
   else ok false
 
 /-- [con_ron_core::kernel::env::constant_val_beq]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 592:0-602:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 599:0-609:1
     Visibility: public -/
 def kernel.env.constant_val_beq
   (a : kernel.env.ConstantVal) (b : kernel.env.ConstantVal) : Result Bool := do
@@ -34312,7 +34310,7 @@ def kernel.env.constant_val_beq
   else ok false
 
 /-- [con_ron_core::kernel::env::constant_info_beq]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 795:0-872:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 802:0-879:1
     Visibility: public -/
 def kernel.env.constant_info_beq
   (a : kernel.env.ConstantInfo) (b : kernel.env.ConstantInfo) :
@@ -36769,7 +36767,7 @@ def kernel.expr_ops.inst_pis_at_f
   | some _ => ok o
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule_certs::M#3]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 668:74-668:217 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 662:74-662:217 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_rule_certs.M_3 : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -36780,7 +36778,7 @@ def kernel.checker_base.check_proj_rule_certs.M_3 : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule_certs::M#2]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 664:66-664:242 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 658:66-658:242 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_rule_certs.M_2 : Array Std.U32 32#usize :=
   Array.make 32#usize [
@@ -36791,7 +36789,7 @@ def kernel.checker_base.check_proj_rule_certs.M_2 : Array Std.U32 32#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule_certs::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 658:54-658:230 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 652:54-652:230 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_rule_certs.M_1 : Array Std.U32 32#usize :=
   Array.make 32#usize [
@@ -36802,7 +36800,7 @@ def kernel.checker_base.check_proj_rule_certs.M_1 : Array Std.U32 32#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule_certs::M]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 656:50-656:193 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 650:50-650:193 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_rule_certs.M : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -36826,7 +36824,7 @@ def kernel.type_checker.is_def_eq_core
   cached.core_c.defeq mode i st fe depth a b
 
 /-- [con_ron_core::kernel::checker_base::check_def_eq_list_from::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 458:54-458:233 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 452:54-452:233 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_def_eq_list_from.M_1 : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -36838,7 +36836,7 @@ def kernel.checker_base.check_def_eq_list_from.M_1 : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_def_eq_list_from::M]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 450:42-450:207 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 444:42-444:207 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_def_eq_list_from.M : Array Std.U32 30#usize :=
   Array.make 30#usize [
@@ -36849,7 +36847,7 @@ def kernel.checker_base.check_def_eq_list_from.M : Array Std.U32 30#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_def_eq_list_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 438:0-463:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 432:0-457:1
     Visibility: public -/
 def kernel.checker_base.check_def_eq_list_from
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -36952,7 +36950,7 @@ def kernel.checker_base.check_def_eq_list_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker_base::check_def_eq_list]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 425:0-434:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 419:0-428:1
     Visibility: public -/
 def kernel.checker_base.check_def_eq_list
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -36964,7 +36962,7 @@ def kernel.checker_base.check_def_eq_list
   kernel.checker_base.check_def_eq_list_from mode st fe depth xs ys 0#usize
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule_certs]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 645:0-695:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 639:0-689:1
     Visibility: public -/
 def kernel.checker_base.check_proj_rule_certs
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -37037,7 +37035,7 @@ def kernel.checker_base.check_proj_rule_certs
       | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule_shape::M#3]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 627:62-627:232 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 621:62-621:232 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_rule_shape.M_3 : Array Std.U32 31#usize :=
   Array.make 31#usize [
@@ -37048,7 +37046,7 @@ def kernel.checker_base.check_proj_rule_shape.M_3 : Array Std.U32 31#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule_shape::M#2]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 623:62-623:238 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 617:62-617:238 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_rule_shape.M_2 : Array Std.U32 32#usize :=
   Array.make 32#usize [
@@ -37059,7 +37057,7 @@ def kernel.checker_base.check_proj_rule_shape.M_2 : Array Std.U32 32#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule_shape::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 620:50-620:168 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 614:50-614:168 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_rule_shape.M_1 : Array Std.U32 20#usize :=
   Array.make 20#usize [
@@ -37069,7 +37067,7 @@ def kernel.checker_base.check_proj_rule_shape.M_1 : Array Std.U32 20#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule_shape::M]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 617:50-617:193 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 611:50-611:193 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_rule_shape.M : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -37080,7 +37078,7 @@ def kernel.checker_base.check_proj_rule_shape.M : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule_shape]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 605:0-636:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 599:0-630:1
     Visibility: public -/
 def kernel.checker_base.check_proj_rule_shape
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -37138,7 +37136,7 @@ def kernel.checker_base.check_proj_rule_shape
       ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::checker_base::proj_rule_wf]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 584:0-598:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 578:0-592:1
     Visibility: public -/
 def kernel.checker_base.proj_rule_wf
   (fe : kernel.fenv.FEnv) (rhs_a : kernel.expr.Expr)
@@ -37160,7 +37158,7 @@ def kernel.checker_base.proj_rule_wf
   else ok false
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule::M#3]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 569:62-569:231 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 563:62-563:231 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_rule.M_3 : Array Std.U32 30#usize :=
   Array.make 30#usize [
@@ -37171,7 +37169,7 @@ def kernel.checker_base.check_proj_rule.M_3 : Array Std.U32 30#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule::M#2]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 563:50-563:183 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 557:50-557:183 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_rule.M_2 : Array Std.U32 23#usize :=
   Array.make 23#usize [
@@ -37181,7 +37179,7 @@ def kernel.checker_base.check_proj_rule.M_2 : Array Std.U32 23#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 561:50-561:183 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 555:50-555:183 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_rule.M_1 : Array Std.U32 23#usize :=
   Array.make 23#usize [
@@ -37191,7 +37189,7 @@ def kernel.checker_base.check_proj_rule.M_1 : Array Std.U32 23#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule::M]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 558:50-558:193 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 552:50-552:193 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_rule.M : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -37202,7 +37200,7 @@ def kernel.checker_base.check_proj_rule.M : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_rule]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 542:0-578:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 536:0-572:1
     Visibility: public -/
 def kernel.checker_base.check_proj_rule
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -37257,7 +37255,7 @@ def kernel.checker_base.check_proj_rule
         ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::checker_base::check_proj_shape::M#3]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 524:63-524:257 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 518:63-518:257 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_shape.M_3 : Array Std.U32 36#usize :=
   Array.make 36#usize [
@@ -37269,7 +37267,7 @@ def kernel.checker_base.check_proj_shape.M_3 : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_shape::M#2]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 519:54-519:253 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 513:54-513:253 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_shape.M_2 : Array Std.U32 37#usize :=
   Array.make 37#usize [
@@ -37281,7 +37279,7 @@ def kernel.checker_base.check_proj_shape.M_2 : Array Std.U32 37#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_shape::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 515:54-515:230 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 509:54-509:230 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_shape.M_1 : Array Std.U32 32#usize :=
   Array.make 32#usize [
@@ -37292,7 +37290,7 @@ def kernel.checker_base.check_proj_shape.M_1 : Array Std.U32 32#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_shape::M]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 513:50-513:193 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 507:50-507:193 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_proj_shape.M : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -37303,7 +37301,7 @@ def kernel.checker_base.check_proj_shape.M : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_proj_shape]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 511:0-530:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 505:0-524:1
     Visibility: public -/
 def kernel.checker_base.check_proj_shape
   (pty : kernel.expr.Expr) (ctor_ty : kernel.expr.Expr) (n_p : Std.U64)
@@ -38218,7 +38216,7 @@ def kernel.expr_ops.instantiate_level_params
   ok e1
 
 /-- [con_ron_core::kernel::checker_base::check_annot_list_from::M]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 383:54-383:219 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 377:54-377:219 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_annot_list_from.M : Array Std.U32 30#usize :=
   Array.make 30#usize [
@@ -38229,7 +38227,7 @@ def kernel.checker_base.check_annot_list_from.M : Array Std.U32 30#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_annot_list_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 366:0-388:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 360:0-382:1
     Visibility: public -/
 def kernel.checker_base.check_annot_list_from
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -38263,7 +38261,7 @@ def kernel.checker_base.check_annot_list_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker_base::check_annot_list]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 354:0-362:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 348:0-356:1
     Visibility: public -/
 def kernel.checker_base.check_annot_list
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -38275,7 +38273,7 @@ def kernel.checker_base.check_annot_list
   kernel.checker_base.check_annot_list_from mode st fe depth xs 0#usize
 
 /-- [con_ron_core::kernel::checker_base::check_typed_list_from::M#1]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 342:58-342:195 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 336:58-336:195 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_typed_list_from.M_1 : Array Std.U32 24#usize :=
   Array.make 24#usize [
@@ -38285,7 +38283,7 @@ def kernel.checker_base.check_typed_list_from.M_1 : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_typed_list_from::M]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 332:42-332:183 -/
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 326:42-326:183 -/
 @[global_simps, irreducible]
 def kernel.checker_base.check_typed_list_from.M : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -38296,7 +38294,7 @@ def kernel.checker_base.check_typed_list_from.M : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::check_typed_list_from]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 320:0-348:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 314:0-342:1
     Visibility: public -/
 def kernel.checker_base.check_typed_list_from
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -38409,7 +38407,7 @@ def kernel.checker_base.check_typed_list_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::checker_base::check_typed_list]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 306:0-315:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 300:0-309:1
     Visibility: public -/
 def kernel.checker_base.check_typed_list
   (mode : kernel.env.CheckMode) (st : cached.state_c.CState)
@@ -39453,7 +39451,7 @@ def kernel.inductives.modeled.iota_stmt_open.M_MISS : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::kernel::checker_base::find_cv]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 484:0-489:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 478:0-483:1
     Visibility: public -/
 def kernel.checker_base.find_cv
   (fe : kernel.fenv.FEnv) (n : kernel.name.Name) :
@@ -40887,7 +40885,7 @@ def kernel.inductives.inductives_c.check_ind_decl_s.M_ORDER
     ]
 
 /-- [con_ron_core::kernel::env::all_rec_info_from]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1237:0-1245:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1257:0-1265:1
     Visibility: public -/
 def kernel.env.all_rec_info_from
   (block : alloc.vec.Vec kernel.env.ConstantInfo) (i : Std.Usize) :
@@ -40908,7 +40906,7 @@ def kernel.env.all_rec_info_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::recs_form_suffix_from]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1225:0-1233:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1245:0-1253:1
     Visibility: public -/
 def kernel.env.recs_form_suffix_from
   (block : alloc.vec.Vec kernel.env.ConstantInfo) (i : Std.Usize) :
@@ -40930,14 +40928,14 @@ def kernel.env.recs_form_suffix_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::recs_form_suffix]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1218:0-1220:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1238:0-1240:1
     Visibility: public -/
 def kernel.env.recs_form_suffix
   (block : alloc.vec.Vec kernel.env.ConstantInfo) : Result Bool := do
   kernel.env.recs_form_suffix_from block 0#usize
 
 /-- [con_ron_core::kernel::env::block_rec_suffix_ok]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1254:0-1256:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1274:0-1276:1
     Visibility: public -/
 def kernel.env.block_rec_suffix_ok
   (block : alloc.vec.Vec kernel.env.ConstantInfo) : Result Bool := do
@@ -40983,7 +40981,7 @@ def kernel.inductives.inductives_c.check_ind_decl_s
     ok (core.result.Result.Err ce, st)
 
 /-- [con_ron_core::kernel::env::pi_sort_tele_len]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 911:0-927:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 918:0-934:1
     Visibility: public -/
 def kernel.env.pi_sort_tele_len
   (e : kernel.expr.Expr) : Result (Option Std.U64) := do
@@ -41007,7 +41005,7 @@ def kernel.env.pi_sort_tele_len
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::ind_params_ok_one]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 941:0-954:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 948:0-961:1
     Visibility: public -/
 def kernel.env.ind_params_ok_one
   (n_p : Std.U64) (ci : kernel.env.ConstantInfo) : Result Bool := do
@@ -41025,7 +41023,7 @@ def kernel.env.ind_params_ok_one
   | kernel.env.ConstantInfo.ProjInfo _ => ok true
 
 /-- [con_ron_core::kernel::env::ind_params_ok_from]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 958:0-966:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 965:0-973:1
     Visibility: public -/
 def kernel.env.ind_params_ok_from
   (n_p : Std.U64) (block : alloc.vec.Vec kernel.env.ConstantInfo)
@@ -41047,7 +41045,7 @@ def kernel.env.ind_params_ok_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::ind_params_ok]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 932:0-934:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 939:0-941:1
     Visibility: public -/
 def kernel.env.ind_params_ok
   (n_p : Std.U64) (block : alloc.vec.Vec kernel.env.ConstantInfo) :
@@ -43760,7 +43758,7 @@ def kernel.trust_axioms.reduce_op_names
   alloc.vec.Vec.push ns n1
 
 /-- [con_ron_core::kernel::fenv::restrict_to]:
-    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 166:0-172:1
+    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 177:0-183:1
     Visibility: public -/
 def kernel.fenv.restrict_to
   (fe : kernel.fenv.FEnv) (k : Std.U64) : Result kernel.fenv.FEnv := do
@@ -46047,7 +46045,7 @@ def kernel.checker.check_div_mod_pin_loop
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::constant_info_type]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1060:0-1070:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1067:0-1077:1
     Visibility: public -/
 def kernel.env.constant_info_type
   (c : kernel.env.ConstantInfo) : Result kernel.expr.Expr := do
@@ -46851,14 +46849,18 @@ def cached.installed.check_pending_list
   cached.installed.check_pending_list_from mode fe pend 0#usize
 
 /-- [con_ron_core::kernel::fenv::mk_fenv]:
-    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 134:0-141:1
+    Source: 'crates/con-ron-core/src/kernel/fenv.rs', lines 140:0-152:1
     Visibility: public -/
 def kernel.fenv.mk_fenv (env : kernel.env.Env) : Result kernel.fenv.FEnv := do
-  let (i, hm) ← kernel.fenv.mk_fenv_go env.consts 0#usize
-  ok { env, idx := hm, visible_below := i }
+  let i := alloc.vec.Vec.len env.consts
+  let hm ←
+    ron.hashmap.HashMap.with_capacity kernel.name.Name (Std.U64 ×
+      (alloc.sync.Arc kernel.env.ConstantInfo)) i
+  let (i1, hm1) ← kernel.fenv.mk_fenv_go env.consts 0#usize 0#u64 hm
+  ok { env, idx := hm1, visible_below := i1 }
 
 /-- [con_ron_core::kernel::env::empty]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1104:0-1106:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1115:0-1117:1
     Visibility: public -/
 def kernel.env.empty : Result kernel.env.Env := do
   ok { consts := (alloc.vec.Vec.new (alloc.sync.Arc kernel.env.ConstantInfo)) }
@@ -47865,7 +47867,7 @@ def kernel.checker.check_decls_pure
   kernel.checker.check_decls_pure_from mode pins st f ds 0#usize
 
 /-- [con_ron_core::kernel::checker_base::unwrap_or]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 471:0-476:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 465:0-470:1
     Visibility: public -/
 def kernel.checker_base.unwrap_or
   {T : Type} (o : Option T) (err : kernel.core_types.CheckError) :
@@ -47876,7 +47878,7 @@ def kernel.checker_base.unwrap_or
   | some a => ok (core.result.Result.Ok a)
 
 /-- [con_ron_core::kernel::checker_base::pi_result_sort]:
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 494:0-500:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 488:0-494:1
     Visibility: public -/
 def kernel.checker_base.pi_result_sort
   (e : kernel.expr.Expr) : Result (Option kernel.level.Level) := do
@@ -49846,7 +49848,7 @@ def kernel.decl_check.check_proj_lookups
             ok (core.result.Result.Err ce)
 
 /-- [con_ron_core::kernel::env::check_mode_dup]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 68:0-73:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 75:0-80:1
     Visibility: public -/
 def kernel.env.check_mode_dup
   (m : kernel.env.CheckMode) : Result kernel.env.CheckMode := do
@@ -49855,7 +49857,7 @@ def kernel.env.check_mode_dup
   | kernel.env.CheckMode.Trusted => ok kernel.env.CheckMode.Trusted
 
 /-- [con_ron_core::kernel::env::rec_rule_parsed]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 258:0-269:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 265:0-276:1
     Visibility: public -/
 def kernel.env.rec_rule_parsed
   (ctor : kernel.name.Name) (nfields : Std.U64) (rhs : kernel.expr.Expr) :
@@ -49874,7 +49876,7 @@ def kernel.env.rec_rule_parsed
     }
 
 /-- [con_ron_core::kernel::env::basis_kind_dup]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 350:0-359:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 357:0-366:1
     Visibility: public -/
 def kernel.env.basis_kind_dup
   (k : kernel.env.BasisKind) : Result kernel.env.BasisKind := do
@@ -49887,7 +49889,7 @@ def kernel.env.basis_kind_dup
   | kernel.env.BasisKind.QuotK => ok kernel.env.BasisKind.QuotK
 
 /-- [con_ron_core::kernel::env::declaration_name]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 890:0-899:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 897:0-906:1
     Visibility: public -/
 def kernel.env.declaration_name
   (d : kernel.env.Declaration) : Result kernel.name.Name := do
@@ -49900,75 +49902,78 @@ def kernel.env.declaration_name
   | kernel.env.Declaration.IndDecl _ _ => kernel.name.anonymous
 
 /-- [con_ron_core::kernel::env::env_of_from]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1135:0-1147:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1151:0-1163:1
     Visibility: public -/
 def kernel.env.env_of_from
   (cs : alloc.vec.Vec kernel.env.ConstantInfo) (i : Std.Usize)
   (out : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)) :
   Result (alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo))
   := do
-  let i1 := alloc.vec.Vec.len cs
-  if i >= i1
+  if i = 0#usize
   then ok out
   else
+    let i1 ← i - 1#usize
     let ci ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.env.ConstantInfo) cs i
+        kernel.env.ConstantInfo) cs i1
     let ci1 ← kernel.env.constant_info_dup ci
     let a ← kernel.env.constant_info_share ci1
     let out1 ← alloc.vec.Vec.push out a
-    let i2 ← i + 1#usize
-    kernel.env.env_of_from cs i2 out1
+    kernel.env.env_of_from cs i1 out1
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::env_of]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1126:0-1130:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1140:0-1144:1
     Visibility: public -/
 def kernel.env.env_of
   (cs : alloc.vec.Vec kernel.env.ConstantInfo) : Result kernel.env.Env := do
   let i := alloc.vec.Vec.len cs
+  let i1 := alloc.vec.Vec.len cs
   let v :=
-    alloc.vec.Vec.with_capacity (alloc.sync.Arc kernel.env.ConstantInfo) i
-  let v1 ← kernel.env.env_of_from cs 0#usize v
+    alloc.vec.Vec.with_capacity (alloc.sync.Arc kernel.env.ConstantInfo) i1
+  let v1 ← kernel.env.env_of_from cs i v
   ok { consts := v1 }
 
 /-- [con_ron_core::kernel::env::find_from]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1163:0-1175:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1183:0-1195:1
     Visibility: public -/
 def kernel.env.find_from
   (cs : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)) (i : Std.Usize)
   (n : kernel.name.Name) :
   Result (Option kernel.env.ConstantInfo)
   := do
-  let i1 := alloc.vec.Vec.len cs
-  if i >= i1
+  if i = 0#usize
   then ok none
   else
+    let i1 ← i - 1#usize
     let a ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        (alloc.sync.Arc kernel.env.ConstantInfo)) cs i
+        (alloc.sync.Arc kernel.env.ConstantInfo)) cs i1
     let ci ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a
     let n1 ← kernel.env.constant_info_name ci
     let b ← kernel.name.beq n1 n
     if b
     then
-      let ci1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a
+      let a1 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          (alloc.sync.Arc kernel.env.ConstantInfo)) cs i1
+      let ci1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a1
       ok (some ci1)
-    else let i2 ← i + 1#usize
-         kernel.env.find_from cs i2 n
+    else kernel.env.find_from cs i1 n
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::find]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1156:0-1158:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1174:0-1176:1
     Visibility: public -/
 def kernel.env.find
   (env : kernel.env.Env) (n : kernel.name.Name) :
   Result (Option kernel.env.ConstantInfo)
   := do
-  kernel.env.find_from env.consts 0#usize n
+  let i := alloc.vec.Vec.len env.consts
+  kernel.env.find_from env.consts i n
 
 /-- [con_ron_core::kernel::env::find_proj]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1181:0-1193:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1201:0-1213:1
     Visibility: public -/
 def kernel.env.find_proj
   (env : kernel.env.Env) (t : kernel.name.Name) (i : Std.U64) :

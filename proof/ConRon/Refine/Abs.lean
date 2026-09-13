@@ -86,6 +86,26 @@ theorem usize_add_ok {i : Std.Usize} (h : i.val + 1 ≤ Std.Usize.max) :
     WP.spec_imp_exists (Std.Usize.add_spec (x := i) (y := 1#usize) (by scalar_tac))
   exact ⟨w, h1, by scalar_tac⟩
 
+/-- `i - 1` on a `usize` index, in the forward `= ok` form the refinement
+proofs use.  The companion of `usize_add_ok` for the *downward* index
+recursions — the ones that read a `Vec` from the back (`env::find_from` and
+`env::env_of_from` since task #50, `core_k::str_lit_cons_from`). -/
+theorem usize_sub_ok {i : Std.Usize} (h : 1 ≤ i.val) :
+    ∃ w : Std.Usize, i - 1#usize = ok w ∧ w.val = i.val - 1 := by
+  obtain ⟨w, h1, h2⟩ :=
+    WP.spec_imp_exists (Std.Usize.sub_spec (x := i) (y := 1#usize) (by scalar_tac))
+  exact ⟨w, h1, by scalar_tac⟩
+
+/-- The list a downward index recursion peels: `l.take (i+1)` read back to
+front is `l[i]` followed by `l.take i` read back to front.  This is the shape
+every lemma about `Env.consts` needs, because the port stores that list
+reversed (`absEnv`) and scans it from the back. -/
+theorem list_take_reverse_cons {α : Type} {l : List α} {i : Nat}
+    (h : i < l.length) :
+    (l.take (i + 1)).reverse = l[i] :: (l.take i).reverse := by
+  rw [List.take_succ, List.getElem?_eq_getElem h]
+  simp
+
 /-- Pushing onto the empty vector — the port's spelling of a one-element list
 (`name::singleton`, `level::singleton`, `prop_when::to_list`'s `Two` arm). -/
 theorem vec_singleton {α : Type} (x : α) :
@@ -551,8 +571,12 @@ def absConstantInfos (cs : alloc.vec.Vec env.ConstantInfo) :
   cs.val.map absConstantInfo
 
 /-- `ConLeche/Kernel/Env.lean:627` — `Env`.  A *function*, not a relation:
-`Env.consts` is a list on both sides, in the same (newest-first) order. -/
-def absEnv (e : env.Env) : ConLeche.Env := ⟨absConstantInfos e.consts⟩
+`Env.consts` is a list on both sides — but the port stores it **reversed**,
+oldest first (`env.rs`'s `Env` deviation, task #50: a push at the back is
+`Vec::push`, so no function of the port calls `Vec::insert`, whose Aeneas model
+is an overwrite).  So the abstraction reverses it back, and every statement
+about the environment reads the same as it did when the orders agreed. -/
+def absEnv (e : env.Env) : ConLeche.Env := ⟨(absConstantInfos e.consts).reverse⟩
 
 /-- `ConLeche/Kernel/Env.lean:69` — `CheckMode`. -/
 def absMode : env.CheckMode → ConLeche.CheckMode
