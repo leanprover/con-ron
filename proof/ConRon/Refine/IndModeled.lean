@@ -6791,6 +6791,35 @@ theorem provisionRecsN_cons {lmode : ConLeche.CheckMode}
   simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
     StateT.pure, Except.pure, h1, h2]
 
+omit hw hcb in
+/-- `provisionRecsN` at a cons whose **head** threw (task #67). -/
+theorem provisionRecsN_head_err {lmode : ConLeche.CheckMode}
+    {blockNames : List ConLeche.Name} {feAcc : ConLeche.FEnv}
+    {ci : ConLeche.ConstantInfo} {rest : List ConLeche.ConstantInfo}
+    {lst : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+    (h1 : (provisionRecsStepN lmode blockNames feAcc ci).run lst = .error le) :
+    (provisionRecsN lmode blockNames feAcc (ci :: rest)).run lst
+      = .error le := by
+  rw [provisionRecsN]
+  simp only [StateT.run] at h1
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, h1]
+
+omit hw hcb in
+/-- `provisionRecsN` at a cons whose **tail** threw. -/
+theorem provisionRecsN_tail_err {lmode : ConLeche.CheckMode}
+    {blockNames : List ConLeche.Name} {feAcc fe1 : ConLeche.FEnv}
+    {ci : ConLeche.ConstantInfo} {rest : List ConLeche.ConstantInfo}
+    {cv : ConLeche.ConstantVal} {mI rP : Nat} {rules : List ConLeche.RecRule}
+    {lst lst1 : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+    (h1 : (provisionRecsStepN lmode blockNames feAcc ci).run lst
+      = .ok ((fe1, cv, mI, rP, rules), lst1))
+    (h2 : (provisionRecsN lmode blockNames fe1 rest).run lst1 = .error le) :
+    (provisionRecsN lmode blockNames feAcc (ci :: rest)).run lst
+      = .error le := by
+  rw [provisionRecsN]
+  simp only [StateT.run] at h1 h2
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, h1, h2]
+
 /-- `provision_recs`'s index recursion on `recs.len() - i`. -/
 theorem provision_recs_val {block_names : alloc.vec.Vec name.Name}
     (hbn : NamesWF block_names) {recs : alloc.vec.Vec env.ConstantInfo}
