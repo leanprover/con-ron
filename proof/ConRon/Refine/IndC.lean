@@ -145,6 +145,22 @@ without the phase's flush. -/
 private theorem throwC_bind {α β : Type} (e : ConLeche.CheckError)
     (g : α → ConLeche.Cached.CheckCM β) : (throw e >>= g) = throw e := rfl
 
+/-- `core_types::not_implemented` is the constructor (task #67).  This file's
+copy of `Refine/CheckerDecl.lean`'s. -/
+private theorem not_implemented_val {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.not_implemented v = ok ce) :
+    ce = .NotImplemented v := by
+  rw [core_types.not_implemented] at h; exact (Result.ok_injective h).symm
+
+/-- A mirrored `throw` at `notImplemented`: the port's error came out of
+`core_types::not_implemented`, and the cited side has been rewritten down to its
+own `throw`.  The two routes' drivers meet exactly one such site each. -/
+private theorem errSim_notImplemented {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.not_implemented v = ok ce)
+    (hx : x = .error (.notImplemented ls)) : ErrSim ce x := by
+  rw [not_implemented_val hce]; exact ErrSim.notImplemented hx
+
 /-- Two stages' runs composed, **without naming either stage**.  The cited code
 and this file spell the same `match` with different auxiliary matchers, so a
 `rw` of a stage's refinement into the cited term never fires; applying this with
@@ -863,18 +879,24 @@ across that rebuild is `FEnv.dup_rel`, which asks for `FEnv.FEnvCanon fe2`, and
 discharge it from `FEnv.mk_fenv_canon`/`FEnv.dup_canon`/`FEnv.push_canon`. -/
 theorem check_ind_recs_s_refines
     {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
-    {fe2 fe' : fenv.FEnv} {recs : alloc.vec.Vec env.ConstantInfo}
+    {fe2 : fenv.FEnv} {recs : alloc.vec.Vec env.ConstantInfo}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe2) (hcan : FEnv.FEnvCanon fe2)
     (hfull : FEnv.FEnvFull fe2)
     (hbn : NamesWF block_names) (hrecs : ConstantInfosWF recs)
     (h : inductives.inductives_c.check_ind_recs_s mode st block_names fe2 recs
-        = ok (.Ok fe', st')) :
+        = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe2 lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.checkIndRecsS (absMode mode) (absNames block_names) lfe
-            (absConstantInfos recs)).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.checkIndRecsS (absMode mode) (absNames block_names) lfe
+              (absConstantInfos recs)).run lst = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.checkIndRecsS (absMode mode)
+          (absNames block_names) lfe (absConstantInfos recs)).run lst) := by
   -- the `eqA` pin guard, the two dups, `provision_recs_s`, the flush, the fold
   intro lst lfe hrel hfer
   rw [inductives.inductives_c.check_ind_recs_s] at h
@@ -885,7 +907,7 @@ theorem check_ind_recs_s_refines
     have hrv : recs.val = [] := by
       have : recs.val.length = 0 := by scalar_tac
       exact List.eq_nil_of_length_eq_zero this
-    simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     rw [if_pos (by simp [absConstantInfos, hrv])]
     exact ⟨lst, lfe, by simp [StateT.run, Pure.pure, StateT.pure, Except.pure],
@@ -905,12 +927,21 @@ theorem check_ind_recs_s_refines
       have hpin : lfe.find? ConLeche.eqName = some ConLeche.eqA := by
         rw [hbt] at hbv
         exact of_decide_eq_true hbv.symm
+      rw [if_pos hpin]
       obtain ⟨fe_env, hdup, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨hrele, hwfe, hcane⟩ := FEnv.dup_rel hfe hcan hfer hdup
       obtain ⟨pq, hprov, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r, st1⟩ := pq
       cases r with
-      | Err err => simp at h
+      | Err err =>
+        -- the provisioning phase threw: the group's first bind throws it
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        have hpe :=
+          provision_recs_s_refines hw hst hwfe hbn hrecs hprov lst lfe hrel hrele
+        simp only [show ((0#usize : Std.Usize).val) = 0 from rfl,
+          List.drop_zero] at hpe
+        exact ErrSim.bindCM hpe
       | Ok pq0 =>
         obtain ⟨fq, vq⟩ := pq0
         obtain ⟨lst1, lfe1, hrun1, hdropv, hrel1, hprel1, hwf1, hpwf1, hvqwf⟩ :=
@@ -919,23 +950,43 @@ theorem check_ind_recs_s_refines
         obtain ⟨hfrun, hrel2, hwf2, _⟩ := StateC.flush_c_refines hrel1 hwf1 hflush
         have hchecked : ∀ c ∈ vq.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2 :=
           hvqwf (by intro c hc; simp [alloc.vec.Vec.new] at hc)
-        obtain ⟨lst', lfe', hrunT, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
+        have hfold :=
           Modeled.check_ind_recs_fold_refines hw (IndIngredients.checkerBaseSpec hw)
             IndIngredients.structInstallConstsResolveFFast
             IndIngredients.structSpinesRefine
             (Modeled.block_rename_rename_refines hbn) hwf2 hwfe hpwf1 hfe hcan hfull
             hchecked h lst1.flushed lfe lfe1 lfe hrel2 hrele hprel1 hfer
-        refine ⟨lst', lfe', ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
-        rw [if_pos hpin]
-        simp only [alloc.vec.Vec.new, show ((0#usize : Std.Usize).val) = 0 from rfl,
-          List.drop_zero, absCheckedRecs, Modeled.absCheckedRecs] at hrun1 hrunT
-        simp only [StateT.run_bind, hrun1, NativeInstall.exceptOk_bind, StateC.flushC_run]
-        exact hrunT
+        cases out with
+        | Ok fe' =>
+          obtain ⟨lst', lfe', hrunT, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
+            hfold
+          refine ⟨lst', lfe', ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
+          simp only [alloc.vec.Vec.new, show ((0#usize : Std.Usize).val) = 0 from rfl,
+            List.drop_zero, absCheckedRecs, Modeled.absCheckedRecs] at hrun1 hrunT
+          simp only [StateT.run_bind, hrun1, NativeInstall.exceptOk_bind,
+            StateC.flushC_run]
+          exact hrunT
+        | Err e =>
+          -- the fold threw, past the phase's flush
+          simp only [alloc.vec.Vec.new, show ((0#usize : Std.Usize).val) = 0 from rfl,
+            List.drop_zero, absCheckedRecs, Modeled.absCheckedRecs] at hrun1 hfold
+          simp only [StateT.run_bind, hrun1, NativeInstall.exceptOk_bind,
+            StateC.flushC_run]
+          exact hfold
     · rename_i hbf
+      -- the `Eq` basis is not pinned: **a mirrored `throw`**, at
+      -- `CheckerC.lean:151`'s `notImplemented`
+      have hnp : ¬ (lfe.find? ConLeche.eqName = some ConLeche.eqA) := by
+        rw [hbv] at hbf; simpa using hbf
       obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
       simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      show ErrSim ce _
+      rw [if_neg hnp]
+      exact errSim_notImplemented
+        (ls := "modeled recursor requires the pinned Eq basis") hce rfl
 
 /-- `ConLeche/Cached/CheckerC.lean:168-175` — `install_proj_fn_step_s` refines
 `installProjFnStepS`: **one flush** before the projection's own checks, and
