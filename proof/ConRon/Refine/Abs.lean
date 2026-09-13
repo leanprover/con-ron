@@ -708,6 +708,64 @@ info: 'ConRon.Refine.vec_push_val' depends on axioms: [propext, Classical.choice
 #guard_msgs in
 #print axioms vec_push_val
 
+/-! ## The automation shapes (task #69's `AUTOMATION.md`, adopted by task #67)
+
+`Refine/AUTOMATION.md` measured what it takes to replace a hand proof by
+
+```
+⟨one shape line per constructor⟩ ; rust_inv h ; all_goals grind [⟨lemma set⟩]
+```
+
+**The idiom itself is not adopted** — the maintainer is diagnosing its ~5×
+elaboration cost first (task #70), and task #67's re-proofs stay in the
+existing hand style: forward from `= ok`, `bind_eq_ok_iff`, the arms' `Sim`
+shapes.  What *is* carried here is the one prerequisite that costs nothing
+because it is purely additive: a conclusion about a run stated as a predicate
+on the run result rather than an existential, which is what `grind` needs
+(it negates `∃ lst', P lst'` into a `∀` whose body never meets what it
+derives about `g.run lst`).
+
+`RunOk`/`RunErr` are those predicates.  The tower's `Out`/`ErrSim`/`Sim` keep
+their existential statements, so nothing that consumes or proves them changes;
+what is new is an *introduction* form (`ErrSim.ofRunErr` here, `Out.ofRun` and
+`Sim.ofRun` in `State.lean`/`Core/Arms/Shape.lean`) that leaves a
+`RunOk`/`RunErr` goal, for whoever takes task #70's answer up. -/
+
+/-- A successful run, as a predicate on the result: no witness to find. -/
+def RunOk {ε β σ : Type} (x : Except ε (β × σ)) (P : β → σ → Prop) : Prop :=
+  match x with
+  | .ok (v, s) => P v s
+  | .error _ => False
+
+@[simp] theorem RunOk_ok {ε β σ : Type} (v : β) (s : σ) (P : β → σ → Prop) :
+    RunOk (ε := ε) (.ok (v, s)) P ↔ P v s := Iff.rfl
+
+@[simp] theorem RunOk_error {ε β σ : Type} (e : ε) (P : β → σ → Prop) :
+    RunOk (β := β) (σ := σ) (.error e) P ↔ False := Iff.rfl
+
+/-- A thrown run, as a predicate on the error: the failure half's twin of
+`RunOk`. -/
+def RunErr {ε β : Type} (x : Except ε β) (P : ε → Prop) : Prop :=
+  match x with
+  | .ok _ => False
+  | .error e => P e
+
+@[simp] theorem RunErr_error {ε β : Type} (e : ε) (P : ε → Prop) :
+    RunErr (β := β) (.error e) P ↔ P e := Iff.rfl
+
+@[simp] theorem RunErr_ok {ε β : Type} (v : β) (P : ε → Prop) :
+    RunErr (ε := ε) (.ok v) P ↔ False := Iff.rfl
+
+/-- The con-leche monad plumbing as **unconditional** equations, which is what
+`grind` needs: a conditional rewrite whose right-hand side has variables
+outside its pattern (`x.run lst = ok (a, lst') → (x >>= f).run lst = …`) never
+fires. -/
+theorem except_bind_ok {ε α β : Type} (a : α) (f : α → Except ε β) :
+    (Except.ok a >>= f) = f a := rfl
+
+theorem except_bind_error {ε α β : Type} (e : ε) (f : α → Except ε β) :
+    (Except.error e >>= f : Except ε β) = Except.error e := rfl
+
 /-! ## Errors: the kind, which is what a refinement lemma compares
 
 DESIGN.md §3's ruling of 2026-09-13 (task #67): every refinement lemma is
@@ -818,6 +876,20 @@ by showing the error is `Native`, with no con-leche side named at all. -/
 theorem ErrSim.of_none {γ : Type} {e : kernel.core_types.CheckError}
     {x : Except ConLeche.CheckError γ} (h : absErrKind e = none) : ErrSim e x := by
   intro k hk; rw [h] at hk; simp at hk
+
+/-- `ErrSim` in `RunErr` form: the introduction rule a `grind` proof of a
+failure half wants, since `ErrSim` itself ends in an existential
+(`AUTOMATION.md`). -/
+theorem ErrSim.ofRunErr {γ : Type} {e : kernel.core_types.CheckError}
+    {x : Except ConLeche.CheckError γ}
+    (h : ∀ k, absErrKind e = some k → RunErr x (fun le => lErrKind le = k)) :
+    ErrSim e x := by
+  intro k hk
+  have hx := h k hk
+  revert hx
+  cases hxx : x with
+  | ok v => intro hx; exact hx.elim
+  | error le => intro hx; exact ⟨le, rfl, hx⟩
 
 /-- **The full outcome, in the pure tier.**  `CheckM β = Except CheckError β`:
 a Rust `Ok` is con-leche's `ok` at the abstracted value, a Rust `Err` is

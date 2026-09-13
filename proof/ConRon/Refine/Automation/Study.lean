@@ -261,11 +261,30 @@ theorem RunOk_ok {ε β σ : Type} (v : β) (s : σ) (P : β → σ → Prop) :
 theorem RunOk_error {ε β σ : Type} (e : ε) (P : β → σ → Prop) :
     RunOk (β := β) (σ := σ) (.error e) P ↔ False := Iff.rfl
 
-theorem Sim.ofRun {α β : Type} {A : α → β} {WF : α → Prop} {f g}
+/-- **The accept half of `Sim`**, which is what experiment 3 measures.
+
+Task #67 restated `Sim` over the *whole* outcome (`Out`, `Refine/State.lean`),
+so a `Sim` now also carries a failure half — con-leche throws at the same kind
+whenever the port throws a mirrored error.  Proving that half is the tower's
+business (`Refine/Core/Arms/Lits.lean` does it by hand), not this study's: the
+measurement here is about the accept direction's *shape*, and it is unchanged.
+So the experiment concludes `SimOk`, the accept half on its own, and the
+tower's own `RunOk` introduction rules — `ConRon.Refine.Core.Sim.ofRun` and
+`SimS.ofRun` in `Core/Arms/Shape.lean`, which take both halves — are where the
+shape is carried for real. -/
+def SimOk {α β : Type} (A : α → β) (WF : α → Prop)
+    (f : cached.state_c.CState → fenv.FEnv →
+      Result ((core.result.Result α core_types.CheckError) × cached.state_c.CState))
+    (g : ConLeche.FEnv → ConLeche.Cached.CheckCM β) : Prop :=
+  ∀ fe lfe, FEnvWF fe → FEnvRel fe lfe → ∀ st r st', StateWF st →
+    f st fe = ok (.Ok r, st') → ∀ lst, StateRel st lst →
+      ∃ lst', (g lfe).run lst = .ok (A r, lst') ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r
+
+theorem SimOk.ofRun {α β : Type} {A : α → β} {WF : α → Prop} {f g}
     (h : ∀ fe lfe, FEnvWF fe → FEnvRel fe lfe → ∀ st r st', StateWF st →
       f st fe = ok (.Ok r, st') → ∀ lst, StateRel st lst →
         RunOk ((g lfe).run lst) (fun v lst' => v = A r ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r)) :
-    Sim A WF f g := by
+    SimOk A WF f g := by
   intro fe lfe hfe hfrel st r st' hwf hok lst hrel
   have := h fe lfe hfe hfrel st r st' hwf hok lst hrel
   unfold RunOk at this
@@ -319,16 +338,17 @@ theorem raw_nat_lit_use {e : expr.Expr} {o : Option ron.nat.Nat} (h : core_k.raw
   let r := CoreK.raw_nat_lit_refines he CoreK.pinned_nat_zero_name h
   ⟨r.1.symm, fun m hm => r.2 m (Option.mem_def.mpr hm)⟩
 
-/-- The hand proof is `Core.lits_replay` + `reduce_nat_lits_i_refines`
-(`Refine/Core/Arms/Lits.lean`, 75 + 4 lines); this one is five lines. -/
+/-- The hand proof of the accept half is `Core.lits_replay` +
+`reduce_nat_lits_i_refines` (`Refine/Core/Arms/Lits.lean`, 75 + 4 lines before
+task #67 gave them their failure halves); this one is five lines. -/
 theorem reduce_nat_lits_i_auto {mode : env.CheckMode} {fuel : Std.U64}
     (hw : Wrappers mode fuel) (d : Std.U64) {a b : expr.Expr}
     (ha : ExprWF a) (hb : ExprWF b) :
-    Sim (Option.map (fun p : ron.nat.Nat × ron.nat.Nat => (Nat.toNat p.1, Nat.toNat p.2)))
+    SimOk (Option.map (fun p : ron.nat.Nat × ron.nat.Nat => (Nat.toNat p.1, Nat.toNat p.2)))
       (fun o => ∀ p, o = some p → Nat.NatWF p.1 ∧ Nat.NatWF p.2)
       (fun st fe => cached.core_c.reduce_nat_lits_i mode fuel st fe d a b)
       (fun lfe => natLitsI (knot mode lfe fuel.val) d.val (absExpr a) (absExpr b)) := by
-  refine Sim.ofRun fun fe lfe hfwf hfrel st r st' hwf hok lst hrel => ?_
+  refine SimOk.ofRun fun fe lfe hfwf hfrel st r st' hwf hok lst hrel => ?_
   unfold cached.core_c.reduce_nat_lits_i at hok
   rust_inv hok
   all_goals simp only [natLitsI]

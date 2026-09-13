@@ -193,6 +193,51 @@ theorem Sim.mk'' {α β : Type} {A : α → β} {WF : α → Prop} {f g}
     Sim A WF f g := fun fe lfe hfe hfrel =>
   SimS.mk' (hok fe lfe hfe hfrel) (herr fe lfe hfe hfrel)
 
+/-! ## The `RunOk` introduction forms (task #69's prerequisite (4))
+
+`Refine/AUTOMATION.md` measured that a conclusion about a run must not be an
+existential for `grind` to reach it.  The idiom itself is **not adopted** —
+task #70 is diagnosing its elaboration cost — but the shape is free to carry,
+because it is purely additive: `Sim`/`SimS` keep their statements and every
+existing proof and call site stands; what these add is an introduction rule
+that leaves a `RunOk` goal. -/
+
+theorem SimS.ofRun {α β : Type} {A : α → β} {WF : α → Prop} {f g}
+    (h : ∀ st r st', StateWF st → f st = Aeneas.Std.Result.ok (.Ok r, st') →
+      ∀ lst, StateRel st lst →
+        RunOk (g.run lst) (fun v lst' => v = A r ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r))
+    (herr : ∀ st (e : core_types.CheckError) st', StateWF st →
+      f st = Aeneas.Std.Result.ok (.Err e, st') →
+      ∀ lst, StateRel st lst →
+        ∀ k, absErrKind e = some k → RunErr (g.run lst) (fun le => lErrKind le = k)) :
+    SimS A WF f g := by
+  refine SimS.mk' (fun st r st' hwf hok lst hrel => ?_)
+    (fun st e st' hwf hok lst hrel => ErrSim.ofRunErr (herr st e st' hwf hok lst hrel))
+  exact Out.dest (Out.ofRun (h st r st' hwf hok lst hrel))
+
+theorem Sim.ofRun {α β : Type} {A : α → β} {WF : α → Prop} {f g}
+    (h : ∀ fe lfe, FEnvWF fe → FEnvRel fe lfe → ∀ st r st', StateWF st →
+      f st fe = Aeneas.Std.Result.ok (.Ok r, st') → ∀ lst, StateRel st lst →
+        RunOk ((g lfe).run lst)
+          (fun v lst' => v = A r ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r))
+    (herr : ∀ fe lfe, FEnvWF fe → FEnvRel fe lfe →
+      ∀ st (e : core_types.CheckError) st', StateWF st →
+        f st fe = Aeneas.Std.Result.ok (.Err e, st') → ∀ lst, StateRel st lst →
+          ∀ k, absErrKind e = some k →
+            RunErr ((g lfe).run lst) (fun le => lErrKind le = k)) :
+    Sim A WF f g := fun fe lfe hfe hfrel =>
+  SimS.ofRun (h fe lfe hfe hfrel) (herr fe lfe hfe hfrel)
+
+/-- The con-leche `run` of a bind, unconditionally (`AUTOMATION.md`: the
+conditional spelling never fires, its right-hand side having variables outside
+the pattern). -/
+theorem run_bind_eq {α β : Type} (x : ConLeche.Cached.CheckCM α)
+    (f : α → ConLeche.Cached.CheckCM β) (lst : ConLeche.Cached.CState) :
+    (x >>= f).run lst = (x.run lst >>= fun p => (f p.1).run p.2) := rfl
+
+theorem run_pure_eq {α : Type} (a : α) (lst : ConLeche.Cached.CState) :
+    (pure a : ConLeche.Cached.CheckCM α).run lst = .ok (a, lst) := rfl
+
 /-! ## The wrappers in `Sim` form
 
 `Wrappers mode fuel` is stated with `RefinesE`/`RefinesB` (the shape the

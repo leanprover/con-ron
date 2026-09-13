@@ -775,6 +775,31 @@ theorem Out.destErr {α β : Type} {A : α → β} {WF : α → Prop}
     {x : Except ConLeche.CheckError (β × ConLeche.Cached.CState)}
     (h : Out A WF (.Err e) st' x) : ErrSim e x := h
 
+/-- `Out`'s success half in `RunOk` form (`Refine/AUTOMATION.md`, task #69's
+prerequisite (4)): the same claim with no witness to find.  Purely additive —
+`Out` keeps its existential statement, so nothing that consumes it changes;
+this is the introduction rule a `grind`-style proof would leave behind. -/
+theorem Out.ofRun {α β : Type} {A : α → β} {WF : α → Prop} {r : α}
+    {st' : cached.state_c.CState}
+    {x : Except ConLeche.CheckError (β × ConLeche.Cached.CState)}
+    (h : RunOk x (fun v lst' => v = A r ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r)) :
+    Out A WF (.Ok r) st' x := by
+  revert h
+  cases hx : x with
+  | error e => intro h; exact h.elim
+  | ok p =>
+    obtain ⟨v, lst'⟩ := p
+    intro h
+    obtain ⟨rfl, h1, h2, h3⟩ := h
+    exact ⟨lst', rfl, h1, h2, h3⟩
+
+/-- `Out`'s failure half in `RunErr` form. -/
+theorem Out.ofRunErr {α β : Type} {A : α → β} {WF : α → Prop}
+    {e : kernel.core_types.CheckError} {st' : cached.state_c.CState}
+    {x : Except ConLeche.CheckError (β × ConLeche.Cached.CState)}
+    (h : ∀ k, absErrKind e = some k → RunErr x (fun le => lErrKind le = k)) :
+    Out A WF (.Err e) st' x := ErrSim.ofRunErr h
+
 /-- **Move 1, at a `CheckCM` bind**: a sub-action that threw makes the whole
 `do` block throw, at the same error.  `Abs.lean`'s `ErrSim.bind` is this over
 a bare `Except`; this is the state-monad spelling the arms actually meet,
