@@ -79,7 +79,31 @@ Everything with a `CState` runs the core, so it takes
 (`Refine/TypeChecker.lean`'s rule); task #55 discharges them.  Nothing here
 proves anything about `cached::core_c`.
 
-`sorry` count in this file: 21.
+## The `*L` fragments
+
+`checkEtaThmF` and `checkUnitThmF` are two long `&&` cascades under a
+simultaneous `match` on environment lookups; the port splits each into four
+functions so that no index borrow crosses a branch (task #24's rule 7).  A
+split point has no cited Lean *name*, so each gets a `def` here that is the
+cited *fragment* verbatim — `eqSpine3L`, `etaProjAppsL`, `etaBodyOkL`,
+`etaTelescopeOkL`, `unitBodyOkL`, `unitTelescopeOkL`, `projModelsLeveledL` —
+and `check_eta_thm_refines`/`check_unit_thm_refines` are stated against the
+cited `checkEtaThmF`/`checkUnitThmF` themselves, so nothing is weakened.
+`thmOf` is the `thmInfo` twin of `Refine/CoreKGuards.lean`'s
+`defnOf`/`ctorOf`/`indOf` (**to be unified into `Refine/CoreKGuards.lean`**),
+and `decide_eq_beq` is the `LawfulBEq` bridge from the port's `decide` to the
+cited `==`.
+
+## What is proved and what is stated
+
+Proved: `core_k::consts_resolve` at its `constsResolveF` citation,
+`consts_resolve_f_fast` (modulo the walk), `expr_ops::memo_b_get`, the four
+model-companion names, `ModelRename`'s method, the four list builders,
+`model_app`, `thm_probe`, `proj_models_leveled`, `eq_spine3`,
+`eta_proj_apps`, `eta_rhs`, `eta_body_ok`, `unit_body_ok`.  The rest is
+stated exactly and carries a one-line note.
+
+`sorry` count in this file: 14.
 -/
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel ConRon.Generated.cached
@@ -88,6 +112,16 @@ open ConRon.Refine ConRon.Refine.State ConRon.Refine.FEnv
 namespace ConRon.Refine.DeclCheck
 
 open ConRon.Refine.CoreK
+
+/-- The port decides a comparison, the cited Lean writes `==`; under
+`LawfulBEq` (which con-leche proves of `Name`, `Level` and `Expr`) the two
+`Bool`s are the same one.  The bridge every `*_beq_refines` needs to land on a
+cited `&&` cascade. -/
+theorem decide_eq_beq {α : Type} [BEq α] [LawfulBEq α] [DecidableEq α] (a b : α) :
+    decide (a = b) = (a == b) := by
+  by_cases hab : a = b
+  · subst hab; simp
+  · simp [hab]
 
 /-! ## 1. `Expr.constsResolveF` and its memoized walk (`DeclCheck.lean:37-204`)
 
@@ -567,12 +601,65 @@ def projModelsLeveledL (lfe : ConLeche.FEnv) (T : ConLeche.Name)
 /-- `ConLeche/Kernel/DeclCheck.lean:355-358 checkEtaThmF` —
 **`decl_check::proj_models_leveled`** is the cited `(List.range nF).all …`,
 started at `j`. -/
+theorem projModelsLeveledL_step (x : Option ConLeche.ConstantInfo)
+    (lps : List ConLeche.Name) :
+    (match x with
+     | some (.defnInfo cvmj _ _) => cvmj.levelParams == lps
+     | _ => false)
+      = (match defnOf x with
+         | some (cv, _, _) => cv.levelParams == lps
+         | none => false) := by
+  cases x with
+  | none => rfl
+  | some ci => cases ci <;> rfl
+
 theorem proj_models_leveled_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {t : name.Name} {lps : alloc.vec.Vec name.Name} {n_f j : Std.U64} {b : Bool}
+    {t : name.Name} {lps : alloc.vec.Vec name.Name}
     (hfe : FindAgree fe lfe) (hwf : FindWF fe) (ht : NameWF t) (hlps : NamesWF lps)
-    (h : decl_check.proj_models_leveled fe t lps n_f j = ok b) :
-    b = projModelsLeveledL lfe (absName t) (absNames lps) n_f.val j.val := by
-  sorry
+    (N : Nat) :
+    ∀ (n_f j : Std.U64) (b : Bool), n_f.val - j.val = N →
+      decl_check.proj_models_leveled fe t lps n_f j = ok b →
+      b = projModelsLeveledL lfe (absName t) (absNames lps) n_f.val j.val := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro n_f j b hN h
+    rw [decl_check.proj_models_leveled.eq_def] at h
+    split at h
+    · rename_i hge
+      rw [← Result.ok_injective h, projModelsLeveledL,
+        List.drop_eq_nil_of_le (by rw [List.length_range]; scalar_tac)]
+      rfl
+    · rename_i hge
+      obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hnabs, hnwf⟩ := CoreK.proj_model_name_refines ht hn
+      obtain ⟨hoabs, howf⟩ := defn_probe_refines hfe hwf hnwf ho
+      rw [hnabs] at hoabs
+      have hlt : j.val < (List.range n_f.val).length := by
+        rw [List.length_range]; scalar_tac
+      rw [projModelsLeveledL, List.drop_eq_getElem_cons hlt]
+      simp only [List.getElem_range, List.all_cons, projModelsLeveledL_step,
+        ← hoabs]
+      cases o with
+      | none =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]; simp
+      | some p =>
+        obtain ⟨cvmj, v0, hint0⟩ := p
+        have hcvwf : ConstantValWF cvmj := (howf cvmj v0 hint0 rfl).1
+        simp only [] at h
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1v : b1 = ((absConstantVal cvmj).levelParams == absNames lps) := by
+          rw [Env.names_beq_refines hcvwf.2.1 hlps hb1]
+          exact decide_eq_beq _ _
+        simp only [Option.map_some]
+        refine CoreK.and_step hb1v h ?_
+        intro c1 h1
+        obtain ⟨j2, hj2, hrec⟩ := bind_eq_ok_iff.mp h1
+        have hj2val : j2.val = j.val + 1 := HashMap.uscalar_add_eq hj2
+        rw [ih (n_f.val - j2.val) (by scalar_tac) n_f j2 c1 rfl hrec,
+          projModelsLeveledL, hj2val]
+        simp only [projModelsLeveledL_step]
 
 /-- `ConLeche/Kernel/DeclCheck.lean:365-371` — the cited
 `(List.range nF).map fun j => mkAppN (.const (projModelName T j) …)
@@ -587,13 +674,65 @@ def etaProjAppsL (T : ConLeche.Name) (lps : List ConLeche.Name) (nP nF j : Nat) 
 /-- `ConLeche/Kernel/DeclCheck.lean:365-371 checkEtaThmF` —
 **`decl_check::eta_proj_apps`** is that list, accumulated. -/
 theorem eta_proj_apps_refines {t : name.Name} {lps : alloc.vec.Vec name.Name}
-    {n_p n_f j : Std.U64} {out r : alloc.vec.Vec expr.Expr}
-    (ht : NameWF t) (hlps : NamesWF lps) (hout : ExprsWF out)
-    (h : decl_check.eta_proj_apps t lps n_p n_f j out = ok r) :
-    absExprs r = absExprs out
-        ++ etaProjAppsL (absName t) (absNames lps) n_p.val n_f.val j.val
-      ∧ ExprsWF r := by
-  sorry
+    (ht : NameWF t) (hlps : NamesWF lps) (N : Nat) :
+    ∀ (n_p n_f j : Std.U64) (out r : alloc.vec.Vec expr.Expr),
+      n_f.val - j.val = N → ExprsWF out →
+      decl_check.eta_proj_apps t lps n_p n_f j out = ok r →
+      absExprs r = absExprs out
+          ++ etaProjAppsL (absName t) (absNames lps) n_p.val n_f.val j.val
+        ∧ ExprsWF r := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro n_p n_f j out r hN hout h
+    rw [decl_check.eta_proj_apps.eq_def] at h
+    split at h
+    · rename_i hge
+      rw [← Result.ok_injective h, etaProjAppsL,
+        List.drop_eq_nil_of_le (by rw [List.length_range]; scalar_tac)]
+      exact ⟨by simp, hout⟩
+    · rename_i hge
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨args, hargs, e0, he0, args1, hpush1, n, hn, v, hv, e1, he1,
+        e2, he2, out1, hpush, j2, hj2, hrec⟩ := h
+      obtain ⟨hargsabs, hargswf⟩ := desc_bvars_refines hargs
+      obtain ⟨hnabs, hnwf⟩ := CoreK.proj_model_name_refines ht hn
+      obtain ⟨hvabs, hvwf⟩ := lp_params_refines hlps hv
+      have he0wf : ExprWF e0 := ExprWF.bvar he0
+      have hargs1wf : ExprsWF args1 := by
+        intro w hw
+        rw [vec_push_val hpush1] at hw
+        rcases List.mem_append.1 hw with h1 | h1
+        · exact hargswf w h1
+        · simp only [List.mem_singleton] at h1; rw [h1]; exact he0wf
+      have hargsabs' : List.map absExpr args.val
+          = (List.range n_p.val).map (fun i => ConLeche.Expr.bvar (n_p.val - i)) :=
+        hargsabs
+      have hargs1abs : absExprs args1
+          = ((List.range n_p.val).map (fun i => ConLeche.Expr.bvar (n_p.val - i)))
+            ++ [ConLeche.Expr.bvar 0] := by
+        rw [absExprs, vec_push_val hpush1, List.map_append, hargsabs']
+        simp [Expr.bvar_refines he0]
+      obtain ⟨he2abs, he2wf⟩ :=
+        ExprOps.mk_app_n_refines (Expr.mk_const_wf hnwf hvwf he1) hargs1wf he2
+      have hj2v : j2.val = j.val + 1 := HashMap.uscalar_add_eq hj2
+      have hout1wf : ExprsWF out1 := by
+        intro w hw
+        rw [vec_push_val hpush] at hw
+        rcases List.mem_append.1 hw with h1 | h1
+        · exact hout w h1
+        · simp only [List.mem_singleton] at h1; rw [h1]; exact he2wf
+      obtain ⟨habs, hwf⟩ := ih (n_f.val - j2.val) (by scalar_tac) n_p n_f j2 out1 r
+        rfl hout1wf hrec
+      refine ⟨?_, hwf⟩
+      have hlt : j.val < (List.range n_f.val).length := by
+        rw [List.length_range]; scalar_tac
+      have h1 : absExprs out1 = absExprs out ++ [absExpr e2] := by
+        rw [absExprs, absExprs, vec_push_val hpush]; simp
+      rw [habs, h1, hj2v, List.append_assoc]
+      congr 1
+      rw [he2abs, Expr.mk_const_refines he1, hnabs, hvabs, hargs1abs,
+        etaProjAppsL, etaProjAppsL, List.drop_eq_getElem_cons hlt]
+      simp
 
 /-- `ConLeche/Kernel/DeclCheck.lean:362-371 checkEtaThmF` —
 **`decl_check::eta_rhs`** is the cited η right-hand side: the constructor's
@@ -608,7 +747,20 @@ theorem eta_rhs_refines {t ctor_name : name.Name} {lps : alloc.vec.Vec name.Name
         (((List.range n_p.val).map fun i => ConLeche.Expr.bvar (n_p.val - i))
           ++ etaProjAppsL (absName t) (absNames lps) n_p.val n_f.val 0)
       ∧ ExprWF r := by
-  sorry
+  rw [decl_check.eta_rhs] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨v, hv, v1, hv1, args, hargs, n, hn, v2, hv2, e, he, hmk⟩ := h
+  obtain ⟨hvabs, hvwf⟩ := desc_bvars_refines hv
+  obtain ⟨hv1abs, hv1wf⟩ :=
+    eta_proj_apps_refines ht hlps _ n_p n_f 0#u64 _ v1 rfl ExprOps.exprsWF_new hv1
+  obtain ⟨hargsabs, hargswf⟩ := CoreK.append_exprs_refines hvwf hv1wf hargs
+  obtain ⟨hnabs, hnwf⟩ := model_name_refines hc hn
+  obtain ⟨hv2abs, hv2wf⟩ := lp_params_refines hlps hv2
+  obtain ⟨habs, hwf⟩ :=
+    ExprOps.mk_app_n_refines (Expr.mk_const_wf hnwf hv2wf he) hargswf hmk
+  refine ⟨?_, hwf⟩
+  rw [habs, Expr.mk_const_refines he, hnabs, hv2abs, hargsabs, hvabs, hv1abs]
+  simp [absExprs, alloc.vec.Vec.new]
 
 /-- `ConLeche/Kernel/DeclCheck.lean:360` (and `:399`) — the cited
 `.app (.app (.app (.const c [ℓA]) tySlot) lhsC) rhsC` pattern **with**
@@ -619,6 +771,26 @@ def eqSpine3L : ConLeche.Expr →
     if c = ConLeche.eqName then some (lA, tySlot, lhsC, rhsC) else none
   | _ => none
 
+/-- The matching clause, as an equation the rewriter can use. -/
+theorem eqSpine3L_app (c : ConLeche.Name) (lA : ConLeche.Level)
+    (t l r : ConLeche.Expr) :
+    eqSpine3L ((((ConLeche.Expr.const c [lA]).app t).app l).app r)
+      = if c = ConLeche.eqName then some (lA, t, l, r) else none := rfl
+
+/-- Off shape at the level list: an empty one. -/
+theorem eqSpine3L_nil (c : ConLeche.Name) (t l r : ConLeche.Expr) :
+    eqSpine3L ((((ConLeche.Expr.const c []).app t).app l).app r) = none := rfl
+
+/-- Off shape at the level list: two or more. -/
+theorem eqSpine3L_two (c : ConLeche.Name) (a b : ConLeche.Level)
+    (us : List ConLeche.Level) (t l r : ConLeche.Expr) :
+    eqSpine3L ((((ConLeche.Expr.const c (a :: b :: us)).app t).app l).app r)
+      = none := rfl
+
+-- The descent below needs both `arc_deref_eq` and `bind_tc_ok` in its
+-- `simp only` set: which one fires depends on the arm, so the unused-argument
+-- linter flags each of them on the arms where the other did the work.
+set_option linter.unusedSimpArgs false in
 /-- `ConLeche/Kernel/DeclCheck.lean:360, :399` — **`decl_check::eq_spine3`** is
 that reading, with owned copies of the three arguments. -/
 theorem eq_spine3_refines {e : expr.Expr}
@@ -649,7 +821,7 @@ theorem eq_spine3_refines {e : expr.Expr}
         cases k3 with
         | Const c us =>
           obtain ⟨hcwf, huswf⟩ := wf_const_inv hf3 rfl
-          simp only [arc_deref_eq, absExpr_mk, absExprKind, eqSpine3L] at h ⊢
+          simp only [arc_deref_eq, absExpr_mk, absExprKind] at h ⊢
           by_cases hlen : (alloc.vec.Vec.len us) = 1#usize
           · rw [if_pos hlen] at h
             have hlv : us.val.length = 1 := by
@@ -665,55 +837,51 @@ theorem eq_spine3_refines {e : expr.Expr}
             obtain ⟨en, hen, b, hb, h⟩ := h
             obtain ⟨henabs, henwf⟩ := BasisNames.eq_name_refines hen
             have hbv := Level.name_beq_exact hcwf henwf hb
-            rw [habsus]
+            rw [habsus, eqSpine3L_app]
             cases b with
             | false =>
               simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
-              subst h
-              rw [if_neg (by rw [← henabs]; simpa using hbv.symm)]
+              rw [← h, if_neg (by rw [← henabs]; simpa using hbv.symm)]
               exact ⟨rfl, by simp⟩
             | true =>
               simp only [if_true, bind_eq_ok_iff, level_dup_eq,
-                ConRon.Refine.State.expr_dup_eq] at h
-              obtain ⟨l, hl, h⟩ := h
+                ConRon.Refine.State.expr_dup_eq, Result.ok.injEq,
+                exists_eq_left'] at h
+              obtain ⟨l, hl, hq⟩ := h
               have hlu : l = u0 := by
                 have hg := ExprOps.vec_index_getElem? hl
                 rw [hu0] at hg; simpa using hg.symm
               subst hlu
               have hlwf : LevelWF l := huswf l (by rw [hu0]; simp)
-              simp only [Result.ok.injEq] at h
-              subst h
-              rw [if_pos (by rw [← henabs]; simpa using hbv)]
-              exact ⟨rfl, by simp_all⟩
+              rw [← hq, if_pos (by rw [← henabs]; simpa using hbv)]
+              exact ⟨rfl, by simp [hlwf, hty, hlhs, hrhs]⟩
           · rw [if_neg hlen, Result.ok.injEq] at h
-            subst h
             have hlv : us.val.length ≠ 1 := by
               have := alloc.vec.Vec.len_val us
               intro hc; exact hlen (by scalar_tac)
-            have : absLevels us ≠ [absLevel (us.val.headD us.val[0]!)] := by
-              intro hc
-              have : (absLevels us).length = 1 := by rw [hc]; simp
-              rw [absLevels] at this; simp at this; exact hlv this
+            rw [← h]
             refine ⟨?_, by simp⟩
             match hus : us.val with
-            | [] => rw [absLevels, hus]; simp
+            | [] => rw [absLevels, hus]; simp only [List.map_nil, eqSpine3L_nil]; rfl
             | [u0] => rw [hus] at hlv; simp at hlv
-            | u0 :: u1 :: rest => rw [absLevels, hus]; simp
+            | u0 :: u1 :: rest =>
+              rw [absLevels, hus]
+              simp only [List.map_cons, eqSpine3L_two]; rfl
         | _ =>
-          simp only [Result.ok.injEq] at h; subst h
-          simp only [absExpr_mk, absExprKind, eqSpine3L]
+          simp only [Result.ok.injEq] at h
+          rw [← h]
           exact ⟨rfl, by simp⟩
       | _ =>
-        simp only [Result.ok.injEq] at h; subst h
-        simp only [absExpr_mk, absExprKind, eqSpine3L]
+        simp only [Result.ok.injEq] at h
+        rw [← h]
         exact ⟨rfl, by simp⟩
     | _ =>
-      simp only [Result.ok.injEq] at h; subst h
-      simp only [absExpr_mk, absExprKind, eqSpine3L]
+      simp only [Result.ok.injEq] at h
+      rw [← h]
       exact ⟨rfl, by simp⟩
   | _ =>
-    simp only [Result.ok.injEq] at h; subst h
-    simp only [absExpr_mk, absExprKind, eqSpine3L]
+    simp only [Result.ok.injEq] at h
+    rw [← h]
     exact ⟨rfl, by simp⟩
 
 /-- `ConLeche/Kernel/DeclCheck.lean:359-378` — the cited body test of
@@ -743,7 +911,62 @@ theorem eta_body_ok_refines {mode : env.CheckMode} {t ctor_name : name.Name}
     (h : decl_check.eta_body_ok mode t ctor_name lps n_p n_f sbody tbody_m = ok b) :
     b = etaBodyOkL (absMode mode) (absName t) (absName ctor_name) (absNames lps)
       n_p.val n_f.val (absExpr sbody) (absExpr tbody_m) := by
-  sorry
+  rw [decl_check.eta_body_ok] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hoabs, howf⟩ := eq_spine3_refines hs ho
+  rw [etaBodyOkL, ← hoabs]
+  cases o with
+  | none =>
+    simp only [Result.ok.injEq] at h
+    rw [← h]; simp
+  | some q =>
+    obtain ⟨hlwf, htywf, hlhswf, hrhswf⟩ := howf q rfl
+    obtain ⟨l_a, ty_slot, lhs_c, rhs_c⟩ := q
+    simp only [Option.map_some]
+    simp only [] at h
+    obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v : b1 = (absExpr lhs_c == ConLeche.Expr.bvar 0) := by
+      rw [Expr.beq_refines hlhswf (ExprWF.bvar he) hb1, Expr.bvar_refines he]
+      exact decide_eq_beq _ _
+    simp only [Bool.and_assoc]
+    refine CoreK.and_step hb1v h ?_
+    intro c1 h1
+    obtain ⟨e1, he1, h2⟩ := bind_eq_ok_iff.mp h1
+    obtain ⟨b2, hb2, h2⟩ := bind_eq_ok_iff.mp h2
+    obtain ⟨he1abs, he1wf⟩ := model_app_refines ht hlps he1
+    have hb2v : b2 = (absExpr ty_slot == ConLeche.Expr.mkAppN
+        (.const ((absName t).str "_model") ((absNames lps).map ConLeche.Level.param))
+        ((List.range n_p.val).map fun k => ConLeche.Expr.bvar (n_p.val - k))) := by
+      rw [Expr.beq_refines htywf he1wf hb2, he1abs]
+      exact decide_eq_beq _ _
+    refine CoreK.and_step hb2v h2 ?_
+    intro c2 h3
+    obtain ⟨e2, he2, h4⟩ := bind_eq_ok_iff.mp h3
+    obtain ⟨b3, hb3, h4⟩ := bind_eq_ok_iff.mp h4
+    obtain ⟨he2abs, he2wf⟩ := eta_rhs_refines ht hc hlps he2
+    have hb3v : b3 = (absExpr rhs_c == ConLeche.Expr.mkAppN
+        (.const ((absName ctor_name).str "_model")
+          ((absNames lps).map ConLeche.Level.param))
+        (((List.range n_p.val).map fun k => ConLeche.Expr.bvar (n_p.val - k))
+          ++ etaProjAppsL (absName t) (absNames lps) n_p.val n_f.val 0)) := by
+      rw [Expr.beq_refines hrhswf he2wf hb3, he2abs]
+      exact decide_eq_beq _ _
+    refine CoreK.and_step hb3v h4 ?_
+    intro c3 h5
+    obtain ⟨b4, hb4, h6⟩ := bind_eq_ok_iff.mp h5
+    have hb4v := Env.tt_checks_refines hb4
+    cases b4 with
+    | false =>
+      simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h6
+      rw [← h6, ← hb4v]; simp
+    | true =>
+      simp only [if_true, bind_eq_ok_iff] at h6
+      obtain ⟨e3, he3, hb5⟩ := h6
+      rw [Expr.beq_refines htb (ExprWF.sort hlwf he3) hb5, Expr.sort_refines he3,
+        ← hb4v]
+      simp only [Bool.not_true, Bool.false_or]
+      exact decide_eq_beq _ _
 
 /-- `ConLeche/Kernel/DeclCheck.lean:352-378` — the cited
 `match tcv.type.stripPis (nP + 1), cvmT.type.stripPis nP with` stage of
@@ -818,7 +1041,59 @@ theorem unit_body_ok_refines {mode : env.CheckMode} {t : name.Name}
     (h : decl_check.unit_body_ok mode t lps n_p sbody tbody_m = ok b) :
     b = unitBodyOkL (absMode mode) (absName t) (absNames lps) n_p.val
       (absExpr sbody) (absExpr tbody_m) := by
-  sorry
+  rw [decl_check.unit_body_ok] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hoabs, howf⟩ := eq_spine3_refines hs ho
+  rw [unitBodyOkL, ← hoabs]
+  cases o with
+  | none =>
+    simp only [Result.ok.injEq] at h
+    rw [← h]; simp
+  | some q =>
+    obtain ⟨hlwf, htywf, hlhswf, hrhswf⟩ := howf q rfl
+    obtain ⟨l_a, ty_slot, lhs_c, rhs_c⟩ := q
+    simp only [Option.map_some]
+    simp only [] at h
+    obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v : b1 = (absExpr lhs_c == ConLeche.Expr.bvar 1) := by
+      rw [Expr.beq_refines hlhswf (ExprWF.bvar he) hb1, Expr.bvar_refines he]
+      exact decide_eq_beq _ _
+    simp only [Bool.and_assoc]
+    refine CoreK.and_step hb1v h ?_
+    intro c1 h1
+    obtain ⟨e1, he1, h2⟩ := bind_eq_ok_iff.mp h1
+    obtain ⟨b2, hb2, h2⟩ := bind_eq_ok_iff.mp h2
+    have hb2v : b2 = (absExpr rhs_c == ConLeche.Expr.bvar 0) := by
+      rw [Expr.beq_refines hrhswf (ExprWF.bvar he1) hb2, Expr.bvar_refines he1]
+      exact decide_eq_beq _ _
+    refine CoreK.and_step hb2v h2 ?_
+    intro c2 h3
+    obtain ⟨i, hi, h4⟩ := bind_eq_ok_iff.mp h3
+    obtain ⟨e2, he2, h4⟩ := bind_eq_ok_iff.mp h4
+    obtain ⟨b3, hb3, h4⟩ := bind_eq_ok_iff.mp h4
+    obtain ⟨he2abs, he2wf⟩ := model_app_refines ht hlps he2
+    have hiv : i.val = n_p.val + 1 := HashMap.uscalar_add_eq hi
+    have hb3v : b3 = (absExpr ty_slot == ConLeche.Expr.mkAppN
+        (.const ((absName t).str "_model") ((absNames lps).map ConLeche.Level.param))
+        ((List.range n_p.val).map fun k => ConLeche.Expr.bvar (n_p.val + 1 - k))) := by
+      rw [Expr.beq_refines htywf he2wf hb3, he2abs, hiv]
+      exact decide_eq_beq _ _
+    refine CoreK.and_step hb3v h4 ?_
+    intro c3 h5
+    obtain ⟨b4, hb4, h6⟩ := bind_eq_ok_iff.mp h5
+    have hb4v := Env.tt_checks_refines hb4
+    cases b4 with
+    | false =>
+      simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h6
+      rw [← h6, ← hb4v]; simp
+    | true =>
+      simp only [if_true, bind_eq_ok_iff] at h6
+      obtain ⟨e3, he3, hb5⟩ := h6
+      rw [Expr.beq_refines htb (ExprWF.sort hlwf he3) hb5, Expr.sort_refines he3,
+        ← hb4v]
+      simp only [Bool.not_true, Bool.false_or]
+      exact decide_eq_beq _ _
 
 /-- `ConLeche/Kernel/DeclCheck.lean:392-411` — the cited
 `match tcv.type.stripPis (nP + 2), cvmT.type.stripPis nP with` stage of
