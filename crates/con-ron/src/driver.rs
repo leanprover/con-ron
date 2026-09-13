@@ -77,6 +77,7 @@ use con_ron_core::cached::parsed_c::PendingCheck;
 use con_ron_core::cached::parsed_c::ValueKind;
 use con_ron_core::cached::state_c;
 use con_ron_core::cached::state_c::CState;
+use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::env;
 use con_ron_core::kernel::env::CheckMode;
@@ -85,6 +86,7 @@ use con_ron_core::kernel::fenv;
 use con_ron_core::kernel::fenv::FEnv;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_core::kernel::pins_decode;
+use con_ron_core::kernel::validate;
 
 use crate::frontend::export::name_str;
 use crate::pool;
@@ -565,6 +567,14 @@ pub fn check_decls_driver<O: PhaseObserver + Send>(
     jobs: u64,
     obs: &mut O,
 ) -> Result<Env, (CheckError, u64)> {
+    // Task #73's input validation pass, `installed::check_decls`' own first
+    // step (its deviation 5): the driver IS that function's body, so it runs
+    // the same check, and a forged term is declined here too rather than only
+    // on the `--jobs=1`, no-observer lane.
+    let v: (bool, validate::Seen) = validate::validate_decls(validate::seen_new(), ds);
+    if !v.0 {
+        return Err((core_types::native(installed::validate_reject_message()), 0));
+    }
     let total = ds.len();
     let mut st: CState = state_c::cstate_new();
     let mut p: (u64, FEnv, Vec<PendingCheck>) = (0, fenv::mk_fenv(env::empty()), Vec::new());

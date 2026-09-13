@@ -115,6 +115,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
 use crate::kernel::prop_when;
 use crate::kernel::trust_axioms;
 use crate::kernel::type_checker;
+use crate::kernel::validate;
 use std::vec::Vec;
 
 // ---------------------------------------------------------------------------
@@ -705,7 +706,53 @@ pub fn check_pending_list_from(
 /// Deviation 4 (the module note): `pins` is the `Nat`-operation pin list,
 /// §3.6's parameter, threaded from here through `annot_decl_step` to
 /// `checker::check_div_mod_pin_loop` (task #31).
+///
+/// Deviation 5 (task #73, and the one line of this function con-leche has no
+/// counterpart for — see `kernel::validate`'s module note): before the fold
+/// runs, **the input is validated**.  con-leche's `@[computed_field]`s are
+/// correct by construction, so `checkDecls` has nothing to check; the port's
+/// node fields are `pub`, so a forged `data` word would make `expr::beq`
+/// inexact and the refinement false.  `Refine/Main.lean`'s capstones used to
+/// assume it away as `hds : ∀ d ∈ ds.val, DeclCWF d`; this pass *establishes*
+/// it, and a declaration that fails it is declined with `CheckError::Native`
+/// — the port's own failure, about which the full-outcome ruling (DESIGN.md
+/// §3) claims nothing.  The position reported is `0`: the outcome is
+/// `Native`, so `Installed.ErrSimPos` is vacuous at it, and nothing outside
+/// rendering reads the number.
 pub fn check_decls(
+    mode: &CheckMode,
+    pins: &Vec<NatOpPinSet>,
+    ds: &Vec<DeclC>,
+) -> Result<Env, (CheckError, u64)> {
+    let v: (bool, validate::Seen) = validate::validate_decls(validate::seen_new(), ds);
+    if v.0 {
+        check_decls_go(mode, pins, ds)
+    } else {
+        Err((core_types::native(validate_reject_message()), 0))
+    }
+}
+
+/// con-leche: none — task #73, the port's own input check (con-leche's computed fields are correct by construction)
+/// The decline the validation pass produces.  Its own function so that
+/// `check_decls`' two branches are each one call, which is what lets
+/// `Refine/Validate.lean` state the gate (`check_decls_gate`) without naming
+/// the fold's body.
+pub fn validate_reject_message() -> Vec<u32> {
+    const M: [u32; 49] = [
+        100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 32, 114, 101, 106, 101, 99,
+        116, 101, 100, 32, 98, 121, 32, 116, 104, 101, 32, 105, 110, 112, 117, 116, 32,
+        118, 97, 108, 105, 100, 97, 116, 105, 111, 110, 32, 112, 97, 115, 115,
+    ];
+    core_types::code_points(&M)
+}
+
+/// con-leche: ConLeche/Cached/Installed.lean:407-411 checkDecls
+/// **The fold proper**, i.e. the cited `checkDecls` body: `check_decls` above
+/// is this function behind task #73's validation pass.  Split out so that the
+/// pass is one line and the refinement lemma's gate can name what follows it
+/// (`Refine/Validate.lean`'s `check_decls_gate`,
+/// `Refine/Installed.lean`'s `check_decls_refines`).
+pub fn check_decls_go(
     mode: &CheckMode,
     pins: &Vec<NatOpPinSet>,
     ds: &Vec<DeclC>,
@@ -781,6 +828,8 @@ mod tests {
     use crate::kernel::name;
     use crate::kernel::name::Name;
     use crate::kernel::nat_op_pins::NatOpPinSet;
+    use crate::kernel::validate;
+    use crate::ron::ptr;
 
     fn nm(s: &str) -> Name {
         let cps: Vec<u32> = s.chars().map(|c| c as u32).collect();
@@ -833,6 +882,57 @@ mod tests {
         match installed::check_decls(&CheckMode::Verified, &no_pins(), &ds) {
             Ok(e) => assert_eq!(e.consts.len(), 0),
             Err(_) => panic!("the empty stream is an accept"),
+        }
+    }
+
+    /// Task #73: a **well-formed** declaration passes the validation pass, so
+    /// the pass costs an accept nothing.  (Every other test in this module is
+    /// the same statement said less loudly: they all run `check_decls`, which
+    /// now validates first.)
+    #[test]
+    fn a_well_formed_declaration_passes_the_validator() {
+        let ds: Vec<DeclC> = vec![defn("b", type0(), prop())];
+        assert!(validate::validate_decls(validate::seen_new(), &ds).0);
+        match installed::check_decls(&CheckMode::Verified, &no_pins(), &ds) {
+            Ok(e) => assert_eq!(e.consts.len(), 1),
+            Err(_) => panic!("a well-formed definition is an accept"),
+        }
+    }
+
+    /// Task #73: a declaration carrying a node whose stored `data` word does
+    /// not match its children is declined with `CheckError::Native` — the
+    /// port's own failure, which claims nothing about con-leche.  The fields
+    /// are `pub`, so this is exactly the input `hds` used to assume away.
+    #[test]
+    fn a_forged_data_word_inside_a_declaration_is_declined() {
+        let good = expr::mk_const(nm("b"), Vec::new());
+        let forged = Expr(ptr::new(expr::ExprNode {
+            data: expr::data(&good) ^ 1,
+            kind: expr::ExprKind::Const(nm("b"), ptr::new(Vec::new())),
+        }));
+        let ds: Vec<DeclC> = vec![
+            defn("b", type0(), prop()),
+            defn("c", type0(), forged),
+        ];
+        match installed::check_decls(&CheckMode::Verified, &no_pins(), &ds) {
+            Ok(_) => panic!("a forged data word must be declined"),
+            Err((e, pos)) => {
+                match e {
+                    CheckError::Native(_) => {}
+                    _ => panic!("the decline is the port's own Native error"),
+                }
+                assert_eq!(pos, 0);
+            }
+        }
+        // …and the very same stream with the honest node is an accept, so
+        // the decline is the word and nothing else.
+        let ok: Vec<DeclC> = vec![
+            defn("b", type0(), prop()),
+            defn("c", type0(), expr::mk_const(nm("b"), Vec::new())),
+        ];
+        match installed::check_decls(&CheckMode::Verified, &no_pins(), &ok) {
+            Ok(e) => assert_eq!(e.consts.len(), 2),
+            Err(_) => panic!("the honest stream is an accept"),
         }
     }
 
