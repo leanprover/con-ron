@@ -13313,3 +13313,80 @@ Aeneas do handle user trait impls on tuple types**, including generic
 
 It is `O(size)` and runs at most once per Nat-op pin variant attempt — a
 handful of times in a run.
+
+#### 3. The statement shapes
+
+The vocabulary is `Refine/Abs.lean`'s, and it is deliberately small:
+
+```lean
+inductive ErrKind | notImplemented | invalid | internal
+def lErrKind   : ConLeche.CheckError → ErrKind
+def absErrKind : core_types.CheckError → Option ErrKind   -- `Native ↦ none`
+def ErrSim (e : core_types.CheckError) (x : Except ConLeche.CheckError γ) :=
+  ∀ k, absErrKind e = some k → ∃ le, x = .error le ∧ lErrKind le = k
+```
+
+`ErrSim` is the whole ruling in one definition: a mirrored error claims that
+con-leche throws at the same **kind** (never the same message — §3.1 has
+always said the theorem does not read them, and `kernel::checker`'s note 2
+now has the port dropping con-leche's accumulated decline reasons), and a
+`Native` error claims nothing, because `absErrKind` sends it to `none` and
+the hypothesis is then unsatisfiable.  One definition, no second "partial"
+notion, and `ErrSim.native` discharges a native site without naming the
+con-leche side at all.
+
+It is stated over the `Except` the con-leche side *ends in*, so the same
+notion serves the pure tier (`CheckM β = Except CheckError β`), the cached
+tier (`(g : CheckCM β).run lst`) and everything between.  The outcome
+predicates are then one `match` each — `OutP A WF o x` (pure, `Abs.lean`) and
+`Out A WF o st' x` (cached, `State.lean`):
+
+```lean
+  | .Ok r  => ∃ lst', x = .ok (A r, lst') ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r
+  | .Err e => ErrSim e x
+```
+
+Three things are deliberately *not* claimed.  Nothing about the port's state
+after a failure — con-leche's `Except` discards its state on a throw, so the
+only caller that continues past an error, the Nat-op pin loop, continues from
+a pre-attempt snapshot that is related by *hypothesis*.  Nothing about an
+Aeneas `fail`/`div`, since every lemma's hypothesis is `f … = ok …`.  And
+nothing about a `Native` failure.
+
+**The conversion cost was kept near zero at every call site.**
+`Sim.apply`, `SimS.apply`, `RefinesE.ok`, `RefinesB.ok` and `RefinesL.ok`
+carry the pre-#67 statements verbatim, so a proof that knows its callee
+succeeded reads exactly as it did; the only textual change is `h.field …` →
+`h.field.ok …`, same argument order (64 sites in the checker tier, by
+script).  What is new is `*.apply_err`/`*.err`, `ErrSim.bindCM` (move 1 in
+the state monad: `ErrSim e (x.run lst) → ErrSim e ((x >>= f).run lst)`), and
+`*.mk'`, which lets a converted proof keep its accept half **word for word**
+and put the failure half beside it.
+
+Three moves discharge essentially every error half: *(1)* a bind whose callee
+threw (`…apply_err` + `ErrSim.bindCM`/`ErrSim.trans`), *(2)* an explicit
+`throw` arm, where the accept direction has already proved the guard agrees
+(`ErrSim.invalid`/`.internal`/`.notImplemented`, whose message argument is
+whatever con-leche produced), and *(3)* a `Native` arm (`ErrSim.native`).
+`Refine/README.md` carries the same table for the next porter.
+
+#### 4. Fuel exhaustion is mirrored, and `wrappers_zero` is a real proof
+
+The accept-direction `Wrappers mode 0` was vacuous: at fuel zero the Rust
+wrapper cannot return `.Ok`.  At the full outcome it has content, and the
+content is true — the Rust builds `internal "fuel exhausted: …"` from its
+code-point array and `coreKnotI … 0`'s six slots are
+`throw (.internal "fuel exhausted: …")` (`Cached/CoreC.lean:1916-1922`), at
+the same step and the same kind.  Six `rfl` equations (`knot_zero_whnfCore`,
+…) and six three-line arms.  That the *messages* differ at one slot — the
+port's `infer_io` says "infer_io" where the cited `inferIO` reuses
+`"fuel exhausted: infer"` — is exactly why kinds and not messages are what a
+refinement lemma compares.  The same holds one level down, at
+`whnf_core_loop_i`, `whnf_loop_i` and `defeq_loop_i`.
+
+The memo wrappers' error arm needed one new fact each, and it is the same
+fact: **a body's mirrored error is not memoised on either side**.  The Rust's
+`match r with | Err _ => ok (r, st1)` skips the insert, and con-leche's
+`memoEI` never reaches its `modify` because the bind fails first
+(`memoEI_run_err`, `memoBI_run_err`), so the wrapper throws exactly what the
+body threw.
