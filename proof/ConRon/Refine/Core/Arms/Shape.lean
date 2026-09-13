@@ -28,14 +28,31 @@ and `WF` the well-formedness the caller may rely on downstream.  `Sim`
 unfolds to exactly the `CORE_PLAN` shape:
 
 ```
-f st fe = ok (.Ok r, st') → ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-  ∃ lst', (g lfe).run lst = .ok (A r, lst') ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r
+f st fe = ok (o, st') → ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+  Out A WF o st' ((g lfe).run lst)
 ```
 
-— exact result on success, nothing claimed on failure (DESIGN.md §3.5), and
-the input well-formedness (`ExprWF` on the term arguments, …) quantified
-*outside* `Sim` by the lemma itself, so that a caller discharges it at the
-call site from what it knows.
+— the **full outcome** (`Refine/State.lean`'s `Out`, DESIGN.md §3's ruling of
+2026-09-13): exact result on success, con-leche's own throw at the same kind
+on a mirrored failure, nothing on the port's own `Native` one — and the input
+well-formedness (`ExprWF` on the term arguments, …) quantified *outside*
+`Sim` by the lemma itself, so that a caller discharges it at the call site
+from what it knows.
+
+**How a proof is shaped.**  `SimS.apply`/`Sim.apply` are unchanged, so every
+*call site* reads as it did; what a proof of a `Sim` now adds is the error
+half of each case.  Three moves cover it:
+
+* a bind whose sub-computation threw — `Sim.apply_err` gives
+  `ErrSim e (sub.run lst)`, and `ErrSim.bind` carries it through the rest of
+  the con-leche `do` block (`Out.bind` is the same move at `Out`);
+* an explicit `throw` arm — the guard has already been shown to agree in the
+  accept direction, so rewriting the con-leche side to its `throw` and
+  applying `ErrSim.invalid`/`.internal`/`.notImplemented` closes it;
+* a `Native` arm — `ErrSim.native` closes it without naming con-leche at all.
+
+`SimS.mk'` splits a proof into its two halves where they do not share the
+case analysis.
 
 Three shapes cover the block: `Sim` (state and environment threaded),
 `SimS` (state only — the helpers con-leche writes without an `FEnv`), and
@@ -80,15 +97,14 @@ attribute [local simp] StateT.run modifyGet MonadStateOf.modifyGet
 /-! ## The three shapes -/
 
 /-- The core notion: a Rust state-passing computation `f` refines the
-con-leche action `g`, exactly on success.  `A` abstracts the returned value,
+con-leche action `g` **at every outcome**.  `A` abstracts the returned value,
 `WF` is what the caller may rely on about it. -/
 def SimS {α β : Type} (A : α → β) (WF : α → Prop)
     (f : cached.state_c.CState →
       Result ((core.result.Result α core_types.CheckError) × cached.state_c.CState))
     (g : ConLeche.Cached.CheckCM β) : Prop :=
-  ∀ st r st', StateWF st → f st = ok (.Ok r, st') →
-    ∀ lst, StateRel st lst →
-      ∃ lst', g.run lst = .ok (A r, lst') ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r
+  ∀ st o st', StateWF st → f st = Aeneas.Std.Result.ok (o, st') →
+    ∀ lst, StateRel st lst → Out A WF o st' (g.run lst)
 
 /-- The same with the environment threaded: `Refine/FEnv.lean`'s `FEnvRel`
 relates the Rust `FEnv` to con-leche's, and con-leche reads it only through
@@ -115,20 +131,67 @@ theorem Sim.toSimS {α β : Type} {A : α → β} {WF : α → Prop} {f g}
     (h : Sim A WF f g) {fe lfe} (hfe : FEnvWF fe) (hrel : FEnvRel fe lfe) :
     SimS A WF (fun st => f st fe) (g lfe) := h fe lfe hfe hrel
 
-/-- Unfolding: what a `SimS` gives at one call site. -/
+/-- Unfolding: what a `SimS` gives at one call site **that succeeded**.  This
+is the pre-task-#67 statement verbatim, so that no existing call site
+changes. -/
 theorem SimS.apply {α β : Type} {A : α → β} {WF : α → Prop} {f g}
     (h : SimS A WF f g) {st r st' lst} (hwf : StateWF st)
-    (hok : f st = ok (.Ok r, st')) (hrel : StateRel st lst) :
+    (hok : f st = Aeneas.Std.Result.ok (.Ok r, st')) (hrel : StateRel st lst) :
     ∃ lst', g.run lst = .ok (A r, lst') ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r :=
-  h st r st' hwf hok lst hrel
+  h st (.Ok r) st' hwf hok lst hrel
+
+/-- What a `SimS` gives at one call site **that threw**: con-leche throws too,
+at the same kind — unless the error is the port's own `Native`, when `ErrSim`
+is vacuous. -/
+theorem SimS.apply_err {α β : Type} {A : α → β} {WF : α → Prop} {f g}
+    (h : SimS A WF f g) {st st' lst} {e : core_types.CheckError} (hwf : StateWF st)
+    (hok : f st = Aeneas.Std.Result.ok (.Err e, st')) (hrel : StateRel st lst) :
+    ErrSim e (g.run lst) :=
+  h st (.Err e) st' hwf hok lst hrel
 
 /-- Unfolding: what a `Sim` gives at one call site. -/
 theorem Sim.apply {α β : Type} {A : α → β} {WF : α → Prop} {f g}
     (h : Sim A WF f g) {st fe r st' lst lfe} (hwf : StateWF st) (hfe : FEnvWF fe)
-    (hok : f st fe = ok (.Ok r, st')) (hrel : StateRel st lst)
+    (hok : f st fe = Aeneas.Std.Result.ok (.Ok r, st')) (hrel : StateRel st lst)
     (hfrel : FEnvRel fe lfe) :
     ∃ lst', (g lfe).run lst = .ok (A r, lst') ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r :=
-  h fe lfe hfe hfrel st r st' hwf hok lst hrel
+  h fe lfe hfe hfrel st (.Ok r) st' hwf hok lst hrel
+
+/-- The failure half at one call site. -/
+theorem Sim.apply_err {α β : Type} {A : α → β} {WF : α → Prop} {f g}
+    (h : Sim A WF f g) {st fe st' lst lfe} {e : core_types.CheckError}
+    (hwf : StateWF st) (hfe : FEnvWF fe)
+    (hok : f st fe = Aeneas.Std.Result.ok (.Err e, st')) (hrel : StateRel st lst)
+    (hfrel : FEnvRel fe lfe) :
+    ErrSim e ((g lfe).run lst) :=
+  h fe lfe hfe hfrel st (.Err e) st' hwf hok lst hrel
+
+/-- **Building a `SimS` from its two halves**, for the proofs where the
+success and failure cases do not share a case analysis. -/
+theorem SimS.mk' {α β : Type} {A : α → β} {WF : α → Prop} {f g}
+    (hok : ∀ st r st', StateWF st → f st = Aeneas.Std.Result.ok (.Ok r, st') →
+      ∀ lst, StateRel st lst →
+        ∃ lst', g.run lst = .ok (A r, lst') ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r)
+    (herr : ∀ st (e : core_types.CheckError) st', StateWF st →
+      f st = Aeneas.Std.Result.ok (.Err e, st') →
+      ∀ lst, StateRel st lst → ErrSim e (g.run lst)) :
+    SimS A WF f g := by
+  intro st o st' hwf h lst hrel
+  cases o with
+  | Ok r => exact hok st r st' hwf h lst hrel
+  | Err e => exact herr st e st' hwf h lst hrel
+
+/-- The same for `Sim`. -/
+theorem Sim.mk'' {α β : Type} {A : α → β} {WF : α → Prop} {f g}
+    (hok : ∀ fe lfe, FEnvWF fe → FEnvRel fe lfe → ∀ st r st', StateWF st →
+      f st fe = Aeneas.Std.Result.ok (.Ok r, st') → ∀ lst, StateRel st lst →
+        ∃ lst', (g lfe).run lst = .ok (A r, lst') ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r)
+    (herr : ∀ fe lfe, FEnvWF fe → FEnvRel fe lfe →
+      ∀ st (e : core_types.CheckError) st', StateWF st →
+        f st fe = Aeneas.Std.Result.ok (.Err e, st') → ∀ lst, StateRel st lst →
+          ErrSim e ((g lfe).run lst)) :
+    Sim A WF f g := fun fe lfe hfe hfrel =>
+  SimS.mk' (hok fe lfe hfe hfrel) (herr fe lfe hfe hfrel)
 
 /-! ## The wrappers in `Sim` form
 
@@ -143,16 +206,15 @@ theorem RefinesE.toSim {f g} (h : RefinesE f g) (d : Std.U64) {e : expr.Expr}
     (he : ExprWF e) :
     Sim absExpr ExprWF (fun st fe => f st fe d e)
       (fun lfe => g lfe d.val (absExpr e)) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
-  exact h st fe d e r st' hwf hfe he hok lst lfe hrel hfrel
+  intro fe lfe hfe hfrel st o st' hwf hok lst hrel
+  exact h st fe d e o st' hwf hfe he hok lst lfe hrel hfrel
 
 theorem RefinesB.toSim {f g} (h : RefinesB f g) (d : Std.U64) {a b : expr.Expr}
     (ha : ExprWF a) (hb : ExprWF b) :
     Sim id (fun _ => True) (fun st fe => f st fe d a b)
       (fun lfe => g lfe d.val (absExpr a) (absExpr b)) := by
-  intro fe lfe hfe hfrel st r st' hwf hok lst hrel
-  obtain ⟨lst', hrun, hrel', hwf'⟩ := h st fe d a b r st' hwf hfe ha hb hok lst lfe hrel hfrel
-  exact ⟨lst', hrun, hrel', hwf', trivial⟩
+  intro fe lfe hfe hfrel st o st' hwf hok lst hrel
+  exact h st fe d a b o st' hwf hfe ha hb hok lst lfe hrel hfrel
 
 /-- `r.whnfCore depth e` at one call site. -/
 theorem Wrappers.whnfCoreSim (hw : Wrappers mode fuel) (d : Std.U64)
@@ -207,18 +269,16 @@ theorem RefinesE.ofSim {f g}
     (h : ∀ (d : Std.U64) (e : expr.Expr), ExprWF e →
       Sim absExpr ExprWF (fun st fe => f st fe d e) (fun lfe => g lfe d.val (absExpr e))) :
     RefinesE f g := by
-  intro st fe d e r st' hwf hfe he hok lst lfe hrel hfrel
-  exact h d e he fe lfe hfe hfrel st r st' hwf hok lst hrel
+  intro st fe d e o st' hwf hfe he hok lst lfe hrel hfrel
+  exact h d e he fe lfe hfe hfrel st o st' hwf hok lst hrel
 
 theorem RefinesB.ofSim {f g}
     (h : ∀ (d : Std.U64) (a b : expr.Expr), ExprWF a → ExprWF b →
       Sim id (fun _ => True) (fun st fe => f st fe d a b)
         (fun lfe => g lfe d.val (absExpr a) (absExpr b))) :
     RefinesB f g := by
-  intro st fe d a b r st' hwf hfe ha hb hok lst lfe hrel hfrel
-  obtain ⟨lst', hrun, hrel', hwf', _⟩ :=
-    h d a b ha hb fe lfe hfe hfrel st r st' hwf hok lst hrel
-  exact ⟨lst', hrun, hrel', hwf'⟩
+  intro st fe d a b o st' hwf hfe ha hb hok lst lfe hrel hfrel
+  exact h d a b ha hb fe lfe hfe hfrel st o st' hwf hok lst hrel
 
 
 /-! ## The io grade as a flag
@@ -273,15 +333,15 @@ theorem Wrappers.inferAtSim (hw : Wrappers mode fuel) (d : Std.U64) (io : Bool)
   cases io with
   | false =>
     have := hw.inferSim d he
-    intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+    intro fe lfe hfe hfrel st o st' hwf hok lst hrel
     unfold cached.core_c.infer_at_i at hok
-    simpa using this fe lfe hfe hfrel st r st' hwf (by simpa using hok) lst hrel
+    simpa using this fe lfe hfe hfrel st o st' hwf (by simpa using hok) lst hrel
   | true =>
     have := hw.inferIOSim d he
-    intro fe lfe hfe hfrel st r st' hwf hok lst hrel
+    intro fe lfe hfe hfrel st o st' hwf hok lst hrel
     unfold cached.core_c.infer_at_i at hok
     simpa [ConLeche.Cached.CoreFnsI.ioView] using
-      this fe lfe hfe hfrel st r st' hwf (by simpa using hok) lst hrel
+      this fe lfe hfe hfrel st o st' hwf (by simpa using hok) lst hrel
 
 end
 

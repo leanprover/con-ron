@@ -26,6 +26,7 @@ import ConRon.Generated
 import ConRon.Refine.Nat
 import ConLeche.Kernel.Level
 import ConLeche.Kernel.Env
+import ConLeche.Kernel.Core
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
@@ -706,5 +707,141 @@ info: 'ConRon.Refine.vec_push_val' depends on axioms: [propext, Classical.choice
 -/
 #guard_msgs in
 #print axioms vec_push_val
+
+/-! ## Errors: the kind, which is what a refinement lemma compares
+
+DESIGN.md §3's ruling of 2026-09-13 (task #67): every refinement lemma is
+stated over the **full outcome** — a Rust `Ok` is con-leche's `ok` at the
+abstracted value, a Rust `Err` at one of the three *mirrored* constructors is
+con-leche's `error` at the same kind, and a Rust `Err` at the port's own
+`Native` (`kernel/core_types.rs`, the note on `CheckError`) claims nothing.
+
+Messages are never compared (§3.1: *"the same error kinds (message strings
+need not match — the theorem never reads them)"*), which is what makes this
+statable at all: the port carries `Vec<u32>` code points where con-leche
+carries a `String`, and the two differ deliberately — `checkDivModPinLoop`'s
+accumulated reasons, for one, are not ported (`kernel::checker`'s module note
+2).  So the comparison is between *tags*. -/
+
+/-- con-leche's `CheckError` (`ConLeche/Kernel/Core.lean:47-51`) without its
+messages: the three kinds a refinement lemma can claim. -/
+inductive ErrKind where
+  | notImplemented
+  | invalid
+  | internal
+  deriving DecidableEq, Repr
+
+/-- con-leche's error, as its kind. -/
+def lErrKind : ConLeche.CheckError → ErrKind
+  | .notImplemented _ => .notImplemented
+  | .invalid _ => .invalid
+  | .internal _ => .internal
+
+/-- **The port's error, as the con-leche kind it stands for.**  The three
+mirrored constructors are the cited ones; `Native` is the port's own decline
+and abstracts to *nothing*, which is how "claims nothing about this run" is
+spelled (`ErrSim` below quantifies over `absErrKind e = some k`). -/
+def absErrKind : kernel.core_types.CheckError → Option ErrKind
+  | .NotImplemented _ => some .notImplemented
+  | .Invalid _ => some .invalid
+  | .Internal _ => some .internal
+  | .Native _ => none
+
+@[simp] theorem absErrKind_notImplemented (m) :
+    absErrKind (.NotImplemented m) = some .notImplemented := rfl
+@[simp] theorem absErrKind_invalid (m) : absErrKind (.Invalid m) = some .invalid := rfl
+@[simp] theorem absErrKind_internal (m) : absErrKind (.Internal m) = some .internal := rfl
+@[simp] theorem absErrKind_native (m) : absErrKind (.Native m) = none := rfl
+
+/-- **What a Rust error claims about con-leche's outcome**: that con-leche
+throws too, at the same kind.  A `Native` error claims nothing, because
+`absErrKind` sends it to `none` and the hypothesis is then unsatisfiable —
+so the two halves of the ruling are one definition, and a lemma about a
+`Native` site is discharged by `ErrSim.native` without ever naming the
+con-leche side.
+
+It is stated over the *`Except`* the con-leche side ends in, so that the same
+notion serves the pure tier (`CheckM β = Except CheckError β`), the cached
+tier (`(g : CheckCM β).run lst : Except CheckError (β × CState)`) and
+everything in between. -/
+def ErrSim {γ : Type} (e : kernel.core_types.CheckError)
+    (x : Except ConLeche.CheckError γ) : Prop :=
+  ∀ k, absErrKind e = some k → ∃ le, x = .error le ∧ lErrKind le = k
+
+/-- The port's own failure claims nothing. -/
+theorem ErrSim.native {γ : Type} {x : Except ConLeche.CheckError γ} (m) :
+    ErrSim (.Native m) x := by
+  intro k hk; simp at hk
+
+/-- The mirrored case: con-leche throws, at the kind the port's error
+abstracts to. -/
+theorem ErrSim.mk {γ : Type} {e : kernel.core_types.CheckError}
+    {x : Except ConLeche.CheckError γ} {le : ConLeche.CheckError}
+    (hx : x = .error le) (hk : absErrKind e = some (lErrKind le)) :
+    ErrSim e x := by
+  intro k hk'; exact ⟨le, hx, by rw [hk] at hk'; exact Option.some_injective _ hk'⟩
+
+theorem ErrSim.notImplemented {γ : Type} {x : Except ConLeche.CheckError γ} {m s}
+    (hx : x = .error (.notImplemented s)) : ErrSim (.NotImplemented m) x :=
+  ErrSim.mk hx rfl
+
+theorem ErrSim.invalid {γ : Type} {x : Except ConLeche.CheckError γ} {m s}
+    (hx : x = .error (.invalid s)) : ErrSim (.Invalid m) x :=
+  ErrSim.mk hx rfl
+
+theorem ErrSim.internal {γ : Type} {x : Except ConLeche.CheckError γ} {m s}
+    (hx : x = .error (.internal s)) : ErrSim (.Internal m) x :=
+  ErrSim.mk hx rfl
+
+/-- **Error propagation through a bind**, the move every arm makes: a
+sub-computation that threw makes the whole throw, on both sides.  This is
+what keeps the error half of a full-outcome proof to a line per bind. -/
+theorem ErrSim.bind {γ δ : Type} {e : kernel.core_types.CheckError}
+    {x : Except ConLeche.CheckError γ} (h : ErrSim e x)
+    (f : γ → Except ConLeche.CheckError δ) : ErrSim e (x >>= f) := by
+  intro k hk
+  obtain ⟨le, hx, hle⟩ := h k hk
+  exact ⟨le, by rw [hx]; rfl, hle⟩
+
+/-- The same, for a con-leche action's `run` in the state monad: `x` is the
+sub-action's run, `f` what the rest of the `do` block does with its value and
+state. -/
+theorem ErrSim.bind_run {γ δ σ : Type} {e : kernel.core_types.CheckError}
+    {x : Except ConLeche.CheckError (γ × σ)} (h : ErrSim e x)
+    (f : γ × σ → Except ConLeche.CheckError δ) : ErrSim e (x >>= f) :=
+  h.bind f
+
+/-- A failure the con-leche side has no counterpart for claims nothing.  This
+is the form the leaves use: a Rust-only guard inside a *total* con-leche
+function (`natOpResult` answers an `Option`, it does not throw) is discharged
+by showing the error is `Native`, with no con-leche side named at all. -/
+theorem ErrSim.of_none {γ : Type} {e : kernel.core_types.CheckError}
+    {x : Except ConLeche.CheckError γ} (h : absErrKind e = none) : ErrSim e x := by
+  intro k hk; rw [h] at hk; simp at hk
+
+/-- **The full outcome, in the pure tier.**  `CheckM β = Except CheckError β`:
+a Rust `Ok` is con-leche's `ok` at the abstracted value, a Rust `Err` is
+`ErrSim`.  The cached tier's twin, which also relates the two states, is
+`Refine/State.lean`'s `Out`. -/
+def OutP {α β : Type} (A : α → β) (WF : α → Prop)
+    (o : core.result.Result α kernel.core_types.CheckError)
+    (x : Except ConLeche.CheckError β) : Prop :=
+  match o with
+  | .Ok r => x = .ok (A r) ∧ WF r
+  | .Err e => ErrSim e x
+
+theorem OutP.ok {α β : Type} {A : α → β} {WF : α → Prop} {r : α}
+    {x : Except ConLeche.CheckError β} (hx : x = .ok (A r)) (hwf : WF r) :
+    OutP A WF (.Ok r) x := ⟨hx, hwf⟩
+
+theorem OutP.err {α β : Type} {A : α → β} {WF : α → Prop}
+    {e : kernel.core_types.CheckError} {x : Except ConLeche.CheckError β}
+    (h : ErrSim e x) : OutP A WF (.Err e) x := h
+
+/-- `ErrSim` transported along an equation on the con-leche side, which is how
+a lemma proved against an unfolded body is used against the folded one. -/
+theorem ErrSim.of_eq {γ : Type} {e : kernel.core_types.CheckError}
+    {x y : Except ConLeche.CheckError γ} (h : ErrSim e x) (hxy : y = x) :
+    ErrSim e y := by rw [hxy]; exact h
 
 end ConRon.Refine

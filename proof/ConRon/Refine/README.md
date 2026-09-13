@@ -34,7 +34,8 @@ carries over to `ConRon.Generated` by renaming `level_name.` to
 `ConRon.Generated.` and nothing else:
 
 * **exact-result refinement on success** — `rust_f x = ok y →
-  lean_f (abs x) = abs y`, nothing claimed when Rust fails;
+  lean_f (abs x) = abs y` (since task #67 this is the `.Ok` half of the
+  full-outcome statement below, and the failure half is no longer empty);
 * **`NameWF` / `LevelWF` / `NodeWF` as inductive predicates whose
   constructors are the port's own smart constructors**, which is what pins the
   stored hash word and makes `abs` injective and `beq` exact;
@@ -49,6 +50,65 @@ verbatim -- `Name.lean` and `Level.lean` are the spike's `Refine.lean` with
 `level_name.` dropped and the four `Name` helpers qualified, and nothing
 else.  (Task #12's two-lemma `Smoke.lean` was folded into `Level.lean`'s
 `zero_refines` / `succ_refines` at task #17 and deleted.)
+
+## The full-outcome convention (task #67, DESIGN.md §3's ruling of 2026-09-13)
+
+Every refinement lemma is stated over the Rust computation's **whole**
+outcome, not only its successes.  A Rust function in the checker returns
+`Result (core.result.Result α CheckError × CState)`: the outer `Result` is
+Aeneas's failure monad (a panic, an overflow, a failed index — *nothing* is
+ever claimed about it, since every lemma's hypothesis is `f … = ok …`), and
+the inner one is con-leche's `Except`.  The inner outcome is claimed exactly:
+
+| Rust outcome | what the lemma claims about con-leche |
+|---|---|
+| `.Ok r` | `.ok` at `abs r`, states related, `StateWF`/`WF r` |
+| `.Err (.NotImplemented _ \| .Invalid _ \| .Internal _)` | `.error` **at the same kind** — messages are never compared |
+| `.Err (.Native _)` | nothing |
+| Aeneas `fail`/`div` | nothing |
+
+The vocabulary is in `Abs.lean` and `State.lean`:
+
+* `ErrKind` — con-leche's three constructors without their messages;
+  `lErrKind : ConLeche.CheckError → ErrKind`.
+* `absErrKind : CheckError → Option ErrKind` — the port's error as the kind it
+  stands for, `none` for the port's own `Native`.
+* `ErrSim e x : Prop` — *"if the port's error has a kind, con-leche's
+  `Except` `x` throws at that kind"*.  `Native` makes it vacuous, which is how
+  "claims nothing" is spelled without a second definition.
+* `OutP A WF o x` (pure tier, `Abs.lean`) and `Out A WF o st' x`
+  (cached tier, `State.lean`) — the two halves as one `match`.
+* `Core/Statements.lean`'s `RefinesE`/`RefinesB` and `Core/Arms/Shape.lean`'s
+  `Sim`/`SimS` are stated with `Out`.
+
+**Using a lemma is unchanged.**  `SimS.apply`, `Sim.apply`, `RefinesE.ok` and
+`RefinesB.ok` have exactly the pre-#67 statements, so a call site that knows
+its callee succeeded reads as it did.  What is new is `SimS.apply_err`,
+`Sim.apply_err`, `RefinesE.err`, `RefinesB.err`.
+
+**Proving a lemma** adds the error half of each case.  Three moves cover
+almost all of it:
+
+1. *a bind whose sub-computation threw* — `…apply_err` gives
+   `ErrSim e (sub.run lst)`, and `ErrSim.bind` (or `Out.bind`) carries it
+   through the rest of con-leche's `do` block.  One line per bind.
+2. *an explicit `throw` arm* — the guard has already been shown to agree in
+   the accept direction, so rewrite the con-leche side down to its `throw` and
+   close with `ErrSim.invalid` / `.internal` / `.notImplemented`.
+3. *a `Native` arm* — `ErrSim.native` (or `ErrSim.of_none`) closes it without
+   naming the con-leche side at all.
+
+`SimS.mk'` / `Sim.mk''` split a proof into its two halves where they do not
+share a case analysis; where they do (the usual case), intro the outcome `o`
+and case on it inside the existing structure.
+
+**A strengthening that turns out false is a port bug.**  The accept direction
+could not see a Rust guard that throws where con-leche does not, or that
+throws a *different kind*; the full-outcome statement can.  Fix the Rust (as
+tasks #58/#61 did) and record it in DESIGN.md — do not weaken the statement.
+The port's own failures are exactly the `Native` sites of the census in
+DESIGN.md's task #67 section, and adding a new one is a deliberate,
+documented accept-direction deviation, not a way out of a proof.
 
 ## What is here (tasks #17, #20 and #47, P3.3)
 ## What is here (tasks #17, #20, #22 and #46)

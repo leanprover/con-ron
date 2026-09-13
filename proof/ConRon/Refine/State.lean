@@ -709,6 +709,83 @@ structure StateWF (st : cached.state_c.CState) : Prop where
   instCKeys : HashMap.KeysOk InstKeyWF st.inst_c
   instCVals : ∀ p ∈ HashMap.al_v st.inst_c, ExprWF p.2
 
+/-! ## The full outcome
+
+DESIGN.md §3's ruling of 2026-09-13 (task #67): a refinement lemma is stated
+over the Rust computation's *whole* outcome, not only its successes.
+
+* `.Ok r` — con-leche's run ends `.ok` at the abstracted value, with the two
+  states related and the port's state and result well-formed.  This is the
+  accept-direction statement §3.5 had, unchanged.
+* `.Err e` with `e` one of the three **mirrored** constructors — con-leche's
+  run ends `.error` at the *same kind* (`Refine/Abs.lean`'s `ErrSim`;
+  messages are never compared).  Nothing is claimed about the port's state
+  after a failure, and nothing needs to be: con-leche's `Except` discards its
+  state on a throw, so the only caller that continues past an error — the
+  Nat-op pin loop — continues from a *pre-attempt* snapshot, which is related
+  by the hypothesis rather than the conclusion.
+* `.Err e` with `e` the port's own `Native` — nothing is claimed
+  (`absErrKind` sends it to `none`, so `ErrSim` is vacuous).
+* an Aeneas `fail`/`div` — nothing is claimed, since the hypothesis of every
+  lemma is `f st = ok (…)`.
+
+`Out` takes the con-leche side already `run`, as an `Except`, so that the
+definition has no monad plumbing in it and `ErrSim`'s lemmas apply directly. -/
+
+/-- The obligation a Rust outcome puts on con-leche's. -/
+def Out {α β : Type} (A : α → β) (WF : α → Prop)
+    (o : core.result.Result α kernel.core_types.CheckError)
+    (st' : cached.state_c.CState)
+    (x : Except ConLeche.CheckError (β × ConLeche.Cached.CState)) : Prop :=
+  match o with
+  | .Ok r => ∃ lst', x = .ok (A r, lst') ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r
+  | .Err e => ErrSim e x
+
+/-- The success half, as an introduction rule. -/
+theorem Out.ok {α β : Type} {A : α → β} {WF : α → Prop} {r : α}
+    {st' : cached.state_c.CState} {lst' : ConLeche.Cached.CState}
+    {x : Except ConLeche.CheckError (β × ConLeche.Cached.CState)}
+    (hx : x = .ok (A r, lst')) (hrel : StateRel st' lst') (hwf : StateWF st')
+    (hr : WF r) : Out A WF (.Ok r) st' x :=
+  ⟨lst', hx, hrel, hwf, hr⟩
+
+/-- The failure half, as an introduction rule. -/
+theorem Out.err {α β : Type} {A : α → β} {WF : α → Prop}
+    {e : kernel.core_types.CheckError} {st' : cached.state_c.CState}
+    {x : Except ConLeche.CheckError (β × ConLeche.Cached.CState)}
+    (h : ErrSim e x) : Out A WF (.Err e) st' x := h
+
+/-- The port's own failure claims nothing. -/
+theorem Out.native {α β : Type} {A : α → β} {WF : α → Prop}
+    {st' : cached.state_c.CState}
+    {x : Except ConLeche.CheckError (β × ConLeche.Cached.CState)} (m) :
+    Out A WF (.Err (.Native m)) st' x := ErrSim.native m
+
+/-- What the success half gives at a call site. -/
+theorem Out.dest {α β : Type} {A : α → β} {WF : α → Prop} {r : α}
+    {st' : cached.state_c.CState}
+    {x : Except ConLeche.CheckError (β × ConLeche.Cached.CState)}
+    (h : Out A WF (.Ok r) st' x) :
+    ∃ lst', x = .ok (A r, lst') ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r := h
+
+/-- What the failure half gives at a call site. -/
+theorem Out.destErr {α β : Type} {A : α → β} {WF : α → Prop}
+    {e : kernel.core_types.CheckError} {st' : cached.state_c.CState}
+    {x : Except ConLeche.CheckError (β × ConLeche.Cached.CState)}
+    (h : Out A WF (.Err e) st' x) : ErrSim e x := h
+
+/-- **Error propagation**: an outcome that failed makes every continuation of
+it fail, on both sides.  The move every `do` block's error arm makes. -/
+theorem Out.bind {α α' β δ : Type} {A : α → β} {WF : α → Prop}
+    {e : kernel.core_types.CheckError} {st' : cached.state_c.CState}
+    {x : Except ConLeche.CheckError (β × ConLeche.Cached.CState)}
+    (h : Out A WF (.Err e) st' x)
+    (f : β × ConLeche.Cached.CState →
+      Except ConLeche.CheckError (δ × ConLeche.Cached.CState))
+    {st'' : cached.state_c.CState} {B : α' → δ} {WF' : α' → Prop} :
+    Out B WF' (.Err e) st'' (x >>= f) := ErrSim.bind h f
+
+
 /-! ## The fresh state and the flush -/
 
 /-- `ConLeche/Cached/StateC.lean:158` — `state_c::cstate_new` is the cited
