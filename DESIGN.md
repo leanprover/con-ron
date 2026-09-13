@@ -545,6 +545,21 @@ theorem states `pins = decode PINS_TEXT` and Lean establishes
 measures whether the kernel can do it directly or via the round-trip
 theorem).  The runtime-data paragraph above is superseded.
 
+**Pins, ruling of 2026-09-13 (maintainer): no upstream change if it can be
+avoided; `native_decide` accepted as an interim.**  The embedded-text route
+of task #43 failed on one 532 KB literal (kernel string reduction is
+quadratic; Aeneas's `toStr` carries `decide +native`; a byte literal of that
+size does not elaborate).  Interim (task #64): the closed computation
+`parsePins PINS = some natOpPinSets` is discharged by `native_decide`, so
+the capstones for the binary's actual pins carry `Lean.ofReduceBool` —
+trusted for exactly one closed computation on static data — beside the
+three standard axioms, while the pins-parametric versions stay at the
+three; the decoder's refinement is an ordinary proof.  Spike #63 measures
+two encodings (chunked byte constants; split generated source with
+generated proofs) that would remove the axiom.  con-leche's `pins-param`
+branch (task #285) remains available as the alternative that also makes the
+theorem pin-independent, but is not required.
+
 ### 3.7 Provenance: keeping the port in sync with con-leche
 
 con-leche keeps moving.  The proofs catch drift eventually — a changed
