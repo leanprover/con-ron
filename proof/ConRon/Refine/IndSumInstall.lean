@@ -759,6 +759,66 @@ theorem normPosDom_pi {lenv : ConLeche.Env} {T : ConLeche.Name} {d fuel : Nat}
     from hrec]
   rfl
 
+/-- `normPosDom` at an exhausted fuel: a positive decline on both sides
+(`sum_install.rs:400`, `SumInstall.lean:168`). -/
+theorem normPosDom_fuel {lenv : ConLeche.Env} {T : ConLeche.Name} {d : Nat}
+    {e : ConLeche.Expr} {lst : ConLeche.Cached.CState} :
+    ∃ m, (ConLeche.normPosDom ops lenv T d 0 e).run lst
+      = .error (.notImplemented m) := by
+  rw [ConLeche.normPosDom]
+  exact ⟨_, rfl⟩
+
+/-- `normPosDom`'s reduction threw. -/
+theorem normPosDom_whnf_err {lenv : ConLeche.Env} {T : ConLeche.Name}
+    {d fuel : Nat} {e : ConLeche.Expr} {lst : ConLeche.Cached.CState}
+    {ce : core_types.CheckError} (he : e.mentionsConst T = true)
+    (h : ErrSim ce ((ops.whnf lenv d e).run lst)) :
+    ErrSim ce ((ConLeche.normPosDom ops lenv T d (fuel + 1) e).run lst) := by
+  rw [ConLeche.normPosDom]
+  simp only [he, Bool.not_true, Bool.false_eq_true, if_false, StateT.run,
+    Bind.bind, StateT.bind, Except.bind, Pure.pure]
+  exact ErrSim.bind_run h _
+
+/-- `normPosDom` at a Π whose domain mentions the block: official's
+"non positive occurrence", INVALID on both sides (`sum_install.rs:413`,
+`SumInstall.lean:175`). -/
+theorem normPosDom_pi_neg {lenv : ConLeche.Env} {T : ConLeche.Name}
+    {d fuel : Nat} {e dom body : ConLeche.Expr} {bm : ConLeche.BinderMeta}
+    {lst lst1 : ConLeche.Cached.CState}
+    (he : e.mentionsConst T = true)
+    (hw : (ops.whnf lenv d e).run lst = .ok (.forallE dom body bm, lst1))
+    (hwm : (ConLeche.Expr.forallE dom body bm).mentionsConst T = true)
+    (hdm : dom.mentionsConst T = true) :
+    ∃ m, (ConLeche.normPosDom ops lenv T d (fuel + 1) e).run lst
+      = .error (.invalid m) := by
+  rw [ConLeche.normPosDom]
+  simp only [he, Bool.not_true, Bool.false_eq_true, if_false, StateT.run,
+    Bind.bind, StateT.bind, Except.bind, Pure.pure]
+  rw [show (ops.whnf lenv d e) lst
+    = Except.ok (ConLeche.Expr.forallE dom body bm, lst1) from hw]
+  simp only [hwm, Bool.not_true, Bool.false_eq_true, if_false, hdm, if_true]
+  exact ⟨_, rfl⟩
+
+/-- `normPosDom`'s recursion under a reflexive field's Π binder threw. -/
+theorem normPosDom_pi_err {lenv : ConLeche.Env} {T : ConLeche.Name}
+    {d fuel : Nat} {e dom body : ConLeche.Expr} {bm : ConLeche.BinderMeta}
+    {lst lst1 : ConLeche.Cached.CState} {ce : core_types.CheckError}
+    (he : e.mentionsConst T = true)
+    (hw : (ops.whnf lenv d e).run lst = .ok (.forallE dom body bm, lst1))
+    (hwm : (ConLeche.Expr.forallE dom body bm).mentionsConst T = true)
+    (hdm : dom.mentionsConst T = false)
+    (hrec : ErrSim ce ((ConLeche.normPosDom ops lenv T (d + 1) fuel
+      (body.instantiate1 (.fvar d dom))).run lst1)) :
+    ErrSim ce ((ConLeche.normPosDom ops lenv T d (fuel + 1) e).run lst) := by
+  rw [ConLeche.normPosDom]
+  simp only [he, Bool.not_true, Bool.false_eq_true, if_false, StateT.run,
+    Bind.bind, StateT.bind, Except.bind, Pure.pure]
+  rw [show (ops.whnf lenv d e) lst
+    = Except.ok (ConLeche.Expr.forallE dom body bm, lst1) from hw]
+  simp only [hwm, Bool.not_true, Bool.false_eq_true, if_false, hdm, StateT.bind,
+    Bind.bind, Except.bind]
+  exact ErrSim.bind_run hrec _
+
 /-- `normFieldDoms` at an exhausted counter. -/
 theorem normFieldDoms_zero {lenv : ConLeche.Env} {T : ConLeche.Name} {i : Nat}
     {e : ConLeche.Expr} {lst : ConLeche.Cached.CState} :
@@ -783,6 +843,48 @@ theorem normFieldDoms_succ {lenv : ConLeche.Env} {T : ConLeche.Name} {i n : Nat}
   rw [show (ConLeche.normFieldDoms ops lenv T (i + 1) n
       (body.instantiate1 (ConLeche.Expr.fvar i dom))) lst1 = Except.ok ((bs, r), lst2)
     from hrec]
+
+/-- `normFieldDoms` at a residual that is not a Π: both sides decline
+(`sum_install.rs:481`, `SumInstall.lean:188`). -/
+theorem normFieldDoms_nonpi_err {lenv : ConLeche.Env} {T : ConLeche.Name}
+    {i n : Nat} {e : ConLeche.Expr} {lst : ConLeche.Cached.CState}
+    {v : alloc.vec.Vec Std.U32} {ce : core_types.CheckError}
+    (hce : core_types.not_implemented v = ok ce)
+    (hnp : ∀ dom body bm, e ≠ .forallE dom body bm) :
+    ErrSim ce ((ConLeche.normFieldDoms ops lenv T i (n + 1) e).run lst) := by
+  rw [not_implemented_err hce]
+  cases e with
+  | forallE dom body bm => exact absurd rfl (hnp dom body bm)
+  | _ => exact ErrSim.notImplemented rfl
+
+/-- `normFieldDoms`' domain normalisation threw. -/
+theorem normFieldDoms_dom_err {lenv : ConLeche.Env} {T : ConLeche.Name}
+    {i n : Nat} {dom body : ConLeche.Expr} {bm : ConLeche.BinderMeta}
+    {lst : ConLeche.Cached.CState} {ce : core_types.CheckError}
+    (h : ErrSim ce ((ConLeche.normPosDom ops lenv T i 1024 dom).run lst)) :
+    ErrSim ce ((ConLeche.normFieldDoms ops lenv T i (n + 1)
+      (.forallE dom body bm)).run lst) := by
+  rw [ConLeche.normFieldDoms]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure]
+  exact ErrSim.bind_run h _
+
+/-- `normFieldDoms`' recursion on the remaining binders threw. -/
+theorem normFieldDoms_rec_err {lenv : ConLeche.Env} {T : ConLeche.Name}
+    {i n : Nat} {dom body dom' : ConLeche.Expr} {bm : ConLeche.BinderMeta}
+    {lst lst1 : ConLeche.Cached.CState} {ce : core_types.CheckError}
+    (hd : (ConLeche.normPosDom ops lenv T i 1024 dom).run lst = .ok (dom', lst1))
+    (hrec : ErrSim ce ((ConLeche.normFieldDoms ops lenv T (i + 1) n
+      (body.instantiate1 (.fvar i dom))).run lst1)) :
+    ErrSim ce ((ConLeche.normFieldDoms ops lenv T i (n + 1)
+      (.forallE dom body bm)).run lst) := by
+  rw [ConLeche.normFieldDoms]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+    StateT.pure, Except.pure]
+  rw [show (ConLeche.normPosDom ops lenv T i 1024 dom) lst = Except.ok (dom', lst1)
+    from hd]
+  simp only []
+  exact ErrSim.bind_run hrec _
 
 /-- `checkSumCtorsF` at an exhausted list. -/
 theorem checkSumCtorsF_nil {lfe0 lfe : ConLeche.FEnv} {T : ConLeche.Name}
@@ -1831,18 +1933,18 @@ decline. -/
 theorem norm_pos_dom_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU) (hmc : MentionsConstRefines)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {t : name.Name}
-    {d fuel : Std.U64} {e r : expr.Expr}
+    {d fuel : Std.U64} {e : expr.Expr}
+    {o : core.result.Result expr.Expr core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (ht : NameWF t) (he : ExprWF e)
     (h : inductives.sum_install.norm_pos_dom mode st fe t d fuel e
-        = ok (.Ok r, st')) :
+        = ok (o, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.normPosDom (m := ConLeche.Cached.CheckCM)
+      Out absExpr ExprWF o st'
+        ((ConLeche.normPosDom (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) (absEnv fe.env)
-            (absName t) d.val fuel.val (absExpr e)).run lst
-          = .ok (absExpr r, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r := by
+            (absName t) d.val fuel.val (absExpr e)).run lst) := by
   generalize hd : fuel.val = d0
-  induction d0 using Nat.strong_induction_on generalizing st st' d fuel e r with
+  induction d0 using Nat.strong_induction_on generalizing st st' d fuel e o with
   | _ d0 ih =>
   subst hd
   intro lst lfe hrel hfer
@@ -1851,7 +1953,18 @@ theorem norm_pos_dom_refines {mode : env.CheckMode}
     intro k hk; have : 1 ≤ k.val := by scalar_tac
     omega
   by_cases hf0 : fuel = 0#u64
-  · subst hf0; simp at h
+  · -- the Π walk ran out of fuel: a positive decline on both sides
+    -- (`sum_install.rs:400`, `SumInstall.lean:168`)
+    subst hf0
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    obtain ⟨msg, hmsg⟩ := normPosDom_fuel
+      (ops := ConLeche.Cached.sharedOpsC (absMode mode) lfe)
+      (lenv := absEnv fe.env) (T := absName t) (d := d.val) (e := absExpr e)
+      (lst := lst)
+    refine ErrSim.of_eq (x := Except.error (.notImplemented msg)) ?_ ?_
+    · rw [not_implemented_err hce]; exact ErrSim.notImplemented rfl
+    · simpa using hmsg
   · rw [if_neg hf0] at h
     have hfpos : 1 ≤ fuel.val := by scalar_tac
     obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
@@ -1870,7 +1983,13 @@ theorem norm_pos_dom_refines {mode : env.CheckMode}
       obtain ⟨pp, hwhnf, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r0, st1⟩ := pp
       cases r0 with
-      | Err err => simp at h
+      | Err err =>
+        -- `core_c::whnf` threw: con-leche's own bind carries it
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        rw [hfsucc fuel hf0]
+        exact normPosDom_whnf_err hbabs.symm
+          (IndAbs.ops_whnf_err hw hst hfe he hwhnf lst lfe hrel hfer)
       | Ok w =>
         obtain ⟨lst1, hrunw, hrel1, hwf1, hwwf⟩ :=
           IndAbs.ops_whnf hw hst hfe he hwhnf lst lfe hrel hfer
@@ -1888,35 +2007,56 @@ theorem norm_pos_dom_refines {mode : env.CheckMode}
           case ForallE dom body bm =>
             obtain ⟨hdomwf, hbodywf, hbmwf⟩ := CoreK.ExprWF.forallE_children hwwf rfl
             simp at h
-            obtain ⟨hb2, bm2, hbm2, fv, hfv, opened, hopened, i1, hi1, i2, hi2,
-              r1, st2, hrec, hfin⟩ := h
-            have hb2abs := hmc t dom false ht hdomwf hb2
-            have hbm2v : bm2 = bm := Expr.binder_meta_dup_eq hbm2
-            have hfvwf : ExprWF fv := Expr.fvar_wf hdomwf hfv
-            have hfvabs : absExpr fv = .fvar d.val (absExpr dom) := Expr.fvar_refines hfv
-            obtain ⟨hoabs, howf⟩ := ExprOps.instantiate1_refines hbodywf hfvwf hopened
-            have hi1v : i1.val = d.val + 1 := HashMap.uscalar_add_eq hi1
-            have hi2v : i2.val = fuel.val - 1 := HashMap.uscalar_sub_eq hi2
-            cases r1 with
-            | Err err => simp at hfin
-            | Ok body2 =>
-              simp at hfin
-              obtain ⟨e1, he1, he2, rfl⟩ := hfin
-              obtain ⟨lst2, hrun2, hrel2, hwf2, hbody2wf⟩ :=
-                ih i2.val (by omega) hwf1 howf hrec rfl lst1 lfe hrel1 hfer
-              obtain ⟨he1abs, he1wf⟩ := ExprOps.abstract1_refines hbody2wf he1
-              refine ⟨lst2, ?_, hrel2, hwf2,
-                Expr.forall_e_wf hdomwf he1wf (by rw [hbm2v]; exact hbmwf) he2⟩
-              rw [Expr.forall_e_refines he2, he1abs, hbm2v, hfsucc fuel hf0]
-              refine normPosDom_pi hbabs.symm (by simpa using hrunw)
-                (by simpa using hb1abs.symm) hb2abs.symm ?_
-              simpa [hi1v, hi2v, hoabs, hfvabs] using hrun2
+            rcases h with ⟨hb2, bm2, hbm2, fv, hfv, opened, hopened, i1, hi1,
+                i2, hi2, r1, st2, hrec, hfin⟩
+              | ⟨hb2, v, hv, ce, hce, rfl, rfl⟩
+            · have hb2abs := hmc t dom false ht hdomwf hb2
+              have hbm2v : bm2 = bm := Expr.binder_meta_dup_eq hbm2
+              have hfvwf : ExprWF fv := Expr.fvar_wf hdomwf hfv
+              have hfvabs : absExpr fv = .fvar d.val (absExpr dom) :=
+                Expr.fvar_refines hfv
+              obtain ⟨hoabs, howf⟩ := ExprOps.instantiate1_refines hbodywf hfvwf hopened
+              have hi1v : i1.val = d.val + 1 := HashMap.uscalar_add_eq hi1
+              have hi2v : i2.val = fuel.val - 1 := HashMap.uscalar_sub_eq hi2
+              have hih := ih i2.val (by omega) hwf1 howf hrec rfl lst1 lfe hrel1 hfer
+              cases r1 with
+              | Err err =>
+                -- the recursion under the binder threw
+                simp at hfin
+                obtain ⟨rfl, rfl⟩ := hfin
+                rw [hfsucc fuel hf0]
+                refine normPosDom_pi_err hbabs.symm (by simpa using hrunw)
+                  (by simpa using hb1abs.symm) hb2abs.symm ?_
+                simpa [hi1v, hi2v, hoabs, hfvabs] using Out.destErr hih
+              | Ok body2 =>
+                simp at hfin
+                obtain ⟨e1, he1, e2, he2, rfl, rfl⟩ := hfin
+                obtain ⟨lst2, hrun2, hrel2, hwf2, hbody2wf⟩ := hih
+                obtain ⟨he1abs, he1wf⟩ := ExprOps.abstract1_refines hbody2wf he1
+                refine ⟨lst2, ?_, hrel2, hwf2,
+                  Expr.forall_e_wf hdomwf he1wf (by rw [hbm2v]; exact hbmwf) he2⟩
+                rw [Expr.forall_e_refines he2, he1abs, hbm2v, hfsucc fuel hf0]
+                refine normPosDom_pi hbabs.symm (by simpa using hrunw)
+                  (by simpa using hb1abs.symm) hb2abs.symm ?_
+                simpa [hi1v, hi2v, hoabs, hfvabs] using hrun2
+            · -- the Π domain mentions the block: official's "non positive
+              -- occurrence", INVALID on both sides (`sum_install.rs:413`,
+              -- `SumInstall.lean:175`)
+              have hb2abs := hmc t dom true ht hdomwf hb2
+              obtain ⟨msg, hmsg⟩ := normPosDom_pi_neg
+                (ops := ConLeche.Cached.sharedOpsC (absMode mode) lfe)
+                hbabs.symm (by simpa using hrunw) (by simpa using hb1abs.symm)
+                hb2abs.symm
+              refine ErrSim.of_eq (x := Except.error (.invalid msg)) ?_ ?_
+              · rw [invalid_err hce]; exact ErrSim.invalid rfl
+              · rw [hfsucc fuel hf0]; exact hmsg
           all_goals
             (simp at h
              obtain ⟨rfl, rfl⟩ := h
              refine ⟨lst1, ?_, hrel1, hwf1, hwwf⟩
              rw [hfsucc fuel hf0]
              exact normPosDom_nonpi hbabs.symm hrunw hb1abs.symm (by intro a b c; simp))
+
 
 /-- `ConLeche/Kernel/Inductives/SumInstall.lean:177-188` — `norm_field_doms`
 refines `normFieldDoms`: the constructor's field binders with their domains
@@ -1926,23 +2066,31 @@ pattern 3), so the accumulator stands in front. -/
 theorem norm_field_doms_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU) (hmc : MentionsConstRefines)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {t : name.Name}
-    {i n : Std.U64} {e resid : expr.Expr}
-    {out bs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
+    {i n : Std.U64} {e : expr.Expr}
+    {out : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
+    {o : core.result.Result ((alloc.vec.Vec (expr.Expr × expr.BinderMeta))
+      × expr.Expr) core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (ht : NameWF t) (he : ExprWF e)
     (hout : ExprOps.BindersWF out)
     (h : inductives.sum_install.norm_field_doms mode st fe t i n e out
-        = ok (.Ok (bs, resid), st')) :
+        = ok (o, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lbs,
-        (ConLeche.normFieldDoms (m := ConLeche.Cached.CheckCM)
+      match o with
+      | .Ok q =>
+        ∃ lst' lbs,
+          (ConLeche.normFieldDoms (m := ConLeche.Cached.CheckCM)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) (absEnv fe.env)
+              (absName t) i.val n.val (absExpr e)).run lst
+            = .ok ((lbs, absExpr q.2), lst')
+          ∧ ExprOps.absBinders q.1 = ExprOps.absBinders out ++ lbs
+          ∧ StateRel st' lst' ∧ StateWF st'
+          ∧ ExprOps.BindersWF q.1 ∧ ExprWF q.2
+      | .Err ce =>
+        ErrSim ce ((ConLeche.normFieldDoms (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) (absEnv fe.env)
-            (absName t) i.val n.val (absExpr e)).run lst
-          = .ok ((lbs, absExpr resid), lst')
-        ∧ ExprOps.absBinders bs = ExprOps.absBinders out ++ lbs
-        ∧ StateRel st' lst' ∧ StateWF st'
-        ∧ ExprOps.BindersWF bs ∧ ExprWF resid := by
+            (absName t) i.val n.val (absExpr e)).run lst) := by
   generalize hd : n.val = d0
-  induction d0 using Nat.strong_induction_on generalizing st st' i n e out bs resid with
+  induction d0 using Nat.strong_induction_on generalizing st st' i n e out o with
   | _ d0 ih =>
   subst hd
   intro lst lfe hrel hfer
@@ -1957,15 +2105,22 @@ theorem norm_field_doms_refines {mode : env.CheckMode}
     obtain ⟨⟨dd, k⟩⟩ := e
     simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
     cases k
-    case ForallE dom body bm =>
+    case ForallE dom body bm h =>
       obtain ⟨hdomwf, hbodywf, hbmwf⟩ := CoreK.ExprWF.forallE_children he rfl
       obtain ⟨pp, hnpd, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r0, st1⟩ := pp
+      have hnpdkey :=
+        norm_pos_dom_refines hw hmc hst hfe ht hdomwf hnpd lst lfe hrel hfer
       cases r0 with
-      | Err err => simp at h
+      | Err err =>
+        -- `norm_pos_dom` threw: con-leche's own bind carries it
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        rw [show n.val = (n.val - 1) + 1 by omega]
+        refine normFieldDoms_dom_err ?_
+        simpa using Out.destErr hnpdkey
       | Ok dom2 =>
-        obtain ⟨lst1, hrund, hrel1, hwf1, hdom2wf⟩ :=
-          norm_pos_dom_refines hw hmc hst hfe ht hdomwf hnpd lst lfe hrel hfer
+        obtain ⟨lst1, hrund, hrel1, hwf1, hdom2wf⟩ := hnpdkey
         simp at h
         obtain ⟨fv, hfv, opened, hopened, bm1, hbm1, out1, hout1, i1, hi1, i2, hi2, h⟩ := h
         have hfvwf : ExprWF fv := Expr.fvar_wf hdomwf hfv
@@ -1976,16 +2131,30 @@ theorem norm_field_doms_refines {mode : env.CheckMode}
         have hi2v : i2.val = n.val - 1 := HashMap.uscalar_sub_eq hi2
         have hout1wf : ExprOps.BindersWF out1 :=
           ExprOps.bindersWF_push hout hdom2wf (by rw [hbm1v]; exact hbmwf) hout1
-        obtain ⟨lst2, lbs, hrun2, habs2, hrel2, hwf2, hbswf, hrwf⟩ :=
-          ih i2.val (by omega) hwf1 howf hout1wf h rfl lst1 lfe hrel1 hfer
-        refine ⟨lst2, (absExpr dom2, absBinderMeta bm) :: lbs, ?_, ?_,
-          hrel2, hwf2, hbswf, hrwf⟩
-        · rw [show n.val = i2.val + 1 by omega]
-          refine normFieldDoms_succ (by simpa using hrund) ?_
-          simpa [hi1v, hoabs, hfvabs] using hrun2
-        · rw [habs2, ExprOps.absBinders_push hout1, hbm1v]
-          simp
-    all_goals simp at h
+        have hih := ih i2.val (by omega) hwf1 howf hout1wf h rfl lst1 lfe hrel1 hfer
+        cases o with
+        | Err ce =>
+          -- the recursion on the remaining binders threw
+          rw [show n.val = i2.val + 1 by omega]
+          refine normFieldDoms_rec_err (by simpa using hrund) ?_
+          simpa [hi1v, hoabs, hfvabs] using hih
+        | Ok q =>
+          obtain ⟨lst2, lbs, hrun2, habs2, hrel2, hwf2, hbswf, hrwf⟩ := hih
+          refine ⟨lst2, (absExpr dom2, absBinderMeta bm) :: lbs, ?_, ?_,
+            hrel2, hwf2, hbswf, hrwf⟩
+          · rw [show n.val = i2.val + 1 by omega]
+            refine normFieldDoms_succ (by simpa using hrund) ?_
+            simpa [hi1v, hoabs, hfvabs] using hrun2
+          · rw [habs2, ExprOps.absBinders_push hout1, hbm1v]
+            simp
+    -- the residual is not a Π: both sides decline (`sum_install.rs:481`,
+    -- `SumInstall.lean:188`)
+    all_goals
+      (simp at h
+       obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+       rw [show n.val = (n.val - 1) + 1 by omega]
+       exact normFieldDoms_nonpi_err hce (by intro a b c; simp))
+
 
 /-- `ConLeche/Kernel/Inductives/SumInstall.lean:190-205` —
 `zip_param_binders_from` refines `normCtorVal`'s
