@@ -11452,3 +11452,185 @@ instantiation) and `fvar_leaves_refines` (the gray-set walk).  Nothing reaches
 The progress line after the green run reads `verified 3270 (23%)` of the 13 743
 verified-core Lean lines — up from task #47's `957 (6%)` — and
 `proofs 34243 (367 _refines)`.
+
+### Task #56 — The declaration checker refined (knot assumed) (2026-09-13, Opus under Fable)
+
+`CORE_PLAN.md` step 7, first part: the refinement of the **declaration-checker
+tier** — `crates/con-ron-core/src/kernel/{type_checker, checker_base, checker,
+decl_check, checker_split, std_axioms, trust_axioms, trust_pins, basis_pins,
+nat_op_pins}.rs` and `cached/checker_c.rs` (5 661 Rust lines) against
+`ConLeche/Kernel/{TypeChecker, CheckerBase, Checker, DeclCheck, CheckerSplit,
+StdAxioms, TrustAxioms, TrustPins, BasisA}.lean` and `Cached/CheckerC.lean`
+(2 949).
+
+**Every public function of every one of those modules is stated, exactly.  41
+of the 274 statements are `sorry`, each with a one-line note.**  Thirteen new
+files, 10 103 proof lines; the progress line goes `verified 5959 (43%)` →
+`7531 (54%)` of the verified core and `367 → 799` `_refines`.
+
+#### 1. The thirteen files
+
+| file | lines | `sorry` | contents |
+|---|---|---|---|
+| `TypeChecker.lean` | 264 | 0 | the seven entry points — the one place the knot is named |
+| `CheckerC.lean` | 147 | 0 | `orElse`, and the state deviation **named** |
+| `IndSpec.lean` | 84 | 0 | `IndRoutesSpec`, the seam to task #57 |
+| `CheckerBase.lean` | 1 862 | 0 | `checkConstantVal`, the three list walks, the pure helpers, the four projection stages |
+| `CheckerSplit.lean` | 201 | 4 | the install/check seam, `absValueKind`/`absValueGroup` |
+| `StdAxioms.lean` | 1 863 | 0 | the eleven raw pins, the whole comparison tier, `stdAxiomOkF` |
+| `TrustAxioms.lean` | 1 124 | 0 | the compiler-trust pins and guards, `trust_pins` |
+| `BasisPins.lean` | 288 | 1 | the two exactly-compared basis pins; the decoded pin list |
+| `DeclCheck.lean` | 1 379 | 14 | the `F`-twins, `constsResolveF`, the projection family task #57 consumes |
+| `Checker.lean` | 396 | 5 | `installBasisDecl`, the three value checks, `certifyNatEqs` |
+| `CheckerPins.lean` | 1 597 | 8 | the `Nat.div`/`Nat.mod` pin route and the `reduce*` route |
+| `CheckerPinned.lean` | 76 | 0 | the four cross-file hypotheses, discharged |
+| `CheckerDecl.lean` | 822 | 9 | `checkDecl`, `checkDeclC`, `checkDeclStepC`, the fold |
+
+Written by **eight agents in parallel**, one file each, after the foundation
+(`TypeChecker`, `CheckerC`, `IndSpec`) was proved; `CheckerPinned` and
+`CheckerDecl` are the integration work.
+
+#### 2. The knot is a hypothesis, and that is the whole design
+
+Task #55 is proving `Core.KnotSpec` concurrently, so **nothing in this tier
+proves anything about the core**.  Every lemma that reaches a core entry point
+carries two hypotheses, `core_k.check_fuel = ok fuel` and
+`Core.Wrappers mode fuel`, and `Refine/TypeChecker.lean` is where they are
+consumed exactly once per entry point.  `kernel/type_checker.rs`'s seven
+functions are refined against `Cached/CheckerC.lean`'s `opE`/`opB`/`opS` —
+which are `sharedOpsC`'s five core slots and, at the same constant,
+`fueledOps mode checkFuel` — and five `rfl` slot lemmas
+(`sharedOpsC_whnf`, …) are what every downstream file rewrites with.
+`ensureSortI` is the one derived slot and is proved from `whnf`.
+
+That leaves the declaration tier provable *today*, in parallel with the core,
+and it means the seam is one `structure` rather than a habit.
+
+#### 3. What was proved that had been an argument
+
+**Task #24's raw-pin claim is now kernel-checked.**  Its section "`matchesPin`
+is compared against the RAW pins, and that is exact" argued that
+`matchesPin cv (annotate pin) = matchesPin cv pin` because `annotateBody`
+changes nothing a `letE`-free term's `erasePw` can see, and rested the port's
+right to compare against the writable pin on that argument.
+`StdAxioms.matchesPin_congr` reduces it to three closed equations and all
+eight instances (`iffA`…`choiceA` against their raw twins) are `rfl`; so are
+`TrustAxioms`' two.  A by-product: `reduceNatCvA`/`reduceBoolCvA` are
+*literally* `reduceOpRaw` — `#annotate_pins` changes nothing there at all —
+and only the two `ofReduce*` pins differ, in exactly the three binder data
+`erasePw` erases.
+
+**The basis-table install closes end to end.**  Task #22 generated
+`basis_decls_a` and proved it *is* `BasisKind.declsA`; task #46 gave
+`FEnvRel`/`push_refines`; task #27 replaced task #24's `false`-answering
+`basis_pins` stub with the exact `ConstantInfo` equality against that table.
+`CheckerDecl.install_basis_decls_refines` and `check_basis_decl_c_refines`
+are where the three meet, and `#print axioms` on the fold gives exactly
+`[propext, Classical.choice, Quot.sound]`.
+
+**The declaration dispatch and the fold are verified.**  `check_decl`,
+`check_decl_c` and `check_decl_step_c` are proved *from* their arm lemmas, and
+`check_decls_pure(_from)` by index induction over `check_decl`; what is open
+is each arm's body, never which arm runs.
+
+**Task #43's third `sorry` is gone.**  `Refine/Pins.lean`'s
+`check_decls_pins_refines` was left open on the grounds that the tier below it
+was not refined either; that reason does not survive contact — Aeneas models
+`str::as_bytes` as the identity, so `decode_embedded` *is* `decode PINS_TEXT`
+and the corollary is two lines.  `Pins.lean` goes 3 → 2, and the sharper
+statement is that its two remaining open statements are now the only thing
+between the port and a pin-hypothesis-free main theorem.
+
+#### 4. `checkDeclsPure`'s single `ops` record is the *pure* lane's spelling
+
+The port cannot be stated against `ds.foldlM (checkDecl mode ops) Env.empty`
+for one `ops`, and the reason is task #24's collapse rather than a weakness of
+the statement.  In the pure lane a slot **reads its `env` argument**
+(`fueledOps`' `annotate env d e := annotateCore mode env F d e`), so one record
+serves the whole fold; in the cached lane a slot **closes over the index**
+(`opE mode fe pick`) and ignores its `env` argument, so the record is rebuilt
+at every step — which is exactly what the port does by re-reading `fe` at every
+call.  The bridge between the two lanes is con-leche's own
+(`Verify/Cached/*`).  So the fold is stated against a per-step relation,
+`CheckerDecl.FoldsTo`, which is also the shape `Cached/Installed.lean`'s
+`checkDecls` has and which `Refine/Installed.lean` can reuse verbatim.
+
+The same collapse has a happier consequence one level down: **the
+pre-insertion environment being a visibility bound rather than a value is
+sound at the `Declaration` level precisely because the slots ignore their
+`Env`**.  The only function `checkDecl` hands the pre-insertion *value* to is
+`certifyNatEqs ops env`, and `Checker.certify_nat_eqs_refines` is therefore
+stated at an **arbitrary** `Env` argument — stating it at one particular
+environment would hide the point.
+
+#### 5. Three deviations found that DESIGN.md did not have
+
+1. **`checker::div_mod_env_guard` is strictly weaker than `divModEnvGuardF`,
+   in the ACCEPT direction.**  The port tests each `natOpDeps` entry with
+   `core_k::deps_all_stored`, whose per-dependency test is `defn_lp_empty`
+   (level parameters empty); con-leche's `natOpStoredOkF` additionally demands
+   the **pinned type** (`natOpTyPinnedF`).  So the port can take the
+   `Nat.div`/`Nat.mod` pin route where con-leche declines, and §1 does not
+   permit an accept-direction divergence.  `check_structural_nat_pin` makes
+   the same call and has the same gap.  `core_k::nat_op_stored_ok` already
+   exists in the port and is the faithful per-dependency test; what is missing
+   is an index recursion over it in place of `deps_all_stored` at those two
+   call sites in `checker.rs`.  **Not fixed in this task**: the fix
+   regenerates `Generated/Funs.lean` while tasks #55 and #57 are in flight on
+   the same file.  `CheckerPins.div_mod_env_guard_refines` carries the missing
+   conjunct as a named hypothesis `DepsTyPinned` so that no lemma above it can
+   quietly assume the guards agree.
+2. **`kernel/decl_check.rs`'s artifact/member family is dead code, duplicated
+   under the same citations.**  Task #25 re-ported `checkEtaThmF`,
+   `checkUnitThmF`, `indBlockCapsF`, `checkMemberValF`, `checkProjLookupsF`
+   and `thm_probe` into `kernel/inductives/modeled.rs`, and *those* copies are
+   what runs; only `consts_resolve_f_go`/`_fast` are live in `decl_check.rs`.
+   Two Rust functions per cited Lean definition is a §3.1 one-to-one
+   violation.  Both copies are given separate (identical) statements.
+   `decl_check.rs`'s own module doc is also stale: it still says
+   `checkProjTyF`/`checkProjIotaF` are unported, and task #25 ported both.
+3. **`trust_axioms::lean_ns` has no con-leche declaration** — Lean spells
+   `anonymous |>.str "Lean"` inline at each of the five `Lean.*` names — so its
+   lemma is stated against that prefix; the Rust already carries
+   `con-leche: none`.
+
+And one deviation task #24 *did* flag, now carried as a `Prop` rather than as
+prose: `sharedOpsC.orElse`'s error arm hands the continuation the
+**pre-attempt** state where the port's `&mut CState` hands it the
+post-attempt one.  `CheckerC.OrElseErrorStateSound` names exactly the missing
+fact, `CheckerPins`' loop lemma takes it as a hypothesis, and the port-side fix
+is a `CState` snapshot around `check_div_mod_pin_at`.
+
+Two of task #24's three stubs are, by contrast, **gone**: task #27 rewrote
+`basis_pins.rs` against task #22's table (so the two exactly-compared pins are
+proved, not assumed), and task #31/#43 replaced `nat_op_pins::nat_op_pin_sets`
+by the embedded text and its decoder.  Only the `.indDecl` arm of the
+`Expr`-level `checkDecl` is still a stub, and `check_ind_decl_declines` proves
+that it declines — never accepts.
+
+#### 6. The seam with task #57, and the axiom census
+
+`Refine/IndSpec.lean`'s `IndRoutesSpec` is deliberately **minimal**: two
+clauses, one per install route, each carrying the recogniser's verdict, so
+that no `NativeParts` abstraction is needed on this side.
+`CheckerDecl.check_ind_decl_c_refines` composes it with
+`Refine/Env.lean`'s `ind_params_ok_refines` and is **proved** —
+`#print axioms` gives exactly the three standard axioms.  When task #57 lands
+there is nothing left to do at the seam.
+
+Four cross-file hypotheses were named by the parallel agents in task #49's
+`CoreKPinned` style and are discharged in `Refine/CheckerPinned.lean`
+(`EqBasisPinned`, `MatchesPinSpec`, `BasisPinsSpec`, `ConstsResolveFSpec`).
+`CheckerDecl` prints three censuses: the two proved lemmas at the three
+standard axioms, and `check_decl_c_refines` at those **plus `sorryAx`** —
+written down rather than left for a reader to discover, so that the
+`#guard_msgs` *fails* the moment the arms land and forces the census to be
+corrected then.
+
+#### 7. For the next agent: `lake env lean` is not `lake build`
+
+`proof/lakefile.toml` sets `weak.backward.isDefEq.respectTransparency = false`
+and `weak.backward.do.legacy = true` under `[leanOptions]`, and **`lake env
+lean FILE` does not apply them**.  Two files in this task checked clean under
+`lake env lean` and failed `lake build`; one of them differed by a single
+`rfl`.  Verify with `lake build ConRon.Refine.<File>`.
