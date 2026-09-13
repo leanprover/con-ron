@@ -10,7 +10,8 @@ import ConLeche.MainTheorem
 theorems.  There is nothing algorithmic here: `Refine/Installed.lean`'s
 `check_decls_refines` says that an accept of the Rust `check_decls` is an
 accept of con-leche's `checkDecls` at the abstracted inputs and the abstracted
-environment, and `ConLeche.model_exists` / `ConLeche.no_proof_of_False`
+environment, and `ConLeche.model_exists` /
+`ConLeche.Cached.no_proof_of_False_cached`
 (`vendor/con-leche/ConLeche/MainTheorem.lean`) say what an accept of
 `checkDecls` buys.  This file composes the two, once each.
 
@@ -113,12 +114,12 @@ theorem check_decls_verified_refines
     (h : cached.installed.check_decls .Verified pins ds = ok out) :
     match out with
     | .Ok e =>
-      ConLeche.Cached.checkDecls .verified (ds.val.map absDeclaration) (absPins pins)
-        = .ok (absEnv e)
+      ConLeche.Cached.checkDecls .verified (absPins pins)
+        ⟨ds.val.map absDeclaration⟩ = .ok (absEnv e)
     | .Err er =>
       Installed.ErrSimPos er
-        (ConLeche.Cached.checkDecls .verified (ds.val.map absDeclaration)
-          (absPins pins)) := by
+        (ConLeche.Cached.checkDecls .verified (absPins pins)
+          ⟨ds.val.map absDeclaration⟩) := by
   have hr := check_decls_refines hk hind hinde hvar hds h
   rw [leanCheckDecls] at hr
   cases out with
@@ -135,8 +136,8 @@ theorem check_decls_verified_refines_ok
     {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
     (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-    ConLeche.Cached.checkDecls .verified (ds.val.map absDeclaration) (absPins pins)
-      = .ok (absEnv e) :=
+    ConLeche.Cached.checkDecls .verified (absPins pins)
+      ⟨ds.val.map absDeclaration⟩ = .ok (absEnv e) :=
   check_decls_verified_refines hk hind hinde hvar hds h
 
 /-- **The main theorem for the Rust checker** (DESIGN.md §1): every environment
@@ -151,12 +152,15 @@ theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
     (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e)) :=
-  ConLeche.model_exists_with V (absPins pins) (ds.val.map absDeclaration) (absEnv e)
+  ConLeche.model_exists V (absPins pins) ⟨ds.val.map absDeclaration⟩ (absEnv e)
     (check_decls_verified_refines_ok hk hind hinde hvar hds h)
 
 /-- **The main corollary for the Rust checker** (DESIGN.md §1): an accepted
-stream never yields a constant of type `False`.  `ConLeche.no_proof_of_False`
-at the same accept. -/
+stream never yields a constant of type `False`.  con-leche's
+`Cached.no_proof_of_False_cached` — the fold's own letter about `False`, which
+is what survived con-leche's task #291 at the environment — at the same
+accept.  The *chunk*-level corollary, `ConLeche.no_False_declaration`, is about
+the whole pipeline including the parser, and is con-ron's task #84. -/
 theorem conron.no_proof_of_False (V : Type w) [ConLeche.SetTheory V]
     (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
     (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
@@ -167,9 +171,10 @@ theorem conron.no_proof_of_False (V : Type w) [ConLeche.SetTheory V]
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ¬ ∃ c ∈ (absEnv e).consts,
         c.toConstantVal.type = .const ConLeche.falseName [] :=
-  ConLeche.no_proof_of_False_with V (absPins pins) (ds.val.map absDeclaration)
-    (absEnv e)
-    (check_decls_verified_refines_ok hk hind hinde hvar hds h)
+  fun hc =>
+    let ⟨c, hmem, hty⟩ := hc
+    ConLeche.Cached.no_proof_of_False_cached V (μ := .verified) rfl
+      (check_decls_verified_refines_ok hk hind hinde hvar hds h) c hmem hty
 
 /-! ## The knot and the inductive routes discharged
 
@@ -388,8 +393,10 @@ the two `_embedded` corollaries carry is the decoded pins `hp`, the parser's
 /-- info: 'ConLeche.model_exists' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConLeche.model_exists
 
-/-- info: 'ConLeche.no_proof_of_False' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ConLeche.no_proof_of_False
+/-- info: 'ConLeche.Cached.no_proof_of_False_cached' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in #print axioms ConLeche.Cached.no_proof_of_False_cached
 
 -- The binary-instance corollaries (task #64, restated at task #74).  ONE entry
 -- more than the general theorems above, where task #64 had two: the port's own

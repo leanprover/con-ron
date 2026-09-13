@@ -3211,16 +3211,23 @@ theorem check_decls_phase_b_refines_ok {mode : env.CheckMode}
 
 `leanCheckDecls` is con-leche's fold with the pin list as the parameter the
 upstream ask of DESIGN.md §3.6 made it.  **The ask landed** (con-leche task
-#285, vendored at task #74): `checkDecls mode ds pins` is the real signature,
-with `pins` defaulting to `natOpPinSets`, so this abbreviation now *applies*
-the list instead of ignoring it and `hpins` is gone from every statement in
-this file and in `Refine/Main.lean`. -/
+#304, vendored at task #83): `checkDecls mode pins ds` is the real signature —
+`pins` explicit, second, with no default — so this abbreviation *applies* the
+list instead of ignoring it and `hpins` is gone from every statement in this
+file and in `Refine/Main.lean`.
+
+The other half of the same bump is the fold's input type: con-leche's task
+#285 merged `DeclC` into `Declaration` and #295 put the records in an `Array`,
+which is what the frontend produces and what nothing on the run path rebuilds
+as a list.  The proofs stay list-shaped — `Array.foldlM` on `⟨l⟩` is
+`List.foldlM` on `l` — so this abbreviation is where the `Array` is entered
+and the tier below it is unchanged. -/
 
 /-- con-leche's declaration fold, with the pin list as a parameter. -/
 def leanCheckDecls (mode : ConLeche.CheckMode)
     (pins : List ConLeche.NatOpPinSet) (ds : List ConLeche.Declaration) :
     Except (ConLeche.CheckError × Nat) ConLeche.Env :=
-  ConLeche.Cached.checkDecls mode ds pins
+  ConLeche.Cached.checkDecls mode pins ⟨ds⟩
 
 /-- **`installed::check_decls` refines `checkDecls`** (`Installed.lean:407-411`)
 — DESIGN.md §1's `check_decls_refines`, at the shape the rest of the tower
