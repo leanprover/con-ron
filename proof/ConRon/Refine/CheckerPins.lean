@@ -34,13 +34,14 @@ defined for them here), in the index-vs-list shape `Refine/FEnv.lean`'s
 `absPrefixIdx` and `Refine/CoreKVec.lean`'s walks already use.
 
 The per-variant attempt goes through `CheckerOps.orElse`, whose three run
-lemmas and whose port-side decision are `Refine/CheckerC.lean`'s.  Its error
-arm hands the continuation the **pre-attempt** state where the port's
-`&mut CState` hands it the post-attempt one — task #24's flagged memo-policy
-deviation.  `CheckerC.OrElseErrorStateSound` names exactly the missing fact,
-and `check_div_mod_pin_loop_refines` **takes it as a hypothesis** rather than
-weakening the statement, exactly as `Refine/CheckerC.lean`'s module note says
-it must.  Nothing else about the loop is weakened.
+lemmas and whose port-side decision are `Refine/CheckerC.lean`'s.  Task #65
+rules the port's third arm: a thrown attempt is the pin check's **verdict**,
+not a fallback, so only `Ok false` reaches the next variant — con-leche's
+`false` arm, with the attempt's state on both sides.  The error arm is then
+unreachable from an accept, and tasks #24/#58's two hypotheses
+(`OrElseErrorStateSound`, `OrElseErrorDeclines`) are gone.  Nothing about the
+loop is weakened; the price is the accept-direction deviation documented in
+`Refine/CheckerC.lean`'s module note and DESIGN.md §3.
 
 `divModAttemptReason` and the `tried : List String` accumulator are not ported
 (task #24, point 4: message rendering).  The Lean's `tried` is therefore
@@ -133,18 +134,8 @@ are `consts_resolve_f_step`, `hyps_resolve_f_step`, `div_mod_cert_guard_f_step`,
 rewritten in parallel and may not be imported); when the two files next meet
 they should all move there.
 
-## The two statements that gained a hypothesis (task #58)
+## The one statement that gained a hypothesis (task #58)
 
-* **`check_div_mod_pin_loop_refines` takes `OrElseErrorDeclines`** beside
-  `Refine/CheckerC.lean`'s `OrElseErrorStateSound`.  The latter fixes what a
-  *failed* attempt does to the state; the error arm of `orElse` needs the
-  *control* half too — con-leche takes that arm exactly when **its** attempt
-  throws.  The knot travels as `Core.Wrappers`, which is the `ok`-direction
-  only (DESIGN.md §3.5: "nothing claimed when Rust fails"), so nothing here
-  can turn a port-side `.Err` into a model-side `.error`, and the lemma is
-  false without it — see `OrElseErrorDeclines`' own note for the
-  counterexample shape.  It is a `Prop`, taken as a hypothesis exactly as
-  `OrElseErrorStateSound` is, so that one port-side fix discharges both.
 * **`check_div_mod_pin_refines` takes `EqBasisPinnedSpec fe lfe`** (inside its
   `∀ lst lfe`, beside `StateRel`/`FEnvRel`, as `check_reduce_pin_refines`
   already takes `TrustGuardsSpec`).  It runs `div_mod_env_guard`, whose lemma
@@ -178,9 +169,9 @@ here.
    it is `checkDecl`'s inlined block — so its conclusion is that block's three
    facts.  Since task #58 it reads `checker::deps_all_stored_ok`, so
    `deps_all_stored_ok_refines` above is what its dependency clause needs.
-4. `hpins`, `OrElseErrorStateSound` and `OrElseErrorDeclines` stay caller
-   obligations, threaded unchanged through `check_defn_div_mod_pin_refines`
-   and `check_defn_pins_refines`.
+4. `hpins` stays a caller obligation, threaded unchanged through
+   `check_defn_div_mod_pin_refines` and `check_defn_pins_refines`; task #58's
+   two `orElse` obligations travelled with it until task #65 removed them.
 
 `sorry` count in this file: 0.
 -/
@@ -2609,51 +2600,19 @@ are stated here and none is weakened:
   `(absPins variants).drop i.val`;
 * **`tried`**: not ported (task #24's point 4), hence universally quantified —
   it only ever reaches a decline message, and nothing is claimed on a decline;
-* **`OrElseErrorStateSound`**: the hypothesis, one per variant, that a *failed*
-  attempt's memo writes leave the abstract state where it was.  con-leche's
-  `orElse` hands the continuation the pre-attempt state and the port's
-  `&mut CState` hands it the post-attempt one; `Refine/CheckerC.lean` names the
-  gap and this is the lemma that consumes it. -/
-
-/-- **The error arm's other half, named.**  `Refine/CheckerC.lean`'s
-`OrElseErrorStateSound` (task #24's flagged deviation) fixes what a *failed*
-attempt does to the **state**; it says nothing about what the model side does
-with the same attempt, and the error arm of `orElse` needs that too: con-leche
-takes the error arm exactly when *its* attempt throws, so a port-side throw
-must be a model-side throw or the two loops part company at that variant.
-
-This is **not** derivable from the hypotheses this file travels with.  The
-knot arrives as `Core.Wrappers` (`Refine/Core/Statements.lean`), which is the
-`ok`-direction only — "exact result on success, nothing claimed when Rust
-fails" (DESIGN.md §3.5) — so nothing here can turn a port-side `.Err` into a
-model-side `.error`, and `check_div_mod_pin_at_refines` above says nothing
-about that case either.  Without it the lemma below is **false as stated**: a
-port attempt that throws where the model attempt answers `true` makes the
-model loop stop at this variant, in the model attempt's state, while the port
-loop walks on to the next one — and no relation between the two final states
-survives.  So it is stated as a `Prop` and taken as a hypothesis, exactly as
-`OrElseErrorStateSound` is, so that the gap is visible in every lemma that
-depends on it and so that one port-side fix (an error-direction refinement of
-the core, or a `CState` snapshot making both halves vacuous) discharges it in
-one place. -/
-def OrElseErrorDeclines (mode : env.CheckMode) (fe : fenv.FEnv) (c : name.Name)
-    (value2 : expr.Expr) : Prop :=
-  ∀ (ps : nat_op_pins.NatOpPinSet) (st st' : cached.state_c.CState)
-    (e : core_types.CheckError) (lst : ConLeche.Cached.CState)
-    (lfe : ConLeche.FEnv),
-    checker.check_div_mod_pin_at mode st fe c value2 ps = ok (.Err e, st') →
-    StateRel st lst → FEnvRel fe lfe →
-    ∃ le, (ConLeche.checkDivModPinAtF (TypeChecker.lops mode lfe) lfe
-      (absName c) (absExpr value2) (absNatOpPinSet ps)).run lst = .error le
+* **the error arm is unreachable** (task #65): the port's `orElse` makes a
+  thrown attempt the pin check's verdict, so a port-side accept means every
+  earlier attempt answered `Ok false` — con-leche's own `false` arm, with the
+  attempt's state on both sides.  Tasks #24/#58's two hypotheses
+  (`OrElseErrorStateSound`, `OrElseErrorDeclines`) are gone with it; the
+  deviation they priced is documented in `Refine/CheckerC.lean`'s module note
+  and DESIGN.md §3. -/
 
 /-- The variant loop with an explicit bound to recurse on. -/
 private theorem check_div_mod_pin_loop_val {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {fe : fenv.FEnv} {c : name.Name} {value2 : expr.Expr}
     {variants : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : ∀ ps : nat_op_pins.NatOpPinSet, CheckerC.OrElseErrorStateSound
-      (fun s => checker.check_div_mod_pin_at mode s fe c value2 ps))
-    (hoeL : OrElseErrorDeclines mode fe c value2)
     (hfw : FEnvWF fe) (hc : NameWF c) (hv : ExprWF value2)
     (hvar : PinsWF variants) (n : Nat) :
     ∀ (st st' : cached.state_c.CState) (i : Std.Usize),
@@ -2740,36 +2699,27 @@ private theorem check_div_mod_pin_loop_val {mode : env.CheckMode} {fuel : Std.U6
               rw [CheckerC.orElse_run_declined hxrun, ← hi2v]
               exact ih st1 st' i2 (by omega) hsw1 h lst1 lfe _ hsr1 hfr
           | Err e =>
-            obtain ⟨hsw1, hsrf⟩ := hoe nops st e st1 hsw hq
-            obtain ⟨le, hxerr⟩ := hoeL nops st st1 e lst lfe hq hsr hfr
+            -- task #65: a thrown attempt is the pin check's verdict, so this
+            -- branch is not an accept at all
             simp at h
-            obtain ⟨i2, hi2, h⟩ := h
-            have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
-            rw [hdrop]
-            simp only [ConLeche.checkDivModPinLoopF, ← hbv, ← hb1v,
-              Bool.and_self, if_true]
-            rw [CheckerC.orElse_run_error hxerr, ← hi2v]
-            exact ih st1 st' i2 (by omega) hsw1 h lst lfe _ (hsrf lst hsr) hfr
 
 /-- `checker::check_div_mod_pin_loop` refines `checkDivModPinLoopF` from index
 `i` on: the first variant whose guards pass and whose attempt succeeds enables
 the fast path; every other outcome moves on, and when none is left the stream
 declines.
 
-**Gained a hypothesis (task #58): `hoeL : OrElseErrorDeclines …`**, beside
-task #24's `hoe`.  The statement is *false* without it: a port attempt that
-throws where the model attempt answers `true` stops the model loop at that
-variant, in the model attempt's state, while the port loop walks on to the
-next one, and no relation between the two final states survives.  `hoe` fixes
-only the state of the port's own error arm; see `OrElseErrorDeclines`. -/
+**Lost two hypotheses (task #65)**: tasks #24/#58's `hoe`
+(`CheckerC.OrElseErrorStateSound`) and `hoeL` (`OrElseErrorDeclines`).  The
+port's `orElse` no longer continues after a thrown attempt — it declines with
+that error — so a port-side accept at variant `j` means every attempt before
+it answered `Ok false`, which is con-leche's `false` arm with the attempt's
+state on both sides, and the error arm is unreachable here.  The deviation
+that buys this is `Refine/CheckerC.lean`'s module note and DESIGN.md §3. -/
 theorem check_div_mod_pin_loop_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {c : name.Name}
     {value2 : expr.Expr} {variants : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     {i : Std.Usize}
-    (hoe : ∀ ps : nat_op_pins.NatOpPinSet, CheckerC.OrElseErrorStateSound
-      (fun s => checker.check_div_mod_pin_at mode s fe c value2 ps))
-    (hoeL : OrElseErrorDeclines mode fe c value2)
     (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hv : ExprWF value2)
     (hvar : PinsWF variants)
     (h : checker.check_div_mod_pin_loop mode st fe c value2 variants i
@@ -2780,7 +2730,7 @@ theorem check_div_mod_pin_loop_refines {mode : env.CheckMode} {fuel : Std.U64}
             tried).run lst = .ok ((), lst')
         ∧ StateRel st' lst' ∧ StateWF st' := by
   intro lst lfe tried hsr hfr
-  exact check_div_mod_pin_loop_val hfuel hk hoe hoeL hfw hc hv hvar
+  exact check_div_mod_pin_loop_val hfuel hk hfw hc hv hvar
     variants.val.length st st' i (by omega) hsw h lst lfe tried hsr hfr
 
 /-! ## The two install gates (`Checker.lean:362-417`)
@@ -2806,20 +2756,17 @@ the restricted view), and **`pins` is a parameter** (DESIGN.md §3.6, task #31),
 so `hpins : absPins pins = ConLeche.natOpPinSets` says the list the driver
 threads is the global the cited code reads.
 
-**Gained two hypotheses (task #58)**, both of them a sibling's statement
-travelling rather than a weakening of the conclusion: `hoeL`, the loop's (see
-`check_div_mod_pin_loop_refines`), and `EqBasisPinnedSpec fe lfe`, which
+**Gained one hypothesis (task #58)**, a sibling's statement travelling rather
+than a weakening of the conclusion: `EqBasisPinnedSpec fe lfe`, which
 `div_mod_env_guard_refines` has taken since task #56 and which
-`Refine/BasisPins.lean` proves only through its remaining `sorry`. -/
+`Refine/BasisPins.lean` proves only through its remaining `sorry`.  The
+loop's two `orElse` obligations travelled here too until task #65 removed
+them. -/
 theorem check_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {k_pre : Std.U64}
     {c : name.Name}
-    (hoe : ∀ (fp : fenv.FEnv) (v : expr.Expr) (ps : nat_op_pins.NatOpPinSet),
-      CheckerC.OrElseErrorStateSound
-        (fun s => checker.check_div_mod_pin_at mode s fp c v ps))
-    (hoeL : ∀ (fp : fenv.FEnv) (v : expr.Expr), OrElseErrorDeclines mode fp c v)
     (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hvar : PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     (h : checker.check_div_mod_pin mode pins st fe k_pre c = ok (.Ok fe', st')) :
@@ -2876,7 +2823,7 @@ theorem check_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
       | Err e => simp at h
       | Ok u =>
         obtain ⟨lst1, hrun, hsr1, hsw1⟩ :=
-          check_div_mod_pin_loop_refines hfuel hk (hoe fp value2) (hoeL fp value2)
+          check_div_mod_pin_loop_refines hfuel hk
             hsw hfpwf hc hvwf hvar (by cases u; exact hq) lst
             (lfe.restrictTo k_pre.val) [] hsr hfprel
         rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero,
@@ -3269,10 +3216,6 @@ theorem check_div_mod_pin_refines_at_view {mode : env.CheckMode} {fuel : Std.U64
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {k_pre : Std.U64}
     {c : name.Name}
-    (hoe : ∀ (fp : fenv.FEnv) (v : expr.Expr) (ps : nat_op_pins.NatOpPinSet),
-      CheckerC.OrElseErrorStateSound
-        (fun s => checker.check_div_mod_pin_at mode s fp c v ps))
-    (hoeL : ∀ (fp : fenv.FEnv) (v : expr.Expr), OrElseErrorDeclines mode fp c v)
     (hsw : StateWF st) (hfw : FEnvWF fe) (hc : NameWF c) (hvar : PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     (h : checker.check_div_mod_pin mode pins st fe k_pre c = ok (.Ok fe', st')) :
@@ -3284,7 +3227,7 @@ theorem check_div_mod_pin_refines_at_view {mode : env.CheckMode} {fuel : Std.U64
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe ∧ FEnvWF fe' := by
   intro lst lfe lfp hsr hfr heqb hlfp
   rw [checkDivModPinF_congr hlfp]
-  exact check_div_mod_pin_refines hfuel hk hoe hoeL hsw hfw hc hvar hpins h
+  exact check_div_mod_pin_refines hfuel hk hsw hfw hc hvar hpins h
     lst lfe hsr hfr heqb
 
 /-- `check_reduce_pin_refines` at any `find?`-agreeing pre-insertion index. -/
@@ -3658,10 +3601,6 @@ theorem check_defn_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     {st st' : cached.state_c.CState} {fe2 fe' : fenv.FEnv} {k_pre : Std.U64}
     {n : name.Name}
-    (hoe : ∀ (fp : fenv.FEnv) (v : expr.Expr) (ps : nat_op_pins.NatOpPinSet),
-      CheckerC.OrElseErrorStateSound
-        (fun s => checker.check_div_mod_pin_at mode s fp n v ps))
-    (hoeL : ∀ (fp : fenv.FEnv) (v : expr.Expr), OrElseErrorDeclines mode fp n v)
     (hsw : StateWF st) (hfw : FEnvWF fe2) (hn : NameWF n) (hvar : PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     (h : checker.check_defn_div_mod_pin mode pins st fe2 k_pre n
@@ -3690,7 +3629,7 @@ theorem check_defn_div_mod_pin_refines {mode : env.CheckMode} {fuel : Std.U64}
   | true =>
     simp only [if_true] at h
     obtain ⟨lst', hrun, hsr', hsw', hfr', hfw'⟩ :=
-      check_div_mod_pin_refines_at_view hfuel hk hoe hoeL hsw hfw hn hvar hpins h
+      check_div_mod_pin_refines_at_view hfuel hk hsw hfw hn hvar hpins h
         lst lfe lfp hsr hfr heqb hlfp
     exact ⟨lst', by rw [← hbv]; simpa using hrun, hsr', hsw', hfr', hfw'⟩
 
@@ -3710,10 +3649,6 @@ theorem check_defn_pins_refines {mode : env.CheckMode} {fuel : Std.U64}
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     {st st' : cached.state_c.CState} {fe2 fe' : fenv.FEnv} {k_pre : Std.U64}
     {n : name.Name}
-    (hoe : ∀ (fp : fenv.FEnv) (v : expr.Expr) (ps : nat_op_pins.NatOpPinSet),
-      CheckerC.OrElseErrorStateSound
-        (fun s => checker.check_div_mod_pin_at mode s fp n v ps))
-    (hoeL : ∀ (fp : fenv.FEnv) (v : expr.Expr), OrElseErrorDeclines mode fp n v)
     (hsw : StateWF st) (hfw : FEnvWF fe2) (hn : NameWF n) (hvar : PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     (h : checker.check_defn_pins mode pins st fe2 k_pre n = ok (.Ok fe', st')) :
@@ -3751,7 +3686,7 @@ theorem check_defn_pins_refines {mode : env.CheckMode} {fuel : Std.U64}
   | false =>
     simp only [Bool.false_eq_true, if_false] at h
     obtain ⟨lst', hrun, hsr', hsw', hfr', hfw'⟩ :=
-      check_defn_div_mod_pin_refines hfuel hk hoe hoeL hsw hfw hn hvar hpins h
+      check_defn_div_mod_pin_refines hfuel hk hsw hfw hn hvar hpins h
         lst lfe lfp hsr hfr heqb hlfp
     exact ⟨lst, lst', fun hc => absurd hc (by rw [← hbv]; simp),
       fun _ => rfl, hrun, hsr', hsw', hfr', hfw'⟩
@@ -3767,7 +3702,7 @@ theorem check_defn_pins_refines {mode : env.CheckMode} {fuel : Std.U64}
         check_structural_nat_pin_refines hfuel hk hsw hfw hn hq lst lfe hsr hfr
       simp at h2
       obtain ⟨lst', hrun, hsr', hsw', hfr', hfw'⟩ :=
-        check_defn_div_mod_pin_refines hfuel hk hoe hoeL hswC hfw hn hvar hpins h2
+        check_defn_div_mod_pin_refines hfuel hk hswC hfw hn hvar hpins h2
           lstC lfe lfp hsrC hfr heqb hlfp
       refine ⟨lstC, lst', fun _ => ⟨hg, hd, cvL, value', hintL, hfindL, ?_⟩,
         fun hc => absurd hc (by rw [← hbv]; simp), hrun, hsr', hsw', hfr', hfw'⟩

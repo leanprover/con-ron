@@ -27,7 +27,7 @@ con-leche reads it — nothing is re-checked on the Lean side.
 
 ## The hypotheses, and who discharges each
 
-Both theorems carry exactly `Refine/Installed.lean`'s six, and no others:
+Both theorems carry exactly `Refine/Installed.lean`'s five, and no others:
 
 | hypothesis | what it says | who closes it |
 |---|---|---|
@@ -35,7 +35,6 @@ Both theorems carry exactly `Refine/Installed.lean`'s six, and no others:
 | `hind : IndRoutesSpec .Verified` | the two inductive install routes refine theirs | task #57 proved `IndRoutesSpecP`; task #59's `ind_routes_spec_of_p` is the bridge to this form |
 | `hpins : absPins pins = ConLeche.natOpPinSets` | the `Nat`-op pin list the port threads is the global the pinned con-leche bakes into `checkDeclStepC` | `Refine/Pins.lean`'s `check_decls_pins_refines` for the binary's own list, or the `pins-param` submodule bump, which deletes the hypothesis |
 | `hvar : CheckerPins.PinsWF pins` | every node of every pin is what the port's own smart constructor built | the same construction argument as `hds`: task #58 added it because `hpins` alone does not give it — two pin lists can abstract to `natOpPinSets` with one carrying a stored hash word that makes `expr::beq` inexact |
-| `hoe : CheckerDecl.DivModOrElse mode` | `sharedOpsC.orElse`'s error arm agrees with the port's `&mut CState` about the state, *and* is taken on the same attempts | one port change: a `CState` snapshot around `check_div_mod_pin_at` (task #24's deviation, both halves; DESIGN.md task #58 §3.3) |
 | `hds : ∀ d ∈ ds.val, DeclCWF d` | every parsed term is well formed | the parser: `DeclCWF` is the task-#5 inductive invariant whose constructors *are* the port's smart constructors, so a `DeclC` built by `crates/con-ron/src/frontend` satisfies it by construction |
 
 ## The axiom census
@@ -74,14 +73,13 @@ theorem check_decls_verified_refines
     (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
     (hind : IndRoutesSpec .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse .Verified)
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
     (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ConLeche.Cached.checkDecls .verified (ds.val.map absDeclC) = .ok (absEnv e) := by
-  have hr := check_decls_refines hk hind hoe hvar hpins hds h
+  have hr := check_decls_refines hk hind hvar hpins hds h
   rw [leanCheckDecls] at hr
   exact hr
 
@@ -92,7 +90,6 @@ theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
     (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
     (hind : IndRoutesSpec .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse .Verified)
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
@@ -100,7 +97,7 @@ theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e)) :=
   ConLeche.model_exists V (ds.val.map absDeclC) (absEnv e)
-    (check_decls_verified_refines hk hind hoe hvar hpins hds h)
+    (check_decls_verified_refines hk hind hvar hpins hds h)
 
 /-- **The main corollary for the Rust checker** (DESIGN.md §1): an accepted
 stream never yields a constant of type `False`.  `ConLeche.no_proof_of_False`
@@ -109,7 +106,6 @@ theorem conron.no_proof_of_False (V : Type w) [ConLeche.SetTheory V]
     (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
     (hind : IndRoutesSpec .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse .Verified)
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
@@ -118,31 +114,31 @@ theorem conron.no_proof_of_False (V : Type w) [ConLeche.SetTheory V]
     ¬ ∃ c ∈ (absEnv e).consts,
         c.toConstantVal.type = .const ConLeche.falseName [] :=
   ConLeche.no_proof_of_False V (ds.val.map absDeclC) (absEnv e)
-    (check_decls_verified_refines hk hind hoe hvar hpins hds h)
+    (check_decls_verified_refines hk hind hvar hpins hds h)
 
 /-! ## The knot discharged
 
 `Core.knot_spec` (task #61) proves `KnotSpec mode fuel` at every fuel, so `hk`
-is not a hypothesis of the theorems below; the four that remain are named in
+is not a hypothesis of the theorems below; the three that remain are named in
 `Refine/README.md` with their owners (`hind`: task #59; `hpins`/`hvar`: task
-#64; `hoe`: the `orElse` failure-direction assumption, DESIGN.md §3.6). -/
+#64).  Task #58's `hoe` is gone: task #65 made a thrown pin attempt the pin
+check's verdict, retiring both halves of the `orElse` deviation (DESIGN.md
+§3). -/
 
 theorem conron.model_exists' (V : Type w) [ConLeche.SetTheory V]
     (hind : IndRoutesSpec .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse .Verified)
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
     (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e)) :=
-  conron.model_exists V (Core.knot_spec IndAbs.checkFuelU) hind hoe hvar hpins hds h
+  conron.model_exists V (Core.knot_spec IndAbs.checkFuelU) hind hvar hpins hds h
 
 theorem conron.no_proof_of_False' (V : Type w) [ConLeche.SetTheory V]
     (hind : IndRoutesSpec .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse .Verified)
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
@@ -150,7 +146,7 @@ theorem conron.no_proof_of_False' (V : Type w) [ConLeche.SetTheory V]
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ¬ ∃ c ∈ (absEnv e).consts,
         c.toConstantVal.type = .const ConLeche.falseName [] :=
-  conron.no_proof_of_False V (Core.knot_spec IndAbs.checkFuelU) hind hoe hvar hpins hds h
+  conron.no_proof_of_False V (Core.knot_spec IndAbs.checkFuelU) hind hvar hpins hds h
 
 /-- info: 'ConRon.Refine.conron.model_exists'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms conron.model_exists'
@@ -168,7 +164,7 @@ is the `PINS_TEXT` guard of the module note.
 
 What remains is *hypotheses*, which are not axioms and are listed in the table
 above with who closes each: `hk` (task #55's knot, proved at #61 but not yet
-plugged in here), `hind`, `hpins`, `hvar` and `hoe`. -/
+plugged in here), `hind`, `hpins` and `hvar`. -/
 
 /-- info: 'ConRon.Refine.conron.model_exists' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms conron.model_exists

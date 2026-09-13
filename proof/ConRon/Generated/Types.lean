@@ -37,14 +37,13 @@ inductive kernel.core_types.CheckError where
 | Internal : alloc.vec.Vec Std.U32 → kernel.core_types.CheckError
 
 /-- [con_ron_core::cached::checker_c::OrElseStep]
-    Source: 'crates/con-ron-core/src/cached/checker_c.rs', lines 73:0-76:1
+    Source: 'crates/con-ron-core/src/cached/checker_c.rs', lines 91:0-95:1
     Visibility: public -/
 @[discriminant isize]
 inductive cached.checker_c.OrElseStep where
 | Matched : cached.checker_c.OrElseStep
-| Continue :
-  Option kernel.core_types.CheckError →
-  cached.checker_c.OrElseStep
+| Continue : cached.checker_c.OrElseStep
+| Failed : kernel.core_types.CheckError → cached.checker_c.OrElseStep
 
 mutual
 

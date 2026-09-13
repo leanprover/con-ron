@@ -566,38 +566,61 @@ numeral elaboration, `AENEAS_FINDINGS.md`).  con-leche's `pins-param`
 branch (task #285) remains available as the alternative that also makes the
 theorem pin-independent, but is not required.
 
-**The `orElse` hypothesis (`DivModOrElse`, tasks #56/#58; Fable's
-analysis 2026-09-13).**  con-leche has exactly one error-recovery point:
-the Nat-op pin loop tries the pin variants in order and `orElse` moves to
-the next on a thrown `CheckError` (`Kernel/CheckerBase.lean:53`).  Every
-other refinement lemma in this tier is stated in the accept direction
-only (§3.5) and says nothing when the Rust fails; but the loop *observes*
-failure: if the Rust attempt at pin `i` fails where con-leche's succeeds,
-con-leche installs at pin `i` and the Rust moves on, and the two memo
-states diverge even when both accept.  So the loop's refinement needs
-the failure direction of one function, `check_div_mod_pin_at`: "the Rust
-attempt fails at a pin exactly when con-leche's does" — packaged as the
-named hypothesis `DivModOrElse mode` (state soundness of a failed attempt,
-and agreement of the final decline).  It is not derivable from the
-accept-direction tower.  Two ways to discharge it: (a) prove a second lemma
-family `*_err_refines` ("the Rust returns `Err e` only where con-leche
-throws") by the same lock-step induction over everything the pin attempt
-reaches — the whole knot, since the certificates are theorem checks — after
-making every Rust-only failure (overflow, shift amount) an abort
-(Aeneas `fail`, unconstrained) rather than a `CheckError`; mechanical but
-of the same size as the tower; or (b) keep it as the port's one documented
-failure-direction assumption, reviewable at one function.  A cheaper
-targeted fix — relaxing `StateRel` to a soundness invariant for the maps
-that survive `flushC` — does not work: the cached `orElse`
-(`CheckerC.lean:93`) keeps the post-attempt state on `false` and discards
-it on `error`, so a spurious Rust failure diverges the per-declaration
-memos too, and characterising those by soundness is the memo-soundness
-proof §3.1 avoids by mirroring.  Hence (a) is the full-outcome
-restatement of the tower ("`Ok r ↦ ok (abs r)`, `Err ↦ throw`, aborts
-unconstrained"), preceded by turning the Rust-only `CheckError`s into
-aborts.  Recommendation: ship v1 with (b); run (a) as the next campaign.
-Decision pending the maintainer; the capstones carry the hypothesis
-either way.
+**`orElse`: an attempt's error is the verdict (ruling of 2026-09-13, task
+#65).**  con-leche has exactly one error-recovery point: the Nat-op pin loop
+tries the pin variants in order and `orElse` (`Kernel/CheckerBase.lean:53`)
+has three arms — `true` is the match, `false` moves to the next variant with
+the *post*-attempt state, and `error e` moves to the next variant with the
+*pre*-attempt state, remembering `e` for the decline message.  **The port's
+loop no longer acts on an attempt's error.**  `cached::checker_c::or_else_step`
+maps `Err e` to `Failed(e)` and `checker::check_div_mod_pin_loop` returns it:
+an attempt that throws makes the whole pin check fail with `e`, the decline
+naming what that variant failed on, exactly as con-leche's decline names it
+once every variant has failed.  Only `Ok(false)` walks on, and it walks on
+with the attempt's own state — con-leche's `false` arm, which the port's
+`&mut CState` already threads.
+
+Why: the tier is stated in the accept direction only (§3.5), but the loop
+*observed* failure, so tasks #56/#58 had to carry two facts no accept-direction
+lemma supplies — that a failed port attempt's memo writes are invisible to
+`StateRel` (con-leche discards them, a `&mut CState` cannot), and that a
+port-side throw is a model-side throw (`Core.Wrappers` says nothing when the
+Rust fails).  They were the named hypotheses `OrElseErrorStateSound` and
+`OrElseErrorDeclines`, bundled as `CheckerDecl.DivModOrElse` and carried by
+every capstone.  Discharging them meant either an error-direction restatement
+of the whole tower (a second `*_err_refines` family the size of the first,
+preceded by turning every Rust-only `CheckError` — overflow, shift amount —
+into an Aeneas `fail`) or keeping them as assumptions; the cheaper targeted
+fix, relaxing `StateRel` to a soundness invariant, does not work, because the
+cached `orElse` (`Cached/CheckerC.lean:93`) discards the attempt's state on
+`error` and characterising the per-declaration memos by soundness is the
+memo-soundness proof §3.1 exists to avoid.  Making the error the verdict
+removes the observation instead: the error arm becomes unreachable from an
+accept, both hypotheses are deleted, and the capstones are hypothesis-free
+here.
+
+**It is a deviation, and it is in the port, not the proof** — recorded in
+`cached::checker_c.rs`'s module note, in `checker.rs`'s note 3, and in
+`Refine/CheckerC.lean`'s.  It can only *lose* acceptances: the one stream
+shape it separates the two checkers on is one where variant `i`'s pin is
+definitionally equal to the stored value but one of its certificates throws
+*and* a later variant `j` matches in full — con-leche accepts by walking on,
+con-ron declines with variant `i`'s error.  A decline is never an unsound
+accept, so §1's claim is untouched; the fixture corpus does not contain the
+shape (task #65: `diff-e2e` 348/348, `diff-fixtures` 315/0 unchanged).
+
+**The port's accept-direction deviations, in one place.**  Each *declines*
+where con-leche accepts, which §1's one-directional theorem permits and the
+differential gates measure:
+
+* `ron::nat`'s two machine-word limits — an overflow and a shift amount past
+  `u64` — where `Nat` computes (task #51, named in the statements rather than
+  smoothed over).
+* `checkDecl`'s `.indDecl` arm before its routes landed, and any family not
+  yet ported: a decline, never a silent accept (the declared parameter count
+  is still checked first, so a wrong `nparams` is a *rejection*).
+* **the pin loop's error arm** (this ruling): a thrown attempt declines the
+  stream instead of trying the remaining variants.
 
 ### 3.7 Provenance: keeping the port in sync with con-leche
 
@@ -12895,3 +12918,68 @@ dependency first: rewrite `ConRon/Dump/Read.lean`'s reader over `List UInt8`
 with `Nat`-keyed tries, which §2 has already priced.  Then the chunked
 constants at 1 700 bytes, `-max-recdepth` in `scripts/extract.sh`, and `driver`
 passing `PINS` as an argument (§3's `Unimplemented`).
+
+### Task #65 — `orElse`: an attempt's error is the verdict; `DivModOrElse` gone (2026-09-13, Opus under Fable)
+
+Fable's ruling, §3's `orElse` paragraphs rewritten.  con-leche's `orElse`
+(`Kernel/CheckerBase.lean:36-64`) has three arms — `true` matched, `false`
+next variant with the post-attempt state, `error e` next variant with the
+*pre*-attempt state, remembering `e` for the decline message.  **The port's
+pin loop no longer acts on an attempt's error.**
+
+#### 1. The port
+
+`cached::checker_c::OrElseStep` is now `Matched | Continue | Failed(e)` — the
+middle arm lost its `Option<CheckError>` payload, since only the outcome that
+*continues* ever reached a continuation and the port drops the decline text
+anyway (`checker.rs` note 2) — and `or_else_step` maps `Err e` to `Failed(e)`.
+`checker::check_div_mod_pin_loop`'s match returns `Err(e)` on that arm: a
+thrown attempt fails the whole pin check with the error naming what the
+variant failed on, exactly as con-leche's decline names it once every variant
+has failed.  Two doc homes for the ruling: `cached/checker_c.rs`'s module note
+(the long form, with the deviation's shape) and `kernel/checker.rs`'s new
+module note 3.  Nothing else in the crate changed; the generated model is
+three lines of `Types.lean` and four of `Funs.lean`.
+
+**Fixtures: the corner is not in the corpus.**  `scripts/diff-e2e.sh` 348/348
+agree and `scripts/diff-fixtures.sh --timeout=60` 315 agree / 0 differ, both
+unchanged, so no fixture has a variant whose pin matches definitionally and
+whose certificates throw.  `cargo test`'s `or_else_error_is_the_verdict`
+(rewritten from `or_else_recovers_from_a_thrown_error`) is where the three
+outcomes are pinned.
+
+#### 2. The proof: two hypotheses and a bundle deleted
+
+* `Refine/CheckerC.lean`: `OrElseErrorStateSound` **deleted**; the three
+  `or_else_step_*` simp lemmas follow the new constructors.  con-leche's three
+  `orElse_run_*` lemmas stay — `orElse_run_error` with a note that no
+  accept-direction statement reaches it any more, because it is what the
+  deviation is measured *against*.
+* `Refine/CheckerPins.lean`: `OrElseErrorDeclines` **deleted**.  The loop
+  lemma's `| Err e =>` branch is now three lines — a port-side throw is not an
+  accept, so `simp at h` closes it — and `check_div_mod_pin_loop_val`,
+  `check_div_mod_pin_loop_refines`, `check_div_mod_pin_refines`,
+  `check_div_mod_pin_refines_at_view`, `check_defn_div_mod_pin_refines` and
+  `check_defn_pins_refines` lost `hoe`/`hoeL`.
+* `Refine/CheckerDecl.lean`: the `DivModOrElse` structure and its section
+  **deleted**; `check_defn_decl_c_refines`, `check_decl_c_refines`,
+  `check_decl_step_c_refines`, `check_defn_decl_refines`, `check_decl_refines`,
+  `check_decls_pure_*` lost `hoe`.
+* `Refine/Installed.lean`: the `annot_*` family and `check_decls_refines`
+  lost it; `Refine/Main.lean`: `check_decls_verified_refines`,
+  `conron.model_exists`/`'` and `conron.no_proof_of_False`/`'` lost it, and the
+  hypothesis table is five rows.
+
+Every `#guard_msgs` census stays at `[propext, Classical.choice, Quot.sound]`.
+The surviving capstone hypotheses are `hk` (discharged by `Core.knot_spec`),
+`hind`, `hpins`, `hvar` and `hds`.
+
+#### 3. What it costs
+
+A documented accept-direction deviation, now in §3's list: a stream whose
+variant `i` has a definitionally matching pin with a throwing certificate
+*and* a later variant `j` that matches in full is accepted by con-leche and
+declined by con-ron.  Acceptances lost, never gained, so §1 is untouched.  The
+alternative was the error-direction restatement of the whole tower (a second
+`*_err_refines` family, preceded by turning every Rust-only `CheckError` into
+an Aeneas `fail`) — §3 records why the cheap targeted fix does not exist.

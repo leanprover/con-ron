@@ -593,13 +593,12 @@ pinned branches are checked in full at their install.
 pin-route arms are proved, and the lemma now takes `hpins` together with
 `hvar : CheckerPins.PinsWF pins` (the argument's own well-formedness — without
 it a corrupt stored hash word makes `expr::beq` inexact on a pin that
-nonetheless abstracts to the right value) and `hoe : CheckerDecl.DivModOrElse
-mode` (task #24's `orElse` deviation, both halves).  All three are threaded
-from here. -/
+nonetheless abstracts to the right value).  Both are threaded from here.  A
+third, `CheckerDecl.DivModOrElse mode`, travelled with them until **task
+#65** made a thrown pin attempt the check's verdict. -/
 theorem annot_step_other_c_refines {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse mode)
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
@@ -623,7 +622,7 @@ theorem annot_step_other_c_refines {mode : env.CheckMode}
     have he : fe2 = fe' ∧ pend = pend' ∧ st1 = st' := by simpa using h
     obtain ⟨rfl, rfl, rfl⟩ := he
     obtain ⟨lst', lfe', hrun, rest⟩ :=
-      CheckerDecl.check_decl_step_c_refines IndAbs.check_fuel_eq hk.1 hind hoe hvar
+      CheckerDecl.check_decl_step_c_refines IndAbs.check_fuel_eq hk.1 hind hvar
         hpins hsw hfw hd hstep lst lfe hsr hfr
     exact ⟨lst', lfe', hrun, rest.1, rest.2.1, rest.2.2.1, rest.2.2.2, rfl⟩
 
@@ -673,7 +672,6 @@ installed, and recorded as pending. -/
 theorem annot_step_defn_c_refines {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse mode)
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {i : Std.U64} {fe fe' : fenv.FEnv}
@@ -711,7 +709,7 @@ theorem annot_step_defn_c_refines {mode : env.CheckMode}
         ∧ pend2 = pend := by
     intro fe2 pend2 st2 ho
     have hdwf : DeclCWF (parsed_c.DeclC.DefnDecl cv value hint) := ⟨hcv, hv⟩
-    exact annot_step_other_c_refines hk hind hoe hvar hpins hsw hfw hdwf ho lst lfe hsr hfr
+    exact annot_step_other_c_refines hk hind hvar hpins hsw hfw hdwf ho lst lfe hsr hfr
   by_cases hbt : b = true
   · subst hbt
     simp only [if_pos] at h
@@ -899,7 +897,6 @@ annotated, installed as an axiom, and recorded as pending. -/
 theorem annot_step_opaque_c_refines {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse mode)
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {i : Std.U64} {fe fe' : fenv.FEnv}
@@ -930,7 +927,7 @@ theorem annot_step_opaque_c_refines {mode : env.CheckMode}
     simp only [if_pos] at h
     have hdwf : DeclCWF (parsed_c.DeclC.OpaqueDecl cv value) := ⟨hcv, hv⟩
     obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', rfl⟩ :=
-      annot_step_other_c_refines hk hind hoe hvar hpins hsw hfw hdwf h lst lfe hsr hfr
+      annot_step_other_c_refines hk hind hvar hpins hsw hfw hdwf h lst lfe hsr hfr
     rw [absDeclC] at hrun
     refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe⟩
     rw [absDeclC, ConLeche.Cached.annotStepC]
@@ -967,7 +964,6 @@ go to their arm lemma above, the other three to the catch-all. -/
 theorem annot_step_c_refines {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse mode)
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {i : Std.U64} {fe fe' : fenv.FEnv}
@@ -988,7 +984,7 @@ theorem annot_step_c_refines {mode : env.CheckMode}
   | AxiomDecl cv =>
     rw [cached.installed.annot_step_c] at h
     obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', rfl⟩ :=
-      annot_step_other_c_refines hk hind hoe hvar hpins hsw hfw hd h lst lfe hsr hfr
+      annot_step_other_c_refines hk hind hvar hpins hsw hfw hd h lst lfe hsr hfr
     rw [absDeclC] at hrun
     refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe⟩
     rw [absDeclC, ConLeche.Cached.annotStepC]
@@ -997,7 +993,7 @@ theorem annot_step_c_refines {mode : env.CheckMode}
   | BasisDecl k =>
     rw [cached.installed.annot_step_c] at h
     obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', rfl⟩ :=
-      annot_step_other_c_refines hk hind hoe hvar hpins hsw hfw hd h lst lfe hsr hfr
+      annot_step_other_c_refines hk hind hvar hpins hsw hfw hd h lst lfe hsr hfr
     rw [absDeclC] at hrun
     refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe⟩
     rw [absDeclC, ConLeche.Cached.annotStepC]
@@ -1006,7 +1002,7 @@ theorem annot_step_c_refines {mode : env.CheckMode}
   | IndDecl block n_p =>
     rw [cached.installed.annot_step_c] at h
     obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', rfl⟩ :=
-      annot_step_other_c_refines hk hind hoe hvar hpins hsw hfw hd h lst lfe hsr hfr
+      annot_step_other_c_refines hk hind hvar hpins hsw hfw hd h lst lfe hsr hfr
     rw [absDeclC] at hrun
     refine ⟨lst', lfe', ?_, hsr', hsw', hfr', hfw', hpe⟩
     rw [absDeclC, ConLeche.Cached.annotStepC]
@@ -1014,14 +1010,14 @@ theorem annot_step_c_refines {mode : env.CheckMode}
     all_goals simp
   | DefnDecl cv value hint =>
     rw [cached.installed.annot_step_c] at h
-    exact annot_step_defn_c_refines hk hind hoe hvar hpins hsw hfw hd.1 hd.2 hpe rfl h
+    exact annot_step_defn_c_refines hk hind hvar hpins hsw hfw hd.1 hd.2 hpe rfl h
       lst lfe hsr hfr
   | ThmDecl cv value =>
     rw [cached.installed.annot_step_c] at h
     exact annot_step_thm_c_refines hk hsw hfw hd.1 hd.2 hpe h lst lfe hsr hfr
   | OpaqueDecl cv value =>
     rw [cached.installed.annot_step_c] at h
-    exact annot_step_opaque_c_refines hk hind hoe hvar hpins hsw hfw hd.1 hd.2 hpe rfl h
+    exact annot_step_opaque_c_refines hk hind hvar hpins hsw hfw hd.1 hd.2 hpe rfl h
       lst lfe hsr hfr
 
 /-- **`installed::annot_decl_step` refines `annotDeclStep`**
@@ -1033,7 +1029,6 @@ Lean's are related, not equal. -/
 theorem annot_decl_step_refines {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse mode)
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {pd : parsed_c.DeclC}
@@ -1062,7 +1057,7 @@ theorem annot_decl_step_refines {mode : env.CheckMode}
     have hq : (i1, f1, v1) = q ∧ st1 = st' := by simpa using h
     obtain ⟨rfl, rfl⟩ := hq
     obtain ⟨lst', lfe', hrun, hsr', hsw', hfr', hfw', hpw⟩ :=
-      annot_step_c_refines hk hind hoe hvar hpins hsw hfw hd hpe hstep lst lfe hsr hfr
+      annot_step_c_refines hk hind hvar hpins hsw hfw hd hpe hstep lst lfe hsr hfr
     have hi1v : i1.val = i.val + 1 := by
       have he := Std.UScalar.add_equiv i 1#u64
       rw [hi1] at he
@@ -1461,7 +1456,6 @@ index's environment.  The port's phase A is the same fold as an index recursion
 theorem annot_decl_fold_val {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse mode)
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} (hds : ∀ d ∈ ds.val, DeclCWF d) (n : Nat) :
@@ -1515,7 +1509,7 @@ theorem annot_decl_fold_val {mode : env.CheckMode}
           rw [hi2] at he
           simpa using he.2.1
         obtain ⟨lst1, lfe1, hrun1, hsr1, hsw1, hfr1, hfw1, hpe1⟩ :=
-          annot_decl_step_refines hk hind hoe hvar hpins hsw hfw (hds d hmem) hpe hstep lst lfe hsr hfr
+          annot_decl_step_refines hk hind hvar hpins hsw hfw (hds d hmem) hpe hstep lst lfe hsr hfr
         obtain ⟨lst', lfe', hfold, rest⟩ :=
           ih st1 st' p1 q i2 (by omega) hsw1 hfw1 hpe1 h lst1 lfe1 hsr1 hfr1
         rw [hi2v] at hfold
@@ -1536,7 +1530,6 @@ where the port says. -/
 theorem annot_decl_fold_from_refines {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse mode)
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState}
@@ -1554,7 +1547,7 @@ theorem annot_decl_fold_from_refines {mode : env.CheckMode}
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel q.2.1 lfe' ∧ FEnvWF q.2.1
         ∧ PendingChecksWF q.2.2 :=
   fun lst lfe hsr hfr =>
-    annot_decl_fold_val hk hind hoe hvar hpins hds ds.val.length st st' p q i (by omega)
+    annot_decl_fold_val hk hind hvar hpins hds ds.val.length st st' p q i (by omega)
       hsw hfw hpe h lst lfe hsr hfr
 
 /-- **`installed::check_decls_phase_b` refines the cited
@@ -1609,7 +1602,6 @@ lemma below can invent. -/
 theorem check_decls_refines {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse mode)
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
@@ -1632,7 +1624,7 @@ theorem check_decls_refines {mode : env.CheckMode}
     obtain ⟨n0, fe1, pend1⟩ := p
     obtain ⟨lst', lfe', hrunfold, -, -, hfr1, hfw1, hpe1⟩ :=
       annot_decl_fold_from_refines (p := (0#u64, fe0,
-          alloc.vec.Vec.new parsed_c.PendingCheck)) hk hind hoe hvar hpins hsw0 hwf0
+          alloc.vec.Vec.new parsed_c.PendingCheck)) hk hind hvar hpins hsw0 hwf0
         (by intro pc hpc; simp at hpc) hds hfold
         ({} : ConLeche.Cached.CState) (ConLeche.mkFEnv ConLeche.Env.empty) hsr0 hrel0
     have hphase : cached.installed.check_decls_phase_b mode fe1 pend1 = ok (.Ok e) := by
@@ -1668,9 +1660,10 @@ that they would fail the moment it did.  They did; this is the corrected
 census, and `check_decls_refines` now depends on exactly the three standard
 axioms.  What it still depends on is *hypotheses*, which are not axioms:
 `hk` (task #55's knot, discharged at #61), `hind` (task #57's routes), `hpins`
-(`Refine/Pins.lean`'s two open statements, task #43's), and task #58's
-`hvar`/`hoe` — the pin argument's well-formedness and task #24's `orElse`
-deviation. -/
+(`Refine/Pins.lean`'s two open statements, task #43's), and task #58's `hvar`
+— the pin argument's well-formedness.  Task #58's `hoe` is gone: task #65
+made a thrown pin attempt the check's verdict, which retires both halves of
+task #24's `orElse` deviation. -/
 
 /-- info: 'ConRon.Refine.Installed.check_decls_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms check_decls_refines

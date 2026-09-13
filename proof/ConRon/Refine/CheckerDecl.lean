@@ -84,10 +84,11 @@ PinsWF pins` (the argument's own well-formedness, the analogue of `hd :
 DeclarationWF d`), `hpins : absPins pins = natOpPinSets` — **needed**: the
 cited `checkDecl` reads the *global* `natOpPinSets`, so an arbitrary `pins`
 argument lets the port accept a `Nat.div` spelling the Lean declines (DESIGN.md
-§3.6, task #31's deviation) — and `DivModOrElse mode`, the two halves of task
-#24's `orElse` deviation, which `Refine/CheckerPins.lean` records its loop
-lemma is **false without**.  None of the three is derivable from
-`Core.Wrappers`, which is the `ok`-direction only.
+§3.6, task #31's deviation).  Neither is derivable from `Core.Wrappers`, which
+is the `ok`-direction only.  A third, `DivModOrElse mode` — tasks #24/#58's two
+halves of the `orElse` deviation — travelled here until **task #65** made a
+thrown attempt the pin check's verdict; see `Refine/CheckerC.lean`'s module
+note.
 
 ## `sorry` count in this file: 0.
 
@@ -816,27 +817,6 @@ theorem check_constant_val_c_refines {mode : env.CheckMode} {fuel : Std.U64}
           · simp [bind_eq_ok_iff] at h
         · simp [bind_eq_ok_iff] at h
 
-/-! ### Task #24's `orElse` deviation, bundled
-
-`Refine/CheckerPins.lean`'s pin loop carries two facts its callers must supply,
-and it records that the loop lemma is **false without the second**: a failed
-attempt's memo writes must leave the abstract state where it was
-(`OrElseErrorStateSound`), and a port attempt that *throws* must make the model
-attempt throw too (`OrElseErrorDeclines`).  Neither follows from
-`Core.Wrappers`, which is the `ok`-direction only.  They travel through this
-file as one bundled hypothesis on every statement that threads `pins`, so the
-gap stays visible at the top of the tier; the port-side `CState` snapshot
-discharges both in one place. -/
-
-/-- The two halves of the `orElse` deviation, at every name, index and pin
-variant the `.defnDecl` arm can reach. -/
-structure DivModOrElse (mode : env.CheckMode) : Prop where
-  stateSound : ∀ (c : name.Name) (fp : fenv.FEnv) (v : expr.Expr)
-    (ps : nat_op_pins.NatOpPinSet), CheckerC.OrElseErrorStateSound
-      (fun s => checker.check_div_mod_pin_at mode s fp c v ps)
-  declines : ∀ (c : name.Name) (fp : fenv.FEnv) (v : expr.Expr),
-    CheckerPins.OrElseErrorDeclines mode fp c v
-
 /-! ### The parsed axiom arm
 
 `checkDeclC`'s `.axiomDecl` arm (`ConLeche/Cached/ParsedC.lean:203-232`): the
@@ -1553,7 +1533,7 @@ its name fresh). -/
 theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : DivModOrElse mode) (hvar : CheckerPins.PinsWF pins)
+    (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr} {hint : env.ReducibilityHint}
@@ -1616,8 +1596,7 @@ theorem check_defn_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
           = ((lfe.push ci).restrictTo (fe.visible_below).val).find? := by
         rw [hfr.2.1, push_restrict_find hcifresh]
       obtain ⟨lst3, lst4, hA, hB, hC, hsr4, hsw4, hrel4, hwf4⟩ :=
-        CheckerPins.check_defn_pins_refines hfuel hk (hoe.stateSound cv_a.name)
-          (hoe.declines cv_a.name) hsw2 hwf2 hcvawf.1 hvar hpins
+        CheckerPins.check_defn_pins_refines hfuel hk hsw2 hwf2 hcvawf.1 hvar hpins
           (hpin : checker.check_defn_pins mode pins st2 fe2 fe.visible_below cv_a.name
             = ok (.Ok fe', st'))
           lst2 (lfe.push ci) lfe hsr2 hrel2
@@ -2065,7 +2044,7 @@ theorem check_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     (hind : IndRoutesSpec mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : DivModOrElse mode) (hvar : CheckerPins.PinsWF pins)
+    (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {pd : parsed_c.DeclC}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclCWF pd)
@@ -2083,7 +2062,7 @@ theorem check_decl_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     exact check_axiom_decl_c_refines hfuel hk hsw hfw hd h lst lfe hsr hfr
   | DefnDecl cv value hint =>
     simp only [absDeclC]
-    exact check_defn_decl_c_refines hfuel hk hoe hvar hpins hsw hfw hd.1 hd.2 h lst lfe hsr hfr
+    exact check_defn_decl_c_refines hfuel hk hvar hpins hsw hfw hd.1 hd.2 h lst lfe hsr hfr
   | ThmDecl cv value =>
     simp only [absDeclC]
     exact check_thm_decl_c_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr
@@ -2114,7 +2093,7 @@ theorem check_decl_step_c_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     (hind : IndRoutesSpec mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : DivModOrElse mode) (hvar : CheckerPins.PinsWF pins)
+    (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {pd : parsed_c.DeclC}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclCWF pd)
@@ -2129,7 +2108,7 @@ theorem check_decl_step_c_refines {mode : env.CheckMode} {fuel : Std.U64}
   obtain ⟨st1, hflush, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hrunf, hrel1, hwf1, -⟩ := StateC.flush_c_refines hsr hsw hflush
   obtain ⟨lst', lfe', hrun, rest⟩ :=
-    check_decl_c_refines hfuel hk hind hoe hvar hpins hwf1 hfw hd h lst.flushed lfe hrel1 hfr
+    check_decl_c_refines hfuel hk hind hvar hpins hwf1 hfw hd h lst.flushed lfe hrel1 hfr
   refine ⟨lst', lfe', ?_, rest⟩
   rw [ConLeche.Cached.checkDeclStepC]
   simp only [StateT.run_bind, hrunf]
@@ -2564,7 +2543,7 @@ spellings the arm reads — `natOpGuard`, `natOpStoredOk`, `env2.find?` and
 theorem check_defn_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : DivModOrElse mode) (hvar : CheckerPins.PinsWF pins)
+    (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {cv : env.ConstantVal} {value : expr.Expr} {hint : env.ReducibilityHint}
@@ -2638,8 +2617,7 @@ theorem check_defn_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
               (fe.visible_below).val).find? := by
         rw [hfr.2.1, push_restrict_find hcifresh]
       obtain ⟨lst3, lst4, hA, hB, hC, hsr4, hsw4, hrel4, hwf4⟩ :=
-        CheckerPins.check_defn_pins_refines hfuel hk (hoe.stateSound cv_a.name)
-          (hoe.declines cv_a.name) hsw2 hwf2 hcvawf.1 hvar hpins h lst2
+        CheckerPins.check_defn_pins_refines hfuel hk hsw2 hwf2 hcvawf.1 hvar hpins h lst2
           (lfe.push (absConstantInfo (env.ConstantInfo.DefnInfo cv_a value_a hint))) lfe
           hsr2 hrel2 (fun _ hr => BasisPins.eq_basis_pinned_refines hrel2 hwf2 hr) hlfp
       -- the four `Env`-vs-index spellings the arm reads
@@ -3168,7 +3146,7 @@ hypothesis is the section note's. -/
 theorem check_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : DivModOrElse mode) (hvar : CheckerPins.PinsWF pins)
+    (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv} {d : env.Declaration}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hd : DeclarationWF d)
@@ -3187,7 +3165,7 @@ theorem check_decl_refines {mode : env.CheckMode} {fuel : Std.U64}
     exact check_axiom_decl_refines hfuel hk hsw hfw hd h lst lfe hsr hfr hix
   | DefnDecl cv value hint =>
     simp only [absDeclaration]
-    exact check_defn_decl_refines hfuel hk hoe hvar hpins hsw hfw hd.1 hd.2 h lst lfe hsr hfr hix
+    exact check_defn_decl_refines hfuel hk hvar hpins hsw hfw hd.1 hd.2 h lst lfe hsr hfr hix
   | ThmDecl cv value =>
     simp only [absDeclaration]
     exact check_thm_decl_refines hfuel hk hsw hfw hd.1 hd.2 h lst lfe hsr hfr hix
@@ -3242,7 +3220,7 @@ inductive FoldsTo (mode : env.CheckMode) :
 theorem check_decls_pure_val {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : DivModOrElse mode) (hvar : CheckerPins.PinsWF pins)
+    (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec env.Declaration} (hds : ∀ d ∈ ds.val, DeclarationWF d) (n : Nat) :
     ∀ (st st' : cached.state_c.CState) (fe fe' : fenv.FEnv) (i : Std.Usize),
@@ -3285,7 +3263,7 @@ theorem check_decls_pure_val {mode : env.CheckMode} {fuel : Std.U64}
       | Err e => simp at h
       | Ok fe1 =>
         obtain ⟨lst1, lfe1, hrun, hsr1, hsw1, hfr1, hfw1, hix1⟩ :=
-          check_decl_refines hfuel hk hoe hvar hpins hsw hfw (hds d hmem) hstep lst lfe hsr hfr hix
+          check_decl_refines hfuel hk hvar hpins hsw hfw (hds d hmem) hstep lst lfe hsr hfr hix
         obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
         have hi2v : i2.val = i.val + 1 := by
           have he := Std.UScalar.add_equiv i 1#usize
@@ -3310,7 +3288,7 @@ the declarations from position `i` take the index where the port says. -/
 theorem check_decls_pure_from_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : DivModOrElse mode) (hvar : CheckerPins.PinsWF pins)
+    (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
     {ds : alloc.vec.Vec env.Declaration} {i : Std.Usize}
@@ -3322,7 +3300,7 @@ theorem check_decls_pure_from_refines {mode : env.CheckMode} {fuel : Std.U64}
         ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
         ∧ Indexed lfe' := by
   intro lst lfe hsr hfr
-  exact check_decls_pure_val hfuel hk hoe hvar hpins hds ds.val.length st st' fe fe' i (by omega)
+  exact check_decls_pure_val hfuel hk hvar hpins hds ds.val.length st st' fe fe' i (by omega)
     hsw hfw h lst lfe hsr hfr
 
 /-- **`kernel::checker::check_decls_pure` refines `checkDeclsPure`**
@@ -3334,7 +3312,7 @@ Proved: `check_decls_pure_from_refines` at `i = 0` plus `Refine/FEnv.lean`'s
 theorem check_decls_pure_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : DivModOrElse mode) (hvar : CheckerPins.PinsWF pins)
+    (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {st st' : cached.state_c.CState} {fe' : fenv.FEnv}
     {ds : alloc.vec.Vec env.Declaration}
@@ -3353,7 +3331,7 @@ theorem check_decls_pure_refines {mode : env.CheckMode} {fuel : Std.U64}
   obtain ⟨hrel0, hwf0⟩ := FEnv.mk_fenv_refines (Env.empty_wf he) hfe0
   rw [Env.empty_refines he] at hrel0
   obtain ⟨lst', lfe', hfold, rest⟩ :=
-    check_decls_pure_from_refines hfuel hk hoe hvar hpins hsw hwf0 hds h lst
+    check_decls_pure_from_refines hfuel hk hvar hpins hsw hwf0 hds h lst
       (ConLeche.mkFEnv ConLeche.Env.empty) hsr hrel0 (Indexed.mk _)
   exact ⟨lst', lfe', by simpa using hfold, rest⟩
 
