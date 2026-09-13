@@ -443,46 +443,68 @@ include hw
 `checkIndMember`'s body. -/
 theorem check_ind_member_s_refines
     {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
-    {caps : env.IndCaps} {fe fe' : fenv.FEnv} {ci : env.ConstantInfo}
+    {caps : env.IndCaps} {fe : fenv.FEnv} {ci : env.ConstantInfo}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hbn : NamesWF block_names)
     (hcaps : IndCapsWF caps) (hci : ConstantInfoWF ci)
     (h : inductives.inductives_c.check_ind_member_s mode st block_names caps fe ci
-        = ok (.Ok fe', st')) :
+        = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.checkIndMemberS (absMode mode) (absNames block_names)
-            (absIndCaps caps) lfe (absConstantInfo ci)).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
-  -- `StateC.flush_c_refines` then `IndModeled`'s `check_ind_member` stage
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.checkIndMemberS (absMode mode) (absNames block_names)
+              (absIndCaps caps) lfe (absConstantInfo ci)).run lst = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.checkIndMemberS (absMode mode)
+          (absNames block_names) (absIndCaps caps) lfe
+          (absConstantInfo ci)).run lst) := by
+  -- `StateC.flush_c_refines` then `IndModeled`'s `check_ind_member` stage; the
+  -- flush cannot throw, so *both* halves are the stage's, past the flush
   intro lst lfe hrel hfer
   rw [inductives.inductives_c.check_ind_member_s] at h
   obtain ⟨st1, hflush, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hfrun, hrel1, hwf1, _⟩ := StateC.flush_c_refines hrel hst hflush
-  obtain ⟨lst', lfe', hrun, hrel2, hfrel2, hwf2, hfwf2⟩ :=
+  have hbody :=
     Modeled.check_ind_member_refines hw (IndIngredients.checkerBaseSpec hw) hwf1
       hfe hbn hcaps hci h lst.flushed lfe hrel1 hfer
-  refine ⟨lst', lfe', ?_, hrel2, hfrel2, hwf2, hfwf2⟩
-  rw [checkIndMemberS_eq]
-  simp only [StateT.run_bind, StateC.flushC_run, NativeInstall.exceptOk_bind]
-  exact hrun
+  cases out with
+  | Ok fe' =>
+    obtain ⟨lst', lfe', hrun, hrel2, hfrel2, hwf2, hfwf2⟩ := hbody
+    refine ⟨lst', lfe', ?_, hrel2, hfrel2, hwf2, hfwf2⟩
+    rw [checkIndMemberS_eq]
+    simp only [StateT.run_bind, StateC.flushC_run, NativeInstall.exceptOk_bind]
+    exact hrun
+  | Err e =>
+    rw [checkIndMemberS_eq]
+    simp only [StateT.run_bind, StateC.flushC_run, NativeInstall.exceptOk_bind]
+    exact hbody
 
 /-- `ConLeche/Cached/CheckerC.lean:233-268` — `check_ind_members_s` refines
 `nonrecs.foldlM (checkIndMemberS mode blockNames caps) fe`, as an index
 recursion over the filtered members. -/
 theorem check_ind_members_s_refines
     {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
-    {caps : env.IndCaps} {fe fe' : fenv.FEnv}
+    {caps : env.IndCaps} {fe : fenv.FEnv}
     {nonrecs : alloc.vec.Vec env.ConstantInfo} {i : Std.Usize}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hbn : NamesWF block_names)
     (hcaps : IndCapsWF caps) (hnr : ConstantInfosWF nonrecs)
     (h : inductives.inductives_c.check_ind_members_s mode st block_names caps fe
-        nonrecs i = ok (.Ok fe', st')) :
+        nonrecs i = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (((absConstantInfos nonrecs).drop i.val).foldlM
-            (ConLeche.Cached.checkIndMemberS (absMode mode) (absNames block_names)
-              (absIndCaps caps)) lfe).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (((absConstantInfos nonrecs).drop i.val).foldlM
+              (ConLeche.Cached.checkIndMemberS (absMode mode) (absNames block_names)
+                (absIndCaps caps)) lfe).run lst = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+      | .Err e =>
+        ErrSim e ((((absConstantInfos nonrecs).drop i.val).foldlM
+          (ConLeche.Cached.checkIndMemberS (absMode mode) (absNames block_names)
+            (absIndCaps caps)) lfe).run lst) := by
   generalize hd : nonrecs.length - i.val = d
   induction d using Nat.strong_induction_on generalizing st fe i with
   | _ d ih =>
@@ -495,7 +517,7 @@ theorem check_ind_members_s_refines
         apply List.drop_eq_nil_of_le
         simp only [absConstantInfos, List.length_map]
         scalar_tac
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact ⟨lst, lfe, by
         simp only [hnil, List.foldlM_nil, StateT.run, Pure.pure, StateT.pure]
@@ -509,29 +531,49 @@ theorem check_ind_members_s_refines
       simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
       obtain ⟨p, hstep, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r, st1⟩ := p
+      have hlt2 : i.val < (absConstantInfos nonrecs).length := by
+        simpa [absConstantInfos] using hlt'
+      have hciwf : ConstantInfoWF nonrecs.val[i.val] := hnr _ (List.getElem_mem hlt')
       cases r with
-      | Err e => simp at h
+      | Err e =>
+        -- the member threw: the fold's head threw, and the rest never runs
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        have hmem :=
+          check_ind_member_s_refines hw hst hfe hbn hcaps hciwf hstep lst lfe hrel hfer
+        have hcons : (absConstantInfos nonrecs).drop i.val
+            = absConstantInfo nonrecs.val[i.val]
+              :: (absConstantInfos nonrecs).drop (i.val + 1) := by
+          rw [List.drop_eq_getElem_cons hlt2]
+          simp [absConstantInfos]
+        rw [hcons, List.foldlM_cons]
+        exact ErrSim.bindCM hmem
       | Ok fe2 =>
         obtain ⟨i2, hi2, h⟩ := by simpa using bind_eq_ok_iff.mp (by simpa using h)
         have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
-        have hciwf : ConstantInfoWF nonrecs.val[i.val] := hnr _ (List.getElem_mem hlt')
         obtain ⟨lst1, lfe1, hrun1, hrel1, hfer1, hwf1, hfew1⟩ :=
           check_ind_member_s_refines hw hst hfe hbn hcaps hciwf hstep lst lfe hrel hfer
-        obtain ⟨lst', lfe', hrunr, hrelr, hferr, hwfr, hfewr⟩ :=
+        have htail :=
           ih (nonrecs.length - i2.val) (by scalar_tac) hwf1 hfew1 h rfl lst1 lfe1
             hrel1 hfer1
-        refine ⟨lst', lfe', ?_, hrelr, hferr, hwfr, hfewr⟩
-        have hlt2 : i.val < (absConstantInfos nonrecs).length := by
-          simpa [absConstantInfos] using hlt'
         have hcons : (absConstantInfos nonrecs).drop i.val
             = absConstantInfo nonrecs.val[i.val]
               :: (absConstantInfos nonrecs).drop i2.val := by
           rw [List.drop_eq_getElem_cons hlt2, hi2v]
           simp [absConstantInfos]
-        rw [hcons, List.foldlM_cons]
-        simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at hrun1 hrunr ⊢
-        rw [hrun1]
-        exact hrunr
+        cases out with
+        | Ok fe' =>
+          obtain ⟨lst', lfe', hrunr, hrelr, hferr, hwfr, hfewr⟩ := htail
+          refine ⟨lst', lfe', ?_, hrelr, hferr, hwfr, hfewr⟩
+          rw [hcons, List.foldlM_cons]
+          simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at hrun1 hrunr ⊢
+          rw [hrun1]
+          exact hrunr
+        | Err e =>
+          rw [hcons, List.foldlM_cons]
+          simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at hrun1 htail ⊢
+          rw [hrun1]
+          exact htail
 
 /-- The members' fold keeps the **unrestricted-canonical** pair: every step is
 one `fenv::push` (`check_ind_member_s_canon`).  `check_ind_decl_struct_s` needs
