@@ -66,42 +66,50 @@ gate stays in step with its source.  So:
 5. **Every count is a `U64`** (§3.3), read by `.val`; Lean's `Nat` subtraction
    truncates where `u64`'s fails, so a Rust success is a Nat equation
    (`nat_sub` is task #13's helper, `expr_ops::sub_nat`).
+6. **The `u64 → usize` index casts.**  Four functions index a `Vec` at a `u64`
+   count — `sort_get_d`, `struct_proj_guard_at` and the three `struct_shape_*`
+   clauses write `xs[(i as usize)]` behind an `(i as usize) < xs.len()` test —
+   and Aeneas keeps `usize`'s width abstract (`System.Platform.numBits_eq`), so
+   the cast may wrap in the *model*.  Those lemmas therefore carry a
+   **platform** side condition (`i.val ≤ Std.Usize.max`, and `n_f.val ≤
+   Std.Usize.max` where it propagates, as in `struct_proj_guards_refines`).
+   It is vacuous on the 64-bit targets the port builds for, where
+   `Usize.max = U64.max`; it is a statement about the platform, not a weakening
+   of the refinement claim.
 
 ## What this file owes its siblings
 
 * **`struct_proj_bodies_refines`** is `IndStructInstall.lean`'s
   `StructProjBodiesRefines` — the second of `StructWalkers.plain`'s two
   walkers — stated at exactly that shape, so that
-  `check_struct_proj_table_refines` can take it as an ingredient.
+  `check_struct_proj_table_refines` can take it as an ingredient.  **Proved.**
 * **`level_is_prop_refines`** is what `IndSumParts.lean`'s
-  `with_sort_refines`, `IndNativeParts.lean`'s `native_shape` and
+  `with_sort_refines`, `IndNativeParts.lean`'s recogniser and
   `struct_parts_core_refines` below all read: the `isProp` flag all three
-  recognisers compute.
+  recognisers compute.  **Proved.**
 
 `StructParts` itself is abstracted by `IndAbs.absStructParts` and its
 well-formedness is `IndAbs.StructPartsWF`; nothing in the shipped install path
 consumes the record (the simple-structure route was deleted at con-leche's
 task #210 Part C), so this file is the only reader of both.
 
-25 `sorry`s, all of them one of two things and never a weakened statement:
-(a) an Aeneas `partial_fixpoint` index recursion whose unfolding needs the
-fixpoint equation plus a measure — `params_of_from`, `struct_ps_at_from`,
-`field_spine_from`, `struct_proj_ps_from`, `replace_pis_pw`, `pis_to_lams_pw`,
-`struct_proj_resid_p`, `struct_used_later_list`, `struct_proj_guard_at`,
-`struct_proj_guards_from`, `struct_proj_bodies_go`, and the two structural
-walks `has_loose_bvar`/`has_loose_bvar_b_spec`;
-(b) a ten-armed `ExprWF` induction over a memoized walk —
-`has_loose_bvar_b_go`/`_node` and `mentions_const_spec`/`_go`/`_node` — whose
-shape is `Refine/ExprOps.lean`'s `instantiate1_go_refines` but whose arms have
-to be replayed for each of the two short-circuit conventions.
-The lemmas that only *combine* these (`params_of`, `struct_ps_at`,
-`struct_fam`, `field_spine`, `struct_ctor_spine(_at)`, `struct_rule_body`,
-`struct_elim_level`, `struct_fam_i`, `struct_ctor_resid_ok`,
-`struct_motive_ty_i`, the four `struct_shape*`, the four `struct_parts_*`,
-`struct_proj_ps`, `struct_proj_arg_p`, the two memo probes,
-`has_loose_bvar_b_ins`, `has_loose_bvar_b`, `struct_used_later(_go)`,
-`sort_get_d`, `struct_proj_guards`, `struct_proj_bodies`, `mentions_const`,
-`nat_sub`) are proved.
+## `sorry`s
+
+7 `sorry`s, and they are all in **one group** — `structPartsCore?`'s recogniser
+(`struct_shape_motive`, `struct_shape_minor`, `struct_shape`,
+`struct_parts_front_ok`, `struct_parts_large`, `struct_parts_small_ok`,
+`struct_parts_core`), the ten-armed `&&`/`match` cascade that reads the three
+stored types.  Every statement is the exact one and nothing is weakened: each
+is `b = <the cited Bool>` (or `o.map abs = <the cited Option>` for the
+recogniser itself), with the platform side condition of deviation 6 where the
+port indexes `rbs` at `nP`.  `binders_index`/`binders_index_none` below are the
+reading of `rbs[k]?` those proofs need, and `struct_shape_major_refines` — the
+one clause of the four that is proved — is the worked example of the shape.
+
+Everything else in the module is proved, including all three `@[csimp]`
+families end to end (`has_loose_bvar_b_walk` and `mentions_const_walk` are the
+two mutual `ExprWF` inductions, `struct_proj_guards_refines` the guard table),
+the two `Π`-rewrites, the projection bodies and `struct_proj_resid_p`.
 -/
 import ConRon.Refine.IndAbs
 import ConRon.Refine.ExprOpsSpine
@@ -120,6 +128,18 @@ namespace ConRon.Refine.StructParts
 
 /-! ## Two `Vec` readings this file needs (**to be unified into
 `Refine/ExprOps.lean`** beside `vec_index_expr`) -/
+
+/-- `foldl` respects a pointwise equality of the step functions on the list's
+elements.  con-leche's own `foldlCongrMem` (`StructParts.lean:706-713`), which
+is `private` there, so `struct_proj_guards_refines` carries its own copy of the
+one lemma its proof is con-leche's. -/
+theorem foldlCongrMem {α β : Type _} {f g : α → β → α} :
+    ∀ (l : List β) (a : α), (∀ b ∈ l, ∀ x : α, f x b = g x b) →
+      l.foldl f a = l.foldl g a
+  | [], _, _ => rfl
+  | b :: l, a, hb => by
+    rw [List.foldl_cons, List.foldl_cons, hb b (by simp) a]
+    exact foldlCongrMem l _ (fun b' hb' => hb b' (by simp [hb']))
 
 /-- Indexing a well-formed `Vec<Name>`: the entry is well formed and the
 abstracted list's `drop` peels it off. -/
@@ -151,6 +171,14 @@ theorem levelsWF_push {v w : alloc.vec.Vec level.Level} {x : level.Level}
   rcases List.mem_append.mp hu with h1 | h1
   · exact hv u h1
   · simp only [List.mem_singleton] at h1; rw [h1]; exact hx
+
+/-- A memoized walk's `ok (r, memo)` result, split.  (`Result` is Aeneas's
+coinductive `ITree`, so `simp`'s `injEq` machinery does not always see through
+the pair; `Result.ok_injective` always does.) -/
+theorem pair_ok {A B : Type} {a a' : A} {b b' : B}
+    (h : (ok (a, b) : Result (A × B)) = ok (a', b')) : a = a' ∧ b = b' :=
+  ⟨congrArg Prod.fst (Result.ok_injective h),
+   congrArg Prod.snd (Result.ok_injective h)⟩
 
 /-! ## The small list helpers -/
 
@@ -847,17 +875,47 @@ module).  Nothing in the shipped install path consumes it — the simple
 structure route was deleted at con-leche's task #210 Part C — so the
 recogniser below is its only producer. -/
 
+/-- Indexing a well-formed binder list: the entry is well formed and the
+abstracted list's `getElem?` is the abstracted entry.  (**To be unified into
+`Refine/ExprOpsSpine.lean`** beside `absBinders`.) -/
+theorem binders_index {bs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
+    {i : Std.Usize} {x : expr.Expr × expr.BinderMeta} (hbs : ExprOps.BindersWF bs)
+    (h : alloc.vec.Vec.index
+      (core.slice.index.SliceIndexUsizeSlice (expr.Expr × expr.BinderMeta)) bs i
+      = ok x) :
+    (ExprOps.absBinders bs)[i.val]? = some (absExpr x.1, absBinderMeta x.2)
+      ∧ ExprWF x.1 ∧ BinderMetaWF x.2 := by
+  have hg := ExprOps.vec_index_getElem? h
+  have hlt : i.val < bs.val.length := by
+    by_contra hc
+    rw [List.getElem?_eq_none (by omega)] at hg; simp at hg
+  have hx : bs.val[i.val] = x := by
+    rw [List.getElem?_eq_getElem hlt] at hg; exact Option.some_injective _ hg
+  refine ⟨?_, hbs x (by rw [← hx]; exact List.getElem_mem hlt)⟩
+  rw [ExprOps.absBinders, List.getElem?_map,
+    List.getElem?_eq_getElem hlt, hx]
+  simp
+
+/-- Past the end, the abstracted binder list has no entry. -/
+theorem binders_index_none {bs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
+    {n : Nat} (h : bs.val.length ≤ n) : (ExprOps.absBinders bs)[n]? = none := by
+  rw [ExprOps.absBinders, List.getElem?_eq_none (by simpa using h)]
+
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:246-281` —
 `struct_shape_motive` refines `structShape`'s motive-binder clause: the
 motive's codomain is `Sort elim` at the large eliminator and `Prop` at the
 small one, and its own major domain is the family at the parameters.  Split
 off in the port so that every `else` arm of the cited `&&` cascade stays a
-tail position (task #18's pattern 3). -/
+tail position (task #18's pattern 3).
+
+`n_p.val ≤ Std.Usize.max` is the platform side condition of `sort_get_d_refines`
+(the port writes `rbs[n_p as usize]`, and Aeneas keeps `usize`'s width
+abstract); on the 64-bit targets the port builds for it is vacuous. -/
 theorem struct_shape_motive_refines {t : name.Name}
     {lps : alloc.vec.Vec name.Name} {elim : name.Name} {large : Bool}
     {n_p : Std.U64} {rbs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
     {b : Bool} (ht : NameWF t) (hlps : NamesWF lps) (helim : NameWF elim)
-    (hrbs : ExprOps.BindersWF rbs)
+    (hrbs : ExprOps.BindersWF rbs) (hnp : n_p.val ≤ Std.Usize.max)
     (h : inductives.struct_parts.struct_shape_motive t lps elim large n_p rbs
         = ok b) :
     b = (match (ExprOps.absBinders rbs)[n_p.val]? with
@@ -866,7 +924,8 @@ theorem struct_shape_motive_refines {t : name.Name}
          else s' == ConLeche.Level.zero)
           && mmaj == ConLeche.structFam (absName t) (absNames lps) n_p.val 0
       | _ => false) := by
-  -- the bounds test, the two node reads and the two `beq`s
+  -- the bounds test, the two node reads (`ForallE` then `Sort`) and the two
+  -- `beq`s; `binders_index` above is the reading of `rbs[nP]?`
   sorry
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:246-281` —
@@ -876,6 +935,7 @@ theorem struct_shape_minor_refines {c : name.Name}
     {lps : alloc.vec.Vec name.Name} {n_p n_f : Std.U64}
     {rbs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)} {b : Bool}
     (hc : NameWF c) (hlps : NamesWF lps) (hrbs : ExprOps.BindersWF rbs)
+    (hnp : n_p.val + 1 ≤ Std.Usize.max)
     (h : inductives.struct_parts.struct_shape_minor c lps n_p n_f rbs = ok b) :
     b = (match (ExprOps.absBinders rbs)[n_p.val + 1]? with
       | some (mindom, _) =>
@@ -885,7 +945,8 @@ theorem struct_shape_minor_refines {c : name.Name}
             (ConLeche.structCtorSpine (absName c) (absNames lps) n_p.val n_f.val)
         | none => false
       | none => false) := by
-  -- the bounds test, `strip_pis` and the `beq`
+  -- the bounds test, `strip_pis` and the `beq`; `binders_index` above is the
+  -- reading of `rbs[nP + 1]?`
   sorry
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:246-281` —
@@ -895,13 +956,36 @@ theorem struct_shape_major_refines {t : name.Name}
     {lps : alloc.vec.Vec name.Name} {n_p : Std.U64}
     {rbs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)} {b : Bool}
     (ht : NameWF t) (hlps : NamesWF lps) (hrbs : ExprOps.BindersWF rbs)
+    (hnp : n_p.val + 2 ≤ Std.Usize.max)
     (h : inductives.struct_parts.struct_shape_major t lps n_p rbs = ok b) :
     b = (match (ExprOps.absBinders rbs)[n_p.val + 2]? with
       | some (majdom, _) =>
         majdom == ConLeche.structFam (absName t) (absNames lps) n_p.val 2
       | none => false) := by
-  -- the bounds test and the `beq`
-  sorry
+  rw [inductives.struct_parts.struct_shape_major] at h
+  simp only [lift_eq, bind_tc_ok] at h
+  have hcv : (Std.UScalar.cast .Usize n_p).val = n_p.val :=
+    ExprOps.u64_cast_usize_val (by omega)
+  obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+  have hi1v : i1.val = n_p.val + 2 := by rw [HashMap.uscalar_add_eq hi1, hcv]; rfl
+  split at h
+  · rename_i hlt
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    have hi2v : i2.val = n_p.val + 2 := by rw [HashMap.uscalar_add_eq hi2, hcv]; rfl
+    obtain ⟨x, hidx, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨e0, m0⟩ := x
+    obtain ⟨hgx, hewf, hmwf⟩ := binders_index hrbs hidx
+    rw [hi2v] at hgx
+    rw [hgx]
+    obtain ⟨fam, hfam, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hfabs, hfwf⟩ := struct_fam_refines ht hlps hfam
+    rw [Expr.beq_refines hewf hfwf h, hfabs]
+    refine Bool.eq_iff_iff.mpr ?_
+    simp
+  · rename_i hge
+    have hgev : rbs.val.length ≤ n_p.val + 2 := by
+      have := alloc.vec.Vec.len_val rbs; scalar_tac
+    rw [binders_index_none hgev, ← Result.ok_injective h]
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:246-281` — `struct_shape`
 refines `structShape`: the *shape* facts the model reads off the stored
@@ -1077,15 +1161,62 @@ theorem struct_proj_arg_p_refines {t : name.Name} {j : Std.U64} {e : expr.Expr}
 peeled at the parameters and the first `i` subject projections, threaded
 incrementally.  Deviation: the cited `Option.bind` over a closure is an
 explicit `match` (§3.4). -/
+theorem struct_proj_resid_p_refines_aux {t : name.Name} (ht : NameWF t)
+    {n_p : Std.U64} {cty : expr.Expr} (hcty : ExprWF cty) (N : Nat) :
+    ∀ (i : Std.U64) (o : Option expr.Expr), i.val = N →
+      inductives.struct_parts.struct_proj_resid_p t n_p cty i = ok o →
+      o.map absExpr
+          = ConLeche.structProjResidP (absName t) n_p.val (absExpr cty) i.val
+        ∧ ∀ r, o = some r → ExprWF r := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro i o hN h
+    rw [inductives.struct_parts.struct_proj_resid_p.eq_def] at h
+    split at h
+    · rename_i h0
+      have hiv : i.val = 0 := by rw [h0]; scalar_tac
+      obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hvabs, hvwf⟩ := struct_proj_ps_refines hv
+      obtain ⟨habs, hwf⟩ := ExprOps.inst_pis_at_lift_refines hvwf hcty h
+      refine ⟨?_, hwf⟩
+      rw [hiv, ConLeche.structProjResidP, habs, hvabs]
+    · rename_i h0
+      obtain ⟨m0, hm0⟩ : ∃ m0, i.val = m0 + 1 := by
+        have : i.val ≠ 0 := fun hc => h0 (Std.UScalar.eq_of_val_eq (by rw [hc]; scalar_tac))
+        exact ⟨i.val - 1, by omega⟩
+      obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      have hi1v : i1.val = m0 := by
+        rw [HashMap.uscalar_sub_eq hi1, hm0]; scalar_tac
+      obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨habs1, hwf1⟩ := ih m0 (by omega) i1 o1 hi1v ho1
+      rw [hi1v] at habs1
+      cases o1 with
+      | none =>
+        simp only [Option.map_none] at habs1
+        have ho : o = none := (Result.ok_injective h).symm
+        rw [ho, hm0, ConLeche.structProjResidP, ← habs1]
+        exact ⟨by simp, by simp⟩
+      | some r0 =>
+        simp only [Option.map_some] at habs1
+        obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨args, hargs, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨heabs, hewf⟩ := struct_proj_arg_p_refines ht he
+        obtain ⟨hargsabs, hargswf⟩ := CoreK.expr_singleton_refines hewf hargs
+        obtain ⟨habs, hwf⟩ :=
+          ExprOps.inst_pis_at_lift_refines hargswf (hwf1 r0 rfl) h
+        refine ⟨?_, hwf⟩
+        rw [hm0, ConLeche.structProjResidP, ← habs1, habs, hargsabs, heabs, hi1v]
+        simp
+
+/-- `struct_proj_resid_p` at its own statement. -/
 theorem struct_proj_resid_p_refines {t : name.Name} {n_p : Std.U64}
     {cty : expr.Expr} {i : Std.U64} {o : Option expr.Expr} (ht : NameWF t)
     (hcty : ExprWF cty)
     (h : inductives.struct_parts.struct_proj_resid_p t n_p cty i = ok o) :
     o.map absExpr
         = ConLeche.structProjResidP (absName t) n_p.val (absExpr cty) i.val
-      ∧ ∀ r, o = some r → ExprWF r := by
-  -- the `partial_fixpoint` recursion on `i`
-  sorry
+      ∧ ∀ r, o = some r → ExprWF r :=
+  struct_proj_resid_p_refines_aux ht hcty i.val i o rfl h
 
 /-! ## `hasLooseBVar`, `hasLooseBVarB` and the memoized walk
 (`StructParts.lean:357-636`) -/
@@ -1094,22 +1225,376 @@ theorem struct_proj_resid_p_refines {t : name.Name} {n_p : Std.U64}
 refines `Expr.hasLooseBVar`: does `bvar i` occur loose in `e`?  The
 *specification* of the bounded walk below; nothing executable calls it, and it
 is ported so the provenance gate stays in step with its source. -/
+theorem has_loose_bvar_refines_aux {e : expr.Expr} (he : ExprWF e) :
+    ∀ (i : Std.U64) (b : Bool),
+      inductives.struct_parts.has_loose_bvar i e = ok b →
+      b = ConLeche.Expr.hasLooseBVar i.val (absExpr e) := by
+  induction he with
+  | @bvar j e h1 =>
+    intro i b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
+    rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [← Result.ok_injective h]
+    simp only [absExpr_mk, absExprKind, ConLeche.Expr.hasLooseBVar]
+    refine Bool.eq_iff_iff.mpr ?_
+    simp only [decide_eq_true_eq, beq_iff_eq]
+    exact ⟨fun hc => by rw [hc], fun hc => Std.UScalar.eq_of_val_eq hc⟩
+  | @fvar idx ty e hty h1 ih =>
+    intro i b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
+    rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [← Result.ok_injective h]; simp [ConLeche.Expr.hasLooseBVar]
+  | @sort u e hu h1 =>
+    intro i b h
+    obtain ⟨d, bw, -, rfl, -, -, -⟩ := Expr.sort_inv h1
+    rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [← Result.ok_injective h]; simp [ConLeche.Expr.hasLooseBVar]
+  | @mk_const n us e hn hus h1 =>
+    intro i b h
+    obtain ⟨d, bw, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
+    rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [← Result.ok_injective h]; simp [ConLeche.Expr.hasLooseBVar]
+  | @lit l e hl h1 =>
+    intro i b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
+    rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [← Result.ok_injective h]; simp [ConLeche.Expr.hasLooseBVar]
+  | @app f a e hf ha h1 ihf iha =>
+    intro i b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
+    rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v := ihf i b1 hb1
+    simp only [absExpr_mk, absExprKind, ConLeche.Expr.hasLooseBVar]
+    split at h
+    · rename_i hc
+      rw [← Result.ok_injective h, ← hb1v, hc]; simp
+    · rename_i hc
+      simp only [Bool.not_eq_true] at hc
+      rw [iha i b h, ← hb1v, hc]; simp
+  | @lam ty bo m e hty hbo hm h1 iht ihb =>
+    intro i b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
+    rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v := iht i b1 hb1
+    simp only [absExpr_mk, absExprKind, ConLeche.Expr.hasLooseBVar]
+    split at h
+    · rename_i hc
+      rw [← Result.ok_injective h, ← hb1v, hc]; simp
+    · rename_i hc
+      simp only [Bool.not_eq_true] at hc
+      obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+      rw [ihb i1 b h, hi1v, ← hb1v, hc]; simp
+  | @forall_e ty bo m e hty hbo hm h1 iht ihb =>
+    intro i b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
+    rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v := iht i b1 hb1
+    simp only [absExpr_mk, absExprKind, ConLeche.Expr.hasLooseBVar]
+    split at h
+    · rename_i hc
+      rw [← Result.ok_injective h, ← hb1v, hc]; simp
+    · rename_i hc
+      simp only [Bool.not_eq_true] at hc
+      obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+      rw [ihb i1 b h, hi1v, ← hb1v, hc]; simp
+  | @let_e ty w bo e hty hw hbo h1 iht ihv ihb =>
+    intro i b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
+    rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v := iht i b1 hb1
+    simp only [absExpr_mk, absExprKind, ConLeche.Expr.hasLooseBVar]
+    split at h
+    · rename_i hc
+      rw [← Result.ok_injective h, ← hb1v, hc]; simp
+    · rename_i hc
+      simp only [Bool.not_eq_true] at hc
+      obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+      have hb2v := ihv i b2 hb2
+      split at h
+      · rename_i hc2
+        rw [← Result.ok_injective h, ← hb1v, hc, ← hb2v, hc2]; simp
+      · rename_i hc2
+        simp only [Bool.not_eq_true] at hc2
+        obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+        have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+        rw [ihb i1 b h, hi1v, ← hb1v, hc, ← hb2v, hc2]; simp
+  | @proj s j x e hs hx h1 ih =>
+    intro i b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
+    rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [ih i b h]
+    simp [ConLeche.Expr.hasLooseBVar]
+
+/-- `has_loose_bvar` at its own statement. -/
 theorem has_loose_bvar_refines {i : Std.U64} {e : expr.Expr} {b : Bool}
     (he : ExprWF e) (h : inductives.struct_parts.has_loose_bvar i e = ok b) :
-    b = ConLeche.Expr.hasLooseBVar i.val (absExpr e) := by
-  -- the ten-armed `ExprWF` induction
-  sorry
+    b = ConLeche.Expr.hasLooseBVar i.val (absExpr e) :=
+  has_loose_bvar_refines_aux he i b h
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:371-390` —
 `has_loose_bvar_b_spec` refines `Expr.hasLooseBVarB`: `hasLooseBVar` with the
 packed bound's cutoff.  The *logical* definition; the executed one is
 `has_loose_bvar_b` below (the `@[csimp]` family, module note). -/
+theorem has_loose_bvar_b_spec_refines_aux {e : expr.Expr} (he : ExprWF e) :
+    ∀ (i : Std.U64) (b : Bool),
+      inductives.struct_parts.has_loose_bvar_b_spec i e = ok b →
+      b = ConLeche.Expr.hasLooseBVarB i.val (absExpr e) := by
+  induction he with
+  | @bvar j e h1 =>
+    intro i b h
+    obtain ⟨d, hde, -, -, -⟩ := Expr.bvar_inv h1
+    have hewf : ExprWF e := ExprWF.bvar h1
+    have habs : absExpr e = .bvar j.val := by rw [hde]; simp
+    rw [inductives.struct_parts.has_loose_bvar_b_spec.eq_def, hde] at h
+    rw [← hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    have hbbv : i1.val = (absExpr e).bvarB := ExprOps.bvar_b_refines hewf hbb
+    split at h
+    · rename_i hle
+      rw [← Result.ok_injective h, ConLeche.Expr.hasLooseBVarB.eq_def,
+        if_pos (show (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac)]
+    · rename_i hle
+      rw [hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      rw [← Result.ok_injective h, ConLeche.Expr.hasLooseBVarB.eq_def,
+        if_neg (show ¬ (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac), habs]
+      refine Bool.eq_iff_iff.mpr ?_
+      simp only [decide_eq_true_eq, beq_iff_eq]
+      exact ⟨fun hc => by rw [hc], fun hc => Std.UScalar.eq_of_val_eq hc⟩
+  | @fvar idx ty e hty h1 ih =>
+    intro i b h
+    obtain ⟨d, hde, -, -, -⟩ := Expr.fvar_inv h1
+    have habs : absExpr e = .fvar idx.val (absExpr ty) := by rw [hde]; simp
+    have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e) = false := by
+      rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def]; split <;> rfl
+    rw [inductives.struct_parts.has_loose_bvar_b_spec.eq_def, hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rw [← Result.ok_injective h, hspec]
+    · simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      rw [← Result.ok_injective h, hspec]
+  | @sort u e hu h1 =>
+    intro i b h
+    obtain ⟨d, bw, -, hde, -, -, -⟩ := Expr.sort_inv h1
+    have habs : absExpr e = .sort (absLevel u) := by rw [hde]; simp
+    have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e) = false := by
+      rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def]; split <;> rfl
+    rw [inductives.struct_parts.has_loose_bvar_b_spec.eq_def, hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rw [← Result.ok_injective h, hspec]
+    · simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      rw [← Result.ok_injective h, hspec]
+  | @mk_const n us e hn hus h1 =>
+    intro i b h
+    obtain ⟨d, bw, -, hde, -, -, -⟩ := Expr.mk_const_inv h1
+    have habs : absExpr e = .const (absName n) (absLevels us) := by rw [hde]; simp
+    have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e) = false := by
+      rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def]; split <;> rfl
+    rw [inductives.struct_parts.has_loose_bvar_b_spec.eq_def, hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rw [← Result.ok_injective h, hspec]
+    · simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      rw [← Result.ok_injective h, hspec]
+  | @lit l e hl h1 =>
+    intro i b h
+    obtain ⟨d, hde, -, -, -⟩ := Expr.lit_inv h1
+    have habs : absExpr e = .lit (absLiteral l) := by rw [hde]; simp
+    have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e) = false := by
+      rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def]; split <;> rfl
+    rw [inductives.struct_parts.has_loose_bvar_b_spec.eq_def, hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rw [← Result.ok_injective h, hspec]
+    · simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      rw [← Result.ok_injective h, hspec]
+  | @app f a e hf ha h1 ihf iha =>
+    intro i b h
+    obtain ⟨d, hde, -, -, -⟩ := Expr.app_inv h1
+    have hewf : ExprWF e := ExprWF.app hf ha h1
+    have habs : absExpr e = .app (absExpr f) (absExpr a) := by rw [hde]; simp
+    rw [inductives.struct_parts.has_loose_bvar_b_spec.eq_def, hde] at h
+    rw [← hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    have hbbv : i1.val = (absExpr e).bvarB := ExprOps.bvar_b_refines hewf hbb
+    split at h
+    · rename_i hle
+      rw [← Result.ok_injective h, ConLeche.Expr.hasLooseBVarB.eq_def,
+        if_pos (show (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac)]
+    · rename_i hle
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
+          = (ConLeche.Expr.hasLooseBVarB i.val (absExpr f)
+             || ConLeche.Expr.hasLooseBVarB i.val (absExpr a)) := by
+        rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_neg (show ¬ ((absExpr f).app (absExpr a)).bvarB ≤ i.val by
+            rw [← habs, ← hbbv]; scalar_tac)]
+      rw [hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+      have hb1v := ihf i b1 hb1
+      rw [hspec]
+      split at h
+      · rename_i hc
+        rw [← Result.ok_injective h, ← hb1v, hc]; simp
+      · rename_i hc
+        simp only [Bool.not_eq_true] at hc
+        rw [iha i b h, ← hb1v, hc]; simp
+  | @lam ty bo m e hty hbo hm h1 iht ihb =>
+    intro i b h
+    obtain ⟨d, hde, -, -, -⟩ := Expr.lam_inv h1
+    have hewf : ExprWF e := ExprWF.lam hty hbo hm h1
+    have habs : absExpr e = .lam (absExpr ty) (absExpr bo) (absBinderMeta m) := by
+      rw [hde]; simp
+    rw [inductives.struct_parts.has_loose_bvar_b_spec.eq_def, hde] at h
+    rw [← hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    have hbbv : i1.val = (absExpr e).bvarB := ExprOps.bvar_b_refines hewf hbb
+    split at h
+    · rename_i hle
+      rw [← Result.ok_injective h, ConLeche.Expr.hasLooseBVarB.eq_def,
+        if_pos (show (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac)]
+    · rename_i hle
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
+          = (ConLeche.Expr.hasLooseBVarB i.val (absExpr ty)
+             || ConLeche.Expr.hasLooseBVarB (i.val + 1) (absExpr bo)) := by
+        rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_neg (show ¬ ((absExpr ty).lam (absExpr bo) (absBinderMeta m)).bvarB
+              ≤ i.val by rw [← habs, ← hbbv]; scalar_tac)]
+      rw [hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+      have hb1v := iht i b1 hb1
+      rw [hspec]
+      split at h
+      · rename_i hc
+        rw [← Result.ok_injective h, ← hb1v, hc]; simp
+      · rename_i hc
+        simp only [Bool.not_eq_true] at hc
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        rw [ihb i2 b h, hi2v, ← hb1v, hc]; simp
+  | @forall_e ty bo m e hty hbo hm h1 iht ihb =>
+    intro i b h
+    obtain ⟨d, hde, -, -, -⟩ := Expr.forall_e_inv h1
+    have hewf : ExprWF e := ExprWF.forall_e hty hbo hm h1
+    have habs : absExpr e = .forallE (absExpr ty) (absExpr bo) (absBinderMeta m) := by
+      rw [hde]; simp
+    rw [inductives.struct_parts.has_loose_bvar_b_spec.eq_def, hde] at h
+    rw [← hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    have hbbv : i1.val = (absExpr e).bvarB := ExprOps.bvar_b_refines hewf hbb
+    split at h
+    · rename_i hle
+      rw [← Result.ok_injective h, ConLeche.Expr.hasLooseBVarB.eq_def,
+        if_pos (show (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac)]
+    · rename_i hle
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
+          = (ConLeche.Expr.hasLooseBVarB i.val (absExpr ty)
+             || ConLeche.Expr.hasLooseBVarB (i.val + 1) (absExpr bo)) := by
+        rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_neg (show ¬ ((absExpr ty).forallE (absExpr bo) (absBinderMeta m)).bvarB
+              ≤ i.val by rw [← habs, ← hbbv]; scalar_tac)]
+      rw [hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+      have hb1v := iht i b1 hb1
+      rw [hspec]
+      split at h
+      · rename_i hc
+        rw [← Result.ok_injective h, ← hb1v, hc]; simp
+      · rename_i hc
+        simp only [Bool.not_eq_true] at hc
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        rw [ihb i2 b h, hi2v, ← hb1v, hc]; simp
+  | @let_e ty w bo e hty hw hbo h1 iht ihv ihb =>
+    intro i b h
+    obtain ⟨d, hde, -, -, -⟩ := Expr.let_e_inv h1
+    have hewf : ExprWF e := ExprWF.let_e hty hw hbo h1
+    have habs : absExpr e = .letE (absExpr ty) (absExpr w) (absExpr bo) := by
+      rw [hde]; simp
+    rw [inductives.struct_parts.has_loose_bvar_b_spec.eq_def, hde] at h
+    rw [← hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    have hbbv : i1.val = (absExpr e).bvarB := ExprOps.bvar_b_refines hewf hbb
+    split at h
+    · rename_i hle
+      rw [← Result.ok_injective h, ConLeche.Expr.hasLooseBVarB.eq_def,
+        if_pos (show (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac)]
+    · rename_i hle
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
+          = (ConLeche.Expr.hasLooseBVarB i.val (absExpr ty)
+             || ConLeche.Expr.hasLooseBVarB i.val (absExpr w)
+             || ConLeche.Expr.hasLooseBVarB (i.val + 1) (absExpr bo)) := by
+        rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_neg (show ¬ ((absExpr ty).letE (absExpr w) (absExpr bo)).bvarB
+              ≤ i.val by rw [← habs, ← hbbv]; scalar_tac)]
+      rw [hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+      have hb1v := iht i b1 hb1
+      rw [hspec]
+      split at h
+      · rename_i hc
+        rw [← Result.ok_injective h, ← hb1v, hc]; simp
+      · rename_i hc
+        simp only [Bool.not_eq_true] at hc
+        obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+        have hb2v := ihv i b2 hb2
+        split at h
+        · rename_i hc2
+          rw [← Result.ok_injective h, ← hb1v, hc, ← hb2v, hc2]; simp
+        · rename_i hc2
+          simp only [Bool.not_eq_true] at hc2
+          obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+          have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+          rw [ihb i2 b h, hi2v, ← hb1v, hc, ← hb2v, hc2]; simp
+  | @proj s j x e hs hx h1 ih =>
+    intro i b h
+    obtain ⟨d, hde, -, -, -⟩ := Expr.proj_inv h1
+    have hewf : ExprWF e := ExprWF.proj hs hx h1
+    have habs : absExpr e = .proj (absName s) j.val (absExpr x) := by rw [hde]; simp
+    rw [inductives.struct_parts.has_loose_bvar_b_spec.eq_def, hde] at h
+    rw [← hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    have hbbv : i1.val = (absExpr e).bvarB := ExprOps.bvar_b_refines hewf hbb
+    split at h
+    · rename_i hle
+      rw [← Result.ok_injective h, ConLeche.Expr.hasLooseBVarB.eq_def,
+        if_pos (show (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac)]
+    · rename_i hle
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
+          = ConLeche.Expr.hasLooseBVarB i.val (absExpr x) := by
+        rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_neg (show ¬ (ConLeche.Expr.proj (absName s) j.val (absExpr x)).bvarB
+              ≤ i.val by rw [← habs, ← hbbv]; scalar_tac)]
+      rw [hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      rw [ih i b h, hspec]
+
+/-- `has_loose_bvar_b_spec` at its own statement. -/
 theorem has_loose_bvar_b_spec_refines {i : Std.U64} {e : expr.Expr} {b : Bool}
     (he : ExprWF e)
     (h : inductives.struct_parts.has_loose_bvar_b_spec i e = ok b) :
-    b = ConLeche.Expr.hasLooseBVarB i.val (absExpr e) := by
-  -- the ten-armed `ExprWF` induction, with `bvar_b_refines` at the cutoff
-  sorry
+    b = ConLeche.Expr.hasLooseBVarB i.val (absExpr e) :=
+  has_loose_bvar_b_spec_refines_aux he i b h
 
 /-- con-leche's `LooseBVarMemoInv` (`StructParts.lean:412-414`) as the `Q` of
 task #47's `MemoInv`: every recorded answer is the real one. -/
@@ -1150,6 +1635,495 @@ theorem has_loose_bvar_b_ins_inv
   rw [hm1] at hins
   exact ExprOps.MemoInv.set ExprOps.key_exact hm (ExprOps.keyWF_mk he) hr hins
 
+/-- The five **rebuilding** node kinds — the ones `hasLooseBVarBGo`'s miss
+branch reaches.  The `_ => (false, memo)` arm of `has_loose_bvar_b_node` is
+con-leche's cited *unreachable* one (the five leaf kinds answer before the
+probe), so the node lemma below is stated at exactly the kinds the walk calls
+it on; at a leaf the port's arm and `Expr.hasLooseBVarB` genuinely disagree
+(`hasLooseBVarB 0 (.bvar 0)` is `true`), which is why the guard is part of the
+statement. -/
+def Rebuilding (e : expr.Expr) : Prop :=
+  match e._0.kind with
+  | .App _ _ => True
+  | .Lam _ _ _ => True
+  | .«ForallE» _ _ _ => True
+  | .LetE _ _ _ => True
+  | .Proj _ _ _ => True
+  | _ => False
+
+/-- "`has_loose_bvar_b_go` answers `Expr.hasLooseBVarB` at this node and keeps
+con-leche's `LooseBVarMemoInv`" — the walk's half of the induction. -/
+def LooseGoOK (e : expr.Expr) : Prop :=
+  ∀ (memo memo' : ron.hashmap.HashMap expr_ops.ExprNatKey Bool) (i : Std.U64)
+    (r : Bool),
+    ExprOps.MemoInv ExprOps.KeyWF ExprOps.absKey LooseQ memo →
+    inductives.struct_parts.has_loose_bvar_b_go memo i e = ok (r, memo') →
+    r = ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
+      ∧ ExprOps.MemoInv ExprOps.KeyWF ExprOps.absKey LooseQ memo'
+
+/-- The same for the miss branch's `has_loose_bvar_b_node`, at the five
+rebuilding kinds and below the cutoff — which is where the walk calls it. -/
+def LooseNodeOK (e : expr.Expr) : Prop :=
+  ∀ (memo memo' : ron.hashmap.HashMap expr_ops.ExprNatKey Bool) (i : Std.U64)
+    (r : Bool),
+    Rebuilding e → i.val < (absExpr e).bvarB →
+    ExprOps.MemoInv ExprOps.KeyWF ExprOps.absKey LooseQ memo →
+    inductives.struct_parts.has_loose_bvar_b_node memo i e = ok (r, memo') →
+    r = ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
+      ∧ ExprOps.MemoInv ExprOps.KeyWF ExprOps.absKey LooseQ memo'
+
+/-- The probe-and-record step the five rebuilding arms of
+`has_loose_bvar_b_go` share. -/
+theorem loose_probe_step {e : expr.Expr} (he : ExprWF e)
+    (hnode : LooseNodeOK e) (hre : Rebuilding e)
+    {memo memo' : ron.hashmap.HashMap expr_ops.ExprNatKey Bool} {i : Std.U64}
+    {key : expr_ops.ExprNatKey} {o : Option Bool} {r : Bool}
+    (hcut : i.val < (absExpr e).bvarB)
+    (hm : ExprOps.MemoInv ExprOps.KeyWF ExprOps.absKey LooseQ memo)
+    (h : (match o with
+          | none => do
+              let (r, memo1) ←
+                inductives.struct_parts.has_loose_bvar_b_node memo i e
+              let memo2 ←
+                inductives.struct_parts.has_loose_bvar_b_ins memo1 e i r
+              ok (r, memo2)
+          | some r => ok (r, memo)) = ok (r, memo'))
+    (hkey : expr_ops.expr_nat_key e i = ok key)
+    (hprobe : inductives.struct_parts.memo_b_get memo key = ok o) :
+    r = ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
+      ∧ ExprOps.MemoInv ExprOps.KeyWF ExprOps.absKey LooseQ memo' := by
+  have hkv : key = ⟨e, i⟩ := ExprOps.expr_nat_key_eq hkey
+  cases o with
+  | some r0 =>
+    obtain ⟨hr, hmm⟩ := pair_ok h
+    have hq : LooseQ (ExprOps.absKey key) r0 :=
+      ExprOps.MemoInv.hit ExprOps.key_exact hm (by rw [hkv]; exact he)
+        (memo_b_get_eq hprobe)
+    rw [hkv] at hq
+    rw [← hr, ← hmm]
+    exact ⟨hq, hm⟩
+  | none =>
+    obtain ⟨p, hnd, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r1, memo1⟩ := p
+    obtain ⟨hr1, hm1⟩ := hnode memo memo1 i r1 hre hcut hm hnd
+    obtain ⟨memo2, hins, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hr, hmm⟩ := pair_ok h
+    rw [← hr, ← hmm]
+    exact ⟨hr1, has_loose_bvar_b_ins_inv he hm1 hr1 hins⟩
+
+/-- `ConLeche/Kernel/Inductives/StructParts.lean:442-478` — **the memoized
+`hasLooseBVarB` walk**, both halves at once (they are mutually recursive), by
+induction on the `ExprWF` derivation.  This is con-leche's
+`hasLooseBVarBGo_spec` restated over the port's `&mut HashMap`; the cutoff and
+the memo are complementary, and the walk **does** short-circuit. -/
+theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
+    LooseGoOK e ∧ LooseNodeOK e := by
+  induction he with
+  | @bvar j e h1 =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.bvar_inv h1
+    have hewf : ExprWF e := ExprWF.bvar h1
+    constructor
+    · intro memo memo' i r hm h
+      have habs : absExpr e = .bvar j.val := by rw [hde]; simp
+      rw [inductives.struct_parts.has_loose_bvar_b_go.eq_def, hde] at h
+      rw [← hde] at h
+      obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+      have hbbv : i1.val = (absExpr e).bvarB := ExprOps.bvar_b_refines hewf hbb
+      split at h
+      · rename_i hle
+        have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e) = false := by
+          rw [ConLeche.Expr.hasLooseBVarB.eq_def,
+            if_pos (show (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac)]
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, hspec]
+        exact ⟨rfl, hm⟩
+      · rename_i hle
+        have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
+            = (i.val == j.val) := by
+          rw [ConLeche.Expr.hasLooseBVarB.eq_def,
+            if_neg (show ¬ (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac), habs]
+        rw [hde] at h
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, hspec]
+        refine ⟨?_, hm⟩
+        refine Bool.eq_iff_iff.mpr ?_
+        simp only [decide_eq_true_eq, beq_iff_eq]
+        constructor
+        · intro hc; rw [hc]
+        · intro hc; exact Std.UScalar.eq_of_val_eq hc
+    · intro memo memo' i r hre hcut hm h
+      rw [hde] at hre
+      simp [Rebuilding] at hre
+  | @sort u e hu h1 =>
+    obtain ⟨d, bw, -, hde, -, -, -⟩ := Expr.sort_inv h1
+    have hewf : ExprWF e := ExprWF.sort hu h1
+    have habs : absExpr e = .sort (absLevel u) := by rw [hde]; simp
+    constructor
+    · intro memo memo' i r hm h
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e) = false := by
+        rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def]; split <;> rfl
+      rw [inductives.struct_parts.has_loose_bvar_b_go.eq_def, hde] at h
+      obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+      split at h
+      · rename_i hle
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, hspec]
+        exact ⟨rfl, hm⟩
+      · rename_i hle
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, hspec]
+        exact ⟨rfl, hm⟩
+    · intro memo memo' i r hre hcut hm h
+      rw [hde] at hre
+      simp [Rebuilding] at hre
+  | @lit l e hl h1 =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.lit_inv h1
+    have hewf : ExprWF e := ExprWF.lit hl h1
+    have habs : absExpr e = .lit (absLiteral l) := by rw [hde]; simp
+    constructor
+    · intro memo memo' i r hm h
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e) = false := by
+        rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def]; split <;> rfl
+      rw [inductives.struct_parts.has_loose_bvar_b_go.eq_def, hde] at h
+      obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+      split at h
+      · rename_i hle
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, hspec]
+        exact ⟨rfl, hm⟩
+      · rename_i hle
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, hspec]
+        exact ⟨rfl, hm⟩
+    · intro memo memo' i r hre hcut hm h
+      rw [hde] at hre
+      simp [Rebuilding] at hre
+  | @mk_const n us e hn hus h1 =>
+    obtain ⟨d, bw, -, hde, -, -, -⟩ := Expr.mk_const_inv h1
+    have hewf : ExprWF e := ExprWF.mk_const hn hus h1
+    have habs : absExpr e = .const (absName n) (absLevels us) := by rw [hde]; simp
+    constructor
+    · intro memo memo' i r hm h
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e) = false := by
+        rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def]; split <;> rfl
+      rw [inductives.struct_parts.has_loose_bvar_b_go.eq_def, hde] at h
+      obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+      split at h
+      · rename_i hle
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, hspec]
+        exact ⟨rfl, hm⟩
+      · rename_i hle
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, hspec]
+        exact ⟨rfl, hm⟩
+    · intro memo memo' i r hre hcut hm h
+      rw [hde] at hre
+      simp [Rebuilding] at hre
+  | @fvar idx ty e hty h1 ih =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.fvar_inv h1
+    have hewf : ExprWF e := ExprWF.fvar hty h1
+    have habs : absExpr e = .fvar idx.val (absExpr ty) := by rw [hde]; simp
+    constructor
+    · intro memo memo' i r hm h
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e) = false := by
+        rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def]; split <;> rfl
+      rw [inductives.struct_parts.has_loose_bvar_b_go.eq_def, hde] at h
+      obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+      split at h
+      · rename_i hle
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, hspec]
+        exact ⟨rfl, hm⟩
+      · rename_i hle
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, hspec]
+        exact ⟨rfl, hm⟩
+    · intro memo memo' i r hre hcut hm h
+      rw [hde] at hre
+      simp [Rebuilding] at hre
+  | @app f a e hf ha h1 ihf iha =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.app_inv h1
+    have hewf : ExprWF e := ExprWF.app hf ha h1
+    have habs : absExpr e = .app (absExpr f) (absExpr a) := by rw [hde]; simp
+    have hre : Rebuilding e := by rw [hde]; simp [Rebuilding]
+    have hnode : LooseNodeOK e := by
+      intro memo memo' i r _ hcut hm h
+      rw [inductives.struct_parts.has_loose_bvar_b_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b1, memo1⟩ := p1
+      obtain ⟨hb1, hm1⟩ := ihf.1 memo memo1 i b1 hm h1'
+      replace h : (if b1 = true then ok (true, memo1)
+          else inductives.struct_parts.has_loose_bvar_b_go memo1 i a)
+            = ok (r, memo') := h
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
+          = (ConLeche.Expr.hasLooseBVarB i.val (absExpr f)
+             || ConLeche.Expr.hasLooseBVarB i.val (absExpr a)) := by
+        rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_neg (by rw [← habs]; omega)]
+      rw [hspec]
+      split at h
+      · rename_i hc
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, ← hb1, hc]; exact ⟨by simp, hm1⟩
+      · rename_i hc
+        simp only [Bool.not_eq_true] at hc
+        obtain ⟨hb2, hm2⟩ := iha.1 memo1 memo' i r hm1 h
+        rw [hb2, ← hb1, hc]; exact ⟨by simp, hm2⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' i r hm h
+    rw [inductives.struct_parts.has_loose_bvar_b_go.eq_def, hde] at h
+    rw [← hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    have hbbv : i1.val = (absExpr e).bvarB := ExprOps.bvar_b_refines hewf hbb
+    split at h
+    · rename_i hle
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e) = false := by
+        rw [ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_pos (show (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac)]
+      obtain ⟨hr, hmm⟩ := pair_ok h
+      rw [← hr, ← hmm, hspec]
+      exact ⟨rfl, hm⟩
+    · rename_i hle
+      rw [hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+      rw [← hde] at hkey h
+      exact loose_probe_step hewf hnode hre
+        (show i.val < (absExpr e).bvarB by rw [← hbbv]; scalar_tac) hm h hkey hprobe
+  | @lam ty bo m e hty hbo hm0 h1 iht ihb =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.lam_inv h1
+    have hewf : ExprWF e := ExprWF.lam hty hbo hm0 h1
+    have habs : absExpr e = .lam (absExpr ty) (absExpr bo) (absBinderMeta m) := by
+      rw [hde]; simp
+    have hre : Rebuilding e := by rw [hde]; simp [Rebuilding]
+    have hnode : LooseNodeOK e := by
+      intro memo memo' i r _ hcut hm h
+      rw [inductives.struct_parts.has_loose_bvar_b_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b1, memo1⟩ := p1
+      obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 i b1 hm h1'
+      replace h : (if b1 = true then ok (true, memo1)
+          else do
+            let i1 ← i + 1#u64
+            inductives.struct_parts.has_loose_bvar_b_go memo1 i1 bo)
+            = ok (r, memo') := h
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
+          = (ConLeche.Expr.hasLooseBVarB i.val (absExpr ty)
+             || ConLeche.Expr.hasLooseBVarB (i.val + 1) (absExpr bo)) := by
+        rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_neg (by rw [← habs]; omega)]
+      rw [hspec]
+      split at h
+      · rename_i hc
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, ← hb1, hc]; exact ⟨by simp, hm1⟩
+      · rename_i hc
+        simp only [Bool.not_eq_true] at hc
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        obtain ⟨hb2, hm2⟩ := ihb.1 memo1 memo' i2 r hm1 h
+        rw [hb2, hi2v, ← hb1, hc]; exact ⟨by simp, hm2⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' i r hm h
+    rw [inductives.struct_parts.has_loose_bvar_b_go.eq_def, hde] at h
+    rw [← hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    have hbbv : i1.val = (absExpr e).bvarB := ExprOps.bvar_b_refines hewf hbb
+    split at h
+    · rename_i hle
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e) = false := by
+        rw [ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_pos (show (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac)]
+      obtain ⟨hr, hmm⟩ := pair_ok h
+      rw [← hr, ← hmm, hspec]
+      exact ⟨rfl, hm⟩
+    · rename_i hle
+      rw [hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+      rw [← hde] at hkey h
+      exact loose_probe_step hewf hnode hre
+        (show i.val < (absExpr e).bvarB by rw [← hbbv]; scalar_tac) hm h hkey hprobe
+  | @forall_e ty bo m e hty hbo hm0 h1 iht ihb =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.forall_e_inv h1
+    have hewf : ExprWF e := ExprWF.forall_e hty hbo hm0 h1
+    have habs : absExpr e = .forallE (absExpr ty) (absExpr bo) (absBinderMeta m) := by
+      rw [hde]; simp
+    have hre : Rebuilding e := by rw [hde]; simp [Rebuilding]
+    have hnode : LooseNodeOK e := by
+      intro memo memo' i r _ hcut hm h
+      rw [inductives.struct_parts.has_loose_bvar_b_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b1, memo1⟩ := p1
+      obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 i b1 hm h1'
+      replace h : (if b1 = true then ok (true, memo1)
+          else do
+            let i1 ← i + 1#u64
+            inductives.struct_parts.has_loose_bvar_b_go memo1 i1 bo)
+            = ok (r, memo') := h
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
+          = (ConLeche.Expr.hasLooseBVarB i.val (absExpr ty)
+             || ConLeche.Expr.hasLooseBVarB (i.val + 1) (absExpr bo)) := by
+        rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_neg (by rw [← habs]; omega)]
+      rw [hspec]
+      split at h
+      · rename_i hc
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, ← hb1, hc]; exact ⟨by simp, hm1⟩
+      · rename_i hc
+        simp only [Bool.not_eq_true] at hc
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        obtain ⟨hb2, hm2⟩ := ihb.1 memo1 memo' i2 r hm1 h
+        rw [hb2, hi2v, ← hb1, hc]; exact ⟨by simp, hm2⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' i r hm h
+    rw [inductives.struct_parts.has_loose_bvar_b_go.eq_def, hde] at h
+    rw [← hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    have hbbv : i1.val = (absExpr e).bvarB := ExprOps.bvar_b_refines hewf hbb
+    split at h
+    · rename_i hle
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e) = false := by
+        rw [ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_pos (show (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac)]
+      obtain ⟨hr, hmm⟩ := pair_ok h
+      rw [← hr, ← hmm, hspec]
+      exact ⟨rfl, hm⟩
+    · rename_i hle
+      rw [hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+      rw [← hde] at hkey h
+      exact loose_probe_step hewf hnode hre
+        (show i.val < (absExpr e).bvarB by rw [← hbbv]; scalar_tac) hm h hkey hprobe
+  | @let_e ty w bo e hty hw hbo h1 iht ihv ihb =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.let_e_inv h1
+    have hewf : ExprWF e := ExprWF.let_e hty hw hbo h1
+    have habs : absExpr e = .letE (absExpr ty) (absExpr w) (absExpr bo) := by
+      rw [hde]; simp
+    have hre : Rebuilding e := by rw [hde]; simp [Rebuilding]
+    have hnode : LooseNodeOK e := by
+      intro memo memo' i r _ hcut hm h
+      rw [inductives.struct_parts.has_loose_bvar_b_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b1, memo1⟩ := p1
+      obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 i b1 hm h1'
+      replace h : (if b1 = true then ok (true, memo1)
+          else do
+            let (b2, memo2) ←
+              inductives.struct_parts.has_loose_bvar_b_go memo1 i w
+            if b2 = true then ok (true, memo2)
+            else do
+              let i1 ← i + 1#u64
+              inductives.struct_parts.has_loose_bvar_b_go memo2 i1 bo)
+            = ok (r, memo') := h
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
+          = (ConLeche.Expr.hasLooseBVarB i.val (absExpr ty)
+             || ConLeche.Expr.hasLooseBVarB i.val (absExpr w)
+             || ConLeche.Expr.hasLooseBVarB (i.val + 1) (absExpr bo)) := by
+        rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_neg (by rw [← habs]; omega)]
+      rw [hspec]
+      split at h
+      · rename_i hc
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, ← hb1, hc]; exact ⟨by simp, hm1⟩
+      · rename_i hc
+        simp only [Bool.not_eq_true] at hc
+        obtain ⟨p2, h2', h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨b2, memo2⟩ := p2
+        obtain ⟨hb2, hm2⟩ := ihv.1 memo1 memo2 i b2 hm1 h2'
+        replace h : (if b2 = true then ok (true, memo2)
+            else do
+              let i1 ← i + 1#u64
+              inductives.struct_parts.has_loose_bvar_b_go memo2 i1 bo)
+              = ok (r, memo') := h
+        split at h
+        · rename_i hc2
+          obtain ⟨hr, hmm⟩ := pair_ok h
+          rw [← hr, ← hmm, ← hb1, hc, ← hb2, hc2]; exact ⟨by simp, hm2⟩
+        · rename_i hc2
+          simp only [Bool.not_eq_true] at hc2
+          obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+          have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+          obtain ⟨hb3, hm3⟩ := ihb.1 memo2 memo' i2 r hm2 h
+          rw [hb3, hi2v, ← hb1, hc, ← hb2, hc2]; exact ⟨by simp, hm3⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' i r hm h
+    rw [inductives.struct_parts.has_loose_bvar_b_go.eq_def, hde] at h
+    rw [← hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    have hbbv : i1.val = (absExpr e).bvarB := ExprOps.bvar_b_refines hewf hbb
+    split at h
+    · rename_i hle
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e) = false := by
+        rw [ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_pos (show (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac)]
+      obtain ⟨hr, hmm⟩ := pair_ok h
+      rw [← hr, ← hmm, hspec]
+      exact ⟨rfl, hm⟩
+    · rename_i hle
+      rw [hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+      rw [← hde] at hkey h
+      exact loose_probe_step hewf hnode hre
+        (show i.val < (absExpr e).bvarB by rw [← hbbv]; scalar_tac) hm h hkey hprobe
+  | @proj s j x e hs hx h1 ih =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.proj_inv h1
+    have hewf : ExprWF e := ExprWF.proj hs hx h1
+    have habs : absExpr e = .proj (absName s) j.val (absExpr x) := by rw [hde]; simp
+    have hre : Rebuilding e := by rw [hde]; simp [Rebuilding]
+    have hnode : LooseNodeOK e := by
+      intro memo memo' i r _ hcut hm h
+      rw [inductives.struct_parts.has_loose_bvar_b_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨hb1, hm1⟩ := ih.1 memo memo' i r hm h
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
+          = ConLeche.Expr.hasLooseBVarB i.val (absExpr x) := by
+        rw [habs, ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_neg (by rw [← habs]; omega)]
+      rw [hspec]
+      exact ⟨hb1, hm1⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' i r hm h
+    rw [inductives.struct_parts.has_loose_bvar_b_go.eq_def, hde] at h
+    rw [← hde] at h
+    obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
+    have hbbv : i1.val = (absExpr e).bvarB := ExprOps.bvar_b_refines hewf hbb
+    split at h
+    · rename_i hle
+      have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e) = false := by
+        rw [ConLeche.Expr.hasLooseBVarB.eq_def,
+          if_pos (show (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac)]
+      obtain ⟨hr, hmm⟩ := pair_ok h
+      rw [← hr, ← hmm, hspec]
+      exact ⟨rfl, hm⟩
+    · rename_i hle
+      rw [hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+      rw [← hde] at hkey h
+      exact loose_probe_step hewf hnode hre
+        (show i.val < (absExpr e).bvarB by rw [← hbbv]; scalar_tac) hm h hkey hprobe
+
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:442-478` —
 `has_loose_bvar_b_go` refines `Expr.hasLooseBVarBGo`, whose specification is
 con-leche's `hasLooseBVarBGo_spec`: the answer is `Expr.hasLooseBVarB` and the
@@ -1162,28 +2136,25 @@ theorem has_loose_bvar_b_go_refines {e : expr.Expr} (he : ExprWF e) :
       ExprOps.MemoInv ExprOps.KeyWF ExprOps.absKey LooseQ memo →
       inductives.struct_parts.has_loose_bvar_b_go memo i e = ok (r, memo') →
       r = ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
-        ∧ ExprOps.MemoInv ExprOps.KeyWF ExprOps.absKey LooseQ memo' := by
-  -- the ten-armed `ExprWF` induction, `MemoInv.hit` on the probe and
-  -- `has_loose_bvar_b_ins_inv` on the miss
-  sorry
+        ∧ ExprOps.MemoInv ExprOps.KeyWF ExprOps.absKey LooseQ memo' :=
+  (has_loose_bvar_b_walk he).1
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:442-478` —
 `has_loose_bvar_b_node` refines the inner `match e with` of
 `hasLooseBVarBGo`'s miss branch, split off in the port so that the probe's
-borrow dies before the descent mutates the memo (task #14's rule).  The
-`_ => (false, memo)` arm is the cited unreachable one — the five leaf kinds
-answered above — so on the five rebuilding kinds this is the same equation as
-the walk's. -/
+borrow dies before the descent mutates the memo (task #14's rule).  Stated at
+the five rebuilding kinds and below the cutoff, which is exactly where the walk
+calls it: the port's `_ => (false, memo)` arm is the cited *unreachable* one,
+and at a leaf it does not agree with `Expr.hasLooseBVarB`. -/
 theorem has_loose_bvar_b_node_refines {e : expr.Expr} (he : ExprWF e)
     {memo memo' : ron.hashmap.HashMap expr_ops.ExprNatKey Bool}
     {i : Std.U64} {r : Bool}
-    (hcut : i.val < (absExpr e).bvarB)
+    (hre : Rebuilding e) (hcut : i.val < (absExpr e).bvarB)
     (hm : ExprOps.MemoInv ExprOps.KeyWF ExprOps.absKey LooseQ memo)
     (h : inductives.struct_parts.has_loose_bvar_b_node memo i e = ok (r, memo')) :
     r = ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
-      ∧ ExprOps.MemoInv ExprOps.KeyWF ExprOps.absKey LooseQ memo' := by
-  -- the five rebuilding arms of `has_loose_bvar_b_go_refines`
-  sorry
+      ∧ ExprOps.MemoInv ExprOps.KeyWF ExprOps.absKey LooseQ memo' :=
+  (has_loose_bvar_b_walk he).2 memo memo' i r hre hcut hm h
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:624-631` — **the executed
 `hasLooseBVarB`**: `has_loose_bvar_b` refines `Expr.hasLooseBVarB` — the
@@ -1280,49 +2251,166 @@ con-leche states it, `structUsedLaterList_spec`: entry `t` of the list is
 out; the port pushes on the way in, which is the same order (task #13's
 pattern 3), so the accumulator sits in front. -/
 theorem struct_used_later_list_refines {cty : expr.Expr} {n_p : Std.U64}
-    (hcty : ExprWF cty) :
+    (hcty : ExprWF cty) (N : Nat) :
     ∀ (n base : Std.U64)
       (memo memo' : ron.hashmap.HashMap expr_ops.ExprNatKey Bool)
       (out v : alloc.vec.Vec Bool),
+      n.val = N →
       ExprOps.MemoInv ExprOps.KeyWF ExprOps.absKey LooseQ memo →
       inductives.struct_parts.struct_used_later_list memo cty n_p n base out
         = ok (v, memo') →
       v.val = out.val ++ (List.range n.val).map
           (fun t => ConLeche.structUsedLater (absExpr cty) n_p.val (base.val + t))
         ∧ ExprOps.MemoInv ExprOps.KeyWF ExprOps.absKey LooseQ memo' := by
-  -- the `partial_fixpoint` count-down recursion on `n`
-  sorry
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro n base memo memo' out v hN hm h
+    rw [inductives.struct_parts.struct_used_later_list.eq_def] at h
+    split at h
+    · rename_i hn0
+      have hnv : n.val = 0 := by rw [hn0]; scalar_tac
+      have hp : (out, memo) = (v, memo') := by simpa using h
+      have h1 : v = out := (congrArg Prod.fst hp).symm
+      have h2 : memo' = memo := (congrArg Prod.snd hp).symm
+      rw [h1, h2, hnv]
+      exact ⟨by simp, hm⟩
+    · rename_i hn0
+      obtain ⟨m0, hm0⟩ : ∃ m0, n.val = m0 + 1 := by
+        have : n.val ≠ 0 := fun hc => hn0 (Std.UScalar.eq_of_val_eq (by rw [hc]; scalar_tac))
+        exact ⟨n.val - 1, by omega⟩
+      obtain ⟨p, hgo, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r, memo1⟩ := p
+      obtain ⟨habsr, hm1⟩ := struct_used_later_go_refines hcty hm hgo
+      obtain ⟨out1, hpush, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i1, hi1, hrec⟩ := bind_eq_ok_iff.mp h
+      have hiv : i.val = m0 := by rw [HashMap.uscalar_sub_eq hi, hm0]; scalar_tac
+      have hi1v : i1.val = base.val + 1 := HashMap.uscalar_add_eq hi1
+      obtain ⟨hlist, hm2⟩ := ih m0 (by omega) i i1 memo1 memo' out1 v hiv hm1 hrec
+      refine ⟨?_, hm2⟩
+      rw [hlist, hiv, hi1v, vec_push_val hpush, habsr, hm0,
+        List.range_succ_eq_map]
+      simp only [List.map_cons, List.map_map, Function.comp_def, Nat.add_zero,
+        List.append_assoc, List.cons_append, List.nil_append]
+      congr 2
+      refine List.map_congr_left ?_
+      intro x _
+      congr 1
+      omega
 
 /-- `struct_parts::sort_get_d` is the out-of-range fallback the guard fold
-spells at every read (`sorts.getD i .zero`; no cited definition of its own). -/
+spells at every read (`sorts.getD i .zero`; no cited definition of its own).
+
+`i.val ≤ Std.Usize.max` is a **platform** side condition, not a weakening: the
+port writes `(i as usize) < sorts.len()`, and Aeneas keeps `usize`'s width
+abstract (`System.Platform.numBits_eq`), so the model has to say that the cast
+does not wrap.  On the 64-bit targets the port builds for it is vacuous
+(`Usize.max = U64.max`). -/
 theorem sort_get_d_refines {sorts : alloc.vec.Vec level.Level} {i : Std.U64}
-    {u : level.Level} (hsorts : LevelsWF sorts)
+    {u : level.Level} (hsorts : LevelsWF sorts) (hi : i.val ≤ Std.Usize.max)
     (h : inductives.struct_parts.sort_get_d sorts i = ok u) :
     absLevel u = (absLevels sorts).getD i.val .zero ∧ LevelWF u := by
-  -- the bounds test, `level::dup` on the hit and `level::zero` on the miss
-  sorry
+  rw [inductives.struct_parts.sort_get_d] at h
+  simp only [lift_eq, bind_tc_ok] at h
+  have hcv : (Std.UScalar.cast .Usize i).val = i.val := ExprOps.u64_cast_usize_val hi
+  split at h
+  · rename_i hlt
+    have hltv : i.val < sorts.val.length := by
+      have := alloc.vec.Vec.len_val sorts; scalar_tac
+    obtain ⟨l, hidx, hdup⟩ := bind_eq_ok_iff.mp h
+    have hg := ExprOps.vec_index_getElem? hidx
+    rw [hcv, List.getElem?_eq_getElem hltv] at hg
+    have hlv : sorts.val[i.val] = l := Option.some_injective _ hg
+    have hue : l = u := Result.ok_injective (by rw [← hdup]; simp)
+    refine ⟨?_, by rw [← hue]; exact hsorts l (by rw [← hlv]; exact List.getElem_mem hltv)⟩
+    rw [← hue, absLevels, List.getD_eq_getElem?_getD, List.getElem?_map,
+      List.getElem?_eq_getElem hltv, hlv]
+    simp
+  · rename_i hge
+    have hgev : sorts.val.length ≤ i.val := by
+      have := alloc.vec.Vec.len_val sorts; scalar_tac
+    refine ⟨?_, LevelWF.zero h⟩
+    rw [Level.zero_refines h, absLevels, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_none (by simpa using hgev)]
+    rfl
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:643-656`, `:722-732` —
 `struct_proj_guard_at` refines the inner `(List.range i).foldl` of the guard
 table from index `j`: field `i`'s own sort joined with the sorts of the earlier
-fields a later field uses. -/
+fields a later field uses.  `i.val ≤ Std.Usize.max` is `sort_get_d_refines`'
+platform side condition, which every `j < i` inherits. -/
 theorem struct_proj_guard_at_refines {used : alloc.vec.Vec Bool}
-    {sorts : alloc.vec.Vec level.Level} (hsorts : LevelsWF sorts) :
-    ∀ (i j : Std.U64) (acc u : level.Level), LevelWF acc →
+    {sorts : alloc.vec.Vec level.Level} (hsorts : LevelsWF sorts) (N : Nat) :
+    ∀ (i j : Std.U64) (acc u : level.Level), i.val - j.val = N →
+      i.val ≤ Std.Usize.max → LevelWF acc →
       inductives.struct_parts.struct_proj_guard_at used sorts i j acc = ok u →
       absLevel u = (List.range' j.val (i.val - j.val)).foldl
           (fun a k => if used.val.getD k false
             then .max a ((absLevels sorts).getD k .zero) else a)
           (absLevel acc)
         ∧ LevelWF u := by
-  -- the `partial_fixpoint` index recursion on `i - j`
-  sorry
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro i j acc u hN hi hacc h
+    rw [inductives.struct_parts.struct_proj_guard_at.eq_def] at h
+    split at h
+    · rename_i hge
+      have hz : i.val - j.val = 0 := by scalar_tac
+      have hu : u = acc := (Result.ok_injective h).symm
+      subst hu
+      rw [hz]
+      exact ⟨by simp, hacc⟩
+    · rename_i hge
+      have hlt : j.val < i.val := by scalar_tac
+      have hjmax : j.val ≤ Std.Usize.max := by omega
+      have hcv : (Std.UScalar.cast .Usize j).val = j.val :=
+        ExprOps.u64_cast_usize_val hjmax
+      simp only [lift_eq, bind_tc_ok, bind_eq_ok_iff] at h
+      obtain ⟨ub, hub, acc2, hacc2, i3, hi3, h⟩ := h
+      have hubv : ub = used.val.getD j.val false := by
+        split at hub
+        · rename_i hlt2
+          have hltv : j.val < used.val.length := by
+            have := alloc.vec.Vec.len_val used; scalar_tac
+          have hg := ExprOps.vec_index_getElem? hub
+          rw [hcv, List.getElem?_eq_getElem hltv] at hg
+          rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hltv]
+          simpa using (Option.some_injective _ hg).symm
+        · rename_i hge2
+          have hgev : used.val.length ≤ j.val := by
+            have := alloc.vec.Vec.len_val used; scalar_tac
+          rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]
+          simpa using (Result.ok_injective hub).symm
+      have hacc2v : absLevel acc2
+          = (if used.val.getD j.val false
+             then .max (absLevel acc) ((absLevels sorts).getD j.val .zero)
+             else absLevel acc) ∧ LevelWF acc2 := by
+        split at hacc2
+        · rename_i hut
+          obtain ⟨l, hl, hmax⟩ := bind_eq_ok_iff.mp hacc2
+          obtain ⟨hlabs, hlwf⟩ := sort_get_d_refines hsorts hjmax hl
+          rw [← hubv, hut]
+          exact ⟨by rw [Level.max_refines hmax, hlabs]; simp,
+            LevelWF.max hacc hlwf hmax⟩
+        · rename_i huf
+          simp only [Bool.not_eq_true] at huf
+          rw [← hubv, huf]
+          have : acc = acc2 := Result.ok_injective hacc2
+          rw [← this]
+          exact ⟨by simp, hacc⟩
+      have hi3v : i3.val = j.val + 1 := HashMap.uscalar_add_eq hi3
+      have hsplit : i.val - j.val = (i.val - (j.val + 1)) + 1 := by omega
+      obtain ⟨habs, hwf⟩ := ih (i.val - (j.val + 1)) (by omega) i i3 acc2 u
+        (by rw [hi3v]) hi hacc2v.2 h
+      refine ⟨?_, hwf⟩
+      rw [habs, hi3v, hsplit, List.range'_succ, List.foldl_cons, hacc2v.1]
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:722-732` —
 `struct_proj_guards_from` refines the outer `(List.range nF).map` of
 `structProjGuardsFast` from index `i`, accumulator in front. -/
 theorem struct_proj_guards_from_refines {used : alloc.vec.Vec Bool}
-    {sorts : alloc.vec.Vec level.Level} {n_f : Std.U64} (hsorts : LevelsWF sorts) :
+    {sorts : alloc.vec.Vec level.Level} {n_f : Std.U64} (hsorts : LevelsWF sorts)
+    (hnf : n_f.val ≤ Std.Usize.max) :
     ∀ (i : Std.U64) (out v : alloc.vec.Vec level.Level), LevelsWF out →
       inductives.struct_parts.struct_proj_guards_from used sorts n_f i out = ok v →
       absLevels v = absLevels out
@@ -1332,8 +2420,37 @@ theorem struct_proj_guards_from_refines {used : alloc.vec.Vec Bool}
                   then .max a ((absLevels sorts).getD j .zero) else a)
                 ((absLevels sorts).getD k .zero))
         ∧ LevelsWF v := by
-  -- the `partial_fixpoint` index recursion on `n_f - i`
-  sorry
+  intro i
+  generalize hd : n_f.val - i.val = d
+  induction d using Nat.strong_induction_on generalizing i with
+  | _ d ih =>
+    intro out v hout h
+    rw [inductives.struct_parts.struct_proj_guards_from.eq_def] at h
+    split at h
+    · rename_i hge
+      have hz : d = 0 := by scalar_tac
+      subst hz
+      have hv : v = out := (Result.ok_injective h).symm
+      subst hv
+      exact ⟨by simp, hout⟩
+    · rename_i hge
+      have hlt : i.val < n_f.val := by scalar_tac
+      have himax : i.val ≤ Std.Usize.max := by omega
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨l, hl, l1, hl1, out1, hpush, i1, hi1, hrec⟩ := h
+      obtain ⟨hlabs, hlwf⟩ := sort_get_d_refines hsorts himax hl
+      obtain ⟨hl1abs, hl1wf⟩ := struct_proj_guard_at_refines hsorts
+        (i.val - ((0#u64 : Std.U64)).val) i 0#u64 l l1 rfl himax hlwf hl1
+      have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+      have hsplit : d = (n_f.val - (i.val + 1)) + 1 := by omega
+      subst hsplit
+      obtain ⟨habs, hwf⟩ := ih (n_f.val - (i.val + 1)) (by omega) i1 (by rw [hi1v])
+        out1 v (levelsWF_push hout hl1wf hpush) hrec
+      refine ⟨?_, hwf⟩
+      rw [habs, absLevels_push hpush, hl1abs, hlabs, hi1v, List.range'_succ]
+      simp only [show ((0#u64 : Std.U64)).val = 0 from rfl, Nat.sub_zero,
+        ← List.range_eq_range', List.map_cons, List.append_assoc,
+        List.cons_append, List.nil_append]
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:643-656`, `:722-746` —
 **the projection guard levels**: `struct_proj_guards` refines
@@ -1346,7 +2463,7 @@ proof is con-leche's own, `structUsedLaterList_spec` supplying the `used`
 table's pointwise reading. -/
 theorem struct_proj_guards_refines {cty : expr.Expr} {n_p n_f : Std.U64}
     {sorts v : alloc.vec.Vec level.Level} (hcty : ExprWF cty)
-    (hsorts : LevelsWF sorts)
+    (hsorts : LevelsWF sorts) (hnf : n_f.val ≤ Std.Usize.max)
     (h : inductives.struct_parts.struct_proj_guards cty n_p n_f sorts = ok v) :
     absLevels v = ConLeche.structProjGuards (absExpr cty) n_p.val n_f.val
         (absLevels sorts)
@@ -1355,29 +2472,29 @@ theorem struct_proj_guards_refines {cty : expr.Expr} {n_p n_f : Std.U64}
   obtain ⟨memo, hnew, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨p, hlist, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨used, memo'⟩ := p
-  obtain ⟨hused, -⟩ := struct_used_later_list_refines hcty n_f 0#u64 memo memo' _
-    used (ExprOps.new_memo_inv hnew) hlist
+  obtain ⟨hused, -⟩ := struct_used_later_list_refines hcty n_f.val n_f 0#u64 memo
+    memo' _ used rfl (ExprOps.new_memo_inv hnew) hlist
   have hout : LevelsWF (alloc.vec.Vec.new level.Level) := by
     intro u hu; simp [alloc.vec.Vec.new] at hu
-  obtain ⟨habs, hwf⟩ := struct_proj_guards_from_refines hsorts 0#u64 _ v hout h
+  obtain ⟨habs, hwf⟩ := struct_proj_guards_from_refines hsorts hnf 0#u64 _ v hout h
   refine ⟨?_, hwf⟩
   rw [habs]
-  simp only [absLevels, alloc.vec.Vec.new, List.map_nil, List.nil_append,
+  simp only [absLevels, show (alloc.vec.Vec.new level.Level).val
+      = ([] : List level.Level) from rfl, List.map_nil, List.nil_append,
     show ((0#u64 : Std.U64)).val = 0 from rfl, Nat.sub_zero,
     ← List.range_eq_range']
   rw [ConLeche.structProjGuards]
   refine List.map_congr_left ?_
   intro i hi
-  refine ConLeche.foldlCongrMem _ _ ?_
+  refine foldlCongrMem _ _ ?_
   intro j hj x
   have hjlt : j < n_f.val :=
     Nat.lt_trans (List.mem_range.mp hj) (List.mem_range.mp hi)
   have huj : used.val.getD j false
       = ConLeche.structUsedLater (absExpr cty) n_p.val j := by
-    rw [hused]
-    simp only [alloc.vec.Vec.new, List.nil_append]
-    rw [List.getD_eq_getElem?_getD, List.getElem?_map,
-      List.getElem?_eq_getElem (by simpa using hjlt)]
+    rw [hused, show (alloc.vec.Vec.new Bool).val = ([] : List Bool) from rfl,
+      List.nil_append, List.getD_eq_getElem?_getD, List.getElem?_map,
+      List.getElem?_eq_getElem (show j < (List.range n_f.val).length by simpa using hjlt)]
     simp
   rw [huj]
 
@@ -1391,6 +2508,99 @@ Lean conses `fdom` on the way out; the port pushes it on the way in, which is
 the same outermost-first list (task #13's pattern 3), so the accumulator sits
 in front.  The cached driver's walker `structProjBodiesGoC` is the same walk at
 `ExprC.instantiate1Lift`, which is this substitution (`structProjBodiesC_eq`). -/
+theorem struct_proj_bodies_go_refines_aux {t : name.Name} (ht : NameWF t)
+    (N : Nat) :
+    ∀ (k i : Std.U64) (e : expr.Expr) (out : alloc.vec.Vec expr.Expr)
+      (o : Option (alloc.vec.Vec expr.Expr)),
+      k.val = N → ExprWF e → ExprsWF out →
+      inductives.struct_parts.struct_proj_bodies_go t k i e out = ok o →
+      o.map absExprs
+          = (ConLeche.structProjBodiesGo (absName t) k.val i.val (absExpr e)).map
+              (fun l => absExprs out ++ l)
+        ∧ ∀ bs, o = some bs → ExprsWF bs := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro k i e out o hN he hout h
+    rw [inductives.struct_parts.struct_proj_bodies_go.eq_def] at h
+    split at h
+    · rename_i hk0
+      have hkv : k.val = 0 := by rw [hk0]; scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h, hkv]
+      exact ⟨by simp [ConLeche.structProjBodiesGo], fun bs hbs => by
+        simp only [Option.some.injEq] at hbs; rw [← hbs]; exact hout⟩
+    · rename_i hk0
+      obtain ⟨n, hn⟩ : ∃ n, k.val = n + 1 := by
+        have : k.val ≠ 0 := fun hc => hk0 (Std.UScalar.eq_of_val_eq (by rw [hc]; scalar_tac))
+        exact ⟨k.val - 1, by omega⟩
+      cases he with
+      | @forall_e ty bo m e hty hbo hm h1 =>
+        obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+        obtain ⟨c, hdup, out1, hpush, e2, he2, next, hnext, i1, hi1, i2, hi2, hrec⟩ := h
+        rw [Expr.dup_eq hdup] at hpush
+        obtain ⟨he2abs, he2wf⟩ := struct_proj_arg_p_refines ht he2
+        obtain ⟨hnabs, hnwf⟩ := ExprOps.instantiate1_lift_refines hbo he2wf hnext
+        have hi1v : i1.val = n := by
+          rw [HashMap.uscalar_sub_eq hi1, hn]; scalar_tac
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        obtain ⟨habs, hwf⟩ := ih n (by omega) i1 i2 next out1 o hi1v hnwf
+          (ExprOps.exprsWF_push hout hty hpush) hrec
+        refine ⟨?_, hwf⟩
+        rw [habs, hi1v, hi2v, hnabs, he2abs, ExprOps.absExprs_push hpush, hn]
+        simp only [absExpr_mk, absExprKind, ConLeche.structProjBodiesGo,
+          show ((0#u64 : Std.U64)).val = 0 from rfl, Option.map_map]
+        cases ConLeche.structProjBodiesGo (absName t) n (i.val + 1)
+            ((absExpr bo).instantiate1Lift (ConLeche.structProjArgP (absName t) i.val)) with
+        | none => simp
+        | some l => simp
+      | @bvar j e h1 =>
+        obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [← Result.ok_injective h, hn]
+        exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
+      | @fvar idx ty e hty h1 =>
+        obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [← Result.ok_injective h, hn]
+        exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
+      | @sort u e hu h1 =>
+        obtain ⟨d, bb, -, rfl, -, -, -⟩ := Expr.sort_inv h1
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [← Result.ok_injective h, hn]
+        exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
+      | @mk_const n2 us e hn2 hus h1 =>
+        obtain ⟨d, bb, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [← Result.ok_injective h, hn]
+        exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
+      | @app f a e hf ha h1 =>
+        obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [← Result.ok_injective h, hn]
+        exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
+      | @lam ty bo m e hty hbo hm h1 =>
+        obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [← Result.ok_injective h, hn]
+        exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
+      | @let_e ty w bo e hty hw hbo h1 =>
+        obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [← Result.ok_injective h, hn]
+        exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
+      | @lit l e hl h1 =>
+        obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [← Result.ok_injective h, hn]
+        exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
+      | @proj s j x e hs hx h1 =>
+        obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [← Result.ok_injective h, hn]
+        exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
+
+/-- `struct_proj_bodies_go` at its own statement. -/
 theorem struct_proj_bodies_go_refines {t : name.Name} (ht : NameWF t) :
     ∀ (k i : Std.U64) (e : expr.Expr) (out : alloc.vec.Vec expr.Expr)
       (o : Option (alloc.vec.Vec expr.Expr)),
@@ -1399,9 +2609,9 @@ theorem struct_proj_bodies_go_refines {t : name.Name} (ht : NameWF t) :
       o.map absExprs
           = (ConLeche.structProjBodiesGo (absName t) k.val i.val (absExpr e)).map
               (fun l => absExprs out ++ l)
-        ∧ ∀ bs, o = some bs → ExprsWF bs := by
-  -- the `partial_fixpoint` recursion on `k`, with a `cases` on `ExprWF e` inside
-  sorry
+        ∧ ∀ bs, o = some bs → ExprsWF bs :=
+  fun k i e out o he hout h =>
+    struct_proj_bodies_go_refines_aux ht k.val k i e out o rfl he hout h
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:768-771` and
 `ConLeche/Cached/CheckerC.lean:45-50` — **the projection bodies of a recognised
@@ -1436,21 +2646,10 @@ theorem struct_proj_bodies_refines {t : name.Name} {n_p n_f : Std.U64}
     obtain ⟨habs, hwf⟩ := struct_proj_bodies_go_refines ht n_f 0#u64 r _ o
       (hiwf r rfl) ExprOps.exprsWF_new h
     refine ⟨?_, hwf⟩
-    cases hg : ConLeche.structProjBodiesGo (absName t) n_f.val
-        ((0#u64 : Std.U64)).val (absExpr r) with
-    | none =>
-      rw [hg] at habs
-      cases o with
-      | none => simp
-      | some bs => simp at habs
-    | some l =>
-      rw [hg] at habs
-      cases o with
-      | none => simp at habs
-      | some bs =>
-        simp only [Option.map_some, Option.some.injEq] at habs ⊢
-        rw [habs]
-        simp [alloc.vec.Vec.new, absExprs]
+    simp only [ExprOps.absExprs_new, List.nil_append,
+      show ((0#u64 : Std.U64)).val = 0 from rfl, Option.map_id_fun', id_eq] at habs
+    rw [← habs]
+    cases o <;> simp
 
 /-! ## `mentionsConst` and its memoized walk (`StructParts.lean:775-930`) -/
 
@@ -1459,12 +2658,136 @@ theorem struct_proj_bodies_refines {t : name.Name} {n_p n_f : Std.U64}
 in `e`?  A syntactic walk (`fvar` annotations included; a `.proj` node names
 its structure).  The *logical* definition; the executed one is
 `mentions_const` below. -/
+theorem mentions_const_spec_refines_aux {t : name.Name} (ht : NameWF t)
+    {e : expr.Expr} (he : ExprWF e) :
+    ∀ b, inductives.struct_parts.mentions_const_spec t e = ok b →
+      b = ConLeche.Expr.mentionsConst (absName t) (absExpr e) := by
+  induction he with
+  | @bvar i e h1 =>
+    intro b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
+    rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [← Result.ok_injective h]
+    simp [ConLeche.Expr.mentionsConst]
+  | @sort u e hu h1 =>
+    intro b h
+    obtain ⟨d, bw, -, rfl, -, -, -⟩ := Expr.sort_inv h1
+    rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [← Result.ok_injective h]
+    simp [ConLeche.Expr.mentionsConst]
+  | @lit l e hl h1 =>
+    intro b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
+    rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [← Result.ok_injective h]
+    simp [ConLeche.Expr.mentionsConst]
+  | @mk_const n us e hn hus h1 =>
+    intro b h
+    obtain ⟨d, bw, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
+    rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [Name.name_beq_exact' hn ht h]
+    simp only [absExpr_mk, absExprKind, ConLeche.Expr.mentionsConst]
+    refine Bool.eq_iff_iff.mpr ?_
+    simp
+  | @fvar idx ty e hty h1 ih =>
+    intro b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
+    rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [ih b h]
+    simp [ConLeche.Expr.mentionsConst]
+  | @app f a e hf ha h1 ihf iha =>
+    intro b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
+    rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v := ihf b1 hb1
+    simp only [absExpr_mk, absExprKind, ConLeche.Expr.mentionsConst]
+    split at h
+    · rename_i hc
+      rw [← Result.ok_injective h, ← hb1v, hc]; simp
+    · rename_i hc
+      simp only [Bool.not_eq_true] at hc
+      rw [iha b h, ← hb1v, hc]; simp
+  | @lam ty bo m e hty hbo hm h1 iht ihb =>
+    intro b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
+    rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v := iht b1 hb1
+    simp only [absExpr_mk, absExprKind, ConLeche.Expr.mentionsConst]
+    split at h
+    · rename_i hc
+      rw [← Result.ok_injective h, ← hb1v, hc]; simp
+    · rename_i hc
+      simp only [Bool.not_eq_true] at hc
+      rw [ihb b h, ← hb1v, hc]; simp
+  | @forall_e ty bo m e hty hbo hm h1 iht ihb =>
+    intro b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
+    rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v := iht b1 hb1
+    simp only [absExpr_mk, absExprKind, ConLeche.Expr.mentionsConst]
+    split at h
+    · rename_i hc
+      rw [← Result.ok_injective h, ← hb1v, hc]; simp
+    · rename_i hc
+      simp only [Bool.not_eq_true] at hc
+      rw [ihb b h, ← hb1v, hc]; simp
+  | @let_e ty w bo e hty hw hbo h1 iht ihv ihb =>
+    intro b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
+    rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v := iht b1 hb1
+    simp only [absExpr_mk, absExprKind, ConLeche.Expr.mentionsConst]
+    split at h
+    · rename_i hc
+      rw [← Result.ok_injective h, ← hb1v, hc]; simp
+    · rename_i hc
+      simp only [Bool.not_eq_true] at hc
+      obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+      have hb2v := ihv b2 hb2
+      split at h
+      · rename_i hc2
+        rw [← Result.ok_injective h, ← hb1v, hc, ← hb2v, hc2]; simp
+      · rename_i hc2
+        simp only [Bool.not_eq_true] at hc2
+        rw [ihb b h, ← hb1v, hc, ← hb2v, hc2]; simp
+  | @proj s j x e hs hx h1 ih =>
+    intro b h
+    obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
+    rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v := Name.name_beq_exact' hs ht hb1
+    simp only [absExpr_mk, absExprKind, ConLeche.Expr.mentionsConst]
+    split at h
+    · rename_i hc
+      rw [hb1v, decide_eq_true_eq] at hc
+      rw [← Result.ok_injective h]
+      simp [hc]
+    · rename_i hc
+      simp only [Bool.not_eq_true] at hc
+      rw [hb1v, decide_eq_false_iff_not] at hc
+      rw [ih b h]
+      simp [hc]
+
+/-- `mentions_const_spec` at its own statement. -/
 theorem mentions_const_spec_refines {t : name.Name} {e : expr.Expr} {b : Bool}
     (ht : NameWF t) (he : ExprWF e)
     (h : inductives.struct_parts.mentions_const_spec t e = ok b) :
-    b = ConLeche.Expr.mentionsConst (absName t) (absExpr e) := by
-  -- the ten-armed `ExprWF` induction
-  sorry
+    b = ConLeche.Expr.mentionsConst (absName t) (absExpr e) :=
+  mentions_const_spec_refines_aux ht he b h
 
 /-- con-leche's `MentionsMemoInv` (`StructParts.lean:801-803`) as the `Q` of
 task #47's `MemoInv`, at the `Expr` key. -/
@@ -1484,6 +2807,335 @@ theorem memo_eb_get_eq {m : ron.hashmap.HashMap expr.Expr Bool}
   | none => rw [hget]; simpa using h
   | some w => rw [hget]; simpa using h
 
+/-- "`mentions_const_go` answers `Expr.mentionsConst` at this node and keeps
+con-leche's `MentionsMemoInv`" — the walk's half of the induction. -/
+def GoOK (t : name.Name) (e : expr.Expr) : Prop :=
+  ∀ (memo memo' : ron.hashmap.HashMap expr.Expr Bool) (r : Bool),
+    ExprOps.MemoInv ExprWF absExpr (MentionsQ (absName t)) memo →
+    inductives.struct_parts.mentions_const_go t memo e = ok (r, memo') →
+    r = ConLeche.Expr.mentionsConst (absName t) (absExpr e)
+      ∧ ExprOps.MemoInv ExprWF absExpr (MentionsQ (absName t)) memo'
+
+/-- The same for the miss branch's `mentions_const_node`. -/
+def NodeOK (t : name.Name) (e : expr.Expr) : Prop :=
+  ∀ (memo memo' : ron.hashmap.HashMap expr.Expr Bool) (r : Bool),
+    ExprOps.MemoInv ExprWF absExpr (MentionsQ (absName t)) memo →
+    inductives.struct_parts.mentions_const_node t memo e = ok (r, memo') →
+    r = ConLeche.Expr.mentionsConst (absName t) (absExpr e)
+      ∧ ExprOps.MemoInv ExprWF absExpr (MentionsQ (absName t)) memo'
+
+/-- The probe-and-record step the six rebuilding arms of `mentions_const_go`
+share: a hit is a correct answer (`MemoInv.hit`, over `Expr.beq`'s exactness)
+and a miss recurses and writes the answer back (`MemoInv.set`). -/
+theorem mentions_probe_step {t : name.Name} {e : expr.Expr} (he : ExprWF e)
+    (hnode : NodeOK t e)
+    {memo memo' : ron.hashmap.HashMap expr.Expr Bool} {o : Option Bool}
+    {r : Bool}
+    (hm : ExprOps.MemoInv ExprWF absExpr (MentionsQ (absName t)) memo)
+    (h : (match o with
+          | none => do
+              let (r, memo1) ← inductives.struct_parts.mentions_const_node t memo e
+              let e1 ← expr.dup e
+              let (_, memo2) ← ron.hashmap.HashMap.insert
+                  expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+                  expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
+              ok (r, memo2)
+          | some r => ok (r, memo)) = ok (r, memo'))
+    (hprobe : inductives.struct_parts.memo_eb_get memo e = ok o) :
+    r = ConLeche.Expr.mentionsConst (absName t) (absExpr e)
+      ∧ ExprOps.MemoInv ExprWF absExpr (MentionsQ (absName t)) memo' := by
+  cases o with
+  | some r0 =>
+    obtain ⟨hr, hmm⟩ := pair_ok h
+    have hq : MentionsQ (absName t) (absExpr e) r0 :=
+      ExprOps.MemoInv.hit ExprOps.expr_key_exact hm he (memo_eb_get_eq hprobe)
+    rw [← hr, ← hmm]
+    exact ⟨hq, hm⟩
+  | none =>
+    obtain ⟨p, hnd, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r1, memo1⟩ := p
+    obtain ⟨hr1, hm1⟩ := hnode memo memo1 r1 hm hnd
+    obtain ⟨c, hdup, h⟩ := bind_eq_ok_iff.mp h
+    rw [Expr.dup_eq hdup] at h
+    obtain ⟨q, hins, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨old, memo2⟩ := q
+    obtain ⟨hr, hmm⟩ := pair_ok h
+    rw [← hr, ← hmm]
+    exact ⟨hr1, ExprOps.MemoInv.set ExprOps.expr_key_exact hm1 he hr1 hins⟩
+
+/-- `ConLeche/Kernel/Inductives/StructParts.lean:814-849` — **the memoized
+`mentionsConst` walk**, both halves at once (they are mutually recursive: the
+walk's miss branch calls the node function, and the node function calls the
+walk on the children), by induction on the `ExprWF` derivation.  This is
+con-leche's `mentionsConstGo_spec` restated over the port's `&mut HashMap`. -/
+theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
+    (he : ExprWF e) : GoOK t e ∧ NodeOK t e := by
+  induction he with
+  | @bvar i e h1 =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.bvar_inv h1
+    have hewf : ExprWF e := ExprWF.bvar h1
+    constructor
+    · intro memo memo' r hm h
+      rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq,
+        Prod.mk.injEq] at h
+      obtain ⟨hr, hmm⟩ := h
+      rw [← hr, ← hmm, hde]
+      exact ⟨by simp [ConLeche.Expr.mentionsConst], hm⟩
+    · intro memo memo' r hm h
+      rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      obtain ⟨b2, hb2, h⟩ := h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨hr, hmm⟩ := h
+      rw [← hr, ← hmm]
+      exact ⟨mentions_const_spec_refines ht hewf (by rw [hde]; exact hb2), hm⟩
+  | @sort u e hu h1 =>
+    obtain ⟨d, bw, -, hde, -, -, -⟩ := Expr.sort_inv h1
+    have hewf : ExprWF e := ExprWF.sort hu h1
+    have habs : absExpr e = .sort (absLevel u) := by rw [hde]; simp
+    constructor
+    · intro memo memo' r hm h
+      rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq,
+        Prod.mk.injEq] at h
+      obtain ⟨hr, hmm⟩ := h
+      rw [← hr, ← hmm, hde]
+      exact ⟨by simp [ConLeche.Expr.mentionsConst], hm⟩
+    · intro memo memo' r hm h
+      rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      obtain ⟨b2, hb2, h⟩ := h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨hr, hmm⟩ := h
+      rw [← hr, ← hmm]
+      exact ⟨mentions_const_spec_refines ht hewf (by rw [hde]; exact hb2), hm⟩
+  | @lit l e hl h1 =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.lit_inv h1
+    have hewf : ExprWF e := ExprWF.lit hl h1
+    have habs : absExpr e = .lit (absLiteral l) := by rw [hde]; simp
+    constructor
+    · intro memo memo' r hm h
+      rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq,
+        Prod.mk.injEq] at h
+      obtain ⟨hr, hmm⟩ := h
+      rw [← hr, ← hmm, hde]
+      exact ⟨by simp [ConLeche.Expr.mentionsConst], hm⟩
+    · intro memo memo' r hm h
+      rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      obtain ⟨b2, hb2, h⟩ := h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨hr, hmm⟩ := h
+      rw [← hr, ← hmm]
+      exact ⟨mentions_const_spec_refines ht hewf (by rw [hde]; exact hb2), hm⟩
+  | @mk_const n us e hn hus h1 =>
+    obtain ⟨d, bw, -, hde, -, -, -⟩ := Expr.mk_const_inv h1
+    have hewf : ExprWF e := ExprWF.mk_const hn hus h1
+    have habs : absExpr e = .const (absName n) (absLevels us) := by rw [hde]; simp
+    constructor
+    · intro memo memo' r hm h
+      rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      obtain ⟨b2, hb2, h⟩ := h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨hr, hmm⟩ := h
+      rw [← hr, ← hmm, habs, Name.name_beq_exact' hn ht hb2]
+      refine ⟨?_, hm⟩
+      simp only [ConLeche.Expr.mentionsConst]
+      refine Bool.eq_iff_iff.mpr ?_
+      simp
+    · intro memo memo' r hm h
+      rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      obtain ⟨b2, hb2, h⟩ := h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨hr, hmm⟩ := h
+      rw [← hr, ← hmm]
+      exact ⟨mentions_const_spec_refines ht hewf (by rw [hde]; exact hb2), hm⟩
+  | @fvar idx ty e hty h1 ih =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.fvar_inv h1
+    have hewf : ExprWF e := ExprWF.fvar hty h1
+    have habs : absExpr e = .fvar idx.val (absExpr ty) := by rw [hde]; simp
+    have hnode : NodeOK t e := by
+      intro memo memo' r hm h
+      rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨hr, hm'⟩ := ih.1 memo memo' r hm h
+      exact ⟨by rw [hr, habs]; simp [ConLeche.Expr.mentionsConst], hm'⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' r hm h
+    rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+    rw [← hde] at hprobe h
+    exact mentions_probe_step hewf hnode hm h hprobe
+  | @app f a e hf ha h1 ihf iha =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.app_inv h1
+    have hewf : ExprWF e := ExprWF.app hf ha h1
+    have habs : absExpr e = .app (absExpr f) (absExpr a) := by rw [hde]; simp
+    have hnode : NodeOK t e := by
+      intro memo memo' r hm h
+      rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b1, memo1⟩ := p1
+      obtain ⟨hb1, hm1⟩ := ihf.1 memo memo1 b1 hm h1'
+      obtain ⟨p2, h2', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b2, memo2⟩ := p2
+      obtain ⟨hb2, hm2⟩ := iha.1 memo1 memo2 b2 hm1 h2'
+      rw [habs]
+      simp only [ConLeche.Expr.mentionsConst]
+      split at h <;> rename_i hc <;>
+        obtain ⟨hr, hmm⟩ := pair_ok h <;> rw [← hr, ← hmm, ← hb1, ← hb2]
+      · exact ⟨by rw [hc]; simp, hm2⟩
+      · simp only [Bool.not_eq_true] at hc
+        exact ⟨by rw [hc]; simp, hm2⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' r hm h
+    rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+    rw [← hde] at hprobe h
+    exact mentions_probe_step hewf hnode hm h hprobe
+  | @lam ty bo m e hty hbo hm0 h1 iht ihb =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.lam_inv h1
+    have hewf : ExprWF e := ExprWF.lam hty hbo hm0 h1
+    have habs : absExpr e = .lam (absExpr ty) (absExpr bo) (absBinderMeta m) := by
+      rw [hde]; simp
+    have hnode : NodeOK t e := by
+      intro memo memo' r hm h
+      rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b1, memo1⟩ := p1
+      obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 b1 hm h1'
+      obtain ⟨p2, h2', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b2, memo2⟩ := p2
+      obtain ⟨hb2, hm2⟩ := ihb.1 memo1 memo2 b2 hm1 h2'
+      rw [habs]
+      simp only [ConLeche.Expr.mentionsConst]
+      split at h <;> rename_i hc <;>
+        obtain ⟨hr, hmm⟩ := pair_ok h <;> rw [← hr, ← hmm, ← hb1, ← hb2]
+      · exact ⟨by rw [hc]; simp, hm2⟩
+      · simp only [Bool.not_eq_true] at hc
+        exact ⟨by rw [hc]; simp, hm2⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' r hm h
+    rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+    rw [← hde] at hprobe h
+    exact mentions_probe_step hewf hnode hm h hprobe
+  | @forall_e ty bo m e hty hbo hm0 h1 iht ihb =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.forall_e_inv h1
+    have hewf : ExprWF e := ExprWF.forall_e hty hbo hm0 h1
+    have habs : absExpr e = .forallE (absExpr ty) (absExpr bo) (absBinderMeta m) := by
+      rw [hde]; simp
+    have hnode : NodeOK t e := by
+      intro memo memo' r hm h
+      rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b1, memo1⟩ := p1
+      obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 b1 hm h1'
+      obtain ⟨p2, h2', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b2, memo2⟩ := p2
+      obtain ⟨hb2, hm2⟩ := ihb.1 memo1 memo2 b2 hm1 h2'
+      rw [habs]
+      simp only [ConLeche.Expr.mentionsConst]
+      split at h <;> rename_i hc <;>
+        obtain ⟨hr, hmm⟩ := pair_ok h <;> rw [← hr, ← hmm, ← hb1, ← hb2]
+      · exact ⟨by rw [hc]; simp, hm2⟩
+      · simp only [Bool.not_eq_true] at hc
+        exact ⟨by rw [hc]; simp, hm2⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' r hm h
+    rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+    rw [← hde] at hprobe h
+    exact mentions_probe_step hewf hnode hm h hprobe
+  | @let_e ty w bo e hty hw hbo h1 iht ihv ihb =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.let_e_inv h1
+    have hewf : ExprWF e := ExprWF.let_e hty hw hbo h1
+    have habs : absExpr e = .letE (absExpr ty) (absExpr w) (absExpr bo) := by
+      rw [hde]; simp
+    have hnode : NodeOK t e := by
+      intro memo memo' r hm h
+      rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b1, memo1⟩ := p1
+      obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 b1 hm h1'
+      obtain ⟨p2, h2', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b2, memo2⟩ := p2
+      obtain ⟨hb2, hm2⟩ := ihv.1 memo1 memo2 b2 hm1 h2'
+      obtain ⟨p3, h3', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b3, memo3⟩ := p3
+      obtain ⟨hb3, hm3⟩ := ihb.1 memo2 memo3 b3 hm2 h3'
+      rw [habs]
+      simp only [ConLeche.Expr.mentionsConst]
+      split at h
+      · rename_i hc
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, ← hb1, ← hb2, ← hb3, hc]
+        exact ⟨by simp, hm3⟩
+      · rename_i hc
+        simp only [Bool.not_eq_true] at hc
+        split at h
+        · rename_i hc2
+          obtain ⟨hr, hmm⟩ := pair_ok h
+          rw [← hr, ← hmm, ← hb1, ← hb2, ← hb3, hc, hc2]
+          exact ⟨by simp, hm3⟩
+        · rename_i hc2
+          simp only [Bool.not_eq_true] at hc2
+          obtain ⟨hr, hmm⟩ := pair_ok h
+          rw [← hr, ← hmm, ← hb1, ← hb2, ← hb3, hc, hc2]
+          exact ⟨by simp, hm3⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' r hm h
+    rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+    rw [← hde] at hprobe h
+    exact mentions_probe_step hewf hnode hm h hprobe
+  | @proj s j x e hs hx h1 ih =>
+    obtain ⟨d, hde, -, -, -⟩ := Expr.proj_inv h1
+    have hewf : ExprWF e := ExprWF.proj hs hx h1
+    have habs : absExpr e = .proj (absName s) j.val (absExpr x) := by rw [hde]; simp
+    have hnode : NodeOK t e := by
+      intro memo memo' r hm h
+      rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨b1, memo1⟩ := p1
+      obtain ⟨hb1, hm1⟩ := ih.1 memo memo1 b1 hm h1'
+      obtain ⟨bs, hbs, h⟩ := bind_eq_ok_iff.mp h
+      have hbsv := Name.name_beq_exact' hs ht hbs
+      rw [habs]
+      simp only [ConLeche.Expr.mentionsConst]
+      split at h
+      · rename_i hc
+        rw [hbsv, decide_eq_true_eq] at hc
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm]
+        exact ⟨by simp [hc], hm1⟩
+      · rename_i hc
+        simp only [Bool.not_eq_true] at hc
+        rw [hbsv, decide_eq_false_iff_not] at hc
+        obtain ⟨hr, hmm⟩ := pair_ok h
+        rw [← hr, ← hmm, ← hb1]
+        exact ⟨by simp [hc], hm1⟩
+    refine ⟨?_, hnode⟩
+    intro memo memo' r hm h
+    rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
+    rw [← hde] at hprobe h
+    exact mentions_probe_step hewf hnode hm h hprobe
+
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:814-849` —
 `mentions_const_go` refines `Expr.mentionsConstGo`, whose specification is
 con-leche's `mentionsConstGo_spec`: the answer is `Expr.mentionsConst` and the
@@ -1495,16 +3147,16 @@ theorem mentions_const_go_refines {t : name.Name} (ht : NameWF t)
       ExprOps.MemoInv ExprWF absExpr (MentionsQ (absName t)) memo →
       inductives.struct_parts.mentions_const_go t memo e = ok (r, memo') →
       r = ConLeche.Expr.mentionsConst (absName t) (absExpr e)
-        ∧ ExprOps.MemoInv ExprWF absExpr (MentionsQ (absName t)) memo' := by
-  -- the ten-armed `ExprWF` induction, `MemoInv.hit` on the probe and
-  -- `MemoInv.set` on the miss
-  sorry
+        ∧ ExprOps.MemoInv ExprWF absExpr (MentionsQ (absName t)) memo' :=
+  (mentions_const_walk ht he).1
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:814-849` —
 `mentions_const_node` refines the inner `match e with` of the miss branch,
 split off in the port so the probe's borrow dies before the descent mutates the
 memo (task #14's rule).  The final `| e => (e.mentionsConst T, memo)` arm is
-the cited unreachable one — the four leaf kinds answered above.
+the cited unreachable one — the four leaf kinds answered above, and it is
+`mentions_const_spec` in the port, which is why the leaf arms of the proof go
+through `mentions_const_spec_refines`.
 
 **The deviation this arm keeps**: the cited walk does *not* short-circuit —
 `let (b₁, memo) := go f; let (b₂, memo) := go a; (b₁ || b₂, memo)` walks both
@@ -1517,9 +3169,8 @@ theorem mentions_const_node_refines {t : name.Name} (ht : NameWF t)
     (hm : ExprOps.MemoInv ExprWF absExpr (MentionsQ (absName t)) memo)
     (h : inductives.struct_parts.mentions_const_node t memo e = ok (r, memo')) :
     r = ConLeche.Expr.mentionsConst (absName t) (absExpr e)
-      ∧ ExprOps.MemoInv ExprWF absExpr (MentionsQ (absName t)) memo' := by
-  -- the six rebuilding arms of `mentions_const_go_refines`
-  sorry
+      ∧ ExprOps.MemoInv ExprWF absExpr (MentionsQ (absName t)) memo' :=
+  (mentions_const_walk ht he).2 memo memo' r hm h
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:922-929` — **the executed
 `mentionsConst`**: `mentions_const` refines `Expr.mentionsConst` — one
