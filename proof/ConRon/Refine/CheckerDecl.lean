@@ -230,11 +230,6 @@ private theorem errSim_internal {γ : Type} {v : alloc.vec.Vec Std.U32}
     (hx : x = .error (.internal ls)) : ErrSim ce x := by
   rw [← heq, internal_val hce]; exact ErrSim.internal hx
 
-/-- con-leche's `throw`, at the executed monad and on its *applied* form. -/
-private theorem throwC_run {β : Type} (le : ConLeche.CheckError)
-    (lst : ConLeche.Cached.CState) :
-    (throw le : ConLeche.Cached.CheckCM β) lst = Except.error le := rfl
-
 /-- The port's `Err` return, read off (the state-carrying shape). -/
 private theorem err_outS {α : Type} {ce : core_types.CheckError}
     {st1 st' : cached.state_c.CState}
