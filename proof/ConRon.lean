@@ -58,6 +58,7 @@ import ConRon.Refine.CheckerC
 import ConRon.Refine.BasisPins
 import ConRon.Refine.StdAxioms
 import ConRon.Refine.TrustAxioms
+import ConRon.Refine.CheckerBase
 import ConRon.Refine.DeclCheck
 import ConRon.Refine.CheckerPinned
 import ConRon.Refine.CheckerSplit

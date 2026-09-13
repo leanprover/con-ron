@@ -1,6 +1,10 @@
 import ConRon.Refine.StdAxioms
 import ConRon.Refine.TrustAxioms
 import ConRon.Refine.BasisPins
+import ConRon.Refine.CheckerBase
+import ConRon.Refine.DeclCheck
+import ConRon.Refine.CoreKBase
+import ConRon.Refine.CoreKPinned
 import ConRon.Refine.FEnv
 
 /-! # Task #56's imported hypotheses, discharged
@@ -16,6 +20,7 @@ the three such `Prop`s are discharged, once the siblings exist.
 | `StdAxioms.EqBasisPinned` | `std_axiom_ok_refines` | `BasisPins.eq_basis_pinned_refines` |
 | `TrustAxioms.MatchesPinSpec` | the compiler-trust guards | `StdAxioms.matches_pin_fast_eq_matches_pin` |
 | `TrustAxioms.BasisPinsSpec` | `reducePinGuardF` and friends | `BasisPins.eq_basis_pinned_refines`/`nat_basis_pinned_refines` |
+| `CheckerBase.ConstsResolveFSpec` | `checkConstantValF`'s resolution guard | `DeclCheck.consts_resolve_f_fast_refines` |
 
 Note what the table says about task #24's second stub: `basis_pins.rs` is no
 longer `false`-answering (task #27 rewrote it against task #22's generated
@@ -46,6 +51,16 @@ theorem basisPinsSpec {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe) : TrustAxioms.BasisPinsSpec fe lfe where
   eqPinned _ h := BasisPins.eq_basis_pinned_refines hrel hwf h
   natPinned _ h := BasisPins.nat_basis_pinned_refines hrel hwf h
+
+/-- `Refine/CheckerBase.lean`'s hypothesis, from `Refine/DeclCheck.lean`: the
+executed `constsResolveFFast` is `Expr.constsResolveF`.  The bridge between
+the two files' environment hypotheses is `FindAgree.of_rel`
+(`Refine/CoreKBase.lean`), which is exactly task #49's point that the checker
+reads the environment only through `find?`. -/
+theorem constsResolveFSpec : CheckerBase.ConstsResolveFSpec :=
+  fun _ _ _ _ hrel hwf he h =>
+    DeclCheck.consts_resolve_f_fast_refines ConRon.Refine.CoreK.pinnedBasisNames
+      (ConRon.Refine.FindAgree.of_rel hrel hwf) he h
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
