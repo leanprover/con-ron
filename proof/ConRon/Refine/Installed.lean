@@ -1664,7 +1664,6 @@ binary rather than a promise about its argument. -/
 theorem check_decls_embedded_refines {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse mode)
     (hvar : CheckerPins.PinsWF pins)
     (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
@@ -1673,7 +1672,7 @@ theorem check_decls_embedded_refines {mode : env.CheckMode}
     leanCheckDecls (absMode mode) ConLeche.natOpPinSets (ds.val.map absDeclC)
       = .ok (absEnv e) := by
   have hpins := ConRon.Refine.check_decls_pins_refines pins hp
-  have hr := check_decls_refines hk hind hoe hvar hpins hds h
+  have hr := check_decls_refines hk hind hvar hpins hds h
   rwa [hpins] at hr
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)

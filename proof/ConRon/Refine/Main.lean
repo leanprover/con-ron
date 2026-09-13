@@ -196,21 +196,19 @@ embedded text — and therefore with no hypothesis about the pins' *value*. -/
 theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
     (hind : IndRoutesSpec .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse .Verified)
     (hvar : CheckerPins.PinsWF pins)
     (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
     (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e)) :=
-  conron.model_exists' V hind hoe hvar (check_decls_pins_refines pins hp) hds h
+  conron.model_exists' V hind hvar (check_decls_pins_refines pins hp) hds h
 
 /-- **The main corollary for the shipped binary** (task #64):
 `conron.no_proof_of_False'` at the embedded pins. -/
 theorem conron.no_proof_of_False_embedded (V : Type w) [ConLeche.SetTheory V]
     (hind : IndRoutesSpec .Verified)
     {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (hoe : CheckerDecl.DivModOrElse .Verified)
     (hvar : CheckerPins.PinsWF pins)
     (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
@@ -218,7 +216,7 @@ theorem conron.no_proof_of_False_embedded (V : Type w) [ConLeche.SetTheory V]
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     ¬ ∃ c ∈ (absEnv e).consts,
         c.toConstantVal.type = .const ConLeche.falseName [] :=
-  conron.no_proof_of_False' V hind hoe hvar (check_decls_pins_refines pins hp) hds h
+  conron.no_proof_of_False' V hind hvar (check_decls_pins_refines pins hp) hds h
 
 /-! ## The census (DESIGN.md §5, the P3 gate) — **passed**
 
