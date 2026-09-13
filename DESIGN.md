@@ -10936,3 +10936,143 @@ makes the remaining three mechanical rather than exploratory.
   port's own note records the owed retargeting to `proj_entry_type_at_i`, and
   the two lemmas now sit side by side (`ExprOpsFields`/`ExprOpsCAbs`) for
   whoever closes that seam.
+
+### Task #54 — `ExprOpsC`: the bulk-substitution and gray-set clusters (2026-09-13, Opus under Fable)
+
+Task #51 left **21 `sorry`s** in the `ExprOpsC` tier (`Refine/CORE_PLAN.md` step
+3's second half), in the three clusters its entry named.  This task closes all
+21: `proof/ConRon/Refine/ExprOpsC{,Subst,Abs,Guards}.lean` are now
+**`sorry`-free**, and the only `sorry`s left anywhere under `proof/` are task
+#43's three in `Refine/Pins.lean`.
+
+| cluster | file | before | after |
+|---|---|---|---|
+| `instantiate_list_{go,bvar,·}`, `instantiate_rev_{go,bvar,·}` | `ExprOpsCSubst.lean` | 6 | 0 |
+| `proj_entry_type_at_i` | `ExprOpsCAbs.lean` | 1 | 0 |
+| `fvarLeaves`; `leavesSub`/`leafGuard`; `alpd`; `instSpine`/`piResidual` | `ExprOpsCGuards.lean` | 14 | 0 |
+| **total** | | **21** | **0** |
+
+The four files grow from 4 486 to 7 914 lines (+3 428, 3 477 insertions against
+49 deletions — the deletions are the `sorry`s and the four "what is owed"
+paragraphs, rewritten into "how it went").  Every statement is task #51's,
+unchanged, with the one exception in §1.
+
+#### 1. The bulk substitutions: the live prefix as an *outer* induction
+
+`instantiateListGo`'s `.bvar` arm re-enters at the replacement `vs[i - d]` with
+the **shorter** prefix `i - d` and under a **fresh** memo table — which is what
+keeps the prefix out of the key (`MemoNL`, the module's note 3).  So the walk is
+not structural in the `ExprWF` derivation alone, and neither is con-leche's
+`instantiateListGo_spec` (`Verify/Cached/OpsC.lean:419`), whose induction is
+strong on `k` *outside* a structural one on the node.
+
+The port's version of that is one extra layer of packaging, and it is the whole
+trick: `GoLP vs K` is *the walk's entire statement at one fixed live prefix `K`*
+(a `def … : Prop`), and `instantiate_list_go_aux` proves `∀ K, GoLP vs K` by
+`Nat.strong_induction_on` with the ten-arm `ExprWF` induction inside it.  The
+`.bvar` arm then hands `ihK (i - d)` to `instantiate_list_bvar_aux`, whose only
+use of it is the re-entry under the fresh table (`new_memo_inv`).  Everything
+else is `instantiate1_go_refines`' script with `MemoLQ` in place of `Inst1Q`.
+
+Two economies worth reusing: the `k = 0` shortcut, the `bvarB ≤ d` cutoff and
+the four atom arms are all literally the same generated `dup e` return, so one
+lemma (`instL_dup_ret`, parameterised by the `Q` and by the substitution list)
+discharges six branches per walk; and `instantiate_rev_*` is the forward text
+with `(absExprs vs).reverse` substituted through and `List.getElem_reverse` in
+the single place the replacement is read — it was produced by a scripted
+rewrite of the forward block plus three local edits.
+
+**The one statement that changed.**  `instantiate_rev_bvar_refines` now also
+takes `hjlt : j.val < vs.val.length`.  It has to: `Nat` subtraction saturates, so
+task #51's `hj : vs.val[vs.val.length - 1 - j.val]? = some w` does *not* bound
+`j`, and for `j ≥ vs.len` the statement is **false** — the port takes its `else`
+branch and returns the node itself, while the conclusion still speaks about
+`vs[0]`.  The forward twin needs nothing added, because `vs.val[j.val]? = some w`
+bounds `j` by itself; that asymmetry is easy to miss when a lemma pair is
+written by copying.  Both call sites have the bound (the `.bvar` arm reaches the
+callee under `i - d < k ≤ vs.len`), so nothing downstream is weakened.
+
+#### 2. The gray set is `MemoInv` at `V := Unit`
+
+`fvar_leaves_go` marks a node **before** descending into it, so "every recorded
+node's leaves are already in the accumulator" is false of the node being walked
+and of its ancestors.  con-leche relaxes it with a gray predicate (`SeenInv`,
+`Verify/Cached/GuardsC.lean:409`), and task #51 called the port-side analogue
+"the file's one piece of genuinely new design".  It turned out to need **no new
+machinery at all**: it is task #47's `MemoInv` at `V := Unit` with
+
+```lean
+SeenQ G acc = fun a _ => (∀ l ∈ ConLeche.Expr.fvarLeaves a, l ∈ absLeaves acc) ∨ G a
+```
+
+as its `Q`.  `MemoInv.set` *is* `insertGray`, the `seen_get` hit is `MemoInv.hit`,
+and the two directions of the gray set are one-line `MemoInv_monoQ` corollaries
+(`SeenQ_insertGray`, `SeenQ_dropGray`).  The call's precondition "every gray node
+is strictly bigger in `ConLeche.Expr.sizeF`" is what rules out a hit at the node
+itself — `sizeF` and not `sizeOf`, because `fvarLeaves` descends `fvar`
+annotations.  And `MemoInv`'s own clause "every recorded key is well formed" is
+what lets `expr::eq2`'s exactness apply at the pairs `seen_get` compares, the
+same reason task #47 put that clause there.  **`MemoInv` is thus not only
+memo-policy-agnostic (task #51's finding) but carries a gray-set walk unchanged**
+— worth remembering for `Cached/*`'s remaining set walks.
+
+The declared `fvar_leaves_go_refines` is stated at a *fresh* `seen` set (that is
+how its only caller enters it), so it is not itself inductive: the general
+statement is `fvar_leaves_go_aux`, and the declared one is its instance at
+`G := fun _ => False`.  Where the port's list order differs from the cited one
+(it pushes where con-leche conses) the claim is about the *set*, exactly as the
+port's own deviation note says.
+
+#### 3. What the other twelve needed
+
+* `leavesSubGo` and `allLevelParamsDefinedGo` are `wscoped_b_go_refines` node for
+  node, at the node-only key (`expr_key_exact`, `memo_b_get`), with
+  `leaf_mem_refines` / `level::all_params_defined` +
+  `expr_ops::levels_all_params_defined` + `prop_when::params_defined` in the leaf
+  arms, and the short-circuiting callees inverted by the `*_inv` idiom inside the
+  walk's own induction.  Task #51's judgement — keep one of the four `Bool` walks
+  green as the template and the other three become mechanical — held exactly.
+* Two head shortcuts were new: `alpd_cutoff` (`!expr::has_lp`, off con-leche's
+  `allLevelParamsDefined_of_not_hasLevelParam`) and `leaves_sub_cutoff`.
+  `Expr.fvarLeaves` is well founded, so its ten arm equations had to be named
+  (`fvl_*`; con-leche's own are `private`) — the third `private`-is-a-wall
+  instance after task #51's two.
+* `leaf_guard_refines` needed `all_contains_congr`, the set-invariance of
+  `List.all (B.contains ·)`: that is where `fvar_leaves_refines`'
+  membership-only claim meets a cited definition that folds over the list.
+* `instSpine`/`piResidualAcc`/`proj_entry_type_at_i` are consequences of
+  `instantiate_list_refines` plus `rev_append_exprs_val`'s index-loop idiom.
+  `piResidualAcc`'s cited `termination_by (as.length, acc.length)` collapses into
+  the *single* measure `2 * (args.length - i) + (if acc = [] then 0 else 1)`, so
+  one strong induction sufficed where con-leche needs a lexicographic pair.
+
+#### 4. How it was run
+
+The `instantiate_list` cluster was done first (task #51's advice: 10 of the 21
+were waiting behind it) and then the other four clusters in parallel, by three
+sub-agents sharing this worktree, each developing in its own scratch module that
+`import`s `Refine/ExprOpsCGuards` and restates the target lemmas under an `X`
+suffix.  That keeps every iteration a one-file rebuild instead of a rebuild of
+the `ExprOpsC*` chain, and the scratch modules are spliced into the real files
+and deleted at the end.  Worth reusing for the `Refine/Core/Arms/*` fan-out of
+`CORE_PLAN.md` step 6; the one cost is reconciling duplicate helper names at
+splice time (here: two independent re-proofs of
+`fvarLeaves_nil_of_fvarsBelow_zero`).
+
+#### 5. Gates and axiom census
+
+| | |
+|---|---|
+| `scripts/gates.sh` | all 7 OK |
+| `cd proof && lake build` | zero errors; no `sorry` outside `Refine/Pins.lean` |
+
+`#guard_msgs in #print axioms` now pins **five** lemmas of this tier at
+`[propext, Classical.choice, Quot.sound]` and nothing else — task #51's
+`instantiate1_refines`, `abstract1_refines`, `wscoped_b_refines` plus this task's
+`instantiate_list_refines` (the bulk substitution behind every telescope
+instantiation) and `fvar_leaves_refines` (the gray-set walk).  Nothing reaches
+`sorryAx` or `PINS_TEXT`.
+
+The progress line after the green run reads `verified 3270 (23%)` of the 13 743
+verified-core Lean lines — up from task #47's `957 (6%)` — and
+`proofs 34243 (367 _refines)`.

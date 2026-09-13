@@ -1506,6 +1506,33 @@ theorem proj_entry_type_at_i_refines {entry : env.ProjEntry}
         = ConLeche.ProjEntry.typeAtI (absProjEntry entry) (absLevels us)
             (absExprs targs) (absExpr pe) ∧
       ExprWF r := by
-  sorry
+  rw [cached.expr_ops_c.proj_entry_type_at_i] at h
+  dsimp only at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨body, hbody, c, hdup, vs, hpush, vs1, hrev, h⟩ := h
+  obtain ⟨hbabs, hbwf⟩ :=
+    inst_level_params_refines hentry.2.1 hus hentry.2.2.2.1 hbody
+  rw [Expr.dup_eq hdup] at hpush
+  have hvsval : vs.val = [pe] := by
+    rw [vec_push_val hpush]; simp [alloc.vec.Vec.new]
+  have hlen : (alloc.vec.Vec.len targs).val = targs.val.length :=
+    alloc.vec.Vec.len_val targs
+  have hvs1val : vs1.val = pe :: targs.val.reverse := by
+    rw [rev_append_exprs_val _ vs targs vs1 (alloc.vec.Vec.len targs) rfl
+      (by omega) hrev, hvsval, hlen, List.take_length]
+    rfl
+  have hvs1wf : ExprsWF vs1 := by
+    intro y hy
+    rw [hvs1val] at hy
+    rcases List.mem_cons.1 hy with hy | hy
+    · rw [hy]; exact hpe
+    · exact htargs y (List.mem_reverse.1 hy)
+  have hvs1abs : absExprs vs1 = absExpr pe :: (absExprs targs).reverse := by
+    rw [absExprs, hvs1val, List.map_cons, List.map_reverse, absExprs]
+  obtain ⟨habs, hwf⟩ := instantiate_list_refines hbwf hvs1wf h
+  refine ⟨?_, hwf⟩
+  rw [habs, hvs1abs, show ((0#u64 : Std.U64)).val = 0 by scalar_tac,
+    ConLeche.ProjEntry.typeAtI, hbabs]
+  rfl
 
 end ConRon.Refine.ExprOpsC
