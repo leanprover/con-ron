@@ -491,6 +491,51 @@ theorem tail_run {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
   rw [show (ops.isDefEq lenv 0 vt ty) lst1 = Except.ok (true, lst2) from hdef]
   rfl
 
+open ConLeche.Cached in
+/-- `checkValueGroup`'s tail passes on what its inference threw. -/
+theorem tail_infer_err {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {jv ty : ConLeche.Expr} {msg : String} {lst : CState} {le : ConLeche.CheckError}
+    (hinf : (ops.inferType lenv 0 jv).run lst = .error le) :
+    (do let vtype ← ops.inferType lenv 0 jv
+        let okv ← ops.isDefEq lenv 0 vtype ty
+        if okv then pure () else throw (ConLeche.CheckError.invalid msg)).run lst
+      = .error le := by
+  simp only [StateT.run, Bind.bind, StateT.bind]
+  rw [show (ops.inferType lenv 0 jv) lst = Except.error le from hinf]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkValueGroup`'s tail passes on what its conversion threw. -/
+theorem tail_defeq_err {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {jv vt ty : ConLeche.Expr} {msg : String} {lst lst1 : CState}
+    {le : ConLeche.CheckError}
+    (hinf : (ops.inferType lenv 0 jv).run lst = .ok (vt, lst1))
+    (hdef : (ops.isDefEq lenv 0 vt ty).run lst1 = .error le) :
+    (do let vtype ← ops.inferType lenv 0 jv
+        let okv ← ops.isDefEq lenv 0 vtype ty
+        if okv then pure () else throw (ConLeche.CheckError.invalid msg)).run lst
+      = .error le := by
+  simp only [StateT.run, Bind.bind, StateT.bind]
+  rw [show (ops.inferType lenv 0 jv) lst = Except.ok (vt, lst1) from hinf]
+  simp only [Except.bind]
+  rw [show (ops.isDefEq lenv 0 vt ty) lst1 = Except.error le from hdef]
+
+open ConLeche.Cached in
+/-- `checkValueGroup`'s type-mismatch `throw` (`CheckerSplit.lean:118`). -/
+theorem tail_false {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {jv vt ty : ConLeche.Expr} {msg : String} {lst lst1 lst2 : CState}
+    (hinf : (ops.inferType lenv 0 jv).run lst = .ok (vt, lst1))
+    (hdef : (ops.isDefEq lenv 0 vt ty).run lst1 = .ok (false, lst2)) :
+    (do let vtype ← ops.inferType lenv 0 jv
+        let okv ← ops.isDefEq lenv 0 vtype ty
+        if okv then pure () else throw (ConLeche.CheckError.invalid msg)).run lst
+      = .error (.invalid msg) := by
+  simp only [StateT.run, Bind.bind, StateT.bind]
+  rw [show (ops.inferType lenv 0 jv) lst = Except.ok (vt, lst1) from hinf]
+  simp only [Except.bind]
+  rw [show (ops.isDefEq lenv 0 vt ty) lst1 = Except.ok (false, lst2) from hdef]
+  rfl
+
 /-! ## The install half -/
 
 /-- **`checker_split::install_constant_val` refines `installConstantVal`**
@@ -815,42 +860,84 @@ theorem check_value_group_tail_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {g : parsed_c.ValueGroup} {jv : expr.Expr}
+    {out : core.result.Result Unit core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hg : ValueGroupWF g) (hjv : ExprWF jv)
-    (h : checker_split.check_value_group_tail mode st fe g jv = ok (.Ok (), st')) :
+    (h : checker_split.check_value_group_tail mode st fe g jv = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst',
-        (do let vtype ← (TypeChecker.lops mode lfe).inferType lfe.env 0 (absExpr jv)
-            let ok ← (TypeChecker.lops mode lfe).isDefEq lfe.env 0 vtype
-              (absValueGroup g).cvA.type
-            if ok then pure () else
-              throw (ConLeche.CheckError.invalid
-                s!"type mismatch in {(absValueGroup g).kind.word} {(absValueGroup g).cvA.name}")).run lst
-          = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+      match out with
+      | .Ok _ =>
+        ∃ lst',
+          (do let vtype ← (TypeChecker.lops mode lfe).inferType lfe.env 0 (absExpr jv)
+              let ok ← (TypeChecker.lops mode lfe).isDefEq lfe.env 0 vtype
+                (absValueGroup g).cvA.type
+              if ok then pure () else
+                throw (ConLeche.CheckError.invalid
+                  s!"type mismatch in {(absValueGroup g).kind.word} {(absValueGroup g).cvA.name}")).run lst
+            = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e
+          ((do let vtype ← (TypeChecker.lops mode lfe).inferType lfe.env 0 (absExpr jv)
+               let ok ← (TypeChecker.lops mode lfe).isDefEq lfe.env 0 vtype
+                 (absValueGroup g).cvA.type
+               if ok then pure () else
+                 throw (ConLeche.CheckError.invalid
+                   s!"type mismatch in {(absValueGroup g).kind.word} {(absValueGroup g).cvA.name}")).run
+            lst) := by
   intro lst lfe hsr hfr
   rw [checker_split.check_value_group_tail] at h
   obtain ⟨p, hq, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r, st1⟩ := p
   cases r with
-  | Err er => simp at h
+  | Err er =>
+    -- move 1: the inference threw, and the cited tail throws at it
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    have herr : ErrSim er
+        (((TypeChecker.lops mode lfe).inferType lfe.env 0 (absExpr jv)).run lst) :=
+      (TypeChecker.infer_type_core_refines hfuel hk).err st fe 0#u64 jv er st1
+        hsw hfw hjv hq lst lfe hsr hfr
+    exact ErrSim.trans herr (fun le hle => tail_infer_err hle)
   | Ok vtype =>
     obtain ⟨lst1, hrun1, hsr1, hsw1, hvw⟩ :=
       (TypeChecker.infer_type_core_refines hfuel hk).ok st fe 0#u64 jv vtype st1
         hsw hfw hjv hq lst lfe hsr hfr
+    have hrun1' : ((TypeChecker.lops mode lfe).inferType lfe.env 0 (absExpr jv)).run lst
+        = .ok (absExpr vtype, lst1) := by
+      rw [TypeChecker.sharedOpsC_inferType]; exact hrun1
     obtain ⟨p2, hq2, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r1, st2⟩ := p2
     cases r1 with
-    | Err er => simp at h
+    | Err er =>
+      -- move 1 again, at the conversion
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      have herr : ErrSim er
+          (((TypeChecker.lops mode lfe).isDefEq lfe.env 0 (absExpr vtype)
+            (absValueGroup g).cvA.type).run lst1) :=
+        (TypeChecker.is_def_eq_core_refines hfuel hk).err st1 fe 0#u64 vtype g.cv_a.ty er st2
+          hsw1 hfw hvw hg.1.2.2 hq2 lst1 lfe hsr1 hfr
+      exact ErrSim.trans herr (fun le hle => tail_defeq_err hrun1' hle)
     | Ok b =>
+      obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
+        (TypeChecker.is_def_eq_core_refines hfuel hk).ok st1 fe 0#u64 vtype g.cv_a.ty b st2
+          hsw1 hfw hvw hg.1.2.2 hq2 lst1 lfe hsr1 hfr
+      have hrun2' : ((TypeChecker.lops mode lfe).isDefEq lfe.env 0 (absExpr vtype)
+          (absValueGroup g).cvA.type).run lst1 = .ok (b, lst2) := by
+        rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun2
       cases b with
-      | false => simp [bind_eq_ok_iff] at h
+      | false =>
+        -- the type-mismatch `throw` (`CheckerSplit.lean:118`)
+        obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        exact errSim_invalid hce rfl (tail_false hrun1' hrun2')
       | true =>
-        have hst : st2 = st' := by simpa using h
-        subst hst
-        obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
-          (TypeChecker.is_def_eq_core_refines hfuel hk).ok st1 fe 0#u64 vtype g.cv_a.ty true st2
-            hsw1 hfw hvw hg.1.2.2 hq2 lst1 lfe hsr1 hfr
-        exact ⟨lst2, tail_run hrun1 hrun2, hsr2, hsw2⟩
+        obtain ⟨hout, hst⟩ := ok_outS h
+        subst hout; subst hst
+        exact ⟨lst2, tail_run hrun1' hrun2', hsr2, hsw2⟩
 
 /-- **`checker_split::check_value_group` refines `checkValueGroup`**
 (`CheckerSplit.lean:102-119`): at the environment the constant was installed
