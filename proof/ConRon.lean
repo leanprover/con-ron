@@ -60,6 +60,7 @@ import ConRon.Refine.IndNativeInstall
 import ConRon.Refine.IndModeled
 import ConRon.Refine.IndSpec
 import ConRon.Refine.IndC
+import ConRon.Refine.IndIngredients
 import ConRon.Refine.Pins
 import ConRon.Dump.Read
 import ConRon.Refine.TypeChecker

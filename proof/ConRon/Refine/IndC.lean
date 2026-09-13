@@ -55,6 +55,8 @@ machine-checked with `#guard_msgs`: `sorryAx` leaving them is the gate that
 says the inductive tier is closed.
 -/
 import ConRon.Refine.IndSpec
+import ConRon.Refine.IndStructParts
+import ConRon.Refine.IndNativeParts
 import ConRon.Refine.IndStructInstall
 import ConRon.Refine.IndSumParts
 import ConRon.Refine.StateC
@@ -432,6 +434,68 @@ theorem ind_routes_spec {mode : env.CheckMode}
   checkIndDecl := fun _ _ _ _ _ hst hfe hb h lst lfe hrel hfer =>
     check_ind_decl_s_refines hk.1 hst hfe hb h lst lfe hrel hfer
 
+/-! ### The recogniser's ingredient (task #59)
+
+`Refine/IndNativeParts.lean` takes `kernel::inductives::struct_parts`' twelve
+generators and readers as one explicit `StructGens` hypothesis, because the two
+files were written in parallel (task #57).  Here, where both are imported, it is
+discharged from `Refine/IndStructParts.lean`'s own lemmas — each field of
+`StructGens` is that file's exact refinement statement, so the discharge is
+twelve applications and nothing else. -/
+
+/-- `Refine/IndStructParts.lean` proves every field of `NativeParts.StructGens`. -/
+theorem structGens : NativeParts.StructGens where
+  params_of := fun _ _ hlps h => StructParts.params_of_refines hlps h
+  level_is_prop := fun _ _ hs h => StructParts.level_is_prop_refines hs h
+  struct_ps_at := fun _ _ _ h => StructParts.struct_ps_at_refines h
+  field_spine := fun _ _ h => StructParts.field_spine_refines h
+  struct_ctor_spine_at := fun _ _ _ _ _ _ hc hlps h =>
+    StructParts.struct_ctor_spine_at_refines hc hlps h
+  struct_elim_level := fun _ _ _ he h => StructParts.struct_elim_level_refines he h
+  replace_pis_pw := fun _ _ _ _ _ hpw he hb h =>
+    StructParts.replace_pis_pw_refines hpw he hb h
+  pis_to_lams_pw := fun _ _ _ _ _ hpw he hb h =>
+    StructParts.pis_to_lams_pw_refines hpw he hb h
+  struct_fam_i := fun _ _ _ _ _ _ _ ht hlps h =>
+    StructParts.struct_fam_i_refines ht hlps h
+  struct_motive_ty_i := fun _ _ _ _ _ _ _ ht hlps hl hitele h =>
+    StructParts.struct_motive_ty_i_refines ht hlps hl hitele h
+  mentions_const := fun _ _ _ ht he h => StructParts.mentions_const_refines ht he h
+  struct_used_later := fun _ _ _ _ hcty h => StructParts.struct_used_later_refines hcty h
+
+/-! ### The bridge to the consumer's form (task #59)
+
+`IndRoutesSpecP` (the producer's form, task #57) states the two routes on
+*already-recognised* parts; `IndRoutesSpec` (the consumer's form, task #56)
+carries the recogniser's verdict inside each clause, because that is the shape
+`cached::parsed_c::check_ind_decl_c`'s two-way dispatch consumes.  The step
+between them is exactly `native_parts`' own refinement
+(`NativeParts.native_parts_refines`): a recognised block gives the Lean
+`NativeParts` the native clause existentially quantifies, and a declined one
+gives `nativeParts? = none`, which is the modeled clause's first conjunct. -/
+
+/-- **The seam**: the producer's form implies the consumer's, through the
+recogniser's refinement. -/
+theorem ind_routes_spec_of_p {mode : env.CheckMode} (hp : IndRoutesSpecP mode) :
+    IndRoutesSpec mode where
+  native := by
+    intro st fe n_p block p fe' st' hst hfe hblock hrec h lst lfe hrel hfer
+    obtain ⟨habs, hwf⟩ := NativeParts.native_parts_refines structGens hblock hrec
+    obtain ⟨lst', lfe', hrun, hrel', hfer', hst', hfe'⟩ :=
+      hp.checkNative st fe p fe' st' hst hfe (hwf p rfl) h lst lfe hrel hfer
+    exact ⟨lst', lfe', IndAbs.absNativeParts p, habs.symm, hrun, hrel', hst', hfer', hfe'⟩
+  modeled := by
+    intro st fe n_p block fe' st' hst hfe hblock hrec h lst lfe hrel hfer
+    obtain ⟨habs, _⟩ := NativeParts.native_parts_refines structGens hblock hrec
+    obtain ⟨lst', lfe', hrun, hrel', hfer', hst', hfe'⟩ :=
+      hp.checkIndDecl st fe block fe' st' hst hfe hblock h lst lfe hrel hfer
+    exact ⟨lst', lfe', habs.symm, hrun, hrel', hst', hfer', hfe'⟩
+
+/-- **`IndRoutesSpec`, what task #56's checker tier consumes**, from the knot. -/
+theorem ind_routes_spec' {mode : env.CheckMode}
+    (hk : Core.KnotSpec mode IndAbs.checkFuelU) : IndRoutesSpec mode :=
+  ind_routes_spec_of_p (ind_routes_spec hk)
+
 /-! ## The axiom census
 
 DESIGN.md §5's P3 gate on the two entry points.  While the tier is open the
@@ -443,5 +507,11 @@ two lines is the gate that says the inductive routes are closed. -/
 
 /-- info: 'ConRon.Refine.InductivesC.check_ind_decl_s_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms check_ind_decl_s_refines
+
+-- The spec bridge (task #59).  It reaches `sorryAx` only through
+-- `NativeParts.native_parts_refines`, the recogniser; when that closes and the
+-- two entry points close, this line closes with them.
+/-- info: 'ConRon.Refine.InductivesC.ind_routes_spec_of_p' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ind_routes_spec_of_p
 
 end ConRon.Refine.InductivesC

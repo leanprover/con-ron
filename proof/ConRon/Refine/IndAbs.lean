@@ -42,6 +42,7 @@ the zero-argument function the type `Result U64`, so the hypothesis cannot
 literally read `core_k.check_fuel`; `check_fuel_eq` is the identity that
 closes the gap, and `checkFuelU_val` is `= ConLeche.checkFuel`.
 -/
+import ConRon.Refine.Scalars
 import ConRon.Refine.Core.Statements
 import ConRon.Refine.StateC
 import ConLeche.Cached.CheckerC
