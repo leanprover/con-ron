@@ -192,6 +192,19 @@ private theorem errSim_invalid {γ : Type} {v : alloc.vec.Vec Std.U32}
     (hx : x = .error (.invalid ls)) : ErrSim ce x := by
   rw [invalid_val hce]; exact ErrSim.invalid hx
 
+/-- `core_types::internal` is the constructor. -/
+private theorem internal_val {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.internal v = ok ce) :
+    ce = .Internal v := by
+  rw [core_types.internal] at h; exact (Result.ok_injective h).symm
+
+/-- A mirrored `throw` at `internal`, the same bookkeeping. -/
+private theorem errSim_internal {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.internal v = ok ce)
+    (hx : x = .error (.internal ls)) : ErrSim ce x := by
+  rw [internal_val hce]; exact ErrSim.internal hx
+
 /-- Two stages' runs composed, **without naming either stage**.  The cited code
 and this file spell the same `match` with different auxiliary matchers, so a
 `rw` of a stage's refinement into the cited term never fires; applying this with
@@ -1791,18 +1804,24 @@ without it.  It *is* an invariant of every `FEnv` the checker holds
 preserves it), and `IndRoutesSpecP.checkNative` carries it, so the consumer
 discharges it. -/
 theorem check_native_s_refines
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {p0 : inductives.native_parts.NativeParts}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hp0 : IndAbs.NativePartsWF p0)
     (h : inductives.inductives_c.check_native_s mode st fe p0
-        = ok (.Ok fe', st')) :
+        = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.checkNativeS (absMode mode) lfe
-            (IndAbs.absNativeParts p0)).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.checkNativeS (absMode mode) lfe
+              (IndAbs.absNativeParts p0)).run lst = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.checkNativeS (absMode mode) lfe
+          (IndAbs.absNativeParts p0)).run lst) := by
   -- `ctor_names`, `level::name_nodup`, the flush, the two passes and the tail
   intro lst lfe hrel hfer
   rw [inductives.inductives_c.check_native_s] at h
@@ -1837,7 +1856,18 @@ theorem check_native_s_refines
     obtain ⟨pq, hpass, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨res, st2⟩ := pq
     cases res with
-    | Err err => simp at h
+    | Err err =>
+      -- the first pass threw, past the entry flush
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      have hpe : ErrSim err ((ConLeche.Cached.checkNativePassS (absMode mode) lfe
+          (IndAbs.absNativeParts p0) b1).run lst.flushed) :=
+        check_native_pass_s_refines hw hwff1 hfe hcan hfull hp0 hpass lst.flushed
+          lfe hrelf1 hfer
+      rw [hb1v] at hpe
+      show ErrSim err _
+      simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run]
+      exact ErrSim.bind hpe _
     | Ok q =>
       obtain ⟨np, b2⟩ := q
       obtain ⟨lst1, lq, hrun1, hrel1, hqrel, hwf1, hqwf, hqcan, hqfull⟩ :=
@@ -1846,13 +1876,22 @@ theorem check_native_s_refines
       rw [hb1v] at hrun1
       by_cases hb2 : b2 = true
       · simp only [hb2] at h
-        obtain ⟨lst', lfe2, hrun2, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩ :=
+        have htail :=
           check_native_tail_s_refines hw hwf1 hfe hqwf hqcan hqfull h lst1 lfe lq
             hrel1 hfer hqrel
-        refine ⟨lst', lfe2, ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
-        simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun1, hb2,
-          if_true]
-        exact hrun2
+        cases out with
+        | Ok fe' =>
+          obtain ⟨lst', lfe2, hrun2, hrel2, hfrel2, hwf2, hfwf2, hfcan2,
+            hffull2⟩ := htail
+          refine ⟨lst', lfe2, ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
+          simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun1, hb2,
+            if_true]
+          exact hrun2
+        | Err e =>
+          show ErrSim e _
+          simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun1, hb2,
+            if_true]
+          exact htail
       · simp only [Bool.not_eq_true] at hb2
         simp only [hb2] at h
         obtain ⟨is_rec2, hir, h⟩ := bind_eq_ok_iff.mp h
@@ -1865,7 +1904,21 @@ theorem check_native_s_refines
         obtain ⟨pq2, hpass2, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨res2, st4⟩ := pq2
         cases res2 with
-        | Err err => simp at h
+        | Err err =>
+          -- the reclassified pass threw, past the second flush
+          simp at h
+          obtain ⟨rfl, rfl⟩ := h
+          have hpe2 : ErrSim err ((ConLeche.Cached.checkNativePassS (absMode mode)
+              lfe (IndAbs.absNativeParts p0) is_rec2).run lst1.flushed) :=
+            check_native_pass_s_refines hw hwff2 hfe hcan hfull hp0 hpass2
+              lst1.flushed lfe hrelf2 hfer
+          rw [hirv] at hpe2
+          show ErrSim err _
+          simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun1,
+            hb2]
+          rw [if_neg (by simp)]
+          simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run]
+          exact ErrSim.bind hpe2 _
         | Ok q2 =>
           obtain ⟨np1, b3⟩ := q2
           obtain ⟨lst2, lq2, hrun2, hrel2, hq2rel, hwf2, hq2wf, hq2can, hq2full⟩ :=
@@ -1874,25 +1927,61 @@ theorem check_native_s_refines
           rw [hirv] at hrun2
           by_cases hb3 : b3 = true
           · simp only [hb3] at h
-            obtain ⟨lst', lfe2, hrun3, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
+            have htail :=
               check_native_tail_s_refines hw hwf2 hfe hq2wf hq2can hq2full h lst2
                 lfe lq2 hrel2 hfer hq2rel
-            refine ⟨lst', lfe2, ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
+            cases out with
+            | Ok fe' =>
+              obtain ⟨lst', lfe2, hrun3, hrel3, hfrel3, hwf3, hfwf3, hfcan3,
+                hffull3⟩ := htail
+              refine ⟨lst', lfe2, ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
+              simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun1,
+                hb2]
+              rw [if_neg (by simp)]
+              simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun2,
+                hb3, if_true]
+              exact hrun3
+            | Err e =>
+              show ErrSim e _
+              simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun1,
+                hb2]
+              rw [if_neg (by simp)]
+              simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun2,
+                hb3, if_true]
+              exact htail
+          · -- the capability record did not settle: **a mirrored `throw`**, at
+            -- `CheckerC.lean:228`'s `internal`
+            simp only [Bool.not_eq_true] at hb3
+            simp only [hb3] at h
+            obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+            simp at h
+            obtain ⟨rfl, rfl⟩ := h
+            show ErrSim ce _
             simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun1,
               hb2]
             rw [if_neg (by simp)]
             simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun2,
-              hb3, if_true]
-            exact hrun3
-          · simp only [Bool.not_eq_true] at hb3
-            simp only [hb3] at h
-            obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
-            simp at h
+              hb3]
+            rw [if_neg (by simp)]
+            exact errSim_internal
+              (ls := "direct rec: the capability record did not settle") hce rfl
   · rename_i hb
+    -- duplicate constructor names: **a mirrored `throw`**, at
+    -- `CheckerC.lean:221`'s `invalid`
+    have hdup : ¬ ((IndAbs.absNativeParts p0).ctors.map (fun c => c.1.name)).Nodup := by
+      rw [show (IndAbs.absNativeParts p0).ctors.map (fun c => c.1.name)
+        = absNames names from habsn.symm]
+      intro hnd
+      exact hb (hbndv.trans (decide_eq_true hnd))
+    rw [if_neg hdup]
+    obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
     simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact errSim_invalid (ls := "direct rec: duplicate constructor") hce rfl
 
 end Drivers
 
