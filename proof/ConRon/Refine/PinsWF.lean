@@ -1504,7 +1504,6 @@ theorem proofs_eight_wf {t : Slice Std.U8} {i j : Std.Usize}
   exact proofs_eight_from_wf htb 8 i 8#usize _ (by scalar_tac)
     (by simp [alloc.vec.Vec.new]) res j h
 
-set_option maxHeartbeats 1000000 in
 /-- **The `S` record.**  Seventeen fields, each read out of one of the two
 eight-element lists and copied; the copies are the identity, so each field
 carries the list entry's own derivation. -/
