@@ -98,7 +98,13 @@ theorem check_struct_doms_at_refines {mode : env.CheckMode}
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe off.val
             (absExprs fvs) (absExprs doms) j.val).run lst = .ok ((), lst')
         ∧ StateRel st' lst' ∧ StateWF st' := by
-  -- the index recursion on `j`; Aeneas's `partial_fixpoint` unfolding
+  -- the index recursion on `j`, over Aeneas's `partial_fixpoint` unfolding.
+  -- The one obligation that is not routine: the port indexes with
+  -- `UScalar.cast .Usize i` on a `u64` counter, so the two `[i]?` readings
+  -- agree only under `i.val ≤ Usize.max` — true on this target but not from
+  -- the loop's own guards, since the guards compare the *cast*.  It wants a
+  -- `usize`-width fact of the kind `Refine/ExprOps.lean` states for indices
+  -- that are already in range.
   sorry
 
 /-! ## The projection table's two guards -/
