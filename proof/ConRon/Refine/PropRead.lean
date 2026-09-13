@@ -18,8 +18,8 @@ callers store.
 every reader over `find? : Name → Option ConstantInfo` so that the pure
 `Env.find?` and the interned `FEnv.find?` share one body.  The port has a
 single environment on the checker's path, `fe: &FEnv` with `fenv::find`, so
-every reader that takes `fe` is stated with `(hfe : FEnvRel fe lfe)` (and
-`(hwf : FEnvWF fe)`, because what a lookup hands back is used as a term) and
+every reader that takes `fe` is stated with `(hfe : FindAgree fe lfe)` (and
+`(hwf : FindWF fe)`, because what a lookup hands back is used as a term) and
 against the cited Lean **instantiated at `lfe.find?`**.
 
 Three things shaped the proofs:
@@ -50,7 +50,6 @@ open ConRon.Generated ConRon.Generated.kernel
 
 namespace ConRon.Refine.PropRead
 
-open ConRon.Refine.T22
 
 /-! ## `kernel::env`'s two `ConstantInfo` readers (they belong to task #46) -/
 
@@ -157,10 +156,10 @@ theorem storedCVAt_hit {find? : ConLeche.Name → Option ConLeche.ConstantInfo}
   simp [storedCVAt, h, ht]
 
 /-- `prop_read::stored_cv_at` refines `storedCVAt` at `lfe.find?` (the module
-deviation).  `FEnvWF` is what makes the record it hands back usable as a term. -/
+deviation).  `FindWF` is what makes the record it hands back usable as a term. -/
 theorem stored_cv_at_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name}
     {n_us : Std.Usize} {r : Option env.ConstantVal}
-    (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe) (hn : NameWF n)
+    (hfe : FindAgree fe lfe) (hwf : FindWF fe) (hn : NameWF n)
     (h : prop_read.stored_cv_at fe n n_us = ok r) :
     r.map absConstantVal = storedCVAt lfe.find? (absName n) n_us.val ∧
       ∀ cv ∈ r, ConstantValWF cv := by
@@ -174,7 +173,7 @@ theorem stored_cv_at_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Na
     exact ⟨by simp, by simp⟩
   | some ci =>
     have hfind := hfe.find_some hn ho
-    have hciwf := hwf n ci ho
+    have hciwf := hwf n ci hn ho
     simp only [bind_eq_ok_iff] at h
     obtain ⟨b, hb, h⟩ := h
     have hbabs := is_tower_entry_refines hb
@@ -470,7 +469,7 @@ port (§3.4 forbids closures), and the level-parameter probe is
 `stored_cv_at`. -/
 theorem head_type_pw_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Expr}
     {n : Std.U64} {r : Option prop_when.PropWhen}
-    (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe) (he : ExprWF e)
+    (hfe : FindAgree fe lfe) (hwf : FindWF fe) (he : ExprWF e)
     (h : prop_read.head_type_pw fe e n = ok r) :
     r.map absPropWhen = ConLeche.headTypePW lfe.find? (absExpr e) n.val ∧
       ∀ pw ∈ r, PropWhenWF pw := by
@@ -573,7 +572,7 @@ never zero, and everything else goes through the spine (`get_app_fn`,
 `num_args`) into `head_type_pw`. -/
 theorem type_sort_pw_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {t : expr.Expr}
     {r : Option prop_when.PropWhen}
-    (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe) (ht : ExprWF t)
+    (hfe : FindAgree fe lfe) (hwf : FindWF fe) (ht : ExprWF t)
     (h : prop_read.type_sort_pw fe t = ok r) :
     r.map absPropWhen = ConLeche.typeSortPW lfe.find? (absExpr t) ∧
       ∀ pw ∈ r, PropWhenWF pw := by
@@ -698,7 +697,7 @@ constant head answers from its stored type at any arity; sorts, ∀s and literal
 are never proofs. -/
 theorem head_proof_pw_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Expr}
     {r : Option prop_when.PropWhen}
-    (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe) (he : ExprWF e)
+    (hfe : FindAgree fe lfe) (hwf : FindWF fe) (he : ExprWF e)
     (h : prop_read.head_proof_pw fe e = ok r) :
     r.map absPropWhen = ConLeche.headProofPW lfe.find? (absExpr e) ∧
       ∀ pw ∈ r, PropWhenWF pw := by
@@ -806,7 +805,7 @@ theorem head_proof_pw_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.E
 else from its spine head. -/
 theorem proof_pw_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {a : expr.Expr}
     {r : Option prop_when.PropWhen}
-    (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe) (ha : ExprWF a)
+    (hfe : FindAgree fe lfe) (hwf : FindWF fe) (ha : ExprWF a)
     (h : prop_read.proof_pw fe a = ok r) :
     r.map absPropWhen = ConLeche.proofPW lfe.find? (absExpr a) ∧
       ∀ pw ∈ r, PropWhenWF pw := by
@@ -916,7 +915,7 @@ theorem is_prop_refines {pw : prop_when.PropWhen} {b : Bool} (hpw : PropWhenWF p
 a `!` in a *value* position comes out of Aeneas as a branch
 (`core_k::defeq_lits`' note). -/
 theorem not_proof_fast_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {a : expr.Expr}
-    {c : Bool} (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe) (ha : ExprWF a)
+    {c : Bool} (hfe : FindAgree fe lfe) (hwf : FindWF fe) (ha : ExprWF a)
     (h : prop_read.not_proof_fast fe a = ok c) :
     c = ConLeche.notProofFast lfe.find? (absExpr a) := by
   rw [prop_read.not_proof_fast] at h
@@ -944,7 +943,7 @@ theorem not_proof_fast_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {a : expr.
 (`PropRead.lean:148-153`): the yes arm, the one the squash-regime licence of
 `ConLeche/Model/Steps/IrrelFast.lean` reads. -/
 theorem is_proof_fast_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {a : expr.Expr}
-    {c : Bool} (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe) (ha : ExprWF a)
+    {c : Bool} (hfe : FindAgree fe lfe) (hwf : FindWF fe) (ha : ExprWF a)
     (h : prop_read.is_proof_fast fe a = ok c) :
     c = ConLeche.isProofFast lfe.find? (absExpr a) := by
   rw [prop_read.is_proof_fast] at h
@@ -960,7 +959,7 @@ theorem is_proof_fast_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {a : expr.E
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
 `is_proof_fast_refines` is the top of the file: it depends on every lemma here
-except `not_proof_fast_refines`, on `FEnvRel`/`FEnvWF` from `CoreKBase.lean`, and
+except `not_proof_fast_refines`, on `FindAgree`/`FindWF` from `CoreKBase.lean`, and
 on the `Expr`/`Level`/`PropWhen` tiers underneath.  No `sorry`, nothing from
 Aeneas's library beyond the pointer model, no `import all`. -/
 

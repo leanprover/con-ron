@@ -66,7 +66,6 @@ open ConRon.Generated ConRon.Generated.kernel
 
 namespace ConRon.Refine.CoreK
 
-open ConRon.Refine.T22
 
 /-! ## Reading an arbitrary stored `Expr`
 
@@ -1037,24 +1036,21 @@ theorem option_is_some {α : Type} (o : Option α) :
     core.option.Option.is_some o = o.isSome := by
   rw [core.option.Option.is_some]
 
-/-- A `fenv::find` that succeeded, abstracted (`FEnvRel`). -/
-theorem find_abs {fe : fenv.FEnv} {lfe : ConLeche.FEnv} (hfe : FEnvRel fe lfe)
+/-- A `fenv::find` that succeeded, abstracted (`FindAgree`). -/
+theorem find_abs {fe : fenv.FEnv} {lfe : ConLeche.FEnv} (hfe : FindAgree fe lfe)
     {n : name.Name} {o : Option env.ConstantInfo} (hn : NameWF n)
-    (ho : fenv.find fe n = ok o) : o.map absConstantInfo = lfe.find? (absName n) := by
-  obtain ⟨o', ho', habs⟩ := hfe n hn
-  rw [ho] at ho'
-  rw [← Result.ok_injective ho'] at habs
-  exact habs
+    (ho : fenv.find fe n = ok o) : o.map absConstantInfo = lfe.find? (absName n) :=
+  hfe n o hn ho
 
-/-- A `fenv::find` that succeeded, hereditarily well formed (`FEnvWF`). -/
-theorem find_wf {fe : fenv.FEnv} (hfwf : FEnvWF fe) {n : name.Name}
-    {o : Option env.ConstantInfo} (ho : fenv.find fe n = ok o) :
+/-- A `fenv::find` that succeeded, hereditarily well formed (`FindWF`). -/
+theorem find_wf {fe : fenv.FEnv} (hfwf : FindWF fe) {n : name.Name}
+    {o : Option env.ConstantInfo} (hn : NameWF n) (ho : fenv.find fe n = ok o) :
     ∀ ci ∈ o, ConstantInfoWF ci :=
-  fun ci hci => hfwf n ci (ho.trans (congrArg ok hci))
+  fun ci hci => hfwf n ci hn (ho.trans (congrArg ok hci))
 
 /-- The `isSome` reading of a `fenv::find`, which is all `consts_resolve`'s
 groups ask for. -/
-theorem find_isSome {fe : fenv.FEnv} {lfe : ConLeche.FEnv} (hfe : FEnvRel fe lfe)
+theorem find_isSome {fe : fenv.FEnv} {lfe : ConLeche.FEnv} (hfe : FindAgree fe lfe)
     {n : name.Name} {o : Option env.ConstantInfo} (hn : NameWF n)
     (ho : fenv.find fe n = ok o) :
     core.option.Option.is_some o = (lfe.find? (absName n)).isSome := by
@@ -1077,7 +1073,7 @@ theorem and_step {b bl rl c : Bool} {r : Result Bool}
 `core_k::nat_lit_supported` refines `ConLeche/Kernel/FEnv.lean:116-119
 natLitSupportedF`.  Needs the three `Nat` pins. -/
 theorem nat_lit_supported_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {c : Bool}
-    (hp : PinnedBasisNames) (hfe : FEnvRel fe lfe) (hfwf : FEnvWF fe)
+    (hp : PinnedBasisNames) (hfe : FindAgree fe lfe) (hfwf : FindWF fe)
     (h : core_k.nat_lit_supported fe = ok c) :
     c = ConLeche.natLitSupportedF lfe := by
   rw [core_k.nat_lit_supported.eq_def] at h
@@ -1085,25 +1081,25 @@ theorem nat_lit_supported_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {c : Bo
   obtain ⟨n, hn, o, ho, b, hb, h⟩ := h
   obtain ⟨hnabs, hnwf⟩ := hp.nat n hn
   simp only [ConLeche.natLitSupportedF, Bool.and_assoc]
-  refine and_step (by rw [nat_ind_ok_refines (find_wf hfwf ho) hb,
+  refine and_step (by rw [nat_ind_ok_refines (find_wf hfwf hnwf ho) hb,
     find_abs hfe hnwf ho, hnabs]) h ?_
   intro c1 h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨n1, hn1, o1, ho1, b1, hb1, h⟩ := h
   obtain ⟨hn1abs, hn1wf⟩ := hp.natZero n1 hn1
-  refine and_step (by rw [nat_zero_ok_refines hp (find_wf hfwf ho1) hb1,
+  refine and_step (by rw [nat_zero_ok_refines hp (find_wf hfwf hn1wf ho1) hb1,
     find_abs hfe hn1wf ho1, hn1abs]) h ?_
   intro c2 h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨n2, hn2, o2, ho2, hb2⟩ := h
   obtain ⟨hn2abs, hn2wf⟩ := hp.natSucc n2 hn2
-  rw [nat_succ_ok_refines hp (find_wf hfwf ho2) hb2, find_abs hfe hn2wf ho2, hn2abs]
+  rw [nat_succ_ok_refines hp (find_wf hfwf hn2wf ho2) hb2, find_abs hfe hn2wf ho2, hn2abs]
 
 /-- `ConLeche/Kernel/Core.lean:457-475 strLitSupported`, through the index:
 `core_k::str_lit_supported` refines `ConLeche/Kernel/FEnv.lean:121-130
 strLitSupportedF`.  Needs all ten pins. -/
 theorem str_lit_supported_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {c : Bool}
-    (hp : PinnedBasisNames) (hfe : FEnvRel fe lfe) (hfwf : FEnvWF fe)
+    (hp : PinnedBasisNames) (hfe : FindAgree fe lfe) (hfwf : FindWF fe)
     (h : core_k.str_lit_supported fe = ok c) :
     c = ConLeche.strLitSupportedF lfe := by
   rw [core_k.str_lit_supported.eq_def] at h
@@ -1115,43 +1111,43 @@ theorem str_lit_supported_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {c : Bo
   simp only [bind_eq_ok_iff] at h
   obtain ⟨n, hn, o, ho, b1, hb1, h⟩ := h
   obtain ⟨hnabs, hnwf⟩ := hp.string n hn
-  refine and_step (by rw [string_ty_ok_refines (find_wf hfwf ho) hb1,
+  refine and_step (by rw [string_ty_ok_refines (find_wf hfwf hnwf ho) hb1,
     find_abs hfe hnwf ho, hnabs]) h ?_
   intro c2 h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨n1, hn1, o1, ho1, b2, hb2, h⟩ := h
   obtain ⟨hn1abs, hn1wf⟩ := hp.stringOfList n1 hn1
-  refine and_step (by rw [string_of_list_ty_ok_refines hp (find_wf hfwf ho1) hb2,
+  refine and_step (by rw [string_of_list_ty_ok_refines hp (find_wf hfwf hn1wf ho1) hb2,
     find_abs hfe hn1wf ho1, hn1abs]) h ?_
   intro c3 h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨n2, hn2, o2, ho2, b3, hb3, h⟩ := h
   obtain ⟨hn2abs, hn2wf⟩ := hp.list n2 hn2
-  refine and_step (by rw [list_ty_ok_refines (find_wf hfwf ho2) hb3,
+  refine and_step (by rw [list_ty_ok_refines (find_wf hfwf hn2wf ho2) hb3,
     find_abs hfe hn2wf ho2, hn2abs]) h ?_
   intro c4 h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨n3, hn3, o3, ho3, b4, hb4, h⟩ := h
   obtain ⟨hn3abs, hn3wf⟩ := hp.listNil n3 hn3
-  refine and_step (by rw [list_nil_ty_ok_refines hp (find_wf hfwf ho3) hb4,
+  refine and_step (by rw [list_nil_ty_ok_refines hp (find_wf hfwf hn3wf ho3) hb4,
     find_abs hfe hn3wf ho3, hn3abs]) h ?_
   intro c5 h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨n4, hn4, o4, ho4, b5, hb5, h⟩ := h
   obtain ⟨hn4abs, hn4wf⟩ := hp.listCons n4 hn4
-  refine and_step (by rw [list_cons_ty_ok_refines hp (find_wf hfwf ho4) hb5,
+  refine and_step (by rw [list_cons_ty_ok_refines hp (find_wf hfwf hn4wf ho4) hb5,
     find_abs hfe hn4wf ho4, hn4abs]) h ?_
   intro c6 h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨n5, hn5, o5, ho5, b6, hb6, h⟩ := h
   obtain ⟨hn5abs, hn5wf⟩ := hp.char n5 hn5
-  refine and_step (by rw [char_ty_ok_refines (find_wf hfwf ho5) hb6,
+  refine and_step (by rw [char_ty_ok_refines (find_wf hfwf hn5wf ho5) hb6,
     find_abs hfe hn5wf ho5, hn5abs]) h ?_
   intro c7 h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨n6, hn6, o6, ho6, hb7⟩ := h
   obtain ⟨hn6abs, hn6wf⟩ := hp.charOfNat n6 hn6
-  rw [char_of_nat_ty_ok_refines hp (find_wf hfwf ho6) hb7, find_abs hfe hn6wf ho6, hn6abs]
+  rw [char_of_nat_ty_ok_refines hp (find_wf hfwf hn6wf ho6) hb7, find_abs hfe hn6wf ho6, hn6abs]
 
 /-! ## `Expr.constsResolve` (`Core.lean:307-332`) and its two `isSome` groups
 
@@ -1166,7 +1162,7 @@ the `ExprWF` derivation (task #47's rule).  The cited Lean is stated over an
 three `isSome` tests the `.lit (.natVal _)` arm of `Expr.constsResolve` opens
 with.  Needs the three `Nat` pins. -/
 theorem nat_trio_stored_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {c : Bool}
-    (hp : PinnedBasisNames) (hfe : FEnvRel fe lfe)
+    (hp : PinnedBasisNames) (hfe : FindAgree fe lfe)
     (h : core_k.nat_trio_stored fe = ok c) :
     c = ((lfe.find? ConLeche.natName).isSome &&
       (lfe.find? ConLeche.natZeroName).isSome &&
@@ -1192,7 +1188,7 @@ theorem nat_trio_stored_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {c : Bool
 seven further `isSome` tests of the `.lit (.strVal _)` arm.  Needs the seven
 string-support pins. -/
 theorem str_support_stored_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {c : Bool}
-    (hp : PinnedBasisNames) (hfe : FEnvRel fe lfe)
+    (hp : PinnedBasisNames) (hfe : FindAgree fe lfe)
     (h : core_k.str_support_stored fe = ok c) :
     c = ((lfe.find? ConLeche.stringName).isSome &&
       (lfe.find? ConLeche.stringOfListName).isSome &&
@@ -1244,7 +1240,7 @@ once per declaration, the core never does), but ported and so refined.
 `henv` is the `FEnv.find? = Env.find?` agreement: the cited Lean reads an `Env`
 and `FEnv.lean` has no `constsResolveF` twin. -/
 theorem consts_resolve_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {lenv : ConLeche.Env} (hp : PinnedBasisNames) (hfe : FEnvRel fe lfe)
+    {lenv : ConLeche.Env} (hp : PinnedBasisNames) (hfe : FindAgree fe lfe)
     (henv : ∀ n : ConLeche.Name, lfe.find? n = lenv.find? n)
     {e : expr.Expr} (he : ExprWF e) :
     ∀ c, core_k.consts_resolve fe e = ok c →

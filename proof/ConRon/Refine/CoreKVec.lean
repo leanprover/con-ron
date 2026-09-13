@@ -47,7 +47,6 @@ namespace ConRon.Refine.CoreK
 
 -- `absRecRule` lives in `BasisTables.lean`'s `T22` section, which `CoreKBase`
 -- opens only locally (it goes away with task #46's merge).
-open ConRon.Refine.T22
 
 /-! ## `drop_exprs` — `List.drop` on a `Vec` (`core_k.rs:137`, `:143`) -/
 

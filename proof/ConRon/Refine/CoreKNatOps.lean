@@ -9,7 +9,7 @@ Cited Lean: `ConLeche/Kernel/Core.lean:656-772` (`natOpGuard`, `natOpCod`,
 actually get stated here — `ConLeche/Kernel/FEnv.lean:133-152`
 (`natOpGuardF`, `natOpStoredF`) and `ConLeche/Kernel/DeclCheck.lean:209-238`
 (`natOpCodF`, `natOpTyPinnedF`, `natOpStoredOkF`).  `CoreKBase.lean`'s
-`FEnvRel` is *find*-agreement only, so the `F` twin is what a refinement of an
+`FindAgree` is *find*-agreement only, so the `F` twin is what a refinement of an
 `FEnv`-reading guard can say; `ConLeche/Verify/CheckerF.lean:74-119`
 (`natOpCodF_eq`, `natOpTyPinnedF_eq`, `natOpStoredOkF_eq`, `natOpGuardF_eq`)
 turns each back into the `Env` version under `mkFEnv`.
@@ -50,7 +50,6 @@ open ConRon.Generated ConRon.Generated.kernel
 
 namespace ConRon.Refine.CoreK
 
-open ConRon.Refine.T22
 
 /-! ## Plumbing -/
 
@@ -116,7 +115,7 @@ def natOpDepStored (lfe : ConLeche.FEnv) : ConLeche.Name → Bool := fun n =>
 `ConLeche/Kernel/FEnv.lean:133-147 natOpGuardF`): the dependency is stored as
 a level-monomorphic definition. -/
 theorem defn_lp_empty_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {n : name.Name} {b : Bool} (hfe : FEnvRel fe lfe) (hn : NameWF n)
+    {n : name.Name} {b : Bool} (hfe : FindAgree fe lfe) (hn : NameWF n)
     (h : core_k.defn_lp_empty fe n = ok b) :
     b = natOpDepStored lfe (absName n) := by
   rw [core_k.defn_lp_empty] at h
@@ -138,7 +137,7 @@ theorem defn_lp_empty_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
 /-- The index recursion behind `core_k::deps_all_stored`: from index `i` on it
 is the `List.all` of the dropped tail. -/
 theorem deps_all_stored_from {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    (hfe : FEnvRel fe lfe) {deps : alloc.vec.Vec name.Name} (hdeps : NamesWF deps) :
+    (hfe : FindAgree fe lfe) {deps : alloc.vec.Vec name.Name} (hdeps : NamesWF deps) :
     ∀ k (i : Std.Usize), deps.val.length - i.val ≤ k → ∀ b : Bool,
       core_k.deps_all_stored fe deps i = ok b →
       b = ((deps.val.drop i.val).map absName).all (natOpDepStored lfe) := by
@@ -187,7 +186,7 @@ theorem deps_all_stored_from {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
 dependency clause** (`ConLeche/Kernel/Core.lean:656-672 natOpGuard`,
 `ConLeche/Kernel/FEnv.lean:133-147 natOpGuardF`). -/
 theorem deps_all_stored_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {deps : alloc.vec.Vec name.Name} {b : Bool} (hfe : FEnvRel fe lfe)
+    {deps : alloc.vec.Vec name.Name} {b : Bool} (hfe : FindAgree fe lfe)
     (hdeps : NamesWF deps) (h : core_k.deps_all_stored fe deps 0#usize = ok b) :
     b = (absNames deps).all (natOpDepStored lfe) := by
   have hz : (0#usize : Std.Usize).val = 0 := rfl
@@ -248,7 +247,7 @@ Imported (`BRIEF.md`, another task-#49 agent): `NatLitSupportedSpec`,
 `LpEmptySpec`, and the pinned names `nat_op_deps`, `nat_beq_name`,
 `nat_ble_name`, `nat_div_mod_names`, `bool_true_name`, `bool_false_name`. -/
 theorem nat_op_guard_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {c : name.Name} {b : Bool} (hfe : FEnvRel fe lfe) (hc : NameWF c)
+    {c : name.Name} {b : Bool} (hfe : FindAgree fe lfe) (hc : NameWF c)
     (hnls : NatLitSupportedSpec fe lfe) (hlp : LpEmptySpec fe lfe)
     (hnod : PinnedNames (core_k.nat_op_deps c) (ConLeche.natOpDeps (absName c)))
     (hbeq : PinnedName core_k.nat_beq_name ConLeche.natBeqName)
@@ -349,7 +348,7 @@ level-monomorphically at `Sort 1`.
 
 Imported: the pinned name `bool_name` and `ToConstantValSpec`. -/
 theorem bool_stored_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : Bool}
-    (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe)
+    (hfe : FindAgree fe lfe) (hwf : FindWF fe)
     (hbn : PinnedName core_k.bool_name ConLeche.boolName) (htcv : ToConstantValSpec)
     (h : core_k.bool_stored_ok fe = ok b) : b = boolStoredL lfe := by
   rw [core_k.bool_stored_ok] at h
@@ -363,7 +362,7 @@ theorem bool_stored_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : Bool}
     rw [hfe.find_some hnwf ho]
     simp only [bind_eq_ok_iff] at h
     obtain ⟨cv, hcv, h⟩ := h
-    obtain ⟨hcvabs, hcvwf⟩ := htcv ci cv (hwf n ci ho) hcv
+    obtain ⟨hcvabs, hcvwf⟩ := htcv ci cv (hwf n ci hnwf ho) hcv
     show b = ((absConstantInfo ci).toConstantVal.levelParams.isEmpty &&
       ((absConstantInfo ci).toConstantVal.type == ConLeche.Expr.sort (.succ .zero)))
     rw [← hcvabs]
@@ -393,7 +392,7 @@ theorem natOpCodL_eq (lfe : ConLeche.FEnv) (c : ConLeche.Name) (e : ConLeche.Exp
 /-- The `Bool` codomain arm of `nat_op_cod`, which the Rust spells out once for
 `Nat.beq` and once for `Nat.ble`. -/
 theorem bool_cod_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Expr}
-    {b : Bool} (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe) (he : ExprWF e)
+    {b : Bool} (hfe : FindAgree fe lfe) (hwf : FindWF fe) (he : ExprWF e)
     (hbn : PinnedName core_k.bool_name ConLeche.boolName) (htcv : ToConstantValSpec)
     (h : ∃ n, core_k.bool_name = ok n ∧
       ∃ e1, expr.mk_const n (alloc.vec.Vec.new level.Level) = ok e1 ∧
@@ -419,7 +418,7 @@ structural-`Nat` operation — `Bool` for the two comparisons, `Nat` otherwise.
 Imported: the pinned names `nat_beq_name`, `nat_ble_name`, `bool_name`,
 `basis_names::nat_name`, and `ToConstantValSpec`. -/
 theorem nat_op_cod_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {c : name.Name}
-    {e : expr.Expr} {b : Bool} (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe)
+    {e : expr.Expr} {b : Bool} (hfe : FindAgree fe lfe) (hwf : FindWF fe)
     (hc : NameWF c) (he : ExprWF e)
     (hbeq : PinnedName core_k.nat_beq_name ConLeche.natBeqName)
     (hble : PinnedName core_k.nat_ble_name ConLeche.natBleName)
@@ -492,8 +491,8 @@ inner one through `forall_e_wf_inv`.
 Imported: the pinned names `nat_pred_name`, `nat_beq_name`, `nat_ble_name`,
 `bool_name`, `basis_names::nat_name`, and `ToConstantValSpec`. -/
 theorem nat_op_ty_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {c : name.Name} {ty : expr.Expr} {b : Bool} (hfe : FEnvRel fe lfe)
-    (hwf : FEnvWF fe) (hc : NameWF c) (hty : ExprWF ty)
+    {c : name.Name} {ty : expr.Expr} {b : Bool} (hfe : FindAgree fe lfe)
+    (hwf : FindWF fe) (hc : NameWF c) (hty : ExprWF ty)
     (hpred : PinnedName core_k.nat_pred_name ConLeche.natPredName)
     (hbeq : PinnedName core_k.nat_beq_name ConLeche.natBeqName)
     (hble : PinnedName core_k.nat_ble_name ConLeche.natBleName)
@@ -602,7 +601,7 @@ level-monomorphic definition at the pinned type.
 
 Imported: `DefnProbeSpec` and everything `nat_op_ty_pinned_refines` imports. -/
 theorem nat_op_stored_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {n : name.Name} {b : Bool} (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe)
+    {n : name.Name} {b : Bool} (hfe : FindAgree fe lfe) (hwf : FindWF fe)
     (hn : NameWF n) (hdp : DefnProbeSpec fe lfe)
     (hpred : PinnedName core_k.nat_pred_name ConLeche.natPredName)
     (hbeq : PinnedName core_k.nat_beq_name ConLeche.natBeqName)
@@ -644,7 +643,7 @@ theorem nat_op_stored_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
 `ConLeche/Kernel/FEnv.lean:148-152 natOpStoredF`) — the reduction-time test: is
 `c` stored as a definition at all?  One `find?`, and no imported hypothesis. -/
 theorem nat_op_stored_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {c : name.Name} {b : Bool} (hfe : FEnvRel fe lfe) (hc : NameWF c)
+    {c : name.Name} {b : Bool} (hfe : FindAgree fe lfe) (hc : NameWF c)
     (h : core_k.nat_op_stored fe c = ok b) :
     b = ConLeche.natOpStoredF lfe (absName c) := by
   rw [core_k.nat_op_stored] at h

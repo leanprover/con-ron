@@ -68,9 +68,6 @@ else.  (Task #12's two-lemma `Smoke.lean` was folded into `Level.lean`'s
 | `ExprOpsSpine.lean` | the spine and the telescopes: `get_app_fn`/`get_app_args`/`mk_app_n`, `pi_result`/`pi_arity`/`result_sort`/`fvar_type_d`, `strip_pis`/`strip_lams`, the `inst_pis_at`/`inst_lams_at`/`inst_spine` cascade and its one-pass `*_f` twins, `rec_rule_plain`, `pis_to_lams`, `replace_pi_body` |
 | `ExprOpsMeta.lean` | the metadata: `reset_meta`, `rename_consts`, the `level::zeroness_of`/`level::subst_pw` bridge, `levels_subst`/`instantiate_level_params`, the leaf readers (`is_lam`, `lam_pw`, `forall_pw`, `has_level_param`, `expr_ptr_beq`), `fvar_leaves`, and the `all_level_params_defined` family |
 
-## Not yet here
-
-`kernel::env`, `kernel::fenv` and everything above them.
 | `BasisTables.lean` | `kernel::basis_tables` (task #22): the generated basis tables are the value they were generated from |
 | `HashMapWF.lean` | task #16's deferred `Eq2` generalisation, written for its first client (task #46): the bucket walks and the `Std.HashMap` bridge under a *forward*, key-restricted exactness hypothesis (`Eq2Fwd`) instead of `Eq2Spec` |
 | `Env.lean` | `kernel::env` (task #46): the mode accessors, the `Vec` copies and the `*_dup` identities, `rec_rule_parsed`/`ind_caps_default`/`default_expr` (the Lean's field defaults), `proj_table_entry`, `pi_sort_tele_len`, `ind_params_ok`, the reserved names `proj_fn_name`/`proj_table_name`, `abs`'s injectivity on the well-formed records, the whole `*_beq` family exactly, the accessors, and `find`/`find_proj` |
@@ -83,9 +80,25 @@ else.  (Task #12's two-lemma `Smoke.lean` was folded into `Level.lean`'s
 | `ExprOpsCAbs.lean` | the cached abstractions and level substitution (task #51): `abstract1`, `abstractRange`, `instLevelParams` (the one walk whose probe sits *before* the match) and `ProjEntry.typeAtI` |
 | `ExprOpsCGuards.lean` | the cached scope queries, leaf guard, telescopes and definedness (task #51): `wscopedB` proved, and the statements of `fvarLeaves`, `leafGuard`, `instSpine`, `piResidual`, `allLevelParamsDefined` |
 
+| `CoreKBase.lean` | task #49's shared foundation (`CORE_PLAN.md` step 4): `core_types::code_points` and the `str_lit_step`/`num_lit_step` packaging of a pinned name's body, `PinnedName`/`PinnedNames`, the three paired `kernel::env` readings, and `FindAgree`/`FindWF` — the *find-agreement* projection of `FEnv.FEnvRel`/`FEnv.FEnvWF` that `core_k.rs`/`prop_read.rs` read, with the two bridge lemmas |
+| `CoreKProj.lean` | the `findProj?` reading over that weaker hypothesis: `find_proj`, and `fenv::tower_slots_all_f`/`rec_slots_all_f` (which `Refine/FEnv.lean` leaves to step 4) |
+| `BasisNames.lean` | `kernel::basis_names` (task #49): all 26 pinned names, `rec_of` and `reserved_basis_names` |
+| `CoreKNames.lean` | `core_k.rs`'s pinned `Nat`/`Bool` names and name tables (task #49): the eighteen names, `nat_op_names`/`nat_div_mod_names`/`nat_op_wf_names`/`nat_op_deps`, `is_nat_bin_op`, and `nat_to_dec`/`proj_model_name` (`Nat.toString` on a `u64`) |
+| `CoreKVec.lean` | `core_k.rs`'s `Vec`/list plumbing (task #49): `drop_exprs`/`append_exprs`/`rev_append_exprs`/`expr_singleton`, `leaf_contains`/`fvar_leaves_subset`, `get_d_expr`/`rules_find`, `pi_residual`, `subst_const0`/`subst_const_all`, `lift_fueled` and the four loop budgets |
+| `CoreKLits.lean` | literal reduction (task #49): `nat_lit_to_constructor`, `raw_nat_lit`, `lit_to_ctor_if_nat`, `str_lit_to_constructor`, `succ_of`, the equation table `nat_op_equations` and **`nat_op_result`**, the arithmetic fast path |
+| `CoreKSupport.lean` | the literal-support guards (task #49): the `nat_*_ok`/`*_ty_ok` stored-shape family, `nat_lit_supported`, `str_lit_supported`, and the dead `Expr.constsResolve` |
+| `CoreKGuards.lean` | `core_k.rs`'s readers, shape guards and owning probes (task #49): `defn_probe`/`ctor_probe`/`ind_probe`/`rec_probe`/`lp_empty`, `is_ctor_app`, `unfoldable_head`, `head_hint`, `is_unit_like_ty`, `same_const_heads`, `pi_result_*`, `caps_never_zero`, the leaf kind tests, `pw_written`, `annot_binder_meta`, `rec_rule_k`, `fire_is_inert`, `str_expansion_fires` and the dead `beta_gate_fires` |
+| `CoreKNatOps.lean` | the `Nat`-operation pinning guards (task #49): `nat_op_guard`, `nat_op_stored`/`nat_op_stored_ok`, `nat_op_ty_pinned`, `nat_op_cod`, `bool_stored_ok`, `defn_lp_empty`, `deps_all_stored` |
+| `CoreKShapes.lean` | the install-time rule bits and the certificate shape conjunctions (task #49): `struct_eta_shape_ok`, `eta_ctor_shape`, `unit_shape_ok`, the dead `eta_projs*`/`eta_fab_args*`, `proj_entry_fire_ok`, the `And`-rescue slots, `fab_scope_ok`, `rec_rule_k_of`/`rec_rule_eta_of`/`rec_rule_bits`/`proj_fn_rule`, `proj_fire_shape_ok` |
+| `CoreKInfer.lean` | the pure inference clauses (task #49): `infer_lit_nat`, `infer_lit_str`, `infer_fvar`, `proj_entry_type_at`, `proj_type_at_checked`, `infer_proj_at`, `annotate_proj_entry` |
+| `CoreKPinned.lean` | task #49's closing file: every hypothesis the eleven parallel files import — the pinned names, `NatOpPinned`, `PinnedBasisNames`, `VecFacts`, `EnvFacts`, the four `*Spec`s — discharged from the lemmas that prove them |
+| `PropRead.lean` | `kernel::prop_read` (task #49): all eleven readers of the fast prop-ness path, each against the cited Lean instantiated at `lfe.find?` |
+
 ## Not yet here
 
-`cached::core_k`, `cached::state_c`'s `*M` wrappers, `cached::core_c` and
-everything above them: `Refine/CORE_PLAN.md` is the design for the rest, task
-#46's four files are its steps 1 and 2, and task #51's four `ExprOpsC*` files
-are the second half of its step 3.
+`cached::core_c` (the knot's six wrappers and their bodies) and everything
+above it: `Refine/CORE_PLAN.md` is the design for the rest.  Task #46's four
+files are its steps 1 and 2, task #51's four `ExprOpsC*` files the second half
+of its step 3, task #49's twelve `CoreK*`/`BasisNames`/`PropRead` files its
+step 4, and task #52's two `StateC*` files its step 5; step 6 is the
+induction.

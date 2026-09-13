@@ -355,7 +355,7 @@ citations.
 
 The one environment fact the port reads is `core_k::nat_lit_supported`, whose
 refinement belongs to task #49's *guards* file; it is taken here as the explicit
-hypothesis `hsupp`, which is why no `FEnvRel` appears -- `FEnvRel` is what
+hypothesis `hsupp`, which is why no `FindAgree` appears -- `FindAgree` is what
 supplies `hsupp` once the guard's lemma lands.  Instantiating `supported` at
 `natLitSupported lenv` gives the `Kernel/Core.lean` citation
 (`lit_to_ctor_if_nat_refines_env` below); at `natLitSupportedF lfe` it gives the

@@ -65,7 +65,6 @@ open ConRon.Generated ConRon.Generated.kernel
 
 namespace ConRon.Refine.CoreK
 
-open ConRon.Refine.T22
 
 /-! ## The imported facts
 
@@ -93,13 +92,13 @@ without importing that file). -/
 structure EnvFacts : Prop where
   levelsCopy : ∀ {us r}, env.levels_copy us = ok r → r.val = us.val
   exprsCopy : ∀ {es r}, env.exprs_copy es = ok r → r.val = es.val
-  ctorProbe : ∀ {fe lfe n o}, FEnvRel fe lfe → FEnvWF fe → NameWF n →
+  ctorProbe : ∀ {fe lfe n o}, FindAgree fe lfe → FindWF fe → NameWF n →
     core_k.ctor_probe fe n = ok o →
     o.map (fun t => (absConstantVal t.1, t.2.1.val, t.2.2.val))
         = (match lfe.find? (absName n) with
            | some (.ctorInfo cv nP nF) => some (cv, nP, nF) | _ => none) ∧
       ∀ cv nP nF, o = some (cv, nP, nF) → ConstantValWF cv
-  indProbe : ∀ {fe lfe n o}, FEnvRel fe lfe → FEnvWF fe → NameWF n →
+  indProbe : ∀ {fe lfe n o}, FindAgree fe lfe → FindWF fe → NameWF n →
     core_k.ind_probe fe n = ok o →
     o.map (fun t => (absConstantVal t.1, absIndCaps t.2))
         = (match lfe.find? (absName n) with
@@ -498,7 +497,7 @@ theorem absExpr_node_kind (e : expr.Expr) : absExpr e = absExprKind e._0.kind :=
 module note's deviation 3): the candidate's head is a stored constructor
 applied to exactly its parameters and fields. -/
 theorem eta_ctor_shape_refines (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    (hrel : FEnvRel fe lfe) {a : expr.Expr} {b : Bool} (ha : ExprWF a)
+    (hrel : FindAgree fe lfe) {a : expr.Expr} {b : Bool} (ha : ExprWF a)
     (h : core_k.eta_ctor_shape fe a = ok b) :
     b = ConLeche.Cached.etaCtorShapeC lfe (absExpr a) := by
   rw [core_k.eta_ctor_shape] at h
@@ -633,7 +632,7 @@ reads the slot discipline through the index (`FEnv.towerSlotsAllF` /
 `towerSlotsAll` / `recSlotsAll`. -/
 theorem struct_eta_shape_ok_refines
     (hres : PinnedNames basis_names.reserved_basis_names ConLeche.reservedBasisNames)
-    {fe : fenv.FEnv} {lfe : ConLeche.FEnv} (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe)
+    {fe : fenv.FEnv} {lfe : ConLeche.FEnv} (hrel : FindAgree fe lfe) (hwf : FindWF fe)
     {c t : name.Name} {us2 : alloc.vec.Vec level.Level}
     {targs : alloc.vec.Vec expr.Expr} {cvc cvt : env.ConstantVal}
     {caps : env.IndCaps} {b : Bool}
@@ -822,7 +821,7 @@ refines the per-slot test of `andRescueSlotsOf` (task #14's per-element rule:
 the entry's borrow dies inside the callee). -/
 theorem and_rescue_slot_ok_refines
     (hand : PinnedName basis_names.and_name ConLeche.andName)
-    {fe : fenv.FEnv} {lfe : ConLeche.FEnv} (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe)
+    {fe : fenv.FEnv} {lfe : ConLeche.FEnv} (hrel : FindAgree fe lfe) (hwf : FindWF fe)
     {ctor : name.Name} {n_p j : Std.U64} {ust : alloc.vec.Vec level.Level} {b : Bool}
     (hctor : NameWF ctor) (hust : LevelsWF ust)
     (h : core_k.and_rescue_slot_ok fe ctor n_p ust j = ok b) :
@@ -903,7 +902,7 @@ theorem and_rescue_slot_ok_refines
 `and_rescue_slots`, the cited `(List.range 2).all`. -/
 theorem and_rescue_slots_from_refines
     (hand : PinnedName basis_names.and_name ConLeche.andName)
-    {fe : fenv.FEnv} {lfe : ConLeche.FEnv} (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe)
+    {fe : fenv.FEnv} {lfe : ConLeche.FEnv} (hrel : FindAgree fe lfe) (hwf : FindWF fe)
     {ctor : name.Name} {n_p : Std.U64} {ust : alloc.vec.Vec level.Level}
     (hctor : NameWF ctor) (hust : LevelsWF ust) (N : Nat) :
     ∀ (j : Std.U64) (b : Bool), 2 - j.val = N →
@@ -947,7 +946,7 @@ stored, name the rule's constructor at the major's parameter count, and their
 `Prop` guards pass at `ust`. -/
 theorem and_rescue_slots_refines
     (hand : PinnedName basis_names.and_name ConLeche.andName)
-    {fe : fenv.FEnv} {lfe : ConLeche.FEnv} (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe)
+    {fe : fenv.FEnv} {lfe : ConLeche.FEnv} (hrel : FindAgree fe lfe) (hwf : FindWF fe)
     {ctor : name.Name} {n_p : Std.U64} {ust : alloc.vec.Vec level.Level} {b : Bool}
     (hctor : NameWF ctor) (hust : LevelsWF ust)
     (h : core_k.and_rescue_slots fe ctor n_p ust = ok b) :
@@ -1086,7 +1085,7 @@ theorem eta_projs_from_refines (hvec : VecFacts) (henv : EnvFacts)
 projection-function applications otherwise.  The cited `towerSlotsAll env` is
 read through the index (`FEnv.towerSlotsAllF`). -/
 theorem eta_projs_refines (hvec : VecFacts) (henv : EnvFacts) {fe : fenv.FEnv}
-    {lfe : ConLeche.FEnv} (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe)
+    {lfe : ConLeche.FEnv} (hrel : FindAgree fe lfe) (hwf : FindWF fe)
     {t : name.Name} {us : alloc.vec.Vec level.Level} {targs : alloc.vec.Vec expr.Expr}
     {b : expr.Expr} {n_f : Std.U64} {r : alloc.vec.Vec expr.Expr}
     (ht : NameWF t) (hus : LevelsWF us) (htargs : ExprsWF targs) (hb : ExprWF b)
@@ -1137,7 +1136,7 @@ theorem eta_fab_args_refines (hvec : VecFacts) (henv : EnvFacts)
 /-- `ConLeche/Kernel/Core.lean:1220-1225` -- `core_k::eta_fab_args_e` refines
 `etaFabArgsE`: `eta_fab_args` at the entry kind. -/
 theorem eta_fab_args_e_refines (hvec : VecFacts) (henv : EnvFacts) {fe : fenv.FEnv}
-    {lfe : ConLeche.FEnv} (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe)
+    {lfe : ConLeche.FEnv} (hrel : FindAgree fe lfe) (hwf : FindWF fe)
     {t : name.Name} {ust : alloc.vec.Vec level.Level} {targs : alloc.vec.Vec expr.Expr}
     {major : expr.Expr} {n_f : Std.U64} {r : alloc.vec.Vec expr.Expr}
     (ht : NameWF t) (hust : LevelsWF ust) (htargs : ExprsWF targs) (hmajor : ExprWF major)
@@ -1175,7 +1174,7 @@ the equation it leaves behind is `subst`ed. -/
 lookup takes. -/
 theorem ctor_probe_hit (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {n : name.Name} {cv : env.ConstantVal} {nP nF : Std.U64}
-    (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe) (hn : NameWF n)
+    (hrel : FindAgree fe lfe) (hwf : FindWF fe) (hn : NameWF n)
     (h : core_k.ctor_probe fe n = ok (some (cv, nP, nF))) :
     lfe.find? (absName n) = some (.ctorInfo (absConstantVal cv) nP.val nF.val)
       ∧ ConstantValWF cv := by
@@ -1196,7 +1195,7 @@ theorem ctor_probe_hit (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
 
 /-- `ctor_probe` miss: no stored constructor of that name. -/
 theorem ctor_probe_miss (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {n : name.Name} (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe) (hn : NameWF n)
+    {n : name.Name} (hrel : FindAgree fe lfe) (hwf : FindWF fe) (hn : NameWF n)
     (h : core_k.ctor_probe fe n = ok none) :
     ∀ cv nP nF, lfe.find? (absName n) ≠ some (.ctorInfo cv nP nF) := by
   obtain ⟨habs, -⟩ := henv.ctorProbe hrel hwf hn h
@@ -1208,7 +1207,7 @@ theorem ctor_probe_miss (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
 /-- `ind_probe` hit. -/
 theorem ind_probe_hit (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {n : name.Name} {cv : env.ConstantVal} {caps : env.IndCaps}
-    (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe) (hn : NameWF n)
+    (hrel : FindAgree fe lfe) (hwf : FindWF fe) (hn : NameWF n)
     (h : core_k.ind_probe fe n = ok (some (cv, caps))) :
     lfe.find? (absName n) = some (.indInfo (absConstantVal cv) (absIndCaps caps))
       ∧ ConstantValWF cv ∧ IndCapsWF caps := by
@@ -1229,7 +1228,7 @@ theorem ind_probe_hit (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
 
 /-- `ind_probe` miss. -/
 theorem ind_probe_miss (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {n : name.Name} (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe) (hn : NameWF n)
+    {n : name.Name} (hrel : FindAgree fe lfe) (hwf : FindWF fe) (hn : NameWF n)
     (h : core_k.ind_probe fe n = ok none) :
     ∀ cv caps, lfe.find? (absName n) ≠ some (.indInfo cv caps) := by
   obtain ⟨habs, -⟩ := henv.indProbe hrel hwf hn h
@@ -1242,7 +1241,7 @@ theorem ind_probe_miss (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
 `recRuleKOf` at `lfe.find?`: **the K bit at install** -- the rule's constructor
 has no fields and belongs to an inductive stored with the K capability. -/
 theorem rec_rule_k_of_refines (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe) {ctor : name.Name} {b : Bool}
+    (hrel : FindAgree fe lfe) (hwf : FindWF fe) {ctor : name.Name} {b : Bool}
     (hctor : NameWF ctor) (h : core_k.rec_rule_k_of fe ctor = ok b) :
     b = ConLeche.recRuleKOf lfe.find? (absName ctor) := by
   rw [core_k.rec_rule_k_of] at h
@@ -1326,7 +1325,7 @@ constructor is the η constructor of a stored η-capable inductive, carries that
 inductive's own level parameters, and the recursor is not itself a projection
 function. -/
 theorem rec_rule_eta_of_refines (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe) {rec_name ctor : name.Name} {b : Bool}
+    (hrel : FindAgree fe lfe) (hwf : FindWF fe) {rec_name ctor : name.Name} {b : Bool}
     (hrec : NameWF rec_name) (hctor : NameWF ctor)
     (h : core_k.rec_rule_eta_of fe rec_name ctor = ok b) :
     b = ConLeche.recRuleEtaOf lfe.find? (absName rec_name) (absName ctor) := by
@@ -1445,7 +1444,7 @@ theorem rec_rule_eta_of_refines (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLec
 `recRuleBits`: the one place the K and η-rescue conditions are decided.  This
 one *builds* a `RecRule`, so it carries a `RecRuleWF` conclusion. -/
 theorem rec_rule_bits_refines (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe) {rec_name : name.Name}
+    (hrel : FindAgree fe lfe) (hwf : FindWF fe) {rec_name : name.Name}
     {rl r : env.RecRule} (hrec : NameWF rec_name) (hrl : RecRuleWF rl)
     (h : core_k.rec_rule_bits fe rec_name rl = ok r) :
     absRecRule r = ConLeche.recRuleBits lfe.find? (absName rec_name) (absRecRule rl)
@@ -1464,7 +1463,7 @@ theorem rec_rule_bits_refines (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche
 bits stamped by `rec_rule_bits`.  The cited record literal leaves `k`/`eta` at
 their `false` defaults, which the stamping then overwrites. -/
 theorem proj_fn_rule_refines (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe) {t ctor_name : name.Name}
+    (hrel : FindAgree fe lfe) (hwf : FindWF fe) {t ctor_name : name.Name}
     {pty rhs_a : expr.Expr} {n_p n_f i : Std.U64} {r : env.RecRule}
     (ht : NameWF t) (hctor : NameWF ctor_name) (hpty : ExprWF pty) (hrhs : ExprWF rhs_a)
     (h : core_k.proj_fn_rule fe t ctor_name pty n_p n_f i rhs_a = ok r) :

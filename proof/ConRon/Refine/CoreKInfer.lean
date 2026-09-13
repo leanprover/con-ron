@@ -66,7 +66,6 @@ open ConRon.Generated ConRon.Generated.kernel
 
 namespace ConRon.Refine.CoreK
 
-open ConRon.Refine.T22
 
 /-! ## The two literal arms of `inferBody` -/
 
@@ -347,12 +346,12 @@ def inferProjAtL (lfe : ConLeche.FEnv) (sn : ConLeche.Name) (i : Nat)
 (`ConLeche/Kernel/Core.lean:2039-2204`, `:2155-2192`; twin `:2206-2334
 inferBodyIO` -- the arm is byte-identical in the two bodies, which is why the
 port has one function).  The environment read is `fenv::find_proj`, through
-`Refine/CoreKProj.lean`'s `find_proj_refines`, so this takes both `FEnvRel` and
-`FEnvWF`. -/
+`Refine/CoreKProj.lean`'s `find_proj_refines`, so this takes both `FindAgree` and
+`FindWF`. -/
 theorem infer_proj_at_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {sn : name.Name}
     {i : Std.U64} {pe te r : expr.Expr}
     (hrev : RevAppendExprs) (hfire : ProjEntryFireOk)
-    (hrel : FEnvRel fe lfe) (hfwf : FEnvWF fe)
+    (hrel : FindAgree fe lfe) (hfwf : FindWF fe)
     (hsn : NameWF sn) (hpe : ExprWF pe) (hte : ExprWF te)
     (h : core_k.infer_proj_at fe sn i pe te = ok (.Ok r)) :
     inferProjAtL lfe (absName sn) i.val (absExpr pe) (absExpr te) = .ok (absExpr r)
@@ -414,7 +413,7 @@ and the value is the normalized `.proj T i e'`. -/
 theorem annotate_proj_entry_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {sn t : name.Name} {i : Std.U64} {e2 r : expr.Expr}
     {targs : alloc.vec.Vec expr.Expr}
-    (hrel : FEnvRel fe lfe) (hfwf : FEnvWF fe)
+    (hrel : FindAgree fe lfe) (hfwf : FindWF fe)
     (hsn : NameWF sn) (ht : NameWF t) (he2 : ExprWF e2)
     (h : core_k.annotate_proj_entry fe sn t i e2 targs = ok (.Ok r)) :
     annotateProjEntryL lfe (absName sn) (absName t) i.val (absExpr e2) (absExprs targs)

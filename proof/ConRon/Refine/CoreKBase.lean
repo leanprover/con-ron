@@ -3,25 +3,20 @@
 refinement of `kernel/core_k.rs`, `kernel/prop_read.rs` and
 `kernel/basis_names.rs` needs before any of their functions can be stated.
 
-Three things live here and nowhere else in the `CoreK*` family:
+Two things live here and nowhere else in the `CoreK*` family:
 
 * **`core_types::code_points`**, the port's spelling of a Lean string literal
   (DESIGN.md §3.3): `code_points_val` says the copy is the slice, and
   `str_lit_step`/`num_lit_step` package the two-or-three-bind body that every
   pinned name in `basis_names.rs` and `core_k.rs` has.
-* **The `env`-record abstractions and well-formedness predicates.**  Task #46
-  (`CORE_PLAN.md` step 1) is writing `absConstantInfo`, `absEnv` and friends
-  into `Refine/Abs.lean` and `Refine/Env.lean`.  Until that lands, the
-  `ConstantInfo` half is taken from `Refine/BasisTables.lean`'s `T22`
-  namespace (task #22's copies, which task #20's merge left in place) and the
-  two records `T22` does not have -- `ProjEntry` and `CheckMode` -- plus the
-  whole `*WF` family are defined below, under a section marked
-  **TO BE UNIFIED WITH TASK #46**.
-* **`FEnvRel`/`FEnvWF`**, likewise minimal and likewise marked: `FEnvRel` is
-  *find-agreement only* (`CORE_PLAN.md`'s full relation adds `visible_below`
-  and `absEnv fe.env = lfe.env`, which nothing in this step reads), and the
-  `findProj?` agreement is **derived** from it rather than assumed, through
-  local refinements of `env::proj_table_name` and `env::proj_table_entry`.
+* **`FindAgree`/`FindWF`**, the *find-agreement* projection of task #46's
+  `FEnv.FEnvRel`/`FEnv.FEnvWF`, with the two bridge lemmas.  `core_k.rs` and
+  `prop_read.rs` read the environment only through `fenv::find` and
+  `fenv::find_proj`, so find-agreement is the whole of the relation they
+  depend on, and stating step 4 over it rather than over the full three-clause
+  relation makes the step's theorems stronger.  The section below says why at
+  length; `PinnedName`/`PinnedNames`, the statement of a pinned name and of a
+  pinned name table, are there too.
 -/
 import ConRon.Generated
 import ConRon.Refine.Abs
@@ -35,6 +30,8 @@ import ConRon.Refine.ExprOpsSubst
 import ConRon.Refine.ExprOpsSpine
 import ConRon.Refine.ExprOpsMeta
 import ConRon.Refine.BasisTables
+import ConRon.Refine.Env
+import ConRon.Refine.FEnv
 import ConLeche.Kernel.FEnv
 import ConLeche.Kernel.Basis.Names
 
@@ -143,153 +140,99 @@ theorem num_lit_step {pre n : name.Name} {m : Std.U64}
     absName n = .num (absName pre) m.val ∧ NameWF n :=
   ⟨Name.mk_num_refines hmk, NameWF.num hprewf hmk⟩
 
-/-! # TO BE UNIFIED WITH TASK #46
+/-! # What this step takes from tasks #46 and #50, and the one thing it states
+differently
 
-Everything from here to the end of the file is the minimum `CORE_PLAN.md` step
-4 needs of steps 1 and 2, written locally because those steps are being landed
-in parallel (`Refine/Abs.lean`'s `absConstantInfo`/`absEnv`, `Refine/Env.lean`,
-`Refine/FEnv.lean`).  On merge: delete the `absProjEntry`/`absCheckMode`
-definitions and the `*WF` family in favour of `Abs.lean`'s, and replace
-`FEnvRel`/`FEnvWF` by `Refine/FEnv.lean`'s (whose `find` clause is this one,
-plus the `visible_below` and `absEnv` clauses nothing here reads).  The
-`open T22` below goes away with `BasisTables.lean`'s own `T22` section. -/
+`CORE_PLAN.md` steps 1 and 2 have landed: the `env`-record abstractions
+(`absConstantVal`, `absConstantInfo`, `absProjEntry`, `absProjTable`,
+`absRecRule(s)`, `absHint`, `absMode`, `absEnv`) and the hereditary
+well-formedness predicates (`ConstantValWF` ... `ConstantInfoWF`, `EnvWF`) are
+`Refine/Abs.lean`'s, `kernel::env`'s refinements are `Refine/Env.lean`'s and
+`kernel::fenv`'s are `Refine/FEnv.lean`'s.  This file defines none of them any
+more; the local copies task #49 needed while #46 was in flight are gone.
 
-open ConRon.Refine.T22
+**The one thing step 4 states differently: `FindAgree`, not `FEnv.FEnvRel`.**
+`core_k.rs` and `prop_read.rs` read the environment through exactly two calls,
+`fenv::find` and `fenv::find_proj` (`core_k.rs`'s module note, deviation 3).  So
+the hypothesis every lemma of the `CoreK*` family carries is *find-agreement* —
+strictly weaker than task #46's three-clause `FEnv.FEnvRel`, which also fixes
+`visible_below`, `absEnv fe.env` and the index's `HashMap.RelOn`, none of which
+anything here reads.  Stating step 4 over the weaker hypothesis makes its
+theorems stronger and keeps them independent of how the index is built;
+`FindAgree.of_rel` and `FindWF.of_wf` below turn task #46's relation and
+invariant into them in one step, which is all step 6's knot needs.  (`FindWF`
+is the same projection of `FEnv.FEnvWF`: what a lookup hands back is a
+well-formed record, which is what a result used as a *term* needs.) -/
 
-/-- `ConLeche/Kernel/Env.lean:447` — `ProjEntry`.  (`T22` has every other
-`env` record; this one no lemma needed before task #49.) -/
-def absProjEntry (e : env.ProjEntry) : ConLeche.ProjEntry where
-  structName := absName e.struct_name
-  idx := e.idx.val
-  levelParams := absNames e.level_params
-  numParams := e.num_params.val
-  ctor := absName e.ctor
-  numFields := e.num_fields.val
-  body := absExpr e.body
-  fieldSort := absLevel e.field_sort
-  structSort := absLevel e.struct_sort
-  off := e.off.val
+/-- **Find-agreement**: whatever `fenv::find` answers abstracts to whatever
+`ConLeche.FEnv.find?` answers.  The projection of `FEnv.FEnvRel` that
+`core_k.rs`/`prop_read.rs` read; `FindAgree.of_rel` is the bridge. -/
+def FindAgree (fe : fenv.FEnv) (lfe : ConLeche.FEnv) : Prop :=
+  ∀ (n : name.Name) (o : Option env.ConstantInfo), NameWF n →
+    fenv.find fe n = ok o → o.map absConstantInfo = lfe.find? (absName n)
 
-/-- `ConLeche/Kernel/Env.lean:69` — `CheckMode`. -/
-def absCheckMode : env.CheckMode → ConLeche.CheckMode
-  | .Verified => .verified
-  | .Trusted => .trusted
-
-/-! ## The well-formedness predicates of the stored records
-
-Hereditary, in the task-#5/#17 style: a stored record is well formed when every
-`Name`/`Level`/`Expr`/`PropWhen` in it is.  Plain conjunctions, not inductive
-predicates: unlike `Name`/`Level`/`Expr` these records have no smart
-constructor whose stored derived word needs pinning. -/
-
-def ConstantValWF (cv : env.ConstantVal) : Prop :=
-  NameWF cv.name ∧ NamesWF cv.level_params ∧ ExprWF cv.ty
-
-def RecRuleFireWF : env.RecRuleFire → Prop
-  | .Inert => True
-  | .Plain => True
-  | .Nested us es => LevelsWF us ∧ ExprsWF es
-
-def RecRuleWF (r : env.RecRule) : Prop :=
-  NameWF r.ctor ∧ RecRuleFireWF r.fire ∧ ExprWF r.rhs
-
-def RecRulesWF (rs : alloc.vec.Vec env.RecRule) : Prop := ∀ r ∈ rs.val, RecRuleWF r
-
-def IndCapsWF (c : env.IndCaps) : Prop := NameWF c.eta_ctor ∧ PropWhenWF c.sort_z
-
-def ProjTableWF (t : env.ProjTable) : Prop :=
-  NameWF t.struct_name ∧ NamesWF t.level_params ∧ NameWF t.ctor ∧
-    LevelWF t.struct_sort ∧ ExprsWF t.bodies ∧ LevelsWF t.guards
-
-def ProjEntryWF (e : env.ProjEntry) : Prop :=
-  NameWF e.struct_name ∧ NamesWF e.level_params ∧ NameWF e.ctor ∧
-    ExprWF e.body ∧ LevelWF e.field_sort ∧ LevelWF e.struct_sort
-
-def ConstantInfoWF : env.ConstantInfo → Prop
-  | .AxiomInfo cv => ConstantValWF cv
-  | .DefnInfo cv v _ => ConstantValWF cv ∧ ExprWF v
-  | .ThmInfo cv v => ConstantValWF cv ∧ ExprWF v
-  | .IndInfo cv c => ConstantValWF cv ∧ IndCapsWF c
-  | .CtorInfo cv _ _ => ConstantValWF cv
-  | .RecInfo cv _ _ rs => ConstantValWF cv ∧ RecRulesWF rs
-  | .ProjInfo t => ProjTableWF t
-
-/-! ## `FEnvRel` and `FEnvWF` -/
-
-/-- **The minimal environment relation**: `fenv::find` agrees with
-`ConLeche.FEnv.find?` under `absName` and `absConstantInfo`.  This is the one
-clause `core_k.rs`/`prop_read.rs` read — every environment access in those two
-modules is a `fenv::find` (module note deviation 3) or a `fenv::find_proj`,
-and the latter is *derived* below. -/
-def FEnvRel (fe : fenv.FEnv) (lfe : ConLeche.FEnv) : Prop :=
-  ∀ n : name.Name, NameWF n →
-    ∃ o : Option env.ConstantInfo,
-      fenv.find fe n = ok o ∧ o.map absConstantInfo = lfe.find? (absName n)
-
-/-- Every stored constant is well formed.  Hereditary in the §3.5 sense: what
-a lookup hands back may be used as a term. -/
-def FEnvWF (fe : fenv.FEnv) : Prop :=
-  ∀ (n : name.Name) (ci : env.ConstantInfo),
+/-- **Find-well-formedness**: whatever `fenv::find` answers is a well-formed
+stored record.  The projection of `FEnv.FEnvWF` that step 4 reads. -/
+def FindWF (fe : fenv.FEnv) : Prop :=
+  ∀ (n : name.Name) (ci : env.ConstantInfo), NameWF n →
     fenv.find fe n = ok (some ci) → ConstantInfoWF ci
 
-/-- The two directions of `FEnvRel`, in the form a guard's proof uses them: a
+/-- Task #46's relation gives find-agreement (`FEnv.find_refines`). -/
+theorem FindAgree.of_rel {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    (hrel : FEnv.FEnvRel fe lfe) (hwf : FEnv.FEnvWF fe) : FindAgree fe lfe :=
+  fun _ _ hn h => FEnv.find_refines hrel hwf hn h
+
+/-- Task #46's invariant gives find-well-formedness (`FEnv.find_wf`). -/
+theorem FindWF.of_wf {fe : fenv.FEnv} (hwf : FEnv.FEnvWF fe) : FindWF fe :=
+  fun _ _ hn h => FEnv.find_wf hwf hn h _ rfl
+
+/-- The two directions of `FindAgree`, in the form a guard's proof uses them: a
 hit abstracts to a hit, a miss to a miss. -/
-theorem FEnvRel.find_some {fe lfe} (h : FEnvRel fe lfe) {n ci}
+theorem FindAgree.find_some {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    (h : FindAgree fe lfe) {n : name.Name} {ci : env.ConstantInfo}
     (hn : NameWF n) (hf : fenv.find fe n = ok (some ci)) :
     lfe.find? (absName n) = some (absConstantInfo ci) := by
-  obtain ⟨o, ho, habs⟩ := h n hn
-  rw [hf] at ho; rw [← Result.ok_injective ho] at habs
-  exact habs.symm
+  simpa using (h n (some ci) hn hf).symm
 
-theorem FEnvRel.find_none {fe lfe} (h : FEnvRel fe lfe) {n}
+theorem FindAgree.find_none {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
+    (h : FindAgree fe lfe) {n : name.Name}
     (hn : NameWF n) (hf : fenv.find fe n = ok none) :
     lfe.find? (absName n) = none := by
-  obtain ⟨o, ho, habs⟩ := h n hn
-  rw [hf] at ho; rw [← Result.ok_injective ho] at habs
-  exact habs.symm
+  simpa using (h n none hn hf).symm
 
-/-- `fenv::find` is total on a related environment: the useful direction when a
-guard has to be run before its result is inspected. -/
-theorem FEnvRel.find_ok {fe lfe} (h : FEnvRel fe lfe) {n} (hn : NameWF n) :
-    ∃ o, fenv.find fe n = ok o := by
-  obtain ⟨o, ho, _⟩ := h n hn; exact ⟨o, ho⟩
+/-! ## Three `kernel::env` readings, paired
 
-/-! ## `env::proj_table_name` and `env::proj_table_entry`, and `find_proj`
-
-Three refinements that belong in task #46's `Refine/Env.lean`; they are here
-because `FEnvRel` is find-agreement only and the `findProj?` agreement has to
-come from somewhere. -/
+Task #46's `Refine/Env.lean` proves each of these as two lemmas, a refinement
+and a well-formedness.  Every guard in the `CoreK*` family consumes them
+together (`obtain ⟨habs, hwf⟩ := …`), so they are paired here once rather than
+at forty call sites.  No new content: each is the conjunction of two of
+`Refine/Env.lean`'s. -/
 
 /-- `ConLeche/Kernel/Env.lean:602` — `env::proj_table_name` refines
-`projTableName`. -/
+`projTableName` and builds a well-formed name. -/
 theorem proj_table_name_refines {t n : name.Name} (ht : NameWF t)
     (h : env.proj_table_name t = ok n) :
-    absName n = ConLeche.projTableName (absName t) ∧ NameWF n := by
-  rw [env.proj_table_name] at h
-  simp only [bind_eq_ok_iff, name_dup_eq, Result.ok.injEq, exists_eq_left'] at h
-  obtain ⟨s, hs, v, hv, n1, hmk, hnum⟩ := h
-  obtain ⟨h1, h1wf⟩ := str_lit_step ht hs hv hmk
-    (L := [112#u32, 114#u32, 111#u32, 106#u32, 84#u32, 97#u32, 98#u32, 108#u32, 101#u32])
-    (by simp [env.PROJ_TABLE_STR]) (by decide)
-  obtain ⟨h2, h2wf⟩ := num_lit_step h1wf hnum
-  exact ⟨by rw [h2, h1]; rfl, h2wf⟩
+    absName n = ConLeche.projTableName (absName t) ∧ NameWF n :=
+  ⟨Env.proj_table_name_refines h, Env.proj_table_name_wf ht h⟩
 
-/-- `env::default_expr` refines Lean's `default : Expr` (`.bvar 0`). -/
+/-- `ConLeche/Kernel/Env.lean:596` — `env::proj_fn_name` refines `projFnName`
+and builds a well-formed name. -/
+theorem proj_fn_name_refines {t n : name.Name} {i : Std.U64} (ht : NameWF t)
+    (h : env.proj_fn_name t i = ok n) :
+    absName n = ConLeche.projFnName (absName t) i.val ∧ NameWF n :=
+  ⟨Env.proj_fn_name_refines h, Env.proj_fn_name_wf ht h⟩
+
+/-- `env::default_expr` is Lean's `default : Expr` (`.bvar 0`), well formed. -/
 theorem default_expr_refines {e : expr.Expr} (h : env.default_expr = ok e) :
-    absExpr e = default ∧ ExprWF e := by
-  rw [env.default_expr] at h
-  exact ⟨by rw [Expr.bvar_refines h]; rfl, Expr.bvar_wf h⟩
-
-/-- A `Vec<RecRule>` as con-leche's rule list. -/
-def absRecRules (rs : alloc.vec.Vec env.RecRule) : List ConLeche.RecRule :=
-  rs.val.map absRecRule
+    absExpr e = default ∧ ExprWF e :=
+  ⟨Env.default_expr_refines h, Env.default_expr_wf h⟩
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate) -/
 
 /--
-info: 'ConRon.Refine.proj_table_name_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'ConRon.Refine.str_lit_step' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms proj_table_name_refines
+#print axioms str_lit_step
 
 end ConRon.Refine

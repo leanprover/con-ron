@@ -11,7 +11,7 @@ Twenty-seven functions, in three groups:
 * the five **environment probes** (`defn_probe`, `ctor_probe`, `ind_probe`,
   `rec_probe`, `lp_empty`) -- task #14's rule that the index's borrow dies at
   the call boundary, so each is Lean's `ConstantInfo` destructuring returning
-  *owned copies*.  Their lemmas therefore carry `FEnvWF` and conclude the
+  *owned copies*.  Their lemmas therefore carry `FindWF` and conclude the
   well-formedness of what comes back;
 * the **guards** that read the environment (`is_ctor_app`, `is_unit_like_ty`
   with `is_punit_ind`/`is_punit_rec_shape`, `unfoldable_head`, `head_hint`,
@@ -25,7 +25,7 @@ Four things are worth recording.
 
 **(1) `Env` versus `FEnv`.**  The cited `Core.lean` guards read `env.find?` on
 an `Env`; the port reads `fenv::find` on the index (module note deviation 3),
-and `CoreKBase.lean`'s `FEnvRel` is *find-agreement only* -- it says nothing
+and `CoreKBase.lean`'s `FindAgree` is *find-agreement only* -- it says nothing
 about `lfe.env`.  So every environment-reading guard here is stated against the
 cited definition's body with `lfe.find?` in place of `env.find?`, spelled out in
 the statement: exactly the transposition `FEnv.lean` itself performs for
@@ -60,7 +60,6 @@ import ConRon.Refine.CoreKBase
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
-open ConRon.Refine.T22
 
 namespace ConRon.Refine.CoreK
 
@@ -292,7 +291,7 @@ theorem to_constant_val_lp {ci : env.ConstantInfo} {cv : env.ConstantVal}
 
 /-- `env::beta_gate` refines `CheckMode.betaGate` (`Env.lean:119`). -/
 theorem beta_gate_refines {m : env.CheckMode} {b : Bool}
-    (h : env.beta_gate m = ok b) : b = (absCheckMode m).betaGate := by
+    (h : env.beta_gate m = ok b) : b = (absMode m).betaGate := by
   cases m <;> simp only [env.beta_gate, Result.ok.injEq] at h <;>
     rw [← h] <;> rfl
 
@@ -377,7 +376,7 @@ theorem wf_app_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64} {f a : expr.Exp
 
 Task #14's probe rule: the index's borrow dies at the call boundary, so each
 probe returns *owned copies* of the pattern variables Lean's value semantics
-hands its `match`.  Each lemma therefore takes `FEnvWF` and concludes the
+hands its `match`.  Each lemma therefore takes `FindWF` and concludes the
 well-formedness of what came back.  The Lean side is the destructuring itself,
 named below. -/
 
@@ -410,7 +409,7 @@ def recOf : Option ConLeche.ConstantInfo →
 indexed lookup, with owned copies. -/
 theorem defn_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name}
     {o : Option (env.ConstantVal × expr.Expr × env.ReducibilityHint)}
-    (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe) (hn : NameWF n)
+    (hfe : FindAgree fe lfe) (hwf : FindWF fe) (hn : NameWF n)
     (h : core_k.defn_probe fe n = ok o) :
     o.map (fun t => (absConstantVal t.1, absExpr t.2.1, absHint t.2.2))
         = defnOf (lfe.find? (absName n)) ∧
@@ -425,7 +424,7 @@ theorem defn_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name
     exact ⟨rfl, by simp⟩
   | some ci =>
     have hlf := hfe.find_some hn hov
-    have hciwf := hwf n ci hov
+    have hciwf := hwf n ci hn hov
     cases ci with
     | DefnInfo cv v hint =>
       simp only [bind_eq_ok_iff] at h
@@ -451,7 +450,7 @@ theorem defn_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name
 destructuring. -/
 theorem ctor_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name}
     {o : Option (env.ConstantVal × Std.U64 × Std.U64)}
-    (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe) (hn : NameWF n)
+    (hfe : FindAgree fe lfe) (hwf : FindWF fe) (hn : NameWF n)
     (h : core_k.ctor_probe fe n = ok o) :
     o.map (fun t => (absConstantVal t.1, t.2.1.val, t.2.2.val))
         = ctorOf (lfe.find? (absName n)) ∧
@@ -466,7 +465,7 @@ theorem ctor_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name
     exact ⟨rfl, by simp⟩
   | some ci =>
     have hlf := hfe.find_some hn hov
-    have hciwf := hwf n ci hov
+    have hciwf := hwf n ci hn hov
     cases ci with
     | CtorInfo cv nP nF =>
       simp only [bind_eq_ok_iff] at h
@@ -488,7 +487,7 @@ theorem ctor_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name
 destructuring. -/
 theorem ind_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name}
     {o : Option (env.ConstantVal × env.IndCaps)}
-    (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe) (hn : NameWF n)
+    (hfe : FindAgree fe lfe) (hwf : FindWF fe) (hn : NameWF n)
     (h : core_k.ind_probe fe n = ok o) :
     o.map (fun t => (absConstantVal t.1, absIndCaps t.2))
         = indOf (lfe.find? (absName n)) ∧
@@ -503,7 +502,7 @@ theorem ind_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name}
     exact ⟨rfl, by simp⟩
   | some ci =>
     have hlf := hfe.find_some hn hov
-    have hciwf := hwf n ci hov
+    have hciwf := hwf n ci hn hov
     cases ci with
     | IndInfo cv caps =>
       simp only [bind_eq_ok_iff] at h
@@ -528,7 +527,7 @@ theorem ind_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name}
 destructuring, with the rule list copied spine-wise. -/
 theorem rec_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name}
     {o : Option (env.ConstantVal × Std.U64 × Std.U64 × alloc.vec.Vec env.RecRule)}
-    (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe) (hn : NameWF n)
+    (hfe : FindAgree fe lfe) (hwf : FindWF fe) (hn : NameWF n)
     (h : core_k.rec_probe fe n = ok o) :
     o.map (fun t => (absConstantVal t.1, t.2.1.val, t.2.2.1.val, absRecRules t.2.2.2))
         = recOf (lfe.find? (absName n)) ∧
@@ -543,7 +542,7 @@ theorem rec_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name}
     exact ⟨rfl, by simp⟩
   | some ci =>
     have hlf := hfe.find_some hn hov
-    have hciwf := hwf n ci hov
+    have hciwf := hwf n ci hn hov
     cases ci with
     | RecInfo cv mI rP rules =>
       simp only [bind_eq_ok_iff] at h
@@ -566,10 +565,10 @@ theorem rec_probe_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name}
 `FEnv.lean:132-145 natOpGuardF`): the level-monomorphism test
 `match fe.find? n with | some ci => ci.toConstantVal.levelParams.isEmpty
 | none => false`, as its own function so the index's borrow ends there.
-No `FEnvWF` is needed -- the only component read is the level-parameter list,
+No `FindWF` is needed -- the only component read is the level-parameter list,
 which `env::to_constant_val` copies verbatim at every arm. -/
 theorem lp_empty_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name}
-    {b : Bool} (hfe : FEnvRel fe lfe) (hn : NameWF n)
+    {b : Bool} (hfe : FindAgree fe lfe) (hn : NameWF n)
     (h : core_k.lp_empty fe n = ok b) :
     b = (match lfe.find? (absName n) with
          | some ci => ci.toConstantVal.levelParams.isEmpty
@@ -726,7 +725,7 @@ theorem fire_is_inert_refines {f : env.RecRuleFire} {b : Bool}
 so the provenance gate stays in step with its source. -/
 theorem beta_gate_fires_refines {mode : env.CheckMode} {pw : prop_when.PropWhen}
     {b : Bool} (h : core_k.beta_gate_fires mode pw = ok b) :
-    b = ConLeche.betaGateFires (absCheckMode mode) (absPropWhen pw) := by
+    b = ConLeche.betaGateFires (absMode mode) (absPropWhen pw) := by
   rw [core_k.beta_gate_fires] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨bg, hbg, h⟩ := h
@@ -943,7 +942,7 @@ named in each doc comment is that same body on `ExprC`. -/
 `Cached/StateC.lean:62-69 isCtorAppC` is the same function on `ExprC`): is the
 expression headed by a stored constructor? -/
 theorem is_ctor_app_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Expr}
-    {b : Bool} (hfe : FEnvRel fe lfe) (he : ExprWF e)
+    {b : Bool} (hfe : FindAgree fe lfe) (he : ExprWF e)
     (h : core_k.is_ctor_app fe e = ok b) :
     b = (match (absExpr e).getAppFn with
          | .const c _ =>
@@ -980,7 +979,7 @@ theorem is_ctor_app_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Exp
 function on `ExprC`): may the delta step unfold `e`'s head?  The *decision* the
 lazy delta step takes. -/
 theorem unfoldable_head_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
-    {e : expr.Expr} {b : Bool} (hfe : FEnvRel fe lfe) (he : ExprWF e)
+    {e : expr.Expr} {b : Bool} (hfe : FindAgree fe lfe) (he : ExprWF e)
     (h : core_k.unfoldable_head fe e = ok b) :
     b = (match (absExpr e).getAppFn with
          | .const n us =>
@@ -1042,11 +1041,11 @@ theorem hintOf_defnOf (X : Option ConLeche.ConstantInfo) :
 /-- **`core_k::head_hint` refines `headHint`** (`Core.lean:244-253`;
 `Cached/StateC.lean:71-78 headHintC` is the same function on `ExprC`): the
 reducibility hint of the constant at the head of `e`, `opaque` when the head is
-not a stored definition (a theorem included).  `FEnvWF` is here only because the
+not a stored definition (a theorem included).  `FindWF` is here only because the
 port routes the lookup through `defn_probe`, whose lemma concludes the copies'
 well-formedness; a `ReducibilityHint` itself holds no term. -/
 theorem head_hint_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Expr}
-    {r : env.ReducibilityHint} (hfe : FEnvRel fe lfe) (hwf : FEnvWF fe)
+    {r : env.ReducibilityHint} (hfe : FindAgree fe lfe) (hwf : FindWF fe)
     (he : ExprWF e) (h : core_k.head_hint fe e = ok r) :
     absHint r = (match (absExpr e).getAppFn with
                  | .const n _ => hintOf (lfe.find? n)
@@ -1083,7 +1082,7 @@ Hypothesis to discharge at merge: `hpu` -- `basis_names::punit_name` refines
 theorem is_punit_ind_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : Bool}
     (hpu : ∀ n, basis_names.punit_name = ok n →
       absName n = ConLeche.punitName ∧ NameWF n)
-    (hfe : FEnvRel fe lfe) (h : core_k.is_punit_ind fe = ok b) :
+    (hfe : FindAgree fe lfe) (h : core_k.is_punit_ind fe = ok b) :
     b = (match lfe.find? ConLeche.punitName with
          | some (.indInfo _ _) => true
          | _ => false) := by
@@ -1112,7 +1111,7 @@ theorem is_punit_rec_shape_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {b : Bool}
     (hpur : ∀ n, basis_names.punit_rec_name = ok n →
       absName n = ConLeche.punitRecName ∧ NameWF n)
-    (hfe : FEnvRel fe lfe) (h : core_k.is_punit_rec_shape fe = ok b) :
+    (hfe : FindAgree fe lfe) (h : core_k.is_punit_rec_shape fe = ok b) :
     b = (match lfe.find? ConLeche.punitRecName with
          | some (.recInfo _ mI rP [r]) => (mI == rP) && (r.nfields == 0)
          | _ => false) := by
@@ -1182,7 +1181,7 @@ theorem is_unit_like_ty_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       absName n = ConLeche.punitName ∧ NameWF n)
     (hpur : ∀ n, basis_names.punit_rec_name = ok n →
       absName n = ConLeche.punitRecName ∧ NameWF n)
-    (hfe : FEnvRel fe lfe) (he : ExprWF e)
+    (hfe : FindAgree fe lfe) (he : ExprWF e)
     (h : core_k.is_unit_like_ty fe e = ok b) :
     b = (match absExpr e with
          | .const c _ =>

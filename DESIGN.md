@@ -11067,3 +11067,159 @@ guards con-leche writes in `StateC.lean:62-112` (`isCtorAppC`, `headHintC`,
 `unfoldableHeadC`, `sameConstHeadsC`, `rawNatLitC?`, `etaCtorShapeC`) are
 *ported into `kernel/core_k.rs`*, so by the `Refine/README.md` naming rule they
 are `Refine/CoreK*.lean`'s — task #49's, not this file's.
+
+### Task #49 — `core_k`'s state-free leaves refined (2026-09-13, Opus under Fable)
+
+`CORE_PLAN.md` step 4: the refinement of the **state-free** functions of
+`crates/con-ron-core/src/kernel/core_k.rs` against
+`ConLeche/Kernel/Core.lean`, together with `kernel/prop_read.rs`
+(`Kernel/PropRead.lean`) and `kernel/basis_names.rs`
+(`Kernel/Basis/Names.lean`).
+
+**172 functions in scope, 172 proved, 0 `sorry`.**  The scope is the whole of
+all three modules: `core_k.rs` has 135 `pub fn` and *none* of them takes
+`&mut CState` — that is exactly what task #23 measured when it moved the bodies
+to `cached::core_c` ("No function *in this module* takes it any more; that is
+the measure of what moved"), so step 4 is the whole file.  `prop_read.rs` adds
+11 and `basis_names.rs` 26.
+
+#### 1. The thirteen files
+
+10 836 proof lines for 3 808 Rust lines — **2.8 lines of proof per line of
+port**, against task #47's 4.5 for `expr_ops`.  The ratio is better because
+these are leaves: an `if` nest over `fenv::find` and `expr::beq`, not a
+ten-constructor induction with a memo argument.
+
+| file | lines | `_refines` | contents |
+|---|---|---|---|
+| `CoreKBase.lean` | 238 | 3 | `core_types::code_points` and `str_lit_step`/`num_lit_step`; `PinnedName`/`PinnedNames`; `FindAgree`/`FindWF` and the bridges |
+| `CoreKProj.lean` | 217 | 7 | `find_proj` over the weaker hypothesis, and `tower_slots_all_f`/`rec_slots_all_f` |
+| `BasisNames.lean` | 403 | 26 | all 26 pinned basis names |
+| `CoreKNames.lean` | 1 134 | 26 | the 18 pinned `Nat`/`Bool` names, the four name tables, `is_nat_bin_op`, `nat_to_dec`, `proj_model_name` |
+| `CoreKVec.lean` | 1 001 | 20 | the `Vec`/list plumbing, `subst_const*`, `lift_fueled`, the four loop budgets |
+| `CoreKLits.lean` | 1 324 | 11 | literal reduction: `nat_lit_to_constructor`, `raw_nat_lit`, `str_lit_to_constructor`, `nat_op_equations`, **`nat_op_result`** |
+| `CoreKSupport.lean` | 1 352 | 18 | the `nat_*_ok`/`*_ty_ok` stored-shape family, `nat_lit_supported`, `str_lit_supported`, the dead `constsResolve` |
+| `CoreKGuards.lean` | 1 308 | 28 | the four owning probes, `is_ctor_app`, `unfoldable_head`, `head_hint`, `is_unit_like_ty`, `same_const_heads`, `pi_result_*`, the leaf kind tests, the dead `beta_gate_fires` |
+| `CoreKNatOps.lean` | 671 | 10 | the `Nat`-operation pinning guards (`nat_op_guard` and its five helpers) |
+| `CoreKShapes.lean` | 1 505 | 21 | the install-time rule bits and the certificate shape conjunctions, the `And` rescue, the dead `eta_projs*` |
+| `CoreKInfer.lean` | 473 | 7 | the seven `CheckM<Expr>` inference clauses |
+| `CoreKPinned.lean` | 238 | — | every imported hypothesis, discharged |
+| `PropRead.lean` | 972 | 15 | all eleven readers of the fast prop-ness path |
+
+Written by **nine agents in parallel**, one file each, after the base file was
+proved and its olean built: the statement shape, the naming rule and the list
+of already-proved facts went out as one brief, and each agent checked its file
+with `lake env lean` (never `lake build`, which would have fought for the lock).
+`CoreKBase`, `CoreKProj` and `CoreKPinned` are the integration work.
+
+#### 2. `FindAgree`, not `FEnv.FEnvRel` — and why that is the stronger statement
+
+Task #46 landed while this task was running, so the merge replaced every local
+copy of an `env`-record abstraction or `*WF` predicate by `Refine/Abs.lean`'s
+(they were name-for-name identical) and every `kernel::env`/`kernel::fenv`
+reading by `Refine/Env.lean`'s and `Refine/FEnv.lean`'s.  One thing did **not**
+become task #46's, deliberately.
+
+`core_k.rs` and `prop_read.rs` read the environment through exactly two calls,
+`fenv::find` and `fenv::find_proj` (`core_k.rs`'s module note, deviation 3).
+So the hypothesis every lemma of this step carries is *find-agreement*:
+
+```lean
+def FindAgree (fe : fenv.FEnv) (lfe : ConLeche.FEnv) : Prop :=
+  ∀ n o, NameWF n → fenv.find fe n = ok o → o.map absConstantInfo = lfe.find? (absName n)
+```
+
+which is strictly weaker than `FEnv.FEnvRel`'s three clauses (it says nothing
+about `visible_below`, nothing about `absEnv fe.env`, nothing about the index's
+`HashMap.RelOn`).  Stating the step over the weaker hypothesis makes its 172
+theorems *stronger* and independent of how the index is built;
+`FindAgree.of_rel` and `FindWF.of_wf` turn task #46's relation and invariant
+into them in one line each, which is all step 6's knot needs.  `FindWF` is the
+same projection of `FEnv.FEnvWF` — what a lookup hands back is a well-formed
+record, which is what a result used as a *term* needs.
+
+`Refine/FEnv.lean` itself asks for `fenv::tower_slots_all_f` and
+`rec_slots_all_f` to be done here ("the `List.range'` suffix bookkeeping of a
+`u64` index recursion and nothing to do with the relation this file is about"),
+so `CoreKProj.lean` has them, next to the `find_proj` reading over
+`FindAgree`/`FindWF` that carries the `ProjEntryWF` conjunct `CoreKInfer` needs.
+
+#### 3. Hypotheses across files, and how they are closed
+
+Nine agents cannot import each other's unfinished files, so a lemma that
+compares against a pinned name, or calls a sibling file's function, takes what
+it needs as an explicit hypothesis **of exactly the shape the owning file
+proves** — `PinnedName f ln`, `PinnedNames f l`, and the per-file bundles
+`NatOpPinned` (17 fields), `PinnedBasisNames` (10), `VecFacts` (3),
+`EnvFacts` (5), `LpEmptySpec`, `NatLitSupportedSpec`, `ToConstantValSpec`,
+`DefnProbeSpec`, `RevAppendExprs`, `ProjEntryFireOk`.  `CoreKPinned.lean`
+closes every one of them from the lemmas that prove them: 57 declarations, each
+a `fun _ h => <fn>_refines h`.  Nothing in this step is left conditional on an
+unproved fact.
+
+The one hypothesis that is *not* discharged is deliberate:
+`consts_resolve_refines` takes `(henv : ∀ n, lfe.find? n = lenv.find? n)`.
+`Expr.constsResolve` is a dead function stated against `Env`, `FEnv.lean` has
+no `constsResolveF` twin, and the bridge is con-leche's own `mkFEnv_find?` —
+a fact about the *caller*, which the install path supplies.
+
+#### 4. What carried it
+
+* **`str_lit_step`.**  Every pinned name in three modules — 52 of the 172
+  functions — is `name::mk_str pre (code_points S)` over an `@[irreducible]`
+  `const [u32; N]`.  One lemma (`code_points_val` says the copy is the slice,
+  `str_lit_step` packages the three binds and the `StrWF` side condition) turns
+  each into six lines: destructure, apply, `by simp [<the const>]`, `decide`,
+  `rfl`.
+* **`name::beq`'s exactness on well-formed names** (`Refine/Name.lean`) is what
+  turns the port's `if name::beq c &nat_add_name()` cascade into the cited
+  `if c = natAddName` cascade.  It is why every pinned-name hypothesis carries
+  the `∧ NameWF n` conjunct and every name argument a `NameWF`.
+* **No arithmetic was re-proved.**  `nat_op_result` dispatches on fifteen
+  `ron::nat` operations, all of them task #15's, used as black boxes.  The two
+  places the *port* declines where con-leche computes (a shift amount past
+  `u64`) are named in the statement rather than smoothed over.
+* **Three Charon shapes that resist `simp`**, found independently by three
+  agents and worth recording: a destructuring `let (a, b) ← f x` leaves a
+  matcher that neither `split at h` nor `dsimp only` sees through (the idiom is
+  `replace h : <the iota-reduced body> = ok r := h`, or
+  `bind_eq_ok_iff.mp h`); `split at h` on a long `if`-chain exhausts `simp`'s
+  step budget (case on the `Bool` and `simp only [reduceIte]` instead); and
+  `rw [f]` on a cited Lean definition whose body matches on a *scrutinee*
+  generates splitter side goals where `unfold` does not.
+* **`nat_to_dec` needed no number theory.**  Lean core's
+  `Nat.toDigits_of_lt_base`/`toDigits_of_base_le` are literally the port's two
+  arms, so `proj_model_name` is fully proved rather than parked.
+
+#### 5. Axiom census
+
+`#guard_msgs in #print axioms` pins one lemma per file at **`[propext,
+Classical.choice, Quot.sound]`** and nothing else — no `sorryAx`, nothing from
+Aeneas, nothing from `pins_text`.  The three representative ones:
+
+* `nat_op_result_refines` (`CoreKLits.lean`) — the arithmetic fast path: the
+  pinned-name cascade through `name::beq`'s exactness, fifteen `ron::nat`
+  operations, and the `Expr` builders of the constructor forms;
+* `is_unit_like_ty_refines` (`CoreKGuards.lean`) — con-leche's task-#161 item
+  C1 computation downgrade: the head-name pin first, then the two stored-shape
+  checks specialised to `PUnit`, all through `FindAgree`;
+* `is_proof_fast_refines` (`PropRead.lean`) — the fast prop-ness verdict, the
+  deepest chain in `prop_read.rs`: `peel_never_pis`, the head readers, the
+  stored `ConstantVal` probe and the `PropWhen` datum.
+
+#### 6. Notes for step 6
+
+* Apply every guard through `CoreKPinned.lean`: `FindAgree.of_rel hrel hwf` and
+  `FindWF.of_wf hwf` convert the knot's `FEnv.FEnvRel`/`FEnv.FEnvWF`, and the
+  bundles are already closed.
+* Several agents flagged lemmas that belong in *finished* files and were written
+  locally rather than by editing them (task #47 made the same call): the
+  `ExprWF`-at-a-kind inversions (`wf_const_inv`, `wf_sort_inv`, `wf_app_inv`,
+  `forall_e_wf_inv` — three agents wrote one) belong in `Refine/Expr.lean`;
+  `prop_when::names_beq` in `Refine/PropWhen.lean`;
+  `level::name_is_proj_fn_shape` in `Refine/Level.lean`; `absCodes_append` and
+  `uscalar_rem_eq` in `CoreKBase.lean`.  Whoever next touches those files
+  should move them.
+* `scripts/gates.sh`: all 7 OK.  The progress line afterwards reads
+  `verified 5866 (42%)` of the 13 743 verified-core Lean lines, and
+  `proofs 43999 (586 _refines)`.
