@@ -51,26 +51,6 @@
    258          c.toConstantVal.type = .const ConLeche.falseName [] :=
    259    conron.no_proof_of_False' V (PinsWF.decode_wf hp) h
 
-== vendor/con-leche/ConLeche/MainTheorem.lean#L63-L80
-    63  theorem model_exists_with (V : Type w) [SetTheory V]
-    64      (pins : List NatOpPinSet) (ds : List DeclC) (env : Env)
-    65      (accepted : checkDecls .verified ds pins = .ok env) :
-    66      Nonempty (Model V env) := by
-    67    obtain ⟨m⟩ := Cached.checkDecls_sound (V := V) rfl accepted
-    68    exact ⟨Model.Model.ofEnvModelM m⟩
-    69  
-    70  /-- **The main corollary, at an arbitrary pin list.**
-    71  `no_proof_of_False` is this at `natOpPinSets`. -/
-    72  theorem no_proof_of_False_with (V : Type w) [SetTheory V]
-    73      (pins : List NatOpPinSet) (ds : List DeclC) (env : Env)
-    74      (accepted : checkDecls .verified ds pins = .ok env) :
-    75      ¬ ∃ c ∈ env.consts, c.toConstantVal.type = .const falseName [] := by
-    76    rintro ⟨c, hc, hty⟩
-    77    obtain ⟨m⟩ := model_exists_with V pins ds env accepted
-    78    obtain ⟨T, hT, hmem⟩ := m.mem c hc (fun _ => 0) (fun _ => empty)
-    79    rw [hty] at hT
-    80    rw [m.false_empty _ _ _ hT] at hmem
-
 == crates/con-ron/src/bin/con-ron.rs#L100-L163
    100  usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
    101                 [--progress[=<stride>]] [--pins FILE|--no-pins]
