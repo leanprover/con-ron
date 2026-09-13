@@ -13,7 +13,7 @@ toolchain's generator produced them (`pins/<toolchain>.json`, see
 record per committed dump and lists them in `natOpPinSets`; the install
 gate (`checkDivModPin`, `ConLeche/Kernel/Checker.lean`) tries the
 variants of the list it is **given** — a parameter threaded from the
-fold since task #285, `natOpPinSets` in the shipped checker — in that
+fold since task #304, `natOpPinSets` in the shipped checker — in that
 order, and enables the operation's literal fast path on the first
 whose guards pass, whose pin is definitionally equal to the stream's
 stored value and whose certificates check.

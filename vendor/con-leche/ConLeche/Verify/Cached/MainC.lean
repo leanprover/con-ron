@@ -9,7 +9,7 @@ public section
 `checkDecls` (`ConLeche/Cached/Installed.lean`) is the declaration fold
 the binary runs — install every record, then check every recorded
 declaration — and the subject of the main theorem
-(`ConLeche.no_proof_of_False`, `ConLeche/MainTheorem.lean`).  Its letters
+(`ConLeche.model_exists`, `ConLeche/MainTheorem.lean`).  Its letters
 are the letters on the fully checked environment the driver assembles
 (`ConLeche/Verify/Cached/InstalledC.lean`) read through
 `checkDecls_fullyChecked`: an accept of the fold IS a fully checked
@@ -17,12 +17,11 @@ environment, and a fully checked environment carries the graded model
 (`fullyChecked_sound`), so no constant of type `False` (or `Empty`) is
 stored in what the fold accepts.
 
-**At every pin list** (task #285): the fold's pin-list parameter is
-free in all three letters below (`checkDecls μ ds pins`), because
+**At every pin list** (task #304): the fold's pin-list parameter is
+free in all three letters below (`checkDecls μ pins ds`), because
 nothing the model tier consumes reads which list the matched
-`Nat.div`/`Nat.mod` variant came from.  The shipped statements are
-these at `pins := natOpPinSets`, the default `checkDecls mode ds`
-inserts.
+`Nat.div`/`Nat.mod` variant came from.  The shipped binary's
+statements are these at `pins := natOpPinSets`.
 
 Retired at task #172 with the arena they were fed from: the
 `checkDecls` letters (`SPC_*` and `input_SPC_*`), which took a
@@ -49,8 +48,8 @@ variable {pins : List NatOpPinSet}
 
 /-- **Acceptance**: what the fold accepts carries the model. -/
 theorem checkDecls_sound (hμ : μ.verifiedChecks = true)
-    {ds : List DeclC} {env' : Env}
-    (h : checkDecls μ ds pins = .ok env') :
+    {ds : Array Declaration} {env' : Env}
+    (h : checkDecls μ pins ds = .ok env') :
     Nonempty (EnvModelM V μ env') := by
   obtain ⟨fc, rfl⟩ := checkDecls_fullyChecked μ h
   exact fullyChecked_sound V hμ fc
@@ -60,8 +59,8 @@ validating mode, never accepts a stream in which some stored constant
 has type `Empty`.  Hypotheses are input-level only. -/
 theorem no_proof_of_Empty_cached (V : Type w) [SetTheory V]
     {μ : CheckMode} (hμ : μ.verifiedChecks = true)
-    {ds : List DeclC} {env' : Env}
-    (h : checkDecls μ ds pins = .ok env') :
+    {ds : Array Declaration} {env' : Env}
+    (h : checkDecls μ pins ds = .ok env') :
     ∀ c ∈ env'.consts,
       c.toConstantVal.type = .const emptyName [] → False := by
   obtain ⟨mp⟩ := checkDecls_sound (V := V) hμ h
@@ -69,11 +68,11 @@ theorem no_proof_of_Empty_cached (V : Type w) [SetTheory V]
 
 /-- **The fold's letter about `False`** (task #181): the same letter at
 the pinned `False` block — no hypothesis about how the stream declared
-`False`.  The main theorem is this at `.verified`. -/
+`False`.  The step the main corollary rests on is this at `.verified`. -/
 theorem no_proof_of_False_cached (V : Type w) [SetTheory V]
     {μ : CheckMode} (hμ : μ.verifiedChecks = true)
-    {ds : List DeclC} {env' : Env}
-    (h : checkDecls μ ds pins = .ok env') :
+    {ds : Array Declaration} {env' : Env}
+    (h : checkDecls μ pins ds = .ok env') :
     ∀ c ∈ env'.consts,
       c.toConstantVal.type = .const falseName [] → False := by
   obtain ⟨mp⟩ := checkDecls_sound (V := V) hμ h
