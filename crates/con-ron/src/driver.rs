@@ -68,6 +68,7 @@
 //! 3, "an internal failure of unclear cause", never a verdict on the input.
 //! The panic message is on stderr above it.
 
+use std::sync::Mutex;
 use std::time::Instant;
 
 use con_ron_core::cached::installed;
@@ -86,6 +87,7 @@ use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_core::kernel::pins_decode;
 
 use crate::frontend::export::name_str;
+use crate::pool;
 
 /// con-leche: none — the Lean runtime's per-thread stack reservation, which
 /// `Main.lean`'s `--jobs` note measures at 1 GiB per worker.  The fold's
@@ -248,14 +250,12 @@ pub fn progress_stride(v: &str) -> Result<u64, String> {
 }
 
 /// con-leche: Main.lean:468-491 jobsCount
-/// The worker count: a decimal numeral of at least 1.  Validated exactly as
-/// con-leche validates it, and then **not acted on** — phase B is sequential
-/// here until the core's handle is thread-shareable (§3.2's `Rc` is not
-/// `Send`; task #44 priced the `std::sync::Arc` swap at +14.7 % wall on
-/// `core`, and con-leche sidesteps atomic counts with a device the port does
-/// not have — see `mark_persistent_note`).  `0` and a non-numeral
-/// are usage errors (exit 3), as in con-leche, so a script that lowers the
-/// count for an address-space limit behaves the same against both binaries.
+/// The worker count: a decimal numeral of at least 1, `1` being the sequential
+/// lane (one worker, no shared counter and no result table).  `0` and a
+/// non-numeral are usage errors (exit 3), as in con-leche, so a script that
+/// lowers the count for an address-space limit behaves the same against both
+/// binaries.  Since task #48 the value is **acted on**: `crate::pool` is phase
+/// B at every count above 1.
 pub fn jobs_count(v: &str) -> Result<u64, String> {
     match v.parse::<u64>() {
         Ok(0) => Err("--jobs takes a worker count of at least 1 \
@@ -268,6 +268,59 @@ pub fn jobs_count(v: &str) -> Result<u64, String> {
              (a decimal numeral of at least 1), got {:?}",
             v
         )),
+    }
+}
+
+/// con-leche: none — the port's cap on the `--jobs` default
+/// **The cap on the default worker count, and the memory arithmetic behind
+/// it.**  con-leche's default is one worker per hardware thread, and on a big
+/// machine that default *aborts*: every worker reserves ~1 GiB of address space
+/// for its stack, so 96 workers ask for 96 GiB of it and
+/// `_tmp/corpus/baseline.md`'s last row is con-leche at its own default —
+/// exit 134, "failed to create thread", under `ulimit -v 22000000`.
+///
+/// The port keeps con-leche's default *rule* and caps it: the default is
+/// `min(hardware threads, JOBS_DEFAULT_CAP)`, and an explicit `--jobs=<n>` is
+/// obeyed to the letter (a measurement must be able to ask for 96).  The
+/// arithmetic a caller under `ulimit -v` needs is
+///
+/// ```text
+/// address space >= 3 x (the checker's resident set) + 1 GiB per worker
+/// ```
+///
+/// — the `3x` is CLAUDE.md's rule for the checker itself, and the per-worker
+/// gigabyte is the stack reservation `STACK_BYTES` asks for, which counts
+/// against `ulimit -v` whether or not it is ever touched.  The *resident* cost
+/// of a worker is much smaller: one `fenv::dup` of the installed index
+/// (`pool`'s module note), tens of MB.
+pub const JOBS_DEFAULT_CAP: u64 = 16;
+
+/// con-leche: Main.lean:493-788 checkMain
+/// The `--jobs` default: con-leche's "one worker per hardware thread", capped
+/// at `JOBS_DEFAULT_CAP` for the reason that constant's note gives.  A machine
+/// that does not report its parallelism gets one worker.
+pub fn default_jobs() -> u64 {
+    let hw: u64 = match std::thread::available_parallelism() {
+        Ok(n) => n.get() as u64,
+        Err(_) => 1,
+    };
+    if hw < JOBS_DEFAULT_CAP {
+        hw
+    } else {
+        JOBS_DEFAULT_CAP
+    }
+}
+
+/// con-leche: Main.lean:330-449 checkDeclsIO
+/// The cited `workers := max 1 (min jobs pend.size)`: the count the summary
+/// reports and the pool spawns.  A stream with fewer pending checks than `jobs`
+/// gets one worker per check and no more.
+pub fn workers_for(jobs: u64, m: usize) -> usize {
+    let w = if (jobs as usize) < m { jobs as usize } else { m };
+    if w < 1 {
+        1
+    } else {
+        w
     }
 }
 
@@ -357,22 +410,28 @@ pub fn retired_flag(s: &str) -> Option<String> {
 /// counting altogether and is worth 18-32 % of wall time on the pool and 3.5 %
 /// at one worker; `--no-mark-persistent` is the switch that measures it.
 ///
-/// Every word of that is about the **Lean runtime's** reference counting.  The
-/// port's counts are its own `Rc`s (§3.2), non-atomic by type, with no
-/// runtime-owned mark to set and nothing to switch off: an `Rc` graph handed
-/// across threads is a compile error, not a slower program.  So the flag is
-/// accepted — a script that measures both checkers passes it to both — and
-/// does nothing, and a run that passes it says so rather than letting a log
-/// read as an A/B lane that was never run.
+/// Every word of that is about the **Lean runtime's** reference counting, and
+/// the port has no equivalent to switch off.  Its counts are
+/// `std::sync::Arc`'s (§3.2, task #45) — atomic *by type*, on every handle,
+/// in every lane, which is the ~15 % single-threaded the maintainer decided to
+/// pay for the pool; there is no runtime-owned mark to set, no per-object
+/// multi-threaded bit and no way to make a subgraph count-free short of
+/// `unsafe` (§3's "Decisions of 2026-09-12" keeps that design written down as
+/// the fallback).  So the flag is accepted — a script that measures both
+/// checkers passes it to both — and does nothing, and a run that passes it
+/// says so rather than letting a log read as an A/B lane that was never run.
 ///
-/// The number above is worth keeping beside task #44's: making the port's
-/// handles atomic outright (`ron::ptr::P = std::sync::Arc`, which is what a
-/// pool needs and what the mark is con-leche's way of *avoiding*) costs
-/// +14.7 % wall on `core` at one worker.
+/// **What that costs the pool is measured, not argued** (task #48): the port's
+/// workers pay the atomic traffic con-leche's mark removes, on a graph that is
+/// read-only for the whole of phase B, and the pool's speedup is short of
+/// con-leche's for exactly the reason con-leche's own
+/// `--no-mark-persistent` row prices at 18-32 % of pool wall time.  The
+/// `Arc`-free way back is a type-level split of the handle (task #44's second
+/// way out), not a flag.
 pub fn mark_persistent_note() -> &'static str {
     "--no-mark-persistent accepted and ignored: the persistent mark is a Lean-runtime \
      reference-counting device (Runtime.markPersistent), and the port's counts are \
-     non-atomic Rc counts with no runtime mark to clear"
+     std::sync::Arc counts — atomic by type, in every lane, with no runtime mark to clear"
 }
 
 // ---------------------------------------------------------------------------
@@ -416,6 +475,23 @@ pub trait PhaseObserver {
     /// The phase boundary: every record installed, `pend` checks pending.
     fn install_done(&mut self, _total: usize, _pend: usize, _st: &CState, _fe: &FEnv) {}
 
+    /// con-leche: Main.lean:330-449 checkDeclsIO
+    /// The worker count phase B is about to run on (the cited `workers`), so
+    /// that the summary reports the lane the run actually took.
+    fn phase_b_workers(&mut self, _workers: usize) {}
+
+    /// con-leche: Main.lean:255-274 checkOne
+    /// **Does this observer want a line per completed check?**  The port's
+    /// spelling of the cited `stride > 0` guard, which con-leche reads off the
+    /// stride the pool was handed: `false` and no worker touches the shared
+    /// completed-counter or this observer at all, which is the difference
+    /// between a plain pooled run and the `--progress` lane.  The sequential
+    /// lane does not consult it — there `check_after` is one call on the
+    /// checking thread and the stride test inside it is free.
+    fn wants_check_lines(&self) -> bool {
+        false
+    }
+
     /// con-leche: Main.lean:160-174 checkHeartbeat
     /// After the `done`-th of `m` recorded checks completed — the record it
     /// was, the memo state it used, the index it left.
@@ -457,19 +533,28 @@ pub trait PhaseObserver {
 ///    DESIGN.md §3.7's skip list has that family and `installed.rs`'s module
 ///    note says why.  What comes back is the `Env`, and the caller's licence
 ///    to print an accept is that this is `check_decls`' body.
-/// 2. **There is no pool** (`checkPool`): phase B is the sequential
-///    `checkLoop` whatever `--jobs` said.  §3.7's skip list carries
-///    `checkOne`/`checkWorker`/`mergeResults`/`checkPool` with the reason —
-///    the core's handle is not yet thread-shareable (task #44).
-/// 3. Phase B runs on the same thread as phase A rather than a dedicated one.
-///    con-leche task #269's finding is about Lean's per-thread mimalloc heaps
-///    and the main thread's fragmentation after the install; the port's
-///    allocator is one heap for the process.
-/// 4. There is no persistent mark at the boundary (`mark_persistent_note`).
-pub fn check_decls_driver<O: PhaseObserver>(
+/// 2. **At `jobs <= 1` phase B runs on the calling thread**, where con-leche
+///    task #269 moves it to a dedicated one whatever `--jobs` said.  That
+///    finding is about Lean's per-thread mimalloc heaps and the main thread's
+///    fragmentation after the install; the port's allocator is one heap for the
+///    process, and both binaries already run the whole fold on one spawned
+///    big-stack thread.
+/// 3. There is no persistent mark at the boundary (`mark_persistent_note`).
+/// 4. On a **pool** failure the observer's `check_failed` gets a fresh empty
+///    memo state: the failing record's own state belongs to the worker that
+///    built it and is gone by the join.  `--stats` therefore reports an empty
+///    state for a pooled failure, which is rendering, never a verdict.
+///
+/// The pool itself is `crate::pool` (task #48): `jobs` workers claiming records
+/// off a shared counter, their results merged by record index and walked in
+/// record order, so the verdict and the failing record are the sequential
+/// walk's at every count.  `jobs = 1` is the plain loop below, with no counter
+/// and no table.
+pub fn check_decls_driver<O: PhaseObserver + Send>(
     mode: &CheckMode,
     pins: &Vec<NatOpPinSet>,
     ds: &Vec<DeclC>,
+    jobs: u64,
     obs: &mut O,
 ) -> Result<Env, (CheckError, u64)> {
     let total = ds.len();
@@ -492,10 +577,32 @@ pub fn check_decls_driver<O: PhaseObserver>(
     let m = pend.len();
     let mut fe: FEnv = p.1;
     obs.install_done(total, m, &st, &fe);
-    // Phase B, `installed::check_pending_list`'s walk: a fresh `CState` per
-    // record (§3.1's memo policy — a record is checked at its own prefix
-    // view, where another record's entries would be unsound), the index
-    // threaded through.
+    let workers = workers_for(jobs, m);
+    obs.phase_b_workers(workers);
+    if workers > 1 {
+        // Phase B on the pool (`Main.lean:302-328 checkPool`): the installed
+        // index is read-only from here on, every worker checks its claimed
+        // records against it from a fresh `CState`, and the merged table is
+        // walked in RECORD order — so this branch's verdict is the loop
+        // below's, whichever worker computed which check (`pool`'s note).
+        let cell = Mutex::new(&mut *obs);
+        let r = pool::check_pool(mode, &fe, &pend, workers, &cell);
+        drop(cell);
+        match r {
+            Err((e, pos)) => {
+                obs.check_failed(pos, &state_c::cstate_new());
+                return Err((e, pos));
+            }
+            Ok(()) => {}
+        }
+        obs.check_done(m);
+        return Ok(fe.env);
+    }
+    // Phase B at one worker, `installed::check_pending_list`'s walk: a fresh
+    // `CState` per record (§3.1's memo policy — a record is checked at its own
+    // prefix view, where another record's entries would be unsound), the index
+    // threaded through, no shared counter and no result table (`--jobs=1`'s
+    // lane in `Main.lean:441-449`).
     let mut j = 0usize;
     while j < m {
         let mut stb: CState = state_c::cstate_new();
@@ -539,10 +646,10 @@ pub fn check_decls_driver<O: PhaseObserver>(
 /// modeller's, so the two drift apart by a stream-dependent amount — calibrate
 /// by NAME.
 ///
-/// The worker count is the port's own and is **1 at every `--jobs`**: phase B
-/// is sequential here (`check_decls_driver`'s deviation 2), and a summary that
-/// reported the requested count would be the one line of the run that lies
-/// about it.
+/// The worker count on the summary is the count phase B actually ran on — the
+/// driver hands it over at the boundary (`phase_b_workers`), which is
+/// `max(1, min(jobs, M))`, so a stream with fewer pending checks than `--jobs`
+/// asked for says so rather than reporting the request.
 ///
 /// The three durations are measured here rather than passed in, because
 /// con-leche measures them at the same three points: `t0` at the start of the
@@ -558,6 +665,9 @@ pub struct Heartbeat {
     pub t_parse: u128,
     /// When phase A finished, in ms since `t0` — `Main.lean`'s `tCheck`.
     pub t_install: u128,
+    /// The worker count phase B ran on, for the summary: `Main.lean`'s
+    /// `workers`, set by the driver at the boundary (`phase_b_workers`).
+    pub workers: usize,
 }
 
 /// con-leche: Main.lean:330-449 checkDeclsIO
@@ -572,6 +682,7 @@ impl Heartbeat {
             t0,
             t_parse: 0,
             t_install: 0,
+            workers: 1,
         }
     }
 
@@ -619,10 +730,12 @@ impl Heartbeat {
                 ms_secs(now)
             ),
             Some(c) => eprintln!(
-                "con-ron: done: parse {}s, install {}s, check {}s, 1 worker t={}s",
+                "con-ron: done: parse {}s, install {}s, check {}s, {} worker{} t={}s",
                 ms_secs(self.t_parse),
                 ms_secs(self.t_install - self.t_parse),
                 ms_secs(c),
+                self.workers,
+                if self.workers == 1 { "" } else { "s" },
                 ms_secs(now)
             ),
         }
@@ -661,6 +774,19 @@ impl PhaseObserver for Heartbeat {
             );
         }
         self.summary(None);
+    }
+
+    /// con-leche: Main.lean:330-449 checkDeclsIO
+    /// The cited `workers`, for the summary's last field.
+    fn phase_b_workers(&mut self, workers: usize) {
+        self.workers = workers;
+    }
+
+    /// con-leche: Main.lean:255-274 checkOne
+    /// The cited `stride > 0`: with no heartbeat no worker bumps the shared
+    /// completed-counter.
+    fn wants_check_lines(&self) -> bool {
+        self.stride > 0
     }
 
     /// con-leche: Main.lean:330-449 checkDeclsIO
@@ -897,6 +1023,20 @@ mod tests {
         ] {
             assert!(retired_flag(ok).is_none(), "{} must not be retired", ok);
         }
+    }
+
+    /// `Main.lean:330-449`'s `workers := max 1 (min jobs pend.size)`, and the
+    /// capped default: never 0, never more workers than records, and an
+    /// explicit count obeyed to the letter.
+    #[test]
+    fn the_worker_count_is_clamped_to_the_records() {
+        assert_eq!(workers_for(1, 100), 1);
+        assert_eq!(workers_for(8, 100), 8);
+        assert_eq!(workers_for(8, 3), 3);
+        assert_eq!(workers_for(8, 0), 1);
+        assert_eq!(workers_for(96, 1_000_000), 96);
+        let d = default_jobs();
+        assert!(d >= 1 && d <= JOBS_DEFAULT_CAP);
     }
 
     /// `ValueKind.word` and `msSecs`, the two renderings the core deliberately

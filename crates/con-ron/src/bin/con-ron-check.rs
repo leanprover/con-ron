@@ -62,9 +62,9 @@
 //!
 //! `--progress`, `--jobs=<n>` and `--no-mark-persistent` mean here exactly
 //! what they mean in the `con-ron` binary, because they are the same code:
-//! the heartbeat's line shapes are `OVERVIEW.md` §0's, `--jobs` is validated
-//! and then not acted on (phase B is sequential until the pointer
-//! decision), and the persistent mark has no Rust counterpart to switch off.
+//! the heartbeat's line shapes are `OVERVIEW.md` §0's, `--jobs=<n>` runs phase
+//! B on `con_ron::pool` (task #48) with the verdict walked in record order at
+//! every count, and the persistent mark has no Rust counterpart to switch off.
 //! The retired con-leche spellings are hard errors here too.
 //!
 //! Two flags exist for the memory budget (DESIGN.md task #36).
@@ -111,10 +111,13 @@ usage: con-ron-check [--verified|--trusted] [--pins FILE|--no-pins]
   the same driver as `con-ron`, reading a `con-ron-decls/1` dump instead of a
   raw lean4export stream.  --taint-skipped N supplies the frontend state the
   dump does not carry (a clean fold over a stream with skips is a DECLINE).
-  --jobs=<n> is validated and not acted on (phase B is sequential);
-  --no-mark-persistent is accepted and a no-op (the mark is a Lean-runtime
-  reference-counting device).  Every retired con-leche spelling is a hard
-  error naming its replacement.
+  --jobs=<n> is the check phase's worker count (task #48): <n> workers claim
+  records off a shared counter and the results are walked in RECORD order, so
+  the verdict is the same at every <n>; --jobs=1 is the plain loop.  Each
+  worker reserves 1 GiB of address space, and the default is one per hardware
+  thread capped at 16.  --no-mark-persistent is accepted and a no-op (the mark
+  is a Lean-runtime reference-counting device).  Every retired con-leche
+  spelling is a hard error naming its replacement.
 
 exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.";
 
@@ -131,6 +134,9 @@ struct Args {
     taint_skipped: u64,
     /// `--progress[=<stride>]`: the shared heartbeat's stride; 0 is no flag.
     progress: u64,
+    /// `--jobs=<n>`: the check phase's worker count; `None` is the capped
+    /// default (`driver::default_jobs`).
+    jobs: Option<u64>,
     stats: bool,
     /// `--stats-every N`: report the map sizes every `N` declarations in each
     /// phase (0 = only at the phase boundary).
@@ -153,6 +159,7 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
     let mut no_pins = false;
     let mut taint_skipped: u64 = 0;
     let mut progress: u64 = 0;
+    let mut jobs: Option<u64> = None;
     let mut stats = false;
     let mut stats_every: u64 = 0;
     let mut parse_only = false;
@@ -208,9 +215,7 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
                 if let Some(v) = a.strip_prefix("--progress=") {
                     progress = driver::progress_stride(v)?;
                 } else if let Some(v) = a.strip_prefix("--jobs=") {
-                    // Validated exactly as con-leche validates it, then not
-                    // acted on: phase B is sequential.
-                    driver::jobs_count(v)?;
+                    jobs = Some(driver::jobs_count(v)?);
                 } else if let Some(v) = a.strip_prefix("--stats-every=") {
                     match v.parse::<u64>() {
                         Ok(n) => stats_every = n,
@@ -252,6 +257,7 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
             no_pins,
             taint_skipped,
             progress,
+            jobs,
             stats,
             stats_every,
             parse_only,
@@ -374,6 +380,20 @@ impl PhaseObserver for Stats {
         }
     }
 
+    /// con-leche: Main.lean:330-449 checkDeclsIO
+    /// The worker count, for the heartbeat's summary.
+    fn phase_b_workers(&mut self, workers: usize) {
+        self.hb.phase_b_workers(workers);
+    }
+
+    /// con-leche: Main.lean:255-274 checkOne
+    /// The cited `stride > 0`, plus `--stats-every`'s own per-check line: the
+    /// pool's workers bump the completed-counter and call this observer when
+    /// EITHER flag wants a line.
+    fn wants_check_lines(&self) -> bool {
+        self.hb.wants_check_lines() || self.every > 0
+    }
+
     /// con-leche: Main.lean:160-174 checkHeartbeat
     /// The heartbeat's check line, and `[B <done>/<M>]`.
     fn check_after(&mut self, done: usize, m: usize, pc: &PendingCheck, st: &CState, fe: &FEnv) {
@@ -461,9 +481,15 @@ fn run(args: &Args) -> u8 {
     };
     let t_pins = t_pins0.elapsed();
     let t1 = Instant::now();
+    // The pool is the driver's, so `--jobs>1` goes through the driver whether
+    // or not anything is observing it (task #48).
+    let jobs: u64 = match args.jobs {
+        Some(n) => n,
+        None => driver::default_jobs(),
+    };
     let observed = args.progress > 0 || args.stats || args.stats_every > 0;
-    let r = if observed {
-        driver::check_decls_driver(&args.mode, &pins, &ds, &mut obs)
+    let r = if observed || jobs > 1 {
+        driver::check_decls_driver(&args.mode, &pins, &ds, jobs, &mut obs)
     } else {
         installed::check_decls(&args.mode, &pins, &ds)
     };

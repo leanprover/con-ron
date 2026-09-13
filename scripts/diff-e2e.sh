@@ -4,7 +4,7 @@
 #
 #   usage: scripts/diff-e2e.sh [--trusted] [--verbose] [--timeout=SECS]
 #                              [--only=REGEX] [--no-pins|--pins-file]
-#                              [--progress]
+#                              [--progress] [--jobs=N]
 #
 # This is `scripts/diff-fixtures.sh` (task #28) one step further up: that
 # script runs `con-ron-check` on the *dump* con-leche's frontend produced, so
@@ -44,6 +44,14 @@
 # repacked term node.  `--timeout=60` keeps a regression from stalling the
 # sweep.
 #
+# THE CHECK PHASE'S LANE.  The sweep runs `--jobs=1` by default, which is the
+# lane that calls the core's `check_decls` itself: the sequential walk is the
+# reference every expectation was pinned against, and it must stay the thing
+# this script measures.  `--jobs=N` runs the whole sweep on the POOL instead
+# (task #48), which is how the pool's promise — the same verdict and the same
+# failing record at every worker count — is tested on all 348 fixtures rather
+# than argued.  Both passes must read the same numbers.
+#
 # A run is green when `differ`, `other` and `timed out` are all zero.
 set -u
 cd "$(dirname "$0")/.."
@@ -59,6 +67,7 @@ only=""
 use_pins=1
 from_file=0
 progress=""
+jobs=1
 
 for a in "$@"; do
   case "$a" in
@@ -67,9 +76,10 @@ for a in "$@"; do
     --no-pins) use_pins=0 ;;
     --pins-file) from_file=1 ;;
     --progress) progress=--progress=1000 ;;
+    --jobs=*) jobs=${a#--jobs=} ;;
     --timeout=*) TO=${a#--timeout=} ;;
     --only=*) only=${a#--only=} ;;
-    *) echo "usage: $0 [--trusted] [--verbose] [--no-pins|--pins-file] [--progress] [--timeout=SECS] [--only=REGEX]" >&2; exit 2 ;;
+    *) echo "usage: $0 [--trusted] [--verbose] [--no-pins|--pins-file] [--progress] [--jobs=N] [--timeout=SECS] [--only=REGEX]" >&2; exit 2 ;;
   esac
 done
 
@@ -125,7 +135,7 @@ one() { # one <suite> <label> <stream> <expected-exit>
   total=$((total + 1))
   want=$(want_for "$suite" "$label" "$want")
   local out rc
-  out=$(timeout "$TO" "$BIN" "$MODE" $pinargs $progress "$path" 2>&1); rc=$?
+  out=$(timeout "$TO" "$BIN" "$MODE" --jobs="$jobs" $pinargs $progress "$path" 2>&1); rc=$?
   printf '=== %s/%s (expect %s)\n%s\n  exit %s\n' "$suite" "$label" "$want" "$out" "$rc" >>"$log"
   if [ "$rc" = 124 ]; then
     timedout=$((timedout + 1)); echo "TIMEOUT $suite/$label (after ${TO}s, expected $want)"
@@ -169,7 +179,7 @@ done <"$CL/tests/annot-expected.txt"
 
 t1=$(date +%s)
 echo
-echo "diff-e2e ($MODE, pins ${pinargs:-embedded}): $total fixtures"
+echo "diff-e2e ($MODE, pins ${pinargs:-embedded}, --jobs=$jobs): $total fixtures"
 echo "  agree               $agree"
 echo "  DIFFER              $differ"
 echo "  needs the modeller  $inmodel   (task #39 ported it; expected 0)"

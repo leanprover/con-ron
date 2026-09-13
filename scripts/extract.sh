@@ -51,7 +51,11 @@ case "${1-}" in
 esac
 [ "$#" -le 1 ] || { echo "usage: $0 [--check]" >&2; exit 2; }
 
-if [ "$check" -eq 1 ]; then work="$root/_tmp/extract-check"; else work="$root/_tmp/extract"; fi
+# Scratch is keyed by the checkout: `_tmp` is usually a symlink shared by
+# every agent worktree, and two concurrent extractions into one directory
+# clobber each other's `.llbc` (seen 2026-09-13).
+ckey=$(printf '%s' "$root" | sha256sum | cut -c1-12)
+if [ "$check" -eq 1 ]; then work="$root/_tmp/extract-check-$ckey"; else work="$root/_tmp/extract-$ckey"; fi
 rm -rf "$work"
 mkdir -p "$work/llbc" "$work/lean"
 

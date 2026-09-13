@@ -32,4 +32,12 @@ section for every task you land.
   time is secondary and only meaningful from several runs of a benchmark
   small enough to repeat (`Init`, the fixtures) — never from one run of a
   large one. Report the spread when you report wall time.
+* **Shared state between agent worktrees.** `_tmp/` is one directory shared
+  through a symlink by every worktree: never rebuild, clean or re-copy
+  `_tmp/aeneas-lean` (the patched Aeneas library and Mathlib) from a worktree
+  — if `proof/.lake/packages` is missing, symlink it to the main tree's
+  `_tmp/aeneas-lean/.lake/packages` and nothing else; `extract.sh` and
+  `gates.sh` key their scratch and log directories by checkout for the same
+  reason.  Never edit the main tree's `vendor/con-leche` from an agent: it
+  is what the main tree's proof build reads.
 * Commit often; the maintainer pushes and opens PRs.

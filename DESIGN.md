@@ -217,6 +217,15 @@ immortal sentinel (§3's "Decisions of 2026-09-12"), which is what the same
 day's no-`unsafe`-where-`std`-suffices ruling rejects.  Peak RSS is unchanged
 (`Rc` and `Arc` carry the same two-word header).
 
+**What the ~15 % bought, measured** (task #48, the pool): `init`'s **check
+phase** goes 56.6 s → 13.2 s at 8 workers (**4.3×**) and 8.2 s at 16 (**6.9×**)
+at an instruction count flat to 0.8 %, and the whole binary 64.3 s → 20.2 s →
+16.2 s.  The atomic counts are what keeps that short of linear — cycles grow
+2.3× from one worker to sixteen for the same instructions, which is con-leche's
+`markPersistent` argument seen from the side that has no mark (task #48's entry
+has the table, and the `Rc`-for-scratch split remains the way to get the 13 %
+back).
+
 `triomphe::Arc` is not a third way out: it is 8 bytes smaller per node (a
 48-byte `ExprNode` block against 56, −3.8 % peak RSS) but **slower than
 either**, +17 % instructions and +20 % wall on `core`.  The task-#44 entry has
@@ -523,7 +532,13 @@ does, task #44 priced it at ~15 % wall single-threaded, and the maintainer's
 decision is to pay that — `P = std::sync::Arc` since task #45 (§3.2), with
 no `mark_persistent` and no sentinel.  The design above stays written down as
 the fallback if the 15 % is ever felt enough to want it back, and §3.2's
-`ron::ptr::P` paragraph is where the choice lives; it is one line.  *Pins*: embedded as a `con-ron-pins/1` text
+`ron::ptr::P` paragraph is where the choice lives; it is one line.  **Landed as
+task #48**: `crates/con-ron/src/pool.rs` is `checkPool` and its three helpers,
+the workers share the term DAG and the constant records through `P` and take
+one `fenv::dup` of the *index* each (the port's `restrict_to` is a by-value
+record update, so a shared index is the one thing it cannot hand out), and the
+results are merged by record index and walked in record order, which is what
+makes the verdict the sequential walk's at every `--jobs`.  *Pins*: embedded as a `con-ron-pins/1` text
 constant in the core, decoded at start by a decoder in the core; the
 theorem states `pins = decode PINS_TEXT` and Lean establishes
 `decode PINS_TEXT = natOpPinSets` as a closed computation (task #43
@@ -10133,3 +10148,922 @@ Aeneas:
 `scripts/gates.sh`: all 7 OK.  The progress line afterwards reads
 `verified 957 (6%)` of the 13 719 verified-core Lean lines, and
 `proofs 21392 (207 _refines)`.
+### Task #48 — The parallel check phase (2026-09-12, Opus under Fable)
+
+P4.2's headline item and `scripts/provenance-skip.txt`'s one **owed** entry:
+`Main.lean`'s worker pool, which every task since #40 has been listed as
+pending a decision.  Task #45 took that decision (`P = std::sync::Arc`, every
+core type `Send + Sync`, asserted at compile time by
+`crates/con-ron-core/tests/send_sync.rs`), so this task spends what it bought.
+
+**What landed** (`crates/con-ron/`, one new module, no change to
+`con-ron-core`):
+
+| file | con-leche | what |
+|---|---|---|
+| `src/pool.rs` (new, 428) | `Main.lean:213-328` | `check_one`, `check_worker`, `merge_results`, `check_pool`, and `collect_checks` (`Installed.lean:360-383`) |
+| `src/driver.rs` (914 → 1054) | `Main.lean:330-449` | `jobs` threaded into `check_decls_driver`; `workers_for`, `default_jobs`, `JOBS_DEFAULT_CAP`; two new `PhaseObserver` methods |
+| `src/bin/con-ron.rs` | `Main.lean` | `--jobs=<n>` acted on, the capped default, the usage text |
+| `src/bin/con-ron-check.rs` | `Main.lean` | `--jobs=<n>` acted on here too (it was validated and discarded) |
+| `scripts/diff-e2e.sh` | — | `--jobs=N` sweeps all 348 fixtures on the pool; the default pass is `--jobs=1`, the sequential reference |
+
+`con-ron-core` is **byte-identical** to before this task, so no `Refine/*`
+lemma, no generated Lean and no extraction gate is touched: the pool is outside
+§1's theorem by construction, as it is in con-leche (`OVERVIEW.md` §0/§2 — "the
+transfer theorem is untouched").
+
+#### The guarantee, and how it is tested rather than argued
+
+The pool is con-leche's, mechanism for mechanism: **one record per atomic
+claim** off one shared counter (a cluster of heavy declarations spreads over the
+pool instead of serialising inside a claimed range — the only item that can
+strand it is the single largest check), a worker's results kept in the worker's
+own array, the arrays **merged by record index** into one table, and the table
+**walked in record order**.  So the verdict, and the declaration a rejection
+names, are the sequential walk's at every `--jobs`, and the failing record is
+the first in *fold* order whatever the workers' timing.  Determinism on a
+failure is con-leche's argument too: a worker that fails record `f` lowers a
+shared `limit` to `f`, every value the limit can hold is `m` or a failing index
+hence `>= f`, so no record below `f` is ever skipped and the table is complete
+below the first failure.  Nothing needs an ordering stronger than `Relaxed`: a
+stale `limit` can only be too large, i.e. can only cause work that could have
+been skipped, and the results themselves travel through the `join`.
+
+`pool_reports_the_first_failure_at_every_jobs` is that promise as a test — a
+list whose records 2 **and** 4 both fail reports record 2 at 1, 2, 3, 4 and 8
+workers — and it needs no environment at all: a record with declared type
+`Sort 1` and value `Sort u` checks iff `u` is `Sort 0`, so the walk is what is
+under test and not the checker.  At scale, `scripts/diff-e2e.sh --jobs=4` reads
+**348 agree, 0 differ** exactly as the `--jobs=1` pass does.
+
+#### One deviation, and it is `fenv::restrict_to`'s
+
+con-leche's workers share the installed `FEnv` and take
+`fe.restrictTo pc.vis` per record, which is `O(1)` because the Lean runtime
+shares the `Std.HashMap` field.  The port's `restrict_to` is the same record
+update but **by value** (task #6's linear threading), and `kernel/fenv.rs`'s
+module note says in so many words that this "forecloses the *parallel* phase B
+§3.1 contemplates, where several workers hold different views of one index at
+once".  The resolution is **one `fenv::dup` per worker**, taken on the worker's
+own thread and threaded through every record it claims (`check_pending` lowers
+the bound and restores it, exactly as in the sequential lane).  What is
+*shared* is what the memory is in — the term DAG and the `P<ConstantInfo>`
+records, through `P = Arc`, which is what made the pool possible; what is
+*copied* is one table of handles per worker, `O(|env|)` **once per worker**, and
+the measured cost of it is **~35-40 MB of resident set per worker** (con-leche's
+own note says "about 25 MB per worker", for its per-worker memo heaps).  A
+failed record consumes the worker's view, so a worker re-`dup`s lazily — at most
+once, since after a failure every later claim of that worker is above the limit
+it just lowered.
+
+Two smaller ones: at `--jobs=1` phase B runs on the calling thread (con-leche
+task #269 moves it to a dedicated one, which is a finding about Lean's
+per-thread mimalloc heaps and the main thread's post-install fragmentation; the
+port has one heap for the process and already runs the whole fold on one spawned
+big-stack thread), and on a *pooled* failure `--stats` reports an empty memo
+state, because the failing record's state belongs to the worker that built it
+and is gone by the join.
+
+#### `--jobs`'s default is capped, and the arithmetic is written down
+
+con-leche's default is one worker per hardware thread, and
+`_tmp/corpus/baseline.md`'s last row is what that does on this 96-thread
+machine: **exit 134**, `failed to create thread`, because every worker reserves
+~1 GiB of address space for its stack.  The port keeps the rule and caps it —
+`min(hardware threads, driver::JOBS_DEFAULT_CAP = 16)` — while an explicit
+`--jobs=<n>` is obeyed to the letter, so a measurement can still ask for 96.
+The constant's note carries the budget a caller under `ulimit -v` needs:
+
+```text
+address space >= 3 x (the checker's resident set) + 1 GiB per worker
+```
+
+which is what every run below was budgeted with (`init`: 3 GB + 1.1 GB per
+worker; `core`: 8 GB + 1.1 GB).  The *resident* cost of a worker is the `dup`
+above, two orders of magnitude smaller than its stack reservation.
+
+The heartbeat is con-leche's as well: `check <done>/<M> <kind> <name>` comes
+from the **claiming worker**, off a shared done-counter bumped once per
+completed record, printed under a mutex — and only on the heartbeat lane, which
+is the port's spelling of the cited `stride > 0` guard inside `checkOne` (the
+new `PhaseObserver::wants_check_lines`).  The `done:` summary's worker count is
+now the count phase B actually ran on (`PhaseObserver::phase_b_workers`,
+`max(1, min(jobs, M))`), so a stream with fewer pending checks than `--jobs`
+asked for says so instead of reporting the request.
+
+#### Measurements
+
+`con-ron --verified --jobs=<j> _tmp/corpus/init.ndjson` (58 002 fold records,
+**accepted 57972** at every count), `perf stat -e instructions:u,cycles:u` +
+`/usr/bin/env time -v`, three runs per configuration, `ulimit -v` per the
+arithmetic above.  The machine was shared throughout (load average 6-11), which
+is what the spreads are for; artefacts in `_tmp/t48/`.
+
+| jobs | wall (mean) | wall (range) | speedup | `instructions:u` | `cycles:u` | peak RSS |
+|---:|---:|---|---:|---:|---:|---:|
+| 1 | 64.32 s | 63.72–64.75 (1.6 %) | 1.00× | 540.92 G | 282.0 G | 912 MB |
+| 2 | 42.52 s | 41.09–45.07 (9.4 %) | 1.51× | 544.63 G | 332.5 G | 1 002 MB |
+| 4 | 28.05 s | 27.89–28.21 (1.1 %) | 2.29× | 544.73 G | 396.6 G | 1 077 MB |
+| 8 | 20.18 s | 20.16–20.21 (0.2 %) | 3.19× | 544.94 G | 487.2 G | 1 193 MB |
+| 16 | 16.15 s | 15.90–16.40 (3.1 %) | 3.98× | 545.34 G | 652.5 G | 1 507 MB |
+
+**The instruction count is flat**, which is the measurement's own check: +0.69 %
+from one worker to two (the per-worker `dup`s and the atomic claims) and +0.13 %
+more from two to sixteen.  Everything else in the table is cycles.
+
+**The pool's own number is the check phase**, which `--progress` prices
+separately (one run each, same binary):
+
+| | parse | install | **check** | total | check speedup |
+|---|---:|---:|---:|---:|---:|
+| `init`, jobs=1 | 1.09 s | 5.42 s | **56.60 s** | 63.11 s | — |
+| `init`, jobs=8 | 1.11 s | 5.58 s | **13.19 s** | 19.88 s | **4.29×** |
+| `init`, jobs=16 | 1.10 s | 5.68 s | **8.17 s** | 14.95 s | **6.93×** |
+
+so the whole-run 3.98× at 16 workers is Amdahl on a 6.8 s serial head, not the
+pool: phase B itself is 6.9× on 16 threads.
+
+**Against con-leche** (`_tmp/corpus/baseline.md`, same machine, same export):
+
+| | con-leche | con-ron | |
+|---|---:|---:|---|
+| `init` `--jobs=1` wall | 59.36 s | 64.32 s | 1.08× |
+| `init` `--jobs=8` wall | 12.43 s | 20.18 s | 1.62× |
+| `init` `--jobs=1` instructions | 586.2 G | 540.9 G | **0.92×** |
+| `init` `--jobs=8` instructions | 587.5 G | 544.9 G | **0.93×** |
+| `init` `--jobs=8` peak RSS | 711 MB | 1 193 MB | 1.68× |
+| `init` j1→j8 speedup | 4.78× | 3.19× | |
+
+**The port retires 7-8 % fewer instructions and is 8 % slower at one worker and
+62 % slower at eight.**  The gap that opens with the worker count is the atomic
+reference counting, and this table is the measurement con-leche's
+`markPersistent` comment predicts from the other side: con-leche marks the
+installed graph persistent at the phase boundary and stops counting it
+altogether (worth 18-32 % of its pool wall by its own `--no-mark-persistent`
+row), while every `P` in con-ron is an atomic read-modify-write in every lane.
+The port's own cycle column shows the same thing without a comparison: 282 G at
+one worker, 652 G at sixteen, **2.31× the cycles for 1.008× the instructions**.
+So `--no-mark-persistent`'s note in `driver.rs` is updated — it used to say the
+port's counts are "non-atomic `Rc` counts", which stopped being true at task
+#45 — and the way back is still task #44's second one, a type-level split of the
+handle (`Arc` for what crosses threads, `Rc` for per-declaration scratch), not a
+flag.
+
+`core` (165 449 fold records, **accepted 163391**, one run each):
+
+| | wall | parse | install | check | `instructions:u` | `cycles:u` | peak RSS |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| jobs=1 | 157.89 s | 2.65 s | 46.92 s | 106.82 s | 1 163.5 G | 695.0 G | 2 399 MB |
+| jobs=8 | 74.40 s | 2.62 s | 48.00 s | **22.26 s** | 1 172.1 G | 1 008.1 G | 2 873 MB |
+
+**4.80× on the check phase**, 2.12× on the run — and the reason the run's figure
+is so much worse is the finding worth carrying forward: on `core` the *install*
+phase is 46.9 s, **30 % of the single-worker wall** (on `init` it is 8.6 %), and
+phase A is sequential by construction (it is the fold).  con-leche's `core`
+rows are 149.64 s / 43.40 s at 1 179.7 G / 1 182.7 G instructions, so the same
+two statements hold there: 0.99× the instructions, 1.71× the wall at eight
+workers.
+### Task #46 — Env, State, FEnv: the foundation relations (2026-09-12, Opus under Fable)
+
+`proof/ConRon/Refine/CORE_PLAN.md`'s steps 1 and 2: the abstraction functions,
+well-formedness predicates and relations that everything above the leaves stands
+on, plus one exact-result lemma per function of `kernel::env`, `kernel::fenv` and
+the state half of `cached::state_c`.  Five files, one of them not in the brief
+(`HashMapWF.lean`, see below), and **one `sorry` — which is a finding, not a
+shortfall**: the Aeneas Lean library models `Vec::insert` as `List.set`.
+
+#### Sizes
+
+| file | lines | declarations | of which `*_refines` |
+|---|---|---|---|
+| `Refine/Abs.lean` (+239) | 686 | 49 `def`/`structure` | — |
+| `Refine/Env.lean` | 1 992 | 119 | 68 |
+| `Refine/FEnv.lean` | 547 | 23 | 9 |
+| `Refine/HashMapWF.lean` | 772 | 26 | — (the `_wf` twins) |
+| `Refine/State.lean` | 1 260 | 91 | 33 |
+
+`env.rs` is 1 508 Rust lines of which ≈1 100 are code, so `Env.lean` is **≈1.8
+proof lines per Rust code line** — the lowest ratio in the project so far
+(task #16's calibration expected ≈3), because two thirds of `env.rs` is
+`*_dup`/`*_copy`/accessor boilerplate whose refinement is an identity, and the
+`*_beq` family — the expensive part — is nine chains of two combinators
+(`Expr.guard_step` and this file's `scalar_step`) rather than nine inductions.
+`abs`'s injectivity on the records is 120 lines for seven types and is what makes
+all nine exact.
+
+#### The finding: `Vec::insert` is `List.set` in the Aeneas model
+
+`_tmp/aeneas-lean/Aeneas/Std/Vec.lean:167-172` models Rust's
+`Vec::insert(index, element)` — which shifts the tail right — as
+`v.val.set index element`, an **overwrite**, guarded by `index < len` where Rust
+allows `index ≤ len`.  So the generated model of `fenv::push` replaces
+`consts[0]` instead of consing onto `Env.consts`, and *fails* on an empty
+environment.  `FEnv.push`'s refinement is therefore **false of today's model**:
+`push_idx_refines` proves the two clauses that survive (the `Name`-keyed index
+and the installation counter), and `push_refines` is the tier's one `sorry`, with
+the diagnosis in its docstring.  The port has four call sites, all of them
+`insert(0, …)`: `kernel/fenv.rs:198` and `kernel/checker_base.rs:239,271,275`.
+The fix is one line in the Aeneas library (`List.insertIdx`, guard `≤`), and it
+is now `AENEAS_FINDINGS.md` §3.9 and ask #1 — the first *semantics* bug we have
+found in the library, and one that no amount of testing the Rust would catch,
+because the Rust is right.
+
+This is the tier earning its keep: the only thing in the project that compares
+the model against the Rust's meaning is a refinement proof of the function.
+
+#### `Eq2Spec` is not usable, and the shape that replaced it
+
+Task #16 closed with a note deferring "the abstract version of the `Eq2`
+hypothesis … to the first client".  This task is the first client, and the
+generalisation needed is *two* changes, not one:
+
+```lean
+-- task #16
+def Eq2Spec (d : Eq2 K) : Prop := ∀ a b, d.eq2 a b = ok (decide (a = b))
+-- task #46, `Refine/HashMapWF.lean`
+def Eq2Fwd (d : Eq2 K) (P : K → Prop) : Prop :=
+  ∀ a b c, P a → P b → d.eq2 a b = ok c → c = decide (a = b)
+```
+
+* **forward**, because `Eq2Spec` asserts that the port's `beq` *cannot fail*, and
+  §3.5's style proves totality for nothing: every lemma in `proof/` reasons from
+  `f x = ok y`.  `Eq2Spec` is therefore not provable for a single one of our key
+  types, not even in principle within this development.
+* **key-restricted**, because `expr::beq` is exact only on `ExprWF` terms
+  (`absExpr` drops the stored word, so two ill-formed nodes can abstract equally
+  while `beq` separates them).
+
+And the *bridge* had to be restricted too, which is the part that was not
+foreseen: `Rel m s absK absV := ∀ k, (toFun m k).map absV = s[absK k]?` is
+**false after the first insert** for our abstractions — a non-well-formed `k'`
+with `absK k' = absK k` has `toFun m' k' = none` while `s'[absK k']?` is `some`.
+So `RelOn P m s absK absV` quantifies over `P`-keys only, and `Rel_insert_wf`
+takes injectivity *on* `P` instead of `Function.Injective absK`.  `StateRel` and
+`FEnvRel` are built from `RelOn`, and `StateWF`/`FEnvWF` carry the
+`HashMap.KeysOk` that feeds it.
+
+`HashMapWF.lean` re-proves the eight `Eq2Spec`-consuming theorems of
+`HashMap.lean` under the new hypothesis (`list_get`, `list_insert`, `get`,
+`insert_no_resize`, `move_elements_from_list`, `move_elements`, `try_resize`,
+`insert`), threading `KeysOk` through the growth path, and one lemma carried the
+whole file:
+
+```lean
+theorem eq2_ite (heq : Eq2Fwd Eq2Inst P) (ha : P a) (hb : P b)
+    (h : (do let c ← Eq2Inst.eq2 a b; if c then x else y) = ok r) :
+    (a = b ∧ x = ok r) ∨ (a ≠ b ∧ y = ok r)
+```
+
+— it replaces `HashMap.lean`'s single `simp [Eq2Spec] at heq; simp [heq] at h`
+step everywhere, so every remaining line of every script is task #16's verbatim.
+It is a separate file rather than a section of `HashMap.lean` only so that this
+task did not edit a finished one; it belongs there, and the one thing to know
+when it moves is that it needs `attribute [local simp]` re-enabling
+`HashMap.lean`'s twelve `@[local simp]` lemmas (without them the copied `simp`
+calls have no simp set and nothing works).
+
+Neither `remove` nor `contains_key` got a `_wf` twin: the memo tables and the
+index only `get` and `insert`.
+
+#### `DecidableEq` on the generated key types is classical, and has to be
+
+`toFun`, `Inv` and `Eq2Fwd` all need `DecidableEq K`, and `deriving instance
+DecidableEq` cannot produce it for `name.Name`/`level.Level`/`expr.Expr`: they
+are three-type mutual inductives whose recursive occurrences sit behind the
+`@[reducible] def alloc.sync.Arc` of §3.2, and the deriving handler does not look
+through the alias ("failed to synthesize `Decidable (a = b)`").  `Refine/Abs.lean`
+therefore supplies `Classical.decEq` for the four leaf types; the five tuple and
+`Vec` key types synthesize from those.  Nothing is lost — every occurrence is
+inside a `Prop`, the port's own decision procedure is `beq` and *that* is what
+the refinement lemmas are about — but it does mean every lemma mentioning the
+abstract map lists `Classical.choice`, which is one of the three allowed axioms.
+
+#### What `Env.lean` says, and the two places it is not mechanical
+
+68 `*_refines` in `env.rs`'s order.  The mechanical two thirds: the five mode
+accessors and the two skip predicates; the four `Vec` copies (each an index
+recursion whose conclusion is `v.val = xs.val`, hence `v = xs` by `Subtype.ext`,
+hence the identity under `abs` — the strongest form); the ten `*_dup`s, all
+identities because `P` is the identity in the model; `rec_rule_parsed`,
+`ind_caps_default` and `default_expr`, which are the *Lean's field defaults*
+(`sortZ := .ifAllZero []` is the one that is not the obvious zero, and `default :
+Expr` does reduce to `.bvar 0`, so no fallback spelling was needed);
+`proj_table_entry` with both `getD` fallbacks; `declaration_name`; the three
+accessors; `env_of`; and the tag pass `recs_form_suffix`/`block_rec_suffix_ok`.
+
+The two that are not:
+
+1. **The reserved names.**  `proj_fn_name`/`proj_table_name` are the port's only
+   string *literals* below the basis, and the refinement has to read them: the
+   `Vec<u32>` that `core_types::code_points` builds from `env::PROJ_STR` really
+   is `"proj"`, and every one of its code points is a valid `Char` (`StrWF`,
+   without which `absString` is not injective).  35 lines, and the same shape
+   will serve every other `code_points` literal in the crate.
+2. **`abs`'s injectivity and the `*_beq` family.**  `constant_info_beq` is *the*
+   equality the two pinned-basis guards read (`env.find? eqName == some eqA`,
+   `decide (env.find? natName = some natA)`), so its exactness is load-bearing
+   for the accept direction.  It needs `absConstantInfo` injective under
+   `ConstantInfoWF`, which needs the same for the six records under it, which
+   needs `absNames`/`absExprs`/`absLevels`/`absPropWhen` injective — all
+   available, and the composite is 120 mechanical lines.  Two list equalities
+   had no top-level lemma yet (`prop_when::names_beq`, `expr::exprs_beq`); they
+   are here rather than in the two finished files they belong to.
+
+`find`/`find_from` is `List.find?` over `consts` in its newest-first order on the
+nose, and `find_wf` — a lookup hands its caller a *well-formed* record — is the
+half the knot's induction will actually consume.
+
+#### `FEnvRel` is three clauses, and `find` agreement is a lemma
+
+```lean
+def FEnvRel (fe : fenv.FEnv) (lfe : ConLeche.FEnv) : Prop :=
+  absEnv fe.env = lfe.env ∧
+  fe.visible_below.val = lfe.visibleBelow ∧
+  HashMap.RelOn NameWF fe.idx lfe.idx absName absIdxEntry
+```
+
+The `Env` clause is an *equation* because `Env.consts` is a list on both sides in
+the same order; `find?`/`findProj?` agreement is then derived, which is the form
+`coreKnotI_congr` consumes.  `FEnvWF` adds `EnvWF`, `ron::HashMap`'s own `Inv`,
+`KeysOk NameWF`, and — new here — `ValsOk`, "every value the table denotes is a
+well-formed record", stated over `toFun` so that `insert`'s
+`toFun m' = Function.update (toFun m) k (some v)` discharges it in one line.
+Without `ValsOk` a memo hit cannot hand its caller an `ExprWF`/`ConstantInfoWF`
+result, and the knot's induction needs exactly that.
+
+`mk_fenv_go_refines` is the file's one real proof (60 lines): the build is from
+the back, so the counter, the relation, `Inv`, `KeysOk` and `ValsOk` all come out
+of the same induction because the insertion step needs all five of the previous
+one.  `dup_refines`' conclusion is `FEnvRel fe' ((mkFEnv (absEnv fe.env)).restrictTo
+fe.visible_below.val)` rather than "the same `lfe`": `dup` *rebuilds* the index
+(`ron::hashmap` has no iteration API), and `FEnvRel` constrains the source index
+only through its abstract map, so the honest Lean counterpart is `mkFEnv` of the
+same environment — con-leche's own `mkFEnv_push` is what makes the two agree on
+every reachable `FEnv`.
+
+`tower_slots_all_f`/`rec_slots_all_f` are left out on purpose: their citations are
+`Core.lean`'s `towerSlotsAll`/`recSlotsAll`, their content is `List.range'`
+bookkeeping for a `u64` loop and nothing to do with the relation, so they go with
+`CORE_PLAN.md` step 4.  `rec_slot_ok` — the one of the four the relation does
+settle — is here.
+
+#### `StateRel` is fourteen `RelOn` clauses, and the eight key dictionaries are exact
+
+`CORE_PLAN.md` asked for one `HashMap.Rel` clause per map; it is `RelOn` for the
+reason above, and both `StateRel` and `StateWF` are `structure … : Prop` with
+fields named after con-leche's maps in `CState`'s field order.  `StateWF` has
+**39** fields: per map `HashMap.Inv`, `HashMap.KeysOk` at the key's WF predicate,
+and — for the eleven term-valued maps — well-formedness of the stored values, so
+that a memo *hit* hands its caller an `ExprWF`/`LevelWF` result.
+
+The eight key dictionaries (`Name`, `Level`, `Expr`, and the five tuple keys
+`(Name × List Level)`, `(Name × Name × List Level)`, `(Expr × Expr)`,
+`(Level × Level)`, `(Expr × List Expr × Nat)`, which the port spells out with
+Lean's *derived* `mixHash`/`BEq` instances) each get an `Eq2Fwd` lemma, and **all
+eight are proved**: the dictionary's `eq2` *is* the `beq` (by `rfl`), the
+component `*_refines` lemmas give `decide (abs a = abs b)`, and injectivity of
+`abs` under the key's `*WF` turns that into `decide (a = b)`.  That is the payoff
+of the `Eq2Fwd` shape: not one hypothesis about a hash map is left over.
+
+Rather than eight hand-written `get`/`insert` pairs the file bundles the two facts
+a key type needs into `structure KeyOk P Eq2Inst absK` (`Eq2Fwd` plus
+injectivity-on-`P`), gives eight instances, and proves two polymorphic lemmas —
+`get_step` (the relation, plus "a hit is well formed", via `lookupK_mem`) and
+`insert_step` (`Inv`, `KeysOk`, value WF, `RelOn` of the inserted map).  On top of
+those sit the nine `state_c::*_probe` lemmas, six memo-read lemmas for the maps
+`core_c` reads off the state directly (`st.whnf_core_c.get(e)`, …) in
+`CORE_PLAN.md`'s shape, and fourteen `*_insert_refines` that rebuild `StateRel`
+and `StateWF` from one changed clause.  `cstate_new_refines` and
+`flushed_refines` are the fresh state (`Inhabited CState := ⟨{}⟩`) and
+`CState.flushed`'s ten-fresh/four-surviving split.
+
+No `LawfulHashable` instance had to be written: Lean's
+`instLawfulHashableOfLawfulBEq` derives it from con-leche's exported `LawfulBEq`
+for `Name`/`Level`/`Expr`, and core lifts it to `Prod`/`List` — so
+`ConLeche/Verify/*` (the proof tier, which has its own copies) stays unimported.
+
+
+#### Hard spots
+
+1. **The tuple-`let` trap (AENEAS_FINDINGS §3.4) is unavoidable in this tier and
+   the escape is always the same**: `have h2 : <the explicitly written reduced
+   form> := h`, letting the *unifier* whnf through the pattern-`let` that `simp
+   only []`, `dsimp only` and `split at` all refuse.  Three sites
+   (`fenv::find`, `fenv::push`, `fenv::mk_fenv_go`), and in `mk_fenv_go` the
+   trick that made it bearable is **not** destructuring the pair at all: write
+   the ascription with `p.1`/`p.2` in place of the bound pattern variables, which
+   is defeq by structure eta and leaves nothing to reduce.
+2. `attribute [simp]` on an `abs` function is not free: putting `absBasisKind`
+   and friends in the global `simp` set turned task #22's `simp only
+   [absBasisKind]` finisher into a no-op ("`simp` made no progress") and broke
+   `BasisTables.lean`.  The `abs` functions above `Expr` are deliberately not
+   `@[simp]`, with a note saying why.
+3. `List.find?_cons` produces a `match … with | true => … | false => …`, not an
+   `if`, so `rw [if_neg …]` does not apply; `rw [show (a == b) = false from …]`
+   and let the iota reduction happen does.
+4. `Std.Usize.max` and `Std.UScalar.max .Usize` are the same term but `omega`
+   treats them as two atoms; one `have : … = … := rfl` in between fixes it.
+   `scalar_tac` does not know `x.val ≤ UScalar.max .U64` for a `Usize` either.
+
+#### How the work was split
+
+Three agents in parallel in one worktree, checking their files with `lake env
+lean <file>` (which writes no oleans, so concurrent checks are safe) while the
+parent ran the occasional `lake build <module>` to publish an olean:
+`HashMapWF.lean` first (it is the dependency), then `State.lean` and the
+mechanical two thirds of `Env.lean` at the same time as the parent wrote
+`Env.lean`'s injectivity/`beq`/`find` half and `FEnv.lean`.  The two halves of
+`Env.lean` were staged as `EnvA.lean`/`EnvB.lean` and merged by script; the one
+interface between them — `proj_table_name`'s refinement, which the accessors
+need — was carried as an explicit hypothesis in the half that did not own it and
+discharged at the merge.  That is a pattern worth reusing: **one file, two
+agents, the seam an explicit hypothesis.**
+
+#### Gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | **all 7 OK** (`cargo build`, `cargo test`, lint, provenance, `gen-pins --check`, `extract.sh --check`, `lake build` 337 s) |
+| `cargo test` (`-D warnings`) | **239 pass, 2 ignored** — 5 new (4 in `pool`, 1 in `driver`) |
+| `scripts/lint-rust-style.sh` | green (scoped to `con-ron-core`, which is untouched) |
+| `scripts/provenance.py check` | 2 101 items, 2 230 citations, all current at pin `3e004805` |
+| `scripts/provenance.py coverage` | `TOTAL 911/911 covered (100.0 %)`, **0 findings**, 95 deliberately skipped |
+| `scripts/extract.sh --check` | clean (`con-ron-core` byte-identical) |
+| `cd proof && lake build` | clean |
+| `scripts/diff-e2e.sh --timeout=60` | **348 agree, 0 differ**, 0 timed out |
+| `scripts/diff-e2e.sh --timeout=60 --jobs=4` | **348 agree, 0 differ**, 0 timed out |
+| `scripts/diff-fixtures.sh --timeout=60` | **315 agree, 0 differ**, 33 skipped |
+| cherries (`scripts/progress.py`) | **7 718 of 7 718 Lean lines (100 %)**, 71 of them the pool's, newly translated rather than skipped |
+
+Nothing under `proof/` or `crates/con-ron-core/` is in the diff, which is why
+the last three of those are cheap: the pool is above the theorem, and the
+extraction gate is confirming a crate this task did not touch.
+
+#### Left for next time
+
+* **`kernel/fenv.rs`'s module note is now wrong in one sentence** — "the one
+  design this forecloses is the *parallel* phase B" — and the fix was written
+  and then *reverted* here on purpose, with a finding attached: the generated
+  Lean carries `Source: 'crates/…', lines A:0-B:1` comments, so editing a
+  **comment** in `con-ron-core` moves five lines of
+  `Generated/{Types,Funs}.lean` and turns a doc fix into a regenerate plus a
+  full re-elaboration of the proof tier (and, in a parallel worktree, a
+  needless conflict over generated files).  The sentence belongs in the next
+  task that touches the core for a real reason; it should point at `pool.rs`'s
+  module note.  The general lesson is worth §3.5's attention: `extract.sh
+  --check` is sensitive to comment motion in the crate, so a comment-only
+  change to `con-ron-core` is never free.
+* **Phase A is the ceiling now.**  `core` spends 30 % of its single-worker wall
+  in the install fold, `init` 8.6 %, and no pool can touch it.  The two known
+  items in it are `fenv::dup` in the inductive routes (task #34's overlay
+  design) and `fenv::push`'s front insertion.
+* **The `Rc`/`Arc` split** (task #44's second way out) is now measurable rather
+  than speculative: the pool's cycle growth above is exactly what it would buy
+  back.
+* **Mathlib end to end** (P4.2's other half), which wants the machine to
+  itself: con-leche's rows are 1 228 s / 337 s at 12.8 T instructions and
+  8.6/9.1 GB, and the port's budget at 8 workers is ~26 GB of address space by
+  the arithmetic above.
+* `con-leche`'s `--no-mark-persistent` A/B has no counterpart to measure here,
+  and `CON_LECHE_ROUTE_TRACE` is still the only unported `Main.lean`
+  environment switch.
+| `scripts/gates.sh` | **all 7 OK** (`cargo build`, `cargo test`, lint, provenance, gen-pins, `extract.sh --check`, `lake build`) |
+| `cd proof && lake build` | 2 113 jobs, zero errors; the only `ConRon` warning is the one `sorry` |
+| `sorry` | **1**, `FEnv.push_refines`, diagnosed above |
+| axiom census | `[propext, Classical.choice, Quot.sound]` on every main lemma of all five files; nothing reaches `PINS_TEXT` |
+
+#### Left for next time
+
+* **Fix or route around `Vec::insert`** and close `push_refines`.  It is on the
+  critical path for `Refine/Installed.lean` (the fold pushes) and for
+  `Refine/Checker.lean`, so it should be the next task's first item.  The Rust
+  side has four call sites and the Aeneas side one line; patching
+  `spikes/toolchain/aeneas-433.patch` is the smaller change and the one that also
+  fixes `checker_base.rs`.
+* **Fold `HashMapWF.lean` into `HashMap.lean`** once a second client exists, and
+  `Eq2Fwd`/`KeysOk`/`RelOn` with it.
+* `Refine/Env.lean` holds `prop_when::names_beq`'s and `expr::exprs_beq`'s
+  refinement lemmas, which belong in `Refine/PropWhen.lean` and
+  `Refine/Expr.lean`; move them when one of those files is next touched.
+  `expr_dup_val` (here) and `expr_dup_eq` (`BasisTables.lean`) are the same fact
+  twice.
+* `tower_slots_all_f`/`rec_slots_all_f` (see above) and the `instC` cap
+  (`instCCapC`, `instListM`'s clear-on-cap) are `CORE_PLAN.md` steps 4 and 5.
+
+### Task #50 — No `Vec::insert` in the core; `push_refines` (2026-09-13, Opus under Fable)
+
+Task #46's finding was that the Aeneas Lean library models Rust's `Vec::insert`
+as `List.set` — an overwrite where Rust inserts — so `fenv::push`'s model
+*replaces* `consts[0]` instead of consing, and `Refine/FEnv.lean`'s
+`push_refines` was not merely unproved but **false of the model**.  This task
+takes the other of the two routes: rather than patch the library, **remove the
+primitive from the port**, so that no model of ours depends on it.  Four call
+sites, two answers, one flipped list, and the `sorry` is gone.
+
+#### The four sites
+
+| site | was | is |
+|---|---|---|
+| `fenv::push` (`fenv.rs:198`) | `consts.insert(0, rc)` | `consts.push(rc)` — `Env.consts` stored **reversed** |
+| `checker_base::open_pis_at_fvars` (`:239`) | `out.insert(0, fv)` | `expr_ops::cons_expr(&fv, &fvs)` |
+| `checker_base::open_pis_at_fvars_f_go` (`:271`) | `exprs_copy` + `insert(0, …)` | `expr_ops::cons_expr(&fv, acc)` |
+| `checker_base::open_pis_at_fvars_f_go` (`:275`) | `out.insert(0, fv)` | `expr_ops::cons_expr(&fv, &fvs)` |
+
+The three `checker_base` sites needed no new helper and no reverse:
+`expr_ops::cons_expr` — task #13's spelling of `a :: acc` on a `Vec<Expr>`, a
+fresh vector filled *front to back* — is already the project's cons and already
+refined (`ExprOps.lean`'s `cons_expr_val`, `ExprOpsSpine.lean`'s
+`cons_expr_refines`).  Site `:271` gets *cheaper*: the old line copied the
+accumulator and then shifted it, the new one builds it in one pass.  The other
+two are asymptotically what they were (`O(width)` per binder, bounded by the
+telescope width, `O(width²)` of pointer bumps in total instead of `O(width²)` of
+pointer moves) and they are the *fallback* walk plus one cons per binder of the
+executed one.
+
+`Env.consts` is the interesting one, because a `Vec` has no cheap front
+insertion at all: a copying cons would be `O(n)` *record handles* per push,
+i.e. 60 000² /2 refcount pairs on `init`.  So the list is **stored reversed** —
+oldest first, newest last — and `push` is `Vec::push`, `O(1)` amortised, which
+is what Lean's cons is.  Everything that reads the list reads it the other way:
+
+* `env::find` scans **from the back** (`find_from(cs, i, n)` searches `cs[..i]`
+  from the top, counting *down*), so what is scanned is the cited newest-first
+  order and the newest binding of a name still wins;
+* `fenv::mk_fenv_go` now runs **forward** with the table and the counter
+  threaded down, each constant inserted under its own index as its installation
+  counter — the newest is inserted last and still wins, and the recursion became
+  a tail call with the pre-sized table hoisted to the entry point;
+* `env::env_of` is the boundary converter: its argument stays in the *cited*
+  newest-first order and it reverses while it shares, so every caller (all of
+  them tests and the basis fixtures) is unchanged and `env_of_refines` still
+  reads `absEnv e = ⟨absConstantInfos cs⟩`;
+* three tests asserted the old order and now assert the new one
+  (`fenv::push_then_restrict_is_the_prefix_view`,
+  `checker::install_basis_decl`'s fresh-constant case,
+  `installed::a_stream_of_definitions_is_accepted`).  Nothing else in the
+  workspace reads `consts` positionally: the driver and `con-ron-check` take
+  `.len()`, and the dump crate never sees an `Env` (declarations are their own
+  list, so the byte-exact round trip is untouched).
+
+#### The sweep: what `Vec` primitives the core still uses, and why each is safe
+
+`backends/lean/Aeneas/Std/Vec.lean` (in `vendor/aeneas`), checked line by line
+against the non-test core:
+
+| primitive | model | verdict |
+|---|---|---|
+| `Vec::push` | `:152-159`, `List.concat v.val x`, guard `len+1 ≤ Usize.max` | correct; the one mutator the core uses |
+| `Vec::len` | `:85-87`, `v.val.length` | correct |
+| `Vec::with_capacity` | `:399-400`, `Vec.new` | correct — the capacity is invisible to the model, as it is to `abs` |
+| `Vec::new`, `v[i]`, `&mut v[i]` | `:78`, `:180-186` (`index_usize`), `:211-217` | correct |
+| `Vec::insert` | `:167-172`, `List.set` | **wrong** (`AENEAS_FINDINGS.md` §3.9) — **0 uses as of this task** |
+| `Vec::remove`, `pop`, `truncate`, `drain`, `extend`, `swap`, `reverse`, `sort`, `retain`, `append`, `split_off`, `first`, `last`, `vec![…]` | **no model at all** | 0 uses; absence is safe (the translation would leave a hole the coverage check reports) |
+
+The 49 surviving `.insert(` calls are all on `ron::hashmap::HashMap` — the memo
+tables, `cached::state_c`'s caches and `FEnv.idx` — which is *our* code,
+translated like the rest and proved in `Refine/HashMap.lean`/`HashMapWF.lean`,
+not an Aeneas primitive.  `.remove(` survives only in a `#[cfg(test)]` oracle
+that Charon never sees.
+
+#### The proof side: one definition changed, every statement stayed
+
+The abstraction absorbs the flip:
+
+```lean
+def absEnv (e : env.Env) : ConLeche.Env := ⟨(absConstantInfos e.consts).reverse⟩
+```
+
+and that is the *whole* interface change.  Not one `*_refines` statement about
+the environment moved — `find_refines`, `find_proj_refines`, `env_of_refines`,
+`empty_refines`, `FEnvRel`'s three clauses, `mk_fenv_refines`, `dup_refines`,
+`push_refines` all read exactly as task #46 wrote them.  What changed is
+*proofs*, plus two helpers in `Refine/Abs.lean`:
+
+* `usize_sub_ok` — `i - 1` in the forward `= ok` shape, the companion of
+  `usize_add_ok` for the downward index recursions;
+* `list_take_reverse_cons : (l.take (i+1)).reverse = l[i] :: (l.take i).reverse`
+  — the one list fact a downward recursion over a reversed list needs, and the
+  shape every rewritten proof turns on.
+
+`Refine/FEnv.lean` gained the loop invariant the accumulator build needs,
+
+```lean
+def absPrefixIdx (cs) (i : Nat) := ConLeche.mkFEnvGo ((cs.val.take i).reverse.map absConstantInfo)
+```
+
+with `_zero`/`_succ`/`_all` (the `_succ` step is exactly `mkFEnvGo`'s cons
+equation), and `mk_fenv_go_refines` became a five-property accumulator lemma —
+the table's relation, `Inv`, `KeysOk` and `ValsOk` are hypotheses as well as
+conclusions, because the insertion step needs all five of the previous one.
+
+**`push_refines` is proved**, in two halves: `push_consts` says the pushed
+constant lands at the back of the `Vec` (`Vec.push`'s model, `vec_push_val`),
+and `absEnv` reversing turns that into the cited `ci :: fe.env.consts` — a push
+at the back *is* the cons, read through the abstraction.  `push_idx_refines`
+survives unchanged apart from the `Vec::insert` → `Vec::push` line in its
+ascription, and `push_refines` composes the two and re-establishes `EnvWF` by
+`List.mem_append`.  `Refine/FEnv.lean` is 623 lines (was 547), 26 declarations,
+**zero `sorry`** — the refinement tier's only remaining ones are
+`Refine/Pins.lean`'s three, task #43's deliberately-stated-and-open decoder
+lemmas; the axiom census is `[propext, Classical.choice, Quot.sound]` on
+`push_refines` like everything else.
+
+#### Measurement: the flip is free, and very slightly positive
+
+`init` (58 002 records), release + mimalloc, `con-ron-check --verified
+--jobs=1`, `ulimit -v 2600000`, `perf stat -e instructions:u,cycles:u`, one run
+each — instructions are the measure of record (CLAUDE.md):
+
+| | before | after | |
+|---|---:|---:|---|
+| `instructions:u` | 565.25 G | 564.64 G | **0.999×** |
+| `cycles:u` | 285.70 G | 287.51 G | 1.006× (noise) |
+| wall | 64.93 s | 65.04 s | — |
+| peak RSS | 824 MB | 821 MB | — |
+| verdict | accepted 58 002 | accepted 58 002 | identical |
+
+0.6 G instructions is what the front insertion cost: 60 000 pushes shifting a
+mean of 30 000 eight-byte handles is ~14 GB of `memmove`, which a vectorised
+copy does in roughly that many instructions.  It is a rounding error on `init`
+and it is the *right* sign — the asymptotic improvement (`O(n²)` handle moves →
+`O(n)`) only starts to matter on an environment an order of magnitude larger
+than Mathlib's.
+
+#### Gates
+
+| | |
+|---|---|
+| `scripts/gates.sh` | **all 7 OK** (`cargo build`, `cargo test` 163+16+4+1, lint, provenance 2 101 items / 2 230 citations, gen-pins, `extract.sh --check`, `lake build`) |
+| `cd proof && lake build` | zero errors; **no `sorry` outside `Refine/Pins.lean`** (task #43's three); externals still **1 type + 5 functions** |
+| `scripts/diff-fixtures.sh` | 348 fixtures, **315 agree, 0 differ**, 33 skipped |
+| `scripts/diff-e2e.sh` | **348 agree, 0 differ** |
+| `scripts/dump-check-fixtures.sh` | OK, round trip **byte-identical** |
+
+#### What this says about the tier, and what is left
+
+The model of a function nobody proves anything about can be wrong for months
+without a symptom: `Vec::insert` translates, type-checks, and produces a Lean
+definition that *looks* like the Rust.  It took a refinement proof to notice,
+and it took a one-line change in `absEnv` — not a patch to the library — to
+route around it, because the deviation the port needed (store the list the other
+way) is invisible above the abstraction function.  That is the argument for
+abstracting a data structure by a *function* wherever it is possible at all:
+the representation stayed negotiable right up to the proof.
+
+* `AENEAS_FINDINGS.md` §3.9 keeps the bug and ask #1 keeps the request — the
+  library should still be fixed, and `spikes/toolchain/aeneas-433.patch` is
+  still the place — but nothing in this repo waits on it any more.
+* `Refine/Installed.lean` and `Refine/Checker.lean` (the folds that push) no
+  longer have a blocked dependency; `push_refines` was task #46's named item for
+  "next time" and it is done.
+* The deviation list in `env.rs`'s module note is now the place to look before
+  writing anything that reads `Env.consts`: index `0` is the *oldest* constant.
+
+### Task #51 — `ExprOpsC` refined (2026-09-13, Opus under Fable)
+
+The refinement of `crates/con-ron-core/src/cached/expr_ops_c.rs` (task #26 —
+the syntactic passes memoised on the term DAG) against
+`ConLeche/Cached/ExprOpsC.lean`, the second half of `Refine/CORE_PLAN.md`
+step 3.  Four files, **4 486 lines**, in `proof/ConRon/Refine/`:
+
+| file | lines | contents |
+|---|---|---|
+| `ExprOpsC.lean` | 529 | the module note for all four; `has_fvar`, `loose_bvars_bounded`, the spine readers (`get_app_fn`/`get_app_args_acc`/`get_app_args`/`mk_app_n_from`/`mk_app_n`), `rev_append_exprs`, the two extra memo probes (`memo_b1_get`, `seen_get`) and `leaf_mem_from`/`leaf_mem` |
+| `ExprOpsCSubst.lean` | 1 440 | `instantiate1_go`/`instantiate1`; the three-layer `instantiate1Lift` (`_b`, `_b_compound`, `_go`, wrapper); the statements of `instantiate_list_{go,bvar,·}` and `instantiate_rev_{go,bvar,·}` |
+| `ExprOpsCAbs.lean` | 1 511 | `abstract1_go`/`abstract1`, `abstract_range_go`/`abstract_range`, `inst_level_params_go`/`inst_level_params`, `proj_entry_type_at_i` |
+| `ExprOpsCGuards.lean` | 1 006 | `wscoped_b_go` + its three callees + `wscoped_b`; the statements of `fvar_leaves`, the `leaves_sub`/`leaf_guard` family, the `alpd` family, `inst_spine` and `pi_residual` |
+
+**Functions in scope**: all 34 executable declarations of the module and its
+three `abbrev` memo-table types (the types carry no lemma: they are
+`ron::hashmap::HashMap` at the same key and value types as `expr_ops`').  Every
+one of the 34 has a statement; of the **64 theorems, 40 are proved outright, 21
+carry a `sorry`**, and three more (`fvar_leaves_refines`,
+`all_level_params_defined_refines`, `pi_residual_refines`) are proved *from* a
+sorried walk lemma (counts below).
+
+#### What the statements are against, and what carried them
+
+`ExprOpsC.lean` is the *executed* tier; `kernel/expr_ops.rs` (task #47) is the
+structural specification.  So every lemma here is stated against the **cited
+`ExprC` definition** — `ConLeche.Cached.ExprC.instantiate1`, `ExprC.abstract1`,
+`ExprC.wscopedB`, … — never against the `ConLeche.Expr` counterpart directly.
+The bridge is con-leche's own `ConLeche/Verify/Cached/OpsC.lean` and
+`…/GuardsC.lean`: one `*_spec` equation per function, which is exactly the
+theorem DESIGN.md §3.1 pointed at when it made the two memo policies binding.
+Each proof therefore has two halves — the port's walk against `ConLeche.Expr`'s
+logical function in task #47's shape, then the cited `*_spec` to land on the
+`ExprC` name the checker's callers use.
+
+Three things carried the work:
+
+1. **`MemoInv` is policy-agnostic.**  Task #47's invariant ("every recorded
+   answer is the real one", `Refine/ExprOps.lean`) says nothing about *which*
+   nodes are recorded, so the same `MemoInv.hit`/`MemoInv.set` pair serves the
+   substitution walks' "compound nodes only" policy and
+   `instLevelParamsGo`/`wscopedBGo`'s "every node kind" one.  What changes is
+   only where in the generated body the probe is inverted — before the match
+   instead of inside the arms — and that is a five-line edit to each script.
+   The two memo policies line up probe by probe because the *port* reproduces
+   the cited shape (§3.1), not because the proof forces them to.
+2. **The cutoffs are one lemma each.**  `bvarB ≤ d` / `fvarB ≤ d` /
+   `fvarB == 0` / `!hasLP` at the head of a walk is
+   `ExprOpsFields.lean`'s `bvar_b_refines`/`fvar_b_refines` composed with
+   con-leche's `instantiate1_eq_self` / `abstract1_of_fvarRange_le` /
+   `abstractRange_eq_self` / `instantiate1Lift_of_bvarBound_le` /
+   `instantiateLevelParams_eq_self`.  Task #47 had already needed three of them
+   (`abstract1_cutoff`, `instantiate1_lift_cutoff`, `ilp_cutoff`) and those are
+   reused verbatim — the `Q` of the memo is the same, because the *value* is the
+   same.
+3. **Two of con-leche's cutoff consequences are `private`**
+   (`wscopedB_of_fvarsBelow_zero`, `Verify/Cached/OpsC.lean:1528`, and
+   `fvarLeaves_nil_of_fvarsBelow_zero`, `…/GuardsC.lean:370`), so the first is
+   re-proved here under its own name in the cited one line.  Worth noting for
+   the tiers above: a `private` helper in con-leche is a wall, and the fix is
+   always cheap, but it has to be found.
+
+Three mechanical traps, all new relative to task #47:
+
+* **`expr::mk_bvar`, not `expr::bvar`.**  The cached walks rebuild bound
+  variables through the pooled constructor, so the `.bvar` arms go through
+  `Expr.mk_bvar_refines` and `ConLeche.Expr.mkBvar_eq` where `expr_ops`' go
+  through `Expr.bvar_refines`.  Same value; two extra rewrites.
+* **`bind_tc_ok` collapses an `ok`-only arm.**  In `wscoped_b_go` the four atom
+  arms are `ok (memo, true)`, so the generated body has *one fewer bind* there
+  than the compound arms do — the insert is the only one left.  Inverting them
+  with the compound script's `obtain` chain silently binds the insert's `old`
+  option as the arm's memo, and the error surfaces two tactics later.
+* **Pattern `let`s that no tactic sees through.**  `let (b, memo1) ← …` in the
+  short-circuiting callees, and `let (i2, e) := …` in `leaf_mem_from`, are
+  `match`es on a *variable*; `split` and `simp` both refuse them.  Two fixes,
+  both used here: name the iota-reduced form with `have h2 : … := h` (which
+  typechecks by definitional unfolding), or hoist the whole inversion into an
+  `*_inv` lemma whose disjunction *is* the short-circuit
+  (`wscoped_b_pair_inv`, `wscoped_b_triple_inv`).  The second reads better and
+  is what the four `Bool` walks should all use.
+
+#### The 21 `sorry`s
+
+All 21 are in three named clusters; each statement is the final one (exact
+result on success, nothing weakened), and only the discharge is owed.
+
+| cluster | count | what is missing |
+|---|---|---|
+| `instantiate_list_{go,bvar,·}`, `instantiate_rev_{go,bvar,·}` (`ExprOpsCSubst.lean`) | 6 | the **two-level induction**: the live prefix `k` is a parameter of the invariant, not of the key (the module's note 3), and the `.bvar` arm's re-entry at a replacement runs under a *fresh* table at a strictly smaller prefix — so the induction is strong on `k` *outside* the induction on the `ExprWF` derivation, exactly as `instantiateListGo_spec` and task #47's `instantiate_list_refines_aux` are.  `MemoLQ` is con-leche's `MemoLInv`. |
+| `proj_entry_type_at_i` (`ExprOpsCAbs.lean`) | 1 | a consequence of `instantiate_list_refines` above, plus `rev_append_exprs_val` (proved) for the `targs.reverse`. |
+| `fvarLeaves`, `leavesSub`/`leafGuard`, `alpd`, `instSpine`, `piResidual` (`ExprOpsCGuards.lean`) | 14 | `fvar_leaves_go` needs the port-side analogue of con-leche's `SeenInv` (`GuardsC.lean:409`) — a *gray set* invariant measured on `sizeF`, the file's one piece of genuinely new design; the `leavesSub` and `alpd` walks are `wscoped_b_go_refines` node for node (with `leaf_mem_refines` / `level::all_params_defined` in place of the scope test), so the `*_inv` idiom above is the template; `instSpine` and `piResidualAcc` are consequences of `instantiate_list_refines`. |
+
+`wscoped_b_go_refines` is the one of the four `Bool` walks that *is* proved, on
+purpose: it is the template the other three follow, and having it green is what
+makes the remaining three mechanical rather than exploratory.
+
+#### Gates
+
+| | |
+|---|---|
+| `scripts/gates.sh` | all OK |
+| `cd proof && lake build` | zero errors; the 21 `sorry`s above, all in `Refine/ExprOpsC*.lean`, plus task #43's three in `Refine/Pins.lean` |
+| axiom census | `#guard_msgs in #print axioms` on `instantiate1_refines`, `abstract1_refines` and `wscoped_b_refines`: the three standard axioms only, nothing reaching `PINS_TEXT` |
+
+#### For whoever picks this up
+
+* The `instantiate_list` cluster is the one to do first: `inst_spine`,
+  `pi_residual` and `proj_entry_type_at_i` are all waiting on it, which is 10 of
+  the 21 `sorry`s behind one proof.
+* `Refine/StateC.lean` (CORE_PLAN step 5) reads nine of this module's wrappers
+  through `pure (ExprC.…)` bodies, so the statements here are already in the
+  shape its `*M` lemmas want: exact result, `ExprWF` out, no state.
+* `core_k::proj_entry_type_at` is still what `core_k::infer_proj_at` calls; the
+  port's own note records the owed retargeting to `proj_entry_type_at_i`, and
+  the two lemmas now sit side by side (`ExprOpsFields`/`ExprOpsCAbs`) for
+  whoever closes that seam.
+
+### Task #52 — `StateC` refined (2026-09-13, Opus under Fable)
+
+Step 5 of `proof/ConRon/Refine/CORE_PLAN.md`: the **operation** half of
+`cached::state_c`, against `ConLeche/Cached/StateC.lean`.  Task #46 had built
+the relation (`StateRel`/`StateWF` over the fourteen memo tables, one
+probe/insert lemma per table); this task runs the wrappers on top of it.
+
+Two new files, both `sorry`-free:
+
+| file | lines | top-level items |
+|---|---:|---:|
+| `proof/ConRon/Refine/StateC.lean` | 1 913 | 68 |
+| `proof/ConRon/Refine/StateCResolve.lean` | 435 | 10 |
+
+#### What is proved
+
+* **the pure wrappers** — `bvar_bound_m`, `peel_fuel`, `inst_c_cap_c`,
+  `cconst_e_new`, `subst_level_trees` (an index loop over `level::subst`), and
+  the eight that *are* their `cached::expr_ops_c` twin, each as the
+  unconditional identity `inst1_m_eq`, … that says so;
+* **the three level memos** — `simplify_l_m` (`lsimpC`), `is_non_zero_l_m`
+  (`lnzC`, whose `level::is_non_zero` refinement this file adds), `is_equiv_l_m`
+  and `is_equiv_list_l_m` (`eqvC` over `lsimpC`);
+* **`inst_list_m`** with the `instC` entry cap and its clear-on-cap;
+* **the two `ienv` pointer-identity sites** `stored_ty_idx_m` /
+  `stored_val_idx_m` (§3.2, task #23's treatment: `ptr_eq` is `false`, so the
+  model takes `Expr.beq` and `Refine/ExprOpsMeta.lean`'s `expr_ptr_beq_refines`
+  closes the gap);
+* **the three level-instantiated readers** `const_ty_at_m` / `const_val_at_m` /
+  `rule_rhs_at_m` together with the four owning `fe.find?` probes
+  (`const_decl_probe`, `defn_decl_probe`, `rule_rhs_probe(_from)`);
+* **`flush_c`** and **`record_c_const`**;
+* **`consts_resolve_fc`** — the memoized `ExprC` DAG walk, in the sibling file.
+
+Every conclusion is the `CORE_PLAN` shape, exact on success and silent on
+failure: `f st … = ok (r, st') → ∀ lst, StateRel st lst → ∃ lst', (f' …).run lst
+= .ok (abs r, lst') ∧ StateRel st' lst' ∧ StateWF st' ∧ WF r`.
+
+#### Three things worth recording
+
+**1. A memo hit is not claimed to be *correct*, and must not be.** Neither
+`StateRel` nor `StateWF` says a stored entry is the value the operation would
+have computed, and nothing here needs it: con-leche probes the same table at the
+same key and gets the same entry, so the two programs agree *whatever* the entry
+is.  The memo tables are a refinement obligation, not a soundness one — which is
+why `simplify_l_m_refines` does not mention `Level.simplify` at all.  (The
+soundness side is con-leche's own `CSOK.*` invariants, above this tier.)
+
+**2. The `instC` entry cap needs a clause `StateRel` does not have.**
+`StateC.lean:194` drops the whole bulk-instantiation memo when
+`mp.size ≥ instCCapC`; `inst_list_m_reset_at` does it when
+`s.inst_c.len() ≥ inst_c_cap_c`.  For the memo policies to line up probe by
+probe those two tests must be *the same test*, and `RelOn` cannot give it:
+`RelOn` is key-restricted, so a `Std.HashMap` may hold entries at keys outside
+the image of `absInstKey` and the sizes need not agree.  So this file adds
+
+```lean
+def InstCSize (st : CState) (lst : ConLeche.Cached.CState) : Prop :=
+  (HashMap.al_v st.inst_c).length = lst.instC.size
+```
+
+as a hypothesis *and* a conclusion of `inst_list_m_refines`, with a generic
+`insert_size_step` (the counterpart of `State.lean`'s `insert_step`) carrying it
+through an insert: both counts grow by one exactly when the key was absent, and
+`RelOn` *at the key* is what makes "absent" the same question on the two sides.
+`InstCSize` and `insert_size_step` are marked **"to be unified into
+`State.lean`"** — `InstCSize` belongs in `StateRel` and `insert_size_step`
+beside `insert_step`; they are here only because `State.lean` is another task's
+file.  `to_constant_val_wf` (the invariant half of `Refine/Env.lean`'s
+`to_constant_val_refines`) and `level::is_non_zero`'s refinement carry the same
+note.
+
+**3. "Run lemmas" are what make the `StateT` side tractable.** A con-leche
+wrapper is a `modifyGet`/`do` block in `StateT CState (Except CheckError)`; its
+`.run lst` does not reduce under `simp` once an `if` or a `match` stands between
+the state and the answer (`(if c then f else g) lst` is opaque to `simp`).  The
+pattern that works, used throughout both files, is to prove one small *run
+lemma* per branch of the con-leche definition — `simplifyLM_hit`/`_miss`,
+`instListM_id`/`_hit`/`_miss_under`/`_miss_over`, `constTyAtM_hit`/`_bind`, … —
+each `simp [<the definition>, <the lookups>]`, and then let the refinement proof
+be pure case analysis on the *port* side.  Two of them needed a name for a
+subterm con-leche writes inline: `eqvStep` (the tail of `isEquivLM`'s miss
+branch, after its two inlined `lsimpC` probes, which the port spells as two
+`simplify_l_m` calls) and `nodeL` (the inner `match e with …` of
+`constsResolveFCGo`, so that the memo prologue is proved once instead of ten
+times).  Both are `rfl`-identities against the cited definition, so nothing is
+assumed.
+
+#### Two named ingredients, one of them now discharged
+
+Eight wrappers run a `cached::expr_ops_c` twin and `consts_resolve_fc`'s `.lit`
+arms read two `core_k` guards.  Rather than duplicate work in flight, the facts
+are *named* and taken as hypotheses — `InstantiateListRefines`,
+`InstLevelParamsRefines` (task #51's `Refine/ExprOpsC.lean`) and
+`LitGuardsRefine` (task #49's `Refine/CoreK*.lean`, and through it
+`kernel::basis_names`, which no task owns yet).  Nothing is weakened: the
+conclusions are the exact-result ones under an explicit, discharged-later
+premise, and the premise is a `def`/`structure` so discharging it is a one-line
+`exact`.  Task #51 landed during this task, so one of the three is already
+closed: `instLevelParamsRefines` *is* `Refine/ExprOpsCAbs.lean`'s
+`inst_level_params_refines`, and its census is clean, so the three
+level-instantiated readers apply unconditionally today.
+`InstantiateListRefines` stays open on purpose — task #51's
+`instantiate_list_refines` is one of its `sorry`s, and nothing here should
+depend on it.
+
+#### Deviations recorded, none new
+
+The port drops con-leche's `_nI` / `_cI _jI` parameters (the interned twins the
+retired arena needed, already underscored in the Lean), so the three readers'
+statements quantify over them; the linear-update dance
+(`let mp := s.instC; let s := { s with instC := {} }; …`) has no Rust
+counterpart and no proof consequence — the state transformer is the same, which
+is exactly what the run lemmas show.
+
+#### Gates
+
+| | |
+|---|---|
+| `scripts/gates.sh` | **all 7 OK** |
+| `#guard_msgs in #print axioms` | `is_equiv_l_m_refines`, `inst_list_m_refines`, `const_ty_at_m_refines`, `consts_resolve_fc_refines` — `[propext, Classical.choice, Quot.sound]`, nothing else |
+| `sorry` | **zero** in both files (the tier's others are task #51's 21 in `Refine/ExprOpsC*.lean` and task #43's three in `Refine/Pins.lean`) |
+
+#### What is left of `cached::state_c`
+
+Nothing in the module, given the two named ingredients.  The environment-index
+guards con-leche writes in `StateC.lean:62-112` (`isCtorAppC`, `headHintC`,
+`unfoldableHeadC`, `sameConstHeadsC`, `rawNatLitC?`, `etaCtorShapeC`) are
+*ported into `kernel/core_k.rs`*, so by the `Refine/README.md` naming rule they
+are `Refine/CoreK*.lean`'s — task #49's, not this file's.
