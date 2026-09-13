@@ -4680,10 +4680,11 @@ checker tier's declaration fold needs of the `.indDecl` arm
 (`Refine/IndSpec.lean`'s header). -/
 theorem check_native_install_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU)
-    {st st' : cached.state_c.CState} {fe2 fe' : fenv.FEnv}
+    {st st' : cached.state_c.CState} {fe2 : fenv.FEnv}
     {p : inductives.native_parts.NativeParts} {cv_ta : env.ConstantVal}
     {ctors_a : alloc.vec.Vec (env.ConstantVal × Std.U64)}
     {sortss : alloc.vec.Vec (alloc.vec.Vec level.Level)}
+    {outc : core.result.Result fenv.FEnv core_types.CheckError}
     (hres : StructInstall.ConstsResolveFFastRefines) (hrhs : StructRecRhsRRefines)
     (hty : StructRecTyRRefines) (hc4 : NativeCtors4Refines)
     (hlpsok : NativeRecLpsOkRefines) (hcvr : CheckConstantValRefines mode)
@@ -4697,20 +4698,32 @@ theorem check_native_install_refines {mode : env.CheckMode}
     (hkf : KindsFitCtors ctors_a p.kinds)
     (hss : ∀ us ∈ sortss.val, LevelsWF us)
     (h : inductives.native_install.check_native_install mode st fe2 p cv_ta ctors_a
-        sortss = ok (.Ok fe', st')) :
+        sortss = ok (outc, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe2 lfe →
-      ∃ lst' lfe',
-        (checkNativeInstallF (absMode mode) lfe (IndAbs.absNativeParts p)
-            (absConstantVal cv_ta) (IndAbs.absCtors ctors_a)
-            (IndAbs.absLevelss sortss)).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match outc with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (checkNativeInstallF (absMode mode) lfe (IndAbs.absNativeParts p)
+              (absConstantVal cv_ta) (IndAbs.absCtors ctors_a)
+              (IndAbs.absLevelss sortss)).run lst = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((checkNativeInstallF (absMode mode) lfe
+          (IndAbs.absNativeParts p) (absConstantVal cv_ta)
+          (IndAbs.absCtors ctors_a) (IndAbs.absLevelss sortss)).run lst) := by
   intro lst lfe hrel hfer
   rw [inductives.native_install.check_native_install] at h
   obtain ⟨pq, hrec, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨res, st1⟩ := pq
   cases res with
-  | Err err => simp at h
+  | Err err =>
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    rw [checkNativeInstallF, ConLeche.Cached.structWalkersC_eq_plain]
+    refine ErrSim.bindCM ?_
+    exact check_native_rec_refines hw hres hrhs hty hc4 hlpsok hcvr hcvre hpo hst
+      hfe hcan hp hcv hca hkf hrec lst lfe hrel hfer
   | Ok rq =>
     obtain ⟨lst1, hrun1, hrel1, hwf1, hcvrawf, hrhsswf⟩ :=
       check_native_rec_refines hw hres hrhs hty hc4 hlpsok hcvr hcvre hpo hst hfe hcan hp
@@ -4723,7 +4736,7 @@ theorem check_native_install_refines {mode : env.CheckMode}
         let fe3 ← fenv.push fe2 (env.ConstantInfo.RecInfo rq.1 i i1 rules)
         let r1 ← inductives.native_install.check_native_table p ctors_a sortss fe3
         ok (r1, st1))
-        = (ok (.Ok fe', st') : Result ((core.result.Result fenv.FEnv
+        = (ok (outc, st') : Result ((core.result.Result fenv.FEnv
             core_types.CheckError) × cached.state_c.CState)) := h
     obtain ⟨i, hmi, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨i1, hrp, h⟩ := bind_eq_ok_iff.mp h
@@ -4745,18 +4758,25 @@ theorem check_native_install_refines {mode : env.CheckMode}
       simp only [absConstantInfo, ← hsrabs, absRecRules]
     rw [habsci, hmiv, hrpv] at hrel3
     obtain ⟨r1, htbl, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨hr1, hst1⟩ : r1 = core.result.Result.Ok fe' ∧ st1 = st' := by
+    obtain ⟨hr1, hst1⟩ : r1 = outc ∧ st1 = st' := by
       have := Result.ok_injective h; simpa using this
     subst hst1
     subst hr1
     obtain ⟨hcan3, hfull3⟩ := FEnv.push_canon hfe hciwf hcan hfull hpush
-    obtain ⟨lfe', hrunt, hfrel', hfwf', hfcan', hffull'⟩ :=
+    have hkeyt :=
       check_native_table_refines hbodies hres hg hrel3 hwf3 hcan3 hfull3 hp hca hss
         htbl
-    refine ⟨lst1, lfe', ?_, hrel1, hfrel', hwf1, hfwf', hfcan', hffull'⟩
-    rw [checkNativeInstallF, ConLeche.Cached.structWalkersC_eq_plain]
-    simp only [StateT.run_bind, exceptOk_bind, hrun1]
-    exact hrunt lst1
+    cases r1 with
+    | Err e =>
+      rw [checkNativeInstallF, ConLeche.Cached.structWalkersC_eq_plain]
+      simp only [StateT.run_bind, exceptOk_bind, hrun1]
+      exact hkeyt lst1
+    | Ok fe' =>
+      obtain ⟨lfe', hrunt, hfrel', hfwf', hfcan', hffull'⟩ := hkeyt
+      refine ⟨lst1, lfe', ?_, hrel1, hfrel', hwf1, hfwf', hfcan', hffull'⟩
+      rw [checkNativeInstallF, ConLeche.Cached.structWalkersC_eq_plain]
+      simp only [StateT.run_bind, exceptOk_bind, hrun1]
+      exact hrunt lst1
 
 /-- `ConLeche/Kernel/Inductives/NativeInstall.lean:576-611` — the cited
 `checkNativeTail` at the index: the three parts composed **without** a flush.
@@ -4776,8 +4796,9 @@ stage copies the consed index with `fenv::dup`, and `cons_sum_ctors_canon`
 carries the pair from the pass's index to the consed one. -/
 theorem check_native_tail_refines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU)
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {q : inductives.native_install.NativePass}
+    {outc : core.result.Result fenv.FEnv core_types.CheckError}
     (hres : StructInstall.ConstsResolveFFastRefines) (hpo : ParamsOfRefines)
     (hpb : PiBindersRefines) (hop : OpenPisAtFvarsFRefines)
     (hkg : KindGetDRefines) (hro : NativeRulesOkRefines)
@@ -4791,18 +4812,27 @@ theorem check_native_tail_refines {mode : env.CheckMode}
     (hst : StateWF st) (hfe : FEnvWF fe) (hq : IndAbs.NativePassWF q)
     (hcan : FEnv.FEnvCanon q.env1) (hfull : FEnv.FEnvFull q.env1)
     (h : inductives.native_install.check_native_tail mode st fe q
-        = ok (.Ok fe', st')) :
+        = ok (outc, st')) :
     ∀ lst lfe lq, StateRel st lst → FEnvRel fe lfe → IndAbs.NativePassRel q lq →
-      ∃ lst' lfe',
-        (checkNativeTailI (absMode mode) lfe lq).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match outc with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (checkNativeTailI (absMode mode) lfe lq).run lst = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e => ErrSim e ((checkNativeTailI (absMode mode) lfe lq).run lst) := by
   intro lst lfe lq hrel hfer hqrel
   rw [inductives.native_install.check_native_tail] at h
   obtain ⟨pq, hguards, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨res, st1⟩ := pq
   cases res with
-  | Err err => simp at h
+  | Err err =>
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    rw [checkNativeTailI]
+    refine ErrSim.bindCM ?_
+    exact check_native_tail_guards_refines hw hres hpo hpb hop hkg hro hfs hfse
+      hst hfe hq hguards lst lfe lq hrel hfer hqrel
   | Ok u =>
     cases u
     obtain ⟨lst1, hrun1, hrel1, hwf1, hkfit⟩ :=
@@ -4822,15 +4852,24 @@ theorem check_native_tail_refines {mode : env.CheckMode}
         lq.env₁ (by simp) hq.1 hqrel.1 hcan hfull hcs
     have hkfit2 : KindsFitCtors cq.2.2.2.1 cq.2.1.kinds := by
       rw [hcq2]; exact hkfit
-    obtain ⟨lst', lfe', hrun2, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩ :=
+    have hkeyi :=
       check_native_install_refines hw hres hrhs hty hc4 hlpsok hcvr hcvre hpo hsr hbodies
         hg hwf1 hcwf hconscan.1 hconscan.2 hcpwf hccvwf hcawf hkfit2 hsswf h lst1
         (ConLeche.consSumCtorsF lq.p.nP lq.ctorsA lq.env₁) hrel1 hcrel
-    refine ⟨lst', lfe', ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
-    rw [checkNativeTailI]
-    rw [hcp, hccv, hcctors, hcss] at hrun2
-    simp only [StateT.run_bind, hrun1]
-    exact hrun2
+    cases outc with
+    | Err e =>
+      rw [checkNativeTailI]
+      rw [hcp, hccv, hcctors, hcss] at hkeyi
+      simp only [StateT.run_bind, hrun1, exceptOk_bind]
+      exact hkeyi
+    | Ok fe' =>
+      obtain ⟨lst', lfe', hrun2, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩ :=
+        hkeyi
+      refine ⟨lst', lfe', ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
+      rw [checkNativeTailI]
+      rw [hcp, hccv, hcctors, hcss] at hrun2
+      simp only [StateT.run_bind, hrun1]
+      exact hrun2
 
 /-! ## The driver (`NativeInstall.lean:613-640`) -/
 
