@@ -193,7 +193,8 @@ it, and **exactly four hypotheses survive to the top** — the same four that
 | hypothesis | who discharges it |
 |---|---|
 | `hk : Core.KnotSpec mode IndAbs.checkFuelU` — the six core wrappers and bodies refine `coreKnotI` at `checkFuel` | **task #55** (`Refine/Core/Arms/*`, `Refine/Core/Knot.lean`); `Refine/Core/Statements.lean` is the statement it is proving |
-| `hind : IndRoutesSpec mode` — the two inductive install routes | **task #57** proved `IndRoutesSpecP` (`IndC.ind_routes_spec`); **task #59** owes `ind_routes_spec_of_p`, the recogniser bridge to the consumer's form |
+| `hind : IndRoutesSpec mode` — the two inductive install routes | **task #59** (`IndC.ind_routes_spec_of_p`, the recogniser bridge task #57 owed); the tier is `sorry`-free since task #67 fixed `modeled.rs`'s `u64 → usize` casts |
+| `hvar : CheckerPins.PinsWF pins` — every node of every pin is what the port's own smart constructor built | the same construction argument as `hds` (task #58 added it: `hpins` alone does not give it, since two pin lists can abstract to `natOpPinSets` with one carrying a stored hash word that makes `expr::beq` inexact).  Task #66 has a partial by-construction proof from `decode_embedded` |
 | `hpins : absPins pins = ConLeche.natOpPinSets` — the port's pin list is the global the pinned con-leche bakes into `checkDeclStepC` | `Refine/Pins.lean`'s `check_decls_pins_refines` (open on that file's two statements, task #43), **or** the `pins-param` submodule bump, which deletes the hypothesis: `Installed.leanCheckDecls` is the one line that changes |
 | `hds : ∀ d ∈ ds.val, DeclCWF d` — the parsed input is well formed | the parser, by construction (the `*WF` predicates of §3.5 are the port's own smart constructors) |
 
@@ -323,6 +324,14 @@ binary actually folds with (`kernel::pins_decode::decode_embedded()`, what
 nor `hpins` — and they carry the two axioms above.  Every one of those censuses
 is pinned with `#guard_msgs in #print axioms`, which is what keeps the boundary
 honest.
+
+**`hoe` is gone for good.**  Tasks #24/#56/#58 carried two `orElse`
+hypotheses to the capstones (`OrElseErrorStateSound`, `OrElseErrorDeclines`,
+bundled as `CheckerDecl.DivModOrElse`); task #65 deleted them by making a
+thrown pin attempt the verdict, and task #67 — which put the cited recovery
+back — **proves** what they assumed rather than restoring them
+(`CheckerPins.check_div_mod_pin_at_err` and `State.dup_state_eq`).  The
+capstones' hypothesis list is the five rows above and nothing else.
 
 **What is still owed on the pins: `hvar : CheckerPins.PinsWF pins`.**  The
 `_embedded` corollaries discharge the pins' *value* and not their *well
