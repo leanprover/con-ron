@@ -14739,3 +14739,98 @@ kept its shape.  `upstream` moves 13694 → 13711 because the vendored con-leche
 is task #285's tree.
 
 All seven `scripts/gates.sh` gates green, the proof library `sorry`-free.
+
+### Task #75 — the decoded capstones (2026-09-13, Opus under Fable)
+
+Task #74 left the axiom count at three for the `pins`-parametric capstones and
+four for the two `conron.*_embedded` ones, the fourth being
+`pins_text.PINS_TEXT._native.decide.ax_1` — the one Aeneas's `toStr` spends by
+`decide +native` on the size bound of every extracted `&str`, *in the
+constant's definition* (`AENEAS_FINDINGS.md` §3.8).  That entry is not earned
+by anything the proof computes; it is inherited because the `_embedded`
+statements name `kernel::pins_decode::decode_embedded`, whose definition
+reaches the constant, so `#print axioms` walks into it.
+
+**And since task #74 the constant is inessential to what those theorems say.**
+`hp : decode_embedded = ok (.Ok pins)` is used for exactly one thing: to obtain
+`hvar : PinsWF pins` through `PinsWF.decode_embedded_wf`.  Nothing anywhere in
+the tower is about the pins' *value* any more — the vendored con-leche's fold
+takes the list as an argument (task #74) — and `PinsWF.decode_wf` gives the
+same `PinsWF` for the decoder applied to **any** byte slice.  So the general
+statement is available at no cost, and it is the one that deserves to be the
+headline.
+
+#### 1. The new pair
+
+`Refine/Main.lean` gains a third pair, between the primed pair and the
+`_embedded` corollaries, stated over an arbitrary decoder input (the exact
+type `kernel::pins_decode::decode` takes, `Slice Std.U8`):
+
+```lean
+theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
+    {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    Nonempty (ConLeche.Model V (absEnv e)) :=
+  conron.model_exists' V (PinsWF.decode_wf hp) h
+
+theorem conron.no_proof_of_False_decoded (V : Type w) [ConLeche.SetTheory V]
+    {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    ¬ ∃ c ∈ (absEnv e).consts,
+        c.toConstantVal.type = .const ConLeche.falseName [] :=
+  conron.no_proof_of_False' V (PinsWF.decode_wf hp) h
+```
+
+Two hypotheses each — a decode run and a check run — and no string constant in
+sight.  Nothing existing was changed or removed: the primed pair, the
+`_embedded` pair and all four of their censuses stand as they were.
+
+#### 2. The censuses
+
+| theorem | axioms |
+|---|---|
+| `conron.model_exists_decoded` / `no_proof_of_False_decoded` | `[propext, Classical.choice, Quot.sound]` — **the three, and nothing else** |
+| `conron.model_exists'` / `no_proof_of_False'` | the three (unchanged) |
+| `conron.model_exists_embedded` / `no_proof_of_False_embedded` | the three **plus** `pins_text.PINS_TEXT._native.decide.ax_1` (unchanged) |
+
+All six `#guard_msgs`-pinned, and the two new lines fit on one line each, as
+the primed pair's do.  No fourth axiom appeared, which is the point: nothing in
+`PinsWF.decode_wf`'s closure, or in the tower below it, names `PINS_TEXT`.
+
+#### 3. The `_embedded` pair is the instance, and stays
+
+`decode_embedded` does **not** unfold to `decode PINS_TEXT`; in
+`Generated/Funs.lean` it is
+
+```lean
+do let s ← core.str.Str.as_bytes kernel.pins_text.PINS_TEXT
+   kernel.pins_decode.decode s
+```
+
+so the `_embedded` pair is the decoded pair at
+`text = core.str.Str.as_bytes PINS_TEXT`, reached through `bind_eq_ok_iff` —
+exactly the peel `PinsWF.decode_embedded_wf` already does.  Restating the two
+`_embedded` proofs through the new pair would have saved nothing (they are one
+line each as they stand), so they were left alone and the instance relation is
+recorded in their docstrings instead, together with the sentence that their
+fourth axiom is Aeneas's `toStr` artifact and that the decoded pair is the
+axiom-free headline.  `Refine/README.md`'s capstone row and the closing
+paragraph of its hypothesis table, and `AENEAS_FINDINGS.md` §3.8's status
+paragraph, say the same in their own places: the ask §3.8 makes still stands,
+but the headline theorem no longer depends on it.
+
+#### 4. What remains trusted
+
+One fact, and it lives in the unverified crate rather than in the tower: that
+`con_ron::driver::pins_for_run` (`crates/con-ron/src/driver.rs:167`) calls
+`kernel::pins_decode::decode_embedded()` on the embedded `con-ron-pins/1` text
+rather than handing `check_decls` some other list.  The decoded capstones cover
+every list the verified decoder can produce from any input, so a driver bug
+there would have to be a call to something that is *not* the decoder; the
+`_embedded` capstones close even that, at the price of the one `toStr` axiom.
+
+All seven `scripts/gates.sh` gates green; the proof library stays `sorry`-free.
