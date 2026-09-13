@@ -13640,3 +13640,69 @@ fact: **a body's mirrored error is not memoised on either side**.  The Rust's
 `memoEI` never reaches its `modify` because the bind fails first
 (`memoEI_run_err`, `memoBI_run_err`), so the wrapper throws exactly what the
 body threw.
+
+#### 5. `orElse` backtracks again, and what it cost
+
+Task #65's ruling is **superseded**.  `cached::checker_c::or_else_step` is
+four-way —
+
+```text
+| .ok (true,  s') => .ok ((), s')     ->  Matched
+| .ok (false, s') => k none      s'   ->  Continue      (post-attempt state)
+| .error e        => k (some e)  s    ->  Recovered(e)  (PRE-attempt state)
+                                     ->  Failed(e)      when e is `Native`
+```
+
+— and `kernel::checker::check_div_mod_pin_loop` takes the cited arm: it
+snapshots the `CState` with `cached::state_c::dup` before each attempt whose
+guards pass and restores it on `Recovered`, which is con-leche's "the memo
+entries the failed attempt wrote are discarded with it".  The only arm the
+port does not mirror is its own `Native` one, which has no cited `throw`
+behind it to recover from; that is the *whole* remaining deviation here, and
+it is narrower than task #65's by exactly the three mirrored constructors.
+
+The port also stops dropping the decline text on the floor: the loop threads
+one `Vec<u32>`, the last thrown variant's message (con-leche's
+`divModAttemptReason ps (some e)`), starting from the fixed "no pin variant
+matched" text and ending as the `notImplemented` payload —
+`kernel::checker`'s module note 2, rewritten.  con-leche accumulates *all* the
+reasons; the port keeps the informative one.
+
+**What the snapshot costs, measured in the proof rather than guessed:**
+nothing.  Every `Dup` instance the port uses is the identity in the model
+(`name_dup_eq`, `level_dup_eq`, `expr_dup_eq` are pointer bumps,
+`Env.levels_copy_refines`/`exprs_copy_refines` the two `Vec` copies), so
+`Refine/HashMap.lean`'s `dup_spec` gives `HashMap.dup m = ok m' → m' = m` and
+`Refine/State.lean`'s `dup_state_eq` gives `state_c::dup st = ok st' →
+st' = st` outright — `Inv`, `KeysOk`, `toFun`, `al_v`, its length and `RelOn`
+all at once, with no per-property transport.  `rw [dup_state_eq h]` is the
+whole handle the loop proof needs.  At run time it is `O(size)`, once per
+attempt whose guards pass, i.e. a handful of times in a run.
+
+**The two hypotheses stay dead.**  `OrElseErrorStateSound` and
+`OrElseErrorDeclines` were task #65's price for *not* recovering; recovering
+costs nothing now, because the full-outcome `check_div_mod_pin_at_err` proves
+what they assumed — a port-side attempt that throws is a con-leche attempt
+that throws, at the same kind.  The capstones' hypothesis list is unchanged.
+
+#### 6. A second port bug: `modeled.rs`'s `u64 → usize` casts
+
+Task #61 swept `cached/core_c.rs` of index casts and left the tools behind
+(`core_k::take_exprs_n`/`drop_exprs_n`, which walk a `usize` cursor while
+decrementing a `u64` count and never cast).  Nobody swept
+`kernel/inductives/modeled.rs`, which is why task #59 could not close five
+`check_iota_thm*` lemmas and one `IndC` bound: Aeneas models `n as usize` as
+`n.val % 2 ^ System.Platform.numBits`, so on a 32-bit target the statements
+were **false as written**.  All twenty-seven casts are gone:
+
+* nineteen `take_exprs(xs, n as usize)` / `drop_exprs(xs, n as usize)` sites
+  became `take_exprs_n` / `drop_exprs_n`;
+* `lower_all`'s `usize` bound became a `u64` count (`i >= cn_p` → `n == 0`);
+* the five domain-index sites in `check_eta_thm_shape` /
+  `check_unit_thm_shape` go through one new helper,
+  `expr_ops::dom_at_n(doms, i : u64) -> Option<Expr>`, whose `None` arm
+  subsumes the old `(n_p as usize) >= sq.0.len()` guard.
+
+Every rewrite is the identity on a 64-bit target, and the gates say so:
+`diff-e2e` 348/348 and `diff-fixtures` 315 agree / 0 differ, both unchanged,
+with the `orElse` change in the same build.

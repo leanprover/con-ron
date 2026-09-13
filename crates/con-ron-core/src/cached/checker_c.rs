@@ -47,73 +47,87 @@
 //! because a fuel-indexed family cannot carry an outcome that differs between
 //! fuels; the executable's `sharedOpsC` delivers it.
 //!
-//! ### Task #65's ruling: **an attempt's error is the verdict**
+//! ### Task #67: the port backtracks, except on its own failures
 //!
-//! The port does **not** recover: `or_else_step` maps `Err e` to
-//! `Failed(e)`, and `check_div_mod_pin_loop` makes that the whole pin
-//! check's result — the stream is declined with `e`, naming what the variant
-//! failed on, exactly as con-leche's decline names it once every variant has
-//! failed.  Only the `false` arm moves on to the next variant, and it moves
-//! on with the attempt's own state, which is what the port's `&mut CState`
-//! threads anyway.
+//! The port **recovers**, as the cited code does, and the one place it cannot
+//! is the one place con-leche has no counterpart for.  `or_else_step` is
+//! four-way:
 //!
-//! This is a deliberate, documented **accept-direction deviation** (DESIGN.md
-//! §3, the deviations list).  It can only *lose* acceptances, never gain one:
-//! the single stream shape it separates the two checkers on is one where
-//! variant `i`'s pin is definitionally equal to the stored value but one of
-//! its certificates throws, *and* a later variant `j > i` matches in full —
-//! con-leche accepts by walking on, con-ron declines with variant `i`'s error.
-//! A declined stream is never an unsound accept, so §1's soundness claim is
-//! untouched, and the accept direction is now stated against exactly what the
-//! port does.
+//! ```text
+//! | .ok (true,  s') => .ok ((), s')     ->  Matched
+//! | .ok (false, s') => k none      s'   ->  Continue    (post-attempt state)
+//! | .error e        => k (some e)  s    ->  Recovered(e) (PRE-attempt state)
+//!                                      ->  Failed(e)    when e is `Native`
+//! ```
 //!
-//! What it buys is the refinement proof: con-leche's error arm hands the
-//! continuation the **pre-attempt** state (`k (some e) s` — "the memo entries
-//! the failed attempt wrote are discarded with it") where the port's
-//! `&mut CState` has already written them, and it takes that arm exactly when
-//! *its* attempt throws, which the accept-direction tower (DESIGN.md §3.5)
-//! cannot predict from a port-side throw.  Those were the two hypotheses
-//! `Refine/CheckerC.lean` and `Refine/CheckerPins.lean` carried to the
-//! capstones (`OrElseErrorStateSound`, `OrElseErrorDeclines`, packaged as
-//! `DivModOrElse`).  With the error arm as the verdict, a port accept at
-//! variant `j` means every earlier attempt returned `Ok(false)` — con-leche's
-//! own `false` arm, states in step — so both are gone and the theorems are
-//! hypothesis-free here.
-
+//! `Recovered(e)` is the cited `k (some e) s`: the caller
+//! (`kernel::checker::check_div_mod_pin_loop`) restores the **pre-attempt**
+//! `CState` from a `cached::state_c::dup` snapshot -- "the memo entries the
+//! failed attempt wrote are discarded with it" -- and moves to the next
+//! variant carrying `e`'s message for the decline text, which is what
+//! `divModAttemptReason ps (some e)` renders into the accumulator.  Only
+//! `Ok(false)` moves on with the attempt's own state, which is the cited
+//! `false` arm.
+//!
+//! `Failed(e)` is the port's own arm and carries **only** a
+//! `CheckError::Native` (DESIGN.md 3's ruling of 2026-09-13): a machine-word
+//! limit or a width check has no `throw` behind it, so "con-leche would have
+//! recovered from this too" is a claim about a run the cited checker never
+//! has.  The port declines the stream instead of guessing.  It is a
+//! documented accept-direction deviation, it can only *lose* acceptances, and
+//! 1's soundness claim is untouched.  This supersedes task #65's ruling,
+//! under which *every* thrown attempt was the verdict.
+//!
+//! What the recovery costs is the snapshot -- `state_c::dup`, `O(size)`, taken
+//! once per attempt whose guards pass, i.e. a handful of times in a run -- and
+//! what it buys is that the port's pin loop *is* the cited loop, so the
+//! refinement lemma follows from the full-outcome attempt lemma with no
+//! hypothesis (task #65 had two, `OrElseErrorStateSound` and
+//! `OrElseErrorDeclines`; task #67 has none, and the arm is reachable again).
+//!
 use crate::kernel::core_types::{CheckError, CheckM};
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
 /// con-leche: ConLeche/Cached/CheckerC.lean:81-96 sharedOpsC
 /// What `orElse` decides, once the attempt has run: `Matched` is the cited
-/// `pure ()`, `Continue` is "run the continuation" and `Failed(e)` is the
-/// port's ruling (module note) that a thrown error is the whole check's
-/// verdict, where the cited code would continue carrying `some e`.
+/// `pure ()`, `Continue` is the cited `k none s'` (the next variant, at the
+/// attempt's own state), `Recovered(e)` the cited `k (some e) s` (the next
+/// variant, at the **pre-attempt** state, carrying `e` for the decline text)
+/// and `Failed(e)` the port's own fourth arm (module note): a `Native` error
+/// has no cited `throw` to recover from, so it is the verdict.
 pub enum OrElseStep {
     Matched,
     Continue,
+    Recovered(CheckError),
     Failed(CheckError),
 }
 
 /// con-leche: ConLeche/Cached/CheckerC.lean:81-96 sharedOpsC
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:57-66 fueledOps
 /// **`orElse`, the variant-fallback point.**  The cited match, clause for
-/// clause, with the third clause ruled (task #65, module note):
+/// clause, with the error clause split in two (task #67, module note):
 ///
 /// ```text
 /// | .ok (true,  s') => .ok ((), s')     ->  Matched
 /// | .ok (false, s') => k none      s'   ->  Continue
-/// | .error e        => k (some e)  s    ->  Failed(e)   (the deviation)
+/// | .error e        => k (some e)  s    ->  Recovered(e), or Failed(e)
+///                                          when `e` is the port's own
+///                                          `Native` (no cited `throw`)
 /// ```
 ///
 /// The continuation `k` is the caller's tail call and the state is threaded
-/// through `&mut CState`, so neither appears here.  `fueledOps`' clause is
-/// the cited one with `none` in place of `some e`; the port's is the same
-/// deviation against both.
+/// through `&mut CState` (the caller restores the pre-attempt snapshot on
+/// `Recovered`), so neither appears here.  `fueledOps`' clause is the cited
+/// one with `none` in place of `some e`; the deviation is the same against
+/// both.
 pub fn or_else_step(attempt: CheckM<bool>) -> OrElseStep {
     match attempt {
         Ok(true) => OrElseStep::Matched,
         Ok(false) => OrElseStep::Continue,
-        Err(e) => OrElseStep::Failed(e),
+        Err(e) => match e {
+            CheckError::Native(m) => OrElseStep::Failed(CheckError::Native(m)),
+            _ => OrElseStep::Recovered(e),
+        },
     }
 }
 
@@ -124,14 +138,15 @@ mod tests {
     use crate::kernel::core_types;
     use crate::kernel::core_types::CheckError;
 
-    /// **`orElse`, the variant-fallback point**, at its three outcomes: a
+    /// **`orElse`, the variant-fallback point**, at its four outcomes: a
     /// successful attempt is the whole (`pure ()`); a `false` runs the
-    /// continuation, i.e. the loop's next variant; and a *thrown error* is
-    /// the verdict — the port's ruling (task #65), where the cited code runs
-    /// the continuation carrying the error.  The error travels out so the
-    /// decline names what the variant failed on.
+    /// continuation at the attempt's own state; a *mirrored* thrown error
+    /// runs it too, at the pre-attempt state, carrying the error for the
+    /// decline text (the cited `k (some e) s`, task #67); and the port's own
+    /// `Native` error -- which no cited `throw` stands behind -- is the
+    /// verdict.
     #[test]
-    fn or_else_error_is_the_verdict() {
+    fn or_else_recovers_from_a_mirrored_error_and_fails_on_a_native_one() {
         match checker_c::or_else_step(Ok(true)) {
             OrElseStep::Matched => (),
             _ => panic!("a matched attempt is the whole"),
@@ -142,22 +157,39 @@ mod tests {
         }
         let e: CheckError = core_types::not_implemented(core_types::code_points(&[110, 111]));
         match checker_c::or_else_step(Err(e)) {
-            OrElseStep::Failed(err) => {
-                // the error is the verdict, and it travels out: the decline
-                // names what the variant failed on
+            OrElseStep::Recovered(err) => {
+                // the error travels out so the decline names what the
+                // variant failed on, exactly as `divModAttemptReason` does
                 assert!(core_types::beq(
                     &err,
                     &core_types::not_implemented(core_types::code_points(&[110, 111]))
                 ));
             }
-            _ => panic!("a thrown error is the verdict, not a match or a continue"),
+            _ => panic!("a mirrored error is recovered from, not the verdict"),
         }
-        // an `internal` error is the verdict just the same: the ruling is
-        // scoped to the attempt, not to a kind of error
+        // an `internal` error is recovered from just the same: the cited
+        // `orElse` does not look at the kind
         let e2: CheckError = core_types::internal(core_types::code_points(&[120]));
         match checker_c::or_else_step(Err(e2)) {
-            OrElseStep::Failed(_) => (),
-            _ => panic!("a thrown error is the verdict"),
+            OrElseStep::Recovered(_) => (),
+            _ => panic!("a mirrored error is recovered from"),
+        }
+        let e3: CheckError = core_types::invalid(core_types::code_points(&[121]));
+        match checker_c::or_else_step(Err(e3)) {
+            OrElseStep::Recovered(_) => (),
+            _ => panic!("a mirrored error is recovered from"),
+        }
+        // the port's own failure is the verdict: there is no cited `throw`
+        // to recover from
+        let e4: CheckError = core_types::native(core_types::code_points(&[122]));
+        match checker_c::or_else_step(Err(e4)) {
+            OrElseStep::Failed(err) => {
+                assert!(core_types::beq(
+                    &err,
+                    &core_types::native(core_types::code_points(&[122]))
+                ));
+            }
+            _ => panic!("a native error is the verdict"),
         }
     }
 }

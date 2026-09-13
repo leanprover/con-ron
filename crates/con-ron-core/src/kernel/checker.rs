@@ -26,22 +26,29 @@
 //! shape of are `check_div_mod_pin` and `check_reduce_pin`, which return the
 //! index where the Lean returns `Unit`.
 //!
-//! ## 2. The decline messages drop their accumulated reasons
+//! ## 2. The decline messages keep the last reason, not all of them
 //!
 //! `checkDivModPinLoop` carries a `List String` of per-variant reasons and
 //! `String.intercalate`s them into the final decline; `divModAttemptReason`
 //! renders one.  DESIGN.md §3.1 says message strings need not match — the
-//! theorem never reads them — so the accumulator and its renderer are not
-//! ported and the decline is a fixed message.  The one error the port does
-//! report verbatim is a *thrown* attempt's, which task #65 makes the pin
-//! check's verdict (`cached::checker_c::or_else_step`, and note 3).
+//! theorem never reads them — so the accumulator is not ported as a list:
+//! `check_div_mod_pin_loop` threads **one** `Vec<u32>`, the reason of the
+//! last variant that *threw* (the cited `divModAttemptReason ps (some e)`,
+//! which is the informative one), starting from the fixed "no pin variant
+//! matched" text and ending as the `notImplemented` payload.  A variant that
+//! merely answered `false`, or whose ground constants were absent, leaves it
+//! alone where con-leche appends a line.
 //!
-//! ## 3. An attempt's error is the verdict (task #65)
+//! ## 3. The loop backtracks, as the cited one does (task #67)
 //!
 //! `checkDivModPinLoop`'s `ops.orElse` recovers from a *thrown* attempt and
-//! tries the next variant.  The port does not: `Ok(false)` moves on,
-//! `Err e` fails the whole pin check with `e`.  The ruling, why it is only
-//! ever an acceptance lost, and what it buys the refinement proof are in
+//! tries the next variant **from the pre-attempt state**.  So does the port:
+//! it snapshots the `CState` with `cached::state_c::dup` before each attempt
+//! whose guards pass and restores it on `OrElseStep::Recovered`.  The one
+//! error it does not recover from is its own `CheckError::Native`, which no
+//! cited `throw` stands behind (`OrElseStep::Failed`).  This supersedes task
+//! #65, under which every thrown attempt was the verdict; the ruling, the
+//! cost of the snapshot and what it buys the refinement proof are in
 //! `cached::checker_c`'s module note and DESIGN.md §3.
 //!
 //! ## What is not here
@@ -63,6 +70,7 @@
 
 use crate::cached::checker_c;
 use crate::cached::checker_c::OrElseStep;
+use crate::cached::state_c;
 use crate::cached::state_c::CState;
 use crate::kernel::basis_names;
 use crate::kernel::basis_pins;
@@ -1057,19 +1065,26 @@ pub fn check_div_mod_pin_at(
 /// the next variant, and when none is left the stream DECLINES.  The cited
 /// `List NatOpPinSet` recursion is an index recursion over the pin list
 /// `check_decls` was given (task #31; the cited code reads the global
-/// `natOpPinSets`), and the `tried : List String` accumulator is dropped
-/// (module note 2).
+/// `natOpPinSets`), and the `tried : List String` accumulator is one
+/// `Vec<u32>`, the last thrown variant's reason (module note 2).
 ///
 /// **This is the port's one variant-fallback point**: the `ops.orElse` call is
 /// `cached::checker_c::or_else_step`, and the cited continuation — a closure
 /// DESIGN.md §3.4 forbids — is spelled here as the loop's own tail call, in
-/// the pattern task #18 used for `whnfStep`'s continuation.
+/// the pattern task #18 used for `whnfStep`'s continuation.  The cited three
+/// arms, in order: `Matched` is `pure ()`; `Continue` is `k none s'`, the next
+/// variant at the attempt's own state, which `&mut CState` already threads;
+/// `Recovered(e)` is `k (some e) s`, the next variant at the **pre-attempt**
+/// state, which the `state_c::dup` snapshot restores — "the memo entries the
+/// failed attempt wrote are discarded with it" — carrying `e`'s message as the
+/// decline text.
 ///
-/// **Deviation (task #65, `cached::checker_c`'s module note): an attempt's
-/// error is the verdict.**  Only `Ok(false)` moves on to the next variant;
-/// `Err e` fails the whole pin check with `e` — the decline names what the
-/// variant failed on — where the cited code recovers and tries the rest.  An
+/// **Deviation (task #67, `cached::checker_c`'s module note): the port's own
+/// `Native` error is the verdict.**  A machine-word limit or a width check has
+/// no cited `throw` behind it, so there is no "con-leche recovers from this
+/// too" to appeal to; `OrElseStep::Failed(e)` declines the stream.  An
 /// accept-direction deviation that can only lose acceptances (DESIGN.md §3).
+/// It replaces task #65's, which made *every* thrown attempt the verdict.
 pub fn check_div_mod_pin_loop(
     mode: &CheckMode,
     st: &mut CState,
@@ -1078,23 +1093,38 @@ pub fn check_div_mod_pin_loop(
     value2: &Expr,
     variants: &Vec<NatOpPinSet>,
     i: usize,
+    tried: Vec<u32>,
 ) -> CheckM<()> {
     if i >= variants.len() {
-        Err(core_types::not_implemented({ const M: [u32; 56] = [117, 110, 115, 117, 112, 112, 111, 114, 116, 101, 100, 32, 78, 97, 116, 46, 100, 105, 118, 47, 109, 111, 100, 32, 115, 112, 101, 108, 108, 105, 110, 103, 58, 32, 110, 111, 32, 112, 105, 110, 32, 118, 97, 114, 105, 97, 110, 116, 32, 109, 97, 116, 99, 104, 101, 100]; core_types::code_points(&M) }))
+        Err(core_types::not_implemented(tried))
     } else if div_mod_pin_guard(&variants[i], fe, c)
         && div_mod_certs_guard(&variants[i], fe, c, value2)
     {
+        let snapshot: CState = state_c::dup(st);
         let attempt: CheckM<bool> =
             check_div_mod_pin_at(mode, st, fe, c, value2, &variants[i]);
         match checker_c::or_else_step(attempt) {
             OrElseStep::Matched => Ok(()),
             OrElseStep::Continue => {
-                check_div_mod_pin_loop(mode, st, fe, c, value2, variants, i + 1)
+                check_div_mod_pin_loop(mode, st, fe, c, value2, variants, i + 1, tried)
+            }
+            OrElseStep::Recovered(e) => {
+                *st = snapshot;
+                check_div_mod_pin_loop(
+                    mode,
+                    st,
+                    fe,
+                    c,
+                    value2,
+                    variants,
+                    i + 1,
+                    core_types::message(e),
+                )
             }
             OrElseStep::Failed(e) => Err(e),
         }
     } else {
-        check_div_mod_pin_loop(mode, st, fe, c, value2, variants, i + 1)
+        check_div_mod_pin_loop(mode, st, fe, c, value2, variants, i + 1, tried)
     }
 }
 
@@ -1142,6 +1172,7 @@ pub fn check_div_mod_pin(
                     &value2,
                     pins,
                     0,
+                    { const M: [u32; 56] = [117, 110, 115, 117, 112, 112, 111, 114, 116, 101, 100, 32, 78, 97, 116, 46, 100, 105, 118, 47, 109, 111, 100, 32, 115, 112, 101, 108, 108, 105, 110, 103, 58, 32, 110, 111, 32, 112, 105, 110, 32, 118, 97, 114, 105, 97, 110, 116, 32, 109, 97, 116, 99, 104, 101, 100]; core_types::code_points(&M) },
                 );
                 match r {
                     Err(err) => Err(err),
@@ -1899,6 +1930,7 @@ mod tests {
             &value,
             &variants,
             0,
+            Vec::new(),
         ) {
             Ok(()) => panic!("no variant can match an empty table"),
             Err(e) => assert!(is_not_implemented(&e), "no variant matching is a decline"),

@@ -1223,6 +1223,30 @@ pub fn strip_pis_go(
     }
 }
 
+/// con-leche: none — `List.get?` on a `stripPis` telescope at a `u64` index
+/// The domain of binder `i` of a `strip_pis` result, without a `usize` cast.
+/// Task #61's hazard: the index is a machine word of the checker's own
+/// arithmetic (a parameter count) while `Vec` indexing is `usize`, so the
+/// obvious `doms[i as usize].0` is a *truncating* cast under Aeneas
+/// (DESIGN.md §3.4: no `as` on data).  The index is therefore consumed by
+/// the recursion, and the `None` arm subsumes the caller's bounds test.
+pub fn dom_at_n(doms: &Vec<(Expr, BinderMeta)>, i: u64) -> Option<Expr> {
+    dom_at_n_from(doms, i, 0)
+}
+
+/// con-leche: none — the index recursion behind `dom_at_n`
+/// `j` walks the `Vec` while `i` counts down, so no value ever crosses
+/// between the two widths.
+pub fn dom_at_n_from(doms: &Vec<(Expr, BinderMeta)>, i: u64, j: usize) -> Option<Expr> {
+    if j >= doms.len() {
+        None
+    } else if i == 0 {
+        Some(expr::dup(&doms[j].0))
+    } else {
+        dom_at_n_from(doms, i - 1, j + 1)
+    }
+}
+
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1134-1138 piResult
 /// The body of a syntactic `∀`-telescope.
 pub fn pi_result(e: &Expr) -> Expr {
@@ -2413,6 +2437,25 @@ mod tests {
         }
         assert!(expr_ops::strip_pis(4, &ty).is_none());
         assert!(expr_ops::strip_lams(1, &ty).is_none());
+        // `dom_at_n`: in range, out of range, and the empty telescope.
+        match expr_ops::strip_pis(3, &ty) {
+            Some(r) => {
+                match expr_ops::dom_at_n(&r.0, 0) {
+                    Some(d) => assert!(expr::beq(&d, &cst("A"))),
+                    None => panic!("dom_at_n 0 failed"),
+                }
+                match expr_ops::dom_at_n(&r.0, 2) {
+                    Some(d) => assert!(expr::beq(&d, &cst("C"))),
+                    None => panic!("dom_at_n 2 failed"),
+                }
+                assert!(expr_ops::dom_at_n(&r.0, 3).is_none());
+                assert!(expr_ops::dom_at_n(&r.0, 4).is_none());
+            }
+            None => panic!("strip_pis failed"),
+        }
+        let empty: Vec<(Expr, BinderMeta)> = Vec::new();
+        assert!(expr_ops::dom_at_n(&empty, 0).is_none());
+        assert!(expr_ops::dom_at_n(&empty, 7).is_none());
         assert!(expr::beq(&expr_ops::pi_result(&ty), &body));
         // `instPis` and `instPisAt` agree, and `instPisAtF` agrees with both.
         let mut args: Vec<Expr> = Vec::new();

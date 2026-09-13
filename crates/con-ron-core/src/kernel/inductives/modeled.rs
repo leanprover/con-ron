@@ -460,8 +460,8 @@ pub fn iota_lhs_prefix_ok(
         false
     } else {
         expr::exprs_beq(
-            &expr_ops::take_exprs(largs, r_p as usize),
-            &expr_ops::take_exprs(fvs, r_p as usize),
+            &core_k::take_exprs_n(largs, r_p),
+            &core_k::take_exprs_n(fvs, r_p),
         )
     }
 }
@@ -507,14 +507,14 @@ pub fn check_iota_thm(
             let l_a: Level = oq.2;
             let lhs_s: Expr = arg_get_d(&targs, 1);
             let rhs_s: Expr = arg_get_d(&targs, 2);
-            let x_fvs: Vec<Expr> = core_k::drop_exprs(&fvs, r_p as usize);
+            let x_fvs: Vec<Expr> = core_k::drop_exprs_n(&fvs, r_p);
             let largs: Vec<Expr> = expr_ops::get_app_args(&lhs_s);
             if !iota_lhs_prefix_ok(f, cv_name, lps, m_i, r_p, &fvs, &lhs_s, &largs) {
                 Err(core_types::not_implemented(core_types::code_points(&M_HEAD)))
             } else {
                 let major: Expr = arg_get_last_d(&largs);
                 let spine: Vec<Expr> = core_k::append_exprs(
-                    expr_ops::take_exprs(&fvs, cn_p as usize),
+                    core_k::take_exprs_n(&fvs, cn_p),
                     &x_fvs,
                 );
                 let expected_major: Expr = expr_ops::mk_app_n(
@@ -579,7 +579,7 @@ pub fn check_iota_thm_ctor(
         Err(core_types::not_implemented(core_types::code_points(&M_CTELE)))
     } else {
         let spine: Vec<Expr> =
-            core_k::append_exprs(expr_ops::take_exprs(fvs, cn_p as usize), x_fvs);
+            core_k::append_exprs(core_k::take_exprs_n(fvs, cn_p), x_fvs);
         let renamed: Expr = expr_ops::rename_consts(f, &cvj.ty);
         match expr_ops::inst_pis_at(&spine, &renamed) {
             None => Err(core_types::not_implemented(core_types::code_points(&M_CTELE))),
@@ -588,12 +588,12 @@ pub fn check_iota_thm_ctor(
                 if cres_args.len() as u64 != cn_p + expr_ops::sub_nat(m_i, r_p) {
                     Err(core_types::not_implemented(core_types::code_points(&M_CIDX)))
                 } else {
-                    let stmt_idx: Vec<Expr> = expr_ops::take_exprs(
-                        &core_k::drop_exprs(largs, r_p as usize),
-                        expr_ops::sub_nat(m_i, r_p) as usize,
+                    let stmt_idx: Vec<Expr> = core_k::take_exprs_n(
+                        &core_k::drop_exprs_n(largs, r_p),
+                        expr_ops::sub_nat(m_i, r_p),
                     );
                     let ctor_idx: Vec<Expr> =
-                        core_k::drop_exprs(&cres_args, cn_p as usize);
+                        core_k::drop_exprs_n(&cres_args, cn_p);
                     match checker_base::check_def_eq_list(
                         mode,
                         st,
@@ -606,7 +606,7 @@ pub fn check_iota_thm_ctor(
                         Ok(()) => {
                             let x_doms: Vec<Expr> = checker_base::fvar_types(x_fvs);
                             let c_doms: Vec<Expr> =
-                                core_k::drop_exprs(&cq.0, cn_p as usize);
+                                core_k::drop_exprs_n(&cq.0, cn_p);
                             match checker_base::check_def_eq_list(
                                 mode,
                                 st,
@@ -620,7 +620,7 @@ pub fn check_iota_thm_ctor(
                                     let ty_renamed: Expr =
                                         expr_ops::rename_consts(f, ty_a);
                                     let prefix: Vec<Expr> =
-                                        expr_ops::take_exprs(fvs, r_p as usize);
+                                        core_k::take_exprs_n(fvs, r_p);
                                     match expr_ops::inst_pis_at(&prefix, &ty_renamed) {
                                         None => Err(core_types::not_implemented(
                                             core_types::code_points(&M_RTELE),
@@ -698,7 +698,7 @@ pub fn check_iota_thm_frames(
     match checker_base::open_pis_at_fvars_f(r_p, ty_a, 0) {
         None => Err(core_types::not_implemented(core_types::code_points(&M_RTELE))),
         Some(pq) => {
-            let p_head: Vec<Expr> = expr_ops::take_exprs(&pq.0, cn_p as usize);
+            let p_head: Vec<Expr> = core_k::take_exprs_n(&pq.0, cn_p);
             match expr_ops::inst_pis_at(&p_head, &cvj.ty) {
                 None => Err(core_types::not_implemented(core_types::code_points(&M_CTELE))),
                 Some(cq) => {
@@ -792,15 +792,15 @@ pub fn check_iota_thm_frames(
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:575-599 nestedRuleShapeF
 /// `(args.take cnP).map (Expr.lowerBVars k 0)`: the parameter instantiations
 /// lowered into the rule-prefix context.
-pub fn lower_all(k: u64, args: &Vec<Expr>, cn_p: usize, i: usize, out: Vec<Expr>) -> Vec<Expr> {
-    if i >= cn_p {
+pub fn lower_all(k: u64, args: &Vec<Expr>, n: u64, i: usize, out: Vec<Expr>) -> Vec<Expr> {
+    if n == 0 {
         out
     } else if i >= args.len() {
         out
     } else {
         let mut out = out;
         out.push(expr_ops::lower_bvars(k, 0, &args[i]));
-        lower_all(k, args, cn_p, i + 1, out)
+        lower_all(k, args, n - 1, i + 1, out)
     }
 }
 
@@ -881,16 +881,16 @@ pub fn nested_rule_shape(
                             let args: Vec<Expr> = expr_ops::get_app_args(dom);
                             let k: u64 = m_i - r_p;
                             let pins: Vec<Expr> =
-                                lower_all(k, &args, cn_p as usize, 0, Vec::new());
+                                lower_all(k, &args, cn_p, 0, Vec::new());
                             if args.len() as u64 != cn_p + k {
                                 None
                             } else if !expr::exprs_beq(
-                                &expr_ops::take_exprs(&args, cn_p as usize),
+                                &core_k::take_exprs_n(&args, cn_p),
                                 &lift_all_0(k, &pins, 0, Vec::new()),
                             ) {
                                 None
                             } else if !expr::exprs_beq(
-                                &core_k::drop_exprs(&args, cn_p as usize),
+                                &core_k::drop_exprs_n(&args, cn_p),
                                 &struct_parts::field_spine(k),
                             ) {
                                 None
@@ -1026,8 +1026,8 @@ pub fn check_iota_thm_n(
                     let l_a: Level = oq.2;
                     let lhs_s: Expr = arg_get_d(&targs, 1);
                     let rhs_s: Expr = arg_get_d(&targs, 2);
-                    let x_fvs: Vec<Expr> = core_k::drop_exprs(&fvs, r_p as usize);
-                    let prefix: Vec<Expr> = expr_ops::take_exprs(&fvs, r_p as usize);
+                    let x_fvs: Vec<Expr> = core_k::drop_exprs_n(&fvs, r_p);
+                    let prefix: Vec<Expr> = core_k::take_exprs_n(&fvs, r_p);
                     let pins_f: Vec<Expr> =
                         inst_pins_renamed(&pins, &prefix, r_p, f, 0, Vec::new());
                     let largs: Vec<Expr> = expr_ops::get_app_args(&lhs_s);
@@ -1133,11 +1133,11 @@ pub fn check_iota_thm_n_ctor(
             if cres_args.len() as u64 != cn_p + expr_ops::sub_nat(m_i, r_p) {
                 Err(core_types::not_implemented(core_types::code_points(&M_CIDX)))
             } else {
-                let stmt_idx: Vec<Expr> = expr_ops::take_exprs(
-                    &core_k::drop_exprs(largs, r_p as usize),
-                    expr_ops::sub_nat(m_i, r_p) as usize,
+                let stmt_idx: Vec<Expr> = core_k::take_exprs_n(
+                    &core_k::drop_exprs_n(largs, r_p),
+                    expr_ops::sub_nat(m_i, r_p),
                 );
-                let ctor_idx: Vec<Expr> = core_k::drop_exprs(&cres_args, cn_p as usize);
+                let ctor_idx: Vec<Expr> = core_k::drop_exprs_n(&cres_args, cn_p);
                 match checker_base::check_def_eq_list(
                     mode,
                     st,
@@ -1149,7 +1149,7 @@ pub fn check_iota_thm_n_ctor(
                     Err(err) => Err(err),
                     Ok(()) => {
                         let x_doms: Vec<Expr> = checker_base::fvar_types(x_fvs);
-                        let c_doms: Vec<Expr> = core_k::drop_exprs(&cq.0, cn_p as usize);
+                        let c_doms: Vec<Expr> = core_k::drop_exprs_n(&cq.0, cn_p);
                         match checker_base::check_def_eq_list(
                             mode,
                             st,
@@ -1162,7 +1162,7 @@ pub fn check_iota_thm_n_ctor(
                             Ok(()) => {
                                 let ty_renamed: Expr = expr_ops::rename_consts(f, ty_a);
                                 let prefix: Vec<Expr> =
-                                    expr_ops::take_exprs(fvs, r_p as usize);
+                                    core_k::take_exprs_n(fvs, r_p);
                                 match expr_ops::inst_pis_at(&prefix, &ty_renamed) {
                                     None => Err(core_types::not_implemented(
                                         core_types::code_points(&M_RTELE),
@@ -1245,7 +1245,7 @@ pub fn check_iota_thm_n_frames(
     match checker_base::open_pis_at_fvars_f(r_p, ty_a, 0) {
         None => Err(core_types::not_implemented(core_types::code_points(&M_RTELE))),
         Some(pq) => {
-            let prefix_p: Vec<Expr> = expr_ops::take_exprs(&pq.0, r_p as usize);
+            let prefix_p: Vec<Expr> = core_k::take_exprs_n(&pq.0, r_p);
             let pins_p: Vec<Expr> = inst_pins_plain(pins, &prefix_p, r_p, 0, Vec::new());
             match checker_base::check_annot_list(mode, st, fe_self, r_p + cn_f, &pins_p) {
                 Err(err) => Err(err),
@@ -2401,41 +2401,48 @@ pub fn check_eta_thm_shape(
             Some(mq) => {
                 if !checker_base::doms_match_aux(&DomIdent, &sq.0, &mq.0, 0, 0, n_p) {
                     false
-                } else if (n_p as usize) >= sq.0.len() {
-                    false
                 } else {
                     let fam_at_1: Expr = expr_ops::mk_app_n(
                         expr::mk_const(model_of(t), struct_parts::params_of(lps)),
                         &struct_parts::struct_ps_at(0, n_p),
                     );
-                    if !expr::beq(&sq.0[n_p as usize].0, &fam_at_1) {
-                        false
-                    } else {
-                        let head: Expr = expr_ops::get_app_fn(&sq.1);
-                        let args: Vec<Expr> = expr_ops::get_app_args(&sq.1);
-                        if args.len() != 3 {
-                            false
-                        } else if !checker_base::is_eq_head(&head) {
-                            false
-                        } else if !expr::beq(&args[1], &expr::bvar(0)) {
-                            false
-                        } else {
-                            let slot: Expr = expr_ops::mk_app_n(
-                                expr::mk_const(model_of(t), struct_parts::params_of(lps)),
-                                &struct_parts::struct_proj_ps(n_p),
-                            );
-                            if !expr::beq(&args[0], &slot) {
+                    match expr_ops::dom_at_n(&sq.0, n_p) {
+                        None => false,
+                        Some(d_x) => {
+                            if !expr::beq(&d_x, &fam_at_1) {
                                 false
-                            } else if !expr::beq(
-                                &args[2],
-                                &eta_rhs(t, ctor_name, lps, n_p, n_f),
-                            ) {
-                                false
-                            } else if !env::tt_checks(mode) {
-                                true
                             } else {
-                                let l_a: Level = checker_base::eq_head_level(&head);
-                                expr::beq(&mq.1, &expr::sort(l_a))
+                                let head: Expr = expr_ops::get_app_fn(&sq.1);
+                                let args: Vec<Expr> = expr_ops::get_app_args(&sq.1);
+                                if args.len() != 3 {
+                                    false
+                                } else if !checker_base::is_eq_head(&head) {
+                                    false
+                                } else if !expr::beq(&args[1], &expr::bvar(0)) {
+                                    false
+                                } else {
+                                    let slot: Expr = expr_ops::mk_app_n(
+                                        expr::mk_const(
+                                            model_of(t),
+                                            struct_parts::params_of(lps),
+                                        ),
+                                        &struct_parts::struct_proj_ps(n_p),
+                                    );
+                                    if !expr::beq(&args[0], &slot) {
+                                        false
+                                    } else if !expr::beq(
+                                        &args[2],
+                                        &eta_rhs(t, ctor_name, lps, n_p, n_f),
+                                    ) {
+                                        false
+                                    } else if !env::tt_checks(mode) {
+                                        true
+                                    } else {
+                                        let l_a: Level =
+                                            checker_base::eq_head_level(&head);
+                                        expr::beq(&mq.1, &expr::sort(l_a))
+                                    }
+                                }
                             }
                         }
                     }
@@ -2494,8 +2501,6 @@ pub fn check_unit_thm_shape(
             Some(mq) => {
                 if !checker_base::doms_match_aux(&DomIdent, &sq.0, &mq.0, 0, 0, n_p) {
                     false
-                } else if (n_p as usize + 1) >= sq.0.len() {
-                    false
                 } else {
                     let fam: Expr = expr::mk_const(model_of(t), struct_parts::params_of(lps));
                     let x_dom: Expr = expr_ops::mk_app_n(
@@ -2506,35 +2511,44 @@ pub fn check_unit_thm_shape(
                         expr::dup(&fam),
                         &struct_parts::struct_proj_ps(n_p),
                     );
-                    if !expr::beq(&sq.0[n_p as usize].0, &x_dom) {
-                        false
-                    } else if !expr::beq(&sq.0[n_p as usize + 1].0, &y_dom) {
-                        false
-                    } else {
-                        let head: Expr = expr_ops::get_app_fn(&sq.1);
-                        let args: Vec<Expr> = expr_ops::get_app_args(&sq.1);
-                        if args.len() != 3 {
-                            false
-                        } else if !checker_base::is_eq_head(&head) {
-                            false
-                        } else if !expr::beq(&args[1], &expr::bvar(1)) {
-                            false
-                        } else if !expr::beq(&args[2], &expr::bvar(0)) {
-                            false
-                        } else {
-                            let slot: Expr = expr_ops::mk_app_n(
-                                expr::dup(&fam),
-                                &struct_parts::struct_ps_at(2, n_p),
-                            );
-                            if !expr::beq(&args[0], &slot) {
-                                false
-                            } else if !env::tt_checks(mode) {
-                                true
-                            } else {
-                                let l_a: Level = checker_base::eq_head_level(&head);
-                                expr::beq(&mq.1, &expr::sort(l_a))
+                    match expr_ops::dom_at_n(&sq.0, n_p) {
+                        None => false,
+                        Some(d_x) => match expr_ops::dom_at_n(&sq.0, n_p + 1) {
+                            None => false,
+                            Some(d_y) => {
+                                if !expr::beq(&d_x, &x_dom) {
+                                    false
+                                } else if !expr::beq(&d_y, &y_dom) {
+                                    false
+                                } else {
+                                    let head: Expr = expr_ops::get_app_fn(&sq.1);
+                                    let args: Vec<Expr> = expr_ops::get_app_args(&sq.1);
+                                    if args.len() != 3 {
+                                        false
+                                    } else if !checker_base::is_eq_head(&head) {
+                                        false
+                                    } else if !expr::beq(&args[1], &expr::bvar(1)) {
+                                        false
+                                    } else if !expr::beq(&args[2], &expr::bvar(0)) {
+                                        false
+                                    } else {
+                                        let slot: Expr = expr_ops::mk_app_n(
+                                            expr::dup(&fam),
+                                            &struct_parts::struct_ps_at(2, n_p),
+                                        );
+                                        if !expr::beq(&args[0], &slot) {
+                                            false
+                                        } else if !env::tt_checks(mode) {
+                                            true
+                                        } else {
+                                            let l_a: Level =
+                                                checker_base::eq_head_level(&head);
+                                            expr::beq(&mq.1, &expr::sort(l_a))
+                                        }
+                                    }
+                                }
                             }
-                        }
+                        },
                     }
                 }
             }

@@ -94,10 +94,11 @@ open ConLeche.Cached in
 /-- **The recovery arm**: the attempt threw, and the continuation runs on the
 **pre-attempt** state, told which error.  This is the clause that makes a
 certificate blob from another toolchain read as "this variant does not match"
-rather than as a checker bug — and it is the clause task #65 rules the port
-out of (module note): no accept-direction statement below reaches it, since a
-port-side throw is now the pin check's verdict.  Kept because it is what the
-model does, and what the deviation is measured against. -/
+rather than as a checker bug, and since task #67 it is a clause the port
+*takes*: `or_else_step` answers `Recovered e` on a mirrored error and
+`check_div_mod_pin_loop` restores its `state_c::dup` snapshot, which is this
+lemma's `lst`.  (Task #65 had ruled the port out of it; that ruling is
+superseded.)  Only the port's own `Native` error stops here instead. -/
 theorem orElse_run_error {mode : ConLeche.CheckMode} {lfe : ConLeche.FEnv}
     {x : CheckCM Bool} {k : Option ConLeche.CheckError → CheckCM Unit}
     {lst : CState} {e : ConLeche.CheckError} (h : x.run lst = .error e) :
@@ -124,10 +125,40 @@ that reaches the loop's next variant. -/
     cached.checker_c.or_else_step (.Ok false) = ok .Continue := by
   rw [cached.checker_c.or_else_step]; rfl
 
-/-- A **thrown error** is the verdict, carrying the error (task #65's ruling,
-module note): where the cited code continues with `some e`, the port fails. -/
-@[simp] theorem or_else_step_error (e : core_types.CheckError) :
-    cached.checker_c.or_else_step (.Err e) = ok (.Failed e) := by
+/-- A **mirrored thrown error** is recovered from, carrying the error: the
+cited `k (some e) s`, with the pre-attempt state restored by the caller
+(task #67, `cached::checker_c`'s module note).  Stated by cases so that the
+three mirrored constructors are visibly the ones it covers. -/
+@[simp] theorem or_else_step_error_not_implemented (m : alloc.vec.Vec Std.U32) :
+    cached.checker_c.or_else_step (.Err (.NotImplemented m))
+      = ok (.Recovered (.NotImplemented m)) := by
   rw [cached.checker_c.or_else_step]
+
+@[simp] theorem or_else_step_error_invalid (m : alloc.vec.Vec Std.U32) :
+    cached.checker_c.or_else_step (.Err (.Invalid m))
+      = ok (.Recovered (.Invalid m)) := by
+  rw [cached.checker_c.or_else_step]
+
+@[simp] theorem or_else_step_error_internal (m : alloc.vec.Vec Std.U32) :
+    cached.checker_c.or_else_step (.Err (.Internal m))
+      = ok (.Recovered (.Internal m)) := by
+  rw [cached.checker_c.or_else_step]
+
+/-- The port's **own** failure is the verdict: a `Native` error has no cited
+`throw` to recover from (DESIGN.md §3's ruling of 2026-09-13). -/
+@[simp] theorem or_else_step_error_native (m : alloc.vec.Vec Std.U32) :
+    cached.checker_c.or_else_step (.Err (.Native m)) = ok (.Failed (.Native m)) := by
+  rw [cached.checker_c.or_else_step]
+
+/-- The three mirrored constructors in one: a non-`Native` error is
+recovered from, unchanged. -/
+theorem or_else_step_error_mirrored {e : core_types.CheckError}
+    (h : ∀ m, e ≠ .Native m) :
+    cached.checker_c.or_else_step (.Err e) = ok (.Recovered e) := by
+  cases e with
+  | NotImplemented m => simp
+  | Invalid m => simp
+  | Internal m => simp
+  | Native m => exact absurd rfl (h m)
 
 end ConRon.Refine.CheckerC
