@@ -124,3 +124,28 @@ second half of step 3, task #49's twelve `CoreK*`/`BasisNames`/`PropRead` files
 step 4, task #52's two `StateC*` files step 5, and task #57's ten `Ind*` files
 the second half of step 7; `Refine/Checker.lean` and `Refine/DeclCheck.lean`
 (step 7's first half) are task #56's.
+
+## The knot (`Core/`, `CORE_PLAN.md` step 6)
+
+| file | contents |
+|---|---|
+| `Core/Statements.lean` | the twelve statements as one proposition per fuel: `RefinesE`/`RefinesB`, `Wrappers`, `Bodies`, `KnotSpec` (Fable) |
+| `Core/Knot.lean` | task #53's skeleton: `wrappers_zero`, `wrappers_succ`, `knot_induction`, the `memoEI`/`memoBI` run lemmas and the six probe lemmas |
+| `Core/Arms/Shape.lean` | task #55's shared shape: `Sim`/`SimS`/`SimP`, the bridges to `RefinesE`/`RefinesB`, the six wrappers at one call site, and `knotV` (the io grade as a flag) |
+| `Core/Arms/Bridge.lean` | `StateC`'s two named ingredients (`InstantiateListRefines`, `InstLevelParamsRefines`), discharged from task #54 |
+| `Core/Arms/*.lean` | one file per group of `cached/core_c.rs`'s 120-function block, partitioned by which body reaches which helper: `Shared`, `Lits`, `Certs`, `Iota`, `Major`, `App`, `WhnfCore`, `Whnf`, `InferSpine`, `InferTele`, `Infer`, `InferSpineIO`, `InferIO`, `DefEqStruct`, `DefEq`, `Annotate` |
+| `Core/Arms/Arms.lean` | the `Deps` discharges, `arms` and `knot_spec`, with the axiom census |
+
+The `annotate` body is closed (`#print axioms annotate_body_sim` is the three
+standard axioms); `whnf`, `infer` and `infer_io` are assembled and name their
+gaps; `whnf_core` and `defeq` wait on the two integration items DESIGN.md's
+task #55 entry records.
+
+## Not yet here
+
+Everything *above* the knot: `Refine/CORE_PLAN.md` steps 7 and 8 — the
+declaration fold, phase A and B, and `Refine/Main.lean`'s capstones.  Task #46's four
+files are its steps 1 and 2, task #51's four `ExprOpsC*` files the second half
+of its step 3, task #49's twelve `CoreK*`/`BasisNames`/`PropRead` files its
+step 4, and task #52's two `StateC*` files its step 5; step 6 is the
+induction.
