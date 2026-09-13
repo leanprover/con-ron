@@ -11,8 +11,9 @@
 #   5. scripts/gen-pins.sh --check          embedded pin text == natOpPinSets
 #   6. scripts/extract.sh --check           committed generated Lean == crate
 #   7. cd proof && lake build               the whole proof library elaborates
-#      (LAKE_JOBS=N caps lake's parallelism: the first build of the vendored
-#      con-leche at this machine's 96 jobs runs out of memory, task #74)
+#      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
+#      has no jobs flag: the first build of the vendored con-leche at this
+#      machine's 96 cores runs the session out of memory, task #74)
 #
 # One OK/FAIL line per gate; non-zero exit on the first failure.  Full output
 # of every gate goes to `_tmp/gates/<n>-<name>.log`.
@@ -53,7 +54,7 @@ run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/
 run provenance    python3 "$root/scripts/provenance.py" check
 run gen-pins      "$root/scripts/gen-pins.sh" --check
 run extract-check "$root/scripts/extract.sh" --check
-run lake-build    env -C "$root/proof" lake build ${LAKE_JOBS:+-j "$LAKE_JOBS"}
+run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
 
 echo "gates: all $n OK"
 
