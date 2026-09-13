@@ -576,8 +576,7 @@ impl Dup for bool {
 /// The pair keys of `constTyAt`, `constValAt`, `defeqC` and `eqvC`.  Charon
 /// and Aeneas do take a user trait impl on a tuple type: the generated
 /// instance is `Pair.Insts.<...>` applied to the component instances
-/// (checked by the `dup-tuple` spike before this was written; the `spikes/`
-/// tree was removed at task #76).
+/// (checked by the `dup-tuple` spike, retired at task #76).
 impl<A: Dup, B: Dup> Dup for (A, B) {
     fn dup2(&self) -> (A, B) {
         (self.0.dup2(), self.1.dup2())

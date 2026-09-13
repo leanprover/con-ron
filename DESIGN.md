@@ -14861,3 +14861,82 @@ there would have to be a call to something that is *not* the decoder; the
 `_embedded` capstones close even that, at the price of the one `toStr` axiom.
 
 All seven `scripts/gates.sh` gates green; the proof library stays `sorry`-free.
+
+### Task #76 — publication cleanup (2026-09-13, Opus under Fable)
+
+The repository is to be published at `github.com/leanprover/con-ron`; this
+task is everything that had to be true before it can be, done as six
+commits.  Nothing about the port, the extraction or the proofs changed.
+
+**License.**  `LICENSE` is con-leche's (and Lean 4's) Apache 2.0, copied
+verbatim from `vendor/con-leche/LICENSE`; every `crates/*/Cargo.toml` gained
+`license = "Apache-2.0"`.
+
+**AI-written headers.**  `AENEAS_FINDINGS.md` and this document now open with
+the preamble idiom con-leche's `OVERVIEW.md` uses: the document is written by
+agents, and here is what it is for.  This one says it is the agents' design
+record and task log, kept for history rather than as a user-facing document,
+and points at `README.md` (human-written, the entry point) and `OVERVIEW.md`
+(the user-facing tour, being written).  `README.md` is the maintainer's and
+was not touched.
+
+**`CLAUDE.md` fit for publication.**  Rewritten so that no instruction
+describes one particular machine.  Gone: the 50 GB session limit, "this
+machine is shared and you do not see every process", `_tmp/corpus/baseline.md`
+cited as if it were in the repository, and the 96-core remark in
+`scripts/gates.sh`'s header comment.  The *rules* survive in generic form —
+every checker run under `timeout` and `ulimit -v`; the budget "at most 3× what
+con-leche needs on the same input", with con-leche's measured numbers inline
+(`Init` 0.5 GB, `Init+Std+Lean` 1.3 GB, Mathlib 8.6 GB — measurements, not
+machine facts); `perf stat -e instructions:u,cycles:u` as the measure of
+record and wall time only from repeated runs of a small benchmark, with the
+spread; `LAKE_JOBS=N` as the parallelism cap ("on a many-core machine the
+first build of the vendored con-leche can exhaust memory"); the gates, the
+committed model, `_tmp/`, the worktree rules and the drop-worktree landing
+step.  Elsewhere in the tree the same test — "would a reader on another
+machine be misled?" — reworded `scripts/corpus.sh`'s `ulimit` rationale and
+`proof/ConRon/Refine/AUTOMATION.md`'s "the shared machine" → "a shared
+machine" (there it is a measurement caveat, which is honest and stays).
+`.gitignore` also ignores the `_tmp` *symlink* an agent worktree makes, not
+only a `_tmp/` directory.
+
+**Spikes retired.**  `spikes/` (41 files, 4 400 lines: `rc-fuel`,
+`level-name`, `dup-tuple`, `pins-encoding`, `toolchain`) was feasibility
+evidence for tasks #1–#3 and #63, and its findings are in the task sections
+above and in `AENEAS_FINDINGS.md`.  The one live artefact,
+`spikes/toolchain/aeneas-433.patch`, is now `patches/aeneas-433.patch`
+(`scripts/setup-aeneas-lean.sh`, `AENEAS_FINDINGS.md` §1/§3.1 and §3.5's
+layout table follow it); the rest is deleted, with a line at the head of the
+task log saying where it went.  `provenance.py`'s `DEFAULT_ROOTS` lost
+`spikes/level-name/src` (2 083 items, 2 169 citations still check), and the
+half-dozen doc comments that named a spike *path* now name the spike.
+`flake.nix` never referenced `spikes/`.
+
+**Stray tracked files.**  `scripts/__pycache__/*.pyc` had already been
+untracked at `baf7f58b`; `git ls-files .claude` is empty and no `result`
+symlink, editor file or build product is in the index.  The one thing left
+alone deliberately: `patches/aeneas-433.patch`'s `diff` headers carry the
+absolute paths of the tree it was generated in.  They are inert (the patch is
+applied with `-p1` against a copy) and rewriting them risks the one artefact
+that must keep applying cleanly.
+
+**The link gate** (the new gate, `scripts/overview-links.sh`).  A port of
+con-leche's `tests/overview-links.sh` with the same semantics and the same
+`--update` logic, described in §7: every
+`https://github.com/<owner>/<repo>/blob/master/<path>#L<a>[-L<b>]` link of
+`OVERVIEW.md` *and of this document*, in document order, with the lines it
+cites, into `scripts/overview-links-expected.txt`, diffed.  Both documents
+feed one expectation file because DESIGN.md will link to code too.  A pinned
+sha, a file that is gone and a range that overruns its file are hard errors,
+reported all at once; there is no build, so the gate costs milliseconds.
+Before `OVERVIEW.md` exists, and while no document carries such a link, it
+prints `overview-links: OK (no OVERVIEW.md yet)` and exits 0 — which is why it
+could be wired into `scripts/gates.sh` now rather than with the tour.  Tested
+by hand on all of it: extraction order (OVERVIEW before DESIGN), `--update`,
+the moved-citation diff, the pinned-sha error, the missing-file error and the
+out-of-range error.
+
+**The gate list is now eight**: `cargo-build`, `cargo-test`, `lint-rust`,
+`provenance`, `overview-links`, `gen-pins`, `extract-check`, `lake-build`.
+All eight green (lake-build 293 s with `LAKE_JOBS=32`); the proof library
+stays `sorry`-free.
