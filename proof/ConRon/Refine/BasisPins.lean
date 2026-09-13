@@ -507,14 +507,31 @@ Proved, from `Refine/Pins.lean`'s `pins_decode_refines` (the decoder refines
 measured out of reach in this kernel — task #43).  `decode_embedded` is
 `decode PINS_TEXT` because Aeneas models `str::as_bytes` as the identity
 (`Generated/FunsExternal.lean:72`).  This is `Refine/Pins.lean`'s
-`check_decls_pins_refines` with its proof; fold it back there. -/
-theorem nat_op_pin_sets_refines {v : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (h : pins_decode.decode_embedded = ok (.Ok v)) :
-    absPins v = ConLeche.natOpPinSets := by
+`check_decls_pins_refines` with its proof; fold it back there.
+
+**Over the whole outcome** (task #67).  This is not a statement about a
+con-leche `Except` — con-leche has no byte decoder, its `natOpPinSets` being
+elaboration-time data — so the `.Err` branch is the `Native` half of the
+convention spelled directly: `absErrKind ce = none`, `ErrSim`'s vacuous case,
+which claims nothing.  It is `pins_decode::decode`'s own failure half, and all
+twenty-eight of that module's throws go through `bad_text`.  The outcome binder
+is **implicit**, as the result binder `v` it replaces was, so a call site that
+knows the decoder succeeded is unchanged. -/
+theorem nat_op_pin_sets_refines
+    {o : core.result.Result (alloc.vec.Vec nat_op_pins.NatOpPinSet)
+        core_types.CheckError}
+    (h : pins_decode.decode_embedded = ok o) :
+    match o with
+    | .Ok v => absPins v = ConLeche.natOpPinSets
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.decode_embedded, core.str.Str.as_bytes] at h
   simp only [bind_tc_ok] at h
-  have h1 := pins_decode_refines _ _ h
-  rw [pins_text_decodes] at h1
-  exact (Except.ok.inj h1).symm
+  cases o with
+  | Err ce => exact pins_decode_refines _ _ h
+  | Ok v =>
+    have h1 : ConRon.Dump.parsePins (absText pins_text.PINS_TEXT)
+        = .ok (absPins v) := pins_decode_refines _ _ h
+    rw [pins_text_decodes] at h1
+    exact (Except.ok.inj h1).symm
 
 end ConRon.Refine.BasisPins

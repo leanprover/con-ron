@@ -161,6 +161,23 @@ theorem checkerBaseSpec {mode : env.CheckMode}
   checkProjRule := fun _ _ _ _ _ _ _ _ _ _ hsw hfw hpty hcvj hlps h =>
     CheckerBase.check_proj_rule_refines IndAbs.check_fuel_eq hw constsResolveFSpec
       hsw hfw hpty hcvj hlps h
+  -- The six failure halves (task #67 continued).  Each is the `.Err ce`
+  -- instance of the very `Refine/CheckerBase.lean` lemma the accept field
+  -- above already uses, where its full-outcome `match` reduces.
+  checkConstantValErr := fun _ _ _ _ _ hsw hfw hcv h =>
+    CheckerBase.check_constant_val_refines IndAbs.check_fuel_eq hw
+      constsResolveFSpec hsw hfw hcv h
+  checkDefEqListErr := fun _ _ _ _ _ _ _ hsw hfw hxs hys h =>
+    CheckerBase.check_def_eq_list_refines IndAbs.check_fuel_eq hw hsw hfw hxs hys h
+  checkAnnotListErr := fun _ _ _ _ _ _ hsw hfw hxs h =>
+    CheckerBase.check_annot_list_refines IndAbs.check_fuel_eq hw hsw hfw hxs h
+  checkTypedListErr := fun _ _ _ _ _ _ _ hsw hfw hxs hts h =>
+    CheckerBase.check_typed_list_refines IndAbs.check_fuel_eq hw hsw hfw hxs hts h
+  checkProjShapeErr := fun _ _ _ _ _ hp hc h =>
+    CheckerBase.check_proj_shape_refines hp hc h
+  checkProjRuleErr := fun _ _ _ _ _ _ _ _ _ _ hsw hfw hpty hcvj hlps h =>
+    CheckerBase.check_proj_rule_refines IndAbs.check_fuel_eq hw
+      constsResolveFSpec hsw hfw hpty hcvj hlps h
 
 /-! ### The same items, as the two install modules spell them -/
 
@@ -168,9 +185,10 @@ theorem checkerBaseSpec {mode : env.CheckMode}
 theorem sumInstallCheckConstantVal {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU) :
     SumInstall.CheckConstantValRefines mode := by
-  intro _ _ _ _ _ hsw hfw hcv h
-  exact CheckerBase.check_constant_val_refines IndAbs.check_fuel_eq hw
-    constsResolveFSpec hsw hfw hcv h
+  intro _ _ _ _ o hsw hfw hcv h
+  cases o <;>
+    exact CheckerBase.check_constant_val_refines IndAbs.check_fuel_eq hw
+      constsResolveFSpec hsw hfw hcv h
 
 /-- `Refine/IndNativeInstall.lean`'s `CheckConstantValRefines`. -/
 theorem nativeInstallCheckConstantVal {mode : env.CheckMode}
@@ -258,8 +276,9 @@ theorem nativeInstallParamsOf : NativeInstall.ParamsOfRefines := by
 theorem checkStructDomsAtRefines {mode : env.CheckMode}
     (hw : Core.Wrappers mode IndAbs.checkFuelU) :
     SumInstall.CheckStructDomsAtRefines mode := by
-  intro _ _ _ _ _ _ _ hst hfe hfvs hdoms h
-  exact StructInstall.check_struct_doms_at_refines hw hst hfe hfvs hdoms h
+  intro _ _ _ _ _ _ _ o hst hfe hfvs hdoms hjmax h
+  cases o <;>
+    exact StructInstall.check_struct_doms_at_refines hw hst hfe hfvs hdoms hjmax h
 
 /-! ## `kernel::inductives::native_parts` — `Refine/IndNativeParts.lean`
 
@@ -415,6 +434,53 @@ theorem checkSumCtorsRefines {mode : env.CheckMode}
     simpa [IndAbs.absLevelss, alloc.vec.Vec.new] using hssr
   rw [he1, he2]
   simpa using hrun
+
+/-! ### The four failure halves the direct route asks for separately
+
+Task #67's restatement reached `Refine/IndNativeInstall.lean` before this
+file, so that file states four of its ingredients' `.Err` halves as *separate*
+`Prop`s beside the accept ones rather than folding them in.  Each is
+discharged here from the very lemma the accept ingredient already uses, at
+`.Err ce`, where that lemma's full-outcome `match` reduces.  They fold into
+their accept siblings whenever `Refine/IndNativeInstall.lean` is next
+touched. -/
+
+/-- `Refine/IndNativeInstall.lean`'s `CheckConstantValErr`. -/
+theorem nativeInstallCheckConstantValErr {mode : env.CheckMode}
+    (hw : Core.Wrappers mode IndAbs.checkFuelU) :
+    NativeInstall.CheckConstantValErr mode := by
+  intro _ _ _ _ _ hsw hfw hcv h
+  exact CheckerBase.check_constant_val_refines IndAbs.check_fuel_eq hw
+    constsResolveFSpec hsw hfw hcv h
+
+/-- `Refine/IndNativeInstall.lean`'s `CheckStructFieldSortsIErr`. -/
+theorem checkStructFieldSortsIErr {mode : env.CheckMode}
+    (hw : Core.Wrappers mode IndAbs.checkFuelU) :
+    NativeInstall.CheckStructFieldSortsIErr mode := by
+  intro _ _ _ _ _ _ _ _ _ _ _ hst hfe hs hfvs hidx hj h
+  exact SumInstall.check_struct_field_sorts_i_refines hw hst hfe hs hfvs hidx hj h
+
+/-- `Refine/IndNativeInstall.lean`'s `CheckSumIndErr`. -/
+theorem checkSumIndErr {mode : env.CheckMode}
+    (hw : Core.Wrappers mode IndAbs.checkFuelU) :
+    NativeInstall.CheckSumIndErr mode := by
+  intro C inst d capsOf hcaps st st' fe p ce hst hfe hp h lst lfe hsr hfr
+  exact SumInstall.check_sum_ind_refines hw (sumInstallCheckConstantVal hw)
+    (fun q c hq hcq => ⟨(hcaps q c hq hcq).1.symm, (hcaps q c hq hcq).2⟩)
+    hst hfe hp h lst lfe hsr hfr
+
+/-- `Refine/IndNativeInstall.lean`'s `CheckSumCtorsErr`. -/
+theorem checkSumCtorsErr {mode : env.CheckMode}
+    (hw : Core.Wrappers mode IndAbs.checkFuelU) :
+    NativeInstall.CheckSumCtorsErr mode := by
+  intro st st' fe0 fe t lps n_p n_idx res_sort is_prop large cv_ta cs ce
+    hst hfe0 hfe ht hlps hsort hcvta hcs h lst lfe0 lfe hsr hrel0 hrel
+  exact SumInstall.check_sum_ctors_refines hw (sumInstallCheckConstantVal hw)
+    sumInstallMentionsConst sumInstallOpenPisAtFvarsF sumInstallFvarTypes
+    (checkStructDomsAtRefines hw) structCtorResidOkRefines sumInstallParamsOf
+    sumInstallConstsResolveFFast hst hfe0 hfe hrel0 ht hlps hsort hcvta hcs
+    (by intro c hc; simp [alloc.vec.Vec.new] at hc)
+    (by intro us hus; simp [alloc.vec.Vec.new] at hus) h lst lfe hsr hrel
 
 /-! ## The two `Vec`-indexing discharges
 

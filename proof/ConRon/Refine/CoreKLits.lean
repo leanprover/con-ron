@@ -808,171 +808,6 @@ theorem none_arm_done {c : name.Name} {a b : ron.nat.Nat} {o : Option expr.Expr}
     have := Result.ok_injective h; simpa using this.symm
   exact ⟨by intro e he; rw [ho] at he; simp at he, fun _ => hn⟩
 
-/-- **`core_k::nat_op_result` refines `natOpResult`** (`Core.lean:628-654`): the
-reduct of op `c` on literal arguments, `pred` ignoring the second slot.
-
-The port's one remaining deviation is in the direction of declining and is the
-cited `b > 16777216` guard on `pow` (the audit's S2 bound), which is mirrored
-exactly; the port then narrows the exponent to `u64` for `nat::pow`, and the
-narrowing cannot fail under the bound, so that arm too is an *exact*
-refinement.
-
-`shiftLeft`/`shiftRight` take a `u64` shift amount.  Task #61: on an amount
-beyond `u64` the port **fails** rather than answering `none`, where a `none`
-would have been a different verdict.  Task #67 made that failure the port's own
-`Native` (`Err (native "shift amount beyond u64")`), which claims nothing about
-con-leche --- `nat_op_result_native` is the failure half.  The accept lemma is
-therefore exact in both directions.
-
-Every arithmetic operation is `Refine/Nat.lean`'s, used as a black box. -/
-theorem nat_op_result_refines {c : name.Name} {a b : ron.nat.Nat} {o : Option expr.Expr}
-    (hc : NameWF c) (ha : Nat.NatWF a) (hb : Nat.NatWF b) (hpin : NatOpPinned)
-    (h : core_k.nat_op_result c a b = ok (.Ok o)) :
-    OpSpec c a b o := by
-  rw [core_k.nat_op_result] at h
-  -- pred
-  rcases op_step hpin.pred hc h with ⟨hc1, h⟩ | ⟨hc1, h⟩
-  · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-    exact lit_arm_done (by rw [hc1]; exact natOpResult_pred _ _)
-      (Nat.pred_refines ha hp).2 (Nat.pred_refines ha hp).1 h
-  -- add
-  rcases op_step hpin.add hc h with ⟨hc2, h⟩ | ⟨hc2, h⟩
-  · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-    exact lit_arm_done (by rw [hc2]; exact natOpResult_add _ _)
-      (Nat.add_refines hp).2 (Nat.add_refines hp).1 h
-  -- sub
-  rcases op_step hpin.sub hc h with ⟨hc3, h⟩ | ⟨hc3, h⟩
-  · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-    exact lit_arm_done (by rw [hc3]; exact natOpResult_sub _ _)
-      (Nat.sub_refines ha hb hp).2 (Nat.sub_refines ha hb hp).1 h
-  -- mul
-  rcases op_step hpin.mul hc h with ⟨hc4, h⟩ | ⟨hc4, h⟩
-  · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-    exact lit_arm_done (by rw [hc4]; exact natOpResult_mul _ _)
-      (Nat.mul_refines hp).2 (Nat.mul_refines hp).1 h
-  -- pow: the S2 bound, then the narrowing (which the bound makes total)
-  rcases op_step hpin.pow hc h with ⟨hc5, h⟩ | ⟨hc5, h⟩
-  · obtain ⟨lim, hlim, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨bl, hbl, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨hlimv, hlimwf⟩ := Nat.from_u64_refines hlim
-    have hlimn : Nat.toNat lim = 16777216 := by rw [hlimv]; scalar_tac
-    rw [Nat.blt_refines hlimwf hb hbl] at h
-    by_cases hgt : Nat.toNat lim < Nat.toNat b
-    · simp only [hgt, decide_true, if_true] at h
-      refine none_arm_done h ?_
-      rw [hc5, natOpResult_pow, if_pos (by omega)]
-    · simp only [hgt, decide_false, Bool.false_eq_true, if_false] at h
-      obtain ⟨oo, hoo, h⟩ := bind_eq_ok_iff.mp h
-      cases oo with
-      | none =>
-        rcases Nat.to_u64_refines hb hoo with ⟨x, hx, -⟩ | ⟨-, hge⟩
-        · simp at hx
-        · omega
-      | some ex =>
-        rcases Nat.to_u64_refines hb hoo with ⟨x, hx, hxv⟩ | ⟨hn, -⟩
-        · simp only [Option.some.injEq] at hx
-          subst hx
-          simp only [] at h
-          obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨hpv, hpwf⟩ := Nat.pow_refines ex.val a p ex rfl hp
-          refine lit_arm_done (c := c) ?_ hpwf (by rw [hpv, hxv]) h
-          rw [hc5, natOpResult_pow, if_neg (by omega)]
-        · simp at hn
-  -- div
-  rcases op_step hpin.div hc h with ⟨hc6, h⟩ | ⟨hc6, h⟩
-  · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-    exact lit_arm_done (by rw [hc6]; exact natOpResult_div _ _)
-      (Nat.div_refines ha hb hp).2 (Nat.div_refines ha hb hp).1 h
-  -- mod
-  rcases op_step hpin.mod hc h with ⟨hc7, h⟩ | ⟨hc7, h⟩
-  · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-    exact lit_arm_done (by rw [hc7]; exact natOpResult_mod _ _)
-      (Nat.modulo_refines ha hb hp).2 (Nat.modulo_refines ha hb hp).1 h
-  -- gcd
-  rcases op_step hpin.gcd hc h with ⟨hc8, h⟩ | ⟨hc8, h⟩
-  · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-    exact lit_arm_done (by rw [hc8]; exact natOpResult_gcd _ _)
-      (Nat.gcd_refines (Nat.toNat a) a b p rfl ha hb hp).2
-      (Nat.gcd_refines (Nat.toNat a) a b p rfl ha hb hp).1 h
-  -- land
-  rcases op_step hpin.land hc h with ⟨hc9, h⟩ | ⟨hc9, h⟩
-  · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-    exact lit_arm_done (by rw [hc9]; exact natOpResult_land _ _)
-      (Nat.land_refines hp).2 (Nat.land_refines hp).1 h
-  -- lor
-  rcases op_step hpin.lor hc h with ⟨hc10, h⟩ | ⟨hc10, h⟩
-  · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-    exact lit_arm_done (by rw [hc10]; exact natOpResult_lor _ _)
-      (Nat.lor_refines hp).2 (Nat.lor_refines hp).1 h
-  -- xor
-  rcases op_step hpin.xor hc h with ⟨hc11, h⟩ | ⟨hc11, h⟩
-  · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-    exact lit_arm_done (by rw [hc11]; exact natOpResult_xor _ _)
-      (Nat.xor_refines hp).2 (Nat.xor_refines hp).1 h
-  -- shiftLeft: task #61 -- an amount beyond `u64` FAILS, so the `none` arm of
-  -- `nat::to_u64` cannot produce an `ok` and there is nothing to prove there
-  rcases op_step hpin.shl hc h with ⟨hc12, h⟩ | ⟨hc12, h⟩
-  · obtain ⟨oo, hoo, h⟩ := bind_eq_ok_iff.mp h
-    cases oo with
-    | none => exfalso; simp [bind_eq_ok_iff] at h
-    | some k =>
-      rcases Nat.to_u64_refines hb hoo with ⟨x, hx, hxv⟩ | ⟨hn, -⟩
-      · simp only [Option.some.injEq] at hx
-        subst hx
-        simp only [] at h
-        obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨hpv, hpwf⟩ := Nat.shift_left_refines hp
-        exact lit_arm_done (by rw [hc12]; exact natOpResult_shl _ _) hpwf
-          (by rw [hpv, hxv]) h
-      · simp at hn
-  -- shiftRight: likewise
-  rcases op_step hpin.shr hc h with ⟨hc13, h⟩ | ⟨hc13, h⟩
-  · obtain ⟨oo, hoo, h⟩ := bind_eq_ok_iff.mp h
-    cases oo with
-    | none => exfalso; simp [bind_eq_ok_iff] at h
-    | some k =>
-      rcases Nat.to_u64_refines hb hoo with ⟨x, hx, hxv⟩ | ⟨hn, -⟩
-      · simp only [Option.some.injEq] at hx
-        subst hx
-        simp only [] at h
-        obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨hpv, hpwf⟩ := Nat.shift_right_refines hp
-        exact lit_arm_done (by rw [hc13]; exact natOpResult_shr _ _) hpwf
-          (by rw [hpv, hxv]) h
-      · simp at hn
-  -- beq
-  rcases op_step hpin.beq hc h with ⟨hc14, h⟩ | ⟨hc14, h⟩
-  · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
-    rw [Nat.beq_refines ha hb hbb] at hnm
-    by_cases hab : Nat.toNat a = Nat.toNat b
-    · simp only [hab, decide_true, if_true] at hnm
-      obtain ⟨hnabs, hnwf⟩ := hpin.boolTrue nm hnm
-      refine const_arm_done (c := c) ?_ hnabs hnwf h
-      rw [hc14, natOpResult_beq, if_pos hab]
-    · simp only [hab, decide_false, Bool.false_eq_true, if_false] at hnm
-      obtain ⟨hnabs, hnwf⟩ := hpin.boolFalse nm hnm
-      refine const_arm_done (c := c) ?_ hnabs hnwf h
-      rw [hc14, natOpResult_beq, if_neg hab]
-  -- ble
-  rcases op_step hpin.ble hc h with ⟨hc15, h⟩ | ⟨hc15, h⟩
-  · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
-    rw [Nat.ble_refines ha hb hbb] at hnm
-    by_cases hab : Nat.toNat a ≤ Nat.toNat b
-    · simp only [hab, decide_true, if_true] at hnm
-      obtain ⟨hnabs, hnwf⟩ := hpin.boolTrue nm hnm
-      refine const_arm_done (c := c) ?_ hnabs hnwf h
-      rw [hc15, natOpResult_ble, if_pos hab]
-    · simp only [hab, decide_false, Bool.false_eq_true, if_false] at hnm
-      obtain ⟨hnabs, hnwf⟩ := hpin.boolFalse nm hnm
-      refine const_arm_done (c := c) ?_ hnabs hnwf h
-      rw [hc15, natOpResult_ble, if_neg hab]
-  -- the fall-through
-  exact none_arm_done h
-    (natOpResult_none _ _ hc1 hc2 hc3 hc4 hc5 hc6 hc7 hc8 hc9 hc10 hc11 hc12 hc13
-      hc14 hc15)
-
 /-- **One rung of the port's cascade, with the rung's name forgotten.**
 `op_step` without the `PinnedName`/`NameWF` hypotheses: the failure half never
 needs to know *which* rung fired, only that control reached one of the two
@@ -1068,6 +903,183 @@ theorem nat_op_result_native {c : name.Name} {a b : ron.nat.Nat}
   rcases rung h with h | h
   · exact absurd h (by simp [bind_eq_ok_iff])
   exact absurd h (by simp)
+
+/-- **`core_k::nat_op_result` refines `natOpResult`** (`Core.lean:628-654`): the
+reduct of op `c` on literal arguments, `pred` ignoring the second slot.
+
+The port's one remaining deviation is in the direction of declining and is the
+cited `b > 16777216` guard on `pow` (the audit's S2 bound), which is mirrored
+exactly; the port then narrows the exponent to `u64` for `nat::pow`, and the
+narrowing cannot fail under the bound, so that arm too is an *exact*
+refinement.
+
+`shiftLeft`/`shiftRight` take a `u64` shift amount.  Task #61: on an amount
+beyond `u64` the port **fails** rather than answering `none`, where a `none`
+would have been a different verdict.  Task #67 made that failure the port's own
+`Native` (`Err (native "shift amount beyond u64")`), which claims nothing about
+con-leche --- `nat_op_result_native` is the failure half.  The accept lemma is
+therefore exact in both directions.
+
+Every arithmetic operation is `Refine/Nat.lean`'s, used as a black box.
+
+Stated over the full outcome (task #67): the `Ok` arm is the accept direction,
+and the `Err` arm delegates to `nat_op_result_native` just above -- the port's
+own `Native`, which claims nothing about con-leche.  `nat_op_result_native`
+stays a theorem of its own rather than a corollary of this one because it needs
+none of the four hypotheses below. -/
+theorem nat_op_result_refines {c : name.Name} {a b : ron.nat.Nat} {r : OpRes}
+    (hc : NameWF c) (ha : Nat.NatWF a) (hb : Nat.NatWF b) (hpin : NatOpPinned)
+    (h : core_k.nat_op_result c a b = ok r) :
+    match r with
+    | .Ok o => OpSpec c a b o
+    | .Err ce => absErrKind ce = none := by
+  cases r with
+  | Err ce => exact nat_op_result_native h
+  | Ok o =>
+    show OpSpec c a b o
+    rw [core_k.nat_op_result] at h
+    -- pred
+    rcases op_step hpin.pred hc h with ⟨hc1, h⟩ | ⟨hc1, h⟩
+    · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      exact lit_arm_done (by rw [hc1]; exact natOpResult_pred _ _)
+        (Nat.pred_refines ha hp).2 (Nat.pred_refines ha hp).1 h
+    -- add
+    rcases op_step hpin.add hc h with ⟨hc2, h⟩ | ⟨hc2, h⟩
+    · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      exact lit_arm_done (by rw [hc2]; exact natOpResult_add _ _)
+        (Nat.add_refines hp).2 (Nat.add_refines hp).1 h
+    -- sub
+    rcases op_step hpin.sub hc h with ⟨hc3, h⟩ | ⟨hc3, h⟩
+    · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      exact lit_arm_done (by rw [hc3]; exact natOpResult_sub _ _)
+        (Nat.sub_refines ha hb hp).2 (Nat.sub_refines ha hb hp).1 h
+    -- mul
+    rcases op_step hpin.mul hc h with ⟨hc4, h⟩ | ⟨hc4, h⟩
+    · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      exact lit_arm_done (by rw [hc4]; exact natOpResult_mul _ _)
+        (Nat.mul_refines hp).2 (Nat.mul_refines hp).1 h
+    -- pow: the S2 bound, then the narrowing (which the bound makes total)
+    rcases op_step hpin.pow hc h with ⟨hc5, h⟩ | ⟨hc5, h⟩
+    · obtain ⟨lim, hlim, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨bl, hbl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hlimv, hlimwf⟩ := Nat.from_u64_refines hlim
+      have hlimn : Nat.toNat lim = 16777216 := by rw [hlimv]; scalar_tac
+      rw [Nat.blt_refines hlimwf hb hbl] at h
+      by_cases hgt : Nat.toNat lim < Nat.toNat b
+      · simp only [hgt, decide_true, if_true] at h
+        refine none_arm_done h ?_
+        rw [hc5, natOpResult_pow, if_pos (by omega)]
+      · simp only [hgt, decide_false, Bool.false_eq_true, if_false] at h
+        obtain ⟨oo, hoo, h⟩ := bind_eq_ok_iff.mp h
+        cases oo with
+        | none =>
+          rcases Nat.to_u64_refines hb hoo with ⟨x, hx, -⟩ | ⟨-, hge⟩
+          · simp at hx
+          · omega
+        | some ex =>
+          rcases Nat.to_u64_refines hb hoo with ⟨x, hx, hxv⟩ | ⟨hn, -⟩
+          · simp only [Option.some.injEq] at hx
+            subst hx
+            simp only [] at h
+            obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨hpv, hpwf⟩ := Nat.pow_refines ex.val a p ex rfl hp
+            refine lit_arm_done (c := c) ?_ hpwf (by rw [hpv, hxv]) h
+            rw [hc5, natOpResult_pow, if_neg (by omega)]
+          · simp at hn
+    -- div
+    rcases op_step hpin.div hc h with ⟨hc6, h⟩ | ⟨hc6, h⟩
+    · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      exact lit_arm_done (by rw [hc6]; exact natOpResult_div _ _)
+        (Nat.div_refines ha hb hp).2 (Nat.div_refines ha hb hp).1 h
+    -- mod
+    rcases op_step hpin.mod hc h with ⟨hc7, h⟩ | ⟨hc7, h⟩
+    · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      exact lit_arm_done (by rw [hc7]; exact natOpResult_mod _ _)
+        (Nat.modulo_refines ha hb hp).2 (Nat.modulo_refines ha hb hp).1 h
+    -- gcd
+    rcases op_step hpin.gcd hc h with ⟨hc8, h⟩ | ⟨hc8, h⟩
+    · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      exact lit_arm_done (by rw [hc8]; exact natOpResult_gcd _ _)
+        (Nat.gcd_refines (Nat.toNat a) a b p rfl ha hb hp).2
+        (Nat.gcd_refines (Nat.toNat a) a b p rfl ha hb hp).1 h
+    -- land
+    rcases op_step hpin.land hc h with ⟨hc9, h⟩ | ⟨hc9, h⟩
+    · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      exact lit_arm_done (by rw [hc9]; exact natOpResult_land _ _)
+        (Nat.land_refines hp).2 (Nat.land_refines hp).1 h
+    -- lor
+    rcases op_step hpin.lor hc h with ⟨hc10, h⟩ | ⟨hc10, h⟩
+    · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      exact lit_arm_done (by rw [hc10]; exact natOpResult_lor _ _)
+        (Nat.lor_refines hp).2 (Nat.lor_refines hp).1 h
+    -- xor
+    rcases op_step hpin.xor hc h with ⟨hc11, h⟩ | ⟨hc11, h⟩
+    · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      exact lit_arm_done (by rw [hc11]; exact natOpResult_xor _ _)
+        (Nat.xor_refines hp).2 (Nat.xor_refines hp).1 h
+    -- shiftLeft: task #61 -- an amount beyond `u64` FAILS, so the `none` arm of
+    -- `nat::to_u64` cannot produce an `ok` and there is nothing to prove there
+    rcases op_step hpin.shl hc h with ⟨hc12, h⟩ | ⟨hc12, h⟩
+    · obtain ⟨oo, hoo, h⟩ := bind_eq_ok_iff.mp h
+      cases oo with
+      | none => exfalso; simp [bind_eq_ok_iff] at h
+      | some k =>
+        rcases Nat.to_u64_refines hb hoo with ⟨x, hx, hxv⟩ | ⟨hn, -⟩
+        · simp only [Option.some.injEq] at hx
+          subst hx
+          simp only [] at h
+          obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hpv, hpwf⟩ := Nat.shift_left_refines hp
+          exact lit_arm_done (by rw [hc12]; exact natOpResult_shl _ _) hpwf
+            (by rw [hpv, hxv]) h
+        · simp at hn
+    -- shiftRight: likewise
+    rcases op_step hpin.shr hc h with ⟨hc13, h⟩ | ⟨hc13, h⟩
+    · obtain ⟨oo, hoo, h⟩ := bind_eq_ok_iff.mp h
+      cases oo with
+      | none => exfalso; simp [bind_eq_ok_iff] at h
+      | some k =>
+        rcases Nat.to_u64_refines hb hoo with ⟨x, hx, hxv⟩ | ⟨hn, -⟩
+        · simp only [Option.some.injEq] at hx
+          subst hx
+          simp only [] at h
+          obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hpv, hpwf⟩ := Nat.shift_right_refines hp
+          exact lit_arm_done (by rw [hc13]; exact natOpResult_shr _ _) hpwf
+            (by rw [hpv, hxv]) h
+        · simp at hn
+    -- beq
+    rcases op_step hpin.beq hc h with ⟨hc14, h⟩ | ⟨hc14, h⟩
+    · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+      rw [Nat.beq_refines ha hb hbb] at hnm
+      by_cases hab : Nat.toNat a = Nat.toNat b
+      · simp only [hab, decide_true, if_true] at hnm
+        obtain ⟨hnabs, hnwf⟩ := hpin.boolTrue nm hnm
+        refine const_arm_done (c := c) ?_ hnabs hnwf h
+        rw [hc14, natOpResult_beq, if_pos hab]
+      · simp only [hab, decide_false, Bool.false_eq_true, if_false] at hnm
+        obtain ⟨hnabs, hnwf⟩ := hpin.boolFalse nm hnm
+        refine const_arm_done (c := c) ?_ hnabs hnwf h
+        rw [hc14, natOpResult_beq, if_neg hab]
+    -- ble
+    rcases op_step hpin.ble hc h with ⟨hc15, h⟩ | ⟨hc15, h⟩
+    · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨nm, hnm, h⟩ := bind_eq_ok_iff.mp h
+      rw [Nat.ble_refines ha hb hbb] at hnm
+      by_cases hab : Nat.toNat a ≤ Nat.toNat b
+      · simp only [hab, decide_true, if_true] at hnm
+        obtain ⟨hnabs, hnwf⟩ := hpin.boolTrue nm hnm
+        refine const_arm_done (c := c) ?_ hnabs hnwf h
+        rw [hc15, natOpResult_ble, if_pos hab]
+      · simp only [hab, decide_false, Bool.false_eq_true, if_false] at hnm
+        obtain ⟨hnabs, hnwf⟩ := hpin.boolFalse nm hnm
+        refine const_arm_done (c := c) ?_ hnabs hnwf h
+        rw [hc15, natOpResult_ble, if_neg hab]
+    -- the fall-through
+    exact none_arm_done h
+      (natOpResult_none _ _ hc1 hc2 hc3 hc4 hc5 hc6 hc7 hc8 hc9 hc10 hc11 hc12 hc13
+        hc14 hc15)
 
 /-! ## The equation table
 

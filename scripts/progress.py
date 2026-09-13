@@ -105,11 +105,13 @@ SHAPE_OLD = r"= ok \(\.Ok |core\.result\.Result\.Ok"
 SHAPE_NEW = r"\.Err\b|core\.result\.Result\.Err"
 LEMMA_SHAPES = {}  # (module, fn) -> "full" | "accept" | "na" | "other"
 SHAPE_DEFS = {}    # name of a statement-packaging `def`/`structure` -> its shape
+SHAPE_BODIES = {}  # the same definitions' bodies, for the resolution pass below
 
 
 def shape_defs(old_re, new_re):
     """Shared statement shapes (`RefinesE`, `Sim`, `KnotSpec`, …): every
-    `def`/`structure`/`abbrev` under Refine/ whose body mentions `= ok`; each
+    `def`/`structure`/`abbrev` under Refine/ whose body says what a Rust
+    `Result` means (`= ok` on the Rust side, `= .ok` on con-leche's); each
     gets the shape of its own body, so a lemma stated through it inherits it
     even though the lemma's text never changes when the def is restated."""
     d = os.path.join(REPO, REFINE_DIR)
@@ -120,10 +122,36 @@ def shape_defs(old_re, new_re):
             text = open(os.path.join(dirpath, fn), encoding="utf-8").read()
             for m in re.finditer(r"^(?:def|abbrev|structure)\s+([A-Za-z_][A-Za-z0-9_.]*)\b(.*?)(?=^(?:def|abbrev|structure|theorem|lemma|end|namespace|section|/--|/-!)\b)", text, re.M | re.S):
                 body = m.group(2)
-                if "= ok" not in body:
+                # A statement-packaging definition is one that says what a Rust
+                # `Result` means.  It may spell the Rust side `= ok` (`Sim`,
+                # `RefinesE`) or the con-leche side `= .ok` (`Out`, `OutP`,
+                # whose Rust outcome is a bare `match` argument); both are
+                # shapes a lemma can be stated through, and the campaign found
+                # that missing the second silently moved a restated lemma out
+                # of scope instead of counting it (task #67 continued).
+                if not re.search(r"=\s*\.?ok\b|Result\.ok\b", body):
                     continue
                 name = m.group(1).split(".")[-1]
                 SHAPE_DEFS[name] = classify_text(body, old_re, new_re)
+                SHAPE_BODIES[name] = body
+    # One packaging definition is often written through another: `Sim`/`SimS`
+    # say their outcome obligation is `State.Out`, and read on their own they
+    # classify as neither convention.  Resolve to a fixpoint so a lemma stated
+    # through the outer one inherits the inner one's shape.
+    for _ in range(4):
+        changed = False
+        for name, shape in list(SHAPE_DEFS.items()):
+            if shape in ("full", "accept"):
+                continue
+            for other, oshape in SHAPE_DEFS.items():
+                if other == name or oshape not in ("full", "accept"):
+                    continue
+                if re.search(r"\b%s\b" % re.escape(other), SHAPE_BODIES[name]):
+                    SHAPE_DEFS[name] = oshape
+                    changed = True
+                    break
+        if not changed:
+            break
 
 
 def classify_text(stmt, old_re, new_re):
@@ -147,10 +175,58 @@ def classify(stmt, old_re, new_re):
     direct = classify_text(stmt, old_re, new_re)
     if direct in ("full", "accept"):
         return direct
-    for name, shape in SHAPE_DEFS.items():
-        if re.search(r"\b%s\b" % re.escape(name), stmt):
-            return shape
+    # Several packaging names can occur in one statement — `IndAbs.checkFuelU`
+    # sits in the hypothesis list of every lemma of the inductive tier, beside
+    # the `State.Out` that carries the shape.  Returning whichever one the file
+    # walk happened to reach first made a restated lemma read as out of scope
+    # (task #67 continued), so a shape that classifies the campaign wins over
+    # one that does not.
+    shapes = {shape for name, shape in SHAPE_DEFS.items()
+              if re.search(r"\b%s\b" % re.escape(name), stmt)}
+    for pref in ("full", "accept"):
+        if pref in shapes:
+            return pref
     return direct
+
+
+OPENERS = "([{⟨⦃"
+CLOSERS = ")]}⟩⦄"
+
+
+def statement_end(text, start):
+    """Where a `theorem`'s statement ends: the `:=` (or `where`) that
+    introduces its *proof*, which is the first one at bracket depth 0.
+
+    A plain `(.*?)(?::=|\\bwhere\\b)` capture stops at the first `:=`
+    anywhere, and Lean's named-argument syntax puts one *inside* the
+    statement — `ConLeche.liftFueled (m := ConLeche.CheckM) …`.  The campaign
+    found that truncating there hides a full-outcome statement's `.Err` arm
+    and reports the lemma as unclassified (task #67 continued).  Strings are
+    skipped so a bracket inside a message does not unbalance the scan.
+    """
+    i, n, depth = start, len(text), 0
+    while i < n:
+        c = text[i]
+        if c == '"':
+            i += 1
+            while i < n and text[i] != '"':
+                i += 2 if text[i] == "\\" else 1
+            i += 1
+            continue
+        if c in OPENERS:
+            depth += 1
+        elif c in CLOSERS:
+            depth -= 1
+        elif depth == 0:
+            if text.startswith(":=", i):
+                return i
+            if (text.startswith("where", i)
+                    and not (text[i - 1].isalnum() or text[i - 1] == "_")
+                    and (i + 5 >= n or not (text[i + 5].isalnum()
+                                            or text[i + 5] == "_"))):
+                return i
+        i += 1
+    return n
 
 
 def refine_lemmas(old_re=SHAPE_OLD, new_re=SHAPE_NEW):
@@ -176,10 +252,11 @@ def refine_lemmas(old_re=SHAPE_OLD, new_re=SHAPE_NEW):
             else:
                 module = rel.split(os.sep)[0].lower() + fn[:-5].lower().replace("_", "")
             text = open(os.path.join(dirpath, fn), encoding="utf-8").read()
-            for m in re.finditer(r"^\s*theorem\s+([A-Za-z_][A-Za-z0-9_]*)_refines\b(.*?)(?::=|\bwhere\b)", text, re.M | re.S):
+            for m in re.finditer(r"^\s*theorem\s+([A-Za-z_][A-Za-z0-9_]*)_refines\b", text, re.M):
                 key = (module, m.group(1))
                 out.add(key)
-                LEMMA_SHAPES[key] = classify(m.group(2), old_re, new_re)
+                stmt = text[m.end():statement_end(text, m.end())]
+                LEMMA_SHAPES[key] = classify(stmt, old_re, new_re)
     return out
 
 

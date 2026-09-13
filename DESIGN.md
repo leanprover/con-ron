@@ -14087,3 +14087,211 @@ proof/upstream 9.45.  The `--by-upstream` view attributes 62 922 of the
 the other 66 530 are helpers, relations and infrastructure.  The `grind`
 column is 0 by task #71's ruling (new proofs only) and will start counting
 with the first new lemma written in the idiom.
+### Task #67 (continued) — the campaign finished, and the capstones lose four hypotheses (2026-09-13, Opus under Fable)
+
+Task #67 restated 109 of the tower's `*_refines` statements at the full
+outcome and left the rest; this task restated **the rest**, in dependency
+order, under the same two rulings of 2026-09-13 (§3): exact on `Ok`, mirrored
+`Err` at the same *kind*, nothing on `Native`; and **not** with task #69's
+idiom, since a restatement is not a new proof — every accept half is kept
+verbatim and the failure half is written beside it by hand, in the style of
+the 109.  Nineteen sub-agents, one file each (two sharing `IndModeled.lean` on
+a hard line), against the brief task #67's section had already written down.
+
+`scripts/progress.py`'s campaign line reads **full-outcome 284 / 284 in scope
+(100 %), accept-direction left 0**, and all seven gates are green.
+
+#### 1. What was restated, file by file
+
+| file | statements | what the failure halves cost |
+|---|---|---|
+| `CoreKVec` | 1 | fold: `lift_fueled_err` becomes a corollary |
+| `CoreKLits` | 1 | fold; the `.Err` arm is `absErrKind ce = none` — see §3 |
+| `CoreKInfer` | 6 | folds |
+| `Core/Arms/Infer` | 2 | folds |
+| `StateC` | 3 | folds |
+| `PinsRun` / `Pins` / `BasisPins` | 2 + 2 + 1 | the cheap tier: every arm is `Native` |
+| `CheckerBase` | 9 | 25 new con-leche-side run lemmas |
+| `Checker` | 4 (+1 helper) | |
+| `CheckerSplit` | 4 | all 14 sites of `checker_split.rs` |
+| `CheckerPins` | 8 | 4 named con-leche fragments (`structuralNatBlockF`, `defnPinsBlockF`, …) |
+| `DeclCheck` | 8 | ~35 new run lemmas |
+| `CheckerDecl` | 25 | the checker tier's one `Native`; `FoldsErr`/`FoldErrSim` |
+| `Installed` | 22 | `ErrSimPos` — the kind *and* the fold position |
+| `IndSumInstall` | 10 | ~30 new step lemmas |
+| `IndNativeInstall` | 12 | four sibling `*Err` ingredients (§4) |
+| `IndModeled` | 23 (+1 already full) | the campaign's biggest file; two agents (§5) |
+| `IndC` | 11 | the drivers, and the seam (§4) |
+| `Main` | 1 | `check_decls_verified_refines` over the whole outcome |
+| `IndSpec` | (2 structures) | the seam's failure half |
+| `IndIngredients` | (10 discharges) | |
+
+21 136 lines added, 4 503 removed, across 24 files under
+`proof/ConRon/Refine/`, in 114 commits.  **No port
+deviation was found anywhere**: every failure half every agent attempted came
+out true as stated, which is the census of task #67 §1 being confirmed one
+`throw` at a time — 303 mirrored sites, all now proved mirrored, and the 31
+native ones all still claiming nothing.
+
+#### 2. The four hypotheses that went away
+
+This is the part that is not bookkeeping.  `Refine/Main.lean`'s capstones
+carried five hypotheses; the two `_embedded` corollaries — the theorems about
+the binary the maintainer actually ships — now carry **one**:
+
+| hypothesis | now |
+|---|---|
+| `hk : Core.KnotSpec .Verified checkFuelU` | already discharged at task #61 (`Core.knot_spec`) |
+| `hind : IndRoutesSpec .Verified` | **discharged**: `IndC.ind_routes_spec'` from the knot |
+| `hinde : IndRoutesSpecErr .Verified` | **discharged**: `IndC.ind_routes_spec_err'` from the knot (new, §4) |
+| `hpins : absPins pins = natOpPinSets` | already discharged at task #64 for the embedded list |
+| `hvar : CheckerPins.PinsWF pins` | **discharged**: task #66's `PinsWF.decode_embedded_wf` (§6) |
+| `hds : ∀ d ∈ ds.val, DeclCWF d` | the parser's, by construction — **the only one left** |
+
+`hind` was dischargeable at task #59 and simply had not been plugged in:
+`IndC.ind_routes_spec'` existed, `Core.knot_spec` existed, and *nothing
+imported `IndC.lean`* — it is a leaf of the import graph, so `Refine/Main.lean`
+had only to import it.  What was genuinely missing was the failure half, which
+is what this task built.
+
+The `pins`-parametric theorems keep `hvar`/`hpins`, as they must: they are
+promises about an argument the binary was given.  All four `#guard_msgs`
+censuses are unchanged — con-leche's three axioms for the general pair, those
+plus the two native-decide entries (`pins_closed`'s sealed axiom and Aeneas's
+own `toStr` one) for the embedded pair.
+
+#### 3. `nat_op_result`'s failure half is *not* an `ErrSim`
+
+The one place where the ruling's shape does not apply.  `ConLeche.natOpResult`
+is a total `Option Expr` — there is no `Except` on the con-leche side for
+`ErrSim` to relate to, and the cited `Core.lean:628-654` has no `throw` at all.
+So every `Err` leaf of the port's cascade is `core_types::native` (the two
+shift amounts, `core_k.rs:1651`/`:1656`), and the honest full-outcome claim is
+exactly `absErrKind ce = none`, which the single caller converts with
+`ErrSim.of_none` against whatever con-leche side it is looking at.  This is
+what the ruling's "nothing on `Native`" looks like when a function has no
+mirrored arm at all.
+
+#### 4. The `hind` seam, and the sibling-`Prop` device
+
+`IndRoutesSpec` (`Refine/IndSpec.lean`) is the seam between the checker tier
+and the inductive one, and its failure half needs **two** facts, not one: that
+con-leche's dispatch took the *same* branch, and that that branch throws at the
+same kind — because `checkDeclC` reaches `checkNativeS`/`checkIndDeclSF` only
+through `nativeParts?`.  So the recogniser's verdict sits in the failure clause
+exactly as it does in the accept one.
+
+It was added as a **sibling structure** `IndRoutesSpecErr` rather than folded
+into `IndRoutesSpec` as a `match`, because the two halves became ready at
+different times: `Refine/CheckerDecl.lean` was blocked on the failure half
+three lemmas from the end while the producer below it (`IndC` ← `IndIngredients`
+← `IndModeled`) was still hours away.  Splitting kept `IndRoutesSpec` and every
+proof stated through it verbatim, which is what a restatement ruling asks, and
+let the two tiers land independently.  `Refine/IndNativeInstall.lean` reached
+for the same device on its own, four times, for the ingredients whose accept
+siblings are discharged in a file it did not own.  Ten such `*Err` siblings are
+now discharged in `Refine/IndIngredients.lean`, each from the very lemma the
+accept ingredient already uses, at `.Err ce`, where that lemma's full-outcome
+`match` reduces.  They fold into their accept siblings whenever their files are
+next touched; folding them now would have churned three green files for no
+proof content.
+
+#### 5. Splitting one file between two agents
+
+`IndModeled.lean` (11 119 lines, 24 statements) was the critical path and the
+place task #67 lost an agent mid-file.  At 10/24 its agent reported that the
+file separates: everything from `check_proj_lookups_refines` down touches
+nothing above it, while the member/recursor group does depend on the iota
+group.  A second agent took the projection group at that line, under three
+rules: **`Edit` only, never `Write`**; never a line outside your own region,
+docstring included; and search by lemma name, never by line number, because the
+other agent's edits move yours.  It worked — the two halves landed within
+twenty minutes of each other and neither clobbered the other — with one
+artefact worth knowing: a commit by either agent sweeps in the other's live
+working tree, so one commit carried a `trace_state` probe that the next commit
+removed.  "Never commit a state that does not elaborate" is the right bar for
+that; "never commit a `sorry`" is not enforceable when the file is shared, and
+has to be checked at the end (it was: the tree greps clean).
+
+#### 6. Task #66 finished, and `hvar` with it
+
+`Refine/PinsWF.lean` (1 791 lines) was a 954-line WIP on an abandoned branch.
+It was recovered, found to have drifted in exactly one place, and completed:
+the eleven `E` expression records, the `S` payload record, `run_footer`,
+`run_records` as a fuel induction, the `StrWF` and `Nat.NatWF` leaves, and
+`decode_wf : decode t = ok (.Ok v) → PinsWF v`.  The argument is the one §3.5
+fixed at task #5 — the `*WF` predicates are inductives whose constructors *are*
+the port's smart constructors, and the decoder reaches every `Name`, `Level`,
+`PropWhen` and `Expr` it installs through exactly one of them — so the whole
+proof is one invariant, `TablesWF`, threaded through the record pass.  It holds
+for **every** byte string, so nothing is evaluated and its census is
+con-leche's own three axioms; `decode_embedded_wf` adds only the `toStr` axiom
+Aeneas already spends on every extracted `&str`.
+
+#### 7. The meter was under-reporting, and its denominator was drifting
+
+`scripts/progress.py` had three bugs, all found by this campaign's own numbers
+and none of them about the proofs:
+
+* a lemma's statement was read as far as the **first `:=`**, which Lean's
+  named-argument syntax puts *inside* a statement
+  (`ConLeche.liftFueled (m := ConLeche.CheckM) …`); a full-outcome statement
+  whose `.Err` arm sat past one read as unclassified.  The statement now ends
+  at the first `:=`/`where` at **bracket depth zero**, string literals skipped.
+* a statement-packaging `def` counted only if its body said `= ok`.  `Out` and
+  `OutP` say `= .ok` (their Rust outcome is a bare `match` argument), so a
+  lemma stated through them left the meter's scope instead of counting.
+* when several packaging names occurred in one statement — `IndAbs.checkFuelU`
+  is in every inductive-tier hypothesis list, beside the `State.Out` that
+  carries the shape — whichever the file walk reached first won.  A shape that
+  classifies the campaign now wins over one that does not, and a definition
+  written through another (`Sim`/`SimS` through `Out`) inherits its shape.
+
+The symptom worth remembering is the **drifting denominator**: "in scope" was
+262 at the start and fell to 253 as the campaign restated lemmas *out of the
+meter's sight*.  A campaign meter whose denominator moves when you do the work
+is measuring the regex, not the work.  It is now 284 at both ends: re-measured
+at task #71's commit the campaign's true starting point was **126 / 284
+(44 %)**, not the `108 / 262` the old capture printed, and it ends at
+**284 / 284**.
+
+#### 8. Findings the next restatement pass should have
+
+* **A `match out` conclusion is elaborated *dependently*.**  Because the
+  hypothesis `h : f … = ok (out, st')` mentions `out`, Lean writes the
+  conclusion `match out, h with`.  Invisible at a constructor, but: `cases hc : x`
+  stops being type correct when `h` mentions `x` (use a plain `cases x`);
+  `exact <lemma> … h …` fails when the caller's outcome is still a variable
+  (`cases` it first, or use the `_ok` corollary); and a goal-side `split` fires
+  on the outcome before the `match` you meant.  `State.Out` is a **definition**,
+  so it has none of this — six of `IndSumInstall`'s ten use it for exactly that
+  reason, and `IndC` introduced a private `OutFE` by `suffices` to hide a
+  `match` from `split` while keeping the public statement plain.
+* **Keep the outcome binder implicit** wherever the old result binder was
+  implicit: the `match` then reduces definitionally at `.Ok r` and *no call
+  site anywhere changes*.  That is why a 158-statement restatement touched
+  almost no consumers.  Where it had to become explicit — six index recursions
+  in all — a `*_refines_ok` corollary carrying the verbatim pre-#67 statement
+  keeps the old spelling reachable.
+* **Fold a `*_err` companion the other way round.**  The obvious fold makes the
+  companion a corollary of the restated `*_refines`; three files found that
+  impossible, because the companion has strictly *fewer* hypotheses than the
+  accept half and its call sites do not have the extra ones in scope.  The
+  companion keeps its statement and its proof, moves above its `*_refines`, and
+  the `.Err` arm of the fold is one `exact`.  Nothing is duplicated and no call
+  site moves.
+* `simp only` will not reduce `if false = true` — full `simp`, or `rw [if_neg …]`
+  with the Prop-form guard.
+* `rw … at h` on a hypothesis whose type is still an unreduced `match out`
+  blows the whnf heartbeat budget; ascribing the reduced type in the `have` is
+  instant.
+* Agents sharing one scratch directory **overwrite each other's files** — one
+  commit in this task carries another agent's subject line because both wrote
+  `msg.txt`.  Per-agent scratch directories, from the first task.
+
+#### 9. Gates
+
+All seven green (`scripts/gates.sh`), the proof library is `sorry`-free, and
+the two differential gates are unchanged at **`diff-e2e` 348/348** and
+**`diff-fixtures` 315 agree / 0 differ** — as they must be: this task changed
+no Rust at all.

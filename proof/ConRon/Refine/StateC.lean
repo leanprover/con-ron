@@ -1490,77 +1490,6 @@ theorem ruleRhsAtM_throw {lst : ConLeche.Cached.CState} {lfe : ConLeche.FEnv}
       exact ⟨"ruleRhsAtM: not a stored recursor", by
         simp [ConLeche.Cached.ruleRhsAtM, hmiss, hx]; rfl⟩
 
-/-- `ConLeche/Cached/StateC.lean:332-349` — **`const_ty_at_m` refines
-`constTyAtM`** on success. -/
-theorem const_ty_at_m_refines (hinst : InstLevelParamsRefines)
-    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {n : name.Name}
-    {us : alloc.vec.Vec level.Level} {r : expr.Expr} (hwf : StateWF st)
-    (hfwf : FEnv.FEnvWF fe) (hn : NameWF n) (hus : LevelsWF us)
-    (h : cached.state_c.const_ty_at_m st fe n us = ok (.Ok r, st')) :
-    ∀ lst lfe, StateRel st lst → FEnv.FEnvRel fe lfe → ∀ nI, ∃ lst',
-      (ConLeche.Cached.constTyAtM lfe nI (absName n) (absLevels us)).run lst
-          = .ok (absExpr r, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r := by
-  intro lst lfe hrel hfrel nI
-  rw [cached.state_c.const_ty_at_m] at h
-  simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at h
-  obtain ⟨v, hv, h⟩ := h
-  have hvv : v = us := Env.levels_copy_refines hv
-  rw [hvv] at h
-  obtain ⟨o, hprobe, h⟩ := h
-  obtain ⟨hlk, hov⟩ := const_ty_at_probe_refines hrel hwf ⟨hn, hus⟩ hprobe
-  rw [absNameLevels] at hlk
-  cases o with
-  | some i =>
-    simp at h
-    obtain ⟨rfl, rfl⟩ := h
-    simp only [Option.map_some] at hlk
-    exact ⟨lst, constTyAtM_hit hlk.symm, hrel, hwf, hov i rfl⟩
-  | none =>
-    simp only [Option.map_none] at hlk
-    obtain ⟨o1, hdecl, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨hdv, hdw⟩ := const_decl_probe_refines hfrel hfwf hn hdecl
-    cases o1 with
-    | none =>
-      -- the port throws; nothing is claimed on failure (§3.5)
-      exfalso
-      obtain ⟨s1, -, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨v1, -, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨ce, -, h⟩ := bind_eq_ok_iff.mp h
-      simp at h
-    | some cvp =>
-      obtain ⟨ks, ty⟩ := cvp
-      obtain ⟨hksw, htyw⟩ := hdw (ks, ty) rfl
-      -- the index read agrees
-      cases hfind : lfe.find? (absName n) with
-      | none => rw [hfind] at hdv; simp at hdv
-      | some ci =>
-        rw [hfind] at hdv
-        simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at hdv
-        obtain ⟨hkse, htye⟩ := hdv
-        obtain ⟨p, hraw, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨raw, st1⟩ := p
-        obtain ⟨lst1, hrun, hrel1, hwf1, hraww⟩ :=
-          stored_ty_idx_m_refines hwf hn htyw hraw lst hrel
-        obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨hiv, hiw⟩ :=
-          hinst ks us raw i hksw hus hraww (by rw [← inst_level_params_m_eq]; exact hi)
-        simp only [ConRon.Refine.State.expr_dup_eq, bind_tc_ok,
-          bind_eq_ok_iff] at h
-        obtain ⟨q, hins, h⟩ := h
-        obtain ⟨old, m'⟩ := q
-        simp at h
-        obtain ⟨rfl, rfl⟩ := h
-        obtain ⟨hrel', hwf'⟩ :=
-          const_ty_at_insert_refines hrel1 hwf1 ⟨hn, hus⟩ hiw hins
-        rw [absNameLevels] at hrel'
-        refine ⟨{ lst1 with
-            constTyAt := lst1.constTyAt.insert (absName n, absLevels us)
-              (absExpr i) }, ?_, hrel', hwf', hiw⟩
-        rw [constTyAtM_bind hlk.symm hfind, ← htye, hrun]
-        simp only [Except.bind]
-        rw [hiv, ← hkse]
-
 /-- `crates/con-ron-core/src/cached/state_c.rs:891` — **the failure half of
 `const_ty_at_m`** (task #67).  The port has exactly one `Err` site here, the
 unknown-constant arm, and it mirrors con-leche's one `throw` at
@@ -1620,63 +1549,76 @@ theorem const_ty_at_m_err {st st' : cached.state_c.CState} {fe : fenv.FEnv}
       obtain ⟨old, m'⟩ := q
       simp at h
 
-/-- `ConLeche/Cached/StateC.lean:351-367` — **`const_val_at_m` refines
-`constValAtM`** on success. -/
-theorem const_val_at_m_refines (hinst : InstLevelParamsRefines)
+/-- `ConLeche/Cached/StateC.lean:332-349` — **`const_ty_at_m` refines
+`constTyAtM`** over its whole outcome (task #67): at `.Ok` the accept
+direction, unchanged; at `.Err` the companion `const_ty_at_m_err` above, which
+is where that half is proved (it does not need `hinst`, and its own call sites
+do not have one).  The `match` reduces definitionally at `.Ok r`, so a call
+site that knows its callee succeeded reads exactly as it did before. -/
+theorem const_ty_at_m_refines (hinst : InstLevelParamsRefines)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {n : name.Name}
-    {us : alloc.vec.Vec level.Level} {r : expr.Expr} (hwf : StateWF st)
+    {us : alloc.vec.Vec level.Level}
+    {out : core.result.Result expr.Expr core_types.CheckError} (hwf : StateWF st)
     (hfwf : FEnv.FEnvWF fe) (hn : NameWF n) (hus : LevelsWF us)
-    (h : cached.state_c.const_val_at_m st fe n us = ok (.Ok r, st')) :
-    ∀ lst lfe, StateRel st lst → FEnv.FEnvRel fe lfe → ∀ nI, ∃ lst',
-      (ConLeche.Cached.constValAtM lfe nI (absName n) (absLevels us)).run lst
-          = .ok (absExpr r, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r := by
-  intro lst lfe hrel hfrel nI
-  rw [cached.state_c.const_val_at_m] at h
-  simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at h
-  obtain ⟨v, hv, h⟩ := h
-  have hvv : v = us := Env.levels_copy_refines hv
-  rw [hvv] at h
-  obtain ⟨o, hprobe, h⟩ := h
-  obtain ⟨hlk, hov⟩ := const_val_at_probe_refines hrel hwf ⟨hn, hus⟩ hprobe
-  rw [absNameLevels] at hlk
-  cases o with
-  | some i =>
-    simp at h
-    obtain ⟨rfl, rfl⟩ := h
-    simp only [Option.map_some] at hlk
-    exact ⟨lst, constValAtM_hit hlk.symm, hrel, hwf, hov i rfl⟩
-  | none =>
-    simp only [Option.map_none] at hlk
-    obtain ⟨o1, hdecl, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨hdv, hdw⟩ := defn_decl_probe_refines hfrel hfwf hn hdecl
-    cases o1 with
-    | none =>
-      exfalso
-      obtain ⟨s1, -, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨v1, -, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨ce, -, h⟩ := bind_eq_ok_iff.mp h
+    (h : cached.state_c.const_ty_at_m st fe n us = ok (out, st')) :
+    ∀ lst lfe, StateRel st lst → FEnv.FEnvRel fe lfe → ∀ nI,
+      match out with
+      | .Ok r => ∃ lst',
+        (ConLeche.Cached.constTyAtM lfe nI (absName n) (absLevels us)).run lst
+            = .ok (absExpr r, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r
+      | .Err ce =>
+        ErrSim ce
+          ((ConLeche.Cached.constTyAtM lfe nI (absName n) (absLevels us)).run lst) := by
+  cases out with
+  | Err ce =>
+    exact fun lst lfe hrel hfrel nI =>
+      const_ty_at_m_err hwf hfwf hn hus h lst lfe hrel hfrel nI
+  | Ok r =>
+    intro lst lfe hrel hfrel nI
+    rw [cached.state_c.const_ty_at_m] at h
+    simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at h
+    obtain ⟨v, hv, h⟩ := h
+    have hvv : v = us := Env.levels_copy_refines hv
+    rw [hvv] at h
+    obtain ⟨o, hprobe, h⟩ := h
+    obtain ⟨hlk, hov⟩ := const_ty_at_probe_refines hrel hwf ⟨hn, hus⟩ hprobe
+    rw [absNameLevels] at hlk
+    cases o with
+    | some i =>
       simp at h
-    | some cvp =>
-      obtain ⟨ks, val⟩ := cvp
-      obtain ⟨hksw, hvalw⟩ := hdw (ks, val) rfl
-      cases hfind : lfe.find? (absName n) with
-      | none => rw [hfind] at hdv; simp at hdv
-      | some ci =>
-        rw [hfind] at hdv
-        cases ci with
-        | defnInfo cv v0 hint =>
-          simp only [Option.map_some, Option.bind_some, Option.some.injEq,
-            Prod.mk.injEq] at hdv
-          obtain ⟨hkse, hvale⟩ := hdv
+      obtain ⟨rfl, rfl⟩ := h
+      simp only [Option.map_some] at hlk
+      exact ⟨lst, constTyAtM_hit hlk.symm, hrel, hwf, hov i rfl⟩
+    | none =>
+      simp only [Option.map_none] at hlk
+      obtain ⟨o1, hdecl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hdv, hdw⟩ := const_decl_probe_refines hfrel hfwf hn hdecl
+      cases o1 with
+      | none =>
+        -- the port throws; nothing is claimed on failure (§3.5)
+        exfalso
+        obtain ⟨s1, -, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, -, h⟩ := bind_eq_ok_iff.mp h
+        simp at h
+      | some cvp =>
+        obtain ⟨ks, ty⟩ := cvp
+        obtain ⟨hksw, htyw⟩ := hdw (ks, ty) rfl
+        -- the index read agrees
+        cases hfind : lfe.find? (absName n) with
+        | none => rw [hfind] at hdv; simp at hdv
+        | some ci =>
+          rw [hfind] at hdv
+          simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at hdv
+          obtain ⟨hkse, htye⟩ := hdv
           obtain ⟨p, hraw, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨raw, st1⟩ := p
           obtain ⟨lst1, hrun, hrel1, hwf1, hraww⟩ :=
-            stored_val_idx_m_refines hwf hn hvalw hraw lst hrel
+            stored_ty_idx_m_refines hwf hn htyw hraw lst hrel
           obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨hiv, hiw⟩ :=
-            hinst ks us raw i hksw hus hraww
-              (by rw [← inst_level_params_m_eq]; exact hi)
+            hinst ks us raw i hksw hus hraww (by rw [← inst_level_params_m_eq]; exact hi)
           simp only [ConRon.Refine.State.expr_dup_eq, bind_tc_ok,
             bind_eq_ok_iff] at h
           obtain ⟨q, hins, h⟩ := h
@@ -1684,20 +1626,14 @@ theorem const_val_at_m_refines (hinst : InstLevelParamsRefines)
           simp at h
           obtain ⟨rfl, rfl⟩ := h
           obtain ⟨hrel', hwf'⟩ :=
-            const_val_at_insert_refines hrel1 hwf1 ⟨hn, hus⟩ hiw hins
+            const_ty_at_insert_refines hrel1 hwf1 ⟨hn, hus⟩ hiw hins
           rw [absNameLevels] at hrel'
           refine ⟨{ lst1 with
-              constValAt := lst1.constValAt.insert (absName n, absLevels us)
+              constTyAt := lst1.constTyAt.insert (absName n, absLevels us)
                 (absExpr i) }, ?_, hrel', hwf', hiw⟩
-          rw [constValAtM_bind hlk.symm hfind, ← hvale, hrun]
+          rw [constTyAtM_bind hlk.symm hfind, ← htye, hrun]
           simp only [Except.bind]
           rw [hiv, ← hkse]
-        | axiomInfo cv0 => simp at hdv
-        | thmInfo cv0 v0 => simp at hdv
-        | indInfo cv0 caps => simp at hdv
-        | ctorInfo cv0 np nf => simp at hdv
-        | recInfo cv0 mi rp rules => simp at hdv
-        | projInfo tbl => simp at hdv
 
 /-- `crates/con-ron-core/src/cached/state_c.rs:915` — **the failure half of
 `const_val_at_m`** (task #67): the port's one `Err` site, the
@@ -1750,66 +1686,77 @@ theorem const_val_at_m_err {st st' : cached.state_c.CState} {fe : fenv.FEnv}
       obtain ⟨old, m'⟩ := q
       simp at h
 
-/-- `ConLeche/Cached/StateC.lean:369-388` — **`rule_rhs_at_m` refines
-`ruleRhsAtM`** on success. -/
-theorem rule_rhs_at_m_refines (hinst : InstLevelParamsRefines)
-    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {c j : name.Name}
-    {us : alloc.vec.Vec level.Level} {r : expr.Expr} (hwf : StateWF st)
-    (hfwf : FEnv.FEnvWF fe) (hc : NameWF c) (hj : NameWF j) (hus : LevelsWF us)
-    (h : cached.state_c.rule_rhs_at_m st fe c j us = ok (.Ok r, st')) :
-    ∀ lst lfe, StateRel st lst → FEnv.FEnvRel fe lfe → ∀ cI jI, ∃ lst',
-      (ConLeche.Cached.ruleRhsAtM lfe cI jI (absName c) (absName j)
-            (absLevels us)).run lst
-          = .ok (absExpr r, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r := by
-  intro lst lfe hrel hfrel cI jI
-  rw [cached.state_c.rule_rhs_at_m] at h
-  simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at h
-  obtain ⟨v, hv, h⟩ := h
-  have hvv : v = us := Env.levels_copy_refines hv
-  rw [hvv] at h
-  obtain ⟨o, hprobe, h⟩ := h
-  obtain ⟨hlk, hov⟩ :=
-    rule_rhs_at_probe_refines hrel hwf ⟨hc, hj, hus⟩ hprobe
-  rw [absNameNameLevels] at hlk
-  cases o with
-  | some i =>
-    simp at h
-    obtain ⟨rfl, rfl⟩ := h
-    simp only [Option.map_some] at hlk
-    exact ⟨lst, ruleRhsAtM_hit hlk.symm, hrel, hwf, hov i rfl⟩
-  | none =>
-    simp only [Option.map_none] at hlk
-    obtain ⟨o1, hdecl, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨hdv, hdw⟩ := rule_rhs_probe_refines hfrel hfwf hc hj hdecl
-    cases o1 with
-    | none =>
-      exfalso
-      obtain ⟨s1, -, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨v1, -, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨ce, -, h⟩ := bind_eq_ok_iff.mp h
+/-- `ConLeche/Cached/StateC.lean:351-367` — **`const_val_at_m` refines
+`constValAtM`** over its whole outcome (task #67): at `.Ok` the accept
+direction, unchanged; at `.Err` the companion `const_val_at_m_err` above,
+which is where that half is proved (it does not need `hinst`, and its own call
+sites do not have one).  The `match` reduces definitionally at `.Ok r`, so a
+call site that knows its callee succeeded reads exactly as it did before. -/
+theorem const_val_at_m_refines (hinst : InstLevelParamsRefines)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {n : name.Name}
+    {us : alloc.vec.Vec level.Level}
+    {out : core.result.Result expr.Expr core_types.CheckError} (hwf : StateWF st)
+    (hfwf : FEnv.FEnvWF fe) (hn : NameWF n) (hus : LevelsWF us)
+    (h : cached.state_c.const_val_at_m st fe n us = ok (out, st')) :
+    ∀ lst lfe, StateRel st lst → FEnv.FEnvRel fe lfe → ∀ nI,
+      match out with
+      | .Ok r => ∃ lst',
+        (ConLeche.Cached.constValAtM lfe nI (absName n) (absLevels us)).run lst
+            = .ok (absExpr r, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r
+      | .Err ce =>
+        ErrSim ce
+          ((ConLeche.Cached.constValAtM lfe nI (absName n) (absLevels us)).run lst) := by
+  cases out with
+  | Err ce =>
+    exact fun lst lfe hrel hfrel nI =>
+      const_val_at_m_err hwf hfwf hn hus h lst lfe hrel hfrel nI
+  | Ok r =>
+    intro lst lfe hrel hfrel nI
+    rw [cached.state_c.const_val_at_m] at h
+    simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at h
+    obtain ⟨v, hv, h⟩ := h
+    have hvv : v = us := Env.levels_copy_refines hv
+    rw [hvv] at h
+    obtain ⟨o, hprobe, h⟩ := h
+    obtain ⟨hlk, hov⟩ := const_val_at_probe_refines hrel hwf ⟨hn, hus⟩ hprobe
+    rw [absNameLevels] at hlk
+    cases o with
+    | some i =>
       simp at h
-    | some cvp =>
-      obtain ⟨ks, rhs⟩ := cvp
-      obtain ⟨hksw, hrhsw⟩ := hdw (ks, rhs) rfl
-      cases hfind : lfe.find? (absName c) with
-      | none => rw [hfind] at hdv; simp at hdv
-      | some ci =>
-        rw [hfind] at hdv
-        cases ci with
-        | recInfo cv mi rp rules =>
-          simp only [Option.map_some, Option.bind_some] at hdv
-          cases hrule : rules.find? (fun r' => r'.ctor == absName j) with
-          | none =>
-            rw [hrule] at hdv
-            simp at hdv
-          | some rl =>
-            rw [hrule] at hdv
-            simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at hdv
-            obtain ⟨hkse, hrhse⟩ := hdv
+      obtain ⟨rfl, rfl⟩ := h
+      simp only [Option.map_some] at hlk
+      exact ⟨lst, constValAtM_hit hlk.symm, hrel, hwf, hov i rfl⟩
+    | none =>
+      simp only [Option.map_none] at hlk
+      obtain ⟨o1, hdecl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hdv, hdw⟩ := defn_decl_probe_refines hfrel hfwf hn hdecl
+      cases o1 with
+      | none =>
+        exfalso
+        obtain ⟨s1, -, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, -, h⟩ := bind_eq_ok_iff.mp h
+        simp at h
+      | some cvp =>
+        obtain ⟨ks, val⟩ := cvp
+        obtain ⟨hksw, hvalw⟩ := hdw (ks, val) rfl
+        cases hfind : lfe.find? (absName n) with
+        | none => rw [hfind] at hdv; simp at hdv
+        | some ci =>
+          rw [hfind] at hdv
+          cases ci with
+          | defnInfo cv v0 hint =>
+            simp only [Option.map_some, Option.bind_some, Option.some.injEq,
+              Prod.mk.injEq] at hdv
+            obtain ⟨hkse, hvale⟩ := hdv
+            obtain ⟨p, hraw, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨raw, st1⟩ := p
+            obtain ⟨lst1, hrun, hrel1, hwf1, hraww⟩ :=
+              stored_val_idx_m_refines hwf hn hvalw hraw lst hrel
             obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
             obtain ⟨hiv, hiw⟩ :=
-              hinst ks us rhs i hksw hus hrhsw
+              hinst ks us raw i hksw hus hraww
                 (by rw [← inst_level_params_m_eq]; exact hi)
             simp only [ConRon.Refine.State.expr_dup_eq, bind_tc_ok,
               bind_eq_ok_iff] at h
@@ -1818,19 +1765,20 @@ theorem rule_rhs_at_m_refines (hinst : InstLevelParamsRefines)
             simp at h
             obtain ⟨rfl, rfl⟩ := h
             obtain ⟨hrel', hwf'⟩ :=
-              rule_rhs_at_insert_refines hrel hwf ⟨hc, hj, hus⟩ hiw hins
-            rw [absNameNameLevels] at hrel'
-            refine ⟨{ lst with
-                ruleRhsAt := lst.ruleRhsAt.insert
-                  (absName c, absName j, absLevels us) (absExpr i) },
-              ?_, hrel', hwf', hiw⟩
-            rw [ruleRhsAtM_miss hlk.symm hfind hrule, hiv, ← hkse, ← hrhse]
-        | axiomInfo cv0 => simp at hdv
-        | defnInfo cv0 v0 hint => simp at hdv
-        | thmInfo cv0 v0 => simp at hdv
-        | indInfo cv0 caps => simp at hdv
-        | ctorInfo cv0 np nf => simp at hdv
-        | projInfo tbl => simp at hdv
+              const_val_at_insert_refines hrel1 hwf1 ⟨hn, hus⟩ hiw hins
+            rw [absNameLevels] at hrel'
+            refine ⟨{ lst1 with
+                constValAt := lst1.constValAt.insert (absName n, absLevels us)
+                  (absExpr i) }, ?_, hrel', hwf', hiw⟩
+            rw [constValAtM_bind hlk.symm hfind, ← hvale, hrun]
+            simp only [Except.bind]
+            rw [hiv, ← hkse]
+          | axiomInfo cv0 => simp at hdv
+          | thmInfo cv0 v0 => simp at hdv
+          | indInfo cv0 caps => simp at hdv
+          | ctorInfo cv0 np nf => simp at hdv
+          | recInfo cv0 mi rp rules => simp at hdv
+          | projInfo tbl => simp at hdv
 
 /-- `crates/con-ron-core/src/cached/state_c.rs:945` — **the failure half of
 `rule_rhs_at_m`** (task #67).  The port's one `Err` site merges con-leche's
@@ -1884,6 +1832,104 @@ theorem rule_rhs_at_m_err {st st' : cached.state_c.CState} {fe : fenv.FEnv}
       obtain ⟨q, -, h⟩ := h
       obtain ⟨old, m'⟩ := q
       simp at h
+
+/-- `ConLeche/Cached/StateC.lean:369-388` — **`rule_rhs_at_m` refines
+`ruleRhsAtM`** over its whole outcome (task #67): at `.Ok` the accept
+direction, unchanged; at `.Err` the companion `rule_rhs_at_m_err` above, which
+is where that half is proved (it does not need `hinst`, and its own call sites
+do not have one).  The `match` reduces definitionally at `.Ok r`, so a call
+site that knows its callee succeeded reads exactly as it did before. -/
+theorem rule_rhs_at_m_refines (hinst : InstLevelParamsRefines)
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv} {c j : name.Name}
+    {us : alloc.vec.Vec level.Level}
+    {out : core.result.Result expr.Expr core_types.CheckError} (hwf : StateWF st)
+    (hfwf : FEnv.FEnvWF fe) (hc : NameWF c) (hj : NameWF j) (hus : LevelsWF us)
+    (h : cached.state_c.rule_rhs_at_m st fe c j us = ok (out, st')) :
+    ∀ lst lfe, StateRel st lst → FEnv.FEnvRel fe lfe → ∀ cI jI,
+      match out with
+      | .Ok r => ∃ lst',
+        (ConLeche.Cached.ruleRhsAtM lfe cI jI (absName c) (absName j)
+              (absLevels us)).run lst
+            = .ok (absExpr r, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF r
+      | .Err ce =>
+        ErrSim ce
+          ((ConLeche.Cached.ruleRhsAtM lfe cI jI (absName c) (absName j)
+            (absLevels us)).run lst) := by
+  cases out with
+  | Err ce =>
+    exact fun lst lfe hrel hfrel cI jI =>
+      rule_rhs_at_m_err hwf hfwf hc hj hus h lst lfe hrel hfrel cI jI
+  | Ok r =>
+    intro lst lfe hrel hfrel cI jI
+    rw [cached.state_c.rule_rhs_at_m] at h
+    simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at h
+    obtain ⟨v, hv, h⟩ := h
+    have hvv : v = us := Env.levels_copy_refines hv
+    rw [hvv] at h
+    obtain ⟨o, hprobe, h⟩ := h
+    obtain ⟨hlk, hov⟩ :=
+      rule_rhs_at_probe_refines hrel hwf ⟨hc, hj, hus⟩ hprobe
+    rw [absNameNameLevels] at hlk
+    cases o with
+    | some i =>
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      simp only [Option.map_some] at hlk
+      exact ⟨lst, ruleRhsAtM_hit hlk.symm, hrel, hwf, hov i rfl⟩
+    | none =>
+      simp only [Option.map_none] at hlk
+      obtain ⟨o1, hdecl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hdv, hdw⟩ := rule_rhs_probe_refines hfrel hfwf hc hj hdecl
+      cases o1 with
+      | none =>
+        exfalso
+        obtain ⟨s1, -, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, -, h⟩ := bind_eq_ok_iff.mp h
+        simp at h
+      | some cvp =>
+        obtain ⟨ks, rhs⟩ := cvp
+        obtain ⟨hksw, hrhsw⟩ := hdw (ks, rhs) rfl
+        cases hfind : lfe.find? (absName c) with
+        | none => rw [hfind] at hdv; simp at hdv
+        | some ci =>
+          rw [hfind] at hdv
+          cases ci with
+          | recInfo cv mi rp rules =>
+            simp only [Option.map_some, Option.bind_some] at hdv
+            cases hrule : rules.find? (fun r' => r'.ctor == absName j) with
+            | none =>
+              rw [hrule] at hdv
+              simp at hdv
+            | some rl =>
+              rw [hrule] at hdv
+              simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at hdv
+              obtain ⟨hkse, hrhse⟩ := hdv
+              obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨hiv, hiw⟩ :=
+                hinst ks us rhs i hksw hus hrhsw
+                  (by rw [← inst_level_params_m_eq]; exact hi)
+              simp only [ConRon.Refine.State.expr_dup_eq, bind_tc_ok,
+                bind_eq_ok_iff] at h
+              obtain ⟨q, hins, h⟩ := h
+              obtain ⟨old, m'⟩ := q
+              simp at h
+              obtain ⟨rfl, rfl⟩ := h
+              obtain ⟨hrel', hwf'⟩ :=
+                rule_rhs_at_insert_refines hrel hwf ⟨hc, hj, hus⟩ hiw hins
+              rw [absNameNameLevels] at hrel'
+              refine ⟨{ lst with
+                  ruleRhsAt := lst.ruleRhsAt.insert
+                    (absName c, absName j, absLevels us) (absExpr i) },
+                ?_, hrel', hwf', hiw⟩
+              rw [ruleRhsAtM_miss hlk.symm hfind hrule, hiv, ← hkse, ← hrhse]
+          | axiomInfo cv0 => simp at hdv
+          | defnInfo cv0 v0 hint => simp at hdv
+          | thmInfo cv0 v0 => simp at hdv
+          | indInfo cv0 caps => simp at hdv
+          | ctorInfo cv0 np nf => simp at hdv
+          | projInfo tbl => simp at hdv
 
 /-! ## The flush and the converted-constant record -/
 

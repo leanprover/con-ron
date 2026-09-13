@@ -1053,46 +1053,57 @@ theorem subst_const_all_refines {n : name.Name} {v : expr.Expr} (hn : NameWF n)
 /-! ## `lift_fueled` (`core_k.rs:328`)
 
 `Core.lean:108-111 liftFueled`, monomorphic at `Option Bool` with `what` baked
-in (§3.4).  Stated over the full outcome (task #67): `lift_fueled_refines` is
-the `Ok` half and `lift_fueled_err` the mirrored `Err` half, which compares the
-error *kind* only (DESIGN.md §3.1: messages need not match). -/
+in (§3.4).  Stated over the full outcome (task #67): `lift_fueled_refines`
+covers both constructors of the returned `core.result.Result`, and
+`lift_fueled_err` is its `Err` corollary, which compares the error *kind* only
+(DESIGN.md §3.1: messages need not match). -/
 
 /-- **`core_k::lift_fueled` refines `liftFueled "level comparison"`**
-(`Core.lean:108-111`) on the success constructor. -/
-theorem lift_fueled_refines {o : Option Bool} {b : Bool}
-    (h : core_k.lift_fueled o = ok (.Ok b)) :
-    ConLeche.liftFueled (m := ConLeche.CheckM) "level comparison" o = .ok b := by
-  cases o with
-  | none =>
-    simp only [core_k.lift_fueled, bind_eq_ok_iff] at h
-    obtain ⟨s, -, v, -, ce, -, hr⟩ := h
-    simp at hr
-  | some a =>
-    simp only [core_k.lift_fueled, Result.ok.injEq] at h
-    injection h with hab
-    rw [← hab]
-    rfl
+(`Core.lean:108-111`), over the full outcome (task #67): an `Ok` is con-leche's
+`ok` at the same boolean, an `Err` is the mirrored `internal` of
+`Core.lean:111`'s `throw (.internal s!"fuel exhausted: {what}")`. -/
+theorem lift_fueled_refines {o : Option Bool}
+    {r : core.result.Result Bool core_types.CheckError}
+    (h : core_k.lift_fueled o = ok r) :
+    match r with
+    | .Ok b => ConLeche.liftFueled (m := ConLeche.CheckM) "level comparison" o = .ok b
+    | .Err ce =>
+      ErrSim ce (ConLeche.liftFueled (m := ConLeche.CheckM) "level comparison" o) := by
+  cases r with
+  | Ok b =>
+    show ConLeche.liftFueled (m := ConLeche.CheckM) "level comparison" o = .ok b
+    cases o with
+    | none =>
+      simp only [core_k.lift_fueled, bind_eq_ok_iff] at h
+      obtain ⟨s, -, v, -, ce, -, hr⟩ := h
+      simp at hr
+    | some a =>
+      simp only [core_k.lift_fueled, Result.ok.injEq] at h
+      injection h with hab
+      rw [← hab]
+      rfl
+  | Err ce =>
+    show ErrSim ce (ConLeche.liftFueled (m := ConLeche.CheckM) "level comparison" o)
+    cases o with
+    | none =>
+      simp only [core_k.lift_fueled, bind_eq_ok_iff] at h
+      obtain ⟨s, -, v, -, ce1, hce1, hr⟩ := h
+      have h1 : core_types.CheckError.Internal v = ce := by
+        have h2 : ce1 = ce := by simpa using Result.ok_injective hr
+        rw [← h2]
+        exact Result.ok_injective (by rw [core_types.internal] at hce1; exact hce1)
+      rw [← h1]
+      exact ErrSim.internal rfl
+    | some a =>
+      simp only [core_k.lift_fueled] at h
+      exact absurd h (by simp)
 
-/-- **`core_k::lift_fueled`'s failure half** (`core_k.rs:376`, mirroring
-`Core.lean:111`'s `throw (.internal s!"fuel exhausted: {what}")`): the `none`
-arm is `internal` on both sides, and the `some` arm cannot fail.  The message
-is never compared (DESIGN.md §3.1, task #67). -/
+/-- **`core_k::lift_fueled`'s failure half** (`core_k.rs:376`), `lift_fueled_refines`
+at the `Err` constructor. -/
 theorem lift_fueled_err {o : Option Bool} {ce : core_types.CheckError}
     (h : core_k.lift_fueled o = ok (.Err ce)) :
-    ErrSim ce (ConLeche.liftFueled (m := ConLeche.CheckM) "level comparison" o) := by
-  cases o with
-  | none =>
-    simp only [core_k.lift_fueled, bind_eq_ok_iff] at h
-    obtain ⟨s, -, v, -, ce1, hce1, hr⟩ := h
-    have h1 : core_types.CheckError.Internal v = ce := by
-      have h2 : ce1 = ce := by simpa using Result.ok_injective hr
-      rw [← h2]
-      exact Result.ok_injective (by rw [core_types.internal] at hce1; exact hce1)
-    rw [← h1]
-    exact ErrSim.internal rfl
-  | some a =>
-    simp only [core_k.lift_fueled] at h
-    exact absurd h (by simp)
+    ErrSim ce (ConLeche.liftFueled (m := ConLeche.CheckM) "level comparison" o) :=
+  lift_fueled_refines h
 
 /-! ## The four closed fuel budgets
 

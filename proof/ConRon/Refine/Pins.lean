@@ -71,8 +71,8 @@ namespace ConRon.Refine
 the byte slice `t` and returns `v`, then `ConRon.Dump.parsePins` — the Lean
 reader of `con-ron-pins/1` that task #31 validated against con-leche's own
 `natOpPinSets` — accepts `absText t` and returns the same list of variants.
-The exact-result shape of DESIGN.md §3.5: nothing is claimed when the Rust
-decoder fails, which is what makes the port's extra strictness free.
+Nothing is claimed when the Rust decoder fails, which is what makes the port's
+extra strictness free.
 
 **Proved** (task #64), through the byte-level reference decoder
 `ConRon.Refine.PinsDec`, which is `kernel::pins_decode` function for function
@@ -90,14 +90,40 @@ below it, in the same dependency order:
 5. `Refine/PinsSplit.lean` + `Refine/PinsRead.lean` — the tokenizer bridge:
    `String.splitOn` at a one-character separator, and the two invariants
    ("the bytes left are the lines left, joined by `'\n'`"; "…the fields left,
-   joined by `' '`") that carry the record pass onto `runLines`. -/
-theorem pins_decode_refines (t : Str) (v : alloc.vec.Vec nat_op_pins.NatOpPinSet)
+   joined by `' '`") that carry the record pass onto `runLines`.
+
+**Over the whole outcome** (task #67, DESIGN.md §3's ruling of 2026-09-13):
+the `.Err` branch claims *nothing*, and has to.  `kernel::pins_decode` is the
+one module of the port whose errors are wholly its own — con-leche has no byte
+decoder to mirror, its `natOpPinSets` being elaboration-time data
+(`ConLeche/Kernel/NatOpPins.lean:61`) — so all twenty-eight of its throws go
+through `pins_decode::bad_text`, a `CheckError::Native`, and `absErrKind` sends
+every one of them to `none`.  `Refine/PinsBytes.lean`'s `bad_text_native` is
+where that is pinned down.
+
+The outcome is an explicit argument because the result binder `v` it replaces
+was one; `pins_decode_refines_ok` below is the pre-#67 statement, verbatim. -/
+theorem pins_decode_refines (t : Str)
+    (o : core.result.Result (alloc.vec.Vec nat_op_pins.NatOpPinSet)
+        core_types.CheckError)
+    (h : pins_decode.decode t = ok o) :
+    match o with
+    | .Ok v => ConRon.Dump.parsePins (absText t) = .ok (absPins v)
+    | .Err ce => absErrKind ce = none := by
+  cases o with
+  | Err ce => exact PinsRun.decode_refines h
+  | Ok v =>
+    have hA : PinsDec.decode (bytesOf t) = some (absPins v) := PinsRun.decode_refines h
+    have hasc := PinsDec.decode_ascii hA
+    rw [PinsSplit.absText_of_ascii hasc]
+    exact PinsRead.parsePins_of_decode hA hasc
+
+/-- `pins_decode_refines` at a success, the pre-#67 statement. -/
+theorem pins_decode_refines_ok (t : Str)
+    (v : alloc.vec.Vec nat_op_pins.NatOpPinSet)
     (h : pins_decode.decode t = ok (.Ok v)) :
-    ConRon.Dump.parsePins (absText t) = .ok (absPins v) := by
-  have hA := PinsRun.decode_refines h
-  have hasc := PinsDec.decode_ascii hA
-  rw [PinsSplit.absText_of_ascii hasc]
-  exact PinsRead.parsePins_of_decode hA hasc
+    ConRon.Dump.parsePins (absText t) = .ok (absPins v) :=
+  pins_decode_refines t (.Ok v) h
 
 /-! ## The closed computation
 
@@ -182,17 +208,40 @@ what it decodes to.
 **Proved** (task #56): task #43 left this `sorry` because the tier below it
 was not refined either, but the composition needs nothing from that tier — it
 is `pins_decode_refines` at `PINS_TEXT` against `pins_text_decodes`, and
-`Except.ok` is injective. -/
+`Except.ok` is injective.
+
+**Over the whole outcome** (task #67).  The statement is not about a con-leche
+`Except` at all — there is no con-leche decoder — so its `.Err` branch is the
+`Native` half of the convention spelled directly: `absErrKind ce = none`, which
+is `ErrSim`'s vacuous case and claims nothing.  It is `decode`'s own failure
+half, carried up from `pins_decode_refines`; `bad_text` is the only way
+`decode_embedded` can fail.  The outcome is an explicit argument because the
+result binder `v` it replaces was one, and `check_decls_pins_refines_ok` below
+is the pre-#67 statement, verbatim. -/
 theorem check_decls_pins_refines
-    (v : alloc.vec.Vec nat_op_pins.NatOpPinSet)
-    (h : pins_decode.decode_embedded = ok (.Ok v)) :
-    absPins v = ConLeche.natOpPinSets := by
+    (o : core.result.Result (alloc.vec.Vec nat_op_pins.NatOpPinSet)
+        core_types.CheckError)
+    (h : pins_decode.decode_embedded = ok o) :
+    match o with
+    | .Ok v => absPins v = ConLeche.natOpPinSets
+    | .Err ce => absErrKind ce = none := by
   rw [pins_decode.decode_embedded, core.str.Str.as_bytes] at h
   obtain ⟨t, ht, h2⟩ := bind_eq_ok_iff.mp h
   rw [show t = pins_text.PINS_TEXT from Result.ok_injective ht.symm] at h2
-  have h1 := pins_decode_refines pins_text.PINS_TEXT v h2
-  rw [pins_text_decodes] at h1
-  exact (Except.ok.inj h1).symm
+  cases o with
+  | Err ce => exact pins_decode_refines pins_text.PINS_TEXT _ h2
+  | Ok v =>
+    have h1 : ConRon.Dump.parsePins (absText pins_text.PINS_TEXT)
+        = .ok (absPins v) := pins_decode_refines pins_text.PINS_TEXT _ h2
+    rw [pins_text_decodes] at h1
+    exact (Except.ok.inj h1).symm
+
+/-- `check_decls_pins_refines` at a success, the pre-#67 statement. -/
+theorem check_decls_pins_refines_ok
+    (v : alloc.vec.Vec nat_op_pins.NatOpPinSet)
+    (h : pins_decode.decode_embedded = ok (.Ok v)) :
+    absPins v = ConLeche.natOpPinSets :=
+  check_decls_pins_refines (.Ok v) h
 
 /-! ## The census (DESIGN.md §5)
 

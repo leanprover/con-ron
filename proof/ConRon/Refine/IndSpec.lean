@@ -150,5 +150,86 @@ structure IndRoutesSpecP (mode : env.CheckMode) : Prop where
           ∧ StateWF st' ∧ FEnvWF fe'
           ∧ FEnvCanon fe' ∧ FEnvFull fe'
 
+/-! ## The failure half of the seam (task #67 continued)
+
+DESIGN.md §3's ruling of 2026-09-13 states every refinement lemma over the
+**whole** outcome, and `cached::parsed_c::check_ind_decl_c`'s `.indDecl` arm is
+no exception: at a mirrored `Err` from either route its refinement has to say
+that con-leche throws at the same kind.  What the consumer needs there is
+*two* facts, not one — that con-leche's dispatch took the **same branch**, and
+that that branch throws — because `checkDeclC` reaches `checkNativeS` or
+`checkIndDeclSF` only through `nativeParts?`.  Hence the recogniser's verdict
+appears in the failure clause exactly as it does in the accept one.
+
+**Why a sibling structure rather than a `match` inside `IndRoutesSpec`.**  The
+two halves have different consumers and became ready at different times: the
+checker tier above (`Refine/CheckerDecl.lean`, `Refine/Installed.lean`) needs
+the failure half as soon as it is restated, while the producer below
+(`Refine/IndC.lean`, and through `IndIngredients` the whole `Ind*` tier) is a
+later layer of the same campaign.  Splitting keeps `IndRoutesSpec` — and every
+accept-direction proof stated through it — **verbatim**, which is what the
+ruling asks of a restatement.  `Refine/IndC.lean`'s `ind_routes_spec_err'`
+discharges this one from the knot beside `ind_routes_spec'`, and the two travel
+together through the tower as `hind` and `hinde`.  The same sibling pattern is
+what `Refine/IndNativeInstall.lean`'s four `*Err` ingredients use. -/
+
+/-- **The failure half of `IndRoutesSpec`**: when either inductive install
+route throws a *mirrored* error, con-leche's dispatch reached the same route
+and that route throws at the same kind.  The port's own `Native` claims
+nothing, as everywhere (`ErrSim`). -/
+structure IndRoutesSpecErr (mode : env.CheckMode) : Prop where
+  /-- Route A threw: `nativeParts?` recognised the block too, and
+  `checkNativeS` throws at the same kind. -/
+  native : ∀ (st : cached.state_c.CState) (fe : fenv.FEnv)
+      (n_p : Std.U64) (block : alloc.vec.Vec env.ConstantInfo)
+      (p : inductives.native_parts.NativeParts)
+      (e : core_types.CheckError) (st' : cached.state_c.CState),
+    StateWF st → FEnvWF fe → FEnvCanon fe → FEnvFull fe →
+    ConstantInfosWF block →
+    inductives.native_parts.native_parts n_p block = ok (some p) →
+    inductives.inductives_c.check_native_s mode st fe p = ok (.Err e, st') →
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ∃ lp, ConLeche.nativeParts? n_p.val (absConstantInfos block) = some lp
+        ∧ ErrSim e ((ConLeche.Cached.checkNativeS (absMode mode) lfe lp).run lst)
+  /-- Route B threw: `nativeParts?` declined too, and `checkIndDeclSF` throws
+  at the same kind. -/
+  modeled : ∀ (st : cached.state_c.CState) (fe : fenv.FEnv)
+      (n_p : Std.U64) (block : alloc.vec.Vec env.ConstantInfo)
+      (e : core_types.CheckError) (st' : cached.state_c.CState),
+    StateWF st → FEnvWF fe → FEnvCanon fe → FEnvFull fe →
+    ConstantInfosWF block →
+    inductives.native_parts.native_parts n_p block = ok none →
+    inductives.inductives_c.check_ind_decl_s mode st fe block = ok (.Err e, st') →
+    ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+      ConLeche.nativeParts? n_p.val (absConstantInfos block) = none
+      ∧ ErrSim e ((ConLeche.Cached.checkIndDeclSF (absMode mode) lfe
+            (absConstantInfos block)).run lst)
+
+/-- **The producer's form of the failure half**: the two routes on
+already-recognised parts, without the recogniser clause.  `IndRoutesSpecErr`
+follows from it through `native_parts_refines`, exactly as `IndRoutesSpec`
+follows from `IndRoutesSpecP`. -/
+structure IndRoutesSpecPErr (mode : env.CheckMode) : Prop where
+  /-- The direct (fixpoint) route's mirrored throw. -/
+  checkNative :
+    ∀ st fe p0 (e : core_types.CheckError) st',
+      StateWF st → FEnvWF fe → FEnvCanon fe → FEnvFull fe →
+      IndAbs.NativePartsWF p0 →
+      kernel.inductives.inductives_c.check_native_s mode st fe p0
+          = ok (.Err e, st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ErrSim e ((ConLeche.Cached.checkNativeS (absMode mode) lfe
+            (IndAbs.absNativeParts p0)).run lst)
+  /-- The modeled route's mirrored throw. -/
+  checkIndDecl :
+    ∀ st fe block (e : core_types.CheckError) st',
+      StateWF st → FEnvWF fe → FEnvCanon fe → FEnvFull fe →
+      ConstantInfosWF block →
+      kernel.inductives.inductives_c.check_ind_decl_s mode st fe block
+          = ok (.Err e, st') →
+      ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
+        ErrSim e ((ConLeche.Cached.checkIndDeclSF (absMode mode) lfe
+            (absConstantInfos block)).run lst)
+
 
 end ConRon.Refine

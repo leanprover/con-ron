@@ -84,10 +84,26 @@ cited term.  Every composition against the cited code is therefore closed with
 — and `runBind_compose` is the one helper that makes that possible for a
 two-stage `do` block, by taking the stages from the goal.
 
+## The full outcome (task #67)
+
+Every lemma here is stated over the Rust computation's **whole** inner
+outcome: `.Ok r` is the accept direction, unchanged, and `.Err e` is
+`ErrSim e` — con-leche throws at the same kind.  `inductives_c.rs`' six
+`CheckError` construction sites are all *mirrored* (DESIGN.md task #67 §1), so
+every one of them is proved and none is excused with `ErrSim.native`.  The
+four throws the drivers own are the modeled route's unpinned `Eq` basis, its
+eta constructor residual and taken projection name family, its block whose
+recursors do not form a suffix, and the direct route's duplicate constructor
+names and unsettled capability record; everything else is a bind whose callee
+threw.  `ind_routes_spec_err` / `ind_routes_spec_err_of_p` /
+`ind_routes_spec_err'` at the bottom are the seam's failure half, the exact
+mirror of the three accept ones.
+
 The statements are the exact-result ones and nothing below is weakened.  The
-two `#print axioms` censuses at the bottom are machine-checked with
+four `#print axioms` censuses at the bottom are machine-checked with
 `#guard_msgs`: `sorryAx` leaving them is the gate that says the inductive tier
-is closed, and as of task #62 **both are clean**.
+is closed, and as of task #62 (accept) and task #67 (failure) **all are
+clean**.
 -/
 import ConRon.Refine.IndSpec
 import ConRon.Refine.IndStructParts
@@ -137,6 +153,24 @@ def checkIndDeclStructS (mode : ConLeche.CheckMode) (lfe : ConLeche.FEnv)
       fe₃
   else pure fe₃
 
+/-- The two entry points' conclusion, as one **definition** (task #67).
+
+A `match out with` written into the goal is the first thing a goal-side `split`
+fires on, and both entry points need `split` for the *cited* code's own
+`match`es — `checkIndDeclSF`'s two filters, `checkNativeS`' guards.  Wrapping
+the outcome in a `def` keeps it out of `split`'s way; it unfolds definitionally
+at either constructor, so the public statements stay the plain `match` the
+convention asks for and this is only ever a `suffices` inside a proof. -/
+private def OutFE (st' : cached.state_c.CState)
+    (o : core.result.Result fenv.FEnv core_types.CheckError)
+    (x : Except ConLeche.CheckError (ConLeche.FEnv × ConLeche.Cached.CState)) :
+    Prop :=
+  match o with
+  | .Ok fe' =>
+    ∃ lst' lfe', x = .ok (lfe', lst') ∧ StateRel st' lst' ∧ FEnvRel fe' lfe'
+      ∧ StateWF st' ∧ FEnvWF fe' ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+  | .Err e => ErrSim e x
+
 /-! ## Two shims the compositions below need -/
 
 /-- A `throw` swallows the rest of its `do` block: in `StateT CState (Except …)`
@@ -144,6 +178,48 @@ def checkIndDeclStructS (mode : ConLeche.CheckMode) (lfe : ConLeche.FEnv)
 without the phase's flush. -/
 private theorem throwC_bind {α β : Type} (e : ConLeche.CheckError)
     (g : α → ConLeche.Cached.CheckCM β) : (throw e >>= g) = throw e := rfl
+
+/-- `core_types::not_implemented` is the constructor (task #67).  This file's
+copy of `Refine/CheckerDecl.lean`'s. -/
+private theorem not_implemented_val {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.not_implemented v = ok ce) :
+    ce = .NotImplemented v := by
+  rw [core_types.not_implemented] at h; exact (Result.ok_injective h).symm
+
+/-- A mirrored `throw` at `notImplemented`: the port's error came out of
+`core_types::not_implemented`, and the cited side has been rewritten down to its
+own `throw`.  The two routes' drivers meet exactly one such site each. -/
+private theorem errSim_notImplemented {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.not_implemented v = ok ce)
+    (hx : x = .error (.notImplemented ls)) : ErrSim ce x := by
+  rw [not_implemented_val hce]; exact ErrSim.notImplemented hx
+
+/-- `core_types::invalid` is the constructor. -/
+private theorem invalid_val {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.invalid v = ok ce) :
+    ce = .Invalid v := by
+  rw [core_types.invalid] at h; exact (Result.ok_injective h).symm
+
+/-- A mirrored `throw` at `invalid`, the same bookkeeping. -/
+private theorem errSim_invalid {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.invalid v = ok ce)
+    (hx : x = .error (.invalid ls)) : ErrSim ce x := by
+  rw [invalid_val hce]; exact ErrSim.invalid hx
+
+/-- `core_types::internal` is the constructor. -/
+private theorem internal_val {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.internal v = ok ce) :
+    ce = .Internal v := by
+  rw [core_types.internal] at h; exact (Result.ok_injective h).symm
+
+/-- A mirrored `throw` at `internal`, the same bookkeeping. -/
+private theorem errSim_internal {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.internal v = ok ce)
+    (hx : x = .error (.internal ls)) : ErrSim ce x := by
+  rw [internal_val hce]; exact ErrSim.internal hx
 
 /-- Two stages' runs composed, **without naming either stage**.  The cited code
 and this file spell the same `match` with different auxiliary matchers, so a
@@ -156,6 +232,26 @@ private theorem runBind_compose {α : Type}
     {lst lst1 lst' : ConLeche.Cached.CState} {x : ConLeche.FEnv} {y : α}
     (hA : A.run lst = .ok (x, lst1)) (hB : (B x).run lst1 = .ok (y, lst')) :
     (A >>= B).run lst = .ok (y, lst') := by
+  simp only [StateT.run_bind, hA, NativeInstall.exceptOk_bind]
+  exact hB
+
+/-- `runBind_compose`' two failure halves (task #67), taking the stages from the
+goal the same way: the first stage threw, or it succeeded and the second did. -/
+private theorem runBind_head_err {α : Type}
+    {A : ConLeche.Cached.CheckCM ConLeche.FEnv}
+    {B : ConLeche.FEnv → ConLeche.Cached.CheckCM α}
+    {lst : ConLeche.Cached.CState} {e : core_types.CheckError}
+    (hA : ErrSim e (A.run lst)) : ErrSim e ((A >>= B).run lst) :=
+  ErrSim.bindCM hA
+
+/-- The same at a first stage that succeeded and a second that threw. -/
+private theorem runBind_tail_err {α : Type}
+    {A : ConLeche.Cached.CheckCM ConLeche.FEnv}
+    {B : ConLeche.FEnv → ConLeche.Cached.CheckCM α}
+    {lst lst1 : ConLeche.Cached.CState} {x : ConLeche.FEnv}
+    {e : core_types.CheckError}
+    (hA : A.run lst = .ok (x, lst1)) (hB : ErrSim e ((B x).run lst1)) :
+    ErrSim e ((A >>= B).run lst) := by
   simp only [StateT.run_bind, hA, NativeInstall.exceptOk_bind]
   exact hB
 
@@ -187,6 +283,63 @@ private theorem provisionRecsS_cons {lmode : ConLeche.CheckMode}
       = .ok ((fe2, tail), lst2)) :
     (ConLeche.Cached.provisionRecsS lmode blockNames feAcc (ci :: rest)).run lst
       = .ok ((fe2, (cv, mI, rP, rules) :: tail), lst2) := by
+  cases ci
+  case recInfo cv0 mI0 rP0 rules0 =>
+    rw [Modeled.provisionRecsStepN] at h1
+    rw [ConLeche.Cached.provisionRecsS]
+    rw [StateT.run_bind, StateC.flushC_run, NativeInstall.exceptOk_bind]
+    simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure] at h1 h2 ⊢
+    split at h1
+    · simp at h1
+    · rename_i v heq
+      simp only [Except.ok.injEq, Prod.mk.injEq] at h1
+      obtain ⟨⟨rfl, rfl, rfl, rfl, rfl⟩, rfl⟩ := h1
+      rw [h2]
+  all_goals
+    simp [Modeled.provisionRecsStepN, StateT.run, throw, throwThe,
+      MonadExceptOf.throw, StateT.lift, Bind.bind, Except.bind] at h1
+
+/-- `provisionRecsS_cons`' failure halves (task #67).  The cons arm throws
+exactly what its step threw, and — the step having succeeded — exactly what its
+tail threw; the per-recursor `flushC` in front cannot throw, so the two are the
+whole of the arm's failure behaviour. -/
+private theorem provisionRecsS_cons_err {lmode : ConLeche.CheckMode}
+    {blockNames : List ConLeche.Name} {feAcc : ConLeche.FEnv}
+    {ci : ConLeche.ConstantInfo} {rest : List ConLeche.ConstantInfo}
+    {lst : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+    (h1 : (Modeled.provisionRecsStepN lmode blockNames feAcc ci).run lst.flushed
+      = .error le) :
+    (ConLeche.Cached.provisionRecsS lmode blockNames feAcc (ci :: rest)).run lst
+      = .error le := by
+  cases ci
+  case recInfo cv0 mI0 rP0 rules0 =>
+    rw [Modeled.provisionRecsStepN] at h1
+    rw [ConLeche.Cached.provisionRecsS]
+    rw [StateT.run_bind, StateC.flushC_run, NativeInstall.exceptOk_bind]
+    simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure] at h1 ⊢
+    split at h1
+    · simp only [Except.error.injEq] at h1 ⊢
+      exact h1
+    · simp at h1
+  all_goals
+    simp_all [Modeled.provisionRecsStepN, ConLeche.Cached.provisionRecsS,
+      StateT.run, throw, throwThe, MonadExceptOf.throw, StateT.lift, Bind.bind,
+      Except.bind]
+
+/-- The same at a step that succeeded and a tail that threw. -/
+private theorem provisionRecsS_cons_tail_err {lmode : ConLeche.CheckMode}
+    {blockNames : List ConLeche.Name} {feAcc fe1 : ConLeche.FEnv}
+    {ci : ConLeche.ConstantInfo} {rest : List ConLeche.ConstantInfo}
+    {cv : ConLeche.ConstantVal} {mI rP : Nat} {rules : List ConLeche.RecRule}
+    {lst lst1 : ConLeche.Cached.CState} {le : ConLeche.CheckError}
+    (h1 : (Modeled.provisionRecsStepN lmode blockNames feAcc ci).run lst.flushed
+      = .ok ((fe1, cv, mI, rP, rules), lst1))
+    (h2 : (ConLeche.Cached.provisionRecsS lmode blockNames fe1 rest).run lst1
+      = .error le) :
+    (ConLeche.Cached.provisionRecsS lmode blockNames feAcc (ci :: rest)).run lst
+      = .error le := by
   cases ci
   case recInfo cv0 mI0 rP0 rules0 =>
     rw [Modeled.provisionRecsStepN] at h1
@@ -443,46 +596,68 @@ include hw
 `checkIndMember`'s body. -/
 theorem check_ind_member_s_refines
     {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
-    {caps : env.IndCaps} {fe fe' : fenv.FEnv} {ci : env.ConstantInfo}
+    {caps : env.IndCaps} {fe : fenv.FEnv} {ci : env.ConstantInfo}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hbn : NamesWF block_names)
     (hcaps : IndCapsWF caps) (hci : ConstantInfoWF ci)
     (h : inductives.inductives_c.check_ind_member_s mode st block_names caps fe ci
-        = ok (.Ok fe', st')) :
+        = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.checkIndMemberS (absMode mode) (absNames block_names)
-            (absIndCaps caps) lfe (absConstantInfo ci)).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
-  -- `StateC.flush_c_refines` then `IndModeled`'s `check_ind_member` stage
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.checkIndMemberS (absMode mode) (absNames block_names)
+              (absIndCaps caps) lfe (absConstantInfo ci)).run lst = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.checkIndMemberS (absMode mode)
+          (absNames block_names) (absIndCaps caps) lfe
+          (absConstantInfo ci)).run lst) := by
+  -- `StateC.flush_c_refines` then `IndModeled`'s `check_ind_member` stage; the
+  -- flush cannot throw, so *both* halves are the stage's, past the flush
   intro lst lfe hrel hfer
   rw [inductives.inductives_c.check_ind_member_s] at h
   obtain ⟨st1, hflush, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hfrun, hrel1, hwf1, _⟩ := StateC.flush_c_refines hrel hst hflush
-  obtain ⟨lst', lfe', hrun, hrel2, hfrel2, hwf2, hfwf2⟩ :=
+  have hbody :=
     Modeled.check_ind_member_refines hw (IndIngredients.checkerBaseSpec hw) hwf1
       hfe hbn hcaps hci h lst.flushed lfe hrel1 hfer
-  refine ⟨lst', lfe', ?_, hrel2, hfrel2, hwf2, hfwf2⟩
-  rw [checkIndMemberS_eq]
-  simp only [StateT.run_bind, StateC.flushC_run, NativeInstall.exceptOk_bind]
-  exact hrun
+  cases out with
+  | Ok fe' =>
+    obtain ⟨lst', lfe', hrun, hrel2, hfrel2, hwf2, hfwf2⟩ := hbody
+    refine ⟨lst', lfe', ?_, hrel2, hfrel2, hwf2, hfwf2⟩
+    rw [checkIndMemberS_eq]
+    simp only [StateT.run_bind, StateC.flushC_run, NativeInstall.exceptOk_bind]
+    exact hrun
+  | Err e =>
+    rw [checkIndMemberS_eq]
+    simp only [StateT.run_bind, StateC.flushC_run, NativeInstall.exceptOk_bind]
+    exact hbody
 
 /-- `ConLeche/Cached/CheckerC.lean:233-268` — `check_ind_members_s` refines
 `nonrecs.foldlM (checkIndMemberS mode blockNames caps) fe`, as an index
 recursion over the filtered members. -/
 theorem check_ind_members_s_refines
     {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
-    {caps : env.IndCaps} {fe fe' : fenv.FEnv}
+    {caps : env.IndCaps} {fe : fenv.FEnv}
     {nonrecs : alloc.vec.Vec env.ConstantInfo} {i : Std.Usize}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hbn : NamesWF block_names)
     (hcaps : IndCapsWF caps) (hnr : ConstantInfosWF nonrecs)
     (h : inductives.inductives_c.check_ind_members_s mode st block_names caps fe
-        nonrecs i = ok (.Ok fe', st')) :
+        nonrecs i = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (((absConstantInfos nonrecs).drop i.val).foldlM
-            (ConLeche.Cached.checkIndMemberS (absMode mode) (absNames block_names)
-              (absIndCaps caps)) lfe).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (((absConstantInfos nonrecs).drop i.val).foldlM
+              (ConLeche.Cached.checkIndMemberS (absMode mode) (absNames block_names)
+                (absIndCaps caps)) lfe).run lst = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+      | .Err e =>
+        ErrSim e ((((absConstantInfos nonrecs).drop i.val).foldlM
+          (ConLeche.Cached.checkIndMemberS (absMode mode) (absNames block_names)
+            (absIndCaps caps)) lfe).run lst) := by
   generalize hd : nonrecs.length - i.val = d
   induction d using Nat.strong_induction_on generalizing st fe i with
   | _ d ih =>
@@ -495,7 +670,7 @@ theorem check_ind_members_s_refines
         apply List.drop_eq_nil_of_le
         simp only [absConstantInfos, List.length_map]
         scalar_tac
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact ⟨lst, lfe, by
         simp only [hnil, List.foldlM_nil, StateT.run, Pure.pure, StateT.pure]
@@ -509,29 +684,49 @@ theorem check_ind_members_s_refines
       simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
       obtain ⟨p, hstep, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r, st1⟩ := p
+      have hlt2 : i.val < (absConstantInfos nonrecs).length := by
+        simpa [absConstantInfos] using hlt'
+      have hciwf : ConstantInfoWF nonrecs.val[i.val] := hnr _ (List.getElem_mem hlt')
       cases r with
-      | Err e => simp at h
+      | Err e =>
+        -- the member threw: the fold's head threw, and the rest never runs
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        have hmem :=
+          check_ind_member_s_refines hw hst hfe hbn hcaps hciwf hstep lst lfe hrel hfer
+        have hcons : (absConstantInfos nonrecs).drop i.val
+            = absConstantInfo nonrecs.val[i.val]
+              :: (absConstantInfos nonrecs).drop (i.val + 1) := by
+          rw [List.drop_eq_getElem_cons hlt2]
+          simp [absConstantInfos]
+        rw [hcons, List.foldlM_cons]
+        exact ErrSim.bindCM hmem
       | Ok fe2 =>
         obtain ⟨i2, hi2, h⟩ := by simpa using bind_eq_ok_iff.mp (by simpa using h)
         have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
-        have hciwf : ConstantInfoWF nonrecs.val[i.val] := hnr _ (List.getElem_mem hlt')
         obtain ⟨lst1, lfe1, hrun1, hrel1, hfer1, hwf1, hfew1⟩ :=
           check_ind_member_s_refines hw hst hfe hbn hcaps hciwf hstep lst lfe hrel hfer
-        obtain ⟨lst', lfe', hrunr, hrelr, hferr, hwfr, hfewr⟩ :=
+        have htail :=
           ih (nonrecs.length - i2.val) (by scalar_tac) hwf1 hfew1 h rfl lst1 lfe1
             hrel1 hfer1
-        refine ⟨lst', lfe', ?_, hrelr, hferr, hwfr, hfewr⟩
-        have hlt2 : i.val < (absConstantInfos nonrecs).length := by
-          simpa [absConstantInfos] using hlt'
         have hcons : (absConstantInfos nonrecs).drop i.val
             = absConstantInfo nonrecs.val[i.val]
               :: (absConstantInfos nonrecs).drop i2.val := by
           rw [List.drop_eq_getElem_cons hlt2, hi2v]
           simp [absConstantInfos]
-        rw [hcons, List.foldlM_cons]
-        simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at hrun1 hrunr ⊢
-        rw [hrun1]
-        exact hrunr
+        cases out with
+        | Ok fe' =>
+          obtain ⟨lst', lfe', hrunr, hrelr, hferr, hwfr, hfewr⟩ := htail
+          refine ⟨lst', lfe', ?_, hrelr, hferr, hwfr, hfewr⟩
+          rw [hcons, List.foldlM_cons]
+          simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at hrun1 hrunr ⊢
+          rw [hrun1]
+          exact hrunr
+        | Err e =>
+          rw [hcons, List.foldlM_cons]
+          simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at hrun1 htail ⊢
+          rw [hrun1]
+          exact htail
 
 /-- The members' fold keeps the **unrestricted-canonical** pair: every step is
 one `fenv::push` (`check_ind_member_s_canon`).  `check_ind_decl_struct_s` needs
@@ -592,31 +787,36 @@ private theorem provision_recs_s_val
     {fe_acc : fenv.FEnv} {recs : alloc.vec.Vec env.ConstantInfo} {i : Std.Usize}
     {out : alloc.vec.Vec (env.ConstantVal × Std.U64 × Std.U64
       × alloc.vec.Vec env.RecRule)}
-    {q : fenv.FEnv × alloc.vec.Vec (env.ConstantVal × Std.U64 × Std.U64
-      × alloc.vec.Vec env.RecRule)}
+    {oq : core.result.Result (fenv.FEnv × alloc.vec.Vec (env.ConstantVal × Std.U64
+      × Std.U64 × alloc.vec.Vec env.RecRule)) core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe_acc) (hbn : NamesWF block_names)
     (hrecs : ConstantInfosWF recs)
     (h : inductives.inductives_c.provision_recs_s mode st block_names fe_acc recs
-        i out = ok (.Ok q, st')) :
+        i out = ok (oq, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe_acc lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.provisionRecsS (absMode mode) (absNames block_names) lfe
-            ((absConstantInfos recs).drop i.val)).run lst
-          = .ok ((lfe', absCheckedRecs q.2 |>.drop (absCheckedRecs out).length),
-              lst')
-        ∧ absCheckedRecs q.2 = absCheckedRecs out
-            ++ (absCheckedRecs q.2).drop (absCheckedRecs out).length
-        ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1
-        ∧ ((∀ c ∈ out.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2) →
-            ∀ c ∈ q.2.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2) := by
+      match oq with
+      | .Ok q =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.provisionRecsS (absMode mode) (absNames block_names) lfe
+              ((absConstantInfos recs).drop i.val)).run lst
+            = .ok ((lfe', absCheckedRecs q.2 |>.drop (absCheckedRecs out).length),
+                lst')
+          ∧ absCheckedRecs q.2 = absCheckedRecs out
+              ++ (absCheckedRecs q.2).drop (absCheckedRecs out).length
+          ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1
+          ∧ ((∀ c ∈ out.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2) →
+              ∀ c ∈ q.2.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2)
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.provisionRecsS (absMode mode)
+          (absNames block_names) lfe ((absConstantInfos recs).drop i.val)).run lst) := by
   generalize hd : recs.length - i.val = d
-  induction d using Nat.strong_induction_on generalizing st fe_acc i out q with
+  induction d using Nat.strong_induction_on generalizing st fe_acc i out oq with
   | _ d ih =>
     intro lst lfe hrel hfer
     rw [inductives.inductives_c.provision_recs_s] at h
     split at h
     · rename_i hge
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       have hnil : (absConstantInfos recs).drop i.val = [] := by
         apply List.drop_eq_nil_of_le
@@ -635,10 +835,24 @@ private theorem provision_recs_s_val
       subst hyv
       simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
       have hciwf : ConstantInfoWF recs.val[i.val] := hrecs _ (List.getElem_mem hlt)
+      have hlt2 : i.val < (absConstantInfos recs).length := by
+        simpa [absConstantInfos] using hlt
+      have hcons : (absConstantInfos recs).drop i.val
+          = absConstantInfo recs.val[i.val]
+            :: (absConstantInfos recs).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt2]; simp [absConstantInfos]
       obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r, st2⟩ := p
       cases r with
-      | Err err => simp at h
+      | Err err =>
+        -- the step threw: the cons arm throws it, past its own flush
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        have hstep :=
+          Modeled.provision_recs_step_refines hw (IndIngredients.checkerBaseSpec hw)
+            hwff hfe hbn hciwf hp lst.flushed lfe hrelf hfer
+        rw [hcons]
+        exact hstep.trans fun le hle => provisionRecsS_cons_err hle
       | Ok q0 =>
         obtain ⟨fe1, cv, mi, rp, rules⟩ := q0
         obtain ⟨lst1, lfe1, hrun1, hrel1, hprel1, hwf1, hpwf1, hcvwf, hruleswf⟩ :=
@@ -656,40 +870,42 @@ private theorem provision_recs_s_val
           · simp only [List.mem_singleton] at hc
             subst hc
             exact ⟨hcvwf, hruleswf⟩
-        obtain ⟨lst', lfe', hrunT, hdrop, hrel', hprel', hwf', hpwf', hqwf⟩ :=
+        have htail :=
           ih (recs.length - i4.val) (by scalar_tac) hwf1 hpwf1 h rfl lst1 lfe1
             hrel1 hprel1
-        rw [hi4v] at hrunT
         have hout1v : absCheckedRecs out1
             = absCheckedRecs out
               ++ [(absConstantVal cv, mi.val, rp.val, absRecRules rules)] := by
           rw [absCheckedRecs, vec_push_val hout1, List.map_append]
           rfl
-        have hlt2 : i.val < (absConstantInfos recs).length := by
-          simpa [absConstantInfos] using hlt
-        have hcons : (absConstantInfos recs).drop i.val
-            = absConstantInfo recs.val[i.val]
-              :: (absConstantInfos recs).drop (i.val + 1) := by
-          rw [List.drop_eq_getElem_cons hlt2]; simp [absConstantInfos]
-        rw [hout1v] at hdrop hrunT
-        simp only [List.length_append, List.length_cons, List.length_nil,
-          Nat.zero_add] at hdrop hrunT
-        have hkey : (absCheckedRecs q.2).drop (absCheckedRecs out).length
-            = (absConstantVal cv, mi.val, rp.val, absRecRules rules)
-              :: (absCheckedRecs q.2).drop ((absCheckedRecs out).length + 1) := by
-          conv_lhs => rw [hdrop]
-          rw [show (absCheckedRecs out).length
-              = (absCheckedRecs out
-                ++ [(absConstantVal cv, mi.val, rp.val,
-                    absRecRules rules)]).length - 1 by simp]
-          simp
-        refine ⟨lst', lfe', ?_, ?_, hrel', hprel', hwf', hpwf',
-          fun hout => hqwf (hout1wf hout)⟩
-        · rw [hcons, hkey]
-          exact provisionRecsS_cons hrun1 hrunT
-        · rw [hkey]
-          conv_lhs => rw [hdrop]
-          simp
+        cases oq with
+        | Err e =>
+          -- the tail threw, and the step's success carries it to the whole arm
+          rw [hi4v] at htail
+          rw [hcons]
+          exact htail.trans fun le hle => provisionRecsS_cons_tail_err hrun1 hle
+        | Ok q =>
+          obtain ⟨lst', lfe', hrunT, hdrop, hrel', hprel', hwf', hpwf', hqwf⟩ := htail
+          rw [hi4v] at hrunT
+          rw [hout1v] at hdrop hrunT
+          simp only [List.length_append, List.length_cons, List.length_nil,
+            Nat.zero_add] at hdrop hrunT
+          have hkey : (absCheckedRecs q.2).drop (absCheckedRecs out).length
+              = (absConstantVal cv, mi.val, rp.val, absRecRules rules)
+                :: (absCheckedRecs q.2).drop ((absCheckedRecs out).length + 1) := by
+            conv_lhs => rw [hdrop]
+            rw [show (absCheckedRecs out).length
+                = (absCheckedRecs out
+                  ++ [(absConstantVal cv, mi.val, rp.val,
+                      absRecRules rules)]).length - 1 by simp]
+            simp
+          refine ⟨lst', lfe', ?_, ?_, hrel', hprel', hwf', hpwf',
+            fun hout => hqwf (hout1wf hout)⟩
+          · rw [hcons, hkey]
+            exact provisionRecsS_cons hrun1 hrunT
+          · rw [hkey]
+            conv_lhs => rw [hdrop]
+            simp
 
 /-- `ConLeche/Cached/CheckerC.lean:115-129` — `provision_recs_s` refines
 `provisionRecsS`: **one flush per recursor** before its constant is checked,
@@ -701,26 +917,34 @@ theorem provision_recs_s_refines
     {fe_acc : fenv.FEnv} {recs : alloc.vec.Vec env.ConstantInfo} {i : Std.Usize}
     {out : alloc.vec.Vec (env.ConstantVal × Std.U64 × Std.U64
       × alloc.vec.Vec env.RecRule)}
-    {q : fenv.FEnv × alloc.vec.Vec (env.ConstantVal × Std.U64 × Std.U64
-      × alloc.vec.Vec env.RecRule)}
+    {oq : core.result.Result (fenv.FEnv × alloc.vec.Vec (env.ConstantVal × Std.U64
+      × Std.U64 × alloc.vec.Vec env.RecRule)) core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe_acc) (hbn : NamesWF block_names)
     (hrecs : ConstantInfosWF recs)
     (h : inductives.inductives_c.provision_recs_s mode st block_names fe_acc recs
-        i out = ok (.Ok q, st')) :
+        i out = ok (oq, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe_acc lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.provisionRecsS (absMode mode) (absNames block_names) lfe
-            ((absConstantInfos recs).drop i.val)).run lst
-          = .ok ((lfe', absCheckedRecs q.2 |>.drop (absCheckedRecs out).length),
-              lst')
-        ∧ absCheckedRecs q.2 = absCheckedRecs out
-            ++ (absCheckedRecs q.2).drop (absCheckedRecs out).length
-        ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1 := by
+      match oq with
+      | .Ok q =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.provisionRecsS (absMode mode) (absNames block_names) lfe
+              ((absConstantInfos recs).drop i.val)).run lst
+            = .ok ((lfe', absCheckedRecs q.2 |>.drop (absCheckedRecs out).length),
+                lst')
+          ∧ absCheckedRecs q.2 = absCheckedRecs out
+              ++ (absCheckedRecs q.2).drop (absCheckedRecs out).length
+          ∧ StateRel st' lst' ∧ FEnvRel q.1 lfe' ∧ StateWF st' ∧ FEnvWF q.1
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.provisionRecsS (absMode mode)
+          (absNames block_names) lfe ((absConstantInfos recs).drop i.val)).run lst) := by
   -- the index recursion over `recs`, one flush plus `provision_recs_step` a step
   intro lst lfe hrel hfer
-  obtain ⟨lst', lfe', a, b, c, d, e, f, _⟩ :=
-    provision_recs_s_val hw hst hfe hbn hrecs h lst lfe hrel hfer
-  exact ⟨lst', lfe', a, b, c, d, e, f⟩
+  have hv := provision_recs_s_val hw hst hfe hbn hrecs h lst lfe hrel hfer
+  cases oq with
+  | Err e => exact hv
+  | Ok q =>
+    obtain ⟨lst', lfe', a, b, c, d, e, f, _⟩ := hv
+    exact ⟨lst', lfe', a, b, c, d, e, f⟩
 
 /-- `ConLeche/Cached/CheckerC.lean:131-151` — `check_ind_recs_s` refines
 `checkIndRecsS`: **all iota-rule checks run at `envSelf`** — one flush entering
@@ -735,18 +959,24 @@ across that rebuild is `FEnv.dup_rel`, which asks for `FEnv.FEnvCanon fe2`, and
 discharge it from `FEnv.mk_fenv_canon`/`FEnv.dup_canon`/`FEnv.push_canon`. -/
 theorem check_ind_recs_s_refines
     {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
-    {fe2 fe' : fenv.FEnv} {recs : alloc.vec.Vec env.ConstantInfo}
+    {fe2 : fenv.FEnv} {recs : alloc.vec.Vec env.ConstantInfo}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe2) (hcan : FEnv.FEnvCanon fe2)
     (hfull : FEnv.FEnvFull fe2)
     (hbn : NamesWF block_names) (hrecs : ConstantInfosWF recs)
     (h : inductives.inductives_c.check_ind_recs_s mode st block_names fe2 recs
-        = ok (.Ok fe', st')) :
+        = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe2 lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.checkIndRecsS (absMode mode) (absNames block_names) lfe
-            (absConstantInfos recs)).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.checkIndRecsS (absMode mode) (absNames block_names) lfe
+              (absConstantInfos recs)).run lst = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.checkIndRecsS (absMode mode)
+          (absNames block_names) lfe (absConstantInfos recs)).run lst) := by
   -- the `eqA` pin guard, the two dups, `provision_recs_s`, the flush, the fold
   intro lst lfe hrel hfer
   rw [inductives.inductives_c.check_ind_recs_s] at h
@@ -757,7 +987,7 @@ theorem check_ind_recs_s_refines
     have hrv : recs.val = [] := by
       have : recs.val.length = 0 := by scalar_tac
       exact List.eq_nil_of_length_eq_zero this
-    simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     rw [if_pos (by simp [absConstantInfos, hrv])]
     exact ⟨lst, lfe, by simp [StateT.run, Pure.pure, StateT.pure, Except.pure],
@@ -777,12 +1007,21 @@ theorem check_ind_recs_s_refines
       have hpin : lfe.find? ConLeche.eqName = some ConLeche.eqA := by
         rw [hbt] at hbv
         exact of_decide_eq_true hbv.symm
+      rw [if_pos hpin]
       obtain ⟨fe_env, hdup, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨hrele, hwfe, hcane⟩ := FEnv.dup_rel hfe hcan hfer hdup
       obtain ⟨pq, hprov, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r, st1⟩ := pq
       cases r with
-      | Err err => simp at h
+      | Err err =>
+        -- the provisioning phase threw: the group's first bind throws it
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        have hpe :=
+          provision_recs_s_refines hw hst hwfe hbn hrecs hprov lst lfe hrel hrele
+        simp only [show ((0#usize : Std.Usize).val) = 0 from rfl,
+          List.drop_zero] at hpe
+        exact ErrSim.bindCM hpe
       | Ok pq0 =>
         obtain ⟨fq, vq⟩ := pq0
         obtain ⟨lst1, lfe1, hrun1, hdropv, hrel1, hprel1, hwf1, hpwf1, hvqwf⟩ :=
@@ -791,42 +1030,68 @@ theorem check_ind_recs_s_refines
         obtain ⟨hfrun, hrel2, hwf2, _⟩ := StateC.flush_c_refines hrel1 hwf1 hflush
         have hchecked : ∀ c ∈ vq.val, ConstantValWF c.1 ∧ RecRulesWF c.2.2.2 :=
           hvqwf (by intro c hc; simp [alloc.vec.Vec.new] at hc)
-        obtain ⟨lst', lfe', hrunT, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
+        have hfold :=
           Modeled.check_ind_recs_fold_refines hw (IndIngredients.checkerBaseSpec hw)
             IndIngredients.structInstallConstsResolveFFast
             IndIngredients.structSpinesRefine
             (Modeled.block_rename_rename_refines hbn) hwf2 hwfe hpwf1 hfe hcan hfull
             hchecked h lst1.flushed lfe lfe1 lfe hrel2 hrele hprel1 hfer
-        refine ⟨lst', lfe', ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
-        rw [if_pos hpin]
-        simp only [alloc.vec.Vec.new, show ((0#usize : Std.Usize).val) = 0 from rfl,
-          List.drop_zero, absCheckedRecs, Modeled.absCheckedRecs] at hrun1 hrunT
-        simp only [StateT.run_bind, hrun1, NativeInstall.exceptOk_bind, StateC.flushC_run]
-        exact hrunT
+        cases out with
+        | Ok fe' =>
+          obtain ⟨lst', lfe', hrunT, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
+            hfold
+          refine ⟨lst', lfe', ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
+          simp only [alloc.vec.Vec.new, show ((0#usize : Std.Usize).val) = 0 from rfl,
+            List.drop_zero, absCheckedRecs, Modeled.absCheckedRecs] at hrun1 hrunT
+          simp only [StateT.run_bind, hrun1, NativeInstall.exceptOk_bind,
+            StateC.flushC_run]
+          exact hrunT
+        | Err e =>
+          -- the fold threw, past the phase's flush
+          simp only [alloc.vec.Vec.new, show ((0#usize : Std.Usize).val) = 0 from rfl,
+            List.drop_zero, absCheckedRecs, Modeled.absCheckedRecs] at hrun1 hfold
+          simp only [StateT.run_bind, hrun1, NativeInstall.exceptOk_bind,
+            StateC.flushC_run]
+          exact hfold
     · rename_i hbf
+      -- the `Eq` basis is not pinned: **a mirrored `throw`**, at
+      -- `CheckerC.lean:151`'s `notImplemented`
+      have hnp : ¬ (lfe.find? ConLeche.eqName = some ConLeche.eqA) := by
+        rw [hbv] at hbf; simpa using hbf
       obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
       simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      show ErrSim ce _
+      rw [if_neg hnp]
+      exact errSim_notImplemented
+        (ls := "modeled recursor requires the pinned Eq basis") hce rfl
 
 /-- `ConLeche/Cached/CheckerC.lean:168-175` — `install_proj_fn_step_s` refines
 `installProjFnStepS`: **one flush** before the projection's own checks, and
 nothing at all where the model's projection artifact is absent. -/
 theorem install_proj_fn_step_s_refines
     {st st' : cached.state_c.CState} {t ctor_name : name.Name}
-    {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64} {fe fe' : fenv.FEnv}
+    {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64} {fe : fenv.FEnv}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (ht : NameWF t) (hc : NameWF ctor_name)
     (hlps : NamesWF lps)
     (h : inductives.inductives_c.install_proj_fn_step_s mode st t ctor_name lps
-        n_p n_f fe i = ok (.Ok fe', st')) :
+        n_p n_f fe i = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.installProjFnStepS (absMode mode) (absName t)
-            (absName ctor_name) (absNames lps) n_p.val n_f.val lfe i.val).run lst
-          = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.installProjFnStepS (absMode mode) (absName t)
+              (absName ctor_name) (absNames lps) n_p.val n_f.val lfe i.val).run lst
+            = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.installProjFnStepS (absMode mode) (absName t)
+          (absName ctor_name) (absNames lps) n_p.val n_f.val lfe i.val).run lst) := by
   -- `CoreK.proj_model_name_refines` and `FEnv.find_refines` for the artifact
   -- probe, then the flush and `IndModeled`'s `check_proj_fn` stage
   intro lst lfe hrel hfer
@@ -848,24 +1113,27 @@ theorem install_proj_fn_step_s_refines
           let st1 ← cached.state_c.flush_c st
           inductives.modeled.check_proj_fn mode st1 fe t ctor_name lps n_p n_f i)
       else ok (.Ok fe, st))
-      = (ok (.Ok fe', st') : Result ((core.result.Result _ core_types.CheckError)
+      = (ok (out, st') : Result ((core.result.Result _ core_types.CheckError)
           × cached.state_c.CState)) := h
   split at h
   · rename_i hb
     rw [if_pos (by rw [← hsome]; exact hb)]
     obtain ⟨st1, hflush, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hfrun, hrel1, hwf1, _⟩ := StateC.flush_c_refines hrel hst hflush
-    obtain ⟨lst', lfe', hrun, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩ :=
+    have hbody :=
       Modeled.check_proj_fn_refines hw (IndIngredients.checkerBaseSpec hw)
         IndIngredients.structInstallConstsResolveFFast
         IndIngredients.structSpinesRefine hwf1 hfe hcan hfull ht hc hlps h
         lst.flushed lfe hrel1 hfer
-    refine ⟨lst', lfe', ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
     simp only [StateT.run_bind, StateC.flushC_run, NativeInstall.exceptOk_bind]
-    exact hrun
+    cases out with
+    | Ok fe' =>
+      obtain ⟨lst', lfe', hrun, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩ := hbody
+      exact ⟨lst', lfe', hrun, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
+    | Err e => exact hbody
   · rename_i hb
     rw [if_neg (by rw [← hsome]; exact hb)]
-    simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     exact ⟨lst, lfe, rfl, hrel, hfer, hst, hfe, hcan, hfull⟩
 
@@ -873,20 +1141,27 @@ theorem install_proj_fn_step_s_refines
 `(List.range nF).foldlM (installProjFnStepS …) fe₃`, as an index recursion. -/
 theorem install_proj_fns_s_refines
     {st st' : cached.state_c.CState} {t ctor_name : name.Name}
-    {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64} {fe fe' : fenv.FEnv}
+    {lps : alloc.vec.Vec name.Name} {n_p n_f i : Std.U64} {fe : fenv.FEnv}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (ht : NameWF t) (hc : NameWF ctor_name)
     (hlps : NamesWF lps)
     (h : inductives.inductives_c.install_proj_fns_s mode st t ctor_name lps n_p
-        n_f fe i = ok (.Ok fe', st')) :
+        n_f fe i = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        ((List.range' i.val (n_f.val - i.val)).foldlM
-            (ConLeche.Cached.installProjFnStepS (absMode mode) (absName t)
-              (absName ctor_name) (absNames lps) n_p.val n_f.val) lfe).run lst
-          = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          ((List.range' i.val (n_f.val - i.val)).foldlM
+              (ConLeche.Cached.installProjFnStepS (absMode mode) (absName t)
+                (absName ctor_name) (absNames lps) n_p.val n_f.val) lfe).run lst
+            = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e (((List.range' i.val (n_f.val - i.val)).foldlM
+          (ConLeche.Cached.installProjFnStepS (absMode mode) (absName t)
+            (absName ctor_name) (absNames lps) n_p.val n_f.val) lfe).run lst) := by
   generalize hd : n_f.val - i.val = d
   induction d using Nat.strong_induction_on generalizing st fe i with
   | _ d ih =>
@@ -896,7 +1171,7 @@ theorem install_proj_fns_s_refines
     · rename_i hge
       have hz : d = 0 := by rw [← hd]; scalar_tac
       subst hz
-      simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact ⟨lst, lfe, by
         simp only [List.range'_zero, List.foldlM_nil, StateT.run, Pure.pure,
@@ -906,7 +1181,18 @@ theorem install_proj_fns_s_refines
       obtain ⟨p, hstep, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r, st1⟩ := p
       cases r with
-      | Err e => simp at h
+      | Err e =>
+        -- the projection's step threw: the fold's head threw
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        have hs :=
+          install_proj_fn_step_s_refines hw hst hfe hcan hfull ht hc hlps hstep lst
+            lfe hrel hfer
+        have hsplit : d = (n_f.val - (i.val + 1)) + 1 := by rw [← hd]; scalar_tac
+        subst hsplit
+        show ErrSim e _
+        rw [List.range'_succ, List.foldlM_cons]
+        exact ErrSim.bindCM hs
       | Ok fe2 =>
         obtain ⟨i1, hi1, h⟩ := by simpa using bind_eq_ok_iff.mp (by simpa using h)
         have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
@@ -915,14 +1201,24 @@ theorem install_proj_fns_s_refines
             lfe hrel hfer
         have hsplit : d = (n_f.val - i1.val) + 1 := by rw [← hd]; scalar_tac
         subst hsplit
-        obtain ⟨lst', lfe', hrunr, hrelr, hferr, hwfr, hfewr, hfcanr, hffullr⟩ :=
+        have htail :=
           ih (n_f.val - i1.val) (by omega) hwf1 hfew1 hfcan1 hffull1 h rfl lst1 lfe1
             hrel1 hfer1
-        refine ⟨lst', lfe', ?_, hrelr, hferr, hwfr, hfewr, hfcanr, hffullr⟩
-        rw [List.range'_succ, List.foldlM_cons, ← hi1v]
-        simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at hrun1 hrunr ⊢
-        rw [hrun1]
-        exact hrunr
+        cases out with
+        | Ok fe' =>
+          obtain ⟨lst', lfe', hrunr, hrelr, hferr, hwfr, hfewr, hfcanr, hffullr⟩ :=
+            htail
+          refine ⟨lst', lfe', ?_, hrelr, hferr, hwfr, hfewr, hfcanr, hffullr⟩
+          rw [List.range'_succ, List.foldlM_cons, ← hi1v]
+          simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at hrun1 hrunr ⊢
+          rw [hrun1]
+          exact hrunr
+        | Err e =>
+          show ErrSim e _
+          rw [List.range'_succ, List.foldlM_cons, ← hi1v]
+          simp only [StateT.run, Bind.bind, StateT.bind, Except.bind] at hrun1 htail ⊢
+          rw [hrun1]
+          exact htail
 
 /-- `ConLeche/Cached/CheckerC.lean:233-268` — `check_ind_decl_struct_s` refines
 the single-type-former, single-constructor arm of `checkIndDeclSF`: the
@@ -942,24 +1238,31 @@ casts with `expr_ops::dom_at_n`, which counts the `u64` down a `usize`
 cursor, so the bound is gone from every statement in the chain — and with it
 the one `sorry` `check_ind_decl_s_refines` could not discharge. -/
 theorem check_ind_decl_struct_s_refines
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {block_names : alloc.vec.Vec name.Name}
     {nonrecs recs : alloc.vec.Vec env.ConstantInfo}
     {cv_t cv_c : env.ConstantVal} {n_p n_f : Std.U64}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hbn : NamesWF block_names)
     (hnr : ConstantInfosWF nonrecs) (hrecs : ConstantInfosWF recs)
     (hct : ConstantValWF cv_t) (hcc : ConstantValWF cv_c)
     (h : inductives.inductives_c.check_ind_decl_struct_s mode st fe block_names
-        nonrecs recs cv_t cv_c n_p n_f = ok (.Ok fe', st')) :
+        nonrecs recs cv_t cv_c n_p n_f = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (checkIndDeclStructS (absMode mode) lfe (absNames block_names)
-            (absConstantInfos nonrecs) (absConstantInfos recs)
-            (absConstantVal cv_t) (absConstantVal cv_c) n_p.val n_f.val).run lst
-          = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (checkIndDeclStructS (absMode mode) lfe (absNames block_names)
+              (absConstantInfos nonrecs) (absConstantInfos recs)
+              (absConstantVal cv_t) (absConstantVal cv_c) n_p.val n_f.val).run lst
+            = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((checkIndDeclStructS (absMode mode) lfe (absNames block_names)
+          (absConstantInfos nonrecs) (absConstantInfos recs)
+          (absConstantVal cv_t) (absConstantVal cv_c) n_p.val n_f.val).run lst) := by
   -- `ind_block_caps`, the two folds above, `ctor_residual_ok`,
   -- `StructInstall.proj_fn_family_free_refines`, `ctor_targets_fam`
   intro lst lfe hrel hfer
@@ -971,17 +1274,40 @@ theorem check_ind_decl_struct_s_refines
   obtain ⟨p1, hmem, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r, st1⟩ := p1
   cases r with
-  | Err e => simp at h
+  | Err e =>
+    -- the members' fold threw: the arm's first effect throws it
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hme :=
+      check_ind_members_s_refines hw hst hfe hbn hcapswf hnr hmem lst lfe hrel hfer
+    simp only [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero,
+      hcapsabs] at hme
+    show ErrSim e _
+    rw [checkIndDeclStructS]
+    simp only [pure_bind]
+    exact ErrSim.bindCM hme
   | Ok fe2 =>
     obtain ⟨lst1, lfe2, hrun1, hrel1, hfer1, hwf1, hfew1⟩ :=
       check_ind_members_s_refines hw hst hfe hbn hcapswf hnr hmem lst lfe hrel hfer
     obtain ⟨hcan2, hfull2⟩ :=
       check_ind_members_s_canon hw hst hfe hbn hcapswf hnr hcan hfull hmem lst lfe
         hrel hfer
+    simp only [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero,
+      hcapsabs] at hrun1
     obtain ⟨p2, hrecp, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r1, st2⟩ := p2
     cases r1 with
-    | Err e => simp at h
+    | Err e =>
+      -- the recursor group threw, past the members' fold
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      have hre :=
+        check_ind_recs_s_refines hw hwf1 hfew1 hcan2 hfull2 hbn hrecs hrecp lst1
+          lfe2 hrel1 hfer1
+      show ErrSim e _
+      rw [checkIndDeclStructS]
+      simp only [pure_bind, StateT.run_bind, hrun1, NativeInstall.exceptOk_bind]
+      exact ErrSim.bind hre _
     | Ok fe3 =>
       obtain ⟨lst2, lfe3, hrun2, hrel2, hfer2, hwf2, hfew2, hfcan2, hffull2⟩ :=
         check_ind_recs_s_refines hw hwf1 hfew1 hcan2 hfull2 hbn hrecs hrecp lst1
@@ -989,8 +1315,6 @@ theorem check_ind_decl_struct_s_refines
       obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
       have hbv := Modeled.ctor_residual_ok_refines IndIngredients.structFamRefines
         hfer2 hfew2 hct.1 hcc.1 hct.2.1 hb
-      simp only [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero,
-        hcapsabs] at hrun1
       have hetav : (ConLeche.indBlockCapsF (absMode mode) lfe
           (absConstantVal cv_t) (absConstantVal cv_c) n_p.val n_f.val).eta
           = caps.eta := by rw [← hcapsabs]; rfl
@@ -1023,32 +1347,56 @@ theorem check_ind_decl_struct_s_refines
                 (absExpr cv_c.ty) (absName cv_t.name)
                 (absNames cv_t.level_params) n_p.val n_f.val = true from by
               rw [← hb2v]; exact hb2t)]
-            obtain ⟨lst', lfe', hrun3, hrel3, hfer3, hwf3, hfew3, hfcan3, hffull3⟩ :=
+            have hproj :=
               install_proj_fns_s_refines hw hwf2 hfew2 hfcan2 hffull2 hct.1 hcc.1
                 hct.2.1 h lst2 lfe3 hrel2 hfer2
-            rw [show ((0#u64 : Std.U64)).val = 0 from rfl, Nat.sub_zero,
-              ← List.range_eq_range'] at hrun3
-            exact ⟨lst', lfe', hrun3, hrel3, hfer3, hwf3, hfew3, hfcan3, hffull3⟩
+            cases out with
+            | Ok fe' =>
+              obtain ⟨lst', lfe', hrun3, hrel3, hfer3, hwf3, hfew3, hfcan3,
+                hffull3⟩ := hproj
+              rw [show ((0#u64 : Std.U64)).val = 0 from rfl, Nat.sub_zero,
+                ← List.range_eq_range'] at hrun3
+              exact ⟨lst', lfe', hrun3, hrel3, hfer3, hwf3, hfew3, hfcan3, hffull3⟩
+            | Err e =>
+              rw [show ((0#u64 : Std.U64)).val = 0 from rfl, Nat.sub_zero,
+                ← List.range_eq_range'] at hproj
+              exact hproj
           · rename_i hb2f
             simp only [Bool.not_eq_true] at hb2f
             rw [if_neg (show ¬ (ConLeche.ctorTargetsFam
                 (absExpr cv_c.ty) (absName cv_t.name)
                 (absNames cv_t.level_params) n_p.val n_f.val = true) from by
               rw [← hb2v, hb2f]; simp)]
-            simp only [Result.ok.injEq, Prod.mk.injEq,
-              core.result.Result.Ok.injEq] at h
+            simp only [Result.ok.injEq, Prod.mk.injEq] at h
             obtain ⟨rfl, rfl⟩ := h
             exact ⟨lst2, lfe3, rfl, hrel2, hfer2, hwf2, hfew2, hfcan2, hffull2⟩
         · rename_i hb1f
+          -- the projection name family is taken: **a mirrored `throw`**, at
+          -- `CheckerC.lean`'s `invalid "projection name family taken"`
+          rw [if_neg (show ¬ ((List.range n_f.val).all
+              (fun j => (lfe3.find? (ConLeche.projFnName
+                (absName cv_t.name) j)).isNone) = true) from by
+            rw [← hb1v]; exact hb1f)]
           obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
           simp at h
+          obtain ⟨rfl, rfl⟩ := h
+          exact errSim_invalid (ls := "projection name family taken") hce rfl
       · rename_i hbf
+        -- the eta constructor residual does not reduce: **a mirrored `throw`**,
+        -- at `CheckerC.lean`'s `notImplemented`
+        rw [if_neg (show ¬ ((ConLeche.ctorResidualOkF (absMode mode) lfe3
+            (absName cv_t.name) (absName cv_c.name)
+            (absNames cv_t.level_params) n_p.val n_f.val caps.eta) = true) from by
+          rw [← hbv]; exact hbf)]
         obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
         simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        exact errSim_notImplemented
+          (ls := "modeled structure: eta constructor residual") hce rfl
 
 /-- `ConLeche/Cached/CheckerC.lean:233-268` — **`check_ind_decl_s` refines
 `checkIndDeclSF`**: the modeled inductive block, returning the extended index.
@@ -1060,18 +1408,24 @@ struct arm and the pair `check_ind_members_s`/`check_ind_recs_s` — reach a
 own `lfe`.  `Refine/IndSpec.lean`'s header spells out why the clause is false
 without the pair, and `IndRoutesSpecP.checkIndDecl` carries it. -/
 theorem check_ind_decl_s_refines
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {block : alloc.vec.Vec env.ConstantInfo}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hblock : ConstantInfosWF block)
     (h : inductives.inductives_c.check_ind_decl_s mode st fe block
-        = ok (.Ok fe', st')) :
+        = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.checkIndDeclSF (absMode mode) lfe
-            (absConstantInfos block)).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.checkIndDeclSF (absMode mode) lfe
+              (absConstantInfos block)).run lst = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.checkIndDeclSF (absMode mode) lfe
+          (absConstantInfos block)).run lst) := by
   -- `filter_recs`, `Env.block_rec_suffix_ok_refines`, `block_names_of`,
   -- `single_ind_ctor`, then the struct arm above or the general one.
   --
@@ -1080,6 +1434,14 @@ theorem check_ind_decl_s_refines
   -- across the seam: each arm is finished with `exact`, which closes the gap
   -- by `whnf` (matchers and `η` are definitional).
   intro lst lfe hrel hfer
+  -- the outcome goes behind `OutFE` so that the `split`s below land on the
+  -- *cited* `match`es and not on it
+  suffices hgoal : OutFE st' out
+      ((ConLeche.Cached.checkIndDeclSF (absMode mode) lfe
+        (absConstantInfos block)).run lst) by
+    cases out with
+    | Ok fe' => exact hgoal
+    | Err e => exact hgoal
   rw [inductives.inductives_c.check_ind_decl_s] at h
   obtain ⟨recs, hrecs, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hrecsabs, hrecswf⟩ := Modeled.filter_recs_refines hblock hrecs
@@ -1156,12 +1518,19 @@ theorem check_ind_decl_s_refines
           -- asks: `check_eta_thm_shape` / `check_unit_thm_shape` read the
           -- subject binder with `expr_ops::dom_at_n`, a counting recursion, so
           -- the hypothesis is off the whole chain.
-          obtain ⟨lst', lfe', hrun, hrel', hfer', hwf', hfew', hfcan', hffull'⟩ :=
+          have hstruct :=
             check_ind_decl_struct_s_refines hw hst hfe hcan hfull hbnwf hnrwf
               hrecswf hct hcc h lst lfe hrel hfer
-          refine ⟨lst', lfe', ?_, hrel', hfer', hwf', hfew', hfcan', hffull'⟩
-          rw [hbnabs, hnrabs', hrecsabs', hT, hC, hp, hf] at hrun
-          exact hrun
+          cases out with
+          | Ok fe' =>
+            obtain ⟨lst', lfe', hrun, hrel', hfer', hwf', hfew', hfcan',
+              hffull'⟩ := hstruct
+            refine ⟨lst', lfe', ?_, hrel', hfer', hwf', hfew', hfcan', hffull'⟩
+            rw [hbnabs, hnrabs', hrecsabs', hT, hC, hp, hf] at hrun
+            exact hrun
+          | Err e =>
+            rw [hbnabs, hnrabs', hrecsabs', hT, hC, hp, hf] at hstruct
+            exact hstruct
         · rename_i hne'
           exact (hne' cvT caps cvC nP nF heq1 heq2).elim
     · -- the cited general arm
@@ -1185,7 +1554,16 @@ theorem check_ind_decl_s_refines
       obtain ⟨p1, hmem, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨r, st1⟩ := p1
       cases r with
-      | Err e => simp at h
+      | Err e =>
+        -- the members' fold threw: the general arm's first effect throws it
+        simp at h
+        obtain ⟨rfl, rfl⟩ := h
+        have hme :=
+          check_ind_members_s_refines hw hst hfe hbnwf hcapswf hnrwf hmem lst lfe
+            hrel hfer
+        rw [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero,
+          hcapsabs, hbnabs, hnrabs'] at hme
+        exact runBind_head_err hme
       | Ok fe2 =>
         obtain ⟨lst1, lfe2, hrun1, hrel1, hfer1, hwf1, hfew1⟩ :=
           check_ind_members_s_refines hw hst hfe hbnwf hcapswf hnrwf hmem lst lfe
@@ -1193,19 +1571,33 @@ theorem check_ind_decl_s_refines
         obtain ⟨hcan2, hfull2⟩ :=
           check_ind_members_s_canon hw hst hfe hbnwf hcapswf hnrwf hcan hfull hmem
             lst lfe hrel hfer
-        obtain ⟨lst', lfe', hrun2, hrel2, hfer2, hwf2, hfew2, hfcan2, hffull2⟩ :=
+        have hrec :=
           check_ind_recs_s_refines hw hwf1 hfew1 hcan2 hfull2 hbnwf hrecswf h lst1
             lfe2 hrel1 hfer1
-        refine ⟨lst', lfe', ?_, hrel2, hfer2, hwf2, hfew2, hfcan2, hffull2⟩
         rw [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero,
           hcapsabs, hbnabs, hnrabs'] at hrun1
-        rw [hbnabs, hrecsabs'] at hrun2
-        exact runBind_compose hrun1 hrun2
+        cases out with
+        | Ok fe' =>
+          obtain ⟨lst', lfe', hrun2, hrel2, hfer2, hwf2, hfew2, hfcan2,
+            hffull2⟩ := hrec
+          refine ⟨lst', lfe', ?_, hrel2, hfer2, hwf2, hfew2, hfcan2, hffull2⟩
+          rw [hbnabs, hrecsabs'] at hrun2
+          exact runBind_compose hrun1 hrun2
+        | Err e =>
+          rw [hbnabs, hrecsabs'] at hrec
+          exact runBind_tail_err hrun1 hrec
   · rename_i hbf
+    -- the recursors do not form a suffix: **a mirrored `throw`**, at
+    -- `CheckerC.lean:243`'s `notImplemented`
+    rw [if_neg (show ¬ (ConLeche.recsFormSuffix (absConstantInfos block) = true)
+      from by rw [← hbov]; exact hbf)]
     obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
     simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact errSim_notImplemented
+      (ls := "recursor before other block members") hce rfl
 
 /-! ## The direct route -/
 
@@ -1229,45 +1621,75 @@ it is discharged at the call site — see `check_native_s_refines`' note. -/
 theorem check_native_pass_s_refines
     {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {p0 : inductives.native_parts.NativeParts} {is_rec : Bool}
-    {q : inductives.native_install.NativePass × Bool}
+    {out : core.result.Result (inductives.native_install.NativePass × Bool)
+      core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hp0 : IndAbs.NativePartsWF p0)
     (h : inductives.inductives_c.check_native_pass_s mode st fe p0 is_rec
-        = ok (.Ok q, st')) :
+        = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lq,
-        (ConLeche.Cached.checkNativePassS (absMode mode) lfe
-            (IndAbs.absNativeParts p0) is_rec).run lst = .ok ((lq, q.2), lst')
-        ∧ StateRel st' lst' ∧ IndAbs.NativePassRel q.1 lq
-        ∧ StateWF st' ∧ IndAbs.NativePassWF q.1
-        ∧ FEnv.FEnvCanon q.1.env1 ∧ FEnv.FEnvFull q.1.env1 := by
+      match out with
+      | .Ok q =>
+        ∃ lst' lq,
+          (ConLeche.Cached.checkNativePassS (absMode mode) lfe
+              (IndAbs.absNativeParts p0) is_rec).run lst = .ok ((lq, q.2), lst')
+          ∧ StateRel st' lst' ∧ IndAbs.NativePassRel q.1 lq
+          ∧ StateWF st' ∧ IndAbs.NativePassWF q.1
+          ∧ FEnv.FEnvCanon q.1.env1 ∧ FEnv.FEnvFull q.1.env1
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.checkNativePassS (absMode mode) lfe
+          (IndAbs.absNativeParts p0) is_rec).run lst) := by
   -- `check_native_pass_former`, `flush_c_refines`, `check_native_pass_ctors`
   intro lst lfe hrel hfer
   rw [inductives.inductives_c.check_native_pass_s] at h
   obtain ⟨pq, hformer, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨res, st1⟩ := pq
   cases res with
-  | Err err => simp at h
+  | Err err =>
+    -- the former stage threw: the pass's first bind throws it
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hfrm :=
+      NativeInstall.check_native_pass_former_refines
+        (IndIngredients.checkSumIndRefines hw) (IndIngredients.checkSumIndErr hw)
+        IndIngredients.checkSumIndCanon
+        hst hfe hcan hfull hp0 hformer lst lfe hrel hfer
+    show ErrSim err _
+    rw [NativeInstall.checkNativePassS_eq]
+    exact ErrSim.bindCM hfrm
   | Ok r =>
     obtain ⟨lst1, lfe1, hrun1, hrel1, hfrel1, hwf1, hfwf1, hcvwf, hiswf, hcwf,
         hrcan, hrfull⟩ :=
       NativeInstall.check_native_pass_former_refines
-        (IndIngredients.checkSumIndRefines hw) IndIngredients.checkSumIndCanon
+        (IndIngredients.checkSumIndRefines hw) (IndIngredients.checkSumIndErr hw)
+        IndIngredients.checkSumIndCanon
         hst hfe hcan hfull hp0 hformer lst lfe hrel hfer
     obtain ⟨st2, hflush, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hfrun, hrel2, hwf2, _⟩ := StateC.flush_c_refines hrel1 hwf1 hflush
-    obtain ⟨lst', lq, hrun2, hrel3, hqrel, hwf3, hqwf, hqenv⟩ :=
+    have hctors :=
       NativeInstall.check_native_pass_ctors_refines
-        (IndIngredients.checkSumCtorsRefines hw) IndIngredients.completeRefines
+        (IndIngredients.checkSumCtorsRefines hw) (IndIngredients.checkSumCtorsErr hw)
+        IndIngredients.completeRefines
         IndIngredients.withKindsRefines IndIngredients.recCtorKindsRefines
         IndIngredients.recFieldKindBeqRefines hwf2 hfwf1 hcvwf hiswf hp0 hcwf h
         lst1.flushed lfe1 hrel2 hfrel1
-    refine ⟨lst', lq, ?_, hrel3, hqrel, hwf3, hqwf, ?_, ?_⟩
-    · rw [NativeInstall.checkNativePassS_eq]
-      simp only [StateT.run_bind, hrun1, StateC.flushC_run, NativeInstall.exceptOk_bind]
-      exact hrun2
-    · rw [hqenv]; exact hrcan
-    · rw [hqenv]; exact hrfull
+    cases out with
+    | Ok q =>
+      obtain ⟨lst', lq, hrun2, hrel3, hqrel, hwf3, hqwf, hqenv⟩ := hctors
+      refine ⟨lst', lq, ?_, hrel3, hqrel, hwf3, hqwf, ?_, ?_⟩
+      · rw [NativeInstall.checkNativePassS_eq]
+        simp only [StateT.run_bind, hrun1, StateC.flushC_run,
+          NativeInstall.exceptOk_bind]
+        exact hrun2
+      · rw [hqenv]; exact hrcan
+      · rw [hqenv]; exact hrfull
+    | Err e =>
+      -- the constructors' stage threw, past the pass's one flush
+      show ErrSim e _
+      rw [NativeInstall.checkNativePassS_eq]
+      simp only [StateT.run_bind, hrun1, StateC.flushC_run,
+        NativeInstall.exceptOk_bind]
+      exact hctors
 
 /-- `ConLeche/Cached/CheckerC.lean:192-215` — `check_native_tail_s` refines
 `checkNativeTailS`: **one flush entering the recursor's environment**, after
@@ -1279,19 +1701,24 @@ theorem check_native_pass_s_refines
 `fenv::dup`.  `check_native_pass_s_refines` hands them over, so the driver
 never asks for more than it can supply. -/
 theorem check_native_tail_s_refines
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {q : inductives.native_install.NativePass}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hq : IndAbs.NativePassWF q)
     (hcan : FEnv.FEnvCanon q.env1) (hfull : FEnv.FEnvFull q.env1)
     (h : inductives.inductives_c.check_native_tail_s mode st fe q
-        = ok (.Ok fe', st')) :
+        = ok (out, st')) :
     ∀ lst lfe lq, StateRel st lst → FEnvRel fe lfe →
       IndAbs.NativePassRel q lq →
-      ∃ lst' lfe',
-        (ConLeche.Cached.checkNativeTailS (absMode mode) lfe lq).run lst
-          = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.checkNativeTailS (absMode mode) lfe lq).run lst
+            = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.checkNativeTailS (absMode mode) lfe lq).run lst) := by
   -- `check_native_tail_guards`, `check_native_cons`, `flush_c_refines`,
   -- `check_native_install`
   intro lst lfe lq hrel hfer hqrel
@@ -1299,7 +1726,22 @@ theorem check_native_tail_s_refines
   obtain ⟨pq, hguards, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨res, st1⟩ := pq
   cases res with
-  | Err err => simp at h
+  | Err err =>
+    -- the tail's guards threw: the tail's first bind throws it
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hg :=
+      NativeInstall.check_native_tail_guards_refines hw
+        IndIngredients.structInstallConstsResolveFFast
+        IndIngredients.nativeInstallParamsOf IndIngredients.piBindersRefines
+        IndIngredients.nativeInstallOpenPisAtFvarsF IndIngredients.kindGetDRefines
+        IndIngredients.nativeRulesOkRefines
+        (IndIngredients.checkStructFieldSortsIRefines hw)
+        (IndIngredients.checkStructFieldSortsIErr hw) hst hfe hq hguards lst
+        lfe lq hrel hfer hqrel
+    show ErrSim err _
+    rw [NativeInstall.checkNativeTailS_eq]
+    exact ErrSim.bindCM hg
   | Ok u =>
     cases u
     obtain ⟨lst1, hrun1, hrel1, hwf1, hkf⟩ :=
@@ -1308,7 +1750,8 @@ theorem check_native_tail_s_refines
         IndIngredients.nativeInstallParamsOf IndIngredients.piBindersRefines
         IndIngredients.nativeInstallOpenPisAtFvarsF IndIngredients.kindGetDRefines
         IndIngredients.nativeRulesOkRefines
-        (IndIngredients.checkStructFieldSortsIRefines hw) hst hfe hq hguards lst
+        (IndIngredients.checkStructFieldSortsIRefines hw)
+        (IndIngredients.checkStructFieldSortsIErr hw) hst hfe hq hguards lst
         lfe lq hrel hfer hqrel
     obtain ⟨cq, hcq, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hcrel, hcp, hccv, hcctors, hcss, hcwf, hcpwf, hccvwf, hcawf, hsswf⟩ :=
@@ -1330,22 +1773,34 @@ theorem check_native_tail_s_refines
       rw [hcqv]; exact hkf
     obtain ⟨st2, hflush, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hfrun, hrel2, hwf2, _⟩ := StateC.flush_c_refines hrel1 hwf1 hflush
-    obtain ⟨lst', lfe2, hrun2, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
+    have hinst :=
       NativeInstall.check_native_install_refines hw
         IndIngredients.structInstallConstsResolveFFast
         IndIngredients.structRecRhsRRefines IndIngredients.structRecTyRRefines
         IndIngredients.nativeCtors4Refines IndIngredients.nativeRecLpsOkRefines
         (IndIngredients.nativeInstallCheckConstantVal hw)
+        (IndIngredients.nativeInstallCheckConstantValErr hw)
         IndIngredients.nativeInstallParamsOf IndIngredients.sumRulesRefines
         IndIngredients.structProjBodiesRefines
         IndIngredients.structProjGuardsRefines hwf2 hcwf hconscan.1 hconscan.2
         hcpwf hccvwf hcawf hkf' hsswf h lst1.flushed
         (ConLeche.consSumCtorsF lq.p.nP lq.ctorsA lq.env₁) hrel2 hcrel
-    refine ⟨lst', lfe2, ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
-    rw [NativeInstall.checkNativeTailS_eq]
-    rw [hcp, hccv, hcctors, hcss] at hrun2
-    simp only [StateT.run_bind, hrun1, StateC.flushC_run, NativeInstall.exceptOk_bind]
-    exact hrun2
+    cases out with
+    | Ok fe' =>
+      obtain ⟨lst', lfe2, hrun2, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
+        hinst
+      refine ⟨lst', lfe2, ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
+      rw [NativeInstall.checkNativeTailS_eq]
+      rw [hcp, hccv, hcctors, hcss] at hrun2
+      simp only [StateT.run_bind, hrun1, StateC.flushC_run, NativeInstall.exceptOk_bind]
+      exact hrun2
+    | Err e =>
+      -- the install stage threw, past the tail's one flush
+      show ErrSim e _
+      rw [NativeInstall.checkNativeTailS_eq]
+      rw [hcp, hccv, hcctors, hcss] at hinst
+      simp only [StateT.run_bind, hrun1, StateC.flushC_run, NativeInstall.exceptOk_bind]
+      exact hinst
 
 /-- `ConLeche/Cached/CheckerC.lean:217-231` — **`check_native_s` at a
 `checkNativeS`**: the distinct constructor names, one flush, the pass at the
@@ -1365,18 +1820,24 @@ without it.  It *is* an invariant of every `FEnv` the checker holds
 preserves it), and `IndRoutesSpecP.checkNative` carries it, so the consumer
 discharges it. -/
 theorem check_native_s_refines
-    {st st' : cached.state_c.CState} {fe fe' : fenv.FEnv}
+    {st st' : cached.state_c.CState} {fe : fenv.FEnv}
     {p0 : inductives.native_parts.NativeParts}
+    {out : core.result.Result fenv.FEnv core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe) (hcan : FEnv.FEnvCanon fe)
     (hfull : FEnv.FEnvFull fe) (hp0 : IndAbs.NativePartsWF p0)
     (h : inductives.inductives_c.check_native_s mode st fe p0
-        = ok (.Ok fe', st')) :
+        = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst' lfe',
-        (ConLeche.Cached.checkNativeS (absMode mode) lfe
-            (IndAbs.absNativeParts p0)).run lst = .ok (lfe', lst')
-        ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
-        ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe' := by
+      match out with
+      | .Ok fe' =>
+        ∃ lst' lfe',
+          (ConLeche.Cached.checkNativeS (absMode mode) lfe
+              (IndAbs.absNativeParts p0)).run lst = .ok (lfe', lst')
+          ∧ StateRel st' lst' ∧ FEnvRel fe' lfe' ∧ StateWF st' ∧ FEnvWF fe'
+          ∧ FEnv.FEnvCanon fe' ∧ FEnv.FEnvFull fe'
+      | .Err e =>
+        ErrSim e ((ConLeche.Cached.checkNativeS (absMode mode) lfe
+          (IndAbs.absNativeParts p0)).run lst) := by
   -- `ctor_names`, `level::name_nodup`, the flush, the two passes and the tail
   intro lst lfe hrel hfer
   rw [inductives.inductives_c.check_native_s] at h
@@ -1411,7 +1872,18 @@ theorem check_native_s_refines
     obtain ⟨pq, hpass, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨res, st2⟩ := pq
     cases res with
-    | Err err => simp at h
+    | Err err =>
+      -- the first pass threw, past the entry flush
+      simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      have hpe : ErrSim err ((ConLeche.Cached.checkNativePassS (absMode mode) lfe
+          (IndAbs.absNativeParts p0) b1).run lst.flushed) :=
+        check_native_pass_s_refines hw hwff1 hfe hcan hfull hp0 hpass lst.flushed
+          lfe hrelf1 hfer
+      rw [hb1v] at hpe
+      show ErrSim err _
+      simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run]
+      exact ErrSim.bind hpe _
     | Ok q =>
       obtain ⟨np, b2⟩ := q
       obtain ⟨lst1, lq, hrun1, hrel1, hqrel, hwf1, hqwf, hqcan, hqfull⟩ :=
@@ -1420,13 +1892,22 @@ theorem check_native_s_refines
       rw [hb1v] at hrun1
       by_cases hb2 : b2 = true
       · simp only [hb2] at h
-        obtain ⟨lst', lfe2, hrun2, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩ :=
+        have htail :=
           check_native_tail_s_refines hw hwf1 hfe hqwf hqcan hqfull h lst1 lfe lq
             hrel1 hfer hqrel
-        refine ⟨lst', lfe2, ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
-        simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun1, hb2,
-          if_true]
-        exact hrun2
+        cases out with
+        | Ok fe' =>
+          obtain ⟨lst', lfe2, hrun2, hrel2, hfrel2, hwf2, hfwf2, hfcan2,
+            hffull2⟩ := htail
+          refine ⟨lst', lfe2, ?_, hrel2, hfrel2, hwf2, hfwf2, hfcan2, hffull2⟩
+          simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun1, hb2,
+            if_true]
+          exact hrun2
+        | Err e =>
+          show ErrSim e _
+          simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun1, hb2,
+            if_true]
+          exact htail
       · simp only [Bool.not_eq_true] at hb2
         simp only [hb2] at h
         obtain ⟨is_rec2, hir, h⟩ := bind_eq_ok_iff.mp h
@@ -1439,7 +1920,21 @@ theorem check_native_s_refines
         obtain ⟨pq2, hpass2, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨res2, st4⟩ := pq2
         cases res2 with
-        | Err err => simp at h
+        | Err err =>
+          -- the reclassified pass threw, past the second flush
+          simp at h
+          obtain ⟨rfl, rfl⟩ := h
+          have hpe2 : ErrSim err ((ConLeche.Cached.checkNativePassS (absMode mode)
+              lfe (IndAbs.absNativeParts p0) is_rec2).run lst1.flushed) :=
+            check_native_pass_s_refines hw hwff2 hfe hcan hfull hp0 hpass2
+              lst1.flushed lfe hrelf2 hfer
+          rw [hirv] at hpe2
+          show ErrSim err _
+          simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun1,
+            hb2]
+          rw [if_neg (by simp)]
+          simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run]
+          exact ErrSim.bind hpe2 _
         | Ok q2 =>
           obtain ⟨np1, b3⟩ := q2
           obtain ⟨lst2, lq2, hrun2, hrel2, hq2rel, hwf2, hq2wf, hq2can, hq2full⟩ :=
@@ -1448,25 +1943,61 @@ theorem check_native_s_refines
           rw [hirv] at hrun2
           by_cases hb3 : b3 = true
           · simp only [hb3] at h
-            obtain ⟨lst', lfe2, hrun3, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩ :=
+            have htail :=
               check_native_tail_s_refines hw hwf2 hfe hq2wf hq2can hq2full h lst2
                 lfe lq2 hrel2 hfer hq2rel
-            refine ⟨lst', lfe2, ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
+            cases out with
+            | Ok fe' =>
+              obtain ⟨lst', lfe2, hrun3, hrel3, hfrel3, hwf3, hfwf3, hfcan3,
+                hffull3⟩ := htail
+              refine ⟨lst', lfe2, ?_, hrel3, hfrel3, hwf3, hfwf3, hfcan3, hffull3⟩
+              simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun1,
+                hb2]
+              rw [if_neg (by simp)]
+              simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun2,
+                hb3, if_true]
+              exact hrun3
+            | Err e =>
+              show ErrSim e _
+              simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun1,
+                hb2]
+              rw [if_neg (by simp)]
+              simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun2,
+                hb3, if_true]
+              exact htail
+          · -- the capability record did not settle: **a mirrored `throw`**, at
+            -- `CheckerC.lean:228`'s `internal`
+            simp only [Bool.not_eq_true] at hb3
+            simp only [hb3] at h
+            obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+            simp at h
+            obtain ⟨rfl, rfl⟩ := h
+            show ErrSim ce _
             simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun1,
               hb2]
             rw [if_neg (by simp)]
             simp only [StateT.run_bind, NativeInstall.exceptOk_bind, StateC.flushC_run, hrun2,
-              hb3, if_true]
-            exact hrun3
-          · simp only [Bool.not_eq_true] at hb3
-            simp only [hb3] at h
-            obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
-            simp at h
+              hb3]
+            rw [if_neg (by simp)]
+            exact errSim_internal
+              (ls := "direct rec: the capability record did not settle") hce rfl
   · rename_i hb
+    -- duplicate constructor names: **a mirrored `throw`**, at
+    -- `CheckerC.lean:221`'s `invalid`
+    have hdup : ¬ ((IndAbs.absNativeParts p0).ctors.map (fun c => c.1.name)).Nodup := by
+      rw [show (IndAbs.absNativeParts p0).ctors.map (fun c => c.1.name)
+        = absNames names from habsn.symm]
+      intro hnd
+      exact hb (hbndv.trans (decide_eq_true hnd))
+    rw [if_neg hdup]
+    obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨v0, hv0, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
     simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact errSim_invalid (ls := "direct rec: duplicate constructor") hce rfl
 
 end Drivers
 
@@ -1518,6 +2049,53 @@ theorem ind_routes_spec' {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU) : IndRoutesSpec mode :=
   ind_routes_spec_of_p (ind_routes_spec hk)
 
+/-! ### The failure half of the seam (task #67 continued)
+
+The same three theorems again, at `.Err`.  Both entry points are now stated
+over the whole outcome, so each clause is the *same* lemma read at the other
+constructor of the `match`: `inductives_c.rs`' six `CheckError` sites are all
+mirrored (DESIGN.md task #67 §1), none is excused with `ErrSim.native`, and
+the two routes therefore throw exactly where `checkNativeS` /
+`checkIndDeclSF` do.
+
+The bridge is the same one clause for clause.  `native_parts_refines` gives
+the recogniser's equation from `native_parts`' own outcome and the block's
+well-formedness *alone*, with no reference to what the route then did, so it
+is available in the failure half exactly as in the accept half — which is why
+`IndRoutesSpecErr` can carry the verdict `checkDeclC` needs to know which
+branch it took. -/
+
+/-- **The two inductive routes' mirrored throws**, under the knot. -/
+theorem ind_routes_spec_err {mode : env.CheckMode}
+    (hk : Core.KnotSpec mode IndAbs.checkFuelU) : IndRoutesSpecPErr mode where
+  checkNative := fun _ _ _ _ _ hst hfe hcan hfull hp0 h lst lfe hrel hfer =>
+    check_native_s_refines hk.1 hst hfe hcan hfull hp0 h lst lfe hrel hfer
+  checkIndDecl := fun _ _ _ _ _ hst hfe hcan hfull hb h lst lfe hrel hfer =>
+    check_ind_decl_s_refines hk.1 hst hfe hcan hfull hb h lst lfe hrel hfer
+
+/-- **The seam's failure half**: the producer's form implies the consumer's,
+through the same recogniser refinement. -/
+theorem ind_routes_spec_err_of_p {mode : env.CheckMode}
+    (hp : IndRoutesSpecPErr mode) : IndRoutesSpecErr mode where
+  native := by
+    intro st fe n_p block p e st' hst hfe hcan hfull hblock hrec h lst lfe hrel hfer
+    obtain ⟨habs, hwf⟩ :=
+      NativeParts.native_parts_refines IndIngredients.structGens hblock hrec
+    exact ⟨IndAbs.absNativeParts p, habs.symm,
+      hp.checkNative st fe p e st' hst hfe hcan hfull (hwf p rfl) h lst lfe hrel hfer⟩
+  modeled := by
+    intro st fe n_p block e st' hst hfe hcan hfull hblock hrec h lst lfe hrel hfer
+    obtain ⟨habs, _⟩ :=
+      NativeParts.native_parts_refines IndIngredients.structGens hblock hrec
+    exact ⟨habs.symm,
+      hp.checkIndDecl st fe block e st' hst hfe hcan hfull hblock h lst lfe hrel hfer⟩
+
+/-- **`IndRoutesSpecErr`, the failure half the checker tier consumes**, from
+the knot. -/
+theorem ind_routes_spec_err' {mode : env.CheckMode}
+    (hk : Core.KnotSpec mode IndAbs.checkFuelU) : IndRoutesSpecErr mode :=
+  ind_routes_spec_err_of_p (ind_routes_spec_err hk)
+
 /-! ## The axiom census
 
 DESIGN.md §5's P3 gate on the two entry points, machine-checked: `sorryAx`
@@ -1545,5 +2123,14 @@ five stages are proved. -/
 -- consumer's carries no `sorryAx` at all.
 /-- info: 'ConRon.Refine.InductivesC.ind_routes_spec_of_p' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ind_routes_spec_of_p
+
+-- **The failure half is closed too** (task #67): the two entry points are
+-- stated over the whole outcome and all six of `inductives_c.rs`' `CheckError`
+-- sites are mirrored, so neither seam theorem carries a `sorryAx`.
+/-- info: 'ConRon.Refine.InductivesC.ind_routes_spec_err' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ind_routes_spec_err
+
+/-- info: 'ConRon.Refine.InductivesC.ind_routes_spec_err_of_p' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ind_routes_spec_err_of_p
 
 end ConRon.Refine.InductivesC

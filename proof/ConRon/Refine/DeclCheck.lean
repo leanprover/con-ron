@@ -192,6 +192,48 @@ private theorem throw_apply {β : Type} (le : ConLeche.CheckError)
     (lst : ConLeche.Cached.CState) :
     (throw le : ConLeche.Cached.CheckCM β) lst = .error le := rfl
 
+/-- A mirrored `throw` at `notImplemented`: the port's error came out of
+`core_types::not_implemented`, so its kind is con-leche's `.notImplemented`,
+and the cited side has been rewritten down to its `throw`. -/
+private theorem errSim_notImplemented {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.not_implemented v = ok ce1) (heq : ce1 = ce)
+    (hx : x = .error (.notImplemented ls)) : ErrSim ce x := by
+  rw [← heq, not_implemented_inv hce]; exact ErrSim.notImplemented hx
+
+/-- A mirrored `throw` at `invalid`, the same bookkeeping. -/
+private theorem errSim_invalid {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.invalid v = ok ce1) (heq : ce1 = ce)
+    (hx : x = .error (.invalid ls)) : ErrSim ce x := by
+  rw [← heq, invalid_inv hce]; exact ErrSim.invalid hx
+
+/-- The port's `Err` return, read off (the state-carrying shape). -/
+private theorem err_outS {α : Type} {ce : core_types.CheckError}
+    {st1 st' : cached.state_c.CState}
+    {out : core.result.Result α core_types.CheckError}
+    (h : (ok (core.result.Result.Err ce, st1) :
+      Result ((core.result.Result α core_types.CheckError) × cached.state_c.CState))
+      = ok (out, st')) : out = .Err ce ∧ st' = st1 := by
+  have h1 := Result.ok_injective h
+  exact ⟨(congrArg Prod.fst h1).symm, (congrArg Prod.snd h1).symm⟩
+
+/-- The port's `Ok` return, read off (the state-carrying shape). -/
+private theorem ok_outS {α : Type} {r : α} {st1 st' : cached.state_c.CState}
+    {out : core.result.Result α core_types.CheckError}
+    (h : (ok (core.result.Result.Ok r, st1) :
+      Result ((core.result.Result α core_types.CheckError) × cached.state_c.CState))
+      = ok (out, st')) : out = .Ok r ∧ st' = st1 := by
+  have h1 := Result.ok_injective h
+  exact ⟨(congrArg Prod.fst h1).symm, (congrArg Prod.snd h1).symm⟩
+
+/-- A mirrored `throw` at `internal`, the same bookkeeping. -/
+private theorem errSim_internal {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce ce1 : core_types.CheckError} {x : Except ConLeche.CheckError γ} {ls : String}
+    (hce : core_types.internal v = ok ce1) (heq : ce1 = ce)
+    (hx : x = .error (.internal ls)) : ErrSim ce x := by
+  rw [← heq, internal_inv hce]; exact ErrSim.internal hx
+
 /-! ## 1. `Expr.constsResolveF` and its memoized walk (`DeclCheck.lean:37-204`)
 
 `core_k::consts_resolve` is the port's single spelling of `Expr.constsResolve`
@@ -859,6 +901,105 @@ theorem checkMemberValF_run {ops : ConLeche.CheckerOps CheckCM}
   simp only [h1, h2, h3, h4, Bool.false_eq_true, if_false, if_true]
   rfl
 
+open ConLeche.Cached in
+/-- `checkMemberValF` passes on what `checkConstantValF` threw. -/
+theorem checkMemberValF_cv_err {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {bns : List ConLeche.Name} {cv : ConLeche.ConstantVal}
+    {lst : CState} {le : ConLeche.CheckError}
+    (h0 : (ConLeche.checkConstantValF ops lfe cv).run lst = .error le) :
+    (ConLeche.checkMemberValF ops bns lfe cv).run lst = .error le := by
+  rw [ConLeche.checkMemberValF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkConstantValF ops lfe cv) lst = Except.error le from h0]
+
+open ConLeche.Cached in
+/-- `checkMemberValF`'s model-shaped-name `throw` (`DeclCheck.lean:494`), the
+one `invalid` of the cited function. -/
+theorem checkMemberValF_model_name {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {bns : List ConLeche.Name}
+    {cv cvA : ConLeche.ConstantVal} {lst lst1 : CState}
+    (h0 : (ConLeche.checkConstantValF ops lfe cv).run lst = .ok (cvA, lst1))
+    (h1 : cvA.name.isModelSuffix = true) :
+    ∃ s, (ConLeche.checkMemberValF ops bns lfe cv).run lst
+      = .error (.invalid s) := by
+  rw [ConLeche.checkMemberValF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkConstantValF ops lfe cv) lst = Except.ok (cvA, lst1)
+    from h0]
+  simp only [h1, if_true]
+  exact ⟨_, rfl⟩
+
+open ConLeche.Cached in
+/-- `checkMemberValF`'s no-route `throw` (`DeclCheck.lean:496-499`). -/
+theorem checkMemberValF_no_route {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {bns : List ConLeche.Name}
+    {cv cvA : ConLeche.ConstantVal} {lst lst1 : CState}
+    (h0 : (ConLeche.checkConstantValF ops lfe cv).run lst = .ok (cvA, lst1))
+    (h1 : cvA.name.isModelSuffix = false)
+    (h2 : defnOf (lfe.find? (cvA.name.str "_model")) = none) :
+    ∃ s, (ConLeche.checkMemberValF ops bns lfe cv).run lst
+      = .error (.notImplemented s) := by
+  rw [ConLeche.checkMemberValF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkConstantValF ops lfe cv) lst = Except.ok (cvA, lst1)
+    from h0]
+  simp only [h1, Bool.false_eq_true, if_false]
+  cases hx : lfe.find? (cvA.name.str "_model") with
+  | none => exact ⟨_, rfl⟩
+  | some ci =>
+    rw [hx] at h2
+    cases ci with
+    | axiomInfo _ => exact ⟨_, rfl⟩
+    | defnInfo _ _ _ => simp [defnOf] at h2
+    | thmInfo _ _ => exact ⟨_, rfl⟩
+    | indInfo _ _ => exact ⟨_, rfl⟩
+    | ctorInfo _ _ _ => exact ⟨_, rfl⟩
+    | recInfo _ _ _ _ => exact ⟨_, rfl⟩
+    | projInfo _ => exact ⟨_, rfl⟩
+
+open ConLeche.Cached in
+/-- `checkMemberValF`'s model-level `throw` (`DeclCheck.lean:501`). -/
+theorem checkMemberValF_lps {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {bns : List ConLeche.Name}
+    {cv cvA cvm : ConLeche.ConstantVal} {mval : ConLeche.Expr}
+    {hint : ConLeche.ReducibilityHint} {lst lst1 : CState}
+    (h0 : (ConLeche.checkConstantValF ops lfe cv).run lst = .ok (cvA, lst1))
+    (h1 : cvA.name.isModelSuffix = false)
+    (h2 : lfe.find? (cvA.name.str "_model") = some (.defnInfo cvm mval hint))
+    (h3 : cvm.levelParams ≠ cvA.levelParams) :
+    ∃ s, (ConLeche.checkMemberValF ops bns lfe cv).run lst
+      = .error (.notImplemented s) := by
+  rw [ConLeche.checkMemberValF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkConstantValF ops lfe cv) lst = Except.ok (cvA, lst1)
+    from h0]
+  simp only [h1, h2, Bool.false_eq_true, if_false]
+  rw [if_neg h3]
+  exact ⟨_, rfl⟩
+
+open ConLeche.Cached in
+/-- `checkMemberValF`'s model-type `throw` (`DeclCheck.lean:503-505`). -/
+theorem checkMemberValF_ty {ops : ConLeche.CheckerOps CheckCM}
+    {lfe : ConLeche.FEnv} {bns : List ConLeche.Name}
+    {cv cvA cvm : ConLeche.ConstantVal} {mval : ConLeche.Expr}
+    {hint : ConLeche.ReducibilityHint} {lst lst1 : CState}
+    (h0 : (ConLeche.checkConstantValF ops lfe cv).run lst = .ok (cvA, lst1))
+    (h1 : cvA.name.isModelSuffix = false)
+    (h2 : lfe.find? (cvA.name.str "_model") = some (.defnInfo cvm mval hint))
+    (h3 : cvm.levelParams = cvA.levelParams)
+    (h4 : (cvA.type.renameConsts (modelRename bns) == cvm.type) = false) :
+    ∃ s, (ConLeche.checkMemberValF ops bns lfe cv).run lst
+      = .error (.notImplemented s) := by
+  have hf : modelRename bns = fun n => if bns.contains n then n.str "_model" else n :=
+    rfl
+  rw [ConLeche.checkMemberValF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show (ConLeche.checkConstantValF ops lfe cv) lst = Except.ok (cvA, lst1)
+    from h0]
+  rw [hf] at h4
+  simp only [h1, h2, h3, h4, Bool.false_eq_true, if_false, if_true]
+  exact ⟨_, rfl⟩
+
 /-- `ConLeche/Kernel/DeclCheck.lean:487-505 checkMemberValF` —
 **`inductives::modeled::check_member_val`**: the common `checkConstantVal`, no
 model-shaped name of its own, and the model companion the in-process modeller
@@ -867,23 +1008,37 @@ block's names renamed to their companions'. -/
 theorem check_member_val_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {block_names : alloc.vec.Vec name.Name}
-    {fe : fenv.FEnv} {cv cv' : env.ConstantVal}
+    {fe : fenv.FEnv} {cv : env.ConstantVal}
+    {out : core.result.Result env.ConstantVal core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hbn : NamesWF block_names)
     (hcv : ConstantValWF cv)
     (h : inductives.modeled.check_member_val mode st block_names fe cv
-      = ok (.Ok cv', st')) :
+      = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.checkMemberValF (m := ConLeche.Cached.CheckCM)
+      match out with
+      | .Ok cv' =>
+        ∃ lst', (ConLeche.checkMemberValF (m := ConLeche.Cached.CheckCM)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe)
+              (absNames block_names) lfe (absConstantVal cv)).run lst
+            = .ok (absConstantVal cv', lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkMemberValF (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe)
-            (absNames block_names) lfe (absConstantVal cv)).run lst
-          = .ok (absConstantVal cv', lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ConstantValWF cv' := by
+            (absNames block_names) lfe (absConstantVal cv)).run lst) := by
   intro lst lfe hsr hfr
   rw [inductives.modeled.check_member_val] at h
   obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r, st1⟩ := q
   cases r with
-  | Err er => simp at h
+  | Err er =>
+    -- `checker_base::check_constant_val` threw, and the cited `do` passes it on
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    exact ErrSim.trans
+      (CheckerBase.check_constant_val_refines hfuel hk constsResolveFSpec hsw hfw
+        hcv hq lst lfe hsr hfr)
+      (fun le hle => checkMemberValF_cv_err hle)
   | Ok cv_a =>
     obtain ⟨lst1, hrun1, hsr1, hsw1, hcaw⟩ :=
       CheckerBase.check_constant_val_refines hfuel hk constsResolveFSpec hsw hfw
@@ -891,7 +1046,17 @@ theorem check_member_val_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
     have hbabs := name_is_model_suffix_refines hcaw.1 hb
     split at h
-    · simp [bind_eq_ok_iff] at h
+    · -- `modeled.rs:1625` ← `DeclCheck.lean:494`
+      rename_i hbt
+      obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      obtain ⟨ls, hls⟩ := checkMemberValF_model_name (bns := absNames block_names)
+        hrun1 (by rw [show (absConstantVal cv_a).name = absName cv_a.name from rfl,
+          ← hbabs]; exact hbt)
+      exact errSim_invalid hce rfl hls
     · rename_i hbf
       simp only [Bool.not_eq_true] at hbf
       obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
@@ -899,8 +1064,22 @@ theorem check_member_val_refines {mode : env.CheckMode} {fuel : Std.U64}
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨hoabs, howf⟩ := defn_probe_refines (FindAgree.of_rel hfr hfw)
         (FindWF.of_wf hfw) hnwf ho
+      have hmodelName : (absConstantVal cv_a).name.isModelSuffix = false := by
+        rw [show (absConstantVal cv_a).name = absName cv_a.name from rfl, ← hbabs]
+        exact hbf
+      have hnameEq : absName n = (absConstantVal cv_a).name.str "_model" := by
+        rw [hnabs]; rfl
       cases o with
-      | none => simp [bind_eq_ok_iff] at h
+      | none =>
+        -- `modeled.rs:1629` ← `DeclCheck.lean:496`
+        obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        obtain ⟨ls, hls⟩ := checkMemberValF_no_route (bns := absNames block_names)
+          hrun1 hmodelName (by rw [← hnameEq]; simpa using hoabs.symm)
+        exact errSim_notImplemented hce rfl hls
       | some dq =>
         obtain ⟨cv1, v1, hint1⟩ := dq
         obtain ⟨hcv1wf, -⟩ := howf cv1 v1 hint1 rfl
@@ -923,22 +1102,45 @@ theorem check_member_val_refines {mode : env.CheckMode} {fuel : Std.U64}
           split at h
           · rename_i hb2t
             subst hb2t
-            simp only [Result.ok.injEq, Prod.mk.injEq,
-              core.result.Result.Ok.injEq] at h
-            obtain ⟨rfl, rfl⟩ := h
+            obtain ⟨hout, rfl⟩ := ok_outS h
+            subst hout
             refine ⟨lst1, ?_, hsr1, hsw1, hcaw⟩
             refine checkMemberValF_run hrun1 ?_ hfind ?_ ?_
-            · rw [show (absConstantVal cv_a).name = absName cv_a.name from rfl,
-                ← hbabs]
-              exact hbf
+            · exact hmodelName
             · show absNames cv1.level_params = absNames cv_a.level_params
               simpa using hb1abs.symm
             · rw [show (absConstantVal cv_a).type = absExpr cv_a.ty from rfl,
                 show (absConstantVal cv1).type = absExpr cv1.ty from rfl,
                 ← hrabs, ← decide_eq_beq]
               exact hb2abs.symm
-          · simp [bind_eq_ok_iff] at h
-        · simp [bind_eq_ok_iff] at h
+          · -- `modeled.rs:1639` ← `DeclCheck.lean:503`
+            rename_i hb2f
+            obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨hout, -⟩ := err_outS h
+            subst hout
+            obtain ⟨ls, hls⟩ := checkMemberValF_ty (bns := absNames block_names)
+              hrun1 hmodelName hfind
+              (by show absNames cv1.level_params = absNames cv_a.level_params
+                  simpa using hb1abs.symm)
+              (by rw [show (absConstantVal cv_a).type = absExpr cv_a.ty from rfl,
+                    show (absConstantVal cv1).type = absExpr cv1.ty from rfl,
+                    ← hrabs, ← decide_eq_beq, ← hb2abs]
+                  simpa using hb2f)
+            exact errSim_notImplemented hce rfl hls
+        · -- `modeled.rs:1634` ← `DeclCheck.lean:501`
+          rename_i hb1f
+          obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          obtain ⟨ls, hls⟩ := checkMemberValF_lps (bns := absNames block_names)
+            hrun1 hmodelName hfind
+            (by show absNames cv1.level_params ≠ absNames cv_a.level_params
+                simpa [hb1abs] using hb1f)
+          exact errSim_notImplemented hce rfl hls
 
 /-! ### The projection lookups (`DeclCheck.lean:729-746`)
 
@@ -1013,6 +1215,142 @@ theorem checkProjLookupsF_run {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
   simp only [h1, h2, h3, h4, h5, h6, StateT.run, Bind.bind, Pure.pure,
     StateT.pure, Except.pure, and_self, if_true]
 
+open ConLeche.Cached in
+/-- `checkProjLookupsF`'s first `throw` (`DeclCheck.lean:732`): the
+constructor is not stored (or is stored as something else). -/
+theorem checkProjLookupsF_ctor_none {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF i : Nat} {lst : CState}
+    (h1 : ctorOf (lfe.find? ctorName) = none) :
+    (ConLeche.checkProjLookupsF (m := CheckCM) lfe T ctorName lps nP nF i).run lst
+      = .error (.notImplemented "projection constructor not stored") := by
+  rw [ConLeche.checkProjLookupsF]
+  simp only [StateT.run, Bind.bind]
+  cases hx : lfe.find? ctorName with
+  | none => rfl
+  | some ci =>
+    rw [hx] at h1
+    cases ci with
+    | axiomInfo _ => rfl
+    | defnInfo _ _ _ => rfl
+    | thmInfo _ _ => rfl
+    | indInfo _ _ => rfl
+    | ctorInfo _ _ _ => simp [ctorOf] at h1
+    | recInfo _ _ _ _ => rfl
+    | projInfo _ => rfl
+
+open ConLeche.Cached in
+/-- `checkProjLookupsF`'s arity `throw` (`DeclCheck.lean:734`), which the port
+splits into two `else if` arms carrying the same message (task #67's census:
+two Rust sites, one cited `throw`, the same kind). -/
+theorem checkProjLookupsF_arity {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF cnP cnF i : Nat} {cvj : ConLeche.ConstantVal}
+    {lst : CState} (h1 : lfe.find? ctorName = some (.ctorInfo cvj cnP cnF))
+    (h2 : ¬ (cnP = nP ∧ cnF = nF)) :
+    (ConLeche.checkProjLookupsF (m := CheckCM) lfe T ctorName lps nP nF i).run lst
+      = .error (.notImplemented "projection constructor arity mismatch") := by
+  rw [ConLeche.checkProjLookupsF]
+  simp only [h1, StateT.run, Bind.bind]
+  rw [if_neg h2]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjLookupsF`'s missing-model `throw` (`DeclCheck.lean:737`). -/
+theorem checkProjLookupsF_model_none {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name} {nP nF i : Nat}
+    {cvj : ConLeche.ConstantVal} {lst : CState}
+    (h1 : lfe.find? ctorName = some (.ctorInfo cvj nP nF))
+    (h2 : defnOf (lfe.find? (ConLeche.projModelName T i)) = none) :
+    (ConLeche.checkProjLookupsF (m := CheckCM) lfe T ctorName lps nP nF i).run lst
+      = .error (.notImplemented "missing projection model") := by
+  rw [ConLeche.checkProjLookupsF]
+  simp only [h1, StateT.run, Bind.bind, and_self,
+    if_true]
+  cases hx : lfe.find? (ConLeche.projModelName T i) with
+  | none => rfl
+  | some ci =>
+    rw [hx] at h2
+    cases ci with
+    | axiomInfo _ => rfl
+    | defnInfo _ _ _ => simp [defnOf] at h2
+    | thmInfo _ _ => rfl
+    | indInfo _ _ => rfl
+    | ctorInfo _ _ _ => rfl
+    | recInfo _ _ _ _ => rfl
+    | projInfo _ => rfl
+
+open ConLeche.Cached in
+/-- `checkProjLookupsF`'s model-level `throw` (`DeclCheck.lean:739`). -/
+theorem checkProjLookupsF_lps {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF i : Nat} {cvj mcv : ConLeche.ConstantVal}
+    {mval : ConLeche.Expr} {hint : ConLeche.ReducibilityHint} {lst : CState}
+    (h1 : lfe.find? ctorName = some (.ctorInfo cvj nP nF))
+    (h2 : lfe.find? (ConLeche.projModelName T i) = some (.defnInfo mcv mval hint))
+    (h3 : mcv.levelParams ≠ lps) :
+    (ConLeche.checkProjLookupsF (m := CheckCM) lfe T ctorName lps nP nF i).run lst
+      = .error (.notImplemented "projection model level mismatch") := by
+  rw [ConLeche.checkProjLookupsF]
+  simp only [h1, h2, StateT.run, Bind.bind, and_self,
+    if_true]
+  rw [if_neg h3]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjLookupsF`'s taken-name `throw` (`DeclCheck.lean:741`), the one
+`invalid` of the cited function. -/
+theorem checkProjLookupsF_name_taken {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name} {nP nF i : Nat}
+    {cvj mcv : ConLeche.ConstantVal} {mval : ConLeche.Expr}
+    {hint : ConLeche.ReducibilityHint} {lst : CState}
+    (h1 : lfe.find? ctorName = some (.ctorInfo cvj nP nF))
+    (h2 : lfe.find? (ConLeche.projModelName T i) = some (.defnInfo mcv mval hint))
+    (h3 : mcv.levelParams = lps)
+    (h4 : (lfe.find? (ConLeche.projFnName T i)).isNone = false) :
+    (ConLeche.checkProjLookupsF (m := CheckCM) lfe T ctorName lps nP nF i).run lst
+      = .error (.invalid "projection name taken") := by
+  rw [ConLeche.checkProjLookupsF]
+  simp only [h1, h2, h3, h4, StateT.run, Bind.bind, StateT.bind, Except.bind,
+    and_self, if_true, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjLookupsF`'s missing-parent `throw` (`DeclCheck.lean:743`). -/
+theorem checkProjLookupsF_parent {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name} {nP nF i : Nat}
+    {cvj mcv : ConLeche.ConstantVal} {mval : ConLeche.Expr}
+    {hint : ConLeche.ReducibilityHint} {lst : CState}
+    (h1 : lfe.find? ctorName = some (.ctorInfo cvj nP nF))
+    (h2 : lfe.find? (ConLeche.projModelName T i) = some (.defnInfo mcv mval hint))
+    (h3 : mcv.levelParams = lps)
+    (h4 : (lfe.find? (ConLeche.projFnName T i)).isNone = true)
+    (h5 : (lfe.find? T).isSome = false) :
+    (ConLeche.checkProjLookupsF (m := CheckCM) lfe T ctorName lps nP nF i).run lst
+      = .error (.notImplemented "projection parent not stored") := by
+  rw [ConLeche.checkProjLookupsF]
+  simp only [h1, h2, h3, h4, h5, StateT.run, Bind.bind, StateT.bind, Except.bind,
+    and_self, if_true, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjLookupsF`'s pinned-`Eq` `throw` (`DeclCheck.lean:745`). -/
+theorem checkProjLookupsF_eq_pin {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name} {nP nF i : Nat}
+    {cvj mcv : ConLeche.ConstantVal} {mval : ConLeche.Expr}
+    {hint : ConLeche.ReducibilityHint} {lst : CState}
+    (h1 : lfe.find? ctorName = some (.ctorInfo cvj nP nF))
+    (h2 : lfe.find? (ConLeche.projModelName T i) = some (.defnInfo mcv mval hint))
+    (h3 : mcv.levelParams = lps)
+    (h4 : (lfe.find? (ConLeche.projFnName T i)).isNone = true)
+    (h5 : (lfe.find? T).isSome = true)
+    (h6 : lfe.find? ConLeche.eqName ≠ some ConLeche.eqA) :
+    (ConLeche.checkProjLookupsF (m := CheckCM) lfe T ctorName lps nP nF i).run lst
+      = .error (.notImplemented
+          "projection iota requires the pinned Eq basis") := by
+  rw [ConLeche.checkProjLookupsF]
+  simp only [h1, h2, h3, h4, h5, StateT.run, Bind.bind,
+    and_self, if_true]
+  rw [if_neg h6]
+  rfl
+
 /-- `ConLeche/Kernel/DeclCheck.lean:729-746 checkProjLookupsF` —
 **`inductives::modeled::check_proj_lookups`**: the projection install's five
 environment lookups — the stored constructor at the expected arity, the
@@ -1021,23 +1359,39 @@ projection-function name, the stored parent, and the pinned `Eq` basis.  No
 state: the cited Lean is `ops`-free, so the run leaves `lst` alone. -/
 theorem check_proj_lookups_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {t ctor_name : name.Name} {lps : alloc.vec.Vec name.Name}
-    {n_p n_f i : Std.U64} {cvj mcv : env.ConstantVal}
+    {n_p n_f i : Std.U64}
+    {out : core.result.Result (env.ConstantVal × env.ConstantVal)
+      core_types.CheckError}
     (hfe : FindAgree fe lfe) (hwf : FindWF fe) (ht : NameWF t)
     (hc : NameWF ctor_name) (hlps : NamesWF lps)
     (h : inductives.modeled.check_proj_lookups fe t ctor_name lps n_p n_f i
-      = ok (.Ok (cvj, mcv))) :
+      = ok out) :
     ∀ lst : ConLeche.Cached.CState,
-      (ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe
-          (absName t) (absName ctor_name) (absNames lps)
-          n_p.val n_f.val i.val).run lst
-        = .ok ((absConstantVal cvj, absConstantVal mcv), lst)
-      ∧ ConstantValWF cvj ∧ ConstantValWF mcv := by
+      match out with
+      | .Ok (cvj, mcv) =>
+        (ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe
+            (absName t) (absName ctor_name) (absNames lps)
+            n_p.val n_f.val i.val).run lst
+          = .ok ((absConstantVal cvj, absConstantVal mcv), lst)
+        ∧ ConstantValWF cvj ∧ ConstantValWF mcv
+      | .Err e =>
+        ErrSim e ((ConLeche.checkProjLookupsF (m := ConLeche.Cached.CheckCM) lfe
+            (absName t) (absName ctor_name) (absNames lps)
+            n_p.val n_f.val i.val).run lst) := by
   intro lst
   rw [inductives.modeled.check_proj_lookups] at h
   obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hoabs, howf⟩ := ctor_probe_refines hfe hwf hc ho
   cases o with
-  | none => simp [bind_eq_ok_iff] at h
+  | none =>
+    -- `modeled.rs:1894` ← `DeclCheck.lean:732`
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+    cases out with
+    | Ok q => simp at h
+    | Err e =>
+      exact errSim_notImplemented hce (by simpa using h)
+        (checkProjLookupsF_ctor_none (by simpa using hoabs.symm))
   | some cq =>
     obtain ⟨cv, cn_p, cn_f⟩ := cq
     have hcvwf := howf cv cn_p cn_f rfl
@@ -1046,16 +1400,31 @@ theorem check_proj_lookups_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       ctorOf_eq_some hoabs.symm
     by_cases hp : cn_p.val = n_p.val
     case neg =>
+      -- `modeled.rs:1898`, the first of the two arms the port splits the
+      -- cited `unless cnP = nP ∧ cnF = nF` into
       replace h := ite_pos_eq (c := ((cn_p != n_p) = true))
         (by simp only [bne_iff_ne, ne_eq]; scalar_tac) h
-      simp [bind_eq_ok_iff] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      cases out with
+      | Ok q => simp at h
+      | Err e =>
+        exact errSim_notImplemented hce (by simpa using h)
+          (checkProjLookupsF_arity hctor (fun hq => hp hq.1))
     by_cases hf : cn_f.val = n_f.val
     case neg =>
+      -- `modeled.rs:1898`, the second arm, at the same cited `throw`
       replace h := ite_neg_eq (c := ((cn_p != n_p) = true))
         (by simp only [bne_iff_ne, ne_eq, Decidable.not_not]; scalar_tac) h
       replace h := ite_pos_eq (c := ((cn_f != n_f) = true))
         (by simp only [bne_iff_ne, ne_eq]; scalar_tac) h
-      simp [bind_eq_ok_iff] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      cases out with
+      | Ok q => simp at h
+      | Err e =>
+        exact errSim_notImplemented hce (by simpa using h)
+          (checkProjLookupsF_arity hctor (fun hq => hf hq.2))
     rw [hp, hf] at hctor
     replace h := ite_neg_eq (c := ((cn_p != n_p) = true))
       (by simp only [bne_iff_ne, ne_eq, Decidable.not_not]; scalar_tac) h
@@ -1066,7 +1435,16 @@ theorem check_proj_lookups_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ho1abs, ho1wf⟩ := defn_probe_refines hfe hwf hnwf ho1
     cases o1 with
-    | none => simp [bind_eq_ok_iff] at h
+    | none =>
+      -- `modeled.rs:1903` ← `DeclCheck.lean:737`
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      cases out with
+      | Ok q => simp at h
+      | Err e =>
+        exact errSim_notImplemented hce (by simpa using h)
+          (checkProjLookupsF_model_none hctor
+            (by rw [← hnabs]; simpa using ho1abs.symm))
     | some dq =>
       obtain ⟨cv1, v1, hint1⟩ := dq
       obtain ⟨hcv1wf, -⟩ := ho1wf cv1 v1 hint1 rfl
@@ -1079,49 +1457,93 @@ theorem check_proj_lookups_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       split at h
       · rename_i hbt
         subst hbt
+        have hlpseq : (absConstantVal cv1).levelParams = absNames lps := by
+          show absNames cv1.level_params = absNames lps
+          simpa using hbabs.symm
         obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨hn1abs, hn1wf⟩ := proj_fn_name_refines ht hn1
         obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
         have ho2abs := find_isSome hfe hn1wf ho2
         rw [hn1abs] at ho2abs
         by_cases ho2f : core.option.Option.is_some o2 = true
-        · replace h := ite_pos_eq (c := (core.option.Option.is_some o2 = true))
+        · -- `modeled.rs:1911` ← `DeclCheck.lean:741`, the one `invalid`
+          replace h := ite_pos_eq (c := (core.option.Option.is_some o2 = true))
             ho2f h
-          simp [bind_eq_ok_iff] at h
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+          cases out with
+          | Ok q => simp at h
+          | Err e =>
+            refine errSim_invalid hce (by simpa using h)
+              (checkProjLookupsF_name_taken hctor hmodel hlpseq ?_)
+            have hs : (lfe.find? (ConLeche.projFnName (absName t) i.val)).isSome
+                = true := by rw [← ho2abs]; exact ho2f
+            cases hx : lfe.find? (ConLeche.projFnName (absName t) i.val) with
+            | none => rw [hx] at hs; simp at hs
+            | some ci => simp
         · replace h := ite_neg_eq (c := (core.option.Option.is_some o2 = true))
             ho2f h
+          have hnone : (lfe.find? (ConLeche.projFnName (absName t) i.val)).isNone
+              = true := by
+            have hs : (lfe.find? (ConLeche.projFnName (absName t) i.val)).isSome
+                = false := by rw [← ho2abs]; simpa using ho2f
+            cases hx : lfe.find? (ConLeche.projFnName (absName t) i.val) with
+            | none => simp
+            | some ci => rw [hx] at hs; simp at hs
           obtain ⟨o3, ho3, h⟩ := bind_eq_ok_iff.mp h
           have ho3abs := find_isSome hfe ht ho3
           by_cases ho3f : core.option.Option.is_none o3 = true
-          · replace h := ite_pos_eq
+          · -- `modeled.rs:1915` ← `DeclCheck.lean:743`
+            replace h := ite_pos_eq
               (c := (core.option.Option.is_none o3 = true)) ho3f h
-            simp [bind_eq_ok_iff] at h
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+            cases out with
+            | Ok q => simp at h
+            | Err e =>
+              refine errSim_notImplemented hce (by simpa using h)
+                (checkProjLookupsF_parent hctor hmodel hlpseq hnone ?_)
+              rw [← ho3abs]
+              cases o3 with
+              | none => simp [core.option.Option.is_some]
+              | some ci => simp [core.option.Option.is_none] at ho3f
           · replace h := ite_neg_eq
               (c := (core.option.Option.is_none o3 = true)) ho3f h
+            have hsome : (lfe.find? (absName t)).isSome = true := by
+              rw [← ho3abs]
+              cases o3 with
+              | none => simp [core.option.Option.is_none] at ho3f
+              | some ci => simp
             obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
             have hb3abs := eq_basis_pinned_find_refines hfe hwf hb3
             split at h
             · rename_i hb3t
               subst hb3t
-              simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
-                Prod.mk.injEq] at h
-              obtain ⟨rfl, rfl⟩ := h
-              refine ⟨checkProjLookupsF_run hctor hmodel ?_ ?_ ?_ ?_,
-                hcvwf, hcv1wf⟩
-              · show absNames cv1.level_params = absNames lps
-                simpa using hbabs.symm
-              · have hs : (lfe.find? (ConLeche.projFnName (absName t) i.val)).isSome
-                    = false := by rw [← ho2abs]; simpa using ho2f
-                cases hx : lfe.find? (ConLeche.projFnName (absName t) i.val) with
-                | none => simp
-                | some ci => rw [hx] at hs; simp at hs
-              · rw [← ho3abs]
-                cases o3 with
-                | none => simp [core.option.Option.is_none] at ho3f
-                | some ci => simp
-              · simpa using hb3abs.symm
-            · simp [bind_eq_ok_iff] at h
-      · simp [bind_eq_ok_iff] at h
+              simp only [Result.ok.injEq] at h
+              subst h
+              exact ⟨checkProjLookupsF_run hctor hmodel hlpseq hnone hsome
+                (by simpa using hb3abs.symm), hcvwf, hcv1wf⟩
+            · -- `modeled.rs:1919` ← `DeclCheck.lean:745`
+              rename_i hb3f
+              simp only [bind_eq_ok_iff] at h
+              obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+              cases out with
+              | Ok q => simp at h
+              | Err e =>
+                exact errSim_notImplemented hce (by simpa using h)
+                  (checkProjLookupsF_eq_pin hctor hmodel hlpseq hnone hsome
+                    (by simpa [hb3abs] using hb3f))
+      · -- `modeled.rs:1907` ← `DeclCheck.lean:739`
+        rename_i hbf
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+        cases out with
+        | Ok q => simp at h
+        | Err e =>
+          refine errSim_notImplemented hce (by simpa using h)
+            (checkProjLookupsF_lps hctor hmodel ?_)
+          show absNames cv1.level_params ≠ absNames lps
+          simpa [hbabs] using hbf
 
 /-! ### The two projection renaming dictionaries, as steps
 
@@ -1392,6 +1814,72 @@ theorem checkProjTyF_run {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
   simp only [h1, h2, h3, h4, StateT.run, Bind.bind, Pure.pure, StateT.pure,
     Except.pure, if_true]
 
+open ConLeche.Cached in
+/-- `checkProjTyF`'s roundtrip `throw` (`DeclCheck.lean:752`). -/
+theorem checkProjTyF_roundtrip {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {mty : ConLeche.Expr} {nP nF : Nat} {lst : CState}
+    (h1 : ((mty.renameConsts (ConLeche.projBack T ctorName nF)).renameConsts
+        (ConLeche.projFwd T ctorName nF) == mty) = false) :
+    (ConLeche.checkProjTyF (m := CheckCM) lfe T ctorName lps mty nP nF).run lst
+      = .error (.notImplemented "projection type roundtrip") := by
+  rw [ConLeche.checkProjTyF]
+  simp only [h1, StateT.run, Bind.bind, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjTyF`'s resolution `throw` (`DeclCheck.lean:754`). -/
+theorem checkProjTyF_resolve {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {mty : ConLeche.Expr} {nP nF : Nat} {lst : CState}
+    (h1 : ((mty.renameConsts (ConLeche.projBack T ctorName nF)).renameConsts
+        (ConLeche.projFwd T ctorName nF) == mty) = true)
+    (h2 : (mty.renameConsts (ConLeche.projBack T ctorName nF)).constsResolveF lfe
+        = false) :
+    (ConLeche.checkProjTyF (m := CheckCM) lfe T ctorName lps mty nP nF).run lst
+      = .error (.notImplemented "projection type resolution") := by
+  rw [ConLeche.checkProjTyF]
+  simp only [h1, h2, StateT.run, Bind.bind, if_true, Bool.false_eq_true, if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjTyF`'s well-formedness `throw` (`DeclCheck.lean:758`). -/
+theorem checkProjTyF_wf {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {mty : ConLeche.Expr} {nP nF : Nat} {lst : CState}
+    (h1 : ((mty.renameConsts (ConLeche.projBack T ctorName nF)).renameConsts
+        (ConLeche.projFwd T ctorName nF) == mty) = true)
+    (h2 : (mty.renameConsts (ConLeche.projBack T ctorName nF)).constsResolveF lfe
+        = true)
+    (h3 : ((mty.renameConsts (ConLeche.projBack T ctorName nF)).looseBVarsBounded 0
+        && !(mty.renameConsts (ConLeche.projBack T ctorName nF)).hasFvar
+        && (mty.renameConsts (ConLeche.projBack T ctorName nF)).allLevelParamsDefined
+              lps) = false) :
+    (ConLeche.checkProjTyF (m := CheckCM) lfe T ctorName lps mty nP nF).run lst
+      = .error (.notImplemented "projection type wellformedness") := by
+  rw [ConLeche.checkProjTyF]
+  simp only [h1, h2, h3, StateT.run, Bind.bind, if_true, Bool.false_eq_true,
+    if_false]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjTyF`'s telescope `throw` (`DeclCheck.lean:760`). -/
+theorem checkProjTyF_telescope {lfe : ConLeche.FEnv} {T ctorName : ConLeche.Name}
+    {lps : List ConLeche.Name} {mty : ConLeche.Expr} {nP nF : Nat} {lst : CState}
+    (h1 : ((mty.renameConsts (ConLeche.projBack T ctorName nF)).renameConsts
+        (ConLeche.projFwd T ctorName nF) == mty) = true)
+    (h2 : (mty.renameConsts (ConLeche.projBack T ctorName nF)).constsResolveF lfe
+        = true)
+    (h3 : ((mty.renameConsts (ConLeche.projBack T ctorName nF)).looseBVarsBounded 0
+        && !(mty.renameConsts (ConLeche.projBack T ctorName nF)).hasFvar
+        && (mty.renameConsts (ConLeche.projBack T ctorName nF)).allLevelParamsDefined
+              lps) = true)
+    (h4 : ((mty.renameConsts (ConLeche.projBack T ctorName nF)).stripPis
+        (nP + 1)).isSome = false) :
+    (ConLeche.checkProjTyF (m := CheckCM) lfe T ctorName lps mty nP nF).run lst
+      = .error (.notImplemented "projection type telescope") := by
+  rw [ConLeche.checkProjTyF]
+  simp only [h1, h2, h3, h4, StateT.run, Bind.bind, if_true, Bool.false_eq_true,
+    if_false]
+  rfl
+
 /-- `ConLeche/Kernel/DeclCheck.lean:748-761 checkProjTyF` (and
 `Inductives/Modeled.lean:497-511 checkProjTy`, the generic twin) —
 **`inductives::modeled::check_proj_ty`**: the public projection type is the
@@ -1404,17 +1892,24 @@ The four `modeled.rs` steps above carry the two renamings; the rest is
 `ExprOps.strip_pis_refines` and `Expr.beq_refines`. -/
 theorem check_proj_ty_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {t ctor_name : name.Name} {lps : alloc.vec.Vec name.Name} {mty : expr.Expr}
-    {n_p n_f : Std.U64} {pty : expr.Expr}
+    {n_p n_f : Std.U64}
+    {out : core.result.Result expr.Expr core_types.CheckError}
     (hfe : FindAgree fe lfe) (hwf : FindWF fe) (ht : NameWF t)
     (hc : NameWF ctor_name) (hlps : NamesWF lps) (hmty : ExprWF mty)
     (h : inductives.modeled.check_proj_ty fe t ctor_name lps mty n_p n_f
-      = ok (.Ok pty)) :
+      = ok out) :
     ∀ lst : ConLeche.Cached.CState,
-      (ConLeche.checkProjTyF (m := ConLeche.Cached.CheckCM) lfe
-          (absName t) (absName ctor_name) (absNames lps) (absExpr mty)
-          n_p.val n_f.val).run lst
-        = .ok (absExpr pty, lst)
-      ∧ ExprWF pty := by
+      match out with
+      | .Ok pty =>
+        (ConLeche.checkProjTyF (m := ConLeche.Cached.CheckCM) lfe
+            (absName t) (absName ctor_name) (absNames lps) (absExpr mty)
+            n_p.val n_f.val).run lst
+          = .ok (absExpr pty, lst)
+        ∧ ExprWF pty
+      | .Err e =>
+        ErrSim e ((ConLeche.checkProjTyF (m := ConLeche.Cached.CheckCM) lfe
+            (absName t) (absName ctor_name) (absNames lps) (absExpr mty)
+            n_p.val n_f.val).run lst) := by
   -- `hwf` is carried for the seam's uniformity (every statement of this
   -- section takes it); this route reads the index only through `FindAgree`.
   have _ : FindWF fe := hwf
@@ -1473,26 +1968,81 @@ theorem check_proj_ty_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
         obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨hoabs, -⟩ := ExprOps.strip_pis_refines hptywf ho
         rw [hi1v] at hoabs
+        have hround : ((absExpr mty).renameConsts
+              (ConLeche.projBack (absName t) (absName ctor_name) n_f.val)).renameConsts
+              (ConLeche.projFwd (absName t) (absName ctor_name) n_f.val)
+            == absExpr mty := by
+          rw [← hptyabs, ← hroundabs, ← decide_eq_beq]; exact hbabs.symm
+        have hres : ((absExpr mty).renameConsts
+              (ConLeche.projBack (absName t) (absName ctor_name) n_f.val)).constsResolveF
+              lfe = true := by
+          rw [← hptyabs]; exact hb1abs.symm
+        have hwfc : (((absExpr mty).renameConsts
+                (ConLeche.projBack (absName t) (absName ctor_name) n_f.val)).looseBVarsBounded 0
+              && !((absExpr mty).renameConsts
+                (ConLeche.projBack (absName t) (absName ctor_name) n_f.val)).hasFvar
+              && ((absExpr mty).renameConsts
+                (ConLeche.projBack (absName t) (absName ctor_name) n_f.val)).allLevelParamsDefined
+                  (absNames lps)) = true := by
+          rw [← hptyabs]; exact hwfabs.symm
         by_cases hon : core.option.Option.is_none o = true
-        · replace h := ite_pos_eq (c := (core.option.Option.is_none o = true)) hon h
-          simp [bind_eq_ok_iff] at h
+        · -- `modeled.rs` ← `DeclCheck.lean:760`
+          replace h := ite_pos_eq (c := (core.option.Option.is_none o = true)) hon h
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+          cases out with
+          | Ok q => simp at h
+          | Err e =>
+            refine errSim_notImplemented hce (by simpa using h)
+              (checkProjTyF_telescope hround hres hwfc ?_)
+            rw [← hptyabs, ← hoabs]
+            cases o with
+            | none => simp
+            | some q => simp [core.option.Option.is_none] at hon
         · replace h := ite_neg_eq (c := (core.option.Option.is_none o = true)) hon h
-          simp only [Result.ok.injEq, core.result.Result.Ok.injEq] at h
+          simp only [Result.ok.injEq] at h
           subst h
           refine ⟨?_, hptywf⟩
           rw [hptyabs]
-          refine checkProjTyF_run ?_ ?_ ?_ ?_
-          · rw [← hptyabs, ← hroundabs, ← decide_eq_beq]
-            exact hbabs.symm
+          refine checkProjTyF_run hround hres hwfc ?_
+          rw [← hptyabs, ← hoabs]
+          cases o with
+          | none => simp [core.option.Option.is_none] at hon
+          | some q => simp
+      · -- `modeled.rs` ← `DeclCheck.lean:758`
+        rename_i hwff
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+        cases out with
+        | Ok q => simp at h
+        | Err e =>
+          refine errSim_notImplemented hce (by simpa using h)
+            (checkProjTyF_wf ?_ ?_ ?_)
+          · rw [← hptyabs, ← hroundabs, ← decide_eq_beq]; exact hbabs.symm
           · rw [← hptyabs]; exact hb1abs.symm
-          · rw [← hptyabs]; exact hwfabs.symm
-          · rw [← hptyabs, ← hoabs]
-            cases o with
-            | none => simp [core.option.Option.is_none] at hon
-            | some q => simp
-      · simp [bind_eq_ok_iff] at h
-    · simp [bind_eq_ok_iff] at h
-  · simp [bind_eq_ok_iff] at h
+          · rw [← hptyabs, ← hwfabs]; simpa using hwff
+    · -- `modeled.rs` ← `DeclCheck.lean:754`
+      rename_i hb1f
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      cases out with
+      | Ok q => simp at h
+      | Err e =>
+        refine errSim_notImplemented hce (by simpa using h)
+          (checkProjTyF_resolve ?_ ?_)
+        · rw [← hptyabs, ← hroundabs, ← decide_eq_beq]; exact hbabs.symm
+        · rw [← hptyabs, ← hb1abs]; simpa using hb1f
+  · -- `modeled.rs` ← `DeclCheck.lean:752`
+    rename_i hbf
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+    cases out with
+    | Ok q => simp at h
+    | Err e =>
+      refine errSim_notImplemented hce (by simpa using h)
+        (checkProjTyF_roundtrip ?_)
+      rw [← hptyabs, ← hroundabs, ← decide_eq_beq, ← hbabs]
+      simpa using hbf
 
 /-- `ConLeche/Kernel/CheckerBase.lean:235-250 checkProjShape` —
 **`checker_base::check_proj_shape`**: the projection type's parameter prefix
@@ -1503,12 +2053,18 @@ and state-free, so the run leaves `lst` alone.
 projection route (`Cached/CheckerC.lean:160`) calls it between `checkProjTyF`
 and `checkProjRuleF`, and task #57 consumes the whole chain. -/
 theorem check_proj_shape_refines {pty ctor_ty : expr.Expr} {n_p n_f : Std.U64}
+    {out : core.result.Result Unit core_types.CheckError}
     (hp : ExprWF pty) (hct : ExprWF ctor_ty)
-    (h : checker_base.check_proj_shape pty ctor_ty n_p n_f = ok (.Ok ())) :
+    (h : checker_base.check_proj_shape pty ctor_ty n_p n_f = ok out) :
     ∀ lst : ConLeche.Cached.CState,
-      (ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM)
-        (absExpr pty) (absExpr ctor_ty) n_p.val n_f.val).run lst
-      = .ok ((), lst) :=
+      match out with
+      | .Ok _ =>
+        (ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM)
+          (absExpr pty) (absExpr ctor_ty) n_p.val n_f.val).run lst
+        = .ok ((), lst)
+      | .Err e =>
+        ErrSim e ((ConLeche.checkProjShape (m := ConLeche.Cached.CheckCM)
+          (absExpr pty) (absExpr ctor_ty) n_p.val n_f.val).run lst) :=
   CheckerBase.check_proj_shape_refines hp hct h
 
 /-- `ConLeche/Kernel/DeclCheck.lean:763-795 checkProjRuleF` (and
@@ -1524,17 +2080,24 @@ theorem check_proj_rule_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {pty : expr.Expr}
     {cvj : env.ConstantVal} {lps : alloc.vec.Vec name.Name}
-    {n_p n_f i : Std.U64} {rhs_a : expr.Expr}
+    {n_p n_f i : Std.U64}
+    {out : core.result.Result expr.Expr core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (hpty : ExprWF pty)
     (hcvj : ConstantValWF cvj) (hlps : NamesWF lps)
     (h : checker_base.check_proj_rule mode st fe pty cvj lps n_p n_f i
-      = ok (.Ok rhs_a, st')) :
+      = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.checkProjRuleF (m := ConLeche.Cached.CheckCM)
+      match out with
+      | .Ok rhs_a =>
+        ∃ lst', (ConLeche.checkProjRuleF (m := ConLeche.Cached.CheckCM)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe (absExpr pty)
+              (absConstantVal cvj) (absNames lps) n_p.val n_f.val i.val).run lst
+            = .ok (absExpr rhs_a, lst')
+          ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF rhs_a
+      | .Err e =>
+        ErrSim e ((ConLeche.checkProjRuleF (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe (absExpr pty)
-            (absConstantVal cvj) (absNames lps) n_p.val n_f.val i.val).run lst
-          = .ok (absExpr rhs_a, lst')
-        ∧ StateRel st' lst' ∧ StateWF st' ∧ ExprWF rhs_a :=
+            (absConstantVal cvj) (absNames lps) n_p.val n_f.val i.val).run lst) :=
   CheckerBase.check_proj_rule_refines hfuel hk constsResolveFSpec hsw hfw hpty
     hcvj hlps h
 
@@ -1991,6 +2554,21 @@ theorem run_bind {α β : Type} {x : ConLeche.Cached.CheckCM α}
   simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
   rw [show x s = Except.ok (a, s') from h]
 
+/-- The `pure ()` step of a `do` block, run: what a passed `unless` guard
+leaves behind. -/
+theorem run_pure_bind {α : Type} {f : Unit → ConLeche.Cached.CheckCM α}
+    {s : ConLeche.Cached.CState} :
+    ((pure () : ConLeche.Cached.CheckCM Unit) >>= f).run s = (f ()).run s := rfl
+
+/-- The failing twin of `run_bind` (task #67's move 1, spelled as a rewrite):
+a step that threw makes the rest of the `do` block throw, at its error. -/
+theorem run_bind_err {α β : Type} {x : ConLeche.Cached.CheckCM α}
+    {f : α → ConLeche.Cached.CheckCM β} {s : ConLeche.Cached.CState}
+    {le : ConLeche.CheckError} (h : x.run s = .error le) :
+    (x >>= f).run s = .error le := by
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rw [show x s = Except.error le from h]
+
 /-- The Rust reads the fuel constant and hands it to the wrapper; this is the
 `type_checker::infer_type_core` spelling `Refine/TypeChecker.lean` refines. -/
 theorem infer_at_fuel {mode : env.CheckMode} {fuel : Std.U64}
@@ -2055,6 +2633,162 @@ theorem checkIotaSidesTy_run_tt {mode' : ConLeche.CheckMode}
   simp only [reduceIte]
   rfl
 
+/-! The six operation calls of `checkIotaSidesTy` and its three `throw`s, as
+the nine failure arms of the lemma below (task #67).  The `throw` messages are
+the cited ones verbatim: `ErrSim` never compares them, but spelling them out
+keeps the closing `simp` off a metavariable. -/
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy` passes on what the left side's inference threw. -/
+theorem checkIotaSidesTy_err_lhs_infer {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS : ConLeche.Expr} {lA : ConLeche.Level} {nm : ConLeche.Name}
+    {lst : CState} {le : ConLeche.CheckError}
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .error le) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error le := by
+  rw [ConLeche.checkIotaSidesTy]; exact run_bind_err h1
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy` passes on what the left side's comparison threw. -/
+theorem checkIotaSidesTy_err_lhs_defeq {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl : ConLeche.Expr} {lA : ConLeche.Level} {nm : ConLeche.Name}
+    {lst lst1 : CState} {le : ConLeche.CheckError}
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .error le) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error le := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1]; exact run_bind_err h2
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy`'s left-side `throw` (`Modeled.lean:43`). -/
+theorem checkIotaSidesTy_lhs_mismatch {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl : ConLeche.Expr} {lA : ConLeche.Level} {nm : ConLeche.Name}
+    {lst lst1 lst2 : CState}
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .ok (false, lst2)) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error (.notImplemented s!"iota statement lhs type for {nm}") := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1, run_bind h2]
+  simp only
+  exact run_bind_err (throw_apply _ _)
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy` passes on what the right side's inference threw. -/
+theorem checkIotaSidesTy_err_rhs_infer {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl : ConLeche.Expr} {lA : ConLeche.Level} {nm : ConLeche.Name}
+    {lst lst1 lst2 : CState} {le : ConLeche.CheckError}
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .ok (true, lst2))
+    (h3 : (ops.inferType lenv depth rhsS).run lst2 = .error le) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error le := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1, run_bind h2]
+  simp only [reduceIte]
+  exact run_bind_err h3
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy` passes on what the right side's comparison threw. -/
+theorem checkIotaSidesTy_err_rhs_defeq {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl tr : ConLeche.Expr} {lA : ConLeche.Level}
+    {nm : ConLeche.Name} {lst lst1 lst2 lst3 : CState} {le : ConLeche.CheckError}
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .ok (true, lst2))
+    (h3 : (ops.inferType lenv depth rhsS).run lst2 = .ok (tr, lst3))
+    (h4 : (ops.isDefEq lenv depth tr alphaS).run lst3 = .error le) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error le := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1, run_bind h2]
+  simp only [reduceIte]
+  rw [run_bind h3]
+  exact run_bind_err h4
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy`'s right-side `throw` (`Modeled.lean:46`). -/
+theorem checkIotaSidesTy_rhs_mismatch {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl tr : ConLeche.Expr} {lA : ConLeche.Level}
+    {nm : ConLeche.Name} {lst lst1 lst2 lst3 lst4 : CState}
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .ok (true, lst2))
+    (h3 : (ops.inferType lenv depth rhsS).run lst2 = .ok (tr, lst3))
+    (h4 : (ops.isDefEq lenv depth tr alphaS).run lst3 = .ok (false, lst4)) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error (.notImplemented s!"iota statement rhs type for {nm}") := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1, run_bind h2]
+  simp only [reduceIte]
+  rw [run_bind h3, run_bind h4]
+  exact run_bind_err (throw_apply _ _)
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy` passes on what the slot's inference threw (TT lane). -/
+theorem checkIotaSidesTy_err_slot_infer {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl tr : ConLeche.Expr} {lA : ConLeche.Level}
+    {nm : ConLeche.Name} {lst lst1 lst2 lst3 lst4 : CState}
+    {le : ConLeche.CheckError} (htt : mode'.ttChecks = true)
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .ok (true, lst2))
+    (h3 : (ops.inferType lenv depth rhsS).run lst2 = .ok (tr, lst3))
+    (h4 : (ops.isDefEq lenv depth tr alphaS).run lst3 = .ok (true, lst4))
+    (h5 : (ops.inferType lenv depth alphaS).run lst4 = .error le) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error le := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1, run_bind h2]
+  simp only [reduceIte]
+  rw [run_bind h3, run_bind h4]
+  simp only [reduceIte, htt]
+  exact run_bind_err h5
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy` passes on what the slot's comparison threw (TT lane). -/
+theorem checkIotaSidesTy_err_slot_defeq {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl tr ta : ConLeche.Expr} {lA : ConLeche.Level}
+    {nm : ConLeche.Name} {lst lst1 lst2 lst3 lst4 lst5 : CState}
+    {le : ConLeche.CheckError} (htt : mode'.ttChecks = true)
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .ok (true, lst2))
+    (h3 : (ops.inferType lenv depth rhsS).run lst2 = .ok (tr, lst3))
+    (h4 : (ops.isDefEq lenv depth tr alphaS).run lst3 = .ok (true, lst4))
+    (h5 : (ops.inferType lenv depth alphaS).run lst4 = .ok (ta, lst5))
+    (h6 : (ops.isDefEq lenv depth ta (.sort lA)).run lst5 = .error le) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error le := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1, run_bind h2]
+  simp only [reduceIte]
+  rw [run_bind h3, run_bind h4]
+  simp only [reduceIte, htt]
+  rw [run_bind h5]
+  exact run_bind_err h6
+
+open ConLeche.Cached in
+/-- `checkIotaSidesTy`'s slot-sort `throw` (`Modeled.lean:52`, TT lane). -/
+theorem checkIotaSidesTy_slot_mismatch {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env} {depth : Nat}
+    {alphaS lhsS rhsS tl tr ta : ConLeche.Expr} {lA : ConLeche.Level}
+    {nm : ConLeche.Name} {lst lst1 lst2 lst3 lst4 lst5 lst6 : CState}
+    (htt : mode'.ttChecks = true)
+    (h1 : (ops.inferType lenv depth lhsS).run lst = .ok (tl, lst1))
+    (h2 : (ops.isDefEq lenv depth tl alphaS).run lst1 = .ok (true, lst2))
+    (h3 : (ops.inferType lenv depth rhsS).run lst2 = .ok (tr, lst3))
+    (h4 : (ops.isDefEq lenv depth tr alphaS).run lst3 = .ok (true, lst4))
+    (h5 : (ops.inferType lenv depth alphaS).run lst4 = .ok (ta, lst5))
+    (h6 : (ops.isDefEq lenv depth ta (.sort lA)).run lst5 = .ok (false, lst6)) :
+    (ConLeche.checkIotaSidesTy mode' ops lenv depth alphaS lhsS rhsS lA nm).run lst
+      = .error (.notImplemented
+          s!"iota statement type slot sort for {nm}") := by
+  rw [ConLeche.checkIotaSidesTy, run_bind h1, run_bind h2]
+  simp only [reduceIte]
+  rw [run_bind h3, run_bind h4]
+  simp only [reduceIte, htt]
+  rw [run_bind h5, run_bind h6]
+  exact throw_apply _ _
+
 /-- `ConLeche/Kernel/Inductives/Modeled.lean:40-53 checkIotaSidesTy` —
 **`modeled::check_iota_sides_ty` refines it**: the two sides' inferred types
 are the slot, and in the TT lane the slot is a sort at the head's level.  The
@@ -2064,139 +2798,193 @@ theorem check_iota_sides_ty_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {depth : Std.U64}
     {alpha_s lhs_s rhs_s : expr.Expr} {l_a : level.Level}
+    {out : core.result.Result Unit core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (ha : ExprWF alpha_s)
     (hl : ExprWF lhs_s) (hr : ExprWF rhs_s) (hla : LevelWF l_a)
     (h : inductives.modeled.check_iota_sides_ty mode st fe depth alpha_s lhs_s
-      rhs_s l_a = ok (.Ok (), st')) :
+      rhs_s l_a = ok (out, st')) :
     ∀ (lst : ConLeche.Cached.CState) (lfe : ConLeche.FEnv) (nm : ConLeche.Name),
       StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.checkIotaSidesTy (absMode mode)
+      match out with
+      | .Ok _ =>
+        ∃ lst', (ConLeche.checkIotaSidesTy (absMode mode)
+              (TypeChecker.lops mode lfe) lfe.env depth.val (absExpr alpha_s)
+              (absExpr lhs_s) (absExpr rhs_s) (absLevel l_a) nm).run lst
+            = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkIotaSidesTy (absMode mode)
             (TypeChecker.lops mode lfe) lfe.env depth.val (absExpr alpha_s)
-            (absExpr lhs_s) (absExpr rhs_s) (absLevel l_a) nm).run lst
-          = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+            (absExpr lhs_s) (absExpr rhs_s) (absLevel l_a) nm).run lst) := by
   intro lst lfe nm hsr hfr
   rw [inductives.modeled.check_iota_sides_ty] at h
   replace h := TypeChecker.at_check_fuel hfuel h
   obtain ⟨q1, hq1, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r1, st1⟩ := q1
   cases r1 with
-  | Err e1 => simp at h
+  | Err e1 =>
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    exact ErrSim.trans
+      ((TypeChecker.infer_type_core_refines hfuel hk).err st fe depth lhs_s e1 st1
+        hsw hfw hl (infer_at_fuel hfuel hq1) lst lfe hsr hfr)
+      (fun le hle => checkIotaSidesTy_err_lhs_infer hle)
   | Ok tl =>
     obtain ⟨lst1, hrun1, hsr1, hsw1, htlwf⟩ :=
       (TypeChecker.infer_type_core_refines hfuel hk).ok st fe depth lhs_s tl st1
         hsw hfw hl (infer_at_fuel hfuel hq1) lst lfe hsr hfr
+    have e1 : ((TypeChecker.lops mode lfe).inferType lfe.env depth.val
+        (absExpr lhs_s)).run lst = .ok (absExpr tl, lst1) := by
+      rw [TypeChecker.sharedOpsC_inferType]; exact hrun1
     obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r2, st2⟩ := q2
     cases r2 with
-    | Err e2 => simp at h
+    | Err e2 =>
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      exact ErrSim.trans
+        ((TypeChecker.is_def_eq_core_refines hfuel hk).err st1 fe depth tl alpha_s
+          e2 st2 hsw1 hfw htlwf ha (defeq_at_fuel hfuel hq2) lst1 lfe hsr1 hfr)
+        (fun le hle => checkIotaSidesTy_err_lhs_defeq e1 hle)
     | Ok b =>
       obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
         (TypeChecker.is_def_eq_core_refines hfuel hk).ok st1 fe depth tl alpha_s b st2
           hsw1 hfw htlwf ha (defeq_at_fuel hfuel hq2) lst1 lfe hsr1 hfr
+      have e2 : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
+          (absExpr tl) (absExpr alpha_s)).run lst1 = .ok (b, lst2) := by
+        rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun2
       cases b with
-      | false => simp [bind_eq_ok_iff] at h
+      | false =>
+        -- `modeled.rs:288` ← `Modeled.lean:43`
+        simp only at h
+        obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        exact errSim_notImplemented hce rfl (checkIotaSidesTy_lhs_mismatch e1 e2)
       | true =>
         simp only at h
         obtain ⟨q3, hq3, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨r3, st3⟩ := q3
         cases r3 with
-        | Err e3 => simp at h
+        | Err e3 =>
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          exact ErrSim.trans
+            ((TypeChecker.infer_type_core_refines hfuel hk).err st2 fe depth rhs_s
+              e3 st3 hsw2 hfw hr (infer_at_fuel hfuel hq3) lst2 lfe hsr2 hfr)
+            (fun le hle => checkIotaSidesTy_err_rhs_infer e1 e2 hle)
         | Ok tr =>
           obtain ⟨lst3, hrun3, hsr3, hsw3, htrwf⟩ :=
             (TypeChecker.infer_type_core_refines hfuel hk).ok st2 fe depth rhs_s tr st3
               hsw2 hfw hr (infer_at_fuel hfuel hq3) lst2 lfe hsr2 hfr
+          have e3 : ((TypeChecker.lops mode lfe).inferType lfe.env depth.val
+              (absExpr rhs_s)).run lst2 = .ok (absExpr tr, lst3) := by
+            rw [TypeChecker.sharedOpsC_inferType]; exact hrun3
           obtain ⟨q4, hq4, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨r4, st4⟩ := q4
           cases r4 with
-          | Err e4 => simp at h
+          | Err e4 =>
+            obtain ⟨hout, -⟩ := err_outS h
+            subst hout
+            exact ErrSim.trans
+              ((TypeChecker.is_def_eq_core_refines hfuel hk).err st3 fe depth tr
+                alpha_s e4 st4 hsw3 hfw htrwf ha (defeq_at_fuel hfuel hq4) lst3 lfe
+                hsr3 hfr)
+              (fun le hle => checkIotaSidesTy_err_rhs_defeq e1 e2 e3 hle)
           | Ok b1 =>
             obtain ⟨lst4, hrun4, hsr4, hsw4⟩ :=
               (TypeChecker.is_def_eq_core_refines hfuel hk).ok st3 fe depth tr alpha_s
                 b1 st4 hsw3 hfw htrwf ha (defeq_at_fuel hfuel hq4) lst3 lfe hsr3 hfr
+            have e4 : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
+                (absExpr tr) (absExpr alpha_s)).run lst3 = .ok (b1, lst4) := by
+              rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun4
             cases b1 with
-            | false => simp [bind_eq_ok_iff] at h
+            | false =>
+              -- `modeled.rs:292` ← `Modeled.lean:46`
+              simp only at h
+              obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨hout, -⟩ := err_outS h
+              subst hout
+              exact errSim_notImplemented hce rfl
+                (checkIotaSidesTy_rhs_mismatch e1 e2 e3 e4)
             | true =>
               simp only at h
               obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
               have hb2abs := Env.tt_checks_refines hb2
               cases b2 with
               | false =>
-                simp only [Bool.false_eq_true, if_false, Result.ok.injEq,
-                  Prod.mk.injEq] at h
-                obtain ⟨-, rfl⟩ := h
-                have e1 : ((TypeChecker.lops mode lfe).inferType lfe.env depth.val
-                    (absExpr lhs_s)).run lst = .ok (absExpr tl, lst1) := by
-                  rw [TypeChecker.sharedOpsC_inferType]; exact hrun1
-                have e2 : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
-                    (absExpr tl) (absExpr alpha_s)).run lst1 = .ok (true, lst2) := by
-                  rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun2
-                have e3 : ((TypeChecker.lops mode lfe).inferType lfe.env depth.val
-                    (absExpr rhs_s)).run lst2 = .ok (absExpr tr, lst3) := by
-                  rw [TypeChecker.sharedOpsC_inferType]; exact hrun3
-                have e4 : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
-                    (absExpr tr) (absExpr alpha_s)).run lst3 = .ok (true, lst4) := by
-                  rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun4
+                simp only [Bool.false_eq_true, if_false] at h
+                obtain ⟨hout, rfl⟩ := ok_outS h
+                subst hout
                 exact ⟨lst4, checkIotaSidesTy_run_ff (by rw [← hb2abs]) e1 e2 e3 e4,
                   hsr4, hsw4⟩
               | true =>
+                have htt : (absMode mode).ttChecks = true := by rw [← hb2abs]
                 simp only [reduceIte] at h
                 obtain ⟨q5, hq5, h⟩ := bind_eq_ok_iff.mp h
                 obtain ⟨r5, st5⟩ := q5
                 cases r5 with
-                | Err e5 => simp at h
+                | Err e5 =>
+                  obtain ⟨hout, -⟩ := err_outS h
+                  subst hout
+                  exact ErrSim.trans
+                    ((TypeChecker.infer_type_core_refines hfuel hk).err st4 fe depth
+                      alpha_s e5 st5 hsw4 hfw ha (infer_at_fuel hfuel hq5) lst4 lfe
+                      hsr4 hfr)
+                    (fun le hle =>
+                      checkIotaSidesTy_err_slot_infer htt e1 e2 e3 e4 hle)
                 | Ok ta =>
                   obtain ⟨lst5, hrun5, hsr5, hsw5, htawf⟩ :=
                     (TypeChecker.infer_type_core_refines hfuel hk).ok st4 fe depth
                       alpha_s ta st5 hsw4 hfw ha (infer_at_fuel hfuel hq5) lst4
                       lfe hsr4 hfr
+                  have e5 : ((TypeChecker.lops mode lfe).inferType lfe.env depth.val
+                      (absExpr alpha_s)).run lst4 = .ok (absExpr ta, lst5) := by
+                    rw [TypeChecker.sharedOpsC_inferType]; exact hrun5
                   simp only [level_dup_eq, bind_tc_ok] at h
                   obtain ⟨se, hse, h⟩ := bind_eq_ok_iff.mp h
                   obtain ⟨q6, hq6, h⟩ := bind_eq_ok_iff.mp h
                   obtain ⟨r6, st6⟩ := q6
                   cases r6 with
-                  | Err e6 => simp at h
+                  | Err e6 =>
+                    obtain ⟨hout, -⟩ := err_outS h
+                    subst hout
+                    have hsim := (TypeChecker.is_def_eq_core_refines hfuel hk).err st5
+                      fe depth ta se e6 st6 hsw5 hfw htawf (Expr.sort_wf hla hse)
+                      (defeq_at_fuel hfuel hq6) lst5 lfe hsr5 hfr
+                    rw [Expr.sort_refines hse] at hsim
+                    exact ErrSim.trans hsim
+                      (fun le hle =>
+                        checkIotaSidesTy_err_slot_defeq htt e1 e2 e3 e4 e5 hle)
                   | Ok b3 =>
                     obtain ⟨lst6, hrun6, hsr6, hsw6⟩ :=
                       (TypeChecker.is_def_eq_core_refines hfuel hk).ok st5 fe depth ta
                         se b3 st6 hsw5 hfw htawf (Expr.sort_wf hla hse)
                         (defeq_at_fuel hfuel hq6) lst5 lfe hsr5 hfr
                     rw [Expr.sort_refines hse] at hrun6
+                    have e6 : ((TypeChecker.lops mode lfe).isDefEq lfe.env depth.val
+                        (absExpr ta) (ConLeche.Expr.sort (absLevel l_a))).run lst5
+                        = .ok (b3, lst6) := by
+                      rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun6
                     cases b3 with
-                    | false => simp [bind_eq_ok_iff] at h
+                    | false =>
+                      -- `modeled.rs:296` ← `Modeled.lean:52`
+                      obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+                      obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+                      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+                      obtain ⟨hout, -⟩ := err_outS h
+                      subst hout
+                      exact errSim_notImplemented hce rfl
+                        (checkIotaSidesTy_slot_mismatch htt e1 e2 e3 e4 e5 e6)
                     | true =>
-                      have hst : ((core.result.Result.Ok ()
-                            : core.result.Result Unit core_types.CheckError), st6)
-                          = (.Ok (), st') := Result.ok_injective h
-                      simp only [Prod.mk.injEq, true_and] at hst
-                      subst hst
-                      have e1 : ((TypeChecker.lops mode lfe).inferType lfe.env
-                          depth.val (absExpr lhs_s)).run lst
-                          = .ok (absExpr tl, lst1) := by
-                        rw [TypeChecker.sharedOpsC_inferType]; exact hrun1
-                      have e2 : ((TypeChecker.lops mode lfe).isDefEq lfe.env
-                          depth.val (absExpr tl) (absExpr alpha_s)).run lst1
-                          = .ok (true, lst2) := by
-                        rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun2
-                      have e3 : ((TypeChecker.lops mode lfe).inferType lfe.env
-                          depth.val (absExpr rhs_s)).run lst2
-                          = .ok (absExpr tr, lst3) := by
-                        rw [TypeChecker.sharedOpsC_inferType]; exact hrun3
-                      have e4 : ((TypeChecker.lops mode lfe).isDefEq lfe.env
-                          depth.val (absExpr tr) (absExpr alpha_s)).run lst3
-                          = .ok (true, lst4) := by
-                        rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun4
-                      have e5 : ((TypeChecker.lops mode lfe).inferType lfe.env
-                          depth.val (absExpr alpha_s)).run lst4
-                          = .ok (absExpr ta, lst5) := by
-                        rw [TypeChecker.sharedOpsC_inferType]; exact hrun5
-                      have e6 : ((TypeChecker.lops mode lfe).isDefEq lfe.env
-                          depth.val (absExpr ta)
-                          (ConLeche.Expr.sort (absLevel l_a))).run lst5
-                          = .ok (true, lst6) := by
-                        rw [TypeChecker.sharedOpsC_isDefEq]; exact hrun6
-                      exact ⟨lst6, checkIotaSidesTy_run_tt (by rw [← hb2abs])
-                        e1 e2 e3 e4 e5 e6, hsr6, hsw6⟩
+                      obtain ⟨hout, rfl⟩ := ok_outS h
+                      subst hout
+                      exact ⟨lst6, checkIotaSidesTy_run_tt htt e1 e2 e3 e4 e5 e6,
+                        hsr6, hsw6⟩
 
 /-! ### The iota body and the spine shape
 
@@ -2246,6 +3034,20 @@ theorem app3_of_spine {e g a0 a1 a2 : ConLeche.Expr}
   rw [hfn, hargs] at hs
   rw [← hs]
   simp [ConLeche.Expr.mkAppN]
+
+/-- The cited three-argument pattern's arguments, read back. -/
+theorem getAppArgs_app3_const (c : ConLeche.Name) (lu : ConLeche.Level)
+    (t a b : ConLeche.Expr) :
+    (ConLeche.Expr.app (.app (.app (.const c [lu]) t) a) b).getAppArgs
+      = [t, a, b] := by
+  simp [ConLeche.Expr.getAppArgs]
+
+/-- The cited three-argument pattern's head, read back. -/
+theorem getAppFn_app3_const (c : ConLeche.Name) (lu : ConLeche.Level)
+    (t a b : ConLeche.Expr) :
+    (ConLeche.Expr.app (.app (.app (.const c [lu]) t) a) b).getAppFn
+      = .const c [lu] := by
+  simp [ConLeche.Expr.getAppFn]
 
 /-- `isEqHead` accepted: the head *is* the pinned equality former at one
 level (`CheckerBase.lean:186-189`). -/
@@ -2361,6 +3163,175 @@ theorem projIotaTail_run {mode' : ConLeche.CheckMode}
   exact h10
 
 open ConLeche.Cached in
+/-- `projIotaTail`'s off-shape `throw` (`DeclCheck.lean:825`): the statement's
+body is not the cited three-argument application of a one-level constant. -/
+theorem projIotaTail_shape {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {T ctorName : ConLeche.Name} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat} {tcvTy sbody : ConLeche.Expr}
+    {lst : CState}
+    (hs : ∀ (c : ConLeche.Name) (lu : ConLeche.Level) (t a b : ConLeche.Expr),
+      sbody ≠ .app (.app (.app (.const c [lu]) t) a) b) :
+    (projIotaTail mode' ops lenv T ctorName cvj lps nP nF i tcvTy sbody).run lst
+      = .error (.notImplemented "projection iota body shape") := by
+  rw [projIotaTail]
+  · exact run_bind_err (throw_apply _ _)
+  · intro c lu t a b heq
+    exact hs c lu t a b heq
+
+open ConLeche.Cached in
+/-- `projIotaTail`'s head `throw` (`DeclCheck.lean:818`). -/
+theorem projIotaTail_head {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {T ctorName : ConLeche.Name} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat}
+    {tcvTy sbody tslot lhsC rhsC : ConLeche.Expr} {c : ConLeche.Name}
+    {lu : ConLeche.Level} {lst : CState}
+    (hshape : sbody = .app (.app (.app (.const c [lu]) tslot) lhsC) rhsC)
+    (hc : c ≠ ConLeche.eqName) :
+    (projIotaTail mode' ops lenv T ctorName cvj lps nP nF i tcvTy sbody).run lst
+      = .error (.notImplemented "projection iota head") := by
+  subst hshape
+  rw [projIotaTail_at, projIotaTailAt]
+  simp only [if_neg hc]
+  exact run_bind_err (throw_apply _ _)
+
+open ConLeche.Cached in
+/-- `projIotaTail`'s redex `throw` (`DeclCheck.lean:820`). -/
+theorem projIotaTail_redex {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {T ctorName : ConLeche.Name} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat}
+    {tcvTy sbody tslot lhsC rhsC : ConLeche.Expr} {lu : ConLeche.Level}
+    {lst : CState}
+    (hshape : sbody
+        = .app (.app (.app (.const ConLeche.eqName [lu]) tslot) lhsC) rhsC)
+    (h7 : (lhsC == ConLeche.Expr.mkAppN
+        (.const (ConLeche.projModelName T i) (lps.map .param))
+        (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+          ++ [ConLeche.Expr.mkAppN
+              (.const (ctorName.str "_model") (cvj.levelParams.map .param))
+              (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+                ++ ((List.range nF).map fun k =>
+                      ConLeche.Expr.bvar (nF - 1 - k)))])) = false) :
+    (projIotaTail mode' ops lenv T ctorName cvj lps nP nF i tcvTy sbody).run lst
+      = .error (.notImplemented "projection iota redex mismatch") := by
+  subst hshape
+  rw [projIotaTail_at, projIotaTailAt]
+  simp only [h7, reduceIte, Bool.false_eq_true, if_false, run_pure_bind]
+  exact run_bind_err (throw_apply _ _)
+
+open ConLeche.Cached in
+/-- `projIotaTail`'s field `throw` (`DeclCheck.lean:822`). -/
+theorem projIotaTail_field {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {T ctorName : ConLeche.Name} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat}
+    {tcvTy sbody tslot lhsC rhsC : ConLeche.Expr} {lu : ConLeche.Level}
+    {lst : CState}
+    (hshape : sbody
+        = .app (.app (.app (.const ConLeche.eqName [lu]) tslot) lhsC) rhsC)
+    (h7 : (lhsC == ConLeche.Expr.mkAppN
+        (.const (ConLeche.projModelName T i) (lps.map .param))
+        (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+          ++ [ConLeche.Expr.mkAppN
+              (.const (ctorName.str "_model") (cvj.levelParams.map .param))
+              (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+                ++ ((List.range nF).map fun k =>
+                      ConLeche.Expr.bvar (nF - 1 - k)))])) = true)
+    (h8 : (rhsC == ConLeche.Expr.bvar (nF - 1 - i)) = false) :
+    (projIotaTail mode' ops lenv T ctorName cvj lps nP nF i tcvTy sbody).run lst
+      = .error (.notImplemented "projection iota field mismatch") := by
+  subst hshape
+  rw [projIotaTail_at, projIotaTailAt]
+  simp only [h7, h8, reduceIte, Bool.false_eq_true, if_false, run_pure_bind]
+  exact run_bind_err (throw_apply _ _)
+
+open ConLeche.Cached in
+/-- `projIotaTail`'s telescope `throw` (`DeclCheck.lean:824`). -/
+theorem projIotaTail_telescope {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {T ctorName : ConLeche.Name} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat}
+    {tcvTy sbody tslot lhsC rhsC : ConLeche.Expr} {lu : ConLeche.Level}
+    {lst : CState}
+    (hshape : sbody
+        = .app (.app (.app (.const ConLeche.eqName [lu]) tslot) lhsC) rhsC)
+    (h7 : (lhsC == ConLeche.Expr.mkAppN
+        (.const (ConLeche.projModelName T i) (lps.map .param))
+        (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+          ++ [ConLeche.Expr.mkAppN
+              (.const (ctorName.str "_model") (cvj.levelParams.map .param))
+              (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+                ++ ((List.range nF).map fun k =>
+                      ConLeche.Expr.bvar (nF - 1 - k)))])) = true)
+    (h8 : (rhsC == ConLeche.Expr.bvar (nF - 1 - i)) = true)
+    (h9 : ConLeche.openPisAtFvars (nP + nF) tcvTy 0 = none) :
+    (projIotaTail mode' ops lenv T ctorName cvj lps nP nF i tcvTy sbody).run lst
+      = .error (.notImplemented "projection iota telescope") := by
+  subst hshape
+  rw [projIotaTail_at, projIotaTailAt]
+  simp only [h7, h8, h9, ConLeche.unwrapOr, reduceIte, run_pure_bind]
+  exact run_bind_err (throw_apply _ _)
+
+open ConLeche.Cached in
+/-- `projIotaTail` passes on what the two side certificates threw. -/
+theorem projIotaTail_sides_err {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
+    {T ctorName : ConLeche.Name} {cvj : ConLeche.ConstantVal}
+    {lps : List ConLeche.Name} {nP nF i : Nat}
+    {tcvTy sbody tslot lhsC rhsC sbodyO : ConLeche.Expr} {lu : ConLeche.Level}
+    {fvs : List ConLeche.Expr} {lst : CState} {le : ConLeche.CheckError}
+    (hshape : sbody
+        = .app (.app (.app (.const ConLeche.eqName [lu]) tslot) lhsC) rhsC)
+    (h7 : (lhsC == ConLeche.Expr.mkAppN
+        (.const (ConLeche.projModelName T i) (lps.map .param))
+        (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+          ++ [ConLeche.Expr.mkAppN
+              (.const (ctorName.str "_model") (cvj.levelParams.map .param))
+              (((List.range nP).map fun k => ConLeche.Expr.bvar (nP + nF - 1 - k))
+                ++ ((List.range nF).map fun k =>
+                      ConLeche.Expr.bvar (nF - 1 - k)))])) = true)
+    (h8 : (rhsC == ConLeche.Expr.bvar (nF - 1 - i)) = true)
+    (h9 : ConLeche.openPisAtFvars (nP + nF) tcvTy 0 = some (fvs, sbodyO))
+    (h10 : (ConLeche.checkIotaSidesTy mode' ops lenv (nP + nF)
+        (sbodyO.getAppArgs.getD 0 (.bvar 0)) (sbodyO.getAppArgs.getD 1 (.bvar 0))
+        (sbodyO.getAppArgs.getD 2 (.bvar 0))
+        (ConLeche.eqHeadLevel (.const ConLeche.eqName [lu]))
+        (ConLeche.projModelName T i)).run lst = .error le) :
+    (projIotaTail mode' ops lenv T ctorName cvj lps nP nF i tcvTy sbody).run lst
+      = .error le := by
+  subst hshape
+  rw [projIotaTail_at, projIotaTailAt]
+  simp only [h7, h8, h9, ConLeche.unwrapOr, reduceIte]
+  exact h10
+
+/-- The port's head-shape test, inverted: an abstracted head that is a
+one-level `.const` has a `Const` node kind at a one-element level vector, which
+is what `check_proj_iota_body`'s shape `match` answers `true` on. -/
+private theorem const_kind_of_abs {e : expr.Expr} {c : ConLeche.Name}
+    {lu : ConLeche.Level} (h : absExpr e = .const c [lu]) :
+    ∃ (n : name.Name) (us : alloc.vec.Vec level.Level),
+      e._0.kind = .Const n us ∧ us.val.length = 1 := by
+  rw [absExpr_kind] at h
+  cases hk : e._0.kind with
+  | Const n us =>
+    refine ⟨n, us, rfl, ?_⟩
+    rw [hk] at h
+    simp only [absExprKind, ConLeche.Expr.const.injEq] at h
+    have hl := congrArg List.length h.2
+    simpa [absLevels] using hl
+  | Bvar _ => rw [hk] at h; simp [absExprKind] at h
+  | Fvar _ _ => rw [hk] at h; simp [absExprKind] at h
+  | «Sort» _ => rw [hk] at h; simp [absExprKind] at h
+  | App _ _ => rw [hk] at h; simp [absExprKind] at h
+  | Lam _ _ _ => rw [hk] at h; simp [absExprKind] at h
+  | ForallE _ _ _ => rw [hk] at h; simp [absExprKind] at h
+  | LetE _ _ _ => rw [hk] at h; simp [absExprKind] at h
+  | Lit _ => rw [hk] at h; simp [absExprKind] at h
+  | Proj _ _ _ => rw [hk] at h; simp [absExprKind] at h
+
+open ConLeche.Cached in
 /-- `ConLeche/Kernel/DeclCheck.lean:797-836 checkProjIotaF` — the cited
 function *is* its prefix guards followed by `projIotaTail`. -/
 theorem checkProjIotaF_at_tail {mode' : ConLeche.CheckMode}
@@ -2383,6 +3354,103 @@ theorem checkProjIotaF_at_tail {mode' : ConLeche.CheckMode}
   simp only [h1, h2, h3, h4, h5, reduceIte]
   rfl
 
+open ConLeche.Cached in
+/-- `checkProjIotaF`'s missing-theorem `throw` (`DeclCheck.lean:801`). -/
+theorem checkProjIotaF_thm_none {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj : ConLeche.ConstantVal} {nP nF i : Nat} {lst : CState}
+    (h1 : thmOf (lfe.find? ((ConLeche.projModelName T i).str "iota")) = none) :
+    (ConLeche.checkProjIotaF mode' ops lfe T ctorName lps cvj nP nF i).run lst
+      = .error (.notImplemented "missing projection iota theorem") := by
+  rw [ConLeche.checkProjIotaF]
+  cases hx : lfe.find? ((ConLeche.projModelName T i).str "iota") with
+  | none => rfl
+  | some ci =>
+    rw [hx] at h1
+    cases ci with
+    | axiomInfo _ => rfl
+    | defnInfo _ _ _ => rfl
+    | thmInfo _ _ => simp [thmOf] at h1
+    | indInfo _ _ => rfl
+    | ctorInfo _ _ _ => rfl
+    | recInfo _ _ _ _ => rfl
+    | projInfo _ => rfl
+
+open ConLeche.Cached in
+/-- `checkProjIotaF`'s level `throw` (`DeclCheck.lean:803`). -/
+theorem checkProjIotaF_lps {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj tcv : ConLeche.ConstantVal} {tval : ConLeche.Expr} {nP nF i : Nat}
+    {lst : CState}
+    (h1 : lfe.find? ((ConLeche.projModelName T i).str "iota")
+        = some (.thmInfo tcv tval))
+    (h2 : tcv.levelParams ≠ lps) :
+    (ConLeche.checkProjIotaF mode' ops lfe T ctorName lps cvj nP nF i).run lst
+      = .error (.notImplemented "projection iota level mismatch") := by
+  rw [ConLeche.checkProjIotaF]
+  simp only [h1, if_neg h2]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjIotaF`'s statement-telescope `throw` (`DeclCheck.lean:805`). -/
+theorem checkProjIotaF_thm_tele {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj tcv : ConLeche.ConstantVal} {tval : ConLeche.Expr} {nP nF i : Nat}
+    {lst : CState}
+    (h1 : lfe.find? ((ConLeche.projModelName T i).str "iota")
+        = some (.thmInfo tcv tval))
+    (h2 : tcv.levelParams = lps)
+    (h3 : tcv.type.stripPis (nP + nF) = none) :
+    (ConLeche.checkProjIotaF mode' ops lfe T ctorName lps cvj nP nF i).run lst
+      = .error (.notImplemented "projection iota telescope") := by
+  rw [ConLeche.checkProjIotaF]
+  simp only [h1, h2, h3, reduceIte]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjIotaF`'s constructor-telescope `throw` (`DeclCheck.lean:807`). -/
+theorem checkProjIotaF_ctor_tele {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj tcv : ConLeche.ConstantVal} {tval sbody : ConLeche.Expr}
+    {sbinders : List (ConLeche.Expr × ConLeche.BinderMeta)} {nP nF i : Nat}
+    {lst : CState}
+    (h1 : lfe.find? ((ConLeche.projModelName T i).str "iota")
+        = some (.thmInfo tcv tval))
+    (h2 : tcv.levelParams = lps)
+    (h3 : tcv.type.stripPis (nP + nF) = some (sbinders, sbody))
+    (h4 : cvj.type.stripPis (nP + nF) = none) :
+    (ConLeche.checkProjIotaF mode' ops lfe T ctorName lps cvj nP nF i).run lst
+      = .error (.notImplemented "projection constructor telescope") := by
+  rw [ConLeche.checkProjIotaF]
+  simp only [h1, h2, h3, h4, reduceIte]
+  rfl
+
+open ConLeche.Cached in
+/-- `checkProjIotaF`'s domain `throw` (`DeclCheck.lean:811`). -/
+theorem checkProjIotaF_doms {mode' : ConLeche.CheckMode}
+    {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLeche.FEnv}
+    {T ctorName : ConLeche.Name} {lps : List ConLeche.Name}
+    {cvj tcv : ConLeche.ConstantVal} {tval sbody cbody : ConLeche.Expr}
+    {sbinders cbindersR : List (ConLeche.Expr × ConLeche.BinderMeta)}
+    {nP nF i : Nat} {lst : CState}
+    (h1 : lfe.find? ((ConLeche.projModelName T i).str "iota")
+        = some (.thmInfo tcv tval))
+    (h2 : tcv.levelParams = lps)
+    (h3 : tcv.type.stripPis (nP + nF) = some (sbinders, sbody))
+    (h4 : cvj.type.stripPis (nP + nF) = some (cbindersR, cbody))
+    (h5 : ConLeche.domsMatchAux
+        (fun _ e => e.renameConsts (ConLeche.projFwd T ctorName nF))
+        sbinders cbindersR 0 0 (nP + nF) = false) :
+    (ConLeche.checkProjIotaF mode' ops lfe T ctorName lps cvj nP nF i).run lst
+      = .error (.notImplemented "projection iota domain mismatch") := by
+  rw [ConLeche.checkProjIotaF]
+  simp only [h1, h2, h3, h4, h5, reduceIte, Bool.false_eq_true, if_false]
+  rfl
+
 /-- `ConLeche/Kernel/DeclCheck.lean:812-836` —
 **`inductives::modeled::check_proj_iota_body` refines the cited tail.**
 
@@ -2399,17 +3467,24 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
     {st st' : cached.state_c.CState} {fe : fenv.FEnv} {t ctor_name : name.Name}
     {cvj tcv : env.ConstantVal} {lps : alloc.vec.Vec name.Name}
     {n_p n_f i : Std.U64} {sbody : expr.Expr}
+    {out : core.result.Result Unit core_types.CheckError}
     (hsw : StateWF st) (hfw : FEnvWF fe) (ht : NameWF t)
     (hcvj : ConstantValWF cvj) (hlps : NamesWF lps) (htcv : ConstantValWF tcv)
     (hsb : ExprWF sbody) (hcn : absName cvj.name = absName ctor_name)
     (h : inductives.modeled.check_proj_iota_body mode st fe t cvj lps n_p n_f i
-      tcv sbody = ok (.Ok (), st')) :
+      tcv sbody = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (projIotaTail (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+      match out with
+      | .Ok _ =>
+        ∃ lst', (projIotaTail (absMode mode) (TypeChecker.lops mode lfe) lfe.env
+              (absName t) (absName ctor_name) (absConstantVal cvj) (absNames lps)
+              n_p.val n_f.val i.val (absExpr tcv.ty) (absExpr sbody)).run lst
+            = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((projIotaTail (absMode mode) (TypeChecker.lops mode lfe) lfe.env
             (absName t) (absName ctor_name) (absConstantVal cvj) (absNames lps)
-            n_p.val n_f.val i.val (absExpr tcv.ty) (absExpr sbody)).run lst
-          = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+            n_p.val n_f.val i.val (absExpr tcv.ty) (absExpr sbody)).run lst) := by
   intro lst lfe hsr hfr
   rw [inductives.modeled.check_proj_iota_body] at h
   obtain ⟨depth, hdepth, h⟩ := bind_eq_ok_iff.mp h
@@ -2462,10 +3537,24 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
   obtain ⟨head1, shaped⟩ := q
   by_cases hl3 : alloc.vec.Vec.len args = 3#usize
   case neg =>
+    -- `modeled.rs:2129` ← `DeclCheck.lean:825`: a spine of other than three
+    -- arguments is not the cited body pattern
     replace hq := ite_neg_eq (c := (alloc.vec.Vec.len args = 3#usize)) hl3 hq
     simp only [Result.ok.injEq, Prod.mk.injEq] at hq
     obtain ⟨rfl, rfl⟩ := hq
-    simp [bind_eq_ok_iff] at h
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    refine errSim_notImplemented hce rfl (projIotaTail_shape ?_)
+    intro c lu t0 a0 b0 hcon
+    have hlen : args.val.length = 3 := by
+      have hl : (absExpr sbody).getAppArgs = [t0, a0, b0] := by
+        rw [hcon]; exact getAppArgs_app3_const _ _ _ _ _
+      have hL := congrArg List.length (hargabs.trans hl)
+      simpa [absExprs] using hL
+    exact hl3 (by have := alloc.vec.Vec.len_val args; scalar_tac)
   replace hq := ite_pos_eq (c := (alloc.vec.Vec.len args = 3#usize)) hl3 hq
   obtain ⟨en, hen, hq⟩ := bind_eq_ok_iff.mp hq
   obtain ⟨bsh, hbsh, hq⟩ := bind_eq_ok_iff.mp hq
@@ -2479,13 +3568,54 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
     rw [← hargabs, absExprs, hxs]; simp
   by_cases hshd : bsh = true
   case neg =>
+    -- `modeled.rs:2129` ← `DeclCheck.lean:825`: a head that is not a
+    -- one-level constant is not the cited body pattern either
     replace h := ite_neg_eq (c := (bsh = true)) hshd h
-    simp [bind_eq_ok_iff] at h
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    refine errSim_notImplemented hce rfl (projIotaTail_shape ?_)
+    intro c lu t0 a0 b0 hcon
+    obtain ⟨n, us, hkind, huslen⟩ :=
+      const_kind_of_abs (e := head) (c := c) (lu := lu)
+        (by rw [hhdabs, hcon]; exact getAppFn_app3_const _ _ _ _ _)
+    have hene : en = head._0 := (Result.ok_injective hen).symm
+    rw [hene, hkind] at hbsh
+    have hbv : bsh = decide (alloc.vec.Vec.len us = 1#usize) := by
+      simpa using hbsh.symm
+    refine hshd ?_
+    rw [hbv]
+    have := alloc.vec.Vec.len_val us
+    simp only [decide_eq_true_eq]
+    scalar_tac
   replace h := ite_pos_eq (c := (bsh = true)) hshd h
   obtain ⟨beq, hbeq, h⟩ := bind_eq_ok_iff.mp h
   have hbeqabs := CheckerBase.is_eq_head_refines hhdwf hbeq
   split at h
-  case isFalse => simp [bind_eq_ok_iff] at h
+  case isFalse =>
+    -- `modeled.rs:2133` ← `DeclCheck.lean:818` (or `:825`, off shape: the two
+    -- cited `throw`s the port's one arm covers are the same kind)
+    rename_i hbeqf
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    by_cases hpat : ∃ (c : ConLeche.Name) (lu : ConLeche.Level)
+        (t0 a0 b0 : ConLeche.Expr),
+        absExpr sbody = .app (.app (.app (.const c [lu]) t0) a0) b0
+    · obtain ⟨c, lu, t0, a0, b0, hpat⟩ := hpat
+      refine errSim_notImplemented hce rfl (projIotaTail_head hpat ?_)
+      intro hceq
+      subst hceq
+      refine hbeqf ?_
+      rw [hbeqabs, hhdabs, hpat, getAppFn_app3_const]
+      simp [ConLeche.isEqHead]
+    · refine errSim_notImplemented hce rfl (projIotaTail_shape ?_)
+      intro c lu t0 a0 b0 hcon
+      exact hpat ⟨c, lu, t0, a0, b0, hcon⟩
   rename_i hbeqt
   rw [hbeqt, hhdabs] at hbeqabs
   obtain ⟨lu, hlu⟩ := isEqHead_inv hbeqabs.symm
@@ -2502,7 +3632,20 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
   have hb1abs := Expr.beq_refines hx1wf hlswf hb1
   rw [he2v] at hb1abs
   split at h
-  case isFalse => simp [bind_eq_ok_iff] at h
+  case isFalse =>
+    -- `modeled.rs:2141` ← `DeclCheck.lean:820`
+    rename_i hb1f
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    refine errSim_notImplemented hce rfl
+      (projIotaTail_redex (lu := lu) (tslot := absExpr x0) hshape ?_)
+    rw [← CheckerBase.decide_eq_beq_expr,
+      show (absConstantVal cvj).levelParams = absNames cvj.level_params from rfl,
+      ← hlsabs, ← hb1abs]
+    simpa using hb1f
   rename_i hb1t
   obtain ⟨e3, he3, h⟩ := bind_eq_ok_iff.mp h
   have he3v : e3 = x2 := by
@@ -2519,14 +3662,44 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
   have hb2abs := Expr.beq_refines hx2wf (Expr.bvar_wf he4) hb2
   rw [Expr.bvar_refines he4, hi3v, he3v] at hb2abs
   split at h
-  case isFalse => simp [bind_eq_ok_iff] at h
+  case isFalse =>
+    -- `modeled.rs:2137` ← `DeclCheck.lean:822`
+    rename_i hb2f
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    refine errSim_notImplemented hce rfl
+      (projIotaTail_field (lu := lu) (tslot := absExpr x0) hshape ?_ ?_)
+    · rw [← CheckerBase.decide_eq_beq_expr,
+        show (absConstantVal cvj).levelParams = absNames cvj.level_params from rfl,
+        ← hlsabs, ← hb1abs]
+      exact hb1t
+    · rw [← CheckerBase.decide_eq_beq_expr, ← hb2abs]
+      simpa using hb2f
   rename_i hb2t
   obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hoabs, howf⟩ := CheckerBase.open_pis_at_fvars_f_refines htcv.2.2 ho
   rw [show ((0#u64 : Std.U64)).val = 0 from rfl, hdv,
     ConLeche.openPisAtFvarsF_eq] at hoabs
   cases o with
-  | none => simp [bind_eq_ok_iff] at h
+  | none =>
+    -- `modeled.rs:2145` ← `DeclCheck.lean:824`
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    refine errSim_notImplemented hce rfl
+      (projIotaTail_telescope (lu := lu) (tslot := absExpr x0) hshape ?_ ?_ ?_)
+    · rw [← CheckerBase.decide_eq_beq_expr,
+        show (absConstantVal cvj).levelParams = absNames cvj.level_params from rfl,
+        ← hlsabs, ← hb1abs]
+      exact hb1t
+    · rw [← CheckerBase.decide_eq_beq_expr, ← hb2abs]
+      exact hb2t
+    · simpa using hoabs.symm
   | some oq =>
     obtain ⟨fvs, sbodyO⟩ := oq
     obtain ⟨hfvswf, hsbowf⟩ := howf (fvs, sbodyO) rfl
@@ -2540,22 +3713,36 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨hr2abs, hr2wf⟩ := arg_get_d_refines htowf hr2
     obtain ⟨la, hla2, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hlaabs2, hlawf2⟩ := CheckerBase.eq_head_level_refines hhdwf hla2
-    obtain ⟨lst', hrun, hsr', hsw'⟩ :=
-      check_iota_sides_ty_refines hfuel hk hsw hfw halwf hl2wf hr2wf hlawf2 h
-        lst lfe (ConLeche.projModelName (absName t) i.val) hsr hfr
-    refine ⟨lst', ?_, hsr', hsw'⟩
-    rw [hdv, halabs, hl2abs, hr2abs, htoabs] at hrun
+    have hres := check_iota_sides_ty_refines hfuel hk hsw hfw halwf hl2wf hr2wf
+      hlawf2 h lst lfe (ConLeche.projModelName (absName t) i.val) hsr hfr
     rw [hhdabs, hlu] at hlaabs2
-    rw [hlaabs2] at hrun
-    refine projIotaTail_run (lu := lu) (tslot := absExpr x0)
-      (fvs := absExprs fvs) (sbodyO := absExpr sbodyO) hshape ?_ ?_ ?_ hrun
-    · rw [← CheckerBase.decide_eq_beq_expr,
-        show (absConstantVal cvj).levelParams = absNames cvj.level_params from rfl,
-        ← hlsabs, ← hb1abs]
-      exact hb1t
-    · rw [← CheckerBase.decide_eq_beq_expr, ← hb2abs]
-      exact hb2t
-    · simpa using hoabs.symm
+    cases out with
+    | Ok u =>
+      obtain ⟨lst', hrun, hsr', hsw'⟩ := hres
+      refine ⟨lst', ?_, hsr', hsw'⟩
+      rw [hdv, halabs, hl2abs, hr2abs, htoabs] at hrun
+      rw [hlaabs2] at hrun
+      refine projIotaTail_run (lu := lu) (tslot := absExpr x0)
+        (fvs := absExprs fvs) (sbodyO := absExpr sbodyO) hshape ?_ ?_ ?_ hrun
+      · rw [← CheckerBase.decide_eq_beq_expr,
+          show (absConstantVal cvj).levelParams = absNames cvj.level_params from rfl,
+          ← hlsabs, ← hb1abs]
+        exact hb1t
+      · rw [← CheckerBase.decide_eq_beq_expr, ← hb2abs]
+        exact hb2t
+      · simpa using hoabs.symm
+    | Err e =>
+      refine ErrSim.trans hres (fun le hle => ?_)
+      rw [hdv, halabs, hl2abs, hr2abs, htoabs, hlaabs2] at hle
+      refine projIotaTail_sides_err (lu := lu) (tslot := absExpr x0)
+        (fvs := absExprs fvs) (sbodyO := absExpr sbodyO) hshape ?_ ?_ ?_ hle
+      · rw [← CheckerBase.decide_eq_beq_expr,
+          show (absConstantVal cvj).levelParams = absNames cvj.level_params from rfl,
+          ← hlsabs, ← hb1abs]
+        exact hb1t
+      · rw [← CheckerBase.decide_eq_beq_expr, ← hb2abs]
+        exact hb2t
+      · simpa using hoabs.symm
 
 /-- `ConLeche/Kernel/DeclCheck.lean:797-836 checkProjIotaF` (and
 `Inductives/Modeled.lean:513-563 checkProjIota`, the generic twin) —
@@ -2586,19 +3773,28 @@ theorem check_proj_iota_refines {mode : env.CheckMode} {fuel : Std.U64}
     {st st' : cached.state_c.CState} {fe2 fe_self : fenv.FEnv}
     {t ctor_name : name.Name} {lps : alloc.vec.Vec name.Name}
     {cvj : env.ConstantVal} {n_p n_f i : Std.U64}
+    {out : core.result.Result Unit core_types.CheckError}
     (hsw : StateWF st) (hfw2 : FEnvWF fe2) (hfws : FEnvWF fe_self)
     (ht : NameWF t) (hc : NameWF ctor_name) (hlps : NamesWF lps)
     (hcvj : ConstantValWF cvj) (hcn : absName cvj.name = absName ctor_name)
     (h : inductives.modeled.check_proj_iota mode st fe2 fe_self t ctor_name lps
-      cvj n_p n_f i = ok (.Ok (), st')) :
+      cvj n_p n_f i = ok (out, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe2 lfe → FEnvRel fe_self lfe →
-      ∃ lst', (ConLeche.checkProjIotaF (absMode mode)
+      match out with
+      | .Ok _ =>
+        ∃ lst', (ConLeche.checkProjIotaF (absMode mode)
+              (m := ConLeche.Cached.CheckCM)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
+              (absName t) (absName ctor_name) (absNames lps)
+              (absConstantVal cvj) n_p.val n_f.val i.val).run lst
+            = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e ((ConLeche.checkProjIotaF (absMode mode)
             (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe
             (absName t) (absName ctor_name) (absNames lps)
-            (absConstantVal cvj) n_p.val n_f.val i.val).run lst
-          = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+            (absConstantVal cvj) n_p.val n_f.val i.val).run lst) := by
   intro lst lfe hsr hfr2 hfrs
   rw [inductives.modeled.check_proj_iota] at h
   obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
@@ -2607,7 +3803,15 @@ theorem check_proj_iota_refines {mode : env.CheckMode} {fuel : Std.U64}
   obtain ⟨hoabs, howf⟩ := thm_probe_refines (FindAgree.of_rel hfr2 hfw2)
     (FindWF.of_wf hfw2) hnwf ho
   cases o with
-  | none => simp [bind_eq_ok_iff] at h
+  | none =>
+    -- `modeled.rs:2044` ← `DeclCheck.lean:801`
+    obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hout, -⟩ := err_outS h
+    subst hout
+    exact errSim_notImplemented hce rfl
+      (checkProjIotaF_thm_none (by rw [← hnabs]; simpa using hoabs.symm))
   | some tcv =>
     have htcv : ConstantValWF tcv := howf tcv rfl
     obtain ⟨tval, hfind⟩ := thmOf_eq_some hoabs.symm
@@ -2615,22 +3819,59 @@ theorem check_proj_iota_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
     have hbabs := names_beq_refines htcv.2.1 hlps hb
     split at h
-    case isFalse => simp [bind_eq_ok_iff] at h
+    case isFalse =>
+      -- `modeled.rs:2048` ← `DeclCheck.lean:803`
+      rename_i hbf
+      obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      refine errSim_notImplemented hce rfl (checkProjIotaF_lps hfind ?_)
+      show absNames tcv.level_params ≠ absNames lps
+      simpa [hbabs] using hbf
     rename_i hbt
     subst hbt
     obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
     have hi1v : i1.val = n_p.val + n_f.val := HashMap.uscalar_add_eq hi1
     obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ho1abs, ho1wf⟩ := ExprOps.strip_pis_refines htcv.2.2 ho1
+    have hlpseq : (absConstantVal tcv).levelParams = absNames lps := by
+      show absNames tcv.level_params = absNames lps
+      simpa using hbabs.symm
     cases o1 with
-    | none => simp [bind_eq_ok_iff] at h
+    | none =>
+      -- `modeled.rs:2052` ← `DeclCheck.lean:805`
+      obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hout, -⟩ := err_outS h
+      subst hout
+      refine errSim_notImplemented hce rfl
+        (checkProjIotaF_thm_tele hfind hlpseq ?_)
+      rw [show (absConstantVal tcv).type = absExpr tcv.ty from rfl, ← hi1v]
+      simpa using ho1abs.symm
     | some sq =>
       obtain ⟨sbinders, sbody⟩ := sq
       obtain ⟨hsbwf, hsbowf⟩ := ho1wf (sbinders, sbody) rfl
       obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨ho2abs, ho2wf⟩ := ExprOps.strip_pis_refines hcvj.2.2 ho2
+      have hsbeq : (absConstantVal tcv).type.stripPis (n_p.val + n_f.val)
+          = some (ExprOps.absBinders sbinders, absExpr sbody) := by
+        rw [show (absConstantVal tcv).type = absExpr tcv.ty from rfl, ← hi1v]
+        simpa using ho1abs.symm
       cases o2 with
-      | none => simp [bind_eq_ok_iff] at h
+      | none =>
+        -- `modeled.rs:2056` ← `DeclCheck.lean:807`
+        obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hout, -⟩ := err_outS h
+        subst hout
+        refine errSim_notImplemented hce rfl
+          (checkProjIotaF_ctor_tele hfind hlpseq hsbeq ?_)
+        rw [show (absConstantVal cvj).type = absExpr cvj.ty from rfl, ← hi1v]
+        simpa using ho2abs.symm
       | some cq =>
         obtain ⟨cbinders, cbody⟩ := cq
         obtain ⟨hcbwf, -⟩ := ho2wf (cbinders, cbody) rfl
@@ -2639,26 +3880,42 @@ theorem check_proj_iota_refines {mode : env.CheckMode} {fuel : Std.U64}
           (g := fun _ e => ConLeche.Expr.renameConsts
             (ConLeche.projFwd (absName t) (absName ctor_name) n_f.val) e)
           hsbwf hcbwf (dom_proj_fwd_view_refines (n_f := n_f) ht hc) hb1
+        have hcbeq : (absConstantVal cvj).type.stripPis (n_p.val + n_f.val)
+            = some (ExprOps.absBinders cbinders, absExpr cbody) := by
+          rw [show (absConstantVal cvj).type = absExpr cvj.ty from rfl, ← hi1v]
+          simpa using ho2abs.symm
         by_cases hb1t : b1 = true
         case neg =>
+          -- `modeled.rs:2061` ← `DeclCheck.lean:811`
           replace h := ite_neg_eq (c := (b1 = true)) hb1t h
-          simp [bind_eq_ok_iff] at h
+          obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨hout, -⟩ := err_outS h
+          subst hout
+          refine errSim_notImplemented hce rfl
+            (checkProjIotaF_doms hfind hlpseq hsbeq hcbeq ?_)
+          rw [← hi1v]
+          exact hb1abs.symm.trans (by simpa using hb1t)
         replace h := ite_pos_eq (c := (b1 = true)) hb1t h
-        obtain ⟨lst', hrun, hsr', hsw'⟩ :=
-          check_proj_iota_body_refines hfuel hk hsw hfws ht hcvj hlps htcv
-            hsbowf hcn h lst lfe hsr hfrs
-        refine ⟨lst', ?_, hsr', hsw'⟩
-        rw [checkProjIotaF_at_tail (tval := tval) (sbinders := ExprOps.absBinders sbinders)
+        have hdoms : ConLeche.domsMatchAux
+            (fun _ e => ConLeche.Expr.renameConsts
+              (ConLeche.projFwd (absName t) (absName ctor_name) n_f.val) e)
+            (ExprOps.absBinders sbinders) (ExprOps.absBinders cbinders) 0 0
+            (n_p.val + n_f.val) = true := by
+          rw [← hi1v, ← hb1t]; exact hb1abs.symm
+        have heq := checkProjIotaF_at_tail (mode' := absMode mode)
+          (ops := ConLeche.Cached.sharedOpsC (absMode mode) lfe) (tval := tval)
+          (sbinders := ExprOps.absBinders sbinders)
           (cbindersR := ExprOps.absBinders cbinders) (cbody := absExpr cbody)
-          hfind ?_ ?_ ?_ ?_]
-        · exact hrun
-        · show absNames tcv.level_params = absNames lps
-          simpa using hbabs.symm
-        · rw [show (absConstantVal tcv).type = absExpr tcv.ty from rfl, ← hi1v]
-          simpa using ho1abs.symm
-        · rw [show (absConstantVal cvj).type = absExpr cvj.ty from rfl, ← hi1v]
-          simpa using ho2abs.symm
-        · rw [← hi1v, ← hb1t]; exact hb1abs.symm
+          hfind hlpseq hsbeq hcbeq hdoms
+        have hres := check_proj_iota_body_refines hfuel hk hsw hfws ht hcvj hlps
+          htcv hsbowf hcn h lst lfe hsr hfrs
+        cases out with
+        | Ok u =>
+          obtain ⟨lst', hrun, hsr', hsw'⟩ := hres
+          exact ⟨lst', by rw [heq]; exact hrun, hsr', hsw'⟩
+        | Err e => rw [heq]; exact hres
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
