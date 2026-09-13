@@ -6,6 +6,7 @@ import ConRon.Refine.TrustAxioms
 import ConRon.Refine.CheckerBase
 import ConRon.Refine.ExprOpsCGuards
 import ConRon.Refine.StateCResolve
+import ConRon.Refine.Validate
 import ConLeche.Cached.Installed
 
 /-! # `cached::installed` — the declaration fold (task #60)
@@ -3246,8 +3247,11 @@ same declaration (`ErrSimPos`).
 
 The hypotheses the tier still owes are the module note's: `hk` (task #55),
 `hind`/`hinde` (task #59, the inductive routes' two halves) and `hpins` (the pin
-parameter).  `hds` is the well-formedness of the parsed input, which the parser
-establishes and which no lemma below can invent. -/
+parameter).  **`hds` is gone (task #73)**: the well-formedness of the parsed
+input is no longer assumed but *checked*, by `kernel::validate`'s pass at the
+entry of `check_decls`, and `Refine/Validate.lean`'s `validate_decls_sound`
+supplies it here at the accept of that pass.  On its reject the port's outcome
+is `CheckError::Native`, about which `ErrSimPos` claims nothing. -/
 theorem check_decls_refines {mode : env.CheckMode}
     (hk : Core.KnotSpec mode IndAbs.checkFuelU) (hind : IndRoutesSpec mode)
     (hinde : IndRoutesSpecErr mode)
@@ -3256,7 +3260,6 @@ theorem check_decls_refines {mode : env.CheckMode}
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC}
     {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls mode pins ds = ok out) :
     match out with
     | .Ok e =>
@@ -3265,7 +3268,11 @@ theorem check_decls_refines {mode : env.CheckMode}
     | .Err er =>
       ErrSimPos er
         (leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclC)) := by
-  rw [cached.installed.check_decls] at h
+  -- Task #73's validation pass, `check_decls`' own first step: a reject is the
+  -- port's own `Native` decline (nothing to show), and an accept is `hds`.
+  rcases Validate.check_decls_gate h with ⟨msg, rfl⟩ | ⟨hds, h⟩
+  · exact ErrSimPos.native _
+  rw [cached.installed.check_decls_go] at h
   obtain ⟨st0, hnew, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hsr0, hsw0⟩ := State.cstate_new_refines hnew
   obtain ⟨e0, he0, h⟩ := bind_eq_ok_iff.mp h
@@ -3331,11 +3338,10 @@ theorem check_decls_refines_ok {mode : env.CheckMode}
     (hvar : CheckerPins.PinsWF pins)
     (hpins : absPins pins = ConLeche.natOpPinSets)
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls mode pins ds = ok (.Ok e)) :
     leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclC)
       = .ok (absEnv e) :=
-  check_decls_refines hk hind hinde hvar hpins hds h
+  check_decls_refines hk hind hinde hvar hpins h
 
 /-! ## The instance at the binary's own pins (task #64)
 
@@ -3365,7 +3371,6 @@ theorem check_decls_embedded_refines {mode : env.CheckMode}
     (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
     {ds : alloc.vec.Vec parsed_c.DeclC}
     {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls mode pins ds = ok out) :
     match out with
     | .Ok e =>
@@ -3376,7 +3381,7 @@ theorem check_decls_embedded_refines {mode : env.CheckMode}
         (leanCheckDecls (absMode mode) ConLeche.natOpPinSets
           (ds.val.map absDeclC)) := by
   have hpins := ConRon.Refine.check_decls_pins_refines_ok pins hp
-  have hr := check_decls_refines hk hind hinde hvar hpins hds h
+  have hr := check_decls_refines hk hind hinde hvar hpins h
   rwa [hpins] at hr
 
 /-- `check_decls_embedded_refines` at a success, the pre-#67 statement. -/
@@ -3387,11 +3392,10 @@ theorem check_decls_embedded_refines_ok {mode : env.CheckMode}
     (hvar : CheckerPins.PinsWF pins)
     (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-    (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls mode pins ds = ok (.Ok e)) :
     leanCheckDecls (absMode mode) ConLeche.natOpPinSets (ds.val.map absDeclC)
       = .ok (absEnv e) :=
-  check_decls_embedded_refines hk hind hinde hvar hp hds h
+  check_decls_embedded_refines hk hind hinde hvar hp h
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
