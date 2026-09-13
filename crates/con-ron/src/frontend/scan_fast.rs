@@ -2884,6 +2884,6 @@ mod tests {
         // swallowing the next line into itself
         let hdr = b"{\"x\":\n{\"in\":1}}\n";
         assert_eq!(skip_braced(hdr, 1, 0), 0);
-        assert_eq!(bad("{\"meta\":{\"x\":\n{\"in\":1}}"), ErrTag::BadHeader);
+        assert_eq!(bad("{\"meta\":{\"x\":\n{\"in\":1}}"), ErrTag::ExpectedObject);
     }
 }

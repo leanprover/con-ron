@@ -759,6 +759,9 @@ theorem declaration_name_refines {d : env.Declaration} {n : name.Name}
   | IndDecl block nP =>
     rw [env.declaration_name] at h
     rw [Name.anonymous_refines h]; rfl
+  | QuotDecl k v =>
+    simp only [env.declaration_name, name_dup_eq, Result.ok.injEq] at h
+    rw [← h]; rfl
 
 
 /-! ## The declared-parameter-count check

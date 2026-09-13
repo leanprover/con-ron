@@ -79,7 +79,8 @@ theorem has_fvar_refines {e : expr.Expr} {b : Bool} (he : ExprWF e)
   rw [cached.expr_ops_c.has_fvar] at h
   obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
   have hiv : i.val = (absExpr e).fvarB := fvar_b_refines he hi
-  rw [← Result.ok_injective h, ConLeche.Expr.hasFvar, ← hiv]
+  rw [← Result.ok_injective h, ConLeche.Expr.hasFvar_eq_hasFvarFast,
+    ConLeche.Expr.hasFvarFast, ← hiv]
   by_cases hc : i.val = 0
   · have h0 : i = 0#u64 := Std.UScalar.eq_of_val_eq (by rw [hc, Expr.val_zero])
     have hl : (i != 0#u64) = false := by simp [h0]
@@ -99,7 +100,9 @@ theorem loose_bvars_bounded_refines {e : expr.Expr} {k : Std.U64} {b : Bool}
   rw [cached.expr_ops_c.loose_bvars_bounded] at h
   obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
   have hiv : i.val = (absExpr e).bvarB := bvar_b_refines he hi
-  rw [← Result.ok_injective h, ConLeche.Expr.looseBVarsBounded, ← hiv]
+  rw [← Result.ok_injective h,
+    ConLeche.Expr.looseBVarsBounded_eq_looseBVarsBoundedFast,
+    ConLeche.Expr.looseBVarsBoundedFast, ← hiv]
   by_cases hc : i.val ≤ k.val
   · have : (i ≤ k) := by scalar_tac
     simp [this, hc]
@@ -117,7 +120,6 @@ declares them separately; the proofs are task #47's, with the citation moved to
 theorem get_app_fn_refines {e r : expr.Expr} (he : ExprWF e)
     (h : cached.expr_ops_c.get_app_fn e = ok r) :
     absExpr r = ConLeche.Expr.getAppFn (absExpr e) ∧ ExprWF r := by
-  rw [ConLeche.Expr.getAppFn_spec]
   induction he generalizing r with
   | @bvar i e h1 =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
@@ -290,7 +292,6 @@ theorem mk_app_n_from_refines (N : Nat) :
   induction N using Nat.strong_induction_on with
   | _ N ih =>
     intro f args i r hN hf hargs h
-    rw [ConLeche.Expr.mkAppN_spec]
     rw [cached.expr_ops_c.mk_app_n_from.eq_def] at h
     dsimp only at h
     split at h
@@ -310,7 +311,6 @@ theorem mk_app_n_from_refines (N : Nat) :
       obtain ⟨habs, hwf⟩ := ih (args.val.length - i2.val) (by omega) a2 args i2 r rfl
         (Expr.app_wf hf hxwf happ) hargs hrec
       refine ⟨?_, hwf⟩
-      rw [ConLeche.Expr.mkAppN_spec] at habs
       rw [habs, Expr.app_refines happ, hi2v, hdrop]
       simp [ConLeche.Expr.mkAppN]
 
