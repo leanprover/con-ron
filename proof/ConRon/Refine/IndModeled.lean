@@ -1327,6 +1327,65 @@ theorem expr_app3_of_spine {e hd a b c : ConLeche.Expr}
   rw [hfn, hargs]
   rfl
 
+/-! ## Task #67's failure-half vocabulary
+
+The `*_refines` lemmas below are stated over the Rust computation's **whole**
+inner outcome (`Refine/README.md`, "the full-outcome convention"), so every
+mirrored `CheckError` site in `modeled.rs` — all 69 of them; the module has no
+`Native` — needs a con-leche `throw` beside it.  These four are the local
+plumbing that every such arm uses. -/
+
+/-- **`throw` in `CheckCM`**: the monad-plumbing `simp` set carries no
+`MonadExcept` instance, so `simp` would otherwise leave con-leche's `throw`
+arms un-run (`Refine/IndAbs.lean` and `Refine/IndStructInstall.lean` declare
+the same lemma — `attribute [local simp]` does not travel across files). -/
+private theorem checkCM_throw_apply {b : Type} (le : ConLeche.CheckError)
+    (lst : ConLeche.Cached.CState) :
+    (throw le : ConLeche.Cached.CheckCM b) lst = .error le := rfl
+
+attribute [local simp] checkCM_throw_apply
+
+/-- The port's `Err` value at a mirrored `throw` arm: `core_types::internal`
+*is* the `Internal` constructor. -/
+private theorem internal_err {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.internal v = ok ce) :
+    ce = .Internal v :=
+  (Result.ok_injective (by rw [core_types.internal] at h; exact h)).symm
+
+/-- The same for `core_types::invalid`. -/
+private theorem invalid_err {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.invalid v = ok ce) :
+    ce = .Invalid v :=
+  (Result.ok_injective (by rw [core_types.invalid] at h; exact h)).symm
+
+/-- The same for `core_types::not_implemented`. -/
+private theorem not_implemented_err {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} (h : core_types.not_implemented v = ok ce) :
+    ce = .NotImplemented v :=
+  (Result.ok_injective (by rw [core_types.not_implemented] at h; exact h)).symm
+
+/-- Move 2, packaged: the port threw `not_implemented` and con-leche's run
+ends at a `notImplemented` throw.  The message is never compared. -/
+private theorem errSim_notImplemented {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} {x : Except ConLeche.CheckError γ} (s : String)
+    (hce : core_types.not_implemented v = ok ce) (hx : x = .error (.notImplemented s)) :
+    ErrSim ce x := by
+  rw [not_implemented_err hce]; exact ErrSim.notImplemented hx
+
+/-- The same at `core_types::invalid`. -/
+private theorem errSim_invalid {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} {x : Except ConLeche.CheckError γ} (s : String)
+    (hce : core_types.invalid v = ok ce) (hx : x = .error (.invalid s)) :
+    ErrSim ce x := by
+  rw [invalid_err hce]; exact ErrSim.invalid hx
+
+/-- The same at `core_types::internal`. -/
+private theorem errSim_internal {γ : Type} {v : alloc.vec.Vec Std.U32}
+    {ce : core_types.CheckError} {x : Except ConLeche.CheckError γ} (s : String)
+    (hce : core_types.internal v = ok ce) (hx : x = .error (.internal s)) :
+    ErrSim ce x := by
+  rw [internal_err hce]; exact ErrSim.internal hx
+
 section Stages
 
 variable {mode : env.CheckMode} (hw : Core.Wrappers mode IndAbs.checkFuelU)
@@ -1358,6 +1417,7 @@ theorem defnOf_inv {X : Option ConLeche.ConstantInfo}
 
 /-! ## The side certificates (`Modeled.lean:31-53`) -/
 
+set_option linter.unusedSimpArgs false in
 set_option linter.unusedSectionVars false in
 /-- `ConLeche/Kernel/Inductives/Modeled.lean:31-53` — `check_iota_sides_ty`
 refines `checkIotaSidesTy`: both sides of a modeled iota equation inhabit the
@@ -1367,63 +1427,128 @@ for its messages only, so the conclusion holds at *every* name. -/
 theorem check_iota_sides_ty_refines
     {st st' : cached.state_c.CState} {fe_self : fenv.FEnv} {depth : Std.U64}
     {alpha_s lhs_s rhs_s : expr.Expr} {l_a : level.Level}
+    {out : core.result.Result Unit core_types.CheckError}
     (hst : StateWF st) (hfe : FEnvWF fe_self) (ha : ExprWF alpha_s)
     (hl : ExprWF lhs_s) (hr : ExprWF rhs_s) (hla : LevelWF l_a)
     (h : inductives.modeled.check_iota_sides_ty mode st fe_self depth alpha_s
-        lhs_s rhs_s l_a = ok (.Ok (), st')) :
+        lhs_s rhs_s l_a = ok (out, st')) :
     ∀ lst lfe lcvName, StateRel st lst → FEnvRel fe_self lfe →
-      ∃ lst',
-        (ConLeche.checkIotaSidesTy (m := ConLeche.Cached.CheckCM) (absMode mode)
-            (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe.env depth.val
-            (absExpr alpha_s) (absExpr lhs_s) (absExpr rhs_s) (absLevel l_a)
-            lcvName).run lst = .ok ((), lst')
-        ∧ StateRel st' lst' ∧ StateWF st' := by
+      match out with
+      | .Ok _ =>
+        ∃ lst',
+          (ConLeche.checkIotaSidesTy (m := ConLeche.Cached.CheckCM) (absMode mode)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe.env depth.val
+              (absExpr alpha_s) (absExpr lhs_s) (absExpr rhs_s) (absLevel l_a)
+              lcvName).run lst = .ok ((), lst')
+          ∧ StateRel st' lst' ∧ StateWF st'
+      | .Err e =>
+        ErrSim e
+          ((ConLeche.checkIotaSidesTy (m := ConLeche.Cached.CheckCM) (absMode mode)
+              (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe.env depth.val
+              (absExpr alpha_s) (absExpr lhs_s) (absExpr rhs_s) (absLevel l_a)
+              lcvName).run lst) := by
   intro lst lfe lcvName hrel hfer
+  have henv : absEnv fe_self.env = lfe.env := hfer.1
   rw [inductives.modeled.check_iota_sides_ty] at h
   simp only [IndAbs.check_fuel_eq, bind_tc_ok] at h
   obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r, st1⟩ := p
   cases r with
-  | Err err => simp at h
+  | Err err =>
+    -- move 1: `core_c::infer` threw, and the cited body's first bind carries it
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have herr := IndAbs.ops_infer_err hw hst hfe hl hp lst lfe hrel hfer
+    rw [henv] at herr
+    refine ErrSim.trans herr (fun le hle => ?_)
+    simp only [StateT.run] at hle ⊢
+    rw [ConLeche.checkIotaSidesTy]
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hle]
   | Ok tl =>
   obtain ⟨lst1, hrun1, hrel1, hwf1, htlwf⟩ :=
     IndAbs.ops_infer hw hst hfe hl hp lst lfe hrel hfer
+  rw [henv] at hrun1
   obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r2, st2⟩ := p2
   cases r2 with
-  | Err err => simp at h
+  | Err err =>
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have herr := IndAbs.ops_defeq_err hw hwf1 hfe htlwf ha hp2 lst1 lfe hrel1 hfer
+    rw [henv] at herr
+    refine ErrSim.trans herr (fun le hle => ?_)
+    simp only [StateT.run] at hrun1 hle ⊢
+    rw [ConLeche.checkIotaSidesTy]
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hrun1, hle]
   | Ok b =>
   obtain ⟨lst2, hrun2, hrel2, hwf2⟩ :=
     IndAbs.ops_defeq hw hwf1 hfe htlwf ha hp2 lst1 lfe hrel1 hfer
+  rw [henv] at hrun2
   cases b with
-  | false => simp at h
+  | false =>
+    -- move 2: the lhs type mismatch (`Modeled.lean:44`), both sides `notImplemented`
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    refine errSim_notImplemented s!"iota statement lhs type for {lcvName}" hce ?_
+    simp only [StateT.run] at hrun1 hrun2 ⊢
+    rw [ConLeche.checkIotaSidesTy]
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hrun1, hrun2]
   | true =>
   obtain ⟨p3, hp3, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r3, st3⟩ := p3
   cases r3 with
-  | Err err => simp at h
+  | Err err =>
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have herr := IndAbs.ops_infer_err hw hwf2 hfe hr hp3 lst2 lfe hrel2 hfer
+    rw [henv] at herr
+    refine ErrSim.trans herr (fun le hle => ?_)
+    simp only [StateT.run] at hrun1 hrun2 hle ⊢
+    rw [ConLeche.checkIotaSidesTy]
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hrun1, hrun2, hle]
   | Ok tr =>
   obtain ⟨lst3, hrun3, hrel3, hwf3, htrwf⟩ :=
     IndAbs.ops_infer hw hwf2 hfe hr hp3 lst2 lfe hrel2 hfer
+  rw [henv] at hrun3
   obtain ⟨p4, hp4, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r4, st4⟩ := p4
   cases r4 with
-  | Err err => simp at h
+  | Err err =>
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have herr := IndAbs.ops_defeq_err hw hwf3 hfe htrwf ha hp4 lst3 lfe hrel3 hfer
+    rw [henv] at herr
+    refine ErrSim.trans herr (fun le hle => ?_)
+    simp only [StateT.run] at hrun1 hrun2 hrun3 hle ⊢
+    rw [ConLeche.checkIotaSidesTy]
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hrun1, hrun2, hrun3, hle]
   | Ok b1 =>
   obtain ⟨lst4, hrun4, hrel4, hwf4⟩ :=
     IndAbs.ops_defeq hw hwf3 hfe htrwf ha hp4 lst3 lfe hrel3 hfer
+  rw [henv] at hrun4
   cases b1 with
-  | false => simp at h
+  | false =>
+    -- the rhs type mismatch (`Modeled.lean:47`)
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    refine errSim_notImplemented s!"iota statement rhs type for {lcvName}" hce ?_
+    simp only [StateT.run] at hrun1 hrun2 hrun3 hrun4 ⊢
+    rw [ConLeche.checkIotaSidesTy]
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hrun1, hrun2, hrun3, hrun4]
   | true =>
   obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
   have hb2v : b2 = (absMode mode).ttChecks := Env.tt_checks_refines hb2
-  have henv : absEnv fe_self.env = lfe.env := hfer.1
-  rw [henv] at hrun1 hrun2 hrun3 hrun4
   cases hb2t : b2 with
   | false =>
     rw [hb2t] at h hb2v
     rw [if_neg (by simp), Result.ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨-, rfl⟩ := h
+    obtain ⟨rfl, rfl⟩ := h
     refine ⟨lst4, ?_, hrel4, hwf4⟩
     simp only [StateT.run] at hrun1 hrun2 hrun3 hrun4
     rw [ConLeche.checkIotaSidesTy]
@@ -1434,7 +1559,16 @@ theorem check_iota_sides_ty_refines
   obtain ⟨p5, hp5, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r5, st5⟩ := p5
   cases r5 with
-  | Err err => simp at h
+  | Err err =>
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have herr := IndAbs.ops_infer_err hw hwf4 hfe ha hp5 lst4 lfe hrel4 hfer
+    rw [henv] at herr
+    refine ErrSim.trans herr (fun le hle => ?_)
+    simp only [StateT.run] at hrun1 hrun2 hrun3 hrun4 hle ⊢
+    rw [ConLeche.checkIotaSidesTy]
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hrun1, hrun2, hrun3, hrun4, hle, ← hb2v]
   | Ok talpha =>
   obtain ⟨lst5, hrun5, hrel5, hwf5, htawf⟩ :=
     IndAbs.ops_infer hw hwf4 hfe ha hp5 lst4 lfe hrel4 hfer
@@ -1449,25 +1583,61 @@ theorem check_iota_sides_ty_refines
   obtain ⟨p6, hp6, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r6, st6⟩ := p6
   cases r6 with
-  | Err err => simp at h
+  | Err err =>
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    have herr := IndAbs.ops_defeq_err hw hwf5 hfe htawf hsrtwf hp6 lst5 lfe hrel5 hfer
+    rw [henv, hsrtv] at herr
+    refine ErrSim.trans herr (fun le hle => ?_)
+    simp only [StateT.run] at hrun1 hrun2 hrun3 hrun4 hrun5 hle ⊢
+    rw [ConLeche.checkIotaSidesTy]
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hrun1, hrun2, hrun3, hrun4, hrun5, hle, ← hb2v]
   | Ok b3 =>
   obtain ⟨lst6, hrun6, hrel6, hwf6⟩ :=
     IndAbs.ops_defeq hw hwf5 hfe htawf hsrtwf hp6 lst5 lfe hrel5 hfer
   rw [henv, hsrtv] at hrun6
   cases b3 with
-  | false => simp at h
+  | false =>
+    -- the TT-lane type-slot sort mismatch (`Modeled.lean:53`)
+    simp at h
+    obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+    refine errSim_notImplemented
+      s!"iota statement type slot sort for {lcvName}" hce ?_
+    simp only [StateT.run] at hrun1 hrun2 hrun3 hrun4 hrun5 hrun6 ⊢
+    rw [ConLeche.checkIotaSidesTy]
+    simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
+      StateT.pure, Except.pure, hrun1, hrun2, hrun3, hrun4, hrun5, hrun6,
+      ← hb2v]
   | true =>
   have h6 : (ok (core.result.Result.Ok (), st6)
       : Result ((core.result.Result Unit core_types.CheckError)
-        × cached.state_c.CState)) = ok (.Ok (), st') := h
+        × cached.state_c.CState)) = ok (out, st') := h
   rw [Result.ok.injEq, Prod.mk.injEq] at h6
-  obtain ⟨-, rfl⟩ := h6
+  obtain ⟨rfl, rfl⟩ := h6
   refine ⟨lst6, ?_, hrel6, hwf6⟩
   simp only [StateT.run] at hrun1 hrun2 hrun3 hrun4 hrun5 hrun6
   rw [ConLeche.checkIotaSidesTy]
   simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
     StateT.pure, Except.pure, hrun1, hrun2, hrun3, hrun4, hrun5, hrun6,
     ← hb2v]
+
+/-- `check_iota_sides_ty_refines` at a success, the pre-#67 statement. -/
+theorem check_iota_sides_ty_refines_ok
+    {st st' : cached.state_c.CState} {fe_self : fenv.FEnv} {depth : Std.U64}
+    {alpha_s lhs_s rhs_s : expr.Expr} {l_a : level.Level}
+    (hst : StateWF st) (hfe : FEnvWF fe_self) (ha : ExprWF alpha_s)
+    (hl : ExprWF lhs_s) (hr : ExprWF rhs_s) (hla : LevelWF l_a)
+    (h : inductives.modeled.check_iota_sides_ty mode st fe_self depth alpha_s
+        lhs_s rhs_s l_a = ok (.Ok (), st')) :
+    ∀ lst lfe lcvName, StateRel st lst → FEnvRel fe_self lfe →
+      ∃ lst',
+        (ConLeche.checkIotaSidesTy (m := ConLeche.Cached.CheckCM) (absMode mode)
+            (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe.env depth.val
+            (absExpr alpha_s) (absExpr lhs_s) (absExpr rhs_s) (absLevel l_a)
+            lcvName).run lst = .ok ((), lst')
+        ∧ StateRel st' lst' ∧ StateWF st' :=
+  check_iota_sides_ty_refines hw hcb hst hfe ha hl hr hla h
 
 /-! ## The canonical iota statement (`Modeled.lean:55-149`,
 `DeclCheck.lean:507-573`) -/
