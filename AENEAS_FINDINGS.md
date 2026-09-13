@@ -1,5 +1,12 @@
 # What con-ron learned about Charon and Aeneas
 
+> **This document was written by AI agents** (Claude, working with the
+> maintainer), as is everything in this repository except `README.md`,
+> which is human-written.  It is a report for the Charon and Aeneas
+> maintainers, assembled from the task log in `DESIGN.md`; the numbers
+> and the code shapes in it are what the agents actually hit while
+> porting con-leche.
+
 A report *for the Charon and Aeneas maintainers*, collected from con-ron's task log
 (`DESIGN.md`; entries cited as "#N").  con-ron is a ~42 000-line Rust transliteration of
 the con-leche Lean kernel, translated by Charon + Aeneas to ~52 500 lines of Lean and

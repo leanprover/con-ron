@@ -1,5 +1,12 @@
 # con-ron — a Rust port of con-leche, proven to refine it
 
+> **This document was written by AI agents** (Claude, working with the
+> maintainer).  It is the agents' design record and task log, kept for the
+> project's history rather than as a user-facing document: it is long,
+> append-only and written for whoever works on the port next.  The
+> human-written entry point is [`README.md`](./README.md); the user-facing
+> guided tour is [`OVERVIEW.md`](./OVERVIEW.md) (being written).
+
 con-ron ("CON-leche, RON — the Rust one") is a port of the
 [con-leche](https://github.com/leanprover/con-leche) Lean checker to Rust,
 together with a Lean proof that the Rust program refines the Lean one: every
