@@ -178,78 +178,77 @@
     57  run gen-pins      "$root/scripts/gen-pins.sh" --check
     58  run extract-check "$root/scripts/extract.sh" --check
 
-== proof/ConRon/Refine/Main.lean#L238-L249
-   238  that `kernel::pins_decode::decode` returned for *some* byte slice, has a model
-   239  in every set theory.  `conron.model_exists'` with `hvar` discharged by
-   240  `PinsWF.decode_wf`, so it carries `hp` (a decode run), `hds` (the parsed
-   241  input's well-formedness) and `h` (the check run), and its census is
-   242  con-leche's own three axioms.
-   243  
-   244  This is the theorem about the binary that ships, up to one fact that lives in
-   245  the unverified crate and not in this tower: that the driver
-   246  (`con_ron::driver::pins_for_run`) calls the decoder on the embedded
-   247  `con-ron-pins/1` text rather than on something else.
-   248  `conron.model_exists_embedded` below is this theorem at exactly that text. -/
+== proof/ConRon/Refine/Main.lean#L249-L256
    249  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
-
-== proof/ConRon/Refine/Main.lean#L252-L259
+   250      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   251      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
    252      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
    253      (hds : ∀ d ∈ ds.val, DeclCWF d)
    254      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
    255      Nonempty (ConLeche.Model V (absEnv e)) :=
    256    conron.model_exists' V (PinsWF.decode_wf hp) hds h
-   257  
-   258  /-- **The main corollary for the shipped binary, axiom-free** (task #75): at
-   259  decoded pins, an accepted stream never yields a constant of type `False`.
 
-== proof/ConRon/Refine/Main.lean#L261-L265
-   261  `conron.model_exists_decoded` it carries the decode run and the check run and
-   262  nothing else, and names no string constant, so its census is the three
-   263  standard axioms. -/
+== proof/ConRon/Refine/Main.lean#L264-L271
    264  theorem conron.no_proof_of_False_decoded (V : Type w) [ConLeche.SetTheory V]
    265      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   266      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   267      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+   268      (hds : ∀ d ∈ ds.val, DeclCWF d)
+   269      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   270      ¬ ∃ c ∈ (absEnv e).consts,
+   271          c.toConstantVal.type = .const ConLeche.falseName [] :=
 
-== proof/ConRon/Refine/Main.lean#L139-L150
-   139        = .ok (absEnv e) :=
-   140    check_decls_verified_refines hk hind hinde hvar hds h
-   141  
-   142  /-- **The main theorem for the Rust checker** (DESIGN.md §1): every environment
-   143  `crates/con-ron-core`'s `check_decls` accepts has a model in every set theory.
-   144  `ConLeche.model_exists` at the accept above. -/
+== proof/ConRon/Refine/Main.lean#L273-L278
+   273  
+   274  /-- info: 'ConRon.Refine.conron.model_exists_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+   275  #guard_msgs in #print axioms conron.model_exists_decoded
+   276  
+   277  /-- info: 'ConRon.Refine.conron.no_proof_of_False_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+   278  #guard_msgs in #print axioms conron.no_proof_of_False_decoded
+
+== proof/ConRon/Refine/Main.lean#L145-L157
    145  theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
    146      (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
    147      (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
    148      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
    149      (hvar : CheckerPins.PinsWF pins)
    150      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+   151      (hds : ∀ d ∈ ds.val, DeclCWF d)
+   152      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   153      Nonempty (ConLeche.Model V (absEnv e)) :=
+   154    ConLeche.model_exists_with V (absPins pins) (ds.val.map absDeclC) (absEnv e)
+   155      (check_decls_verified_refines_ok hk hind hinde hvar hds h)
+   156  
+   157  /-- **The main corollary for the Rust checker** (DESIGN.md §1): an accepted
 
-== proof/ConRon/Refine/Main.lean#L179-L188
-   179  continued for the failure half), so `hk`, `hind` and `hinde` are not
-   180  hypotheses of the theorems below.  The one that remains here is the pin
-   181  argument's well-formedness (`hvar`), and the corollaries further down discharge
-   182  that as well for the list the binary actually folds with; `Refine/README.md`
-   183  names each with its owner.  Task #58's `hoe` is gone: task #65 made a thrown pin attempt the pin
-   184  check's verdict, retiring both halves of the `orElse` deviation (DESIGN.md
-   185  §3). -/
-   186  
+== proof/ConRon/Refine/Main.lean#L187-L197
    187  theorem conron.model_exists' (V : Type w) [ConLeche.SetTheory V]
    188      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   189      (hvar : CheckerPins.PinsWF pins)
+   190      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+   191      (hds : ∀ d ∈ ds.val, DeclCWF d)
+   192      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   193      Nonempty (ConLeche.Model V (absEnv e)) :=
+   194    conron.model_exists V (Core.knot_spec IndAbs.checkFuelU)
+   195      (InductivesC.ind_routes_spec' (Core.knot_spec IndAbs.checkFuelU))
+   196      (InductivesC.ind_routes_spec_err' (Core.knot_spec IndAbs.checkFuelU))
+   197      hvar hds h
 
-== proof/ConRon/Refine/Main.lean#L323-L336
-   323  embedded text.  It carries `hp` (what the decoder returned) and `hds` (the
-   324  parser's invariant); `hp` is there for `PinsWF` alone, and no hypothesis
-   325  anywhere is about the pins' *value*.
-   326  
-   327  It is the **instance of `conron.model_exists_decoded`** (task #75) at
-   328  `text = core.str.Str.as_bytes kernel.pins_text.PINS_TEXT`, which is what
-   329  `decode_embedded` is, and the one axiom it carries beyond the standard three is
-   330  the price of naming that constant: Aeneas's `toStr` discharges its size bound
-   331  with `by decide +native` in the *definition* of every extracted `&str`
-   332  (`AENEAS_FINDINGS.md` §3.8), so `pins_text.PINS_TEXT._native.decide.ax_1` comes
-   333  in through the closure with nothing evaluated.  The **axiom-free headline** is
-   334  therefore `conron.model_exists_decoded`, which says the same thing for every
-   335  decoder input. -/
+== proof/ConRon/Refine/Main.lean#L336-L349
    336  theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
+   337      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   338      (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
+   339      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+   340      (hds : ∀ d ∈ ds.val, DeclCWF d)
+   341      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   342      Nonempty (ConLeche.Model V (absEnv e)) :=
+   343    conron.model_exists' V (PinsWF.decode_embedded_wf hp) hds h
+   344  
+   345  /-- **The main corollary for the shipped binary** (tasks #64, #74):
+   346  `conron.no_proof_of_False'` at the embedded pins — equivalently, the instance
+   347  of `conron.no_proof_of_False_decoded` (task #75) at
+   348  `text = core.str.Str.as_bytes kernel.pins_text.PINS_TEXT`.  Its fourth axiom is
+   349  Aeneas's `toStr` artifact on the `&str` constant's definition
 
 == proof/ConRon/Refine/Installed.lean#L3241-L3252
   3241      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}

@@ -92,43 +92,46 @@ crate today), and the Lean build.  §12 has the list.
 The headline theorem is stated for the Rust checker's own entry point,
 `check_decls` in the verified core, with the pin list it uses obtained
 from the verified decoder on any input
-([`conron.model_exists_decoded` in `Main.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L238-L249)):
+([`conron.model_exists_decoded` in `Main.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L249-L256)):
 
 ```lean
 theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
     {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode text = ok (.Ok pins))
     {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
+    (hds : ∀ d ∈ ds.val, DeclCWF d)
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     Nonempty (ConLeche.Model V (absEnv e))
 ```
 
 and its companion
-[`conron.no_proof_of_False_decoded`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L252-L259):
+[`conron.no_proof_of_False_decoded`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L264-L271):
 if the Rust `check_decls` in verified mode accepts the parsed
 declarations `ds` and returns the environment `e`, then that environment,
 abstracted to con-leche's, has a model in every set theory, and contains
 no constant whose type is `False`.  `absEnv` is the abstraction function
-from the Rust environment to con-leche's (§5).  The hypotheses are
-exactly two: a run of the decoder, and a run of the checker.  Nothing is
-assumed about the input, because `check_decls` validates it (§3.5), and
-nothing is assumed about the pins' value, because the fold is parametric
-in them (§9).
+from the Rust environment to con-leche's (§5).  The hypotheses are three:
+a run of the decoder, a run of the checker, and `hds`, that every parsed
+declaration is well-formed — its terms are what the core's smart
+constructors built, which is what the parser does by construction and
+what the next con-leche update will make a theorem (§3.5).  Nothing is
+assumed about the pins' value, because the fold is parametric in them
+(§9).
 
 Both censuses are pinned by `#guard_msgs` at con-leche's own three axioms
-([the censuses](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L261-L265)):
+([the censuses](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L273-L278)):
 `propext`, `Classical.choice`, `Quot.sound`.  No `native_decide`, no
 `sorry`, nothing sealed.
 
 Three more forms exist for readers who want them.  The general pair
-([`conron.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L139-L150))
+([`conron.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L145-L157))
 names the two facts the induction owes — that the core knot refines
 con-leche's at the checker's fuel, and that the two inductive install
 routes refine theirs — as hypotheses, and the well-formedness of the pins
 as a third; the primed pair
-([`conron.model_exists'`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L179-L188))
+([`conron.model_exists'`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L187-L197))
 discharges the first two from the knot induction (§5).  The embedded pair
-([`conron.model_exists_embedded`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L323-L336))
+([`conron.model_exists_embedded`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L336-L349))
 is the decoded pair at the constant the binary ships, `PINS_TEXT`; its
 census carries one axiom more, `pins_text.PINS_TEXT._native.decide.ax_1`,
 which is not the port's: Aeneas' `toStr` discharges the byte-length bound
@@ -158,10 +161,9 @@ frontend (the export parser and the in-process modeller for mutual and
 nested inductives) completely; the proof covers the core.  §6 has the
 ledger.
 
-The one thing con-ron does that con-leche does not is validate its input
-(§3.5).  Everything else that differs is either a data-structure
-substitution proved to behave the same (§3.2–3.4) or a Rust idiom the
-translator requires (§3.6).
+Everything that differs is either a data-structure substitution proved to
+behave the same (§3.2–3.4) or a Rust idiom the translator requires (§3.6);
+con-ron does nothing con-leche does not.
 
 ### 3.2 Terms
 
@@ -214,7 +216,7 @@ gates) and decodes it with a verified decoder
 ([`decode`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_decode.rs#L1328-L1345))
 whose output is well-formed by construction for every input.
 
-### 3.5 Errors, and the validation pass
+### 3.5 Errors, and the input's well-formedness
 
 The Rust error type has con-leche's three kinds and a fourth
 ([`CheckError`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/core_types.rs#L87-L92)):
@@ -227,6 +229,25 @@ con-leche backtracks (`orElse`, in the `Nat.div`/`Nat.mod` pin loop) the
 port backtracks from a snapshot of the memo state on a mirrored error and
 keeps a `Native` one as the verdict
 ([`or_else_step`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/cached/checker_c.rs#L123-L132)).
+
+The theorem's `hds` hypothesis is where the frontend meets the proof.  A
+term's packed word (§3.2) caches what con-leche computes in a
+`@[computed_field]`, correct by construction in Lean; in Rust the smart
+constructors fill it, and a node built any other way could carry a word
+that makes the checker's `O(1)` shortcuts wrong.  So the theorem assumes
+every parsed declaration is well-formed in the sense of §5.2: its terms
+are what the smart constructors returned.  The unverified frontend does
+exactly that — it never writes a node literal; the only literal
+construction in the tree is inside the verified core, covered by its own
+lemma — but that is an audit, not a proof.  A runtime check was tried and
+withdrawn (DESIGN.md, tasks #73 and #81): a pass that rebuilds every node
+and compares the word needs a visited set over the export's shared DAG,
+and a global set costs about ten gigabytes at Mathlib scale while a
+per-declaration one costs 3.6–4.4 % of instructions, over the budget for
+a check con-leche does not need.  The hypothesis goes away for good with
+the next con-leche update, which brings the parser into the verified
+pipeline: once that parser is ported, `hds` is discharged by its
+refinement like every other hypothesis in the tower.
 
 ### 3.6 The Rust subset
 
@@ -303,8 +324,8 @@ forbids `get_mut`, `make_mut`, `Weak` and interior mutability), so sharing
 is invisible to the value.  The second is an under-approximation the
 proof has to be sound against: every place the Rust takes a pointer-equal
 shortcut, the proof shows the result is what the full computation gives —
-the memo tables' pointer-verified buckets, the validation pass's visited
-set, and `beq`'s pointer fast path each have that lemma.
+the memo tables' pointer-verified buckets and `beq`'s pointer fast path
+each have that lemma.
 
 ### 5.2 Abstraction and well-formedness
 
@@ -422,21 +443,22 @@ reference counts.
 <!-- PERF-TABLE: filled from _tmp/perf-overview after the runs at the commit named there -->
 | export | jobs | con-leche instructions | con-ron instructions | con-leche wall | con-ron wall | con-leche peak RSS | con-ron peak RSS |
 |---|---|---|---|---|---|---|---|
-| `Init` (57 972 declarations) | 1 | 586 G | *(pending)* | 59 s | *(pending)* | 0.48 GB | *(pending)* |
+| `Init` (57 972 declarations) | 1 | 586 G | 540 G | 59 s | 65 s (64–68, three runs) | 0.48 GB | 0.90 GB |
 | `Init` | 8 | 587 G | *(pending)* | 12 s | *(pending)* | 0.71 GB | *(pending)* |
-| `Init`+`Std`+`Lean` (163 391) | 1 | 1 180 G | *(pending)* | 150 s | *(pending)* | 1.24 GB | *(pending)* |
+| `Init`+`Std`+`Lean` (163 391) | 1 | 1 180 G | 1 159 G | 150 s | 156 s | 1.24 GB | 2.44 GB |
 | `Init`+`Std`+`Lean` | 8 | 1 183 G | *(pending)* | 43 s | *(pending)* | 1.39 GB | *(pending)* |
-| Mathlib (691 123) | 1 | 12 817 G | *(pending)* | 1 228 s | *(pending)* | 8.6 GB | *(pending)* |
+| Mathlib (691 123) | 1 | 12 817 G | 11 381 G | 1 228 s | 1 938 s | 8.6 GB | 15.85 GB |
 | Mathlib | 8 | 12 843 G | *(pending)* | 337 s | *(pending)* | 9.1 GB | *(pending)* |
 
-Two earlier measurements, recorded in DESIGN.md, explain the shape of
-the numbers.  Before the switch to atomic counts, con-ron ran Mathlib at
-the same instruction count as con-leche (12 797 G against 12 817 G), 1.6×
-the wall time and 1.86× the memory: equal work, more memory traffic.
-The switch to `Arc` cost 13–17 % of wall time single-threaded and bought
-a check phase that scales to 4.3× at eight workers and 6.9× at sixteen
-on `Init`.  The validation pass costs 1.5 % of instructions on `Init` and
-3 % on the larger export.
+Single-threaded, con-ron does 8–11 % fewer instructions than con-leche on
+every export and takes 1.05–1.6× the wall time at 1.8–1.9× the memory:
+the same work, more memory traffic.  Two earlier measurements in DESIGN.md
+explain the shape: before the switch to atomic reference counts, Mathlib
+ran at equal instructions, 1.6× the wall and 1.86× the memory; the switch
+to `Arc` cost 13–17 % of wall time single-threaded and bought a check
+phase that scales to 4.3× at eight workers and 6.9× at sixteen on `Init`.
+The memory gap is the 56-byte node with its `Arc` header against Lean's
+compact object, and the `Vec`-backed memo tables against `Std.HashMap`.
 
 ## 7. Trust assumptions
 
@@ -460,8 +482,11 @@ binary:
 * **The unverified crate.**  The parser, the modeller for mutual and
   nested inductives, the driver and the worker pool are ported but not
   proved; they are checked against con-leche's on the fixtures (§5.4).
-  What they hand to `check_decls` is validated by it (§3.5), so a
-  frontend bug can lose an accept, never fake one.  One fact about the
+  The theorem assumes the terms they hand to `check_decls` are what the
+  core's smart constructors built (`hds`, §3.5): a frontend that respects
+  that, as this one does by construction, can lose an accept but not fake
+  one; a frontend that forged a node's cached word could.  This assumption
+  goes with the next con-leche update (§3.5).  One more fact about the
   driver is what the decoded pair leaves outside Lean: that it calls the
   decoder on the embedded text.
 * **Nothing else.**  No `native_decide`, no `sorry`, no extra axiom in
@@ -493,9 +518,10 @@ internalising the context per goal; the study's numbers are in
 AUTOMATION.md.  The rule is: existing hand proofs are not rewritten; new
 lemmas use the idiom where it applies (leaves, walks, arms — not the
 mathematical `Nat` and `HashMap` tiers, not the byte-level pin decoder,
-not the list folds).  Its first real use, the validation pass's soundness
-lemmas, closed eight of seventeen on the first try, the other nine being
-list folds.
+not the list folds).  Its first real use, the soundness lemmas of the
+runtime validation pass that was later withdrawn (§3.5), closed eight of
+seventeen on the first try, the other nine being list folds; those lemmas
+left with the pass, so the idiom's next use is the next new lemma.
 
 The one campaign the proof went through twice is worth knowing about:
 every lemma was first stated in the accept direction only (an `Ok` on the
@@ -577,3 +603,9 @@ are `abs*`, the relations `*Rel`, the well-formedness predicates `*WF`.
 It ends with the two summary lines of `progress.py` and `loc.py`.  The
 differential tests of §5.4 are not in the gates, since they need the
 exports; CI runs them where it can.
+
+One check is neither a gate nor in CI, and is a landing rule instead:
+anything that touches memory is run on the Mathlib export under
+`ulimit -v 27000000` (three times con-leche's 8.6 GB) before it lands.
+CI and the kernel arena skip Mathlib, so that run is the only place a
+regression at scale shows; task #81 in DESIGN.md is what it caught.
