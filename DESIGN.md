@@ -389,7 +389,7 @@ proof/                   Lake project: requires con-leche + aeneas (task #4)
                          compiled at `std::rc::Rc`) and its own `Types`/
                          `Funs` under the same names, which cannot live in
                          one import graph with the core's
-vendor/con-leche         submodule, pinned (3e004805)
+vendor/con-leche         vendored git subtree (squashed), pin in vendor/CON_LECHE_PIN (task #74; a submodule at 3e004805 before)
 vendor/aeneas            submodule, pinned (505b6ca3) — same rev as flake.nix
 _tmp/aeneas-lean/        gitignored: vendor/aeneas/backends/lean + the v4.33
                          patch, built; produced by setup-aeneas-lean.sh, and

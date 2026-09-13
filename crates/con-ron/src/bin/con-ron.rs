@@ -101,7 +101,7 @@ use con_ron::frontend::prelude;
 // the `con-ron-pins/1` reader of `--pins`.  So `con-ron` declares none, and
 // `cargo build --no-default-features` gives glibc `malloc` back to both.
 
-/// con-leche: Main.lean:791-1039 usage
+/// con-leche: Main.lean:800-1048 usage
 /// The usage text.  DESIGN.md §3.1: message strings need not match, and this
 /// one deliberately does not — it is con-leche's synopsis plus the four flags
 /// that differ and the one piece of `Main.lean` that is not ported.
@@ -201,7 +201,7 @@ generated records into a copy of the input — it is written through
 con-leche's annotated-NDJSON writer (`Frontend/ExportWrite.lean`), an output
 path this checker does not have.";
 
-/// con-leche: Main.lean:1041-1055 Args
+/// con-leche: Main.lean:1050-1064 Args
 /// What the command line asked for.  `no_mark` is here, as con-leche's
 /// `noMark` is, because the flag is accepted — it just has nothing to turn
 /// off (`driver::mark_persistent_note`).
@@ -219,7 +219,7 @@ struct Args {
     bad: Option<String>,
 }
 
-/// con-leche: Main.lean:1057-1149 parseArgs
+/// con-leche: Main.lean:1066-1158 parseArgs
 /// The argument parse.  The retired spellings are hard errors, not silently
 /// ignored (`driver::retired_flag` holds all thirteen with their messages):
 /// a verdict's provenance must be readable off the invocation.
@@ -316,7 +316,7 @@ fn env_is(k: &str, v: &str) -> bool {
     std::env::var(k).ok().as_deref() == Some(v)
 }
 
-/// con-leche: Main.lean:493-788 checkMain
+/// con-leche: Main.lean:502-797 checkMain
 /// con-leche: Main.lean:53-59 parseInput
 /// The real driver's front matter: the retired environment gates, the
 /// prelude, the streaming parse, the receipts, then `driver` for the fold and
@@ -553,7 +553,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     }
 }
 
-/// con-leche: Main.lean:1151-1183 main
+/// con-leche: Main.lean:1160-1192 main
 /// The entry point.  The checker runs IN THIS PROCESS (con-leche task #230
 /// removed the out-of-memory supervisor that used to re-exec it), on one
 /// big-stack thread; a panic on it is exit 3, never a verdict.

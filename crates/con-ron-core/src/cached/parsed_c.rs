@@ -131,7 +131,7 @@ pub struct ValueGroup {
     pub jv: Expr,
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:74-77 PendingCheck
+/// con-leche: ConLeche/Cached/Installed.lean:89-92 PendingCheck
 /// A phase-A record awaiting its phase-B check: the datum that crosses the
 /// install/check seam, the fold position of the declaration (its error tag)
 /// and the environment counter at the install — `fe.visibleBelow` before the
@@ -478,7 +478,8 @@ pub fn check_opaque_val_c_after_annot(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-241 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove parsed_c::check_decl_c_refines, then delete this line
 /// One parsed declaration, mirroring `checkDeclSPPlain` branch by branch.
 /// The six arms are six functions, so every one of them is a tail call
 /// (task #18's rule for a gated cascade).
@@ -501,7 +502,8 @@ pub fn check_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-241 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove parsed_c::check_defn_decl_c_refines, then delete this line
 /// The `.defnDecl` arm.  **The pinned-name test comes first**, which is the
 /// cited arm's own RC-linearity shape: with `fe` still live after the push —
 /// the pin gates read it at the pre-insertion bound — `checkDefnValC`'s
@@ -540,7 +542,8 @@ pub fn check_defn_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-241 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove parsed_c::check_defn_pins_c_refines, then delete this line
 /// The `.defnDecl` arm's two pinned-`Nat` gates — the structural-operation
 /// recurrence certificates and the `Nat.div`/`Nat.mod` pin variants.
 ///
@@ -563,7 +566,8 @@ pub fn check_defn_pins_c(
     checker::check_defn_pins(mode, pins, st, fe2, k_pre, n)
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-241 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove parsed_c::check_thm_decl_c_refines, then delete this line
 /// The `.thmDecl` arm.
 pub fn check_thm_decl_c(
     mode: &CheckMode,
@@ -578,7 +582,8 @@ pub fn check_thm_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-241 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove parsed_c::check_opaque_decl_c_refines, then delete this line
 /// The `.opaqueDecl` arm: the compiler-trust gate for
 /// `Lean.reduceNat`/`Lean.reduceBool`, tested before the push for the cited
 /// RC-linearity reason (the comment in `checkDeclC` itself), then the opaque
@@ -609,7 +614,8 @@ pub fn check_opaque_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-241 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove parsed_c::check_axiom_decl_c_refines, then delete this line
 /// The `.axiomDecl` arm.  The one thing it adds to `checkDecl`'s is the
 /// `recordCConst` before each install: the cached lane keeps the accepted
 /// constant's annotated type in `ienv`, tagged with the very `Expr` object
@@ -675,7 +681,8 @@ pub fn check_axiom_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-241 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove parsed_c::check_basis_decl_c_refines, then delete this line
 /// The `.basisDecl` arm: the pinned `Eq` basis prerequisite of the quotient
 /// block, then the install fold.
 ///
@@ -688,7 +695,8 @@ pub fn check_basis_decl_c(fe: FEnv, kind: &BasisKind) -> CheckCM<FEnv> {
     checker::check_basis_decl(fe, kind)
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-241 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove parsed_c::check_ind_decl_c_refines, then delete this line
 /// The `.indDecl` arm.  **The declared parameter count first, and for both
 /// routes** (con-leche task #228): `indParamsOk` is official's own check,
 /// one-sided, and it runs before the dispatch because it is a property of the
@@ -723,7 +731,8 @@ pub fn check_ind_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:259-262 checkDeclStepC
+/// con-leche: ConLeche/Cached/ParsedC.lean:262-266 checkDeclStepC
+/// con-leche: CHANGED since 3e004805 — re-port, re-test, re-prove parsed_c::check_decl_step_c_refines, then delete this line
 /// One step of the parsed-declaration fold: **flush, then check**.  The flush
 /// is what makes one `CState` safe for a whole stream — every
 /// environment-dependent memo is emptied, the self-certified `ienv` and the

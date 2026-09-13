@@ -9,10 +9,15 @@ or, for an item with no Lean counterpart,
 
     /// con-leche: none — replaces the runtime's `Nat`; spec in NatSpec.lean
 
-The submodule pin is the single source of truth: `(pin, path, range)`
-fixes the cited text, so no hash is needed in the source.  `check`
-verifies every citation against the current pin and demands one on every
-item; `update --old <commit>` diffs the old pin against the new one,
+The vendored tree is the single source of truth: `vendor/con-leche` is a
+squashed `git subtree` of con-leche (task #74; its upstream commit is the
+first word of `vendor/CON_LECHE_PIN`), so `(pin, path, range)` fixes the
+cited text and no hash is needed in the source.  `check` verifies every
+citation against the tree and demands one on every item; `update --old
+<rev>` diffs the old tree against the new one — `rev` is a con-ron
+revision whose `vendor/con-leche` is the old tree (`HEAD` during an
+uncommitted `git subtree pull`), or, for the pre-subtree history, a
+con-leche commit resolvable in the retired submodule's git dir —
 relocates what merely moved and marks what changed with a `CHANGED`
 marker line the porter deletes once reconciled; `coverage` prints the
 port ledger.  Pure source-tree work: no build, no network, python3
@@ -309,21 +314,28 @@ STOPPER_RE = re.compile(
 
 
 def lean_text(path, old=None):
-    """The Lean file's lines: from the submodule work tree, or from `old`."""
+    """The Lean file's lines: from the vendored tree, or from `old` — a
+    con-ron revision whose tree holds the old `vendor/con-leche`, else (the
+    history before the subtree, task #74) a con-leche commit in the retired
+    submodule's git dir."""
     if old is None:
         full = os.path.join(REPO, CON_LECHE, path)
         if not os.path.exists(full):
             return None
         with open(full, encoding="utf-8") as f:
             return f.read().split("\n")
-    try:
-        out = subprocess.run(
-            ["git", "-C", os.path.join(REPO, CON_LECHE), "show",
-             "%s:%s" % (old, path)],
-            capture_output=True, text=True, check=True).stdout
-    except subprocess.CalledProcessError:
+    r = subprocess.run(["git", "-C", REPO, "show", "%s:%s/%s" % (old, CON_LECHE, path)],
+                       capture_output=True, text=True)
+    if r.returncode == 0:
+        return r.stdout.split("\n")
+    common = subprocess.run(["git", "-C", REPO, "rev-parse", "--git-common-dir"],
+                            capture_output=True, text=True).stdout.strip()
+    moddir = os.path.join(REPO, common, "modules", CON_LECHE)
+    if not os.path.isdir(moddir):
         return None
-    return out.split("\n")
+    r = subprocess.run(["git", "--git-dir", moddir, "show", "%s:%s" % (old, path)],
+                       capture_output=True, text=True)
+    return r.stdout.split("\n") if r.returncode == 0 else None
 
 
 def comment_lines(lines):
@@ -598,9 +610,17 @@ def first_decl_line(lines, a, b):
     return None
 
 
+PIN_FILE = "vendor/CON_LECHE_PIN"  # first word: the vendored con-leche commit
+
+
 def recorded_submodule_commit():
-    """The con-leche commit in HEAD — the `old` side of an uncommitted bump."""
-    try:
+    """The con-leche commit recorded in HEAD (`vendor/CON_LECHE_PIN` there) —
+    the `old` side of an uncommitted bump.  The name predates the subtree."""
+    r = subprocess.run(["git", "-C", REPO, "show", "HEAD:" + PIN_FILE],
+                       capture_output=True, text=True)
+    if r.returncode == 0 and r.stdout.split():
+        return r.stdout.split()[0]
+    try:  # the history before task #74: a submodule gitlink
         out = subprocess.run(["git", "-C", REPO, "ls-tree", "HEAD", CON_LECHE],
                              capture_output=True, text=True, check=True).stdout
     except subprocess.CalledProcessError:
@@ -610,11 +630,12 @@ def recorded_submodule_commit():
 
 
 def current_submodule_commit():
+    """The vendored con-leche commit: the first word of `vendor/CON_LECHE_PIN`."""
     try:
-        return subprocess.run(
-            ["git", "-C", os.path.join(REPO, CON_LECHE), "rev-parse", "HEAD"],
-            capture_output=True, text=True, check=True).stdout.strip()
-    except subprocess.CalledProcessError:
+        with open(os.path.join(REPO, PIN_FILE), encoding="utf-8") as f:
+            words = f.read().split()
+        return words[0] if words else None
+    except OSError:
         return None
 
 
@@ -642,10 +663,10 @@ def cmd_update(args):
     if old is None:
         rec, cur = recorded_submodule_commit(), current_submodule_commit()
         if rec and cur and rec != cur:
-            old = rec
+            old = "HEAD"  # the old tree is HEAD's `vendor/con-leche`
         else:
-            print("usage: no uncommitted submodule bump; pass --old <commit>",
-                  file=sys.stderr)
+            print("usage: no uncommitted bump of vendor/con-leche (the pin file "
+                  "matches HEAD's); pass --old <rev>", file=sys.stderr)
             return 2
 
     _, cites, malformed, markers = collect(args.roots)
@@ -680,7 +701,14 @@ def cmd_update(args):
         if olines is not None and 1 <= c.a <= c.b <= len(olines):
             old_text = [l.rstrip() for l in olines[c.a - 1:c.b]]
 
-        loc = locate_decl(lines, c.decl)
+        # Relocate by text first: the cited block, verbatim, nearest to where
+        # it was.  This is what makes an anonymous `_` citation (an
+        # `instance`) survive a bump — `locate_decl` cannot tell one `_` from
+        # another — and it is the honest test for every citation: the text
+        # is what the citation fixes (task #74, the first real bump).
+        loc = find_block(lines, old_text, c.a) if old_text else None
+        if loc is None:
+            loc = locate_decl(lines, c.decl)
         if loc is None:
             print("GONE %s — `%s` not found in %s at the new pin → re-port %s"
                   % (c.where(), c.decl, c.path, item))
@@ -733,6 +761,22 @@ def cmd_update(args):
         return 1
     print("provenance: %d citation(s) relocated, nothing changed." % moved)
     return 0
+
+
+def find_block(lines, block, near):
+    """The 1-based (start, end) of the occurrence of `block` (a list of
+    rstripped lines) in `lines` closest to line `near`, or None."""
+    if not block:
+        return None
+    n = len(block)
+    first = block[0]
+    hits = [i for i in range(len(lines) - n + 1)
+            if lines[i].rstrip() == first
+            and [l.rstrip() for l in lines[i:i + n]] == block]
+    if not hits:
+        return None
+    i = min(hits, key=lambda i: abs(i + 1 - near))
+    return i + 1, i + n
 
 
 def has_marker(cite, _cache={}):
@@ -943,8 +987,8 @@ def main(argv):
         p.print_help()
         return 2
     if not os.path.isdir(os.path.join(REPO, CON_LECHE, "ConLeche")):
-        print("error: %s is not checked out (git submodule update --init)"
-              % CON_LECHE, file=sys.stderr)
+        print("error: %s is missing (it is a vendored subtree since task #74; "
+              "is this a partial checkout?)" % CON_LECHE, file=sys.stderr)
         return 2
     return {"check": cmd_check, "update": cmd_update,
             "coverage": cmd_coverage, "locate": cmd_locate}[args.cmd](args)

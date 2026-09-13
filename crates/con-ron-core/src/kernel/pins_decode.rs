@@ -1142,7 +1142,7 @@ pub fn record_expr_proj(
 // The payload record (FORMAT.md §7)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/NatOpPinSet.lean:26-49 NatOpPinSet
+/// con-leche: ConLeche/Kernel/NatOpPinSet.lean:28-51 NatOpPinSet
 /// con-leche: none — `Read.lean`'s `S` arm of `parseRecord`
 /// `S <string> <expr>×8 (<k> <expr>*)×8`: one toolchain's pins.  An `S` record
 /// carries no id — the record *is* the payload and its position in the text is
@@ -1336,7 +1336,7 @@ pub fn decode(t: &[u8]) -> CheckM<Vec<NatOpPinSet>> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/NatOpPins.lean:61-64 _
+/// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
 /// (The cited range is the `#load_natop_pins` command that *produces*
 /// `natOpPinSets` while `NatOpPins.lean` elaborates; the declaration is not
 /// written there, hence the `_`.)

@@ -1,7 +1,7 @@
 //! The embedded `con-ron-pins/1` text of con-leche's `natOpPinSets`
 //! (DESIGN.md §3, task #43).
 //!
-//! con-leche: ConLeche/Kernel/NatOpPins.lean:61-64 _
+/// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
 //!
 //! **Generated file — do not edit.**  Written by `scripts/gen-pins.sh` from
 //! con-leche's own value: `lake exe con-ron-dump-pins` writes
@@ -29,7 +29,7 @@
 //! that Lean cannot elaborate (task #43: `std::bad_alloc`).  The decoder
 //! therefore takes `PINS_TEXT.as_bytes()`.
 
-/// con-leche: ConLeche/Kernel/NatOpPins.lean:61-64 _
+/// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
 /// (The range is `#load_natop_pins`, the command that produces
 /// `natOpPinSets` out of the committed `pins/*.json` while `NatOpPins.lean`
 /// elaborates: the declaration has no source line of its own, hence `_`.)
