@@ -1056,6 +1056,272 @@ theorem checkSumCtorF_run {lfe0 lfe : ConLeche.FEnv} {T : ConLeche.Name}
   rw [show (ConLeche.checkStructFieldSortsIF ops lfe isProp large resSort nP xq1
       (xq2.getAppArgs.drop nP) nF) lst3 = Except.ok (sorts, lst4) from hs]
 
+/-! ### `checkSumCtorF`'s twelve failures (task #67)
+
+The eight `throw` arms of `SumInstallF.lean:99-128` and the four binds, each
+stated at the prefix of stages that already succeeded — the same chain
+`checkSumCtorF_run` walks, cut short. -/
+
+section SumCtorErr
+
+variable {lfe0 lfe : ConLeche.FEnv} {T : ConLeche.Name} {lps : List ConLeche.Name}
+  {nP nIdx nF : Nat} {resSort : ConLeche.Level} {isProp large : Bool}
+  {cvC cvTa cvCa0 cvCa : ConLeche.ConstantVal}
+  {cbs : List (ConLeche.Expr × ConLeche.BinderMeta)} {cbody : ConLeche.Expr}
+  {cq1 tq1 xq1 : List ConLeche.Expr} {cq2 tq2 xq2 : ConLeche.Expr}
+  {lst lst1 lst2 lst3 : ConLeche.Cached.CState}
+  {v : alloc.vec.Vec Std.U32} {ce : core_types.CheckError}
+  (h0 : (ConLeche.checkConstantValF ops lfe cvC).run lst = .ok (cvCa0, lst1))
+  (h1 : (ConLeche.normCtorValF ops lfe T nP nF cvC cvCa0).run lst1
+    = .ok (cvCa, lst2))
+  (hstrip : cvCa.type.stripPis (nP + nF) = some (cbs, cbody))
+  (hresid : ConLeche.structCtorResidOk T lps nP nF nIdx cbody = true)
+  (hcq : ConLeche.openPisAtFvarsF nP cvCa.type 0 = some (cq1, cq2))
+  (htq : ConLeche.openPisAtFvarsF nP cvTa.type 0 = some (tq1, tq2))
+  (hdoms : (ConLeche.checkStructDomsAtF ops lfe 0 cq1
+    (tq1.map ConLeche.Expr.fvarTypeD) nP).run lst2 = .ok ((), lst3))
+  (hxq : ConLeche.openPisAtFvarsF nF cq2 nP = some (xq1, xq2))
+
+/-- The ordinary constant check threw (`SumInstallF.lean:101`). -/
+theorem checkSumCtorF_cv_err
+    (h : ErrSim ce ((ConLeche.checkConstantValF ops lfe cvC).run lst)) :
+    ErrSim ce ((ConLeche.checkSumCtorF ops lfe0 lfe T lps nP nIdx resSort isProp
+      large cvC nF cvTa).run lst) := by
+  rw [ConLeche.checkSumCtorF]
+  exact ErrSim.bindCM h
+
+include h0 in
+/-- The normalised constructor threw (`SumInstallF.lean:102`). -/
+theorem checkSumCtorF_norm_err
+    (h : ErrSim ce ((ConLeche.normCtorValF ops lfe T nP nF cvC cvCa0).run lst1)) :
+    ErrSim ce ((ConLeche.checkSumCtorF ops lfe0 lfe T lps nP nIdx resSort isProp
+      large cvC nF cvTa).run lst) := by
+  rw [ConLeche.checkSumCtorF, run_bind, h0]
+  simp only [Except.bind]
+  rw [run_bind]
+  exact ErrSim.bind_run h _
+
+include h0 h1 in
+/-- The normalised constructor's type is not a telescope of the parameters and
+the fields: both sides decline (`sum_install.rs:719`,
+`SumInstallF.lean:103-104`). -/
+theorem checkSumCtorF_strip_none (hce : core_types.not_implemented v = ok ce)
+    (hsn : cvCa.type.stripPis (nP + nF) = none) :
+    ErrSim ce ((ConLeche.checkSumCtorF ops lfe0 lfe T lps nP nIdx resSort isProp
+      large cvC nF cvTa).run lst) := by
+  rw [not_implemented_err hce, ConLeche.checkSumCtorF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure]
+  rw [show (ConLeche.checkConstantValF ops lfe cvC) lst = Except.ok (cvCa0, lst1)
+    from h0]
+  simp only []
+  rw [show (ConLeche.normCtorValF ops lfe T nP nF cvC cvCa0) lst1
+    = Except.ok (cvCa, lst2) from h1]
+  simp only [ConLeche.unwrapOr, hsn]
+  exact ErrSim.notImplemented rfl
+
+include h0 h1 hstrip in
+/-- The constructor's result is not the family at its own parameters: a
+REJECT on both sides (`sum_install.rs:726`, `SumInstallF.lean:110-111`). -/
+theorem checkSumCtorF_resid_bad (hce : core_types.invalid v = ok ce)
+    (hrb : ConLeche.structCtorResidOk T lps nP nF nIdx cbody = false) :
+    ErrSim ce ((ConLeche.checkSumCtorF ops lfe0 lfe T lps nP nIdx resSort isProp
+      large cvC nF cvTa).run lst) := by
+  rw [invalid_err hce, ConLeche.checkSumCtorF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure]
+  rw [show (ConLeche.checkConstantValF ops lfe cvC) lst = Except.ok (cvCa0, lst1)
+    from h0]
+  simp only []
+  rw [show (ConLeche.normCtorValF ops lfe T nP nF cvC cvCa0) lst1
+    = Except.ok (cvCa, lst2) from h1]
+  simp only [ConLeche.unwrapOr, hstrip, hrb, Bool.false_eq_true, if_false,
+    Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure]
+  exact ErrSim.invalid rfl
+
+include h0 h1 hstrip hresid in
+/-- The constructor's parameter telescope does not open
+(`sum_install.rs:729`, `SumInstallF.lean:112-113`). -/
+theorem checkSumCtorF_cq_none (hce : core_types.not_implemented v = ok ce)
+    (hcn : ConLeche.openPisAtFvarsF nP cvCa.type 0 = none) :
+    ErrSim ce ((ConLeche.checkSumCtorF ops lfe0 lfe T lps nP nIdx resSort isProp
+      large cvC nF cvTa).run lst) := by
+  rw [not_implemented_err hce, ConLeche.checkSumCtorF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure]
+  rw [show (ConLeche.checkConstantValF ops lfe cvC) lst = Except.ok (cvCa0, lst1)
+    from h0]
+  simp only []
+  rw [show (ConLeche.normCtorValF ops lfe T nP nF cvC cvCa0) lst1
+    = Except.ok (cvCa, lst2) from h1]
+  simp only [ConLeche.unwrapOr, hstrip, hresid, hcn, if_true, Bind.bind,
+    StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure]
+  exact ErrSim.notImplemented rfl
+
+include h0 h1 hstrip hresid hcq in
+/-- The type former's parameter telescope does not open
+(`sum_install.rs:736`, `SumInstallF.lean:114-115`). -/
+theorem checkSumCtorF_tq_none (hce : core_types.not_implemented v = ok ce)
+    (htn : ConLeche.openPisAtFvarsF nP cvTa.type 0 = none) :
+    ErrSim ce ((ConLeche.checkSumCtorF ops lfe0 lfe T lps nP nIdx resSort isProp
+      large cvC nF cvTa).run lst) := by
+  rw [not_implemented_err hce, ConLeche.checkSumCtorF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure]
+  rw [show (ConLeche.checkConstantValF ops lfe cvC) lst = Except.ok (cvCa0, lst1)
+    from h0]
+  simp only []
+  rw [show (ConLeche.normCtorValF ops lfe T nP nF cvC cvCa0) lst1
+    = Except.ok (cvCa, lst2) from h1]
+  simp only [ConLeche.unwrapOr, hstrip, hresid, hcq, htn, if_true, Bind.bind,
+    StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure]
+  exact ErrSim.notImplemented rfl
+
+include h0 h1 hstrip hresid hcq htq in
+/-- The parameter pins against the type former's telescope threw. -/
+theorem checkSumCtorF_doms_err
+    (h : ErrSim ce ((ConLeche.checkStructDomsAtF ops lfe 0 cq1
+      (tq1.map ConLeche.Expr.fvarTypeD) nP).run lst2)) :
+    ErrSim ce ((ConLeche.checkSumCtorF ops lfe0 lfe T lps nP nIdx resSort isProp
+      large cvC nF cvTa).run lst) := by
+  rw [ConLeche.checkSumCtorF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure]
+  rw [show (ConLeche.checkConstantValF ops lfe cvC) lst = Except.ok (cvCa0, lst1)
+    from h0]
+  simp only []
+  rw [show (ConLeche.normCtorValF ops lfe T nP nF cvC cvCa0) lst1
+    = Except.ok (cvCa, lst2) from h1]
+  simp only [ConLeche.unwrapOr, hstrip, hresid, hcq, htq, if_true, Bind.bind,
+    StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure,
+    ConLeche.checkStructDomsAtFA_eq]
+  exact ErrSim.bind_run h _
+
+include h0 h1 hstrip hresid hcq htq hdoms in
+/-- The constructor's field telescope does not open (`sum_install.rs:751`,
+`SumInstallF.lean:117-118`). -/
+theorem checkSumCtorF_xq_none (hce : core_types.not_implemented v = ok ce)
+    (hxn : ConLeche.openPisAtFvarsF nF cq2 nP = none) :
+    ErrSim ce ((ConLeche.checkSumCtorF ops lfe0 lfe T lps nP nIdx resSort isProp
+      large cvC nF cvTa).run lst) := by
+  rw [not_implemented_err hce, ConLeche.checkSumCtorF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure]
+  rw [show (ConLeche.checkConstantValF ops lfe cvC) lst = Except.ok (cvCa0, lst1)
+    from h0]
+  simp only []
+  rw [show (ConLeche.normCtorValF ops lfe T nP nF cvC cvCa0) lst1
+    = Except.ok (cvCa, lst2) from h1]
+  simp only [ConLeche.unwrapOr, hstrip, hresid, hcq, htq, if_true, Bind.bind,
+    StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure,
+    ConLeche.checkStructDomsAtFA_eq]
+  rw [show (ConLeche.checkStructDomsAtF ops lfe 0 cq1
+      (tq1.map ConLeche.Expr.fvarTypeD) nP) lst2 = Except.ok ((), lst3) from hdoms]
+  simp only [hxn]
+  exact ErrSim.notImplemented rfl
+
+include h0 h1 hstrip hresid hcq htq hdoms hxq in
+/-- The opened residual is not the family at the opened parameters
+(`sum_install.rs:769`, `SumInstallF.lean:119-121`). -/
+theorem checkSumCtorF_g1_bad (hce : core_types.not_implemented v = ok ce)
+    (hg1 : (xq2.getAppFn == ConLeche.Expr.const T (lps.map .param)
+      && xq2.getAppArgs.take nP == cq1
+      && xq2.getAppArgs.length == nP + nIdx) = false) :
+    ErrSim ce ((ConLeche.checkSumCtorF ops lfe0 lfe T lps nP nIdx resSort isProp
+      large cvC nF cvTa).run lst) := by
+  rw [not_implemented_err hce, ConLeche.checkSumCtorF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure]
+  rw [show (ConLeche.checkConstantValF ops lfe cvC) lst = Except.ok (cvCa0, lst1)
+    from h0]
+  simp only []
+  rw [show (ConLeche.normCtorValF ops lfe T nP nF cvC cvCa0) lst1
+    = Except.ok (cvCa, lst2) from h1]
+  simp only [ConLeche.unwrapOr, hstrip, hresid, hcq, htq, if_true, Bind.bind,
+    StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure,
+    ConLeche.checkStructDomsAtFA_eq]
+  rw [show (ConLeche.checkStructDomsAtF ops lfe 0 cq1
+      (tq1.map ConLeche.Expr.fvarTypeD) nP) lst2 = Except.ok ((), lst3) from hdoms]
+  simp only [hxq, hg1, Bool.false_eq_true, if_false, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure, StateT.pure, Except.pure]
+  exact ErrSim.notImplemented rfl
+
+include h0 h1 hstrip hresid hcq htq hdoms hxq in
+/-- A field domain does not resolve in the pre-block environment
+(`sum_install.rs:777`, `SumInstallF.lean:122-123`). -/
+theorem checkSumCtorF_g2_bad (hce : core_types.not_implemented v = ok ce)
+    (hg1 : (xq2.getAppFn == ConLeche.Expr.const T (lps.map .param)
+      && xq2.getAppArgs.take nP == cq1
+      && xq2.getAppArgs.length == nP + nIdx) = true)
+    (hg2 : (xq1.all fun x => x.fvarTypeD.constsResolveF lfe0) = false) :
+    ErrSim ce ((ConLeche.checkSumCtorF ops lfe0 lfe T lps nP nIdx resSort isProp
+      large cvC nF cvTa).run lst) := by
+  rw [not_implemented_err hce, ConLeche.checkSumCtorF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure]
+  rw [show (ConLeche.checkConstantValF ops lfe cvC) lst = Except.ok (cvCa0, lst1)
+    from h0]
+  simp only []
+  rw [show (ConLeche.normCtorValF ops lfe T nP nF cvC cvCa0) lst1
+    = Except.ok (cvCa, lst2) from h1]
+  simp only [ConLeche.unwrapOr, hstrip, hresid, hcq, htq, if_true, Bind.bind,
+    StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure,
+    ConLeche.checkStructDomsAtFA_eq]
+  rw [show (ConLeche.checkStructDomsAtF ops lfe 0 cq1
+      (tq1.map ConLeche.Expr.fvarTypeD) nP) lst2 = Except.ok ((), lst3) from hdoms]
+  simp only [hxq, hg1, hg2, Bool.false_eq_true, if_false, if_true, Bind.bind,
+    StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure]
+  exact ErrSim.notImplemented rfl
+
+include h0 h1 hstrip hresid hcq htq hdoms hxq in
+/-- An index expression mentions the block: official's `is_valid_ind_app`,
+INVALID on both sides (`sum_install.rs:785`, `SumInstallF.lean:124-125`). -/
+theorem checkSumCtorF_g3_bad (hce : core_types.invalid v = ok ce)
+    (hg1 : (xq2.getAppFn == ConLeche.Expr.const T (lps.map .param)
+      && xq2.getAppArgs.take nP == cq1
+      && xq2.getAppArgs.length == nP + nIdx) = true)
+    (hg2 : (xq1.all fun x => x.fvarTypeD.constsResolveF lfe0) = true)
+    (hg3 : ((xq2.getAppArgs.drop nP).all fun e => e.constsResolveF lfe0) = false) :
+    ErrSim ce ((ConLeche.checkSumCtorF ops lfe0 lfe T lps nP nIdx resSort isProp
+      large cvC nF cvTa).run lst) := by
+  rw [invalid_err hce, ConLeche.checkSumCtorF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure]
+  rw [show (ConLeche.checkConstantValF ops lfe cvC) lst = Except.ok (cvCa0, lst1)
+    from h0]
+  simp only []
+  rw [show (ConLeche.normCtorValF ops lfe T nP nF cvC cvCa0) lst1
+    = Except.ok (cvCa, lst2) from h1]
+  simp only [ConLeche.unwrapOr, hstrip, hresid, hcq, htq, if_true, Bind.bind,
+    StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure,
+    ConLeche.checkStructDomsAtFA_eq]
+  rw [show (ConLeche.checkStructDomsAtF ops lfe 0 cq1
+      (tq1.map ConLeche.Expr.fvarTypeD) nP) lst2 = Except.ok ((), lst3) from hdoms]
+  simp only [hxq, hg1, hg2, hg3, Bool.false_eq_true, if_false, if_true, Bind.bind,
+    StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure]
+  exact ErrSim.invalid rfl
+
+include h0 h1 hstrip hresid hcq htq hdoms hxq in
+/-- The per-field universe bound threw. -/
+theorem checkSumCtorF_sorts_err
+    (hg1 : (xq2.getAppFn == ConLeche.Expr.const T (lps.map .param)
+      && xq2.getAppArgs.take nP == cq1
+      && xq2.getAppArgs.length == nP + nIdx) = true)
+    (hg2 : (xq1.all fun x => x.fvarTypeD.constsResolveF lfe0) = true)
+    (hg3 : ((xq2.getAppArgs.drop nP).all fun e => e.constsResolveF lfe0) = true)
+    (h : ErrSim ce ((ConLeche.checkStructFieldSortsIF ops lfe isProp large resSort
+      nP xq1 (xq2.getAppArgs.drop nP) nF).run lst3)) :
+    ErrSim ce ((ConLeche.checkSumCtorF ops lfe0 lfe T lps nP nIdx resSort isProp
+      large cvC nF cvTa).run lst) := by
+  rw [ConLeche.checkSumCtorF]
+  simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure]
+  rw [show (ConLeche.checkConstantValF ops lfe cvC) lst = Except.ok (cvCa0, lst1)
+    from h0]
+  simp only []
+  rw [show (ConLeche.normCtorValF ops lfe T nP nF cvC cvCa0) lst1
+    = Except.ok (cvCa, lst2) from h1]
+  simp only [ConLeche.unwrapOr, hstrip, hresid, hcq, htq, if_true, Bind.bind,
+    StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure,
+    ConLeche.checkStructDomsAtFA_eq]
+  rw [show (ConLeche.checkStructDomsAtF ops lfe 0 cq1
+      (tq1.map ConLeche.Expr.fvarTypeD) nP) lst2 = Except.ok ((), lst3) from hdoms]
+  simp only [hxq, hg1, hg2, hg3, if_true, Bind.bind, StateT.bind, Except.bind,
+    Pure.pure, StateT.pure, Except.pure, checkStructFieldSortsIFA_eq]
+  exact ErrSim.bind_run h _
+
+end SumCtorErr
+
 end Steps
 
 /-! ## The former's telescope (`SumInstall.lean:43-107`) -/
@@ -2695,105 +2961,143 @@ theorem check_sum_ctor_refines {mode : env.CheckMode}
     {st st' : cached.state_c.CState} {fe0 fe : fenv.FEnv} {lfe0 : ConLeche.FEnv}
     {t : name.Name} {lps : alloc.vec.Vec name.Name} {n_p n_idx n_f : Std.U64}
     {res_sort : level.Level} {is_prop large : Bool}
-    {cv_c cv_ta cv_ca : env.ConstantVal} {sorts : alloc.vec.Vec level.Level}
+    {cv_c cv_ta : env.ConstantVal}
+    {o : core.result.Result (env.ConstantVal × alloc.vec.Vec level.Level)
+      core_types.CheckError}
     (hst : StateWF st) (hfe0 : FEnvWF fe0) (hfe : FEnvWF fe)
     (hrel0 : FEnvRel fe0 lfe0) (ht : NameWF t) (hlps : NamesWF lps)
     (hsort : LevelWF res_sort) (hcvc : ConstantValWF cv_c)
     (hcvta : ConstantValWF cv_ta)
     (h : inductives.sum_install.check_sum_ctor mode st fe0 fe t lps n_p n_idx
-        res_sort is_prop large cv_c n_f cv_ta = ok (.Ok (cv_ca, sorts), st')) :
+        res_sort is_prop large cv_c n_f cv_ta = ok (o, st')) :
     ∀ lst lfe, StateRel st lst → FEnvRel fe lfe →
-      ∃ lst', (ConLeche.checkSumCtorF (m := ConLeche.Cached.CheckCM)
+      Out (fun q => (absConstantVal q.1, absLevels q.2))
+        (fun q => ConstantValWF q.1 ∧ LevelsWF q.2) o st'
+        ((ConLeche.checkSumCtorF (m := ConLeche.Cached.CheckCM)
             (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe0 lfe (absName t)
             (absNames lps) n_p.val n_idx.val (absLevel res_sort) is_prop large
-            (absConstantVal cv_c) n_f.val (absConstantVal cv_ta)).run lst
-          = .ok ((absConstantVal cv_ca, absLevels sorts), lst')
-        ∧ StateRel st' lst' ∧ StateWF st'
-        ∧ ConstantValWF cv_ca ∧ LevelsWF sorts := by
+            (absConstantVal cv_c) n_f.val (absConstantVal cv_ta)).run lst) := by
   intro lst lfe hrel hfer
   rw [inductives.sum_install.check_sum_ctor] at h
   obtain ⟨pp, hccv0, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨r0, st1⟩ := pp
+  have hcvkey := hcv st st1 fe cv_c _ hst hfe hcvc hccv0 lst lfe hrel hfer
   cases r0 with
-  | Err err => simp at h
+  | Err err =>
+    -- the ordinary constant check threw
+    simp at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact checkSumCtorF_cv_err hcvkey
   | Ok cv_ca0 =>
-    obtain ⟨lst1, hrun0, hrel1, hwf1, hcvca0wf⟩ :=
-      hcv st st1 fe cv_c _ hst hfe hcvc hccv0 lst lfe hrel hfer
+    obtain ⟨lst1, hrun0, hrel1, hwf1, hcvca0wf⟩ := hcvkey
     simp at h
     obtain ⟨r1, st2, hnorm, h⟩ := h
+    have hnormkey := norm_ctor_val_refines hw hcv hmc hop hwf1 hfe ht hcvc
+      hcvca0wf hnorm lst1 lfe hrel1 hfer
     cases r1 with
-    | Err err => simp at h
-    | Ok cvCa =>
-      obtain ⟨lst2, hrun1, hrel2, hwf2, hcvcawf⟩ :=
-        norm_ctor_val_refines hw hcv hmc hop hwf1 hfe ht hcvc hcvca0wf hnorm
-          lst1 lfe hrel1 hfer
+    | Err err =>
+      -- the normalised constructor threw
       simp at h
-      obtain ⟨i, hi, o, ho, h⟩ := h
-      cases o with
-      | none => simp at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact checkSumCtorF_norm_err hrun0 hnormkey
+    | Ok cvCa =>
+      obtain ⟨lst2, hrun1, hrel2, hwf2, hcvcawf⟩ := hnormkey
+      simp at h
+      obtain ⟨i, hi, sp, ho, h⟩ := h
+      have hiv : i.val = n_p.val + n_f.val := HashMap.uscalar_add_eq hi
+      obtain ⟨hstripabs, hstripwf⟩ := ExprOps.strip_pis_refines hcvcawf.2.2 ho
+      cases sp with
+      | none =>
+        -- the normalised constructor's type is not a telescope of the
+        -- parameters and the fields (`sum_install.rs:719`)
+        simp at h
+        obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+        refine checkSumCtorF_strip_none hrun0 hrun1 hce ?_
+        rw [← hiv]; simpa [absConstantVal] using hstripabs.symm
       | some bq =>
         obtain ⟨bbs, cbody⟩ := bq
+        obtain ⟨hbbswf, hcbodywf⟩ := hstripwf _ rfl
+        have hstrip : (absConstantVal cvCa).type.stripPis (n_p.val + n_f.val)
+            = some (ExprOps.absBinders bbs, absExpr cbody) := by
+          rw [← hiv]; simpa [absConstantVal] using hstripabs.symm
         simp at h
-        obtain ⟨hb, o1, ho1, h⟩ := h
-        cases o1 with
-        | none => simp at h
-        | some cq =>
-          obtain ⟨cq1, cq2⟩ := cq
-          simp at h
-          obtain ⟨o2, ho2, h⟩ := h
-          cases o2 with
-          | none => simp at h
-          | some tq =>
-            obtain ⟨tq1, tq2⟩ := tq
+        rcases h with ⟨hb, v, hv, ce, hce, rfl, rfl⟩ | ⟨hb, o1, ho1, h⟩
+        · -- official's `is_valid_ind_app` on the constructor's result: a
+          -- REJECT on both sides (`sum_install.rs:726`)
+          exact checkSumCtorF_resid_bad hrun0 hrun1 hstrip hce
+            (hresid t lps n_p n_f n_idx cbody false ht hlps hcbodywf hb).symm
+        · have hresidok :=
+            (hresid t lps n_p n_f n_idx cbody true ht hlps hcbodywf hb).symm
+          obtain ⟨ho1abs, ho1wf⟩ := hop n_p cvCa.ty 0#u64 o1 hcvcawf.2.2 ho1
+          cases o1 with
+          | none =>
+            -- the constructor's parameter telescope does not open (`:729`)
             simp at h
-            obtain ⟨doms, hfvt, r2, st3, hdomsat, h⟩ := h
-            cases r2 with
-            | Err err => simp at h
-            | Ok _ =>
+            obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+            refine checkSumCtorF_cq_none hrun0 hrun1 hstrip hresidok hce ?_
+            simpa [absConstantVal] using ho1abs.symm
+          | some cq =>
+            obtain ⟨cq1, cq2⟩ := cq
+            obtain ⟨hcq1wf, hcq2wf⟩ := ho1wf _ rfl
+            have hcq : ConLeche.openPisAtFvarsF n_p.val (absConstantVal cvCa).type 0
+                = some (absExprs cq1, absExpr cq2) := by
+              simpa [absConstantVal] using ho1abs.symm
+            have hcq1len : cq1.val.length = n_p.val := by
+              have := openPisAtFvarsF_length hcq
+              simpa [absExprs] using this
+            have hnpmax : n_p.val ≤ Std.Usize.max :=
+              Scalars.u64_le_usize_max_of_le_len (v := cq1) (le_of_eq hcq1len.symm)
+            simp at h
+            obtain ⟨o2, ho2, h⟩ := h
+            obtain ⟨ho2abs, ho2wf⟩ := hop n_p cv_ta.ty 0#u64 o2 hcvta.2.2 ho2
+            cases o2 with
+            | none =>
+              -- the type former's parameter telescope does not open (`:736`)
               simp at h
-              obtain ⟨o3, ho3, h⟩ := h
-              cases o3 with
-              | none => simp at h
-              | some xq =>
-                obtain ⟨xq1, xq2⟩ := xq
+              obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+              refine checkSumCtorF_tq_none hrun0 hrun1 hstrip hresidok hcq hce ?_
+              simpa [absConstantVal] using ho2abs.symm
+            | some tq =>
+              obtain ⟨tq1, tq2⟩ := tq
+              obtain ⟨htq1wf, htq2wf⟩ := ho2wf _ rfl
+              have htq : ConLeche.openPisAtFvarsF n_p.val
+                  (absConstantVal cv_ta).type 0
+                  = some (absExprs tq1, absExpr tq2) := by
+                simpa [absConstantVal] using ho2abs.symm
+              simp at h
+              obtain ⟨doms, hfvt, r2, st3, hdomsat, h⟩ := h
+              obtain ⟨hdomsabs, hdomswf⟩ := hft tq1 doms htq1wf hfvt
+              have hdomskey := hdoms st2 st3 fe 0#u64 n_p cq1 doms _ hwf2 hfe
+                hcq1wf hdomswf hnpmax hdomsat lst2 lfe hrel2 hfer
+              rw [hdomsabs] at hdomskey
+              cases r2 with
+              | Err err =>
+                -- the parameter pins against the former's telescope threw
                 simp at h
-                obtain ⟨v3, hargs, idxs, hdrop, hb1, hb2, hb3, r3, st4,
-                  hsortsstep, hfin⟩ := h
-                cases r3 with
-                | Err err => simp at hfin
-                | Ok sorts0 =>
-                  simp at hfin
-                  obtain ⟨rfl, rfl, rfl⟩ := hfin
-                  -- the abstractions of the eight stages
-                  obtain ⟨hstripabs, hstripwf⟩ :=
-                    ExprOps.strip_pis_refines hcvcawf.2.2 ho
-                  obtain ⟨hbbswf, hcbodywf⟩ := hstripwf _ rfl
-                  have hiv : i.val = n_p.val + n_f.val := HashMap.uscalar_add_eq hi
-                  have hstrip : (absConstantVal cvCa).type.stripPis (n_p.val + n_f.val)
-                      = some (ExprOps.absBinders bbs, absExpr cbody) := by
-                    rw [← hiv]; simpa [absConstantVal] using hstripabs.symm
-                  have hresidok := hresid t lps n_p n_f n_idx cbody true ht hlps
-                    hcbodywf hb
-                  obtain ⟨ho1abs, ho1wf⟩ := hop n_p cvCa.ty 0#u64 _ hcvcawf.2.2 ho1
-                  obtain ⟨hcq1wf, hcq2wf⟩ := ho1wf _ rfl
-                  obtain ⟨ho2abs, ho2wf⟩ := hop n_p cv_ta.ty 0#u64 _ hcvta.2.2 ho2
-                  obtain ⟨htq1wf, htq2wf⟩ := ho2wf _ rfl
-                  have hcq : ConLeche.openPisAtFvarsF n_p.val
-                      (absConstantVal cvCa).type 0 = some (absExprs cq1, absExpr cq2) := by
-                    simpa [absConstantVal] using ho1abs.symm
-                  have htq : ConLeche.openPisAtFvarsF n_p.val
-                      (absConstantVal cv_ta).type 0 = some (absExprs tq1, absExpr tq2) := by
-                    simpa [absConstantVal] using ho2abs.symm
-                  have hcq1len : cq1.val.length = n_p.val := by
-                    have := openPisAtFvarsF_length hcq
-                    simpa [absExprs] using this
-                  have hnpmax : n_p.val ≤ Std.Usize.max :=
-                    Scalars.u64_le_usize_max_of_le_len (v := cq1) (le_of_eq hcq1len.symm)
-                  obtain ⟨hdomsabs, hdomswf⟩ := hft tq1 doms htq1wf hfvt
-                  obtain ⟨lst3, hrundoms, hrel3, hwf3⟩ :=
-                    hdoms st2 st3 fe 0#u64 n_p cq1 doms _ hwf2 hfe hcq1wf hdomswf
-                      hnpmax hdomsat lst2 lfe hrel2 hfer
-                  obtain ⟨ho3abs, ho3wf⟩ := hop n_f cq2 n_p _ hcq2wf ho3
+                obtain ⟨rfl, rfl⟩ := h
+                refine checkSumCtorF_doms_err hrun0 hrun1 hstrip hresidok hcq htq ?_
+                simpa using hdomskey
+              | Ok _ =>
+                obtain ⟨lst3, hrundoms, hrel3, hwf3⟩ := hdomskey
+                have hrundoms' : (ConLeche.checkStructDomsAtF
+                    (m := ConLeche.Cached.CheckCM)
+                    (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe 0
+                    (absExprs cq1) ((absExprs tq1).map ConLeche.Expr.fvarTypeD)
+                    n_p.val).run lst2 = .ok ((), lst3) := by
+                  simpa using hrundoms
+                simp at h
+                obtain ⟨o3, ho3, h⟩ := h
+                obtain ⟨ho3abs, ho3wf⟩ := hop n_f cq2 n_p _ hcq2wf ho3
+                cases o3 with
+                | none =>
+                  -- the constructor's field telescope does not open (`:751`)
+                  simp at h
+                  obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+                  refine checkSumCtorF_xq_none hrun0 hrun1 hstrip hresidok hcq htq
+                    hrundoms' hce ?_
+                  simpa using ho3abs.symm
+                | some xq =>
+                  obtain ⟨xq1, xq2⟩ := xq
                   obtain ⟨hxq1wf, hxq2wf⟩ := ho3wf _ rfl
                   have hxq : ConLeche.openPisAtFvarsF n_f.val (absExpr cq2) n_p.val
                       = some (absExprs xq1, absExpr xq2) := by
@@ -2803,38 +3107,65 @@ theorem check_sum_ctor_refines {mode : env.CheckMode}
                     simpa [absExprs] using this
                   have hnfmax : n_f.val ≤ Std.Usize.max :=
                     Scalars.u64_le_usize_max_of_le_len (v := xq1) (le_of_eq hxq1len.symm)
+                  simp at h
+                  obtain ⟨v3, hargs, idxs, hdrop, hcase⟩ := h
                   obtain ⟨hargsabs, hargswf⟩ := ExprOps.get_app_args_refines hxq2wf hargs
                   obtain ⟨hdropabs, hdropwf⟩ := CoreK.drop_exprs_refines hargswf hdrop
                   have hcastnp : (Std.UScalar.cast .Usize n_p : Std.Usize).val = n_p.val :=
                     ExprOps.u64_cast_usize_val hnpmax
-                  have hidxabs : absExprs idxs = (absExpr xq2).getAppArgs.drop n_p.val := by
+                  have hidxabs : absExprs idxs
+                      = (absExpr xq2).getAppArgs.drop n_p.val := by
                     rw [hdropabs, hcastnp, hargsabs]
-                  have hb1abs := opened_resid_ok_refines hpo ht hlps hcq1wf hxq2wf
-                    hnpmax hb1
-                  have hb2abs := field_doms_resolve_from_refines hres hrel0 hfe0
-                    hxq1wf hb2
-                  have hb3abs := index_args_resolve_from_refines hres hrel0 hfe0
-                    hdropwf hb3
-                  obtain ⟨lst4, hrunsorts, hrel4, hwf4, hsortswf⟩ :=
-                    check_struct_field_sorts_i_refines hw hwf3 hfe hsort hxq1wf
-                      hdropwf hnfmax hsortsstep lst3 lfe hrel3 hfer
-                  have hrundoms' : (ConLeche.checkStructDomsAtF
-                      (m := ConLeche.Cached.CheckCM)
-                      (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe 0
-                      (absExprs cq1) ((absExprs tq1).map ConLeche.Expr.fvarTypeD)
-                      n_p.val).run lst2 = .ok ((), lst3) := by
-                    rw [← hdomsabs]; simpa using hrundoms
-                  have hrunsorts' : (ConLeche.checkStructFieldSortsIF
-                      (m := ConLeche.Cached.CheckCM)
-                      (ConLeche.Cached.sharedOpsC (absMode mode) lfe) lfe is_prop
-                      large (absLevel res_sort) n_p.val (absExprs xq1)
-                      ((absExpr xq2).getAppArgs.drop n_p.val) n_f.val).run lst3
-                      = .ok (absLevels sorts0, lst4) := by
-                    rw [← hidxabs]; exact hrunsorts
-                  refine ⟨lst4, ?_, hrel4, hwf4, hcvcawf, hsortswf⟩
-                  exact checkSumCtorF_run hrun0 hrun1 hstrip hresidok.symm hcq htq
-                    hrundoms' hxq hb1abs.symm (by simpa using hb2abs.symm)
-                    (by rw [← hidxabs]; simpa using hb3abs.symm) hrunsorts'
+                  rcases hcase with ⟨hb1, v4, hv4, ce, hce, rfl, rfl⟩ | ⟨hb1, hcase2⟩
+                  · -- the opened residual is not the family at the opened
+                    -- parameters (`sum_install.rs:769`)
+                    refine checkSumCtorF_g1_bad hrun0 hrun1 hstrip hresidok hcq htq
+                      hrundoms' hxq hce ?_
+                    exact (opened_resid_ok_refines hpo ht hlps hcq1wf hxq2wf hnpmax
+                      hb1).symm
+                  · have hg1 := (opened_resid_ok_refines hpo ht hlps hcq1wf hxq2wf
+                      hnpmax hb1).symm
+                    rcases hcase2 with ⟨hb2, v4, hv4, ce, hce, rfl, rfl⟩ | ⟨hb2, hcase3⟩
+                    · -- a field domain does not resolve before the block (`:777`)
+                      refine checkSumCtorF_g2_bad hrun0 hrun1 hstrip hresidok hcq htq
+                        hrundoms' hxq hce hg1 ?_
+                      simpa using
+                        (field_doms_resolve_from_refines hres hrel0 hfe0 hxq1wf hb2).symm
+                    · have hg2 : (absExprs xq1).all
+                          (fun x => x.fvarTypeD.constsResolveF lfe0) = true := by
+                        simpa using
+                          (field_doms_resolve_from_refines hres hrel0 hfe0 hxq1wf hb2).symm
+                      rcases hcase3 with ⟨hb3, v4, hv4, ce, hce, rfl, rfl⟩
+                        | ⟨hb3, r3, st4, hsortsstep, hfin⟩
+                      · -- an index expression mentions the block (`:785`)
+                        refine checkSumCtorF_g3_bad hrun0 hrun1 hstrip hresidok hcq htq
+                          hrundoms' hxq hce hg1 hg2 ?_
+                        rw [← hidxabs]
+                        simpa using
+                          (index_args_resolve_from_refines hres hrel0 hfe0 hdropwf hb3).symm
+                      · have hg3 : ((absExpr xq2).getAppArgs.drop n_p.val).all
+                            (fun e => e.constsResolveF lfe0) = true := by
+                          rw [← hidxabs]
+                          simpa using
+                            (index_args_resolve_from_refines hres hrel0 hfe0 hdropwf hb3).symm
+                        have hsortskey := check_struct_field_sorts_i_refines hw hwf3
+                          hfe hsort hxq1wf hdropwf hnfmax hsortsstep lst3 lfe hrel3 hfer
+                        rw [hidxabs] at hsortskey
+                        cases r3 with
+                        | Err err =>
+                          -- the per-field universe bound threw
+                          simp at hfin
+                          obtain ⟨rfl, rfl⟩ := hfin
+                          exact checkSumCtorF_sorts_err hrun0 hrun1 hstrip hresidok
+                            hcq htq hrundoms' hxq hg1 hg2 hg3 hsortskey
+                        | Ok sorts0 =>
+                          simp at hfin
+                          obtain ⟨rfl, rfl⟩ := hfin
+                          obtain ⟨lst4, hrunsorts, hrel4, hwf4, hsortswf⟩ := hsortskey
+                          refine ⟨lst4, ?_, hrel4, hwf4, hcvcawf, hsortswf⟩
+                          exact checkSumCtorF_run hrun0 hrun1 hstrip hresidok hcq htq
+                            hrundoms' hxq hg1 hg2 hg3 hrunsorts
+
 
 /-- `ConLeche/Kernel/Inductives/SumInstall.lean:255-267` and
 `SumInstallF.lean:130-140` — `check_sum_ctors` refines `checkSumCtorsF`: stage
