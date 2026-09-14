@@ -571,6 +571,20 @@ phase that scales to 4.3× at eight workers and 6.9× at sixteen on `Init`.
 The memory gap is the 56-byte node with its `Arc` header against Lean's
 compact object, and the `Vec`-backed memo tables against `Std.HashMap`.
 
+The single-worker column has been re-measured twice since, at the two changes
+that could have moved it — con-leche's bump (task #83) and the parser's move
+into the verified crate (task #84, §3.7) — and it has not: `Init` 540.9 G,
+`Init`+`Std`+`Lean` 1 161.3 G, Mathlib 11 348.4 G, each within 0.4 % of the
+cell above it, at 0.91, 2.43 and 16.64 GB.  That the *parser* rewrite cost
+nothing is worth a sentence, because the budget expected it to cost something:
+the hot loop of a parser is the scanner, and the scanner never used a closure
+or a `std` map in the first place — what it does per byte is index a slice,
+which the Aeneas subset spells the same way.  The two places that could have
+paid did not: `ron::HashMap` replaced `std`'s only in the parse tables, probed
+once per stream index and not per byte, and the preparation's record copies
+(the subset has no `Vec::remove`, so a reordered record's *spine* is copied)
+are one small allocation per record against a term DAG that is never copied.
+
 ## 7. Trust assumptions
 
 What has to be right for the theorem to mean what it says about the

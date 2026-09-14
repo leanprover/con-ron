@@ -481,23 +481,23 @@ decoder returned on *any* byte slice, name no string constant, and are pinned
 at `[propext, Classical.choice, Quot.sound]`; the two `_embedded` capstones,
 which are their instance at the constant, are what still pays the axiom.
 
-**Status (task #84): a second such constant, and why it does not change the
-answer.**  The parser came into the verified core with con-leche's built-in
-prelude, which con-leche embeds with `include_str`; the port generates it as
-`frontend::prelude_text::PRELUDE_TEXT` (`scripts/gen-prelude.sh`), 16 922
-bytes, so there are now two `toStr` constants in the model and a *second*
-native-decide axiom to inherit.  Three things worth recording.  First, it
-costs the headline capstones nothing, for the same reason `PINS_TEXT` costs
-them nothing: they name no constant.  Second, a chunk-level capstone — the
-statement con-ron is heading for, con-leche's `no_False_declaration` at the
-Rust run — *will* name `builtin_prelude_e`, hence `PRELUDE_TEXT`, hence the
-axiom; so the ask above ("discharge `toStr`'s bound without `decide +native`")
-stops being about two footnote theorems and starts being about the capstone,
-and the general form quantified over the prelude's bytes is what will carry
-the clean census.  Third, the *encoding* is faithful: `toStr s` is
-`s.toByteArray`, i.e. the UTF-8 bytes, so the two non-ASCII entries of the
-prelude (`α`, `β`) are the bytes the scanner reads and the model reads the
-same ones — which is what makes `PRELUDE_TEXT.as_bytes()` the file.
+**Status (task #84): the ask nearly acquired a second customer, and then did
+not.**  The parser came into the verified core with con-leche's built-in
+prelude, which con-leche embeds with `include_str`.  The obvious port is a
+second `&str` constant — and that would have made the ask above about the
+*capstone* rather than about two footnote theorems, because the chunk-level
+statement con-ron is heading for names `builtin_prelude_e` and so would have
+inherited a second `_native.decide.ax_1`.  It could not be a `&str` for an
+unrelated reason (F17: an ndjson stream is nothing but quotes), so the prelude
+is 67 byte arrays joined at run time, and **carries no axiom at all**.  The ask
+stands exactly where it stood: `PINS_TEXT` alone, and only the two
+`conron.*_embedded` capstones pay it.
+
+What the byte-array route costs instead is elaboration time, which is the
+*other* half of task #43's measurement and the thing F17's asks name: one
+`Array.make` of 16 922 elements does not elaborate inside a million heartbeats,
+and one of 512 exhausts `maxRecDepth`.  Neither limit is documented, and both
+are about a constant, not a proof.
 
 ### 3.9 `Vec::insert` is modelled as `List.set` — an overwrite where Rust inserts (task #46) **[bug]**
 
