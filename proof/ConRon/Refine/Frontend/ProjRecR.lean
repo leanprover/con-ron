@@ -582,4 +582,307 @@ theorem build_binders_refines {M : Type} {inst : frontend.proj_rec.MkBinder M}
     simp only [Bool.false_eq_true, if_false] at hdone ⊢
     rw [← Result.ok_injective hdone]; simp
 
+/-! ## The three fragments of `projRecValue`
+
+`ConLeche/Frontend/ProjRec.lean:279-330 projRecValue` binds its two binder
+builders as local `let`s and ends in a `match rty with`; the port factors all
+three out (`MkMotive`/`MkMinor`, `proj_rec_value_major`), and task #84 split
+its tail into `proj_rec_value_at` for the Aeneas loop-shape rule.  These four
+definitions are that same factoring **on the con-leche side**, written out
+verbatim; `projRecValue_eq` below is the equivalence proof, and it is `rfl`:
+they are the cited term's own sub-terms, zeta-expanded. -/
+
+/-- `projRecValue`'s `mkMotive` (`ProjRec.lean:300-306`). -/
+def lMkMotive (T : ConLeche.Name) (R : ConLeche.Expr) (l : ConLeche.Level) :
+    ConLeche.Expr → Option ConLeche.Expr := fun dom =>
+  match ConLeche.Frontend.stripPisAll dom with
+  | ([(d, m)], .sort _) =>
+    if ConLeche.Frontend.headIs T d then some (.lam d (R.liftLooseBVars 1 1) m)
+    else some (.lam d (.const ConLeche.punitName [l]) m)
+  | (bs, .sort _) =>
+    some (ConLeche.Frontend.mkLams bs (.const ConLeche.punitName [l]))
+  | _ => none
+
+/-- `projRecValue`'s `mkMinor` at `stripPisAll`'s answer (`ProjRec.lean:312-320`). -/
+def lMkMinorAt (C : ConLeche.Name) (i : Nat) (l : ConLeche.Level)
+    (bs : List (ConLeche.Expr × ConLeche.BinderMeta)) (cod : ConLeche.Expr) :
+    Option ConLeche.Expr :=
+  match cod.getAppArgs.getLast? with
+  | some major =>
+    if ConLeche.Frontend.headIs C major then
+      if i < bs.length then
+        some (ConLeche.Frontend.mkLams bs (.bvar (bs.length - 1 - i)))
+      else none
+    else some (ConLeche.Frontend.mkLams bs (.const ConLeche.punitUnitName [l]))
+  | none => none
+
+/-- `projRecValue`'s `mkMinor` (`ProjRec.lean:312-320`). -/
+def lMkMinor (C : ConLeche.Name) (i : Nat) (l : ConLeche.Level) :
+    ConLeche.Expr → Option ConLeche.Expr := fun dom =>
+  lMkMinorAt C i l (ConLeche.Frontend.stripPisAll dom).1
+    (ConLeche.Frontend.stripPisAll dom).2
+
+/-- …at a known `stripPisAll`. -/
+theorem lMkMinor_eq {C : ConLeche.Name} {i : Nat} {l : ConLeche.Level}
+    {dom : ConLeche.Expr} {bs : List (ConLeche.Expr × ConLeche.BinderMeta)}
+    {cod : ConLeche.Expr} (hst : ConLeche.Frontend.stripPisAll dom = (bs, cod)) :
+    lMkMinor C i l dom = lMkMinorAt C i l bs cod := by rw [lMkMinor, hst]
+
+/-- `projRecValue`'s closing `match rty with` (`ProjRec.lean:324-330`). -/
+def lProjRecMajor (T recName : ConLeche.Name) (lus : List ConLeche.Level)
+    (params motives minors : List ConLeche.Expr)
+    (lbs : List (ConLeche.Expr × ConLeche.BinderMeta)) (rty : ConLeche.Expr) :
+    Option ConLeche.Expr :=
+  match rty with
+  | .forallE majDom _ _ => do
+    guard (ConLeche.Frontend.headIs T majDom)
+    let app := ConLeche.Expr.mkAppN (.const recName lus)
+      (params ++ motives ++ minors ++ [.bvar 0])
+    pure (ConLeche.Frontend.mkLams lbs app)
+  | _ => none
+
+/-- `projRecValue`'s tail, from `let us := o.lps.map Level.param` on
+(`ProjRec.lean:290-330`) — the port's `proj_rec_value_at`. -/
+def lProjRecValueAt (o : ConLeche.Frontend.ProjRecOwner) (l : ConLeche.Level)
+    (R : ConLeche.Expr) (lbs : List (ConLeche.Expr × ConLeche.BinderMeta))
+    (i : Nat) : Option ConLeche.Expr :=
+  let us := o.lps.map ConLeche.Level.param
+  let rty := o.recType.instantiateLevelParams o.recLps (l :: us)
+  let params := (List.range o.nP).map fun k => ConLeche.Expr.bvar (o.nP - k)
+  do
+  let rty ← ConLeche.Frontend.instPisOpen rty params
+  let (motives, rty) ←
+    ConLeche.Frontend.buildBinders (lMkMotive o.T R l) o.numMotives rty
+  let (minors, rty) ←
+    ConLeche.Frontend.buildBinders (lMkMinor o.ctor i l) o.numMinors rty
+  lProjRecMajor o.T o.recName (l :: us) params motives minors lbs rty
+
+/-- **The factoring is the cited term.** -/
+theorem projRecValue_eq (o : ConLeche.Frontend.ProjRecOwner) (l : ConLeche.Level)
+    (ty val : ConLeche.Expr) (i : Nat) :
+    ConLeche.Frontend.projRecValue o l ty val i
+      = (do
+        let (lbs, body) ← val.stripLams (o.nP + 1)
+        guard (body == .proj o.T i (.bvar 0))
+        guard (i < o.nF)
+        let (_, R) ← ty.stripPis (o.nP + 1)
+        lProjRecValueAt o l R lbs i) := by
+  unfold ConLeche.Frontend.projRecValue lProjRecValueAt lProjRecMajor lMkMotive
+    lMkMinor lMkMinorAt
+  rfl
+
+/-! ## The two dictionaries -/
+
+/-- The abstraction of a `Vec` the port found to have length one. -/
+theorem binders_singleton {bs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
+    {p : expr.Expr × expr.BinderMeta}
+    (hlen : alloc.vec.Vec.len bs = (1#usize : Std.Usize))
+    (h : alloc.vec.Vec.index
+      (core.slice.index.SliceIndexUsizeSlice (expr.Expr × expr.BinderMeta)) bs 0#usize
+      = ok p) :
+    ExprOps.absBinders bs = [(absExpr p.1, absBinderMeta p.2)] := by
+  have hl : bs.val.length = 1 := by
+    have := alloc.vec.Vec.len_val bs; rw [hlen] at this; scalar_tac
+  have hg := ExprOps.vec_index_getElem? h
+  obtain ⟨x, hx⟩ := List.length_eq_one_iff.mp hl
+  rw [hx] at hg
+  simp only [show ((0#usize : Std.Usize)).val = 0 by scalar_tac,
+    List.getElem?_cons_zero, Option.some.injEq] at hg
+  rw [ExprOps.absBinders, hx, ← hg]
+  simp
+
+/-- A list whose length is not one is empty or has two heads. -/
+theorem list_ne_singleton {α : Type} (xs : List α) (h : xs.length ≠ 1) :
+    xs = [] ∨ ∃ a b tl, xs = a :: b :: tl := by
+  match xs with
+  | [] => exact Or.inl rfl
+  | [_] => simp at h
+  | a :: b :: tl => exact Or.inr ⟨a, b, tl, rfl⟩
+
+/-- …and of one the port found not to. -/
+theorem binders_not_singleton {bs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)}
+    (hlen : ¬ alloc.vec.Vec.len bs = (1#usize : Std.Usize)) :
+    ExprOps.absBinders bs = [] ∨
+      ∃ a b tl, ExprOps.absBinders bs = a :: b :: tl := by
+  have hl : bs.val.length ≠ 1 := by
+    intro hc
+    exact hlen (by have := alloc.vec.Vec.len_val bs; scalar_tac)
+  rcases list_ne_singleton bs.val hl with hnil | ⟨a, b, tl, hcons⟩
+  · exact Or.inl (by rw [ExprOps.absBinders, hnil]; rfl)
+  · exact Or.inr ⟨_, _, _, by rw [ExprOps.absBinders, hcons]; rfl⟩
+
+/-- `lMkMotive` declines a domain whose `stripPisAll` body is not a sort. -/
+theorem lMkMotive_not_sort {T : ConLeche.Name} {R : ConLeche.Expr}
+    {l : ConLeche.Level} {dom : ConLeche.Expr}
+    {bs : List (ConLeche.Expr × ConLeche.BinderMeta)} {e : ConLeche.Expr}
+    (hst : ConLeche.Frontend.stripPisAll dom = (bs, e))
+    (h : ∀ u, e ≠ ConLeche.Expr.sort u) : lMkMotive T R l dom = none := by
+  rw [lMkMotive, hst]
+  split <;> first | rfl | (exfalso; simp_all)
+
+/-- A node's abstraction, read off its observed kind. -/
+theorem absExpr_of_kind {e : expr.Expr} {k : expr.ExprKind} (h : e._0.kind = k) :
+    absExpr e = absExprKind k := by
+  obtain ⟨⟨d, kk⟩⟩ := e
+  rw [← h]; rfl
+
+/-- `proj_rec::MkMotive` refines `projRecValue`'s `mkMotive`
+(`ConLeche/Frontend/ProjRec.lean:300-306`). -/
+theorem mk_motive_refines {t : name.Name} {rr : expr.Expr} {l : level.Level}
+    (ht : NameWF t) (hr : ExprWF rr) :
+    MkBinderRefines frontend.proj_rec.MkMotive.Insts.Con_ron_coreFrontendProj_recMkBinder
+      { t := t, r := rr, l := l } (lMkMotive (absName t) (absExpr rr) (absLevel l)) := by
+  intro dom hdom o h
+  replace h : frontend.proj_rec.MkMotive.Insts.Con_ron_coreFrontendProj_recMkBinder.binder
+      { t := t, r := rr, l := l } dom = ok o := h
+  rw [frontend.proj_rec.MkMotive.Insts.Con_ron_coreFrontendProj_recMkBinder.binder] at h
+  obtain ⟨p, hsp, -⟩ := bind_eq_ok_iff.mp h
+  have habs := strip_pis_all_refines hdom hsp
+  obtain ⟨hbs, hbody⟩ := strip_pis_all_wf hdom hsp
+  rw [hsp] at h
+  simp only [bind_tc_ok] at h
+  rust_norm h
+  all_goals (try simp only [] at habs hbs hbody)
+  case h_3.isTrue.isTrue =>
+    rename_i _ u hkd hlen e1 bm hidx b hhi hbt e3 hlift bm1 hbmd e4 hlam
+    obtain ⟨-, hmem⟩ := vec_index_mem hidx
+    obtain ⟨he1, hbm⟩ := hbs _ hmem
+    have hHI : ConLeche.Frontend.headIs (absName t) (absExpr e1) = true := by
+      rw [← head_is_refines ht he1 hhi]; exact hbt
+    rw [lMkMotive, ← habs, binders_singleton hlen hidx, absExpr_of_kind hkd]
+    simp only [absExprKind, hHI, if_true, Option.map_some, Expr.lam_refines hlam,
+      Expr.binder_meta_dup_eq hbmd, (ExprOps.lift_loose_bvars_refines hr hlift).1]
+    norm_num
+  case h_3.isTrue.isFalse =>
+    rename_i _ u hkd hlen e1 bm hidx b hhi hbf e3 hpu bm1 hbmd e4 hlam
+    obtain ⟨-, hmem⟩ := vec_index_mem hidx
+    obtain ⟨he1, hbm⟩ := hbs _ hmem
+    have hHI : ConLeche.Frontend.headIs (absName t) (absExpr e1) = false := by
+      rw [← head_is_refines ht he1 hhi]; simpa using hbf
+    rw [lMkMotive, ← habs, binders_singleton hlen hidx, absExpr_of_kind hkd]
+    simp only [absExprKind, hHI, Bool.false_eq_true, if_false, Option.map_some,
+      Expr.lam_refines hlam, Expr.binder_meta_dup_eq hbmd, punit_at_refines hpu]
+  case h_3.isFalse =>
+    rename_i _ u hkd hlen e1 hpu e2 hml
+    rw [lMkMotive, ← habs, absExpr_of_kind hkd]
+    rcases binders_not_singleton hlen with hnil | ⟨a, b, tl, hcons⟩
+    · rw [hnil]
+      simp only [absExprKind, Option.map_some, mk_lams_refines hml,
+        punit_at_refines hpu, hnil]
+    · rw [hcons]
+      simp only [absExprKind, Option.map_some, mk_lams_refines hml,
+        punit_at_refines hpu, hcons]
+  all_goals (rename_i hkd
+             rw [lMkMotive_not_sort habs.symm
+               (by rw [absExpr_of_kind hkd]; intro u hc; simp [absExprKind] at hc)]
+             rfl)
+
+/-- The last argument of an empty spine. -/
+theorem getLast?_empty {v : alloc.vec.Vec expr.Expr}
+    (h : alloc.vec.Vec.len v = (0#usize : Std.Usize)) : (absExprs v).getLast? = none := by
+  have hlv := alloc.vec.Vec.len_val v
+  have h0 : v.val.length = 0 := by rw [h] at hlv; scalar_tac
+  simp only [absExprs]
+  rw [List.getLast?_eq_getElem?]
+  simp [h0]
+
+/-- The last argument of a spine the port read at `len - 1`. -/
+theorem getLast?_last {v : alloc.vec.Vec expr.Expr} {i : Std.Usize} {x : expr.Expr}
+    (hne : ¬ alloc.vec.Vec.len v = (0#usize : Std.Usize))
+    (hi : alloc.vec.Vec.len v - (1#usize : Std.Usize) = ok i)
+    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice expr.Expr) v i
+      = ok x) : (absExprs v).getLast? = some (absExpr x) := by
+  have hlv := alloc.vec.Vec.len_val v
+  have h0 : 0 < v.val.length := by
+    rcases Nat.eq_zero_or_pos v.val.length with hz | hp
+    · exact absurd (by scalar_tac) hne
+    · exact hp
+  have hiv : i.val = v.val.length - 1 := by
+    rw [HashMap.uscalar_sub_eq hi]; scalar_tac
+  have hg := ExprOps.vec_index_getElem? h
+  simp only [absExprs]
+  rw [List.getLast?_eq_getElem?, List.length_map, List.getElem?_map, ← hiv, hg]
+  rfl
+
+/-- A binder list's length, through the port's `u64` widening. -/
+theorem binders_len_cast (bs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)) :
+    (Std.UScalar.cast .U64 (alloc.vec.Vec.len bs) : Std.U64).val
+      = (ExprOps.absBinders bs).length := by
+  rw [ExprOps.usize_cast_u64_val, ExprOps.absBinders, List.length_map]
+  have := alloc.vec.Vec.len_val bs; scalar_tac
+
+/-- `proj_rec::MkMinor` refines `projRecValue`'s `mkMinor`
+(`ConLeche/Frontend/ProjRec.lean:312-320`). -/
+theorem mk_minor_refines {c : name.Name} {i : Std.U64} {l : level.Level}
+    (hc : NameWF c) :
+    MkBinderRefines frontend.proj_rec.MkMinor.Insts.Con_ron_coreFrontendProj_recMkBinder
+      { ctor := c, i := i, l := l } (lMkMinor (absName c) i.val (absLevel l)) := by
+  intro dom hdom o h
+  replace h : frontend.proj_rec.MkMinor.Insts.Con_ron_coreFrontendProj_recMkBinder.binder
+      { ctor := c, i := i, l := l } dom = ok o := h
+  rw [frontend.proj_rec.MkMinor.Insts.Con_ron_coreFrontendProj_recMkBinder.binder] at h
+  obtain ⟨p, hsp, -⟩ := bind_eq_ok_iff.mp h
+  have habs := strip_pis_all_refines hdom hsp
+  obtain ⟨hbs, hbody⟩ := strip_pis_all_wf hdom hsp
+  rw [hsp] at h
+  simp only [bind_tc_ok] at h
+  rust_norm h
+  all_goals (try simp only [] at habs hbs hbody)
+  case isTrue =>
+    rename_i v e args hga hlen0
+    obtain ⟨hgabs, hgwf⟩ := ExprOps.get_app_args_refines hbody hga
+    rw [lMkMinor_eq habs.symm, lMkMinorAt, ← hgabs, getLast?_empty hlen0]
+    rfl
+  case isFalse.isTrue.isTrue =>
+    rename_i v e args hga hne0 hlt i2 hi2 e1 hidx b hhi hbt i7 hi7 i8 hi8 e2 hbv e3 hml
+    obtain ⟨hgabs, hgwf⟩ := ExprOps.get_app_args_refines hbody hga
+    obtain ⟨-, hmem⟩ := vec_index_mem hidx
+    have he1 : ExprWF e1 := hgwf _ hmem
+    have hHI : ConLeche.Frontend.headIs (absName c) (absExpr e1) = true := by
+      rw [← head_is_refines hc he1 hhi]; exact hbt
+    have hcast := binders_len_cast v
+    have hltv : i.val < (ExprOps.absBinders v).length := by rw [← hcast]; scalar_tac
+    have hi7v : i7.val = (ExprOps.absBinders v).length - 1 := by
+      rw [HashMap.uscalar_sub_eq hi7, hcast]; scalar_tac
+    have hi8v : i8.val = (ExprOps.absBinders v).length - 1 - i.val := by
+      rw [HashMap.uscalar_sub_eq hi8, hi7v]
+    rw [lMkMinor_eq habs.symm, lMkMinorAt, ← hgabs, getLast?_last hne0 hi2 hidx]
+    simp only [hHI, if_true]
+    rw [if_pos hltv, Option.map_some, mk_lams_refines hml,
+      Expr.mk_bvar_refines hbv, hi8v]
+    simp
+  case isFalse.isTrue.isFalse =>
+    rename_i v e args hga hne0 hlt i2 hi2 e1 hidx b hhi hbf e2 hpu e3 hml
+    obtain ⟨hgabs, hgwf⟩ := ExprOps.get_app_args_refines hbody hga
+    obtain ⟨-, hmem⟩ := vec_index_mem hidx
+    have he1 : ExprWF e1 := hgwf _ hmem
+    have hHI : ConLeche.Frontend.headIs (absName c) (absExpr e1) = false := by
+      rw [← head_is_refines hc he1 hhi]; simpa using hbf
+    rw [lMkMinor_eq habs.symm, lMkMinorAt, ← hgabs, getLast?_last hne0 hi2 hidx]
+    simp only [hHI, Bool.false_eq_true, if_false]
+    rw [Option.map_some, mk_lams_refines hml, punit_unit_at_refines hpu]
+  case isFalse.isFalse.isTrue =>
+    rename_i v e args hga hne0 hge i2 hi2 e1 hidx b hhi hbt
+    obtain ⟨hgabs, hgwf⟩ := ExprOps.get_app_args_refines hbody hga
+    obtain ⟨-, hmem⟩ := vec_index_mem hidx
+    have he1 : ExprWF e1 := hgwf _ hmem
+    have hHI : ConLeche.Frontend.headIs (absName c) (absExpr e1) = true := by
+      rw [← head_is_refines hc he1 hhi]; exact hbt
+    have hcast := binders_len_cast v
+    have hgev : ¬ i.val < (ExprOps.absBinders v).length := by rw [← hcast]; scalar_tac
+    rw [lMkMinor_eq habs.symm, lMkMinorAt, ← hgabs, getLast?_last hne0 hi2 hidx]
+    simp only [hHI, if_true]
+    rw [if_neg hgev]
+    rfl
+  case isFalse.isFalse.isFalse =>
+    rename_i v e args hga hne0 hge i2 hi2 e1 hidx b hhi hbf e2 hpu e3 hml
+    obtain ⟨hgabs, hgwf⟩ := ExprOps.get_app_args_refines hbody hga
+    obtain ⟨-, hmem⟩ := vec_index_mem hidx
+    have he1 : ExprWF e1 := hgwf _ hmem
+    have hHI : ConLeche.Frontend.headIs (absName c) (absExpr e1) = false := by
+      rw [← head_is_refines hc he1 hhi]; simpa using hbf
+    rw [lMkMinor_eq habs.symm, lMkMinorAt, ← hgabs, getLast?_last hne0 hi2 hidx]
+    simp only [hHI, Bool.false_eq_true, if_false]
+    rw [Option.map_some, mk_lams_refines hml, punit_unit_at_refines hpu]
+
 end ConRon.Refine.Frontend
