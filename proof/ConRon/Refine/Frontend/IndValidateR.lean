@@ -630,7 +630,7 @@ def lOrderBlockStep (st : StateD) (ctorIx : Std.HashMap Name Nat)
 
 /-- One step of the `numIndices` loop. -/
 def lRecIdxStep (T : Name) (rn : Name) (numIndices nPd : Nat)
-    (tt : Name × Expr) (s : Option LVRes × Unit) :
+    (tt : Name × Expr) (_s : Option LVRes × Unit) :
     M (ForInStep (Option LVRes × Unit)) :=
   if tt.1 == T then
     match tt.2.piSortTeleLen? with
@@ -644,7 +644,7 @@ def lRecIdxStep (T : Name) (rn : Name) (numIndices nPd : Nat)
 /-- One step of the recursor-record loop. -/
 def lRecStep (st : StateD) (tyNames : List Name) (tyTypes : List Expr)
     (nPd nTypes nCtors : Nat) (kExpected? : Option Bool)
-    (r : IndRecRec) (s : Option LVRes × Unit) :
+    (r : IndRecRec) (_s : Option LVRes × Unit) :
     M (ForInStep (Option LVRes × Unit)) := do
   let rn ← st.name r.cv.name
   unless r.numParams == nPd do
@@ -1349,5 +1349,204 @@ theorem check_rec_records_refines {st : frontend.export_c.StateD}
   have hres := check_rec_records_loop_refines hrel hwf hnwf htwf _ _ 0#usize o rfl
     (by simp [alloc.vec.Vec.len]) h
   simpa [show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hres
+
+
+/-! ### `k_expected_of` (`ExportC.lean:412-563`, official's `is_K_target`) -/
+
+section KExp
+open ConLeche ConLeche.Frontend
+
+/-- Anything but "one type, one listed constructor, one constructor record"
+is not K-like. -/
+private theorem lKExpectedOf_false {tt : List Expr} {ls : List (List Name)}
+    {cs : List IndCtorRec}
+    (h : ¬ (∃ ty x c, tt = [ty] ∧ ls = [[x]] ∧ cs = [c])) :
+    lKExpectedOf tt ls cs = some false := by
+  unfold lKExpectedOf
+  split
+  · rename_i ty x c
+    exact absurd ⟨ty, x, c, rfl, rfl, rfl⟩ h
+  · rfl
+
+/-- The single former's type ends in a sort: the flag is readable. -/
+private theorem lKExpectedOf_sort {ty : Expr} {s : Level} {x : Name} {c : IndCtorRec}
+    (h : ty.piResult = .sort s) :
+    lKExpectedOf [ty] [[x]] [c]
+      = some (c.numFields == 0 && Level.isEquiv s .zero == some true) := by
+  simp only [lKExpectedOf, h]
+
+/-- The single former's type does not end in a sort: the flag is left to the
+install. -/
+private theorem lKExpectedOf_nonsort {ty : Expr} {x : Name} {c : IndCtorRec}
+    (h : ∀ s, ty.piResult ≠ .sort s) : lKExpectedOf [ty] [[x]] [c] = none := by
+  have key : ∀ (e : Expr), ty.piResult = e → (∀ s, e ≠ .sort s) →
+      lKExpectedOf [ty] [[x]] [c] = none := by
+    intro e he hne
+    cases e <;> first | (exact absurd rfl (hne _)) | simp [lKExpectedOf, he]
+  exact key _ rfl h
+
+end KExp
+
+/-- **`export_c::k_expected_of` refines the `kExpected?` of `validateIndD`**
+(`ConLeche/Frontend/ExportC.lean:412-563`): official's `is_K_target` — the
+block is a `Prop`, has ONE type with ONE constructor, and that constructor
+takes only the parameters. -/
+theorem k_expected_of_refines {ty_types : alloc.vec.Vec expr.Expr}
+    {listed : alloc.vec.Vec (alloc.vec.Vec name.Name)}
+    {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec} {o : Option Bool}
+    (htwf : ExprsWF ty_types)
+    (h : frontend.export_c.k_expected_of ty_types listed cts = ok o) :
+    o = lKExpectedOf (absExprs ty_types) (absNamess listed) (absIndCtorRecs cts) := by
+  rw [frontend.export_c.k_expected_of] at h
+  by_cases h1 : (alloc.vec.Vec.len ty_types != 1#usize) = true
+  · rw [if_pos h1] at h
+    simp only [Result.ok.injEq] at h
+    rw [← h, lKExpectedOf_false]
+    rintro ⟨ty, x, c, hty, -, -⟩
+    have : (absExprs ty_types).length = 1 := by rw [hty]; rfl
+    simp only [absExprs, List.length_map] at this
+    simp only [alloc.vec.Vec.len, bne_iff_ne, ne_eq] at h1
+    exact h1 (by scalar_tac)
+  · rw [if_neg h1] at h
+    have hlt : ty_types.val.length = 1 := by
+      simp only [alloc.vec.Vec.len] at h1
+      scalar_tac
+    by_cases h2 : (alloc.vec.Vec.len listed != 1#usize) = true
+    · rw [if_pos h2] at h
+      simp only [Result.ok.injEq] at h
+      rw [← h, lKExpectedOf_false]
+      rintro ⟨ty, x, c, -, hls, -⟩
+      have : (absNamess listed).length = 1 := by rw [hls]; rfl
+      simp only [absNamess, List.length_map] at this
+      simp only [alloc.vec.Vec.len, bne_iff_ne, ne_eq] at h2
+      exact h2 (by scalar_tac)
+    · rw [if_neg h2] at h
+      have hll : listed.val.length = 1 := by
+        simp only [alloc.vec.Vec.len] at h2
+        scalar_tac
+      by_cases h3 : (alloc.vec.Vec.len cts != 1#usize) = true
+      · rw [if_pos h3] at h
+        simp only [Result.ok.injEq] at h
+        rw [← h, lKExpectedOf_false]
+        rintro ⟨ty, x, c, -, -, hcs⟩
+        have : (absIndCtorRecs cts).length = 1 := by rw [hcs]; rfl
+        simp only [absIndCtorRecs, List.length_map] at this
+        simp only [alloc.vec.Vec.len, bne_iff_ne, ne_eq] at h3
+        exact h3 (by scalar_tac)
+      · rw [if_neg h3] at h
+        have hcl : cts.val.length = 1 := by
+          simp only [alloc.vec.Vec.len] at h3
+          scalar_tac
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨v, hv, h⟩ := h
+        have hv0 : listed.val[0]'(by omega) = v := iv_index_val hv
+        by_cases h4 : (alloc.vec.Vec.len v != 1#usize) = true
+        · rw [if_pos h4] at h
+          simp only [Result.ok.injEq] at h
+          rw [← h, lKExpectedOf_false]
+          rintro ⟨ty, x, c, -, hls, -⟩
+          have hhead : (absNamess listed)[0]? = some [x] := by rw [hls]; rfl
+          simp only [absNamess, List.getElem?_map,
+            List.getElem?_eq_getElem (show 0 < listed.val.length by omega), hv0] at hhead
+          simp only [Option.map_some, Option.some.injEq] at hhead
+          have : (absNames v).length = 1 := by rw [hhead]; rfl
+          simp only [absNames, List.length_map] at this
+          simp only [alloc.vec.Vec.len, bne_iff_ne, ne_eq] at h4
+          exact h4 (by scalar_tac)
+        · rw [if_neg h4] at h
+          have hvl : v.val.length = 1 := by
+            simp only [alloc.vec.Vec.len] at h4
+            scalar_tac
+          -- the shapes
+          obtain ⟨ty0, hty0⟩ := List.length_eq_one_iff.mp hlt
+          obtain ⟨x0, hx0⟩ := List.length_eq_one_iff.mp hvl
+          obtain ⟨c0, hc0⟩ := List.length_eq_one_iff.mp hcl
+          obtain ⟨l0, hl0⟩ := List.length_eq_one_iff.mp hll
+          have hl0v : l0 = v := by
+            have h0 : listed.val[0]? = some v := by
+              rw [List.getElem?_eq_getElem (show 0 < listed.val.length by omega), hv0]
+            rw [hl0] at h0
+            simpa using h0
+          subst hl0v
+          have habsT : absExprs ty_types = [absExpr ty0] := by
+            simp [absExprs, hty0]
+          have habsL : absNamess listed = [[absName x0]] := by
+            simp [absNamess, hl0, absNames, hx0]
+          have habsC : absIndCtorRecs cts = [absIndCtorRec c0] := by
+            simp [absIndCtorRecs, hc0]
+          rw [habsT, habsL, habsC]
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨e, he, h⟩ := h
+          have hev : ty_types.val[0]'(by omega) = e := iv_index_val he
+          have hewf : ExprWF e := by rw [← hev]; exact htwf _ (List.getElem_mem _)
+          have hety : e = ty0 := by
+            have h0 : ty_types.val[0]? = some e := by
+              rw [List.getElem?_eq_getElem (show 0 < ty_types.val.length by omega), hev]
+            rw [hty0] at h0
+            have h1 : ty0 = e := by simpa using h0
+            exact h1.symm
+          obtain ⟨res, hres, h⟩ := h
+          obtain ⟨habsr, hrwf⟩ := ExprOps.pi_result_refines hewf hres
+          rw [hety] at habsr
+          obtain ⟨⟨d, k⟩⟩ := res
+          simp only [arc_deref_eq] at h
+          obtain ⟨en, hen, h⟩ := h
+          have henv : en = (expr.Expr.mk (expr.ExprNode.mk d k))._0 :=
+            (Result.ok_injective hen).symm
+          subst henv
+          simp only [ExprOps.node_kind] at h
+          cases k with
+          | «Sort» u =>
+            have huwf : LevelWF u := CoreK.wf_sort_inv hrwf rfl
+            try simp only [absExpr_mk, absExprKind] at habsr
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨z, hz, oo, hoo, h⟩ := h
+            have hzwf : LevelWF z := LevelWF.zero hz
+            have heq := Level.is_equiv_refines huwf hzwf hoo
+            rw [Level.zero_refines hz] at heq
+            rw [lKExpectedOf_sort habsr.symm]
+            obtain ⟨ip, hip, icr, hicr, h⟩ := h
+            have hicrv : cts.val[0]'(by omega) = icr := iv_index_val hicr
+            have hicrc : icr = c0 := by
+              have h0 : cts.val[0]? = some icr := by
+                rw [List.getElem?_eq_getElem (show 0 < cts.val.length by omega), hicrv]
+              rw [hc0] at h0
+              have h1 : c0 = icr := by simpa using h0
+              exact h1.symm
+            rw [heq]
+            cases oo with
+            | none =>
+              have hipv : ip = false := by simpa using hip.symm
+              subst hipv
+              by_cases hnf : icr.num_fields = 0#u64
+              · rw [if_pos hnf] at h
+                simp only [Result.ok.injEq] at h
+                rw [← h, ← hicrc]
+                simp [absIndCtorRec, absU64]
+              · rw [if_neg hnf] at h
+                simp only [Result.ok.injEq] at h
+                rw [← h, ← hicrc]
+                simp [absIndCtorRec, absU64]
+            | some bo =>
+              have hipv : ip = bo := by simpa using hip.symm
+              subst hipv
+              by_cases hnf : icr.num_fields = 0#u64
+              · rw [if_pos hnf] at h
+                simp only [Result.ok.injEq] at h
+                rw [← h, ← hicrc]
+                simp [absIndCtorRec, absU64, hnf]
+              · rw [if_neg hnf] at h
+                simp only [Result.ok.injEq] at h
+                rw [← h, ← hicrc]
+                have hnf' : ¬ (icr.num_fields.val = 0) := fun hc =>
+                  hnf (Std.UScalar.eq_of_val_eq hc)
+                simp [absIndCtorRec, absU64, hnf']
+          | _ =>
+            simp only [Result.ok.injEq] at h
+            rw [← h, lKExpectedOf_nonsort]
+            intro s hc
+            rw [← habsr] at hc
+            simp only [absExpr_mk, absExprKind] at hc
+            exact ConLeche.Expr.noConfusion hc
 
 end ConRon.Refine.Frontend
