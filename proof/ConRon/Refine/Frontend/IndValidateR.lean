@@ -61,6 +61,7 @@ equal*; what is proved instead is that the difference is **unobservable**:
 ## `sorry` count in this file: 0
 -/
 import ConRon.Refine.Frontend.IndR
+import ConRon.Refine.Frontend.Ind
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
@@ -435,5 +436,250 @@ theorem ctor_index_of_refines {ns : alloc.vec.Vec name.Name} (hwf : NamesWF ns)
     m0 ∅ (alloc.vec.Vec.len ns) 0#usize m rfl (by simp) hinv
     (by intro p hp; rw [hav] at hp; simp at hp) (HashMap.RelOn_empty htf) h
   simpa using hres
+
+
+/-! ## con-leche's `validateIndD`, with its four loops named
+
+`ExportC.lean:412-563` is one `do` block with four `for` loops and an early
+`return` out of each; task #84 split it into twenty-odd Rust functions.  A
+refinement lemma per Rust function therefore needs the *fragments* of
+`validateIndD` those functions refine, and Lean has no way to name a loop body
+that lives inside another definition.
+
+So this section is the **one escape hatch of the file** (the maintainer's rule
+for "where the port and the Lean do not line up one for one"): a verbatim copy
+of `validateIndD` in which each loop body is a named definition,
+
+    lOrderStep       the `for n in ns` body (one constructor record)
+    lOrderBlockStep  the `for tn in tyNames.zip listed` body (one type former)
+    lRecIdxStep      the `for tt in tyNames.zip tyTypes` body (`numIndices`)
+    lRecStep         the `for r in rcs` body (one recursor record)
+    lKExpectedOf     the `kExpected?` match
+
+glued by `lForIn`, `forIn` on a list written as a structural recursion, and
+**proved equal to `validateIndD` itself** by `lValidateIndD_eq`.  The copy is
+exact — the verdict messages included — so the equation is an identity, not a
+weakening; what it is *not* is `rfl`, because Lean's `match` auxiliaries are
+per-definition constants that `isDefEq` will not unfold (a `match` written
+here and the identical `match` written in `ExportC.lean` elaborate to
+`lOrderBlockStep.match_1` and `validateIndD.match_7`, and no transparency
+setting identifies them).  `lValidateIndD_eq` therefore descends with
+`mIteCong`/`mBindCong`/`lForIn_congr` and does `cases` on each scrutinee,
+which reduces both matchers.  That descent is the whole proof; nothing about
+what `validateIndD` *computes* is assumed. -/
+
+section Mirror
+
+open ConLeche ConLeche.Frontend
+
+/-- `forIn` over a list in `M`, as a structural recursion. -/
+def lForIn {α σ : Type} (f : α → σ → M (ForInStep σ)) : List α → σ → M σ
+  | [], s => pure s
+  | a :: l, s => do
+      match ← f a s with
+      | .done s' => pure s'
+      | .yield s' => lForIn f l s'
+
+theorem forIn_eq_lForIn {α σ : Type} (f : α → σ → M (ForInStep σ)) (L : List α) (s : σ) :
+    forIn L s f = lForIn f L s := by
+  induction L generalizing s with
+  | nil => simp only [List.forIn_nil, lForIn]
+  | cons a l ih => simp only [List.forIn_cons, ih, lForIn]; rfl
+
+theorem lForIn_congr {α σ : Type} {f g : α → σ → M (ForInStep σ)}
+    (h : ∀ a s, f a s = g a s) (L : List α) (s : σ) : lForIn f L s = lForIn g L s := by
+  have hfg : f = g := funext fun a => funext fun s => h a s
+  rw [hfg]
+
+theorem mIteCong {α : Type} {c : Prop} [Decidable c] {a a' b b' : α}
+    (ha : a = a') (hb : b = b') : (if c then a else b) = (if c then a' else b') := by
+  rw [ha, hb]
+
+theorem mBindCong {α β : Type} {x y : M α} {f g : α → M β} (hx : x = y)
+    (hf : ∀ a, f a = g a) : x >>= f = y >>= g := by
+  rw [hx]; exact bind_congr hf
+
+/-- The outcome of `validateIndD`. -/
+abbrev LVRes := RecordVerdict ⊕ (List IndCtorRec × Nat)
+
+/-- One step of the inner reordering loop. -/
+def lOrderStep (st : StateD) (T : Name) (ctorIx : Std.HashMap Name Nat)
+    (ctsA : Array IndCtorRec) (nPd : Nat)
+    (n : Name) (s : Option LVRes × Array IndCtorRec × Nat) :
+    M (ForInStep (Option LVRes × Array IndCtorRec × Nat)) := do
+  let ordered := s.2.1
+  let j := s.2.2
+  let some k := ctorIx[n]? |
+    return .done (some (.inl (.invalid s!"No such constructor {n}")), ordered, j)
+  let some c := ctsA[k]? |
+    return .done (some (.inl (.invalid s!"No such constructor {n}")), ordered, j)
+  if let some ci := c.cidx then
+    unless ci == j do
+      return .done (some (.inl (.invalid s!"constructor {n} declares cidx {ci}; it is \
+        constructor {j} of {T}")), ordered, j)
+  if let some iw := c.induct then
+    let iwn ← st.name iw
+    unless iwn == T do
+      return .done (some (.inl (.invalid s!"constructor {n} declares induct {iwn}; it is \
+        a constructor of {T}")), ordered, j)
+  let cty ← getDeclD st c.cv.type
+  unless nPd + c.numFields == indPiTeleLen cty do
+    return .done (some (.inl (.invalid s!"constructor {n} declares {c.numFields} fields at \
+      {nPd} parameters; its type has {indPiTeleLen cty} binders")), ordered, j)
+  return .yield (none, ordered.push c, j + 1)
+
+/-- One step of the outer reordering loop. -/
+def lOrderBlockStep (st : StateD) (ctorIx : Std.HashMap Name Nat)
+    (ctsA : Array IndCtorRec) (nPd : Nat)
+    (tn : Name × List Name) (s : Option LVRes × Array IndCtorRec) :
+    M (ForInStep (Option LVRes × Array IndCtorRec)) := do
+  let r ← lForIn (fun n s' => lOrderStep st tn.1 ctorIx ctsA nPd n s') tn.2 (none, s.2, 0)
+  match r.1 with
+  | some rr => pure (.done (some rr, r.2.1))
+  | none => pure (.yield (none, r.2.1))
+
+/-- One step of the `numIndices` loop. -/
+def lRecIdxStep (T : Name) (rn : Name) (numIndices nPd : Nat)
+    (tt : Name × Expr) (s : Option LVRes × Unit) :
+    M (ForInStep (Option LVRes × Unit)) :=
+  if tt.1 == T then
+    match tt.2.piSortTeleLen? with
+    | some n =>
+      if nPd + numIndices == n then pure (.yield (none, ()))
+      else pure (.done (some (.inl (.invalid s!"recursor {rn} declares {numIndices} indices; \
+        {T} has {n - nPd} at {nPd} parameters")), ()))
+    | none => pure (.yield (none, ()))
+  else pure (.yield (none, ()))
+
+/-- One step of the recursor-record loop. -/
+def lRecStep (st : StateD) (tyNames : List Name) (tyTypes : List Expr)
+    (nPd nTypes nCtors : Nat) (kExpected? : Option Bool)
+    (r : IndRecRec) (s : Option LVRes × Unit) :
+    M (ForInStep (Option LVRes × Unit)) := do
+  let rn ← st.name r.cv.name
+  unless r.numParams == nPd do
+    return .done (some (.inl (.invalid s!"recursor {rn} declares {r.numParams} parameters; \
+      the block declares {nPd}")), ())
+  unless r.numMotives == nTypes do
+    return .done (some (.inl (.invalid s!"recursor {rn} declares {r.numMotives} motives; \
+      the block has {nTypes} inductive types")), ())
+  unless r.numMinors == nCtors do
+    return .done (some (.inl (.invalid s!"recursor {rn} declares {r.numMinors} minor premises; \
+      the block has {nCtors} constructors")), ())
+  if let some kE := kExpected? then
+    unless r.k == kE do
+      return .done (some (.inl (.invalid s!"recursor {rn} declares k := {r.k}; the generated \
+        recursor of this block is{if kE then "" else " not"} K-like")), ())
+  match rn with
+  | .str T "rec" => do
+    let res ← lForIn (fun tt s' => lRecIdxStep T rn r.numIndices nPd tt s')
+      (tyNames.zip tyTypes) (none, ())
+    match res.1 with
+    | some rr => pure (.done (some rr, ()))
+    | none => pure (.yield (none, ()))
+  | _ => pure (.yield (none, ()))
+
+/-- con-leche's `kExpected?`. -/
+def lKExpectedOf (tyTypes : List Expr) (listed : List (List Name)) (cts : List IndCtorRec) :
+    Option Bool :=
+  match tyTypes, listed, cts with
+  | [ty], [[_]], [c] =>
+    match ty.piResult with
+    | .sort s => some (c.numFields == 0 && Level.isEquiv s .zero == some true)
+    | _ => none
+  | _, _, _ => some false
+
+/-- con-leche's `validateIndD`, with its four loops named. -/
+def lValidateIndD (st : StateD) (tys : List IndTypeRec) (cts : List IndCtorRec)
+    (rcs : List IndRecRec) : M LVRes := do
+  if tys.any (·.isUnsafe) then
+    return .inl (.declined "unsafe inductive declaration")
+  let nPs := tys.map (·.numParams)
+  let nPd := nPs.head?.getD 0
+  unless nPs.all (· == nPd) do
+    return .inl (.declined "inductive block whose type records disagree on numParams")
+  let tyNames ← tys.mapM fun t => st.name t.cv.name
+  let tyTypes ← tys.mapM fun t => getDeclD st t.cv.type
+  let listed ← tys.mapM fun t => t.ctors.mapM st.name
+  let ctorNames ← cts.mapM fun c => st.name c.cv.name
+  let flat := listed.flatten
+  unless flat.Nodup do
+    return .inl (.invalid "duplicate constructor name in an inductive type's ctors")
+  unless flat.length == cts.length do
+    return .inl (.invalid s!"the inductive block lists {flat.length} constructors \
+      and carries {cts.length} constructor records")
+  let ctorIx : Std.HashMap Name Nat :=
+    (ctorNames.foldl (fun (mi : Std.HashMap Name Nat × Nat) n =>
+      (mi.1.insert n mi.2, mi.2 + 1)) ({}, 0)).1
+  let ctsA := cts.toArray
+  let res ← lForIn (fun tn s => lOrderBlockStep st ctorIx ctsA nPd tn s)
+    (tyNames.zip listed) (none, #[])
+  match res.1 with
+  | some r => return r
+  | none =>
+  let cts := res.2.toList
+  let nested := tys.any (·.numNested != 0)
+  let nTypes := tys.length
+  let nCtors := cts.length
+  let kExpected? := lKExpectedOf tyTypes listed cts
+  let res2 ← lForIn (fun r s => lRecStep st tyNames tyTypes nPd nTypes nCtors kExpected? r s)
+    (if nested then [] else rcs) (none, ())
+  match res2.1 with
+  | some r => return r
+  | none => return .inr (cts, nPd)
+
+set_option maxHeartbeats 1000000 in
+theorem lValidateIndD_eq (st : StateD) (tys : List IndTypeRec) (cts : List IndCtorRec)
+    (rcs : List IndRecRec) :
+    validateIndD st tys cts rcs = lValidateIndD st tys cts rcs := by
+  rw [validateIndD, lValidateIndD]
+  simp only [forIn_eq_lForIn, lOrderBlockStep, lOrderStep, lRecStep, lRecIdxStep, lKExpectedOf]
+  refine mIteCong rfl ?_
+  refine mIteCong ?_ rfl
+  refine mBindCong rfl fun tyNames => ?_
+  refine mBindCong rfl fun tyTypes => ?_
+  refine mBindCong rfl fun listed => ?_
+  refine mBindCong rfl fun ctorNames => ?_
+  refine mIteCong ?_ rfl
+  refine mIteCong ?_ rfl
+  refine mBindCong (lForIn_congr ?_ _ _) ?_
+  · intro tn s
+    refine mBindCong (lForIn_congr (fun n s' => rfl) _ _) ?_
+    intro r
+    cases hr : r.1 <;> rfl
+  · intro res
+    cases hres : res.1 with
+    | some r => rfl
+    | none =>
+      refine mBindCong (lForIn_congr ?_ _ _) ?_
+      · intro r s
+        refine mBindCong rfl fun rn => ?_
+        refine mIteCong ?_ rfl
+        refine mIteCong ?_ rfl
+        refine mIteCong ?_ rfl
+        congr 1
+        · funext kE
+          refine mIteCong ?_ rfl
+          congr 1
+          funext T
+          refine mBindCong (lForIn_congr ?_ _ _) ?_
+          · intro tt s'
+            refine mIteCong ?_ rfl
+            cases htt : tt.2.piSortTeleLen? <;> rfl
+          · intro res3
+            cases hres3 : res3.1 <;> rfl
+        · funext x
+          congr 1
+          funext T
+          refine mBindCong (lForIn_congr ?_ _ _) ?_
+          · intro tt s'
+            refine mIteCong ?_ rfl
+            cases htt : tt.2.piSortTeleLen? <;> rfl
+          · intro res3
+            cases hres3 : res3.1 <;> rfl
+      · intro res2
+        cases hres2 : res2.1 <;> rfl
+
+end Mirror
 
 end ConRon.Refine.Frontend
