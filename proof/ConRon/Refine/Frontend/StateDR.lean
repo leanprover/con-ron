@@ -2758,6 +2758,133 @@ theorem note_proj_iota_refines {st st' : frontend.export_c.StateD}
     rw [← Result.ok_injective h]
     exact ⟨hrel, hwf⟩
 
+/-- `export_c::proj_rewrite_d` refines `projRewriteD`
+(`ConLeche/Frontend/ExportC.lean:291-302`): the value is
+`fun p⃗ self => .proj T i self` for a recorded owner `T`, the field's sort is on
+record from the artifact, and the definition's level parameters are the
+block's.  `none` = leave the record as parsed — and it is `none` until the
+modeller runs, because `proj_levels` is filled only by `note_proj_iota`. -/
+theorem proj_rewrite_d_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {cv : env.ConstantVal} {vl : expr.Expr}
+    {o : Option expr.Expr}
+    (hspec : ProjRecSpec) (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (hcv : ConstantValWF cv) (hvl : ExprWF vl)
+    (h : frontend.export_c.proj_rewrite_d st cv vl = ok o) :
+    o.map absExpr
+        = ConLeche.Frontend.projRewriteD lst (absConstantVal cv) (absExpr vl) ∧
+      ∀ e, o = some e → ExprWF e := by
+  rw [frontend.export_c.proj_rewrite_d] at h
+  obtain ⟨body, hbody, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨habsb, hbwf⟩ := hspec.lamBody _ hvl _ hbody
+  rw [ConLeche.Frontend.projRewriteD, ← habsb]
+  obtain ⟨⟨d, kd⟩⟩ := body
+  cases kd with
+  | Proj t i sub =>
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨htwf, hsubwf⟩ := ExprWF.proj_kids hbwf
+    obtain ⟨⟨d1, kd1⟩⟩ := sub
+    cases kd1 with
+    | Bvar k =>
+      simp only [ExprOps.node_kind] at h
+      simp only [absExpr_mk, absExprKind]
+      split at h
+      · rename_i hk0
+        have hk0v : k.val = 0 := by rw [hk0]; rfl
+        rw [hk0v]
+        show Option.map absExpr o =
+            (do
+              let ow ← lst.projOwners[absName t]?
+              guard (((absConstantVal cv).levelParams == ow.lps) = true)
+              let l ← lst.projLevels[ConLeche.Frontend.projIotaName (absName t) i.val]?
+              ConLeche.Frontend.projRecValue ow l (absConstantVal cv).type (absExpr vl) i.val)
+          ∧ ∀ e, o = some e → ExprWF e
+        simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at h
+        obtain ⟨ow, how, h⟩ := h
+        have howabs := HashMap.Rel_get_wf State.nameKey.eq2 hrel.projOwnersInv
+          hrel.projOwnersKeys hrel.projOwners htwf how
+        cases ow with
+        | none =>
+          rw [← Result.ok_injective h]
+          refine ⟨?_, by simp⟩
+          simp only [Option.map_none] at howabs ⊢
+          rw [← howabs]; rfl
+        | some o1 =>
+          have ho1wf : ProjRecOwnerWF o1 := map_get_wf hwf.proj_owners how
+          simp only [Option.map_some] at howabs
+          rw [← howabs]
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨b, hb, h⟩ := h
+          have hbabs : b = decide (absNames cv.level_params = absNames o1.lps) :=
+            Env.names_beq_refines hcv.2.1 ho1wf.2.1
+              (by rw [frontend.export.names_beq] at hb; exact hb)
+          split at h
+          · rename_i hbt
+            subst hbt
+            have heq : absNames cv.level_params = absNames o1.lps := of_decide_eq_true hbabs.symm
+            have hrhs : (do
+                  let ow ← (some (absProjOwner o1))
+                  guard (((absConstantVal cv).levelParams == ow.lps) = true)
+                  let l ← lst.projLevels[ConLeche.Frontend.projIotaName (absName t) i.val]?
+                  ConLeche.Frontend.projRecValue ow l (absConstantVal cv).type (absExpr vl) i.val)
+                = (do
+                  let l ← lst.projLevels[ConLeche.Frontend.projIotaName (absName t) i.val]?
+                  ConLeche.Frontend.projRecValue (absProjOwner o1) l (absExpr cv.ty)
+                    (absExpr vl) i.val) := by
+              simp [absConstantVal, absProjOwner, heq]
+            rw [hrhs]
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨n, hn, h⟩ := h
+            obtain ⟨hnabs, hnwf⟩ := hspec.projIotaName _ htwf _ _ hn
+            obtain ⟨o2, ho2, h⟩ := h
+            have ho2abs := HashMap.Rel_get_wf State.nameKey.eq2 hrel.projLevelsInv
+              hrel.projLevelsKeys hrel.projLevels hnwf ho2
+            rw [hnabs] at ho2abs
+            cases o2 with
+            | none =>
+              rw [← Result.ok_injective h]
+              simp only [Option.map_none] at ho2abs ⊢
+              exact ⟨by rw [← ho2abs]; rfl, by simp⟩
+            | some l =>
+              have hlwf : LevelWF l := map_get_wf hwf.proj_levels ho2
+              simp only [Option.map_some] at ho2abs
+              rw [← ho2abs]
+              show Option.map absExpr o
+                  = ConLeche.Frontend.projRecValue (absProjOwner o1) (absLevel l)
+                      (absExpr cv.ty) (absExpr vl) i.val
+                ∧ ∀ e, o = some e → ExprWF e
+              exact hspec.projRecValue o1 l cv.ty vl i o ho1wf hlwf hcv.2.2 hvl h
+          · rename_i hbf
+            simp only [Bool.not_eq_true] at hbf
+            subst hbf
+            have hne : ¬ (absNames cv.level_params = absNames o1.lps) :=
+              of_decide_eq_false hbabs.symm
+            rw [← Result.ok_injective h]
+            refine ⟨?_, by simp⟩
+            have hrhs : (do
+                  let ow ← (some (absProjOwner o1))
+                  guard (((absConstantVal cv).levelParams == ow.lps) = true)
+                  let l ← lst.projLevels[ConLeche.Frontend.projIotaName (absName t) i.val]?
+                  ConLeche.Frontend.projRecValue ow l (absConstantVal cv).type (absExpr vl) i.val)
+                = none := by
+              simp [absConstantVal, absProjOwner, hne]
+            rw [hrhs]
+            rfl
+      · rename_i hkn
+        rw [← Result.ok_injective h]
+        refine ⟨?_, by simp⟩
+        have hkv : k.val ≠ 0 := fun hc => hkn (Env.u64_val_inj (by rw [hc]; rfl))
+        cases hkk : k.val with
+        | zero => exact absurd hkk hkv
+        | succ m => simp
+    | _ =>
+      simp only [ExprOps.node_kind] at h
+      rw [← Result.ok_injective h]
+      exact ⟨by simp [absExpr_mk, absExprKind], by simp⟩
+  | _ =>
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [← Result.ok_injective h]
+    exact ⟨by simp [absExpr_mk, absExprKind], by simp⟩
+
 /-! ## The line step's outcome
 
 `apply_line` and `install_ind_d` return `(Result<(), LineErr>, StateD)` where
