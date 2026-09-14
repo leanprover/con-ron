@@ -1447,4 +1447,156 @@ theorem parse_rule_d_refines {st : frontend.export_c.StateD} {lst : ConLeche.Fro
     exact errOf h1 (fun s hs => by
       simp only [ConLeche.Frontend.parseRuleD, absRuleRec, absU64, hs]; rfl)
 
+/-- The accumulator of `export_c::parse_rules_d`' index loop (see
+`st_names_loop_refines`). -/
+private theorem parse_rules_d_loop_refines (N : Nat) :
+    ∀ (st : frontend.export_c.StateD) (lst : ConLeche.Frontend.StateD)
+      (rus : alloc.vec.Vec frontend.scan_types.RuleRec) (out : alloc.vec.Vec env.RecRule)
+      (n i : Std.Usize)
+      (o : core.result.Result (alloc.vec.Vec env.RecRule) frontend.export_c.LineErr),
+      StateDRel st lst → StateDWF st → RecRulesWF out →
+      n.val = rus.val.length → n.val - i.val = N →
+      frontend.export_c.parse_rules_d_loop st rus out n i = ok o →
+      LineOut absRecRules RecRulesWF o
+        (do let r ← ((absRuleRecs rus).drop i.val).mapM (ConLeche.Frontend.parseRuleD lst)
+            pure (absRecRules out ++ r)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro st lst rus out n i o hrel hwf hout hn hN h
+    rw [frontend.export_c.parse_rules_d_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨ru, hidx, r, hr, h⟩ := h
+      have hdrop : (absRuleRecs rus).drop i.val
+          = absRuleRec ru :: (absRuleRecs rus).drop (i.val + 1) := vec_drop_map absRuleRec hidx
+      have hst := parse_rule_d_refines hrel hwf hr
+      cases r with
+      | Ok v =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨out1, hpush, i2, hi2, h⟩ := h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hih := ih (n.val - i2.val) (by scalar_tac) st lst rus out1 n i2 o hrel hwf
+          (push_wf' hout hst.2 hpush) hn rfl h
+        have heq : (do let r ← ((absRuleRecs rus).drop i.val).mapM
+                          (ConLeche.Frontend.parseRuleD lst)
+                       pure (absRecRules out ++ r))
+            = (do let r ← ((absRuleRecs rus).drop i2.val).mapM
+                     (ConLeche.Frontend.parseRuleD lst)
+                  pure (absRecRules out1 ++ r)) := by
+          rw [hdrop, hi2v, List.mapM_cons, hst.1,
+            show absRecRules out1 = absRecRules out ++ [absRecRule v] from by
+              rw [absRecRules, vec_push_val hpush]; simp [absRecRules]]
+          simp
+          rfl
+        rw [heq]; exact hih
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine LineErrSim.trans hst ?_
+        intro s hs
+        rw [hdrop, List.mapM_cons, hs]
+        exact ⟨s, rfl⟩
+    · rename_i hge
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hnil : (absRuleRecs rus).drop i.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [absRuleRecs, List.length_map]
+        have : n.val ≤ i.val := by scalar_tac
+        omega
+      exact ⟨by rw [hnil]; simp only [List.mapM_nil, pure_bind, List.append_nil]; rfl, hout⟩
+
+/-- `export_c::parse_rules_d` refines `r.rules.mapM (parseRuleD st)`
+(`ConLeche/Frontend/ExportC.lean:346-349`, as the recursor record's arm of
+`applyLine` spells it). -/
+theorem parse_rules_d_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {rus : alloc.vec.Vec frontend.scan_types.RuleRec}
+    {o : core.result.Result (alloc.vec.Vec env.RecRule) frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.parse_rules_d st rus = ok o) :
+    LineOut absRecRules RecRulesWF o
+      ((absRuleRecs rus).mapM (ConLeche.Frontend.parseRuleD lst)) := by
+  rw [frontend.export_c.parse_rules_d] at h
+  have := parse_rules_d_loop_refines _ st lst rus _ _ 0#usize o hrel hwf
+    (by simp [RecRulesWF, alloc.vec.Vec.with_capacity]) (alloc.vec.Vec.len_val _) rfl h
+  simpa [absRecRules, alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using this
+
+/-! ## The three freshness tests
+
+`export_c::st_fresh_name`/`st_fresh_level`/`st_fresh_expr` against
+`ExportC.lean:211-224`'s `StateD.freshName`/`.freshLevel`/`.freshExpr`.
+`scan_types` has no `IdTable.bound`, so the port reads the table instead
+(`export_c.rs`'s module note) — `id_table_bound_refines` is the bridge, and it
+is con-leche's own `IdTable.bound_eq`.
+
+`export_c::rebound_error` itself carries **no lemma**: it builds the message
+con-leche's `reboundError` builds, and messages are never compared
+(DESIGN.md §3.1) — the only thing a caller may claim about a `throw` is that
+it *is* one. -/
+
+/-- `export_c::st_fresh_name` refines `StateD.freshName`
+(`ConLeche/Frontend/ExportC.lean:211-220`). -/
+theorem st_fresh_name_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {i : Std.U64}
+    {o : core.result.Result Unit frontend.export_c.LineErr} (hrel : StateDRel st lst)
+    (h : frontend.export_c.st_fresh_name st i = ok o) :
+    LineOut (fun _ : Unit => ()) (fun _ => True) o (lst.freshName i.val) := by
+  rw [frontend.export_c.st_fresh_name] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨o1, ho, h⟩ := h
+  have hb := id_table_bound_refines hrel.names ho
+  simp only [ConLeche.Frontend.StateD.freshName, ← hb]
+  cases o1 with
+  | none =>
+    simp only [Result.ok.injEq] at h
+    rw [← h]; exact ⟨by simp; rfl, trivial⟩
+  | some x =>
+    simp only [bind_eq_ok_iff, merr_eq, Result.ok.injEq] at h
+    obtain ⟨_, -, v, -, rfl⟩ := h
+    exact ⟨_, by simp only [Option.isSome_some, if_true]; rfl⟩
+
+/-- `export_c::st_fresh_level` refines `StateD.freshLevel`
+(`ConLeche/Frontend/ExportC.lean:221-222`). -/
+theorem st_fresh_level_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {i : Std.U64}
+    {o : core.result.Result Unit frontend.export_c.LineErr} (hrel : StateDRel st lst)
+    (h : frontend.export_c.st_fresh_level st i = ok o) :
+    LineOut (fun _ : Unit => ()) (fun _ => True) o (lst.freshLevel i.val) := by
+  rw [frontend.export_c.st_fresh_level] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨o1, ho, h⟩ := h
+  have hb := id_table_bound_refines hrel.levels ho
+  simp only [ConLeche.Frontend.StateD.freshLevel, ← hb]
+  cases o1 with
+  | none =>
+    simp only [Result.ok.injEq] at h
+    rw [← h]; exact ⟨by simp; rfl, trivial⟩
+  | some x =>
+    simp only [bind_eq_ok_iff, merr_eq, Result.ok.injEq] at h
+    obtain ⟨_, -, v, -, rfl⟩ := h
+    exact ⟨_, by simp only [Option.isSome_some, if_true]; rfl⟩
+
+/-- `export_c::st_fresh_expr` refines `StateD.freshExpr`
+(`ConLeche/Frontend/ExportC.lean:223-224`). -/
+theorem st_fresh_expr_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {i : Std.U64}
+    {o : core.result.Result Unit frontend.export_c.LineErr} (hrel : StateDRel st lst)
+    (h : frontend.export_c.st_fresh_expr st i = ok o) :
+    LineOut (fun _ : Unit => ()) (fun _ => True) o (lst.freshExpr i.val) := by
+  rw [frontend.export_c.st_fresh_expr] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨o1, ho, h⟩ := h
+  have hb := id_table_bound_refines hrel.exprs ho
+  simp only [ConLeche.Frontend.StateD.freshExpr, ← hb]
+  cases o1 with
+  | none =>
+    simp only [Result.ok.injEq] at h
+    rw [← h]; exact ⟨by simp; rfl, trivial⟩
+  | some x =>
+    simp only [bind_eq_ok_iff, merr_eq, Result.ok.injEq] at h
+    obtain ⟨_, -, v, -, rfl⟩ := h
+    exact ⟨_, by simp only [Option.isSome_some, if_true]; rfl⟩
+
 end ConRon.Refine.Frontend
