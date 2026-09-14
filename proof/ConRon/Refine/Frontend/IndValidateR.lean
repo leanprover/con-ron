@@ -1615,4 +1615,295 @@ theorem check_one_ctor_refines {st : frontend.export_c.StateD}
       rw [if_pos (by simpa using heqv)]
       exact hinduct o h
 
+
+/-! ### `order_type_ctors` and `order_block_ctors` -/
+
+/-- **The outcome of `export_c::order_type_ctors`**: one type former's
+constructors, appended to the accumulator in the order its record lists
+them. -/
+def OrderOut (o : core.result.Result (alloc.vec.Vec frontend.scan_types.IndCtorRec)
+      frontend.export_c.LineErr)
+    (x : ConLeche.Frontend.M (Option LVRes ×
+      Array ConLeche.Frontend.IndCtorRec × Nat)) : Prop :=
+  match o with
+  | .Ok v => ∃ j, x = .ok (none, (absIndCtorRecs v).toArray, j)
+  | .Err (.Msg _) => ∃ s, x = .error s
+  | .Err (.Verdict vv) =>
+    ∃ lv w, x = .ok (some (.inl lv), w) ∧ lVerdictKind lv = absVerdictKind vv
+
+/-- **The outcome of `export_c::order_block_ctors`**: the whole block's
+constructors, in the block's own order. -/
+def BlockOut (o : core.result.Result (alloc.vec.Vec frontend.scan_types.IndCtorRec)
+      frontend.export_c.LineErr)
+    (x : ConLeche.Frontend.M (Option LVRes × Array ConLeche.Frontend.IndCtorRec)) : Prop :=
+  match o with
+  | .Ok v => x = .ok (none, (absIndCtorRecs v).toArray)
+  | .Err (.Msg _) => ∃ s, x = .error s
+  | .Err (.Verdict vv) =>
+    ∃ lv w, x = .ok (some (.inl lv), w) ∧ lVerdictKind lv = absVerdictKind vv
+
+/-- A push, on the abstracted `Vec<IndCtorRec>` seen as con-leche's `Array`. -/
+private theorem iv_absIndCtorRecs_push {out out1 : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+    {c : frontend.scan_types.IndCtorRec} (h : alloc.vec.Vec.push out c = ok out1) :
+    (absIndCtorRecs out1).toArray = (absIndCtorRecs out).toArray.push (absIndCtorRec c) := by
+  rw [absIndCtorRecs, vec_push_val h]
+  simp [absIndCtorRecs]
+
+/-- The index recursion behind `export_c::order_type_ctors`. -/
+private theorem order_type_ctors_loop_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {t : name.Name}
+    {ns : alloc.vec.Vec name.Name} {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+    {ctor_ix : ron.hashmap.HashMap name.Name Std.U64} {n_pd : Std.U64}
+    {s : Std.HashMap ConLeche.Name Nat}
+    (hrel : StateDRel st lst) (hwf : StateDWF st) (ht : NameWF t) (hnswf : NamesWF ns)
+    (hinv : HashMap.Inv State.hName ctor_ix) (hkeys : HashMap.KeysOk NameWF ctor_ix)
+    (hrelm : HashMap.RelOn NameWF ctor_ix s absName (fun u => u.val))
+    (hbound : ∀ (nn : ConLeche.Name) (v : Nat), s[nn]? = some v → v ≤ Std.Usize.max) (N : Nat) :
+    ∀ (out : alloc.vec.Vec frontend.scan_types.IndCtorRec) (n : Std.Usize) (j : Std.U64)
+      (i : Std.Usize) (o : core.result.Result (alloc.vec.Vec frontend.scan_types.IndCtorRec)
+        frontend.export_c.LineErr),
+      ns.val.length - i.val = N → n.val = ns.val.length →
+      frontend.export_c.order_type_ctors_loop st t ns cts ctor_ix n_pd out n j i = ok o →
+      OrderOut o (lForIn (fun nm s' => lOrderStep lst (absName t) s
+          (absIndCtorRecs cts).toArray n_pd.val nm s')
+        ((absNames ns).drop i.val) (none, (absIndCtorRecs out).toArray, j.val)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro out n j i o hN hn h
+    rw [frontend.export_c.order_type_ctors_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : i.val < ns.val.length := by scalar_tac
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨nm, hidx, h⟩ := h
+      have hnmv : ns.val[i.val]'hltv = nm := iv_index_val hidx
+      have hnmwf : NameWF nm := by rw [← hnmv]; exact hnswf _ (List.getElem_mem _)
+      have hdrop : (absNames ns).drop i.val
+          = absName nm :: (absNames ns).drop (i.val + 1) := by
+        simp only [absNames]
+        rw [iv_drop_map absName hltv, hnmv]
+      rw [hdrop, lForIn_cons]
+      obtain ⟨o1, ho1, h⟩ := h
+      have hget : o1.map (fun u : Std.U64 => u.val) = s[absName nm]? :=
+        HashMap.Rel_get_wf State.nameEq2Fwd hinv hkeys hrelm hnmwf ho1
+      cases o1 with
+      | none =>
+        have hs : s[absName nm]? = none := by rw [← hget]; rfl
+        simp only [lOrderStep, hs]
+        obtain ⟨m, -, h⟩ := bind_eq_ok_iff.mp h
+        rw [frontend.export_c.invalid] at h
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact ⟨_, _, rfl, rfl⟩
+      | some k =>
+        have hs : s[absName nm]? = some k.val := by rw [← hget]; rfl
+        obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+        have hk1v : k1.val = k.val := by
+          rw [lift_eq, Result.ok.injEq] at hk1
+          rw [← hk1]
+          exact ExprOps.u64_cast_usize_val (hbound _ _ hs)
+        simp only [lOrderStep, hs]
+        by_cases hge : k1 ≥ alloc.vec.Vec.len cts
+        · rw [if_pos hge] at h
+          have hgev : cts.val.length ≤ k.val := by
+            rw [← hk1v]
+            simpa [alloc.vec.Vec.len] using hge
+          have hnone : ((absIndCtorRecs cts).toArray)[k.val]? = none := by
+            rw [List.getElem?_toArray]
+            refine List.getElem?_eq_none ?_
+            simp only [absIndCtorRecs, List.length_map]
+            exact hgev
+          simp only [hnone]
+          obtain ⟨m, -, h⟩ := bind_eq_ok_iff.mp h
+          rw [frontend.export_c.invalid] at h
+          simp only [Result.ok.injEq] at h
+          rw [← h]
+          exact ⟨_, _, rfl, rfl⟩
+        · rw [if_neg hge] at h
+          have hltc : k.val < cts.val.length := by
+            rw [← hk1v]
+            simpa [alloc.vec.Vec.len] using hge
+          obtain ⟨icr, hicr, h⟩ := bind_eq_ok_iff.mp h
+          have hicrv : cts.val[k1.val]'(by omega) = icr := iv_index_val hicr
+          have hsome : ((absIndCtorRecs cts).toArray)[k.val]? = some (absIndCtorRec icr) := by
+            rw [List.getElem?_toArray]
+            simp only [absIndCtorRecs]
+            rw [List.getElem?_map, List.getElem?_eq_getElem hltc]
+            rw [show cts.val[k.val]'hltc = icr by rw [← hicrv]; congr 1; omega]
+            rfl
+          simp only [hsome]
+          obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+          have hone := check_one_ctor_refines (ctorIx := s)
+            (ctsA := (absIndCtorRecs cts).toArray) (ordered := (absIndCtorRecs out).toArray)
+            hrel hwf ht hs hsome hr
+          simp only [lOrderStep, hs, hsome] at hone
+          cases r with
+          | Ok u =>
+            simp only [OrderStepOut] at hone
+            rw [hone, iv_ok_bind]
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨icr1, hdup, out1, hpush, j1, hj1, i2, hi2, h⟩ := h
+            have hicr1 : icr1 = icr := ind_ctor_rec_dup_refines hdup
+            subst hicr1
+            have hj1v : j1.val = j.val + 1 := HashMap.uscalar_add_eq hj1
+            have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+            have hres := ih (ns.val.length - i2.val) (by omega) out1 n j1 i2 o rfl hn h
+            rw [hi2v, hj1v, iv_absIndCtorRecs_push hpush] at hres
+            exact hres
+          | Err e =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            cases e with
+            | Msg m =>
+              obtain ⟨s0, hs0⟩ := hone
+              exact ⟨s0, by rw [hs0, iv_err_bind]⟩
+            | Verdict vv =>
+              obtain ⟨lv, w, hu, hkd⟩ := hone
+              exact ⟨lv, w, by rw [hu, iv_ok_bind], hkd⟩
+    · rename_i hge
+      have hle : ns.val.length ≤ i.val := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hnil : (absNames ns).drop i.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [absNames, List.length_map]
+        omega
+      rw [hnil, lForIn_nil]
+      exact ⟨j.val, rfl⟩
+
+/-- **`export_c::order_type_ctors` refines the inner `for n in ns` of
+`validateIndD`'s reordering** (`ConLeche/Frontend/ExportC.lean:412-563`). -/
+theorem order_type_ctors_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {t : name.Name}
+    {ns : alloc.vec.Vec name.Name} {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+    {ctor_ix : ron.hashmap.HashMap name.Name Std.U64} {n_pd : Std.U64}
+    {s : Std.HashMap ConLeche.Name Nat}
+    {out : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+    {o : core.result.Result (alloc.vec.Vec frontend.scan_types.IndCtorRec)
+      frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st) (ht : NameWF t) (hnswf : NamesWF ns)
+    (hinv : HashMap.Inv State.hName ctor_ix) (hkeys : HashMap.KeysOk NameWF ctor_ix)
+    (hrelm : HashMap.RelOn NameWF ctor_ix s absName (fun u => u.val))
+    (hbound : ∀ (nn : ConLeche.Name) (v : Nat), s[nn]? = some v → v ≤ Std.Usize.max)
+    (h : frontend.export_c.order_type_ctors st t ns cts ctor_ix n_pd out = ok o) :
+    OrderOut o (lForIn (fun nm s' => lOrderStep lst (absName t) s
+        (absIndCtorRecs cts).toArray n_pd.val nm s')
+      (absNames ns) (none, (absIndCtorRecs out).toArray, 0)) := by
+  rw [frontend.export_c.order_type_ctors] at h
+  have hres := order_type_ctors_loop_refines hrel hwf ht hnswf hinv hkeys hrelm hbound
+    _ out _ 0#u64 0#usize o rfl (by simp [alloc.vec.Vec.len]) h
+  simpa [show ((0#usize : Std.Usize)).val = 0 by scalar_tac,
+    show ((0#u64 : Std.U64)).val = 0 by scalar_tac] using hres
+
+/-- The index recursion behind `export_c::order_block_ctors`. -/
+private theorem order_block_ctors_loop_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {ty_names : alloc.vec.Vec name.Name}
+    {listed : alloc.vec.Vec (alloc.vec.Vec name.Name)}
+    {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+    {ctor_ix : ron.hashmap.HashMap name.Name Std.U64} {n_pd : Std.U64}
+    {s : Std.HashMap ConLeche.Name Nat}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (htwf : NamesWF ty_names) (hlwf : NamessWF listed)
+    (hinv : HashMap.Inv State.hName ctor_ix) (hkeys : HashMap.KeysOk NameWF ctor_ix)
+    (hrelm : HashMap.RelOn NameWF ctor_ix s absName (fun u => u.val))
+    (hbound : ∀ (nn : ConLeche.Name) (v : Nat), s[nn]? = some v → v ≤ Std.Usize.max) (N : Nat) :
+    ∀ (out : alloc.vec.Vec frontend.scan_types.IndCtorRec) (n t_at : Std.Usize)
+      (o : core.result.Result (alloc.vec.Vec frontend.scan_types.IndCtorRec)
+        frontend.export_c.LineErr),
+      ty_names.val.length - t_at.val = N → n.val = ty_names.val.length →
+      frontend.export_c.order_block_ctors_loop st ty_names listed cts ctor_ix n_pd out
+        n t_at = ok o →
+      BlockOut o (lForIn (fun tn s' => lOrderBlockStep lst s (absIndCtorRecs cts).toArray
+          n_pd.val tn s')
+        (((absNames ty_names).zip (absNamess listed)).drop t_at.val)
+        (none, (absIndCtorRecs out).toArray)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro out n t_at o hN hn h
+    rw [frontend.export_c.order_block_ctors_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : t_at.val < ty_names.val.length := by scalar_tac
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨t, hidxt, h⟩ := h
+      have htv : ty_names.val[t_at.val]'hltv = t := iv_index_val hidxt
+      have htwf1 : NameWF t := by rw [← htv]; exact htwf _ (List.getElem_mem _)
+      obtain ⟨v, hidxv, h⟩ := h
+      have hltl : t_at.val < listed.val.length := iv_index_lt hidxv
+      have hvv : listed.val[t_at.val]'hltl = v := iv_index_val hidxv
+      have hvwf : NamesWF v := by rw [← hvv]; exact hlwf _ (List.getElem_mem _)
+      have hdrop : ((absNames ty_names).zip (absNamess listed)).drop t_at.val
+          = (absName t, absNames v) ::
+            ((absNames ty_names).zip (absNamess listed)).drop (t_at.val + 1) := by
+        rw [iv_zip_drop, iv_zip_drop]
+        simp only [absNames, absNamess]
+        rw [iv_drop_map absName hltv, iv_drop_map absNames hltl, htv, hvv]
+        simp
+      rw [hdrop, lForIn_cons]
+      obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+      have hinner := order_type_ctors_refines hrel hwf htwf1 hvwf hinv hkeys hrelm hbound hr
+      simp only [lOrderBlockStep]
+      cases r with
+      | Ok w =>
+        obtain ⟨jw, hjw⟩ := hinner
+        rw [hjw, iv_ok_bind]
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨t_at1, ht1, h⟩ := h
+        have ht1v : t_at1.val = t_at.val + 1 := HashMap.uscalar_add_eq ht1
+        have hres := ih (ty_names.val.length - t_at1.val) (by omega) w n t_at1 o rfl hn h
+        rw [ht1v] at hres
+        exact hres
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        cases e with
+        | Msg m =>
+          obtain ⟨s0, hs0⟩ := hinner
+          exact ⟨s0, by rw [hs0, iv_err_bind]⟩
+        | Verdict vv =>
+          obtain ⟨lv, w, hu, hkd⟩ := hinner
+          exact ⟨lv, w.1, by rw [hu, iv_ok_bind], hkd⟩
+    · rename_i hge
+      have hle : ty_names.val.length ≤ t_at.val := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hnil : ((absNames ty_names).zip (absNamess listed)).drop t_at.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        have : ((absNames ty_names).zip (absNamess listed)).length
+            ≤ ty_names.val.length := by
+          simp only [List.length_zip, absNames, List.length_map]
+          exact Nat.min_le_left _ _
+        omega
+      rw [hnil, lForIn_nil]
+      rfl
+
+/-- **`export_c::order_block_ctors` refines the outer
+`for tn in tyNames.zip listed` of `validateIndD`** — the constructors in the
+block's own order (`ConLeche/Frontend/ExportC.lean:412-563`, con-leche task
+#271 / issue #5). -/
+theorem order_block_ctors_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {ty_names : alloc.vec.Vec name.Name}
+    {listed : alloc.vec.Vec (alloc.vec.Vec name.Name)}
+    {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+    {ctor_ix : ron.hashmap.HashMap name.Name Std.U64} {n_pd : Std.U64}
+    {s : Std.HashMap ConLeche.Name Nat}
+    {o : core.result.Result (alloc.vec.Vec frontend.scan_types.IndCtorRec)
+      frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (htwf : NamesWF ty_names) (hlwf : NamessWF listed)
+    (hinv : HashMap.Inv State.hName ctor_ix) (hkeys : HashMap.KeysOk NameWF ctor_ix)
+    (hrelm : HashMap.RelOn NameWF ctor_ix s absName (fun u => u.val))
+    (hbound : ∀ (nn : ConLeche.Name) (v : Nat), s[nn]? = some v → v ≤ Std.Usize.max)
+    (h : frontend.export_c.order_block_ctors st ty_names listed cts ctor_ix n_pd = ok o) :
+    BlockOut o (lForIn (fun tn s' => lOrderBlockStep lst s (absIndCtorRecs cts).toArray
+        n_pd.val tn s')
+      ((absNames ty_names).zip (absNamess listed)) (none, #[])) := by
+  rw [frontend.export_c.order_block_ctors] at h
+  have hres := order_block_ctors_loop_refines hrel hwf htwf hlwf hinv hkeys hrelm hbound
+    _ _ _ 0#usize o rfl (by simp [alloc.vec.Vec.len]) h
+  simpa [absIndCtorRecs, alloc.vec.Vec.new,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hres
+
 end ConRon.Refine.Frontend

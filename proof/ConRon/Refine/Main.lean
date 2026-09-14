@@ -695,17 +695,17 @@ elaborate, `AENEAS_FINDINGS.md` §3.8) costs this theorem nothing.
 * `hgen : Frontend.ModellerWF inst g` — phase 1's promise about the unverified
   modeller (task #84's seam): every declaration `in_model_rec::Modeller
   ::generate` returns is well formed.  It is what discharges the fold's `hds`.
-* `hu : Frontend.Utf8DecodeSpec`, `hun : Frontend.UnescapeSpec` and
-  `hsp : Frontend.IndRSpec inst g` — phase 3's outstanding ingredients, stated
-  as hypotheses rather than assumed as axioms (the `Refine/IndSpec.lean`
-  idiom).  They are the *whole* residue in front of the port's streaming parse:
-  `Frontend.parseIngredients` (`Refine/Frontend/ChunksR.lean`) builds the
-  nine-field `ParseIngredients` record out of them, so the parse hypothesis is
-  three named `Prop`s with owners — the string tier owes the first two, the
-  inductive tier the third — and not a record somebody must assemble.  The
-  prepare step is no longer among them: the hoist's target pass is the theorem
-  `Frontend.hoist_targets_refines`, so `prepare_prelude_refines` is
-  hypothesis-free.  Discharging the three is what is left of task #87.
+* `hsp : Frontend.IndRSpec inst g` — phase 3's one outstanding ingredient,
+  stated as a hypothesis rather than assumed as an axiom (the
+  `Refine/IndSpec.lean` idiom).  It is the *whole* residue in front of the
+  port's streaming parse: `Frontend.parseIngredients`
+  (`Refine/Frontend/ChunksR.lean`) builds the nine-field `ParseIngredients`
+  record, and its other eight fields are theorems.  Two hypotheses that stood
+  here earlier in task #87 are gone, discharged rather than moved: the string
+  tier's `Utf8DecodeSpec` and `UnescapeSpec` are the theorems
+  `Frontend.utf8_decode_spec` and `Frontend.unescape_spec`, applied at the call
+  below, and the prepare step's `HoistSpec` is `Frontend.hoist_targets_refines`,
+  which left `prepare_prelude_refines` hypothesis-free.
 * The driver: that `con_ron::driver` calls `parse_chunks`, `prepare_prelude`
   and `check_decls` on the stream it was handed, in this order — the same
   unverified line `conron.model_exists_decoded` already owes for the pins.
@@ -718,9 +718,9 @@ Nothing else: the census below is Lean's own three axioms.
 prelude, as `conron.model_exists_parsed` is: `hpre` is the port's own parse of
 *some* prelude bytes, never identified with con-leche's `builtinPreludeE`.
 
-It carries `hgen` (the modeller's promise, phase 1), `hu`/`hun`/`hsp` (phase
-3's outstanding ingredients — the parse's three named `Prop`s, through
-`Frontend.parseIngredients`), `hp` (a decode run), `hpre` (the
+It carries `hgen` (the modeller's promise, phase 1), `hsp` (phase 3's one
+outstanding ingredient, through `Frontend.parseIngredients`), `hp` (a decode
+run), `hpre` (the
 prelude's parse), `hparse` (the stream's parse), `hprep` (the prepare step) and
 `h` (the check run) — and no hypothesis about well-formedness at all. -/
 theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
