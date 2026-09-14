@@ -229,15 +229,19 @@ the next one.
    dispatch, so a loop owes only its own two arms, and the side condition
    *"this loop **is** `memberBody` at its own arms"* is
    `by rw [scanXLoop.eq_def]; rfl` — really `rfl`, with no massaging.
-2. **Do not factor a con-leche `match` into a helper `def`.**  A slot that a
-   sub-scanner fills reads
+2. **A helper `def` holding a con-leche `match` must be monomorphic.**  A slot
+   that a sub-scanner fills reads
    `match scanX b v with | .err e => .err e | .ok x e => if _hj : i < e then …`.
-   Written into a helper, that helper introduces *its own* matcher, and two
-   matchers on a stuck scrutinee are not definitionally equal, so the `rfl` of
-   (1) fails.  Inline in the dispatch, Lean reuses con-leche's own matcher and
-   it goes through; `simp only [scan_pw_refines hr1]` then rewrites the
-   scrutinee and the `match` reduces by iota.  (A `Nat` slot is exempt: it has
-   no `match`.)
+   A helper **monomorphic in the scrutinee's and the result's type** reuses
+   con-leche's own matcher constant and the `rfl` of (1) goes through; made
+   polymorphic in either (`{α β : Type} (r : ScanRes β) (K : β → USize →
+   ScanRes α)`), it gets a matcher of its own, two matcher constants applied
+   to a *stuck* scrutinee do not reduce, `isDefEq` gives up, and the `rfl`
+   fails with a sixty-line dump **whose two sides print identically**.
+   Writing the `match` out inline always works.  The trap is quiet because a
+   `Nat` slot (`natSlot`) has no `match` at all and is happily polymorphic, so
+   the commonest slot shape gives no warning.  Measured three ways at task
+   #87, after two agents had each lost twenty minutes to it.
 3. **`simp only [uncurry_apply_pair] at h` before anything else** in a member
    arm — the port's `let (mem, ni, nw) := p` does not iota-reduce otherwise.
    This is task #85 §8's mechanic 2, now confirmed twice.
@@ -253,6 +257,20 @@ the next one.
    `rw [absBytes, hsv]; decide` identifies `absBytes s` with the Lean literal's
    `toUTF8`.  `match_lit_refines`'s "no NUL byte" side condition is
    `by rw [hsv]; decide`.
+7. **`b.length` and `b.val.length` are different `omega` atoms.**  The measure
+   lemmas conclude in the first and the loop measure is written in the second,
+   so `have h : i.val < b.val.length := next_member_lt hres` — a type
+   ascription, defeq — is needed or every recursive arm's `omega` fails; and
+   because the arms sit under a `first | … | …` the error you are shown is the
+   *last* alternative's unrelated one.
+8. **`rfl` does not prove `key_beq .KStr .KStr = ok true`** — `Std.U64`'s
+   `DecidableEq` does not whnf through `isDefEq`.  `simp [key_beq, key_code]`
+   does.
+9. After `cases mem with | Key k ks v => …; cases k`, the port hypothesis keeps
+   its `match mem with` **unreduced**, so an arm that does not open with a
+   `bind_eq_ok_iff` destructuring (an index key, which opens with an `if`)
+   rewrites silently *inside* the matcher and the following inversion fails.
+   `all_goals (try dsimp only at h)` right after the `cases k` is the fix.
 
 The abstraction vocabulary is `Refine/Frontend/Abs.lean` and the bridge lemmas
 between `Std.U8`/`Std.Usize` and `UInt8`/`USize` all live in
