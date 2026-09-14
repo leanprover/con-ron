@@ -104,3 +104,6 @@ import ConRon.Refine.Installed
 import ConRon.Refine.Main
 import ConRon.Refine.Frontend.Base
 import ConRon.Refine.Frontend.Prepare
+import ConRon.Refine.Frontend.Readers
+import ConRon.Refine.Frontend.Ind
+import ConRon.Refine.Frontend.ProjRec
