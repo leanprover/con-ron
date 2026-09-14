@@ -243,8 +243,8 @@ mod tests {
                 // erases and this comparison does not)
                 let mut ns: Vec<Name> = Vec::new();
                 ns.push(name::dup(&cv.name));
-                let ty2 = match &cv.ty.0.kind {
-                    expr::ExprKind::ForallE(d, b, _) => expr::forall_e(
+                let ty2 = match expr::view(&cv.ty) {
+                    expr::ExprView::ForallE(d, b, _) => expr::forall_e(
                         expr::dup(d),
                         expr::dup(b),
                         expr::binder_meta(prop_when::if_all_zero(ns)),

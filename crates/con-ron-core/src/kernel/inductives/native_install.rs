@@ -38,7 +38,7 @@ use crate::kernel::core_types::CheckM;
 use crate::kernel::env;
 use crate::kernel::env::{CheckMode, ConstantInfo, ConstantVal, IndCaps};
 use crate::kernel::expr;
-use crate::kernel::expr::{BinderMeta, Expr, ExprKind};
+use crate::kernel::expr::{BinderMeta, Expr, ExprView};
 use crate::kernel::expr_ops;
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
@@ -233,11 +233,11 @@ pub fn mentions_fvar_ins(memo: &mut HashMap<Expr, bool>, e: &Expr, r: bool) {
 /// `mentionsConstGo` this walk **does** short-circuit (`| (true, memo) =>
 /// (true, memo)`), and the port keeps that.
 pub fn mentions_fvar_go(q: u64, memo: &mut HashMap<Expr, bool>, e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Bvar(_) => false,
-        ExprKind::Sort(_) => false,
-        ExprKind::Const(_, _) => false,
-        ExprKind::Lit(_) => false,
+    match expr::view(&e) {
+        ExprView::Bvar(_) => false,
+        ExprView::Sort(_) => false,
+        ExprView::Const(_, _) => false,
+        ExprView::Lit(_) => false,
         _ => match struct_parts::memo_eb_get(memo, e) {
             Some(r) => r,
             None => {
@@ -254,36 +254,36 @@ pub fn mentions_fvar_go(q: u64, memo: &mut HashMap<Expr, bool>, e: &Expr) -> boo
 /// borrow dies before the descent mutates the memo (task #14's rule).  The
 /// last arm is the cited unreachable one.
 pub fn mentions_fvar_node(q: u64, memo: &mut HashMap<Expr, bool>, e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Fvar(idx, ty) => {
+    match expr::view(&e) {
+        ExprView::Fvar(idx, ty) => {
             if *idx == q {
                 true
             } else {
                 mentions_fvar_go(q, memo, ty)
             }
         }
-        ExprKind::App(f, a) => {
+        ExprView::App(f, a) => {
             if mentions_fvar_go(q, memo, f) {
                 true
             } else {
                 mentions_fvar_go(q, memo, a)
             }
         }
-        ExprKind::Lam(ty, b, _) => {
+        ExprView::Lam(ty, b, _) => {
             if mentions_fvar_go(q, memo, ty) {
                 true
             } else {
                 mentions_fvar_go(q, memo, b)
             }
         }
-        ExprKind::ForallE(ty, b, _) => {
+        ExprView::ForallE(ty, b, _) => {
             if mentions_fvar_go(q, memo, ty) {
                 true
             } else {
                 mentions_fvar_go(q, memo, b)
             }
         }
-        ExprKind::LetE(t, v, b) => {
+        ExprView::LetE(t, v, b) => {
             if mentions_fvar_go(q, memo, t) {
                 true
             } else if mentions_fvar_go(q, memo, v) {
@@ -292,7 +292,7 @@ pub fn mentions_fvar_node(q: u64, memo: &mut HashMap<Expr, bool>, e: &Expr) -> b
                 mentions_fvar_go(q, memo, b)
             }
         }
-        ExprKind::Proj(_, _, sub) => mentions_fvar_go(q, memo, sub),
+        ExprView::Proj(_, _, sub) => mentions_fvar_go(q, memo, sub),
         _ => false,
     }
 }

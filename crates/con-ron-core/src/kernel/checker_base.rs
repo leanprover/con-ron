@@ -40,7 +40,7 @@ use crate::kernel::decl_check;
 use crate::kernel::env;
 use crate::kernel::env::{CheckMode, ConstantVal};
 use crate::kernel::expr;
-use crate::kernel::expr::{BinderMeta, Expr, ExprKind};
+use crate::kernel::expr::{BinderMeta, Expr, ExprView};
 use crate::kernel::expr_ops;
 use crate::kernel::fenv;
 use crate::kernel::inductives::struct_parts;
@@ -255,8 +255,8 @@ pub fn open_pis_at_fvars(n: u64, e: &Expr, i: u64) -> Option<(Vec<Expr>, Expr)> 
     if n == 0 {
         Some((Vec::new(), expr::dup(e)))
     } else {
-        match &e.0.kind {
-            ExprKind::ForallE(dom, body, _) => {
+        match expr::view(&e) {
+            ExprView::ForallE(dom, body, _) => {
                 let fv: Expr = expr::fvar(i, expr::dup(dom));
                 let opened: Expr = expr_ops::instantiate1(body, &fv, 0);
                 match open_pis_at_fvars(n - 1, &opened, i + 1) {
@@ -287,8 +287,8 @@ pub fn open_pis_at_fvars_f_go(
     if n == 0 {
         Some((Vec::new(), expr_ops::instantiate_list_fast(e, acc, 0)))
     } else {
-        match &e.0.kind {
-            ExprKind::ForallE(dom, body, _) => {
+        match expr::view(&e) {
+            ExprView::ForallE(dom, body, _) => {
                 let fv: Expr = expr::fvar(i, expr_ops::instantiate_list_fast(dom, acc, 0));
                 let acc2: Vec<Expr> = expr_ops::cons_expr(&fv, acc);
                 match open_pis_at_fvars_f_go(&acc2, n - 1, body, i + 1) {
@@ -408,8 +408,8 @@ pub fn check_annot_list_from(
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:208-211 isEqHead
 /// Is the expression the pinned equality former at one level?
 pub fn is_eq_head(e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Const(c, us) => {
+    match expr::view(&e) {
+        ExprView::Const(c, us) => {
             if us.len() == 1 {
                 name::beq(c, &basis_names::eq_name())
             } else {
@@ -425,8 +425,8 @@ pub fn is_eq_head(e: &Expr) -> bool {
 /// read off a head `isEqHead` has accepted.  Off shape it is `.zero`, which
 /// `isEqHead` has already rejected wherever the result is used.
 pub fn eq_head_level(e: &Expr) -> Level {
-    match &e.0.kind {
-        ExprKind::Const(_, us) => {
+    match expr::view(&e) {
+        ExprView::Const(_, us) => {
             if us.len() == 1 {
                 level::dup(&us[0])
             } else {
@@ -511,8 +511,8 @@ pub fn find_cv(fe: &FEnv, n: &Name) -> Option<ConstantVal> {
 /// type ends in), if it ends in a sort at all.
 pub fn pi_result_sort(e: &Expr) -> Option<Level> {
     let r: Expr = expr_ops::pi_result(e);
-    match &r.0.kind {
-        ExprKind::Sort(u) => Some(level::dup(u)),
+    match expr::view(&r) {
+        ExprView::Sort(u) => Some(level::dup(u)),
         _ => None,
     }
 }
@@ -537,8 +537,8 @@ pub fn check_proj_shape(pty: &Expr, ctor_ty: &Expr, n_p: u64, n_f: u64) -> Check
                     Err(core_types::not_implemented({ const M: [u32; 37] = [112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 99, 111, 110, 115, 116, 114, 117, 99, 116, 111, 114, 32, 114, 101, 115, 105, 100, 117, 97, 108, 32, 97, 114, 105, 116, 121]; core_types::code_points(&M) }))
                 } else {
                     let f: Expr = expr_ops::get_app_fn(&cbody);
-                    match &f.0.kind {
-                        ExprKind::Const(_, _) => Ok(()),
+                    match expr::view(&f) {
+                        ExprView::Const(_, _) => Ok(()),
                         _ => Err(core_types::not_implemented({ const M: [u32; 36] = [112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 99, 111, 110, 115, 116, 114, 117, 99, 116, 111, 114, 32, 114, 101, 115, 105, 100, 117, 97, 108, 32, 104, 101, 97, 100]; core_types::code_points(&M) })),
                     }
                 }

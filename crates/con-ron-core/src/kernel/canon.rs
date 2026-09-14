@@ -58,7 +58,7 @@
 use crate::kernel::env;
 use crate::kernel::env::{ConstantInfo, ConstantVal, RecRule};
 use crate::kernel::expr;
-use crate::kernel::expr::{Expr, ExprKind};
+use crate::kernel::expr::{Expr, ExprView};
 use crate::kernel::level;
 use crate::kernel::level::{Level, LevelKind};
 use crate::kernel::name;
@@ -132,34 +132,34 @@ pub fn canon_level_list_from(
 /// leaves — which is what this descent tests.  It must stay a descent: see
 /// the module note's invariant 1.
 pub fn canon_expr_eq_fast(ps: &Vec<Name>, ps2: &Vec<Name>, a: &Expr, b: &Expr) -> bool {
-    match (&a.0.kind, &b.0.kind) {
-        (ExprKind::Bvar(i), ExprKind::Bvar(j)) => i == j,
-        (ExprKind::Fvar(i, t), ExprKind::Fvar(j, t2)) => {
+    match (expr::view(&a), expr::view(&b)) {
+        (ExprView::Bvar(i), ExprView::Bvar(j)) => i == j,
+        (ExprView::Fvar(i, t), ExprView::Fvar(j, t2)) => {
             i == j && canon_expr_eq_fast(ps, ps2, t, t2)
         }
-        (ExprKind::Sort(u), ExprKind::Sort(v)) => {
+        (ExprView::Sort(u), ExprView::Sort(v)) => {
             level::beq(&canon_level(ps, u), &canon_level(ps2, v))
         }
-        (ExprKind::Const(n, us), ExprKind::Const(n2, us2)) => {
+        (ExprView::Const(n, us), ExprView::Const(n2, us2)) => {
             name::beq(n, n2)
                 && expr::levels_beq(&canon_level_list(ps, us), &canon_level_list(ps2, us2))
         }
-        (ExprKind::App(f, x), ExprKind::App(f2, x2)) => {
+        (ExprView::App(f, x), ExprView::App(f2, x2)) => {
             canon_expr_eq_fast(ps, ps2, f, f2) && canon_expr_eq_fast(ps, ps2, x, x2)
         }
-        (ExprKind::Lam(t, bd, _), ExprKind::Lam(t2, bd2, _)) => {
+        (ExprView::Lam(t, bd, _), ExprView::Lam(t2, bd2, _)) => {
             canon_expr_eq_fast(ps, ps2, t, t2) && canon_expr_eq_fast(ps, ps2, bd, bd2)
         }
-        (ExprKind::ForallE(t, bd, _), ExprKind::ForallE(t2, bd2, _)) => {
+        (ExprView::ForallE(t, bd, _), ExprView::ForallE(t2, bd2, _)) => {
             canon_expr_eq_fast(ps, ps2, t, t2) && canon_expr_eq_fast(ps, ps2, bd, bd2)
         }
-        (ExprKind::LetE(t, v, bd), ExprKind::LetE(t2, v2, bd2)) => {
+        (ExprView::LetE(t, v, bd), ExprView::LetE(t2, v2, bd2)) => {
             canon_expr_eq_fast(ps, ps2, t, t2)
                 && canon_expr_eq_fast(ps, ps2, v, v2)
                 && canon_expr_eq_fast(ps, ps2, bd, bd2)
         }
-        (ExprKind::Lit(l), ExprKind::Lit(l2)) => expr::literal_beq(l, l2),
-        (ExprKind::Proj(s, i, e), ExprKind::Proj(s2, i2, e2)) => {
+        (ExprView::Lit(l), ExprView::Lit(l2)) => expr::literal_beq(l, l2),
+        (ExprView::Proj(s, i, e), ExprView::Proj(s2, i2, e2)) => {
             name::beq(s, s2) && i == i2 && canon_expr_eq_fast(ps, ps2, e, e2)
         }
         _ => false,

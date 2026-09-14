@@ -35,7 +35,7 @@ use crate::kernel::core_k;
 use crate::kernel::env;
 use crate::kernel::env::{ConstantInfo, ConstantVal};
 use crate::kernel::expr;
-use crate::kernel::expr::{BinderMeta, Expr, ExprKind};
+use crate::kernel::expr::{BinderMeta, Expr, ExprView};
 use crate::kernel::expr_ops;
 use crate::kernel::expr_ops::sub_nat;
 use crate::kernel::inductives::struct_parts;
@@ -216,8 +216,8 @@ pub fn rec_positivity(
     e: &Expr,
     k: u64,
 ) -> RecFieldKind {
-    match &e.0.kind {
-        ExprKind::ForallE(dom, body, _) => {
+    match expr::view(&e) {
+        ExprView::ForallE(dom, body, _) => {
             if struct_parts::mentions_const(t, dom) {
                 RecFieldKind::Negative
             } else {
@@ -254,8 +254,8 @@ pub fn rec_positivity(
                         RecFieldKind::Negative
                     }
                 } else {
-                    match &head.0.kind {
-                        ExprKind::Const(t2, _) => {
+                    match expr::view(&head) {
+                        ExprView::Const(t2, _) => {
                             if name::beq(t2, t) {
                                 RecFieldKind::Negative
                             } else {
@@ -402,8 +402,8 @@ pub fn pi_binders(e: &Expr) -> (Vec<(Expr, BinderMeta)>, Expr) {
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:147-154 Expr.piBinders
 /// The accumulator recursion behind `pi_binders`.
 pub fn pi_binders_go(e: &Expr, out: Vec<(Expr, BinderMeta)>) -> (Vec<(Expr, BinderMeta)>, Expr) {
-    match &e.0.kind {
-        ExprKind::ForallE(ty, b, m) => {
+    match expr::view(&e) {
+        ExprView::ForallE(ty, b, m) => {
             let mut out = out;
             out.push((expr::dup(ty), expr::binder_meta_dup(m)));
             pi_binders_go(b, out)
@@ -1340,8 +1340,8 @@ pub fn native_counts(
     r_p: u64,
 ) -> Option<(u64, u64)> {
     let q = pi_binders(&cv_t.ty);
-    match &q.1 .0.kind {
-        ExprKind::Sort(_) => {
+    match expr::view(&q.1 ) {
+        ExprView::Sort(_) => {
             if n_pd <= q.0.len() as u64 {
                 Some((n_pd, q.0.len() as u64 - n_pd))
             } else {
@@ -1581,8 +1581,8 @@ pub fn native_shape(n_pd: u64, block: &Vec<ConstantInfo>) -> Option<InductiveSha
                                 ) {
                                     let s: Level =
                                         match expr_ops::strip_pis(n_p + n_idx, &cv_t.ty) {
-                                            Some(tq) => match &tq.1 .0.kind {
-                                                ExprKind::Sort(u) => level::dup(u),
+                                            Some(tq) => match expr::view(&tq.1 ) {
+                                                ExprView::Sort(u) => level::dup(u),
                                                 _ => level::zero(),
                                             },
                                             None => level::zero(),

@@ -23,7 +23,7 @@ use con_ron_core::kernel::core_k;
 use con_ron_core::kernel::env;
 use con_ron_core::kernel::env::{ConstantInfo, ConstantVal, RecRule};
 use con_ron_core::kernel::expr;
-use con_ron_core::kernel::expr::{Expr, ExprKind};
+use con_ron_core::kernel::expr::{Expr, ExprView};
 use con_ron_core::kernel::expr_ops;
 use con_ron_core::kernel::inductives::struct_parts;
 use con_ron_core::kernel::level;
@@ -80,8 +80,8 @@ pub fn member_app(
     e: &Expr,
 ) -> Option<u64> {
     let f = expr_ops::get_app_fn(e);
-    match &f.0.kind {
-        ExprKind::Const(x, us) => {
+    match expr::view(&f) {
+        ExprView::Const(x, us) => {
             let (_, m2, n_idx) = members.iter().find(|m| name::beq(&m.0, x))?;
             let args = expr_ops::get_app_args(e);
             if kit::levels_are_params(us, lps)
@@ -184,8 +184,8 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
             name_str(&t_name)
         )
     })?;
-    let u: Level = match &resid0.0.kind {
-        ExprKind::Sort(u) => level::dup(u),
+    let u: Level = match expr::view(&resid0) {
+        ExprView::Sort(u) => level::dup(u),
         _ => {
             return Err(format!(
                 "former {} is not a telescope ending in a sort",
@@ -200,7 +200,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
     let pbs: Vec<Expr> = pi_binders(&pbs0[..(n_p as usize).min(pbs0.len())]);
     for t in b.types.iter() {
         let ok = match expr_ops::strip_pis(n_p + t.n_idx, &t.cv.ty) {
-            Some((_, r)) => matches!(&r.0.kind, ExprKind::Sort(_)),
+            Some((_, r)) => matches!(expr::view(&r), ExprView::Sort(_)),
             None => false,
         };
         if !ok {
@@ -936,8 +936,8 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
                     ));
                 }
                 let fdom = match expr_ops::inst_pis_at_lift(&args, &cty) {
-                    Some(e) => match &e.0.kind {
-                        ExprKind::ForallE(fdom, _, _) => expr::dup(fdom),
+                    Some(e) => match expr::view(&e) {
+                        ExprView::ForallE(fdom, _, _) => expr::dup(fdom),
                         _ => {
                             stop = true;
                             continue;

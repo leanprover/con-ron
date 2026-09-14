@@ -33,7 +33,7 @@ use std::hash::Hasher;
 
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::Expr;
-use con_ron_core::kernel::expr::ExprKind;
+use con_ron_core::kernel::expr::ExprView;
 use con_ron_core::kernel::expr::Literal;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
@@ -238,37 +238,37 @@ impl Writer {
 
     /// Emit one node, all of whose `Expr` children are already emitted.
     fn emit_expr_node(&mut self, e: &Expr) {
-        let body = match &e.0.kind {
-            ExprKind::Bvar(i) => format!("b {}", i),
-            ExprKind::Fvar(idx, ty) => format!("v {} {}", idx, self.eid(ty)),
-            ExprKind::Sort(u) => {
+        let body = match expr::view(&e) {
+            ExprView::Bvar(i) => format!("b {}", i),
+            ExprView::Fvar(idx, ty) => format!("v {} {}", idx, self.eid(ty)),
+            ExprView::Sort(u) => {
                 let l = self.w_level(u);
                 format!("s {}", l)
             }
-            ExprKind::Const(n, us) => {
+            ExprView::Const(n, us) => {
                 let ni = self.w_name(n);
                 let ls: Vec<usize> = us.iter().map(|u| self.w_level(u)).collect();
                 format!("c {} {}", ni, id_list(&ls))
             }
-            ExprKind::App(f, a) => format!("a {} {}", self.eid(f), self.eid(a)),
-            ExprKind::Lam(ty, b, m) => {
+            ExprView::App(f, a) => format!("a {} {}", self.eid(f), self.eid(a)),
+            ExprView::Lam(ty, b, m) => {
                 let t = self.eid(ty);
                 let bi = self.eid(b);
                 let p = self.w_pw(&m.pw);
                 format!("l {} {} {}", t, bi, p)
             }
-            ExprKind::ForallE(ty, b, m) => {
+            ExprView::ForallE(ty, b, m) => {
                 let t = self.eid(ty);
                 let bi = self.eid(b);
                 let p = self.w_pw(&m.pw);
                 format!("f {} {} {}", t, bi, p)
             }
-            ExprKind::LetE(ty, v, b) => {
+            ExprView::LetE(ty, v, b) => {
                 format!("t {} {} {}", self.eid(ty), self.eid(v), self.eid(b))
             }
-            ExprKind::Lit(Literal::NatVal(n)) => format!("n {}", natdec::to_decimal(n)),
-            ExprKind::Lit(Literal::StrVal(s)) => format!("g {}", str_field(s)),
-            ExprKind::Proj(sn, i, s) => {
+            ExprView::Lit(Literal::NatVal(n)) => format!("n {}", natdec::to_decimal(n)),
+            ExprView::Lit(Literal::StrVal(s)) => format!("g {}", str_field(s)),
+            ExprView::Proj(sn, i, s) => {
                 let ni = self.w_name(sn);
                 let si = self.eid(s);
                 format!("p {} {} {}", ni, i, si)
@@ -293,26 +293,26 @@ impl Writer {
                 continue;
             }
             let mut kids: Vec<Expr> = Vec::new();
-            match &e.0.kind {
-                ExprKind::Bvar(_)
-                | ExprKind::Sort(_)
-                | ExprKind::Const(_, _)
-                | ExprKind::Lit(_) => {}
-                ExprKind::Fvar(_, ty) => kids.push(expr::dup(ty)),
-                ExprKind::App(f, a) => {
+            match expr::view(&e) {
+                ExprView::Bvar(_)
+                | ExprView::Sort(_)
+                | ExprView::Const(_, _)
+                | ExprView::Lit(_) => {}
+                ExprView::Fvar(_, ty) => kids.push(expr::dup(ty)),
+                ExprView::App(f, a) => {
                     kids.push(expr::dup(f));
                     kids.push(expr::dup(a));
                 }
-                ExprKind::Lam(ty, b, _) | ExprKind::ForallE(ty, b, _) => {
+                ExprView::Lam(ty, b, _) | ExprView::ForallE(ty, b, _) => {
                     kids.push(expr::dup(ty));
                     kids.push(expr::dup(b));
                 }
-                ExprKind::LetE(ty, v, b) => {
+                ExprView::LetE(ty, v, b) => {
                     kids.push(expr::dup(ty));
                     kids.push(expr::dup(v));
                     kids.push(expr::dup(b));
                 }
-                ExprKind::Proj(_, _, s) => kids.push(expr::dup(s)),
+                ExprView::Proj(_, _, s) => kids.push(expr::dup(s)),
             }
             stack.push((e, true));
             for k in kids {

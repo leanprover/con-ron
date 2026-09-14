@@ -118,12 +118,22 @@
 ///   boundary — 56 and 64 are one class either way.  DESIGN.md's task-#92
 ///   entry has the table and the size-class measurements behind it.
 ///
-/// The fallback is kept for `align > 8`: mimalloc in fact guarantees 16, but 8
-/// is what the bin structure gives with no appeal to a documented guarantee,
-/// and nothing con-ron allocates is more aligned than a machine word.  This is
-/// the same `unsafe impl GlobalAlloc` the `mimalloc` crate itself writes, minus
-/// the one conservative branch; it is in the *unverified* crate, invisible to
-/// Charon, and cannot change a verdict (see the note above).
+/// The fallback is kept for `align > 16`.  Task #92 drew the line at 8,
+/// because nothing con-ron allocated then was more aligned than a machine
+/// word; **task #94's nodes are `align(16)`** — that alignment is what frees
+/// the four tag bits the kind lives in — so drawing it at 8 would have sent
+/// every `Expr` allocation down exactly the slow, class-losing path this
+/// type exists to avoid, and a 48-byte node would have been charged 64
+/// again.  Sixteen is safe by mimalloc's own construction and is audited
+/// here rather than assumed: on x86-64 `MI_MAX_ALIGN_SIZE` is 16, so
+/// `MI_ALIGN2W` is defined and every request of eight machine words or fewer
+/// is rounded up to an *even* number of words, giving every bin in that
+/// range a multiple-of-16 stride from a 16-aligned page start.  The test
+/// `mi_malloc_gives_16_aligned_blocks` below checks 100 000 blocks at each of
+/// the sizes con-ron allocates.  This is the same `unsafe impl GlobalAlloc`
+/// the `mimalloc` crate itself writes, minus the one conservative branch; it
+/// is in the *unverified* crate, invisible to Charon, and cannot change a
+/// verdict (see the note above).
 #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
 pub struct MiMallocTight;
 
@@ -131,7 +141,7 @@ pub struct MiMallocTight;
 unsafe impl std::alloc::GlobalAlloc for MiMallocTight {
     #[inline]
     unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
-        if layout.align() <= 8 {
+        if layout.align() <= 16 {
             libmimalloc_sys::mi_malloc(layout.size()) as *mut u8
         } else {
             libmimalloc_sys::mi_malloc_aligned(layout.size(), layout.align()) as *mut u8
@@ -140,7 +150,7 @@ unsafe impl std::alloc::GlobalAlloc for MiMallocTight {
 
     #[inline]
     unsafe fn alloc_zeroed(&self, layout: std::alloc::Layout) -> *mut u8 {
-        if layout.align() <= 8 {
+        if layout.align() <= 16 {
             libmimalloc_sys::mi_zalloc(layout.size()) as *mut u8
         } else {
             libmimalloc_sys::mi_zalloc_aligned(layout.size(), layout.align()) as *mut u8
@@ -159,7 +169,7 @@ unsafe impl std::alloc::GlobalAlloc for MiMallocTight {
         layout: std::alloc::Layout,
         new_size: usize,
     ) -> *mut u8 {
-        if layout.align() <= 8 {
+        if layout.align() <= 16 {
             libmimalloc_sys::mi_realloc(ptr as *mut std::ffi::c_void, new_size) as *mut u8
         } else {
             libmimalloc_sys::mi_realloc_aligned(
@@ -196,9 +206,20 @@ use con_ron_core::kernel::env::ConstantVal;
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::BinderMeta;
 use con_ron_core::kernel::expr::Expr;
+#[allow(unused_imports)]
+use con_ron_core::kernel::expr::ExprView;
+#[allow(unused_imports)]
 use con_ron_core::kernel::expr::Literal;
-use con_ron_core::kernel::expr::ExprKind;
-use con_ron_core::kernel::expr::ExprNode;
+use con_ron_core::ron::node::NodeApp;
+use con_ron_core::ron::node::NodeBinder;
+use con_ron_core::ron::node::NodeBvar;
+use con_ron_core::ron::node::NodeConst;
+use con_ron_core::ron::node::NodeFvar;
+use con_ron_core::ron::node::NodeHeader;
+use con_ron_core::ron::node::NodeLetE;
+use con_ron_core::ron::node::NodeLit;
+use con_ron_core::ron::node::NodeProj;
+use con_ron_core::ron::node::NodeSort;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::level::LevelKind;
@@ -351,23 +372,18 @@ pub struct NodeSize {
     pub heap: usize,
 }
 
-/// **What the core's terms weigh, per node** (DESIGN.md tasks #36, #38 and
-/// #90).  The interesting number is `ExprNode`'s `heap`: at Mathlib scale it
-/// is multiplied by 103 M.  Task #38 repacked the core types this measures —
-/// the binder datum, a `const`'s level list and a literal's payload each went
-/// behind a `P` — so the widest `ExprKind` arm was 24 bytes (`lam`/`forallE`,
-/// `letE`, `proj` all were) and the block was 56 rather than 72.  Task #90
-/// then put `PropWhen` back inline in `BinderMeta` (its own rare arms —
-/// `Two`, `Many` — now carry the handle instead of the whole datum), which
-/// removes the 40-byte-ish `P<PropWhen>` block **per binder** but widens the
-/// `lam`/`forallE` arm from 24 to 32 bytes — the widest arm now, ahead of
-/// `letE`/`proj` at 24 — so `ExprKind` grew from 32 to 40 and `ExprNode`'s
-/// block from 56 to 64.  Measured end to end (task #90's DESIGN.md entry)
-/// that trade is a net *win*: mimalloc's own bin rounding absorbs most of the
-/// 8-byte-per-node cost, while removing a whole separate allocation per
-/// binder does not round up at all.  The rows are the *real* arm types, and
-/// the test below pins them, so a further repacking shows up as a diff with
-/// its saving attached.
+/// **What the core's terms weigh, per node** (DESIGN.md tasks #36, #38, #90
+/// and #94).  At Mathlib scale these are multiplied by 103 M.
+///
+/// **Task #94 split the row.**  Until then there was one `ExprNode`, as wide
+/// as the widest `ExprKind` arm (48 bytes) and behind a `P` whose two counts
+/// made a 64-byte block, whatever the kind — so an `app`, 65 % of the live
+/// nodes of a real term, paid 64 bytes for 32 bytes of content.  Since
+/// task #94 the kind is in the *handle* (`ron::node`), there is one atomic
+/// count and no weak count, and each kind has a node struct of its own size;
+/// the `heap` column is now equal to the `size` column, because a node **is**
+/// its block.  The rows below are the real structs, and the test pins them,
+/// so a further repacking shows up here with its saving attached.
 pub fn node_sizes() -> Vec<NodeSize> {
     fn row<T>(what: &'static str, rc: bool) -> NodeSize {
         NodeSize {
@@ -376,15 +392,21 @@ pub fn node_sizes() -> Vec<NodeSize> {
             heap: if rc { std::mem::size_of::<PBlock<T>>() } else { 0 },
         }
     }
+    fn node_row<T>(what: &'static str) -> NodeSize {
+        NodeSize { what, size: std::mem::size_of::<T>(), heap: std::mem::size_of::<T>() }
+    }
     vec![
-        row::<ExprNode>("ExprNode (data + kind)", true),
-        row::<ExprKind>("  ExprKind", false),
-        row::<(Expr, Expr)>("    app payload", false),
-        row::<(Name, P<Vec<Level>>)>("    const payload", false),
-        row::<Literal>("    lit payload", false),
-        row::<(Expr, Expr, BinderMeta)>("    lam/forallE payload", false),
-        row::<(Expr, Expr, Expr)>("    letE payload", false),
-        row::<(Name, u64, Expr)>("    proj payload", false),
+        row::<Expr>("Expr (the tagged handle)", false),
+        node_row::<NodeHeader>("  node header (count + data)"),
+        node_row::<NodeApp>("  app node"),
+        node_row::<NodeBvar>("  bvar node"),
+        node_row::<NodeFvar>("  fvar node"),
+        node_row::<NodeSort>("  sort node"),
+        node_row::<NodeConst>("  const node"),
+        node_row::<NodeBinder>("  lam/forallE node"),
+        node_row::<NodeLetE>("  letE node"),
+        node_row::<NodeLit>("  lit node"),
+        node_row::<NodeProj>("  proj node"),
         row::<NameNode>("NameNode (hash + kind)", true),
         row::<NameKind>("  NameKind", false),
         row::<LevelNode>("LevelNode (hash + kind)", true),
@@ -399,11 +421,19 @@ pub fn node_sizes() -> Vec<NodeSize> {
     ]
 }
 
-/// The `Rc` heap block of an `ExprNode` — the reader's dominant cost, one per
-/// `E` record.  Separate from [`node_sizes`] so a caller can multiply it by
-/// the record count without searching the table.
+/// The heap block of the *average* `Expr` node, weighted by task #88's live
+/// census of `core` (65 % `app`, 16 % `bvar`, 17 % the two binders, the rest
+/// under 2 %).  Until task #94 every node was 64 bytes and this was a
+/// constant; now the reader's dominant cost depends on the mix, so a caller
+/// that wants to multiply by an `E` record count gets the census average.
+/// Task #94's report has the exact per-kind arithmetic.
 pub fn expr_node_bytes() -> usize {
-    std::mem::size_of::<PBlock<ExprNode>>()
+    let c32: usize = std::mem::size_of::<NodeApp>();
+    let c48: usize = std::mem::size_of::<NodeBinder>();
+    // 23 230 860 of 28 134 596 live nodes are in the small class, 4 903 736
+    // in the large one (task #88 section 3's census of `core`, at
+    // install-done).
+    (23_230_860 * c32 + 4_903_736 * c48) / 28_134_596
 }
 
 /// The peak resident set of this process in KB, `VmHWM` from
@@ -1287,6 +1317,41 @@ mod tests {
         assert!(!perr(&ok.lines().take(4).collect::<Vec<_>>().join("\n")).is_empty());
     }
 
+    /// **The audit behind `MiMallocTight`'s `align <= 16`** (task #94).
+    ///
+    /// `MiMallocTight::alloc` sends a 16-aligned request to plain
+    /// `mi_malloc`, which is what keeps task #94's 32- and 48-byte nodes in
+    /// their own size classes instead of the aligned entry's next one up.
+    /// That is sound by mimalloc's construction — `MI_MAX_ALIGN_SIZE` is 16
+    /// on x86-64, so `MI_ALIGN2W` rounds every request of eight words or
+    /// fewer to an even word count and every bin in that range strides by a
+    /// multiple of 16 from a 16-aligned page start — and this checks it
+    /// rather than trusting it, at exactly the sizes con-ron allocates.
+    #[test]
+    #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+    fn mi_malloc_gives_16_aligned_blocks() {
+        use std::alloc::GlobalAlloc;
+        use std::alloc::Layout;
+        for size in [16usize, 24, 32, 40, 48, 56, 64, 128] {
+            let l = Layout::from_size_align(size, 16).unwrap();
+            let mut ps: Vec<*mut u8> = Vec::with_capacity(100_000);
+            for _ in 0..100_000 {
+                let p = unsafe { MiMallocTight.alloc(l) };
+                assert!(!p.is_null());
+                assert_eq!(
+                    (p as usize) % 16,
+                    0,
+                    "a {size}-byte block came back {}-aligned",
+                    1usize << (p as usize).trailing_zeros()
+                );
+                ps.push(p);
+            }
+            for p in ps {
+                unsafe { MiMallocTight.dealloc(p, l) };
+            }
+        }
+    }
+
     /// Task #36: what one node weighs.  The numbers are the *reason* the
     /// Mathlib parse costs what it does — 103 M `E` records times
     /// `ExprNode`'s heap block — and they are asserted, not just printed, so
@@ -1297,42 +1362,53 @@ mod tests {
         for r in node_sizes() {
             eprintln!("{:<32} size {:>3}  rc block {:>3}", r.what, r.size, r.heap);
         }
-        // An `ExprKind` is as wide as its widest variant.  Before task #38
-        // that was `lam`/`forallE`, whose `BinderMeta` was a `PropWhen` *by
-        // value* — 24 bytes, since `PropWhenRepr::Many(Vec<Name>)` is 24 and
-        // the other four arms hide in the `Vec`'s niche — so 40 bytes of
-        // payload, 48 with the discriminant, 56 with the cached `data` word
-        // and 72 of heap once `Rc`'s two counts were in front, while 85 % of
-        // the nodes are `app`, which needs 16.
-        //
+        // Until task #94 an `ExprKind` was as wide as its widest variant and
+        // every node paid that width.  Before task #38 the widest was
+        // `lam`/`forallE`, whose `BinderMeta` was a `PropWhen` *by value* —
+        // 24 bytes — so 40 bytes of payload, 48 with the discriminant, 56
+        // with the cached `data` word and 72 of heap once `Rc`'s two counts
+        // were in front, while 85 % of the nodes are `app`, which needs 16.
         // Task #38 put the binder datum, a `const`'s level list and a
-        // literal's two payloads behind handles: **three** arms tied for
-        // widest, all 24 bytes (`lam`/`forallE`, `letE`, `proj`), giving
-        // `ExprKind` 32, `ExprNode` 40, the `P` block 56.
+        // literal's payloads behind handles (three arms tied at 24;
+        // `ExprKind` 32, `ExprNode` 40, the block 56).  Task #90 took
+        // `PropWhen`'s own `Many(Vec<Name>)` behind a handle and put the
+        // datum back inline, which removed a whole allocation per binder and
+        // widened `lam`/`forallE` to 32 — `ExprKind` 40, `ExprNode` 48, the
+        // block 64.  Task #92 then measured what the allocator actually
+        // charges: 42–64 bytes all cost 64, 33–41 cost 48, ≤32 cost 32.  So
+        // the flat 64-byte block was 32 wasted bytes on two thirds of the
+        // nodes, and no amount of repacking one `ExprKind` could reach the
+        // next class down.
         //
-        // Task #90 took `PropWhen`'s own widest arm (`Many(Vec<Name>)`, 24
-        // bytes) behind a handle too, so `PropWhen` is 16 (a tag plus one
-        // word: `Never`/`Always`/`One` cost no heap cell, only the rare
-        // `Two`/`Many` box their payload) and `BinderMeta` holds it *by
-        // value* again — task #38's separate `P<PropWhen>` block is gone.
-        // That makes `lam`/`forallE` the widest arm on its own, at 32 bytes
-        // (two handles and the now-16-byte datum) against `letE`/`proj`'s 24,
-        // so `ExprKind` is 40 and `ExprNode`'s block 64 — 8 bytes *wider*
-        // than task #38 left it, the same 8 bytes task #38's own "why the
-        // last 8 bytes are not worth it" note costed at 825 MB across every
-        // node at Mathlib scale.  Measured end to end (task #90's DESIGN.md
-        // entry) the trade is still a net win: removing the *separate*
-        // ~40-byte-per-binder `P<PropWhen>` allocation outweighs the 8 bytes
-        // added to every node, because mimalloc's size-class rounding
-        // absorbs most of the per-node cost while a dropped allocation does
-        // not round up at all — `init`'s measured peak fell 76 MB (901 648 →
-        // 824 660 KB) at instructions flat to 0.02 %.
+        // **Task #94 stopped paying for the widest arm.**  The kind moved
+        // into the handle's four spare bits (`ron::node`), `Arc`'s unused
+        // weak count went with `Arc`, and each kind got a node struct of its
+        // own size: five kinds at 32 bytes, four at 48, and `app` — 65 % of
+        // the live nodes of a real term — in the cheapest class.  The
+        // assertions below are that table; the census-weighted average is
+        // what `expr_node_bytes` reports.
+        assert_eq!(std::mem::size_of::<NodeHeader>(), 16);
+        assert_eq!(std::mem::align_of::<NodeHeader>(), 16);
+        assert_eq!(std::mem::size_of::<NodeApp>(), 32);
+        assert_eq!(std::mem::size_of::<NodeBvar>(), 32);
+        assert_eq!(std::mem::size_of::<NodeFvar>(), 32);
+        assert_eq!(std::mem::size_of::<NodeSort>(), 32);
+        assert_eq!(std::mem::size_of::<NodeConst>(), 32);
+        assert_eq!(std::mem::size_of::<NodeLit>(), 32);
+        assert_eq!(std::mem::size_of::<NodeBinder>(), 48);
+        assert_eq!(std::mem::size_of::<NodeLetE>(), 48);
+        assert_eq!(std::mem::size_of::<NodeProj>(), 48);
+        // every node is 16-aligned: that is what frees the handle's tag bits
+        for r in node_sizes() {
+            assert_eq!(r.size % 8, 0, "{} is not word-sized", r.what);
+        }
+        assert_eq!(std::mem::align_of::<NodeApp>(), 16);
+        assert_eq!(std::mem::align_of::<NodeProj>(), 16);
+        // the census average, against the flat 64 bytes of task #90
+        assert_eq!(expr_node_bytes(), 34);
         assert_eq!(std::mem::size_of::<PropWhen>(), 16);
         assert_eq!(std::mem::size_of::<BinderMeta>(), 16);
         assert_eq!(std::mem::size_of::<Literal>(), 16);
-        assert_eq!(std::mem::size_of::<ExprKind>(), 40);
-        assert_eq!(std::mem::size_of::<ExprNode>(), 48);
-        assert_eq!(expr_node_bytes(), 8 * P_HEADER_WORDS + 48);
         assert_eq!(std::mem::size_of::<NameNode>(), 40);
         assert_eq!(std::mem::size_of::<LevelNode>(), 32);
         // the id tables cost one machine word per record, the `Rc` handle

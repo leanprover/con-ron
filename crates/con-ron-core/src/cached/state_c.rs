@@ -93,7 +93,7 @@ use crate::kernel::core_types;
 use crate::kernel::core_types::CheckError;
 use crate::kernel::env;
 use crate::kernel::expr;
-use crate::kernel::expr::{Expr, ExprKind, Literal};
+use crate::kernel::expr::{Expr, ExprView, Literal};
 use crate::kernel::expr_ops;
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
@@ -1045,41 +1045,41 @@ pub fn memo_b_get(memo: &HashMap<Expr, bool>, k: &Expr) -> Option<bool> {
 /// The cited inner `match e with …`: the node's own answer, computed on a
 /// memo miss and inserted by `consts_resolve_fc_go`.
 pub fn consts_resolve_fc_node(fe: &FEnv, memo: &mut HashMap<Expr, bool>, e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Bvar(_) => true,
-        ExprKind::Sort(_) => true,
-        ExprKind::Lit(Literal::NatVal(_)) => core_k::nat_trio_stored(fe),
-        ExprKind::Lit(Literal::StrVal(_)) => {
+    match expr::view(&e) {
+        ExprView::Bvar(_) => true,
+        ExprView::Sort(_) => true,
+        ExprView::Lit(Literal::NatVal(_)) => core_k::nat_trio_stored(fe),
+        ExprView::Lit(Literal::StrVal(_)) => {
             if core_k::nat_trio_stored(fe) {
                 core_k::str_support_stored(fe)
             } else {
                 false
             }
         }
-        ExprKind::Const(n, _) => fenv::find(fe, n).is_some(),
-        ExprKind::Fvar(_, ty) => consts_resolve_fc_go(fe, memo, ty),
-        ExprKind::App(f, a) => {
+        ExprView::Const(n, _) => fenv::find(fe, n).is_some(),
+        ExprView::Fvar(_, ty) => consts_resolve_fc_go(fe, memo, ty),
+        ExprView::App(f, a) => {
             if consts_resolve_fc_go(fe, memo, f) {
                 consts_resolve_fc_go(fe, memo, a)
             } else {
                 false
             }
         }
-        ExprKind::Lam(ty, body, _) => {
+        ExprView::Lam(ty, body, _) => {
             if consts_resolve_fc_go(fe, memo, ty) {
                 consts_resolve_fc_go(fe, memo, body)
             } else {
                 false
             }
         }
-        ExprKind::ForallE(ty, body, _) => {
+        ExprView::ForallE(ty, body, _) => {
             if consts_resolve_fc_go(fe, memo, ty) {
                 consts_resolve_fc_go(fe, memo, body)
             } else {
                 false
             }
         }
-        ExprKind::LetE(ty, val, body) => {
+        ExprView::LetE(ty, val, body) => {
             if consts_resolve_fc_go(fe, memo, ty) {
                 if consts_resolve_fc_go(fe, memo, val) {
                     consts_resolve_fc_go(fe, memo, body)
@@ -1090,7 +1090,7 @@ pub fn consts_resolve_fc_node(fe: &FEnv, memo: &mut HashMap<Expr, bool>, e: &Exp
                 false
             }
         }
-        ExprKind::Proj(sn, _, sub) => {
+        ExprView::Proj(sn, _, sub) => {
             if fenv::find(fe, sn).is_some() {
                 consts_resolve_fc_go(fe, memo, sub)
             } else {

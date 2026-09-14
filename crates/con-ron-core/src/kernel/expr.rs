@@ -93,6 +93,7 @@ use crate::kernel::name::Name;
 use crate::ron::nat;
 use crate::kernel::prop_when;
 use crate::kernel::prop_when::PropWhen;
+use crate::ron::node;
 use crate::ron::ptr;
 use crate::ron::ptr::P;
 
@@ -107,7 +108,8 @@ use crate::ron::ptr::P;
 /// **The datum is inline again (task #90).**  Task #38 put the whole
 /// `PropWhen` behind its own `P` handle, because a `PropWhen` was 24 bytes by
 /// value at the time (`PropWhenRepr::Many(Vec<Name>)` set the width) and a
-/// binder datum sits *inside* `ExprKind::Lam`/`ForallE`.  `PropWhen` is now
+/// binder datum sits *inside* `ExprKind::Lam`/`ForallE` (as it now does inside
+/// `ron::node::NodeBinder`).  `PropWhen` is now
 /// one word wider than its own tag — `Never`/`Always`/`One` cost no heap
 /// cell, and only the rare `Two`/`Many` box their payload (`prop_when.rs`'s
 /// module note) — so boxing `BinderMeta` on top of that bought nothing but
@@ -160,7 +162,7 @@ pub fn binder_meta_dup(m: &BinderMeta) -> BinderMeta {
 ///
 /// **Both payloads are behind a handle** (task #38, and the note on
 /// `BinderMeta`): a `Vec` header is 24 bytes, so an inline `Literal` was 32
-/// and `ExprKind::Lit` was one of the two arms that kept `ExprNode` wide once
+/// and `ExprKind::Lit` was one of the two arms that kept the node wide once
 /// the binder datum had shrunk.  Behind handles the literal is two words.  Every
 /// *pattern* is unchanged — `P<T>` derefs to `T`, and `P<T>` is modeled as
 /// `T` (DESIGN.md §3.2), so `absLiteral` is unchanged up to the erasure;
@@ -333,59 +335,51 @@ pub fn sat_pred(x: u64) -> u64 {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// The ten constructors of `inductive Expr`; the cited
-/// `@[computed_field] data` word sits in `ExprNode` (DESIGN.md §3.2).
-/// Deviation: the `Nat` indices are `u64` (§3.3), and `const`'s `List Level`
-/// is a `Vec<Level>` *behind a handle* — see `BinderMeta`'s note and task #38:
-/// a `Vec` header is 24 bytes, so an inline `(Name, Vec<Level>)` was 32 and
-/// this arm was, with `Lit`, what kept the node wide once the binder datum had
-/// shrunk.  `P<Vec<Level>>` is modeled as `Vec Level` (§3.2), so nothing the
-/// abstraction or a pattern says about `us` changes.
+/// A kernel expression: **one machine word**, a tagged handle to one of the
+/// ten per-kind nodes in `ron::node` (task #94) — Lean's value semantics
+/// made sharing (DESIGN.md §3.2).
 ///
-/// **Widest arm since task #90:** `Lam`/`ForallE` (two `Expr` handles and a
-/// `BinderMeta` now held inline, 16 bytes) at 32 bytes, ahead of `LetE`/`Proj`
-/// at 24 — task #38 had all four tied at 24, with the binder datum behind its
-/// own `P`.  `ExprKind` is 40, `ExprNode` 48, its `P` block 64: 8 bytes wider
-/// than task #38 left it, in exchange for removing the separate ~40-byte
-/// `P<PropWhen>` allocation task #38 put behind every `Lam`/`ForallE`
-/// (`BinderMeta`'s note, `prop_when.rs`'s module note).  Measured end to end
-/// that trade is a net win — DESIGN.md's task-#90 entry has the numbers.
-pub enum ExprKind {
-    Bvar(u64),
-    Fvar(u64, Expr),
-    Sort(Level),
-    Const(Name, P<Vec<Level>>),
-    App(Expr, Expr),
-    Lam(Expr, Expr, BinderMeta),
-    ForallE(Expr, Expr, BinderMeta),
-    LetE(Expr, Expr, Expr),
-    Lit(Literal),
-    Proj(Name, u64, Expr),
-}
+/// **The kind is in the handle since task #94.**  Until then this was
+/// `P<ExprNode>` with `ExprNode { data, kind: ExprKind }`, so *every* node
+/// was as wide as the widest arm: 48 bytes of node, a 64-byte block, for an
+/// `app` that needs 32 and is 65 % of the live nodes of a real term
+/// (task #88's census).  A node allocated `align(16)` leaves four bits of
+/// its address free, ten kinds fit in four, and each kind then gets a node
+/// struct of its own size — `ron::node`'s module note has the table.  The
+/// ten `ExprKind` arms live on unchanged as `ron::node::ExprView`, the
+/// borrowed enum [`view`] hands a reader, so every `match` in the core keeps
+/// its arm structure; the ten smart constructors below are unchanged above
+/// the last line, which now names the arm's allocator instead of building an
+/// `ExprNode`.
+///
+/// Deviation from the citation, unchanged by task #94: the `Nat` indices are
+/// `u64` (§3.3), and `const`'s `List Level` is a `Vec<Level>` *behind a
+/// handle* (task #38), which `P<Vec<Level>>` models as `Vec Level`.
+pub struct Expr(pub(crate) node::ExprPtr);
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// The heap node of an `Expr`: the cited inductive's `@[computed_field]
-/// data` beside the constructor data.
-pub struct ExprNode {
-    pub data: u64,
-    pub kind: ExprKind,
-}
+/// The ten constructors as a borrowed enum — `ron::node`'s `ExprView` under
+/// the name a reader of this module expects.  A `match view(e)` binds
+/// exactly what `match &e.0.kind` bound before task #94.
+pub use crate::ron::node::ExprView;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// A kernel expression, as a `P` tree — Lean's value semantics made
-/// sharing (DESIGN.md §3.2).
-pub struct Expr(pub P<ExprNode>);
+/// Look at a term's constructor.  The projection of DESIGN.md §3.2's model:
+/// `view (alloc_app d f a) = App f a`, ten equations, one per constructor.
+pub fn view<'a>(e: &'a Expr) -> ExprView<'a> {
+    node::view(e)
+}
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// The cached `@[computed_field] data`, an `O(1)` field read.
 pub fn data(e: &Expr) -> u64 {
-    e.0.data
+    node::data(e)
 }
 
 /// con-leche: none — the `P` bump that Lean's value semantics hides (DESIGN.md §3.2)
 /// Share a term.
 pub fn dup(e: &Expr) -> Expr {
-    Expr(ptr::clone(&e.0))
+    node::dup(e)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -394,7 +388,7 @@ pub fn dup(e: &Expr) -> Expr {
 pub fn bvar(i: u64) -> Expr {
     let h: u64 = hash32(name::mix_hash(3, name::nat_hash(i)));
     let d: u64 = pack_data(h, sat_succ(i), 0, false);
-    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Bvar(i) }))
+    node::alloc_bvar(d, i)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -409,7 +403,7 @@ pub fn fvar(idx: u64, ty: Expr) -> Expr {
         name::mix_hash(name::nat_hash(idx), hash_of_data(dt)),
     ));
     let d: u64 = pack_data(h, 0, sat_succ(idx), lp_of_data(dt));
-    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Fvar(idx, ty) }))
+    node::alloc_fvar(d, idx, ty)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -419,7 +413,7 @@ pub fn fvar(idx: u64, ty: Expr) -> Expr {
 pub fn sort(u: Level) -> Expr {
     let h: u64 = hash32(name::mix_hash(7, level::level_hash(&u)));
     let d: u64 = pack_data(h, 0, 0, level::level_has_param(&u));
-    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Sort(u) }))
+    node::alloc_sort(d, u)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -433,7 +427,7 @@ pub fn mk_const(n: Name, us: Vec<Level>) -> Expr {
         name::mix_hash(name::hash_data(&n), level::levels_hash(&us)),
     ));
     let d: u64 = pack_data(h, 0, 0, level::levels_have_param(&us));
-    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Const(n, ptr::new(us)) }))
+    node::alloc_const(d, n, ptr::new(us))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -453,7 +447,7 @@ pub fn app(f: Expr, a: Expr) -> Expr {
         max_u64(fvar_of_data(df), fvar_of_data(da)),
         lp_of_data(df) || lp_of_data(da),
     );
-    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::App(f, a) }))
+    node::alloc_app(d, f, a)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -477,7 +471,7 @@ pub fn lam(ty: Expr, body: Expr, m: BinderMeta) -> Expr {
         max_u64(fvar_of_data(dt), fvar_of_data(db)),
         lp_of_data(dt) || lp_of_data(db) || prop_when::has_params(&m.pw),
     );
-    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Lam(ty, body, m) }))
+    node::alloc_lam(d, ty, body, m)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -499,7 +493,7 @@ pub fn forall_e(ty: Expr, body: Expr, m: BinderMeta) -> Expr {
         max_u64(fvar_of_data(dt), fvar_of_data(db)),
         lp_of_data(dt) || lp_of_data(db) || prop_when::has_params(&m.pw),
     );
-    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::ForallE(ty, body, m) }))
+    node::alloc_forall_e(d, ty, body, m)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -526,7 +520,7 @@ pub fn let_e(ty: Expr, value: Expr, body: Expr) -> Expr {
         max_u64(max_u64(fvar_of_data(dt), fvar_of_data(dv)), fvar_of_data(db)),
         lp_of_data(dt) || lp_of_data(dv) || lp_of_data(db),
     );
-    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::LetE(ty, value, body) }))
+    node::alloc_let_e(d, ty, value, body)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -536,7 +530,7 @@ pub fn let_e(ty: Expr, value: Expr, body: Expr) -> Expr {
 pub fn lit(l: Literal) -> Expr {
     let h: u64 = hash32(name::mix_hash(31, literal_hash(&l)));
     let d: u64 = pack_data(h, 0, 0, false);
-    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Lit(l) }))
+    node::alloc_lit(d, l)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -553,10 +547,7 @@ pub fn proj(struct_name: Name, idx: u64, e: Expr) -> Expr {
         ),
     ));
     let d: u64 = pack_data(h, bvar_of_data(de), fvar_of_data(de), lp_of_data(de));
-    Expr(ptr::new(ExprNode {
-        data: d,
-        kind: ExprKind::Proj(struct_name, idx, e),
-    }))
+    node::alloc_proj(d, struct_name, idx, e)
 }
 
 // ---------------------------------------------------------------------------
@@ -603,13 +594,13 @@ pub fn fvar_b_raw(e: &Expr) -> u64 {
 /// would cost a probe and a write — and leaves are the majority of the nodes
 /// of a real term.  `beq_go` consults and writes the memo only here.
 pub fn beq_recursive(e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Fvar(_, _) => true,
-        ExprKind::App(_, _) => true,
-        ExprKind::Lam(_, _, _) => true,
-        ExprKind::ForallE(_, _, _) => true,
-        ExprKind::LetE(_, _, _) => true,
-        ExprKind::Proj(_, _, _) => true,
+    match view(e) {
+        ExprView::Fvar(_, _) => true,
+        ExprView::App(_, _) => true,
+        ExprView::Lam(_, _, _) => true,
+        ExprView::ForallE(_, _, _) => true,
+        ExprView::LetE(_, _, _) => true,
+        ExprView::Proj(_, _, _) => true,
         _ => false,
     }
 }
@@ -619,7 +610,7 @@ pub fn beq_recursive(e: &Expr) -> bool {
 /// `false` in the generated Lean (DESIGN.md §3.2), where the reflexivity of
 /// the walk is what discharges the fast path.
 pub fn ptr_eq(a: &Expr, b: &Expr) -> bool {
-    ptr::ptr_eq(&a.0, &b.0)
+    node::ptr_eq(a, b)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:739-749 EqPair
@@ -840,23 +831,23 @@ pub fn beq_go(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
 /// memo-free descent task #11 proved.  And Aeneas otherwise *duplicates* the
 /// whole match, once per branch of `if rec`.
 pub fn beq_arm(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
-    match (&a.0.kind, &b.0.kind) {
-        (ExprKind::Bvar(i), ExprKind::Bvar(j)) => (i == j, m),
-        (ExprKind::Fvar(i, t), ExprKind::Fvar(j, u)) => beq_when(m, i == j, t, u),
-        (ExprKind::Sort(u), ExprKind::Sort(v)) => (level::beq(u, v), m),
-        (ExprKind::Const(n, us), ExprKind::Const(n2, vs)) => (const_beq(n, us, n2, vs), m),
-        (ExprKind::App(f, x), ExprKind::App(g, y)) => beq_both(m, f, g, x, y),
-        (ExprKind::Lam(t1, b1, m1), ExprKind::Lam(t2, b2, m2)) => {
+    match (view(a), view(b)) {
+        (ExprView::Bvar(i), ExprView::Bvar(j)) => (i == j, m),
+        (ExprView::Fvar(i, t), ExprView::Fvar(j, u)) => beq_when(m, i == j, t, u),
+        (ExprView::Sort(u), ExprView::Sort(v)) => (level::beq(u, v), m),
+        (ExprView::Const(n, us), ExprView::Const(n2, vs)) => (const_beq(n, us, n2, vs), m),
+        (ExprView::App(f, x), ExprView::App(g, y)) => beq_both(m, f, g, x, y),
+        (ExprView::Lam(t1, b1, m1), ExprView::Lam(t2, b2, m2)) => {
             beq_both_when(m, binder_meta_beq(m1, m2), t1, t2, b1, b2)
         }
-        (ExprKind::ForallE(t1, b1, m1), ExprKind::ForallE(t2, b2, m2)) => {
+        (ExprView::ForallE(t1, b1, m1), ExprView::ForallE(t2, b2, m2)) => {
             beq_both_when(m, binder_meta_beq(m1, m2), t1, t2, b1, b2)
         }
-        (ExprKind::LetE(t1, v1, b1), ExprKind::LetE(t2, v2, b2)) => {
+        (ExprView::LetE(t1, v1, b1), ExprView::LetE(t2, v2, b2)) => {
             beq_three(m, t1, t2, v1, v2, b1, b2)
         }
-        (ExprKind::Lit(l1), ExprKind::Lit(l2)) => (literal_beq(l1, l2), m),
-        (ExprKind::Proj(s1, i1, e1), ExprKind::Proj(s2, i2, e2)) => {
+        (ExprView::Lit(l1), ExprView::Lit(l2)) => (literal_beq(l1, l2), m),
+        (ExprView::Proj(s1, i1, e1), ExprView::Proj(s2, i2, e2)) => {
             beq_when(m, proj_head_beq(s1, *i1, s2, *i2), e1, e2)
         }
         _ => (false, m),
@@ -1151,7 +1142,7 @@ mod tests {
     use crate::kernel::expr;
     use crate::kernel::expr::BinderMeta;
     use crate::kernel::expr::Expr;
-    use crate::kernel::expr::ExprKind;
+    use crate::kernel::expr::ExprView;
     use crate::ron::hashmap::Eq2;
     use crate::ron::hashmap::HashMap;
     use crate::ron::hashmap::Hashable;
@@ -1721,8 +1712,8 @@ mod tests {
             let b = expr::bvar(*i);
             assert!(expr::beq(&a, &b));
             assert_eq!(expr::data(&a), expr::data(&b));
-            match &a.0.kind {
-                ExprKind::Bvar(j) => assert_eq!(*j, *i),
+            match expr::view(&a) {
+                ExprView::Bvar(j) => assert_eq!(*j, *i),
                 _ => assert!(false),
             }
         }
@@ -1757,7 +1748,8 @@ mod tests {
     fn task_90_sizes() {
         eprintln!("PropWhen        {}", std::mem::size_of::<crate::kernel::prop_when::PropWhen>());
         eprintln!("BinderMeta      {}", std::mem::size_of::<BinderMeta>());
-        eprintln!("ExprKind        {}", std::mem::size_of::<ExprKind>());
-        eprintln!("ExprNode        {}", std::mem::size_of::<super::ExprNode>());
+        eprintln!("Expr (handle)   {}", std::mem::size_of::<Expr>());
+        eprintln!("app node        {}", std::mem::size_of::<crate::ron::node::NodeApp>());
+        eprintln!("lam node        {}", std::mem::size_of::<crate::ron::node::NodeBinder>());
     }
 }

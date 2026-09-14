@@ -75,7 +75,7 @@
 use crate::kernel::env::ProjEntry;
 use crate::kernel::expr;
 use crate::kernel::expr::Expr;
-use crate::kernel::expr::ExprKind;
+use crate::kernel::expr::ExprView;
 use crate::kernel::expr_ops;
 use crate::kernel::expr_ops::ExprNatKey;
 use crate::kernel::level;
@@ -112,8 +112,8 @@ pub fn has_fvar(e: &Expr) -> bool {
 /// con-leche: ConLeche/Kernel/ExprOps.lean:915-918 getAppFn
 /// The head of an application spine.
 pub fn get_app_fn(e: &Expr) -> Expr {
-    match &e.0.kind {
-        ExprKind::App(f, _) => get_app_fn(f),
+    match expr::view(&e) {
+        ExprView::App(f, _) => get_app_fn(f),
         _ => expr::dup(e),
     }
 }
@@ -126,8 +126,8 @@ pub fn get_app_fn(e: &Expr) -> Expr {
 /// one pass (task #13's deviation 3), and the accumulator is threaded by
 /// value (task #6's rule).
 pub fn get_app_args_acc(e: &Expr, acc: Vec<Expr>) -> Vec<Expr> {
-    match &e.0.kind {
-        ExprKind::App(f, a) => {
+    match expr::view(&e) {
+        ExprView::App(f, a) => {
             let mut out: Vec<Expr> = get_app_args_acc(f, acc);
             out.push(expr::dup(a));
             out
@@ -230,8 +230,8 @@ pub fn instantiate1_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Expr {
     if expr_ops::bvar_b(e) <= d {
         expr::dup(e)
     } else {
-        match &e.0.kind {
-            ExprKind::Bvar(i) => {
+        match expr::view(&e) {
+            ExprView::Bvar(i) => {
                 if *i == d {
                     expr::dup(v)
                 } else if *i > d {
@@ -240,38 +240,38 @@ pub fn instantiate1_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Expr {
                     expr::dup(e)
                 }
             }
-            ExprKind::Fvar(_, _) => expr::dup(e),
-            ExprKind::Sort(_) => expr::dup(e),
-            ExprKind::Const(_, _) => expr::dup(e),
-            ExprKind::Lit(_) => expr::dup(e),
+            ExprView::Fvar(_, _) => expr::dup(e),
+            ExprView::Sort(_) => expr::dup(e),
+            ExprView::Const(_, _) => expr::dup(e),
+            ExprView::Lit(_) => expr::dup(e),
             _ => {
                 let key: ExprNatKey = expr_ops::expr_nat_key(e, d);
                 match expr_ops::memo1_get(memo, &key) {
                     Some(r) => r,
                     None => {
-                        let r: Expr = match &e.0.kind {
-                            ExprKind::App(f, a) => {
+                        let r: Expr = match expr::view(&e) {
+                            ExprView::App(f, a) => {
                                 let f2: Expr = instantiate1_go(v, memo, f, d);
                                 let a2: Expr = instantiate1_go(v, memo, a, d);
                                 expr::app(f2, a2)
                             }
-                            ExprKind::Lam(ty, body, m) => {
+                            ExprView::Lam(ty, body, m) => {
                                 let t: Expr = instantiate1_go(v, memo, ty, d);
                                 let b: Expr = instantiate1_go(v, memo, body, d + 1);
                                 expr::lam(t, b, expr::binder_meta_dup(m))
                             }
-                            ExprKind::ForallE(ty, body, m) => {
+                            ExprView::ForallE(ty, body, m) => {
                                 let t: Expr = instantiate1_go(v, memo, ty, d);
                                 let b: Expr = instantiate1_go(v, memo, body, d + 1);
                                 expr::forall_e(t, b, expr::binder_meta_dup(m))
                             }
-                            ExprKind::LetE(ty, val, body) => {
+                            ExprView::LetE(ty, val, body) => {
                                 let t: Expr = instantiate1_go(v, memo, ty, d);
                                 let w: Expr = instantiate1_go(v, memo, val, d);
                                 let b: Expr = instantiate1_go(v, memo, body, d + 1);
                                 expr::let_e(t, w, b)
                             }
-                            ExprKind::Proj(sn, i, sub) => {
+                            ExprView::Proj(sn, i, sub) => {
                                 let s2: Expr = instantiate1_go(v, memo, sub, d);
                                 expr::proj(name::dup(sn), *i, s2)
                             }
@@ -305,8 +305,8 @@ pub fn instantiate1_lift_b(v: &Expr, fuel: u64, e: &Expr, d: u64) -> (Option<Exp
     if expr_ops::bvar_b(e) <= d {
         (Some(expr::dup(e)), fuel)
     } else {
-        match &e.0.kind {
-            ExprKind::Bvar(i) => {
+        match expr::view(&e) {
+            ExprView::Bvar(i) => {
                 if *i == d {
                     (Some(expr_ops::lift_loose_bvars(d, 0, v)), fuel)
                 } else if *i > d {
@@ -315,10 +315,10 @@ pub fn instantiate1_lift_b(v: &Expr, fuel: u64, e: &Expr, d: u64) -> (Option<Exp
                     (Some(expr::dup(e)), fuel)
                 }
             }
-            ExprKind::Fvar(_, _) => (Some(expr::dup(e)), fuel),
-            ExprKind::Sort(_) => (Some(expr::dup(e)), fuel),
-            ExprKind::Const(_, _) => (Some(expr::dup(e)), fuel),
-            ExprKind::Lit(_) => (Some(expr::dup(e)), fuel),
+            ExprView::Fvar(_, _) => (Some(expr::dup(e)), fuel),
+            ExprView::Sort(_) => (Some(expr::dup(e)), fuel),
+            ExprView::Const(_, _) => (Some(expr::dup(e)), fuel),
+            ExprView::Lit(_) => (Some(expr::dup(e)), fuel),
             _ => {
                 if fuel == 0 {
                     (None, 0)
@@ -340,22 +340,22 @@ pub fn instantiate1_lift_b_compound(
     e: &Expr,
     d: u64,
 ) -> (Option<Expr>, u64) {
-    match &e.0.kind {
-        ExprKind::App(f, a) => match instantiate1_lift_b(v, fuel, f, d) {
+    match expr::view(&e) {
+        ExprView::App(f, a) => match instantiate1_lift_b(v, fuel, f, d) {
             (Some(f2), fuel) => match instantiate1_lift_b(v, fuel, a, d) {
                 (Some(a2), fuel) => (Some(expr::app(f2, a2)), fuel),
                 (None, fuel) => (None, fuel),
             },
             (None, fuel) => (None, fuel),
         },
-        ExprKind::Lam(ty, body, m) => match instantiate1_lift_b(v, fuel, ty, d) {
+        ExprView::Lam(ty, body, m) => match instantiate1_lift_b(v, fuel, ty, d) {
             (Some(t), fuel) => match instantiate1_lift_b(v, fuel, body, d + 1) {
                 (Some(b), fuel) => (Some(expr::lam(t, b, expr::binder_meta_dup(m))), fuel),
                 (None, fuel) => (None, fuel),
             },
             (None, fuel) => (None, fuel),
         },
-        ExprKind::ForallE(ty, body, m) => match instantiate1_lift_b(v, fuel, ty, d) {
+        ExprView::ForallE(ty, body, m) => match instantiate1_lift_b(v, fuel, ty, d) {
             (Some(t), fuel) => match instantiate1_lift_b(v, fuel, body, d + 1) {
                 (Some(b), fuel) => {
                     (Some(expr::forall_e(t, b, expr::binder_meta_dup(m))), fuel)
@@ -364,7 +364,7 @@ pub fn instantiate1_lift_b_compound(
             },
             (None, fuel) => (None, fuel),
         },
-        ExprKind::LetE(ty, val, body) => match instantiate1_lift_b(v, fuel, ty, d) {
+        ExprView::LetE(ty, val, body) => match instantiate1_lift_b(v, fuel, ty, d) {
             (Some(t), fuel) => match instantiate1_lift_b(v, fuel, val, d) {
                 (Some(w), fuel) => match instantiate1_lift_b(v, fuel, body, d + 1) {
                     (Some(b), fuel) => (Some(expr::let_e(t, w, b)), fuel),
@@ -374,7 +374,7 @@ pub fn instantiate1_lift_b_compound(
             },
             (None, fuel) => (None, fuel),
         },
-        ExprKind::Proj(sn, i, sub) => match instantiate1_lift_b(v, fuel, sub, d) {
+        ExprView::Proj(sn, i, sub) => match instantiate1_lift_b(v, fuel, sub, d) {
             (Some(s2), fuel) => (Some(expr::proj(name::dup(sn), *i, s2)), fuel),
             (None, fuel) => (None, fuel),
         },
@@ -390,8 +390,8 @@ pub fn instantiate1_lift_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Exp
     if expr_ops::bvar_b(e) <= d {
         expr::dup(e)
     } else {
-        match &e.0.kind {
-            ExprKind::Bvar(i) => {
+        match expr::view(&e) {
+            ExprView::Bvar(i) => {
                 if *i == d {
                     expr_ops::lift_loose_bvars(d, 0, v)
                 } else if *i > d {
@@ -400,38 +400,38 @@ pub fn instantiate1_lift_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Exp
                     expr::dup(e)
                 }
             }
-            ExprKind::Fvar(_, _) => expr::dup(e),
-            ExprKind::Sort(_) => expr::dup(e),
-            ExprKind::Const(_, _) => expr::dup(e),
-            ExprKind::Lit(_) => expr::dup(e),
+            ExprView::Fvar(_, _) => expr::dup(e),
+            ExprView::Sort(_) => expr::dup(e),
+            ExprView::Const(_, _) => expr::dup(e),
+            ExprView::Lit(_) => expr::dup(e),
             _ => {
                 let key: ExprNatKey = expr_ops::expr_nat_key(e, d);
                 match expr_ops::memo1_get(memo, &key) {
                     Some(r) => r,
                     None => {
-                        let r: Expr = match &e.0.kind {
-                            ExprKind::App(f, a) => {
+                        let r: Expr = match expr::view(&e) {
+                            ExprView::App(f, a) => {
                                 let f2: Expr = instantiate1_lift_go(v, memo, f, d);
                                 let a2: Expr = instantiate1_lift_go(v, memo, a, d);
                                 expr::app(f2, a2)
                             }
-                            ExprKind::Lam(ty, body, m) => {
+                            ExprView::Lam(ty, body, m) => {
                                 let t: Expr = instantiate1_lift_go(v, memo, ty, d);
                                 let b: Expr = instantiate1_lift_go(v, memo, body, d + 1);
                                 expr::lam(t, b, expr::binder_meta_dup(m))
                             }
-                            ExprKind::ForallE(ty, body, m) => {
+                            ExprView::ForallE(ty, body, m) => {
                                 let t: Expr = instantiate1_lift_go(v, memo, ty, d);
                                 let b: Expr = instantiate1_lift_go(v, memo, body, d + 1);
                                 expr::forall_e(t, b, expr::binder_meta_dup(m))
                             }
-                            ExprKind::LetE(ty, val, body) => {
+                            ExprView::LetE(ty, val, body) => {
                                 let t: Expr = instantiate1_lift_go(v, memo, ty, d);
                                 let w: Expr = instantiate1_lift_go(v, memo, val, d);
                                 let b: Expr = instantiate1_lift_go(v, memo, body, d + 1);
                                 expr::let_e(t, w, b)
                             }
-                            ExprKind::Proj(sn, i, sub) => {
+                            ExprView::Proj(sn, i, sub) => {
                                 let s2: Expr = instantiate1_lift_go(v, memo, sub, d);
                                 expr::proj(name::dup(sn), *i, s2)
                             }
@@ -500,8 +500,8 @@ pub fn instantiate_list_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, 
     } else if expr_ops::bvar_b(e) <= d {
         expr::dup(e)
     } else {
-        match &e.0.kind {
-            ExprKind::Bvar(i) => {
+        match expr::view(&e) {
+            ExprView::Bvar(i) => {
                 if *i < d {
                     expr::dup(e)
                 } else if *i - d < k {
@@ -510,38 +510,38 @@ pub fn instantiate_list_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, 
                     expr::mk_bvar(*i - k)
                 }
             }
-            ExprKind::Fvar(_, _) => expr::dup(e),
-            ExprKind::Sort(_) => expr::dup(e),
-            ExprKind::Const(_, _) => expr::dup(e),
-            ExprKind::Lit(_) => expr::dup(e),
+            ExprView::Fvar(_, _) => expr::dup(e),
+            ExprView::Sort(_) => expr::dup(e),
+            ExprView::Const(_, _) => expr::dup(e),
+            ExprView::Lit(_) => expr::dup(e),
             _ => {
                 let key: ExprNatKey = expr_ops::expr_nat_key(e, d);
                 match expr_ops::memo1_get(memo, &key) {
                     Some(r) => r,
                     None => {
-                        let r: Expr = match &e.0.kind {
-                            ExprKind::App(f, a) => {
+                        let r: Expr = match expr::view(&e) {
+                            ExprView::App(f, a) => {
                                 let f2: Expr = instantiate_list_go(vs, memo, f, k, d);
                                 let a2: Expr = instantiate_list_go(vs, memo, a, k, d);
                                 expr::app(f2, a2)
                             }
-                            ExprKind::Lam(ty, body, m) => {
+                            ExprView::Lam(ty, body, m) => {
                                 let t: Expr = instantiate_list_go(vs, memo, ty, k, d);
                                 let b: Expr = instantiate_list_go(vs, memo, body, k, d + 1);
                                 expr::lam(t, b, expr::binder_meta_dup(m))
                             }
-                            ExprKind::ForallE(ty, body, m) => {
+                            ExprView::ForallE(ty, body, m) => {
                                 let t: Expr = instantiate_list_go(vs, memo, ty, k, d);
                                 let b: Expr = instantiate_list_go(vs, memo, body, k, d + 1);
                                 expr::forall_e(t, b, expr::binder_meta_dup(m))
                             }
-                            ExprKind::LetE(ty, val, body) => {
+                            ExprView::LetE(ty, val, body) => {
                                 let t: Expr = instantiate_list_go(vs, memo, ty, k, d);
                                 let w: Expr = instantiate_list_go(vs, memo, val, k, d);
                                 let b: Expr = instantiate_list_go(vs, memo, body, k, d + 1);
                                 expr::let_e(t, w, b)
                             }
-                            ExprKind::Proj(sn, i, sub) => {
+                            ExprView::Proj(sn, i, sub) => {
                                 let s2: Expr = instantiate_list_go(vs, memo, sub, k, d);
                                 expr::proj(name::dup(sn), *i, s2)
                             }
@@ -605,8 +605,8 @@ pub fn instantiate_rev_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, d
     } else if expr_ops::bvar_b(e) <= d {
         expr::dup(e)
     } else {
-        match &e.0.kind {
-            ExprKind::Bvar(i) => {
+        match expr::view(&e) {
+            ExprView::Bvar(i) => {
                 if *i < d {
                     expr::dup(e)
                 } else if *i - d < k {
@@ -615,38 +615,38 @@ pub fn instantiate_rev_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, d
                     expr::mk_bvar(*i - k)
                 }
             }
-            ExprKind::Fvar(_, _) => expr::dup(e),
-            ExprKind::Sort(_) => expr::dup(e),
-            ExprKind::Const(_, _) => expr::dup(e),
-            ExprKind::Lit(_) => expr::dup(e),
+            ExprView::Fvar(_, _) => expr::dup(e),
+            ExprView::Sort(_) => expr::dup(e),
+            ExprView::Const(_, _) => expr::dup(e),
+            ExprView::Lit(_) => expr::dup(e),
             _ => {
                 let key: ExprNatKey = expr_ops::expr_nat_key(e, d);
                 match expr_ops::memo1_get(memo, &key) {
                     Some(r) => r,
                     None => {
-                        let r: Expr = match &e.0.kind {
-                            ExprKind::App(f, a) => {
+                        let r: Expr = match expr::view(&e) {
+                            ExprView::App(f, a) => {
                                 let f2: Expr = instantiate_rev_go(vs, memo, f, k, d);
                                 let a2: Expr = instantiate_rev_go(vs, memo, a, k, d);
                                 expr::app(f2, a2)
                             }
-                            ExprKind::Lam(ty, body, m) => {
+                            ExprView::Lam(ty, body, m) => {
                                 let t: Expr = instantiate_rev_go(vs, memo, ty, k, d);
                                 let b: Expr = instantiate_rev_go(vs, memo, body, k, d + 1);
                                 expr::lam(t, b, expr::binder_meta_dup(m))
                             }
-                            ExprKind::ForallE(ty, body, m) => {
+                            ExprView::ForallE(ty, body, m) => {
                                 let t: Expr = instantiate_rev_go(vs, memo, ty, k, d);
                                 let b: Expr = instantiate_rev_go(vs, memo, body, k, d + 1);
                                 expr::forall_e(t, b, expr::binder_meta_dup(m))
                             }
-                            ExprKind::LetE(ty, val, body) => {
+                            ExprView::LetE(ty, val, body) => {
                                 let t: Expr = instantiate_rev_go(vs, memo, ty, k, d);
                                 let w: Expr = instantiate_rev_go(vs, memo, val, k, d);
                                 let b: Expr = instantiate_rev_go(vs, memo, body, k, d + 1);
                                 expr::let_e(t, w, b)
                             }
-                            ExprKind::Proj(sn, i, sub) => {
+                            ExprView::Proj(sn, i, sub) => {
                                 let s2: Expr = instantiate_rev_go(vs, memo, sub, k, d);
                                 expr::proj(name::dup(sn), *i, s2)
                             }
@@ -707,46 +707,46 @@ pub fn abstract1_go(d: u64, memo: &mut MemoN, e: &Expr, k: u64) -> Expr {
     if expr_ops::fvar_b(e) <= d {
         expr::dup(e)
     } else {
-        match &e.0.kind {
-            ExprKind::Fvar(idx, _) => {
+        match expr::view(&e) {
+            ExprView::Fvar(idx, _) => {
                 if *idx == d {
                     expr::mk_bvar(k)
                 } else {
                     expr::dup(e)
                 }
             }
-            ExprKind::Bvar(_) => expr::dup(e),
-            ExprKind::Sort(_) => expr::dup(e),
-            ExprKind::Const(_, _) => expr::dup(e),
-            ExprKind::Lit(_) => expr::dup(e),
+            ExprView::Bvar(_) => expr::dup(e),
+            ExprView::Sort(_) => expr::dup(e),
+            ExprView::Const(_, _) => expr::dup(e),
+            ExprView::Lit(_) => expr::dup(e),
             _ => {
                 let key: ExprNatKey = expr_ops::expr_nat_key(e, k);
                 match expr_ops::memo1_get(memo, &key) {
                     Some(r) => r,
                     None => {
-                        let r: Expr = match &e.0.kind {
-                            ExprKind::App(f, a) => {
+                        let r: Expr = match expr::view(&e) {
+                            ExprView::App(f, a) => {
                                 let f2: Expr = abstract1_go(d, memo, f, k);
                                 let a2: Expr = abstract1_go(d, memo, a, k);
                                 expr::app(f2, a2)
                             }
-                            ExprKind::Lam(ty, body, m) => {
+                            ExprView::Lam(ty, body, m) => {
                                 let t: Expr = abstract1_go(d, memo, ty, k);
                                 let b: Expr = abstract1_go(d, memo, body, k + 1);
                                 expr::lam(t, b, expr::binder_meta_dup(m))
                             }
-                            ExprKind::ForallE(ty, body, m) => {
+                            ExprView::ForallE(ty, body, m) => {
                                 let t: Expr = abstract1_go(d, memo, ty, k);
                                 let b: Expr = abstract1_go(d, memo, body, k + 1);
                                 expr::forall_e(t, b, expr::binder_meta_dup(m))
                             }
-                            ExprKind::LetE(ty, val, body) => {
+                            ExprView::LetE(ty, val, body) => {
                                 let t: Expr = abstract1_go(d, memo, ty, k);
                                 let w: Expr = abstract1_go(d, memo, val, k);
                                 let b: Expr = abstract1_go(d, memo, body, k + 1);
                                 expr::let_e(t, w, b)
                             }
-                            ExprKind::Proj(sn, i, sub) => {
+                            ExprView::Proj(sn, i, sub) => {
                                 let s2: Expr = abstract1_go(d, memo, sub, k);
                                 expr::proj(name::dup(sn), *i, s2)
                             }
@@ -781,8 +781,8 @@ pub fn abstract_range_go(d: u64, k: u64, memo: &mut MemoN, e: &Expr, c: u64) -> 
     if expr_ops::fvar_b(e) <= d {
         expr::dup(e)
     } else {
-        match &e.0.kind {
-            ExprKind::Fvar(idx, _) => {
+        match expr::view(&e) {
+            ExprView::Fvar(idx, _) => {
                 if d <= *idx {
                     if *idx < d + k {
                         expr::mk_bvar(c + (d + k - 1 - *idx))
@@ -793,38 +793,38 @@ pub fn abstract_range_go(d: u64, k: u64, memo: &mut MemoN, e: &Expr, c: u64) -> 
                     expr::dup(e)
                 }
             }
-            ExprKind::Bvar(_) => expr::dup(e),
-            ExprKind::Sort(_) => expr::dup(e),
-            ExprKind::Const(_, _) => expr::dup(e),
-            ExprKind::Lit(_) => expr::dup(e),
+            ExprView::Bvar(_) => expr::dup(e),
+            ExprView::Sort(_) => expr::dup(e),
+            ExprView::Const(_, _) => expr::dup(e),
+            ExprView::Lit(_) => expr::dup(e),
             _ => {
                 let key: ExprNatKey = expr_ops::expr_nat_key(e, c);
                 match expr_ops::memo1_get(memo, &key) {
                     Some(r) => r,
                     None => {
-                        let r: Expr = match &e.0.kind {
-                            ExprKind::App(f, a) => {
+                        let r: Expr = match expr::view(&e) {
+                            ExprView::App(f, a) => {
                                 let f2: Expr = abstract_range_go(d, k, memo, f, c);
                                 let a2: Expr = abstract_range_go(d, k, memo, a, c);
                                 expr::app(f2, a2)
                             }
-                            ExprKind::Lam(ty, body, m) => {
+                            ExprView::Lam(ty, body, m) => {
                                 let t: Expr = abstract_range_go(d, k, memo, ty, c);
                                 let b: Expr = abstract_range_go(d, k, memo, body, c + 1);
                                 expr::lam(t, b, expr::binder_meta_dup(m))
                             }
-                            ExprKind::ForallE(ty, body, m) => {
+                            ExprView::ForallE(ty, body, m) => {
                                 let t: Expr = abstract_range_go(d, k, memo, ty, c);
                                 let b: Expr = abstract_range_go(d, k, memo, body, c + 1);
                                 expr::forall_e(t, b, expr::binder_meta_dup(m))
                             }
-                            ExprKind::LetE(ty, val, body) => {
+                            ExprView::LetE(ty, val, body) => {
                                 let t: Expr = abstract_range_go(d, k, memo, ty, c);
                                 let w: Expr = abstract_range_go(d, k, memo, val, c);
                                 let b: Expr = abstract_range_go(d, k, memo, body, c + 1);
                                 expr::let_e(t, w, b)
                             }
-                            ExprKind::Proj(sn, i, sub) => {
+                            ExprView::Proj(sn, i, sub) => {
                                 let s2: Expr = abstract_range_go(d, k, memo, sub, c);
                                 expr::proj(name::dup(sn), *i, s2)
                             }
@@ -876,28 +876,28 @@ pub fn inst_level_params_go(
         match expr_ops::memo_e_get(memo, e) {
             Some(r) => r,
             None => {
-                let r: Expr = match &e.0.kind {
-                    ExprKind::Bvar(_) => expr::dup(e),
-                    ExprKind::Lit(_) => expr::dup(e),
-                    ExprKind::Sort(u) => expr::sort(level::subst(ks, us, u)),
-                    ExprKind::Const(n, vs) => {
+                let r: Expr = match expr::view(&e) {
+                    ExprView::Bvar(_) => expr::dup(e),
+                    ExprView::Lit(_) => expr::dup(e),
+                    ExprView::Sort(u) => expr::sort(level::subst(ks, us, u)),
+                    ExprView::Const(n, vs) => {
                         expr::mk_const(name::dup(n), expr_ops::levels_subst(ks, us, vs))
                     }
-                    ExprKind::Fvar(idx, ty) => {
+                    ExprView::Fvar(idx, ty) => {
                         let t: Expr = inst_level_params_go(ks, us, memo, ty);
                         expr::fvar(*idx, t)
                     }
-                    ExprKind::App(f, a) => {
+                    ExprView::App(f, a) => {
                         let f2: Expr = inst_level_params_go(ks, us, memo, f);
                         let a2: Expr = inst_level_params_go(ks, us, memo, a);
                         expr::app(f2, a2)
                     }
-                    ExprKind::Lam(ty, body, m) => {
+                    ExprView::Lam(ty, body, m) => {
                         let t: Expr = inst_level_params_go(ks, us, memo, ty);
                         let b: Expr = inst_level_params_go(ks, us, memo, body);
                         expr::lam(t, b, expr::binder_meta(level::subst_pw(ks, us, &m.pw)))
                     }
-                    ExprKind::ForallE(ty, body, m) => {
+                    ExprView::ForallE(ty, body, m) => {
                         let t: Expr = inst_level_params_go(ks, us, memo, ty);
                         let b: Expr = inst_level_params_go(ks, us, memo, body);
                         expr::forall_e(
@@ -906,13 +906,13 @@ pub fn inst_level_params_go(
                             expr::binder_meta(level::subst_pw(ks, us, &m.pw)),
                         )
                     }
-                    ExprKind::LetE(ty, val, body) => {
+                    ExprView::LetE(ty, val, body) => {
                         let t: Expr = inst_level_params_go(ks, us, memo, ty);
                         let w: Expr = inst_level_params_go(ks, us, memo, val);
                         let b: Expr = inst_level_params_go(ks, us, memo, body);
                         expr::let_e(t, w, b)
                     }
-                    ExprKind::Proj(sn, i, sub) => {
+                    ExprView::Proj(sn, i, sub) => {
                         let s2: Expr = inst_level_params_go(ks, us, memo, sub);
                         expr::proj(name::dup(sn), *i, s2)
                     }
@@ -996,17 +996,17 @@ pub fn wscoped_b_go(memo: &mut HashMap<ExprNatKey, bool>, d: u64, e: &Expr) -> b
         match memo_b1_get(memo, &key) {
             Some(r) => r,
             None => {
-                let r: bool = match &e.0.kind {
-                    ExprKind::Bvar(_) => true,
-                    ExprKind::Sort(_) => true,
-                    ExprKind::Const(_, _) => true,
-                    ExprKind::Lit(_) => true,
-                    ExprKind::Fvar(idx, ty) => wscoped_b_fvar(memo, d, *idx, ty),
-                    ExprKind::App(f, a) => wscoped_b_pair(memo, d, f, a),
-                    ExprKind::Lam(ty, body, _) => wscoped_b_pair(memo, d, ty, body),
-                    ExprKind::ForallE(ty, body, _) => wscoped_b_pair(memo, d, ty, body),
-                    ExprKind::LetE(ty, val, body) => wscoped_b_triple(memo, d, ty, val, body),
-                    ExprKind::Proj(_, _, sub) => wscoped_b_go(memo, d, sub),
+                let r: bool = match expr::view(&e) {
+                    ExprView::Bvar(_) => true,
+                    ExprView::Sort(_) => true,
+                    ExprView::Const(_, _) => true,
+                    ExprView::Lit(_) => true,
+                    ExprView::Fvar(idx, ty) => wscoped_b_fvar(memo, d, *idx, ty),
+                    ExprView::App(f, a) => wscoped_b_pair(memo, d, f, a),
+                    ExprView::Lam(ty, body, _) => wscoped_b_pair(memo, d, ty, body),
+                    ExprView::ForallE(ty, body, _) => wscoped_b_pair(memo, d, ty, body),
+                    ExprView::LetE(ty, val, body) => wscoped_b_triple(memo, d, ty, val, body),
+                    ExprView::Proj(_, _, sub) => wscoped_b_go(memo, d, sub),
                 };
                 memo.insert(key, r);
                 r
@@ -1087,34 +1087,34 @@ pub fn fvar_leaves_go(
             Some(_) => acc,
             None => {
                 seen.insert(expr::dup(e), ());
-                match &e.0.kind {
-                    ExprKind::Bvar(_) => acc,
-                    ExprKind::Sort(_) => acc,
-                    ExprKind::Const(_, _) => acc,
-                    ExprKind::Lit(_) => acc,
-                    ExprKind::Fvar(idx, ty) => {
+                match expr::view(&e) {
+                    ExprView::Bvar(_) => acc,
+                    ExprView::Sort(_) => acc,
+                    ExprView::Const(_, _) => acc,
+                    ExprView::Lit(_) => acc,
+                    ExprView::Fvar(idx, ty) => {
                         let mut acc2: Vec<(u64, Expr)> = acc;
                         acc2.push((*idx, expr::dup(ty)));
                         fvar_leaves_go(acc2, seen, ty)
                     }
-                    ExprKind::App(f, a) => {
+                    ExprView::App(f, a) => {
                         let acc2: Vec<(u64, Expr)> = fvar_leaves_go(acc, seen, f);
                         fvar_leaves_go(acc2, seen, a)
                     }
-                    ExprKind::Lam(ty, body, _) => {
+                    ExprView::Lam(ty, body, _) => {
                         let acc2: Vec<(u64, Expr)> = fvar_leaves_go(acc, seen, ty);
                         fvar_leaves_go(acc2, seen, body)
                     }
-                    ExprKind::ForallE(ty, body, _) => {
+                    ExprView::ForallE(ty, body, _) => {
                         let acc2: Vec<(u64, Expr)> = fvar_leaves_go(acc, seen, ty);
                         fvar_leaves_go(acc2, seen, body)
                     }
-                    ExprKind::LetE(ty, val, body) => {
+                    ExprView::LetE(ty, val, body) => {
                         let acc2: Vec<(u64, Expr)> = fvar_leaves_go(acc, seen, ty);
                         let acc3: Vec<(u64, Expr)> = fvar_leaves_go(acc2, seen, val);
                         fvar_leaves_go(acc3, seen, body)
                     }
-                    ExprKind::Proj(_, _, sub) => fvar_leaves_go(acc, seen, sub),
+                    ExprView::Proj(_, _, sub) => fvar_leaves_go(acc, seen, sub),
                 }
             }
         }
@@ -1165,17 +1165,17 @@ pub fn leaves_sub_go(bl: &Vec<(u64, Expr)>, memo: &mut HashMap<Expr, bool>, e: &
         match expr_ops::memo_b_get(memo, e) {
             Some(r) => r,
             None => {
-                let r: bool = match &e.0.kind {
-                    ExprKind::Bvar(_) => true,
-                    ExprKind::Sort(_) => true,
-                    ExprKind::Const(_, _) => true,
-                    ExprKind::Lit(_) => true,
-                    ExprKind::Fvar(idx, ty) => leaves_sub_fvar(bl, memo, *idx, ty),
-                    ExprKind::App(f, a) => leaves_sub_pair(bl, memo, f, a),
-                    ExprKind::Lam(ty, body, _) => leaves_sub_pair(bl, memo, ty, body),
-                    ExprKind::ForallE(ty, body, _) => leaves_sub_pair(bl, memo, ty, body),
-                    ExprKind::LetE(ty, val, body) => leaves_sub_triple(bl, memo, ty, val, body),
-                    ExprKind::Proj(_, _, sub) => leaves_sub_go(bl, memo, sub),
+                let r: bool = match expr::view(&e) {
+                    ExprView::Bvar(_) => true,
+                    ExprView::Sort(_) => true,
+                    ExprView::Const(_, _) => true,
+                    ExprView::Lit(_) => true,
+                    ExprView::Fvar(idx, ty) => leaves_sub_fvar(bl, memo, *idx, ty),
+                    ExprView::App(f, a) => leaves_sub_pair(bl, memo, f, a),
+                    ExprView::Lam(ty, body, _) => leaves_sub_pair(bl, memo, ty, body),
+                    ExprView::ForallE(ty, body, _) => leaves_sub_pair(bl, memo, ty, body),
+                    ExprView::LetE(ty, val, body) => leaves_sub_triple(bl, memo, ty, val, body),
+                    ExprView::Proj(_, _, sub) => leaves_sub_go(bl, memo, sub),
                 };
                 memo.insert(expr::dup(e), r);
                 r
@@ -1294,12 +1294,12 @@ pub fn pi_residual_acc(acc: Vec<Expr>, e: &Expr, args: &Vec<Expr>, i: usize) -> 
     if i >= args.len() {
         Some(instantiate_list(e, &acc, 0))
     } else {
-        match &e.0.kind {
-            ExprKind::ForallE(_, b, _) => {
+        match expr::view(&e) {
+            ExprView::ForallE(_, b, _) => {
                 let acc2: Vec<Expr> = expr_ops::cons_expr(&args[i], &acc);
                 pi_residual_acc(acc2, b, args, i + 1)
             }
-            ExprKind::Bvar(_) => {
+            ExprView::Bvar(_) => {
                 if acc.len() == 0 {
                     None
                 } else {
@@ -1341,21 +1341,21 @@ pub fn all_level_params_defined_go(
         match expr_ops::memo_b_get(memo, e) {
             Some(r) => r,
             None => {
-                let r: bool = match &e.0.kind {
-                    ExprKind::Bvar(_) => true,
-                    ExprKind::Lit(_) => true,
-                    ExprKind::Sort(u) => level::all_params_defined(params, u),
-                    ExprKind::Const(_, us) => {
+                let r: bool = match expr::view(&e) {
+                    ExprView::Bvar(_) => true,
+                    ExprView::Lit(_) => true,
+                    ExprView::Sort(u) => level::all_params_defined(params, u),
+                    ExprView::Const(_, us) => {
                         expr_ops::levels_all_params_defined(params, us, 0)
                     }
-                    ExprKind::Fvar(_, ty) => all_level_params_defined_go(params, memo, ty),
-                    ExprKind::App(f, a) => alpd_pair(params, memo, f, a),
-                    ExprKind::Lam(ty, body, m) => alpd_binder(params, memo, ty, body, &m.pw),
-                    ExprKind::ForallE(ty, body, m) => {
+                    ExprView::Fvar(_, ty) => all_level_params_defined_go(params, memo, ty),
+                    ExprView::App(f, a) => alpd_pair(params, memo, f, a),
+                    ExprView::Lam(ty, body, m) => alpd_binder(params, memo, ty, body, &m.pw),
+                    ExprView::ForallE(ty, body, m) => {
                         alpd_binder(params, memo, ty, body, &m.pw)
                     }
-                    ExprKind::LetE(ty, val, body) => alpd_triple(params, memo, ty, val, body),
-                    ExprKind::Proj(_, _, sub) => {
+                    ExprView::LetE(ty, val, body) => alpd_triple(params, memo, ty, val, body),
+                    ExprView::Proj(_, _, sub) => {
                         all_level_params_defined_go(params, memo, sub)
                     }
                 };

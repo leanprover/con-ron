@@ -1959,10 +1959,10 @@ mod tests {
     /// in a `letE`-free pin.
     fn repw(e: &Expr) -> Expr {
         let m = expr::binder_meta(prop_when::if_all_zero(Vec::new()));
-        match &e.0.kind {
-            expr::ExprKind::ForallE(t, b, _) => expr::forall_e(repw(t), repw(b), m),
-            expr::ExprKind::Lam(t, b, _) => expr::lam(repw(t), repw(b), m),
-            expr::ExprKind::App(f, a) => expr::app(repw(f), repw(a)),
+        match expr::view(&e) {
+            expr::ExprView::ForallE(t, b, _) => expr::forall_e(repw(t), repw(b), m),
+            expr::ExprView::Lam(t, b, _) => expr::lam(repw(t), repw(b), m),
+            expr::ExprView::App(f, a) => expr::app(repw(f), repw(a)),
             _ => expr::dup(e),
         }
     }

@@ -45,7 +45,7 @@
 use crate::kernel::core_types;
 use crate::kernel::expr;
 use crate::kernel::expr::Expr;
-use crate::kernel::expr::ExprKind;
+use crate::kernel::expr::ExprView;
 use crate::kernel::level;
 use crate::kernel::level::Level;
 use crate::kernel::name;
@@ -1003,20 +1003,20 @@ pub fn constant_info_names_from(
 /// is a `match` (§3.4 forbids closures), and `n + 1` is checked `u64`
 /// arithmetic (§3.3: an overflow is a Rust failure).
 pub fn pi_sort_tele_len(e: &Expr) -> Option<u64> {
-    match &e.0.kind {
-        ExprKind::ForallE(_, body, _) => match pi_sort_tele_len(body) {
+    match expr::view(&e) {
+        ExprView::ForallE(_, body, _) => match pi_sort_tele_len(body) {
             Some(n) => Some(n + 1),
             None => None,
         },
-        ExprKind::Sort(_) => Some(0),
-        ExprKind::Bvar(_) => None,
-        ExprKind::Fvar(_, _) => None,
-        ExprKind::Const(_, _) => None,
-        ExprKind::App(_, _) => None,
-        ExprKind::Lam(_, _, _) => None,
-        ExprKind::LetE(_, _, _) => None,
-        ExprKind::Lit(_) => None,
-        ExprKind::Proj(_, _, _) => None,
+        ExprView::Sort(_) => Some(0),
+        ExprView::Bvar(_) => None,
+        ExprView::Fvar(_, _) => None,
+        ExprView::Const(_, _) => None,
+        ExprView::App(_, _) => None,
+        ExprView::Lam(_, _, _) => None,
+        ExprView::LetE(_, _, _) => None,
+        ExprView::Lit(_) => None,
+        ExprView::Proj(_, _, _) => None,
     }
 }
 

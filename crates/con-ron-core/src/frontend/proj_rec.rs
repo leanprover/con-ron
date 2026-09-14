@@ -51,7 +51,7 @@ use crate::kernel::core_types;
 use crate::kernel::env;
 use crate::kernel::env::ConstantInfo;
 use crate::kernel::expr;
-use crate::kernel::expr::{BinderMeta, Expr, ExprKind};
+use crate::kernel::expr::{BinderMeta, Expr, ExprView};
 use crate::kernel::expr_ops;
 use crate::kernel::inductives::native_parts;
 use crate::kernel::inductives::struct_parts;
@@ -155,8 +155,8 @@ pub fn is_proj_iota_name(n: &Name) -> bool {
 /// field's sort.  `None` on any other shape.
 pub fn proj_iota_level(ty: &Expr) -> Option<Level> {
     let head = expr_ops::get_app_fn(&expr_ops::pi_result(ty));
-    match &head.0.kind {
-        ExprKind::Const(n, us) => {
+    match expr::view(&head) {
+        ExprView::Const(n, us) => {
             if us.len() == 1 && name::beq(n, &bnm::eq_name()) {
                 Some(level::dup(&us[0]))
             } else {
@@ -191,12 +191,12 @@ pub fn occurs_const_fast(n: &Name, e: &Expr) -> bool {
 /// every compound node is probed, walked, and recorded when it comes out
 /// `false`.
 pub fn occurs_const_go(n: &Name, seen: &mut HashMap<Expr, bool>, e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Const(m, _) => name::beq(m, n),
-        ExprKind::Bvar(_) => false,
-        ExprKind::Fvar(_, _) => false,
-        ExprKind::Sort(_) => false,
-        ExprKind::Lit(_) => false,
+    match expr::view(&e) {
+        ExprView::Const(m, _) => name::beq(m, n),
+        ExprView::Bvar(_) => false,
+        ExprView::Fvar(_, _) => false,
+        ExprView::Sort(_) => false,
+        ExprView::Lit(_) => false,
         _ => {
             if seen.contains_key(e) {
                 false
@@ -216,22 +216,22 @@ pub fn occurs_const_go(n: &Name, seen: &mut HashMap<Expr, bool>, e: &Expr) -> bo
 /// borrow dies before the descent mutates the memo (task #14's rule).  The
 /// final arm is unreachable — the four leaf kinds answered above.
 pub fn occurs_const_node(n: &Name, seen: &mut HashMap<Expr, bool>, e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::App(f, a) => {
+    match expr::view(&e) {
+        ExprView::App(f, a) => {
             if occurs_const_go(n, seen, f) {
                 true
             } else {
                 occurs_const_go(n, seen, a)
             }
         }
-        ExprKind::Lam(ty, b, _) | ExprKind::ForallE(ty, b, _) => {
+        ExprView::Lam(ty, b, _) | ExprView::ForallE(ty, b, _) => {
             if occurs_const_go(n, seen, ty) {
                 true
             } else {
                 occurs_const_go(n, seen, b)
             }
         }
-        ExprKind::LetE(t, v, b) => {
+        ExprView::LetE(t, v, b) => {
             if occurs_const_go(n, seen, t) {
                 true
             } else if occurs_const_go(n, seen, v) {
@@ -240,7 +240,7 @@ pub fn occurs_const_node(n: &Name, seen: &mut HashMap<Expr, bool>, e: &Expr) -> 
                 occurs_const_go(n, seen, b)
             }
         }
-        ExprKind::Proj(_, _, sub) => occurs_const_go(n, seen, sub),
+        ExprView::Proj(_, _, sub) => occurs_const_go(n, seen, sub),
         _ => false,
     }
 }
@@ -253,8 +253,8 @@ pub fn occurs_const_node(n: &Name, seen: &mut HashMap<Expr, bool>, e: &Expr) -> 
 /// The body under every leading `λ` (the projection shape's pre-filter: the
 /// node under the value's binders).
 pub fn lam_body(e: &Expr) -> Expr {
-    match &e.0.kind {
-        ExprKind::Lam(_, b, _) => lam_body(b),
+    match expr::view(&e) {
+        ExprView::Lam(_, b, _) => lam_body(b),
         _ => expr::dup(e),
     }
 }
@@ -268,8 +268,8 @@ pub fn strip_pis_all(e: &Expr) -> (Vec<(Expr, BinderMeta)>, Expr) {
     let mut cur = expr::dup(e);
     let mut more = true;
     while more {
-        let next = match &cur.0.kind {
-            ExprKind::ForallE(ty, b, m) => {
+        let next = match expr::view(&cur) {
+            ExprView::ForallE(ty, b, m) => {
                 bs.push((expr::dup(ty), expr::binder_meta_dup(m)));
                 Some(expr::dup(b))
             }
@@ -310,8 +310,8 @@ pub fn inst_pis_open(e: &Expr, args: &Vec<Expr>) -> Option<Expr> {
     let mut i: usize = 0;
     let mut ok = true;
     while i < n && ok {
-        let next = match &cur.0.kind {
-            ExprKind::ForallE(_, body, _) => {
+        let next = match expr::view(&cur) {
+            ExprView::ForallE(_, body, _) => {
                 Some(expr_ops_c::instantiate1_lift(body, &args[i], 0))
             }
             _ => None,
@@ -386,8 +386,8 @@ pub fn build_binders<M: MkBinder>(mk: &M, k: u64, e: &Expr) -> Option<(Vec<Expr>
 /// rebinds `cur` — AENEAS_FINDINGS §2.1 F1, which is what "Could not match the
 /// contexts" was pointing at.
 pub fn build_binders_step<M: MkBinder>(mk: &M, cur: &Expr) -> Option<(Expr, Expr)> {
-    match &cur.0.kind {
-        ExprKind::ForallE(dom, body, _) => build_binders_step_at(mk, dom, body),
+    match expr::view(&cur) {
+        ExprView::ForallE(dom, body, _) => build_binders_step_at(mk, dom, body),
         _ => None,
     }
 }
@@ -425,8 +425,8 @@ pub fn build_binders_done(ok: bool, out: Vec<Expr>, cur: Expr) -> Option<(Vec<Ex
 /// Is `T` the head of the owner's own carrier: the motive domain
 /// `∀ (t : T p⃗), Sort ℓ` (exactly one binder) or the major-premise domain.
 pub fn head_is(t: &Name, e: &Expr) -> bool {
-    match &expr_ops::get_app_fn(e).0.kind {
-        ExprKind::Const(n, _) => name::beq(n, t),
+    match expr::view(&expr_ops::get_app_fn(e)) {
+        ExprView::Const(n, _) => name::beq(n, t),
         _ => false,
     }
 }
@@ -473,8 +473,8 @@ impl MkBinder for MkMotive {
     /// The cited three-arm `match stripPisAll dom with`.
     fn binder(&self, dom: &Expr) -> Option<Expr> {
         let bse = strip_pis_all(dom);
-        match &bse.1 .0.kind {
-            ExprKind::Sort(_) => {
+        match expr::view(&bse.1 ) {
+            ExprView::Sort(_) => {
                 if bse.0.len() == 1 {
                     if head_is(&self.t, &bse.0[0].0) {
                         Some(expr::lam(
@@ -657,8 +657,8 @@ pub fn proj_rec_value_major(
     lbs: &Vec<(Expr, BinderMeta)>,
     rty: &Expr,
 ) -> Option<Expr> {
-    match &rty.0.kind {
-        ExprKind::ForallE(maj_dom, _, _) => {
+    match expr::view(&rty) {
+        ExprView::ForallE(maj_dom, _, _) => {
             if !head_is(&o.t, maj_dom) {
                 None
             } else {
@@ -837,8 +837,8 @@ pub fn proj_rec_owner_at(
     }
     let s = match expr_ops::strip_pis(t.n_p, &t.ty) {
         None => return None,
-        Some(b) => match &b.1 .0.kind {
-            ExprKind::Sort(s) => level::dup(s),
+        Some(b) => match expr::view(&b.1 ) {
+            ExprView::Sort(s) => level::dup(s),
             _ => return None,
         },
     };
