@@ -16612,3 +16612,83 @@ The axiom ledger for the whole port is now three lines: the headline
 `_parsed` and `_prelude` pairs are at con-leche's own three axioms; the two
 `_embedded` corollaries pay one `toStr` axiom for naming `PINS_TEXT`; nothing
 anywhere invokes `native_decide` or carries a `sorry`.
+
+### Task #87 — the parser's exactness (2026-09-14, Opus under Fable)
+
+Task #85 proved the port's parser *well formed* — 205 lemmas about the port
+alone, which is why `scripts/progress.py`'s parser row stayed at 0 %: that
+column counts `theorem <fn>_refines`, refinement **against con-leche**.  This
+task is that tier: `scan_line_fwd` against `scanLineFwd`, the record assembly
+against `ExportC.lean`, and the chunk-level corollary
+`conron.no_False_declaration` at the end of it.
+
+#### 1. The vocabulary, and the four things it had to decide
+
+`Refine/Frontend/Abs.lean` is the file everything else is stated in, and four
+decisions in it are the tier's whole interface with the port's deviations
+(`scan_types.rs`'s module note names them 1-4).
+
+* **Bytes.**  `absByte : Std.U8 → UInt8`, `absBytes : Slice U8 → ByteArray`,
+  with `absBytes_size`, `absBytes_getElem`, `absBytes_uget` and
+  `absBytes_usize` — the four facts a byte loop needs.
+* **Positions, and the wrap-around question.**  The port's positions are
+  Aeneas's bounded `Std.Usize`, whose `+` **fails** on overflow; con-leche's
+  are `USize`, a machine word that wraps, and its `Scan/Fast.lean` header
+  rules wrap-around out by `usizeStep` under `i < b.usize`.  `absPos i =
+  USize.ofNat i.val`, and the reconciliation is one lemma: `absPos_add_one`
+  says a step the port returned `ok` for is con-leche's step, *because* the
+  port's failure is what proves the value in range.  In the accept direction
+  there is nothing left to check; in the error direction the port's overflow
+  is a port-only failure and claims nothing.
+* **The one tag con-leche has not got.**  `ErrTag::IndexOverflow` (deviation
+  1: a stream index too large for a `u64`, where con-leche reads a `Nat`)
+  goes to `none` under `absErrTag`, exactly as `absErrKind` sends the
+  checker's `CheckError::Native` to `none`.
+* **A `natVal` literal keeps its digits** (deviation 2), so `absExprRec`'s
+  `NatVal` arm is `natOfDigits`, which is `readNatAt`'s value.
+
+The outcome relation is `ScanSim A o x`, the scanner's reading of DESIGN.md
+§3's full-outcome ruling: exact on `.Ok` — the value *and* the position after
+it — at the **same offset and tag** on a mirrored `.Err` (`ScanErrSim`), and
+nothing on `IndexOverflow`.  The offsets are compared because task #84's
+differential compared them over 119 million real export lines and 31 million
+mutated ones with zero disagreements; a proof that could not close one would
+be a port bug, not a reason to weaken the statement.
+
+Beside those: `absKey` and the twelve syntax-record abstractions
+(`absNameRec`, `absLevelRec`, `absPwRec`, `absExprRec`, `absCVRec`,
+`absHintsRec`, `absRuleRec`, `absIndTypeRec`, `absIndCtorRec`, `absIndRecRec`,
+`absDeclRec`, `absLineRec`), and `absChunks` — the bridge from the port's
+`Vec<Vec<u8>>` to con-leche's `List ByteArray` that the chunk-level corollary
+is stated over.
+
+#### 2. `scanLineFwd`, not `scanLineSpec`
+
+con-leche's `ExportC.lean` reads lines with `scanLineSpec`, the naive
+reference; `Scan/Equiv.lean`'s `@[csimp] scanLineSpec_eq_scanLineFwd` is what
+makes `scanLineFwd` the function the compiler runs, and the port is a port of
+`scanLineFwd`.  So every scanner lemma of this tier targets `scanLineFwd`, and
+con-leche's whole `Equiv` tier (4 014 + 1 627 + 870 + 368 + 1 006 lines) is
+used in **one** place: the rewrite inside `feed_chunk_refines` /
+`apply_final_line_refines`.  That is the right seam — it is a function
+equality, `@scanLineSpec = @scanLineFwd`, so the rewrite is one `rw`.
+
+#### 3. The parser row moves, and `loc.py`'s shared-key bug
+
+`progress.py`'s `verified` column matches a `_refines` lemma to a Rust
+function by the lemma *file*'s name: `Refine/<M><Suffix>.lean` counts for
+`<m>.rs`.  The parser's lemma files are split by the **Lean**'s sections
+(`ScanKit`, `ScanStr`, `ScanObj`, `ScanExpr`, `ScanInd`, `ScanLine`,
+`StateDR`, `IndR`, `ChunksR`, `PrepareR`, `ProjRecR`) and not one per Rust
+module, so the prefix rule could never match them — the row would have stayed
+at 0 % however many lemmas landed.  The fix is one line: every
+`src/frontend/*.rs` is the module `frontend`, and every file under
+`Refine/Frontend/` proves for that module, so within the parser a lemma counts
+for the Rust function it names wherever it was proved.
+
+That immediately exposed a latent bug in `loc.py`, which shares
+`rust_module_of`: its totals loop adds `proofs_by_mod[key]` once **per Rust
+module**, so the moment thirteen modules shared a key the proof line count
+jumped by 73 161 lines (155 k → 227 k).  Fixed properly rather than worked
+around: a key's proof lines are counted once, on the group's *largest* module,
+so the parser tier's lines show on `frontend/scan_fast.rs`.
