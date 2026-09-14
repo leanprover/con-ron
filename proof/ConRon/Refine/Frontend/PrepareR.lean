@@ -714,4 +714,205 @@ theorem prepared_stream_refines {ps ds v : alloc.vec.Vec env.Declaration}
   simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
 
 
+/-! ## The plan: `front_of` against `frontOf`
+
+This is the one lemma the deviation of `prepare.rs`'s module note has to pay
+for.  con-leche's `frontOf` carries the array `pick` has already erased from;
+the port carries the original array and a mask.  `pick_residual_get` and
+`pick_residual_set` say the two agree at every step, and the loop invariant
+below is exactly "the array con-leche is holding is the port's residual". -/
+
+/-- `ConLeche/Frontend/Prepare.lean:126-135` — `frontOf`'s accumulator only
+prefixes: the front it builds from `acc` is `acc` followed by the front it
+builds from nothing, and the residual array does not depend on `acc`. -/
+private theorem frontOf_acc :
+    ∀ (L : List ConLeche.Declaration) (acc ds : Array ConLeche.Declaration),
+      (ConLeche.Frontend.frontOf acc L ds).1.toList
+          = acc.toList ++ (ConLeche.Frontend.frontOf #[] L ds).1.toList
+        ∧ (ConLeche.Frontend.frontOf acc L ds).2
+          = (ConLeche.Frontend.frontOf #[] L ds).2
+  | [], acc, ds => by
+    rw [ConLeche.Frontend.frontOf, ConLeche.Frontend.frontOf]; simp
+  | p :: ps, acc, ds => by
+    rw [ConLeche.Frontend.frontOf, ConLeche.Frontend.frontOf]
+    obtain ⟨h1, h2⟩ := frontOf_acc ps
+      (acc.push (((ConLeche.Frontend.pick (ConLeche.Frontend.preludeKey p) ds).1).getD p))
+      (ConLeche.Frontend.pick (ConLeche.Frontend.preludeKey p) ds).2
+    obtain ⟨h1', h2'⟩ := frontOf_acc ps
+      ((#[] : Array ConLeche.Declaration).push
+        (((ConLeche.Frontend.pick (ConLeche.Frontend.preludeKey p) ds).1).getD p))
+      (ConLeche.Frontend.pick (ConLeche.Frontend.preludeKey p) ds).2
+    exact ⟨by rw [h1, h1']; simp, by rw [h2, h2']⟩
+
+/-- `Array.findIdx` is `List.findIdx`. -/
+private theorem array_findIdx_toList {α : Type} (a : Array α) (p : α → Bool) :
+    a.findIdx p = a.toList.findIdx p := by rcases a with ⟨l⟩; simp
+
+/-- `Array.eraseIdxIfInBounds` is `List.eraseIdx` — the out-of-range case is
+"nothing is erased" on both sides. -/
+private theorem toList_eraseIdxIfInBounds {α : Type} (a : Array α) (i : Nat) :
+    (a.eraseIdxIfInBounds i).toList = a.toList.eraseIdx i := by
+  unfold Array.eraseIdxIfInBounds
+  split
+  · simp
+  · rename_i hge
+    simp only [Nat.not_lt] at hge
+    rw [List.eraseIdx_of_length_le (by simpa using hge)]
+
+/-- `ConLeche/Frontend/Prepare.lean:126-135` — **`prepare::front_of`'s loop is
+`frontOf`**: the mask's residual is the array con-leche is holding, the pick is
+the same record, and the plan's entry is the index of it in the stream. -/
+private theorem front_of_loop_refines {ps ds : alloc.vec.Vec env.Declaration}
+    (hps : ∀ d ∈ ps.val, DeclarationWF d) (hds : ∀ d ∈ ds.val, DeclarationWF d) :
+    ∀ k : Nat, ∀ (j : Std.Usize) (picked picked2 : alloc.vec.Vec Bool)
+      (picks picks2 : alloc.vec.Vec Std.Usize) (res : Array ConLeche.Declaration),
+      ps.val.length - j.val ≤ k → j.val ≤ ps.val.length →
+      picked.val.length = ds.val.length →
+      res.toList = residual picked.val (ds.val.map absDeclaration) →
+      frontend.prepare.front_of_loop ps ds (alloc.vec.Vec.len ds) picked
+          (alloc.vec.Vec.len ps) picks j = ok (picks2, picked2) →
+      ∃ tail : List Std.Usize, picks2.val = picks.val ++ tail ∧
+        tail.length = ps.val.length - j.val ∧
+        picked2.val.length = ds.val.length ∧
+        (ConLeche.Frontend.frontOf #[] ((ps.val.drop j.val).map absDeclaration) res).1.toList
+          = frontFrom (tail.map (·.val)) (ds.val.map absDeclaration)
+              ((ps.val.drop j.val).map absDeclaration) ∧
+        (ConLeche.Frontend.frontOf #[] ((ps.val.drop j.val).map absDeclaration) res).2.toList
+          = residual picked2.val (ds.val.map absDeclaration) := by
+  have hmp : (alloc.vec.Vec.len ps).val = ps.val.length := alloc.vec.Vec.len_val ps
+  have hmd : (alloc.vec.Vec.len ds).val = ds.val.length := alloc.vec.Vec.len_val ds
+  intro k
+  induction k with
+  | zero =>
+    intro j picked picked2 picks picks2 res hk hj hlen hres h
+    have hjeq : j.val = ps.val.length := by omega
+    rw [frontend.prepare.front_of_loop.eq_def] at h
+    rw [if_neg (show ¬ j < alloc.vec.Vec.len ps by scalar_tac), Result.ok.injEq] at h
+    have e1 : picks = picks2 := (congrArg Prod.fst h)
+    have e2 : picked = picked2 := (congrArg Prod.snd h)
+    subst e1; subst e2
+    refine ⟨[], by simp, by simp; omega, hlen, ?_, ?_⟩
+    · rw [hjeq, List.drop_length, List.map_nil, ConLeche.Frontend.frontOf]
+      simp [frontFrom]
+    · rw [hjeq, List.drop_length, List.map_nil, ConLeche.Frontend.frontOf]
+      exact hres
+  | succ k ih =>
+    intro j picked picked2 picks picks2 res hk hj hlen hres h
+    rw [frontend.prepare.front_of_loop.eq_def] at h
+    by_cases hlt : j.val < ps.val.length
+    · rw [if_pos (show j < alloc.vec.Vec.len ps by scalar_tac)] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨d, hd, n1, hn1, kk, hkk, picked1, hpicked1, picks1, hpicks1, j1, hj1, h⟩ := h
+      have hj1v : j1.val = j.val + 1 := by have := Nat.uadd_val hj1; simpa using this
+      have hdg := ExprOps.vec_index_getElem? hd
+      have hdx : ps.val[j.val] = d := by
+        rw [List.getElem?_eq_getElem hlt] at hdg; exact Option.some_injective _ hdg
+      have hdwf : DeclarationWF d := hps _ (List.mem_of_getElem? hdg)
+      obtain ⟨hkey, hkeywf⟩ := prelude_key_refines hdwf hn1
+      have hkv := pick_idx_refines hkeywf hds hlen hkk
+      -- the port's mask update is `List.set`, out of range included
+      have hset : picked1.val = picked.val.set kk.val true := by
+        by_cases hk2 : kk.val < ds.val.length
+        · rw [if_pos (show kk < alloc.vec.Vec.len ds by scalar_tac)] at hpicked1
+          obtain ⟨⟨b, f⟩, hf, hb⟩ := bind_eq_ok_iff.mp hpicked1
+          obtain ⟨-, -, rfl⟩ := HashMap.vec_index_mut_eq hf
+          rw [← Result.ok_injective hb]
+          simp [alloc.vec.Vec.set]
+        · rw [if_neg (show ¬ kk < alloc.vec.Vec.len ds by scalar_tac),
+            Result.ok.injEq] at hpicked1
+          rw [← hpicked1, List.set_eq_of_length_le (by omega)]
+      have hlen1 : picked1.val.length = ds.val.length := by rw [hset]; simpa using hlen
+      -- con-leche's `pick`, read through the residual
+      set L := ds.val.map absDeclaration with hL
+      set P := ConLeche.Frontend.declares (ConLeche.Frontend.preludeKey (absDeclaration d))
+        with hP
+      have hPn : P = ConLeche.Frontend.declares (absName n1) := by rw [hP, hkey]
+      have hLlen : picked.val.length = L.length := by rw [hL]; simpa using hlen
+      have harr : res.findIdx P = res.toList.findIdx P := array_findIdx_toList res P
+      have hpickfst :
+          (ConLeche.Frontend.pick (ConLeche.Frontend.preludeKey (absDeclaration d)) res).1
+            = L[kk.val]? := by
+        rw [ConLeche.Frontend.pick]
+        simp only []
+        rw [show res[res.findIdx P]? = res.toList[res.toList.findIdx P]? from by
+          rw [harr]; simp]
+        rw [hres, ← pick_residual_get P picked.val L hLlen, hkv, hPn]
+      have hpicksnd :
+          ((ConLeche.Frontend.pick (ConLeche.Frontend.preludeKey (absDeclaration d))
+              res).2).toList = residual picked1.val L := by
+        rw [ConLeche.Frontend.pick]
+        simp only []
+        rw [toList_eraseIdxIfInBounds, harr, hres,
+          ← pick_residual_set P picked.val L hLlen, hset, hkv, hPn]
+      obtain ⟨tail, htail, htaillen, hp2len, hfront, hrest⟩ :=
+        ih j1 picked1 picked2 picks1 picks2
+          (ConLeche.Frontend.pick (ConLeche.Frontend.preludeKey (absDeclaration d)) res).2
+          (by omega) (by omega) hlen1 hpicksnd (by rw [hj1v] at *; exact h)
+      refine ⟨kk :: tail, ?_, ?_, hp2len, ?_, ?_⟩
+      · rw [htail, vec_push_val hpicks1]; simp
+      · simp only [List.length_cons]; omega
+      · rw [List.drop_eq_getElem_cons hlt, List.map_cons, hdx,
+          ConLeche.Frontend.frontOf]
+        rw [(frontOf_acc ((ps.val.drop (j.val + 1)).map absDeclaration) _ _).1]
+        rw [show (ps.val.drop (j.val + 1)) = ps.val.drop j1.val from by rw [hj1v]]
+        rw [hfront, List.map_cons, frontFrom_cons, hpickfst, hj1v]
+        simp
+      · rw [List.drop_eq_getElem_cons hlt, List.map_cons, hdx,
+          ConLeche.Frontend.frontOf]
+        rw [(frontOf_acc ((ps.val.drop (j.val + 1)).map absDeclaration) _ _).2]
+        rw [show (ps.val.drop (j.val + 1)) = ps.val.drop j1.val from by rw [hj1v]]
+        exact hrest
+    · rw [if_neg (show ¬ j < alloc.vec.Vec.len ps by scalar_tac), Result.ok.injEq] at h
+      have hjeq : j.val = ps.val.length := by omega
+      have e1 : picks = picks2 := (congrArg Prod.fst h)
+      have e2 : picked = picked2 := (congrArg Prod.snd h)
+      subst e1; subst e2
+      refine ⟨[], by simp, by simp; omega, hlen, ?_, ?_⟩
+      · rw [hjeq, List.drop_length, List.map_nil, ConLeche.Frontend.frontOf]
+        simp [frontFrom]
+      · rw [hjeq, List.drop_length, List.map_nil, ConLeche.Frontend.frontOf]
+        exact hres
+
+/-- `ConLeche/Frontend/Prepare.lean:126-135` — **`prepare::front_of` refines
+`frontOf`**: the plan the port computes materialises, through
+`prepared_stream`, into exactly the front and the rest con-leche builds. -/
+theorem front_of_refines {ps ds : alloc.vec.Vec env.Declaration}
+    {picks : alloc.vec.Vec Std.Usize} {picked : alloc.vec.Vec Bool}
+    (hps : ∀ d ∈ ps.val, DeclarationWF d) (hds : ∀ d ∈ ds.val, DeclarationWF d)
+    (h : frontend.prepare.front_of ps ds = ok (picks, picked)) :
+    picks.val.length = ps.val.length ∧ picked.val.length = ds.val.length ∧
+      frontFrom (picks.val.map (·.val)) (ds.val.map absDeclaration)
+          (ps.val.map absDeclaration)
+        = (ConLeche.Frontend.frontOf #[] (ps.val.map absDeclaration)
+            (ds.val.map absDeclaration).toArray).1.toList ∧
+      residual picked.val (ds.val.map absDeclaration)
+        = (ConLeche.Frontend.frontOf #[] (ps.val.map absDeclaration)
+            (ds.val.map absDeclaration).toArray).2.toList := by
+  rw [frontend.prepare.front_of] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨picked0, hpicked0, h⟩ := h
+  have h0 : picked0.val = List.replicate (ds.val.length) false := by
+    rw [no_picks_refines hpicked0, alloc.vec.Vec.len_val]
+  have hres0 : (ds.val.map absDeclaration).toArray.toList
+      = residual picked0.val (ds.val.map absDeclaration) := by
+    rw [h0, List.toList_toArray,
+      show ds.val.length = (ds.val.map absDeclaration).length from by simp,
+      residual_replicate_false]
+  obtain ⟨tail, htail, htaillen, hp2len, hfront, hrest⟩ :=
+    front_of_loop_refines hps hds ps.val.length 0#usize picked0 picked
+      (alloc.vec.Vec.with_capacity Std.Usize (alloc.vec.Vec.len ps)) picks
+      (ds.val.map absDeclaration).toArray (by scalar_tac) (by scalar_tac)
+      (by rw [h0]; simp) hres0 h
+  have hpickseq : picks.val = tail := by
+    rw [htail]; simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
+  refine ⟨by rw [hpickseq, htaillen]; simp, hp2len, ?_, ?_⟩
+  · rw [hpickseq]
+    have := hfront
+    simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at this
+    exact this.symm
+  · have := hrest
+    simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at this
+    exact this.symm
+
+
 end ConRon.Refine.Frontend
