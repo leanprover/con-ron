@@ -27,9 +27,16 @@ mimalloc = { version = "0.1.52", optional = true }
 tikv-jemallocator = { version = "0.7.0", optional = true }
 
 [features]
-# `mimalloc` wins on `init`, so it is the default; `--no-default-features`
-# gives glibc `malloc` back, and `--no-default-features --features jemalloc`
-# selects jemalloc.
+# These gate the two optional dependencies and the `#[global_allocator]` in
+# `src/lib.rs`; `mimalloc` wins on `init`, so it is the default here too.
+#
+# **They are not the knob a build turns.**  A `#[global_allocator]` only takes
+# effect in a binary, and this crate is a library: the allocator of the one
+# binary that links it is chosen by `crates/con-ron/Cargo.toml`'s features of
+# the same names, which forward to these over a `default-features = false`
+# edge (task #89).  `cargo build --no-default-features` on the workspace or on
+# `-p con-ron` is what reaches them; before task #89 that flag reached nothing
+# and the binary kept its `mi_*` symbols whatever it said (task #88 §5).
 default = ["mimalloc"]
 mimalloc = ["dep:mimalloc"]
 jemalloc = ["dep:tikv-jemallocator"]

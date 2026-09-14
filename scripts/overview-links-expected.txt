@@ -51,71 +51,78 @@
    258  /-- **The main corollary for the shipped binary, axiom-free** (task #75): at
    259  decoded pins, an accepted stream never yields a constant of type `False`.
 
-== crates/con-ron/src/bin/con-ron.rs#L100-L163
-   100  usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
-   101                 [--progress[=<stride>]] [--pins FILE|--no-pins]
-   102                 FILE.ndjson
-   103         con-ron --help
-   104  
-   105    --verified        the default, and the mode the main theorem is about: if
-   106                      the declaration fold accepts a stream in this mode, the
-   107                      environment holds no constant whose type is False
-   108                      (ConLeche.no_proof_of_False, and DESIGN.md §1's
-   109                      conron.no_proof_of_False for the port).
-   110    --trusted         the unverified mode: the SAME checker bodies at the mode
-   111                      with the certification-only work switched off.  An accept
-   112                      in this mode is outside the theorem.
-   113    --jobs=<n>        the check phase's worker count: <n> workers claim records
-   114                      one at a time off a shared counter, and --jobs=1 runs the
-   115                      plain loop with no counter and no result table.  The
-   116                      verdict, and the declaration a rejection names, are the
-   117                      same at every <n>: the results are walked in RECORD order,
-   118                      so the first failing record in fold order is the one
-   119                      reported.  Each worker reserves 1 GiB of address space for
-   120                      its stack, so a run under `ulimit -v` needs 3x the
-   121                      checker's resident set plus a gigabyte per worker; the
-   122                      DEFAULT is one worker per hardware thread capped at 16 for
-   123                      that reason (con-leche's uncapped default aborts on a
-   124                      96-thread machine).  0 or a non-numeral is a usage error,
-   125                      as in con-leche.
-   126    --no-mark-persistent
-   127                      ACCEPTED AND A NO-OP: the mark it turns off is a
-   128                      Lean-runtime reference-counting device
-   129                      (Runtime.markPersistent), and this program's counts are
-   130                      std::sync::Arc counts -- atomic by type, in every lane,
-   131                      with no runtime mark to clear.  A run that passes it says
-   132                      so on stderr.
-   133    --progress[=<stride>]
-   134                      opt-in progress heartbeat on STDERR, one line shape per
-   135                      phase:
-   136                        con-ron: parse done: <N> fold records ... t=<s>s
-   137                        con-ron: install <i>/<N> <decl> t=<s>s
-   138                        con-ron: install done: <N>/<N> ..., <M> checks pending t=<s>s
-   139                        con-ron: check <done>/<M> <kind> <name> t=<s>s
-   140                        con-ron: check done: <M>/<M> t=<s>s
-   141                        con-ron: done: parse <p>s, install <i>s, check <c>s, <n> workers
-   142                      An install line is printed BEFORE every <stride>-th
-   143                      declaration is installed (<i> is its FOLD position, which
-   144                      the stream's record index sits near but not at a fixed
-   145                      offset above), so a run that dies in the install phase
-   146                      names the declaration it died in on its last line.  A
-   147                      check line is printed AFTER every <stride>-th COMPLETED
-   148                      check.  On a failure the phase's closing line says so
-   149                      ('install failed at', 'check failed at') and the summary
-   150                      still prints.  Bare --progress is stride 1; a stride that
-   151                      is not a decimal numeral, or 0, is a usage error.
-   152    --pins FILE       con-ron's own, FOR TESTING: read the pin list from a
-   153                      `con-ron-pins/1` dump instead of the core's own embedded
-   154                      text (task #43), through the UNVERIFIED reader.
-   155    --no-pins         con-ron's own, FOR TESTING: the empty pin list, the pin
-   156                      loop's `[]` arm, under which a Nat.div/Nat.mod stream
-   157                      declines.  Neither flag is needed for a normal run: the
-   158                      pins are con-leche's `natOpPinSets`, embedded in the
-   159                      verified core and decoded by it.
-   160    --help            print this text on STDOUT and exit 0, in any argument
-   161                      position; no input is read.
-   162  
-   163  exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
+== crates/con-ron/src/bin/con-ron.rs#L106-L176
+   106  usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
+   107                 [--progress[=<stride>]] [--pins FILE|--no-pins]
+   108                 FILE.ndjson
+   109         con-ron --help
+   110  
+   111    --verified        the default, and the mode the main theorem is about: if
+   112                      the declaration fold accepts a stream in this mode, the
+   113                      environment holds no constant whose type is False
+   114                      (ConLeche.no_proof_of_False, and DESIGN.md §1's
+   115                      conron.no_proof_of_False for the port).
+   116    --trusted         the unverified mode: the SAME checker bodies at the mode
+   117                      with the certification-only work switched off.  An accept
+   118                      in this mode is outside the theorem.
+   119    --jobs=<n>        the check phase's worker count: <n> workers claim records
+   120                      one at a time off a shared counter, and --jobs=1 runs the
+   121                      plain loop with no counter and no result table.  The
+   122                      verdict, and the declaration a rejection names, are the
+   123                      same at every <n>: the results are walked in RECORD order,
+   124                      so the first failing record in fold order is the one
+   125                      reported.  Each worker reserves 1 GiB of address space for
+   126                      its stack, so a run under `ulimit -v` needs 3x the
+   127                      checker's resident set plus a gigabyte per worker; the
+   128                      DEFAULT is one worker per hardware thread capped at 16 for
+   129                      that reason (con-leche's uncapped default aborts on a
+   130                      96-thread machine).  0 or a non-numeral is a usage error,
+   131                      as in con-leche.
+   132    --no-mark-persistent
+   133                      ACCEPTED AND A NO-OP: the mark it turns off is a
+   134                      Lean-runtime reference-counting device
+   135                      (Runtime.markPersistent), and this program's counts are
+   136                      std::sync::Arc counts -- atomic by type, in every lane,
+   137                      with no runtime mark to clear.  A run that passes it says
+   138                      so on stderr.
+   139    --progress[=<stride>]
+   140                      opt-in progress heartbeat on STDERR, one line shape per
+   141                      phase:
+   142                        con-ron: parse done: <N> fold records ... t=<s>s
+   143                        con-ron: install <i>/<N> <decl> t=<s>s
+   144                        con-ron: install done: <N>/<N> ..., <M> checks pending t=<s>s
+   145                        con-ron: check <done>/<M> <kind> <name> t=<s>s
+   146                        con-ron: check done: <M>/<M> t=<s>s
+   147                        con-ron: done: parse <p>s, install <i>s, check <c>s, <n> workers
+   148                      An install line is printed BEFORE every <stride>-th
+   149                      declaration is installed (<i> is its FOLD position, which
+   150                      the stream's record index sits near but not at a fixed
+   151                      offset above), so a run that dies in the install phase
+   152                      names the declaration it died in on its last line.  A
+   153                      check line is printed AFTER every <stride>-th COMPLETED
+   154                      check.  On a failure the phase's closing line says so
+   155                      ('install failed at', 'check failed at') and the summary
+   156                      still prints.  Bare --progress is stride 1; a stride that
+   157                      is not a decimal numeral, or 0, is a usage error.
+   158    --pins FILE       con-ron's own, FOR TESTING: read the pin list from a
+   159                      `con-ron-pins/1` dump instead of the core's own embedded
+   160                      text (task #43), through the UNVERIFIED reader.
+   161    --no-pins         con-ron's own, FOR TESTING: the empty pin list, the pin
+   162                      loop's `[]` arm, under which a Nat.div/Nat.mod stream
+   163                      declines.  Neither flag is needed for a normal run: the
+   164                      pins are con-leche's `natOpPinSets`, embedded in the
+   165                      verified core and decoded by it.
+   166    --help            print this text on STDOUT and exit 0, in any argument
+   167                      position; no input is read.  Its last line names the
+   168                      global allocator THIS binary was built with (below), so a
+   169                      measurement can be reproduced.
+   170  
+   171  build-time selection (cargo features, not command-line flags): the global
+   172  allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
+   173  dependency edge -- `cargo build --release` is mimalloc, `--no-default-features`
+   174  is glibc `malloc`, and `--no-default-features --features jemalloc` is jemalloc.
+   175  
+   176  exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
 
 == crates/con-ron/src/driver.rs#L42-L47
     42  //! | exit | verdict | meaning |

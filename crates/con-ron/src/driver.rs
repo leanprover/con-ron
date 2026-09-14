@@ -590,6 +590,16 @@ pub fn check_decls_driver<O: PhaseObserver + Send>(
     let m = pend.len();
     let mut fe: FEnv = p.1;
     obs.install_done(total, m, &st, &fe);
+    // The install-phase memo state dies at the phase boundary, as con-leche's
+    // does: `checkDeclsIO` (`Main.lean:342-355`) puts `installLoop`'s returned
+    // `s` only into `InstalledEnv.run`, a `Prop` field the compiler erases, so
+    // the Lean checker's CState is unreachable from here on.  Rust keeps `st`
+    // live to the end of the enclosing scope unless it is dropped, and phase B
+    // never reads it — every check below starts from `cstate_new()`, per
+    // §3.1's memo policy.  Task #88 priced the leak at 18 MB on `core` (13 of
+    // the 14 tables are already empty at this point; `CState::flushed` clears
+    // them at each environment transition, so what dies here is `ienv`).
+    drop(st);
     let workers = workers_for(jobs, m);
     obs.phase_b_workers(workers);
     if workers > 1 {
