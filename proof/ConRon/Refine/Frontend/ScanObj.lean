@@ -1159,4 +1159,355 @@ theorem scan_pw_refines {b : Slice Std.U8} {i : Std.Usize}
       rw [if_neg (by simp [h34]), err_val h]
       exact ScanErrSim.mk (t := .badPw) rfl (by simp)
 
+/-! ## The slot loops' measure
+
+`partial_fixpoint` gives the port's loops no induction principle, so every slot
+loop is a strong induction on `b.len() - i`.  The two facts that make it drop
+are phase 1's (`Refine/Frontend/ScanWF.lean`, where they are `private`): a
+`next_member` that reported a key reported it at or after the cursor, and one
+that returned `Ok` was inside the chunk. -/
+
+/-- `scan_fast::next_member` only ever skips forward: the key it reports sits at
+or after the cursor it was given. -/
+theorem next_member_ge {b : Slice Std.U8} (f : Nat) :
+    ∀ (i : Std.Usize) (w : Bool) (k : frontend.scan_types.Key)
+      (ks v ni : Std.Usize) (nw : Bool),
+      b.length - i.val ≤ f →
+      frontend.scan_fast.next_member b i w
+        = ok (.Ok (frontend.scan_fast.Member.Key k ks v, ni, nw)) →
+      i.val ≤ ks.val := by
+  induction f with
+  | zero =>
+    intro i w k ks v ni nw hf h
+    rw [frontend.scan_fast.next_member, frontend.scan_fast.next_member_loop.eq_def] at h
+    rw [if_pos (show i ≥ Slice.len b by scalar_tac)] at h
+    simp at h
+  | succ f ih =>
+    intro i w k ks v ni nw hf h
+    rw [frontend.scan_fast.next_member, frontend.scan_fast.next_member_loop.eq_def] at h
+    by_cases hend : i ≥ Slice.len b
+    · rw [if_pos hend] at h; simp at h
+    · rw [if_neg hend] at h
+      have hi : i.val < b.length := by scalar_tac
+      obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨w1, -, h⟩ := bind_eq_ok_iff.mp h
+      by_cases hws : w1 = true
+      · rw [if_pos hws] at h
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have h1 := usize_add_one_inv hi2
+        have h2 := ih i2 w k ks v ni nw (by omega) h
+        omega
+      · rw [if_neg hws] at h
+        by_cases hc1 : c = 125#u8
+        · rw [if_pos hc1] at h; simp at h
+        · rw [if_neg hc1] at h
+          by_cases hc2 : c = 44#u8
+          · rw [if_pos hc2] at h
+            by_cases hw : w = true
+            · rw [if_pos hw] at h; simp at h
+            · rw [if_neg hw] at h
+              obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+              have h1 := usize_add_one_inv hi2
+              have h2 := ih i2 true k ks v ni nw (by omega) h
+              omega
+          · rw [if_neg hc2] at h
+            by_cases hc3 : c = 34#u8
+            · rw [if_pos hc3] at h
+              by_cases hw : w = true
+              · rw [if_pos hw] at h
+                obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨ke, -, h⟩ := bind_eq_ok_iff.mp h
+                by_cases hke : ke = 0#usize
+                · rw [if_pos hke] at h; simp at h
+                · rw [if_neg hke] at h
+                  obtain ⟨v1, -, h⟩ := bind_eq_ok_iff.mp h
+                  by_cases hv : v1 = i
+                  · rw [if_pos hv] at h; simp at h
+                  · rw [if_neg hv] at h
+                    obtain ⟨i3, -, h⟩ := bind_eq_ok_iff.mp h
+                    obtain ⟨k1, -, h⟩ := bind_eq_ok_iff.mp h
+                    simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+                      Prod.mk.injEq, frontend.scan_fast.Member.Key.injEq] at h
+                    obtain ⟨⟨-, hks, -⟩, -⟩ := h
+                    subst hks
+                    exact le_refl _
+              · rw [if_neg hw] at h; simp at h
+            · rw [if_neg hc3] at h; simp at h
+
+/-- Past the end of the chunk `next_member` reports `ExpectedComma`, so a member
+loop that got an `Ok` was still inside the chunk. -/
+theorem next_member_lt {b : Slice Std.U8} {i : Std.Usize} {w : Bool}
+    {x : frontend.scan_fast.Member × Std.Usize × Bool}
+    (h : frontend.scan_fast.next_member b i w = ok (.Ok x)) : i.val < b.length := by
+  by_contra hc
+  rw [frontend.scan_fast.next_member, frontend.scan_fast.next_member_loop.eq_def] at h
+  rw [if_pos (show i ≥ Slice.len b by scalar_tac)] at h
+  simp at h
+
+/-- `scan_fast::prog` is `ks < e`, read forwards. -/
+theorem prog_lt {ks e : Std.Usize} {c : Bool}
+    (h : frontend.scan_fast.prog ks e = ok c) (hc : c = true) : ks.val < e.val := by
+  rw [frontend.scan_fast.prog, Result.ok.injEq] at h
+  rw [← h] at hc
+  simp only [decide_eq_true_eq] at hc
+  scalar_tac
+
+/-- `scan_fast::slot_nat` closes with the module's `prog` guard, so a slot that
+succeeded really consumed at least one byte. -/
+theorem slot_nat_prog {b : Slice Std.U8} {ks v e : Std.Usize} {x : Std.U64}
+    (h : frontend.scan_fast.slot_nat b ks v = ok (.Ok (x, e))) : ks.val < e.val := by
+  rw [frontend.scan_fast.slot_nat] at h
+  obtain ⟨e1, -, h⟩ := bind_eq_ok_iff.mp h
+  by_cases h1 : e1 = v
+  · rw [if_pos h1] at h; simp [frontend.scan_fast.err] at h
+  · rw [if_neg h1] at h
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    by_cases h2 : b1 = true
+    · rw [if_pos h2] at h
+      have hp := prog_lt hb1 h2
+      obtain ⟨r, -, h⟩ := bind_eq_ok_iff.mp h
+      cases r with
+      | Err er => simp at h
+      | Ok y =>
+        simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+        rw [← h.2]; exact hp
+    · rw [if_neg h2] at h; simp [frontend.scan_fast.err] at h
+
+/-- `scan_fast::dup` is the duplicate-key test, on con-leche's side. -/
+theorem dup_val {seen bit : Std.U32} {r : Bool}
+    (h : frontend.scan_fast.dup seen bit = ok r) :
+    r = ((absU32 seen &&& absU32 bit) != 0) := by
+  rw [frontend.scan_fast.dup] at h
+  obtain ⟨x, hx, h⟩ := bind_eq_ok_iff.mp h
+  have hx' : seen &&& bit = x := lift_val hx
+  have hr : r = (x != 0#u32) := (Result.ok_injective h).symm
+  rw [hr, ← hx', ← absU32_and, show ((0 : UInt32)) = absU32 0#u32 from rfl]
+  simp only [bne, absU32_beq]
+
+/-! ## The name-table records
+
+`scan_fast.rs:1469-1605` against `Scan/Fast.lean:795-904`.  **These are the
+tier's slot-loop template.**  Each is `memberBody` (above) at its own closing
+arm and key dispatch; `nextMember_step` runs the port's factored
+`scan_fast::next_member` against the skeleton, and the arms are the only work
+left. -/
+
+/-- con-leche's `scanNumNameLoop` closing arm (`Scan/Fast.lean:855-859`). -/
+def numNameClose (pre n : Nat) (seen : UInt32) (p : USize) (w : Bool) : ScanRes NameRec :=
+  if w && seen != 0 then .err ⟨p.toNat, .expectedKey⟩
+  else if (seen &&& 3) != 3 then .err ⟨p.toNat, .missingKey⟩
+  else .ok (.num pre n) (p + 1)
+
+/-- con-leche's `scanNumNameLoop` key dispatch (`Scan/Fast.lean:869-895`). -/
+def numNameKey (b : ByteArray) (seen : UInt32) (n pre : Nat)
+    (k : Key) (ks v : USize) : ScanRes NameRec :=
+  match k with
+  | .kI =>
+    if (seen &&& 1) != 0 then .err ⟨ks.toNat, .duplicateKey⟩
+    else natSlot b ks v (fun x e => scanNumNameLoop b e false (seen ||| 1) x pre)
+  | .kPre =>
+    if (seen &&& 2) != 0 then .err ⟨ks.toNat, .duplicateKey⟩
+    else natSlot b ks v (fun x e => scanNumNameLoop b e false (seen ||| 2) n x)
+  | _ => .err ⟨ks.toNat, .unknownKey⟩
+
+/-- **`scanNumNameLoop` is `memberBody`** at those two arms. -/
+theorem numNameLoop_body (b : ByteArray) (seen : UInt32) (n pre : Nat)
+    (p : USize) (w : Bool) :
+    scanNumNameLoop b p w seen n pre
+      = memberBody b (fun p w => scanNumNameLoop b p w seen n pre)
+          (numNameClose pre n seen) (numNameKey b seen n pre) p w := by
+  rw [scanNumNameLoop]
+  rfl
+
+/-- The loop of `scan_fast::scan_num_name_loop` (con-leche:
+`Scan/Fast.lean:851-898 scanNumNameLoop`). -/
+private theorem scan_num_name_loop_aux {b : Slice Std.U8} (kf : KitFacts b) (f : Nat) :
+    ∀ (w : Bool) (i : Std.Usize) (seen : Std.U32) (n pre : Std.U64)
+      (o : core.result.Result (frontend.scan_types.NameRec × Std.Usize)
+             frontend.scan_types.ScanErr),
+      b.length - i.val ≤ f →
+      frontend.scan_fast.scan_num_name_loop_loop w b i seen n pre = ok o →
+      ScanSim absNameRec o
+        (scanNumNameLoop (absBytes b) (absPos i) w (absU32 seen) (absU64 n) (absU64 pre)) := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w i seen n pre o hf h
+    rw [frontend.scan_fast.scan_num_name_loop_loop.eq_def] at h
+    obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+    have hstep := nextMember_step (b := b)
+      (L := fun p w => scanNumNameLoop (absBytes b) p w (absU32 seen) (absU64 n) (absU64 pre))
+      (CL := numNameClose (absU64 pre) (absU64 n) (absU32 seen))
+      (DI := numNameKey (absBytes b) (absU32 seen) (absU64 n) (absU64 pre))
+      kf (numNameLoop_body (absBytes b) (absU32 seen) (absU64 n) (absU64 pre))
+      (b.length - i.val) i w r (le_refl _) hr
+    have hz0 : ((0 : UInt32)) = absU32 0#u32 := rfl
+    cases r with
+    | Err er =>
+      rw [← Result.ok_injective h]
+      exact hstep
+    | Ok p =>
+      obtain ⟨mem, ni, nw⟩ := p
+      have hilt := next_member_lt hr
+      cases mem with
+      | Close =>
+        simp only [uncurry_apply_pair] at h
+        have key : scanNumNameLoop (absBytes b) (absPos i) w (absU32 seen) (absU64 n)
+              (absU64 pre)
+            = numNameClose (absU64 pre) (absU64 n) (absU32 seen) (absPos ni) nw :=
+          MemberStep.close hstep
+        rw [key, numNameClose]
+        have hseen0 : ((absU32 seen != 0)) = ((seen != 0#u32)) := by
+          rw [hz0]; simp only [bne, absU32_beq]
+        by_cases hnw : nw = true
+        · rw [if_pos hnw] at h
+          by_cases hzr : (seen != 0#u32) = true
+          · rw [if_pos hzr] at h
+            rw [if_pos (show (nw && (absU32 seen != 0)) = true by
+              rw [hnw, hseen0, hzr]; rfl), err_val h]
+            exact ScanErrSim.mk (t := .expectedKey) rfl (by simp)
+          · rw [if_neg hzr] at h
+            rw [if_neg (show ¬ ((nw && (absU32 seen != 0)) = true) by
+              rw [hnw, hseen0]; simpa using hzr)]
+            obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+            have hi1' : seen &&& 3#u32 = i1 := lift_val hi1
+            have hmask : (((absU32 seen &&& 3) != 3)) = ((i1 != 3#u32)) := by
+              rw [← hi1', show ((3 : UInt32)) = absU32 3#u32 from rfl, ← absU32_and]
+              simp only [bne, absU32_beq]
+            by_cases hm : (i1 != 3#u32) = true
+            · rw [if_pos hm] at h
+              rw [if_pos (show (((absU32 seen &&& 3) != 3)) = true by rw [hmask]; exact hm),
+                err_val h]
+              exact ScanErrSim.mk (t := .missingKey) rfl (by simp)
+            · rw [if_neg hm] at h
+              rw [if_neg (show ¬ ((((absU32 seen &&& 3) != 3)) = true) by
+                rw [hmask]; exact hm)]
+              obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+              rw [← Result.ok_injective h]
+              refine ScanSim.ok ?_
+              rw [← absPos_add_one hi2]
+              rfl
+        · rw [if_neg hnw] at h
+          rw [if_neg (show ¬ ((nw && (absU32 seen != 0)) = true) by
+            rw [show nw = false by simpa using hnw]; simp)]
+          obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+          have hi1' : seen &&& 3#u32 = i1 := lift_val hi1
+          have hmask : (((absU32 seen &&& 3) != 3)) = ((i1 != 3#u32)) := by
+            rw [← hi1', show ((3 : UInt32)) = absU32 3#u32 from rfl, ← absU32_and]
+            simp only [bne, absU32_beq]
+          by_cases hm : (i1 != 3#u32) = true
+          · rw [if_pos hm] at h
+            rw [if_pos (show (((absU32 seen &&& 3) != 3)) = true by rw [hmask]; exact hm),
+              err_val h]
+            exact ScanErrSim.mk (t := .missingKey) rfl (by simp)
+          · rw [if_neg hm] at h
+            rw [if_neg (show ¬ ((((absU32 seen &&& 3) != 3)) = true) by
+              rw [hmask]; exact hm)]
+            obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+            rw [← Result.ok_injective h]
+            refine ScanSim.ok ?_
+            rw [← absPos_add_one hi2]
+            rfl
+      | Key k ks v =>
+        simp only [uncurry_apply_pair] at h
+        have key : scanNumNameLoop (absBytes b) (absPos i) w (absU32 seen) (absU64 n)
+              (absU64 pre)
+            = numNameKey (absBytes b) (absU32 seen) (absU64 n) (absU64 pre)
+                (absKey k) (absPos ks) (absPos v) :=
+          MemberStep.key hstep
+        rw [key]
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hr
+        cases k
+        case KI =>
+          simp only [absKey, numNameKey]
+          obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          have hb1' : b1 = ((absU32 seen &&& absU32 1#u32) != 0) := dup_val hb1
+          by_cases hd : b1 = true
+          · rw [if_pos hd] at h
+            rw [if_pos (show ((absU32 seen &&& 1) != 0) = true by
+              rw [show ((1 : UInt32)) = absU32 1#u32 from rfl, ← hb1']; exact hd), err_val h]
+            exact ScanErrSim.mk (t := .duplicateKey) rfl (by simp)
+          · rw [if_neg hd] at h
+            rw [if_neg (show ¬ (((absU32 seen &&& 1) != 0) = true) by
+              rw [show ((1 : UInt32)) = absU32 1#u32 from rfl, ← hb1']; exact hd)]
+            obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+            have hslot := natSlot_step (b := b) (ks := ks) (v := v)
+              (K := fun (x : Nat) (e : USize) =>
+                scanNumNameLoop (absBytes b) e false (absU32 seen ||| 1) x (absU64 pre)) hr1
+            cases r1 with
+            | Ok p1 =>
+              obtain ⟨x, e⟩ := p1
+              rw [NatSlotStep.ok hslot]
+              obtain ⟨seen1, hseen1, h⟩ := bind_eq_ok_iff.mp h
+              have hs1 : absU32 seen1 = absU32 seen ||| 1 := by
+                rw [← lift_val hseen1, absU32_or]
+                rfl
+              have hlt := slot_nat_prog hr1
+              rw [← hs1]
+              exact ih (b.length - e.val) (by omega) false e seen1 x pre o (le_refl _) h
+            | Err er =>
+              rw [← Result.ok_injective h]
+              exact NatSlotStep.err hslot
+        case KPre =>
+          simp only [absKey, numNameKey]
+          obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          have hb1' : b1 = ((absU32 seen &&& absU32 2#u32) != 0) := dup_val hb1
+          by_cases hd : b1 = true
+          · rw [if_pos hd] at h
+            rw [if_pos (show ((absU32 seen &&& 2) != 0) = true by
+              rw [show ((2 : UInt32)) = absU32 2#u32 from rfl, ← hb1']; exact hd), err_val h]
+            exact ScanErrSim.mk (t := .duplicateKey) rfl (by simp)
+          · rw [if_neg hd] at h
+            rw [if_neg (show ¬ (((absU32 seen &&& 2) != 0) = true) by
+              rw [show ((2 : UInt32)) = absU32 2#u32 from rfl, ← hb1']; exact hd)]
+            obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+            have hslot := natSlot_step (b := b) (ks := ks) (v := v)
+              (K := fun (x : Nat) (e : USize) =>
+                scanNumNameLoop (absBytes b) e false (absU32 seen ||| 2) (absU64 n) x) hr1
+            cases r1 with
+            | Ok p1 =>
+              obtain ⟨x, e⟩ := p1
+              rw [NatSlotStep.ok hslot]
+              obtain ⟨seen1, hseen1, h⟩ := bind_eq_ok_iff.mp h
+              have hs1 : absU32 seen1 = absU32 seen ||| 2 := by
+                rw [← lift_val hseen1, absU32_or]
+                rfl
+              have hlt := slot_nat_prog hr1
+              rw [← hs1]
+              exact ih (b.length - e.val) (by omega) false e seen1 n x o (le_refl _) h
+            | Err er =>
+              rw [← Result.ok_injective h]
+              exact NatSlotStep.err hslot
+        all_goals
+          (simp only [absKey, numNameKey]
+           rw [err_val h]
+           exact ScanErrSim.mk (t := .unknownKey) rfl (by simp))
+
+/-- **`scan_num_name_loop` refines `scanNumNameLoop`** at the empty state. -/
+theorem scan_num_name_loop_refines {b : Slice Std.U8} (kf : KitFacts b) {i : Std.Usize}
+    {o : core.result.Result (frontend.scan_types.NameRec × Std.Usize)
+           frontend.scan_types.ScanErr}
+    (h : frontend.scan_fast.scan_num_name_loop b i = ok o) :
+    ScanSim absNameRec o (scanNumNameLoop (absBytes b) (absPos i) true 0 0 0) :=
+  scan_num_name_loop_aux kf (b.length - i.val) true i 0#u32 0#u64 0#u64 o (le_refl _) h
+
+/-- **`scan_num_name` refines `scanNumName`** (`Scan/Fast.lean:900-904`). -/
+theorem scan_num_name_refines {b : Slice Std.U8} (kf : KitFacts b) {i : Std.Usize}
+    {o : core.result.Result (frontend.scan_types.NameRec × Std.Usize)
+           frontend.scan_types.ScanErr}
+    (h : frontend.scan_fast.scan_num_name b i = ok o) :
+    ScanSim absNameRec o (scanNumName (absBytes b) (absPos i)) := by
+  rw [frontend.scan_fast.scan_num_name] at h
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  have hcA : absByte c = byteAt (absBytes b) (absPos i) := byte_at_refines hc
+  rw [scanNumName, ← hcA, show ((123 : UInt8)) = absByte 123#u8 from rfl, absByte_beq_u8]
+  by_cases h123 : c = 123#u8
+  · rw [if_pos h123] at h
+    rw [if_pos (beq_iff_eq.mpr h123)]
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    rw [← absPos_add_one hi2]
+    exact scan_num_name_loop_refines kf h
+  · rw [if_neg h123] at h
+    rw [if_neg (by simp [h123]), err_val h]
+    exact ScanErrSim.mk (t := .expectedObject) rfl (by simp)
+
 end ConRon.Refine.Frontend
