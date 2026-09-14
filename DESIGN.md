@@ -16744,7 +16744,8 @@ target map: `is_nat_op_record`, `idx_get`, `target_done`, `target_is`,
 `hoist_moved_names`, `apply_hoist` and `hoist_nat_op_ground`.
 
 **The residue is one field, `HoistSpec.targets`**: that `hoist_targets`
-computes `hoistTargets`.  Under it sit `used_consts_go`, `decl_used_consts`,
+computes `hoistTargets`.  (It fell later in the same task — §18; what follows
+is why it did not fall *here*, which is the part worth keeping.)  Under it sit `used_consts_go`, `decl_used_consts`,
 `block_used_consts`, `hoist_name_index` and the `hoist_close` worklist, and the
 reason they did not fall is worth recording: the port is an explicit
 `Vec<Expr>` worklist with a `ron::HashMap<Expr, bool>` seen table where
@@ -16899,7 +16900,7 @@ owed?"* has a finite, checkable answer.  At the end of this task:
 | `ScanObj.KitFacts` | `ScanObj` | 3 | **discharged** (`kitFacts`, once `key_at_refines` landed) |
 | `ScanObj.ScanStringFacts` | `ScanObj` | 1 | = `scan_string_refines`, i.e. the two above |
 | `ScanStr.Utf8DecodeSpec` / `UnescapeSpec` | `ScanStr` | 2 | **open** — `utf8_decode`/`unescape` against `String.fromUTF8?`/`unescape` |
-| `PrepareR.HoistSpec` | `PrepareR` | 1 | **open** — `hoist_targets` computes `hoistTargets` (§5) |
+| `PrepareR.HoistSpec` | `PrepareR` | 1 | **discharged and deleted** (§18) — `hoist_targets_refines` |
 | `StateDR.NatValSpec` | `StateDR` | 1 | **discharged** by `from_decimal_ok` + `from_decimal_refines` |
 | `IndR.IndRSpec` | `IndR` | 3 | `proj_rewrite_d`, `validate_ind_d`, `install_ind_d` |
 | `ChunksR.ParseIngredients` | `ChunksR` | 6 | 5 and 6 discharged; 1-3 are `ScanLine`'s, 4 is `IndR`'s |
@@ -17261,3 +17262,105 @@ That is the difference between a headline that *has* a residue and one that
 without opening a proof: two facts about the scanner's UTF-8 decoder, three
 about the inductive install path, one about the ground hoist, and the
 modeller's own promise — the residue task #84's seam left on purpose.
+
+#### 18. The hoist's target pass: the last record hypothesis, proved
+
+§5 stopped at one field.  `hoist_targets` — the pass that decides which ground
+`Nat` records get hoisted and where to — is the port's explicit `Vec` worklist
+with a `ron::HashMap` seen-table where con-leche writes one `Id.run do` with
+three `for`s and a `while`, and the port's loop *has no decreasing measure in
+the Aeneas model*: the stack pointer `sp` goes up as well as down.  That is
+why §5 recorded it as `HoistSpec.targets` rather than faking it.
+
+It is now the theorem
+
+```lean
+theorem hoist_targets_refines (hds : ∀ d ∈ ds.val, DeclarationWF d)
+    (h : frontend.nat_op_ground.hoist_targets ds = ok t) :
+    HoistTargetRel t (ConLeche.Frontend.hoistTargets (absDecls ds).toArray) ∧
+      HoistBounded (ConLeche.Frontend.hoistTargets (absDecls ds).toArray) ds.val.length
+```
+
+and the `HoistSpec` structure is **deleted**.  `prepare_prelude_refines` is
+therefore hypothesis-free apart from well-formedness (`PreludeIxWF pre` and
+`∀ d ∈ ds.val, DeclarationWF d`), and the headline lost a hypothesis:
+`conron.no_False_declaration` and its prelude twin now read
+
+```lean
+theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+    (hgen : Frontend.ModellerWF inst g)
+    (hu : Frontend.Utf8DecodeSpec) (hun : Frontend.UnescapeSpec)
+    (hsp : Frontend.IndRSpec inst g)
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+    (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+    (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+    (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    False
+```
+
+— three named parse assumptions and the modeller's promise, both censuses
+still `[propext, Classical.choice, Quot.sound]`.  §17's block and §8's
+`HoistSpec` row are superseded by this one.
+
+**The escape hatch, and why it is not one.**  con-leche's `hoistTargets` is a
+single `do` block, so there is nothing to induct against function by function.
+The file restates it as one definition per loop — `hoistIdxNames`, `hoistIdx`,
+`hoistPushDeps`, `hoistClose`, `hoistTargetsAt`, `hoistTargetsGo` — and proves
+
+```lean
+theorem hoistTargets_split : ConLeche.Frontend.hoistTargets ds =
+  hoistTargetsGo ds (hoistIdx ds (List.range' 0 ds.size) {}) (List.range' 0 ds.size) {}
+```
+
+by `simp only [… forIn_eq_forIn_range' …]; rfl`.  The split is *definitional*:
+those `forIn`s **are** these definitions, so the restatement assumes nothing.
+The `while` is the exception — `hoistClose` is literally `Lean.Loop.forIn`, a
+`partial` fixpoint, so it gets only a one-step unfolding `hoistClose_eq` (from
+`Lean.Loop.forIn_eq_of_monadTail`, which needed the one new import,
+`Init.Internal.Order.While`).  **Nothing claims con-leche's loop terminates**:
+the port's own `= ok` run is the witness, and both sides are unfolded in
+lock-step.
+
+**The measure.**  The induction is lexicographic and done without any product
+measure or nonlinear arithmetic: a strong induction on the *undone* count
+`undone s i n = ((List.range n).filter (!targetDone s i ·)).length` — a turn
+that targets a record inserts `k ↦ i`, which makes `k` done forever and changes
+no other position (`undone_insert_lt`, via `HashMap.support` and
+`Std.HashMap.size_insert`) — inside which an ordinary induction on the port's
+`sp` handles the turns that only pop.  `HoistBounded` (every key and value
+below `ds.len()`) rides the same induction, which is what discharges
+`apply_hoist`'s standing requirement at its one call site.
+
+**Inventory** (all in `Refine/Frontend/PrepareR.lean`, +1 628 lines, no
+`sorry`, whole-file elaboration 5.5 s → 8.1/8.4/8.8 s over three runs at
+`--threads=4`): `used_consts_go_refines`, `ruleBody`/`blockBody`/
+`usedConsts_indDecl`, `block_used_consts_loop0_loop0_refines`,
+`block_used_consts_loop0_refines`, `block_used_consts_refines`,
+`decl_used_consts_refines`; `absDecls_getElem!`, `idx_new`/`idx_contains`/
+`idx_insert`, `hoist_name_index_loop0_loop0_refines`,
+`hoist_name_index_loop0_refines`, `hoist_name_index_refines`, `HoistIdxBounded`
+with `hoistIdxNames_bounded`/`hoistIdx_bounded`; `stack_push_u64_take`,
+`hoist_push_dep_refines`, `hoist_push_deps_loop_refines`,
+`hoist_push_deps_refines`, `hoistPushDeps_bounded`; `targetDone`, `undone`,
+`filter_length_le`/`_lt`, `undone_insert_lt`, `tgt_insert`, `stack_top`,
+`bind_triple_eq_ok_iff`, `hoist_close_step_done`, `hoist_close_step_push`,
+`hoist_close_loop_refines`, `hoist_close_refines`; `tgt_new`,
+`hoist_targets_one_refines`, `hoist_targets_at_loop_refines`,
+`hoist_targets_at_refines`, `hoist_targets_loop_refines`,
+`hoist_targets_refines`.
+
+Every one is a hand proof in phase 1's forward style (`= ok` →
+`bind_eq_ok_iff` → the arms); the task-#71 `rust_norm`/`rust_grind` idiom was
+tried and used on **none** of them — `Vec` loops and list folds are outside its
+measured scope, which is now the fourth independent measurement of that limit
+in this task.
+
+**No port bug.**  `hoist_targets` agrees with `hoistTargets` on every
+well-formed input including every tie-break: `acc`'s push order in
+`used_consts_go`, the top-of-vector discipline of `hoist_close`'s stack, and
+"first declarer wins" in `hoist_name_index`.  The only deviations are the ones
+already paid for — the `Vec`/`usize` failure channel, about which the relation
+claims nothing, and the `u64`↔`usize` casts, which succeed because every index
+is a stream position.
