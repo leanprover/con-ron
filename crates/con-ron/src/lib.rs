@@ -21,17 +21,17 @@
 //! | `frontend::scan_types` | `ConLeche/Frontend/Scan/Types.lean` |
 //! | `frontend::scan_fast` | `ConLeche/Frontend/Scan/Fast.lean` (spec: `Scan/Naive.lean`) |
 //! | `frontend::export` | `ConLeche/Frontend/Export.lean` |
-//! | `frontend::basis_raw` | `ConLeche/Kernel/Basis/*.lean` (the *raw* pins) |
 //! | `frontend::proj_rec` | `ConLeche/Frontend/ProjRec.lean` |
 //! | `frontend::nat_op_ground` | `ConLeche/Frontend/NatOpGround.lean` |
 //! | `frontend::export_c` | `ConLeche/Frontend/ExportC.lean` |
 //! | `frontend::prelude` | `ConLeche/Frontend/Prelude.lean` |
+//! | `frontend::prepare` | `ConLeche/Frontend/Prepare.lean` |
 //! | `in_model` | `ConLeche/Frontend/InModel.lean` |
 //! | `in_model::kit` | `ConLeche/Frontend/InModel/Kit.lean` |
 //! | `in_model::mutual` | `ConLeche/Frontend/InModel/Mutual.lean` |
 //! | `in_model::nested` | `ConLeche/Frontend/InModel/Nested.lean` |
 //! | `driver` | `Main.lean` (the driver: the phases, the flags, the verdict) |
-//! | `pool` | `Main.lean:213-328` (phase B on a pool of check workers) |
+//! | `pool` | `Main.lean:193-316` (phase B on a pool of check workers) |
 //! | `src/bin/con-ron.rs` | `Main.lean` (the binary) |
 //!
 //! **Three things are deliberately not here**, and every one of them is a

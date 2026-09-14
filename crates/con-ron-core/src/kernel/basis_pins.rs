@@ -97,7 +97,7 @@ pub fn is_pinned_nat_basis(ci: &ConstantInfo) -> bool {
     env::constant_info_beq(ci, &nat_a())
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:322-373 stdAxiomOk
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:313-364 stdAxiomOk
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:475-495 checkProjLookups
@@ -113,7 +113,7 @@ pub fn eq_basis_pinned(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:177-184 reduceElemOk
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:179-186 reduceElemOk
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:288-294 reduceElemOkF
 /// The same for `Nat`: `decide (env.find? natName = some natA)`, the element
 /// inductive an `ofReduceNat` axiom needs.

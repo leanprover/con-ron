@@ -46,9 +46,9 @@ weaker; there is no second lane to be separated from.*
 
 ## WHAT IT MEASURES NOW
 
-A **frozen module-level dependency pin**: for each of the ten
-pinned roots (the main theorem, the letters it is a corollary of and
-the assembly lemmas under them), the exact set of `ConLeche.*` modules its type and
+A **frozen module-level dependency pin**: for each of the eleven
+pinned roots (the main theorem, the main corollary, and the letters
+and assembly lemmas under them), the exact set of `ConLeche.*` modules its type and
 proof term reach, transitively, at the constant level.  The expectation
 is `tests/proofdeps-expected.txt` and the gate is a diff, so any drift
 shows up as a named module appearing or disappearing — which is the
@@ -115,8 +115,12 @@ is a corollary of and the assembly under those.
   the shipped `--verified` configuration, named outright, has a model
   in every set theory (`Nonempty (Model V env)`, `ConLeche/Denotes.lean`).
   It is pinned as a root because it is what a reader checks first.
-* `main_False` — **the main corollary**, derived from it: that
-  environment holds no constant of type `False`.
+* `main_file_False` — **the main corollary**, derived from it at the
+  FILE the binary reads: a file that declares a theorem of type
+  `False` is never accepted (`ConLeche/MainTheorem.lean`).
+* `stream_False` — the step it rests on, at the fold's INPUT: a stream
+  that declares a theorem of type `False` is never accepted
+  (`ConLeche/Verify/Cached/StreamThm.lean`).
 * `False_cached` / `Empty_cached` — **the fold's letters**: the checker,
   running a validating mode over the direct-parse cached core, never
   accepts a stream in which some stored constant has type `False`
@@ -133,7 +137,8 @@ is a corollary of and the assembly under those.
   about. -/
 private def roots : List (String × Name) :=
   [("main_model", `ConLeche.model_exists),
-   ("main_False", `ConLeche.no_proof_of_False),
+   ("main_file_False", `ConLeche.no_False_declaration),
+   ("stream_False", `ConLeche.no_False_theorem_accepted),
    ("False_cached", `ConLeche.Cached.no_proof_of_False_cached),
    ("Empty_cached", `ConLeche.Cached.no_proof_of_Empty_cached),
    ("sound_cached", `ConLeche.Cached.checkDecls_sound),

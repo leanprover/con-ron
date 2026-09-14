@@ -5,7 +5,7 @@
 than duplicating other files' work:
 
 * **`InstantiateListRefines`** — the memoised `instantiate_list` walk refines
-  `ExprC.instantiateList`.  Task #51 owned the statement and left it a `sorry`;
+  `Expr.instantiateListC`.  Task #51 owned the statement and left it a `sorry`;
   **task #54 closed it**, so it is now a theorem and this file discharges the
   hypothesis once, for every arm that calls `inst_list_m`.
 * **`InstLevelParamsRefines`** — likewise for `inst_level_params`.

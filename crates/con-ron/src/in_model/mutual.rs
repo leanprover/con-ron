@@ -17,7 +17,7 @@
 //!   front-to-back, which is con-leche's `List (Name × Nat)` with `find?`.
 //! * The four-component tuples of `Kit.recTy`/`recRhs` are `kit::KCtor`.
 
-use con_ron_core::cached::parsed_c::DeclC;
+use con_ron_core::kernel::env::Declaration;
 use con_ron_core::kernel::basis_names as bnm;
 use con_ron_core::kernel::core_k;
 use con_ron_core::kernel::env;
@@ -39,7 +39,7 @@ use crate::in_model::kit::{
     pi_binders, sub, tag_ctor_name, vars_at, KCtor,
 };
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:67-76 IndTypeRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:65-74 IndTypeRec
 /// One inductive type of a parsed block, with the export's shape data.
 pub struct IndTypeRec {
     pub cv: ConstantVal,
@@ -51,7 +51,7 @@ pub struct IndTypeRec {
     pub num_nested: u64,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:78-83 IndCtorRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:76-81 IndCtorRec
 /// One constructor of a parsed block.
 pub struct IndCtorRec {
     pub cv: ConstantVal,
@@ -59,7 +59,7 @@ pub struct IndCtorRec {
     pub n_f: u64,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:85-94 IndRecRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:83-92 IndRecRec
 /// One recursor of a parsed block (`numParams`, `numMotives`, `numMinors`,
 /// `numIndices` as exported).
 pub struct IndRecRec {
@@ -71,7 +71,7 @@ pub struct IndRecRec {
     pub rules: Vec<RecRule>,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:96-101 BlockRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:94-99 BlockRec
 /// A parsed inductive block.
 pub struct BlockRec {
     pub types: Vec<IndTypeRec>,
@@ -79,7 +79,7 @@ pub struct BlockRec {
     pub recs: Vec<IndRecRec>,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:103-110 Ctx
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:101-108 Ctx
 /// What the generator reads besides the block: the declared types of the
 /// constants so far, the definitional heights, and the parsed inductive
 /// blocks so far by member type name (the nested rung reads a container's
@@ -90,7 +90,7 @@ pub struct Ctx<'a> {
     pub blocks: &'a dyn Fn(&Name) -> Option<&'a BlockRec>,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:112-118 MCtor
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:110-116 MCtor
 /// A constructor of member `m`, classified: its record, its recursive field
 /// positions with the target member of each.
 pub struct MCtor<'a> {
@@ -99,7 +99,7 @@ pub struct MCtor<'a> {
     pub rec_fields: Vec<(u64, u64)>,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:120-133 memberApp?
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:118-131 memberApp?
 /// Is `e` member `m'` of the block applied to the parameter variables (`o`
 /// binders below the parameter frame) and `nIdx_{m'}` index expressions?
 /// Returns the member.
@@ -131,7 +131,7 @@ pub fn member_app(
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:135-155 classifyCtor
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:133-153 classifyCtor
 /// Classify one constructor's fields: each domain is ordinary (no member
 /// mentioned) or exactly a member at the parameters and some index
 /// expressions (`T_{m'} p⃗ e⃗`); anything else is not this rung's (nested,
@@ -176,17 +176,17 @@ pub fn classify_ctor<'a>(
     })
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:157-160 need
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:155-158 need
 /// Unwrap a generator step that cannot fail on a well-formed block.
 pub fn need<T>(what: &str, o: Option<T>) -> Result<T, String> {
     o.ok_or_else(|| format!("internal shape failure: {}", what))
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:162-454 genMutual
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:160-452 genMutual
 /// **The mutual rung** (B1 index-free, B2 indexed).  The records, in stream
 /// order: the tag block, the auxiliary block, the member/constructor/recursor
 /// models, the iota theorems, the projection artifacts.
-pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
+pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
     let t0 = b.types.first().ok_or_else(|| "empty block".to_string())?;
     let t_name = name::dup(&t0.cv.name);
     let lps: Vec<Name> = t0.cv.level_params.iter().map(name::dup).collect();
@@ -403,7 +403,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
     let tag = kit::tag_name(&t_name);
     let aux = kit::aux_name(&t_name);
     let ps0 = vars_at(0, n_p);
-    let mut out: Vec<DeclC> = Vec::new();
+    let mut out: Vec<Declaration> = Vec::new();
     let mut heights: Vec<(Name, u64)> = Vec::new();
     // 1. the tag block: `tag : ∀ p⃗, Sort W`, `tag.m : ∀ p⃗ ı⃗_m, tag p⃗` with
     // `W = max 1 (the sorts of the index domains)` (B2; `Type` at an
@@ -525,7 +525,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
             tag_rules,
         ));
     }
-    out.push(DeclC::IndDecl(tag_block, n_p));
+    out.push(Declaration::IndDecl(tag_block, n_p));
     // 2. the auxiliary family
     let aux_ty = need(
         "aux type",
@@ -617,7 +617,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
         n_p + 1 + n,
         aux_rules,
     ));
-    out.push(DeclC::IndDecl(aux_block, n_p));
+    out.push(Declaration::IndDecl(aux_block, n_p));
     // 3. the member models `T_m._model := λ p⃗ ı⃗, aux p⃗ (tag.m p⃗ ı⃗)`
     for m in 0..k {
         let t = &b.types[m as usize];
@@ -644,7 +644,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
             kit::hint_for(&hof, &value)
         };
         heights.insert(0, (model_name(&t.cv.name), kit::hint_height(&h)));
-        out.push(DeclC::DefnDecl(
+        out.push(Declaration::DefnDecl(
             ConstantVal {
                 name: model_name(&t.cv.name),
                 level_params: lps.iter().map(name::dup).collect(),
@@ -679,7 +679,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
             kit::hint_for(&hof, &value)
         };
         heights.insert(0, (model_name(&mc.c.cv.name), kit::hint_height(&h)));
-        out.push(DeclC::DefnDecl(
+        out.push(Declaration::DefnDecl(
             ConstantVal {
                 name: model_name(&mc.c.cv.name),
                 level_params: lps.iter().map(name::dup).collect(),
@@ -760,7 +760,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
             kit::hint_for(&hof, &value)
         };
         heights.insert(0, (model_name(&r.cv.name), kit::hint_height(&h)));
-        out.push(DeclC::DefnDecl(
+        out.push(Declaration::DefnDecl(
             ConstantVal {
                 name: model_name(&r.cv.name),
                 level_params: rlps.iter().map(name::dup).collect(),
@@ -874,7 +874,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
                     ),
                 ),
             )?;
-            out.push(DeclC::ThmDecl(
+            out.push(Declaration::ThmDecl(
                 ConstantVal {
                     name: iota_name(&r.cv.name, j),
                     level_params: rlps.iter().map(name::dup).collect(),
@@ -1023,7 +1023,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
                         kit::hint_height(&h),
                     ),
                 );
-                out.push(DeclC::DefnDecl(
+                out.push(Declaration::DefnDecl(
                     ConstantVal {
                         name: core_k::proj_model_name(&t.cv.name, i),
                         level_params: lps.iter().map(name::dup).collect(),
@@ -1071,7 +1071,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
                         continue;
                     }
                 };
-                out.push(DeclC::ThmDecl(
+                out.push(Declaration::ThmDecl(
                     ConstantVal {
                         name: kit::nstr(core_k::proj_model_name(&t.cv.name, i), "iota"),
                         level_params: lps.iter().map(name::dup).collect(),
@@ -1085,8 +1085,8 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:162-454 genMutual
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:401-1317 genNested
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:160-452 genMutual
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
 /// The `hOf` of both generators: the height of a constant, the definitions
 /// emitted by this block first (they are not in `ctx` yet), else the parse
 /// state's table.

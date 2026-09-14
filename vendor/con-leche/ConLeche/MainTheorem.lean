@@ -1,19 +1,39 @@
 module
 
-public import ConLeche.Verify.Cached.MainC
+import ConLeche.Verify.Cached.MainC
 public import ConLeche.Denotes
+public import ConLeche.Accepts
+public import ConLeche.Frontend.Prelude
+public import ConLeche.Cached.Installed
 import ConLeche.Model.Denotes
+import ConLeche.Verify.Cached.StreamThm
+import ConLeche.Verify.Frontend.Prepare
+import ConLeche.Verify.Frontend.FileFalse
 public section
 
 /-!
-# The main theorem, and the main corollary it implies
+# The main theorem and the main corollary
 
-What the checker accepts has a model; hence it contains no constant of
-type `False`.  Those two theorems are all this file holds.  The
-statements, with a plain-words account of every name in them, are in
-`ConLeche/Challenge.lean`; the reading of terms and the notion of
-model — and `Denotes_functional`, which says a term has at most one
-denotation — in `ConLeche/Denotes.lean`.
+What the checker accepts has a model; hence a file that declares a
+theorem of type `False` is rejected — the form a reader can check
+without knowing what an `Env` is.  Those two theorems are all this file
+holds.  The corollary's hypothesis is the file: the chunks the binary
+read are the UTF-8 of `jsonWithTheoremFalse`'s template, ONE way of
+writing a theorem of type `False` into a JSON export.  Its conclusion
+is the binary's accept path itself, erroring: the three pure functions
+the driver's phases compute, chained — the built-in prelude parses, the
+chunks parse, the verified fold accepts the parsed records prepared
+with the prelude — return an error.  The steps between are imported:
+the parser reads such chunks into records holding a theorem record of
+type `False` (`Frontend.parseChunks_jsonWithTheoremFalse`), the
+preparation keeps every parsed record (`Frontend.mem_preparePrelude`),
+and a stream holding such a record is never accepted
+(`no_False_theorem_accepted`: the record is installed under its own
+name with its declared type, and in the model of the main theorem that
+type is the empty set).  The statements, with a plain-words account of
+every name in them, are in `ConLeche/Challenge.lean`; the reading of
+terms and the notion of model — and `Denotes_functional`, which says a
+term has at most one denotation — in `ConLeche/Denotes.lean`.
 
 * `checkDecls` (`ConLeche/Cached/Installed.lean`) is the declaration
   fold: it installs every parsed declaration — a definition, theorem
@@ -25,11 +45,34 @@ denotation — in `ConLeche/Denotes.lean`.
   with the proof that `checkDecls` returns it
   (`Cached.fullyChecked_checkDecls`), so the success line is printed
   from an accept of `checkDecls` and from nothing else.
-* `DeclC` is a parsed declaration; `Env` is the environment the checker
-  builds; `env.consts` are the constants it accepted; `.verified` is the
-  default mode.
+* `Frontend.builtinPreludeE` is the parsed built-in prelude,
+  `Frontend.parseChunks` the streaming parse of the chunks the file
+  handle hands out (the driver's read loop, minus the reads), and
+  `Frontend.preparePrelude` the preparation of the parsed records for
+  the fold.  The three fail in ONE error type — the checker's own
+  `CheckError` with the position of the failure (the input's line
+  number for the first two, the fold position for the fold) — so the
+  chain is a plain `Except` `do` block with no conversion in it, and
+  the conclusion is simply that it errors, with no claim about which
+  step erred or why.
+* `Declaration` is a parsed declaration, and the records travel as an
+  `Array` of them — what the parse returns and what the fold folds;
+  `Env` is the environment the checker builds; `env.consts` are the
+  constants it accepted; `.verified` is the default mode.
+* `jsonWithTheoremFalse` (`ConLeche/Accepts.lean`) is one particular
+  JSON file declaring a theorem of type `False`, as a whole-file
+  template over the chunks' concatenation — not every proof of `False`,
+  one shape of one.
 * `False` and `Eq` are built in: the checker installs them from its own
   pins, and a stream that declares them differently is rejected.
+* `pins` is the list of `Nat.div`/`Nat.mod` pin variants the fold's
+  install gate tries (task #304).  Both statements are for EVERY list:
+  consistency does not depend on it — under the empty list every
+  stream that declares `Nat.div` simply declines, and under any other
+  what an accept establishes is the certificates' verdict in the
+  accepted environment, which is all the model tier reads.  The
+  shipped `con-leche` binary runs the fold at `natOpPinSets`, the
+  variants this toolchain committed.
 * `SetTheory V` is the set theory the model lives in; the proof works
   for any `V` implementing that interface.
 
@@ -40,63 +83,42 @@ The axioms used are exactly `propext`, `Classical.choice` and
 namespace ConLeche
 
 open SetTheory
-open ConLeche.Cached (DeclC checkDecls)
+open ConLeche.Cached (checkDecls)
 
 universe w
 
-/-! ## At an arbitrary `Nat.div`/`Nat.mod` pin list
-
-The fold's third argument is the list of pin variants its
-`Nat.div`/`Nat.mod` install gate tries (task #285); the shipped
-`checkDecls .verified ds` is the fold at `natOpPinSets`, the variants
-this toolchain committed.  Nothing in the consistency argument reads
-that list — the model's certificate conversion is over an arbitrary
-variant, because what it consumes is the certificates' verdict in the
-accepted environment and not where the variant came from — so both
-theorems hold at **every** list, and the two shipped statements are
-their instances at `natOpPinSets`.  The generalised forms are what a
-downstream refinement proof about a differently pinned checker is
-stated against. -/
-
-/-- **The main theorem, at an arbitrary pin list.**  `model_exists` is
-this at `natOpPinSets`. -/
-theorem model_exists_with (V : Type w) [SetTheory V]
-    (pins : List NatOpPinSet) (ds : List DeclC) (env : Env)
-    (accepted : checkDecls .verified ds pins = .ok env) :
+/-- **The main theorem.**  Every environment the checker accepts has a
+model in every set theory — at every `Nat.div`/`Nat.mod` pin list, so
+consistency does not depend on which variants the install gate is
+handed (the empty list included: under it every stream that declares
+`Nat.div` declines).  The shipped binary runs the fold at
+`natOpPinSets`. -/
+theorem model_exists (V : Type w) [SetTheory V]
+    (pins : List NatOpPinSet) (ds : Array Declaration) (env : Env)
+    (accepted : checkDecls .verified pins ds = .ok env) :
     Nonempty (Model V env) := by
   obtain ⟨m⟩ := Cached.checkDecls_sound (V := V) rfl accepted
   exact ⟨Model.Model.ofEnvModelM m⟩
 
-/-- **The main corollary, at an arbitrary pin list.**
-`no_proof_of_False` is this at `natOpPinSets`. -/
-theorem no_proof_of_False_with (V : Type w) [SetTheory V]
-    (pins : List NatOpPinSet) (ds : List DeclC) (env : Env)
-    (accepted : checkDecls .verified ds pins = .ok env) :
-    ¬ ∃ c ∈ env.consts, c.toConstantVal.type = .const falseName [] := by
-  rintro ⟨c, hc, hty⟩
-  obtain ⟨m⟩ := model_exists_with V pins ds env accepted
-  obtain ⟨T, hT, hmem⟩ := m.mem c hc (fun _ => 0) (fun _ => empty)
-  rw [hty] at hT
-  rw [m.false_empty _ _ _ hT] at hmem
-  exact not_mem_empty _ hmem
-
-/-! ## The two shipped statements -/
-
-/-- **The main theorem.**  Every environment the checker accepts has a
-model in every set theory. -/
-theorem model_exists (V : Type w) [SetTheory V]
-    (ds : List DeclC) (env : Env)
-    (accepted : checkDecls .verified ds = .ok env) :
-    Nonempty (Model V env) :=
-  model_exists_with V natOpPinSets ds env accepted
-
-/-- **The main corollary.**  An accepted stream never yields a
-constant of type `False`: its type would denote the empty set, and
-`Model.mem` puts the constant inside it. -/
-theorem no_proof_of_False (V : Type w) [SetTheory V]
-    (ds : List DeclC) (env : Env)
-    (accepted : checkDecls .verified ds = .ok env) :
-    ¬ ∃ c ∈ env.consts, c.toConstantVal.type = .const falseName [] :=
-  no_proof_of_False_with V natOpPinSets ds env accepted
+open Frontend in
+/-- **The main corollary.**  A file declaring a theorem of type `False`
+in the shape `jsonWithTheoremFalse` describes is rejected: the parse
+reads the template's four lines into a theorem record of type `False`,
+the preparation keeps the record, and a stream holding it is never
+accepted.  At every pin list, as the main theorem: the shipped binary
+runs the fold at `natOpPinSets`. -/
+theorem no_False_declaration (V : Type w) [SetTheory V]
+    (pins : List NatOpPinSet) (chunks : List ByteArray)
+    (h : jsonWithTheoremFalse chunks) :
+    ∃ e, (do
+      let pre ← builtinPreludeE
+      let r ← parseChunks chunks
+      let ds := preparePrelude pre r.decls
+      checkDecls .verified pins ds) = .error e := by
+  refine Except.exists_error_of_not_ok fun env hacc => ?_
+  obtain ⟨pre, -, hacc⟩ := exceptBind_ok hacc
+  obtain ⟨r, hparse, hcheck⟩ := exceptBind_ok hacc
+  obtain ⟨cv, vl, hty, hmem⟩ := Frontend.parseChunks_jsonWithTheoremFalse h hparse
+  exact no_False_theorem_accepted V _ cv vl (Frontend.mem_preparePrelude hmem) hty env hcheck
 
 end ConLeche

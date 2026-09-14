@@ -136,7 +136,7 @@ structure IotaDeps (mode : env.CheckMode) (fuel : Std.U64) : Prop where
   piResidual : ∀ (e : expr.Expr) (args : alloc.vec.Vec expr.Expr),
     ExprWF e → ExprsWF args →
     SimP (fun o : Option expr.Expr =>
-        (pure (o.map absExpr) : ConLeche.Cached.CheckCM (Option ConLeche.Cached.ExprC)))
+        (pure (o.map absExpr) : ConLeche.Cached.CheckCM (Option ConLeche.Expr)))
       (fun o => ∀ t, o = some t → ExprWF t)
       (cached.core_c.pi_residual_m e args)
       (ConLeche.Cached.piResidualM (absExpr e) (absExprs args))
@@ -300,7 +300,7 @@ theorem iota_arity_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
   rw [cached.core_c.iota_arity_ok] at h
   obtain ⟨f, hf, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hfabs, hfwf⟩ := ExprOps.get_app_fn_refines he hf
-  rw [ConLeche.Cached.iotaArityOk, ConLeche.Cached.ExprC.getAppFn_spec, ← hfabs]
+  rw [ConLeche.Cached.iotaArityOk, ← hfabs]
   obtain ⟨⟨d, k⟩⟩ := f
   cases k with
   | Const n us =>
@@ -489,11 +489,11 @@ state-free and the shape is `SimP` at the `CheckCM` value. -/
 /-- `pinArgsI`'s `run`: `instLevelParamsM`/`instSpineM` are `pure`, so it
 writes nothing and its value is the pointwise instantiation. -/
 private theorem pinArgsI_run (lps : List ConLeche.Name) (us : List ConLeche.Level)
-    (args : List ConLeche.Cached.ExprC) (t : Nat) :
+    (args : List ConLeche.Expr) (t : Nat) :
     ∀ (ps : List ConLeche.Expr) (lst : ConLeche.Cached.CState),
       ConLeche.Cached.pinArgsI lps us args t ps lst
-        = .ok (ps.map (fun p => ConLeche.Cached.ExprC.instSpine args t
-            (ConLeche.Cached.ExprC.instLevelParams lps us p)), lst) := by
+        = .ok (ps.map (fun p => ConLeche.Expr.instSpineC args t
+            (ConLeche.Expr.instLevelParams lps us p)), lst) := by
   intro ps
   induction ps with
   | nil => intro lst; simp [ConLeche.Cached.pinArgsI]
@@ -514,8 +514,8 @@ private theorem pin_args_i_val {lps : alloc.vec.Vec name.Name}
       absExprs v
           = absExprs out
             ++ (pins.val.drop i.val).map (fun p =>
-                ConLeche.Cached.ExprC.instSpine (absExprs args) t.val
-                  (ConLeche.Cached.ExprC.instLevelParams (absNames lps)
+                ConLeche.Expr.instSpineC (absExprs args) t.val
+                  (ConLeche.Expr.instLevelParams (absNames lps)
                     (absLevels us) (absExpr p)))
         ∧ ExprsWF v := by
   intro k
@@ -573,7 +573,7 @@ theorem pin_args_i_refines {lps : alloc.vec.Vec name.Name}
     {t : Std.U64} {i : Std.Usize} (hlps : NamesWF lps) (hus : LevelsWF us)
     (hargs : ExprsWF args) (hpins : ExprsWF pins) (hout : ExprsWF out) :
     SimP (fun r => (pure (absExprs r) :
-        ConLeche.Cached.CheckCM (List ConLeche.Cached.ExprC)))
+        ConLeche.Cached.CheckCM (List ConLeche.Expr)))
       ExprsWF
       (cached.core_c.pin_args_i lps us args t pins i out)
       (ConLeche.Cached.pinArgsI (absNames lps) (absLevels us) (absExprs args)
@@ -670,7 +670,7 @@ theorem iota_cmp_args_i_refines {rl : env.RecRule} {lps : alloc.vec.Vec name.Nam
     {r_p : Std.U64} (hrl : RecRuleWF rl) (hlps : NamesWF lps)
     (hus : LevelsWF us) (hargs : ExprsWF args) :
     SimP (fun r => (pure (absExprs r) :
-        ConLeche.Cached.CheckCM (List ConLeche.Cached.ExprC)))
+        ConLeche.Cached.CheckCM (List ConLeche.Expr)))
       ExprsWF
       (cached.core_c.iota_cmp_args_i rl lps us args r_p)
       (match (absRecRule rl).fire with
@@ -806,7 +806,7 @@ theorem iota_index_ok_i_refines (hd : IotaDeps mode fuel)
       simp only [Option.map_some]
       simp only [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
         StateT.pure, Except.pure]
-      rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← hsav, ← hrestv]
+      rw [ConLeche.Expr.getAppArgsC_spec, ← hsav, ← hrestv]
 
 /-! ## `iota_rec_family_i` — the ONE certificate family (`core_c.rs:2093`)
 
@@ -1295,7 +1295,7 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
               ConLeche.Cached.substLevelTreesM (absNames cv.level_params)
                 (absLevels us)
                 ((absNames cvj.level_params).map ConLeche.Level.param)
-        let cmpArgs : List ConLeche.Cached.ExprC ←
+        let cmpArgs : List ConLeche.Expr ←
           match (absRecRule rl).fire with
           | .nested _ pins =>
               ConLeche.Cached.pinArgsI (absNames cv.level_params) (absLevels us)
@@ -1939,7 +1939,7 @@ theorem iota_rec_checks_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
 
 /-! ## `iota_rec_rule_i` — the prepared major's rule (`core_c.rs:1870`)
 
-`iotaRecI`'s `match ExprC.getAppFn major with | .const cj usj => …`: the head
+`iotaRecI`'s `match Expr.getAppFn major with | .const cj usj => …`: the head
 must be a stored constructor with a matching rule at a matching spine length,
 and a matched **inert** rule declines with `notImplemented`. -/
 
@@ -1955,14 +1955,14 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
       (fun st fe => cached.core_c.iota_rec_rule_i mode fuel st fe d c cv m_i r_p
         rules us args major)
       (fun lfe =>
-        match ConLeche.Cached.ExprC.getAppFn (absExpr major) with
+        match ConLeche.Expr.getAppFn (absExpr major) with
         | .const cj usj => do
           let cjn ← pure cj
           match lfe.find? cjn with
           | some (.ctorInfo cvj _ _) =>
             match (absRecRules rules).find? (fun r' => r'.ctor == cjn) with
             | some rl => do
-              let margs ← pure (ConLeche.Cached.ExprC.getAppArgs (absExpr major))
+              let margs ← pure (ConLeche.Expr.getAppArgsC (absExpr major))
               if margs.length = rl.ctorParams + rl.nfields then
                 if rl.fire = .inert then
                   throw (.notImplemented
@@ -1977,7 +1977,7 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
                         ConLeche.Cached.substLevelTreesM (absNames cv.level_params)
                           (absLevels us)
                           ((cvj.levelParams).map ConLeche.Level.param)
-                  let cmpArgs : List ConLeche.Cached.ExprC ←
+                  let cmpArgs : List ConLeche.Expr ←
                     match rl.fire with
                     | .nested _ pins =>
                         ConLeche.Cached.pinArgsI (absNames cv.level_params)
@@ -2026,7 +2026,7 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
   unfold cached.core_c.iota_rec_rule_i at hok
   obtain ⟨fj, hfj, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨hfjv, hfjw⟩ := ExprOps.get_app_fn_refines hmajor hfj
-  rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hfjv]
+  rw [← hfjv]
   obtain ⟨⟨dd, kk⟩⟩ := fj
   cases kk with
   | Const cj usj =>
@@ -2096,7 +2096,7 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
             rw [hrlv]; exact hrules rr hmem
           obtain ⟨margs, hmargs0, hok⟩ := bind_eq_ok_iff.mp hok
           obtain ⟨hmav, hmaw⟩ := ExprOps.get_app_args_refines hmajor hmargs0
-          rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← hmav]
+          rw [ConLeche.Expr.getAppArgsC_spec, ← hmav]
           rw [lift_eq] at hok
           obtain ⟨i1, hi1, hok⟩ := bind_eq_ok_iff.mp hok
           have hi1v : i1.val = margs.val.length := by
@@ -2207,7 +2207,7 @@ theorem iota_rec_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
   unfold cached.core_c.iota_rec_i at hok
   obtain ⟨f, hf, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨hfv, hfw⟩ := ExprOps.get_app_fn_refines he hf
-  rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hfv]
+  rw [← hfv]
   obtain ⟨⟨dd, kk⟩⟩ := f
   cases kk with
   | Const c us =>
@@ -2246,7 +2246,7 @@ theorem iota_rec_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
         rw [← hcvL, ← hmiL, ← hrpL, ← hrulesL]
         obtain ⟨args, hargs0, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨hargsv, hargsw⟩ := ExprOps.get_app_args_refines he hargs0
-        rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← hargsv]
+        rw [ConLeche.Expr.getAppArgsC_spec, ← hargsv]
         rw [lift_eq] at hok
         obtain ⟨i1, hi1, hok⟩ := bind_eq_ok_iff.mp hok
         have hi1v : i1.val = args.val.length := by

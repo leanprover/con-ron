@@ -283,7 +283,7 @@ theorem nat_lit_to_constructor_refines {n : ron.nat.Nat} {e : expr.Expr}
 
 /-- **`core_k::raw_nat_lit` refines `rawNatLit?`** (`Core.lean:341-346`); its
 `Cached/StateC.lean:98-103` twin `rawNatLitC?` is the same function
-(`ExprC = Expr`).  The `NatWF` conjunct is what lets a caller feed the answer to
+(`Expr = Expr`).  The `NatWF` conjunct is what lets a caller feed the answer to
 `nat_op_result`. -/
 theorem raw_nat_lit_refines {e : expr.Expr} {o : Option ron.nat.Nat} (he : ExprWF e)
     (hzero : PinnedName basis_names.nat_zero_name ConLeche.natZeroName)

@@ -72,7 +72,7 @@ theorem wscoped_b_cutoff {d fb : Std.U64} {e : expr.Expr} {b : Bool}
   refine ⟨?_, hm⟩
   have hz' : (absExpr e).fvarB ≤ 0 := by
     rw [← fvar_b_refines hwfe hfb]; omega
-  exact (wscopedB_of_fvarsBelow_zero _ (ConLeche.Cached.ExprC.fvarB_le hz') d.val).symm
+  exact (wscopedB_of_fvarsBelow_zero _ (ConLeche.Expr.fvarB_le hz') d.val).symm
 
 /-- Inverting `wscoped_b_pair`: the first child is always walked, and the second
 only when it answered `true`.  The generated body binds the first answer in a
@@ -668,14 +668,14 @@ theorem wscoped_b_triple_refines {x y z : expr.Expr} (hx : ExprWF x) (hy : ExprW
   · rw [← hmm0] at *
     exact ⟨by rw [hb0, ← hbx]; simp, hmX⟩
 
-/-- **`expr_ops_c::wscoped_b` refines `ExprC.wscopedB`**
+/-- **`expr_ops_c::wscoped_b` refines `Expr.wscopedBC`**
 (`ExprOpsC.lean:678-679`): one memoised DAG walk under a fresh table.
 `wscopedB_spec` (`Verify/Cached/OpsC.lean:1782`) is the same statement on the
 Lean side. -/
 theorem wscoped_b_refines {e : expr.Expr} {d : Std.U64} {b : Bool} (he : ExprWF e)
     (h : cached.expr_ops_c.wscoped_b d e = ok b) :
-    b = ConLeche.Cached.ExprC.wscopedB d.val (absExpr e) := by
-  rw [ConLeche.Cached.ExprC.wscopedB_spec]
+    b = ConLeche.Expr.wscopedBC d.val (absExpr e) := by
+  rw [ConLeche.Expr.wscopedBC_spec]
   rw [cached.expr_ops_c.wscoped_b] at h
   obtain ⟨memo, hnew, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨p, hgo, h⟩ := bind_eq_ok_iff.mp h
@@ -729,7 +729,7 @@ theorem fvar_leaves_cutoff {e : expr.Expr} {fb : Std.U64} (hwfe : ExprWF e)
     (hfb : expr_ops.fvar_b e = ok fb) (hz : fb.val = 0) :
     ConLeche.Expr.fvarLeaves (absExpr e) = [] := by
   have hz' : (absExpr e).fvarB ≤ 0 := by rw [← fvar_b_refines hwfe hfb]; omega
-  exact fvarLeaves_nil_of_fvarsBelow_zero _ (ConLeche.Cached.ExprC.fvarB_le hz')
+  exact fvarLeaves_nil_of_fvarsBelow_zero _ (ConLeche.Expr.fvarB_le hz')
 
 /-! ## The gray-set invariant
 
@@ -1315,7 +1315,7 @@ theorem fvar_leaves_go_refines {e : expr.Expr} (he : ExprWF e)
       (MemoInv.empty hseen) (fun _ hy => hy.elim) h
   exact ⟨hmem, hwf⟩
 
-/-- **`expr_ops_c::fvar_leaves` refines `ExprC.fvarLeaves`**
+/-- **`expr_ops_c::fvar_leaves` refines `Expr.fvarLeavesC`**
 (`ExprOpsC.lean:705-707`) as a set: the port's list is the cited list reversed
 and duplicate-free. -/
 theorem fvar_leaves_refines {e : expr.Expr} {r : alloc.vec.Vec (Std.U64 × expr.Expr)}
@@ -1404,13 +1404,13 @@ theorem fvl_proj (s : ConLeche.Name) (i : Nat) (e : ConLeche.Expr) :
   rw [ConLeche.Expr.fvarLeaves]
 
 /-- `leafMem` on one list *is* that list's `contains`: con-leche's `leafMem_spec`
-at the reflexive `LeafBase` (`ExprC` and `Expr` are the one type since its task
+at the reflexive `LeafBase` (`Expr` and `Expr` are the one type since its task
 #172, so the erasure of a leaf list is the list). -/
 theorem leafMem_contains (L : List (Nat × ConLeche.Expr)) (idx : Nat)
     (ty : ConLeche.Expr) :
-    ConLeche.Cached.ExprC.leafMem L idx ty = L.contains (idx, ty) :=
-  ConLeche.Cached.ExprC.leafMem_spec (B' := L)
-    (by intro l; simp [ConLeche.Cached.ExprC.leavesEr])
+    ConLeche.Expr.leafMem L idx ty = L.contains (idx, ty) :=
+  ConLeche.Expr.leafMem_spec (B' := L)
+    (by intro l; simp [ConLeche.Expr.leavesEr])
 
 /-- **The set-invariance of `List.all (B.contains ·)`**: two base lists with the
 same members accept the same leaf lists.  This is what turns
@@ -1447,7 +1447,7 @@ theorem leaves_sub_cutoff {bl : alloc.vec.Vec (Std.U64 × expr.Expr)} {fb : Std.
   refine ⟨?_, hm⟩
   have hz' : (absExpr e).fvarB ≤ 0 := by
     rw [← fvar_b_refines hwfe hfb]; omega
-  rw [fvarLeaves_nil_of_fvarsBelow_zero _ (ConLeche.Cached.ExprC.fvarB_le hz')]
+  rw [fvarLeaves_nil_of_fvarsBelow_zero _ (ConLeche.Expr.fvarB_le hz')]
   rfl
 
 /-- Inverting `leaves_sub_fvar`: the annotation is walked only when the leaf is
@@ -2062,14 +2062,14 @@ theorem leaves_sub_triple_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
   · rw [← hmm0] at *
     exact ⟨by rw [hb0, ← hbx]; simp, hmX⟩
 
-/-- **`expr_ops_c::leaf_guard` refines `ExprC.leafGuard`**
+/-- **`expr_ops_c::leaf_guard` refines `Expr.leafGuard`**
 (`ExprOpsC.lean:744-748`): `O(1)` true off the cached range on an `fvar`-free
 fabrication, otherwise the leaf walk of the subject and the subset walk of the
 fabrication (`leafGuard_spec`, `Verify/Cached/GuardsC.lean:1136`). -/
 theorem leaf_guard_refines {fab base : expr.Expr} {b : Bool} (hfab : ExprWF fab)
     (hbase : ExprWF base) (h : cached.expr_ops_c.leaf_guard fab base = ok b) :
-    b = ConLeche.Cached.ExprC.leafGuard (absExpr fab) (absExpr base) := by
-  rw [ConLeche.Cached.ExprC.leafGuard_spec]
+    b = ConLeche.Expr.leafGuard (absExpr fab) (absExpr base) := by
+  rw [ConLeche.Expr.leafGuard_spec]
   rw [cached.expr_ops_c.leaf_guard] at h
   obtain ⟨hf, hhf, h⟩ := bind_eq_ok_iff.mp h
   rw [cached.expr_ops_c.has_fvar] at hhf
@@ -2103,7 +2103,7 @@ theorem leaf_guard_refines {fab base : expr.Expr} {b : Bool} (hfab : ExprWF fab)
         · simp [hq] at hhf'
       rw [hfz]; scalar_tac
     have hnil := fvarLeaves_nil_of_fvarsBelow_zero _
-      (ConLeche.Cached.ExprC.fvarB_le hz)
+      (ConLeche.Expr.fvarB_le hz)
     have hb : true = b := Result.ok_injective h
     rw [← hb, hnil]
     rfl
@@ -2795,14 +2795,14 @@ theorem alpd_triple_refines {params : alloc.vec.Vec name.Name} (hps : NamesWF pa
     exact ⟨by rw [hb0, ← hbx]; simp, hmX⟩
 
 /-- **`expr_ops_c::all_level_params_defined` refines
-`ExprC.allLevelParamsDefined`** (`ExprOpsC.lean:825-828`): one memoised DAG walk
+`Expr.allLevelParamsDefinedC`** (`ExprOpsC.lean:825-828`): one memoised DAG walk
 under a fresh table (`allLevelParamsDefined_spec`,
 `Verify/Cached/GuardsC.lean:320`). -/
 theorem all_level_params_defined_refines {params : alloc.vec.Vec name.Name}
     {e : expr.Expr} {b : Bool} (hps : NamesWF params) (he : ExprWF e)
     (h : cached.expr_ops_c.all_level_params_defined params e = ok b) :
-    b = ConLeche.Cached.ExprC.allLevelParamsDefined (absNames params) (absExpr e) := by
-  rw [ConLeche.Cached.ExprC.allLevelParamsDefined_spec]
+    b = ConLeche.Expr.allLevelParamsDefinedC (absNames params) (absExpr e) := by
+  rw [ConLeche.Expr.allLevelParamsDefinedC_spec]
   rw [cached.expr_ops_c.all_level_params_defined] at h
   obtain ⟨memo, hnew, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨p, hgo, h⟩ := bind_eq_ok_iff.mp h
@@ -2829,74 +2829,74 @@ loops are strong inductions on what is left of the argument list, in
 `2 * (args.length - i) + (if acc = [] then 0 else 1)`, which is why one
 induction suffices here where con-leche needs a lexicographic pair. -/
 
-/-! ## `ExprC.piResidualAcc`'s per-arm equations
+/-! ## `Expr.piResidualAcc`'s per-arm equations
 
 The cited definition is well founded on `(rest.length, acc.length)`, so its
 equation lemmas have to be taken off `.eq_def` one arm at a time. -/
 
 private theorem prA_nil (acc : List ConLeche.Expr) (e : ConLeche.Expr) :
-    ConLeche.Cached.ExprC.piResidualAcc acc e []
-      = some (ConLeche.Cached.ExprC.instantiateList e acc 0) := by
-  rw [ConLeche.Cached.ExprC.piResidualAcc.eq_def]
+    ConLeche.Expr.piResidualAcc acc e []
+      = some (ConLeche.Expr.instantiateListC e acc 0) := by
+  rw [ConLeche.Expr.piResidualAcc.eq_def]
 
 private theorem prA_forallE (acc : List ConLeche.Expr) (ty b : ConLeche.Expr)
     (m : ConLeche.BinderMeta) (a : ConLeche.Expr) (rest : List ConLeche.Expr) :
-    ConLeche.Cached.ExprC.piResidualAcc acc (.forallE ty b m) (a :: rest)
-      = ConLeche.Cached.ExprC.piResidualAcc (a :: acc) b rest := by
-  rw [ConLeche.Cached.ExprC.piResidualAcc.eq_def]
+    ConLeche.Expr.piResidualAcc acc (.forallE ty b m) (a :: rest)
+      = ConLeche.Expr.piResidualAcc (a :: acc) b rest := by
+  rw [ConLeche.Expr.piResidualAcc.eq_def]
 
 private theorem prA_bvar_nil (j : Nat) (a : ConLeche.Expr)
     (rest : List ConLeche.Expr) :
-    ConLeche.Cached.ExprC.piResidualAcc [] (.bvar j) (a :: rest) = none := by
-  rw [ConLeche.Cached.ExprC.piResidualAcc.eq_def]
+    ConLeche.Expr.piResidualAcc [] (.bvar j) (a :: rest) = none := by
+  rw [ConLeche.Expr.piResidualAcc.eq_def]
 
 private theorem prA_bvar_cons (j : Nat) (w : ConLeche.Expr)
     (acc : List ConLeche.Expr) (a : ConLeche.Expr) (rest : List ConLeche.Expr) :
-    ConLeche.Cached.ExprC.piResidualAcc (w :: acc) (.bvar j) (a :: rest)
-      = ConLeche.Cached.ExprC.piResidualAcc []
-          (ConLeche.Cached.ExprC.instantiateList (.bvar j) (w :: acc) 0)
+    ConLeche.Expr.piResidualAcc (w :: acc) (.bvar j) (a :: rest)
+      = ConLeche.Expr.piResidualAcc []
+          (ConLeche.Expr.instantiateListC (.bvar j) (w :: acc) 0)
           (a :: rest) := by
-  rw [ConLeche.Cached.ExprC.piResidualAcc.eq_def]
+  rw [ConLeche.Expr.piResidualAcc.eq_def]
 
 private theorem prA_fvar (acc : List ConLeche.Expr) (idx : Nat)
     (ty : ConLeche.Expr) (a : ConLeche.Expr) (rest : List ConLeche.Expr) :
-    ConLeche.Cached.ExprC.piResidualAcc acc (.fvar idx ty) (a :: rest) = none := by
-  rw [ConLeche.Cached.ExprC.piResidualAcc.eq_def]
+    ConLeche.Expr.piResidualAcc acc (.fvar idx ty) (a :: rest) = none := by
+  rw [ConLeche.Expr.piResidualAcc.eq_def]
 
 private theorem prA_sort (acc : List ConLeche.Expr) (u : ConLeche.Level)
     (a : ConLeche.Expr) (rest : List ConLeche.Expr) :
-    ConLeche.Cached.ExprC.piResidualAcc acc (.sort u) (a :: rest) = none := by
-  rw [ConLeche.Cached.ExprC.piResidualAcc.eq_def]
+    ConLeche.Expr.piResidualAcc acc (.sort u) (a :: rest) = none := by
+  rw [ConLeche.Expr.piResidualAcc.eq_def]
 
 private theorem prA_const (acc : List ConLeche.Expr) (n : ConLeche.Name)
     (us : List ConLeche.Level) (a : ConLeche.Expr) (rest : List ConLeche.Expr) :
-    ConLeche.Cached.ExprC.piResidualAcc acc (.const n us) (a :: rest) = none := by
-  rw [ConLeche.Cached.ExprC.piResidualAcc.eq_def]
+    ConLeche.Expr.piResidualAcc acc (.const n us) (a :: rest) = none := by
+  rw [ConLeche.Expr.piResidualAcc.eq_def]
 
 private theorem prA_app (acc : List ConLeche.Expr) (f x : ConLeche.Expr)
     (a : ConLeche.Expr) (rest : List ConLeche.Expr) :
-    ConLeche.Cached.ExprC.piResidualAcc acc (.app f x) (a :: rest) = none := by
-  rw [ConLeche.Cached.ExprC.piResidualAcc.eq_def]
+    ConLeche.Expr.piResidualAcc acc (.app f x) (a :: rest) = none := by
+  rw [ConLeche.Expr.piResidualAcc.eq_def]
 
 private theorem prA_lam (acc : List ConLeche.Expr) (ty b : ConLeche.Expr)
     (m : ConLeche.BinderMeta) (a : ConLeche.Expr) (rest : List ConLeche.Expr) :
-    ConLeche.Cached.ExprC.piResidualAcc acc (.lam ty b m) (a :: rest) = none := by
-  rw [ConLeche.Cached.ExprC.piResidualAcc.eq_def]
+    ConLeche.Expr.piResidualAcc acc (.lam ty b m) (a :: rest) = none := by
+  rw [ConLeche.Expr.piResidualAcc.eq_def]
 
 private theorem prA_letE (acc : List ConLeche.Expr) (ty v b : ConLeche.Expr)
     (a : ConLeche.Expr) (rest : List ConLeche.Expr) :
-    ConLeche.Cached.ExprC.piResidualAcc acc (.letE ty v b) (a :: rest) = none := by
-  rw [ConLeche.Cached.ExprC.piResidualAcc.eq_def]
+    ConLeche.Expr.piResidualAcc acc (.letE ty v b) (a :: rest) = none := by
+  rw [ConLeche.Expr.piResidualAcc.eq_def]
 
 private theorem prA_lit (acc : List ConLeche.Expr) (l : ConLeche.Literal)
     (a : ConLeche.Expr) (rest : List ConLeche.Expr) :
-    ConLeche.Cached.ExprC.piResidualAcc acc (.lit l) (a :: rest) = none := by
-  rw [ConLeche.Cached.ExprC.piResidualAcc.eq_def]
+    ConLeche.Expr.piResidualAcc acc (.lit l) (a :: rest) = none := by
+  rw [ConLeche.Expr.piResidualAcc.eq_def]
 
 private theorem prA_proj (acc : List ConLeche.Expr) (s : ConLeche.Name)
     (k : Nat) (x : ConLeche.Expr) (a : ConLeche.Expr) (rest : List ConLeche.Expr) :
-    ConLeche.Cached.ExprC.piResidualAcc acc (.proj s k x) (a :: rest) = none := by
-  rw [ConLeche.Cached.ExprC.piResidualAcc.eq_def]
+    ConLeche.Expr.piResidualAcc acc (.proj s k x) (a :: rest) = none := by
+  rw [ConLeche.Expr.piResidualAcc.eq_def]
 
 /-! ## The telescope operations -/
 
@@ -2933,31 +2933,31 @@ theorem inst_spine_chain_from_refines (N : Nat) :
         rfl hargs hiwf hrec
       refine ⟨?_, hwf⟩
       rw [habs, hi2v, ht2v, hdrop, hiabs,
-        ConLeche.Cached.ExprC.instantiate1_spec]
+        ConLeche.Expr.instantiate1C_spec]
       simp [ConLeche.Expr.instSpine]
 
-/-- **`expr_ops_c::inst_spine_chain` refines `ExprC.instSpineChain`**
+/-- **`expr_ops_c::inst_spine_chain` refines `Expr.instSpineChainC`**
 (`ExprOpsC.lean:752-755`): the `i = 0` wrapper. -/
 theorem inst_spine_chain_refines {args : alloc.vec.Vec expr.Expr} {t : Std.U64}
     {e r : expr.Expr} (hargs : ExprsWF args) (he : ExprWF e)
     (h : cached.expr_ops_c.inst_spine_chain args t e = ok r) :
     absExpr r
-        = ConLeche.Cached.ExprC.instSpineChain (absExprs args) t.val (absExpr e) ∧
+        = ConLeche.Expr.instSpineChainC (absExprs args) t.val (absExpr e) ∧
       ExprWF r := by
   rw [cached.expr_ops_c.inst_spine_chain] at h
   obtain ⟨habs, hwf⟩ :=
     inst_spine_chain_from_refines _ args 0#usize t e r rfl hargs he h
   refine ⟨?_, hwf⟩
-  rw [habs, ConLeche.Cached.ExprC.instSpineChain_spec,
+  rw [habs, ConLeche.Expr.instSpineChainC_spec,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac, List.drop_zero]
 
-/-- **`expr_ops_c::inst_spine` refines `ExprC.instSpine`**
+/-- **`expr_ops_c::inst_spine` refines `Expr.instSpineC`**
 (`ExprOpsC.lean:757-761`): the one bulk pass when the spine spans the telescope
 context, the `instantiate1` chain otherwise. -/
 theorem inst_spine_refines {args : alloc.vec.Vec expr.Expr} {t : Std.U64}
     {e r : expr.Expr} (hargs : ExprsWF args) (he : ExprWF e)
     (h : cached.expr_ops_c.inst_spine args t e = ok r) :
-    absExpr r = ConLeche.Cached.ExprC.instSpine (absExprs args) t.val (absExpr e) ∧
+    absExpr r = ConLeche.Expr.instSpineC (absExprs args) t.val (absExpr e) ∧
       ExprWF r := by
   rw [cached.expr_ops_c.inst_spine] at h
   dsimp only at h
@@ -2969,7 +2969,7 @@ theorem inst_spine_refines {args : alloc.vec.Vec expr.Expr} {t : Std.U64}
   have hi2v : i2.val = t.val + 1 := HashMap.uscalar_add_eq hi2
   have hlenabs : (absExprs args).length = args.val.length := by
     simp [absExprs]
-  rw [ConLeche.Cached.ExprC.instSpine]
+  rw [ConLeche.Expr.instSpineC]
   split at h
   · rename_i heq
     have hcond : (absExprs args).length = t.val + 1 := by
@@ -3010,7 +3010,7 @@ theorem pi_residual_acc_refines_aux (N : Nat) :
       ExprsWF acc → ExprsWF args → ExprWF e →
       cached.expr_ops_c.pi_residual_acc acc e args i = ok o →
       o.map absExpr
-          = ConLeche.Cached.ExprC.piResidualAcc (absExprs acc) (absExpr e)
+          = ConLeche.Expr.piResidualAcc (absExprs acc) (absExpr e)
               ((absExprs args).drop i.val) ∧
         ∀ x ∈ o, ExprWF x := by
   induction N using Nat.strong_induction_on with
@@ -3156,31 +3156,31 @@ theorem pi_residual_acc_refines_aux (N : Nat) :
         exact ⟨by rw [absExprs_drop_cons hy, absExpr_mk, absExprKind, prA_proj]; rfl,
           by intro z hz; simp at hz⟩
 
-/-- **`expr_ops_c::pi_residual_acc` refines `ExprC.piResidualAcc`**
+/-- **`expr_ops_c::pi_residual_acc` refines `Expr.piResidualAcc`**
 (`ExprOpsC.lean:763-783`) at the arguments from `i` on. -/
 theorem pi_residual_acc_refines {acc args : alloc.vec.Vec expr.Expr}
     {e : expr.Expr} {i : Std.Usize} {o : Option expr.Expr} (hacc : ExprsWF acc)
     (hargs : ExprsWF args) (he : ExprWF e)
     (h : cached.expr_ops_c.pi_residual_acc acc e args i = ok o) :
     o.map absExpr
-        = ConLeche.Cached.ExprC.piResidualAcc (absExprs acc) (absExpr e)
+        = ConLeche.Expr.piResidualAcc (absExprs acc) (absExpr e)
             ((absExprs args).drop i.val) ∧
       ∀ x ∈ o, ExprWF x :=
   pi_residual_acc_refines_aux _ acc args e i o rfl hacc hargs he h
 
-/-- **`expr_ops_c::pi_residual` refines `ExprC.piResidual`**
+/-- **`expr_ops_c::pi_residual` refines `Expr.piResidual`**
 (`ExprOpsC.lean:785-787`): the residual of a `∀`-telescope at an argument
 spine. -/
 theorem pi_residual_refines {e : expr.Expr} {args : alloc.vec.Vec expr.Expr}
     {o : Option expr.Expr} (he : ExprWF e) (hargs : ExprsWF args)
     (h : cached.expr_ops_c.pi_residual e args = ok o) :
-    o.map absExpr = ConLeche.Cached.ExprC.piResidual (absExpr e) (absExprs args) ∧
+    o.map absExpr = ConLeche.Expr.piResidual (absExpr e) (absExprs args) ∧
       ∀ x ∈ o, ExprWF x := by
   rw [cached.expr_ops_c.pi_residual] at h
   obtain ⟨hmap, hwf⟩ := pi_residual_acc_refines
     (by intro x hx; simp [alloc.vec.Vec.new] at hx) hargs he h
   refine ⟨?_, hwf⟩
-  rw [hmap, ConLeche.Cached.ExprC.piResidual,
+  rw [hmap, ConLeche.Expr.piResidual,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac, List.drop_zero]
   simp [absExprs, alloc.vec.Vec.new]
 

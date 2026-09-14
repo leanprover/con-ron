@@ -106,8 +106,19 @@ missing std model.  **[limitation]** throughout.
 |---|---|---|---|
 | `String::from("…")` / `String::new()` | `alloc.string.String…from`, `…String.new` | `Vec<u32>` code points from a `const [u32; N]` | #14 |
 | `Vec::is_empty` | `alloc.vec.Vec.is_empty` | `xs.len() == 0` | #18 |
-| `vec![65, 66, 67]` | `core::mem::maybe_uninit::MaybeUninit` (the macro expands through it) | `const S: [u32; N]` + a slice walk | #24 |
+| `vec![65, 66, 67]` | `core::mem::maybe_uninit::MaybeUninit` (the macro expands through it, via `Box::new_uninit`) | `const S: [u32; N]` + a slice walk, or five `vecN` helpers that push | #24, #83 |
 | `Rc<T>` (no model at all) | four axioms | `@[reducible] def Rc T := T`, `new`/`deref`/`clone` = `ok x`, `ptr_eq` = `ok false` | #1, #4 |
+
+The `vec!` row came back at task #83 and is worth a sentence on *how*: the
+macro is perfectly fine in `crates/con-ron/src`, which is outside the
+extraction, and `crates/con-ron-core/src/kernel/basis_raw.rs` was written
+there — so the day con-leche's task #293 moved the basis-pin match into the
+fold and the module moved into the verified core, forty-six `vec![…]` literals
+moved with it and `MaybeUninit` reappeared.  **The crate boundary is a
+translation boundary**, and a module that crosses it is a rewrite, not a move.
+What caught it was `scripts/extract.sh`'s own rule that every external a
+template declares must be modelled by hand — the failure names the hole, which
+is exactly what that check is for.
 
 Other std gaps we designed around rather than modelled: `Vec` has no `pop`, `truncate`,
 `remove` or `toList` (so our bignum's normalisation *copies*, and our hash map's buckets are an

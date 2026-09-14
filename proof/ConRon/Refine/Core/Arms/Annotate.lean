@@ -22,7 +22,7 @@ Three groups:
   `Refine/ExprOpsC*.lean`'s cached substitutions;
 * the **telescope loops** (`annot_pw_pi_i`, `annotate_pis_pw_i`,
   `annotate_pis_leaf_i`, `annotate_pis_i` and their four λ twins) — `Sim`,
-  where the Rust's `Vec<Expr>` accumulator is con-leche's `Array ExprC`
+  where the Rust's `Vec<Expr>` accumulator is con-leche's `Array Expr`
   (`absExprArr`) and the Rust's `Vec<AnnotBinderEntry>` pushed innermost-last
   is con-leche's `List AnnotBinderEntry` consed innermost-first (`absStk`, the
   reversal);
@@ -108,13 +108,13 @@ plumbing set and fires first, so the lemma must be stated here, not on
 /-! ## The two accumulators
 
 `annotate_pis_i`/`annotate_lams_i` carry the opened free variables in a
-`Vec<Expr>` where con-leche carries an `Array ExprC`, and the rebuild stack in
+`Vec<Expr>` where con-leche carries an `Array Expr`, and the rebuild stack in
 a `Vec<AnnotBinderEntry>` **pushed innermost-last** where con-leche conses a
 `List AnnotBinderEntry` **innermost-first**.  The first correspondence is
 `List.toArray`, the second is `List.reverse`; `absStkTake` is the partial form
 `annotate_binders_out_i`'s downward index `p` needs. -/
 
-/-- The Rust free-variable accumulator as con-leche's `Array ExprC`. -/
+/-- The Rust free-variable accumulator as con-leche's `Array Expr`. -/
 def absExprArr (vs : alloc.vec.Vec expr.Expr) : Array ConLeche.Expr :=
   (absExprs vs).toArray
 
@@ -353,7 +353,7 @@ theorem annotateBindersOutI_cons
     ConLeche.Cached.annotateBindersOutI mk d pw? ((ty', mb) :: rest) j cur
       = ConLeche.Cached.annotateBindersOutI mk d
           (pw?.map fun _ => (ConLeche.annotBinderMeta pw? mb).pw) rest (j - 1)
-          (mk (ConLeche.Cached.ExprC.abstractRange ty' d j) cur
+          (mk (ConLeche.Expr.abstractRangeC ty' d j) cur
             (ConLeche.annotBinderMeta pw? mb)) := rfl
 
 /-- `ConLeche/Cached/CoreC.lean:1649-1676` — **`annotate_binders_out_i` refines
@@ -680,28 +680,28 @@ the cited definition as `Expr.instantiateList` on the reversed list, which is
 what `Refine/ExprOpsCSubst.lean` refines `expr_ops_c::instantiate_rev` to. -/
 theorem instantiateRev_absExprArr (e : ConLeche.Expr) (vs : alloc.vec.Vec expr.Expr)
     (d : Nat) :
-    ConLeche.Cached.ExprC.instantiateRev e (absExprArr vs) d
+    ConLeche.Expr.instantiateRev e (absExprArr vs) d
       = ConLeche.Expr.instantiateList e (absExprs vs).reverse d := by
-  rw [ConLeche.Cached.ExprC.instantiateRev_spec]
+  rw [ConLeche.Expr.instantiateRev_spec]
   simp [absExprArr]
 
 theorem annotatePisLeafI_eq (r : ConLeche.Cached.CoreFnsI) (fe : ConLeche.FEnv)
     (d : Nat) (t : ConLeche.Expr) (k : Nat) (fvs : Array ConLeche.Expr)
     (stk : List ConLeche.Cached.AnnotBinderEntry) :
     ConLeche.Cached.annotatePisLeafI r fe d t k fvs stk = (do
-      let leaf' ← r.annotate (d + k) (ConLeche.Cached.ExprC.instantiateRev t fvs 0)
+      let leaf' ← r.annotate (d + k) (ConLeche.Expr.instantiateRev t fvs 0)
       let pw? ← ConLeche.Cached.annotatePisPwI r fe d k leaf'
       ConLeche.Cached.annotateBindersOutI (mkNode true) d pw? stk (k - 1)
-        (ConLeche.Cached.ExprC.abstractRange leaf' d k)) := rfl
+        (ConLeche.Expr.abstractRangeC leaf' d k)) := rfl
 
 theorem annotateLamsLeafI_eq (r : ConLeche.Cached.CoreFnsI) (fe : ConLeche.FEnv)
     (d : Nat) (t : ConLeche.Expr) (k : Nat) (fvs : Array ConLeche.Expr)
     (stk : List ConLeche.Cached.AnnotBinderEntry) :
     ConLeche.Cached.annotateLamsLeafI r fe d t k fvs stk = (do
-      let leaf' ← r.annotate (d + k) (ConLeche.Cached.ExprC.instantiateRev t fvs 0)
+      let leaf' ← r.annotate (d + k) (ConLeche.Expr.instantiateRev t fvs 0)
       let pw? ← ConLeche.Cached.annotateLamsPwI r fe d k leaf'
       ConLeche.Cached.annotateBindersOutI (mkNode false) d pw? stk (k - 1)
-        (ConLeche.Cached.ExprC.abstractRange leaf' d k)) := rfl
+        (ConLeche.Expr.abstractRangeC leaf' d k)) := rfl
 
 /-- `ConLeche/Cached/CoreC.lean:1706` — **`annotate_pis_leaf_i` refines
 `annotatePisLeafI`** (`core_c.rs:4475`). -/
@@ -867,7 +867,7 @@ theorem annotatePisI_succ_forallE (r : ConLeche.Cached.CoreFnsI) (fe : ConLeche.
     (d n : Nat) (ty body : ConLeche.Expr) (mb : ConLeche.BinderMeta) (k : Nat)
     (fvs : Array ConLeche.Expr) (stk : List ConLeche.Cached.AnnotBinderEntry) :
     ConLeche.Cached.annotatePisI r fe d (n + 1) (.forallE ty body mb) k fvs stk = (do
-      let ty' ← r.annotate (d + k) (ConLeche.Cached.ExprC.instantiateRev ty fvs 0)
+      let ty' ← r.annotate (d + k) (ConLeche.Expr.instantiateRev ty fvs 0)
       ConLeche.Cached.annotatePisI r fe d n body (k + 1)
         (fvs.push (ConLeche.Expr.fvar (d + k) ty')) ((ty', mb) :: stk)) := rfl
 
@@ -891,7 +891,7 @@ theorem annotateLamsI_succ_lam (r : ConLeche.Cached.CoreFnsI) (fe : ConLeche.FEn
     (d n : Nat) (ty body : ConLeche.Expr) (mb : ConLeche.BinderMeta) (k : Nat)
     (fvs : Array ConLeche.Expr) (stk : List ConLeche.Cached.AnnotBinderEntry) :
     ConLeche.Cached.annotateLamsI r fe d (n + 1) (.lam ty body mb) k fvs stk = (do
-      let ty' ← r.annotate (d + k) (ConLeche.Cached.ExprC.instantiateRev ty fvs 0)
+      let ty' ← r.annotate (d + k) (ConLeche.Expr.instantiateRev ty fvs 0)
       ConLeche.Cached.annotateLamsI r fe d n body (k + 1)
         (fvs.push (ConLeche.Expr.fvar (d + k) ty')) ((ty', mb) :: stk)) := rfl
 
@@ -1205,12 +1205,12 @@ theorem annotateBodyI_lam (ty body : ConLeche.Expr) (mb : ConLeche.BinderMeta) :
           else (do
             let ty' ← r.annotate depth ty
             let body' ← r.annotate (depth + 1)
-              (ConLeche.Cached.ExprC.instantiate1 body (ConLeche.Expr.fvar depth ty') 0)
+              (ConLeche.Expr.instantiate1C body (ConLeche.Expr.fvar depth ty') 0)
             let pw ← if !ConLeche.pwWritten mb.pw then
                 ConLeche.Cached.annotPwLamI r fe (depth + 1) body'
               else pure mb.pw
             pure (ConLeche.Expr.lam ty'
-              (ConLeche.Cached.ExprC.abstract1 body' depth) ⟨pw⟩))) := rfl
+              (ConLeche.Expr.abstract1C body' depth) ⟨pw⟩))) := rfl
 
 theorem annotateBodyI_letE (ty v b : ConLeche.Expr) :
     ConLeche.Cached.annotateBodyI r fe depth (.letE ty v b) = (do
@@ -1221,20 +1221,20 @@ theorem annotateBodyI_letE (ty v b : ConLeche.Expr) :
       let tv ← r.infer depth v'
       unless ← r.defeq depth tv ty' do
         throw (.invalid "let value type mismatch")
-      r.annotate depth (ConLeche.Cached.ExprC.instantiate1 b v 0)) := rfl
+      r.annotate depth (ConLeche.Expr.instantiate1C b v 0)) := rfl
 
 theorem annotateBodyI_proj (sn : ConLeche.Name) (i : Nat) (pe : ConLeche.Expr) :
     ConLeche.Cached.annotateBodyI r fe depth (.proj sn i pe) = (do
       let e' ← r.annotate depth pe
       let tpe ← r.inferIO depth e'
       let te ← r.whnf depth tpe
-      match ConLeche.Cached.ExprC.getAppFn te with
+      match ConLeche.Expr.getAppFn te with
       | .const T _ => do
         match fe.findProj? T i with
         | some entry => do
           unless T = sn do
             throw (.invalid "invalid projection: the node names another structure")
-          unless (ConLeche.Cached.ExprC.getAppArgs te).length = entry.numParams do
+          unless (ConLeche.Expr.getAppArgsC te).length = entry.numParams do
             throw (.invalid "projection parameter mismatch")
           pure (ConLeche.Expr.proj T i e')
         | none =>
@@ -1264,12 +1264,12 @@ theorem annotateBodyI_lam_split (ty body : ConLeche.Expr) (mb : ConLeche.BinderM
           else (do
             let ty' ← r.annotate depth ty
             let body' ← r.annotate (depth + 1)
-              (ConLeche.Cached.ExprC.instantiate1 body (ConLeche.Expr.fvar depth ty') 0)
+              (ConLeche.Expr.instantiate1C body (ConLeche.Expr.fvar depth ty') 0)
             let pw ← if !ConLeche.pwWritten mb.pw then
                 ConLeche.Cached.annotPwLamI r fe (depth + 1) body'
               else pure mb.pw
             pure (ConLeche.Expr.lam ty'
-              (ConLeche.Cached.ExprC.abstract1 body' depth) ⟨pw⟩))) := by
+              (ConLeche.Expr.abstract1C body' depth) ⟨pw⟩))) := by
   rw [annotateBodyI_lam, bvarBoundM_split]
 
 end Clauses
@@ -1794,8 +1794,7 @@ theorem annotate_proj_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mod
       obtain ⟨en, hen, hok⟩ := hok
       rw [← Result.ok_injective hen] at hok
       obtain ⟨habsF, hfWF⟩ := ExprOps.get_app_fn_refines hteWF hf
-      rw [annotateBodyI_proj, bind_run hrun1, bind_assoc', bind_run hrun2,
-        ConLeche.Cached.ExprC.getAppFn_spec, ← habsF]
+      rw [annotateBodyI_proj, bind_run hrun1, bind_assoc', bind_run hrun2, ← habsF]
       cases hfWF with
       | @mk_const n us e hn hus h3 =>
         obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h3
@@ -1808,7 +1807,7 @@ theorem annotate_proj_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mod
         rw [hr] at hr2
         subst hst
         simp only [absExpr_mk, absExprKind]
-        rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← habsTargs]
+        rw [ConLeche.Expr.getAppArgsC_spec, ← habsTargs]
         cases r with
         | Ok x =>
           obtain ⟨hentry, hrWF⟩ := CoreK.annotate_proj_entry_refines

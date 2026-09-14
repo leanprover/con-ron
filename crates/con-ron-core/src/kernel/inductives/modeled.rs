@@ -1419,10 +1419,6 @@ pub fn check_iota_rule(
         117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114,
         115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 32, 32, 32,
     ];
-    const M_RESOLVE: [u32; 29] = [
-        117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105,
-        110, 32, 114, 117, 108, 101, 32, 32, 32, 32, 32,
-    ];
     const M_SHAPE: [u32; 19] = [
         114, 117, 108, 101, 32, 115, 104, 97, 112, 101, 32, 109, 105, 115, 109, 97, 116, 99,
         104,
@@ -1446,7 +1442,7 @@ pub fn check_iota_rule(
                         if !expr_ops::all_level_params_defined_fast(lps, &rhs_a) {
                             Err(core_types::invalid(core_types::code_points(&M_LPS)))
                         } else if !decl_check::consts_resolve_f_fast(fe_self, &rhs_a) {
-                            Err(core_types::invalid(core_types::code_points(&M_RESOLVE)))
+                            Err(checker_base::unresolved_consts_error(&rhs_a))
                         } else if expr_ops::strip_lams(r_p + cn_f, &rhs_a).is_none() {
                             Err(core_types::not_implemented(core_types::code_points(
                                 &M_SHAPE,

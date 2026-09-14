@@ -53,10 +53,17 @@ README names: a callee's `ErrSim` carried through the rest of con-leche's
 accept direction already showed to agree.  The `.M`-suffixed `Array Std.U32`
 constants are the *messages*, and those are never compared (DESIGN.md §3.1),
 so they still carry no theorem — only the *kind* is claimed.
+
+One site is neither of the two: the `.const` clause's unresolved arm, where
+both sides build the error through a *named* builder (`unknownConstError`,
+`core_k::unknown_const_error`) whose kind depends on the name — `sorryAx`
+declines, everything else rejects.  `Refine/ErrKinds.lean`'s
+`unknown_const_error_refines` is that site's leaf lemma (con-leche task #292).
 -/
 import ConRon.Refine.Core.Arms.Shape
 import ConRon.Refine.CoreKPinned
 import ConRon.Refine.ExprOpsC
+import ConRon.Refine.ErrKinds
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel ConRon.Generated.cached
@@ -249,7 +256,10 @@ theorem const_shape_probe_i_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
 `inferBodyI`'s `.const` clause** (`core_c.rs:3268`): the constant is stored,
 is not a projection table, carries the right number of universe levels, and
 its type is `constTyAtM`'s (`Refine/StateC.lean`).  The clause makes no
-recursive call, so it is the same under both records. -/
+recursive call, so it is the same under both records.  The unresolved arm is
+con-leche's `unknownConstError`, not a plain `.invalid`: con-leche task #292
+made `sorryAx` decline there, and the port mirrors it through
+`core_k::unknown_const_error`. -/
 theorem infer_const_i_refines (io : Bool) {n : name.Name}
     {us : alloc.vec.Vec level.Level} (hn : NameWF n) (hus : LevelsWF us) (d : Std.U64) :
     Sim absExpr ExprWF (fun st fe => cached.core_c.infer_const_i st fe n us)
@@ -260,7 +270,7 @@ theorem infer_const_i_refines (io : Bool) {n : name.Name}
       (knotV mode lfe fuel.val io) lfe d.val (.const (absName n) (absLevels us))
       = (do
         match lfe.find? (absName n) with
-        | none => throw (.invalid s!"unknown constant {absName n}")
+        | none => throw (ConLeche.unknownConstError (absName n))
         | some ci => do
           unless !ci.isTowerEntry do
             throw (.invalid
@@ -276,12 +286,14 @@ theorem infer_const_i_refines (io : Bool) {n : name.Name}
   cases o with
   | none =>
     -- the constant is not stored: `fe.find? n` is `none` on both sides and
-    -- both reject at `invalid` (`CoreC.lean:1305`)
+    -- both take `unknownConstError` (`CoreC.lean:1305`), which declines at
+    -- `sorryAx` and rejects at every other name (`Refine/ErrKinds.lean`)
     have hfind : lfe.find? (absName n) = none := by simpa using hoabs.symm
-    simp only [bind_eq_ok_iff, lift_eq] at hok
-    obtain ⟨s1, -, v, -, ce, hce, hc⟩ := hok
+    simp only [bind_eq_ok_iff] at hok
+    obtain ⟨ce, hce, hc⟩ := hok
     obtain ⟨rfl, rfl⟩ := err_arm hc
-    refine invalid_throw (s := s!"unknown constant {absName n}") hce ?_
+    refine ErrSim.mk (le := ConLeche.unknownConstError (absName n)) ?_
+      (unknown_const_error_refines hn hce)
     simp [hclause, hfind]
   | some p =>
     obtain ⟨b, i⟩ := p
@@ -398,11 +410,11 @@ the reduced subject type `te` is a parameter, and the tail is the head-shape
 match, the table lookup and `projTypeAtCheckedIL`. -/
 def inferProjAtIL (lfe : ConLeche.FEnv) (sn : ConLeche.Name) (i : Nat)
     (pe te : ConLeche.Expr) : ConLeche.Cached.CheckCM ConLeche.Expr :=
-  match ConLeche.Cached.ExprC.getAppFn te with
+  match ConLeche.Expr.getAppFn te with
   | .const T us =>
     match lfe.findProj? T i with
     | some entry =>
-      projTypeAtCheckedIL entry sn T us (ConLeche.Cached.ExprC.getAppArgs te) pe
+      projTypeAtCheckedIL entry sn T us (ConLeche.Expr.getAppArgsC te) pe
     | none => throw (.notImplemented "projection without a native entry")
   | _ => throw (.notImplemented "projection without a native entry")
 
@@ -678,9 +690,9 @@ theorem infer_proj_at_i_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       obtain ⟨hoabs, howf⟩ := ConRon.Refine.find_proj_refines
         (ConRon.Refine.FindAgree.of_rel hrel hfwf)
         (ConRon.Refine.FindWF.of_wf hfwf) hnwf ho
-      have hgf : ConLeche.Cached.ExprC.getAppFn (absExpr te)
+      have hgf : ConLeche.Expr.getAppFn (absExpr te)
           = .const (absName t) (absLevels us') := by
-        rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hfabs]; rfl
+        rw [← hfabs]; rfl
       cases o with
       | none =>
         simp only [bind_eq_ok_iff, lift_eq, Result.ok.injEq, reduceCtorEq,
@@ -693,9 +705,9 @@ theorem infer_proj_at_i_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
         obtain ⟨hres, hrwf⟩ := proj_type_at_checked_i_refines (howf entry rfl)
           hsn hnwf huswf htawf hpe h
         refine ⟨?_, hrwf⟩
-        have htabs' : ConLeche.Cached.ExprC.getAppArgs (absExpr te)
+        have htabs' : ConLeche.Expr.getAppArgsC (absExpr te)
             = absExprs targs := by
-          rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← htabs]
+          rw [ConLeche.Expr.getAppArgsC_spec, ← htabs]
         have hfp : lfe.findProj? (absName t) i.val = some (absProjEntry entry) := hoabs.symm
         simpa only [inferProjAtIL, hgf, htabs', hfp] using hres
     all_goals
@@ -716,9 +728,9 @@ theorem infer_proj_at_i_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       obtain ⟨hoabs, howf⟩ := ConRon.Refine.find_proj_refines
         (ConRon.Refine.FindAgree.of_rel hrel hfwf)
         (ConRon.Refine.FindWF.of_wf hfwf) hnwf ho
-      have hgf : ConLeche.Cached.ExprC.getAppFn (absExpr te)
+      have hgf : ConLeche.Expr.getAppFn (absExpr te)
           = .const (absName t) (absLevels us') := by
-        rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hfabs]; rfl
+        rw [← hfabs]; rfl
       cases o with
       | none =>
         simp only [Option.map_none] at hoabs
@@ -735,8 +747,8 @@ theorem infer_proj_at_i_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
         obtain ⟨htabs, htawf⟩ := ExprOps.get_app_args_refines hte hta
         have hres := proj_type_at_checked_i_err (howf entry rfl) hsn hnwf huswf
           htawf hpe h lst
-        have htabs' : ConLeche.Cached.ExprC.getAppArgs (absExpr te) = absExprs targs := by
-          rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← htabs]
+        have htabs' : ConLeche.Expr.getAppArgsC (absExpr te) = absExprs targs := by
+          rw [ConLeche.Expr.getAppArgsC_spec, ← htabs]
         have hfp : lfe.findProj? (absName t) i.val = some (absProjEntry entry) := hoabs.symm
         simpa only [inferProjAtIL, hgf, htabs', hfp] using hres
     all_goals
@@ -744,7 +756,7 @@ theorem infer_proj_at_i_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
       obtain rfl := err_eq hr
       refine not_implemented_throw (s := "projection without a native entry") hce1 ?_
-      rw [inferProjAtIL, ConLeche.Cached.ExprC.getAppFn_spec, ← hfabs]
+      rw [inferProjAtIL, ← hfabs]
       simp
 
 /-- `infer_proj_at_i_refines` at a failure, the pre-#67 statement. -/
@@ -1132,9 +1144,9 @@ theorem inferBodyI_app (lmode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFns
     (lfe : ConLeche.FEnv) (d : Nat) (f a : ConLeche.Expr) :
     ConLeche.Cached.inferBodyI lmode r lfe d (.app f a)
       = (do
-        let tf ← r.infer d (ConLeche.Cached.ExprC.getAppFn (.app f a))
+        let tf ← r.infer d (ConLeche.Expr.getAppFn (.app f a))
         ConLeche.Cached.inferSpineI r lfe d tf #[]
-          (ConLeche.Cached.ExprC.getAppArgs (.app f a))) := rfl
+          (ConLeche.Expr.getAppArgsC (.app f a))) := rfl
 
 /-- `ConLeche/Cached/CoreC.lean:1293-1389` — **`infer_body_i` refines
 `inferBodyI`** (`core_c.rs:3336`), at the knot itself: task #61 removed the
@@ -1285,12 +1297,12 @@ theorem infer_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨args, hargs2, k3⟩ := bind_eq_ok_iff.mp k2
     obtain ⟨haabs, hawf⟩ := ExprOps.get_app_args_refines he hargs2
     obtain ⟨⟨r0, st1⟩, h1, k4⟩ := bind_eq_ok_iff.mp k3
-    have hfn : ConLeche.Cached.ExprC.getAppFn
+    have hfn : ConLeche.Expr.getAppFn
         (ConLeche.Expr.app (absExpr f) (absExpr a)) = absExpr hd1 := by
-      rw [ConLeche.Cached.ExprC.getAppFn_spec, hdabs]; rfl
-    have hag : ConLeche.Cached.ExprC.getAppArgs
+      rw [hdabs]; rfl
+    have hag : ConLeche.Expr.getAppArgsC
         (ConLeche.Expr.app (absExpr f) (absExpr a)) = absExprs args := by
-      rw [ConLeche.Cached.ExprC.getAppArgs_spec]; exact haabs.symm
+      rw [ConLeche.Expr.getAppArgsC_spec]; exact haabs.symm
     cases r0 with
       | Err err =>
         -- the spine head's inference threw
@@ -1303,7 +1315,7 @@ theorem infer_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
         obtain ⟨lst1, hrun1, hrel1, hwf1, htfWF⟩ :=
           (hw.inferSim d hdwf).apply hwf hfe h1 hrel hfrel
         have e1 : (knot mode lfe fuel.val).infer d.val
-              (ConLeche.Cached.ExprC.getAppFn
+              (ConLeche.Expr.getAppFn
                 (ConLeche.Expr.app (absExpr f) (absExpr a))) lst
             = Except.ok (absExpr tf, lst1) := by rw [hfn]; exact hrun1
         cases oc with
@@ -1314,7 +1326,7 @@ theorem infer_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
           refine ⟨lst2, ?_, hrel2, hwf2, hrwf⟩
           have e2 : ConLeche.Cached.inferSpineI (knot mode lfe fuel.val) lfe d.val
                 (absExpr tf) #[]
-                (ConLeche.Cached.ExprC.getAppArgs
+                (ConLeche.Expr.getAppArgsC
                   (ConLeche.Expr.app (absExpr f) (absExpr a))) lst1
               = Except.ok (absExpr r, lst2) := by
             rw [hag]
@@ -1329,7 +1341,7 @@ theorem infer_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
           intro le hle
           have e2 : ConLeche.Cached.inferSpineI (knot mode lfe fuel.val) lfe d.val
                 (absExpr tf) #[]
-                (ConLeche.Cached.ExprC.getAppArgs
+                (ConLeche.Expr.getAppArgsC
                   (ConLeche.Expr.app (absExpr f) (absExpr a))) lst1
               = Except.error le := by
             rw [hag]

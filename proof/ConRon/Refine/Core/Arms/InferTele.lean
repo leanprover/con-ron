@@ -25,7 +25,7 @@ the unreachability argument, not these lemmas.)
   `peel.val` (`ConLeche.Cached.inferLamsI`'s `fuel + 1`/`0` split).
 * `k : U64` counts the binders already opened, and appears only as `d + k` and
   `k - 1` (`expr_ops::sub_nat`, Lean's truncated `Nat` subtraction).
-* `fvs : Vec Expr` is con-leche's `Array ExprC` at the **same** orientation
+* `fvs : Vec Expr` is con-leche's `Array Expr` at the **same** orientation
   (both are pushed, and `instListRevM` indexes from the end): the abstraction
   is `(absExprs fvs).toArray`.
 * the entry stack is **reversed**: con-leche's `List` is innermost-binder
@@ -91,7 +91,7 @@ theorem bool_ite_false {α : Type} (a b : α) :
 
 /-! ## The two entry stacks
 
-`InferLamEntry := ExprC × BinderMeta` (`CoreC.lean:1140`) and
+`InferLamEntry := Expr × BinderMeta` (`CoreC.lean:1140`) and
 `Level × PropWhen`; the port's `Vec` is the reversed list. -/
 
 /-- The λ-telescope stack as con-leche's `List InferLamEntry`: innermost
@@ -298,7 +298,7 @@ theorem instListRevM_run {t ob : expr.Expr} {fvs : alloc.vec.Vec expr.Expr}
   obtain ⟨habs, hwf⟩ := ExprOpsC.instantiate_rev_refines ht hfvs h
   refine ⟨?_, hwf⟩
   rw [ConLeche.Cached.instListRevM, habs,
-    ConLeche.Cached.ExprC.instantiateRev_spec]
+    ConLeche.Expr.instantiateRev_spec]
   simp
 
 /-! ## The two subterms `inferLamsLeafI` writes inline
@@ -310,7 +310,7 @@ the definitional identity the leaf proof rewrites with. -/
 residual's own annotation, else the innermost stack entry's, else `.never`.
 The port's `infer_lams_prev_pw_i` (`core_c.rs:3025`) computes it through
 `Expr.lamPw`, which is the cited `match t with | .lam _ _ mbT => …`. -/
-def inferLamsPrevPwI (t : ConLeche.Cached.ExprC)
+def inferLamsPrevPwI (t : ConLeche.Expr)
     (stk : List ConLeche.Cached.InferLamEntry) : ConLeche.PropWhen :=
   match ConLeche.Expr.lamPw t with
   | some pw => pw
@@ -323,7 +323,7 @@ def inferLamsPrevPwI (t : ConLeche.Cached.ExprC)
 body type's own sort, and the innermost binder's annotation against its
 zero-ness.  The port's `infer_lams_leaf_sort_i` (`core_c.rs:2981`). -/
 def inferLamsLeafSortI (r : ConLeche.Cached.CoreFnsI) (dk : Nat)
-    (bt : ConLeche.Cached.ExprC) (stk : List ConLeche.Cached.InferLamEntry) :
+    (bt : ConLeche.Expr) (stk : List ConLeche.Cached.InferLamEntry) :
     ConLeche.Cached.CheckCM Unit := do
   let btt ← r.inferIO dk bt
   let wbtt ← r.whnf dk btt
@@ -342,8 +342,8 @@ definition, with its inline check phase and its inline `prevPw` replaced by
 `inferLamsLeafSortI`/`inferLamsPrevPwI`.  A definitional identity — the port
 factored exactly these two pieces out. -/
 theorem inferLamsLeafI_eq (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
-    (d : Nat) (t : ConLeche.Cached.ExprC) (k : Nat)
-    (fvs : _root_.Array ConLeche.Cached.ExprC)
+    (d : Nat) (t : ConLeche.Expr) (k : Nat)
+    (fvs : _root_.Array ConLeche.Expr)
     (stk : List ConLeche.Cached.InferLamEntry) :
     ConLeche.Cached.inferLamsLeafI mode r d t k fvs stk = (do
       let ob ← ConLeche.Cached.instListRevM t fvs
@@ -587,7 +587,7 @@ theorem infer_lams_out_i_val (N : Nat) :
       have hwfnode : ExprWF node := ExprWF.forall_e hwfta hcur hxwf.2 hnode
       have hi2v : i2.val = j.val - 1 := ExprOps.sub_nat_val hi2
       have hnodeabs : ConLeche.Expr.forallE
-          (ConLeche.Cached.ExprC.abstractRange (absExpr ent.1) d.val j.val)
+          (ConLeche.Expr.abstractRangeC (absExpr ent.1) d.val j.val)
           (absExpr cur) { pw := absPropWhen ent.2.pw } = absExpr node := by
         rw [habsnode, habsta]
         simp [absBinderMeta]
@@ -921,7 +921,7 @@ theorem infer_lams_leaf_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
         rw [checkCM_bind_run _ _ hrun1, checkCM_bind_run _ _ hchkrun]
         rw [ConLeche.Cached.abstractRangeM]
         rw [pure_bind]
-        rw [show ConLeche.Cached.ExprC.abstractRange (absExpr bt) d.val k.val
+        rw [show ConLeche.Expr.abstractRangeC (absExpr bt) d.val k.val
             = absExpr cur from by rw [hcurabs]; rfl, ← hi2v, ← hprevabs]
       rw [hstep]
       have hout' :=

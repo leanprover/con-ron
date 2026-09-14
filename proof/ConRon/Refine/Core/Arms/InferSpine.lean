@@ -7,13 +7,13 @@ raw Π-telescope against the argument list with *deferred* substitution.
 
 Three things carry the correspondence.
 
-* **The argument list.**  con-leche recurses on `List ExprC`; the Rust walks
+* **The argument list.**  con-leche recurses on `List Expr`; the Rust walks
   `args : Vec Expr` by an index `i : Usize`.  The remaining arguments are
   `(absExprs args).drop i.val`, and the induction is a strong induction on
   `args.val.length - i.val` — `i` only ever grows by one, and only while
   `i < args.len()`.
 * **The accumulator.**  con-leche's deferred-substitution list is an
-  `Array ExprC` pushed at the end (`acc.push a`); the Rust's is a `Vec Expr`
+  `Array Expr` pushed at the end (`acc.push a`); the Rust's is a `Vec Expr`
   pushed at the end too, so the two agree *elementwise*:
   `(absExprs acc).toArray` is con-leche's `acc`.  The reversal the two share
   is the one *inside* the consumer: `instListRevM e acc` is
@@ -72,7 +72,7 @@ set above unfolds `StateT.run`, so this is stated at the applied form. -/
 
 `cached::state_c::inst_list_rev_m e acc 0` *is* `expr_ops_c::instantiate_rev`
 (`Refine/StateC.lean`'s `inst_list_rev_m_eq`), which refines
-`ExprC.instantiateRev`, which is con-leche's `instListRevM`'s whole body;
+`Expr.instantiateRev`, which is con-leche's `instListRevM`'s whole body;
 `instantiateRev_spec` is the reversal. -/
 
 private theorem instListRevM_run {e r : expr.Expr} {acc : alloc.vec.Vec expr.Expr}
@@ -83,7 +83,7 @@ private theorem instListRevM_run {e r : expr.Expr} {acc : alloc.vec.Vec expr.Exp
   intro lst
   rw [ConRon.Refine.StateC.inst_list_rev_m_eq] at h
   obtain ⟨hr, -⟩ := ConRon.Refine.ExprOpsC.instantiate_rev_refines he hacc h
-  simp [ConLeche.Cached.instListRevM, ConLeche.Cached.ExprC.instantiateRev_spec, hr]
+  simp [ConLeche.Cached.instListRevM, ConLeche.Expr.instantiateRev_spec, hr]
 
 private theorem instListRevM_wf {e r : expr.Expr} {acc : alloc.vec.Vec expr.Expr}
     (he : ExprWF e) (hacc : ExprsWF acc)

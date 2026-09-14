@@ -31,7 +31,7 @@ The memo tables are a refinement obligation, not a soundness one.
 | the level-instantiated readers | `const_decl_probe`/`defn_decl_probe`/`rule_rhs_probe(_from)` and `const_ty_at_m`/`const_val_at_m`/`rule_rhs_at_m` |
 | the flush and the record | `flush_c`, `record_c_const` |
 
-`consts_resolve_fc` — the memoized `ExprC` DAG walk of the parsed-index
+`consts_resolve_fc` — the memoized `Expr` DAG walk of the parsed-index
 driver — is the sibling file `Refine/StateCResolve.lean`.
 
 ## The two ingredients this file does not own
@@ -113,7 +113,7 @@ refinement.  `bvar_bound_m` and `subst_level_trees` run `kernel::` operations
 that are already refined, so they get their full lemma here. -/
 
 /-- `ConLeche/Cached/StateC.lean:181-184` — `inst1_m` *is*
-`expr_ops_c::instantiate1` (the cited `ExprC.instantiate1`). -/
+`expr_ops_c::instantiate1` (the cited `Expr.instantiate1C`). -/
 theorem inst1_m_eq (e v : expr.Expr) (d : Std.U64) :
     cached.state_c.inst1_m e v d = cached.expr_ops_c.instantiate1 e v d := rfl
 
@@ -148,7 +148,7 @@ theorem inst_spine_m_eq (args : alloc.vec.Vec expr.Expr) (t : Std.U64)
       = cached.expr_ops_c.inst_spine args t e := rfl
 
 /-- `ConLeche/Cached/StateC.lean:224-226` — `inst_level_params_m` *is*
-`expr_ops_c::inst_level_params` (the cited `ExprC.instLevelParams`). -/
+`expr_ops_c::inst_level_params` (the cited `Expr.instLevelParams`). -/
 theorem inst_level_params_m_eq (ks : alloc.vec.Vec name.Name)
     (us : alloc.vec.Vec level.Level) (e : expr.Expr) :
     cached.state_c.inst_level_params_m ks us e
@@ -708,7 +708,7 @@ must be the same test — which is what `InstCSize` supplies. -/
 attribute [local simp] ConRon.Refine.State.expr_dup_eq
 
 /-- The one `cached::expr_ops_c` fact `inst_list_m` needs: the memoised
-`instantiate_list` walk refines `ExprC.instantiateList`.  **Task #51's
+`instantiate_list` walk refines `Expr.instantiateListC`.  **Task #51's
 `Refine/ExprOpsC.lean` owns it**; it travels here as a named hypothesis so that
 nothing below is weakened and nothing is duplicated. -/
 def InstantiateListRefines : Prop :=
@@ -716,11 +716,11 @@ def InstantiateListRefines : Prop :=
     ExprWF e → ExprsWF vs →
     cached.expr_ops_c.instantiate_list e vs d = ok r →
     absExpr r
-        = ConLeche.Cached.ExprC.instantiateList (absExpr e) (absExprs vs) d.val
+        = ConLeche.Expr.instantiateListC (absExpr e) (absExprs vs) d.val
       ∧ ExprWF r
 
 /-- The one `cached::expr_ops_c` fact the three level-instantiated readers need:
-the memoised `inst_level_params` walk refines `ExprC.instLevelParams`.  **Task
+the memoised `inst_level_params` walk refines `Expr.instLevelParams`.  **Task
 #51's `Refine/ExprOpsC.lean` owns it** (`Refine/ExprOps.lean`'s
 `instantiate_level_params_refines` is the *unmemoised* `kernel::expr_ops` twin,
 the same value at a different memo policy). -/
@@ -729,7 +729,7 @@ def InstLevelParamsRefines : Prop :=
     (e r : expr.Expr), NamesWF ks → LevelsWF us → ExprWF e →
     cached.expr_ops_c.inst_level_params ks us e = ok r →
     absExpr r
-        = ConLeche.Cached.ExprC.instLevelParams (absNames ks) (absLevels us)
+        = ConLeche.Expr.instLevelParams (absNames ks) (absLevels us)
             (absExpr e)
       ∧ ExprWF r
 
@@ -754,10 +754,10 @@ theorem instListM_miss_under {lst : ConLeche.Cached.CState} {e : ConLeche.Expr}
     (hmiss : lst.instC[(e, vs, d)]? = none)
     (hcap : lst.instC.size < ConLeche.Cached.instCCapC) :
     (ConLeche.Cached.instListM e vs d).run lst
-      = .ok (ConLeche.Cached.ExprC.instantiateList e vs d,
+      = .ok (ConLeche.Expr.instantiateListC e vs d,
           { lst with
             instC := lst.instC.insert (e, vs, d)
-              (ConLeche.Cached.ExprC.instantiateList e vs d) }) := by
+              (ConLeche.Expr.instantiateListC e vs d) }) := by
   simp [ConLeche.Cached.instListM, hgt, hmiss, hcap]
 
 /-- `ConLeche/Cached/StateC.lean:193-197` — an `instC` miss **at** the entry
@@ -768,11 +768,11 @@ theorem instListM_miss_over {lst : ConLeche.Cached.CState} {e : ConLeche.Expr}
     (hmiss : lst.instC[(e, vs, d)]? = none)
     (hcap : ¬ lst.instC.size < ConLeche.Cached.instCCapC) :
     (ConLeche.Cached.instListM e vs d).run lst
-      = .ok (ConLeche.Cached.ExprC.instantiateList e vs d,
+      = .ok (ConLeche.Expr.instantiateListC e vs d,
           { lst with
             instC := (∅ : _root_.Std.HashMap
                 (ConLeche.Expr × List ConLeche.Expr × Nat) ConLeche.Expr).insert
-              (e, vs, d) (ConLeche.Cached.ExprC.instantiateList e vs d) }) := by
+              (e, vs, d) (ConLeche.Expr.instantiateListC e vs d) }) := by
   simp [ConLeche.Cached.instListM, hgt, hmiss, hcap]
 
 /-- `ConLeche/Cached/StateC.lean:194` — **the entry bound, below it**: the port
@@ -899,7 +899,7 @@ theorem inst_list_m_refines (hwalk : InstantiateListRefines)
 
 /-! ## The lazy stored-constant conversions
 
-The `ExprC` of a stored constant's type (resp. value): the cached `ienv` entry
+The `Expr` of a stored constant's type (resp. value): the cached `ienv` entry
 when its `Expr` tag validates by pointer equality, else the `Expr` itself.
 
 **The two §3.2 pointer-identity sites of this module.**  con-leche validates the
@@ -909,7 +909,7 @@ the shortcut modeled `false` (task #23's standing treatment, discharged by
 `Refine/ExprOpsMeta.lean`'s `expr_ptr_beq_refines`).  So the model takes the
 `beq` branch and answers exactly what the program answers — and the branch it
 picks is unobservable anyway: `ent.ty` is by construction the conversion of
-`ent.tyE`, `ExprC = Expr`, so both arms return the same value. -/
+`ent.tyE`, `Expr = Expr`, so both arms return the same value. -/
 
 /-- `ConLeche/Cached/StateC.lean:312-320` — `storedTyIdxM` on an `ienv` **hit**,
 against the type half of the entry, in exactly the shape
@@ -1367,11 +1367,11 @@ theorem constTyAtM_bind {lst : ConLeche.Cached.CState} {lfe : ConLeche.FEnv}
     (ConLeche.Cached.constTyAtM lfe nI n us).run lst
       = ((ConLeche.Cached.storedTyIdxM n ci.toConstantVal.type).run lst).bind
           fun p =>
-            .ok (ConLeche.Cached.ExprC.instLevelParams
+            .ok (ConLeche.Expr.instLevelParams
                    ci.toConstantVal.levelParams us p.1,
                  { p.2 with
                    constTyAt := p.2.constTyAt.insert (n, us)
-                     (ConLeche.Cached.ExprC.instLevelParams
+                     (ConLeche.Expr.instLevelParams
                        ci.toConstantVal.levelParams us p.1) }) := by
   simp [ConLeche.Cached.constTyAtM, hmiss, hfind, ConLeche.Cached.storedTyIdxM]
   split <;> rfl
@@ -1403,10 +1403,10 @@ theorem constValAtM_bind {lst : ConLeche.Cached.CState} {lfe : ConLeche.FEnv}
     (hfind : lfe.find? n = some (.defnInfo cv v hint)) :
     (ConLeche.Cached.constValAtM lfe nI n us).run lst
       = ((ConLeche.Cached.storedValIdxM n v).run lst).bind fun p =>
-          .ok (ConLeche.Cached.ExprC.instLevelParams cv.levelParams us p.1,
+          .ok (ConLeche.Expr.instLevelParams cv.levelParams us p.1,
                { p.2 with
                  constValAt := p.2.constValAt.insert (n, us)
-                   (ConLeche.Cached.ExprC.instLevelParams cv.levelParams us
+                   (ConLeche.Expr.instLevelParams cv.levelParams us
                      p.1) }) := by
   simp [ConLeche.Cached.constValAtM, hmiss, hfind,
     ConLeche.Cached.storedValIdxM]
@@ -1448,10 +1448,10 @@ theorem ruleRhsAtM_miss {lst : ConLeche.Cached.CState} {lfe : ConLeche.FEnv}
     (hfind : lfe.find? c = some (.recInfo cv mi rp rules))
     (hrule : rules.find? (fun r' => r'.ctor == j) = some rl) :
     (ConLeche.Cached.ruleRhsAtM lfe cI jI c j us).run lst
-      = .ok (ConLeche.Cached.ExprC.instLevelParams cv.levelParams us rl.rhs,
+      = .ok (ConLeche.Expr.instLevelParams cv.levelParams us rl.rhs,
              { lst with
                ruleRhsAt := lst.ruleRhsAt.insert (c, j, us)
-                 (ConLeche.Cached.ExprC.instLevelParams cv.levelParams us
+                 (ConLeche.Expr.instLevelParams cv.levelParams us
                    rl.rhs) }) := by
   simp [ConLeche.Cached.ruleRhsAtM, ConLeche.Cached.instLevelParamsM, modify,
     MonadStateOf.modifyGet, hmiss, hfind, hrule]
@@ -1978,7 +1978,7 @@ theorem cstate_new_size {st : cached.state_c.CState}
 `modify (ienv := … .insert …)`. -/
 theorem recordCConst_run {lst : ConLeche.Cached.CState} {n : ConLeche.Name}
     {tyE ty : ConLeche.Expr}
-    {val : Option (ConLeche.Expr × ConLeche.Cached.ExprC)} :
+    {val : Option (ConLeche.Expr × ConLeche.Expr)} :
     (ConLeche.Cached.recordCConst n tyE ty val).run lst
       = .ok ((), { lst with ienv := lst.ienv.insert n ⟨tyE, ty, val⟩ }) := by
   simp [ConLeche.Cached.recordCConst, modify, MonadStateOf.modifyGet]

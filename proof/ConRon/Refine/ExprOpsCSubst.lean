@@ -6,7 +6,7 @@ The substitution half of `crates/con-ron-core/src/cached/expr_ops_c.rs`
 `instantiate1`, `instantiate1Lift`, `instantiateList` and `instantiateRev`: the
 memoised DAG walks the executed checker runs, each behind the derived-field
 cutoff `bvarB ≤ d` that returns the node *itself*.  Statements are against the
-cited `ExprC` definitions; the bridge to `ConLeche.Expr`'s logical functions is
+cited `Expr` definitions; the bridge to `ConLeche.Expr`'s logical functions is
 con-leche's `Verify/Cached/OpsC.lean` (`instantiate1_spec`,
 `instantiate1Lift_spec`, `instantiateList_spec`, `instantiateRev_spec`).
 
@@ -28,14 +28,14 @@ open ConRon.Refine.ExprOps
 
 /-! ## `instantiate1` (`ExprOpsC.lean:97-151`, wrapper `:275-277`)
 
-The cutoff and the compound-only memo, against `ExprC.instantiate1`.  The `Q`
+The cutoff and the compound-only memo, against `Expr.instantiate1C`.  The `Q`
 of the memo is task #47's `Inst1Q` -- the recorded answers are the same answers,
 because `instantiate1_spec` says the two walks compute the same function. -/
 
 /-- The cutoff branch of `instantiate1_go`, shared by all ten constructors:
 a node whose loose-`bvar` bound is at or below the cursor has no `bvar d` to
 replace, so the walk returns it unchanged (`Expr.instantiate1_eq_self` through
-`looseBVarsBounded_iff`, which is con-leche's own `ExprC.bvarB_le`). -/
+`looseBVarsBounded_iff`, which is con-leche's own `Expr.bvarB_le`). -/
 theorem instantiate1_cutoff {v : expr.Expr} {d bb : Std.U64} {e r : expr.Expr}
     {memo memo' : ron.hashmap.HashMap expr_ops.ExprNatKey expr.Expr}
     (hwfe : ExprWF e) (hm : MemoInv KeyWF absKey (Inst1Q (absExpr v)) memo)
@@ -433,16 +433,16 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
         rw [Expr.dup_eq hdup] at hins
         exact MemoInv.set key_exact hm2 (keyWF_mk hwfe) hans hins
 
-/-- **`expr_ops_c::instantiate1` refines `ExprC.instantiate1`**
+/-- **`expr_ops_c::instantiate1` refines `Expr.instantiate1C`**
 (`ExprOpsC.lean:275-277`): the cutoff, then the walk under a fresh table.  The
 cited `instantiate1_spec` (`Verify/Cached/OpsC.lean:332`) is what turns the
-logical answer the walk's lemma gives into the `ExprC` function the checker's
+logical answer the walk's lemma gives into the `Expr` function the checker's
 callers name. -/
 theorem instantiate1_refines {e v r : expr.Expr} {d : Std.U64} (he : ExprWF e)
     (hv : ExprWF v) (h : cached.expr_ops_c.instantiate1 e v d = ok r) :
-    absExpr r = ConLeche.Cached.ExprC.instantiate1 (absExpr e) (absExpr v) d.val ∧
+    absExpr r = ConLeche.Expr.instantiate1C (absExpr e) (absExpr v) d.val ∧
       ExprWF r := by
-  rw [ConLeche.Cached.ExprC.instantiate1_spec]
+  rw [ConLeche.Expr.instantiate1C_spec]
   rw [cached.expr_ops_c.instantiate1] at h
   obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
   split at h
@@ -1296,15 +1296,15 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
 
 
 
-/-- **`expr_ops_c::instantiate1_lift` refines `ExprC.instantiate1Lift`**
+/-- **`expr_ops_c::instantiate1_lift` refines `Expr.instantiate1LiftC`**
 (`ExprOpsC.lean:267-273`): the cutoff, the budgeted descent at 4096 nodes, the
 memoised walk when the budget runs out.  `instantiate1Lift_spec`
 (`Verify/Cached/OpsC.lean:2256`) is the same three-way split on the Lean side. -/
 theorem instantiate1_lift_refines {e v r : expr.Expr} {d : Std.U64} (he : ExprWF e)
     (hv : ExprWF v) (h : cached.expr_ops_c.instantiate1_lift e v d = ok r) :
-    absExpr r = ConLeche.Cached.ExprC.instantiate1Lift (absExpr e) (absExpr v) d.val ∧
+    absExpr r = ConLeche.Expr.instantiate1LiftC (absExpr e) (absExpr v) d.val ∧
       ExprWF r := by
-  rw [ConLeche.Cached.ExprC.instantiate1Lift_spec]
+  rw [ConLeche.Expr.instantiate1LiftC_spec]
   rw [cached.expr_ops_c.instantiate1_lift] at h
   obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
   split at h
@@ -1961,16 +1961,16 @@ theorem instantiate_list_bvar_refines {vs : alloc.vec.Vec expr.Expr} (hvs : Expr
   exact instantiate_list_bvar_aux (instantiate_list_go_aux hvs j.val) he hj
     (by rw [hwv]; exact hvs _ (List.getElem_mem hjlt)) h
 
-/-- **`expr_ops_c::instantiate_list` refines `ExprC.instantiateList`**
+/-- **`expr_ops_c::instantiate_list` refines `Expr.instantiateListC`**
 (`ExprOpsC.lean:362-368`): the empty-list shortcut, then one memoised DAG pass
 at the full prefix. -/
 theorem instantiate_list_refines {e r : expr.Expr} {vs : alloc.vec.Vec expr.Expr}
     {d : Std.U64} (he : ExprWF e) (hvs : ExprsWF vs)
     (h : cached.expr_ops_c.instantiate_list e vs d = ok r) :
     absExpr r
-        = ConLeche.Cached.ExprC.instantiateList (absExpr e) (absExprs vs) d.val ∧
+        = ConLeche.Expr.instantiateListC (absExpr e) (absExprs vs) d.val ∧
       ExprWF r := by
-  rw [ConLeche.Cached.ExprC.instantiateList_spec]
+  rw [ConLeche.Expr.instantiateListC_spec]
   have hlenv := alloc.vec.Vec.len_val vs
   rw [cached.expr_ops_c.instantiate_list] at h
   dsimp only at h
@@ -2576,7 +2576,7 @@ theorem instantiate_rev_bvar_refines {vs : alloc.vec.Vec expr.Expr} (hvs : Exprs
   exact instantiate_rev_bvar_aux (instantiate_rev_go_aux hvs j.val) he hjlt hj
     (by rw [hwv]; exact hvs _ (List.getElem_mem hilt)) h
 
-/-- **`expr_ops_c::instantiate_rev` refines `ExprC.instantiateRev`**
+/-- **`expr_ops_c::instantiate_rev` refines `Expr.instantiateRev`**
 (`ExprOpsC.lean:441-445`); `instantiateRev_spec` reads the cited definition as
 `Expr.instantiateList` on the reversed list. -/
 theorem instantiate_rev_refines {e r : expr.Expr} {vs : alloc.vec.Vec expr.Expr}

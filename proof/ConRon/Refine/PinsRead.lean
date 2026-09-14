@@ -1015,11 +1015,11 @@ macro_rules
         modifyGet, MonadStateOf.modifyGet, StateT.modifyGet, String.reduceBEq,
         Bool.false_and, Bool.and_false, Bool.and_true, Bool.true_and, if_true,
         if_false, Bool.false_eq_true, reduceIte,
-        ConLeche.Cached.ExprC.mkBVar_eq, ConLeche.Cached.ExprC.mkFVar_eq,
-        ConLeche.Cached.ExprC.mkSort_eq, ConLeche.Cached.ExprC.mkConst_eq,
-        ConLeche.Cached.ExprC.mkApp_eq, ConLeche.Cached.ExprC.mkLam_eq,
-        ConLeche.Cached.ExprC.mkForallE_eq, ConLeche.Cached.ExprC.mkLetE_eq,
-        ConLeche.Cached.ExprC.mkLit_eq, ConLeche.Cached.ExprC.mkProj_eq,
+        ConLeche.Expr.mkBvar_eq, ConLeche.Expr.mkFVar_eq,
+        ConLeche.Expr.mkSort_eq, ConLeche.Expr.mkConst_eq,
+        ConLeche.Expr.mkApp_eq, ConLeche.Expr.mkLam_eq,
+        ConLeche.Expr.mkForallE_eq, ConLeche.Expr.mkLetE_eq,
+        ConLeche.Expr.mkLit_eq, ConLeche.Expr.mkProj_eq,
         $ts,*])
 
 /-- **A record.**  `parseRecord` reads the record `recordStep` read, ending

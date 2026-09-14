@@ -33,6 +33,7 @@ import ConRon.Refine.Core.Knot
 import ConRon.Refine.HashMapWF
 import ConRon.Refine.Nat
 import ConRon.Refine.Env
+import ConRon.Refine.Canon
 import ConRon.Refine.FEnv
 import ConRon.Refine.State
 import ConRon.Refine.StateC
@@ -41,6 +42,7 @@ import ConRon.Refine.BasisTables
 import ConRon.Refine.CoreKBase
 import ConRon.Refine.CoreKProj
 import ConRon.Refine.BasisNames
+import ConRon.Refine.BasisRaw
 import ConRon.Refine.CoreKNames
 import ConRon.Refine.CoreKVec
 import ConRon.Refine.CoreKLits
@@ -89,6 +91,7 @@ import ConRon.Refine.CheckerC
 import ConRon.Refine.BasisPins
 import ConRon.Refine.StdAxioms
 import ConRon.Refine.TrustAxioms
+import ConRon.Refine.ErrKinds
 import ConRon.Refine.CheckerBase
 import ConRon.Refine.DeclCheck
 import ConRon.Refine.CheckerPinned

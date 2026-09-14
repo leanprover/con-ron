@@ -16,24 +16,29 @@
 //! moved earlier is still a valid stream, so the checker's verdict on a valid
 //! stream is the official kernel's whatever order the export chose.
 //!
-//! Like the prelude and the projection rewrite, this is a pure
-//! transformation of the parsed list below the verified fold: nothing in the
-//! kernel or the proofs knows it happened.  The pass is a no-op — the vector
-//! is returned as it is, no sort — on every stream whose ground precedes its
-//! operations (the toolchain's own export order: `init`, Mathlib).
+//! Like the prelude prepend it sits beside, this is a pure transformation of
+//! the parsed list below the verified fold — a **step of `prepare_prelude`**
+//! (`crate::frontend::prepare`), not of the parse: nothing in the kernel or
+//! the proofs knows it happened.  The pass is a no-op — the vector is returned
+//! as it is, no sort — on every stream whose ground precedes its operations
+//! (the toolchain's own export order: `init`, Mathlib).
 //!
-//! Two deviations: `instance : Inhabited DeclC` (`:55`) has no Rust
-//! counterpart — it exists for Lean's `ds[i]!` and Rust indexes a `Vec`
-//! directly — and `usedConstsGo`'s `Std.HashSet ExprC` becomes a
-//! `HashSet<ExprKey>` over the core's own `hash`/`beq`, which is the same
-//! set (con-leche's `Hashable ExprC` IS `Expr.hash`, its `BEq` IS
-//! `Expr.beq`).
+//! **The pass is two halves** (con-leche task #293): `hoist_targets` computes
+//! the map from a record's index to the earliest pinned-operation index it
+//! must precede, and `apply_hoist` does the reorder.  Behaviour is unchanged;
+//! the split exists so that con-leche's permutation proof does not have to
+//! walk the `Id.run do` that computes the targets.
+//!
+//! One deviation: `usedConstsGo`'s `Std.HashSet Expr` becomes a
+//! `HashSet<ExprKey>` keyed by the node's address (the `ExprKey` note says
+//! why).  con-leche's `instance : Inhabited DeclC` went with task #293 and had
+//! no Rust counterpart anyway (it existed for Lean's `ds[i]!`).
 
 use std::collections::{HashMap, HashSet};
 
-use con_ron_core::cached::parsed_c::DeclC;
 use con_ron_core::kernel::core_k;
-use con_ron_core::kernel::env::ConstantInfo;
+use con_ron_core::kernel::env;
+use con_ron_core::kernel::env::{ConstantInfo, Declaration};
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::{Expr, ExprKind, ExprNode};
 use con_ron_core::kernel::name;
@@ -112,24 +117,7 @@ impl PartialEq for NameKey {
 /// con-leche: none — `NameKey`'s equality is `Name.beq`.
 impl Eq for NameKey {}
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:57-62 DeclC.names
-/// The names a parsed declaration declares (the prelude index and the hoist's
-/// name index; basis blocks are indexed by kind instead).
-pub fn decl_names(d: &DeclC) -> Vec<Name> {
-    match d {
-        DeclC::AxiomDecl(cv)
-        | DeclC::DefnDecl(cv, _, _)
-        | DeclC::ThmDecl(cv, _)
-        | DeclC::OpaqueDecl(cv, _) => vec![name::dup(&cv.name)],
-        DeclC::IndDecl(block, _) => block
-            .iter()
-            .map(con_ron_core::kernel::env::constant_info_name)
-            .collect(),
-        DeclC::BasisDecl(_) => Vec::new(),
-    }
-}
-
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:64-87 usedConstsGo
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:54-77 usedConstsGo
 /// The constants an `Expr` DAG references, each node visited once.
 /// Deviation: an explicit worklist rather than structural recursion —
 /// `app-lam` reaches term depths in the thousands and the Lean recursion runs
@@ -167,25 +155,24 @@ pub fn used_consts_go(seen: &mut HashSet<ExprKey>, acc: &mut Vec<Name>, e: &Expr
     }
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:89-105 DeclC.usedConsts
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:79-95 Declaration.usedConsts
 /// The constants a parsed record references (types, values, recursor rule
-/// right-hand sides; a basis block references nothing the stream declares).
-pub fn decl_used_consts(d: &DeclC) -> Vec<Name> {
+/// right-hand sides; a basis block and a quotient record reference nothing the
+/// stream declares).
+pub fn decl_used_consts(d: &Declaration) -> Vec<Name> {
     let mut seen: HashSet<ExprKey> = HashSet::new();
     let mut acc: Vec<Name> = Vec::new();
     match d {
-        DeclC::AxiomDecl(cv) => used_consts_go(&mut seen, &mut acc, &cv.ty),
-        DeclC::DefnDecl(cv, v, _) | DeclC::ThmDecl(cv, v) | DeclC::OpaqueDecl(cv, v) => {
+        Declaration::AxiomDecl(cv) => used_consts_go(&mut seen, &mut acc, &cv.ty),
+        Declaration::DefnDecl(cv, v, _)
+        | Declaration::ThmDecl(cv, v)
+        | Declaration::OpaqueDecl(cv, v) => {
             used_consts_go(&mut seen, &mut acc, &cv.ty);
             used_consts_go(&mut seen, &mut acc, v);
         }
-        DeclC::IndDecl(block, _) => {
+        Declaration::IndDecl(block, _) => {
             for ci in block {
-                used_consts_go(
-                    &mut seen,
-                    &mut acc,
-                    &con_ron_core::kernel::env::to_constant_val(ci).ty,
-                );
+                used_consts_go(&mut seen, &mut acc, &env::to_constant_val(ci).ty);
                 if let ConstantInfo::RecInfo(_, _, _, rules) = ci {
                     for r in rules {
                         used_consts_go(&mut seen, &mut acc, &r.rhs);
@@ -193,18 +180,18 @@ pub fn decl_used_consts(d: &DeclC) -> Vec<Name> {
                 }
             }
         }
-        DeclC::BasisDecl(_) => {}
+        Declaration::BasisDecl(_) | Declaration::QuotDecl(_, _) => {}
     }
     acc
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:107-114 isNatOpRecord
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:97-104 isNatOpRecord
 /// The pinned `Nat` operation records whose ground the pass serves: the
 /// pin-certified WF operations and the structural ones (whose `natOpDeps` are
 /// in their own closures already — kept uniform).
-pub fn is_nat_op_record(d: &DeclC) -> Option<Name> {
+pub fn is_nat_op_record(d: &Declaration) -> Option<Name> {
     match d {
-        DeclC::DefnDecl(cv, _, _) => {
+        Declaration::DefnDecl(cv, _, _) => {
             if name::contains(&core_k::nat_div_mod_names(), &cv.name)
                 || name::contains(&core_k::nat_op_names(), &cv.name)
             {
@@ -217,16 +204,17 @@ pub fn is_nat_op_record(d: &DeclC) -> Option<Name> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:116-161 hoistNatOpGround
-/// **The hoist.**  Returns the reordered records and the names of the records
-/// moved (empty, and the vector untouched, when no operation's ground is
-/// declared after it).
-pub fn hoist_nat_op_ground(ds: Vec<DeclC>) -> (Vec<DeclC>, Vec<Name>) {
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
+/// **Which records must move, and how far**: the map from a record's index to
+/// the earliest pinned-operation index it must precede.  Empty — and then the
+/// hoist is the identity — on every stream whose ground precedes its
+/// operations.
+pub fn hoist_targets(ds: &[Declaration]) -> HashMap<usize, usize> {
     // name ↦ the index of the record declaring it (the first, on a
     // duplicate — the fold rejects the second anyway)
     let mut idx: HashMap<NameKey, usize> = HashMap::new();
     for (i, d) in ds.iter().enumerate() {
-        for n in decl_names(d) {
+        for n in env::declaration_names(d) {
             idx.entry(NameKey(n)).or_insert(i);
         }
     }
@@ -264,14 +252,22 @@ pub fn hoist_nat_op_ground(ds: Vec<DeclC>) -> (Vec<DeclC>, Vec<Name>) {
             }
         }
     }
-    if target.is_empty() {
-        return (ds, Vec::new());
-    }
-    // the order: a moved record sorts at its target, just ahead of the
-    // operation record there (key `(t, 0, k)` against the operation's
-    // `(t, 1, t)`); everything else keeps its position (`(k, 1, k)`).
-    // Moved records with the same target keep their relative order, which is
-    // dependency order.
+    target
+}
+
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
+/// **The reorder**: a moved record sorts at its target, just ahead of the
+/// operation record there (key `(t, 0, k)` against the operation's
+/// `(t, 1, t)`); everything else keeps its position (`(k, 1, k)`).  Moved
+/// records with the same target keep their relative order, which is dependency
+/// order.
+///
+/// con-leche sorts with `List.mergeSort` rather than `Array.qsort` because
+/// core proves `mergeSort_perm` and proves nothing about `qsort`; the keys are
+/// pairwise distinct (each carries its own index), so the order is the same
+/// one `qsort` produced.  Rust's `sort_by_key` is a stable merge sort, so the
+/// port's order is that same order.
+pub fn apply_hoist(ds: Vec<Declaration>, target: &HashMap<usize, usize>) -> (Vec<Declaration>, Vec<Name>) {
     let key = |k: usize| -> (usize, usize, usize) {
         match target.get(&k) {
             Some(t) => (*t, 0, k),
@@ -283,15 +279,28 @@ pub fn hoist_nat_op_ground(ds: Vec<DeclC>) -> (Vec<DeclC>, Vec<Name>) {
     let mut moved: Vec<Name> = Vec::new();
     for k in 0..ds.len() {
         if target.contains_key(&k) {
-            moved.extend(decl_names(&ds[k]));
+            moved.extend(env::declaration_names(&ds[k]));
         }
     }
-    let mut slots: Vec<Option<DeclC>> = ds.into_iter().map(Some).collect();
-    let out: Vec<DeclC> = order
+    let mut slots: Vec<Option<Declaration>> = ds.into_iter().map(Some).collect();
+    let out: Vec<Declaration> = order
         .into_iter()
         .map(|k| slots[k].take().expect("each index is used once"))
         .collect();
     (out, moved)
+}
+
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:164-169 hoistNatOpGround
+/// **The hoist.**  Returns the reordered records and the names of the records
+/// moved (empty, and the vector untouched, when no operation's ground is
+/// declared after it).
+pub fn hoist_nat_op_ground(ds: Vec<Declaration>) -> (Vec<Declaration>, Vec<Name>) {
+    let target = hoist_targets(&ds);
+    if target.is_empty() {
+        (ds, Vec::new())
+    } else {
+        apply_hoist(ds, &target)
+    }
 }
 
 #[cfg(test)]
@@ -309,8 +318,8 @@ mod tests {
         name::mk_str(nm(a), b.chars().map(|c| c as u32).collect())
     }
 
-    fn defn(n: Name, body: Expr) -> DeclC {
-        DeclC::DefnDecl(
+    fn defn(n: Name, body: Expr) -> Declaration {
+        Declaration::DefnDecl(
             ConstantVal {
                 name: n,
                 level_params: Vec::new(),
@@ -321,9 +330,9 @@ mod tests {
         )
     }
 
-    fn names_of(ds: &[DeclC]) -> Vec<String> {
+    fn names_of(ds: &[Declaration]) -> Vec<String> {
         ds.iter()
-            .flat_map(|d| decl_names(d))
+            .flat_map(env::declaration_names)
             .map(|n| {
                 // enough for the test: a one- or two-component name
                 match &n.0.kind {
@@ -406,8 +415,8 @@ mod tests {
     /// A basis block declares no name and references nothing.
     #[test]
     fn a_basis_block_is_invisible_to_the_hoist() {
-        let d = DeclC::BasisDecl(BasisKind::NatK);
-        assert!(decl_names(&d).is_empty());
+        let d = Declaration::BasisDecl(BasisKind::NatK);
+        assert!(env::declaration_names(&d).is_empty());
         assert!(decl_used_consts(&d).is_empty());
     }
 }

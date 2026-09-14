@@ -620,6 +620,17 @@ both retired; the *only* native entry left is Aeneas's own
 own decode run (`AENEAS_FINDINGS.md` §3.8 — an upstream ask, nothing
 evaluated on our side).  The interim paragraph above is kept as history.
 
+**Upstream, 2026-09-14 (task #83).**  The branch landed on con-leche's
+master as its own task #304, so `vendor/con-leche` is upstream master
+(`c431b1ca`) and the patch of §9 is retired: `pins` is now an *explicit*
+argument, and upstream put it **second, right after the mode, with no
+default** — `checkDecls mode pins ds` — rather than last with
+`:= natOpPinSets` as the branch had it.  con-leche's `model_exists_with` /
+`no_proof_of_False_with` therefore do not exist: there is one pair of
+statements and it is already over every pin list.  Nothing about the port's
+own tower changed: it was already stated at `absPins pins`, so the bump cost
+one argument order and `Refine/Main.lean`'s two compositions.
+
 **`orElse`: an attempt's error is the verdict (ruling of 2026-09-13, task
 #65).**  con-leche has exactly one error-recovery point: the Nat-op pin loop
 tries the pin variants in order and `orElse` (`Kernel/CheckerBase.lean:53`)
@@ -774,6 +785,14 @@ opening the Lean.
   defaults to `HEAD` (whose `vendor/con-leche` tree is the old one) when the
   bump is uncommitted, else must be given; for the pre-subtree history it
   may also be a con-leche commit in the retired submodule's git dir.
+  **In practice `--old` is always given** (task #83): the subtree pull
+  commits the new tree itself, so `HEAD` is already the new one and the
+  default compares the tree with itself and reports nothing.  Pass the
+  con-ron commit *before* the vendoring commit.  A *renamed* declaration
+  comes out `gone`, not `changed`, and its citation is left pointing at a
+  stale range, so after `update` the honest reading of the tree is
+  `check`'s: markers for what changed, `NAME`/`NODECL`/`RANGE` for what
+  moved under a new name.  §7 has the whole procedure.
 
   Reconciliation is deleting the marker line — there is no `accept`
   mode.  `check` stays red while any marker remains, so a bump cannot
@@ -1129,6 +1148,139 @@ measured.
 * Fable designs and states theorems and reviews; Opus agents port, extract,
   prove and measure.  Delegate anything mechanical.
 * Large artifacts (exports, builds) go to `_tmp/` (gitignored).
+
+### Bumping the vendored con-leche
+
+The procedure below is what task #83 (con-leche `732730a5` → `c431b1ca`, 101
+upstream commits, 583 provenance findings) actually took, written as the next
+porter would want to find it.  §3.7 says what `provenance.py` does; this says
+in what order to do it and what goes wrong.
+
+**0. Before anything, know the size.**  In a scratch clone,
+`git diff --stat <old> <new> -- ConLeche/ Main.lean`, and con-leche's own
+`DESIGN.md` task sections between the two commits.  The task sections are the
+only place that says whether a change touches the *executed checker* (which
+the port must mirror) or only the proofs, the docs and the tooling (which it
+must not).  Read them first; the diff alone cannot tell you, and a bump that
+looks like 1 300 changed lines in `Cached/` can be one rename.
+
+**1. The subtree pull.**
+
+```
+git subtree pull --prefix=vendor/con-leche <remote> <branch> --squash \
+  -m "Vendoring con-leche: subtree of <branch> at <sha>"
+```
+
+It finds the merge base by itself, from the `git-subtree-split` trailer of the
+previous squash commit, and needs no help.  A squash pull replays a *tree*
+diff, so a local patch that upstream has since redone its own way is not a
+conflict: task #83's vendored tree was `3e004805` plus con-leche's
+`pins-param` branch, upstream had redone that patch as its own task #304, and
+the merge was clean — no conflict at all.  Afterwards check that the vendored
+tree is byte-identical to upstream's (`git ls-tree HEAD vendor/con-leche`
+against `git rev-parse <sha>^{tree}`), and only then write `<sha>` and a
+one-line reason into `vendor/CON_LECHE_PIN`.
+
+**2. `provenance.py update`, and the one instruction that was wrong.**
+`git subtree pull` **commits**, so by the time `update` runs, `HEAD`'s
+`vendor/con-leche` is the *new* tree and the `--old`-less form documented in
+§3.7 compares the new tree with itself and reports nothing.  Pass the con-ron
+commit *before* the pull:
+
+```
+python3 scripts/provenance.py update --old <the commit before the vendoring commit>
+```
+
+Make an empty `Task #N: start` commit at the top of the task and the answer is
+always "the one before the vendoring commit".  Keep the output in `_tmp/`: it
+is the work order, and the line numbers in the tree move under you.
+
+**3. Classify the findings before touching a line.**  Most of a large bump is
+one or two upstream renames applied everywhere.  Write a thirty-line script
+that parses `update`'s unified diffs, applies the renames you know about to
+the *old* side, and buckets each record: *rename-only*, *doc-only*,
+*whitespace*, *real*.  Task #83's 500 `CHANGED` findings came out 253
+rename-only, 74 doc-only, 11 namespace-only and **162 real**; deleting the 338
+citation-only markers mechanically (match each marker against the citation
+line above it, keyed by Rust file and cited range) took minutes and left a
+legible work order.  Do this before opening a Rust file; it is the difference
+between a day and a week.
+
+**4. `GONE` is where the hand work is.**  `update` relocates a citation by its
+*text* first and by its declaration *name* second, so a declaration upstream
+**renamed** comes out `GONE`, its citation is left pointing at a stale range,
+and `provenance.py check` then reports `NAME`/`NODECL`/`RANGE` rather than an
+unreconciled marker.  Build an `(old path, old decl) → (new path, new decl)`
+map from the upstream task log, rewrite the citations with
+`provenance.py locate` (which prints the canonical `path:a-b decl`), and drop
+the marker in the same pass.  Of task #83's 83 `GONE` findings, 74 were a
+rename or a move and nine were a genuine deletion — and a deletion is never a
+citation edit: it is Rust and proof code to remove, and `check` stays red
+until it is gone.
+
+**5. Port in dependency order, and mind the crate boundary.**
+`crates/con-ron-core/src` is inside the style lint (§3.4) and inside the
+extraction; `crates/con-ron/src` is inside neither, and only inside the
+provenance gate.  So a function upstream moves *out of* the frontend *into*
+the kernel — con-leche's task #293 moved the basis-pin match there — is not a
+move for the port but a rewrite: closures, iterators and `for` loops have to
+go, every item needs a citation the gate accepts, and the generated Lean grows
+by the whole module.  Budget for that separately from the porting itself.
+
+**6. A rename-only marker is still proof work.**  The Rust needs nothing when
+only a con-leche *name* changed, but every statement in `proof/ConRon/Refine/`
+that names the old declaration breaks.  Task #83's 253 rename-only findings
+cost 667 edits in the proof tier and not one line of Rust.  Script that from
+the same map as step 4, and expect a residue: a `_spec` lemma that upstream
+deleted because it became `x = x` leaves a `rw` at each of its consumers,
+which only a human or a build can find.
+
+**7. The order that keeps the tree buildable.**  Rust first, in one pass, the
+crate split across agents on **disjoint files** (`con-ron-core/src/kernel`,
+`con-ron-core/src/cached`, `con-ron/src/frontend`, the driver and the
+binaries); then `scripts/extract.sh`; only then `cd proof && lake build`,
+whose error list is the real proof work order.  Do not start the proofs before
+the model is regenerated: a statement about a generated definition that no
+longer has that shape wastes the whole edit.  The tree does not build between
+the first Rust edit and the last — say so in every WIP commit message.
+
+**8. Two operational traps.**  `lake build` of the vendored con-leche under a
+`ulimit -v` cap dies with *"failed to create thread"*: Lean reserves per-thread
+stack against the address-space limit, so `CLAUDE.md`'s `ulimit -v` rule is
+for *checker runs*, not for Lean builds — cap `LEAN_NUM_THREADS` instead.  And
+`scripts/gen-pins.sh` carries a con-leche citation inside its own heredoc
+(task #74), which no gate rewrites: check it by hand against
+`provenance.py locate` whenever `ConLeche/Kernel/NatOpPins.lean` moves.
+
+**9. Land it.**  `provenance.py check` clean (no marker left, every citation
+resolving), `provenance.py coverage` back at 100 % with
+`scripts/provenance-skip.txt` extended for anything upstream added that the
+port deliberately will not have, `gen-pins.sh --check` green at the same
+record count (which is the measurement that the bump did not touch the pin
+*values*), `scripts/gates.sh` all eight green, `scripts/diff-e2e.sh` green at
+the new fixture count — the fixtures move with upstream, so the count itself
+changes — and §12's Mathlib landing rule.  Then OVERVIEW.md's numbers and
+quotes (`scripts/overview-links.sh --update` after editing, never before), and
+a task-log section that records the upstream tasks absorbed and the marker
+counts before and after.
+
+**10. The link gate is the last gate, and it is a reading exercise, not a
+`--update`.**  A bump moves most of the anchored lines.  Sort its diff into
+three piles: the anchors whose *text* is unchanged (relocate them
+mechanically — a twenty-line script that searches the file for the committed
+text and reports the new range does the whole pile), the anchors whose text
+changed but whose citing paragraph is still true (relocate, then `--update`),
+and the anchors whose text changed *because the document is now wrong*.  Task
+#83 had two of the third kind, and neither would have been found any other
+way: OVERVIEW §0's exit-code table is a verbatim copy of `driver.rs`'s and
+`driver.rs`'s wording had changed, and §2 still said the capstones compose
+with con-leche's `model_exists_with`, which upstream had retired.  Only ever
+run `--update` after that reading; it blesses whatever the anchors point at,
+so an unread anchor turns a stale document into a *committed* stale document.
+`README.md` is human-written and is not to be edited — but its `#L<a>-L<b>`
+fragments are anchors, not prose, and relocating one is the maintenance the
+gate exists to demand.  Change the numbers, never the words, and say so in the
+task log.
 
 ### CI
 
@@ -15412,3 +15564,225 @@ frontend rather than a runtime check, which is exactly the pre-#73 state.
 
 **Gates**: all eight green (`lake-build` 310 s at `LAKE_JOBS=32`), the proof
 library `sorry`-free, the census unchanged.
+
+### Task #83 — con-leche bumped to master c431b1ca (2026-09-14, Opus under Fable)
+
+The vendored con-leche goes from `732730a5` — upstream `3e004805` plus its
+`pins-param` branch, which task #74 carried — to **upstream master
+`c431b1ca`**, 101 commits ahead, on the same toolchain (`v4.33.0`).  The
+maintainer's ask was *"let's see how well the upgrade process works; refine the
+instructions if you learn anything"*; §7's new **"Bumping the vendored
+con-leche"** subsection is the answer, written from what this actually took.
+
+#### 1. The upstream tasks absorbed
+
+| upstream | what it did | executed checker? |
+|---|---|---|
+| #285 | **ONE `Expr`, ONE `Declaration`**: `ExprC`, its namespace and `Cached/ExprC.lean` are gone (the file is `Cached/ExprNodes.lean`), 21 cached operations took a `C` suffix, six cached twins were deleted for the kernel's own, and `Cached.DeclC` became `ConLeche.Declaration` | no — renames |
+| #286, #288, #291, #296, #297 | the main corollary moves to the stream and then to the file; `ConLeche.no_proof_of_False` is **deleted**, `no_False_theorem_accepted` is the record-level one and `no_False_declaration` the chunk-level one | no — statements |
+| #287, #303 | the environment-variable hooks and thirteen retired flags go without trace | driver only |
+| #289 | what the fold stores of what it reads | no — proofs |
+| **#292** | **`sorryAx` is the fold's**: `toleratedAxiomNames` is gone, the parser's taint pre-scan with it; a `sorryAx` record is forwarded and installs nothing, and a *use* DECLINES at the record that uses it, through the two new named builders `unknownConstError` and `unresolvedConstsError` | **yes** |
+| **#293** | **the parser decodes, `preparePrelude` prepares, the fold decides**: `Declaration` gains `quotDecl (QuotKind) (ConstantVal)`, the basis-pin match moves out of the parser into `checkDecl` (`basisPinHit`, `quotPinHit`, the new `Kernel/Canon.lean`), and the prelude reorder and ground hoist move into the new `Frontend/Prepare.lean` | **yes** |
+| **#290**, #294 | the parser enters the theorem: an index may be bound only once, a line ends at the first newline, a size guard, `parseChunks` | **yes** |
+| **#295** | one error type for the whole accept path (`FrontendError` deleted, `CheckError × Nat` everywhere) and `Array` on the run path | **yes** (types) |
+| #299, #302 | README links under the link gate; the quote gate | tooling |
+| **#304** | **the pin list is a parameter of the fold**, explicit, second, no default — con-leche's own redo of the `pins-param` branch, done *for* con-ron | behaviour identical |
+
+So the port's own patch of §9 is retired: nothing in `vendor/con-leche`
+differs from upstream master.
+
+#### 2. The subtree pull, and the marker counts
+
+`git subtree pull --prefix=vendor/con-leche <remote> master --squash` **found
+the merge base on its own** — from the `git-subtree-split` trailer of task
+#74's squash commit — and merged **with no conflict at all**, even though our
+vendored tree carried a patch upstream had since redone its own way: a squash
+pull replays a tree diff, and identical content on both sides is not a
+conflict.  `git ls-tree` then says the vendored tree is byte-identical to
+upstream's.
+
+`scripts/provenance.py update` had to be given `--old <the commit before the
+vendoring commit>`: the pull **commits**, so the `--old`-less form documented
+in §3.7 compares the new tree with itself.  With that, **583 findings — 500
+`CHANGED`, 83 `GONE`**.
+
+A thirty-line classifier (`_tmp/t83/classify.py`) that applies the known
+renames to the old side and re-diffs cut that down before a line was edited:
+
+| bucket | count | what it cost |
+|---|---:|---|
+| rename-only | 253 | 0 lines of Rust; **667 edits in the proof tier** |
+| doc-only | 74 | nothing |
+| namespace/reverse rename | 11 | nothing |
+| **real** | **162** | the port |
+| `GONE`: renamed or moved | 74 | a citation rewrite each |
+| `GONE`: genuinely deleted | 9 | Rust and proof code removed |
+
+**Markers: 583 before, 0 after.**  `provenance.py check` ends at 2 108 items /
+2 224 citations, all current at pin `c431b1ca`; `coverage` at **927/927
+covered (100 %), 0 uncovered, 94 deliberately skipped** (one entry,
+`divModAttemptReason`, was redundant — the declaration *is* cited — and went).
+`gen-pins --check` is green at the **same 26 721 records / 532 456 bytes**,
+which is the measurement that the bump did not touch the pin *values*.
+
+#### 3. What was re-ported
+
+**The verified core.**  `parsed_c::DeclC` is deleted: `env::Declaration` is the
+port's one declaration record, with `QuotKind`, `quot_kind_slot` and
+`declaration_names` beside it.  `check_decl`/`check_decl_c` gained the
+quotient arm, the `Quot.sound` comparison ahead of the common checks, and the
+basis-pin recognition in front of the inductive route; `check_basis_decl` is
+the body the three installing records share.  `core_k::unknown_const_error`
+and `checker_base::unresolved_consts_error` are new, and thirteen guard sites
+throw through them.
+
+**Two modules crossed the crate boundary**, which con-leche's #293 forced:
+`kernel/canon.rs` (359 lines, out of the unverified `frontend/export.rs`) and
+`kernel/basis_raw.rs` (958, out of `frontend/basis_raw.rs`, with
+`basis_kind_decls`, `basis_pin_hit`, `quot_pin_hit`, `quot_basis_at`).  That is
+a rewrite, not a move: both are now inside `lint-rust-style.sh` and inside the
+extraction, so every closure, iterator and `for` loop had to go — and
+`basis_raw`'s forty-six `vec![…]` literals pulled `core::mem::MaybeUninit` into
+the model as a third external until they were spelled out
+(AENEAS_FINDINGS §2.2's `vec!` row, back for the second time; `extract.sh`'s
+unmodelled-external rule is what caught it).
+
+**The unverified crate** follows #290/#292/#293/#294/#295/#303: the taint
+machinery and `FrontendError` are gone, the parser emits one `QuotDecl` per
+`#QUOT` record and matches no pin, `frontend/prepare.rs` is new, an index may
+be bound only once, a line ends at the first newline, and the driver's pipeline
+is con-leche's four pure steps.
+
+#### 4. The proofs, tier by tier
+
+The model was regenerated first, and `lake build`'s error list was the work
+order; four agents then worked disjoint files.  What each tier cost:
+
+| tier | what it was | outcome |
+|---|---|---|
+| the mechanical rename | 667 edits: `ConLeche.Cached.ExprC.foo` becomes `ConLeche.Expr.foo` where the cached twin was deleted and `ConLeche.Expr.fooC` where it took the suffix; `Cached.DeclC` and `Cached.ConstantValC` become `ConLeche.Declaration` / `ConLeche.ConstantVal`; `parsed_c.DeclC` becomes `env.Declaration` and `CheckerDecl`'s local `absDeclC`/`DeclCWF` merge into `Abs.lean`'s `absDeclaration`/`DeclarationWF`, which gain the `QuotDecl` arm and `absQuotKind` | scripted |
+| the deleted `_spec` lemmas | `getAppFn_spec` and `mkAppN_spec` became `x = x` upstream and are gone; 34 `rw`/`simp only` entries deleted, and the same collapse hit `hasFvarC_eq` (`Core/Arms/DefEq.lean`) and `looseBVarsBounded_spec` (`Arms.lean`) | 3 real repairs behind 182 errors |
+| the `sorryAx` verdict | new `Refine/ErrKinds.lean`: `unknown_const_error_refines` and `unresolved_consts_error_refines`, kind equations (`absErrKind`/`lErrKind`), because the port drops the interpolated message.  **Twenty-five call sites** converted from `ErrSim.invalid` to `ErrSim.mk … (unresolved_consts_error_refines …)` across `CheckerBase`, `CheckerSplit`, `IndModeled`, `Checker`, `CheckerDecl` and `Installed`, plus `infer_const_i_refines` in the knot | the only place a *verdict* moved |
+| the recogniser | new `Refine/Canon.lean` (793 lines) and `Refine/BasisRaw.lean` (1 492, 81 theorems) — the two modules con-leche's task #293 pushed into the verified core.  `conron.basis_raw_spec` in `Refine/Main.lean` discharges `CheckerDecl.BasisRawSpec`, so the capstones keep their shape | 4.3 s and 9.3 s to elaborate |
+| the two `checkDecl` twins | the quotient arm, the `Quot.sound` record's test ahead of the common checks, the basis-pin recognition in front of the inductive route; `check_axiom_decl(_c)_refines` becomes the dispatch and the old body `check_axiom_decl_std(_c)_refines` | `check_ind_decl_declines` had to be *renamed and restated*: the old statement is now false, because `check_ind_decl` can accept through the pin |
+| the fold and the capstones | `leanCheckDecls mode pins ⟨ds⟩` — one private `foldlM_mk` (`Array.foldlM_toList`) is the only place the array is entered, and the tier below stays list-shaped.  `conron.model_exists` composes with upstream's `model_exists`, `conron.no_proof_of_False` with `Cached.no_proof_of_False_cached` | `ConLeche.no_proof_of_False` and `model_exists_with` were both deleted upstream |
+
+`BasisRaw.lean` deliberately does **not** follow `BasisTables.lean`'s method
+(one Aeneas `step` per interned node, a `⦃ ⦄` totality spec).  Every function
+in `basis_raw` has a caller that holds the Rust success equation, so the
+tier's ordinary conditional shape applies; the file elaborates in 9.3 s where
+the totality route would have needed a spec for all 26 `basis_names` functions
+and six `maxHeartbeats 4000000` blocks.
+
+Two lemmas that belong in `Refine/Env.lean` are proved locally in
+`BasisRaw.lean` with a note saying so: `env::constant_info_names_from` had no
+consumer until the pin match's name pre-filter, and `Refine/Env.lean` proves
+only the abstraction half of `to_constant_val`.
+
+**No port divergence was found anywhere.**  The one *statement* that had to be
+weakened-looking is `check_ind_decl_route_declines`, and it is a strengthening
+in disguise: the pure lane's `.indDecl` arm now accepts a pinned block for
+real instead of being wholly vacuous, and only the unported-routes stub behind
+the pin stays `Native`.
+
+#### 5. What it measures
+
+**The differential is green and the fixture count did not move**: 348
+fixtures, **0 differ**, at `--verified --jobs=1`, at `--jobs=4` and at
+`--trusted`.  `--no-pins` gives the documented 17 declines (the fixtures that
+define `Nat.div`).  That the count stayed at 348 is worth saying, because the
+expectations are vendored and move with upstream: con-leche's task #293 flipped
+two of them (`prelude_bool_redefined` 2→1, `tower_prelude` 2→0) and the port
+agrees with the new values.
+
+**The accept count moved by five on every real export, and that is upstream's
+change, not the port's.**  A stream's quotient package is four `#QUOT` records
+plus `Quot.sound`'s axiom record, and the parser used to fold them into one
+`basisDecl` before the fold saw them; it now emits five records and the fold
+recognises them.  con-ron and con-leche print the same number, which is the
+check that matters: `Init` 57 977 (was 57 972), `Init+Std+Lean` 163 396,
+Mathlib 691 128.
+
+**The Mathlib landing rule passes.**  `con-ron --verified --jobs=1` on the
+Mathlib export under `ulimit -v 27000000` finishes:
+
+| | con-leche `c431b1ca` | con-ron |
+|---|---:|---:|
+| `Init`, instructions | 585.95 G | **540.38 G** |
+| `Init`, wall / peak RSS | 55.6 s / 0.48 GB | 64.8 s / 0.91 GB |
+| `Init+Std+Lean`, instructions | 1 176.27 G | **1 157.64 G** |
+| `Init+Std+Lean`, wall / peak RSS | 121.5 s / 1.22 GB | 161.1 s / 2.44 GB |
+| Mathlib, instructions | *(below)* | **11 366.95 G** |
+| Mathlib, wall / peak RSS | *(below)* | 1 925.0 s / **16.49 GB** |
+
+con-ron's Mathlib instruction count is **0.12 % below** the 11 381.13 G task
+#81 recorded — which is exactly what con-leche measured for its own task #292,
+so the bump's arithmetic reaches the port unchanged.  Peak RSS is 16.49 GB
+against task #81's 15.85 GB, **+4.0 %**, well inside the 27 GB cap; the extra
+is the preparation step's array shuffling and the five extra records per
+stream.  Wall times were taken while four Lean builds shared the machine and
+are not comparable across days; the instruction counts, which is why they are
+the measure of record, are.
+
+#### 6. Where the ledger stands
+
+`scripts/gates.sh`: **all eight OK**.
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)  to translate 14 077  translated 14 077 (100%)  verified 13 003 (92%)  skipped 611
+Cherries (ConLeche/Frontend, Main.lean)           to translate  7 432  translated  7 432 (100%)  verified      0 (0%)  skipped 378
+Rust core 71 849 lines (1 533 fns) | unverified crates 17 589 | generated Lean 55 476 | proofs 149 611 (1 380 _refines) | pin c431b1ca
+Campaign (task #67): full-outcome 283 / 283 in scope (100%), accept-direction left 0 | stale (CHANGED marker) 0
+LoC: upstream 14 034 | rust 38 024 | generated 53 258 | proof 148 985 (tactic 119 182 in 3 364 thms, grind 0, term 6 105 in 800, other 23 698)
+     ratios rust/up 2.71  gen/rust 1.40  proof/rust 3.92  proof/up 10.62
+```
+
+The port grew by 91 `_refines` lemmas and about 3 000 proof lines, all of it
+`Canon`, `BasisRaw`, `ErrKinds` and the new `checkDecl` arms.  The cherries are
+at 100 % translated for the first time, because `Frontend/Prepare.lean` is
+ported with the rest.
+
+**The link gate.**  Thirteen citations moved or changed with the bump; three
+were mechanical relocations, ten needed the citing paragraph re-read, and two
+paragraphs were stale and are fixed — OVERVIEW §0's exit-code table (which is
+a verbatim copy of `driver.rs`'s, and `driver.rs`'s wording changed) and §2's
+claim that the capstones compose with `model_exists_with`, which upstream
+retired.  README.md's two anchors were relocated as well: only the
+`#L<a>-L<b>` fragments, not a word of its prose.
+
+#### 5. The refined procedure, in brief
+
+§7's new subsection has it in nine steps; the four that were not obvious are:
+
+* **`git subtree pull` commits**, so `provenance.py update` without `--old`
+  compares the new tree with itself and reports nothing.  Always pass the
+  con-ron commit before the vendoring commit — which is why the task opened
+  with an empty `Task #83: start` commit.
+* **Classify before editing.**  A thirty-line script turned 583 findings into
+  162; the other 421 were deleted mechanically in minutes.  Without it this
+  task is a week.
+* **`GONE` is the hand work, and it is not `CHANGED`.**  `update` relocates by
+  text and then by *name*, so a renamed declaration comes out `GONE` with its
+  citation left stale, and `provenance.py check` reports it as
+  `NAME`/`NODECL`/`RANGE` rather than as an unreconciled marker.
+* **A rename-only marker is still proof work.**  253 findings cost no Rust and
+  667 edits in `proof/ConRon/Refine/`.
+
+And three that cost an hour each: `lake build` under a `ulimit -v` cap dies
+with *"failed to create thread"* (Lean reserves per-thread stack against the
+address-space limit — `CLAUDE.md`'s rule is for *checker runs*); a module that
+crosses from `crates/con-ron/src` into `crates/con-ron-core/src` is a rewrite,
+not a move, because the style lint and the extraction both start applying to
+it; and the link gate at the end is a *reading* exercise — two of task #83's
+thirteen moved citations were moved because the document citing them had gone
+stale, and `--update` would have committed the staleness.
+
+**What was left undone, deliberately.**  The eight-worker Mathlib cells of
+OVERVIEW §6.3 were not re-measured: the machine was shared and under memory
+pressure, and the parallel-scaling story this bump does not touch.  §6.3 says
+which cells are at which commit.  And the port does not yet claim con-leche's
+*file*-level corollary `no_False_declaration` (over byte chunks): con-leche's
+tasks #290/#294 brought its parser into its theorem, and porting that
+verification is con-ron's task #84.  con-ron's capstones remain about the
+fold, with `hds` — the parsed input's well-formedness — still a hypothesis.

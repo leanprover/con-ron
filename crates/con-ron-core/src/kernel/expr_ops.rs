@@ -1782,7 +1782,7 @@ pub fn expr_ptr_beq(a: &Expr, b: &Expr) -> bool {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2420-2435 Expr.hasLevelParam
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2536-2541 Expr.hasLP_eq
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2537-2542 Expr.hasLP_eq
 /// Whether an expression mentions any level parameter — the specification of
 /// the packed word's `hasLP` bit, binder prop-ness data included.  The
 /// *executed* reading is `expr::has_lp`, the `O(1)` field read, and the
@@ -1835,7 +1835,7 @@ pub fn levels_subst(ks: &Vec<Name>, us: &Vec<Level>, vs: &Vec<Level>) -> Vec<Lev
     levels_subst_from(ks, us, vs, 0, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2563-2602 Expr.instLPGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2564-2603 Expr.instLPGo
 /// con-leche: ConLeche/Kernel/Level.lean:232-249 Expr.instantiateLevelParams
 /// The memoized walk behind `instantiateLevelParams`: substitute level
 /// parameters throughout, binder prop-ness data included.  The `!hasLP`
@@ -1906,8 +1906,8 @@ pub fn instantiate_level_params_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2717-2719 Expr.instLPFast
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2721-2724 Expr.instantiateLevelParams_eq_instLPFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2718-2720 Expr.instLPFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2722-2725 Expr.instantiateLevelParams_eq_instLPFast
 /// con-leche: ConLeche/Kernel/Level.lean:232-249 Expr.instantiateLevelParams
 /// The executed `instantiateLevelParams`.
 pub fn instantiate_level_params(ks: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> Expr {
