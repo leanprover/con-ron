@@ -30,7 +30,7 @@ returns the literal's *bytes* where con-leche returns the `Nat`).
 
 ## `sorry` count in this file: 0
 -/
-import ConRon.Refine.Frontend.Abs
+import ConRon.Refine.Frontend.ScanKit
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
@@ -314,4 +314,159 @@ theorem utf8_of_refines {acc out : alloc.vec.Vec Std.U8} {val : Std.U32}
   ext1
   simp [utf8_of_bytes hv h, List.data_toByteArray]
 
-end ConRon.Refine.Frontend
+/-! ## `hex4`, `hex3` (`Scan/Fast.lean:543-557`)
+
+The port steps the cursor with `j + 1`, `j + 2`, `j + 3` where the Lean writes
+`j + 1`, `j + 1 + 1`, `j + 1 + 1 + 1`; a step the port returned `ok` for did
+not overflow, so the two agree (`Abs.lean`'s `absPos_add_one`, and its two
+iterates below). -/
+
+/-- One machine-word step inside the array. -/
+private theorem usize_succ (p : USize) (h : p.toNat + 1 < USize.size) :
+    (p + 1).toNat = p.toNat + 1 := by
+  have h1 : ((1 : USize)).toNat = 1 := by simp
+  rw [USize.toNat_add, h1]
+  exact Nat.mod_eq_of_lt h
+
+/-- The port's `+ 2` as con-leche's two steps. -/
+private theorem absPos_add_two {i j : Std.Usize} (h : i + 2#usize = ok j) :
+    absPos j = absPos i + 1 + 1 := by
+  have hv : j.val = i.val + 2 := by have := HashMap.uscalar_add_eq h; scalar_tac
+  have hb : j.val < USize.size := usize_val_lt_size j
+  have s1 : (absPos i + 1).toNat = i.val + 1 := by
+    rw [usize_succ _ (by rw [absPos_toNat]; omega), absPos_toNat]
+  apply USize.toNat_inj.mp
+  rw [usize_succ _ (by rw [s1]; omega), s1, absPos_toNat, hv]
+
+/-- The port's `+ 3` as con-leche's three steps. -/
+private theorem absPos_add_three {i j : Std.Usize} (h : i + 3#usize = ok j) :
+    absPos j = absPos i + 1 + 1 + 1 := by
+  have hv : j.val = i.val + 3 := by have := HashMap.uscalar_add_eq h; scalar_tac
+  have hb : j.val < USize.size := usize_val_lt_size j
+  have s1 : (absPos i + 1).toNat = i.val + 1 := by
+    rw [usize_succ _ (by rw [absPos_toNat]; omega), absPos_toNat]
+  have s2 : (absPos i + 1 + 1).toNat = i.val + 2 := by
+    rw [usize_succ _ (by rw [s1]; omega), s1]
+  apply USize.toNat_inj.mp
+  rw [usize_succ _ (by rw [s2]; omega), s2, absPos_toNat, hv]
+
+/-- The port's `|||`, as con-leche's. -/
+private theorem absU32_or {x y z : Std.U32} (h : lift (x ||| y) = ok z) :
+    absU32 z = absU32 x ||| absU32 y := by
+  apply UInt32.toNat_inj.mp
+  rw [absU32_toNat, or_lift_val h, UInt32.toNat_or, absU32_toNat, absU32_toNat]
+
+/-- The port's `<<<` by a literal, as con-leche's. -/
+private theorem absU32_shl {v z : Std.U32} {k : Std.I32} {w : UInt32} {n : Nat}
+    (h : v <<< k = ok z) (hk : Std.IScalar.toNat k = n) (hw : w.toNat = n)
+    (hn : n < 32) : absU32 z = absU32 v <<< w := by
+  apply UInt32.toNat_inj.mp
+  rw [absU32_toNat, ushl_val h, hk, UInt32.toNat_shiftLeft, absU32_toNat, hw,
+    Nat.mod_eq_of_lt hn]
+  rfl
+
+/-- **`scan_fast::hex4` refines `hex4`** (`Scan/Fast.lean:543-549 hex4`). -/
+theorem hex4_refines {b : Slice Std.U8} {j : Std.Usize} {o : Option Std.U32}
+    (h : frontend.scan_fast.hex4 b j = ok o) :
+    o.map absU32 = hex4 (absBytes b) (absPos j) := by
+  rw [frontend.scan_fast.hex4] at h
+  rw [hex4]
+  obtain ⟨c0, hc0, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨q0, hq0, h⟩ := bind_eq_ok_iff.mp h
+  rw [show byteAt (absBytes b) (absPos j) = absByte c0 from (byte_at_refines hc0).symm,
+    ← hex_val_refines hq0]
+  cases q0 with
+  | none => simp only [Option.map_none]; simpa using h.symm
+  | some x =>
+  simp only [Option.map_some]
+  obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨c1, hc1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨q1, hq1, h⟩ := bind_eq_ok_iff.mp h
+  rw [show byteAt (absBytes b) (absPos j + 1) = absByte c1 from by
+        rw [← absPos_add_one hp1]; exact (byte_at_refines hc1).symm,
+    ← hex_val_refines hq1]
+  cases q1 with
+  | none => simp only [Option.map_none]; simpa using h.symm
+  | some x1 =>
+  simp only [Option.map_some]
+  obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨c2, hc2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
+  rw [show byteAt (absBytes b) (absPos j + 1 + 1) = absByte c2 from by
+        rw [← absPos_add_two hp2]; exact (byte_at_refines hc2).symm,
+    ← hex_val_refines hq2]
+  cases q2 with
+  | none => simp only [Option.map_none]; simpa using h.symm
+  | some x2 =>
+  simp only [Option.map_some]
+  obtain ⟨p3, hp3, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨c3, hc3, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨q3, hq3, h⟩ := bind_eq_ok_iff.mp h
+  rw [show byteAt (absBytes b) (absPos j + 1 + 1 + 1) = absByte c3 from by
+        rw [← absPos_add_three hp3]; exact (byte_at_refines hc3).symm,
+    ← hex_val_refines hq3]
+  cases q3 with
+  | none => simp only [Option.map_none]; simpa using h.symm
+  | some x3 =>
+  simp only [Option.map_some]
+  obtain ⟨s12, hs12, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨s8, hs8, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨u1, hu1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨s4, hs4, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨u2, hu2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨u3, hu3, h⟩ := bind_eq_ok_iff.mp h
+  simp only [Result.ok.injEq] at h
+  subst h
+  simp only [Option.map_some]
+  rw [absU32_or hu3, absU32_or hu2, absU32_or hu1,
+    absU32_shl (w := 12) (n := 12) hs12 (by simp) (by simp) (by omega),
+    absU32_shl (w := 8) (n := 8) hs8 (by simp) (by simp) (by omega),
+    absU32_shl (w := 4) (n := 4) hs4 (by simp) (by simp) (by omega)]
+  rfl
+
+/-- **`scan_fast::hex3` refines `hex3`** (`Scan/Fast.lean:551-557 hex3`). -/
+theorem hex3_refines {b : Slice Std.U8} {j : Std.Usize} {o : Option Std.U32}
+    (h : frontend.scan_fast.hex3 b j = ok o) :
+    o.map absU32 = hex3 (absBytes b) (absPos j) := by
+  rw [frontend.scan_fast.hex3] at h
+  rw [hex3]
+  obtain ⟨c0, hc0, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨q0, hq0, h⟩ := bind_eq_ok_iff.mp h
+  rw [show byteAt (absBytes b) (absPos j) = absByte c0 from (byte_at_refines hc0).symm,
+    ← hex_val_refines hq0]
+  cases q0 with
+  | none => simp only [Option.map_none]; simpa using h.symm
+  | some x =>
+  simp only [Option.map_some]
+  obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨c1, hc1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨q1, hq1, h⟩ := bind_eq_ok_iff.mp h
+  rw [show byteAt (absBytes b) (absPos j + 1) = absByte c1 from by
+        rw [← absPos_add_one hp1]; exact (byte_at_refines hc1).symm,
+    ← hex_val_refines hq1]
+  cases q1 with
+  | none => simp only [Option.map_none]; simpa using h.symm
+  | some x1 =>
+  simp only [Option.map_some]
+  obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨c2, hc2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨q2, hq2, h⟩ := bind_eq_ok_iff.mp h
+  rw [show byteAt (absBytes b) (absPos j + 1 + 1) = absByte c2 from by
+        rw [← absPos_add_two hp2]; exact (byte_at_refines hc2).symm,
+    ← hex_val_refines hq2]
+  cases q2 with
+  | none => simp only [Option.map_none]; simpa using h.symm
+  | some x2 =>
+  simp only [Option.map_some]
+  obtain ⟨s8, hs8, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨s4, hs4, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨u1, hu1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨u2, hu2, h⟩ := bind_eq_ok_iff.mp h
+  simp only [Result.ok.injEq] at h
+  subst h
+  simp only [Option.map_some]
+  rw [absU32_or hu2, absU32_or hu1,
+    absU32_shl (w := 8) (n := 8) hs8 (by simp) (by simp) (by omega),
+    absU32_shl (w := 4) (n := 4) hs4 (by simp) (by simp) (by omega)]
+  rfl
+
