@@ -328,6 +328,96 @@ private theorem firstIxAux_eq_ctorIxAux :
     intro hc
     exact (List.nodup_cons.mp hnd).1 (hc ▸ hn)
 
+/-! ### The counting argument: the deviation, proved harmless
+
+The reordering loop looks `ctorIx[n]?` up once per name of `flat`.  The two
+folds have the **same key set** (`firstIxAux_mem` against `ctorIxAux_mem`:
+both are "the names occurring in `ctorNames`"), so a lookup succeeds on one
+side exactly when it succeeds on the other, and there are only two cases.
+
+*If some lookup fails*, both runs leave through an arm returning
+`.inl (.invalid "No such constructor …")` and only the verdict **kind** is
+compared, so the outcomes agree even where the two sides checked different
+records on the way out.
+
+*If every lookup succeeds*, `ctorNames` cannot repeat a name — and that is
+this subsection.  `flat.Nodup` and `flat.length == cts.length` have already
+passed and `ctorNames.length = cts.length`, so `flat` is a duplicate-free
+list of names all of which occur in `ctorNames`, and `flat` is as long as
+`ctorNames`: a list that long with no repeat cannot fit inside a list of the
+same length that has one.  With `ctorNames.Nodup` the guard in
+`export_c::ctor_index_of` never fires and first-wins *is* last-wins
+(`firstIxAux_eq_ctorIxAux`), so the two runs are pointwise identical. -/
+
+/-- The guarded fold's key set is what it has seen — the same set as
+`ctorIxAux_mem`'s, which is the first half of the argument. -/
+private theorem firstIxAux_mem (n : ConLeche.Name) :
+    ∀ (ns : List ConLeche.Name) (m : Std.HashMap ConLeche.Name Nat) (j : Nat),
+      ((firstIxAux m j ns).1[n]?).isSome = true ↔ ((m[n]?).isSome = true ∨ n ∈ ns) := by
+  intro ns
+  induction ns with
+  | nil => intro m j; simp [firstIxAux]
+  | cons a t iht =>
+    intro m j
+    rw [firstIxAux_cons, iht]
+    by_cases hc : m.contains a
+    · rw [if_pos hc]
+      constructor
+      · rintro (h | h)
+        · exact Or.inl h
+        · exact Or.inr (List.mem_cons_of_mem _ h)
+      · rintro (h | h)
+        · exact Or.inl h
+        · rcases List.mem_cons.mp h with h | h
+          · refine Or.inl ?_
+            rw [h, ← Std.HashMap.contains_eq_isSome_getElem?]
+            exact hc
+          · exact Or.inr h
+    · rw [if_neg hc]
+      by_cases hna : n = a
+      · subst hna; simp
+      · rw [Std.HashMap.getElem?_insert, if_neg (by simpa using fun hx => hna hx.symm)]
+        constructor
+        · rintro (h | h)
+          · exact Or.inl h
+          · exact Or.inr (List.mem_cons_of_mem _ h)
+        · rintro (h | h)
+          · exact Or.inl h
+          · rcases List.mem_cons.mp h with h | h
+            · exact absurd h hna
+            · exact Or.inr h
+
+/-- A duplicate-free list as long as a list it is contained in leaves that
+list duplicate-free: the counting step, as a fact about lists. -/
+private theorem nodup_of_subset_of_length_le {α : Type} [DecidableEq α]
+    {l₁ l₂ : List α} (h1 : l₁.Nodup) (hsub : l₁ ⊆ l₂) (hlen : l₂.length ≤ l₁.length) :
+    l₂.Nodup := by
+  have hsp : l₁.Subperm l₂ := List.subperm_of_subset h1 hsub
+  have hperm : l₁.Perm l₂ := hsp.perm_of_length_le hlen
+  exact hperm.nodup_iff.mp h1
+
+/-- **If every lookup of the reordering loop succeeds, `ctorNames` has no
+repeat.**  `flat` is duplicate-free, as long as `ctorNames`, and every one of
+its names is a key of the map, hence occurs in `ctorNames`. -/
+theorem ctorNames_nodup_of_lookups {flat ctorNames : List ConLeche.Name}
+    (hnd : flat.Nodup) (hlen : ctorNames.length ≤ flat.length)
+    (hkey : ∀ n ∈ flat, ((firstIxAux ∅ 0 ctorNames).1[n]?).isSome = true) :
+    ctorNames.Nodup := by
+  refine nodup_of_subset_of_length_le hnd (fun n hn => ?_) hlen
+  rcases (firstIxAux_mem n ctorNames ∅ 0).mp (hkey n hn) with h | h
+  · simp at h
+  · exact h
+
+/-- **First-wins is last-wins on a duplicate-free `ctorNames`**: the port's
+`ctor_index_of` and con-leche's `ctorIx` fold are then the same map.  This is
+the *only* statement of the file that identifies the two, and it is exactly
+as strong as the counting argument above allows — the maps are NOT equal in
+general (`ctorNames = [n, n]` sends the port's to `n ↦ 0` and con-leche's to
+`n ↦ 1`). -/
+theorem firstIx_eq_ctorIx {ctorNames : List ConLeche.Name} (h : ctorNames.Nodup) :
+    firstIxAux ∅ 0 ctorNames = ctorIxAux ∅ 0 ctorNames :=
+  firstIxAux_eq_ctorIxAux ctorNames ∅ 0 h (fun _ _ => by simp)
+
 /-- The index recursion behind `export_c::ctor_index_of`. -/
 private theorem ctor_index_of_loop_refines {ns : alloc.vec.Vec name.Name}
     (hwf : NamesWF ns) (N : Nat) :
