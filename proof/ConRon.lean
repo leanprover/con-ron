@@ -107,3 +107,5 @@ import ConRon.Refine.Frontend.Prepare
 import ConRon.Refine.Frontend.Readers
 import ConRon.Refine.Frontend.Ind
 import ConRon.Refine.Frontend.ProjRec
+import ConRon.Refine.Frontend.ScanWF
+import ConRon.Refine.Frontend.Chunks
