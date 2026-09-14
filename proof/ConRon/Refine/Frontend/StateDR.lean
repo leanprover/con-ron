@@ -631,7 +631,19 @@ structure StateDRel (st : frontend.export_c.StateD)
   indBlocksInv : HashMap.Inv State.hName st.ind_blocks
   indBlocksKeys : HashMap.KeysOk NameWF st.ind_blocks
   inModelCensus : st.in_model_census = lst.inModelCensus
-  inModelDeclined : st.in_model_declined.val.map absNameStr = lst.inModelDeclined.toList
+  /-- **The declines' block names, not their reasons.**  `absNameStr` is the
+  honest abstraction of an entry, but the clause is that abstraction *projected
+  to the name*: the census decline's reason is a message string, and DESIGN.md
+  §3.1 has said since task #1 that the theorem never reads one — `LineErrSim`
+  and `ErrSim` compare kinds, `rebound_error` carries no lemma at all, and
+  `Refine/Frontend/ChunksR.lean`'s `ModellerRefines` deliberately promises only
+  `∃ s, … = .error s` of a decline.  Comparing the text here would have been
+  the one place in the tier that did, and it is what forced the extra modeller
+  hypothesis `IndModellerDeclineText` that
+  `Refine/Frontend/IndInstallR.lean` used to carry (task #87, the
+  coordinator's ruling: weaken the relation, do not strengthen the modeller). -/
+  inModelDeclined : (st.in_model_declined.val.map absNameStr).map Prod.fst
+      = lst.inModelDeclined.toList.map Prod.fst
 
 /-! ## The state readers
 
@@ -2455,8 +2467,9 @@ theorem parse_result_of_state_refines {st : frontend.export_c.StateD}
       r.gen_records.val = (ConLeche.Frontend.ParseResultD.ofState lst).genRecords ∧
       HashMap.RelOn NameWF r.gen_owner
         (ConLeche.Frontend.ParseResultD.ofState lst).genOwner absName absName ∧
-      r.in_model_declined.val.map absNameStr
-        = (ConLeche.Frontend.ParseResultD.ofState lst).inModelDeclined.toList := by
+      (r.in_model_declined.val.map absNameStr).map Prod.fst
+        = (ConLeche.Frontend.ParseResultD.ofState lst).inModelDeclined.toList.map
+          Prod.fst := by
   rw [frontend.export_c.parse_result_of_state] at h
   rw [← Result.ok_injective h]
   exact ⟨hrel.decls, hrel.projRewrites, hrel.inModelled, hrel.genRecords, hrel.genOwner,
@@ -2655,14 +2668,20 @@ theorem StateDRel.inModelled_push {st : frontend.export_c.StateD}
       { lst with inModelled := lst.inModelled.push (absName n) } :=
   { hrel with inModelled := by rw [vec_push_val h]; simp [hrel.inModelled] }
 
+/-- The decline push, at **any** con-leche reason `s`: the relation compares the
+block names only (see `StateDRel.inModelDeclined`), so the caller does not have
+to know what text con-leche booked beside the name — which is exactly what lets
+`Refine/Frontend/IndInstallR.lean`'s census arm close from
+`ModellerRefines`' `∃ s, … = .error s`. -/
 theorem StateDRel.inModelDeclined_push {st : frontend.export_c.StateD}
     {lst : ConLeche.Frontend.StateD}
     {v : alloc.vec.Vec (name.Name × (alloc.vec.Vec Std.U32))}
-    {p : name.Name × (alloc.vec.Vec Std.U32)}
+    {p : name.Name × (alloc.vec.Vec Std.U32)} (s : String)
     (hrel : StateDRel st lst) (h : alloc.vec.Vec.push st.in_model_declined p = ok v) :
     StateDRel { st with in_model_declined := v }
-      { lst with inModelDeclined := lst.inModelDeclined.push (absNameStr p) } :=
-  { hrel with inModelDeclined := by rw [vec_push_val h]; simp [hrel.inModelDeclined] }
+      { lst with inModelDeclined := lst.inModelDeclined.push (absName p.1, s) } :=
+  { hrel with
+    inModelDeclined := by rw [vec_push_val h]; simp [absNameStr, hrel.inModelDeclined] }
 
 theorem StateDRel.genRecords_step {st : frontend.export_c.StateD}
     {lst : ConLeche.Frontend.StateD} {g : Std.U64}

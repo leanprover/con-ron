@@ -201,7 +201,14 @@ structure ParseResultSim (r : frontend.export_c.ParseResultD)
   inModelled : r.in_modelled.val.map absName = x.inModelled.toList
   genRecords : r.gen_records.val = x.genRecords
   genOwner : HashMap.RelOn NameWF r.gen_owner x.genOwner absName absName
-  inModelDeclined : r.in_model_declined.val.map absNameStr = x.inModelDeclined.toList
+  /-- **The declines' block names, not their reasons** — the projection of
+  `absNameStr`, matching `Refine/Frontend/StateDR.lean`'s `StateDRel` clause of
+  the same name.  A decline's reason is a message string and DESIGN.md §3.1's
+  ruling is that the theorem never reads one; `absParseResultD` above still
+  carries the full entry as a *value*, but nothing claims its second
+  component. -/
+  inModelDeclined : (r.in_model_declined.val.map absNameStr).map Prod.fst
+      = x.inModelDeclined.toList.map Prod.fst
 
 /-! ## The parse tier's outcome
 
