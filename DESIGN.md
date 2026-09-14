@@ -17155,3 +17155,50 @@ vocabularies, written a day apart by different agents against agent D's
 (`ScanLine` + `IndR` into `ChunksR`) costs **8 modules and no Mathlib**,
 measured at 3.27 s → 3.30 s elaboration: `IndR` does not pull `ProjRecR`, so
 §11's 2 179-job figure does not apply here.
+
+#### 15. The projection rewrite, complete
+
+`Refine/Frontend/ProjRecR.lean` (3 466 lines, zero `sorry`) covers **every
+function** of `crates/con-ron-core/src/frontend/proj_rec.rs` — checked
+mechanically against the module's `fn` list — with two capstones,
+**`proj_rec_value_refines`** (`ProjRec.lean:242-330`) and
+**`proj_rec_owners_refines`** (`:332-370`, the owner census), both censused at
+the three standard axioms.  **No port bug; every strengthening held.**
+
+Its five exports are what `StateDR.ProjRecSpec` names, and they now land **by
+name**:
+
+```lean
+theorem projRecSpec_holds : ProjRecSpec where
+  lamBody := lam_body_refines ; isProjIotaName := is_proj_iota_name_refines
+  projIotaLevel := proj_iota_level_refines ; projIotaName := proj_iota_name_refines
+  projRecValue := proj_rec_value_refines
+```
+
+Getting there meant restating two lemmas to carry their `WF` conjunct and the
+consumer's binder order — which is the lesson: **a `*Spec` field's shape is
+part of the interface**, and the file that proves it should be written against
+the consumer's spelling rather than leave the consumer to adapt.  Two agents
+lost a round trip each to binder order before this was said out loud.
+
+Three mechanics from the file, each costing a debugging round:
+
+1. The generated `proj_rec_owner_at` has a destructuring `let (_, e) := b`
+   that does **not** reduce under `dsimp only`, `simp only []`,
+   `Prod.mk.eta` or `split at h`.  What gets past it is unification-driven
+   whnf: `bind_eq_ok_iff.mp h`, or `Result.ok_injective h`.
+2. `obtain ⟨…, h⟩ := bind_eq_ok_iff.mp h` leaves the previous `h` as an
+   *inaccessible* hypothesis, and a later `cases` on a variable it mentions
+   then dies with *"dependent elimination failed"* on the coinductive
+   `Result`.  `simp only [bind_eq_ok_iff] at h` then `obtain … := h` clears it.
+3. `simp only [absProjTypeRec]` on a goal containing `guard c` rewrites `c`
+   but **not** the `Decidable c` instance argument, after which
+   `rw [guard_opt_pos/neg]` cannot unify.  Leave the guard's proposition
+   un-normalised.
+
+And one measurement against the idiom, from the agent that tried it: on
+`proj_rec_owner_at`, `rust_norm` splits into a goal per path (about twelve)
+with the con-leche side to rebuild on each, where **factoring the shared tail
+into one lemma stated over the generated `do` block verbatim** — which `exact`
+accepts up to defeq — was much cheaper.  That is the third independent
+measurement in this task of the same conclusion.
