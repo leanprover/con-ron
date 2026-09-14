@@ -772,4 +772,277 @@ theorem lValidateIndD_eq (st : StateD) (tys : List IndTypeRec) (cts : List IndCt
 
 end Mirror
 
+/-! ## The recursor records (`ExportC.lean:412-563`, the `for r in rcs` loop)
+
+Three port functions — `check_rec_indices`, `check_one_rec`,
+`check_rec_records` — against `lRecIdxStep`, `lRecStep` and the `lForIn` over
+them.  Every early return of those loops is an `.invalid` verdict, so the two
+outcome shapes below name only `.invalid`'s *kind*, never its message
+(DESIGN.md §3.1). -/
+
+/-- **The outcome of a `Result<(), LineErr>` whose con-leche twin is one of
+`validateIndD`'s loops, run to the end.** -/
+def LoopOut (o : core.result.Result Unit frontend.export_c.LineErr)
+    (x : ConLeche.Frontend.M (Option LVRes × Unit)) : Prop :=
+  match o with
+  | .Ok _ => x = .ok (none, ())
+  | .Err (.Msg _) => ∃ s, x = .error s
+  | .Err (.Verdict v) =>
+    ∃ lv u, x = .ok (some (.inl lv), u) ∧ lVerdictKind lv = absVerdictKind v
+
+/-- **The outcome of a `Result<(), LineErr>` whose con-leche twin is one
+*step* of such a loop.** -/
+def StepLoopOut (o : core.result.Result Unit frontend.export_c.LineErr)
+    (x : ConLeche.Frontend.M (ForInStep (Option LVRes × Unit))) : Prop :=
+  match o with
+  | .Ok _ => x = .ok (.yield (none, ()))
+  | .Err (.Msg _) => ∃ s, x = .error s
+  | .Err (.Verdict v) =>
+    ∃ lv u, x = .ok (.done (some (.inl lv), u)) ∧ lVerdictKind lv = absVerdictKind v
+
+/-- `lForIn` at a cons. -/
+private theorem lForIn_cons {α σ : Type}
+    (f : α → σ → ConLeche.Frontend.M (ForInStep σ)) (a : α) (l : List α) (s : σ) :
+    lForIn f (a :: l) s =
+      (f a s >>= fun r => match r with
+        | .done s' => pure s'
+        | .yield s' => lForIn f l s') := rfl
+
+/-- `lForIn` at nil. -/
+private theorem lForIn_nil {α σ : Type}
+    (f : α → σ → ConLeche.Frontend.M (ForInStep σ)) (s : σ) :
+    lForIn f [] s = pure s := rfl
+
+/-- A `zip`, dropped. -/
+private theorem iv_zip_drop {α β : Type} : ∀ (k : Nat) (l₁ : List α) (l₂ : List β),
+    (l₁.zip l₂).drop k = (l₁.drop k).zip (l₂.drop k)
+  | 0, _, _ => by simp
+  | _ + 1, [], _ => by simp
+  | _ + 1, _ :: _, [] => by simp
+  | m + 1, a :: t₁, b :: t₂ => by
+    simp only [List.zip_cons_cons, List.drop_succ_cons]
+    exact iv_zip_drop m t₁ t₂
+
+/-- A mapped `Vec`, dropped at an index in range. -/
+private theorem iv_drop_map {α β : Type} {v : alloc.vec.Vec α} {i : Nat} (f : α → β)
+    (hlt : i < v.val.length) :
+    (v.val.map f).drop i = f (v.val[i]'hlt) :: (v.val.map f).drop (i + 1) := by
+  rw [List.drop_eq_getElem_cons (by simpa using hlt), List.getElem_map]
+
+/-- An out-of-range `Vec` read does not return. -/
+private theorem iv_index_lt {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize} {x : α}
+    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok x) :
+    i.val < v.val.length := by
+  by_contra hc
+  have hg := ExprOps.vec_index_getElem? h
+  rw [List.getElem?_eq_none (by omega)] at hg
+  simp at hg
+
+/-! ### `lRecIdxStep`, arm by arm -/
+
+section StepArms
+open ConLeche ConLeche.Frontend
+
+/-- The name does not match: the step yields. -/
+private theorem lRecIdxStep_ne {T rn : ConLeche.Name} {ni nPd : Nat}
+    {tt : ConLeche.Name × ConLeche.Expr} (h : tt.1 ≠ T) (s : Option LVRes × Unit) :
+    lRecIdxStep T rn ni nPd tt s = pure (.yield (none, ())) := by
+  simp only [lRecIdxStep]; rw [if_neg (by simpa using h)]
+
+/-- The telescope is unreadable: the step yields. -/
+private theorem lRecIdxStep_unreadable {T rn : ConLeche.Name} {ni nPd : Nat}
+    {tt : ConLeche.Name × ConLeche.Expr} (h : tt.2.piSortTeleLen? = none)
+    (s : Option LVRes × Unit) :
+    lRecIdxStep T rn ni nPd tt s = pure (.yield (none, ())) := by
+  simp only [lRecIdxStep, h]
+  split <;> rfl
+
+/-- The counts agree: the step yields. -/
+private theorem lRecIdxStep_ok {T rn : ConLeche.Name} {ni nPd k : Nat}
+    {tt : ConLeche.Name × ConLeche.Expr} (h : tt.2.piSortTeleLen? = some k)
+    (hk : nPd + ni = k) (s : Option LVRes × Unit) :
+    lRecIdxStep T rn ni nPd tt s = pure (.yield (none, ())) := by
+  simp only [lRecIdxStep, h]
+  split
+  · rw [if_pos (by simpa using hk)]
+  · rfl
+
+/-- The counts disagree: the step stops with an `.invalid` verdict. -/
+private theorem lRecIdxStep_bad {T rn : ConLeche.Name} {ni nPd k : Nat}
+    {tt : ConLeche.Name × ConLeche.Expr} (h1 : tt.1 = T)
+    (h : tt.2.piSortTeleLen? = some k) (hk : nPd + ni ≠ k) (s : Option LVRes × Unit) :
+    ∃ m, lRecIdxStep T rn ni nPd tt s
+      = pure (.done (some (.inl (.invalid m)), ())) := by
+  simp only [lRecIdxStep, h]
+  rw [if_pos (by simpa using h1), if_neg (by simpa using hk)]
+  exact ⟨_, rfl⟩
+
+end StepArms
+
+/-- The index recursion behind `export_c::check_rec_indices`. -/
+private theorem check_rec_indices_loop_refines {rn t_pre : name.Name}
+    {num_indices n_pd : Std.U64}
+    {ty_names : alloc.vec.Vec name.Name} {ty_types : alloc.vec.Vec expr.Expr}
+    (hnwf : NamesWF ty_names) (htwf : ExprsWF ty_types) (htp : NameWF t_pre) (N : Nat) :
+    ∀ (n i : Std.Usize) (o : core.result.Result Unit frontend.export_c.LineErr),
+      ty_names.val.length - i.val = N → n.val = ty_names.val.length →
+      frontend.export_c.check_rec_indices_loop rn t_pre num_indices ty_names ty_types
+        n_pd n i = ok o →
+      LoopOut o (lForIn (fun tt s => lRecIdxStep (absName t_pre) (absName rn)
+          num_indices.val n_pd.val tt s)
+        (((absNames ty_names).zip (absExprs ty_types)).drop i.val) (none, ())) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro n i o hN hn h
+    rw [frontend.export_c.check_rec_indices_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : i.val < ty_names.val.length := by scalar_tac
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨n1, hidx, h⟩ := h
+      have hn1v : ty_names.val[i.val]'hltv = n1 := iv_index_val hidx
+      have hn1wf : NameWF n1 := by rw [← hn1v]; exact hnwf _ (List.getElem_mem _)
+      obtain ⟨b, hb, h⟩ := h
+      have hbv : b = decide (absName n1 = absName t_pre) := Name.beq_refines hn1wf htp hb
+      split at h
+      · -- the names match: read `ty_types` at the same index
+        rename_i hbt
+        have habs : absName n1 = absName t_pre := by
+          have hd : decide (absName n1 = absName t_pre) = true := by rw [← hbv]; exact hbt
+          simpa using hd
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨e, hidxe, h⟩ := h
+        have hltt : i.val < ty_types.val.length := iv_index_lt hidxe
+        have hev : ty_types.val[i.val]'hltt = e := iv_index_val hidxe
+        have hewf : ExprWF e := by rw [← hev]; exact htwf _ (List.getElem_mem _)
+        obtain ⟨oo, hoo, h⟩ := h
+        have hooabs : oo.map Std.UScalar.val
+            = ConLeche.Expr.piSortTeleLen? (absExpr e) := Env.pi_sort_tele_len_refines hewf hoo
+        have hdrop : ((absNames ty_names).zip (absExprs ty_types)).drop i.val
+            = (absName n1, absExpr e) ::
+              ((absNames ty_names).zip (absExprs ty_types)).drop (i.val + 1) := by
+          rw [iv_zip_drop, iv_zip_drop]
+          simp only [absNames, absExprs]
+          rw [iv_drop_map absName hltv, iv_drop_map absExpr hltt, hn1v, hev]
+          simp
+        rw [hdrop, lForIn_cons]
+        cases oo with
+        | none =>
+          have hpst : (absExpr e).piSortTeleLen? = none := by
+            rw [← hooabs]; simp
+          rw [lRecIdxStep_unreadable (T := absName t_pre)
+            (rn := absName rn) (ni := num_indices.val) (nPd := n_pd.val)
+            (tt := (absName n1, absExpr e)) hpst (none, ())]
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨i2, hi2, h⟩ := h
+          have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+          have hres := ih (ty_names.val.length - i2.val) (by omega) n i2 o rfl hn h
+          rw [hi2v] at hres
+          simpa using hres
+        | some k =>
+          have hpst : (absExpr e).piSortTeleLen? = some k.val := by
+            rw [← hooabs]; simp
+          obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+          have hi1v : i1.val = n_pd.val + num_indices.val := HashMap.uscalar_add_eq hi1
+          split at h
+          · -- the declared count disagrees: an `.invalid` verdict
+            rename_i hne
+            have hsum : n_pd.val + num_indices.val ≠ k.val := by
+              rw [← hi1v]
+              intro hc
+              have : (i1 != k) = false := by
+                simp only [bne_eq_false_iff_eq]
+                exact Std.UScalar.eq_of_val_eq hc
+              rw [this] at hne
+              exact absurd hne (by simp)
+            obtain ⟨m, hm⟩ := lRecIdxStep_bad (T := absName t_pre) (rn := absName rn)
+              (ni := num_indices.val) (nPd := n_pd.val) (tt := (absName n1, absExpr e))
+              habs hpst hsum (none, ())
+            rw [hm]
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨sub, -, h⟩ := h
+            obtain ⟨msg, -, h⟩ := h
+            rw [frontend.export_c.invalid] at h
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            exact ⟨_, _, rfl, rfl⟩
+          · rename_i heq
+            have hsum : n_pd.val + num_indices.val = k.val := by
+              rw [← hi1v]
+              simpa using heq
+            rw [lRecIdxStep_ok (T := absName t_pre) (rn := absName rn)
+              (ni := num_indices.val) (nPd := n_pd.val) (tt := (absName n1, absExpr e))
+              hpst hsum (none, ())]
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨i2, hi2, h⟩ := h
+            have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+            have hres := ih (ty_names.val.length - i2.val) (by omega) n i2 o rfl hn h
+            rw [hi2v] at hres
+            simpa using hres
+      · -- the names differ: the port steps, and so does con-leche when it can
+        rename_i hbf
+        have habs : absName n1 ≠ absName t_pre := by
+          intro hc
+          exact hbf (by rw [hbv, hc]; simp)
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨i2, hi2, h⟩ := h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hres := ih (ty_names.val.length - i2.val) (by omega) n i2 o rfl hn h
+        rw [hi2v] at hres
+        have hzl : ((absNames ty_names).zip (absExprs ty_types)).length
+            ≤ ty_types.val.length := by
+          simp only [List.length_zip, absExprs, List.length_map]
+          exact Nat.min_le_right _ _
+        by_cases hltt : i.val < ty_types.val.length
+        · have hdrop : ((absNames ty_names).zip (absExprs ty_types)).drop i.val
+              = (absName n1, absExpr (ty_types.val[i.val]'hltt)) ::
+                ((absNames ty_names).zip (absExprs ty_types)).drop (i.val + 1) := by
+            rw [iv_zip_drop, iv_zip_drop]
+            simp only [absNames, absExprs]
+            rw [iv_drop_map absName hltv, iv_drop_map absExpr hltt, hn1v]
+            simp
+          rw [hdrop, lForIn_cons]
+          rw [lRecIdxStep_ne (T := absName t_pre) (rn := absName rn)
+            (ni := num_indices.val) (nPd := n_pd.val)
+            (tt := (absName n1, absExpr (ty_types.val[i.val]'hltt))) habs (none, ())]
+          simpa using hres
+        · have hnil : ((absNames ty_names).zip (absExprs ty_types)).drop i.val = [] :=
+            List.drop_eq_nil_of_le (by omega)
+          have hnil2 : ((absNames ty_names).zip (absExprs ty_types)).drop (i.val + 1) = [] :=
+            List.drop_eq_nil_of_le (by omega)
+          rw [hnil]
+          rw [hnil2] at hres
+          exact hres
+    · rename_i hge
+      have hle : ty_names.val.length ≤ i.val := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hzl : ((absNames ty_names).zip (absExprs ty_types)).length
+          ≤ ty_names.val.length := by
+        simp only [List.length_zip, absNames, List.length_map]
+        exact Nat.min_le_left _ _
+      have hnil : ((absNames ty_names).zip (absExprs ty_types)).drop i.val = [] :=
+        List.drop_eq_nil_of_le (by omega)
+      rw [hnil, lForIn_nil]
+      rfl
+
+/-- **`export_c::check_rec_indices` refines the `for tt in tyNames.zip tyTypes`
+of `validateIndD`** (`ConLeche/Frontend/ExportC.lean:412-563`).  The port walks
+`ty_names` by index and reads `ty_types` at the same index only when the name
+matches, so a `ty_types` shorter than `ty_names` is a port *failure* exactly
+where con-leche's `zip` stops — and nothing is claimed about a failure. -/
+theorem check_rec_indices_refines {rn t_pre : name.Name} {num_indices n_pd : Std.U64}
+    {ty_names : alloc.vec.Vec name.Name} {ty_types : alloc.vec.Vec expr.Expr}
+    {o : core.result.Result Unit frontend.export_c.LineErr}
+    (hnwf : NamesWF ty_names) (htwf : ExprsWF ty_types) (htp : NameWF t_pre)
+    (h : frontend.export_c.check_rec_indices rn t_pre num_indices ty_names ty_types n_pd
+      = ok o) :
+    LoopOut o (lForIn (fun tt s => lRecIdxStep (absName t_pre) (absName rn)
+        num_indices.val n_pd.val tt s)
+      ((absNames ty_names).zip (absExprs ty_types)) (none, ())) := by
+  rw [frontend.export_c.check_rec_indices] at h
+  have hres := check_rec_indices_loop_refines hnwf htwf htp _ _ 0#usize o rfl
+    (by simp [alloc.vec.Vec.len]) h
+  simpa [show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hres
+
 end ConRon.Refine.Frontend
