@@ -256,10 +256,11 @@ task-#44 entry has the original table and the two ways back, task #45's the
 before/after pair, task #89's the re-measurement.  **Task #92 re-prices it
 again, and the price has changed in both directions** — see the next paragraph:
 since task #90 made `ExprNode` 48 bytes, triomphe's one-word header buys
-*nothing at all* (the block goes 64 → 56, which is the same size class), and
-its instruction penalty is mostly not triomphe's at all but the allocator
-entry's, which task #92 fixed: over the fixed entry the penalty is **+9.1 %**,
-not +17.6 %.
+*nothing at all* on its own (the block goes 64 → 56, which is the same size
+class), and its instruction penalty is **worse** than either earlier
+measurement once the input is large: task #92 measured it at +29.3 % on Mathlib
+against the identical layout on `std::sync::Arc`, where tasks #44 and #89 saw
++17.6 % on `core`.
 
 **The allocator's size classes are the unit a node is priced in (task #92,
 2026-09-14).**  Every width above is a *requested* size; what a run pays is the
@@ -300,10 +301,12 @@ The corollary is a sharp bound on the node lever: the class below 64 is **48**,
 so con-ron's `ExprNode` block has to reach 48 bytes to save anything at all —
 `ExprNode` ≤ 32 with `std::sync::Arc`'s two-word header, or ≤ 40 with a one-word
 one.  The second is task #92's 40-byte node **plus** triomphe **plus** the fixed
-allocator entry, all three, and it is worth **−21.0 % of `core`'s peak** at
-+4.2 % instructions (task #92's table).  The first needs `ExprKind` ≤ 24, i.e.
-task #88's declined arm-boxing.  Nothing smaller than one of those two moves the
-number at all.
+allocator entry, all three, and it is worth **−21.0 % of `core`'s peak and
+−20.6 % of Mathlib's** (16.49 GB at task #83, 14.66 at task #90, **11.37** with
+the stack) — at **+30.3 % instructions on Mathlib**, which is triomphe's alone
+and three times task #44's budget for a memory trade.  The first needs
+`ExprKind` ≤ 24, i.e. task #88's declined arm-boxing.  Nothing smaller than one
+of those two moves the number at all, and neither is currently affordable.
 
 **Going back to `Rc` is one line plus a rename, and deliberately not a cargo
 feature.**  `crates/con-ron-core/src/ron/ptr.rs`'s alias line is the choice;
@@ -18001,13 +18004,23 @@ once per distinct value rather than once per binder.  Expected: Mathlib around
 **It does not work, and the reason is worth more than the change was.**  A
 56-byte block and a 64-byte block are the *same* mimalloc size class, so the
 node shrink saves exactly zero bytes; the re-introduced per-binder block is
-pure cost.  Measured end to end: `core` peak RSS **+2.5 %**, `init` **+3.0 %**.
-The layout is not in the tree.  What *is* in the tree is the one thing the
-measurement handed over for free — the binary now enters mimalloc through
-`mi_malloc` instead of the `mimalloc` crate's unconditional
-`mi_malloc_aligned`, which is **−4.5 % instructions, −5.6 % cycles and −7.4 %
-wall on `core`** and restores the 48-byte size class that any future node
-saving has to land in.
+pure cost.  Measured end to end: peak RSS **+2.5 % on `core`, +3.0 % on `init`,
++3.8 % on Mathlib**.  The layout is not in the tree.
+
+What *is* in the tree is the one thing the measurement handed over for free —
+the binary now enters mimalloc through `mi_malloc` instead of the `mimalloc`
+crate's unconditional `mi_malloc_aligned`, which is **−4.5 % instructions on
+`core`, −4.3 % on `init` and −3.9 % on Mathlib** (and −7.4 % wall on `core`)
+for no memory, no proof and no risk, and restores the 48-byte size class that
+any future node saving has to land in.
+
+And what the measurement establishes for the maintainer is the *price of the
+memory target*.  Combine this task's 40-byte node with `triomphe::Arc` and that
+allocator entry — all three, none of which pays on its own — and Mathlib's peak
+goes **14.31 → 11.37 GB (−20.6 %)**, under the ~13 GB the 16 GB arena runner
+needs.  It costs **+30.3 % instructions**, essentially all of it triomphe's,
+which is three times task #44's budget for a memory trade; §5 and §6 have the
+decomposition.
 
 #### 1. The construction census (`core`)
 
@@ -18068,6 +18081,8 @@ attempted, because the measurement came first — and stopped it.
 | master | 788 812 kB | 541.79 G | 325.79 G | 83.1 s |
 | **the 40-byte node** | **812 860 kB (+3.0 %)** | 542.65 G (+0.16 %) | 324.67 G (−0.3 %) | 81.3 s |
 
+Mathlib agrees (§6): **+3.8 % peak, +0.7 % instructions**.
+
 Both still accept (`core` 163 396, `init` 57 977) and `scripts/diff-e2e.sh`
 reads 348/348 on both.  The patch is `_tmp/t92/stack.patch`, which also carries
 the triomphe half of §5.
@@ -18120,14 +18135,19 @@ the aligned entry otherwise.  It is in the *unverified* crate, invisible to
 Charon (`extract.sh --check` unmoved), and cannot change a verdict — the
 allocator only decides where bytes go and the core reads no address.
 
-| `core`, same lane | peak RSS | instructions:u | cycles:u | wall |
+| same lane | peak RSS | instructions:u | cycles:u | wall |
 |---|---:|---:|---:|---:|
-| master | 2 163 732 kB | 1 170.75 G | 718.62 G | 167.2 s |
-| **master + `MiMallocTight`** | 2 159 032 kB (−0.2 %) | **1 117.61 G (−4.5 %)** | **678.32 G (−5.6 %)** | **154.9 s (−7.4 %)** |
+| `core`, master | 2 163 732 kB | 1 170.75 G | 718.62 G | 167.2 s |
+| **`core`, master + `MiMallocTight`** | 2 159 032 kB (−0.2 %) | **1 117.61 G (−4.5 %)** | **678.32 G (−5.6 %)** | **154.9 s (−7.4 %)** |
+| `init`, master | 788 812 kB | 541.79 G | 325.79 G | 83.1 s |
+| **`init`, master + `MiMallocTight`** | 799 064 kB (+1.3 %) | **518.46 G (−4.3 %)** | 293.8 G (−9.8 %) | 62.7 / 72.4 / 71.7 s |
 
-Peak RSS does not move, and that is the point: con-ron's current block sizes do
-not straddle a class boundary, so the recovered class is worth nothing *today*.
-It is worth a great deal in one combination, below.
+`init` is three runs (CLAUDE.md: wall is only readable from several runs of a
+small benchmark), and its instruction counts agree to 4 parts in 10⁶ — 518.456,
+518.460, 518.457 G — which is the check that nothing here is load-dependent.
+Peak RSS moves by ±1.3 % and in both directions, i.e. not at all: the recovered
+48-byte class holds nothing con-ron has many of *today* (`LevelNode`'s block is
+the only one, and `core` has 53 181 of them).
 
 #### 5. What would actually work, priced
 
@@ -18154,10 +18174,13 @@ The first, measured (`core`, same lane):
 | **all three** | 40 | 48 → **48** | **1 709 308 kB (−21.0 %)** | 1 219.78 G (**+4.2 %**) | 726.30 G (+1.1 %) | 165.2 s (−1.2 %) |
 
 **−21.0 % of `core`'s peak for +4.2 % instructions and no wall time at all**,
-against master.  It also re-prices triomphe, which tasks #44 and #89 declined at
-+17.6 % instructions: most of that penalty was never triomphe's.  Over the fixed
-allocator entry it is +9.1 % (1 117.61 → 1 219.78 G), because triomphe's 48-byte
-blocks are exactly the size `mi_malloc_aligned` was punishing hardest.
+against master.  On `core` that also looks like a re-pricing of triomphe, which
+tasks #44 and #89 declined at +17.6 % instructions: over the fixed allocator
+entry it is +8.7 % here.  **Mathlib says otherwise** — §6's third row is +30.3 %
+against the landed tree, of which +29.3 % is triomphe's alone.  Triomphe's
+penalty grows with the input, which no earlier measurement could see because
+none of them ran Mathlib, and it is the reason the stack is a *no* on today's
+evidence rather than the bargain `core` made it look.
 
 This is a **maintainer decision** and is not taken here: DESIGN.md §3.2 reserves
 the pointer alias.  What it would cost the proof tier, counted rather than
@@ -18182,7 +18205,42 @@ landed tree.
 
 #### 6. Mathlib, and the gates
 
-MATHLIB_TABLE_PLACEHOLDER
+The memory landing rule, once at the end — except that this task needed it
+three times, because the question was which of the three changes pays.  All at
+`con-ron --verified --jobs=1 --progress=1000000` (the **driver** lane: a plain
+`--jobs=1` bypasses the driver, task #89), release + mimalloc, `ulimit -v
+27000000`, `timeout 7200`, `perf stat` and `_tmp/perf-overview/measure.py`.
+Every run accepts **691 128**.
+
+| build | `ExprNode` | block → paid | peak RSS | instructions:u | cycles:u | wall |
+|---|---:|---:|---:|---:|---:|---:|
+| task #90's row (OVERVIEW §6.3; **no** `--progress`, so not the driver lane) | 48 | 64 → 64 | 14.66 GB | 11 368.3 G | 8 501.5 G | 2 020 s |
+| **landed: master + `MiMallocTight`** | 48 | 64 → 64 | **14.31 GB** | **10 922.6 G** | 8 992.4 G | 2 151 s |
+| + the 40-byte node | 40 | 56 → 64 | 14.86 GB (+3.8 %) | 11 003.1 G (+0.7 %) | 8 119.1 G | 1 894 s |
+| + triomphe as well | 40 | 48 → **48** | **11.37 GB (−20.6 %)** | 14 228.4 G (**+30.3 %**) | 14 995.9 G | 3 499 s |
+
+Three things this settles.
+
+* **The landed change is −3.9 % instructions on the largest input the project
+  measures**, for no memory and no proof.  (The 14.31 GB against task #90's
+  14.66 is mostly the lane: the driver drops the install `CState`, task #89.)
+* **The 40-byte node behaves at Mathlib exactly as it did on the fixtures** —
+  +0.7 % instructions, +3.8 % peak — so §3's explanation holds at every scale,
+  and the layout is a regression wherever the block does not cross a class.
+* **The target is reachable, and the price is the measure of record.**  The
+  full stack is **11.37 GB**, comfortably under the ~13 GB the 16 GB arena
+  runner needs even with three more workers' 160 MB apiece.  It costs **+30.3 %
+  instructions**, and the decomposition says *all* of that is triomphe's: the
+  node is +0.7 %, the allocator entry is −3.9 %, triomphe is +29.3 % over the
+  same layout on `std::sync::Arc`.  That is nearly twice what tasks #44 and #89
+  measured on `core` (+17.6 %) and twice what this task measured on `core` with
+  the same entry (+8.7 %) — triomphe's penalty *grows* with the input, which no
+  previous measurement could see because none of them ran Mathlib.  Against
+  DESIGN.md §3's standing rule — instructions are the measure of record, and
+  task #44's budget for a memory trade was 10 % — this is a **no** on today's
+  evidence, and the memory gap stays structural: 1.64× con-leche, in the
+  64-byte block that §3's table says nothing smaller than a redesign of
+  `ExprKind` can shrink.
 
 `scripts/gates.sh` (`LAKE_JOBS=32`): **all nine green** (`extract-check` 226 s,
 `lake-build` 437 s) — the proof tier is untouched, which is what makes this
