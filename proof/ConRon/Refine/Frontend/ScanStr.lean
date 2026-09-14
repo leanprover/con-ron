@@ -28,6 +28,29 @@ tier above it.
 (deviation 2 of `scan_types.rs`'s module note: the port's `scan_quoted_nat`
 returns the literal's *bytes* where con-leche returns the `Nat`).
 
+## The two `Prop`s are theorems
+
+`scan_string_refines` still *takes* `Utf8DecodeSpec` and `UnescapeSpec` as
+hypotheses, because the whole tier above it (`ScanLine`, `ChunksR`,
+`IndSpecR`, `Refine/Main`) is stated that way.  Both are now **proved** here:
+
+    utf8_decode_spec : Utf8DecodeSpec
+    unescape_spec    : UnescapeSpec
+
+so every lemma above may be instantiated with them and loses both hypotheses.
+
+`utf8_decode_spec` is an agreement with a *primitive*, `String.fromUTF8?`,
+whose own definition is `∃ l : List Char, b = l.utf8Encode`; the proof never
+touches the toolchain's decoder (`parseFirstByte`/`assemble₁..₄`) and argues
+only about the *encoder* `String.utf8EncodeChar`, whose four branches are
+`Nat` division and remainder — `enc_cases` (reject) and `enc_mk1..enc_mk4`
+(accept) are the whole bridge, and everything else is `omega`.
+
+`unescape_spec` needs **no** intermediate definition for the port's two-pass
+shape: `unescape_bytes_loop_refines` states con-leche's one-pass `unescape`
+*as* `String.fromUTF8?` of the bytes the port accumulated, which is exactly
+the port's own second pass, and `utf8_decode_spec` closes it.
+
 ## `sorry` count in this file: 0
 -/
 import ConRon.Refine.Frontend.ScanKit
@@ -2552,5 +2575,537 @@ theorem utf8_decode_spec : Utf8DecodeSpec := by
     obtain ⟨l, hl, he⟩ := hclaim
     rw [hwin, Option.map_some, absString_chars, hl, fromUTF8_win he]
     simp [chars]
+
+/-! ## `unescape` (`Scan/Fast.lean:569-628`), the two-pass shape
+
+The port splits con-leche's one-pass `unescape` into `unescape_bytes` (which
+collects the bytes) and `utf8_decode` (which validates them); con-leche
+interleaves, calling `String.fromUTF8?` on the accumulator at the end.  No
+intermediate definition is needed for that: the loop lemma below states
+con-leche's `unescape` *as* `String.fromUTF8?` of what the port accumulated,
+so the split is absorbed into the statement.
+
+The one new ingredient is a range for `hex4`, which `utf8_of_refines` needs as
+`Nat.isValidChar` on the `\uE000..\uFFFF` branch. -/
+
+/-- A hexadecimal digit's value is below sixteen. -/
+private theorem hex_val_lt {c : Std.U8} {v : Std.U32}
+    (h : frontend.scan_fast.hex_val c = ok (some v)) : v.val < 16 := by
+  rw [frontend.scan_fast.hex_val] at h
+  split_ifs at h <;>
+    first
+      | (simp at h; done)
+      | (obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h;
+         obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h;
+         simp only [Result.ok.injEq, Option.some.injEq] at h;
+         rw [← h, cast32_lift_val hi1];
+         have := uscalar_sub_add hi;
+         scalar_tac)
+
+private theorem ushl32_4 {x z : Std.U32} (h : x <<< (4#i32) = ok z)
+    (hb : x.val * 16 < 4294967296) : z.val = x.val * 16 := by
+  rw [ushl_val h, show (4#i32).toNat = 4 from rfl,
+    show x.val <<< 4 = x.val * 16 from by rw [Nat.shiftLeft_eq]]
+  exact Nat.mod_eq_of_lt hb
+
+private theorem ushl32_8 {x z : Std.U32} (h : x <<< (8#i32) = ok z)
+    (hb : x.val * 256 < 4294967296) : z.val = x.val * 256 := by
+  rw [ushl_val h, show (8#i32).toNat = 8 from rfl,
+    show x.val <<< 8 = x.val * 256 from by rw [Nat.shiftLeft_eq]]
+  exact Nat.mod_eq_of_lt hb
+
+private theorem ushl32_10 {x z : Std.U32} (h : x <<< (10#i32) = ok z)
+    (hb : x.val * 1024 < 4294967296) : z.val = x.val * 1024 := by
+  rw [ushl_val h, show (10#i32).toNat = 10 from rfl,
+    show x.val <<< 10 = x.val * 1024 from by rw [Nat.shiftLeft_eq]]
+  exact Nat.mod_eq_of_lt hb
+
+private theorem or_add16 {A c : Nat} (hc : c < 16) (hA : A % 16 = 0) : A ||| c = A + c := by
+  obtain ⟨a, rfl⟩ : (2 : Nat) ^ 4 ∣ A := by simpa using Nat.dvd_of_mod_eq_zero hA
+  exact or_add 4 a (by simpa using hc)
+
+private theorem or_add256 {A c : Nat} (hc : c < 256) (hA : A % 256 = 0) : A ||| c = A + c := by
+  obtain ⟨a, rfl⟩ : (2 : Nat) ^ 8 ∣ A := by simpa using Nat.dvd_of_mod_eq_zero hA
+  exact or_add 8 a (by simpa using hc)
+
+private theorem or_add1024 {A c : Nat} (hc : c < 1024) (hA : A % 1024 = 0) :
+    A ||| c = A + c := by
+  obtain ⟨a, rfl⟩ : (2 : Nat) ^ 10 ∣ A := by simpa using Nat.dvd_of_mod_eq_zero hA
+  exact or_add 10 a (by simpa using hc)
+
+private theorem and1023 (x : Nat) : x &&& 1023 = x % 1024 := by
+  simpa using Nat.and_two_pow_sub_one_eq_mod x 10
+
+/-- **`hex4`'s value is a `u16`** -- four hexadecimal digits, so below
+`0x10000`; this is what makes the `\uE000..\uFFFF` escape a scalar value. -/
+private theorem hex4_lt {b : Slice Std.U8} {j : Std.Usize} {v : Std.U32}
+    (h : frontend.scan_fast.hex4 b j = ok (some v)) : v.val < 65536 := by
+  rw [frontend.scan_fast.hex4] at h
+  obtain ⟨d0, hd0, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o0, ho0, h⟩ := bind_eq_ok_iff.mp h
+  cases o0 with
+  | none => exact absurd h (by simp)
+  | some x0 =>
+  obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨d1, hd1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+  cases o1 with
+  | none => exact absurd h (by simp)
+  | some x1 =>
+  obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨d2, hd2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
+  cases o2 with
+  | none => exact absurd h (by simp)
+  | some x2 =>
+  obtain ⟨p3, hp3, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨d3, hd3, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o3, ho3, h⟩ := bind_eq_ok_iff.mp h
+  cases o3 with
+  | none => exact absurd h (by simp)
+  | some x3 =>
+  obtain ⟨i7, hi7, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i8, hi8, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i9, hi9, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i10, hi10, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i11, hi11, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i12, hi12, h⟩ := bind_eq_ok_iff.mp h
+  have b0 := hex_val_lt ho0
+  have b1 := hex_val_lt ho1
+  have b2 := hex_val_lt ho2
+  have b3 := hex_val_lt ho3
+  have e7 : i7.val = x0.val * 4096 := ushl32_12 hi7 (by omega)
+  have e8 : i8.val = x1.val * 256 := ushl32_8 hi8 (by omega)
+  have e9 : i9.val = x0.val * 4096 + x1.val * 256 := by
+    rw [or_lift_val hi9, e7, e8]; exact or_add4096 (by omega) (by omega)
+  have e10 : i10.val = x2.val * 16 := ushl32_4 hi10 (by omega)
+  have e11 : i11.val = x0.val * 4096 + x1.val * 256 + x2.val * 16 := by
+    rw [or_lift_val hi11, e9, e10]; exact or_add256 (by omega) (by omega)
+  have e12 : i12.val = x0.val * 4096 + x1.val * 256 + x2.val * 16 + x3.val := by
+    rw [or_lift_val hi12, e11]; exact or_add16 (by omega) (by omega)
+  simp only [Result.ok.injEq, Option.some.injEq] at h
+  rw [← h, e12]
+  omega
+
+
+/-- The port's `+ 6` as con-leche's six steps. -/
+private theorem absPos_add_six {i j : Std.Usize} (h : i + 6#usize = ok j) :
+    absPos j = absPos i + 1 + 1 + 1 + 1 + 1 + 1 := by
+  have hv : j.val = i.val + 6 := by have := HashMap.uscalar_add_eq h; scalar_tac
+  have hb : j.val < USize.size := usize_val_lt_size j
+  have s1 : (absPos i + 1).toNat = i.val + 1 := by
+    rw [usize_succ _ (by rw [absPos_toNat]; omega), absPos_toNat]
+  have s2 : (absPos i + 1 + 1).toNat = i.val + 2 := by
+    rw [usize_succ _ (by rw [s1]; omega), s1]
+  have s3 : (absPos i + 1 + 1 + 1).toNat = i.val + 3 := by
+    rw [usize_succ _ (by rw [s2]; omega), s2]
+  have s4 : (absPos i + 1 + 1 + 1 + 1).toNat = i.val + 4 := by
+    rw [usize_succ _ (by rw [s3]; omega), s3]
+  have s5 : (absPos i + 1 + 1 + 1 + 1 + 1).toNat = i.val + 5 := by
+    rw [usize_succ _ (by rw [s4]; omega), s4]
+  apply USize.toNat_inj.mp
+  rw [usize_succ _ (by rw [s5]; omega), s5, absPos_toNat, hv]
+
+/-- Two bytes the port distinguishes, con-leche distinguishes. -/
+private theorem absByte_beq_of_eq {d k : Std.U8} (h : d = k) :
+    (absByte d == absByte k) = true := by rw [h, beq_self_eq_true]
+
+private theorem absByte_beq_of_ne {d k : Std.U8} (h : ¬ (d = k)) :
+    (absByte d == absByte k) = false := by
+  simp only [beq_eq_false_iff_ne, ne_eq]
+  intro hc; exact h (absByte_inj_iff.mp hc)
+
+/-- A cursor the port stepped forward really did move forward. -/
+private theorem absPos_lt_step {i j : Std.Usize} (h : i.val < j.val) : absPos i < absPos j :=
+  absPos_lt.mpr h
+
+/-- The port's `Vec::push` on the byte accumulator, as `ByteArray.push`. -/
+private theorem absChunk_push {acc acc1 : alloc.vec.Vec Std.U8} {c : Std.U8}
+    (h : alloc.vec.Vec.push acc c = ok acc1) :
+    absChunk acc1 = (absChunk acc).push (absByte c) := by
+  rw [absChunk, absChunk, vec_push_val h]
+  ext1
+  simp [ByteArray.push]
+
+private theorem absU32_lt_iff {x : Std.U32} {w : UInt32} : absU32 x < w ↔ x.val < w.toNat := by
+  rw [UInt32.lt_iff_toNat_lt, absU32_toNat]
+
+private theorem le_absU32_iff {w : UInt32} {x : Std.U32} : w ≤ absU32 x ↔ w.toNat ≤ x.val := by
+  rw [UInt32.le_iff_toNat_le, absU32_toNat]
+
+/-- Aeneas's `+` on `u32`, as con-leche's. -/
+private theorem absU32_add {x y z : Std.U32} (h : x + y = ok z) :
+    absU32 z = absU32 x + absU32 y := by
+  have hz := uscalar_add_val h
+  have hb : z.val < 4294967296 := by scalar_tac
+  apply UInt32.toNat_inj.mp
+  rw [absU32_toNat, hz, UInt32.toNat_add, absU32_toNat, absU32_toNat]
+  omega
+
+private theorem repl_val : frontend.scan_fast.REPLACEMENT_CHAR.val = 65533 := by
+  rw [frontend.scan_fast.REPLACEMENT_CHAR]; rfl
+
+private theorem repl_valid : Nat.isValidChar frontend.scan_fast.REPLACEMENT_CHAR.val :=
+  Or.inr ⟨by rw [repl_val]; omega, by rw [repl_val]; omega⟩
+
+private theorem repl_abs : absU32 frontend.scan_fast.REPLACEMENT_CHAR = replacementChar := by
+  apply UInt32.toNat_inj.mp
+  rw [absU32_toNat, repl_val]
+  rfl
+
+/-- The tail of a one-character escape: two bytes consumed, one code point
+appended. -/
+private theorem unescape_simple_step {b : Slice Std.U8} {e j j2 : Std.Usize}
+    {acc acc1 : alloc.vec.Vec Std.U8} {val : Std.U32}
+    {o : Option (alloc.vec.Vec Std.U8)}
+    (hv : Nat.isValidChar val.val)
+    (hacc1 : frontend.scan_fast.utf8_of acc val = ok acc1)
+    (hj2 : j + 2#usize = ok j2)
+    (hrec : unescape (absBytes b) (absPos j2) (absPos e) (absChunk acc1)
+              = (o.map absChunk).bind String.fromUTF8?) :
+    (if _hj : absPos j < absPos j + 1 + 1 then
+        unescape (absBytes b) (absPos j + 1 + 1) (absPos e)
+          (absChunk acc ++ utf8Of (absU32 val)) else none)
+      = (o.map absChunk).bind String.fromUTF8? := by
+  have hj2v : j2.val = j.val + 2 := by simpa using uscalar_add_val hj2
+  rw [dif_pos (show absPos j < absPos j + 1 + 1 by
+    rw [← absPos_add_two hj2]; exact absPos_lt_step (by omega))]
+  rw [← absPos_add_two hj2, ← utf8_of_refines hv hacc1]
+  exact hrec
+
+/-- **`scan_fast::unescape_bytes` refines `unescape`** (`Scan/Fast.lean:569-628
+unescape`) -- with con-leche's closing `String.fromUTF8?` moved onto the bytes
+the port accumulated, which is exactly the port's own second pass. -/
+private theorem unescape_bytes_loop_refines (b : Slice Std.U8) (e : Std.Usize) (f : Nat) :
+    ∀ (acc : alloc.vec.Vec Std.U8) (j : Std.Usize) (o : Option (alloc.vec.Vec Std.U8)),
+      b.val.length - j.val ≤ f →
+      frontend.scan_fast.unescape_bytes_loop b e acc j = ok o →
+      unescape (absBytes b) (absPos j) (absPos e) (absChunk acc)
+        = (o.map absChunk).bind String.fromUTF8? := by
+  induction f with
+  | zero =>
+    intro acc j o hf h
+    rw [frontend.scan_fast.unescape_bytes_loop.eq_def] at h
+    rw [if_neg (show ¬ (j < Slice.len b) by scalar_tac)] at h
+    simp only [Result.ok.injEq] at h
+    rw [← h, unescape,
+      dif_neg (show ¬ (absPos j < (absBytes b).usize) by rw [absPos_lt_usize]; scalar_tac)]
+    rfl
+  | succ f ih =>
+  intro acc j o hf h
+  rw [frontend.scan_fast.unescape_bytes_loop.eq_def] at h
+  by_cases hlen : j < Slice.len b
+  case neg =>
+    rw [if_neg hlen] at h
+    simp only [Result.ok.injEq] at h
+    rw [← h, unescape,
+      dif_neg (show ¬ (absPos j < (absBytes b).usize) by rw [absPos_lt_usize]; scalar_tac)]
+    rfl
+  rw [if_pos hlen] at h
+  have hjb : j.val < b.val.length := by scalar_tac
+  rw [unescape, dif_pos (show absPos j < (absBytes b).usize by rw [absPos_lt_usize]; exact hjb)]
+  by_cases hje : j < e
+  case neg =>
+    rw [if_neg hje] at h
+    simp only [Result.ok.injEq] at h
+    rw [← h, if_neg (show ¬ (absPos j < absPos e) by rw [absPos_lt]; scalar_tac)]
+    rfl
+  rw [if_pos hje] at h
+  rw [if_pos (show absPos j < absPos e by rw [absPos_lt]; scalar_tac)]
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  have hp : pByteAt b j.val = c := by rw [pByteAt_val hjb, index_ok hjb hc]
+  rw [uget_absPos, hp]
+  by_cases h92 : (c != 92#u8) = true
+  case pos =>
+    rw [if_pos h92] at h
+    rw [if_pos (show (absByte c != 92) = true by
+      simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat]
+      simp only [bne_iff_ne, ne_eq] at h92
+      scalar_tac)]
+    obtain ⟨acc1, hacc1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨j1, hj1, h⟩ := bind_eq_ok_iff.mp h
+    have hj1v : j1.val = j.val + 1 := by simpa using uscalar_add_val hj1
+    rw [dif_pos (show absPos j < absPos j + 1 by
+      rw [← absPos_add_one hj1]; exact absPos_lt_step (by omega))]
+    rw [← absPos_add_one hj1, ← absChunk_push hacc1]
+    exact ih acc1 j1 o (by omega) h
+  rw [if_neg h92] at h
+  rw [if_neg (show ¬ ((absByte c != 92) = true) by
+    simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat, not_not]
+    simp only [bne_iff_ne, ne_eq, not_not] at h92
+    scalar_tac)]
+  obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨d, hd, h⟩ := bind_eq_ok_iff.mp h
+  have hdv : absByte d = byteAt (absBytes b) (absPos j + 1) := by
+    rw [byte_at_refines hd, ← absPos_add_one hi1]
+  rw [← hdv]
+  obtain ⟨simple, hsimple, h⟩ := bind_eq_ok_iff.mp h
+  split at hsimple
+  case h_9 =>
+    rename_i d' n34 n92 n47 n98 n102 n110 n114 n116
+    simp only [Result.ok.injEq] at hsimple
+    subst hsimple
+    have q34 : (absByte d == 34) = false := absByte_beq_of_ne n34
+    have q92 : (absByte d == 92) = false := absByte_beq_of_ne n92
+    have q47 : (absByte d == 47) = false := absByte_beq_of_ne n47
+    have q98 : (absByte d == 98) = false := absByte_beq_of_ne n98
+    have q102 : (absByte d == 102) = false := absByte_beq_of_ne n102
+    have q110 : (absByte d == 110) = false := absByte_beq_of_ne n110
+    have q114 : (absByte d == 114) = false := absByte_beq_of_ne n114
+    have q116 : (absByte d == 116) = false := absByte_beq_of_ne n116
+    simp only [q34, q92, q47, q98, q102, q110, q114, q116, Bool.false_eq_true, if_false]
+    by_cases h117 : (d != 117#u8) = true
+    case pos =>
+      rw [if_pos h117] at h
+      simp only [Result.ok.injEq] at h
+      rw [← h, if_pos (show (absByte d != 117) = true by
+        simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat]
+        simp only [bne_iff_ne, ne_eq] at h117
+        scalar_tac)]
+      rfl
+    rw [if_neg h117] at h
+    rw [if_neg (show ¬ ((absByte d != 117) = true) by
+      simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat, not_not]
+      simp only [bne_iff_ne, ne_eq, not_not] at h117
+      scalar_tac)]
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨ox, hox, h⟩ := bind_eq_ok_iff.mp h
+    have hx := hex4_refines hox
+    rw [absPos_add_two hi2] at hx
+    cases ox with
+    | none =>
+      simp only [Option.map_none] at hx
+      rw [← hx]
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      rfl
+    | some x =>
+    simp only [Option.map_some] at hx
+    rw [← hx]
+    simp only []
+    have hxlt : x.val < 65536 := hex4_lt hox
+    obtain ⟨j6, hj6, h⟩ := bind_eq_ok_iff.mp h
+    have hj6v : j6.val = j.val + 6 := by simpa using uscalar_add_val hj6
+    have hj6p : absPos j6 = absPos j + 1 + 1 + 1 + 1 + 1 + 1 := absPos_add_six hj6
+    have hj6lt : absPos j < absPos j + 1 + 1 + 1 + 1 + 1 + 1 := by
+      rw [← hj6p]; exact absPos_lt_step (by omega)
+    by_cases hlo : x < 55296#u32
+    case pos =>
+      rw [if_pos hlo] at h
+      have hlo' : x.val < 55296 := by scalar_tac
+      rw [if_pos (show (decide (absU32 x < 55296) || decide (57344 ≤ absU32 x)) = true by
+        simp only [Bool.or_eq_true, decide_eq_true_eq]
+        exact Or.inl (absU32_lt_iff.mpr (by simpa using hlo')))]
+      rw [dif_pos hj6lt, ← hj6p]
+      obtain ⟨acc1, hacc1, h⟩ := bind_eq_ok_iff.mp h
+      rw [← utf8_of_refines (Or.inl (by omega)) hacc1]
+      exact ih acc1 j6 o (by omega) h
+    rw [if_neg hlo] at h
+    have hlo' : 55296 ≤ x.val := by scalar_tac
+    by_cases hhi : 57344#u32 ≤ x
+    case pos =>
+      rw [if_pos hhi] at h
+      have hhi' : 57344 ≤ x.val := by scalar_tac
+      rw [if_pos (show (decide (absU32 x < 55296) || decide (57344 ≤ absU32 x)) = true by
+        simp only [Bool.or_eq_true, decide_eq_true_eq]
+        exact Or.inr (le_absU32_iff.mpr (by simpa using hhi')))]
+      rw [dif_pos hj6lt, ← hj6p]
+      obtain ⟨acc1, hacc1, h⟩ := bind_eq_ok_iff.mp h
+      rw [← utf8_of_refines (Or.inr ⟨by omega, by omega⟩) hacc1]
+      exact ih acc1 j6 o (by omega) h
+    rw [if_neg hhi] at h
+    have hhi' : x.val < 57344 := by scalar_tac
+    rw [if_neg (show ¬ ((decide (absU32 x < 55296) || decide (57344 ≤ absU32 x)) = true) by
+      simp only [Bool.or_eq_true, decide_eq_true_eq, not_or]
+      refine ⟨fun hc => ?_, fun hc => ?_⟩
+      · have := absU32_lt_iff.mp hc; simp at this; omega
+      · have := le_absU32_iff.mp hc; simp at this; omega)]
+    by_cases hlow : 56320#u32 ≤ x
+    case pos =>
+      rw [if_pos hlow] at h
+      have hlow' : 56320 ≤ x.val := by scalar_tac
+      rw [if_pos (show (56320 : UInt32) ≤ absU32 x from le_absU32_iff.mpr (by simpa using hlow'))]
+      rw [dif_pos hj6lt, ← hj6p]
+      obtain ⟨acc1, hacc1, h⟩ := bind_eq_ok_iff.mp h
+      rw [← repl_abs, ← utf8_of_refines repl_valid hacc1]
+      exact ih acc1 j6 o (by omega) h
+    rw [if_neg hlow] at h
+    have hlow' : x.val < 56320 := by scalar_tac
+    rw [if_neg (show ¬ ((56320 : UInt32) ≤ absU32 x) by
+      intro hc; have := le_absU32_iff.mp hc; simp at this; omega)]
+    obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨cont1, hcont1, h⟩ := bind_eq_ok_iff.mp h
+    have hcont : cont1 = (byteAt (absBytes b) (absPos j6) == 92 &&
+        byteAt (absBytes b) (absPos j6 + 1) == 117 &&
+        (byteAt (absBytes b) (absPos j6 + 1 + 1) == 100 ||
+         byteAt (absBytes b) (absPos j6 + 1 + 1) == 68)) := by
+      have pb0 : byteAt (absBytes b) (absPos j6) = absByte i3 := (byte_at_refines hi3).symm
+      rw [pb0]
+      by_cases e92 : i3 = 92#u8
+      case neg =>
+        rw [if_neg e92] at hcont1
+        simp only [Result.ok.injEq] at hcont1
+        have q : (absByte i3 == 92) = false := absByte_beq_of_ne e92
+        rw [← hcont1, q]
+        simp
+      rw [if_pos e92] at hcont1
+      have p92 : (absByte i3 == 92) = true := absByte_beq_of_eq e92
+      rw [p92]
+      obtain ⟨i4, hi4, hcont1⟩ := bind_eq_ok_iff.mp hcont1
+      obtain ⟨i5, hi5, hcont1⟩ := bind_eq_ok_iff.mp hcont1
+      have pb1 : byteAt (absBytes b) (absPos j6 + 1) = absByte i5 := by
+        rw [← absPos_add_one hi4]; exact (byte_at_refines hi5).symm
+      rw [pb1]
+      by_cases e117 : i5 = 117#u8
+      case neg =>
+        rw [if_neg e117] at hcont1
+        simp only [Result.ok.injEq] at hcont1
+        have q : (absByte i5 == 117) = false := absByte_beq_of_ne e117
+        rw [← hcont1, q]
+        simp
+      rw [if_pos e117] at hcont1
+      have p117 : (absByte i5 == 117) = true := absByte_beq_of_eq e117
+      rw [p117]
+      obtain ⟨i6, hi6, hcont1⟩ := bind_eq_ok_iff.mp hcont1
+      obtain ⟨i7, hi7, hcont1⟩ := bind_eq_ok_iff.mp hcont1
+      have pb2 : byteAt (absBytes b) (absPos j6 + 1 + 1) = absByte i7 := by
+        rw [← absPos_add_two hi6]; exact (byte_at_refines hi7).symm
+      rw [pb2]
+      by_cases e100 : i7 = 100#u8
+      case pos =>
+        rw [if_pos e100] at hcont1
+        simp only [Result.ok.injEq] at hcont1
+        have q : (absByte i7 == 100) = true := absByte_beq_of_eq e100
+        rw [← hcont1, q]
+        simp
+      rw [if_neg e100] at hcont1
+      obtain ⟨i8, hi8, hcont1⟩ := bind_eq_ok_iff.mp hcont1
+      have hi78 : i8 = i7 := by
+        rw [byte_at_eq] at hi7 hi8
+        simp only [Result.ok.injEq] at hi7 hi8
+        rw [← hi7, ← hi8]
+      simp only [Result.ok.injEq] at hcont1
+      have q100 : (absByte i7 == 100) = false := absByte_beq_of_ne e100
+      have q68 : (absByte i7 == 68) = decide (i7 = 68#u8) := by
+        by_cases hc : i7 = 68#u8
+        · have hq : (absByte i7 == 68) = true := absByte_beq_of_eq hc
+          rw [hq, decide_eq_true hc]
+        · have hq : (absByte i7 == 68) = false := absByte_beq_of_ne hc
+          rw [hq, decide_eq_false hc]
+      rw [← hcont1, hi78, q100, q68]
+      simp
+    obtain ⟨v2, hv2, h⟩ := bind_eq_ok_iff.mp h
+    have hv2a : v2.map absU32 =
+        (if cont1 = true then hex3 (absBytes b) (absPos j6 + 1 + 1 + 1) else none) := by
+      by_cases hct : cont1 = true
+      case pos =>
+        rw [if_pos hct] at hv2 ⊢
+        obtain ⟨i4, hi4, hv2⟩ := bind_eq_ok_iff.mp hv2
+        rw [← absPos_add_three hi4]
+        exact hex3_refines hv2
+      rw [if_neg hct] at hv2 ⊢
+      simp only [Result.ok.injEq] at hv2
+      rw [← hv2]
+      rfl
+    rw [← hj6p, ← hcont, ← hv2a]
+    cases v2 with
+    | none =>
+      simp only [Option.map_none]
+      rw [dif_pos (show absPos j < absPos j6 by exact absPos_lt_step (by omega))]
+      obtain ⟨acc1, hacc1, h⟩ := bind_eq_ok_iff.mp h
+      rw [← repl_abs, ← utf8_of_refines repl_valid hacc1]
+      exact ih acc1 j6 o (by omega) h
+    | some w =>
+    simp only [] at h
+    simp only [Option.map_some]
+    by_cases hw : w < 3072#u32
+    case pos =>
+      rw [if_pos hw] at h
+      have hw' : w.val < 3072 := by scalar_tac
+      rw [if_pos (show absU32 w < 3072 from absU32_lt_iff.mpr (by simpa using hw'))]
+      rw [dif_pos (show absPos j < absPos j6 by exact absPos_lt_step (by omega))]
+      obtain ⟨acc1, hacc1, h⟩ := bind_eq_ok_iff.mp h
+      rw [← repl_abs, ← utf8_of_refines repl_valid hacc1]
+      exact ih acc1 j6 o (by omega) h
+    rw [if_neg hw] at h
+    have hw' : 3072 ≤ w.val := by scalar_tac
+    rw [if_neg (show ¬ (absU32 w < 3072) by
+      intro hc; have := absU32_lt_iff.mp hc; simp at this; omega)]
+    obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i6, hi6, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i7, hi7, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨cv, hcv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨acc1, hacc1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨j12, hj12, h⟩ := bind_eq_ok_iff.mp h
+    have e4 : i4.val = x.val % 1024 := by
+      rw [and_lift_val hi4]; simpa using and1023 x.val
+    have e5 : i5.val = x.val % 1024 * 1024 := by
+      rw [ushl32_10 hi5 (by rw [e4]; omega), e4]
+    have e6 : i6.val = w.val % 1024 := by
+      rw [and_lift_val hi6]; simpa using and1023 w.val
+    have e7 : i7.val = x.val % 1024 * 1024 + w.val % 1024 := by
+      rw [or_lift_val hi7, e5, e6]; exact or_add1024 (by omega) (by omega)
+    have ecv : cv.val = x.val % 1024 * 1024 + w.val % 1024 + 65536 := by
+      have hq := uscalar_add_val hcv; rw [e7] at hq; simpa using hq
+    have a4 : absU32 i4 = absU32 x &&& 1023 := by
+      rw [← lift_val hi4]; exact absU32_and x 1023#u32
+    have a5 : absU32 i5 = absU32 i4 <<< (10 : UInt32) :=
+      absU32_shl (n := 10) hi5 (by rfl) (by rfl) (by omega)
+    have a6 : absU32 i6 = absU32 w &&& 1023 := by
+      rw [← lift_val hi6]; exact absU32_and w 1023#u32
+    have a7 : absU32 i7 = absU32 i5 ||| absU32 i6 := absU32_lift_or hi7
+    have acv : absU32 cv = absU32 i7 + 65536 := absU32_add hcv
+    have hj12v : j12.val = j6.val + 6 := by simpa using uscalar_add_val hj12
+    have hj12p : absPos j12 = absPos j6 + 1 + 1 + 1 + 1 + 1 + 1 := absPos_add_six hj12
+    rw [dif_pos (show absPos j < absPos j6 + 1 + 1 + 1 + 1 + 1 + 1 by
+      rw [← hj12p]; exact absPos_lt_step (by omega))]
+    rw [← hj12p,
+      show ((absU32 x &&& 1023) <<< (10 : UInt32) ||| absU32 w &&& 1023) + 65536 = absU32 cv from
+        by rw [acv, a7, a5, a4, a6],
+      ← utf8_of_refines (Or.inr ⟨by omega, by omega⟩) hacc1]
+    exact ih acc1 j12 o (by omega) h
+  all_goals
+    (simp only [Result.ok.injEq] at hsimple
+     subst hsimple
+     obtain ⟨acc1, hacc1, h⟩ := bind_eq_ok_iff.mp h
+     obtain ⟨j2, hj2, h⟩ := bind_eq_ok_iff.mp h
+     have hj2v : j2.val = j.val + 2 := by simpa using uscalar_add_val hj2
+     exact unescape_simple_step (Or.inl (by decide)) hacc1 hj2 (ih acc1 j2 o (by omega) h))
+
+/-- The empty accumulator on both sides. -/
+private theorem absChunk_new : absChunk (alloc.vec.Vec.new Std.U8) = ByteArray.empty := rfl
+
+/-- **`scan_fast::unescape` is con-leche's `unescape`** (`Scan/Fast.lean:569-628
+unescape`) -- the second of `scan_string_refines`' two residues, discharged.
+The port's two passes meet con-leche's one because `unescape_bytes_loop_refines`
+already carries the closing `String.fromUTF8?`, and `utf8_decode_spec` is that
+same `String.fromUTF8?` on the accumulated bytes. -/
+theorem unescape_spec : UnescapeSpec := by
+  intro b j e o h
+  rw [frontend.scan_fast.unescape] at h
+  obtain ⟨ob, hob, h⟩ := bind_eq_ok_iff.mp h
+  have hloop := unescape_bytes_loop_refines b e (b.val.length - j.val)
+    (alloc.vec.Vec.new Std.U8) j ob (le_refl _) hob
+  rw [absChunk_new] at hloop
+  cases ob with
+  | none =>
+    simp only [Option.map_none, Option.bind_none] at hloop
+    simp only [Result.ok.injEq] at h
+    rw [← h, hloop]
+    rfl
+  | some acc =>
+    simp only [Option.map_some, Option.bind_some] at hloop
+    have hu := utf8_decode_spec (alloc.vec.Vec.deref acc) 0#usize
+      (alloc.vec.Vec.len acc) o h
+    have hdv : (alloc.vec.Vec.deref acc).val = acc.val := Slice.from_val _ _
+    have hsz : (absChunk acc).size = acc.val.length := by simp [absChunk, ByteArray.size]
+    rw [show absBytes (alloc.vec.Vec.deref acc) = absChunk acc from by
+      rw [absBytes, absChunk, hdv]] at hu
+    rw [show ((0#usize : Std.Usize)).val = 0 from rfl,
+      show ((alloc.vec.Vec.len acc)).val = (absChunk acc).size from by
+        rw [hsz]; scalar_tac,
+      ByteArray.extract_zero_size] at hu
+    rw [hu, hloop]
 
 end ConRon.Refine.Frontend
