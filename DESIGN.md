@@ -16692,3 +16692,39 @@ module**, so the moment thirteen modules shared a key the proof line count
 jumped by 73 161 lines (155 k → 227 k).  Fixed properly rather than worked
 around: a key's proof lines are counted once, on the group's *largest* module,
 so the parser tier's lines show on `frontend/scan_fast.rs`.
+
+#### 4. The first port bug the parser's exactness found
+
+Task #85's well-formedness tier found none, and said why: its statements are
+about the port alone and cannot see a disagreement with con-leche.  This tier
+can, and the first thing it saw was in the **error** direction.
+
+`export_c::apply_final_line` and `feed_chunk` rendered *every* scan failure as
+`core_types::internal(scan_err_render(…))`, mirroring `ExportC.lean:770` and
+`:782`.  But the port has one tag con-leche has not got — `ErrTag::IndexOverflow`,
+deviation 1 of `scan_types.rs`'s module note, a stream index or a count too
+large for a `u64`, where con-leche reads a `Nat` and simply succeeds.  Under
+the full-outcome ruling a *mirrored* error claims con-leche throws at the same
+kind, so on a stream carrying a thirty-digit index the port was claiming
+con-leche throws `internal` on a stream con-leche **accepts**.  The accept
+direction could not see it, and neither could the 348 fixtures or the 119
+million differential lines: nothing in a real export has an index that large.
+
+The fix is one function, `export_c::scan_err_to_check`, which spells that one
+tag `core_types::native(…)` and every other tag `internal(…)` as before —
+restoring exactly the vocabulary DESIGN.md §3's ruling of 2026-09-13
+introduced for *"failures with no con-leche counterpart"*.  Extracted,
+re-committed, and all nine gates green; `cargo test`'s 283 tests and
+`diff-e2e`'s fixtures are unmoved, because no input reaches it.
+
+**A second finding is about a statement rather than the port**, and is worth
+recording because it was about to be assumed.  `read_nat_at`'s obvious
+refinement — *"the port's `u64` is `readNatAt` of the same interval"* — is
+**false**: `readNatAt b i e` is `if e - i ≤ 18 then (readNat64 b i e 0).toNat
+else readNat b i 0`, and the `else` branch's `readNat` runs to the end of the
+**digit run**, not to `e`.  At a 22-digit run and `e = i + 19` the port reads
+nineteen digits and con-leche reads twenty-two.  The lemma needs `e` to *be*
+the run's end (`skip_digits b i = ok e`), which every call site supplies —
+`num_end` gives it, and `scan_quoted_nat` calls `skip_digits` itself.  Caught
+by an agent proving it rather than by an agent assuming it, which is the
+argument for discharging a hypothesis record rather than shipping one.
