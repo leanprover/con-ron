@@ -22,9 +22,15 @@ weight it by the size of its block, doc comment included.  So a citation that
 names a declaration credits the whole declaration, which is what makes the two
 reports agree.
 
-Two groups: the verified core (`ConLeche/Kernel`, `ConLeche/Cached`) and the
-cherries (`ConLeche/Frontend` without the parser's equivalence proofs,
-`Main.lean`).  Plus the size of the Rust, the generated Lean and the proofs.
+Three groups since task #84: the verified core (`ConLeche/Kernel`,
+`ConLeche/Cached`); the **parser in the core** (`ConLeche/Frontend`'s
+recogniser, record assembly, projection rewrite, ground hoist, preparation and
+prelude — verified-core Rust whose `_refines` lemmas task #85 writes, so its
+`verified` column is 0 by construction until then); and the cherries that stay
+unverified (the in-process modeller, the annotated-NDJSON writer and its debug
+splice, `Main.lean`).  `Frontend/Scan/Equiv` — the parser's own equivalence
+proofs — is excluded throughout: it is a `Prop`, not code.  Plus the size of
+the Rust, the generated Lean and the proofs.
 
 Usage: scripts/progress.py [--md | --summary] [--shape OLD_RE NEW_RE]
 `--summary` prints only the totals (what scripts/gates.sh shows).  The
@@ -45,7 +51,35 @@ import provenance as P  # noqa: E402
 
 REPO = P.REPO
 CORE_GLOBS = ["ConLeche/Kernel", "ConLeche/Cached"]
-CHERRY_GLOBS = ["ConLeche/Frontend", "Main.lean"]
+# The parser moved into `crates/con-ron-core` at task #84, so it is no longer
+# a cherry: it is verified-core Rust with no `_refines` lemma *yet* (task #85
+# writes those).  It gets its own row rather than joining `CORE_GLOBS`,
+# because merging it would silently drop the checker's own verified
+# percentage by diluting it with a tier nobody has proved.  `Scan/Naive.lean`
+# belongs here and not with the modeller: it is the recogniser's
+# *specification*, and `scan_fast` cites its declarations where a `Fast`
+# function is the `@[csimp]` twin of a `Naive` one.
+PARSER_GLOBS = [
+    "ConLeche/Frontend/Scan/Types.lean",
+    "ConLeche/Frontend/Scan/Fast.lean",
+    "ConLeche/Frontend/Scan/Naive.lean",
+    "ConLeche/Frontend/Export.lean",
+    "ConLeche/Frontend/ExportC.lean",
+    "ConLeche/Frontend/ProjRec.lean",
+    "ConLeche/Frontend/NatOpGround.lean",
+    "ConLeche/Frontend/Prepare.lean",
+    "ConLeche/Frontend/Prelude.lean",
+]
+# What is left unverified: the in-process modeller (task #84's ruling — its
+# correctness decides coverage, not soundness), the annotated-NDJSON writer
+# and its debug splice, and the driver.
+CHERRY_GLOBS = [
+    "ConLeche/Frontend/InModel",
+    "ConLeche/Frontend/InModel.lean",
+    "ConLeche/Frontend/ExportWrite.lean",
+    "ConLeche/Frontend/InModelDump.lean",
+    "Main.lean",
+]
 CHERRY_EXCLUDE = re.compile(r"ConLeche/Frontend/Scan/Equiv")
 # What is not to be ported is no longer a regex here: it is
 # `scripts/provenance-skip.txt`, one `path decl reason` line per declaration
@@ -396,7 +430,8 @@ def main(argv):
         return tot
 
     core = report("Verified core (ConLeche/Kernel, ConLeche/Cached)", CORE_GLOBS)
-    cherry = report("Cherries (ConLeche/Frontend without Scan/Equiv, Main.lean)", CHERRY_GLOBS, CHERRY_EXCLUDE)
+    parser = report("Parser in the core (ConLeche/Frontend, task #84)", PARSER_GLOBS)
+    cherry = report("Cherries (InModel, ExportWrite, Main.lean)", CHERRY_GLOBS, CHERRY_EXCLUDE)
 
     rust = count_lines(walk(CORE_RUST_ROOT, ".rs"))
     rust_unverified = count_lines(walk("crates", ".rs")) - rust
