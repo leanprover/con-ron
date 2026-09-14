@@ -340,7 +340,7 @@ theorem never_meta_step {m : expr.BinderMeta} (h : basis_builder.never_meta = ok
   rw [basis_builder.never_meta] at h
   obtain ⟨pw, hpw, h⟩ := bind_eq_ok_iff.mp h
   rw [expr.binder_meta] at h
-  simp only [ptr_new_eq, bind_tc_ok, Result.ok.injEq] at h
+  simp only [Result.ok.injEq] at h
   subst h
   exact ⟨by simp [PropWhen.never_refines hpw], PropWhenWF.never hpw⟩
 

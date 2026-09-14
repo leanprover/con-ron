@@ -273,6 +273,25 @@ constructors such as
 [`app`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/expr.rs#L430-L441),
 which is what the well-formedness predicate of §5 says.
 
+A node is **48 bytes** — the packed word beside the widest `ExprKind` arm,
+40 — and the block its handle points at is 64.  The widest arm is
+`Lam`/`ForallE`
+([`ExprKind`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/expr.rs#L353-L364)),
+because a binder carries one datum of its own beyond its type and body:
+`BinderMeta`, the zero-ness `PropWhen` that records when a level is zero
+([`BinderMeta`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/expr.rs#L119-L121)).
+That datum is 16 bytes and is held **by value**, because `PropWhen` itself is
+one word beside its tag: `Never`, `Always` and `One` carry no heap cell at
+all, and only the rare `Two` and `Many` put their payload behind a handle
+([`PropWhenRepr`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/prop_when.rs#L285-L291)).
+The alternative — the datum behind its own handle, which makes the node 40
+bytes and the block 56 — was measured and is *worse*: the 8 bytes per node it
+saves are mostly slack the allocator's size classes were rounding away
+anyway, while the handle costs a separate ~40-byte block and a reference
+count on every `lam` and `forallE`.  Taking that handle off dropped peak
+resident set by 8.5 % on `Init` and 9.2 % on `Init`+`Std`+`Lean`, at
+instruction counts that moved under 0.31 %.
+
 ### 3.3 Naturals and hash maps
 
 Two things Lean's runtime provides have no Aeneas model and are the very
@@ -676,7 +695,7 @@ explain the shape: before the switch to atomic reference counts, Mathlib
 ran at equal instructions, 1.6× the wall and 1.86× the memory; the switch
 to `Arc` cost 13–17 % of wall time single-threaded and bought a check
 phase that scales to 4.3× at eight workers and 6.9× at sixteen on `Init`.
-The memory gap is the 56-byte node with its `Arc` header against Lean's
+The memory gap is the 48-byte node in its 64-byte `Arc` block against Lean's
 compact object, and the `Vec`-backed memo tables against `Std.HashMap`.
 
 The single-worker column has been re-measured twice since, at the two changes

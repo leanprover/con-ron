@@ -174,7 +174,7 @@ theorem expr_dup_wf {e r : expr.Expr} (he : ExprWF e) (h : expr.dup e = ok r) :
 
 theorem binder_meta_wf {pw : prop_when.PropWhen} {m : expr.BinderMeta}
     (hpw : PropWhenWF pw) (h : expr.binder_meta pw = ok m) : BinderMetaWF m := by
-  simp only [expr.binder_meta, ptr_new_eq, bind_tc_ok, Result.ok.injEq] at h
+  simp only [expr.binder_meta, Result.ok.injEq] at h
   subst h; exact hpw
 
 /-! The empty vector, at each of the six element types the tables push onto. -/

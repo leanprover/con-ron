@@ -637,7 +637,7 @@ private theorem with_sets {tb : pins_decode.Tables}
 was given. -/
 private theorem binder_meta_wf {pw : prop_when.PropWhen} {m : expr.BinderMeta}
     (hpw : PropWhenWF pw) (h : expr.binder_meta pw = ok m) : BinderMetaWF m := by
-  simp only [expr.binder_meta, ptr_new_eq, bind_tc_ok, Result.ok.injEq] at h
+  simp only [expr.binder_meta, Result.ok.injEq] at h
   rw [← h]; exact hpw
 
 /-- `expr::literal_nat` is `Arc::new` on a normalised bignum. -/

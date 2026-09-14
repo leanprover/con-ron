@@ -145,7 +145,7 @@ theorem bb_never_meta {m : expr.BinderMeta} (h : basis_builder.never_meta = ok m
   rw [basis_builder.never_meta] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨pw, hpw, hm⟩ := h
-  simp only [expr.binder_meta, ptr_new_eq, bind_tc_ok, Result.ok.injEq] at hm
+  simp only [expr.binder_meta, Result.ok.injEq] at hm
   subst hm
   exact ⟨by rw [absBinderMeta, PropWhen.never_refines hpw], PropWhen.never_wf hpw⟩
 

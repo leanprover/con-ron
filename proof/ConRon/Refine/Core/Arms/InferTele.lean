@@ -441,7 +441,7 @@ theorem infer_lams_prev_pw_i_refines {t : expr.Expr}
         have h0 : stk.val.length = 0 := by rw [hc]; simp
         have h1 : (alloc.vec.Vec.len stk).val = 0 := by rw [hlen, h0]
         scalar_tac
-      simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
+      simp only [bind_eq_ok_iff] at h
       obtain ⟨i2, hi2, ⟨xe, xm⟩, hidx, h⟩ := h
       have hi2v : i2.val = stk.val.length - 1 := by
         rw [HashMap.uscalar_sub_eq hi2, hlen]; rfl
@@ -499,7 +499,7 @@ theorem infer_lams_out_i_val (N : Nat) :
       intro hc
       have h1 : (alloc.vec.Vec.len stk).val < p.val := by scalar_tac
       omega)] at h
-    simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
+    simp only [bind_eq_ok_iff] at h
     obtain ⟨i1, hi1, ent, hidx, b, hb, h⟩ := h
     have hi1v : i1.val = n := by
       have h1 := HashMap.uscalar_sub_eq hi1; scalar_tac

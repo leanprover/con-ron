@@ -322,7 +322,7 @@ theorem annot_pw_thread_i_refines {pw : Option prop_when.PropWhen}
     subst h
     exact ⟨rfl, by simp⟩
   | some p =>
-    simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff, Result.ok.injEq] at h
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
     obtain ⟨q, hq, hr⟩ := h
     rw [PropWhen.dup_eq hq] at hr
     refine ⟨by rw [← hr]; rfl, ?_⟩
@@ -1409,7 +1409,7 @@ theorem annotate_lam_chain_i_refines (hw : Wrappers mode fuel)
   intro fe lfe hfe hfrel st r st' hwf hok lst hrel
   dsimp only at hok ⊢
   unfold cached.core_c.annotate_lam_chain_i at hok
-  simp only [bind_eq_ok_iff, arc_deref_eq, bind_tc_ok] at hok
+  simp only [bind_eq_ok_iff] at hok
   obtain ⟨⟨r0, st1⟩, h1, hok⟩ := hok
   cases r0 with
   | Err err =>

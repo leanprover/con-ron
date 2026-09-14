@@ -864,7 +864,6 @@ theorem defeq_binders_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
         (absExpr t2) (absExpr bo2) (absBinderMeta m2)) := by
   intro fe lfe hfe hfrel st res st' hwf hok lst hrel
   unfold cached.core_c.defeq_binders_i at hok
-  simp only [arc_deref_eq, bind_tc_ok] at hok
   simp only [DefEq.defeqBindersFrag]
   obtain ⟨⟨r1, st1⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
   cases r1 with

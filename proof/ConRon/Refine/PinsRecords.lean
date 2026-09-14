@@ -1135,7 +1135,7 @@ theorem record_expr_binder_refines {t : Slice Std.U8} {i : Std.Usize}
   case inr => exact after_newline_refines hce
   obtain ⟨e7, b13, b14⟩ := after_newline_refines hr6
   obtain ⟨m, hm, h⟩ := bind_eq_ok_iff.mp h
-  simp only [expr.binder_meta, ptr_new_eq, bind_tc_ok, Result.ok.injEq] at hm
+  simp only [expr.binder_meta, Result.ok.injEq] at hm
   subst hm
   cases isLam
   · obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
