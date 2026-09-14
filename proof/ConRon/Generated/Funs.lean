@@ -287,7 +287,7 @@ def kernel.name.dup (n : kernel.name.Name) : Result kernel.name.Name := do
   ok (kernel.name.Name.mk a)
 
 /-- [con_ron_core::kernel::expr::dup]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 373:0-375:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 386:0-388:1
     Visibility: public -/
 def kernel.expr.dup (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
   let a ← ron.ptr.clone e._0
@@ -631,7 +631,7 @@ def cached.state_c.const_val_at_m.M : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::kernel::prop_when::append_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 174:0-182:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 185:0-193:1
     Visibility: public -/
 def kernel.prop_when.append_from
   (xs : alloc.vec.Vec kernel.name.Name) (k : Std.Usize)
@@ -652,7 +652,7 @@ def kernel.prop_when.append_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::prop_when::names_copy]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 186:0-188:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 197:0-199:1
     Visibility: public -/
 def kernel.prop_when.names_copy
   (xs : alloc.vec.Vec kernel.name.Name) :
@@ -760,7 +760,7 @@ def kernel.level.beq
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::levels_beq_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 736:0-744:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 749:0-757:1
     Visibility: public -/
 def kernel.expr.levels_beq_from
   (ls : alloc.vec.Vec kernel.level.Level)
@@ -785,7 +785,7 @@ def kernel.expr.levels_beq_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::levels_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 726:0-732:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 739:0-745:1
     Visibility: public -/
 def kernel.expr.levels_beq
   (ls : alloc.vec.Vec kernel.level.Level)
@@ -911,7 +911,7 @@ def ron.hashmap.HashMap.new
     }
 
 /-- [con_ron_core::kernel::expr::proj_head_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1008:0-1014:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1021:0-1027:1
     Visibility: public -/
 def kernel.expr.proj_head_beq
   (s1 : kernel.name.Name) (i1 : Std.U64) (s2 : kernel.name.Name) (i2 : Std.U64)
@@ -924,7 +924,7 @@ def kernel.expr.proj_head_beq
   else ok false
 
 /-- [con_ron_core::kernel::expr::const_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 997:0-1003:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1010:0-1016:1
     Visibility: public -/
 def kernel.expr.const_beq
   (n : kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
@@ -966,7 +966,7 @@ def U64.Insts.Con_ron_coreRonHashmapHashable : ron.hashmap.Hashable Std.U64
 }
 
 /-- [con_ron_core::kernel::expr::beq_extend]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 915:0-921:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 928:0-934:1
     Visibility: public -/
 def kernel.expr.beq_extend
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -985,7 +985,7 @@ def kernel.expr.beq_extend
   ok m1
 
 /-- [con_ron_core::kernel::expr::beq_record]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 898:0-907:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 911:0-920:1
     Visibility: public -/
 def kernel.expr.beq_record
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -1007,7 +1007,7 @@ def kernel.expr.beq_record
   | some v => kernel.expr.beq_extend m1 key v a b
 
 /-- [con_ron_core::kernel::expr::beq_finish]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 863:0-880:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 876:0-893:1
     Visibility: public -/
 def kernel.expr.beq_finish
   (r : Bool)
@@ -1026,14 +1026,14 @@ def kernel.expr.beq_finish
   else ok (false, m)
 
 /-- [con_ron_core::kernel::expr::ptr_eq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 607:0-609:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 620:0-622:1
     Visibility: public -/
 def kernel.expr.ptr_eq
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
   ron.ptr.ptr_eq a._0 b._0
 
 /-- [con_ron_core::kernel::expr::pair_is]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 716:0-722:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 729:0-735:1
     Visibility: public -/
 def kernel.expr.pair_is
   (p : (kernel.expr.Expr × kernel.expr.Expr)) (a : kernel.expr.Expr)
@@ -1047,7 +1047,7 @@ def kernel.expr.pair_is
   else ok false
 
 /-- [con_ron_core::kernel::expr::probe_hit_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 700:0-708:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 713:0-721:1
     Visibility: public -/
 def kernel.expr.probe_hit_from
   (ps : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr)) (i : Std.Usize)
@@ -1069,7 +1069,7 @@ def kernel.expr.probe_hit_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::probe_hit]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 685:0-690:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 698:0-703:1
     Visibility: public -/
 def kernel.expr.probe_hit
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -1085,14 +1085,14 @@ def kernel.expr.probe_hit
   | some ps => kernel.expr.probe_hit_from ps 0#usize a b
 
 /-- [con_ron_core::kernel::expr::beq_key]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 671:0-673:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 684:0-686:1
     Visibility: public -/
 def kernel.expr.beq_key (ha : Std.U64) (hb : Std.U64) : Result Std.U64 := do
   let i ← lift (core.num.U64.wrapping_mul hb 11400714819323198485#u64)
   ok (ha ^^^ i)
 
 /-- [con_ron_core::kernel::expr::beq_recursive]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 591:0-601:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 604:0-614:1
     Visibility: public -/
 def kernel.expr.beq_recursive (e : kernel.expr.Expr) : Result Bool := do
   let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
@@ -1109,20 +1109,20 @@ def kernel.expr.beq_recursive (e : kernel.expr.Expr) : Result Bool := do
   | kernel.expr.ExprKind.Proj _ _ _ => ok true
 
 /-- [con_ron_core::kernel::expr::data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 367:0-369:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 380:0-382:1
     Visibility: public -/
 def kernel.expr.data (e : kernel.expr.Expr) : Result Std.U64 := do
   let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
   ok en.data
 
 /-- [con_ron_core::kernel::expr::hash_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 266:0-268:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 272:0-274:1
     Visibility: public -/
 def kernel.expr.hash_of_data (w : Std.U64) : Result Std.U64 := do
   w / 4294967296#u64
 
 /-- [con_ron_core::kernel::expr::hash]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 554:0-556:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 567:0-569:1
     Visibility: public -/
 def kernel.expr.hash (e : kernel.expr.Expr) : Result Std.U64 := do
   let i ← kernel.expr.data e
@@ -1180,7 +1180,7 @@ def ron.nat.beq (a : ron.nat.Nat) (b : ron.nat.Nat) : Result Bool := do
   | ron.nat.Cmp.Gt => ok false
 
 /-- [con_ron_core::kernel::expr::literal_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 178:0-184:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 184:0-190:1
     Visibility: public -/
 def kernel.expr.literal_beq
   (a : kernel.expr.Literal) (b : kernel.expr.Literal) : Result Bool := do
@@ -1201,7 +1201,7 @@ def kernel.expr.literal_beq
       kernel.name.str_eq v v1
 
 /-- [con_ron_core::kernel::prop_when::names_beq_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 310:0-320:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 330:0-340:1
     Visibility: public -/
 def kernel.prop_when.names_beq_from
   (ps : alloc.vec.Vec kernel.name.Name) (qs : alloc.vec.Vec kernel.name.Name)
@@ -1257,7 +1257,7 @@ def kernel.prop_when.names_beq_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::prop_when::names_beq]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 324:0-326:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 344:0-346:1
     Visibility: public -/
 def kernel.prop_when.names_beq
   (ps : alloc.vec.Vec kernel.name.Name) (qs : alloc.vec.Vec kernel.name.Name) :
@@ -1266,7 +1266,7 @@ def kernel.prop_when.names_beq
   kernel.prop_when.names_beq_from ps qs 0#usize
 
 /-- [con_ron_core::kernel::prop_when::equiv_r]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 332:0-343:1 -/
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 352:0-363:1 -/
 def kernel.prop_when.equiv_r
   (x : kernel.prop_when.PropWhenRepr) (y : kernel.prop_when.PropWhenRepr) :
   Result Bool
@@ -1277,31 +1277,33 @@ def kernel.prop_when.equiv_r
     | kernel.prop_when.PropWhenRepr.Never => ok true
     | kernel.prop_when.PropWhenRepr.Always => ok false
     | kernel.prop_when.PropWhenRepr.One _ => ok false
-    | kernel.prop_when.PropWhenRepr.Two _ _ => ok false
+    | kernel.prop_when.PropWhenRepr.Two _ => ok false
     | kernel.prop_when.PropWhenRepr.Many _ => ok false
   | kernel.prop_when.PropWhenRepr.Always =>
     match y with
     | kernel.prop_when.PropWhenRepr.Never => ok false
     | kernel.prop_when.PropWhenRepr.Always => ok true
     | kernel.prop_when.PropWhenRepr.One _ => ok false
-    | kernel.prop_when.PropWhenRepr.Two _ _ => ok false
+    | kernel.prop_when.PropWhenRepr.Two _ => ok false
     | kernel.prop_when.PropWhenRepr.Many _ => ok false
   | kernel.prop_when.PropWhenRepr.One a =>
     match y with
     | kernel.prop_when.PropWhenRepr.Never => ok false
     | kernel.prop_when.PropWhenRepr.Always => ok false
     | kernel.prop_when.PropWhenRepr.One b => kernel.name.beq a b
-    | kernel.prop_when.PropWhenRepr.Two _ _ => ok false
+    | kernel.prop_when.PropWhenRepr.Two _ => ok false
     | kernel.prop_when.PropWhenRepr.Many _ => ok false
-  | kernel.prop_when.PropWhenRepr.Two a b =>
+  | kernel.prop_when.PropWhenRepr.Two pq =>
     match y with
     | kernel.prop_when.PropWhenRepr.Never => ok false
     | kernel.prop_when.PropWhenRepr.Always => ok false
     | kernel.prop_when.PropWhenRepr.One _ => ok false
-    | kernel.prop_when.PropWhenRepr.Two c d =>
-      let b1 ← kernel.name.beq a c
-      if b1
-      then kernel.name.beq b d
+    | kernel.prop_when.PropWhenRepr.Two rs =>
+      let (n, n1) ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global pq
+      let (n2, n3) ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global rs
+      let b ← kernel.name.beq n n2
+      if b
+      then kernel.name.beq n1 n3
       else ok false
     | kernel.prop_when.PropWhenRepr.Many _ => ok false
   | kernel.prop_when.PropWhenRepr.Many ps =>
@@ -1309,11 +1311,14 @@ def kernel.prop_when.equiv_r
     | kernel.prop_when.PropWhenRepr.Never => ok false
     | kernel.prop_when.PropWhenRepr.Always => ok false
     | kernel.prop_when.PropWhenRepr.One _ => ok false
-    | kernel.prop_when.PropWhenRepr.Two _ _ => ok false
-    | kernel.prop_when.PropWhenRepr.Many qs => kernel.prop_when.names_beq ps qs
+    | kernel.prop_when.PropWhenRepr.Two _ => ok false
+    | kernel.prop_when.PropWhenRepr.Many qs =>
+      let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ps
+      let v1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global qs
+      kernel.prop_when.names_beq v v1
 
 /-- [con_ron_core::kernel::prop_when::beq]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 351:0-353:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 371:0-373:1
     Visibility: public -/
 def kernel.prop_when.beq
   (a : kernel.prop_when.PropWhen) (b : kernel.prop_when.PropWhen) :
@@ -1322,18 +1327,16 @@ def kernel.prop_when.beq
   kernel.prop_when.equiv_r a.repr b.repr
 
 /-- [con_ron_core::kernel::expr::binder_meta_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 126:0-128:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 130:0-132:1
     Visibility: public -/
 def kernel.expr.binder_meta_beq
   (a : kernel.expr.BinderMeta) (b : kernel.expr.BinderMeta) : Result Bool := do
-  let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global a.pw
-  let pw1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b.pw
-  kernel.prop_when.beq pw pw1
+  kernel.prop_when.beq a.pw b.pw
 
 mutual
 
 /-- [con_ron_core::kernel::expr::beq_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 801:0-816:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 814:0-829:1
     Visibility: public -/
 def kernel.expr.beq_go
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -1368,7 +1371,7 @@ def kernel.expr.beq_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_arm]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 828:0-850:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 841:0-863:1
     Visibility: public -/
 def kernel.expr.beq_arm
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -1520,7 +1523,7 @@ def kernel.expr.beq_arm
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_when]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 937:0-943:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 950:0-956:1
     Visibility: public -/
 def kernel.expr.beq_when
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -1535,7 +1538,7 @@ def kernel.expr.beq_when
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_both]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 948:0-955:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 961:0-968:1
     Visibility: public -/
 def kernel.expr.beq_both
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -1551,7 +1554,7 @@ def kernel.expr.beq_both
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_both_when]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 960:0-973:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 973:0-986:1
     Visibility: public -/
 def kernel.expr.beq_both_when
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -1566,7 +1569,7 @@ def kernel.expr.beq_both_when
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_three]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 977:0-992:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 990:0-1005:1
     Visibility: public -/
 def kernel.expr.beq_three
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -1585,7 +1588,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::kernel::expr::beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1028:0-1038:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1041:0-1051:1
     Visibility: public -/
 def kernel.expr.beq
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
@@ -1656,14 +1659,14 @@ def cached.state_c.stored_val_idx_m
          ok (e2, s)
 
 /-- [con_ron_core::kernel::expr::lp_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 284:0-286:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 290:0-292:1
     Visibility: public -/
 def kernel.expr.lp_of_data (w : Std.U64) : Result Bool := do
   let i ← w % 2#u64
   ok (i = 1#u64)
 
 /-- [con_ron_core::kernel::expr::has_lp]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 561:0-563:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 574:0-576:1
     Visibility: public -/
 def kernel.expr.has_lp (e : kernel.expr.Expr) : Result Bool := do
   let i ← kernel.expr.data e
@@ -1678,7 +1681,7 @@ def kernel.name.singleton
   alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n1
 
 /-- [con_ron_core::kernel::prop_when::to_list]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 482:0-495:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 506:0-519:1
     Visibility: public -/
 def kernel.prop_when.to_list
   (pw : kernel.prop_when.PropWhen) :
@@ -1690,21 +1693,30 @@ def kernel.prop_when.to_list
   | kernel.prop_when.PropWhenRepr.Always =>
     ok (alloc.vec.Vec.new kernel.name.Name)
   | kernel.prop_when.PropWhenRepr.One p => kernel.name.singleton p
-  | kernel.prop_when.PropWhenRepr.Two p q =>
-    let n ← kernel.name.dup p
-    let v ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-    let n1 ← kernel.name.dup q
-    alloc.vec.Vec.push v n1
-  | kernel.prop_when.PropWhenRepr.Many ps => kernel.prop_when.names_copy ps
+  | kernel.prop_when.PropWhenRepr.Two pq =>
+    let (n, n1) ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global pq
+    let n2 ← kernel.name.dup n
+    let v ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n2
+    let n3 ← kernel.name.dup n1
+    alloc.vec.Vec.push v n3
+  | kernel.prop_when.PropWhenRepr.Many ps =>
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ps
+    kernel.prop_when.names_copy v
+
+/-- [con_ron_core::ron::ptr::new]:
+    Source: 'crates/con-ron-core/src/ron/ptr.rs', lines 95:0-97:1
+    Visibility: public -/
+def ron.ptr.new {T : Type} (x : T) : Result (alloc.sync.Arc T) := do
+  alloc.sync.Arc.new x
 
 /-- [con_ron_core::kernel::prop_when::of_repr]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 284:0-286:1 -/
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 305:0-307:1 -/
 def kernel.prop_when.of_repr
   (r : kernel.prop_when.PropWhenRepr) : Result kernel.prop_when.PropWhen := do
   ok { repr := r }
 
 /-- [con_ron_core::kernel::prop_when::nat_compare]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 119:0-127:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 130:0-138:1
     Visibility: public -/
 def kernel.prop_when.nat_compare
   (m : Std.U64) (n : Std.U64) : Result kernel.prop_when.Ordering := do
@@ -1716,7 +1728,7 @@ def kernel.prop_when.nat_compare
     else ok kernel.prop_when.Ordering.Eq
 
 /-- [con_ron_core::kernel::prop_when::str_compare_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 100:0-114:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 111:0-125:1
     Visibility: public -/
 def kernel.prop_when.str_compare_from
   (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) (i : Std.Usize) :
@@ -1776,7 +1788,7 @@ def kernel.prop_when.str_compare_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::prop_when::str_compare]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 94:0-96:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 105:0-107:1
     Visibility: public -/
 def kernel.prop_when.str_compare
   (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) :
@@ -1785,7 +1797,7 @@ def kernel.prop_when.str_compare
   kernel.prop_when.str_compare_from a b 0#usize
 
 /-- [con_ron_core::kernel::prop_when::ord_then]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 82:0-87:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 93:0-98:1
     Visibility: public -/
 def kernel.prop_when.ord_then
   (a : kernel.prop_when.Ordering) (b : kernel.prop_when.Ordering) :
@@ -1797,7 +1809,7 @@ def kernel.prop_when.ord_then
   | kernel.prop_when.Ordering.Gt => ok kernel.prop_when.Ordering.Gt
 
 /-- [con_ron_core::kernel::prop_when::name_cmp]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 133:0-149:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 144:0-160:1
     Visibility: public -/
 def kernel.prop_when.name_cmp
   (a : kernel.name.Name) (b : kernel.name.Name) :
@@ -1830,7 +1842,7 @@ def kernel.prop_when.name_cmp
 partial_fixpoint
 
 /-- [con_ron_core::kernel::prop_when::two_prime]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 450:0-456:1 -/
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 470:0-480:1 -/
 def kernel.prop_when.two_prime
   (p : kernel.name.Name) (q : kernel.name.Name) :
   Result kernel.prop_when.PropWhen
@@ -1840,17 +1852,19 @@ def kernel.prop_when.two_prime
   | kernel.prop_when.Ordering.Lt =>
     let n ← kernel.name.dup p
     let n1 ← kernel.name.dup q
-    kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Two n n1)
+    let a ← ron.ptr.new (n, n1)
+    kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Two a)
   | kernel.prop_when.Ordering.Eq =>
     let n ← kernel.name.dup p
     kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.One n)
   | kernel.prop_when.Ordering.Gt =>
     let n ← kernel.name.dup q
     let n1 ← kernel.name.dup p
-    kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Two n n1)
+    let a ← ron.ptr.new (n, n1)
+    kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Two a)
 
 /-- [con_ron_core::kernel::prop_when::of_sorted]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 434:0-444:1 -/
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 454:0-464:1 -/
 def kernel.prop_when.of_sorted
   (ps : alloc.vec.Vec kernel.name.Name) :
   Result kernel.prop_when.PropWhen
@@ -1879,17 +1893,20 @@ def kernel.prop_when.of_sorted
           alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
             kernel.name.Name) ps 1#usize
         let n3 ← kernel.name.dup n2
-        kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Two n1 n3)
-      else kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Many ps)
+        let a ← ron.ptr.new (n1, n3)
+        kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Two a)
+      else
+        let a ← ron.ptr.new ps
+        kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Many a)
 
 /-- [con_ron_core::kernel::prop_when::never]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 423:0-425:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 443:0-445:1
     Visibility: public -/
 def kernel.prop_when.never : Result kernel.prop_when.PropWhen := do
   kernel.prop_when.of_repr kernel.prop_when.PropWhenRepr.Never
 
 /-- [con_ron_core::kernel::prop_when::dup]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 291:0-301:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 313:0-321:1
     Visibility: public -/
 def kernel.prop_when.dup
   (pw : kernel.prop_when.PropWhen) : Result kernel.prop_when.PropWhen := do
@@ -1901,16 +1918,15 @@ def kernel.prop_when.dup
   | kernel.prop_when.PropWhenRepr.One p =>
     let n ← kernel.name.dup p
     kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.One n)
-  | kernel.prop_when.PropWhenRepr.Two p q =>
-    let n ← kernel.name.dup p
-    let n1 ← kernel.name.dup q
-    kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Two n n1)
+  | kernel.prop_when.PropWhenRepr.Two pq =>
+    let a ← ron.ptr.clone pq
+    kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Two a)
   | kernel.prop_when.PropWhenRepr.Many ps =>
-    let v ← kernel.prop_when.names_copy ps
-    kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Many v)
+    let a ← ron.ptr.clone ps
+    kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Many a)
 
 /-- [con_ron_core::kernel::prop_when::merge_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 200:0-230:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 211:0-241:1
     Visibility: public -/
 def kernel.prop_when.merge_from
   (as_ : alloc.vec.Vec kernel.name.Name) (i : Std.Usize)
@@ -1953,7 +1969,7 @@ def kernel.prop_when.merge_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::prop_when::merge]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 192:0-194:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 203:0-205:1
     Visibility: public -/
 def kernel.prop_when.merge
   (as_ : alloc.vec.Vec kernel.name.Name) (bs : alloc.vec.Vec kernel.name.Name)
@@ -1964,7 +1980,7 @@ def kernel.prop_when.merge
     kernel.name.Name)
 
 /-- [con_ron_core::kernel::prop_when::inter]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 611:0-620:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 637:0-646:1
     Visibility: public -/
 def kernel.prop_when.inter
   (a : kernel.prop_when.PropWhen) (b : kernel.prop_when.PropWhen) :
@@ -1977,14 +1993,14 @@ def kernel.prop_when.inter
     | kernel.prop_when.PropWhenRepr.Never => kernel.prop_when.never
     | kernel.prop_when.PropWhenRepr.Always => kernel.prop_when.dup b
     | kernel.prop_when.PropWhenRepr.One _ => kernel.prop_when.dup b
-    | kernel.prop_when.PropWhenRepr.Two _ _ => kernel.prop_when.dup b
+    | kernel.prop_when.PropWhenRepr.Two _ => kernel.prop_when.dup b
     | kernel.prop_when.PropWhenRepr.Many _ => kernel.prop_when.dup b
   | kernel.prop_when.PropWhenRepr.One x =>
     match b.repr with
     | kernel.prop_when.PropWhenRepr.Never => kernel.prop_when.never
     | kernel.prop_when.PropWhenRepr.Always => kernel.prop_when.dup a
     | kernel.prop_when.PropWhenRepr.One y => kernel.prop_when.two_prime x y
-    | kernel.prop_when.PropWhenRepr.Two _ _ =>
+    | kernel.prop_when.PropWhenRepr.Two _ =>
       let v ← kernel.prop_when.to_list a
       let v1 ← kernel.prop_when.to_list b
       let v2 ← kernel.prop_when.merge v v1
@@ -1994,7 +2010,7 @@ def kernel.prop_when.inter
       let v1 ← kernel.prop_when.to_list b
       let v2 ← kernel.prop_when.merge v v1
       kernel.prop_when.of_sorted v2
-  | kernel.prop_when.PropWhenRepr.Two _ _ =>
+  | kernel.prop_when.PropWhenRepr.Two _ =>
     match b.repr with
     | kernel.prop_when.PropWhenRepr.Never => kernel.prop_when.never
     | kernel.prop_when.PropWhenRepr.Always => kernel.prop_when.dup a
@@ -2003,7 +2019,7 @@ def kernel.prop_when.inter
       let v1 ← kernel.prop_when.to_list b
       let v2 ← kernel.prop_when.merge v v1
       kernel.prop_when.of_sorted v2
-    | kernel.prop_when.PropWhenRepr.Two _ _ =>
+    | kernel.prop_when.PropWhenRepr.Two _ =>
       let v ← kernel.prop_when.to_list a
       let v1 ← kernel.prop_when.to_list b
       let v2 ← kernel.prop_when.merge v v1
@@ -2022,7 +2038,7 @@ def kernel.prop_when.inter
       let v1 ← kernel.prop_when.to_list b
       let v2 ← kernel.prop_when.merge v v1
       kernel.prop_when.of_sorted v2
-    | kernel.prop_when.PropWhenRepr.Two _ _ =>
+    | kernel.prop_when.PropWhenRepr.Two _ =>
       let v ← kernel.prop_when.to_list a
       let v1 ← kernel.prop_when.to_list b
       let v2 ← kernel.prop_when.merge v v1
@@ -2034,7 +2050,7 @@ def kernel.prop_when.inter
       kernel.prop_when.of_sorted v2
 
 /-- [con_ron_core::kernel::prop_when::canon_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 241:0-248:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 252:0-259:1
     Visibility: public -/
 def kernel.prop_when.canon_from
   (ps : alloc.vec.Vec kernel.name.Name) (i : Std.Usize) :
@@ -2054,7 +2070,7 @@ def kernel.prop_when.canon_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::prop_when::canon]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 234:0-236:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 245:0-247:1
     Visibility: public -/
 def kernel.prop_when.canon
   (ps : alloc.vec.Vec kernel.name.Name) :
@@ -2063,7 +2079,7 @@ def kernel.prop_when.canon
   kernel.prop_when.canon_from ps 0#usize
 
 /-- [con_ron_core::kernel::prop_when::if_all_zero]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 465:0-475:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 489:0-499:1
     Visibility: public -/
 def kernel.prop_when.if_all_zero
   (ps : alloc.vec.Vec kernel.name.Name) :
@@ -2096,7 +2112,7 @@ def kernel.prop_when.if_all_zero
            kernel.prop_when.of_sorted v
 
 /-- [con_ron_core::kernel::prop_when::bind_z_go_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 633:0-642:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 659:0-668:1
     Visibility: public -/
 def kernel.prop_when.bind_z_go_from
   {F : Type} (NameToPwInst : kernel.prop_when.NameToPw F) (f : F)
@@ -2117,7 +2133,7 @@ def kernel.prop_when.bind_z_go_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::prop_when::bind_z_go]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 647:0-652:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 673:0-678:1
     Visibility: public -/
 def kernel.prop_when.bind_z_go
   {F : Type} (NameToPwInst : kernel.prop_when.NameToPw F) (f : F)
@@ -2127,7 +2143,7 @@ def kernel.prop_when.bind_z_go
   kernel.prop_when.bind_z_go_from NameToPwInst f ps 0#usize
 
 /-- [con_ron_core::kernel::prop_when::bind_z]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 658:0-669:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 684:0-695:1
     Visibility: public -/
 def kernel.prop_when.bind_z
   {F : Type} (NameToPwInst : kernel.prop_when.NameToPw F) (f : F)
@@ -2139,12 +2155,14 @@ def kernel.prop_when.bind_z
   | kernel.prop_when.PropWhenRepr.Always =>
     kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
   | kernel.prop_when.PropWhenRepr.One p => NameToPwInst.apply f p
-  | kernel.prop_when.PropWhenRepr.Two p q =>
-    let pw1 ← NameToPwInst.apply f p
-    let pw2 ← NameToPwInst.apply f q
+  | kernel.prop_when.PropWhenRepr.Two pq =>
+    let (n, n1) ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global pq
+    let pw1 ← NameToPwInst.apply f n
+    let pw2 ← NameToPwInst.apply f n1
     kernel.prop_when.inter pw1 pw2
   | kernel.prop_when.PropWhenRepr.Many ps =>
-    kernel.prop_when.bind_z_go NameToPwInst f ps
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ps
+    kernel.prop_when.bind_z_go NameToPwInst f v
 
 /-- [con_ron_core::kernel::level::zeroness_of]:
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 524:0-536:1
@@ -2166,12 +2184,6 @@ def kernel.level.zeroness_of
     let ps ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n1
     kernel.prop_when.if_all_zero ps
 partial_fixpoint
-
-/-- [con_ron_core::ron::ptr::new]:
-    Source: 'crates/con-ron-core/src/ron/ptr.rs', lines 95:0-97:1
-    Visibility: public -/
-def ron.ptr.new {T : Type} (x : T) : Result (alloc.sync.Arc T) := do
-  alloc.sync.Arc.new x
 
 /-- [con_ron_core::kernel::level::param]:
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 85:0-88:1
@@ -2352,14 +2364,14 @@ def kernel.expr_ops.levels_subst
     kernel.level.Level)
 
 /-- [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::kernel::expr::Expr}::eq2]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1130:4-1132:5
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1143:4-1145:5
     Visibility: public -/
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : kernel.expr.Expr) (other : kernel.expr.Expr) : Result Bool := do
   kernel.expr.beq self other
 
 /-- Trait implementation: [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::kernel::expr::Expr}]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1127:0-1133:1 -/
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1140:0-1146:1 -/
 @[reducible]
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   kernel.expr.Expr := {
@@ -2367,14 +2379,14 @@ def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::kernel::expr::Expr}::hash64]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1117:4-1119:5
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1130:4-1132:5
     Visibility: public -/
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : kernel.expr.Expr) : Result Std.U64 := do
   kernel.expr.hash self
 
 /-- Trait implementation: [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::kernel::expr::Expr}]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1114:0-1120:1 -/
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1127:0-1133:1 -/
 @[reducible]
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable kernel.expr.Expr := {
@@ -2405,27 +2417,27 @@ def kernel.name.nat_hash (n : Std.U64) : Result Std.U64 := do
   ok n
 
 /-- [con_ron_core::kernel::expr::hash32]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 290:0-292:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 296:0-298:1
     Visibility: public -/
 def kernel.expr.hash32 (w : Std.U64) : Result Std.U64 := do
   w % 4294967296#u64
 
 /-- [con_ron_core::kernel::expr::fvar_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 278:0-280:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 284:0-286:1
     Visibility: public -/
 def kernel.expr.fvar_of_data (w : Std.U64) : Result Std.U64 := do
   let i ← w / 2#u64
   i % 32768#u64
 
 /-- [con_ron_core::kernel::expr::bvar_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 272:0-274:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 278:0-280:1
     Visibility: public -/
 def kernel.expr.bvar_of_data (w : Std.U64) : Result Std.U64 := do
   let i ← w / 65536#u64
   i % 32768#u64
 
 /-- [con_ron_core::kernel::expr::pack_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 256:0-262:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 262:0-268:1
     Visibility: public -/
 def kernel.expr.pack_data
   (h : Std.U64) (b : Std.U64) (f : Std.U64) (lp : Bool) : Result Std.U64 := do
@@ -2440,7 +2452,7 @@ def kernel.expr.pack_data
   ok (core.num.U64.wrapping_add i1 t)
 
 /-- [con_ron_core::kernel::expr::proj]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 532:0-546:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 545:0-559:1
     Visibility: public -/
 def kernel.expr.proj
   (struct_name : kernel.name.Name) (idx : Std.U64) (e : kernel.expr.Expr) :
@@ -2464,7 +2476,7 @@ def kernel.expr.proj
   ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr::sat_pred]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 311:0-319:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 317:0-325:1
     Visibility: public -/
 def kernel.expr.sat_pred (x : Std.U64) : Result Std.U64 := do
   if x = 32767#u64
@@ -2474,7 +2486,7 @@ def kernel.expr.sat_pred (x : Std.U64) : Result Std.U64 := do
        else x - 1#u64
 
 /-- [con_ron_core::kernel::expr::max_u64]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 243:0-249:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 249:0-255:1
     Visibility: public -/
 def kernel.expr.max_u64 (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
   if a < b
@@ -2482,7 +2494,7 @@ def kernel.expr.max_u64 (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
   else ok a
 
 /-- [con_ron_core::kernel::expr::let_e]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 495:0-516:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 508:0-529:1
     Visibility: public -/
 def kernel.expr.let_e
   (ty : kernel.expr.Expr) (value : kernel.expr.Expr) (body : kernel.expr.Expr)
@@ -2527,7 +2539,7 @@ def kernel.expr.let_e
   ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::prop_when::has_params]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 566:0-572:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 592:0-598:1
     Visibility: public -/
 def kernel.prop_when.has_params
   (pw : kernel.prop_when.PropWhen) : Result Bool := do
@@ -2535,11 +2547,11 @@ def kernel.prop_when.has_params
   | kernel.prop_when.PropWhenRepr.Never => ok false
   | kernel.prop_when.PropWhenRepr.Always => ok false
   | kernel.prop_when.PropWhenRepr.One _ => ok true
-  | kernel.prop_when.PropWhenRepr.Two _ _ => ok true
+  | kernel.prop_when.PropWhenRepr.Two _ => ok true
   | kernel.prop_when.PropWhenRepr.Many _ => ok true
 
 /-- [con_ron_core::kernel::prop_when::names_hash_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 357:0-363:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 377:0-383:1
     Visibility: public -/
 def kernel.prop_when.names_hash_from
   (ps : alloc.vec.Vec kernel.name.Name) (i : Std.Usize) (acc : Std.U64) :
@@ -2559,7 +2571,7 @@ def kernel.prop_when.names_hash_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::prop_when::hash_repr]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 374:0-385:1 -/
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 394:0-405:1 -/
 def kernel.prop_when.hash_repr
   (r : kernel.prop_when.PropWhenRepr) : Result Std.U64 := do
   match r with
@@ -2568,24 +2580,26 @@ def kernel.prop_when.hash_repr
   | kernel.prop_when.PropWhenRepr.One p =>
     let i ← kernel.name.hash_data p
     kernel.name.mix_hash 2#u64 i
-  | kernel.prop_when.PropWhenRepr.Two p q =>
-    let i ← kernel.name.hash_data p
+  | kernel.prop_when.PropWhenRepr.Two pq =>
+    let (n, n1) ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global pq
+    let i ← kernel.name.hash_data n
     let i1 ← kernel.name.mix_hash 3#u64 i
-    let i2 ← kernel.name.hash_data q
+    let i2 ← kernel.name.hash_data n1
     kernel.name.mix_hash i1 i2
   | kernel.prop_when.PropWhenRepr.Many ps =>
-    let i ← kernel.prop_when.names_hash_from ps 0#usize 7#u64
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ps
+    let i ← kernel.prop_when.names_hash_from v 0#usize 7#u64
     kernel.name.mix_hash 4#u64 i
 
 /-- [con_ron_core::kernel::prop_when::hash_pw]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 391:0-393:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 411:0-413:1
     Visibility: public -/
 def kernel.prop_when.hash_pw
   (pw : kernel.prop_when.PropWhen) : Result Std.U64 := do
   kernel.prop_when.hash_repr pw.repr
 
 /-- [con_ron_core::kernel::expr::forall_e]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 472:0-489:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 485:0-502:1
     Visibility: public -/
 def kernel.expr.forall_e
   (ty : kernel.expr.Expr) (body : kernel.expr.Expr)
@@ -2596,8 +2610,7 @@ def kernel.expr.forall_e
   let db ← kernel.expr.data body
   let i ← kernel.expr.hash_of_data dt
   let i1 ← kernel.expr.hash_of_data db
-  let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-  let i2 ← kernel.prop_when.hash_pw pw
+  let i2 ← kernel.prop_when.hash_pw m.pw
   let i3 ← kernel.name.mix_hash i1 i2
   let i4 ← kernel.name.mix_hash i i3
   let i5 ← kernel.name.mix_hash 23#u64 i4
@@ -2618,7 +2631,7 @@ def kernel.expr.forall_e
       let b2 ← kernel.expr.lp_of_data db
       if b2
       then ok true
-      else kernel.prop_when.has_params pw
+      else kernel.prop_when.has_params m.pw
   let d ← kernel.expr.pack_data h i9 i12 b1
   let a ←
     ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.ForallE ty
@@ -2626,7 +2639,7 @@ def kernel.expr.forall_e
   ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr::lam]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 450:0-467:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 463:0-480:1
     Visibility: public -/
 def kernel.expr.lam
   (ty : kernel.expr.Expr) (body : kernel.expr.Expr)
@@ -2637,8 +2650,7 @@ def kernel.expr.lam
   let db ← kernel.expr.data body
   let i ← kernel.expr.hash_of_data dt
   let i1 ← kernel.expr.hash_of_data db
-  let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-  let i2 ← kernel.prop_when.hash_pw pw
+  let i2 ← kernel.prop_when.hash_pw m.pw
   let i3 ← kernel.name.mix_hash i1 i2
   let i4 ← kernel.name.mix_hash i i3
   let i5 ← kernel.name.mix_hash 19#u64 i4
@@ -2659,7 +2671,7 @@ def kernel.expr.lam
       let b2 ← kernel.expr.lp_of_data db
       if b2
       then ok true
-      else kernel.prop_when.has_params pw
+      else kernel.prop_when.has_params m.pw
   let d ← kernel.expr.pack_data h i9 i12 b1
   let a ←
     ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Lam ty body
@@ -2667,7 +2679,7 @@ def kernel.expr.lam
   ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr::app]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 429:0-443:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 442:0-456:1
     Visibility: public -/
 def kernel.expr.app
   (f : kernel.expr.Expr) (a : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -2774,7 +2786,7 @@ def kernel.level.levels_have_param
   kernel.level.levels_have_param_from us 0#usize
 
 /-- [con_ron_core::kernel::expr::mk_const]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 416:0-423:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 429:0-436:1
     Visibility: public -/
 def kernel.expr.mk_const
   (n : kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level) :
@@ -2793,7 +2805,7 @@ def kernel.expr.mk_const
   ok (kernel.expr.Expr.mk a1)
 
 /-- [con_ron_core::kernel::expr::sort]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 405:0-409:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 418:0-422:1
     Visibility: public -/
 def kernel.expr.sort (u : kernel.level.Level) : Result kernel.expr.Expr := do
   let i ← kernel.level.level_hash u
@@ -2806,7 +2818,7 @@ def kernel.expr.sort (u : kernel.level.Level) : Result kernel.expr.Expr := do
   ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr::sat_succ]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 299:0-305:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 305:0-311:1
     Visibility: public -/
 def kernel.expr.sat_succ (n : Std.U64) : Result Std.U64 := do
   if n >= 32766#u64
@@ -2814,7 +2826,7 @@ def kernel.expr.sat_succ (n : Std.U64) : Result Std.U64 := do
   else n + 1#u64
 
 /-- [con_ron_core::kernel::expr::fvar]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 391:0-399:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 404:0-412:1
     Visibility: public -/
 def kernel.expr.fvar
   (idx : Std.U64) (ty : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -2832,12 +2844,11 @@ def kernel.expr.fvar
   ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr::binder_meta]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 119:0-121:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 123:0-125:1
     Visibility: public -/
 def kernel.expr.binder_meta
   (pw : kernel.prop_when.PropWhen) : Result kernel.expr.BinderMeta := do
-  let a ← ron.ptr.new pw
-  ok { pw := a }
+  ok { pw }
 
 /-- [con_ron_core::cached::expr_ops_c::inst_level_params_go]:
     Source: 'crates/con-ron-core/src/cached/expr_ops_c.rs', lines 867:0-925:1
@@ -2894,9 +2905,8 @@ def cached.expr_ops_c.inst_level_params_go
             cached.expr_ops_c.inst_level_params_go ks us memo ty
           let (b1, memo3) ←
             cached.expr_ops_c.inst_level_params_go ks us memo2 body
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-          let pw1 ← kernel.level.subst_pw ks us pw
-          let bm ← kernel.expr.binder_meta pw1
+          let pw ← kernel.level.subst_pw ks us m.pw
+          let bm ← kernel.expr.binder_meta pw
           let r1 ← kernel.expr.lam t b1 bm
           ok (memo3, r1)
         | kernel.expr.ExprKind.ForallE ty body m =>
@@ -2905,9 +2915,8 @@ def cached.expr_ops_c.inst_level_params_go
             cached.expr_ops_c.inst_level_params_go ks us memo ty
           let (b1, memo3) ←
             cached.expr_ops_c.inst_level_params_go ks us memo2 body
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-          let pw1 ← kernel.level.subst_pw ks us pw
-          let bm ← kernel.expr.binder_meta pw1
+          let pw ← kernel.level.subst_pw ks us m.pw
+          let bm ← kernel.expr.binder_meta pw
           let r1 ← kernel.expr.forall_e t b1 bm
           ok (memo3, r1)
         | kernel.expr.ExprKind.LetE ty val body =>
@@ -3195,7 +3204,7 @@ def ron.nat.one : Result ron.nat.Nat := do
   ron.nat.from_u64 1#u64
 
 /-- [con_ron_core::kernel::prop_when::is_never]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 556:0-561:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 582:0-587:1
     Visibility: public -/
 def kernel.prop_when.is_never
   (pw : kernel.prop_when.PropWhen) : Result Bool := do
@@ -3203,7 +3212,7 @@ def kernel.prop_when.is_never
   | kernel.prop_when.PropWhenRepr.Never => ok true
   | kernel.prop_when.PropWhenRepr.Always => ok false
   | kernel.prop_when.PropWhenRepr.One _ => ok false
-  | kernel.prop_when.PropWhenRepr.Two _ _ => ok false
+  | kernel.prop_when.PropWhenRepr.Two _ => ok false
   | kernel.prop_when.PropWhenRepr.Many _ => ok false
 
 /-- [con_ron_core::kernel::prop_read::is_prop]:
@@ -3394,8 +3403,7 @@ def kernel.prop_read.peel_never_pis
     | kernel.expr.ExprKind.App _ _ => ok none
     | kernel.expr.ExprKind.Lam _ _ _ => ok none
     | kernel.expr.ExprKind.ForallE _ b m =>
-      let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-      let b1 ← kernel.prop_when.is_never pw
+      let b1 ← kernel.prop_when.is_never m.pw
       if b1
       then let i ← k - 1#u64
            kernel.prop_read.peel_never_pis i b
@@ -3493,9 +3501,8 @@ def kernel.prop_read.type_sort_pw
     let i ← kernel.prop_read.num_args t
     kernel.prop_read.head_type_pw fe e i
   | kernel.expr.ExprKind.ForallE _ _ m =>
-    let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-    let pw1 ← kernel.prop_when.dup pw
-    ok (some pw1)
+    let pw ← kernel.prop_when.dup m.pw
+    ok (some pw)
   | kernel.expr.ExprKind.LetE _ _ _ =>
     let e ← kernel.expr_ops.get_app_fn t
     let i ← kernel.prop_read.num_args t
@@ -3572,9 +3579,8 @@ def kernel.prop_read.proof_pw
     let e ← kernel.expr_ops.get_app_fn a
     kernel.prop_read.head_proof_pw fe e
   | kernel.expr.ExprKind.Lam _ _ m =>
-    let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-    let pw1 ← kernel.prop_when.dup pw
-    ok (some pw1)
+    let pw ← kernel.prop_when.dup m.pw
+    ok (some pw)
   | kernel.expr.ExprKind.ForallE _ _ _ =>
     let e ← kernel.expr_ops.get_app_fn a
     kernel.prop_read.head_proof_pw fe e
@@ -3644,7 +3650,7 @@ def kernel.name.contains
   kernel.name.contains_from ns 0#usize n
 
 /-- [con_ron_core::kernel::expr::bvar]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 380:0-384:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 393:0-397:1
     Visibility: public -/
 def kernel.expr.bvar (i : Std.U64) : Result kernel.expr.Expr := do
   let i1 ← kernel.name.nat_hash i
@@ -3784,12 +3790,12 @@ def kernel.expr_ops.pi_result
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::binder_meta_dup]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 142:0-144:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 148:0-150:1
     Visibility: public -/
 def kernel.expr.binder_meta_dup
   (m : kernel.expr.BinderMeta) : Result kernel.expr.BinderMeta := do
-  let a ← ron.ptr.clone m.pw
-  ok { pw := a }
+  let pw ← kernel.prop_when.dup m.pw
+  ok { pw }
 
 /-- [con_ron_core::kernel::expr_ops::strip_pis_go]:
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1208:0-1224:1
@@ -3921,14 +3927,14 @@ def kernel.expr_ops.fvar_range_memo
   ok i
 
 /-- [con_ron_core::kernel::expr::fvar_b_raw]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 577:0-579:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 590:0-592:1
     Visibility: public -/
 def kernel.expr.fvar_b_raw (e : kernel.expr.Expr) : Result Std.U64 := do
   let i ← kernel.expr.data e
   kernel.expr.fvar_of_data i
 
 /-- [con_ron_core::kernel::expr::sat_range]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 237:0-239:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 243:0-245:1
     Visibility: public -/
 def kernel.expr.sat_range : Result Std.U64 := do
   ok 32767#u64
@@ -3963,9 +3969,8 @@ def kernel.expr_ops.lam_pw
   | kernel.expr.ExprKind.Const _ _ => ok none
   | kernel.expr.ExprKind.App _ _ => ok none
   | kernel.expr.ExprKind.Lam _ _ m =>
-    let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-    let pw1 ← kernel.prop_when.dup pw
-    ok (some pw1)
+    let pw ← kernel.prop_when.dup m.pw
+    ok (some pw)
   | kernel.expr.ExprKind.ForallE _ _ _ => ok none
   | kernel.expr.ExprKind.LetE _ _ _ => ok none
   | kernel.expr.ExprKind.Lit _ => ok none
@@ -4060,7 +4065,7 @@ def ron.nat.hash64 (a : ron.nat.Nat) : Result Std.U64 := do
   ron.nat.hash64_from a.limbs 0#usize 14695981039346656037#u64
 
 /-- [con_ron_core::kernel::expr::literal_hash]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 192:0-197:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 198:0-203:1
     Visibility: public -/
 def kernel.expr.literal_hash (l : kernel.expr.Literal) : Result Std.U64 := do
   match l with
@@ -4074,7 +4079,7 @@ def kernel.expr.literal_hash (l : kernel.expr.Literal) : Result Std.U64 := do
     kernel.name.mix_hash 1#u64 i
 
 /-- [con_ron_core::kernel::expr::lit]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 522:0-526:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 535:0-539:1
     Visibility: public -/
 def kernel.expr.lit (l : kernel.expr.Literal) : Result kernel.expr.Expr := do
   let i ← kernel.expr.literal_hash l
@@ -4086,7 +4091,7 @@ def kernel.expr.lit (l : kernel.expr.Literal) : Result kernel.expr.Expr := do
   ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr::literal_nat]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 166:0-168:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 172:0-174:1
     Visibility: public -/
 def kernel.expr.literal_nat
   (n : ron.nat.Nat) : Result kernel.expr.Literal := do
@@ -9037,7 +9042,7 @@ def kernel.expr_ops.expr_nat_key
   ok { e := e1, d }
 
 /-- [con_ron_core::kernel::expr::mk_bvar]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1072:0-1074:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1085:0-1087:1
     Visibility: public -/
 def kernel.expr.mk_bvar (i : Std.U64) : Result kernel.expr.Expr := do
   kernel.expr.bvar i
@@ -10003,7 +10008,7 @@ def kernel.expr_ops.bvar_bound_memo
   ok i
 
 /-- [con_ron_core::kernel::expr::bvar_b_raw]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 571:0-573:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 584:0-586:1
     Visibility: public -/
 def kernel.expr.bvar_b_raw (e : kernel.expr.Expr) : Result Std.U64 := do
   let i ← kernel.expr.data e
@@ -12355,8 +12360,7 @@ def cached.core_c.infer_lams_prev_pw_i
       let (_, bm) ←
         alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
           (kernel.expr.Expr × kernel.expr.BinderMeta)) stk i2
-      let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global bm.pw
-      kernel.prop_when.dup pw
+      kernel.prop_when.dup bm.pw
   | some pw => ok pw
 
 /-- [con_ron_core::cached::core_c::infer_lams_leaf_sort_i::M_SORT]
@@ -12417,16 +12421,15 @@ def cached.core_c.infer_lams_out_i
       if b
       then
         let (e, bm) := ent
-        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global bm.pw
-        let b1 ← kernel.prop_when.beq pw prev_pw
+        let b1 ← kernel.prop_when.beq bm.pw prev_pw
         if b1
         then
           let ty_abs ← cached.state_c.abstract_range_m e d j
           let bm1 ← kernel.expr.binder_meta_dup bm
           let node ← kernel.expr.forall_e ty_abs cur bm1
-          let pw1 ← kernel.prop_when.dup pw
+          let pw ← kernel.prop_when.dup bm.pw
           let i2 ← kernel.expr_ops.sub_nat j 1#u64
-          cached.core_c.infer_lams_out_i mode d stk i1 i2 node pw1
+          cached.core_c.infer_lams_out_i mode d stk i1 i2 node pw
         else
           let s ← lift (Array.to_slice cached.core_c.infer_lams_out_i.M)
           let v ← kernel.core_types.code_points s
@@ -12437,10 +12440,9 @@ def cached.core_c.infer_lams_out_i
         let ty_abs ← cached.state_c.abstract_range_m e d j
         let bm1 ← kernel.expr.binder_meta_dup bm
         let node ← kernel.expr.forall_e ty_abs cur bm1
-        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global bm.pw
-        let pw1 ← kernel.prop_when.dup pw
+        let pw ← kernel.prop_when.dup bm.pw
         let i2 ← kernel.expr_ops.sub_nat j 1#u64
-        cached.core_c.infer_lams_out_i mode d stk i1 i2 node pw1
+        cached.core_c.infer_lams_out_i mode d stk i1 i2 node pw
 partial_fixpoint
 
 /-- [con_ron_core::cached::core_c::infer_spine_io_cert_i::M_MISMATCH]
@@ -13723,8 +13725,7 @@ def cached.core_c.iota_certs_i_aux
       let acc2 ← kernel.expr_ops.cons_expr e acc
       if lic
       then
-        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
-        let b ← kernel.prop_when.is_never pw
+        let b ← kernel.prop_when.is_never mb.pw
         if b
         then
           let i2 ← i + 1#usize
@@ -14499,8 +14500,7 @@ def cached.core_c.eta_cert_i
       | kernel.expr.ExprKind.Lam _ _ _ => ok (core.result.Result.Ok false, st2)
       | kernel.expr.ExprKind.ForallE ty2 _ m2 =>
         let ty21 ← kernel.expr.dup ty2
-        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m2.pw
-        let pw2 ← kernel.prop_when.dup pw
+        let pw2 ← kernel.prop_when.dup m2.pw
         let (r2, st3) ← cached.core_c.defeq mode fuel st2 fe depth ty21 ty1
         match r2 with
         | core.result.Result.Ok b1 =>
@@ -14545,8 +14545,7 @@ def cached.core_c.eta_cert_body_i
       let b2 ← kernel.env.verified_checks mode
       if b2
       then
-        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m1.pw
-        let b3 ← kernel.prop_when.beq pw pw2
+        let b3 ← kernel.prop_when.beq m1.pw pw2
         if b3
         then ok (r, st1)
         else
@@ -15728,8 +15727,7 @@ def cached.core_c.whnf_app_i
     | kernel.expr.ExprKind.Lam ty body mb =>
       let ty1 ← kernel.expr.dup ty
       let body1 ← kernel.expr.dup body
-      let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
-      let b ← kernel.env.beta_skip mode pw
+      let b ← kernel.env.beta_skip mode mb.pw
       if b
       then
         let e ←
@@ -15952,8 +15950,7 @@ def cached.core_c.beta_peel_i
     | kernel.expr.ExprKind.Lam ty body mb =>
       let ty1 ← kernel.expr.dup ty
       let body1 ← kernel.expr.dup body
-      let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
-      let b ← kernel.env.beta_skip mode pw
+      let b ← kernel.env.beta_skip mode mb.pw
       if b
       then
         let e ←
@@ -17193,9 +17190,8 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
-          let pw1 ← kernel.prop_when.dup pw
-          let b ← kernel.env.io_skip mode pw1
+          let pw ← kernel.prop_when.dup mt.pw
+          let b ← kernel.env.io_skip mode pw
           if b
           then
             let e ←
@@ -17275,9 +17271,8 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
-          let pw1 ← kernel.prop_when.dup pw
-          let b ← kernel.env.io_skip mode pw1
+          let pw ← kernel.prop_when.dup mt.pw
+          let b ← kernel.env.io_skip mode pw
           if b
           then
             let e ←
@@ -17357,9 +17352,8 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
-          let pw1 ← kernel.prop_when.dup pw
-          let b ← kernel.env.io_skip mode pw1
+          let pw ← kernel.prop_when.dup mt.pw
+          let b ← kernel.env.io_skip mode pw
           if b
           then
             let e ←
@@ -17439,9 +17433,8 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
-          let pw1 ← kernel.prop_when.dup pw
-          let b ← kernel.env.io_skip mode pw1
+          let pw ← kernel.prop_when.dup mt.pw
+          let b ← kernel.env.io_skip mode pw
           if b
           then
             let e ←
@@ -17521,9 +17514,8 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
-          let pw1 ← kernel.prop_when.dup pw
-          let b ← kernel.env.io_skip mode pw1
+          let pw ← kernel.prop_when.dup mt.pw
+          let b ← kernel.env.io_skip mode pw
           if b
           then
             let e ←
@@ -17603,9 +17595,8 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
-          let pw1 ← kernel.prop_when.dup pw
-          let b ← kernel.env.io_skip mode pw1
+          let pw ← kernel.prop_when.dup mt.pw
+          let b ← kernel.env.io_skip mode pw
           if b
           then
             let e ←
@@ -17647,8 +17638,7 @@ def cached.core_c.infer_spine_io_i
       | core.result.Result.Err _ => ok (r, st1)
     | kernel.expr.ExprKind.ForallE dom body mt =>
       let body1 ← kernel.expr.dup body
-      let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
-      let b ← kernel.env.io_skip mode pw
+      let b ← kernel.env.io_skip mode mt.pw
       if b
       then
         let e ←
@@ -17713,9 +17703,8 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
-          let pw1 ← kernel.prop_when.dup pw
-          let b ← kernel.env.io_skip mode pw1
+          let pw ← kernel.prop_when.dup mt.pw
+          let b ← kernel.env.io_skip mode pw
           if b
           then
             let e ←
@@ -17795,9 +17784,8 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
-          let pw1 ← kernel.prop_when.dup pw
-          let b ← kernel.env.io_skip mode pw1
+          let pw ← kernel.prop_when.dup mt.pw
+          let b ← kernel.env.io_skip mode pw
           if b
           then
             let e ←
@@ -17877,9 +17865,8 @@ def cached.core_c.infer_spine_io_i
         | kernel.expr.ExprKind.ForallE dom body mt =>
           let dom1 ← kernel.expr.dup dom
           let body1 ← kernel.expr.dup body
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mt.pw
-          let pw1 ← kernel.prop_when.dup pw
-          let b ← kernel.env.io_skip mode pw1
+          let pw ← kernel.prop_when.dup mt.pw
+          let b ← kernel.env.io_skip mode pw
           if b
           then
             let e ←
@@ -18031,8 +18018,7 @@ def cached.core_c.infer_lams_leaf_sort_i
           let (_, bm) ←
             alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
               (kernel.expr.Expr × kernel.expr.BinderMeta)) stk i2
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global bm.pw
-          let b ← kernel.prop_when.beq pv pw
+          let b ← kernel.prop_when.beq pv bm.pw
           if b
           then ok (core.result.Result.Ok (), st2)
           else
@@ -18261,8 +18247,7 @@ def cached.core_c.infer_pis_i
       cached.core_c.infer_pis_leaf_i mode fuel st fe d t k fvs stk
     | kernel.expr.ExprKind.ForallE ty body mb =>
       let body1 ← kernel.expr.dup body
-      let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
-      let pw1 ← kernel.prop_when.dup pw
+      let pw ← kernel.prop_when.dup mb.pw
       let tyo ← cached.state_c.inst_list_rev_m ty fvs 0#u64
       let i ← d + k
       let (r, st1) ← cached.core_c.infer mode fuel st fe i tyo
@@ -18289,7 +18274,7 @@ def cached.core_c.infer_pis_i
             let e ← kernel.expr.dup tyo
             let fv ← kernel.expr.fvar i e
             let fvs1 ← alloc.vec.Vec.push fvs fv
-            let stk1 ← alloc.vec.Vec.push stk (u1, pw1)
+            let stk1 ← alloc.vec.Vec.push stk (u1, pw)
             let i1 ← peel - 1#u64
             let i2 ← k + 1#u64
             cached.core_c.infer_pis_i mode fuel st2 fe d i1 body1 i2 fvs1 stk1
@@ -18428,11 +18413,10 @@ def cached.core_c.infer_forall_i
         let e ← kernel.expr.dup ty
         let fv ← kernel.expr.fvar depth e
         let fvs ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.expr.Expr) fv
-        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
-        let pw1 ← kernel.prop_when.dup pw
+        let pw ← kernel.prop_when.dup mb.pw
         let stk ←
           alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.level.Level ×
-            kernel.prop_when.PropWhen)) (u1, pw1)
+            kernel.prop_when.PropWhen)) (u1, pw)
         let i ← cached.state_c.peel_fuel
         cached.core_c.infer_pis_i mode fuel st2 fe depth i body 1#u64 fvs stk
       | kernel.expr.ExprKind.Const _ _ =>
@@ -18617,9 +18601,7 @@ def cached.core_c.infer_forall_io_i
             if b
             then
               let pw ← kernel.level.zeroness_of v
-              let pw1 ←
-                alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
-              let b1 ← kernel.prop_when.beq pw pw1
+              let b1 ← kernel.prop_when.beq pw mb.pw
               if b1
               then
                 let l ← kernel.level.imax u1 v
@@ -18733,8 +18715,7 @@ def cached.core_c.infer_lam_cod_io_i
       match r1 with
       | core.result.Result.Ok vb =>
         let pw ← kernel.level.zeroness_of vb
-        let pw1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
-        let b ← kernel.prop_when.beq pw pw1
+        let b ← kernel.prop_when.beq pw mb.pw
         if b
         then ok (core.result.Result.Ok (), st2)
         else
@@ -18746,8 +18727,7 @@ def cached.core_c.infer_lam_cod_io_i
       | core.result.Result.Err err => ok (core.result.Result.Err err, st2)
     | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
   | some pw_i =>
-    let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
-    let b ← kernel.prop_when.beq pw pw_i
+    let b ← kernel.prop_when.beq mb.pw pw_i
     if b
     then ok (core.result.Result.Ok (), st)
     else
@@ -19572,11 +19552,7 @@ def cached.core_c.defeq_binders_i
           let b4 ← kernel.env.verified_checks mode
           if b4
           then
-            let pw ←
-              alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m1.pw
-            let pw1 ←
-              alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m2.pw
-            let b5 ← kernel.prop_when.beq pw pw1
+            let b5 ← kernel.prop_when.beq m1.pw m2.pw
             if b5
             then ok (core.result.Result.Ok true, st2)
             else
@@ -20163,8 +20139,7 @@ def kernel.core_k.annot_binder_meta
   match pw with
   | none => kernel.expr.binder_meta_dup mb
   | some p =>
-    let pw1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
-    let b ← kernel.core_k.pw_written pw1
+    let b ← kernel.core_k.pw_written mb.pw
     if b
     then kernel.expr.binder_meta_dup mb
     else kernel.expr.binder_meta p
@@ -20190,10 +20165,8 @@ def cached.core_c.annot_pw_thread_i
   := do
   match pw with
   | none => ok none
-  | some _ =>
-    let pw1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
-    let pw2 ← kernel.prop_when.dup pw1
-    ok (some pw2)
+  | some _ => let pw1 ← kernel.prop_when.dup mb.pw
+              ok (some pw1)
 
 /-- [con_ron_core::cached::core_c::annot_node_i]:
     Source: 'crates/con-ron-core/src/cached/core_c.rs', lines 4418:0-4424:1
@@ -20546,20 +20519,19 @@ def cached.core_c.annotate_lam_chain_i
     match r1 with
     | core.result.Result.Ok body2 =>
       let b_abs ← cached.state_c.abstract1_m body2 depth
-      let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global mb.pw
-      let b ← kernel.core_k.pw_written pw
-      let (st3, pw1) ←
+      let b ← kernel.core_k.pw_written mb.pw
+      let (st3, pw) ←
         if b
         then
           do
-          let pw2 ← kernel.prop_when.dup pw
-          ok (st2, core.result.Result.Ok pw2)
+          let pw1 ← kernel.prop_when.dup mb.pw
+          ok (st2, core.result.Result.Ok pw1)
         else
           do
-          let (pw2, st4) ←
+          let (pw1, st4) ←
             cached.core_c.annot_pw_lam_i mode fuel st2 fe i body2
-          ok (st4, pw2)
-      match pw1 with
+          ok (st4, pw1)
+      match pw with
       | core.result.Result.Ok p =>
         let bm ← kernel.expr.binder_meta p
         let e1 ← kernel.expr.lam ty2 b_abs bm
@@ -21886,7 +21858,7 @@ def cached.expr_ops_c.loose_bvars_bounded
   ok (i <= k)
 
 /-- [con_ron_core::kernel::prop_when::all_contained_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 576:0-584:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 602:0-610:1
     Visibility: public -/
 def kernel.prop_when.all_contained_from
   (params : alloc.vec.Vec kernel.name.Name)
@@ -21909,7 +21881,7 @@ def kernel.prop_when.all_contained_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::prop_when::params_defined]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 590:0-600:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 616:0-626:1
     Visibility: public -/
 def kernel.prop_when.params_defined
   (params : alloc.vec.Vec kernel.name.Name) (pw : kernel.prop_when.PropWhen) :
@@ -21919,13 +21891,15 @@ def kernel.prop_when.params_defined
   | kernel.prop_when.PropWhenRepr.Never => ok true
   | kernel.prop_when.PropWhenRepr.Always => ok true
   | kernel.prop_when.PropWhenRepr.One p => kernel.name.contains params p
-  | kernel.prop_when.PropWhenRepr.Two p q =>
-    let b ← kernel.name.contains params p
+  | kernel.prop_when.PropWhenRepr.Two pq =>
+    let (n, n1) ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global pq
+    let b ← kernel.name.contains params n
     if b
-    then kernel.name.contains params q
+    then kernel.name.contains params n1
     else ok false
   | kernel.prop_when.PropWhenRepr.Many ps =>
-    kernel.prop_when.all_contained_from params ps 0#usize
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ps
+    kernel.prop_when.all_contained_from params v 0#usize
 
 /-- [con_ron_core::kernel::level::all_params_defined]:
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 226:0-234:1
@@ -22022,15 +21996,13 @@ def cached.expr_ops_c.all_level_params_defined_go
           ok (memo2, r1)
         | kernel.expr.ExprKind.Lam ty body m =>
           do
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let (r1, memo2) ←
-            cached.expr_ops_c.alpd_binder params memo ty body pw
+            cached.expr_ops_c.alpd_binder params memo ty body m.pw
           ok (memo2, r1)
         | kernel.expr.ExprKind.ForallE ty body m =>
           do
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
           let (r1, memo2) ←
-            cached.expr_ops_c.alpd_binder params memo ty body pw
+            cached.expr_ops_c.alpd_binder params memo ty body m.pw
           ok (memo2, r1)
         | kernel.expr.ExprKind.LetE ty val body =>
           do
@@ -25029,9 +25001,7 @@ def kernel.expr_ops.all_level_params_defined
     then
       let b2 ← kernel.expr_ops.all_level_params_defined params b
       if b2
-      then
-        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-        kernel.prop_when.params_defined params pw
+      then kernel.prop_when.params_defined params m.pw
       else ok false
     else ok false
   | kernel.expr.ExprKind.ForallE t b m =>
@@ -25040,9 +25010,7 @@ def kernel.expr_ops.all_level_params_defined
     then
       let b2 ← kernel.expr_ops.all_level_params_defined params b
       if b2
-      then
-        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-        kernel.prop_when.params_defined params pw
+      then kernel.prop_when.params_defined params m.pw
       else ok false
     else ok false
   | kernel.expr.ExprKind.LetE t v b =>
@@ -25115,8 +25083,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-          let b3 ← kernel.prop_when.params_defined params pw
+          let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
         | kernel.expr.ExprKind.ForallE t b m =>
@@ -25125,8 +25092,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-          let b3 ← kernel.prop_when.params_defined params pw
+          let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
         | kernel.expr.ExprKind.LetE t v b =>
@@ -25199,8 +25165,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-          let b3 ← kernel.prop_when.params_defined params pw
+          let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
         | kernel.expr.ExprKind.ForallE t b m =>
@@ -25209,8 +25174,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-          let b3 ← kernel.prop_when.params_defined params pw
+          let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
         | kernel.expr.ExprKind.LetE t v b =>
@@ -25276,8 +25240,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-          let b3 ← kernel.prop_when.params_defined params pw
+          let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
         | kernel.expr.ExprKind.ForallE t b m =>
@@ -25286,8 +25249,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-          let b3 ← kernel.prop_when.params_defined params pw
+          let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
         | kernel.expr.ExprKind.LetE t v b =>
@@ -25353,8 +25315,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-          let b3 ← kernel.prop_when.params_defined params pw
+          let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
         | kernel.expr.ExprKind.ForallE t b m =>
@@ -25363,8 +25324,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-          let b3 ← kernel.prop_when.params_defined params pw
+          let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
         | kernel.expr.ExprKind.LetE t v b =>
@@ -25430,8 +25390,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-          let b3 ← kernel.prop_when.params_defined params pw
+          let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
         | kernel.expr.ExprKind.ForallE t b m =>
@@ -25440,8 +25399,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-          let b3 ← kernel.prop_when.params_defined params pw
+          let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
         | kernel.expr.ExprKind.LetE t v b =>
@@ -25508,8 +25466,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-          let b3 ← kernel.prop_when.params_defined params pw
+          let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
         | kernel.expr.ExprKind.ForallE t b m =>
@@ -25518,8 +25475,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo t
           let (b2, memo3) ←
             kernel.expr_ops.all_level_params_defined_go params memo2 b
-          let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-          let b3 ← kernel.prop_when.params_defined params pw
+          let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
         | kernel.expr.ExprKind.LetE t v b =>
@@ -29363,7 +29319,7 @@ def kernel.expr_ops.take_exprs
   kernel.expr_ops.exprs_copy_upto xs k 0#usize v
 
 /-- [con_ron_core::kernel::expr::exprs_beq_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 762:0-770:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 775:0-783:1
     Visibility: public -/
 def kernel.expr.exprs_beq_from
   (xs : alloc.vec.Vec kernel.expr.Expr) (ys : alloc.vec.Vec kernel.expr.Expr)
@@ -29388,7 +29344,7 @@ def kernel.expr.exprs_beq_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::exprs_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 752:0-758:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 765:0-771:1
     Visibility: public -/
 def kernel.expr.exprs_beq
   (xs : alloc.vec.Vec kernel.expr.Expr) (ys : alloc.vec.Vec kernel.expr.Expr) :
@@ -37767,7 +37723,7 @@ def
 }
 
 /-- [con_ron_core::kernel::expr::literal_dup]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 201:0-206:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 207:0-212:1
     Visibility: public -/
 def kernel.expr.literal_dup
   (l : kernel.expr.Literal) : Result kernel.expr.Literal := do
@@ -37834,9 +37790,8 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-            let pw1 ← kernel.level.subst_pw ks us pw
-            let bm ← kernel.expr.binder_meta pw1
+            let pw ← kernel.level.subst_pw ks us m.pw
+            let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.lam t b1 bm
             ok (memo3, r1)
           | kernel.expr.ExprKind.ForallE ty body m =>
@@ -37845,9 +37800,8 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-            let pw1 ← kernel.level.subst_pw ks us pw
-            let bm ← kernel.expr.binder_meta pw1
+            let pw ← kernel.level.subst_pw ks us m.pw
+            let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.forall_e t b1 bm
             ok (memo3, r1)
           | kernel.expr.ExprKind.LetE ty val body =>
@@ -37927,9 +37881,8 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-            let pw1 ← kernel.level.subst_pw ks us pw
-            let bm ← kernel.expr.binder_meta pw1
+            let pw ← kernel.level.subst_pw ks us m.pw
+            let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.lam t b1 bm
             ok (memo3, r1)
           | kernel.expr.ExprKind.ForallE ty body m =>
@@ -37938,9 +37891,8 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-            let pw1 ← kernel.level.subst_pw ks us pw
-            let bm ← kernel.expr.binder_meta pw1
+            let pw ← kernel.level.subst_pw ks us m.pw
+            let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.forall_e t b1 bm
             ok (memo3, r1)
           | kernel.expr.ExprKind.LetE ty val body =>
@@ -38010,9 +37962,8 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-            let pw1 ← kernel.level.subst_pw ks us pw
-            let bm ← kernel.expr.binder_meta pw1
+            let pw ← kernel.level.subst_pw ks us m.pw
+            let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.lam t b1 bm
             ok (memo3, r1)
           | kernel.expr.ExprKind.ForallE ty body m =>
@@ -38021,9 +37972,8 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-            let pw1 ← kernel.level.subst_pw ks us pw
-            let bm ← kernel.expr.binder_meta pw1
+            let pw ← kernel.level.subst_pw ks us m.pw
+            let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.forall_e t b1 bm
             ok (memo3, r1)
           | kernel.expr.ExprKind.LetE ty val body =>
@@ -38093,9 +38043,8 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-            let pw1 ← kernel.level.subst_pw ks us pw
-            let bm ← kernel.expr.binder_meta pw1
+            let pw ← kernel.level.subst_pw ks us m.pw
+            let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.lam t b1 bm
             ok (memo3, r1)
           | kernel.expr.ExprKind.ForallE ty body m =>
@@ -38104,9 +38053,8 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-            let pw1 ← kernel.level.subst_pw ks us pw
-            let bm ← kernel.expr.binder_meta pw1
+            let pw ← kernel.level.subst_pw ks us m.pw
+            let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.forall_e t b1 bm
             ok (memo3, r1)
           | kernel.expr.ExprKind.LetE ty val body =>
@@ -38176,9 +38124,8 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-            let pw1 ← kernel.level.subst_pw ks us pw
-            let bm ← kernel.expr.binder_meta pw1
+            let pw ← kernel.level.subst_pw ks us m.pw
+            let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.lam t b1 bm
             ok (memo3, r1)
           | kernel.expr.ExprKind.ForallE ty body m =>
@@ -38187,9 +38134,8 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-            let pw1 ← kernel.level.subst_pw ks us pw
-            let bm ← kernel.expr.binder_meta pw1
+            let pw ← kernel.level.subst_pw ks us m.pw
+            let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.forall_e t b1 bm
             ok (memo3, r1)
           | kernel.expr.ExprKind.LetE ty val body =>
@@ -38263,9 +38209,8 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-            let pw1 ← kernel.level.subst_pw ks us pw
-            let bm ← kernel.expr.binder_meta pw1
+            let pw ← kernel.level.subst_pw ks us m.pw
+            let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.lam t b1 bm
             ok (memo3, r1)
           | kernel.expr.ExprKind.ForallE ty body m =>
@@ -38274,9 +38219,8 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let (b1, memo3) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo2 body
-            let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-            let pw1 ← kernel.level.subst_pw ks us pw
-            let bm ← kernel.expr.binder_meta pw1
+            let pw ← kernel.level.subst_pw ks us m.pw
+            let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.forall_e t b1 bm
             ok (memo3, r1)
           | kernel.expr.ExprKind.LetE ty val body =>
@@ -49597,16 +49541,15 @@ def kernel.env.find_proj
       else ok none
 
 /-- [con_ron_core::kernel::expr::binder_meta_hash]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 136:0-138:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 140:0-142:1
     Visibility: public -/
 def kernel.expr.binder_meta_hash
   (m : kernel.expr.BinderMeta) : Result Std.U64 := do
-  let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-  let i ← kernel.prop_when.hash_pw pw
+  let i ← kernel.prop_when.hash_pw m.pw
   kernel.name.mix_hash 0#u64 i
 
 /-- [con_ron_core::kernel::expr::literal_str]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 172:0-174:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 178:0-180:1
     Visibility: public -/
 def kernel.expr.literal_str
   (s : alloc.vec.Vec Std.U32) : Result kernel.expr.Literal := do
@@ -49614,7 +49557,7 @@ def kernel.expr.literal_str
   ok (kernel.expr.Literal.StrVal a)
 
 /-- [con_ron_core::kernel::expr::str_copy_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 220:0-228:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 226:0-234:1
     Visibility: public -/
 def kernel.expr.str_copy_from
   (s : alloc.vec.Vec Std.U32) (i : Std.Usize) (out : alloc.vec.Vec Std.U32) :
@@ -49632,14 +49575,14 @@ def kernel.expr.str_copy_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::str_copy]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 213:0-215:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 219:0-221:1
     Visibility: public -/
 def kernel.expr.str_copy
   (s : alloc.vec.Vec Std.U32) : Result (alloc.vec.Vec Std.U32) := do
   kernel.expr.str_copy_from s 0#usize (alloc.vec.Vec.new Std.U32)
 
 /-- [con_ron_core::kernel::expr::bvar_pool_size]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1047:0-1049:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1060:0-1062:1
     Visibility: public -/
 def kernel.expr.bvar_pool_size : Result Std.U64 := do
   ok 4096#u64
@@ -49789,9 +49732,8 @@ def kernel.expr_ops.forall_pw
   | kernel.expr.ExprKind.App _ _ => ok none
   | kernel.expr.ExprKind.Lam _ _ _ => ok none
   | kernel.expr.ExprKind.ForallE _ _ m =>
-    let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-    let pw1 ← kernel.prop_when.dup pw
-    ok (some pw1)
+    let pw ← kernel.prop_when.dup m.pw
+    ok (some pw)
   | kernel.expr.ExprKind.LetE _ _ _ => ok none
   | kernel.expr.ExprKind.Lit _ => ok none
   | kernel.expr.ExprKind.Proj _ _ _ => ok none
@@ -50004,9 +49946,7 @@ def kernel.expr_ops.has_level_param (e : kernel.expr.Expr) : Result Bool := do
       let b1 ← kernel.expr_ops.has_level_param body
       if b1
       then ok true
-      else
-        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-        kernel.prop_when.has_params pw
+      else kernel.prop_when.has_params m.pw
   | kernel.expr.ExprKind.ForallE ty body m =>
     let b ← kernel.expr_ops.has_level_param ty
     if b
@@ -50015,9 +49955,7 @@ def kernel.expr_ops.has_level_param (e : kernel.expr.Expr) : Result Bool := do
       let b1 ← kernel.expr_ops.has_level_param body
       if b1
       then ok true
-      else
-        let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
-        kernel.prop_when.has_params pw
+      else kernel.prop_when.has_params m.pw
   | kernel.expr.ExprKind.LetE ty val body =>
     let b ← kernel.expr_ops.has_level_param ty
     if b
@@ -52649,7 +52587,7 @@ def kernel.pins_decode.decode_embedded
   kernel.pins_decode.decode s
 
 /-- [con_ron_core::kernel::prop_when::name_lt]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 158:0-163:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 169:0-174:1
     Visibility: public -/
 def kernel.prop_when.name_lt
   (a : kernel.name.Name) (b : kernel.name.Name) : Result Bool := do
@@ -52660,14 +52598,14 @@ def kernel.prop_when.name_lt
   | kernel.prop_when.Ordering.Gt => ok false
 
 /-- [con_ron_core::kernel::prop_when::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::kernel::prop_when::PropWhen}::hash64]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 401:4-403:5
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 421:4-423:5
     Visibility: public -/
 def kernel.prop_when.PropWhen.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : kernel.prop_when.PropWhen) : Result Std.U64 := do
   kernel.prop_when.hash_pw self
 
 /-- Trait implementation: [con_ron_core::kernel::prop_when::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::kernel::prop_when::PropWhen}]
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 398:0-404:1 -/
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 418:0-424:1 -/
 @[reducible]
 def kernel.prop_when.PropWhen.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable kernel.prop_when.PropWhen := {
@@ -52676,7 +52614,7 @@ def kernel.prop_when.PropWhen.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::kernel::prop_when::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::kernel::prop_when::PropWhen}::eq2]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 412:4-414:5
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 432:4-434:5
     Visibility: public -/
 def kernel.prop_when.PropWhen.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : kernel.prop_when.PropWhen) (other : kernel.prop_when.PropWhen) :
@@ -52685,7 +52623,7 @@ def kernel.prop_when.PropWhen.Insts.Con_ron_coreRonHashmapEq2.eq2
   kernel.prop_when.beq self other
 
 /-- Trait implementation: [con_ron_core::kernel::prop_when::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::kernel::prop_when::PropWhen}]
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 409:0-415:1 -/
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 429:0-435:1 -/
 @[reducible]
 def kernel.prop_when.PropWhen.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   kernel.prop_when.PropWhen := {
@@ -52693,7 +52631,7 @@ def kernel.prop_when.PropWhen.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::kernel::prop_when::to_list_opt]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 499:0-504:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 523:0-528:1
     Visibility: public -/
 def kernel.prop_when.to_list_opt
   (pw : kernel.prop_when.PropWhen) :
@@ -52707,7 +52645,7 @@ def kernel.prop_when.to_list_opt
   | kernel.prop_when.PropWhenRepr.One _ =>
     let v ← kernel.prop_when.to_list pw
     ok (some v)
-  | kernel.prop_when.PropWhenRepr.Two _ _ =>
+  | kernel.prop_when.PropWhenRepr.Two _ =>
     let v ← kernel.prop_when.to_list pw
     ok (some v)
   | kernel.prop_when.PropWhenRepr.Many _ =>
@@ -52715,7 +52653,7 @@ def kernel.prop_when.to_list_opt
     ok (some v)
 
 /-- [con_ron_core::kernel::prop_when::all_zero_from]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 521:0-532:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 545:0-556:1
     Visibility: public -/
 def kernel.prop_when.all_zero_from
   {V : Type} (ValuationInst : kernel.prop_when.Valuation V) (phi : V)
@@ -52738,7 +52676,7 @@ def kernel.prop_when.all_zero_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::prop_when::holds]:
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 539:0-550:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 563:0-576:1
     Visibility: public -/
 def kernel.prop_when.holds
   {V : Type} (ValuationInst : kernel.prop_when.Valuation V) (phi : V)
@@ -52751,14 +52689,16 @@ def kernel.prop_when.holds
   | kernel.prop_when.PropWhenRepr.One p =>
     let i ← ValuationInst.value_at phi p
     ok (i = 0#u64)
-  | kernel.prop_when.PropWhenRepr.Two p q =>
-    let i ← ValuationInst.value_at phi p
+  | kernel.prop_when.PropWhenRepr.Two pq =>
+    let (n, n1) ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global pq
+    let i ← ValuationInst.value_at phi n
     if i = 0#u64
-    then let i1 ← ValuationInst.value_at phi q
+    then let i1 ← ValuationInst.value_at phi n1
          ok (i1 = 0#u64)
     else ok false
   | kernel.prop_when.PropWhenRepr.Many ps =>
-    kernel.prop_when.all_zero_from ValuationInst phi ps 0#usize
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global ps
+    kernel.prop_when.all_zero_from ValuationInst phi v 0#usize
 
 /-- [con_ron_core::kernel::std_axioms::erase_pw]:
     Source: 'crates/con-ron-core/src/kernel/std_axioms.rs', lines 151:0-168:1

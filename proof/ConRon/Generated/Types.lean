@@ -152,7 +152,7 @@ structure ron.nat.Nat where
   limbs : alloc.vec.Vec Std.U64
 
 /-- [con_ron_core::kernel::expr::Literal]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 158:0-161:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 164:0-167:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.expr.Literal where
@@ -160,31 +160,35 @@ inductive kernel.expr.Literal where
 | StrVal : alloc.sync.Arc (alloc.vec.Vec Std.U32) → kernel.expr.Literal
 
 /-- [con_ron_core::kernel::prop_when::PropWhenRepr]
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 264:0-270:1 -/
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 285:0-291:1 -/
 @[discriminant isize]
 inductive kernel.prop_when.PropWhenRepr where
 | Never : kernel.prop_when.PropWhenRepr
 | Always : kernel.prop_when.PropWhenRepr
 | One : kernel.name.Name → kernel.prop_when.PropWhenRepr
-| Two : kernel.name.Name → kernel.name.Name → kernel.prop_when.PropWhenRepr
-| Many : alloc.vec.Vec kernel.name.Name → kernel.prop_when.PropWhenRepr
+| Two :
+  alloc.sync.Arc (kernel.name.Name × kernel.name.Name) →
+  kernel.prop_when.PropWhenRepr
+| Many :
+  alloc.sync.Arc (alloc.vec.Vec kernel.name.Name) →
+  kernel.prop_when.PropWhenRepr
 
 /-- [con_ron_core::kernel::prop_when::PropWhen]
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 278:0-280:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 299:0-301:1
     Visibility: public -/
 structure kernel.prop_when.PropWhen where
   repr : kernel.prop_when.PropWhenRepr
 
 /-- [con_ron_core::kernel::expr::BinderMeta]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 111:0-113:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 115:0-117:1
     Visibility: public -/
 structure kernel.expr.BinderMeta where
-  pw : alloc.sync.Arc kernel.prop_when.PropWhen
+  pw : kernel.prop_when.PropWhen
 
 mutual
 
 /-- [con_ron_core::kernel::expr::ExprKind]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 337:0-348:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 350:0-361:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.expr.ExprKind where
@@ -219,13 +223,13 @@ inductive kernel.expr.ExprKind where
   kernel.expr.ExprKind
 
 /-- [con_ron_core::kernel::expr::ExprNode]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 354:0-357:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 367:0-370:1
     Visibility: public -/
 inductive kernel.expr.ExprNode where
 | mk : Std.U64 → kernel.expr.ExprKind → kernel.expr.ExprNode
 
 /-- [con_ron_core::kernel::expr::Expr]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 363:0-363:33
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 376:0-376:33
     Visibility: public -/
 inductive kernel.expr.Expr where
 | mk : alloc.sync.Arc kernel.expr.ExprNode → kernel.expr.Expr
@@ -441,13 +445,13 @@ inductive ron.nat.Cmp where
 | Gt : ron.nat.Cmp
 
 /-- Trait declaration: [con_ron_core::kernel::prop_when::NameToPw]
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 625:0-629:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 651:0-655:1
     Visibility: public -/
 structure kernel.prop_when.NameToPw (Self : Type) where
   apply : Self → kernel.name.Name → Result kernel.prop_when.PropWhen
 
 /-- [con_ron_core::kernel::prop_when::Ordering]
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 74:0-78:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 85:0-89:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.prop_when.Ordering where
@@ -739,7 +743,7 @@ structure kernel.pins_decode.Tables where
   sets : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet
 
 /-- Trait declaration: [con_ron_core::kernel::prop_when::Valuation]
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 513:0-517:1
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 537:0-541:1
     Visibility: public -/
 structure kernel.prop_when.Valuation (Self : Type) where
   value_at : Self → kernel.name.Name → Result Std.U64
