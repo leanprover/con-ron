@@ -1906,4 +1906,336 @@ theorem order_block_ctors_refines {st : frontend.export_c.StateD}
   simpa [absIndCtorRecs, alloc.vec.Vec.new,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hres
 
+
+/-! ### `flatten_listed`, well formed
+
+Agent R's `flatten_listed_refines` gives the abstraction; `names_have_dup`
+needs the well-formedness too, and abstraction is not injective without it. -/
+
+/-- The inner index recursion of `export_c::flatten_listed` keeps `NamesWF`. -/
+private theorem flatten_listed_inner_wf {inner : alloc.vec.Vec name.Name}
+    (hinner : NamesWF inner) (N : Nat) :
+    ∀ (out r : alloc.vec.Vec name.Name) (k j : Std.Usize),
+      inner.val.length - j.val = N → NamesWF out →
+      frontend.export_c.flatten_listed_loop0_loop0 out inner k j = ok r → NamesWF r := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro out r k j hN hout h
+    rw [frontend.export_c.flatten_listed_loop0_loop0.eq_def] at h
+    split at h
+    · simp only [bind_eq_ok_iff] at h
+      obtain ⟨nm, hidx, nm1, hdup, out1, hpush, j2, hj2, h⟩ := h
+      have hltv : j.val < inner.val.length := iv_index_lt hidx
+      have hnmv : inner.val[j.val]'hltv = nm := iv_index_val hidx
+      have hnmwf : NameWF nm := by rw [← hnmv]; exact hinner _ (List.getElem_mem _)
+      have hnm1 : nm1 = nm := by
+        rw [name_dup_eq] at hdup; exact (Result.ok_injective hdup).symm
+      have hj2v : j2.val = j.val + 1 := HashMap.uscalar_add_eq hj2
+      refine ih (inner.val.length - j2.val) (by omega) out1 r k j2 rfl ?_ h
+      intro x hx
+      rw [vec_push_val hpush] at hx
+      rcases List.mem_append.mp hx with hx | hx
+      · exact hout x hx
+      · rw [List.mem_singleton.mp hx, hnm1]; exact hnmwf
+    · rw [← Result.ok_injective h]; exact hout
+
+/-- The outer index recursion of `export_c::flatten_listed` keeps `NamesWF`. -/
+private theorem flatten_listed_loop_wf
+    {listed : alloc.vec.Vec (alloc.vec.Vec name.Name)}
+    (hwf : NamessWF listed) (N : Nat) :
+    ∀ (out r : alloc.vec.Vec name.Name) (n i : Std.Usize),
+      listed.val.length - i.val = N → NamesWF out →
+      frontend.export_c.flatten_listed_loop0 listed out n i = ok r → NamesWF r := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro out r n i hN hout h
+    rw [frontend.export_c.flatten_listed_loop0.eq_def] at h
+    split at h
+    · simp only [bind_eq_ok_iff] at h
+      obtain ⟨inner, hidx, out1, hin, i2, hi2, h⟩ := h
+      have hltv : i.val < listed.val.length := iv_index_lt hidx
+      have hinv : listed.val[i.val]'hltv = inner := iv_index_val hidx
+      have hinwf : NamesWF inner := by rw [← hinv]; exact hwf _ (List.getElem_mem _)
+      have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+      refine ih (listed.val.length - i2.val) (by omega) out1 r n i2 rfl ?_ h
+      exact flatten_listed_inner_wf hinwf _ out out1 _ 0#usize rfl hout hin
+    · rw [← Result.ok_injective h]; exact hout
+
+/-- **`export_c::flatten_listed` keeps `NamesWF`.** -/
+private theorem flatten_listed_wf {listed : alloc.vec.Vec (alloc.vec.Vec name.Name)}
+    (hwf : NamessWF listed) {r : alloc.vec.Vec name.Name}
+    (h : frontend.export_c.flatten_listed listed = ok r) : NamesWF r := by
+  rw [frontend.export_c.flatten_listed] at h
+  exact flatten_listed_loop_wf hwf _ _ r _ 0#usize rfl
+    (by intro x hx; simp [alloc.vec.Vec.new] at hx) h
+
+/-! ## `validate_ind_d` — the capstone
+
+`export_c.rs:1921-2001` against `ConLeche/Frontend/ExportC.lean:412-563`
+`validateIndD`, composed out of agent R's eight readers and this file's nine
+fragments through `lValidateIndD_eq`. -/
+
+/-- Every index the `ctorIx` fold stores is one it counted, so a bound on the
+list's length bounds them all.  This is what lets the reordering loop's
+`k as usize` cast be the identity. -/
+private theorem ctorIxAux_bound (B : Nat) :
+    ∀ (ns : List ConLeche.Name) (m : Std.HashMap ConLeche.Name Nat) (j : Nat),
+      (∀ (n : ConLeche.Name) (v : Nat), m[n]? = some v → v ≤ B) →
+      (∀ i, i < ns.length → j + i ≤ B) →
+      ∀ (n : ConLeche.Name) (v : Nat), (ctorIxAux m j ns).1[n]? = some v → v ≤ B := by
+  intro ns
+  induction ns with
+  | nil => intro m j hm _ n v hv; exact hm n v hv
+  | cons a t iht =>
+    intro m j hm hj n v hv
+    rw [ctorIxAux_cons] at hv
+    refine iht (m.insert a j) (j + 1) ?_ ?_ n v hv
+    · intro n' v' hv'
+      rw [Std.HashMap.getElem?_insert] at hv'
+      by_cases hna : a = n'
+      · rw [if_pos (by simpa using hna)] at hv'
+        simp only [Option.some.injEq] at hv'
+        rw [← hv']
+        simpa using hj 0 (by simp)
+      · rw [if_neg (by simpa using hna)] at hv'
+        exact hm n' v' hv'
+    · intro i hi
+      have := hj (i + 1) (by simpa using hi)
+      omega
+
+/-- **`export_c::validate_ind_d` refines `validateIndD`**
+(`ConLeche/Frontend/ExportC.lean:412-563`).  This is the `validateInd` clause
+of agent R's `IndRSpec` (`Refine/Frontend/IndR.lean`), discharged. -/
+theorem validate_ind_d_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {tys : alloc.vec.Vec frontend.scan_types.IndTypeRec}
+    {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+    {rcs : alloc.vec.Vec frontend.scan_types.IndRecRec}
+    {o : core.result.Result ((alloc.vec.Vec frontend.scan_types.IndCtorRec) × Std.U64)
+      frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.validate_ind_d st tys cts rcs = ok o) :
+    ValidateOut o (ConLeche.Frontend.validateIndD lst (absIndTypeRecs tys)
+      (absIndCtorRecs cts) (absIndRecRecs rcs)) := by
+  rw [lValidateIndD_eq, lValidateIndD]
+  simp only [pure_bind]
+  rw [frontend.export_c.validate_ind_d] at h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  have hbv := any_ty_unsafe_refines hb
+  by_cases hbt : b = true
+  · -- an `unsafe inductive` is DECLINED
+    rw [if_pos hbt] at h
+    rw [if_pos (by rw [← hbv]; exact hbt)]
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨s1, -, m1, -, h⟩ := h
+    rw [frontend.export_c.declined] at h
+    simp only [Result.ok.injEq] at h
+    rw [← h]
+    exact ⟨_, rfl, rfl⟩
+  · rw [if_neg hbt] at h
+    rw [if_neg (by rw [← hbv]; exact hbt)]
+    obtain ⟨n_pd, hnpd, h⟩ := bind_eq_ok_iff.mp h
+    -- the declared parameter count
+    have hnpdv : n_pd.val
+        = (((absIndTypeRecs tys).map (fun t => t.numParams)).head?).getD 0 := by
+      by_cases hz : alloc.vec.Vec.len tys = 0#usize
+      · rw [if_pos hz] at hnpd
+        simp only [Result.ok.injEq] at hnpd
+        have hnil : tys.val = [] := by
+          have : tys.val.length = 0 := by
+            have := congrArg Std.UScalar.val hz
+            simpa [alloc.vec.Vec.len] using this
+          exact List.eq_nil_of_length_eq_zero this
+        rw [← hnpd]
+        simp [absIndTypeRecs, hnil]
+      · rw [if_neg hz] at hnpd
+        obtain ⟨itr, hitr, hnpd⟩ := bind_eq_ok_iff.mp hnpd
+        have hlt : 0 < tys.val.length := iv_index_lt hitr
+        have hitrv : tys.val[0]'hlt = itr := iv_index_val hitr
+        simp only [Result.ok.injEq] at hnpd
+        rw [← hnpd]
+        simp only [absIndTypeRecs]
+        rw [List.head?_eq_getElem?, List.getElem?_map, List.getElem?_map,
+          List.getElem?_eq_getElem hlt, hitrv]
+        rfl
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v := all_num_params_refines hb1
+    by_cases hb1t : b1 = true
+    · rw [if_pos hb1t] at h
+      rw [if_pos (by rw [← hnpdv, ← hb1v]; exact hb1t)]
+      -- the four readers
+      obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+      have hty := ty_names_of_refines hrel hwf hr
+      cases r with
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        cases e with
+        | Msg m => obtain ⟨s0, hs0⟩ := hty; exact ⟨s0, by rw [hs0]; rfl⟩
+        | Verdict v => exact hty.elim
+      | Ok v =>
+        obtain ⟨htyabs, htywf⟩ := hty
+        rw [htyabs, iv_ok_bind]
+        obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+        have htt := ty_types_of_refines hrel hwf hr1
+        cases r1 with
+        | Err e =>
+          simp only [Result.ok.injEq] at h
+          rw [← h]
+          cases e with
+          | Msg m => obtain ⟨s0, hs0⟩ := htt; exact ⟨s0, by rw [hs0]; rfl⟩
+          | Verdict vv => exact htt.elim
+        | Ok v1 =>
+          obtain ⟨httabs, httwf⟩ := htt
+          rw [httabs, iv_ok_bind]
+          obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+          have hls := listed_ctors_of_refines hrel hwf hr2
+          cases r2 with
+          | Err e =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            cases e with
+            | Msg m => obtain ⟨s0, hs0⟩ := hls; exact ⟨s0, by rw [hs0]; rfl⟩
+            | Verdict vv => exact hls.elim
+          | Ok v2 =>
+            obtain ⟨hlsabs, hlswf⟩ := hls
+            rw [hlsabs, iv_ok_bind]
+            obtain ⟨r3, hr3, h⟩ := bind_eq_ok_iff.mp h
+            have hcn := ctor_names_of_refines hrel hwf hr3
+            cases r3 with
+            | Err e =>
+              simp only [Result.ok.injEq] at h
+              rw [← h]
+              cases e with
+              | Msg m => obtain ⟨s0, hs0⟩ := hcn; exact ⟨s0, by rw [hs0]; rfl⟩
+              | Verdict vv => exact hcn.elim
+            | Ok v3 =>
+              obtain ⟨hcnabs, hcnwf⟩ := hcn
+              rw [hcnabs, iv_ok_bind]
+              -- `flat`, and the duplicate test
+              obtain ⟨flat, hflat, h⟩ := bind_eq_ok_iff.mp h
+              have hflatabs : absNames flat = (absNamess v2).flatten :=
+                flatten_listed_refines hflat
+              have hflatwf : NamesWF flat := flatten_listed_wf hlswf hflat
+              obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+              have hb2v := names_have_dup_refines hflatwf hb2
+              by_cases hb2t : b2 = true
+              · rw [if_pos hb2t] at h
+                rw [if_neg (by rw [← hflatabs]; exact hb2v.mp hb2t)]
+                simp only [bind_eq_ok_iff] at h
+                obtain ⟨s1, -, m1, -, h⟩ := h
+                rw [frontend.export_c.invalid] at h
+                simp only [Result.ok.injEq] at h
+                rw [← h]
+                exact ⟨_, rfl, rfl⟩
+              · rw [if_neg hb2t] at h
+                have hnd : ((absNamess v2).flatten).Nodup := by
+                  rw [← hflatabs]
+                  by_contra hc
+                  exact hb2t (hb2v.mpr hc)
+                rw [if_pos hnd]
+                by_cases hlen : (alloc.vec.Vec.len flat != alloc.vec.Vec.len cts) = true
+                · rw [if_pos hlen] at h
+                  have hlenv : ((absNamess v2).flatten).length ≠ (absIndCtorRecs cts).length := by
+                    rw [← hflatabs]
+                    simp only [absNames, absIndCtorRecs, List.length_map]
+                    simpa [alloc.vec.Vec.len] using hlen
+                  rw [if_neg (by simpa using hlenv)]
+                  simp only [bind_eq_ok_iff] at h
+                  obtain ⟨i4, -, i6, -, m1, -, h⟩ := h
+                  rw [frontend.export_c.invalid] at h
+                  simp only [Result.ok.injEq] at h
+                  rw [← h]
+                  exact ⟨_, rfl, rfl⟩
+                · rw [if_neg hlen] at h
+                  have hlenv : ((absNamess v2).flatten).length = (absIndCtorRecs cts).length := by
+                    rw [← hflatabs]
+                    simp only [absNames, absIndCtorRecs, List.length_map]
+                    simpa [alloc.vec.Vec.len] using hlen
+                  rw [if_pos (by simpa using hlenv)]
+                  -- the index map
+                  obtain ⟨ctor_ix, hcix, h⟩ := bind_eq_ok_iff.mp h
+                  obtain ⟨hinv, hkeys, hrelm⟩ := ctor_index_of_refines hcnwf hcix
+                  have hbound : ∀ (nn : ConLeche.Name) (vv : Nat),
+                      (ctorIxAux ∅ 0 (absNames v3)).1[nn]? = some vv → vv ≤ Std.Usize.max := by
+                    refine ctorIxAux_bound _ _ ∅ 0 (by intro n' v' hv'; simp at hv') ?_
+                    intro i hi
+                    simp only [absNames, List.length_map] at hi
+                    have : v3.val.length ≤ Std.Usize.max := by scalar_tac
+                    omega
+                  -- the reordering
+                  obtain ⟨r4, hr4, h⟩ := bind_eq_ok_iff.mp h
+                  have hord := order_block_ctors_refines (s := (ctorIxAux ∅ 0 (absNames v3)).1)
+                    hrel hwf htywf hlswf hinv hkeys hrelm hbound hr4
+                  rw [hnpdv] at hord
+                  simp only [ctorIxAux] at hord
+                  cases r4 with
+                  | Err e =>
+                    simp only [Result.ok.injEq] at h
+                    rw [← h]
+                    cases e with
+                    | Msg m =>
+                      obtain ⟨s0, hs0⟩ := hord
+                      exact ⟨s0, by rw [hs0]; rfl⟩
+                    | Verdict vv =>
+                      obtain ⟨lv, w, hu, hkd⟩ := hord
+                      exact ⟨lv, by rw [hu]; rfl, hkd⟩
+                  | Ok v4 =>
+                    simp only [BlockOut] at hord
+                    rw [hord, iv_ok_bind]
+                    obtain ⟨nested, hnst, h⟩ := bind_eq_ok_iff.mp h
+                    have hnstv := any_ty_nested_refines hnst
+                    obtain ⟨n_types, hnt, h⟩ := bind_eq_ok_iff.mp h
+                    have hntv : n_types.val = (absIndTypeRecs tys).length := by
+                      rw [lift_eq, Result.ok.injEq] at hnt
+                      rw [← hnt, Env.usize_cast_u64_val]
+                      simp [absIndTypeRecs, alloc.vec.Vec.len]
+                    obtain ⟨n_ctors, hnc, h⟩ := bind_eq_ok_iff.mp h
+                    have hncv : n_ctors.val = (absIndCtorRecs v4).length := by
+                      rw [lift_eq, Result.ok.injEq] at hnc
+                      rw [← hnc, Env.usize_cast_u64_val]
+                      simp [absIndCtorRecs, alloc.vec.Vec.len]
+                    obtain ⟨k_exp, hkx, h⟩ := bind_eq_ok_iff.mp h
+                    have hkxv := k_expected_of_refines httwf hkx
+                    by_cases hnt2 : nested = true
+                    · rw [if_pos hnt2] at h
+                      rw [if_pos (by rw [← hnstv]; exact hnt2)]
+                      simp only [Result.ok.injEq] at h
+                      rw [← h]
+                      simp only [ValidateOut]
+                      rw [← hnpdv]
+                      rfl
+                    · rw [if_neg hnt2] at h
+                      rw [if_neg (by rw [← hnstv]; exact hnt2)]
+                      obtain ⟨r5, hr5, h⟩ := bind_eq_ok_iff.mp h
+                      have hrec := check_rec_records_refines hrel hwf htywf httwf hr5
+                      rw [hnpdv, hntv, hncv, hkxv] at hrec
+                      cases r5 with
+                      | Ok u =>
+                        simp only [LoopOut] at hrec
+                        rw [hrec, iv_ok_bind]
+                        simp only [Result.ok.injEq] at h
+                        rw [← h]
+                        simp only [ValidateOut]
+                        rw [← hnpdv]
+                        rfl
+                      | Err e =>
+                        simp only [Result.ok.injEq] at h
+                        rw [← h]
+                        cases e with
+                        | Msg m =>
+                          obtain ⟨s0, hs0⟩ := hrec
+                          exact ⟨s0, by rw [hs0]; rfl⟩
+                        | Verdict vv =>
+                          obtain ⟨lv, u, hu, hkd⟩ := hrec
+                          exact ⟨lv, by rw [hu]; rfl, hkd⟩
+    · rw [if_neg hb1t] at h
+      rw [if_neg (by rw [← hnpdv, ← hb1v]; exact hb1t)]
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨s1, -, m1, -, h⟩ := h
+      rw [frontend.export_c.declined] at h
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact ⟨_, rfl, rfl⟩
+
 end ConRon.Refine.Frontend
