@@ -2658,6 +2658,106 @@ theorem StateDRel.indCount_step {st : frontend.export_c.StateD}
     StateDRel { st with ind_count := c } { lst with indCount := lst.indCount + 1 } :=
   { hrel with indCount := by rw [HashMap.uscalar_add_eq h, hrel.indCount]; rfl }
 
+/-! ## The projection rewrite at a definition record
+
+`export_c::proj_rewrite_d` against `projRewriteD`
+(`ConLeche/Frontend/ExportC.lean:291-302`) and `export_c::note_proj_iota`
+against `noteProjIota` (`:304-317`) — the two halves of the one surface rewrite
+this parse performs, and the only place `proj_levels` is written.
+
+**`ProjRecSpec` is this section's one assumed ingredient**, and it is a
+deliberate import decision: `frontend::proj_rec`'s own refinement lives in
+`Refine/Frontend/ProjRecR.lean`, which imports `IndNativeParts` and
+`IndIngredients` — the whole inductive tier.  Importing it here would put the
+parser's *base* file above the heaviest tier in the graph (measured: 2 179
+build jobs, the two largest Ind files at the memory ceiling) for five facts, so
+the five are a named `Prop` discharged at the instance site instead. -/
+
+/-- The five `frontend::proj_rec` facts the rewrite needs, as one `Prop`
+(`Refine/IndSpec.lean`'s pattern).  Every clause is a lemma of
+`Refine/Frontend/ProjRecR.lean` or of phase 1's `Refine/Frontend/ProjRec.lean`;
+see the section note for why they are hypotheses here. -/
+structure ProjRecSpec : Prop where
+  /-- `proj_rec::lam_body` refines `lamBody` (`ProjRec.lean:235-245`). -/
+  lamBody : ∀ e, ExprWF e → ∀ b, frontend.proj_rec.lam_body e = ok b →
+    absExpr b = ConLeche.Frontend.lamBody (absExpr e) ∧ ExprWF b
+  /-- `proj_rec::is_proj_iota_name` refines `isProjIotaName` (`:116-120`). -/
+  isProjIotaName : ∀ n, NameWF n → ∀ b, frontend.proj_rec.is_proj_iota_name n = ok b →
+    b = ConLeche.Frontend.isProjIotaName (absName n)
+  /-- `proj_rec::proj_iota_level` refines `projIotaLevel` (`:122-131`). -/
+  projIotaLevel : ∀ ty, ExprWF ty → ∀ o, frontend.proj_rec.proj_iota_level ty = ok o →
+    o.map absLevel = ConLeche.Frontend.projIotaLevel (absExpr ty) ∧
+      ∀ l, o = some l → LevelWF l
+  /-- `proj_rec::proj_iota_name` refines `projIotaName` (`:110-114`). -/
+  projIotaName : ∀ t, NameWF t → ∀ (i : Std.U64) n,
+    frontend.proj_rec.proj_iota_name t i = ok n →
+    absName n = ConLeche.Frontend.projIotaName (absName t) i.val ∧ NameWF n
+  /-- `proj_rec::proj_rec_value` refines `projRecValue` (`:283-330`). -/
+  projRecValue : ∀ o l ty val (i : Std.U64) res, ProjRecOwnerWF o → LevelWF l →
+    ExprWF ty → ExprWF val →
+    frontend.proj_rec.proj_rec_value o l ty val i = ok res →
+    res.map absExpr = ConLeche.Frontend.projRecValue (absProjOwner o) (absLevel l)
+      (absExpr ty) (absExpr val) i.val ∧ ∀ e, res = some e → ExprWF e
+
+/-- The one tracked field `note_proj_iota` writes. -/
+private theorem StateDWF.projLevels_update {st : frontend.export_c.StateD}
+    {m : ron.hashmap.HashMap name.Name level.Level}
+    (hwf : StateDWF st) (hm : MapValsWF LevelWF m) :
+    StateDWF { st with proj_levels := m } :=
+  ⟨hwf.names, hwf.levels, hwf.exprs, hwf.decls, hwf.proj_owners, hm⟩
+
+/-- `export_c::note_proj_iota` refines `noteProjIota`
+(`ConLeche/Frontend/ExportC.lean:304-317`): an artifact
+`T._model.proj_i.iota` names the field's sort, recorded for the rewrite.  This
+is the **only** place `proj_levels` is written, and it runs on the records the
+in-process modeller generates and on those alone (con-leche task #219). -/
+theorem note_proj_iota_refines {st st' : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {cvp : env.ConstantVal}
+    (hspec : ProjRecSpec) (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (hcv : ConstantValWF cvp)
+    (h : frontend.export_c.note_proj_iota st cvp = ok st') :
+    StateDRel st' (ConLeche.Frontend.noteProjIota lst (absConstantVal cvp)) ∧
+      StateDWF st' := by
+  rw [frontend.export_c.note_proj_iota] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨b, hb, h⟩ := h
+  have hb' : b = ConLeche.Frontend.isProjIotaName (absName cvp.name) :=
+    hspec.isProjIotaName _ hcv.1 _ hb
+  subst hb'
+  rw [ConLeche.Frontend.noteProjIota]
+  simp only [absConstantVal]
+  split at h
+  · rename_i hbt
+    simp only [hbt, if_true]
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨o, ho, h⟩ := h
+    obtain ⟨habs, hlwf⟩ := hspec.projIotaLevel _ hcv.2.2 _ ho
+    rw [← habs]
+    cases o with
+    | none =>
+      simp only [Option.map_none]
+      rw [← Result.ok_injective h]
+      exact ⟨hrel, hwf⟩
+    | some l =>
+      simp only [Option.map_some]
+      simp only [name_dup_eq, bind_eq_ok_iff, Prod.exists, Result.ok.injEq,
+        exists_eq_left'] at h
+      obtain ⟨old, m, hins, hst⟩ := h
+      have hst2 : ({ st with proj_levels := m } : frontend.export_c.StateD) = st' :=
+        Result.ok_injective hst
+      rw [← hst2]
+      obtain ⟨hinv', hkeys', -, hrel'⟩ :=
+        State.insert_step (Q := fun _ => True) State.nameKey hrel.projLevelsInv
+          hrel.projLevelsKeys (fun _ _ => trivial) hrel.projLevels hcv.1 trivial hins
+      exact ⟨StateDRel.projLevels_update hrel hrel' hinv' hkeys',
+        StateDWF.projLevels_update hwf
+          (map_insert_wf hwf.proj_levels (hlwf l rfl) hins)⟩
+  · rename_i hbf
+    have hbf2 : ConLeche.Frontend.isProjIotaName (absName cvp.name) = false := by simpa using hbf
+    simp only [hbf2, Bool.false_eq_true, if_false]
+    rw [← Result.ok_injective h]
+    exact ⟨hrel, hwf⟩
+
 /-! ## The line step's outcome
 
 `apply_line` and `install_ind_d` return `(Result<(), LineErr>, StateD)` where
