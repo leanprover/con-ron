@@ -525,4 +525,336 @@ private theorem kit_read_nat_at_err {b : Slice Std.U8} {i e : Std.Usize}
   rw [kit_read_nat_at_err_aux (b.val.length - i.val) i e i 0#u64 er (le_refl _) h]
   rfl
 
+
+/-! ## The shared object-member step
+
+**Hosted here** (coordinator's ruling of task #87): `ScanObj` is the lowest
+common ancestor of `ScanExpr`, `ScanInd` and `ScanLine`, so the one copy of
+con-leche's inlined member skeleton and of the induction that runs the port's
+factored `scan_fast::next_member` against it lives here.  The text is agent
+E's, from `Refine/Frontend/ScanExpr.lean`, with two changes:
+
+* `KitFacts` keeps only the three *key* facts.  `num_end` and `read_nat_at`
+  were fields of it; they are proved above instead, and `natSlot_step` uses
+  the proofs.
+* `KitFacts.read_nat_at` could not have been proved as it stood: con-leche's
+  `readNatAt` falls back to `readNat`, which runs to the end of the **digit
+  run** rather than to `e`, so the claim needs `e` to be that end.  Every
+  caller has it (`num_end`/`skip_digits` produced `e`), and `kit_read_nat_at`
+  takes it as a hypothesis. -/
+
+/-- The port's `u32` bitset as con-leche's.  Both are a `BitVec 32` under one
+constructor, so every operation on it is `rfl`. -/
+def absU32 (n : Std.U32) : UInt32 := UInt32.ofBitVec n.bv
+
+theorem absU32_and (a b : Std.U32) : absU32 (a &&& b) = absU32 a &&& absU32 b := rfl
+
+theorem absU32_or (a b : Std.U32) : absU32 (a ||| b) = absU32 a ||| absU32 b := rfl
+
+theorem absU32_inj {a b : Std.U32} (h : absU32 a = absU32 b) : a = b := by
+  cases a; cases b
+  simp only [absU32, UInt32.ofBitVec.injEq] at h
+  exact congrArg _ h
+
+theorem absU32_beq (a b : Std.U32) : (absU32 a == absU32 b) = (a == b) := by
+  by_cases h : a = b
+  · subst h; simp
+  · have h2 : absU32 a ≠ absU32 b := fun he => h (absU32_inj he)
+    simp [h, h2]
+
+theorem absByte_inj {a b : Std.U8} (h : absByte a = absByte b) : a = b := by
+  have := congrArg UInt8.toNat h
+  simp only [absByte_toNat] at this
+  scalar_tac
+
+/-- Two port bytes compare as con-leche's. -/
+theorem absByte_beq_u8 (a b : Std.U8) : (absByte a == absByte b) = (a == b) := by
+  simp only [absByte_beq, absByte_toNat]
+  by_cases h : a = b
+  · subst h; simp
+  · have h2 : ¬ (a.val = b.val) := fun hc => h (by scalar_tac)
+    simp [h, h2]
+
+/-- A slice read at an in-range index, forwards. -/
+private theorem index_ok {t : Slice Std.U8} {i : Std.Usize} (hi : i.val < t.length) :
+    Slice.index_usize t i = ok t.val[i.val] := by
+  obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (Slice.index_usize_spec t i hi)
+  rw [hy, hyv]
+
+/-- The byte con-leche's `uget` reads at an abstracted position. -/
+private theorem uget_val (b : Slice Std.U8) (i : Std.Usize)
+    (h : (absPos i) < (absBytes b).usize) (hi : i.val < b.val.length) :
+    (absBytes b).uget (absPos i) (usizeInBounds _ _ h) = absByte (b.val[i.val]'hi) := by
+  rw [absBytes_uget b (absPos i) (usizeInBounds _ _ h) (by simpa using hi)]
+  simp
+
+theorem absPos_beq (a b : Std.Usize) : (absPos a == absPos b) = (a == b) := by
+  by_cases h : a = b
+  · subst h; simp
+  · have h2 : absPos a ≠ absPos b := by
+      intro he; exact h (by have := absPos_inj he; scalar_tac)
+    simp [h, h2]
+
+/-- The port's `usize` subtraction, abstracted: a difference the port returned
+`ok` for did not underflow, so con-leche's machine word did not wrap. -/
+theorem absPos_sub {x y z : Std.Usize} (h : x - y = ok z) :
+    absPos z = absPos x - absPos y := by
+  have h2 := UScalar.sub_equiv x y
+  rw [h] at h2
+  simp at h2
+  have hy : y.val ≤ x.val := by scalar_tac
+  have hz : z.val = x.val - y.val := by scalar_tac
+  have hx : x.val < USize.size := usize_val_lt_size x
+  have hsz : USize.size = 2 ^ System.Platform.numBits := rfl
+  apply USize.toNat_inj.mp
+  rw [USize.toNat_sub]
+  simp only [absPos_toNat, hz]
+  have hstep : 2 ^ System.Platform.numBits - y.val + x.val
+      = (x.val - y.val) + 2 ^ System.Platform.numBits := by omega
+  rw [hstep, Nat.add_mod_right, Nat.mod_eq_of_lt (by omega)]
+
+/-- **con-leche's inlined member skeleton**, with the record-specific closing
+arm `CL` and key dispatch `DI` abstracted.  Every `scan*Loop` of
+`Scan/Fast.lean` is `memberBody` at its own `CL` and `DI`; the port calls
+`scan_fast::next_member` in its place. -/
+def memberBody {α : Type} (b : ByteArray)
+    (L : USize → Bool → ScanRes α) (CL : USize → Bool → ScanRes α)
+    (DI : Key → USize → USize → ScanRes α) (i : USize) (w : Bool) : ScanRes α :=
+  if h : i < b.usize then
+    if isWs (b.uget i (usizeInBounds b i h)) then L (i + 1) w
+    else if b.uget i (usizeInBounds b i h) == 125 then CL i w
+    else if b.uget i (usizeInBounds b i h) == 44 then
+      (if w then .err ⟨i.toNat, .expectedKey⟩ else L (i + 1) true)
+    else if b.uget i (usizeInBounds b i h) == 34 then
+      (if !w then .err ⟨i.toNat, .expectedComma⟩
+       else
+        if keyEnd b (i + 1) == 0 then .err ⟨i.toNat, .expectedKey⟩
+        else if valueAt b i (keyEnd b (i + 1)) == i then
+          .err ⟨i.toNat, .expectedColon⟩
+        else DI (keyAt b i (keyEnd b (i + 1) - (i + 1))) i
+          (valueAt b i (keyEnd b (i + 1))))
+    else .err ⟨i.toNat, .expectedComma⟩
+  else .err ⟨i.toNat, .expectedComma⟩
+
+/-- What one `scan_fast::next_member` step says about con-leche's skeleton:
+the closing brace hands the loop to `CL` at the same position and
+`wantMember`, a key hands it to `DI` at the same key and value positions, and
+a failure is mirrored. -/
+def MemberStep {α : Type} (L CL : USize → Bool → ScanRes α)
+    (DI : Key → USize → USize → ScanRes α) (i : Std.Usize) (w : Bool)
+    (o : core.result.Result (frontend.scan_fast.Member × Std.Usize × Bool)
+           frontend.scan_types.ScanErr) : Prop :=
+  match o with
+  | .Ok (.Close, ni, nw) => L (absPos i) w = CL (absPos ni) nw
+  | .Ok (.Key k ks v, _, _) => L (absPos i) w = DI (absKey k) (absPos ks) (absPos v)
+  | .Err e => ScanErrSim e (L (absPos i) w)
+
+/-- **The `ScanKit` facts the skeleton stands on**: the three key lemmas
+`ScanKit` owes.  Bundling them keeps every consumer one `KitFacts b` away from
+being hypothesis-free. -/
+structure KitFacts (b : Slice Std.U8) : Prop where
+  /-- `scan_fast::key_end` against `Scan/Fast.lean:133-146 keyEnd`. -/
+  key_end : ∀ (j ke : Std.Usize),
+    frontend.scan_fast.key_end b j = ok ke → keyEnd (absBytes b) (absPos j) = absPos ke
+  /-- `scan_fast::value_at` against `Scan/Fast.lean:448-453 valueAt`. -/
+  value_at : ∀ (i ke v : Std.Usize),
+    frontend.scan_fast.value_at b i ke = ok v →
+      valueAt (absBytes b) (absPos i) (absPos ke) = absPos v
+  /-- `scan_fast::key_at` against `Scan/Fast.lean:224-446 keyAt`. -/
+  key_at : ∀ (i kl : Std.Usize) (k : frontend.scan_types.Key),
+    frontend.scan_fast.key_at b i kl = ok k →
+      keyAt (absBytes b) (absPos i) (absPos kl) = absKey k
+
+section Step
+variable {b : Slice Std.U8}
+
+/-- **The one induction every slot loop of the tier runs.**
+`scan_fast::next_member` (`scan_fast.rs:1374-1435`) against the
+whitespace/comma/key skeleton every `scan*Loop` of `Scan/Fast.lean` writes out
+inline.  The measure is phase 1's, `b.len() - i`. -/
+theorem nextMember_step {α : Type} (kf : KitFacts b) {L CL : USize → Bool → ScanRes α}
+    {DI : Key → USize → USize → ScanRes α}
+    (hbody : ∀ p w, L p w = memberBody (absBytes b) L CL DI p w) (f : Nat) :
+    ∀ (i : Std.Usize) (w : Bool) (o), b.length - i.val ≤ f →
+      frontend.scan_fast.next_member b i w = ok o → MemberStep L CL DI i w o := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro i w o hf h
+    rw [frontend.scan_fast.next_member, frontend.scan_fast.next_member_loop.eq_def] at h
+    rw [MemberStep.eq_def, hbody, memberBody]
+    by_cases hend : i ≥ Slice.len b
+    · rw [if_pos hend] at h
+      rw [← Result.ok_injective h]
+      have hnot : ¬ (absPos i < (absBytes b).usize) := by
+        rw [absPos_lt_usize]; scalar_tac
+      rw [dif_neg hnot]
+      exact ScanErrSim.mk (t := .expectedComma) rfl (by simp)
+    · rw [if_neg hend] at h
+      have hi : i.val < b.val.length := by scalar_tac
+      have hi' : i.val < b.length := by scalar_tac
+      have hlt : absPos i < (absBytes b).usize := absPos_lt_usize.mpr hi
+      rw [dif_pos hlt, uget_val b i hlt hi]
+      obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+      have hcv : c = b.val[i.val]'hi :=
+        Result.ok_injective (hc.symm.trans (index_ok hi))
+      rw [← hcv]
+      obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+      have hws := is_ws_refines hb1
+      subst hws
+      by_cases hw : isWs (absByte c) = true
+      · rw [if_pos hw] at h ⊢
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hstep : i2.val = i.val + 1 := usize_add_one_inv hi2
+        rw [← absPos_add_one hi2]
+        have hres := ih (b.length - i2.val) (by omega) i2 w o (le_refl _) h
+        rwa [MemberStep.eq_def] at hres
+      · rw [if_neg hw] at h ⊢
+        rw [show ((125 : UInt8)) = absByte 125#u8 from rfl, absByte_beq_u8,
+          show ((44 : UInt8)) = absByte 44#u8 from rfl, absByte_beq_u8,
+          show ((34 : UInt8)) = absByte 34#u8 from rfl, absByte_beq_u8]
+        by_cases h1 : c = 125#u8
+        · rw [if_pos h1] at h
+          rw [if_pos (beq_iff_eq.mpr h1), ← Result.ok_injective h]
+        · rw [if_neg h1] at h
+          rw [if_neg (by simp [h1])]
+          by_cases h2 : c = 44#u8
+          · rw [if_pos h2] at h
+            rw [if_pos (beq_iff_eq.mpr h2)]
+            by_cases h3 : w = true
+            · rw [if_pos h3] at h
+              rw [if_pos h3, ← Result.ok_injective h]
+              exact ScanErrSim.mk (t := .expectedKey) rfl (by simp)
+            · rw [if_neg h3] at h
+              rw [if_neg h3]
+              obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+              have hstep : i2.val = i.val + 1 := usize_add_one_inv hi2
+              rw [← absPos_add_one hi2]
+              have hres := ih (b.length - i2.val) (by omega) i2 true o (le_refl _) h
+              rwa [MemberStep.eq_def] at hres
+          · rw [if_neg h2] at h
+            rw [if_neg (by simp [h2])]
+            by_cases h4 : c = 34#u8
+            · rw [if_pos h4] at h
+              rw [if_pos (beq_iff_eq.mpr h4)]
+              by_cases h5 : w = true
+              · rw [if_pos h5] at h
+                rw [if_neg (by simp [h5])]
+                obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨ke, hke, h⟩ := bind_eq_ok_iff.mp h
+                have hp2 : absPos i2 = absPos i + 1 := absPos_add_one hi2
+                have hkeE : keyEnd (absBytes b) (absPos i + 1) = absPos ke := by
+                  rw [← hp2]; exact kf.key_end i2 ke hke
+                rw [hkeE, show ((0 : USize)) = absPos 0#usize from rfl, absPos_beq]
+                by_cases h6 : ke = 0#usize
+                · rw [if_pos h6] at h
+                  rw [if_pos (beq_iff_eq.mpr h6), ← Result.ok_injective h]
+                  exact ScanErrSim.mk (t := .expectedKey) rfl (by simp)
+                · rw [if_neg h6] at h
+                  rw [if_neg (by simp [h6])]
+                  obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+                  rw [kf.value_at i ke v hv, absPos_beq]
+                  by_cases h7 : v = i
+                  · rw [if_pos h7] at h
+                    rw [if_pos (beq_iff_eq.mpr h7), ← Result.ok_injective h]
+                    exact ScanErrSim.mk (t := .expectedColon) rfl (by simp)
+                  · rw [if_neg h7] at h
+                    rw [if_neg (by simp [h7])]
+                    obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+                    obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
+                    have h3E : absPos ke - (absPos i + 1) = absPos i3 := by
+                      rw [← hp2, ← absPos_sub hi3]
+                    rw [h3E, kf.key_at i i3 k hk, ← Result.ok_injective h]
+              · rw [if_neg h5] at h
+                rw [if_pos (by simp [h5]), ← Result.ok_injective h]
+                exact ScanErrSim.mk (t := .expectedComma) rfl (by simp)
+            · rw [if_neg h4] at h
+              rw [if_neg (by simp [h4]), ← Result.ok_injective h]
+              exact ScanErrSim.mk (t := .expectedComma) rfl (by simp)
+
+/-! ### Reading a member step back -/
+
+theorem MemberStep.close {α : Type} {L CL : USize → Bool → ScanRes α}
+    {DI : Key → USize → USize → ScanRes α} {i ni : Std.Usize} {w nw : Bool}
+    (h : MemberStep L CL DI i w (.Ok (.Close, ni, nw))) :
+    L (absPos i) w = CL (absPos ni) nw := h
+
+theorem MemberStep.key {α : Type} {L CL : USize → Bool → ScanRes α}
+    {DI : Key → USize → USize → ScanRes α} {i ks v ni : Std.Usize} {w nw : Bool}
+    {k : frontend.scan_types.Key}
+    (h : MemberStep L CL DI i w (.Ok (.Key k ks v, ni, nw))) :
+    L (absPos i) w = DI (absKey k) (absPos ks) (absPos v) := h
+
+theorem MemberStep.err {α : Type} {L CL : USize → Bool → ScanRes α}
+    {DI : Key → USize → USize → ScanRes α} {i : Std.Usize} {w : Bool}
+    {e : frontend.scan_types.ScanErr} (h : MemberStep L CL DI i w (.Err e)) :
+    ScanErrSim e (L (absPos i) w) := h
+
+/-! ## A `Nat`-valued slot
+
+`scan_fast::slot_nat` is the `numEnd`/`readNatAt`/`noProgress` chain every
+`Nat`-valued slot of every `scan*Loop` writes out (module note, deviation 3).
+`natSlot` is that chain with the slot's continuation abstracted. -/
+
+/-- con-leche's `Nat`-valued slot, with the continuation abstracted. -/
+def natSlot {α : Type} (b : ByteArray) (ks v : USize)
+    (K : Nat → USize → ScanRes α) : ScanRes α :=
+  if numEnd b v == v then .err ⟨v.toNat, .expectedNat⟩
+  else if _hj : ks < numEnd b v then K (readNatAt b v (numEnd b v)) (numEnd b v)
+  else .err ⟨ks.toNat, .noProgress⟩
+
+/-- What one `scan_fast::slot_nat` says about that chain. -/
+def NatSlotStep {α : Type} (b : Slice Std.U8) (ks v : Std.Usize)
+    (K : Nat → USize → ScanRes α)
+    (o : core.result.Result (Std.U64 × Std.Usize) frontend.scan_types.ScanErr) : Prop :=
+  match o with
+  | .Ok (x, e) => natSlot (absBytes b) (absPos ks) (absPos v) K = K (absU64 x) (absPos e)
+  | .Err er => ScanErrSim er (natSlot (absBytes b) (absPos ks) (absPos v) K)
+
+theorem NatSlotStep.ok {α : Type} {b : Slice Std.U8} {ks v e : Std.Usize}
+    {K : Nat → USize → ScanRes α} {x : Std.U64}
+    (h : NatSlotStep b ks v K (.Ok (x, e))) :
+    natSlot (absBytes b) (absPos ks) (absPos v) K = K (absU64 x) (absPos e) := h
+
+theorem NatSlotStep.err {α : Type} {b : Slice Std.U8} {ks v : Std.Usize}
+    {K : Nat → USize → ScanRes α} {er : frontend.scan_types.ScanErr}
+    (h : NatSlotStep b ks v K (.Err er)) :
+    ScanErrSim er (natSlot (absBytes b) (absPos ks) (absPos v) K) := h
+
+/-- **`scan_fast::slot_nat` against the chain con-leche writes out.**  Needs no
+`KitFacts`: `num_end` and `read_nat_at` are proved above. -/
+theorem natSlot_step {α : Type} {ks v : Std.Usize}
+    {K : Nat → USize → ScanRes α} {o}
+    (h : frontend.scan_fast.slot_nat b ks v = ok o) : NatSlotStep b ks v K o := by
+  rw [frontend.scan_fast.slot_nat] at h
+  obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+  have heA : absPos e = numEnd (absBytes b) (absPos v) := kit_num_end he
+  rw [NatSlotStep.eq_def, natSlot, ← heA, absPos_beq]
+  by_cases h1 : e = v
+  · rw [if_pos h1] at h
+    rw [if_pos (beq_iff_eq.mpr h1), err_val h]
+    exact ScanErrSim.mk (t := .expectedNat) rfl (by simp)
+  · rw [if_neg h1] at h
+    rw [if_neg (by simp [h1])]
+    obtain ⟨hrun, -⟩ := kit_num_end_run he h1
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1' : b1 = decide (ks.val < e.val) := by
+      rw [frontend.scan_fast.prog] at hb1
+      have := Result.ok_injective hb1
+      rw [← this]; exact decide_eq_decide.mpr (by constructor <;> (intro hx; scalar_tac))
+    by_cases h2 : b1 = true
+    · rw [if_pos h2] at h
+      rw [dif_pos (absPos_lt_iff.mpr (by rw [hb1'] at h2; simpa using h2))]
+      obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+      cases r with
+      | Ok x =>
+        rw [← Result.ok_injective h, ← kit_read_nat_at hrun hr]
+      | Err er =>
+        rw [← Result.ok_injective h]
+        exact ScanErrSim.of_none (kit_read_nat_at_err hr)
+    · rw [if_neg h2] at h
+      rw [dif_neg (by rw [absPos_lt_iff]; rw [hb1'] at h2; simpa using h2), err_val h]
+      exact ScanErrSim.mk (t := .noProgress) rfl (by simp)
+
+end Step
+
 end ConRon.Refine.Frontend
