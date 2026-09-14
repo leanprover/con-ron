@@ -57,6 +57,30 @@ pub fn u64_str(n: u64) -> Vec<u32> {
     out
 }
 
+/// con-leche: none — `String`'s `BEq` on the port's code-point representation
+/// Whether a code-point string is the literal `lit` (a `const …: [u32; N]`).
+/// This is how the parse compares a stream's `safety` or `kind` spelling with
+/// a word of the dialect without materialising the literal as a `Vec`.
+pub fn cps_beq(s: &Vec<u32>, lit: &[u32]) -> bool {
+    if s.len() != lit.len() {
+        return false;
+    }
+    let n = s.len();
+    let mut i = 0usize;
+    while i < n {
+        if s[i] != lit[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+/// con-leche: none — `String`'s `BEq` on two code-point strings
+pub fn cps_eq(a: &Vec<u32>, b: &Vec<u32>) -> bool {
+    cps_beq(a, &b[..])
+}
+
 /// con-leche: none — `Name.toString`, which DESIGN.md §3.7's skip list keeps
 /// out of the ported checker as driver-only rendering ("the theorem never
 /// reads a message").  The parse's own messages name declarations, so the

@@ -10,8 +10,9 @@
 #   4. scripts/provenance.py check          every item cites con-leche (§3.7)
 #   5. scripts/overview-links.sh            OVERVIEW.md/DESIGN.md line anchors
 #   6. scripts/gen-pins.sh --check          embedded pin text == natOpPinSets
-#   7. scripts/extract.sh --check           committed generated Lean == crate
-#   8. cd proof && lake build               the whole proof library elaborates
+#   7. scripts/gen-prelude.sh --check       embedded prelude text == con-leche's
+#   8. scripts/extract.sh --check           committed generated Lean == crate
+#   9. cd proof && lake build               the whole proof library elaborates
 #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
 #      has no jobs flag: on a many-core machine the first build of the
 #      vendored con-leche can exhaust memory, task #74)
@@ -55,6 +56,7 @@ run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/
 run provenance    python3 "$root/scripts/provenance.py" check
 run overview-links "$root/scripts/overview-links.sh"
 run gen-pins      "$root/scripts/gen-pins.sh" --check
+run gen-prelude   "$root/scripts/gen-prelude.sh" --check
 run extract-check "$root/scripts/extract.sh" --check
 run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
 
