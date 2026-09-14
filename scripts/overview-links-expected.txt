@@ -233,25 +233,24 @@
    331  /-- info: 'ConRon.Refine.conron.no_proof_of_False_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
    332  #guard_msgs in #print axioms conron.no_proof_of_False_decoded
 
-== proof/ConRon/Refine/Main.lean#L726-L743
+== proof/ConRon/Refine/Main.lean#L726-L742
    726  theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
    727      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
    728      (hgen : Frontend.ModellerWF inst g)
-   729      (hu : Frontend.Utf8DecodeSpec) (hun : Frontend.UnescapeSpec)
-   730      (hsp : Frontend.IndRSpec inst g)
-   731      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   732      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   733      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
-   734      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
-   735      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
-   736      (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
-   737      {r : frontend.export_c.ParseResultD}
-   738      (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
-   739      {ds : alloc.vec.Vec env.Declaration}
-   740      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
-   741      {e : env.Env}
-   742      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   743      False := by
+   729      (hsp : Frontend.IndRSpec inst g)
+   730      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   731      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   732      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
+   733      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+   734      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
+   735      (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+   736      {r : frontend.export_c.ParseResultD}
+   737      (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+   738      {ds : alloc.vec.Vec env.Declaration}
+   739      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+   740      {e : env.Env}
+   741      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   742      False := by
 
 == proof/ConRon/Refine/Main.lean#L174-L185
    174  theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]

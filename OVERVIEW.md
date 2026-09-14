@@ -182,13 +182,12 @@ Both censuses are pinned by `#guard_msgs` at con-leche's own three axioms
 *"whatever the parser produced, the fold's accept has a model"*; what it did
 not say is that the parser produces what con-leche's parser produces.  That is
 the parser's **exactness** tier (§5.2), and on top of it sits
-[`conron.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L726-L743)
+[`conron.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L726-L742)
 — con-leche's own main corollary transported:
 
 ```lean
 theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     (hgen : Frontend.ModellerWF inst g)
-    (hu : Frontend.Utf8DecodeSpec) (hun : Frontend.UnescapeSpec)
     (hsp : Frontend.IndRSpec inst g)
     (hp : kernel.pins_decode.decode text = ok (.Ok pins))
     (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
@@ -206,9 +205,9 @@ Both are pinned at the same three axioms.  The prelude is not identified with
 con-leche's and does not have to be: `mem_preparePrelude` holds for every
 prelude, so the statement is prelude-parametric for free.  What it still takes
 about the parse is named rather than assumed wholesale, and it is a short list:
-`hu`/`hun`, two facts about the scanner's UTF-8 decoder; `hsp`, three about the
-inductive install path; and `hgen`, the modeller's own promise — the residue
-task #84's seam left on purpose (§7).
+`hsp`, three facts about the inductive install path, and `hgen`, the modeller's
+own promise — the residue task #84's seam left on purpose (§7).  The scanner's
+UTF-8 decoder and the ground hoist stood here earlier and are now theorems.
 Everything else between the bytes and `parseChunks` is proved.
 
 Three more forms exist for readers who want them.  The general pair

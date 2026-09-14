@@ -17461,3 +17461,46 @@ one-to-one mirror of the `foldl`.  240 core tests and the fixtures are green;
 nothing else in the model moved.  This is the task's second Rust change, after
 §11's `IndexOverflow`-rendered-as-`Internal`, and both were found by a proof
 and nothing else.
+
+#### 21. Where the headline ended up
+
+Three of the four `Prop`s §17 displayed fell during the day, so the final
+statement — `Refine/Main.lean`, both twins — is
+
+```lean
+theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+    (hgen : Frontend.ModellerWF inst g)
+    (hsp : Frontend.IndRSpec inst g)
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+    (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+    (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+    (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    False
+```
+
+with `conron.no_False_declaration_prelude` the same at
+`frontend::prelude::builtin_prelude_e`, both pinned by `#guard_msgs` at
+`[propext, Classical.choice, Quot.sound]`.
+
+What each of the two remaining hypotheses is, and why it is there rather than
+proved:
+
+* **`hgen : ModellerWF inst g`** is not phase 3's to discharge and never was.
+  The in-process modeller is a `Modeller G` *argument*; it is unverified by
+  construction (task #84's seam), and this line is the promise the maintainer
+  accepted then — every declaration `generate` returns is well formed.  It
+  disappears the day upstream drops the modeller, not before.
+* **`hsp : IndRSpec inst g`** is a three-field record whose first and third
+  fields are theorems (`IndSpecR.projRecSpec`, `IndSpecR.installSpec` feeding
+  `indRSpec`); what keeps the record standing is its middle field,
+  `validate_ind_d` against `validateIndD`, which was still in flight when the
+  day ended.  `IndSpecR.indRSpec` is written so that landing it is a three-line
+  edit: delete `def ValidateIndRefines`, drop `(hv : …)` from `indRSpec` and its
+  three corollaries, and point `validateInd` at the new theorem.
+
+So the honest reading of the headline at the end of task #87 is: *everything
+between the bytes and con-leche's `parseChunks` is proved except one
+constructor-ordering pass inside the inductive validator, and the modeller the
+port does not verify.*
