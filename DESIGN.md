@@ -17232,3 +17232,32 @@ port's bytes to `parse_chunks_refines` now bottoms out in exactly:
 Everything else between `scan_line_fwd` and `parseChunks` is proved.  That is
 the shape the task was aiming at: the parse's assumptions are a short list of
 *named statements about named functions*, not a hole.
+
+#### 17. The headline, restated at the named assumptions
+
+`conron.no_False_declaration` no longer takes an opaque nine-field record.  Its
+parse hypotheses are now the four `Prop`s §16 named, each about a named
+function:
+
+```lean
+theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+    (hgen : Frontend.ModellerWF inst g)
+    (hu : Frontend.Utf8DecodeSpec) (hun : Frontend.UnescapeSpec)
+    (hsp : Frontend.IndRSpec inst g) (hspec : Frontend.HoistSpec)
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+    (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+    (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+    (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    False
+```
+
+with `conron.no_False_declaration_prelude` the same at the shipped prelude, and
+both still pinned at `[propext, Classical.choice, Quot.sound]`.
+
+That is the difference between a headline that *has* a residue and one that
+*names* it.  A reader can now check the assumption list against the tier
+without opening a proof: two facts about the scanner's UTF-8 decoder, three
+about the inductive install path, one about the ground hoist, and the
+modeller's own promise — the residue task #84's seam left on purpose.
