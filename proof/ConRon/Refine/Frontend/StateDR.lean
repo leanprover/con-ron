@@ -60,34 +60,46 @@ The four statements the two agents above this one consume, spelled out so that
 they can be read without reading the proofs.
 
 ```lean
-theorem parse_expr_rec_d_refines {st lst r e}
-    (hrel : StateDRel st lst) (hwf : StateDWF st) (hr : ExprRecWF r)
-    (h : frontend.export_c.parse_expr_rec_d st r = ok e) :
-    LineOut absExpr ExprWF e (ConLeche.Frontend.parseExprRecD lst (absExprRec r))
-
-theorem parse_cv_d_refines {st lst cv v}
-    (hrel : StateDRel st lst) (hwf : StateDWF st)
-    (h : frontend.export_c.parse_cv_d st cv = ok v) :
-    LineOut absConstantVal ConstantValWF v
-      (ConLeche.Frontend.parseCVD lst (absCVRec cv))
-
-theorem parse_rule_d_refines {st lst ru r}
-    (hrel : StateDRel st lst) (hwf : StateDWF st)
-    (h : frontend.export_c.parse_rule_d st ru = ok r) :
-    LineOut absRecRule RecRuleWF r (ConLeche.Frontend.parseRuleD lst (absRuleRec ru))
-
 structure StateDRel (st : frontend.export_c.StateD)
     (lst : ConLeche.Frontend.StateD) : Prop
+
+theorem parse_expr_rec_d_refines {st lst r o}
+    (hrel : StateDRel st lst) (hwf : StateDWF st) (hr : ExprRecWF r)
+    (hnat : NatValSpec r)
+    (h : frontend.export_c.parse_expr_rec_d st r = ok o) :
+    LineOut absExpr ExprWF o (parseExprRecD lst (absExprRec r))
+
+theorem parse_cv_d_refines {st lst cv o}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.parse_cv_d st cv = ok o) :
+    LineOut absConstantVal ConstantValWF o
+      (ConLeche.Frontend.parseCVD lst (absCVRec cv))
+
+theorem parse_rule_d_refines {st lst ru o}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.parse_rule_d st ru = ok o) :
+    LineOut absRecRule RecRuleWF o (ConLeche.Frontend.parseRuleD lst (absRuleRec ru))
 ```
 
-`ConLeche.Frontend.parseExprRecD` is the one **escape-hatch definition** of
-this file: con-leche writes the value half of `parseExprEntryD` inline, the
-port factors it into `parse_expr_rec_d`, and `parseExprEntryD_eq` (below) is
-the equivalence.  The same for `parseLevelRecD`.
+Two things a caller has to know.
+
+* **`parseExprRecD` / `parseLevelRecD` are this file's two escape-hatch
+  definitions** (DESIGN.md's rule for where the port and the Lean do not line
+  up one for one): con-leche writes the *value* half of
+  `parseExprEntryD`/`parseLevelEntryD` inline, the port factors each into its
+  own function, and `parseExprEntryD_eq` / `parseLevelEntryD_eq` are the
+  equivalences — each one `simp` per constructor.
+* **`NatValSpec r` is an ingredient hypothesis**, vacuous at every
+  constructor but `NatVal`, and it is the only thing this file assumes.  See
+  its doc comment: it is the port's `nat_decimal::from_decimal` against
+  `natOfDigits`, which is a scanner obligation plus a bignum lemma and belongs
+  to neither this file nor this tier.
 
 Every `LineOut`-valued lemma is the **full outcome** (DESIGN.md §3's ruling of
 2026-09-13): the value is claimed exactly on `.Ok`, and on a mirrored `.Err` —
-`LineErr::Msg`, the parse's own `throw` — con-leche throws too.
+`LineErr::Msg`, the parse's own `throw` — con-leche throws too.  `LineErr::
+Verdict` is claimed **impossible** at an `M`-valued function, which is what
+`LineOutV.of_bind` spends one layer up.
 -/
 
 /-! ## The line layer's outcome -/
@@ -872,5 +884,567 @@ theorem st_levels_refines {st : frontend.export_c.StateD} {lst : ConLeche.Fronte
     (by simp [LevelsWF, alloc.vec.Vec.with_capacity]) (alloc.vec.Vec.len_val _) rfl h
   simpa [absLevels, alloc.vec.Vec.with_capacity,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using this
+
+/-! ## The `pw` datum -/
+
+/-- `export_c::parse_pw_d` refines `parsePwD`
+(`ConLeche/Frontend/ExportC.lean:191-194`): the two arms are
+`prop_when::never` and `prop_when::if_all_zero`, two of the type's four public
+producers. -/
+theorem parse_pw_d_refines {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {r : frontend.scan_types.PwRec}
+    {o : core.result.Result prop_when.PropWhen frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.parse_pw_d st r = ok o) :
+    LineOut absPropWhen PropWhenWF o (ConLeche.Frontend.parsePwD lst (absPwRec r)) := by
+  rw [frontend.export_c.parse_pw_d.eq_def] at h
+  cases r with
+  | Never =>
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨pw, hpw, rfl⟩ := h
+    exact ⟨by rw [show absPwRec .Never = .never from rfl, ConLeche.Frontend.parsePwD,
+      PropWhen.never_refines hpw]; rfl, PropWhenWF.never hpw⟩
+  | IfAllZero ns =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have hst := st_names_refines hrel hwf hr1
+    cases r1 with
+    | Ok out =>
+      simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+      obtain ⟨pw, hpw, rfl⟩ := h
+      refine ⟨?_, PropWhenWF.if_all_zero hst.2 hpw⟩
+      rw [show absPwRec (.IfAllZero ns) = .ifAllZero (absU64s ns) from rfl,
+        ConLeche.Frontend.parsePwD, hst.1, PropWhen.if_all_zero_refines hst.2 hpw]
+      rfl
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      refine LineErrSim.trans hst ?_
+      intro s hs
+      rw [show absPwRec (.IfAllZero ns) = .ifAllZero (absU64s ns) from rfl,
+        ConLeche.Frontend.parsePwD, hs]
+      exact ⟨s, rfl⟩
+
+/-! ## The two value builders, and the one escape hatch
+
+con-leche writes the *value* half of `parseLevelEntryD`/`parseExprEntryD`
+inline; the port factors each into its own function (`parse_level_rec_d`,
+`parse_expr_rec_d`) because §3.4 has no `?` and the entry point must be a
+`match` chain.  DESIGN.md's rule for that is an **intermediate Lean definition
+matching the port's shape, with an equivalence proof to the piece it came
+out of** — `parseLevelRecD`/`parseExprRecD` and `parseLevelEntryD_eq`/
+`parseExprEntryD_eq`, both `rfl` per constructor. -/
+
+/-- **Escape hatch 1.**  The value half of `parseLevelEntryD`
+(`ConLeche/Frontend/ExportC.lean:239-247`), written out. -/
+def parseLevelRecD (st : ConLeche.Frontend.StateD) :
+    ConLeche.Frontend.LevelRec → ConLeche.Frontend.M ConLeche.Level
+  | .succ u => do pure (ConLeche.Level.succ (← st.level u))
+  | .max a b => do pure (ConLeche.Level.max (← st.level a) (← st.level b))
+  | .imax a b => do pure (ConLeche.Level.imax (← st.level a) (← st.level b))
+  | .param n => do pure (ConLeche.Level.param (← st.name n))
+
+/-- …and it *is* what `parseLevelEntryD` runs. -/
+theorem parseLevelEntryD_eq (st : ConLeche.Frontend.StateD) (i : Nat)
+    (r : ConLeche.Frontend.LevelRec) :
+    ConLeche.Frontend.parseLevelEntryD st i r
+      = (do st.freshLevel i
+            let l ← parseLevelRecD st r
+            pure { st with levels := st.levels.insert i l }) := by
+  cases r <;> simp [ConLeche.Frontend.parseLevelEntryD, parseLevelRecD]
+
+/-- **Escape hatch 2.**  The value half of `parseExprEntryD`
+(`ConLeche/Frontend/ExportC.lean:249-279`), written out. -/
+def parseExprRecD (st : ConLeche.Frontend.StateD) :
+    ConLeche.Frontend.ExprRec → ConLeche.Frontend.M ConLeche.Expr
+  | .bvar k => pure (ConLeche.Expr.mkBvar k)
+  | .sort u => do pure (ConLeche.Expr.mkSort (← st.level u))
+  | .const n us => do
+    let nm ← st.name n
+    let ls ← us.mapM st.level
+    pure (ConLeche.Expr.mkConst nm ls)
+  | .app f a => do pure (ConLeche.Expr.mkApp (← st.expr f) (← st.expr a))
+  | .lam ty bd pw => do
+    pure (ConLeche.Expr.mkLam (← st.expr ty) (← st.expr bd) ⟨← ConLeche.Frontend.parsePwD st pw⟩)
+  | .forallE ty bd pw => do
+    pure (ConLeche.Expr.mkForallE (← st.expr ty) (← st.expr bd)
+      ⟨← ConLeche.Frontend.parsePwD st pw⟩)
+  | .letE ty vl bd => do
+    pure (ConLeche.Expr.mkLetE (← st.expr ty) (← st.expr vl) (← st.expr bd))
+  | .proj tn ix s => do pure (ConLeche.Expr.mkProj (← st.name tn) ix (← st.expr s))
+  | .natVal n => pure (ConLeche.Expr.mkLit (.natVal n))
+  | .strVal s => pure (ConLeche.Expr.mkLit (.strVal s))
+
+/-- …and it *is* what `parseExprEntryD` runs. -/
+theorem parseExprEntryD_eq (st : ConLeche.Frontend.StateD) (i : Nat)
+    (r : ConLeche.Frontend.ExprRec) :
+    ConLeche.Frontend.parseExprEntryD st i r
+      = (do st.freshExpr i
+            let e ← parseExprRecD st r
+            pure { st with exprs := st.exprs.insert i e }) := by
+  cases r <;> simp [ConLeche.Frontend.parseExprEntryD, parseExprRecD]
+
+/-- `export_c::parse_level_rec_d` refines the value half of `parseLevelEntryD`
+(`ConLeche/Frontend/ExportC.lean:239-247`): four arms, one `Level`
+constructor each. -/
+theorem parse_level_rec_d_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {r : frontend.scan_types.LevelRec}
+    {o : core.result.Result level.Level frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.parse_level_rec_d st r = ok o) :
+    LineOut absLevel LevelWF o (parseLevelRecD lst (absLevelRec r)) := by
+  rw [frontend.export_c.parse_level_rec_d.eq_def] at h
+  cases r with
+  | Succ u =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h1 := st_level_refines hrel hwf hr1
+    cases r1 with
+    | Ok a =>
+      simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+      obtain ⟨v, hv, rfl⟩ := h
+      exact ⟨by simp only [absLevelRec, parseLevelRecD, h1.1, Level.succ_refines hv]; rfl,
+        LevelWF.succ h1.2 hv⟩
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      refine LineErrSim.trans h1 ?_
+      intro s hs
+      simp only [absLevelRec, parseLevelRecD, hs]
+      exact ⟨s, rfl⟩
+  | Max a b =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h1 := st_level_refines hrel hwf hr1
+    cases r1 with
+    | Ok x =>
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r2, hr2, h⟩ := h
+      have h2 := st_level_refines hrel hwf hr2
+      cases r2 with
+      | Ok y =>
+        simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+        obtain ⟨v, hv, rfl⟩ := h
+        exact ⟨by simp only [absLevelRec, parseLevelRecD, h1.1, h2.1,
+          Level.max_refines hv]; rfl, LevelWF.max h1.2 h2.2 hv⟩
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine LineErrSim.trans h2 ?_
+        intro s hs
+        simp only [absLevelRec, parseLevelRecD, h1.1, hs]
+        exact ⟨s, rfl⟩
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      refine LineErrSim.trans h1 ?_
+      intro s hs
+      simp only [absLevelRec, parseLevelRecD, hs]
+      exact ⟨s, rfl⟩
+  | Imax a b =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h1 := st_level_refines hrel hwf hr1
+    cases r1 with
+    | Ok x =>
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r2, hr2, h⟩ := h
+      have h2 := st_level_refines hrel hwf hr2
+      cases r2 with
+      | Ok y =>
+        simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+        obtain ⟨v, hv, rfl⟩ := h
+        exact ⟨by simp only [absLevelRec, parseLevelRecD, h1.1, h2.1,
+          Level.imax_refines hv]; rfl, LevelWF.imax h1.2 h2.2 hv⟩
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine LineErrSim.trans h2 ?_
+        intro s hs
+        simp only [absLevelRec, parseLevelRecD, h1.1, hs]
+        exact ⟨s, rfl⟩
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      refine LineErrSim.trans h1 ?_
+      intro s hs
+      simp only [absLevelRec, parseLevelRecD, hs]
+      exact ⟨s, rfl⟩
+  | Param n =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h1 := st_name_refines hrel hwf hr1
+    cases r1 with
+    | Ok p =>
+      simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+      obtain ⟨v, hv, rfl⟩ := h
+      exact ⟨by simp only [absLevelRec, parseLevelRecD, h1.1, Level.param_refines hv]; rfl,
+        LevelWF.param h1.2 hv⟩
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      refine LineErrSim.trans h1 ?_
+      intro s hs
+      simp only [absLevelRec, parseLevelRecD, hs]
+      exact ⟨s, rfl⟩
+
+/-! ## The expression builder
+
+`export_c::parse_expr_rec_d` against the value half of `parseExprEntryD`
+(`ConLeche/Frontend/ExportC.lean:249-279`): ten arms, one node each. -/
+
+/-- The error arm, said once: whatever con-leche threw at the reader it throws
+at the `do` block the reader opens. -/
+private theorem errOf {γ δ : Type} {e : frontend.export_c.LineErr}
+    {x : ConLeche.Frontend.M γ} (h : LineErrSim e x) {y : ConLeche.Frontend.M δ}
+    (hy : ∀ s, x = .error s → y = .error s) : LineErrSim e y :=
+  LineErrSim.trans h (fun s hs => ⟨s, hy s hs⟩)
+
+/-- **The one ingredient this file does not prove.**  `scan_types::ExprRec`'s
+`NatVal` arm keeps the literal's *decimal digits* where con-leche's keeps the
+`Nat` (`Refine/Frontend/Abs.lean`'s deviation 2), so the port reads them with
+`nat_decimal::from_decimal` — a bignum routine con-leche has no counterpart
+for, since Lean's `Nat` is already arbitrary precision.
+
+`NatValSpec r` is what the arm needs of it, and it decomposes into two facts
+neither of which belongs here:
+
+* a **scanner obligation** — the digits are decimal (`from_decimal` returns
+  `none` exactly on an empty slice or a byte outside `'0'..'9'`), which is
+  phase 3's analogue of phase 1's `ExprRecWF` and is `scan_nat_val`'s to
+  discharge;
+* an **arithmetic lemma** — `from_decimal`'s nineteen-digit chunk loop over
+  `ron::nat` limbs computes `natOfDigits`, i.e. the same fold `readNatAt`
+  (`Scan/Fast.lean:499-500`) computes on con-leche's side.
+
+It is vacuous at every other constructor, so a caller that knows its record is
+not a `NatVal` discharges it with `by intro _ hc; simp at hc`. -/
+def NatValSpec (r : frontend.scan_types.ExprRec) : Prop :=
+  ∀ ds, r = .NatVal ds →
+    ∀ o, frontend.nat_decimal.from_decimal (alloc.vec.Vec.deref ds) = ok o →
+      ∃ n, o = some n ∧ Nat.toNat n = natOfDigits ds
+
+/-- `export_c::parse_expr_rec_d` refines the value half of `parseExprEntryD`
+(`ConLeche/Frontend/ExportC.lean:249-279`). -/
+theorem parse_expr_rec_d_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {r : frontend.scan_types.ExprRec}
+    {o : core.result.Result expr.Expr frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st) (hr : ExprRecWF r)
+    (hnat : NatValSpec r)
+    (h : frontend.export_c.parse_expr_rec_d st r = ok o) :
+    LineOut absExpr ExprWF o (parseExprRecD lst (absExprRec r)) := by
+  rw [frontend.export_c.parse_expr_rec_d.eq_def] at h
+  cases r with
+  | Bvar k =>
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨e, he, rfl⟩ := h
+    refine ⟨?_, ?_⟩
+    · simp only [absExprRec, parseExprRecD, Expr.mk_bvar_refines he, absU64]; rfl
+    · exact Expr.bvar_wf (by rw [expr.mk_bvar] at he; exact he)
+  | «Sort» u =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h1 := st_level_refines hrel hwf hr1
+    cases r1 with
+    | Ok l =>
+      simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+      obtain ⟨e, he, rfl⟩ := h
+      exact ⟨by simp only [absExprRec, parseExprRecD, absU64, h1.1, Expr.sort_refines he]; rfl,
+        Expr.sort_wf' he h1.2⟩
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact errOf h1 (fun s hs => by simp only [absExprRec, parseExprRecD, absU64, hs]; rfl)
+  | Const n us =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h1 := st_name_refines hrel hwf hr1
+    cases r1 with
+    | Ok nm =>
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r2, hr2, h⟩ := h
+      have h2 := st_levels_refines hrel hwf hr2
+      cases r2 with
+      | Ok ls =>
+        simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+        obtain ⟨e, he, rfl⟩ := h
+        exact ⟨by simp only [absExprRec, parseExprRecD, absU64, h1.1, h2.1,
+          Expr.mk_const_refines he]; rfl, Expr.mk_const_wf' he h1.2 h2.2⟩
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact errOf h2 (fun s hs => by
+          simp only [absExprRec, parseExprRecD, absU64, h1.1, hs]; rfl)
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact errOf h1 (fun s hs => by simp only [absExprRec, parseExprRecD, absU64, hs]; rfl)
+  | App f a =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h1 := st_expr_refines hrel hwf hr1
+    cases r1 with
+    | Ok x =>
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r2, hr2, h⟩ := h
+      have h2 := st_expr_refines hrel hwf hr2
+      cases r2 with
+      | Ok y =>
+        simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+        obtain ⟨e, he, rfl⟩ := h
+        exact ⟨by simp only [absExprRec, parseExprRecD, absU64, h1.1, h2.1,
+          Expr.app_refines he]; rfl, Expr.app_wf' he h1.2 h2.2⟩
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact errOf h2 (fun s hs => by
+          simp only [absExprRec, parseExprRecD, absU64, h1.1, hs]; rfl)
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact errOf h1 (fun s hs => by simp only [absExprRec, parseExprRecD, absU64, hs]; rfl)
+  | Lam ty bd pw =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h1 := st_expr_refines hrel hwf hr1
+    cases r1 with
+    | Ok t =>
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r2, hr2, h⟩ := h
+      have h2 := st_expr_refines hrel hwf hr2
+      cases r2 with
+      | Ok b =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨r3, hr3, h⟩ := h
+        have h3 := parse_pw_d_refines hrel hwf hr3
+        cases r3 with
+        | Ok p =>
+          simp only [ExprOps.binder_meta_eq, bind_tc_ok, bind_eq_ok_iff, Result.ok.injEq] at h
+          obtain ⟨e, he, rfl⟩ := h
+          exact ⟨by simp only [absExprRec, parseExprRecD, absU64, h1.1, h2.1, h3.1,
+            Expr.lam_refines he, absBinderMeta]; rfl,
+            Expr.lam_wf' he h1.2 h2.2 h3.2⟩
+        | Err e =>
+          simp only [Result.ok.injEq] at h
+          rw [← h]
+          exact errOf h3 (fun s hs => by
+            simp only [absExprRec, parseExprRecD, absU64, h1.1, h2.1, hs]; rfl)
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact errOf h2 (fun s hs => by
+          simp only [absExprRec, parseExprRecD, absU64, h1.1, hs]; rfl)
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact errOf h1 (fun s hs => by simp only [absExprRec, parseExprRecD, absU64, hs]; rfl)
+  | ForallE ty bd pw =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h1 := st_expr_refines hrel hwf hr1
+    cases r1 with
+    | Ok t =>
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r2, hr2, h⟩ := h
+      have h2 := st_expr_refines hrel hwf hr2
+      cases r2 with
+      | Ok b =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨r3, hr3, h⟩ := h
+        have h3 := parse_pw_d_refines hrel hwf hr3
+        cases r3 with
+        | Ok p =>
+          simp only [ExprOps.binder_meta_eq, bind_tc_ok, bind_eq_ok_iff, Result.ok.injEq] at h
+          obtain ⟨e, he, rfl⟩ := h
+          exact ⟨by simp only [absExprRec, parseExprRecD, absU64, h1.1, h2.1, h3.1,
+            Expr.forall_e_refines he, absBinderMeta]; rfl,
+            Expr.forall_e_wf' he h1.2 h2.2 h3.2⟩
+        | Err e =>
+          simp only [Result.ok.injEq] at h
+          rw [← h]
+          exact errOf h3 (fun s hs => by
+            simp only [absExprRec, parseExprRecD, absU64, h1.1, h2.1, hs]; rfl)
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact errOf h2 (fun s hs => by
+          simp only [absExprRec, parseExprRecD, absU64, h1.1, hs]; rfl)
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact errOf h1 (fun s hs => by simp only [absExprRec, parseExprRecD, absU64, hs]; rfl)
+  | LetE ty vl bd =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h1 := st_expr_refines hrel hwf hr1
+    cases r1 with
+    | Ok t =>
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r2, hr2, h⟩ := h
+      have h2 := st_expr_refines hrel hwf hr2
+      cases r2 with
+      | Ok v =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨r3, hr3, h⟩ := h
+        have h3 := st_expr_refines hrel hwf hr3
+        cases r3 with
+        | Ok b =>
+          simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+          obtain ⟨e, he, rfl⟩ := h
+          exact ⟨by simp only [absExprRec, parseExprRecD, absU64, h1.1, h2.1, h3.1,
+            Expr.let_e_refines he]; rfl, Expr.let_e_wf' he h1.2 h2.2 h3.2⟩
+        | Err e =>
+          simp only [Result.ok.injEq] at h
+          rw [← h]
+          exact errOf h3 (fun s hs => by
+            simp only [absExprRec, parseExprRecD, absU64, h1.1, h2.1, hs]; rfl)
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact errOf h2 (fun s hs => by
+          simp only [absExprRec, parseExprRecD, absU64, h1.1, hs]; rfl)
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact errOf h1 (fun s hs => by simp only [absExprRec, parseExprRecD, absU64, hs]; rfl)
+  | Proj tn ix s =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h1 := st_name_refines hrel hwf hr1
+    cases r1 with
+    | Ok t =>
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r2, hr2, h⟩ := h
+      have h2 := st_expr_refines hrel hwf hr2
+      cases r2 with
+      | Ok x =>
+        simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+        obtain ⟨e, he, rfl⟩ := h
+        exact ⟨by simp only [absExprRec, parseExprRecD, absU64, h1.1, h2.1,
+          Expr.proj_refines he]; rfl, Expr.proj_wf' he h1.2 h2.2⟩
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact errOf h2 (fun s' hs => by
+          simp only [absExprRec, parseExprRecD, absU64, h1.1, hs]; rfl)
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact errOf h1 (fun s' hs => by simp only [absExprRec, parseExprRecD, absU64, hs]; rfl)
+  | NatVal ds =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨o1, ho1, h⟩ := h
+    obtain ⟨n, rfl, hn⟩ := hnat ds rfl o1 ho1
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨l, hl, e, he, rfl⟩ := h
+    have hln : l = .NatVal n := by
+      rw [show expr.literal_nat n = ok (.NatVal n) from by simp [expr.literal_nat]] at hl
+      exact (Result.ok_injective hl).symm
+    subst hln
+    refine ⟨?_, Expr.lit_wf' he (from_decimal_wf ho1)⟩
+    simp only [absExprRec, parseExprRecD, Expr.lit_refines he, absLiteral, hn]
+    rfl
+  | StrVal s =>
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨v, hv, l, hl, e, he, rfl⟩ := h
+    have hlv : l = .StrVal v := by
+      rw [show expr.literal_str v = ok (.StrVal v) from by simp [expr.literal_str]] at hl
+      exact (Result.ok_injective hl).symm
+    subst hlv
+    have hsv : absString v = absString s := by
+      rw [absString, absString, Env.code_points_val hv,
+        show (alloc.vec.Vec.deref s).val = s.val from Slice.from_val _ _]
+    have hvwf : StrWF v := by
+      intro c hc
+      rw [Env.code_points_val hv,
+        show (alloc.vec.Vec.deref s).val = s.val from Slice.from_val _ _] at hc
+      exact (show StrWF s by simpa only [ExprRecWF] using hr) c hc
+    exact ⟨by simp only [absExprRec, parseExprRecD, Expr.lit_refines he, absLiteral, hsv]; rfl,
+      Expr.lit_wf' he hvwf⟩
+
+/-! ## The two record builders -/
+
+/-- `export_c::parse_cv_d` refines `parseCVD`
+(`ConLeche/Frontend/ExportC.lean:283-289`): a declaration's common data —
+three readings in the cited order, and no constructor of its own. -/
+theorem parse_cv_d_refines {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {cv : frontend.scan_types.CVRec}
+    {o : core.result.Result env.ConstantVal frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.parse_cv_d st cv = ok o) :
+    LineOut absConstantVal ConstantValWF o (ConLeche.Frontend.parseCVD lst (absCVRec cv)) := by
+  rw [frontend.export_c.parse_cv_d.eq_def] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨r, hr, h⟩ := h
+  have h1 := st_name_refines hrel hwf hr
+  cases r with
+  | Ok nm =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h2 := get_decl_d_refines hrel hwf hr1
+    cases r1 with
+    | Ok ty =>
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r2, hr2, h⟩ := h
+      have h3 := st_names_refines hrel hwf hr2
+      cases r2 with
+      | Ok lps =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine ⟨?_, ⟨h1.2, h3.2, h2.2⟩⟩
+        simp only [ConLeche.Frontend.parseCVD, absCVRec, absU64, h1.1, h2.1, h3.1]
+        rfl
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact errOf h3 (fun s hs => by
+          simp only [ConLeche.Frontend.parseCVD, absCVRec, absU64, h1.1, h2.1, hs]; rfl)
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact errOf h2 (fun s hs => by
+        simp only [ConLeche.Frontend.parseCVD, absCVRec, absU64, h1.1, hs]; rfl)
+  | Err e =>
+    simp only [Result.ok.injEq] at h
+    rw [← h]
+    exact errOf h1 (fun s hs => by
+      simp only [ConLeche.Frontend.parseCVD, absCVRec, absU64, hs]; rfl)
+
+/-- `export_c::parse_rule_d` refines `parseRuleD`
+(`ConLeche/Frontend/ExportC.lean:346-349`): one recursor rule, at
+`env::rec_rule_parsed`'s field defaults. -/
+theorem parse_rule_d_refines {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {ru : frontend.scan_types.RuleRec}
+    {o : core.result.Result env.RecRule frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.parse_rule_d st ru = ok o) :
+    LineOut absRecRule RecRuleWF o (ConLeche.Frontend.parseRuleD lst (absRuleRec ru)) := by
+  rw [frontend.export_c.parse_rule_d.eq_def] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨r, hr, h⟩ := h
+  have h1 := st_name_refines hrel hwf hr
+  cases r with
+  | Ok c =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h2 := get_decl_d_refines hrel hwf hr1
+    cases r1 with
+    | Ok rhs =>
+      simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+      obtain ⟨rr, hrr, rfl⟩ := h
+      refine ⟨?_, Env.rec_rule_parsed_wf h1.2 h2.2 hrr⟩
+      simp only [ConLeche.Frontend.parseRuleD, absRuleRec, absU64, h1.1, h2.1,
+        Env.rec_rule_parsed_refines hrr]
+      rfl
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact errOf h2 (fun s hs => by
+        simp only [ConLeche.Frontend.parseRuleD, absRuleRec, absU64, h1.1, hs]; rfl)
+  | Err e =>
+    simp only [Result.ok.injEq] at h
+    rw [← h]
+    exact errOf h1 (fun s hs => by
+      simp only [ConLeche.Frontend.parseRuleD, absRuleRec, absU64, hs]; rfl)
 
 end ConRon.Refine.Frontend
