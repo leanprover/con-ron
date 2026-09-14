@@ -2509,4 +2509,48 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
       (by rw [hp0, eV]; omega) (by rw [hp1, eV]; omega)
       (by rw [hp2, eV]; omega) (by rw [hp3, eV]; omega)
 
+/-! ### `utf8_decode`, exact -/
+
+/-- The port's `[j, e)` window is the `ByteArray` `String.fromUTF8?` is given. -/
+private theorem absBytes_extract_winB (b : Slice Std.U8) (j e : Nat) :
+    (absBytes b).extract j e = winB b j e := by
+  apply ByteArray.ext
+  rw [ByteArray.data_extract, winB, List.data_toByteArray]
+  apply Array.ext'
+  rw [Array.toList_extract]
+  simp [absBytes, win]
+
+/-- **`scan_fast::utf8_decode` is Lean's `String.fromUTF8?`** on the window
+`[j, e)` -- the first of `scan_string_refines`' two residues, discharged. -/
+theorem utf8_decode_spec : Utf8DecodeSpec := by
+  intro b j e o h
+  rw [frontend.scan_fast.utf8_decode] at h
+  obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+  have hnv : n.val = min e.val b.val.length := by
+    split at hn
+    · rename_i hc
+      have hc' : e.val < b.val.length := by scalar_tac
+      simp only [Result.ok.injEq] at hn
+      rw [← hn]
+      omega
+    · rename_i hc
+      have hc' : ¬ (e.val < b.val.length) := by scalar_tac
+      simp only [Result.ok.injEq] at hn
+      rw [← hn]
+      have : (Slice.len b).val = b.val.length := by scalar_tac
+      omega
+  have hnb : n.val ≤ b.val.length := by omega
+  have hclaim := utf8_decode_loop_spec b n hnb (n.val - j.val)
+    (alloc.vec.Vec.new Std.U32) j o (le_refl _) h
+  have hwin : (absBytes b).extract j.val e.val = winB b j.val n.val := by
+    rw [absBytes_extract_winB, winB, winB, win_clamp hnv]
+  cases o with
+  | none =>
+    rw [hwin, Option.map_none]
+    exact (fromUTF8_win_none hclaim).symm
+  | some out =>
+    obtain ⟨l, hl, he⟩ := hclaim
+    rw [hwin, Option.map_some, absString_chars, hl, fromUTF8_win he]
+    simp [chars]
+
 end ConRon.Refine.Frontend
