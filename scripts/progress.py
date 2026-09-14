@@ -288,6 +288,17 @@ def refine_lemmas(old_re=SHAPE_OLD, new_re=SHAPE_NEW):
                 module = fn[:-5].lower().replace("_", "")
             elif rel.split(os.sep)[0] == "Core":
                 module = "corec"
+            elif rel.split(os.sep)[0] == "Frontend":
+                # The parser's lemma files are split by the *Lean*'s sections
+                # (`ScanKit`, `ScanObj`, `ScanExpr`, `ScanInd`, `ScanLine`,
+                # `StateDR`, `ChunksR`, …) rather than one per Rust module, so
+                # the `Refine/<M><Suffix>.lean` prefix rule of `lemma_for`
+                # cannot match them.  The whole group is one module here, and
+                # `rust_module_of` sends every `src/frontend/*.rs` to the same
+                # name: within the parser a lemma counts for the Rust function
+                # it names, wherever under `Refine/Frontend/` it was proved
+                # (task #87).
+                module = "frontend"
             else:
                 module = rel.split(os.sep)[0].lower() + fn[:-5].lower().replace("_", "")
             text = open(os.path.join(dirpath, fn), encoding="utf-8").read()
@@ -314,12 +325,17 @@ def rust_module_of(item):
     """The Rust module name a lemma file is matched against.  Modules in a
     subdirectory carry the directory as a prefix (`inductives/struct_parts.rs`
     → `indstructparts`, matching `Refine/IndStructParts.lean`; `core_c.rs`
-    under `cached/` stays `corec`, its lemmas live in `Refine/Core/*`)."""
+    under `cached/` stays `corec`, its lemmas live in `Refine/Core/*`; every
+    module under `frontend/` is `frontend`, because the parser's lemma files
+    are split by the Lean's sections and not one per Rust module — see
+    `refine_lemmas` (task #87))."""
     base = os.path.basename(item.file)
     name = base[:-3].lower().replace("_", "") if base.endswith(".rs") else base
     parent = os.path.basename(os.path.dirname(item.file))
     if parent == "inductives":
         return "ind" + name
+    if parent == "frontend":
+        return "frontend"
     return name
 
 

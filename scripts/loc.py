@@ -261,6 +261,21 @@ def by_rust(md, summary):
             acc[k] += res[k]
         for k in ("tactic", "grind", "term"):
             acc["n_" + k] += cnt[k]
+    # Several Rust modules can share a proof key — every `src/frontend/*.rs`
+    # is `frontend`, because the parser's lemma files are split by the Lean's
+    # sections and not one per Rust module (task #87, `progress.rust_module_of`).
+    # The proof lines of such a group belong to the group, so they are counted
+    # ONCE, on the first row that carries the key, and the other rows of the
+    # group show none.  The row that carries them is the group's *largest*
+    # module, so `frontend/scan_fast.rs` and not whichever one the walk
+    # reached first.
+    rep = {}
+    for _rel, full in rust_modules():
+        k = mod_key(full)
+        n = rust_nontest_lines(full)
+        if k not in rep or n > rep[k][1]:
+            rep[k] = (full, n)
+    key_seen = set()
     for rel, full in rust_modules():
         key = mod_key(full)
         up = set()
@@ -271,8 +286,10 @@ def by_rust(md, summary):
         upn = sum(n for _p, _n, n in up)
         rust = rust_nontest_lines(full)
         gen = gen_by_file.get(os.path.join(CORE_RUST_ROOT, rel), 0)
-        pr = proofs_by_mod.get(key, {"total": 0, "tactic": 0, "grind": 0, "term": 0, "other": 0,
-                                     "n_tactic": 0, "n_grind": 0, "n_term": 0, "files": 0})
+        empty = {"total": 0, "tactic": 0, "grind": 0, "term": 0, "other": 0,
+                 "n_tactic": 0, "n_grind": 0, "n_term": 0, "files": 0}
+        pr = proofs_by_mod.get(key, empty) if rep[key][0] == full else empty
+        key_seen.add(key)
         rows.append((rel, upn, rust, gen, pr))
         if rel in DATA_FILES:
             continue
