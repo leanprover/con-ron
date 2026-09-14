@@ -17559,3 +17559,65 @@ blows the simp step budget ("maximum number of steps exceeded").
 `by_cases hc : <cond>` followed by `rw [if_pos hc] at h` / `rw [if_neg hc] at h`
 is the reliable form and it flattens the nesting as a side effect; `split at h`
 is fine once the remaining term is small.
+
+#### 23. The inductive validator, and a second way to mirror a `do` block
+
+`validateIndD` is the largest single function in con-leche's frontend and the
+last of `IndRSpec`'s three clauses.  `Refine/Frontend/IndValidateR.lean` (2 239
+lines, no `sorry`) proves
+
+```lean
+theorem validate_ind_d_refines (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.validate_ind_d st tys cts rcs = ok o) :
+    ValidateOut o (ConLeche.Frontend.validateIndD lst (absIndTypeRecs tys)
+      (absIndCtorRecs cts) (absIndRecRecs rcs))
+```
+
+with no named ingredient under it, against the port's ten functions:
+`names_have_dup`, `ctor_index_of`, `check_one_ctor`, `order_type_ctors`,
+`order_block_ctors`, `k_expected_of`, `check_rec_indices`, `check_one_rec`,
+`check_rec_records` and `validate_ind_d` itself.
+
+**The mirror, done the other way.**  §18's problem recurs — con-leche writes one
+`do` block where the port writes ten functions — but the answer here is
+different and the contrast is the useful part.  `lValidateIndD` is a *verbatim*
+copy of `ExportC.lean:412-563` with its four loop bodies named (`lOrderStep`,
+`lOrderBlockStep`, `lRecIdxStep`, `lRecStep`, `lKExpectedOf`), and
+
+```lean
+theorem lValidateIndD_eq : validateIndD st tys cts rcs = lValidateIndD st tys cts rcs
+```
+
+is **not** proved by `rfl`: it goes through a congruence descent —
+`mIteCong`, `mBindCong`, `lForIn_congr` and `cases` on each scrutinee — because
+Lean's per-definition `match` auxiliaries are not defeq-reducible across
+definitions.  The cost is a page of congruence lemmas; the benefit is that the
+mirror is **immune to the `backward.do.legacy` difference of §19**, which
+`PrepareR.lean`'s `rfl`-proved split was not.  Two mirrors, two techniques:
+prefer `rfl` when the pieces are plain `forIn`s over lists and it works, and
+reach for the congruence descent when a `match` sits in the way — or when you
+want the proof not to depend on how the surrounding package elaborates `do`.
+
+**Inventory.**  Windows and prefixes: `iv_index_val`, `iv_take_succ`,
+`SeenPrefix`, `names_have_dup_loop_refines`, `names_have_dup_refines`.  The
+name index: `ctorIxAux` with `_cons`/`_not_mem`/`_mem`/`_nodup`/`_bound`,
+`ctor_index_of_loop_refines`, `ctor_index_of_refines`.  The mirror machinery:
+`lForIn`, `forIn_eq_lForIn`, `lForIn_congr`, `mIteCong`, `mBindCong`,
+`lForIn_cons`/`_nil`, the five named loop bodies, `lValidateIndD`,
+`lValidateIndD_eq`.  The outcome vocabulary: `LoopOut`, `StepLoopOut`,
+`OrderStepOut`, `OrderOut`, `BlockOut`.  The recursor half:
+`lRecIdxStep_ne`/`_unreadable`/`_ok`/`_bad`, `check_rec_indices_loop_refines`,
+`check_rec_indices_refines`, `iv_ok_bind`/`iv_err_bind`/`iv_slice_lit_val`/
+`iv_namewf_str`, `check_one_rec_refines`, `check_rec_records_loop_refines`,
+`check_rec_records_refines`.  The K flag: `lKExpectedOf_false`/`_sort`/
+`_nonsort`, `k_expected_of_refines`.  The constructor half:
+`check_one_ctor_refines`, `iv_absIndCtorRecs_push`,
+`order_type_ctors_loop_refines`, `order_type_ctors_refines`,
+`order_block_ctors_loop_refines`, `order_block_ctors_refines`,
+`flatten_listed_inner_wf`, `flatten_listed_loop_wf`, `flatten_listed_wf`.
+
+**This is the file that found §20's port bug**, and it found it the only way
+such a thing is ever found: by trying to prove the clause true and constructing
+the input on which it is false.  After the Rust fix, `ctor_index_of_refines` is
+an ordinary loop induction against the `ctorIxAux` fold and the first-occurrence
+counting lemmas it used to need are deleted.
