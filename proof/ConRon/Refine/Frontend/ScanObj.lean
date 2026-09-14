@@ -1952,4 +1952,30 @@ theorem scan_hints_refines {b : Slice Std.U8} (kf : KitFacts b) {i : Std.Usize}
       rw [if_neg (by simp [h123]), err_val h]
       exact ScanErrSim.mk (t := .badHints) rfl (by simp)
 
+/-! ## The file's products are axiom-free
+
+`ScanStringFacts` is a *hypothesis* of the two `scan_str_name` lemmas, not an
+axiom: nothing below leans on anything but `propext`, `Classical.choice` and
+`Quot.sound`. -/
+
+/-- info: 'ConRon.Refine.Frontend.scan_nat_list_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms scan_nat_list_refines
+
+/-- info: 'ConRon.Refine.Frontend.scan_pw_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms scan_pw_refines
+
+/-- info: 'ConRon.Refine.Frontend.scan_hints_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms scan_hints_refines
+
+/-- info: 'ConRon.Refine.Frontend.scan_num_name_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms scan_num_name_refines
+
+/-- info: 'ConRon.Refine.Frontend.scan_str_name_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms scan_str_name_refines
+
 end ConRon.Refine.Frontend
