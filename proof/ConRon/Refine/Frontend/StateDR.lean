@@ -48,6 +48,7 @@ Three things are decided here once and used by every file above.
 import ConRon.Refine.Frontend.Readers
 import ConRon.Refine.Frontend.Abs
 import ConRon.Refine.State
+import ConRon.Refine.BasisRaw
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
@@ -1598,5 +1599,626 @@ theorem st_fresh_expr_refines {st : frontend.export_c.StateD}
     simp only [bind_eq_ok_iff, merr_eq, Result.ok.injEq] at h
     obtain ⟨_, -, v, -, rfl⟩ := h
     exact ⟨_, by simp only [Option.isSome_some, if_true]; rfl⟩
+
+/-! ## The three table entries
+
+`export_c::parse_name_entry_d`/`parse_level_entry_d`/`parse_expr_entry_d`
+against `ExportC.lean:228-279`.  Each binds one stream index: the value half
+above, then `id_table_insert` into the matching table.
+
+The port threads the state by `&mut` and con-leche returns it (`export_c.rs`'s
+deviation 1), so the outcome vocabulary here is `StepOut`: on a success the
+port's new state denotes the state con-leche returned, on a mirrored failure
+con-leche throws — and the port's state on a failure is *not* claimed, because
+con-leche has none to compare it with. -/
+
+/-- **The full outcome of a `&mut StateD` step** whose con-leche twin returns
+the new state (`Refine/State.lean`'s `Out`, for the parse). -/
+def StepOut (o : core.result.Result Unit frontend.export_c.LineErr)
+    (st' : frontend.export_c.StateD)
+    (x : ConLeche.Frontend.M ConLeche.Frontend.StateD) : Prop :=
+  match o with
+  | .Ok _ => ∃ lst', x = .ok lst' ∧ StateDRel st' lst' ∧ StateDWF st'
+  | .Err e => LineErrSim e x
+
+theorem StepOut.ok {st' : frontend.export_c.StateD} {lst' : ConLeche.Frontend.StateD}
+    {x : ConLeche.Frontend.M ConLeche.Frontend.StateD} (hx : x = .ok lst')
+    (hrel : StateDRel st' lst') (hwf : StateDWF st') : StepOut (.Ok ()) st' x :=
+  ⟨lst', hx, hrel, hwf⟩
+
+theorem StepOut.err {e : frontend.export_c.LineErr} {st' : frontend.export_c.StateD}
+    {x : ConLeche.Frontend.M ConLeche.Frontend.StateD} (h : LineErrSim e x) :
+    StepOut (.Err e) st' x := h
+
+/-! ### One table replaced
+
+Each of the three writes touches exactly one field, so the other sixteen
+clauses of `StateDRel` carry over by the record update. -/
+
+private theorem StateDRel.names_update {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {it : frontend.scan_types.IdTable name.Name}
+    {lit : ConLeche.Frontend.IdTable ConLeche.Name}
+    (hrel : StateDRel st lst) (h : IdTableRel absName it lit) :
+    StateDRel { st with names := it } { lst with names := lit } :=
+  { hrel with names := h }
+
+private theorem StateDRel.levels_update {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {it : frontend.scan_types.IdTable level.Level}
+    {lit : ConLeche.Frontend.IdTable ConLeche.Level}
+    (hrel : StateDRel st lst) (h : IdTableRel absLevel it lit) :
+    StateDRel { st with levels := it } { lst with levels := lit } :=
+  { hrel with levels := h }
+
+private theorem StateDRel.exprs_update {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {it : frontend.scan_types.IdTable expr.Expr}
+    {lit : ConLeche.Frontend.IdTable ConLeche.Expr}
+    (hrel : StateDRel st lst) (h : IdTableRel absExpr it lit) :
+    StateDRel { st with exprs := it } { lst with exprs := lit } :=
+  { hrel with exprs := h }
+
+/-- `export_c::parse_name_entry_d` refines `parseNameEntryD`
+(`ConLeche/Frontend/ExportC.lean:228-237`): the parent index is resolved before
+the freshness test, as in the cited `do` block, and the value is built directly
+by `name::mk_str`/`name::mk_num`. -/
+theorem parse_name_entry_d_refines {st st' : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {i : Std.U64} {r : frontend.scan_types.NameRec}
+    {o : core.result.Result Unit frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st) (hr : NameRecWF r)
+    (h : frontend.export_c.parse_name_entry_d st i r = ok (o, st')) :
+    StepOut o st' (ConLeche.Frontend.parseNameEntryD lst i.val (absNameRec r)) := by
+  have hfull := h
+  rw [frontend.export_c.parse_name_entry_d.eq_def] at h
+  cases r with
+  | Str pre s =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h1 := st_name_refines hrel hwf hr1
+    cases r1 with
+    | Ok p =>
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r2, hr2, h⟩ := h
+      have h2 := st_fresh_name_refines hrel hr2
+      cases r2 with
+      | Ok u =>
+        simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
+        obtain ⟨v, hv, v1, hv1, it, hit, rfl, rfl⟩ := h
+        have hsv : absString v = absString s := by
+          rw [absString, absString, Env.code_points_val hv,
+            show (alloc.vec.Vec.deref s).val = s.val from Slice.from_val _ _]
+        have hins : IdTableRel absName it
+            (lst.names.insert i.val (ConLeche.Name.str (absName p) (absString s))) := by
+          have hi := id_table_insert_refines hrel.names hit
+          rwa [Name.mk_str_refines hv1, hsv] at hi
+        refine StepOut.ok ?_ (StateDRel.names_update hrel hins)
+          (parse_name_entry_d_wf hwf hr hfull)
+        simp only [ConLeche.Frontend.parseNameEntryD, absNameRec, absU64, h1.1, h2.1]
+        rfl
+      | Err e =>
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        exact errOf h2 (fun s' hs => by
+          simp only [ConLeche.Frontend.parseNameEntryD, absNameRec, absU64, h1.1, hs]; rfl)
+    | Err e =>
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact errOf h1 (fun s' hs => by
+        simp only [ConLeche.Frontend.parseNameEntryD, absNameRec, absU64, hs]; rfl)
+  | Num pre k =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have h1 := st_name_refines hrel hwf hr1
+    cases r1 with
+    | Ok p =>
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r2, hr2, h⟩ := h
+      have h2 := st_fresh_name_refines hrel hr2
+      cases r2 with
+      | Ok u =>
+        simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
+        obtain ⟨v, hv, it, hit, rfl, rfl⟩ := h
+        have hins : IdTableRel absName it
+            (lst.names.insert i.val (ConLeche.Name.num (absName p) k.val)) := by
+          have hi := id_table_insert_refines hrel.names hit
+          rwa [Name.mk_num_refines hv] at hi
+        refine StepOut.ok ?_ (StateDRel.names_update hrel hins)
+          (parse_name_entry_d_wf hwf hr hfull)
+        simp only [ConLeche.Frontend.parseNameEntryD, absNameRec, absU64, h1.1, h2.1]
+        rfl
+      | Err e =>
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        exact errOf h2 (fun s' hs => by
+          simp only [ConLeche.Frontend.parseNameEntryD, absNameRec, absU64, h1.1, hs]; rfl)
+    | Err e =>
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact errOf h1 (fun s' hs => by
+        simp only [ConLeche.Frontend.parseNameEntryD, absNameRec, absU64, hs]; rfl)
+
+/-- `export_c::parse_level_entry_d` refines `parseLevelEntryD`
+(`ConLeche/Frontend/ExportC.lean:239-247`), through `parseLevelEntryD_eq`. -/
+theorem parse_level_entry_d_refines {st st' : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {i : Std.U64} {r : frontend.scan_types.LevelRec}
+    {o : core.result.Result Unit frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.parse_level_entry_d st i r = ok (o, st')) :
+    StepOut o st' (ConLeche.Frontend.parseLevelEntryD lst i.val (absLevelRec r)) := by
+  have hfull := h
+  rw [frontend.export_c.parse_level_entry_d.eq_def] at h
+  rw [parseLevelEntryD_eq]
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨r1, hr1, h⟩ := h
+  have h1 := st_fresh_level_refines hrel hr1
+  cases r1 with
+  | Ok u =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r2, hr2, h⟩ := h
+    have h2 := parse_level_rec_d_refines hrel hwf hr2
+    cases r2 with
+    | Ok l =>
+      simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨it, hit, rfl, rfl⟩ := h
+      refine StepOut.ok ?_
+        (StateDRel.levels_update hrel (id_table_insert_refines hrel.levels hit))
+        (parse_level_entry_d_wf hwf hfull)
+      simp only [h1.1, h2.1]
+      rfl
+    | Err e =>
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact errOf h2 (fun s' hs => by simp only [h1.1, hs]; rfl)
+  | Err e =>
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact errOf h1 (fun s' hs => by simp only [hs]; rfl)
+
+/-- `export_c::parse_expr_entry_d` refines `parseExprEntryD`
+(`ConLeche/Frontend/ExportC.lean:249-279`), through `parseExprEntryD_eq`. -/
+theorem parse_expr_entry_d_refines {st st' : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {i : Std.U64} {r : frontend.scan_types.ExprRec}
+    {o : core.result.Result Unit frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st) (hr : ExprRecWF r)
+    (hnat : NatValSpec r)
+    (h : frontend.export_c.parse_expr_entry_d st i r = ok (o, st')) :
+    StepOut o st' (ConLeche.Frontend.parseExprEntryD lst i.val (absExprRec r)) := by
+  have hfull := h
+  rw [frontend.export_c.parse_expr_entry_d.eq_def] at h
+  rw [parseExprEntryD_eq]
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨r1, hr1, h⟩ := h
+  have h1 := st_fresh_expr_refines hrel hr1
+  cases r1 with
+  | Ok u =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r2, hr2, h⟩ := h
+    have h2 := parse_expr_rec_d_refines hrel hwf hr hnat hr2
+    cases r2 with
+    | Ok e =>
+      simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨it, hit, rfl, rfl⟩ := h
+      refine StepOut.ok ?_
+        (StateDRel.exprs_update hrel (id_table_insert_refines hrel.exprs hit))
+        (parse_expr_entry_d_wf hwf hr hfull)
+      simp only [h1.1, h2.1]
+      rfl
+    | Err e =>
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact errOf h2 (fun s' hs => by simp only [h1.1, hs]; rfl)
+  | Err e =>
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact errOf h1 (fun s' hs => by simp only [hs]; rfl)
+
+/-! ## The declaration table
+
+`export_c::note_decl_entries`/`note_one`/`note_block`/`note_entries`/
+`note_decl` against `noteDecl` (`ConLeche/Frontend/ExportC.lean:135-153`),
+which con-leche writes as one function: a `let cvs := match d with …` and a
+`cvs.foldl` over `constTypes` and `heights`.  The port splits it into the list
+builder and the index loop (§3.4 has no `foldl` and no closure), so this is
+**escape hatches 3 and 4** — `noteDeclEntries` and `noteEntries`, con-leche's
+two halves written out, with `noteDecl_eq` the equivalence. -/
+
+/-- One entry of `noteDecl`'s `cvs`: a constant's name, level parameters,
+declared type and (for a definition) definitional height. -/
+abbrev NoteEntry := ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Option Nat
+
+/-- The port's entry as con-leche's. -/
+def absNoteEntry
+    (p : name.Name × (alloc.vec.Vec name.Name) × expr.Expr × (Option Std.U64)) :
+    NoteEntry :=
+  (absName p.1, absNames p.2.1, absExpr p.2.2.1, p.2.2.2.map absU64)
+
+/-- The port's entry `Vec` as con-leche's `cvs`. -/
+def absNoteEntries
+    (es : alloc.vec.Vec (name.Name × (alloc.vec.Vec name.Name) × expr.Expr ×
+      (Option Std.U64))) : List NoteEntry :=
+  es.val.map absNoteEntry
+
+/-- **Escape hatch 3.**  `noteDecl`'s `cvs`, written out. -/
+def noteDeclEntries : ConLeche.Declaration → List NoteEntry
+  | .axiomDecl cv => [(cv.name, cv.levelParams, cv.type, none)]
+  | .defnDecl cv _ h =>
+    [(cv.name, cv.levelParams, cv.type, some (ConLeche.Frontend.InModel.hintHeight h))]
+  | .thmDecl cv _ => [(cv.name, cv.levelParams, cv.type, none)]
+  | .opaqueDecl cv _ => [(cv.name, cv.levelParams, cv.type, none)]
+  | .basisDecl k => k.decls.map fun ci =>
+    (ci.toConstantVal.name, ci.toConstantVal.levelParams, ci.toConstantVal.type, none)
+  | .quotDecl _ cv => [(cv.name, cv.levelParams, cv.type, none)]
+  | .indDecl block _ => block.map fun ci =>
+    (ci.toConstantVal.name, ci.toConstantVal.levelParams, ci.toConstantVal.type, none)
+
+/-- **Escape hatch 4.**  `noteDecl`'s fold, written out — con-leche's own
+lines with `cvs` as the parameter. -/
+def noteEntries (st : ConLeche.Frontend.StateD) (cvs : List NoteEntry) :
+    ConLeche.Frontend.StateD :=
+  let ct := st.constTypes
+  let hs := st.heights
+  let st := { st with constTypes := {}, heights := {} }
+  let (ct, hs) := cvs.foldl (fun (ct, hs) (n, lps, ty, h) =>
+    (ct.insert n (lps, ty), match h with | some h => hs.insert n h | none => hs)) (ct, hs)
+  { st with constTypes := ct, heights := hs }
+
+/-- …and the two halves *are* `noteDecl`. -/
+theorem noteDecl_eq (st : ConLeche.Frontend.StateD) (d : ConLeche.Declaration) :
+    ConLeche.Frontend.noteDecl st d = noteEntries st (noteDeclEntries d) := by
+  cases d <;> rfl
+
+/-- One entry of the fold, peeled. -/
+private theorem noteEntries_cons (lst : ConLeche.Frontend.StateD) (e : NoteEntry)
+    (rest : List NoteEntry) :
+    noteEntries lst (e :: rest) = noteEntries (noteEntries lst [e]) rest := by
+  simp [noteEntries]
+
+/-- One entry of the fold, as a record update. -/
+private theorem noteEntries_single (lst : ConLeche.Frontend.StateD) (n : ConLeche.Name)
+    (lps : List ConLeche.Name) (ty : ConLeche.Expr) (h : Option Nat) :
+    noteEntries lst [(n, lps, ty, h)]
+      = { lst with constTypes := lst.constTypes.insert n (lps, ty),
+                   heights := match h with
+                     | some x => lst.heights.insert n x
+                     | none => lst.heights } := by
+  cases h <;> simp [noteEntries]
+
+/-- The empty fold. -/
+private theorem noteEntries_nil (lst : ConLeche.Frontend.StateD) :
+    noteEntries lst [] = lst := by simp [noteEntries]
+
+/-! ### The two untracked maps, replaced
+
+`StateDWF` has no clause for `const_types` or `heights` (phase 1's table: they
+are the *modeller's*, and `ModellerWF` is unconditional in its argument), so
+what a `note_entries` step has to carry is the `StateDRel` clause and the
+port's own table invariant. -/
+
+private theorem StateDRel.heights_update {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {m : ron.hashmap.HashMap name.Name Std.U64}
+    {lm : _root_.Std.HashMap ConLeche.Name Nat} (hrel : StateDRel st lst)
+    (hr : HashMap.RelOn NameWF m lm absName absU64)
+    (hi : HashMap.Inv State.hName m) (hk : HashMap.KeysOk NameWF m) :
+    StateDRel { st with heights := m } { lst with heights := lm } :=
+  { hrel with heights := hr, heightsInv := hi, heightsKeys := hk }
+
+private theorem StateDRel.constTypes_update {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {m : ron.hashmap.HashMap name.Name ((alloc.vec.Vec name.Name) × expr.Expr)}
+    {lm : _root_.Std.HashMap ConLeche.Name (List ConLeche.Name × ConLeche.Expr)}
+    (hrel : StateDRel st lst) (hr : HashMap.RelOn NameWF m lm absName absNamesExpr)
+    (hi : HashMap.Inv State.hName m) (hk : HashMap.KeysOk NameWF m) :
+    StateDRel { st with const_types := m } { lst with constTypes := lm } :=
+  { hrel with constTypes := hr, constTypesInv := hi, constTypesKeys := hk }
+
+/-- `StateDWF` at a state whose two untracked maps moved. -/
+private theorem StateDWF.untracked {st st' : frontend.export_c.StateD} (hwf : StateDWF st)
+    (h1 : st'.names = st.names) (h2 : st'.levels = st.levels) (h3 : st'.exprs = st.exprs)
+    (h4 : st'.decls = st.decls) (h5 : st'.proj_owners = st.proj_owners)
+    (h6 : st'.proj_levels = st.proj_levels) : StateDWF st' :=
+  ⟨h1 ▸ hwf.names, h2 ▸ hwf.levels, h3 ▸ hwf.exprs, h4 ▸ hwf.decls,
+    h5 ▸ hwf.proj_owners, h6 ▸ hwf.proj_levels⟩
+
+/-- What a `Vec` read hands back is one of the `Vec`'s entries. -/
+private theorem vec_index_mem' {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize} {x : α}
+    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok x) :
+    x ∈ v.val := List.mem_of_getElem? (ExprOps.vec_index_getElem? h)
+
+/-- The step of `export_c::note_entries`' index loop against one entry of
+`noteDecl`'s `cvs.foldl`. -/
+private theorem note_entries_loop_refines (N : Nat) :
+    ∀ (st : frontend.export_c.StateD) (lst : ConLeche.Frontend.StateD)
+      (es : alloc.vec.Vec (name.Name × (alloc.vec.Vec name.Name) × expr.Expr ×
+        (Option Std.U64)))
+      (n i : Std.Usize) (st' : frontend.export_c.StateD),
+      StateDRel st lst → StateDWF st → (∀ p ∈ es.val, NameWF p.1) →
+      n.val = es.val.length → n.val - i.val = N →
+      frontend.export_c.note_entries_loop st es n i = ok st' →
+      StateDRel st' (noteEntries lst ((absNoteEntries es).drop i.val)) ∧ StateDWF st' := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro st lst es n i st' hrel hwf hkeys hn hN h
+    rw [frontend.export_c.note_entries_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff, Prod.exists] at h
+      obtain ⟨n1, v, e, o, hidx, h⟩ := h
+      have hdrop : (absNoteEntries es).drop i.val
+          = absNoteEntry (n1, v, e, o) :: (absNoteEntries es).drop (i.val + 1) :=
+        vec_drop_map absNoteEntry hidx
+      have hn1 : NameWF n1 := hkeys _ (vec_index_mem' hidx)
+      simp only [rust_invert] at h
+      obtain ⟨st1, hst1, v1, hv1, old, hm, hp, i1, hi1, h⟩ := h
+      -- the heights half
+      have hh : StateDRel st1 { lst with heights := match o.map absU64 with
+                 | some x => lst.heights.insert (absName n1) x
+                 | none => lst.heights } ∧ StateDWF st1 ∧ st1.const_types = st.const_types := by
+        cases o with
+        | none =>
+          rw [← Result.ok_injective hst1]
+          exact ⟨hrel, hwf, rfl⟩
+        | some hv =>
+          simp only [rust_invert] at hst1
+          obtain ⟨a, b, hq, hst1⟩ := hst1
+          obtain ⟨hinv', hkeys', -, hrel'⟩ :=
+            State.insert_step (Q := fun _ => True) State.nameKey hrel.heightsInv
+              hrel.heightsKeys (fun _ _ => trivial) hrel.heights hn1 trivial hq
+          rw [← hst1]
+          exact ⟨StateDRel.heights_update hrel hrel' hinv' hkeys',
+            StateDWF.untracked hwf rfl rfl rfl rfl rfl rfl, rfl⟩
+      -- the constTypes half
+      have hvv : v1.val = v.val := PropWhen.names_copy_val hv1
+      have hval : absNamesExpr (v1, e) = (absNames v, absExpr e) := by
+        simp only [absNamesExpr, absNames, hvv]
+      obtain ⟨hinv2, hkeys2, -, hrel2⟩ :=
+        State.insert_step (Q := fun _ => True) State.nameKey hh.1.constTypesInv
+          hh.1.constTypesKeys (fun _ _ => trivial) hh.1.constTypes hn1 trivial hp
+      have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+      have hrel3 : StateDRel { st1 with const_types := hm }
+          (noteEntries lst [absNoteEntry (n1, v, e, o)]) := by
+        simp only [absNoteEntry, noteEntries_single]
+        have hx := StateDRel.constTypes_update hh.1 hrel2 hinv2 hkeys2
+        rw [hval] at hx
+        exact hx
+      have hwf3 : StateDWF { st1 with const_types := hm } :=
+        StateDWF.untracked hh.2.1 rfl rfl rfl rfl rfl rfl
+      have hih := ih (n.val - i1.val) (by scalar_tac) _ _ es n i1 st' hrel3 hwf3 hkeys hn rfl h
+      rw [hi1v] at hih
+      rw [hdrop, noteEntries_cons]
+      exact hih
+    · rename_i hge
+      have hnil : (absNoteEntries es).drop i.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [absNoteEntries, List.length_map]
+        have : n.val ≤ i.val := by scalar_tac
+        omega
+      rw [hnil, noteEntries_nil, ← Result.ok_injective h]
+      exact ⟨hrel, hwf⟩
+
+/-- `export_c::note_entries` refines `noteDecl`'s `cvs.foldl`
+(`ConLeche/Frontend/ExportC.lean:135-153`).  Its two writes land in the two
+fields `StateDWF` does not track — the *modeller's* tables — so what is claimed
+is the `StateDRel` clause and nothing about well-formedness beyond what came
+in. -/
+theorem note_entries_refines {st st' : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {es : alloc.vec.Vec (name.Name × (alloc.vec.Vec name.Name) × expr.Expr ×
+      (Option Std.U64))}
+    (hrel : StateDRel st lst) (hwf : StateDWF st) (hkeys : ∀ p ∈ es.val, NameWF p.1)
+    (h : frontend.export_c.note_entries st es = ok st') :
+    StateDRel st' (noteEntries lst (absNoteEntries es)) ∧ StateDWF st' := by
+  rw [frontend.export_c.note_entries] at h
+  have := note_entries_loop_refines _ st lst es _ 0#usize st' hrel hwf hkeys
+    (alloc.vec.Vec.len_val _) rfl h
+  simpa [show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using this
+
+/-- The name a `ConstantInfo`'s common data carries is well formed. -/
+private theorem to_constant_val_name_wf {c : env.ConstantInfo} {r : env.ConstantVal}
+    (hc : ConstantInfoWF c) (h : env.to_constant_val c = ok r) : NameWF r.name := by
+  cases c with
+  | ProjInfo tbl =>
+    rw [env.to_constant_val] at h
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨n, hn, v, -, l, -, l1, -, e, -, rfl⟩ := h
+    exact Env.proj_table_name_wf (show ProjTableWF tbl from hc).1 hn
+  | AxiomInfo v => rw [env.to_constant_val] at h
+                   rw [Env.constant_val_dup_refines h]; exact (show ConstantValWF v from hc).1
+  | DefnInfo v a b => rw [env.to_constant_val] at h
+                      rw [Env.constant_val_dup_refines h]
+                      exact (show ConstantValWF v ∧ _ from hc).1.1
+  | ThmInfo v a => rw [env.to_constant_val] at h
+                   rw [Env.constant_val_dup_refines h]
+                   exact (show ConstantValWF v ∧ _ from hc).1.1
+  | IndInfo v a => rw [env.to_constant_val] at h
+                   rw [Env.constant_val_dup_refines h]
+                   exact (show ConstantValWF v ∧ _ from hc).1.1
+  | CtorInfo v a b => rw [env.to_constant_val] at h
+                      rw [Env.constant_val_dup_refines h]
+                      exact (show ConstantValWF v from hc).1
+  | RecInfo v a b c => rw [env.to_constant_val] at h
+                       rw [Env.constant_val_dup_refines h]
+                       exact (show ConstantValWF v ∧ _ from hc).1.1
+
+/-- `export_c::note_one` refines `noteDecl`'s `[(cv, h)]`
+(`ConLeche/Frontend/ExportC.lean:135-153`). -/
+theorem note_one_refines {cv : env.ConstantVal} {hv : Option Std.U64}
+    {es : alloc.vec.Vec (name.Name × (alloc.vec.Vec name.Name) × expr.Expr ×
+      (Option Std.U64))}
+    (hcv : ConstantValWF cv) (h : frontend.export_c.note_one cv hv = ok es) :
+    absNoteEntries es
+        = [((absConstantVal cv).name, (absConstantVal cv).levelParams,
+            (absConstantVal cv).type, hv.map absU64)] ∧
+      ∀ p ∈ es.val, NameWF p.1 := by
+  rw [frontend.export_c.note_one] at h
+  simp only [bind_eq_ok_iff, name_dup_eq, Result.ok.injEq, exists_eq_left'] at h
+  obtain ⟨v, hv1, e, he, hpush⟩ := h
+  have hvv : v.val = cv.level_params.val := PropWhen.names_copy_val hv1
+  have hee : e = cv.ty := Expr.dup_eq he
+  refine ⟨?_, ?_⟩
+  · rw [absNoteEntries, vec_push_val hpush]
+    simp [alloc.vec.Vec.new, absNoteEntry, absConstantVal, absNames, hvv, hee]
+  · intro p hp
+    rw [vec_push_val hpush] at hp
+    rcases List.mem_append.mp hp with hp | hp
+    · simp [alloc.vec.Vec.new] at hp
+    · rw [List.mem_singleton.mp hp]; exact hcv.1
+
+/-- The accumulator of `export_c::note_block`'s index loop against
+`noteDecl`'s `block.map`. -/
+private theorem note_block_loop_refines (N : Nat) :
+    ∀ (bl : alloc.vec.Vec env.ConstantInfo)
+      (out r : alloc.vec.Vec (name.Name × (alloc.vec.Vec name.Name) × expr.Expr ×
+        (Option Std.U64))) (n k : Std.Usize),
+      ConstantInfosWF bl → (∀ p ∈ out.val, NameWF p.1) →
+      n.val = bl.val.length → n.val - k.val = N →
+      frontend.export_c.note_block_loop bl out n k = ok r →
+      absNoteEntries r = absNoteEntries out ++
+        ((absConstantInfos bl).drop k.val).map (fun ci =>
+          (ci.toConstantVal.name, ci.toConstantVal.levelParams, ci.toConstantVal.type,
+            (none : Option Nat))) ∧
+      (∀ p ∈ r.val, NameWF p.1) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro bl out r n k hbl hout hn hN h
+    rw [frontend.export_c.note_block_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff, name_dup_eq, Result.ok.injEq, exists_eq_left'] at h
+      obtain ⟨ci, hidx, cv, hcv, v, hv, e, he, out1, hpush, k1, hk1, h⟩ := h
+      have hdrop : (absConstantInfos bl).drop k.val
+          = absConstantInfo ci :: (absConstantInfos bl).drop (k.val + 1) :=
+        vec_drop_map absConstantInfo hidx
+      have hciwf : ConstantInfoWF ci := hbl _ (vec_index_mem' hidx)
+      have hnwf : NameWF cv.name := to_constant_val_name_wf hciwf hcv
+      have habs : absConstantVal cv = ConLeche.ConstantInfo.toConstantVal (absConstantInfo ci) :=
+        Env.to_constant_val_refines hcv
+      have hvv : v.val = cv.level_params.val := PropWhen.names_copy_val hv
+      have hee : e = cv.ty := Expr.dup_eq he
+      have hout1 : ∀ p ∈ out1.val, NameWF p.1 := by
+        rw [vec_push_val hpush]
+        intro p hp
+        rcases List.mem_append.mp hp with hp | hp
+        · exact hout p hp
+        · rw [List.mem_singleton.mp hp]; exact hnwf
+      have hk1v : k1.val = k.val + 1 := HashMap.uscalar_add_eq hk1
+      obtain ⟨hih, hihk⟩ :=
+        ih (n.val - k1.val) (by scalar_tac) bl out1 r n k1 hbl hout1 hn rfl h
+      refine ⟨?_, hihk⟩
+      rw [hih, hk1v, hdrop]
+      simp only [List.map_cons]
+      rw [absNoteEntries, vec_push_val hpush]
+      simp only [List.map_append, List.map_cons, List.map_nil, List.append_assoc,
+        List.cons_append, List.nil_append]
+      congr 1
+      simp only [absNoteEntry, ← habs, absConstantVal, absNames, hvv, hee]
+      rfl
+    · rename_i hge
+      have hnil : (absConstantInfos bl).drop k.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [absConstantInfos, List.length_map]
+        have : n.val ≤ k.val := by scalar_tac
+        omega
+      rw [← Result.ok_injective h, hnil]
+      exact ⟨by simp, hout⟩
+
+/-- `export_c::note_block` refines `noteDecl`'s `block.map`. -/
+theorem note_block_refines {bl : alloc.vec.Vec env.ConstantInfo}
+    {out r : alloc.vec.Vec (name.Name × (alloc.vec.Vec name.Name) × expr.Expr ×
+      (Option Std.U64))} {k : Std.Usize}
+    (hbl : ConstantInfosWF bl) (hout : ∀ p ∈ out.val, NameWF p.1)
+    (h : frontend.export_c.note_block bl k out = ok r) :
+    absNoteEntries r = absNoteEntries out ++
+      ((absConstantInfos bl).drop k.val).map (fun ci =>
+        (ci.toConstantVal.name, ci.toConstantVal.levelParams, ci.toConstantVal.type,
+          (none : Option Nat))) ∧
+    (∀ p ∈ r.val, NameWF p.1) := by
+  rw [frontend.export_c.note_block] at h
+  exact note_block_loop_refines _ bl out r _ k hbl hout (alloc.vec.Vec.len_val _) rfl h
+
+/-- `export_c::note_decl_entries` refines `noteDecl`'s `cvs`
+(`ConLeche/Frontend/ExportC.lean:135-153`, and
+`ConLeche/Kernel/Basis.lean:40-47` for the basis arm). -/
+theorem note_decl_entries_refines {d : env.Declaration}
+    {es : alloc.vec.Vec (name.Name × (alloc.vec.Vec name.Name) × expr.Expr ×
+      (Option Std.U64))}
+    (hd : DeclarationWF d) (h : frontend.export_c.note_decl_entries d = ok es) :
+    absNoteEntries es = noteDeclEntries (absDeclaration d) ∧ ∀ p ∈ es.val, NameWF p.1 := by
+  rw [frontend.export_c.note_decl_entries.eq_def] at h
+  cases d with
+  | AxiomDecl cv =>
+    obtain ⟨h1, h2⟩ := note_one_refines hd h
+    exact ⟨by rw [h1]; rfl, h2⟩
+  | DefnDecl cv v hint =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨i, hi, h⟩ := h
+    obtain ⟨h1, h2⟩ := note_one_refines hd.1 h
+    refine ⟨?_, h2⟩
+    rw [h1]
+    cases hint <;>
+      simp_all [frontend.in_model_rec.hint_height, noteDeclEntries, absDeclaration, absHint,
+        ConLeche.Frontend.InModel.hintHeight, absU64, absConstantVal] <;> scalar_tac
+  | ThmDecl cv v =>
+    obtain ⟨h1, h2⟩ := note_one_refines hd.1 h
+    exact ⟨by rw [h1]; rfl, h2⟩
+  | OpaqueDecl cv v =>
+    obtain ⟨h1, h2⟩ := note_one_refines hd.1 h
+    exact ⟨by rw [h1]; rfl, h2⟩
+  | QuotDecl k cv =>
+    obtain ⟨h1, h2⟩ := note_one_refines hd h
+    exact ⟨by rw [h1]; rfl, h2⟩
+  | BasisDecl k =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨v, hv, h⟩ := h
+    obtain ⟨habs, hwf⟩ := BasisRaw.basis_kind_decls_refines hv
+    obtain ⟨h1, h2⟩ := note_block_refines hwf (by simp [alloc.vec.Vec.new]) h
+    refine ⟨?_, h2⟩
+    rw [h1, habs]
+    simp [absNoteEntries, alloc.vec.Vec.new, noteDeclEntries, absDeclaration,
+      show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+  | IndDecl bl nP =>
+    obtain ⟨h1, h2⟩ := note_block_refines hd (by simp [alloc.vec.Vec.new]) h
+    refine ⟨?_, h2⟩
+    rw [h1]
+    simp [absNoteEntries, alloc.vec.Vec.new, noteDeclEntries, absDeclaration,
+      absConstantInfos, show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+
+/-- `export_c::note_decl` refines `noteDecl`
+(`ConLeche/Frontend/ExportC.lean:135-153`). -/
+theorem note_decl_refines {st st' : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {d : env.Declaration}
+    (hrel : StateDRel st lst) (hwf : StateDWF st) (hd : DeclarationWF d)
+    (h : frontend.export_c.note_decl st d = ok st') :
+    StateDRel st' (ConLeche.Frontend.noteDecl lst (absDeclaration d)) ∧ StateDWF st' := by
+  rw [frontend.export_c.note_decl] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨es, hes, h⟩ := h
+  obtain ⟨habs, hkeys⟩ := note_decl_entries_refines hd hes
+  rw [noteDecl_eq, ← habs]
+  exact note_entries_refines hrel hwf hkeys h
+
+/-- `noteDecl` does not touch `decls`, which is why the port may note *before*
+it pushes where con-leche pushes before it notes. -/
+private theorem noteDecl_decls (lst : ConLeche.Frontend.StateD) (d : ConLeche.Declaration)
+    (L : Array ConLeche.Declaration) :
+    ConLeche.Frontend.noteDecl { lst with decls := L } d
+      = { ConLeche.Frontend.noteDecl lst d with decls := L } := by
+  rw [noteDecl_eq, noteDecl_eq]; simp [noteEntries]
+
+/-- `export_c::push_decl` refines `pushDecl`
+(`ConLeche/Frontend/ExportC.lean:155-162`): **the one step that extends the
+declaration list**, total since con-leche task #293. -/
+theorem push_decl_refines {st st' : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {d : env.Declaration}
+    (hrel : StateDRel st lst) (hwf : StateDWF st) (hd : DeclarationWF d)
+    (h : frontend.export_c.push_decl st d = ok st') :
+    StateDRel st' (ConLeche.Frontend.pushDecl lst (absDeclaration d)) ∧ StateDWF st' := by
+  rw [frontend.export_c.push_decl] at h
+  simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+  obtain ⟨st1, hst1, v, hv, rfl⟩ := h
+  obtain ⟨hrel1, hwf1⟩ := note_decl_refines hrel hwf hd hst1
+  rw [ConLeche.Frontend.pushDecl, noteDecl_decls]
+  refine ⟨{ hrel1 with decls := ?_ }, ?_⟩
+  · rw [vec_push_val hv]
+    simp [hrel1.decls, noteDecl_eq, noteEntries]
+  · exact ⟨hwf1.names, hwf1.levels, hwf1.exprs, push_wf' hwf1.decls hd hv,
+      hwf1.proj_owners, hwf1.proj_levels⟩
 
 end ConRon.Refine.Frontend
