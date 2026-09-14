@@ -178,6 +178,35 @@ Both censuses are pinned by `#guard_msgs` at con-leche's own three axioms
 `propext`, `Classical.choice`, `Quot.sound`.  No `native_decide`, no
 `sorry`, nothing sealed.
 
+**Since task #87 the theorem begins at the bytes.**  The pair above says
+*"whatever the parser produced, the fold's accept has a model"*; what it did
+not say is that the parser produces what con-leche's parser produces.  That is
+the parser's **exactness** tier (§5.2), and on top of it sits
+`conron.no_False_declaration` — con-leche's own main corollary transported:
+
+```lean
+theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+    (hgen : Frontend.ModellerWF inst g) (ing : Frontend.ParseIngredients R inst g)
+    (hspec : Frontend.HoistSpec)
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+    (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+    (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+    (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    False
+```
+
+— *a file whose bytes declare a theorem of type `False` in the shape
+`jsonWithTheoremFalse` describes is never accepted by the Rust pipeline*, with
+`conron.no_False_declaration_prelude` the same at the prelude the binary ships.
+Both are pinned at the same three axioms.  The prelude is not identified with
+con-leche's and does not have to be: `mem_preparePrelude` holds for every
+prelude, so the statement is prelude-parametric for free.  What it still takes
+about the parse is named rather than assumed wholesale — `hgen` the modeller's
+well-formedness (§7), `ing` the six `ParseIngredients` fields and `hspec` the
+one `HoistSpec` field, each a statement about one named port function.
+
 Three more forms exist for readers who want them.  The general pair
 ([`conron.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L152-L163))
 names the two facts the induction owes — that the core knot refines
