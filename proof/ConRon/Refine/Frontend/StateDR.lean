@@ -2347,8 +2347,14 @@ theorem constant_infos_dup_refines {bl r : alloc.vec.Vec env.ConstantInfo}
   rw [this]
   simp [alloc.vec.Vec.with_capacity, show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
 
-/-- `export_c::declaration_dup` is the identity on a parsed record. -/
-theorem declaration_dup_refines {d r : env.Declaration}
+/-- `export_c::declaration_dup` is the identity on a parsed record.
+
+The name carries its module because `nat_op_ground::declaration_dup` is a
+*different* Rust function with the same basename, and phase 1's
+`Refine/Frontend/Prepare.lean` already owns `declaration_dup_refines` for it —
+two lemmas of the same name in one namespace cannot be co-imported, and
+`ConRon.lean` imports both chains. -/
+theorem export_c_declaration_dup_refines {d r : env.Declaration}
     (h : frontend.export_c.declaration_dup d = ok r) : r = d := by
   rw [frontend.export_c.declaration_dup.eq_def] at h
   cases d with
