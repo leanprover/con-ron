@@ -16886,3 +16886,64 @@ equivalence `parseBytes_eq`, `rfl`.  **The binder pair needed none**: the
 port's one `scan_binder_expr_loop(b, i, lam)` against con-leche's *two* loops
 is one induction concluding `if lam then scanLamExprLoop … else
 scanForallExprLoop …`, with the two per-value statements falling out.
+
+#### 8. What each file owes, and to whom
+
+The tier is deliberately stated as a lattice of **named** hypotheses rather
+than one big assumption, so that at any moment the question *"what is still
+owed?"* has a finite, checkable answer.  At the end of this task:
+
+| record | owner | fields | state |
+|---|---|---|---|
+| `ScanLineIngredients` | `ScanLine` | 17 | all but `scan_string` discharged; `scan_string` carries `Utf8DecodeSpec`/`UnescapeSpec` |
+| `ScanObj.KitFacts` | `ScanObj` | 3 | **discharged** (`kitFacts`, once `key_at_refines` landed) |
+| `ScanObj.ScanStringFacts` | `ScanObj` | 1 | = `scan_string_refines`, i.e. the two above |
+| `ScanStr.Utf8DecodeSpec` / `UnescapeSpec` | `ScanStr` | 2 | **open** — `utf8_decode`/`unescape` against `String.fromUTF8?`/`unescape` |
+| `PrepareR.HoistSpec` | `PrepareR` | 1 | **open** — `hoist_targets` computes `hoistTargets` (§5) |
+| `StateDR.NatValSpec` | `StateDR` | 1 | **discharged** by `from_decimal_ok` + `from_decimal_refines` |
+| `IndR.IndRSpec` | `IndR` | 3 | `proj_rewrite_d`, `validate_ind_d`, `install_ind_d` |
+| `ChunksR.ParseIngredients` | `ChunksR` | 6 | 5 and 6 discharged; 1-3 are `ScanLine`'s, 4 is `IndR`'s |
+
+`ScanKit.lean` (3 082 lines), `ScanExpr.lean` (1 369), `ScanInd.lean` (2 156),
+`StateDR.lean` (2 745) and `ChunksR.lean` (1 775) carry **no hypothesis at
+all** — every lemma in them is proved outright.
+
+**Two phase-1 gaps this tier found**, both of the same kind: phase 1 could
+afford to ignore a field that phase 3 cannot.
+
+* **`LineRecStrWF` / `DeclRecStrWF`.**  `Base.lean`'s `LineRecWF` gives a
+  `Decl` record no clause, on the grounds that the `safety` and `quotKind`
+  *spellings* are compared with literals and never become a `Name`.  Right for
+  well-formedness; **wrong for exactness** — `absString` sends an invalid code
+  point to `'\0'`, so without `StrWF` the port's `text::cps_beq` against
+  `SAFE`/`"type"` can disagree with con-leche's `String` match **in the
+  rejecting direction**.
+* **`NatValSpec`.**  Phase 1 needed nothing of a `natVal` literal's digits;
+  phase 3 needs both that `from_decimal` computes `natOfDigits` *and* that it
+  never fails on them, the second because the port's `BadNatVal` would
+  otherwise claim con-leche rejects a literal it accepts — the same shape as
+  the `IndexOverflow` bug of §4.  Both halves are now proved, and the second
+  cost five loop-completeness lemmas.
+
+#### 9. Method, measured
+
+**The task-#71 `rust_norm`/`rust_grind` idiom was used on no lemma of this
+tier**, and that is a considered result rather than an omission.  Phase 1
+measured it 3.6× *faster* than a hand proof on `parse_rule_d_wf`, whose
+conclusion is one `ExprWF` constructor application; a phase-3 goal is an
+**equation between two `do` blocks** plus an `∃ s, x = .error s`, which needs a
+con-leche-side equation per arm rather than a `use` lemma.  One agent measured
+it directly on the smallest dispatch in the tier: `rust_norm` peels the binds
+and splits to exactly the goals the hand proof reaches, and then `rust_grind`
+**fails outright**, because nothing in the scanner's vocabulary (`ScanSim`,
+`absBytes`, `byteAt`, `matchLit`, `absPos_add_one`) is keyed for `grind`.
+Making it work is a keying campaign, not a per-lemma choice — and the hand
+proofs are fifteen lines each.  `Refine/README.md` §Scope already put byte
+loops and list folds outside the idiom; this tier is the measurement behind
+that line.
+
+Elaboration, per file, on a shared machine: `ScanKit` 31.3 s (3.2 GB peak,
+single-threaded — `key_at_refines`'s thousand mechanical lines are 19 first
+bytes → 44 lengths → 66 literals, each leaf closed by the same two-tactic
+macro), `ScanObj` 11-21 s, `ScanInd` 5.5 s, `ScanExpr` 4.3 s, `StateDR` 3.9 s,
+`ChunksR` 4 s, `PrepareR` 4.8 s, `Main` 2.3 s.
