@@ -38,14 +38,20 @@
 //!    `Eq2 Expr` is `Expr.beq` (`kernel/expr.rs`'s two impls) — where the
 //!    unverified frontend keyed an `ExprKey` newtype by the node's ADDRESS.
 //!    Value identity is the coarser partition, so the walk visits no more
-//!    nodes; what it costs is that a probe whose truncated hash collides runs
-//!    `Expr.beq` on a pair that is not equal, which task #37 measured as
-//!    exponential on `tests/e2e/tower_beqpair.ndjson`.  That is a
-//!    `kernel::expr::beq` memo-key matter (task #37's finding, DESIGN.md), not
-//!    this module's, and every other `Expr`-keyed table in the core
-//!    (`struct_parts::mentions_const`, `expr_ops`' memos) already keys by
-//!    value; keying by address here would put a second, incompatible notion of
-//!    `Expr` equality into the model for no gain.
+//!    nodes; what it costs is that a probe whose hash word collides runs
+//!    `Expr.beq` on two distinct objects — which is why the unverified twin
+//!    keyed by address at all: task #37 had measured that comparison as
+//!    `3^depth` on `tests/e2e/tower_beqpair.ndjson`.  **That reason is spent.**
+//!    Task #38 gave `kernel::expr::BeqMap` a *bucket* per key, so `(S,Q)` no
+//!    longer evicts what `(S,P)` proved, and the comparison is linear again;
+//!    `the_tower_pair_does_not_blow_up_the_seen_table` below builds that exact
+//!    shape at depth 60 and measures this module's walk at ~0.2 ms.  So the
+//!    core's own dictionary is used here, as every other `Expr`-keyed table in
+//!    the core already does (`struct_parts::mentions_const`, `expr_ops`'
+//!    memos): keying by address would put a second, incompatible notion of
+//!    `Expr` equality into the model — and an address-keyed *set* would be
+//!    unsound rather than merely redundant, since `ptr_eq` is `false` in the
+//!    model (DESIGN.md §3.2) and the model's `seen` would then dedupe nothing.
 //! 2. **The sort is a bucket pass.**  con-leche sorts `List.range ds.size` by
 //!    the key `(t, s, k)` with `List.mergeSort`; §3.4 has neither closures nor
 //!    `sort_by_key`, and a merge sort written out here would be a second
@@ -359,18 +365,46 @@ pub fn hoist_targets_at(
     let m = gs.len();
     let mut k: usize = 0;
     while k < m {
-        match idx.get(&gs[k]) {
-            Some(j) => {
-                let j = *j;
-                if j > i {
-                    target = hoist_close(ds, idx, target, j, i);
-                }
-            }
-            None => {}
-        }
+        target = hoist_targets_one(ds, idx, target, &gs[k], i);
         k += 1;
     }
     target
+}
+
+/// con-leche: none — `Std.HashMap.getElem?` at a `Name` key, `Nat` values
+/// The **owning** probe of the name index (task #13's pattern 1): it answers a
+/// `u64`, not a borrow into the map, so no `idx` borrow is alive when the
+/// caller branches (AENEAS_FINDINGS §2.1 F1 — a container borrow held across a
+/// branch that touches the container is the port's commonest Aeneas failure).
+pub fn idx_get(idx: &HashMap<Name, u64>, n: &Name) -> Option<u64> {
+    match idx.get(n) {
+        Some(j) => Some(*j),
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
+/// The cited loop body `let some j := idx[g]? | continue; unless j > i do
+/// continue; …`, one ground.  Its own function so the loop body is a single
+/// call: §2.1 F1/F2 — neither the probe's borrow nor a two-armed join may sit
+/// inside a loop that touches the same map.
+pub fn hoist_targets_one(
+    ds: &Vec<Declaration>,
+    idx: &HashMap<Name, u64>,
+    target: HashMap<u64, u64>,
+    g: &Name,
+    i: u64,
+) -> HashMap<u64, u64> {
+    match idx_get(idx, g) {
+        Some(j) => {
+            if j > i {
+                hoist_close(ds, idx, target, j, i)
+            } else {
+                target
+            }
+        }
+        None => target,
+    }
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
@@ -390,32 +424,97 @@ pub fn hoist_close(
     while sp > 0 {
         sp -= 1;
         let k = stack[sp];
-        let done = match target.get(&k) {
-            Some(t) => *t <= i,
-            None => false,
-        };
-        if !done {
-            target.insert(k, i);
-            let used = decl_used_consts(&ds[k as usize]);
-            let nu = used.len();
-            let mut u: usize = 0;
-            while u < nu {
-                match idx.get(&used[u]) {
-                    Some(m) => {
-                        let m = *m;
-                        if m > i && m != k {
-                            let r = stack_push_u64(stack, sp, m);
-                            stack = r.0;
-                            sp = r.1;
-                        }
-                    }
-                    None => {}
-                }
-                u += 1;
-            }
-        }
+        let r = hoist_close_step(ds, idx, target, stack, sp, k, i);
+        target = r.0;
+        stack = r.1;
+        sp = r.2;
     }
     target
+}
+
+/// con-leche: none — `Std.HashMap.getElem?` at a `Nat` key, as a test
+/// The **owning** probe of the target map: the cited `match target[k]? with |
+/// some t => if t ≤ i then continue | none => pure ()`.  Its own function so
+/// that no borrow into `target` is alive when the caller inserts into it
+/// (AENEAS_FINDINGS §2.1 F1).
+pub fn target_done(target: &HashMap<u64, u64>, k: u64, i: u64) -> bool {
+    match target.get(&k) {
+        Some(t) => *t <= i,
+        None => false,
+    }
+}
+
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
+/// One turn of the cited `while h : stack.size > 0`: the record `k` is
+/// targeted at `i` unless it already is (or earlier), and its own references
+/// that are declared after `i` go on the worklist.  Its own function so the
+/// loop body is straight-line — §2.1 F1/F2, and Aeneas accepts no `return`
+/// inside a nested loop at all, which this lifting also removes.
+pub fn hoist_close_step(
+    ds: &Vec<Declaration>,
+    idx: &HashMap<Name, u64>,
+    target: HashMap<u64, u64>,
+    stack: Vec<u64>,
+    sp: usize,
+    k: u64,
+    i: u64,
+) -> (HashMap<u64, u64>, Vec<u64>, usize) {
+    if target_done(&target, k, i) {
+        (target, stack, sp)
+    } else {
+        let mut target = target;
+        target.insert(k, i);
+        let used = decl_used_consts(&ds[k as usize]);
+        let r = hoist_push_deps(idx, &used, stack, sp, i, k);
+        (target, r.0, r.1)
+    }
+}
+
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
+/// The cited `for n in ds[k]!.usedConsts do if let some m := idx[n]? then …`:
+/// the references of the record just targeted, pushed onto the worklist.
+pub fn hoist_push_deps(
+    idx: &HashMap<Name, u64>,
+    used: &Vec<Name>,
+    stack: Vec<u64>,
+    sp: usize,
+    i: u64,
+    k: u64,
+) -> (Vec<u64>, usize) {
+    let mut stack = stack;
+    let mut sp = sp;
+    let n = used.len();
+    let mut u: usize = 0;
+    while u < n {
+        let r = hoist_push_dep(idx, &used[u], stack, sp, i, k);
+        stack = r.0;
+        sp = r.1;
+        u += 1;
+    }
+    (stack, sp)
+}
+
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
+/// The cited `if m > i && m != k then stack := stack.push m`, one name.  Its
+/// own function for §2.1 F1: the probe's borrow must not reach the branch.
+pub fn hoist_push_dep(
+    idx: &HashMap<Name, u64>,
+    n: &Name,
+    stack: Vec<u64>,
+    sp: usize,
+    i: u64,
+    k: u64,
+) -> (Vec<u64>, usize) {
+    match idx_get(idx, n) {
+        Some(m) => {
+            if m > i && m != k {
+                stack_push_u64(stack, sp, m)
+            } else {
+                (stack, sp)
+            }
+        }
+        None => (stack, sp),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -444,25 +543,45 @@ pub fn hoist_moved_idxs(n: usize, target: &HashMap<u64, u64>) -> Vec<u64> {
 /// dependency order), then the record `t` itself unless it is one of them.
 pub fn hoist_order(n: usize, target: &HashMap<u64, u64>, moved: &Vec<u64>) -> Vec<u64> {
     let mut order: Vec<u64> = Vec::with_capacity(n);
-    let nm = moved.len();
     let mut t: usize = 0;
     while t < n {
-        let mut a: usize = 0;
-        while a < nm {
-            match target.get(&moved[a]) {
-                Some(tt) => {
-                    if *tt == (t as u64) {
-                        order.push(moved[a]);
-                    }
-                }
-                None => {}
-            }
-            a += 1;
-        }
+        order = hoist_order_at(order, target, moved, t as u64);
         if !target.contains_key(&(t as u64)) {
             order.push(t as u64);
         }
         t += 1;
+    }
+    order
+}
+
+/// con-leche: none — `Std.HashMap.getElem?` at a `Nat` key, as a test
+/// The **owning** probe behind the bucket pass: is `k` a moved record whose
+/// target is exactly `t`?  Its own function for AENEAS_FINDINGS §2.1 F1.
+pub fn target_is(target: &HashMap<u64, u64>, k: u64, t: u64) -> bool {
+    match target.get(&k) {
+        Some(tt) => *tt == t,
+        None => false,
+    }
+}
+
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
+/// The `s = 0` half of one bucket: the moved records whose target is `t`, in
+/// increasing original index.  Its own function so `hoist_order`'s loop body
+/// is straight-line (§2.1 F1, and the inner loop is no longer nested).
+pub fn hoist_order_at(
+    order: Vec<u64>,
+    target: &HashMap<u64, u64>,
+    moved: &Vec<u64>,
+    t: u64,
+) -> Vec<u64> {
+    let mut order = order;
+    let n = moved.len();
+    let mut a: usize = 0;
+    while a < n {
+        if target_is(target, moved[a], t) {
+            order.push(moved[a]);
+        }
+        a += 1;
     }
     order
 }
@@ -645,5 +764,70 @@ mod tests {
         let d = defn(dotted("Nat", "sub"), cnst(nm("Helper"), Vec::new()));
         let c = declaration_dup(&d);
         assert_eq!(names_of(&[d]), names_of(&[c]));
+    }
+
+    // -----------------------------------------------------------------------
+    // The `tower_beqpair` shape: the risk the value-keyed `seen` had to clear
+    // -----------------------------------------------------------------------
+
+    fn tri(g: &Expr, a: &Expr, b: &Expr, c: &Expr) -> Expr {
+        expr::app(
+            expr::app(expr::app(expr::dup(g), expr::dup(a)), expr::dup(b)),
+            expr::dup(c),
+        )
+    }
+
+    /// `(S_k, P_k)`: a shared ternary tower `S = g S S S` and one of an
+    /// alternating pair `P = g P Q P` / `Q = g Q P Q`, three arguments deep —
+    /// con-leche's `tests/e2e/tower_beqpair.ndjson` (its task #240), built
+    /// here as terms.  All three are structurally equal and have the same
+    /// `Expr.hash` at every level, so they are the worst case a *value*-keyed
+    /// `Expr` table can be handed: every probe collides and every collision
+    /// calls `expr::beq` on two distinct objects.
+    fn towers(k: u32) -> (Expr, Expr) {
+        let g = cnst(nm("g"), Vec::new());
+        let z = cnst(nm("z"), Vec::new());
+        let mut s = expr::dup(&z);
+        let mut p = expr::dup(&z);
+        let mut q = expr::dup(&z);
+        for _ in 0..k {
+            let s2 = tri(&g, &s, &s, &s);
+            let p2 = tri(&g, &p, &q, &p);
+            let q2 = tri(&g, &q, &p, &q);
+            s = s2;
+            p = p2;
+            q = q2;
+        }
+        (s, p)
+    }
+
+    /// **The `seen` table's worst case, measured** (task #84).  This module's
+    /// `seen` is keyed by `Expr`, i.e. by `expr::beq` — con-leche's own
+    /// dictionary, where the unverified frontend keyed a newtype by the
+    /// node's address because task #37 had measured `expr::beq` as `3^depth`
+    /// on exactly this shape.  Task #38 fixed that (`BeqMap` is a *bucket*
+    /// per key, so `(S,Q)` no longer evicts what `(S,P)` proved:
+    /// `kernel::expr::BeqMap`'s note), and the walk is linear again.
+    ///
+    /// Measured here at depth 60, unoptimised build: `decl_used_consts`
+    /// ~0.2 ms, `occurs_const_fast` ~0.2 ms, `expr::beq` itself ~0.16 ms, all
+    /// growing linearly from depth 4.  The assertion is four orders of
+    /// magnitude slacker than that: it is a guard against the eviction bug
+    /// coming back, not a benchmark.
+    #[test]
+    fn the_tower_pair_does_not_blow_up_the_seen_table() {
+        let (s, p) = towers(60);
+        assert!(expr::beq(&s, &p));
+        let e = expr::app(expr::app(cnst(nm("f"), Vec::new()), s), p);
+        let d = defn(nm("D"), expr::dup(&e));
+        let t0 = std::time::Instant::now();
+        let used = decl_used_consts(&d);
+        // `g`, `z` and `f` — each contributed once, however often shared
+        assert_eq!(used.len(), 3);
+        // the other value-keyed walk of the parser, on the same shape
+        assert!(!crate::frontend::proj_rec::occurs_const_fast(&nm("nope"), &e));
+        assert!(crate::frontend::proj_rec::occurs_const_fast(&nm("g"), &e));
+        let dt = t0.elapsed();
+        assert!(dt < std::time::Duration::from_secs(2), "{:?}", dt);
     }
 }

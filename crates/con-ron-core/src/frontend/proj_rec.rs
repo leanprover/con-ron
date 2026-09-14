@@ -360,20 +360,10 @@ pub fn build_binders<M: MkBinder>(mk: &M, k: u64, e: &Expr) -> Option<(Vec<Expr>
     let mut i: u64 = 0;
     let mut ok = true;
     while i < k && ok {
-        let step = match &cur.0.kind {
-            ExprKind::ForallE(dom, body, _) => match mk.mk(dom) {
-                Some(t) => {
-                    let b = expr_ops_c::instantiate1_lift(body, &t, 0);
-                    Some((t, b))
-                }
-                None => None,
-            },
-            _ => None,
-        };
-        match step {
-            Some(tb) => {
-                out.push(tb.0);
-                cur = tb.1;
+        match build_binders_step(mk, &cur) {
+            Some((t, b)) => {
+                out.push(t);
+                cur = b;
                 i += 1;
             }
             None => {
@@ -382,6 +372,38 @@ pub fn build_binders<M: MkBinder>(mk: &M, k: u64, e: &Expr) -> Option<(Vec<Expr>
         }
     }
     build_binders_done(ok, out, cur)
+}
+
+/// con-leche: ConLeche/Frontend/ProjRec.lean:259-269 buildBinders
+/// The cited `| k + 1, .forallE dom body _ => do let t ← mk dom; …`: one
+/// binder's term and the telescope instantiated at it, or `None` for the
+/// cited `| _ + 1, _ => none`.  Its own function because `cur`'s borrow (the
+/// `dom` and `body` of the match) may not still be alive where the loop
+/// rebinds `cur` — AENEAS_FINDINGS §2.1 F1, which is what "Could not match the
+/// contexts" was pointing at.
+pub fn build_binders_step<M: MkBinder>(mk: &M, cur: &Expr) -> Option<(Expr, Expr)> {
+    match &cur.0.kind {
+        ExprKind::ForallE(dom, body, _) => build_binders_step_at(mk, dom, body),
+        _ => None,
+    }
+}
+
+/// con-leche: ConLeche/Frontend/ProjRec.lean:259-269 buildBinders
+/// The cited `do` block of that arm, at the binder's domain and body: the
+/// arm's own branch lifted out of the `match` on `cur` (§2.1 F3 — an arm must
+/// end in a call, never in a branch).
+pub fn build_binders_step_at<M: MkBinder>(
+    mk: &M,
+    dom: &Expr,
+    body: &Expr,
+) -> Option<(Expr, Expr)> {
+    match mk.mk(dom) {
+        Some(t) => {
+            let b = expr_ops_c::instantiate1_lift(body, &t, 0);
+            Some((t, b))
+        }
+        None => None,
+    }
 }
 
 /// con-leche: none — `build_binders`' tail, out of the loop
@@ -734,20 +756,33 @@ pub fn any_ctor_mentions(block_names: &Vec<Name>, ctors: &[ProjCtorRec]) -> bool
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// The cited inner `fun (d, _) => blockNames.any fun n => occursConstFast n d`.
+/// The cited `fun (d, _) => …` over the constructor's binder domains.
 pub fn any_dom_mentions(block_names: &Vec<Name>, bs: &Vec<(Expr, BinderMeta)>) -> bool {
     let n = bs.len();
     let mut i: usize = 0;
     while i < n {
-        let m = block_names.len();
-        let mut j: usize = 0;
-        while j < m {
-            if occurs_const_fast(&block_names[j], &bs[i].0) {
-                return true;
-            }
-            j += 1;
+        if any_name_mentions(block_names, &bs[i].0) {
+            return true;
         }
         i += 1;
+    }
+    false
+}
+
+/// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
+/// The cited innermost `blockNames.any fun n => occursConstFast n d`, one
+/// domain.  Its own function because Aeneas supports no `return` inside a
+/// *nested* loop at all ("Returns inside of nested loops are not supported
+/// yet"); lifted out, each of the two loops is a single loop whose early
+/// return is followed by a constant.
+pub fn any_name_mentions(block_names: &Vec<Name>, d: &Expr) -> bool {
+    let m = block_names.len();
+    let mut j: usize = 0;
+    while j < m {
+        if occurs_const_fast(&block_names[j], d) {
+            return true;
+        }
+        j += 1;
     }
     false
 }
