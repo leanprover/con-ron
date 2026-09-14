@@ -374,24 +374,29 @@ theorem is_eq_head_refines {e : expr.Expr} {b : Bool} (he : ExprWF e)
   | Const c us =>
     obtain ⟨hcwf, huswf⟩ := CoreK.wf_const_inv he rfl
     simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
-    rw [absExpr_mk, absExprKind, absLevels]
+    obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+    have hlen : i.val = (absConstLevels us).length := Levels.len_refines hi
+    rw [absExpr_mk, absExprKind]
     split at h
-    · rename_i hlen
-      have hl1 : us.val.length = 1 := by scalar_tac
+    · rename_i hone
+      have hl1 : (absConstLevels us).length = 1 := by rw [← hlen, hone]; rfl
       obtain ⟨m, hm, hb⟩ := bind_eq_ok_iff.mp h
       obtain ⟨hmabs, hmwf⟩ := BasisNames.eq_name_refines hm
-      rcases hv : us.val with _ | ⟨u0, us'⟩
+      rcases hv : absConstLevels us with _ | ⟨u0, us'⟩
       · rw [hv] at hl1; simp at hl1
       · cases us' with
         | cons v vs => rw [hv] at hl1; simp at hl1
         | nil =>
           rw [Name.beq_refines hcwf hmwf hb, hmabs]
           simp [ConLeche.isEqHead, decide_eq_beq_name]
-    · rename_i hlen
-      have hl1 : us.val.length ≠ 1 := by scalar_tac
+    · rename_i hone
+      have hl1 : (absConstLevels us).length ≠ 1 := by
+        intro hc
+        have hi1 : i.val = 1 := by rw [hlen, hc]
+        exact hone (by scalar_tac)
       simp only [Result.ok.injEq] at h
       rw [← h]
-      rcases hv : us.val with _ | ⟨u0, us'⟩
+      rcases hv : absConstLevels us with _ | ⟨u0, us'⟩
       · simp [ConLeche.isEqHead]
       · cases us' with
         | nil => rw [hv] at hl1; simp at hl1
@@ -412,35 +417,23 @@ theorem eq_head_level_refines {e : expr.Expr} {u : level.Level} (he : ExprWF e)
   | Const c us =>
     obtain ⟨hcwf, huswf⟩ := CoreK.wf_const_inv he rfl
     simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
-    rw [absExpr_mk, absExprKind, absLevels]
+    obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+    have hlen : i.val = (absConstLevels us).length := Levels.len_refines hi
+    rw [absExpr_mk, absExprKind]
     split at h
-    · rename_i hlen
-      have hl1 : us.val.length = 1 := by scalar_tac
-      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists
-        (alloc.vec.Vec.index_usize_spec us 0#usize (by scalar_tac))
-      simp only [alloc.vec.Vec.index_slice_index, hy, level_dup_eq, bind_tc_ok,
-        Result.ok.injEq] at h
-      subst h
-      have hywf : LevelWF y := by
-        rw [hyv]; exact huswf _ (List.getElem_mem (by scalar_tac))
-      obtain ⟨u0, hv⟩ : ∃ u0, us.val = [u0] := by
-        rcases hh : us.val with _ | ⟨x, t⟩
-        · rw [hh] at hl1; simp at hl1
-        · cases t with
-          | nil => exact ⟨x, rfl⟩
-          | cons z zs => rw [hh] at hl1; simp at hl1
-      have hy0 : y = u0 := by
-        have h1 : us.val[0]? = some y := by
-          rw [hyv, List.getElem?_eq_getElem (by scalar_tac)]; simp
-        rw [hv] at h1; simpa using h1.symm
-      subst hy0
-      rw [hv]
-      exact ⟨by simp [ConLeche.eqHeadLevel], hywf⟩
-    · rename_i hlen
-      have hl1 : us.val.length ≠ 1 := by scalar_tac
+    · rename_i hone
+      subst hone
+      refine ⟨?_, Levels.head_d_wf huswf h⟩
+      rw [Levels.head_d_one hi h]
+      simp [ConLeche.eqHeadLevel]
+    · rename_i hone
+      have hl1 : (absConstLevels us).length ≠ 1 := by
+        intro hc
+        have hi1 : i.val = 1 := by rw [hlen, hc]
+        exact hone (by scalar_tac)
       refine ⟨?_, Level.zero_wf h⟩
       rw [Level.zero_refines h]
-      rcases hv : us.val with _ | ⟨u0, us'⟩
+      rcases hv : absConstLevels us with _ | ⟨u0, us'⟩
       · simp [ConLeche.eqHeadLevel]
       · cases us' with
         | nil => rw [hv] at hl1; simp at hl1

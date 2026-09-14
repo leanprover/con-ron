@@ -671,11 +671,11 @@ theorem proj_iota_level_wf {ty : expr.Expr} {l : level.Level} (hty : ExprWF ty)
     (h : frontend.proj_rec.proj_iota_level ty = ok (some l)) : LevelWF l := by
   rw [frontend.proj_rec.proj_iota_level] at h
   rust_norm h
-  rename_i pr hpr hd hhd _ n us heq _ _ _ _ _ _
+  rename_i pr hpr hd hhd _ n us heq _ _ _ _ _ _ _ _
   have hHD : ExprWF hd := (ExprOps.get_app_fn_refines (ExprOps.pi_result_refines hty hpr).2 hhd).2
   have hk := ExprWF.kids hHD
   rw [heq] at hk
-  exact hk.2 l (vec_index_mem h).2
+  exact Levels.head_d_wf hk.2 h
 
 /-! ## The artifact's name
 

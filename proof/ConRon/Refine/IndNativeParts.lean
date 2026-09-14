@@ -603,7 +603,7 @@ theorem exprNode_kind (d : Std.U64) (k : expr.ExprKind) :
 
 /-- A well-formed `Const` node has a well-formed name. -/
 theorem wf_const_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64} {n : name.Name}
-    {us : alloc.vec.Vec level.Level}
+    {us : levels.Levels}
     (hk : e = .mk (.mk d (.Const n us))) : NameWF n := by
   cases he with
   | @bvar i _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1; simp at hk

@@ -768,9 +768,14 @@ theorem erase_pw_refines {e : expr.Expr} (he : ExprWF e) :
     rw [std_axioms.erase_pw.eq_def] at h
     simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, name_dup_eq,
       bind_eq_ok_iff] at h
+    -- task #93: the arm rebuilds through `mk_const_levels` on `levels::dup`,
+    -- which is the identity in the model.
     obtain ⟨v1, hv1, hmk⟩ := h
-    rw [Env.levels_copy_refines hv1] at hmk
-    exact ⟨by rw [Expr.mk_const_refines hmk]; rfl, Expr.mk_const_wf hn hus hmk⟩
+    rw [show v1 = Levels.ofVec us from
+      (Result.ok_injective ((Levels.levels_dup_eq (Levels.ofVec us)).symm.trans hv1)).symm] at hmk
+    refine ⟨?_, Expr.mk_const_levels_wf hn (Levels.constLevelsWF_ofVec hus) hmk⟩
+    rw [Expr.mk_const_levels_refines hmk, Levels.absConstLevels_ofVec]
+    simp [ConLeche.Expr.erasePw]
   | @lit l e hl h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro r h
@@ -882,7 +887,7 @@ def KindWF : expr.ExprKind → Prop
   | .Bvar _ => True
   | .Fvar _ ty => ExprWF ty
   | .«Sort» u => LevelWF u
-  | .Const n us => NameWF n ∧ LevelsWF us
+  | .Const n us => NameWF n ∧ ConstLevelsWF us
   | .App f a => ExprWF f ∧ ExprWF a
   | .Lam ty b m => ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m
   | .ForallE ty b m => ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m
@@ -909,7 +914,7 @@ theorem wf_kind_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
   | @mk_const n us _ hn hus h1 =>
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq] at hk
-    obtain ⟨-, rfl⟩ := hk; exact ⟨hn, hus⟩
+    obtain ⟨-, rfl⟩ := hk; exact ⟨hn, Levels.constLevelsWF_ofVec hus⟩
   | @app f a _ hf ha h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq] at hk
@@ -944,8 +949,8 @@ theorem wf_sort_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
   wf_kind_inv he hk
 
 theorem wf_const_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
-    {n : name.Name} {us : alloc.vec.Vec level.Level}
-    (hk : e = .mk (.mk d (.Const n us))) : NameWF n ∧ LevelsWF us :=
+    {n : name.Name} {us : levels.Levels}
+    (hk : e = .mk (.mk d (.Const n us))) : NameWF n ∧ ConstLevelsWF us :=
   wf_kind_inv he hk
 
 theorem wf_app_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
@@ -1024,7 +1029,8 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
       rw [Name.beq_refines hn hn2 hbn] at h
       by_cases hne : absName n = absName n2
       · rw [if_pos (by simpa using hne)] at h
-        rw [Expr.levels_beq_refines hus hus2 h]
+        rw [Expr.const_levels_beq_refines (Levels.constLevelsWF_ofVec hus) hus2 h,
+          Levels.absConstLevels_ofVec]
         simp [ConLeche.Expr.erasePwEq, hne, decide_eq_beq]
       · rw [if_neg (by simpa using hne), Result.ok.injEq] at h
         rw [← h]

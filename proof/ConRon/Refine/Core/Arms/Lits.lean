@@ -122,7 +122,8 @@ theorem unfold_definition_i_refines {e : expr.Expr} (he : ExprWF e) :
       obtain ⟨hnwf, huswf⟩ := CoreK.ExprWF.const_children hfwf' hk
       simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at hok
       obtain ⟨us2, hus2, hok⟩ := hok
-      rw [Env.levels_copy_refines hus2] at hok
+      have hus2abs : absLevels us2 = absConstLevels us1 := Levels.to_vec_refines hus2
+      have hus2wf : LevelsWF us2 := Levels.to_vec_wf huswf hus2
       obtain ⟨o, ho, hok⟩ := hok
       obtain ⟨hoabs, -⟩ := defn_lp_count_refines hfrel hfwf hnwf o ho
       simp only [absExprKind]
@@ -143,14 +144,14 @@ theorem unfold_definition_i_refines {e : expr.Expr} (he : ExprWF e) :
           | some k =>
             simp only [Option.map_some, Option.some.injEq] at hoabs
             dsimp only at hok
-            have hiff : (alloc.vec.Vec.len us1 = k)
-                ↔ ((absLevels us1).length = cv.levelParams.length) := by
-              rw [← hoabs]
+            have hiff : (alloc.vec.Vec.len us2 = k)
+                ↔ ((absConstLevels us1).length = cv.levelParams.length) := by
+              rw [← hoabs, ← hus2abs]
               simp only [absLevels, List.length_map]
               constructor
               · intro h; scalar_tac
               · intro h; scalar_tac
-            by_cases hlen : alloc.vec.Vec.len us1 = k
+            by_cases hlen : alloc.vec.Vec.len us2 = k
             · rw [if_pos hlen] at hok
               obtain ⟨p, hcv, hok⟩ := bind_eq_ok_iff.mp hok
               obtain ⟨rr, st1⟩ := p
@@ -171,15 +172,17 @@ theorem unfold_definition_i_refines {e : expr.Expr} (he : ExprWF e) :
                 obtain ⟨hargsabs, hargswf⟩ := ExprOps.get_app_args_refines he hargs
                 rw [StateC.mk_app_n_m_eq] at he1
                 obtain ⟨lst1, hrun, hrel1, hwf1, hv1wf⟩ :=
-                  StateC.const_val_at_m_refines instLevelParamsRefines hwf hfwf hnwf huswf hcv
+                  StateC.const_val_at_m_refines instLevelParamsRefines hwf hfwf hnwf hus2wf hcv
                     lst lfe hrel hfrel (absName n)
                 obtain ⟨he1abs, he1wf⟩ := ExprOpsC.mk_app_n_refines hv1wf hargswf he1
                 simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
                 obtain ⟨rfl, rfl⟩ := hok
                 refine ⟨lst1, ?_, hrel1, hwf1, ?_⟩
                 · have hrun' :
-                      ConLeche.Cached.constValAtM lfe (absName n) (absName n) (absLevels us1) lst
-                        = Except.ok (absExpr v1, lst1) := hrun
+                      ConLeche.Cached.constValAtM lfe (absName n) (absName n)
+                          (absConstLevels us1) lst
+                        = Except.ok (absExpr v1, lst1) := by
+                    rw [← hus2abs]; exact hrun
                   simp only [StateT.run, StateT.bind, StateT.pure, Bind.bind, Pure.pure,
                     Except.bind, Except.pure, ConLeche.Cached.mkAppNM, hfind,
                     if_pos (hiff.mp hlen), hrun']
@@ -216,7 +219,8 @@ theorem unfold_definition_i_refines {e : expr.Expr} (he : ExprWF e) :
       obtain ⟨hnwf, huswf⟩ := CoreK.ExprWF.const_children hfwf' hk
       simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at hok
       obtain ⟨us2, hus2, hok⟩ := hok
-      rw [Env.levels_copy_refines hus2] at hok
+      have hus2abs : absLevels us2 = absConstLevels us1 := Levels.to_vec_refines hus2
+      have hus2wf : LevelsWF us2 := Levels.to_vec_wf huswf hus2
       obtain ⟨o, ho, hok⟩ := hok
       obtain ⟨hoabs, -⟩ := defn_lp_count_refines hfrel hfwf hnwf o ho
       simp only [absExprKind]
@@ -235,14 +239,14 @@ theorem unfold_definition_i_refines {e : expr.Expr} (he : ExprWF e) :
           | some k =>
             simp only [Option.map_some, Option.some.injEq] at hoabs
             dsimp only at hok
-            have hiff : (alloc.vec.Vec.len us1 = k)
-                ↔ ((absLevels us1).length = cv.levelParams.length) := by
-              rw [← hoabs]
+            have hiff : (alloc.vec.Vec.len us2 = k)
+                ↔ ((absConstLevels us1).length = cv.levelParams.length) := by
+              rw [← hoabs, ← hus2abs]
               simp only [absLevels, List.length_map]
               constructor
               · intro h; scalar_tac
               · intro h; scalar_tac
-            by_cases hlen : alloc.vec.Vec.len us1 = k
+            by_cases hlen : alloc.vec.Vec.len us2 = k
             · rw [if_pos hlen] at hok
               obtain ⟨p, hcv, hok⟩ := bind_eq_ok_iff.mp hok
               obtain ⟨rr, st1⟩ := p
@@ -263,11 +267,12 @@ theorem unfold_definition_i_refines {e : expr.Expr} (he : ExprWF e) :
                 have h2 := Result.ok_injective hok
                 simp only [Prod.mk.injEq, core.result.Result.Err.injEq] at h2
                 obtain ⟨rfl, rfl⟩ := h2
-                refine ErrSim.trans (StateC.const_val_at_m_err hwf hfwf hnwf huswf hcv
+                refine ErrSim.trans (StateC.const_val_at_m_err hwf hfwf hnwf hus2wf hcv
                   lst lfe hrel hfrel (absName n)) ?_
                 intro le hle
                 have hle' : ConLeche.Cached.constValAtM lfe (absName n) (absName n)
-                    (absLevels us1) lst = Except.error le := hle
+                    (absConstLevels us1) lst = Except.error le := by
+                  rw [← hus2abs]; exact hle
                 simp only [StateT.run, StateT.bind, StateT.pure, Bind.bind, Pure.pure,
                   Except.bind, Except.pure, hfind, if_pos (hiff.mp hlen), hle']
             · rw [if_neg hlen] at hok
@@ -864,12 +869,10 @@ theorem reduce_nat_i_refines {mode : env.CheckMode} {fuel : Std.U64}
       case Const c us =>
         obtain ⟨hcw, husw⟩ := CoreK.ExprWF.const_children hfw' hkf
         simp only [absExprKind] at hok ⊢
-        by_cases hlen : alloc.vec.Vec.len us = 0#usize
+        obtain ⟨klen, hklen, hok⟩ := bind_eq_ok_iff.mp hok
+        by_cases hlen : klen = 0#usize
         · rw [if_pos hlen] at hok
-          rw [show absLevels us = [] from by
-            simp only [absLevels]
-            rw [List.eq_nil_of_length_eq_zero (show us.val.length = 0 by scalar_tac)]
-            rfl]
+          rw [CoreK.absConstLevels_nil (by rw [hklen, hlen])]
           dsimp only
           rw [runBind (runPure (absName c) lst)]
           obtain ⟨nm, hnm, hok⟩ := bind_eq_ok_iff.mp hok
@@ -936,16 +939,12 @@ theorem reduce_nat_i_refines {mode : env.CheckMode} {fuel : Std.U64}
             obtain ⟨rfl, rfl⟩ := h2
             exact ⟨lst, by simp, hrel, hwf, by simp⟩
         · rw [if_neg hlen] at hok
-          obtain ⟨x, xs, hus⟩ : ∃ x xs, (us : alloc.vec.Vec level.Level).val = x :: xs := by
-            cases hus : (us : alloc.vec.Vec level.Level).val with
-            | nil => exact absurd (HashMap.vec_len_eq_zero_iff.mpr hus) hlen
-            | cons x xs => exact ⟨x, xs, rfl⟩
-          rw [show absLevels us = absLevel x :: xs.map absLevel from by
-            simp only [absLevels, hus, List.map_cons]]
-          have h2 := Result.ok_injective hok
-          simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at h2
-          obtain ⟨rfl, rfl⟩ := h2
-          exact ⟨lst, by simp, hrel, hwf, by simp⟩
+          rcases hq : absConstLevels us with _ | ⟨x, xs⟩
+          · exact absurd hq (CoreK.absConstLevels_ne_nil hklen hlen)
+          · have h2 := Result.ok_injective hok
+            simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at h2
+            obtain ⟨rfl, rfl⟩ := h2
+            exact ⟨lst, by simp, hrel, hwf, by simp⟩
       case App g a =>
         obtain ⟨hgw, haw⟩ := CoreK.ExprWF.app_children hfw' hkf
         simp only [absExprKind, CoreK.absExpr_kind g] at hok ⊢
@@ -954,14 +953,10 @@ theorem reduce_nat_i_refines {mode : env.CheckMode} {fuel : Std.U64}
         case Const c us =>
           obtain ⟨hcw, huswg⟩ := CoreK.ExprWF.const_children hgw hkg
           simp only [absExprKind] at hok ⊢
-          by_cases hlen : alloc.vec.Vec.len us = 0#usize
-          · rw [if_neg (show ¬((alloc.vec.Vec.len us != 0#usize) = true) by simp [hlen])] at hok
-            rw [show absLevels us = [] from by
-              simp only [absLevels]
-              rw [List.eq_nil_of_length_eq_zero
-                (show (us : alloc.vec.Vec level.Level).val.length = 0 by
-                  rw [HashMap.vec_len_eq_zero_iff.mp hlen]; rfl)]
-              rfl]
+          obtain ⟨klen, hklen, hok⟩ := bind_eq_ok_iff.mp hok
+          by_cases hlen : klen = 0#usize
+          · rw [if_neg (show ¬((klen != 0#usize) = true) by simp [hlen])] at hok
+            rw [CoreK.absConstLevels_nil (by rw [hklen, hlen])]
             dsimp only
             rw [runBind (runPure (absName c) lst)]
             obtain ⟨b1, hb1, hok⟩ := bind_eq_ok_iff.mp hok
@@ -995,17 +990,13 @@ theorem reduce_nat_i_refines {mode : env.CheckMode} {fuel : Std.U64}
                 simp only [Bool.false_eq_true, if_false] at hok
                 rw [if_neg (fun hcon => by rw [hcon.2] at hb2eq; exact Bool.noConfusion hb2eq)]
                 exact wf_arm hw d hcw haw hbw hfwf hfrel hwf hrel hok
-          · rw [if_pos (show (alloc.vec.Vec.len us != 0#usize) = true by simp [hlen])] at hok
-            obtain ⟨x, xs, hus⟩ : ∃ x xs, (us : alloc.vec.Vec level.Level).val = x :: xs := by
-              cases hus : (us : alloc.vec.Vec level.Level).val with
-              | nil => exact absurd (HashMap.vec_len_eq_zero_iff.mpr hus) hlen
-              | cons x xs => exact ⟨x, xs, rfl⟩
-            rw [show absLevels us = absLevel x :: xs.map absLevel from by
-              simp only [absLevels, hus, List.map_cons]]
-            have h2 := Result.ok_injective hok
-            simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at h2
-            obtain ⟨rfl, rfl⟩ := h2
-            exact ⟨lst, by simp, hrel, hwf, by simp⟩
+          · rw [if_pos (show (klen != 0#usize) = true by simp [hlen])] at hok
+            rcases hq : absConstLevels us with _ | ⟨x, xs⟩
+            · exact absurd hq (CoreK.absConstLevels_ne_nil hklen hlen)
+            · have h2 := Result.ok_injective hok
+              simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at h2
+              obtain ⟨rfl, rfl⟩ := h2
+              exact ⟨lst, by simp, hrel, hwf, by simp⟩
         all_goals
           simp only [absExprKind]
           have h2 := Result.ok_injective hok
@@ -1040,12 +1031,10 @@ theorem reduce_nat_i_refines {mode : env.CheckMode} {fuel : Std.U64}
       case Const c us =>
         obtain ⟨hcw, husw⟩ := CoreK.ExprWF.const_children hfw' hkf
         simp only [absExprKind] at hok ⊢
-        by_cases hlen : alloc.vec.Vec.len us = 0#usize
+        obtain ⟨klen, hklen, hok⟩ := bind_eq_ok_iff.mp hok
+        by_cases hlen : klen = 0#usize
         · rw [if_pos hlen] at hok
-          rw [show absLevels us = [] from by
-            simp only [absLevels]
-            rw [List.eq_nil_of_length_eq_zero (show us.val.length = 0 by scalar_tac)]
-            rfl]
+          rw [CoreK.absConstLevels_nil (by rw [hklen, hlen])]
           dsimp only
           rw [runBind (runPure (absName c) lst)]
           obtain ⟨nm, hnm, hok⟩ := bind_eq_ok_iff.mp hok
@@ -1098,14 +1087,10 @@ theorem reduce_nat_i_refines {mode : env.CheckMode} {fuel : Std.U64}
         case Const c us =>
           obtain ⟨hcw, huswg⟩ := CoreK.ExprWF.const_children hgw hkg
           simp only [absExprKind] at hok ⊢
-          by_cases hlen : alloc.vec.Vec.len us = 0#usize
-          · rw [if_neg (show ¬((alloc.vec.Vec.len us != 0#usize) = true) by simp [hlen])] at hok
-            rw [show absLevels us = [] from by
-              simp only [absLevels]
-              rw [List.eq_nil_of_length_eq_zero
-                (show (us : alloc.vec.Vec level.Level).val.length = 0 by
-                  rw [HashMap.vec_len_eq_zero_iff.mp hlen]; rfl)]
-              rfl]
+          obtain ⟨klen, hklen, hok⟩ := bind_eq_ok_iff.mp hok
+          by_cases hlen : klen = 0#usize
+          · rw [if_neg (show ¬((klen != 0#usize) = true) by simp [hlen])] at hok
+            rw [CoreK.absConstLevels_nil (by rw [hklen, hlen])]
             dsimp only
             rw [runBind (runPure (absName c) lst)]
             obtain ⟨b1, hb1, hok⟩ := bind_eq_ok_iff.mp hok
@@ -1138,7 +1123,7 @@ theorem reduce_nat_i_refines {mode : env.CheckMode} {fuel : Std.U64}
                 simp only [Bool.false_eq_true, if_false] at hok
                 rw [if_neg (fun hcon => by rw [hcon.2] at hb2eq; exact Bool.noConfusion hb2eq)]
                 exact wf_arm_err hw d hcw haw hbw hfwf hfrel hwf hrel hok
-          · rw [if_pos (show (alloc.vec.Vec.len us != 0#usize) = true by simp [hlen])] at hok
+          · rw [if_pos (show (klen != 0#usize) = true by simp [hlen])] at hok
             have := Result.ok_injective hok
             simp at this
         all_goals (have := Result.ok_injective hok; simp at this)

@@ -290,7 +290,7 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         have e0 := Result.ok_injective (α := Bool × _) h
         have er : true = b := congrArg Prod.fst e0
         have em : memoZ = memo' := congrArg Prod.snd e0
-        have hans : WScQ (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n vs)), d⟩) true := by
+        have hans : WScQ (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n (Levels.ofVec vs))), d⟩) true := by
           simp [WScQ, ConLeche.Expr.wscopedB]
         rw [← er, ← em]
         exact ⟨hans, MemoInv.set key_exact hm (keyWF_mk hwfe) hans hins⟩
@@ -915,7 +915,7 @@ theorem fvar_leaves_go_aux {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro G acc r seen seen' hacc hm hG h
     have hnil : ConLeche.Expr.fvarLeaves (absExpr
-        (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n us)))) = [] := by
+        (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n (Levels.ofVec us))))) = [] := by
       simp [absExpr_mk, absExprKind, ConLeche.Expr.fvarLeaves]
     rw [cached.expr_ops_c.fvar_leaves_go.eq_def] at h
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
@@ -1680,7 +1680,7 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         have er : true = b := congrArg Prod.fst e0
         have em : memoZ = memo' := congrArg Prod.snd e0
         have hans : LeafSubQ (absLeaves bl)
-            (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n vs)))) true := by
+            (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n (Levels.ofVec vs))))) true := by
           simp [LeafSubQ, fvl_const]
         rw [Expr.dup_eq hd1] at hins
         rw [← er, ← em]
@@ -2399,7 +2399,7 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
         have eb : memo3 = memo' := congrArg Prod.snd e0
         obtain ⟨hans, hmF⟩ :
             ALPDQ (absNames params)
-              (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n us)))) r0 ∧
+              (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n (Levels.ofVec us))))) r0 ∧
               MemoInv ExprWF absExpr (ALPDQ (absNames params)) memo1 := by
           obtain ⟨r1, hr1, hq⟩ := bind_eq_ok_iff.mp hq
           have eq1 := Result.ok_injective
@@ -2408,8 +2408,8 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
           have er1 : r1 = r0 := congrArg Prod.snd eq1
           refine ⟨?_, by rw [← em1]; exact hm⟩
           simp only [ALPDQ, absExpr_mk, absExprKind]
-          rw [← er1, levels_all_params_defined_refines hps hus us.val.length 0#usize r1
-            (by scalar_tac) hr1]
+          rw [← er1, const_levels_all_params_defined_refines hps
+            (Levels.constLevelsWF_ofVec hus) hr1]
           simp [ConLeche.Expr.allLevelParamsDefined, absLevels]
         rw [← ea, ← eb]
         refine ⟨hans, ?_⟩
