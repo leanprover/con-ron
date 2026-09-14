@@ -103,7 +103,6 @@ use crate::ron::hashmap::Hashable;
 use crate::kernel::level;
 use crate::kernel::level::Level;
 use crate::kernel::levels::Levels;
-use crate::kernel::levels;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;

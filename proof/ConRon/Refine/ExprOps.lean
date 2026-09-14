@@ -1049,16 +1049,10 @@ theorem exprsWF_push {v w : alloc.vec.Vec expr.Expr} {x : expr.Expr}
   · exact hv e h1
   · simp only [List.mem_singleton] at h1; rw [h1]; exact hx
 
-/-- `Vec::index` without an `Inhabited` instance on the element type (the
-`getElem!` form of `HashMap.vec_index_eq` is unavailable for `expr::Expr`). -/
-theorem vec_index_getElem? {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize} {x : α}
-    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok x) :
-    v.val[i.val]? = some x := by
-  rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize] at h
-  rcases hi : v.val[i.val]? with _ | y
-  · rw [show v[i.val]? = v.val[i.val]? from rfl, hi] at h; simp at h
-  · rw [show v[i.val]? = v.val[i.val]? from rfl, hi] at h
-    exact congrArg some (Result.ok_injective h)
+/- `Vec::index` without an `Inhabited` instance on the element type: task #93
+moved it to `Refine/Levels.lean`, which is below this file and needs it, and
+re-exports it here so that its 110 call sites keep the name they had. -/
+export ConRon.Refine (vec_index_getElem?)
 
 /-- Indexing a well-formed `Vec<Expr>`: the entry is well formed, and the
 abstracted list's `drop` peels it off. -/

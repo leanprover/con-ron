@@ -34,6 +34,7 @@ because a well-formed node is by definition what a smart constructor built
 from its children, and equal children give an equal call.
 -/
 import ConRon.Refine.Level
+import ConRon.Refine.Levels
 import ConRon.Refine.PropWhen
 
 open Aeneas Aeneas.Std Result
@@ -284,16 +285,33 @@ theorem sort_inv {u : level.Level} {e : expr.Expr} (h : expr.sort u = ok e) :
   obtain ⟨b1, b2, b3⟩ := node_bits (k := .«Sort» u) (by scalar_tac) (by scalar_tac) hd
   exact ⟨d, bb, hbb, rfl, by rw [b1]; rfl, by rw [b2]; rfl, b3⟩
 
+/-- The primitive (task #93): `mk_const_levels` takes the level list already
+in `kernel::levels`' canonical form, which is what the crate's five rebuild
+sites hand it. -/
+theorem mk_const_levels_inv {n : name.Name} {ls : levels.Levels} {e : expr.Expr}
+    (h : expr.mk_const_levels n ls = ok e) :
+    ∃ d b, levels.have_param ls = ok b ∧ e = .mk (.mk d (.Const n ls)) ∧
+      bvarBits e = 0 ∧ fvarBits e = 0 ∧ lpBit e = b := by
+  rw [expr.mk_const_levels.eq_def] at h
+  simp only [bind_eq_ok_iff, ptr_new_eq, Result.ok.injEq] at h
+  obtain ⟨_, -, _, -, _, -, _, -, _, -, bb, hbb, d, hd, _, hnd, he⟩ := h
+  subst hnd; subst he
+  obtain ⟨b1, b2, b3⟩ := node_bits (k := .Const n ls) (by scalar_tac) (by scalar_tac) hd
+  exact ⟨d, bb, hbb, rfl, by rw [b1]; rfl, by rw [b2]; rfl, b3⟩
+
+/-- `mk_const` at its task-#38 shape, with the *canonical* level list in the
+node: `Levels.ofVec us` is what `levels::of_vec` puts there, and
+`Levels.absConstLevels_ofVec` is what makes every one of the 141 inversion
+sites read `absLevels us` again (task #93). -/
 theorem mk_const_inv {n : name.Name} {us : alloc.vec.Vec level.Level} {e : expr.Expr}
     (h : expr.mk_const n us = ok e) :
-    ∃ d b, level.levels_have_param us = ok b ∧ e = .mk (.mk d (.Const n us)) ∧
+    ∃ d b, level.levels_have_param us = ok b ∧
+      e = .mk (.mk d (.Const n (Levels.ofVec us))) ∧
       bvarBits e = 0 ∧ fvarBits e = 0 ∧ lpBit e = b := by
-  rw [expr.mk_const.eq_def] at h
-  simp only [bind_eq_ok_iff, ptr_new_eq, Result.ok.injEq] at h
-  obtain ⟨_, -, _, -, _, -, _, -, _, -, bb, hbb, d, hd, _, rfl, _, hnd, he⟩ := h
-  subst hnd; subst he
-  obtain ⟨b1, b2, b3⟩ := node_bits (k := .Const n us) (by scalar_tac) (by scalar_tac) hd
-  exact ⟨d, bb, hbb, rfl, by rw [b1]; rfl, by rw [b2]; rfl, b3⟩
+  rw [expr.mk_const] at h
+  simp only [Levels.levels_of_vec_eq, bind_tc_ok] at h
+  obtain ⟨d, b, hb, he, h1, h2, h3⟩ := mk_const_levels_inv h
+  exact ⟨d, b, by rwa [Levels.levels_have_param_ofVec] at hb, he, h1, h2, h3⟩
 
 theorem app_inv {f a e : expr.Expr} (h : expr.app f a = ok e) :
     ∃ d, e = .mk (.mk d (.App f a)) ∧
@@ -614,6 +632,16 @@ theorem mk_const_wf {n : name.Name} {us : alloc.vec.Vec level.Level} {e : expr.E
     (hn : NameWF n) (hus : LevelsWF us) : expr.mk_const n us = ok e → ExprWF e :=
   ExprWF.mk_const hn hus
 
+/-- The same for the primitive (task #93): a *canonical* `Levels` is
+`Levels.ofVec` of the list behind it, so the obligation is `mk_const`'s. -/
+theorem mk_const_levels_wf {n : name.Name} {ls : levels.Levels} {e : expr.Expr}
+    (hn : NameWF n) (hls : ConstLevelsWF ls) (h : expr.mk_const_levels n ls = ok e) :
+    ExprWF e := by
+  refine ExprWF.mk_const hn (Levels.levelsWF_vecOf hls) ?_
+  rw [expr.mk_const]
+  simp only [Levels.levels_of_vec_eq, bind_tc_ok, Levels.ofVec_vecOf hls]
+  exact h
+
 theorem app_wf {f a e : expr.Expr} (hf : ExprWF f) (ha : ExprWF a) :
     expr.app f a = ok e → ExprWF e := ExprWF.app hf ha
 
@@ -692,6 +720,12 @@ theorem mk_const_refines {n : name.Name} {us : alloc.vec.Vec level.Level} {e : e
     (h : expr.mk_const n us = ok e) :
     absExpr e = .const (absName n) (absLevels us) := by
   obtain ⟨d, b, -, rfl, -, -, -⟩ := mk_const_inv h; simp
+
+/-- The primitive's abstraction (task #93). -/
+theorem mk_const_levels_refines {n : name.Name} {ls : levels.Levels} {e : expr.Expr}
+    (h : expr.mk_const_levels n ls = ok e) :
+    absExpr e = .const (absName n) (absConstLevels ls) := by
+  obtain ⟨d, b, -, rfl, -, -, -⟩ := mk_const_levels_inv h; simp
 
 theorem app_refines {f a e : expr.Expr} (h : expr.app f a = ok e) :
     absExpr e = .app (absExpr f) (absExpr a) := by
@@ -1152,7 +1186,8 @@ theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
       simp at hab
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
-      simp only [absExpr_mk, absExprKind, ConLeche.Expr.const.injEq] at hab
+      simp only [absExpr_mk, absExprKind, Levels.absConstLevels_ofVec,
+        ConLeche.Expr.const.injEq] at hab
       have q1 : n1 = n2 := Name.absName_injective hn1 hn2 hab.1
       have q2 : us1 = us2 := absLevels_inj hus1 hus2 hab.2
       subst q1; subst q2
@@ -1691,15 +1726,77 @@ theorem three_step {P Q R : Prop} [Decidable P] [Decidable Q] [Decidable R]
     rw [both_step h2 h3 h']
     simp [hp]
 
+/-- The `.const` arm's `us == vs` on the canonical form of `kernel::levels`
+(task #93).  A constructor mismatch is a *length* mismatch under
+`ConstLevelsWF`, so the six off-diagonal arms are exact by length alone and
+only the three on the diagonal look inside. -/
+theorem const_levels_beq_refines {ls rs : levels.Levels} {c : Bool}
+    (hls : ConstLevelsWF ls) (hrs : ConstLevelsWF rs)
+    (h : expr.const_levels_beq ls rs = ok c) :
+    c = decide (absConstLevels ls = absConstLevels rs) := by
+  have hlen : ∀ (a b : levels.Levels), (absConstLevels a).length ≠ (absConstLevels b).length →
+      (false : Bool) = decide (absConstLevels a = absConstLevels b) := by
+    intro a b hne
+    refine (decide_eq_false ?_).symm
+    intro hc; exact hne (by rw [hc])
+  cases ls with
+  | Zero =>
+    cases rs with
+    | Zero =>
+      have hc : c = true := (Result.ok_injective h).symm
+      rw [hc, absConstLevels]; simp
+    | One v =>
+      rw [show c = false from (Result.ok_injective h).symm]
+      exact hlen _ _ (by simp [absConstLevels])
+    | Many vs =>
+      rw [show c = false from (Result.ok_injective h).symm]
+      refine hlen _ _ ?_
+      rw [Levels.absConstLevels_length, Levels.absConstLevels_length]
+      have := hrs.2; simp only [Levels.vecOf_Zero_val, Levels.vecOf_Many, List.length_nil]
+      omega
+  | One u =>
+    cases rs with
+    | Zero =>
+      rw [show c = false from (Result.ok_injective h).symm]
+      exact hlen _ _ (by simp [absConstLevels])
+    | One v =>
+      have hb : level.beq u v = ok c := h
+      rw [Level.beq_refines hls hrs hb, absConstLevels, absConstLevels]
+      by_cases hq : absLevel u = absLevel v <;> simp [hq]
+    | Many vs =>
+      rw [show c = false from (Result.ok_injective h).symm]
+      refine hlen _ _ ?_
+      rw [Levels.absConstLevels_length, Levels.absConstLevels_length]
+      have := hrs.2; simp only [Levels.vecOf_One_val, Levels.vecOf_Many, List.length_singleton]
+      omega
+  | Many us =>
+    cases rs with
+    | Zero =>
+      rw [show c = false from (Result.ok_injective h).symm]
+      refine hlen _ _ ?_
+      rw [Levels.absConstLevels_length, Levels.absConstLevels_length]
+      have := hls.2; simp only [Levels.vecOf_Zero_val, Levels.vecOf_Many, List.length_nil]
+      omega
+    | One v =>
+      rw [show c = false from (Result.ok_injective h).symm]
+      refine hlen _ _ ?_
+      rw [Levels.absConstLevels_length, Levels.absConstLevels_length]
+      have := hls.2; simp only [Levels.vecOf_One_val, Levels.vecOf_Many, List.length_singleton]
+      omega
+    | Many vs =>
+      have hb : expr.levels_beq us vs = ok c := by
+        simpa only [expr.const_levels_beq, arc_deref_eq, bind_tc_ok] using h
+      rw [levels_beq_refines hls.1 hrs.1 hb, absConstLevels, absConstLevels]
+
 /-- The `.const` arm's `n == m && us == vs`, as its own function
 (`expr::const_beq`). -/
-theorem const_beq_refines {n n2 : name.Name} {us vs : alloc.vec.Vec level.Level}
-    {c : Bool} (hn : NameWF n) (hn2 : NameWF n2) (hus : LevelsWF us)
-    (hvs : LevelsWF vs) (h : expr.const_beq n us n2 vs = ok c) :
-    c = decide (absName n = absName n2 ∧ absLevels us = absLevels vs) := by
+theorem const_beq_refines {n n2 : name.Name} {us vs : levels.Levels}
+    {c : Bool} (hn : NameWF n) (hn2 : NameWF n2) (hus : ConstLevelsWF us)
+    (hvs : ConstLevelsWF vs) (h : expr.const_beq n us n2 vs = ok c) :
+    c = decide (absName n = absName n2 ∧ absConstLevels us = absConstLevels vs) := by
   rw [expr.const_beq] at h
   exact guard_step (fun y hy => Name.beq_refines hn hn2 hy)
-    (fun y hy => levels_beq_refines hus hvs hy) h
+    (fun y hy => const_levels_beq_refines hus hvs hy) h
 
 /-- The `.proj` arm's `s == s' && i == i'` (`expr::proj_head_beq`). -/
 theorem proj_head_beq_refines {s1 s2 : name.Name} {i1 i2 : Std.U64} {c : Bool}
@@ -2013,8 +2110,10 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
       rw [expr.beq_arm.eq_def] at h
       simp only [arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_] at h
-      rw [pure_step (fun y hy => const_beq_refines hn1 hn2 hus1 hus2 hy) h]
-      simp only [absExpr_mk, absExprKind, ConLeche.Expr.const.injEq]
+      rw [pure_step (fun y hy => const_beq_refines hn1 hn2
+        (Levels.constLevelsWF_ofVec hus1) (Levels.constLevelsWF_ofVec hus2) hy) h]
+      simp only [absExpr_mk, absExprKind, Levels.absConstLevels_ofVec,
+        ConLeche.Expr.const.injEq]
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       rw [expr.beq_arm.eq_def] at h
@@ -2763,7 +2862,7 @@ theorem ExprWF.kids {e : expr.Expr} (h : ExprWF e) :
     | .Bvar _ => True
     | .Fvar _ ty => ExprWF ty
     | .«Sort» u => LevelWF u
-    | .Const n us => NameWF n ∧ LevelsWF us
+    | .Const n us => NameWF n ∧ ConstLevelsWF us
     | .App f a => ExprWF f ∧ ExprWF a
     | .Lam ty b m => ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m
     | .ForallE ty b m => ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m
@@ -2775,7 +2874,8 @@ theorem ExprWF.kids {e : expr.Expr} (h : ExprWF e) :
   | @fvar idx ty e hty h1 => obtain ⟨_, rfl, -, -, -⟩ := Expr.fvar_inv h1; exact hty
   | @sort u e hu h1 => obtain ⟨_, _, -, rfl, -, -, -⟩ := Expr.sort_inv h1; exact hu
   | @mk_const n us e hn hus h1 =>
-    obtain ⟨_, _, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1; exact ⟨hn, hus⟩
+    obtain ⟨_, _, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
+    exact ⟨hn, Levels.constLevelsWF_ofVec hus⟩
   | @app f a e hf ha h1 => obtain ⟨_, rfl, -, -, -⟩ := Expr.app_inv h1; exact ⟨hf, ha⟩
   | @lam ty b m e hty hb hm h1 => obtain ⟨_, rfl, -, -, -⟩ := Expr.lam_inv h1; exact ⟨hty, hb, hm⟩
   | @forall_e ty b m e hty hb hm h1 =>
@@ -2792,7 +2892,7 @@ theorem ExprWF.fvar_kids {d idx ty} (h : ExprWF (.mk (.mk d (.Fvar idx ty)))) : 
 theorem ExprWF.sort_kids {d u} (h : ExprWF (.mk (.mk d (.«Sort» u)))) : LevelWF u :=
   ExprWF.kids h
 theorem ExprWF.const_kids {d n us} (h : ExprWF (.mk (.mk d (.Const n us)))) :
-    NameWF n ∧ LevelsWF us := ExprWF.kids h
+    NameWF n ∧ ConstLevelsWF us := ExprWF.kids h
 theorem ExprWF.app_kids {d f a} (h : ExprWF (.mk (.mk d (.App f a)))) : ExprWF f ∧ ExprWF a :=
   ExprWF.kids h
 theorem ExprWF.lam_kids {d ty b m} (h : ExprWF (.mk (.mk d (.Lam ty b m)))) :
@@ -2834,7 +2934,7 @@ theorem ExprWF.ind_node {motive : (e : expr.Expr) → ExprWF e → Prop}
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1; exact sort d u (.sort hu h1)
   | @mk_const n us e hn hus h1 =>
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-    exact mk_const d n us (.mk_const hn hus h1)
+    exact mk_const d n (Levels.ofVec us) (.mk_const hn hus h1)
   | @app f a e hf ha h1 ihf iha =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
     exact app d f a (.app hf ha h1) (fun _ => ihf) (fun _ => iha)
