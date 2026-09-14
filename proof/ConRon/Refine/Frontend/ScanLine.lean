@@ -18,7 +18,17 @@ fails where con-leche fails:
   `scan_opaque_decl_refines`, `scan_quot_decl_refines`,
   `scan_ind_decl_refines` — the six declaration records;
 * `scan_line_loop_refines` — the line dispatcher;
-* **`scan_line_fwd_refines`** — the capstone, with its axiom census pinned.
+* **`scan_line_fwd_refines`** — the capstone, with its axiom census pinned;
+* `scan_line_fwd_tail` — `ParseIngredients`' incomplete-tail ingredient, and
+  the con-leche fact it stands on (`scanLineFwd_tail_of_no_newline`,
+  `scanLineLoop_ge`, `skipWs_ge`, `newlineFrom_false`);
+* `scan_line_fwd_str_wf` — the two *spelling* payloads of a declaration record
+  hold valid code points (`IndR.lean`'s `LineRecStrWF`), a phase-1 gap.
+
+`ParseIngredients`' third scanner field, `newline_from`, needs nothing from
+this file: `ScanKit.newline_from_refines` is already stated in the field's
+orientation (`newline_from b i = ok r → r = newlineFrom (absBytes b)
+(absPos i)`), and `scan_line_fwd_tail` below is its one consumer here.
 
 ## How the two recognisers are lined up
 
@@ -48,11 +58,20 @@ is proved: `ScanKit` (`byte_at`, `skip_ws`, `key_end`, `key_at`, `value_at`,
 `ScanStr` (`scan_string`, `scan_quoted_nat`), `ScanExpr` (the six expression
 records) and `ScanInd` (the three inductive lists).
 
+The two `Prop`s reach `scan_line_fwd_refines` only: `scan_line_fwd_tail` and
+`scan_line_fwd_str_wf` are hypothesis-free, and their censuses are pinned
+beside them.
+
+`ScanWF.lean` (phase 1) is imported for one lemma, `scan_string_wf`: the
+spelling proofs below are its member-loop shape, and the port's decoder is
+where a valid code point comes from.
+
 ## `sorry` count in this file: 0
 -/
 import ConRon.Refine.Frontend.ScanStr
 import ConRon.Refine.Frontend.ScanExpr
 import ConRon.Refine.Frontend.ScanInd
+import ConRon.Refine.Frontend.ScanWF
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
@@ -3460,5 +3479,703 @@ theorem scan_line_fwd_tail {b : Slice Std.U8} {i : Std.Usize}
 /-- info: 'ConRon.Refine.Frontend.scan_line_fwd_tail' depends on axioms: [propext,
 Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms scan_line_fwd_tail
+
+/-! ## What exactness needs of the scanner beyond `LineRecWF`
+
+**A phase-1 gap, closed here.**  `Refine/Frontend/Base.lean`'s `LineRecWF`
+gives a `Decl` record no clause, on the grounds that a definition record's
+`safety` and a `#QUOT` record's `kind` — the two `Vec<u32>` *spelling* fields —
+"are compared with literals and never become a `Name`".  That is right for
+well-formedness and **wrong for exactness**: `absString` sends a word that is
+not a valid code point to `'\0'`, so without a validity side condition the
+port's `text::cps_beq` against `SAFE`/`"type"` can disagree with con-leche's
+`String` match in the *rejecting* direction.  `Refine/Frontend/IndR.lean`'s
+`apply_line_refines` therefore takes a `LineRecStrWF` and this file owes it.
+
+`DeclStrWF`/`LineStrWF` below are `IndR.lean`'s `DeclRecStrWF`/`LineRecStrWF`
+spelled again, because `IndR` sits far above the scanner in the import graph
+and the scanner must not import it; the two pairs are the same definition, so
+`exact scan_line_fwd_str_wf h` discharges a `LineRecStrWF` goal directly.
+
+The proofs are `Refine/Frontend/ScanWF.lean`'s (phase 1's) member-loop shape,
+and `scan_string_wf` — the one producer of a string payload, which validates
+its code points as it decodes — is what re-establishes the invariant at the
+one key that installs one.  The other four declaration loops owe only *which
+constructor they built*. -/
+
+/-- The declaration record's two *spelling* payloads hold valid code points.
+`Refine/Frontend/IndR.lean`'s `DeclRecStrWF`, restated below the tier that
+defines it. -/
+def DeclStrWF : frontend.scan_types.DeclRec → Prop
+  | .Defn _ _ _ s => StrWF s
+  | .Quot _ k => StrWF k
+  | _ => True
+
+/-- `DeclStrWF` at a line (`IndR.lean`'s `LineRecStrWF`). -/
+def LineStrWF : frontend.scan_types.LineRec → Prop
+  | .Decl d => DeclStrWF d
+  | _ => True
+
+/-- The parse state of one line, for `DeclStrWF`. -/
+private def LinePayloadStrWF : frontend.scan_fast.LinePayload → Prop
+  | .Decl d => DeclStrWF d
+  | _ => True
+
+/-- `scan_fast::err` never yields an `Ok`. -/
+private theorem err_ne_ok {T : Type} {offset : Std.Usize}
+    {what : frontend.scan_types.ErrTag} {x : T × Std.Usize}
+    (h : frontend.scan_fast.err T offset what = ok (.Ok x)) : False := by
+  simp [frontend.scan_fast.err] at h
+
+/-- The empty spelling is well formed. -/
+private theorem str_new : StrWF (alloc.vec.Vec.new Std.U32) := by
+  simp [StrWF, alloc.vec.Vec.new]
+
+/-- `scan_fast::scan_axiom_decl_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2008-2077 scanAxiomDeclLoop`): `DeclRec::Ax`,
+which has no spelling payload. -/
+private theorem scan_axiom_decl_loop_str_wf {b : Slice Std.U8} (f : Nat) :
+    ∀ {w : Bool} {i : Std.Usize} {seen : Std.U32} {is_uns : Bool}
+      {lps : alloc.vec.Vec Std.U64} {nm ty : Std.U64}
+      {d : frontend.scan_types.DeclRec} {j : Std.Usize},
+      b.length - i.val ≤ f →
+      frontend.scan_fast.scan_axiom_decl_loop_loop w b i seen is_uns lps nm ty
+        = ok (.Ok (d, j)) → DeclStrWF d := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w i seen is_uns lps nm ty d j hf h
+    rw [frontend.scan_fast.scan_axiom_decl_loop_loop.eq_def] at h
+    obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rename_i _ p
+      obtain ⟨mem, ni, nw⟩ := p
+      simp only [uncurry_apply_pair] at h
+      have hilt := next_member_lt hres
+      split at h
+      · repeat' (first
+          | exact (err_ne_ok h).elim
+          | split at h
+          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+        all_goals
+          (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+             Prod.mk.injEq] at h
+           rw [← h.1]
+           trivial)
+      · rename_i k ks v
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+        split at h
+        all_goals
+          first
+            | exact (err_ne_ok h).elim
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   have he := slot_nat_prog hr1
+                   obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                   exact ih _ (by omega) (le_refl _) h
+                 · simp at h)
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                   split at h
+                   · have he := prog_lt hb2 (by assumption)
+                     obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                     exact ih _ (by omega) (le_refl _) h
+                   · exact (err_ne_ok h).elim
+                 · simp at h)
+    · simp at h
+
+/-- `scan_fast::scan_axiom_decl` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2079-2083 scanAxiomDecl`). -/
+theorem scan_axiom_decl_str_wf {b : Slice Std.U8} {i : Std.Usize}
+    {d : frontend.scan_types.DeclRec} {j : Std.Usize}
+    (h : frontend.scan_fast.scan_axiom_decl b i = ok (.Ok (d, j))) : DeclStrWF d := by
+  rw [frontend.scan_fast.scan_axiom_decl] at h
+  obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    rw [frontend.scan_fast.scan_axiom_decl_loop] at h
+    exact scan_axiom_decl_loop_str_wf (b.length - i2.val) (le_refl _) h
+  · exact (err_ne_ok h).elim
+
+/-- `scan_fast::scan_def_decl_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2085-2191 scanDefDeclLoop`): `DeclRec::Defn`,
+whose `safety` spelling is the loop's own accumulator — the one real invariant
+of the six, re-established at `"sf"` by `scan_string_wf`. -/
+private theorem scan_def_decl_loop_str_wf {b : Slice Std.U8} (f : Nat) :
+    ∀ {w : Bool} {i : Std.Usize} {seen : Std.U32} {hints : frontend.scan_types.HintsRec}
+      {lps : alloc.vec.Vec Std.U64} {nm : Std.U64} {safety : alloc.vec.Vec Std.U32}
+      {ty vl : Std.U64} {d : frontend.scan_types.DeclRec} {j : Std.Usize},
+      b.length - i.val ≤ f → StrWF safety →
+      frontend.scan_fast.scan_def_decl_loop_loop w b i seen hints lps nm safety ty vl
+        = ok (.Ok (d, j)) → DeclStrWF d := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w i seen hints lps nm safety ty vl d j hf hs h
+    rw [frontend.scan_fast.scan_def_decl_loop_loop.eq_def] at h
+    obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rename_i _ p
+      obtain ⟨mem, ni, nw⟩ := p
+      simp only [uncurry_apply_pair] at h
+      have hilt := next_member_lt hres
+      split at h
+      · repeat' (first
+          | exact (err_ne_ok h).elim
+          | split at h
+          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+        all_goals
+          (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+             Prod.mk.injEq] at h
+           rw [← h.1]
+           exact hs)
+      · rename_i k ks v
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+        split at h
+        all_goals
+          first
+            | exact (err_ne_ok h).elim
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   have he := slot_nat_prog hr1
+                   obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                   exact ih _ (by omega) (le_refl _) hs h
+                 · simp at h)
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                   split at h
+                   · have he := prog_lt hb2 (by assumption)
+                     obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                     exact ih _ (by omega) (le_refl _)
+                       (by first | exact hs | exact scan_string_wf hr1) h
+                   · exact (err_ne_ok h).elim
+                 · simp at h)
+    · simp at h
+
+/-- `scan_fast::scan_def_decl` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2193-2197 scanDefDecl`). -/
+theorem scan_def_decl_str_wf {b : Slice Std.U8} {i : Std.Usize}
+    {d : frontend.scan_types.DeclRec} {j : Std.Usize}
+    (h : frontend.scan_fast.scan_def_decl b i = ok (.Ok (d, j))) : DeclStrWF d := by
+  rw [frontend.scan_fast.scan_def_decl] at h
+  obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    rw [frontend.scan_fast.scan_def_decl_loop] at h
+    exact scan_def_decl_loop_str_wf (b.length - i2.val) (le_refl _) str_new h
+  · exact (err_ne_ok h).elim
+
+/-- `scan_fast::scan_thm_decl_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2199-2268 scanThmDeclLoop`): `DeclRec::Thm`. -/
+private theorem scan_thm_decl_loop_str_wf {b : Slice Std.U8} (f : Nat) :
+    ∀ {w : Bool} {i : Std.Usize} {seen : Std.U32} {lps : alloc.vec.Vec Std.U64}
+      {nm ty vl : Std.U64} {d : frontend.scan_types.DeclRec} {j : Std.Usize},
+      b.length - i.val ≤ f →
+      frontend.scan_fast.scan_thm_decl_loop_loop w b i seen lps nm ty vl
+        = ok (.Ok (d, j)) → DeclStrWF d := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w i seen lps nm ty vl d j hf h
+    rw [frontend.scan_fast.scan_thm_decl_loop_loop.eq_def] at h
+    obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rename_i _ p
+      obtain ⟨mem, ni, nw⟩ := p
+      simp only [uncurry_apply_pair] at h
+      have hilt := next_member_lt hres
+      split at h
+      · repeat' (first
+          | exact (err_ne_ok h).elim
+          | split at h
+          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+        all_goals
+          (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+             Prod.mk.injEq] at h
+           rw [← h.1]
+           trivial)
+      · rename_i k ks v
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+        split at h
+        all_goals
+          first
+            | exact (err_ne_ok h).elim
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   have he := slot_nat_prog hr1
+                   obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                   exact ih _ (by omega) (le_refl _) h
+                 · simp at h)
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                   split at h
+                   · have he := prog_lt hb2 (by assumption)
+                     obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                     exact ih _ (by omega) (le_refl _) h
+                   · exact (err_ne_ok h).elim
+                 · simp at h)
+    · simp at h
+
+/-- `scan_fast::scan_thm_decl` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2270-2274 scanThmDecl`). -/
+theorem scan_thm_decl_str_wf {b : Slice Std.U8} {i : Std.Usize}
+    {d : frontend.scan_types.DeclRec} {j : Std.Usize}
+    (h : frontend.scan_fast.scan_thm_decl b i = ok (.Ok (d, j))) : DeclStrWF d := by
+  rw [frontend.scan_fast.scan_thm_decl] at h
+  obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    rw [frontend.scan_fast.scan_thm_decl_loop] at h
+    exact scan_thm_decl_loop_str_wf (b.length - i2.val) (le_refl _) h
+  · exact (err_ne_ok h).elim
+
+/-- `scan_fast::scan_opaque_decl_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2276-2358 scanOpaqueDeclLoop`):
+`DeclRec::Opaq`. -/
+private theorem scan_opaque_decl_loop_str_wf {b : Slice Std.U8} (f : Nat) :
+    ∀ {w : Bool} {i : Std.Usize} {seen : Std.U32} {is_uns : Bool}
+      {lps : alloc.vec.Vec Std.U64} {nm ty vl : Std.U64}
+      {d : frontend.scan_types.DeclRec} {j : Std.Usize},
+      b.length - i.val ≤ f →
+      frontend.scan_fast.scan_opaque_decl_loop_loop w b i seen is_uns lps nm ty vl
+        = ok (.Ok (d, j)) → DeclStrWF d := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w i seen is_uns lps nm ty vl d j hf h
+    rw [frontend.scan_fast.scan_opaque_decl_loop_loop.eq_def] at h
+    obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rename_i _ p
+      obtain ⟨mem, ni, nw⟩ := p
+      simp only [uncurry_apply_pair] at h
+      have hilt := next_member_lt hres
+      split at h
+      · repeat' (first
+          | exact (err_ne_ok h).elim
+          | split at h
+          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+        all_goals
+          (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+             Prod.mk.injEq] at h
+           rw [← h.1]
+           trivial)
+      · rename_i k ks v
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+        split at h
+        all_goals
+          first
+            | exact (err_ne_ok h).elim
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   have he := slot_nat_prog hr1
+                   obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                   exact ih _ (by omega) (le_refl _) h
+                 · simp at h)
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                   split at h
+                   · have he := prog_lt hb2 (by assumption)
+                     obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                     exact ih _ (by omega) (le_refl _) h
+                   · exact (err_ne_ok h).elim
+                 · simp at h)
+    · simp at h
+
+/-- `scan_fast::scan_opaque_decl` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2360-2364 scanOpaqueDecl`). -/
+theorem scan_opaque_decl_str_wf {b : Slice Std.U8} {i : Std.Usize}
+    {d : frontend.scan_types.DeclRec} {j : Std.Usize}
+    (h : frontend.scan_fast.scan_opaque_decl b i = ok (.Ok (d, j))) : DeclStrWF d := by
+  rw [frontend.scan_fast.scan_opaque_decl] at h
+  obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    rw [frontend.scan_fast.scan_opaque_decl_loop] at h
+    exact scan_opaque_decl_loop_str_wf (b.length - i2.val) (le_refl _) h
+  · exact (err_ne_ok h).elim
+
+/-- `scan_fast::scan_quot_decl_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2366-2435 scanQuotDeclLoop`): `DeclRec::Quot`,
+whose `kind` spelling is the loop's accumulator — the second of the two real
+invariants, re-established at `"kind"` by `scan_string_wf`. -/
+private theorem scan_quot_decl_loop_str_wf {b : Slice Std.U8} (f : Nat) :
+    ∀ {w : Bool} {i : Std.Usize} {seen : Std.U32} {kind : alloc.vec.Vec Std.U32}
+      {lps : alloc.vec.Vec Std.U64} {nm ty : Std.U64}
+      {d : frontend.scan_types.DeclRec} {j : Std.Usize},
+      b.length - i.val ≤ f → StrWF kind →
+      frontend.scan_fast.scan_quot_decl_loop_loop w b i seen kind lps nm ty
+        = ok (.Ok (d, j)) → DeclStrWF d := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w i seen kind lps nm ty d j hf hs h
+    rw [frontend.scan_fast.scan_quot_decl_loop_loop.eq_def] at h
+    obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rename_i _ p
+      obtain ⟨mem, ni, nw⟩ := p
+      simp only [uncurry_apply_pair] at h
+      have hilt := next_member_lt hres
+      split at h
+      · repeat' (first
+          | exact (err_ne_ok h).elim
+          | split at h
+          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+        all_goals
+          (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+             Prod.mk.injEq] at h
+           rw [← h.1]
+           exact hs)
+      · rename_i k ks v
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+        split at h
+        all_goals
+          first
+            | exact (err_ne_ok h).elim
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   have he := slot_nat_prog hr1
+                   obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                   exact ih _ (by omega) (le_refl _) hs h
+                 · simp at h)
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                   split at h
+                   · have he := prog_lt hb2 (by assumption)
+                     obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                     exact ih _ (by omega) (le_refl _)
+                       (by first | exact hs | exact scan_string_wf hr1) h
+                   · exact (err_ne_ok h).elim
+                 · simp at h)
+    · simp at h
+
+/-- `scan_fast::scan_quot_decl` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2437-2441 scanQuotDecl`). -/
+theorem scan_quot_decl_str_wf {b : Slice Std.U8} {i : Std.Usize}
+    {d : frontend.scan_types.DeclRec} {j : Std.Usize}
+    (h : frontend.scan_fast.scan_quot_decl b i = ok (.Ok (d, j))) : DeclStrWF d := by
+  rw [frontend.scan_fast.scan_quot_decl] at h
+  obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    rw [frontend.scan_fast.scan_quot_decl_loop] at h
+    exact scan_quot_decl_loop_str_wf (b.length - i2.val) (le_refl _) str_new h
+  · exact (err_ne_ok h).elim
+
+/-- `scan_fast::scan_ind_decl_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2443-2462 scanIndDeclLoop`): `DeclRec::Ind`,
+three lists and no spelling. -/
+private theorem scan_ind_decl_loop_str_wf {b : Slice Std.U8} (f : Nat) :
+    ∀ {w : Bool} {i : Std.Usize} {seen : Std.U32}
+      {ctors : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+      {recs : alloc.vec.Vec frontend.scan_types.IndRecRec}
+      {types : alloc.vec.Vec frontend.scan_types.IndTypeRec}
+      {d : frontend.scan_types.DeclRec} {j : Std.Usize},
+      b.length - i.val ≤ f →
+      frontend.scan_fast.scan_ind_decl_loop_loop w b i seen ctors recs types
+        = ok (.Ok (d, j)) → DeclStrWF d := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w i seen ctors recs types d j hf h
+    rw [frontend.scan_fast.scan_ind_decl_loop_loop.eq_def] at h
+    obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rename_i _ p
+      obtain ⟨mem, ni, nw⟩ := p
+      simp only [uncurry_apply_pair] at h
+      have hilt := next_member_lt hres
+      split at h
+      · repeat' (first
+          | exact (err_ne_ok h).elim
+          | split at h
+          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+        all_goals
+          (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+             Prod.mk.injEq] at h
+           rw [← h.1]
+           trivial)
+      · rename_i k ks v
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+        split at h
+        all_goals
+          first
+            | exact (err_ne_ok h).elim
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                   split at h
+                   · have he := prog_lt hb2 (by assumption)
+                     obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                     exact ih _ (by omega) (le_refl _) h
+                   · exact (err_ne_ok h).elim
+                 · simp at h)
+    · simp at h
+
+/-- `scan_fast::scan_ind_decl` (con-leche: `ConLeche/Frontend/Scan/Fast.lean`
+`scanIndDecl`). -/
+theorem scan_ind_decl_str_wf {b : Slice Std.U8} {i : Std.Usize}
+    {d : frontend.scan_types.DeclRec} {j : Std.Usize}
+    (h : frontend.scan_fast.scan_ind_decl b i = ok (.Ok (d, j))) : DeclStrWF d := by
+  rw [frontend.scan_fast.scan_ind_decl] at h
+  obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    rw [frontend.scan_fast.scan_ind_decl_loop] at h
+    exact scan_ind_decl_loop_str_wf (b.length - i2.val) (le_refl _) h
+  · exact (err_ne_ok h).elim
+
+/-- `scan_fast::scan_line_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2464-2609 scanLineLoop`): the payload the
+loop carries is `LinePayloadStrWF`, and the six declaration keys are the only
+arms that install one that is not vacuous. -/
+private theorem scan_line_loop_str_wf {b : Slice Std.U8} (f : Nat) :
+    ∀ {w : Bool} {i : Std.Usize} {ik : Std.U8} {idx : Std.U64}
+      {pl : frontend.scan_fast.LinePayload} {r : frontend.scan_types.LineRec}
+      {j : Std.Usize},
+      b.length - i.val ≤ f → LinePayloadStrWF pl →
+      frontend.scan_fast.scan_line_loop_loop w b i ik idx pl = ok (.Ok (r, j)) →
+      LineStrWF r := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w i ik idx pl r j hf hpl h
+    rw [frontend.scan_fast.scan_line_loop_loop.eq_def] at h
+    obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rename_i _ p
+      obtain ⟨mem, ni, nw⟩ := p
+      simp only [uncurry_apply_pair] at h
+      have hilt := next_member_lt hres
+      split at h
+      · repeat' (first
+          | exact (err_ne_ok h).elim
+          | split at h
+          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+        all_goals
+          (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+             Prod.mk.injEq] at h
+           rw [← h.1]
+           trivial)
+      · rename_i k ks v
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+        split at h
+        all_goals
+          first
+            | exact (err_ne_ok h).elim
+            | -- a `slot_nat` machine word wrapped in a fresh payload
+              (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   have he := slot_nat_prog hr1
+                   exact ih _ (by omega) (le_refl _) (by trivial) h
+                 · simp at h
+               · exact (err_ne_ok h).elim)
+            | -- a sub-scanner closed by the `prog` guard
+              (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                   split at h
+                   · have he := prog_lt hb2 (by assumption)
+                     exact ih _ (by omega) (le_refl _)
+                       (by first
+                             | trivial
+                             | exact scan_axiom_decl_str_wf hr1
+                             | exact scan_def_decl_str_wf hr1
+                             | exact scan_thm_decl_str_wf hr1
+                             | exact scan_opaque_decl_str_wf hr1
+                             | exact scan_quot_decl_str_wf hr1
+                             | exact scan_ind_decl_str_wf hr1) h
+                   · exact (err_ne_ok h).elim
+                 · simp at h
+               · exact (err_ne_ok h).elim)
+            | -- `"str"` / `"num"`: the two name scanners behind one `key_beq`
+              (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · obtain ⟨b2, -, h⟩ := bind_eq_ok_iff.mp h
+                 split at h <;>
+                   (obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                    split at h
+                    · rename_i _ p1
+                      obtain ⟨x, e⟩ := p1
+                      simp only [uncurry_apply_pair] at h
+                      obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+                      split at h
+                      · have he := prog_lt hb3 (by assumption)
+                        exact ih _ (by omega) (le_refl _) (by trivial) h
+                      · exact (err_ne_ok h).elim
+                    · simp at h)
+               · exact (err_ne_ok h).elim)
+            | -- `"max"` / `"imax"`: a two-element `scan_nat_list`
+              (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨us, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   split at h
+                   · exact (err_ne_ok h).elim
+                   · obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                     split at h
+                     · have he := prog_lt hb2 (by assumption)
+                       obtain ⟨b3, -, h⟩ := bind_eq_ok_iff.mp h
+                       split at h <;>
+                         (obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+                          obtain ⟨i3, -, h⟩ := bind_eq_ok_iff.mp h
+                          exact ih _ (by omega) (le_refl _) (by trivial) h)
+                     · exact (err_ne_ok h).elim
+                 · simp at h
+               · exact (err_ne_ok h).elim)
+            | -- `"meta"`: a braced object skipped wholesale
+              (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · exact (err_ne_ok h).elim
+                 · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+                   obtain ⟨e, -, h⟩ := bind_eq_ok_iff.mp h
+                   split at h
+                   · exact (err_ne_ok h).elim
+                   · obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                     split at h
+                     · have he := prog_lt hb2 (by assumption)
+                       exact ih _ (by omega) (le_refl _) (by trivial) h
+                     · exact (err_ne_ok h).elim
+               · exact (err_ne_ok h).elim)
+            | -- `"in"` / `"il"` / `"ie"`: the index key leaves the payload alone
+              (split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   have he := slot_nat_prog hr1
+                   exact ih _ (by omega) (le_refl _) hpl h
+                 · simp at h)
+    · simp at h
+
+/-- **The phase-1 gap, closed.**  `scan_fast::scan_line_fwd` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2622-2638 scanLineFwd`): the two spelling
+payloads of the record the scanner hands the parse hold valid code points.
+This is `Refine/Frontend/IndR.lean`'s `LineRecStrWF` — the same definition —
+so `apply_line_refines`' `hr2` is discharged by `exact scan_line_fwd_str_wf
+h`. -/
+theorem scan_line_fwd_str_wf {b : Slice Std.U8} {i : Std.Usize}
+    {r : frontend.scan_types.LineRec} {j : Std.Usize}
+    (h : frontend.scan_fast.scan_line_fwd b i = ok (.Ok (r, j))) : LineStrWF r := by
+  rw [frontend.scan_fast.scan_line_fwd] at h
+  obtain ⟨s, -, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
+  simp only at h
+  split at h
+  · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+    rw [← h.1]; trivial
+  · split at h
+    · simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+      rw [← h.1]; trivial
+    · split at h
+      · exact (err_ne_ok h).elim
+      · obtain ⟨i3, -, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨rr, hrr, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · rename_i _ p
+          obtain ⟨r1, j1⟩ := p
+          simp only [uncurry_apply_pair] at h
+          rw [frontend.scan_fast.scan_line_loop] at hrr
+          have hw := scan_line_loop_str_wf (b.length - i3.val) (le_refl _) (by trivial) hrr
+          obtain ⟨p1, -, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨i4, -, h⟩ := bind_eq_ok_iff.mp h
+          split at h
+          · obtain ⟨i5, -, h⟩ := bind_eq_ok_iff.mp h
+            simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+              Prod.mk.injEq] at h
+            rw [← h.1]; exact hw
+          · split at h
+            · simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+                Prod.mk.injEq] at h
+              rw [← h.1]; exact hw
+            · exact (err_ne_ok h).elim
+        · simp at h
+
+/-- info: 'ConRon.Refine.Frontend.scan_line_fwd_str_wf' depends on axioms: [propext,
+Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms scan_line_fwd_str_wf
 
 end ConRon.Refine.Frontend
