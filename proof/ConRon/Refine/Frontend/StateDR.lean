@@ -101,6 +101,32 @@ Every `LineOut`-valued lemma is the **full outcome** (DESIGN.md §3's ruling of
 `LineErr::Msg`, the parse's own `throw` — con-leche throws too.  `LineErr::
 Verdict` is claimed **impossible** at an `M`-valued function, which is what
 `LineOutV.of_bind` spends one layer up.
+
+### The four outcome shapes, and which one a caller wants
+
+| the port returns | con-leche returns | use |
+|---|---|---|
+| `Result<T, LineErr>` | `M β` | `LineOut A WF o x` |
+| `Result<T, LineErr>` | `M (β ⊕ RecordVerdict)` | `LineOutV A WF o x` |
+| `(Result<(), LineErr>, StateD)` | `M StateD` | `StepOut o st' x` |
+| `(Result<(), LineErr>, StateD)` | `M (StateD ⊕ RecordVerdict)` | `StepOutV o st' x` |
+
+The last two carry `StateDRel st' lst'` **and** phase 1's `StateDWF st'`, so a
+line function needs one hypothesis pair in and gets one pair out.  The bridges
+between them are `LineOutV.of_bind`, `StepOutV.of_bind` (a reader's failure
+inside a line function) and `StepOutV.of_step` (an entry step wrapped with
+`.inl`, which is how `applyLine` calls `parseNameEntryD` and friends).
+
+### The rest of the exports
+
+`IdTableRel` and its five lemmas; `st_{name,level,expr,names,levels}_refines`,
+`get_decl_d_refines`, `parse_pw_d_refines`, `st_fresh_*_refines`;
+`parse_{level,expr}_rec_d_refines`, `parse_{name,level,expr}_entry_d_refines`,
+`parse_rules_d_refines`; `note_{one,block,decl_entries,entries,decl}_refines`
+and `push_decl_refines`; `state_d_init_refines`,
+`parse_result_of_state_refines`; `CtxRel` with `state_model_ctx_refines` and
+the three accessors; `ind_pi_tele_len_refines`; the five `*_dup` identities;
+and the nine `StateDRel.*_update`/`*_push`/`*_step` field lemmas.
 -/
 
 /-! ## The line layer's outcome -/
