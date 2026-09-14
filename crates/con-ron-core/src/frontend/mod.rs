@@ -47,6 +47,7 @@
 //! be stated against.  Everything else in §3.4 stands.
 
 pub mod export;
+pub mod export_c;
 pub mod in_model_rec;
 pub mod nat_decimal;
 pub mod nat_op_ground;

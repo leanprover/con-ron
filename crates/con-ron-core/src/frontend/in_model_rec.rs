@@ -38,8 +38,8 @@ use crate::kernel::env;
 use crate::kernel::env::{ConstantVal, Declaration, RecRule, ReducibilityHint};
 use crate::kernel::expr;
 use crate::kernel::expr::Expr;
-use crate::kernel::name;
 use crate::kernel::name::Name;
+use crate::kernel::prop_when;
 use crate::ron::hashmap::HashMap;
 use crate::ron::ptr::P;
 
@@ -62,7 +62,7 @@ pub fn ind_type_rec_dup(t: &IndTypeRec) -> IndTypeRec {
         cv: env::constant_val_dup(&t.cv),
         n_p: t.n_p,
         n_idx: t.n_idx,
-        ctors: names_dup(&t.ctors),
+        ctors: prop_when::names_copy(&t.ctors),
         is_rec: t.is_rec,
         is_reflexive: t.is_reflexive,
         num_nested: t.num_nested,
@@ -129,20 +129,8 @@ pub fn block_rec_dup(b: &BlockRec) -> BlockRec {
     }
 }
 
-/// con-leche: none — `List.map Name.dup`, which §3.4 forbids as an iterator
-/// adapter; `frontend/` may loop (task #84).
-fn names_dup(ns: &Vec<Name>) -> Vec<Name> {
-    let mut out: Vec<Name> = Vec::with_capacity(ns.len());
-    let n = ns.len();
-    let mut i = 0usize;
-    while i < n {
-        out.push(name::dup(&ns[i]));
-        i += 1;
-    }
-    out
-}
-
-/// con-leche: none — `List.map RecRule.dup` (see `names_dup`).
+/// con-leche: none — `List.map RecRule.dup`, which §3.4 forbids as an
+/// iterator adapter; `frontend/` may loop (task #84).
 fn rec_rules_dup(rs: &Vec<RecRule>) -> Vec<RecRule> {
     let mut out: Vec<RecRule> = Vec::with_capacity(rs.len());
     let n = rs.len();
@@ -154,7 +142,7 @@ fn rec_rules_dup(rs: &Vec<RecRule>) -> Vec<RecRule> {
     out
 }
 
-/// con-leche: none — `List.map IndTypeRec.dup` (see `names_dup`).
+/// con-leche: none — `List.map IndTypeRec.dup` (see `rec_rules_dup`).
 fn ind_type_recs_dup(ts: &Vec<IndTypeRec>) -> Vec<IndTypeRec> {
     let mut out: Vec<IndTypeRec> = Vec::with_capacity(ts.len());
     let n = ts.len();
@@ -166,7 +154,7 @@ fn ind_type_recs_dup(ts: &Vec<IndTypeRec>) -> Vec<IndTypeRec> {
     out
 }
 
-/// con-leche: none — `List.map IndCtorRec.dup` (see `names_dup`).
+/// con-leche: none — `List.map IndCtorRec.dup` (see `rec_rules_dup`).
 fn ind_ctor_recs_dup(cs: &Vec<IndCtorRec>) -> Vec<IndCtorRec> {
     let mut out: Vec<IndCtorRec> = Vec::with_capacity(cs.len());
     let n = cs.len();
@@ -178,7 +166,7 @@ fn ind_ctor_recs_dup(cs: &Vec<IndCtorRec>) -> Vec<IndCtorRec> {
     out
 }
 
-/// con-leche: none — `List.map IndRecRec.dup` (see `names_dup`).
+/// con-leche: none — `List.map IndRecRec.dup` (see `rec_rules_dup`).
 fn ind_rec_recs_dup(rs: &Vec<IndRecRec>) -> Vec<IndRecRec> {
     let mut out: Vec<IndRecRec> = Vec::with_capacity(rs.len());
     let n = rs.len();
@@ -243,7 +231,7 @@ pub struct ModelCtx<'a> {
 pub fn ctx_tbl<'a>(ctx: &'a ModelCtx<'a>, n: &Name) -> Option<(Vec<Name>, Expr)> {
     match ctx.tbl.get(n) {
         None => None,
-        Some(e) => Some((names_dup(&e.0), expr::dup(&e.1))),
+        Some(e) => Some((prop_when::names_copy(&e.0), expr::dup(&e.1))),
     }
 }
 
@@ -285,6 +273,7 @@ pub trait Modeller {
 mod tests {
     use super::*;
     use crate::kernel::env::ConstantVal;
+    use crate::kernel::name;
 
     fn cp(t: &str) -> Vec<u32> {
         t.chars().map(|c| c as u32).collect()
