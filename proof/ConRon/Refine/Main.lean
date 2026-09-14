@@ -726,7 +726,6 @@ prelude's parse), `hparse` (the stream's parse), `hprep` (the prepare step) and
 theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
     (hgen : Frontend.ModellerWF inst g)
-    (hu : Frontend.Utf8DecodeSpec) (hun : Frontend.UnescapeSpec)
     (hsp : Frontend.IndRSpec inst g)
     {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode text = ok (.Ok pins))
@@ -742,7 +741,8 @@ theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     False := by
   -- 1. the parse: the port's records hold the theorem record of type `False`
-  obtain ⟨x, hx, hsim⟩ := Frontend.parse_chunks_refines_of_specs hu hun hsp hparse
+  obtain ⟨x, hx, hsim⟩ := Frontend.parse_chunks_refines_of_specs
+    Frontend.utf8_decode_spec Frontend.unescape_spec hsp hparse
   obtain ⟨cv, vl, hty, hmem⟩ := ConLeche.Frontend.parseChunks_jsonWithTheoremFalse hfalse hx
   have hmem : ConLeche.Declaration.thmDecl cv vl ∈ Frontend.absDecls r.decls := by
     rw [Frontend.absDecls, hsim.decls]; exact Array.mem_toList_iff.mpr hmem
@@ -778,7 +778,6 @@ naming it adds no `toStr` axiom (task #84 §8, task #86). -/
 theorem conron.no_False_declaration_prelude (V : Type w) [ConLeche.SetTheory V]
     {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
     (hgen : Frontend.ModellerWF inst g)
-    (hu : Frontend.Utf8DecodeSpec) (hun : Frontend.UnescapeSpec)
     (hsp : Frontend.IndRSpec inst g)
     {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode text = ok (.Ok pins))
@@ -793,7 +792,8 @@ theorem conron.no_False_declaration_prelude (V : Type w) [ConLeche.SetTheory V]
     {e : env.Env}
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     False := by
-  obtain ⟨x, hx, hsim⟩ := Frontend.parse_chunks_refines_of_specs hu hun hsp hparse
+  obtain ⟨x, hx, hsim⟩ := Frontend.parse_chunks_refines_of_specs
+    Frontend.utf8_decode_spec Frontend.unescape_spec hsp hparse
   obtain ⟨cv, vl, hty, hmem⟩ := ConLeche.Frontend.parseChunks_jsonWithTheoremFalse hfalse hx
   have hmem : ConLeche.Declaration.thmDecl cv vl ∈ Frontend.absDecls r.decls := by
     rw [Frontend.absDecls, hsim.decls]; exact Array.mem_toList_iff.mpr hmem
