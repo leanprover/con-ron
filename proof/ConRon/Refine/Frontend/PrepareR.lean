@@ -1330,6 +1330,58 @@ theorem hoist_order_refines {target : ron.hashmap.HashMap Std.U64 Std.U64}
   simpa [hoistBuckets, List.range_eq_range', alloc.vec.Vec.with_capacity,
     alloc.vec.Vec.new] using this
 
+/-! ### The name index's probe
+
+`nat_op_ground::idx_get` is task #13's *owning* probe of the name index: it
+answers a `u64`, not a borrow into the map (AENEAS_FINDINGS §2.1 F1).
+con-leche writes the index inline in `hoistTargets`' `Id.run do`, so there is
+no Lean function to cite; the probe is therefore stated against the map
+`HoistIdxRel` says the port is holding. -/
+
+/-- The name index's `Hashable` dictionary. -/
+private abbrev idxHashable := name.Name.Insts.Con_ron_coreRonHashmapHashable
+/-- The name index's `Eq2` dictionary: the port's own `name::beq`. -/
+private abbrev idxEq2 := name.Name.Insts.Con_ron_coreRonHashmapEq2
+
+/-- `name::beq` never lies about well-formed names — `Refine/HashMapWF.lean`'s
+hypothesis, discharged (the same one-liner as `Refine/FEnv.lean`'s
+`name_eq2_fwd`, which this file does not import). -/
+private theorem idx_eq2_fwd : HashMap.Eq2Fwd idxEq2 NameWF := by
+  intro a b c ha hb h
+  have h' : name.beq a b = ok c := h
+  rw [Name.beq_refines ha hb h']
+  exact decide_eq_decide.mpr
+    ⟨fun hc => Name.absName_injective ha hb hc, fun hc => by rw [hc]⟩
+
+/-- `ConLeche/Frontend/NatOpGround.lean:112-116` — `hoistTargets`' name index:
+the port's `ron::HashMap<Name, u64>` denotes con-leche's
+`Std.HashMap Name Nat`. -/
+structure HoistIdxRel (idx : ron.hashmap.HashMap name.Name Std.U64)
+    (s : _root_.Std.HashMap ConLeche.Name Nat) : Prop where
+  /-- the port's own hash-table invariant -/
+  inv : HashMap.Inv idxHashable idx
+  /-- every key it holds is a name a smart constructor built, without which
+  `name::beq` is not exact -/
+  keys : HashMap.KeysOk NameWF idx
+  /-- name for name -/
+  get : ∀ n, NameWF n → (HashMap.toFun idx n).map (·.val) = s[absName n]?
+
+/-- `ConLeche/Frontend/NatOpGround.lean:121`, `:134` — **`nat_op_ground::idx_get`
+refines the cited `idx[g]?`.** -/
+theorem idx_get_refines {idx : ron.hashmap.HashMap name.Name Std.U64}
+    {s : _root_.Std.HashMap ConLeche.Name Nat} {n : name.Name} {o : Option Std.U64}
+    (hrel : HoistIdxRel idx s) (hn : NameWF n)
+    (h : frontend.nat_op_ground.idx_get idx n = ok o) :
+    o.map (·.val) = s[absName n]? := by
+  rw [frontend.nat_op_ground.idx_get] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨r, hget, ho⟩ := h
+  rw [HashMap.get_refines_wf idx_eq2_fwd hrel.inv hrel.keys hn hget] at ho
+  rw [← hrel.get n hn]
+  cases hr : HashMap.toFun idx n with
+  | none => rw [hr] at ho; simp only [Result.ok.injEq] at ho; rw [← ho]
+  | some x => rw [hr] at ho; simp only [Result.ok.injEq] at ho; rw [← ho]
+
 /-! ### The residue
 
 Two hypotheses, both about the hoist; everything else of the two passes is
@@ -1625,6 +1677,24 @@ theorem prepare_prelude_refines (hspec : HoistSpec) {pre : frontend.prepare.Prel
   rw [← hout, ConLeche.Frontend.preparePrelude]
   exact prepare_d_refines hspec hpre hds hp
 
+
+
+
+/-! ## Axiom census (DESIGN.md §5, the P3 gate)
+
+Every theorem of this file is a plain forward argument over the generated model
+and reaches past nothing but Lean's own three axioms.  `HoistSpec` is a
+*hypothesis*, not an axiom: it appears in the statement of everything that
+needs it. -/
+
+/-- info: 'ConRon.Refine.Frontend.prepare_prelude_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms prepare_prelude_refines
+
+/-- info: 'ConRon.Refine.Frontend.hoist_nat_op_ground_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms hoist_nat_op_ground_refines
+
+/-- info: 'ConRon.Refine.Frontend.front_of_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms front_of_refines
 
 
 end ConRon.Refine.Frontend
