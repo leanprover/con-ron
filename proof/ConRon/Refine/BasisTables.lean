@@ -21,6 +21,7 @@ reason the Nat-op pins go the other way).
 -/
 import ConRon.Generated
 import ConRon.Refine.Abs
+import ConRon.Refine.Levels
 import ConRon.Refine.Nat
 import ConLeche.Kernel.BasisA
 
@@ -276,6 +277,20 @@ theorem levels_have_param_from_aux (us : alloc.vec.Vec level.Level) :
     level.levels_have_param us ⦃ _ => True ⦄ := by
   unfold level.levels_have_param; step*
 
+/-! ### `kernel::levels` (task #93) -/
+
+@[local step] theorem levels_c_hash_spec (ls : levels.Levels) :
+    levels.hash ls ⦃ _ => True ⦄ := by
+  unfold levels.hash; cases ls <;> step*
+
+@[local step] theorem levels_c_have_param_spec (ls : levels.Levels) :
+    levels.have_param ls ⦃ _ => True ⦄ := by
+  unfold levels.have_param; cases ls <;> step*
+
+@[local step] theorem levels_of_vec_spec (us : alloc.vec.Vec level.Level) :
+    levels.of_vec us ⦃ r => r = ConRon.Refine.Levels.ofVec us ⦄ := by
+  rw [ConRon.Refine.Levels.levels_of_vec_eq]; exact .ret rfl
+
 theorem names_hash_from_aux (ps : alloc.vec.Vec name.Name) :
     ∀ (n : Nat) (i : Std.Usize) (acc : Std.U64), ps.val.length - i.val ≤ n →
       prop_when.names_hash_from ps i acc ⦃ _ => True ⦄ := by
@@ -353,9 +368,14 @@ theorem names_hash_from_aux (ps : alloc.vec.Vec name.Name) :
     expr.sort u ⦃ e => ∃ h, e = .mk (.mk h (.«Sort» u)) ⦄ := by
   unfold expr.sort; step*
 
+@[local step] theorem expr_mk_const_levels_spec (n : name.Name) (us : levels.Levels) :
+    expr.mk_const_levels n us ⦃ e => ∃ h, e = .mk (.mk h (.Const n us)) ⦄ := by
+  unfold expr.mk_const_levels; step*
+
 @[local step] theorem expr_mk_const_spec (n : name.Name)
     (us : alloc.vec.Vec level.Level) :
-    expr.mk_const n us ⦃ e => ∃ h, e = .mk (.mk h (.Const n us)) ⦄ := by
+    expr.mk_const n us ⦃ e => ∃ h,
+      e = .mk (.mk h (.Const n (ConRon.Refine.Levels.ofVec us))) ⦄ := by
   unfold expr.mk_const; step*
 
 @[local step] theorem expr_app_spec (f a : expr.Expr) :

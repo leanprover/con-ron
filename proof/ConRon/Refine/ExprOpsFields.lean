@@ -1138,7 +1138,7 @@ theorem bvar_bound_go_refines {e : expr.Expr} (he : ExprWF e) :
       simp at h
       obtain ⟨x, hdup, ⟨x1, hins⟩, hr0⟩ := h
       subst hr0
-      have hval : BoundQ (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n us)))) 0#u64 := by
+      have hval : BoundQ (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n (Levels.ofVec us))))) 0#u64 := by
         show (0#u64 : Std.U64).val = _
         simp [ConLeche.Expr.bvarBound]
       rw [Expr.dup_eq hdup] at hins
@@ -1411,7 +1411,7 @@ theorem fvar_range_go_refines {e : expr.Expr} (he : ExprWF e) :
       simp at h
       obtain ⟨x, hdup, ⟨x1, hins⟩, hr0⟩ := h
       subst hr0
-      have hval : RangeQ (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n us)))) 0#u64 := by
+      have hval : RangeQ (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n (Levels.ofVec us))))) 0#u64 := by
         show (0#u64 : Std.U64).val = _
         simp [ConLeche.Expr.fvarRange]
       rw [Expr.dup_eq hdup] at hins
