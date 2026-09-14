@@ -1164,4 +1164,388 @@ theorem proj_rec_value_refines {o : frontend.proj_rec.ProjRecOwner} {l : level.L
       rw [← Result.ok_injective h, if_neg hb]
       rfl
 
+/-! ## `occursConst`, memoised
+
+The port drops con-leche's budgeted descent (`occursConstB`) and runs the
+memoised walk alone (the module note of `proj_rec.rs`), so what it computes is
+`occursConstGo n {} e`.  This section proves the port's walk against the *pure*
+`occursConst` under the memo invariant "a recorded key does not mention `n`". -/
+
+/-- The memo's meaning (`ConLeche/Frontend/ProjRec.lean:180-225 occursConstGo`):
+only `false` is ever recorded, and it is recorded for subterms that really do
+not mention `n`. -/
+def OccQ (lm : ConLeche.Name) (a : ConLeche.Expr) (b : Bool) : Prop :=
+  b = false ∧ ConLeche.Frontend.occursConst lm a = false
+
+/-- A memo hit is a subterm already shown not to mention `n`. -/
+theorem occ_hit {n : name.Name} {seen : ron.hashmap.HashMap expr.Expr Bool}
+    {e : expr.Expr} {b : Bool}
+    (hm : ExprOps.MemoInv ExprWF absExpr (OccQ (absName n)) seen) (he : ExprWF e)
+    (h : ron.hashmap.HashMap.contains_key expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+      expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen e = ok b) :
+    b = true → ConLeche.Frontend.occursConst (absName n) (absExpr e) = false := by
+  rw [ron.hashmap.HashMap.contains_key] at h
+  obtain ⟨o, hget, hb⟩ := bind_eq_ok_iff.mp h
+  cases o with
+  | none => intro hbt; rw [← Result.ok_injective hb] at hbt; simp at hbt
+  | some v =>
+    intro _
+    exact (ExprOps.hit' hget hm ExprOps.expr_key_exact he).2
+
+/-- Recording a `false` keeps the invariant. -/
+theorem occ_set {n : name.Name} {seen seen' : ron.hashmap.HashMap expr.Expr Bool}
+    {e : expr.Expr} {old : Option Bool}
+    (hm : ExprOps.MemoInv ExprWF absExpr (OccQ (absName n)) seen) (he : ExprWF e)
+    (hq : ConLeche.Frontend.occursConst (absName n) (absExpr e) = false)
+    (h : ron.hashmap.HashMap.insert expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+      expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen e false = ok (old, seen')) :
+    ExprOps.MemoInv ExprWF absExpr (OccQ (absName n)) seen' :=
+  ExprOps.set' h hm ExprOps.expr_key_exact he ⟨rfl, hq⟩
+
+/-- `proj_rec::occurs_const_go`/`occurs_const_node` refine `occursConst`
+(`ConLeche/Frontend/ProjRec.lean:127-136 occursConst`), the memo invariant
+threaded through. -/
+theorem occurs_const_go_refines {n : name.Name} (hn : NameWF n)
+    (e : expr.Expr) (he : ExprWF e) :
+    ∀ (seen : ron.hashmap.HashMap expr.Expr Bool)
+      (r : Bool × ron.hashmap.HashMap expr.Expr Bool),
+      ExprOps.MemoInv ExprWF absExpr (OccQ (absName n)) seen →
+      frontend.proj_rec.occurs_const_go n seen e = ok r →
+      r.1 = ConLeche.Frontend.occursConst (absName n) (absExpr e) ∧
+        ExprOps.MemoInv ExprWF absExpr (OccQ (absName n)) r.2 := by
+  induction e, he using ExprWF.ind_node with
+  | bvar d i hwf =>
+    intro seen r hm h
+    rw [frontend.proj_rec.occurs_const_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [← Result.ok_injective h]
+    exact ⟨rfl, hm⟩
+  | fvar d idx ty hwf ihty =>
+    intro seen r hm h
+    rw [frontend.proj_rec.occurs_const_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [← Result.ok_injective h]
+    exact ⟨rfl, hm⟩
+  | sort d u hwf =>
+    intro seen r hm h
+    rw [frontend.proj_rec.occurs_const_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [← Result.ok_injective h]
+    exact ⟨rfl, hm⟩
+  | lit d lt hwf =>
+    intro seen r hm h
+    rw [frontend.proj_rec.occurs_const_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    rw [← Result.ok_injective h]
+    exact ⟨rfl, hm⟩
+  | mk_const d m us hwf =>
+    intro seen r hm h
+    rw [frontend.proj_rec.occurs_const_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨b, hbeq, h⟩ := bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    refine ⟨?_, hm⟩
+    rw [Name.beq_refines (ExprWF.const_kids hwf).1 hn hbeq]
+    rfl
+  | app d f a hwf ihf iha =>
+    intro seen r hm h
+    obtain ⟨hf, ha⟩ := ExprWF.app_kids hwf
+    rw [frontend.proj_rec.occurs_const_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨bc, hcont, h⟩ := bind_eq_ok_iff.mp h
+    cases bc with
+    | true =>
+      simp only [if_true] at h
+      rw [← Result.ok_injective h]
+      exact ⟨(occ_hit hm hwf hcont rfl).symm, hm⟩
+    | false =>
+      simp only [Bool.false_eq_true, if_false] at h
+      obtain ⟨p, hnode, h⟩ := bind_eq_ok_iff.mp h
+      replace h : (if p.1 then ok (true, p.2)
+        else do
+          let e1 ← expr.dup (expr.Expr.mk (expr.ExprNode.mk d (expr.ExprKind.App f a)))
+          let q ← ron.hashmap.HashMap.insert
+            expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+            expr.Expr.Insts.Con_ron_coreRonHashmapEq2 p.2 e1 false
+          ok (false, q.2)) = ok r := h
+      rw [frontend.proj_rec.occurs_const_node.eq_def] at hnode
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hnode
+      obtain ⟨q, hq, hnode⟩ := bind_eq_ok_iff.mp hnode
+      replace hnode : (if q.1 then ok (true, q.2)
+        else frontend.proj_rec.occurs_const_go n q.2 a) = ok p := hnode
+      obtain ⟨hq1, hq2⟩ := ihf hf seen q hm hq
+      cases hqb : q.1 with
+      | true =>
+        rw [hqb] at hnode
+        simp only [if_true] at hnode
+        rw [← Result.ok_injective hnode] at h
+        simp only [if_true] at h
+        rw [← Result.ok_injective h]
+        rw [hqb] at hq1
+        exact ⟨by simp [ConLeche.Frontend.occursConst, ← hq1], hq2⟩
+      | false =>
+        rw [hqb] at hnode
+        simp only [Bool.false_eq_true, if_false] at hnode
+        obtain ⟨hp1, hp2⟩ := iha ha q.2 p hq2 hnode
+        rw [hqb] at hq1
+        cases hpb : p.1 with
+        | true =>
+          rw [hpb] at h
+          simp only [if_true] at h
+          rw [← Result.ok_injective h]
+          rw [hpb] at hp1
+          exact ⟨by simp [ConLeche.Frontend.occursConst, ← hq1, ← hp1], hp2⟩
+        | false =>
+          rw [hpb] at h
+          simp only [Bool.false_eq_true, if_false, expr_dup_eq, bind_tc_ok] at h
+          obtain ⟨w, hins, h⟩ := bind_eq_ok_iff.mp h
+          rw [hpb] at hp1
+          have hocc : ConLeche.Frontend.occursConst (absName n)
+              (absExpr (expr.Expr.mk (expr.ExprNode.mk d
+                (expr.ExprKind.App f a)))) = false := by
+            simp [ConLeche.Frontend.occursConst, ← hq1, ← hp1]
+          rw [← Result.ok_injective h]
+          exact ⟨hocc.symm, occ_set (old := w.1) (seen' := w.2) hp2 hwf hocc hins⟩
+  | lam d ty bo bm hwf ihty ihbo =>
+    intro seen r hm h
+    obtain ⟨hty, hbo, -⟩ := ExprWF.lam_kids hwf
+    rw [frontend.proj_rec.occurs_const_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨bc, hcont, h⟩ := bind_eq_ok_iff.mp h
+    cases bc with
+    | true =>
+      simp only [if_true] at h
+      rw [← Result.ok_injective h]
+      exact ⟨(occ_hit hm hwf hcont rfl).symm, hm⟩
+    | false =>
+      simp only [Bool.false_eq_true, if_false] at h
+      obtain ⟨p, hnode, h⟩ := bind_eq_ok_iff.mp h
+      replace h : (if p.1 then ok (true, p.2)
+        else do
+          let e1 ← expr.dup (expr.Expr.mk (expr.ExprNode.mk d
+            (expr.ExprKind.Lam ty bo bm)))
+          let q ← ron.hashmap.HashMap.insert
+            expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+            expr.Expr.Insts.Con_ron_coreRonHashmapEq2 p.2 e1 false
+          ok (false, q.2)) = ok r := h
+      rw [frontend.proj_rec.occurs_const_node.eq_def] at hnode
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hnode
+      obtain ⟨q, hq, hnode⟩ := bind_eq_ok_iff.mp hnode
+      replace hnode : (if q.1 then ok (true, q.2)
+        else frontend.proj_rec.occurs_const_go n q.2 bo) = ok p := hnode
+      obtain ⟨hq1, hq2⟩ := ihty hty seen q hm hq
+      cases hqb : q.1 with
+      | true =>
+        rw [hqb] at hnode
+        simp only [if_true] at hnode
+        rw [← Result.ok_injective hnode] at h
+        simp only [if_true] at h
+        rw [← Result.ok_injective h]
+        rw [hqb] at hq1
+        exact ⟨by simp [ConLeche.Frontend.occursConst, ← hq1], hq2⟩
+      | false =>
+        rw [hqb] at hnode
+        simp only [Bool.false_eq_true, if_false] at hnode
+        obtain ⟨hp1, hp2⟩ := ihbo hbo q.2 p hq2 hnode
+        rw [hqb] at hq1
+        cases hpb : p.1 with
+        | true =>
+          rw [hpb] at h
+          simp only [if_true] at h
+          rw [← Result.ok_injective h]
+          rw [hpb] at hp1
+          exact ⟨by simp [ConLeche.Frontend.occursConst, ← hq1, ← hp1], hp2⟩
+        | false =>
+          rw [hpb] at h
+          simp only [Bool.false_eq_true, if_false, expr_dup_eq, bind_tc_ok] at h
+          obtain ⟨w, hins, h⟩ := bind_eq_ok_iff.mp h
+          rw [hpb] at hp1
+          have hocc : ConLeche.Frontend.occursConst (absName n)
+              (absExpr (expr.Expr.mk (expr.ExprNode.mk d
+                (expr.ExprKind.Lam ty bo bm)))) = false := by
+            simp [ConLeche.Frontend.occursConst, ← hq1, ← hp1]
+          rw [← Result.ok_injective h]
+          exact ⟨hocc.symm, occ_set (old := w.1) (seen' := w.2) hp2 hwf hocc hins⟩
+  | forall_e d ty bo bm hwf ihty ihbo =>
+    intro seen r hm h
+    obtain ⟨hty, hbo, -⟩ := ExprWF.forall_e_kids hwf
+    rw [frontend.proj_rec.occurs_const_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨bc, hcont, h⟩ := bind_eq_ok_iff.mp h
+    cases bc with
+    | true =>
+      simp only [if_true] at h
+      rw [← Result.ok_injective h]
+      exact ⟨(occ_hit hm hwf hcont rfl).symm, hm⟩
+    | false =>
+      simp only [Bool.false_eq_true, if_false] at h
+      obtain ⟨p, hnode, h⟩ := bind_eq_ok_iff.mp h
+      replace h : (if p.1 then ok (true, p.2)
+        else do
+          let e1 ← expr.dup (expr.Expr.mk (expr.ExprNode.mk d
+            (expr.ExprKind.ForallE ty bo bm)))
+          let q ← ron.hashmap.HashMap.insert
+            expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+            expr.Expr.Insts.Con_ron_coreRonHashmapEq2 p.2 e1 false
+          ok (false, q.2)) = ok r := h
+      rw [frontend.proj_rec.occurs_const_node.eq_def] at hnode
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hnode
+      obtain ⟨q, hq, hnode⟩ := bind_eq_ok_iff.mp hnode
+      replace hnode : (if q.1 then ok (true, q.2)
+        else frontend.proj_rec.occurs_const_go n q.2 bo) = ok p := hnode
+      obtain ⟨hq1, hq2⟩ := ihty hty seen q hm hq
+      cases hqb : q.1 with
+      | true =>
+        rw [hqb] at hnode
+        simp only [if_true] at hnode
+        rw [← Result.ok_injective hnode] at h
+        simp only [if_true] at h
+        rw [← Result.ok_injective h]
+        rw [hqb] at hq1
+        exact ⟨by simp [ConLeche.Frontend.occursConst, ← hq1], hq2⟩
+      | false =>
+        rw [hqb] at hnode
+        simp only [Bool.false_eq_true, if_false] at hnode
+        obtain ⟨hp1, hp2⟩ := ihbo hbo q.2 p hq2 hnode
+        rw [hqb] at hq1
+        cases hpb : p.1 with
+        | true =>
+          rw [hpb] at h
+          simp only [if_true] at h
+          rw [← Result.ok_injective h]
+          rw [hpb] at hp1
+          exact ⟨by simp [ConLeche.Frontend.occursConst, ← hq1, ← hp1], hp2⟩
+        | false =>
+          rw [hpb] at h
+          simp only [Bool.false_eq_true, if_false, expr_dup_eq, bind_tc_ok] at h
+          obtain ⟨w, hins, h⟩ := bind_eq_ok_iff.mp h
+          rw [hpb] at hp1
+          have hocc : ConLeche.Frontend.occursConst (absName n)
+              (absExpr (expr.Expr.mk (expr.ExprNode.mk d
+                (expr.ExprKind.ForallE ty bo bm)))) = false := by
+            simp [ConLeche.Frontend.occursConst, ← hq1, ← hp1]
+          rw [← Result.ok_injective h]
+          exact ⟨hocc.symm, occ_set (old := w.1) (seen' := w.2) hp2 hwf hocc hins⟩
+  | let_e d ty v bo hwf ihty ihv ihbo =>
+    intro seen r hm h
+    obtain ⟨hty, hv, hbo⟩ := ExprWF.let_e_kids hwf
+    rw [frontend.proj_rec.occurs_const_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨bc, hcont, h⟩ := bind_eq_ok_iff.mp h
+    cases bc with
+    | true =>
+      simp only [if_true] at h
+      rw [← Result.ok_injective h]
+      exact ⟨(occ_hit hm hwf hcont rfl).symm, hm⟩
+    | false =>
+      simp only [Bool.false_eq_true, if_false] at h
+      obtain ⟨p, hnode, h⟩ := bind_eq_ok_iff.mp h
+      replace h : (if p.1 then ok (true, p.2)
+        else do
+          let e1 ← expr.dup (expr.Expr.mk (expr.ExprNode.mk d
+            (expr.ExprKind.LetE ty v bo)))
+          let q ← ron.hashmap.HashMap.insert
+            expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+            expr.Expr.Insts.Con_ron_coreRonHashmapEq2 p.2 e1 false
+          ok (false, q.2)) = ok r := h
+      rw [frontend.proj_rec.occurs_const_node.eq_def] at hnode
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hnode
+      obtain ⟨q, hq, hnode⟩ := bind_eq_ok_iff.mp hnode
+      replace hnode : (if q.1 then ok (true, q.2)
+        else do
+          let q2 ← frontend.proj_rec.occurs_const_go n q.2 v
+          if q2.1 then ok (true, q2.2)
+          else frontend.proj_rec.occurs_const_go n q2.2 bo) = ok p := hnode
+      obtain ⟨hq1, hq2⟩ := ihty hty seen q hm hq
+      cases hqb : q.1 with
+      | true =>
+        rw [hqb] at hnode
+        simp only [if_true] at hnode
+        rw [← Result.ok_injective hnode] at h
+        simp only [if_true] at h
+        rw [← Result.ok_injective h]
+        rw [hqb] at hq1
+        exact ⟨by simp [ConLeche.Frontend.occursConst, ← hq1], hq2⟩
+      | false =>
+        rw [hqb] at hnode
+        simp only [Bool.false_eq_true, if_false] at hnode
+        obtain ⟨q2, hq2a, hnode⟩ := bind_eq_ok_iff.mp hnode
+        obtain ⟨hq2v, hq2m⟩ := ihv hv q.2 q2 hq2 hq2a
+        rw [hqb] at hq1
+        cases hq2b : q2.1 with
+        | true =>
+          rw [hq2b] at hnode
+          simp only [if_true] at hnode
+          rw [← Result.ok_injective hnode] at h
+          simp only [if_true] at h
+          rw [← Result.ok_injective h]
+          rw [hq2b] at hq2v
+          exact ⟨by simp [ConLeche.Frontend.occursConst, ← hq1, ← hq2v], hq2m⟩
+        | false =>
+          rw [hq2b] at hnode
+          simp only [Bool.false_eq_true, if_false] at hnode
+          obtain ⟨hp1, hp2⟩ := ihbo hbo q2.2 p hq2m hnode
+          rw [hq2b] at hq2v
+          cases hpb : p.1 with
+          | true =>
+            rw [hpb] at h
+            simp only [if_true] at h
+            rw [← Result.ok_injective h]
+            rw [hpb] at hp1
+            exact ⟨by simp [ConLeche.Frontend.occursConst, ← hq1, ← hq2v, ← hp1], hp2⟩
+          | false =>
+            rw [hpb] at h
+            simp only [Bool.false_eq_true, if_false, expr_dup_eq, bind_tc_ok] at h
+            obtain ⟨w, hins, h⟩ := bind_eq_ok_iff.mp h
+            rw [hpb] at hp1
+            have hocc : ConLeche.Frontend.occursConst (absName n)
+                (absExpr (expr.Expr.mk (expr.ExprNode.mk d
+                  (expr.ExprKind.LetE ty v bo)))) = false := by
+              simp [ConLeche.Frontend.occursConst, ← hq1, ← hq2v, ← hp1]
+            rw [← Result.ok_injective h]
+            exact ⟨hocc.symm, occ_set (old := w.1) (seen' := w.2) hp2 hwf hocc hins⟩
+  | proj d sn idx x hwf ihx =>
+    intro seen r hm h
+    obtain ⟨-, hx⟩ := ExprWF.proj_kids hwf
+    rw [frontend.proj_rec.occurs_const_go.eq_def] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    obtain ⟨bc, hcont, h⟩ := bind_eq_ok_iff.mp h
+    cases bc with
+    | true =>
+      simp only [if_true] at h
+      rw [← Result.ok_injective h]
+      exact ⟨(occ_hit hm hwf hcont rfl).symm, hm⟩
+    | false =>
+      simp only [Bool.false_eq_true, if_false] at h
+      obtain ⟨p, hnode, h⟩ := bind_eq_ok_iff.mp h
+      replace h : (if p.1 then ok (true, p.2)
+        else do
+          let e1 ← expr.dup (expr.Expr.mk (expr.ExprNode.mk d
+            (expr.ExprKind.Proj sn idx x)))
+          let q ← ron.hashmap.HashMap.insert
+            expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+            expr.Expr.Insts.Con_ron_coreRonHashmapEq2 p.2 e1 false
+          ok (false, q.2)) = ok r := h
+      rw [frontend.proj_rec.occurs_const_node.eq_def] at hnode
+      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hnode
+      obtain ⟨hp1, hp2⟩ := ihx hx seen p hm hnode
+      cases hpb : p.1 with
+      | true =>
+        rw [hpb] at h
+        simp only [if_true] at h
+        rw [← Result.ok_injective h]
+        rw [hpb] at hp1
+        exact ⟨by simp [ConLeche.Frontend.occursConst, ← hp1], hp2⟩
+      | false =>
+        rw [hpb] at h
+        simp only [Bool.false_eq_true, if_false, expr_dup_eq, bind_tc_ok] at h
+        obtain ⟨w, hins, h⟩ := bind_eq_ok_iff.mp h
+        rw [hpb] at hp1
+        have hocc : ConLeche.Frontend.occursConst (absName n)
+            (absExpr (expr.Expr.mk (expr.ExprNode.mk d
+              (expr.ExprKind.Proj sn idx x)))) = false := by
+          simp [ConLeche.Frontend.occursConst, ← hp1]
+        rw [← Result.ok_injective h]
+        exact ⟨hocc.symm, occ_set (old := w.1) (seen' := w.2) hp2 hwf hocc hins⟩
+
 end ConRon.Refine.Frontend
