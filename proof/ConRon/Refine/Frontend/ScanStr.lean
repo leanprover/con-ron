@@ -1327,4 +1327,156 @@ theorem from_decimal_ok {ds : Slice Std.U8} (hne : ds.val ≠ [])
 
 end NatDecimal
 
+
+/-! ## `scan_string` (`Scan/Fast.lean:627-647`)
+
+`scanString` slices the body out and hands it to `unescape`, or validates it
+with `String.fromUTF8?`; the port does exactly the same, with `utf8_decode`
+standing for `String.fromUTF8?` and `unescape` split into a byte pass and a
+decode (deviation 1 of `scan_fast.rs`'s module note: Aeneas copies the code
+after a loop into every one of its exits).
+
+The two pieces the split costs are stated as `Prop`s rather than proved here —
+see the note on each, and the file's closing census. -/
+
+/-- **What the port's UTF-8 decoder owes con-leche.**  `scan_fast::utf8_decode`
+has no con-leche counterpart: it stands for Lean's own `String.fromUTF8?`,
+which `scanString` and `unescape` call on the bytes they have collected.  So
+the agreement is a statement about a *primitive*, not a loop-for-loop
+refinement of a ported function, and it is the one piece of this file that is
+not a correspondence between two written-out recursions. -/
+def Utf8DecodeSpec : Prop :=
+  ∀ (b : Slice Std.U8) (j e : Std.Usize) (o : Option (alloc.vec.Vec Std.U32)),
+    frontend.scan_fast.utf8_decode b j e = ok o →
+    o.map absString = String.fromUTF8? ((absBytes b).extract j.val e.val)
+
+/-- **What the port's two-pass `unescape` owes con-leche's one-pass one.**
+`unescape_bytes` collects the bytes and `unescape` validates them; con-leche's
+`unescape` interleaves the two. -/
+def UnescapeSpec : Prop :=
+  ∀ (b : Slice Std.U8) (j e : Std.Usize) (o : Option (alloc.vec.Vec Std.U32)),
+    frontend.scan_fast.unescape b j e = ok o →
+    o.map absString = unescape (absBytes b) (absPos j) (absPos e) ByteArray.empty
+
+/-- The port's `&b[st..en]` as con-leche's `ByteArray.extract`. -/
+theorem absBytes_range {b body : Slice Std.U8} {st en : Std.Usize}
+    (h : core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) b
+          { start := st, «end» := en } = ok body) :
+    absBytes body = (absBytes b).extract st.val en.val := by
+  obtain ⟨h1, h2, h3⟩ := range_index_val h
+  ext1
+  simp [absBytes, h3, List.slice, List.map_take, List.map_drop,
+    List.extract_eq_take_drop]
+
+/-- A slice's length as con-leche's `ByteArray.usize`. -/
+theorem absPos_len {s : Slice Std.U8} : absPos (Slice.len s) = (absBytes s).usize := by
+  apply USize.toNat_inj.mp
+  rw [absPos_toNat, absBytes_usize]
+  scalar_tac
+
+/-- The port's `0` position is con-leche's. -/
+theorem absPos_zero : absPos (0#usize) = (0 : USize) := by
+  apply USize.toNat_inj.mp
+  rw [absPos_toNat]
+  simp
+
+/-- **`scan_fast::scan_string` refines `scanString`** (`Scan/Fast.lean:627-647
+scanString`), under the two `Prop`s above. -/
+theorem scan_string_refines (hu : Utf8DecodeSpec) (hun : UnescapeSpec)
+    {b : Slice Std.U8} {i : Std.Usize}
+    {o : core.result.Result ((alloc.vec.Vec Std.U32) × Std.Usize)
+      frontend.scan_types.ScanErr}
+    (h : frontend.scan_fast.scan_string b i = ok o) :
+    ScanSim absString o (scanString (absBytes b) (absPos i)) := by
+  rw [frontend.scan_fast.scan_string] at h
+  rw [scanString]
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  rw [show byteAt (absBytes b) (absPos i) = absByte c from (byte_at_refines hc).symm]
+  split at h
+  · -- not a quote
+    rename_i hne
+    rw [if_pos (show (absByte c != 34) = true by
+      simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat]
+      scalar_tac)]
+    rw [frontend.scan_fast.err] at h
+    simp only [Result.ok.injEq] at h
+    rw [← h]
+    exact ScanSim.err (ScanErrSim.mk rfl (by first | rfl | rw [absPos_toNat]))
+  · rename_i heq
+    rw [if_neg (show ¬ ((absByte c != 34) = true) by
+      simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat, not_not]
+      scalar_tac)]
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+    rw [← absPos_add_one hi2, ← str_close_refines he]
+    split at h
+    · -- unterminated
+      rename_i hz
+      rw [if_pos (show (absPos e == 0) = true by
+        simp only [beq_iff_eq]
+        apply USize.toNat_inj.mp
+        rw [absPos_toNat]
+        simp only [USize.toNat_ofNat, Nat.zero_mod]
+        scalar_tac)]
+      rw [frontend.scan_fast.err] at h
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact ScanSim.err (ScanErrSim.mk rfl (by first | rfl | rw [absPos_toNat]))
+    · rename_i hnz
+      rw [if_neg (show ¬ ((absPos e == 0) = true) by
+        simp only [beq_iff_eq]
+        intro hcon
+        exact hnz (by
+          have hz := congrArg USize.toNat hcon
+          rw [absPos_toNat] at hz
+          simp only [USize.toNat_ofNat, Nat.zero_mod] at hz
+          scalar_tac))]
+      obtain ⟨esc, hesc, h⟩ := bind_eq_ok_iff.mp h
+      rw [← has_escape_refines hesc]
+      split at h
+      · -- the escaped path
+        rename_i hesct
+        rw [if_pos hesct]
+        obtain ⟨body, hbody, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+        have hqa := hun body 0#usize (Slice.len body) q hq
+        rw [absPos_zero, absPos_len, absBytes_range hbody] at hqa
+        simp only [absPos_toNat]
+        cases q with
+        | none =>
+          rw [← hqa]
+          simp only [Option.map_none]
+          rw [frontend.scan_fast.err] at h
+          simp only [Result.ok.injEq] at h
+          rw [← h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by rfl))
+        | some s =>
+          rw [← hqa]
+          simp only [Option.map_some]
+          obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+          simp only [Result.ok.injEq] at h
+          rw [← h]
+          exact ScanSim.ok (by rw [absPos_add_one hi4])
+      · -- the plain path
+        rename_i hescf
+        rw [if_neg hescf]
+        obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+        have hqa := hu b i2 e q hq
+        simp only [absPos_toNat]
+        cases q with
+        | none =>
+          rw [← hqa]
+          simp only [Option.map_none]
+          rw [frontend.scan_fast.err] at h
+          simp only [Result.ok.injEq] at h
+          rw [← h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by rfl))
+        | some s =>
+          rw [← hqa]
+          simp only [Option.map_some]
+          obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+          simp only [Result.ok.injEq] at h
+          rw [← h]
+          exact ScanSim.ok (by rw [absPos_add_one hi3])
+
 end ConRon.Refine.Frontend
