@@ -1178,8 +1178,8 @@ private theorem proj_rec_value_abs {o : frontend.proj_rec.ProjRecOwner} {l : lev
 what `export_c::proj_rewrite_d` stores in place of the parsed value.  Stated in
 the shape `Refine/Frontend/StateDR.lean`'s `ProjRecSpec.projRecValue` asks for
 (its `absProjOwner` is this file's `absProjRecOwner`, definitionally). -/
-theorem proj_rec_value_refines {o : frontend.proj_rec.ProjRecOwner} {l : level.Level}
-    {ty val : expr.Expr} {i : Std.U64} {res : Option expr.Expr}
+theorem proj_rec_value_refines (o : frontend.proj_rec.ProjRecOwner) (l : level.Level)
+    (ty val : expr.Expr) (i : Std.U64) (res : Option expr.Expr)
     (ho : ProjRecOwnerWF o) (hl : LevelWF l) (hty : ExprWF ty) (hval : ExprWF val)
     (h : frontend.proj_rec.proj_rec_value o l ty val i = ok res) :
     Option.map absExpr res = ConLeche.Frontend.projRecValue (absProjRecOwner o)
