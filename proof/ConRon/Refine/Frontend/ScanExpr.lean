@@ -80,9 +80,8 @@ only its own `Close` and `Key` arms.  `natSlot`/`natSlot_step` do the same for
 by the coordinator's ruling; see `ScanObj`'s "The shared object-member
 step".)
 
-What stays here is phase 1's two measure facts — `next_member_ge` and
-`next_member_lt`, `private` in `Refine/Frontend/ScanWF.lean` — plus
-`slot_nat_prog`, and the `seen`-bitset bridges.
+What stays here is the `seen`-bitset bridges (one lemma per literal, so that
+`simp only` can pick the one the key in hand uses) and `scan_binder_info`.
 
 ## `sorry` count in this file: 0
 -/
@@ -106,13 +105,6 @@ private theorem err_val {T : Type} {offset : Std.Usize}
   rw [frontend.scan_fast.err] at h
   exact (Result.ok_injective h).symm
 
-/-- Every error arm of a scanner is `scan_fast::err`, which never yields an
-`Ok`. -/
-private theorem err_ne_ok {T : Type} {offset : Std.Usize}
-    {what : frontend.scan_types.ErrTag} {x : T × Std.Usize}
-    (h : frontend.scan_fast.err T offset what = ok (.Ok x)) : False := by
-  simp [frontend.scan_fast.err] at h
-
 /-- A pure value the extraction lifted into `Result`. -/
 private theorem lift_val {s r : Std.U32} (h : lift s = ok r) : r = s := by
   simpa using h.symm
@@ -120,107 +112,12 @@ private theorem lift_val {s r : Std.U32} (h : lift s = ok r) : r = s := by
 section Step
 variable {b : Slice Std.U8}
 
-/-! ## The cursor never moves backwards
+/-! ## Plumbing, continued
 
-Phase 1's two measure facts (`Refine/Frontend/ScanWF.lean`, where they are
-`private`), and the slot's own progress guard.  They belong with
-`next_member` in `ScanKit`. -/
-
-private theorem next_member_ge {b : Slice Std.U8} (f : Nat) :
-    ∀ (i : Std.Usize) (w : Bool) (k : frontend.scan_types.Key)
-      (ks v ni : Std.Usize) (nw : Bool),
-      b.length - i.val ≤ f →
-      frontend.scan_fast.next_member b i w
-        = ok (.Ok (frontend.scan_fast.Member.Key k ks v, ni, nw)) →
-      i.val ≤ ks.val := by
-  induction f with
-  | zero =>
-    intro i w k ks v ni nw hf h
-    rw [frontend.scan_fast.next_member, frontend.scan_fast.next_member_loop.eq_def] at h
-    rw [if_pos (show i ≥ Slice.len b by scalar_tac)] at h
-    simp at h
-  | succ f ih =>
-    intro i w k ks v ni nw hf h
-    rw [frontend.scan_fast.next_member, frontend.scan_fast.next_member_loop.eq_def] at h
-    by_cases hend : i ≥ Slice.len b
-    · rw [if_pos hend] at h; simp at h
-    · rw [if_neg hend] at h
-      have hi : i.val < b.length := by scalar_tac
-      obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨w1, -, h⟩ := bind_eq_ok_iff.mp h
-      by_cases hws : w1 = true
-      · rw [if_pos hws] at h
-        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
-        have h1 : i2.val = i.val + 1 := usize_add_one_inv hi2
-        have h2 := ih i2 w k ks v ni nw (by omega) h
-        omega
-      · rw [if_neg hws] at h
-        by_cases hc1 : c = 125#u8
-        · rw [if_pos hc1] at h; simp at h
-        · rw [if_neg hc1] at h
-          by_cases hc2 : c = 44#u8
-          · rw [if_pos hc2] at h
-            by_cases hw : w = true
-            · rw [if_pos hw] at h; simp at h
-            · rw [if_neg hw] at h
-              obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
-              have h1 : i2.val = i.val + 1 := usize_add_one_inv hi2
-              have h2 := ih i2 true k ks v ni nw (by omega) h
-              omega
-          · rw [if_neg hc2] at h
-            by_cases hc3 : c = 34#u8
-            · rw [if_pos hc3] at h
-              by_cases hw : w = true
-              · rw [if_pos hw] at h
-                obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
-                obtain ⟨ke, -, h⟩ := bind_eq_ok_iff.mp h
-                by_cases hke : ke = 0#usize
-                · rw [if_pos hke] at h; simp at h
-                · rw [if_neg hke] at h
-                  obtain ⟨v1, -, h⟩ := bind_eq_ok_iff.mp h
-                  by_cases hv : v1 = i
-                  · rw [if_pos hv] at h; simp at h
-                  · rw [if_neg hv] at h
-                    obtain ⟨i3, -, h⟩ := bind_eq_ok_iff.mp h
-                    obtain ⟨k1, -, h⟩ := bind_eq_ok_iff.mp h
-                    simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
-                      Prod.mk.injEq, frontend.scan_fast.Member.Key.injEq] at h
-                    obtain ⟨⟨-, hks, -⟩, -⟩ := h
-                    subst hks
-                    exact le_refl _
-              · rw [if_neg hw] at h; simp at h
-            · rw [if_neg hc3] at h; simp at h
-
-private theorem next_member_lt {b : Slice Std.U8} {i : Std.Usize} {w : Bool}
-    {x : frontend.scan_fast.Member × Std.Usize × Bool}
-    (h : frontend.scan_fast.next_member b i w = ok (.Ok x)) : i.val < b.length := by
-  by_contra hc
-  rw [frontend.scan_fast.next_member, frontend.scan_fast.next_member_loop.eq_def] at h
-  rw [if_pos (show i ≥ Slice.len b by scalar_tac)] at h
-  simp at h
-
-/-- `scan_fast::slot_nat` closes with the module's `prog` guard, so a slot that
-succeeded really consumed at least one byte. -/
-private theorem slot_nat_prog {b : Slice Std.U8} {ks v e : Std.Usize} {x : Std.U64}
-    (h : frontend.scan_fast.slot_nat b ks v = ok (.Ok (x, e))) : ks.val < e.val := by
-  rw [frontend.scan_fast.slot_nat] at h
-  obtain ⟨e1, -, h⟩ := bind_eq_ok_iff.mp h
-  by_cases h1 : e1 = v
-  · rw [if_pos h1] at h; exact (err_ne_ok h).elim
-  · rw [if_neg h1] at h
-    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
-    rw [frontend.scan_fast.prog, Result.ok.injEq] at hb1
-    by_cases h2 : b1 = true
-    · rw [if_pos h2] at h
-      obtain ⟨r, -, h⟩ := bind_eq_ok_iff.mp h
-      cases r with
-      | Err er => simp at h
-      | Ok y =>
-        simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-        rw [← h.2]
-        rw [← hb1] at h2
-        scalar_tac
-    · rw [if_neg h2] at h; exact (err_ne_ok h).elim
+`ScanObj` now carries phase 1's two measure facts (`next_member_ge`,
+`next_member_lt`) and `slot_nat_prog`; only the port-side reading of
+`scan_fast::dup` is still local, because `ScanObj`'s `dup_val` reads it on
+con-leche's side. -/
 
 /-! ## The `seen` bitset, as the two sides spell it
 
@@ -276,8 +173,9 @@ private theorem or_abs16 (s : Std.U32) : absU32 s ||| 16 = absU32 (s ||| 16#u32)
 private theorem zero_abs (s : Std.U32) : (absU32 s != 0) = (s != 0#u32) := by
   rw [show ((0 : UInt32)) = absU32 0#u32 from rfl, absU32_bne]
 
-/-- `scan_fast::dup`, read forwards. -/
-private theorem dup_val {seen bit : Std.U32} {r : Bool}
+/-- `scan_fast::dup`, read forwards on the **port's** side — `ScanObj`'s
+`dup_val` reads it on con-leche's. -/
+private theorem dup_port {seen bit : Std.U32} {r : Bool}
     (h : frontend.scan_fast.dup seen bit = ok r) : r = ((seen &&& bit) != 0#u32) := by
   rw [frontend.scan_fast.dup] at h
   exact (by simpa using h : ((seen &&& bit) != 0#u32) = r).symm
@@ -401,7 +299,7 @@ private theorem scan_app_expr_loop_aux (kf : KitFacts b) (f : Nat) :
            first
              | (rw [err_val h]; exact ScanErrSim.mk (t := .unknownKey) rfl (by simp))
              | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
-                have hb1' := dup_val hb1
+                have hb1' := dup_port hb1
                 simp only [dup_abs1, dup_abs2]
                 by_cases hd : b1 = true
                 · rw [if_pos hd] at h
@@ -546,7 +444,7 @@ private theorem scan_proj_expr_loop_aux (kf : KitFacts b) (f : Nat) :
            first
              | (rw [err_val h]; exact ScanErrSim.mk (t := .unknownKey) rfl (by simp))
              | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
-                have hb1' := dup_val hb1
+                have hb1' := dup_port hb1
                 simp only [dup_abs1, dup_abs2, dup_abs4]
                 by_cases hd : b1 = true
                 · rw [if_pos hd] at h
@@ -689,7 +587,7 @@ private theorem scan_const_expr_loop_aux (kf : KitFacts b) (f : Nat) :
            first
              | (rw [err_val h]; exact ScanErrSim.mk (t := .unknownKey) rfl (by simp))
              | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
-                have hb1' := dup_val hb1
+                have hb1' := dup_port hb1
                 simp only [dup_abs1]
                 by_cases hd : b1 = true
                 · rw [if_pos hd] at h
@@ -713,7 +611,7 @@ private theorem scan_const_expr_loop_aux (kf : KitFacts b) (f : Nat) :
                     exact ih (b.length - e.val) (by omega) false e seen1 _ _ o
                       (le_refl _) h)
              | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
-                have hb1' := dup_val hb1
+                have hb1' := dup_port hb1
                 simp only [dup_abs2]
                 by_cases hd : b1 = true
                 · rw [if_pos hd] at h
@@ -890,7 +788,7 @@ private theorem scan_let_expr_loop_aux (kf : KitFacts b) (f : Nat) :
            first
              | (rw [err_val h]; exact ScanErrSim.mk (t := .unknownKey) rfl (by simp))
              | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
-                have hb1' := dup_val hb1
+                have hb1' := dup_port hb1
                 simp only [dup_abs1, dup_abs2, dup_abs8, dup_abs16]
                 by_cases hd : b1 = true
                 · rw [if_pos hd] at h
@@ -914,7 +812,7 @@ private theorem scan_let_expr_loop_aux (kf : KitFacts b) (f : Nat) :
                     exact ih (b.length - e.val) (by omega) false e seen1 _ _ _ o
                       (le_refl _) h)
              | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
-                have hb1' := dup_val hb1
+                have hb1' := dup_port hb1
                 simp only [dup_abs4]
                 by_cases hd : b1 = true
                 · rw [if_pos hd] at h
@@ -1148,7 +1046,7 @@ private theorem scan_binder_expr_loop_aux (kf : KitFacts b) (hbi : BinderInfoRef
              | (rw [err_val h]; exact ScanErrSim.mk (t := .unknownKey) rfl (by simp))
              | -- `pw`: a sub-scanner
                (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
-                have hb1' := dup_val hb1
+                have hb1' := dup_port hb1
                 simp only [dup_abs16]
                 by_cases hd : b1 = true
                 · rw [if_pos hd] at h
@@ -1186,7 +1084,7 @@ private theorem scan_binder_expr_loop_aux (kf : KitFacts b) (hbi : BinderInfoRef
                       exact ScanErrSim.mk (t := .noProgress) rfl (by simp))
              | -- the three `Nat` slots
                (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
-                have hb1' := dup_val hb1
+                have hb1' := dup_port hb1
                 simp only [dup_abs1, dup_abs2, dup_abs4, dup_abs8]
                 by_cases hd : b1 = true
                 · rw [if_pos hd] at h
@@ -1211,7 +1109,7 @@ private theorem scan_binder_expr_loop_aux (kf : KitFacts b) (hbi : BinderInfoRef
                       (le_refl _) h)
              | -- `binderInfo`: a bare `usize`, `0` for "not one of the four"
                (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
-                have hb1' := dup_val hb1
+                have hb1' := dup_port hb1
                 simp only [dup_abs1]
                 by_cases hd : b1 = true
                 · rw [if_pos hd] at h

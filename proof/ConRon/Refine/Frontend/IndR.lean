@@ -1041,24 +1041,6 @@ structure IndRSpec {G : Type} (inst : frontend.in_model_rec.Modeller G) (g : G) 
     StateDRel st lst → StateDWF st → ExprRecWF r →
     frontend.export_c.parse_expr_entry_d st i r = ok (o, st') →
     StateOut o st' (ConLeche.Frontend.parseExprEntryD lst i.val (absExprRec r))
-  /-- `export_c::process_line_core_d` refines `processLineCoreD`
-  (`ConLeche/Frontend/ExportC.lean:629-709`).  **Temporarily assumed**: the six
-  arms are the subject of `IndCoreSpec` below, which is exactly what discharges
-  this clause. -/
-  processLineCore : ∀ {st st' : frontend.export_c.StateD}
-    {lst : ConLeche.Frontend.StateD} {d : frontend.scan_types.DeclRec}
-    {o : core.result.Result Unit frontend.export_c.LineErr},
-    StateDRel st lst → StateDWF st → DeclRecStrWF d →
-    frontend.export_c.process_line_core_d inst g st d = ok (o, st') →
-    StateOutD o st' (ConLeche.Frontend.processLineCoreD lst (absDeclRec d))
-
-
-/-- **What discharges `IndRSpec.processLineCore`**: the four ingredients the
-six arms of `processLineCoreD` (`ConLeche/Frontend/ExportC.lean:629-709`) are
-built out of.  Kept apart from `IndRSpec` so that the chunk layer above sees
-only the one clause it needs. -/
-structure IndCoreSpec {G : Type} (inst : frontend.in_model_rec.Modeller G) (g : G) :
-    Prop where
 
   /-- `export_c::push_decl` refines `pushDecl`
   (`ConLeche/Frontend/ExportC.lean:161-162`).  Total on both sides. -/
@@ -1103,6 +1085,7 @@ structure IndCoreSpec {G : Type} (inst : frontend.in_model_rec.Modeller G) (g : 
     frontend.export_c.install_ind_d inst g st tys cts rcs n_pd = ok (o, st') →
     StateOutD o st' (ConLeche.Frontend.installIndD lst (absIndTypeRecs tys)
       (absIndCtorRecs cts) (absIndRecRecs rcs) n_pd.val)
+
 
 /-! ## The two state updates the line layer makes by hand
 
@@ -1157,9 +1140,10 @@ failure is `StateOutD.of_bind`'s; the `.defn` arm's `safety` word and the
 `.quot` arm's `kind` word are the two literal comparisons, and the `.ind` arm
 is `validate_ind_d` followed by `install_ind_d`. -/
 
-/-- `export_c::process_line_core_d` refines `processLineCoreD`
-(`ConLeche/Frontend/ExportC.lean:629-709`), through `IndRSpec`'s named clause;
-`IndCoreSpec` is what discharges that clause. -/
+/-- **`export_c::process_line_core_d` refines `processLineCoreD`, from
+`IndCoreSpec`** (`ConLeche/Frontend/ExportC.lean:629-709`): the six arms, each
+against the fragment its Rust doc comment cites.  This is exactly what
+discharges `IndRSpec.processLineCore`. -/
 theorem process_line_core_d_refines {G : Type}
     {inst : frontend.in_model_rec.Modeller G} {g : G}
     {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
@@ -1168,8 +1152,322 @@ theorem process_line_core_d_refines {G : Type}
     (hsp : IndRSpec inst g) (hrel : StateDRel st lst) (hwf : StateDWF st)
     (hd : DeclRecStrWF d)
     (h : frontend.export_c.process_line_core_d inst g st d = ok (o, st')) :
-    StateOutD o st' (ConLeche.Frontend.processLineCoreD lst (absDeclRec d)) :=
-  hsp.processLineCore hrel hwf hd h
+    StateOutD o st' (ConLeche.Frontend.processLineCoreD lst (absDeclRec d)) := by
+  rw [frontend.export_c.process_line_core_d.eq_def] at h
+  rw [ConLeche.Frontend.processLineCoreD.eq_def]
+  cases d with
+  | Ax cvr is_unsafe =>
+    simp only [absDeclRec]
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r, hr, h⟩ := h
+    have hcv := parse_cv_d_refines hrel hwf hr
+    cases r with
+    | Err e =>
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      rw [← h.1]
+      exact StateOutD.of_bind hcv
+    | Ok v =>
+      rw [lineOut_ok_pure hcv]
+      simp only [pure_bind]
+      cases is_unsafe with
+      | true =>
+        simp only [reduceIte] at h ⊢
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨s, -, v1, -, r1, hr1, h⟩ := h
+        rw [frontend.export_c.declined] at hr1
+        simp only [Result.ok.injEq] at hr1
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
+        rw [← h.1, ← hr1]
+        exact ⟨.declined "unsafe axiom", rfl, rfl⟩
+      | false =>
+        simp only [Bool.false_eq_true, reduceIte] at h ⊢
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨st1, hpush, h⟩ := h
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
+        have hdw : DeclarationWF (env.Declaration.AxiomDecl v) := hcv.2
+        obtain ⟨hpd1, hpd2⟩ := hsp.pushDecl hrel hwf hdw hpush
+        rw [← h.1, ← h.2]
+        exact ⟨_, rfl, hpd1, hpd2⟩
+  | Defn cvr value hints safety =>
+    simp only [absDeclRec]
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r, hr, h⟩ := h
+    have hcv := parse_cv_d_refines hrel hwf hr
+    cases r with
+    | Err e =>
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      rw [← h.1]
+      exact StateOutD.of_bind hcv
+    | Ok v =>
+      rw [lineOut_ok_pure hcv]
+      simp only [pure_bind]
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨s, hs, b, hb, h⟩ := h
+      have hsv : s.val = [115#u32, 97#u32, 102#u32, 101#u32] := by
+        rw [slice_lit_val hs]; simp [frontend.export_c.process_line_core_d.SAFE]
+      have hbS : (b = true ↔ absString safety = "safe") := by
+        rw [cps_beq_str hd (by rw [hsv]; decide) hb, hsv]; rfl
+      cases b with
+      | true =>
+        rw [hbS.mp rfl]
+        simp only [reduceIte] at h
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨r1, hr1, h⟩ := h
+        have hgd := get_decl_d_refines hrel hwf hr1
+        cases r1 with
+        | Err e =>
+          simp only [Result.ok.injEq, Prod.mk.injEq] at h
+          rw [← h.1]
+          exact StateOutD.of_bind hgd
+        | Ok v1 =>
+          rw [lineOut_ok_pure hgd]
+          simp only [pure_bind]
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨hh, hhok, op, hop, h⟩ := h
+          have hpr := hsp.projRewrite hrel hwf hcv.2 hgd.2 hop
+          have hhabs : absHint hh = (match absHintsRec hints with
+              | .«abbrev» => ConLeche.ReducibilityHint.«abbrev»
+              | .«opaque» => ConLeche.ReducibilityHint.«opaque»
+              | .regular n => ConLeche.ReducibilityHint.regular n) := by
+            cases hints <;>
+              simp only [Result.ok.injEq] at hhok <;>
+              rw [← hhok] <;> simp [absHint, absHintsRec, absU64]
+          cases op with
+          | none =>
+            simp only [Option.map_none] at hpr
+            rw [← hpr.1]
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨st1, hpush, h⟩ := h
+            simp only [Result.ok.injEq, Prod.mk.injEq] at h
+            have hdw : DeclarationWF (env.Declaration.DefnDecl v v1 hh) := ⟨hcv.2, hgd.2⟩
+            obtain ⟨hpd1, hpd2⟩ := hsp.pushDecl hrel hwf hdw hpush
+            rw [← h.1, ← h.2]
+            refine ⟨_, ?_, hpd1, hpd2⟩
+            simp only [absDeclaration, hhabs]
+            rfl
+          | some vl2 =>
+            simp only [Option.map_some] at hpr
+            rw [← hpr.1]
+            simp only [bind_eq_ok_iff] at h
+            obtain ⟨n, hn, st1, hpush, v2, hpush2, h⟩ := h
+            have hnv : n = v.name := by
+              rw [name_dup_eq] at hn; exact (Result.ok_injective hn).symm
+            simp only [Result.ok.injEq, Prod.mk.injEq] at h
+            have hdw : DeclarationWF (env.Declaration.DefnDecl v vl2 hh) :=
+              ⟨hcv.2, hpr.2 vl2 rfl⟩
+            obtain ⟨hpd1, hpd2⟩ := hsp.pushDecl hrel hwf hdw hpush
+            rw [← h.1, ← h.2]
+            rw [hnv] at hpush2
+            refine ⟨_, ?_, stateDRel_push_rewrite hpd1 hpush2, stateDWF_rewrite hpd2⟩
+            simp only [absDeclaration, hhabs, absConstantVal]
+            rfl
+      | false =>
+        have hks : absString safety ≠ "safe" := by
+          intro hc
+          have hcc := hbS.mpr hc
+          simp at hcc
+        simp only [Bool.false_eq_true, reduceIte] at h
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨v1, -, r1, hr1, h⟩ := h
+        rw [frontend.export_c.declined] at hr1
+        simp only [Result.ok.injEq] at hr1
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
+        rw [← h.1, ← hr1]
+        refine ⟨ConLeche.Frontend.RecordVerdict.declined
+          s!"definition with safety '{absString safety}'", ?_, rfl⟩
+        split
+        · rename_i heq; exact absurd heq hks
+        · rfl
+  | Thm cvr value =>
+    simp only [absDeclRec]
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r, hr, h⟩ := h
+    have hcv := parse_cv_d_refines hrel hwf hr
+    cases r with
+    | Err e =>
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      rw [← h.1]
+      exact StateOutD.of_bind hcv
+    | Ok v =>
+      rw [lineOut_ok_pure hcv]
+      simp only [pure_bind]
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r1, hr1, h⟩ := h
+      have hgd := get_decl_d_refines hrel hwf hr1
+      cases r1 with
+      | Err e =>
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
+        rw [← h.1]
+        exact StateOutD.of_bind hgd
+      | Ok v1 =>
+        rw [lineOut_ok_pure hgd]
+        simp only [pure_bind]
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨op, hop, h⟩ := h
+        have hpr := hsp.projRewrite hrel hwf hcv.2 hgd.2 hop
+        cases op with
+        | none =>
+          simp only [Option.map_none] at hpr
+          rw [← hpr.1]
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨st1, hpush, h⟩ := h
+          simp only [Result.ok.injEq, Prod.mk.injEq] at h
+          have hdw : DeclarationWF (env.Declaration.ThmDecl v v1) := ⟨hcv.2, hgd.2⟩
+          obtain ⟨hpd1, hpd2⟩ := hsp.pushDecl hrel hwf hdw hpush
+          rw [← h.1, ← h.2]
+          exact ⟨_, rfl, hpd1, hpd2⟩
+        | some vl2 =>
+          simp only [Option.map_some] at hpr
+          rw [← hpr.1]
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨n, hn, st1, hpush, v2, hpush2, h⟩ := h
+          have hnv : n = v.name := by
+            rw [name_dup_eq] at hn; exact (Result.ok_injective hn).symm
+          simp only [Result.ok.injEq, Prod.mk.injEq] at h
+          have hdw : DeclarationWF (env.Declaration.ThmDecl v vl2) := ⟨hcv.2, hpr.2 vl2 rfl⟩
+          obtain ⟨hpd1, hpd2⟩ := hsp.pushDecl hrel hwf hdw hpush
+          rw [← h.1, ← h.2]
+          rw [hnv] at hpush2
+          exact ⟨_, rfl, stateDRel_push_rewrite hpd1 hpush2, stateDWF_rewrite hpd2⟩
+  | Opaq cvr value is_unsafe =>
+    simp only [absDeclRec]
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r, hr, h⟩ := h
+    have hcv := parse_cv_d_refines hrel hwf hr
+    cases r with
+    | Err e =>
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      rw [← h.1]
+      exact StateOutD.of_bind hcv
+    | Ok v =>
+      rw [lineOut_ok_pure hcv]
+      simp only [pure_bind]
+      cases is_unsafe with
+      | true =>
+        simp only [reduceIte] at h ⊢
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨s, -, v1, -, r1, hr1, h⟩ := h
+        rw [frontend.export_c.declined] at hr1
+        simp only [Result.ok.injEq] at hr1
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
+        rw [← h.1, ← hr1]
+        exact ⟨_, rfl, rfl⟩
+      | false =>
+        simp only [Bool.false_eq_true, reduceIte] at h ⊢
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨r1, hr1, h⟩ := h
+        have hgd := get_decl_d_refines hrel hwf hr1
+        cases r1 with
+        | Err e =>
+          simp only [Result.ok.injEq, Prod.mk.injEq] at h
+          rw [← h.1]
+          exact StateOutD.of_bind hgd
+        | Ok v1 =>
+          rw [lineOut_ok_pure hgd]
+          simp only [pure_bind]
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨st1, hpush, h⟩ := h
+          simp only [Result.ok.injEq, Prod.mk.injEq] at h
+          have hdw : DeclarationWF (env.Declaration.OpaqueDecl v v1) := ⟨hcv.2, hgd.2⟩
+          obtain ⟨hpd1, hpd2⟩ := hsp.pushDecl hrel hwf hdw hpush
+          rw [← h.1, ← h.2]
+          exact ⟨_, rfl, hpd1, hpd2⟩
+  | Quot cvr kind =>
+    simp only [absDeclRec]
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r, hr, h⟩ := h
+    have hcv := parse_cv_d_refines hrel hwf hr
+    cases r with
+    | Err e =>
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      rw [← h.1]
+      exact StateOutD.of_bind hcv
+    | Ok v =>
+      rw [lineOut_ok_pure hcv]
+      simp only [pure_bind]
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨op, hop, h⟩ := h
+      have hqk := quot_kind_of_refines hd hop
+      cases op with
+      | none =>
+        simp only [Option.map_none] at hqk
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨v1, -, r1, hr1, h⟩ := h
+        rw [frontend.export_c.merr] at hr1
+        simp only [Result.ok.injEq] at hr1
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
+        rw [← h.1, ← hr1]
+        have h1 : absString kind ≠ "type" := by intro he; rw [he] at hqk; simp at hqk
+        have h2 : absString kind ≠ "ctor" := by intro he; rw [he] at hqk; simp at hqk
+        have h3 : absString kind ≠ "lift" := by intro he; rw [he] at hqk; simp at hqk
+        have h4 : absString kind ≠ "ind" := by intro he; rw [he] at hqk; simp at hqk
+        split
+        · rename_i he; exact absurd he h1
+        · rename_i he; exact absurd he h2
+        · rename_i he; exact absurd he h3
+        · rename_i he; exact absurd he h4
+        · exact ⟨_, rfl⟩
+      | some qk =>
+        simp only [Option.map_some] at hqk
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨st1, hpush, h⟩ := h
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
+        have hdw : DeclarationWF (env.Declaration.QuotDecl qk v) := hcv.2
+        obtain ⟨hpd1, hpd2⟩ := hsp.pushDecl hrel hwf hdw hpush
+        rw [← h.1, ← h.2]
+        split at hqk
+        · rename_i he
+          simp only [Option.some.injEq] at hqk
+          rw [he]
+          refine ⟨_, ?_, hpd1, hpd2⟩
+          simp only [absDeclaration, hqk]
+          rfl
+        · split at hqk
+          · rename_i he1 he
+            simp only [Option.some.injEq] at hqk
+            rw [he]
+            refine ⟨_, ?_, hpd1, hpd2⟩
+            simp only [absDeclaration, hqk]
+            rfl
+          · split at hqk
+            · rename_i he1 he2 he
+              simp only [Option.some.injEq] at hqk
+              rw [he]
+              refine ⟨_, ?_, hpd1, hpd2⟩
+              simp only [absDeclaration, hqk]
+              rfl
+            · split at hqk
+              · rename_i he1 he2 he3 he
+                simp only [Option.some.injEq] at hqk
+                rw [he]
+                refine ⟨_, ?_, hpd1, hpd2⟩
+                simp only [absDeclaration, hqk]
+                rfl
+              · simp at hqk
+  | Ind tys cts rcs =>
+    simp only [absDeclRec]
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨i, hi, r, hr, h⟩ := h
+    have hrel1 := stateDRel_ind_count hrel hi
+    have hwf1 : StateDWF { st with ind_count := i } := stateDWF_ind_count hwf
+    have hva := hsp.validateInd hrel1 hwf1 hr
+    cases r with
+    | Err e =>
+      cases e with
+      | Msg m =>
+        obtain ⟨s, hs⟩ := hva
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
+        rw [← h.1, hs]
+        exact ⟨s, rfl⟩
+      | Verdict v =>
+        obtain ⟨lv, hlv, hk⟩ := hva
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
+        rw [← h.1, hlv]
+        exact ⟨lv, rfl, hk⟩
+    | Ok p =>
+      obtain ⟨cts2, n_pd⟩ := p
+      rw [hva]
+      exact hsp.installInd hrel1 hwf1 h
 
 /-- `export_c::apply_decl_d` refines `applyDeclD`
 (`ConLeche/Frontend/ExportC.lean:710-711`), which is `processLineCoreD`. -/
