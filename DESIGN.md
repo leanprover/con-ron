@@ -1264,6 +1264,24 @@ quotes (`scripts/overview-links.sh --update` after editing, never before), and
 a task-log section that records the upstream tasks absorbed and the marker
 counts before and after.
 
+**10. The link gate is the last gate, and it is a reading exercise, not a
+`--update`.**  A bump moves most of the anchored lines.  Sort its diff into
+three piles: the anchors whose *text* is unchanged (relocate them
+mechanically — a twenty-line script that searches the file for the committed
+text and reports the new range does the whole pile), the anchors whose text
+changed but whose citing paragraph is still true (relocate, then `--update`),
+and the anchors whose text changed *because the document is now wrong*.  Task
+#83 had two of the third kind, and neither would have been found any other
+way: OVERVIEW §0's exit-code table is a verbatim copy of `driver.rs`'s and
+`driver.rs`'s wording had changed, and §2 still said the capstones compose
+with con-leche's `model_exists_with`, which upstream had retired.  Only ever
+run `--update` after that reading; it blesses whatever the anchors point at,
+so an unread anchor turns a stale document into a *committed* stale document.
+`README.md` is human-written and is not to be edited — but its `#L<a>-L<b>`
+fragments are anchors, not prose, and relocating one is the maintenance the
+gate exists to demand.  Change the numbers, never the words, and say so in the
+task log.
+
 ### CI
 
 `.github/workflows/ci.yml` (task #77) runs the project's gates on
@@ -15746,9 +15764,20 @@ retired.  README.md's two anchors were relocated as well: only the
 * **A rename-only marker is still proof work.**  253 findings cost no Rust and
   667 edits in `proof/ConRon/Refine/`.
 
-And two that cost an hour each: `lake build` under a `ulimit -v` cap dies with
-*"failed to create thread"* (Lean reserves per-thread stack against the
-address-space limit — `CLAUDE.md`'s rule is for *checker runs*), and a module
-that crosses from `crates/con-ron/src` into `crates/con-ron-core/src` is a
-rewrite, not a move: the style lint and the extraction both start applying to
-it.
+And three that cost an hour each: `lake build` under a `ulimit -v` cap dies
+with *"failed to create thread"* (Lean reserves per-thread stack against the
+address-space limit — `CLAUDE.md`'s rule is for *checker runs*); a module that
+crosses from `crates/con-ron/src` into `crates/con-ron-core/src` is a rewrite,
+not a move, because the style lint and the extraction both start applying to
+it; and the link gate at the end is a *reading* exercise — two of task #83's
+thirteen moved citations were moved because the document citing them had gone
+stale, and `--update` would have committed the staleness.
+
+**What was left undone, deliberately.**  The eight-worker Mathlib cells of
+OVERVIEW §6.3 were not re-measured: the machine was shared and under memory
+pressure, and the parallel-scaling story this bump does not touch.  §6.3 says
+which cells are at which commit.  And the port does not yet claim con-leche's
+*file*-level corollary `no_False_declaration` (over byte chunks): con-leche's
+tasks #290/#294 brought its parser into its theorem, and porting that
+verification is con-ron's task #84.  con-ron's capstones remain about the
+fold, with `hds` — the parsed input's well-formedness — still a hypothesis.
