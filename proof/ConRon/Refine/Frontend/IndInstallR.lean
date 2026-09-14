@@ -1468,4 +1468,297 @@ theorem note_ind_blocks_refines {st st' : frontend.export_c.StateD}
     (alloc.vec.Vec.len_val _) rfl h
   simpa [show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
 
+
+/-! ## The capstone
+
+`export_c::install_ind_d` against `installIndD`
+(`ConLeche/Frontend/ExportC.lean:564-628`). -/
+
+/-- A three-`mapM` block whose join succeeded: the three values, named. -/
+private theorem iid_block_split
+    {TY CT RC : ConLeche.Frontend.M (List ConLeche.ConstantInfo)}
+    {w : List ConLeche.ConstantInfo}
+    (h : (do let a ← TY; let b ← CT; let c ← RC; pure (a ++ b ++ c)) = .ok w) :
+    ∃ a b c, TY = pure a ∧ CT = pure b ∧ RC = pure c ∧ a ++ b ++ c = w := by
+  cases hTY : TY with
+  | error s =>
+    rw [hTY] at h
+    have h' : (Except.error s : ConLeche.Frontend.M (List ConLeche.ConstantInfo)) = .ok w := h
+    simp at h'
+  | ok a =>
+    cases hCT : CT with
+    | error s =>
+      rw [hTY, hCT] at h
+      have h' : (Except.error s : ConLeche.Frontend.M (List ConLeche.ConstantInfo)) = .ok w := h
+      simp at h'
+    | ok b =>
+      cases hRC : RC with
+      | error s =>
+        rw [hTY, hCT, hRC] at h
+        have h' : (Except.error s : ConLeche.Frontend.M (List ConLeche.ConstantInfo)) = .ok w := h
+        simp at h'
+      | ok c =>
+        refine ⟨a, b, c, rfl, rfl, rfl, ?_⟩
+        rw [hTY, hCT, hRC] at h
+        exact Except.ok.inj
+          (show (Except.ok (a ++ b ++ c) : ConLeche.Frontend.M (List ConLeche.ConstantInfo))
+            = .ok w from h)
+
+/-- …and one that failed: the failure survives any continuation. -/
+private theorem iid_block_errV {γ : Type} {e : frontend.export_c.LineErr}
+    {TY CT RC : ConLeche.Frontend.M (List ConLeche.ConstantInfo)}
+    (h : LineErrSim e (do let a ← TY; let b ← CT; let c ← RC; pure (a ++ b ++ c)))
+    (K : List ConLeche.ConstantInfo → List ConLeche.ConstantInfo →
+      List ConLeche.ConstantInfo → ConLeche.Frontend.M γ) :
+    LineErrSim e (do let a ← TY; let b ← CT; let c ← RC; K a b c) := by
+  refine LineErrSim.trans h ?_
+  intro s hs
+  cases hTY : TY with
+  | error s' => exact ⟨s', rfl⟩
+  | ok a =>
+    cases hCT : CT with
+    | error s' => exact ⟨s', rfl⟩
+    | ok b =>
+      cases hRC : RC with
+      | error s' => exact ⟨s', rfl⟩
+      | ok c =>
+        rw [hTY, hCT, hRC] at hs
+        have hs' : (Except.ok (a ++ b ++ c) : ConLeche.Frontend.M (List ConLeche.ConstantInfo))
+            = .error s := hs
+        simp at hs'
+
+/-- A mirrored line error, as a line *step*'s outcome: `StepOutV`'s `Verdict`
+arm is a claim where `LineErrSim`'s is `False`, so the implication goes this
+way and no other. -/
+private theorem iid_stepOutV_of_errSim {e : frontend.export_c.LineErr}
+    {st' : frontend.export_c.StateD}
+    {x : ConLeche.Frontend.M (ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict)}
+    (h : LineErrSim e x) : StepOutV (.Err e) st' x := by
+  cases e with
+  | Msg m => exact h
+  | Verdict v => exact h.elim
+
+/-- `StateDRel` says nothing about con-leche's eighteenth field (the
+`CON_LECHE_INMODEL_DUMP` writer's, which the port does not carry — the
+documented deviation of `Refine/Frontend/StateDR.lean`), so a write to it is
+invisible to the relation. -/
+private theorem iid_rel_inModelGen {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} (h : StateDRel st lst)
+    (G : Array (Nat × Array ConLeche.Declaration)) :
+    StateDRel st { lst with inModelGen := G } :=
+  { h with }
+
+
+/-- **The census arm's extra promise about the modeller**, and this file's one
+*new* residue hypothesis.
+
+`installIndD`'s census arm books the decline as `(T0, why)` in
+`inModelDeclined`, and `Refine/Frontend/StateDR.lean`'s `StateDRel` relates
+that field *with its message* (`absNameStr` maps the port's `Vec<u32>` through
+`absString`).  `Refine/Frontend/ChunksR.lean`'s canonical `ModellerRefines` —
+repeated above as `IndModellerRefines` — deliberately does **not** compare the
+decline's text (DESIGN.md §3.1), so the census arm cannot re-establish the
+relation from it alone.
+
+The coordinator has a choice of two one-line fixes and should take one:
+either fold this clause into `ModellerRefines`' `Err` arm, or weaken
+`StateDRel.inModelDeclined` to compare only the block names.  Until then it is
+a hypothesis of `install_ind_d_refines`, exactly as the two modeller promises
+beside it are. -/
+def IndModellerDeclineText {G : Type} (inst : frontend.in_model_rec.Modeller G) (g : G) :
+    Prop :=
+  ∀ ctx lctx b m, CtxRel ctx lctx → inst.generate g ctx b = ok (.Err m) →
+    ConLeche.Frontend.InModel.generate lctx (absBlockRec b) = .error (absString m)
+
+/-- `export_c::install_ind_d` refines `installIndD`
+(`ConLeche/Frontend/ExportC.lean:564-628`): **an inductive record, installed**
+— the block's constants, the projection-owner table, the block record for the
+modeller, then the modelled or the bare push.
+
+This is the clause `Refine/Frontend/IndR.lean`'s `IndRSpec.installInd` asks
+for, and the first function in the whole parse whose `LineErr::Verdict` arm is
+*reachable*: a modeller decline outside the census mode is con-leche's
+`.inr (.declined …)`, at the same kind (the message is never compared,
+DESIGN.md §3.1).
+
+`in_model_decline` — the port's rendering of that decline's text — therefore
+gets **no lemma of its own**: nothing is ever claimed about the string it
+builds, only that the outcome is a `Declined`. -/
+theorem install_ind_d_refines {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (hmw : ModellerWF inst g) (hmr : IndModellerRefines inst g)
+    (hmd : IndModellerDeclineText inst g) (hsp : InstallSpec)
+    {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {tys : alloc.vec.Vec frontend.scan_types.IndTypeRec}
+    {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+    {rcs : alloc.vec.Vec frontend.scan_types.IndRecRec} {n_pd : Std.U64}
+    {o : core.result.Result Unit frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.install_ind_d inst g st tys cts rcs n_pd = ok (o, st')) :
+    StepOutV o st' (ConLeche.Frontend.installIndD lst (absIndTypeRecs tys)
+      (absIndCtorRecs cts) (absIndRecRecs rcs) n_pd.val) := by
+  rw [frontend.export_c.install_ind_d] at h
+  rw [ConLeche.Frontend.installIndD]
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨r, hr, h⟩ := h
+  have hbl := ind_block_of_refines hrel hwf hr
+  cases r with
+  | Err e =>
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
+    rw [← h.1]
+    exact iid_stepOutV_of_errSim (iid_block_errV hbl _)
+  | Ok v =>
+    obtain ⟨lty, lct, lrc, hTY, hCT, hRC, hcat⟩ := iid_block_split (iid_lineOut_ok_pure hbl)
+    rw [hTY, hCT, hRC]
+    simp only [pure_bind]
+    rw [hcat]
+    have hbwf : ConstantInfosWF v := hbl.2
+    -- the projection-owner table
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨p, hp, h⟩ := h
+    obtain ⟨r1, st1⟩ := p
+    simp only [uncurry_apply_pair] at h
+    have hrpo := register_proj_owners_refines hsp hrel hwf hbwf hp
+    cases r1 with
+    | Err e =>
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      rw [← h.1, ← h.2]
+      exact StepOutV.of_bind hrpo
+    | Ok u =>
+      obtain ⟨lst1, hlst1, hrel1, hwf1⟩ := hrpo
+      have hlst1' : ConLeche.Frontend.registerProjOwners lst (absIndTypeRecs tys)
+          (absIndCtorRecs cts) (absIndRecRecs rcs) (absConstantInfos v) = pure lst1 := hlst1
+      rw [hlst1']
+      simp only [pure_bind]
+      -- the block's leading name
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨t0, ht0, h⟩ := h
+      have ht0pair : absName t0
+          = (Option.map (fun x : ConLeche.ConstantInfo => x.name)
+              (absConstantInfos v).head?).getD ConLeche.Name.anonymous ∧ NameWF t0 := by
+        split at ht0
+        · rename_i hz
+          have hnil : v.val = [] := by
+            have := alloc.vec.Vec.len_val v
+            exact List.eq_nil_of_length_eq_zero (by scalar_tac)
+          refine ⟨?_, NameWF.anonymous ht0⟩
+          rw [Name.anonymous_refines ht0]
+          simp [absConstantInfos, hnil]
+        · rename_i hz
+          simp only [bind_eq_ok_iff] at ht0
+          obtain ⟨ci, hci, hcin⟩ := ht0
+          have hhead : (absConstantInfos v).head? = some (absConstantInfo ci) := by
+            have hd := iid_drop_map absConstantInfo hci
+            simp only [show ((0#usize : Std.Usize)).val = 0 by scalar_tac,
+              List.drop_zero] at hd
+            rw [absConstantInfos, hd]
+            rfl
+          refine ⟨?_, Env.constant_info_name_wf (hbwf _ (iid_vec_mem hci)) hcin⟩
+          rw [Env.constant_info_name_refines hcin, hhead]
+          rfl
+      obtain ⟨ht0abs, ht0wf⟩ := ht0pair
+      rw [← ht0abs]
+      -- the block record
+      obtain ⟨r2, hr2, h⟩ := h
+      have hbr := block_rec_of_refines hrel1 hwf1 hr2
+      cases r2 with
+      | Err e =>
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
+        rw [← h.1, ← h.2]
+        exact StepOutV.of_bind hbr
+      | Ok v1 =>
+        rw [iid_lineOut_ok_pure hbr]
+        simp only [pure_bind]
+        have hbn : BlockRecTypeNamesWF v1 := block_rec_of_type_names_wf hwf1 hr2
+        simp only [ptr_new_eq, bind_tc_ok, bind_eq_ok_iff] at h
+        obtain ⟨st2, hst2, h⟩ := h
+        obtain ⟨hrel2, hwf2⟩ := note_ind_blocks_refines hrel1 hwf1 hbn hst2
+        have hdwf : DeclarationWF (env.Declaration.IndDecl v n_pd) := hbwf
+        split at h
+        · rename_i hmodel
+          simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
+          obtain ⟨b1, hb1, h⟩ := h
+          have hb1abs : b1 = ConLeche.Frontend.InModel.wants (absBlockRec v1) :=
+            wants_refines hb1
+          have hmodel' : lst1.inModel = true := by
+            have := hrel2.inModel; rw [hmodel] at this; exact this.symm
+          split at h
+          · rename_i hwants
+            have hcond : (lst1.inModel &&
+                ConLeche.Frontend.InModel.wants (absBlockRec v1)) = true := by
+              rw [hmodel', ← hb1abs, hwants]; rfl
+            rw [if_pos hcond]
+            -- THE MODELLER
+            rw [frontend.export_c.install_gen] at h
+            simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
+            obtain ⟨ctx, hctx, gen, hg, h⟩ := h
+            have hcr := state_model_ctx_refines hrel2 hctx
+            cases gen with
+            | Ok gen2 =>
+              rw [(hmr ctx _ v1 _ hcr hg).1 gen2 rfl]
+              simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
+              obtain ⟨st3, hst3, n, hn, vm, hvm, st4, hst4, hu2, hst'⟩ := h
+              rw [iid_name_dup hn] at hvm
+              have hgenwf : ∀ d ∈ gen2.val, DeclarationWF d := hmw _ _ _ hg
+              obtain ⟨hrel3, hwf3⟩ :=
+                push_gen_list_refines hsp hrel2 hwf2 hgenwf ht0wf hst3
+              obtain ⟨hrel4, hwf4⟩ :=
+                push_decl_refines (iid_rel_inModelGen
+                  (StateDRel.inModelled_push hrel3 hvm) _)
+                  (iid_wf_same hwf3 rfl rfl rfl rfl rfl rfl) hdwf hst4
+              rw [← hu2, ← hst']
+              exact StepOutV.ok rfl hrel4 hwf4
+            | Err why =>
+              rw [hmd ctx _ v1 why hcr hg]
+              simp only []
+              simp only [] at h
+              split at h
+              · rename_i hcensus
+                have hcensus' : lst1.inModelCensus = true := by
+                  have := hrel2.inModelCensus; rw [hcensus] at this; exact this.symm
+                rw [if_pos hcensus']
+                simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
+                obtain ⟨n, hn, vd, hvd, st3, hst3, hu2, hst'⟩ := h
+                rw [iid_name_dup hn] at hvd
+                obtain ⟨hrel3, hwf3⟩ :=
+                  push_decl_refines (StateDRel.inModelDeclined_push hrel2 hvd)
+                    (iid_wf_same hwf2 rfl rfl rfl rfl rfl rfl) hdwf hst3
+                rw [← hu2, ← hst']
+                exact StepOutV.ok rfl hrel3 hwf3
+              · rename_i hcensus
+                have hcensus' : ¬ (lst1.inModelCensus = true) := by
+                  have h2 := hrel2.inModelCensus
+                  rw [Bool.not_eq_true] at hcensus
+                  rw [hcensus] at h2
+                  rw [← h2]; simp
+                rw [if_neg hcensus']
+                simp only [frontend.export_c.declined, bind_tc_ok, bind_eq_ok_iff,
+                  Result.ok.injEq, Prod.mk.injEq] at h
+                obtain ⟨vw, hvw, hu2, hst'⟩ := h
+                rw [← hu2, ← hst']
+                exact StepOutV.verdict rfl rfl
+          · rename_i hwants
+            rw [Bool.not_eq_true] at hwants
+            have hcond : ¬ ((lst1.inModel &&
+                ConLeche.Frontend.InModel.wants (absBlockRec v1)) = true) := by
+              rw [← hb1abs, hwants]; simp
+            rw [if_neg hcond]
+            simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
+            obtain ⟨st3, hst3, hu2, hst'⟩ := h
+            obtain ⟨hrel3, hwf3⟩ := push_decl_refines hrel2 hwf2 hdwf hst3
+            rw [← hu2, ← hst']
+            exact StepOutV.ok rfl hrel3 hwf3
+        · rename_i hmodel
+          rw [Bool.not_eq_true] at hmodel
+          have hmodel' : lst1.inModel = false := by
+            have := hrel2.inModel; rw [hmodel] at this; exact this.symm
+          have hcond : ¬ ((lst1.inModel &&
+              ConLeche.Frontend.InModel.wants (absBlockRec v1)) = true) := by
+            rw [hmodel']; simp
+          rw [if_neg hcond]
+          simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
+          obtain ⟨st3, hst3, hu2, hst'⟩ := h
+          obtain ⟨hrel3, hwf3⟩ := push_decl_refines hrel2 hwf2 hdwf hst3
+          rw [← hu2, ← hst']
+          exact StepOutV.ok rfl hrel3 hwf3
+
 end ConRon.Refine.Frontend
