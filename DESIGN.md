@@ -18190,7 +18190,8 @@ being equal is now literally a pair equality.
 One lemma is new: `PropWhen.dup_eq'`, the applied `simp` shape
 `prop_when.dup pw = ok pw`, which `Core/Arms/DefEqStruct`'s local
 `binder_meta_dup_eq'` needs now that `binder_meta_dup` goes through
-`prop_when::dup`.
+`prop_when::dup`.  It is the primitive of the pair, and `dup_eq` — the
+inference shape everything else uses — became its one-line corollary.
 
 | file | what moved |
 |---|---|

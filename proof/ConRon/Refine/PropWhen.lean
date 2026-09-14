@@ -580,17 +580,14 @@ payload-free constructor, `dup`s a `Name`, or clones a handle -- and
 `Arc::clone` is the identity (DESIGN.md §3.2).  Since task #90 the `Two` and
 `Many` payloads sit *behind* the handle, so both are one `ptr::clone` and the
 old `names_copy` spine walk of the `Many` arm is gone. -/
-theorem dup_eq {pw c : prop_when.PropWhen} (h : prop_when.dup pw = ok c) : c = pw := by
-  obtain ⟨r⟩ := pw
-  cases r <;>
-    simp only [prop_when.dup, of_repr_eq, name_dup_eq, ptr_clone_eq, bind_tc_ok,
-      Result.ok.injEq] at h <;>
-    exact h.symm
-
-/-- The same, in the applied `simp` shape the `Core/Arms` macros want. -/
 theorem dup_eq' (pw : prop_when.PropWhen) : prop_when.dup pw = ok pw := by
   obtain ⟨r⟩ := pw
   cases r <;> simp [prop_when.dup]
+
+/-- The same, in the inference shape (`= ok c` in hand) the refinement lemmas
+use. -/
+theorem dup_eq {pw c : prop_when.PropWhen} (h : prop_when.dup pw = ok c) : c = pw :=
+  (Result.ok_injective ((dup_eq' pw).symm.trans h)).symm
 
 theorem to_list_val {pw : prop_when.PropWhen} {v : alloc.vec.Vec name.Name}
     (h : prop_when.to_list pw = ok v) : v.val = reprList pw.repr := by
