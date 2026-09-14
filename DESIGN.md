@@ -17677,3 +17677,33 @@ Neither was reachable by testing: the first needs a `usize` overflow, the
 second needs a duplicate constructor name *and* a type index that resolves on
 one record and not the other.  That is the argument for this kind of proof,
 made twice in one day.
+
+#### 25. Where the numbers stand
+
+Nine gates green at the landing (`LAKE_JOBS=32`): cargo-build, cargo-test,
+lint-rust, provenance, overview-links, gen-pins, gen-prelude, extract-check
+(72 s), lake-build (2 642 modules).
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)   14077 translated (100%)  verified 13003 (92%)
+Parser in the core (ConLeche/Frontend, task #84)    4441 translated (100%)  verified  2652 (59%)
+Cherries (InModel, ExportWrite, Main.lean)          2975 translated (100%)  verified     4 (0%)
+Rust core 85136 lines (1845 fns) | generated Lean 76250 | proofs 190117 (1614 _refines)
+Campaign (task #67): full-outcome 395 / 405 in scope (97%)
+LoC: proof 189491 | ratios rust/up 2.69  gen/rust 1.47  proof/rust 3.81  proof/up 10.25
+```
+
+The parser row read **0 %** at the start of task #87 and reads **59 %** now;
+the column had to be taught to see the tier at all (`scripts/progress.py`'s
+`refine_lemmas` gained a `Frontend` branch and `rust_module_of` a `frontend`
+case — without them the row could never have left zero, whatever was proved).
+`scripts/loc.py` had a latent double-count fixed in the same pass: it added
+`proofs_by_mod[key]` once per Rust module in a group, so a group with several
+modules counted its proof lines several times.
+
+The tier itself is fourteen files: `Abs` (441), `ScanKit` (3 082), `ScanStr`
+(2 556 at the end), `ScanObj` (1 981), `ScanExpr` (1 369), `ScanInd` (2 156),
+`ScanLine`, `StateDR` (2 745), `IndR`, `IndValidateR` (2 257), `IndInstallR`,
+`ProjRecR`, `PrepareR` (4 156), `ChunksR` (1 775) and `IndSpecR` (198) — about
+35 000 lines of proof written in the day, none of it carrying a `sorry` and
+none of it carrying a hypothesis at the end.
