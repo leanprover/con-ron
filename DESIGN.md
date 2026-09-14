@@ -17066,3 +17066,54 @@ agent's work-in-progress is red, and the victim sees a spurious *"object file
 does not exist"*.  `lake env lean --threads=4 <file>` is what agents should
 use; only the coordinator should run `lake build`, and only when the tree is
 quiet.
+
+#### 13. The install path, and a relation that was too strong
+
+`Refine/Frontend/IndInstallR.lean` (1 835 lines, zero `sorry`) proves
+`export_c`'s install path against `ExportC.lean:323-628`: `push_gen_d`,
+`note_gen`, `note_gen_names`, `push_gen_list`, `in_model_rec::wants`,
+`register_proj_owners` with its four helpers, `ind_block_of` with its three,
+`note_ind_blocks`, and the capstone **`install_ind_d_refines`**, restated as
+`indRSpec_installInd` in the shape `IndR`'s `IndRSpec.installInd` asks for.
+
+**One design error this file caught, and it was ours rather than the port's.**
+`StateDRel.inModelDeclined` compared the census decline's *message* as well as
+its block name, while the modeller hypothesis `ModellerRefines` deliberately
+does not compare a decline's text.  So `installIndD`'s census arm could not
+re-establish the relation, and the agent bridged it with an extra hypothesis.
+**The ruling was to weaken the relation, not to strengthen the hypothesis**:
+DESIGN.md §3.1 has said since task #1 that the theorem does not read messages,
+and the whole tier honours it — `LineErrSim` and `ErrSim` compare kinds,
+`rebound_error` carries no lemma at all.  A decline *reason* is a message like
+any other.  `inModelDeclined` now compares block names only, and the extra
+hypothesis is gone.  It is worth recording as the one place where a *relation*,
+not a proof, was the thing that had to give.
+
+Three smaller decisions, each documented in the file:
+
+* **No standalone `install_gen_refines`.**  con-leche writes `install_gen`'s
+  body inline in `installIndD` with the post-`note_ind_blocks` state
+  substituted field by field — Lean zeta-reduces the two `{st with …}` updates
+  and duplicates `pushGenList` eighteen times — so a standalone statement would
+  have to re-spell that state and buy nothing.  Proved inside the capstone.
+* **No lemma for `in_model_decline`**: it renders a message, and messages are
+  never compared; only that the outcome is a `Declined` at the same
+  `VerdictKind`.
+* **One WF lemma had to be written in a phase-3 file**
+  (`block_rec_of_type_names_wf`).  Phase 1 gives block records no clause,
+  because `ModellerWF` is unconditional in its argument; exactness needs the
+  `ind_blocks` insert to know its *key* is a well-formed name.  A fourth
+  instance of §8's pattern.
+
+**No port bug.**  Two shape differences checked and benign: the port writes
+`proj_owners` unconditionally where con-leche's `match` sends `[] ⇒ pure st`
+(a `foldl` over `[]` is the identity), and the port simply has no `inModelGen`.
+
+Mechanics worth keeping, from this file alone: a structure instance
+`{ lst with f := …` **must keep the start of the field's value on the same line
+as `f :=`**, or the parser stops at the newline with *"unexpected token '(';
+expected '}'"*; `cases h : x` substitutes in the goal but **not** in
+hypotheses; `simp` in this build does not reduce `Except` binds, so a
+type-ascribed `have` is needed to force the defeq first; and `simp only
+[bind_eq_ok_iff] at h` peels *every* bind down to the next blocking `match`, so
+a later repeat errors with "made no progress".
