@@ -215,6 +215,51 @@ study measured.  **Not** `HashMap.lean`/`Nat.lean` (genuinely mathematical,
 `Refine/AUTOMATION.md` is the study these rules come from and carries the
 measurements; `Refine/Automation/Study.lean` the six worked examples.
 
+## Refining a byte scanner (task #87)
+
+The parser's exactness tier (`Refine/Frontend/Scan*.lean`) is outside the idiom's
+scope — it is byte loops and list folds — and it is hand-proved throughout.  Six
+mechanics cost an agent a build cycle each and are worth knowing before writing
+the next one.
+
+1. **The object skeleton is one induction, not thirty-five.**  con-leche inlines
+   the same `{`…`}` member walk into every `scan*Loop`; the port factors it into
+   `next_member`.  `Refine/Frontend/ScanObj.lean`'s `memberBody` /
+   `MemberStep` / `nextMember_step` abstract it over the Close arm and the key
+   dispatch, so a loop owes only its own two arms, and the side condition
+   *"this loop **is** `memberBody` at its own arms"* is
+   `by rw [scanXLoop.eq_def]; rfl` — really `rfl`, with no massaging.
+2. **Do not factor a con-leche `match` into a helper `def`.**  A slot that a
+   sub-scanner fills reads
+   `match scanX b v with | .err e => .err e | .ok x e => if _hj : i < e then …`.
+   Written into a helper, that helper introduces *its own* matcher, and two
+   matchers on a stuck scrutinee are not definitionally equal, so the `rfl` of
+   (1) fails.  Inline in the dispatch, Lean reuses con-leche's own matcher and
+   it goes through; `simp only [scan_pw_refines hr1]` then rewrites the
+   scrutinee and the `match` reduces by iota.  (A `Nat` slot is exempt: it has
+   no `match`.)
+3. **`simp only [uncurry_apply_pair] at h` before anything else** in a member
+   arm — the port's `let (mem, ni, nw) := p` does not iota-reduce otherwise.
+   This is task #85 §8's mechanic 2, now confirmed twice.
+4. **Pass `L`/`CL`/`DI` explicitly** to the member-step lemma; leaving them to
+   higher-order unification does not work.
+5. **`rw [scanLineLoop]` does not work** — that loop's closing arm matches
+   `(LinePayload, UInt8)` with overlapping literal patterns, so its equation
+   lemmas carry side conditions.  `rw [scanLineLoop.eq_def]` is the one.  Every
+   other `scan*Loop` unfolds under its plain name.
+6. **A literal constant** (task #86 spelled all 68 of the scanner's keys as
+   `[u8; N]`) is read by `lift (Array.to_slice S_X) = ok s`, which gives
+   `s.val = S_X.val`; then `simp [global_simps]` computes the byte list and
+   `rw [absBytes, hsv]; decide` identifies `absBytes s` with the Lean literal's
+   `toUTF8`.  `match_lit_refines`'s "no NUL byte" side condition is
+   `by rw [hsv]; decide`.
+
+The abstraction vocabulary is `Refine/Frontend/Abs.lean` and the bridge lemmas
+between `Std.U8`/`Std.Usize` and `UInt8`/`USize` all live in
+`Refine/Frontend/ScanKit.lean`, stated **port-on-the-left**
+(`absPos j = skipWs (absBytes b) (absPos i)`); take `.symm` rather than adding
+a mirrored duplicate.
+
 ## What is here (tasks #17, #20 and #47, P3.3)
 ## What is here (tasks #17, #20, #22 and #46)
 
