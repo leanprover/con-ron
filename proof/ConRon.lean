@@ -118,6 +118,8 @@ import ConRon.Refine.Frontend.ScanInd
 import ConRon.Refine.Frontend.ScanLine
 import ConRon.Refine.Frontend.StateDR
 import ConRon.Refine.Frontend.IndR
+import ConRon.Refine.Frontend.IndValidateR
+import ConRon.Refine.Frontend.IndInstallR
 import ConRon.Refine.Frontend.ProjRecR
 import ConRon.Refine.Frontend.PrepareR
 import ConRon.Refine.Frontend.ChunksR
