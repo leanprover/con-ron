@@ -23,7 +23,15 @@ fails where con-leche fails:
   the con-leche fact it stands on (`scanLineFwd_tail_of_no_newline`,
   `scanLineLoop_ge`, `skipWs_ge`, `newlineFrom_false`);
 * `scan_line_fwd_str_wf` — the two *spelling* payloads of a declaration record
-  hold valid code points (`IndR.lean`'s `LineRecStrWF`), a phase-1 gap.
+  hold valid code points (`IndR.lean`'s `LineRecStrWF`), a phase-1 gap;
+* `scan_line_fwd_digits` — a `natVal` record's digits are a non-empty run of
+  decimal bytes, which is `IndR.lean`'s `LineNatValSpec` through
+  `StateDR.lean`'s `natValSpec_of_digits`.
+
+The last two are `apply_line_refines`' second and third scanner obligations,
+the ones `LineRecWF` does not cover; with phase 1's `scan_line_fwd_wf` that is
+all three, and all three are facts about a record `scan_line_fwd` produced, so
+they belong here.
 
 `ParseIngredients`' third scanner field, `newline_from`, needs nothing from
 this file: `ScanKit.newline_from_refines` is already stated in the field's
@@ -58,9 +66,9 @@ is proved: `ScanKit` (`byte_at`, `skip_ws`, `key_end`, `key_at`, `value_at`,
 `ScanStr` (`scan_string`, `scan_quoted_nat`), `ScanExpr` (the six expression
 records) and `ScanInd` (the three inductive lists).
 
-The two `Prop`s reach `scan_line_fwd_refines` only: `scan_line_fwd_tail` and
-`scan_line_fwd_str_wf` are hypothesis-free, and their censuses are pinned
-beside them.
+The two `Prop`s reach `scan_line_fwd_refines` only: `scan_line_fwd_tail`,
+`scan_line_fwd_str_wf` and `scan_line_fwd_digits` are hypothesis-free, and
+their censuses are pinned beside them.
 
 `ScanWF.lean` (phase 1) is imported for one lemma, `scan_string_wf`: the
 spelling proofs below are its member-loop shape, and the port's decoder is
@@ -4177,5 +4185,624 @@ theorem scan_line_fwd_str_wf {b : Slice Std.U8} {i : Std.Usize}
 /-- info: 'ConRon.Refine.Frontend.scan_line_fwd_str_wf' depends on axioms: [propext,
 Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms scan_line_fwd_str_wf
+
+/-! ## The `natVal` digits, at a line
+
+The third obligation `Refine/Frontend/IndR.lean`'s `apply_line_refines` carries
+beyond `LineRecWF` is `LineNatValSpec` — `Refine/Frontend/StateDR.lean`'s
+`NatValSpec`, which `natValSpec_of_digits` proves from `ExprRecDigits`: *the
+digits a `NatVal` record carries are a non-empty run of decimal bytes*
+(`Abs.lean`'s deviation 2 — the port keeps the literal's digits where con-leche
+keeps the `Nat`).  `Refine/Frontend/ScanStr.lean`'s `scan_quoted_nat_digits`
+proves it of what `scan_quoted_nat` returns; what was missing is the walk from
+there to the line, which is this file's dispatch.
+
+`ExprDigits`/`LineExprDigits` are `StateDR.lean`'s `ExprRecDigits` at a line,
+restated here for the same reason as `DeclStrWF` above — the scanner sits below
+`StateDR` — and again the same definition, so `exact scan_line_fwd_digits h`
+discharges an `ExprRecDigits`/`LineNatValSpec` goal.  The six expression
+scanners owe only *which constructor they built*; `"natVal"` is the one arm
+that owes the run itself. -/
+
+/-- `Refine/Frontend/StateDR.lean`'s `ExprRecDigits`, restated below the tier
+that defines it. -/
+def ExprDigits : frontend.scan_types.ExprRec → Prop
+  | .NatVal ds => ds.val ≠ [] ∧ ∀ c ∈ ds.val, 48 ≤ c.val ∧ c.val ≤ 57
+  | _ => True
+
+/-- `ExprDigits` at a line: `IndR.lean`'s `LineNatValSpec` one step before
+`natValSpec_of_digits`. -/
+def LineExprDigits : frontend.scan_types.LineRec → Prop
+  | .Expr _ r => ExprDigits r
+  | _ => True
+
+/-- The parse state of one line, for `ExprDigits`. -/
+private def LinePayloadDigits : frontend.scan_fast.LinePayload → Prop
+  | .Expr r => ExprDigits r
+  | _ => True
+
+/-- `scan_fast::scan_app_expr_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:1001-1049 scanAppExprLoop`): `ExprRec::App`. -/
+private theorem scan_app_expr_loop_digits {b : Slice Std.U8} (f : Nat) :
+    ∀ {w : Bool} {i : Std.Usize} {seen : Std.U32} {arg fnx : Std.U64}
+      {r : frontend.scan_types.ExprRec} {j : Std.Usize},
+      b.length - i.val ≤ f →
+      frontend.scan_fast.scan_app_expr_loop_loop w b i seen arg fnx
+        = ok (.Ok (r, j)) → ExprDigits r := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w i seen arg fnx r j hf h
+    rw [frontend.scan_fast.scan_app_expr_loop_loop.eq_def] at h
+    obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rename_i _ p
+      obtain ⟨mem, ni, nw⟩ := p
+      simp only [uncurry_apply_pair] at h
+      have hilt := next_member_lt hres
+      split at h
+      · repeat' (first
+          | exact (err_ne_ok h).elim
+          | split at h
+          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+        all_goals
+          (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+             Prod.mk.injEq] at h
+           rw [← h.1]; trivial)
+      · rename_i k ks v
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+        split at h
+        all_goals
+          first
+            | exact (err_ne_ok h).elim
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   have he := slot_nat_prog hr1
+                   obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                   exact ih _ (by omega) (le_refl _) h
+                 · simp at h)
+    · simp at h
+
+/-- `scan_fast::scan_app_expr` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:1051-1055 scanAppExpr`). -/
+theorem scan_app_expr_digits {b : Slice Std.U8} {i : Std.Usize}
+    {r : frontend.scan_types.ExprRec} {j : Std.Usize}
+    (h : frontend.scan_fast.scan_app_expr b i = ok (.Ok (r, j))) : ExprDigits r := by
+  rw [frontend.scan_fast.scan_app_expr] at h
+  obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    exact scan_app_expr_loop_digits (b.length - i2.val) (le_refl _) h
+  · exact (err_ne_ok h).elim
+
+/-- `scan_fast::scan_binder_expr_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:1074-1174 scanBinderExprLoop`): `ExprRec::Lam`
+or `ExprRec::ForallE`, behind the `lam` flag. -/
+private theorem scan_binder_expr_loop_digits {b : Slice Std.U8} (f : Nat) :
+    ∀ {w : Bool} {lam : Bool} {i : Std.Usize} {seen : Std.U32} {bd ty : Std.U64}
+      {pw : frontend.scan_types.PwRec}
+      {r : frontend.scan_types.ExprRec} {j : Std.Usize},
+      b.length - i.val ≤ f →
+      frontend.scan_fast.scan_binder_expr_loop_loop w b lam i seen bd ty pw
+        = ok (.Ok (r, j)) → ExprDigits r := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w lam i seen bd ty pw r j hf h
+    rw [frontend.scan_fast.scan_binder_expr_loop_loop.eq_def] at h
+    obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rename_i _ p
+      obtain ⟨mem, ni, nw⟩ := p
+      simp only [uncurry_apply_pair] at h
+      have hilt := next_member_lt hres
+      split at h
+      · have hlam : ∀ er : frontend.scan_types.ExprRec,
+            (if lam = true then ok (frontend.scan_types.ExprRec.Lam ty bd pw)
+             else ok (frontend.scan_types.ExprRec.ForallE ty bd pw)) = ok er →
+            ExprDigits er := by
+          intro er h1
+          split at h1 <;>
+            (simp only [Result.ok.injEq] at h1; rw [← h1]; trivial)
+        have hexit : ∀ (i1 : Std.U32),
+            (if (i1 != 15#u32) = true then
+               frontend.scan_fast.err frontend.scan_types.ExprRec ni
+                 frontend.scan_types.ErrTag.MissingKey
+             else do
+               let er ←
+                 if lam = true then ok (frontend.scan_types.ExprRec.Lam ty bd pw)
+                 else ok (frontend.scan_types.ExprRec.ForallE ty bd pw)
+               let i2 ← ni + 1#usize
+               ok (core.result.Result.Ok (er, i2)))
+              = ok (core.result.Result.Ok (r, j)) → ExprDigits r := by
+          intro i1 h1
+          split at h1
+          · exact (err_ne_ok h1).elim
+          · obtain ⟨er, her, h1⟩ := bind_eq_ok_iff.mp h1
+            obtain ⟨i2, -, h1⟩ := bind_eq_ok_iff.mp h1
+            simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+              Prod.mk.injEq] at h1
+            rw [← h1.1]; exact hlam er her
+        split at h
+        · split at h
+          · exact (err_ne_ok h).elim
+          · obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
+            exact hexit i1 h
+        · obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
+          exact hexit i1 h
+      · rename_i k ks v
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+        split at h
+        all_goals
+          first
+            | exact (err_ne_ok h).elim
+            | -- a `slot_nat` machine word
+              (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   have he := slot_nat_prog hr1
+                   obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                   exact ih _ (by omega) (le_refl _) h
+                 · simp at h)
+            | -- a sub-scanner closed by the `prog` guard
+              (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                   split at h
+                   · have he := prog_lt hb2 (by assumption)
+                     obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                     exact ih _ (by omega) (le_refl _) h
+                   · exact (err_ne_ok h).elim
+                 · simp at h)
+            | -- `scan_binder_info`'s bare `usize`
+              (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨e, -, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · exact (err_ne_ok h).elim
+                 · obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                   split at h
+                   · have he := prog_lt hb2 (by assumption)
+                     obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                     exact ih _ (by omega) (le_refl _) h
+                   · exact (err_ne_ok h).elim)
+    · simp at h
+
+/-- `scan_fast::scan_lam_expr` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:1176-1180 scanLamExpr`). -/
+theorem scan_lam_expr_digits {b : Slice Std.U8} {i : Std.Usize}
+    {r : frontend.scan_types.ExprRec} {j : Std.Usize}
+    (h : frontend.scan_fast.scan_lam_expr b i = ok (.Ok (r, j))) : ExprDigits r := by
+  rw [frontend.scan_fast.scan_lam_expr] at h
+  obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    exact scan_binder_expr_loop_digits (b.length - i2.val) (le_refl _) h
+  · exact (err_ne_ok h).elim
+
+/-- `scan_fast::scan_forall_expr` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:1182-1186 scanForallExpr`). -/
+theorem scan_forall_expr_digits {b : Slice Std.U8} {i : Std.Usize}
+    {r : frontend.scan_types.ExprRec} {j : Std.Usize}
+    (h : frontend.scan_fast.scan_forall_expr b i = ok (.Ok (r, j))) : ExprDigits r := by
+  rw [frontend.scan_fast.scan_forall_expr] at h
+  obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    exact scan_binder_expr_loop_digits (b.length - i2.val) (le_refl _) h
+  · exact (err_ne_ok h).elim
+
+/-- `scan_fast::scan_let_expr_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:1188-1281 scanLetExprLoop`): `ExprRec::LetE`. -/
+private theorem scan_let_expr_loop_digits {b : Slice Std.U8} (f : Nat) :
+    ∀ {w : Bool} {i : Std.Usize} {seen : Std.U32} {bd ty vl : Std.U64}
+      {r : frontend.scan_types.ExprRec} {j : Std.Usize},
+      b.length - i.val ≤ f →
+      frontend.scan_fast.scan_let_expr_loop_loop w b i seen bd ty vl
+        = ok (.Ok (r, j)) → ExprDigits r := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w i seen bd ty vl r j hf h
+    rw [frontend.scan_fast.scan_let_expr_loop_loop.eq_def] at h
+    obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rename_i _ p
+      obtain ⟨mem, ni, nw⟩ := p
+      simp only [uncurry_apply_pair] at h
+      have hilt := next_member_lt hres
+      split at h
+      · repeat' (first
+          | exact (err_ne_ok h).elim
+          | split at h
+          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+        all_goals
+          (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+             Prod.mk.injEq] at h
+           rw [← h.1]; trivial)
+      · rename_i k ks v
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+        split at h
+        all_goals
+          first
+            | exact (err_ne_ok h).elim
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   have he := slot_nat_prog hr1
+                   obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                   exact ih _ (by omega) (le_refl _) h
+                 · simp at h)
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                   split at h
+                   · have he := prog_lt hb2 (by assumption)
+                     obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                     exact ih _ (by omega) (le_refl _) h
+                   · exact (err_ne_ok h).elim
+                 · simp at h)
+    · simp at h
+
+/-- `scan_fast::scan_let_expr` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:1283-1287 scanLetExpr`). -/
+theorem scan_let_expr_digits {b : Slice Std.U8} {i : Std.Usize}
+    {r : frontend.scan_types.ExprRec} {j : Std.Usize}
+    (h : frontend.scan_fast.scan_let_expr b i = ok (.Ok (r, j))) : ExprDigits r := by
+  rw [frontend.scan_fast.scan_let_expr] at h
+  obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    exact scan_let_expr_loop_digits (b.length - i2.val) (le_refl _) h
+  · exact (err_ne_ok h).elim
+
+/-- `scan_fast::scan_const_expr_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:1289-1338 scanConstExprLoop`):
+`ExprRec::Const`. -/
+private theorem scan_const_expr_loop_digits {b : Slice Std.U8} (f : Nat) :
+    ∀ {w : Bool} {i : Std.Usize} {seen : Std.U32} {nm : Std.U64}
+      {us : alloc.vec.Vec Std.U64}
+      {r : frontend.scan_types.ExprRec} {j : Std.Usize},
+      b.length - i.val ≤ f →
+      frontend.scan_fast.scan_const_expr_loop_loop w b i seen nm us
+        = ok (.Ok (r, j)) → ExprDigits r := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w i seen nm us r j hf h
+    rw [frontend.scan_fast.scan_const_expr_loop_loop.eq_def] at h
+    obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rename_i _ p
+      obtain ⟨mem, ni, nw⟩ := p
+      simp only [uncurry_apply_pair] at h
+      have hilt := next_member_lt hres
+      split at h
+      · repeat' (first
+          | exact (err_ne_ok h).elim
+          | split at h
+          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+        all_goals
+          (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+             Prod.mk.injEq] at h
+           rw [← h.1]; trivial)
+      · rename_i k ks v
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+        split at h
+        all_goals
+          first
+            | exact (err_ne_ok h).elim
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   have he := slot_nat_prog hr1
+                   obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                   exact ih _ (by omega) (le_refl _) h
+                 · simp at h)
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                   split at h
+                   · have he := prog_lt hb2 (by assumption)
+                     obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                     exact ih _ (by omega) (le_refl _) h
+                   · exact (err_ne_ok h).elim
+                 · simp at h)
+    · simp at h
+
+/-- `scan_fast::scan_const_expr` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:1340-1344 scanConstExpr`). -/
+theorem scan_const_expr_digits {b : Slice Std.U8} {i : Std.Usize}
+    {r : frontend.scan_types.ExprRec} {j : Std.Usize}
+    (h : frontend.scan_fast.scan_const_expr b i = ok (.Ok (r, j))) : ExprDigits r := by
+  rw [frontend.scan_fast.scan_const_expr] at h
+  obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    exact scan_const_expr_loop_digits (b.length - i2.val) (le_refl _) h
+  · exact (err_ne_ok h).elim
+
+/-- `scan_fast::scan_proj_expr_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:1346-1404 scanProjExprLoop`):
+`ExprRec::Proj`. -/
+private theorem scan_proj_expr_loop_digits {b : Slice Std.U8} (f : Nat) :
+    ∀ {w : Bool} {i : Std.Usize} {seen : Std.U32} {ix st tn : Std.U64}
+      {r : frontend.scan_types.ExprRec} {j : Std.Usize},
+      b.length - i.val ≤ f →
+      frontend.scan_fast.scan_proj_expr_loop_loop w b i seen ix st tn
+        = ok (.Ok (r, j)) → ExprDigits r := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w i seen ix st tn r j hf h
+    rw [frontend.scan_fast.scan_proj_expr_loop_loop.eq_def] at h
+    obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rename_i _ p
+      obtain ⟨mem, ni, nw⟩ := p
+      simp only [uncurry_apply_pair] at h
+      have hilt := next_member_lt hres
+      split at h
+      · repeat' (first
+          | exact (err_ne_ok h).elim
+          | split at h
+          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+        all_goals
+          (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+             Prod.mk.injEq] at h
+           rw [← h.1]; trivial)
+      · rename_i k ks v
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+        split at h
+        all_goals
+          first
+            | exact (err_ne_ok h).elim
+            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   have he := slot_nat_prog hr1
+                   obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
+                   exact ih _ (by omega) (le_refl _) h
+                 · simp at h)
+    · simp at h
+
+/-- `scan_fast::scan_proj_expr` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:1406-1410 scanProjExpr`). -/
+theorem scan_proj_expr_digits {b : Slice Std.U8} {i : Std.Usize}
+    {r : frontend.scan_types.ExprRec} {j : Std.Usize}
+    (h : frontend.scan_fast.scan_proj_expr b i = ok (.Ok (r, j))) : ExprDigits r := by
+  rw [frontend.scan_fast.scan_proj_expr] at h
+  obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    exact scan_proj_expr_loop_digits (b.length - i2.val) (le_refl _) h
+  · exact (err_ne_ok h).elim
+
+/-- `scan_fast::scan_line_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2464-2609 scanLineLoop`), for the digits:
+`"natVal"` is the one key whose payload owes a run, and `ScanStr`'s
+`scan_quoted_nat_digits` is what pays it. -/
+private theorem scan_line_loop_digits {b : Slice Std.U8} (f : Nat) :
+    ∀ {w : Bool} {i : Std.Usize} {ik : Std.U8} {idx : Std.U64}
+      {pl : frontend.scan_fast.LinePayload} {r : frontend.scan_types.LineRec}
+      {j : Std.Usize},
+      b.length - i.val ≤ f → LinePayloadDigits pl →
+      frontend.scan_fast.scan_line_loop_loop w b i ik idx pl = ok (.Ok (r, j)) →
+      LineExprDigits r := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w i ik idx pl r j hf hpl h
+    rw [frontend.scan_fast.scan_line_loop_loop.eq_def] at h
+    obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+    split at h
+    · rename_i _ p
+      obtain ⟨mem, ni, nw⟩ := p
+      simp only [uncurry_apply_pair] at h
+      have hilt := next_member_lt hres
+      split at h
+      · repeat' (first
+          | exact (err_ne_ok h).elim
+          | split at h
+          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+        all_goals
+          (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+             Prod.mk.injEq] at h
+           rw [← h.1]
+           trivial)
+      · rename_i k ks v
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+        split at h
+        all_goals
+          first
+            | exact (err_ne_ok h).elim
+            | -- a `slot_nat` machine word wrapped in a fresh payload
+              (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   have he := slot_nat_prog hr1
+                   exact ih _ (by omega) (le_refl _) (by trivial) h
+                 · simp at h
+               · exact (err_ne_ok h).elim)
+            | -- a sub-scanner closed by the `prog` guard
+              (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                   split at h
+                   · have he := prog_lt hb2 (by assumption)
+                     exact ih _ (by omega) (le_refl _)
+                       (by first
+                             | trivial
+                             | exact scan_quoted_nat_digits hr1
+                             | exact scan_app_expr_digits hr1
+                             | exact scan_lam_expr_digits hr1
+                             | exact scan_forall_expr_digits hr1
+                             | exact scan_let_expr_digits hr1
+                             | exact scan_const_expr_digits hr1
+                             | exact scan_proj_expr_digits hr1) h
+                   · exact (err_ne_ok h).elim
+                 · simp at h
+               · exact (err_ne_ok h).elim)
+            | -- `"str"` / `"num"`: the two name scanners behind one `key_beq`
+              (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · obtain ⟨b2, -, h⟩ := bind_eq_ok_iff.mp h
+                 split at h <;>
+                   (obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                    split at h
+                    · rename_i _ p1
+                      obtain ⟨x, e⟩ := p1
+                      simp only [uncurry_apply_pair] at h
+                      obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+                      split at h
+                      · have he := prog_lt hb3 (by assumption)
+                        exact ih _ (by omega) (le_refl _) (by trivial) h
+                      · exact (err_ne_ok h).elim
+                    · simp at h)
+               · exact (err_ne_ok h).elim)
+            | -- `"max"` / `"imax"`: a two-element `scan_nat_list`
+              (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨us, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   split at h
+                   · exact (err_ne_ok h).elim
+                   · obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                     split at h
+                     · have he := prog_lt hb2 (by assumption)
+                       obtain ⟨b3, -, h⟩ := bind_eq_ok_iff.mp h
+                       split at h <;>
+                         (obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+                          obtain ⟨i3, -, h⟩ := bind_eq_ok_iff.mp h
+                          exact ih _ (by omega) (le_refl _) (by trivial) h)
+                     · exact (err_ne_ok h).elim
+                 · simp at h
+               · exact (err_ne_ok h).elim)
+            | -- `"meta"`: a braced object skipped wholesale
+              (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+               split at h
+               · obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · exact (err_ne_ok h).elim
+                 · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+                   obtain ⟨e, -, h⟩ := bind_eq_ok_iff.mp h
+                   split at h
+                   · exact (err_ne_ok h).elim
+                   · obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                     split at h
+                     · have he := prog_lt hb2 (by assumption)
+                       exact ih _ (by omega) (le_refl _) (by trivial) h
+                     · exact (err_ne_ok h).elim
+               · exact (err_ne_ok h).elim)
+            | -- `"in"` / `"il"` / `"ie"`: the index key leaves the payload alone
+              (split at h
+               · exact (err_ne_ok h).elim
+               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                 split at h
+                 · rename_i _ p1
+                   obtain ⟨x, e⟩ := p1
+                   simp only [uncurry_apply_pair] at h
+                   have he := slot_nat_prog hr1
+                   exact ih _ (by omega) (le_refl _) hpl h
+                 · simp at h)
+    · simp at h
+
+/-- **The `natVal` digits at the line** (`scan_fast::scan_line_fwd`, con-leche
+`ConLeche/Frontend/Scan/Fast.lean:2622-2638 scanLineFwd`): the digits of a
+`natVal` record the scanner hands the parse are a non-empty run of decimal
+bytes.  With `StateDR.lean`'s `natValSpec_of_digits` this is `IndR.lean`'s
+`LineNatValSpec` — `apply_line_refines`' third scanner obligation. -/
+theorem scan_line_fwd_digits {b : Slice Std.U8} {i : Std.Usize}
+    {r : frontend.scan_types.LineRec} {j : Std.Usize}
+    (h : frontend.scan_fast.scan_line_fwd b i = ok (.Ok (r, j))) : LineExprDigits r := by
+  rw [frontend.scan_fast.scan_line_fwd] at h
+  obtain ⟨s, -, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
+  simp only at h
+  split at h
+  · obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+    rw [← h.1]; trivial
+  · split at h
+    · simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+      rw [← h.1]; trivial
+    · split at h
+      · exact (err_ne_ok h).elim
+      · obtain ⟨i3, -, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨rr, hrr, h⟩ := bind_eq_ok_iff.mp h
+        split at h
+        · rename_i _ p
+          obtain ⟨r1, j1⟩ := p
+          simp only [uncurry_apply_pair] at h
+          rw [frontend.scan_fast.scan_line_loop] at hrr
+          have hw := scan_line_loop_digits (b.length - i3.val) (le_refl _) (by trivial) hrr
+          obtain ⟨p1, -, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨i4, -, h⟩ := bind_eq_ok_iff.mp h
+          split at h
+          · obtain ⟨i5, -, h⟩ := bind_eq_ok_iff.mp h
+            simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+              Prod.mk.injEq] at h
+            rw [← h.1]; exact hw
+          · split at h
+            · simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+                Prod.mk.injEq] at h
+              rw [← h.1]; exact hw
+            · exact (err_ne_ok h).elim
+        · simp at h
+
+/-- info: 'ConRon.Refine.Frontend.scan_line_fwd_digits' depends on axioms: [propext,
+Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms scan_line_fwd_digits
 
 end ConRon.Refine.Frontend
