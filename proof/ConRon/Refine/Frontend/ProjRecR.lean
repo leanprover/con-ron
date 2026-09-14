@@ -9,7 +9,18 @@ import ConLeche.Frontend.ProjRec
 `Refine/Frontend/ProjRec.lean` (task #85, phase 1) proved the rewrite *well
 formed*.  This file is the tier above: every function of
 `crates/con-ron-core/src/frontend/proj_rec.rs` against the
-`ConLeche/Frontend/ProjRec.lean` fragment its doc comment cites.
+`ConLeche/Frontend/ProjRec.lean` fragment its doc comment cites.  Every
+function of the module is covered; the two capstones are
+
+* `proj_rec_value_refines` — **the rewrite** (`ProjRec.lean:279-330
+  projRecValue`), which `export_c::proj_rewrite_d` applies, and
+* `proj_rec_owners_refines` — **the owner census** (`ProjRec.lean:332-370
+  projRecOwners`), which `export_c::register_proj_owners` consumes.
+
+`lam_body_refines`, `is_proj_iota_name_refines`, `proj_iota_level_refines`,
+`proj_iota_name_refines` and `proj_rec_value_refines` are stated in exactly the
+shape `Refine/Frontend/StateDR.lean`'s `ProjRecSpec` asks for, so that record
+is discharged field by field by name.
 
 ## `sorry` count in this file: 0
 -/
@@ -3429,5 +3440,14 @@ theorem proj_rec_owners_refines {block : alloc.vec.Vec env.ConstantInfo}
     obtain ⟨n_pd, hn_pd, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
     exact hnat n_pd o1 os (n_pd_refines hn_pd) ho1 h
+
+/-- `proj_rec::info_name` is `env::constant_info_name`, spelled in this module
+so that `export_c`'s owner registration reads like the Lean (the Rust doc
+comment's "con-leche: none"). -/
+theorem info_name_refines {ci : env.ConstantInfo} {n : name.Name}
+    (hc : ConstantInfoWF ci) (h : frontend.proj_rec.info_name ci = ok n) :
+    absName n = ConLeche.ConstantInfo.name (absConstantInfo ci) ∧ NameWF n := by
+  rw [frontend.proj_rec.info_name] at h
+  exact ⟨Env.constant_info_name_refines h, Env.constant_info_name_wf hc h⟩
 
 end ConRon.Refine.Frontend
