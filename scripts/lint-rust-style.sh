@@ -24,7 +24,24 @@ check "derive(Debug) (mixed recursion groups in Charon)" 'derive\([^)]*Debug'
 # keeps `a || b` and `x | y` out (`||` and `|_|`-less bars are not closures).
 check "closures" '\|\s*(_|mut |&|[a-z])[a-z_0-9,&: ]*\|\s*(\{|[a-z])'
 check "? operator" '\)\?[;.) ]|\)\?$'
-check "loops (use recursion; -loops-to-rec only in leaf helpers)" '^\s*(while|for|loop)\b'
+# Loops.  The rule is recursion (DESIGN.md §3.4); the ONE exemption is
+# `crates/con-ron-core/src/frontend/`, the ported parser (task #84): the Lean
+# it cites is a per-byte tail recursion that *Lean* compiles to a loop, and a
+# per-byte recursion in Rust overflows the stack on a long export line.
+# `-loops-to-rec` gives each loop a `foo_loop` function that mirrors the Lean
+# recursion one for one.  (The `:[0-9]+:` is the `file:line:` prefix `gather`
+# adds: a `^\s*` anchor here matched nothing at all until task #84 noticed.)
+check_loops() {
+  local hits
+  hits=$(gather | grep -E ':[0-9]+:[[:space:]]*(while|for|loop)\b' \
+    | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow' \
+    | grep -v '^crates/con-ron-core/src/frontend/')
+  if [ -n "$hits" ]; then
+    echo "== loops (use recursion; only crates/con-ron-core/src/frontend/ may loop, DESIGN.md §3.4)"
+    echo "$hits"; fail=1
+  fi
+}
+check_loops
 check "unsafe" '\bunsafe\b'
 check "std::collections" 'std::collections'
 check "P/Rc/Arc API beyond new/clone/deref/ptr_eq" '\b(P|Rc|Arc)::(get_mut|make_mut|downgrade|try_unwrap|into_raw|from_raw|as_ptr|strong_count|weak_count|increment_strong_count|decrement_strong_count)|RefCell|Cell<'
