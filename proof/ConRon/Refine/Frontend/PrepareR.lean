@@ -520,4 +520,198 @@ theorem pick_idx_refines {n : name.Name} {ds : alloc.vec.Vec env.Declaration}
   simpa using this
 
 
+/-! ## Materialising the prepared stream
+
+`prepare::prepared_stream` is the cited `acc.push (m.getD p)` followed by
+`front ++ rest`, in one pass (`prepare.rs`'s module note).  `frontFrom` is that
+front as a function of the *plan*: slot `j` is the stream's own record where
+`front_of` found one (`l[k]?` is `some`) and the prelude's where it did not. -/
+
+/-- The front of the prepared stream as a function of the plan: the cited
+`m.getD p`, one per prelude record. -/
+private def frontFrom (picks : List Nat) (l ps : List ConLeche.Declaration) :
+    List ConLeche.Declaration :=
+  (ps.zip picks).map (fun q => (l[q.2]?).getD q.1)
+
+private theorem frontFrom_cons (k : Nat) (ks : List Nat)
+    (l : List ConLeche.Declaration) (p : ConLeche.Declaration)
+    (ps : List ConLeche.Declaration) :
+    frontFrom (k :: ks) l (p :: ps) = (l[k]?).getD p :: frontFrom ks l ps := by
+  rw [frontFrom, frontFrom, List.zip_cons_cons, List.map_cons]
+
+/-- `ConLeche/Frontend/Prepare.lean:159-163` — `prepare::prepared_rest`'s loop:
+the stream's records the mask does not carry. -/
+private theorem prepared_rest_loop_refines {ds : alloc.vec.Vec env.Declaration}
+    {picked : alloc.vec.Vec Bool}
+    (hlen : picked.val.length = ds.val.length) :
+    ∀ k : Nat, ∀ (i : Std.Usize) (out v : alloc.vec.Vec env.Declaration),
+      ds.val.length - i.val ≤ k → i.val ≤ ds.val.length →
+      frontend.prepare.prepared_rest_loop ds picked out (alloc.vec.Vec.len ds) i = ok v →
+      v.val.map absDeclaration = out.val.map absDeclaration ++
+        residual (picked.val.drop i.val) ((ds.val.drop i.val).map absDeclaration) := by
+  have hm : (alloc.vec.Vec.len ds).val = ds.val.length := alloc.vec.Vec.len_val ds
+  intro k
+  induction k with
+  | zero =>
+    intro i out v hk hi h
+    have hieq : i.val = ds.val.length := by omega
+    rw [frontend.prepare.prepared_rest_loop.eq_def] at h
+    rw [if_neg (show ¬ i < alloc.vec.Vec.len ds by scalar_tac), Result.ok.injEq] at h
+    rw [← h, hieq, List.drop_length, List.map_nil, residual_nil_right]
+    simp
+  | succ k ih =>
+    intro i out v hk hi h
+    rw [frontend.prepare.prepared_rest_loop.eq_def] at h
+    by_cases hlt : i.val < ds.val.length
+    · rw [if_pos (show i < alloc.vec.Vec.len ds by scalar_tac)] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨b, hb, out1, hout1, i1, hi1, h⟩ := h
+      have hi1v : i1.val = i.val + 1 := by have := Nat.uadd_val hi1; simpa using this
+      have hbg := ExprOps.vec_index_getElem? hb
+      have hpl : i.val < picked.val.length := by omega
+      have hbx : picked.val[i.val] = b := by
+        rw [List.getElem?_eq_getElem hpl] at hbg; exact Option.some_injective _ hbg
+      rw [ih i1 out1 v (by omega) (by omega) h, hi1v]
+      rw [List.drop_eq_getElem_cons hpl, List.drop_eq_getElem_cons hlt, hbx,
+        List.map_cons, residual]
+      by_cases hbb : b = true
+      · subst hbb
+        rw [if_pos rfl, Result.ok.injEq] at hout1
+        rw [if_pos rfl, ← hout1]
+      · simp only [Bool.not_eq_true] at hbb
+        subst hbb
+        simp only [Bool.false_eq_true, reduceIte, bind_eq_ok_iff] at hout1
+        obtain ⟨d, hd, d1, hd1, hpush⟩ := hout1
+        have hdg := ExprOps.vec_index_getElem? hd
+        have hdx : ds.val[i.val] = d := by
+          rw [List.getElem?_eq_getElem hlt] at hdg; exact Option.some_injective _ hdg
+        rw [if_neg (by simp), vec_push_val hpush, declaration_dup_refines hd1, hdx]
+        simp
+    · rw [if_neg (show ¬ i < alloc.vec.Vec.len ds by scalar_tac), Result.ok.injEq] at h
+      have hieq : i.val = ds.val.length := by omega
+      rw [← h, hieq, List.drop_length, List.map_nil, residual_nil_right]
+      simp
+
+/-- `ConLeche/Frontend/Prepare.lean:159-163` — **`prepare::prepared_rest`
+refines the cited `front ++ rest`'s second half**: the residual, appended to
+the accumulator. -/
+theorem prepared_rest_refines {ds out v : alloc.vec.Vec env.Declaration}
+    {picked : alloc.vec.Vec Bool}
+    (hlen : picked.val.length = ds.val.length)
+    (h : frontend.prepare.prepared_rest out ds picked = ok v) :
+    v.val.map absDeclaration = out.val.map absDeclaration ++
+      residual picked.val (ds.val.map absDeclaration) := by
+  rw [frontend.prepare.prepared_rest] at h
+  have := prepared_rest_loop_refines hlen ds.val.length 0#usize out v
+    (by scalar_tac) (by scalar_tac) h
+  simpa using this
+
+/-- `ConLeche/Frontend/Prepare.lean:126-135` — `prepare::prepared_front`'s
+loop: the cited `acc.push (m.getD p)`, one prelude record at a time. -/
+private theorem prepared_front_loop_refines {ps ds : alloc.vec.Vec env.Declaration}
+    {picks : alloc.vec.Vec Std.Usize}
+    (hlen : picks.val.length = ps.val.length) :
+    ∀ k : Nat, ∀ (j : Std.Usize) (out v : alloc.vec.Vec env.Declaration),
+      ps.val.length - j.val ≤ k → j.val ≤ ps.val.length →
+      frontend.prepare.prepared_front_loop ps ds picks out (alloc.vec.Vec.len ds)
+          (alloc.vec.Vec.len ps) j = ok v →
+      v.val.map absDeclaration = out.val.map absDeclaration ++
+        frontFrom ((picks.val.map (·.val)).drop j.val) (ds.val.map absDeclaration)
+          ((ps.val.drop j.val).map absDeclaration) := by
+  have hmp : (alloc.vec.Vec.len ps).val = ps.val.length := alloc.vec.Vec.len_val ps
+  have hmd : (alloc.vec.Vec.len ds).val = ds.val.length := alloc.vec.Vec.len_val ds
+  intro k
+  induction k with
+  | zero =>
+    intro j out v hk hj h
+    have hjeq : j.val = ps.val.length := by omega
+    rw [frontend.prepare.prepared_front_loop.eq_def] at h
+    rw [if_neg (show ¬ j < alloc.vec.Vec.len ps by scalar_tac), Result.ok.injEq] at h
+    rw [← h, hjeq, List.drop_length, List.map_nil, frontFrom]
+    simp
+  | succ k ih =>
+    intro j out v hk hj h
+    rw [frontend.prepare.prepared_front_loop.eq_def] at h
+    by_cases hlt : j.val < ps.val.length
+    · rw [if_pos (show j < alloc.vec.Vec.len ps by scalar_tac)] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨kk, hkk, out1, hout1, j1, hj1, h⟩ := h
+      have hj1v : j1.val = j.val + 1 := by have := Nat.uadd_val hj1; simpa using this
+      have hkg := ExprOps.vec_index_getElem? hkk
+      have hpl : j.val < picks.val.length := by omega
+      have hkx : picks.val[j.val] = kk := by
+        rw [List.getElem?_eq_getElem hpl] at hkg; exact Option.some_injective _ hkg
+      have hsplit : frontFrom ((picks.val.map (·.val)).drop j.val)
+            (ds.val.map absDeclaration) ((ps.val.drop j.val).map absDeclaration)
+          = ((ds.val.map absDeclaration)[kk.val]?).getD (absDeclaration ps.val[j.val])
+            :: frontFrom ((picks.val.map (·.val)).drop (j.val + 1))
+                 (ds.val.map absDeclaration)
+                 ((ps.val.drop (j.val + 1)).map absDeclaration) := by
+        rw [show (picks.val.map (·.val)).drop j.val
+              = kk.val :: (picks.val.map (·.val)).drop (j.val + 1) from by
+            rw [List.drop_eq_getElem_cons (by simpa using hpl), List.getElem_map, hkx],
+          List.drop_eq_getElem_cons hlt, List.map_cons, frontFrom_cons]
+      rw [ih j1 out1 v (by omega) (by omega) h, hj1v, hsplit]
+      by_cases hk2 : kk.val < ds.val.length
+      · rw [if_pos (show kk < alloc.vec.Vec.len ds by scalar_tac)] at hout1
+        simp only [bind_eq_ok_iff] at hout1
+        obtain ⟨d, hd, d1, hd1, hpush⟩ := hout1
+        have hdg := ExprOps.vec_index_getElem? hd
+        have hdx : ds.val[kk.val] = d := by
+          rw [List.getElem?_eq_getElem hk2] at hdg; exact Option.some_injective _ hdg
+        rw [vec_push_val hpush, declaration_dup_refines hd1,
+          show (ds.val.map absDeclaration)[kk.val]? = some (absDeclaration d) from by
+            rw [List.getElem?_map, List.getElem?_eq_getElem hk2, hdx]; rfl]
+        simp
+      · rw [if_neg (show ¬ kk < alloc.vec.Vec.len ds by scalar_tac)] at hout1
+        simp only [bind_eq_ok_iff] at hout1
+        obtain ⟨d, hd, d1, hd1, hpush⟩ := hout1
+        have hdg := ExprOps.vec_index_getElem? hd
+        have hdx : ps.val[j.val] = d := by
+          rw [List.getElem?_eq_getElem hlt] at hdg; exact Option.some_injective _ hdg
+        rw [vec_push_val hpush, declaration_dup_refines hd1,
+          show (ds.val.map absDeclaration)[kk.val]? = none from by
+            rw [List.getElem?_map,
+              List.getElem?_eq_none (by simpa using Nat.le_of_not_lt hk2)]
+            rfl,
+          hdx]
+        simp
+    · rw [if_neg (show ¬ j < alloc.vec.Vec.len ps by scalar_tac), Result.ok.injEq] at h
+      have hjeq : j.val = ps.val.length := by omega
+      rw [← h, hjeq, List.drop_length, List.map_nil, frontFrom]
+      simp
+
+/-- `ConLeche/Frontend/Prepare.lean:126-135` — **`prepare::prepared_front`
+refines the cited `acc.push (m.getD p)`**. -/
+theorem prepared_front_refines {ps ds out v : alloc.vec.Vec env.Declaration}
+    {picks : alloc.vec.Vec Std.Usize}
+    (hlen : picks.val.length = ps.val.length)
+    (h : frontend.prepare.prepared_front out ps ds picks = ok v) :
+    v.val.map absDeclaration = out.val.map absDeclaration ++
+      frontFrom (picks.val.map (·.val)) (ds.val.map absDeclaration)
+        (ps.val.map absDeclaration) := by
+  rw [frontend.prepare.prepared_front] at h
+  have := prepared_front_loop_refines hlen ps.val.length 0#usize out v
+    (by scalar_tac) (by scalar_tac) h
+  simpa using this
+
+/-- `ConLeche/Frontend/Prepare.lean:126-135`, `159-163` —
+**`prepare::prepared_stream` refines the cited `front ++ rest`.** -/
+theorem prepared_stream_refines {ps ds v : alloc.vec.Vec env.Declaration}
+    {picks : alloc.vec.Vec Std.Usize} {picked : alloc.vec.Vec Bool}
+    (hpicks : picks.val.length = ps.val.length)
+    (hpicked : picked.val.length = ds.val.length)
+    (h : frontend.prepare.prepared_stream ps ds picks picked = ok v) :
+    v.val.map absDeclaration =
+      frontFrom (picks.val.map (·.val)) (ds.val.map absDeclaration)
+        (ps.val.map absDeclaration)
+      ++ residual picked.val (ds.val.map absDeclaration) := by
+  rw [frontend.prepare.prepared_stream] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨cap, -, front, hfront, h⟩ := h
+  rw [prepared_rest_refines hpicked h,
+    prepared_front_refines hpicks hfront]
+  simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
+
+
 end ConRon.Refine.Frontend
