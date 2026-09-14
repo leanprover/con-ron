@@ -17464,13 +17464,14 @@ and nothing else.
 
 #### 21. Where the headline ended up
 
-Three of the four `Prop`s §17 displayed fell during the day, so the final
-statement — `Refine/Main.lean`, both twins — is
+All four of the `Prop`s §17 displayed fell during the day (the fourth,
+`IndRSpec`, only at the very end — §24), so the final statement —
+`Refine/Main.lean`, both twins — is
 
 ```lean
 theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     (hgen : Frontend.ModellerWF inst g)
-    (hsp : Frontend.IndRSpec inst g)
+    (hmr : Frontend.ModellerRefines inst g Frontend.CtxRel)
     (hp : kernel.pins_decode.decode text = ok (.Ok pins))
     (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
     (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
@@ -17484,26 +17485,17 @@ with `conron.no_False_declaration_prelude` the same at
 `frontend::prelude::builtin_prelude_e`, both pinned by `#guard_msgs` at
 `[propext, Classical.choice, Quot.sound]`.
 
-What each of the two remaining hypotheses is, and why it is there rather than
-proved:
-
-* **`hgen : ModellerWF inst g`** is not phase 3's to discharge and never was.
-  The in-process modeller is a `Modeller G` *argument*; it is unverified by
-  construction (task #84's seam), and this line is the promise the maintainer
-  accepted then — every declaration `generate` returns is well formed.  It
-  disappears the day upstream drops the modeller, not before.
-* **`hsp : IndRSpec inst g`** is a three-field record whose first and third
-  fields are theorems (`IndSpecR.projRecSpec`, `IndSpecR.installSpec` feeding
-  `indRSpec`); what keeps the record standing is its middle field,
-  `validate_ind_d` against `validateIndD`, which was still in flight when the
-  day ended.  `IndSpecR.indRSpec` is written so that landing it is a three-line
-  edit: delete `def ValidateIndRefines`, drop `(hv : …)` from `indRSpec` and its
-  three corollaries, and point `validateInd` at the new theorem.
+Both remaining hypotheses are about the same thing, and neither is phase 3's to
+discharge.  The in-process modeller is a `Modeller G` **argument**, unverified
+by construction — task #84's seam, and the residue the maintainer accepted
+then.  `ModellerWF` is the promise that every declaration `generate` returns is
+well formed; `ModellerRefines` is the promise that when it declines, it
+declines where con-leche's modeller declines.  They go when the modeller does,
+not before.
 
 So the honest reading of the headline at the end of task #87 is: *everything
-between the bytes and con-leche's `parseChunks` is proved except one
-constructor-ordering pass inside the inductive validator, and the modeller the
-port does not verify.*
+between the bytes and con-leche's `parseChunks` is proved, and what is left is
+the modeller the port does not verify.*
 
 #### 22. The string tier's two, and the encoder trick that made them cheap
 
@@ -17621,3 +17613,67 @@ such a thing is ever found: by trying to prove the clause true and constructing
 the input on which it is false.  After the Rust fix, `ctor_index_of_refines` is
 an ordinary loop induction against the `ctorIxAux` fold and the first-occurrence
 counting lemmas it used to need are deleted.
+
+#### 24. The assembly, and what the tier owes at the end of the task
+
+`Refine/Frontend/IndSpecR.lean` (198 lines, eight declarations) is where the
+inductive tier's three files meet the parse.  It contains no tactic proof at
+all — every result is a structure literal or a single application, because
+`ProjRecR.lean`, `IndInstallR.lean`, `IndValidateR.lean` and `IndR.lean` were
+written to restate their capstones in the records' binder order:
+
+| name | what it is |
+|---|---|
+| `projRecSpec : ProjRecSpec` | the five borrowed `frontend::proj_rec` facts, one application each |
+| `absProjOwner_eq` | `StateDR`'s `absProjOwner` **is** `ProjRecR`'s `absProjRecOwner`, by `rfl` |
+| `installSpec : InstallSpec` | `note_proj_iota_refines projRecSpec`, and `proj_rec_owners_refines` with phase 1's `proj_rec_owners_wf` |
+| `indRSpec (hmw) (hmr) : IndRSpec inst g` | `proj_rewrite_d_refines projRecSpec`, `validate_ind_d_refines`, `indRSpec_installInd hmw hmr installSpec` |
+| `parse_chunks_refines_of_modeller` and its two twins | `ChunksR`'s three corollaries at `indRSpec` |
+
+All six results are pinned by `#guard_msgs` at
+`[propext, Classical.choice, Quot.sound]`.  Its whole elaboration is ~0.5 G
+instructions — 5.90 G for the file against 5.38 G for an imports-only file with
+the same four imports — so importing the inductive tier is the entire cost and
+the assembly adds nothing.
+
+**What the tier owes, at the end of task #87.**  §8's table, settled:
+
+| record | owner | fields | state |
+|---|---|---|---|
+| `ScanLineIngredients` | `ScanLine` | 17 | **all discharged** |
+| `ScanObj.KitFacts` / `ScanStringFacts` | `ScanObj` | 3 + 1 | **discharged** |
+| `ScanStr.Utf8DecodeSpec` / `UnescapeSpec` | `ScanStr` | 2 | **discharged** (§22) |
+| `PrepareR.HoistSpec` | `PrepareR` | 1 | **discharged and deleted** (§18) |
+| `StateDR.NatValSpec` | `StateDR` | 1 | **discharged** |
+| `IndR.IndRSpec` | `IndR` | 3 | **discharged** (§23, this section) |
+| `ChunksR.ParseIngredients` | `ChunksR` | 9 | **discharged** |
+
+Nothing in the parse tier is a hypothesis any more.  What the headline still
+carries is `ModellerWF` and `ModellerRefines`, which are not this tier's
+statements at all: they are promises about a `Modeller G` **argument** the port
+does not verify, and they leave with it.
+
+**The three authorised escape hatches went two-thirds unused.**  The brief
+pre-authorised intermediate Lean definitions in three places; `unescapeBytes`
+was not needed (§22), and the remaining two are both *mirrors of a con-leche
+`do` block that the port splits into separate functions* — §18's
+`hoistTargets_split`, proved by `rfl` and therefore sensitive to
+`backward.do.legacy`, and §23's `lValidateIndD_eq`, proved by congruence
+descent and therefore not.  Both are equations against the real con-leche
+function, so neither assumes anything.
+
+**Method, across the whole task.**  The task-#71 `rust_norm`/`rust_grind` idiom
+was tried and used on **no lemma in any of the fourteen files** — six
+independent measurements now (the scanner, the record assembly, the hoist, the
+string tier, the inductive validator, the assembly), all with the same
+explanation: the idiom pays on straight-line arithmetic wrappers and not on
+`Vec` loops, list folds or byte recognisers, which is what a parser is made of.
+Everything here is a hand proof in phase 1's forward style: `= ok` →
+`bind_eq_ok_iff` → the arms.
+
+**Two port bugs, both found by a proof and nothing else** — §11's
+`IndexOverflow` rendered as `Internal`, and §20's first-wins `ctor_index_of`.
+Neither was reachable by testing: the first needs a `usize` overflow, the
+second needs a duplicate constructor name *and* a type index that resolves on
+one record and not the other.  That is the argument for this kind of proof,
+made twice in one day.

@@ -28,28 +28,28 @@
     92  }
 
 == proof/ConRon/Refine/Main.lean#L270-L291
-   270  #guard_msgs in #print axioms conron.no_proof_of_False'
-   271  
-   272  /-! ## The headline: the pins the verified decoder produced (task #75)
-   273  
-   274  `hvar` is a promise about the pin *argument*, and the one place a real run gets
-   275  it from is the decoder: `con_ron::driver::pins_for_run` calls
-   276  `kernel::pins_decode::decode_embedded()`, and task #66's `PinsWF.decode_wf`
-   277  reads `PinsWF` off **any** successful decode run — the input is a `Slice U8`
-   278  like any other, and nothing about its value is used.  So the pair below is the
-   279  statement about *the binary's checker fed the pins its own verified decoder
-   280  produced*, with no hypothesis left but that decode and the run itself, and it
-   281  names no string constant: its census is con-leche's own three axioms.
-   282  
-   283  The two `_embedded` corollaries in the next section are this pair's instance at
-   284  `text = core.str.Str.as_bytes kernel.pins_text.PINS_TEXT` — `decode_embedded`
-   285  is that `as_bytes` followed by `decode`, which is what `decode_embedded_wf`
-   286  peels — and they pay one axiom for naming the constant (`AENEAS_FINDINGS.md`
-   287  §3.8).  They are kept as they are: the extra generality here is exactly the
-   288  step that drops the axiom, and both statements are worth having side by side. -/
-   289  
-   290  /-- **The main theorem for the shipped binary, axiom-free** (task #75): every
-   291  environment `crates/con-ron-core`'s `check_decls` accepts, when fed a pin list
+   270  /-- info: 'ConRon.Refine.conron.no_proof_of_False'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+   271  #guard_msgs in #print axioms conron.no_proof_of_False'
+   272  
+   273  /-! ## The headline: the pins the verified decoder produced (task #75)
+   274  
+   275  `hvar` is a promise about the pin *argument*, and the one place a real run gets
+   276  it from is the decoder: `con_ron::driver::pins_for_run` calls
+   277  `kernel::pins_decode::decode_embedded()`, and task #66's `PinsWF.decode_wf`
+   278  reads `PinsWF` off **any** successful decode run — the input is a `Slice U8`
+   279  like any other, and nothing about its value is used.  So the pair below is the
+   280  statement about *the binary's checker fed the pins its own verified decoder
+   281  produced*, with no hypothesis left but that decode and the run itself, and it
+   282  names no string constant: its census is con-leche's own three axioms.
+   283  
+   284  The two `_embedded` corollaries in the next section are this pair's instance at
+   285  `text = core.str.Str.as_bytes kernel.pins_text.PINS_TEXT` — `decode_embedded`
+   286  is that `as_bytes` followed by `decode`, which is what `decode_embedded_wf`
+   287  peels — and they pay one axiom for naming the constant (`AENEAS_FINDINGS.md`
+   288  §3.8).  They are kept as they are: the extra generality here is exactly the
+   289  step that drops the axiom, and both statements are worth having side by side. -/
+   290  
+   291  /-- **The main theorem for the shipped binary, axiom-free** (task #75): every
 
 == crates/con-ron/src/bin/con-ron.rs#L116-L188
    116  // that crate anyway — for the `con-ron-pins/1` reader of `--pins` and for
@@ -189,105 +189,105 @@
     61  run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
 
 == proof/ConRon/Refine/Main.lean#L303-L310
-   303  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
-   304      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   305      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   306      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
-   307      (hds : ∀ d ∈ ds.val, DeclarationWF d)
-   308      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   309      Nonempty (ConLeche.Model V (absEnv e)) :=
-   310    conron.model_exists' V (PinsWF.decode_wf hp) hds h
+   303  `conron.model_exists_embedded` below is this theorem at exactly that text. -/
+   304  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
+   305      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   306      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   307      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+   308      (hds : ∀ d ∈ ds.val, DeclarationWF d)
+   309      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   310      Nonempty (ConLeche.Model V (absEnv e)) :=
 
 == proof/ConRon/Refine/Main.lean#L318-L326
-   318  theorem conron.no_proof_of_False_decoded (V : Type w) [ConLeche.SetTheory V]
-   319      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   320      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   321      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
-   322      (hds : ∀ d ∈ ds.val, DeclarationWF d)
-   323      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   324      ¬ ∃ c ∈ (absEnv e).consts,
-   325          c.toConstantVal.type = .const ConLeche.falseName [] :=
-   326    conron.no_proof_of_False' V (PinsWF.decode_wf hp) hds h
+   318  standard axioms. -/
+   319  theorem conron.no_proof_of_False_decoded (V : Type w) [ConLeche.SetTheory V]
+   320      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   321      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   322      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+   323      (hds : ∀ d ∈ ds.val, DeclarationWF d)
+   324      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   325      ¬ ∃ c ∈ (absEnv e).consts,
+   326          c.toConstantVal.type = .const ConLeche.falseName [] :=
 
 == proof/ConRon/Refine/Main.lean#L550-L564
-   550  theorem conron.model_exists_parsed (V : Type w) [ConLeche.SetTheory V]
-   551      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
-   552      (hgen : Frontend.ModellerWF inst g)
-   553      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   554      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   555      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
-   556      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
-   557      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {in_model census : Bool}
-   558      {r : frontend.export_c.ParseResultD}
-   559      (hparse : frontend.export_c.parse_chunks inst g chunks in_model census = ok (.Ok r))
-   560      {ds : alloc.vec.Vec env.Declaration}
-   561      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
-   562      {e : env.Env}
-   563      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   564      Nonempty (ConLeche.Model V (absEnv e)) :=
+   550  well-formedness. -/
+   551  theorem conron.model_exists_parsed (V : Type w) [ConLeche.SetTheory V]
+   552      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+   553      (hgen : Frontend.ModellerWF inst g)
+   554      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   555      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   556      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
+   557      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+   558      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {in_model census : Bool}
+   559      {r : frontend.export_c.ParseResultD}
+   560      (hparse : frontend.export_c.parse_chunks inst g chunks in_model census = ok (.Ok r))
+   561      {ds : alloc.vec.Vec env.Declaration}
+   562      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+   563      {e : env.Env}
+   564      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
 
 == proof/ConRon/Refine/Main.lean#L328-L332
-   328  /-- info: 'ConRon.Refine.conron.model_exists_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-   329  #guard_msgs in #print axioms conron.model_exists_decoded
-   330  
-   331  /-- info: 'ConRon.Refine.conron.no_proof_of_False_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-   332  #guard_msgs in #print axioms conron.no_proof_of_False_decoded
+   328  
+   329  /-- info: 'ConRon.Refine.conron.model_exists_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+   330  #guard_msgs in #print axioms conron.model_exists_decoded
+   331  
+   332  /-- info: 'ConRon.Refine.conron.no_proof_of_False_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 
-== proof/ConRon/Refine/Main.lean#L726-L742
-   726  theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-   727      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
-   728      (hgen : Frontend.ModellerWF inst g)
-   729      (hsp : Frontend.IndRSpec inst g)
-   730      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   731      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   732      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
-   733      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
-   734      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
-   735      (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
-   736      {r : frontend.export_c.ParseResultD}
-   737      (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
-   738      {ds : alloc.vec.Vec env.Declaration}
-   739      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
-   740      {e : env.Env}
-   741      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   742      False := by
+== proof/ConRon/Refine/Main.lean#L730-L746
+   730  theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+   731      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+   732      (hgen : Frontend.ModellerWF inst g)
+   733      (hmr : Frontend.ModellerRefines inst g Frontend.CtxRel)
+   734      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   735      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   736      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
+   737      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+   738      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
+   739      (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+   740      {r : frontend.export_c.ParseResultD}
+   741      (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+   742      {ds : alloc.vec.Vec env.Declaration}
+   743      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+   744      {e : env.Env}
+   745      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   746      False := by
 
 == proof/ConRon/Refine/Main.lean#L174-L185
-   174  theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
-   175      (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
-   176      (hraw : CheckerDecl.BasisRawSpec)
-   177      (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
-   178      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   179      (hvar : CheckerPins.PinsWF pins)
-   180      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
-   181      (hds : ∀ d ∈ ds.val, DeclarationWF d)
-   182      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   183      Nonempty (ConLeche.Model V (absEnv e)) :=
-   184    ConLeche.model_exists V (absPins pins) ⟨ds.val.map absDeclaration⟩ (absEnv e)
-   185      (check_decls_verified_refines_ok hk hraw hind hinde hvar hds h)
+   174  `ConLeche.model_exists` at the accept above. -/
+   175  theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
+   176      (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
+   177      (hraw : CheckerDecl.BasisRawSpec)
+   178      (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
+   179      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   180      (hvar : CheckerPins.PinsWF pins)
+   181      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+   182      (hds : ∀ d ∈ ds.val, DeclarationWF d)
+   183      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   184      Nonempty (ConLeche.Model V (absEnv e)) :=
+   185    ConLeche.model_exists V (absPins pins) ⟨ds.val.map absDeclaration⟩ (absEnv e)
 
 == proof/ConRon/Refine/Main.lean#L241-L251
-   241  theorem conron.model_exists' (V : Type w) [ConLeche.SetTheory V]
-   242      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   243      (hvar : CheckerPins.PinsWF pins)
-   244      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
-   245      (hds : ∀ d ∈ ds.val, DeclarationWF d)
-   246      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   247      Nonempty (ConLeche.Model V (absEnv e)) :=
-   248    conron.model_exists V (Core.knot_spec IndAbs.checkFuelU) conron.basis_raw_spec
-   249      (InductivesC.ind_routes_spec' (Core.knot_spec IndAbs.checkFuelU))
-   250      (InductivesC.ind_routes_spec_err' (Core.knot_spec IndAbs.checkFuelU))
-   251      hvar hds h
+   241  
+   242  theorem conron.model_exists' (V : Type w) [ConLeche.SetTheory V]
+   243      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   244      (hvar : CheckerPins.PinsWF pins)
+   245      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+   246      (hds : ∀ d ∈ ds.val, DeclarationWF d)
+   247      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   248      Nonempty (ConLeche.Model V (absEnv e)) :=
+   249    conron.model_exists V (Core.knot_spec IndAbs.checkFuelU) conron.basis_raw_spec
+   250      (InductivesC.ind_routes_spec' (Core.knot_spec IndAbs.checkFuelU))
+   251      (InductivesC.ind_routes_spec_err' (Core.knot_spec IndAbs.checkFuelU))
 
 == proof/ConRon/Refine/Main.lean#L391-L398
-   391  theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
-   392      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   393      (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
-   394      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
-   395      (hds : ∀ d ∈ ds.val, DeclarationWF d)
-   396      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   397      Nonempty (ConLeche.Model V (absEnv e)) :=
-   398    conron.model_exists' V (PinsWF.decode_embedded_wf hp) hds h
+   391  decoder input. -/
+   392  theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
+   393      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   394      (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
+   395      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+   396      (hds : ∀ d ∈ ds.val, DeclarationWF d)
+   397      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   398      Nonempty (ConLeche.Model V (absEnv e)) :=
 
 == proof/ConRon/Refine/Installed.lean#L3293-L3304
   3293      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
