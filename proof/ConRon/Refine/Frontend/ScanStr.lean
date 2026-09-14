@@ -1679,12 +1679,17 @@ private theorem absString_chars (o : alloc.vec.Vec Std.U32) :
 private theorem win_nil {b : Slice Std.U8} {k n : Nat} (h : n ≤ k) : win b k n = [] := by
   simp [win, Nat.sub_eq_zero_of_le h]
 
+/-- The port's total byte accessor, inside the slice. -/
+private theorem pByteAt_val {b : Slice Std.U8} {m : Nat} (h : m < b.val.length) :
+    pByteAt b m = b.val[m] := by rw [pByteAt, dif_pos h]
+
 /-- One byte off the front of the window. -/
 private theorem win_cons {b : Slice Std.U8} {k n : Nat} (hk : k < n) (hn : n ≤ b.val.length) :
-    win b k n = absByte (b.val[k]'(by omega)) :: win b (k + 1) n := by
+    win b k n = absByte (pByteAt b k) :: win b (k + 1) n := by
   have hkl : k < (b.val.map absByte).length := by simpa using by omega
   rw [win, win, List.drop_eq_getElem_cons hkl,
-    show n - k = (n - (k + 1)) + 1 by omega, List.take_succ_cons]
+    show n - k = (n - (k + 1)) + 1 by omega, List.take_succ_cons,
+    pByteAt_val (show k < b.val.length by omega)]
   simp
 
 /-- The window's length. -/
@@ -1693,10 +1698,11 @@ private theorem win_length {b : Slice Std.U8} {k n : Nat} (hn : n ≤ b.val.leng
   simp only [win, List.length_take, List.length_drop, List.length_map]
   omega
 
-/-- `k`-th byte of the window, for the first four `k` the decoder looks at. -/
+/-- `m`-th byte of the window, for the first four `m` the decoder looks at. -/
 private theorem win_getElem {b : Slice Std.U8} {k n m : Nat} (hn : n ≤ b.val.length)
     (hm : k + m < n) :
-    (win b k n)[m]'(by rw [win_length hn]; omega) = absByte (b.val[k + m]'(by omega)) := by
+    (win b k n)[m]'(by rw [win_length hn]; omega) = absByte (pByteAt b (k + m)) := by
+  rw [pByteAt_val (show k + m < b.val.length by omega)]
   simp only [win, List.getElem_take, List.getElem_drop, List.getElem_map]
 
 /-- The port clamps `e` to the slice's length; the window does not care. -/
@@ -1871,7 +1877,7 @@ private theorem claim_stuck {b : Slice Std.U8} {n k : Nat}
 /-- The window's `m`-th byte, as a `getElem?`. -/
 private theorem win_getElem? {b : Slice Std.U8} {k n m : Nat} (hn : n ≤ b.val.length)
     (hm : k + m < n) :
-    (win b k n)[m]? = some (absByte (b.val[k + m]'(by omega))) := by
+    (win b k n)[m]? = some (absByte (pByteAt b (k + m))) := by
   rw [List.getElem?_eq_getElem (by rw [win_length hn]; omega), win_getElem hn hm]
 
 /-- **Nothing but these four shapes starts a window that is valid UTF-8.**
@@ -1880,19 +1886,19 @@ has to contradict all four, which after `absByte_eq_iff` is `omega`'s job. -/
 private theorem win_lead {b : Slice Std.U8} {k n : Nat} {l : List Char}
     (hn : n ≤ b.val.length) (hk : k < n)
     (h : l.flatMap String.utf8EncodeChar = win b k n) :
-    (∃ v : Nat, v ≤ 0x7f ∧ (win b k n)[0]? = some (UInt8.ofNat v)) ∨
+    (∃ v : Nat, v ≤ 0x7f ∧ (pByteAt b k).val = v) ∨
     (∃ v : Nat, 0x80 ≤ v ∧ v ≤ 0x7ff ∧ k + 1 < n ∧
-        (win b k n)[0]? = some (UInt8.ofNat (v / 64 + 0xc0)) ∧
-        (win b k n)[1]? = some (UInt8.ofNat (v % 64 + 0x80))) ∨
+        (pByteAt b k).val = v / 64 + 0xc0 ∧
+        (pByteAt b (k + 1)).val = v % 64 + 0x80) ∨
     (∃ v : Nat, 0x800 ≤ v ∧ v ≤ 0xffff ∧ (v < 0xd800 ∨ 0xdfff < v) ∧ k + 2 < n ∧
-        (win b k n)[0]? = some (UInt8.ofNat (v / 4096 + 0xe0)) ∧
-        (win b k n)[1]? = some (UInt8.ofNat (v / 64 % 64 + 0x80)) ∧
-        (win b k n)[2]? = some (UInt8.ofNat (v % 64 + 0x80))) ∨
+        (pByteAt b k).val = v / 4096 + 0xe0 ∧
+        (pByteAt b (k + 1)).val = v / 64 % 64 + 0x80 ∧
+        (pByteAt b (k + 2)).val = v % 64 + 0x80) ∨
     (∃ v : Nat, 0x10000 ≤ v ∧ v ≤ 0x10ffff ∧ k + 3 < n ∧
-        (win b k n)[0]? = some (UInt8.ofNat (v / 262144 + 0xf0)) ∧
-        (win b k n)[1]? = some (UInt8.ofNat (v / 4096 % 64 + 0x80)) ∧
-        (win b k n)[2]? = some (UInt8.ofNat (v / 64 % 64 + 0x80)) ∧
-        (win b k n)[3]? = some (UInt8.ofNat (v % 64 + 0x80))) := by
+        (pByteAt b k).val = v / 262144 + 0xf0 ∧
+        (pByteAt b (k + 1)).val = v / 4096 % 64 + 0x80 ∧
+        (pByteAt b (k + 2)).val = v / 64 % 64 + 0x80 ∧
+        (pByteAt b (k + 3)).val = v % 64 + 0x80) := by
   have hlen : (win b k n).length = n - k := win_length hn
   have hne : l ≠ [] := by
     rintro rfl
@@ -1903,6 +1909,7 @@ private theorem win_lead {b : Slice Std.U8} {k n : Nat} {l : List Char}
     omega
   obtain ⟨c, l', rfl⟩ := List.exists_cons_of_ne_nil hne
   rw [List.flatMap_cons] at h
+  have hct : c.toNat = c.val.toNat := rfl
   have hpre : ∀ (e : List UInt8) (m : Nat), String.utf8EncodeChar c = e → m < e.length →
       (win b k n)[m]? = e[m]? := by
     rintro e m rfl hm
@@ -1912,25 +1919,594 @@ private theorem win_lead {b : Slice Std.U8} {k n : Nat} {l : List Char}
     have := congrArg List.length h
     rw [hlen, List.length_append] at this
     omega
+  have hbyte : ∀ (e : List UInt8) (m X : Nat), String.utf8EncodeChar c = e →
+      e[m]? = some (UInt8.ofNat X) → X < 256 → m < e.length → k + m < n →
+      (pByteAt b (k + m)).val = X := by
+    intro e m X hce hem hX hm hkm
+    have h1 : (win b k n)[m]? = some (UInt8.ofNat X) := by rw [hpre e m hce hm, hem]
+    rw [win_getElem? hn hkm] at h1
+    have h2 := absByte_eq_iff.mp (Option.some.inj h1)
+    rw [h2]
+    simp [Nat.mod_eq_of_lt hX]
   rcases enc_cases c with ⟨he, h1⟩ | ⟨he, h1, h2⟩ | ⟨he, h1, h2, h3⟩ | ⟨he, h1, h2⟩
-  · exact Or.inl ⟨c.val.toNat, h1, by rw [hpre _ 0 he (by simp)]; simp⟩
+  · exact Or.inl ⟨c.val.toNat, h1,
+      by simpa using hbyte _ 0 _ he (by simp) (by omega) (by simp) (by omega)⟩
   · have hl2 := hlong _ he
     simp only [List.length_cons, List.length_nil] at hl2
     refine Or.inr (Or.inl ⟨c.val.toNat, h1, h2, by omega, ?_, ?_⟩)
-    · rw [hpre _ 0 he (by simp)]; simp
-    · rw [hpre _ 1 he (by simp)]; simp
+    · simpa using hbyte _ 0 _ he (by simp) (by omega) (by simp) (by omega)
+    · exact hbyte _ 1 _ he (by simp) (by omega) (by simp) (by omega)
   · have hl2 := hlong _ he
     simp only [List.length_cons, List.length_nil] at hl2
     refine Or.inr (Or.inr (Or.inl ⟨c.val.toNat, h1, h2, h3, by omega, ?_, ?_, ?_⟩))
-    · rw [hpre _ 0 he (by simp)]; simp
-    · rw [hpre _ 1 he (by simp)]; simp
-    · rw [hpre _ 2 he (by simp)]; simp
+    · simpa using hbyte _ 0 _ he (by simp) (by omega) (by simp) (by omega)
+    · exact hbyte _ 1 _ he (by simp) (by omega) (by simp) (by omega)
+    · exact hbyte _ 2 _ he (by simp) (by omega) (by simp) (by omega)
   · have hl2 := hlong _ he
     simp only [List.length_cons, List.length_nil] at hl2
     refine Or.inr (Or.inr (Or.inr ⟨c.val.toNat, h1, h2, by omega, ?_, ?_, ?_, ?_⟩))
-    · rw [hpre _ 0 he (by simp)]; simp
-    · rw [hpre _ 1 he (by simp)]; simp
-    · rw [hpre _ 2 he (by simp)]; simp
-    · rw [hpre _ 3 he (by simp)]; simp
+    · simpa using hbyte _ 0 _ he (by simp) (by omega) (by simp) (by omega)
+    · exact hbyte _ 1 _ he (by simp) (by omega) (by simp) (by omega)
+    · exact hbyte _ 2 _ he (by simp) (by omega) (by simp) (by omega)
+    · exact hbyte _ 3 _ he (by simp) (by omega) (by simp) (by omega)
+
+/-! ### What an accepted character consumes
+
+The mirror image of `win_lead`: the bytes the port consumed at `k` *are* the
+encoding of the code point it pushed, so the window splits and `claim_step`
+applies.  The hypotheses are exactly the port's own tests. -/
+
+/-- One ASCII byte. -/
+private theorem win_enc1 {b : Slice Std.U8} {k n V : Nat} (hn : n ≤ b.val.length) (hk : k < n)
+    (hV : V ≤ 0x7f) (h0 : (pByteAt b k).val = V) :
+    win b k n = String.utf8EncodeChar (Char.ofNat V) ++ win b (k + 1) n := by
+  rw [enc_mk1 (Or.inl (by omega)) hV, win_cons hk hn]
+  simp only [List.cons_append, List.nil_append, List.cons.injEq, and_true]
+  exact byte_ofNat (by rw [h0]; omega)
+
+/-- A two-byte sequence. -/
+private theorem win_enc2 {b : Slice Std.U8} {k n V : Nat} (hn : n ≤ b.val.length)
+    (hk : k + 1 < n) (hV1 : 0x80 ≤ V) (hV2 : V ≤ 0x7ff)
+    (h0 : (pByteAt b k).val = V / 64 + 0xc0)
+    (h1 : (pByteAt b (k + 1)).val = V % 64 + 0x80) :
+    win b k n = String.utf8EncodeChar (Char.ofNat V) ++ win b (k + 2) n := by
+  rw [enc_mk2 (Or.inl (by omega)) hV1 hV2, win_cons (by omega) hn, win_cons (by omega) hn,
+    show k + 1 + 1 = k + 2 from rfl]
+  simp only [List.cons_append, List.nil_append, List.cons.injEq, and_true]
+  exact ⟨byte_ofNat (by rw [h0]; omega), byte_ofNat (by rw [h1]; omega)⟩
+
+/-- A three-byte sequence. -/
+private theorem win_enc3 {b : Slice Std.U8} {k n V : Nat} (hn : n ≤ b.val.length)
+    (hk : k + 2 < n) (hv : Nat.isValidChar V) (hV1 : 0x800 ≤ V) (hV2 : V ≤ 0xffff)
+    (h0 : (pByteAt b k).val = V / 4096 + 0xe0)
+    (h1 : (pByteAt b (k + 1)).val = V / 64 % 64 + 0x80)
+    (h2 : (pByteAt b (k + 2)).val = V % 64 + 0x80) :
+    win b k n = String.utf8EncodeChar (Char.ofNat V) ++ win b (k + 3) n := by
+  rw [enc_mk3 hv hV1 hV2, win_cons (by omega) hn, win_cons (by omega) hn,
+    win_cons (by omega) hn, show k + 1 + 1 = k + 2 from rfl,
+    show k + 2 + 1 = k + 3 from rfl]
+  simp only [List.cons_append, List.nil_append, List.cons.injEq, and_true]
+  exact ⟨byte_ofNat (by rw [h0]; omega), byte_ofNat (by rw [h1]; omega),
+    byte_ofNat (by rw [h2]; omega)⟩
+
+/-- A four-byte sequence. -/
+private theorem win_enc4 {b : Slice Std.U8} {k n V : Nat} (hn : n ≤ b.val.length)
+    (hk : k + 3 < n) (hV1 : 0x10000 ≤ V) (hV2 : V ≤ 0x10ffff)
+    (h0 : (pByteAt b k).val = V / 262144 + 0xf0)
+    (h1 : (pByteAt b (k + 1)).val = V / 4096 % 64 + 0x80)
+    (h2 : (pByteAt b (k + 2)).val = V / 64 % 64 + 0x80)
+    (h3 : (pByteAt b (k + 3)).val = V % 64 + 0x80) :
+    win b k n = String.utf8EncodeChar (Char.ofNat V) ++ win b (k + 4) n := by
+  rw [enc_mk4 (Or.inr ⟨by omega, by omega⟩) hV1 hV2, win_cons (by omega) hn,
+    win_cons (by omega) hn, win_cons (by omega) hn, win_cons (by omega) hn,
+    show k + 1 + 1 = k + 2 from rfl, show k + 2 + 1 = k + 3 from rfl,
+    show k + 3 + 1 = k + 4 from rfl]
+  simp only [List.cons_append, List.nil_append, List.cons.injEq, and_true]
+  exact ⟨byte_ofNat (by rw [h0]; omega), byte_ofNat (by rw [h1]; omega),
+    byte_ofNat (by rw [h2]; omega), byte_ofNat (by rw [h3]; omega)⟩
+
+/-! ### The port's bit assembly, as arithmetic
+
+The decoder's `(c0 as u32 & M) << S | …` chains, with the `|||` turned into
+`+` by `or_add` wherever the right operand fits under the left's low zeros —
+the same trick the encoder side (`utf8_of_bytes`) uses. -/
+
+/-- `as u32` on a byte. -/
+private theorem cast32_lift_val {x : Std.U8} {z : Std.U32}
+    (h : lift (Std.UScalar.cast .U32 x) = ok z) : z.val = x.val := by
+  rw [← lift_val h]; exact Std.U8.cast_U32_val_eq x
+
+/-- Aeneas's `+` returned `ok`, so nothing wrapped. -/
+private theorem uscalar_add_val {ty : Std.UScalarTy} {x y z : Std.UScalar ty}
+    (h : x + y = ok z) : z.val = x.val + y.val := by
+  have := Std.UScalar.add_equiv x y
+  rw [h] at this; simp at this; omega
+
+private theorem and31 (x : Nat) : x &&& 31 = x % 32 := by
+  simpa using Nat.and_two_pow_sub_one_eq_mod x 5
+
+private theorem and15 (x : Nat) : x &&& 15 = x % 16 := by
+  simpa using Nat.and_two_pow_sub_one_eq_mod x 4
+
+private theorem and7 (x : Nat) : x &&& 7 = x % 8 := by
+  simpa using Nat.and_two_pow_sub_one_eq_mod x 3
+
+private theorem or_add64 {A c : Nat} (hc : c < 64) (hA : A % 64 = 0) : A ||| c = A + c := by
+  obtain ⟨a, rfl⟩ : (2 : Nat) ^ 6 ∣ A := by
+    simpa using Nat.dvd_of_mod_eq_zero hA
+  exact or_add 6 a (by simpa using hc)
+
+private theorem or_add4096 {A c : Nat} (hc : c < 4096) (hA : A % 4096 = 0) :
+    A ||| c = A + c := by
+  obtain ⟨a, rfl⟩ : (2 : Nat) ^ 12 ∣ A := by
+    simpa using Nat.dvd_of_mod_eq_zero hA
+  exact or_add 12 a (by simpa using hc)
+
+private theorem or_add262144 {A c : Nat} (hc : c < 262144) (hA : A % 262144 = 0) :
+    A ||| c = A + c := by
+  obtain ⟨a, rfl⟩ : (2 : Nat) ^ 18 ∣ A := by
+    simpa using Nat.dvd_of_mod_eq_zero hA
+  exact or_add 18 a (by simpa using hc)
+
+/-- The three shift amounts the decoder uses, as `Nat`s. -/
+private theorem sh6 : (6#i32).toNat = 6 := by rfl
+private theorem sh12 : (12#i32).toNat = 12 := by rfl
+private theorem sh18 : (18#i32).toNat = 18 := by rfl
+
+/-- A `u32` shift left by six that did not wrap. -/
+private theorem ushl32_6 {x z : Std.U32} (h : x <<< (6#i32) = ok z)
+    (hb : x.val * 64 < 4294967296) : z.val = x.val * 64 := by
+  rw [ushl_val h, sh6, show x.val <<< 6 = x.val * 64 from by rw [Nat.shiftLeft_eq]]
+  exact Nat.mod_eq_of_lt hb
+
+/-- A `u32` shift left by twelve that did not wrap. -/
+private theorem ushl32_12 {x z : Std.U32} (h : x <<< (12#i32) = ok z)
+    (hb : x.val * 4096 < 4294967296) : z.val = x.val * 4096 := by
+  rw [ushl_val h, sh12, show x.val <<< 12 = x.val * 4096 from by rw [Nat.shiftLeft_eq]]
+  exact Nat.mod_eq_of_lt hb
+
+/-- A `u32` shift left by eighteen that did not wrap. -/
+private theorem ushl32_18 {x z : Std.U32} (h : x <<< (18#i32) = ok z)
+    (hb : x.val * 262144 < 4294967296) : z.val = x.val * 262144 := by
+  rw [ushl_val h, sh18,
+    show x.val <<< 18 = x.val * 262144 from by rw [Nat.shiftLeft_eq]]
+  exact Nat.mod_eq_of_lt hb
+
+/-! ### The loop -/
+
+/-- **The reject step, as arithmetic.**  `win_lead`'s four shapes, packaged so
+that each of the port's `return None` sites discharges them all with one
+`omega` over the bytes it has read. -/
+private theorem win_not_valid {b : Slice Std.U8} {n k : Nat}
+    {out : alloc.vec.Vec Std.U32} (hn : n ≤ b.val.length) (hk : k < n)
+    (H : ∀ v : Nat,
+      ¬ ((v ≤ 0x7f ∧ (pByteAt b k).val = v) ∨
+         (0x80 ≤ v ∧ v ≤ 0x7ff ∧ k + 1 < n ∧ (pByteAt b k).val = v / 64 + 0xc0 ∧
+            (pByteAt b (k + 1)).val = v % 64 + 0x80) ∨
+         (0x800 ≤ v ∧ v ≤ 0xffff ∧ (v < 0xd800 ∨ 0xdfff < v) ∧ k + 2 < n ∧
+            (pByteAt b k).val = v / 4096 + 0xe0 ∧
+            (pByteAt b (k + 1)).val = v / 64 % 64 + 0x80 ∧
+            (pByteAt b (k + 2)).val = v % 64 + 0x80) ∨
+         (0x10000 ≤ v ∧ v ≤ 0x10ffff ∧ k + 3 < n ∧
+            (pByteAt b k).val = v / 262144 + 0xf0 ∧
+            (pByteAt b (k + 1)).val = v / 4096 % 64 + 0x80 ∧
+            (pByteAt b (k + 2)).val = v / 64 % 64 + 0x80 ∧
+            (pByteAt b (k + 3)).val = v % 64 + 0x80))) :
+    DecClaim b n out k none := by
+  refine claim_stuck ?_
+  intro l hl
+  rcases win_lead hn hk hl with ⟨v, hv⟩ | ⟨v, hv⟩ | ⟨v, hv⟩ | ⟨v, hv⟩
+  · exact H v (Or.inl hv)
+  · exact H v (Or.inr (Or.inl hv))
+  · exact H v (Or.inr (Or.inr (Or.inl hv)))
+  · exact H v (Or.inr (Or.inr (Or.inr hv)))
+
+set_option maxHeartbeats 2000000 in
+/-- **`utf8_decode`'s loop carries `DecClaim`.**  Each of the port's five
+lead-byte classes either accepts — and `win_enc1`..`win_enc4` split the window
+into the character's own encoding and the rest — or rejects, and then
+`win_not_valid` shows nothing could have encoded that window. -/
+private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
+    (hn : n.val ≤ b.val.length) (f : Nat) :
+    ∀ (out : alloc.vec.Vec Std.U32) (k : Std.Usize)
+      (r : Option (alloc.vec.Vec Std.U32)),
+      n.val - k.val ≤ f →
+      frontend.scan_fast.utf8_decode_loop b n out k = ok r →
+      DecClaim b n.val out k.val r := by
+  induction f with
+  | zero =>
+    intro out k r hf h
+    rw [frontend.scan_fast.utf8_decode_loop.eq_def] at h
+    rw [if_neg (show ¬ (k < n) by scalar_tac)] at h
+    simp only [Result.ok.injEq] at h
+    rw [← h]
+    exact claim_stop (show n.val ≤ k.val by scalar_tac)
+  | succ f ih =>
+    intro out k r hf h
+    rw [frontend.scan_fast.utf8_decode_loop.eq_def] at h
+    by_cases hlt : k < n
+    case neg =>
+      rw [if_neg hlt] at h
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact claim_stop (show n.val ≤ k.val by scalar_tac)
+    rw [if_pos hlt] at h
+    have hk : k.val < n.val := by scalar_tac
+    have hkb : k.val < b.val.length := by omega
+    obtain ⟨c0, hc0, h⟩ := bind_eq_ok_iff.mp h
+    have hp0 : pByteAt b k.val = c0 := by rw [pByteAt_val hkb, index_ok hkb hc0]
+    -- one byte
+    by_cases hlt128 : c0 < 128#u8
+    case pos =>
+      rw [if_pos hlt128] at h
+      have hc0n : c0.val < 128 := by scalar_tac
+      obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+      have hiv : i.val = c0.val := cast32_lift_val hi
+      have hk1v : k1.val = k.val + 1 := by simpa using uscalar_add_val hk1
+      refine claim_step (v := i) ?_ (vec_push_val hout1) (ih out1 k1 r (by omega) h)
+      rw [hk1v]
+      exact win_enc1 hn hk (by omega) (by rw [hp0, hiv])
+    rw [if_neg hlt128] at h
+    have hc0n : 128 ≤ c0.val := by scalar_tac
+    -- a continuation byte, or an overlong two-byte lead: no character starts here
+    by_cases hlt194 : c0 < 194#u8
+    case pos =>
+      rw [if_pos hlt194] at h
+      have hc0n2 : c0.val < 194 := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact win_not_valid hn hk (by intro v; rw [hp0]; omega)
+    rw [if_neg hlt194] at h
+    have hc0n2 : 194 ≤ c0.val := by scalar_tac
+    -- two bytes
+    by_cases hlt224 : c0 < 224#u8
+    case pos =>
+      rw [if_pos hlt224] at h
+      have hc0n3 : c0.val < 224 := by scalar_tac
+      obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+      have hiv : i.val = k.val + 1 := by simpa using uscalar_add_val hi
+      by_cases htr : n ≤ i
+      case pos =>
+        rw [if_pos htr] at h
+        have htr' : n.val ≤ k.val + 1 := by rw [← hiv]; scalar_tac
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact win_not_valid hn hk (by intro v; rw [hp0]; omega)
+      rw [if_neg htr] at h
+      have hkn1 : k.val + 1 < n.val := by rw [← hiv]; scalar_tac
+      obtain ⟨c1, hc1, h⟩ := bind_eq_ok_iff.mp h
+      have hp1 : pByteAt b (k.val + 1) = c1 := by
+        rw [← hiv, pByteAt_val (by omega), index_ok (by omega) hc1]
+      by_cases hb1 : c1 < 128#u8
+      case pos =>
+        rw [if_pos hb1] at h
+        have hb1' : c1.val < 128 := by scalar_tac
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact win_not_valid hn hk (by intro v; rw [hp0, hp1]; omega)
+      rw [if_neg hb1] at h
+      by_cases hb2 : 192#u8 ≤ c1
+      case pos =>
+        rw [if_pos hb2] at h
+        have hb2' : 192 ≤ c1.val := by scalar_tac
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact win_not_valid hn hk (by intro v; rw [hp0, hp1]; omega)
+      rw [if_neg hb2] at h
+      have hc1a : 128 ≤ c1.val := by scalar_tac
+      have hc1b : c1.val < 192 := by scalar_tac
+      obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i6, hi6, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+      have e2 : i2.val = c0.val % 32 := by
+        rw [and_lift_val hi2, cast32_lift_val hi1]
+        simpa using and31 c0.val
+      have e3 : i3.val = c0.val % 32 * 64 := by
+        rw [ushl32_6 hi3 (by rw [e2]; omega), e2]
+      have e5 : i5.val = c1.val % 64 := by
+        rw [and_lift_val hi5, cast32_lift_val hi4]
+        simpa using and63 c1.val
+      have e6 : i6.val = c0.val % 32 * 64 + c1.val % 64 := by
+        rw [or_lift_val hi6, e3, e5]
+        exact or_add64 (by omega) (by omega)
+      have hk1v : k1.val = k.val + 2 := by simpa using uscalar_add_val hk1
+      refine claim_step (v := i6) ?_ (vec_push_val hout1) (ih out1 k1 r (by omega) h)
+      rw [hk1v]
+      exact win_enc2 hn hkn1 (by omega) (by omega)
+        (by rw [hp0, e6]; omega) (by rw [hp1, e6]; omega)
+    rw [if_neg hlt224] at h
+    have hc0n3 : 224 ≤ c0.val := by scalar_tac
+    -- three bytes
+    by_cases hlt240 : c0 < 240#u8
+    case pos =>
+      rw [if_pos hlt240] at h
+      have hc0n4 : c0.val < 240 := by scalar_tac
+      obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+      have hiv : i.val = k.val + 2 := by simpa using uscalar_add_val hi
+      by_cases htr : n ≤ i
+      case pos =>
+        rw [if_pos htr] at h
+        have htr' : n.val ≤ k.val + 2 := by rw [← hiv]; scalar_tac
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact win_not_valid hn hk (by intro v; rw [hp0]; omega)
+      rw [if_neg htr] at h
+      have hkn2 : k.val + 2 < n.val := by rw [← hiv]; scalar_tac
+      obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      have hi1v : i1.val = k.val + 1 := by simpa using uscalar_add_val hi1
+      obtain ⟨c1, hc1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨c2, hc2, h⟩ := bind_eq_ok_iff.mp h
+      have hp1 : pByteAt b (k.val + 1) = c1 := by
+        rw [← hi1v, pByteAt_val (by omega), index_ok (by omega) hc1]
+      have hp2 : pByteAt b (k.val + 2) = c2 := by
+        rw [← hiv, pByteAt_val (by omega), index_ok (by omega) hc2]
+      by_cases hb1 : c1 < 128#u8
+      case pos =>
+        rw [if_pos hb1] at h
+        have hb1' : c1.val < 128 := by scalar_tac
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact win_not_valid hn hk (by intro v; rw [hp0, hp1]; omega)
+      rw [if_neg hb1] at h
+      by_cases hb2 : 192#u8 ≤ c1
+      case pos =>
+        rw [if_pos hb2] at h
+        have hb2' : 192 ≤ c1.val := by scalar_tac
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact win_not_valid hn hk (by intro v; rw [hp0, hp1]; omega)
+      rw [if_neg hb2] at h
+      by_cases hb3 : c2 < 128#u8
+      case pos =>
+        rw [if_pos hb3] at h
+        have hb3' : c2.val < 128 := by scalar_tac
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact win_not_valid hn hk (by intro v; rw [hp0, hp2]; omega)
+      rw [if_neg hb3] at h
+      by_cases hb4 : 192#u8 ≤ c2
+      case pos =>
+        rw [if_pos hb4] at h
+        have hb4' : 192 ≤ c2.val := by scalar_tac
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact win_not_valid hn hk (by intro v; rw [hp0, hp2]; omega)
+      rw [if_neg hb4] at h
+      have hc1a : 128 ≤ c1.val := by scalar_tac
+      have hc1b : c1.val < 192 := by scalar_tac
+      have hc2a : 128 ≤ c2.val := by scalar_tac
+      have hc2b : c2.val < 192 := by scalar_tac
+      obtain ⟨j2, hj2, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨j3, hj3, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨j4, hj4, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨j5, hj5, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨j6, hj6, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨j7, hj7, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨j8, hj8, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨j9, hj9, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨j10, hj10, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨V, hV, h⟩ := bind_eq_ok_iff.mp h
+      have e3 : j3.val = c0.val % 16 := by
+        rw [and_lift_val hj3, cast32_lift_val hj2]
+        simpa using and15 c0.val
+      have e4 : j4.val = c0.val % 16 * 4096 := by
+        rw [ushl32_12 hj4 (by rw [e3]; omega), e3]
+      have e6 : j6.val = c1.val % 64 := by
+        rw [and_lift_val hj6, cast32_lift_val hj5]
+        simpa using and63 c1.val
+      have e7 : j7.val = c1.val % 64 * 64 := by
+        rw [ushl32_6 hj7 (by rw [e6]; omega), e6]
+      have e8 : j8.val = c0.val % 16 * 4096 + c1.val % 64 * 64 := by
+        rw [or_lift_val hj8, e4, e7]
+        exact or_add4096 (by omega) (by omega)
+      have e10 : j10.val = c2.val % 64 := by
+        rw [and_lift_val hj10, cast32_lift_val hj9]
+        simpa using and63 c2.val
+      have eV : V.val = c0.val % 16 * 4096 + c1.val % 64 * 64 + c2.val % 64 := by
+        rw [or_lift_val hV, e8, e10]
+        exact or_add64 (by omega) (by omega)
+      by_cases hover : V < 2048#u32
+      case pos =>
+        rw [if_pos hover] at h
+        have hover' : V.val < 2048 := by scalar_tac
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2]; omega)
+      rw [if_neg hover] at h
+      have hover' : 2048 ≤ V.val := by scalar_tac
+      by_cases hsur : 55296#u32 ≤ V
+      case neg =>
+        rw [if_neg hsur] at h
+        have hsur' : V.val < 55296 := by scalar_tac
+        obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+        have hk1v : k1.val = k.val + 3 := by simpa using uscalar_add_val hk1
+        refine claim_step (v := V) ?_ (vec_push_val hout1) (ih out1 k1 r (by omega) h)
+        rw [hk1v]
+        exact win_enc3 hn hkn2 (Or.inl (by omega)) (by omega) (by omega)
+          (by rw [hp0, eV]; omega) (by rw [hp1, eV]; omega) (by rw [hp2, eV]; omega)
+      rw [if_pos hsur] at h
+      have hsur' : 55296 ≤ V.val := by scalar_tac
+      by_cases hsur2 : V < 57344#u32
+      case pos =>
+        rw [if_pos hsur2] at h
+        have hsur2' : V.val < 57344 := by scalar_tac
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2]; omega)
+      rw [if_neg hsur2] at h
+      have hsur2' : 57344 ≤ V.val := by scalar_tac
+      obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+      have hk1v : k1.val = k.val + 3 := by simpa using uscalar_add_val hk1
+      refine claim_step (v := V) ?_ (vec_push_val hout1) (ih out1 k1 r (by omega) h)
+      rw [hk1v]
+      exact win_enc3 hn hkn2 (Or.inr ⟨by omega, by omega⟩) (by omega) (by omega)
+        (by rw [hp0, eV]; omega) (by rw [hp1, eV]; omega) (by rw [hp2, eV]; omega)
+    rw [if_neg hlt240] at h
+    have hc0n4 : 240 ≤ c0.val := by scalar_tac
+    -- four bytes, or a lead byte no character can have
+    by_cases hlt245 : c0 < 245#u8
+    case neg =>
+      rw [if_neg hlt245] at h
+      have hc0n5 : 245 ≤ c0.val := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact win_not_valid hn hk (by intro v; rw [hp0]; omega)
+    rw [if_pos hlt245] at h
+    have hc0n5 : c0.val < 245 := by scalar_tac
+    obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+    have hiv : i.val = k.val + 3 := by simpa using uscalar_add_val hi
+    by_cases htr : n ≤ i
+    case pos =>
+      rw [if_pos htr] at h
+      have htr' : n.val ≤ k.val + 3 := by rw [← hiv]; scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact win_not_valid hn hk (by intro v; rw [hp0]; omega)
+    rw [if_neg htr] at h
+    have hkn3 : k.val + 3 < n.val := by rw [← hiv]; scalar_tac
+    obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+    have hi1v : i1.val = k.val + 1 := by simpa using uscalar_add_val hi1
+    obtain ⟨c1, hc1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    have hi2v : i2.val = k.val + 2 := by simpa using uscalar_add_val hi2
+    obtain ⟨c2, hc2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨c3, hc3, h⟩ := bind_eq_ok_iff.mp h
+    have hp1 : pByteAt b (k.val + 1) = c1 := by
+      rw [← hi1v, pByteAt_val (by omega), index_ok (by omega) hc1]
+    have hp2 : pByteAt b (k.val + 2) = c2 := by
+      rw [← hi2v, pByteAt_val (by omega), index_ok (by omega) hc2]
+    have hp3 : pByteAt b (k.val + 3) = c3 := by
+      rw [← hiv, pByteAt_val (by omega), index_ok (by omega) hc3]
+    by_cases hb1 : c1 < 128#u8
+    case pos =>
+      rw [if_pos hb1] at h
+      have hb1' : c1.val < 128 := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact win_not_valid hn hk (by intro v; rw [hp0, hp1]; omega)
+    rw [if_neg hb1] at h
+    by_cases hb2 : 192#u8 ≤ c1
+    case pos =>
+      rw [if_pos hb2] at h
+      have hb2' : 192 ≤ c1.val := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact win_not_valid hn hk (by intro v; rw [hp0, hp1]; omega)
+    rw [if_neg hb2] at h
+    by_cases hb3 : c2 < 128#u8
+    case pos =>
+      rw [if_pos hb3] at h
+      have hb3' : c2.val < 128 := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact win_not_valid hn hk (by intro v; rw [hp0, hp2]; omega)
+    rw [if_neg hb3] at h
+    by_cases hb4 : 192#u8 ≤ c2
+    case pos =>
+      rw [if_pos hb4] at h
+      have hb4' : 192 ≤ c2.val := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact win_not_valid hn hk (by intro v; rw [hp0, hp2]; omega)
+    rw [if_neg hb4] at h
+    by_cases hb5 : c3 < 128#u8
+    case pos =>
+      rw [if_pos hb5] at h
+      have hb5' : c3.val < 128 := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact win_not_valid hn hk (by intro v; rw [hp0, hp3]; omega)
+    rw [if_neg hb5] at h
+    by_cases hb6 : 192#u8 ≤ c3
+    case pos =>
+      rw [if_pos hb6] at h
+      have hb6' : 192 ≤ c3.val := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact win_not_valid hn hk (by intro v; rw [hp0, hp3]; omega)
+    rw [if_neg hb6] at h
+    have hc1a : 128 ≤ c1.val := by scalar_tac
+    have hc1b : c1.val < 192 := by scalar_tac
+    have hc2a : 128 ≤ c2.val := by scalar_tac
+    have hc2b : c2.val < 192 := by scalar_tac
+    have hc3a : 128 ≤ c3.val := by scalar_tac
+    have hc3b : c3.val < 192 := by scalar_tac
+    obtain ⟨m3, hm3, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m4, hm4, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m5, hm5, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m6, hm6, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m7, hm7, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m8, hm8, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m9, hm9, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m10, hm10, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m11, hm11, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m12, hm12, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m13, hm13, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m14, hm14, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m15, hm15, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨V, hV, h⟩ := bind_eq_ok_iff.mp h
+    have e4 : m4.val = c0.val % 8 := by
+      rw [and_lift_val hm4, cast32_lift_val hm3]
+      simpa using and7 c0.val
+    have e5 : m5.val = c0.val % 8 * 262144 := by
+      rw [ushl32_18 hm5 (by rw [e4]; omega), e4]
+    have e7 : m7.val = c1.val % 64 := by
+      rw [and_lift_val hm7, cast32_lift_val hm6]
+      simpa using and63 c1.val
+    have e8 : m8.val = c1.val % 64 * 4096 := by
+      rw [ushl32_12 hm8 (by rw [e7]; omega), e7]
+    have e9 : m9.val = c0.val % 8 * 262144 + c1.val % 64 * 4096 := by
+      rw [or_lift_val hm9, e5, e8]
+      exact or_add262144 (by omega) (by omega)
+    have e11 : m11.val = c2.val % 64 := by
+      rw [and_lift_val hm11, cast32_lift_val hm10]
+      simpa using and63 c2.val
+    have e12 : m12.val = c2.val % 64 * 64 := by
+      rw [ushl32_6 hm12 (by rw [e11]; omega), e11]
+    have e13 : m13.val = c0.val % 8 * 262144 + c1.val % 64 * 4096 + c2.val % 64 * 64 := by
+      rw [or_lift_val hm13, e9, e12]
+      exact or_add4096 (by omega) (by omega)
+    have e15 : m15.val = c3.val % 64 := by
+      rw [and_lift_val hm15, cast32_lift_val hm14]
+      simpa using and63 c3.val
+    have eV : V.val =
+        c0.val % 8 * 262144 + c1.val % 64 * 4096 + c2.val % 64 * 64 + c3.val % 64 := by
+      rw [or_lift_val hV, e13, e15]
+      exact or_add64 (by omega) (by omega)
+    by_cases hover : V < 65536#u32
+    case pos =>
+      rw [if_pos hover] at h
+      have hover' : V.val < 65536 := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2, hp3]; omega)
+    rw [if_neg hover] at h
+    have hover' : 65536 ≤ V.val := by scalar_tac
+    by_cases hbig : 1114111#u32 < V
+    case pos =>
+      rw [if_pos hbig] at h
+      have hbig' : 1114111 < V.val := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2, hp3]; omega)
+    rw [if_neg hbig] at h
+    have hbig' : V.val ≤ 1114111 := by scalar_tac
+    obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+    have hk1v : k1.val = k.val + 4 := by simpa using uscalar_add_val hk1
+    refine claim_step (v := V) ?_ (vec_push_val hout1) (ih out1 k1 r (by omega) h)
+    rw [hk1v]
+    exact win_enc4 hn hkn3 (by omega) (by omega)
+      (by rw [hp0, eV]; omega) (by rw [hp1, eV]; omega)
+      (by rw [hp2, eV]; omega) (by rw [hp3, eV]; omega)
 
 end ConRon.Refine.Frontend
