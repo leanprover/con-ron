@@ -2357,4 +2357,99 @@ theorem declaration_dup_refines {d r : env.Declaration}
     obtain ⟨bl1, hbl, rfl⟩ := h
     rw [constant_infos_dup_refines hbl]
 
+/-! ## The fresh state and the result -/
+
+/-- `export_c::state_d_init` refines `StateD.init`
+(`ConLeche/Frontend/ExportC.lean:755-758`): the two singleton tables hold
+`name::anonymous` and `level::zero`, and everything else is empty.  There is no
+prelude here any more (con-leche task #293). -/
+theorem state_d_init_refines {im ce : Bool} {st : frontend.export_c.StateD}
+    (h : frontend.export_c.state_d_init im ce = ok st) :
+    StateDRel st (ConLeche.Frontend.StateD.init im ce) := by
+  rw [frontend.export_c.state_d_init] at h
+  simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+  obtain ⟨n, hn, it, hit, l, hl, it1, hit1, it2, hit2, hm, hhm, hm1, hhm1,
+    hm2, hhm2, hm3, hhm3, hm4, hhm4, hm5, hhm5, rfl⟩ := h
+  refine ⟨?_, ?_, id_table_empty_refines hit2, by simp [ConLeche.Frontend.StateD.init, alloc.vec.Vec.new], ?_,
+    State.new_inv hhm, State.new_keys hhm, ?_, State.new_inv hhm1, State.new_keys hhm1,
+    by simp [ConLeche.Frontend.StateD.init, alloc.vec.Vec.new], ?_, State.new_inv hhm2, State.new_keys hhm2,
+    ?_, State.new_inv hhm3, State.new_keys hhm3, by simp [ConLeche.Frontend.StateD.init],
+    by simp [ConLeche.Frontend.StateD.init, alloc.vec.Vec.new], by simp [ConLeche.Frontend.StateD.init], ?_,
+    State.new_inv hhm4, State.new_keys hhm4, by simp [ConLeche.Frontend.StateD.init],
+    ?_, State.new_inv hhm5, State.new_keys hhm5, by simp [ConLeche.Frontend.StateD.init],
+    by simp [ConLeche.Frontend.StateD.init, alloc.vec.Vec.new]⟩
+  · have := id_table_singleton_refines (A := absName) hit
+    rwa [Name.anonymous_refines hn] at this
+  · have := id_table_singleton_refines (A := absLevel) hit1
+    rwa [Level.zero_refines hl] at this
+  · exact State.new_rel hhm
+  · exact State.new_rel hhm1
+  · exact State.new_rel hhm2
+  · exact State.new_rel hhm3
+  · exact State.new_rel hhm4
+  · exact State.new_rel hhm5
+
+/-- `export_c::parse_result_of_state` refines `ParseResultD.ofState`
+(`ConLeche/Frontend/ExportC.lean:760-763`), field for field.  con-leche's
+seventh field `inModelGen` is the dump's and has no port counterpart (the same
+documented deviation as `StateD`'s), so no clause is claimed for it. -/
+theorem parse_result_of_state_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {r : frontend.export_c.ParseResultD}
+    (hrel : StateDRel st lst) (h : frontend.export_c.parse_result_of_state st = ok r) :
+    r.decls.val.map absDeclaration
+        = (ConLeche.Frontend.ParseResultD.ofState lst).decls.toList ∧
+      r.proj_rewrites.val.map absName
+        = (ConLeche.Frontend.ParseResultD.ofState lst).projRewrites.toList ∧
+      r.in_modelled.val.map absName
+        = (ConLeche.Frontend.ParseResultD.ofState lst).inModelled.toList ∧
+      r.gen_records.val = (ConLeche.Frontend.ParseResultD.ofState lst).genRecords ∧
+      HashMap.RelOn NameWF r.gen_owner
+        (ConLeche.Frontend.ParseResultD.ofState lst).genOwner absName absName ∧
+      r.in_model_declined.val.map absNameStr
+        = (ConLeche.Frontend.ParseResultD.ofState lst).inModelDeclined.toList := by
+  rw [frontend.export_c.parse_result_of_state] at h
+  rw [← Result.ok_injective h]
+  exact ⟨hrel.decls, hrel.projRewrites, hrel.inModelled, hrel.genRecords, hrel.genOwner,
+    hrel.inModelDeclined⟩
+
+/-! ## The modeller's window on the state
+
+`export_c::state_model_ctx` against `ExportC.lean:603-607`'s
+`let ctx : InModel.Ctx := ⟨fun n => st.constTypes[n]?, fun n => st.heights.getD n 0,
+fun n => st.indBlocks[n]?⟩`.  con-leche's `Ctx` holds three *functions* where
+the port holds three borrowed `ron::HashMap`s, so the bridge is stated at the
+lookup — and, as everywhere at a `Name` key, only for well-formed names
+(`Refine/HashMapWF.lean`'s note). -/
+
+/-- `in_model_rec::ModelCtx` denotes `InModel.Ctx`. -/
+structure CtxRel (c : frontend.in_model_rec.ModelCtx)
+    (lc : ConLeche.Frontend.InModel.Ctx) : Prop where
+  tbl : ∀ n, NameWF n → (HashMap.toFun c.tbl n).map absNamesExpr = lc.tbl (absName n)
+  tblInv : HashMap.Inv State.hName c.tbl
+  tblKeys : HashMap.KeysOk NameWF c.tbl
+  heights : ∀ n, NameWF n →
+    ((HashMap.toFun c.heights n).map absU64).getD 0 = lc.heights (absName n)
+  heightsInv : HashMap.Inv State.hName c.heights
+  heightsKeys : HashMap.KeysOk NameWF c.heights
+  blocks : ∀ n, NameWF n → (HashMap.toFun c.blocks n).map absBlockRec = lc.blocks (absName n)
+  blocksInv : HashMap.Inv State.hName c.blocks
+  blocksKeys : HashMap.KeysOk NameWF c.blocks
+
+/-- `export_c::state_model_ctx` refines the cited `let ctx := ⟨…, …, …⟩`
+(`ConLeche/Frontend/ExportC.lean:603-607`). -/
+theorem state_model_ctx_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {c : frontend.in_model_rec.ModelCtx}
+    (hrel : StateDRel st lst) (h : frontend.export_c.state_model_ctx st = ok c) :
+    CtxRel c ⟨fun n => lst.constTypes[n]?, fun n => lst.heights.getD n 0,
+      fun n => lst.indBlocks[n]?⟩ := by
+  rw [frontend.export_c.state_model_ctx] at h
+  rw [← Result.ok_injective h]
+  refine ⟨fun n hn => hrel.constTypes n hn, hrel.constTypesInv, hrel.constTypesKeys,
+    ?_, hrel.heightsInv, hrel.heightsKeys, fun n hn => hrel.indBlocks n hn,
+    hrel.indBlocksInv, hrel.indBlocksKeys⟩
+  intro n hn
+  rw [hrel.heights n hn]
+  show lst.heights[absName n]?.getD 0 = lst.heights.getD (absName n) 0
+  rw [_root_.Std.HashMap.getD_eq_getD_getElem?]
+
 end ConRon.Refine.Frontend
