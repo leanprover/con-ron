@@ -2124,4 +2124,18 @@ theorem scan_ind_ctors_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Us
     rw [if_neg (by simpa using h91), ← h]
     exact scanSim_err rfl (by rw [absPos_toNat])
 
+/-! ## The axioms
+
+Nothing here evaluates a key table or a byte literal, so the three products
+carry only Lean's own axioms. -/
+
+/-- info: 'ConRon.Refine.Frontend.scan_ind_types_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms scan_ind_types_refines
+
+/-- info: 'ConRon.Refine.Frontend.scan_ind_ctors_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms scan_ind_ctors_refines
+
+/-- info: 'ConRon.Refine.Frontend.scan_ind_recs_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms scan_ind_recs_refines
+
 end ConRon.Refine.Frontend
