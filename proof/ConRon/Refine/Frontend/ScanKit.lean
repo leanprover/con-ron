@@ -38,24 +38,32 @@ theorem byte_at_eq (b : Slice Std.U8) (i : Std.Usize) :
     have hi : ¬ i.val < b.val.length := by scalar_tac
     rw [dif_neg hi]
 
-/-- **`pByteAt` is con-leche's `byteAt`** at any index a machine word names. -/
-theorem byteAt_abs (b : Slice Std.U8) (n : Nat) (hn : n < USize.size) :
-    byteAt (absBytes b) (USize.ofNat n) = absByte (pByteAt b n) := by
-  have hn' : (USize.ofNat n).toNat = n := by
-    simp [Nat.mod_eq_of_lt hn]
-  rw [byteAt, pByteAt]
+/-- A machine-word position indexes con-leche's array exactly when it indexes
+the port's slice. -/
+theorem pos_lt_usize {b : Slice Std.U8} {p : USize} :
+    p < (absBytes b).usize ↔ p.toNat < b.val.length := by
+  rw [USize.lt_iff_toNat_lt, absBytes_usize]
+
+/-- A byte read inside the array is `pByteAt`. -/
+theorem uget_pos {b : Slice Std.U8} {p : USize} (h : p.toNat < (absBytes b).size) :
+    (absBytes b).uget p h = absByte (pByteAt b p.toNat) := by
+  have hi : p.toNat < b.val.length := by rw [absBytes_size] at h; exact h
+  rw [absBytes_uget b p h hi, pByteAt, dif_pos hi]
+
+/-- A byte read inside the array, through `absPos`. -/
+private theorem uget_absPos {b : Slice Std.U8} {i : Std.Usize}
+    (h : (absPos i).toNat < (absBytes b).size) :
+    (absBytes b).uget (absPos i) h = absByte (pByteAt b i.val) := by
+  rw [uget_pos h, absPos_toNat]
+
+/-- **`pByteAt` is con-leche's `byteAt`**, at any machine-word position. -/
+theorem byteAt_pos (b : Slice Std.U8) (p : USize) :
+    byteAt (absBytes b) p = absByte (pByteAt b p.toNat) := by
+  rw [byteAt]
   split
+  · rename_i h; rw [uget_pos]
   · rename_i h
-    have h1 : n < b.val.length := by
-      have := USize.lt_iff_toNat_lt.mp h
-      rw [hn', absBytes_usize] at this; exact this
-    rw [dif_pos h1, absBytes_uget b _ _ (by omega)]
-    simp [hn']
-  · rename_i h
-    have h1 : ¬ n < b.val.length := by
-      intro hc
-      exact h (by rw [USize.lt_iff_toNat_lt, hn', absBytes_usize]; exact hc)
-    rw [dif_neg h1]
+    rw [pByteAt, dif_neg (fun hc => h (pos_lt_usize.mpr hc))]
     simp [absByte]
 
 /-- **`byte_at` refines `byteAt`** (`Scan/Fast.lean:72-76`). -/
@@ -65,17 +73,7 @@ theorem byte_at_refines {b : Slice Std.U8} {i : Std.Usize} {c : Std.U8}
   rw [byte_at_eq] at h
   have h : pByteAt b i.val = c := by simpa using h
   subst h
-  rw [absPos, byteAt_abs b i.val (usize_val_lt_size i)]
-
-/-- A byte read inside the array, through `absPos`. -/
-private theorem uget_absPos {b : Slice Std.U8} {i : Std.Usize}
-    (h : (absPos i).toNat < (absBytes b).size) :
-    (absBytes b).uget (absPos i) h = absByte (pByteAt b i.val) := by
-  have hi : i.val < b.val.length := by
-    rw [absBytes_size] at h; rw [absPos_toNat] at h; exact h
-  rw [absBytes_uget b (absPos i) h (by rw [absPos_toNat]; exact hi), pByteAt,
-    dif_pos hi]
-  simp
+  rw [byteAt_pos, absPos_toNat]
 
 /-! ## `is_ws`, `is_digit`
 
@@ -257,5 +255,281 @@ theorem skip_digits_refines {b : Slice Std.U8} {i j : Std.Usize}
     (h : frontend.scan_fast.skip_digits b i = ok j) :
     absPos j = skipDigits (absBytes b) (absPos i) :=
   skip_digits_loop_refines (b.val.length - i.val) i j (le_refl _) h
+
+/-! ## `match_lit`
+
+`scan_fast.rs:132-142` against `Scan/Fast.lean:121-131` (`matchLit`).  The Lean
+carries an explicit literal cursor `k`; the port starts it at `0`.  The two
+sides agree *because no literal of the dialect holds a `0` byte*: con-leche's
+`matchLit` declines outright once the line has run out, and the port's
+`byte_at` reads `0` there, so the compare fails at the same step.  `hnz` is
+that hypothesis, and it is what a `[u8; N]` key constant discharges by
+`decide`. -/
+
+/-- `absByte` is injective: a `Std.U8` is already a byte. -/
+@[simp] theorem absByte_inj_iff {c d : Std.U8} : absByte c = absByte d ↔ c = d := by
+  constructor
+  · intro h
+    have := congrArg UInt8.toNat h
+    rw [absByte_toNat, absByte_toNat] at this
+    scalar_tac
+  · intro h; rw [h]
+
+/-- `matchLit` over an abstracted literal, unfolded once. -/
+private theorem matchLit_eq (b lit : Slice Std.U8) (p : USize) (k : Std.Usize) :
+    matchLit (absBytes b) p (absBytes lit) (absPos k) =
+      if k.val < lit.val.length then
+        (if p.toNat < b.val.length then
+           ((absByte (pByteAt b p.toNat) == absByte (pByteAt lit k.val)) &&
+             matchLit (absBytes b) (p + 1) (absBytes lit) (absPos k + 1))
+         else false)
+      else true := by
+  rw [matchLit]
+  by_cases hk : k.val < lit.val.length
+  · rw [dif_pos (absPos_lt_usize.mpr hk), if_pos hk]
+    by_cases hp : p.toNat < b.val.length
+    · rw [dif_pos (pos_lt_usize.mpr hp), if_pos hp, uget_pos, uget_absPos]
+    · rw [dif_neg (fun hc => hp (pos_lt_usize.mp hc)), if_neg hp]
+  · rw [dif_neg (fun hc => hk (absPos_lt_usize.mp hc)), if_neg hk]
+
+private theorem match_lit_loop_refines {b lit : Slice Std.U8} (f : Nat)
+    (hnz : ∀ (m : Nat) (hm : m < lit.val.length), lit.val[m] ≠ 0#u8) :
+    ∀ (i k : Std.Usize) (p : USize) (r : Bool),
+      lit.val.length - k.val ≤ f → p.toNat = i.val + k.val →
+      frontend.scan_fast.match_lit_loop b i lit (Slice.len lit) k = ok r →
+      r = matchLit (absBytes b) p (absBytes lit) (absPos k) := by
+  induction f with
+  | zero =>
+    intro i k p r hf hp h
+    rw [frontend.scan_fast.match_lit_loop.eq_def] at h
+    rw [if_neg (show ¬ (k < Slice.len lit) by scalar_tac)] at h
+    rw [matchLit_eq, if_neg (show ¬ k.val < lit.val.length by scalar_tac)]
+    simpa using h.symm
+  | succ f ih =>
+    intro i k p r hf hp h
+    rw [frontend.scan_fast.match_lit_loop.eq_def] at h
+    by_cases hk : k < Slice.len lit
+    · have hk' : k.val < lit.val.length := by scalar_tac
+      rw [if_pos hk] at h
+      obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+      have hi1v : i1.val = p.toNat := by
+        have := ConRon.Refine.Nat.uadd_val hi1; omega
+      have hi2v : i2 = pByteAt b p.toNat := by
+        rw [byte_at_eq, hi1v] at hi2; simpa using hi2.symm
+      have hi3v : i3 = pByteAt lit k.val := by
+        rw [slice_index_ok hk'] at hi3
+        rw [pByteAt, dif_pos hk']; simpa using hi3.symm
+      rw [matchLit_eq]
+      rw [if_pos hk']
+      by_cases hne : i2 = i3
+      · -- the bytes agree: the port's cursor is inside the line
+        rw [if_neg (show ¬ ((i2 != i3) = true) by simp [hne])] at h
+        have hd : pByteAt b p.toNat = pByteAt lit k.val := by
+          rw [← hi2v, ← hi3v]; exact hne
+        have hpb : p.toNat < b.val.length := by
+          by_contra hc
+          have h0 : pByteAt b p.toNat = 0#u8 := by rw [pByteAt, dif_neg hc]
+          have hlit : pByteAt lit k.val = lit.val[k.val] := by rw [pByteAt, dif_pos hk']
+          exact hnz k.val hk' (by rw [← hlit, ← hd, h0])
+        obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+        have hk1v := usize_add_one_inv hk1
+        have hstep : (p + 1).toNat = p.toNat + 1 :=
+          usizeStep (absBytes b) p (pos_lt_usize.mpr hpb)
+        rw [if_pos hpb, ← absPos_add_one hk1]
+        rw [ih i k1 (p + 1) r (by omega) (by omega) h]
+        rw [hd]
+        simp
+      · -- the bytes differ, at the same step on both sides
+        rw [if_pos (show (i2 != i3) = true by simp [hne])] at h
+        have hr : r = false := by simpa using h.symm
+        have hd : ¬ (pByteAt b p.toNat = pByteAt lit k.val) := by
+          rw [← hi2v, ← hi3v]; exact hne
+        rw [hr]
+        by_cases hpb : p.toNat < b.val.length
+        · rw [if_pos hpb]
+          have hbe : (absByte (pByteAt b p.toNat) == absByte (pByteAt lit k.val)) = false := by
+            rw [Bool.eq_false_iff]
+            intro hc
+            exact hd (absByte_inj_iff.mp (by simpa using hc))
+          rw [hbe, Bool.false_and]
+        · rw [if_neg hpb]
+    · rw [if_neg hk] at h
+      rw [matchLit_eq, if_neg (show ¬ k.val < lit.val.length by scalar_tac)]
+      simpa using h.symm
+
+/-- **`match_lit` refines `matchLit`** (`Scan/Fast.lean:121-131`), for a
+literal with no `0` byte. -/
+theorem match_lit_refines {b lit : Slice Std.U8} {i : Std.Usize} {r : Bool}
+    (hnz : ∀ (m : Nat) (hm : m < lit.val.length), lit.val[m] ≠ 0#u8)
+    (h : frontend.scan_fast.match_lit b i lit = ok r) :
+    r = matchLit (absBytes b) (absPos i) (absBytes lit) 0 := by
+  rw [frontend.scan_fast.match_lit] at h
+  have hz : absPos (0#usize) = (0 : USize) := by simp [absPos]; rfl
+  have := match_lit_loop_refines lit.val.length hnz i 0#usize (absPos i) r
+    (by omega) (by simp) h
+  rw [hz] at this
+  exact this
+
+/-! ### `matchLit` as the `litN` chain
+
+`keyAt` does NOT call `matchLit`: it compares a key's tail with the unrolled
+`lit1`…`lit10` chains of `Scan/Fast.lean:160-222`, because a `String` constant
+in that position is a heap object (`Fast.lean`'s own note, task #264).  The
+port spells the same compare as one `match_lit` against a `[u8; N]` constant
+(deviation 2 of `scan_fast.rs`'s module note).  `litFrom` is that chain as a
+function of the literal's bytes -- **an intermediate definition matching the
+port's shape**, with `matchLit_eq_litFrom` the equivalence to `matchLit`; it
+is what lets the 68 key literals be compared with `keyAt`'s `litN` calls by
+`simp`. -/
+
+/-- The unrolled `litN` compare of `Scan/Fast.lean:160-222`, as a function of
+the literal's bytes: `litFrom B p [c₀, …, cₙ]` is `litN B p c₀ … cₙ`. -/
+def litFrom (B : ByteArray) (p : USize) : List UInt8 → Bool
+  | [] => true
+  | c :: cs => (byteAt B p == c) && litFrom B (p + 1) cs
+
+private theorem matchLit_litFrom_aux {b lit : Slice Std.U8} (f : Nat)
+    (hnz : ∀ (m : Nat) (hm : m < lit.val.length), lit.val[m] ≠ 0#u8) :
+    ∀ (p : USize) (k : Std.Usize), lit.val.length - k.val ≤ f →
+      matchLit (absBytes b) p (absBytes lit) (absPos k) =
+        litFrom (absBytes b) p ((lit.val.map absByte).drop k.val) := by
+  induction f with
+  | zero =>
+    intro p k hf
+    rw [matchLit_eq, if_neg (show ¬ k.val < lit.val.length by omega)]
+    rw [List.drop_eq_nil_of_le (by simp; omega), litFrom]
+  | succ f ih =>
+    intro p k hf
+    by_cases hk : k.val < lit.val.length
+    · have hkm : k.val < (lit.val.map absByte).length := by simpa using hk
+      have hdrop : (lit.val.map absByte).drop k.val
+          = (lit.val.map absByte)[k.val] :: (lit.val.map absByte).drop (k.val + 1) :=
+        List.drop_eq_getElem_cons hkm
+      have hel : (lit.val.map absByte)[k.val] = absByte (pByteAt lit k.val) := by
+        rw [pByteAt, dif_pos hk]; simp
+      have hk1 : ∃ w : Std.Usize, k + 1#usize = ok w ∧ w.val = k.val + 1 := by
+        refine usize_add_ok ?_
+        have := Slice.length_ineq lit; omega
+      obtain ⟨k1, hk1e, hk1v⟩ := hk1
+      rw [matchLit_eq, if_pos hk, hdrop, hel, litFrom, byteAt_pos]
+      by_cases hpb : p.toNat < b.val.length
+      · rw [if_pos hpb, ← absPos_add_one hk1e, ih (p + 1) k1 (by omega), hk1v]
+      · rw [if_neg hpb]
+        have h0 : pByteAt b p.toNat = 0#u8 := by rw [pByteAt, dif_neg hpb]
+        have hne : ¬ (absByte (pByteAt b p.toNat) = absByte (pByteAt lit k.val)) := by
+          rw [h0]
+          intro hc
+          exact hnz k.val hk (by
+            have := absByte_inj_iff.mp hc
+            rw [pByteAt, dif_pos hk] at this
+            exact this.symm)
+        rw [show (absByte (pByteAt b p.toNat) == absByte (pByteAt lit k.val)) = false from by
+          rw [Bool.eq_false_iff]; intro hc; exact hne (by simpa using hc)]
+        rw [Bool.false_and]
+    · rw [matchLit_eq, if_neg hk, List.drop_eq_nil_of_le (by simp; omega), litFrom]
+
+/-- **`matchLit` is the `litN` chain** of the literal's bytes, for a literal
+with no `0` byte. -/
+theorem matchLit_eq_litFrom {b lit : Slice Std.U8} (p : USize)
+    (hnz : ∀ (m : Nat) (hm : m < lit.val.length), lit.val[m] ≠ 0#u8) :
+    matchLit (absBytes b) p (absBytes lit) 0 = litFrom (absBytes b) p (lit.val.map absByte) := by
+  have hz : absPos (0#usize) = (0 : USize) := by simp [absPos]; rfl
+  have := matchLit_litFrom_aux (b := b) (lit := lit) lit.val.length hnz p 0#usize (by simp)
+  rw [hz] at this
+  simpa using this
+
+/-- **`match_lit` against a literal with no `0` byte is the `litN` chain.**
+This is the form `key_at` and `scan_bool` use. -/
+theorem match_lit_litFrom {b lit : Slice Std.U8} {i : Std.Usize} {r : Bool}
+    (hnz : ∀ (m : Nat) (hm : m < lit.val.length), lit.val[m] ≠ 0#u8)
+    (h : frontend.scan_fast.match_lit b i lit = ok r) :
+    r = litFrom (absBytes b) (absPos i) (lit.val.map absByte) := by
+  rw [match_lit_refines hnz h, matchLit_eq_litFrom (absPos i) hnz]
+
+/-! ## `key_end`
+
+`scan_fast.rs:149-162` against `Scan/Fast.lean:133-146` (`keyEnd`).  The port
+tests `c < 32` and `c == 92` in two `if`s where the Lean writes one `||`. -/
+
+/-- `keyEnd` at a port position, unfolded once. -/
+private theorem keyEnd_eq (b : Slice Std.U8) (j : Std.Usize) :
+    keyEnd (absBytes b) (absPos j) =
+      (if j.val < b.val.length then
+        (if absByte (pByteAt b j.val) == 34 then absPos j
+         else if absByte (pByteAt b j.val) < 32 || absByte (pByteAt b j.val) == 92 then 0
+         else keyEnd (absBytes b) (absPos j + 1))
+      else 0) := by
+  rw [keyEnd]
+  by_cases h : j.val < b.val.length
+  · rw [dif_pos (absPos_lt_usize.mpr h), if_pos h, uget_absPos]
+  · rw [dif_neg (fun hc => h (absPos_lt_usize.mp hc)), if_neg h]
+
+private theorem key_end_loop_refines {b : Slice Std.U8} (f : Nat) :
+    ∀ (j e : Std.Usize), b.val.length - j.val ≤ f →
+      frontend.scan_fast.key_end_loop b j = ok e →
+      absPos e = keyEnd (absBytes b) (absPos j) := by
+  have hz : absPos (0#usize) = (0 : USize) := by simp [absPos]; rfl
+  induction f with
+  | zero =>
+    intro j e hf h
+    rw [frontend.scan_fast.key_end_loop.eq_def] at h
+    rw [if_neg (show ¬ (j < Slice.len b) by scalar_tac)] at h
+    rw [keyEnd_eq, if_neg (show ¬ j.val < b.val.length by scalar_tac)]
+    have : 0#usize = e := by simpa using h
+    rw [← this, hz]
+  | succ f ih =>
+    intro j e hf h
+    rw [frontend.scan_fast.key_end_loop.eq_def] at h
+    by_cases hlt : j < Slice.len b
+    · rw [if_pos hlt] at h
+      have hj : j.val < b.val.length := by scalar_tac
+      obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+      have hc' : c = pByteAt b j.val := by
+        rw [slice_index_ok hj] at hc; rw [pByteAt, dif_pos hj]; simpa using hc.symm
+      rw [keyEnd_eq, if_pos hj, ← hc']
+      by_cases h34 : c = 34#u8
+      · rw [if_pos h34] at h
+        have hb : (absByte c == 34) = true := by simp; scalar_tac
+        have he : j = e := by simpa using h
+        rw [hb, he]; simp
+      · rw [if_neg h34] at h
+        have hb : (absByte c == 34) = false := by simp; scalar_tac
+        rw [hb]
+        by_cases h32 : c < 32#u8
+        · rw [if_pos h32] at h
+          have hb2 : (decide (absByte c < 32) || absByte c == 92) = true := by
+            simp; left; scalar_tac
+          rw [hb2]
+          have : 0#usize = e := by simpa using h
+          rw [← this, hz]; simp
+        · rw [if_neg h32] at h
+          by_cases h92 : c = 92#u8
+          · rw [if_pos h92] at h
+            have hb2 : (decide (absByte c < 32) || absByte c == 92) = true := by
+              simp; right; scalar_tac
+            rw [hb2]
+            have : 0#usize = e := by simpa using h
+            rw [← this, hz]; simp
+          · rw [if_neg h92] at h
+            have hb2 : (decide (absByte c < 32) || absByte c == 92) = false := by
+              simp; constructor <;> scalar_tac
+            rw [hb2]
+            simp only [Bool.false_eq_true, if_false]
+            obtain ⟨j1, hj1, h⟩ := bind_eq_ok_iff.mp h
+            have hj1v := usize_add_one_inv hj1
+            rw [← absPos_add_one hj1]
+            exact ih j1 e (by omega) h
+    · rw [if_neg hlt] at h
+      rw [keyEnd_eq, if_neg (show ¬ j.val < b.val.length by scalar_tac)]
+      have : 0#usize = e := by simpa using h
+      rw [← this, hz]
+
+/-- **`key_end` refines `keyEnd`** (`Scan/Fast.lean:133-146`). -/
+theorem key_end_refines {b : Slice Std.U8} {j e : Std.Usize}
+    (h : frontend.scan_fast.key_end b j = ok e) :
+    absPos e = keyEnd (absBytes b) (absPos j) :=
+  key_end_loop_refines (b.val.length - j.val) j e (le_refl _) h
 
 end ConRon.Refine.Frontend
