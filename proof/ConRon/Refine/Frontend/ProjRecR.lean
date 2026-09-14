@@ -357,9 +357,9 @@ theorem strip_pis_all_refines {e : expr.Expr}
   rw [h1]
   simp [ExprOps.absBinders]
 
-/-- `proj_rec::lam_body` refines `lamBody` (`ConLeche/Frontend/ProjRec.lean:233-237
-lamBody`). -/
-theorem lam_body_refines (e : expr.Expr) (he : ExprWF e) :
+/-- The abstraction half of `lam_body_refines`, by the `Name`-style node
+induction; the well-formedness half is phase 1's `lam_body_wf`. -/
+private theorem lam_body_abs (e : expr.Expr) (he : ExprWF e) :
     ∀ b, frontend.proj_rec.lam_body e = ok b →
       absExpr b = ConLeche.Frontend.lamBody (absExpr e) := by
   induction e, he using ExprWF.ind_node with
@@ -374,6 +374,14 @@ theorem lam_body_refines (e : expr.Expr) (he : ExprWF e) :
     rw [frontend.proj_rec.lam_body.eq_def] at h
     rust_norm h
     simp [ConLeche.Frontend.lamBody]
+
+/-- `proj_rec::lam_body` refines `lamBody` (`ConLeche/Frontend/ProjRec.lean:233-237
+lamBody`): the node under the value's leading `λ`s.  Stated in the shape
+`Refine/Frontend/StateDR.lean`'s `ProjRecSpec.lamBody` asks for. -/
+theorem lam_body_refines (e : expr.Expr) (he : ExprWF e) :
+    ∀ b, frontend.proj_rec.lam_body e = ok b →
+      absExpr b = ConLeche.Frontend.lamBody (absExpr e) ∧ ExprWF b :=
+  fun b h => ⟨lam_body_abs e he b h, lam_body_wf e he b h⟩
 
 /-- The index recursion behind `proj_rec::inst_pis_open`. -/
 theorem inst_pis_open_loop_refines (N : Nat) :
@@ -1102,8 +1110,10 @@ theorem proj_rec_value_at_refines {o : frontend.proj_rec.ProjRecOwner}
         rw [proj_rec_value_major_refines ho hLUS hPARS hMOTS hMINS hlbs hNRT h,
           hLUSa]
 
-/-- **The rewrite** (`ConLeche/Frontend/ProjRec.lean:279-330 projRecValue`). -/
-theorem proj_rec_value_refines {o : frontend.proj_rec.ProjRecOwner} {l : level.Level}
+/-- The abstraction half of **the rewrite**
+(`ConLeche/Frontend/ProjRec.lean:279-330 projRecValue`); the well-formedness
+half is phase 1's `proj_rec_value_wf`. -/
+private theorem proj_rec_value_abs {o : frontend.proj_rec.ProjRecOwner} {l : level.Level}
     {ty val : expr.Expr} {i : Std.U64} {res : Option expr.Expr}
     (ho : ProjRecOwnerWF o) (hl : LevelWF l) (hty : ExprWF ty) (hval : ExprWF val)
     (h : frontend.proj_rec.proj_rec_value o l ty val i = ok res) :
@@ -1163,6 +1173,20 @@ theorem proj_rec_value_refines {o : frontend.proj_rec.ProjRecOwner} {l : level.L
     · rw [if_neg (by simp [hb])] at h
       rw [← Result.ok_injective h, if_neg hb]
       rfl
+
+/-- **The rewrite** (`ConLeche/Frontend/ProjRec.lean:279-330 projRecValue`):
+what `export_c::proj_rewrite_d` stores in place of the parsed value.  Stated in
+the shape `Refine/Frontend/StateDR.lean`'s `ProjRecSpec.projRecValue` asks for
+(its `absProjOwner` is this file's `absProjRecOwner`, definitionally). -/
+theorem proj_rec_value_refines {o : frontend.proj_rec.ProjRecOwner} {l : level.Level}
+    {ty val : expr.Expr} {i : Std.U64} {res : Option expr.Expr}
+    (ho : ProjRecOwnerWF o) (hl : LevelWF l) (hty : ExprWF ty) (hval : ExprWF val)
+    (h : frontend.proj_rec.proj_rec_value o l ty val i = ok res) :
+    Option.map absExpr res = ConLeche.Frontend.projRecValue (absProjRecOwner o)
+        (absLevel l) (absExpr ty) (absExpr val) i.val ∧
+      ∀ e, res = some e → ExprWF e :=
+  ⟨proj_rec_value_abs ho hl hty hval h,
+    fun _ he => proj_rec_value_wf ho hl hty hval (he ▸ h)⟩
 
 /-! ## The artifact iota statement: its name's shape and its level
 
@@ -1295,6 +1319,182 @@ theorem cps_starts_with_str {s : alloc.vec.Vec Std.U32} {lit : Slice Std.U32}
       exact hc.map _
   rw [Bool.eq_iff_iff, hpre, hstr]
 
+
+/-! ## `text::cat` -/
+
+/-- The index recursion behind `text::cat`: it copies `b[i..n)` onto `out`. -/
+private theorem cat_loop_val (N : Nat) :
+    ∀ (b out : alloc.vec.Vec Std.U32) (n i : Std.Usize) (r : alloc.vec.Vec Std.U32),
+      n.val - i.val = N → n.val ≤ b.val.length → i.val ≤ n.val →
+      frontend.text.cat_loop b out n i = ok r →
+      r.val = out.val ++ (b.val.take n.val).drop i.val := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro b out n i r hN hnb hin h
+    rw [frontend.text.cat_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : i.val < n.val := by scalar_tac
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨x, hx, out1, hpush, i2, hi2, h⟩ := h
+      have hxv : b.val[i.val]'(by omega) = x := by
+        have hg := ExprOps.vec_index_getElem? hx
+        rw [List.getElem?_eq_getElem (by omega)] at hg
+        exact Option.some_injective _ hg
+      have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+      rw [ih (n.val - i2.val) (by omega) b out1 n i2 r rfl hnb (by omega) h, hi2v,
+        vec_push_val hpush]
+      rw [List.drop_eq_getElem_cons (show i.val < (b.val.take n.val).length by simp; omega)]
+      simp [hxv]
+    · rename_i hge
+      have hle : n.val ≤ i.val := by scalar_tac
+      rw [← Result.ok_injective h,
+        List.drop_eq_nil_of_le (by simp; omega)]
+      simp
+
+/-- `text::cat` is list append (`ConLeche/Frontend/ProjRec.lean:110-114
+projIotaName`, the `"proj_" ++ toString i` component). -/
+theorem cat_val {a b r : alloc.vec.Vec Std.U32} (h : frontend.text.cat a b = ok r) :
+    r.val = a.val ++ b.val := by
+  rw [frontend.text.cat] at h
+  have hn : (alloc.vec.Vec.len b).val = b.val.length := alloc.vec.Vec.len_val b
+  rw [cat_loop_val _ b a (alloc.vec.Vec.len b) 0#usize r rfl (by omega) (by scalar_tac) h]
+  simp [show ((0#usize : Std.Usize)).val = 0 by scalar_tac, hn]
+
+/-! ## `text::u64_str` -/
+
+/-- The digit recursion behind `text::u64_str`: the accumulator holds the
+digits least significant first, so read backwards it is `Nat.toDigits`. -/
+private theorem u64_str_loop0_val (N : Nat) :
+    ∀ (rev : alloc.vec.Vec Std.U32) (k : Std.U64) (r : alloc.vec.Vec Std.U32),
+      k.val = N → frontend.text.u64_str_loop0 rev k = ok r →
+      r.val.reverse.map (fun c => Char.ofNat c.val)
+        = (if k.val = 0 then [] else Nat.toDigits 10 k.val)
+          ++ rev.val.reverse.map (fun c => Char.ofNat c.val) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro rev k r hN h
+    rw [frontend.text.u64_str_loop0.eq_def] at h
+    split at h
+    · rename_i hgt
+      have hkv : 0 < k.val := by scalar_tac
+      simp only [bind_eq_ok_iff, lift_eq, Result.ok.injEq, exists_eq_left'] at h
+      obtain ⟨m, hm, d, hd, rev1, hpush, k1, hk1, hrec⟩ := h
+      have h10 : ((10#u64 : Std.U64)).val ≠ 0 := by decide
+      have hmv : m.val = k.val % 10 := by rw [CoreK.uscalar_rem_eq h10 hm]; rfl
+      have hmlt : m.val < 10 := by rw [hmv]; omega
+      have hdv : d.val = 48 + m.val := by
+        rw [HashMap.uscalar_add_eq hd, CoreK.u64_cast_u32_val_of_lt_ten hmlt]; rfl
+      have hk1v : k1.val = k.val / 10 := by rw [HashMap.uscalar_div_eq hk1]; rfl
+      have hdc : Char.ofNat d.val = Nat.digitChar (k.val % 10) := by
+        rw [hdv, hmv, ← Nat.toNat_digitChar_of_lt_ten (n := k.val % 10) (by omega),
+          Char.ofNat_toNat]
+      rw [ih k1.val (by rw [hk1v, ← hN]; omega) rev1 k1 r rfl hrec, hk1v,
+        vec_push_val hpush]
+      simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
+        List.map_cons, List.cons_append]
+      by_cases hlt : k.val < 10
+      · have hz : k.val / 10 = 0 := by omega
+        rw [hz]
+        simp only [if_neg (by omega : ¬ k.val = 0)]
+        rw [Nat.toDigits_of_lt_base hlt, hdc, Nat.mod_eq_of_lt hlt]
+        simp
+      · have hz : ¬ (k.val / 10 = 0) := by omega
+        have hD : Nat.toDigits 10 k.val
+            = Nat.toDigits 10 (k.val / 10) ++ [Nat.digitChar (k.val % 10)] :=
+          Nat.toDigits_of_base_le (b := 10) (by omega) (by omega)
+        rw [if_neg hz, if_neg (by omega : ¬ k.val = 0), hD, hdc]
+        simp
+    · rename_i hge
+      have hkv : k.val = 0 := by scalar_tac
+      rw [← Result.ok_injective h, if_pos hkv]
+      simp
+
+/-- The copy-back recursion behind `text::u64_str`: it reverses `rev[0..i)`
+onto `out`. -/
+private theorem u64_str_loop1_val (N : Nat) :
+    ∀ (rev out r : alloc.vec.Vec Std.U32) (i : Std.Usize),
+      i.val = N → i.val ≤ rev.val.length →
+      frontend.text.u64_str_loop1 rev out i = ok r →
+      r.val = out.val ++ (rev.val.take i.val).reverse := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro rev out r i hN hi h
+    rw [frontend.text.u64_str_loop1.eq_def] at h
+    split at h
+    · rename_i hgt
+      have hiv : 0 < i.val := by scalar_tac
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨i1, hi1, x, hx, out1, hpush, hrec⟩ := h
+      have hi1v : i1.val = i.val - 1 := by
+        rw [HashMap.uscalar_sub_eq hi1]; scalar_tac
+      have hxv : rev.val[i1.val]'(by omega) = x := by
+        have hg := ExprOps.vec_index_getElem? hx
+        rw [List.getElem?_eq_getElem (by omega)] at hg
+        exact Option.some_injective _ hg
+      rw [ih i1.val (by omega) rev out1 r i1 rfl (by omega) hrec, vec_push_val hpush]
+      have htk : rev.val.take i.val = rev.val.take i1.val ++ [rev.val[i1.val]'(by omega)] := by
+        rw [show i.val = i1.val + 1 by omega, List.take_add_one]
+        simp [List.getElem?_eq_getElem (show i1.val < rev.val.length by omega)]
+      rw [htk, hxv]
+      simp
+    · rename_i hge
+      have hiv : i.val = 0 := by scalar_tac
+      rw [← Result.ok_injective h, hiv]
+      simp
+
+/-- `text::u64_str` is Lean's `toString` on the index
+(`ConLeche/Frontend/ProjRec.lean:110-114 projIotaName`). -/
+theorem u64_str_refines {i : Std.U64} {s : alloc.vec.Vec Std.U32}
+    (h : frontend.text.u64_str i = ok s) : absCodes s.val = toString i.val := by
+  rw [frontend.text.u64_str] at h
+  have hgoal : s.val.map (fun c => Char.ofNat c.val) = Nat.toDigits 10 i.val := by
+    split at h
+    · rename_i hz
+      have hzv : i.val = 0 := by scalar_tac
+      rw [vec_push_val h]
+      simp [hzv]
+    · rename_i hz
+      have hzv : i.val ≠ 0 := by scalar_tac
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨rev, hrev, h⟩ := h
+      have hnew : (alloc.vec.Vec.new Std.U32).val = [] := rfl
+      have hwc : (alloc.vec.Vec.with_capacity Std.U32 (alloc.vec.Vec.len rev)).val = [] := rfl
+      have h0 := u64_str_loop0_val i.val (alloc.vec.Vec.new Std.U32) i rev rfl hrev
+      rw [if_neg hzv, hnew] at h0
+      simp only [List.reverse_nil, List.map_nil, List.append_nil] at h0
+      have hn : (alloc.vec.Vec.len rev).val = rev.val.length := alloc.vec.Vec.len_val rev
+      rw [u64_str_loop1_val _ rev _ s (alloc.vec.Vec.len rev) rfl (by omega) h, hwc, hn,
+        List.take_of_length_le (le_refl _), List.nil_append]
+      exact h0
+  rw [absCodes, hgoal, Nat.toString_eq_ofList_toDigits]
+
+
+/-- `proj_rec::proj_iota_name` refines `projIotaName`
+(`ConLeche/Frontend/ProjRec.lean:106-111 projIotaName`): the model family's
+constructor-reduction theorem for field `i` of `T`, `T._model.proj_i.iota`. -/
+theorem proj_iota_name_refines (t : name.Name) (ht : NameWF t) :
+    ∀ (i : Std.U64) n, frontend.proj_rec.proj_iota_name t i = ok n →
+      absName n = ConLeche.Frontend.projIotaName (absName t) i.val ∧ NameWF n := by
+  intro i n h
+  rw [frontend.proj_rec.proj_iota_name] at h
+  simp only [name_dup_eq, lift_eq, bind_tc_ok, bind_eq_ok_iff] at h
+  obtain ⟨v, hv, a, ha, v1, hv1, v2, hv2, v3, hv3, b, hb, v4, hv4, hmk⟩ := h
+  obtain ⟨haabs, hawf⟩ := str_lit_step ht (lift_eq _) hv ha
+    (L := [95#u32, 109#u32, 111#u32, 100#u32, 101#u32, 108#u32])
+    (by simp [frontend.proj_rec.proj_iota_name.MODEL]) (by decide)
+  have hv1v : v1.val = [112#u32, 114#u32, 111#u32, 106#u32, 95#u32] := by
+    rw [code_points_val hv1, Array.val_to_slice]
+    simp [frontend.proj_rec.proj_iota_name.PROJ]
+  have hv1s : StrWF v1 := by rw [StrWF]; rw [hv1v]; decide
+  have hbwf : NameWF b := Name.mk_str_wf hawf (cat_wf hv1s (u64_str_wf hv2) hv3) hb
+  obtain ⟨hnabs, hnwf⟩ := str_lit_step hbwf (lift_eq _) hv4 hmk
+    (L := [105#u32, 111#u32, 116#u32, 97#u32])
+    (by simp [frontend.proj_rec.proj_iota_name.IOTA]) (by decide)
+  refine ⟨?_, hnwf⟩
+  rw [hnabs, Name.mk_str_refines hb, haabs, absString_eq, cat_val hv3,
+    CoreK.absCodes_append, hv1v, u64_str_refines hv2]
+  rfl
 
 /-! ## `text::cps_beq` -/
 
