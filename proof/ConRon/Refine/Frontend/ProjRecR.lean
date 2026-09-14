@@ -2185,7 +2185,7 @@ theorem find_ctor_loop_refines (N : Nat) :
       frontend.proj_rec.find_ctor_loop ctors nm m i = ok o →
       (o = none → ((absProjCtorRecs ctors).drop i.val).find?
           (fun q => q.1 == absName nm) = none) ∧
-      (∀ j c, o = some j → Slice.index_usize ctors j = ok c →
+      (∀ j, o = some j → ∃ c, Slice.index_usize ctors j = ok c ∧
         ((absProjCtorRecs ctors).drop i.val).find? (fun q => q.1 == absName nm)
           = some (absProjCtorRec c)) := by
   induction N using Nat.strong_induction_on with
@@ -2207,13 +2207,11 @@ theorem find_ctor_loop_refines (N : Nat) :
       · rename_i hb
         rw [hb] at hbv
         refine ⟨by intro hc0; rw [← Result.ok_injective h] at hc0; simp at hc0, ?_⟩
-        intro j c hj hjc
+        intro j hj
         rw [← Result.ok_injective h] at hj
         simp only [Option.some.injEq] at hj
-        rw [← hj] at hjc
-        have : c = pcr := by
-          rw [hidx] at hjc; exact (Result.ok_injective hjc).symm
-        rw [this, List.find?_cons_of_pos (by simp only [absProjCtorRec, beq_iff_eq]; exact of_decide_eq_true hbv.symm)]
+        refine ⟨pcr, by rw [← hj]; exact hidx, ?_⟩
+        rw [List.find?_cons_of_pos (by simp only [absProjCtorRec, beq_iff_eq]; exact of_decide_eq_true hbv.symm)]
       · rename_i hb
         obtain ⟨i1, hi1, hrec⟩ := bind_eq_ok_iff.mp h
         have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
@@ -2225,14 +2223,23 @@ theorem find_ctor_loop_refines (N : Nat) :
         obtain ⟨ih1, ih2⟩ :=
           ih (ctors.val.length - i1.val) (by omega) ctors nm m i1 o rfl hm hc hnm hrec
         rw [hi1v] at ih1 ih2
-        rw [List.find?_cons_of_neg (by simp only [absProjCtorRec, beq_iff_eq]; exact of_decide_eq_false hbv.symm)]
         simp only [absProjCtorRecs] at ih1 ih2
-        exact ⟨ih1, ih2⟩
+        refine ⟨?_, ?_⟩
+        · intro h0
+          rw [List.find?_cons_of_neg (by
+            simp only [absProjCtorRec, beq_iff_eq]; exact of_decide_eq_false hbv.symm)]
+          exact ih1 h0
+        · intro j h0
+          obtain ⟨c, hc1, hc2⟩ := ih2 j h0
+          refine ⟨c, hc1, ?_⟩
+          rw [List.find?_cons_of_neg (by
+            simp only [absProjCtorRec, beq_iff_eq]; exact of_decide_eq_false hbv.symm)]
+          exact hc2
     · rename_i hge
       have hle : ctors.val.length ≤ i.val := by scalar_tac
       rw [← Result.ok_injective h,
         List.drop_eq_nil_of_le (by simpa [absProjCtorRecs] using hle)]
-      exact ⟨fun _ => rfl, by intro j c hj; simp at hj⟩
+      exact ⟨fun _ => rfl, by intro j hj; simp at hj⟩
 
 /-- `proj_rec::find_ctor` refines the cited `ctors.find? (·.1 == C)`. -/
 theorem find_ctor_refines {ctors : Slice frontend.proj_rec.ProjCtorRec}
@@ -2240,7 +2247,7 @@ theorem find_ctor_refines {ctors : Slice frontend.proj_rec.ProjCtorRec}
     (hc : ∀ c ∈ ctors.val, ProjCtorRecWF c) (hnm : NameWF nm)
     (h : frontend.proj_rec.find_ctor ctors nm = ok o) :
     (o = none → (absProjCtorRecs ctors).find? (fun q => q.1 == absName nm) = none) ∧
-    (∀ j c, o = some j → Slice.index_usize ctors j = ok c →
+    (∀ j, o = some j → ∃ c, Slice.index_usize ctors j = ok c ∧
       (absProjCtorRecs ctors).find? (fun q => q.1 == absName nm)
         = some (absProjCtorRec c)) := by
   rw [frontend.proj_rec.find_ctor] at h
@@ -2257,7 +2264,7 @@ theorem find_rec_loop_refines (N : Nat) :
       frontend.proj_rec.find_rec_loop recs nm m i = ok o →
       (o = none → ((absProjRecRecs recs).drop i.val).find?
           (fun q => q.1 == absName nm) = none) ∧
-      (∀ j x, o = some j → Slice.index_usize recs j = ok x →
+      (∀ j, o = some j → ∃ x, Slice.index_usize recs j = ok x ∧
         ((absProjRecRecs recs).drop i.val).find? (fun q => q.1 == absName nm)
           = some (absProjRecRec x)) := by
   induction N using Nat.strong_induction_on with
@@ -2279,13 +2286,11 @@ theorem find_rec_loop_refines (N : Nat) :
       · rename_i hb
         rw [hb] at hbv
         refine ⟨by intro hc0; rw [← Result.ok_injective h] at hc0; simp at hc0, ?_⟩
-        intro j x hj hjx
+        intro j hj
         rw [← Result.ok_injective h] at hj
         simp only [Option.some.injEq] at hj
-        rw [← hj] at hjx
-        have : x = prr := by
-          rw [hidx] at hjx; exact (Result.ok_injective hjx).symm
-        rw [this, List.find?_cons_of_pos (by simp only [absProjRecRec, beq_iff_eq]; exact of_decide_eq_true hbv.symm)]
+        refine ⟨prr, by rw [← hj]; exact hidx, ?_⟩
+        rw [List.find?_cons_of_pos (by simp only [absProjRecRec, beq_iff_eq]; exact of_decide_eq_true hbv.symm)]
       · rename_i hb
         obtain ⟨i1, hi1, hrec⟩ := bind_eq_ok_iff.mp h
         have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
@@ -2297,14 +2302,23 @@ theorem find_rec_loop_refines (N : Nat) :
         obtain ⟨ih1, ih2⟩ :=
           ih (recs.val.length - i1.val) (by omega) recs nm m i1 o rfl hm hr hnm hrec
         rw [hi1v] at ih1 ih2
-        rw [List.find?_cons_of_neg (by simp only [absProjRecRec, beq_iff_eq]; exact of_decide_eq_false hbv.symm)]
         simp only [absProjRecRecs] at ih1 ih2
-        exact ⟨ih1, ih2⟩
+        refine ⟨?_, ?_⟩
+        · intro h0
+          rw [List.find?_cons_of_neg (by
+            simp only [absProjRecRec, beq_iff_eq]; exact of_decide_eq_false hbv.symm)]
+          exact ih1 h0
+        · intro j h0
+          obtain ⟨c, hc1, hc2⟩ := ih2 j h0
+          refine ⟨c, hc1, ?_⟩
+          rw [List.find?_cons_of_neg (by
+            simp only [absProjRecRec, beq_iff_eq]; exact of_decide_eq_false hbv.symm)]
+          exact hc2
     · rename_i hge
       have hle : recs.val.length ≤ i.val := by scalar_tac
       rw [← Result.ok_injective h,
         List.drop_eq_nil_of_le (by simpa [absProjRecRecs] using hle)]
-      exact ⟨fun _ => rfl, by intro j x hj; simp at hj⟩
+      exact ⟨fun _ => rfl, by intro j hj; simp at hj⟩
 
 /-- `proj_rec::find_rec` refines the cited `recs.find? (·.1 == T.str "rec")`. -/
 theorem find_rec_refines {recs : Slice frontend.proj_rec.ProjRecRec}
@@ -2312,7 +2326,7 @@ theorem find_rec_refines {recs : Slice frontend.proj_rec.ProjRecRec}
     (hr : ∀ x ∈ recs.val, ProjRecRecWF x) (hnm : NameWF nm)
     (h : frontend.proj_rec.find_rec recs nm = ok o) :
     (o = none → (absProjRecRecs recs).find? (fun q => q.1 == absName nm) = none) ∧
-    (∀ j x, o = some j → Slice.index_usize recs j = ok x →
+    (∀ j, o = some j → ∃ x, Slice.index_usize recs j = ok x ∧
       (absProjRecRecs recs).find? (fun q => q.1 == absName nm)
         = some (absProjRecRec x)) := by
   rw [frontend.proj_rec.find_rec] at h
@@ -2320,5 +2334,79 @@ theorem find_rec_refines {recs : Slice frontend.proj_rec.ProjRecRec}
     find_rec_loop_refines _ recs nm _ 0#usize o rfl (by simp [Slice.len]) hr hnm h
   rw [show ((0#usize : Std.Usize)).val = 0 by scalar_tac, List.drop_zero] at h1 h2
   exact ⟨h1, h2⟩
+
+/-! ### The `filterMap` body
+
+`projRecOwners`' `types.filterMap fun (T, lps, tty, nP, nI, cs, _) => do …`
+(`ConLeche/Frontend/ProjRec.lean:362-370`), written out as the port factors it
+(`proj_rec_owner_at`); `projRecOwners_eq` below is the equivalence. -/
+
+/-- The tail from `ctors.find?` on. -/
+def lOwnerTail (T : ConLeche.Name) (lps : List ConLeche.Name) (nP : Nat)
+    (C : ConLeche.Name) (ctors : List (ConLeche.Name × Nat × ConLeche.Expr))
+    (recs : List (ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Nat × Nat)) :
+    Option ConLeche.Frontend.ProjRecOwner := do
+  let (_, nF, _) ← ctors.find? (fun q => q.1 == C)
+  let (rn, rlps, rty, nM, nm) ← recs.find? (fun q => q.1 == T.str "rec")
+  guard (rlps.length == lps.length + 1)
+  pure ⟨T, lps, nP, C, nF, rn, rlps, rty, nM, nm⟩
+
+/-- The whole `filterMap` body. -/
+def lProjRecOwnerAt
+    (t : ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Nat × Nat ×
+      List ConLeche.Name × Bool)
+    (ctors : List (ConLeche.Name × Nat × ConLeche.Expr))
+    (recs : List (ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Nat × Nat)) :
+    Option ConLeche.Frontend.ProjRecOwner := do
+  let [C] := t.2.2.2.2.2.1 | none
+  guard (t.2.2.2.2.1 == 0)
+  let (_, .sort s) ← t.2.2.1.stripPis t.2.2.2.1 | none
+  guard (ConLeche.Level.isEquiv s .zero != some true)
+  lOwnerTail t.1 t.2.1 t.2.2.2.1 C ctors recs
+
+/-- `projRecOwners`' `recursive` (`ProjRec.lean:351-353`). -/
+def lRecursive
+    (types : List (ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Nat × Nat ×
+      List ConLeche.Name × Bool))
+    (ctors : List (ConLeche.Name × Nat × ConLeche.Expr)) : Bool :=
+  types.any (fun q => q.2.2.2.2.2.2) ||
+    ctors.any (fun c => (ConLeche.Frontend.stripPisAll c.2.2).1.any (fun d =>
+      (types.map (fun q => q.1)).any
+        (fun nm => ConLeche.Frontend.occursConstFast nm d.1)))
+
+/-- **The factoring is the cited term.** -/
+theorem projRecOwners_eq (block : List ConLeche.ConstantInfo)
+    (types : List (ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Nat × Nat ×
+      List ConLeche.Name × Bool))
+    (ctors : List (ConLeche.Name × Nat × ConLeche.Expr))
+    (recs : List (ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Nat × Nat)) :
+    ConLeche.Frontend.projRecOwners block types ctors recs
+      = (if (ConLeche.structPartsCore? block).isSome && !(lRecursive types ctors) then []
+         else if (ConLeche.nativeParts?
+             ((types.head?.map (fun q => q.2.2.2.1)).getD 0) block).isSome then []
+         else types.filterMap (fun t => lProjRecOwnerAt t ctors recs)) := by
+  unfold ConLeche.Frontend.projRecOwners lRecursive lProjRecOwnerAt lOwnerTail
+  rfl
+
+/-! ### The port's `proj_rec_owner_at` -/
+
+/-- A one-element `Vec<Name>`, as its abstraction. -/
+theorem absNames_singleton_of_len {v : alloc.vec.Vec name.Name}
+    (hlen : alloc.vec.Vec.len v = (1#usize : Std.Usize)) :
+    ∃ x, v.val = [x] ∧ absNames v = [absName x] := by
+  have hl : v.val.length = 1 := by
+    have := alloc.vec.Vec.len_val v; rw [hlen] at this; scalar_tac
+  obtain ⟨x, hx⟩ := List.length_eq_one_iff.mp hl
+  exact ⟨x, hx, by rw [absNames, hx]; rfl⟩
+
+/-- …and one that is not. -/
+theorem absNames_not_singleton {v : alloc.vec.Vec name.Name}
+    (hlen : ¬ alloc.vec.Vec.len v = (1#usize : Std.Usize)) :
+    absNames v = [] ∨ ∃ a b tl, absNames v = a :: b :: tl := by
+  have hl : v.val.length ≠ 1 := by
+    intro hc; exact hlen (by have := alloc.vec.Vec.len_val v; scalar_tac)
+  rcases list_ne_singleton v.val hl with hnil | ⟨a, b, tl, hcons⟩
+  · exact Or.inl (by rw [absNames, hnil]; rfl)
+  · exact Or.inr ⟨_, _, _, by rw [absNames, hcons]; rfl⟩
 
 end ConRon.Refine.Frontend
