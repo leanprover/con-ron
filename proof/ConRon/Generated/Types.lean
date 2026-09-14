@@ -1087,7 +1087,7 @@ inductive frontend.scan_types.LineRec where
 | Blank : frontend.scan_types.LineRec
 
 /-- [con_ron_core::frontend::export_c::ParseResultD]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2421:0-2437:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2426:0-2442:1
     Visibility: public -/
 structure frontend.export_c.ParseResultD where
   decls : alloc.vec.Vec kernel.env.Declaration

@@ -1437,16 +1437,21 @@ pub fn names_have_dup(flat: &Vec<Name>) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:406-558 validateIndD
-/// The constructor records by name, FIRST record wins (con-leche's
-/// `HashMap.insertIfNew`).
+/// The constructor records by name, LAST record wins: the cited `ctorIx` is a
+/// `foldl` over `ctorNames` with `Std.HashMap.insert`, which overwrites.  (An
+/// earlier version of this function guarded the insert with `contains_key`,
+/// i.e. first-wins, on the strength of a doc comment naming `insertIfNew` --
+/// a function con-leche does not call; task #87's refinement of `validateIndD`
+/// found the difference and it is observable: with a repeated constructor name
+/// the two sides run `checkOneCtor` on *different* records, and that step can
+/// fail with a `Msg` on one side while the other runs on to a plain
+/// `.invalid`.)
 pub fn ctor_index_of(ns: &Vec<Name>) -> HashMap<Name, u64> {
     let mut m: HashMap<Name, u64> = HashMap::new();
     let n = ns.len();
     let mut k = 0usize;
     while k < n {
-        if !m.contains_key(&ns[k]) {
-            m.insert(name::dup(&ns[k]), k as u64);
-        }
+        m.insert(name::dup(&ns[k]), k as u64);
         k += 1;
     }
     m
