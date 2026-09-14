@@ -14,6 +14,7 @@
 //! | Rust | Lean |
 //! |---|---|
 //! | `text` | none — the port's message rendering (`String` is `Vec<u32>`) |
+//! | `nat_decimal` | none — `String.toNat?` on a `natVal` literal (`ron::nat` has no decimal codec) |
 //! | `scan_types` | `ConLeche/Frontend/Scan/Types.lean` |
 //! | `scan_fast` | `ConLeche/Frontend/Scan/Fast.lean` (the `@[csimp]` twin the compiler *runs*; `Scan/Naive.lean` is the specification and is not ported) |
 //! | `export` | `ConLeche/Frontend/Export.lean` |
@@ -47,6 +48,10 @@
 
 pub mod export;
 pub mod in_model_rec;
+pub mod nat_decimal;
+pub mod nat_op_ground;
 pub mod prelude_text;
+pub mod prepare;
+pub mod scan_fast;
 pub mod scan_types;
 pub mod text;
