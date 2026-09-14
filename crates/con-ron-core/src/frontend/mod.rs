@@ -45,6 +45,8 @@
 //! mirrors the Lean recursion one for one, which is what the refinement will
 //! be stated against.  Everything else in §3.4 stands.
 
+pub mod export;
+pub mod in_model_rec;
 pub mod prelude_text;
 pub mod scan_types;
 pub mod text;

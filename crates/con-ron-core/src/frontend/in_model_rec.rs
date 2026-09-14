@@ -237,7 +237,7 @@ pub struct ModelCtx<'a> {
     pub blocks: &'a HashMap<Name, P<BlockRec>>,
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:603-607 installIndD
+/// con-leche: ConLeche/Frontend/ExportC.lean:603-607 _
 /// The cited `fun n => st.constTypes[n]?`: a constant's level parameters and
 /// declared type, if the parse has pushed it.
 pub fn ctx_tbl<'a>(ctx: &'a ModelCtx<'a>, n: &Name) -> Option<(Vec<Name>, Expr)> {
@@ -247,7 +247,7 @@ pub fn ctx_tbl<'a>(ctx: &'a ModelCtx<'a>, n: &Name) -> Option<(Vec<Name>, Expr)>
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:603-607 installIndD
+/// con-leche: ConLeche/Frontend/ExportC.lean:603-607 _
 /// The cited `fun n => st.heights.getD n 0`: a definition's height, `0` when
 /// the parse has not pushed a definition of that name.
 pub fn ctx_height(ctx: &ModelCtx, n: &Name) -> u64 {
@@ -257,7 +257,7 @@ pub fn ctx_height(ctx: &ModelCtx, n: &Name) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:603-607 installIndD
+/// con-leche: ConLeche/Frontend/ExportC.lean:603-607 _
 /// The cited `fun n => st.indBlocks[n]?`: the parsed block a member type name
 /// belongs to.
 pub fn ctx_block<'a>(ctx: &'a ModelCtx<'a>, n: &Name) -> Option<&'a BlockRec> {
