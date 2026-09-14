@@ -809,4 +809,354 @@ theorem natSlot_step {α : Type} {ks v : Std.Usize}
 
 end Step
 
+/-! ## Literals
+
+Every string literal of the module is a `[u8; N]` constant (task #86, DESIGN.md
+§3.8), read as a slice at the call site. -/
+
+/-- A `const [u8; N]` literal read as a slice: the slice is the array. -/
+private theorem slice_lit_val {k : Std.Usize} {S : Std.Array Std.U8 k} {s : Slice Std.U8}
+    (h : lift (Std.Array.to_slice S) = ok s) : s.val = S.val := by
+  simp only [lift_eq, Result.ok.injEq] at h
+  subst h
+  simp [Std.Array.val_to_slice]
+
+/-- A port position advanced by a literal's width. -/
+theorem absPos_add {i c j : Std.Usize} (h : i + c = ok j) :
+    absPos j = absPos i + absPos c := by
+  have hj : j.val = i.val + c.val := ConRon.Refine.Nat.uadd_val h
+  have hb : i.val + c.val < USize.size := by have := usize_val_lt_size j; omega
+  apply USize.toNat_inj.mp
+  simp only [USize.toNat_add, absPos_toNat, hj]
+  exact (Nat.mod_eq_of_lt hb).symm
+
+/-! ## `scan_bool`
+
+`scan_fast.rs:723-733` against `Scan/Fast.lean:466-469 scanBool`. -/
+
+/-- **`scan_bool` refines `scanBool`** (`Scan/Fast.lean:466-469`). -/
+theorem scan_bool_refines {b : Slice Std.U8} {i : Std.Usize}
+    {o : core.result.Result (Bool × Std.Usize) frontend.scan_types.ScanErr}
+    (h : frontend.scan_fast.scan_bool b i = ok o) :
+    ScanSim id o (scanBool (absBytes b) (absPos i)) := by
+  rw [frontend.scan_fast.scan_bool] at h
+  obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
+  have hsv : s.val = [116#u8, 114#u8, 117#u8, 101#u8] := by
+    rw [slice_lit_val hs]; simp [global_simps]
+  have hsb : absBytes s = "true".toUTF8 := by rw [absBytes, hsv]; decide
+  obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+  have hb1' : b1 = matchLit (absBytes b) (absPos i) "true".toUTF8 0 := by
+    rw [← hsb]; exact match_lit_refines (by rw [hsv]; decide) hb1
+  rw [scanBool, ← hb1']
+  by_cases hbt : b1 = true
+  · rw [if_pos hbt] at h ⊢
+    obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    refine ScanSim.ok ?_
+    rw [absPos_add hi1, show absPos 4#usize = (4 : USize) from by
+      apply USize.toNat_inj.mp; simp]
+    rfl
+  · rw [if_neg hbt] at h ⊢
+    obtain ⟨s1, hs1, h⟩ := bind_eq_ok_iff.mp h
+    have hs1v : s1.val = [102#u8, 97#u8, 108#u8, 115#u8, 101#u8] := by
+      rw [slice_lit_val hs1]; simp [global_simps]
+    have hs1b : absBytes s1 = "false".toUTF8 := by rw [absBytes, hs1v]; decide
+    obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+    have hb2' : b2 = matchLit (absBytes b) (absPos i) "false".toUTF8 0 := by
+      rw [← hs1b]; exact match_lit_refines (by rw [hs1v]; decide) hb2
+    rw [← hb2']
+    by_cases hbf : b2 = true
+    · rw [if_pos hbf] at h ⊢
+      obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      rw [← Result.ok_injective h]
+      refine ScanSim.ok ?_
+      rw [absPos_add hi1, show absPos 5#usize = (5 : USize) from by
+        apply USize.toNat_inj.mp; simp]
+      rfl
+    · rw [if_neg hbf] at h ⊢
+      rw [err_val h]
+      exact ScanErrSim.mk (t := .expectedBool) rfl (by simp)
+
+/-! ## The index list
+
+`scan_fast.rs:1169-1221` against `Scan/Fast.lean:674-702` (`scanNatListLoop`,
+`scanNatList`).  **This is the tier's list-loop template.**  The port pushes
+onto a `Vec` where con-leche conses onto a `List` and reverses at the close, so
+the invariant is `(absU64s acc).reverse` — the port's accumulator, abstracted
+and reversed, is con-leche's — and the close is `List.reverse_reverse`. -/
+
+/-- `scanNatListLoop` at a port position, unfolded once. -/
+private theorem scanNatListLoop_eq (b : Slice Std.U8) (i : Std.Usize)
+    (acc : List Nat) (w : Bool) :
+    scanNatListLoop (absBytes b) (absPos i) acc w =
+      if i.val < b.val.length then
+        (if isWs (absByte (pByteAt b i.val)) then
+            scanNatListLoop (absBytes b) (absPos i + 1) acc w
+         else if absByte (pByteAt b i.val) == 93 then
+            (if w && !acc.isEmpty then .err ⟨i.val, .expectedList⟩
+             else .ok acc.reverse (absPos i + 1))
+         else if absByte (pByteAt b i.val) == 44 then
+            (if w then .err ⟨i.val, .expectedList⟩
+             else scanNatListLoop (absBytes b) (absPos i + 1) acc true)
+         else if isDigit (absByte (pByteAt b i.val)) then
+            (if !w then .err ⟨i.val, .expectedList⟩
+             else if numEnd (absBytes b) (absPos i) == absPos i then
+               .err ⟨i.val, .expectedNat⟩
+             else if _hj : absPos i < numEnd (absBytes b) (absPos i) then
+               scanNatListLoop (absBytes b) (numEnd (absBytes b) (absPos i))
+                 (readNatAt (absBytes b) (absPos i) (numEnd (absBytes b) (absPos i)) :: acc)
+                 false
+             else .err ⟨i.val, .noProgress⟩)
+         else .err ⟨i.val, .expectedList⟩)
+      else .err ⟨i.val, .expectedList⟩ := by
+  rw [scanNatListLoop]
+  by_cases h : i.val < b.val.length
+  · rw [dif_pos (absPos_lt_usize.mpr h), if_pos h, uget_pos]
+    simp only [absPos_toNat]
+  · rw [dif_neg (fun hc => h (absPos_lt_usize.mp hc)), if_neg h]
+    simp only [absPos_toNat]
+
+/-- The loop of `scan_fast::scan_nat_list_loop` (con-leche:
+`Scan/Fast.lean:674-698 scanNatListLoop`). -/
+private theorem scan_nat_list_loop_aux {b : Slice Std.U8} (f : Nat) :
+    ∀ (i : Std.Usize) (acc : alloc.vec.Vec Std.U64) (w : Bool)
+      (o : core.result.Result (alloc.vec.Vec Std.U64 × Std.Usize)
+             frontend.scan_types.ScanErr),
+      b.val.length - i.val ≤ f →
+      frontend.scan_fast.scan_nat_list_loop_loop b i acc w = ok o →
+      ScanSim absU64s o
+        (scanNatListLoop (absBytes b) (absPos i) (absU64s acc).reverse w) := by
+  induction f with
+  | zero =>
+    intro i acc w o hf h
+    have hi : ¬ i.val < b.val.length := by omega
+    rw [frontend.scan_fast.scan_nat_list_loop_loop.eq_def,
+      if_pos (show i ≥ Slice.len b by scalar_tac)] at h
+    rw [err_val h, scanNatListLoop_eq, if_neg hi]
+    exact ScanErrSim.mk (t := .expectedList) rfl (by simp)
+  | succ f ih =>
+    intro i acc w o hf h
+    rw [frontend.scan_fast.scan_nat_list_loop_loop.eq_def] at h
+    by_cases hi : i.val < b.val.length
+    · rw [if_neg (show ¬ (i ≥ Slice.len b) by scalar_tac)] at h
+      rw [scanNatListLoop_eq, if_pos hi]
+      obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+      have hcp : c = pByteAt b i.val := by
+        rw [pByteAt, dif_pos hi]
+        obtain ⟨y1, hy1, hy2⟩ := WP.spec_imp_exists (Slice.index_usize_spec b i hi)
+        rw [hy1] at hc
+        rw [← Result.ok_injective hc, hy2]
+      rw [← hcp]
+      obtain ⟨w1, hw1, h⟩ := bind_eq_ok_iff.mp h
+      have hw1' : w1 = isWs (absByte c) := is_ws_refines hw1
+      by_cases hws : w1 = true
+      · rw [if_pos hws] at h
+        rw [if_pos (by rw [← hw1']; exact hws)]
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v := usize_add_one_inv hi2
+        rw [← absPos_add_one hi2]
+        exact ih i2 acc w o (by omega) h
+      · rw [if_neg hws] at h
+        rw [if_neg (by rw [← hw1']; exact hws),
+          show ((93 : UInt8)) = absByte 93#u8 from rfl, absByte_beq_u8]
+        by_cases h93 : c = 93#u8
+        · -- the closing bracket
+          rw [if_pos h93] at h
+          rw [if_pos (beq_iff_eq.mpr h93)]
+          have hE : ((absU64s acc).reverse).isEmpty = decide (acc.val.length = 0) := by
+            cases hv : acc.val with
+            | nil => simp [absU64s, hv]
+            | cons x xs => simp [absU64s, hv]
+          have hlen : (alloc.vec.Vec.len acc).val = acc.val.length := by scalar_tac
+          have hz0 : ((0#usize : Std.Usize)).val = 0 := by scalar_tac
+          by_cases hw : w = true
+          · rw [if_pos hw] at h
+            simp only at h
+            by_cases hne : (alloc.vec.Vec.len acc != 0#usize) = true
+            · rw [if_pos hne] at h
+              have hnz : acc.val.length ≠ 0 := by
+                intro hx
+                have h0 : alloc.vec.Vec.len acc ≠ 0#usize := by simpa using hne
+                exact h0 (usize_ext (by omega))
+              rw [if_pos (show (w && !((absU64s acc).reverse).isEmpty) = true by
+                rw [hE, hw]; simp [hnz]), err_val h]
+              exact ScanErrSim.mk (t := .expectedList) rfl (by simp)
+            · rw [if_neg hne] at h
+              have hzl : acc.val.length = 0 := by
+                have h0 : acc.val = [] := by simpa using hne
+                rw [h0, List.length_nil]
+              rw [if_neg (show ¬ ((w && !((absU64s acc).reverse).isEmpty) = true) by
+                rw [hE, hzl]; simp)]
+              obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+              rw [← Result.ok_injective h]
+              refine ScanSim.ok ?_
+              rw [List.reverse_reverse, ← absPos_add_one hi3]
+          · rw [if_neg hw] at h
+            have hwf : w = false := by simpa using hw
+            rw [if_neg (show ¬ ((w && !((absU64s acc).reverse).isEmpty) = true) by
+              rw [hwf]; simp)]
+            obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+            rw [← Result.ok_injective h]
+            refine ScanSim.ok ?_
+            rw [List.reverse_reverse, ← absPos_add_one hi2]
+        · rw [if_neg h93] at h
+          rw [if_neg (by simp [h93]),
+            show ((44 : UInt8)) = absByte 44#u8 from rfl, absByte_beq_u8]
+          by_cases h44 : c = 44#u8
+          · -- the comma
+            rw [if_pos h44] at h
+            rw [if_pos (beq_iff_eq.mpr h44)]
+            by_cases hw : w = true
+            · rw [if_pos hw] at h
+              rw [if_pos hw, err_val h]
+              exact ScanErrSim.mk (t := .expectedList) rfl (by simp)
+            · rw [if_neg hw] at h
+              rw [if_neg hw]
+              obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+              have hi2v := usize_add_one_inv hi2
+              rw [← absPos_add_one hi2]
+              exact ih i2 acc true o (by omega) h
+          · rw [if_neg h44] at h
+            rw [if_neg (by simp [h44])]
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            have hb2' : b2 = isDigit (absByte c) := is_digit_refines hb2
+            by_cases hdg : b2 = true
+            · -- a list member
+              rw [if_pos hdg] at h
+              rw [if_pos (by rw [← hb2']; exact hdg)]
+              by_cases hw : w = true
+              · rw [if_pos hw] at h
+                rw [if_neg (by simp [hw])]
+                obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+                have heA : absPos e = numEnd (absBytes b) (absPos i) := num_end_refines he
+                rw [← heA]
+                by_cases hei : e = i
+                · rw [if_pos hei] at h
+                  rw [if_pos (show (absPos e == absPos i) = true by simp; scalar_tac),
+                    err_val h]
+                  exact ScanErrSim.mk (t := .expectedNat) rfl (by simp)
+                · rw [if_neg hei] at h
+                  rw [if_neg (show ¬ ((absPos e == absPos i) = true) by
+                    simp; intro hx; exact hei (usize_ext hx))]
+                  obtain ⟨hrun, hlt⟩ := kit_num_end_run he hei
+                  rw [dif_pos (absPos_lt.mpr hlt)]
+                  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+                  cases r with
+                  | Ok p =>
+                    obtain ⟨acc1, hpush, h⟩ := bind_eq_ok_iff.mp h
+                    have hpv := ConRon.Refine.vec_push_val hpush
+                    rw [show readNatAt (absBytes b) (absPos i) (absPos e) = absU64 p from
+                      (kit_read_nat_at hrun hr).symm]
+                    have hacc : (absU64s acc1).reverse
+                        = absU64 p :: (absU64s acc).reverse := by
+                      simp [absU64s, hpv]
+                    rw [← hacc]
+                    exact ih e acc1 false o (by omega) h
+                  | Err er =>
+                    rw [← Result.ok_injective h]
+                    exact ScanErrSim.of_none (kit_read_nat_at_err hr)
+              · rw [if_neg hw] at h
+                rw [if_pos (by simp [hw]), err_val h]
+                exact ScanErrSim.mk (t := .expectedList) rfl (by simp)
+            · rw [if_neg hdg] at h
+              rw [if_neg (by rw [← hb2']; exact hdg), err_val h]
+              exact ScanErrSim.mk (t := .expectedList) rfl (by simp)
+    · rw [if_pos (show i ≥ Slice.len b by scalar_tac)] at h
+      rw [err_val h, scanNatListLoop_eq, if_neg hi]
+      exact ScanErrSim.mk (t := .expectedList) rfl (by simp)
+
+/-- **`scan_nat_list_loop` refines `scanNatListLoop`** at the empty
+accumulator (`Scan/Fast.lean:674-698`).  `scanPw` and every list-valued slot
+of the tier enter here, past the `[`. -/
+theorem scan_nat_list_loop_refines {b : Slice Std.U8} {i : Std.Usize}
+    {o : core.result.Result (alloc.vec.Vec Std.U64 × Std.Usize)
+           frontend.scan_types.ScanErr}
+    (h : frontend.scan_fast.scan_nat_list_loop b i = ok o) :
+    ScanSim absU64s o (scanNatListLoop (absBytes b) (absPos i) [] true) := by
+  have hr := scan_nat_list_loop_aux (b.val.length - i.val) i
+    (alloc.vec.Vec.new Std.U64) true o (le_refl _) h
+  simpa [absU64s, alloc.vec.Vec.new] using hr
+
+/-- **`scan_nat_list` refines `scanNatList`** (`Scan/Fast.lean:700-702`). -/
+theorem scan_nat_list_refines {b : Slice Std.U8} {i : Std.Usize}
+    {o : core.result.Result (alloc.vec.Vec Std.U64 × Std.Usize)
+           frontend.scan_types.ScanErr}
+    (h : frontend.scan_fast.scan_nat_list b i = ok o) :
+    ScanSim absU64s o (scanNatList (absBytes b) (absPos i)) := by
+  rw [frontend.scan_fast.scan_nat_list] at h
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  have hcA : absByte c = byteAt (absBytes b) (absPos i) := byte_at_refines hc
+  rw [scanNatList, ← hcA, show ((91 : UInt8)) = absByte 91#u8 from rfl, absByte_beq_u8]
+  by_cases h91 : c = 91#u8
+  · rw [if_pos h91] at h
+    rw [if_pos (beq_iff_eq.mpr h91)]
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    rw [← absPos_add_one hi2]
+    exact scan_nat_list_loop_refines h
+  · rw [if_neg h91] at h
+    rw [if_neg (by simp [h91]), err_val h]
+    exact ScanErrSim.mk (t := .expectedList) rfl (by simp)
+
+/-! ## `pw`
+
+`scan_fast.rs:1226-1249` against `Scan/Fast.lean:707-715 scanPw`. -/
+
+/-- **`scan_pw` refines `scanPw`** (`Scan/Fast.lean:707-715`). -/
+theorem scan_pw_refines {b : Slice Std.U8} {i : Std.Usize}
+    {o : core.result.Result (frontend.scan_types.PwRec × Std.Usize)
+           frontend.scan_types.ScanErr}
+    (h : frontend.scan_fast.scan_pw b i = ok o) :
+    ScanSim absPwRec o (scanPw (absBytes b) (absPos i)) := by
+  rw [frontend.scan_fast.scan_pw] at h
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  have hcA : absByte c = byteAt (absBytes b) (absPos i) := byte_at_refines hc
+  rw [scanPw, ← hcA, show ((91 : UInt8)) = absByte 91#u8 from rfl,
+    show ((34 : UInt8)) = absByte 34#u8 from rfl, absByte_beq_u8, absByte_beq_u8]
+  by_cases h91 : c = 91#u8
+  · rw [if_pos h91] at h
+    rw [if_pos (beq_iff_eq.mpr h91)]
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+    have hrs := scan_nat_list_loop_refines hr
+    rw [← absPos_add_one hi2]
+    cases r with
+    | Ok p =>
+      obtain ⟨ns, j⟩ := p
+      rw [← Result.ok_injective h]
+      rw [ScanSim] at hrs
+      rw [hrs]
+      rfl
+    | Err er =>
+      rw [← Result.ok_injective h]
+      intro le hle
+      rw [hrs le hle]
+  · rw [if_neg h91] at h
+    rw [if_neg (by simp [h91])]
+    by_cases h34 : c = 34#u8
+    · rw [if_pos h34] at h
+      rw [if_pos (beq_iff_eq.mpr h34)]
+      obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
+      have hsv : s.val = [110#u8, 101#u8, 118#u8, 101#u8, 114#u8, 34#u8] := by
+        rw [slice_lit_val hs]; simp [global_simps]
+      have hsb : absBytes s = "never\"".toUTF8 := by rw [absBytes, hsv]; decide
+      obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+      have hb1' : b1 = matchLit (absBytes b) (absPos i2) "never\"".toUTF8 0 := by
+        rw [← hsb]; exact match_lit_refines (by rw [hsv]; decide) hb1
+      rw [← absPos_add_one hi2, ← hb1']
+      by_cases hbt : b1 = true
+      · rw [if_pos hbt] at h ⊢
+        obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+        rw [← Result.ok_injective h]
+        refine ScanSim.ok ?_
+        rw [absPos_add hi3, show absPos 7#usize = (7 : USize) from by
+          apply USize.toNat_inj.mp; simp]
+        rfl
+      · rw [if_neg hbt] at h ⊢
+        rw [err_val h]
+        exact ScanErrSim.mk (t := .badPw) rfl (by simp)
+    · rw [if_neg h34] at h
+      rw [if_neg (by simp [h34]), err_val h]
+      exact ScanErrSim.mk (t := .badPw) rfl (by simp)
+
 end ConRon.Refine.Frontend
