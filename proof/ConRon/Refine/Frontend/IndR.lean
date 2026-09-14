@@ -15,6 +15,18 @@ shape rule — `validateIndD` and `installIndD` alone became twenty-odd — so
 each lemma below is stated against the *fragment* of the Lean its Rust
 function's `/// con-leche:` comment cites, and the fragments are composed.
 
+## What is proved here, and what is still a named hypothesis
+
+Proved: `apply_line` / `apply_decl_d` / `process_line_core_d` (all six arms of
+`processLineCoreD`), `blockRecOf`'s three `mapM`s and its joiner, seven of
+`validateIndD`'s helpers (`any_ty_unsafe`, `any_ty_nested`, `all_num_params`,
+`ty_names_of`, `ty_types_of`, `listed_ctors_of`, `ctor_names_of`,
+`flatten_listed`), `quot_kind_of`, and `text::cps_beq`.
+
+Assumed, as the three clauses of `IndRSpec`: `proj_rewrite_d`,
+`validate_ind_d` and `install_ind_d`.  Each is stated below in full against
+the `ConLeche/Frontend/ExportC.lean` fragment it refines.
+
 ## `sorry` count in this file: 0
 -/
 import ConRon.Refine.Frontend.StateDR
@@ -1736,5 +1748,13 @@ theorem apply_line_refines {G : Type}
   | Blank =>
     simp only [Result.ok.injEq, Prod.mk.injEq] at h
     rw [← h.1, ← h.2]; exact ⟨lst, rfl, hrel, hwf⟩
+
+/-! ## Axiom census (DESIGN.md §5, the P3 gate) -/
+
+/--
+info: 'ConRon.Refine.Frontend.apply_line_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms apply_line_refines
 
 end ConRon.Refine.Frontend
