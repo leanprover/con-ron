@@ -470,3 +470,147 @@ theorem hex3_refines {b : Slice Std.U8} {j : Std.Usize} {o : Option Std.U32}
     absU32_shl (w := 4) (n := 4) hs4 (by simp) (by simp) (by omega)]
   rfl
 
+/-! ## `scan_quoted_nat`: the digit run (`Scan/Fast.lean:649-655`)
+
+Deviation 2 of `scan_types.rs`'s module note: the port's `scan_quoted_nat`
+returns the literal's decimal **bytes** where con-leche's returns the `Nat`.
+`export_c` turns them into a `ron::Nat` with `nat_decimal::from_decimal`,
+which accepts only a run of decimal digits — so the scanner owes the run's
+shape, and it is `skip_digits`' own invariant. -/
+
+/-- A slice read at an in-range index, in the forward `= ok` form. -/
+private theorem index_ok {t : Slice Std.U8} {i : Std.Usize} {x : Std.U8}
+    (hi : i.val < t.val.length) (h : Slice.index_usize t i = ok x) :
+    x = t.val[i.val] := by
+  obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (Slice.index_usize_spec t i hi)
+  rw [hy] at h
+  simp only [Result.ok.injEq] at h
+  rw [← h, hyv]
+
+/-- `is_digit`, as the `Nat` range. -/
+private theorem is_digit_val {c : Std.U8} {w : Bool}
+    (h : frontend.scan_fast.is_digit c = ok w) :
+    w = true ↔ (48 ≤ c.val ∧ c.val ≤ 57) := by
+  rw [is_digit_refines h, isDigit]
+  simp
+
+/-- The digit run `skip_digits` walked over. -/
+private theorem skip_digits_loop_digits {b : Slice Std.U8} (f : Nat) :
+    ∀ (i j : Std.Usize), b.val.length - i.val ≤ f →
+      frontend.scan_fast.skip_digits_loop b i = ok j →
+      i.val ≤ j.val ∧ ∀ (m : Nat) (hm : m < b.val.length), i.val ≤ m → m < j.val →
+        48 ≤ (b.val[m]).val ∧ (b.val[m]).val ≤ 57 := by
+  induction f with
+  | zero =>
+    intro i j hf h
+    rw [frontend.scan_fast.skip_digits_loop.eq_def] at h
+    rw [if_neg (show ¬ (i < Slice.len b) by scalar_tac)] at h
+    have hij : i = j := by simpa using h
+    subst hij
+    exact ⟨le_refl _, fun m hm h1 h2 => absurd h2 (by omega)⟩
+  | succ f ih =>
+    intro i j hf h
+    rw [frontend.scan_fast.skip_digits_loop.eq_def] at h
+    by_cases hlt : i < Slice.len b
+    · rw [if_pos hlt] at h
+      have hi : i.val < b.val.length := by scalar_tac
+      obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
+      have hc' : c = b.val[i.val] := index_ok hi hc
+      by_cases hwt : w = true
+      · rw [if_pos hwt] at h
+        obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+        have hv := usize_add_one_inv hi3
+        obtain ⟨hle, hall⟩ := ih i3 j (by omega) h
+        refine ⟨by omega, ?_⟩
+        intro m hm h1 h2
+        by_cases hmi : m = i.val
+        · subst hmi; rw [← hc']; exact (is_digit_val hw).mp hwt
+        · exact hall m hm (by omega) h2
+      · rw [if_neg hwt] at h
+        have hij : i = j := by simpa using h
+        subst hij
+        exact ⟨le_refl _, fun m hm h1 h2 => absurd h2 (by omega)⟩
+    · rw [if_neg hlt] at h
+      have hij : i = j := by simpa using h
+      subst hij
+      exact ⟨le_refl _, fun m hm h1 h2 => absurd h2 (by omega)⟩
+
+/-- **`skip_digits` walks over decimal digits only.** -/
+theorem skip_digits_digits {b : Slice Std.U8} {i j : Std.Usize}
+    (h : frontend.scan_fast.skip_digits b i = ok j) :
+    i.val ≤ j.val ∧ ∀ (m : Nat) (hm : m < b.val.length), i.val ≤ m → m < j.val →
+      48 ≤ (b.val[m]).val ∧ (b.val[m]).val ≤ 57 :=
+  skip_digits_loop_digits (b.val.length - i.val) i j (le_refl _) h
+
+/-- The port's `&b[st..en]`, inverted. -/
+private theorem range_index_val {b s : Slice Std.U8} {st en : Std.Usize}
+    (h : core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) b
+          { start := st, «end» := en } = ok s) :
+    st.val ≤ en.val ∧ en.val ≤ b.val.length ∧ s.val = List.slice st.val en.val b.val := by
+  rw [Slice.index_SliceIndexRangeUsizeSliceInst,
+    core.slice.index.SliceIndexRangeUsizeSlice.index] at h
+  split at h
+  · rename_i hc
+    refine ⟨by scalar_tac, by scalar_tac, ?_⟩
+    simp only [Result.ok.injEq] at h
+    rw [← h]; simp
+  · exact absurd h fail_not_ok
+
+/-- `to_vec` of a byte slice copies it. -/
+private theorem to_vec_val {s : Slice Std.U8} {v : alloc.vec.Vec Std.U8}
+    (h : alloc.slice.Slice.to_vec core.clone.CloneU8 s = ok v) : v.val = s.val := by
+  have hc : ∀ x ∈ s.val, core.clone.CloneU8.clone x = ok x := by intro x _; rfl
+  obtain ⟨y, hy, hyv⟩ :=
+    WP.spec_imp_exists (alloc.slice.Slice.to_vec_spec core.clone.CloneU8 s hc)
+  rw [h] at hy
+  have hvy : v = y := by simpa using hy
+  rw [hvy, hyv]
+  rfl
+
+/-- **Every byte `scan_quoted_nat` returns is a decimal digit**, and there is
+at least one — `skip_digits`' own invariant.  This is what makes
+`nat_decimal::from_decimal` succeed on a `natVal` literal the scanner
+accepted. -/
+theorem scan_quoted_nat_digits {b : Slice Std.U8} {i : Std.Usize}
+    {ds : alloc.vec.Vec Std.U8} {e : Std.Usize}
+    (h : frontend.scan_fast.scan_quoted_nat b i = ok (.Ok (ds, e))) :
+    ds.val ≠ [] ∧ ∀ c ∈ ds.val, 48 ≤ c.val ∧ c.val ≤ 57 := by
+  rw [frontend.scan_fast.scan_quoted_nat] at h
+  obtain ⟨c0, hc0, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · simp [frontend.scan_fast.err] at h
+  obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · simp [frontend.scan_fast.err] at h
+  rename_i hne
+  obtain ⟨c1, hc1, h⟩ := bind_eq_ok_iff.mp h
+  split at h
+  · simp [frontend.scan_fast.err] at h
+  obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+  simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+  obtain ⟨hds, -⟩ := h
+  obtain ⟨hle, hall⟩ := skip_digits_digits he1
+  obtain ⟨h1, h2, h3⟩ := range_index_val hs
+  have hval : ds.val = List.slice i2.val e1.val b.val := by
+    rw [← hds, to_vec_val hv, h3]
+  have hlen : ds.val.length = e1.val - i2.val := by
+    rw [hval, List.slice_length]; omega
+  have hne' : i2.val ≠ e1.val := fun hc => hne (by scalar_tac)
+  refine ⟨by intro hc; rw [hc] at hlen; simp at hlen; omega, ?_⟩
+  intro c hcm
+  obtain ⟨m, hm, hme⟩ := List.getElem_of_mem hcm
+  have hm2 : i2.val + m < e1.val := by rw [hlen] at hm; omega
+  have hmb : i2.val + m < b.val.length := by omega
+  have hq : (List.slice i2.val e1.val b.val)[m]? = b.val[i2.val + m]? :=
+    List.getElem?_slice i2.val e1.val m b.val ⟨by omega, by omega⟩
+  rw [← hval, List.getElem?_eq_getElem hm, List.getElem?_eq_getElem hmb] at hq
+  have heq : ds.val[m]'hm = b.val[i2.val + m]'hmb := Option.some.inj hq
+  rw [← hme, heq]
+  exact hall (i2.val + m) hmb (by omega) hm2
+
+end ConRon.Refine.Frontend
+
