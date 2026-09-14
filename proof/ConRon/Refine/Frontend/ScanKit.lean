@@ -55,7 +55,8 @@ declares one:
     absByte_inj_iff : absByte c = absByte d ↔ c = d
     absPos_beq      : (absPos i == u) = decide (i.val = u.toNat)
     absPos_lt       : absPos i < absPos j ↔ i.val < j.val
-    absU32_toNat    : (absU32 x).toNat = x.val
+    absU32_toNat    : (absU32 x).toNat = x.val          -- `rfl`
+    absU32_beq      : (absU32 a == absU32 b) = (a == b)
 
 The idiom for a byte test is therefore `have : (absByte c == 34) = false := by
 simp; scalar_tac` -- `simp` turns the `BEq` on `UInt8` into a `Nat` equation
@@ -73,7 +74,11 @@ and `scalar_tac` takes it back to the port's `c = 34#u8`.
   intermediate definition in DESIGN.md's sense; `litFrom_1`…`litFrom_11` are
   what turn it back into `keyAt`'s own `litN` calls.
 * **`absU32`** -- the port's `u32` seen-mask as con-leche's `UInt32`, for
-  `dup`.  `Abs.lean` has no `u32` abstraction because no record field is one.
+  `dup` and for every object loop's `seen` bits.  `Abs.lean` has no `u32`
+  abstraction because no record field is one.  The body is `UInt32.ofBitVec
+  n.bv` and NOT `UInt32.ofNat n.val`, because that is what makes `absU32_and`
+  and `absU32_or` -- which every `seen |||`/`seen &&&` step rides on --
+  definitional (`rfl`).  `absU32_inj`, `absU32_beq` go with them.
 
 ## `sorry` count in this file: 0
 -/
@@ -93,7 +98,7 @@ def pByteAt (b : Slice Std.U8) (n : Nat) : Std.U8 :=
   if h : n < b.val.length then b.val[n] else 0#u8
 
 /-- A slice read at an in-range index, in the forward `= ok` form. -/
-private theorem slice_index_ok {t : Slice Std.U8} {i : Std.Usize}
+theorem slice_index_ok {t : Slice Std.U8} {i : Std.Usize}
     (hi : i.val < t.val.length) : Slice.index_usize t i = ok t.val[i.val] := by
   obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (Slice.index_usize_spec t i hi)
   rw [hy, hyv]
@@ -123,7 +128,7 @@ theorem uget_pos {b : Slice Std.U8} {p : USize} (h : p.toNat < (absBytes b).size
   rw [absBytes_uget b p h hi, pByteAt, dif_pos hi]
 
 /-- A byte read inside the array, through `absPos`. -/
-private theorem uget_absPos {b : Slice Std.U8} {i : Std.Usize}
+theorem uget_absPos {b : Slice Std.U8} {i : Std.Usize}
     (h : (absPos i).toNat < (absBytes b).size) :
     (absBytes b).uget (absPos i) h = absByte (pByteAt b i.val) := by
   rw [uget_pos h, absPos_toNat]
@@ -229,7 +234,7 @@ mirrors the Lean recursion one for one, so both are the same induction on the
 `Nat` measure `b.len() - i` (`Refine/PinsBytes.lean` is the model). -/
 
 /-- `skipWs` at a port position, unfolded once. -/
-private theorem skipWs_eq (b : Slice Std.U8) (i : Std.Usize) :
+theorem skipWs_eq (b : Slice Std.U8) (i : Std.Usize) :
     skipWs (absBytes b) (absPos i) =
       if i.val < b.val.length then
         (if isWs (absByte (pByteAt b i.val)) then skipWs (absBytes b) (absPos i + 1)
@@ -241,7 +246,7 @@ private theorem skipWs_eq (b : Slice Std.U8) (i : Std.Usize) :
   · rw [dif_neg (fun hc => h (absPos_lt_usize.mp hc)), if_neg h]
 
 /-- `skipDigits` at a port position, unfolded once. -/
-private theorem skipDigits_eq (b : Slice Std.U8) (i : Std.Usize) :
+theorem skipDigits_eq (b : Slice Std.U8) (i : Std.Usize) :
     skipDigits (absBytes b) (absPos i) =
       if i.val < b.val.length then
         (if isDigit (absByte (pByteAt b i.val)) then skipDigits (absBytes b) (absPos i + 1)
@@ -2060,11 +2065,27 @@ theorem prog_eq {ks e : Std.Usize} {r : Bool}
   simp [absPos_lt]
 
 /-- A port `u32` seen-mask as con-leche's. -/
-def absU32 (x : Std.U32) : UInt32 := UInt32.ofNat x.val
+def absU32 (x : Std.U32) : UInt32 := UInt32.ofBitVec x.bv
 
-@[simp] theorem absU32_toNat (x : Std.U32) : (absU32 x).toNat = x.val := by
-  have h : x.val < 4294967296 := by scalar_tac
-  simp [absU32, Nat.mod_eq_of_lt h]
+@[simp] theorem absU32_toNat (x : Std.U32) : (absU32 x).toNat = x.val := rfl
+
+/-- The bit operations commute with the abstraction definitionally -- which is
+what every `seen`-bitset step of every object loop rides on. -/
+theorem absU32_and (a b : Std.U32) : absU32 (a &&& b) = absU32 a &&& absU32 b := rfl
+
+theorem absU32_or (a b : Std.U32) : absU32 (a ||| b) = absU32 a ||| absU32 b := rfl
+
+theorem absU32_inj {a b : Std.U32} (h : absU32 a = absU32 b) : a = b := by
+  have hv : a.val = b.val := by
+    have := congrArg UInt32.toNat h
+    rwa [absU32_toNat, absU32_toNat] at this
+  scalar_tac
+
+@[simp] theorem absU32_beq (a b : Std.U32) : (absU32 a == absU32 b) = (a == b) := by
+  by_cases h : a = b
+  · simp [h]
+  · have h1 : absU32 a ≠ absU32 b := fun hc => h (absU32_inj hc)
+    simp [h, h1]
 
 /-- **`dup` is con-leche's `(seen &&& bit) != 0`.** -/
 theorem dup_eq {seen bit : Std.U32} {r : Bool}
