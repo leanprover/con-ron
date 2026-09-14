@@ -107,12 +107,26 @@ position" sentinel. -/
 @[simp] theorem absPos_zero : absPos 0#usize = 0 := by
   apply USize.toNat_inj.mp; simp
 
-/-! ## Provisional kit: `num_end` and `read_nat_at`
+/-! ## `read_nat_at`
 
-`scan_fast::num_end` and `scan_fast::read_nat_at` belong to `ScanKit`; they
-are proved here, `private`, only so that this file — the template the other
-loop agents read — does not wait for them.  Delete them and use
-`ScanKit`'s the moment it has them. -/
+`ScanKit` has `num_end_refines`; `read_nat_at` is proved here because it is the
+one leaf of the module whose refinement needs a **side condition**, and the
+side condition is the object loops' to supply.
+
+con-leche's `readNatAt b i e` is `(readNat64 b i e 0).toNat` for a run of at
+most 18 digits and `readNat b i 0` otherwise — and `readNat` runs to the end of
+the **digit run**, not to `e`.  So "the port's `read_nat_at b i e` is
+`readNatAt b i e`" is *false* for an `e` in the middle of a digit run (a
+22-digit run and `e = i + 19` make the two sides differ), and `kit_read_nat_at`
+therefore takes `skip_digits b i = ok e`.  Every caller has it: `num_end`
+returning `e ≠ i` returned `skip_digits`' answer (`kit_num_end_run`), and
+`scan_quoted_nat` calls `skip_digits` itself.
+
+The `≤ 18` split costs two inductions, one per branch: `kit_read_nat64` against
+the machine word (no side condition — the port's `checked_*` failures are
+`IndexOverflow`, so an `Ok` did not overflow, and `UInt64.ofNat` is a ring map)
+and `kit_read_nat` against the `Nat` (the side condition's branch, where the
+two loops step in lockstep under `skip_digits b k = ok e`). -/
 
 /-- `skip_digits` only ever skips forward. -/
 private theorem skip_digits_ge {b : Slice Std.U8} (f : Nat) :
