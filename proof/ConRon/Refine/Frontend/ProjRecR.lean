@@ -2984,4 +2984,328 @@ theorem absNames_not_singleton {v : alloc.vec.Vec name.Name}
   · exact Or.inl (by rw [absNames, hnil]; rfl)
   · exact Or.inr ⟨_, _, _, by rw [absNames, hcons]; rfl⟩
 
+private theorem lAt_multi
+    (t : ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Nat × Nat ×
+      List ConLeche.Name × Bool)
+    (ctors : List (ConLeche.Name × Nat × ConLeche.Expr))
+    (recs : List (ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Nat × Nat))
+    (h : t.2.2.2.2.2.1 = [] ∨ ∃ a b tl, t.2.2.2.2.2.1 = a :: b :: tl) :
+    lProjRecOwnerAt t ctors recs = none := by
+  unfold lProjRecOwnerAt
+  rcases h with h | ⟨a, b, tl, h⟩ <;> rw [h]
+
+private theorem lAt_single
+    (t : ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Nat × Nat ×
+      List ConLeche.Name × Bool)
+    (ctors : List (ConLeche.Name × Nat × ConLeche.Expr))
+    (recs : List (ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Nat × Nat))
+    (C : ConLeche.Name) (h : t.2.2.2.2.2.1 = [C]) :
+    lProjRecOwnerAt t ctors recs =
+      (do
+        guard (t.2.2.2.2.1 == 0)
+        let (_, .sort s) ← t.2.2.1.stripPis t.2.2.2.1 | none
+        guard (ConLeche.Level.isEquiv s .zero != some true)
+        lOwnerTail t.1 t.2.1 t.2.2.2.1 C ctors recs) := by
+  unfold lProjRecOwnerAt
+  rw [h]
+
+
+/-- The tail of `proj_rec::proj_rec_owner_at` from `find_ctor` on, i.e.
+`lOwnerTail`.  Stated as its own lemma because the port's `level::is_equiv`
+match repeats it in two arms. -/
+private theorem owner_tail_refines {t : frontend.proj_rec.ProjTypeRec}
+    {ctors : Slice frontend.proj_rec.ProjCtorRec}
+    {recs : Slice frontend.proj_rec.ProjRecRec}
+    {C : name.Name} {o : Option frontend.proj_rec.ProjRecOwner}
+    (htn : NameWF t.name) (htctors : NamesWF t.ctors)
+    (hc : ∀ c ∈ ctors.val, ProjCtorRecWF c) (hr : ∀ x ∈ recs.val, ProjRecRecWF x)
+    (hCv : t.ctors.val = [C])
+    (h : (do
+      let n ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice name.Name)
+        t.ctors 0#usize
+      let o2 ← frontend.proj_rec.find_ctor ctors n
+      match o2 with
+      | none => ok none
+      | some j => do
+        let n1 ← name.dup t.name
+        let s2 ← lift (Array.to_slice frontend.proj_rec.proj_rec_owner_at.REC)
+        let v ← core_types.code_points s2
+        let want_rec ← name.mk_str n1 v
+        let o3 ← frontend.proj_rec.find_rec recs want_rec
+        match o3 with
+        | none => ok none
+        | some j1 => do
+          let prr ← Slice.index_usize recs j1
+          let i3 ← alloc.vec.Vec.len t.lps + 1#usize
+          if alloc.vec.Vec.len prr.lps != i3 then
+            ok (none : Option frontend.proj_rec.ProjRecOwner)
+          else do
+            let v1 ← prop_when.names_copy t.lps
+            let n2 ← name.dup n
+            let pcr ← Slice.index_usize ctors j
+            let n3 ← name.dup prr.name
+            let v2 ← prop_when.names_copy prr.lps
+            let e1 ← expr.dup prr.ty
+            ok (some { t := n1, lps := v1, n_p := t.n_p, ctor := n2, n_f := pcr.n_f,
+                       rec_name := n3, rec_lps := v2, rec_type := e1,
+                       num_motives := prr.n_m, num_minors := prr.nm })) = ok o) :
+    Option.map absProjRecOwner o
+      = lOwnerTail (absName t.name) (absNames t.lps) t.n_p.val (absName C)
+          (absProjCtorRecs ctors) (absProjRecRecs recs) := by
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨n, hn, o2, ho2, h⟩ := h
+  have hnC : n = C := by
+    have hg := ExprOps.vec_index_getElem? hn
+    rw [hCv] at hg
+    simpa using hg.symm
+  subst hnC
+  have hnwf : NameWF n := htctors n (by rw [hCv]; simp)
+  obtain ⟨hfc1, hfc2⟩ := find_ctor_refines hc hnwf ho2
+  rw [lOwnerTail]
+  cases o2 with
+  | none =>
+    rw [hfc1 rfl, ← Result.ok_injective h]
+    rfl
+  | some j =>
+    obtain ⟨pcr, hpcr, hfind⟩ := hfc2 j rfl
+    rw [hfind]
+    simp only [absProjCtorRec]
+    simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at h
+    obtain ⟨s2, hs2, v, hv, want, hwant, o3, ho3, h⟩ := h
+    obtain ⟨hwa, hwwf⟩ := str_lit_step htn hs2 hv hwant
+      (L := [114#u32, 101#u32, 99#u32])
+      (by simp [frontend.proj_rec.proj_rec_owner_at.REC]) (by decide)
+    have hwa' : absName want = (absName t.name).str "rec" := hwa
+    obtain ⟨hfr1, hfr2⟩ := find_rec_refines hr hwwf ho3
+    rw [← hwa']
+    cases o3 with
+    | none =>
+      rw [hfr1 rfl, ← Result.ok_injective h]
+      rfl
+    | some j1 =>
+      obtain ⟨prr, hprr, hfindr⟩ := hfr2 j1 rfl
+      rw [hfindr]
+      simp only [absProjRecRec, option_bind_some_l]
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨prr2, hprr2, i3, hi3, h⟩ := h
+      have hprr2e : prr2 = prr := Result.ok_injective (hprr2.symm.trans hprr)
+      subst hprr2e
+      have hi3v : i3.val = t.lps.val.length + 1 := by
+        rw [HashMap.uscalar_add_eq hi3, alloc.vec.Vec.len_val]
+        scalar_tac
+      have hlenv : (alloc.vec.Vec.len prr2.lps).val = prr2.lps.val.length :=
+        alloc.vec.Vec.len_val _
+      split at h
+      · rename_i hne
+        simp only [bne_iff_ne, ne_eq] at hne
+        have hnev : ¬ ((absNames prr2.lps).length = (absNames t.lps).length + 1) := by
+          simp only [absNames, List.length_map]
+          intro hcc
+          exact hne (Std.UScalar.val_eq_imp_iff.mpr (by rw [hlenv, hi3v]; omega))
+        rw [guard_opt_neg (by simpa using hnev), ← Result.ok_injective h]
+        rfl
+      · rename_i heq
+        simp only [bne_iff_ne, ne_eq, Decidable.not_not] at heq
+        have heqv : (absNames prr2.lps).length = (absNames t.lps).length + 1 := by
+          simp only [absNames, List.length_map]
+          have := congrArg Std.UScalar.val heq
+          rw [hlenv, hi3v] at this
+          omega
+        rw [guard_opt_pos (by simpa using heqv)]
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨v1, hv1, pcr2, hpcr2, v2, hv2, e1, he1, h⟩ := h
+        have hpcr2e : pcr2 = pcr := Result.ok_injective (hpcr2.symm.trans hpcr)
+        subst hpcr2e
+        rw [← Result.ok_injective h]
+        simp only [Option.map_some, absProjRecOwner, absNames,
+          PropWhen.names_copy_val hv1, PropWhen.names_copy_val hv2, Expr.dup_eq he1]
+        rfl
+
+/-- `proj_rec::proj_rec_owner_at` refines `projRecOwners`' `filterMap` body
+(`ConLeche/Frontend/ProjRec.lean:362-370`), in the factoring `lProjRecOwnerAt`. -/
+theorem proj_rec_owner_at_refines {t : frontend.proj_rec.ProjTypeRec}
+    {ctors : Slice frontend.proj_rec.ProjCtorRec}
+    {recs : Slice frontend.proj_rec.ProjRecRec}
+    {o : Option frontend.proj_rec.ProjRecOwner}
+    (ht : ProjTypeRecWF t) (hc : ∀ c ∈ ctors.val, ProjCtorRecWF c)
+    (hr : ∀ x ∈ recs.val, ProjRecRecWF x)
+    (h : frontend.proj_rec.proj_rec_owner_at t ctors recs = ok o) :
+    Option.map absProjRecOwner o
+      = lProjRecOwnerAt (absProjTypeRec t) (absProjCtorRecs ctors)
+          (absProjRecRecs recs) := by
+  obtain ⟨htn, htlps, htty, htctors⟩ := ht
+  rw [frontend.proj_rec.proj_rec_owner_at] at h
+  split at h
+  · rename_i hlen
+    rw [← Result.ok_injective h, lAt_multi _ _ _ ?_]
+    · rfl
+    · have hlen1 : ¬ (alloc.vec.Vec.len t.ctors = (1#usize : Std.Usize)) := by
+        simp only [bne_iff_ne, ne_eq] at hlen; exact hlen
+      rcases absNames_not_singleton (v := t.ctors) hlen1 with hq | ⟨a, b, tl, hq⟩
+      · exact Or.inl hq
+      · exact Or.inr ⟨a, b, tl, hq⟩
+  · rename_i hlen
+    have hlen1 : alloc.vec.Vec.len t.ctors = (1#usize : Std.Usize) := by
+      simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hlen; exact hlen
+    obtain ⟨C, hCv, hCa⟩ := absNames_singleton_of_len (v := t.ctors) hlen1
+    rw [lAt_single _ _ _ (absName C) hCa]
+    split at h
+    · rename_i hni
+      simp only [bne_iff_ne, ne_eq] at hni
+      have hnz : ¬ (((absProjTypeRec t).2.2.2.2.1 == 0) = true) := by
+        simp only [absProjTypeRec, beq_iff_eq]
+        intro hcc
+        exact hni (Std.UScalar.val_eq_imp_iff.mpr (by rw [hcc]; rfl))
+      rw [guard_opt_neg hnz, ← Result.ok_injective h]
+      rfl
+    · rename_i hni
+      simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hni
+      have hnz : (((absProjTypeRec t).2.2.2.2.1 == 0) = true) := by
+        simp only [absProjTypeRec, beq_iff_eq]; rw [hni]; rfl
+      rw [guard_opt_pos hnz]
+      simp only [option_bind_some_l, absProjTypeRec]
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨op, hop, h⟩ := h
+      obtain ⟨hspa, hsp⟩ := ExprOps.strip_pis_refines htty hop
+      rw [← hspa]
+      cases op with
+      | none => rw [← Result.ok_injective h]; rfl
+      | some q =>
+        obtain ⟨-, htb⟩ := hsp q rfl
+        obtain ⟨pb, tb⟩ := q
+        simp only [Option.map_some, option_bind_some_l]
+        obtain ⟨⟨d, k⟩⟩ := tb
+        cases k <;>
+          simp only [arc_deref_eq, bind_tc_ok, level_dup_eq] at h <;>
+          simp only [absExpr_mk, absExprKind]
+        case «Sort» s =>
+          obtain ⟨l0, hl0, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+          have hswf : LevelWF s := ExprWF.sort_kids htb
+          have hIE : ConLeche.Level.isEquiv (absLevel s) ConLeche.Level.zero = o1 := by
+            rw [← Level.zero_refines hl0]
+            exact Level.is_equiv_refines hswf (Level.zero_wf hl0) ho1
+          by_cases htrue : o1 = some true
+          · subst htrue
+            rw [guard_opt_neg (by simp [hIE])]
+            have ho : o = none := (Result.ok_injective h).symm
+            rw [ho]
+            rfl
+          · rw [guard_opt_pos (by simp [hIE, htrue])]
+            cases o1 with
+            | none => exact owner_tail_refines htn htctors hc hr hCv h
+            | some b1 =>
+              cases b1 with
+              | true => exact absurd rfl htrue
+              | false =>
+                simp only [Bool.false_eq_true, if_false] at h
+                exact owner_tail_refines htn htctors hc hr hCv h
+        all_goals (rw [← Result.ok_injective h]; rfl)
+
+
+/-- The names `type_names` copies are the type records' own, so well formed. -/
+private theorem type_names_loop_wf (N : Nat) :
+    ∀ (types : Slice frontend.proj_rec.ProjTypeRec) (n i : Std.Usize)
+      (out r : alloc.vec.Vec name.Name),
+      types.val.length - i.val = N → n.val = types.val.length →
+      (∀ x ∈ types.val, ProjTypeRecWF x) → (∀ x ∈ out.val, NameWF x) →
+      frontend.proj_rec.type_names_loop types n out i = ok r →
+      ∀ x ∈ r.val, NameWF x := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro types n i out r hN hn htypes hout h
+    rw [frontend.proj_rec.type_names_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at h
+      obtain ⟨ptr, hidx, out1, hpush, i1, hi1, hrec⟩ := h
+      have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+      obtain ⟨-, hmem⟩ := slice_index_mem hidx
+      have hltv : i.val < types.val.length := by scalar_tac
+      refine ih (types.val.length - i1.val) (by omega) types n i1 out1 r rfl hn
+        htypes ?_ hrec
+      intro x hx
+      rw [vec_push_val hpush] at hx
+      rcases List.mem_append.1 hx with hx1 | hx1
+      · exact hout x hx1
+      · simp only [List.mem_singleton] at hx1
+        rw [hx1]
+        exact (htypes ptr hmem).1
+    · rw [← Result.ok_injective h]; exact hout
+
+/-- `proj_rec::type_names` copies well-formed names. -/
+theorem type_names_wf {types : Slice frontend.proj_rec.ProjTypeRec}
+    {r : alloc.vec.Vec name.Name} (ht : ∀ x ∈ types.val, ProjTypeRecWF x)
+    (h : frontend.proj_rec.type_names types = ok r) : ∀ x ∈ r.val, NameWF x := by
+  rw [frontend.proj_rec.type_names] at h
+  exact type_names_loop_wf _ types _ 0#usize _ r rfl (by simp [Slice.len]) ht
+    (fun x hx => by simp [alloc.vec.Vec.with_capacity] at hx) h
+
+/-! ### `proj_rec_owners_go`, the `filterMap` -/
+
+/-- The index recursion behind `proj_rec::proj_rec_owners_go`. -/
+private theorem proj_rec_owners_go_loop_refines (N : Nat) :
+    ∀ (types : Slice frontend.proj_rec.ProjTypeRec)
+      (ctors : Slice frontend.proj_rec.ProjCtorRec)
+      (recs : Slice frontend.proj_rec.ProjRecRec) (n : Std.Usize)
+      (out r : alloc.vec.Vec frontend.proj_rec.ProjRecOwner) (i : Std.Usize),
+      types.val.length - i.val = N → n.val = types.val.length →
+      (∀ x ∈ types.val, ProjTypeRecWF x) → (∀ c ∈ ctors.val, ProjCtorRecWF c) →
+      (∀ x ∈ recs.val, ProjRecRecWF x) →
+      frontend.proj_rec.proj_rec_owners_go_loop types ctors recs n out i = ok r →
+      absProjRecOwners r = absProjRecOwners out ++
+        ((absProjTypeRecs types).drop i.val).filterMap
+          (fun q => lProjRecOwnerAt q (absProjCtorRecs ctors) (absProjRecRecs recs)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro types ctors recs n out r i hN hn htypes hctors hrecs h
+    rw [frontend.proj_rec.proj_rec_owners_go_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : i.val < types.val.length := by scalar_tac
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨ptr, hidx, o, ho, out1, hout1, i1, hi1, hrec⟩ := h
+      obtain ⟨-, hmem⟩ := slice_index_mem hidx
+      obtain ⟨-, hdrop⟩ := drop_map_slice_index absProjTypeRec hidx
+      have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+      have hat := proj_rec_owner_at_refines (htypes ptr hmem) hctors hrecs ho
+      rw [ih (types.val.length - i1.val) (by omega) types ctors recs n out1 r i1 rfl hn
+        htypes hctors hrecs hrec, hi1v]
+      simp only [absProjTypeRecs] at hdrop ⊢
+      rw [hdrop, List.filterMap_cons]
+      cases o with
+      | none =>
+        rw [← hat]
+        simp only [Option.map_none]
+        rw [← Result.ok_injective hout1]
+      | some o1 =>
+        rw [← hat]
+        simp only [Option.map_some]
+        rw [show absProjRecOwners out1 = absProjRecOwners out ++ [absProjRecOwner o1] from by
+          rw [absProjRecOwners, absProjRecOwners, vec_push_val hout1]; simp]
+        simp
+    · rename_i hge
+      have hle : types.val.length ≤ i.val := by scalar_tac
+      rw [← Result.ok_injective h,
+        List.drop_eq_nil_of_le (by simpa [absProjTypeRecs] using hle)]
+      simp
+
+/-- `proj_rec::proj_rec_owners_go` refines the cited `types.filterMap`
+(`ConLeche/Frontend/ProjRec.lean:362-370`). -/
+theorem proj_rec_owners_go_refines {types : Slice frontend.proj_rec.ProjTypeRec}
+    {ctors : Slice frontend.proj_rec.ProjCtorRec}
+    {recs : Slice frontend.proj_rec.ProjRecRec}
+    {os : alloc.vec.Vec frontend.proj_rec.ProjRecOwner}
+    (ht : ∀ x ∈ types.val, ProjTypeRecWF x) (hc : ∀ c ∈ ctors.val, ProjCtorRecWF c)
+    (hr : ∀ x ∈ recs.val, ProjRecRecWF x)
+    (h : frontend.proj_rec.proj_rec_owners_go types ctors recs = ok os) :
+    absProjRecOwners os = (absProjTypeRecs types).filterMap
+      (fun q => lProjRecOwnerAt q (absProjCtorRecs ctors) (absProjRecRecs recs)) := by
+  rw [frontend.proj_rec.proj_rec_owners_go] at h
+  rw [proj_rec_owners_go_loop_refines _ types ctors recs _
+    (alloc.vec.Vec.new frontend.proj_rec.ProjRecOwner) os 0#usize rfl
+    (by simp [Slice.len]) ht hc hr h]
+  simp [absProjRecOwners, alloc.vec.Vec.new,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+
 end ConRon.Refine.Frontend
