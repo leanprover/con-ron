@@ -71,3 +71,153 @@ def alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref
 @[rust_fun "core::str::{str}::as_bytes"]
 def core.str.Str.as_bytes (s : Str) : Result (Slice Std.U8) := ok s
 
+
+/- ## `ron::node`, the `Expr` handle (task #94)
+
+   Fifteen holes, all of them one line, all of them `rfl` against
+   `Generated/Types.lean`'s unchanged `Expr`/`ExprNode`/`ExprKind`.  The rule is
+   `TypesExternal.lean`'s: `TaggedNode T := T`, so an `Expr` *is* its
+   `ExprNode`, and then
+
+     * the ten `alloc_*` are the **constructors** — `alloc_app d f a` is
+       `Expr.mk (ExprNode.mk d (ExprKind.App f a))`;
+     * `view` is the **projection** — the node's `ExprKind` read back out, as
+       the `ExprView` Charon generates for `ron::node`'s borrowed enum (the two
+       have the same ten arms, `ExprView`'s fields being the shared borrows
+       Aeneas erases to values);
+     * `data` is the `@[computed_field]`, `dup` the identity and `ptr_eq`
+       `false`, i.e. the `Arc` twins above, verbatim.
+
+   The `Drop` impl is the fifteenth: Charon sees it because `Expr` has one, and
+   Aeneas never calls it (nothing in `Generated/Funs.lean` mentions it but the
+   instance record).  It is modeled as the identity so that the instance is
+   well-typed and for no other purpose — the model has no deallocation, exactly
+   as it has no allocation. -/
+
+/-- [con_ron_core::ron::node::ExprView]: the projection's target, as the
+    `ExprKind` it mirrors arm for arm. -/
+def ron.node.ExprView.ofKind : kernel.expr.ExprKind → ron.node.ExprView
+  | .Bvar i => .Bvar i
+  | .Fvar idx ty => .Fvar idx ty
+  | .«Sort» u => .«Sort» u
+  | .Const n us => .Const n us
+  | .App f a => .App f a
+  | .Lam ty b m => .Lam ty b m
+  | .ForallE ty b m => .ForallE ty b m
+  | .LetE ty v b => .LetE ty v b
+  | .Lit l => .Lit l
+  | .Proj s i e => .Proj s i e
+
+/-- [con_ron_core::ron::node::view]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 319:0-367:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::view"]
+def ron.node.view (e : kernel.expr.Expr) : Result ron.node.ExprView :=
+  match e with
+  | .mk (.mk _data k) => ok (ron.node.ExprView.ofKind k)
+
+/-- [con_ron_core::ron::node::data]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 477:0-479:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::data"]
+def ron.node.data (e : kernel.expr.Expr) : Result Std.U64 :=
+  match e with
+  | .mk (.mk data _k) => ok data
+
+/-- [con_ron_core::ron::node::dup]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 484:0-491:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::dup"]
+def ron.node.dup (e : kernel.expr.Expr) : Result kernel.expr.Expr := ok e
+
+/- Modeled as `false`, as `Arc::ptr_eq` is (DESIGN.md §3.2): the model always
+   takes the slow path, and each fast path is discharged by a reflexivity
+   lemma about the walk that uses it. -/
+/-- [con_ron_core::ron::node::ptr_eq]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 500:0-502:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::ptr_eq"]
+def ron.node.ptr_eq (_a _b : kernel.expr.Expr) : Result Bool := ok false
+
+/-- [con_ron_core::ron::node::alloc_bvar]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 402:0-404:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::alloc_bvar"]
+def ron.node.alloc_bvar (data i : Std.U64) : Result kernel.expr.Expr :=
+  ok (.mk (.mk data (.Bvar i)))
+
+/-- [con_ron_core::ron::node::alloc_fvar]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 409:0-411:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::alloc_fvar"]
+def ron.node.alloc_fvar (data idx : Std.U64) (ty : kernel.expr.Expr) :
+  Result kernel.expr.Expr := ok (.mk (.mk data (.Fvar idx ty)))
+
+/-- [con_ron_core::ron::node::alloc_sort]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 416:0-418:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::alloc_sort"]
+def ron.node.alloc_sort (data : Std.U64) (u : kernel.level.Level) :
+  Result kernel.expr.Expr := ok (.mk (.mk data (.«Sort» u)))
+
+/-- [con_ron_core::ron::node::alloc_const]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 423:0-425:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::alloc_const"]
+def ron.node.alloc_const (data : Std.U64) (n : kernel.name.Name)
+  (us : alloc.sync.Arc (alloc.vec.Vec kernel.level.Level)) :
+  Result kernel.expr.Expr := ok (.mk (.mk data (.Const n us)))
+
+/-- [con_ron_core::ron::node::alloc_app]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 430:0-432:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::alloc_app"]
+def ron.node.alloc_app (data : Std.U64) (f a : kernel.expr.Expr) :
+  Result kernel.expr.Expr := ok (.mk (.mk data (.App f a)))
+
+/-- [con_ron_core::ron::node::alloc_lam]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 437:0-439:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::alloc_lam"]
+def ron.node.alloc_lam (data : Std.U64) (ty body : kernel.expr.Expr)
+  (m : kernel.expr.BinderMeta) : Result kernel.expr.Expr :=
+  ok (.mk (.mk data (.Lam ty body m)))
+
+/-- [con_ron_core::ron::node::alloc_forall_e]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 444:0-446:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::alloc_forall_e"]
+def ron.node.alloc_forall_e (data : Std.U64) (ty body : kernel.expr.Expr)
+  (m : kernel.expr.BinderMeta) : Result kernel.expr.Expr :=
+  ok (.mk (.mk data (.ForallE ty body m)))
+
+/-- [con_ron_core::ron::node::alloc_let_e]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 451:0-453:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::alloc_let_e"]
+def ron.node.alloc_let_e (data : Std.U64)
+  (ty value body : kernel.expr.Expr) : Result kernel.expr.Expr :=
+  ok (.mk (.mk data (.LetE ty value body)))
+
+/-- [con_ron_core::ron::node::alloc_lit]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 458:0-460:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::alloc_lit"]
+def ron.node.alloc_lit (data : Std.U64) (l : kernel.expr.Literal) :
+  Result kernel.expr.Expr := ok (.mk (.mk data (.Lit l)))
+
+/-- [con_ron_core::ron::node::alloc_proj]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 465:0-467:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::alloc_proj"]
+def ron.node.alloc_proj (data : Std.U64) (n : kernel.name.Name)
+  (idx : Std.U64) (e : kernel.expr.Expr) : Result kernel.expr.Expr :=
+  ok (.mk (.mk data (.Proj n idx e)))
+
+/-- [con_ron_core::ron::node::{impl core::ops::drop::Drop for con_ron_core::kernel::expr::Expr}::drop]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 566:4-568:5
+    Visibility: public -/
+@[rust_fun
+  "con_ron_core::ron::node::{core::ops::drop::Drop<con_ron_core::kernel::expr::Expr>}::drop"]
+def kernel.expr.Expr.Insts.CoreOpsDropDrop.drop (e : kernel.expr.Expr) :
+  Result kernel.expr.Expr := ok e

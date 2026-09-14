@@ -59,3 +59,99 @@ axiom alloc.sync.Arc.Insts.CoreCloneClone.clone
 axiom alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref
   {T : Type} (A : Type) : alloc.sync.Arc T → Result T
 
+/-- [con_ron_core::ron::node::dup]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 484:0-491:1
+    Visibility: public -/
+axiom ron.node.dup : kernel.expr.Expr → Result kernel.expr.Expr
+
+/-- [con_ron_core::ron::node::view]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 319:0-367:1
+    Visibility: public -/
+axiom ron.node.view : kernel.expr.Expr → Result ron.node.ExprView
+
+/-- [con_ron_core::ron::node::{impl core::ops::drop::Drop for con_ron_core::kernel::expr::Expr}::drop]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 566:4-568:5
+    Visibility: public -/
+axiom kernel.expr.Expr.Insts.CoreOpsDropDrop.drop
+  : kernel.expr.Expr → Result kernel.expr.Expr
+
+/-- [con_ron_core::ron::node::ptr_eq]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 500:0-502:1
+    Visibility: public -/
+axiom ron.node.ptr_eq : kernel.expr.Expr → kernel.expr.Expr → Result Bool
+
+/-- [con_ron_core::ron::node::data]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 477:0-479:1
+    Visibility: public -/
+axiom ron.node.data : kernel.expr.Expr → Result Std.U64
+
+/-- [con_ron_core::ron::node::alloc_proj]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 465:0-467:1
+    Visibility: public -/
+axiom ron.node.alloc_proj
+  :
+  Std.U64 → kernel.name.Name → Std.U64 → kernel.expr.Expr → Result
+    kernel.expr.Expr
+
+/-- [con_ron_core::ron::node::alloc_let_e]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 451:0-453:1
+    Visibility: public -/
+axiom ron.node.alloc_let_e
+  :
+  Std.U64 → kernel.expr.Expr → kernel.expr.Expr → kernel.expr.Expr →
+    Result kernel.expr.Expr
+
+/-- [con_ron_core::ron::node::alloc_forall_e]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 444:0-446:1
+    Visibility: public -/
+axiom ron.node.alloc_forall_e
+  :
+  Std.U64 → kernel.expr.Expr → kernel.expr.Expr → kernel.expr.BinderMeta
+    → Result kernel.expr.Expr
+
+/-- [con_ron_core::ron::node::alloc_lam]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 437:0-439:1
+    Visibility: public -/
+axiom ron.node.alloc_lam
+  :
+  Std.U64 → kernel.expr.Expr → kernel.expr.Expr → kernel.expr.BinderMeta
+    → Result kernel.expr.Expr
+
+/-- [con_ron_core::ron::node::alloc_app]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 430:0-432:1
+    Visibility: public -/
+axiom ron.node.alloc_app
+  :
+  Std.U64 → kernel.expr.Expr → kernel.expr.Expr → Result kernel.expr.Expr
+
+/-- [con_ron_core::ron::node::alloc_const]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 423:0-425:1
+    Visibility: public -/
+axiom ron.node.alloc_const
+  :
+  Std.U64 → kernel.name.Name → alloc.sync.Arc (alloc.vec.Vec
+    kernel.level.Level) → Result kernel.expr.Expr
+
+/-- [con_ron_core::ron::node::alloc_sort]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 416:0-418:1
+    Visibility: public -/
+axiom ron.node.alloc_sort
+  : Std.U64 → kernel.level.Level → Result kernel.expr.Expr
+
+/-- [con_ron_core::ron::node::alloc_fvar]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 409:0-411:1
+    Visibility: public -/
+axiom ron.node.alloc_fvar
+  : Std.U64 → Std.U64 → kernel.expr.Expr → Result kernel.expr.Expr
+
+/-- [con_ron_core::ron::node::alloc_bvar]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 402:0-404:1
+    Visibility: public -/
+axiom ron.node.alloc_bvar : Std.U64 → Std.U64 → Result kernel.expr.Expr
+
+/-- [con_ron_core::ron::node::alloc_lit]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 458:0-460:1
+    Visibility: public -/
+axiom ron.node.alloc_lit
+  : Std.U64 → kernel.expr.Literal → Result kernel.expr.Expr
+

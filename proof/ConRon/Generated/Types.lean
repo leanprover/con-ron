@@ -152,7 +152,7 @@ structure ron.nat.Nat where
   limbs : alloc.vec.Vec Std.U64
 
 /-- [con_ron_core::kernel::expr::Literal]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 168:0-171:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 170:0-173:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.expr.Literal where
@@ -180,7 +180,7 @@ structure kernel.prop_when.PropWhen where
   repr : kernel.prop_when.PropWhenRepr
 
 /-- [con_ron_core::kernel::expr::BinderMeta]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 119:0-121:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 121:0-123:1
     Visibility: public -/
 structure kernel.expr.BinderMeta where
   pw : kernel.prop_when.PropWhen
@@ -188,7 +188,7 @@ structure kernel.expr.BinderMeta where
 mutual
 
 /-- [con_ron_core::kernel::expr::ExprKind]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 353:0-364:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 355:0-366:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.expr.ExprKind where
@@ -223,16 +223,16 @@ inductive kernel.expr.ExprKind where
   kernel.expr.ExprKind
 
 /-- [con_ron_core::kernel::expr::ExprNode]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 369:0-372:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 374:0-377:1
     Visibility: public -/
 inductive kernel.expr.ExprNode where
 | mk : Std.U64 → kernel.expr.ExprKind → kernel.expr.ExprNode
 
 /-- [con_ron_core::kernel::expr::Expr]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 377:0-377:33
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 400:0-400:55
     Visibility: public -/
 inductive kernel.expr.Expr where
-| mk : alloc.sync.Arc kernel.expr.ExprNode → kernel.expr.Expr
+| mk : ron.node.TaggedNode kernel.expr.ExprNode → kernel.expr.Expr
 
 end
 
@@ -256,7 +256,7 @@ def kernel.expr.Expr._0 (x : kernel.expr.Expr) :=
   match x with | kernel.expr.Expr.mk x1 => x1
 
 @[simp]
-theorem kernel.expr.Expr._0._simpLemma_ (_0 : alloc.sync.Arc
+theorem kernel.expr.Expr._0._simpLemma_ (_0 : ron.node.TaggedNode
   kernel.expr.ExprNode) : (kernel.expr.Expr.mk _0)._0 = _0 := by rfl
 
 /-- [con_ron_core::ron::hashmap::AList]
@@ -403,6 +403,41 @@ structure kernel.fenv.FEnv where
   idx : ron.hashmap.HashMap kernel.name.Name (Std.U64 × (alloc.sync.Arc
     kernel.env.ConstantInfo))
   visible_below : Std.U64
+
+/-- [con_ron_core::ron::node::ExprView]
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 299:0-310:1
+    Visibility: public -/
+@[discriminant isize]
+inductive ron.node.ExprView where
+| Bvar : Std.U64 → ron.node.ExprView
+| Fvar : Std.U64 → kernel.expr.Expr → ron.node.ExprView
+| «Sort» : kernel.level.Level → ron.node.ExprView
+| Const :
+  kernel.name.Name →
+  alloc.sync.Arc (alloc.vec.Vec kernel.level.Level) →
+  ron.node.ExprView
+| App : kernel.expr.Expr → kernel.expr.Expr → ron.node.ExprView
+| Lam :
+  kernel.expr.Expr →
+  kernel.expr.Expr →
+  kernel.expr.BinderMeta →
+  ron.node.ExprView
+| ForallE :
+  kernel.expr.Expr →
+  kernel.expr.Expr →
+  kernel.expr.BinderMeta →
+  ron.node.ExprView
+| LetE :
+  kernel.expr.Expr →
+  kernel.expr.Expr →
+  kernel.expr.Expr →
+  ron.node.ExprView
+| Lit : kernel.expr.Literal → ron.node.ExprView
+| Proj :
+  kernel.name.Name →
+  Std.U64 →
+  kernel.expr.Expr →
+  ron.node.ExprView
 
 /-- [con_ron_core::cached::state_c::CConstE]
     Source: 'crates/con-ron-core/src/cached/state_c.rs', lines 303:0-307:1
