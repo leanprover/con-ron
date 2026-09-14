@@ -1411,8 +1411,8 @@ theorem idx_get_refines {idx : ron.hashmap.HashMap name.Name Std.U64}
 `applyHoist` sorts `List.range ds.size` by the key `(t, s, k)`; the port walks
 the positions and emits each bucket in turn.  The keys are pairwise distinct
 (each carries its own index in its third component), so there is exactly one
-sorted permutation and the two lists are equal.  This discharges what was
-what was `HoistSpec.order`. -/
+sorted permutation and the two lists are equal.  This is what discharged the
+second field `HoistSpec` once had. -/
 
 /-- The sort key's strict order, as a `Prop`. -/
 private def keyLt (p q : Nat × Nat × Nat) : Prop :=
